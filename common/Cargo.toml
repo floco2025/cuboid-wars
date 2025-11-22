@@ -1,0 +1,21 @@
+[package]
+name = "common"
+version = "0.1.0"
+edition = "2024"
+
+[lints]
+workspace = true
+
+[features]
+default = ["bincode"]
+json = ["dep:serde_json"]
+bincode = ["dep:bincode"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", optional = true }
+bincode = { version = "1", optional = true }
+quinn = "0.11"
+anyhow = "1"
+rustls = { version = "0.23", default-features = false }
+rustls-pemfile = "2"

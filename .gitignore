@@ -1,0 +1,15 @@
+/target
+.vscode
+bacon.toml
+.DS_Store
+Cargo.lock
+
+# Ignore all TLS certificates and private keys
+*.pem
+*.key
+*.crt
+*.csr
+
+# Allow only these specific certificates for development and testing
+!/cert.pem
+!/key.pem
