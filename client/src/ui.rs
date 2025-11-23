@@ -53,8 +53,8 @@ pub struct ChatInput {
 // ============================================================================
 
 pub fn server_to_bevy_system(
-    mut from_server: ResMut<ServerToBevyChannel>,
     mut game_state: ResMut<GameState>,
+    mut from_server: ResMut<ServerToBevyChannel>,
     mut exit: EventWriter<AppExit>,
 ) {
     // Process all available messages
