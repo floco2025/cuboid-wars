@@ -1,11 +1,10 @@
+use crate::io::{ClientToServer, ServerToClient, client_io_task};
 #[allow(clippy::wildcard_imports)]
 use common::protocol::*;
 use quinn::Incoming;
 use std::collections::HashMap;
 use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 use tracing::{debug, error, instrument, warn};
-
-use crate::io::{ClientToServer, ServerToClient, client_io_task};
 
 // ============================================================================
 // Constants

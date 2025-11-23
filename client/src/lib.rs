@@ -3,18 +3,15 @@ mod config;
 mod input;
 mod io;
 
-pub use client::GameClient;
-pub use common::io::MessageStream;
-use common::protocol::{CLogin, ClientMessage};
-pub use config::configure_client;
-pub use input::user_input;
-pub use io::{receive_messages, send_message};
-
 use anyhow::{Context, Result};
 use clap::Parser;
+use client::GameClient;
+use common::protocol::{CLogin, ClientMessage};
+use config::configure_client;
+use input::user_input;
+use io::{receive_messages, send_message};
 use quinn::Endpoint;
-use std::env;
-use std::sync::Arc;
+use std::{env, sync::Arc};
 use tokio::sync::Mutex;
 
 // ============================================================================

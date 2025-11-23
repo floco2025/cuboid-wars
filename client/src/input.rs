@@ -1,12 +1,13 @@
-use crate::GameClient;
+use crate::{GameClient, io::send_message};
 use anyhow::Result;
 #[allow(clippy::wildcard_imports)]
-use common::{io::MessageStream, protocol::*};
+use common::protocol::*;
 use quinn::Connection;
 use std::sync::Arc;
-use tokio::io::AsyncBufReadExt;
-use tokio::io::BufReader;
-use tokio::sync::Mutex;
+use tokio::{
+    io::{AsyncBufReadExt, BufReader},
+    sync::Mutex,
+};
 
 // ============================================================================
 // User Input
@@ -118,9 +119,4 @@ async fn command(command: &str, connection: &Connection, client: &Arc<Mutex<Game
     }
 
     Ok(())
-}
-
-async fn send_message(connection: &Connection, msg: &ClientMessage) -> Result<()> {
-    let stream = MessageStream::new(connection);
-    stream.send(msg).await
 }

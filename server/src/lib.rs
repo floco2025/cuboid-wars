@@ -2,13 +2,12 @@ mod config;
 mod io;
 mod server;
 
-pub use config::{configure_server, init_tracing};
-pub use io::ClientToServer;
-pub use server::GameServer;
-
 use anyhow::Result;
 use clap::Parser;
+use config::{configure_server, init_tracing};
+use io::ClientToServer;
 use quinn::Endpoint;
+use server::GameServer;
 use std::net::SocketAddr;
 use tokio::sync::mpsc::unbounded_channel;
 use tracing::info;

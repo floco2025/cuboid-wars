@@ -6,12 +6,20 @@ edition = "2024"
 [lints]
 workspace = true
 
+[features]
+default = ["bincode"]
+json = ["dep:serde", "dep:serde_json"]
+bincode = ["dep:bincode"]
+
 [[bin]]
 name = "server"
 path = "src/bin/server.rs"
 
 [dependencies]
 common = { path = "../common" }
+serde = { version = "1", features = ["derive"], optional = true }
+serde_json = { version = "1", optional = true }
+bincode = { version = "2.0.1", optional = true }
 tokio = { version = "1", features = ["full"] }
 quinn = "0.11"
 rustls = { version = "0.23", default-features = false, features = ["ring"] }

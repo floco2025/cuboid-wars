@@ -1,8 +1,7 @@
 use anyhow::{Context, Result};
 use quinn::TransportConfig;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
-use std::sync::Arc;
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 // ============================================================================
 // Constants
