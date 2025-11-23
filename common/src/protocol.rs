@@ -46,9 +46,9 @@ struct CSay {
 }
 
 message! {
-/// Client to Server: Remove a participant.
+/// Client to Server: Remove a player.
 struct CRemove {
-    pub id: u32, // The id of the participant to remove
+    pub id: u32, // The id of the player to remove
 }
 }
 
@@ -67,46 +67,46 @@ message! {
 /// Server to Client: Initial server state after login.
 struct SInit {
     pub id: u32,                    // The id that the server uses for the client
-    pub logins: Vec<(u32, String)>, // All other participant ids and their names
+    pub logins: Vec<(u32, String)>, // All other player ids and their names
 }
 }
 
 message! {
-/// Server to Client: Another participant connected.
+/// Server to Client: Another player connected.
 struct SLogin {
-    pub id: u32,      // The id for the new participant
-    pub name: String, // The name of the new participant
+    pub id: u32,      // The id for the new player
+    pub name: String, // The name of the new player
 }
 }
 
 message! {
-/// Server to Client: A participant disconnected.
+/// Server to Client: A player disconnected.
 struct SLogoff {
-    pub id: u32,        // The id of the participant who disconnected
+    pub id: u32,        // The id of the player who disconnected
     pub graceful: bool, // Graceful disconnect if true
 }
 }
 
 message! {
-/// Server to Client: Chat message from a participant.
+/// Server to Client: Chat message from a player.
 struct SSay {
-    pub id: u32,      // The id of the participant who sends the chat message
+    pub id: u32,      // The id of the player who sends the chat message
     pub text: String, // The chat message
 }
 }
 
 message! {
-/// Server to Client: Participant name change.
+/// Server to Client: Player name change.
 struct SName {
-    pub id: u32,      // The id of the participant who changed their name
+    pub id: u32,      // The id of the player who changed their name
     pub name: String, // The new name
 }
 }
 
 message! {
-/// Server to Client: A participant was removed.
+/// Server to Client: A player was removed.
 struct SRemove {
-    pub id: u32, // The id of the participant who was removed
+    pub id: u32, // The id of the player who was removed
 }
 }
 

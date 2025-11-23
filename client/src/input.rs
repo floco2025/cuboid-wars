@@ -1,4 +1,4 @@
-use crate::ChatClient;
+use crate::GameClient;
 use anyhow::Result;
 #[allow(clippy::wildcard_imports)]
 use common::{io::MessageStream, protocol::*};
@@ -12,7 +12,7 @@ use tokio::sync::Mutex;
 // User Input
 // ============================================================================
 
-pub async fn user_input(connection: Arc<Connection>, client: Arc<Mutex<ChatClient>>) {
+pub async fn user_input(connection: Arc<Connection>, client: Arc<Mutex<GameClient>>) {
     let stdin = tokio::io::stdin();
     let mut reader = BufReader::new(stdin);
 
@@ -47,7 +47,7 @@ pub async fn user_input(connection: Arc<Connection>, client: Arc<Mutex<ChatClien
     }
 }
 
-async fn command(command: &str, connection: &Connection, client: &Arc<Mutex<ChatClient>>) -> Result<()> {
+async fn command(command: &str, connection: &Connection, client: &Arc<Mutex<GameClient>>) -> Result<()> {
     let parts: Vec<&str> = command[1..].splitn(2, ' ').collect();
 
     match parts.first() {
@@ -68,9 +68,9 @@ async fn command(command: &str, connection: &Connection, client: &Arc<Mutex<Chat
         Some(&"who") => {
             let names = client.lock().await.get_all_names();
             if names.is_empty() {
-                println!("No participants.");
+                println!("No players.");
             } else {
-                println!("Participants:");
+                println!("Players:");
                 for name in names {
                     println!("  {name}");
                 }
@@ -85,7 +85,7 @@ async fn command(command: &str, connection: &Connection, client: &Arc<Mutex<Chat
                         send_message(connection, &ClientMessage::Remove(CRemove { id })).await?;
                     }
                     None => {
-                        println!("Participant '{name}' not found");
+                        println!("Player '{name}' not found");
                     }
                 }
             } else {
@@ -102,9 +102,9 @@ async fn command(command: &str, connection: &Connection, client: &Arc<Mutex<Chat
             println!("Available commands:");
             println!("  /name <new name>  - Change your name");
             println!("  /login <name>     - Login with a name (for testing)");
-            println!("  /who              - List current participants");
-            println!("  /remove <name>    - Remove a participant from the chat");
-            println!("  /quit             - Exit the chat");
+            println!("  /who              - List current players");
+            println!("  /remove <name>    - Remove a player from the game");
+            println!("  /quit             - Exit the game");
             println!("  /help or /?       - Show this help message");
         }
         Some(cmd) => {

@@ -4,7 +4,7 @@ mod server;
 
 pub use config::{configure_server, init_tracing};
 pub use io::ClientToServer;
-pub use server::ChatServer;
+pub use server::GameServer;
 
 use anyhow::Result;
 use clap::Parser;
@@ -18,7 +18,7 @@ use tracing::info;
 // ============================================================================
 
 #[derive(Parser)]
-#[command(author, version, about = "Chat server", long_about = None)]
+#[command(author, version, about = "Game server", long_about = None)]
 pub struct Args {
     /// Address to bind server to
     #[arg(short, long, default_value = "127.0.0.1:8080")]
@@ -39,7 +39,7 @@ pub async fn run_server() -> Result<()> {
     let endpoint = Endpoint::server(server_config, addr)?;
     info!("QUIC server listening on {}", addr);
 
-    let mut server = ChatServer::new();
+    let mut server = GameServer::new();
 
     // Channel for client tasks to send messages to server
     let (to_server, mut from_clients) = unbounded_channel::<(u32, ClientToServer)>();

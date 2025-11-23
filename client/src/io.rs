@@ -1,4 +1,4 @@
-use crate::ChatClient;
+use crate::GameClient;
 use anyhow::Result;
 #[allow(clippy::wildcard_imports)]
 use common::{io::MessageStream, protocol::*};
@@ -15,7 +15,7 @@ pub async fn send_message(connection: &Connection, msg: &ClientMessage) -> Resul
     stream.send(msg).await
 }
 
-pub async fn receive_messages(connection: Arc<Connection>, client: Arc<Mutex<ChatClient>>) {
+pub async fn receive_messages(connection: Arc<Connection>, client: Arc<Mutex<GameClient>>) {
     let stream = MessageStream::new(&connection);
 
     loop {

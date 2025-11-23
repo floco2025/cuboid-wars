@@ -2,7 +2,7 @@ use common::protocol::ServerMessage;
 use std::collections::HashMap;
 
 // ============================================================================
-// Chat Client
+// Game Client
 // ============================================================================
 
 #[derive(Debug)]
@@ -17,11 +17,11 @@ impl Client {
 }
 
 #[derive(Debug)]
-pub struct ChatClient {
+pub struct GameClient {
     clients: HashMap<u32, Client>,
 }
 
-impl ChatClient {
+impl GameClient {
     // ============================================================================
     // Constructor
     // ============================================================================
@@ -36,8 +36,8 @@ impl ChatClient {
     // Helper functions
     // ============================================================================
 
-    fn add(&mut self, id: u32, participant: Client) {
-        self.clients.insert(id, participant);
+    fn add(&mut self, id: u32, player: Client) {
+        self.clients.insert(id, player);
     }
 
     fn remove(&mut self, id: u32) {
@@ -45,11 +45,11 @@ impl ChatClient {
     }
 
     fn get_name(&self, id: u32) -> String {
-        self.clients.get(&id).expect("participant not found").name.clone()
+        self.clients.get(&id).expect("player not found").name.clone()
     }
 
     fn set_name(&mut self, id: u32, new_name: String) {
-        let client = self.clients.get_mut(&id).expect("participant not found");
+        let client = self.clients.get_mut(&id).expect("player not found");
         client.name = new_name;
     }
 

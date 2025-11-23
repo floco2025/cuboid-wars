@@ -9,7 +9,7 @@ use tracing_subscriber::EnvFilter;
 /// Initialize tracing based on `RUST_LOG` environment variable
 ///
 /// - Levels: error, warn, info, debug, trace (least to most verbose)
-/// - Examples: `RUST_LOG=debug`, `RUST_LOG=chat_async=trace`
+/// - Examples: `RUST_LOG=debug`, `RUST_LOG=game=trace`
 pub fn init_tracing() {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
@@ -30,7 +30,7 @@ pub fn configure_server() -> Result<ServerConfig> {
         .with_no_client_auth()
         .with_single_cert(certs, private_key)
         .context("Failed to configure TLS")?;
-    crypto.alpn_protocols = vec![b"chat".to_vec()];
+    crypto.alpn_protocols = vec![b"game".to_vec()];
 
     common::config::create_quinn_server_config(crypto)
 }

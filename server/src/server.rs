@@ -15,7 +15,7 @@ const MIN_NAME_LENGTH: usize = 2;
 const MAX_NAME_LENGTH: usize = 50;
 
 // ============================================================================
-// Chat Server
+// Game Server
 // ============================================================================
 
 #[derive(Debug, Clone, Copy)]
@@ -44,18 +44,18 @@ struct Client {
     state: ClientState,
 }
 
-/// Chat server that manages connected clients.
+/// Game server that manages connected clients.
 ///
 /// The server has business logic only with no I/O. I/O is handled by per-client tasks.
 #[derive(Debug)]
-pub struct ChatServer {
+pub struct GameServer {
     /// Map of client ID to client state
     clients: HashMap<u32, Client>,
     /// Counter for generating unique client IDs
     next_id: u32,
 }
 
-impl ChatServer {
+impl GameServer {
     // ============================================================================
     // Constructor
     // ============================================================================

@@ -3,7 +3,7 @@ mod config;
 mod input;
 mod io;
 
-pub use client::ChatClient;
+pub use client::GameClient;
 pub use common::io::MessageStream;
 use common::protocol::{CLogin, ClientMessage};
 pub use config::configure_client;
@@ -32,7 +32,7 @@ fn get_login_name() -> String {
 // ============================================================================
 
 #[derive(Parser, Debug)]
-#[command(author, version, about = "Chat client", long_about = None)]
+#[command(author, version, about = "Game client", long_about = None)]
 pub struct Args {
     /// Server address to connect to
     #[arg(short, long, default_value = "127.0.0.1:8080")]
@@ -65,8 +65,8 @@ pub async fn run_client() -> Result<()> {
     // Server login
     send_message(&connection, &ClientMessage::Login(CLogin { name: args.name })).await?;
 
-    // Create chat client
-    let client = Arc::new(Mutex::new(ChatClient::new()));
+    // Create game client
+    let client = Arc::new(Mutex::new(GameClient::new()));
 
     // Spawn task to handle server messages
     let client_clone = client.clone();
