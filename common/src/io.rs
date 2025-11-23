@@ -2,7 +2,7 @@ use anyhow::Result;
 use quinn::Connection;
 
 #[cfg(feature = "json")]
-use serde::{Deserialize, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
 #[cfg(feature = "bincode")]
 use bincode::{Decode, Encode};
@@ -41,16 +41,16 @@ impl<'a> MessageStream<'a> {
 
     #[cfg(feature = "json")]
     pub async fn recv<T: DeserializeOwned + Send>(&self) -> Result<T> {
-        let mut recv = self.connection.accept_uni().await?;
-        let data = recv.read_to_end(1024 * 1024).await?; // 1MB limit
+        let mut stream = self.connection.accept_uni().await?;
+        let data = stream.read_to_end(1024 * 1024).await?; // 1MB limit
         let result = serde_json::from_slice(&data)?;
         Ok(result)
     }
 
     #[cfg(feature = "bincode")]
     pub async fn recv<T: Decode<()> + Send>(&self) -> Result<T> {
-        let mut recv = self.connection.accept_uni().await?;
-        let data = recv.read_to_end(1024 * 1024).await?; // 1MB limit
+        let mut stream = self.connection.accept_uni().await?;
+        let data = stream.read_to_end(1024 * 1024).await?; // 1MB limit
         let result = bincode::decode_from_slice(&data, bincode::config::standard())?.0;
         Ok(result)
     }
