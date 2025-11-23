@@ -1,8 +1,9 @@
+use bevy::prelude::*;
 use common::protocol::ServerMessage;
 use std::collections::HashMap;
 
 // ============================================================================
-// Game Client
+// Game Client State
 // ============================================================================
 
 #[derive(Debug)]
@@ -16,25 +17,17 @@ impl Client {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Resource)]
 pub struct GameClient {
     clients: HashMap<u32, Client>,
 }
 
 impl GameClient {
-    // ============================================================================
-    // Constructor
-    // ============================================================================
-
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             clients: HashMap::new(),
         }
     }
-
-    // ============================================================================
-    // Helper functions
-    // ============================================================================
 
     fn add(&mut self, id: u32, player: Client) {
         self.clients.insert(id, player);
@@ -45,7 +38,11 @@ impl GameClient {
     }
 
     fn get_name(&self, id: u32) -> String {
-        self.clients.get(&id).expect("player not found").name.clone()
+        self.clients
+            .get(&id)
+            .expect("player not found")
+            .name
+            .clone()
     }
 
     fn set_name(&mut self, id: u32, new_name: String) {
@@ -53,66 +50,72 @@ impl GameClient {
         client.name = new_name;
     }
 
-    // ============================================================================
-    // Public functions
-    // ============================================================================
-
     #[must_use]
     pub fn get_all_names(&self) -> Vec<String> {
         self.clients.values().map(|p| p.name.clone()).collect()
     }
 
-    #[must_use]
-    pub fn get_id_by_name(&self, name: &str) -> Option<u32> {
-        self.clients.iter().find(|(_, p)| p.name == name).map(|(id, _)| *id)
-    }
-
-    // ============================================================================
-    // Process messages from the server
-    // ============================================================================
-
-    pub fn process_message(&mut self, msg: ServerMessage) {
+    pub fn process_message(&mut self, msg: ServerMessage) -> String {
         match msg {
-            ServerMessage::Error(msg) => {
-                eprintln!("[Server Error] {}", msg.message);
-            }
+            ServerMessage::Error(msg) => format!("[Server Error] {}", msg.message),
             ServerMessage::Init(msg) => {
                 let my_id = msg.id;
+                let mut lines = Vec::new();
                 for (id, name) in msg.logins {
                     if id != my_id {
-                        println!("{name} is here.");
+                        lines.push(format!("{name} is here."));
                     }
                     self.add(id, Client::new(name));
                 }
-                println!("[Connected] You are now logged in.");
+                lines.push("[Connected] You are now logged in.".to_string());
+                lines.join("\n")
             }
             ServerMessage::Login(msg) => {
-                println!("{} joined.", msg.name);
+                let line = format!("{} joined.", msg.name);
                 self.add(msg.id, Client::new(msg.name));
+                line
             }
             ServerMessage::Logoff(msg) => {
                 let name = self.get_name(msg.id);
-                if msg.graceful {
-                    println!("{name} left.");
+                let line = if msg.graceful {
+                    format!("{name} left.")
                 } else {
-                    println!("{name} disappeared.");
-                }
+                    format!("{name} disappeared.")
+                };
                 self.remove(msg.id);
+                line
             }
             ServerMessage::Remove(msg) => {
                 let name = self.get_name(msg.id);
-                println!("{name} was removed.");
                 self.remove(msg.id);
+                format!("{name} was removed.")
             }
             ServerMessage::Say(msg) => {
                 let name = self.get_name(msg.id);
-                println!("{}: {}", name, msg.text);
+                format!("{}: {}", name, msg.text)
             }
             ServerMessage::Name(msg) => {
                 let old_name = self.get_name(msg.id);
-                println!("{} is now known as \"{}\".", old_name, msg.name);
+                let line = format!("{} is now known as \"{}\".", old_name, msg.name);
                 self.set_name(msg.id, msg.name);
+                line
             }
         }
     }
+}
+
+impl Default for GameClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+// ============================================================================
+// UI State
+// ============================================================================
+
+#[derive(Resource, Default)]
+pub struct ChatState {
+    pub messages: Vec<String>,
+    pub input: String,
 }

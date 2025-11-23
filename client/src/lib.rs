@@ -1,18 +1,43 @@
-mod client;
 mod config;
-mod input;
-mod io;
+mod game;
+mod net;
+mod ui;
 
 use anyhow::{Context, Result};
+use bevy::prelude::*;
+use bevy_egui::EguiPlugin;
 use clap::Parser;
-use client::GameClient;
-use common::protocol::{CLogin, ClientMessage};
+#[allow(clippy::wildcard_imports)]
+use common::protocol::*;
 use config::configure_client;
-use input::user_input;
-use io::{receive_messages, send_message};
+use game::{ChatState, GameClient};
+use net::{network_io_task, ClientToServer, MessageStream, ServerToClient};
 use quinn::Endpoint;
-use std::{env, sync::Arc};
-use tokio::sync::Mutex;
+use std::env;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use ui::{chat_ui, poll_network};
+
+// ============================================================================
+// Bevy Resources for Network Communication
+// ============================================================================
+
+#[derive(Resource)]
+pub struct ToServer(UnboundedSender<ClientToServer>);
+
+impl ToServer {
+    pub fn send(&self, msg: ClientToServer) -> Result<(), tokio::sync::mpsc::error::SendError<ClientToServer>> {
+        self.0.send(msg)
+    }
+}
+
+#[derive(Resource)]
+pub struct FromServer(UnboundedReceiver<ServerToClient>);
+
+impl FromServer {
+    pub fn try_recv(&mut self) -> Result<ServerToClient, tokio::sync::mpsc::error::TryRecvError> {
+        self.0.try_recv()
+    }
+}
 
 // ============================================================================
 // CLI Helper
@@ -41,47 +66,62 @@ pub struct Args {
 }
 
 // ============================================================================
-// Main Client Loop
+// Main Client Entry Point
 // ============================================================================
 
-pub async fn run_client() -> Result<()> {
+pub fn run_client() -> Result<()> {
     let args = Args::parse();
 
-    // Create connection to the server
+    // Create tokio runtime for network I/O
+    let rt = tokio::runtime::Runtime::new()?;
+
+    // Connect to server (blocking)
     println!("Connecting to server...");
-    let mut endpoint = Endpoint::client("0.0.0.0:0".parse()?)?;
-    let client_config = configure_client()?;
-    endpoint.set_default_client_config(client_config);
-    let connection = endpoint
-        .connect(args.server.parse()?, "localhost")?
-        .await
-        .context("Failed to connect to server")?;
+    let connection = rt.block_on(async {
+        let mut endpoint = Endpoint::client("0.0.0.0:0".parse()?)?;
+        let client_config = configure_client()?;
+        endpoint.set_default_client_config(client_config);
+        endpoint
+            .connect(args.server.parse()?, "localhost")?
+            .await
+            .context("Failed to connect to server")
+    })?;
     println!("Connected to server at {}", args.server);
-    let connection = Arc::new(connection);
 
-    // Server login
-    send_message(&connection, &ClientMessage::Login(CLogin { name: args.name })).await?;
+    // Send login message (blocking)
+    rt.block_on(async {
+        let stream = MessageStream::new(&connection);
+        stream
+            .send(&ClientMessage::Login(CLogin { name: args.name }))
+            .await
+    })?;
 
-    // Create game client
-    let client = Arc::new(Mutex::new(GameClient::new()));
+    // Create channels for communication between network I/O and Bevy
+    // Network I/O receives ServerMessages and sends them to Bevy
+    let (to_client, from_server) = tokio::sync::mpsc::unbounded_channel();
+    // Bevy sends ClientMessages to network I/O
+    let (to_server, from_client) = tokio::sync::mpsc::unbounded_channel();
 
-    // Spawn task to handle server messages
-    let client_clone = client.clone();
-    let connection_clone = connection.clone();
-    let mut recv_task = tokio::spawn(async move {
-        receive_messages(connection_clone, client_clone).await;
-    });
+    // Spawn network I/O task (takes to_client, from_client from task's perspective)
+    rt.spawn(network_io_task(connection, to_client, from_client));
 
-    // Spawn task to handle user input
-    let mut input_task = tokio::spawn(async move { user_input(connection, client).await });
+    // Start Bevy app
+    App::new()
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                title: "Game Client".to_string(),
+                resolution: (800.0, 600.0).into(),
+                ..default()
+            }),
+            ..default()
+        }))
+        .add_plugins(EguiPlugin)
+        .init_resource::<ChatState>()
+        .insert_resource(GameClient::new())
+        .insert_resource(ToServer(to_server))
+        .insert_resource(FromServer(from_server))
+        .add_systems(Update, (poll_network, chat_ui).chain())
+        .run();
 
-    // Wait for either task to finish
-    tokio::select! {
-        _ = &mut recv_task => {
-            std::process::exit(0);
-        }
-        _ = &mut input_task => {
-            std::process::exit(0);
-        }
-    }
+    Ok(())
 }
