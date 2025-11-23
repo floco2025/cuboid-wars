@@ -7,38 +7,38 @@ use std::collections::HashMap;
 // ============================================================================
 
 #[derive(Debug)]
-struct Client {
+struct Player {
     name: String,
 }
 
-impl Client {
+impl Player {
     const fn new(name: String) -> Self {
         Self { name }
     }
 }
 
 #[derive(Debug, Resource)]
-pub struct GameClient {
-    clients: HashMap<u32, Client>,
+pub struct GameState {
+    players: HashMap<u32, Player>,
 }
 
-impl GameClient {
+impl GameState {
     pub fn new() -> Self {
         Self {
-            clients: HashMap::new(),
+            players: HashMap::new(),
         }
     }
 
-    fn add(&mut self, id: u32, player: Client) {
-        self.clients.insert(id, player);
+    fn add(&mut self, id: u32, player: Player) {
+        self.players.insert(id, player);
     }
 
     fn remove(&mut self, id: u32) {
-        self.clients.remove(&id);
+        self.players.remove(&id);
     }
 
     fn get_name(&self, id: u32) -> String {
-        self.clients
+        self.players
             .get(&id)
             .expect("player not found")
             .name
@@ -46,13 +46,13 @@ impl GameClient {
     }
 
     fn set_name(&mut self, id: u32, new_name: String) {
-        let client = self.clients.get_mut(&id).expect("player not found");
+        let client = self.players.get_mut(&id).expect("player not found");
         client.name = new_name;
     }
 
     #[must_use]
     pub fn get_all_names(&self) -> Vec<String> {
-        self.clients.values().map(|p| p.name.clone()).collect()
+        self.players.values().map(|p| p.name.clone()).collect()
     }
 
     pub fn process_message(&mut self, msg: ServerMessage) -> String {
@@ -65,14 +65,14 @@ impl GameClient {
                     if id != my_id {
                         lines.push(format!("{name} is here."));
                     }
-                    self.add(id, Client::new(name));
+                    self.add(id, Player::new(name));
                 }
                 lines.push("[Connected] You are now logged in.".to_string());
                 lines.join("\n")
             }
             ServerMessage::Login(msg) => {
                 let line = format!("{} joined.", msg.name);
-                self.add(msg.id, Client::new(msg.name));
+                self.add(msg.id, Player::new(msg.name));
                 line
             }
             ServerMessage::Logoff(msg) => {
@@ -104,18 +104,8 @@ impl GameClient {
     }
 }
 
-impl Default for GameClient {
+impl Default for GameState {
     fn default() -> Self {
         Self::new()
     }
-}
-
-// ============================================================================
-// UI State
-// ============================================================================
-
-#[derive(Resource, Default)]
-pub struct ChatState {
-    pub messages: Vec<String>,
-    pub input: String,
 }
