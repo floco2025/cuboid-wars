@@ -11,9 +11,10 @@ use tokio::sync::mpsc::{
 };
 
 // ============================================================================
-// Server Communication Resources
+// Resources
 // ============================================================================
 
+/// A resource wrapper for the bevy to server channel
 #[derive(Resource)]
 pub struct BevyToServerChannel(UnboundedSender<BevyToServer>);
 
@@ -27,6 +28,7 @@ impl BevyToServerChannel {
     }
 }
 
+// A resource wrapper for the server to bevy channel
 #[derive(Resource)]
 pub struct ServerToBevyChannel(UnboundedReceiver<ServerToBevy>);
 
@@ -40,14 +42,10 @@ impl ServerToBevyChannel {
     }
 }
 
-// ============================================================================
-// Chat State Resource
-// ============================================================================
-
+// Holds the text of the chat input field
 #[derive(Resource, Default)]
-pub struct ChatUi {
-    pub history: Vec<String>,
-    pub input: String,
+pub struct ChatInput {
+    pub text: String,
 }
 
 // ============================================================================
@@ -56,17 +54,14 @@ pub struct ChatUi {
 
 pub fn server_to_bevy_system(
     mut from_server: ResMut<ServerToBevyChannel>,
-    mut game_client: ResMut<GameState>,
-    mut chat_ui: ResMut<ChatUi>,
+    mut game_state: ResMut<GameState>,
     mut exit: EventWriter<AppExit>,
 ) {
     // Process all available messages
     while let Ok(msg) = from_server.try_recv() {
         match msg {
             ServerToBevy::Message(server_msg) => {
-                let text = game_client.process_message(server_msg);
-                // Add message to chat history
-                chat_ui.history.push(text);
+                game_state.process_message(server_msg);
             }
             ServerToBevy::Disconnected => {
                 error!("Disconnected from server");
@@ -83,8 +78,8 @@ pub fn server_to_bevy_system(
 
 pub fn chat_ui_system(
     mut contexts: EguiContexts,
-    mut chat_ui: ResMut<ChatUi>,
-    game_client: Res<GameState>,
+    mut chat_input: ResMut<ChatInput>,
+    game_state: Res<GameState>,
     to_server: Res<BevyToServerChannel>,
 ) {
     egui::CentralPanel::default().show(contexts.ctx_mut(), |ui| {
@@ -96,7 +91,7 @@ pub fn chat_ui_system(
             .stick_to_bottom(true)
             .max_height(400.0)
             .show(ui, |ui| {
-                for msg in &chat_ui.history {
+                for msg in game_state.chat_history() {
                     ui.label(msg);
                 }
             });
@@ -104,14 +99,14 @@ pub fn chat_ui_system(
         ui.separator();
 
         // Input box
-        let response = ui.text_edit_singleline(&mut chat_ui.input);
+        let response = ui.text_edit_singleline(&mut chat_input.text);
 
         if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-            let text = chat_ui.input.trim().to_string();
+            let text = chat_input.text.trim().to_string();
             if !text.is_empty() {
                 // Send message
                 let _ = to_server.send(BevyToServer::Send(ClientMessage::Say(CSay { text })));
-                chat_ui.input.clear();
+                chat_input.text.clear();
             }
             response.request_focus();
         }
@@ -120,7 +115,7 @@ pub fn chat_ui_system(
 
         // Player list
         ui.label("Players:");
-        for name in game_client.get_all_names() {
+        for name in game_state.get_all_names() {
             ui.label(format!("  {name}"));
         }
     });

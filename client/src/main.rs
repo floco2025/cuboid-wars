@@ -5,7 +5,7 @@ use clap::Parser;
 use client::config::configure_client;
 use client::game::GameState;
 use client::net::network_io_task;
-use client::ui::{ServerToBevyChannel, BevyToServerChannel, ChatUi, chat_ui_system, server_to_bevy_system};
+use client::ui::{ServerToBevyChannel, BevyToServerChannel, ChatInput, chat_ui_system, server_to_bevy_system};
 use common::net::MessageStream;
 #[allow(clippy::wildcard_imports)]
 use common::protocol::*;
@@ -83,7 +83,7 @@ fn main() -> Result<()> {
             ..default()
         }))
         .add_plugins(EguiPlugin)
-        .init_resource::<ChatUi>()
+        .init_resource::<ChatInput>()
         .insert_resource(GameState::new())
         .insert_resource(BevyToServerChannel::new(to_server))
         .insert_resource(ServerToBevyChannel::new(from_server))
