@@ -24,12 +24,12 @@ impl Player {
 }
 
 #[derive(Debug, Resource)]
-pub struct GameState {
+pub struct ClientState {
     players: HashMap<u32, Player>,
     chat_history: Vec<String>,
 }
 
-impl GameState {
+impl ClientState {
     // ============================================================================
     // Constructor
     // ============================================================================

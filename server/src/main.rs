@@ -2,7 +2,7 @@ use anyhow::Result;
 use clap::Parser;
 use quinn::Endpoint;
 use server::config::{configure_server, init_tracing};
-use server::game::GameServer;
+use server::server::GameServer;
 use server::net::ClientToServer;
 use std::net::SocketAddr;
 use tokio::sync::mpsc::unbounded_channel;

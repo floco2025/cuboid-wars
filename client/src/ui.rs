@@ -1,4 +1,4 @@
-use crate::game::GameState;
+use crate::client::ClientState;
 use crate::net::{BevyToServer, ServerToBevy};
 use bevy::app::AppExit;
 use bevy::prelude::*;
@@ -53,7 +53,7 @@ pub struct ChatInput {
 // ============================================================================
 
 pub fn server_to_bevy_system(
-    mut game_state: ResMut<GameState>,
+    mut game_state: ResMut<ClientState>,
     mut from_server: ResMut<ServerToBevyChannel>,
     mut exit: EventWriter<AppExit>,
 ) {
@@ -73,13 +73,13 @@ pub fn server_to_bevy_system(
 }
 
 // ============================================================================
-// UI System
+// Chat UI System
 // ============================================================================
 
 pub fn chat_ui_system(
     mut contexts: EguiContexts,
     mut chat_input: ResMut<ChatInput>,
-    game_state: Res<GameState>,
+    game_state: Res<ClientState>,
     to_server: Res<BevyToServerChannel>,
 ) {
     egui::CentralPanel::default().show(contexts.ctx_mut(), |ui| {
