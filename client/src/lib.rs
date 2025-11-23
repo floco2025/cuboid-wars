@@ -7,11 +7,12 @@ use anyhow::{Context, Result};
 use bevy::prelude::*;
 use bevy_egui::EguiPlugin;
 use clap::Parser;
+use common::net::MessageStream;
 #[allow(clippy::wildcard_imports)]
 use common::protocol::*;
 use config::configure_client;
 use game::{ChatState, GameClient};
-use net::{ClientToServer, MessageStream, ServerToClient, network_io_task};
+use net::{ClientToServer, ServerToClient, network_io_task};
 use quinn::Endpoint;
 use std::env;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};

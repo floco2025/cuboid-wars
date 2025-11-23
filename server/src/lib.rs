@@ -1,12 +1,12 @@
 mod config;
 mod game;
-mod io;
+mod net;
 
 use anyhow::Result;
 use clap::Parser;
 use config::{configure_server, init_tracing};
 use game::GameServer;
-use io::ClientToServer;
+use net::ClientToServer;
 use quinn::Endpoint;
 use std::net::SocketAddr;
 use tokio::sync::mpsc::unbounded_channel;

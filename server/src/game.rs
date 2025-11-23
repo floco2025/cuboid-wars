@@ -1,4 +1,4 @@
-use crate::io::{ClientToServer, ServerToClient, client_io_task};
+use crate::net::{ClientToServer, ServerToClient, per_client_network_io_task};
 #[allow(clippy::wildcard_imports)]
 use common::protocol::*;
 use quinn::Incoming;
@@ -199,7 +199,7 @@ impl GameServer {
         // Spawn I/O task for this client
         let connection_clone = connection;
         tokio::spawn(async move {
-            client_io_task(id, connection_clone, to_server, from_server).await;
+            per_client_network_io_task(id, connection_clone, to_server, from_server).await;
         });
     }
 

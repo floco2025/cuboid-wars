@@ -1,6 +1,6 @@
 use bevy::app::AppExit;
 use bevy::prelude::*;
-use bevy_egui::{egui, EguiContexts};
+use bevy_egui::{EguiContexts, egui};
 #[allow(clippy::wildcard_imports)]
 use common::protocol::*;
 
@@ -68,9 +68,7 @@ pub fn chat_ui(
             let text = chat_state.input.trim().to_string();
             if !text.is_empty() {
                 // Send message
-                let _ = to_server.send(ClientToServer::Send(ClientMessage::Say(CSay {
-                    text,
-                })));
+                let _ = to_server.send(ClientToServer::Send(ClientMessage::Say(CSay { text })));
                 chat_state.input.clear();
             }
             response.request_focus();
