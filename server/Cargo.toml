@@ -8,8 +8,8 @@ workspace = true
 
 [features]
 default = ["bincode"]
-json = ["dep:serde", "dep:serde_json"]
-bincode = ["dep:bincode"]
+json = ["dep:serde", "dep:serde_json", "common/json"]
+bincode = ["dep:bincode", "common/bincode"]
 
 [[bin]]
 name = "server"
