@@ -1,5 +1,5 @@
 use crate::game::{ChatState, GameClient};
-use crate::net::{ClientToServer, ServerToClient};
+use crate::net::{BevyToServer, ServerToBevy};
 use bevy::app::AppExit;
 use bevy::prelude::*;
 use bevy_egui::{EguiContexts, egui};
@@ -12,27 +12,27 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, error::{SendError, T
 // ============================================================================
 
 #[derive(Resource)]
-pub struct ToServer(UnboundedSender<ClientToServer>);
+pub struct BevyToServerResource(UnboundedSender<BevyToServer>);
 
-impl ToServer {
-    pub fn new(sender: UnboundedSender<ClientToServer>) -> Self {
+impl BevyToServerResource {
+    pub fn new(sender: UnboundedSender<BevyToServer>) -> Self {
         Self(sender)
     }
 
-    pub fn send(&self, msg: ClientToServer) -> Result<(), SendError<ClientToServer>> {
+    pub fn send(&self, msg: BevyToServer) -> Result<(), SendError<BevyToServer>> {
         self.0.send(msg)
     }
 }
 
 #[derive(Resource)]
-pub struct FromServer(UnboundedReceiver<ServerToClient>);
+pub struct ServerToBevyResource(UnboundedReceiver<ServerToBevy>);
 
-impl FromServer {
-    pub fn new(receiver: UnboundedReceiver<ServerToClient>) -> Self {
+impl ServerToBevyResource {
+    pub fn new(receiver: UnboundedReceiver<ServerToBevy>) -> Self {
         Self(receiver)
     }
 
-    pub fn try_recv(&mut self) -> Result<ServerToClient, TryRecvError> {
+    pub fn try_recv(&mut self) -> Result<ServerToBevy, TryRecvError> {
         self.0.try_recv()
     }
 }
@@ -42,7 +42,7 @@ impl FromServer {
 // ============================================================================
 
 pub fn poll_network(
-    mut from_server: ResMut<FromServer>,
+    mut from_server: ResMut<ServerToBevyResource>,
     mut client: ResMut<GameClient>,
     mut chat_state: ResMut<ChatState>,
     mut exit: EventWriter<AppExit>,
@@ -50,12 +50,12 @@ pub fn poll_network(
     // Process all available messages
     while let Ok(msg) = from_server.try_recv() {
         match msg {
-            ServerToClient::Message(server_msg) => {
+            ServerToBevy::Message(server_msg) => {
                 let text = client.process_message(server_msg);
                 // Add message to chat history
                 chat_state.messages.push(text);
             }
-            ServerToClient::Disconnected => {
+            ServerToBevy::Disconnected => {
                 error!("Disconnected from server");
                 exit.send(AppExit::Success);
                 return;
@@ -72,7 +72,7 @@ pub fn chat_ui(
     mut contexts: EguiContexts,
     mut chat_state: ResMut<ChatState>,
     client: Res<GameClient>,
-    to_server: Res<ToServer>,
+    to_server: Res<BevyToServerResource>,
 ) {
     egui::CentralPanel::default().show(contexts.ctx_mut(), |ui| {
         ui.heading("Game Chat");
@@ -97,7 +97,7 @@ pub fn chat_ui(
             let text = chat_state.input.trim().to_string();
             if !text.is_empty() {
                 // Send message
-                let _ = to_server.send(ClientToServer::Send(ClientMessage::Say(CSay { text })));
+                let _ = to_server.send(BevyToServer::Send(ClientMessage::Say(CSay { text })));
                 chat_state.input.clear();
             }
             response.request_focus();

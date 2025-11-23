@@ -37,7 +37,7 @@ async fn main() -> Result<()> {
 
     let mut server = GameServer::new();
 
-    // Channel for client tasks to send messages to server
+    // Channel for sending from all per client network IO tasks to the server
     let (to_server, mut from_clients) = unbounded_channel::<(u32, ClientToServer)>();
 
     loop {

@@ -10,22 +10,22 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 /// Message from network I/O task to Bevy main thread
 #[derive(Debug, Clone)]
-pub enum ServerToClient {
+pub enum ServerToBevy {
     Message(ServerMessage),
     Disconnected,
 }
 
 /// Message from Bevy main thread to network I/O task
 #[derive(Debug, Clone)]
-pub enum ClientToServer {
+pub enum BevyToServer {
     Send(ClientMessage),
     Close,
 }
 
 pub async fn network_io_task(
     connection: Connection,
-    to_client: UnboundedSender<ServerToClient>,
-    mut from_client: UnboundedReceiver<ClientToServer>,
+    to_bevy: UnboundedSender<ServerToBevy>,
+    mut from_bevy: UnboundedReceiver<BevyToServer>,
 ) {
     let stream = MessageStream::new(&connection);
 
@@ -35,7 +35,7 @@ pub async fn network_io_task(
             result = stream.recv::<ServerMessage>() => {
                 match result {
                     Ok(msg) => {
-                        if to_client.send(ServerToClient::Message(msg)).is_err() {
+                        if to_bevy.send(ServerToBevy::Message(msg)).is_err() {
                             // Bevy side closed, exit
                             break;
                         }
@@ -65,15 +65,15 @@ pub async fn network_io_task(
             }
 
             // Send to server
-            cmd = from_client.recv() => {
+            cmd = from_bevy.recv() => {
                 match cmd {
-                    Some(ClientToServer::Send(msg)) => {
+                    Some(BevyToServer::Send(msg)) => {
                         if let Err(e) = stream.send(&msg).await {
                             eprintln!("Error sending to server: {e}");
                             break;
                         }
                     }
-                    Some(ClientToServer::Close) => {
+                    Some(BevyToServer::Close) => {
                         connection.close(0u32.into(), b"client closing");
                         break;
                     }
@@ -87,5 +87,5 @@ pub async fn network_io_task(
     }
 
     // Notify Bevy that we're disconnected
-    let _ = to_client.send(ServerToClient::Disconnected);
+    let _ = to_bevy.send(ServerToBevy::Disconnected);
 }

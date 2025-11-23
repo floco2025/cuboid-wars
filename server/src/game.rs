@@ -189,7 +189,7 @@ impl GameServer {
             }
         };
 
-        // Create channels for this client
+        // Channel for sending from the server to a new client network IO task
         let (to_client, from_server) = unbounded_channel();
 
         // Add client to server

@@ -5,7 +5,7 @@ use clap::Parser;
 use client::config::configure_client;
 use client::game::{ChatState, GameClient};
 use client::net::network_io_task;
-use client::ui::{FromServer, ToServer, chat_ui, poll_network};
+use client::ui::{ServerToBevyResource, BevyToServerResource, chat_ui, poll_network};
 use common::net::MessageStream;
 #[allow(clippy::wildcard_imports)]
 use common::protocol::*;
@@ -63,14 +63,14 @@ fn main() -> Result<()> {
         stream.send(&ClientMessage::Login(CLogin { name: args.name })).await
     })?;
 
-    // Create channels for communication between network I/O and Bevy
-    // Network I/O receives ServerMessages and sends them to Bevy
-    let (to_client, from_server) = tokio::sync::mpsc::unbounded_channel();
-    // Bevy sends ClientMessages to network I/O
-    let (to_server, from_client) = tokio::sync::mpsc::unbounded_channel();
+    // Channel for sending from the network I/O task to bevy
+    let (to_bevy, from_server) = tokio::sync::mpsc::unbounded_channel();
+
+    // Channel for sending from bevy to the network I/O task
+    let (to_server, from_bevy) = tokio::sync::mpsc::unbounded_channel();
 
     // Spawn network I/O task (takes to_client, from_client from task's perspective)
-    rt.spawn(network_io_task(connection, to_client, from_client));
+    rt.spawn(network_io_task(connection, to_bevy, from_bevy));
 
     // Start Bevy app
     App::new()
@@ -85,8 +85,8 @@ fn main() -> Result<()> {
         .add_plugins(EguiPlugin)
         .init_resource::<ChatState>()
         .insert_resource(GameClient::new())
-        .insert_resource(ToServer::new(to_server))
-        .insert_resource(FromServer::new(from_server))
+        .insert_resource(BevyToServerResource::new(to_server))
+        .insert_resource(ServerToBevyResource::new(from_server))
         .add_systems(Update, (poll_network, chat_ui).chain())
         .run();
 
