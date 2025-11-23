@@ -8,13 +8,13 @@ workspace = true
 
 [features]
 default = ["bincode"]
-json = ["dep:serde_json"]
+json = ["dep:serde", "dep:serde_json"]
 bincode = ["dep:bincode"]
 
 [dependencies]
-serde = { version = "1", features = ["derive"] }
+serde = { version = "1", features = ["derive"], optional = true }
 serde_json = { version = "1", optional = true }
-bincode = { version = "1", optional = true }
+bincode = { version = "2.0.1", optional = true }
 quinn = "0.11"
 anyhow = "1"
 rustls = { version = "0.23", default-features = false }
