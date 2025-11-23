@@ -11,11 +11,33 @@ use clap::Parser;
 use common::protocol::*;
 use config::configure_client;
 use game::{ChatState, GameClient};
-use net::{network_io_task, ClientToServer, MessageStream, ServerToClient};
+use net::{ClientToServer, MessageStream, ServerToClient, network_io_task};
 use quinn::Endpoint;
 use std::env;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use ui::{chat_ui, poll_network};
+
+// ============================================================================
+// CLI Arguments
+// ============================================================================
+
+fn get_login_name() -> String {
+    env::var("USER")
+        .or_else(|_| env::var("USERNAME"))
+        .unwrap_or_else(|_| "unknown".to_string())
+}
+
+#[derive(Parser, Debug)]
+#[command(author, version, about = "Game client", long_about = None)]
+pub struct Args {
+    /// Server address to connect to
+    #[arg(short, long, default_value = "127.0.0.1:8080")]
+    pub server: String,
+
+    /// Login name
+    #[arg(short, long, default_value_t = get_login_name())]
+    pub name: String,
+}
 
 // ============================================================================
 // Bevy Resources for Network Communication
@@ -37,32 +59,6 @@ impl FromServer {
     pub fn try_recv(&mut self) -> Result<ServerToClient, tokio::sync::mpsc::error::TryRecvError> {
         self.0.try_recv()
     }
-}
-
-// ============================================================================
-// CLI Helper
-// ============================================================================
-
-fn get_login_name() -> String {
-    env::var("USER")
-        .or_else(|_| env::var("USERNAME"))
-        .unwrap_or_else(|_| "unknown".to_string())
-}
-
-// ============================================================================
-// CLI Arguments
-// ============================================================================
-
-#[derive(Parser, Debug)]
-#[command(author, version, about = "Game client", long_about = None)]
-pub struct Args {
-    /// Server address to connect to
-    #[arg(short, long, default_value = "127.0.0.1:8080")]
-    pub server: String,
-
-    /// Login name
-    #[arg(short, long, default_value_t = get_login_name())]
-    pub name: String,
 }
 
 // ============================================================================
@@ -91,9 +87,7 @@ pub fn run_client() -> Result<()> {
     // Send login message (blocking)
     rt.block_on(async {
         let stream = MessageStream::new(&connection);
-        stream
-            .send(&ClientMessage::Login(CLogin { name: args.name }))
-            .await
+        stream.send(&ClientMessage::Login(CLogin { name: args.name })).await
     })?;
 
     // Create channels for communication between network I/O and Bevy
