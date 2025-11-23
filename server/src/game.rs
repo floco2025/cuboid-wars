@@ -59,7 +59,7 @@ impl GameServer {
     // Constructor
     // ============================================================================
 
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             clients: HashMap::new(),
             next_id: 1,

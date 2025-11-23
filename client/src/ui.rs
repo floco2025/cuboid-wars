@@ -1,12 +1,41 @@
+use crate::game::{ChatState, GameClient};
+use crate::net::{ClientToServer, ServerToClient};
 use bevy::app::AppExit;
 use bevy::prelude::*;
 use bevy_egui::{EguiContexts, egui};
 #[allow(clippy::wildcard_imports)]
 use common::protocol::*;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, error::{SendError, TryRecvError}};
 
-use crate::game::{ChatState, GameClient};
-use crate::net::{ClientToServer, ServerToClient};
-use crate::{FromServer, ToServer};
+// ============================================================================
+// Bevy Resources for Network Communication
+// ============================================================================
+
+#[derive(Resource)]
+pub struct ToServer(UnboundedSender<ClientToServer>);
+
+impl ToServer {
+    pub fn new(sender: UnboundedSender<ClientToServer>) -> Self {
+        Self(sender)
+    }
+
+    pub fn send(&self, msg: ClientToServer) -> Result<(), SendError<ClientToServer>> {
+        self.0.send(msg)
+    }
+}
+
+#[derive(Resource)]
+pub struct FromServer(UnboundedReceiver<ServerToClient>);
+
+impl FromServer {
+    pub fn new(receiver: UnboundedReceiver<ServerToClient>) -> Self {
+        Self(receiver)
+    }
+
+    pub fn try_recv(&mut self) -> Result<ServerToClient, TryRecvError> {
+        self.0.try_recv()
+    }
+}
 
 // ============================================================================
 // Network Polling System
