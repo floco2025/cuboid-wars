@@ -2,6 +2,7 @@ use crate::net::{ClientToServer, ServerToClient, per_client_network_io_task};
 #[allow(clippy::wildcard_imports)]
 use common::protocol::*;
 use quinn::Incoming;
+use rand::Rng;
 use std::collections::HashMap;
 use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 use tracing::{debug, error, instrument, warn};
@@ -111,9 +112,13 @@ impl GameServer {
             panic!("login called on already logged-in client");
         };
         // Create new Player
+        let mut rng = rand::thread_rng();
         let player = Player {
             name,
-            pos: Position { x: 0, y: 0 },
+            pos: Position {
+                x: rng.gen_range(-1000..=1000),
+                y: rng.gen_range(-1000..=1000),
+            },
         };
         // Consume the ConnectedClient to create LoggedInClient
         let logged_in = LoggedInClient::new(connected, player.clone());

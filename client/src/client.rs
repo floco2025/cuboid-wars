@@ -15,6 +15,7 @@ const MAX_CHAT_HISTORY: usize = 100;
 
 #[derive(Debug, Resource)]
 pub struct ClientState {
+    my_id: Option<u32>,
     players: HashMap<u32, Player>,
     chat_history: Vec<String>,
 }
@@ -26,6 +27,7 @@ impl ClientState {
 
     pub fn new() -> Self {
         Self {
+            my_id: None,
             players: HashMap::new(),
             chat_history: Vec::new(),
         }
@@ -41,6 +43,16 @@ impl ClientState {
     }
 
     #[must_use]
+    pub fn my_id(&self) -> Option<u32> {
+        self.my_id
+    }
+
+    #[must_use]
+    pub fn players(&self) -> &HashMap<u32, Player> {
+        &self.players
+    }
+
+    #[must_use]
     pub fn chat_history(&self) -> &[String] {
         &self.chat_history
     }
@@ -51,6 +63,7 @@ impl ClientState {
                 self.add_chat_message(format!("[Server Error] {}", msg.message));
             }
             ServerMessage::Init(msg) => {
+                self.my_id = Some(msg.id);
                 let my_id = msg.id;
                 let mut lines = Vec::new();
                 for (id, player) in msg.players {

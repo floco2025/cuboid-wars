@@ -2,10 +2,12 @@ use anyhow::{Context, Result};
 use bevy::prelude::*;
 use bevy_egui::EguiPlugin;
 use clap::Parser;
-use client::config::configure_client;
 use client::client::ClientState;
+use client::config::configure_client;
 use client::net::network_io_task;
-use client::ui::{ServerToBevyChannel, BevyToServerChannel, ChatInput, chat_ui_system, server_to_bevy_system};
+use client::sync::{sync_players, update_player_positions};
+use client::ui::{BevyToServerChannel, ChatInput, ServerToBevyChannel, chat_ui_system, server_to_bevy_system};
+use client::world::setup_world;
 use common::net::MessageStream;
 #[allow(clippy::wildcard_imports)]
 use common::protocol::*;
@@ -77,7 +79,7 @@ fn main() -> Result<()> {
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "Game Client".to_string(),
-                resolution: (800.0, 600.0).into(),
+                resolution: (1200.0, 800.0).into(),
                 ..default()
             }),
             ..default()
@@ -87,7 +89,13 @@ fn main() -> Result<()> {
         .insert_resource(ClientState::new())
         .insert_resource(BevyToServerChannel::new(to_server))
         .insert_resource(ServerToBevyChannel::new(from_server))
-        .add_systems(Update, (server_to_bevy_system, chat_ui_system).chain())
+        .add_systems(Startup, setup_world)
+        .add_systems(Update, (
+            server_to_bevy_system,
+            sync_players,
+            update_player_positions,
+            chat_ui_system,
+        ).chain())
         .run();
 
     Ok(())

@@ -82,41 +82,41 @@ pub fn chat_ui_system(
     game_state: Res<ClientState>,
     to_server: Res<BevyToServerChannel>,
 ) {
-    egui::CentralPanel::default().show(contexts.ctx_mut(), |ui| {
-        ui.heading("Game Chat");
+    // Right-side panel overlay
+    egui::SidePanel::right("chat_panel")
+        .resizable(false)
+        .default_width(300.0)
+        .frame(egui::Frame::none()
+            .fill(egui::Color32::from_rgba_premultiplied(20, 20, 20, 200))
+            .inner_margin(egui::Margin::same(10.0)))
+        .show(contexts.ctx_mut(), |ui| {
+            ui.heading("Chat");
 
-        // Chat history
-        egui::ScrollArea::vertical()
-            .auto_shrink([false; 2])
-            .stick_to_bottom(true)
-            .max_height(400.0)
-            .show(ui, |ui| {
-                for msg in game_state.chat_history() {
-                    ui.label(msg);
+            // Chat history
+            let available_height = ui.available_height() - 60.0; // Reserve space for input
+            egui::ScrollArea::vertical()
+                .auto_shrink([false; 2])
+                .stick_to_bottom(true)
+                .max_height(available_height)
+                .show(ui, |ui| {
+                    for msg in game_state.chat_history() {
+                        ui.label(msg);
+                    }
+                });
+
+            ui.add_space(10.0);
+
+            // Input box at bottom
+            let response = ui.text_edit_singleline(&mut chat_input.text);
+
+            if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                let text = chat_input.text.trim().to_string();
+                if !text.is_empty() {
+                    // Send message
+                    let _ = to_server.send(BevyToServer::Send(ClientMessage::Say(CSay { text })));
+                    chat_input.text.clear();
                 }
-            });
-
-        ui.separator();
-
-        // Input box
-        let response = ui.text_edit_singleline(&mut chat_input.text);
-
-        if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-            let text = chat_input.text.trim().to_string();
-            if !text.is_empty() {
-                // Send message
-                let _ = to_server.send(BevyToServer::Send(ClientMessage::Say(CSay { text })));
-                chat_input.text.clear();
+                response.request_focus();
             }
-            response.request_focus();
-        }
-
-        ui.separator();
-
-        // Player list
-        ui.label("Players:");
-        for name in game_state.get_all_names() {
-            ui.label(format!("  {name}"));
-        }
-    });
+        });
 }
