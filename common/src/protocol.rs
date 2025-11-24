@@ -129,10 +129,10 @@ struct SRemove {
 }
 
 // ============================================================================
-// Message Envelope
+// Message Envelopes
 // ============================================================================
 
-/// Wrapper for all messages sent between client and server
+// All client to server messages
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "bincode", derive(Encode, Decode))]
@@ -144,6 +144,7 @@ pub enum ClientMessage {
     Remove(CRemove),
 }
 
+// All server to client messages
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "bincode", derive(Encode, Decode))]
