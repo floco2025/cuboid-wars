@@ -1,10 +1,8 @@
 use anyhow::{Context, Result};
 use bevy::prelude::*;
 use clap::Parser;
-use client::client::ClientState;
 use client::config::configure_client;
 use client::net::{network_io_task, BevyToServerChannel, ServerToBevyChannel, server_to_bevy_system};
-use client::sync::{sync_players, update_player_positions};
 use client::world::setup_world;
 use common::net::MessageStream;
 #[allow(clippy::wildcard_imports)]
@@ -71,15 +69,10 @@ fn main() -> Result<()> {
             }),
             ..default()
         }))
-        .insert_resource(ClientState::new())
         .insert_resource(BevyToServerChannel::new(to_server))
         .insert_resource(ServerToBevyChannel::new(from_server))
         .add_systems(Startup, setup_world)
-        .add_systems(Update, (
-            server_to_bevy_system,
-            sync_players,
-            update_player_positions,
-        ).chain())
+        .add_systems(Update, server_to_bevy_system)
         .run();
 
     Ok(())

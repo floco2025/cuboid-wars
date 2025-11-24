@@ -155,6 +155,17 @@ impl GameServer {
         }
     }
 
+    fn send_to_all_except(&self, msg: &ServerMessage, exclude_id: PlayerId) {
+        for (id, client) in &self.clients {
+            if *id != exclude_id
+                && matches!(client.state, ClientState::LoggedIn(_))
+                && let Err(e) = client.to_client.send(ServerToClient::Send(msg.clone()))
+            {
+                debug!("failed to send to client: {}", e);
+            }
+        }
+    }
+
     // ============================================================================
     // Handle new client connections
     // ============================================================================
@@ -219,10 +230,11 @@ impl GameServer {
     #[instrument(skip(self))]
     fn process_client_login(&mut self, id: PlayerId, msg: ClientMessage) {
         if let ClientMessage::Login(_login_msg) = msg {
-            let players = self.get_players();
-            self.send_to(id, &ServerMessage::Init(SInit { id, players }));
+            let other_players = self.get_players();
             let player = self.login(id);
-            self.send_to_all(&ServerMessage::Login(SLogin { id, player }));
+            self.send_to(id, &ServerMessage::Init(SInit { id, player: player.clone(), other_players }));
+            // Notify other clients (not the one who just logged in)
+            self.send_to_all_except(&ServerMessage::Login(SLogin { id, player }), id);
         } else {
             // Protocol violation
             warn!("protocol violation: client sent non-login message before authenticating");

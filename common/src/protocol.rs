@@ -64,7 +64,8 @@ message! {
 /// Server to Client: Initial server state after login.
 struct SInit {
     pub id: PlayerId,                     // The id that the server uses for the client
-    pub players: Vec<(PlayerId, Player)>, // All player ids and their data
+    pub player: Player,                         // The local player's data
+    pub other_players: Vec<(PlayerId, Player)>, // All other player ids and their data
 }
 }
 

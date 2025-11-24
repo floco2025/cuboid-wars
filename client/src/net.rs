@@ -8,11 +8,15 @@ use tokio::sync::mpsc::{
     UnboundedReceiver, UnboundedSender,
     error::{SendError, TryRecvError},
 };
-use crate::client::ClientState;
+use crate::world;
 
 // ============================================================================
 // Resources
 // ============================================================================
+
+/// My player ID assigned by the server
+#[derive(Resource)]
+pub struct MyPlayerId(pub PlayerId);
 
 /// A resource wrapper for the bevy to server channel
 #[derive(Resource)]
@@ -132,16 +136,75 @@ pub async fn network_io_task(
 // Network Polling System
 // ============================================================================
 
+/// This system processes messages from the server and spawns/despawns entities directly
 pub fn server_to_bevy_system(
-    mut game_state: ResMut<ClientState>,
+    mut commands: Commands,
     mut from_server: ResMut<ServerToBevyChannel>,
     mut exit: EventWriter<AppExit>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    player_query: Query<(Entity, &PlayerId)>,
 ) {
     // Process all available messages
     while let Ok(msg) = from_server.try_recv() {
         match msg {
             ServerToBevy::Message(server_msg) => {
-                game_state.process_message(server_msg);
+                match server_msg {
+                    ServerMessage::Init(init_msg) => {
+                        info!("Received Init: my_id={:?}, {} existing players", 
+                              init_msg.id, init_msg.other_players.len());
+                        
+                        // Insert MyPlayerId resource
+                        commands.insert_resource(MyPlayerId(init_msg.id));
+                        
+                        // Spawn all existing players (these are other players, not us)
+                        for (id, player) in init_msg.other_players {
+                            world::spawn_player(
+                                &mut commands,
+                                &mut meshes,
+                                &mut materials,
+                                id.0,
+                                &player.pos,
+                                false, // Other players are never local
+                            );
+                        }
+                        
+                        // Spawn ourselves as the local player with position from server
+                        world::spawn_player(
+                            &mut commands,
+                            &mut meshes,
+                            &mut materials,
+                            init_msg.id.0,
+                            &init_msg.player.pos,
+                            true, // This is us!
+                        );
+                    }
+                    ServerMessage::Login(login_msg) => {
+                        info!("Player {:?} logged in", login_msg.id);
+                        
+                        // Login is always for another player (server doesn't send our own login back)
+                        world::spawn_player(
+                            &mut commands,
+                            &mut meshes,
+                            &mut materials,
+                            login_msg.id.0,
+                            &login_msg.player.pos,
+                            false, // Never local
+                        );
+                    }
+                    ServerMessage::Logoff(logoff_msg) => {
+                        info!("Player {:?} logged off (graceful: {})", 
+                              logoff_msg.id, logoff_msg.graceful);
+                        
+                        // Find and despawn the entity with this PlayerId
+                        for (entity, player_id) in player_query.iter() {
+                            if *player_id == logoff_msg.id {
+                                commands.entity(entity).despawn();
+                                break;
+                            }
+                        }
+                    }
+                }
             }
             ServerToBevy::Disconnected => {
                 error!("Disconnected from server");
