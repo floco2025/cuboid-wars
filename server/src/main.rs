@@ -87,11 +87,12 @@ async fn main() -> Result<()> {
 
     // Create Bevy app with ECS - run in non-blocking mode
     let mut app = App::new();
-    app.add_plugins(MinimalPlugins.set(bevy::log::LogPlugin {
+    app.add_plugins(MinimalPlugins)
+        .add_plugins(bevy::log::LogPlugin {
             level: bevy::log::Level::INFO,
             filter: "wgpu=error,naga=warn".to_string(),
             ..default()
-        }))
+        })
         .add_message::<ClientConnected>()
         .add_message::<ClientDisconnected>()
         .add_message::<ClientMessageReceived>()
@@ -126,8 +127,8 @@ async fn main() -> Result<()> {
         }
 
         frame += 1;
-        if frame % 30 == 0 {
-            trace!("server tick {}", frame);
-        }
+        // if frame % 30 == 0 {
+        //     trace!("server tick {}", frame);
+        // }
     }
 }

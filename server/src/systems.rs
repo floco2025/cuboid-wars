@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use rand::Rng as _;
 
 use crate::{
-    components::{Connected, LoggedIn, NetworkChannel},
+    components::{LoggedIn, NetworkChannel},
     messages::{ClientConnected, ClientDisconnected, ClientMessageReceived},
     net::{ClientToServer, ServerToClient},
     resources::{ClientToServerChannel, PlayerIndex},
@@ -52,9 +52,9 @@ pub fn handle_connections_system(
 ) {
     // Handle connections
     for event in msg_connected.read() {
-        debug!("spawning entity for player {:?}", event.id);
+        debug!("spawning entity for {:?}", event.id);
         let entity = commands
-            .spawn((event.id, NetworkChannel(event.channel.clone()), Connected))
+            .spawn((event.id, NetworkChannel(event.channel.clone())))
             .id();
         player_index.0.insert(event.id, entity);
     }
@@ -88,49 +88,22 @@ pub fn process_client_messages_system(
     mut commands: Commands,
     mut msg_message: MessageReader<ClientMessageReceived>,
     player_index: Res<PlayerIndex>,
-    connected_query: Query<&NetworkChannel, (With<Connected>, Without<LoggedIn>)>,
+    player_query: Query<(Option<&LoggedIn>, &NetworkChannel)>,
     logged_in_query: Query<(&PlayerId, &NetworkChannel, &Position), With<LoggedIn>>,
 ) {
     for event in msg_message.read() {
-        debug!("received message from player {:?}: {:?}", event.id, event.message);
+        debug!("received message from {:?}: {:?}", event.id, event.message);
         
-        // Fast O(1) lookup using index
         if let Some(&entity) = player_index.0.get(&event.id) {
-            debug!("found entity {:?} for player {:?}", entity, event.id);
-            
-            // Check if connected or logged in
-            let is_connected = connected_query.get(entity).is_ok();
-            let is_logged_in = logged_in_query.get(entity).is_ok();
-
-            if is_connected {
-                debug!("player {:?} is in connected state", event.id);
-                let channel = connected_query.get(entity).unwrap();
-                handle_connected_message(
-                    &mut commands,
-                    entity,
-                    event.id,
-                    event.message.clone(),
-                    channel,
-                    &logged_in_query,
-                );
-            } else if is_logged_in {
-                debug!("player {:?} is in logged-in state", event.id);
-                handle_logged_in_message(
-                    &mut commands,
-                    entity,
-                    event.id,
-                    event.message.clone(),
-                    &logged_in_query,
-                );
-            } else {
-                // Entity exists but components haven't been applied yet
-                warn!(
-                    "player {:?} entity {:?} components not yet applied, message will be lost: {:?}",
-                    event.id, entity, event.message
-                );  
+            if let Ok((logged_in, channel)) = player_query.get(entity) {
+                if logged_in.is_some() {
+                    handle_logged_in_message(&mut commands, entity, event.id, event.message.clone(), &logged_in_query);
+                } else {
+                    handle_not_logged_in_message(&mut commands, entity, event.id, event.message.clone(), channel, &logged_in_query);
+                }
             }
         } else {
-            warn!("received message from unknown player {:?}", event.id);
+            error!("received message from unknown {:?}", event.id);
         }
     }
 }
@@ -139,7 +112,7 @@ pub fn process_client_messages_system(
 // Message Handlers
 // ============================================================================
 
-fn handle_connected_message(
+fn handle_not_logged_in_message(
     commands: &mut Commands,
     entity: Entity,
     id: PlayerId,
@@ -147,11 +120,8 @@ fn handle_connected_message(
     channel: &NetworkChannel,
     logged_in_query: &Query<(&PlayerId, &NetworkChannel, &Position), With<LoggedIn>>,
 ) {
-    debug!("handling connected message for {:?}: {:?}", id, msg);
     match msg {
         ClientMessage::Login(_) => {
-            debug!("player {:?} logging in", id);
-
             // Get all currently logged-in players
             let other_players: Vec<(PlayerId, Player)> = logged_in_query
                 .iter()
@@ -171,14 +141,13 @@ fn handle_connected_message(
                 player: Player { pos },
                 other_players,
             });
-            debug!("sending init message to {:?}: {:?}", id, init_msg);
             if let Err(e) = channel.0.send(ServerToClient::Send(init_msg)) {
-                warn!("failed to send init to player {:?}: {}", id, e);
+                warn!("failed to send init to {:?}: {}", id, e);
                 return;
             }
 
-            // Update entity: remove Connected, add LoggedIn + Position
-            commands.entity(entity).remove::<Connected>().insert((LoggedIn, pos));
+            // Update entity: add LoggedIn + Position
+            commands.entity(entity).insert((LoggedIn, pos));
 
             // Broadcast Login to all other logged-in players
             let login_msg = ServerMessage::Login(SLogin {
@@ -190,7 +159,7 @@ fn handle_connected_message(
             }
         }
         _ => {
-            warn!("player {:?} sent non-login message before authenticating", id);
+            warn!("{:?} sent non-login message before authenticating", id);
             commands.entity(entity).despawn();
         }
     }
@@ -205,11 +174,10 @@ fn handle_logged_in_message(
 ) {
     match msg {
         ClientMessage::Login(_) => {
-            warn!("player {:?} sent login after already authenticated", id);
+            warn!("{:?} sent login after already authenticated", id);
             commands.entity(entity).despawn();
         }
         ClientMessage::Logoff(_) => {
-            debug!("player {:?} requested graceful logoff", id);
             commands.entity(entity).despawn();
 
             // Broadcast graceful logoff to all other players

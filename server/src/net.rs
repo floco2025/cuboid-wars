@@ -39,7 +39,7 @@ pub async fn per_client_network_io_task(
             result = stream.recv::<ClientMessage>() => {
                 match result {
                     Ok(msg) => {
-                        trace!("received from client {:?}: {:?}", id, msg);
+                        trace!("received from {:?}: {:?}", id, msg);
                         if let Err(e) = to_server.send((id, ClientToServer::Message(msg))) {
                             error!("error sending to main task: {}", e);
                             break;
@@ -49,20 +49,20 @@ pub async fn per_client_network_io_task(
                         if let Some(conn_err) = e.downcast_ref::<ConnectionError>() {
                             match conn_err {
                                 ConnectionError::ApplicationClosed { .. } => {
-                                    debug!("client {:?} closed connection", id);
+                                    debug!("{:?} closed connection", id);
                                 }
                                 ConnectionError::TimedOut => {
-                                    debug!("client {:?} timed out", id);
+                                    debug!("{:?} timed out", id);
                                 }
                                 ConnectionError::LocallyClosed => {
-                                    debug!("client {:?} locally closed", id);
+                                    debug!("{:?} locally closed", id);
                                 }
                                 _ => {
-                                    error!("connection error for client {:?}: {}", id, e);
+                                    error!("connection error for {:?}: {}", id, e);
                                 }
                             }
                         } else {
-                            error!("error receiving from client {:?}: {}", id, e);
+                            error!("error receiving from {:?}: {}", id, e);
                         }
                         break;
                     }
@@ -73,19 +73,19 @@ pub async fn per_client_network_io_task(
             cmd = from_server.recv() => {
                 match cmd {
                     Some(ServerToClient::Send(msg)) => {
-                        trace!("sending to client {:?}: {:?}", id, msg);
+                        trace!("sending to {:?}: {:?}", id, msg);
                         if let Err(e) = stream.send(&msg).await {
-                            warn!("error sending to client {:?}: {}", id, e);
+                            warn!("error sending to {:?}: {}", id, e);
                             break;
                         }
                     }
                     Some(ServerToClient::Close) => {
-                        debug!("closing connection to client {:?}", id);
+                        debug!("closing connection to {:?}", id);
                         connection.close(0u32.into(), b"server closing");
                         break;
                     }
                     None => {
-                        debug!("server channel closed for client {:?}", id);
+                        debug!("server channel closed for {:?}", id);
                         break;
                     }
                 }
@@ -94,6 +94,6 @@ pub async fn per_client_network_io_task(
     }
 
     // Ensure disconnect notification is sent before task exits
-    debug!("client {:?} network task exiting", id);
+    debug!("{:?} network task exiting", id);
     let _ = to_server.send((id, ClientToServer::Disconnected));
 }
