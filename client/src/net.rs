@@ -1,4 +1,5 @@
-use bevy::app::AppExit;
+use crate::world;
+#[allow(clippy::wildcard_imports)]
 use bevy::prelude::*;
 use common::net::MessageStream;
 #[allow(clippy::wildcard_imports)]
@@ -8,7 +9,6 @@ use tokio::sync::mpsc::{
     UnboundedReceiver, UnboundedSender,
     error::{SendError, TryRecvError},
 };
-use crate::world;
 
 // ============================================================================
 // Resources
@@ -151,12 +151,15 @@ pub fn server_to_bevy_system(
             ServerToBevy::Message(server_msg) => {
                 match server_msg {
                     ServerMessage::Init(init_msg) => {
-                        info!("Received Init: my_id={:?}, {} existing players", 
-                              init_msg.id, init_msg.other_players.len());
-                        
+                        info!(
+                            "Received Init: my_id={:?}, {} existing players",
+                            init_msg.id,
+                            init_msg.other_players.len()
+                        );
+
                         // Insert MyPlayerId resource
                         commands.insert_resource(MyPlayerId(init_msg.id));
-                        
+
                         // Spawn all existing players (these are other players, not us)
                         for (id, player) in init_msg.other_players {
                             world::spawn_player(
@@ -168,7 +171,7 @@ pub fn server_to_bevy_system(
                                 false, // Other players are never local
                             );
                         }
-                        
+
                         // Spawn ourselves as the local player with position from server
                         world::spawn_player(
                             &mut commands,
@@ -181,7 +184,7 @@ pub fn server_to_bevy_system(
                     }
                     ServerMessage::Login(login_msg) => {
                         info!("Player {:?} logged in", login_msg.id);
-                        
+
                         // Login is always for another player (server doesn't send our own login back)
                         world::spawn_player(
                             &mut commands,
@@ -193,9 +196,11 @@ pub fn server_to_bevy_system(
                         );
                     }
                     ServerMessage::Logoff(logoff_msg) => {
-                        info!("Player {:?} logged off (graceful: {})", 
-                              logoff_msg.id, logoff_msg.graceful);
-                        
+                        info!(
+                            "Player {:?} logged off (graceful: {})",
+                            logoff_msg.id, logoff_msg.graceful
+                        );
+
                         // Find and despawn the entity with this PlayerId
                         for (entity, player_id) in player_query.iter() {
                             if *player_id == logoff_msg.id {
@@ -214,4 +219,3 @@ pub fn server_to_bevy_system(
         }
     }
 }
-

@@ -1,9 +1,11 @@
 use anyhow::{Context, Result};
 use bevy::prelude::*;
 use clap::Parser;
-use client::config::configure_client;
-use client::net::{network_io_task, BevyToServerChannel, ServerToBevyChannel, server_to_bevy_system};
-use client::world::setup_world;
+use client::{
+    config::configure_client,
+    net::{BevyToServerChannel, ServerToBevyChannel, network_io_task, server_to_bevy_system},
+    world::setup_world,
+};
 use common::net::MessageStream;
 #[allow(clippy::wildcard_imports)]
 use common::protocol::*;

@@ -1,3 +1,4 @@
+#[allow(clippy::wildcard_imports)]
 use bevy::prelude::*;
 use common::protocol::{PlayerId, Position};
 
@@ -10,13 +11,13 @@ pub const WORLD_SIZE: f32 = 2000.0; // Total size of the playing field (covers -
 
 // Camera settings
 pub const CAMERA_X: f32 = 0.0;
-pub const CAMERA_Y: f32 = 1500.0;  // Height above ground
-pub const CAMERA_Z: f32 = 2000.0;  // Distance back from center
+pub const CAMERA_Y: f32 = 1500.0; // Height above ground
+pub const CAMERA_Z: f32 = 2000.0; // Distance back from center
 
 // Player cuboid dimensions
-pub const PLAYER_WIDTH: f32 = 20.0;   // X dimension
-pub const PLAYER_HEIGHT: f32 = 80.0;  // Y dimension (vertical)
-pub const PLAYER_DEPTH: f32 = 20.0;   // Z dimension
+pub const PLAYER_WIDTH: f32 = 20.0; // X dimension
+pub const PLAYER_HEIGHT: f32 = 80.0; // Y dimension (vertical)
+pub const PLAYER_DEPTH: f32 = 20.0; // Z dimension
 
 // ============================================================================
 // Components
