@@ -1,35 +1,11 @@
 use crate::{
     components::LocalPlayer,
-    messages::ServerDisconnected,
     net::ServerToClient,
     resources::{MyPlayerId, ServerToClientChannel},
 };
 use bevy::prelude::*;
 #[allow(clippy::wildcard_imports)]
 use common::protocol::*;
-
-// ============================================================================
-// Network Receiver System
-// ============================================================================
-
-/// System to receive messages from the server channel and convert them to Bevy events
-/// This runs first and feeds events to other systems
-pub fn network_receiver_system(
-    mut from_server: ResMut<ServerToClientChannel>,
-    mut msg_message: MessageWriter<ServerMessage>,
-    mut msg_disconnected: MessageWriter<ServerDisconnected>,
-) {
-    while let Ok(message) = from_server.try_recv() {
-        match message {
-            ServerToClient::Message(message) => {
-                msg_message.write(message);
-            }
-            ServerToClient::Disconnected => {
-                msg_disconnected.write(ServerDisconnected);
-            }
-        }
-    }
-}
 
 // ============================================================================
 // Setup World System
@@ -91,82 +67,103 @@ pub fn setup_world_system(
 /// System to process messages from the server
 pub fn process_server_messages_system(
     mut commands: Commands,
-    mut msg_message: MessageReader<ServerMessage>,
-    mut msg_disconnected: MessageReader<ServerDisconnected>,
+    mut from_server: ResMut<ServerToClientChannel>,
     mut exit: MessageWriter<AppExit>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     player_query: Query<(Entity, &PlayerId)>,
 ) {
-    // Handle server messages
-    for message in msg_message.read() {
-        match message {
-            ServerMessage::Init(init_msg) => {
-                info!(
-                    "received Init: my_id={:?}, {} existing players",
-                    init_msg.id,
-                    init_msg.other_players.len()
-                );
-
-                // Insert MyPlayerId resource
-                commands.insert_resource(MyPlayerId(init_msg.id));
-
-                // Spawn all existing players (these are other players, not us)
-                for (id, player) in &init_msg.other_players {
-                    spawn_player(
-                        &mut commands,
-                        &mut meshes,
-                        &mut materials,
-                        id.0,
-                        &player.pos,
-                        false, // Other players are never local
-                    );
-                }
-
-                // Spawn ourselves as the local player with position from server
-                spawn_player(
+    // Process all messages from the server
+    while let Ok(msg) = from_server.try_recv() {
+        match msg {
+            ServerToClient::Disconnected => {
+                error!("disconnected from server");
+                exit.write(AppExit::Success);
+            }
+            ServerToClient::Message(message) => {
+                handle_server_message(
                     &mut commands,
                     &mut meshes,
                     &mut materials,
-                    init_msg.id.0,
-                    &init_msg.player.pos,
-                    true, // This is us!
+                    &player_query,
+                    &message,
                 );
-            }
-            ServerMessage::Login(login_msg) => {
-                info!("player {:?} logged in", login_msg.id);
-
-                // Login is always for another player (server doesn't send our own login back)
-                spawn_player(
-                    &mut commands,
-                    &mut meshes,
-                    &mut materials,
-                    login_msg.id.0,
-                    &login_msg.player.pos,
-                    false, // Never local
-                );
-            }
-            ServerMessage::Logoff(logoff_msg) => {
-                info!(
-                    "player {:?} logged off (graceful: {})",
-                    logoff_msg.id, logoff_msg.graceful
-                );
-
-                // Find and despawn the entity with this PlayerId
-                for (entity, player_id) in player_query.iter() {
-                    if *player_id == logoff_msg.id {
-                        commands.entity(entity).despawn();
-                        break;
-                    }
-                }
             }
         }
     }
+}
 
-    // Handle disconnections
-    for _event in msg_disconnected.read() {
-        error!("disconnected from server");
-        exit.write(AppExit::Success);
+// ============================================================================
+// Message Handler
+// ============================================================================
+
+fn handle_server_message(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    player_query: &Query<(Entity, &PlayerId)>,
+    message: &ServerMessage,
+) {
+    match message {
+        ServerMessage::Init(init_msg) => {
+            info!(
+                "received Init: my_id={:?}, {} existing players",
+                init_msg.id,
+                init_msg.other_players.len()
+            );
+
+            // Insert MyPlayerId resource
+            commands.insert_resource(MyPlayerId(init_msg.id));
+
+            // Spawn all existing players (these are other players, not us)
+            for (id, player) in &init_msg.other_players {
+                spawn_player(
+                    commands,
+                    meshes,
+                    materials,
+                    id.0,
+                    &player.pos,
+                    false, // Other players are never local
+                );
+            }
+
+            // Spawn ourselves as the local player with position from server
+            spawn_player(
+                commands,
+                meshes,
+                materials,
+                init_msg.id.0,
+                &init_msg.player.pos,
+                true, // This is us!
+            );
+        }
+        ServerMessage::Login(login_msg) => {
+            info!("player {:?} logged in", login_msg.id);
+
+            // Login is always for another player (server doesn't send our own login back)
+            spawn_player(
+                commands,
+                meshes,
+                materials,
+                login_msg.id.0,
+                &login_msg.player.pos,
+                false, // Never local
+            );
+        }
+        ServerMessage::Logoff(logoff_msg) => {
+            info!(
+                "player {:?} logged off (graceful: {})",
+                logoff_msg.id, logoff_msg.graceful
+            );
+
+            // Find and despawn the entity with this PlayerId
+            for (entity, player_id) in player_query.iter() {
+                if *player_id == logoff_msg.id {
+                    commands.entity(entity).despawn();
+                    break;
+                }
+            }
+        }
     }
 }
 

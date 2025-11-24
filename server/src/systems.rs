@@ -4,106 +4,95 @@ use bevy::prelude::*;
 use rand::Rng as _;
 
 use crate::{
-    components::{LoggedIn, NetworkChannel},
-    messages::{ClientConnected, ClientDisconnected, ClientMessageReceived},
+    components::{LoggedIn, ServerToClientChannel},
     net::{ClientToServer, ServerToClient},
-    resources::{ClientToServerChannel, PlayerIndex},
+    resources::{ClientsToServerChannel, PendingMessages, PlayerIndex},
 };
 use common::protocol::*;
 
 // ============================================================================
-// Network Receiver System
+// Network System
 // ============================================================================
 
-/// System to receive messages from the channel and convert them to Bevy events
-/// This runs first and feeds events to other systems
-pub fn network_receiver_system(
-    mut from_clients: ResMut<ClientToServerChannel>,
-    mut msg_connected: MessageWriter<ClientConnected>,
-    mut msg_disconnected: MessageWriter<ClientDisconnected>,
-    mut msg_message: MessageWriter<ClientMessageReceived>,
+/// System to receive connection/disconnection messages and spawn/despawn entities.
+/// Must run before process_messages_system.
+pub fn handle_network_connections_system(
+    mut commands: Commands,
+    mut from_clients: ResMut<ClientsToServerChannel>,
+    mut player_index: ResMut<PlayerIndex>,
+    mut pending_messages: ResMut<PendingMessages>,
+    logged_in_query: Query<(&PlayerId, &ServerToClientChannel, &Position), With<LoggedIn>>,
 ) {
+    // Clear any leftover pending messages from previous frame
+    pending_messages.0.clear();
+
     while let Ok((id, msg)) = from_clients.try_recv() {
         match msg {
             ClientToServer::Connected(channel) => {
-                msg_connected.write(ClientConnected { id, channel });
+                debug!("spawning entity for {:?}", id);
+                let entity = commands
+                    .spawn((id, ServerToClientChannel::new(channel)))
+                    .id();
+                player_index.0.insert(id, entity);
             }
             ClientToServer::Disconnected => {
-                msg_disconnected.write(ClientDisconnected { id });
-            }
-            ClientToServer::Message(message) => {
-                msg_message.write(ClientMessageReceived { id, message });
-            }
-        }
-    }
-}
+                if let Some(entity) = player_index.0.remove(&id) {
+                    let was_logged_in = logged_in_query.get(entity).is_ok();
 
-// ============================================================================
-// Connection Management Systems
-// ============================================================================
+                    debug!("client {:?} disconnected (logged_in: {})", id, was_logged_in);
+                    commands.entity(entity).despawn();
 
-/// System to handle connection and disconnection events
-pub fn handle_connections_system(
-    mut commands: Commands,
-    mut player_index: ResMut<PlayerIndex>,
-    mut msg_connected: MessageReader<ClientConnected>,
-    mut msg_disconnected: MessageReader<ClientDisconnected>,
-    logged_in_query: Query<(&PlayerId, &NetworkChannel, &Position), With<LoggedIn>>,
-) {
-    // Handle connections
-    for event in msg_connected.read() {
-        debug!("spawning entity for {:?}", event.id);
-        let entity = commands
-            .spawn((event.id, NetworkChannel(event.channel.clone())))
-            .id();
-        player_index.0.insert(event.id, entity);
-    }
-
-    // Handle disconnections
-    for event in msg_disconnected.read() {
-        if let Some(entity) = player_index.0.remove(&event.id) {
-            let was_logged_in = logged_in_query.get(entity).is_ok();
-
-            debug!("client {:?} disconnected (logged_in: {})", event.id, was_logged_in);
-            commands.entity(entity).despawn();
-
-            // Broadcast logoff to all other logged-in players if they were logged in
-            if was_logged_in {
-                let logoff_msg = ServerMessage::Logoff(SLogoff {
-                    id: event.id,
-                    graceful: false,
-                });
-                for (other_id, other_channel, _) in logged_in_query.iter() {
-                    if *other_id != event.id {
-                        let _ = other_channel.0.send(ServerToClient::Send(logoff_msg.clone()));
+                    // Broadcast logoff to all other logged-in players if they were logged in
+                    if was_logged_in {
+                        let logoff_msg = ServerMessage::Logoff(SLogoff {
+                            id,
+                            graceful: false,
+                        });
+                        for (other_id, other_channel, _) in logged_in_query.iter() {
+                            if *other_id != id {
+                                let _ = other_channel.send(ServerToClient::Send(logoff_msg.clone()));
+                            }
+                        }
                     }
                 }
             }
+            ClientToServer::Message(message) => {
+                // Save for next system (after apply_deferred)
+                pending_messages.0.push((id, message));
+            }
         }
     }
 }
 
-/// System to handle all messages from clients (runs after handle_connections_system)
-pub fn process_client_messages_system(
+/// System to process client messages. Must run after handle_network_connections_system
+/// with apply_deferred in between so entities are spawned.
+pub fn process_messages_system(
     mut commands: Commands,
-    mut msg_message: MessageReader<ClientMessageReceived>,
+    pending_messages: Res<PendingMessages>,
     player_index: Res<PlayerIndex>,
-    player_query: Query<(Option<&LoggedIn>, &NetworkChannel)>,
-    logged_in_query: Query<(&PlayerId, &NetworkChannel, &Position), With<LoggedIn>>,
+    player_query: Query<(Option<&LoggedIn>, &ServerToClientChannel)>,
+    logged_in_query: Query<(&PlayerId, &ServerToClientChannel, &Position), With<LoggedIn>>,
 ) {
-    for event in msg_message.read() {
-        debug!("received message from {:?}: {:?}", event.id, event.message);
-        
-        if let Some(&entity) = player_index.0.get(&event.id) {
+    for (id, message) in &pending_messages.0 {
+        debug!("received message from {:?}: {:?}", id, message);
+
+        if let Some(&entity) = player_index.0.get(id) {
             if let Ok((logged_in, channel)) = player_query.get(entity) {
                 if logged_in.is_some() {
-                    handle_logged_in_message(&mut commands, entity, event.id, event.message.clone(), &logged_in_query);
+                    handle_logged_in_message(&mut commands, entity, *id, message.clone(), &logged_in_query);
                 } else {
-                    handle_not_logged_in_message(&mut commands, entity, event.id, event.message.clone(), channel, &logged_in_query);
+                    handle_not_logged_in_message(
+                        &mut commands,
+                        entity,
+                        *id,
+                        message.clone(),
+                        channel,
+                        &logged_in_query,
+                    );
                 }
             }
         } else {
-            error!("received message from unknown {:?}", event.id);
+            error!("received message from unknown {:?}", id);
         }
     }
 }
@@ -117,8 +106,8 @@ fn handle_not_logged_in_message(
     entity: Entity,
     id: PlayerId,
     msg: ClientMessage,
-    channel: &NetworkChannel,
-    logged_in_query: &Query<(&PlayerId, &NetworkChannel, &Position), With<LoggedIn>>,
+    channel: &ServerToClientChannel,
+    logged_in_query: &Query<(&PlayerId, &ServerToClientChannel, &Position), With<LoggedIn>>,
 ) {
     match msg {
         ClientMessage::Login(_) => {
@@ -141,7 +130,7 @@ fn handle_not_logged_in_message(
                 player: Player { pos },
                 other_players,
             });
-            if let Err(e) = channel.0.send(ServerToClient::Send(init_msg)) {
+            if let Err(e) = channel.send(ServerToClient::Send(init_msg)) {
                 warn!("failed to send init to {:?}: {}", id, e);
                 return;
             }
@@ -155,7 +144,7 @@ fn handle_not_logged_in_message(
                 player: Player { pos },
             });
             for (_, other_channel, _) in logged_in_query.iter() {
-                let _ = other_channel.0.send(ServerToClient::Send(login_msg.clone()));
+                let _ = other_channel.send(ServerToClient::Send(login_msg.clone()));
             }
         }
         _ => {
@@ -170,7 +159,7 @@ fn handle_logged_in_message(
     entity: Entity,
     id: PlayerId,
     msg: ClientMessage,
-    logged_in_query: &Query<(&PlayerId, &NetworkChannel, &Position), With<LoggedIn>>,
+    logged_in_query: &Query<(&PlayerId, &ServerToClientChannel, &Position), With<LoggedIn>>,
 ) {
     match msg {
         ClientMessage::Login(_) => {
@@ -184,7 +173,7 @@ fn handle_logged_in_message(
             let logoff_msg = ServerMessage::Logoff(SLogoff { id, graceful: true });
             for (other_id, other_channel, _) in logged_in_query.iter() {
                 if *other_id != id {
-                    let _ = other_channel.0.send(ServerToClient::Send(logoff_msg.clone()));
+                    let _ = other_channel.send(ServerToClient::Send(logoff_msg.clone()));
                 }
             }
         }

@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use tokio::sync::mpsc::{UnboundedReceiver, error::TryRecvError};
 
 use crate::net::ClientToServer;
-use common::protocol::PlayerId;
+use common::protocol::*;
 
 // ============================================================================
 // Bevy Resources
@@ -14,11 +14,15 @@ use common::protocol::PlayerId;
 #[derive(Resource, Default)]
 pub struct PlayerIndex(pub HashMap<PlayerId, Entity>);
 
+/// Pending messages to be processed after entities are spawned
+#[derive(Resource, Default)]
+pub struct PendingMessages(pub Vec<(PlayerId, ClientMessage)>);
+
 /// Resource wrapper for the per client network I/O task to server channel
 #[derive(Resource)]
-pub struct ClientToServerChannel(pub UnboundedReceiver<(PlayerId, ClientToServer)>);
+pub struct ClientsToServerChannel(pub UnboundedReceiver<(PlayerId, ClientToServer)>);
 
-impl ClientToServerChannel {
+impl ClientsToServerChannel {
     pub fn new(receiver: UnboundedReceiver<(PlayerId, ClientToServer)>) -> Self {
         Self(receiver)
     }

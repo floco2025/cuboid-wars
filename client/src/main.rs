@@ -6,10 +6,9 @@ use quinn::Endpoint;
 
 use client::{
     config::configure_client,
-    messages::ServerDisconnected,
     net::network_io_task,
     resources::{ClientToServerChannel, ServerToClientChannel},
-    systems::{network_receiver_system, process_server_messages_system, setup_world_system},
+    systems::{process_server_messages_system, setup_world_system},
 };
 use common::net::MessageStream;
 #[allow(clippy::wildcard_imports)]
@@ -75,13 +74,10 @@ fn main() -> Result<()> {
             }),
             ..default()
         }))
-        .add_message::<ServerMessage>()
-        .add_message::<ServerDisconnected>()
         .insert_resource(ClientToServerChannel::new(to_server))
         .insert_resource(ServerToClientChannel::new(from_server))
         .add_systems(Startup, setup_world_system)
-        .add_systems(Update, network_receiver_system)
-        .add_systems(Update, process_server_messages_system.after(network_receiver_system))
+        .add_systems(Update, process_server_messages_system)
         .run();
 
     Ok(())

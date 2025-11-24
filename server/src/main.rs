@@ -9,10 +9,9 @@ use tokio::sync::mpsc::unbounded_channel;
 use common::protocol::PlayerId;
 use server::{
     config::configure_server,
-    messages::{ClientConnected, ClientDisconnected, ClientMessageReceived},
     net::{ClientToServer, per_client_network_io_task},
-    resources::{ClientToServerChannel, PlayerIndex},
-    systems::{handle_connections_system, network_receiver_system, process_client_messages_system},
+    resources::{ClientsToServerChannel, PendingMessages, PlayerIndex},
+    systems::{handle_network_connections_system, process_messages_system},
 };
 
 // ============================================================================
@@ -93,14 +92,18 @@ async fn main() -> Result<()> {
             filter: "wgpu=error,naga=warn".to_string(),
             ..default()
         })
-        .add_message::<ClientConnected>()
-        .add_message::<ClientDisconnected>()
-        .add_message::<ClientMessageReceived>()
         .insert_resource(PlayerIndex::default())
-        .insert_resource(ClientToServerChannel(from_clients))
-        .add_systems(Update, network_receiver_system)
-        .add_systems(Update, handle_connections_system.after(network_receiver_system))
-        .add_systems(Update, process_client_messages_system.after(handle_connections_system));
+        .insert_resource(PendingMessages::default())
+        .insert_resource(ClientsToServerChannel(from_clients))
+        .add_systems(
+            Update,
+            (
+                handle_network_connections_system,
+                ApplyDeferred,
+                process_messages_system,
+            )
+                .chain(),
+        );
 
     info!("starting ECS server loop...");
 
