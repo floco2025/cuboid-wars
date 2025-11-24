@@ -5,11 +5,10 @@ use clap::Parser;
 use quinn::Endpoint;
 use std::net::SocketAddr;
 use tokio::sync::mpsc::unbounded_channel;
-use tracing::{error, info, trace, warn};
 
 use common::protocol::PlayerId;
 use server::{
-    config::{configure_server, init_tracing},
+    config::configure_server,
     events::{ClientConnected, ClientDisconnected, ClientMessageReceived},
     net::{ClientToServer, per_client_network_io_task},
     resources::{ClientToServerChannel, PlayerIndex},
@@ -34,8 +33,6 @@ struct Args {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    init_tracing();
-
     let args = Args::parse();
 
     let addr: SocketAddr = args.bind.parse()?;
@@ -90,7 +87,11 @@ async fn main() -> Result<()> {
 
     // Create Bevy app with ECS - run in non-blocking mode
     let mut app = App::new();
-    app.add_plugins(MinimalPlugins)
+    app.add_plugins(MinimalPlugins.set(bevy::log::LogPlugin {
+            level: bevy::log::Level::INFO,
+            filter: "wgpu=error,naga=warn".to_string(),
+            ..default()
+        }))
         .add_event::<ClientConnected>()
         .add_event::<ClientDisconnected>()
         .add_event::<ClientMessageReceived>()

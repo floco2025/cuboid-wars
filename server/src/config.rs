@@ -1,22 +1,5 @@
 use anyhow::{Context, Result};
 use quinn::ServerConfig;
-use tracing_subscriber::EnvFilter;
-
-// ============================================================================
-// Tracing Initialization
-// ============================================================================
-
-/// Initialize tracing based on `RUST_LOG` environment variable
-///
-/// - Levels: error, warn, info, debug, trace (least to most verbose)
-/// - Examples: `RUST_LOG=debug`, `RUST_LOG=game=trace`
-pub fn init_tracing() {
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
-        .with_target(true)
-        .with_writer(std::io::stderr)
-        .init();
-}
 
 // ============================================================================
 // Connection Configuration
