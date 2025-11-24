@@ -22,12 +22,12 @@ struct ConnectedClient;
 
 #[derive(Debug)]
 struct LoggedInClient {
-    name: String,
+    player: Player,
 }
 
 impl LoggedInClient {
-    const fn new(_connected: ConnectedClient, name: String) -> Self {
-        Self { name }
+    const fn new(_connected: ConnectedClient, player: Player) -> Self {
+        Self { player }
     }
 }
 
@@ -105,15 +105,21 @@ impl GameServer {
         let _ = client.to_client.send(ServerToClient::Close);
     }
 
-    fn login(&mut self, id: u32, name: String) {
+    fn login(&mut self, id: u32, name: String) -> Player {
         let mut client = self.clients.remove(&id).expect("login called on non-existent client");
         let ClientState::Connected(connected) = client.state else {
             panic!("login called on already logged-in client");
         };
+        // Create new Player
+        let player = Player {
+            name,
+            pos: Position { x: 0, y: 0 },
+        };
         // Consume the ConnectedClient to create LoggedInClient
-        let logged_in = LoggedInClient::new(connected, name);
+        let logged_in = LoggedInClient::new(connected, player.clone());
         client.state = ClientState::LoggedIn(logged_in);
         self.clients.insert(id, client);
+        player
     }
 
     fn is_logged_in(&self, id: u32) -> bool {
@@ -124,11 +130,11 @@ impl GameServer {
         !matches!(client.state, ClientState::Connected(_))
     }
 
-    fn get_logged_in_names(&self) -> Vec<(u32, String)> {
+    fn get_players(&self) -> Vec<(u32, Player)> {
         self.clients
             .iter()
             .filter_map(|(id, client)| match &client.state {
-                ClientState::LoggedIn(c) => Some((*id, c.name.clone())),
+                ClientState::LoggedIn(c) => Some((*id, c.player.clone())),
                 ClientState::Connected(_) => None,
             })
             .collect()
@@ -140,7 +146,7 @@ impl GameServer {
             .get(&id)
             .expect("get_logged_in_name called on non-existent client");
         match &client.state {
-            ClientState::LoggedIn(c) => Some(c.name.clone()),
+            ClientState::LoggedIn(c) => Some(c.player.name.clone()),
             ClientState::Connected(_) => None,
         }
     }
@@ -153,7 +159,7 @@ impl GameServer {
         let ClientState::LoggedIn(logged_in) = &mut client.state else {
             panic!("change_name called on non-logged-in client");
         };
-        logged_in.name = name;
+        logged_in.player.name = name;
     }
 
     #[instrument(skip(self, msg))]
@@ -249,15 +255,11 @@ impl GameServer {
                 return;
             }
 
-            self.login(id, login_msg.name.clone());
+            let players = self.get_players();
+            self.send_to(id, &ServerMessage::Init(SInit { id, players }));
 
-            let logins = self.get_logged_in_names();
-            self.send_to(id, &ServerMessage::Init(SInit { id, logins }));
-
-            self.send_to_all(&ServerMessage::Login(SLogin {
-                id,
-                name: login_msg.name,
-            }));
+            let player = self.login(id, login_msg.name.clone());
+            self.send_to_all(&ServerMessage::Login(SLogin { id, player }));
         } else {
             // Protocol violation
             warn!("protocol violation: client sent non-login message before authenticating");

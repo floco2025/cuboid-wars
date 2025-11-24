@@ -1,5 +1,6 @@
 use bevy::prelude::*;
-use common::protocol::ServerMessage;
+#[allow(clippy::wildcard_imports)]
+use common::protocol::*;
 use std::collections::HashMap;
 
 // ============================================================================
@@ -11,17 +12,6 @@ const MAX_CHAT_HISTORY: usize = 100;
 // ============================================================================
 // Game Client State
 // ============================================================================
-
-#[derive(Debug)]
-struct Player {
-    name: String,
-}
-
-impl Player {
-    const fn new(name: String) -> Self {
-        Self { name }
-    }
-}
 
 #[derive(Debug, Resource)]
 pub struct ClientState {
@@ -63,28 +53,27 @@ impl ClientState {
             ServerMessage::Init(msg) => {
                 let my_id = msg.id;
                 let mut lines = Vec::new();
-                for (id, name) in msg.logins {
+                for (id, player) in msg.players {
                     if id != my_id {
-                        lines.push(format!("{name} is here."));
+                        lines.push(format!("{} is here.", player.name));
                     }
-                    self.add_player(id, Player::new(name));
+                    self.add_player(id, player);
                 }
                 lines.push("[Connected] You are now logged in.".to_string());
                 self.add_chat_message(lines.join("\n"));
             }
             ServerMessage::Login(msg) => {
-                let line = format!("{} joined.", msg.name);
-                self.add_player(msg.id, Player::new(msg.name));
-                self.add_chat_message(line);
+                let name = msg.player.name.clone();
+                self.add_player(msg.id, msg.player);
+                self.add_chat_message(format!("{} joined.", name));
             }
             ServerMessage::Logoff(msg) => {
-                let name = self.get_player_name(msg.id);
+                let player = self.remove_player(msg.id);
                 let line = if msg.graceful {
-                    format!("{name} left.")
+                    format!("{} left.", player.name)
                 } else {
-                    format!("{name} disappeared.")
+                    format!("{} disappeared.", player.name)
                 };
-                self.remove_player(msg.id);
                 self.add_chat_message(line);
             }
             ServerMessage::Remove(msg) => {
@@ -97,10 +86,8 @@ impl ClientState {
                 self.add_chat_message(format!("{}: {}", name, msg.text));
             }
             ServerMessage::Name(msg) => {
-                let old_name = self.get_player_name(msg.id);
-                let line = format!("{} is now known as \"{}\".", old_name, msg.name);
-                self.set_player_name(msg.id, msg.name);
-                self.add_chat_message(line);
+                let old_name = self.set_player_name(msg.id, msg.name.clone());
+                self.add_chat_message(format!("{} is now known as \"{}\".", old_name, msg.name));
             }
         }
     }
@@ -113,21 +100,17 @@ impl ClientState {
         self.players.insert(id, player);
     }
 
-    fn remove_player(&mut self, id: u32) {
-        self.players.remove(&id);
+    fn remove_player(&mut self, id: u32) -> Player {
+        self.players.remove(&id).expect("player not found")
     }
 
     fn get_player_name(&self, id: u32) -> String {
-        self.players
-            .get(&id)
-            .expect("player not found")
-            .name
-            .clone()
+        self.players.get(&id).expect("player not found").name.clone()
     }
 
-    fn set_player_name(&mut self, id: u32, new_name: String) {
+    fn set_player_name(&mut self, id: u32, new_name: String) -> String {
         let player = self.players.get_mut(&id).expect("player not found");
-        player.name = new_name;
+        std::mem::replace(&mut player.name, new_name)
     }
 
     fn add_chat_message(&mut self, message: String) {

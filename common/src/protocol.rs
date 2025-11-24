@@ -16,6 +16,24 @@ macro_rules! message {
 }
 
 // ============================================================================
+// Common Data Types
+// ============================================================================
+
+message! {
+struct Position {
+    pub x: i32,
+    pub y: i32,
+}
+}
+
+message! {
+struct Player {
+    pub name: String,
+    pub pos: Position,
+}
+}
+
+// ============================================================================
 // Client Messages
 // ============================================================================
 
@@ -66,16 +84,16 @@ struct SError {
 message! {
 /// Server to Client: Initial server state after login.
 struct SInit {
-    pub id: u32,                    // The id that the server uses for the client
-    pub logins: Vec<(u32, String)>, // All other player ids and their names
+    pub id: u32,                     // The id that the server uses for the client
+    pub players: Vec<(u32, Player)>, // All player ids and their names
 }
 }
 
 message! {
 /// Server to Client: Another player connected.
 struct SLogin {
-    pub id: u32,      // The id for the new player
-    pub name: String, // The name of the new player
+    pub id: u32,        // The id for the new player
+    pub player: Player, // The new player
 }
 }
 
