@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use bincode::{Decode, Encode};
 
 use bevy_ecs::component::Component;
-use bevy_ecs::event::Event;
+use bevy_ecs::message::Message;
 
 // Macro to reduce boilerplate for structs
 macro_rules! message {
@@ -100,7 +100,7 @@ pub enum ClientMessage {
 }
 
 // All server to client messages
-#[derive(Debug, Clone, Event)]
+#[derive(Debug, Clone, Message)]
 #[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "bincode", derive(Encode, Decode))]
 pub enum ServerMessage {

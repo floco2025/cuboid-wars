@@ -2,7 +2,7 @@
 use bevy::prelude::*;
 
 // ============================================================================
-// Client Components
+// Bevy Components
 // ============================================================================
 
 /// Marker component for the local player (yourself)

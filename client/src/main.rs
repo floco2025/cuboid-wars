@@ -6,7 +6,7 @@ use quinn::Endpoint;
 
 use client::{
     config::configure_client,
-    events::ServerDisconnected,
+    messages::ServerDisconnected,
     net::network_io_task,
     resources::{ClientToServerChannel, ServerToClientChannel},
     systems::{network_receiver_system, process_server_messages_system, setup_world},
@@ -70,13 +70,13 @@ fn main() -> Result<()> {
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "Game Client".to_string(),
-                resolution: (1200.0, 800.0).into(),
+                resolution: (1200, 800).into(),
                 ..default()
             }),
             ..default()
         }))
-        .add_event::<ServerMessage>()
-        .add_event::<ServerDisconnected>()
+        .add_message::<ServerMessage>()
+        .add_message::<ServerDisconnected>()
         .insert_resource(ClientToServerChannel::new(to_server))
         .insert_resource(ServerToClientChannel::new(from_server))
         .add_systems(Startup, setup_world)

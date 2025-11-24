@@ -9,7 +9,7 @@ use crate::net::{ClientToServer, ServerToClient};
 use common::protocol::PlayerId;
 
 // ============================================================================
-// Client Resources
+// Bevy Resources
 // ============================================================================
 
 /// My player ID assigned by the server

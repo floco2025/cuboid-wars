@@ -5,7 +5,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::net::ServerToClient;
 
 // ============================================================================
-// Server Components
+// Bevy Components
 // ============================================================================
 
 /// Network channel for sending messages to a specific client

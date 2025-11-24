@@ -1,11 +1,11 @@
 #[allow(clippy::wildcard_imports)]
 use bevy::prelude::*;
 #[allow(clippy::wildcard_imports)]
-use rand::Rng;
+use rand::Rng as _;
 
 use crate::{
     components::{Connected, LoggedIn, NetworkChannel},
-    events::{ClientConnected, ClientDisconnected, ClientMessageReceived},
+    messages::{ClientConnected, ClientDisconnected, ClientMessageReceived},
     net::{ClientToServer, ServerToClient},
     resources::{ClientToServerChannel, PlayerIndex},
 };
@@ -19,20 +19,20 @@ use common::protocol::*;
 /// This runs first and feeds events to other systems
 pub fn network_receiver_system(
     mut from_clients: ResMut<ClientToServerChannel>,
-    mut ev_connected: EventWriter<ClientConnected>,
-    mut ev_disconnected: EventWriter<ClientDisconnected>,
-    mut ev_message: EventWriter<ClientMessageReceived>,
+    mut ev_connected: MessageWriter<ClientConnected>,
+    mut ev_disconnected: MessageWriter<ClientDisconnected>,
+    mut ev_message: MessageWriter<ClientMessageReceived>,
 ) {
     while let Ok((id, msg)) = from_clients.try_recv() {
         match msg {
             ClientToServer::Connected(channel) => {
-                ev_connected.send(ClientConnected { id, channel });
+                ev_connected.write(ClientConnected { id, channel });
             }
             ClientToServer::Disconnected => {
-                ev_disconnected.send(ClientDisconnected { id });
+                ev_disconnected.write(ClientDisconnected { id });
             }
             ClientToServer::Message(message) => {
-                ev_message.send(ClientMessageReceived { id, message });
+                ev_message.write(ClientMessageReceived { id, message });
             }
         }
     }
@@ -46,8 +46,8 @@ pub fn network_receiver_system(
 pub fn handle_connections_system(
     mut commands: Commands,
     mut player_index: ResMut<PlayerIndex>,
-    mut ev_connected: EventReader<ClientConnected>,
-    mut ev_disconnected: EventReader<ClientDisconnected>,
+    mut ev_connected: MessageReader<ClientConnected>,
+    mut ev_disconnected: MessageReader<ClientDisconnected>,
     logged_in_query: Query<(&PlayerId, &NetworkChannel, &Position), With<LoggedIn>>,
 ) {
     // Handle connections
@@ -86,7 +86,7 @@ pub fn handle_connections_system(
 /// System to handle all messages from clients (runs after handle_connections_system)
 pub fn process_client_messages_system(
     mut commands: Commands,
-    mut ev_message: EventReader<ClientMessageReceived>,
+    mut ev_message: MessageReader<ClientMessageReceived>,
     player_index: Res<PlayerIndex>,
     connected_query: Query<&NetworkChannel, (With<Connected>, Without<LoggedIn>)>,
     logged_in_query: Query<(&PlayerId, &NetworkChannel, &Position), With<LoggedIn>>,
@@ -159,10 +159,10 @@ fn handle_connected_message(
                 .collect();
 
             // Generate random position for new player
-            let mut rng = rand::thread_rng();
+            let mut rng = rand::rng();
             let pos = Position {
-                x: rng.gen_range(-1000..=1000),
-                y: rng.gen_range(-1000..=1000),
+                x: rng.random_range(-1000..=1000),
+                y: rng.random_range(-1000..=1000),
             };
 
             // Send Init to the connecting player

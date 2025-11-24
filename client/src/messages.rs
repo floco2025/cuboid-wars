@@ -1,9 +1,9 @@
 use bevy::prelude::*;
 
 // ============================================================================
-// Bevy Events for Network Messages
+// Bevy Messages
 // ============================================================================
 
 /// Event fired when the client disconnects from the server
-#[derive(Event)]
+#[derive(Message)]
 pub struct ServerDisconnected;

@@ -1,6 +1,6 @@
 use crate::{
     components::LocalPlayer,
-    events::ServerDisconnected,
+    messages::ServerDisconnected,
     net::ServerToClient,
     resources::{MyPlayerId, ServerToClientChannel},
 };
@@ -16,16 +16,16 @@ use common::protocol::*;
 /// This runs first and feeds events to other systems
 pub fn network_receiver_system(
     mut from_server: ResMut<ServerToClientChannel>,
-    mut ev_message: EventWriter<ServerMessage>,
-    mut ev_disconnected: EventWriter<ServerDisconnected>,
+    mut ev_message: MessageWriter<ServerMessage>,
+    mut ev_disconnected: MessageWriter<ServerDisconnected>,
 ) {
-    while let Ok(msg) = from_server.try_recv() {
-        match msg {
+    while let Ok(message) = from_server.try_recv() {
+        match message {
             ServerToClient::Message(message) => {
-                ev_message.send(message);
+                ev_message.write(message);
             }
             ServerToClient::Disconnected => {
-                ev_disconnected.send(ServerDisconnected);
+                ev_disconnected.write(ServerDisconnected);
             }
         }
     }
@@ -79,7 +79,8 @@ pub fn setup_world(
     // Add ambient light so everything is visible
     commands.insert_resource(AmbientLight {
         color: Color::WHITE,
-        brightness: 300.0,
+        brightness: 0.5,
+        affects_lightmapped_meshes: false,
     });
 }
 
@@ -90,9 +91,9 @@ pub fn setup_world(
 /// System to process messages from the server
 pub fn process_server_messages_system(
     mut commands: Commands,
-    mut ev_message: EventReader<ServerMessage>,
-    mut ev_disconnected: EventReader<ServerDisconnected>,
-    mut exit: EventWriter<AppExit>,
+    mut ev_message: MessageReader<ServerMessage>,
+    mut ev_disconnected: MessageReader<ServerDisconnected>,
+    mut exit: MessageWriter<AppExit>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     player_query: Query<(Entity, &PlayerId)>,
@@ -165,7 +166,7 @@ pub fn process_server_messages_system(
     // Handle disconnections
     for _event in ev_disconnected.read() {
         error!("Disconnected from server");
-        exit.send(AppExit::Success);
+        exit.write(AppExit::Success);
     }
 }
 

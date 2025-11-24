@@ -9,7 +9,7 @@ use tokio::sync::mpsc::unbounded_channel;
 use common::protocol::PlayerId;
 use server::{
     config::configure_server,
-    events::{ClientConnected, ClientDisconnected, ClientMessageReceived},
+    messages::{ClientConnected, ClientDisconnected, ClientMessageReceived},
     net::{ClientToServer, per_client_network_io_task},
     resources::{ClientToServerChannel, PlayerIndex},
     systems::{handle_connections_system, network_receiver_system, process_client_messages_system},
@@ -92,9 +92,9 @@ async fn main() -> Result<()> {
             filter: "wgpu=error,naga=warn".to_string(),
             ..default()
         }))
-        .add_event::<ClientConnected>()
-        .add_event::<ClientDisconnected>()
-        .add_event::<ClientMessageReceived>()
+        .add_message::<ClientConnected>()
+        .add_message::<ClientDisconnected>()
+        .add_message::<ClientMessageReceived>()
         .insert_resource(PlayerIndex::default())
         .insert_resource(ClientToServerChannel(from_clients))
         .add_systems(Update, network_receiver_system)

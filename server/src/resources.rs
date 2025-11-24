@@ -7,7 +7,7 @@ use crate::net::ClientToServer;
 use common::protocol::PlayerId;
 
 // ============================================================================
-// Server Resources
+// Bevy Resources
 // ============================================================================
 
 /// Index from PlayerId to Entity for fast lookups
