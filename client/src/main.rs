@@ -1,15 +1,19 @@
 use anyhow::{Context, Result};
+#[allow(clippy::wildcard_imports)]
 use bevy::prelude::*;
 use clap::Parser;
+use quinn::Endpoint;
+
 use client::{
     config::configure_client,
-    net::{BevyToServerChannel, ServerToBevyChannel, network_io_task, server_to_bevy_system},
-    world::setup_world,
+    events::{ServerDisconnected, ServerMessageReceived},
+    net::network_io_task,
+    resources::{ClientToServerChannel, ServerToClientChannel},
+    systems::{network_receiver_system, process_server_messages_system, setup_world},
 };
 use common::net::MessageStream;
 #[allow(clippy::wildcard_imports)]
 use common::protocol::*;
-use quinn::Endpoint;
 
 // ============================================================================
 // CLI Arguments
@@ -52,14 +56,14 @@ fn main() -> Result<()> {
         stream.send(&ClientMessage::Login(CLogin {})).await
     })?;
 
-    // Channel for sending from the network I/O task to bevy
-    let (to_bevy, from_server) = tokio::sync::mpsc::unbounded_channel();
+    // Channel for sending from the network I/O task to client
+    let (to_client, from_server) = tokio::sync::mpsc::unbounded_channel();
 
-    // Channel for sending from bevy to the network I/O task
-    let (to_server, from_bevy) = tokio::sync::mpsc::unbounded_channel();
+    // Channel for sending from client to the network I/O task
+    let (to_server, from_client) = tokio::sync::mpsc::unbounded_channel();
 
-    // Spawn network I/O task (takes to_client, from_client from task's perspective)
-    rt.spawn(network_io_task(connection, to_bevy, from_bevy));
+    // Spawn network I/O task
+    rt.spawn(network_io_task(connection, to_client, from_client));
 
     // Start Bevy app
     App::new()
@@ -71,10 +75,13 @@ fn main() -> Result<()> {
             }),
             ..default()
         }))
-        .insert_resource(BevyToServerChannel::new(to_server))
-        .insert_resource(ServerToBevyChannel::new(from_server))
+        .add_event::<ServerMessageReceived>()
+        .add_event::<ServerDisconnected>()
+        .insert_resource(ClientToServerChannel::new(to_server))
+        .insert_resource(ServerToClientChannel::new(from_server))
         .add_systems(Startup, setup_world)
-        .add_systems(Update, server_to_bevy_system)
+        .add_systems(Update, network_receiver_system)
+        .add_systems(Update, process_server_messages_system.after(network_receiver_system))
         .run();
 
     Ok(())

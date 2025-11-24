@@ -1,13 +1,20 @@
 use anyhow::Result;
+#[allow(clippy::wildcard_imports)]
+use bevy::prelude::*;
 use clap::Parser;
-use common::protocol::PlayerId;
 use quinn::Endpoint;
-use server::config::{configure_server, init_tracing};
-use server::server::GameServer;
-use server::net::ClientToServer;
 use std::net::SocketAddr;
 use tokio::sync::mpsc::unbounded_channel;
-use tracing::info;
+use tracing::{error, info, trace, warn};
+
+use common::protocol::PlayerId;
+use server::{
+    config::{configure_server, init_tracing},
+    events::{ClientConnected, ClientDisconnected, ClientMessageReceived},
+    net::{ClientToServer, per_client_network_io_task},
+    resources::{ClientToServerChannel, PlayerIndex},
+    systems::{handle_connections_system, network_receiver_system, process_client_messages_system},
+};
 
 // ============================================================================
 // CLI Argument Parsing
@@ -25,7 +32,7 @@ struct Args {
 // Main
 // ============================================================================
 
-#[tokio::main(flavor = "current_thread")]
+#[tokio::main]
 async fn main() -> Result<()> {
     init_tracing();
 
@@ -36,29 +43,90 @@ async fn main() -> Result<()> {
     let endpoint = Endpoint::server(server_config, addr)?;
     info!("QUIC server listening on {}", addr);
 
-    let mut server = GameServer::new();
-
     // Channel for sending from all per client network IO tasks to the server
-    let (to_server, mut from_clients) = unbounded_channel::<(PlayerId, ClientToServer)>();
+    let (to_server, from_clients) = unbounded_channel();
+    let to_server_clone = to_server.clone();
 
+    // Spawn task to accept connections and handle them
+    tokio::spawn(async move {
+        let mut next_player_id = 1u32;
+        loop {
+            if let Some(incoming) = endpoint.accept().await {
+                // Generate ID
+                let id = PlayerId(next_player_id);
+                next_player_id = next_player_id
+                    .checked_add(1)
+                    .expect("Player ID overflow: 4 billion players connected!");
+
+                let to_server_clone = to_server_clone.clone();
+                tokio::spawn(async move {
+                    match incoming.await {
+                        Ok(connection) => {
+                            info!("Player {:?} connection established", id);
+
+                            // Channel for sending from the server to a new client network IO task
+                            let (to_client, from_server) = unbounded_channel();
+
+                            // Notify main thread to spawn entity
+                            if to_server_clone
+                                .send((id, ClientToServer::Connected(to_client)))
+                                .is_err()
+                            {
+                                error!("Failed to send Connected event for {:?}", id);
+                                return;
+                            }
+
+                            // Run per-client network I/O task
+                            per_client_network_io_task(id, connection, to_server_clone, from_server).await;
+                        }
+                        Err(e) => {
+                            error!("Failed to establish connection: {}", e);
+                        }
+                    }
+                });
+            }
+        }
+    });
+
+    // Create Bevy app with ECS - run in non-blocking mode
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins)
+        .add_event::<ClientConnected>()
+        .add_event::<ClientDisconnected>()
+        .add_event::<ClientMessageReceived>()
+        .insert_resource(PlayerIndex::default())
+        .insert_resource(ClientToServerChannel(from_clients))
+        .add_systems(Update, network_receiver_system)
+        .add_systems(Update, handle_connections_system.after(network_receiver_system))
+        .add_systems(Update, process_client_messages_system.after(handle_connections_system));
+
+    info!("Starting ECS server loop...");
+
+    // Run the app in a loop manually at 30 Hz
+    let tick_duration = tokio::time::Duration::from_nanos(1_000_000_000 / 30);
+    let mut interval = tokio::time::interval(tick_duration);
+    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
+    let mut frame: u64 = 0;
     loop {
-        tokio::select! {
-            // Accept new connections
-            Some(incoming) = endpoint.accept() => {
-                server.accept_client(to_server.clone(), incoming).await;
-            }
+        interval.tick().await;
 
-            // Process messages from clients
-            Some((id, msg)) = from_clients.recv() => {
-                match msg {
-                    ClientToServer::Message(line) => {
-                        server.process_client_data(id, line);
-                    }
-                    ClientToServer::Disconnected => {
-                        server.disconnect_client(id);
-                    }
-                }
-            }
+        let update_start = tokio::time::Instant::now();
+        app.update();
+        let update_elapsed = update_start.elapsed();
+
+        if update_elapsed > tick_duration {
+            warn!(
+                "Tick {} took {:.2}ms (exceeded {:.2}ms budget)",
+                frame,
+                update_elapsed.as_secs_f64() * 1000.0,
+                tick_duration.as_secs_f64() * 1000.0
+            );
+        }
+
+        frame += 1;
+        if frame % 30 == 0 {
+            trace!("Server tick {}", frame);
         }
     }
 }

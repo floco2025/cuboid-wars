@@ -1,0 +1,29 @@
+#[allow(clippy::wildcard_imports)]
+use bevy::prelude::*;
+use std::collections::HashMap;
+use tokio::sync::mpsc::{UnboundedReceiver, error::TryRecvError};
+
+use crate::net::ClientToServer;
+use common::protocol::PlayerId;
+
+// ============================================================================
+// Server Resources
+// ============================================================================
+
+/// Index from PlayerId to Entity for fast lookups
+#[derive(Resource, Default)]
+pub struct PlayerIndex(pub HashMap<PlayerId, Entity>);
+
+/// Resource wrapper for the per client network I/O task to server channel
+#[derive(Resource)]
+pub struct ClientToServerChannel(pub UnboundedReceiver<(PlayerId, ClientToServer)>);
+
+impl ClientToServerChannel {
+    pub fn new(receiver: UnboundedReceiver<(PlayerId, ClientToServer)>) -> Self {
+        Self(receiver)
+    }
+
+    pub fn try_recv(&mut self) -> Result<(PlayerId, ClientToServer), TryRecvError> {
+        self.0.try_recv()
+    }
+}

@@ -1,9 +1,10 @@
-use common::net::MessageStream;
-#[allow(clippy::wildcard_imports)]
-use common::protocol::*;
 use quinn::{Connection, ConnectionError};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tracing::{debug, error, instrument, trace, warn};
+
+use common::net::MessageStream;
+#[allow(clippy::wildcard_imports)]
+use common::protocol::*;
 
 // ============================================================================
 // Per Client Network I/O Task
@@ -12,6 +13,7 @@ use tracing::{debug, error, instrument, trace, warn};
 // Message from per client network I/O task to server
 #[derive(Debug)]
 pub enum ClientToServer {
+    Connected(UnboundedSender<ServerToClient>),
     Message(ClientMessage),
     Disconnected,
 }
