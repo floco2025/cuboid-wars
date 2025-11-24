@@ -28,7 +28,6 @@ struct Position {
 
 message! {
 struct Player {
-    pub name: String,
     pub pos: Position,
 }
 }
@@ -39,9 +38,7 @@ struct Player {
 
 message! {
 /// Client to Server: Login request.
-struct CLogin {
-    pub name: String, // The login name
-}
+struct CLogin {}
 }
 
 message! {
@@ -49,37 +46,9 @@ message! {
 struct CLogoff {}
 }
 
-message! {
-/// Client to Server: Name change request.
-struct CName {
-    pub name: String, // The new name
-}
-}
-
-message! {
-/// Client to Server: Chat message.
-struct CSay {
-    pub text: String, // The chat message
-}
-}
-
-message! {
-/// Client to Server: Remove a player.
-struct CRemove {
-    pub id: u32, // The id of the player to remove
-}
-}
-
 // ============================================================================
 // Server Messages
 // ============================================================================
-
-message! {
-/// Server to Client: Error message.
-struct SError {
-    pub message: String, // The error message to display
-}
-}
 
 message! {
 /// Server to Client: Initial server state after login.
@@ -105,29 +74,6 @@ struct SLogoff {
 }
 }
 
-message! {
-/// Server to Client: Chat message from a player.
-struct SSay {
-    pub id: u32,      // The id of the player who sends the chat message
-    pub text: String, // The chat message
-}
-}
-
-message! {
-/// Server to Client: Player name change.
-struct SName {
-    pub id: u32,      // The id of the player who changed their name
-    pub name: String, // The new name
-}
-}
-
-message! {
-/// Server to Client: A player was removed.
-struct SRemove {
-    pub id: u32, // The id of the player who was removed
-}
-}
-
 // ============================================================================
 // Message Envelopes
 // ============================================================================
@@ -139,9 +85,6 @@ struct SRemove {
 pub enum ClientMessage {
     Login(CLogin),
     Logoff(CLogoff),
-    Name(CName),
-    Say(CSay),
-    Remove(CRemove),
 }
 
 // All server to client messages
@@ -149,11 +92,7 @@ pub enum ClientMessage {
 #[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "bincode", derive(Encode, Decode))]
 pub enum ServerMessage {
-    Error(SError),
     Init(SInit),
     Login(SLogin),
     Logoff(SLogoff),
-    Say(SSay),
-    Name(SName),
-    Remove(SRemove),
 }

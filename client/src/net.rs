@@ -1,8 +1,46 @@
+use bevy::app::AppExit;
+use bevy::prelude::*;
 use common::net::MessageStream;
 #[allow(clippy::wildcard_imports)]
 use common::protocol::*;
 use quinn::{Connection, ConnectionError};
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc::{
+    UnboundedReceiver, UnboundedSender,
+    error::{SendError, TryRecvError},
+};
+use crate::client::ClientState;
+
+// ============================================================================
+// Resources
+// ============================================================================
+
+/// A resource wrapper for the bevy to server channel
+#[derive(Resource)]
+pub struct BevyToServerChannel(UnboundedSender<BevyToServer>);
+
+impl BevyToServerChannel {
+    pub fn new(sender: UnboundedSender<BevyToServer>) -> Self {
+        Self(sender)
+    }
+
+    pub fn send(&self, msg: BevyToServer) -> Result<(), SendError<BevyToServer>> {
+        self.0.send(msg)
+    }
+}
+
+/// A resource wrapper for the server to bevy channel
+#[derive(Resource)]
+pub struct ServerToBevyChannel(UnboundedReceiver<ServerToBevy>);
+
+impl ServerToBevyChannel {
+    pub fn new(receiver: UnboundedReceiver<ServerToBevy>) -> Self {
+        Self(receiver)
+    }
+
+    pub fn try_recv(&mut self) -> Result<ServerToBevy, TryRecvError> {
+        self.0.try_recv()
+    }
+}
 
 // ============================================================================
 // Network I/O Task
@@ -89,3 +127,28 @@ pub async fn network_io_task(
     // Notify Bevy that we're disconnected
     let _ = to_bevy.send(ServerToBevy::Disconnected);
 }
+
+// ============================================================================
+// Network Polling System
+// ============================================================================
+
+pub fn server_to_bevy_system(
+    mut game_state: ResMut<ClientState>,
+    mut from_server: ResMut<ServerToBevyChannel>,
+    mut exit: EventWriter<AppExit>,
+) {
+    // Process all available messages
+    while let Ok(msg) = from_server.try_recv() {
+        match msg {
+            ServerToBevy::Message(server_msg) => {
+                game_state.process_message(server_msg);
+            }
+            ServerToBevy::Disconnected => {
+                error!("Disconnected from server");
+                exit.send(AppExit::Success);
+                return;
+            }
+        }
+    }
+}
+

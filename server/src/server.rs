@@ -8,13 +8,6 @@ use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 use tracing::{debug, error, instrument, warn};
 
 // ============================================================================
-// Constants
-// ============================================================================
-
-const MIN_NAME_LENGTH: usize = 2;
-const MAX_NAME_LENGTH: usize = 50;
-
-// ============================================================================
 // Game Server
 // ============================================================================
 
@@ -106,15 +99,14 @@ impl GameServer {
         let _ = client.to_client.send(ServerToClient::Close);
     }
 
-    fn login(&mut self, id: u32, name: String) -> Player {
+    fn login(&mut self, id: u32) -> Player {
         let mut client = self.clients.remove(&id).expect("login called on non-existent client");
         let ClientState::Connected(connected) = client.state else {
             panic!("login called on already logged-in client");
         };
-        // Create new Player
+        // Create new Player with random position
         let mut rng = rand::thread_rng();
         let player = Player {
-            name,
             pos: Position {
                 x: rng.gen_range(-1000..=1000),
                 y: rng.gen_range(-1000..=1000),
@@ -143,28 +135,6 @@ impl GameServer {
                 ClientState::Connected(_) => None,
             })
             .collect()
-    }
-
-    fn get_logged_in_name(&self, id: u32) -> Option<String> {
-        let client = self
-            .clients
-            .get(&id)
-            .expect("get_logged_in_name called on non-existent client");
-        match &client.state {
-            ClientState::LoggedIn(c) => Some(c.player.name.clone()),
-            ClientState::Connected(_) => None,
-        }
-    }
-
-    fn change_name(&mut self, id: u32, name: String) {
-        let client = self
-            .clients
-            .get_mut(&id)
-            .expect("change_name called on non-existent client");
-        let ClientState::LoggedIn(logged_in) = &mut client.state else {
-            panic!("change_name called on non-logged-in client");
-        };
-        logged_in.player.name = name;
     }
 
     #[instrument(skip(self, msg))]
@@ -248,22 +218,10 @@ impl GameServer {
 
     #[instrument(skip(self))]
     fn process_client_login(&mut self, id: u32, msg: ClientMessage) {
-        if let ClientMessage::Login(login_msg) = msg {
-            if let Err(err) = validate_name(&login_msg.name) {
-                self.send_to(
-                    id,
-                    &ServerMessage::Error(SError {
-                        message: format!("Login failed: {}", name_error_message(err)),
-                    }),
-                );
-                self.remove_client(id);
-                return;
-            }
-
+        if let ClientMessage::Login(_login_msg) = msg {
             let players = self.get_players();
             self.send_to(id, &ServerMessage::Init(SInit { id, players }));
-
-            let player = self.login(id, login_msg.name.clone());
+            let player = self.login(id);
             self.send_to_all(&ServerMessage::Login(SLogin { id, player }));
         } else {
             // Protocol violation
@@ -283,73 +241,9 @@ impl GameServer {
             ClientMessage::Logoff(_) => {
                 // Client requested graceful disconnect, so we send graceful
                 self.remove_client(id);
-
                 // Send graceful logoff message to all other clients
                 self.send_to_all(&ServerMessage::Logoff(SLogoff { id, graceful: true }));
             }
-            ClientMessage::Say(say_msg) => {
-                self.send_to_all(&ServerMessage::Say(SSay { id, text: say_msg.text }));
-            }
-            ClientMessage::Name(name_msg) => {
-                if let Err(err) = validate_name(&name_msg.name) {
-                    self.send_to(
-                        id,
-                        &ServerMessage::Error(SError {
-                            message: format!("Name change failed: {}", name_error_message(err)),
-                        }),
-                    );
-                    return;
-                }
-
-                self.change_name(id, name_msg.name.clone());
-
-                self.send_to_all(&ServerMessage::Name(SName {
-                    id,
-                    name: name_msg.name,
-                }));
-            }
-            ClientMessage::Remove(remove_msg) => {
-                if self.get_logged_in_name(remove_msg.id).is_some() {
-                    self.remove_client(remove_msg.id);
-                    self.send_to_all(&ServerMessage::Remove(SRemove { id: remove_msg.id }));
-                } else {
-                    self.send_to(
-                        id,
-                        &ServerMessage::Error(SError {
-                            message: format!("Cannot remove {}: not found", remove_msg.id),
-                        }),
-                    );
-                }
-            }
-        }
-    }
-}
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-#[derive(Clone, Copy)]
-enum NameValidationError {
-    TooShort,
-    TooLong,
-}
-
-const fn validate_name(name: &str) -> Result<(), NameValidationError> {
-    match name.len() {
-        len if len < MIN_NAME_LENGTH => Err(NameValidationError::TooShort),
-        len if len <= MAX_NAME_LENGTH => Ok(()),
-        _ => Err(NameValidationError::TooLong),
-    }
-}
-
-fn name_error_message(error: NameValidationError) -> String {
-    match error {
-        NameValidationError::TooShort => {
-            format!("Name must be at least {MIN_NAME_LENGTH} characters")
-        }
-        NameValidationError::TooLong => {
-            format!("Name too long (max {MAX_NAME_LENGTH} characters)")
         }
     }
 }

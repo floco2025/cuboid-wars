@@ -1,28 +1,19 @@
 use anyhow::{Context, Result};
 use bevy::prelude::*;
-use bevy_egui::EguiPlugin;
 use clap::Parser;
 use client::client::ClientState;
 use client::config::configure_client;
-use client::net::network_io_task;
+use client::net::{network_io_task, BevyToServerChannel, ServerToBevyChannel, server_to_bevy_system};
 use client::sync::{sync_players, update_player_positions};
-use client::ui::{BevyToServerChannel, ChatInput, ServerToBevyChannel, chat_ui_system, server_to_bevy_system};
 use client::world::setup_world;
 use common::net::MessageStream;
 #[allow(clippy::wildcard_imports)]
 use common::protocol::*;
 use quinn::Endpoint;
-use std::env;
 
 // ============================================================================
 // CLI Arguments
 // ============================================================================
-
-fn get_login_name() -> String {
-    env::var("USER")
-        .or_else(|_| env::var("USERNAME"))
-        .unwrap_or_else(|_| "unknown".to_string())
-}
 
 #[derive(Parser, Debug)]
 #[command(author, version, about = "Game client", long_about = None)]
@@ -30,10 +21,6 @@ struct Args {
     /// Server address to connect to
     #[arg(short, long, default_value = "127.0.0.1:8080")]
     server: String,
-
-    /// Login name
-    #[arg(short, long, default_value_t = get_login_name())]
-    name: String,
 }
 
 // ============================================================================
@@ -62,7 +49,7 @@ fn main() -> Result<()> {
     // Send login message (blocking)
     rt.block_on(async {
         let stream = MessageStream::new(&connection);
-        stream.send(&ClientMessage::Login(CLogin { name: args.name })).await
+        stream.send(&ClientMessage::Login(CLogin {})).await
     })?;
 
     // Channel for sending from the network I/O task to bevy
@@ -84,8 +71,6 @@ fn main() -> Result<()> {
             }),
             ..default()
         }))
-        .add_plugins(EguiPlugin)
-        .init_resource::<ChatInput>()
         .insert_resource(ClientState::new())
         .insert_resource(BevyToServerChannel::new(to_server))
         .insert_resource(ServerToBevyChannel::new(from_server))
@@ -94,7 +79,6 @@ fn main() -> Result<()> {
             server_to_bevy_system,
             sync_players,
             update_player_positions,
-            chat_ui_system,
         ).chain())
         .run();
 
