@@ -9,8 +9,8 @@ use std::collections::HashMap;
 
 #[derive(Debug, Resource)]
 pub struct ClientState {
-    my_id: Option<u32>,
-    players: HashMap<u32, Player>,
+    my_id: Option<PlayerId>,
+    players: HashMap<PlayerId, Player>,
 }
 
 impl ClientState {
@@ -30,12 +30,12 @@ impl ClientState {
     // ============================================================================
 
     #[must_use]
-    pub fn my_id(&self) -> Option<u32> {
+    pub fn my_id(&self) -> Option<PlayerId> {
         self.my_id
     }
 
     #[must_use]
-    pub fn players(&self) -> &HashMap<u32, Player> {
+    pub fn players(&self) -> &HashMap<PlayerId, Player> {
         &self.players
     }
 
@@ -60,7 +60,7 @@ impl ClientState {
     // Private Helpers
     // ============================================================================
 
-    fn add_player(&mut self, id: u32, player: Player) {
+    fn add_player(&mut self, id: PlayerId, player: Player) {
         self.players.insert(id, player);
     }
 }

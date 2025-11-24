@@ -43,7 +43,7 @@ struct Client {
 #[derive(Debug)]
 pub struct GameServer {
     /// Map of client ID to client state
-    clients: HashMap<u32, Client>,
+    clients: HashMap<PlayerId, Client>,
     /// Counter for generating unique client IDs
     next_id: u32,
 }
@@ -67,14 +67,14 @@ impl GameServer {
     fn advance_id(&mut self) {
         loop {
             self.next_id = self.next_id.checked_add(1).unwrap_or(1);
-            if !self.clients.contains_key(&self.next_id) {
+            if !self.clients.contains_key(&PlayerId(self.next_id)) {
                 break;
             }
         }
     }
 
-    fn add_client(&mut self, tx: UnboundedSender<ServerToClient>) -> u32 {
-        let id = self.next_id;
+    fn add_client(&mut self, tx: UnboundedSender<ServerToClient>) -> PlayerId {
+        let id = PlayerId(self.next_id);
         self.advance_id();
         self.clients.insert(
             id,
@@ -86,11 +86,11 @@ impl GameServer {
         id
     }
 
-    fn has_client(&self, id: u32) -> bool {
+    fn has_client(&self, id: PlayerId) -> bool {
         self.clients.contains_key(&id)
     }
 
-    fn remove_client(&mut self, id: u32) {
+    fn remove_client(&mut self, id: PlayerId) {
         let client = self
             .clients
             .remove(&id)
@@ -99,7 +99,7 @@ impl GameServer {
         let _ = client.to_client.send(ServerToClient::Close);
     }
 
-    fn login(&mut self, id: u32) -> Player {
+    fn login(&mut self, id: PlayerId) -> Player {
         let mut client = self.clients.remove(&id).expect("login called on non-existent client");
         let ClientState::Connected(connected) = client.state else {
             panic!("login called on already logged-in client");
@@ -119,7 +119,7 @@ impl GameServer {
         player
     }
 
-    fn is_logged_in(&self, id: u32) -> bool {
+    fn is_logged_in(&self, id: PlayerId) -> bool {
         let client = self
             .clients
             .get(&id)
@@ -127,7 +127,7 @@ impl GameServer {
         !matches!(client.state, ClientState::Connected(_))
     }
 
-    fn get_players(&self) -> Vec<(u32, Player)> {
+    fn get_players(&self) -> Vec<(PlayerId, Player)> {
         self.clients
             .iter()
             .filter_map(|(id, client)| match &client.state {
@@ -138,7 +138,7 @@ impl GameServer {
     }
 
     #[instrument(skip(self, msg))]
-    fn send_to(&self, id: u32, msg: &ServerMessage) {
+    fn send_to(&self, id: PlayerId, msg: &ServerMessage) {
         let client = self.clients.get(&id).expect("send_to called on non-existent client");
         if let Err(e) = client.to_client.send(ServerToClient::Send(msg.clone())) {
             debug!("failed to send to client: {}", e);
@@ -160,7 +160,7 @@ impl GameServer {
     // ============================================================================
 
     #[instrument(skip(self, to_server, incoming))]
-    pub async fn accept_client(&mut self, to_server: UnboundedSender<(u32, ClientToServer)>, incoming: Incoming) {
+    pub async fn accept_client(&mut self, to_server: UnboundedSender<(PlayerId, ClientToServer)>, incoming: Incoming) {
         // Await connection establishment
         let connection = match incoming.await {
             Ok(conn) => conn,
@@ -175,7 +175,7 @@ impl GameServer {
 
         // Add client to server
         let id = self.add_client(to_client);
-        debug!(id, "accepted new client");
+        debug!(id = id.0, "accepted new client");
 
         // Spawn I/O task for this client
         let connection_clone = connection;
@@ -188,7 +188,7 @@ impl GameServer {
     // Handle client disconnects
     // ============================================================================
 
-    pub fn disconnect_client(&mut self, id: u32) {
+    pub fn disconnect_client(&mut self, id: PlayerId) {
         // Don't do anything if the client has already been removed.
         if !self.has_client(id) {
             return;
@@ -207,7 +207,7 @@ impl GameServer {
     // Process messages from clients
     // ============================================================================
 
-    pub fn process_client_data(&mut self, id: u32, msg: ClientMessage) {
+    pub fn process_client_data(&mut self, id: PlayerId, msg: ClientMessage) {
         // Route to appropriate handler based on login status
         if self.is_logged_in(id) {
             self.process_client_message(id, msg);
@@ -217,7 +217,7 @@ impl GameServer {
     }
 
     #[instrument(skip(self))]
-    fn process_client_login(&mut self, id: u32, msg: ClientMessage) {
+    fn process_client_login(&mut self, id: PlayerId, msg: ClientMessage) {
         if let ClientMessage::Login(_login_msg) = msg {
             let players = self.get_players();
             self.send_to(id, &ServerMessage::Init(SInit { id, players }));
@@ -231,7 +231,7 @@ impl GameServer {
     }
 
     #[instrument(skip(self))]
-    fn process_client_message(&mut self, id: u32, msg: ClientMessage) {
+    fn process_client_message(&mut self, id: PlayerId, msg: ClientMessage) {
         match msg {
             ClientMessage::Login(_) => {
                 // Protocol violation: already logged in

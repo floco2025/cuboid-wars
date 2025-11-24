@@ -25,9 +25,9 @@ pub enum ServerToClient {
 
 #[instrument(skip(connection, to_server, from_server))]
 pub async fn per_client_network_io_task(
-    id: u32,
+    id: PlayerId,
     connection: Connection,
-    to_server: UnboundedSender<(u32, ClientToServer)>,
+    to_server: UnboundedSender<(PlayerId, ClientToServer)>,
     mut from_server: UnboundedReceiver<ServerToClient>,
 ) {
     let stream = MessageStream::new(&connection);

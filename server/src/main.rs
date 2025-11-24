@@ -1,5 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
+use common::protocol::PlayerId;
 use quinn::Endpoint;
 use server::config::{configure_server, init_tracing};
 use server::server::GameServer;
@@ -38,7 +39,7 @@ async fn main() -> Result<()> {
     let mut server = GameServer::new();
 
     // Channel for sending from all per client network IO tasks to the server
-    let (to_server, mut from_clients) = unbounded_channel::<(u32, ClientToServer)>();
+    let (to_server, mut from_clients) = unbounded_channel::<(PlayerId, ClientToServer)>();
 
     loop {
         tokio::select! {

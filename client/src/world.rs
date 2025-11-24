@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use common::protocol::{PlayerId, Position};
 
 // ============================================================================
 // Constants
@@ -20,12 +21,6 @@ pub const PLAYER_DEPTH: f32 = 20.0;   // Z dimension
 // ============================================================================
 // Components
 // ============================================================================
-
-/// Marker component for player entities
-#[derive(Component)]
-pub struct PlayerEntity {
-    pub player_id: u32,
-}
 
 /// Marker component for the local player (yourself)
 #[derive(Component)]
@@ -80,7 +75,7 @@ pub fn spawn_player(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
     player_id: u32,
-    position: &common::protocol::Position,
+    position: &Position,
     is_local: bool,
 ) {
     let color = if is_local {
@@ -90,11 +85,11 @@ pub fn spawn_player(
     };
 
     let mut entity = commands.spawn((
+        PlayerId(player_id),
         Mesh3d(meshes.add(Cuboid::new(PLAYER_WIDTH, PLAYER_HEIGHT, PLAYER_DEPTH))),
         MeshMaterial3d(materials.add(color)),
         Transform::from_xyz(position.x as f32, PLAYER_HEIGHT / 2.0, position.y as f32),
         Visibility::default(),
-        PlayerEntity { player_id },
     ));
 
     if is_local {
