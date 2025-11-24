@@ -16,23 +16,23 @@ use common::protocol::*;
 /// This runs first and feeds events to other systems
 pub fn network_receiver_system(
     mut from_server: ResMut<ServerToClientChannel>,
-    mut ev_message: MessageWriter<ServerMessage>,
-    mut ev_disconnected: MessageWriter<ServerDisconnected>,
+    mut msg_message: MessageWriter<ServerMessage>,
+    mut msg_disconnected: MessageWriter<ServerDisconnected>,
 ) {
     while let Ok(message) = from_server.try_recv() {
         match message {
             ServerToClient::Message(message) => {
-                ev_message.write(message);
+                msg_message.write(message);
             }
             ServerToClient::Disconnected => {
-                ev_disconnected.write(ServerDisconnected);
+                msg_disconnected.write(ServerDisconnected);
             }
         }
     }
 }
 
 // ============================================================================
-// World Setup System
+// Setup World System
 // ============================================================================
 
 /// World dimensions
@@ -48,7 +48,7 @@ pub const PLAYER_WIDTH: f32 = 20.0;
 pub const PLAYER_HEIGHT: f32 = 80.0;
 pub const PLAYER_DEPTH: f32 = 20.0;
 
-pub fn setup_world(
+pub fn setup_world_system(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -91,19 +91,19 @@ pub fn setup_world(
 /// System to process messages from the server
 pub fn process_server_messages_system(
     mut commands: Commands,
-    mut ev_message: MessageReader<ServerMessage>,
-    mut ev_disconnected: MessageReader<ServerDisconnected>,
+    mut msg_message: MessageReader<ServerMessage>,
+    mut msg_disconnected: MessageReader<ServerDisconnected>,
     mut exit: MessageWriter<AppExit>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     player_query: Query<(Entity, &PlayerId)>,
 ) {
     // Handle server messages
-    for message in ev_message.read() {
+    for message in msg_message.read() {
         match message {
             ServerMessage::Init(init_msg) => {
                 info!(
-                    "Received Init: my_id={:?}, {} existing players",
+                    "received Init: my_id={:?}, {} existing players",
                     init_msg.id,
                     init_msg.other_players.len()
                 );
@@ -134,7 +134,7 @@ pub fn process_server_messages_system(
                 );
             }
             ServerMessage::Login(login_msg) => {
-                info!("Player {:?} logged in", login_msg.id);
+                info!("player {:?} logged in", login_msg.id);
 
                 // Login is always for another player (server doesn't send our own login back)
                 spawn_player(
@@ -148,7 +148,7 @@ pub fn process_server_messages_system(
             }
             ServerMessage::Logoff(logoff_msg) => {
                 info!(
-                    "Player {:?} logged off (graceful: {})",
+                    "player {:?} logged off (graceful: {})",
                     logoff_msg.id, logoff_msg.graceful
                 );
 
@@ -164,8 +164,8 @@ pub fn process_server_messages_system(
     }
 
     // Handle disconnections
-    for _event in ev_disconnected.read() {
-        error!("Disconnected from server");
+    for _event in msg_disconnected.read() {
+        error!("disconnected from server");
         exit.write(AppExit::Success);
     }
 }

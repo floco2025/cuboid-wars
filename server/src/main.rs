@@ -38,7 +38,7 @@ async fn main() -> Result<()> {
     let addr: SocketAddr = args.bind.parse()?;
     let server_config = configure_server()?;
     let endpoint = Endpoint::server(server_config, addr)?;
-    info!("QUIC server listening on {}", addr);
+    info!("quic server listening on {}", addr);
 
     // Channel for sending from all per client network IO tasks to the server
     let (to_server, from_clients) = unbounded_channel();
@@ -53,13 +53,13 @@ async fn main() -> Result<()> {
                 let id = PlayerId(next_player_id);
                 next_player_id = next_player_id
                     .checked_add(1)
-                    .expect("Player ID overflow: 4 billion players connected!");
+                    .expect("player ID overflow: 4 billion players connected!");
 
                 let to_server_clone = to_server_clone.clone();
                 tokio::spawn(async move {
                     match incoming.await {
                         Ok(connection) => {
-                            info!("Player {:?} connection established", id);
+                            info!("player {:?} connection established", id);
 
                             // Channel for sending from the server to a new client network IO task
                             let (to_client, from_server) = unbounded_channel();
@@ -69,7 +69,7 @@ async fn main() -> Result<()> {
                                 .send((id, ClientToServer::Connected(to_client)))
                                 .is_err()
                             {
-                                error!("Failed to send Connected event for {:?}", id);
+                                error!("failed to send Connected event for {:?}", id);
                                 return;
                             }
 
@@ -77,7 +77,7 @@ async fn main() -> Result<()> {
                             per_client_network_io_task(id, connection, to_server_clone, from_server).await;
                         }
                         Err(e) => {
-                            error!("Failed to establish connection: {}", e);
+                            error!("failed to establish connection: {}", e);
                         }
                     }
                 });
@@ -101,7 +101,7 @@ async fn main() -> Result<()> {
         .add_systems(Update, handle_connections_system.after(network_receiver_system))
         .add_systems(Update, process_client_messages_system.after(handle_connections_system));
 
-    info!("Starting ECS server loop...");
+    info!("starting ECS server loop...");
 
     // Run the app in a loop manually at 30 Hz
     let tick_duration = tokio::time::Duration::from_nanos(1_000_000_000 / 30);
@@ -118,7 +118,7 @@ async fn main() -> Result<()> {
 
         if update_elapsed > tick_duration {
             warn!(
-                "Tick {} took {:.2}ms (exceeded {:.2}ms budget)",
+                "tick {} took {:.2}ms (exceeded {:.2}ms budget)",
                 frame,
                 update_elapsed.as_secs_f64() * 1000.0,
                 tick_duration.as_secs_f64() * 1000.0
@@ -127,7 +127,7 @@ async fn main() -> Result<()> {
 
         frame += 1;
         if frame % 30 == 0 {
-            trace!("Server tick {}", frame);
+            trace!("server tick {}", frame);
         }
     }
 }

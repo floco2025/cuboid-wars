@@ -19,20 +19,20 @@ use common::protocol::*;
 /// This runs first and feeds events to other systems
 pub fn network_receiver_system(
     mut from_clients: ResMut<ClientToServerChannel>,
-    mut ev_connected: MessageWriter<ClientConnected>,
-    mut ev_disconnected: MessageWriter<ClientDisconnected>,
-    mut ev_message: MessageWriter<ClientMessageReceived>,
+    mut msg_connected: MessageWriter<ClientConnected>,
+    mut msg_disconnected: MessageWriter<ClientDisconnected>,
+    mut msg_message: MessageWriter<ClientMessageReceived>,
 ) {
     while let Ok((id, msg)) = from_clients.try_recv() {
         match msg {
             ClientToServer::Connected(channel) => {
-                ev_connected.write(ClientConnected { id, channel });
+                msg_connected.write(ClientConnected { id, channel });
             }
             ClientToServer::Disconnected => {
-                ev_disconnected.write(ClientDisconnected { id });
+                msg_disconnected.write(ClientDisconnected { id });
             }
             ClientToServer::Message(message) => {
-                ev_message.write(ClientMessageReceived { id, message });
+                msg_message.write(ClientMessageReceived { id, message });
             }
         }
     }
@@ -46,12 +46,12 @@ pub fn network_receiver_system(
 pub fn handle_connections_system(
     mut commands: Commands,
     mut player_index: ResMut<PlayerIndex>,
-    mut ev_connected: MessageReader<ClientConnected>,
-    mut ev_disconnected: MessageReader<ClientDisconnected>,
+    mut msg_connected: MessageReader<ClientConnected>,
+    mut msg_disconnected: MessageReader<ClientDisconnected>,
     logged_in_query: Query<(&PlayerId, &NetworkChannel, &Position), With<LoggedIn>>,
 ) {
     // Handle connections
-    for event in ev_connected.read() {
+    for event in msg_connected.read() {
         debug!("spawning entity for player {:?}", event.id);
         let entity = commands
             .spawn((event.id, NetworkChannel(event.channel.clone()), Connected))
@@ -60,7 +60,7 @@ pub fn handle_connections_system(
     }
 
     // Handle disconnections
-    for event in ev_disconnected.read() {
+    for event in msg_disconnected.read() {
         if let Some(entity) = player_index.0.remove(&event.id) {
             let was_logged_in = logged_in_query.get(entity).is_ok();
 
@@ -86,12 +86,12 @@ pub fn handle_connections_system(
 /// System to handle all messages from clients (runs after handle_connections_system)
 pub fn process_client_messages_system(
     mut commands: Commands,
-    mut ev_message: MessageReader<ClientMessageReceived>,
+    mut msg_message: MessageReader<ClientMessageReceived>,
     player_index: Res<PlayerIndex>,
     connected_query: Query<&NetworkChannel, (With<Connected>, Without<LoggedIn>)>,
     logged_in_query: Query<(&PlayerId, &NetworkChannel, &Position), With<LoggedIn>>,
 ) {
-    for event in ev_message.read() {
+    for event in msg_message.read() {
         debug!("received message from player {:?}: {:?}", event.id, event.message);
         
         // Fast O(1) lookup using index
