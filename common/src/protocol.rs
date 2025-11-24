@@ -63,7 +63,7 @@ struct CLogoff {}
 message! {
 /// Server to Client: Initial server state after login.
 struct SInit {
-    pub id: PlayerId,                      // The id that the server uses for the client
+    pub id: PlayerId,                     // The id that the server uses for the client
     pub players: Vec<(PlayerId, Player)>, // All player ids and their data
 }
 }

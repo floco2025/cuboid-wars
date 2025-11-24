@@ -50,8 +50,8 @@ impl ClientState {
             ServerMessage::Login(msg) => {
                 self.add_player(msg.id, msg.player);
             }
-            ServerMessage::Logoff(_msg) => {
-                // Player left - will be handled by sync system
+            ServerMessage::Logoff(msg) => {
+                self.players.remove(&msg.id);
             }
         }
     }
