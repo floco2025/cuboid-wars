@@ -1,6 +1,6 @@
 use crate::{
     components::LocalPlayer,
-    events::{ServerDisconnected, ServerMessageReceived},
+    events::ServerDisconnected,
     net::ServerToClient,
     resources::{MyPlayerId, ServerToClientChannel},
 };
@@ -16,13 +16,13 @@ use common::protocol::*;
 /// This runs first and feeds events to other systems
 pub fn network_receiver_system(
     mut from_server: ResMut<ServerToClientChannel>,
-    mut ev_message: EventWriter<ServerMessageReceived>,
+    mut ev_message: EventWriter<ServerMessage>,
     mut ev_disconnected: EventWriter<ServerDisconnected>,
 ) {
     while let Ok(msg) = from_server.try_recv() {
         match msg {
             ServerToClient::Message(message) => {
-                ev_message.send(ServerMessageReceived { message });
+                ev_message.send(message);
             }
             ServerToClient::Disconnected => {
                 ev_disconnected.send(ServerDisconnected);
@@ -90,7 +90,7 @@ pub fn setup_world(
 /// System to process messages from the server
 pub fn process_server_messages_system(
     mut commands: Commands,
-    mut ev_message: EventReader<ServerMessageReceived>,
+    mut ev_message: EventReader<ServerMessage>,
     mut ev_disconnected: EventReader<ServerDisconnected>,
     mut exit: EventWriter<AppExit>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -98,8 +98,8 @@ pub fn process_server_messages_system(
     player_query: Query<(Entity, &PlayerId)>,
 ) {
     // Handle server messages
-    for event in ev_message.read() {
-        match &event.message {
+    for message in ev_message.read() {
+        match message {
             ServerMessage::Init(init_msg) => {
                 info!(
                     "Received Init: my_id={:?}, {} existing players",
