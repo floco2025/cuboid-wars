@@ -1,9 +1,9 @@
 #[allow(clippy::wildcard_imports)]
 use bevy::prelude::*;
 use std::collections::HashMap;
-use tokio::sync::mpsc::{UnboundedReceiver, error::TryRecvError};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, error::TryRecvError};
 
-use crate::net::ClientToServer;
+use crate::net::{ClientToServer, ServerToClient};
 use common::protocol::*;
 
 // ============================================================================
@@ -14,15 +14,26 @@ use common::protocol::*;
 #[derive(Resource, Default)]
 pub struct PlayerIndex(pub HashMap<PlayerId, Entity>);
 
-/// Pending messages to be processed after entities are spawned
-#[derive(Resource, Default)]
-pub struct PendingMessages(pub Vec<(PlayerId, ClientMessage)>);
-
-/// Resource wrapper for the per client network I/O task to server channel
+/// Resource wrapper for the channel from the accept connections task, which gives us the channel to
+/// send from thee server to the client.
 #[derive(Resource)]
-pub struct ClientsToServerChannel(pub UnboundedReceiver<(PlayerId, ClientToServer)>);
+pub struct FromAcceptChannel(UnboundedReceiver<(PlayerId, UnboundedSender<ServerToClient>)>);
 
-impl ClientsToServerChannel {
+impl FromAcceptChannel {
+    pub fn new(receiver: UnboundedReceiver<(PlayerId, UnboundedSender<ServerToClient>)>) -> Self {
+        Self(receiver)
+    }
+
+    pub fn try_recv(&mut self) -> Result<(PlayerId, UnboundedSender<ServerToClient>), TryRecvError> {
+        self.0.try_recv()
+    }
+}
+
+/// Resource wrapper for the channel from all per client network I/O tasks.ß
+#[derive(Resource)]
+pub struct FromClientsChannel(UnboundedReceiver<(PlayerId, ClientToServer)>);
+
+impl FromClientsChannel {
     pub fn new(receiver: UnboundedReceiver<(PlayerId, ClientToServer)>) -> Self {
         Self(receiver)
     }

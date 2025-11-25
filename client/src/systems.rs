@@ -81,7 +81,7 @@ pub fn process_server_messages_system(
                 exit.write(AppExit::Success);
             }
             ServerToClient::Message(message) => {
-                handle_server_message(
+                process_message(
                     &mut commands,
                     &mut meshes,
                     &mut materials,
@@ -97,14 +97,14 @@ pub fn process_server_messages_system(
 // Message Handler
 // ============================================================================
 
-fn handle_server_message(
+fn process_message(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
     player_query: &Query<(Entity, &PlayerId)>,
-    message: &ServerMessage,
+    msg: &ServerMessage,
 ) {
-    match message {
+    match msg {
         ServerMessage::Init(init_msg) => {
             info!(
                 "received Init: my_id={:?}, {} existing players",

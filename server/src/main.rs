@@ -6,12 +6,11 @@ use quinn::Endpoint;
 use std::net::SocketAddr;
 use tokio::sync::mpsc::unbounded_channel;
 
-use common::protocol::PlayerId;
 use server::{
     config::configure_server,
-    net::{ClientToServer, per_client_network_io_task},
-    resources::{ClientsToServerChannel, PendingMessages, PlayerIndex},
-    systems::{handle_network_connections_system, process_messages_system},
+    net::accept_connections_task,
+    resources::{FromAcceptChannel, FromClientsChannel, PlayerIndex},
+    systems::{process_client_message_system, process_new_connections_system},
 };
 
 // ============================================================================
@@ -39,50 +38,13 @@ async fn main() -> Result<()> {
     let endpoint = Endpoint::server(server_config, addr)?;
     info!("quic server listening on {}", addr);
 
+    // Channel for sending from the accept connections task to the server
+    let (to_server_from_accept, from_accept) = unbounded_channel();
     // Channel for sending from all per client network IO tasks to the server
     let (to_server, from_clients) = unbounded_channel();
-    let to_server_clone = to_server.clone();
 
-    // Spawn task to accept connections and handle them
-    tokio::spawn(async move {
-        let mut next_player_id = 1u32;
-        loop {
-            if let Some(incoming) = endpoint.accept().await {
-                // Generate ID
-                let id = PlayerId(next_player_id);
-                next_player_id = next_player_id
-                    .checked_add(1)
-                    .expect("player ID overflow: 4 billion players connected!");
-
-                let to_server_clone = to_server_clone.clone();
-                tokio::spawn(async move {
-                    match incoming.await {
-                        Ok(connection) => {
-                            info!("player {:?} connection established", id);
-
-                            // Channel for sending from the server to a new client network IO task
-                            let (to_client, from_server) = unbounded_channel();
-
-                            // Notify main thread to spawn entity
-                            if to_server_clone
-                                .send((id, ClientToServer::Connected(to_client)))
-                                .is_err()
-                            {
-                                error!("failed to send Connected event for {:?}", id);
-                                return;
-                            }
-
-                            // Run per-client network I/O task
-                            per_client_network_io_task(id, connection, to_server_clone, from_server).await;
-                        }
-                        Err(e) => {
-                            error!("failed to establish connection: {}", e);
-                        }
-                    }
-                });
-            }
-        }
-    });
+    // Spawn task to accept connections
+    tokio::spawn(accept_connections_task(endpoint, to_server_from_accept, to_server));
 
     // Create Bevy app with ECS - run in non-blocking mode
     let mut app = App::new();
@@ -93,14 +55,14 @@ async fn main() -> Result<()> {
             ..default()
         })
         .insert_resource(PlayerIndex::default())
-        .insert_resource(PendingMessages::default())
-        .insert_resource(ClientsToServerChannel(from_clients))
+        .insert_resource(FromAcceptChannel::new(from_accept))
+        .insert_resource(FromClientsChannel::new(from_clients))
         .add_systems(
             Update,
             (
-                handle_network_connections_system,
-                ApplyDeferred,
-                process_messages_system,
+                process_new_connections_system, // Spawns entities
+                ApplyDeferred,                  // Makes them queryable
+                process_client_message_system,  // Can now query them
             )
                 .chain(),
         );

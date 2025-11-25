@@ -55,10 +55,10 @@ fn main() -> Result<()> {
         stream.send(&ClientMessage::Login(CLogin {})).await
     })?;
 
-    // Channel for sending from the network I/O task to client
+    // Channel for sending from the network I/O task to the client
     let (to_client, from_server) = tokio::sync::mpsc::unbounded_channel();
 
-    // Channel for sending from client to the network I/O task
+    // Channel for sending from the client to the network I/O task
     let (to_server, from_client) = tokio::sync::mpsc::unbounded_channel();
 
     // Spawn network I/O task

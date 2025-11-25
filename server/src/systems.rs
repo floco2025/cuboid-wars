@@ -6,35 +6,38 @@ use rand::Rng as _;
 use crate::{
     components::{LoggedIn, ServerToClientChannel},
     net::{ClientToServer, ServerToClient},
-    resources::{ClientsToServerChannel, PendingMessages, PlayerIndex},
+    resources::{FromAcceptChannel, FromClientsChannel, PlayerIndex},
 };
 use common::protocol::*;
 
 // ============================================================================
-// Network System
+// Network Systems
 // ============================================================================
 
-/// System to receive connection/disconnection messages and spawn/despawn entities.
-/// Must run before process_messages_system.
-pub fn handle_network_connections_system(
+/// System to process new client connections and spawn entities.
+pub fn process_new_connections_system(
     mut commands: Commands,
-    mut from_clients: ResMut<ClientsToServerChannel>,
+    mut from_accept: ResMut<FromAcceptChannel>,
     mut player_index: ResMut<PlayerIndex>,
-    mut pending_messages: ResMut<PendingMessages>,
+) {
+    while let Ok((id, to_client)) = from_accept.try_recv() {
+        debug!("spawning entity for {:?}", id);
+        let entity = commands.spawn((id, ServerToClientChannel::new(to_client))).id();
+        player_index.0.insert(id, entity);
+    }
+}
+
+/// System to process client events (messages and disconnections). Must run after
+/// process_new_connections_system with apply_deferred in between.
+pub fn process_client_message_system(
+    mut commands: Commands,
+    mut from_clients: ResMut<FromClientsChannel>,
+    mut player_index: ResMut<PlayerIndex>,
+    player_query: Query<(Option<&LoggedIn>, &ServerToClientChannel)>,
     logged_in_query: Query<(&PlayerId, &ServerToClientChannel, &Position), With<LoggedIn>>,
 ) {
-    // Clear any leftover pending messages from previous frame
-    pending_messages.0.clear();
-
-    while let Ok((id, msg)) = from_clients.try_recv() {
-        match msg {
-            ClientToServer::Connected(channel) => {
-                debug!("spawning entity for {:?}", id);
-                let entity = commands
-                    .spawn((id, ServerToClientChannel::new(channel)))
-                    .id();
-                player_index.0.insert(id, entity);
-            }
+    while let Ok((id, event)) = from_clients.try_recv() {
+        match event {
             ClientToServer::Disconnected => {
                 if let Some(entity) = player_index.0.remove(&id) {
                     let was_logged_in = logged_in_query.get(entity).is_ok();
@@ -44,10 +47,7 @@ pub fn handle_network_connections_system(
 
                     // Broadcast logoff to all other logged-in players if they were logged in
                     if was_logged_in {
-                        let logoff_msg = ServerMessage::Logoff(SLogoff {
-                            id,
-                            graceful: false,
-                        });
+                        let logoff_msg = ServerMessage::Logoff(SLogoff { id, graceful: false });
                         for (other_id, other_channel, _) in logged_in_query.iter() {
                             if *other_id != id {
                                 let _ = other_channel.send(ServerToClient::Send(logoff_msg.clone()));
@@ -57,51 +57,29 @@ pub fn handle_network_connections_system(
                 }
             }
             ClientToServer::Message(message) => {
-                // Save for next system (after apply_deferred)
-                pending_messages.0.push((id, message));
-            }
-        }
-    }
-}
+                debug!("received message from {:?}: {:?}", id, message);
 
-/// System to process client messages. Must run after handle_network_connections_system
-/// with apply_deferred in between so entities are spawned.
-pub fn process_messages_system(
-    mut commands: Commands,
-    pending_messages: Res<PendingMessages>,
-    player_index: Res<PlayerIndex>,
-    player_query: Query<(Option<&LoggedIn>, &ServerToClientChannel)>,
-    logged_in_query: Query<(&PlayerId, &ServerToClientChannel, &Position), With<LoggedIn>>,
-) {
-    for (id, message) in &pending_messages.0 {
-        debug!("received message from {:?}: {:?}", id, message);
-
-        if let Some(&entity) = player_index.0.get(id) {
-            if let Ok((logged_in, channel)) = player_query.get(entity) {
-                if logged_in.is_some() {
-                    handle_logged_in_message(&mut commands, entity, *id, message.clone(), &logged_in_query);
+                if let Some(&entity) = player_index.0.get(&id) {
+                    if let Ok((logged_in, channel)) = player_query.get(entity) {
+                        if logged_in.is_some() {
+                            process_message_logged_in(&mut commands, entity, id, message, &logged_in_query);
+                        } else {
+                            process_message_not_logged_in(&mut commands, entity, id, message, channel, &logged_in_query);
+                        }
+                    }
                 } else {
-                    handle_not_logged_in_message(
-                        &mut commands,
-                        entity,
-                        *id,
-                        message.clone(),
-                        channel,
-                        &logged_in_query,
-                    );
+                    error!("received message from unknown {:?}", id);
                 }
             }
-        } else {
-            error!("received message from unknown {:?}", id);
         }
     }
 }
 
 // ============================================================================
-// Message Handlers
+// Dispatch Messages
 // ============================================================================
 
-fn handle_not_logged_in_message(
+fn process_message_not_logged_in(
     commands: &mut Commands,
     entity: Entity,
     id: PlayerId,
@@ -154,7 +132,7 @@ fn handle_not_logged_in_message(
     }
 }
 
-fn handle_logged_in_message(
+fn process_message_logged_in(
     commands: &mut Commands,
     entity: Entity,
     id: PlayerId,
