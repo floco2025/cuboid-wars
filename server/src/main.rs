@@ -6,11 +6,12 @@ use quinn::Endpoint;
 use std::net::SocketAddr;
 use tokio::sync::mpsc::unbounded_channel;
 
+use common::systems::movement_system;
 use server::{
     config::configure_server,
     net::accept_connections_task,
     resources::{FromAcceptChannel, FromClientsChannel, PlayerIndex},
-    systems::{broadcast_state_system, process_client_message_system, process_new_connections_system},
+    systems::{accept_connections_system, broadcast_state_system, process_client_message_system},
 };
 
 // ============================================================================
@@ -60,11 +61,16 @@ async fn main() -> Result<()> {
         .add_systems(
             Update,
             (
-                process_new_connections_system, // Spawns entities
-                ApplyDeferred,                   // Makes them queryable
-                process_client_message_system,   // Can now query them
-                common::systems::movement_system, // Shared movement logic
-                broadcast_state_system,          // Broadcast authoritative state
+                // Accept new connections and spawn entities
+                accept_connections_system,
+                // Makes new entities queryable
+                ApplyDeferred,
+                // Process messages from clients
+                process_client_message_system,
+                // Shared movement logic
+                movement_system,
+                // Broadcast authoritative state to clients
+                broadcast_state_system,
             )
                 .chain(),
         );

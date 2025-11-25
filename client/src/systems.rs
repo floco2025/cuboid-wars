@@ -84,11 +84,11 @@ pub fn setup_world_system(
 }
 
 // ============================================================================
-// Server Message Processing System
+// Server Event Processing System
 // ============================================================================
 
 // System to process messages from the server
-pub fn process_server_messages_system(
+pub fn process_server_events_system(
     mut commands: Commands,
     mut from_server: ResMut<ServerToClientChannel>,
     mut exit: MessageWriter<AppExit>,
@@ -96,6 +96,7 @@ pub fn process_server_messages_system(
     mut materials: ResMut<Assets<StandardMaterial>>,
     player_query: Query<(Entity, &PlayerId)>,
     mut frame_count: Local<u32>,
+    my_player_id: Option<Res<MyPlayerId>>,
 ) {
     *frame_count += 1;
     
@@ -112,27 +113,35 @@ pub fn process_server_messages_system(
                 exit.write(AppExit::Success);
             }
             ServerToClient::Message(message) => {
-                process_message(
-                    &mut commands,
-                    &mut meshes,
-                    &mut materials,
-                    &player_query,
-                    &message,
-                );
+                if my_player_id.is_some() {
+                    process_message_logged_in(
+                        &mut commands,
+                        &mut meshes,
+                        &mut materials,
+                        &player_query,
+                        &message,
+                    );
+                } else {
+                    process_message_not_logged_in(
+                        &mut commands,
+                        &mut meshes,
+                        &mut materials,
+                        &message,
+                    );
+                }
             }
         }
     }
 }
 
 // ============================================================================
-// Message Handler
+// Process Messages
 // ============================================================================
 
-fn process_message(
+fn process_message_not_logged_in(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
-    player_query: &Query<(Entity, &PlayerId)>,
     msg: &ServerMessage,
 ) {
     match msg {
@@ -171,6 +180,23 @@ fn process_message(
                 &init_msg.player.kin.rot,
                 true, // This is us!
             );
+        }
+        _ => {
+            warn!("Received non-Init message before logging in (out-of-order delivery)");
+        }
+    }
+}
+
+fn process_message_logged_in(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    player_query: &Query<(Entity, &PlayerId)>,
+    msg: &ServerMessage,
+) {
+    match msg {
+        ServerMessage::Init(_) => {
+            error!("Received Init after already logged in");
         }
         ServerMessage::Login(login_msg) => {
             info!("player {:?} logged in", login_msg.id);

@@ -11,11 +11,10 @@ use crate::{
 use common::protocol::*;
 
 // ============================================================================
-// Network Systems
+// Accept Connections System
 // ============================================================================
 
-// System to process new client connections and spawn entities.
-pub fn process_new_connections_system(
+pub fn accept_connections_system(
     mut commands: Commands,
     mut from_accept: ResMut<FromAcceptChannel>,
     mut player_index: ResMut<PlayerIndex>,
@@ -27,8 +26,12 @@ pub fn process_new_connections_system(
     }
 }
 
-// System to process client events (messages and disconnections). Must run after
-// process_new_connections_system with apply_deferred in between.
+// ============================================================================
+// Client Event Processing System
+// ============================================================================
+
+// NOTE: Must run after accept_connections_system with apply_deferred in between, otherwise entities
+// for the messages might not be spawned yet.
 pub fn process_client_message_system(
     mut commands: Commands,
     mut from_clients: ResMut<FromClientsChannel>,
@@ -76,7 +79,7 @@ pub fn process_client_message_system(
 }
 
 // ============================================================================
-// Dispatch Messages
+// Process Messages
 // ============================================================================
 
 fn process_message_not_logged_in(
@@ -126,8 +129,8 @@ fn process_message_not_logged_in(
             }
         }
         _ => {
-            warn!("{:?} sent non-login message before authenticating", id);
-            commands.entity(entity).despawn();
+            warn!("{:?} sent non-login message before authenticating (likely out-of-order delivery)", id);
+            // Don't despawn - Init message will likely arrive soon
         }
     }
 }
