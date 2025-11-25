@@ -41,19 +41,28 @@ pub struct Velocity {
     pub y: f32,
 }
 
+// Rotation component - yaw rotation in radians (used when stationary)
+#[derive(Debug, Clone, Copy, Component, Default)]
+#[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bincode", derive(Encode, Decode))]
+pub struct Rotation {
+    pub yaw: f32, // radians
+}
+
 // Player ID component - identifies which player an entity represents
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component)]
 #[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "bincode", derive(Encode, Decode))]
 pub struct PlayerId(pub u32);
 
-// Kinematics - position and velocity together
+// Kinematics - position, velocity, and rotation together
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "bincode", derive(Encode, Decode))]
 pub struct Kinematics {
     pub pos: Position,
     pub vel: Velocity,
+    pub rot: Rotation,
 }
 
 message! {
@@ -80,6 +89,13 @@ message! {
 // Client to Server: Velocity update.
 struct CVelocity {
     pub vel: Velocity,
+}
+}
+
+message! {
+// Client to Server: Rotation update (for stationary players).
+struct CRotation {
+    pub rot: Rotation,
 }
 }
 
@@ -121,6 +137,14 @@ struct SVelocity {
 }
 
 message! {
+// Server to Client: Player rotation update.
+struct SRotation {
+    pub id: PlayerId,
+    pub rot: Rotation,
+}
+}
+
+message! {
 // Server to Client: Kinematics for all players.
 struct SKinematics {
     pub kinematics: Vec<(PlayerId, Kinematics)>,
@@ -139,6 +163,7 @@ pub enum ClientMessage {
     Login(CLogin),
     Logoff(CLogoff),
     Velocity(CVelocity),
+    Rotation(CRotation),
 }
 
 // All server to client messages
@@ -150,5 +175,6 @@ pub enum ServerMessage {
     Login(SLogin),
     Logoff(SLogoff),
     PlayerVelocity(SVelocity),
+    PlayerRotation(SRotation),
     Kinematics(SKinematics),
 }

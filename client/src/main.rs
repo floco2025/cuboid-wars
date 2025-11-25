@@ -8,7 +8,7 @@ use client::{
     config::configure_client,
     net::network_io_task,
     resources::{ClientToServerChannel, ServerToClientChannel},
-    systems::{input_system, process_server_messages_system, setup_world_system, sync_position_to_transform_system},
+    systems::{cursor_toggle_system, input_system, process_server_messages_system, setup_world_system, sync_camera_to_player_system, sync_position_to_transform_system, sync_rotation_to_transform_system},
 };
 use common::net::MessageStream;
 #[allow(clippy::wildcard_imports)]
@@ -72,6 +72,11 @@ fn main() -> Result<()> {
                 resolution: (1200, 800).into(),
                 ..default()
             }),
+            primary_cursor_options: Some(bevy::window::CursorOptions {
+                visible: false,
+                grab_mode: bevy::window::CursorGrabMode::Locked,
+                hit_test: true,
+            }),
             ..default()
         }))
         .insert_resource(ClientToServerChannel::new(to_server))
@@ -80,10 +85,13 @@ fn main() -> Result<()> {
         .add_systems(
             Update,
             (
-                input_system,                        // Handle WASD input
+                cursor_toggle_system,                // Toggle cursor lock with Escape
+                input_system,                        // Handle WASD input and mouse
                 process_server_messages_system,       // Process server messages
                 common::systems::movement_system,     // Shared movement logic
+                sync_camera_to_player_system,         // Camera follows player
                 sync_position_to_transform_system,    // Sync Position to Transform
+                sync_rotation_to_transform_system,    // Sync Rotation to Transform
             ),
         )
         .run();
