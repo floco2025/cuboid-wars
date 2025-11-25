@@ -344,10 +344,10 @@ pub fn input_system(
             forward -= 1.0;
         }
         if keyboard.pressed(KeyCode::KeyA) {
-            right -= 1.0;
+            right += 1.0;
         }
         if keyboard.pressed(KeyCode::KeyD) {
-            right += 1.0;
+            right -= 1.0;
         }
 
         // Calculate world-space velocity
@@ -391,13 +391,12 @@ pub fn input_system(
             *last_send_time = 0.0;
         }
         
-        // Send rotation to server only when stationary and rotation changed significantly
+        // Send rotation to server whenever it changes significantly
         let rotation_change = (*rotation - *last_sent_rotation).abs();
-        if vel.x == 0.0 && vel.y == 0.0 && rotation_change > ROTATION_CHANGE_THRESHOLD {
-            // Convert camera rotation to the same coordinate system as velocity-based rotation
+        if rotation_change > ROTATION_CHANGE_THRESHOLD {
+            // Convert camera rotation to world rotation
             // Camera uses: forward_x = -sin(rotation), forward_z = -cos(rotation)
-            // Velocity-based uses: atan2(vel.x, vel.y) = atan2(-sin(rotation), -cos(rotation))
-            // Which simplifies to: rotation + π
+            // World rotation: rotation + π
             let yaw_for_server = *rotation + std::f32::consts::PI;
             let msg = ClientMessage::Rotation(CRotation { rot: Rotation { yaw: yaw_for_server } });
             let _ = to_server.send(ClientToServer::Send(msg));
@@ -449,19 +448,12 @@ pub fn sync_position_to_transform_system(mut query: Query<(&Position, &mut Trans
     }
 }
 
-/// Update player cuboid rotation based on velocity (if moving) or stored rotation (if stationary)
+/// Update player cuboid rotation from stored rotation component
 pub fn sync_rotation_to_transform_system(
-    mut query: Query<(&Velocity, &Rotation, &mut Transform), Without<Camera3d>>,
+    mut query: Query<(&Rotation, &mut Transform), Without<Camera3d>>,
 ) {
-    for (vel, rot, mut transform) in query.iter_mut() {
-        // If moving, face the direction of movement
-        // vel.x is world X (left/right), vel.y is world Z (forward/back in 3D)
-        if vel.x != 0.0 || vel.y != 0.0 {
-            let angle = vel.x.atan2(vel.y); // atan2(x, z) for correct facing
-            transform.rotation = Quat::from_rotation_y(angle);
-        } else {
-            // If stationary, use stored rotation (already in same coordinate system as velocity-based)
-            transform.rotation = Quat::from_rotation_y(rot.yaw);
-        }
+    for (rot, mut transform) in query.iter_mut() {
+        // Always use stored rotation (player faces where camera is looking)
+        transform.rotation = Quat::from_rotation_y(rot.yaw);
     }
 }
