@@ -24,50 +24,43 @@ macro_rules! message {
 
 // Position component - i32 values represent millimeters for high precision
 // Range: ±2,147,483 meters (±2,147 km) from origin
-#[derive(Debug, Clone, Copy, Component, PartialEq)]
-#[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "bincode", derive(Encode, Decode))]
-pub struct Position {
+message! {
+#[derive(Copy, Component, PartialEq)]
+struct Position {
     pub x: i32, // millimeters
     pub y: i32, // millimeters
 }
+}
 
 // Velocity component - movement speed in units (millimeters) per second
-#[derive(Debug, Clone, Copy, Component, Default)]
-#[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "bincode", derive(Encode, Decode))]
-pub struct Velocity {
+message! {
+#[derive(Copy, Component, Default)]
+struct Velocity {
     pub x: f32,
     pub y: f32,
 }
+}
 
 // Rotation component - yaw rotation in radians (used when stationary)
-#[derive(Debug, Clone, Copy, Component, Default)]
-#[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "bincode", derive(Encode, Decode))]
-pub struct Rotation {
+message! {
+#[derive(Copy, Component, Default)]
+struct Rotation {
     pub yaw: f32, // radians
+}
 }
 
 // Player ID component - identifies which player an entity represents
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Component)]
 #[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "bincode", derive(Encode, Decode))]
 pub struct PlayerId(pub u32);
 
-// Kinematics - position, velocity, and rotation together
-#[derive(Debug, Clone, Copy)]
-#[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "bincode", derive(Encode, Decode))]
-pub struct Kinematics {
+// Player - complete player state
+message! {
+struct Player {
     pub pos: Position,
     pub vel: Velocity,
     pub rot: Rotation,
-}
-
-message! {
-struct Player {
-    pub kin: Kinematics,
 }
 }
 

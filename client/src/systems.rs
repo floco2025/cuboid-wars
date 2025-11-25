@@ -169,9 +169,9 @@ fn process_message_logged_in(
                 meshes,
                 materials,
                 msg.id.0,
-                &msg.player.kin.pos,
-                &msg.player.kin.vel,
-                &msg.player.kin.rot,
+                &msg.player.pos,
+                &msg.player.vel,
+                &msg.player.rot,
                 false, // Never local
             );
         }
@@ -238,9 +238,9 @@ fn process_message_logged_in(
                         meshes,
                         materials,
                         id.0,
-                        &player.kin.pos,
-                        &player.kin.vel,
-                        &player.kin.rot,
+                        &player.pos,
+                        &player.vel,
+                        &player.rot,
                         is_local,
                     );
                 }
@@ -260,7 +260,7 @@ fn process_message_logged_in(
                     if *player_id == *id {
                         commands
                             .entity(entity)
-                            .insert((player.kin.pos, player.kin.vel, player.kin.rot));
+                            .insert((player.pos, player.vel, player.rot));
                         break;
                     }
                 }

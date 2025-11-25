@@ -134,9 +134,7 @@ fn process_message_not_logged_in(
             let rot = Rotation { yaw: 0.0 };
 
             // Construct player data
-            let player = Player {
-                kin: Kinematics { pos, vel, rot },
-            };
+            let player = Player { pos, vel, rot };
 
             // Mark as logged in and clone channel for later use
             player_info.logged_in = true;
@@ -158,11 +156,9 @@ fn process_message_not_logged_in(
                     Some((
                         *player_id,
                         Player {
-                            kin: Kinematics {
-                                pos: *pos,
-                                vel: *vel,
-                                rot: *rot,
-                            },
+                            pos: *pos,
+                            vel: *vel,
+                            rot: *rot,
                         },
                     ))
                 })
@@ -291,11 +287,9 @@ pub fn broadcast_state_system(
             Some((
                 *player_id,
                 Player {
-                    kin: Kinematics {
-                        pos: *pos,
-                        vel: *vel,
-                        rot: *rot,
-                    },
+                    pos: *pos,
+                    vel: *vel,
+                    rot: *rot,
                 },
             ))
         })
