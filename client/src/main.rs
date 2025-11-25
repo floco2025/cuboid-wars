@@ -8,7 +8,7 @@ use client::{
     config::configure_client,
     net::network_io_task,
     resources::{ClientToServerChannel, ServerToClientChannel},
-    systems::{process_server_messages_system, setup_world_system},
+    systems::{input_system, process_server_messages_system, setup_world_system, sync_position_to_transform_system},
 };
 use common::net::MessageStream;
 #[allow(clippy::wildcard_imports)]
@@ -77,7 +77,15 @@ fn main() -> Result<()> {
         .insert_resource(ClientToServerChannel::new(to_server))
         .insert_resource(ServerToClientChannel::new(from_server))
         .add_systems(Startup, setup_world_system)
-        .add_systems(Update, process_server_messages_system)
+        .add_systems(
+            Update,
+            (
+                input_system,                        // Handle WASD input
+                process_server_messages_system,       // Process server messages
+                common::systems::movement_system,     // Shared movement logic
+                sync_position_to_transform_system,    // Sync Position to Transform
+            ),
+        )
         .run();
 
     Ok(())

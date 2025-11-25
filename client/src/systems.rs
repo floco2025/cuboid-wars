@@ -1,7 +1,7 @@
 use crate::{
     components::LocalPlayer,
-    net::ServerToClient,
-    resources::{MyPlayerId, ServerToClientChannel},
+    net::{ClientToServer, ServerToClient},
+    resources::{ClientToServerChannel, MyPlayerId, ServerToClientChannel},
 };
 use bevy::prelude::*;
 #[allow(clippy::wildcard_imports)]
@@ -122,7 +122,8 @@ fn process_message(
                     meshes,
                     materials,
                     id.0,
-                    &player.pos,
+                    &player.kin.pos,
+                    &player.kin.vel,
                     false, // Other players are never local
                 );
             }
@@ -133,7 +134,8 @@ fn process_message(
                 meshes,
                 materials,
                 init_msg.id.0,
-                &init_msg.player.pos,
+                &init_msg.player.kin.pos,
+                &init_msg.player.kin.vel,
                 true, // This is us!
             );
         }
@@ -146,7 +148,8 @@ fn process_message(
                 meshes,
                 materials,
                 login_msg.id.0,
-                &login_msg.player.pos,
+                &login_msg.player.kin.pos,
+                &login_msg.player.kin.vel,
                 false, // Never local
             );
         }
@@ -164,6 +167,26 @@ fn process_message(
                 }
             }
         }
+        ServerMessage::PlayerVelocity(vel_msg) => {
+            // Update player velocity (both local and remote)
+            for (entity, player_id) in player_query.iter() {
+                if *player_id == vel_msg.id {
+                    commands.entity(entity).insert(vel_msg.vel);
+                    break;
+                }
+            }
+        }
+        ServerMessage::Kinematics(kin_msg) => {
+            // Server authoritative kinematics updates for all players
+            for (id, kin) in &kin_msg.kinematics {
+                for (entity, player_id) in player_query.iter() {
+                    if *player_id == *id {
+                        commands.entity(entity).insert((kin.pos, kin.vel));
+                        break;
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -178,6 +201,7 @@ fn spawn_player(
     materials: &mut ResMut<Assets<StandardMaterial>>,
     player_id: u32,
     position: &Position,
+    velocity: &Velocity,
     is_local: bool,
 ) {
     let color = if is_local {
@@ -188,13 +212,82 @@ fn spawn_player(
 
     let mut entity = commands.spawn((
         PlayerId(player_id),
+        *position, // Add Position component
+        *velocity, // Add Velocity component
         Mesh3d(meshes.add(Cuboid::new(PLAYER_WIDTH, PLAYER_HEIGHT, PLAYER_DEPTH))),
         MeshMaterial3d(materials.add(color)),
-        Transform::from_xyz(position.x as f32, PLAYER_HEIGHT / 2.0, position.y as f32),
+        Transform::from_xyz(
+            position.x as f32 / 1000.0,  // mm to meters
+            PLAYER_HEIGHT / 2.0,
+            position.y as f32 / 1000.0   // mm to meters
+        ),
         Visibility::default(),
     ));
 
     if is_local {
         entity.insert(LocalPlayer);
+    }
+}
+
+// ============================================================================
+// Input System
+// ============================================================================
+
+/// Handle WASD input and send velocity updates to server
+pub fn input_system(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    to_server: Res<ClientToServerChannel>,
+    mut last_velocity: Local<(f32, f32)>,
+    mut local_player_query: Query<&mut Velocity, With<LocalPlayer>>,
+) {
+    const SPEED: f32 = 100_000.0; // 100,000 mm/sec = 100 meters/sec
+    
+    let mut dx = 0.0_f32;
+    let mut dy = 0.0_f32;
+
+    if keyboard.pressed(KeyCode::KeyW) {
+        dy += 1.0;
+    }
+    if keyboard.pressed(KeyCode::KeyS) {
+        dy -= 1.0;
+    }
+    if keyboard.pressed(KeyCode::KeyA) {
+        dx -= 1.0;
+    }
+    if keyboard.pressed(KeyCode::KeyD) {
+        dx += 1.0;
+    }
+
+    // Normalize and calculate velocity
+    let len = (dx * dx + dy * dy).sqrt();
+    let vel = if len > 0.0 {
+        Velocity {
+            x: (dx / len) * SPEED,
+            y: (dy / len) * SPEED,
+        }
+    } else {
+        Velocity { x: 0.0, y: 0.0 }
+    };
+
+    // Only send and update if velocity changed
+    if vel.x != last_velocity.0 || vel.y != last_velocity.1 {
+        // Update local player's velocity immediately
+        for mut player_vel in local_player_query.iter_mut() {
+            *player_vel = vel;
+        }
+        
+        // Send to server
+        let msg = ClientMessage::Velocity(CVelocity { vel });
+        let _ = to_server.send(ClientToServer::Send(msg));
+        *last_velocity = (vel.x, vel.y);
+    }
+}
+
+/// Update Transform from Position component for rendering
+/// Position is in millimeters, Transform is in meters
+pub fn sync_position_to_transform_system(mut query: Query<(&Position, &mut Transform)>) {
+    for (pos, mut transform) in query.iter_mut() {
+        transform.translation.x = pos.x as f32 / 1000.0; // mm to meters
+        transform.translation.z = pos.y as f32 / 1000.0; // mm to meters
     }
 }

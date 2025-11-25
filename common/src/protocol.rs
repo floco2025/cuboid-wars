@@ -22,13 +22,23 @@ macro_rules! message {
 // Common Data Types
 // ============================================================================
 
-// Position component - used by both client and server ECS
-#[derive(Debug, Clone, Copy, Component)]
+// Position component - i32 values represent millimeters for high precision
+// Range: ±2,147,483 meters (±2,147 km) from origin
+#[derive(Debug, Clone, Copy, Component, PartialEq)]
 #[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "bincode", derive(Encode, Decode))]
 pub struct Position {
-    pub x: i32,
-    pub y: i32,
+    pub x: i32, // millimeters
+    pub y: i32, // millimeters
+}
+
+// Velocity component - movement speed in units (millimeters) per second
+#[derive(Debug, Clone, Copy, Component, Default)]
+#[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bincode", derive(Encode, Decode))]
+pub struct Velocity {
+    pub x: f32,
+    pub y: f32,
 }
 
 // Player ID component - identifies which player an entity represents
@@ -37,9 +47,18 @@ pub struct Position {
 #[cfg_attr(feature = "bincode", derive(Encode, Decode))]
 pub struct PlayerId(pub u32);
 
+// Kinematics - position and velocity together
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bincode", derive(Encode, Decode))]
+pub struct Kinematics {
+    pub pos: Position,
+    pub vel: Velocity,
+}
+
 message! {
 struct Player {
-    pub pos: Position,
+    pub kin: Kinematics,
 }
 }
 
@@ -55,6 +74,13 @@ struct CLogin {}
 message! {
 // Client to Server: Graceful disconnect notification.
 struct CLogoff {}
+}
+
+message! {
+// Client to Server: Velocity update.
+struct CVelocity {
+    pub vel: Velocity,
+}
 }
 
 // ============================================================================
@@ -86,6 +112,21 @@ struct SLogoff {
 }
 }
 
+message! {
+// Server to Client: Player velocity update.
+struct SVelocity {
+    pub id: PlayerId,
+    pub vel: Velocity,
+}
+}
+
+message! {
+// Server to Client: Kinematics for all players.
+struct SKinematics {
+    pub kinematics: Vec<(PlayerId, Kinematics)>,
+}
+}
+
 // ============================================================================
 // Message Envelopes
 // ============================================================================
@@ -97,6 +138,7 @@ struct SLogoff {
 pub enum ClientMessage {
     Login(CLogin),
     Logoff(CLogoff),
+    Velocity(CVelocity),
 }
 
 // All server to client messages
@@ -107,4 +149,6 @@ pub enum ServerMessage {
     Init(SInit),
     Login(SLogin),
     Logoff(SLogoff),
+    PlayerVelocity(SVelocity),
+    Kinematics(SKinematics),
 }

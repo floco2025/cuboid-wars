@@ -92,7 +92,7 @@ fn process_message_not_logged_in(
             // Get all currently logged-in players
             let other_players: Vec<(PlayerId, Player)> = logged_in_query
                 .iter()
-                .map(|(id, _, pos)| (*id, Player { pos: *pos }))
+                .map(|(id, _, pos)| (*id, Player { kin: Kinematics { pos: *pos, vel: Velocity { x: 0.0, y: 0.0 } } }))
                 .collect();
 
             // Generate random position for new player
@@ -105,7 +105,7 @@ fn process_message_not_logged_in(
             // Send Init to the connecting player
             let init_msg = ServerMessage::Init(SInit {
                 id,
-                player: Player { pos },
+                player: Player { kin: Kinematics { pos, vel: Velocity { x: 0.0, y: 0.0 } } },
                 other_players,
             });
             if let Err(e) = channel.send(ServerToClient::Send(init_msg)) {
@@ -113,13 +113,13 @@ fn process_message_not_logged_in(
                 return;
             }
 
-            // Update entity: add LoggedIn + Position
-            commands.entity(entity).insert((LoggedIn, pos));
+            // Update entity: add LoggedIn + Position + Velocity
+            commands.entity(entity).insert((LoggedIn, pos, Velocity { x: 0.0, y: 0.0 }));
 
             // Broadcast Login to all other logged-in players
             let login_msg = ServerMessage::Login(SLogin {
                 id,
-                player: Player { pos },
+                player: Player { kin: Kinematics { pos, vel: Velocity { x: 0.0, y: 0.0 } } },
             });
             for (_, other_channel, _) in logged_in_query.iter() {
                 let _ = other_channel.send(ServerToClient::Send(login_msg.clone()));
@@ -155,5 +155,66 @@ fn process_message_logged_in(
                 }
             }
         }
+        ClientMessage::Velocity(v) => {
+            handle_velocity(commands, entity, id, v, logged_in_query);
+        }
     }
 }
+
+// ============================================================================
+// Movement Handlers
+// ============================================================================
+
+fn handle_velocity(
+    commands: &mut Commands,
+    entity: Entity,
+    id: PlayerId,
+    vel_msg: CVelocity,
+    logged_in_query: &Query<(&PlayerId, &ServerToClientChannel, &Position), With<LoggedIn>>,
+) {
+    // Update the player's velocity
+    commands.entity(entity).insert(vel_msg.vel);
+    
+    // Broadcast velocity update to all other logged-in players
+    let velocity_msg = ServerMessage::PlayerVelocity(SVelocity {
+        id,
+        vel: vel_msg.vel,
+    });
+    
+    for (other_id, other_channel, _) in logged_in_query.iter() {
+        if *other_id != id {
+            let _ = other_channel.send(ServerToClient::Send(velocity_msg.clone()));
+        }
+    }
+}
+
+/// Broadcast authoritative kinematics (position+velocity) once per second
+pub fn broadcast_state_system(
+    time: Res<Time>,
+    mut timer: Local<f32>,
+    logged_in_query: Query<(&PlayerId, &Position, &Velocity), With<LoggedIn>>,
+    all_channels: Query<&ServerToClientChannel, With<LoggedIn>>,
+) {
+    const BROADCAST_INTERVAL: f32 = 10.0;
+
+    *timer += time.delta_secs();
+    
+    if *timer < BROADCAST_INTERVAL {
+        return;
+    }
+    
+    *timer = 0.0;
+    
+    // Collect all player kinematics
+    let kinematics: Vec<(PlayerId, Kinematics)> = logged_in_query
+        .iter()
+        .map(|(id, pos, vel)| (*id, Kinematics { pos: *pos, vel: *vel }))
+        .collect();
+    
+    // Broadcast to all clients
+    let msg = ServerMessage::Kinematics(SKinematics { kinematics });
+    for channel in all_channels.iter() {
+        let _ = channel.send(ServerToClient::Send(msg.clone()));
+    }
+}
+

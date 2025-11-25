@@ -10,7 +10,7 @@ use server::{
     config::configure_server,
     net::accept_connections_task,
     resources::{FromAcceptChannel, FromClientsChannel, PlayerIndex},
-    systems::{process_client_message_system, process_new_connections_system},
+    systems::{broadcast_state_system, process_client_message_system, process_new_connections_system},
 };
 
 // ============================================================================
@@ -61,8 +61,10 @@ async fn main() -> Result<()> {
             Update,
             (
                 process_new_connections_system, // Spawns entities
-                ApplyDeferred,                  // Makes them queryable
-                process_client_message_system,  // Can now query them
+                ApplyDeferred,                   // Makes them queryable
+                process_client_message_system,   // Can now query them
+                common::systems::movement_system, // Shared movement logic
+                broadcast_state_system,          // Broadcast authoritative state
             )
                 .chain(),
         );

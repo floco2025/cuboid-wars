@@ -13,6 +13,7 @@ bincode = ["dep:bincode"]
 
 [dependencies]
 bevy_ecs = "0.17"
+bevy_time = "0.17"
 serde = { version = "1", features = ["derive"], optional = true }
 serde_json = { version = "1", optional = true }
 bincode = { version = "2.0", optional = true }
