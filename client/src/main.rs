@@ -8,11 +8,14 @@ use client::{
     config::configure_client,
     net::network_io_task,
     resources::{ClientToServerChannel, ServerToClientChannel},
-    systems::{cursor_toggle_system, input_system, process_server_events_system, setup_world_system, sync_camera_to_player_system, sync_position_to_transform_system, sync_rotation_to_transform_system},
+    systems::{
+        cursor_toggle_system, input_system, process_server_events_system, setup_world_system,
+        sync_camera_to_player_system, sync_position_to_transform_system, sync_rotation_to_transform_system,
+    },
 };
-use common::net::MessageStream;
 #[allow(clippy::wildcard_imports)]
 use common::protocol::*;
+use common::{net::MessageStream, systems::movement_system};
 
 // ============================================================================
 // CLI Arguments
@@ -31,13 +34,19 @@ struct Args {
 // ============================================================================
 
 fn main() -> Result<()> {
+    // Initialize tracing/logging before Bevy App
+    use bevy::log::LogPlugin;
+    use bevy::app::App;
+    let mut app = App::new();
+    app.add_plugins(LogPlugin::default());
+    std::mem::forget(app); // Keep the subscriber alive
+    
     let args = Args::parse();
 
     // Create tokio runtime for network I/O
     let rt = tokio::runtime::Runtime::new()?;
 
     // Connect to server (blocking)
-    println!("Connecting to server...");
     let connection = rt.block_on(async {
         let mut endpoint = Endpoint::client("0.0.0.0:0".parse()?)?;
         let client_config = configure_client()?;
@@ -47,12 +56,14 @@ fn main() -> Result<()> {
             .await
             .context("Failed to connect to server")
     })?;
-    println!("Connected to server at {}", args.server);
+    info!("connected to server at {}", args.server);
 
     // Send login message (blocking)
     rt.block_on(async {
+        let msg = ClientMessage::Login(CLogin {});
+        trace!("sending to server: {:?}", msg);
         let stream = MessageStream::new(&connection);
-        stream.send(&ClientMessage::Login(CLogin {})).await
+        stream.send(&msg).await
     })?;
 
     // Channel for sending from the network I/O task to the client
@@ -85,13 +96,20 @@ fn main() -> Result<()> {
         .add_systems(
             Update,
             (
-                cursor_toggle_system,                // Toggle cursor lock with Escape
-                input_system,                        // Handle WASD input and mouse
-                process_server_events_system,       // Process server messages
-                common::systems::movement_system,     // Shared movement logic
-                sync_camera_to_player_system,         // Camera follows player
-                sync_position_to_transform_system,    // Sync Position to Transform
-                sync_rotation_to_transform_system,    // Sync Rotation to Transform
+                // Toggle cursor lock with Escape
+                cursor_toggle_system,
+                // Handle WASD input and mouse
+                input_system,
+                // Process server messages
+                process_server_events_system,
+                // Shared movement logic
+                movement_system,
+                // Camera follows player
+                sync_camera_to_player_system,
+                // Sync Position to Transform
+                sync_position_to_transform_system,
+                // Sync Rotation to Transform
+                sync_rotation_to_transform_system,
             ),
         )
         .run();

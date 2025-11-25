@@ -104,11 +104,9 @@ struct CRotation {
 // ============================================================================
 
 message! {
-// Server to Client: Initial server state after login.
+// Server to Client: Initial connection acknowledgment with assigned player ID.
 struct SInit {
     pub id: PlayerId,
-    pub player: Player,
-    pub other_players: Vec<(PlayerId, Player)>,
 }
 }
 
@@ -145,9 +143,9 @@ struct SRotation {
 }
 
 message! {
-// Server to Client: Kinematics for all players.
-struct SKinematics {
-    pub kinematics: Vec<(PlayerId, Kinematics)>,
+// Server to Client: Periodic game state update for all players.
+struct SUpdate {
+    pub players: Vec<(PlayerId, Player)>,
 }
 }
 
@@ -176,5 +174,5 @@ pub enum ServerMessage {
     Logoff(SLogoff),
     PlayerVelocity(SVelocity),
     PlayerRotation(SRotation),
-    Kinematics(SKinematics),
+    Update(SUpdate),
 }

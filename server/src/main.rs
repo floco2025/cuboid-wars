@@ -10,7 +10,7 @@ use common::systems::movement_system;
 use server::{
     config::configure_server,
     net::accept_connections_task,
-    resources::{FromAcceptChannel, FromClientsChannel, PlayerIndex},
+    resources::{FromAcceptChannel, FromClientsChannel, PlayerMap},
     systems::{accept_connections_system, broadcast_state_system, process_client_message_system},
 };
 
@@ -55,7 +55,7 @@ async fn main() -> Result<()> {
             filter: "wgpu=error,naga=warn".to_string(),
             ..default()
         })
-        .insert_resource(PlayerIndex::default())
+        .insert_resource(PlayerMap::default())
         .insert_resource(FromAcceptChannel::new(from_accept))
         .insert_resource(FromClientsChannel::new(from_clients))
         .add_systems(

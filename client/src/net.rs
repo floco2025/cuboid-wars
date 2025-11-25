@@ -1,3 +1,4 @@
+use bevy::prelude::{debug, error, trace};
 use quinn::{Connection, ConnectionError};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
@@ -45,20 +46,20 @@ pub async fn network_io_task(
                         if let Some(conn_err) = e.downcast_ref::<ConnectionError>() {
                             match conn_err {
                                 ConnectionError::ApplicationClosed { .. } => {
-                                    eprintln!("Server closed the connection");
+                                    error!("server closed connection");
                                 }
                                 ConnectionError::TimedOut => {
-                                    eprintln!("Server connection timed out");
+                                    error!("server connection timed out");
                                 }
                                 ConnectionError::LocallyClosed => {
-                                    eprintln!("Connection to server closed locally");
+                                    debug!("connection to server closed locally");
                                 }
                                 _ => {
-                                    eprintln!("Connection error: {e}");
+                                    error!("connection error: {}", e);
                                 }
                             }
                         } else {
-                            eprintln!("Error receiving message: {e}");
+                            error!("error receiving from server: {e}");
                         }
                         break;
                     }
@@ -69,8 +70,9 @@ pub async fn network_io_task(
             cmd = from_client.recv() => {
                 match cmd {
                     Some(ClientToServer::Send(msg)) => {
+                        trace!("sending to server: {:?}", msg);
                         if let Err(e) = stream.send(&msg).await {
-                            eprintln!("Error sending to server: {e}");
+                            error!("error sending to server: {e}");
                             break;
                         }
                     }
@@ -79,7 +81,7 @@ pub async fn network_io_task(
                         break;
                     }
                     None => {
-                        // Bevy side closed, exit
+                        debug!("client channel closed");
                         break;
                     }
                 }
@@ -87,6 +89,7 @@ pub async fn network_io_task(
         }
     }
 
-    // Notify client that we're disconnected
+    // Ensure disconnect notification is sent before task exits
+    debug!("network task exiting");
     let _ = to_client.send(ServerToClient::Disconnected);
 }

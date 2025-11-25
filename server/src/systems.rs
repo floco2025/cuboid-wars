@@ -4,9 +4,8 @@ use bevy::prelude::*;
 use rand::Rng as _;
 
 use crate::{
-    components::{LoggedIn, ServerToClientChannel},
     net::{ClientToServer, ServerToClient},
-    resources::{FromAcceptChannel, FromClientsChannel, PlayerIndex},
+    resources::{FromAcceptChannel, FromClientsChannel, PlayerInfo, PlayerMap},
 };
 use common::protocol::*;
 
@@ -17,12 +16,19 @@ use common::protocol::*;
 pub fn accept_connections_system(
     mut commands: Commands,
     mut from_accept: ResMut<FromAcceptChannel>,
-    mut player_index: ResMut<PlayerIndex>,
+    mut players: ResMut<PlayerMap>,
 ) {
     while let Ok((id, to_client)) = from_accept.try_recv() {
-        debug!("spawning entity for {:?}", id);
-        let entity = commands.spawn((id, ServerToClientChannel::new(to_client))).id();
-        player_index.0.insert(id, entity);
+        debug!("{:?} connected", id);
+        let entity = commands.spawn(id).id();
+        players.0.insert(
+            id,
+            PlayerInfo {
+                entity,
+                logged_in: false,
+                channel: to_client,
+            },
+        );
     }
 }
 
@@ -35,43 +41,51 @@ pub fn accept_connections_system(
 pub fn process_client_message_system(
     mut commands: Commands,
     mut from_clients: ResMut<FromClientsChannel>,
-    mut player_index: ResMut<PlayerIndex>,
-    player_query: Query<(Option<&LoggedIn>, &ServerToClientChannel)>,
-    logged_in_query: Query<(&PlayerId, &ServerToClientChannel, &Position), With<LoggedIn>>,
+    mut players: ResMut<PlayerMap>,
+    positions: Query<&Position>,
+    velocities: Query<&Velocity>,
+    rotations: Query<&Rotation>,
 ) {
     while let Ok((id, event)) = from_clients.try_recv() {
+        let Some(player_info) = players.0.get(&id) else {
+            error!("received event for unknown {:?}", id);
+            continue;
+        };
+
         match event {
             ClientToServer::Disconnected => {
-                if let Some(entity) = player_index.0.remove(&id) {
-                    let was_logged_in = logged_in_query.get(entity).is_ok();
+                let was_logged_in = player_info.logged_in;
+                let entity = player_info.entity;
+                players.0.remove(&id);
+                commands.entity(entity).despawn();
 
-                    debug!("client {:?} disconnected (logged_in: {})", id, was_logged_in);
-                    commands.entity(entity).despawn();
+                debug!("{:?} disconnected (logged_in: {})", id, was_logged_in);
 
-                    // Broadcast logoff to all other logged-in players if they were logged in
-                    if was_logged_in {
-                        let logoff_msg = ServerMessage::Logoff(SLogoff { id, graceful: false });
-                        for (other_id, other_channel, _) in logged_in_query.iter() {
-                            if *other_id != id {
-                                let _ = other_channel.send(ServerToClient::Send(logoff_msg.clone()));
-                            }
+                // Broadcast logoff to all other logged-in players if they were logged in
+                if was_logged_in {
+                    let logoff_msg = ServerMessage::Logoff(SLogoff { id, graceful: false });
+                    for (other_id, other_info) in players.0.iter() {
+                        if *other_id != id && other_info.logged_in {
+                            let _ = other_info.channel.send(ServerToClient::Send(logoff_msg.clone()));
                         }
                     }
                 }
             }
             ClientToServer::Message(message) => {
-                debug!("received message from {:?}: {:?}", id, message);
-
-                if let Some(&entity) = player_index.0.get(&id) {
-                    if let Ok((logged_in, channel)) = player_query.get(entity) {
-                        if logged_in.is_some() {
-                            process_message_logged_in(&mut commands, entity, id, message, &logged_in_query);
-                        } else {
-                            process_message_not_logged_in(&mut commands, entity, id, message, channel, &logged_in_query);
-                        }
-                    }
+                let is_logged_in = player_info.logged_in;
+                if is_logged_in {
+                    process_message_logged_in(&mut commands, player_info.entity, id, message, &players);
                 } else {
-                    error!("received message from unknown {:?}", id);
+                    process_message_not_logged_in(
+                        &mut commands,
+                        player_info.entity,
+                        id,
+                        message,
+                        &positions,
+                        &velocities,
+                        &rotations,
+                        &mut players,
+                    );
                 }
             }
         }
@@ -87,49 +101,95 @@ fn process_message_not_logged_in(
     entity: Entity,
     id: PlayerId,
     msg: ClientMessage,
-    channel: &ServerToClientChannel,
-    logged_in_query: &Query<(&PlayerId, &ServerToClientChannel, &Position), With<LoggedIn>>,
+    positions: &Query<&Position>,
+    velocities: &Query<&Velocity>,
+    rotations: &Query<&Rotation>,
+    players: &mut ResMut<PlayerMap>,
 ) {
     match msg {
         ClientMessage::Login(_) => {
-            // Get all currently logged-in players
-            let other_players: Vec<(PlayerId, Player)> = logged_in_query
-                .iter()
-                .map(|(id, _, pos)| (*id, Player { kin: Kinematics { pos: *pos, vel: Velocity { x: 0.0, y: 0.0 }, rot: Rotation { yaw: 0.0 } } }))
-                .collect();
+            debug!("{:?} logged in", id);
 
-            // Generate random position for new player
+            let player_info = players
+                .0
+                .get_mut(&id)
+                .expect("process_message_not_logged_in called for unknown player");
+
+            // Send Init to the connecting player (just their ID)
+            let init_msg = ServerMessage::Init(SInit { id });
+            if let Err(e) = player_info.channel.send(ServerToClient::Send(init_msg)) {
+                warn!("failed to send init to {:?}: {}", id, e);
+                return;
+            }
+
+            // Generate random initial position for the new player
             let mut rng = rand::rng();
             let pos = Position {
                 x: rng.random_range(-800_000..=800_000),
                 y: rng.random_range(-800_000..=800_000),
             };
 
-            // Send Init to the connecting player
-            let init_msg = ServerMessage::Init(SInit {
-                id,
-                player: Player { kin: Kinematics { pos, vel: Velocity { x: 0.0, y: 0.0 }, rot: Rotation { yaw: 0.0 } } },
-                other_players,
-            });
-            if let Err(e) = channel.send(ServerToClient::Send(init_msg)) {
-                warn!("failed to send init to {:?}: {}", id, e);
-                return;
-            }
+            // Initial velocity and rotation for the new player
+            let vel = Velocity { x: 0.0, y: 0.0 };
+            let rot = Rotation { yaw: 0.0 };
 
-            // Update entity: add LoggedIn + Position + Velocity + Rotation
-            commands.entity(entity).insert((LoggedIn, pos, Velocity { x: 0.0, y: 0.0 }, Rotation { yaw: 0.0 }));
+            // Construct player data
+            let player = Player {
+                kin: Kinematics { pos, vel, rot },
+            };
+
+            // Mark as logged in and clone channel for later use
+            player_info.logged_in = true;
+            let channel = player_info.channel.clone();
+
+            // Construct the initial Update for the new player
+            let mut all_players: Vec<(PlayerId, Player)> = players
+                .0
+                .iter()
+                .filter_map(|(player_id, info)| {
+                    // Skip the new player here because their components aren't in ECS yet. Also
+                    // skip all players that are not logged in yet.
+                    if *player_id == id || !info.logged_in {
+                        return None;
+                    }
+                    let pos = positions.get(info.entity).ok()?;
+                    let vel = velocities.get(info.entity).ok()?;
+                    let rot = rotations.get(info.entity).ok()?;
+                    Some((
+                        *player_id,
+                        Player {
+                            kin: Kinematics {
+                                pos: *pos,
+                                vel: *vel,
+                                rot: *rot,
+                            },
+                        },
+                    ))
+                })
+                .collect();
+            // Add the new player manually with their freshly generated values
+            all_players.push((id, player.clone()));
+
+            // Send the initial Update to the new player
+            let update_msg = ServerMessage::Update(SUpdate { players: all_players });
+            channel.send(ServerToClient::Send(update_msg)).ok();
+
+            // Now update entity: add Position + Velocity + Rotation
+            commands.entity(entity).insert((pos, vel, rot));
 
             // Broadcast Login to all other logged-in players
-            let login_msg = ServerMessage::Login(SLogin {
-                id,
-                player: Player { kin: Kinematics { pos, vel: Velocity { x: 0.0, y: 0.0 }, rot: Rotation { yaw: 0.0 } } },
-            });
-            for (_, other_channel, _) in logged_in_query.iter() {
-                let _ = other_channel.send(ServerToClient::Send(login_msg.clone()));
+            let login_msg = ServerMessage::Login(SLogin { id, player });
+            for (other_id, other_info) in players.0.iter() {
+                if *other_id != id && other_info.logged_in {
+                    let _ = other_info.channel.send(ServerToClient::Send(login_msg.clone()));
+                }
             }
         }
         _ => {
-            warn!("{:?} sent non-login message before authenticating (likely out-of-order delivery)", id);
+            warn!(
+                "{:?} sent non-login message before authenticating (likely out-of-order delivery)",
+                id
+            );
             // Don't despawn - Init message will likely arrive soon
         }
     }
@@ -140,7 +200,7 @@ fn process_message_logged_in(
     entity: Entity,
     id: PlayerId,
     msg: ClientMessage,
-    logged_in_query: &Query<(&PlayerId, &ServerToClientChannel, &Position), With<LoggedIn>>,
+    players: &PlayerMap,
 ) {
     match msg {
         ClientMessage::Login(_) => {
@@ -148,21 +208,24 @@ fn process_message_logged_in(
             commands.entity(entity).despawn();
         }
         ClientMessage::Logoff(_) => {
+            debug!("{:?} logged off", id);
             commands.entity(entity).despawn();
 
             // Broadcast graceful logoff to all other players
-            let logoff_msg = ServerMessage::Logoff(SLogoff { id, graceful: true });
-            for (other_id, other_channel, _) in logged_in_query.iter() {
-                if *other_id != id {
-                    let _ = other_channel.send(ServerToClient::Send(logoff_msg.clone()));
+            let broadcast_msg = ServerMessage::Logoff(SLogoff { id, graceful: true });
+            for (other_id, other_info) in players.0.iter() {
+                if *other_id != id && other_info.logged_in {
+                    let _ = other_info.channel.send(ServerToClient::Send(broadcast_msg.clone()));
                 }
             }
         }
-        ClientMessage::Velocity(v) => {
-            handle_velocity(commands, entity, id, v, logged_in_query);
+        ClientMessage::Velocity(msg) => {
+            trace!("{:?} velocity: {:?}", id, msg);
+            handle_velocity(commands, entity, id, msg, players);
         }
-        ClientMessage::Rotation(r) => {
-            handle_rotation(commands, entity, id, r, logged_in_query);
+        ClientMessage::Rotation(msg) => {
+            trace!("{:?} rotation: {:?}", id, msg);
+            handle_rotation(commands, entity, id, msg, players);
         }
     }
 }
@@ -171,48 +234,28 @@ fn process_message_logged_in(
 // Movement Handlers
 // ============================================================================
 
-fn handle_velocity(
-    commands: &mut Commands,
-    entity: Entity,
-    id: PlayerId,
-    vel_msg: CVelocity,
-    logged_in_query: &Query<(&PlayerId, &ServerToClientChannel, &Position), With<LoggedIn>>,
-) {
+fn handle_velocity(commands: &mut Commands, entity: Entity, id: PlayerId, msg: CVelocity, players: &PlayerMap) {
     // Update the player's velocity
-    commands.entity(entity).insert(vel_msg.vel);
-    
+    commands.entity(entity).insert(msg.vel);
+
     // Broadcast velocity update to all other logged-in players
-    let velocity_msg = ServerMessage::PlayerVelocity(SVelocity {
-        id,
-        vel: vel_msg.vel,
-    });
-    
-    for (other_id, other_channel, _) in logged_in_query.iter() {
-        if *other_id != id {
-            let _ = other_channel.send(ServerToClient::Send(velocity_msg.clone()));
+    let broadcast_msg = ServerMessage::PlayerVelocity(SVelocity { id, vel: msg.vel });
+    for (other_id, other_info) in players.0.iter() {
+        if *other_id != id && other_info.logged_in {
+            let _ = other_info.channel.send(ServerToClient::Send(broadcast_msg.clone()));
         }
     }
 }
 
-fn handle_rotation(
-    commands: &mut Commands,
-    entity: Entity,
-    id: PlayerId,
-    rot_msg: CRotation,
-    logged_in_query: &Query<(&PlayerId, &ServerToClientChannel, &Position), With<LoggedIn>>,
-) {
+fn handle_rotation(commands: &mut Commands, entity: Entity, id: PlayerId, msg: CRotation, players: &PlayerMap) {
     // Update the player's rotation
-    commands.entity(entity).insert(rot_msg.rot);
-    
+    commands.entity(entity).insert(msg.rot);
+
     // Broadcast rotation update to all other logged-in players
-    let rotation_msg = ServerMessage::PlayerRotation(SRotation {
-        id,
-        rot: rot_msg.rot,
-    });
-    
-    for (other_id, other_channel, _) in logged_in_query.iter() {
-        if *other_id != id {
-            let _ = other_channel.send(ServerToClient::Send(rotation_msg.clone()));
+    let broadcast_msg = ServerMessage::PlayerRotation(SRotation { id, rot: msg.rot });
+    for (other_id, other_info) in players.0.iter() {
+        if *other_id != id && other_info.logged_in {
+            let _ = other_info.channel.send(ServerToClient::Send(broadcast_msg.clone()));
         }
     }
 }
@@ -221,29 +264,49 @@ fn handle_rotation(
 pub fn broadcast_state_system(
     time: Res<Time>,
     mut timer: Local<f32>,
-    logged_in_query: Query<(&PlayerId, &Position, &Velocity, &Rotation), With<LoggedIn>>,
-    all_channels: Query<&ServerToClientChannel, With<LoggedIn>>,
+    positions: Query<&Position>,
+    velocities: Query<&Velocity>,
+    rotations: Query<&Rotation>,
+    players: Res<PlayerMap>,
 ) {
     const BROADCAST_INTERVAL: f32 = 10.0;
 
     *timer += time.delta_secs();
-    
     if *timer < BROADCAST_INTERVAL {
         return;
     }
-    
     *timer = 0.0;
-    
-    // Collect all player kinematics
-    let kinematics: Vec<(PlayerId, Kinematics)> = logged_in_query
+
+    // Collect all logged-in players
+    let all_players: Vec<(PlayerId, Player)> = players
+        .0
         .iter()
-        .map(|(id, pos, vel, rot)| (*id, Kinematics { pos: *pos, vel: *vel, rot: *rot }))
+        .filter_map(|(player_id, info)| {
+            if !info.logged_in {
+                return None;
+            }
+            let pos = positions.get(info.entity).ok()?;
+            let vel = velocities.get(info.entity).ok()?;
+            let rot = rotations.get(info.entity).ok()?;
+            Some((
+                *player_id,
+                Player {
+                    kin: Kinematics {
+                        pos: *pos,
+                        vel: *vel,
+                        rot: *rot,
+                    },
+                },
+            ))
+        })
         .collect();
-    
-    // Broadcast to all clients
-    let msg = ServerMessage::Kinematics(SKinematics { kinematics });
-    for channel in all_channels.iter() {
-        let _ = channel.send(ServerToClient::Send(msg.clone()));
+
+    // Broadcast to all logged-in clients
+    let msg = ServerMessage::Update(SUpdate { players: all_players });
+    debug!("broadcasting update: {:?}", msg);
+    for info in players.0.values() {
+        if info.logged_in {
+            let _ = info.channel.send(ServerToClient::Send(msg.clone()));
+        }
     }
 }
-
