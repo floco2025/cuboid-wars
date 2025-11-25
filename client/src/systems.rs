@@ -19,10 +19,10 @@ pub const CAMERA_X: f32 = 0.0;
 pub const CAMERA_Y: f32 = 1500.0;
 pub const CAMERA_Z: f32 = 2000.0;
 
-// Player cuboid dimensions
-pub const PLAYER_WIDTH: f32 = 20.0;
-pub const PLAYER_HEIGHT: f32 = 80.0;
-pub const PLAYER_DEPTH: f32 = 20.0;
+// Player cuboid dimensions - make it asymmetric so we can see orientation
+pub const PLAYER_WIDTH: f32 = 20.0;   // side to side
+pub const PLAYER_HEIGHT: f32 = 80.0;  // up/down
+pub const PLAYER_DEPTH: f32 = 40.0;   // front to back (longer)
 
 /// Toggle cursor lock with Escape key or mouse click
 pub fn cursor_toggle_system(
@@ -95,7 +95,15 @@ pub fn process_server_messages_system(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     player_query: Query<(Entity, &PlayerId)>,
+    mut frame_count: Local<u32>,
 ) {
+    *frame_count += 1;
+    
+    // Wait 2 frames to ensure rendering is initialized
+    if *frame_count < 3 {
+        return;
+    }
+    
     // Process all messages from the server
     while let Ok(msg) = from_server.try_recv() {
         match msg {
@@ -246,6 +254,7 @@ fn spawn_player(
         Color::srgb(1.0, 0.3, 0.3) // Red for other players
     };
 
+    // Main body
     let mut entity = commands.spawn((
         PlayerId(player_id),
         *position, // Add Position component
@@ -264,6 +273,25 @@ fn spawn_player(
     if is_local {
         entity.insert(LocalPlayer);
     }
+    
+    let entity_id = entity.id();
+    
+    // Add a "nose" marker at the front (yellow sphere) as a child
+    let front_marker_color = Color::srgb(1.0, 1.0, 0.0); // Yellow
+    let marker_id = commands.spawn((
+        Mesh3d(meshes.add(Sphere::new(5.0))),
+        MeshMaterial3d(materials.add(front_marker_color)),
+        Transform::from_xyz(
+            0.0,
+            10.0, // Slightly above center
+            PLAYER_DEPTH / 2.0 + 5.0, // Front of the cuboid
+        ),
+        Visibility::Inherited,
+        ViewVisibility::default(),
+        InheritedVisibility::default(),
+    )).id();
+    
+    commands.entity(entity_id).add_children(&[marker_id]);
 }
 
 // ============================================================================
@@ -366,7 +394,12 @@ pub fn input_system(
         // Send rotation to server only when stationary and rotation changed significantly
         let rotation_change = (*rotation - *last_sent_rotation).abs();
         if vel.x == 0.0 && vel.y == 0.0 && rotation_change > ROTATION_CHANGE_THRESHOLD {
-            let msg = ClientMessage::Rotation(CRotation { rot: Rotation { yaw: *rotation } });
+            // Convert camera rotation to the same coordinate system as velocity-based rotation
+            // Camera uses: forward_x = -sin(rotation), forward_z = -cos(rotation)
+            // Velocity-based uses: atan2(vel.x, vel.y) = atan2(-sin(rotation), -cos(rotation))
+            // Which simplifies to: rotation + π
+            let yaw_for_server = *rotation + std::f32::consts::PI;
+            let msg = ClientMessage::Rotation(CRotation { rot: Rotation { yaw: yaw_for_server } });
             let _ = to_server.send(ClientToServer::Send(msg));
             *last_sent_rotation = *rotation;
         }
@@ -422,11 +455,12 @@ pub fn sync_rotation_to_transform_system(
 ) {
     for (vel, rot, mut transform) in query.iter_mut() {
         // If moving, face the direction of movement
+        // vel.x is world X (left/right), vel.y is world Z (forward/back in 3D)
         if vel.x != 0.0 || vel.y != 0.0 {
-            let angle = vel.y.atan2(vel.x) - std::f32::consts::FRAC_PI_2; // atan2 gives angle, adjust for forward direction
+            let angle = vel.x.atan2(vel.y); // atan2(x, z) for correct facing
             transform.rotation = Quat::from_rotation_y(angle);
         } else {
-            // If stationary, use stored rotation
+            // If stationary, use stored rotation (already in same coordinate system as velocity-based)
             transform.rotation = Quat::from_rotation_y(rot.yaw);
         }
     }
