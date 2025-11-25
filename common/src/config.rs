@@ -28,7 +28,7 @@ pub fn load_private_key() -> Result<PrivateKeyDer<'static>> {
         .ok_or_else(|| anyhow::anyhow!("No private key found"))
 }
 
-/// Create a shared transport configuration with timeouts and keepalive
+// Create a shared transport configuration with timeouts and keepalive
 pub fn create_transport_config() -> Result<Arc<TransportConfig>> {
     let mut transport = TransportConfig::default();
     transport.max_idle_timeout(Some(
@@ -40,7 +40,7 @@ pub fn create_transport_config() -> Result<Arc<TransportConfig>> {
     Ok(Arc::new(transport))
 }
 
-/// Create a Quinn `ClientConfig` from a rustls `ClientConfig` with transport settings
+// Create a Quinn `ClientConfig` from a rustls `ClientConfig` with transport settings
 pub fn create_quinn_client_config(crypto: rustls::ClientConfig) -> Result<quinn::ClientConfig> {
     let mut config = quinn::ClientConfig::new(Arc::new(
         quinn::crypto::rustls::QuicClientConfig::try_from(crypto).context("Failed to create QUIC client config")?,
@@ -50,7 +50,7 @@ pub fn create_quinn_client_config(crypto: rustls::ClientConfig) -> Result<quinn:
     Ok(config)
 }
 
-/// Create a Quinn `ServerConfig` from a rustls `ServerConfig` with transport settings
+// Create a Quinn `ServerConfig` from a rustls `ServerConfig` with transport settings
 pub fn create_quinn_server_config(crypto: rustls::ServerConfig) -> Result<quinn::ServerConfig> {
     let mut config = quinn::ServerConfig::with_crypto(Arc::new(
         quinn::crypto::rustls::QuicServerConfig::try_from(crypto).context("Failed to create QUIC server config")?,

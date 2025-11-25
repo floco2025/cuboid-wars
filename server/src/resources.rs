@@ -10,12 +10,12 @@ use common::protocol::*;
 // Bevy Resources
 // ============================================================================
 
-/// Index from PlayerId to Entity for fast lookups
+// Index from PlayerId to Entity for fast lookups
 #[derive(Resource, Default)]
 pub struct PlayerIndex(pub HashMap<PlayerId, Entity>);
 
-/// Resource wrapper for the channel from the accept connections task, which gives us the channel to
-/// send from thee server to the client.
+// Resource wrapper for the channel from the accept connections task, which gives us the channel to
+// send from thee server to the client.
 #[derive(Resource)]
 pub struct FromAcceptChannel(UnboundedReceiver<(PlayerId, UnboundedSender<ServerToClient>)>);
 
@@ -29,7 +29,7 @@ impl FromAcceptChannel {
     }
 }
 
-/// Resource wrapper for the channel from all per client network I/O tasks.ß
+// Resource wrapper for the channel from all per client network I/O tasks.ß
 #[derive(Resource)]
 pub struct FromClientsChannel(UnboundedReceiver<(PlayerId, ClientToServer)>);
 

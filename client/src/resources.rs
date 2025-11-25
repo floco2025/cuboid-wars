@@ -12,11 +12,11 @@ use common::protocol::PlayerId;
 // Bevy Resources
 // ============================================================================
 
-/// My player ID assigned by the server
+// My player ID assigned by the server
 #[derive(Resource)]
 pub struct MyPlayerId(pub PlayerId);
 
-/// Resource wrapper for the client to server channel
+// Resource wrapper for the client to server channel
 #[derive(Resource)]
 pub struct ClientToServerChannel(UnboundedSender<ClientToServer>);
 
@@ -30,7 +30,7 @@ impl ClientToServerChannel {
     }
 }
 
-/// Resource wrapper for the server to client channel
+// Resource wrapper for the server to client channel
 #[derive(Resource)]
 pub struct ServerToClientChannel(UnboundedReceiver<ServerToClient>);
 

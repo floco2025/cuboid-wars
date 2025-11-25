@@ -20,7 +20,7 @@ use server::{
 #[derive(Parser)]
 #[command(author, version, about = "Game server", long_about = None)]
 struct Args {
-    /// Address to bind server to
+    // Address to bind server to
     #[arg(short, long, default_value = "127.0.0.1:8080")]
     bind: String,
 }

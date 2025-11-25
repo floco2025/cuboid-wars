@@ -9,14 +9,14 @@ use common::protocol::*;
 // Network I/O Task
 // ============================================================================
 
-/// Message from network I/O task to client main thread
+// Message from network I/O task to client main thread
 #[derive(Debug, Clone)]
 pub enum ServerToClient {
     Message(ServerMessage),
     Disconnected,
 }
 
-/// Message from client main thread to network I/O task
+// Message from client main thread to network I/O task
 #[derive(Debug, Clone)]
 pub enum ClientToServer {
     Send(ClientMessage),

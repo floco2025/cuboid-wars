@@ -8,7 +8,7 @@ use crate::net::ServerToClient;
 // Bevy Components
 // ============================================================================
 
-/// Network channel for sending messages to a specific client
+// Network channel for sending messages to a specific client
 #[derive(Component)]
 pub struct ServerToClientChannel(UnboundedSender<ServerToClient>);
 
@@ -22,6 +22,6 @@ impl ServerToClientChannel {
     }
 }
 
-/// Marker component: client is logged in (authenticated)
+// Marker component: client is logged in (authenticated)
 #[derive(Component)]
 pub struct LoggedIn;

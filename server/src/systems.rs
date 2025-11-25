@@ -14,7 +14,7 @@ use common::protocol::*;
 // Network Systems
 // ============================================================================
 
-/// System to process new client connections and spawn entities.
+// System to process new client connections and spawn entities.
 pub fn process_new_connections_system(
     mut commands: Commands,
     mut from_accept: ResMut<FromAcceptChannel>,
@@ -27,8 +27,8 @@ pub fn process_new_connections_system(
     }
 }
 
-/// System to process client events (messages and disconnections). Must run after
-/// process_new_connections_system with apply_deferred in between.
+// System to process client events (messages and disconnections). Must run after
+// process_new_connections_system with apply_deferred in between.
 pub fn process_client_message_system(
     mut commands: Commands,
     mut from_clients: ResMut<FromClientsChannel>,

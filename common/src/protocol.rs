@@ -22,7 +22,7 @@ macro_rules! message {
 // Common Data Types
 // ============================================================================
 
-/// Position component - used by both client and server ECS
+// Position component - used by both client and server ECS
 #[derive(Debug, Clone, Copy, Component)]
 #[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "bincode", derive(Encode, Decode))]
@@ -31,7 +31,7 @@ pub struct Position {
     pub y: i32,
 }
 
-/// Player ID component - identifies which player an entity represents
+// Player ID component - identifies which player an entity represents
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component)]
 #[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "bincode", derive(Encode, Decode))]
@@ -48,12 +48,12 @@ struct Player {
 // ============================================================================
 
 message! {
-/// Client to Server: Login request.
+// Client to Server: Login request.
 struct CLogin {}
 }
 
 message! {
-/// Client to Server: Graceful disconnect notification.
+// Client to Server: Graceful disconnect notification.
 struct CLogoff {}
 }
 
@@ -62,27 +62,27 @@ struct CLogoff {}
 // ============================================================================
 
 message! {
-/// Server to Client: Initial server state after login.
+// Server to Client: Initial server state after login.
 struct SInit {
-    pub id: PlayerId,                     // The id that the server uses for the client
-    pub player: Player,                         // The local player's data
-    pub other_players: Vec<(PlayerId, Player)>, // All other player ids and their data
+    pub id: PlayerId,
+    pub player: Player,
+    pub other_players: Vec<(PlayerId, Player)>,
 }
 }
 
 message! {
-/// Server to Client: Another player connected.
+// Server to Client: Another player connected.
 struct SLogin {
-    pub id: PlayerId,   // The id for the new player
-    pub player: Player, // The new player
+    pub id: PlayerId,
+    pub player: Player,
 }
 }
 
 message! {
-/// Server to Client: A player disconnected.
+// Server to Client: A player disconnected.
 struct SLogoff {
-    pub id: PlayerId,   // The id of the player who disconnected
-    pub graceful: bool, // Graceful disconnect if true
+    pub id: PlayerId,
+    pub graceful: bool,
 }
 }
 

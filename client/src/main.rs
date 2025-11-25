@@ -21,7 +21,7 @@ use common::protocol::*;
 #[derive(Parser, Debug)]
 #[command(author, version, about = "Game client", long_about = None)]
 struct Args {
-    /// Server address to connect to
+    // Server address to connect to
     #[arg(short, long, default_value = "127.0.0.1:8080")]
     server: String,
 }

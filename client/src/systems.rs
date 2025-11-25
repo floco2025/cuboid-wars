@@ -11,15 +11,15 @@ use common::protocol::*;
 // Setup World System
 // ============================================================================
 
-/// World dimensions
+// World dimensions
 pub const WORLD_SIZE: f32 = 2000.0;
 
-/// Camera settings
+// Camera settings
 pub const CAMERA_X: f32 = 0.0;
 pub const CAMERA_Y: f32 = 1500.0;
 pub const CAMERA_Z: f32 = 2000.0;
 
-/// Player cuboid dimensions
+// Player cuboid dimensions
 pub const PLAYER_WIDTH: f32 = 20.0;
 pub const PLAYER_HEIGHT: f32 = 80.0;
 pub const PLAYER_DEPTH: f32 = 20.0;
@@ -64,7 +64,7 @@ pub fn setup_world_system(
 // Server Message Processing System
 // ============================================================================
 
-/// System to process messages from the server
+// System to process messages from the server
 pub fn process_server_messages_system(
     mut commands: Commands,
     mut from_server: ResMut<ServerToClientChannel>,
@@ -171,7 +171,7 @@ fn process_message(
 // Helper Functions
 // ============================================================================
 
-/// Spawn a player cuboid at the given position
+// Spawn a player cuboid at the given position
 fn spawn_player(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
