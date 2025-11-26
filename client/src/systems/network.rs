@@ -128,7 +128,19 @@ fn process_message_logged_in(
             }
         }
         ServerMessage::Shot(msg) => {
-            debug!("{:?} shot", msg.id);
+            trace!("{:?} shot: {:?}", msg.id, msg);
+            // Update the shooter's movement first to sync exact facing direction
+            let mut found = false;
+            for (entity, player_id) in player_query.iter() {
+                if *player_id == msg.id {
+                    commands.entity(entity).insert(msg.mov);
+                    found = true;
+                    break;
+                }
+            }
+            if !found {
+                warn!("received shot from non-existent player {:?}", msg.id);
+            }
             // Spawn projectile for this player
             spawn_projectile_for_player(commands, meshes, materials, player_query, player_pos_mov_query, msg.id);
         }

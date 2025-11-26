@@ -93,7 +93,9 @@ struct CMovement {
 
 message! {
 // Client to Server: Shot fired.
-struct CShot {}
+struct CShot {
+    pub mov: Movement,
+}
 }
 
 // ============================================================================
@@ -135,6 +137,7 @@ message! {
 // Server to Client: Player shot fired.
 struct SShot {
     pub id: PlayerId,
+    pub mov: Movement,
 }
 }
 

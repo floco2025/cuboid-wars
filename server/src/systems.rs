@@ -213,9 +213,9 @@ fn process_message_logged_in(
             trace!("{:?} movement: {:?}", id, msg);
             handle_movement(commands, entity, id, msg, players);
         }
-        ClientMessage::Shot(_msg) => {
-            debug!("{:?} shot", id);
-            handle_shot(id, players);
+        ClientMessage::Shot(msg) => {
+            debug!("{id:?} shot");
+            handle_shot(commands, entity, id, msg, players);
         }
     }
 }
@@ -237,9 +237,12 @@ fn handle_movement(commands: &mut Commands, entity: Entity, id: PlayerId, msg: C
     }
 }
 
-fn handle_shot(id: PlayerId, players: &PlayerMap) {
-    // Broadcast shot to all other logged-in players
-    let broadcast_msg = ServerMessage::Shot(SShot { id });
+fn handle_shot(commands: &mut Commands, entity: Entity, id: PlayerId, msg: CShot, players: &PlayerMap) {
+    // Update the shooter's movement to exact facing direction
+    commands.entity(entity).insert(msg.mov);
+    
+    // Broadcast shot with movement to all other logged-in players
+    let broadcast_msg = ServerMessage::Shot(SShot { id, mov: msg.mov });
     for (other_id, other_info) in players.0.iter() {
         if *other_id != id && other_info.logged_in {
             let _ = other_info.channel.send(ServerToClient::Send(broadcast_msg.clone()));

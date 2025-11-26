@@ -199,9 +199,9 @@ pub fn shooting_system(
     
     if cursor_locked && mouse.just_pressed(bevy::input::mouse::MouseButton::Left) {
         if let Some((pos, mov)) = local_player_query.iter().next() {
-            // Send shot message to server
-            let msg = ClientMessage::Shot(CShot {});
-            let _ = to_server.send(ClientToServer::Send(msg));
+            // Send shot message with current movement to server
+            let shot_msg = ClientMessage::Shot(CShot { mov: *mov });
+            let _ = to_server.send(ClientToServer::Send(shot_msg));
             
             // Spawn projectile locally
             spawn_projectile_local(&mut commands, &mut meshes, &mut materials, pos, mov);
