@@ -1,12 +1,11 @@
 use bevy::prelude::*;
-use common::protocol::{PlayerId, Position, Movement, ServerMessage};
 
+use crate::spawning::{spawn_player, spawn_projectile_for_player};
 use crate::{
     net::ServerToClient,
-    resources::{MyPlayerId, ServerToClientChannel},
+    resources::{MyPlayerId, PlayerInfo, PlayerMap, ServerToClientChannel},
 };
-
-use super::spawning::{spawn_player, spawn_projectile_for_player};
+use common::protocol::{Movement, PlayerId, Position, ServerMessage};
 
 // ============================================================================
 // Network Message Processing
@@ -19,7 +18,7 @@ pub fn process_server_events_system(
     mut exit: MessageWriter<AppExit>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    player_query: Query<(Entity, &PlayerId)>,
+    mut player_map: ResMut<PlayerMap>,
     player_pos_mov_query: Query<(&Position, &Movement), With<PlayerId>>,
     mut my_player_id: Local<Option<PlayerId>>,
 ) {
@@ -36,7 +35,7 @@ pub fn process_server_events_system(
                         &mut commands,
                         &mut meshes,
                         &mut materials,
-                        &player_query,
+                        &mut player_map,
                         &player_pos_mov_query,
                         *my_player_id,
                         &message,
@@ -80,7 +79,7 @@ fn process_message_logged_in(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
-    player_query: &Query<(Entity, &PlayerId)>,
+    players: &mut ResMut<PlayerMap>,
     player_pos_mov_query: &Query<(&Position, &Movement), With<PlayerId>>,
     my_player_id: Option<PlayerId>,
     msg: &ServerMessage,
@@ -91,58 +90,46 @@ fn process_message_logged_in(
         }
         ServerMessage::Login(msg) => {
             debug!("{:?} logged in", msg.id);
-            // Login is always for another player (server doesn't send our own login back)
-            spawn_player(
-                commands,
-                meshes,
-                materials,
-                msg.id.0,
-                &msg.player.pos,
-                &msg.player.mov,
-                false, // Never local
-            );
+            // Spawn the new player if not already in player_map
+            if !players.0.contains_key(&msg.id) {
+                let entity = spawn_player(
+                    commands,
+                    meshes,
+                    materials,
+                    msg.id.0,
+                    &msg.player.pos,
+                    &msg.player.mov,
+                    false, // Never local (server doesn't send our own login back)
+                );
+                players.0.insert(msg.id, PlayerInfo { entity, hits: 0 });
+            }
         }
         ServerMessage::Logoff(msg) => {
             debug!("{:?} logged off (graceful: {})", msg.id, msg.graceful);
-            // Find and despawn the entity with this PlayerId
-            for (entity, player_id) in player_query.iter() {
-                if *player_id == msg.id {
-                    commands.entity(entity).despawn();
-                    break;
-                }
+            // Remove from player map and despawn entity
+            if let Some(player) = players.0.remove(&msg.id) {
+                commands.entity(player.entity).despawn();
             }
         }
         ServerMessage::Movement(msg) => {
             trace!("{:?} movement: {:?}", msg.id, msg);
-            // Update player movement (both local and remote)
-            let mut found = false;
-            for (entity, player_id) in player_query.iter() {
-                if *player_id == msg.id {
-                    commands.entity(entity).insert(msg.mov);
-                    found = true;
-                    break;
-                }
-            }
-            if !found {
+            // Update player movement using player_map
+            if let Some(player) = players.0.get(&msg.id) {
+                commands.entity(player.entity).insert(msg.mov);
+            } else {
                 warn!("received movement for non-existent player {:?}", msg.id);
             }
         }
         ServerMessage::Shot(msg) => {
             trace!("{:?} shot: {:?}", msg.id, msg);
             // Update the shooter's movement first to sync exact facing direction
-            let mut found = false;
-            for (entity, player_id) in player_query.iter() {
-                if *player_id == msg.id {
-                    commands.entity(entity).insert(msg.mov);
-                    found = true;
-                    break;
-                }
-            }
-            if !found {
+            if let Some(player) = players.0.get(&msg.id) {
+                commands.entity(player.entity).insert(msg.mov);
+                // Spawn projectile for this player
+                spawn_projectile_for_player(commands, meshes, materials, player_pos_mov_query, player.entity);
+            } else {
                 warn!("received shot from non-existent player {:?}", msg.id);
             }
-            // Spawn projectile for this player
-            spawn_projectile_for_player(commands, meshes, materials, player_query, player_pos_mov_query, msg.id);
         }
         ServerMessage::Update(msg) => {
             //trace!("update: {:?}", msg);
@@ -150,37 +137,51 @@ fn process_message_logged_in(
             // Get my player ID to identify local player
             let my_id: Option<u32> = my_player_id.map(|id| id.0);
 
-            // Collect existing player IDs
-            let existing_players: std::collections::HashSet<PlayerId> =
-                player_query.iter().map(|(_, id)| *id).collect();
-
             // Collect player IDs in this Update message
             let update_players: std::collections::HashSet<PlayerId> = msg.players.iter().map(|(id, _)| *id).collect();
 
-            // Spawn missing players (in Update but not in our world)
+            // Spawn missing players (in Update but not in player_map)
             for (id, player) in &msg.players {
-                if !existing_players.contains(id) {
-                    debug!("spawning player {:?} from Update", id);
+                if !players.0.contains_key(id) {
                     let is_local = my_id.map_or(false, |my| my == (*id).0);
-                    spawn_player(commands, meshes, materials, id.0, &player.pos, &player.mov, is_local);
+                    debug!("spawning player {:?} from Update (is_local: {})", id, is_local);
+                    let entity = spawn_player(commands, meshes, materials, id.0, &player.pos, &player.mov, is_local);
+                    players.0.insert(
+                        *id,
+                        PlayerInfo {
+                            entity,
+                            hits: player.hits,
+                        },
+                    );
                 }
             }
 
-            // Despawn players that no longer exist (in our world but not in Update)
-            for (entity, player_id) in player_query.iter() {
-                if !update_players.contains(player_id) {
-                    warn!("despawning player {:?} from Update", player_id);
-                    commands.entity(entity).despawn();
+            // Despawn players that no longer exist (in player_map but not in Update)
+            let to_remove: Vec<PlayerId> = players
+                .0
+                .keys()
+                .filter(|id| !update_players.contains(id))
+                .copied()
+                .collect();
+
+            for id in to_remove {
+                if let Some(player) = players.0.remove(&id) {
+                    warn!("despawning player {:?} from Update", id);
+                    commands.entity(player.entity).despawn();
                 }
             }
 
             // Update all players with new state
-            for (id, player) in &msg.players {
-                for (entity, player_id) in player_query.iter() {
-                    if *player_id == *id {
-                        commands.entity(entity).insert((player.pos, player.mov));
-                        break;
+            for (id, server_player) in &msg.players {
+                if let Some(client_player) = players.0.get_mut(id) {
+                    commands
+                        .entity(client_player.entity)
+                        .insert((server_player.pos, server_player.mov));
+                    // Update hit count from server
+                    if client_player.hits != server_player.hits {
+                        info!("Player {:?} hits: {} -> {}", id, client_player.hits, server_player.hits);
                     }
+                    client_player.hits = server_player.hits;
                 }
             }
         }

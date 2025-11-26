@@ -7,12 +7,15 @@ use quinn::Endpoint;
 use client::{
     config::configure_client,
     net::network_io_task,
-    resources::{ClientToServerChannel, ServerToClientChannel},
+    resources::{ClientToServerChannel, PlayerMap, ServerToClientChannel},
     systems::{
-        cursor_toggle_system, input_system, process_server_events_system, setup_world_system,
-        shooting_system, sync_camera_to_player_system, sync_position_to_transform_system,
-        sync_rotation_to_transform_system, update_player_list_system,
-        update_shooting_effects_system,
+        input::{cursor_toggle_system, input_system, shooting_input_system},
+        network::process_server_events_system,
+        sync::{
+            sync_camera_to_player_system, sync_position_to_transform_system, 
+            sync_rotation_to_transform_system, sync_projectiles_system,
+        },
+        ui::{setup_world_system, update_player_list_system},
     },
 };
 #[allow(clippy::wildcard_imports)]
@@ -113,6 +116,7 @@ fn main() -> Result<()> {
     }))
     .insert_resource(ClientToServerChannel::new(to_server))
     .insert_resource(ServerToClientChannel::new(from_server))
+    .insert_resource(PlayerMap::default())
     .add_systems(Startup, setup_world_system)
     .add_systems(
         Update,
@@ -121,10 +125,10 @@ fn main() -> Result<()> {
             cursor_toggle_system,
             // Handle WASD input and mouse
             input_system,
-            // Handle shooting
-            shooting_system,
-            // Update shooting effects (muzzle flash, projectiles)
-            update_shooting_effects_system,
+            // Handle shooting input
+            shooting_input_system,
+            // Sync projectile physics to transforms
+            sync_projectiles_system,
             // Process server messages
             process_server_events_system,
             // Shared movement logic

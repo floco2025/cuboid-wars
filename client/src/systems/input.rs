@@ -1,13 +1,13 @@
 use bevy::prelude::*;
-use common::{components::Projectile, protocol::{CMovement, CShot, ClientMessage, Movement, Position, Velocity}};
+use common::protocol::{CMovement, CShot, ClientMessage, Movement, Position, Velocity};
 
 use crate::{
     components::LocalPlayer,
     net::ClientToServer,
     resources::ClientToServerChannel,
+    spawning::spawn_projectile_local,
 };
 
-use super::spawning::spawn_projectile_local;
 
 // ============================================================================
 // Input Systems
@@ -181,11 +181,7 @@ pub fn input_system(
     }
 }
 
-// ============================================================================
-// Shooting System
-// ============================================================================
-
-pub fn shooting_system(
+pub fn shooting_input_system(
     mut commands: Commands,
     mouse: Res<ButtonInput<bevy::input::mouse::MouseButton>>,
     cursor_options: Single<&bevy::window::CursorOptions>,
@@ -205,23 +201,6 @@ pub fn shooting_system(
             
             // Spawn projectile locally
             spawn_projectile_local(&mut commands, &mut meshes, &mut materials, pos, mov);
-        }
-    }
-}
-
-// Update projectiles - position updates and despawn
-pub fn update_shooting_effects_system(
-    mut commands: Commands,
-    time: Res<Time>,
-    mut projectile_query: Query<(Entity, &mut Transform, &mut Projectile)>,
-) {
-    // Update projectiles
-    for (entity, mut transform, mut projectile) in projectile_query.iter_mut() {
-        projectile.lifetime.tick(time.delta());
-        if projectile.lifetime.is_finished() {
-            commands.entity(entity).despawn();
-        } else {
-            transform.translation += projectile.velocity * time.delta_secs();
         }
     }
 }

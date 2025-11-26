@@ -10,7 +10,7 @@ use common::protocol::*;
 // Bevy Resources
 // ============================================================================
 
-// Player information
+// Player information (server-side)
 pub struct PlayerInfo {
     pub entity: Entity,
     pub logged_in: bool,
@@ -18,7 +18,7 @@ pub struct PlayerInfo {
     pub hits: i32,
 }
 
-// Index from PlayerId to Player
+// Map of all players (server-side source of truth)
 #[derive(Resource, Default)]
 pub struct PlayerMap(pub HashMap<PlayerId, PlayerInfo>);
 

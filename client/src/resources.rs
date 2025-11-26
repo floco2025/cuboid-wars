@@ -1,5 +1,6 @@
 #[allow(clippy::wildcard_imports)]
 use bevy::prelude::*;
+use std::collections::HashMap;
 use tokio::sync::mpsc::{
     UnboundedReceiver, UnboundedSender,
     error::{SendError, TryRecvError},
@@ -15,6 +16,16 @@ use common::protocol::PlayerId;
 // My player ID assigned by the server
 #[derive(Resource)]
 pub struct MyPlayerId(pub PlayerId);
+
+// Player information (client-side)
+pub struct PlayerInfo {
+    pub entity: Entity,
+    pub hits: i32,
+}
+
+// Map of all players (client-side source of truth)
+#[derive(Resource, Default)]
+pub struct PlayerMap(pub HashMap<PlayerId, PlayerInfo>);
 
 // Resource wrapper for the client to server channel
 #[derive(Resource)]

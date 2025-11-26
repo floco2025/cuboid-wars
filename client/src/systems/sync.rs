@@ -1,11 +1,12 @@
 use bevy::prelude::*;
+use common::components::Projectile;
 use common::constants::PLAYER_HEIGHT;
 use common::protocol::{Movement, Position};
 
 use crate::components::LocalPlayer;
 
 // ============================================================================
-// Rendering Systems
+// Sync Systems
 // ============================================================================
 
 // Update camera position to follow local player
@@ -36,5 +37,21 @@ pub fn sync_position_to_transform_system(mut query: Query<(&Position, &mut Trans
 pub fn sync_rotation_to_transform_system(mut query: Query<(&Movement, &mut Transform), Without<Camera3d>>) {
     for (mov, mut transform) in query.iter_mut() {
         transform.rotation = Quat::from_rotation_y(mov.face_dir);
+    }
+}
+
+// Update projectiles - position updates and despawn
+pub fn sync_projectiles_system(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut projectile_query: Query<(Entity, &mut Transform, &mut Projectile)>,
+) {
+    for (entity, mut transform, mut projectile) in projectile_query.iter_mut() {
+        projectile.lifetime.tick(time.delta());
+        if projectile.lifetime.is_finished() {
+            commands.entity(entity).despawn();
+        } else {
+            transform.translation += projectile.velocity * time.delta_secs();
+        }
     }
 }

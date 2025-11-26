@@ -1,10 +1,10 @@
 use bevy::prelude::*;
+
 use common::{
     components::Projectile,
     constants::*,
     protocol::{Movement, PlayerId, Position},
 };
-
 use crate::components::LocalPlayer;
 
 // ============================================================================
@@ -20,16 +20,12 @@ pub fn spawn_player(
     position: &Position,
     movement: &Movement,
     is_local: bool,
-) {
+) -> Entity {
     // For local player, just spawn the entity with components but no mesh
     if is_local {
-        commands.spawn((
-            PlayerId(player_id),
-            *position,
-            *movement,
-            LocalPlayer,
-        ));
-        return;
+        return commands
+            .spawn((PlayerId(player_id), *position, *movement, LocalPlayer))
+            .id();
     }
 
     // For other players, spawn the full visual representation
@@ -105,6 +101,8 @@ pub fn spawn_player(
     commands
         .entity(entity_id)
         .add_children(&[nose_id, left_eye_id, right_eye_id]);
+
+    entity_id
 }
 
 // Spawn a projectile locally (for local player shooting)
@@ -139,15 +137,11 @@ pub fn spawn_projectile_for_player(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
-    player_query: &Query<(Entity, &PlayerId)>,
     player_pos_mov_query: &Query<(&Position, &Movement), With<PlayerId>>,
-    shooter_id: PlayerId,
+    entity: Entity,
 ) {
-    // Find the entity with this player ID
-    if let Some((entity, _)) = player_query.iter().find(|(_, id)| **id == shooter_id) {
-        // Get position and movement for this player
-        if let Ok((pos, mov)) = player_pos_mov_query.get(entity) {
-            spawn_projectile_local(commands, meshes, materials, pos, mov);
-        }
+    // Get position and movement for this player entity
+    if let Ok((pos, mov)) = player_pos_mov_query.get(entity) {
+        spawn_projectile_local(commands, meshes, materials, pos, mov);
     }
 }
