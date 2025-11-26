@@ -18,8 +18,8 @@ pub fn movement_system(time: Res<Time>, mut query: Query<(&mut Position, &Moveme
         // Calculate actual velocity from movement state
         let speed_mm_per_sec = match mov.vel {
             Velocity::Idle => 0.0,
-            Velocity::Walk => 150_000.0, // mm/sec
-            Velocity::Run => 250_000.0,  // mm/sec
+            Velocity::Walk => 200_000.0, // mm/sec
+            Velocity::Run => 300_000.0,  // mm/sec
         };
 
         if speed_mm_per_sec > 0.0 {

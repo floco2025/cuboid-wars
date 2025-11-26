@@ -15,6 +15,7 @@ pub struct PlayerInfo {
     pub entity: Entity,
     pub logged_in: bool,
     pub channel: UnboundedSender<ServerToClient>,
+    pub hits: i32,
 }
 
 // Index from PlayerId to Player

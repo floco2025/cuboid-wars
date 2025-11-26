@@ -64,6 +64,7 @@ message! {
 struct Player {
     pub pos: Position,
     pub mov: Movement,
+    pub hits: i32,  // Hit counter: hits made - hits received
 }
 }
 
