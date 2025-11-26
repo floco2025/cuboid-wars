@@ -11,7 +11,7 @@ use client::{
     systems::{
         cursor_toggle_system, input_system, process_server_events_system, setup_world_system,
         shooting_system, sync_camera_to_player_system, sync_position_to_transform_system,
-        sync_rotation_to_transform_system, toggle_crosshair_system, update_player_list_system,
+        sync_rotation_to_transform_system, update_player_list_system,
         update_shooting_effects_system,
     },
 };
@@ -137,8 +137,6 @@ fn main() -> Result<()> {
             sync_rotation_to_transform_system,
             // Update player list UI
             update_player_list_system,
-            // Toggle crosshair visibility
-            toggle_crosshair_system,
         ),
     )
     .run();

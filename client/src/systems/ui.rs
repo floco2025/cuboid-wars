@@ -80,7 +80,7 @@ pub fn setup_world_system(
             PlayerListUI,
         ));
 
-    // Create crosshair UI (initially hidden, shown when local player exists)
+    // Create crosshair UI
     let crosshair_size = 20.0;
     let crosshair_thickness = 2.0;
     let crosshair_color = Color::srgba(1.0, 1.0, 1.0, 0.8);
@@ -97,7 +97,6 @@ pub fn setup_world_system(
                 align_items: AlignItems::Center,
                 ..default()
             },
-            Visibility::Hidden,
             CrosshairUI,
         ))
         .with_children(|parent| {
@@ -216,14 +215,4 @@ pub fn update_player_list_system(
     }
 }
 
-// Show crosshair only when local player exists
-pub fn toggle_crosshair_system(
-    local_player_query: Query<(), With<LocalPlayer>>,
-    crosshair_query: Single<&mut Visibility, With<CrosshairUI>>,
-) {
-    *crosshair_query.into_inner() = if local_player_query.iter().count() > 0 {
-        Visibility::Visible
-    } else {
-        Visibility::Hidden
-    };
-}
+

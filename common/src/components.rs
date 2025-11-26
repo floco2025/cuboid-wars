@@ -9,7 +9,7 @@ use bevy_time::{Timer, TimerMode};
 
 // Projectile constants
 pub const PROJECTILE_SPEED: f32 = 2000.0; // meters per second
-pub const PROJECTILE_LIFETIME: f32 = 2.0; // seconds
+pub const PROJECTILE_LIFETIME: f32 = 2.5; // seconds
 pub const PROJECTILE_SPAWN_OFFSET: f32 = 500.0; // millimeters in front of shooter
 
 // Component for projectiles
