@@ -91,8 +91,8 @@ pub fn setup_world_system(
                 position_type: PositionType::Absolute,
                 left: Val::Percent(50.0),
                 top: Val::Percent(50.0),
-                width: Val::Px(crosshair_size * 2.0),
-                height: Val::Px(crosshair_size * 2.0),
+                width: Val::Px(0.0),
+                height: Val::Px(0.0),
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
                 ..default()
@@ -104,6 +104,8 @@ pub fn setup_world_system(
             parent.spawn((
                 Node {
                     position_type: PositionType::Absolute,
+                    left: Val::Px(-crosshair_size / 2.0),
+                    top: Val::Px(-crosshair_thickness / 2.0),
                     width: Val::Px(crosshair_size),
                     height: Val::Px(crosshair_thickness),
                     ..default()
@@ -114,6 +116,8 @@ pub fn setup_world_system(
             parent.spawn((
                 Node {
                     position_type: PositionType::Absolute,
+                    left: Val::Px(-crosshair_thickness / 2.0),
+                    top: Val::Px(-crosshair_size / 2.0),
                     width: Val::Px(crosshair_thickness),
                     height: Val::Px(crosshair_size),
                     ..default()
