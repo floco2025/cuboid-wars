@@ -55,7 +55,7 @@ for i in $(seq 0 $((NUM_CLIENTS - 1))); do
     Y=$((Y_LOGICAL * 2))
     
     echo "Client $i: COL=$COL, ROW=$ROW, Logical=($X_LOGICAL, $Y_LOGICAL), Physical=($X, $Y)"
-    cargo run --release --bin client -- --window-x $X --window-y $Y --window-width $WINDOW_WIDTH --window-height $WINDOW_HEIGHT &
+    cargo run --bin client -- --window-x $X --window-y $Y --window-width $WINDOW_WIDTH --window-height $WINDOW_HEIGHT &
     
     # Small delay between launches
     sleep 0.5
