@@ -118,8 +118,8 @@ pub fn input_system(
         };
 
         // Player faces camera direction
-        // Camera rotation maps directly to face direction
-        let face_direction = camera_rotation;
+        // Add π because camera_rotation=0 points backwards from where we want face_dir=0
+        let face_direction = camera_rotation + std::f32::consts::PI;
 
         // Create movement
         let mov = Movement {

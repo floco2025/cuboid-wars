@@ -24,9 +24,9 @@ impl Projectile {
     // face_dir is the shooter's facing direction in radians
     pub fn new(face_dir: f32) -> Self {
         let velocity = Vec3::new(
-            -face_dir.sin() * PROJECTILE_SPEED,
+            face_dir.sin() * PROJECTILE_SPEED,
             0.0,
-            -face_dir.cos() * PROJECTILE_SPEED,
+            face_dir.cos() * PROJECTILE_SPEED,
         );
         
         Self {
@@ -38,8 +38,8 @@ impl Projectile {
     // Calculate spawn position in front of shooter
     // Returns (x, y) in millimeters
     pub fn calculate_spawn_position(shooter_x: i32, shooter_y: i32, face_dir: f32) -> (f32, f32) {
-        let spawn_x = shooter_x as f32 + (-face_dir.sin()) * PROJECTILE_SPAWN_OFFSET;
-        let spawn_y = shooter_y as f32 + (-face_dir.cos()) * PROJECTILE_SPAWN_OFFSET;
+        let spawn_x = shooter_x as f32 + face_dir.sin() * PROJECTILE_SPAWN_OFFSET;
+        let spawn_y = shooter_y as f32 + face_dir.cos() * PROJECTILE_SPAWN_OFFSET;
         (spawn_x, spawn_y)
     }
 }

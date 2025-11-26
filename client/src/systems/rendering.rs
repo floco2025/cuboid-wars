@@ -36,8 +36,7 @@ pub fn sync_position_to_transform_system(mut query: Query<(&Position, &mut Trans
 // Update player cuboid rotation from stored movement component
 pub fn sync_rotation_to_transform_system(mut query: Query<(&Movement, &mut Transform), Without<Camera3d>>) {
     for (mov, mut transform) in query.iter_mut() {
-        // Face direction: 0 = facing -Y direction
-        // Add π to flip the model 180° so nose points in the right direction
-        transform.rotation = Quat::from_rotation_y(mov.face_dir + std::f32::consts::PI);
+        // face_dir already includes the π offset from input.rs
+        transform.rotation = Quat::from_rotation_y(mov.face_dir);
     }
 }
