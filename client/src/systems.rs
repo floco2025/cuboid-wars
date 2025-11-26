@@ -5,7 +5,7 @@ use crate::{
 };
 use bevy::prelude::*;
 #[allow(clippy::wildcard_imports)]
-use common::protocol::*;
+use common::{components::Projectile, protocol::*};
 
 // ============================================================================
 // Setup World System
@@ -41,9 +41,11 @@ pub fn cursor_toggle_system(
     }
 
     // Left click locks cursor if it's currently unlocked
+    // Don't consume the click - let it pass through to shooting system
     if mouse.just_pressed(bevy::input::mouse::MouseButton::Left) && cursor_options.visible {
         cursor_options.visible = false;
         cursor_options.grab_mode = bevy::window::CursorGrabMode::Locked;
+        // Note: The click event will still be available for the shooting system
     }
 }
 
@@ -457,6 +459,79 @@ pub fn input_system(
             let _ = to_server.send(ClientToServer::Send(msg));
             *last_sent_movement = mov;
             *last_send_time = 0.0;
+        }
+    }
+}
+
+// ============================================================================
+// Shooting System
+// ============================================================================
+
+pub fn shooting_system(
+    mut commands: Commands,
+    mouse: Res<ButtonInput<bevy::input::mouse::MouseButton>>,
+    cursor_options: Single<&bevy::window::CursorOptions>,
+    local_player_query: Query<(&Position, &Movement), With<LocalPlayer>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    // Only allow shooting when cursor is locked
+    let cursor_locked = cursor_options.grab_mode != bevy::window::CursorGrabMode::None;
+    
+    if cursor_locked && mouse.just_pressed(bevy::input::mouse::MouseButton::Left) {
+        if let Some((pos, mov)) = local_player_query.iter().next() {
+            // Calculate spawn position in front of player using face_dir
+            // Same formula as movement forward direction
+            let spawn_offset = 50.0; // mm in front of player
+            let spawn_x = pos.x as f32 + (-mov.face_dir.sin()) * spawn_offset;
+            let spawn_y = pos.y as f32 + (-mov.face_dir.cos()) * spawn_offset;
+            
+            // Spawn projectile
+            let projectile_speed = 2000.0; // meters per second (10x faster)
+            // Velocity uses same forward direction formula as movement
+            // forward_x = -sin(face_dir), forward_y = -cos(face_dir) in Position coords
+            // Then convert: Transform velocity = (forward_x, 0, forward_y)
+            let velocity = Vec3::new(
+                -mov.face_dir.sin() * projectile_speed,
+                0.0,
+                -mov.face_dir.cos() * projectile_speed,
+            );
+            
+            let projectile_color = Color::srgb(10.0, 10.0, 0.0); // Very bright yellow
+            commands.spawn((
+                Mesh3d(meshes.add(Sphere::new(2.5))), // 25% of original 10 units
+                MeshMaterial3d(materials.add(StandardMaterial {
+                    base_color: projectile_color,
+                    emissive: LinearRgba::rgb(10.0, 10.0, 0.0), // Make it glow
+                    ..default()
+                })),
+                Transform::from_xyz(
+                    spawn_x / 1000.0,
+                    PLAYER_HEIGHT / 2.0,
+                    spawn_y / 1000.0,
+                ),
+                Projectile {
+                    velocity,
+                    lifetime: Timer::from_seconds(3.0, TimerMode::Once),
+                },
+            ));
+        }
+    }
+}
+
+// Update projectiles
+pub fn update_shooting_effects_system(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut projectile_query: Query<(Entity, &mut Transform, &mut Projectile)>,
+) {
+    // Update projectiles
+    for (entity, mut transform, mut projectile) in projectile_query.iter_mut() {
+        projectile.lifetime.tick(time.delta());
+        if projectile.lifetime.is_finished() {
+            commands.entity(entity).despawn();
+        } else {
+            transform.translation += projectile.velocity * time.delta_secs();
         }
     }
 }

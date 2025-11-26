@@ -10,8 +10,9 @@ use client::{
     resources::{ClientToServerChannel, ServerToClientChannel},
     systems::{
         cursor_toggle_system, input_system, process_server_events_system, setup_world_system,
-        sync_camera_to_player_system, sync_position_to_transform_system, sync_rotation_to_transform_system,
-        toggle_crosshair_system, update_player_list_system,
+        shooting_system, sync_camera_to_player_system, sync_position_to_transform_system,
+        sync_rotation_to_transform_system, toggle_crosshair_system, update_player_list_system,
+        update_shooting_effects_system,
     },
 };
 #[allow(clippy::wildcard_imports)]
@@ -120,6 +121,10 @@ fn main() -> Result<()> {
             cursor_toggle_system,
             // Handle WASD input and mouse
             input_system,
+            // Handle shooting
+            shooting_system,
+            // Update shooting effects (muzzle flash, projectiles)
+            update_shooting_effects_system,
             // Process server messages
             process_server_events_system,
             // Shared movement logic
