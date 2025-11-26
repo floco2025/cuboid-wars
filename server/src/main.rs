@@ -11,7 +11,7 @@ use server::{
     config::configure_server,
     net::accept_connections_task,
     resources::{FromAcceptChannel, FromClientsChannel, PlayerMap},
-    systems::{accept_connections_system, broadcast_state_system, process_client_message_system},
+    systems::{accept_connections_system, broadcast_state_system, hit_detection_system, process_client_message_system},
 };
 
 // ============================================================================
@@ -71,6 +71,8 @@ async fn main() -> Result<()> {
                 movement_system,
                 // Update projectiles (lifetime and despawn)
                 update_projectiles_system,
+                // Check for projectile hits
+                hit_detection_system,
                 // Broadcast authoritative state to clients
                 broadcast_state_system,
             )

@@ -74,7 +74,7 @@ pub fn process_client_message_system(
             ClientToServer::Message(message) => {
                 let is_logged_in = player_info.logged_in;
                 if is_logged_in {
-                    process_message_logged_in(&mut commands, player_info.entity, id, message, &players);
+                    process_message_logged_in(&mut commands, player_info.entity, id, message, &players, &positions);
                 } else {
                     process_message_not_logged_in(
                         &mut commands,
@@ -191,6 +191,7 @@ fn process_message_logged_in(
     id: PlayerId,
     msg: ClientMessage,
     players: &PlayerMap,
+    positions: &Query<&Position>,
 ) {
     match msg {
         ClientMessage::Login(_) => {
@@ -215,7 +216,7 @@ fn process_message_logged_in(
         }
         ClientMessage::Shot(msg) => {
             debug!("{id:?} shot");
-            handle_shot(commands, entity, id, msg, players);
+            handle_shot(commands, entity, id, msg, players, &positions);
         }
     }
 }
@@ -237,9 +238,34 @@ fn handle_movement(commands: &mut Commands, entity: Entity, id: PlayerId, msg: C
     }
 }
 
-fn handle_shot(commands: &mut Commands, entity: Entity, id: PlayerId, msg: CShot, players: &PlayerMap) {
+fn handle_shot(
+    commands: &mut Commands,
+    entity: Entity,
+    id: PlayerId,
+    msg: CShot,
+    players: &PlayerMap,
+    positions: &Query<&Position>,
+) {
     // Update the shooter's movement to exact facing direction
     commands.entity(entity).insert(msg.mov);
+    
+    // Spawn projectile on server for hit detection
+    if let Ok(pos) = positions.get(entity) {
+        use common::components::Projectile;
+        
+        let spawn_pos = Projectile::calculate_spawn_position(Vec3::new(pos.x, pos.y, pos.z), msg.mov.face_dir);
+        let projectile = Projectile::new(msg.mov.face_dir);
+        
+        commands.spawn((
+            Position {
+                x: spawn_pos.x,
+                y: spawn_pos.y,
+                z: spawn_pos.z,
+            },
+            projectile,
+            id, // Tag projectile with shooter's ID
+        ));
+    }
     
     // Broadcast shot with movement to all other logged-in players
     let broadcast_msg = ServerMessage::Shot(SShot { id, mov: msg.mov });
@@ -286,6 +312,55 @@ pub fn broadcast_state_system(
     for info in players.0.values() {
         if info.logged_in {
             let _ = info.channel.send(ServerToClient::Send(msg.clone()));
+        }
+    }
+}
+
+// Hit detection system - simple manual collision detection
+pub fn hit_detection_system(
+    mut commands: Commands,
+    projectile_query: Query<(Entity, &Position, &PlayerId), With<common::components::Projectile>>,
+    player_query: Query<(&Position, &PlayerId), Without<common::components::Projectile>>,
+    mut players: ResMut<PlayerMap>,
+) {
+    // Player hitbox size (cuboid dimensions from client)
+    const PLAYER_WIDTH: f32 = 20.0;
+    const PLAYER_HEIGHT: f32 = 80.0;
+    const PLAYER_DEPTH: f32 = 40.0;
+    
+    for (proj_entity, proj_pos, shooter_id) in projectile_query.iter() {
+        for (player_pos, target_id) in player_query.iter() {
+            // Don't hit yourself
+            if shooter_id == target_id {
+                continue;
+            }
+            
+            // Simple AABB (axis-aligned bounding box) collision detection
+            // Player's center is at y = PLAYER_HEIGHT/2 = 40 (since bottom is at y=0)
+            let player_center_y = PLAYER_HEIGHT / 2.0;
+            
+            let dx = (proj_pos.x - player_pos.x).abs();
+            let dy = (proj_pos.y - player_center_y).abs();
+            let dz = (proj_pos.z - player_pos.z).abs();
+            
+            if dx < PLAYER_WIDTH / 2.0 && dy < PLAYER_HEIGHT / 2.0 && dz < PLAYER_DEPTH / 2.0 {
+                info!("Player {:?} hits Player {:?}", shooter_id, target_id);
+                
+                // Update hit counters
+                if let Some(shooter_info) = players.0.get_mut(shooter_id) {
+                    shooter_info.hits += 1;
+                    info!("  {:?} now has {} hits", shooter_id, shooter_info.hits);
+                }
+                if let Some(target_info) = players.0.get_mut(target_id) {
+                    target_info.hits -= 1;
+                    info!("  {:?} now has {} hits", target_id, target_info.hits);
+                }
+                
+                // Despawn the projectile
+                commands.entity(proj_entity).despawn();
+                
+                break; // Projectile can only hit one player
+            }
         }
     }
 }

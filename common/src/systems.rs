@@ -38,14 +38,20 @@ pub fn movement_system(time: Res<Time>, mut query: Query<(&mut Position, &Moveme
 }
 
 // Update projectile positions and despawn expired projectiles
-// This system doesn't use Transform - it only updates the lifetime
-// The Position component would need to be added separately if tracking is needed
 pub fn update_projectiles_system(
     mut commands: Commands,
     time: Res<Time>,
-    mut projectile_query: Query<(Entity, &mut Projectile)>,
+    mut projectile_query: Query<(Entity, &mut Position, &mut Projectile)>,
 ) {
-    for (entity, mut projectile) in projectile_query.iter_mut() {
+    let delta = time.delta_secs();
+    
+    for (entity, mut pos, mut projectile) in projectile_query.iter_mut() {
+        // Update position based on velocity
+        pos.x += projectile.velocity.x * delta;
+        pos.y += projectile.velocity.y * delta;
+        pos.z += projectile.velocity.z * delta;
+        
+        // Update lifetime
         projectile.lifetime.tick(time.delta());
         if projectile.lifetime.is_finished() {
             commands.entity(entity).despawn();
