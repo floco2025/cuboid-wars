@@ -1,5 +1,8 @@
 use bevy::prelude::*;
-use common::{components::Projectile, protocol::{PlayerId, Position, Movement}};
+use common::{
+    components::Projectile,
+    protocol::{Movement, PlayerId, Position},
+};
 
 use crate::components::LocalPlayer;
 
@@ -22,14 +25,22 @@ pub fn spawn_player(
     movement: &Movement,
     is_local: bool,
 ) {
-    let color = if is_local {
-        Color::srgb(0.2, 0.7, 1.0) // Blue for local player
-    } else {
-        Color::srgb(1.0, 0.3, 0.3) // Red for other players
-    };
+    // For local player, just spawn the entity with components but no mesh
+    if is_local {
+        commands.spawn((
+            PlayerId(player_id),
+            *position,
+            *movement,
+            LocalPlayer,
+        ));
+        return;
+    }
+
+    // For other players, spawn the full visual representation
+    let color = Color::srgb(1.0, 0.3, 0.3);
 
     // Main body
-    let mut entity = commands.spawn((
+    let entity = commands.spawn((
         PlayerId(player_id),
         *position, // Add Position component
         *movement, // Add Movement component
@@ -43,22 +54,18 @@ pub fn spawn_player(
         Visibility::default(),
     ));
 
-    if is_local {
-        entity.insert(LocalPlayer);
-    }
-
     let entity_id = entity.id();
 
     // Add a "nose" marker at the front (yellow sphere) as a child
     let front_marker_color = Color::srgb(1.0, 1.0, 0.0); // Yellow
-    let marker_id = commands
+    let nose_id = commands
         .spawn((
             Mesh3d(meshes.add(Sphere::new(5.0))),
             MeshMaterial3d(materials.add(front_marker_color)),
             Transform::from_xyz(
                 0.0,
-                10.0,                      // Slightly above center
-                PLAYER_DEPTH / 2.0 + 5.0, // Front of the cuboid
+                20.0,               // Y is up/down
+                PLAYER_DEPTH / 2.0, // Center aligned with front face
             ),
             Visibility::Inherited,
             ViewVisibility::default(),
@@ -66,7 +73,41 @@ pub fn spawn_player(
         ))
         .id();
 
-    commands.entity(entity_id).add_children(&[marker_id]);
+    // Add two "eyes" above the nose (white spheres) as children
+    let eye_color = Color::srgb(1.0, 1.0, 1.0); // White
+    let left_eye_id = commands
+        .spawn((
+            Mesh3d(meshes.add(Sphere::new(3.0))),
+            MeshMaterial3d(materials.add(eye_color)),
+            Transform::from_xyz(
+                -6.0,               // Left side
+                30.0,               // Y is up/down - above nose
+                PLAYER_DEPTH / 2.0, // Center aligned with front face
+            ),
+            Visibility::Inherited,
+            ViewVisibility::default(),
+            InheritedVisibility::default(),
+        ))
+        .id();
+
+    let right_eye_id = commands
+        .spawn((
+            Mesh3d(meshes.add(Sphere::new(3.0))),
+            MeshMaterial3d(materials.add(eye_color)),
+            Transform::from_xyz(
+                6.0,                // Right side
+                30.0,               // Y is up/down - above nose
+                PLAYER_DEPTH / 2.0, // Center aligned with front face
+            ),
+            Visibility::Inherited,
+            ViewVisibility::default(),
+            InheritedVisibility::default(),
+        ))
+        .id();
+
+    commands
+        .entity(entity_id)
+        .add_children(&[nose_id, left_eye_id, right_eye_id]);
 }
 
 // Spawn a projectile locally (for local player shooting)
@@ -79,10 +120,10 @@ pub fn spawn_projectile_local(
 ) {
     // Calculate spawn position using common helper
     let spawn_pos = Projectile::calculate_spawn_position(Vec3::new(pos.x, pos.y, pos.z), mov.face_dir);
-    
+
     // Create projectile with common parameters
     let projectile = Projectile::new(mov.face_dir);
-    
+
     let projectile_color = Color::srgb(10.0, 10.0, 0.0); // Very bright yellow
     commands.spawn((
         Mesh3d(meshes.add(Sphere::new(5.0))),
