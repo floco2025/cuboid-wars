@@ -8,9 +8,9 @@ use crate::protocol::{Position, Velocity};
 // Shared Game Systems
 // ============================================================================
 
-/// Movement system - integrates velocity into position.
-/// Position uses millimeter fixed-point scale (i32 = millimeters).
-/// This runs on both client and server to ensure deterministic movement.
+// Movement system - integrates velocity into position.
+// Position uses millimeter fixed-point scale (i32 = millimeters).
+// This runs on both client and server to ensure deterministic movement.
 pub fn movement_system(
     time: Res<Time>,
     mut query: Query<(&mut Position, &Velocity)>,

@@ -256,7 +256,7 @@ fn handle_rotation(commands: &mut Commands, entity: Entity, id: PlayerId, msg: C
     }
 }
 
-/// Broadcast authoritative kinematics (position+velocity+rotation) once per second
+// Broadcast authoritative game state in regular time intervals
 pub fn broadcast_state_system(
     time: Res<Time>,
     mut timer: Local<f32>,

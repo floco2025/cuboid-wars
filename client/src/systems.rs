@@ -24,7 +24,7 @@ pub const PLAYER_WIDTH: f32 = 20.0; // side to side
 pub const PLAYER_HEIGHT: f32 = 80.0; // up/down
 pub const PLAYER_DEPTH: f32 = 40.0; // front to back (longer)
 
-/// Toggle cursor lock with Escape key or mouse click
+// Toggle cursor lock with Escape key or mouse click
 pub fn cursor_toggle_system(
     keyboard: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<bevy::input::mouse::MouseButton>>,
@@ -273,7 +273,7 @@ fn process_message_logged_in(
 // Input System
 // ============================================================================
 
-/// Handle WASD movement and mouse rotation for first-person view
+// Handle WASD movement and mouse rotation for first-person view
 pub fn input_system(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut mouse_motion: MessageReader<bevy::input::mouse::MouseMotion>,
@@ -402,7 +402,7 @@ pub fn input_system(
     }
 }
 
-/// Update camera position to follow local player
+// Update camera position to follow local player
 pub fn sync_camera_to_player_system(
     local_player_query: Query<&Position, With<LocalPlayer>>,
     mut camera_query: Query<&mut Transform, With<Camera3d>>,
@@ -416,8 +416,8 @@ pub fn sync_camera_to_player_system(
     }
 }
 
-/// Update Transform from Position component for rendering
-/// Position is in millimeters, Transform is in meters
+// Update Transform from Position component for rendering
+// Position is in millimeters, Transform is in meters
 pub fn sync_position_to_transform_system(mut query: Query<(&Position, &mut Transform)>) {
     for (pos, mut transform) in query.iter_mut() {
         transform.translation.x = pos.x as f32 / 1000.0; // mm to meters
@@ -425,7 +425,7 @@ pub fn sync_position_to_transform_system(mut query: Query<(&Position, &mut Trans
     }
 }
 
-/// Update player cuboid rotation from stored rotation component
+// Update player cuboid rotation from stored rotation component
 pub fn sync_rotation_to_transform_system(mut query: Query<(&Rotation, &mut Transform), Without<Camera3d>>) {
     for (rot, mut transform) in query.iter_mut() {
         // Always use stored rotation (player faces where camera is looking)
