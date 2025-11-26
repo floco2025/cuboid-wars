@@ -313,7 +313,13 @@ pub fn input_system(
             // Moving - calculate movement direction from WASD input
             // Convert from world dx/dy to angle in our coordinate system
             let move_dir = dy.atan2(dx) + std::f32::consts::FRAC_PI_2;
-            (Velocity::Walk, move_dir)
+            // Check if shift is pressed for running
+            let vel = if keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight) {
+                Velocity::Run
+            } else {
+                Velocity::Walk
+            };
+            (vel, move_dir)
         } else {
             // Idle - movement direction doesn't matter
             (Velocity::Idle, 0.0)
