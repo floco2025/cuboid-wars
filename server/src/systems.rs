@@ -43,8 +43,7 @@ pub fn process_client_message_system(
     mut from_clients: ResMut<FromClientsChannel>,
     mut players: ResMut<PlayerMap>,
     positions: Query<&Position>,
-    velocities: Query<&Velocity>,
-    rotations: Query<&Rotation>,
+    movements: Query<&Movement>,
 ) {
     while let Ok((id, event)) = from_clients.try_recv() {
         let Some(player_info) = players.0.get(&id) else {
@@ -82,8 +81,7 @@ pub fn process_client_message_system(
                         id,
                         message,
                         &positions,
-                        &velocities,
-                        &rotations,
+                        &movements,
                         &mut players,
                     );
                 }
@@ -102,8 +100,7 @@ fn process_message_not_logged_in(
     id: PlayerId,
     msg: ClientMessage,
     positions: &Query<&Position>,
-    velocities: &Query<&Velocity>,
-    rotations: &Query<&Rotation>,
+    movements: &Query<&Movement>,
     players: &mut ResMut<PlayerMap>,
 ) {
     match msg {
@@ -129,12 +126,15 @@ fn process_message_not_logged_in(
                 y: rng.random_range(-800_000..=800_000),
             };
 
-            // Initial velocity and rotation for the new player
-            let vel = Velocity { x: 0.0, y: 0.0 };
-            let rot = Rotation { yaw: 0.0 };
+            // Initial movement for the new player
+            let mov = Movement {
+                vel: Velocity::Idle,
+                move_dir: 0.0,
+                face_dir: 0.0,
+            };
 
             // Construct player data
-            let player = Player { pos, vel, rot };
+            let player = Player { pos, mov };
 
             // Mark as logged in and clone channel for later use
             player_info.logged_in = true;
@@ -151,14 +151,12 @@ fn process_message_not_logged_in(
                         return None;
                     }
                     let pos = positions.get(info.entity).ok()?;
-                    let vel = velocities.get(info.entity).ok()?;
-                    let rot = rotations.get(info.entity).ok()?;
+                    let mov = movements.get(info.entity).ok()?;
                     Some((
                         *player_id,
                         Player {
                             pos: *pos,
-                            vel: *vel,
-                            rot: *rot,
+                            mov: *mov,
                         },
                     ))
                 })
@@ -170,8 +168,8 @@ fn process_message_not_logged_in(
             let update_msg = ServerMessage::Update(SUpdate { players: all_players });
             channel.send(ServerToClient::Send(update_msg)).ok();
 
-            // Now update entity: add Position + Velocity + Rotation
-            commands.entity(entity).insert((pos, vel, rot));
+            // Now update entity: add Position + Movement
+            commands.entity(entity).insert((pos, mov));
 
             // Broadcast Login to all other logged-in players
             let login_msg = ServerMessage::Login(SLogin { id, player });
@@ -215,13 +213,9 @@ fn process_message_logged_in(
                 }
             }
         }
-        ClientMessage::Velocity(msg) => {
-            trace!("{:?} velocity: {:?}", id, msg);
-            handle_velocity(commands, entity, id, msg, players);
-        }
-        ClientMessage::Rotation(msg) => {
-            trace!("{:?} rotation: {:?}", id, msg);
-            handle_rotation(commands, entity, id, msg, players);
+        ClientMessage::Movement(msg) => {
+            trace!("{:?} movement: {:?}", id, msg);
+            handle_movement(commands, entity, id, msg, players);
         }
     }
 }
@@ -230,25 +224,12 @@ fn process_message_logged_in(
 // Movement Handlers
 // ============================================================================
 
-fn handle_velocity(commands: &mut Commands, entity: Entity, id: PlayerId, msg: CVelocity, players: &PlayerMap) {
-    // Update the player's velocity
-    commands.entity(entity).insert(msg.vel);
+fn handle_movement(commands: &mut Commands, entity: Entity, id: PlayerId, msg: CMovement, players: &PlayerMap) {
+    // Update the player's movement
+    commands.entity(entity).insert(msg.mov);
 
-    // Broadcast velocity update to all other logged-in players
-    let broadcast_msg = ServerMessage::PlayerVelocity(SVelocity { id, vel: msg.vel });
-    for (other_id, other_info) in players.0.iter() {
-        if *other_id != id && other_info.logged_in {
-            let _ = other_info.channel.send(ServerToClient::Send(broadcast_msg.clone()));
-        }
-    }
-}
-
-fn handle_rotation(commands: &mut Commands, entity: Entity, id: PlayerId, msg: CRotation, players: &PlayerMap) {
-    // Update the player's rotation
-    commands.entity(entity).insert(msg.rot);
-
-    // Broadcast rotation update to all other logged-in players
-    let broadcast_msg = ServerMessage::PlayerRotation(SRotation { id, rot: msg.rot });
+    // Broadcast movement update to all other logged-in players
+    let broadcast_msg = ServerMessage::Movement(SMovement { id, mov: msg.mov });
     for (other_id, other_info) in players.0.iter() {
         if *other_id != id && other_info.logged_in {
             let _ = other_info.channel.send(ServerToClient::Send(broadcast_msg.clone()));
@@ -261,8 +242,7 @@ pub fn broadcast_state_system(
     time: Res<Time>,
     mut timer: Local<f32>,
     positions: Query<&Position>,
-    velocities: Query<&Velocity>,
-    rotations: Query<&Rotation>,
+    movements: Query<&Movement>,
     players: Res<PlayerMap>,
 ) {
     const BROADCAST_INTERVAL: f32 = 10.0;
@@ -282,14 +262,12 @@ pub fn broadcast_state_system(
                 return None;
             }
             let pos = positions.get(info.entity).ok()?;
-            let vel = velocities.get(info.entity).ok()?;
-            let rot = rotations.get(info.entity).ok()?;
+            let mov = movements.get(info.entity).ok()?;
             Some((
                 *player_id,
                 Player {
                     pos: *pos,
-                    vel: *vel,
-                    rot: *rot,
+                    mov: *mov,
                 },
             ))
         })

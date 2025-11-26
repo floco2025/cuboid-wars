@@ -32,20 +32,24 @@ struct Position {
 }
 }
 
-// Velocity component - movement speed in units (millimeters) per second
-message! {
-#[derive(Copy, Component, Default)]
-struct Velocity {
-    pub x: f32,
-    pub y: f32,
-}
+// Velocity - movement speed state
+#[derive(Debug, Copy, Clone, PartialEq, Default)]
+#[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bincode", derive(Encode, Decode))]
+pub enum Velocity {
+    #[default]
+    Idle,
+    Walk,
+    Run,
 }
 
-// Rotation component - yaw rotation in radians (used when stationary)
+// Movement component - velocity state, movement direction, and facing direction
 message! {
 #[derive(Copy, Component, Default)]
-struct Rotation {
-    pub yaw: f32, // radians
+struct Movement {
+    pub vel: Velocity,
+    pub move_dir: f32, // radians - direction of movement
+    pub face_dir: f32, // radians - direction player is facing
 }
 }
 
@@ -59,8 +63,7 @@ pub struct PlayerId(pub u32);
 message! {
 struct Player {
     pub pos: Position,
-    pub vel: Velocity,
-    pub rot: Rotation,
+    pub mov: Movement,
 }
 }
 
@@ -79,16 +82,9 @@ struct CLogoff {}
 }
 
 message! {
-// Client to Server: Velocity update.
-struct CVelocity {
-    pub vel: Velocity,
-}
-}
-
-message! {
-// Client to Server: Rotation update (for stationary players).
-struct CRotation {
-    pub rot: Rotation,
+// Client to Server: Movement update.
+struct CMovement {
+    pub mov: Movement,
 }
 }
 
@@ -120,18 +116,10 @@ struct SLogoff {
 }
 
 message! {
-// Server to Client: Player velocity update.
-struct SVelocity {
+// Server to Client: Player movement update.
+struct SMovement {
     pub id: PlayerId,
-    pub vel: Velocity,
-}
-}
-
-message! {
-// Server to Client: Player rotation update.
-struct SRotation {
-    pub id: PlayerId,
-    pub rot: Rotation,
+    pub mov: Movement,
 }
 }
 
@@ -153,8 +141,7 @@ struct SUpdate {
 pub enum ClientMessage {
     Login(CLogin),
     Logoff(CLogoff),
-    Velocity(CVelocity),
-    Rotation(CRotation),
+    Movement(CMovement),
 }
 
 // All server to client messages
@@ -165,7 +152,6 @@ pub enum ServerMessage {
     Init(SInit),
     Login(SLogin),
     Logoff(SLogoff),
-    PlayerVelocity(SVelocity),
-    PlayerRotation(SRotation),
+    Movement(SMovement),
     Update(SUpdate),
 }

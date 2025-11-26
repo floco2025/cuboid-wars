@@ -170,8 +170,7 @@ fn process_message_logged_in(
                 materials,
                 msg.id.0,
                 &msg.player.pos,
-                &msg.player.vel,
-                &msg.player.rot,
+                &msg.player.mov,
                 false, // Never local
             );
         }
@@ -185,34 +184,19 @@ fn process_message_logged_in(
                 }
             }
         }
-        ServerMessage::PlayerVelocity(msg) => {
-            trace!("{:?} velocity: {:?}", msg.id, msg);
-            // Update player velocity (both local and remote)
+        ServerMessage::Movement(msg) => {
+            trace!("{:?} movement: {:?}", msg.id, msg);
+            // Update player movement (both local and remote)
             let mut found = false;
             for (entity, player_id) in player_query.iter() {
                 if *player_id == msg.id {
-                    commands.entity(entity).insert(msg.vel);
+                    commands.entity(entity).insert(msg.mov);
                     found = true;
                     break;
                 }
             }
             if !found {
-                warn!("received velocity for non-existent player {:?}", msg.id);
-            }
-        }
-        ServerMessage::PlayerRotation(msg) => {
-            trace!("{:?} rotation: {:?}", msg.id, msg);
-            // Update player rotation (both local and remote)
-            let mut found = false;
-            for (entity, player_id) in player_query.iter() {
-                if *player_id == msg.id {
-                    commands.entity(entity).insert(msg.rot);
-                    found = true;
-                    break;
-                }
-            }
-            if !found {
-                warn!("received rotation for non-existent player {:?}", msg.id);
+                warn!("received movement for non-existent player {:?}", msg.id);
             }
         }
         ServerMessage::Update(msg) => {
@@ -239,8 +223,7 @@ fn process_message_logged_in(
                         materials,
                         id.0,
                         &player.pos,
-                        &player.vel,
-                        &player.rot,
+                        &player.mov,
                         is_local,
                     );
                 }
@@ -260,7 +243,7 @@ fn process_message_logged_in(
                     if *player_id == *id {
                         commands
                             .entity(entity)
-                            .insert((player.pos, player.vel, player.rot));
+                            .insert((player.pos, player.mov));
                         break;
                     }
                 }
@@ -280,123 +263,138 @@ pub fn input_system(
     cursor_options: Single<&bevy::window::CursorOptions>,
     to_server: Res<ClientToServerChannel>,
     time: Res<Time>,
-    mut last_velocity: Local<(f32, f32)>,
-    mut last_send_time: Local<f32>,
-    mut rotation: Local<f32>,           // Yaw rotation in radians
-    mut last_sent_rotation: Local<f32>, // Last rotation sent to server
-    mut local_player_query: Query<&mut Velocity, With<LocalPlayer>>,
+    mut last_sent_movement: Local<Movement>, // Last movement sent to server
+    mut last_send_time: Local<f32>,     // Time accumulator for send interval throttling
+    mut local_player_query: Query<&mut Movement, With<LocalPlayer>>,
     mut camera_query: Query<&mut Transform, With<Camera3d>>,
 ) {
-    const SPEED: f32 = 100_000.0; // 100,000 mm/sec = 100 meters/sec
     const MOUSE_SENSITIVITY: f32 = 0.002; // radians per pixel
-    const VELOCITY_SEND_INTERVAL: f32 = 0.1; // Send velocity updates at most every 100ms
-    const VELOCITY_CHANGE_THRESHOLD: f32 = 1000.0; // Only send if velocity changed by at least 1000 mm/sec
+    const MOVEMENT_SEND_INTERVAL: f32 = 0.1; // Send movement updates at most every 100ms
     const ROTATION_CHANGE_THRESHOLD: f32 = 0.05; // ~3 degrees
 
     // Only process input when cursor is locked
     let cursor_locked = cursor_options.grab_mode != bevy::window::CursorGrabMode::None;
 
     if cursor_locked {
+        // Get current camera rotation
+        let mut camera_rotation = 0.0_f32;
+        for transform in camera_query.iter() {
+            camera_rotation = transform.rotation.to_euler(EulerRot::YXZ).0;
+        }
+
         // Handle mouse rotation
         for motion in mouse_motion.read() {
-            *rotation -= motion.delta.x * MOUSE_SENSITIVITY;
+            camera_rotation -= motion.delta.x * MOUSE_SENSITIVITY;
         }
 
         // Get forward/right vectors from rotation
-        let forward_x = -rotation.sin();
-        let forward_z = -rotation.cos();
-        let right_x = forward_z;
-        let right_z = -forward_x;
+        // Camera rotation 0 means looking toward -Z (which is -Y in world Position coords)
+        // Forward should move in the direction camera is looking
+        let forward_x = -camera_rotation.sin();
+        let forward_y = -camera_rotation.cos();
+        // Right is 90 degrees clockwise from forward
+        let right_x = -forward_y;
+        let right_y = forward_x;
 
         // Handle WASD input relative to camera direction
         let mut forward = 0.0_f32;
         let mut right = 0.0_f32;
 
         if keyboard.pressed(KeyCode::KeyW) {
-            forward += 1.0;
+            forward += 1.0;  // Move forward
         }
         if keyboard.pressed(KeyCode::KeyS) {
-            forward -= 1.0;
+            forward -= 1.0;  // Move backward
         }
         if keyboard.pressed(KeyCode::KeyA) {
-            right += 1.0;
+            right -= 1.0;  // Move left
         }
         if keyboard.pressed(KeyCode::KeyD) {
-            right -= 1.0;
+            right += 1.0;  // Move right
         }
 
-        // Calculate world-space velocity
+        // Calculate world-space direction
         let dx = forward * forward_x + right * right_x;
-        let dy = forward * forward_z + right * right_z;
+        let dy = forward * forward_y + right * right_y;
 
-        // Normalize and calculate velocity
+        // Normalize and determine velocity state
         let len = (dx * dx + dy * dy).sqrt();
-        let vel = if len > 0.0 {
-            Velocity {
-                x: (dx / len) * SPEED,
-                y: (dy / len) * SPEED,
-            }
+        
+        let (vel_state, move_direction) = if len > 0.0 {
+            // Moving - calculate movement direction from input
+            // atan2 gives angle where (1,0) = 0°, (0,1) = 90°
+            // But our movement system expects: angle 0 = movement in -Y direction
+            // So we need to rotate by 90° (add π/2)
+            let move_dir = dy.atan2(dx) + std::f32::consts::FRAC_PI_2;
+            (Velocity::Walk, move_dir)
         } else {
-            Velocity { x: 0.0, y: 0.0 }
+            // Idle - movement direction doesn't matter
+            (Velocity::Idle, 0.0)
         };
 
-        // Always update local player's velocity immediately for responsive local movement
-        for mut player_vel in local_player_query.iter_mut() {
-            *player_vel = vel;
+        // Player faces camera direction
+        // Camera rotation maps directly to face direction
+        let face_direction = camera_rotation;
+
+        // Create movement
+        let mov = Movement {
+            vel: vel_state,
+            move_dir: move_direction,
+            face_dir: face_direction,
+        };
+
+        // Always update local player's movement immediately for responsive local movement
+        for mut player_mov in local_player_query.iter_mut() {
+            *player_mov = mov;
         }
 
-        // Calculate velocity change magnitude
-        let vel_change = ((vel.x - last_velocity.0).powi(2) + (vel.y - last_velocity.1).powi(2)).sqrt();
+        // Accumulate send time for throttling
+        *last_send_time += time.delta_secs();
 
-        // Only accumulate send time if we're actually moving
-        if vel.x != 0.0 || vel.y != 0.0 {
-            *last_send_time += time.delta_secs();
-        }
-
-        // Send to server only if:
-        // 1. Velocity changed significantly (e.g., started/stopped moving), OR
-        // 2. We're moving AND velocity changed AND enough time has passed (throttle rotation-induced updates)
-        let should_send =
-            vel_change > VELOCITY_CHANGE_THRESHOLD || (vel_change > 0.0 && *last_send_time >= VELOCITY_SEND_INTERVAL);
+        // Determine if movement changed significantly
+        let vel_state_changed = last_sent_movement.vel != mov.vel;
+        let rotation_changed = (mov.face_dir - last_sent_movement.face_dir).abs() > ROTATION_CHANGE_THRESHOLD;
+        
+        // Send to server if:
+        // 1. Velocity state changed (started/stopped moving, or changed speed), OR
+        // 2. Direction changed significantly AND enough time has passed (throttle minor direction updates)
+        let should_send = vel_state_changed || 
+                         (rotation_changed && *last_send_time >= MOVEMENT_SEND_INTERVAL);
 
         if should_send {
-            let msg = ClientMessage::Velocity(CVelocity { vel });
+            let msg = ClientMessage::Movement(CMovement { mov });
             let _ = to_server.send(ClientToServer::Send(msg));
-            *last_velocity = (vel.x, vel.y);
+            *last_sent_movement = mov;
             *last_send_time = 0.0;
-        }
-
-        // Send rotation to server whenever it changes significantly
-        let rotation_change = (*rotation - *last_sent_rotation).abs();
-        if rotation_change > ROTATION_CHANGE_THRESHOLD {
-            // Convert camera rotation to world rotation
-            // Camera uses: forward_x = -sin(rotation), forward_z = -cos(rotation)
-            // World rotation: rotation + π
-            let yaw_for_server = *rotation + std::f32::consts::PI;
-            let msg = ClientMessage::Rotation(CRotation {
-                rot: Rotation { yaw: yaw_for_server },
-            });
-            let _ = to_server.send(ClientToServer::Send(msg));
-            *last_sent_rotation = *rotation;
         }
 
         // Update camera rotation
         for mut transform in camera_query.iter_mut() {
-            transform.rotation = Quat::from_rotation_y(*rotation);
+            transform.rotation = Quat::from_rotation_y(camera_rotation);
         }
     } else {
         // Cursor not locked - clear mouse motion events to prevent them from accumulating
         for _ in mouse_motion.read() {}
 
+        // Get current camera rotation for setting idle direction
+        let mut camera_rotation = 0.0_f32;
+        for transform in camera_query.iter() {
+            camera_rotation = transform.rotation.to_euler(EulerRot::YXZ).0;
+        }
+
         // Stop player movement when cursor is unlocked
-        if last_velocity.0 != 0.0 || last_velocity.1 != 0.0 {
-            let vel = Velocity { x: 0.0, y: 0.0 };
-            for mut player_vel in local_player_query.iter_mut() {
-                *player_vel = vel;
+        if last_sent_movement.vel != Velocity::Idle {
+            let mov = Movement {
+                vel: Velocity::Idle,
+                move_dir: 0.0,
+                face_dir: camera_rotation,
+            };
+            for mut player_mov in local_player_query.iter_mut() {
+                *player_mov = mov;
             }
-            let msg = ClientMessage::Velocity(CVelocity { vel });
+            let msg = ClientMessage::Movement(CMovement { mov });
             let _ = to_server.send(ClientToServer::Send(msg));
-            *last_velocity = (0.0, 0.0);
+            *last_sent_movement = mov;
             *last_send_time = 0.0;
         }
     }
@@ -425,11 +423,12 @@ pub fn sync_position_to_transform_system(mut query: Query<(&Position, &mut Trans
     }
 }
 
-// Update player cuboid rotation from stored rotation component
-pub fn sync_rotation_to_transform_system(mut query: Query<(&Rotation, &mut Transform), Without<Camera3d>>) {
-    for (rot, mut transform) in query.iter_mut() {
-        // Always use stored rotation (player faces where camera is looking)
-        transform.rotation = Quat::from_rotation_y(rot.yaw);
+// Update player cuboid rotation from stored movement component
+pub fn sync_rotation_to_transform_system(mut query: Query<(&Movement, &mut Transform), Without<Camera3d>>) {
+    for (mov, mut transform) in query.iter_mut() {
+        // Face direction uses same convention as movement: 0 = facing -Y direction
+        // Add π to flip the model 180° so nose points in the right direction
+        transform.rotation = Quat::from_rotation_y(mov.face_dir + std::f32::consts::PI);
     }
 }
 
@@ -444,8 +443,7 @@ fn spawn_player(
     materials: &mut ResMut<Assets<StandardMaterial>>,
     player_id: u32,
     position: &Position,
-    velocity: &Velocity,
-    rotation: &Rotation,
+    movement: &Movement,
     is_local: bool,
 ) {
     let color = if is_local {
@@ -458,8 +456,7 @@ fn spawn_player(
     let mut entity = commands.spawn((
         PlayerId(player_id),
         *position, // Add Position component
-        *velocity, // Add Velocity component
-        *rotation, // Add Rotation component
+        *movement, // Add Movement component
         Mesh3d(meshes.add(Cuboid::new(PLAYER_WIDTH, PLAYER_HEIGHT, PLAYER_DEPTH))),
         MeshMaterial3d(materials.add(color)),
         Transform::from_xyz(
