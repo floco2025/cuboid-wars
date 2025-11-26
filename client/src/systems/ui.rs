@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use common::constants::FIELD_WIDTH;
 use common::protocol::PlayerId;
 
 use crate::components::LocalPlayer;
@@ -7,13 +8,13 @@ use crate::components::LocalPlayer;
 // UI Components and Constants
 // ============================================================================
 
-// World dimensions
-pub const WORLD_SIZE: f32 = 2000.0;
+// World dimensions - ground plane should be larger than field for visibility
+pub const WORLD_SIZE: f32 = FIELD_WIDTH * 2.0; // 200m x 200m ground plane
 
-// Camera settings
+// Camera settings (human scale - third person view)
 pub const CAMERA_X: f32 = 0.0;
-pub const CAMERA_Y: f32 = 1500.0;
-pub const CAMERA_Z: f32 = 2000.0;
+pub const CAMERA_Y: f32 = 2.5;   // 2.5 meters above ground
+pub const CAMERA_Z: f32 = 3.0;   // 3 meters back
 
 // Marker component for the player list UI
 #[derive(Component)]

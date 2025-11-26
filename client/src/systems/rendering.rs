@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use common::constants::PLAYER_HEIGHT;
 use common::protocol::{Movement, Position};
 
 use crate::components::LocalPlayer;
@@ -6,9 +7,6 @@ use crate::components::LocalPlayer;
 // ============================================================================
 // Rendering Systems
 // ============================================================================
-
-// Player dimensions - used for rendering and camera positioning
-pub const PLAYER_HEIGHT: f32 = 80.0; // meters
 
 // Update camera position to follow local player
 pub fn sync_camera_to_player_system(
@@ -27,7 +25,6 @@ pub fn sync_camera_to_player_system(
 // Update Transform from Position component for rendering
 // Both Position and Transform use meters now
 pub fn sync_position_to_transform_system(mut query: Query<(&Position, &mut Transform)>) {
-    const PLAYER_HEIGHT: f32 = 80.0;
     for (pos, mut transform) in query.iter_mut() {
         transform.translation.x = pos.x;
         transform.translation.y = PLAYER_HEIGHT / 2.0; // Lift so bottom is at ground (y=0)

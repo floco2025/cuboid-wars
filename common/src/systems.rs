@@ -2,7 +2,7 @@
 use bevy_ecs::prelude::*;
 use bevy_time::Time;
 
-use crate::{components::Projectile, protocol::{Movement, Position, Velocity}};
+use crate::{components::Projectile, constants::*, protocol::{Movement, Position, Velocity}};
 
 // ============================================================================
 // Shared Game Systems
@@ -19,8 +19,8 @@ pub fn movement_system(time: Res<Time>, mut query: Query<(&mut Position, &Moveme
         // Calculate actual velocity from movement state
         let speed_m_per_sec = match mov.vel {
             Velocity::Idle => 0.0,
-            Velocity::Walk => 200.0, // meters/sec
-            Velocity::Run => 300.0,  // meters/sec
+            Velocity::Walk => WALK_SPEED,
+            Velocity::Run => RUN_SPEED,
         };
 
         if speed_m_per_sec > 0.0 {

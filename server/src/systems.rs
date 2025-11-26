@@ -7,6 +7,7 @@ use crate::{
     net::{ClientToServer, ServerToClient},
     resources::{FromAcceptChannel, FromClientsChannel, PlayerInfo, PlayerMap},
 };
+use common::constants::*;
 use common::protocol::*;
 
 // ============================================================================
@@ -123,16 +124,26 @@ fn process_message_not_logged_in(
             // Generate random initial position for the new player
             let mut rng = rand::rng();
             let pos = Position {
-                x: rng.random_range(-800.0..=800.0),
+                x: rng.random_range(-SPAWN_RANGE_X..=SPAWN_RANGE_X),
                 y: 0.0, // Always 0 for 2D gameplay
-                z: rng.random_range(-800.0..=800.0),
+                z: rng.random_range(-SPAWN_RANGE_Z..=SPAWN_RANGE_Z),
             };
+
+            // Calculate initial facing direction toward center (0, 0)
+            // face_dir=0 means facing +Z (sin(0)=0 for X, cos(0)=1 for Z)
+            // To face from (pos.x, pos.z) toward (0, 0):
+            // direction vector: (-pos.x, -pos.z)
+            // face_dir such that: sin(face_dir) * |v| = -pos.x and cos(face_dir) * |v| = -pos.z
+            let face_dir = (-pos.x).atan2(-pos.z);
+            
+            info!("Player {:?} spawned at ({:.1}, {:.1}), facing {:.2} rad ({:.0}°)", 
+                  id, pos.x, pos.z, face_dir, face_dir.to_degrees());
 
             // Initial movement for the new player
             let mov = Movement {
                 vel: Velocity::Idle,
                 move_dir: 0.0,
-                face_dir: 0.0,
+                face_dir,
             };
 
             // Construct player data
@@ -284,7 +295,7 @@ pub fn broadcast_state_system(
     movements: Query<&Movement>,
     players: Res<PlayerMap>,
 ) {
-    const BROADCAST_INTERVAL: f32 = 10.0;
+    const BROADCAST_INTERVAL: f32 = 1.0;
 
     *timer += time.delta_secs();
     if *timer < BROADCAST_INTERVAL {
@@ -308,7 +319,7 @@ pub fn broadcast_state_system(
 
     // Broadcast to all logged-in clients
     let msg = ServerMessage::Update(SUpdate { players: all_players });
-    debug!("broadcasting update: {:?}", msg);
+    //trace!("broadcasting update: {:?}", msg);
     for info in players.0.values() {
         if info.logged_in {
             let _ = info.channel.send(ServerToClient::Send(msg.clone()));
@@ -319,32 +330,88 @@ pub fn broadcast_state_system(
 // Hit detection system - simple manual collision detection
 pub fn hit_detection_system(
     mut commands: Commands,
-    projectile_query: Query<(Entity, &Position, &PlayerId), With<common::components::Projectile>>,
-    player_query: Query<(&Position, &PlayerId), Without<common::components::Projectile>>,
+    time: Res<Time>,
+    projectile_query: Query<(Entity, &Position, &common::components::Projectile, &PlayerId)>,
+    player_query: Query<(&Position, &Movement, &PlayerId), Without<common::components::Projectile>>,
     mut players: ResMut<PlayerMap>,
 ) {
-    // Player hitbox size (cuboid dimensions from client)
-    const PLAYER_WIDTH: f32 = 20.0;
-    const PLAYER_HEIGHT: f32 = 80.0;
-    const PLAYER_DEPTH: f32 = 40.0;
+    let delta = time.delta_secs();
     
-    for (proj_entity, proj_pos, shooter_id) in projectile_query.iter() {
-        for (player_pos, target_id) in player_query.iter() {
+    for (proj_entity, proj_pos, projectile, shooter_id) in projectile_query.iter() {
+        // Calculate projectile movement this frame
+        let ray_dir_x = projectile.velocity.x * delta;
+        let ray_dir_y = projectile.velocity.y * delta;
+        let ray_dir_z = projectile.velocity.z * delta;
+        
+        for (player_pos, player_mov, target_id) in player_query.iter() {
             // Don't hit yourself
             if shooter_id == target_id {
                 continue;
             }
             
-            // Simple AABB (axis-aligned bounding box) collision detection
-            // Player's center is at y = PLAYER_HEIGHT/2 = 40 (since bottom is at y=0)
-            let player_center_y = PLAYER_HEIGHT / 2.0;
+            // Transform projectile position and ray into player's local space
+            let dx = proj_pos.x - player_pos.x;
+            let dz = proj_pos.z - player_pos.z;
             
-            let dx = (proj_pos.x - player_pos.x).abs();
-            let dy = (proj_pos.y - player_center_y).abs();
-            let dz = (proj_pos.z - player_pos.z).abs();
+            let cos_rot = player_mov.face_dir.cos();
+            let sin_rot = player_mov.face_dir.sin();
             
-            if dx < PLAYER_WIDTH / 2.0 && dy < PLAYER_HEIGHT / 2.0 && dz < PLAYER_DEPTH / 2.0 {
+            // Current position in local space
+            let local_x = dx * cos_rot - dz * sin_rot;
+            let local_z = dx * sin_rot + dz * cos_rot;
+            let local_y = proj_pos.y - (player_pos.y + PLAYER_HEIGHT / 2.0);
+            
+            // Ray direction in local space
+            let ray_local_x = ray_dir_x * cos_rot - ray_dir_z * sin_rot;
+            let ray_local_z = ray_dir_x * sin_rot + ray_dir_z * cos_rot;
+            let ray_local_y = ray_dir_y;
+            
+            // Expanded box for swept sphere collision
+            let half_width = PLAYER_WIDTH / 2.0 + PROJECTILE_RADIUS;
+            let half_height = PLAYER_HEIGHT / 2.0 + PROJECTILE_RADIUS;
+            let half_depth = PLAYER_DEPTH / 2.0 + PROJECTILE_RADIUS;
+            
+            // Ray-box intersection using slab method
+            let mut t_min = 0.0_f32;
+            let mut t_max = 1.0_f32;
+            
+            // Check X slab
+            if ray_local_x.abs() > 1e-6 {
+                let t1 = (-half_width - local_x) / ray_local_x;
+                let t2 = (half_width - local_x) / ray_local_x;
+                t_min = t_min.max(t1.min(t2));
+                t_max = t_max.min(t1.max(t2));
+            } else if local_x.abs() > half_width {
+                continue; // Ray parallel to slab and outside
+            }
+            
+            // Check Y slab
+            if ray_local_y.abs() > 1e-6 {
+                let t1 = (-half_height - local_y) / ray_local_y;
+                let t2 = (half_height - local_y) / ray_local_y;
+                t_min = t_min.max(t1.min(t2));
+                t_max = t_max.min(t1.max(t2));
+            } else if local_y.abs() > half_height {
+                continue;
+            }
+            
+            // Check Z slab
+            if ray_local_z.abs() > 1e-6 {
+                let t1 = (-half_depth - local_z) / ray_local_z;
+                let t2 = (half_depth - local_z) / ray_local_z;
+                t_min = t_min.max(t1.min(t2));
+                t_max = t_max.min(t1.max(t2));
+            } else if local_z.abs() > half_depth {
+                continue;
+            }
+            
+            // Hit if intervals overlap
+            if t_min <= t_max && t_max >= 0.0 && t_min <= 1.0
+            {
                 info!("Player {:?} hits Player {:?}", shooter_id, target_id);
+                info!("  local start: ({:.1}, {:.1}, {:.1})", local_x, local_y, local_z);
+                info!("  ray: ({:.1}, {:.1}, {:.1})", ray_local_x, ray_local_y, ray_local_z);
+                info!("  t: {:.3}", t_min);
                 
                 // Update hit counters
                 if let Some(shooter_info) = players.0.get_mut(shooter_id) {

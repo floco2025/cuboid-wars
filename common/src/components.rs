@@ -3,15 +3,11 @@ use bevy_ecs::prelude::*;
 use bevy_math::Vec3;
 use bevy_time::{Timer, TimerMode};
 
+use crate::constants::*;
+
 // ============================================================================
 // Shared Game Components
 // ============================================================================
-
-// Projectile constants
-pub const PROJECTILE_SPEED: f32 = 2000.0; // meters per second
-pub const PROJECTILE_LIFETIME: f32 = 2.5; // seconds
-pub const PROJECTILE_SPAWN_OFFSET: f32 = 50.0; // meters in front of shooter
-pub const PROJECTILE_SPAWN_HEIGHT: f32 = 60.0; // meters above ground (eye level)
 
 // Component for projectiles
 #[derive(Component)]

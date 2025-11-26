@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use common::protocol::{PlayerId, Position, Movement, ServerMessage};
 
 use crate::{
-    net::{ServerToClient},
+    net::ServerToClient,
     resources::{MyPlayerId, ServerToClientChannel},
 };
 
@@ -145,7 +145,7 @@ fn process_message_logged_in(
             spawn_projectile_for_player(commands, meshes, materials, player_query, player_pos_mov_query, msg.id);
         }
         ServerMessage::Update(msg) => {
-            debug!("update: {:?}", msg);
+            //trace!("update: {:?}", msg);
 
             // Get my player ID to identify local player
             let my_id: Option<u32> = my_player_id.map(|id| id.0);

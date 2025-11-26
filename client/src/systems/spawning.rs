@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use common::{
     components::Projectile,
+    constants::*,
     protocol::{Movement, PlayerId, Position},
 };
 
@@ -9,11 +10,6 @@ use crate::components::LocalPlayer;
 // ============================================================================
 // Entity Spawning
 // ============================================================================
-
-// Player cuboid dimensions - make it asymmetric so we can see orientation
-pub const PLAYER_WIDTH: f32 = 20.0; // meters - side to side
-pub const PLAYER_HEIGHT: f32 = 80.0; // meters - up/down
-pub const PLAYER_DEPTH: f32 = 40.0; // meters - front to back (longer)
 
 // Spawn a player cuboid at the given position
 pub fn spawn_player(
@@ -50,7 +46,8 @@ pub fn spawn_player(
             position.x,
             PLAYER_HEIGHT / 2.0, // Lift so bottom is at y=0
             position.z,
-        ),
+        )
+        .with_rotation(Quat::from_rotation_y(movement.face_dir)),
         Visibility::default(),
     ));
 
@@ -60,11 +57,11 @@ pub fn spawn_player(
     let front_marker_color = Color::srgb(1.0, 1.0, 0.0); // Yellow
     let nose_id = commands
         .spawn((
-            Mesh3d(meshes.add(Sphere::new(5.0))),
+            Mesh3d(meshes.add(Sphere::new(PLAYER_NOSE_RADIUS))),
             MeshMaterial3d(materials.add(front_marker_color)),
             Transform::from_xyz(
                 0.0,
-                20.0,               // Y is up/down
+                PLAYER_NOSE_HEIGHT,
                 PLAYER_DEPTH / 2.0, // Center aligned with front face
             ),
             Visibility::Inherited,
@@ -77,11 +74,11 @@ pub fn spawn_player(
     let eye_color = Color::srgb(1.0, 1.0, 1.0); // White
     let left_eye_id = commands
         .spawn((
-            Mesh3d(meshes.add(Sphere::new(3.0))),
+            Mesh3d(meshes.add(Sphere::new(PLAYER_EYE_RADIUS))),
             MeshMaterial3d(materials.add(eye_color)),
             Transform::from_xyz(
-                -6.0,               // Left side
-                30.0,               // Y is up/down - above nose
+                -PLAYER_EYE_SPACING,
+                PLAYER_EYE_HEIGHT,
                 PLAYER_DEPTH / 2.0, // Center aligned with front face
             ),
             Visibility::Inherited,
@@ -92,11 +89,11 @@ pub fn spawn_player(
 
     let right_eye_id = commands
         .spawn((
-            Mesh3d(meshes.add(Sphere::new(3.0))),
+            Mesh3d(meshes.add(Sphere::new(PLAYER_EYE_RADIUS))),
             MeshMaterial3d(materials.add(eye_color)),
             Transform::from_xyz(
-                6.0,                // Right side
-                30.0,               // Y is up/down - above nose
+                PLAYER_EYE_SPACING,
+                PLAYER_EYE_HEIGHT,
                 PLAYER_DEPTH / 2.0, // Center aligned with front face
             ),
             Visibility::Inherited,
@@ -126,7 +123,7 @@ pub fn spawn_projectile_local(
 
     let projectile_color = Color::srgb(10.0, 10.0, 0.0); // Very bright yellow
     commands.spawn((
-        Mesh3d(meshes.add(Sphere::new(5.0))),
+        Mesh3d(meshes.add(Sphere::new(PROJECTILE_RADIUS))),
         MeshMaterial3d(materials.add(StandardMaterial {
             base_color: projectile_color,
             emissive: LinearRgba::rgb(10.0, 10.0, 0.0), // Make it glow
