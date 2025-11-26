@@ -60,6 +60,7 @@ for i in $(seq 0 $((NUM_CLIENTS - 1))); do
 done
 
 # Bring all client windows to the foreground
+sleep 1
 osascript -e 'tell application "System Events" to set frontmost of every process whose name contains "client" to true' 2>/dev/null
 
 # Wait for all background jobs
