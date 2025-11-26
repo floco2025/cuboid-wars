@@ -6,7 +6,7 @@ use quinn::Endpoint;
 use std::net::SocketAddr;
 use tokio::sync::mpsc::unbounded_channel;
 
-use common::systems::movement_system;
+use common::systems::{movement_system, update_projectiles_system};
 use server::{
     config::configure_server,
     net::accept_connections_task,
@@ -69,6 +69,8 @@ async fn main() -> Result<()> {
                 process_client_message_system,
                 // Shared movement logic
                 movement_system,
+                // Update projectiles (lifetime and despawn)
+                update_projectiles_system,
                 // Broadcast authoritative state to clients
                 broadcast_state_system,
             )

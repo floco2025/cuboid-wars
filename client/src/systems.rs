@@ -166,6 +166,7 @@ pub fn process_server_events_system(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     player_query: Query<(Entity, &PlayerId)>,
+    player_pos_mov_query: Query<(&Position, &Movement), With<PlayerId>>,
     mut my_player_id: Local<Option<PlayerId>>,
 ) {
     // Process all messages from the server
@@ -182,6 +183,7 @@ pub fn process_server_events_system(
                         &mut meshes,
                         &mut materials,
                         &player_query,
+                        &player_pos_mov_query,
                         *my_player_id,
                         &message,
                     );
@@ -225,6 +227,7 @@ fn process_message_logged_in(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
     player_query: &Query<(Entity, &PlayerId)>,
+    player_pos_mov_query: &Query<(&Position, &Movement), With<PlayerId>>,
     my_player_id: Option<PlayerId>,
     msg: &ServerMessage,
 ) {
@@ -269,6 +272,11 @@ fn process_message_logged_in(
             if !found {
                 warn!("received movement for non-existent player {:?}", msg.id);
             }
+        }
+        ServerMessage::Shot(msg) => {
+            debug!("{:?} shot", msg.id);
+            // Spawn projectile for this player
+            spawn_projectile_for_player(commands, meshes, materials, player_query, &player_pos_mov_query, msg.id);
         }
         ServerMessage::Update(msg) => {
             debug!("update: {:?}", msg);
@@ -472,6 +480,7 @@ pub fn shooting_system(
     mouse: Res<ButtonInput<bevy::input::mouse::MouseButton>>,
     cursor_options: Single<&bevy::window::CursorOptions>,
     local_player_query: Query<(&Position, &Movement), With<LocalPlayer>>,
+    to_server: Res<ClientToServerChannel>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
@@ -480,26 +489,19 @@ pub fn shooting_system(
     
     if cursor_locked && mouse.just_pressed(bevy::input::mouse::MouseButton::Left) {
         if let Some((pos, mov)) = local_player_query.iter().next() {
-            // Calculate spawn position in front of player using face_dir
-            // Same formula as movement forward direction
-            let spawn_offset = 50.0; // mm in front of player
-            let spawn_x = pos.x as f32 + (-mov.face_dir.sin()) * spawn_offset;
-            let spawn_y = pos.y as f32 + (-mov.face_dir.cos()) * spawn_offset;
+            // Send shot message to server
+            let msg = ClientMessage::Shot(CShot {});
+            let _ = to_server.send(ClientToServer::Send(msg));
             
-            // Spawn projectile
-            let projectile_speed = 2000.0; // meters per second (10x faster)
-            // Velocity uses same forward direction formula as movement
-            // forward_x = -sin(face_dir), forward_y = -cos(face_dir) in Position coords
-            // Then convert: Transform velocity = (forward_x, 0, forward_y)
-            let velocity = Vec3::new(
-                -mov.face_dir.sin() * projectile_speed,
-                0.0,
-                -mov.face_dir.cos() * projectile_speed,
-            );
+            // Calculate spawn position using common helper
+            let (spawn_x, spawn_y) = Projectile::calculate_spawn_position(pos.x, pos.y, mov.face_dir);
+            
+            // Create projectile with common parameters
+            let projectile = Projectile::new(mov.face_dir);
             
             let projectile_color = Color::srgb(10.0, 10.0, 0.0); // Very bright yellow
             commands.spawn((
-                Mesh3d(meshes.add(Sphere::new(2.5))), // 25% of original 10 units
+                Mesh3d(meshes.add(Sphere::new(5.0))), // 2x size
                 MeshMaterial3d(materials.add(StandardMaterial {
                     base_color: projectile_color,
                     emissive: LinearRgba::rgb(10.0, 10.0, 0.0), // Make it glow
@@ -510,16 +512,13 @@ pub fn shooting_system(
                     PLAYER_HEIGHT / 2.0,
                     spawn_y / 1000.0,
                 ),
-                Projectile {
-                    velocity,
-                    lifetime: Timer::from_seconds(3.0, TimerMode::Once),
-                },
+                projectile,
             ));
         }
     }
 }
 
-// Update projectiles
+// Update projectiles - position updates and despawn
 pub fn update_shooting_effects_system(
     mut commands: Commands,
     time: Res<Time>,
@@ -627,6 +626,40 @@ fn spawn_player(
         .id();
 
     commands.entity(entity_id).add_children(&[marker_id]);
+}
+
+// Spawn a projectile for a player
+fn spawn_projectile_for_player(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    player_query: &Query<(Entity, &PlayerId)>,
+    player_pos_mov_query: &Query<(&Position, &Movement), With<PlayerId>>,
+    shooter_id: PlayerId,
+) {
+    // Find the entity with this player ID
+    if let Some((entity, _)) = player_query.iter().find(|(_, id)| **id == shooter_id) {
+        // Get position and movement for this player
+        if let Ok((pos, mov)) = player_pos_mov_query.get(entity) {
+            // Calculate spawn position using common helper
+            let (spawn_x, spawn_y) = Projectile::calculate_spawn_position(pos.x, pos.y, mov.face_dir);
+            
+            // Create projectile with common parameters
+            let projectile = Projectile::new(mov.face_dir);
+            
+            // Spawn projectile
+            commands.spawn((
+                Mesh3d(meshes.add(Sphere::new(5.0))),
+                MeshMaterial3d(materials.add(StandardMaterial {
+                    base_color: Color::srgb(1.0, 1.0, 0.0),
+                    emissive: LinearRgba::rgb(10.0, 10.0, 0.0),
+                    ..default()
+                })),
+                Transform::from_xyz(spawn_x / 1000.0, PLAYER_HEIGHT / 2.0, spawn_y / 1000.0),
+                projectile,
+            ));
+        }
+    }
 }
 
 // ============================================================================

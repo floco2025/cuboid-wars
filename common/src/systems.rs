@@ -2,7 +2,7 @@
 use bevy_ecs::prelude::*;
 use bevy_time::Time;
 
-use crate::protocol::{Movement, Position, Velocity};
+use crate::{components::Projectile, protocol::{Movement, Position, Velocity}};
 
 // ============================================================================
 // Shared Game Systems
@@ -36,6 +36,22 @@ pub fn movement_system(time: Res<Time>, mut query: Query<(&mut Position, &Moveme
                 pos.x += dx;
                 pos.y += dy;
             }
+        }
+    }
+}
+
+// Update projectile positions and despawn expired projectiles
+// This system doesn't use Transform - it only updates the lifetime
+// The Position component would need to be added separately if tracking is needed
+pub fn update_projectiles_system(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut projectile_query: Query<(Entity, &mut Projectile)>,
+) {
+    for (entity, mut projectile) in projectile_query.iter_mut() {
+        projectile.lifetime.tick(time.delta());
+        if projectile.lifetime.is_finished() {
+            commands.entity(entity).despawn();
         }
     }
 }

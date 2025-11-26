@@ -89,6 +89,11 @@ struct CMovement {
 }
 }
 
+message! {
+// Client to Server: Shot fired.
+struct CShot {}
+}
+
 // ============================================================================
 // Server Messages
 // ============================================================================
@@ -125,6 +130,13 @@ struct SMovement {
 }
 
 message! {
+// Server to Client: Player shot fired.
+struct SShot {
+    pub id: PlayerId,
+}
+}
+
+message! {
 // Server to Client: Periodic game state update for all players.
 struct SUpdate {
     pub players: Vec<(PlayerId, Player)>,
@@ -143,6 +155,7 @@ pub enum ClientMessage {
     Login(CLogin),
     Logoff(CLogoff),
     Movement(CMovement),
+    Shot(CShot),
 }
 
 // All server to client messages
@@ -154,5 +167,6 @@ pub enum ServerMessage {
     Login(SLogin),
     Logoff(SLogoff),
     Movement(SMovement),
+    Shot(SShot),
     Update(SUpdate),
 }
