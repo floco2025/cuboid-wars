@@ -34,13 +34,6 @@ struct Args {
 // ============================================================================
 
 fn main() -> Result<()> {
-    // Initialize tracing/logging before Bevy App
-    use bevy::log::LogPlugin;
-    use bevy::app::App;
-    let mut app = App::new();
-    app.add_plugins(LogPlugin::default());
-    std::mem::forget(app); // Keep the subscriber alive
-    
     let args = Args::parse();
 
     // Create tokio runtime for network I/O
@@ -56,12 +49,14 @@ fn main() -> Result<()> {
             .await
             .context("Failed to connect to server")
     })?;
-    info!("connected to server at {}", args.server);
+    // info! doesn't work because Bevy isn't inialized yet
+    //info!("connected to server at {}", args.server);
 
     // Send login message (blocking)
     rt.block_on(async {
         let msg = ClientMessage::Login(CLogin {});
-        trace!("sending to server: {:?}", msg);
+        // Trace doesn't work because Bevy isn't inialized yet
+        //trace!("sending to server: {:?}", msg);
         let stream = MessageStream::new(&connection);
         stream.send(&msg).await
     })?;

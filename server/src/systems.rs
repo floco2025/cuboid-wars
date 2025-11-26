@@ -152,13 +152,7 @@ fn process_message_not_logged_in(
                     }
                     let pos = positions.get(info.entity).ok()?;
                     let mov = movements.get(info.entity).ok()?;
-                    Some((
-                        *player_id,
-                        Player {
-                            pos: *pos,
-                            mov: *mov,
-                        },
-                    ))
+                    Some((*player_id, Player { pos: *pos, mov: *mov }))
                 })
                 .collect();
             // Add the new player manually with their freshly generated values
@@ -263,13 +257,7 @@ pub fn broadcast_state_system(
             }
             let pos = positions.get(info.entity).ok()?;
             let mov = movements.get(info.entity).ok()?;
-            Some((
-                *player_id,
-                Player {
-                    pos: *pos,
-                    mov: *mov,
-                },
-            ))
+            Some((*player_id, Player { pos: *pos, mov: *mov }))
         })
         .collect();
 

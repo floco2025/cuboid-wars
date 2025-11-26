@@ -217,15 +217,7 @@ fn process_message_logged_in(
                 if !existing_players.contains(id) {
                     debug!("spawning player {:?} from Update", id);
                     let is_local = my_id.map_or(false, |my| my == (*id).0);
-                    spawn_player(
-                        commands,
-                        meshes,
-                        materials,
-                        id.0,
-                        &player.pos,
-                        &player.mov,
-                        is_local,
-                    );
+                    spawn_player(commands, meshes, materials, id.0, &player.pos, &player.mov, is_local);
                 }
             }
 
@@ -241,9 +233,7 @@ fn process_message_logged_in(
             for (id, player) in &msg.players {
                 for (entity, player_id) in player_query.iter() {
                     if *player_id == *id {
-                        commands
-                            .entity(entity)
-                            .insert((player.pos, player.mov));
+                        commands.entity(entity).insert((player.pos, player.mov));
                         break;
                     }
                 }
@@ -264,7 +254,7 @@ pub fn input_system(
     to_server: Res<ClientToServerChannel>,
     time: Res<Time>,
     mut last_sent_movement: Local<Movement>, // Last movement sent to server
-    mut last_send_time: Local<f32>,     // Time accumulator for send interval throttling
+    mut last_send_time: Local<f32>,          // Time accumulator for send interval throttling
     mut local_player_query: Query<&mut Movement, With<LocalPlayer>>,
     mut camera_query: Query<&mut Transform, With<Camera3d>>,
 ) {
@@ -287,9 +277,8 @@ pub fn input_system(
             camera_rotation -= motion.delta.x * MOUSE_SENSITIVITY;
         }
 
-        // Get forward/right vectors from rotation
-        // Camera rotation 0 means looking toward -Z (which is -Y in world Position coords)
-        // Forward should move in the direction camera is looking
+        // Get forward/right vectors from camera rotation
+        // These convert camera-relative directions to world Position coordinates (x, y)
         let forward_x = -camera_rotation.sin();
         let forward_y = -camera_rotation.cos();
         // Right is 90 degrees clockwise from forward
@@ -301,16 +290,16 @@ pub fn input_system(
         let mut right = 0.0_f32;
 
         if keyboard.pressed(KeyCode::KeyW) {
-            forward += 1.0;  // Move forward
+            forward += 1.0; // Move forward
         }
         if keyboard.pressed(KeyCode::KeyS) {
-            forward -= 1.0;  // Move backward
+            forward -= 1.0; // Move backward
         }
         if keyboard.pressed(KeyCode::KeyA) {
-            right -= 1.0;  // Move left
+            right -= 1.0; // Move left
         }
         if keyboard.pressed(KeyCode::KeyD) {
-            right += 1.0;  // Move right
+            right += 1.0; // Move right
         }
 
         // Calculate world-space direction
@@ -319,12 +308,10 @@ pub fn input_system(
 
         // Normalize and determine velocity state
         let len = (dx * dx + dy * dy).sqrt();
-        
+
         let (vel_state, move_direction) = if len > 0.0 {
-            // Moving - calculate movement direction from input
-            // atan2 gives angle where (1,0) = 0°, (0,1) = 90°
-            // But our movement system expects: angle 0 = movement in -Y direction
-            // So we need to rotate by 90° (add π/2)
+            // Moving - calculate movement direction from WASD input
+            // Convert from world dx/dy to angle in our coordinate system
             let move_dir = dy.atan2(dx) + std::f32::consts::FRAC_PI_2;
             (Velocity::Walk, move_dir)
         } else {
@@ -354,12 +341,11 @@ pub fn input_system(
         // Determine if movement changed significantly
         let vel_state_changed = last_sent_movement.vel != mov.vel;
         let rotation_changed = (mov.face_dir - last_sent_movement.face_dir).abs() > ROTATION_CHANGE_THRESHOLD;
-        
+
         // Send to server if:
         // 1. Velocity state changed (started/stopped moving, or changed speed), OR
         // 2. Direction changed significantly AND enough time has passed (throttle minor direction updates)
-        let should_send = vel_state_changed || 
-                         (rotation_changed && *last_send_time >= MOVEMENT_SEND_INTERVAL);
+        let should_send = vel_state_changed || (rotation_changed && *last_send_time >= MOVEMENT_SEND_INTERVAL);
 
         if should_send {
             let msg = ClientMessage::Movement(CMovement { mov });
