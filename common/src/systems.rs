@@ -9,33 +9,30 @@ use crate::{components::Projectile, protocol::{Movement, Position, Velocity}};
 // ============================================================================
 
 // Movement system - integrates movement into position.
-// Position uses millimeter fixed-point scale (i32 = millimeters).
+// Position uses meters in 3D space (X, Y=up/down, Z=forward/back).
+// Y is always 0 for now (flat 2D gameplay).
 // This runs on both client and server to ensure deterministic movement.
 pub fn movement_system(time: Res<Time>, mut query: Query<(&mut Position, &Movement)>) {
     let delta = time.delta_secs();
 
     for (mut pos, mov) in query.iter_mut() {
         // Calculate actual velocity from movement state
-        let speed_mm_per_sec = match mov.vel {
+        let speed_m_per_sec = match mov.vel {
             Velocity::Idle => 0.0,
-            Velocity::Walk => 200_000.0, // mm/sec
-            Velocity::Run => 300_000.0,  // mm/sec
+            Velocity::Walk => 200.0, // meters/sec
+            Velocity::Run => 300.0,  // meters/sec
         };
 
-        if speed_mm_per_sec > 0.0 {
+        if speed_m_per_sec > 0.0 {
             // Calculate velocity vector from movement direction and speed
-            // move_dir of 0 means moving in -Y direction (forward when camera_rot=0)
-            let vel_x = mov.move_dir.sin() * speed_mm_per_sec;
-            let vel_y = -mov.move_dir.cos() * speed_mm_per_sec;
+            // Using face_dir directly with Bevy's coordinate system
+            let vel_x = mov.move_dir.sin() * speed_m_per_sec;
+            let vel_z = mov.move_dir.cos() * speed_m_per_sec;
 
             // Integrate into position
-            let dx = (vel_x * delta) as i32;
-            let dy = (vel_y * delta) as i32;
-
-            if dx != 0 || dy != 0 {
-                pos.x += dx;
-                pos.y += dy;
-            }
+            pos.x += vel_x * delta;
+            pos.z += vel_z * delta;
+            // pos.y stays at 0 for 2D gameplay
         }
     }
 }

@@ -123,8 +123,9 @@ fn process_message_not_logged_in(
             // Generate random initial position for the new player
             let mut rng = rand::rng();
             let pos = Position {
-                x: rng.random_range(-800_000..=800_000),
-                y: rng.random_range(-800_000..=800_000),
+                x: rng.random_range(-800.0..=800.0),
+                y: 0.0, // Always 0 for 2D gameplay
+                z: rng.random_range(-800.0..=800.0),
             };
 
             // Initial movement for the new player

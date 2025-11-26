@@ -22,13 +22,15 @@ macro_rules! message {
 // Common Data Types
 // ============================================================================
 
-// Position component - i32 values represent millimeters for high precision
-// Range: ±2,147,483 meters (±2,147 km) from origin
+// Position component - 3D coordinates in meters (Bevy's coordinate system: X, Y=up, Z)
+// Store as individual fields for network serialization (Vec3 doesn't implement bincode traits)
+// Y is always 0 for now (2D gameplay on a flat plane)
 message! {
 #[derive(Copy, Component, PartialEq)]
 struct Position {
-    pub x: i32, // millimeters
-    pub y: i32, // millimeters
+    pub x: f32, // meters
+    pub y: f32, // meters (up/down - always 0 for now)
+    pub z: f32, // meters
 }
 }
 

@@ -70,22 +70,18 @@ pub fn input_system(
         }
 
         // Get forward/right vectors from camera rotation
-        // These convert camera-relative directions to world Position coordinates (x, y)
-        let forward_x = -camera_rotation.sin();
-        let forward_y = -camera_rotation.cos();
-        // Right is 90 degrees clockwise from forward
-        let right_x = -forward_y;
-        let right_y = forward_x;
+        // Camera rotation maps directly to face direction
+        let face_dir = camera_rotation;
 
         // Handle WASD input relative to camera direction
         let mut forward = 0.0_f32;
         let mut right = 0.0_f32;
 
         if keyboard.pressed(KeyCode::KeyW) {
-            forward += 1.0; // Move forward
+            forward -= 1.0; // Move forward
         }
         if keyboard.pressed(KeyCode::KeyS) {
-            forward -= 1.0; // Move backward
+            forward += 1.0; // Move backward
         }
         if keyboard.pressed(KeyCode::KeyA) {
             right -= 1.0; // Move left
@@ -94,17 +90,18 @@ pub fn input_system(
             right += 1.0; // Move right
         }
 
-        // Calculate world-space direction
-        let dx = forward * forward_x + right * right_x;
-        let dy = forward * forward_y + right * right_y;
-
-        // Normalize and determine velocity state
-        let len = (dx * dx + dy * dy).sqrt();
-
-        let (vel_state, move_direction) = if len > 0.0 {
-            // Moving - calculate movement direction from WASD input
-            // Convert from world dx/dy to angle in our coordinate system
-            let move_dir = dy.atan2(dx) + std::f32::consts::FRAC_PI_2;
+        // Calculate movement direction
+        let (vel_state, move_direction) = if forward != 0.0 || right != 0.0 {
+            // Normalize the input vector
+            let len = (forward * forward + right * right).sqrt();
+            let norm_forward = forward / len;
+            let norm_right = right / len;
+            
+            // Calculate angle offset from face direction
+            // forward=1, right=0 -> offset=0 (moving in face direction)
+            // forward=0, right=1 -> offset=π/2 (moving right)
+            let angle_offset = norm_right.atan2(norm_forward);
+            let move_dir = face_dir + angle_offset;
             // Check if shift is pressed for running
             let vel = if keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight) {
                 Velocity::Run

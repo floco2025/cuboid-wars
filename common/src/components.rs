@@ -10,7 +10,8 @@ use bevy_time::{Timer, TimerMode};
 // Projectile constants
 pub const PROJECTILE_SPEED: f32 = 2000.0; // meters per second
 pub const PROJECTILE_LIFETIME: f32 = 2.5; // seconds
-pub const PROJECTILE_SPAWN_OFFSET: f32 = 500.0; // millimeters in front of shooter
+pub const PROJECTILE_SPAWN_OFFSET: f32 = 50.0; // meters in front of shooter
+pub const PROJECTILE_SPAWN_HEIGHT: f32 = 60.0; // meters above ground (eye level)
 
 // Component for projectiles
 #[derive(Component)]
@@ -36,10 +37,12 @@ impl Projectile {
     }
     
     // Calculate spawn position in front of shooter
-    // Returns (x, y) in millimeters
-    pub fn calculate_spawn_position(shooter_x: i32, shooter_y: i32, face_dir: f32) -> (f32, f32) {
-        let spawn_x = shooter_x as f32 + face_dir.sin() * PROJECTILE_SPAWN_OFFSET;
-        let spawn_y = shooter_y as f32 + face_dir.cos() * PROJECTILE_SPAWN_OFFSET;
-        (spawn_x, spawn_y)
+    // Returns Vec3 position in meters
+    pub fn calculate_spawn_position(shooter_pos: Vec3, face_dir: f32) -> Vec3 {
+        Vec3::new(
+            shooter_pos.x + face_dir.sin() * PROJECTILE_SPAWN_OFFSET,
+            PROJECTILE_SPAWN_HEIGHT,
+            shooter_pos.z + face_dir.cos() * PROJECTILE_SPAWN_OFFSET,
+        )
     }
 }

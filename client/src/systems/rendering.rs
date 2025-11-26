@@ -8,7 +8,7 @@ use crate::components::LocalPlayer;
 // ============================================================================
 
 // Player dimensions - used for rendering and camera positioning
-pub const PLAYER_HEIGHT: f32 = 80.0; // up/down
+pub const PLAYER_HEIGHT: f32 = 80.0; // meters
 
 // Update camera position to follow local player
 pub fn sync_camera_to_player_system(
@@ -17,26 +17,27 @@ pub fn sync_camera_to_player_system(
 ) {
     if let Some(pos) = local_player_query.iter().next() {
         for mut camera_transform in camera_query.iter_mut() {
-            camera_transform.translation.x = pos.x as f32 / 1000.0;
-            camera_transform.translation.z = pos.y as f32 / 1000.0;
-            camera_transform.translation.y = 72.0; // 90% of 80 unit height (units are mm, but rendering in weird scale)
+            camera_transform.translation.x = pos.x;
+            camera_transform.translation.z = pos.z;
+            camera_transform.translation.y = PLAYER_HEIGHT * 0.9; // 90% of player height
         }
     }
 }
 
 // Update Transform from Position component for rendering
-// Position is in millimeters, Transform is in meters
+// Both Position and Transform use meters now
 pub fn sync_position_to_transform_system(mut query: Query<(&Position, &mut Transform)>) {
+    const PLAYER_HEIGHT: f32 = 80.0;
     for (pos, mut transform) in query.iter_mut() {
-        transform.translation.x = pos.x as f32 / 1000.0; // mm to meters
-        transform.translation.z = pos.y as f32 / 1000.0; // mm to meters
+        transform.translation.x = pos.x;
+        transform.translation.y = PLAYER_HEIGHT / 2.0; // Lift so bottom is at ground (y=0)
+        transform.translation.z = pos.z;
     }
 }
 
 // Update player cuboid rotation from stored movement component
 pub fn sync_rotation_to_transform_system(mut query: Query<(&Movement, &mut Transform), Without<Camera3d>>) {
     for (mov, mut transform) in query.iter_mut() {
-        // face_dir already includes the π offset from input.rs
         transform.rotation = Quat::from_rotation_y(mov.face_dir);
     }
 }

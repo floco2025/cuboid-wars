@@ -8,9 +8,9 @@ use crate::components::LocalPlayer;
 // ============================================================================
 
 // Player cuboid dimensions - make it asymmetric so we can see orientation
-pub const PLAYER_WIDTH: f32 = 20.0; // side to side
-pub const PLAYER_HEIGHT: f32 = 80.0; // up/down
-pub const PLAYER_DEPTH: f32 = 40.0; // front to back (longer)
+pub const PLAYER_WIDTH: f32 = 20.0; // meters - side to side
+pub const PLAYER_HEIGHT: f32 = 80.0; // meters - up/down
+pub const PLAYER_DEPTH: f32 = 40.0; // meters - front to back (longer)
 
 // Spawn a player cuboid at the given position
 pub fn spawn_player(
@@ -36,9 +36,9 @@ pub fn spawn_player(
         Mesh3d(meshes.add(Cuboid::new(PLAYER_WIDTH, PLAYER_HEIGHT, PLAYER_DEPTH))),
         MeshMaterial3d(materials.add(color)),
         Transform::from_xyz(
-            position.x as f32 / 1000.0, // mm to meters
-            PLAYER_HEIGHT / 2.0,
-            position.y as f32 / 1000.0, // mm to meters
+            position.x,
+            PLAYER_HEIGHT / 2.0, // Lift so bottom is at y=0
+            position.z,
         ),
         Visibility::default(),
     ));
@@ -57,7 +57,7 @@ pub fn spawn_player(
             MeshMaterial3d(materials.add(front_marker_color)),
             Transform::from_xyz(
                 0.0,
-                10.0,                     // Slightly above center
+                10.0,                      // Slightly above center
                 PLAYER_DEPTH / 2.0 + 5.0, // Front of the cuboid
             ),
             Visibility::Inherited,
@@ -78,24 +78,20 @@ pub fn spawn_projectile_local(
     mov: &Movement,
 ) {
     // Calculate spawn position using common helper
-    let (spawn_x, spawn_y) = Projectile::calculate_spawn_position(pos.x, pos.y, mov.face_dir);
+    let spawn_pos = Projectile::calculate_spawn_position(Vec3::new(pos.x, pos.y, pos.z), mov.face_dir);
     
     // Create projectile with common parameters
     let projectile = Projectile::new(mov.face_dir);
     
     let projectile_color = Color::srgb(10.0, 10.0, 0.0); // Very bright yellow
     commands.spawn((
-        Mesh3d(meshes.add(Sphere::new(5.0))), // 2x size
+        Mesh3d(meshes.add(Sphere::new(5.0))),
         MeshMaterial3d(materials.add(StandardMaterial {
             base_color: projectile_color,
             emissive: LinearRgba::rgb(10.0, 10.0, 0.0), // Make it glow
             ..default()
         })),
-        Transform::from_xyz(
-            spawn_x / 1000.0,
-            PLAYER_HEIGHT / 2.0,
-            spawn_y / 1000.0,
-        ),
+        Transform::from_translation(spawn_pos),
         projectile,
     ));
 }
