@@ -10,18 +10,19 @@ trap 'echo "Killing all clients..."; kill 0; exit' INT TERM
 NUM_CLIENTS=${1:-2}
 
 # Get screen dimensions
-# Note: system_profiler reports physical pixels, but macOS windowing uses logical points
-# For Retina displays, divide by 2
-SCREEN_RES=$(system_profiler SPDisplaysDataType | grep Resolution | head -1)
-SCREEN_WIDTH_PHYSICAL=$(echo $SCREEN_RES | awk '{print $2}')
-SCREEN_HEIGHT_PHYSICAL=$(echo $SCREEN_RES | awk '{print $4}')
+# Note: system_profiler reports both physical pixels and logical points
+DISPLAY_INFO=$(system_profiler SPDisplaysDataType)
+SCREEN_WIDTH_PHYSICAL=$(echo "$DISPLAY_INFO" | grep "Resolution:" | head -1 | awk '{print $2}')
+SCREEN_HEIGHT_PHYSICAL=$(echo "$DISPLAY_INFO" | grep "Resolution:" | head -1 | awk '{print $4}')
+SCREEN_WIDTH=$(echo "$DISPLAY_INFO" | grep "UI Looks like:" | head -1 | awk '{print $4}')
+SCREEN_HEIGHT=$(echo "$DISPLAY_INFO" | grep "UI Looks like:" | head -1 | awk '{print $6}')
 
-# Assume 2x scaling for Retina displays (adjust if needed)
-SCREEN_WIDTH=$((SCREEN_WIDTH_PHYSICAL / 2))
-SCREEN_HEIGHT=$((SCREEN_HEIGHT_PHYSICAL / 2))
+# Calculate the actual scaling factor (for display purposes)
+SCALE_FACTOR=$(echo "scale=2; $SCREEN_WIDTH_PHYSICAL / $SCREEN_WIDTH" | bc)
 
 echo "Physical resolution: ${SCREEN_WIDTH_PHYSICAL}x${SCREEN_HEIGHT_PHYSICAL}"
 echo "Logical screen size: ${SCREEN_WIDTH}x${SCREEN_HEIGHT}"
+echo "Scaling factor: ${SCALE_FACTOR}x"
 echo "Launching $NUM_CLIENTS clients..."
 
 # Window dimensions
@@ -50,23 +51,18 @@ for i in $(seq 0 $((NUM_CLIENTS - 1))); do
         Y_LOGICAL=$((MENUBAR_HEIGHT + GAP + TITLEBAR_HEIGHT + ROW * (WINDOW_HEIGHT + TITLEBAR_HEIGHT + GAP)))
     fi
     
-    # Convert to physical coordinates for window positioning (2x for Retina)
-    X=$((X_LOGICAL * 2))
-    Y=$((Y_LOGICAL * 2))
+    # Convert to physical coordinates for window positioning
+    X=$(echo "$X_LOGICAL * $SCALE_FACTOR" | bc | awk '{print int($1)}')
+    Y=$(echo "$Y_LOGICAL * $SCALE_FACTOR" | bc | awk '{print int($1)}')
     
     echo "Client $i: COL=$COL, ROW=$ROW, Logical=($X_LOGICAL, $Y_LOGICAL), Physical=($X, $Y)"
     cargo run --bin client -- --window-x $X --window-y $Y --window-width $WINDOW_WIDTH --window-height $WINDOW_HEIGHT &
-    
-    # Small delay between launches
-    sleep 0.5
 done
 
-echo "All clients launched!"
-echo "Press Ctrl-C to kill all clients and exit."
-
 # Bring all client windows to the foreground
-#sleep 1
 osascript -e 'tell application "System Events" to set frontmost of every process whose name contains "client" to true' 2>/dev/null
 
 # Wait for all background jobs
+echo "All clients launched!"
+echo "Press Ctrl-C to kill all clients and exit."
 wait
