@@ -11,6 +11,85 @@ use common::constants::*;
 use common::protocol::*;
 
 // ============================================================================
+// Helper Functions
+// ============================================================================
+
+// Check if a player position intersects with any wall
+fn position_intersects_wall(pos: &Position, wall: &Wall) -> bool {
+    // Player dimensions with some margin
+    let player_half_width = PLAYER_WIDTH / 2.0 + 0.1; // Small margin
+    let player_half_depth = PLAYER_DEPTH / 2.0 + 0.1;
+    
+    match wall.orientation {
+        WallOrientation::Horizontal => {
+            // Wall extends along X axis at (wall.x, wall.z)
+            let wall_half_length = WALL_LENGTH / 2.0;
+            let wall_half_thickness = WALL_WIDTH / 2.0;
+            
+            // Check if player AABB overlaps with wall AABB
+            let player_min_x = pos.x - player_half_width;
+            let player_max_x = pos.x + player_half_width;
+            let player_min_z = pos.z - player_half_depth;
+            let player_max_z = pos.z + player_half_depth;
+            
+            let wall_min_x = wall.x - wall_half_length;
+            let wall_max_x = wall.x + wall_half_length;
+            let wall_min_z = wall.z - wall_half_thickness;
+            let wall_max_z = wall.z + wall_half_thickness;
+            
+            // AABB overlap test
+            player_max_x >= wall_min_x && player_min_x <= wall_max_x &&
+            player_max_z >= wall_min_z && player_min_z <= wall_max_z
+        },
+        WallOrientation::Vertical => {
+            // Wall extends along Z axis at (wall.x, wall.z)
+            let wall_half_length = WALL_LENGTH / 2.0;
+            let wall_half_thickness = WALL_WIDTH / 2.0;
+            
+            // Check if player AABB overlaps with wall AABB
+            let player_min_x = pos.x - player_half_width;
+            let player_max_x = pos.x + player_half_width;
+            let player_min_z = pos.z - player_half_depth;
+            let player_max_z = pos.z + player_half_depth;
+            
+            let wall_min_x = wall.x - wall_half_thickness;
+            let wall_max_x = wall.x + wall_half_thickness;
+            let wall_min_z = wall.z - wall_half_length;
+            let wall_max_z = wall.z + wall_half_length;
+            
+            // AABB overlap test
+            player_max_x >= wall_min_x && player_min_x <= wall_max_x &&
+            player_max_z >= wall_min_z && player_min_z <= wall_max_z
+        },
+    }
+}
+
+// Generate a random spawn position that doesn't intersect with any walls
+fn generate_spawn_position(wall_config: &WallConfig) -> Position {
+    let mut rng = rand::rng();
+    let max_attempts = 100;
+    
+    for _ in 0..max_attempts {
+        let pos = Position {
+            x: rng.random_range(-SPAWN_RANGE_X..=SPAWN_RANGE_X),
+            y: 0.0,
+            z: rng.random_range(-SPAWN_RANGE_Z..=SPAWN_RANGE_Z),
+        };
+        
+        // Check if position intersects with any wall
+        let intersects = wall_config.walls.iter().any(|wall| position_intersects_wall(&pos, wall));
+        
+        if !intersects {
+            return pos;
+        }
+    }
+    
+    // Fallback: return center if we couldn't find a valid position
+    warn!("Could not find spawn position without wall collision after {} attempts, spawning at center", max_attempts);
+    Position { x: 0.0, y: 0.0, z: 0.0 }
+}
+
+// ============================================================================
 // Accept Connections System
 // ============================================================================
 
@@ -128,12 +207,7 @@ fn process_message_not_logged_in(
             }
 
             // Generate random initial position for the new player
-            let mut rng = rand::rng();
-            let pos = Position {
-                x: rng.random_range(-SPAWN_RANGE_X..=SPAWN_RANGE_X),
-                y: 0.0, // Always 0 for 2D gameplay
-                z: rng.random_range(-SPAWN_RANGE_Z..=SPAWN_RANGE_Z),
-            };
+            let pos = generate_spawn_position(wall_config);
 
             // Calculate initial facing direction toward center (0, 0)
             // face_dir=0 means facing +Z (sin(0)=0 for X, cos(0)=1 for Z)
