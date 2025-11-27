@@ -82,8 +82,13 @@ pub fn input_system(
         // Get current camera rotation (or player rotation in top-down mode)
         let mut camera_rotation = 0.0_f32;
         
-        // In first-person, read camera rotation; in top-down, use tracked player rotation
-        if *view_mode == CameraViewMode::FirstPerson {
+        // When switching to FPV from top-down, use tracked rotation (not camera transform)
+        // Otherwise in FPV, read from camera; in top-down, use tracked rotation
+        if view_mode.is_changed() && *view_mode == CameraViewMode::FirstPerson {
+            // Just switched to FPV - use the tracked rotation we maintained in top-down
+            camera_rotation = *player_rotation;
+        } else if *view_mode == CameraViewMode::FirstPerson {
+            // Normal FPV operation - read from camera transform
             for transform in camera_query.iter() {
                 camera_rotation = transform.rotation.to_euler(EulerRot::YXZ).0;
             }
@@ -97,10 +102,8 @@ pub fn input_system(
             camera_rotation -= motion.delta.x * MOUSE_SENSITIVITY;
         }
         
-        // Update tracked rotation for top-down mode
-        if *view_mode == CameraViewMode::TopDown {
-            *player_rotation = camera_rotation;
-        }
+        // Always update tracked rotation (so it's current for next mode switch)
+        *player_rotation = camera_rotation;
 
         // Get forward/right vectors from camera rotation
         // Camera rotation maps directly to face direction
