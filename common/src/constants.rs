@@ -3,7 +3,7 @@
 // ============================================================================
 
 // Grid-based playing field dimensions
-pub const GRID_SIZE: f32 = 5.0; // Each grid cell is 5 meters
+pub const GRID_SIZE: f32 = 8.0; // Each grid cell is 5 meters
 pub const GRID_COLS: i32 = 10; // Number of grid columns (X axis)
 pub const GRID_ROWS: i32 = 10; // Number of grid rows (Z axis)
 
@@ -39,6 +39,6 @@ pub const PLAYER_NOSE_HEIGHT: f32 = 0.5; // relative to ground
 // Grid walls (meters)
 
 pub const NUM_WALL_SEGMENTS: usize = 100; // Total number of wall segments to place
-pub const WALL_LENGTH: f32 = 5.1; // Slightly longer than grid to avoid corner gaps
+pub const WALL_LENGTH: f32 = 8.2; // Slightly longer than grid to avoid corner gaps
 pub const WALL_WIDTH: f32 = 0.2; // Wall thickness
-pub const WALL_HEIGHT: f32 = 3.0; // Wall height
+pub const WALL_HEIGHT: f32 = 4.0; // Wall height

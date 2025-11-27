@@ -1,7 +1,8 @@
 use bevy::prelude::*;
 
-use common::{constants::{FIELD_WIDTH, FIELD_DEPTH, GRID_SIZE, GRID_COLS, GRID_ROWS, WALL_WIDTH}, protocol::PlayerId};
+use common::{constants::{FIELD_WIDTH, FIELD_DEPTH, GRID_SIZE, GRID_COLS, GRID_ROWS, WALL_WIDTH, PLAYER_HEIGHT}, protocol::PlayerId};
 use crate::resources::{MyPlayerId, PlayerMap};
+use crate::systems::sync::FPV_CAMERA_HEIGHT_RATIO;
 
 // ============================================================================
 // Components
@@ -24,18 +25,6 @@ pub struct CrosshairUI;
 pub struct RttUI;
 
 // ============================================================================
-// UI Components and Constants
-// ============================================================================
-
-// World dimensions - ground plane matches playing field
-pub const WORLD_SIZE: f32 = FIELD_WIDTH; // Ground plane size
-
-// Camera settings (human scale - third person view)
-pub const CAMERA_X: f32 = 0.0;
-pub const CAMERA_Y: f32 = 2.5; // 2.5 meters above ground
-pub const CAMERA_Z: f32 = 3.0; // 3 meters back
-
-// ============================================================================
 // UI Setup System
 // ============================================================================
 
@@ -46,7 +35,7 @@ pub fn setup_world_system(
 ) {
     // Create the ground plane
     commands.spawn((
-        Mesh3d(meshes.add(Plane3d::default().mesh().size(WORLD_SIZE, WORLD_SIZE))),
+        Mesh3d(meshes.add(Plane3d::default().mesh().size(FIELD_WIDTH, FIELD_DEPTH))),
         MeshMaterial3d(materials.add(Color::srgb(0.3, 0.5, 0.3))),
         Transform::from_xyz(0.0, 0.0, 0.0),
         Visibility::default(),
@@ -76,10 +65,10 @@ pub fn setup_world_system(
         ));
     }
 
-    // Add camera with top-down view
+    // Add camera (initial position will be immediately overridden by sync system)
     commands.spawn((
         Camera3d::default(),
-        Transform::from_xyz(CAMERA_X, CAMERA_Y, CAMERA_Z).looking_at(Vec3::ZERO, Vec3::Y),
+        Transform::from_xyz(0.0, PLAYER_HEIGHT * FPV_CAMERA_HEIGHT_RATIO, 0.0).looking_at(Vec3::new(0.0, 0.0, -1.0), Vec3::Y),
     ));
 
     // Add soft directional light from above for shadows and definition
