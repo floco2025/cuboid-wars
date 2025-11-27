@@ -9,6 +9,7 @@ use client::{
     net::network_io_task,
     resources::{ClientToServerChannel, PlayerMap, ServerToClientChannel},
     systems::{
+        collision::client_hit_detection_system,
         effects::{apply_camera_shake_system, apply_cuboid_shake_system},
         input::{cursor_toggle_system, input_system, shooting_input_system},
         network::process_server_events_system,
@@ -130,6 +131,8 @@ fn main() -> Result<()> {
             shooting_input_system,
             // Sync projectile physics to transforms
             sync_projectiles_system,
+            // Client-side hit detection for visual despawning
+            client_hit_detection_system,
             // Process server messages
             process_server_events_system,
             // Shared movement logic
