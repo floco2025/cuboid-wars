@@ -1,8 +1,11 @@
 use bevy::prelude::*;
 
-use common::{constants::{FIELD_WIDTH, FIELD_DEPTH, GRID_SIZE, GRID_COLS, GRID_ROWS, WALL_WIDTH, PLAYER_HEIGHT}, protocol::PlayerId};
 use crate::resources::{MyPlayerId, PlayerMap};
 use crate::systems::sync::FPV_CAMERA_HEIGHT_RATIO;
+use common::{
+    constants::{FIELD_DEPTH, FIELD_WIDTH, GRID_COLS, GRID_ROWS, GRID_SIZE, PLAYER_HEIGHT, WALL_WIDTH},
+    protocol::PlayerId,
+};
 
 // ============================================================================
 // Components
@@ -48,7 +51,7 @@ pub fn setup_world_system(
     // Create grid lines
     let grid_material = materials.add(Color::srgb(0.5, 0.5, 0.5)); // Grey color
     let line_height = 0.01; // Slightly above ground to avoid z-fighting
-    
+
     // Vertical grid lines (along X axis, varying Z position)
     for i in 0..=GRID_ROWS {
         let z_pos = (i as f32 * GRID_SIZE) - FIELD_DEPTH / 2.0;
@@ -58,7 +61,7 @@ pub fn setup_world_system(
             Transform::from_xyz(0.0, line_height / 2.0, z_pos),
         ));
     }
-    
+
     // Horizontal grid lines (along Z axis, varying X position)
     for i in 0..=GRID_COLS {
         let x_pos = (i as f32 * GRID_SIZE) - FIELD_WIDTH / 2.0;
@@ -72,7 +75,8 @@ pub fn setup_world_system(
     // Add camera (initial position will be immediately overridden by sync system)
     commands.spawn((
         Camera3d::default(),
-        Transform::from_xyz(0.0, PLAYER_HEIGHT * FPV_CAMERA_HEIGHT_RATIO, 0.0).looking_at(Vec3::new(0.0, 0.0, -1.0), Vec3::Y),
+        Transform::from_xyz(0.0, PLAYER_HEIGHT * FPV_CAMERA_HEIGHT_RATIO, 0.0)
+            .looking_at(Vec3::new(0.0, 0.0, -1.0), Vec3::Y),
     ));
 
     // Add soft directional light from above for shadows and definition
@@ -150,7 +154,7 @@ pub fn setup_world_system(
                 BackgroundColor(crosshair_color),
             ));
         });
-    
+
     // Create RTT display in upper right corner
     commands.spawn((
         Text::new("RTT: --"),
@@ -189,14 +193,11 @@ pub fn setup_world_system(
 // ============================================================================
 
 // Update RTT display
-pub fn update_rtt_system(
-    rtt: Res<crate::resources::RoundTripTime>,
-    mut query: Single<&mut Text, With<RttUI>>,
-) {
+pub fn update_rtt_system(rtt: Res<crate::resources::RoundTripTime>, mut query: Single<&mut Text, With<RttUI>>) {
     if !rtt.is_changed() {
         return;
     }
-    
+
     if rtt.rtt_ms > 0 {
         query.0 = format!("RTT: {}ms", rtt.rtt_ms);
     } else {
@@ -217,7 +218,7 @@ pub fn update_player_list_system(
     if !players.is_changed() {
         return;
     }
-        
+
     // Get local player ID if it exists
     let local_player_id = my_player_id.as_ref().map(|id| id.0);
 
@@ -228,7 +229,7 @@ pub fn update_player_list_system(
         .collect();
 
     // Check if we need to rebuild (players added/removed)
-    let players_changed = existing_map.len() != players.0.len() 
+    let players_changed = existing_map.len() != players.0.len()
         || existing_map.keys().any(|id| !players.0.contains_key(id))
         || players.0.keys().any(|id| !existing_map.contains_key(id));
 
@@ -250,11 +251,11 @@ pub fn update_player_list_system(
     // Sort players by ID for consistent ordering
     let mut sorted_players: Vec<_> = players.0.iter().collect();
     sorted_players.sort_by_key(|(player_id, _)| player_id.0);
-    
+
     if players_changed {
         // Rebuild entire list in sorted order
         let mut sorted_entries = Vec::new();
-        
+
         for (player_id, player_info) in sorted_players {
             let hits = player_info.hits;
             let player_num = player_id.0;
@@ -315,14 +316,14 @@ pub fn update_player_list_system(
                 sorted_entries.push(entry_entity);
             }
         }
-        
+
         // Rebuild children in sorted order
         commands.entity(*player_list_ui).replace_children(&sorted_entries);
     } else {
         // Just update hit counters (no rebuild needed)
         for (player_id, player_info) in sorted_players {
             let hits = player_info.hits;
-            
+
             if let Some(&(_existing_entity, entry_children)) = existing_map.get(player_id) {
                 if entry_children.len() >= 2 {
                     let hit_text_entity = entry_children[1];
@@ -346,4 +347,3 @@ pub fn update_player_list_system(
         }
     }
 }
-
