@@ -1,10 +1,23 @@
 use bevy::prelude::*;
 
-use crate::{
-    components::{CrosshairUI, PlayerEntryUI, PlayerListUI},
-    resources::{MyPlayerId, PlayerMap},
-};
 use common::{constants::FIELD_WIDTH, protocol::PlayerId};
+use crate::resources::{MyPlayerId, PlayerMap};
+
+// ============================================================================
+// Components
+// ============================================================================
+
+// Marker component for the player list UI
+#[derive(Component)]
+pub struct PlayerListUI;
+
+// Marker component for individual player entries
+#[derive(Component)]
+pub struct PlayerEntryUI(pub PlayerId);
+
+// Marker component for the crosshair UI
+#[derive(Component)]
+pub struct CrosshairUI;
 
 // ============================================================================
 // UI Components and Constants
@@ -134,9 +147,7 @@ pub fn update_player_list_system(
     if !players.is_changed() {
         return;
     }
-    
-    info!("UI system running - PlayerMap changed");
-    
+        
     // Get local player ID if it exists
     let local_player_id = my_player_id.as_ref().map(|id| id.0);
 

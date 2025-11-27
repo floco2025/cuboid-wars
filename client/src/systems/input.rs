@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 use common::protocol::{CMovement, CShot, ClientMessage, Movement, Position, Velocity};
 
+use super::sync::LocalPlayer;
 use crate::{
-    components::LocalPlayer,
     net::ClientToServer,
     resources::ClientToServerChannel,
     spawning::spawn_projectile_local,

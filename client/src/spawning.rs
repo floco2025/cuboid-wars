@@ -1,11 +1,11 @@
 use bevy::prelude::*;
 
 use common::{
-    components::Projectile,
+    systems::Projectile,
     constants::*,
     protocol::{Movement, PlayerId, Position},
 };
-use crate::components::LocalPlayer;
+use crate::systems::sync::LocalPlayer;
 
 // ============================================================================
 // Entity Spawning

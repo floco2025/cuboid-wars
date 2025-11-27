@@ -135,9 +135,15 @@ fn process_message_not_logged_in(
             // direction vector: (-pos.x, -pos.z)
             // face_dir such that: sin(face_dir) * |v| = -pos.x and cos(face_dir) * |v| = -pos.z
             let face_dir = (-pos.x).atan2(-pos.z);
-            
-            info!("Player {:?} spawned at ({:.1}, {:.1}), facing {:.2} rad ({:.0}°)", 
-                  id, pos.x, pos.z, face_dir, face_dir.to_degrees());
+
+            info!(
+                "Player {:?} spawned at ({:.1}, {:.1}), facing {:.2} rad ({:.0}°)",
+                id,
+                pos.x,
+                pos.z,
+                face_dir,
+                face_dir.to_degrees()
+            );
 
             // Initial movement for the new player
             let mov = Movement {
@@ -147,7 +153,11 @@ fn process_message_not_logged_in(
             };
 
             // Construct player data
-            let player = Player { pos, mov, hits: player_info.hits };
+            let player = Player {
+                pos,
+                mov,
+                hits: player_info.hits,
+            };
 
             // Mark as logged in and clone channel for later use
             player_info.logged_in = true;
@@ -165,7 +175,14 @@ fn process_message_not_logged_in(
                     }
                     let pos = positions.get(info.entity).ok()?;
                     let mov = movements.get(info.entity).ok()?;
-                    Some((*player_id, Player { pos: *pos, mov: *mov, hits: info.hits }))
+                    Some((
+                        *player_id,
+                        Player {
+                            pos: *pos,
+                            mov: *mov,
+                            hits: info.hits,
+                        },
+                    ))
                 })
                 .collect();
             // Add the new player manually with their freshly generated values
@@ -259,14 +276,14 @@ fn handle_shot(
 ) {
     // Update the shooter's movement to exact facing direction
     commands.entity(entity).insert(msg.mov);
-    
+
     // Spawn projectile on server for hit detection
     if let Ok(pos) = positions.get(entity) {
-        use common::components::Projectile;
-        
+        use common::systems::Projectile;
+
         let spawn_pos = Projectile::calculate_spawn_position(Vec3::new(pos.x, pos.y, pos.z), msg.mov.face_dir);
         let projectile = Projectile::new(msg.mov.face_dir);
-        
+
         commands.spawn((
             Position {
                 x: spawn_pos.x,
@@ -277,7 +294,7 @@ fn handle_shot(
             id, // Tag projectile with shooter's ID
         ));
     }
-    
+
     // Broadcast shot with movement to all other logged-in players
     let broadcast_msg = ServerMessage::Shot(SShot { id, mov: msg.mov });
     for (other_id, other_info) in players.0.iter() {
@@ -313,7 +330,14 @@ pub fn broadcast_state_system(
             }
             let pos = positions.get(info.entity).ok()?;
             let mov = movements.get(info.entity).ok()?;
-            Some((*player_id, Player { pos: *pos, mov: *mov, hits: info.hits }))
+            Some((
+                *player_id,
+                Player {
+                    pos: *pos,
+                    mov: *mov,
+                    hits: info.hits,
+                },
+            ))
         })
         .collect();
 
@@ -331,50 +355,50 @@ pub fn broadcast_state_system(
 pub fn hit_detection_system(
     mut commands: Commands,
     time: Res<Time>,
-    projectile_query: Query<(Entity, &Position, &common::components::Projectile, &PlayerId)>,
-    player_query: Query<(&Position, &Movement, &PlayerId), Without<common::components::Projectile>>,
+    projectile_query: Query<(Entity, &Position, &common::systems::Projectile, &PlayerId)>,
+    player_query: Query<(&Position, &Movement, &PlayerId), Without<common::systems::Projectile>>,
     mut players: ResMut<PlayerMap>,
 ) {
     let delta = time.delta_secs();
-    
+
     for (proj_entity, proj_pos, projectile, shooter_id) in projectile_query.iter() {
         // Calculate projectile movement this frame
         let ray_dir_x = projectile.velocity.x * delta;
         let ray_dir_y = projectile.velocity.y * delta;
         let ray_dir_z = projectile.velocity.z * delta;
-        
+
         for (player_pos, player_mov, target_id) in player_query.iter() {
             // Don't hit yourself
             if shooter_id == target_id {
                 continue;
             }
-            
+
             // Transform projectile position and ray into player's local space
             let dx = proj_pos.x - player_pos.x;
             let dz = proj_pos.z - player_pos.z;
-            
+
             let cos_rot = player_mov.face_dir.cos();
             let sin_rot = player_mov.face_dir.sin();
-            
+
             // Current position in local space
             let local_x = dx * cos_rot - dz * sin_rot;
             let local_z = dx * sin_rot + dz * cos_rot;
             let local_y = proj_pos.y - (player_pos.y + PLAYER_HEIGHT / 2.0);
-            
+
             // Ray direction in local space
             let ray_local_x = ray_dir_x * cos_rot - ray_dir_z * sin_rot;
             let ray_local_z = ray_dir_x * sin_rot + ray_dir_z * cos_rot;
             let ray_local_y = ray_dir_y;
-            
+
             // Expanded box for swept sphere collision
             let half_width = PLAYER_WIDTH / 2.0 + PROJECTILE_RADIUS;
             let half_height = PLAYER_HEIGHT / 2.0 + PROJECTILE_RADIUS;
             let half_depth = PLAYER_DEPTH / 2.0 + PROJECTILE_RADIUS;
-            
+
             // Ray-box intersection using slab method
             let mut t_min = 0.0_f32;
             let mut t_max = 1.0_f32;
-            
+
             // Check X slab
             if ray_local_x.abs() > 1e-6 {
                 let t1 = (-half_width - local_x) / ray_local_x;
@@ -384,7 +408,7 @@ pub fn hit_detection_system(
             } else if local_x.abs() > half_width {
                 continue; // Ray parallel to slab and outside
             }
-            
+
             // Check Y slab
             if ray_local_y.abs() > 1e-6 {
                 let t1 = (-half_height - local_y) / ray_local_y;
@@ -394,7 +418,7 @@ pub fn hit_detection_system(
             } else if local_y.abs() > half_height {
                 continue;
             }
-            
+
             // Check Z slab
             if ray_local_z.abs() > 1e-6 {
                 let t1 = (-half_depth - local_z) / ray_local_z;
@@ -404,15 +428,14 @@ pub fn hit_detection_system(
             } else if local_z.abs() > half_depth {
                 continue;
             }
-            
+
             // Hit if intervals overlap
-            if t_min <= t_max && t_max >= 0.0 && t_min <= 1.0
-            {
+            if t_min <= t_max && t_max >= 0.0 && t_min <= 1.0 {
                 info!("Player {:?} hits Player {:?}", shooter_id, target_id);
                 info!("  local start: ({:.1}, {:.1}, {:.1})", local_x, local_y, local_z);
                 info!("  ray: ({:.1}, {:.1}, {:.1})", ray_local_x, ray_local_y, ray_local_z);
                 info!("  t: {:.3}", t_min);
-                
+
                 // Update hit counters
                 if let Some(shooter_info) = players.0.get_mut(shooter_id) {
                     shooter_info.hits += 1;
@@ -422,10 +445,27 @@ pub fn hit_detection_system(
                     target_info.hits -= 1;
                     info!("  {:?} now has {} hits", target_id, target_info.hits);
                 }
+
+                // Broadcast hit message to all clients
+                // Normalize the projectile velocity to get hit direction
+                let vel_len = (projectile.velocity.x * projectile.velocity.x
+                    + projectile.velocity.z * projectile.velocity.z)
+                    .sqrt();
+                assert!(vel_len > 0.0);
+                let hit_dir_x = projectile.velocity.x / vel_len;
+                let hit_dir_z = projectile.velocity.z / vel_len;
                 
+                for player_info in players.0.values() {
+                    let _ = player_info.channel.send(ServerToClient::Send(ServerMessage::Hit(SHit {
+                        id: *target_id,
+                        hit_dir_x,
+                        hit_dir_z,
+                    })));
+                }
+
                 // Despawn the projectile
                 commands.entity(proj_entity).despawn();
-                
+
                 break; // Projectile can only hit one player
             }
         }

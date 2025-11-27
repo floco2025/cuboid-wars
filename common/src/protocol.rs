@@ -148,6 +148,15 @@ struct SUpdate {
 }
 }
 
+message! {
+// Server to Client: Player was hit by a projectile.
+struct SHit {
+    pub id: PlayerId,        // Player who was hit
+    pub hit_dir_x: f32,      // Direction of hit (normalized)
+    pub hit_dir_z: f32,      // Direction of hit (normalized)
+}
+}
+
 // ============================================================================
 // Message Envelopes
 // ============================================================================
@@ -174,4 +183,5 @@ pub enum ServerMessage {
     Movement(SMovement),
     Shot(SShot),
     Update(SUpdate),
+    Hit(SHit),
 }

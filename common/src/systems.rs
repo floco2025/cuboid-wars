@@ -1,8 +1,47 @@
 #[allow(clippy::wildcard_imports)]
 use bevy_ecs::prelude::*;
-use bevy_time::Time;
+use bevy_math::Vec3;
+use bevy_time::{Time, Timer, TimerMode};
 
-use crate::{components::Projectile, constants::*, protocol::{Movement, Position, Velocity}};
+use crate::{constants::*, protocol::{Movement, Position, Velocity}};
+
+// ============================================================================
+// Shared Game Components
+// ============================================================================
+
+// Component for projectiles
+#[derive(Component)]
+pub struct Projectile {
+    pub velocity: Vec3,
+    pub lifetime: Timer,
+}
+
+impl Projectile {
+    // Create a new projectile with standard parameters
+    // face_dir is the shooter's facing direction in radians
+    pub fn new(face_dir: f32) -> Self {
+        let velocity = Vec3::new(
+            face_dir.sin() * PROJECTILE_SPEED,
+            0.0,
+            face_dir.cos() * PROJECTILE_SPEED,
+        );
+        
+        Self {
+            velocity,
+            lifetime: Timer::from_seconds(PROJECTILE_LIFETIME, TimerMode::Once),
+        }
+    }
+    
+    // Calculate spawn position in front of shooter
+    // Returns Vec3 position in meters
+    pub fn calculate_spawn_position(shooter_pos: Vec3, face_dir: f32) -> Vec3 {
+        Vec3::new(
+            shooter_pos.x + face_dir.sin() * PROJECTILE_SPAWN_OFFSET,
+            PROJECTILE_SPAWN_HEIGHT,
+            shooter_pos.z + face_dir.cos() * PROJECTILE_SPAWN_OFFSET,
+        )
+    }
+}
 
 // ============================================================================
 // Shared Game Systems
@@ -38,7 +77,7 @@ pub fn movement_system(time: Res<Time>, mut query: Query<(&mut Position, &Moveme
 }
 
 // Update projectile positions and despawn expired projectiles
-pub fn update_projectiles_system(
+pub fn projectiles_system(
     mut commands: Commands,
     time: Res<Time>,
     mut projectile_query: Query<(Entity, &mut Position, &mut Projectile)>,

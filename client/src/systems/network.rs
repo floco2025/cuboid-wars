@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+use super::effects::{CameraShake, CuboidShake};
 use crate::spawning::{spawn_player, spawn_projectile_for_player};
 use crate::{
     net::ServerToClient,
@@ -20,6 +21,7 @@ pub fn process_server_events_system(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut player_map: ResMut<PlayerMap>,
     player_pos_mov_query: Query<(&Position, &Movement), With<PlayerId>>,
+    camera_query: Query<Entity, With<Camera3d>>,
     mut my_player_id: Local<Option<PlayerId>>,
 ) {
     // Process all messages from the server
@@ -37,6 +39,7 @@ pub fn process_server_events_system(
                         &mut materials,
                         &mut player_map,
                         &player_pos_mov_query,
+                        &camera_query,
                         *my_player_id,
                         &message,
                     );
@@ -81,6 +84,7 @@ fn process_message_logged_in(
     materials: &mut ResMut<Assets<StandardMaterial>>,
     players: &mut ResMut<PlayerMap>,
     player_pos_mov_query: &Query<(&Position, &Movement), With<PlayerId>>,
+    camera_query: &Query<Entity, With<Camera3d>>,
     my_player_id: Option<PlayerId>,
     msg: &ServerMessage,
 ) {
@@ -178,10 +182,37 @@ fn process_message_logged_in(
                         .entity(client_player.entity)
                         .insert((server_player.pos, server_player.mov));
                     // Update hit count from server
-                    if client_player.hits != server_player.hits {
-                        info!("Player {:?} hits: {} -> {}", id, client_player.hits, server_player.hits);
-                    }
                     client_player.hits = server_player.hits;
+                }
+            }
+        }
+        ServerMessage::Hit(msg) => {
+            debug!("player {:?} was hit", msg.id);
+            // Check if it's the local player
+            if Some(msg.id) == my_player_id {
+                // Shake camera for local player
+                if let Ok(camera_entity) = camera_query.single() {
+                    commands.entity(camera_entity).insert(CameraShake {
+                        timer: Timer::from_seconds(0.3, TimerMode::Once),
+                        intensity: 3.0,
+                        direction_x: msg.hit_dir_x,
+                        direction_z: msg.hit_dir_z,
+                        offset_x: 0.0,
+                        offset_y: 0.0,
+                        offset_z: 0.0,
+                    });
+                }
+            } else {
+                // Shake cuboid for other players
+                if let Some(player) = players.0.get(&msg.id) {
+                    commands.entity(player.entity).insert(CuboidShake {
+                        timer: Timer::from_seconds(0.3, TimerMode::Once),
+                        intensity: 0.3,
+                        direction_x: msg.hit_dir_x,
+                        direction_z: msg.hit_dir_z,
+                        offset_x: 0.0,
+                        offset_z: 0.0,
+                    });
                 }
             }
         }

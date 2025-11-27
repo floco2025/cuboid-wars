@@ -1,4 +1,5 @@
-use bevy::log::{debug, error, info, trace, warn};
+#[allow(clippy::wildcard_imports)]
+use bevy::prelude::*;
 use quinn::{Connection, ConnectionError, Endpoint};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 

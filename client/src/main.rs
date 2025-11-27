@@ -9,6 +9,7 @@ use client::{
     net::network_io_task,
     resources::{ClientToServerChannel, PlayerMap, ServerToClientChannel},
     systems::{
+        effects::{apply_camera_shake_system, apply_cuboid_shake_system},
         input::{cursor_toggle_system, input_system, shooting_input_system},
         network::process_server_events_system,
         sync::{
@@ -139,6 +140,10 @@ fn main() -> Result<()> {
             sync_position_to_transform_system,
             // Sync Rotation to Transform
             sync_rotation_to_transform_system,
+            // Apply camera shake effects
+            apply_camera_shake_system,
+            // Apply cuboid shake effects
+            apply_cuboid_shake_system,
             // Update player list UI
             update_player_list_system,
         ),
