@@ -150,6 +150,20 @@ fn process_message_logged_in(
                     let is_local = my_id.map_or(false, |my| my == (*id).0);
                     debug!("spawning player {:?} from Update (is_local: {})", id, is_local);
                     let entity = spawn_player(commands, meshes, materials, id.0, &player.pos, &player.mov, is_local);
+
+                    // Initialize camera rotation to match local player's spawn rotation
+                    if is_local {
+                        if let Ok(camera_entity) = camera_query.single() {
+                            // Camera rotation needs π offset because camera looks along -Z in local space
+                            // but face_dir assumes looking along +Z
+                            let camera_rotation = player.mov.face_dir + std::f32::consts::PI;
+                            commands.entity(camera_entity).insert(
+                                Transform::from_xyz(player.pos.x, 2.5, player.pos.z + 3.0)
+                                    .with_rotation(Quat::from_rotation_y(camera_rotation)),
+                            );
+                        }
+                    }
+
                     players.0.insert(
                         *id,
                         PlayerInfo {
