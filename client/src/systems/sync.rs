@@ -154,7 +154,7 @@ pub fn sync_local_player_visibility_system(
 pub fn client_movement_system(
     time: Res<Time>,
     wall_config: Option<Res<crate::resources::WallConfig>>,
-    mut query: Query<(&mut Position, &Movement, Option<&mut BumpFlashState>, Has<LocalPlayer>)>,
+    mut query: Query<(Entity, &mut Position, &Movement, Option<&mut BumpFlashState>, Has<LocalPlayer>)>,
     mut bump_flash_ui: Query<(&mut BackgroundColor, &mut Visibility), With<super::ui::BumpFlashUI>>,
 ) {
     use common::constants::{RUN_SPEED, WALK_SPEED};
@@ -162,7 +162,12 @@ pub fn client_movement_system(
 
     let delta = time.delta_secs();
 
-    for (mut pos, mov, mut flash_state, is_local_player) in query.iter_mut() {
+    // Collect all current positions for player-player collision checks
+    let positions: Vec<(Entity, Position)> = query.iter()
+        .map(|(entity, pos, _, _, _)| (entity, *pos))
+        .collect();
+
+    for (entity, mut pos, mov, mut flash_state, is_local_player) in query.iter_mut() {
         // Tick down flash timer (only for local player)
         if let Some(ref mut state) = flash_state {
             if state.flash_timer > 0.0 {
@@ -206,8 +211,13 @@ pub fn client_movement_system(
                 false // No walls loaded yet, allow movement
             };
 
+            // Check if new position collides with any other player
+            let collides_with_player = positions.iter().any(|(other_entity, other_pos)| {
+                *other_entity != entity && common::collision::check_player_player_collision(&new_pos, other_pos)
+            });
+
             // Only update position if no collision
-            if !collides_with_wall {
+            if !collides_with_wall && !collides_with_player {
                 *pos = new_pos;
 
                 if let Some(ref mut state) = flash_state {

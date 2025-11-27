@@ -264,3 +264,26 @@ pub fn check_player_wall_collision(player_pos: &Position, wall: &Wall) -> bool {
         },
     }
 }
+
+// Check if two players collide with each other
+pub fn check_player_player_collision(pos1: &Position, pos2: &Position) -> bool {
+    // Player dimensions
+    let player_half_width = PLAYER_WIDTH / 2.0;
+    let player_half_depth = PLAYER_DEPTH / 2.0;
+    
+    // Calculate AABBs for both players
+    let p1_min_x = pos1.x - player_half_width;
+    let p1_max_x = pos1.x + player_half_width;
+    let p1_min_z = pos1.z - player_half_depth;
+    let p1_max_z = pos1.z + player_half_depth;
+    
+    let p2_min_x = pos2.x - player_half_width;
+    let p2_max_x = pos2.x + player_half_width;
+    let p2_min_z = pos2.z - player_half_depth;
+    let p2_max_z = pos2.z + player_half_depth;
+    
+    // AABB overlap test
+    p1_max_x > p2_min_x && p1_min_x < p2_max_x &&
+    p1_max_z > p2_min_z && p1_min_z < p2_max_z
+}
+

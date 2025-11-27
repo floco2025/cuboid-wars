@@ -516,11 +516,14 @@ pub fn hit_detection_system(
 pub fn server_movement_system(
     time: Res<Time>,
     wall_config: Res<WallConfig>,
-    mut query: Query<(&mut Position, &Movement)>,
+    mut query: Query<(Entity, &mut Position, &Movement)>,
 ) {
     let delta = time.delta_secs();
     
-    for (mut pos, mov) in query.iter_mut() {
+    // Pass 1: Calculate all intended new positions (after wall collision check)
+    let mut intended_positions: Vec<(Entity, Position)> = Vec::new();
+    
+    for (entity, pos, mov) in query.iter() {
         // Calculate movement speed based on velocity
         let speed_m_per_sec = match mov.vel {
             Velocity::Idle => 0.0,
@@ -545,11 +548,31 @@ pub fn server_movement_system(
                 common::collision::check_player_wall_collision(&new_pos, wall)
             });
 
-            // Only update position if no collision
-            if !collides_with_wall {
-                *pos = new_pos;
+            // Store intended position (old if wall collision, new otherwise)
+            if collides_with_wall {
+                intended_positions.push((entity, *pos));
+            } else {
+                intended_positions.push((entity, new_pos));
             }
-            // If collision detected, player stays at current position (stopped by wall)
+        } else {
+            // Not moving, keep current position
+            intended_positions.push((entity, *pos));
         }
+    }
+    
+    // Pass 2: Check player-player collisions and apply positions
+    for (entity, intended_pos) in &intended_positions {
+        // Check if intended position collides with any other player's intended position
+        let collides_with_player = intended_positions.iter().any(|(other_entity, other_intended_pos)| {
+            *other_entity != *entity && common::collision::check_player_player_collision(intended_pos, other_intended_pos)
+        });
+        
+        if !collides_with_player {
+            // No collision, apply intended position
+            if let Ok((_, mut pos, _)) = query.get_mut(*entity) {
+                *pos = *intended_pos;
+            }
+        }
+        // If collision, don't update position (stays at current)
     }
 }
