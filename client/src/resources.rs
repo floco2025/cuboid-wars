@@ -40,6 +40,14 @@ pub struct RoundTripTime {
     pub pending_timestamp: u64,
 }
 
+// Camera view mode
+#[derive(Resource, Default, PartialEq, Clone, Copy, Debug)]
+pub enum CameraViewMode {
+    #[default]
+    FirstPerson,
+    TopDown,
+}
+
 // Resource wrapper for the client to server channel
 #[derive(Resource)]
 pub struct ClientToServerChannel(UnboundedSender<ClientToServer>);

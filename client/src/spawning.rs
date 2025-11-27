@@ -21,15 +21,19 @@ pub fn spawn_player(
     movement: &Movement,
     is_local: bool,
 ) -> Entity {
-    // For local player, just spawn the entity with components but no mesh
-    if is_local {
-        return commands
-            .spawn((PlayerId(player_id), *position, *movement, LocalPlayer))
-            .id();
-    }
+    // Choose color: local player is blue, other players are red
+    let color = if is_local {
+        Color::srgb(0.3, 0.3, 1.0) // Blue for local player
+    } else {
+        Color::srgb(1.0, 0.3, 0.3) // Red for other players
+    };
 
-    // For other players, spawn the full visual representation
-    let color = Color::srgb(1.0, 0.3, 0.3);
+    // Set initial visibility: hidden for local player (first-person view), visible for others
+    let initial_visibility = if is_local {
+        Visibility::Hidden
+    } else {
+        Visibility::Visible
+    };
 
     // Main body
     let entity = commands.spawn((
@@ -44,10 +48,17 @@ pub fn spawn_player(
             position.z,
         )
         .with_rotation(Quat::from_rotation_y(movement.face_dir)),
-        Visibility::default(),
+        initial_visibility,
     ));
 
-    let entity_id = entity.id();
+    let mut entity_cmd = entity;
+    
+    // Add LocalPlayer marker if this is the local player
+    if is_local {
+        entity_cmd.insert(LocalPlayer);
+    }
+
+    let entity_id = entity_cmd.id();
 
     // Add a "nose" marker at the front (yellow sphere) as a child
     let front_marker_color = Color::srgb(1.0, 1.0, 0.0); // Yellow

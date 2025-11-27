@@ -4,7 +4,7 @@ use common::protocol::{CMovement, CShot, ClientMessage, Movement, Position, Velo
 use super::sync::LocalPlayer;
 use crate::{
     net::ClientToServer,
-    resources::ClientToServerChannel,
+    resources::{ClientToServerChannel, CameraViewMode},
     spawning::spawn_projectile_local,
 };
 
@@ -12,6 +12,25 @@ use crate::{
 // ============================================================================
 // Input Systems
 // ============================================================================
+
+// Toggle camera view mode with V key
+pub fn camera_view_toggle_system(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut view_mode: ResMut<CameraViewMode>,
+) {
+    if keyboard.just_pressed(KeyCode::KeyV) {
+        *view_mode = match *view_mode {
+            CameraViewMode::FirstPerson => {
+                info!("Switching to TopDown view");
+                CameraViewMode::TopDown
+            },
+            CameraViewMode::TopDown => {
+                info!("Switching to FirstPerson view");
+                CameraViewMode::FirstPerson
+            },
+        };
+    }
+}
 
 // Toggle cursor lock with Escape key or mouse click
 pub fn cursor_toggle_system(
@@ -38,7 +57,7 @@ pub fn cursor_toggle_system(
     }
 }
 
-// Handle WASD movement and mouse rotation for first-person view
+// Handle WASD movement and mouse rotation
 pub fn input_system(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut mouse_motion: MessageReader<bevy::input::mouse::MouseMotion>,
@@ -47,8 +66,10 @@ pub fn input_system(
     time: Res<Time>,
     mut last_sent_movement: Local<Movement>, // Last movement sent to server
     mut last_send_time: Local<f32>,          // Time accumulator for send interval throttling
+    mut player_rotation: Local<f32>,         // Track player rotation across frames
     mut local_player_query: Query<&mut Movement, With<LocalPlayer>>,
     mut camera_query: Query<&mut Transform, With<Camera3d>>,
+    view_mode: Res<CameraViewMode>,
 ) {
     const MOUSE_SENSITIVITY: f32 = 0.002; // radians per pixel
     const MOVEMENT_SEND_INTERVAL: f32 = 0.1; // Send movement updates at most every 100ms
@@ -58,15 +79,27 @@ pub fn input_system(
     let cursor_locked = cursor_options.grab_mode != bevy::window::CursorGrabMode::None;
 
     if cursor_locked {
-        // Get current camera rotation
+        // Get current camera rotation (or player rotation in top-down mode)
         let mut camera_rotation = 0.0_f32;
-        for transform in camera_query.iter() {
-            camera_rotation = transform.rotation.to_euler(EulerRot::YXZ).0;
+        
+        // In first-person, read camera rotation; in top-down, use tracked player rotation
+        if *view_mode == CameraViewMode::FirstPerson {
+            for transform in camera_query.iter() {
+                camera_rotation = transform.rotation.to_euler(EulerRot::YXZ).0;
+            }
+        } else {
+            // In top-down, use the tracked rotation
+            camera_rotation = *player_rotation;
         }
 
         // Handle mouse rotation
         for motion in mouse_motion.read() {
             camera_rotation -= motion.delta.x * MOUSE_SENSITIVITY;
+        }
+        
+        // Update tracked rotation for top-down mode
+        if *view_mode == CameraViewMode::TopDown {
+            *player_rotation = camera_rotation;
         }
 
         // Get forward/right vectors from camera rotation
@@ -151,7 +184,11 @@ pub fn input_system(
 
         // Update camera rotation
         for mut transform in camera_query.iter_mut() {
-            transform.rotation = Quat::from_rotation_y(camera_rotation);
+            // Only update rotation in first-person view
+            // In top-down, preserve the look_at() rotation from sync system
+            if *view_mode == CameraViewMode::FirstPerson {
+                transform.rotation = Quat::from_rotation_y(camera_rotation);
+            }
         }
     } else {
         // Cursor not locked - clear mouse motion events to prevent them from accumulating
