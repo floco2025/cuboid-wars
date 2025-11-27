@@ -14,9 +14,9 @@ use client::{
         input::{camera_view_toggle_system, cursor_toggle_system, input_system, shooting_input_system},
         network::{echo_system, process_server_events_system},
         sync::{
-            sync_camera_to_player_system, sync_local_player_visibility_system,
-            sync_position_to_transform_system, sync_rotation_to_transform_system,
-            sync_projectiles_system,
+            client_movement_system, sync_camera_to_player_system,
+            sync_local_player_visibility_system, sync_position_to_transform_system,
+            sync_rotation_to_transform_system, sync_projectiles_system,
         },
         ui::{setup_world_system, update_player_list_system, update_rtt_system},
         walls::spawn_walls_system,
@@ -24,7 +24,7 @@ use client::{
 };
 #[allow(clippy::wildcard_imports)]
 use common::protocol::*;
-use common::{net::MessageStream, systems::movement_system};
+use common::net::MessageStream;
 
 // ============================================================================
 // CLI Arguments
@@ -148,8 +148,8 @@ fn main() -> Result<()> {
             process_server_events_system,
             // Spawn walls when WallConfig is received
             spawn_walls_system,
-            // Shared movement logic
-            movement_system,
+            // Client movement with wall collision
+            client_movement_system,
             // Camera follows player
             sync_camera_to_player_system,
             // Update local player visibility based on view mode

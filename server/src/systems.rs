@@ -508,3 +508,48 @@ pub fn hit_detection_system(
         }
     }
 }
+
+// ============================================================================
+// Movement System (Server with Wall Collision)
+// ============================================================================
+
+pub fn server_movement_system(
+    time: Res<Time>,
+    wall_config: Res<WallConfig>,
+    mut query: Query<(&mut Position, &Movement)>,
+) {
+    let delta = time.delta_secs();
+    
+    for (mut pos, mov) in query.iter_mut() {
+        // Calculate movement speed based on velocity
+        let speed_m_per_sec = match mov.vel {
+            Velocity::Idle => 0.0,
+            Velocity::Walk => WALK_SPEED,
+            Velocity::Run => RUN_SPEED,
+        };
+
+        if speed_m_per_sec > 0.0 {
+            // Calculate velocity from direction
+            let vel_x = mov.move_dir.sin() * speed_m_per_sec;
+            let vel_z = mov.move_dir.cos() * speed_m_per_sec;
+
+            // Calculate new position
+            let new_pos = Position {
+                x: pos.x + vel_x * delta,
+                y: pos.y,
+                z: pos.z + vel_z * delta,
+            };
+
+            // Check if new position collides with any wall
+            let collides_with_wall = wall_config.walls.iter().any(|wall| {
+                common::collision::check_player_wall_collision(&new_pos, wall)
+            });
+
+            // Only update position if no collision
+            if !collides_with_wall {
+                *pos = new_pos;
+            }
+            // If collision detected, player stays at current position (stopped by wall)
+        }
+    }
+}

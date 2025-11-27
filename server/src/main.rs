@@ -6,12 +6,12 @@ use quinn::Endpoint;
 use std::net::SocketAddr;
 use tokio::sync::mpsc::unbounded_channel;
 
-use common::systems::{movement_system, projectiles_system};
+use common::systems::projectiles_system;
 use server::{
     config::configure_server,
     net::accept_connections_task,
     resources::{FromAcceptChannel, FromClientsChannel, PlayerMap, WallConfig},
-    systems::{accept_connections_system, broadcast_state_system, hit_detection_system, process_client_message_system},
+    systems::{accept_connections_system, broadcast_state_system, hit_detection_system, process_client_message_system, server_movement_system},
 };
 
 mod walls;
@@ -76,8 +76,8 @@ async fn main() -> Result<()> {
                 ApplyDeferred,
                 // Process messages from clients
                 process_client_message_system,
-                // Shared movement logic
-                movement_system,
+                // Server movement with wall collision
+                server_movement_system,
                 // Update projectiles (lifetime and despawn)
                 projectiles_system,
                 // Check for projectile hits

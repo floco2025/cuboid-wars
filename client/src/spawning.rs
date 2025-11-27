@@ -5,7 +5,7 @@ use common::{
     constants::*,
     protocol::{Movement, PlayerId, Position, Wall, WallOrientation},
 };
-use crate::systems::sync::LocalPlayer;
+use crate::systems::sync::{CollisionState, LocalPlayer};
 
 // ============================================================================
 // Entity Spawning
@@ -55,7 +55,7 @@ pub fn spawn_player(
     
     // Add LocalPlayer marker if this is the local player
     if is_local {
-        entity_cmd.insert(LocalPlayer);
+        entity_cmd.insert((LocalPlayer, CollisionState::default()));
     }
 
     let entity_id = entity_cmd.id();

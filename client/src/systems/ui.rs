@@ -24,6 +24,10 @@ pub struct CrosshairUI;
 #[derive(Component)]
 pub struct RttUI;
 
+// Marker component for the bump flash overlay
+#[derive(Component)]
+pub struct BumpFlashUI;
+
 // ============================================================================
 // UI Setup System
 // ============================================================================
@@ -162,6 +166,21 @@ pub fn setup_world_system(
             ..default()
         },
         RttUI,
+    ));
+
+    // Create bump flash overlay (invisible by default, shown on wall collision)
+    commands.spawn((
+        Node {
+            position_type: PositionType::Absolute,
+            left: Val::Px(0.0),
+            top: Val::Px(0.0),
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            ..default()
+        },
+        BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.0)), // Transparent by default (white)
+        BumpFlashUI,
+        Visibility::Hidden, // Start hidden
     ));
 }
 
@@ -327,3 +346,4 @@ pub fn update_player_list_system(
         }
     }
 }
+

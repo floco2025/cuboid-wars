@@ -214,3 +214,53 @@ pub fn check_projectile_wall_hit(
         },
     }
 }
+
+// Check if a player position intersects with a wall
+pub fn check_player_wall_collision(player_pos: &Position, wall: &Wall) -> bool {
+    // Player dimensions
+    let player_half_width = PLAYER_WIDTH / 2.0;
+    let player_half_depth = PLAYER_DEPTH / 2.0;
+    
+    match wall.orientation {
+        WallOrientation::Horizontal => {
+            // Wall extends along X axis at (wall.x, wall.z)
+            let wall_half_length = WALL_LENGTH / 2.0;
+            let wall_half_thickness = WALL_WIDTH / 2.0;
+            
+            // Check if player AABB overlaps with wall AABB
+            let player_min_x = player_pos.x - player_half_width;
+            let player_max_x = player_pos.x + player_half_width;
+            let player_min_z = player_pos.z - player_half_depth;
+            let player_max_z = player_pos.z + player_half_depth;
+            
+            let wall_min_x = wall.x - wall_half_length;
+            let wall_max_x = wall.x + wall_half_length;
+            let wall_min_z = wall.z - wall_half_thickness;
+            let wall_max_z = wall.z + wall_half_thickness;
+            
+            // AABB overlap test
+            player_max_x > wall_min_x && player_min_x < wall_max_x &&
+            player_max_z > wall_min_z && player_min_z < wall_max_z
+        },
+        WallOrientation::Vertical => {
+            // Wall extends along Z axis at (wall.x, wall.z)
+            let wall_half_length = WALL_LENGTH / 2.0;
+            let wall_half_thickness = WALL_WIDTH / 2.0;
+            
+            // Check if player AABB overlaps with wall AABB
+            let player_min_x = player_pos.x - player_half_width;
+            let player_max_x = player_pos.x + player_half_width;
+            let player_min_z = player_pos.z - player_half_depth;
+            let player_max_z = player_pos.z + player_half_depth;
+            
+            let wall_min_x = wall.x - wall_half_thickness;
+            let wall_max_x = wall.x + wall_half_thickness;
+            let wall_min_z = wall.z - wall_half_length;
+            let wall_max_z = wall.z + wall_half_length;
+            
+            // AABB overlap test
+            player_max_x > wall_min_x && player_min_x < wall_max_x &&
+            player_max_z > wall_min_z && player_min_z < wall_max_z
+        },
+    }
+}

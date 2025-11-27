@@ -27,6 +27,13 @@ const TOPDOWN_LOOKAT_Z: f32 = 11.0;           // Z coordinate camera looks at
 #[derive(Component)]
 pub struct LocalPlayer;
 
+// Track last collision state to detect new bumps
+#[derive(Component, Default)]
+pub struct CollisionState {
+    pub was_colliding: bool,
+    pub flash_timer: f32,
+}
+
 // ============================================================================
 // Sync Systems
 // ============================================================================
@@ -133,6 +140,85 @@ pub fn sync_local_player_visibility_system(
         if *visibility != desired_visibility {
             debug!("Updating local player {:?} visibility from {:?} to {:?}", entity, *visibility, desired_visibility);
             *visibility = desired_visibility;
+        }
+    }
+}
+
+// ============================================================================
+// Client Movement System (with Wall Collision)
+// ============================================================================
+
+// Client-side movement system with wall collision detection for smooth prediction
+pub fn client_movement_system(
+    time: Res<Time>,
+    wall_config: Option<Res<crate::resources::WallConfig>>,
+    mut query: Query<(&mut Position, &Movement, &mut CollisionState, Has<LocalPlayer>)>,
+    mut bump_flash_ui: Query<(&mut BackgroundColor, &mut Visibility), With<super::ui::BumpFlashUI>>,
+) {
+    use common::constants::{WALK_SPEED, RUN_SPEED};
+    use common::protocol::Velocity;
+    
+    let delta = time.delta_secs();
+    
+    for (mut pos, mov, mut collision_state, is_local_player) in query.iter_mut() {
+        // Tick down flash timer
+        if collision_state.flash_timer > 0.0 {
+            collision_state.flash_timer -= delta;
+            if collision_state.flash_timer <= 0.0 && is_local_player {
+                // Flash finished, hide it
+                if let Some((mut bg_color, mut visibility)) = bump_flash_ui.iter_mut().next() {
+                    *visibility = Visibility::Hidden;
+                    bg_color.0 = Color::srgba(1.0, 1.0, 1.0, 0.0);
+                }
+            }
+        }
+        
+        // Calculate movement speed based on velocity
+        let speed_m_per_sec = match mov.vel {
+            Velocity::Idle => 0.0,
+            Velocity::Walk => WALK_SPEED,
+            Velocity::Run => RUN_SPEED,
+        };
+
+        if speed_m_per_sec > 0.0 {
+            // Calculate velocity from direction
+            let vel_x = mov.move_dir.sin() * speed_m_per_sec;
+            let vel_z = mov.move_dir.cos() * speed_m_per_sec;
+
+            // Calculate new position
+            let new_pos = Position {
+                x: pos.x + vel_x * delta,
+                y: pos.y,
+                z: pos.z + vel_z * delta,
+            };
+
+            // Check if new position collides with any wall (if walls are loaded)
+            let collides_with_wall = if let Some(wall_config) = wall_config.as_ref() {
+                wall_config.walls.iter().any(|wall| {
+                    common::collision::check_player_wall_collision(&new_pos, wall)
+                })
+            } else {
+                false // No walls loaded yet, allow movement
+            };
+
+            // Only update position if no collision
+            if !collides_with_wall {
+                *pos = new_pos;
+                collision_state.was_colliding = false;
+            } else if is_local_player {
+                // Collision detected - trigger flash on NEW collision
+                if !collision_state.was_colliding {
+                    if let Some((mut bg_color, mut visibility)) = bump_flash_ui.iter_mut().next() {
+                        *visibility = Visibility::Visible;
+                        bg_color.0 = Color::srgba(1.0, 1.0, 1.0, 0.2);
+                        collision_state.flash_timer = 0.08; // Flash duration
+                    }
+                }
+                collision_state.was_colliding = true;
+            }
+        } else {
+            // Not moving, reset collision state
+            collision_state.was_colliding = false;
         }
     }
 }
