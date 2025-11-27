@@ -1,9 +1,6 @@
 use bevy::prelude::{debug, error, trace};
 use quinn::{Connection, ConnectionError};
-use tokio::{
-    sync::mpsc::{UnboundedReceiver, UnboundedSender, error::TryRecvError},
-    time::{Duration, sleep},
-};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use common::net::MessageStream;
 #[allow(clippy::wildcard_imports)]
@@ -31,11 +28,10 @@ pub async fn network_io_task(
     connection: Connection,
     to_client: UnboundedSender<ServerToClient>,
     mut from_client: UnboundedReceiver<ClientToServer>,
-    lag_ms: u64,
 ) {
     let stream = MessageStream::new(&connection);
 
-    'outer: loop {
+    loop {
         tokio::select! {
             // Receive from server
             result = stream.recv::<ServerMessage>() => {
@@ -72,43 +68,22 @@ pub async fn network_io_task(
 
             // Send to server
             cmd = from_client.recv() => {
-                // Send first message and all queued messages
-                let mut cmd = cmd;
-                loop {
-                    match cmd {
-                        Some(ClientToServer::Send(msg)) => {
-                            trace!("sending to server: {:?}", msg);
-                            if let Err(e) = stream.send(&msg).await {
-                                error!("error sending to server: {e}");
-                                break 'outer;
-                            }
-                        }
-                        Some(ClientToServer::Close) => {
-                            connection.close(0u32.into(), b"client closing");
-                            break 'outer;
-                        }
-                        None => {
-                            debug!("client channel closed");
-                            break 'outer;
+                match cmd {
+                    Some(ClientToServer::Send(msg)) => {
+                        trace!("sending to server: {:?}", msg);
+                        if let Err(e) = stream.send(&msg).await {
+                            error!("error sending to server: {e}");
+                            break;
                         }
                     }
-
-                    // Try to get more messages
-                    match from_client.try_recv() {
-                        Ok(new_cmd) => cmd = Some(new_cmd),
-                        Err(TryRecvError::Empty) => {
-                            break; // No more messages
-                        }
-                        Err(TryRecvError::Disconnected) => {
-                            debug!("client channel closed");
-                            break 'outer;
-                        }
+                    Some(ClientToServer::Close) => {
+                        connection.close(0u32.into(), b"client closing");
+                        break;
                     }
-                }
-
-                // Apply lag after sending batch
-                if lag_ms > 0 {
-                    sleep(Duration::from_millis(lag_ms)).await;
+                    None => {
+                        debug!("client channel closed");
+                        break;
+                    }
                 }
             }
         }
