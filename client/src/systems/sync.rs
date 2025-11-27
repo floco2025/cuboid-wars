@@ -1,9 +1,9 @@
-use bevy::prelude::*;
-use common::systems::Projectile;
-use common::constants::PLAYER_HEIGHT;
-use common::protocol::{Movement, Position};
 use super::effects::{CameraShake, CuboidShake};
 use crate::resources::CameraViewMode;
+use bevy::prelude::*;
+use common::constants::PLAYER_HEIGHT;
+use common::protocol::{Movement, Position};
+use common::systems::Projectile;
 
 // ============================================================================
 // Camera Settings
@@ -13,11 +13,11 @@ use crate::resources::CameraViewMode;
 pub const FPV_CAMERA_HEIGHT_RATIO: f32 = 0.9; // Camera height as ratio of player height (0.9 = 90% = eye level)
 
 // Top-down view camera settings
-const TOPDOWN_CAMERA_HEIGHT: f32 = 65.0;     // Height above ground (meters)
-const TOPDOWN_CAMERA_Z_OFFSET: f32 = 65.0;   // How far along Z axis from center (positive = south side)
-const TOPDOWN_LOOKAT_X: f32 = 0.0;           // X coordinate camera looks at
-const TOPDOWN_LOOKAT_Y: f32 = 0.0;           // Y coordinate camera looks at
-const TOPDOWN_LOOKAT_Z: f32 = 11.0;           // Z coordinate camera looks at
+const TOPDOWN_CAMERA_HEIGHT: f32 = 65.0; // Height above ground (meters)
+const TOPDOWN_CAMERA_Z_OFFSET: f32 = 65.0; // How far along Z axis from center (positive = south side)
+const TOPDOWN_LOOKAT_X: f32 = 0.0; // X coordinate camera looks at
+const TOPDOWN_LOOKAT_Y: f32 = 0.0; // Y coordinate camera looks at
+const TOPDOWN_LOOKAT_Z: f32 = 11.0; // Z coordinate camera looks at
 
 // ============================================================================
 // Components
@@ -27,9 +27,9 @@ const TOPDOWN_LOOKAT_Z: f32 = 11.0;           // Z coordinate camera looks at
 #[derive(Component)]
 pub struct LocalPlayer;
 
-// Track last collision state to detect new bumps
+// Track bump flash effect state for local player
 #[derive(Component, Default)]
-pub struct CollisionState {
+pub struct BumpFlashState {
     pub was_colliding: bool,
     pub flash_timer: f32,
 }
@@ -52,29 +52,26 @@ pub fn sync_camera_to_player_system(
                     camera_transform.translation.x = pos.x;
                     camera_transform.translation.z = pos.z;
                     camera_transform.translation.y = PLAYER_HEIGHT * FPV_CAMERA_HEIGHT_RATIO;
-                    
+
                     // Apply shake offset if active
                     if let Some(shake) = maybe_shake {
                         camera_transform.translation.x += shake.offset_x;
                         camera_transform.translation.y += shake.offset_y;
                         camera_transform.translation.z += shake.offset_z;
                     }
-                },
+                }
                 CameraViewMode::TopDown => {
                     // When view mode just changed, position camera to the side of the field
                     if view_mode.is_changed() {
                         camera_transform.translation = Vec3::new(
-                            0.0,  // Center on X axis (side view)
+                            0.0, // Center on X axis (side view)
                             TOPDOWN_CAMERA_HEIGHT,
-                            TOPDOWN_CAMERA_Z_OFFSET  // Distance from center along Z
+                            TOPDOWN_CAMERA_Z_OFFSET, // Distance from center along Z
                         );
                     }
                     // Always look at the center of the field (0, 0)
-                    camera_transform.look_at(
-                        Vec3::new(TOPDOWN_LOOKAT_X, TOPDOWN_LOOKAT_Y, TOPDOWN_LOOKAT_Z),
-                        Vec3::Y
-                    );
-                },
+                    camera_transform.look_at(Vec3::new(TOPDOWN_LOOKAT_X, TOPDOWN_LOOKAT_Y, TOPDOWN_LOOKAT_Z), Vec3::Y);
+                }
             }
         }
     }
@@ -88,7 +85,7 @@ pub fn sync_position_to_transform_system(mut query: Query<(&Position, &mut Trans
         transform.translation.x = pos.x;
         transform.translation.y = PLAYER_HEIGHT / 2.0; // Lift so bottom is at ground (y=0)
         transform.translation.z = pos.z;
-        
+
         // Apply shake offset if active
         if let Some(shake) = maybe_shake {
             transform.translation.x += shake.offset_x;
@@ -128,17 +125,22 @@ pub fn sync_local_player_visibility_system(
     // Always check and update, not just when changed, to ensure it's correct
     for (entity, mut visibility, has_mesh) in local_player_query.iter_mut() {
         if view_mode.is_changed() {
-            debug!("Local player {:?} has_mesh={} current_visibility={:?} view_mode={:?}", 
-                   entity, has_mesh, *visibility, *view_mode);
+            debug!(
+                "Local player {:?} has_mesh={} current_visibility={:?} view_mode={:?}",
+                entity, has_mesh, *visibility, *view_mode
+            );
         }
-        
+
         let desired_visibility = match *view_mode {
             CameraViewMode::FirstPerson => Visibility::Hidden,
             CameraViewMode::TopDown => Visibility::Visible,
         };
-        
+
         if *visibility != desired_visibility {
-            debug!("Updating local player {:?} visibility from {:?} to {:?}", entity, *visibility, desired_visibility);
+            debug!(
+                "Updating local player {:?} visibility from {:?} to {:?}",
+                entity, *visibility, desired_visibility
+            );
             *visibility = desired_visibility;
         }
     }
@@ -152,27 +154,29 @@ pub fn sync_local_player_visibility_system(
 pub fn client_movement_system(
     time: Res<Time>,
     wall_config: Option<Res<crate::resources::WallConfig>>,
-    mut query: Query<(&mut Position, &Movement, &mut CollisionState, Has<LocalPlayer>)>,
+    mut query: Query<(&mut Position, &Movement, Option<&mut BumpFlashState>, Has<LocalPlayer>)>,
     mut bump_flash_ui: Query<(&mut BackgroundColor, &mut Visibility), With<super::ui::BumpFlashUI>>,
 ) {
-    use common::constants::{WALK_SPEED, RUN_SPEED};
+    use common::constants::{RUN_SPEED, WALK_SPEED};
     use common::protocol::Velocity;
-    
+
     let delta = time.delta_secs();
-    
-    for (mut pos, mov, mut collision_state, is_local_player) in query.iter_mut() {
-        // Tick down flash timer
-        if collision_state.flash_timer > 0.0 {
-            collision_state.flash_timer -= delta;
-            if collision_state.flash_timer <= 0.0 && is_local_player {
-                // Flash finished, hide it
-                if let Some((mut bg_color, mut visibility)) = bump_flash_ui.iter_mut().next() {
-                    *visibility = Visibility::Hidden;
-                    bg_color.0 = Color::srgba(1.0, 1.0, 1.0, 0.0);
+
+    for (mut pos, mov, mut flash_state, is_local_player) in query.iter_mut() {
+        // Tick down flash timer (only for local player)
+        if let Some(ref mut state) = flash_state {
+            if state.flash_timer > 0.0 {
+                state.flash_timer -= delta;
+                if state.flash_timer <= 0.0 && is_local_player {
+                    // Flash finished, hide it
+                    if let Some((mut bg_color, mut visibility)) = bump_flash_ui.iter_mut().next() {
+                        *visibility = Visibility::Hidden;
+                        bg_color.0 = Color::srgba(1.0, 1.0, 1.0, 0.0);
+                    }
                 }
             }
         }
-        
+
         // Calculate movement speed based on velocity
         let speed_m_per_sec = match mov.vel {
             Velocity::Idle => 0.0,
@@ -194,9 +198,10 @@ pub fn client_movement_system(
 
             // Check if new position collides with any wall (if walls are loaded)
             let collides_with_wall = if let Some(wall_config) = wall_config.as_ref() {
-                wall_config.walls.iter().any(|wall| {
-                    common::collision::check_player_wall_collision(&new_pos, wall)
-                })
+                wall_config
+                    .walls
+                    .iter()
+                    .any(|wall| common::collision::check_player_wall_collision(&new_pos, wall))
             } else {
                 false // No walls loaded yet, allow movement
             };
@@ -204,21 +209,26 @@ pub fn client_movement_system(
             // Only update position if no collision
             if !collides_with_wall {
                 *pos = new_pos;
-                collision_state.was_colliding = false;
-            } else if is_local_player {
-                // Collision detected - trigger flash on NEW collision
-                if !collision_state.was_colliding {
-                    if let Some((mut bg_color, mut visibility)) = bump_flash_ui.iter_mut().next() {
-                        *visibility = Visibility::Visible;
-                        bg_color.0 = Color::srgba(1.0, 1.0, 1.0, 0.2);
-                        collision_state.flash_timer = 0.08; // Flash duration
-                    }
+
+                if let Some(ref mut state) = flash_state {
+                    state.was_colliding = false;
                 }
-                collision_state.was_colliding = true;
+            } else if is_local_player {
+                // Collision detected for local player - trigger flash on NEW collision
+                if let Some(ref mut state) = flash_state {
+                    if !state.was_colliding {
+                        if let Some((mut bg_color, mut visibility)) = bump_flash_ui.iter_mut().next() {
+                            *visibility = Visibility::Visible;
+                            bg_color.0 = Color::srgba(1.0, 1.0, 1.0, 0.2);
+                            state.flash_timer = 0.08; // Flash duration
+                        }
+                    }
+                    state.was_colliding = true;
+                }
             }
-        } else {
-            // Not moving, reset collision state
-            collision_state.was_colliding = false;
+        } else if let Some(ref mut state) = flash_state {
+            // Not moving, reset flash state
+            state.was_colliding = false;
         }
     }
 }
