@@ -20,7 +20,7 @@ pub const PLAYER_DEPTH: f32 = 0.3; // front to back
 
 // Player movement speeds (meters per second)
 pub const WALK_SPEED: f32 = 5.0;
-pub const RUN_SPEED: f32 = 8.0;
+pub const RUN_SPEED: f32 = 10.0;
 
 // Projectile constants
 pub const PROJECTILE_SPEED: f32 = 20.0; // meters per second (dodgeball throw speed)
@@ -38,7 +38,7 @@ pub const PLAYER_NOSE_HEIGHT: f32 = 0.5; // relative to ground
 
 // Grid walls (meters)
 
-pub const NUM_WALL_SEGMENTS: usize = 100; // Total number of wall segments to place
+pub const NUM_WALL_SEGMENTS: usize = 50; // Total number of wall segments to place
 pub const WALL_LENGTH: f32 = 8.2; // Slightly longer than grid to avoid corner gaps
 pub const WALL_WIDTH: f32 = 0.2; // Wall thickness
 pub const WALL_HEIGHT: f32 = 4.0; // Wall height

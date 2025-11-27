@@ -63,6 +63,7 @@ fn all_cells_reachable(placed_edges: &HashSet<GridEdge>, grid_cols: i32, grid_ro
 /// Generate wall segments for the playing field.
 /// Walls are placed along grid lines in a maze-like pattern.
 /// Ensures all grid cells remain reachable from each other.
+/// Always places walls around the perimeter of the field.
 pub fn generate_walls() -> Vec<Wall> {
     let mut rng = rand::rng();
     let mut walls = Vec::new();
@@ -72,19 +73,72 @@ pub fn generate_walls() -> Vec<Wall> {
     let grid_cols = (FIELD_WIDTH / GRID_SIZE) as i32;
     let grid_rows = (FIELD_DEPTH / GRID_SIZE) as i32;
     
-    // Generate all possible edge positions
+    // First, place all perimeter walls
+    // Top edge (z = 0)
+    for x in 0..grid_cols {
+        let edge = GridEdge { x, z: 0, horizontal: true };
+        placed_edges.insert(edge);
+        let world_x = (x as f32 + 0.5) * GRID_SIZE - FIELD_WIDTH / 2.0;
+        let world_z = 0.0 * GRID_SIZE - FIELD_DEPTH / 2.0;
+        walls.push(Wall {
+            x: world_x,
+            z: world_z,
+            orientation: WallOrientation::Horizontal,
+        });
+    }
+    
+    // Bottom edge (z = grid_rows)
+    for x in 0..grid_cols {
+        let edge = GridEdge { x, z: grid_rows, horizontal: true };
+        placed_edges.insert(edge);
+        let world_x = (x as f32 + 0.5) * GRID_SIZE - FIELD_WIDTH / 2.0;
+        let world_z = grid_rows as f32 * GRID_SIZE - FIELD_DEPTH / 2.0;
+        walls.push(Wall {
+            x: world_x,
+            z: world_z,
+            orientation: WallOrientation::Horizontal,
+        });
+    }
+    
+    // Left edge (x = 0)
+    for z in 0..grid_rows {
+        let edge = GridEdge { x: 0, z, horizontal: false };
+        placed_edges.insert(edge);
+        let world_x = 0.0 * GRID_SIZE - FIELD_WIDTH / 2.0;
+        let world_z = (z as f32 + 0.5) * GRID_SIZE - FIELD_DEPTH / 2.0;
+        walls.push(Wall {
+            x: world_x,
+            z: world_z,
+            orientation: WallOrientation::Vertical,
+        });
+    }
+    
+    // Right edge (x = grid_cols)
+    for z in 0..grid_rows {
+        let edge = GridEdge { x: grid_cols, z, horizontal: false };
+        placed_edges.insert(edge);
+        let world_x = grid_cols as f32 * GRID_SIZE - FIELD_WIDTH / 2.0;
+        let world_z = (z as f32 + 0.5) * GRID_SIZE - FIELD_DEPTH / 2.0;
+        walls.push(Wall {
+            x: world_x,
+            z: world_z,
+            orientation: WallOrientation::Vertical,
+        });
+    }
+    
+    // Generate all possible interior edge positions
     let mut all_edges = Vec::new();
     
-    // Horizontal edges (along X axis)
-    for z in 0..=grid_rows {
+    // Interior horizontal edges (along X axis)
+    for z in 1..grid_rows {
         for x in 0..grid_cols {
             all_edges.push(GridEdge { x, z, horizontal: true });
         }
     }
     
-    // Vertical edges (along Z axis)
+    // Interior vertical edges (along Z axis)
     for z in 0..grid_rows {
-        for x in 0..=grid_cols {
+        for x in 1..grid_cols {
             all_edges.push(GridEdge { x, z, horizontal: false });
         }
     }
@@ -95,9 +149,11 @@ pub fn generate_walls() -> Vec<Wall> {
         all_edges.swap(i, j);
     }
     
-    // Try to place walls at each edge position
+    // Try to place walls at each interior edge position
     for edge in all_edges {
-        if walls.len() >= NUM_WALL_SEGMENTS {
+        // Only count interior walls toward NUM_WALL_SEGMENTS
+        let interior_walls_count = walls.len() - (2 * grid_cols as usize + 2 * grid_rows as usize);
+        if interior_walls_count >= NUM_WALL_SEGMENTS {
             break;
         }
         
