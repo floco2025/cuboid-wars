@@ -58,19 +58,20 @@ pub fn setup_world_system(
         Transform::from_xyz(CAMERA_X, CAMERA_Y, CAMERA_Z).looking_at(Vec3::ZERO, Vec3::Y),
     ));
 
-    // Add a directional light
+    // Add soft directional light from above for shadows and definition
     commands.spawn((
         DirectionalLight {
-            illuminance: 10000.0,
+            illuminance: 8000.0,
+            shadows_enabled: true,
             ..default()
         },
-        Transform::from_xyz(4.0, 8.0, 4.0).looking_at(Vec3::ZERO, Vec3::Y),
+        Transform::from_xyz(5.0, 15.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
     ));
 
-    // Add ambient light so everything is visible
+    // Add ambient light for diffuse fill lighting
     commands.insert_resource(AmbientLight {
         color: Color::WHITE,
-        brightness: 0.5,
+        brightness: 500.0,
         affects_lightmapped_meshes: false,
     });
 

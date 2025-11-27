@@ -18,6 +18,7 @@ use client::{
             sync_rotation_to_transform_system, sync_projectiles_system,
         },
         ui::{setup_world_system, update_player_list_system, update_rtt_system},
+        walls::spawn_walls_system,
     },
 };
 #[allow(clippy::wildcard_imports)]
@@ -141,6 +142,8 @@ fn main() -> Result<()> {
             client_hit_detection_system,
             // Process server messages
             process_server_events_system,
+            // Spawn walls when WallConfig is received
+            spawn_walls_system,
             // Shared movement logic
             movement_system,
             // Camera follows player

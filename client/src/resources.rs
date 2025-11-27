@@ -7,11 +7,17 @@ use tokio::sync::mpsc::{
 };
 
 use crate::net::{ClientToServer, ServerToClient};
-use common::protocol::PlayerId;
+use common::protocol::{PlayerId, Wall};
 
 // ============================================================================
 // Bevy Resources
 // ============================================================================
+
+// Wall configuration received from server
+#[derive(Resource)]
+pub struct WallConfig {
+    pub walls: Vec<Wall>,
+}
 
 // My player ID assigned by the server
 #[derive(Resource)]

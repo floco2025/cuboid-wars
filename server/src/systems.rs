@@ -5,7 +5,7 @@ use rand::Rng as _;
 
 use crate::{
     net::{ClientToServer, ServerToClient},
-    resources::{FromAcceptChannel, FromClientsChannel, PlayerInfo, PlayerMap},
+    resources::{FromAcceptChannel, FromClientsChannel, PlayerInfo, PlayerMap, WallConfig},
 };
 use common::constants::*;
 use common::protocol::*;
@@ -44,6 +44,7 @@ pub fn process_client_message_system(
     mut commands: Commands,
     mut from_clients: ResMut<FromClientsChannel>,
     mut players: ResMut<PlayerMap>,
+    wall_config: Res<WallConfig>,
     positions: Query<&Position>,
     movements: Query<&Movement>,
 ) {
@@ -85,6 +86,7 @@ pub fn process_client_message_system(
                         &positions,
                         &movements,
                         &mut players,
+                        &wall_config,
                     );
                 }
             }
@@ -104,6 +106,7 @@ fn process_message_not_logged_in(
     positions: &Query<&Position>,
     movements: &Query<&Movement>,
     players: &mut ResMut<PlayerMap>,
+    wall_config: &Res<WallConfig>,
 ) {
     match msg {
         ClientMessage::Login(_) => {
@@ -114,8 +117,11 @@ fn process_message_not_logged_in(
                 .get_mut(&id)
                 .expect("process_message_not_logged_in called for unknown player");
 
-            // Send Init to the connecting player (just their ID)
-            let init_msg = ServerMessage::Init(SInit { id });
+            // Send Init to the connecting player (their ID and walls)
+            let init_msg = ServerMessage::Init(SInit { 
+                id,
+                walls: wall_config.walls.clone(),
+            });
             if let Err(e) = player_info.channel.send(ServerToClient::Send(init_msg)) {
                 warn!("failed to send init to {:?}: {}", id, e);
                 return;

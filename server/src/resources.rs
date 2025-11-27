@@ -10,6 +10,12 @@ use common::protocol::*;
 // Bevy Resources
 // ============================================================================
 
+// Wall configuration - generated once at server startup
+#[derive(Resource)]
+pub struct WallConfig {
+    pub walls: Vec<Wall>,
+}
+
 // Player information (server-side)
 pub struct PlayerInfo {
     pub entity: Entity,

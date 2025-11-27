@@ -1,5 +1,5 @@
 #[allow(clippy::wildcard_imports)]
-use bevy::prelude::*;
+use bevy::log::*;
 use quinn::{Connection, ConnectionError, Endpoint};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 

@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use common::{
     systems::Projectile,
     constants::*,
-    protocol::{Movement, PlayerId, Position},
+    protocol::{Movement, PlayerId, Position, Wall, WallOrientation},
 };
 use crate::systems::sync::LocalPlayer;
 
@@ -144,4 +144,30 @@ pub fn spawn_projectile_for_player(
     if let Ok((pos, mov)) = player_pos_mov_query.get(entity) {
         spawn_projectile_local(commands, meshes, materials, pos, mov);
     }
+}
+
+// Spawn a wall segment
+pub fn spawn_wall(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    wall: &Wall,
+) {
+    let wall_color = Color::srgb(0.0, 0.7, 0.0); // Green
+
+    let (size_x, size_z) = match wall.orientation {
+        WallOrientation::Horizontal => (WALL_LENGTH, WALL_WIDTH),
+        WallOrientation::Vertical => (WALL_WIDTH, WALL_LENGTH),
+    };
+
+    commands.spawn((
+        Mesh3d(meshes.add(Cuboid::new(size_x, WALL_HEIGHT, size_z))),
+        MeshMaterial3d(materials.add(wall_color)),
+        Transform::from_xyz(
+            wall.x,
+            WALL_HEIGHT / 2.0, // Lift so bottom is at y=0
+            wall.z,
+        ),
+        Visibility::default(),
+    ));
 }

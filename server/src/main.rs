@@ -10,9 +10,11 @@ use common::systems::{movement_system, projectiles_system};
 use server::{
     config::configure_server,
     net::accept_connections_task,
-    resources::{FromAcceptChannel, FromClientsChannel, PlayerMap},
+    resources::{FromAcceptChannel, FromClientsChannel, PlayerMap, WallConfig},
     systems::{accept_connections_system, broadcast_state_system, hit_detection_system, process_client_message_system},
 };
+
+mod walls;
 
 // ============================================================================
 // CLI Argument Parsing
@@ -47,6 +49,12 @@ async fn main() -> Result<()> {
     // Spawn task to accept connections
     tokio::spawn(accept_connections_task(endpoint, to_server_from_accept, to_server));
 
+    // Generate walls
+    let wall_config = WallConfig {
+        walls: walls::generate_walls(),
+    };
+    info!("generated {} wall segments", wall_config.walls.len());
+
     // Create Bevy app with ECS - run in non-blocking mode
     let mut app = App::new();
     app.add_plugins(MinimalPlugins)
@@ -58,6 +66,7 @@ async fn main() -> Result<()> {
         .insert_resource(PlayerMap::default())
         .insert_resource(FromAcceptChannel::new(from_accept))
         .insert_resource(FromClientsChannel::new(from_clients))
+        .insert_resource(wall_config)
         .add_systems(
             Update,
             (

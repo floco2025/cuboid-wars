@@ -70,6 +70,25 @@ struct Player {
 }
 }
 
+// Wall orientation - horizontal (along X axis) or vertical (along Z axis)
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bincode", derive(Encode, Decode))]
+pub enum WallOrientation {
+    Horizontal, // Along X axis
+    Vertical,   // Along Z axis
+}
+
+// Wall - a wall segment on the grid
+message! {
+#[derive(Copy)]
+struct Wall {
+    pub x: f32,                     // Center X position
+    pub z: f32,                     // Center Z position
+    pub orientation: WallOrientation,
+}
+}
+
 // ============================================================================
 // Client Messages
 // ============================================================================
@@ -113,6 +132,7 @@ message! {
 // Server to Client: Initial connection acknowledgment with assigned player ID.
 struct SInit {
     pub id: PlayerId,
+    pub walls: Vec<Wall>,
 }
 }
 

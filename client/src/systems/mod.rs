@@ -5,3 +5,4 @@ pub mod input;
 pub mod network;
 pub mod sync;
 pub mod ui;
+pub mod walls;

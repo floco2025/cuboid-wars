@@ -5,7 +5,7 @@ use super::effects::{CameraShake, CuboidShake};
 use crate::spawning::{spawn_player, spawn_projectile_for_player};
 use crate::{
     net::{ClientToServer, ServerToClient},
-    resources::{ClientToServerChannel, MyPlayerId, PlayerInfo, PlayerMap, RoundTripTime, ServerToClientChannel},
+    resources::{ClientToServerChannel, MyPlayerId, PlayerInfo, PlayerMap, RoundTripTime, ServerToClientChannel, WallConfig},
 };
 use common::protocol::{CEcho, ClientMessage, Movement, PlayerId, Position, ServerMessage};
 
@@ -70,6 +70,11 @@ fn process_message_not_logged_in(
             // Store in Local (immediate) and insert resource (deferred)
             **my_player_id = Some(init_msg.id);
             commands.insert_resource(MyPlayerId(init_msg.id));
+            
+            // Store walls configuration
+            commands.insert_resource(WallConfig {
+                walls: init_msg.walls.clone(),
+            });
 
             // Note: We don't spawn anything here. The first SUpdate will contain
             // all players including ourselves and will trigger spawning via the
