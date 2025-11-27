@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use common::protocol::{Movement, Position};
 use common::systems::Projectile;
+use crate::resources::WallConfig;
 
 // ============================================================================
 // Client-Side Collision Detection
@@ -13,6 +14,7 @@ pub fn client_hit_detection_system(
     time: Res<Time>,
     projectile_query: Query<(Entity, &Transform, &Projectile)>,
     player_query: Query<(&Position, &Movement), Without<Projectile>>,
+    wall_config: Option<Res<WallConfig>>,
 ) {
     let delta = time.delta_secs();
 
@@ -24,6 +26,18 @@ pub fn client_hit_detection_system(
             z: proj_transform.translation.z,
         };
 
+        // Check wall collisions first
+        if let Some(wall_config) = wall_config.as_ref() {
+            for wall in &wall_config.walls {
+                if common::collision::check_projectile_wall_hit(&proj_pos, projectile, delta, wall) {
+                    commands.entity(proj_entity).despawn();
+                    // Don't check further - projectile is already despawned
+                    continue;
+                }
+            }
+        }
+
+        // Check player collisions
         for (player_pos, player_mov) in player_query.iter() {
             // Use common hit detection logic
             let result = common::collision::check_projectile_hit(&proj_pos, projectile, delta, player_pos, player_mov);

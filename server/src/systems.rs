@@ -372,11 +372,29 @@ pub fn hit_detection_system(
     time: Res<Time>,
     projectile_query: Query<(Entity, &Position, &common::systems::Projectile, &PlayerId)>,
     player_query: Query<(&Position, &Movement, &PlayerId), Without<common::systems::Projectile>>,
+    wall_config: Res<WallConfig>,
     mut players: ResMut<PlayerMap>,
 ) {
     let delta = time.delta_secs();
 
     for (proj_entity, proj_pos, projectile, shooter_id) in projectile_query.iter() {
+        let mut hit_something = false;
+
+        // Check wall collisions first
+        for wall in &wall_config.walls {
+            if common::collision::check_projectile_wall_hit(proj_pos, projectile, delta, wall) {
+                // Despawn the projectile when it hits a wall
+                commands.entity(proj_entity).despawn();
+                hit_something = true;
+                break;
+            }
+        }
+
+        if hit_something {
+            continue; // Move to next projectile
+        }
+
+        // Check player collisions
         for (player_pos, player_mov, target_id) in player_query.iter() {
             // Don't hit yourself
             if shooter_id == target_id {

@@ -1,4 +1,4 @@
-use crate::{constants::*, protocol::{Movement, Position}};
+use crate::{constants::*, protocol::{Movement, Position, Wall, WallOrientation}};
 use crate::systems::Projectile;
 
 // ============================================================================
@@ -95,5 +95,122 @@ pub fn check_projectile_hit(
         HitResult { hit: true, hit_dir_x, hit_dir_z }
     } else {
         HitResult { hit: false, hit_dir_x: 0.0, hit_dir_z: 0.0 }
+    }
+}
+
+// Check if a projectile hits a wall
+// Returns true if the projectile intersects with the wall
+pub fn check_projectile_wall_hit(
+    proj_pos: &Position,
+    projectile: &Projectile,
+    delta: f32,
+    wall: &Wall,
+) -> bool {
+    // Calculate projectile movement this frame
+    let ray_start_x = proj_pos.x;
+    let ray_start_y = proj_pos.y;
+    let ray_start_z = proj_pos.z;
+    
+    let ray_dir_x = projectile.velocity.x * delta;
+    let ray_dir_y = projectile.velocity.y * delta;
+    let ray_dir_z = projectile.velocity.z * delta;
+    
+    // Wall dimensions
+    let half_thickness = WALL_WIDTH / 2.0 + PROJECTILE_RADIUS;
+    let half_height = WALL_HEIGHT / 2.0 + PROJECTILE_RADIUS;
+    
+    match wall.orientation {
+        WallOrientation::Horizontal => {
+            // Wall extends along X axis at position (wall.x, wall.z)
+            // Wall center is at (wall.x, WALL_HEIGHT/2, wall.z)
+            let half_length = WALL_LENGTH / 2.0 + PROJECTILE_RADIUS;
+            
+            // Transform to wall's local space (centered at wall position)
+            let local_x = ray_start_x - wall.x;
+            let local_y = ray_start_y - WALL_HEIGHT / 2.0;
+            let local_z = ray_start_z - wall.z;
+            
+            // Check intersection with axis-aligned box using slab method
+            let mut t_min = 0.0_f32;
+            let mut t_max = 1.0_f32;
+            
+            // X slab (length of wall)
+            if ray_dir_x.abs() > 1e-6 {
+                let t1 = (-half_length - local_x) / ray_dir_x;
+                let t2 = (half_length - local_x) / ray_dir_x;
+                t_min = t_min.max(t1.min(t2));
+                t_max = t_max.min(t1.max(t2));
+            } else if local_x.abs() > half_length {
+                return false;
+            }
+            
+            // Y slab (height of wall)
+            if ray_dir_y.abs() > 1e-6 {
+                let t1 = (-half_height - local_y) / ray_dir_y;
+                let t2 = (half_height - local_y) / ray_dir_y;
+                t_min = t_min.max(t1.min(t2));
+                t_max = t_max.min(t1.max(t2));
+            } else if local_y.abs() > half_height {
+                return false;
+            }
+            
+            // Z slab (thickness of wall)
+            if ray_dir_z.abs() > 1e-6 {
+                let t1 = (-half_thickness - local_z) / ray_dir_z;
+                let t2 = (half_thickness - local_z) / ray_dir_z;
+                t_min = t_min.max(t1.min(t2));
+                t_max = t_max.min(t1.max(t2));
+            } else if local_z.abs() > half_thickness {
+                return false;
+            }
+            
+            t_min <= t_max && t_max >= 0.0 && t_min <= 1.0
+        },
+        WallOrientation::Vertical => {
+            // Wall extends along Z axis at position (wall.x, wall.z)
+            // Wall center is at (wall.x, WALL_HEIGHT/2, wall.z)
+            let half_length = WALL_LENGTH / 2.0 + PROJECTILE_RADIUS;
+            
+            // Transform to wall's local space
+            let local_x = ray_start_x - wall.x;
+            let local_y = ray_start_y - WALL_HEIGHT / 2.0;
+            let local_z = ray_start_z - wall.z;
+            
+            // Check intersection with axis-aligned box using slab method
+            let mut t_min = 0.0_f32;
+            let mut t_max = 1.0_f32;
+            
+            // X slab (thickness of wall)
+            if ray_dir_x.abs() > 1e-6 {
+                let t1 = (-half_thickness - local_x) / ray_dir_x;
+                let t2 = (half_thickness - local_x) / ray_dir_x;
+                t_min = t_min.max(t1.min(t2));
+                t_max = t_max.min(t1.max(t2));
+            } else if local_x.abs() > half_thickness {
+                return false;
+            }
+            
+            // Y slab (height of wall)
+            if ray_dir_y.abs() > 1e-6 {
+                let t1 = (-half_height - local_y) / ray_dir_y;
+                let t2 = (half_height - local_y) / ray_dir_y;
+                t_min = t_min.max(t1.min(t2));
+                t_max = t_max.min(t1.max(t2));
+            } else if local_y.abs() > half_height {
+                return false;
+            }
+            
+            // Z slab (length of wall)
+            if ray_dir_z.abs() > 1e-6 {
+                let t1 = (-half_length - local_z) / ray_dir_z;
+                let t2 = (half_length - local_z) / ray_dir_z;
+                t_min = t_min.max(t1.min(t2));
+                t_max = t_max.min(t1.max(t2));
+            } else if local_z.abs() > half_length {
+                return false;
+            }
+            
+            t_min <= t_max && t_max >= 0.0 && t_min <= 1.0
+        },
     }
 }
