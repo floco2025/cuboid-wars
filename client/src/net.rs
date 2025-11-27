@@ -1,6 +1,9 @@
 use bevy::prelude::{debug, error, trace};
 use quinn::{Connection, ConnectionError};
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::{
+    sync::mpsc::{UnboundedReceiver, UnboundedSender},
+    time::{Duration, sleep},
+};
 
 use common::net::MessageStream;
 #[allow(clippy::wildcard_imports)]
@@ -28,6 +31,7 @@ pub async fn network_io_task(
     connection: Connection,
     to_client: UnboundedSender<ServerToClient>,
     mut from_client: UnboundedReceiver<ClientToServer>,
+    lag_ms: u64,
 ) {
     let stream = MessageStream::new(&connection);
 
@@ -37,9 +41,21 @@ pub async fn network_io_task(
             result = stream.recv::<ServerMessage>() => {
                 match result {
                     Ok(msg) => {
-                        if to_client.send(ServerToClient::Message(msg)).is_err() {
-                            // Bevy side closed, exit
-                            break;
+                        if lag_ms > 0 {
+                            // Check if channel is still open before spawning
+                            if to_client.is_closed() {
+                                break;
+                            }
+                            let to_client_clone = to_client.clone();
+                            tokio::spawn(async move {
+                                sleep(Duration::from_millis(lag_ms)).await;
+                                let _ = to_client_clone.send(ServerToClient::Message(msg));
+                            });
+                        } else {
+                            if to_client.send(ServerToClient::Message(msg)).is_err() {
+                                // Bevy side closed, exit
+                                break;
+                            }
                         }
                     }
                     Err(e) => {
@@ -70,10 +86,28 @@ pub async fn network_io_task(
             cmd = from_client.recv() => {
                 match cmd {
                     Some(ClientToServer::Send(msg)) => {
-                        trace!("sending to server: {:?}", msg);
-                        if let Err(e) = stream.send(&msg).await {
-                            error!("error sending to server: {e}");
-                            break;
+                        if lag_ms > 0 {
+                            // Check if connection is still open before spawning
+                            if connection.close_reason().is_some() {
+                                break;
+                            }
+                            let connection_clone = connection.clone();
+                            tokio::spawn(async move {
+                                sleep(Duration::from_millis(lag_ms)).await;
+                                trace!("sending to server: {:?}", msg);
+                                let stream = MessageStream::new(&connection_clone);
+                                if let Err(e) = stream.send(&msg).await {
+                                    error!("error sending to server: {e}");
+                                    // Close connection on error to trigger cleanup
+                                    connection_clone.close(1u32.into(), b"send error");
+                                }
+                            });
+                        } else {
+                            trace!("sending to server: {:?}", msg);
+                            if let Err(e) = stream.send(&msg).await {
+                                error!("error sending to server: {e}");
+                                break;
+                            }
                         }
                     }
                     Some(ClientToServer::Close) => {
