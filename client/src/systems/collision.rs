@@ -1,7 +1,10 @@
-use bevy::prelude::*;
-use common::protocol::{Movement, Position};
-use common::systems::Projectile;
 use crate::resources::WallConfig;
+use bevy::prelude::*;
+use common::{
+    collision::{check_projectile_player_hit, check_projectile_wall_hit},
+    protocol::{Movement, Position},
+    systems::Projectile,
+};
 
 // ============================================================================
 // Client-Side Collision Detection
@@ -18,7 +21,7 @@ pub fn client_hit_detection_system(
 ) {
     let delta = time.delta_secs();
 
-    for (proj_entity, proj_transform, projectile) in projectile_query.iter() {
+    'projectile_loop: for (proj_entity, proj_transform, projectile) in projectile_query.iter() {
         // Convert Transform to Position for hit detection
         let proj_pos = Position {
             x: proj_transform.translation.x,
@@ -29,10 +32,10 @@ pub fn client_hit_detection_system(
         // Check wall collisions first
         if let Some(wall_config) = wall_config.as_ref() {
             for wall in &wall_config.walls {
-                if common::collision::check_projectile_wall_hit(&proj_pos, projectile, delta, wall) {
+                if check_projectile_wall_hit(&proj_pos, projectile, delta, wall) {
                     commands.entity(proj_entity).despawn();
                     // Don't check further - projectile is already despawned
-                    continue;
+                    continue 'projectile_loop;
                 }
             }
         }
@@ -40,12 +43,11 @@ pub fn client_hit_detection_system(
         // Check player collisions
         for (player_pos, player_mov) in player_query.iter() {
             // Use common hit detection logic
-            let result = common::collision::check_projectile_hit(&proj_pos, projectile, delta, player_pos, player_mov);
-            
+            let result = check_projectile_player_hit(&proj_pos, projectile, delta, player_pos, player_mov);
             if result.hit {
-                // Only despawn the projectile visually - server handles scoring
                 commands.entity(proj_entity).despawn();
-                break; // Projectile can only hit one player
+                // Don't check further - projectile is already despawned
+                continue 'projectile_loop;
             }
         }
     }

@@ -476,7 +476,7 @@ pub fn hit_detection_system(
             }
 
             // Use common hit detection logic
-            let result = common::collision::check_projectile_hit(proj_pos, projectile, delta, player_pos, player_mov);
+            let result = common::collision::check_projectile_player_hit(proj_pos, projectile, delta, player_pos, player_mov);
             
             if result.hit {
                 info!("Player {:?} hits Player {:?}", shooter_id, target_id);

@@ -15,7 +15,7 @@ pub struct HitResult {
 
 // Check if a projectile hits a player using swept sphere collision
 // Returns HitResult with hit flag and normalized direction
-pub fn check_projectile_hit(
+pub fn check_projectile_player_hit(
     proj_pos: &Position,
     projectile: &Projectile,
     delta: f32,
