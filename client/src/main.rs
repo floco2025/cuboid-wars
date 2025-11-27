@@ -35,6 +35,10 @@ struct Args {
     #[arg(short, long, default_value = "127.0.0.1:8080")]
     server: String,
 
+    // Simulated network lag in milliseconds
+    #[arg(long, default_value = "0")]
+    lag_ms: u64,
+
     // Window X position
     #[arg(long)]
     window_x: Option<i32>,
@@ -70,7 +74,7 @@ fn main() -> Result<()> {
         endpoint
             .connect(args.server.parse()?, "localhost")?
             .await
-            .context("Failed to connect to server")
+            .context("failed to connect to server")
     })?;
     // info! doesn't work because Bevy isn't inialized yet
     //info!("connected to server at {}", args.server);
@@ -91,7 +95,8 @@ fn main() -> Result<()> {
     let (to_server, from_client) = tokio::sync::mpsc::unbounded_channel();
 
     // Spawn network I/O task
-    rt.spawn(network_io_task(connection, to_client, from_client));
+    let lag_ms = args.lag_ms;
+    rt.spawn(network_io_task(connection, to_client, from_client, lag_ms));
 
     // Configure window position
     let window_position = if let (Some(x), Some(y)) = (args.window_x, args.window_y) {
