@@ -98,6 +98,13 @@ struct CShot {
 }
 }
 
+message! {
+// Client to Server: Echo request with timestamp.
+struct CEcho {
+    pub timestamp: u64,
+}
+}
+
 // ============================================================================
 // Server Messages
 // ============================================================================
@@ -157,6 +164,13 @@ struct SHit {
 }
 }
 
+message! {
+// Server to Client: Echo response with timestamp.
+struct SEcho {
+    pub timestamp: u64,
+}
+}
+
 // ============================================================================
 // Message Envelopes
 // ============================================================================
@@ -170,6 +184,7 @@ pub enum ClientMessage {
     Logoff(CLogoff),
     Movement(CMovement),
     Shot(CShot),
+    Echo(CEcho),
 }
 
 // All server to client messages
@@ -184,4 +199,5 @@ pub enum ServerMessage {
     Shot(SShot),
     Update(SUpdate),
     Hit(SHit),
+    Echo(SEcho),
 }

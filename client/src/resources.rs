@@ -27,6 +27,13 @@ pub struct PlayerInfo {
 #[derive(Resource, Default)]
 pub struct PlayerMap(pub HashMap<PlayerId, PlayerInfo>);
 
+// Round-trip time to server in milliseconds
+#[derive(Resource, Default)]
+pub struct RoundTripTime {
+    pub rtt_ms: u64,
+    pub pending_timestamp: u64,
+}
+
 // Resource wrapper for the client to server channel
 #[derive(Resource)]
 pub struct ClientToServerChannel(UnboundedSender<ClientToServer>);

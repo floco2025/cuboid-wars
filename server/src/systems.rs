@@ -246,6 +246,15 @@ fn process_message_logged_in(
             debug!("{id:?} shot");
             handle_shot(commands, entity, id, msg, players, &positions);
         }
+        ClientMessage::Echo(msg) => {
+            trace!("{:?} echo: {:?}", id, msg);
+            if let Some(player_info) = players.0.get(&id) {
+                let echo_msg = ServerMessage::Echo(SEcho {
+                    timestamp: msg.timestamp,
+                });
+                let _ = player_info.channel.send(ServerToClient::Send(echo_msg));
+            }
+        }
     }
 }
 

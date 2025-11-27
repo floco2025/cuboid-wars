@@ -1,12 +1,13 @@
 use bevy::prelude::*;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::effects::{CameraShake, CuboidShake};
 use crate::spawning::{spawn_player, spawn_projectile_for_player};
 use crate::{
-    net::ServerToClient,
-    resources::{MyPlayerId, PlayerInfo, PlayerMap, ServerToClientChannel},
+    net::{ClientToServer, ServerToClient},
+    resources::{ClientToServerChannel, MyPlayerId, PlayerInfo, PlayerMap, RoundTripTime, ServerToClientChannel},
 };
-use common::protocol::{Movement, PlayerId, Position, ServerMessage};
+use common::protocol::{CEcho, ClientMessage, Movement, PlayerId, Position, ServerMessage};
 
 // ============================================================================
 // Network Message Processing
@@ -20,6 +21,7 @@ pub fn process_server_events_system(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut player_map: ResMut<PlayerMap>,
+    mut rtt: ResMut<RoundTripTime>,
     player_pos_mov_query: Query<(&Position, &Movement), With<PlayerId>>,
     camera_query: Query<Entity, With<Camera3d>>,
     mut my_player_id: Local<Option<PlayerId>>,
@@ -38,6 +40,7 @@ pub fn process_server_events_system(
                         &mut meshes,
                         &mut materials,
                         &mut player_map,
+                        &mut rtt,
                         &player_pos_mov_query,
                         &camera_query,
                         *my_player_id,
@@ -83,6 +86,7 @@ fn process_message_logged_in(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
     players: &mut ResMut<PlayerMap>,
+    rtt: &mut ResMut<RoundTripTime>,
     player_pos_mov_query: &Query<(&Position, &Movement), With<PlayerId>>,
     camera_query: &Query<Entity, With<Camera3d>>,
     my_player_id: Option<PlayerId>,
@@ -230,5 +234,45 @@ fn process_message_logged_in(
                 }
             }
         }
+        ServerMessage::Echo(msg) => {
+            if rtt.pending_timestamp != 0 && msg.timestamp == rtt.pending_timestamp {
+                let now = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_millis() as u64;
+                rtt.rtt_ms = now.saturating_sub(rtt.pending_timestamp);
+                rtt.pending_timestamp = 0;
+                debug!("RTT: {}ms", rtt.rtt_ms);
+            }
+        }
+    }
+}
+
+// ============================================================================
+// Echo/Ping System
+// ============================================================================
+
+// System to send echo requests every 10 seconds
+pub fn echo_system(
+    time: Res<Time>,
+    mut rtt: ResMut<RoundTripTime>,
+    to_server: Res<ClientToServerChannel>,
+    mut timer: Local<f32>,
+) {
+    const ECHO_INTERVAL: f32 = 10.0;
+
+    // Send echo request every 10 seconds
+    *timer += time.delta_secs();
+    if *timer >= ECHO_INTERVAL {
+        *timer = 0.0;
+        
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
+        
+        rtt.pending_timestamp = timestamp;
+        
+        let _ = to_server.send(ClientToServer::Send(ClientMessage::Echo(CEcho { timestamp })));
     }
 }

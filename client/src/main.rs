@@ -7,17 +7,17 @@ use quinn::Endpoint;
 use client::{
     config::configure_client,
     net::network_io_task,
-    resources::{ClientToServerChannel, PlayerMap, ServerToClientChannel},
+    resources::{ClientToServerChannel, PlayerMap, RoundTripTime, ServerToClientChannel},
     systems::{
         collision::client_hit_detection_system,
         effects::{apply_camera_shake_system, apply_cuboid_shake_system},
         input::{cursor_toggle_system, input_system, shooting_input_system},
-        network::process_server_events_system,
+        network::{echo_system, process_server_events_system},
         sync::{
             sync_camera_to_player_system, sync_position_to_transform_system, 
             sync_rotation_to_transform_system, sync_projectiles_system,
         },
-        ui::{setup_world_system, update_player_list_system},
+        ui::{setup_world_system, update_player_list_system, update_rtt_system},
     },
 };
 #[allow(clippy::wildcard_imports)]
@@ -124,6 +124,7 @@ fn main() -> Result<()> {
     .insert_resource(ClientToServerChannel::new(to_server))
     .insert_resource(ServerToClientChannel::new(from_server))
     .insert_resource(PlayerMap::default())
+    .insert_resource(RoundTripTime::default())
     .add_systems(Startup, setup_world_system)
     .add_systems(
         Update,
@@ -154,6 +155,10 @@ fn main() -> Result<()> {
             apply_cuboid_shake_system,
             // Update player list UI
             update_player_list_system,
+            // Update RTT display
+            update_rtt_system,
+            // Send echo requests and process responses
+            echo_system,
         ),
     )
     .run();

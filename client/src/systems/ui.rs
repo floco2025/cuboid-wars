@@ -19,6 +19,10 @@ pub struct PlayerEntryUI(pub PlayerId);
 #[derive(Component)]
 pub struct CrosshairUI;
 
+// Marker component for the RTT display
+#[derive(Component)]
+pub struct RttUI;
+
 // ============================================================================
 // UI Components and Constants
 // ============================================================================
@@ -128,11 +132,44 @@ pub fn setup_world_system(
                 BackgroundColor(crosshair_color),
             ));
         });
+    
+    // Create RTT display in upper right corner
+    commands.spawn((
+        Text::new("RTT: --"),
+        TextFont {
+            font_size: 20.0,
+            ..default()
+        },
+        TextColor(Color::WHITE),
+        Node {
+            position_type: PositionType::Absolute,
+            right: Val::Px(10.0),
+            top: Val::Px(10.0),
+            ..default()
+        },
+        RttUI,
+    ));
 }
 
 // ============================================================================
 // UI Update Systems
 // ============================================================================
+
+// Update RTT display
+pub fn update_rtt_system(
+    rtt: Res<crate::resources::RoundTripTime>,
+    mut query: Single<&mut Text, With<RttUI>>,
+) {
+    if !rtt.is_changed() {
+        return;
+    }
+    
+    if rtt.rtt_ms > 0 {
+        query.0 = format!("RTT: {}ms", rtt.rtt_ms);
+    } else {
+        query.0 = "RTT: --".to_string();
+    }
+}
 
 // Update player list UI with all players and their hit counts
 pub fn update_player_list_system(
