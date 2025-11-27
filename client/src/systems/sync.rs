@@ -13,9 +13,11 @@ use crate::resources::CameraViewMode;
 const FPV_CAMERA_HEIGHT_RATIO: f32 = 0.9; // Camera height as ratio of player height (0.9 = 90% = eye level)
 
 // Top-down view camera settings
-const TOPDOWN_CAMERA_HEIGHT: f32 = 30.0;     // Height above ground (meters)
-const TOPDOWN_CAMERA_DISTANCE: f32 = 20.0;   // Distance behind player (meters)
-const TOPDOWN_LOOKAT_HEIGHT: f32 = 1.0;      // Height to look at (player level)
+const TOPDOWN_CAMERA_HEIGHT: f32 = 40.0;     // Height above ground (meters)
+const TOPDOWN_CAMERA_Z_OFFSET: f32 = 40.0;   // How far along Z axis from center (positive = south side)
+const TOPDOWN_LOOKAT_X: f32 = 0.0;           // X coordinate camera looks at
+const TOPDOWN_LOOKAT_Y: f32 = 0.0;           // Y coordinate camera looks at
+const TOPDOWN_LOOKAT_Z: f32 = 7.0;           // Z coordinate camera looks at
 
 // ============================================================================
 // Components
@@ -52,19 +54,19 @@ pub fn sync_camera_to_player_system(
                     }
                 },
                 CameraViewMode::TopDown => {
-                    // When view mode just changed, position camera above and behind player
+                    // When view mode just changed, position camera to the side of the field
                     if view_mode.is_changed() {
                         camera_transform.translation = Vec3::new(
-                            pos.x,
+                            0.0,  // Center on X axis (side view)
                             TOPDOWN_CAMERA_HEIGHT,
-                            pos.z + TOPDOWN_CAMERA_DISTANCE
-                        );
-                        camera_transform.look_at(
-                            Vec3::new(pos.x, TOPDOWN_LOOKAT_HEIGHT, pos.z),
-                            Vec3::Y
+                            TOPDOWN_CAMERA_Z_OFFSET  // Distance from center along Z
                         );
                     }
-                    // Otherwise don't move the camera - let player control it with input
+                    // Always look at the center of the field (0, 0)
+                    camera_transform.look_at(
+                        Vec3::new(TOPDOWN_LOOKAT_X, TOPDOWN_LOOKAT_Y, TOPDOWN_LOOKAT_Z),
+                        Vec3::Y
+                    );
                 },
             }
         }

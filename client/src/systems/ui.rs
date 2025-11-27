@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use common::{constants::FIELD_WIDTH, protocol::PlayerId};
+use common::{constants::{FIELD_WIDTH, FIELD_DEPTH, GRID_SIZE, GRID_COLS, GRID_ROWS, WALL_WIDTH}, protocol::PlayerId};
 use crate::resources::{MyPlayerId, PlayerMap};
 
 // ============================================================================
@@ -27,8 +27,8 @@ pub struct RttUI;
 // UI Components and Constants
 // ============================================================================
 
-// World dimensions - ground plane should be larger than field for visibility
-pub const WORLD_SIZE: f32 = FIELD_WIDTH * 2.0; // 200m x 200m ground plane
+// World dimensions - ground plane matches playing field
+pub const WORLD_SIZE: f32 = FIELD_WIDTH; // Ground plane size
 
 // Camera settings (human scale - third person view)
 pub const CAMERA_X: f32 = 0.0;
@@ -51,6 +51,30 @@ pub fn setup_world_system(
         Transform::from_xyz(0.0, 0.0, 0.0),
         Visibility::default(),
     ));
+
+    // Create grid lines
+    let grid_material = materials.add(Color::srgb(0.5, 0.5, 0.5)); // Grey color
+    let line_height = 0.01; // Slightly above ground to avoid z-fighting
+    
+    // Vertical grid lines (along X axis, varying Z position)
+    for i in 0..=GRID_ROWS {
+        let z_pos = (i as f32 * GRID_SIZE) - FIELD_DEPTH / 2.0;
+        commands.spawn((
+            Mesh3d(meshes.add(Cuboid::new(FIELD_WIDTH, line_height, WALL_WIDTH))),
+            MeshMaterial3d(grid_material.clone()),
+            Transform::from_xyz(0.0, line_height / 2.0, z_pos),
+        ));
+    }
+    
+    // Horizontal grid lines (along Z axis, varying X position)
+    for i in 0..=GRID_COLS {
+        let x_pos = (i as f32 * GRID_SIZE) - FIELD_WIDTH / 2.0;
+        commands.spawn((
+            Mesh3d(meshes.add(Cuboid::new(WALL_WIDTH, line_height, FIELD_DEPTH))),
+            MeshMaterial3d(grid_material.clone()),
+            Transform::from_xyz(x_pos, line_height / 2.0, 0.0),
+        ));
+    }
 
     // Add camera with top-down view
     commands.spawn((
