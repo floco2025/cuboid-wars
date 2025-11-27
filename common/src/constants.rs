@@ -38,7 +38,7 @@ pub const PLAYER_NOSE_HEIGHT: f32 = 0.5; // relative to ground
 
 // Grid walls (meters)
 
-pub const NUM_WALL_SEGMENTS: usize = 80; // Total number of wall segments to place
+pub const NUM_WALL_SEGMENTS: usize = 100; // Total number of wall segments to place
 pub const WALL_LENGTH: f32 = 5.1; // Slightly longer than grid to avoid corner gaps
 pub const WALL_WIDTH: f32 = 0.2; // Wall thickness
 pub const WALL_HEIGHT: f32 = 3.0; // Wall height

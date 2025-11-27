@@ -3,7 +3,7 @@ use common::{
     protocol::{Wall, WallOrientation},
 };
 use rand::Rng;
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct GridEdge {
@@ -12,9 +12,57 @@ struct GridEdge {
     horizontal: bool, // true = horizontal (along X), false = vertical (along Z)
 }
 
+/// Check if all grid cells are reachable using BFS
+fn all_cells_reachable(placed_edges: &HashSet<GridEdge>, grid_cols: i32, grid_rows: i32) -> bool {
+    if grid_cols <= 0 || grid_rows <= 0 {
+        return true;
+    }
+    
+    let mut visited = HashSet::new();
+    let mut queue = VecDeque::new();
+    
+    // Start from cell (0, 0)
+    queue.push_back((0, 0));
+    visited.insert((0, 0));
+    
+    while let Some((row, col)) = queue.pop_front() {
+        // Check all 4 directions
+        let directions = [
+            (row - 1, col, GridEdge { x: col, z: row, horizontal: true }),     // North
+            (row + 1, col, GridEdge { x: col, z: row + 1, horizontal: true }), // South
+            (row, col - 1, GridEdge { x: col, z: row, horizontal: false }),    // West
+            (row, col + 1, GridEdge { x: col + 1, z: row, horizontal: false }), // East
+        ];
+        
+        for (new_row, new_col, edge) in directions {
+            // Check bounds
+            if new_row < 0 || new_row >= grid_rows || new_col < 0 || new_col >= grid_cols {
+                continue;
+            }
+            
+            // Check if already visited
+            if visited.contains(&(new_row, new_col)) {
+                continue;
+            }
+            
+            // Check if wall blocks this direction
+            if placed_edges.contains(&edge) {
+                continue;
+            }
+            
+            // Can reach this cell
+            visited.insert((new_row, new_col));
+            queue.push_back((new_row, new_col));
+        }
+    }
+    
+    // All cells should be reachable
+    visited.len() == (grid_rows * grid_cols) as usize
+}
+
 /// Generate wall segments for the playing field.
 /// Walls are placed along grid lines in a maze-like pattern.
-/// Ensures no grid cell has more than 3 walls (to keep it accessible).
+/// Ensures all grid cells remain reachable from each other.
 pub fn generate_walls() -> Vec<Wall> {
     let mut rng = rand::rng();
     let mut walls = Vec::new();
@@ -24,77 +72,53 @@ pub fn generate_walls() -> Vec<Wall> {
     let grid_cols = (FIELD_WIDTH / GRID_SIZE) as i32;
     let grid_rows = (FIELD_DEPTH / GRID_SIZE) as i32;
     
-    // Track wall count per grid cell (row, col) -> count
-    let mut cell_wall_count: Vec<Vec<u8>> = vec![vec![0; grid_cols as usize]; grid_rows as usize];
+    // Generate all possible edge positions
+    let mut all_edges = Vec::new();
     
-    let mut attempts = 0;
-    let max_attempts = NUM_WALL_SEGMENTS * 10; // Prevent infinite loop
+    // Horizontal edges (along X axis)
+    for z in 0..=grid_rows {
+        for x in 0..grid_cols {
+            all_edges.push(GridEdge { x, z, horizontal: true });
+        }
+    }
     
-    while walls.len() < NUM_WALL_SEGMENTS && attempts < max_attempts {
-        attempts += 1;
+    // Vertical edges (along Z axis)
+    for z in 0..grid_rows {
+        for x in 0..=grid_cols {
+            all_edges.push(GridEdge { x, z, horizontal: false });
+        }
+    }
+    
+    // Shuffle the edges randomly
+    for i in (1..all_edges.len()).rev() {
+        let j = rng.random_range(0..=i);
+        all_edges.swap(i, j);
+    }
+    
+    // Try to place walls at each edge position
+    for edge in all_edges {
+        if walls.len() >= NUM_WALL_SEGMENTS {
+            break;
+        }
         
-        // Pick random orientation
-        let horizontal = rng.random_bool(0.5);
-        
-        // Pick random grid line position
-        let (x, z) = if horizontal {
-            // Horizontal wall (along X axis, on Z grid line)
-            let z_line = rng.random_range(0..=grid_rows);
-            let x_line = rng.random_range(0..grid_cols);
-            (x_line, z_line)
-        } else {
-            // Vertical wall (along Z axis, on X grid line)
-            let x_line = rng.random_range(0..=grid_cols);
-            let z_line = rng.random_range(0..grid_rows);
-            (x_line, z_line)
-        };
-        
-        let edge = GridEdge { x, z, horizontal };
-        
-        // Skip if already placed
+        // Skip if already placed (shouldn't happen with our generation, but be safe)
         if placed_edges.contains(&edge) {
             continue;
         }
         
-        // Check if placing this wall would make any adjacent cell have more than 3 walls
+        // Temporarily place the wall and check if all cells are still reachable
+        placed_edges.insert(edge);
+        
+        if !all_cells_reachable(&placed_edges, grid_cols, grid_rows) {
+            // This wall would block connectivity - remove it and try next position
+            placed_edges.remove(&edge);
+            continue;
+        }
+        
+        // Wall is valid - calculate world position and add to list
+        let (x, z, horizontal) = (edge.x, edge.z, edge.horizontal);
+        
         if horizontal {
-            // Horizontal wall affects cells above (z-1) and below (z)
-            let mut valid = true;
-            
-            // Cell below (z)
-            if z < grid_rows {
-                let row = z as usize;
-                let col = x as usize;
-                if cell_wall_count[row][col] >= 3 {
-                    valid = false;
-                }
-            }
-            
-            // Cell above (z-1)
-            if z > 0 {
-                let row = (z - 1) as usize;
-                let col = x as usize;
-                if cell_wall_count[row][col] >= 3 {
-                    valid = false;
-                }
-            }
-            
-            if !valid {
-                continue;
-            }
-            
-            // Place the wall
-            placed_edges.insert(edge);
-            
-            // Update wall counts
-            if z < grid_rows {
-                cell_wall_count[z as usize][x as usize] += 1;
-            }
-            if z > 0 {
-                cell_wall_count[(z - 1) as usize][x as usize] += 1;
-            }
-            
-            // Calculate world position (center of wall)
             let world_x = (x as f32 + 0.5) * GRID_SIZE - FIELD_WIDTH / 2.0;
             let world_z = z as f32 * GRID_SIZE - FIELD_DEPTH / 2.0;
             
@@ -104,43 +128,6 @@ pub fn generate_walls() -> Vec<Wall> {
                 orientation: WallOrientation::Horizontal,
             });
         } else {
-            // Vertical wall affects cells left (x-1) and right (x)
-            let mut valid = true;
-            
-            // Cell to the right (x)
-            if x < grid_cols {
-                let row = z as usize;
-                let col = x as usize;
-                if cell_wall_count[row][col] >= 3 {
-                    valid = false;
-                }
-            }
-            
-            // Cell to the left (x-1)
-            if x > 0 {
-                let row = z as usize;
-                let col = (x - 1) as usize;
-                if cell_wall_count[row][col] >= 3 {
-                    valid = false;
-                }
-            }
-            
-            if !valid {
-                continue;
-            }
-            
-            // Place the wall
-            placed_edges.insert(edge);
-            
-            // Update wall counts
-            if x < grid_cols {
-                cell_wall_count[z as usize][x as usize] += 1;
-            }
-            if x > 0 {
-                cell_wall_count[z as usize][(x - 1) as usize] += 1;
-            }
-            
-            // Calculate world position (center of wall)
             let world_x = x as f32 * GRID_SIZE - FIELD_WIDTH / 2.0;
             let world_z = (z as f32 + 0.5) * GRID_SIZE - FIELD_DEPTH / 2.0;
             
