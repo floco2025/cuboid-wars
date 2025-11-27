@@ -157,102 +157,122 @@ pub fn update_player_list_system(
         .map(|(entity, entry, children)| (entry.0, (entity, children)))
         .collect();
 
-    // Remove entries for players that no longer exist
-    let to_remove: Vec<PlayerId> = existing_map
-        .keys()
-        .filter(|player_id| !players.0.contains_key(player_id))
-        .copied()
-        .collect();
+    // Check if we need to rebuild (players added/removed)
+    let players_changed = existing_map.len() != players.0.len() 
+        || existing_map.keys().any(|id| !players.0.contains_key(id))
+        || players.0.keys().any(|id| !existing_map.contains_key(id));
 
-    for player_id in to_remove {
-        if let Some((entity, _)) = existing_map.get(&player_id) {
-            commands.entity(*entity).despawn();
+    // Remove entries for players that no longer exist
+    if players_changed {
+        let to_remove: Vec<PlayerId> = existing_map
+            .keys()
+            .filter(|player_id| !players.0.contains_key(player_id))
+            .copied()
+            .collect();
+
+        for player_id in to_remove {
+            if let Some((entity, _)) = existing_map.get(&player_id) {
+                commands.entity(*entity).despawn();
+            }
         }
     }
 
-    // For each player, either create or update their entry
-    for (player_id, player_info) in players.0.iter() {
-        let hits = player_info.hits;
-        let player_num = player_id.0;
-        let is_local = local_player_id == Some(*player_id);
+    // Sort players by ID for consistent ordering
+    let mut sorted_players: Vec<_> = players.0.iter().collect();
+    sorted_players.sort_by_key(|(player_id, _)| player_id.0);
+    
+    if players_changed {
+        // Rebuild entire list in sorted order
+        let mut sorted_entries = Vec::new();
+        
+        for (player_id, player_info) in sorted_players {
+            let hits = player_info.hits;
+            let player_num = player_id.0;
+            let is_local = local_player_id == Some(*player_id);
 
-        if let Some(&(_existing_entity, entry_children)) = existing_map.get(player_id) {
-            // Entry exists - just update the hit counter text and color
-            // The entry IS the row, and has 2 text children: name and hit counter
-            if entry_children.len() >= 2 {
-                let hit_text_entity = entry_children[1];
+            if let Some(&(existing_entity, _)) = existing_map.get(player_id) {
+                // Reuse existing entity
+                sorted_entries.push(existing_entity);
+            } else {
+                // Create new entry
+                let hit_color = if hits > 0 {
+                    Color::srgb(0.3, 0.6, 1.0)
+                } else if hits < 0 {
+                    Color::srgb(1.0, 0.3, 0.3)
+                } else {
+                    Color::srgb(0.8, 0.8, 0.8)
+                };
 
-                // Update text content and color
-                if let Ok((mut text, mut text_color)) = text_and_color_query.get_mut(hit_text_entity) {
-                    let sign = if hits >= 0 { "+" } else { "" };
-                    let new_text = format!("{}{}", sign, hits);
-                    **text = new_text;
+                let sign = if hits >= 0 { "+" } else { "" };
+                let background_color = if is_local {
+                    BackgroundColor(Color::srgba(0.8, 0.8, 0.0, 0.3))
+                } else {
+                    BackgroundColor(Color::NONE)
+                };
 
-                    let hit_color = if hits > 0 {
-                        Color::srgb(0.3, 0.6, 1.0) // Blue for positive
-                    } else if hits < 0 {
-                        Color::srgb(1.0, 0.3, 0.3) // Red for negative
-                    } else {
-                        Color::srgb(0.8, 0.8, 0.8) // Gray for zero
-                    };
-                    text_color.0 = hit_color;
+                let entry_entity = commands
+                    .spawn((
+                        Node {
+                            flex_direction: FlexDirection::Row,
+                            column_gap: Val::Px(10.0),
+                            padding: UiRect::all(Val::Px(5.0)),
+                            ..default()
+                        },
+                        background_color,
+                        PlayerEntryUI(*player_id),
+                    ))
+                    .with_children(|row| {
+                        row.spawn((
+                            Text::new(format!("Player {}", player_num)),
+                            TextFont {
+                                font_size: 20.0,
+                                ..default()
+                            },
+                            TextColor(Color::WHITE),
+                        ));
+
+                        row.spawn((
+                            Text::new(format!("{}{}", sign, hits)),
+                            TextFont {
+                                font_size: 20.0,
+                                ..default()
+                            },
+                            TextColor(hit_color),
+                        ));
+                    })
+                    .id();
+
+                sorted_entries.push(entry_entity);
+            }
+        }
+        
+        // Rebuild children in sorted order
+        commands.entity(*player_list_ui).replace_children(&sorted_entries);
+    } else {
+        // Just update hit counters (no rebuild needed)
+        for (player_id, player_info) in sorted_players {
+            let hits = player_info.hits;
+            
+            if let Some(&(_existing_entity, entry_children)) = existing_map.get(player_id) {
+                if entry_children.len() >= 2 {
+                    let hit_text_entity = entry_children[1];
+
+                    if let Ok((mut text, mut text_color)) = text_and_color_query.get_mut(hit_text_entity) {
+                        let sign = if hits >= 0 { "+" } else { "" };
+                        let new_text = format!("{}{}", sign, hits);
+                        **text = new_text;
+
+                        let hit_color = if hits > 0 {
+                            Color::srgb(0.3, 0.6, 1.0)
+                        } else if hits < 0 {
+                            Color::srgb(1.0, 0.3, 0.3)
+                        } else {
+                            Color::srgb(0.8, 0.8, 0.8)
+                        };
+                        text_color.0 = hit_color;
+                    }
                 }
             }
-        } else {
-            // Entry doesn't exist - create it
-            let hit_color = if hits > 0 {
-                Color::srgb(0.3, 0.6, 1.0) // Blue for positive
-            } else if hits < 0 {
-                Color::srgb(1.0, 0.3, 0.3) // Red for negative
-            } else {
-                Color::srgb(0.8, 0.8, 0.8) // Gray for zero
-            };
-
-            let sign = if hits >= 0 { "+" } else { "" };
-
-            // Highlight local player with yellow background
-            let background_color = if is_local {
-                BackgroundColor(Color::srgba(0.8, 0.8, 0.0, 0.3))
-            } else {
-                BackgroundColor(Color::NONE)
-            };
-
-            let entry_entity = commands
-                .spawn((
-                    Node {
-                        flex_direction: FlexDirection::Row,
-                        column_gap: Val::Px(10.0),
-                        padding: UiRect::all(Val::Px(5.0)),
-                        ..default()
-                    },
-                    background_color,
-                    PlayerEntryUI(*player_id),
-                ))
-                .with_children(|row| {
-                    // Player name
-                    row.spawn((
-                        Text::new(format!("Player {}", player_num)),
-                        TextFont {
-                            font_size: 20.0,
-                            ..default()
-                        },
-                        TextColor(Color::WHITE),
-                    ));
-
-                    // Hit counter
-                    row.spawn((
-                        Text::new(format!("{}{}", sign, hits)),
-                        TextFont {
-                            font_size: 20.0,
-                            ..default()
-                        },
-                        TextColor(hit_color),
-                    ));
-                })
-                .id();
-
-            // Add as child to player list
-            commands.entity(*player_list_ui).add_child(entry_entity);
         }
     }
 }
