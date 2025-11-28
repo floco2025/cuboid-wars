@@ -24,7 +24,7 @@ pub const RUN_SPEED: f32 = 10.0;
 
 // Projectile constants
 pub const PROJECTILE_SPEED: f32 = 20.0; // meters per second (dodgeball throw speed)
-pub const PROJECTILE_LIFETIME: f32 = 3.0; // seconds
+pub const PROJECTILE_LIFETIME: f32 = 4.0; // seconds
 pub const PROJECTILE_SPAWN_OFFSET: f32 = 0.5; // meters in front of thrower
 pub const PROJECTILE_SPAWN_HEIGHT: f32 = 1.5; // meters above ground (shoulder height)
 pub const PROJECTILE_RADIUS: f32 = 0.11; // meters (22cm diameter dodgeball)
@@ -37,7 +37,6 @@ pub const PLAYER_EYE_HEIGHT: f32 = 0.7; // relative to ground
 pub const PLAYER_NOSE_HEIGHT: f32 = 0.5; // relative to ground
 
 // Grid walls (meters)
-
 pub const NUM_WALL_SEGMENTS: usize = 40; // Total number of wall segments to place
 pub const WALL_LENGTH: f32 = 8.2; // Slightly longer than grid to avoid corner gaps
 pub const WALL_WIDTH: f32 = 0.2; // Wall thickness

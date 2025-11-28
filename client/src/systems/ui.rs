@@ -1,7 +1,9 @@
+#[allow(clippy::wildcard_imports)]
 use bevy::prelude::*;
 
+#[allow(clippy::wildcard_imports)]
+use crate::constants::*;
 use crate::resources::{MyPlayerId, PlayerMap};
-use crate::systems::sync::FPV_CAMERA_HEIGHT_RATIO;
 use common::{
     constants::{FIELD_DEPTH, FIELD_WIDTH, GRID_COLS, GRID_ROWS, GRID_SIZE, PLAYER_HEIGHT, WALL_WIDTH},
     protocol::PlayerId,

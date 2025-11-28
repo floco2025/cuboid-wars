@@ -1,11 +1,11 @@
 use bevy::prelude::*;
 
+use crate::systems::sync::{BumpFlashState, LocalPlayer};
 use common::{
-    systems::Projectile,
     constants::*,
     protocol::{Movement, PlayerId, Position, Wall, WallOrientation},
+    systems::Projectile,
 };
-use crate::systems::sync::{BumpFlashState, LocalPlayer};
 
 // ============================================================================
 // Entity Spawning
@@ -52,7 +52,7 @@ pub fn spawn_player(
     ));
 
     let mut entity_cmd = entity;
-    
+
     // Add LocalPlayer marker if this is the local player
     if is_local {
         entity_cmd.insert((LocalPlayer, BumpFlashState::default()));

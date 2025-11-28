@@ -1,5 +1,10 @@
-use crate::resources::WallConfig;
+#[allow(clippy::wildcard_imports)]
 use bevy::prelude::*;
+use bevy::audio::{PlaybackMode, Volume};
+
+#[allow(clippy::wildcard_imports)]
+use crate::constants::*;
+use crate::{resources::WallConfig, systems::sync::LocalPlayer};
 use common::{
     collision::{check_projectile_player_hit, check_projectile_wall_hit},
     protocol::{Movement, Position},
@@ -15,8 +20,9 @@ use common::{
 pub fn client_hit_detection_system(
     mut commands: Commands,
     time: Res<Time>,
+    asset_server: Res<AssetServer>,
     projectile_query: Query<(Entity, &Transform, &Projectile)>,
-    player_query: Query<(&Position, &Movement), Without<Projectile>>,
+    player_query: Query<(Entity, &Position, &Movement, Has<LocalPlayer>), Without<Projectile>>,
     wall_config: Option<Res<WallConfig>>,
 ) {
     let delta = time.delta_secs();
@@ -33,6 +39,14 @@ pub fn client_hit_detection_system(
         if let Some(wall_config) = wall_config.as_ref() {
             for wall in &wall_config.walls {
                 if check_projectile_wall_hit(&proj_pos, projectile, delta, wall) {
+                    commands.spawn((
+                        AudioPlayer::new(asset_server.load(SOUND_PLAYER_HITS_WALL)),
+                        PlaybackSettings {
+                            mode: PlaybackMode::Despawn,
+                            volume: Volume::Linear(0.5),
+                            ..default()
+                        },
+                    ));
                     commands.entity(proj_entity).despawn();
                     // Don't check further - projectile is already despawned
                     continue 'projectile_loop;
@@ -41,10 +55,23 @@ pub fn client_hit_detection_system(
         }
 
         // Check player collisions
-        for (player_pos, player_mov) in player_query.iter() {
+        for (_player_entity, player_pos, player_mov, is_local_player) in player_query.iter() {
             // Use common hit detection logic
             let result = check_projectile_player_hit(&proj_pos, projectile, delta, player_pos, player_mov);
             if result.hit {
+                commands.spawn((
+                    AudioPlayer::new(asset_server.load(SOUND_PLAYER_HITS_PLAYER)),
+                    PlaybackSettings::DESPAWN,
+                ));
+
+                // Play hit sound if local player was hit
+                if is_local_player {
+                    commands.spawn((
+                        AudioPlayer::new(asset_server.load(SOUND_PLAYER_GETS_HIT)),
+                        PlaybackSettings::DESPAWN,
+                    ));
+                }
+
                 commands.entity(proj_entity).despawn();
                 // Don't check further - projectile is already despawned
                 continue 'projectile_loop;

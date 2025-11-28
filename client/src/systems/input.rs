@@ -1,33 +1,32 @@
+#[allow(clippy::wildcard_imports)]
 use bevy::prelude::*;
-use common::protocol::{CMovement, CShot, ClientMessage, Movement, Position, Velocity};
 
 use super::sync::LocalPlayer;
+#[allow(clippy::wildcard_imports)]
+use crate::constants::*;
 use crate::{
     net::ClientToServer,
-    resources::{ClientToServerChannel, CameraViewMode},
+    resources::{CameraViewMode, ClientToServerChannel},
     spawning::spawn_projectile_local,
 };
-
+use common::protocol::{CMovement, CShot, ClientMessage, Movement, Position, Velocity};
 
 // ============================================================================
 // Input Systems
 // ============================================================================
 
 // Toggle camera view mode with V key
-pub fn camera_view_toggle_system(
-    keyboard: Res<ButtonInput<KeyCode>>,
-    mut view_mode: ResMut<CameraViewMode>,
-) {
+pub fn camera_view_toggle_system(keyboard: Res<ButtonInput<KeyCode>>, mut view_mode: ResMut<CameraViewMode>) {
     if keyboard.just_pressed(KeyCode::KeyV) {
         *view_mode = match *view_mode {
             CameraViewMode::FirstPerson => {
                 info!("Switching to TopDown view");
                 CameraViewMode::TopDown
-            },
+            }
             CameraViewMode::TopDown => {
                 info!("Switching to FirstPerson view");
                 CameraViewMode::FirstPerson
-            },
+            }
         };
     }
 }
@@ -71,17 +70,13 @@ pub fn input_system(
     mut camera_query: Query<&mut Transform, With<Camera3d>>,
     view_mode: Res<CameraViewMode>,
 ) {
-    const MOUSE_SENSITIVITY: f32 = 0.002; // radians per pixel
-    const MOVEMENT_SEND_INTERVAL: f32 = 0.1; // Send movement updates at most every 100ms
-    const ROTATION_CHANGE_THRESHOLD: f32 = 0.05; // ~3 degrees
-
     // Only process input when cursor is locked
     let cursor_locked = cursor_options.grab_mode != bevy::window::CursorGrabMode::None;
 
     if cursor_locked {
         // Get current camera rotation (or player rotation in top-down mode)
         let mut camera_rotation = 0.0_f32;
-        
+
         // When switching to FPV from top-down, use tracked rotation (not camera transform)
         // Otherwise in FPV, read from camera; in top-down, use tracked rotation
         if view_mode.is_changed() && *view_mode == CameraViewMode::FirstPerson {
@@ -101,7 +96,7 @@ pub fn input_system(
         for motion in mouse_motion.read() {
             camera_rotation -= motion.delta.x * MOUSE_SENSITIVITY;
         }
-        
+
         // Always update tracked rotation (so it's current for next mode switch)
         *player_rotation = camera_rotation;
 
@@ -132,7 +127,7 @@ pub fn input_system(
             let len = (forward * forward + right * right).sqrt();
             let norm_forward = forward / len;
             let norm_right = right / len;
-            
+
             // Calculate angle offset from face direction
             // forward=1, right=0 -> offset=0 (moving in face direction)
             // forward=0, right=1 -> offset=π/2 (moving right)
@@ -227,18 +222,25 @@ pub fn shooting_input_system(
     cursor_options: Single<&bevy::window::CursorOptions>,
     local_player_query: Query<(&Position, &Movement), With<LocalPlayer>>,
     to_server: Res<ClientToServerChannel>,
+    asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     // Only allow shooting when cursor is locked
     let cursor_locked = cursor_options.grab_mode != bevy::window::CursorGrabMode::None;
-    
+
     if cursor_locked && mouse.just_pressed(bevy::input::mouse::MouseButton::Left) {
         if let Some((pos, mov)) = local_player_query.iter().next() {
+            // Play shooting sound
+            commands.spawn((
+                AudioPlayer::new(asset_server.load(SOUND_PLAYER_FIRES)),
+                PlaybackSettings::DESPAWN,
+            ));
+
             // Send shot message with current movement to server
             let shot_msg = ClientMessage::Shot(CShot { mov: *mov });
             let _ = to_server.send(ClientToServer::Send(shot_msg));
-            
+
             // Spawn projectile locally
             spawn_projectile_local(&mut commands, &mut meshes, &mut materials, pos, mov);
         }

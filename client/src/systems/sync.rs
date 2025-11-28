@@ -1,23 +1,15 @@
-use super::effects::{CameraShake, CuboidShake};
-use crate::resources::CameraViewMode;
+#[allow(clippy::wildcard_imports)]
 use bevy::prelude::*;
-use common::constants::PLAYER_HEIGHT;
-use common::protocol::{Movement, Position};
-use common::systems::Projectile;
 
-// ============================================================================
-// Camera Settings
-// ============================================================================
-
-// First-person view camera settings
-pub const FPV_CAMERA_HEIGHT_RATIO: f32 = 0.9; // Camera height as ratio of player height (0.9 = 90% = eye level)
-
-// Top-down view camera settings
-const TOPDOWN_CAMERA_HEIGHT: f32 = 50.0; // Height above ground (meters)
-const TOPDOWN_CAMERA_Z_OFFSET: f32 = 50.0; // How far along Z axis from center (positive = south side)
-const TOPDOWN_LOOKAT_X: f32 = 0.0; // X coordinate camera looks at
-const TOPDOWN_LOOKAT_Y: f32 = 0.0; // Y coordinate camera looks at
-const TOPDOWN_LOOKAT_Z: f32 = 8.5; // Z coordinate camera looks at
+use super::effects::{CameraShake, CuboidShake};
+#[allow(clippy::wildcard_imports)]
+use crate::constants::*;
+use crate::resources::CameraViewMode;
+use common::{
+    constants::PLAYER_HEIGHT,
+    protocol::{Movement, Position},
+    systems::Projectile,
+};
 
 // ============================================================================
 // Components
@@ -152,9 +144,17 @@ pub fn sync_local_player_visibility_system(
 
 // Client-side movement system with wall collision detection for smooth prediction
 pub fn client_movement_system(
+    mut commands: Commands,
     time: Res<Time>,
+    asset_server: Res<AssetServer>,
     wall_config: Option<Res<crate::resources::WallConfig>>,
-    mut query: Query<(Entity, &mut Position, &Movement, Option<&mut BumpFlashState>, Has<LocalPlayer>)>,
+    mut query: Query<(
+        Entity,
+        &mut Position,
+        &Movement,
+        Option<&mut BumpFlashState>,
+        Has<LocalPlayer>,
+    )>,
     mut bump_flash_ui: Query<(&mut BackgroundColor, &mut Visibility), With<super::ui::BumpFlashUI>>,
 ) {
     use common::constants::{RUN_SPEED, WALK_SPEED};
@@ -163,9 +163,7 @@ pub fn client_movement_system(
     let delta = time.delta_secs();
 
     // Collect all current positions for player-player collision checks
-    let positions: Vec<(Entity, Position)> = query.iter()
-        .map(|(entity, pos, _, _, _)| (entity, *pos))
-        .collect();
+    let positions: Vec<(Entity, Position)> = query.iter().map(|(entity, pos, _, _, _)| (entity, *pos)).collect();
 
     for (entity, mut pos, mov, mut flash_state, is_local_player) in query.iter_mut() {
         // Tick down flash timer (only for local player)
@@ -224,14 +222,27 @@ pub fn client_movement_system(
                     state.was_colliding = false;
                 }
             } else if is_local_player {
-                // Collision detected for local player - trigger flash on NEW collision
+                // Collision detected for local player - trigger flash and sound on NEW collision
                 if let Some(ref mut state) = flash_state {
                     if !state.was_colliding {
+                        // Trigger flash
                         if let Some((mut bg_color, mut visibility)) = bump_flash_ui.iter_mut().next() {
                             *visibility = Visibility::Visible;
                             bg_color.0 = Color::srgba(1.0, 1.0, 1.0, 0.2);
                             state.flash_timer = 0.08; // Flash duration
                         }
+
+                        // Play appropriate collision sound
+                        let sound_path = if collides_with_wall {
+                            SOUND_PLAYER_BUMPS_WALL
+                        } else {
+                            SOUND_PLAYER_BUMPS_PLAYER
+                        };
+
+                        commands.spawn((
+                            AudioPlayer::new(asset_server.load(sound_path)),
+                            PlaybackSettings::DESPAWN,
+                        ));
                     }
                     state.was_colliding = true;
                 }

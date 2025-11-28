@@ -109,20 +109,27 @@ fn main() -> Result<()> {
 
     // Start Bevy app
     let mut app = App::new();
-    app.add_plugins(DefaultPlugins.set(WindowPlugin {
-        primary_window: Some(Window {
-            title: "Game Client".to_string(),
-            resolution: (args.window_width, args.window_height).into(),
-            position: window_position,
-            ..default()
-        }),
-        primary_cursor_options: Some(bevy::window::CursorOptions {
-            visible: false,
-            grab_mode: bevy::window::CursorGrabMode::Locked,
-            hit_test: true,
-        }),
-        ..default()
-    }))
+    app.add_plugins(
+        DefaultPlugins
+            .set(AssetPlugin {
+                file_path: "assets".to_string(),
+                ..default()
+            })
+            .set(WindowPlugin {
+                primary_window: Some(Window {
+                    title: "Game Client".to_string(),
+                    resolution: (args.window_width, args.window_height).into(),
+                    position: window_position,
+                    ..default()
+                }),
+                primary_cursor_options: Some(bevy::window::CursorOptions {
+                    visible: false,
+                    grab_mode: bevy::window::CursorGrabMode::Locked,
+                    hit_test: true,
+                }),
+                ..default()
+            }),
+    )
     .insert_resource(ClientToServerChannel::new(to_server))
     .insert_resource(ServerToClientChannel::new(from_server))
     .insert_resource(PlayerMap::default())
