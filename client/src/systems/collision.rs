@@ -2,8 +2,6 @@
 use bevy::prelude::*;
 use bevy::audio::{PlaybackMode, Volume};
 
-#[allow(clippy::wildcard_imports)]
-use crate::constants::*;
 use crate::{resources::WallConfig, systems::sync::LocalPlayer};
 use common::{
     collision::{check_projectile_player_hit, check_projectile_wall_hit},
@@ -40,10 +38,10 @@ pub fn client_hit_detection_system(
             for wall in &wall_config.walls {
                 if check_projectile_wall_hit(&proj_pos, projectile, delta, wall) {
                     commands.spawn((
-                        AudioPlayer::new(asset_server.load(SOUND_PLAYER_HITS_WALL)),
+                        AudioPlayer::new(asset_server.load("sounds/player_hits_wall.ogg")),
                         PlaybackSettings {
                             mode: PlaybackMode::Despawn,
-                            volume: Volume::Linear(0.5),
+                            volume: Volume::Linear(0.2),
                             ..default()
                         },
                     ));
@@ -60,14 +58,14 @@ pub fn client_hit_detection_system(
             let result = check_projectile_player_hit(&proj_pos, projectile, delta, player_pos, player_mov);
             if result.hit {
                 commands.spawn((
-                    AudioPlayer::new(asset_server.load(SOUND_PLAYER_HITS_PLAYER)),
+                    AudioPlayer::new(asset_server.load("sounds/player_hits_player.ogg")),
                     PlaybackSettings::DESPAWN,
                 ));
 
                 // Play hit sound if local player was hit
                 if is_local_player {
                     commands.spawn((
-                        AudioPlayer::new(asset_server.load(SOUND_PLAYER_GETS_HIT)),
+                        AudioPlayer::new(asset_server.load("sounds/player_gets_hit.ogg")),
                         PlaybackSettings::DESPAWN,
                     ));
                 }

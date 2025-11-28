@@ -233,7 +233,7 @@ pub fn shooting_input_system(
         if let Some((pos, mov)) = local_player_query.iter().next() {
             // Play shooting sound
             commands.spawn((
-                AudioPlayer::new(asset_server.load(SOUND_PLAYER_FIRES)),
+                AudioPlayer::new(asset_server.load("sounds/player_fires.ogg")),
                 PlaybackSettings::DESPAWN,
             ));
 

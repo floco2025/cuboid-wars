@@ -234,9 +234,9 @@ pub fn client_movement_system(
 
                         // Play appropriate collision sound
                         let sound_path = if collides_with_wall {
-                            SOUND_PLAYER_BUMPS_WALL
+                            "sounds/player_bumps_wall.ogg"
                         } else {
-                            SOUND_PLAYER_BUMPS_PLAYER
+                            "sounds/player_bumps_player.ogg"
                         };
 
                         commands.spawn((

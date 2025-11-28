@@ -26,14 +26,3 @@ pub const ROTATION_CHANGE_THRESHOLD: f32 = 0.05; // ~3 degrees
 
 pub const FOOTSTEP_INTERVAL: f32 = 0.175; // seconds between footsteps (50% faster)
 pub const FOOTSTEP_VOLUME: f32 = 0.2; // 20% volume
-
-// ============================================================================
-// Sound Effect Paths
-// ============================================================================
-
-pub const SOUND_PLAYER_FIRES: &str = "sounds/player_fires.ogg";
-pub const SOUND_PLAYER_HITS_PLAYER: &str = "sounds/player_hits_player.ogg";
-pub const SOUND_PLAYER_HITS_WALL: &str = "sounds/player_hits_wall.ogg";
-pub const SOUND_PLAYER_GETS_HIT: &str = "sounds/player_gets_hit.ogg";
-pub const SOUND_PLAYER_BUMPS_WALL: &str = "sounds/player_bumps_wall.ogg";
-pub const SOUND_PLAYER_BUMPS_PLAYER: &str = "sounds/player_bumps_player.ogg";
