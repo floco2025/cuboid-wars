@@ -234,75 +234,71 @@ fn process_message_logged_in(
             // Update all players with new state
             for (id, server_player) in &msg.players {
                 if let Some(client_player) = players.0.get_mut(id) {
-                    // if *id == my_player_id {
-                    //     // For local player: compare pred position vs server position
-                    //     if let Ok(client_pos) = player_pos_query.get(client_player.entity) {
-                    //         // Calculate where we should be based on past position + speed over RTT
-                    //         let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64();
-                    //         let elapsed_since_past = (now - past_pos_vel.timestamp) as f32;
-                    //         let past_pred = Position {
-                    //             x: past_pos_vel.pos.x + past_pos_vel.vel.x * elapsed_since_past,
-                    //             y: 0.0,
-                    //             z: past_pos_vel.pos.z + past_pos_vel.vel.z * elapsed_since_past,
-                    //         };
+                    if *id == my_player_id
+                        && let Ok(client_pos) = player_pos_query.get(client_player.entity)
+                    {
+                        // Calculate where we should be based on past position + speed over RTT
+                        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64();
+                        let elapsed_since_past = (now - past_pos_vel.timestamp) as f32;
+                        let past_pred = Position {
+                            x: past_pos_vel.pos.x + past_pos_vel.vel.x * elapsed_since_past,
+                            y: 0.0,
+                            z: past_pos_vel.pos.z + past_pos_vel.vel.z * elapsed_since_past,
+                        };
 
-                    //         // Calculate predicted position from server pos + speed over half RTT
-                    //         let server_speed = server_player.speed.to_velocity();
-                    //         let half_rtt = (rtt.rtt / 2.0) as f32;
-                    //         let server_pred = Position {
-                    //             x: server_player.pos.x + server_speed.x * half_rtt,
-                    //             y: 0.0,
-                    //             z: server_player.pos.z + server_speed.z * half_rtt,
-                    //         };
+                        // Calculate predicted position from server pos + speed over half RTT
+                        let server_speed = server_player.speed.to_velocity();
+                        let half_rtt = (rtt.rtt / 2.0) as f32;
+                        let server_pred = Position {
+                            x: server_player.pos.x + server_speed.x * half_rtt,
+                            y: 0.0,
+                            z: server_player.pos.z + server_speed.z * half_rtt,
+                        };
 
-                    //         // Calculate signed distances projected along server movement direction
-                    //         // Positive = ahead in movement direction, Negative = behind
-                    //         let move_dir_sin = server_player.speed.move_dir.sin();
-                    //         let move_dir_cos = server_player.speed.move_dir.cos();
+                        // Calculate signed distances projected along server movement direction
+                        // Positive = ahead in movement direction, Negative = behind
+                        let move_dir_sin = server_player.speed.move_dir.sin();
+                        let move_dir_cos = server_player.speed.move_dir.cos();
 
-                    //         let server_to_current_x = server_player.pos.x - client_pos.x;
-                    //         let server_to_current_z = server_player.pos.z - client_pos.z;
-                    //         let server_to_current_signed =
-                    //             server_to_current_x * move_dir_sin + server_to_current_z * move_dir_cos;
+                        let server_to_current_x = server_player.pos.x - client_pos.x;
+                        let server_to_current_z = server_player.pos.z - client_pos.z;
+                        let server_to_current_signed =
+                            server_to_current_x * move_dir_sin + server_to_current_z * move_dir_cos;
 
-                    //         let current_to_server_pred_x = server_pred.x - client_pos.x;
-                    //         let current_to_server_pred_z = server_pred.z - client_pos.z;
-                    //         let current_to_server_pred_signed =
-                    //             current_to_server_pred_x * move_dir_sin + current_to_server_pred_z * move_dir_cos;
+                        let current_to_server_pred_x = server_pred.x - client_pos.x;
+                        let current_to_server_pred_z = server_pred.z - client_pos.z;
+                        let current_to_server_pred_signed =
+                            current_to_server_pred_x * move_dir_sin + current_to_server_pred_z * move_dir_cos;
 
-                    //         let server_to_server_pred_x = server_pred.x - server_player.pos.x;
-                    //         let server_to_server_pred_z = server_pred.z - server_player.pos.z;
-                    //         let server_to_server_pred_signed =
-                    //             server_to_server_pred_x * move_dir_sin + server_to_server_pred_z * move_dir_cos;
+                        let server_to_server_pred_x = server_pred.x - server_player.pos.x;
+                        let server_to_server_pred_z = server_pred.z - server_player.pos.z;
+                        let server_to_server_pred_signed =
+                            server_to_server_pred_x * move_dir_sin + server_to_server_pred_z * move_dir_cos;
 
-                    //         let server_to_past_pred_x = past_pred.x - server_player.pos.x;
-                    //         let server_to_past_pred_z = past_pred.z - server_player.pos.z;
-                    //         let server_to_past_pred_signed =
-                    //             server_to_past_pred_x * move_dir_sin + server_to_past_pred_z * move_dir_cos;
+                        let server_to_past_pred_x = past_pred.x - server_player.pos.x;
+                        let server_to_past_pred_z = past_pred.z - server_player.pos.z;
+                        let server_to_past_pred_signed =
+                            server_to_past_pred_x * move_dir_sin + server_to_past_pred_z * move_dir_cos;
 
-                    //         debug!(
-                    //             "s2c={:+.2} s2pp={:+.2} s2sp={:+.2} c2sp={:+.2} {:?}",
-                    //             server_to_current_signed,
-                    //             server_to_past_pred_signed,
-                    //             server_to_server_pred_signed,
-                    //             current_to_server_pred_signed,
-                    //             server_player.speed.speed_level,
-                    //         );
+                        debug!(
+                            "s2c={:+.2} s2pp={:+.2} s2sp={:+.2} c2sp={:+.2} {:?}",
+                            server_to_current_signed,
+                            server_to_past_pred_signed,
+                            server_to_server_pred_signed,
+                            current_to_server_pred_signed,
+                            server_player.speed.speed_level,
+                        );
 
-                    //         // Apply server correction
-                    //         commands
-                    //             .entity(client_player.entity)
-                    //             .insert((server_player.pos, server_player.speed.to_velocity()));
-                    //     } else {
-                    //         // Other players: always accept server state
-                    //         commands
-                    //             .entity(client_player.entity)
-                    //             .insert((server_player.pos, server_player.speed.to_velocity()));
-                    //     }
+                        // Other players: always accept server state
+                        commands
+                            .entity(client_player.entity)
+                            .insert((server_player.pos, server_player.speed.to_velocity()));
+                    } else {
+                        commands
+                            .entity(client_player.entity)
+                            .insert((server_player.pos, server_player.speed.to_velocity()));
+                    }
 
-                    commands
-                        .entity(client_player.entity)
-                        .insert((server_player.pos, server_player.speed.to_velocity()));
                     client_player.hits = server_player.hits;
                 }
             }
