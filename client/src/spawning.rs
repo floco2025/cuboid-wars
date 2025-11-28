@@ -150,11 +150,11 @@ pub fn spawn_projectile_for_player(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
-    player_pos_mov_query: &Query<(&Position, &FaceDirection), With<PlayerId>>,
+    player_pos_face_query: &Query<(&Position, &FaceDirection), With<PlayerId>>,
     entity: Entity,
 ) {
     // Get position and face direction for this player entity
-    if let Ok((pos, face_dir)) = player_pos_mov_query.get(entity) {
+    if let Ok((pos, face_dir)) = player_pos_face_query.get(entity) {
         spawn_projectile_local(commands, meshes, materials, pos, face_dir.0);
     }
 }

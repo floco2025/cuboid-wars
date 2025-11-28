@@ -5,7 +5,7 @@ use bevy_time::{Time, Timer, TimerMode};
 
 use crate::{
     constants::*,
-    protocol::{Position, Speed, SpeedLevel},
+    protocol::{Position, Speed},
 };
 
 // ============================================================================
@@ -57,25 +57,14 @@ impl Projectile {
 pub fn movement_system(time: Res<Time>, mut query: Query<(&mut Position, &Speed)>) {
     let delta = time.delta_secs();
 
-    for (mut pos, mov) in query.iter_mut() {
-        // Calculate actual velocity from movement state
-        let speed = match mov.speed_level {
-            SpeedLevel::Idle => 0.0,
-            SpeedLevel::Walk => WALK_SPEED,
-            SpeedLevel::Run => RUN_SPEED,
-        };
+    for (mut pos, speed) in query.iter_mut() {
+        // Convert Speed to Velocity
+        let velocity = speed.to_velocity();
 
-        if speed > 0.0 {
-            // Calculate velocity vector from movement direction and speed
-            // Using face_dir directly with Bevy's coordinate system
-            let vel_x = mov.move_dir.sin() * speed;
-            let vel_z = mov.move_dir.cos() * speed;
-
-            // Integrate into position
-            pos.x += vel_x * delta;
-            pos.z += vel_z * delta;
-            // pos.y stays at 0 for 2D gameplay
-        }
+        // Integrate into position
+        pos.x += velocity.x * delta;
+        pos.z += velocity.z * delta;
+        // pos.y stays at 0 for 2D gameplay
     }
 }
 

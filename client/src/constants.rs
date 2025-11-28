@@ -23,5 +23,5 @@ pub const ROTATION_CHANGE_THRESHOLD: f32 = 0.05; // ~3 degrees
 // Network Settings
 // ============================================================================
 
-pub const MOVEMENT_MAX_SEND_INTERVAL: f32 = 0.1; // Send movement updates at most every 100ms
+pub const SPEED_MAX_SEND_INTERVAL: f32 = 0.1; // Send speed updates at most every 100ms
 pub const ECHO_INTERVAL: f32 = 10.0; // Send echo requests every 10 seconds

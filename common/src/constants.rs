@@ -18,7 +18,7 @@ pub const PLAYER_WIDTH: f32 = 0.5; // side to side
 pub const PLAYER_HEIGHT: f32 = 1.8; // up/down
 pub const PLAYER_DEPTH: f32 = 0.3; // front to back
 
-// Player movement speeds (meters per second)
+// Player speeds (meters per second)
 pub const WALK_SPEED: f32 = 6.0;
 pub const RUN_SPEED: f32 = 10.0;
 

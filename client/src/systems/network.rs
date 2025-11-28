@@ -30,7 +30,7 @@ pub fn process_server_events_system(
     mut player_map: ResMut<PlayerMap>,
     mut rtt: ResMut<RoundTripTime>,
     mut rtt_measurements: Local<VecDeque<f64>>,
-    mut past_pos_mov: ResMut<PastPosVel>,
+    mut past_pos_vel: ResMut<PastPosVel>,
     player_pos_query: Query<&Position, With<PlayerId>>,
     player_face_query: Query<(&Position, &common::protocol::FaceDirection), With<PlayerId>>,
     camera_query: Query<Entity, With<Camera3d>>,
@@ -52,7 +52,7 @@ pub fn process_server_events_system(
                         &mut player_map,
                         &mut rtt,
                         &mut rtt_measurements,
-                        &mut past_pos_mov,
+                        &mut past_pos_vel,
                         &player_pos_query,
                         &player_face_query,
                         &camera_query,
@@ -136,14 +136,14 @@ fn process_message_logged_in(
                 commands.entity(player.entity).despawn();
             }
         }
-        ServerMessage::Movement(msg) => {
-            trace!("{:?} movement: {:?}", msg.id, msg);
-            // Update player movement using player_map
+        ServerMessage::Speed(msg) => {
+            trace!("{:?} speed: {:?}", msg.id, msg);
+            // Update player speed using player_map
             if let Some(player) = players.0.get(&msg.id) {
                 let velocity = msg.speed.to_velocity();
                 commands.entity(player.entity).insert(velocity);
             } else {
-                warn!("received movement for non-existent player {:?}", msg.id);
+                warn!("received speed for non-existent player {:?}", msg.id);
             }
         }
         ServerMessage::Face(msg) => {
@@ -252,7 +252,7 @@ fn process_message_logged_in(
                                 z: past_pos_vel.pos.z + past_pos_vel.vel.z * elapsed_since_past,
                             };
 
-                            // Calculate predicted position from server pos + mov over half RTT
+                            // Calculate predicted position from server pos + speed over half RTT
                             let server_speed = server_player.speed.to_velocity();
                             let half_rtt = (rtt.rtt / 2.0) as f32;
                             let server_pred = Position {

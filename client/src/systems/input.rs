@@ -63,7 +63,7 @@ pub fn input_system(
     cursor_options: Single<&bevy::window::CursorOptions>,
     to_server: Res<ClientToServerChannel>,
     time: Res<Time>,
-    mut last_sent_speed: Local<Speed>, // Last movement sent to server
+    mut last_sent_speed: Local<Speed>, // Last speed sent to server
     mut last_sent_face: Local<f32>,    // Last face direction sent to server
     mut last_send_time: Local<f32>,    // Time accumulator for send interval throttling
     mut player_rotation: Local<f32>,   // Track player rotation across frames
@@ -162,19 +162,19 @@ pub fn input_system(
         // Accumulate send time for throttling
         *last_send_time += time.delta_secs();
 
-        // Determine if movement or rotation changed significantly
+        // Determine if speed or face direction changed significantly
         let speed_level_changed = last_sent_speed.speed_level != speed.speed_level;
         let face_changed = (face_direction - *last_sent_face).abs() > ROTATION_CHANGE_THRESHOLD;
 
-        // Send movement to server if velocity state changed
+        // Send speed to server if level changed
         if speed_level_changed {
-            let msg = ClientMessage::Movement(CSpeed { speed });
+            let msg = ClientMessage::Speed(CSpeed { speed });
             let _ = to_server.send(ClientToServer::Send(msg));
             *last_sent_speed = speed;
         }
 
         // Send face direction to server if rotation changed and enough time passed
-        if face_changed && *last_send_time >= MOVEMENT_MAX_SEND_INTERVAL {
+        if face_changed && *last_send_time >= SPEED_MAX_SEND_INTERVAL {
             let msg = ClientMessage::Face(CFace { dir: face_direction });
             let _ = to_server.send(ClientToServer::Send(msg));
             *last_sent_face = face_direction;
@@ -202,7 +202,7 @@ pub fn input_system(
             for (mut player_velocity, _) in local_player_query.iter_mut() {
                 *player_velocity = speed.to_velocity();
             }
-            let msg = ClientMessage::Movement(CSpeed { speed });
+            let msg = ClientMessage::Speed(CSpeed { speed });
             let _ = to_server.send(ClientToServer::Send(msg));
             *last_sent_speed = speed;
             *last_send_time = 0.0;

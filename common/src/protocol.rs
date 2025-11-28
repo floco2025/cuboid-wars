@@ -42,7 +42,7 @@ impl Position {
     }
 }
 
-// SpeedLevel - movement speed state
+// SpeedLevel - discrete speed level.
 #[derive(Debug, Copy, Clone, PartialEq, Default)]
 #[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "bincode", derive(Encode, Decode))]
@@ -53,7 +53,7 @@ pub enum SpeedLevel {
     Run,
 }
 
-// Speed component - speed level and movement direction
+// Speed component - speed level and direction
 message! {
 #[derive(Copy, Component, Default)]
 struct Speed {
@@ -253,7 +253,7 @@ struct SEcho {
 pub enum ClientMessage {
     Login(CLogin),
     Logoff(CLogoff),
-    Movement(CSpeed),
+    Speed(CSpeed),
     Face(CFace),
     Shot(CShot),
     Echo(CEcho),
@@ -267,7 +267,7 @@ pub enum ServerMessage {
     Init(SInit),
     Login(SLogin),
     Logoff(SLogoff),
-    Movement(SSpeed),
+    Speed(SSpeed),
     Face(SFace),
     Shot(SShot),
     Update(SUpdate),

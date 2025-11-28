@@ -137,7 +137,7 @@ pub fn process_client_message_system(
     mut players: ResMut<PlayerMap>,
     wall_config: Res<WallConfig>,
     positions: Query<&Position>,
-    movements: Query<&Speed>,
+    speeds: Query<&Speed>,
     face_dirs: Query<&FaceDirection>,
 ) {
     while let Ok((id, event)) = from_clients.try_recv() {
@@ -176,7 +176,7 @@ pub fn process_client_message_system(
                         id,
                         message,
                         &positions,
-                        &movements,
+                        &speeds,
                         &face_dirs,
                         &mut players,
                         &wall_config,
@@ -197,7 +197,7 @@ fn process_message_not_logged_in(
     id: PlayerId,
     msg: ClientMessage,
     positions: &Query<&Position>,
-    movements: &Query<&Speed>,
+    speeds: &Query<&Speed>,
     face_dirs: &Query<&FaceDirection>,
     players: &mut ResMut<PlayerMap>,
     wall_config: &Res<WallConfig>,
@@ -240,7 +240,7 @@ fn process_message_not_logged_in(
                 face_dir.to_degrees()
             );
 
-            // Initial movement for the new player
+            // Initial speed for the new player
             let speed = Speed {
                 speed_level: SpeedLevel::Idle,
                 move_dir: 0.0,
@@ -269,13 +269,13 @@ fn process_message_not_logged_in(
                         return None;
                     }
                     let pos = positions.get(info.entity).ok()?;
-                    let mov = movements.get(info.entity).ok()?;
+                    let speed = speeds.get(info.entity).ok()?;
                     let face_dir = face_dirs.get(info.entity).ok()?;
                     Some((
                         *player_id,
                         Player {
                             pos: *pos,
-                            speed: *mov,
+                            speed: *speed,
                             face_dir: face_dir.0,
                             hits: info.hits,
                         },
@@ -289,7 +289,7 @@ fn process_message_not_logged_in(
             let update_msg = ServerMessage::Update(SUpdate { players: all_players });
             channel.send(ServerToClient::Send(update_msg)).ok();
 
-            // Now update entity: add Position + Movement + FaceDirection
+            // Now update entity: add Position + Speed + FaceDirection
             commands.entity(entity).insert((pos, speed, FaceDirection(face_dir)));
 
             // Broadcast Login to all other logged-in players
@@ -335,9 +335,9 @@ fn process_message_logged_in(
                 }
             }
         }
-        ClientMessage::Movement(msg) => {
-            trace!("{:?} movement: {:?}", id, msg);
-            handle_movement(commands, entity, id, msg, players);
+        ClientMessage::Speed(msg) => {
+            trace!("{:?} speed: {:?}", id, msg);
+            handle_speed(commands, entity, id, msg, players);
         }
         ClientMessage::Face(msg) => {
             trace!("{:?} face direction: {}", id, msg.dir);
@@ -363,12 +363,12 @@ fn process_message_logged_in(
 // Movement Handlers
 // ============================================================================
 
-fn handle_movement(commands: &mut Commands, entity: Entity, id: PlayerId, msg: CSpeed, players: &PlayerMap) {
-    // Update the player's movement
+fn handle_speed(commands: &mut Commands, entity: Entity, id: PlayerId, msg: CSpeed, players: &PlayerMap) {
+    // Update the player's speed
     commands.entity(entity).insert(msg.speed);
 
-    // Broadcast movement update to all other logged-in players
-    let broadcast_msg = ServerMessage::Movement(SSpeed { id, speed: msg.speed });
+    // Broadcast speed update to all other logged-in players
+    let broadcast_msg = ServerMessage::Speed(SSpeed { id, speed: msg.speed });
     for (other_id, other_info) in players.0.iter() {
         if *other_id != id && other_info.logged_in {
             let _ = other_info.channel.send(ServerToClient::Send(broadcast_msg.clone()));
@@ -437,7 +437,7 @@ pub fn broadcast_state_system(
     time: Res<Time>,
     mut timer: Local<f32>,
     positions: Query<&Position>,
-    movements: Query<&Speed>,
+    speeds: Query<&Speed>,
     face_dirs: Query<&FaceDirection>,
     players: Res<PlayerMap>,
 ) {
@@ -458,13 +458,13 @@ pub fn broadcast_state_system(
                 return None;
             }
             let pos = positions.get(info.entity).ok()?;
-            let mov = movements.get(info.entity).ok()?;
+            let speed = speeds.get(info.entity).ok()?;
             let face_dir = face_dirs.get(info.entity).ok()?;
             Some((
                 *player_id,
                 Player {
                     pos: *pos,
-                    speed: *mov,
+                    speed: *speed,
                     face_dir: face_dir.0,
                     hits: info.hits,
                 },
@@ -565,24 +565,17 @@ pub fn server_movement_system(
     // Pass 1: Calculate all intended new positions (after wall collision check)
     let mut intended_positions: Vec<(Entity, Position)> = Vec::new();
 
-    for (entity, pos, mov) in query.iter() {
-        // Calculate movement speed based on velocity
-        let speed = match mov.speed_level {
-            SpeedLevel::Idle => 0.0,
-            SpeedLevel::Walk => WALK_SPEED,
-            SpeedLevel::Run => RUN_SPEED,
-        };
+    for (entity, pos, speed) in query.iter() {
+        // Convert Speed to Velocity
+        let velocity = speed.to_velocity();
+        let speed = (velocity.x * velocity.x + velocity.z * velocity.z).sqrt();
 
         if speed > 0.0 {
-            // Calculate velocity from direction
-            let vel_x = mov.move_dir.sin() * speed;
-            let vel_z = mov.move_dir.cos() * speed;
-
             // Calculate new position
             let new_pos = Position {
-                x: pos.x + vel_x * delta,
+                x: pos.x + velocity.x * delta,
                 y: pos.y,
-                z: pos.z + vel_z * delta,
+                z: pos.z + velocity.z * delta,
             };
 
             // Check if new position collides with any wall
