@@ -525,16 +525,16 @@ pub fn server_movement_system(
     
     for (entity, pos, mov) in query.iter() {
         // Calculate movement speed based on velocity
-        let speed_m_per_sec = match mov.vel {
+        let speed = match mov.vel {
             Velocity::Idle => 0.0,
             Velocity::Walk => WALK_SPEED,
             Velocity::Run => RUN_SPEED,
         };
 
-        if speed_m_per_sec > 0.0 {
+        if speed > 0.0 {
             // Calculate velocity from direction
-            let vel_x = mov.move_dir.sin() * speed_m_per_sec;
-            let vel_z = mov.move_dir.cos() * speed_m_per_sec;
+            let vel_x = mov.move_dir.sin() * speed;
+            let vel_z = mov.move_dir.cos() * speed;
 
             // Calculate new position
             let new_pos = Position {

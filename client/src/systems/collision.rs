@@ -53,7 +53,7 @@ pub fn client_hit_detection_system(
         }
 
         // Check player collisions
-        for (_player_entity, player_pos, player_mov, is_local_player) in player_query.iter() {
+        for (_player_entity, player_pos, player_mov, is_local) in player_query.iter() {
             // Use common hit detection logic
             let result = check_projectile_player_hit(&proj_pos, projectile, delta, player_pos, player_mov);
             if result.hit {
@@ -63,7 +63,7 @@ pub fn client_hit_detection_system(
                 ));
 
                 // Play hit sound if local player was hit
-                if is_local_player {
+                if is_local {
                     commands.spawn((
                         AudioPlayer::new(asset_server.load("sounds/player_gets_hit.ogg")),
                         PlaybackSettings::DESPAWN,

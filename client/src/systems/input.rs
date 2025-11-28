@@ -171,7 +171,7 @@ pub fn input_system(
         // Send to server if:
         // 1. Velocity state changed (started/stopped moving, or changed speed), OR
         // 2. Direction changed significantly AND enough time has passed (throttle minor direction updates)
-        let should_send = vel_state_changed || (rotation_changed && *last_send_time >= MOVEMENT_SEND_INTERVAL);
+        let should_send = vel_state_changed || (rotation_changed && *last_send_time >= MOVEMENT_MAX_SEND_INTERVAL);
 
         if should_send {
             let msg = ClientMessage::Movement(CMovement { mov });

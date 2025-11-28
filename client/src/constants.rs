@@ -17,12 +17,11 @@ pub const TOPDOWN_LOOKAT_Z: f32 = 8.5; // Z coordinate camera looks at
 // ============================================================================
 
 pub const MOUSE_SENSITIVITY: f32 = 0.002; // radians per pixel
-pub const MOVEMENT_SEND_INTERVAL: f32 = 0.1; // Send movement updates at most every 100ms
 pub const ROTATION_CHANGE_THRESHOLD: f32 = 0.05; // ~3 degrees
 
 // ============================================================================
-// Footstep Settings
+// Network Settings
 // ============================================================================
 
-pub const FOOTSTEP_INTERVAL: f32 = 0.175; // seconds between footsteps (50% faster)
-pub const FOOTSTEP_VOLUME: f32 = 0.2; // 20% volume
+pub const MOVEMENT_MAX_SEND_INTERVAL: f32 = 0.1; // Send movement updates at most every 100ms
+pub const ECHO_INTERVAL: f32 = 10.0; // Send echo requests every 10 seconds

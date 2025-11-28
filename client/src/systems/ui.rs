@@ -200,8 +200,8 @@ pub fn update_rtt_system(rtt: Res<crate::resources::RoundTripTime>, mut query: S
         return;
     }
 
-    if rtt.rtt_ms > 0 {
-        query.0 = format!("RTT: {}ms", rtt.rtt_ms);
+    if rtt.rtt > 0.0 {
+        query.0 = format!("RTT: {:.0}ms", rtt.rtt * 1000.0);
     } else {
         query.0 = "RTT: --".to_string();
     }

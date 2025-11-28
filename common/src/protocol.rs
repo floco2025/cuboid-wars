@@ -26,7 +26,7 @@ macro_rules! message {
 // Store as individual fields for network serialization (Vec3 doesn't implement bincode traits)
 // Y is always 0 for now (2D gameplay on a flat plane)
 message! {
-#[derive(Copy, Component, PartialEq)]
+#[derive(Copy, Component, PartialEq, Default)]
 struct Position {
     pub x: f32, // meters
     pub y: f32, // meters (up/down - always 0 for now)
@@ -120,7 +120,7 @@ struct CShot {
 message! {
 // Client to Server: Echo request with timestamp.
 struct CEcho {
-    pub timestamp: u64,
+    pub timestamp: f64,
 }
 }
 
@@ -187,7 +187,7 @@ struct SHit {
 message! {
 // Server to Client: Echo response with timestamp.
 struct SEcho {
-    pub timestamp: u64,
+    pub timestamp: f64,
 }
 }
 

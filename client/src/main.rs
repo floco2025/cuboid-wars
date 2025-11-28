@@ -7,24 +7,23 @@ use quinn::Endpoint;
 use client::{
     config::configure_client,
     net::network_io_task,
-    resources::{CameraViewMode, ClientToServerChannel, PlayerMap, RoundTripTime, ServerToClientChannel},
+    resources::{CameraViewMode, ClientToServerChannel, PastPosMov, PlayerMap, RoundTripTime, ServerToClientChannel},
     systems::{
         collision::client_hit_detection_system,
         effects::{apply_camera_shake_system, apply_cuboid_shake_system},
         input::{camera_view_toggle_system, cursor_toggle_system, input_system, shooting_input_system},
         network::{echo_system, process_server_events_system},
         sync::{
-            client_movement_system, sync_camera_to_player_system,
-            sync_local_player_visibility_system, sync_position_to_transform_system,
-            sync_rotation_to_transform_system, sync_projectiles_system,
+            client_movement_system, sync_camera_to_player_system, sync_local_player_visibility_system,
+            sync_position_to_transform_system, sync_projectiles_system, sync_rotation_to_transform_system,
         },
         ui::{setup_world_system, update_player_list_system, update_rtt_system},
         walls::spawn_walls_system,
     },
 };
+use common::net::MessageStream;
 #[allow(clippy::wildcard_imports)]
 use common::protocol::*;
-use common::net::MessageStream;
 
 // ============================================================================
 // CLI Arguments
@@ -135,6 +134,7 @@ fn main() -> Result<()> {
     .insert_resource(PlayerMap::default())
     .insert_resource(RoundTripTime::default())
     .insert_resource(CameraViewMode::default())
+    .insert_resource(PastPosMov::default())
     .add_systems(Startup, setup_world_system)
     .add_systems(
         Update,

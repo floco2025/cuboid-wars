@@ -1,11 +1,18 @@
 use bevy::prelude::*;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    collections::VecDeque,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use super::effects::{CameraShake, CuboidShake};
-use crate::spawning::{spawn_player, spawn_projectile_for_player};
 use crate::{
+    constants::ECHO_INTERVAL,
     net::{ClientToServer, ServerToClient},
-    resources::{ClientToServerChannel, MyPlayerId, PlayerInfo, PlayerMap, RoundTripTime, ServerToClientChannel, WallConfig},
+    resources::{
+        ClientToServerChannel, MyPlayerId, PastPosMov, PlayerInfo, PlayerMap, RoundTripTime, ServerToClientChannel,
+        WallConfig,
+    },
+    spawning::{spawn_player, spawn_projectile_for_player},
 };
 use common::protocol::{CEcho, ClientMessage, Movement, PlayerId, Position, ServerMessage};
 
@@ -22,9 +29,11 @@ pub fn process_server_events_system(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut player_map: ResMut<PlayerMap>,
     mut rtt: ResMut<RoundTripTime>,
+    mut rtt_measurements: Local<VecDeque<f64>>,
+    mut past_pos_mov: ResMut<PastPosMov>,
     player_pos_mov_query: Query<(&Position, &Movement), With<PlayerId>>,
     camera_query: Query<Entity, With<Camera3d>>,
-    mut my_player_id: Local<Option<PlayerId>>,
+    my_player_id: Option<Res<MyPlayerId>>,
 ) {
     // Process all messages from the server
     while let Ok(msg) = from_server.try_recv() {
@@ -41,13 +50,15 @@ pub fn process_server_events_system(
                         &mut materials,
                         &mut player_map,
                         &mut rtt,
+                        &mut rtt_measurements,
+                        &mut past_pos_mov,
                         &player_pos_mov_query,
                         &camera_query,
-                        *my_player_id,
+                        my_player_id.as_ref().unwrap().0,
                         &message,
                     );
                 } else {
-                    process_message_not_logged_in(&mut commands, &message, &mut my_player_id);
+                    process_message_not_logged_in(&mut commands, &message);
                 }
             }
         }
@@ -58,19 +69,14 @@ pub fn process_server_events_system(
 // Message Handlers
 // ============================================================================
 
-fn process_message_not_logged_in(
-    commands: &mut Commands,
-    msg: &ServerMessage,
-    my_player_id: &mut Local<Option<PlayerId>>,
-) {
+fn process_message_not_logged_in(commands: &mut Commands, msg: &ServerMessage) {
     match msg {
         ServerMessage::Init(init_msg) => {
             debug!("received Init: my_id={:?}", init_msg.id);
 
-            // Store in Local (immediate) and insert resource (deferred)
-            **my_player_id = Some(init_msg.id);
+            // Store player ID as resource
             commands.insert_resource(MyPlayerId(init_msg.id));
-            
+
             // Store walls configuration
             commands.insert_resource(WallConfig {
                 walls: init_msg.walls.clone(),
@@ -92,9 +98,11 @@ fn process_message_logged_in(
     materials: &mut ResMut<Assets<StandardMaterial>>,
     players: &mut ResMut<PlayerMap>,
     rtt: &mut ResMut<RoundTripTime>,
+    rtt_measurements: &mut VecDeque<f64>,
+    past_pos_mov: &mut ResMut<PastPosMov>,
     player_pos_mov_query: &Query<(&Position, &Movement), With<PlayerId>>,
     camera_query: &Query<Entity, With<Camera3d>>,
-    my_player_id: Option<PlayerId>,
+    my_player_id: PlayerId,
     msg: &ServerMessage,
 ) {
     match msg {
@@ -147,21 +155,23 @@ fn process_message_logged_in(
         ServerMessage::Update(msg) => {
             //trace!("update: {:?}", msg);
 
-            // Get my player ID to identify local player
-            let my_id: Option<u32> = my_player_id.map(|id| id.0);
-
             // Collect player IDs in this Update message
             let update_players: std::collections::HashSet<PlayerId> = msg.players.iter().map(|(id, _)| *id).collect();
 
             // Spawn missing players (in Update but not in player_map)
             for (id, player) in &msg.players {
                 if !players.0.contains_key(id) {
-                    let is_local = my_id.map_or(false, |my| my == (*id).0);
+                    let is_local = my_player_id.0 == (*id).0;
                     debug!("spawning player {:?} from Update (is_local: {})", id, is_local);
                     let entity = spawn_player(commands, meshes, materials, id.0, &player.pos, &player.mov, is_local);
 
-                    // Initialize camera rotation to match local player's spawn rotation
                     if is_local {
+                        // Initialize past position and movement for local player
+                        past_pos_mov.pos = player.pos;
+                        past_pos_mov.mov = player.mov;
+                        past_pos_mov.timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64();
+
+                        // Initialize camera rotation to match local player's spawn rotation
                         if let Ok(camera_entity) = camera_query.single() {
                             // Camera rotation needs π offset because camera looks along -Z in local space
                             // but face_dir assumes looking along +Z
@@ -201,18 +211,95 @@ fn process_message_logged_in(
             // Update all players with new state
             for (id, server_player) in &msg.players {
                 if let Some(client_player) = players.0.get_mut(id) {
-                    commands
-                        .entity(client_player.entity)
-                        .insert((server_player.pos, server_player.mov));
-                    // Update hit count from server
-                    client_player.hits = server_player.hits;
+                    let is_local = my_player_id == *id;
+
+                    if is_local {
+                        // For local player: compare predicted position vs server position
+                        if let Ok((current_pos, _current_mov)) = player_pos_mov_query.get(client_player.entity) {
+                            // Calculate where we should be based on past position + movement over RTT
+                            use common::constants::{RUN_SPEED, WALK_SPEED};
+                            use common::protocol::Velocity;
+
+                            // Calculate predicted position from past client pos + mov over actual elapsed time
+                            let past_speed = match past_pos_mov.mov.vel {
+                                Velocity::Idle => 0.0,
+                                Velocity::Walk => WALK_SPEED,
+                                Velocity::Run => RUN_SPEED,
+                            };
+                            let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64();
+                            let elapsed_since_past = (now - past_pos_mov.timestamp) as f32;
+                            let past_predicted_distance = past_speed * elapsed_since_past;
+                            let past_predicted_x =
+                                past_pos_mov.pos.x + past_pos_mov.mov.move_dir.sin() * past_predicted_distance;
+                            let past_predicted_z =
+                                past_pos_mov.pos.z + past_pos_mov.mov.move_dir.cos() * past_predicted_distance;
+
+                            // Calculate predicted position from current server pos + past client mov over half RTT
+                            // let current_speed = match current_mov.vel {
+                            //     Velocity::Idle => 0.0,
+                            //     Velocity::Walk => WALK_SPEED,
+                            //     Velocity::Run => RUN_SPEED,
+                            // };
+                            let half_rtt = (rtt.rtt / 2.0) as f32;
+                            let current_predicted_distance = past_speed * half_rtt;
+                            let current_predicted_x =
+                                server_player.pos.x + past_pos_mov.mov.move_dir.sin() * current_predicted_distance;
+                            let current_predicted_z =
+                                server_player.pos.z + past_pos_mov.mov.move_dir.cos() * current_predicted_distance;
+
+                            // Distance between server position and current position (no prediction)
+                            let server_to_current_x = server_player.pos.x - current_pos.x;
+                            let server_to_current_z = server_player.pos.z - current_pos.z;
+                            let server_to_current_dist = 
+                                (server_to_current_x * server_to_current_x + 
+                                 server_to_current_z * server_to_current_z).sqrt();
+
+                            // Distance between current position and past_predicted
+                            let current_to_past_predicted_x = past_predicted_x - current_pos.x;
+                            let current_to_past_predicted_z = past_predicted_z - current_pos.z;
+                            let current_to_past_predicted_dist = 
+                                (current_to_past_predicted_x * current_to_past_predicted_x + 
+                                 current_to_past_predicted_z * current_to_past_predicted_z).sqrt();
+
+                            // Distance between current position and current_predicted
+                            let current_to_current_predicted_x = current_predicted_x - current_pos.x;
+                            let current_to_current_predicted_z = current_predicted_z - current_pos.z;
+                            let current_to_current_predicted_dist = 
+                                (current_to_current_predicted_x * current_to_current_predicted_x + 
+                                 current_to_current_predicted_z * current_to_current_predicted_z).sqrt();
+
+                            // Distance between past_predicted and current_predicted
+                            let past_to_current_predicted_x = current_predicted_x - past_predicted_x;
+                            let past_to_current_predicted_z = current_predicted_z - past_predicted_z;
+                            let past_to_current_predicted_dist = 
+                                (past_to_current_predicted_x * past_to_current_predicted_x + 
+                                 past_to_current_predicted_z * past_to_current_predicted_z).sqrt();
+
+                            debug!(
+                                "server_to_cur={:.2} cur_to_past_pred={:.2} cur_to_cur_pred={:.2} past_pred_to_cur_pred={:.2}",
+                                server_to_current_dist, current_to_past_predicted_dist, current_to_current_predicted_dist, past_to_current_predicted_dist
+                            );
+
+                                
+                            // Apply server correction
+                            commands.entity(client_player.entity).insert(server_player.pos);
+                        }
+                        // Always update hit count from server
+                        client_player.hits = server_player.hits;
+                    } else {
+                        // Other players: always accept server state
+                        commands
+                            .entity(client_player.entity)
+                            .insert((server_player.pos, server_player.mov));
+                        client_player.hits = server_player.hits;
+                    }
                 }
             }
         }
         ServerMessage::Hit(msg) => {
             debug!("player {:?} was hit", msg.id);
             // Check if it's the local player
-            if Some(msg.id) == my_player_id {
+            if msg.id == my_player_id {
                 // Shake camera for local player
                 if let Ok(camera_entity) = camera_query.single() {
                     commands.entity(camera_entity).insert(CameraShake {
@@ -240,14 +327,20 @@ fn process_message_logged_in(
             }
         }
         ServerMessage::Echo(msg) => {
-            if rtt.pending_timestamp != 0 && msg.timestamp == rtt.pending_timestamp {
-                let now = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap()
-                    .as_millis() as u64;
-                rtt.rtt_ms = now.saturating_sub(rtt.pending_timestamp);
-                rtt.pending_timestamp = 0;
-                debug!("RTT: {}ms", rtt.rtt_ms);
+            if rtt.pending_timestamp != 0.0 && msg.timestamp == rtt.pending_timestamp {
+                let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64();
+                let measured_rtt = now - rtt.pending_timestamp;
+                rtt.pending_timestamp = 0.0;
+
+                // Add measurement and keep only last 10
+                rtt_measurements.push_back(measured_rtt);
+                if rtt_measurements.len() > 10 {
+                    rtt_measurements.pop_front();
+                }
+
+                // Calculate average
+                let sum: f64 = rtt_measurements.iter().sum();
+                rtt.rtt = sum / rtt_measurements.len() as f64;
             }
         }
     }
@@ -257,27 +350,28 @@ fn process_message_logged_in(
 // Echo/Ping System
 // ============================================================================
 
-// System to send echo requests every 10 seconds
+// System to send echo requests every ECHO_INTERVAL seconds
 pub fn echo_system(
     time: Res<Time>,
     mut rtt: ResMut<RoundTripTime>,
     to_server: Res<ClientToServerChannel>,
     mut timer: Local<f32>,
+    mut initialized: Local<bool>,
 ) {
-    const ECHO_INTERVAL: f32 = 10.0;
+    // Initialize timer to send first echo after 1 second
+    if !*initialized {
+        *timer = ECHO_INTERVAL - 1.0;
+        *initialized = true;
+    }
 
-    // Send echo request every 10 seconds
-    *timer += time.delta_secs();
+    let delta = time.delta_secs();
+    *timer += delta;
+
+    // Send echo request every ECHO_INTERVAL seconds
     if *timer >= ECHO_INTERVAL {
         *timer = 0.0;
-        
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_millis() as u64;
-        
+        let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64();
         rtt.pending_timestamp = timestamp;
-        
         let _ = to_server.send(ClientToServer::Send(ClientMessage::Echo(CEcho { timestamp })));
     }
 }

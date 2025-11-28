@@ -1,10 +1,11 @@
 #[allow(clippy::wildcard_imports)]
 use bevy::prelude::*;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::effects::{CameraShake, CuboidShake};
 #[allow(clippy::wildcard_imports)]
 use crate::constants::*;
-use crate::resources::CameraViewMode;
+use crate::resources::{CameraViewMode, PastPosMov};
 use common::{
     constants::PLAYER_HEIGHT,
     protocol::{Movement, Position},
@@ -148,6 +149,9 @@ pub fn client_movement_system(
     time: Res<Time>,
     asset_server: Res<AssetServer>,
     wall_config: Option<Res<crate::resources::WallConfig>>,
+    mut past_pos_mov: ResMut<PastPosMov>,
+    rtt: Res<crate::resources::RoundTripTime>,
+    mut timer_ms: Local<f32>,
     mut query: Query<(
         Entity,
         &mut Position,
@@ -160,17 +164,21 @@ pub fn client_movement_system(
     use common::constants::{RUN_SPEED, WALK_SPEED};
     use common::protocol::Velocity;
 
-    let delta = time.delta_secs();
+    let delta_ms = time.delta().as_millis() as f32;
+    let delta = delta_ms / 1000.0;
+
+    // Update timer for snapshot (in milliseconds)
+    *timer_ms += delta_ms;
 
     // Collect all current positions for player-player collision checks
     let positions: Vec<(Entity, Position)> = query.iter().map(|(entity, pos, _, _, _)| (entity, *pos)).collect();
 
-    for (entity, mut pos, mov, mut flash_state, is_local_player) in query.iter_mut() {
+    for (entity, mut pos, mov, mut flash_state, is_local) in query.iter_mut() {
         // Tick down flash timer (only for local player)
         if let Some(ref mut state) = flash_state {
             if state.flash_timer > 0.0 {
                 state.flash_timer -= delta;
-                if state.flash_timer <= 0.0 && is_local_player {
+                if state.flash_timer <= 0.0 && is_local {
                     // Flash finished, hide it
                     if let Some((mut bg_color, mut visibility)) = bump_flash_ui.iter_mut().next() {
                         *visibility = Visibility::Hidden;
@@ -181,16 +189,16 @@ pub fn client_movement_system(
         }
 
         // Calculate movement speed based on velocity
-        let speed_m_per_sec = match mov.vel {
+        let speed = match mov.vel {
             Velocity::Idle => 0.0,
             Velocity::Walk => WALK_SPEED,
             Velocity::Run => RUN_SPEED,
         };
 
-        if speed_m_per_sec > 0.0 {
+        if speed > 0.0 {
             // Calculate velocity from direction
-            let vel_x = mov.move_dir.sin() * speed_m_per_sec;
-            let vel_z = mov.move_dir.cos() * speed_m_per_sec;
+            let vel_x = mov.move_dir.sin() * speed;
+            let vel_z = mov.move_dir.cos() * speed;
 
             // Calculate new position
             let new_pos = Position {
@@ -217,11 +225,19 @@ pub fn client_movement_system(
             // Only update position if no collision
             if !collides_with_wall && !collides_with_player {
                 *pos = new_pos;
+                
+                // Save snapshot of local player position and movement every RTT seconds
+                if is_local && *timer_ms >= (rtt.rtt * 1000.0) as f32 {
+                    past_pos_mov.pos = *pos;
+                    past_pos_mov.mov = *mov;
+                    past_pos_mov.timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64();
+                    *timer_ms = 0.0;
+                }
 
                 if let Some(ref mut state) = flash_state {
                     state.was_colliding = false;
                 }
-            } else if is_local_player {
+            } else if is_local {
                 // Collision detected for local player - trigger flash and sound on NEW collision
                 if let Some(ref mut state) = flash_state {
                     if !state.was_colliding {
