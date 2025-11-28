@@ -63,10 +63,11 @@ pub fn input_system(
     cursor_options: Single<&bevy::window::CursorOptions>,
     to_server: Res<ClientToServerChannel>,
     time: Res<Time>,
-    mut last_sent_speed: Local<Speed>, // Last speed sent to server
-    mut last_sent_face: Local<f32>,    // Last face direction sent to server
-    mut last_send_time: Local<f32>,    // Time accumulator for send interval throttling
-    mut player_rotation: Local<f32>,   // Track player rotation across frames
+    mut last_sent_speed: Local<Speed>,    // Last speed sent to server
+    mut last_sent_face: Local<f32>,       // Last face direction sent to server
+    mut last_send_speed_time: Local<f32>, // Time accumulator for send speed interval throttling
+    mut last_send_face_time: Local<f32>,  // Time accumulator for send face interval throttling
+    mut player_rotation: Local<f32>,      // Track player rotation across frames
     mut local_player_query: Query<(&mut Velocity, &mut FaceDirection), With<LocalPlayer>>,
     mut camera_query: Query<&mut Transform, With<Camera3d>>,
     view_mode: Res<CameraViewMode>,
@@ -160,25 +161,29 @@ pub fn input_system(
         }
 
         // Accumulate send time for throttling
-        *last_send_time += time.delta_secs();
+        let delta = time.delta_secs();
+        *last_send_speed_time += delta;
+        *last_send_face_time += delta;
 
-        // Determine if speed or face direction changed significantly
+        // Send speed to server if:
+        // 1. Velocity state changed (started/stopped moving, or changed speed), OR
+        // 2. Direction changed significantly AND enough time has passed
         let speed_level_changed = last_sent_speed.speed_level != speed.speed_level;
-        let face_changed = (face_direction - *last_sent_face).abs() > ROTATION_CHANGE_THRESHOLD;
-
-        // Send speed to server if level changed
-        if speed_level_changed {
+        let move_dir_changed = (speed.move_dir - last_sent_speed.move_dir).abs() > SPEED_DIR_CHANGE_THRESHOLD;
+        if speed_level_changed || (move_dir_changed && *last_send_speed_time >= SPEED_MAX_SEND_INTERVAL) {
             let msg = ClientMessage::Speed(CSpeed { speed });
             let _ = to_server.send(ClientToServer::Send(msg));
             *last_sent_speed = speed;
+            *last_send_speed_time = 0.0;
         }
 
-        // Send face direction to server if rotation changed and enough time passed
-        if face_changed && *last_send_time >= SPEED_MAX_SEND_INTERVAL {
+        // Send face to server if face direction changed significantly AND enough time has passed
+        let face_changed = (face_direction - *last_sent_face).abs() > FACE_CHANGE_THRESHOLD;
+        if face_changed && *last_send_face_time >= FACE_MAX_SEND_INTERVAL {
             let msg = ClientMessage::Face(CFace { dir: face_direction });
             let _ = to_server.send(ClientToServer::Send(msg));
             *last_sent_face = face_direction;
-            *last_send_time = 0.0;
+            *last_send_face_time = 0.0;
         }
 
         // Update camera rotation
@@ -205,7 +210,7 @@ pub fn input_system(
             let msg = ClientMessage::Speed(CSpeed { speed });
             let _ = to_server.send(ClientToServer::Send(msg));
             *last_sent_speed = speed;
-            *last_send_time = 0.0;
+            *last_send_speed_time = 0.0;
         }
     }
 }

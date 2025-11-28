@@ -378,7 +378,7 @@ fn handle_speed(commands: &mut Commands, entity: Entity, id: PlayerId, msg: CSpe
 
 fn handle_face_direction(commands: &mut Commands, entity: Entity, id: PlayerId, msg: CFace, players: &PlayerMap) {
     // Update the player's face direction
-    commands.entity(entity).insert(common::protocol::FaceDirection(msg.dir));
+    commands.entity(entity).insert(FaceDirection(msg.dir));
 
     // Broadcast face direction update to all other logged-in players
     let broadcast_msg = ServerMessage::Face(common::protocol::SFace { id, dir: msg.dir });
