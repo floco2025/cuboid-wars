@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use crate::systems::sync::{BumpFlashState, LocalPlayer};
 use common::{
     constants::*,
-    protocol::{FaceDirection, PlayerId, Position, Speed, Wall, WallOrientation},
+    protocol::{FaceDirection, PlayerId, Position, Velocity, Wall, WallOrientation},
     systems::Projectile,
 };
 
@@ -18,7 +18,7 @@ pub fn spawn_player(
     materials: &mut ResMut<Assets<StandardMaterial>>,
     player_id: u32,
     position: &Position,
-    movement: &Speed,
+    velocity: Velocity,
     face_dir: f32,
     is_local: bool,
 ) -> Entity {
@@ -40,8 +40,7 @@ pub fn spawn_player(
     let entity = commands.spawn((
         PlayerId(player_id),
         *position,               // Add Position component
-        *movement,               // Add MovementState component
-        movement.to_velocity(),  // Add Velocity component
+        velocity,                // Add Velocity component
         FaceDirection(face_dir), // Add FaceDirection component
         Mesh3d(meshes.add(Cuboid::new(PLAYER_WIDTH, PLAYER_HEIGHT, PLAYER_DEPTH))),
         MeshMaterial3d(materials.add(color)),

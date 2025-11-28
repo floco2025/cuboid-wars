@@ -9,7 +9,7 @@ use crate::{
     resources::{CameraViewMode, ClientToServerChannel},
     spawning::spawn_projectile_local,
 };
-use common::protocol::{CFace, CShot, CSpeed, ClientMessage, FaceDirection, Position, Speed, SpeedLevel};
+use common::protocol::{CFace, CShot, CSpeed, ClientMessage, FaceDirection, Position, Speed, SpeedLevel, Velocity};
 
 // ============================================================================
 // Input Systems
@@ -67,7 +67,7 @@ pub fn input_system(
     mut last_sent_face: Local<f32>,    // Last face direction sent to server
     mut last_send_time: Local<f32>,    // Time accumulator for send interval throttling
     mut player_rotation: Local<f32>,   // Track player rotation across frames
-    mut local_player_query: Query<(&mut Speed, &mut FaceDirection), With<LocalPlayer>>,
+    mut local_player_query: Query<(&mut Velocity, &mut FaceDirection), With<LocalPlayer>>,
     mut camera_query: Query<&mut Transform, With<Camera3d>>,
     view_mode: Res<CameraViewMode>,
 ) {
@@ -153,9 +153,9 @@ pub fn input_system(
         // Create speed
         let speed = Speed { speed_level, move_dir };
 
-        // Always update local player's speed and facing immediately for responsive local movement
-        for (mut player_speed, mut player_face) in local_player_query.iter_mut() {
-            *player_speed = speed;
+        // Always update local player's velocity and facing immediately for responsive local movement
+        for (mut player_velocity, mut player_face) in local_player_query.iter_mut() {
+            *player_velocity = speed.to_velocity();
             player_face.0 = face_direction;
         }
 
@@ -199,8 +199,8 @@ pub fn input_system(
                 speed_level: SpeedLevel::Idle,
                 move_dir: 0.0,
             };
-            for (mut player_speed, _) in local_player_query.iter_mut() {
-                *player_speed = speed;
+            for (mut player_velocity, _) in local_player_query.iter_mut() {
+                *player_velocity = speed.to_velocity();
             }
             let msg = ClientMessage::Movement(CSpeed { speed });
             let _ = to_server.send(ClientToServer::Send(msg));
