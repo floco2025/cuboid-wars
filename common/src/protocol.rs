@@ -34,6 +34,14 @@ struct Position {
 }
 }
 
+impl Position {
+    pub fn distance_to(&self, other: &Position) -> f32 {
+        let dx = self.x - other.x;
+        let dz = self.z - other.z;
+        (dx * dx + dz * dz).sqrt()
+    }
+}
+
 // Velocity - movement speed state
 #[derive(Debug, Copy, Clone, PartialEq, Default)]
 #[cfg_attr(feature = "json", derive(Serialize, Deserialize))]

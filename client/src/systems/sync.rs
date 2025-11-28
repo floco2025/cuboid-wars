@@ -225,14 +225,6 @@ pub fn client_movement_system(
             // Only update position if no collision
             if !collides_with_wall && !collides_with_player {
                 *pos = new_pos;
-                
-                // Save snapshot of local player position and movement every RTT seconds
-                if is_local && *timer_ms >= (rtt.rtt * 1000.0) as f32 {
-                    past_pos_mov.pos = *pos;
-                    past_pos_mov.mov = *mov;
-                    past_pos_mov.timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64();
-                    *timer_ms = 0.0;
-                }
 
                 if let Some(ref mut state) = flash_state {
                     state.was_colliding = false;
@@ -266,6 +258,14 @@ pub fn client_movement_system(
         } else if let Some(ref mut state) = flash_state {
             // Not moving, reset flash state
             state.was_colliding = false;
+        }
+
+        // Save snapshot of local player position and movement every RTT seconds
+        if is_local && *timer_ms >= (rtt.rtt * 1000.0) as f32 {
+            past_pos_mov.pos = *pos;
+            past_pos_mov.mov = *mov;
+            past_pos_mov.timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64();
+            *timer_ms = 0.0;
         }
     }
 }

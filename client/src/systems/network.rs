@@ -214,8 +214,8 @@ fn process_message_logged_in(
                     let is_local = my_player_id == *id;
 
                     if is_local {
-                        // For local player: compare predicted position vs server position
-                        if let Ok((current_pos, _current_mov)) = player_pos_mov_query.get(client_player.entity) {
+                        // For local player: compare pred position vs server position
+                        if let Ok((client_pos, client_mov)) = player_pos_mov_query.get(client_player.entity) {
                             // Calculate where we should be based on past position + movement over RTT
                             use common::constants::{RUN_SPEED, WALK_SPEED};
                             use common::protocol::Velocity;
@@ -228,59 +228,58 @@ fn process_message_logged_in(
                             };
                             let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64();
                             let elapsed_since_past = (now - past_pos_mov.timestamp) as f32;
-                            let past_predicted_distance = past_speed * elapsed_since_past;
-                            let past_predicted_x =
-                                past_pos_mov.pos.x + past_pos_mov.mov.move_dir.sin() * past_predicted_distance;
-                            let past_predicted_z =
-                                past_pos_mov.pos.z + past_pos_mov.mov.move_dir.cos() * past_predicted_distance;
+                            let past_pred_dist = past_speed * elapsed_since_past;
+                            let past_pred = Position {
+                                x: past_pos_mov.pos.x + past_pos_mov.mov.move_dir.sin() * past_pred_dist,
+                                y: 0.0,
+                                z: past_pos_mov.pos.z + past_pos_mov.mov.move_dir.cos() * past_pred_dist,
+                            };
 
-                            // Calculate predicted position from current server pos + past client mov over half RTT
-                            // let current_speed = match current_mov.vel {
-                            //     Velocity::Idle => 0.0,
-                            //     Velocity::Walk => WALK_SPEED,
-                            //     Velocity::Run => RUN_SPEED,
-                            // };
+                            // Calculate predicted position from server pos + mov over half RTT
+                            let server_speed = match server_player.mov.vel {
+                                Velocity::Idle => 0.0,
+                                Velocity::Walk => WALK_SPEED,
+                                Velocity::Run => RUN_SPEED,
+                            };
                             let half_rtt = (rtt.rtt / 2.0) as f32;
-                            let current_predicted_distance = past_speed * half_rtt;
-                            let current_predicted_x =
-                                server_player.pos.x + past_pos_mov.mov.move_dir.sin() * current_predicted_distance;
-                            let current_predicted_z =
-                                server_player.pos.z + past_pos_mov.mov.move_dir.cos() * current_predicted_distance;
+                            let server_pred_dist = server_speed * half_rtt;
+                            let server_pred = Position {
+                                x: server_player.pos.x + server_player.mov.move_dir.sin() * server_pred_dist,
+                                y: 0.0,
+                                z: server_player.pos.z + server_player.mov.move_dir.cos() * server_pred_dist,
+                            };
 
-                            // Distance between server position and current position (no prediction)
-                            let server_to_current_x = server_player.pos.x - current_pos.x;
-                            let server_to_current_z = server_player.pos.z - current_pos.z;
-                            let server_to_current_dist = 
-                                (server_to_current_x * server_to_current_x + 
-                                 server_to_current_z * server_to_current_z).sqrt();
-
-                            // Distance between current position and past_predicted
-                            let current_to_past_predicted_x = past_predicted_x - current_pos.x;
-                            let current_to_past_predicted_z = past_predicted_z - current_pos.z;
-                            let current_to_past_predicted_dist = 
-                                (current_to_past_predicted_x * current_to_past_predicted_x + 
-                                 current_to_past_predicted_z * current_to_past_predicted_z).sqrt();
-
-                            // Distance between current position and current_predicted
-                            let current_to_current_predicted_x = current_predicted_x - current_pos.x;
-                            let current_to_current_predicted_z = current_predicted_z - current_pos.z;
-                            let current_to_current_predicted_dist = 
-                                (current_to_current_predicted_x * current_to_current_predicted_x + 
-                                 current_to_current_predicted_z * current_to_current_predicted_z).sqrt();
-
-                            // Distance between past_predicted and current_predicted
-                            let past_to_current_predicted_x = current_predicted_x - past_predicted_x;
-                            let past_to_current_predicted_z = current_predicted_z - past_predicted_z;
-                            let past_to_current_predicted_dist = 
-                                (past_to_current_predicted_x * past_to_current_predicted_x + 
-                                 past_to_current_predicted_z * past_to_current_predicted_z).sqrt();
+                            // Calculate signed distances projected along client movement direction
+                            // Positive = ahead in movement direction, Negative = behind
+                            let move_dir_sin = client_mov.move_dir.sin();
+                            let move_dir_cos = client_mov.move_dir.cos();
+                            
+                            let server_to_current_x = server_player.pos.x - client_pos.x;
+                            let server_to_current_z = server_player.pos.z - client_pos.z;
+                            let server_to_current_signed = server_to_current_x * move_dir_sin + server_to_current_z * move_dir_cos;
+                            
+                            let current_to_server_pred_x = server_pred.x - client_pos.x;
+                            let current_to_server_pred_z = server_pred.z - client_pos.z;
+                            let current_to_server_pred_signed = current_to_server_pred_x * move_dir_sin + current_to_server_pred_z * move_dir_cos;
+                            
+                            let server_to_server_pred_x = server_pred.x - server_player.pos.x;
+                            let server_to_server_pred_z = server_pred.z - server_player.pos.z;
+                            let server_to_server_pred_signed = server_to_server_pred_x * move_dir_sin + server_to_server_pred_z * move_dir_cos;
+                            
+                            let server_to_past_pred_x = past_pred.x - server_player.pos.x;
+                            let server_to_past_pred_z = past_pred.z - server_player.pos.z;
+                            let server_to_past_pred_signed = server_to_past_pred_x * move_dir_sin + server_to_past_pred_z * move_dir_cos;
 
                             debug!(
-                                "server_to_cur={:.2} cur_to_past_pred={:.2} cur_to_cur_pred={:.2} past_pred_to_cur_pred={:.2}",
-                                server_to_current_dist, current_to_past_predicted_dist, current_to_current_predicted_dist, past_to_current_predicted_dist
+                                "s2c={:+.2} s2pp={:+.2} s2sp={:+.2} c2sp={:+.2} {:?} {:?}",
+                                server_to_current_signed,
+                                server_to_past_pred_signed,
+                                server_to_server_pred_signed,
+                                current_to_server_pred_signed,
+                                server_player.mov.vel,
+                                client_mov.vel,
                             );
 
-                                
                             // Apply server correction
                             commands.entity(client_player.entity).insert(server_player.pos);
                         }

@@ -11,7 +11,10 @@ use server::{
     config::configure_server,
     net::accept_connections_task,
     resources::{FromAcceptChannel, FromClientsChannel, PlayerMap, WallConfig},
-    systems::{accept_connections_system, broadcast_state_system, hit_detection_system, process_client_message_system, server_movement_system},
+    systems::{
+        accept_connections_system, broadcast_state_system, hit_detection_system, process_client_message_system,
+        server_movement_system,
+    },
 };
 
 mod walls;
@@ -90,8 +93,9 @@ async fn main() -> Result<()> {
 
     info!("starting ECS server loop...");
 
-    // Run the app in a loop manually at 30 Hz
-    let tick_duration = tokio::time::Duration::from_nanos(1_000_000_000 / 30);
+    // Run the app in a loop manually at LOOP_FREQUENCY Hz
+    const SERVER_LOOP_FREQUENCY: u64 = 30;
+    let tick_duration = tokio::time::Duration::from_nanos(1_000_000_000 / SERVER_LOOP_FREQUENCY);
     let mut interval = tokio::time::interval(tick_duration);
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
@@ -113,8 +117,5 @@ async fn main() -> Result<()> {
         }
 
         frame += 1;
-        // if frame % 30 == 0 {
-        //     trace!("server tick {}", frame);
-        // }
     }
 }

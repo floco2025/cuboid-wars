@@ -479,7 +479,7 @@ pub fn hit_detection_system(
             let result = common::collision::check_projectile_player_hit(proj_pos, projectile, delta, player_pos, player_mov);
             
             if result.hit {
-                info!("Player {:?} hits Player {:?}", shooter_id, target_id);
+                info!("{:?} hits {:?}", shooter_id, target_id);
 
                 // Update hit counters
                 if let Some(shooter_info) = players.0.get_mut(shooter_id) {
