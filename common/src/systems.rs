@@ -3,7 +3,10 @@ use bevy_ecs::prelude::*;
 use bevy_math::Vec3;
 use bevy_time::{Time, Timer, TimerMode};
 
-use crate::{constants::*, protocol::{Movement, Position, Velocity}};
+use crate::{
+    constants::*,
+    protocol::{Position, Speed, SpeedLevel},
+};
 
 // ============================================================================
 // Shared Game Components
@@ -25,13 +28,13 @@ impl Projectile {
             0.0,
             face_dir.cos() * PROJECTILE_SPEED,
         );
-        
+
         Self {
             velocity,
             lifetime: Timer::from_seconds(PROJECTILE_LIFETIME, TimerMode::Once),
         }
     }
-    
+
     // Calculate spawn position in front of shooter
     // Returns Vec3 position in meters
     pub fn calculate_spawn_position(shooter_pos: Vec3, face_dir: f32) -> Vec3 {
@@ -51,15 +54,15 @@ impl Projectile {
 // Position uses meters in 3D space (X, Y=up/down, Z=forward/back).
 // Y is always 0 for now (flat 2D gameplay).
 // This runs on both client and server to ensure deterministic movement.
-pub fn movement_system(time: Res<Time>, mut query: Query<(&mut Position, &Movement)>) {
+pub fn movement_system(time: Res<Time>, mut query: Query<(&mut Position, &Speed)>) {
     let delta = time.delta_secs();
 
     for (mut pos, mov) in query.iter_mut() {
         // Calculate actual velocity from movement state
-        let speed = match mov.vel {
-            Velocity::Idle => 0.0,
-            Velocity::Walk => WALK_SPEED,
-            Velocity::Run => RUN_SPEED,
+        let speed = match mov.speed_level {
+            SpeedLevel::Idle => 0.0,
+            SpeedLevel::Walk => WALK_SPEED,
+            SpeedLevel::Run => RUN_SPEED,
         };
 
         if speed > 0.0 {
@@ -83,13 +86,13 @@ pub fn projectiles_system(
     mut projectile_query: Query<(Entity, &mut Position, &mut Projectile)>,
 ) {
     let delta = time.delta_secs();
-    
+
     for (entity, mut pos, mut projectile) in projectile_query.iter_mut() {
         // Update position based on velocity
         pos.x += projectile.velocity.x * delta;
         pos.y += projectile.velocity.y * delta;
         pos.z += projectile.velocity.z * delta;
-        
+
         // Update lifetime
         projectile.lifetime.tick(time.delta());
         if projectile.lifetime.is_finished() {

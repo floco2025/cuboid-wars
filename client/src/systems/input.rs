@@ -9,7 +9,7 @@ use crate::{
     resources::{CameraViewMode, ClientToServerChannel},
     spawning::spawn_projectile_local,
 };
-use common::protocol::{CMovement, CShot, ClientMessage, Movement, Position, Velocity};
+use common::protocol::{CFace, CShot, CSpeed, ClientMessage, FaceDirection, Position, Speed, SpeedLevel};
 
 // ============================================================================
 // Input Systems
@@ -63,10 +63,11 @@ pub fn input_system(
     cursor_options: Single<&bevy::window::CursorOptions>,
     to_server: Res<ClientToServerChannel>,
     time: Res<Time>,
-    mut last_sent_movement: Local<Movement>, // Last movement sent to server
-    mut last_send_time: Local<f32>,          // Time accumulator for send interval throttling
-    mut player_rotation: Local<f32>,         // Track player rotation across frames
-    mut local_player_query: Query<&mut Movement, With<LocalPlayer>>,
+    mut last_sent_speed: Local<Speed>, // Last movement sent to server
+    mut last_sent_face: Local<f32>,    // Last face direction sent to server
+    mut last_send_time: Local<f32>,    // Time accumulator for send interval throttling
+    mut player_rotation: Local<f32>,   // Track player rotation across frames
+    mut local_player_query: Query<(&mut Speed, &mut FaceDirection), With<LocalPlayer>>,
     mut camera_query: Query<&mut Transform, With<Camera3d>>,
     view_mode: Res<CameraViewMode>,
 ) {
@@ -122,7 +123,7 @@ pub fn input_system(
         }
 
         // Calculate movement direction
-        let (vel_state, move_direction) = if forward != 0.0 || right != 0.0 {
+        let (speed_level, move_dir) = if forward != 0.0 || right != 0.0 {
             // Normalize the input vector
             let len = (forward * forward + right * right).sqrt();
             let norm_forward = forward / len;
@@ -135,48 +136,48 @@ pub fn input_system(
             let move_dir = face_dir + angle_offset;
             // Check if shift is pressed for running
             let vel = if keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight) {
-                Velocity::Run
+                SpeedLevel::Run
             } else {
-                Velocity::Walk
+                SpeedLevel::Walk
             };
             (vel, move_dir)
         } else {
             // Idle - movement direction doesn't matter
-            (Velocity::Idle, 0.0)
+            (SpeedLevel::Idle, 0.0)
         };
 
         // Player faces camera direction
         // Add π because camera_rotation=0 points backwards from where we want face_dir=0
         let face_direction = camera_rotation + std::f32::consts::PI;
 
-        // Create movement
-        let mov = Movement {
-            vel: vel_state,
-            move_dir: move_direction,
-            face_dir: face_direction,
-        };
+        // Create speed
+        let speed = Speed { speed_level, move_dir };
 
-        // Always update local player's movement immediately for responsive local movement
-        for mut player_mov in local_player_query.iter_mut() {
-            *player_mov = mov;
+        // Always update local player's speed and facing immediately for responsive local movement
+        for (mut player_speed, mut player_face) in local_player_query.iter_mut() {
+            *player_speed = speed;
+            player_face.0 = face_direction;
         }
 
         // Accumulate send time for throttling
         *last_send_time += time.delta_secs();
 
-        // Determine if movement changed significantly
-        let vel_state_changed = last_sent_movement.vel != mov.vel;
-        let rotation_changed = (mov.face_dir - last_sent_movement.face_dir).abs() > ROTATION_CHANGE_THRESHOLD;
+        // Determine if movement or rotation changed significantly
+        let speed_level_changed = last_sent_speed.speed_level != speed.speed_level;
+        let face_changed = (face_direction - *last_sent_face).abs() > ROTATION_CHANGE_THRESHOLD;
 
-        // Send to server if:
-        // 1. Velocity state changed (started/stopped moving, or changed speed), OR
-        // 2. Direction changed significantly AND enough time has passed (throttle minor direction updates)
-        let should_send = vel_state_changed || (rotation_changed && *last_send_time >= MOVEMENT_MAX_SEND_INTERVAL);
-
-        if should_send {
-            let msg = ClientMessage::Movement(CMovement { mov });
+        // Send movement to server if velocity state changed
+        if speed_level_changed {
+            let msg = ClientMessage::Movement(CSpeed { speed });
             let _ = to_server.send(ClientToServer::Send(msg));
-            *last_sent_movement = mov;
+            *last_sent_speed = speed;
+        }
+
+        // Send face direction to server if rotation changed and enough time passed
+        if face_changed && *last_send_time >= MOVEMENT_MAX_SEND_INTERVAL {
+            let msg = ClientMessage::Face(CFace { dir: face_direction });
+            let _ = to_server.send(ClientToServer::Send(msg));
+            *last_sent_face = face_direction;
             *last_send_time = 0.0;
         }
 
@@ -192,25 +193,18 @@ pub fn input_system(
         // Cursor not locked - clear mouse motion events to prevent them from accumulating
         for _ in mouse_motion.read() {}
 
-        // Get current camera rotation for setting idle direction
-        let mut camera_rotation = 0.0_f32;
-        for transform in camera_query.iter() {
-            camera_rotation = transform.rotation.to_euler(EulerRot::YXZ).0;
-        }
-
         // Stop player movement when cursor is unlocked
-        if last_sent_movement.vel != Velocity::Idle {
-            let mov = Movement {
-                vel: Velocity::Idle,
+        if last_sent_speed.speed_level != SpeedLevel::Idle {
+            let speed = Speed {
+                speed_level: SpeedLevel::Idle,
                 move_dir: 0.0,
-                face_dir: camera_rotation,
             };
-            for mut player_mov in local_player_query.iter_mut() {
-                *player_mov = mov;
+            for (mut player_speed, _) in local_player_query.iter_mut() {
+                *player_speed = speed;
             }
-            let msg = ClientMessage::Movement(CMovement { mov });
+            let msg = ClientMessage::Movement(CSpeed { speed });
             let _ = to_server.send(ClientToServer::Send(msg));
-            *last_sent_movement = mov;
+            *last_sent_speed = speed;
             *last_send_time = 0.0;
         }
     }
@@ -220,7 +214,7 @@ pub fn shooting_input_system(
     mut commands: Commands,
     mouse: Res<ButtonInput<bevy::input::mouse::MouseButton>>,
     cursor_options: Single<&bevy::window::CursorOptions>,
-    local_player_query: Query<(&Position, &Movement), With<LocalPlayer>>,
+    local_player_query: Query<(&Position, &FaceDirection), With<LocalPlayer>>,
     to_server: Res<ClientToServerChannel>,
     asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -230,19 +224,19 @@ pub fn shooting_input_system(
     let cursor_locked = cursor_options.grab_mode != bevy::window::CursorGrabMode::None;
 
     if cursor_locked && mouse.just_pressed(bevy::input::mouse::MouseButton::Left) {
-        if let Some((pos, mov)) = local_player_query.iter().next() {
+        if let Some((pos, face_dir)) = local_player_query.iter().next() {
             // Play shooting sound
             commands.spawn((
                 AudioPlayer::new(asset_server.load("sounds/player_fires.ogg")),
                 PlaybackSettings::DESPAWN,
             ));
 
-            // Send shot message with current movement to server
-            let shot_msg = ClientMessage::Shot(CShot { mov: *mov });
+            // Send shot message with current face direction to server
+            let shot_msg = ClientMessage::Shot(CShot { face_dir: face_dir.0 });
             let _ = to_server.send(ClientToServer::Send(shot_msg));
 
             // Spawn projectile locally
-            spawn_projectile_local(&mut commands, &mut meshes, &mut materials, pos, mov);
+            spawn_projectile_local(&mut commands, &mut meshes, &mut materials, pos, face_dir.0);
         }
     }
 }

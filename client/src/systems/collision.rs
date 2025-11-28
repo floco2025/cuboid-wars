@@ -1,11 +1,11 @@
+use bevy::audio::{PlaybackMode, Volume};
 #[allow(clippy::wildcard_imports)]
 use bevy::prelude::*;
-use bevy::audio::{PlaybackMode, Volume};
 
 use crate::{resources::WallConfig, systems::sync::LocalPlayer};
 use common::{
     collision::{check_projectile_player_hit, check_projectile_wall_hit},
-    protocol::{Movement, Position},
+    protocol::{FaceDirection, Position},
     systems::Projectile,
 };
 
@@ -20,7 +20,7 @@ pub fn client_hit_detection_system(
     time: Res<Time>,
     asset_server: Res<AssetServer>,
     projectile_query: Query<(Entity, &Transform, &Projectile)>,
-    player_query: Query<(Entity, &Position, &Movement, Has<LocalPlayer>), Without<Projectile>>,
+    player_query: Query<(Entity, &Position, &FaceDirection, Has<LocalPlayer>), Without<Projectile>>,
     wall_config: Option<Res<WallConfig>>,
 ) {
     let delta = time.delta_secs();
@@ -53,9 +53,9 @@ pub fn client_hit_detection_system(
         }
 
         // Check player collisions
-        for (_player_entity, player_pos, player_mov, is_local) in player_query.iter() {
+        for (_player_entity, player_pos, player_face_dir, is_local) in player_query.iter() {
             // Use common hit detection logic
-            let result = check_projectile_player_hit(&proj_pos, projectile, delta, player_pos, player_mov);
+            let result = check_projectile_player_hit(&proj_pos, projectile, delta, player_pos, player_face_dir.0);
             if result.hit {
                 commands.spawn((
                     AudioPlayer::new(asset_server.load("sounds/player_hits_player.ogg")),

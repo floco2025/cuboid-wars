@@ -9,12 +9,12 @@ use crate::{
     constants::ECHO_INTERVAL,
     net::{ClientToServer, ServerToClient},
     resources::{
-        ClientToServerChannel, MyPlayerId, PastPosMov, PlayerInfo, PlayerMap, RoundTripTime, ServerToClientChannel,
+        ClientToServerChannel, MyPlayerId, PastPosVel, PlayerInfo, PlayerMap, RoundTripTime, ServerToClientChannel,
         WallConfig,
     },
     spawning::{spawn_player, spawn_projectile_for_player},
 };
-use common::protocol::{CEcho, ClientMessage, Movement, PlayerId, Position, ServerMessage};
+use common::protocol::{CEcho, ClientMessage, FaceDirection, PlayerId, Position, ServerMessage, Speed};
 
 // ============================================================================
 // Network Message Processing
@@ -30,8 +30,9 @@ pub fn process_server_events_system(
     mut player_map: ResMut<PlayerMap>,
     mut rtt: ResMut<RoundTripTime>,
     mut rtt_measurements: Local<VecDeque<f64>>,
-    mut past_pos_mov: ResMut<PastPosMov>,
-    player_pos_mov_query: Query<(&Position, &Movement), With<PlayerId>>,
+    mut past_pos_mov: ResMut<PastPosVel>,
+    player_pos_query: Query<(&Position, &common::protocol::Speed), With<PlayerId>>,
+    player_face_query: Query<(&Position, &common::protocol::FaceDirection), With<PlayerId>>,
     camera_query: Query<Entity, With<Camera3d>>,
     my_player_id: Option<Res<MyPlayerId>>,
 ) {
@@ -52,7 +53,8 @@ pub fn process_server_events_system(
                         &mut rtt,
                         &mut rtt_measurements,
                         &mut past_pos_mov,
-                        &player_pos_mov_query,
+                        &player_pos_query,
+                        &player_face_query,
                         &camera_query,
                         my_player_id.as_ref().unwrap().0,
                         &message,
@@ -99,8 +101,9 @@ fn process_message_logged_in(
     players: &mut ResMut<PlayerMap>,
     rtt: &mut ResMut<RoundTripTime>,
     rtt_measurements: &mut VecDeque<f64>,
-    past_pos_mov: &mut ResMut<PastPosMov>,
-    player_pos_mov_query: &Query<(&Position, &Movement), With<PlayerId>>,
+    past_pos_vel: &mut ResMut<PastPosVel>,
+    player_pos_query: &Query<(&Position, &Speed), With<PlayerId>>,
+    player_face_query: &Query<(&Position, &FaceDirection), With<PlayerId>>,
     camera_query: &Query<Entity, With<Camera3d>>,
     my_player_id: PlayerId,
     msg: &ServerMessage,
@@ -119,7 +122,8 @@ fn process_message_logged_in(
                     materials,
                     msg.id.0,
                     &msg.player.pos,
-                    &msg.player.mov,
+                    &msg.player.speed,
+                    msg.player.face_dir,
                     false, // Never local (server doesn't send our own login back)
                 );
                 players.0.insert(msg.id, PlayerInfo { entity, hits: 0 });
@@ -136,18 +140,32 @@ fn process_message_logged_in(
             trace!("{:?} movement: {:?}", msg.id, msg);
             // Update player movement using player_map
             if let Some(player) = players.0.get(&msg.id) {
-                commands.entity(player.entity).insert(msg.mov);
+                let velocity = msg.speed.to_velocity();
+                commands.entity(player.entity).insert((msg.speed, velocity));
             } else {
                 warn!("received movement for non-existent player {:?}", msg.id);
             }
         }
+        ServerMessage::Face(msg) => {
+            trace!("{:?} face direction: {}", msg.id, msg.dir);
+            // Update player face direction using player_map
+            if let Some(player) = players.0.get(&msg.id) {
+                commands
+                    .entity(player.entity)
+                    .insert(FaceDirection(msg.dir));
+            } else {
+                warn!("received face direction for non-existent player {:?}", msg.id);
+            }
+        }
         ServerMessage::Shot(msg) => {
             trace!("{:?} shot: {:?}", msg.id, msg);
-            // Update the shooter's movement first to sync exact facing direction
+            // Update the shooter's face direction first to sync exact facing direction
             if let Some(player) = players.0.get(&msg.id) {
-                commands.entity(player.entity).insert(msg.mov);
+                commands
+                    .entity(player.entity)
+                    .insert(FaceDirection(msg.face_dir));
                 // Spawn projectile for this player
-                spawn_projectile_for_player(commands, meshes, materials, player_pos_mov_query, player.entity);
+                spawn_projectile_for_player(commands, meshes, materials, player_face_query, player.entity);
             } else {
                 warn!("received shot from non-existent player {:?}", msg.id);
             }
@@ -163,19 +181,28 @@ fn process_message_logged_in(
                 if !players.0.contains_key(id) {
                     let is_local = my_player_id.0 == (*id).0;
                     debug!("spawning player {:?} from Update (is_local: {})", id, is_local);
-                    let entity = spawn_player(commands, meshes, materials, id.0, &player.pos, &player.mov, is_local);
+                    let entity = spawn_player(
+                        commands,
+                        meshes,
+                        materials,
+                        id.0,
+                        &player.pos,
+                        &player.speed,
+                        player.face_dir,
+                        is_local,
+                    );
 
                     if is_local {
-                        // Initialize past position and movement for local player
-                        past_pos_mov.pos = player.pos;
-                        past_pos_mov.mov = player.mov;
-                        past_pos_mov.timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64();
+                        // Initialize past position and velocity for local player
+                        past_pos_vel.pos = player.pos;
+                        past_pos_vel.vel = player.speed.to_velocity();
+                        past_pos_vel.timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64();
 
                         // Initialize camera rotation to match local player's spawn rotation
                         if let Ok(camera_entity) = camera_query.single() {
                             // Camera rotation needs π offset because camera looks along -Z in local space
                             // but face_dir assumes looking along +Z
-                            let camera_rotation = player.mov.face_dir + std::f32::consts::PI;
+                            let camera_rotation = player.face_dir + std::f32::consts::PI;
                             commands.entity(camera_entity).insert(
                                 Transform::from_xyz(player.pos.x, 2.5, player.pos.z + 3.0)
                                     .with_rotation(Quat::from_rotation_y(camera_rotation)),
@@ -215,60 +242,49 @@ fn process_message_logged_in(
 
                     if is_local {
                         // For local player: compare pred position vs server position
-                        if let Ok((client_pos, client_mov)) = player_pos_mov_query.get(client_player.entity) {
-                            // Calculate where we should be based on past position + movement over RTT
-                            use common::constants::{RUN_SPEED, WALK_SPEED};
-                            use common::protocol::Velocity;
-
-                            // Calculate predicted position from past client pos + mov over actual elapsed time
-                            let past_speed = match past_pos_mov.mov.vel {
-                                Velocity::Idle => 0.0,
-                                Velocity::Walk => WALK_SPEED,
-                                Velocity::Run => RUN_SPEED,
-                            };
+                        if let Ok((client_pos, client_mov)) = player_pos_query.get(client_player.entity) {
+                            // Calculate where we should be based on past position + speed over RTT
                             let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64();
-                            let elapsed_since_past = (now - past_pos_mov.timestamp) as f32;
-                            let past_pred_dist = past_speed * elapsed_since_past;
+                            let elapsed_since_past = (now - past_pos_vel.timestamp) as f32;
                             let past_pred = Position {
-                                x: past_pos_mov.pos.x + past_pos_mov.mov.move_dir.sin() * past_pred_dist,
+                                x: past_pos_vel.pos.x + past_pos_vel.vel.x * elapsed_since_past,
                                 y: 0.0,
-                                z: past_pos_mov.pos.z + past_pos_mov.mov.move_dir.cos() * past_pred_dist,
+                                z: past_pos_vel.pos.z + past_pos_vel.vel.z * elapsed_since_past,
                             };
 
                             // Calculate predicted position from server pos + mov over half RTT
-                            let server_speed = match server_player.mov.vel {
-                                Velocity::Idle => 0.0,
-                                Velocity::Walk => WALK_SPEED,
-                                Velocity::Run => RUN_SPEED,
-                            };
+                            let server_speed = server_player.speed.to_velocity();
                             let half_rtt = (rtt.rtt / 2.0) as f32;
-                            let server_pred_dist = server_speed * half_rtt;
                             let server_pred = Position {
-                                x: server_player.pos.x + server_player.mov.move_dir.sin() * server_pred_dist,
+                                x: server_player.pos.x + server_speed.x * half_rtt,
                                 y: 0.0,
-                                z: server_player.pos.z + server_player.mov.move_dir.cos() * server_pred_dist,
+                                z: server_player.pos.z + server_speed.z * half_rtt,
                             };
 
                             // Calculate signed distances projected along client movement direction
                             // Positive = ahead in movement direction, Negative = behind
                             let move_dir_sin = client_mov.move_dir.sin();
                             let move_dir_cos = client_mov.move_dir.cos();
-                            
+
                             let server_to_current_x = server_player.pos.x - client_pos.x;
                             let server_to_current_z = server_player.pos.z - client_pos.z;
-                            let server_to_current_signed = server_to_current_x * move_dir_sin + server_to_current_z * move_dir_cos;
-                            
+                            let server_to_current_signed =
+                                server_to_current_x * move_dir_sin + server_to_current_z * move_dir_cos;
+
                             let current_to_server_pred_x = server_pred.x - client_pos.x;
                             let current_to_server_pred_z = server_pred.z - client_pos.z;
-                            let current_to_server_pred_signed = current_to_server_pred_x * move_dir_sin + current_to_server_pred_z * move_dir_cos;
-                            
+                            let current_to_server_pred_signed =
+                                current_to_server_pred_x * move_dir_sin + current_to_server_pred_z * move_dir_cos;
+
                             let server_to_server_pred_x = server_pred.x - server_player.pos.x;
                             let server_to_server_pred_z = server_pred.z - server_player.pos.z;
-                            let server_to_server_pred_signed = server_to_server_pred_x * move_dir_sin + server_to_server_pred_z * move_dir_cos;
-                            
+                            let server_to_server_pred_signed =
+                                server_to_server_pred_x * move_dir_sin + server_to_server_pred_z * move_dir_cos;
+
                             let server_to_past_pred_x = past_pred.x - server_player.pos.x;
                             let server_to_past_pred_z = past_pred.z - server_player.pos.z;
-                            let server_to_past_pred_signed = server_to_past_pred_x * move_dir_sin + server_to_past_pred_z * move_dir_cos;
+                            let server_to_past_pred_signed =
+                                server_to_past_pred_x * move_dir_sin + server_to_past_pred_z * move_dir_cos;
 
                             debug!(
                                 "s2c={:+.2} s2pp={:+.2} s2sp={:+.2} c2sp={:+.2} {:?} {:?}",
@@ -276,20 +292,21 @@ fn process_message_logged_in(
                                 server_to_past_pred_signed,
                                 server_to_server_pred_signed,
                                 current_to_server_pred_signed,
-                                server_player.mov.vel,
-                                client_mov.vel,
+                                server_player.speed.speed_level,
+                                client_mov.speed_level,
                             );
 
                             // Apply server correction
-                            commands.entity(client_player.entity).insert(server_player.pos);
+                            commands.entity(client_player.entity).insert(server_pred);
                         }
                         // Always update hit count from server
                         client_player.hits = server_player.hits;
                     } else {
                         // Other players: always accept server state
+                        let velocity = server_player.speed.to_velocity();
                         commands
                             .entity(client_player.entity)
-                            .insert((server_player.pos, server_player.mov));
+                            .insert((server_player.pos, server_player.speed, velocity));
                         client_player.hits = server_player.hits;
                     }
                 }

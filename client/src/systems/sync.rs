@@ -5,10 +5,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use super::effects::{CameraShake, CuboidShake};
 #[allow(clippy::wildcard_imports)]
 use crate::constants::*;
-use crate::resources::{CameraViewMode, PastPosMov};
+use crate::resources::{CameraViewMode, PastPosVel};
 use common::{
     constants::PLAYER_HEIGHT,
-    protocol::{Movement, Position},
+    protocol::{FaceDirection, Position, Velocity},
     systems::Projectile,
 };
 
@@ -87,10 +87,10 @@ pub fn sync_position_to_transform_system(mut query: Query<(&Position, &mut Trans
     }
 }
 
-// Update player cuboid rotation from stored movement component
-pub fn sync_rotation_to_transform_system(mut query: Query<(&Movement, &mut Transform), Without<Camera3d>>) {
-    for (mov, mut transform) in query.iter_mut() {
-        transform.rotation = Quat::from_rotation_y(mov.face_dir);
+// Update player cuboid rotation from stored face direction component
+pub fn sync_face_to_transform_system(mut query: Query<(&FaceDirection, &mut Transform), Without<Camera3d>>) {
+    for (face_dir, mut transform) in query.iter_mut() {
+        transform.rotation = Quat::from_rotation_y(face_dir.0);
     }
 }
 
@@ -149,31 +149,27 @@ pub fn client_movement_system(
     time: Res<Time>,
     asset_server: Res<AssetServer>,
     wall_config: Option<Res<crate::resources::WallConfig>>,
-    mut past_pos_mov: ResMut<PastPosMov>,
+    mut past_pos_vel: ResMut<PastPosVel>,
     rtt: Res<crate::resources::RoundTripTime>,
-    mut timer_ms: Local<f32>,
+    mut timer: Local<f32>,
     mut query: Query<(
         Entity,
         &mut Position,
-        &Movement,
+        &Velocity,
         Option<&mut BumpFlashState>,
         Has<LocalPlayer>,
     )>,
     mut bump_flash_ui: Query<(&mut BackgroundColor, &mut Visibility), With<super::ui::BumpFlashUI>>,
 ) {
-    use common::constants::{RUN_SPEED, WALK_SPEED};
-    use common::protocol::Velocity;
+    let delta = time.delta_secs();
 
-    let delta_ms = time.delta().as_millis() as f32;
-    let delta = delta_ms / 1000.0;
-
-    // Update timer for snapshot (in milliseconds)
-    *timer_ms += delta_ms;
+    // Update timer for snapshot (in seconds)
+    *timer += delta;
 
     // Collect all current positions for player-player collision checks
     let positions: Vec<(Entity, Position)> = query.iter().map(|(entity, pos, _, _, _)| (entity, *pos)).collect();
 
-    for (entity, mut pos, mov, mut flash_state, is_local) in query.iter_mut() {
+    for (entity, mut pos, velocity, mut flash_state, is_local) in query.iter_mut() {
         // Tick down flash timer (only for local player)
         if let Some(ref mut state) = flash_state {
             if state.flash_timer > 0.0 {
@@ -188,23 +184,15 @@ pub fn client_movement_system(
             }
         }
 
-        // Calculate movement speed based on velocity
-        let speed = match mov.vel {
-            Velocity::Idle => 0.0,
-            Velocity::Walk => WALK_SPEED,
-            Velocity::Run => RUN_SPEED,
-        };
+        // Check if moving (velocity magnitude > 0)
+        let speed_magnitude = (velocity.x * velocity.x + velocity.z * velocity.z).sqrt();
 
-        if speed > 0.0 {
-            // Calculate velocity from direction
-            let vel_x = mov.move_dir.sin() * speed;
-            let vel_z = mov.move_dir.cos() * speed;
-
-            // Calculate new position
+        if speed_magnitude > 0.0 {
+            // Calculate new position using velocity components
             let new_pos = Position {
-                x: pos.x + vel_x * delta,
+                x: pos.x + velocity.x * delta,
                 y: pos.y,
-                z: pos.z + vel_z * delta,
+                z: pos.z + velocity.z * delta,
             };
 
             // Check if new position collides with any wall (if walls are loaded)
@@ -260,12 +248,12 @@ pub fn client_movement_system(
             state.was_colliding = false;
         }
 
-        // Save snapshot of local player position and movement every RTT seconds
-        if is_local && *timer_ms >= (rtt.rtt * 1000.0) as f32 {
-            past_pos_mov.pos = *pos;
-            past_pos_mov.mov = *mov;
-            past_pos_mov.timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64();
-            *timer_ms = 0.0;
+        // Save snapshot of local player position and velocity every RTT seconds
+        if is_local && *timer >= rtt.rtt as f32 {
+            past_pos_vel.pos = *pos;
+            past_pos_vel.vel = *velocity;
+            past_pos_vel.timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64();
+            *timer = 0.0;
         }
     }
 }

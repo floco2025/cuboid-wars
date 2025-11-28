@@ -27,12 +27,12 @@ pub fn spawn_walls_system(
     }
 
     let wall_config = wall_config.unwrap();
-    
+
     info!("Spawning {} wall segments", wall_config.walls.len());
-    
+
     for wall in &wall_config.walls {
         spawn_wall(&mut commands, &mut meshes, &mut materials, wall);
     }
-    
+
     *spawned = true;
 }

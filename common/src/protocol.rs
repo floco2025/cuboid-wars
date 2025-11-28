@@ -1,11 +1,11 @@
+use bevy_ecs::component::Component;
+use bevy_ecs::message::Message;
+#[cfg(feature = "bincode")]
+use bincode::{Decode, Encode};
 #[cfg(feature = "json")]
 use serde::{Deserialize, Serialize};
 
-#[cfg(feature = "bincode")]
-use bincode::{Decode, Encode};
-
-use bevy_ecs::component::Component;
-use bevy_ecs::message::Message;
+use crate::constants::{RUN_SPEED, WALK_SPEED};
 
 // Macro to reduce boilerplate for structs
 macro_rules! message {
@@ -42,25 +42,48 @@ impl Position {
     }
 }
 
-// Velocity - movement speed state
+// SpeedLevel - movement speed state
 #[derive(Debug, Copy, Clone, PartialEq, Default)]
 #[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "bincode", derive(Encode, Decode))]
-pub enum Velocity {
+pub enum SpeedLevel {
     #[default]
     Idle,
     Walk,
     Run,
 }
 
-// Movement component - velocity state, movement direction, and facing direction
+// Speed component - speed level and movement direction
 message! {
 #[derive(Copy, Component, Default)]
-struct Movement {
-    pub vel: Velocity,
+struct Speed {
+    pub speed_level: SpeedLevel,
     pub move_dir: f32, // radians - direction of movement
-    pub face_dir: f32, // radians - direction player is facing
 }
+}
+
+impl Speed {
+    pub fn to_velocity(&self) -> Velocity {
+        let speed_magnitude = match self.speed_level {
+            SpeedLevel::Idle => 0.0,
+            SpeedLevel::Walk => WALK_SPEED,
+            SpeedLevel::Run => RUN_SPEED,
+        };
+        Velocity {
+            x: self.move_dir.sin() * speed_magnitude,
+            y: 0.0,
+            z: self.move_dir.cos() * speed_magnitude,
+        }
+    }
+}
+
+#[derive(Copy, Clone, Component, PartialEq, Default)]
+#[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bincode", derive(Encode, Decode))]
+pub struct Velocity {
+    pub x: f32, // m/s
+    pub y: f32, // m/s (up/down - always 0 for now)
+    pub z: f32, // m/s
 }
 
 // Player ID component - identifies which player an entity represents
@@ -69,11 +92,16 @@ struct Movement {
 #[cfg_attr(feature = "bincode", derive(Encode, Decode))]
 pub struct PlayerId(pub u32);
 
+// FaceDirection component - direction player is facing (for rotation/aiming)
+#[derive(Component, Default)]
+pub struct FaceDirection(pub f32); // radians
+
 // Player - complete player state
 message! {
 struct Player {
     pub pos: Position,
-    pub mov: Movement,
+    pub speed: Speed,
+    pub face_dir: f32, // radians - direction player is facing
     pub hits: i32,
 }
 }
@@ -112,16 +140,23 @@ struct CLogoff {}
 }
 
 message! {
-// Client to Server: Movement update.
-struct CMovement {
-    pub mov: Movement,
+// Client to Server: Speed update.
+struct CSpeed {
+    pub speed: Speed,
+}
+}
+
+message! {
+// Client to Server: Facing direction update.
+struct CFace {
+    pub dir: f32, // radians - direction player is facing
 }
 }
 
 message! {
 // Client to Server: Shot fired.
 struct CShot {
-    pub mov: Movement,
+    pub face_dir: f32, // radians - direction player is facing when shooting
 }
 }
 
@@ -161,10 +196,18 @@ struct SLogoff {
 }
 
 message! {
-// Server to Client: Player movement update.
-struct SMovement {
+// Server to Client: Player speed update.
+struct SSpeed {
     pub id: PlayerId,
-    pub mov: Movement,
+    pub speed: Speed,
+}
+}
+
+message! {
+// Server to Client: Player facing direction update.
+struct SFace {
+    pub id: PlayerId,
+    pub dir: f32, // radians - direction player is facing
 }
 }
 
@@ -172,7 +215,7 @@ message! {
 // Server to Client: Player shot fired.
 struct SShot {
     pub id: PlayerId,
-    pub mov: Movement,
+    pub face_dir: f32, // radians - direction player is facing when shooting
 }
 }
 
@@ -210,7 +253,8 @@ struct SEcho {
 pub enum ClientMessage {
     Login(CLogin),
     Logoff(CLogoff),
-    Movement(CMovement),
+    Movement(CSpeed),
+    Face(CFace),
     Shot(CShot),
     Echo(CEcho),
 }
@@ -223,7 +267,8 @@ pub enum ServerMessage {
     Init(SInit),
     Login(SLogin),
     Logoff(SLogoff),
-    Movement(SMovement),
+    Movement(SSpeed),
+    Face(SFace),
     Shot(SShot),
     Update(SUpdate),
     Hit(SHit),

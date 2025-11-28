@@ -7,7 +7,7 @@ use tokio::sync::mpsc::{
 };
 
 use crate::net::{ClientToServer, ServerToClient};
-use common::protocol::{Movement, PlayerId, Position, Wall};
+use common::protocol::{PlayerId, Position, Velocity, Wall};
 
 // ============================================================================
 // Bevy Resources
@@ -40,11 +40,11 @@ pub struct RoundTripTime {
     pub pending_timestamp: f64,
 }
 
-// Track local player position and movement from RTT seconds ago for server reconciliation
+// Track local player position and velocity from RTT seconds ago for server reconciliation
 #[derive(Resource, Default)]
-pub struct PastPosMov {
+pub struct PastPosVel {
     pub pos: Position,
-    pub mov: Movement,
+    pub vel: Velocity,
     pub timestamp: f64,
 }
 

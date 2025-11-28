@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use crate::systems::sync::{BumpFlashState, LocalPlayer};
 use common::{
     constants::*,
-    protocol::{Movement, PlayerId, Position, Wall, WallOrientation},
+    protocol::{FaceDirection, PlayerId, Position, Speed, Wall, WallOrientation},
     systems::Projectile,
 };
 
@@ -18,7 +18,8 @@ pub fn spawn_player(
     materials: &mut ResMut<Assets<StandardMaterial>>,
     player_id: u32,
     position: &Position,
-    movement: &Movement,
+    movement: &Speed,
+    face_dir: f32,
     is_local: bool,
 ) -> Entity {
     // Choose color: local player is blue, other players are red
@@ -38,8 +39,10 @@ pub fn spawn_player(
     // Main body
     let entity = commands.spawn((
         PlayerId(player_id),
-        *position, // Add Position component
-        *movement, // Add Movement component
+        *position,               // Add Position component
+        *movement,               // Add MovementState component
+        movement.to_velocity(),  // Add Velocity component
+        FaceDirection(face_dir), // Add FaceDirection component
         Mesh3d(meshes.add(Cuboid::new(PLAYER_WIDTH, PLAYER_HEIGHT, PLAYER_DEPTH))),
         MeshMaterial3d(materials.add(color)),
         Transform::from_xyz(
@@ -47,7 +50,7 @@ pub fn spawn_player(
             PLAYER_HEIGHT / 2.0, // Lift so bottom is at y=0
             position.z,
         )
-        .with_rotation(Quat::from_rotation_y(movement.face_dir)),
+        .with_rotation(Quat::from_rotation_y(face_dir)),
         initial_visibility,
     ));
 
@@ -122,13 +125,13 @@ pub fn spawn_projectile_local(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
     pos: &Position,
-    mov: &Movement,
+    face_dir: f32,
 ) {
     // Calculate spawn position using common helper
-    let spawn_pos = Projectile::calculate_spawn_position(Vec3::new(pos.x, pos.y, pos.z), mov.face_dir);
+    let spawn_pos = Projectile::calculate_spawn_position(Vec3::new(pos.x, pos.y, pos.z), face_dir);
 
     // Create projectile with common parameters
-    let projectile = Projectile::new(mov.face_dir);
+    let projectile = Projectile::new(face_dir);
 
     let projectile_color = Color::srgb(10.0, 10.0, 0.0); // Very bright yellow
     commands.spawn((
@@ -148,12 +151,12 @@ pub fn spawn_projectile_for_player(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
-    player_pos_mov_query: &Query<(&Position, &Movement), With<PlayerId>>,
+    player_pos_mov_query: &Query<(&Position, &FaceDirection), With<PlayerId>>,
     entity: Entity,
 ) {
-    // Get position and movement for this player entity
-    if let Ok((pos, mov)) = player_pos_mov_query.get(entity) {
-        spawn_projectile_local(commands, meshes, materials, pos, mov);
+    // Get position and face direction for this player entity
+    if let Ok((pos, face_dir)) = player_pos_mov_query.get(entity) {
+        spawn_projectile_local(commands, meshes, materials, pos, face_dir.0);
     }
 }
 
