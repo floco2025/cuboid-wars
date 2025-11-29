@@ -7,11 +7,7 @@ use common::{
     systems::Projectile,
 };
 
-// ============================================================================
-// Entity Spawning
-// ============================================================================
-
-// Spawn a player cuboid at the given position
+// Spawn a player cuboid plus cosmetic children, returning the new entity id.
 pub fn spawn_player(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
@@ -22,94 +18,56 @@ pub fn spawn_player(
     face_dir: f32,
     is_local: bool,
 ) -> Entity {
-    // Choose color: local player is blue, other players are red
-    let color = if is_local {
-        Color::srgb(0.3, 0.3, 1.0) // Blue for local player
-    } else {
-        Color::srgb(1.0, 0.3, 0.3) // Red for other players
-    };
-
-    // Set initial visibility: hidden for local player (first-person view), visible for others
-    let initial_visibility = if is_local {
-        Visibility::Hidden
-    } else {
-        Visibility::Visible
-    };
-
-    // Main body
-    let entity = commands.spawn((
+    let entity_id = commands
+        .spawn((
         PlayerId(player_id),
         *position,               // Add Position component
         velocity,                // Add Velocity component
         FaceDirection(face_dir), // Add FaceDirection component
         Mesh3d(meshes.add(Cuboid::new(PLAYER_WIDTH, PLAYER_HEIGHT, PLAYER_DEPTH))),
-        MeshMaterial3d(materials.add(color)),
+        MeshMaterial3d(materials.add(player_color(is_local))),
         Transform::from_xyz(
             position.x,
             PLAYER_HEIGHT / 2.0, // Lift so bottom is at y=0
             position.z,
         )
         .with_rotation(Quat::from_rotation_y(face_dir)),
-        initial_visibility,
-    ));
+        player_visibility(is_local),
+    ))
+        .id();
 
-    let mut entity_cmd = entity;
-
-    // Add LocalPlayer marker if this is the local player
     if is_local {
-        entity_cmd.insert((LocalPlayer, BumpFlashState::default()));
+        commands
+            .entity(entity_id)
+            .insert((LocalPlayer, BumpFlashState::default()));
     }
 
-    let entity_id = entity_cmd.id();
-
-    // Add a "nose" marker at the front (yellow sphere) as a child
-    let front_marker_color = Color::srgb(1.0, 1.0, 0.0); // Yellow
-    let nose_id = commands
-        .spawn((
-            Mesh3d(meshes.add(Sphere::new(PLAYER_NOSE_RADIUS))),
-            MeshMaterial3d(materials.add(front_marker_color)),
-            Transform::from_xyz(
-                0.0,
-                PLAYER_NOSE_HEIGHT,
-                PLAYER_DEPTH / 2.0, // Center aligned with front face
-            ),
-            Visibility::Inherited,
-            ViewVisibility::default(),
-            InheritedVisibility::default(),
-        ))
-        .id();
-
-    // Add two "eyes" above the nose (white spheres) as children
-    let eye_color = Color::srgb(1.0, 1.0, 1.0); // White
-    let left_eye_id = commands
-        .spawn((
-            Mesh3d(meshes.add(Sphere::new(PLAYER_EYE_RADIUS))),
-            MeshMaterial3d(materials.add(eye_color)),
-            Transform::from_xyz(
-                -PLAYER_EYE_SPACING,
-                PLAYER_EYE_HEIGHT,
-                PLAYER_DEPTH / 2.0, // Center aligned with front face
-            ),
-            Visibility::Inherited,
-            ViewVisibility::default(),
-            InheritedVisibility::default(),
-        ))
-        .id();
-
-    let right_eye_id = commands
-        .spawn((
-            Mesh3d(meshes.add(Sphere::new(PLAYER_EYE_RADIUS))),
-            MeshMaterial3d(materials.add(eye_color)),
-            Transform::from_xyz(
-                PLAYER_EYE_SPACING,
-                PLAYER_EYE_HEIGHT,
-                PLAYER_DEPTH / 2.0, // Center aligned with front face
-            ),
-            Visibility::Inherited,
-            ViewVisibility::default(),
-            InheritedVisibility::default(),
-        ))
-        .id();
+    // Nose and eyes share the same component boilerplate; spawn each and attach.
+    let nose_id = spawn_face_sphere(
+        commands,
+        meshes,
+        materials,
+        PLAYER_NOSE_RADIUS,
+        Color::srgb(1.0, 1.0, 0.0),
+        Vec3::new(0.0, PLAYER_NOSE_HEIGHT, PLAYER_DEPTH / 2.0),
+    );
+    let eye_color = Color::WHITE;
+    let left_eye_id = spawn_face_sphere(
+        commands,
+        meshes,
+        materials,
+        PLAYER_EYE_RADIUS,
+        eye_color,
+        Vec3::new(-PLAYER_EYE_SPACING, PLAYER_EYE_HEIGHT, PLAYER_DEPTH / 2.0),
+    );
+    let right_eye_id = spawn_face_sphere(
+        commands,
+        meshes,
+        materials,
+        PLAYER_EYE_RADIUS,
+        eye_color,
+        Vec3::new(PLAYER_EYE_SPACING, PLAYER_EYE_HEIGHT, PLAYER_DEPTH / 2.0),
+    );
 
     commands
         .entity(entity_id)
@@ -118,7 +76,7 @@ pub fn spawn_player(
     entity_id
 }
 
-// Spawn a projectile locally (for local player shooting)
+// Spawn a projectile locally (for local player shooting).
 pub fn spawn_projectile_local(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
@@ -126,12 +84,8 @@ pub fn spawn_projectile_local(
     pos: &Position,
     face_dir: f32,
 ) {
-    // Calculate spawn position using common helper
     let spawn_pos = Projectile::calculate_spawn_position(Vec3::new(pos.x, pos.y, pos.z), face_dir);
-
-    // Create projectile with common parameters
     let projectile = Projectile::new(face_dir);
-
     let projectile_color = Color::srgb(10.0, 10.0, 0.0); // Very bright yellow
     commands.spawn((
         Mesh3d(meshes.add(Sphere::new(PROJECTILE_RADIUS))),
@@ -145,7 +99,7 @@ pub fn spawn_projectile_local(
     ));
 }
 
-// Spawn a projectile for a player (when receiving shot from server)
+// Spawn a projectile for a player (when receiving shot from server).
 pub fn spawn_projectile_for_player(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
@@ -159,7 +113,7 @@ pub fn spawn_projectile_for_player(
     }
 }
 
-// Spawn a wall segment
+// Spawn a wall segment entity based on a shared `Wall` config.
 pub fn spawn_wall(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
@@ -183,4 +137,40 @@ pub fn spawn_wall(
         ),
         Visibility::default(),
     ));
+}
+
+fn player_color(is_local: bool) -> Color {
+    if is_local {
+        Color::srgb(0.3, 0.3, 1.0)
+    } else {
+        Color::srgb(1.0, 0.3, 0.3)
+    }
+}
+
+fn player_visibility(is_local: bool) -> Visibility {
+    if is_local {
+        Visibility::Hidden
+    } else {
+        Visibility::Visible
+    }
+}
+
+fn spawn_face_sphere(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    radius: f32,
+    color: Color,
+    translation: Vec3,
+) -> Entity {
+    commands
+        .spawn((
+            Mesh3d(meshes.add(Sphere::new(radius))),
+            MeshMaterial3d(materials.add(color)),
+            Transform::from_translation(translation),
+            Visibility::Inherited,
+            ViewVisibility::default(),
+            InheritedVisibility::default(),
+        ))
+        .id()
 }
