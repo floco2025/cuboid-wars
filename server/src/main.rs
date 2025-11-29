@@ -4,7 +4,10 @@ use bevy::prelude::*;
 use clap::Parser;
 use quinn::Endpoint;
 use std::net::SocketAddr;
-use tokio::sync::mpsc::unbounded_channel;
+use tokio::{
+    sync::mpsc::unbounded_channel,
+    time::{self, Duration, Instant, MissedTickBehavior},
+};
 
 use common::systems::projectiles_system;
 use server::{
@@ -17,6 +20,9 @@ use server::{
     },
     walls::generate_walls,
 };
+
+const SERVER_LOOP_FREQUENCY: u64 = 30;
+const LOG_FILTER: &str = "wgpu=error,naga=warn";
 
 // ============================================================================
 // CLI Argument Parsing
@@ -62,7 +68,7 @@ async fn main() -> Result<()> {
     app.add_plugins(MinimalPlugins)
         .add_plugins(bevy::log::LogPlugin {
             level: bevy::log::Level::INFO,
-            filter: "wgpu=error,naga=warn".to_string(),
+            filter: LOG_FILTER.to_string(),
             ..default()
         })
         .insert_resource(PlayerMap::default())
@@ -93,16 +99,15 @@ async fn main() -> Result<()> {
     info!("starting ECS server loop...");
 
     // Run the app in a loop manually at LOOP_FREQUENCY Hz
-    const SERVER_LOOP_FREQUENCY: u64 = 30;
-    let tick_duration = tokio::time::Duration::from_nanos(1_000_000_000 / SERVER_LOOP_FREQUENCY);
-    let mut interval = tokio::time::interval(tick_duration);
-    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    let tick_duration = Duration::from_nanos(1_000_000_000 / SERVER_LOOP_FREQUENCY);
+    let mut interval = time::interval(tick_duration);
+    interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
 
     let mut frame: u64 = 0;
     loop {
         interval.tick().await;
 
-        let update_start = tokio::time::Instant::now();
+        let update_start = Instant::now();
         app.update();
         let update_elapsed = update_start.elapsed();
 
