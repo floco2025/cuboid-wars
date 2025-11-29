@@ -1,5 +1,5 @@
 #[allow(clippy::wildcard_imports)]
-use bevy::prelude::*;
+use bevy::{math::Vec2, prelude::*};
 
 use super::sync::LocalPlayer;
 #[allow(clippy::wildcard_imports)]
@@ -67,138 +67,16 @@ pub fn input_system(
     mut last_sent_face: Local<f32>,       // Last face direction sent to server
     mut last_send_speed_time: Local<f32>, // Time accumulator for send speed interval throttling
     mut last_send_face_time: Local<f32>,  // Time accumulator for send face interval throttling
-    mut player_rotation: Local<f32>,      // Track player rotation across frames
+    mut stored_yaw: Local<f32>,           // Track player yaw across frames
     mut local_player_query: Query<(&mut Velocity, &mut FaceDirection), With<LocalPlayer>>,
     mut camera_query: Query<&mut Transform, With<Camera3d>>,
     view_mode: Res<CameraViewMode>,
 ) {
-    // Only process input when cursor is locked
     let cursor_locked = cursor_options.grab_mode != bevy::window::CursorGrabMode::None;
-
-    if cursor_locked {
-        // Get current camera rotation (or player rotation in top-down mode)
-        let mut camera_rotation = 0.0_f32;
-
-        // When switching to FPV from top-down, use tracked rotation (not camera transform)
-        // Otherwise in FPV, read from camera; in top-down, use tracked rotation
-        if view_mode.is_changed() && *view_mode == CameraViewMode::FirstPerson {
-            // Just switched to FPV - use the tracked rotation we maintained in top-down
-            camera_rotation = *player_rotation;
-        } else if *view_mode == CameraViewMode::FirstPerson {
-            // Normal FPV operation - read from camera transform
-            for transform in camera_query.iter() {
-                camera_rotation = transform.rotation.to_euler(EulerRot::YXZ).0;
-            }
-        } else {
-            // In top-down, use the tracked rotation
-            camera_rotation = *player_rotation;
-        }
-
-        // Handle mouse rotation
-        for motion in mouse_motion.read() {
-            camera_rotation -= motion.delta.x * MOUSE_SENSITIVITY;
-        }
-
-        // Always update tracked rotation (so it's current for next mode switch)
-        *player_rotation = camera_rotation;
-
-        // Get forward/right vectors from camera rotation
-        // Camera rotation maps directly to face direction
-        let face_dir = camera_rotation;
-
-        // Handle WASD input relative to camera direction
-        let mut forward = 0.0_f32;
-        let mut right = 0.0_f32;
-
-        if keyboard.pressed(KeyCode::KeyW) {
-            forward -= 1.0; // Move forward
-        }
-        if keyboard.pressed(KeyCode::KeyS) {
-            forward += 1.0; // Move backward
-        }
-        if keyboard.pressed(KeyCode::KeyA) {
-            right -= 1.0; // Move left
-        }
-        if keyboard.pressed(KeyCode::KeyD) {
-            right += 1.0; // Move right
-        }
-
-        // Calculate movement direction
-        let (speed_level, move_dir) = if forward != 0.0 || right != 0.0 {
-            // Normalize the input vector
-            let len = (forward * forward + right * right).sqrt();
-            let norm_forward = forward / len;
-            let norm_right = right / len;
-
-            // Calculate angle offset from face direction
-            // forward=1, right=0 -> offset=0 (moving in face direction)
-            // forward=0, right=1 -> offset=π/2 (moving right)
-            let angle_offset = norm_right.atan2(norm_forward);
-            let move_dir = face_dir + angle_offset;
-            // Check if shift is pressed for running
-            let vel = if keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight) {
-                SpeedLevel::Run
-            } else {
-                SpeedLevel::Walk
-            };
-            (vel, move_dir)
-        } else {
-            // Idle - movement direction doesn't matter
-            (SpeedLevel::Idle, 0.0)
-        };
-
-        // Player faces camera direction
-        // Add π because camera_rotation=0 points backwards from where we want face_dir=0
-        let face_direction = camera_rotation + std::f32::consts::PI;
-
-        // Create speed
-        let speed = Speed { speed_level, move_dir };
-
-        // Always update local player's velocity and facing immediately for responsive local movement
-        for (mut player_velocity, mut player_face) in local_player_query.iter_mut() {
-            *player_velocity = speed.to_velocity();
-            player_face.0 = face_direction;
-        }
-
-        // Accumulate send time for throttling
-        let delta = time.delta_secs();
-        *last_send_speed_time += delta;
-        *last_send_face_time += delta;
-
-        // Send speed to server if:
-        // 1. Velocity state changed (started/stopped moving, or changed speed), OR
-        // 2. Direction changed significantly AND enough time has passed
-        let speed_level_changed = last_sent_speed.speed_level != speed.speed_level;
-        let move_dir_changed = (speed.move_dir - last_sent_speed.move_dir).abs() > SPEED_DIR_CHANGE_THRESHOLD;
-        if speed_level_changed || (move_dir_changed && *last_send_speed_time >= SPEED_MAX_SEND_INTERVAL) {
-            let msg = ClientMessage::Speed(CSpeed { speed });
-            let _ = to_server.send(ClientToServer::Send(msg));
-            *last_sent_speed = speed;
-            *last_send_speed_time = 0.0;
-        }
-
-        // Send face to server if face direction changed significantly AND enough time has passed
-        let face_changed = (face_direction - *last_sent_face).abs() > FACE_CHANGE_THRESHOLD;
-        if face_changed && *last_send_face_time >= FACE_MAX_SEND_INTERVAL {
-            let msg = ClientMessage::Face(CFace { dir: face_direction });
-            let _ = to_server.send(ClientToServer::Send(msg));
-            *last_sent_face = face_direction;
-            *last_send_face_time = 0.0;
-        }
-
-        // Update camera rotation
-        for mut transform in camera_query.iter_mut() {
-            // Only update rotation in first-person view
-            // In top-down, preserve the look_at() rotation from sync system
-            if *view_mode == CameraViewMode::FirstPerson {
-                transform.rotation = Quat::from_rotation_y(camera_rotation);
-            }
-        }
-    } else {
-        // Cursor not locked - clear mouse motion events to prevent them from accumulating
+    if !cursor_locked {
+        // Drain pending mouse events and ensure player stops moving
         for _ in mouse_motion.read() {}
 
-        // Stop player movement when cursor is unlocked
         if last_sent_speed.speed_level != SpeedLevel::Idle {
             let speed = Speed {
                 speed_level: SpeedLevel::Idle,
@@ -211,6 +89,85 @@ pub fn input_system(
             let _ = to_server.send(ClientToServer::Send(msg));
             *last_sent_speed = speed;
             *last_send_speed_time = 0.0;
+        }
+
+        return;
+    }
+
+    // Derive base rotation depending on view mode
+    let mut current_yaw = *stored_yaw;
+    if *view_mode == CameraViewMode::FirstPerson && !view_mode.is_changed() {
+        if let Some(transform) = camera_query.iter().next() {
+            current_yaw = transform.rotation.to_euler(EulerRot::YXZ).0;
+        }
+    }
+
+    for motion in mouse_motion.read() {
+        current_yaw -= motion.delta.x * MOUSE_SENSITIVITY;
+    }
+
+    *stored_yaw = current_yaw;
+    let face_yaw = current_yaw + std::f32::consts::PI;
+
+    // Build movement input vector (forward=z, right=x)
+    let mut move_input = Vec2::ZERO;
+    if keyboard.pressed(KeyCode::KeyW) {
+        move_input.y += 1.0;
+    }
+    if keyboard.pressed(KeyCode::KeyS) {
+        move_input.y -= 1.0;
+    }
+    if keyboard.pressed(KeyCode::KeyA) {
+        move_input.x += 1.0;
+    }
+    if keyboard.pressed(KeyCode::KeyD) {
+        move_input.x -= 1.0;
+    }
+
+    let (speed_level, move_dir) = if move_input.length_squared() > 0.0 {
+        let normalized_input = move_input.normalize();
+        let angle_offset = normalized_input.x.atan2(normalized_input.y);
+        let move_dir = face_yaw + angle_offset;
+        let speed_level = if keyboard.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]) {
+            SpeedLevel::Run
+        } else {
+            SpeedLevel::Walk
+        };
+        (speed_level, move_dir)
+    } else {
+        (SpeedLevel::Idle, 0.0)
+    };
+
+    let speed = Speed { speed_level, move_dir };
+    for (mut player_velocity, mut player_face) in local_player_query.iter_mut() {
+        *player_velocity = speed.to_velocity();
+        player_face.0 = face_yaw;
+    }
+
+    let delta = time.delta_secs();
+    *last_send_speed_time += delta;
+    *last_send_face_time += delta;
+
+    let speed_level_changed = last_sent_speed.speed_level != speed.speed_level;
+    let move_dir_changed = (speed.move_dir - last_sent_speed.move_dir).abs() > SPEED_DIR_CHANGE_THRESHOLD;
+    if speed_level_changed || (move_dir_changed && *last_send_speed_time >= SPEED_MAX_SEND_INTERVAL) {
+        let msg = ClientMessage::Speed(CSpeed { speed });
+        let _ = to_server.send(ClientToServer::Send(msg));
+        *last_sent_speed = speed;
+        *last_send_speed_time = 0.0;
+    }
+
+    let face_changed = (face_yaw - *last_sent_face).abs() > FACE_CHANGE_THRESHOLD;
+    if face_changed && *last_send_face_time >= FACE_MAX_SEND_INTERVAL {
+        let msg = ClientMessage::Face(CFace { dir: face_yaw });
+        let _ = to_server.send(ClientToServer::Send(msg));
+        *last_sent_face = face_yaw;
+        *last_send_face_time = 0.0;
+    }
+
+    if *view_mode == CameraViewMode::FirstPerson {
+        for mut transform in camera_query.iter_mut() {
+            transform.rotation = Quat::from_rotation_y(current_yaw);
         }
     }
 }
