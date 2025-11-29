@@ -30,7 +30,7 @@ pub fn process_server_events_system(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut player_map: ResMut<PlayerMap>,
     mut rtt: ResMut<RoundTripTime>,
-    player_pos_query: Query<&Position, With<PlayerId>>,
+    player_query: Query<(&Position, &Velocity), With<PlayerId>>,
     player_face_query: Query<(&Position, &FaceDirection), With<PlayerId>>,
     camera_query: Query<Entity, With<Camera3d>>,
     my_player_id: Option<Res<MyPlayerId>>,
@@ -51,7 +51,7 @@ pub fn process_server_events_system(
                         &mut materials,
                         &mut player_map,
                         &mut rtt,
-                        &player_pos_query,
+                        &player_query,
                         &player_face_query,
                         &camera_query,
                         my_id.0,
@@ -99,7 +99,7 @@ fn process_message_logged_in(
     materials: &mut ResMut<Assets<StandardMaterial>>,
     players: &mut ResMut<PlayerMap>,
     rtt: &mut ResMut<RoundTripTime>,
-    _player_pos_query: &Query<&Position, With<PlayerId>>,
+    player_query: &Query<(&Position, &Velocity), With<PlayerId>>,
     player_face_query: &Query<(&Position, &FaceDirection), With<PlayerId>>,
     camera_query: &Query<Entity, With<Camera3d>>,
     my_player_id: PlayerId,
@@ -122,6 +122,8 @@ fn process_message_logged_in(
             meshes,
             materials,
             players,
+            rtt,
+            player_query,
             camera_query,
             my_player_id,
             update_msg,
@@ -204,6 +206,8 @@ fn handle_update_message(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
     players: &mut ResMut<PlayerMap>,
+    rtt: &ResMut<RoundTripTime>,
+    player_query: &Query<(&Position, &Velocity), With<PlayerId>>,
     camera_query: &Query<Entity, With<Camera3d>>,
     my_player_id: PlayerId,
     msg: &SUpdate,
@@ -270,12 +274,23 @@ fn handle_update_message(
 
     for (id, server_player) in &msg.players {
         if let Some(client_player) = players.0.get_mut(id) {
-            // Store server snapshot with timestamp for client_movement_system to use
-            commands.entity(client_player.entity).insert(ServerSnapshot {
-                pos: server_player.pos,
-                speed: server_player.speed,
-                received_at: now,
-            });
+            if let Ok((client_pos, client_vel)) = player_query.get(client_player.entity) {
+                let half_rtt_secs = rtt.rtt.as_secs_f32() / 2.0;
+                let server_vel = server_player.speed.to_velocity();
+
+                commands.entity(client_player.entity).insert(ServerSnapshot {
+                    client_pos: *client_pos,
+                    client_vel: *client_vel,
+                    server_pos: Position {
+                        x: server_player.pos.x + server_vel.x * half_rtt_secs,
+                        y: server_player.pos.y,
+                        z: server_player.pos.z + server_vel.z * half_rtt_secs,
+                    },
+                    server_vel,
+                    received_at: now,
+                    timer: 0.0,
+                });
+            }
 
             client_player.hits = server_player.hits;
         }

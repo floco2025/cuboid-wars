@@ -23,9 +23,12 @@ pub struct BumpFlashState {
 // Server's authoritative snapshot for this entity
 #[derive(Component)]
 pub struct ServerSnapshot {
-    pub pos: Position,
-    pub speed: common::protocol::Speed,
-    pub received_at: Duration, // Time::elapsed() when snapshot was received
+    pub client_pos: Position,
+    pub client_vel: Velocity,
+    pub server_pos: Position,
+    pub server_vel: Velocity,
+    pub received_at: Duration,
+    pub timer: f32,
 }
 
 // ============================================================================
@@ -43,7 +46,7 @@ pub fn client_movement_system(
         &mut Position,
         &Velocity,
         Option<&mut BumpFlashState>,
-        Option<&ServerSnapshot>,
+        Option<&mut ServerSnapshot>,
         Has<LocalPlayer>,
     )>,
     mut bump_flash_ui: Query<(&mut BackgroundColor, &mut Visibility), With<super::ui::BumpFlashUI>>,
@@ -54,29 +57,38 @@ pub fn client_movement_system(
     let entity_positions: Vec<(Entity, Position)> =
         query.iter().map(|(entity, pos, _, _, _, _)| (entity, *pos)).collect();
 
-    for (entity, mut pos, velocity, mut flash_state, server_snapshot, is_local) in query.iter_mut() {
-        // Calculate how old the server snapshot is
-        let _server_age = if let Some(snapshot) = server_snapshot {
-            time.elapsed() - snapshot.received_at
-        } else {
-            Duration::ZERO
-        };
-
+    for (entity, mut pos, velocity, mut flash_state, mut server_snapshot, is_local) in query.iter_mut() {
         if let Some(state) = flash_state.as_mut() {
             decay_flash_timer(state, delta, is_local, &mut bump_flash_ui);
         }
 
-        if !has_horizontal_velocity(velocity) {
-            if let Some(state) = flash_state.as_mut() {
-                state.was_colliding = false;
-            }
-            continue;
-        }
+        let target_pos = if let Some(snapshot) = server_snapshot.as_mut() {
+            let dx = (snapshot.server_pos.x - snapshot.client_pos.x) * delta / 0.2;
+            let dz = (snapshot.server_pos.x - snapshot.client_pos.x) * delta / 0.2;
 
-        let target_pos = Position {
-            x: pos.x + velocity.x * delta,
-            y: pos.y,
-            z: pos.z + velocity.z * delta,
+            snapshot.timer += delta;
+            if snapshot.timer >= 0.2 {
+                commands.entity(entity).remove::<ServerSnapshot>();
+            }
+
+            Position {
+                x: pos.x + velocity.x * delta + dx,
+                y: pos.y,
+                z: pos.z + velocity.z * delta + dz,
+            }
+        } else {
+            if !has_horizontal_velocity(velocity) {
+                if let Some(state) = flash_state.as_mut() {
+                    state.was_colliding = false;
+                }
+                continue;
+            }
+
+            Position {
+                x: pos.x + velocity.x * delta,
+                y: pos.y,
+                z: pos.z + velocity.z * delta,
+            }
         };
 
         let hit_wall = hits_wall(walls, &target_pos);
