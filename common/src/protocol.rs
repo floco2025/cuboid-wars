@@ -160,9 +160,9 @@ struct CShot {
 }
 
 message! {
-// Client to Server: Echo request with timestamp.
+// Client to Server: Echo request with timestamp (Duration since app start, serialized as nanoseconds).
 struct CEcho {
-    pub timestamp: f64,
+    pub timestamp_nanos: u64,
 }
 }
 
@@ -235,9 +235,9 @@ struct SHit {
 }
 
 message! {
-// Server to Client: Echo response with timestamp.
+// Server to Client: Echo response.
 struct SEcho {
-    pub timestamp: f64,
+    pub timestamp_nanos: u64,
 }
 }
 

@@ -1,6 +1,6 @@
 #[allow(clippy::wildcard_imports)]
 use bevy::prelude::*;
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 
 #[allow(clippy::wildcard_imports)]
 use crate::constants::*;
@@ -201,8 +201,8 @@ pub fn update_rtt_system(rtt: Res<crate::resources::RoundTripTime>, mut query: S
         return;
     }
 
-    if rtt.rtt > 0.0 {
-        query.0 = format!("RTT: {:.0}ms", rtt.rtt * 1000.0);
+    if rtt.rtt > Duration::ZERO {
+        query.0 = format!("RTT: {:.0}ms", rtt.rtt.as_secs_f64() * 1000.0);
     } else {
         query.0 = "RTT: --".to_string();
     }

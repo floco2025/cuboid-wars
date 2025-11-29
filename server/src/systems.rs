@@ -340,7 +340,7 @@ fn process_message_logged_in(
             trace!("{:?} echo: {:?}", id, msg);
             if let Some(player_info) = players.0.get(&id) {
                 let echo_msg = ServerMessage::Echo(SEcho {
-                    timestamp: msg.timestamp,
+                    timestamp_nanos: msg.timestamp_nanos,
                 });
                 let _ = player_info.channel.send(ServerToClient::Send(echo_msg));
             }

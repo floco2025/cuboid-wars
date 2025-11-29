@@ -3,10 +3,7 @@ use bevy_ecs::prelude::*;
 use bevy_math::Vec3;
 use bevy_time::{Time, Timer, TimerMode};
 
-use crate::{
-    constants::*,
-    protocol::Position,
-};
+use crate::{constants::*, protocol::Position};
 
 // ============================================================================
 // Shared Game Components

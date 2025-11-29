@@ -1,13 +1,16 @@
 #[allow(clippy::wildcard_imports)]
 use bevy::prelude::*;
-use std::collections::HashMap;
+use std::{
+    collections::{HashMap, VecDeque},
+    time::Duration,
+};
 use tokio::sync::mpsc::{
     UnboundedReceiver, UnboundedSender,
     error::{SendError, TryRecvError},
 };
 
 use crate::net::{ClientToServer, ServerToClient};
-use common::protocol::{PlayerId, Position, Velocity, Wall};
+use common::protocol::{PlayerId, Wall};
 
 // ============================================================================
 // Bevy Resources
@@ -33,19 +36,12 @@ pub struct PlayerInfo {
 #[derive(Resource, Default)]
 pub struct PlayerMap(pub HashMap<PlayerId, PlayerInfo>);
 
-// Round-trip time to server in seconds
+// Round-trip time to server
 #[derive(Resource, Default)]
 pub struct RoundTripTime {
-    pub rtt: f64,
-    pub pending_timestamp: f64,
-}
-
-// Track local player position and velocity from RTT seconds ago for server reconciliation
-#[derive(Resource, Default)]
-pub struct PastPosVel {
-    pub pos: Position,
-    pub vel: Velocity,
-    pub timestamp: f64,
+    pub rtt: Duration,
+    pub pending_sent_at: Duration,
+    pub measurements: VecDeque<Duration>,
 }
 
 // Camera view mode

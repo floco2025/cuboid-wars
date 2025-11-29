@@ -1,11 +1,11 @@
 #[allow(clippy::wildcard_imports)]
 use bevy::prelude::*;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use super::effects::{CameraShake, CuboidShake};
 #[allow(clippy::wildcard_imports)]
 use crate::constants::*;
-use crate::resources::{CameraViewMode, PastPosVel, RoundTripTime, WallConfig};
+use crate::resources::{CameraViewMode, WallConfig};
 use common::{
     constants::PLAYER_HEIGHT,
     protocol::{FaceDirection, Position, Velocity},
@@ -25,6 +25,14 @@ pub struct LocalPlayer;
 pub struct BumpFlashState {
     pub was_colliding: bool,
     pub flash_timer: f32,
+}
+
+// Server's authoritative snapshot for this entity
+#[derive(Component)]
+pub struct ServerSnapshot {
+    pub pos: Position,
+    pub speed: common::protocol::Speed,
+    pub received_at: Duration, // Time::elapsed() when snapshot was received
 }
 
 // ============================================================================
@@ -138,25 +146,30 @@ pub fn client_movement_system(
     time: Res<Time>,
     asset_server: Res<AssetServer>,
     wall_config: Option<Res<WallConfig>>,
-    mut past_pos_vel: ResMut<PastPosVel>,
-    rtt: Res<RoundTripTime>,
-    mut timer: Local<f32>,
     mut query: Query<(
         Entity,
         &mut Position,
         &Velocity,
         Option<&mut BumpFlashState>,
+        Option<&ServerSnapshot>,
         Has<LocalPlayer>,
     )>,
     mut bump_flash_ui: Query<(&mut BackgroundColor, &mut Visibility), With<super::ui::BumpFlashUI>>,
 ) {
     let delta = time.delta_secs();
-    *timer += delta;
 
     let walls = wall_config.as_deref();
-    let entity_positions: Vec<(Entity, Position)> = query.iter().map(|(entity, pos, _, _, _)| (entity, *pos)).collect();
+    let entity_positions: Vec<(Entity, Position)> =
+        query.iter().map(|(entity, pos, _, _, _, _)| (entity, *pos)).collect();
 
-    for (entity, mut pos, velocity, mut flash_state, is_local) in query.iter_mut() {
+    for (entity, mut pos, velocity, mut flash_state, server_snapshot, is_local) in query.iter_mut() {
+        // Calculate how old the server snapshot is
+        let _server_age = if let Some(snapshot) = server_snapshot {
+            time.elapsed() - snapshot.received_at
+        } else {
+            Duration::ZERO
+        };
+
         if let Some(state) = flash_state.as_mut() {
             decay_flash_timer(state, delta, is_local, &mut bump_flash_ui);
         }
@@ -187,13 +200,6 @@ pub fn client_movement_system(
             if let Some(state) = flash_state.as_mut() {
                 trigger_collision_feedback(&mut commands, &asset_server, &mut bump_flash_ui, state, hit_wall);
             }
-        }
-
-        if is_local && *timer >= rtt.rtt as f32 {
-            past_pos_vel.pos = *pos;
-            past_pos_vel.vel = *velocity;
-            past_pos_vel.timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64();
-            *timer = 0.0;
         }
     }
 }
