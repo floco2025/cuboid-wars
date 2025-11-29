@@ -4,7 +4,7 @@ use std::{collections::HashSet, time::Duration};
 
 use super::{
     effects::{CameraShake, CuboidShake},
-    sync::ServerSnapshot,
+    movement::ServerSnapshot,
 };
 use crate::{
     constants::ECHO_INTERVAL,

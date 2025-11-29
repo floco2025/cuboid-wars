@@ -2,7 +2,7 @@ use bevy::audio::{PlaybackMode, Volume};
 #[allow(clippy::wildcard_imports)]
 use bevy::prelude::*;
 
-use crate::{resources::WallConfig, systems::sync::LocalPlayer};
+use crate::{resources::WallConfig, systems::movement::LocalPlayer};
 use common::{
     collision::{check_projectile_player_hit, check_projectile_wall_hit},
     protocol::{FaceDirection, Position},

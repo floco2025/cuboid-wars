@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::systems::sync::{BumpFlashState, LocalPlayer};
+use crate::systems::movement::{BumpFlashState, LocalPlayer};
 use common::{
     constants::*,
     protocol::{FaceDirection, PlayerId, Position, Velocity, Wall, WallOrientation},

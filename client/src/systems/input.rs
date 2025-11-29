@@ -1,7 +1,7 @@
 #[allow(clippy::wildcard_imports)]
 use bevy::{math::Vec2, prelude::*};
 
-use super::sync::LocalPlayer;
+use super::movement::LocalPlayer;
 #[allow(clippy::wildcard_imports)]
 use crate::constants::*;
 use crate::{

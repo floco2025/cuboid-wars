@@ -14,10 +14,11 @@ use client::{
         collision::client_hit_detection_system,
         effects::{apply_camera_shake_system, apply_cuboid_shake_system},
         input::{camera_view_toggle_system, cursor_toggle_system, input_system, shooting_input_system},
+        movement::client_movement_system,
         network::{echo_system, process_server_events_system},
         sync::{
-            client_movement_system, sync_camera_to_player_system, sync_face_to_transform_system,
-            sync_local_player_visibility_system, sync_position_to_transform_system, sync_projectiles_system,
+            sync_camera_to_player_system, sync_face_to_transform_system, sync_local_player_visibility_system,
+            sync_position_to_transform_system, sync_projectiles_system,
         },
         ui::{setup_world_system, update_player_list_system, update_rtt_system},
         walls::spawn_walls_system,
