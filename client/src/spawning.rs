@@ -20,20 +20,20 @@ pub fn spawn_player(
 ) -> Entity {
     let entity_id = commands
         .spawn((
-        PlayerId(player_id),
-        *position,               // Add Position component
-        velocity,                // Add Velocity component
-        FaceDirection(face_dir), // Add FaceDirection component
-        Mesh3d(meshes.add(Cuboid::new(PLAYER_WIDTH, PLAYER_HEIGHT, PLAYER_DEPTH))),
-        MeshMaterial3d(materials.add(player_color(is_local))),
-        Transform::from_xyz(
-            position.x,
-            PLAYER_HEIGHT / 2.0, // Lift so bottom is at y=0
-            position.z,
-        )
-        .with_rotation(Quat::from_rotation_y(face_dir)),
-        player_visibility(is_local),
-    ))
+            PlayerId(player_id),
+            *position,               // Add Position component
+            velocity,                // Add Velocity component
+            FaceDirection(face_dir), // Add FaceDirection component
+            Mesh3d(meshes.add(Cuboid::new(PLAYER_WIDTH, PLAYER_HEIGHT, PLAYER_DEPTH))),
+            MeshMaterial3d(materials.add(player_color(is_local))),
+            Transform::from_xyz(
+                position.x,
+                PLAYER_HEIGHT / 2.0, // Lift so bottom is at y=0
+                position.z,
+            )
+            .with_rotation(Quat::from_rotation_y(face_dir)),
+            player_visibility(is_local),
+        ))
         .id();
 
     if is_local {

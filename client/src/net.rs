@@ -3,7 +3,7 @@ use bevy::prelude::{debug, error, trace};
 use quinn::{Connection, ConnectionError};
 use tokio::{
     sync::mpsc::{UnboundedReceiver, UnboundedSender},
-    time::{sleep, Duration},
+    time::{Duration, sleep},
 };
 
 use common::net::MessageStream;

@@ -185,13 +185,7 @@ pub fn client_movement_system(
             }
         } else if is_local {
             if let Some(state) = flash_state.as_mut() {
-                trigger_collision_feedback(
-                    &mut commands,
-                    &asset_server,
-                    &mut bump_flash_ui,
-                    state,
-                    hit_wall,
-                );
+                trigger_collision_feedback(&mut commands, &asset_server, &mut bump_flash_ui, state, hit_wall);
             }
         }
 

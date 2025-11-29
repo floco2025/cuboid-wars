@@ -240,13 +240,7 @@ pub fn update_player_list_system(
 
     if needs_rebuild {
         remove_stale_entries(&mut commands, &players, &existing_map);
-        rebuild_player_list(
-            &mut commands,
-            *player_list_ui,
-            &players,
-            &existing_map,
-            local_player_id,
-        );
+        rebuild_player_list(&mut commands, *player_list_ui, &players, &existing_map, local_player_id);
         return;
     }
 
@@ -289,7 +283,12 @@ fn rebuild_player_list(
         let entity = if let Some((entity, _)) = existing_map.get(player_id) {
             *entity
         } else {
-            spawn_player_entry(commands, *player_id, player_info.hits, local_player_id == Some(*player_id))
+            spawn_player_entry(
+                commands,
+                *player_id,
+                player_info.hits,
+                local_player_id == Some(*player_id),
+            )
         };
         ordered_children.push(entity);
     }
@@ -317,12 +316,7 @@ fn update_hit_counters(
     }
 }
 
-fn spawn_player_entry(
-    commands: &mut Commands,
-    player_id: PlayerId,
-    hits: i32,
-    is_local: bool,
-) -> Entity {
+fn spawn_player_entry(commands: &mut Commands, player_id: PlayerId, hits: i32, is_local: bool) -> Entity {
     let player_num = player_id.0;
     let background_color = if is_local {
         BackgroundColor(Color::srgba(0.8, 0.8, 0.0, 0.3))

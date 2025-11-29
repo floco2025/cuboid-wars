@@ -11,7 +11,7 @@ use std::time::Duration;
 pub struct CameraShake {
     pub timer: Timer,
     pub intensity: f32,
-    pub dir_x: f32,   // Direction of impact
+    pub dir_x: f32, // Direction of impact
     pub dir_z: f32,
     pub offset_x: f32, // Current shake offset
     pub offset_y: f32,
@@ -23,7 +23,7 @@ pub struct CameraShake {
 pub struct CuboidShake {
     pub timer: Timer,
     pub intensity: f32,
-    pub dir_x: f32,   // Direction of impact
+    pub dir_x: f32, // Direction of impact
     pub dir_z: f32,
     pub offset_x: f32, // Current shake offset
     pub offset_z: f32,

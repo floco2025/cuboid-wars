@@ -282,43 +282,43 @@ fn handle_update_message(
         if let Some(client_player) = players.0.get_mut(id) {
             if *id == my_player_id {
                 if let Ok(client_pos) = player_pos_query.get(client_player.entity) {
-                    log_local_desync(client_pos, server_player, &**past_pos_vel, &**rtt);
-                }
-            }
+                    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64();
+                    let elapsed_since_past = (now - past_pos_vel.timestamp) as f32;
+                    let past_pred = Position {
+                        x: past_pos_vel.pos.x + past_pos_vel.vel.x * elapsed_since_past,
+                        y: 0.0,
+                        z: past_pos_vel.pos.z + past_pos_vel.vel.z * elapsed_since_past,
+                    };
 
-            commands
-                .entity(client_player.entity)
-                .insert((server_player.pos, server_player.speed.to_velocity()));
+                    let server_speed = server_player.speed.to_velocity();
+                    let half_rtt = (rtt.rtt / 2.0) as f32;
+                    let server_pred = Position {
+                        x: server_player.pos.x + server_speed.x * half_rtt,
+                        y: 0.0,
+                        z: server_player.pos.z + server_speed.z * half_rtt,
+                    };
+
+                    debug!(
+                        "client_z={:.2} server_offset={:+.2} server_pred_offset={:+.2} past_pred_offset={:+.2} {:?}",
+                        client_pos.z,
+                        server_player.pos.z - client_pos.z,
+                        server_pred.z - client_pos.z,
+                        past_pred.z - client_pos.z,
+                        server_player.speed.speed_level,
+                    );
+                }
+
+                commands
+                    .entity(client_player.entity)
+                    .insert((server_player.pos, server_player.speed.to_velocity()));
+            } else {
+                commands
+                    .entity(client_player.entity)
+                    .insert((server_player.pos, server_player.speed.to_velocity()));
+            }
             client_player.hits = server_player.hits;
         }
     }
-}
-
-fn log_local_desync(client_pos: &Position, server_player: &Player, past_pos_vel: &PastPosVel, rtt: &RoundTripTime) {
-    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64();
-    let elapsed_since_past = (now - past_pos_vel.timestamp) as f32;
-    let past_pred = Position {
-        x: past_pos_vel.pos.x + past_pos_vel.vel.x * elapsed_since_past,
-        y: 0.0,
-        z: past_pos_vel.pos.z + past_pos_vel.vel.z * elapsed_since_past,
-    };
-
-    let server_speed = server_player.speed.to_velocity();
-    let half_rtt = (rtt.rtt / 2.0) as f32;
-    let server_pred = Position {
-        x: server_player.pos.x + server_speed.x * half_rtt,
-        y: 0.0,
-        z: server_player.pos.z + server_speed.z * half_rtt,
-    };
-
-    debug!(
-        "client_z={:.2} server_offset={:+.2} server_pred_offset={:+.2} past_pred_offset={:+.2} {:?}",
-        client_pos.z,
-        server_player.pos.z - client_pos.z,
-        server_pred.z - client_pos.z,
-        past_pred.z - client_pos.z,
-        server_player.speed.speed_level,
-    );
 }
 
 fn handle_hit_message(

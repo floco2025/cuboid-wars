@@ -201,17 +201,10 @@ pub fn check_player_player_collision(pos1: &Position, pos2: &Position) -> bool {
     let p2_min_z = pos2.z - player_half_depth;
     let p2_max_z = pos2.z + player_half_depth;
 
-    ranges_overlap(p1_min_x, p1_max_x, p2_min_x, p2_max_x)
-        && ranges_overlap(p1_min_z, p1_max_z, p2_min_z, p2_max_z)
+    ranges_overlap(p1_min_x, p1_max_x, p2_min_x, p2_max_x) && ranges_overlap(p1_min_z, p1_max_z, p2_min_z, p2_max_z)
 }
 
-fn slab_interval(
-    local_coord: f32,
-    ray_dir: f32,
-    half_extent: f32,
-    t_min: f32,
-    t_max: f32,
-) -> Option<(f32, f32)> {
+fn slab_interval(local_coord: f32, ray_dir: f32, half_extent: f32, t_min: f32, t_max: f32) -> Option<(f32, f32)> {
     if ray_dir.abs() > 1e-6 {
         let t1 = (-half_extent - local_coord) / ray_dir;
         let t2 = (half_extent - local_coord) / ray_dir;
