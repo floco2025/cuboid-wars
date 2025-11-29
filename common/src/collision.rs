@@ -57,45 +57,27 @@ pub fn check_projectile_player_hit(
     let mut t_max = 1.0_f32;
 
     // Check X slab
-    if ray_local_x.abs() > 1e-6 {
-        let t1 = (-half_width - local_x) / ray_local_x;
-        let t2 = (half_width - local_x) / ray_local_x;
-        t_min = t_min.max(t1.min(t2));
-        t_max = t_max.min(t1.max(t2));
-    } else if local_x.abs() > half_width {
-        return HitResult {
-            hit: false,
-            hit_dir_x: 0.0,
-            hit_dir_z: 0.0,
-        };
+    if let Some((new_min, new_max)) = slab_interval(local_x, ray_local_x, half_width, t_min, t_max) {
+        t_min = new_min;
+        t_max = new_max;
+    } else {
+        return no_hit();
     }
 
     // Check Y slab
-    if ray_local_y.abs() > 1e-6 {
-        let t1 = (-half_height - local_y) / ray_local_y;
-        let t2 = (half_height - local_y) / ray_local_y;
-        t_min = t_min.max(t1.min(t2));
-        t_max = t_max.min(t1.max(t2));
-    } else if local_y.abs() > half_height {
-        return HitResult {
-            hit: false,
-            hit_dir_x: 0.0,
-            hit_dir_z: 0.0,
-        };
+    if let Some((new_min, new_max)) = slab_interval(local_y, ray_local_y, half_height, t_min, t_max) {
+        t_min = new_min;
+        t_max = new_max;
+    } else {
+        return no_hit();
     }
 
     // Check Z slab
-    if ray_local_z.abs() > 1e-6 {
-        let t1 = (-half_depth - local_z) / ray_local_z;
-        let t2 = (half_depth - local_z) / ray_local_z;
-        t_min = t_min.max(t1.min(t2));
-        t_max = t_max.min(t1.max(t2));
-    } else if local_z.abs() > half_depth {
-        return HitResult {
-            hit: false,
-            hit_dir_x: 0.0,
-            hit_dir_z: 0.0,
-        };
+    if let Some((new_min, new_max)) = slab_interval(local_z, ray_local_z, half_depth, t_min, t_max) {
+        t_min = new_min;
+        t_max = new_max;
+    } else {
+        return no_hit();
     }
 
     // Hit if intervals overlap
@@ -120,11 +102,7 @@ pub fn check_projectile_player_hit(
             hit_dir_z,
         }
     } else {
-        HitResult {
-            hit: false,
-            hit_dir_x: 0.0,
-            hit_dir_z: 0.0,
-        }
+        no_hit()
     }
 }
 
@@ -141,103 +119,44 @@ pub fn check_projectile_wall_hit(proj_pos: &Position, projectile: &Projectile, d
     let ray_dir_z = projectile.velocity.z * delta;
 
     // Wall dimensions
-    let half_thickness = WALL_WIDTH / 2.0 + PROJECTILE_RADIUS;
     let half_height = WALL_HEIGHT / 2.0 + PROJECTILE_RADIUS;
+    let half_thickness = WALL_WIDTH / 2.0 + PROJECTILE_RADIUS;
+    let half_length = WALL_LENGTH / 2.0 + PROJECTILE_RADIUS;
 
-    match wall.orientation {
-        WallOrientation::Horizontal => {
-            // Wall extends along X axis at position (wall.x, wall.z)
-            // Wall center is at (wall.x, WALL_HEIGHT/2, wall.z)
-            let half_length = WALL_LENGTH / 2.0 + PROJECTILE_RADIUS;
+    let (half_x, half_z) = match wall.orientation {
+        WallOrientation::Horizontal => (half_length, half_thickness),
+        WallOrientation::Vertical => (half_thickness, half_length),
+    };
 
-            // Transform to wall's local space (centered at wall position)
-            let local_x = ray_start_x - wall.x;
-            let local_y = ray_start_y - WALL_HEIGHT / 2.0;
-            let local_z = ray_start_z - wall.z;
+    let local_x = ray_start_x - wall.x;
+    let local_y = ray_start_y - WALL_HEIGHT / 2.0;
+    let local_z = ray_start_z - wall.z;
 
-            // Check intersection with axis-aligned box using slab method
-            let mut t_min = 0.0_f32;
-            let mut t_max = 1.0_f32;
+    let mut t_min = 0.0_f32;
+    let mut t_max = 1.0_f32;
 
-            // X slab (length of wall)
-            if ray_dir_x.abs() > 1e-6 {
-                let t1 = (-half_length - local_x) / ray_dir_x;
-                let t2 = (half_length - local_x) / ray_dir_x;
-                t_min = t_min.max(t1.min(t2));
-                t_max = t_max.min(t1.max(t2));
-            } else if local_x.abs() > half_length {
-                return false;
-            }
-
-            // Y slab (height of wall)
-            if ray_dir_y.abs() > 1e-6 {
-                let t1 = (-half_height - local_y) / ray_dir_y;
-                let t2 = (half_height - local_y) / ray_dir_y;
-                t_min = t_min.max(t1.min(t2));
-                t_max = t_max.min(t1.max(t2));
-            } else if local_y.abs() > half_height {
-                return false;
-            }
-
-            // Z slab (thickness of wall)
-            if ray_dir_z.abs() > 1e-6 {
-                let t1 = (-half_thickness - local_z) / ray_dir_z;
-                let t2 = (half_thickness - local_z) / ray_dir_z;
-                t_min = t_min.max(t1.min(t2));
-                t_max = t_max.min(t1.max(t2));
-            } else if local_z.abs() > half_thickness {
-                return false;
-            }
-
-            t_min <= t_max && t_max >= 0.0 && t_min <= 1.0
-        }
-        WallOrientation::Vertical => {
-            // Wall extends along Z axis at position (wall.x, wall.z)
-            // Wall center is at (wall.x, WALL_HEIGHT/2, wall.z)
-            let half_length = WALL_LENGTH / 2.0 + PROJECTILE_RADIUS;
-
-            // Transform to wall's local space
-            let local_x = ray_start_x - wall.x;
-            let local_y = ray_start_y - WALL_HEIGHT / 2.0;
-            let local_z = ray_start_z - wall.z;
-
-            // Check intersection with axis-aligned box using slab method
-            let mut t_min = 0.0_f32;
-            let mut t_max = 1.0_f32;
-
-            // X slab (thickness of wall)
-            if ray_dir_x.abs() > 1e-6 {
-                let t1 = (-half_thickness - local_x) / ray_dir_x;
-                let t2 = (half_thickness - local_x) / ray_dir_x;
-                t_min = t_min.max(t1.min(t2));
-                t_max = t_max.min(t1.max(t2));
-            } else if local_x.abs() > half_thickness {
-                return false;
-            }
-
-            // Y slab (height of wall)
-            if ray_dir_y.abs() > 1e-6 {
-                let t1 = (-half_height - local_y) / ray_dir_y;
-                let t2 = (half_height - local_y) / ray_dir_y;
-                t_min = t_min.max(t1.min(t2));
-                t_max = t_max.min(t1.max(t2));
-            } else if local_y.abs() > half_height {
-                return false;
-            }
-
-            // Z slab (length of wall)
-            if ray_dir_z.abs() > 1e-6 {
-                let t1 = (-half_length - local_z) / ray_dir_z;
-                let t2 = (half_length - local_z) / ray_dir_z;
-                t_min = t_min.max(t1.min(t2));
-                t_max = t_max.min(t1.max(t2));
-            } else if local_z.abs() > half_length {
-                return false;
-            }
-
-            t_min <= t_max && t_max >= 0.0 && t_min <= 1.0
-        }
+    if let Some((min_x, max_x)) = slab_interval(local_x, ray_dir_x, half_x, t_min, t_max) {
+        t_min = min_x;
+        t_max = max_x;
+    } else {
+        return false;
     }
+
+    if let Some((min_y, max_y)) = slab_interval(local_y, ray_dir_y, half_height, t_min, t_max) {
+        t_min = min_y;
+        t_max = max_y;
+    } else {
+        return false;
+    }
+
+    if let Some((min_z, max_z)) = slab_interval(local_z, ray_dir_z, half_z, t_min, t_max) {
+        t_min = min_z;
+        t_max = max_z;
+    } else {
+        return false;
+    }
+
+    t_min <= t_max && t_max >= 0.0 && t_min <= 1.0
 }
 
 // Check if a player position intersects with a wall
@@ -246,52 +165,23 @@ pub fn check_player_wall_collision(player_pos: &Position, wall: &Wall) -> bool {
     let player_half_width = PLAYER_WIDTH / 2.0;
     let player_half_depth = PLAYER_DEPTH / 2.0;
 
-    match wall.orientation {
-        WallOrientation::Horizontal => {
-            // Wall extends along X axis at (wall.x, wall.z)
-            let wall_half_length = WALL_LENGTH / 2.0;
-            let wall_half_thickness = WALL_WIDTH / 2.0;
+    let (wall_half_x, wall_half_z) = match wall.orientation {
+        WallOrientation::Horizontal => (WALL_LENGTH / 2.0, WALL_WIDTH / 2.0),
+        WallOrientation::Vertical => (WALL_WIDTH / 2.0, WALL_LENGTH / 2.0),
+    };
 
-            // Check if player AABB overlaps with wall AABB
-            let player_min_x = player_pos.x - player_half_width;
-            let player_max_x = player_pos.x + player_half_width;
-            let player_min_z = player_pos.z - player_half_depth;
-            let player_max_z = player_pos.z + player_half_depth;
+    let player_min_x = player_pos.x - player_half_width;
+    let player_max_x = player_pos.x + player_half_width;
+    let player_min_z = player_pos.z - player_half_depth;
+    let player_max_z = player_pos.z + player_half_depth;
 
-            let wall_min_x = wall.x - wall_half_length;
-            let wall_max_x = wall.x + wall_half_length;
-            let wall_min_z = wall.z - wall_half_thickness;
-            let wall_max_z = wall.z + wall_half_thickness;
+    let wall_min_x = wall.x - wall_half_x;
+    let wall_max_x = wall.x + wall_half_x;
+    let wall_min_z = wall.z - wall_half_z;
+    let wall_max_z = wall.z + wall_half_z;
 
-            // AABB overlap test
-            player_max_x > wall_min_x
-                && player_min_x < wall_max_x
-                && player_max_z > wall_min_z
-                && player_min_z < wall_max_z
-        }
-        WallOrientation::Vertical => {
-            // Wall extends along Z axis at (wall.x, wall.z)
-            let wall_half_length = WALL_LENGTH / 2.0;
-            let wall_half_thickness = WALL_WIDTH / 2.0;
-
-            // Check if player AABB overlaps with wall AABB
-            let player_min_x = player_pos.x - player_half_width;
-            let player_max_x = player_pos.x + player_half_width;
-            let player_min_z = player_pos.z - player_half_depth;
-            let player_max_z = player_pos.z + player_half_depth;
-
-            let wall_min_x = wall.x - wall_half_thickness;
-            let wall_max_x = wall.x + wall_half_thickness;
-            let wall_min_z = wall.z - wall_half_length;
-            let wall_max_z = wall.z + wall_half_length;
-
-            // AABB overlap test
-            player_max_x > wall_min_x
-                && player_min_x < wall_max_x
-                && player_max_z > wall_min_z
-                && player_min_z < wall_max_z
-        }
-    }
+    ranges_overlap(player_min_x, player_max_x, wall_min_x, wall_max_x)
+        && ranges_overlap(player_min_z, player_max_z, wall_min_z, wall_max_z)
 }
 
 // Check if two players collide with each other
@@ -311,6 +201,42 @@ pub fn check_player_player_collision(pos1: &Position, pos2: &Position) -> bool {
     let p2_min_z = pos2.z - player_half_depth;
     let p2_max_z = pos2.z + player_half_depth;
 
-    // AABB overlap test
-    p1_max_x > p2_min_x && p1_min_x < p2_max_x && p1_max_z > p2_min_z && p1_min_z < p2_max_z
+    ranges_overlap(p1_min_x, p1_max_x, p2_min_x, p2_max_x)
+        && ranges_overlap(p1_min_z, p1_max_z, p2_min_z, p2_max_z)
+}
+
+fn slab_interval(
+    local_coord: f32,
+    ray_dir: f32,
+    half_extent: f32,
+    t_min: f32,
+    t_max: f32,
+) -> Option<(f32, f32)> {
+    if ray_dir.abs() > 1e-6 {
+        let t1 = (-half_extent - local_coord) / ray_dir;
+        let t2 = (half_extent - local_coord) / ray_dir;
+        let new_min = t_min.max(t1.min(t2));
+        let new_max = t_max.min(t1.max(t2));
+        if new_min <= new_max {
+            Some((new_min, new_max))
+        } else {
+            None
+        }
+    } else if local_coord.abs() > half_extent {
+        None
+    } else {
+        Some((t_min, t_max))
+    }
+}
+
+fn no_hit() -> HitResult {
+    HitResult {
+        hit: false,
+        hit_dir_x: 0.0,
+        hit_dir_z: 0.0,
+    }
+}
+
+fn ranges_overlap(a_min: f32, a_max: f32, b_min: f32, b_max: f32) -> bool {
+    a_max > b_min && a_min < b_max
 }
