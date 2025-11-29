@@ -72,6 +72,7 @@ pub fn input_system(
     mut camera_query: Query<&mut Transform, With<Camera3d>>,
     view_mode: Res<CameraViewMode>,
 ) {
+    // Require locked cursor before processing movement input
     let cursor_locked = cursor_options.grab_mode != bevy::window::CursorGrabMode::None;
     if !cursor_locked {
         // Drain pending mouse events and ensure player stops moving
@@ -94,7 +95,7 @@ pub fn input_system(
         return;
     }
 
-    // Derive base rotation depending on view mode
+    // Determine the yaw baseline (camera vs stored value depending on view mode)
     let mut current_yaw = *stored_yaw;
     if *view_mode == CameraViewMode::FirstPerson && !view_mode.is_changed() {
         if let Some(transform) = camera_query.iter().next() {
@@ -102,6 +103,7 @@ pub fn input_system(
         }
     }
 
+    // Apply mouse delta to yaw
     for motion in mouse_motion.read() {
         current_yaw -= motion.delta.x * MOUSE_SENSITIVITY;
     }
@@ -124,6 +126,7 @@ pub fn input_system(
         move_input.x -= 1.0;
     }
 
+    // Translate input vector into move_dir + speed level
     let (speed_level, move_dir) = if move_input.length_squared() > 0.0 {
         let normalized_input = move_input.normalize();
         let angle_offset = normalized_input.x.atan2(normalized_input.y);
@@ -144,6 +147,7 @@ pub fn input_system(
         player_face.0 = face_yaw;
     }
 
+    // Throttle network updates when movement/face changes
     let delta = time.delta_secs();
     *last_send_speed_time += delta;
     *last_send_face_time += delta;
