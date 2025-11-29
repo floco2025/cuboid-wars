@@ -1,8 +1,10 @@
 use anyhow::{Context, Result};
 #[allow(clippy::wildcard_imports)]
 use bevy::prelude::*;
+use bevy::window::{CursorGrabMode, CursorOptions, WindowPlugin, WindowPosition};
 use clap::Parser;
 use quinn::Endpoint;
+use tokio::runtime::Runtime;
 
 use client::{
     config::configure_client,
@@ -14,8 +16,8 @@ use client::{
         input::{camera_view_toggle_system, cursor_toggle_system, input_system, shooting_input_system},
         network::{echo_system, process_server_events_system},
         sync::{
-            client_movement_system, sync_camera_to_player_system, sync_local_player_visibility_system,
-            sync_position_to_transform_system, sync_projectiles_system, sync_face_to_transform_system,
+            client_movement_system, sync_camera_to_player_system, sync_face_to_transform_system,
+            sync_local_player_visibility_system, sync_position_to_transform_system, sync_projectiles_system,
         },
         ui::{setup_world_system, update_player_list_system, update_rtt_system},
         walls::spawn_walls_system,
@@ -64,70 +66,25 @@ struct Args {
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    // Create tokio runtime for network I/O
-    let rt = tokio::runtime::Runtime::new()?;
-
-    // Connect to server (blocking)
-    let connection = rt.block_on(async {
-        let mut endpoint = Endpoint::client("0.0.0.0:0".parse()?)?;
-        let client_config = configure_client()?;
-        endpoint.set_default_client_config(client_config);
-        endpoint
-            .connect(args.server.parse()?, "localhost")?
-            .await
-            .context("failed to connect to server")
-    })?;
-    // info! doesn't work because Bevy isn't inialized yet
-    //info!("connected to server at {}", args.server);
-
-    // Send login message (blocking)
-    rt.block_on(async {
-        let msg = ClientMessage::Login(CLogin {});
-        // Trace doesn't work because Bevy isn't inialized yet
-        //trace!("sending to server: {:?}", msg);
-        let stream = MessageStream::new(&connection);
-        stream.send(&msg).await
-    })?;
+    let rt = Runtime::new()?;
+    let connection = connect_to_server(&rt, args.server.as_str())?;
+    send_login(&rt, &connection)?;
 
     // Channel for sending from the network I/O task to the client
     let (to_client, from_server) = tokio::sync::mpsc::unbounded_channel();
-
     // Channel for sending from the client to the network I/O task
     let (to_server, from_client) = tokio::sync::mpsc::unbounded_channel();
 
-    // Spawn network I/O task
-    let lag_ms = args.lag_ms;
-    rt.spawn(network_io_task(connection, to_client, from_client, lag_ms));
+    rt.spawn(network_io_task(connection, to_client, from_client, args.lag_ms));
 
-    // Configure window position
-    let window_position = if let (Some(x), Some(y)) = (args.window_x, args.window_y) {
-        bevy::window::WindowPosition::At(IVec2::new(x, y))
-    } else {
-        bevy::window::WindowPosition::Automatic
-    };
+    let window_position = window_position_from_args(&args);
 
     // Start Bevy app
     let mut app = App::new();
     app.add_plugins(
         DefaultPlugins
-            .set(AssetPlugin {
-                file_path: "assets".to_string(),
-                ..default()
-            })
-            .set(WindowPlugin {
-                primary_window: Some(Window {
-                    title: "Game Client".to_string(),
-                    resolution: (args.window_width, args.window_height).into(),
-                    position: window_position,
-                    ..default()
-                }),
-                primary_cursor_options: Some(bevy::window::CursorOptions {
-                    visible: false,
-                    grab_mode: bevy::window::CursorGrabMode::Locked,
-                    hit_test: true,
-                }),
-                ..default()
-            }),
+            .set(asset_plugin())
+            .set(window_plugin(&args, window_position)),
     )
     .insert_resource(ClientToServerChannel::new(to_server))
     .insert_resource(ServerToClientChannel::new(from_server))
@@ -180,4 +137,55 @@ fn main() -> Result<()> {
     .run();
 
     Ok(())
+}
+
+fn connect_to_server(rt: &Runtime, server_addr: &str) -> Result<quinn::Connection> {
+    rt.block_on(async {
+        let mut endpoint = Endpoint::client("0.0.0.0:0".parse()?)?;
+        let client_config = configure_client()?;
+        endpoint.set_default_client_config(client_config);
+        endpoint
+            .connect(server_addr.parse()?, "localhost")?
+            .await
+            .context("failed to connect to server")
+    })
+}
+
+fn send_login(rt: &Runtime, connection: &quinn::Connection) -> Result<()> {
+    rt.block_on(async {
+        let msg = ClientMessage::Login(CLogin {});
+        let stream = MessageStream::new(connection);
+        stream.send(&msg).await
+    })
+}
+
+fn window_position_from_args(args: &Args) -> WindowPosition {
+    match (args.window_x, args.window_y) {
+        (Some(x), Some(y)) => WindowPosition::At(IVec2::new(x, y)),
+        _ => WindowPosition::Automatic,
+    }
+}
+
+fn asset_plugin() -> AssetPlugin {
+    AssetPlugin {
+        file_path: "assets".to_string(),
+        ..default()
+    }
+}
+
+fn window_plugin(args: &Args, position: WindowPosition) -> WindowPlugin {
+    WindowPlugin {
+        primary_window: Some(Window {
+            title: "Game Client".to_string(),
+            resolution: (args.window_width, args.window_height).into(),
+            position,
+            ..default()
+        }),
+        primary_cursor_options: Some(CursorOptions {
+            visible: false,
+            grab_mode: CursorGrabMode::Locked,
+            hit_test: true,
+        }),
+        ..default()
+    }
 }
