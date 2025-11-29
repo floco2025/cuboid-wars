@@ -289,8 +289,8 @@ fn process_message_logged_in(
                     commands.entity(camera_entity).insert(CameraShake {
                         timer: Timer::from_seconds(0.3, TimerMode::Once),
                         intensity: 3.0,
-                        direction_x: msg.hit_dir_x,
-                        direction_z: msg.hit_dir_z,
+                        dir_x: msg.hit_dir_x,
+                        dir_z: msg.hit_dir_z,
                         offset_x: 0.0,
                         offset_y: 0.0,
                         offset_z: 0.0,
@@ -302,8 +302,8 @@ fn process_message_logged_in(
                     commands.entity(player.entity).insert(CuboidShake {
                         timer: Timer::from_seconds(0.3, TimerMode::Once),
                         intensity: 0.3,
-                        direction_x: msg.hit_dir_x,
-                        direction_z: msg.hit_dir_z,
+                        dir_x: msg.hit_dir_x,
+                        dir_z: msg.hit_dir_z,
                         offset_x: 0.0,
                         offset_z: 0.0,
                     });
