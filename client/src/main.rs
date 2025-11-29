@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, WindowPlugin, WindowPosition};
 use clap::Parser;
 use quinn::Endpoint;
-use tokio::runtime::Runtime;
+use tokio::{runtime::Runtime, time::Duration};
 
 use client::{
     config::configure_client,
@@ -75,7 +75,8 @@ fn main() -> Result<()> {
     // Channel for sending from the client to the network I/O task
     let (to_server, from_client) = tokio::sync::mpsc::unbounded_channel();
 
-    rt.spawn(network_io_task(connection, to_client, from_client, args.lag_ms));
+    let artificial_lag = (args.lag_ms > 0).then(|| Duration::from_millis(args.lag_ms));
+    rt.spawn(network_io_task(connection, to_client, from_client, artificial_lag));
 
     let window_position = window_position_from_args(&args);
 
