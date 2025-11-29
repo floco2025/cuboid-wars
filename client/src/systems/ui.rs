@@ -1,9 +1,10 @@
 #[allow(clippy::wildcard_imports)]
 use bevy::prelude::*;
+use std::collections::HashMap;
 
 #[allow(clippy::wildcard_imports)]
 use crate::constants::*;
-use crate::resources::{MyPlayerId, PlayerMap};
+use crate::resources::{MyPlayerId, PlayerInfo, PlayerMap};
 use common::{
     constants::{FIELD_DEPTH, FIELD_WIDTH, GRID_COLS, GRID_ROWS, GRID_SIZE, PLAYER_HEIGHT, WALL_WIDTH},
     protocol::PlayerId,
@@ -216,136 +217,166 @@ pub fn update_player_list_system(
     existing_entries: Query<(Entity, &PlayerEntryUI, &Children)>,
     mut text_and_color_query: Query<(&mut Text, &mut TextColor)>,
 ) {
-    // Only run when PlayerMap changes
+    // Bail out unless the player list changed
     if !players.is_changed() {
         return;
     }
 
-    // Get local player ID if it exists
     let local_player_id = my_player_id.as_ref().map(|id| id.0);
 
-    // Collect existing entries into a map
-    let existing_map: std::collections::HashMap<PlayerId, (Entity, &Children)> = existing_entries
+    // Snapshot existing UI entries for quick lookup
+    let existing_map: HashMap<PlayerId, (Entity, Vec<Entity>)> = existing_entries
         .iter()
-        .map(|(entity, entry, children)| (entry.0, (entity, children)))
+        .map(|(entity, entry, children)| {
+            let child_entities = children.iter().map(|child| child).collect::<Vec<_>>();
+            (entry.0, (entity, child_entities))
+        })
         .collect();
 
-    // Check if we need to rebuild (players added/removed)
-    let players_changed = existing_map.len() != players.0.len()
+    // Determine whether we must rebuild the entire list
+    let needs_rebuild = existing_map.len() != players.0.len()
         || existing_map.keys().any(|id| !players.0.contains_key(id))
         || players.0.keys().any(|id| !existing_map.contains_key(id));
 
-    // Remove entries for players that no longer exist
-    if players_changed {
-        let to_remove: Vec<PlayerId> = existing_map
-            .keys()
-            .filter(|player_id| !players.0.contains_key(player_id))
-            .copied()
-            .collect();
-
-        for player_id in to_remove {
-            if let Some((entity, _)) = existing_map.get(&player_id) {
-                commands.entity(*entity).despawn();
-            }
-        }
+    if needs_rebuild {
+        remove_stale_entries(&mut commands, &players, &existing_map);
+        rebuild_player_list(
+            &mut commands,
+            *player_list_ui,
+            &players,
+            &existing_map,
+            local_player_id,
+        );
+        return;
     }
 
-    // Sort players by ID for consistent ordering
+    // Otherwise just update the text/color values in place
+    let mut sorted_players: Vec<_> = players.0.iter().collect();
+    sorted_players.sort_by_key(|(player_id, _)| player_id.0);
+    update_hit_counters(&sorted_players, &existing_map, &mut text_and_color_query);
+}
+
+fn remove_stale_entries(
+    commands: &mut Commands,
+    players: &PlayerMap,
+    existing_map: &HashMap<PlayerId, (Entity, Vec<Entity>)>,
+) {
+    let stale_players: Vec<PlayerId> = existing_map
+        .keys()
+        .filter(|player_id| !players.0.contains_key(player_id))
+        .copied()
+        .collect();
+
+    for player_id in stale_players {
+        if let Some((entity, _)) = existing_map.get(&player_id) {
+            commands.entity(*entity).despawn();
+        }
+    }
+}
+
+fn rebuild_player_list(
+    commands: &mut Commands,
+    player_list_entity: Entity,
+    players: &PlayerMap,
+    existing_map: &HashMap<PlayerId, (Entity, Vec<Entity>)>,
+    local_player_id: Option<PlayerId>,
+) {
     let mut sorted_players: Vec<_> = players.0.iter().collect();
     sorted_players.sort_by_key(|(player_id, _)| player_id.0);
 
-    if players_changed {
-        // Rebuild entire list in sorted order
-        let mut sorted_entries = Vec::new();
+    let mut ordered_children = Vec::with_capacity(sorted_players.len());
+    for (player_id, player_info) in sorted_players {
+        let entity = if let Some((entity, _)) = existing_map.get(player_id) {
+            *entity
+        } else {
+            spawn_player_entry(commands, *player_id, player_info.hits, local_player_id == Some(*player_id))
+        };
+        ordered_children.push(entity);
+    }
 
-        for (player_id, player_info) in sorted_players {
-            let hits = player_info.hits;
-            let player_num = player_id.0;
-            let is_local = local_player_id == Some(*player_id);
+    commands.entity(player_list_entity).replace_children(&ordered_children);
+}
 
-            if let Some(&(existing_entity, _)) = existing_map.get(player_id) {
-                // Reuse existing entity
-                sorted_entries.push(existing_entity);
-            } else {
-                // Create new entry
-                let hit_color = if hits > 0 {
-                    Color::srgb(0.3, 0.6, 1.0)
-                } else if hits < 0 {
-                    Color::srgb(1.0, 0.3, 0.3)
-                } else {
-                    Color::srgb(0.8, 0.8, 0.8)
-                };
+fn update_hit_counters(
+    sorted_players: &[(&PlayerId, &PlayerInfo)],
+    existing_map: &HashMap<PlayerId, (Entity, Vec<Entity>)>,
+    text_and_color_query: &mut Query<(&mut Text, &mut TextColor)>,
+) {
+    for (player_id, player_info) in sorted_players {
+        if let Some((_entry_entity, children)) = existing_map.get(player_id) {
+            if children.len() < 2 {
+                continue;
+            }
 
-                let sign = if hits >= 0 { "+" } else { "" };
-                let background_color = if is_local {
-                    BackgroundColor(Color::srgba(0.8, 0.8, 0.0, 0.3))
-                } else {
-                    BackgroundColor(Color::NONE)
-                };
-
-                let entry_entity = commands
-                    .spawn((
-                        Node {
-                            flex_direction: FlexDirection::Row,
-                            column_gap: Val::Px(10.0),
-                            padding: UiRect::all(Val::Px(5.0)),
-                            ..default()
-                        },
-                        background_color,
-                        PlayerEntryUI(*player_id),
-                    ))
-                    .with_children(|row| {
-                        row.spawn((
-                            Text::new(format!("Player {}", player_num)),
-                            TextFont {
-                                font_size: 20.0,
-                                ..default()
-                            },
-                            TextColor(Color::WHITE),
-                        ));
-
-                        row.spawn((
-                            Text::new(format!("{}{}", sign, hits)),
-                            TextFont {
-                                font_size: 20.0,
-                                ..default()
-                            },
-                            TextColor(hit_color),
-                        ));
-                    })
-                    .id();
-
-                sorted_entries.push(entry_entity);
+            let hit_text_entity = children[1];
+            if let Ok((mut text, mut text_color)) = text_and_color_query.get_mut(hit_text_entity) {
+                **text = format_signed_hits(player_info.hits);
+                text_color.0 = hit_value_color(player_info.hits);
             }
         }
+    }
+}
 
-        // Rebuild children in sorted order
-        commands.entity(*player_list_ui).replace_children(&sorted_entries);
+fn spawn_player_entry(
+    commands: &mut Commands,
+    player_id: PlayerId,
+    hits: i32,
+    is_local: bool,
+) -> Entity {
+    let player_num = player_id.0;
+    let background_color = if is_local {
+        BackgroundColor(Color::srgba(0.8, 0.8, 0.0, 0.3))
     } else {
-        // Just update hit counters (no rebuild needed)
-        for (player_id, player_info) in sorted_players {
-            let hits = player_info.hits;
+        BackgroundColor(Color::NONE)
+    };
 
-            if let Some(&(_existing_entity, entry_children)) = existing_map.get(player_id) {
-                if entry_children.len() >= 2 {
-                    let hit_text_entity = entry_children[1];
+    commands
+        .spawn((
+            Node {
+                flex_direction: FlexDirection::Row,
+                column_gap: Val::Px(10.0),
+                padding: UiRect::all(Val::Px(5.0)),
+                ..default()
+            },
+            background_color,
+            PlayerEntryUI(player_id),
+        ))
+        .with_children(|row| {
+            row.spawn((
+                Text::new(format!("Player {}", player_num)),
+                TextFont {
+                    font_size: 20.0,
+                    ..default()
+                },
+                TextColor(Color::WHITE),
+            ));
 
-                    if let Ok((mut text, mut text_color)) = text_and_color_query.get_mut(hit_text_entity) {
-                        let sign = if hits >= 0 { "+" } else { "" };
-                        let new_text = format!("{}{}", sign, hits);
-                        **text = new_text;
+            row.spawn((
+                Text::new(format_signed_hits(hits)),
+                TextFont {
+                    font_size: 20.0,
+                    ..default()
+                },
+                TextColor(hit_value_color(hits)),
+            ));
+        })
+        .id()
+}
 
-                        let hit_color = if hits > 0 {
-                            Color::srgb(0.3, 0.6, 1.0)
-                        } else if hits < 0 {
-                            Color::srgb(1.0, 0.3, 0.3)
-                        } else {
-                            Color::srgb(0.8, 0.8, 0.8)
-                        };
-                        text_color.0 = hit_color;
-                    }
-                }
-            }
-        }
+fn format_signed_hits(hits: i32) -> String {
+    if hits >= 0 {
+        format!("+{}", hits)
+    } else {
+        hits.to_string()
+    }
+}
+
+fn hit_value_color(hits: i32) -> Color {
+    if hits > 0 {
+        Color::srgb(0.3, 0.6, 1.0)
+    } else if hits < 0 {
+        Color::srgb(1.0, 0.3, 0.3)
+    } else {
+        Color::srgb(0.8, 0.8, 0.8)
     }
 }
