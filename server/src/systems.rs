@@ -16,58 +16,32 @@ use common::systems::Projectile;
 // Helper Functions
 // ============================================================================
 
-// Check if a player position intersects with any wall
 fn position_intersects_wall(pos: &Position, wall: &Wall) -> bool {
-    // Player dimensions with some margin
-    let player_half_width = PLAYER_WIDTH / 2.0 + 0.1; // Small margin
-    let player_half_depth = PLAYER_DEPTH / 2.0 + 0.1;
+    const MARGIN: f32 = 0.1;
+    let player_half_x = PLAYER_WIDTH / 2.0 + MARGIN;
+    let player_half_z = PLAYER_DEPTH / 2.0 + MARGIN;
 
-    match wall.orientation {
-        WallOrientation::Horizontal => {
-            // Wall extends along X axis at (wall.x, wall.z)
-            let wall_half_length = WALL_LENGTH / 2.0;
-            let wall_half_thickness = WALL_WIDTH / 2.0;
+    let (wall_half_x, wall_half_z) = match wall.orientation {
+        WallOrientation::Horizontal => (WALL_LENGTH / 2.0, WALL_WIDTH / 2.0),
+        WallOrientation::Vertical => (WALL_WIDTH / 2.0, WALL_LENGTH / 2.0),
+    };
 
-            // Check if player AABB overlaps with wall AABB
-            let player_min_x = pos.x - player_half_width;
-            let player_max_x = pos.x + player_half_width;
-            let player_min_z = pos.z - player_half_depth;
-            let player_max_z = pos.z + player_half_depth;
+    let player_min_x = pos.x - player_half_x;
+    let player_max_x = pos.x + player_half_x;
+    let player_min_z = pos.z - player_half_z;
+    let player_max_z = pos.z + player_half_z;
 
-            let wall_min_x = wall.x - wall_half_length;
-            let wall_max_x = wall.x + wall_half_length;
-            let wall_min_z = wall.z - wall_half_thickness;
-            let wall_max_z = wall.z + wall_half_thickness;
+    let wall_min_x = wall.x - wall_half_x;
+    let wall_max_x = wall.x + wall_half_x;
+    let wall_min_z = wall.z - wall_half_z;
+    let wall_max_z = wall.z + wall_half_z;
 
-            // AABB overlap test
-            player_max_x >= wall_min_x
-                && player_min_x <= wall_max_x
-                && player_max_z >= wall_min_z
-                && player_min_z <= wall_max_z
-        }
-        WallOrientation::Vertical => {
-            // Wall extends along Z axis at (wall.x, wall.z)
-            let wall_half_length = WALL_LENGTH / 2.0;
-            let wall_half_thickness = WALL_WIDTH / 2.0;
+    ranges_intersect(player_min_x, player_max_x, wall_min_x, wall_max_x)
+        && ranges_intersect(player_min_z, player_max_z, wall_min_z, wall_max_z)
+}
 
-            // Check if player AABB overlaps with wall AABB
-            let player_min_x = pos.x - player_half_width;
-            let player_max_x = pos.x + player_half_width;
-            let player_min_z = pos.z - player_half_depth;
-            let player_max_z = pos.z + player_half_depth;
-
-            let wall_min_x = wall.x - wall_half_thickness;
-            let wall_max_x = wall.x + wall_half_thickness;
-            let wall_min_z = wall.z - wall_half_length;
-            let wall_max_z = wall.z + wall_half_length;
-
-            // AABB overlap test
-            player_max_x >= wall_min_x
-                && player_min_x <= wall_max_x
-                && player_max_z >= wall_min_z
-                && player_min_z <= wall_max_z
-        }
-    }
+fn ranges_intersect(a_min: f32, a_max: f32, b_min: f32, b_max: f32) -> bool {
+    a_max >= b_min && a_min <= b_max
 }
 
 // Generate a random spawn position that doesn't intersect with any walls
@@ -98,13 +72,51 @@ fn generate_spawn_position(wall_config: &WallConfig) -> Position {
         "Could not find spawn position without wall collision after {} attempts, spawning at center",
         max_attempts
     );
-    Position { x: 0.0, y: 0.0, z: 0.0 }
+    Position::default()
+}
+
+fn broadcast_to_logged_in(players: &PlayerMap, skip: PlayerId, message: ServerMessage) {
+    for (other_id, other_info) in players.0.iter() {
+        if *other_id != skip && other_info.logged_in {
+            let _ = other_info.channel.send(ServerToClient::Send(message.clone()));
+        }
+    }
+}
+
+fn snapshot_logged_in_players(
+    players: &PlayerMap,
+    positions: &Query<&Position>,
+    speeds: &Query<&Speed>,
+    face_dirs: &Query<&FaceDirection>,
+) -> Vec<(PlayerId, Player)> {
+    players
+        .0
+        .iter()
+        .filter_map(|(player_id, info)| {
+            if !info.logged_in {
+                return None;
+            }
+            let pos = positions.get(info.entity).ok()?;
+            let speed = speeds.get(info.entity).ok()?;
+            let face_dir = face_dirs.get(info.entity).ok()?;
+            Some((
+                *player_id,
+                Player {
+                    pos: *pos,
+                    speed: *speed,
+                    face_dir: face_dir.0,
+                    hits: info.hits,
+                },
+            ))
+        })
+        .collect()
 }
 
 // ============================================================================
 // Accept Connections System
 // ============================================================================
 
+/// Drain newly accepted connections into ECS entities and tracking state.
 pub fn accept_connections_system(
     mut commands: Commands,
     mut from_accept: ResMut<FromAcceptChannel>,
@@ -157,12 +169,7 @@ pub fn process_client_message_system(
 
                 // Broadcast logoff to all other logged-in players if they were logged in
                 if was_logged_in {
-                    let logoff_msg = ServerMessage::Logoff(SLogoff { id, graceful: false });
-                    for (other_id, other_info) in players.0.iter() {
-                        if *other_id != id && other_info.logged_in {
-                            let _ = other_info.channel.send(ServerToClient::Send(logoff_msg.clone()));
-                        }
-                    }
+                    broadcast_to_logged_in(&players, id, ServerMessage::Logoff(SLogoff { id, graceful: false }));
                 }
             }
             ClientToServer::Message(message) => {
@@ -206,17 +213,22 @@ fn process_message_not_logged_in(
         ClientMessage::Login(_) => {
             debug!("{:?} logged in", id);
 
-            let player_info = players
-                .0
-                .get_mut(&id)
-                .expect("process_message_not_logged_in called for unknown player");
+            let (channel, hits) = {
+                let player_info = players
+                    .0
+                    .get_mut(&id)
+                    .expect("process_message_not_logged_in called for unknown player");
+                let channel = player_info.channel.clone();
+                player_info.logged_in = true;
+                (channel, player_info.hits)
+            };
 
             // Send Init to the connecting player (their ID and walls)
             let init_msg = ServerMessage::Init(SInit {
                 id,
                 walls: wall_config.walls.clone(),
             });
-            if let Err(e) = player_info.channel.send(ServerToClient::Send(init_msg)) {
+            if let Err(e) = channel.send(ServerToClient::Send(init_msg)) {
                 warn!("failed to send init to {:?}: {}", id, e);
                 return;
             }
@@ -260,37 +272,14 @@ fn process_message_not_logged_in(
                 pos,
                 speed,
                 face_dir,
-                hits: player_info.hits,
+                hits,
             };
 
-            // Mark as logged in and clone channel for later use
-            player_info.logged_in = true;
-            let channel = player_info.channel.clone();
-
             // Construct the initial Update for the new player
-            let mut all_players: Vec<(PlayerId, Player)> = players
-                .0
-                .iter()
-                .filter_map(|(player_id, info)| {
-                    // Skip the new player here because their components aren't in ECS yet. Also
-                    // skip all players that are not logged in yet.
-                    if *player_id == id || !info.logged_in {
-                        return None;
-                    }
-                    let pos = positions.get(info.entity).ok()?;
-                    let speed = speeds.get(info.entity).ok()?;
-                    let face_dir = face_dirs.get(info.entity).ok()?;
-                    Some((
-                        *player_id,
-                        Player {
-                            pos: *pos,
-                            speed: *speed,
-                            face_dir: face_dir.0,
-                            hits: info.hits,
-                        },
-                    ))
-                })
-                .collect();
+            let mut all_players = snapshot_logged_in_players(&players, positions, speeds, face_dirs)
+                .into_iter()
+                .filter(|(player_id, _)| *player_id != id)
+                .collect::<Vec<_>>();
             // Add the new player manually with their freshly generated values
             all_players.push((id, player.clone()));
 
@@ -302,12 +291,8 @@ fn process_message_not_logged_in(
             commands.entity(entity).insert((pos, speed, FaceDirection(face_dir)));
 
             // Broadcast Login to all other logged-in players
-            let login_msg = ServerMessage::Login(SLogin { id, player });
-            for (other_id, other_info) in players.0.iter() {
-                if *other_id != id && other_info.logged_in {
-                    let _ = other_info.channel.send(ServerToClient::Send(login_msg.clone()));
-                }
-            }
+            let login_msg = SLogin { id, player };
+            broadcast_to_logged_in(&players, id, ServerMessage::Login(login_msg));
         }
         _ => {
             warn!(
@@ -337,12 +322,7 @@ fn process_message_logged_in(
             commands.entity(entity).despawn();
 
             // Broadcast graceful logoff to all other players
-            let broadcast_msg = ServerMessage::Logoff(SLogoff { id, graceful: true });
-            for (other_id, other_info) in players.0.iter() {
-                if *other_id != id && other_info.logged_in {
-                    let _ = other_info.channel.send(ServerToClient::Send(broadcast_msg.clone()));
-                }
-            }
+            broadcast_to_logged_in(&players, id, ServerMessage::Logoff(SLogoff { id, graceful: true }));
         }
         ClientMessage::Speed(msg) => {
             trace!("{:?} speed: {:?}", id, msg);
@@ -377,25 +357,14 @@ fn handle_speed(commands: &mut Commands, entity: Entity, id: PlayerId, msg: CSpe
     commands.entity(entity).insert(msg.speed);
 
     // Broadcast speed update to all other logged-in players
-    let broadcast_msg = ServerMessage::Speed(SSpeed { id, speed: msg.speed });
-    for (other_id, other_info) in players.0.iter() {
-        if *other_id != id && other_info.logged_in {
-            let _ = other_info.channel.send(ServerToClient::Send(broadcast_msg.clone()));
-        }
-    }
+    broadcast_to_logged_in(players, id, ServerMessage::Speed(SSpeed { id, speed: msg.speed }));
 }
 
 fn handle_face_direction(commands: &mut Commands, entity: Entity, id: PlayerId, msg: CFace, players: &PlayerMap) {
     // Update the player's face direction
     commands.entity(entity).insert(FaceDirection(msg.dir));
 
-    // Broadcast face direction update to all other logged-in players
-    let broadcast_msg = ServerMessage::Face(common::protocol::SFace { id, dir: msg.dir });
-    for (other_id, other_info) in players.0.iter() {
-        if *other_id != id && other_info.logged_in {
-            let _ = other_info.channel.send(ServerToClient::Send(broadcast_msg.clone()));
-        }
-    }
+    broadcast_to_logged_in(players, id, ServerMessage::Face(SFace { id, dir: msg.dir }));
 }
 
 fn handle_shot(
@@ -407,14 +376,10 @@ fn handle_shot(
     positions: &Query<&Position>,
 ) {
     // Update the shooter's face direction to exact facing direction
-    commands
-        .entity(entity)
-        .insert(common::protocol::FaceDirection(msg.face_dir));
+    commands.entity(entity).insert(FaceDirection(msg.face_dir));
 
     // Spawn projectile on server for hit detection
     if let Ok(pos) = positions.get(entity) {
-        use common::systems::Projectile;
-
         let spawn_pos = Projectile::calculate_spawn_position(Vec3::new(pos.x, pos.y, pos.z), msg.face_dir);
         let projectile = Projectile::new(msg.face_dir);
 
@@ -430,15 +395,14 @@ fn handle_shot(
     }
 
     // Broadcast shot with face direction to all other logged-in players
-    let broadcast_msg = ServerMessage::Shot(SShot {
+    broadcast_to_logged_in(
+        players,
         id,
-        face_dir: msg.face_dir,
-    });
-    for (other_id, other_info) in players.0.iter() {
-        if *other_id != id && other_info.logged_in {
-            let _ = other_info.channel.send(ServerToClient::Send(broadcast_msg.clone()));
-        }
-    }
+        ServerMessage::Shot(SShot {
+            id,
+            face_dir: msg.face_dir,
+        }),
+    );
 }
 
 // Broadcast authoritative game state in regular time intervals
@@ -459,27 +423,7 @@ pub fn broadcast_state_system(
     *timer = 0.0;
 
     // Collect all logged-in players
-    let all_players: Vec<(PlayerId, Player)> = players
-        .0
-        .iter()
-        .filter_map(|(player_id, info)| {
-            if !info.logged_in {
-                return None;
-            }
-            let pos = positions.get(info.entity).ok()?;
-            let speed = speeds.get(info.entity).ok()?;
-            let face_dir = face_dirs.get(info.entity).ok()?;
-            Some((
-                *player_id,
-                Player {
-                    pos: *pos,
-                    speed: *speed,
-                    face_dir: face_dir.0,
-                    hits: info.hits,
-                },
-            ))
-        })
-        .collect();
+    let all_players = snapshot_logged_in_players(&players, &positions, &speeds, &face_dirs);
 
     // Broadcast to all logged-in clients
     let msg = ServerMessage::Update(SUpdate { players: all_players });
@@ -495,7 +439,7 @@ pub fn broadcast_state_system(
 pub fn hit_detection_system(
     mut commands: Commands,
     time: Res<Time>,
-    projectile_query: Query<(Entity, &Position, &common::systems::Projectile, &PlayerId)>,
+    projectile_query: Query<(Entity, &Position, &Projectile, &PlayerId)>,
     player_query: Query<(&Position, &FaceDirection, &PlayerId), Without<Projectile>>,
     wall_config: Res<WallConfig>,
     mut players: ResMut<PlayerMap>,
