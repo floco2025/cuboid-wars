@@ -5,7 +5,7 @@ use bevy_time::{Time, Timer, TimerMode};
 
 use crate::{
     constants::*,
-    protocol::{Position, Speed},
+    protocol::Position,
 };
 
 // ============================================================================
@@ -47,17 +47,6 @@ impl Projectile {
 // ============================================================================
 // Shared Game Systems
 // ============================================================================
-
-// Integrate `Speed` components into `Position`, shared between client and server.
-pub fn movement_system(time: Res<Time>, mut query: Query<(&mut Position, &Speed)>) {
-    let delta = time.delta_secs();
-
-    for (mut pos, speed) in query.iter_mut() {
-        let velocity = speed.to_velocity();
-        pos.x += velocity.x * delta;
-        pos.z += velocity.z * delta;
-    }
-}
 
 // Update projectile positions and despawn them once their timer elapses.
 pub fn projectiles_system(
