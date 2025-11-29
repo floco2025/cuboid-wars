@@ -222,14 +222,22 @@ fn process_message_not_logged_in(
             }
 
             // Generate random initial position for the new player
-            let pos = generate_spawn_position(wall_config);
+            // let pos = generate_spawn_position(wall_config);
 
             // Calculate initial facing direction toward center (0, 0)
             // face_dir=0 means facing +Z (sin(0)=0 for X, cos(0)=1 for Z)
             // To face from (pos.x, pos.z) toward (0, 0):
             // direction vector: (-pos.x, -pos.z)
             // face_dir such that: sin(face_dir) * |v| = -pos.x and cos(face_dir) * |v| = -pos.z
-            let face_dir = (-pos.x).atan2(-pos.z);
+            // let face_dir = (-pos.x).atan2(-pos.z);
+
+            // 1D experiment: spawn at one edge, facing toward origin
+            let pos = Position {
+                x: 0.0,
+                y: 0.0,
+                z: 20.0, // Start at positive Z edge
+            };
+            let face_dir = std::f32::consts::PI; // face_dir=π means facing -Z (toward origin)
 
             info!(
                 "Player {:?} spawned at ({:.1}, {:.1}), facing {:.2} rad ({:.0}°)",
@@ -243,7 +251,8 @@ fn process_message_not_logged_in(
             // Initial speed for the new player
             let speed = Speed {
                 speed_level: SpeedLevel::Idle,
-                move_dir: 0.0,
+                // move_dir: 0.0,
+                move_dir: std::f32::consts::PI, // Same as face_dir - facing toward origin
             };
 
             // Construct player data

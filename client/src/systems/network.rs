@@ -255,37 +255,14 @@ fn process_message_logged_in(
                             z: server_player.pos.z + server_speed.z * half_rtt,
                         };
 
-                        // Calculate signed distances projected along server movement direction
-                        // Positive = ahead in movement direction, Negative = behind
-                        let move_dir_sin = server_player.speed.move_dir.sin();
-                        let move_dir_cos = server_player.speed.move_dir.cos();
-
-                        let server_to_current_x = server_player.pos.x - client_pos.x;
-                        let server_to_current_z = server_player.pos.z - client_pos.z;
-                        let server_to_current_signed =
-                            server_to_current_x * move_dir_sin + server_to_current_z * move_dir_cos;
-
-                        let current_to_server_pred_x = server_pred.x - client_pos.x;
-                        let current_to_server_pred_z = server_pred.z - client_pos.z;
-                        let current_to_server_pred_signed =
-                            current_to_server_pred_x * move_dir_sin + current_to_server_pred_z * move_dir_cos;
-
-                        let server_to_server_pred_x = server_pred.x - server_player.pos.x;
-                        let server_to_server_pred_z = server_pred.z - server_player.pos.z;
-                        let server_to_server_pred_signed =
-                            server_to_server_pred_x * move_dir_sin + server_to_server_pred_z * move_dir_cos;
-
-                        let server_to_past_pred_x = past_pred.x - server_player.pos.x;
-                        let server_to_past_pred_z = past_pred.z - server_player.pos.z;
-                        let server_to_past_pred_signed =
-                            server_to_past_pred_x * move_dir_sin + server_to_past_pred_z * move_dir_cos;
-
+                        // 1D experiment: show Z component relative to client position
+                        // (signed distance calculations commented out - not used)
                         debug!(
-                            "s2c={:+.2} s2pp={:+.2} s2sp={:+.2} c2sp={:+.2} {:?}",
-                            server_to_current_signed,
-                            server_to_past_pred_signed,
-                            server_to_server_pred_signed,
-                            current_to_server_pred_signed,
+                            "client_z={:.2} server_offset={:+.2} server_pred_offset={:+.2} past_pred_offset={:+.2} {:?}",
+                            client_pos.z,
+                            server_player.pos.z - client_pos.z,
+                            server_pred.z - client_pos.z,
+                            past_pred.z - client_pos.z,
                             server_player.speed.speed_level,
                         );
 
