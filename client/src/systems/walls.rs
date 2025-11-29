@@ -1,3 +1,4 @@
+#[allow(clippy::wildcard_imports)]
 use bevy::prelude::*;
 
 use crate::{resources::WallConfig, spawning::spawn_wall};
@@ -12,21 +13,16 @@ pub fn spawn_walls_system(
     wall_config: Option<Res<WallConfig>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    existing_walls: Query<&WallMarker>,
     mut spawned: Local<bool>,
 ) {
-    // Only spawn once when WallConfig becomes available
-    if *spawned || wall_config.is_none() {
+    // Spawn exactly once after the server shares its wall configuration
+    let Some(wall_config) = wall_config else {
+        return;
+    };
+
+    if *spawned {
         return;
     }
-
-    // Check if walls were already spawned
-    if existing_walls.iter().count() > 0 {
-        *spawned = true;
-        return;
-    }
-
-    let wall_config = wall_config.unwrap();
 
     info!("Spawning {} wall segments", wall_config.walls.len());
 
