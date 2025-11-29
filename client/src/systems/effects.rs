@@ -1,3 +1,4 @@
+#[allow(clippy::wildcard_imports)]
 use bevy::prelude::*;
 use std::time::Duration;
 
