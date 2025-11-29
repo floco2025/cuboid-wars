@@ -12,7 +12,7 @@ use crate::{
 // Shared Game Components
 // ============================================================================
 
-// Component for projectiles
+// Component attached to projectile entities to track velocity and lifetime.
 #[derive(Component)]
 pub struct Projectile {
     pub velocity: Vec3,
@@ -20,8 +20,7 @@ pub struct Projectile {
 }
 
 impl Projectile {
-    // Create a new projectile with standard parameters
-    // face_dir is the shooter's facing direction in radians
+    // Create a new projectile traveling along the provided facing direction.
     pub fn new(face_dir: f32) -> Self {
         let velocity = Vec3::new(
             face_dir.sin() * PROJECTILE_SPEED,
@@ -35,8 +34,7 @@ impl Projectile {
         }
     }
 
-    // Calculate spawn position in front of shooter
-    // Returns Vec3 position in meters
+    // Calculate the spawn position in front of a shooter.
     pub fn calculate_spawn_position(shooter_pos: Vec3, face_dir: f32) -> Vec3 {
         Vec3::new(
             shooter_pos.x + face_dir.sin() * PROJECTILE_SPAWN_OFFSET,
@@ -50,40 +48,32 @@ impl Projectile {
 // Shared Game Systems
 // ============================================================================
 
-// Movement system - integrates movement into position.
-// Position uses meters in 3D space (X, Y=up/down, Z=forward/back).
-// Y is always 0 for now (flat 2D gameplay).
-// This runs on both client and server to ensure deterministic movement.
+// Integrate `Speed` components into `Position`, shared between client and server.
 pub fn movement_system(time: Res<Time>, mut query: Query<(&mut Position, &Speed)>) {
     let delta = time.delta_secs();
 
     for (mut pos, speed) in query.iter_mut() {
-        // Convert Speed to Velocity
         let velocity = speed.to_velocity();
-
-        // Integrate into position
         pos.x += velocity.x * delta;
         pos.z += velocity.z * delta;
-        // pos.y stays at 0 for 2D gameplay
     }
 }
 
-// Update projectile positions and despawn expired projectiles
+// Update projectile positions and despawn them once their timer elapses.
 pub fn projectiles_system(
     mut commands: Commands,
     time: Res<Time>,
     mut projectile_query: Query<(Entity, &mut Position, &mut Projectile)>,
 ) {
-    let delta = time.delta_secs();
+    let delta_seconds = time.delta_secs();
+    let frame_time = time.delta();
 
     for (entity, mut pos, mut projectile) in projectile_query.iter_mut() {
-        // Update position based on velocity
-        pos.x += projectile.velocity.x * delta;
-        pos.y += projectile.velocity.y * delta;
-        pos.z += projectile.velocity.z * delta;
+        pos.x += projectile.velocity.x * delta_seconds;
+        pos.y += projectile.velocity.y * delta_seconds;
+        pos.z += projectile.velocity.z * delta_seconds;
 
-        // Update lifetime
-        projectile.lifetime.tick(time.delta());
+        projectile.lifetime.tick(frame_time);
         if projectile.lifetime.is_finished() {
             commands.entity(entity).despawn();
         }
