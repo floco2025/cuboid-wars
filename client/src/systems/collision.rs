@@ -24,56 +24,115 @@ pub fn client_hit_detection_system(
     wall_config: Option<Res<WallConfig>>,
 ) {
     let delta = time.delta_secs();
+    let walls = wall_config.as_deref();
 
-    'projectile_loop: for (proj_entity, proj_transform, projectile) in projectile_query.iter() {
-        // Convert Transform to Position for hit detection
-        let proj_pos = Position {
-            x: proj_transform.translation.x,
-            y: proj_transform.translation.y,
-            z: proj_transform.translation.z,
+    for (projectile_entity, projectile_transform, projectile) in projectile_query.iter() {
+        let projectile_pos = Position {
+            x: projectile_transform.translation.x,
+            y: projectile_transform.translation.y,
+            z: projectile_transform.translation.z,
         };
 
-        // Check wall collisions first
-        if let Some(wall_config) = wall_config.as_ref() {
-            for wall in &wall_config.walls {
-                if check_projectile_wall_hit(&proj_pos, projectile, delta, wall) {
-                    commands.spawn((
-                        AudioPlayer::new(asset_server.load("sounds/player_hits_wall.ogg")),
-                        PlaybackSettings {
-                            mode: PlaybackMode::Despawn,
-                            volume: Volume::Linear(0.2),
-                            ..default()
-                        },
-                    ));
-                    commands.entity(proj_entity).despawn();
-                    // Don't check further - projectile is already despawned
-                    continue 'projectile_loop;
-                }
-            }
+        if handle_wall_collisions(
+            &mut commands,
+            asset_server.as_ref(),
+            projectile_entity,
+            projectile,
+            &projectile_pos,
+            delta,
+            walls,
+        ) {
+            continue;
         }
 
-        // Check player collisions
-        for (_player_entity, player_pos, player_face_dir, is_local) in player_query.iter() {
-            // Use common hit detection logic
-            let result = check_projectile_player_hit(&proj_pos, projectile, delta, player_pos, player_face_dir.0);
-            if result.hit {
-                commands.spawn((
-                    AudioPlayer::new(asset_server.load("sounds/player_hits_player.ogg")),
-                    PlaybackSettings::DESPAWN,
-                ));
-
-                // Play hit sound if local player was hit
-                if is_local {
-                    commands.spawn((
-                        AudioPlayer::new(asset_server.load("sounds/player_gets_hit.ogg")),
-                        PlaybackSettings::DESPAWN,
-                    ));
-                }
-
-                commands.entity(proj_entity).despawn();
-                // Don't check further - projectile is already despawned
-                continue 'projectile_loop;
-            }
+        if handle_player_collisions(
+            &mut commands,
+            asset_server.as_ref(),
+            projectile_entity,
+            projectile,
+            &projectile_pos,
+            delta,
+            &player_query,
+        ) {
+            continue;
         }
     }
+}
+
+fn handle_wall_collisions(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    projectile_entity: Entity,
+    projectile: &Projectile,
+    projectile_pos: &Position,
+    delta: f32,
+    wall_config: Option<&WallConfig>,
+) -> bool {
+    let Some(config) = wall_config else {
+        return false;
+    };
+
+    for wall in &config.walls {
+        if check_projectile_wall_hit(projectile_pos, projectile, delta, wall) {
+            play_sound(
+                commands,
+                asset_server,
+                "sounds/player_hits_wall.ogg",
+                PlaybackSettings {
+                    mode: PlaybackMode::Despawn,
+                    volume: Volume::Linear(0.2),
+                    ..default()
+                },
+            );
+            commands.entity(projectile_entity).despawn();
+            return true;
+        }
+    }
+
+    false
+}
+
+fn handle_player_collisions(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    projectile_entity: Entity,
+    projectile: &Projectile,
+    projectile_pos: &Position,
+    delta: f32,
+    player_query: &Query<(Entity, &Position, &FaceDirection, Has<LocalPlayer>), Without<Projectile>>,
+) -> bool {
+    for (_player_entity, player_pos, face_dir, is_local_player) in player_query.iter() {
+        let result = check_projectile_player_hit(projectile_pos, projectile, delta, player_pos, face_dir.0);
+        if result.hit {
+            play_sound(
+                commands,
+                asset_server,
+                "sounds/player_hits_player.ogg",
+                PlaybackSettings::DESPAWN,
+            );
+
+            if is_local_player {
+                play_sound(
+                    commands,
+                    asset_server,
+                    "sounds/player_gets_hit.ogg",
+                    PlaybackSettings::DESPAWN,
+                );
+            }
+
+            commands.entity(projectile_entity).despawn();
+            return true;
+        }
+    }
+
+    false
+}
+
+fn play_sound(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    asset_path: &'static str,
+    settings: PlaybackSettings,
+) {
+    commands.spawn((AudioPlayer::new(asset_server.load(asset_path)), settings));
 }
