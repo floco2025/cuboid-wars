@@ -22,9 +22,8 @@ macro_rules! message {
 // Common Data Types
 // ============================================================================
 
-// Position component - 3D coordinates in meters (Bevy's coordinate system: X, Y=up, Z)
-// Store as individual fields for network serialization (Vec3 doesn't implement bincode traits)
-// Y is always 0 for now (2D gameplay on a flat plane)
+// Position component - 3D coordinates in meters (Bevy's coordinate system: X, Y=up, Z).
+// Stored as individual fields for serialization; Y is effectively 0 for the flat arena.
 message! {
 #[derive(Copy, Component, PartialEq, Default)]
 struct Position {
@@ -53,7 +52,7 @@ pub enum SpeedLevel {
     Run,
 }
 
-// Speed component - speed level and direction
+// Speed component - speed level and direction.
 message! {
 #[derive(Copy, Component, Default)]
 struct Speed {
@@ -86,17 +85,17 @@ pub struct Velocity {
     pub z: f32, // m/s
 }
 
-// Player ID component - identifies which player an entity represents
+// Player ID component - identifies which player an entity represents.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Component)]
 #[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "bincode", derive(Encode, Decode))]
 pub struct PlayerId(pub u32);
 
-// FaceDirection component - direction player is facing (for rotation/aiming)
+// FaceDirection component - direction player is facing (for rotation/aiming).
 #[derive(Component, Default)]
 pub struct FaceDirection(pub f32); // radians
 
-// Player - complete player state
+// Player - complete player state snapshot sent across the network.
 message! {
 struct Player {
     pub pos: Position,
@@ -106,7 +105,7 @@ struct Player {
 }
 }
 
-// Wall orientation - horizontal (along X axis) or vertical (along Z axis)
+// Wall orientation - horizontal (along X axis) or vertical (along Z axis).
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "bincode", derive(Encode, Decode))]
@@ -115,7 +114,7 @@ pub enum WallOrientation {
     Vertical,   // Along Z axis
 }
 
-// Wall - a wall segment on the grid
+// Wall - a wall segment on the grid.
 message! {
 #[derive(Copy)]
 struct Wall {
