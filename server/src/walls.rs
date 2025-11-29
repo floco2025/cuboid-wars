@@ -1,9 +1,12 @@
+use rand::Rng;
+use std::collections::{HashSet, VecDeque};
+
 use common::{
     constants::*,
     protocol::{Wall, WallOrientation},
 };
-use rand::Rng;
-use std::collections::{HashSet, VecDeque};
+use crate::constants::NUM_WALL_SEGMENTS;
+
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct GridEdge {

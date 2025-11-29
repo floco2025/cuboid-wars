@@ -1,5 +1,5 @@
 // ============================================================================
-// Camera Settings
+// Client Game Constants
 // ============================================================================
 
 // First-person view camera settings
@@ -12,15 +12,8 @@ pub const TOPDOWN_LOOKAT_X: f32 = 0.0; // X coordinate camera looks at
 pub const TOPDOWN_LOOKAT_Y: f32 = 0.0; // Y coordinate camera looks at
 pub const TOPDOWN_LOOKAT_Z: f32 = 8.5; // Z coordinate camera looks at
 
-// ============================================================================
-// Input Settings
-// ============================================================================
-
-pub const MOUSE_SENSITIVITY: f32 = 0.002; // radians per pixel
-
-// ============================================================================
-// Network Settings
-// ============================================================================
+// Mouse sensitivity as radians per pixel
+pub const MOUSE_SENSITIVITY: f32 = 0.002;
 
 // For throtteling speed updates to the server
 pub const SPEED_MAX_SEND_INTERVAL: f32 = 0.1; // Send updates at most every 100ms
@@ -30,4 +23,5 @@ pub const SPEED_DIR_CHANGE_THRESHOLD: f32 = 0.05; // ~3 degrees
 pub const FACE_MAX_SEND_INTERVAL: f32 = 0.1; // Send updates at most every 100ms
 pub const FACE_CHANGE_THRESHOLD: f32 = 0.05; // ~3 degrees
 
-pub const ECHO_INTERVAL: f32 = 10.0; // Send echo requests every 10 seconds
+// Echo request for RTT calculations in seconds
+pub const ECHO_INTERVAL: f32 = 10.0;

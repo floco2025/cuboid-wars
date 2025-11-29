@@ -15,9 +15,8 @@ use server::{
         accept_connections_system, broadcast_state_system, hit_detection_system, process_client_message_system,
         server_movement_system,
     },
+    walls::generate_walls,
 };
-
-mod walls;
 
 // ============================================================================
 // CLI Argument Parsing
@@ -54,7 +53,7 @@ async fn main() -> Result<()> {
 
     // Generate walls
     let wall_config = WallConfig {
-        walls: walls::generate_walls(),
+        walls: generate_walls(),
     };
     info!("generated {} wall segments", wall_config.walls.len());
 
