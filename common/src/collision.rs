@@ -271,8 +271,9 @@ pub fn calculate_wall_slide(
             z: slide_vel_z.mul_add(delta, current_pos.z),
         };
 
-        // Make sure the slide position doesn't also collide
-        if !check_player_wall_collision(&slide_pos, wall) {
+        // Make sure the slide position doesn't collide with ANY wall
+        let hits_any_wall = walls.iter().any(|w| check_player_wall_collision(&slide_pos, w));
+        if !hits_any_wall {
             return slide_pos;
         }
 
@@ -315,5 +316,5 @@ const fn no_hit() -> HitResult {
 }
 
 fn ranges_overlap(a_min: f32, a_max: f32, b_min: f32, b_max: f32) -> bool {
-    a_max > b_min && a_min < b_max
+    a_max >= b_min && a_min <= b_max
 }
