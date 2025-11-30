@@ -4,6 +4,7 @@ use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, WindowPlugin, WindowPosition};
 use clap::Parser;
 use quinn::Endpoint;
+use std::env;
 use tokio::{runtime::Runtime, time::Duration};
 
 use client::{
@@ -39,6 +40,10 @@ struct Args {
     #[arg(short, long, default_value = "127.0.0.1:8080")]
     server: String,
 
+    // Player name to display
+    #[arg(short, long)]
+    name: Option<String>,
+
     // Simulated network lag in milliseconds
     #[arg(long, default_value = "0")]
     lag_ms: u64,
@@ -67,9 +72,14 @@ struct Args {
 fn main() -> Result<()> {
     let args = Args::parse();
 
+    let player_name = args
+        .name
+        .clone()
+        .unwrap_or_else(|| env::var("USER").unwrap_or_else(|_| String::new()));
+
     let rt = Runtime::new()?;
     let connection = connect_to_server(&rt, args.server.as_str())?;
-    send_login(&rt, &connection)?;
+    send_login(&rt, &connection, &player_name)?;
 
     // Channel for sending from the network I/O task to the client
     let (to_client, from_server) = tokio::sync::mpsc::unbounded_channel();
@@ -154,9 +164,9 @@ fn connect_to_server(rt: &Runtime, server_addr: &str) -> Result<quinn::Connectio
     })
 }
 
-fn send_login(rt: &Runtime, connection: &quinn::Connection) -> Result<()> {
+fn send_login(rt: &Runtime, connection: &quinn::Connection, name: &str) -> Result<()> {
     rt.block_on(async {
-        let msg = ClientMessage::Login(CLogin {});
+        let msg = ClientMessage::Login(CLogin { name: name.to_string() });
         let stream = MessageStream::new(connection);
         stream.send(&msg).await
     })

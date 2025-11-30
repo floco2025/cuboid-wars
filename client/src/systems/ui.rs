@@ -286,6 +286,7 @@ fn rebuild_player_list(
             spawn_player_entry(
                 commands,
                 *player_id,
+                &player_info.name,
                 player_info.hits,
                 local_player_id == Some(*player_id),
             )
@@ -307,6 +308,13 @@ fn update_hit_counters(
                 continue;
             }
 
+            // Update player name (first child)
+            let name_text_entity = children[0];
+            if let Ok((mut text, _)) = text_and_color_query.get_mut(name_text_entity) {
+                **text = player_info.name.clone();
+            }
+
+            // Update hit counter (second child)
             let hit_text_entity = children[1];
             if let Ok((mut text, mut text_color)) = text_and_color_query.get_mut(hit_text_entity) {
                 **text = format_signed_hits(player_info.hits);
@@ -316,8 +324,7 @@ fn update_hit_counters(
     }
 }
 
-fn spawn_player_entry(commands: &mut Commands, player_id: PlayerId, hits: i32, is_local: bool) -> Entity {
-    let player_num = player_id.0;
+fn spawn_player_entry(commands: &mut Commands, player_id: PlayerId, name: &str, hits: i32, is_local: bool) -> Entity {
     let background_color = if is_local {
         BackgroundColor(Color::srgba(0.8, 0.8, 0.0, 0.3))
     } else {
@@ -337,7 +344,7 @@ fn spawn_player_entry(commands: &mut Commands, player_id: PlayerId, hits: i32, i
         ))
         .with_children(|row| {
             row.spawn((
-                Text::new(format!("Player {}", player_num)),
+                Text::new(name),
                 TextFont {
                     font_size: 20.0,
                     ..default()

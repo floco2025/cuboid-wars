@@ -29,6 +29,7 @@ pub fn spawn_player(
     materials: &mut ResMut<Assets<StandardMaterial>>,
     images: &mut ResMut<Assets<Image>>,
     player_id: u32,
+    player_name: &str,
     position: &Position,
     velocity: Velocity,
     face_dir: f32,
@@ -90,7 +91,7 @@ pub fn spawn_player(
     // Create individual texture and camera for this player's ID text
     let (image_handle, text_camera) = setup_player_id_text_rendering(commands, images);
     let (_text_entity, mesh_entity) =
-        spawn_player_id_display(commands, meshes, materials, player_id, image_handle, text_camera);
+        spawn_player_id_display(commands, meshes, materials, player_name, image_handle, text_camera);
     children.push(mesh_entity);
 
     commands.entity(entity_id).add_children(&children);
@@ -250,7 +251,7 @@ pub fn spawn_player_id_display(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
-    player_id: u32,
+    player_name: &str,
     image_handle: Handle<Image>,
     text_camera: Entity,
 ) -> (Entity, Entity) {
@@ -274,7 +275,7 @@ pub fn spawn_player_id_display(
         ))
         .with_children(|parent| {
             parent.spawn((
-                Text::new(format!("{}", player_id)),
+                Text::new(player_name),
                 TextFont {
                     font_size: LABEL_FONT_SIZE,
                     ..default()
@@ -285,12 +286,14 @@ pub fn spawn_player_id_display(
                     LABEL_TEXT_COLOR[2],
                     LABEL_TEXT_COLOR[3],
                 )),
+                TextLayout::new_with_no_wrap(),
                 PlayerIdText,
             ));
         })
         .id();
 
     // Create 3D plane mesh with the rendered texture
+    const LABEL_HEIGHT: f32 = LABEL_WIDTH * (LABEL_TEXTURE_HEIGHT as f32 / LABEL_TEXTURE_WIDTH as f32);
     let mesh_entity = commands
         .spawn((
             Mesh3d(meshes.add(Rectangle::new(LABEL_WIDTH, LABEL_HEIGHT))),

@@ -155,12 +155,20 @@ fn handle_login_message(
         materials,
         images,
         msg.id.0,
+        &msg.player.name,
         &msg.player.pos,
         msg.player.speed.to_velocity(),
         msg.player.face_dir,
         false,
     );
-    players.0.insert(msg.id, PlayerInfo { entity, hits: 0 });
+    players.0.insert(
+        msg.id,
+        PlayerInfo {
+            entity,
+            hits: 0,
+            name: msg.player.name.clone(),
+        },
+    );
 }
 
 fn handle_logoff_message(commands: &mut Commands, players: &mut ResMut<PlayerMap>, msg: &SLogoff) {
@@ -229,6 +237,7 @@ fn handle_update_message(
             materials,
             images,
             id.0,
+            &player.name,
             &player.pos,
             player.speed.to_velocity(),
             player.face_dir,
@@ -250,6 +259,7 @@ fn handle_update_message(
             PlayerInfo {
                 entity,
                 hits: player.hits,
+                name: player.name.clone(),
             },
         );
     }

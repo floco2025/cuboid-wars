@@ -22,6 +22,7 @@ pub struct PlayerInfo {
     pub logged_in: bool,
     pub channel: UnboundedSender<ServerToClient>,
     pub hits: i32,
+    pub name: String,
 }
 
 // Map of all players (server-side source of truth)

@@ -98,9 +98,10 @@ pub struct FaceDirection(pub f32); // radians
 // Player - complete player state snapshot sent across the network.
 message! {
 struct Player {
+    pub name: String,
     pub pos: Position,
     pub speed: Speed,
-    pub face_dir: f32, // radians - direction player is facing
+    pub face_dir: f32,
     pub hits: i32,
 }
 }
@@ -130,7 +131,9 @@ struct Wall {
 
 message! {
 // Client to Server: Login request.
-struct CLogin {}
+struct CLogin {
+    pub name: String
+}
 }
 
 message! {

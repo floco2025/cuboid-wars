@@ -102,6 +102,7 @@ fn snapshot_logged_in_players(
             Some((
                 *player_id,
                 Player {
+                    name: info.name.clone(),
                     pos: *pos,
                     speed: *speed,
                     face_dir: face_dir.0,
@@ -132,6 +133,7 @@ pub fn accept_connections_system(
                 logged_in: false,
                 channel: to_client,
                 hits: 0,
+                name: String::new(),
             },
         );
     }
@@ -210,17 +212,26 @@ fn process_message_not_logged_in(
     wall_config: &Res<WallConfig>,
 ) {
     match msg {
-        ClientMessage::Login(_) => {
+        ClientMessage::Login(login) => {
             debug!("{:?} logged in", id);
 
-            let (channel, hits) = {
+            let (channel, hits, name) = {
                 let player_info = players
                     .0
                     .get_mut(&id)
                     .expect("process_message_not_logged_in called for unknown player");
                 let channel = player_info.channel.clone();
                 player_info.logged_in = true;
-                (channel, player_info.hits)
+
+                // Determine player name: use provided name or default to the player id
+                let player_name = if login.name.is_empty() {
+                    format!("Player {}", id.0)
+                } else {
+                    login.name.clone()
+                };
+                player_info.name = player_name.clone();
+
+                (channel, player_info.hits, player_name)
             };
 
             // Send Init to the connecting player (their ID and walls)
@@ -236,23 +247,11 @@ fn process_message_not_logged_in(
             // Generate random initial position for the new player
             let pos = generate_spawn_position(wall_config);
 
-            // Calculate initial facing direction toward center (0, 0)
-            // face_dir=0 means facing +Z (sin(0)=0 for X, cos(0)=1 for Z)
-            // To face from (pos.x, pos.z) toward (0, 0):
-            // direction vector: (-pos.x, -pos.z)
-            // face_dir such that: sin(face_dir) * |v| = -pos.x and cos(face_dir) * |v| = -pos.z
+            // Calculate initial facing direction toward center
             let face_dir = (-pos.x).atan2(-pos.z);
 
-            // 1D experiment: spawn at one edge, facing toward origin
-            // let pos = Position {
-            //     x: 0.0,
-            //     y: 0.0,
-            //     z: 20.0, // Start at positive Z edge
-            // };
-            // let face_dir = std::f32::consts::PI; // face_dir=π means facing -Z (toward origin)
-
             info!(
-                "Player {:?} spawned at ({:.1}, {:.1}), facing {:.2} rad ({:.0}°)",
+                "Player {:?} ({name}) spawned at ({:.1}, {:.1}), facing {:.2} rad ({:.0}°)",
                 id,
                 pos.x,
                 pos.z,
@@ -269,6 +268,7 @@ fn process_message_not_logged_in(
 
             // Construct player data
             let player = Player {
+                name,
                 pos,
                 speed,
                 face_dir,

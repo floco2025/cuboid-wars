@@ -30,6 +30,7 @@ pub struct MyPlayerId(pub PlayerId);
 pub struct PlayerInfo {
     pub entity: Entity,
     pub hits: i32,
+    pub name: String,
 }
 
 // Map of all players (client-side source of truth)
