@@ -312,6 +312,22 @@ pub fn spawn_player_id_display(
     (text_entity, mesh_entity)
 }
 
+// Get the color for an item type
+pub const fn item_type_color(item_type: ItemType) -> Color {
+    match item_type {
+        ItemType::Speed => Color::srgb(
+            ITEM_SPEED_COLOR[0],
+            ITEM_SPEED_COLOR[1],
+            ITEM_SPEED_COLOR[2],
+        ),
+        ItemType::MultiShot => Color::srgb(
+            ITEM_MULTISHOT_COLOR[0],
+            ITEM_MULTISHOT_COLOR[1],
+            ITEM_MULTISHOT_COLOR[2],
+        ),
+    }
+}
+
 // Component to mark item entities with animation state
 #[derive(Component)]
 pub struct ItemMarker {
@@ -328,20 +344,7 @@ pub fn spawn_item(
     item_type: ItemType,
     position: &Position,
 ) -> Entity {
-    let color = match item_type {
-        ItemType::Speed => Color::srgba(
-            ITEM_SPEED_COLOR[0],
-            ITEM_SPEED_COLOR[1],
-            ITEM_SPEED_COLOR[2],
-            ITEM_SPEED_COLOR[3],
-        ),
-        ItemType::MultiShot => Color::srgba(
-            ITEM_MULTISHOT_COLOR[0],
-            ITEM_MULTISHOT_COLOR[1],
-            ITEM_MULTISHOT_COLOR[2],
-            ITEM_MULTISHOT_COLOR[3],
-        ),
-    };
+    let color = item_type_color(item_type);
 
     let random_phase = rand::random::<f32>() * std::f32::consts::TAU;
 

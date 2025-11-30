@@ -12,7 +12,7 @@ use common::systems::projectiles_system;
 use server::{
     config::configure_server,
     net::accept_connections_task,
-    resources::{FromAcceptChannel, FromClientsChannel, ItemSpawner, PlayerMap, WallConfig},
+    resources::{FromAcceptChannel, FromClientsChannel, ItemMap, ItemSpawner, PlayerMap, WallConfig},
     systems::{
         accept_connections_system, broadcast_state_system, hit_detection_system, item_despawn_system,
         item_spawn_system, process_client_message_system, server_movement_system,
@@ -71,6 +71,7 @@ async fn main() -> Result<()> {
             ..default()
         })
         .insert_resource(PlayerMap::default())
+        .insert_resource(ItemMap::default())
         .insert_resource(ItemSpawner::default())
         .insert_resource(FromAcceptChannel::new(from_accept))
         .insert_resource(FromClientsChannel::new(from_clients))

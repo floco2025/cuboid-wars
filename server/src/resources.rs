@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, error::TryRecvError};
 
 use crate::net::{ClientToServer, ServerToClient};
@@ -22,11 +22,23 @@ pub struct PlayerInfo {
     pub channel: UnboundedSender<ServerToClient>,
     pub hits: i32,
     pub name: String,
+    pub items: Vec<ItemType>,
 }
 
 // Map of all players (server-side source of truth)
 #[derive(Resource, Default)]
 pub struct PlayerMap(pub HashMap<PlayerId, PlayerInfo>);
+
+// Item information (server-side)
+pub struct ItemInfo {
+    pub entity: Entity,
+    pub item_type: ItemType,
+    pub spawn_time: f32,
+}
+
+// Map of all items (server-side source of truth)
+#[derive(Resource, Default)]
+pub struct ItemMap(pub HashMap<ItemId, ItemInfo>);
 
 // Resource wrapper for the channel from the accept connections task, which gives us the channel to
 // send from thee server to the client.
@@ -63,8 +75,7 @@ impl FromClientsChannel {
 #[derive(Resource)]
 pub struct ItemSpawner {
     pub timer: f32,
-    pub next_id: u32,                        // Next ItemId to assign
-    pub occupied_cells: HashSet<(i32, i32)>, // Grid cells that have items
+    pub next_id: u32, // Next ItemId to assign
 }
 
 impl Default for ItemSpawner {
@@ -72,7 +83,6 @@ impl Default for ItemSpawner {
         Self {
             timer: 0.0,
             next_id: 0,
-            occupied_cells: HashSet::new(),
         }
     }
 }

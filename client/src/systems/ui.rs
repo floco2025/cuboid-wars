@@ -3,9 +3,10 @@ use std::{collections::HashMap, time::Duration};
 
 use crate::constants::*;
 use crate::resources::{MyPlayerId, PlayerInfo, PlayerMap};
+use crate::spawning::item_type_color;
 use common::{
     constants::{FIELD_DEPTH, FIELD_WIDTH, GRID_COLS, GRID_ROWS, GRID_SIZE, PLAYER_HEIGHT, WALL_WIDTH},
-    protocol::PlayerId,
+    protocol::{ItemType, PlayerId},
 };
 
 // ============================================================================
@@ -236,7 +237,13 @@ pub fn update_player_list_system(
     // Determine whether we must rebuild the entire list
     let needs_rebuild = existing_map.len() != players.0.len()
         || existing_map.keys().any(|id| !players.0.contains_key(id))
-        || players.0.keys().any(|id| !existing_map.contains_key(id));
+        || players.0.keys().any(|id| !existing_map.contains_key(id))
+        || players.0.iter().any(|(id, player_info)| {
+            // Check if item count changed (children are: name, hits, ...items)
+            existing_map.get(id).map_or(false, |(_, children)| {
+                children.len() != 2 + player_info.items.len()
+            })
+        });
 
     if needs_rebuild {
         remove_stale_entries(&mut commands, &players, &existing_map);
@@ -288,6 +295,7 @@ fn rebuild_player_list(
                 *player_id,
                 &player_info.name,
                 player_info.hits,
+                &player_info.items,
                 local_player_id == Some(*player_id),
             )
         };
@@ -324,7 +332,7 @@ fn update_hit_counters(
     }
 }
 
-fn spawn_player_entry(commands: &mut Commands, player_id: PlayerId, name: &str, hits: i32, is_local: bool) -> Entity {
+fn spawn_player_entry(commands: &mut Commands, player_id: PlayerId, name: &str, hits: i32, items: &[ItemType], is_local: bool) -> Entity {
     let background_color = if is_local {
         BackgroundColor(Color::srgba(0.8, 0.8, 0.0, 0.3))
     } else {
@@ -360,6 +368,18 @@ fn spawn_player_entry(commands: &mut Commands, player_id: PlayerId, name: &str, 
                 },
                 TextColor(hit_value_color(hits)),
             ));
+
+            // Add item indicators
+            for item_type in items {
+                row.spawn((
+                    Text::new("●"),
+                    TextFont {
+                        font_size: 20.0,
+                        ..default()
+                    },
+                    TextColor(item_type_color(*item_type)),
+                ));
+            }
         })
         .id()
 }

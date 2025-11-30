@@ -9,9 +9,10 @@ use crate::{
     constants::ECHO_INTERVAL,
     net::{ClientToServer, ServerToClient},
     resources::{
-        ClientToServerChannel, MyPlayerId, PlayerInfo, PlayerMap, RoundTripTime, ServerToClientChannel, WallConfig,
+        ClientToServerChannel, ItemInfo, ItemMap, MyPlayerId, PlayerInfo, PlayerMap, RoundTripTime,
+        ServerToClientChannel, WallConfig,
     },
-    spawning::{ItemMarker, spawn_item, spawn_player, spawn_projectile_for_player},
+    spawning::{spawn_item, spawn_player, spawn_projectile_for_player},
 };
 use common::protocol::*;
 
@@ -28,11 +29,11 @@ pub fn process_server_events_system(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut images: ResMut<Assets<Image>>,
     mut player_map: ResMut<PlayerMap>,
+    mut item_map: ResMut<ItemMap>,
     mut rtt: ResMut<RoundTripTime>,
     player_query: Query<&Position, With<PlayerId>>,
     player_face_query: Query<(&Position, &FaceDirection), With<PlayerId>>,
     camera_query: Query<Entity, With<Camera3d>>,
-    item_query: Query<(Entity, &ItemId), With<ItemMarker>>,
     my_player_id: Option<Res<MyPlayerId>>,
     time: Res<Time>,
 ) {
@@ -46,22 +47,22 @@ pub fn process_server_events_system(
             ServerToClient::Message(message) => {
                 if let Some(my_id) = my_player_id.as_ref() {
                     process_message_logged_in(
-                        &message,
+                        message,
                         my_id.0,
                         &mut commands,
                         &mut meshes,
                         &mut materials,
                         &mut images,
                         &mut player_map,
+                        &mut item_map,
                         &mut rtt,
                         &player_query,
                         &player_face_query,
                         &camera_query,
-                        &item_query,
                         &time,
                     );
                 } else {
-                    process_message_not_logged_in(&message, &mut commands);
+                    process_message_not_logged_in(message, &mut commands);
                 }
             }
         }
@@ -72,7 +73,7 @@ pub fn process_server_events_system(
 // Message Handlers
 // ============================================================================
 
-fn process_message_not_logged_in(msg: &ServerMessage, commands: &mut Commands) {
+fn process_message_not_logged_in(msg: ServerMessage, commands: &mut Commands) {
     if let ServerMessage::Init(init_msg) = msg {
         debug!("received Init: my_id={:?}", init_msg.id);
 
@@ -81,7 +82,7 @@ fn process_message_not_logged_in(msg: &ServerMessage, commands: &mut Commands) {
 
         // Store walls configuration
         commands.insert_resource(WallConfig {
-            walls: init_msg.walls.clone(),
+            walls: init_msg.walls,
         });
 
         // Note: We don't spawn anything here. The first SUpdate will contain
@@ -91,18 +92,18 @@ fn process_message_not_logged_in(msg: &ServerMessage, commands: &mut Commands) {
 }
 
 fn process_message_logged_in(
-    msg: &ServerMessage,
+    msg: ServerMessage,
     my_player_id: PlayerId,
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
     images: &mut ResMut<Assets<Image>>,
     players: &mut ResMut<PlayerMap>,
+    items: &mut ResMut<ItemMap>,
     rtt: &mut ResMut<RoundTripTime>,
     player_query: &Query<&Position, With<PlayerId>>,
     player_face_query: &Query<(&Position, &FaceDirection), With<PlayerId>>,
     camera_query: &Query<Entity, With<Camera3d>>,
-    item_query: &Query<(Entity, &ItemId), With<ItemMarker>>,
     time: &Res<Time>,
 ) {
     match msg {
@@ -122,12 +123,12 @@ fn process_message_logged_in(
             materials,
             images,
             players,
+            items,
             rtt,
             player_query,
             camera_query,
             my_player_id,
             update_msg,
-            item_query,
         ),
         ServerMessage::Hit(hit_msg) => handle_hit_message(commands, players, camera_query, my_player_id, hit_msg),
         ServerMessage::Echo(echo_msg) => handle_echo_message(time, rtt, echo_msg),
@@ -140,7 +141,7 @@ fn handle_login_message(
     materials: &mut ResMut<Assets<StandardMaterial>>,
     images: &mut ResMut<Assets<Image>>,
     players: &mut ResMut<PlayerMap>,
-    msg: &SLogin,
+    msg: SLogin,
 ) {
     debug!("{:?} logged in", msg.id);
     if players.0.contains_key(&msg.id) {
@@ -164,26 +165,27 @@ fn handle_login_message(
         PlayerInfo {
             entity,
             hits: 0,
-            name: msg.player.name.clone(),
+            name: msg.player.name,
+            items: msg.player.items,
         },
     );
 }
 
-fn handle_logoff_message(commands: &mut Commands, players: &mut ResMut<PlayerMap>, msg: &SLogoff) {
+fn handle_logoff_message(commands: &mut Commands, players: &mut ResMut<PlayerMap>, msg: SLogoff) {
     debug!("{:?} logged off (graceful: {})", msg.id, msg.graceful);
     if let Some(player) = players.0.remove(&msg.id) {
         commands.entity(player.entity).despawn();
     }
 }
 
-fn handle_speed_message(commands: &mut Commands, players: &ResMut<PlayerMap>, msg: &SSpeed) {
+fn handle_speed_message(commands: &mut Commands, players: &ResMut<PlayerMap>, msg: SSpeed) {
     trace!("{:?} speed: {:?}", msg.id, msg);
     if let Some(player) = players.0.get(&msg.id) {
         commands.entity(player.entity).insert(msg.speed.to_velocity());
     }
 }
 
-fn handle_face_message(commands: &mut Commands, players: &ResMut<PlayerMap>, msg: &SFace) {
+fn handle_face_message(commands: &mut Commands, players: &ResMut<PlayerMap>, msg: SFace) {
     trace!("{:?} face direction: {}", msg.id, msg.dir);
     if let Some(player) = players.0.get(&msg.id) {
         commands.entity(player.entity).insert(FaceDirection(msg.dir));
@@ -196,7 +198,7 @@ fn handle_shot_message(
     materials: &mut ResMut<Assets<StandardMaterial>>,
     players: &ResMut<PlayerMap>,
     player_face_query: &Query<(&Position, &FaceDirection), With<PlayerId>>,
-    msg: &SShot,
+    msg: SShot,
 ) {
     trace!("{:?} shot: {:?}", msg.id, msg);
     if let Some(player) = players.0.get(&msg.id) {
@@ -211,12 +213,12 @@ fn handle_update_message(
     materials: &mut ResMut<Assets<StandardMaterial>>,
     images: &mut ResMut<Assets<Image>>,
     players: &mut ResMut<PlayerMap>,
+    items: &mut ResMut<ItemMap>,
     rtt: &ResMut<RoundTripTime>,
     player_query: &Query<&Position, With<PlayerId>>,
     camera_query: &Query<Entity, With<Camera3d>>,
     my_player_id: PlayerId,
-    msg: &SUpdate,
-    item_query: &Query<(Entity, &ItemId), With<ItemMarker>>,
+    msg: SUpdate,
 ) {
     // Track which players the server knows about in this snapshot
     let update_ids: HashSet<PlayerId> = msg.players.iter().map(|(id, _)| *id).collect();
@@ -256,6 +258,7 @@ fn handle_update_message(
                 entity,
                 hits: player.hits,
                 name: player.name.clone(),
+                items: player.items.clone(),
             },
         );
     }
@@ -274,8 +277,9 @@ fn handle_update_message(
         }
     }
 
-    for (id, server_player) in &msg.players {
-        if let Some(client_player) = players.0.get_mut(id) {
+    // Update existing players with server state
+    for (id, server_player) in msg.players {
+        if let Some(client_player) = players.0.get_mut(&id) {
             if let Ok(client_pos) = player_query.get(client_player.entity) {
                 commands.entity(client_player.entity).insert(ServerReconciliation {
                     client_pos: *client_pos,
@@ -287,26 +291,33 @@ fn handle_update_message(
             }
 
             client_player.hits = server_player.hits;
+            client_player.items = server_player.items;
         }
     }
 
     // Handle items - track which ones server has by ID
     let server_item_ids: HashSet<ItemId> = msg.items.iter().map(|(id, _)| *id).collect();
 
-    // Collect existing item IDs
-    let existing_item_ids: HashSet<ItemId> = item_query.iter().map(|(_, id)| *id).collect();
-
-    // Despawn items not in server's list
-    for (entity, item_id) in item_query.iter() {
-        if !server_item_ids.contains(item_id) {
-            commands.entity(entity).despawn();
+    // Spawn any items that appear in the update but are missing locally
+    for (item_id, item) in &msg.items {
+        if items.0.contains_key(item_id) {
+            continue;
         }
+        let entity = spawn_item(commands, meshes, materials, *item_id, item.item_type, &item.pos);
+        items.0.insert(*item_id, ItemInfo { entity });
     }
 
-    // Spawn new items
-    for (item_id, item) in &msg.items {
-        if !existing_item_ids.contains(item_id) {
-            spawn_item(commands, meshes, materials, *item_id, item.item_type, &item.pos);
+    // Despawn items no longer present in the authoritative snapshot
+    let stale_item_ids: Vec<ItemId> = items
+        .0
+        .keys()
+        .filter(|id| !server_item_ids.contains(id))
+        .copied()
+        .collect();
+
+    for item_id in stale_item_ids {
+        if let Some(item_info) = items.0.remove(&item_id) {
+            commands.entity(item_info.entity).despawn();
         }
     }
 }
@@ -316,7 +327,7 @@ fn handle_hit_message(
     players: &ResMut<PlayerMap>,
     camera_query: &Query<Entity, With<Camera3d>>,
     my_player_id: PlayerId,
-    msg: &SHit,
+    msg: SHit,
 ) {
     debug!("player {:?} was hit", msg.id);
     if msg.id == my_player_id {
@@ -343,7 +354,7 @@ fn handle_hit_message(
     }
 }
 
-fn handle_echo_message(time: &Time, rtt: &mut ResMut<RoundTripTime>, msg: &SEcho) {
+fn handle_echo_message(time: &Time, rtt: &mut ResMut<RoundTripTime>, msg: SEcho) {
     if rtt.pending_sent_at == Duration::ZERO {
         return;
     }

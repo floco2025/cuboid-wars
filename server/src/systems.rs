@@ -4,7 +4,7 @@ use rand::Rng as _;
 use crate::{
     constants::{ITEM_LIFETIME, ITEM_SPAWN_INTERVAL},
     net::{ClientToServer, ServerToClient},
-    resources::{FromAcceptChannel, FromClientsChannel, ItemSpawner, PlayerInfo, PlayerMap, WallConfig},
+    resources::{FromAcceptChannel, FromClientsChannel, ItemInfo, ItemMap, ItemSpawner, PlayerInfo, PlayerMap, WallConfig},
 };
 use common::collision::{check_player_player_collision, check_player_wall_collision, check_projectile_player_hit};
 use common::constants::*;
@@ -14,13 +14,6 @@ use common::systems::Projectile;
 // ============================================================================
 // Components
 // ============================================================================
-
-// Item information (server-side)
-#[derive(Component)]
-pub struct ItemInfo {
-    pub item_type: ItemType,
-    pub spawn_time: f32,
-}
 
 // ============================================================================
 // Helper Functions
@@ -117,6 +110,7 @@ fn snapshot_logged_in_players(
                     speed: *speed,
                     face_dir: face_dir.0,
                     hits: info.hits,
+                    items: info.items.clone(),
                 },
             ))
         })
@@ -144,6 +138,7 @@ pub fn accept_connections_system(
                 channel: to_client,
                 hits: 0,
                 name: String::new(),
+                items: Vec::new(),
             },
         );
     }
@@ -159,11 +154,11 @@ pub fn process_client_message_system(
     mut commands: Commands,
     mut from_clients: ResMut<FromClientsChannel>,
     mut players: ResMut<PlayerMap>,
+    items: Res<ItemMap>,
     wall_config: Res<WallConfig>,
     positions: Query<&Position>,
     speeds: Query<&Speed>,
     face_dirs: Query<&FaceDirection>,
-    item_query: Query<(&ItemId, &ItemInfo, &Position)>,
 ) {
     while let Ok((id, event)) = from_clients.try_recv() {
         let Some(player_info) = players.0.get(&id) else {
@@ -200,7 +195,7 @@ pub fn process_client_message_system(
                         &face_dirs,
                         &mut players,
                         &wall_config,
-                        &item_query,
+                        &items,
                     );
                 }
             }
@@ -222,7 +217,7 @@ fn process_message_not_logged_in(
     face_dirs: &Query<&FaceDirection>,
     players: &mut ResMut<PlayerMap>,
     wall_config: &Res<WallConfig>,
-    item_query: &Query<(&ItemId, &ItemInfo, &Position)>,
+    items: &Res<ItemMap>,
 ) {
     match msg {
         ClientMessage::Login(login) => {
@@ -285,6 +280,7 @@ fn process_message_not_logged_in(
                 speed,
                 face_dir,
                 hits,
+                items: Vec::new(),
             };
 
             // Construct the initial Update for the new player
@@ -296,14 +292,16 @@ fn process_message_not_logged_in(
             all_players.push((id, player.clone()));
 
             // Collect all items for the initial update
-            let all_items: Vec<(ItemId, Item)> = item_query
+            let all_items: Vec<(ItemId, Item)> = items
+                .0
                 .iter()
-                .map(|(id, info, pos)| {
+                .map(|(id, info)| {
+                    let pos_component = positions.get(info.entity).expect("Item entity missing Position");
                     (
                         *id,
                         Item {
                             item_type: info.item_type,
-                            pos: *pos,
+                            pos: *pos_component,
                         },
                     )
                 })
@@ -442,7 +440,7 @@ pub fn broadcast_state_system(
     speeds: Query<&Speed>,
     face_dirs: Query<&FaceDirection>,
     players: Res<PlayerMap>,
-    item_query: Query<(&ItemId, &ItemInfo, &Position)>,
+    items: Res<ItemMap>,
 ) {
     *timer += time.delta_secs();
     if *timer < UPDATE_BROADCAST_INTERVAL {
@@ -454,14 +452,16 @@ pub fn broadcast_state_system(
     let all_players = snapshot_logged_in_players(&players, &positions, &speeds, &face_dirs);
 
     // Collect all items
-    let all_items: Vec<(ItemId, Item)> = item_query
+    let all_items: Vec<(ItemId, Item)> = items
+        .0
         .iter()
-        .map(|(id, info, pos)| {
+        .map(|(id, info)| {
+            let pos_component = positions.get(info.entity).expect("Item entity missing Position");
             (
                 *id,
                 Item {
                     item_type: info.item_type,
-                    pos: *pos,
+                    pos: *pos_component,
                 },
             )
         })
@@ -624,12 +624,31 @@ pub fn server_movement_system(
 // ============================================================================
 
 // System to spawn items at regular intervals
-pub fn item_spawn_system(mut commands: Commands, time: Res<Time>, mut spawner: ResMut<ItemSpawner>) {
+pub fn item_spawn_system(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut spawner: ResMut<ItemSpawner>,
+    mut items: ResMut<ItemMap>,
+    positions: Query<&Position>,
+) {
     let delta = time.delta_secs();
     spawner.timer += delta;
 
     if spawner.timer >= ITEM_SPAWN_INTERVAL {
         spawner.timer = 0.0;
+
+        // Get occupied grid cells from existing items
+        let occupied_cells: std::collections::HashSet<(i32, i32)> = items
+            .0
+            .values()
+            .filter_map(|info| {
+                positions.get(info.entity).ok().map(|pos| {
+                    let grid_x = ((pos.x + FIELD_WIDTH / 2.0) / GRID_SIZE).floor() as i32;
+                    let grid_z = ((pos.z + FIELD_DEPTH / 2.0) / GRID_SIZE).floor() as i32;
+                    (grid_x, grid_z)
+                })
+            })
+            .collect();
 
         // Find an unoccupied grid cell
         let mut rng = rand::rng();
@@ -639,7 +658,7 @@ pub fn item_spawn_system(mut commands: Commands, time: Res<Time>, mut spawner: R
             let grid_x = rng.random_range(0..GRID_COLS);
             let grid_z = rng.random_range(0..GRID_ROWS);
 
-            if !spawner.occupied_cells.contains(&(grid_x, grid_z)) {
+            if !occupied_cells.contains(&(grid_x, grid_z)) {
                 // Spawn item in the center of this grid cell
                 let world_x = (grid_x as f32 + 0.5) * GRID_SIZE - FIELD_WIDTH / 2.0;
                 let world_z = (grid_z as f32 + 0.5) * GRID_SIZE - FIELD_DEPTH / 2.0;
@@ -653,20 +672,24 @@ pub fn item_spawn_system(mut commands: Commands, time: Res<Time>, mut spawner: R
                 let item_id = ItemId(spawner.next_id);
                 spawner.next_id += 1;
 
-                commands.spawn((
+                let entity = commands.spawn((
                     item_id,
-                    ItemInfo {
-                        item_type,
-                        spawn_time: time.elapsed_secs(),
-                    },
                     Position {
                         x: world_x,
                         y: 0.0,
                         z: world_z,
                     },
-                ));
+                )).id();
 
-                spawner.occupied_cells.insert((grid_x, grid_z));
+                items.0.insert(
+                    item_id,
+                    ItemInfo {
+                        entity,
+                        item_type,
+                        spawn_time: time.elapsed_secs(),
+                    },
+                );
+
                 break;
             }
         }
@@ -677,19 +700,22 @@ pub fn item_spawn_system(mut commands: Commands, time: Res<Time>, mut spawner: R
 pub fn item_despawn_system(
     mut commands: Commands,
     time: Res<Time>,
-    mut spawner: ResMut<ItemSpawner>,
-    query: Query<(Entity, &ItemInfo, &Position)>,
+    mut items: ResMut<ItemMap>,
 ) {
     let current_time = time.elapsed_secs();
 
-    for (entity, info, pos) in &query {
-        if current_time - info.spawn_time >= ITEM_LIFETIME {
-            // Calculate which grid cell this item is in
-            let grid_x = ((pos.x + FIELD_WIDTH / 2.0) / GRID_SIZE).floor() as i32;
-            let grid_z = ((pos.z + FIELD_DEPTH / 2.0) / GRID_SIZE).floor() as i32;
+    // Collect items to remove
+    let items_to_remove: Vec<ItemId> = items
+        .0
+        .iter()
+        .filter(|(_, info)| current_time - info.spawn_time >= ITEM_LIFETIME)
+        .map(|(id, _)| *id)
+        .collect();
 
-            spawner.occupied_cells.remove(&(grid_x, grid_z));
-            commands.entity(entity).despawn();
+    // Remove expired items
+    for item_id in items_to_remove {
+        if let Some(info) = items.0.remove(&item_id) {
+            commands.entity(info.entity).despawn();
         }
     }
 }

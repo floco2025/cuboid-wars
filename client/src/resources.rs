@@ -9,7 +9,7 @@ use tokio::sync::mpsc::{
 };
 
 use crate::net::{ClientToServer, ServerToClient};
-use common::protocol::{PlayerId, Wall};
+use common::protocol::{ItemId, ItemType, PlayerId, Wall};
 
 // ============================================================================
 // Bevy Resources
@@ -30,11 +30,21 @@ pub struct PlayerInfo {
     pub entity: Entity,
     pub hits: i32,
     pub name: String,
+    pub items: Vec<ItemType>,
 }
 
 // Map of all players (client-side source of truth)
 #[derive(Resource, Default)]
 pub struct PlayerMap(pub HashMap<PlayerId, PlayerInfo>);
+
+// Item information (client-side)
+pub struct ItemInfo {
+    pub entity: Entity,
+}
+
+// Map of all items (client-side source of truth)
+#[derive(Resource, Default)]
+pub struct ItemMap(pub HashMap<ItemId, ItemInfo>);
 
 // Round-trip time to server
 #[derive(Resource, Default)]
