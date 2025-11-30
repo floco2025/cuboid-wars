@@ -7,11 +7,21 @@ use common::{
     protocol::{Wall, WallOrientation},
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 struct GridEdge {
-    x: i32,           // Grid line position
-    z: i32,           // Grid line position
+    x: f32,           // Grid line position
+    z: f32,           // Grid line position
     horizontal: bool, // true = horizontal (along X), false = vertical (along Z)
+}
+
+impl Eq for GridEdge {}
+
+impl std::hash::Hash for GridEdge {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.x.to_bits().hash(state);
+        self.z.to_bits().hash(state);
+        self.horizontal.hash(state);
+    }
 }
 
 /// Check if all grid cells are reachable using BFS
@@ -34,8 +44,8 @@ fn all_cells_reachable(placed_edges: &HashSet<GridEdge>, grid_cols: i32, grid_ro
                 row - 1,
                 col,
                 GridEdge {
-                    x: col,
-                    z: row,
+                    x: col as f32,
+                    z: row as f32,
                     horizontal: true,
                 },
             ), // North
@@ -43,8 +53,8 @@ fn all_cells_reachable(placed_edges: &HashSet<GridEdge>, grid_cols: i32, grid_ro
                 row + 1,
                 col,
                 GridEdge {
-                    x: col,
-                    z: row + 1,
+                    x: col as f32,
+                    z: (row + 1) as f32,
                     horizontal: true,
                 },
             ), // South
@@ -52,8 +62,8 @@ fn all_cells_reachable(placed_edges: &HashSet<GridEdge>, grid_cols: i32, grid_ro
                 row,
                 col - 1,
                 GridEdge {
-                    x: col,
-                    z: row,
+                    x: col as f32,
+                    z: row as f32,
                     horizontal: false,
                 },
             ), // West
@@ -61,8 +71,8 @@ fn all_cells_reachable(placed_edges: &HashSet<GridEdge>, grid_cols: i32, grid_ro
                 row,
                 col + 1,
                 GridEdge {
-                    x: col + 1,
-                    z: row,
+                    x: (col + 1) as f32,
+                    z: row as f32,
                     horizontal: false,
                 },
             ), // East
@@ -113,8 +123,8 @@ pub fn generate_walls() -> Vec<Wall> {
     // Top edge (z = 0)
     for x in 0..grid_cols {
         let edge = GridEdge {
-            x,
-            z: 0,
+            x: x as f32,
+            z: 0.0,
             horizontal: true,
         };
         placed_edges.insert(edge);
@@ -130,8 +140,8 @@ pub fn generate_walls() -> Vec<Wall> {
     // Bottom edge (z = grid_rows)
     for x in 0..grid_cols {
         let edge = GridEdge {
-            x,
-            z: grid_rows,
+            x: x as f32,
+            z: grid_rows as f32,
             horizontal: true,
         };
         placed_edges.insert(edge);
@@ -147,8 +157,8 @@ pub fn generate_walls() -> Vec<Wall> {
     // Left edge (x = 0)
     for z in 0..grid_rows {
         let edge = GridEdge {
-            x: 0,
-            z,
+            x: 0.0,
+            z: z as f32,
             horizontal: false,
         };
         placed_edges.insert(edge);
@@ -164,8 +174,8 @@ pub fn generate_walls() -> Vec<Wall> {
     // Right edge (x = grid_cols)
     for z in 0..grid_rows {
         let edge = GridEdge {
-            x: grid_cols,
-            z,
+            x: grid_cols as f32,
+            z: z as f32,
             horizontal: false,
         };
         placed_edges.insert(edge);
@@ -184,7 +194,7 @@ pub fn generate_walls() -> Vec<Wall> {
     // Interior horizontal edges (along X axis)
     for z in 1..grid_rows {
         for x in 0..grid_cols {
-            all_edges.push(GridEdge { x, z, horizontal: true });
+            all_edges.push(GridEdge { x: x as f32, z: z as f32, horizontal: true });
         }
     }
 
@@ -192,8 +202,8 @@ pub fn generate_walls() -> Vec<Wall> {
     for z in 0..grid_rows {
         for x in 1..grid_cols {
             all_edges.push(GridEdge {
-                x,
-                z,
+                x: x as f32,
+                z: z as f32,
                 horizontal: false,
             });
         }
@@ -231,8 +241,8 @@ pub fn generate_walls() -> Vec<Wall> {
         let (x, z, horizontal) = (edge.x, edge.z, edge.horizontal);
 
         if horizontal {
-            let world_x = (x as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-            let world_z = (z as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+            let world_x = (x + 0.5).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+            let world_z = z.mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
 
             walls.push(Wall {
                 x: world_x,
@@ -240,8 +250,8 @@ pub fn generate_walls() -> Vec<Wall> {
                 orientation: WallOrientation::Horizontal,
             });
         } else {
-            let world_x = (x as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-            let world_z = (z as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+            let world_x = x.mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+            let world_z = (z + 0.5).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
 
             walls.push(Wall {
                 x: world_x,

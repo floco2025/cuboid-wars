@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use std::time::Duration;
 
-use crate::resources::WallConfig;
+use crate::resources::{RoundTripTime, WallConfig};
 use common::{
     constants::UPDATE_BROADCAST_INTERVAL,
     protocol::{Position, Velocity},
@@ -41,6 +41,7 @@ pub struct ServerSnapshot {
 pub fn client_movement_system(
     mut commands: Commands,
     time: Res<Time>,
+    _rtt: Res<RoundTripTime>,
     asset_server: Res<AssetServer>,
     wall_config: Option<Res<WallConfig>>,
     mut query: Query<(
