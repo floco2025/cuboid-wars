@@ -1,4 +1,3 @@
-#[allow(clippy::wildcard_imports)]
 use bevy::prelude::*;
 
 use crate::{resources::WallConfig, spawning::spawn_wall};

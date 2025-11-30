@@ -1,4 +1,3 @@
-#[allow(clippy::wildcard_imports)]
 use bevy::prelude::*;
 
 use super::{
@@ -6,7 +5,6 @@ use super::{
     movement::LocalPlayer,
 };
 use crate::resources::CameraViewMode;
-#[allow(clippy::wildcard_imports)]
 use crate::{constants::*, spawning::PlayerIdTextMesh};
 use common::{
     constants::PLAYER_HEIGHT,

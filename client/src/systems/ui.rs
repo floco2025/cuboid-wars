@@ -1,8 +1,6 @@
-#[allow(clippy::wildcard_imports)]
 use bevy::prelude::*;
 use std::{collections::HashMap, time::Duration};
 
-#[allow(clippy::wildcard_imports)]
 use crate::constants::*;
 use crate::resources::{MyPlayerId, PlayerInfo, PlayerMap};
 use common::{

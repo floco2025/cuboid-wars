@@ -1,6 +1,4 @@
-#[allow(clippy::wildcard_imports)]
 use bevy::prelude::*;
-#[allow(clippy::wildcard_imports)]
 use rand::Rng as _;
 
 use crate::{

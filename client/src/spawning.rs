@@ -1,4 +1,3 @@
-#[allow(clippy::wildcard_imports)]
 use bevy::{
     asset::RenderAssetUsages,
     prelude::*,
@@ -9,7 +8,6 @@ use crate::{
     constants::*,
     systems::movement::{BumpFlashState, LocalPlayer},
 };
-#[allow(clippy::wildcard_imports)]
 use common::{
     constants::*,
     protocol::{FaceDirection, PlayerId, Position, Velocity, Wall, WallOrientation},

@@ -1,4 +1,3 @@
-#[allow(clippy::wildcard_imports)]
 use bevy::prelude::*;
 use std::{collections::HashSet, time::Duration};
 
@@ -14,7 +13,6 @@ use crate::{
     },
     spawning::{spawn_player, spawn_projectile_for_player},
 };
-#[allow(clippy::wildcard_imports)]
 use common::protocol::*;
 
 // ============================================================================

@@ -7,7 +7,6 @@ use tokio::{
 };
 
 use common::net::MessageStream;
-#[allow(clippy::wildcard_imports)]
 use common::protocol::*;
 
 /// Message emitted by the network task toward the Bevy world.

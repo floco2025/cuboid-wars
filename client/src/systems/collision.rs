@@ -1,5 +1,4 @@
 use bevy::audio::{PlaybackMode, Volume};
-#[allow(clippy::wildcard_imports)]
 use bevy::prelude::*;
 
 use crate::{resources::WallConfig, systems::movement::LocalPlayer};

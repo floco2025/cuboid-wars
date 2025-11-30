@@ -1,4 +1,3 @@
-#[allow(clippy::wildcard_imports)]
 use bevy_ecs::prelude::*;
 use bevy_math::Vec3;
 use bevy_time::{Time, Timer, TimerMode};

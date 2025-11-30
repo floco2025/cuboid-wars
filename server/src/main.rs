@@ -1,5 +1,4 @@
 use anyhow::Result;
-#[allow(clippy::wildcard_imports)]
 use bevy::prelude::*;
 use clap::Parser;
 use quinn::Endpoint;

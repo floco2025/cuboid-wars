@@ -1,11 +1,9 @@
 use anyhow::Error;
-#[allow(clippy::wildcard_imports)]
 use bevy::log::*;
 use quinn::{Connection, ConnectionError, Endpoint};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
 use common::net::MessageStream;
-#[allow(clippy::wildcard_imports)]
 use common::protocol::*;
 
 // ============================================================================

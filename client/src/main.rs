@@ -1,5 +1,4 @@
 use anyhow::{Context, Result};
-#[allow(clippy::wildcard_imports)]
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, WindowPlugin, WindowPosition};
 use clap::Parser;
@@ -25,7 +24,6 @@ use client::{
     },
 };
 use common::net::MessageStream;
-#[allow(clippy::wildcard_imports)]
 use common::protocol::*;
 
 // ============================================================================
