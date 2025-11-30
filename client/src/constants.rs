@@ -25,3 +25,13 @@ pub const FACE_CHANGE_THRESHOLD: f32 = 2.0; // degrees
 
 // Echo request for RTT calculations in seconds
 pub const ECHO_INTERVAL: f32 = 10.0;
+
+// Player ID label settings
+pub const LABEL_HEIGHT_ABOVE_PLAYER: f32 = 0.5; // How high above player (in meters)
+pub const LABEL_WIDTH: f32 = 0.6; // Width of the label plane (in world units)
+pub const LABEL_HEIGHT: f32 = 0.3; // Height of the label plane (in world units)
+pub const LABEL_TEXT_COLOR: [f32; 4] = [1.0, 1.0, 1.0, 1.0]; // White (RGBA)
+pub const LABEL_BACKGROUND_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 0.2]; // Transparent (RGBA)
+pub const LABEL_TEXTURE_WIDTH: u32 = 128; // Texture width in pixels
+pub const LABEL_TEXTURE_HEIGHT: u32 = 64; // Texture height in pixels
+pub const LABEL_FONT_SIZE: f32 = 40.0; // Font size in pixels

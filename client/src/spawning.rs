@@ -5,7 +5,10 @@ use bevy::{
     render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages},
 };
 
-use crate::systems::movement::{BumpFlashState, LocalPlayer};
+use crate::{
+    constants::*,
+    systems::movement::{BumpFlashState, LocalPlayer},
+};
 #[allow(clippy::wildcard_imports)]
 use common::{
     constants::*,
@@ -200,15 +203,20 @@ fn setup_player_id_text_rendering(
     images: &mut ResMut<Assets<Image>>,
 ) -> (Handle<Image>, Entity) {
     let size = Extent3d {
-        width: 128,
-        height: 64,
+        width: LABEL_TEXTURE_WIDTH,
+        height: LABEL_TEXTURE_HEIGHT,
         ..default()
     };
 
     let mut image = Image::new_fill(
         size,
         TextureDimension::D2,
-        &[0, 0, 0, 0],
+        &[
+            (LABEL_BACKGROUND_COLOR[2] * 255.0) as u8, // B
+            (LABEL_BACKGROUND_COLOR[1] * 255.0) as u8, // G
+            (LABEL_BACKGROUND_COLOR[0] * 255.0) as u8, // R
+            (LABEL_BACKGROUND_COLOR[3] * 255.0) as u8, // A
+        ],
         TextureFormat::Bgra8UnormSrgb,
         RenderAssetUsages::default(),
     );
@@ -223,6 +231,12 @@ fn setup_player_id_text_rendering(
             Camera {
                 order: -1,
                 target: bevy::camera::RenderTarget::Image(image_handle.clone().into()),
+                clear_color: bevy::camera::ClearColorConfig::Custom(Color::srgba(
+                    LABEL_BACKGROUND_COLOR[0],
+                    LABEL_BACKGROUND_COLOR[1],
+                    LABEL_BACKGROUND_COLOR[2],
+                    LABEL_BACKGROUND_COLOR[3],
+                )),
                 ..default()
             },
         ))
@@ -250,17 +264,27 @@ pub fn spawn_player_id_display(
                 align_items: AlignItems::Center,
                 ..default()
             },
-            BackgroundColor(Color::NONE),
+            BackgroundColor(Color::srgba(
+                LABEL_BACKGROUND_COLOR[0],
+                LABEL_BACKGROUND_COLOR[1],
+                LABEL_BACKGROUND_COLOR[2],
+                LABEL_BACKGROUND_COLOR[3],
+            )),
             UiTargetCamera(text_camera),
         ))
         .with_children(|parent| {
             parent.spawn((
                 Text::new(format!("{}", player_id)),
                 TextFont {
-                    font_size: 48.0,
+                    font_size: LABEL_FONT_SIZE,
                     ..default()
                 },
-                TextColor::WHITE,
+                TextColor(Color::srgba(
+                    LABEL_TEXT_COLOR[0],
+                    LABEL_TEXT_COLOR[1],
+                    LABEL_TEXT_COLOR[2],
+                    LABEL_TEXT_COLOR[3],
+                )),
                 PlayerIdText,
             ));
         })
@@ -269,14 +293,14 @@ pub fn spawn_player_id_display(
     // Create 3D plane mesh with the rendered texture
     let mesh_entity = commands
         .spawn((
-            Mesh3d(meshes.add(Rectangle::new(0.5, 0.25))),
+            Mesh3d(meshes.add(Rectangle::new(LABEL_WIDTH, LABEL_HEIGHT))),
             MeshMaterial3d(materials.add(StandardMaterial {
                 base_color_texture: Some(image_handle),
                 alpha_mode: AlphaMode::Blend,
                 unlit: true,
                 ..default()
             })),
-            Transform::from_xyz(0.0, 1.2, 0.0), // Above player
+            Transform::from_xyz(0.0, PLAYER_HEIGHT / 2.0 + LABEL_HEIGHT_ABOVE_PLAYER + LABEL_HEIGHT / 2.0, 0.0),
             PlayerIdTextMesh,
         ))
         .id();
