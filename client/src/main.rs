@@ -4,7 +4,6 @@ use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, WindowPlugin, WindowPosition};
 use clap::Parser;
 use quinn::Endpoint;
-use std::env;
 use tokio::{runtime::Runtime, time::Duration};
 
 use client::{
@@ -72,10 +71,11 @@ struct Args {
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    let player_name = args
-        .name
-        .clone()
-        .unwrap_or_else(|| env::var("USER").unwrap_or_else(|_| String::new()));
+    let player_name = args.name.clone().unwrap_or_else(|| {
+        let full_name = whoami::realname();
+        let first_name = full_name.split_whitespace().next();
+        first_name.unwrap_or("").to_string()
+    });
 
     let rt = Runtime::new()?;
     let connection = connect_to_server(&rt, args.server.as_str())?;
