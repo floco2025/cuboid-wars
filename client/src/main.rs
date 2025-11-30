@@ -170,7 +170,7 @@ fn send_login(rt: &Runtime, connection: &quinn::Connection, name: &str) -> Resul
     })
 }
 
-fn window_position_from_args(args: &Args) -> WindowPosition {
+const fn window_position_from_args(args: &Args) -> WindowPosition {
     match (args.window_x, args.window_y) {
         (Some(x), Some(y)) => WindowPosition::At(IVec2::new(x, y)),
         _ => WindowPosition::Automatic,

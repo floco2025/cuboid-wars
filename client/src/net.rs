@@ -78,11 +78,11 @@ fn handle_server_message(
             if let Some(conn_err) = err.downcast_ref::<ConnectionError>() {
                 match conn_err {
                     ConnectionError::ApplicationClosed { .. } => {
-                        error!("server closed connection")
+                        error!("server closed connection");
                     }
                     ConnectionError::TimedOut => error!("server connection timed out"),
                     ConnectionError::LocallyClosed => {
-                        debug!("connection to server closed locally")
+                        debug!("connection to server closed locally");
                     }
                     _ => error!("connection error: {err}"),
                 }
@@ -119,7 +119,7 @@ async fn handle_client_command(
                 true
             } else {
                 trace!("sending to server: {:?}", msg);
-                stream.send(&msg).await.map(|_| true).unwrap_or_else(|e| {
+                stream.send(&msg).await.map(|()| true).unwrap_or_else(|e| {
                     error!("error sending to server: {e}");
                     false
                 })

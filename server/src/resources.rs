@@ -34,7 +34,8 @@ pub struct PlayerMap(pub HashMap<PlayerId, PlayerInfo>);
 pub struct FromAcceptChannel(UnboundedReceiver<(PlayerId, UnboundedSender<ServerToClient>)>);
 
 impl FromAcceptChannel {
-    pub fn new(receiver: UnboundedReceiver<(PlayerId, UnboundedSender<ServerToClient>)>) -> Self {
+    #[must_use]
+    pub const fn new(receiver: UnboundedReceiver<(PlayerId, UnboundedSender<ServerToClient>)>) -> Self {
         Self(receiver)
     }
 
@@ -48,7 +49,8 @@ impl FromAcceptChannel {
 pub struct FromClientsChannel(UnboundedReceiver<(PlayerId, ClientToServer)>);
 
 impl FromClientsChannel {
-    pub fn new(receiver: UnboundedReceiver<(PlayerId, ClientToServer)>) -> Self {
+    #[must_use]
+    pub const fn new(receiver: UnboundedReceiver<(PlayerId, ClientToServer)>) -> Self {
         Self(receiver)
     }
 

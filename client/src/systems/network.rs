@@ -71,23 +71,20 @@ pub fn process_server_events_system(
 // ============================================================================
 
 fn process_message_not_logged_in(msg: &ServerMessage, commands: &mut Commands) {
-    match msg {
-        ServerMessage::Init(init_msg) => {
-            debug!("received Init: my_id={:?}", init_msg.id);
+    if let ServerMessage::Init(init_msg) = msg {
+        debug!("received Init: my_id={:?}", init_msg.id);
 
-            // Store player ID as resource
-            commands.insert_resource(MyPlayerId(init_msg.id));
+        // Store player ID as resource
+        commands.insert_resource(MyPlayerId(init_msg.id));
 
-            // Store walls configuration
-            commands.insert_resource(WallConfig {
-                walls: init_msg.walls.clone(),
-            });
+        // Store walls configuration
+        commands.insert_resource(WallConfig {
+            walls: init_msg.walls.clone(),
+        });
 
-            // Note: We don't spawn anything here. The first SUpdate will contain
-            // all players including ourselves and will trigger spawning via the
-            // Update message handler.
-        }
-        _ => {}
+        // Note: We don't spawn anything here. The first SUpdate will contain
+        // all players including ourselves and will trigger spawning via the
+        // Update message handler.
     }
 }
 
@@ -114,7 +111,7 @@ fn process_message_logged_in(
         ServerMessage::Speed(speed_msg) => handle_speed_message(commands, players, speed_msg),
         ServerMessage::Face(face_msg) => handle_face_message(commands, players, face_msg),
         ServerMessage::Shot(shot_msg) => {
-            handle_shot_message(commands, meshes, materials, players, player_face_query, shot_msg)
+            handle_shot_message(commands, meshes, materials, players, player_face_query, shot_msg);
         }
         ServerMessage::Update(update_msg) => handle_update_message(
             commands,
@@ -127,7 +124,7 @@ fn process_message_logged_in(
             camera_query,
             my_player_id,
             update_msg,
-            &time,
+            time,
         ),
         ServerMessage::Hit(hit_msg) => handle_hit_message(commands, players, camera_query, my_player_id, hit_msg),
         ServerMessage::Echo(echo_msg) => handle_echo_message(time, rtt, echo_msg),
@@ -242,14 +239,12 @@ fn handle_update_message(
             is_local,
         );
 
-        if is_local {
-            if let Ok(camera_entity) = camera_query.single() {
-                let camera_rotation = player.face_dir + std::f32::consts::PI;
-                commands.entity(camera_entity).insert(
-                    Transform::from_xyz(player.pos.x, 2.5, player.pos.z + 3.0)
-                        .with_rotation(Quat::from_rotation_y(camera_rotation)),
-                );
-            }
+        if is_local && let Ok(camera_entity) = camera_query.single() {
+            let camera_rotation = player.face_dir + std::f32::consts::PI;
+            commands.entity(camera_entity).insert(
+                Transform::from_xyz(player.pos.x, 2.5, player.pos.z + 3.0)
+                    .with_rotation(Quat::from_rotation_y(camera_rotation)),
+            );
         }
 
         players.0.insert(
@@ -289,9 +284,9 @@ fn handle_update_message(
                     client_pos: *client_pos,
                     client_vel: *client_vel,
                     server_pos: Position {
-                        x: server_player.pos.x + server_vel.x * half_rtt_secs,
+                        x: server_vel.x.mul_add(half_rtt_secs, server_player.pos.x),
                         y: server_player.pos.y,
-                        z: server_player.pos.z + server_vel.z * half_rtt_secs,
+                        z: server_vel.z.mul_add(half_rtt_secs, server_player.pos.z),
                     },
                     server_vel,
                     received_at: now,

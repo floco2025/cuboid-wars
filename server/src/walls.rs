@@ -94,10 +94,12 @@ fn all_cells_reachable(placed_edges: &HashSet<GridEdge>, grid_cols: i32, grid_ro
     visited.len() == (grid_rows * grid_cols) as usize
 }
 
-/// Generate wall segments for the playing field.
-/// Walls are placed along grid lines in a maze-like pattern.
-/// Ensures all grid cells remain reachable from each other.
-/// Always places walls around the perimeter of the field.
+// Generate wall segments for the playing field.
+//
+// Walls are placed along grid lines in a maze-like pattern.
+// Ensures all grid cells remain reachable from each other.
+// Always places walls around the perimeter of the field.
+#[must_use]
 pub fn generate_walls() -> Vec<Wall> {
     let mut rng = rand::rng();
     let mut walls = Vec::new();
@@ -116,8 +118,8 @@ pub fn generate_walls() -> Vec<Wall> {
             horizontal: true,
         };
         placed_edges.insert(edge);
-        let world_x = (x as f32 + 0.5) * GRID_SIZE - FIELD_WIDTH / 2.0;
-        let world_z = 0.0 * GRID_SIZE - FIELD_DEPTH / 2.0;
+        let world_x = (x as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+        let world_z = 0.0f32.mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
         walls.push(Wall {
             x: world_x,
             z: world_z,
@@ -133,8 +135,8 @@ pub fn generate_walls() -> Vec<Wall> {
             horizontal: true,
         };
         placed_edges.insert(edge);
-        let world_x = (x as f32 + 0.5) * GRID_SIZE - FIELD_WIDTH / 2.0;
-        let world_z = grid_rows as f32 * GRID_SIZE - FIELD_DEPTH / 2.0;
+        let world_x = (x as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+        let world_z = (grid_rows as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
         walls.push(Wall {
             x: world_x,
             z: world_z,
@@ -150,8 +152,8 @@ pub fn generate_walls() -> Vec<Wall> {
             horizontal: false,
         };
         placed_edges.insert(edge);
-        let world_x = 0.0 * GRID_SIZE - FIELD_WIDTH / 2.0;
-        let world_z = (z as f32 + 0.5) * GRID_SIZE - FIELD_DEPTH / 2.0;
+        let world_x = 0.0f32.mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+        let world_z = (z as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
         walls.push(Wall {
             x: world_x,
             z: world_z,
@@ -167,8 +169,8 @@ pub fn generate_walls() -> Vec<Wall> {
             horizontal: false,
         };
         placed_edges.insert(edge);
-        let world_x = grid_cols as f32 * GRID_SIZE - FIELD_WIDTH / 2.0;
-        let world_z = (z as f32 + 0.5) * GRID_SIZE - FIELD_DEPTH / 2.0;
+        let world_x = (grid_cols as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+        let world_z = (z as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
         walls.push(Wall {
             x: world_x,
             z: world_z,
@@ -229,8 +231,8 @@ pub fn generate_walls() -> Vec<Wall> {
         let (x, z, horizontal) = (edge.x, edge.z, edge.horizontal);
 
         if horizontal {
-            let world_x = (x as f32 + 0.5) * GRID_SIZE - FIELD_WIDTH / 2.0;
-            let world_z = z as f32 * GRID_SIZE - FIELD_DEPTH / 2.0;
+            let world_x = (x as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+            let world_z = (z as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
 
             walls.push(Wall {
                 x: world_x,
@@ -238,8 +240,8 @@ pub fn generate_walls() -> Vec<Wall> {
                 orientation: WallOrientation::Horizontal,
             });
         } else {
-            let world_x = x as f32 * GRID_SIZE - FIELD_WIDTH / 2.0;
-            let world_z = (z as f32 + 0.5) * GRID_SIZE - FIELD_DEPTH / 2.0;
+            let world_x = (x as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+            let world_z = (z as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
 
             walls.push(Wall {
                 x: world_x,

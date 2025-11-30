@@ -45,7 +45,7 @@ pub struct RoundTripTime {
 }
 
 // Camera view mode
-#[derive(Resource, Default, PartialEq, Clone, Copy, Debug)]
+#[derive(Resource, Default, PartialEq, Eq, Clone, Copy, Debug)]
 pub enum CameraViewMode {
     #[default]
     FirstPerson,
@@ -57,7 +57,8 @@ pub enum CameraViewMode {
 pub struct ClientToServerChannel(UnboundedSender<ClientToServer>);
 
 impl ClientToServerChannel {
-    pub fn new(sender: UnboundedSender<ClientToServer>) -> Self {
+    #[must_use]
+    pub const fn new(sender: UnboundedSender<ClientToServer>) -> Self {
         Self(sender)
     }
 
@@ -71,7 +72,8 @@ impl ClientToServerChannel {
 pub struct ServerToClientChannel(UnboundedReceiver<ServerToClient>);
 
 impl ServerToClientChannel {
-    pub fn new(receiver: UnboundedReceiver<ServerToClient>) -> Self {
+    #[must_use]
+    pub const fn new(receiver: UnboundedReceiver<ServerToClient>) -> Self {
         Self(receiver)
     }
 

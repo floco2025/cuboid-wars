@@ -81,7 +81,7 @@ pub fn input_system(
                 speed_level: SpeedLevel::Idle,
                 move_dir: 0.0,
             };
-            for (mut player_velocity, _) in local_player_query.iter_mut() {
+            for (mut player_velocity, _) in &mut local_player_query {
                 *player_velocity = speed.to_velocity();
             }
             let msg = ClientMessage::Speed(CSpeed { speed });
@@ -95,10 +95,11 @@ pub fn input_system(
 
     // Determine the yaw baseline (camera vs stored value depending on view mode)
     let mut current_yaw = *stored_yaw;
-    if *view_mode == CameraViewMode::FirstPerson && !view_mode.is_changed() {
-        if let Some(transform) = camera_query.iter().next() {
-            current_yaw = transform.rotation.to_euler(EulerRot::YXZ).0;
-        }
+    if *view_mode == CameraViewMode::FirstPerson
+        && !view_mode.is_changed()
+        && let Some(transform) = camera_query.iter().next()
+    {
+        current_yaw = transform.rotation.to_euler(EulerRot::YXZ).0;
     }
 
     // Apply mouse delta to yaw
@@ -140,7 +141,7 @@ pub fn input_system(
     };
 
     let speed = Speed { speed_level, move_dir };
-    for (mut player_velocity, mut player_face) in local_player_query.iter_mut() {
+    for (mut player_velocity, mut player_face) in &mut local_player_query {
         *player_velocity = speed.to_velocity();
         player_face.0 = face_yaw;
     }
@@ -168,7 +169,7 @@ pub fn input_system(
     }
 
     if *view_mode == CameraViewMode::FirstPerson {
-        for mut transform in camera_query.iter_mut() {
+        for mut transform in &mut camera_query {
             transform.rotation = Quat::from_rotation_y(current_yaw);
         }
     }
@@ -187,20 +188,21 @@ pub fn shooting_input_system(
     // Only allow shooting when cursor is locked
     let cursor_locked = cursor_options.grab_mode != bevy::window::CursorGrabMode::None;
 
-    if cursor_locked && mouse.just_pressed(bevy::input::mouse::MouseButton::Left) {
-        if let Some((pos, face_dir)) = local_player_query.iter().next() {
-            // Play shooting sound
-            commands.spawn((
-                AudioPlayer::new(asset_server.load("sounds/player_fires.ogg")),
-                PlaybackSettings::DESPAWN,
-            ));
+    if cursor_locked
+        && mouse.just_pressed(bevy::input::mouse::MouseButton::Left)
+        && let Some((pos, face_dir)) = local_player_query.iter().next()
+    {
+        // Play shooting sound
+        commands.spawn((
+            AudioPlayer::new(asset_server.load("sounds/player_fires.ogg")),
+            PlaybackSettings::DESPAWN,
+        ));
 
-            // Send shot message with current face direction to server
-            let shot_msg = ClientMessage::Shot(CShot { face_dir: face_dir.0 });
-            let _ = to_server.send(ClientToServer::Send(shot_msg));
+        // Send shot message with current face direction to server
+        let shot_msg = ClientMessage::Shot(CShot { face_dir: face_dir.0 });
+        let _ = to_server.send(ClientToServer::Send(shot_msg));
 
-            // Spawn projectile locally
-            spawn_projectile_local(&mut commands, &mut meshes, &mut materials, pos, face_dir.0);
-        }
+        // Spawn projectile locally
+        spawn_projectile_local(&mut commands, &mut meshes, &mut materials, pos, face_dir.0);
     }
 }

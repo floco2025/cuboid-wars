@@ -18,6 +18,7 @@ pub struct HitResult {
 
 // Check if a projectile hits a player using swept sphere collision
 // Returns HitResult with hit flag and normalized direction
+#[must_use]
 pub fn check_projectile_player_hit(
     proj_pos: &Position,
     projectile: &Projectile,
@@ -38,13 +39,13 @@ pub fn check_projectile_player_hit(
     let sin_rot = player_face_dir.sin();
 
     // Current position in local space
-    let local_x = dx * cos_rot - dz * sin_rot;
-    let local_z = dx * sin_rot + dz * cos_rot;
+    let local_x = dx.mul_add(cos_rot, -(dz * sin_rot));
+    let local_z = dx.mul_add(sin_rot, dz * cos_rot);
     let local_y = proj_pos.y - (player_pos.y + PLAYER_HEIGHT / 2.0);
 
     // Ray direction in local space
-    let ray_local_x = ray_dir_x * cos_rot - ray_dir_z * sin_rot;
-    let ray_local_z = ray_dir_x * sin_rot + ray_dir_z * cos_rot;
+    let ray_local_x = ray_dir_x.mul_add(cos_rot, -(ray_dir_z * sin_rot));
+    let ray_local_z = ray_dir_x.mul_add(sin_rot, ray_dir_z * cos_rot);
     let ray_local_y = ray_dir_y;
 
     // Expanded box for swept sphere collision
@@ -83,8 +84,7 @@ pub fn check_projectile_player_hit(
     // Hit if intervals overlap
     if t_min <= t_max && t_max >= 0.0 && t_min <= 1.0 {
         // Normalize the projectile velocity to get hit direction
-        let vel_len =
-            (projectile.velocity.x * projectile.velocity.x + projectile.velocity.z * projectile.velocity.z).sqrt();
+        let vel_len = projectile.velocity.x.hypot(projectile.velocity.z);
         let hit_dir_x = if vel_len > 0.0 {
             projectile.velocity.x / vel_len
         } else {
@@ -108,6 +108,7 @@ pub fn check_projectile_player_hit(
 
 // Check if a projectile hits a wall
 // Returns true if the projectile intersects with the wall
+#[must_use]
 pub fn check_projectile_wall_hit(proj_pos: &Position, projectile: &Projectile, delta: f32, wall: &Wall) -> bool {
     // Calculate projectile movement this frame
     let ray_start_x = proj_pos.x;
@@ -160,6 +161,7 @@ pub fn check_projectile_wall_hit(proj_pos: &Position, projectile: &Projectile, d
 }
 
 // Check if a player position intersects with a wall
+#[must_use]
 pub fn check_player_wall_collision(player_pos: &Position, wall: &Wall) -> bool {
     // Player dimensions
     let player_half_width = PLAYER_WIDTH / 2.0;
@@ -185,6 +187,7 @@ pub fn check_player_wall_collision(player_pos: &Position, wall: &Wall) -> bool {
 }
 
 // Check if two players collide with each other
+#[must_use]
 pub fn check_player_player_collision(pos1: &Position, pos2: &Position) -> bool {
     // Player dimensions
     let player_half_width = PLAYER_WIDTH / 2.0;
@@ -222,7 +225,7 @@ fn slab_interval(local_coord: f32, ray_dir: f32, half_extent: f32, t_min: f32, t
     }
 }
 
-fn no_hit() -> HitResult {
+const fn no_hit() -> HitResult {
     HitResult {
         hit: false,
         hit_dir_x: 0.0,
@@ -240,6 +243,7 @@ fn ranges_overlap(a_min: f32, a_max: f32, b_min: f32, b_max: f32) -> bool {
 
 // Calculate sliding movement along a wall when a collision occurs
 // Returns the new position that slides along the wall surface
+#[must_use]
 pub fn calculate_wall_slide(
     walls: &[Wall],
     current_pos: &Position,
@@ -263,7 +267,7 @@ pub fn calculate_wall_slide(
         // Calculate which side of the wall we're on
         let to_wall_x = target_pos.x - wall.x;
         let to_wall_z = target_pos.z - wall.z;
-        let dot = to_wall_x * wall_normal_x + to_wall_z * wall_normal_z;
+        let dot = to_wall_x.mul_add(wall_normal_x, to_wall_z * wall_normal_z);
 
         // Flip normal if we're on the other side
         let (normal_x, normal_z) = if dot < 0.0 {
@@ -273,15 +277,15 @@ pub fn calculate_wall_slide(
         };
 
         // Calculate slide vector by removing the component of velocity along the normal
-        let vel_dot_normal = velocity_x * normal_x + velocity_z * normal_z;
-        let slide_vel_x = velocity_x - vel_dot_normal * normal_x;
-        let slide_vel_z = velocity_z - vel_dot_normal * normal_z;
+        let vel_dot_normal = velocity_x.mul_add(normal_x, velocity_z * normal_z);
+        let slide_vel_x = vel_dot_normal.mul_add(-normal_x, velocity_x);
+        let slide_vel_z = vel_dot_normal.mul_add(-normal_z, velocity_z);
 
         // Apply slide velocity from current position
         let slide_pos = Position {
-            x: current_pos.x + slide_vel_x * delta,
+            x: slide_vel_x.mul_add(delta, current_pos.x),
             y: current_pos.y,
-            z: current_pos.z + slide_vel_z * delta,
+            z: slide_vel_z.mul_add(delta, current_pos.z),
         };
 
         // Make sure the slide position doesn't also collide

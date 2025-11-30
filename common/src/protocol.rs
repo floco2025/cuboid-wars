@@ -33,16 +33,8 @@ struct Position {
 }
 }
 
-impl Position {
-    pub fn distance_to(&self, other: &Position) -> f32 {
-        let dx = self.x - other.x;
-        let dz = self.z - other.z;
-        (dx * dx + dz * dz).sqrt()
-    }
-}
-
 // SpeedLevel - discrete speed level.
-#[derive(Debug, Copy, Clone, PartialEq, Default)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "bincode", derive(Encode, Decode))]
 pub enum SpeedLevel {
@@ -62,6 +54,7 @@ struct Speed {
 }
 
 impl Speed {
+    #[must_use]
     pub fn to_velocity(&self) -> Velocity {
         let speed_magnitude = match self.speed_level {
             SpeedLevel::Idle => 0.0,

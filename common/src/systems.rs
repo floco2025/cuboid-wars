@@ -17,6 +17,7 @@ pub struct Projectile {
 
 impl Projectile {
     // Create a new projectile traveling along the provided facing direction.
+    #[must_use]
     pub fn new(face_dir: f32) -> Self {
         let velocity = Vec3::new(
             face_dir.sin() * PROJECTILE_SPEED,
@@ -31,11 +32,12 @@ impl Projectile {
     }
 
     // Calculate the spawn position in front of a shooter.
+    #[must_use]
     pub fn calculate_spawn_position(shooter_pos: Vec3, face_dir: f32) -> Vec3 {
         Vec3::new(
-            shooter_pos.x + face_dir.sin() * PROJECTILE_SPAWN_OFFSET,
+            face_dir.sin().mul_add(PROJECTILE_SPAWN_OFFSET, shooter_pos.x),
             PROJECTILE_SPAWN_HEIGHT,
-            shooter_pos.z + face_dir.cos() * PROJECTILE_SPAWN_OFFSET,
+            face_dir.cos().mul_add(PROJECTILE_SPAWN_OFFSET, shooter_pos.z),
         )
     }
 }
@@ -53,7 +55,7 @@ pub fn projectiles_system(
     let delta_seconds = time.delta_secs();
     let frame_time = time.delta();
 
-    for (entity, mut pos, mut projectile) in projectile_query.iter_mut() {
+    for (entity, mut pos, mut projectile) in &mut projectile_query {
         pos.x += projectile.velocity.x * delta_seconds;
         pos.y += projectile.velocity.y * delta_seconds;
         pos.z += projectile.velocity.z * delta_seconds;

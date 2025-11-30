@@ -160,7 +160,7 @@ pub fn spawn_wall(
     ));
 }
 
-fn player_color(is_local: bool) -> Color {
+const fn player_color(is_local: bool) -> Color {
     if is_local {
         Color::srgb(0.3, 0.3, 1.0)
     } else {
@@ -168,7 +168,7 @@ fn player_color(is_local: bool) -> Color {
     }
 }
 
-fn player_visibility(is_local: bool) -> Visibility {
+const fn player_visibility(is_local: bool) -> Visibility {
     if is_local {
         Visibility::Hidden
     } else {

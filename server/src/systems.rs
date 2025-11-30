@@ -74,7 +74,7 @@ fn generate_spawn_position(wall_config: &WallConfig) -> Position {
 }
 
 fn broadcast_to_logged_in(players: &PlayerMap, skip: PlayerId, message: ServerMessage) {
-    for (other_id, other_info) in players.0.iter() {
+    for (other_id, other_info) in &players.0 {
         if *other_id != skip && other_info.logged_in {
             let _ = other_info.channel.send(ServerToClient::Send(message.clone()));
         }
@@ -225,7 +225,7 @@ fn process_message_not_logged_in(
                 let player_name = if login.name.is_empty() {
                     format!("Player {}", id.0)
                 } else {
-                    login.name.clone()
+                    login.name
                 };
                 player_info.name = player_name.clone();
 
@@ -274,7 +274,7 @@ fn process_message_not_logged_in(
             };
 
             // Construct the initial Update for the new player
-            let mut all_players = snapshot_logged_in_players(&players, positions, speeds, face_dirs)
+            let mut all_players = snapshot_logged_in_players(players, positions, speeds, face_dirs)
                 .into_iter()
                 .filter(|(player_id, _)| *player_id != id)
                 .collect::<Vec<_>>();
@@ -290,7 +290,7 @@ fn process_message_not_logged_in(
 
             // Broadcast Login to all other logged-in players
             let login_msg = SLogin { id, player };
-            broadcast_to_logged_in(&players, id, ServerMessage::Login(login_msg));
+            broadcast_to_logged_in(players, id, ServerMessage::Login(login_msg));
         }
         _ => {
             warn!(
@@ -320,7 +320,7 @@ fn process_message_logged_in(
             commands.entity(entity).despawn();
 
             // Broadcast graceful logoff to all other players
-            broadcast_to_logged_in(&players, id, ServerMessage::Logoff(SLogoff { id, graceful: true }));
+            broadcast_to_logged_in(players, id, ServerMessage::Logoff(SLogoff { id, graceful: true }));
         }
         ClientMessage::Speed(msg) => {
             trace!("{:?} speed: {:?}", id, msg);
@@ -332,7 +332,7 @@ fn process_message_logged_in(
         }
         ClientMessage::Shot(msg) => {
             debug!("{id:?} shot");
-            handle_shot(commands, entity, id, msg, players, &positions);
+            handle_shot(commands, entity, id, msg, players, positions);
         }
         ClientMessage::Echo(msg) => {
             trace!("{:?} echo: {:?}", id, msg);
@@ -517,14 +517,14 @@ pub fn server_movement_system(
     for (entity, pos, speed) in query.iter() {
         // Convert Speed to Velocity
         let velocity = speed.to_velocity();
-        let speed = (velocity.x * velocity.x + velocity.z * velocity.z).sqrt();
+        let speed = velocity.x.hypot(velocity.z);
 
         if speed > 0.0 {
             // Calculate new position
             let new_pos = Position {
-                x: pos.x + velocity.x * delta,
+                x: velocity.x.mul_add(delta, pos.x),
                 y: pos.y,
-                z: pos.z + velocity.z * delta,
+                z: velocity.z.mul_add(delta, pos.z),
             };
 
             // Check if new position collides with any wall
@@ -537,7 +537,7 @@ pub fn server_movement_system(
             if collides_with_wall {
                 let slide_pos = common::collision::calculate_wall_slide(
                     &wall_config.walls,
-                    &pos,
+                    pos,
                     &new_pos,
                     velocity.x,
                     velocity.z,

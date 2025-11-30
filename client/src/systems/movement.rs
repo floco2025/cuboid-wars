@@ -59,7 +59,7 @@ pub fn client_movement_system(
     let entity_positions: Vec<(Entity, Position)> =
         query.iter().map(|(entity, pos, _, _, _, _)| (entity, *pos)).collect();
 
-    for (entity, mut pos, velocity, mut flash_state, mut server_snapshot, is_local) in query.iter_mut() {
+    for (entity, mut pos, velocity, mut flash_state, mut server_snapshot, is_local) in &mut query {
         if let Some(state) = flash_state.as_mut() {
             decay_flash_timer(state, delta, is_local, &mut bump_flash_ui);
         }
@@ -76,9 +76,9 @@ pub fn client_movement_system(
             }
 
             Position {
-                x: pos.x + velocity.x * delta + dx,
+                x: velocity.x.mul_add(delta, pos.x) + dx,
                 y: pos.y,
-                z: pos.z + velocity.z * delta + dz,
+                z: velocity.z.mul_add(delta, pos.z) + dz,
             }
         } else {
             if !has_horizontal_velocity(velocity) {
@@ -89,9 +89,9 @@ pub fn client_movement_system(
             }
 
             Position {
-                x: pos.x + velocity.x * delta,
+                x: velocity.x.mul_add(delta, pos.x),
                 y: pos.y,
-                z: pos.z + velocity.z * delta,
+                z: velocity.z.mul_add(delta, pos.z),
             }
         };
 
@@ -115,17 +115,13 @@ pub fn client_movement_system(
             );
             *pos = slide_pos;
 
-            if is_local {
-                if let Some(state) = flash_state.as_mut() {
-                    trigger_collision_feedback(&mut commands, &asset_server, &mut bump_flash_ui, state, true);
-                }
+            if is_local && let Some(state) = flash_state.as_mut() {
+                trigger_collision_feedback(&mut commands, &asset_server, &mut bump_flash_ui, state, true);
             }
         } else if hit_player {
             // Stop for player collisions
-            if is_local {
-                if let Some(state) = flash_state.as_mut() {
-                    trigger_collision_feedback(&mut commands, &asset_server, &mut bump_flash_ui, state, false);
-                }
+            if is_local && let Some(state) = flash_state.as_mut() {
+                trigger_collision_feedback(&mut commands, &asset_server, &mut bump_flash_ui, state, false);
             }
         }
     }
@@ -166,11 +162,12 @@ fn decay_flash_timer(
     }
 
     state.flash_timer -= delta;
-    if state.flash_timer <= 0.0 && is_local {
-        if let Some((mut bg_color, mut visibility)) = bump_flash_ui.iter_mut().next() {
-            *visibility = Visibility::Hidden;
-            bg_color.0 = Color::srgba(1.0, 1.0, 1.0, 0.0);
-        }
+    if state.flash_timer <= 0.0
+        && is_local
+        && let Some((mut bg_color, mut visibility)) = bump_flash_ui.iter_mut().next()
+    {
+        *visibility = Visibility::Hidden;
+        bg_color.0 = Color::srgba(1.0, 1.0, 1.0, 0.0);
     }
 }
 

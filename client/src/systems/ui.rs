@@ -55,7 +55,7 @@ pub fn setup_world_system(
 
     // Vertical grid lines (along X axis, varying Z position)
     for i in 0..=GRID_ROWS {
-        let z_pos = (i as f32 * GRID_SIZE) - FIELD_DEPTH / 2.0;
+        let z_pos = (i as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
         commands.spawn((
             Mesh3d(meshes.add(Cuboid::new(FIELD_WIDTH, line_height, WALL_WIDTH))),
             MeshMaterial3d(grid_material.clone()),
@@ -65,7 +65,7 @@ pub fn setup_world_system(
 
     // Horizontal grid lines (along Z axis, varying X position)
     for i in 0..=GRID_COLS {
-        let x_pos = (i as f32 * GRID_SIZE) - FIELD_WIDTH / 2.0;
+        let x_pos = (i as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
         commands.spawn((
             Mesh3d(meshes.add(Cuboid::new(WALL_WIDTH, line_height, FIELD_DEPTH))),
             MeshMaterial3d(grid_material.clone()),
@@ -226,7 +226,7 @@ pub fn update_player_list_system(
     let existing_map: HashMap<PlayerId, (Entity, Vec<Entity>)> = existing_entries
         .iter()
         .map(|(entity, entry, children)| {
-            let child_entities = children.iter().map(|child| child).collect::<Vec<_>>();
+            let child_entities = children.iter().collect::<Vec<_>>();
             (entry.0, (entity, child_entities))
         })
         .collect();
@@ -364,13 +364,13 @@ fn spawn_player_entry(commands: &mut Commands, player_id: PlayerId, name: &str, 
 
 fn format_signed_hits(hits: i32) -> String {
     if hits >= 0 {
-        format!("+{}", hits)
+        format!("+{hits}")
     } else {
         hits.to_string()
     }
 }
 
-fn hit_value_color(hits: i32) -> Color {
+const fn hit_value_color(hits: i32) -> Color {
     if hits > 0 {
         Color::srgb(0.3, 0.6, 1.0)
     } else if hits < 0 {

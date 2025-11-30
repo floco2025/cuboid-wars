@@ -38,7 +38,7 @@ pub fn apply_camera_shake_system(
     time: Res<Time>,
     mut camera_query: Query<(Entity, &mut CameraShake), With<Camera3d>>,
 ) {
-    for (entity, mut shake) in camera_query.iter_mut() {
+    for (entity, mut shake) in &mut camera_query {
         update_camera_shake(&mut commands, entity, time.delta(), &mut shake);
     }
 }
@@ -49,7 +49,7 @@ pub fn apply_cuboid_shake_system(
     time: Res<Time>,
     mut cuboid_query: Query<(Entity, &mut CuboidShake)>,
 ) {
-    for (entity, mut shake) in cuboid_query.iter_mut() {
+    for (entity, mut shake) in &mut cuboid_query {
         update_cuboid_shake(&mut commands, entity, time.delta(), &mut shake);
     }
 }

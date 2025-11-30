@@ -26,7 +26,7 @@ pub fn sync_camera_to_player_system(
         return;
     };
 
-    for (mut camera_transform, maybe_shake) in camera_query.iter_mut() {
+    for (mut camera_transform, maybe_shake) in &mut camera_query {
         match *view_mode {
             CameraViewMode::FirstPerson => {
                 camera_transform.translation.x = player_pos.x;
@@ -51,7 +51,7 @@ pub fn sync_camera_to_player_system(
 
 // Update Transform from Position component for rendering
 pub fn sync_position_to_transform_system(mut query: Query<(&Position, &mut Transform, Option<&CuboidShake>)>) {
-    for (pos, mut transform, maybe_shake) in query.iter_mut() {
+    for (pos, mut transform, maybe_shake) in &mut query {
         // Base position
         transform.translation.x = pos.x;
         transform.translation.y = PLAYER_HEIGHT / 2.0; // Lift so bottom is at ground (y=0)
@@ -67,7 +67,7 @@ pub fn sync_position_to_transform_system(mut query: Query<(&Position, &mut Trans
 
 // Update player cuboid rotation from stored face direction component
 pub fn sync_face_to_transform_system(mut query: Query<(&FaceDirection, &mut Transform), Without<Camera3d>>) {
-    for (face_dir, mut transform) in query.iter_mut() {
+    for (face_dir, mut transform) in &mut query {
         transform.rotation = Quat::from_rotation_y(face_dir.0);
     }
 }
@@ -78,7 +78,7 @@ pub fn sync_projectiles_system(
     time: Res<Time>,
     mut projectile_query: Query<(Entity, &mut Transform, &mut Projectile)>,
 ) {
-    for (entity, mut transform, mut projectile) in projectile_query.iter_mut() {
+    for (entity, mut transform, mut projectile) in &mut projectile_query {
         projectile.lifetime.tick(time.delta());
         if projectile.lifetime.is_finished() {
             commands.entity(entity).despawn();
@@ -94,7 +94,7 @@ pub fn sync_local_player_visibility_system(
     mut local_player_query: Query<(Entity, &mut Visibility, Has<Mesh3d>), With<LocalPlayer>>,
 ) {
     // Always check and update, not just when changed, to ensure it's correct
-    for (entity, mut visibility, has_mesh) in local_player_query.iter_mut() {
+    for (entity, mut visibility, has_mesh) in &mut local_player_query {
         if view_mode.is_changed() {
             debug!(
                 "Local player {:?} has_mesh={} current_visibility={:?} view_mode={:?}",
@@ -128,7 +128,7 @@ pub fn billboard_player_id_text_system(
 
     let camera_pos = camera_transform.translation();
 
-    for (global_transform, mut transform) in text_mesh_query.iter_mut() {
+    for (global_transform, mut transform) in &mut text_mesh_query {
         let text_pos = global_transform.translation();
         // Calculate direction to camera on XZ plane only (keep Y upright)
         let direction = Vec3::new(camera_pos.x - text_pos.x, 0.0, camera_pos.z - text_pos.z);

@@ -46,7 +46,7 @@ async fn main() -> Result<()> {
     let addr: SocketAddr = args.bind.parse()?;
     let server_config = configure_server()?;
     let endpoint = Endpoint::server(server_config, addr)?;
-    println!("quic server listening on {}", addr);
+    println!("quic server listening on {addr}");
 
     // Channel for sending from the accept connections task to the server
     let (to_server_from_accept, from_accept) = unbounded_channel();
