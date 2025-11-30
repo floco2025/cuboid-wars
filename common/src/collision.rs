@@ -264,7 +264,7 @@ pub fn calculate_wall_slide(
         let to_wall_x = target_pos.x - wall.x;
         let to_wall_z = target_pos.z - wall.z;
         let dot = to_wall_x * wall_normal_x + to_wall_z * wall_normal_z;
-        
+
         // Flip normal if we're on the other side
         let (normal_x, normal_z) = if dot < 0.0 {
             (-wall_normal_x, -wall_normal_z)

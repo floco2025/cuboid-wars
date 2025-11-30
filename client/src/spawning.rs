@@ -300,7 +300,11 @@ pub fn spawn_player_id_display(
                 unlit: true,
                 ..default()
             })),
-            Transform::from_xyz(0.0, PLAYER_HEIGHT / 2.0 + LABEL_HEIGHT_ABOVE_PLAYER + LABEL_HEIGHT / 2.0, 0.0),
+            Transform::from_xyz(
+                0.0,
+                PLAYER_HEIGHT / 2.0 + LABEL_HEIGHT_ABOVE_PLAYER + LABEL_HEIGHT / 2.0,
+                0.0,
+            ),
             PlayerIdTextMesh,
         ))
         .id();

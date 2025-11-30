@@ -137,7 +137,7 @@ pub fn billboard_player_id_text_system(
         if direction.length_squared() > 0.0001 {
             // Calculate world rotation needed to face camera
             let world_rotation = Quat::from_rotation_y(direction.x.atan2(direction.z));
-            
+
             // Get the combined parent rotation from global transform
             let global_rotation = global_transform.to_scale_rotation_translation().1;
             // Extract just the Y rotation from global
@@ -146,7 +146,7 @@ pub fn billboard_player_id_text_system(
             let local_y_angle = transform.rotation.to_euler(EulerRot::YXZ).0;
             // Parent Y rotation is the difference
             let parent_y_angle = global_y_angle - local_y_angle;
-            
+
             // Calculate new local rotation that compensates for parent
             let world_y_angle = world_rotation.to_euler(EulerRot::YXZ).0;
             let new_local_y_angle = world_y_angle - parent_y_angle;
