@@ -62,12 +62,14 @@ pub fn client_movement_system(
             decay_flash_timer(state, delta, is_local, &mut bump_flash_ui);
         }
 
+        const CORRECTION_INTERVAL: f32 = UPDATE_BROADCAST_INTERVAL * 0.9;
+
         let target_pos = if let Some(snapshot) = server_snapshot.as_mut() {
-            let dx = (snapshot.server_pos.x - snapshot.client_pos.x) * delta / UPDATE_BROADCAST_INTERVAL;
-            let dz = (snapshot.server_pos.x - snapshot.client_pos.x) * delta / UPDATE_BROADCAST_INTERVAL;
+            let dx = (snapshot.server_pos.x - snapshot.client_pos.x) * delta / CORRECTION_INTERVAL;
+            let dz = (snapshot.server_pos.z - snapshot.client_pos.z) * delta / CORRECTION_INTERVAL;
 
             snapshot.timer += delta;
-            if snapshot.timer >= UPDATE_BROADCAST_INTERVAL {
+            if snapshot.timer >= CORRECTION_INTERVAL {
                 commands.entity(entity).remove::<ServerSnapshot>();
             }
 

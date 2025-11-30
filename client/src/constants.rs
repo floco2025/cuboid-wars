@@ -16,12 +16,12 @@ pub const TOPDOWN_LOOKAT_Z: f32 = 8.5; // Z coordinate camera looks at
 pub const MOUSE_SENSITIVITY: f32 = 0.002;
 
 // For throtteling speed updates to the server
-pub const SPEED_MAX_SEND_INTERVAL: f32 = 0.1; // Send updates at most every 100ms
-pub const SPEED_DIR_CHANGE_THRESHOLD: f32 = 0.05; // ~3 degrees
+pub const SPEED_MAX_SEND_INTERVAL: f32 = 0.05; // seconds
+pub const SPEED_DIR_CHANGE_THRESHOLD: f32 = 1.0; // degrees
 
 // For throtteling face updates to the server
-pub const FACE_MAX_SEND_INTERVAL: f32 = 0.01; // Send updates at most every 10ms
-pub const FACE_CHANGE_THRESHOLD: f32 = 0.005; // ~0.3 degrees
+pub const FACE_MAX_SEND_INTERVAL: f32 = 0.1; // seconds
+pub const FACE_CHANGE_THRESHOLD: f32 = 2.0; // degrees
 
 // Echo request for RTT calculations in seconds
 pub const ECHO_INTERVAL: f32 = 10.0;

@@ -153,7 +153,7 @@ pub fn input_system(
     *last_send_face_time += delta;
 
     let speed_level_changed = last_sent_speed.speed_level != speed.speed_level;
-    let move_dir_changed = (speed.move_dir - last_sent_speed.move_dir).abs() > SPEED_DIR_CHANGE_THRESHOLD;
+    let move_dir_changed = (speed.move_dir - last_sent_speed.move_dir).abs() > SPEED_DIR_CHANGE_THRESHOLD.to_radians();
     if speed_level_changed || (move_dir_changed && *last_send_speed_time >= SPEED_MAX_SEND_INTERVAL) {
         let msg = ClientMessage::Speed(CSpeed { speed });
         let _ = to_server.send(ClientToServer::Send(msg));
@@ -161,7 +161,7 @@ pub fn input_system(
         *last_send_speed_time = 0.0;
     }
 
-    let face_changed = (face_yaw - *last_sent_face).abs() > FACE_CHANGE_THRESHOLD;
+    let face_changed = (face_yaw - *last_sent_face).abs() > FACE_CHANGE_THRESHOLD.to_radians();
     if face_changed && *last_send_face_time >= FACE_MAX_SEND_INTERVAL {
         let msg = ClientMessage::Face(CFace { dir: face_yaw });
         let _ = to_server.send(ClientToServer::Send(msg));
