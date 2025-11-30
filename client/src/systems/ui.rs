@@ -403,12 +403,13 @@ fn spawn_player_entry(commands: &mut Commands, player_id: PlayerId, name: &str, 
             // Add item indicators
             for item_type in items {
                 row.spawn((
-                    Text::new("●"),
-                    TextFont {
-                        font_size: 20.0,
+                    Node {
+                        width: Val::Px(12.0),
+                        height: Val::Px(12.0),
+                        align_self: AlignSelf::Center,
                         ..default()
                     },
-                    TextColor(item_type_color(*item_type)),
+                    BackgroundColor(item_type_color(*item_type)),
                 ));
             }
         })
