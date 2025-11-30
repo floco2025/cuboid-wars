@@ -119,6 +119,7 @@ fn process_message_logged_in(
             materials,
             images,
             players,
+            rtt,
             player_query,
             camera_query,
             my_player_id,
@@ -206,6 +207,7 @@ fn handle_update_message(
     materials: &mut ResMut<Assets<StandardMaterial>>,
     images: &mut ResMut<Assets<Image>>,
     players: &mut ResMut<PlayerMap>,
+    rtt: &ResMut<RoundTripTime>,
     player_query: &Query<&Position, With<PlayerId>>,
     camera_query: &Query<Entity, With<Camera3d>>,
     my_player_id: PlayerId,
@@ -270,13 +272,12 @@ fn handle_update_message(
     for (id, server_player) in &msg.players {
         if let Some(client_player) = players.0.get_mut(id) {
             if let Ok(client_pos) = player_query.get(client_player.entity) {
-                let server_vel = server_player.speed.to_velocity();
-
                 commands.entity(client_player.entity).insert(ServerReconciliation {
                     client_pos: *client_pos,
                     server_pos: server_player.pos,
-                    server_vel,
+                    server_vel: server_player.speed.to_velocity(),
                     timer: 0.0,
+                    rtt: rtt.rtt.as_secs_f32(),
                 });
             }
 

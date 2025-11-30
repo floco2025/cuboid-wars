@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::resources::{RoundTripTime, WallConfig};
+use crate::resources::WallConfig;
 use common::{
     constants::UPDATE_BROADCAST_INTERVAL,
     protocol::{Position, Velocity},
@@ -28,6 +28,7 @@ pub struct ServerReconciliation {
     pub server_pos: Position,
     pub server_vel: Velocity,
     pub timer: f32,
+    pub rtt: f32,
 }
 
 // ============================================================================
@@ -51,7 +52,6 @@ type MovementQuery<'w, 's> = Query<
 pub fn client_movement_system(
     mut commands: Commands,
     time: Res<Time>,
-    rtt: Res<RoundTripTime>,
     asset_server: Res<AssetServer>,
     wall_config: Option<Res<WallConfig>>,
     mut query: MovementQuery,
@@ -63,41 +63,41 @@ pub fn client_movement_system(
     let entity_positions: Vec<(Entity, Position)> =
         query.iter().map(|(entity, pos, _, _, _, _)| (entity, *pos)).collect();
 
-    for (entity, mut pos, velocity, mut flash_state, mut server_snapshot, is_local) in &mut query {
+    for (entity, mut client_pos, client_vel, mut flash_state, mut server_snapshot, is_local) in &mut query {
         if let Some(state) = flash_state.as_mut() {
             decay_flash_timer(state, delta, is_local, &mut bump_flash_ui);
         }
 
-        let target_pos = if let Some(snapshot) = server_snapshot.as_mut() {
-            let rtt = rtt.rtt.as_secs_f32();
-            let mut vel_correction = (UPDATE_BROADCAST_INTERVAL - rtt / 2.0) / UPDATE_BROADCAST_INTERVAL;
-            if vel_correction < 0.0 {
-                vel_correction = 0.0;
+        let target_pos = if let Some(recon) = server_snapshot.as_mut() {
+            // recon.timer += delta;
+            // if recon.timer >= UPDATE_BROADCAST_INTERVAL {
+            //     commands.entity(entity).remove::<ServerReconciliation>();
+            // }
+
+            let mut correction_factor = UPDATE_BROADCAST_INTERVAL / 5.0;
+            if correction_factor > 1.0 {
+                correction_factor = 1.0;
             }
 
-            dbg!(vel_correction);
+            let server_pos_x = recon.server_pos.x + recon.server_vel.x * recon.rtt / 2.0;
+            let server_pos_z = recon.server_pos.z + recon.server_vel.z * recon.rtt / 2.0;
 
-            let server_pos_x = snapshot.server_pos.x + snapshot.server_vel.x * rtt / 2.0;
-            let server_pos_z = snapshot.server_pos.z + snapshot.server_vel.z * rtt / 2.0;
+            let total_dx = server_pos_x - recon.client_pos.x;
+            let total_dz = server_pos_z - recon.client_pos.z;
 
-            let dx = (server_pos_x - snapshot.client_pos.x) * delta / UPDATE_BROADCAST_INTERVAL;
-            let dz = (server_pos_z - snapshot.client_pos.z) * delta / UPDATE_BROADCAST_INTERVAL;
-
-            snapshot.timer += delta;
-            if snapshot.timer >= UPDATE_BROADCAST_INTERVAL {
-                commands.entity(entity).remove::<ServerReconciliation>();
-            }
+            let dx = total_dx * delta / UPDATE_BROADCAST_INTERVAL * correction_factor;
+            let dz = total_dz * delta / UPDATE_BROADCAST_INTERVAL * correction_factor;
 
             Position {
-                x: velocity.x.mul_add(delta * vel_correction, pos.x) + dx,
-                y: pos.y,
-                z: velocity.z.mul_add(delta * vel_correction, pos.z) + dz,
+                x: client_vel.x.mul_add(delta, client_pos.x) + dx,
+                y: client_pos.y,
+                z: client_vel.z.mul_add(delta, client_pos.z) + dz,
             }
         } else {
             Position {
-                x: velocity.x.mul_add(delta, pos.x),
-                y: pos.y,
-                z: velocity.z.mul_add(delta, pos.z),
+                x: client_vel.x.mul_add(delta, client_pos.x),
+                y: client_pos.y,
+                z: client_vel.z.mul_add(delta, client_pos.z),
             }
         };
 
@@ -105,7 +105,7 @@ pub fn client_movement_system(
         let hit_player = hits_other_player(entity, &target_pos, &entity_positions);
 
         if !hit_wall && !hit_player {
-            *pos = target_pos;
+            *client_pos = target_pos;
             if let Some(state) = flash_state.as_mut() {
                 state.was_colliding = false;
             }
@@ -113,13 +113,13 @@ pub fn client_movement_system(
             // Slide along the wall instead of stopping
             let slide_pos = common::collision::calculate_wall_slide(
                 &walls.expect("walls should exist if hit_wall is true").walls,
-                &pos,
+                &client_pos,
                 &target_pos,
-                velocity.x,
-                velocity.z,
+                client_vel.x,
+                client_vel.z,
                 delta,
             );
-            *pos = slide_pos;
+            *client_pos = slide_pos;
 
             if is_local && let Some(state) = flash_state.as_mut() {
                 trigger_collision_feedback(&mut commands, &asset_server, &mut bump_flash_ui, state, true);
