@@ -89,9 +89,7 @@ fn process_message_not_logged_in(msg: &ServerMessage, commands: &mut Commands) {
             // all players including ourselves and will trigger spawning via the
             // Update message handler.
         }
-        _ => {
-            warn!("received non-Init message before Init (out-of-order delivery)");
-        }
+        _ => {}
     }
 }
 
@@ -176,8 +174,6 @@ fn handle_speed_message(commands: &mut Commands, players: &ResMut<PlayerMap>, ms
     trace!("{:?} speed: {:?}", msg.id, msg);
     if let Some(player) = players.0.get(&msg.id) {
         commands.entity(player.entity).insert(msg.speed.to_velocity());
-    } else {
-        warn!("received speed for non-existent player {:?}", msg.id);
     }
 }
 
@@ -185,8 +181,6 @@ fn handle_face_message(commands: &mut Commands, players: &ResMut<PlayerMap>, msg
     trace!("{:?} face direction: {}", msg.id, msg.dir);
     if let Some(player) = players.0.get(&msg.id) {
         commands.entity(player.entity).insert(FaceDirection(msg.dir));
-    } else {
-        warn!("received face direction for non-existent player {:?}", msg.id);
     }
 }
 
@@ -202,8 +196,6 @@ fn handle_shot_message(
     if let Some(player) = players.0.get(&msg.id) {
         commands.entity(player.entity).insert(FaceDirection(msg.face_dir));
         spawn_projectile_for_player(commands, meshes, materials, player_face_query, player.entity);
-    } else {
-        warn!("received shot from non-existent player {:?}", msg.id);
     }
 }
 
@@ -272,7 +264,6 @@ fn handle_update_message(
 
     for id in stale_ids {
         if let Some(player) = players.0.remove(&id) {
-            warn!("despawning player {:?} from Update", id);
             commands.entity(player.entity).despawn();
         }
     }
