@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use std::time::Duration;
 
 use crate::resources::{RoundTripTime, WallConfig};
 use common::{
@@ -24,12 +23,10 @@ pub struct BumpFlashState {
 
 // Server's authoritative snapshot for this entity
 #[derive(Component)]
-pub struct ServerSnapshot {
+pub struct ServerReconciliation {
     pub client_pos: Position,
-    pub client_vel: Velocity,
     pub server_pos: Position,
     pub server_vel: Velocity,
-    pub received_at: Duration,
     pub timer: f32,
 }
 
@@ -45,7 +42,7 @@ type MovementQuery<'w, 's> = Query<
         &'static mut Position,
         &'static Velocity,
         Option<&'static mut BumpFlashState>,
-        Option<&'static mut ServerSnapshot>,
+        Option<&'static mut ServerReconciliation>,
         Has<LocalPlayer>,
     ),
 >;
@@ -88,7 +85,7 @@ pub fn client_movement_system(
 
             snapshot.timer += delta;
             if snapshot.timer >= UPDATE_BROADCAST_INTERVAL {
-                commands.entity(entity).remove::<ServerSnapshot>();
+                commands.entity(entity).remove::<ServerReconciliation>();
             }
 
             Position {

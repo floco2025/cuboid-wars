@@ -3,7 +3,7 @@ use std::{collections::HashSet, time::Duration};
 
 use super::{
     effects::{CameraShake, CuboidShake},
-    movement::ServerSnapshot,
+    movement::ServerReconciliation,
 };
 use crate::{
     constants::ECHO_INTERVAL,
@@ -29,7 +29,7 @@ pub fn process_server_events_system(
     mut images: ResMut<Assets<Image>>,
     mut player_map: ResMut<PlayerMap>,
     mut rtt: ResMut<RoundTripTime>,
-    player_query: Query<(&Position, &Velocity), With<PlayerId>>,
+    player_query: Query<&Position, With<PlayerId>>,
     player_face_query: Query<(&Position, &FaceDirection), With<PlayerId>>,
     camera_query: Query<Entity, With<Camera3d>>,
     my_player_id: Option<Res<MyPlayerId>>,
@@ -97,7 +97,7 @@ fn process_message_logged_in(
     images: &mut ResMut<Assets<Image>>,
     players: &mut ResMut<PlayerMap>,
     rtt: &mut ResMut<RoundTripTime>,
-    player_query: &Query<(&Position, &Velocity), With<PlayerId>>,
+    player_query: &Query<&Position, With<PlayerId>>,
     player_face_query: &Query<(&Position, &FaceDirection), With<PlayerId>>,
     camera_query: &Query<Entity, With<Camera3d>>,
     time: &Res<Time>,
@@ -123,7 +123,6 @@ fn process_message_logged_in(
             camera_query,
             my_player_id,
             update_msg,
-            time,
         ),
         ServerMessage::Hit(hit_msg) => handle_hit_message(commands, players, camera_query, my_player_id, hit_msg),
         ServerMessage::Echo(echo_msg) => handle_echo_message(time, rtt, echo_msg),
@@ -207,11 +206,10 @@ fn handle_update_message(
     materials: &mut ResMut<Assets<StandardMaterial>>,
     images: &mut ResMut<Assets<Image>>,
     players: &mut ResMut<PlayerMap>,
-    player_query: &Query<(&Position, &Velocity), With<PlayerId>>,
+    player_query: &Query<&Position, With<PlayerId>>,
     camera_query: &Query<Entity, With<Camera3d>>,
     my_player_id: PlayerId,
     msg: &SUpdate,
-    time: &Time,
 ) {
     // Track which players the server knows about in this snapshot
     let update_ids: HashSet<PlayerId> = msg.players.iter().map(|(id, _)| *id).collect();
@@ -269,20 +267,15 @@ fn handle_update_message(
         }
     }
 
-    // Apply the server's latest transform/velocity, logging desync for the local player
-    let now = time.elapsed();
-
     for (id, server_player) in &msg.players {
         if let Some(client_player) = players.0.get_mut(id) {
-            if let Ok((client_pos, client_vel)) = player_query.get(client_player.entity) {
+            if let Ok(client_pos) = player_query.get(client_player.entity) {
                 let server_vel = server_player.speed.to_velocity();
 
-                commands.entity(client_player.entity).insert(ServerSnapshot {
+                commands.entity(client_player.entity).insert(ServerReconciliation {
                     client_pos: *client_pos,
-                    client_vel: *client_vel,
                     server_pos: server_player.pos,
                     server_vel,
-                    received_at: now,
                     timer: 0.0,
                 });
             }
