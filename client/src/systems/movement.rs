@@ -98,16 +98,35 @@ pub fn client_movement_system(
 
         let hit_wall = hits_wall(walls, &target_pos);
         let hit_player = hits_other_player(entity, &target_pos, &entity_positions);
-        let blocked = hit_wall || hit_player;
 
-        if !blocked {
+        if !hit_wall && !hit_player {
             *pos = target_pos;
             if let Some(state) = flash_state.as_mut() {
                 state.was_colliding = false;
             }
-        } else if is_local {
-            if let Some(state) = flash_state.as_mut() {
-                trigger_collision_feedback(&mut commands, &asset_server, &mut bump_flash_ui, state, hit_wall);
+        } else if hit_wall {
+            // Slide along the wall instead of stopping
+            let slide_pos = common::collision::calculate_wall_slide(
+                &walls.unwrap().walls,
+                &pos,
+                &target_pos,
+                velocity.x,
+                velocity.z,
+                delta,
+            );
+            *pos = slide_pos;
+            
+            if is_local {
+                if let Some(state) = flash_state.as_mut() {
+                    trigger_collision_feedback(&mut commands, &asset_server, &mut bump_flash_ui, state, true);
+                }
+            }
+        } else if hit_player {
+            // Stop for player collisions
+            if is_local {
+                if let Some(state) = flash_state.as_mut() {
+                    trigger_collision_feedback(&mut commands, &asset_server, &mut bump_flash_ui, state, false);
+                }
             }
         }
     }

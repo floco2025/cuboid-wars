@@ -513,7 +513,7 @@ pub fn server_movement_system(
 ) {
     let delta = time.delta_secs();
 
-    // Pass 1: Calculate all intended new positions (after wall collision check)
+    // Pass 1: Calculate all intended new positions (after wall collision check with sliding)
     let mut intended_positions: Vec<(Entity, Position)> = Vec::new();
 
     for (entity, pos, speed) in query.iter() {
@@ -535,9 +535,17 @@ pub fn server_movement_system(
                 .iter()
                 .any(|wall| check_player_wall_collision(&new_pos, wall));
 
-            // Store intended position (old if wall collision, new otherwise)
+            // Store intended position (slide along wall if collision, new otherwise)
             if collides_with_wall {
-                intended_positions.push((entity, *pos));
+                let slide_pos = common::collision::calculate_wall_slide(
+                    &wall_config.walls,
+                    &pos,
+                    &new_pos,
+                    velocity.x,
+                    velocity.z,
+                    delta,
+                );
+                intended_positions.push((entity, slide_pos));
             } else {
                 intended_positions.push((entity, new_pos));
             }

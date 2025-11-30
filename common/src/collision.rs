@@ -233,3 +233,66 @@ fn no_hit() -> HitResult {
 fn ranges_overlap(a_min: f32, a_max: f32, b_min: f32, b_max: f32) -> bool {
     a_max > b_min && a_min < b_max
 }
+
+// ============================================================================
+// Wall Sliding
+// ============================================================================
+
+// Calculate sliding movement along a wall when a collision occurs
+// Returns the new position that slides along the wall surface
+pub fn calculate_wall_slide(
+    walls: &[Wall],
+    current_pos: &Position,
+    target_pos: &Position,
+    velocity_x: f32,
+    velocity_z: f32,
+    delta: f32,
+) -> Position {
+    // Find which wall we're hitting
+    for wall in walls {
+        if !check_player_wall_collision(target_pos, wall) {
+            continue;
+        }
+
+        // Get wall normal based on orientation
+        let (wall_normal_x, wall_normal_z) = match wall.orientation {
+            WallOrientation::Horizontal => (0.0, 1.0), // Normal points along Z
+            WallOrientation::Vertical => (1.0, 0.0),   // Normal points along X
+        };
+
+        // Calculate which side of the wall we're on
+        let to_wall_x = target_pos.x - wall.x;
+        let to_wall_z = target_pos.z - wall.z;
+        let dot = to_wall_x * wall_normal_x + to_wall_z * wall_normal_z;
+        
+        // Flip normal if we're on the other side
+        let (normal_x, normal_z) = if dot < 0.0 {
+            (-wall_normal_x, -wall_normal_z)
+        } else {
+            (wall_normal_x, wall_normal_z)
+        };
+
+        // Calculate slide vector by removing the component of velocity along the normal
+        let vel_dot_normal = velocity_x * normal_x + velocity_z * normal_z;
+        let slide_vel_x = velocity_x - vel_dot_normal * normal_x;
+        let slide_vel_z = velocity_z - vel_dot_normal * normal_z;
+
+        // Apply slide velocity from current position
+        let slide_pos = Position {
+            x: current_pos.x + slide_vel_x * delta,
+            y: current_pos.y,
+            z: current_pos.z + slide_vel_z * delta,
+        };
+
+        // Make sure the slide position doesn't also collide
+        if !check_player_wall_collision(&slide_pos, wall) {
+            return slide_pos;
+        }
+
+        // If it still collides, just return current position
+        return *current_pos;
+    }
+
+    // No collision found (shouldn't happen), return target
+    *target_pos
+}
