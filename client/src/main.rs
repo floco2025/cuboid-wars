@@ -33,7 +33,7 @@ use common::protocol::*;
 // ============================================================================
 
 #[derive(Parser, Debug)]
-#[command(author, version, about = "Game client", long_about = None)]
+#[command(author, version, about = "Cuboid Wars", long_about = None)]
 struct Args {
     // Server address to connect to
     #[arg(short, long, default_value = "127.0.0.1:8080")]
@@ -189,7 +189,7 @@ fn asset_plugin() -> AssetPlugin {
 fn window_plugin(args: &Args, position: WindowPosition) -> WindowPlugin {
     WindowPlugin {
         primary_window: Some(Window {
-            title: "Game Client".to_string(),
+            title: "Cuboid Wars".to_string(),
             resolution: (args.window_width, args.window_height).into(),
             position,
             ..default()

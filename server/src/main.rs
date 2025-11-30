@@ -29,7 +29,7 @@ const LOG_FILTER: &str = "wgpu=error,naga=warn";
 // ============================================================================
 
 #[derive(Parser)]
-#[command(author, version, about = "Game server", long_about = None)]
+#[command(author, version, about = "Cuboid Wars Server", long_about = None)]
 struct Args {
     // Address to bind server to
     #[arg(short, long, default_value = "127.0.0.1:8080")]
