@@ -4,9 +4,14 @@ use rand::Rng as _;
 use crate::{
     constants::{ITEM_LIFETIME, ITEM_SPAWN_INTERVAL},
     net::{ClientToServer, ServerToClient},
-    resources::{FromAcceptChannel, FromClientsChannel, ItemInfo, ItemMap, ItemSpawner, PlayerInfo, PlayerMap, WallConfig},
+    resources::{
+        FromAcceptChannel, FromClientsChannel, ItemInfo, ItemMap, ItemSpawner, PlayerInfo, PlayerMap, WallConfig,
+    },
 };
-use common::collision::{check_player_item_collision, check_player_player_collision, check_player_wall_collision, check_projectile_player_hit};
+use common::collision::{
+    check_player_item_collision, check_player_player_collision, check_player_wall_collision,
+    check_projectile_player_hit,
+};
 use common::constants::*;
 use common::protocol::*;
 use common::systems::Projectile;
@@ -110,7 +115,8 @@ fn snapshot_logged_in_players(
                     speed: *speed,
                     face_dir: face_dir.0,
                     hits: info.hits,
-                    items: info.items.clone(),
+                    speed_power_up: info.speed_power_up_timer > 0.0,
+                    multi_shot_power_up: info.multi_shot_power_up_timer > 0.0,
                 },
             ))
         })
@@ -138,7 +144,8 @@ pub fn accept_connections_system(
                 channel: to_client,
                 hits: 0,
                 name: String::new(),
-                items: Vec::new(),
+                speed_power_up_timer: 0.0,
+                multi_shot_power_up_timer: 0.0,
             },
         );
     }
@@ -280,7 +287,8 @@ fn process_message_not_logged_in(
                 speed,
                 face_dir,
                 hits,
-                items: Vec::new(),
+                speed_power_up: false,
+                multi_shot_power_up: false,
             };
 
             // Construct the initial Update for the new player
@@ -664,22 +672,24 @@ pub fn item_spawn_system(
                 let world_z = (grid_z as f32 + 0.5) * GRID_SIZE - FIELD_DEPTH / 2.0;
 
                 let item_type = if rng.random_bool(0.5) {
-                    ItemType::Speed
+                    ItemType::SpeedPowerUp
                 } else {
-                    ItemType::MultiShot
+                    ItemType::MultiShotPowerUp
                 };
 
                 let item_id = ItemId(spawner.next_id);
                 spawner.next_id += 1;
 
-                let entity = commands.spawn((
-                    item_id,
-                    Position {
-                        x: world_x,
-                        y: 0.0,
-                        z: world_z,
-                    },
-                )).id();
+                let entity = commands
+                    .spawn((
+                        item_id,
+                        Position {
+                            x: world_x,
+                            y: 0.0,
+                            z: world_z,
+                        },
+                    ))
+                    .id();
 
                 items.0.insert(
                     item_id,
@@ -697,11 +707,7 @@ pub fn item_spawn_system(
 }
 
 // System to despawn old items
-pub fn item_despawn_system(
-    mut commands: Commands,
-    time: Res<Time>,
-    mut items: ResMut<ItemMap>,
-) {
+pub fn item_despawn_system(mut commands: Commands, time: Res<Time>, mut items: ResMut<ItemMap>) {
     let current_time = time.elapsed_secs();
 
     // Collect items to remove
@@ -728,8 +734,9 @@ pub fn item_collection_system(
     player_positions: Query<&Position, With<PlayerId>>,
     item_positions: Query<&Position, With<ItemId>>,
 ) {
-    const COLLECTION_RADIUS: f32 = 1.0; // Distance to collect an item
-    const ITEM_DURATION: f32 = 30.0; // 30 seconds
+    const ITEM_COLLECTION_RADIUS: f32 = 1.0; // Distance to collect an item
+    const SPEED_POWER_UP_DURATION: f32 = 30.0; // 30 seconds
+    const MULTI_SHOT_POWER_UP_DURATION: f32 = 30.0; // 30 seconds
 
     // Check each item against each player
     let items_to_collect: Vec<(PlayerId, ItemId, ItemType)> = items
@@ -741,7 +748,7 @@ pub fn item_collection_system(
             // Check against all players
             for (player_id, player_info) in &players.0 {
                 if let Ok(player_pos) = player_positions.get(player_info.entity) {
-                    if check_player_item_collision(player_pos, item_pos, COLLECTION_RADIUS) {
+                    if check_player_item_collision(player_pos, item_pos, ITEM_COLLECTION_RADIUS) {
                         return Some((*player_id, *item_id, item_info.item_type));
                     }
                 }
@@ -759,11 +766,15 @@ pub fn item_collection_system(
 
         // Add to player's inventory
         if let Some(player_info) = players.0.get_mut(&player_id) {
-            // Remove existing item of the same type if present
-            player_info.items.retain(|(existing_type, _)| *existing_type != item_type);
-
-            // Add new item with full duration
-            player_info.items.push((item_type, ITEM_DURATION));
+            // Set the appropriate power-up timer based on item type
+            match item_type {
+                ItemType::SpeedPowerUp => {
+                    player_info.speed_power_up_timer = SPEED_POWER_UP_DURATION;
+                }
+                ItemType::MultiShotPowerUp => {
+                    player_info.multi_shot_power_up_timer = MULTI_SHOT_POWER_UP_DURATION;
+                }
+            }
 
             debug!("Player {:?} collected {:?}", player_id, item_type);
         }
@@ -771,19 +782,12 @@ pub fn item_collection_system(
 }
 
 // System to expire player items over time
-pub fn item_expiration_system(
-    time: Res<Time>,
-    mut players: ResMut<PlayerMap>,
-) {
+pub fn item_expiration_system(time: Res<Time>, mut players: ResMut<PlayerMap>) {
     let delta = time.delta_secs();
 
     for player_info in players.0.values_mut() {
-        // Decrease time for all items
-        for (_, remaining_time) in &mut player_info.items {
-            *remaining_time -= delta;
-        }
-
-        // Remove expired items
-        player_info.items.retain(|(_, remaining_time)| *remaining_time > 0.0);
+        // Decrease power-up timers
+        player_info.speed_power_up_timer = (player_info.speed_power_up_timer - delta).max(0.0);
+        player_info.multi_shot_power_up_timer = (player_info.multi_shot_power_up_timer - delta).max(0.0);
     }
 }

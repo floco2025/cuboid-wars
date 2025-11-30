@@ -315,12 +315,12 @@ pub fn spawn_player_id_display(
 // Get the color for an item type
 pub const fn item_type_color(item_type: ItemType) -> Color {
     match item_type {
-        ItemType::Speed => Color::srgb(
+        ItemType::SpeedPowerUp => Color::srgb(
             ITEM_SPEED_COLOR[0],
             ITEM_SPEED_COLOR[1],
             ITEM_SPEED_COLOR[2],
         ),
-        ItemType::MultiShot => Color::srgb(
+        ItemType::MultiShotPowerUp => Color::srgb(
             ITEM_MULTISHOT_COLOR[0],
             ITEM_MULTISHOT_COLOR[1],
             ITEM_MULTISHOT_COLOR[2],

@@ -22,7 +22,8 @@ pub struct PlayerInfo {
     pub channel: UnboundedSender<ServerToClient>,
     pub hits: i32,
     pub name: String,
-    pub items: Vec<(ItemType, f32)>, // (item_type, remaining_time_seconds)
+    pub speed_power_up_timer: f32,      // Remaining time for speed power-up (0.0 = inactive)
+    pub multi_shot_power_up_timer: f32, // Remaining time for multi-shot power-up (0.0 = inactive)
 }
 
 // Map of all players (server-side source of truth)

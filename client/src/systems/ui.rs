@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use std::{collections::HashMap, time::Duration};
+use std::time::Duration;
 
 use crate::constants::*;
 use crate::resources::{MyPlayerId, PlayerInfo, PlayerMap};
@@ -16,10 +16,6 @@ use common::{
 // Marker component for the player list UI
 #[derive(Component)]
 pub struct PlayerListUI;
-
-// Marker component for individual player entries
-#[derive(Component)]
-pub struct PlayerEntryUI(pub PlayerId);
 
 // Marker component for the crosshair UI
 #[derive(Component)]
@@ -215,8 +211,7 @@ pub fn update_player_list_system(
     players: Res<PlayerMap>,
     my_player_id: Option<Res<MyPlayerId>>,
     player_list_ui: Single<Entity, With<PlayerListUI>>,
-    existing_entries: Query<(Entity, &PlayerEntryUI, &Children)>,
-    mut text_and_color_query: Query<(&mut Text, &mut TextColor)>,
+    children_query: Query<&Children>,
 ) {
     // Bail out unless the player list changed
     if !players.is_changed() {
@@ -225,145 +220,41 @@ pub fn update_player_list_system(
 
     let local_player_id = my_player_id.as_ref().map(|id| id.0);
 
-    // Snapshot existing UI entries for quick lookup
-    let existing_map: HashMap<PlayerId, (Entity, Vec<Entity>)> = existing_entries
-        .iter()
-        .map(|(entity, entry, children)| {
-            let child_entities = children.iter().collect::<Vec<_>>();
-            (entry.0, (entity, child_entities))
-        })
-        .collect();
-
-    // Determine whether we must rebuild the entire list
-    // Rebuild if: player set changed, or any player's item count changed
-    let needs_rebuild = existing_map.len() != players.0.len()
-        || existing_map.keys().any(|id| !players.0.contains_key(id))
-        || players.0.keys().any(|id| !existing_map.contains_key(id))
-        || players.0.iter().any(|(id, player_info)| {
-            existing_map.get(id).map_or(true, |(_, children)| {
-                children.len() != 2 + player_info.items.len()
-            })
-        });
-
-    if needs_rebuild {
-        remove_stale_entries(&mut commands, &players, &existing_map);
-        rebuild_player_list(&mut commands, *player_list_ui, &players, &existing_map, local_player_id);
-        return;
-    }
-
-    // Otherwise just update the text/color values in place
-    let mut sorted_players: Vec<_> = players.0.iter().collect();
-    sorted_players.sort_by_key(|(player_id, _)| player_id.0);
-    update_hit_counters(&sorted_players, &existing_map, &mut text_and_color_query);
-}
-
-fn remove_stale_entries(
-    commands: &mut Commands,
-    players: &PlayerMap,
-    existing_map: &HashMap<PlayerId, (Entity, Vec<Entity>)>,
-) {
-    let stale_players: Vec<PlayerId> = existing_map
-        .keys()
-        .filter(|player_id| !players.0.contains_key(player_id))
-        .copied()
-        .collect();
-
-    for player_id in stale_players {
-        if let Some((entity, _)) = existing_map.get(&player_id) {
-            commands.entity(*entity).despawn();
-        }
-    }
+    // Just rebuild the entire list on every change for simplicity
+    rebuild_player_list(&mut commands, *player_list_ui, &players, local_player_id, &children_query);
 }
 
 fn rebuild_player_list(
     commands: &mut Commands,
     player_list_entity: Entity,
     players: &PlayerMap,
-    existing_map: &HashMap<PlayerId, (Entity, Vec<Entity>)>,
     local_player_id: Option<PlayerId>,
+    children_query: &Query<&Children>,
 ) {
+    // Despawn all existing children first
+    if let Ok(children) = children_query.get(player_list_entity) {
+        for &child in children {
+            commands.entity(child).despawn();
+        }
+    }
+
     let mut sorted_players: Vec<_> = players.0.iter().collect();
     sorted_players.sort_by_key(|(player_id, _)| player_id.0);
 
     let mut ordered_children = Vec::with_capacity(sorted_players.len());
     for (player_id, player_info) in sorted_players {
-        // Check if we need to recreate this entry (item count changed)
-        let needs_recreate = existing_map.get(player_id).map_or(false, |(_, children)| {
-            children.len() != 2 + player_info.items.len()
-        });
-
-        let entity = if let Some((entity, _)) = existing_map.get(player_id) {
-            if needs_recreate {
-                // Despawn old entry and create new one with updated items
-                commands.entity(*entity).despawn();
-                spawn_player_entry(
-                    commands,
-                    *player_id,
-                    &player_info.name,
-                    player_info.hits,
-                    &player_info.items,
-                    local_player_id == Some(*player_id),
-                )
-            } else {
-                // Reuse existing entry
-                *entity
-            }
-        } else {
-            // Create new entry
-            spawn_player_entry(
-                commands,
-                *player_id,
-                &player_info.name,
-                player_info.hits,
-                &player_info.items,
-                local_player_id == Some(*player_id),
-            )
-        };
+        let entity = spawn_player_entry(commands, player_info, local_player_id == Some(*player_id));
         ordered_children.push(entity);
     }
 
     commands.entity(player_list_entity).replace_children(&ordered_children);
 }
 
-fn update_hit_counters(
-    sorted_players: &[(&PlayerId, &PlayerInfo)],
-    existing_map: &HashMap<PlayerId, (Entity, Vec<Entity>)>,
-    text_and_color_query: &mut Query<(&mut Text, &mut TextColor)>,
-) {
-    for (player_id, player_info) in sorted_players {
-        if let Some((_entry_entity, children)) = existing_map.get(player_id) {
-            if children.len() < 2 {
-                continue;
-            }
-
-            // Update player name (first child)
-            let name_text_entity = children[0];
-            if let Ok((mut text, _)) = text_and_color_query.get_mut(name_text_entity) {
-                (**text).clone_from(&player_info.name);
-            }
-
-            // Update hit counter (second child)
-            let hit_text_entity = children[1];
-            if let Ok((mut text, mut text_color)) = text_and_color_query.get_mut(hit_text_entity) {
-                **text = format_signed_hits(player_info.hits);
-                text_color.0 = hit_value_color(player_info.hits);
-            }
-
-            // Update item indicators (remaining children)
-            for (i, item_type) in player_info.items.iter().enumerate() {
-                let child_index = 2 + i;
-                if child_index < children.len() {
-                    let item_text_entity = children[child_index];
-                    if let Ok((_, mut text_color)) = text_and_color_query.get_mut(item_text_entity) {
-                        text_color.0 = item_type_color(*item_type);
-                    }
-                }
-            }
-        }
-    }
-}
-
-fn spawn_player_entry(commands: &mut Commands, player_id: PlayerId, name: &str, hits: i32, items: &[ItemType], is_local: bool) -> Entity {
+fn spawn_player_entry(
+    commands: &mut Commands,
+    player_info: &PlayerInfo,
+    is_local: bool,
+) -> Entity {
     let background_color = if is_local {
         BackgroundColor(Color::srgba(0.8, 0.8, 0.0, 0.3))
     } else {
@@ -379,11 +270,10 @@ fn spawn_player_entry(commands: &mut Commands, player_id: PlayerId, name: &str, 
                 ..default()
             },
             background_color,
-            PlayerEntryUI(player_id),
         ))
         .with_children(|row| {
             row.spawn((
-                Text::new(name),
+                Text::new(&player_info.name),
                 TextFont {
                     font_size: 20.0,
                     ..default()
@@ -392,16 +282,16 @@ fn spawn_player_entry(commands: &mut Commands, player_id: PlayerId, name: &str, 
             ));
 
             row.spawn((
-                Text::new(format_signed_hits(hits)),
+                Text::new(format_signed_hits(player_info.hits)),
                 TextFont {
                     font_size: 20.0,
                     ..default()
                 },
-                TextColor(hit_value_color(hits)),
+                TextColor(hit_value_color(player_info.hits)),
             ));
 
-            // Add item indicators
-            for item_type in items {
+            // Add power-up indicators
+            if player_info.speed_power_up {
                 row.spawn((
                     Node {
                         width: Val::Px(12.0),
@@ -409,7 +299,18 @@ fn spawn_player_entry(commands: &mut Commands, player_id: PlayerId, name: &str, 
                         align_self: AlignSelf::Center,
                         ..default()
                     },
-                    BackgroundColor(item_type_color(*item_type)),
+                    BackgroundColor(item_type_color(ItemType::SpeedPowerUp)),
+                ));
+            }
+            if player_info.multi_shot_power_up {
+                row.spawn((
+                    Node {
+                        width: Val::Px(12.0),
+                        height: Val::Px(12.0),
+                        align_self: AlignSelf::Center,
+                        ..default()
+                    },
+                    BackgroundColor(item_type_color(ItemType::MultiShotPowerUp)),
                 ));
             }
         })

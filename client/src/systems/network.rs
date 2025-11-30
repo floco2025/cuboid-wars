@@ -166,7 +166,8 @@ fn handle_login_message(
             entity,
             hits: 0,
             name: msg.player.name,
-            items: msg.player.items.iter().map(|(item_type, _)| *item_type).collect(),
+            speed_power_up: msg.player.speed_power_up,
+            multi_shot_power_up: msg.player.multi_shot_power_up,
         },
     );
 }
@@ -258,7 +259,8 @@ fn handle_update_message(
                 entity,
                 hits: player.hits,
                 name: player.name.clone(),
-                items: player.items.iter().map(|(item_type, _)| *item_type).collect(),
+                speed_power_up: player.speed_power_up,
+                multi_shot_power_up: player.multi_shot_power_up,
             },
         );
     }
@@ -291,7 +293,8 @@ fn handle_update_message(
             }
 
             client_player.hits = server_player.hits;
-            client_player.items = server_player.items.iter().map(|(item_type, _)| *item_type).collect();
+            client_player.speed_power_up = server_player.speed_power_up;
+            client_player.multi_shot_power_up = server_player.multi_shot_power_up;
         }
     }
 

@@ -102,7 +102,8 @@ struct Player {
     pub speed: Speed,
     pub face_dir: f32,
     pub hits: i32,
-    pub items: Vec<(ItemType, f32)>, // (item_type, remaining_time_seconds)
+    pub speed_power_up: bool,
+    pub multi_shot_power_up: bool,
 }
 }
 
@@ -130,8 +131,8 @@ struct Wall {
 #[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "bincode", derive(Encode, Decode))]
 pub enum ItemType {
-    Speed,
-    MultiShot,
+    SpeedPowerUp,
+    MultiShotPowerUp,
 }
 
 // Item - an item on the map.
