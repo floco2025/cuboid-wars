@@ -69,14 +69,14 @@ pub fn client_movement_system(
         }
 
         let target_pos = if let Some(recon) = server_snapshot.as_mut() {
-            // recon.timer += delta;
-            // if recon.timer >= UPDATE_BROADCAST_INTERVAL {
-            //     commands.entity(entity).remove::<ServerReconciliation>();
-            // }
-
             let mut correction_factor = UPDATE_BROADCAST_INTERVAL / 5.0;
             if correction_factor > 1.0 {
                 correction_factor = 1.0;
+            }
+
+            recon.timer += delta * correction_factor;
+            if recon.timer >= UPDATE_BROADCAST_INTERVAL {
+                commands.entity(entity).remove::<ServerReconciliation>();
             }
 
             let server_pos_x = recon.server_pos.x + recon.server_vel.x * recon.rtt / 2.0;
@@ -85,8 +85,8 @@ pub fn client_movement_system(
             let total_dx = server_pos_x - recon.client_pos.x;
             let total_dz = server_pos_z - recon.client_pos.z;
 
-            let dx = total_dx * delta / UPDATE_BROADCAST_INTERVAL * correction_factor;
-            let dz = total_dz * delta / UPDATE_BROADCAST_INTERVAL * correction_factor;
+            let dx = total_dx * delta * correction_factor / UPDATE_BROADCAST_INTERVAL;
+            let dz = total_dz * delta * correction_factor / UPDATE_BROADCAST_INTERVAL;
 
             Position {
                 x: client_vel.x.mul_add(delta, client_pos.x) + dx,
