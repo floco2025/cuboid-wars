@@ -414,10 +414,8 @@ pub fn broadcast_state_system(
     face_dirs: Query<&FaceDirection>,
     players: Res<PlayerMap>,
 ) {
-    const BROADCAST_INTERVAL: f32 = 1.0;
-
     *timer += time.delta_secs();
-    if *timer < BROADCAST_INTERVAL {
+    if *timer < UPDATE_BROADCAST_INTERVAL {
         return;
     }
     *timer = 0.0;

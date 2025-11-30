@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use std::time::Duration;
 
 use crate::resources::WallConfig;
-use common::protocol::{Position, Velocity};
+use common::{constants::UPDATE_BROADCAST_INTERVAL, protocol::{Position, Velocity}};
 
 // ============================================================================
 // Components
@@ -63,11 +63,11 @@ pub fn client_movement_system(
         }
 
         let target_pos = if let Some(snapshot) = server_snapshot.as_mut() {
-            let dx = (snapshot.server_pos.x - snapshot.client_pos.x) * delta / 0.2;
-            let dz = (snapshot.server_pos.x - snapshot.client_pos.x) * delta / 0.2;
+            let dx = (snapshot.server_pos.x - snapshot.client_pos.x) * delta / UPDATE_BROADCAST_INTERVAL;
+            let dz = (snapshot.server_pos.x - snapshot.client_pos.x) * delta / UPDATE_BROADCAST_INTERVAL;
 
             snapshot.timer += delta;
-            if snapshot.timer >= 0.2 {
+            if snapshot.timer >= UPDATE_BROADCAST_INTERVAL {
                 commands.entity(entity).remove::<ServerSnapshot>();
             }
 

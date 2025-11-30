@@ -40,3 +40,6 @@ pub const PLAYER_EYE_RADIUS: f32 = 0.05;
 pub const PLAYER_EYE_SPACING: f32 = 0.1; // distance from center
 pub const PLAYER_EYE_HEIGHT: f32 = 0.7; // relative to ground
 pub const PLAYER_NOSE_HEIGHT: f32 = 0.5; // relative to ground
+
+// Server update interval
+pub const UPDATE_BROADCAST_INTERVAL: f32 = 1.0; // seconds
