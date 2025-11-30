@@ -1,17 +1,30 @@
-use bevy::prelude::*;
+#[allow(clippy::wildcard_imports)]
+use bevy::{
+    asset::RenderAssetUsages,
+    prelude::*,
+    render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages},
+};
 
 use crate::systems::movement::{BumpFlashState, LocalPlayer};
+#[allow(clippy::wildcard_imports)]
 use common::{
     constants::*,
     protocol::{FaceDirection, PlayerId, Position, Velocity, Wall, WallOrientation},
     systems::Projectile,
 };
 
+#[derive(Component)]
+pub struct PlayerIdText;
+
+#[derive(Component)]
+pub struct PlayerIdTextMesh;
+
 // Spawn a player cuboid plus cosmetic children, returning the new entity id.
 pub fn spawn_player(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
+    images: &mut ResMut<Assets<Image>>,
     player_id: u32,
     position: &Position,
     velocity: Velocity,
@@ -69,9 +82,15 @@ pub fn spawn_player(
         Vec3::new(PLAYER_EYE_SPACING, PLAYER_EYE_HEIGHT, PLAYER_DEPTH / 2.0),
     );
 
-    commands
-        .entity(entity_id)
-        .add_children(&[nose_id, left_eye_id, right_eye_id]);
+    let mut children = vec![nose_id, left_eye_id, right_eye_id];
+
+    // Create individual texture and camera for this player's ID text
+    let (image_handle, text_camera) = setup_player_id_text_rendering(commands, images);
+    let (_text_entity, mesh_entity) =
+        spawn_player_id_display(commands, meshes, materials, player_id, image_handle, text_camera);
+    children.push(mesh_entity);
+
+    commands.entity(entity_id).add_children(&children);
 
     entity_id
 }
@@ -173,4 +192,94 @@ fn spawn_face_sphere(
             InheritedVisibility::default(),
         ))
         .id()
+}
+
+// Setup the player ID text rendering system: create texture and camera for a single player
+fn setup_player_id_text_rendering(
+    commands: &mut Commands,
+    images: &mut ResMut<Assets<Image>>,
+) -> (Handle<Image>, Entity) {
+    let size = Extent3d {
+        width: 128,
+        height: 64,
+        ..default()
+    };
+
+    let mut image = Image::new_fill(
+        size,
+        TextureDimension::D2,
+        &[0, 0, 0, 0],
+        TextureFormat::Bgra8UnormSrgb,
+        RenderAssetUsages::default(),
+    );
+    image.texture_descriptor.usage =
+        TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST | TextureUsages::RENDER_ATTACHMENT;
+
+    let image_handle = images.add(image);
+
+    let text_camera = commands
+        .spawn((
+            Camera2d,
+            Camera {
+                order: -1,
+                target: bevy::camera::RenderTarget::Image(image_handle.clone().into()),
+                ..default()
+            },
+        ))
+        .id();
+
+    (image_handle, text_camera)
+}
+
+// Spawn player ID text UI and mesh for a specific player
+pub fn spawn_player_id_display(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    player_id: u32,
+    image_handle: Handle<Image>,
+    text_camera: Entity,
+) -> (Entity, Entity) {
+    // Create UI text that renders to texture
+    let text_entity = commands
+        .spawn((
+            Node {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            BackgroundColor(Color::NONE),
+            UiTargetCamera(text_camera),
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Text::new(format!("{}", player_id)),
+                TextFont {
+                    font_size: 48.0,
+                    ..default()
+                },
+                TextColor::WHITE,
+                PlayerIdText,
+            ));
+        })
+        .id();
+
+    // Create 3D plane mesh with the rendered texture
+    let mesh_entity = commands
+        .spawn((
+            Mesh3d(meshes.add(Rectangle::new(0.5, 0.25))),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color_texture: Some(image_handle),
+                alpha_mode: AlphaMode::Blend,
+                unlit: true,
+                ..default()
+            })),
+            Transform::from_xyz(0.0, 1.2, 0.0), // Above player
+            PlayerIdTextMesh,
+        ))
+        .id();
+
+    (text_entity, mesh_entity)
 }

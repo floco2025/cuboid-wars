@@ -17,8 +17,8 @@ use client::{
         movement::client_movement_system,
         network::{echo_system, process_server_events_system},
         sync::{
-            sync_camera_to_player_system, sync_face_to_transform_system, sync_local_player_visibility_system,
-            sync_position_to_transform_system, sync_projectiles_system,
+            billboard_player_id_text_system, sync_camera_to_player_system, sync_face_to_transform_system,
+            sync_local_player_visibility_system, sync_position_to_transform_system, sync_projectiles_system,
         },
         ui::{setup_world_system, update_player_list_system, update_rtt_system},
         walls::spawn_walls_system,
@@ -123,6 +123,8 @@ fn main() -> Result<()> {
             sync_position_to_transform_system,
             // Sync Rotation to Transform
             sync_face_to_transform_system,
+            // Billboard player ID text to face camera
+            billboard_player_id_text_system,
             // Apply camera shake effects
             apply_camera_shake_system,
             // Apply cuboid shake effects

@@ -28,6 +28,7 @@ pub fn process_server_events_system(
     mut exit: MessageWriter<AppExit>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut images: ResMut<Assets<Image>>,
     mut player_map: ResMut<PlayerMap>,
     mut rtt: ResMut<RoundTripTime>,
     player_query: Query<(&Position, &Velocity), With<PlayerId>>,
@@ -46,20 +47,21 @@ pub fn process_server_events_system(
             ServerToClient::Message(message) => {
                 if let Some(my_id) = my_player_id.as_ref() {
                     process_message_logged_in(
+                        &message,
+                        my_id.0,
                         &mut commands,
                         &mut meshes,
                         &mut materials,
+                        &mut images,
                         &mut player_map,
                         &mut rtt,
                         &player_query,
                         &player_face_query,
                         &camera_query,
-                        my_id.0,
-                        &message,
                         &time,
                     );
                 } else {
-                    process_message_not_logged_in(&mut commands, &message);
+                    process_message_not_logged_in(&message, &mut commands);
                 }
             }
         }
@@ -70,7 +72,7 @@ pub fn process_server_events_system(
 // Message Handlers
 // ============================================================================
 
-fn process_message_not_logged_in(commands: &mut Commands, msg: &ServerMessage) {
+fn process_message_not_logged_in(msg: &ServerMessage, commands: &mut Commands) {
     match msg {
         ServerMessage::Init(init_msg) => {
             debug!("received Init: my_id={:?}", init_msg.id);
@@ -94,23 +96,24 @@ fn process_message_not_logged_in(commands: &mut Commands, msg: &ServerMessage) {
 }
 
 fn process_message_logged_in(
+    msg: &ServerMessage,
+    my_player_id: PlayerId,
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
+    images: &mut ResMut<Assets<Image>>,
     players: &mut ResMut<PlayerMap>,
     rtt: &mut ResMut<RoundTripTime>,
     player_query: &Query<(&Position, &Velocity), With<PlayerId>>,
     player_face_query: &Query<(&Position, &FaceDirection), With<PlayerId>>,
     camera_query: &Query<Entity, With<Camera3d>>,
-    my_player_id: PlayerId,
-    msg: &ServerMessage,
-    time: &Time,
+    time: &Res<Time>,
 ) {
     match msg {
         ServerMessage::Init(_) => {
             error!("received Init more than once");
         }
-        ServerMessage::Login(login) => handle_login_message(commands, meshes, materials, players, login),
+        ServerMessage::Login(login) => handle_login_message(commands, meshes, materials, images, players, login),
         ServerMessage::Logoff(logoff) => handle_logoff_message(commands, players, logoff),
         ServerMessage::Speed(speed_msg) => handle_speed_message(commands, players, speed_msg),
         ServerMessage::Face(face_msg) => handle_face_message(commands, players, face_msg),
@@ -121,6 +124,7 @@ fn process_message_logged_in(
             commands,
             meshes,
             materials,
+            images,
             players,
             rtt,
             player_query,
@@ -138,6 +142,7 @@ fn handle_login_message(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
+    images: &mut ResMut<Assets<Image>>,
     players: &mut ResMut<PlayerMap>,
     msg: &SLogin,
 ) {
@@ -150,6 +155,7 @@ fn handle_login_message(
         commands,
         meshes,
         materials,
+        images,
         msg.id.0,
         &msg.player.pos,
         msg.player.speed.to_velocity(),
@@ -205,6 +211,7 @@ fn handle_update_message(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
+    images: &mut ResMut<Assets<Image>>,
     players: &mut ResMut<PlayerMap>,
     rtt: &ResMut<RoundTripTime>,
     player_query: &Query<(&Position, &Velocity), With<PlayerId>>,
@@ -228,6 +235,7 @@ fn handle_update_message(
             commands,
             meshes,
             materials,
+            images,
             id.0,
             &player.pos,
             player.speed.to_velocity(),

@@ -3,7 +3,10 @@ use bevy::prelude::*;
 use std::time::Duration;
 
 use crate::resources::WallConfig;
-use common::{constants::UPDATE_BROADCAST_INTERVAL, protocol::{Position, Velocity}};
+use common::{
+    constants::UPDATE_BROADCAST_INTERVAL,
+    protocol::{Position, Velocity},
+};
 
 // ============================================================================
 // Components

@@ -3,4 +3,4 @@
 // ============================================================================
 
 // Total number of wall segments to place
-pub const NUM_WALL_SEGMENTS: usize = 40;
+pub const NUM_WALL_SEGMENTS: usize = 0; //40;
