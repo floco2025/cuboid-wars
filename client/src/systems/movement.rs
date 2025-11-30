@@ -8,23 +8,6 @@ use common::{
 };
 
 // ============================================================================
-// Type Aliases
-// ============================================================================
-
-type MovementQuery<'w, 's> = Query<
-    'w,
-    's,
-    (
-        Entity,
-        &'static mut Position,
-        &'static Velocity,
-        Option<&'static mut BumpFlashState>,
-        Option<&'static mut ServerSnapshot>,
-        Has<LocalPlayer>,
-    ),
->;
-
-// ============================================================================
 // Components
 // ============================================================================
 
@@ -54,11 +37,24 @@ pub struct ServerSnapshot {
 // Client-side Movement System
 // ============================================================================
 
+type MovementQuery<'w, 's> = Query<
+    'w,
+    's,
+    (
+        Entity,
+        &'static mut Position,
+        &'static Velocity,
+        Option<&'static mut BumpFlashState>,
+        Option<&'static mut ServerSnapshot>,
+        Has<LocalPlayer>,
+    ),
+>;
+
 // Client-side movement system with wall collision detection for smooth prediction
 pub fn client_movement_system(
     mut commands: Commands,
     time: Res<Time>,
-    _rtt: Res<RoundTripTime>,
+    rtt: Res<RoundTripTime>,
     asset_server: Res<AssetServer>,
     wall_config: Option<Res<WallConfig>>,
     mut query: MovementQuery,
@@ -76,8 +72,19 @@ pub fn client_movement_system(
         }
 
         let target_pos = if let Some(snapshot) = server_snapshot.as_mut() {
-            let dx = (snapshot.server_pos.x - snapshot.client_pos.x) * delta / UPDATE_BROADCAST_INTERVAL;
-            let dz = (snapshot.server_pos.z - snapshot.client_pos.z) * delta / UPDATE_BROADCAST_INTERVAL;
+            let rtt = rtt.rtt.as_secs_f32();
+            let mut vel_correction = (UPDATE_BROADCAST_INTERVAL - rtt / 2.0) / UPDATE_BROADCAST_INTERVAL;
+            if vel_correction < 0.0 {
+                vel_correction = 0.0;
+            }
+
+            dbg!(vel_correction);
+
+            let server_pos_x = snapshot.server_pos.x + snapshot.server_vel.x * rtt / 2.0;
+            let server_pos_z = snapshot.server_pos.z + snapshot.server_vel.z * rtt / 2.0;
+
+            let dx = (server_pos_x - snapshot.client_pos.x) * delta / UPDATE_BROADCAST_INTERVAL;
+            let dz = (server_pos_z - snapshot.client_pos.z) * delta / UPDATE_BROADCAST_INTERVAL;
 
             snapshot.timer += delta;
             if snapshot.timer >= UPDATE_BROADCAST_INTERVAL {
@@ -85,18 +92,11 @@ pub fn client_movement_system(
             }
 
             Position {
-                x: velocity.x.mul_add(delta, pos.x) + dx,
+                x: velocity.x.mul_add(delta * vel_correction, pos.x) + dx,
                 y: pos.y,
-                z: velocity.z.mul_add(delta, pos.z) + dz,
+                z: velocity.z.mul_add(delta * vel_correction, pos.z) + dz,
             }
         } else {
-            if !has_horizontal_velocity(velocity) {
-                if let Some(state) = flash_state.as_mut() {
-                    state.was_colliding = false;
-                }
-                continue;
-            }
-
             Position {
                 x: velocity.x.mul_add(delta, pos.x),
                 y: pos.y,
@@ -141,10 +141,6 @@ pub fn client_movement_system(
 // ============================================================================
 
 const BUMP_FLASH_DURATION: f32 = 0.08;
-
-fn has_horizontal_velocity(velocity: &Velocity) -> bool {
-    velocity.x.abs() > f32::EPSILON || velocity.z.abs() > f32::EPSILON
-}
 
 fn hits_wall(walls: Option<&WallConfig>, new_pos: &Position) -> bool {
     let Some(config) = walls else { return false };
