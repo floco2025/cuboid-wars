@@ -84,6 +84,12 @@ pub struct Velocity {
 #[cfg_attr(feature = "bincode", derive(Encode, Decode))]
 pub struct PlayerId(pub u32);
 
+// PowerUp ID component - identifies which powerup an entity represents.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Component)]
+#[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bincode", derive(Encode, Decode))]
+pub struct PowerUpId(pub u32);
+
 // FaceDirection component - direction player is facing (for rotation/aiming).
 #[derive(Component, Default)]
 pub struct FaceDirection(pub f32); // radians
@@ -115,6 +121,24 @@ struct Wall {
     pub x: f32,                     // Center X position
     pub z: f32,                     // Center Z position
     pub orientation: WallOrientation,
+}
+}
+
+// PowerUp type - different types of powerups.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bincode", derive(Encode, Decode))]
+pub enum PowerUpType {
+    Speed,
+    MultiShot,
+}
+
+// PowerUp - a powerup on the map.
+message! {
+#[derive(Copy)]
+struct PowerUp {
+    pub power_up_type: PowerUpType,
+    pub pos: Position,
 }
 }
 
@@ -218,6 +242,7 @@ message! {
 // Server to Client: Periodic game state update for all players.
 struct SUpdate {
     pub players: Vec<(PlayerId, Player)>,
+    pub powerups: Vec<(PowerUpId, PowerUp)>,
 }
 }
 

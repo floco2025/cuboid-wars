@@ -11,7 +11,7 @@ use crate::{
     resources::{
         ClientToServerChannel, MyPlayerId, PlayerInfo, PlayerMap, RoundTripTime, ServerToClientChannel, WallConfig,
     },
-    spawning::{spawn_player, spawn_projectile_for_player},
+    spawning::{PowerUpMarker, spawn_player, spawn_powerup, spawn_projectile_for_player},
 };
 use common::protocol::*;
 
@@ -32,6 +32,7 @@ pub fn process_server_events_system(
     player_query: Query<&Position, With<PlayerId>>,
     player_face_query: Query<(&Position, &FaceDirection), With<PlayerId>>,
     camera_query: Query<Entity, With<Camera3d>>,
+    powerup_query: Query<(Entity, &PowerUpId), With<PowerUpMarker>>,
     my_player_id: Option<Res<MyPlayerId>>,
     time: Res<Time>,
 ) {
@@ -56,6 +57,7 @@ pub fn process_server_events_system(
                         &player_query,
                         &player_face_query,
                         &camera_query,
+                        &powerup_query,
                         &time,
                     );
                 } else {
@@ -100,6 +102,7 @@ fn process_message_logged_in(
     player_query: &Query<&Position, With<PlayerId>>,
     player_face_query: &Query<(&Position, &FaceDirection), With<PlayerId>>,
     camera_query: &Query<Entity, With<Camera3d>>,
+    powerup_query: &Query<(Entity, &PowerUpId), With<PowerUpMarker>>,
     time: &Res<Time>,
 ) {
     match msg {
@@ -124,6 +127,7 @@ fn process_message_logged_in(
             camera_query,
             my_player_id,
             update_msg,
+            powerup_query,
         ),
         ServerMessage::Hit(hit_msg) => handle_hit_message(commands, players, camera_query, my_player_id, hit_msg),
         ServerMessage::Echo(echo_msg) => handle_echo_message(time, rtt, echo_msg),
@@ -212,6 +216,7 @@ fn handle_update_message(
     camera_query: &Query<Entity, With<Camera3d>>,
     my_player_id: PlayerId,
     msg: &SUpdate,
+    powerup_query: &Query<(Entity, &PowerUpId), With<PowerUpMarker>>,
 ) {
     // Track which players the server knows about in this snapshot
     let update_ids: HashSet<PlayerId> = msg.players.iter().map(|(id, _)| *id).collect();
@@ -282,6 +287,33 @@ fn handle_update_message(
             }
 
             client_player.hits = server_player.hits;
+        }
+    }
+
+    // Handle powerups - track which ones server has by ID
+    let server_powerup_ids: HashSet<PowerUpId> = msg
+        .powerups
+        .iter()
+        .map(|(id, _)| *id)
+        .collect();
+
+    // Collect existing powerup IDs
+    let existing_powerup_ids: HashSet<PowerUpId> = powerup_query
+        .iter()
+        .map(|(_, id)| *id)
+        .collect();
+
+    // Despawn powerups not in server's list
+    for (entity, powerup_id) in powerup_query.iter() {
+        if !server_powerup_ids.contains(powerup_id) {
+            commands.entity(entity).despawn();
+        }
+    }
+
+    // Spawn new powerups
+    for (powerup_id, powerup) in &msg.powerups {
+        if !existing_powerup_ids.contains(powerup_id) {
+            spawn_powerup(commands, meshes, materials, *powerup_id, powerup.power_up_type, &powerup.pos);
         }
     }
 }

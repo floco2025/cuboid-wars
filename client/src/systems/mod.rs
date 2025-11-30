@@ -1,4 +1,5 @@
 // Re-export all systems modules
+pub mod animations;
 pub mod collision;
 pub mod effects;
 pub mod input;

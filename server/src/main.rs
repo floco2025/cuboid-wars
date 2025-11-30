@@ -12,10 +12,10 @@ use common::systems::projectiles_system;
 use server::{
     config::configure_server,
     net::accept_connections_task,
-    resources::{FromAcceptChannel, FromClientsChannel, PlayerMap, WallConfig},
+    resources::{FromAcceptChannel, FromClientsChannel, PlayerMap, PowerUpSpawner, WallConfig},
     systems::{
-        accept_connections_system, broadcast_state_system, hit_detection_system, process_client_message_system,
-        server_movement_system,
+        accept_connections_system, broadcast_state_system, hit_detection_system, powerup_despawn_system,
+        powerup_spawn_system, process_client_message_system, server_movement_system,
     },
     walls::generate_walls,
 };
@@ -71,6 +71,7 @@ async fn main() -> Result<()> {
             ..default()
         })
         .insert_resource(PlayerMap::default())
+        .insert_resource(PowerUpSpawner::default())
         .insert_resource(FromAcceptChannel::new(from_accept))
         .insert_resource(FromClientsChannel::new(from_clients))
         .insert_resource(wall_config)
@@ -89,6 +90,10 @@ async fn main() -> Result<()> {
                 projectiles_system,
                 // Check for projectile hits
                 hit_detection_system,
+                // Spawn powerups
+                powerup_spawn_system,
+                // Despawn old powerups
+                powerup_despawn_system,
                 // Broadcast authoritative state to clients
                 broadcast_state_system,
             )

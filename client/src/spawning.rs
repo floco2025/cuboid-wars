@@ -8,11 +8,7 @@ use crate::{
     constants::*,
     systems::movement::{BumpFlashState, LocalPlayer},
 };
-use common::{
-    constants::*,
-    protocol::{FaceDirection, PlayerId, Position, Velocity, Wall, WallOrientation},
-    systems::Projectile,
-};
+use common::{constants::*, protocol::*, systems::Projectile};
 
 #[derive(Component)]
 pub struct PlayerIdText;
@@ -314,4 +310,58 @@ pub fn spawn_player_id_display(
         .id();
 
     (text_entity, mesh_entity)
+}
+
+// Component to mark powerup entities with animation state
+#[derive(Component)]
+pub struct PowerUpMarker {
+    pub power_up_type: PowerUpType,
+    pub anim_timer: f32,
+}
+
+// Spawn a powerup cube
+pub fn spawn_powerup(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    powerup_id: PowerUpId,
+    power_up_type: PowerUpType,
+    position: &Position,
+) -> Entity {
+    let color = match power_up_type {
+        PowerUpType::Speed => Color::srgba(
+            POWERUP_SPEED_COLOR[0],
+            POWERUP_SPEED_COLOR[1],
+            POWERUP_SPEED_COLOR[2],
+            POWERUP_SPEED_COLOR[3],
+        ),
+        PowerUpType::MultiShot => Color::srgba(
+            POWERUP_MULTISHOT_COLOR[0],
+            POWERUP_MULTISHOT_COLOR[1],
+            POWERUP_MULTISHOT_COLOR[2],
+            POWERUP_MULTISHOT_COLOR[3],
+        ),
+    };
+
+    let random_phase = rand::random::<f32>() * std::f32::consts::TAU;
+
+    commands
+        .spawn((
+            powerup_id,
+            PowerUpMarker { power_up_type, anim_timer: random_phase },
+            *position,
+            Mesh3d(meshes.add(Cuboid::new(POWERUP_SIZE, POWERUP_SIZE, POWERUP_SIZE))),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: color,
+                emissive: LinearRgba::new(
+                    color.to_srgba().red * 0.5,
+                    color.to_srgba().green * 0.5,
+                    color.to_srgba().blue * 0.5,
+                    1.0,
+                ),
+                ..default()
+            })),
+            Transform::from_xyz(position.x, POWERUP_HEIGHT_ABOVE_FLOOR + POWERUP_SIZE / 2.0, position.z),
+        ))
+        .id()
 }

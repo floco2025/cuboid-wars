@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, error::TryRecvError};
 
 use crate::net::{ClientToServer, ServerToClient};
@@ -56,5 +56,23 @@ impl FromClientsChannel {
 
     pub fn try_recv(&mut self) -> Result<(PlayerId, ClientToServer), TryRecvError> {
         self.0.try_recv()
+    }
+}
+
+// PowerUp spawner timer
+#[derive(Resource)]
+pub struct PowerUpSpawner {
+    pub timer: f32,
+    pub next_id: u32, // Next PowerUpId to assign
+    pub occupied_cells: HashSet<(i32, i32)>, // Grid cells that have powerups
+}
+
+impl Default for PowerUpSpawner {
+    fn default() -> Self {
+        Self {
+            timer: 0.0,
+            next_id: 0,
+            occupied_cells: HashSet::new(),
+        }
     }
 }
