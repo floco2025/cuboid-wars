@@ -5,7 +5,7 @@ use crate::{
 };
 
 // ============================================================================
-// Hit Detection
+// Projectile Hit Detection
 // ============================================================================
 
 // Result of a hit detection check
@@ -160,6 +160,10 @@ pub fn check_projectile_wall_hit(proj_pos: &Position, projectile: &Projectile, d
     t_min <= t_max && t_max >= 0.0 && t_min <= 1.0
 }
 
+// ============================================================================
+// Player Collisions Detection
+// ============================================================================
+
 // Check if a player position intersects with a wall
 #[must_use]
 pub fn check_player_wall_collision(player_pos: &Position, wall: &Wall) -> bool {
@@ -207,34 +211,13 @@ pub fn check_player_player_collision(pos1: &Position, pos2: &Position) -> bool {
     ranges_overlap(p1_min_x, p1_max_x, p2_min_x, p2_max_x) && ranges_overlap(p1_min_z, p1_max_z, p2_min_z, p2_max_z)
 }
 
-fn slab_interval(local_coord: f32, ray_dir: f32, half_extent: f32, t_min: f32, t_max: f32) -> Option<(f32, f32)> {
-    if ray_dir.abs() > 1e-6 {
-        let t1 = (-half_extent - local_coord) / ray_dir;
-        let t2 = (half_extent - local_coord) / ray_dir;
-        let new_min = t_min.max(t1.min(t2));
-        let new_max = t_max.min(t1.max(t2));
-        if new_min <= new_max {
-            Some((new_min, new_max))
-        } else {
-            None
-        }
-    } else if local_coord.abs() > half_extent {
-        None
-    } else {
-        Some((t_min, t_max))
-    }
-}
-
-const fn no_hit() -> HitResult {
-    HitResult {
-        hit: false,
-        hit_dir_x: 0.0,
-        hit_dir_z: 0.0,
-    }
-}
-
-fn ranges_overlap(a_min: f32, a_max: f32, b_min: f32, b_max: f32) -> bool {
-    a_max > b_min && a_min < b_max
+// Check if a player position is close enough to an item to collect it
+#[must_use]
+pub fn check_player_item_collision(player_pos: &Position, item_pos: &Position, collection_radius: f32) -> bool {
+    let dx = player_pos.x - item_pos.x;
+    let dz = player_pos.z - item_pos.z;
+    let dist_sq = dx * dx + dz * dz;
+    dist_sq <= collection_radius * collection_radius
 }
 
 // ============================================================================
@@ -299,4 +282,38 @@ pub fn calculate_wall_slide(
 
     // No collision found (shouldn't happen), return target
     *target_pos
+}
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+fn slab_interval(local_coord: f32, ray_dir: f32, half_extent: f32, t_min: f32, t_max: f32) -> Option<(f32, f32)> {
+    if ray_dir.abs() > 1e-6 {
+        let t1 = (-half_extent - local_coord) / ray_dir;
+        let t2 = (half_extent - local_coord) / ray_dir;
+        let new_min = t_min.max(t1.min(t2));
+        let new_max = t_max.min(t1.max(t2));
+        if new_min <= new_max {
+            Some((new_min, new_max))
+        } else {
+            None
+        }
+    } else if local_coord.abs() > half_extent {
+        None
+    } else {
+        Some((t_min, t_max))
+    }
+}
+
+const fn no_hit() -> HitResult {
+    HitResult {
+        hit: false,
+        hit_dir_x: 0.0,
+        hit_dir_z: 0.0,
+    }
+}
+
+fn ranges_overlap(a_min: f32, a_max: f32, b_min: f32, b_max: f32) -> bool {
+    a_max > b_min && a_min < b_max
 }

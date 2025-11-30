@@ -102,7 +102,7 @@ struct Player {
     pub speed: Speed,
     pub face_dir: f32,
     pub hits: i32,
-    pub items: Vec<ItemType>,
+    pub items: Vec<(ItemType, f32)>, // (item_type, remaining_time_seconds)
 }
 }
 

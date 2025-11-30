@@ -22,7 +22,7 @@ pub struct PlayerInfo {
     pub channel: UnboundedSender<ServerToClient>,
     pub hits: i32,
     pub name: String,
-    pub items: Vec<ItemType>,
+    pub items: Vec<(ItemType, f32)>, // (item_type, remaining_time_seconds)
 }
 
 // Map of all players (server-side source of truth)

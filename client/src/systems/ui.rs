@@ -235,12 +235,12 @@ pub fn update_player_list_system(
         .collect();
 
     // Determine whether we must rebuild the entire list
+    // Rebuild if: player set changed, or any player's item count changed
     let needs_rebuild = existing_map.len() != players.0.len()
         || existing_map.keys().any(|id| !players.0.contains_key(id))
         || players.0.keys().any(|id| !existing_map.contains_key(id))
         || players.0.iter().any(|(id, player_info)| {
-            // Check if item count changed (children are: name, hits, ...items)
-            existing_map.get(id).map_or(false, |(_, children)| {
+            existing_map.get(id).map_or(true, |(_, children)| {
                 children.len() != 2 + player_info.items.len()
             })
         });
@@ -287,9 +287,29 @@ fn rebuild_player_list(
 
     let mut ordered_children = Vec::with_capacity(sorted_players.len());
     for (player_id, player_info) in sorted_players {
+        // Check if we need to recreate this entry (item count changed)
+        let needs_recreate = existing_map.get(player_id).map_or(false, |(_, children)| {
+            children.len() != 2 + player_info.items.len()
+        });
+
         let entity = if let Some((entity, _)) = existing_map.get(player_id) {
-            *entity
+            if needs_recreate {
+                // Despawn old entry and create new one with updated items
+                commands.entity(*entity).despawn();
+                spawn_player_entry(
+                    commands,
+                    *player_id,
+                    &player_info.name,
+                    player_info.hits,
+                    &player_info.items,
+                    local_player_id == Some(*player_id),
+                )
+            } else {
+                // Reuse existing entry
+                *entity
+            }
         } else {
+            // Create new entry
             spawn_player_entry(
                 commands,
                 *player_id,
@@ -327,6 +347,17 @@ fn update_hit_counters(
             if let Ok((mut text, mut text_color)) = text_and_color_query.get_mut(hit_text_entity) {
                 **text = format_signed_hits(player_info.hits);
                 text_color.0 = hit_value_color(player_info.hits);
+            }
+
+            // Update item indicators (remaining children)
+            for (i, item_type) in player_info.items.iter().enumerate() {
+                let child_index = 2 + i;
+                if child_index < children.len() {
+                    let item_text_entity = children[child_index];
+                    if let Ok((_, mut text_color)) = text_and_color_query.get_mut(item_text_entity) {
+                        text_color.0 = item_type_color(*item_type);
+                    }
+                }
             }
         }
     }

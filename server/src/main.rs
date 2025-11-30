@@ -14,8 +14,9 @@ use server::{
     net::accept_connections_task,
     resources::{FromAcceptChannel, FromClientsChannel, ItemMap, ItemSpawner, PlayerMap, WallConfig},
     systems::{
-        accept_connections_system, broadcast_state_system, hit_detection_system, item_despawn_system,
-        item_spawn_system, process_client_message_system, server_movement_system,
+        accept_connections_system, broadcast_state_system, hit_detection_system, item_collection_system,
+        item_despawn_system, item_expiration_system, item_spawn_system, process_client_message_system,
+        server_movement_system,
     },
     walls::generate_walls,
 };
@@ -95,6 +96,10 @@ async fn main() -> Result<()> {
                 item_spawn_system,
                 // Despawn old items
                 item_despawn_system,
+                // Collect items when players touch them
+                item_collection_system,
+                // Expire player items over time
+                item_expiration_system,
                 // Broadcast authoritative state to clients
                 broadcast_state_system,
             )

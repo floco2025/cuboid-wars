@@ -6,7 +6,7 @@ use crate::{
     net::{ClientToServer, ServerToClient},
     resources::{FromAcceptChannel, FromClientsChannel, ItemInfo, ItemMap, ItemSpawner, PlayerInfo, PlayerMap, WallConfig},
 };
-use common::collision::{check_player_player_collision, check_player_wall_collision, check_projectile_player_hit};
+use common::collision::{check_player_item_collision, check_player_player_collision, check_player_wall_collision, check_projectile_player_hit};
 use common::constants::*;
 use common::protocol::*;
 use common::systems::Projectile;
@@ -717,5 +717,73 @@ pub fn item_despawn_system(
         if let Some(info) = items.0.remove(&item_id) {
             commands.entity(info.entity).despawn();
         }
+    }
+}
+
+// System to detect player-item collisions and grant items
+pub fn item_collection_system(
+    mut commands: Commands,
+    mut players: ResMut<PlayerMap>,
+    mut items: ResMut<ItemMap>,
+    player_positions: Query<&Position, With<PlayerId>>,
+    item_positions: Query<&Position, With<ItemId>>,
+) {
+    const COLLECTION_RADIUS: f32 = 1.0; // Distance to collect an item
+    const ITEM_DURATION: f32 = 30.0; // 30 seconds
+
+    // Check each item against each player
+    let items_to_collect: Vec<(PlayerId, ItemId, ItemType)> = items
+        .0
+        .iter()
+        .filter_map(|(item_id, item_info)| {
+            let item_pos = item_positions.get(item_info.entity).ok()?;
+
+            // Check against all players
+            for (player_id, player_info) in &players.0 {
+                if let Ok(player_pos) = player_positions.get(player_info.entity) {
+                    if check_player_item_collision(player_pos, item_pos, COLLECTION_RADIUS) {
+                        return Some((*player_id, *item_id, item_info.item_type));
+                    }
+                }
+            }
+            None
+        })
+        .collect();
+
+    // Process collections
+    for (player_id, item_id, item_type) in items_to_collect {
+        // Remove the item from the map
+        if let Some(item_info) = items.0.remove(&item_id) {
+            commands.entity(item_info.entity).despawn();
+        }
+
+        // Add to player's inventory
+        if let Some(player_info) = players.0.get_mut(&player_id) {
+            // Remove existing item of the same type if present
+            player_info.items.retain(|(existing_type, _)| *existing_type != item_type);
+
+            // Add new item with full duration
+            player_info.items.push((item_type, ITEM_DURATION));
+
+            debug!("Player {:?} collected {:?}", player_id, item_type);
+        }
+    }
+}
+
+// System to expire player items over time
+pub fn item_expiration_system(
+    time: Res<Time>,
+    mut players: ResMut<PlayerMap>,
+) {
+    let delta = time.delta_secs();
+
+    for player_info in players.0.values_mut() {
+        // Decrease time for all items
+        for (_, remaining_time) in &mut player_info.items {
+            *remaining_time -= delta;
+        }
+
+        // Remove expired items
+        player_info.items.retain(|(_, remaining_time)| *remaining_time > 0.0);
     }
 }
