@@ -35,8 +35,8 @@ pub const LABEL_TEXT_COLOR: [f32; 4] = [1.0, 1.0, 1.0, 1.0]; // White (RGBA)
 pub const LABEL_BACKGROUND_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 0.2]; // Transparent (RGBA)
 pub const LABEL_FONT_SIZE: f32 = 40.0; // Font size in pixels
 
-// PowerUp visual settings
-pub const POWERUP_SIZE: f32 = 0.2; // 20 cm cube
-pub const POWERUP_HEIGHT_ABOVE_FLOOR: f32 = 0.5; // 10 cm above floor
-pub const POWERUP_SPEED_COLOR: [f32; 4] = [0.2, 0.7, 1.0, 1.0]; // Light blue
-pub const POWERUP_MULTISHOT_COLOR: [f32; 4] = [1.0, 0.5, 0.2, 1.0]; // Orange
+// Item visual settings
+pub const ITEM_SIZE: f32 = 0.2; // 20 cm cube
+pub const ITEM_HEIGHT_ABOVE_FLOOR: f32 = 0.5; // 10 cm above floor
+pub const ITEM_SPEED_COLOR: [f32; 4] = [0.2, 0.7, 1.0, 1.0]; // Light blue
+pub const ITEM_MULTISHOT_COLOR: [f32; 4] = [1.0, 0.5, 0.2, 1.0]; // Orange

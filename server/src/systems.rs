@@ -2,9 +2,9 @@ use bevy::prelude::*;
 use rand::Rng as _;
 
 use crate::{
-    constants::{POWERUP_LIFETIME, POWERUP_SPAWN_INTERVAL},
+    constants::{ITEM_LIFETIME, ITEM_SPAWN_INTERVAL},
     net::{ClientToServer, ServerToClient},
-    resources::{FromAcceptChannel, FromClientsChannel, PlayerInfo, PlayerMap, PowerUpSpawner, WallConfig},
+    resources::{FromAcceptChannel, FromClientsChannel, ItemSpawner, PlayerInfo, PlayerMap, WallConfig},
 };
 use common::collision::{check_player_player_collision, check_player_wall_collision, check_projectile_player_hit};
 use common::constants::*;
@@ -15,10 +15,10 @@ use common::systems::Projectile;
 // Components
 // ============================================================================
 
-// PowerUp information (server-side)
+// Item information (server-side)
 #[derive(Component)]
-pub struct PowerUpInfo {
-    pub power_up_type: PowerUpType,
+pub struct ItemInfo {
+    pub item_type: ItemType,
     pub spawn_time: f32,
 }
 
@@ -163,7 +163,7 @@ pub fn process_client_message_system(
     positions: Query<&Position>,
     speeds: Query<&Speed>,
     face_dirs: Query<&FaceDirection>,
-    powerup_query: Query<(&PowerUpId, &PowerUpInfo, &Position)>,
+    item_query: Query<(&ItemId, &ItemInfo, &Position)>,
 ) {
     while let Ok((id, event)) = from_clients.try_recv() {
         let Some(player_info) = players.0.get(&id) else {
@@ -200,7 +200,7 @@ pub fn process_client_message_system(
                         &face_dirs,
                         &mut players,
                         &wall_config,
-                        &powerup_query,
+                        &item_query,
                     );
                 }
             }
@@ -222,7 +222,7 @@ fn process_message_not_logged_in(
     face_dirs: &Query<&FaceDirection>,
     players: &mut ResMut<PlayerMap>,
     wall_config: &Res<WallConfig>,
-    powerup_query: &Query<(&PowerUpId, &PowerUpInfo, &Position)>,
+    item_query: &Query<(&ItemId, &ItemInfo, &Position)>,
 ) {
     match msg {
         ClientMessage::Login(login) => {
@@ -295,14 +295,14 @@ fn process_message_not_logged_in(
             // Add the new player manually with their freshly generated values
             all_players.push((id, player.clone()));
 
-            // Collect all powerups for the initial update
-            let all_powerups: Vec<(PowerUpId, PowerUp)> = powerup_query
+            // Collect all items for the initial update
+            let all_items: Vec<(ItemId, Item)> = item_query
                 .iter()
                 .map(|(id, info, pos)| {
                     (
                         *id,
-                        PowerUp {
-                            power_up_type: info.power_up_type,
+                        Item {
+                            item_type: info.item_type,
                             pos: *pos,
                         },
                     )
@@ -312,7 +312,7 @@ fn process_message_not_logged_in(
             // Send the initial Update to the new player
             let update_msg = ServerMessage::Update(SUpdate {
                 players: all_players,
-                powerups: all_powerups,
+                items: all_items,
             });
             channel.send(ServerToClient::Send(update_msg)).ok();
 
@@ -442,7 +442,7 @@ pub fn broadcast_state_system(
     speeds: Query<&Speed>,
     face_dirs: Query<&FaceDirection>,
     players: Res<PlayerMap>,
-    powerup_query: Query<(&PowerUpId, &PowerUpInfo, &Position)>,
+    item_query: Query<(&ItemId, &ItemInfo, &Position)>,
 ) {
     *timer += time.delta_secs();
     if *timer < UPDATE_BROADCAST_INTERVAL {
@@ -453,14 +453,14 @@ pub fn broadcast_state_system(
     // Collect all logged-in players
     let all_players = snapshot_logged_in_players(&players, &positions, &speeds, &face_dirs);
 
-    // Collect all powerups
-    let all_powerups: Vec<(PowerUpId, PowerUp)> = powerup_query
+    // Collect all items
+    let all_items: Vec<(ItemId, Item)> = item_query
         .iter()
         .map(|(id, info, pos)| {
             (
                 *id,
-                PowerUp {
-                    power_up_type: info.power_up_type,
+                Item {
+                    item_type: info.item_type,
                     pos: *pos,
                 },
             )
@@ -470,7 +470,7 @@ pub fn broadcast_state_system(
     // Broadcast to all logged-in clients
     let msg = ServerMessage::Update(SUpdate {
         players: all_players,
-        powerups: all_powerups,
+        items: all_items,
     });
     //trace!("broadcasting update: {:?}", msg);
     for info in players.0.values() {
@@ -620,15 +620,15 @@ pub fn server_movement_system(
 }
 
 // ============================================================================
-// PowerUp Systems
+// Item Systems
 // ============================================================================
 
-// System to spawn powerups at regular intervals
-pub fn powerup_spawn_system(mut commands: Commands, time: Res<Time>, mut spawner: ResMut<PowerUpSpawner>) {
+// System to spawn items at regular intervals
+pub fn item_spawn_system(mut commands: Commands, time: Res<Time>, mut spawner: ResMut<ItemSpawner>) {
     let delta = time.delta_secs();
     spawner.timer += delta;
 
-    if spawner.timer >= POWERUP_SPAWN_INTERVAL {
+    if spawner.timer >= ITEM_SPAWN_INTERVAL {
         spawner.timer = 0.0;
 
         // Find an unoccupied grid cell
@@ -640,23 +640,23 @@ pub fn powerup_spawn_system(mut commands: Commands, time: Res<Time>, mut spawner
             let grid_z = rng.random_range(0..GRID_ROWS);
 
             if !spawner.occupied_cells.contains(&(grid_x, grid_z)) {
-                // Spawn powerup in the center of this grid cell
+                // Spawn item in the center of this grid cell
                 let world_x = (grid_x as f32 + 0.5) * GRID_SIZE - FIELD_WIDTH / 2.0;
                 let world_z = (grid_z as f32 + 0.5) * GRID_SIZE - FIELD_DEPTH / 2.0;
 
-                let power_up_type = if rng.random_bool(0.5) {
-                    PowerUpType::Speed
+                let item_type = if rng.random_bool(0.5) {
+                    ItemType::Speed
                 } else {
-                    PowerUpType::MultiShot
+                    ItemType::MultiShot
                 };
 
-                let powerup_id = PowerUpId(spawner.next_id);
+                let item_id = ItemId(spawner.next_id);
                 spawner.next_id += 1;
 
                 commands.spawn((
-                    powerup_id,
-                    PowerUpInfo {
-                        power_up_type,
+                    item_id,
+                    ItemInfo {
+                        item_type,
                         spawn_time: time.elapsed_secs(),
                     },
                     Position {
@@ -673,18 +673,18 @@ pub fn powerup_spawn_system(mut commands: Commands, time: Res<Time>, mut spawner
     }
 }
 
-// System to despawn old powerups
-pub fn powerup_despawn_system(
+// System to despawn old items
+pub fn item_despawn_system(
     mut commands: Commands,
     time: Res<Time>,
-    mut spawner: ResMut<PowerUpSpawner>,
-    query: Query<(Entity, &PowerUpInfo, &Position)>,
+    mut spawner: ResMut<ItemSpawner>,
+    query: Query<(Entity, &ItemInfo, &Position)>,
 ) {
     let current_time = time.elapsed_secs();
 
     for (entity, info, pos) in &query {
-        if current_time - info.spawn_time >= POWERUP_LIFETIME {
-            // Calculate which grid cell this powerup is in
+        if current_time - info.spawn_time >= ITEM_LIFETIME {
+            // Calculate which grid cell this item is in
             let grid_x = ((pos.x + FIELD_WIDTH / 2.0) / GRID_SIZE).floor() as i32;
             let grid_z = ((pos.z + FIELD_DEPTH / 2.0) / GRID_SIZE).floor() as i32;
 

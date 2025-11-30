@@ -312,34 +312,34 @@ pub fn spawn_player_id_display(
     (text_entity, mesh_entity)
 }
 
-// Component to mark powerup entities with animation state
+// Component to mark item entities with animation state
 #[derive(Component)]
-pub struct PowerUpMarker {
-    pub power_up_type: PowerUpType,
+pub struct ItemMarker {
+    pub item_type: ItemType,
     pub anim_timer: f32,
 }
 
-// Spawn a powerup cube
-pub fn spawn_powerup(
+// Spawn a item cube
+pub fn spawn_item(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
-    powerup_id: PowerUpId,
-    power_up_type: PowerUpType,
+    item_id: ItemId,
+    item_type: ItemType,
     position: &Position,
 ) -> Entity {
-    let color = match power_up_type {
-        PowerUpType::Speed => Color::srgba(
-            POWERUP_SPEED_COLOR[0],
-            POWERUP_SPEED_COLOR[1],
-            POWERUP_SPEED_COLOR[2],
-            POWERUP_SPEED_COLOR[3],
+    let color = match item_type {
+        ItemType::Speed => Color::srgba(
+            ITEM_SPEED_COLOR[0],
+            ITEM_SPEED_COLOR[1],
+            ITEM_SPEED_COLOR[2],
+            ITEM_SPEED_COLOR[3],
         ),
-        PowerUpType::MultiShot => Color::srgba(
-            POWERUP_MULTISHOT_COLOR[0],
-            POWERUP_MULTISHOT_COLOR[1],
-            POWERUP_MULTISHOT_COLOR[2],
-            POWERUP_MULTISHOT_COLOR[3],
+        ItemType::MultiShot => Color::srgba(
+            ITEM_MULTISHOT_COLOR[0],
+            ITEM_MULTISHOT_COLOR[1],
+            ITEM_MULTISHOT_COLOR[2],
+            ITEM_MULTISHOT_COLOR[3],
         ),
     };
 
@@ -347,10 +347,13 @@ pub fn spawn_powerup(
 
     commands
         .spawn((
-            powerup_id,
-            PowerUpMarker { power_up_type, anim_timer: random_phase },
+            item_id,
+            ItemMarker {
+                item_type,
+                anim_timer: random_phase,
+            },
             *position,
-            Mesh3d(meshes.add(Cuboid::new(POWERUP_SIZE, POWERUP_SIZE, POWERUP_SIZE))),
+            Mesh3d(meshes.add(Cuboid::new(ITEM_SIZE, ITEM_SIZE, ITEM_SIZE))),
             MeshMaterial3d(materials.add(StandardMaterial {
                 base_color: color,
                 emissive: LinearRgba::new(
@@ -361,7 +364,7 @@ pub fn spawn_powerup(
                 ),
                 ..default()
             })),
-            Transform::from_xyz(position.x, POWERUP_HEIGHT_ABOVE_FLOOR + POWERUP_SIZE / 2.0, position.z),
+            Transform::from_xyz(position.x, ITEM_HEIGHT_ABOVE_FLOOR + ITEM_SIZE / 2.0, position.z),
         ))
         .id()
 }

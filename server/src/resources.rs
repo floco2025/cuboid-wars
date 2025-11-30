@@ -59,15 +59,15 @@ impl FromClientsChannel {
     }
 }
 
-// PowerUp spawner timer
+// Item spawner timer
 #[derive(Resource)]
-pub struct PowerUpSpawner {
+pub struct ItemSpawner {
     pub timer: f32,
-    pub next_id: u32, // Next PowerUpId to assign
-    pub occupied_cells: HashSet<(i32, i32)>, // Grid cells that have powerups
+    pub next_id: u32,                        // Next ItemId to assign
+    pub occupied_cells: HashSet<(i32, i32)>, // Grid cells that have items
 }
 
-impl Default for PowerUpSpawner {
+impl Default for ItemSpawner {
     fn default() -> Self {
         Self {
             timer: 0.0,

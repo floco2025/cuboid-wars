@@ -10,7 +10,7 @@ use client::{
     net::network_io_task,
     resources::{CameraViewMode, ClientToServerChannel, PlayerMap, RoundTripTime, ServerToClientChannel},
     systems::{
-        animations::animate_powerups_system,
+        animations::animate_items_system,
         collision::client_hit_detection_system,
         effects::{apply_camera_shake_system, apply_cuboid_shake_system},
         input::{camera_view_toggle_system, cursor_toggle_system, input_system, shooting_input_system},
@@ -142,8 +142,8 @@ fn main() -> Result<()> {
             update_player_list_system,
             // Update RTT display
             update_rtt_system,
-            // Animate powerups bobbing up/down
-            animate_powerups_system,
+            // Animate items bobbing up/down
+            animate_items_system,
             // Send echo requests and process responses
             echo_system,
         ),

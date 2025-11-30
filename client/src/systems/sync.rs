@@ -50,7 +50,9 @@ pub fn sync_camera_to_player_system(
 }
 
 // Update Transform from Position component for rendering
-pub fn sync_position_to_transform_system(mut query: Query<(&Position, &mut Transform, Option<&CuboidShake>), Without<crate::spawning::PowerUpMarker>>) {
+pub fn sync_position_to_transform_system(
+    mut query: Query<(&Position, &mut Transform, Option<&CuboidShake>), Without<crate::spawning::ItemMarker>>,
+) {
     for (pos, mut transform, maybe_shake) in &mut query {
         // Base position
         transform.translation.x = pos.x;
