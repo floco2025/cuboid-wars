@@ -94,18 +94,19 @@ pub fn input_system(
     }
 
     // Determine the yaw baseline (camera vs stored value depending on view mode)
-    let mut current_yaw = *stored_yaw;
-    if *view_mode == CameraViewMode::FirstPerson
+    let current_yaw = if *view_mode == CameraViewMode::FirstPerson
         && !view_mode.is_changed()
         && let Some(transform) = camera_query.iter().next()
     {
-        current_yaw = transform.rotation.to_euler(EulerRot::YXZ).0;
-    }
+        transform.rotation.to_euler(EulerRot::YXZ).0
+    } else {
+        *stored_yaw
+    };
 
     // Apply mouse delta to yaw
-    for motion in mouse_motion.read() {
-        current_yaw -= motion.delta.x * MOUSE_SENSITIVITY;
-    }
+    let current_yaw = mouse_motion.read().fold(current_yaw, |yaw, motion| {
+        motion.delta.x.mul_add(-MOUSE_SENSITIVITY, yaw)
+    });
 
     *stored_yaw = current_yaw;
     let face_yaw = current_yaw + std::f32::consts::PI;

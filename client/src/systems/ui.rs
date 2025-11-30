@@ -36,6 +36,8 @@ pub struct BumpFlashUI;
 // UI Setup System
 // ============================================================================
 
+#[allow(clippy::too_many_lines)]
+#[allow(clippy::cast_precision_loss)]
 pub fn setup_world_system(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -309,7 +311,7 @@ fn update_hit_counters(
             // Update player name (first child)
             let name_text_entity = children[0];
             if let Ok((mut text, _)) = text_and_color_query.get_mut(name_text_entity) {
-                **text = player_info.name.clone();
+                (**text).clone_from(&player_info.name);
             }
 
             // Update hit counter (second child)

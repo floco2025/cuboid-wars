@@ -222,14 +222,13 @@ fn process_message_not_logged_in(
                 player_info.logged_in = true;
 
                 // Determine player name: use provided name or default to the player id
-                let player_name = if login.name.is_empty() {
+                player_info.name = if login.name.is_empty() {
                     format!("Player {}", id.0)
                 } else {
                     login.name
                 };
-                player_info.name = player_name.clone();
 
-                (channel, player_info.hits, player_name)
+                (channel, player_info.hits, player_info.name.clone())
             };
 
             // Send Init to the connecting player (their ID and walls)

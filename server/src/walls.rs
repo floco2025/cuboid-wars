@@ -7,24 +7,14 @@ use common::{
     protocol::{Wall, WallOrientation},
 };
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct GridEdge {
-    x: f32,           // Grid line position
-    z: f32,           // Grid line position
+    x: i32,           // Grid line position
+    z: i32,           // Grid line position
     horizontal: bool, // true = horizontal (along X), false = vertical (along Z)
 }
 
-impl Eq for GridEdge {}
-
-impl std::hash::Hash for GridEdge {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.x.to_bits().hash(state);
-        self.z.to_bits().hash(state);
-        self.horizontal.hash(state);
-    }
-}
-
-/// Check if all grid cells are reachable using BFS
+// Check if all grid cells are reachable using BFS
 fn all_cells_reachable(placed_edges: &HashSet<GridEdge>, grid_cols: i32, grid_rows: i32) -> bool {
     if grid_cols <= 0 || grid_rows <= 0 {
         return true;
@@ -44,8 +34,8 @@ fn all_cells_reachable(placed_edges: &HashSet<GridEdge>, grid_cols: i32, grid_ro
                 row - 1,
                 col,
                 GridEdge {
-                    x: col as f32,
-                    z: row as f32,
+                    x: col,
+                    z: row,
                     horizontal: true,
                 },
             ), // North
@@ -53,8 +43,8 @@ fn all_cells_reachable(placed_edges: &HashSet<GridEdge>, grid_cols: i32, grid_ro
                 row + 1,
                 col,
                 GridEdge {
-                    x: col as f32,
-                    z: (row + 1) as f32,
+                    x: col,
+                    z: row + 1,
                     horizontal: true,
                 },
             ), // South
@@ -62,8 +52,8 @@ fn all_cells_reachable(placed_edges: &HashSet<GridEdge>, grid_cols: i32, grid_ro
                 row,
                 col - 1,
                 GridEdge {
-                    x: col as f32,
-                    z: row as f32,
+                    x: col,
+                    z: row,
                     horizontal: false,
                 },
             ), // West
@@ -71,8 +61,8 @@ fn all_cells_reachable(placed_edges: &HashSet<GridEdge>, grid_cols: i32, grid_ro
                 row,
                 col + 1,
                 GridEdge {
-                    x: (col + 1) as f32,
-                    z: row as f32,
+                    x: col + 1,
+                    z: row,
                     horizontal: false,
                 },
             ), // East
@@ -101,7 +91,10 @@ fn all_cells_reachable(placed_edges: &HashSet<GridEdge>, grid_cols: i32, grid_ro
     }
 
     // All cells should be reachable
-    visited.len() == (grid_rows * grid_cols) as usize
+    #[allow(clippy::cast_sign_loss)]
+    {
+        visited.len() == (grid_rows * grid_cols) as usize
+    }
 }
 
 // Generate wall segments for the playing field.
@@ -110,6 +103,10 @@ fn all_cells_reachable(placed_edges: &HashSet<GridEdge>, grid_cols: i32, grid_ro
 // Ensures all grid cells remain reachable from each other.
 // Always places walls around the perimeter of the field.
 #[must_use]
+#[allow(clippy::too_many_lines)]
+#[allow(clippy::cast_precision_loss)]
+#[allow(clippy::cast_possible_truncation)]
+#[allow(clippy::cast_sign_loss)]
 pub fn generate_walls() -> Vec<Wall> {
     let mut rng = rand::rng();
     let mut walls = Vec::new();
@@ -123,8 +120,8 @@ pub fn generate_walls() -> Vec<Wall> {
     // Top edge (z = 0)
     for x in 0..grid_cols {
         let edge = GridEdge {
-            x: x as f32,
-            z: 0.0,
+            x,
+            z: 0,
             horizontal: true,
         };
         placed_edges.insert(edge);
@@ -140,8 +137,8 @@ pub fn generate_walls() -> Vec<Wall> {
     // Bottom edge (z = grid_rows)
     for x in 0..grid_cols {
         let edge = GridEdge {
-            x: x as f32,
-            z: grid_rows as f32,
+            x,
+            z: grid_rows,
             horizontal: true,
         };
         placed_edges.insert(edge);
@@ -157,8 +154,8 @@ pub fn generate_walls() -> Vec<Wall> {
     // Left edge (x = 0)
     for z in 0..grid_rows {
         let edge = GridEdge {
-            x: 0.0,
-            z: z as f32,
+            x: 0,
+            z,
             horizontal: false,
         };
         placed_edges.insert(edge);
@@ -174,8 +171,8 @@ pub fn generate_walls() -> Vec<Wall> {
     // Right edge (x = grid_cols)
     for z in 0..grid_rows {
         let edge = GridEdge {
-            x: grid_cols as f32,
-            z: z as f32,
+            x: grid_cols,
+            z,
             horizontal: false,
         };
         placed_edges.insert(edge);
@@ -194,7 +191,7 @@ pub fn generate_walls() -> Vec<Wall> {
     // Interior horizontal edges (along X axis)
     for z in 1..grid_rows {
         for x in 0..grid_cols {
-            all_edges.push(GridEdge { x: x as f32, z: z as f32, horizontal: true });
+            all_edges.push(GridEdge { x, z, horizontal: true });
         }
     }
 
@@ -202,8 +199,8 @@ pub fn generate_walls() -> Vec<Wall> {
     for z in 0..grid_rows {
         for x in 1..grid_cols {
             all_edges.push(GridEdge {
-                x: x as f32,
-                z: z as f32,
+                x,
+                z,
                 horizontal: false,
             });
         }
@@ -241,8 +238,8 @@ pub fn generate_walls() -> Vec<Wall> {
         let (x, z, horizontal) = (edge.x, edge.z, edge.horizontal);
 
         if horizontal {
-            let world_x = (x + 0.5).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-            let world_z = z.mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+            let world_x = (x as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+            let world_z = (z as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
 
             walls.push(Wall {
                 x: world_x,
@@ -250,8 +247,8 @@ pub fn generate_walls() -> Vec<Wall> {
                 orientation: WallOrientation::Horizontal,
             });
         } else {
-            let world_x = x.mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-            let world_z = (z + 0.5).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+            let world_x = (x as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+            let world_z = (z as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
 
             walls.push(Wall {
                 x: world_x,

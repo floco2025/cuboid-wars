@@ -8,6 +8,23 @@ use common::{
 };
 
 // ============================================================================
+// Type Aliases
+// ============================================================================
+
+type MovementQuery<'w, 's> = Query<
+    'w,
+    's,
+    (
+        Entity,
+        &'static mut Position,
+        &'static Velocity,
+        Option<&'static mut BumpFlashState>,
+        Option<&'static mut ServerSnapshot>,
+        Has<LocalPlayer>,
+    ),
+>;
+
+// ============================================================================
 // Components
 // ============================================================================
 
@@ -44,14 +61,7 @@ pub fn client_movement_system(
     _rtt: Res<RoundTripTime>,
     asset_server: Res<AssetServer>,
     wall_config: Option<Res<WallConfig>>,
-    mut query: Query<(
-        Entity,
-        &mut Position,
-        &Velocity,
-        Option<&mut BumpFlashState>,
-        Option<&mut ServerSnapshot>,
-        Has<LocalPlayer>,
-    )>,
+    mut query: MovementQuery,
     mut bump_flash_ui: Query<(&mut BackgroundColor, &mut Visibility), With<super::ui::BumpFlashUI>>,
 ) {
     let delta = time.delta_secs();
@@ -65,14 +75,12 @@ pub fn client_movement_system(
             decay_flash_timer(state, delta, is_local, &mut bump_flash_ui);
         }
 
-        const CORRECTION_INTERVAL: f32 = UPDATE_BROADCAST_INTERVAL * 0.9;
-
         let target_pos = if let Some(snapshot) = server_snapshot.as_mut() {
-            let dx = (snapshot.server_pos.x - snapshot.client_pos.x) * delta / CORRECTION_INTERVAL;
-            let dz = (snapshot.server_pos.z - snapshot.client_pos.z) * delta / CORRECTION_INTERVAL;
+            let dx = (snapshot.server_pos.x - snapshot.client_pos.x) * delta / UPDATE_BROADCAST_INTERVAL;
+            let dz = (snapshot.server_pos.z - snapshot.client_pos.z) * delta / UPDATE_BROADCAST_INTERVAL;
 
             snapshot.timer += delta;
-            if snapshot.timer >= CORRECTION_INTERVAL {
+            if snapshot.timer >= UPDATE_BROADCAST_INTERVAL {
                 commands.entity(entity).remove::<ServerSnapshot>();
             }
 
@@ -107,7 +115,7 @@ pub fn client_movement_system(
         } else if hit_wall {
             // Slide along the wall instead of stopping
             let slide_pos = common::collision::calculate_wall_slide(
-                &walls.unwrap().walls,
+                &walls.expect("walls should exist if hit_wall is true").walls,
                 &pos,
                 &target_pos,
                 velocity.x,

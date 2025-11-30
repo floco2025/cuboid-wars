@@ -337,6 +337,7 @@ fn handle_echo_message(time: &Time, rtt: &mut ResMut<RoundTripTime>, msg: &SEcho
         return;
     }
 
+    #[allow(clippy::cast_possible_truncation)]
     let expected_nanos = rtt.pending_sent_at.as_nanos() as u64;
     if msg.timestamp_nanos != expected_nanos {
         return;
@@ -352,7 +353,10 @@ fn handle_echo_message(time: &Time, rtt: &mut ResMut<RoundTripTime>, msg: &SEcho
     }
 
     let sum: Duration = rtt.measurements.iter().sum();
-    rtt.rtt = sum / rtt.measurements.len() as u32;
+    #[allow(clippy::cast_possible_truncation)]
+    {
+        rtt.rtt = sum / rtt.measurements.len() as u32;
+    }
 }
 
 // ============================================================================
@@ -381,6 +385,7 @@ pub fn echo_system(
         *timer = 0.0;
         let now = time.elapsed();
         rtt.pending_sent_at = now;
+        #[allow(clippy::cast_possible_truncation)]
         let _ = to_server.send(ClientToServer::Send(ClientMessage::Echo(CEcho {
             timestamp_nanos: now.as_nanos() as u64,
         })));

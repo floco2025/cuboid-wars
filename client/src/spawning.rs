@@ -197,6 +197,7 @@ fn spawn_face_sphere(
 }
 
 // Setup the player ID text rendering system: create texture and camera for a single player
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn setup_player_id_text_rendering(
     commands: &mut Commands,
     images: &mut ResMut<Assets<Image>>,
@@ -253,6 +254,9 @@ pub fn spawn_player_id_display(
     image_handle: Handle<Image>,
     text_camera: Entity,
 ) -> (Entity, Entity) {
+    #[allow(clippy::cast_precision_loss)]
+    const LABEL_HEIGHT: f32 = LABEL_WIDTH * (LABEL_TEXTURE_HEIGHT as f32 / LABEL_TEXTURE_WIDTH as f32);
+
     // Create UI text that renders to texture
     let text_entity = commands
         .spawn((
@@ -291,7 +295,6 @@ pub fn spawn_player_id_display(
         .id();
 
     // Create 3D plane mesh with the rendered texture
-    const LABEL_HEIGHT: f32 = LABEL_WIDTH * (LABEL_TEXTURE_HEIGHT as f32 / LABEL_TEXTURE_WIDTH as f32);
     let mesh_entity = commands
         .spawn((
             Mesh3d(meshes.add(Rectangle::new(LABEL_WIDTH, LABEL_HEIGHT))),

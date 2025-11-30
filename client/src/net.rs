@@ -119,10 +119,13 @@ async fn handle_client_command(
                 true
             } else {
                 trace!("sending to server: {:?}", msg);
-                stream.send(&msg).await.map(|()| true).unwrap_or_else(|e| {
-                    error!("error sending to server: {e}");
-                    false
-                })
+                stream.send(&msg).await.map_or_else(
+                    |e| {
+                        error!("error sending to server: {e}");
+                        false
+                    },
+                    |()| true,
+                )
             }
         }
         Some(ClientToServer::Close) => {

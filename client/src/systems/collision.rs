@@ -44,7 +44,7 @@ pub fn client_hit_detection_system(
             continue;
         }
 
-        if handle_player_collisions(
+        handle_player_collisions(
             &mut commands,
             asset_server.as_ref(),
             projectile_entity,
@@ -52,9 +52,7 @@ pub fn client_hit_detection_system(
             &projectile_pos,
             delta,
             &player_query,
-        ) {
-            continue;
-        }
+        );
     }
 }
 
