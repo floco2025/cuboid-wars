@@ -243,15 +243,6 @@ fn process_message_not_logged_in(
             // Calculate initial facing direction toward center
             let face_dir = (-pos.x).atan2(-pos.z);
 
-            info!(
-                "Player {:?} ({name}) spawned at ({:.1}, {:.1}), facing {:.2} rad ({:.0}°)",
-                id,
-                pos.x,
-                pos.z,
-                face_dir,
-                face_dir.to_degrees()
-            );
-
             // Initial speed for the new player
             let speed = Speed {
                 speed_level: SpeedLevel::Idle,
@@ -913,7 +904,6 @@ pub fn ghost_spawn_system(
         let entity = commands.spawn((ghost_id, pos, vel)).id();
         
         ghosts.0.insert(ghost_id, crate::resources::GhostInfo { entity });
-        info!("Spawned ghost {:?} at ({}, {})", ghost_id, pos.x, pos.z);
     }
 }
 
@@ -921,6 +911,7 @@ pub fn ghost_spawn_system(
 pub fn ghost_movement_system(
     time: Res<Time>,
     wall_config: Res<WallConfig>,
+    players: Res<PlayerMap>,
     mut ghost_query: Query<(&GhostId, &mut Position, &mut Velocity)>,
 ) {
     let delta = time.delta_secs();
@@ -933,29 +924,36 @@ pub fn ghost_movement_system(
         let test_pos = Position { x: new_x, y: 0.0, z: new_z };
 
         // Check if new position would hit a wall
-        let mut hit_wall = false;
+        let mut hits_wall = false;
         for wall in &wall_config.walls {
             if check_ghost_wall_collision(&test_pos, wall) {
-                hit_wall = true;
+                hits_wall = true;
                 break;
             }
         }
 
         // Check arena bounds (use GHOST_SIZE for proper boundary)
-        if new_x.abs() > FIELD_WIDTH / 2.0 - GHOST_SIZE / 2.0
-            || new_z.abs() > FIELD_DEPTH / 2.0 - GHOST_SIZE / 2.0
-        {
-            hit_wall = true;
-        }
+        // if new_x.abs() > FIELD_WIDTH / 2.0 - GHOST_SIZE / 2.0
+        //     || new_z.abs() > FIELD_DEPTH / 2.0 - GHOST_SIZE / 2.0
+        // {
+        //     hits_wall = true;
+        // }
 
-        if hit_wall {
+        if hits_wall {
             // Pick a new random direction when hitting a wall
             let angle = rng.random_range(0.0..std::f32::consts::TAU);
             let speed = vel.x.hypot(vel.z); // Maintain same speed
             vel.x = speed * angle.cos();
             vel.z = speed * angle.sin();
-            
-            trace!("Ghost {:?} hit wall, new direction: ({}, {})", ghost_id, vel.x, vel.z);
+                        
+            // Broadcast direction change immediately to all clients
+            broadcast_to_all(&players, ServerMessage::Ghost(SGhost {
+                id: *ghost_id,
+                ghost: Ghost {
+                    pos: *pos,
+                    vel: *vel,
+                },
+            }));
             // Don't move this frame - just change direction
         } else {
             // Move normally
