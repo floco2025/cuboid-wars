@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::resources::WallConfig;
 use common::{
-    constants::UPDATE_BROADCAST_INTERVAL,
+    constants::{RUN_SPEED, UPDATE_BROADCAST_INTERVAL},
     protocol::{Position, Velocity},
 };
 
@@ -68,11 +68,16 @@ pub fn client_movement_system(
             decay_flash_timer(state, delta, is_local, &mut bump_flash_ui);
         }
 
+        let abs_velocity = calculate_absolute_velocity(client_vel);
+        let is_standing_still = abs_velocity < f32::EPSILON;
+
         let target_pos = if let Some(recon) = server_snapshot.as_mut() {
-            let mut correction_factor = UPDATE_BROADCAST_INTERVAL / 5.0;
-            if correction_factor > 1.0 {
-                correction_factor = 1.0;
-            }
+            const IDLE_CORRECTION_TIME: f32 = 5.0; // Standing still: slow, smooth correction
+            const RUN_CORRECTION_TIME: f32 = 3.5; // Running: faster, more responsive correction
+
+            let speed_ratio = (abs_velocity / RUN_SPEED).clamp(0.0, 1.0); // Ignore speed power-ups
+            let correction_time_interval = IDLE_CORRECTION_TIME.lerp(RUN_CORRECTION_TIME, speed_ratio);
+            let correction_factor = (UPDATE_BROADCAST_INTERVAL / correction_time_interval).clamp(0.0, 1.0);
 
             recon.timer += delta * correction_factor;
             if recon.timer >= UPDATE_BROADCAST_INTERVAL {
@@ -100,6 +105,11 @@ pub fn client_movement_system(
                 z: client_vel.z.mul_add(delta, client_pos.z),
             }
         };
+
+        // Skip collision checks if player is standing still
+        if is_standing_still {
+            continue;
+        }
 
         let hit_wall = hits_wall(walls, &target_pos);
         let hit_player = hits_other_player(entity, &target_pos, &entity_positions);
@@ -138,6 +148,10 @@ pub fn client_movement_system(
 // ============================================================================
 
 const BUMP_FLASH_DURATION: f32 = 0.08;
+
+fn calculate_absolute_velocity(velocity: &Velocity) -> f32 {
+    (velocity.x * velocity.x + velocity.z * velocity.z).sqrt()
+}
 
 fn hits_wall(walls: Option<&WallConfig>, new_pos: &Position) -> bool {
     let Some(config) = walls else { return false };
