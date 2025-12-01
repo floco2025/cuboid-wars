@@ -19,14 +19,14 @@ use common::{
 // Update camera position to follow local player
 pub fn sync_camera_to_player_system(
     local_player_query: Query<&Position, With<LocalPlayer>>,
-    mut camera_query: Query<(&mut Transform, Option<&CameraShake>), With<Camera3d>>,
+    mut camera_query: Query<(&mut Transform, &mut Projection, Option<&CameraShake>), With<Camera3d>>,
     view_mode: Res<CameraViewMode>,
 ) {
     let Some(player_pos) = local_player_query.iter().next() else {
         return;
     };
 
-    for (mut camera_transform, maybe_shake) in &mut camera_query {
+    for (mut camera_transform, mut projection, maybe_shake) in &mut camera_query {
         match *view_mode {
             CameraViewMode::FirstPerson => {
                 camera_transform.translation.x = player_pos.x;
@@ -38,12 +38,22 @@ pub fn sync_camera_to_player_system(
                     camera_transform.translation.y += shake.offset_y;
                     camera_transform.translation.z += shake.offset_z;
                 }
+
+                // Set FPV FOV
+                if let Projection::Perspective(persp) = projection.as_mut() {
+                    persp.fov = FPV_CAMERA_FOV_DEGREES.to_radians();
+                }
             }
             CameraViewMode::TopDown => {
                 if view_mode.is_changed() {
                     camera_transform.translation = Vec3::new(0.0, TOPDOWN_CAMERA_HEIGHT, TOPDOWN_CAMERA_Z_OFFSET);
                 }
                 camera_transform.look_at(Vec3::new(TOPDOWN_LOOKAT_X, TOPDOWN_LOOKAT_Y, TOPDOWN_LOOKAT_Z), Vec3::Y);
+
+                // Set top-down FOV
+                if let Projection::Perspective(persp) = projection.as_mut() {
+                    persp.fov = TOPDOWN_CAMERA_FOV_DEGREES.to_radians();
+                }
             }
         }
     }

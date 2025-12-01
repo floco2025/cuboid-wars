@@ -78,7 +78,13 @@ pub fn setup_world_system(
 
     // Add camera (initial position will be immediately overridden by sync system)
     commands.spawn((
-        Camera3d::default(),
+        Camera3d {
+            ..default()
+        },
+        Projection::from(PerspectiveProjection {
+            fov: FPV_CAMERA_FOV_DEGREES.to_radians(),
+            ..default()
+        }),
         Transform::from_xyz(0.0, PLAYER_HEIGHT * FPV_CAMERA_HEIGHT_RATIO, 0.0)
             .looking_at(Vec3::new(0.0, 0.0, -1.0), Vec3::Y),
     ));
