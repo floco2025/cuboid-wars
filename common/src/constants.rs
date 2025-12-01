@@ -45,3 +45,6 @@ pub const PLAYER_NOSE_HEIGHT: f32 = 0.5; // relative to ground
 
 // Server update interval
 pub const UPDATE_BROADCAST_INTERVAL: f32 = 0.2; // seconds
+
+// Power-up setting
+pub const SPEED_POWER_UP_MULTIPLIER: f32 = 2.0;

@@ -570,16 +570,26 @@ pub fn hit_detection_system(
 pub fn server_movement_system(
     time: Res<Time>,
     wall_config: Res<WallConfig>,
-    mut query: Query<(Entity, &mut Position, &Speed)>,
+    players: Res<PlayerMap>,
+    mut query: Query<(Entity, &mut Position, &Speed, &PlayerId)>,
 ) {
     let delta = time.delta_secs();
 
     // Pass 1: Calculate all intended new positions (after wall collision check with sliding)
     let mut intended_positions: Vec<(Entity, Position)> = Vec::new();
 
-    for (entity, pos, speed) in query.iter() {
+    for (entity, pos, speed, player_id) in query.iter() {
         // Convert Speed to Velocity
-        let velocity = speed.to_velocity();
+        let mut velocity = speed.to_velocity();
+        
+        // Apply speed power-up multiplier if active
+        if let Some(player_info) = players.0.get(player_id) {
+            if player_info.speed_power_up_timer > 0.0 {
+                velocity.x *= SPEED_POWER_UP_MULTIPLIER;
+                velocity.z *= SPEED_POWER_UP_MULTIPLIER;
+            }
+        }
+        
         let speed = velocity.x.hypot(velocity.z);
 
         if speed > 0.0 {
@@ -625,7 +635,7 @@ pub fn server_movement_system(
 
         if !collides_with_player {
             // No collision, apply intended position
-            if let Ok((_, mut pos, _)) = query.get_mut(*entity) {
+            if let Ok((_, mut pos, _, _)) = query.get_mut(*entity) {
                 *pos = *intended_pos;
             }
         }

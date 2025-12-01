@@ -7,6 +7,7 @@ use crate::{
     resources::{CameraViewMode, ClientToServerChannel},
     spawning::spawn_projectile_local,
 };
+use common::constants::SPEED_POWER_UP_MULTIPLIER;
 use common::protocol::{CFace, CShot, CSpeed, ClientMessage, FaceDirection, Position, Speed, SpeedLevel, Velocity};
 
 // ============================================================================
@@ -54,6 +55,15 @@ pub fn cursor_toggle_system(
     }
 }
 
+#[derive(Default)]
+pub struct InputState {
+    last_sent_speed: Speed,
+    last_sent_face: f32,
+    last_send_speed_time: f32,
+    last_send_face_time: f32,
+    stored_yaw: f32,
+}
+
 // Handle WASD movement and mouse rotation
 pub fn input_system(
     keyboard: Res<ButtonInput<KeyCode>>,
@@ -61,11 +71,9 @@ pub fn input_system(
     cursor_options: Single<&bevy::window::CursorOptions>,
     to_server: Res<ClientToServerChannel>,
     time: Res<Time>,
-    mut last_sent_speed: Local<Speed>,    // Last speed sent to server
-    mut last_sent_face: Local<f32>,       // Last face direction sent to server
-    mut last_send_speed_time: Local<f32>, // Time accumulator for send speed interval throttling
-    mut last_send_face_time: Local<f32>,  // Time accumulator for send face interval throttling
-    mut stored_yaw: Local<f32>,           // Track player yaw across frames
+    my_player_id: Option<Res<crate::resources::MyPlayerId>>,
+    players: Res<crate::resources::PlayerMap>,
+    mut local_state: Local<InputState>,
     mut local_player_query: Query<(&mut Velocity, &mut FaceDirection), With<LocalPlayer>>,
     mut camera_query: Query<&mut Transform, With<Camera3d>>,
     view_mode: Res<CameraViewMode>,
@@ -76,18 +84,28 @@ pub fn input_system(
         // Drain pending mouse events and ensure player stops moving
         for _ in mouse_motion.read() {}
 
-        if last_sent_speed.speed_level != SpeedLevel::Idle {
+        if local_state.last_sent_speed.speed_level != SpeedLevel::Idle {
             let speed = Speed {
                 speed_level: SpeedLevel::Idle,
                 move_dir: 0.0,
             };
             for (mut player_velocity, _) in &mut local_player_query {
-                *player_velocity = speed.to_velocity();
+                let mut velocity = speed.to_velocity();
+                // Apply speed multiplier if local player has speed power-up
+                if let Some(my_id) = my_player_id.as_ref() {
+                    if let Some(player_info) = players.0.get(&my_id.0) {
+                        if player_info.speed_power_up {
+                            velocity.x *= SPEED_POWER_UP_MULTIPLIER;
+                            velocity.z *= SPEED_POWER_UP_MULTIPLIER;
+                        }
+                    }
+                }
+                *player_velocity = velocity;
             }
             let msg = ClientMessage::Speed(CSpeed { speed });
             let _ = to_server.send(ClientToServer::Send(msg));
-            *last_sent_speed = speed;
-            *last_send_speed_time = 0.0;
+            local_state.last_sent_speed = speed;
+            local_state.last_send_speed_time = 0.0;
         }
 
         return;
@@ -100,7 +118,7 @@ pub fn input_system(
     {
         transform.rotation.to_euler(EulerRot::YXZ).0
     } else {
-        *stored_yaw
+        local_state.stored_yaw
     };
 
     // Apply mouse delta to yaw
@@ -108,7 +126,7 @@ pub fn input_system(
         motion.delta.x.mul_add(-MOUSE_SENSITIVITY, yaw)
     });
 
-    *stored_yaw = current_yaw;
+    local_state.stored_yaw = current_yaw;
     let face_yaw = current_yaw + std::f32::consts::PI;
 
     // Build movement input vector (forward=z, right=x)
@@ -143,30 +161,41 @@ pub fn input_system(
 
     let speed = Speed { speed_level, move_dir };
     for (mut player_velocity, mut player_face) in &mut local_player_query {
-        *player_velocity = speed.to_velocity();
+        let mut velocity = speed.to_velocity();
+        // Apply speed multiplier if local player has speed power-up
+        if let Some(my_id) = my_player_id.as_ref() {
+            if let Some(player_info) = players.0.get(&my_id.0) {
+                if player_info.speed_power_up {
+                    velocity.x *= SPEED_POWER_UP_MULTIPLIER;
+                    velocity.z *= SPEED_POWER_UP_MULTIPLIER;
+                }
+            }
+        }
+        *player_velocity = velocity;
         player_face.0 = face_yaw;
     }
 
     // Throttle network updates when movement/face changes
     let delta = time.delta_secs();
-    *last_send_speed_time += delta;
-    *last_send_face_time += delta;
+    local_state.last_send_speed_time += delta;
+    local_state.last_send_face_time += delta;
 
-    let speed_level_changed = last_sent_speed.speed_level != speed.speed_level;
-    let move_dir_changed = (speed.move_dir - last_sent_speed.move_dir).abs() > SPEED_DIR_CHANGE_THRESHOLD.to_radians();
-    if speed_level_changed || (move_dir_changed && *last_send_speed_time >= SPEED_MAX_SEND_INTERVAL) {
+    let speed_level_changed = local_state.last_sent_speed.speed_level != speed.speed_level;
+    let move_dir_changed =
+        (speed.move_dir - local_state.last_sent_speed.move_dir).abs() > SPEED_DIR_CHANGE_THRESHOLD.to_radians();
+    if speed_level_changed || (move_dir_changed && local_state.last_send_speed_time >= SPEED_MAX_SEND_INTERVAL) {
         let msg = ClientMessage::Speed(CSpeed { speed });
         let _ = to_server.send(ClientToServer::Send(msg));
-        *last_sent_speed = speed;
-        *last_send_speed_time = 0.0;
+        local_state.last_sent_speed = speed;
+        local_state.last_send_speed_time = 0.0;
     }
 
-    let face_changed = (face_yaw - *last_sent_face).abs() > FACE_CHANGE_THRESHOLD.to_radians();
-    if face_changed && *last_send_face_time >= FACE_MAX_SEND_INTERVAL {
+    let face_changed = (face_yaw - local_state.last_sent_face).abs() > FACE_CHANGE_THRESHOLD.to_radians();
+    if face_changed && local_state.last_send_face_time >= FACE_MAX_SEND_INTERVAL {
         let msg = ClientMessage::Face(CFace { dir: face_yaw });
         let _ = to_server.send(ClientToServer::Send(msg));
-        *last_sent_face = face_yaw;
-        *last_send_face_time = 0.0;
+        local_state.last_sent_face = face_yaw;
+        local_state.last_send_face_time = 0.0;
     }
 
     if *view_mode == CameraViewMode::FirstPerson {

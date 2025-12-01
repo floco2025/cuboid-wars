@@ -14,6 +14,7 @@ use crate::{
     },
     spawning::{spawn_item, spawn_player, spawn_projectile_for_player},
 };
+use common::constants::SPEED_POWER_UP_MULTIPLIER;
 use common::protocol::*;
 
 // ============================================================================
@@ -32,6 +33,7 @@ pub fn process_server_events_system(
     mut item_map: ResMut<ItemMap>,
     mut rtt: ResMut<RoundTripTime>,
     player_query: Query<&Position, With<PlayerId>>,
+    speed_query: Query<&Speed>,
     player_face_query: Query<(&Position, &FaceDirection), With<PlayerId>>,
     camera_query: Query<Entity, With<Camera3d>>,
     my_player_id: Option<Res<MyPlayerId>>,
@@ -57,6 +59,7 @@ pub fn process_server_events_system(
                         &mut item_map,
                         &mut rtt,
                         &player_query,
+                        &speed_query,
                         &player_face_query,
                         &camera_query,
                         &time,
@@ -102,6 +105,7 @@ fn process_message_logged_in(
     items: &mut ResMut<ItemMap>,
     rtt: &mut ResMut<RoundTripTime>,
     player_query: &Query<&Position, With<PlayerId>>,
+    speed_query: &Query<&Speed>,
     player_face_query: &Query<(&Position, &FaceDirection), With<PlayerId>>,
     camera_query: &Query<Entity, With<Camera3d>>,
     time: &Res<Time>,
@@ -131,7 +135,7 @@ fn process_message_logged_in(
             update_msg,
         ),
         ServerMessage::Hit(hit_msg) => handle_hit_message(commands, players, camera_query, my_player_id, hit_msg),
-        ServerMessage::PowerUp(power_up_msg) => handle_power_up_message(players, power_up_msg),
+        ServerMessage::PowerUp(power_up_msg) => handle_power_up_message(commands, players, speed_query, power_up_msg),
         ServerMessage::Echo(echo_msg) => handle_echo_message(time, rtt, echo_msg),
     }
 }
@@ -149,6 +153,11 @@ fn handle_login_message(
         return;
     }
 
+    let mut velocity = msg.player.speed.to_velocity();
+    if msg.player.speed_power_up {
+        velocity.x *= SPEED_POWER_UP_MULTIPLIER;
+        velocity.z *= SPEED_POWER_UP_MULTIPLIER;
+    }
     let entity = spawn_player(
         commands,
         meshes,
@@ -157,7 +166,7 @@ fn handle_login_message(
         msg.id.0,
         &msg.player.name,
         &msg.player.pos,
-        msg.player.speed.to_velocity(),
+        velocity,
         msg.player.face_dir,
         false,
     );
@@ -183,7 +192,12 @@ fn handle_logoff_message(commands: &mut Commands, players: &mut ResMut<PlayerMap
 fn handle_speed_message(commands: &mut Commands, players: &ResMut<PlayerMap>, msg: SSpeed) {
     trace!("{:?} speed: {:?}", msg.id, msg);
     if let Some(player) = players.0.get(&msg.id) {
-        commands.entity(player.entity).insert(msg.speed.to_velocity());
+        let mut velocity = msg.speed.to_velocity();
+        if player.speed_power_up {
+            velocity.x *= SPEED_POWER_UP_MULTIPLIER;
+            velocity.z *= SPEED_POWER_UP_MULTIPLIER;
+        }
+        commands.entity(player.entity).insert(velocity);
     }
 }
 
@@ -233,6 +247,11 @@ fn handle_update_message(
 
         let is_local = *id == my_player_id;
         debug!("spawning player {:?} from Update (is_local: {})", id, is_local);
+        let mut velocity = player.speed.to_velocity();
+        if player.speed_power_up {
+            velocity.x *= SPEED_POWER_UP_MULTIPLIER;
+            velocity.z *= SPEED_POWER_UP_MULTIPLIER;
+        }
         let entity = spawn_player(
             commands,
             meshes,
@@ -241,7 +260,7 @@ fn handle_update_message(
             id.0,
             &player.name,
             &player.pos,
-            player.speed.to_velocity(),
+            velocity,
             player.face_dir,
             is_local,
         );
@@ -284,10 +303,15 @@ fn handle_update_message(
     for (id, server_player) in msg.players {
         if let Some(client_player) = players.0.get_mut(&id) {
             if let Ok(client_pos) = player_query.get(client_player.entity) {
+                let mut server_vel = server_player.speed.to_velocity();
+                if server_player.speed_power_up {
+                    server_vel.x *= SPEED_POWER_UP_MULTIPLIER;
+                    server_vel.z *= SPEED_POWER_UP_MULTIPLIER;
+                }
                 commands.entity(client_player.entity).insert(ServerReconciliation {
                     client_pos: *client_pos,
                     server_pos: server_player.pos,
-                    server_vel: server_player.speed.to_velocity(),
+                    server_vel,
                     timer: 0.0,
                     rtt: rtt.rtt.as_secs_f32(),
                 });
@@ -385,10 +409,23 @@ fn handle_echo_message(time: &Time, rtt: &mut ResMut<RoundTripTime>, msg: SEcho)
     }
 }
 
-fn handle_power_up_message(players: &mut ResMut<PlayerMap>, msg: SPowerUp) {
+fn handle_power_up_message(commands: &mut Commands, players: &mut ResMut<PlayerMap>, speeds: &Query<&Speed>, msg: SPowerUp) {
     if let Some(player_info) = players.0.get_mut(&msg.id) {
+        let old_speed_power_up = player_info.speed_power_up;
         player_info.speed_power_up = msg.speed_power_up;
         player_info.multi_shot_power_up = msg.multi_shot_power_up;
+        
+        // If speed power-up status changed, recalculate velocity
+        if old_speed_power_up != msg.speed_power_up {
+            if let Ok(speed) = speeds.get(player_info.entity) {
+                let mut velocity = speed.to_velocity();
+                if msg.speed_power_up {
+                    velocity.x *= SPEED_POWER_UP_MULTIPLIER;
+                    velocity.z *= SPEED_POWER_UP_MULTIPLIER;
+                }
+                commands.entity(player_info.entity).insert(velocity);
+            }
+        }
     }
 }
 
