@@ -5,7 +5,7 @@ use crate::constants::*;
 use crate::{
     net::ClientToServer,
     resources::{CameraViewMode, ClientToServerChannel},
-    spawning::spawn_projectile_local,
+    spawning::spawn_projectiles_local,
 };
 use common::constants::SPEED_POWER_UP_MULTIPLIER;
 use common::protocol::{CFace, CShot, CSpeed, ClientMessage, FaceDirection, Position, Speed, SpeedLevel, Velocity};
@@ -214,6 +214,8 @@ pub fn shooting_input_system(
     asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    my_player_id: Option<Res<crate::resources::MyPlayerId>>,
+    players: Res<crate::resources::PlayerMap>,
 ) {
     // Only allow shooting when cursor is locked
     let cursor_locked = cursor_options.grab_mode != bevy::window::CursorGrabMode::None;
@@ -232,7 +234,12 @@ pub fn shooting_input_system(
         let shot_msg = ClientMessage::Shot(CShot { face_dir: face_dir.0 });
         let _ = to_server.send(ClientToServer::Send(shot_msg));
 
-        // Spawn projectile locally
-        spawn_projectile_local(&mut commands, &mut meshes, &mut materials, pos, face_dir.0);
+        // Check if player has multi-shot power-up
+        let has_multi_shot = my_player_id.as_ref()
+            .and_then(|id| players.0.get(&id.0))
+            .map_or(false, |info| info.multi_shot_power_up);
+
+        // Spawn projectile(s) based on power-up status
+        spawn_projectiles_local(&mut commands, &mut meshes, &mut materials, pos, face_dir.0, has_multi_shot);
     }
 }

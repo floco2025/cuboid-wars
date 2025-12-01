@@ -419,20 +419,36 @@ fn handle_shot(
     // Update the shooter's face direction to exact facing direction
     commands.entity(entity).insert(FaceDirection(msg.face_dir));
 
-    // Spawn projectile on server for hit detection
+    // Spawn projectile(s) on server for hit detection
     if let Ok(pos) = positions.get(entity) {
-        let spawn_pos = Projectile::calculate_spawn_position(Vec3::new(pos.x, pos.y, pos.z), msg.face_dir);
-        let projectile = Projectile::new(msg.face_dir);
+        // Determine number of shots based on multi-shot power-up
+        let num_shots = if players.0.get(&id).map_or(false, |info| info.multi_shot_power_up_timer > 0.0) {
+            MULTI_SHOT_MULTIPLER
+        } else {
+            1
+        };
 
-        commands.spawn((
-            Position {
-                x: spawn_pos.x,
-                y: spawn_pos.y,
-                z: spawn_pos.z,
-            },
-            projectile,
-            id, // Tag projectile with shooter's ID
-        ));
+        // Spawn projectiles in an arc
+        use common::constants::MULTI_SHOT_ANGLE;
+        let angle_step = MULTI_SHOT_ANGLE.to_radians();
+        let start_offset = -(num_shots - 1) as f32 * angle_step / 2.0;
+
+        for i in 0..num_shots {
+            let angle_offset = start_offset + i as f32 * angle_step;
+            let shot_dir = msg.face_dir + angle_offset;
+            let spawn_pos = Projectile::calculate_spawn_position(Vec3::new(pos.x, pos.y, pos.z), shot_dir);
+            let projectile = Projectile::new(shot_dir);
+
+            commands.spawn((
+                Position {
+                    x: spawn_pos.x,
+                    y: spawn_pos.y,
+                    z: spawn_pos.z,
+                },
+                projectile,
+                id, // Tag projectile with shooter's ID
+            ));
+        }
     }
 
     // Broadcast shot with face direction to all other logged-in players

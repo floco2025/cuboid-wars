@@ -12,7 +12,7 @@ use crate::{
         ClientToServerChannel, ItemInfo, ItemMap, MyPlayerId, PlayerInfo, PlayerMap, RoundTripTime,
         ServerToClientChannel, WallConfig,
     },
-    spawning::{spawn_item, spawn_player, spawn_projectile_for_player},
+    spawning::{spawn_item, spawn_player},
 };
 use common::constants::SPEED_POWER_UP_MULTIPLIER;
 use common::protocol::*;
@@ -219,7 +219,18 @@ fn handle_shot_message(
     trace!("{:?} shot: {:?}", msg.id, msg);
     if let Some(player) = players.0.get(&msg.id) {
         commands.entity(player.entity).insert(FaceDirection(msg.face_dir));
-        spawn_projectile_for_player(commands, meshes, materials, player_face_query, player.entity);
+        
+        // Spawn projectile(s) based on player's multi-shot power-up status
+        if let Ok((pos, _)) = player_face_query.get(player.entity) {
+            crate::spawning::spawn_projectiles_local(
+                commands,
+                meshes,
+                materials,
+                pos,
+                msg.face_dir,
+                player.multi_shot_power_up,
+            );
+        }
     }
 }
 
