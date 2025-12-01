@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use rand::Rng as _;
 
 use crate::{
-    constants::{ITEM_LIFETIME, ITEM_SPAWN_INTERVAL},
+    constants::*,
     net::{ClientToServer, ServerToClient},
     resources::{
         FromAcceptChannel, FromClientsChannel, ItemInfo, ItemMap, ItemSpawner, PlayerInfo, PlayerMap, WallConfig,
@@ -740,9 +740,6 @@ pub fn item_collection_system(
     player_positions: Query<&Position, With<PlayerId>>,
     item_positions: Query<&Position, With<ItemId>>,
 ) {
-    const ITEM_COLLECTION_RADIUS: f32 = 1.0; // Distance to collect an item
-    const SPEED_POWER_UP_DURATION: f32 = 30.0; // 30 seconds
-    const MULTI_SHOT_POWER_UP_DURATION: f32 = 30.0; // 30 seconds
 
     // Check each item against each player
     let items_to_collect: Vec<(PlayerId, ItemId, ItemType)> = items
