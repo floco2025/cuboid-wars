@@ -141,9 +141,11 @@ pub fn process_client_message_system(
     mut players: ResMut<PlayerMap>,
     items: Res<ItemMap>,
     wall_config: Res<WallConfig>,
+    ghosts: Res<crate::resources::GhostMap>,
     positions: Query<&Position>,
     speeds: Query<&Speed>,
     face_dirs: Query<&FaceDirection>,
+    velocities: Query<&Velocity>,
 ) {
     while let Ok((id, event)) = from_clients.try_recv() {
         let Some(player_info) = players.0.get(&id) else {
@@ -178,9 +180,11 @@ pub fn process_client_message_system(
                         &positions,
                         &speeds,
                         &face_dirs,
+                        &velocities,
                         &mut players,
                         &wall_config,
                         &items,
+                        &ghosts,
                     );
                 }
             }
@@ -200,9 +204,11 @@ fn process_message_not_logged_in(
     positions: &Query<&Position>,
     speeds: &Query<&Speed>,
     face_dirs: &Query<&FaceDirection>,
+    velocities: &Query<&Velocity>,
     players: &mut ResMut<PlayerMap>,
     wall_config: &Res<WallConfig>,
     items: &Res<ItemMap>,
+    ghosts: &Res<crate::resources::GhostMap>,
 ) {
     match msg {
         ClientMessage::Login(login) => {
@@ -285,12 +291,29 @@ fn process_message_not_logged_in(
                 })
                 .collect();
 
+            // Collect all ghosts for the initial update
+            let all_ghosts: Vec<(GhostId, Ghost)> = ghosts
+                .0
+                .iter()
+                .map(|(id, info)| {
+                    let pos_component = positions.get(info.entity).expect("Ghost entity missing Position");
+                    let vel_component = velocities.get(info.entity).expect("Ghost entity missing Velocity");
+                    (
+                        *id,
+                        Ghost {
+                            pos: *pos_component,
+                            vel: *vel_component,
+                        },
+                    )
+                })
+                .collect();
+
             // Send the initial Update to the new player
             let update_msg = ServerMessage::Update(SUpdate {
                 seq: 0,
                 players: all_players,
                 items: all_items,
-                ghosts: vec![],  // TODO: Add ghosts when they're spawned
+                ghosts: all_ghosts,
             });
             channel.send(ServerToClient::Send(update_msg)).ok();
 
