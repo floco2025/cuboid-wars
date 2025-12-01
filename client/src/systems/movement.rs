@@ -2,6 +2,8 @@ use bevy::prelude::*;
 
 use crate::resources::WallConfig;
 use common::{
+    collision::check_ghost_wall_collision,
+    collision::check_player_wall_collision,
     constants::{RUN_SPEED, UPDATE_BROADCAST_INTERVAL},
     protocol::{Position, Velocity},
 };
@@ -111,15 +113,15 @@ pub fn client_movement_system(
             continue;
         }
 
-        let hit_wall = hits_wall(walls, &target_pos);
-        let hit_player = hits_other_player(entity, &target_pos, &entity_positions);
+        let hits_wall = player_hits_wall(walls, &target_pos);
+        let hits_player = player_hits_other_player(entity, &target_pos, &entity_positions);
 
-        if !hit_wall && !hit_player {
+        if !hits_wall && !hits_player {
             *client_pos = target_pos;
             if let Some(state) = flash_state.as_mut() {
                 state.was_colliding = false;
             }
-        } else if hit_wall {
+        } else if hits_wall {
             // Slide along the wall instead of stopping
             let slide_pos = common::collision::calculate_wall_slide(
                 &walls.expect("walls should exist if hit_wall is true").walls,
@@ -134,7 +136,7 @@ pub fn client_movement_system(
             if is_local && let Some(state) = flash_state.as_mut() {
                 trigger_collision_feedback(&mut commands, &asset_server, &mut bump_flash_ui, state, true);
             }
-        } else if hit_player {
+        } else if hits_player {
             // Stop for player collisions
             if is_local && let Some(state) = flash_state.as_mut() {
                 trigger_collision_feedback(&mut commands, &asset_server, &mut bump_flash_ui, state, false);
@@ -143,25 +145,21 @@ pub fn client_movement_system(
     }
 }
 
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
 const BUMP_FLASH_DURATION: f32 = 0.08;
 
 fn calculate_absolute_velocity(velocity: &Velocity) -> f32 {
     (velocity.x * velocity.x + velocity.z * velocity.z).sqrt()
 }
 
-fn hits_wall(walls: Option<&WallConfig>, new_pos: &Position) -> bool {
+fn player_hits_wall(walls: Option<&WallConfig>, new_pos: &Position) -> bool {
     let Some(config) = walls else { return false };
     config
         .walls
         .iter()
-        .any(|wall| common::collision::check_player_wall_collision(new_pos, wall))
+        .any(|wall| check_player_wall_collision(new_pos, wall))
 }
 
-fn hits_other_player(entity: Entity, new_pos: &Position, positions: &[(Entity, Position)]) -> bool {
+fn player_hits_other_player(entity: Entity, new_pos: &Position, positions: &[(Entity, Position)]) -> bool {
     positions.iter().any(|(other_entity, other_pos)| {
         *other_entity != entity && common::collision::check_player_player_collision(new_pos, other_pos)
     })
@@ -236,7 +234,7 @@ pub fn ghost_movement_system(
     let walls = wall_config.as_deref();
 
     for (entity, mut pos, mut vel, server_snapshot) in &mut ghost_query {
-        let target_pos = if let Some(mut recon) = server_snapshot {
+        let (target_pos, target_vel) = if let Some(mut recon) = server_snapshot {
             // Ghosts: smoothly interpolate from client to server position
             const CORRECTION_TIME: f32 = 3.0; // Fast smooth correction
             let correction_factor = (UPDATE_BROADCAST_INTERVAL / CORRECTION_TIME).clamp(0.0, 1.0);
@@ -253,30 +251,32 @@ pub fn ghost_movement_system(
 
             // Smoothly lerp from current client position to predicted server position
             let lerp_amount = (delta * correction_factor / UPDATE_BROADCAST_INTERVAL).clamp(0.0, 1.0);
-            
-            Position {
-                x: pos.x + (server_pos_x - pos.x) * lerp_amount,
-                y: pos.y,
-                z: pos.z + (server_pos_z - pos.z) * lerp_amount,
-            }
+
+            (
+                Position {
+                    x: pos.x + (server_pos_x - pos.x) * lerp_amount,
+                    y: pos.y,
+                    z: pos.z + (server_pos_z - pos.z) * lerp_amount,
+                },
+                recon.server_vel,
+            )
         } else {
             // No reconciliation - just apply velocity normally
-            Position {
-                x: vel.x.mul_add(delta, pos.x),
-                y: pos.y,
-                z: vel.z.mul_add(delta, pos.z),
-            }
+            (
+                Position {
+                    x: vel.x.mul_add(delta, pos.x),
+                    y: pos.y,
+                    z: vel.z.mul_add(delta, pos.z),
+                },
+                *vel,
+            )
         };
 
-        // Check wall collision - if target would be in wall, don't move there
-        let hits_wall = if let Some(config) = walls {
-            config.walls.iter().any(|wall| common::collision::check_ghost_wall_collision(&target_pos, wall))
-        } else {
-            false
-        };
+        let hits_wall = ghost_hits_wall(walls, &target_pos);
 
         if !hits_wall {
             *pos = target_pos;
+            *vel = target_vel;
         } else {
             // Stop the ghost when it hits a wall to prevent jittering
             // The server will send updated velocity when it changes direction
@@ -284,4 +284,12 @@ pub fn ghost_movement_system(
             vel.z = 0.0;
         }
     }
+}
+
+fn ghost_hits_wall(walls: Option<&WallConfig>, new_pos: &Position) -> bool {
+    let Some(config) = walls else { return false };
+    config
+        .walls
+        .iter()
+        .any(|wall| check_ghost_wall_collision(new_pos, wall))
 }
