@@ -167,9 +167,8 @@ pub fn check_projectile_wall_hit(proj_pos: &Position, projectile: &Projectile, d
 // Check if a player position intersects with a wall
 #[must_use]
 pub fn check_player_wall_collision(player_pos: &Position, wall: &Wall) -> bool {
-    const MARGIN: f32 = 0.1; // Small margin to prevent clipping through walls
-    let player_half_x = PLAYER_WIDTH / 2.0 + MARGIN;
-    let player_half_z = PLAYER_DEPTH / 2.0 + MARGIN;
+    let player_half_x = PLAYER_WIDTH / 2.0;
+    let player_half_z = PLAYER_DEPTH / 2.0;
 
     let (wall_half_x, wall_half_z) = match wall.orientation {
         WallOrientation::Horizontal => (WALL_LENGTH / 2.0, WALL_WIDTH / 2.0),
@@ -193,8 +192,7 @@ pub fn check_player_wall_collision(player_pos: &Position, wall: &Wall) -> bool {
 // Check if a ghost position intersects with a wall
 #[must_use]
 pub fn check_ghost_wall_collision(ghost_pos: &Position, wall: &Wall) -> bool {
-    const MARGIN: f32 = 0.2; // Extra margin for larger ghosts
-    let ghost_half_size = GHOST_SIZE / 2.0 + MARGIN;
+    let ghost_half_size = GHOST_SIZE / 2.0;
 
     let (wall_half_x, wall_half_z) = match wall.orientation {
         WallOrientation::Horizontal => (WALL_LENGTH / 2.0, WALL_WIDTH / 2.0),
