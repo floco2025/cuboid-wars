@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use std::time::Duration;
 
 use crate::constants::*;
-use crate::resources::{FpsMeasurement, MyPlayerId, PlayerInfo, PlayerMap, RoundTripTime};
+use crate::resources::{CameraViewMode, FpsMeasurement, MyPlayerId, PlayerInfo, PlayerMap, RoundTripTime};
 use crate::spawning::item_type_color;
 use common::{
     constants::{FIELD_DEPTH, FIELD_WIDTH, GRID_COLS, GRID_ROWS, GRID_SIZE, PLAYER_HEIGHT, WALL_WIDTH},
@@ -250,6 +250,23 @@ pub fn update_fps_system(
         // Reset counters
         fps.frame_count = 0;
         fps.fps_timer = 0.0;
+    }
+}
+
+// Toggle crosshair visibility based on camera view mode
+pub fn toggle_crosshair_system(
+    view_mode: Res<CameraViewMode>,
+    mut query: Query<&mut Visibility, With<CrosshairUI>>,
+) {
+    if !view_mode.is_changed() {
+        return;
+    }
+
+    for mut visibility in &mut query {
+        *visibility = match *view_mode {
+            CameraViewMode::FirstPerson => Visibility::Visible,
+            CameraViewMode::TopDown => Visibility::Hidden,
+        };
     }
 }
 

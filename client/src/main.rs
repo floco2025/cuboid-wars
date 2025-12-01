@@ -20,7 +20,7 @@ use client::{
             billboard_player_id_text_system, sync_camera_to_player_system, sync_face_to_transform_system,
             sync_local_player_visibility_system, sync_position_to_transform_system, sync_projectiles_system,
         },
-        ui::{setup_world_system, update_fps_system, update_player_list_system, update_rtt_system},
+        ui::{setup_world_system, toggle_crosshair_system, update_fps_system, update_player_list_system, update_rtt_system},
         walls::spawn_walls_system,
     },
 };
@@ -134,6 +134,8 @@ fn main() -> Result<()> {
             (
                 // Update local player visibility based on view mode
                 sync_local_player_visibility_system,
+                // Toggle crosshair visibility based on view mode
+                toggle_crosshair_system,
                 // Sync Position to Transform
                 sync_position_to_transform_system,
                 // Sync Rotation to Transform
