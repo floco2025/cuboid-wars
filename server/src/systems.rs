@@ -891,12 +891,19 @@ pub fn ghost_spawn_system(
     let mut rng = rand::rng();
 
     for i in 0..NUM_GHOSTS {
-        // Find a random position that doesn't intersect walls
-        let mut pos = Position { x: 0.0, y: 0.0, z: 0.0 };
+        // Find a random grid cell that doesn't intersect walls
+        let mut grid_x;
+        let mut grid_z;
         let mut attempts = 0;
+        
         loop {
-            pos.x = rng.random_range(-FIELD_WIDTH / 2.0..FIELD_WIDTH / 2.0);
-            pos.z = rng.random_range(-FIELD_DEPTH / 2.0..FIELD_DEPTH / 2.0);
+            grid_x = rng.random_range(0..GRID_COLS);
+            grid_z = rng.random_range(0..GRID_ROWS);
+            
+            // Calculate center of grid cell
+            let world_x = (grid_x as f32 + 0.5) * GRID_SIZE - FIELD_WIDTH / 2.0;
+            let world_z = (grid_z as f32 + 0.5) * GRID_SIZE - FIELD_DEPTH / 2.0;
+            let pos = Position { x: world_x, y: 0.0, z: world_z };
             
             // Check if position is valid (not in a wall)
             let mut valid = true;
@@ -912,14 +919,21 @@ pub fn ghost_spawn_system(
             }
             attempts += 1;
         }
-
-        // Random initial velocity direction
-        let angle = rng.random_range(0.0..std::f32::consts::TAU);
-        let speed = 8.0; // Ghosts move at 8 m/s
-        let vel = Velocity {
-            x: speed * angle.cos(),
+        
+        // Spawn at grid center
+        let pos = Position {
+            x: (grid_x as f32 + 0.5) * GRID_SIZE - FIELD_WIDTH / 2.0,
             y: 0.0,
-            z: speed * angle.sin(),
+            z: (grid_z as f32 + 0.5) * GRID_SIZE - FIELD_DEPTH / 2.0,
+        };
+
+        // Random initial velocity direction (only horizontal or vertical)
+        let direction = rng.random_range(0..4); // 0=right, 1=up, 2=left, 3=down
+        let vel = match direction {
+            0 => Velocity { x: GHOST_SPEED, y: 0.0, z: 0.0 },   // Right
+            1 => Velocity { x: 0.0, y: 0.0, z: -GHOST_SPEED },  // Up (negative Z)
+            2 => Velocity { x: -GHOST_SPEED, y: 0.0, z: 0.0 },  // Left
+            _ => Velocity { x: 0.0, y: 0.0, z: GHOST_SPEED },   // Down (positive Z)
         };
 
         let ghost_id = GhostId(i);
@@ -940,6 +954,20 @@ pub fn ghost_movement_system(
     let mut rng = rand::rng();
 
     for (ghost_id, mut pos, mut vel) in ghost_query.iter_mut() {
+        // Calculate which grid cell we're in
+        let grid_x = ((pos.x + FIELD_WIDTH / 2.0) / GRID_SIZE).floor() as i32;
+        let grid_z = ((pos.z + FIELD_DEPTH / 2.0) / GRID_SIZE).floor() as i32;
+        
+        // Calculate grid cell center
+        let grid_center_x = (grid_x as f32 + 0.5) * GRID_SIZE - FIELD_WIDTH / 2.0;
+        let grid_center_z = (grid_z as f32 + 0.5) * GRID_SIZE - FIELD_DEPTH / 2.0;
+        
+        // Check if we're at grid center (within small threshold)
+        const CENTER_THRESHOLD: f32 = 0.5;
+        let at_center_x = (pos.x - grid_center_x).abs() < CENTER_THRESHOLD;
+        let at_center_z = (pos.z - grid_center_z).abs() < CENTER_THRESHOLD;
+        let at_intersection = at_center_x && at_center_z;
+        
         // Try to move in current direction
         let new_x = pos.x + vel.x * delta;
         let new_z = pos.z + vel.z * delta;
@@ -954,19 +982,42 @@ pub fn ghost_movement_system(
             }
         }
 
-        // Check arena bounds (use GHOST_SIZE for proper boundary)
-        // if new_x.abs() > FIELD_WIDTH / 2.0 - GHOST_SIZE / 2.0
-        //     || new_z.abs() > FIELD_DEPTH / 2.0 - GHOST_SIZE / 2.0
-        // {
-        //     hits_wall = true;
-        // }
+        // Check arena bounds
+        if new_x.abs() > FIELD_WIDTH / 2.0 - GHOST_SIZE / 2.0
+            || new_z.abs() > FIELD_DEPTH / 2.0 - GHOST_SIZE / 2.0
+        {
+            hits_wall = true;
+        }
 
         if hits_wall {
-            // Pick a new random direction when hitting a wall
-            let angle = rng.random_range(0.0..std::f32::consts::TAU);
-            let speed = vel.x.hypot(vel.z); // Maintain same speed
-            vel.x = speed * angle.cos();
-            vel.z = speed * angle.sin();
+            // Reverse direction when hitting a wall at an intersection
+            *vel = Velocity {
+                x: -vel.x,
+                y: 0.0,
+                z: -vel.z,
+            };
+                                    
+            // Broadcast direction change immediately to all clients
+            broadcast_to_all(&players, ServerMessage::Ghost(SGhost {
+                id: *ghost_id,
+                ghost: Ghost {
+                    pos: *pos,
+                    vel: *vel,
+                },
+            }));
+        } else if at_intersection && rng.random_bool(GHOST_RANDOM_TURN_PROBABILITY) {
+            // Randomly change direction at intersection
+            let direction = rng.random_range(0..4); // 0=right, 1=up, 2=left, 3=down
+            *vel = match direction {
+                0 => Velocity { x: GHOST_SPEED, y: 0.0, z: 0.0 },   // Right
+                1 => Velocity { x: 0.0, y: 0.0, z: -GHOST_SPEED },  // Up (negative Z)
+                2 => Velocity { x: -GHOST_SPEED, y: 0.0, z: 0.0 },  // Left
+                _ => Velocity { x: 0.0, y: 0.0, z: GHOST_SPEED },   // Down (positive Z)
+            };
+            
+            // Snap to exact grid intersection
+            pos.x = grid_center_x;
+            pos.z = grid_center_z;
                         
             // Broadcast direction change immediately to all clients
             broadcast_to_all(&players, ServerMessage::Ghost(SGhost {
@@ -976,11 +1027,20 @@ pub fn ghost_movement_system(
                     vel: *vel,
                 },
             }));
-            // Don't move this frame - just change direction
         } else {
             // Move normally
             pos.x = new_x;
             pos.z = new_z;
+            
+            // Snap to grid line if we're moving along it
+            if vel.x.abs() > 0.0 && vel.z.abs() < 0.01 {
+                // Moving horizontally - snap Z to grid center
+                pos.z = grid_center_z;
+            } else if vel.z.abs() > 0.0 && vel.x.abs() < 0.01 {
+                // Moving vertically - snap X to grid center
+                pos.x = grid_center_x;
+            }
         }
+        // If hits_wall && !at_intersection: don't move, wait to reach intersection
     }
 }
