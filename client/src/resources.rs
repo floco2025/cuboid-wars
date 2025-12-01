@@ -51,6 +51,14 @@ pub struct ItemMap(pub HashMap<ItemId, ItemInfo>);
 #[derive(Resource, Default)]
 pub struct LastUpdateSeq(pub u32);
 
+// FPS measurement tracking
+#[derive(Resource, Default)]
+pub struct FpsMeasurement {
+    pub frame_count: u32,
+    pub fps_timer: f32,
+    pub fps: f32,
+}
+
 // Round-trip time to server
 #[derive(Resource, Default)]
 pub struct RoundTripTime {

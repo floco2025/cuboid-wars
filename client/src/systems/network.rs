@@ -9,8 +9,8 @@ use crate::{
     constants::ECHO_INTERVAL,
     net::{ClientToServer, ServerToClient},
     resources::{
-        ClientToServerChannel, ItemInfo, ItemMap, MyPlayerId, PlayerInfo, PlayerMap, RoundTripTime,
-        ServerToClientChannel, WallConfig,
+        ClientToServerChannel, ItemInfo, ItemMap, MyPlayerId, PlayerInfo, PlayerMap,
+        RoundTripTime, ServerToClientChannel, WallConfig,
     },
     spawning::{spawn_item, spawn_player},
 };

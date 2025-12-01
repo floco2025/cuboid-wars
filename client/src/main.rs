@@ -8,7 +8,7 @@ use tokio::{runtime::Runtime, time::Duration};
 use client::{
     config::configure_client,
     net::network_io_task,
-    resources::{CameraViewMode, ClientToServerChannel, ItemMap, LastUpdateSeq, PlayerMap, RoundTripTime, ServerToClientChannel},
+    resources::{CameraViewMode, ClientToServerChannel, FpsMeasurement, ItemMap, LastUpdateSeq, PlayerMap, RoundTripTime, ServerToClientChannel},
     systems::{
         animations::animate_items_system,
         collision::client_hit_detection_system,
@@ -20,7 +20,7 @@ use client::{
             billboard_player_id_text_system, sync_camera_to_player_system, sync_face_to_transform_system,
             sync_local_player_visibility_system, sync_position_to_transform_system, sync_projectiles_system,
         },
-        ui::{setup_world_system, update_player_list_system, update_rtt_system},
+        ui::{setup_world_system, update_fps_system, update_player_list_system, update_rtt_system},
         walls::spawn_walls_system,
     },
 };
@@ -102,52 +102,59 @@ fn main() -> Result<()> {
     .insert_resource(PlayerMap::default())
     .insert_resource(ItemMap::default())
     .insert_resource(RoundTripTime::default())
+    .insert_resource(FpsMeasurement::default())
     .insert_resource(LastUpdateSeq::default())
     .insert_resource(CameraViewMode::default())
     .add_systems(Startup, setup_world_system)
     .add_systems(
         Update,
         (
-            // Toggle cursor lock with Escape
-            cursor_toggle_system,
-            // Toggle camera view with V
-            camera_view_toggle_system,
-            // Handle WASD input and mouse
-            input_system,
-            // Handle shooting input
-            shooting_input_system,
-            // Sync projectile physics to transforms
-            sync_projectiles_system,
-            // Client-side hit detection for visual despawning
-            client_hit_detection_system,
-            // Process server messages
-            process_server_events_system,
-            // Spawn walls when WallConfig is received
-            spawn_walls_system,
-            // Client movement with wall collision
-            client_movement_system,
-            // Camera follows player
-            sync_camera_to_player_system,
-            // Update local player visibility based on view mode
-            sync_local_player_visibility_system,
-            // Sync Position to Transform
-            sync_position_to_transform_system,
-            // Sync Rotation to Transform
-            sync_face_to_transform_system,
-            // Billboard player ID text to face camera
-            billboard_player_id_text_system,
-            // Apply camera shake effects
-            apply_camera_shake_system,
-            // Apply cuboid shake effects
-            apply_cuboid_shake_system,
-            // Update player list UI
-            update_player_list_system,
-            // Update RTT display
-            update_rtt_system,
-            // Animate items bobbing up/down
-            animate_items_system,
-            // Send echo requests and process responses
-            echo_system,
+            (
+                // Toggle cursor lock with Escape
+                cursor_toggle_system,
+                // Toggle camera view with V
+                camera_view_toggle_system,
+                // Handle WASD input and mouse
+                input_system,
+                // Handle shooting input
+                shooting_input_system,
+                // Sync projectile physics to transforms
+                sync_projectiles_system,
+                // Client-side hit detection for visual despawning
+                client_hit_detection_system,
+                // Process server messages
+                process_server_events_system,
+                // Spawn walls when WallConfig is received
+                spawn_walls_system,
+                // Client movement with wall collision
+                client_movement_system,
+                // Camera follows player
+                sync_camera_to_player_system,
+            ),
+            (
+                // Update local player visibility based on view mode
+                sync_local_player_visibility_system,
+                // Sync Position to Transform
+                sync_position_to_transform_system,
+                // Sync Rotation to Transform
+                sync_face_to_transform_system,
+                // Billboard player ID text to face camera
+                billboard_player_id_text_system,
+                // Apply camera shake effects
+                apply_camera_shake_system,
+                // Apply cuboid shake effects
+                apply_cuboid_shake_system,
+                // Update player list UI
+                update_player_list_system,
+                // Update RTT display
+                update_rtt_system,
+                // Update FPS display
+                update_fps_system,
+                // Animate items bobbing up/down
+                animate_items_system,
+                // Send echo requests and process responses
+                echo_system,
+            ),
         ),
     )
     .run();

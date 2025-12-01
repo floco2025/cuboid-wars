@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use std::time::Duration;
 
 use crate::constants::*;
-use crate::resources::{MyPlayerId, PlayerInfo, PlayerMap};
+use crate::resources::{FpsMeasurement, MyPlayerId, PlayerInfo, PlayerMap, RoundTripTime};
 use crate::spawning::item_type_color;
 use common::{
     constants::{FIELD_DEPTH, FIELD_WIDTH, GRID_COLS, GRID_ROWS, GRID_SIZE, PLAYER_HEIGHT, WALL_WIDTH},
@@ -24,6 +24,10 @@ pub struct CrosshairUI;
 // Marker component for the RTT display
 #[derive(Component)]
 pub struct RttUI;
+
+// Marker component for the FPS display
+#[derive(Component)]
+pub struct FpsUI;
 
 // Marker component for the bump flash overlay
 #[derive(Component)]
@@ -172,6 +176,23 @@ pub fn setup_world_system(
         RttUI,
     ));
 
+    // Create FPS display below RTT
+    commands.spawn((
+        Text::new("FPS: --"),
+        TextFont {
+            font_size: 20.0,
+            ..default()
+        },
+        TextColor(Color::WHITE),
+        Node {
+            position_type: PositionType::Absolute,
+            right: Val::Px(10.0),
+            top: Val::Px(35.0),
+            ..default()
+        },
+        FpsUI,
+    ));
+
     // Create bump flash overlay (invisible by default, shown on wall collision)
     commands.spawn((
         Node {
@@ -193,7 +214,7 @@ pub fn setup_world_system(
 // ============================================================================
 
 // Update RTT display
-pub fn update_rtt_system(rtt: Res<crate::resources::RoundTripTime>, mut query: Single<&mut Text, With<RttUI>>) {
+pub fn update_rtt_system(rtt: Res<RoundTripTime>, mut query: Single<&mut Text, With<RttUI>>) {
     if !rtt.is_changed() {
         return;
     }
@@ -202,6 +223,27 @@ pub fn update_rtt_system(rtt: Res<crate::resources::RoundTripTime>, mut query: S
         query.0 = format!("RTT: {:.0}ms", rtt.rtt.as_secs_f64() * 1000.0);
     } else {
         query.0 = "RTT: --".to_string();
+    }
+}
+
+// Update FPS measurement and display
+pub fn update_fps_system(
+    time: Res<Time>,
+    mut fps: ResMut<FpsMeasurement>,
+    mut query: Single<&mut Text, With<FpsUI>>,
+) {
+    // Update FPS measurement
+    fps.frame_count += 1;
+    fps.fps_timer += time.delta_secs();
+
+    // Update FPS display once per second
+    if fps.fps_timer >= 1.0 {
+        fps.fps = fps.frame_count as f32 / fps.fps_timer;
+        query.0 = format!("FPS: {:.0}", fps.fps);
+
+        // Reset counters
+        fps.frame_count = 0;
+        fps.fps_timer = 0.0;
     }
 }
 
