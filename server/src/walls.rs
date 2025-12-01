@@ -1,7 +1,7 @@
 use rand::Rng;
 use std::collections::{HashSet, VecDeque};
 
-use crate::constants::NUM_WALL_SEGMENTS;
+use crate::constants::{NUM_WALL_SEGMENTS, ROOF_PROBABILITY_3_WALLS_EDGE, ROOF_PROBABILITY_3_WALLS_INTERIOR};
 use common::{
     constants::*,
     protocol::{Roof, Wall, WallOrientation},
@@ -261,8 +261,9 @@ pub fn generate_walls() -> Vec<Wall> {
     walls
 }
 
-// Generate roofs for grid cells that have 2 or more walls.
-// Each eligible cell has a 50% chance of getting a roof.
+// Generate roofs for grid cells using two-pass algorithm:
+// Pass 1: Cells with 3 walls get ROOF_PROBABILITY_3_WALLS chance
+// Pass 2: Cells with 2+ walls adjacent to a roof get 100% probability
 #[must_use]
 #[allow(clippy::cast_precision_loss)]
 #[allow(clippy::cast_possible_truncation)]
@@ -295,8 +296,8 @@ pub fn generate_roofs(walls: &[Wall]) -> Vec<Roof> {
         placed_edges.insert(edge);
     }
 
-    // For each grid cell, count how many walls it has
-    let mut roofs = Vec::new();
+    // Count walls for each cell
+    let mut wall_counts = vec![vec![0u8; grid_cols as usize]; grid_rows as usize];
     
     for row in 0..grid_rows {
         for col in 0..grid_cols {
@@ -338,15 +339,70 @@ pub fn generate_roofs(walls: &[Wall]) -> Vec<Roof> {
                 wall_count += 1;
             }
             
-            // If cell has 2+ walls, 50% chance to add a roof
-            if wall_count >= 2 && rng.random_bool(0.5) {
-                roofs.push(Roof {
-                    row: row as u32,
-                    col: col as u32,
-                });
+            wall_counts[row as usize][col as usize] = wall_count;
+        }
+    }
+
+    // Pass 1: Cells with 3 walls get probability based on location
+    let mut roof_cells: HashSet<(i32, i32)> = HashSet::new();
+    
+    for row in 0..grid_rows {
+        for col in 0..grid_cols {
+            if wall_counts[row as usize][col as usize] == 3 {
+                // Check if cell is at edge
+                let is_at_edge = row == 0 || row == grid_rows - 1 || col == 0 || col == grid_cols - 1;
+                
+                let probability = if is_at_edge {
+                    ROOF_PROBABILITY_3_WALLS_EDGE
+                } else {
+                    ROOF_PROBABILITY_3_WALLS_INTERIOR
+                };
+                
+                if rng.random_bool(probability) {
+                    roof_cells.insert((row, col));
+                }
             }
         }
     }
 
-    roofs
+    // Pass 2: Cells with 2+ walls adjacent to a roof get 100% probability
+    let mut added_more = true;
+    while added_more {
+        added_more = false;
+        
+        for row in 0..grid_rows {
+            for col in 0..grid_cols {
+                // Skip if already has roof or not enough walls
+                if roof_cells.contains(&(row, col)) || wall_counts[row as usize][col as usize] < 2 {
+                    continue;
+                }
+                
+                // Check if any neighbor has a roof
+                let neighbors = [
+                    (row - 1, col), // North
+                    (row + 1, col), // South
+                    (row, col - 1), // West
+                    (row, col + 1), // East
+                ];
+                
+                let has_neighbor_with_roof = neighbors.iter().any(|&(r, c)| {
+                    r >= 0 && r < grid_rows && c >= 0 && c < grid_cols && roof_cells.contains(&(r, c))
+                });
+                
+                if has_neighbor_with_roof {
+                    roof_cells.insert((row, col));
+                    added_more = true;
+                }
+            }
+        }
+    }
+
+    // Convert to Roof structs
+    roof_cells
+        .into_iter()
+        .map(|(row, col)| Roof {
+            row: row as u32,
+            col: col as u32,
+        })
+        .collect()
 }

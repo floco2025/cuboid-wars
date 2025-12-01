@@ -1,6 +1,10 @@
 use bevy::prelude::*;
 
-use crate::{resources::WallConfig, spawning::{spawn_roof, spawn_wall}};
+use crate::{
+    constants::{TOPDOWN_ROOF_ALPHA, TOPDOWN_WALL_ALPHA},
+    resources::{CameraViewMode, WallConfig},
+    spawning::{spawn_roof, spawn_wall},
+};
 
 // Marker component for walls
 #[derive(Component)]
@@ -38,4 +42,44 @@ pub fn spawn_walls_system(
     }
 
     *spawned = true;
+}
+
+// System to toggle wall and roof opacity based on camera view mode
+pub fn toggle_wall_opacity_system(
+    view_mode: Res<CameraViewMode>,
+    wall_query: Query<&MeshMaterial3d<StandardMaterial>, With<WallMarker>>,
+    roof_query: Query<&MeshMaterial3d<StandardMaterial>, With<RoofMarker>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    if !view_mode.is_changed() {
+        return;
+    }
+
+    match *view_mode {
+        CameraViewMode::FirstPerson => {
+            // Walls and roofs fully opaque in first-person
+            for material_handle in wall_query.iter().chain(roof_query.iter()) {
+                if let Some(material) = materials.get_mut(&material_handle.0) {
+                    material.base_color.set_alpha(1.0);
+                    material.alpha_mode = AlphaMode::Opaque;
+                }
+            }
+        }
+        CameraViewMode::TopDown => {
+            // Walls semi-transparent
+            for material_handle in &wall_query {
+                if let Some(material) = materials.get_mut(&material_handle.0) {
+                    material.base_color.set_alpha(TOPDOWN_WALL_ALPHA);
+                    material.alpha_mode = AlphaMode::Blend;
+                }
+            }
+            // Roofs more transparent
+            for material_handle in &roof_query {
+                if let Some(material) = materials.get_mut(&material_handle.0) {
+                    material.base_color.set_alpha(TOPDOWN_ROOF_ALPHA);
+                    material.alpha_mode = AlphaMode::Blend;
+                }
+            }
+        }
+    }
 }

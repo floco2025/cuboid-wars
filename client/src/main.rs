@@ -8,7 +8,10 @@ use tokio::{runtime::Runtime, time::Duration};
 use client::{
     config::configure_client,
     net::network_io_task,
-    resources::{CameraViewMode, ClientToServerChannel, FpsMeasurement, ItemMap, LastUpdateSeq, PlayerMap, RoundTripTime, ServerToClientChannel},
+    resources::{
+        CameraViewMode, ClientToServerChannel, FpsMeasurement, ItemMap, LastUpdateSeq, PlayerMap, RoundTripTime,
+        ServerToClientChannel,
+    },
     systems::{
         animations::animate_items_system,
         collision::client_hit_detection_system,
@@ -20,8 +23,11 @@ use client::{
             billboard_player_id_text_system, sync_camera_to_player_system, sync_face_to_transform_system,
             sync_local_player_visibility_system, sync_position_to_transform_system, sync_projectiles_system,
         },
-        ui::{setup_world_system, toggle_crosshair_system, update_fps_system, update_player_list_system, update_rtt_system},
-        walls::spawn_walls_system,
+        ui::{
+            setup_world_system, toggle_crosshair_system, update_fps_system, update_player_list_system,
+            update_rtt_system,
+        },
+        walls::{spawn_walls_system, toggle_wall_opacity_system},
     },
 };
 use common::net::MessageStream;
@@ -135,6 +141,8 @@ fn main() -> Result<()> {
                 animate_items_system,
                 apply_camera_shake_system,
                 apply_cuboid_shake_system,
+                // Toggle wall and roof opacity based on view mode
+                toggle_wall_opacity_system,
                 // UI updates
                 toggle_crosshair_system,
                 update_player_list_system,

@@ -3,7 +3,11 @@
 // ============================================================================
 
 // Total number of wall segments to place
-pub const NUM_WALL_SEGMENTS: usize = 30;
+pub const NUM_WALL_SEGMENTS: usize = 35;
+
+// Roof generation settings
+pub const ROOF_PROBABILITY_3_WALLS_EDGE: f64 = 0.0; // Chance if cell has 3 walls and at edge
+pub const ROOF_PROBABILITY_3_WALLS_INTERIOR: f64 = 0.7; // Chance if cell has 3 walls and not at edge
 
 // Item settings
 pub const ITEM_SPAWN_INTERVAL: f32 = 30.0; // seconds

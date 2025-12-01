@@ -6,7 +6,10 @@ use bevy::{
 
 use crate::{
     constants::*,
-    systems::movement::{BumpFlashState, LocalPlayer},
+    systems::{
+        movement::{BumpFlashState, LocalPlayer},
+        walls::{RoofMarker, WallMarker},
+    },
 };
 use common::{constants::*, protocol::*, systems::Projectile};
 
@@ -103,11 +106,7 @@ pub fn spawn_projectiles_local(
     has_multi_shot: bool,
 ) {
     // Determine number of shots
-    let num_shots = if has_multi_shot {
-        MULTI_SHOT_MULTIPLER as i32
-    } else {
-        1
-    };
+    let num_shots = if has_multi_shot { MULTI_SHOT_MULTIPLER as i32 } else { 1 };
 
     // Spawn projectiles in an arc
     let angle_step = MULTI_SHOT_ANGLE.to_radians();
@@ -181,6 +180,7 @@ pub fn spawn_wall(
             wall.z,
         ),
         Visibility::default(),
+        WallMarker,
     ));
 }
 
@@ -200,18 +200,20 @@ pub fn spawn_roof(
     let world_z = (roof.row as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
 
     // Create a thin horizontal plane at wall height
-    let roof_thickness = 0.1;
+    // Use same dimensions as walls for consistency
+    let roof_size = WALL_LENGTH; // Same overlap as walls to cover corners
+    let roof_thickness = WALL_WIDTH; // Same thickness as walls
 
     commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(GRID_SIZE, roof_thickness, GRID_SIZE))),
+        Mesh3d(meshes.add(Cuboid::new(roof_size, roof_thickness, roof_size))),
         MeshMaterial3d(materials.add(roof_color)),
         Transform::from_xyz(
             world_x,
-            WALL_HEIGHT, // Position at top of walls
+            WALL_HEIGHT - roof_thickness / 2.0, // Position so top of roof aligns with top of wall
             world_z,
         ),
         Visibility::default(),
-        crate::systems::walls::RoofMarker,
+        RoofMarker,
     ));
 }
 
@@ -374,11 +376,7 @@ pub fn spawn_player_id_display(
 // Get the color for an item type
 pub const fn item_type_color(item_type: ItemType) -> Color {
     match item_type {
-        ItemType::SpeedPowerUp => Color::srgb(
-            ITEM_SPEED_COLOR[0],
-            ITEM_SPEED_COLOR[1],
-            ITEM_SPEED_COLOR[2],
-        ),
+        ItemType::SpeedPowerUp => Color::srgb(ITEM_SPEED_COLOR[0], ITEM_SPEED_COLOR[1], ITEM_SPEED_COLOR[2]),
         ItemType::MultiShotPowerUp => Color::srgb(
             ITEM_MULTISHOT_COLOR[0],
             ITEM_MULTISHOT_COLOR[1],
