@@ -222,19 +222,21 @@ fn trigger_collision_feedback(
 // ============================================================================
 
 // Client-side ghost movement system - applies velocity with server reconciliation
-// Ghosts don't have client-side collision detection (server handles that)
+// Enforces client-side wall collision to prevent visual clipping
 pub fn ghost_movement_system(
     mut commands: Commands,
     time: Res<Time>,
+    wall_config: Option<Res<WallConfig>>,
     mut ghost_query: Query<
-        (Entity, &mut Position, &Velocity, Option<&mut ServerReconciliation>),
+        (Entity, &mut Position, &mut Velocity, Option<&mut ServerReconciliation>),
         With<crate::spawning::GhostMarker>,
     >,
 ) {
     let delta = time.delta_secs();
+    let walls = wall_config.as_deref();
 
-    for (entity, mut pos, vel, server_snapshot) in &mut ghost_query {
-        if let Some(mut recon) = server_snapshot {
+    for (entity, mut pos, mut vel, server_snapshot) in &mut ghost_query {
+        let target_pos = if let Some(mut recon) = server_snapshot {
             // Ghosts: smoothly interpolate from client to server position
             const CORRECTION_TIME: f32 = 3.0; // Fast smooth correction
             let correction_factor = (UPDATE_BROADCAST_INTERVAL / CORRECTION_TIME).clamp(0.0, 1.0);
@@ -252,12 +254,34 @@ pub fn ghost_movement_system(
             // Smoothly lerp from current client position to predicted server position
             let lerp_amount = (delta * correction_factor / UPDATE_BROADCAST_INTERVAL).clamp(0.0, 1.0);
             
-            pos.x = pos.x + (server_pos_x - pos.x) * lerp_amount;
-            pos.z = pos.z + (server_pos_z - pos.z) * lerp_amount;
+            Position {
+                x: pos.x + (server_pos_x - pos.x) * lerp_amount,
+                y: pos.y,
+                z: pos.z + (server_pos_z - pos.z) * lerp_amount,
+            }
         } else {
             // No reconciliation - just apply velocity normally
-            pos.x = vel.x.mul_add(delta, pos.x);
-            pos.z = vel.z.mul_add(delta, pos.z);
+            Position {
+                x: vel.x.mul_add(delta, pos.x),
+                y: pos.y,
+                z: vel.z.mul_add(delta, pos.z),
+            }
+        };
+
+        // Check wall collision - if target would be in wall, don't move there
+        let hits_wall = if let Some(config) = walls {
+            config.walls.iter().any(|wall| common::collision::check_ghost_wall_collision(&target_pos, wall))
+        } else {
+            false
+        };
+
+        if !hits_wall {
+            *pos = target_pos;
+        } else {
+            // Stop the ghost when it hits a wall to prevent jittering
+            // The server will send updated velocity when it changes direction
+            vel.x = 0.0;
+            vel.z = 0.0;
         }
     }
 }

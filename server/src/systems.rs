@@ -956,6 +956,7 @@ pub fn ghost_movement_system(
             vel.z = speed * angle.sin();
             
             trace!("Ghost {:?} hit wall, new direction: ({}, {})", ghost_id, vel.x, vel.z);
+            // Don't move this frame - just change direction
         } else {
             // Move normally
             pos.x = new_x;

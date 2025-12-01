@@ -5,9 +5,9 @@ use super::{
     movement::LocalPlayer,
 };
 use crate::resources::CameraViewMode;
-use crate::{constants::*, spawning::PlayerIdTextMesh};
+use crate::{constants::*, spawning::{PlayerIdTextMesh, GhostMarker}};
 use common::{
-    constants::PLAYER_HEIGHT,
+    constants::{PLAYER_HEIGHT, GHOST_SIZE},
     protocol::{FaceDirection, Position},
     systems::Projectile,
 };
@@ -61,9 +61,11 @@ pub fn sync_camera_to_player_system(
 
 // Update Transform from Position component for rendering
 pub fn sync_position_to_transform_system(
-    mut query: Query<(&Position, &mut Transform, Option<&CuboidShake>), Without<crate::spawning::ItemMarker>>,
+    mut player_query: Query<(&Position, &mut Transform, Option<&CuboidShake>), (Without<crate::spawning::ItemMarker>, Without<GhostMarker>)>,
+    mut ghost_query: Query<(&Position, &mut Transform), With<GhostMarker>>,
 ) {
-    for (pos, mut transform, maybe_shake) in &mut query {
+    // Sync players
+    for (pos, mut transform, maybe_shake) in &mut player_query {
         // Base position
         transform.translation.x = pos.x;
         transform.translation.y = PLAYER_HEIGHT / 2.0; // Lift so bottom is at ground (y=0)
@@ -74,6 +76,13 @@ pub fn sync_position_to_transform_system(
             transform.translation.x += shake.offset_x;
             transform.translation.z += shake.offset_z;
         }
+    }
+    
+    // Sync ghosts (different height)
+    for (pos, mut transform) in &mut ghost_query {
+        transform.translation.x = pos.x;
+        transform.translation.y = GHOST_SIZE / 2.0; // Ghost center at correct height
+        transform.translation.z = pos.z;
     }
 }
 
