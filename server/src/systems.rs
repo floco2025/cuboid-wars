@@ -8,17 +8,15 @@ use crate::{
         FromAcceptChannel, FromClientsChannel, ItemInfo, ItemMap, ItemSpawner, PlayerInfo, PlayerMap, WallConfig,
     },
 };
-use common::collision::{
-    check_player_item_collision, check_player_player_collision, check_player_wall_collision,
-    check_projectile_player_hit,
+use common::{
+    collision::{
+        check_player_item_collision, check_player_player_collision, check_player_wall_collision,
+        check_projectile_player_hit,
+    },
+    constants::*,
+    protocol::*,
+    systems::Projectile,
 };
-use common::constants::*;
-use common::protocol::*;
-use common::systems::Projectile;
-
-// ============================================================================
-// Components
-// ============================================================================
 
 // ============================================================================
 // Helper Functions
@@ -87,6 +85,14 @@ fn broadcast_to_logged_in(players: &PlayerMap, skip: PlayerId, message: ServerMe
     for (other_id, other_info) in &players.0 {
         if *other_id != skip && other_info.logged_in {
             let _ = other_info.channel.send(ServerToClient::Send(message.clone()));
+        }
+    }
+}
+
+fn broadcast_to_all(players: &PlayerMap, message: ServerMessage) {
+    for player_info in players.0.values() {
+        if player_info.logged_in {
+            let _ = player_info.channel.send(ServerToClient::Send(message.clone()));
         }
     }
 }
@@ -758,15 +764,16 @@ pub fn item_collection_system(
         .collect();
 
     // Process collections
+    let mut power_up_messages = Vec::new();
+
     for (player_id, item_id, item_type) in items_to_collect {
         // Remove the item from the map
         if let Some(item_info) = items.0.remove(&item_id) {
             commands.entity(item_info.entity).despawn();
         }
 
-        // Add to player's inventory
+        // Update player's power-up timer
         if let Some(player_info) = players.0.get_mut(&player_id) {
-            // Set the appropriate power-up timer based on item type
             match item_type {
                 ItemType::SpeedPowerUp => {
                     player_info.speed_power_up_timer = SPEED_POWER_UP_DURATION;
@@ -776,8 +783,19 @@ pub fn item_collection_system(
                 }
             }
 
+            power_up_messages.push(SPowerUp {
+                id: player_id,
+                speed_power_up: player_info.speed_power_up_timer > 0.0,
+                multi_shot_power_up: player_info.multi_shot_power_up_timer > 0.0,
+            });
+
             debug!("Player {:?} collected {:?}", player_id, item_type);
         }
+    }
+
+    // Send power-up updates to all clients
+    for msg in power_up_messages {
+        broadcast_to_all(&players, ServerMessage::PowerUp(msg));
     }
 }
 
@@ -785,9 +803,31 @@ pub fn item_collection_system(
 pub fn item_expiration_system(time: Res<Time>, mut players: ResMut<PlayerMap>) {
     let delta = time.delta_secs();
 
-    for player_info in players.0.values_mut() {
+    let mut power_up_messages = Vec::new();
+
+    for (player_id, player_info) in &mut players.0 {
+        let old_speed = player_info.speed_power_up_timer > 0.0;
+        let old_multi_shot = player_info.multi_shot_power_up_timer > 0.0;
+
         // Decrease power-up timers
         player_info.speed_power_up_timer = (player_info.speed_power_up_timer - delta).max(0.0);
         player_info.multi_shot_power_up_timer = (player_info.multi_shot_power_up_timer - delta).max(0.0);
+
+        let new_speed = player_info.speed_power_up_timer > 0.0;
+        let new_multi_shot = player_info.multi_shot_power_up_timer > 0.0;
+
+        // Track changes to broadcast
+        if old_speed != new_speed || old_multi_shot != new_multi_shot {
+            power_up_messages.push(SPowerUp {
+                id: *player_id,
+                speed_power_up: new_speed,
+                multi_shot_power_up: new_multi_shot,
+            });
+        }
+    }
+
+    // Send power-up updates to all clients
+    for msg in power_up_messages {
+        broadcast_to_all(&players, ServerMessage::PowerUp(msg));
     }
 }

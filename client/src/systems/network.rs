@@ -131,6 +131,7 @@ fn process_message_logged_in(
             update_msg,
         ),
         ServerMessage::Hit(hit_msg) => handle_hit_message(commands, players, camera_query, my_player_id, hit_msg),
+        ServerMessage::PowerUp(power_up_msg) => handle_power_up_message(players, power_up_msg),
         ServerMessage::Echo(echo_msg) => handle_echo_message(time, rtt, echo_msg),
     }
 }
@@ -381,6 +382,13 @@ fn handle_echo_message(time: &Time, rtt: &mut ResMut<RoundTripTime>, msg: SEcho)
     #[allow(clippy::cast_possible_truncation)]
     {
         rtt.rtt = sum / rtt.measurements.len() as u32;
+    }
+}
+
+fn handle_power_up_message(players: &mut ResMut<PlayerMap>, msg: SPowerUp) {
+    if let Some(player_info) = players.0.get_mut(&msg.id) {
+        player_info.speed_power_up = msg.speed_power_up;
+        player_info.multi_shot_power_up = msg.multi_shot_power_up;
     }
 }
 

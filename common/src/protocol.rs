@@ -258,6 +258,15 @@ struct SHit {
 }
 
 message! {
+// Server to Client: Player power-up status changed.
+struct SPowerUp {
+    pub id: PlayerId,
+    pub speed_power_up: bool,
+    pub multi_shot_power_up: bool,
+}
+}
+
+message! {
 // Server to Client: Echo response.
 struct SEcho {
     pub timestamp_nanos: u64,
@@ -294,5 +303,6 @@ pub enum ServerMessage {
     Shot(SShot),
     Update(SUpdate),
     Hit(SHit),
+    PowerUp(SPowerUp),
     Echo(SEcho),
 }
