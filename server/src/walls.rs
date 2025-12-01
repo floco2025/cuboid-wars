@@ -1,21 +1,35 @@
 use rand::Rng;
 use std::collections::{HashSet, VecDeque};
 
-use crate::constants::{NUM_WALL_SEGMENTS, ROOF_PROBABILITY_2_WALLS, ROOF_PROBABILITY_3_WALLS, ROOF_PROBABILITY_WITH_NEIGHBOR, WALL_2ND_PROBABILITY_RATIO, WALL_3RD_PROBABILITY_RATIO};
+use crate::{
+    constants::{NUM_WALL_SEGMENTS, ROOF_PROBABILITY_2_WALLS, ROOF_PROBABILITY_3_WALLS, ROOF_PROBABILITY_WITH_NEIGHBOR, WALL_2ND_PROBABILITY_RATIO, WALL_3RD_PROBABILITY_RATIO},
+    resources::{GridCell, GridConfig},
+};
 use common::{
     constants::*,
     protocol::{Roof, Wall, WallOrientation},
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct GridEdge {
-    x: i32,           // Grid line position
-    z: i32,           // Grid line position
-    horizontal: bool, // true = horizontal (along X), false = vertical (along Z)
+// Helper to count walls in a cell
+fn count_cell_walls(cell: &GridCell) -> u8 {
+    let mut count = 0;
+    if cell.has_north_wall {
+        count += 1;
+    }
+    if cell.has_south_wall {
+        count += 1;
+    }
+    if cell.has_west_wall {
+        count += 1;
+    }
+    if cell.has_east_wall {
+        count += 1;
+    }
+    count
 }
 
 // Check if all grid cells are reachable using BFS
-fn all_cells_reachable(placed_edges: &HashSet<GridEdge>, grid_cols: i32, grid_rows: i32) -> bool {
+fn all_cells_reachable(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) -> bool {
     if grid_cols <= 0 || grid_rows <= 0 {
         return true;
     }
@@ -28,65 +42,31 @@ fn all_cells_reachable(placed_edges: &HashSet<GridEdge>, grid_cols: i32, grid_ro
     visited.insert((0, 0));
 
     while let Some((row, col)) = queue.pop_front() {
+        let cell = &grid[row as usize][col as usize];
+        
         // Check all 4 directions
-        let directions = [
-            (
-                row - 1,
-                col,
-                GridEdge {
-                    x: col,
-                    z: row,
-                    horizontal: true,
-                },
-            ), // North
-            (
-                row + 1,
-                col,
-                GridEdge {
-                    x: col,
-                    z: row + 1,
-                    horizontal: true,
-                },
-            ), // South
-            (
-                row,
-                col - 1,
-                GridEdge {
-                    x: col,
-                    z: row,
-                    horizontal: false,
-                },
-            ), // West
-            (
-                row,
-                col + 1,
-                GridEdge {
-                    x: col + 1,
-                    z: row,
-                    horizontal: false,
-                },
-            ), // East
-        ];
-
-        for (new_row, new_col, edge) in directions {
-            // Check bounds
-            if new_row < 0 || new_row >= grid_rows || new_col < 0 || new_col >= grid_cols {
-                continue;
-            }
-
-            // Check if already visited
-            if visited.contains(&(new_row, new_col)) {
-                continue;
-            }
-
-            // Check if wall blocks this direction
-            if placed_edges.contains(&edge) {
-                continue;
-            }
-
-            // Can reach this cell
-            visited.insert((new_row, new_col));
-            queue.push_back((new_row, new_col));
+        // North
+        if row > 0 && !cell.has_north_wall && !visited.contains(&(row - 1, col)) {
+            visited.insert((row - 1, col));
+            queue.push_back((row - 1, col));
+        }
+        
+        // South
+        if row < grid_rows - 1 && !cell.has_south_wall && !visited.contains(&(row + 1, col)) {
+            visited.insert((row + 1, col));
+            queue.push_back((row + 1, col));
+        }
+        
+        // West
+        if col > 0 && !cell.has_west_wall && !visited.contains(&(row, col - 1)) {
+            visited.insert((row, col - 1));
+            queue.push_back((row, col - 1));
+        }
+        
+        // East
+        if col < grid_cols - 1 && !cell.has_east_wall && !visited.contains(&(row, col + 1)) {
+            visited.insert((row, col + 1));
+            queue.push_back((row, col + 1));
         }
     }
 
@@ -97,232 +77,223 @@ fn all_cells_reachable(placed_edges: &HashSet<GridEdge>, grid_cols: i32, grid_ro
     }
 }
 
-// Generate wall segments for the playing field.
+// Generate grid configuration for the playing field.
 //
 // Walls are placed along grid lines in a maze-like pattern.
 // Ensures all grid cells remain reachable from each other.
 // Always places walls around the perimeter of the field.
+// Returns a complete GridConfig with walls, roofs, and grid cell data.
 #[must_use]
 #[allow(clippy::too_many_lines)]
 #[allow(clippy::cast_precision_loss)]
 #[allow(clippy::cast_possible_truncation)]
 #[allow(clippy::cast_sign_loss)]
-pub fn generate_walls() -> Vec<Wall> {
+pub fn generate_grid() -> GridConfig {
     let mut rng = rand::rng();
-    let mut walls = Vec::new();
-    let mut placed_edges: HashSet<GridEdge> = HashSet::new();
 
     // Calculate grid dimensions
     let grid_cols = (FIELD_WIDTH / GRID_SIZE) as i32;
     let grid_rows = (FIELD_DEPTH / GRID_SIZE) as i32;
-
-    // First, place all perimeter walls
-    // Top edge (z = 0)
-    for x in 0..grid_cols {
-        let edge = GridEdge {
-            x,
-            z: 0,
-            horizontal: true,
-        };
-        placed_edges.insert(edge);
-        let world_x = (x as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-        let world_z = 0.0f32.mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
-        walls.push(Wall {
-            x: world_x,
-            z: world_z,
-            orientation: WallOrientation::Horizontal,
-        });
-    }
-
-    // Bottom edge (z = grid_rows)
-    for x in 0..grid_cols {
-        let edge = GridEdge {
-            x,
-            z: grid_rows,
-            horizontal: true,
-        };
-        placed_edges.insert(edge);
-        let world_x = (x as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-        let world_z = (grid_rows as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
-        walls.push(Wall {
-            x: world_x,
-            z: world_z,
-            orientation: WallOrientation::Horizontal,
-        });
-    }
-
-    // Left edge (x = 0)
-    for z in 0..grid_rows {
-        let edge = GridEdge {
-            x: 0,
-            z,
-            horizontal: false,
-        };
-        placed_edges.insert(edge);
-        let world_x = 0.0f32.mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-        let world_z = (z as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
-        walls.push(Wall {
-            x: world_x,
-            z: world_z,
-            orientation: WallOrientation::Vertical,
-        });
-    }
-
-    // Right edge (x = grid_cols)
-    for z in 0..grid_rows {
-        let edge = GridEdge {
-            x: grid_cols,
-            z,
-            horizontal: false,
-        };
-        placed_edges.insert(edge);
-        let world_x = (grid_cols as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-        let world_z = (z as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
-        walls.push(Wall {
-            x: world_x,
-            z: world_z,
-            orientation: WallOrientation::Vertical,
-        });
-    }
-
-    // Generate all possible interior edge positions
-    let mut all_edges = Vec::new();
-
-    // Interior horizontal edges (along X axis)
-    for z in 1..grid_rows {
-        for x in 0..grid_cols {
-            all_edges.push(GridEdge { x, z, horizontal: true });
+    
+    // Initialize grid with perimeter walls
+    let mut grid = vec![vec![GridCell::default(); grid_cols as usize]; grid_rows as usize];
+    
+    // Set perimeter walls
+    for row in 0..grid_rows {
+        for col in 0..grid_cols {
+            let cell = &mut grid[row as usize][col as usize];
+            
+            if row == 0 {
+                cell.has_north_wall = true;
+            }
+            if row == grid_rows - 1 {
+                cell.has_south_wall = true;
+            }
+            if col == 0 {
+                cell.has_west_wall = true;
+            }
+            if col == grid_cols - 1 {
+                cell.has_east_wall = true;
+            }
         }
     }
 
-    // Interior vertical edges (along Z axis)
-    for z in 0..grid_rows {
-        for x in 1..grid_cols {
-            all_edges.push(GridEdge {
-                x,
-                z,
-                horizontal: false,
-            });
+    // Generate list of all possible interior walls
+    // Each wall is represented as (row, col, direction) where direction is: 0=south, 1=east
+    let mut possible_walls = Vec::new();
+    
+    // Horizontal walls (south edge of cells, except bottom row)
+    for row in 0..(grid_rows - 1) {
+        for col in 0..grid_cols {
+            possible_walls.push((row, col, 0)); // south wall
+        }
+    }
+    
+    // Vertical walls (east edge of cells, except rightmost column)
+    for row in 0..grid_rows {
+        for col in 0..(grid_cols - 1) {
+            possible_walls.push((row, col, 1)); // east wall
         }
     }
 
-    // Shuffle the edges randomly
-    for i in (1..all_edges.len()).rev() {
+    // Shuffle randomly
+    for i in (1..possible_walls.len()).rev() {
         let j = rng.random_range(0..=i);
-        all_edges.swap(i, j);
+        possible_walls.swap(i, j);
     }
 
-    // Try to place walls at each interior edge position
-    for edge in all_edges {
-        // Only count interior walls toward NUM_WALL_SEGMENTS
-        let interior_walls_count = walls.len() - (2 * grid_cols as usize + 2 * grid_rows as usize);
-        if interior_walls_count >= NUM_WALL_SEGMENTS {
+    // Try to place walls
+    let mut interior_walls_placed = 0;
+    for (row, col, direction) in possible_walls {
+        if interior_walls_placed >= NUM_WALL_SEGMENTS {
             break;
         }
 
-        // Skip if already placed (shouldn't happen with our generation, but be safe)
-        if placed_edges.contains(&edge) {
+        let cell = &grid[row as usize][col as usize];
+        
+        // Check if wall is already placed
+        let already_has_wall = match direction {
+            0 => cell.has_south_wall,
+            1 => cell.has_east_wall,
+            _ => continue,
+        };
+        
+        if already_has_wall {
             continue;
         }
 
-        // Count walls in the two cells adjacent to this edge
-        let (cell1_row, cell1_col, cell2_row, cell2_col) = if edge.horizontal {
-            // Horizontal edge: cells above (z-1) and below (z)
-            (edge.z - 1, edge.x, edge.z, edge.x)
-        } else {
-            // Vertical edge: cells left (x-1) and right (x)
-            (edge.z, edge.x - 1, edge.z, edge.x)
+        // Count existing walls in both cells adjacent to this potential wall
+        let cell1_walls = count_cell_walls(cell);
+        let cell2_walls = match direction {
+            0 => {
+                // South wall - check cell below
+                if row < grid_rows - 1 {
+                    count_cell_walls(&grid[(row + 1) as usize][col as usize])
+                } else {
+                    0
+                }
+            },
+            1 => {
+                // East wall - check cell to the right
+                if col < grid_cols - 1 {
+                    count_cell_walls(&grid[row as usize][(col + 1) as usize])
+                } else {
+                    0
+                }
+            },
+            _ => 0,
         };
-
-        let mut max_walls = 0;
         
-        // Count walls for cell 1 (if in bounds)
-        if cell1_row >= 0 && cell1_row < grid_rows && cell1_col >= 0 && cell1_col < grid_cols {
-            let mut wall_count = 0;
-            // Check all 4 edges of this cell
-            if placed_edges.contains(&GridEdge { x: cell1_col, z: cell1_row, horizontal: true }) {
-                wall_count += 1;
-            }
-            if placed_edges.contains(&GridEdge { x: cell1_col, z: cell1_row + 1, horizontal: true }) {
-                wall_count += 1;
-            }
-            if placed_edges.contains(&GridEdge { x: cell1_col, z: cell1_row, horizontal: false }) {
-                wall_count += 1;
-            }
-            if placed_edges.contains(&GridEdge { x: cell1_col + 1, z: cell1_row, horizontal: false }) {
-                wall_count += 1;
-            }
-            max_walls = max_walls.max(wall_count);
-        }
-
-        // Count walls for cell 2 (if in bounds)
-        if cell2_row >= 0 && cell2_row < grid_rows && cell2_col >= 0 && cell2_col < grid_cols {
-            let mut wall_count = 0;
-            // Check all 4 edges of this cell
-            if placed_edges.contains(&GridEdge { x: cell2_col, z: cell2_row, horizontal: true }) {
-                wall_count += 1;
-            }
-            if placed_edges.contains(&GridEdge { x: cell2_col, z: cell2_row + 1, horizontal: true }) {
-                wall_count += 1;
-            }
-            if placed_edges.contains(&GridEdge { x: cell2_col, z: cell2_row, horizontal: false }) {
-                wall_count += 1;
-            }
-            if placed_edges.contains(&GridEdge { x: cell2_col + 1, z: cell2_row, horizontal: false }) {
-                wall_count += 1;
-            }
-            max_walls = max_walls.max(wall_count);
-        }
+        let max_walls = cell1_walls.max(cell2_walls);
 
         // Apply probability based on existing wall count
-        // max_walls: 0 = first wall, 1 = second wall, 2 = third wall, 3+ = fourth wall
-        // First wall is always attempted (probability 1.0); others use ratio relative to first
         let ratio = match max_walls {
-            0 => 1.0, // First wall - always attempt (subject to connectivity)
+            0 => 1.0,
             1 => WALL_2ND_PROBABILITY_RATIO,
             2 => WALL_3RD_PROBABILITY_RATIO,
-            _ => WALL_3RD_PROBABILITY_RATIO, // Fourth wall uses same as third
+            _ => WALL_3RD_PROBABILITY_RATIO,
         };
 
-        // Skip this wall based on ratio (ratios > 1.0 mean always accept)
         if ratio < 1.0 && !rng.random_bool(ratio) {
             continue;
         }
 
-        // Temporarily place the wall and check if all cells are still reachable
-        placed_edges.insert(edge);
-
-        if !all_cells_reachable(&placed_edges, grid_cols, grid_rows) {
-            // This wall would block connectivity - remove it and try next position
-            placed_edges.remove(&edge);
-            continue;
+        // Temporarily place the wall
+        match direction {
+            0 => {
+                grid[row as usize][col as usize].has_south_wall = true;
+                if row < grid_rows - 1 {
+                    grid[(row + 1) as usize][col as usize].has_north_wall = true;
+                }
+            },
+            1 => {
+                grid[row as usize][col as usize].has_east_wall = true;
+                if col < grid_cols - 1 {
+                    grid[row as usize][(col + 1) as usize].has_west_wall = true;
+                }
+            },
+            _ => {},
         }
 
-        // Wall is valid - calculate world position and add to list
-        let (x, z, horizontal) = (edge.x, edge.z, edge.horizontal);
-
-        if horizontal {
-            let world_x = (x as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-            let world_z = (z as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
-
-            walls.push(Wall {
-                x: world_x,
-                z: world_z,
-                orientation: WallOrientation::Horizontal,
-            });
+        // Check if all cells are still reachable
+        if !all_cells_reachable(&grid, grid_cols, grid_rows) {
+            // Remove the wall
+            match direction {
+                0 => {
+                    grid[row as usize][col as usize].has_south_wall = false;
+                    if row < grid_rows - 1 {
+                        grid[(row + 1) as usize][col as usize].has_north_wall = false;
+                    }
+                },
+                1 => {
+                    grid[row as usize][col as usize].has_east_wall = false;
+                    if col < grid_cols - 1 {
+                        grid[row as usize][(col + 1) as usize].has_west_wall = false;
+                    }
+                },
+                _ => {},
+            }
         } else {
-            let world_x = (x as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-            let world_z = (z as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
-
-            walls.push(Wall {
-                x: world_x,
-                z: world_z,
-                orientation: WallOrientation::Vertical,
-            });
+            interior_walls_placed += 1;
         }
     }
 
-    walls
+    // Build wall list from grid
+    let mut walls = Vec::new();
+    for row in 0..grid_rows {
+        for col in 0..grid_cols {
+            let cell = &grid[row as usize][col as usize];
+            
+            // North wall (horizontal)
+            if cell.has_north_wall {
+                let world_x = (col as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+                let world_z = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+                walls.push(Wall {
+                    x: world_x,
+                    z: world_z,
+                    orientation: WallOrientation::Horizontal,
+                });
+            }
+            
+            // South wall (horizontal) - only if it's the last row or neighbor doesn't have it
+            if cell.has_south_wall && (row == grid_rows - 1 || !grid[(row + 1) as usize][col as usize].has_north_wall) {
+                let world_x = (col as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+                let world_z = ((row + 1) as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+                walls.push(Wall {
+                    x: world_x,
+                    z: world_z,
+                    orientation: WallOrientation::Horizontal,
+                });
+            }
+            
+            // West wall (vertical)
+            if cell.has_west_wall {
+                let world_x = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+                let world_z = (row as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+                walls.push(Wall {
+                    x: world_x,
+                    z: world_z,
+                    orientation: WallOrientation::Vertical,
+                });
+            }
+            
+            // East wall (vertical) - only if it's the last column or neighbor doesn't have it
+            if cell.has_east_wall && (col == grid_cols - 1 || !grid[row as usize][(col + 1) as usize].has_west_wall) {
+                let world_x = ((col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+                let world_z = (row as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+                walls.push(Wall {
+                    x: world_x,
+                    z: world_z,
+                    orientation: WallOrientation::Vertical,
+                });
+            }
+        }
+    }
+
+    // Generate roofs based on grid
+    let roofs = generate_roofs_from_grid(&grid, grid_cols, grid_rows);
+    
+    GridConfig { walls, roofs, grid }
 }
 
 // Generate roofs based on wall count in each cell, with two-pass algorithm
@@ -332,74 +303,27 @@ pub fn generate_walls() -> Vec<Wall> {
 #[allow(clippy::cast_precision_loss)]
 #[allow(clippy::cast_possible_truncation)]
 #[allow(clippy::cast_sign_loss)]
-pub fn generate_roofs(walls: &[Wall]) -> Vec<Roof> {
+fn generate_roofs_from_grid(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) -> Vec<Roof> {
     let mut rng = rand::rng();
-    let grid_cols = (FIELD_WIDTH / GRID_SIZE) as i32;
-    let grid_rows = (FIELD_DEPTH / GRID_SIZE) as i32;
-
-    // Convert walls to GridEdge representation for easier counting
-    let mut placed_edges: HashSet<GridEdge> = HashSet::new();
-    
-    for wall in walls {
-        // Convert world position back to grid position
-        let grid_x = ((wall.x + FIELD_WIDTH / 2.0) / GRID_SIZE) as i32;
-        let grid_z = ((wall.z + FIELD_DEPTH / 2.0) / GRID_SIZE) as i32;
-        
-        let edge = match wall.orientation {
-            WallOrientation::Horizontal => GridEdge {
-                x: grid_x,
-                z: grid_z,
-                horizontal: true,
-            },
-            WallOrientation::Vertical => GridEdge {
-                x: grid_x,
-                z: grid_z,
-                horizontal: false,
-            },
-        };
-        placed_edges.insert(edge);
-    }
 
     // Count walls for each cell
     let mut wall_counts = vec![vec![0u8; grid_cols as usize]; grid_rows as usize];
     
     for row in 0..grid_rows {
         for col in 0..grid_cols {
+            let cell = &grid[row as usize][col as usize];
             let mut wall_count = 0;
             
-            // Check north edge
-            if placed_edges.contains(&GridEdge {
-                x: col,
-                z: row,
-                horizontal: true,
-            }) {
+            if cell.has_north_wall {
                 wall_count += 1;
             }
-            
-            // Check south edge
-            if placed_edges.contains(&GridEdge {
-                x: col,
-                z: row + 1,
-                horizontal: true,
-            }) {
+            if cell.has_south_wall {
                 wall_count += 1;
             }
-            
-            // Check west edge
-            if placed_edges.contains(&GridEdge {
-                x: col,
-                z: row,
-                horizontal: false,
-            }) {
+            if cell.has_west_wall {
                 wall_count += 1;
             }
-            
-            // Check east edge
-            if placed_edges.contains(&GridEdge {
-                x: col + 1,
-                z: row,
-                horizontal: false,
-            }) {
+            if cell.has_east_wall {
                 wall_count += 1;
             }
             

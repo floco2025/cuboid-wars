@@ -5,7 +5,7 @@ use crate::{
     constants::*,
     net::{ClientToServer, ServerToClient},
     resources::{
-        FromAcceptChannel, FromClientsChannel, ItemInfo, ItemMap, ItemSpawner, PlayerInfo, PlayerMap, WallConfig,
+        FromAcceptChannel, FromClientsChannel, GridConfig, ItemInfo, ItemMap, ItemSpawner, PlayerInfo, PlayerMap,
     },
 };
 use common::{
@@ -23,7 +23,7 @@ use common::{
 // ============================================================================
 
 // Generate a random spawn position that doesn't intersect with any walls
-fn generate_spawn_position(wall_config: &WallConfig) -> Position {
+fn generate_spawn_position(grid_config: &GridConfig) -> Position {
     let mut rng = rand::rng();
     let max_attempts = 100;
 
@@ -35,7 +35,7 @@ fn generate_spawn_position(wall_config: &WallConfig) -> Position {
         };
 
         // Check if position intersects with any wall
-        let intersects = wall_config
+        let intersects = grid_config
             .walls
             .iter()
             .any(|wall| check_player_wall_collision(&pos, wall));
@@ -140,7 +140,7 @@ pub fn process_client_message_system(
     mut from_clients: ResMut<FromClientsChannel>,
     mut players: ResMut<PlayerMap>,
     items: Res<ItemMap>,
-    wall_config: Res<WallConfig>,
+    grid_config: Res<GridConfig>,
     ghosts: Res<crate::resources::GhostMap>,
     positions: Query<&Position>,
     speeds: Query<&Speed>,
@@ -182,7 +182,7 @@ pub fn process_client_message_system(
                         &face_dirs,
                         &velocities,
                         &mut players,
-                        &wall_config,
+                        &grid_config,
                         &items,
                         &ghosts,
                     );
@@ -206,7 +206,7 @@ fn process_message_not_logged_in(
     face_dirs: &Query<&FaceDirection>,
     velocities: &Query<&Velocity>,
     players: &mut ResMut<PlayerMap>,
-    wall_config: &Res<WallConfig>,
+    grid_config: &Res<GridConfig>,
     items: &Res<ItemMap>,
     ghosts: &Res<crate::resources::GhostMap>,
 ) {
@@ -235,8 +235,8 @@ fn process_message_not_logged_in(
             // Send Init to the connecting player (their ID, walls, and roofs)
             let init_msg = ServerMessage::Init(SInit {
                 id,
-                walls: wall_config.walls.clone(),
-                roofs: wall_config.roofs.clone(),
+                walls: grid_config.walls.clone(),
+                roofs: grid_config.roofs.clone(),
             });
             if let Err(e) = channel.send(ServerToClient::Send(init_msg)) {
                 warn!("failed to send init to {:?}: {}", id, e);
@@ -244,7 +244,7 @@ fn process_message_not_logged_in(
             }
 
             // Generate random initial position for the new player
-            let pos = generate_spawn_position(wall_config);
+            let pos = generate_spawn_position(grid_config);
 
             // Calculate initial facing direction toward center
             let face_dir = (-pos.x).atan2(-pos.z);
@@ -382,14 +382,29 @@ fn process_message_logged_in(
 // Movement Handlers
 // ============================================================================
 
-fn handle_speed(commands: &mut Commands, entity: Entity, id: PlayerId, msg: CSpeed, players: &PlayerMap, positions: &Query<&Position>) {
+fn handle_speed(
+    commands: &mut Commands,
+    entity: Entity,
+    id: PlayerId,
+    msg: CSpeed,
+    players: &PlayerMap,
+    positions: &Query<&Position>,
+) {
     // Update the player's speed
     commands.entity(entity).insert(msg.speed);
 
     // Get current position for reconciliation
     if let Ok(pos) = positions.get(entity) {
         // Broadcast speed update with position to all other logged-in players
-        broadcast_to_logged_in(players, id, ServerMessage::Speed(SSpeed { id, speed: msg.speed, pos: *pos }));
+        broadcast_to_logged_in(
+            players,
+            id,
+            ServerMessage::Speed(SSpeed {
+                id,
+                speed: msg.speed,
+                pos: *pos,
+            }),
+        );
     }
 }
 
@@ -414,7 +429,11 @@ fn handle_shot(
     // Spawn projectile(s) on server for hit detection
     if let Ok(pos) = positions.get(entity) {
         // Determine number of shots based on multi-shot power-up
-        let num_shots = if players.0.get(&id).map_or(false, |info| info.multi_shot_power_up_timer > 0.0) {
+        let num_shots = if players
+            .0
+            .get(&id)
+            .map_or(false, |info| info.multi_shot_power_up_timer > 0.0)
+        {
             MULTI_SHOT_MULTIPLER
         } else {
             1
@@ -533,7 +552,7 @@ pub fn hit_detection_system(
     time: Res<Time>,
     projectile_query: Query<(Entity, &Position, &Projectile, &PlayerId)>,
     player_query: Query<(&Position, &FaceDirection, &PlayerId), Without<Projectile>>,
-    wall_config: Res<WallConfig>,
+    grid_config: Res<GridConfig>,
     mut players: ResMut<PlayerMap>,
 ) {
     let delta = time.delta_secs();
@@ -542,7 +561,7 @@ pub fn hit_detection_system(
         let mut hit_something = false;
 
         // Check wall collisions first
-        for wall in &wall_config.walls {
+        for wall in &grid_config.walls {
             if common::collision::check_projectile_wall_hit(proj_pos, projectile, delta, wall) {
                 // Despawn the projectile when it hits a wall
                 commands.entity(proj_entity).despawn();
@@ -602,7 +621,7 @@ pub fn hit_detection_system(
 
 pub fn server_movement_system(
     time: Res<Time>,
-    wall_config: Res<WallConfig>,
+    grid_config: Res<GridConfig>,
     players: Res<PlayerMap>,
     mut query: Query<(Entity, &mut Position, &Speed, &PlayerId)>,
 ) {
@@ -614,7 +633,7 @@ pub fn server_movement_system(
     for (entity, pos, speed, player_id) in query.iter() {
         // Convert Speed to Velocity
         let mut velocity = speed.to_velocity();
-        
+
         // Apply speed power-up multiplier if active
         if let Some(player_info) = players.0.get(player_id) {
             if player_info.speed_power_up_timer > 0.0 {
@@ -622,7 +641,7 @@ pub fn server_movement_system(
                 velocity.z *= SPEED_POWER_UP_MULTIPLIER;
             }
         }
-        
+
         let speed = velocity.x.hypot(velocity.z);
 
         if speed > 0.0 {
@@ -634,7 +653,7 @@ pub fn server_movement_system(
             };
 
             // Check if new position collides with any wall
-            let collides_with_wall = wall_config
+            let collides_with_wall = grid_config
                 .walls
                 .iter()
                 .any(|wall| check_player_wall_collision(&new_pos, wall));
@@ -642,7 +661,7 @@ pub fn server_movement_system(
             // Store intended position (slide along wall if collision, new otherwise)
             if collides_with_wall {
                 let slide_pos = common::collision::calculate_wall_slide(
-                    &wall_config.walls,
+                    &grid_config.walls,
                     pos,
                     &new_pos,
                     velocity.x,
@@ -783,7 +802,6 @@ pub fn item_collection_system(
     player_positions: Query<&Position, With<PlayerId>>,
     item_positions: Query<&Position, With<ItemId>>,
 ) {
-
     // Check each item against each player
     let items_to_collect: Vec<(PlayerId, ItemId, ItemType)> = items
         .0
@@ -880,7 +898,7 @@ pub fn item_expiration_system(time: Res<Time>, mut players: ResMut<PlayerMap>) {
 pub fn ghost_spawn_system(
     mut commands: Commands,
     mut ghosts: ResMut<crate::resources::GhostMap>,
-    wall_config: Res<WallConfig>,
+    grid_config: Res<GridConfig>,
     query: Query<&GhostId>,
 ) {
     // Only spawn if no ghosts exist yet
@@ -895,31 +913,35 @@ pub fn ghost_spawn_system(
         let mut grid_x;
         let mut grid_z;
         let mut attempts = 0;
-        
+
         loop {
             grid_x = rng.random_range(0..GRID_COLS);
             grid_z = rng.random_range(0..GRID_ROWS);
-            
+
             // Calculate center of grid cell
             let world_x = (grid_x as f32 + 0.5) * GRID_SIZE - FIELD_WIDTH / 2.0;
             let world_z = (grid_z as f32 + 0.5) * GRID_SIZE - FIELD_DEPTH / 2.0;
-            let pos = Position { x: world_x, y: 0.0, z: world_z };
-            
+            let pos = Position {
+                x: world_x,
+                y: 0.0,
+                z: world_z,
+            };
+
             // Check if position is valid (not in a wall)
             let mut valid = true;
-            for wall in &wall_config.walls {
+            for wall in &grid_config.walls {
                 if check_ghost_wall_collision(&pos, wall) {
                     valid = false;
                     break;
                 }
             }
-            
+
             if valid || attempts > 100 {
                 break;
             }
             attempts += 1;
         }
-        
+
         // Spawn at grid center
         let pos = Position {
             x: (grid_x as f32 + 0.5) * GRID_SIZE - FIELD_WIDTH / 2.0,
@@ -930,15 +952,31 @@ pub fn ghost_spawn_system(
         // Random initial velocity direction (only horizontal or vertical)
         let direction = rng.random_range(0..4); // 0=right, 1=up, 2=left, 3=down
         let vel = match direction {
-            0 => Velocity { x: GHOST_SPEED, y: 0.0, z: 0.0 },   // Right
-            1 => Velocity { x: 0.0, y: 0.0, z: -GHOST_SPEED },  // Up (negative Z)
-            2 => Velocity { x: -GHOST_SPEED, y: 0.0, z: 0.0 },  // Left
-            _ => Velocity { x: 0.0, y: 0.0, z: GHOST_SPEED },   // Down (positive Z)
+            0 => Velocity {
+                x: GHOST_SPEED,
+                y: 0.0,
+                z: 0.0,
+            }, // Right
+            1 => Velocity {
+                x: 0.0,
+                y: 0.0,
+                z: -GHOST_SPEED,
+            }, // Up (negative Z)
+            2 => Velocity {
+                x: -GHOST_SPEED,
+                y: 0.0,
+                z: 0.0,
+            }, // Left
+            _ => Velocity {
+                x: 0.0,
+                y: 0.0,
+                z: GHOST_SPEED,
+            }, // Down (positive Z)
         };
 
         let ghost_id = GhostId(i);
         let entity = commands.spawn((ghost_id, pos, vel)).id();
-        
+
         ghosts.0.insert(ghost_id, crate::resources::GhostInfo { entity });
     }
 }
@@ -946,7 +984,7 @@ pub fn ghost_spawn_system(
 // System to move ghosts with wall avoidance (Pac-Man style)
 pub fn ghost_movement_system(
     time: Res<Time>,
-    wall_config: Res<WallConfig>,
+    grid_config: Res<GridConfig>,
     players: Res<PlayerMap>,
     mut ghost_query: Query<(&GhostId, &mut Position, &mut Velocity)>,
 ) {
@@ -957,90 +995,76 @@ pub fn ghost_movement_system(
         // Calculate which grid cell we're in
         let grid_x = ((pos.x + FIELD_WIDTH / 2.0) / GRID_SIZE).floor() as i32;
         let grid_z = ((pos.z + FIELD_DEPTH / 2.0) / GRID_SIZE).floor() as i32;
-        
+
         // Calculate grid cell center
         let grid_center_x = (grid_x as f32 + 0.5) * GRID_SIZE - FIELD_WIDTH / 2.0;
         let grid_center_z = (grid_z as f32 + 0.5) * GRID_SIZE - FIELD_DEPTH / 2.0;
-        
+
         // Check if we're at grid center (within small threshold)
         const CENTER_THRESHOLD: f32 = 0.5;
         let at_center_x = (pos.x - grid_center_x).abs() < CENTER_THRESHOLD;
         let at_center_z = (pos.z - grid_center_z).abs() < CENTER_THRESHOLD;
         let at_intersection = at_center_x && at_center_z;
-        
-        // Try to move in current direction
-        let new_x = pos.x + vel.x * delta;
-        let new_z = pos.z + vel.z * delta;
-        let test_pos = Position { x: new_x, y: 0.0, z: new_z };
 
-        // Check if new position would hit a wall
-        let mut hits_wall = false;
-        for wall in &wall_config.walls {
-            if check_ghost_wall_collision(&test_pos, wall) {
-                hits_wall = true;
-                break;
+        if at_intersection {
+            let mut valid_directions = Vec::new();
+            let cell = &grid_config.grid[grid_z as usize][grid_x as usize];
+
+            if !cell.has_east_wall {
+                valid_directions.push(0); // Right
             }
-        }
+            if !cell.has_north_wall {
+                valid_directions.push(1); // Up
+            }
+            if !cell.has_west_wall {
+                valid_directions.push(2); // Left
+            }
+            if !cell.has_south_wall {
+                valid_directions.push(3); // Down
+            }
 
-        // Check arena bounds
-        if new_x.abs() > FIELD_WIDTH / 2.0 - GHOST_SIZE / 2.0
-            || new_z.abs() > FIELD_DEPTH / 2.0 - GHOST_SIZE / 2.0
-        {
-            hits_wall = true;
-        }
+            if !valid_directions.is_empty() {
+                let direction = valid_directions[rng.random_range(0..valid_directions.len())];
+                *vel = match direction {
+                    0 => Velocity {
+                        x: GHOST_SPEED,
+                        y: 0.0,
+                        z: 0.0,
+                    }, // Right
+                    1 => Velocity {
+                        x: 0.0,
+                        y: 0.0,
+                        z: -GHOST_SPEED,
+                    }, // Up (negative Z)
+                    2 => Velocity {
+                        x: -GHOST_SPEED,
+                        y: 0.0,
+                        z: 0.0,
+                    }, // Left
+                    _ => Velocity {
+                        x: 0.0,
+                        y: 0.0,
+                        z: GHOST_SPEED,
+                    }, // Down (positive Z)
+                };
 
-        if hits_wall {
-            // Reverse direction when hitting a wall at an intersection
-            *vel = Velocity {
-                x: -vel.x,
-                y: 0.0,
-                z: -vel.z,
-            };
-                                    
-            // Broadcast direction change immediately to all clients
-            broadcast_to_all(&players, ServerMessage::Ghost(SGhost {
-                id: *ghost_id,
-                ghost: Ghost {
-                    pos: *pos,
-                    vel: *vel,
-                },
-            }));
-        } else if at_intersection && rng.random_bool(GHOST_RANDOM_TURN_PROBABILITY) {
-            // Randomly change direction at intersection
-            let direction = rng.random_range(0..4); // 0=right, 1=up, 2=left, 3=down
-            *vel = match direction {
-                0 => Velocity { x: GHOST_SPEED, y: 0.0, z: 0.0 },   // Right
-                1 => Velocity { x: 0.0, y: 0.0, z: -GHOST_SPEED },  // Up (negative Z)
-                2 => Velocity { x: -GHOST_SPEED, y: 0.0, z: 0.0 },  // Left
-                _ => Velocity { x: 0.0, y: 0.0, z: GHOST_SPEED },   // Down (positive Z)
-            };
-            
-            // Snap to exact grid intersection
-            pos.x = grid_center_x;
-            pos.z = grid_center_z;
-                        
-            // Broadcast direction change immediately to all clients
-            broadcast_to_all(&players, ServerMessage::Ghost(SGhost {
-                id: *ghost_id,
-                ghost: Ghost {
-                    pos: *pos,
-                    vel: *vel,
-                },
-            }));
-        } else {
-            // Move normally
-            pos.x = new_x;
-            pos.z = new_z;
-            
-            // Snap to grid line if we're moving along it
-            if vel.x.abs() > 0.0 && vel.z.abs() < 0.01 {
-                // Moving horizontally - snap Z to grid center
-                pos.z = grid_center_z;
-            } else if vel.z.abs() > 0.0 && vel.x.abs() < 0.01 {
-                // Moving vertically - snap X to grid center
+                // Snap to exact grid intersection
                 pos.x = grid_center_x;
+                pos.z = grid_center_z;
+
+                // Broadcast direction change immediately to all clients
+                broadcast_to_all(
+                    &players,
+                    ServerMessage::Ghost(SGhost {
+                        id: *ghost_id,
+                        ghost: Ghost { pos: *pos, vel: *vel },
+                    }),
+                );
             }
+            // If no valid directions, just continue in current direction (don't change)
+        } else {
+            pos.x = pos.x + vel.x * delta;
+            pos.z = pos.z + vel.z * delta;
         }
-        // If hits_wall && !at_intersection: don't move, wait to reach intersection
     }
 }

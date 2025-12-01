@@ -9,11 +9,21 @@ use common::protocol::*;
 // Bevy Resources
 // ============================================================================
 
-// Wall configuration - generated once at server startup
+// Grid cell wall edges - bitflags for efficient lookup
+#[derive(Debug, Clone, Copy, Default)]
+pub struct GridCell {
+    pub has_north_wall: bool,  // Horizontal wall at top edge (z)
+    pub has_south_wall: bool,  // Horizontal wall at bottom edge (z+1)
+    pub has_west_wall: bool,   // Vertical wall at left edge (x)
+    pub has_east_wall: bool,   // Vertical wall at right edge (x+1)
+}
+
+// Grid configuration - generated once at server startup
 #[derive(Resource)]
-pub struct WallConfig {
+pub struct GridConfig {
     pub walls: Vec<Wall>,
     pub roofs: Vec<Roof>,
+    pub grid: Vec<Vec<GridCell>>,  // [row][col] - indexed by grid_z, grid_x
 }
 
 // Player information (server-side)

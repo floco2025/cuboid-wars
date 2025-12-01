@@ -12,13 +12,13 @@ use common::systems::projectiles_system;
 use server::{
     config::configure_server,
     net::accept_connections_task,
-    resources::{FromAcceptChannel, FromClientsChannel, GhostMap, ItemMap, ItemSpawner, PlayerMap, WallConfig},
+    resources::{FromAcceptChannel, FromClientsChannel, GhostMap, ItemMap, ItemSpawner, PlayerMap},
     systems::{
         accept_connections_system, broadcast_state_system, ghost_movement_system, ghost_spawn_system,
         hit_detection_system, item_collection_system, item_despawn_system, item_expiration_system,
         item_spawn_system, process_client_message_system, server_movement_system,
     },
-    walls::{generate_roofs, generate_walls},
+    walls::generate_grid,
 };
 
 const SERVER_LOOP_FREQUENCY: u64 = 30;
@@ -57,14 +57,12 @@ async fn main() -> Result<()> {
     // Spawn task to accept connections
     tokio::spawn(accept_connections_task(endpoint, to_server_from_accept, to_server));
 
-    // Generate walls and roofs
-    let walls = generate_walls();
-    let roofs = generate_roofs(&walls);
-    let wall_config = WallConfig { walls, roofs };
+    // Generate grid configuration (walls, roofs, and grid)
+    let grid_config = generate_grid();
     info!(
         "generated {} wall segments and {} roofs",
-        wall_config.walls.len(),
-        wall_config.roofs.len()
+        grid_config.walls.len(),
+        grid_config.roofs.len()
     );
 
     // Create Bevy app with ECS - run in non-blocking mode
@@ -75,13 +73,13 @@ async fn main() -> Result<()> {
             filter: LOG_FILTER.to_string(),
             ..default()
         })
+        .insert_resource(grid_config)
         .insert_resource(PlayerMap::default())
         .insert_resource(ItemMap::default())
         .insert_resource(GhostMap::default())
         .insert_resource(ItemSpawner::default())
         .insert_resource(FromAcceptChannel::new(from_accept))
         .insert_resource(FromClientsChannel::new(from_clients))
-        .insert_resource(wall_config)
         .add_systems(
             Update,
             (

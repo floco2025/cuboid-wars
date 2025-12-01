@@ -551,9 +551,7 @@ fn handle_ghost_message(
     ghost_query: &Query<&Position, With<crate::spawning::GhostMarker>>,
     msg: SGhost,
 ) {
-    debug!("received ghost message for {:?}", msg.id);
-    
-    if let Some(ghost_info) = ghosts.0.get(&msg.id) {
+        if let Some(ghost_info) = ghosts.0.get(&msg.id) {
         // Update existing ghost with reconciliation
         if let Ok(client_pos) = ghost_query.get(ghost_info.entity) {
             commands.entity(ghost_info.entity).insert((
