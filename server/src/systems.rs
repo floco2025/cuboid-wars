@@ -888,7 +888,6 @@ pub fn ghost_spawn_system(
         return;
     }
 
-    const NUM_GHOSTS: u32 = 5;
     let mut rng = rand::rng();
 
     for i in 0..NUM_GHOSTS {
