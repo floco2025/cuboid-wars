@@ -2,12 +2,15 @@
 // Server Game Constants
 // ============================================================================
 
-// Total number of wall segments to place
+// Wall generation settings
 pub const NUM_WALL_SEGMENTS: usize = 35;
+pub const WALL_2ND_PROBABILITY_RATIO: f64 = 5.0; // Probability of 2nd wall relative to 1st
+pub const WALL_3RD_PROBABILITY_RATIO: f64 = 0.2; // Probability of 3rd wall relative to 1st
 
 // Roof generation settings
-pub const ROOF_PROBABILITY_3_WALLS_EDGE: f64 = 0.0; // Chance if cell has 3 walls and at edge
-pub const ROOF_PROBABILITY_3_WALLS_INTERIOR: f64 = 0.7; // Chance if cell has 3 walls and not at edge
+pub const ROOF_PROBABILITY_2_WALLS: f64 = 0.1; // Chance if cell has 2 walls and no neighbor with roof
+pub const ROOF_PROBABILITY_3_WALLS: f64 = 0.1; // Chance if cell has 3 walls and no neighbor with roof
+pub const ROOF_PROBABILITY_WITH_NEIGHBOR: f64 = 0.4; // Chance if cell has 2+ walls and neighbor with roof
 
 // Item settings
 pub const ITEM_SPAWN_INTERVAL: f32 = 30.0; // seconds
