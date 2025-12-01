@@ -32,6 +32,7 @@ pub fn process_server_events_system(
     mut player_map: ResMut<PlayerMap>,
     mut item_map: ResMut<ItemMap>,
     mut rtt: ResMut<RoundTripTime>,
+    mut last_update_seq: ResMut<crate::resources::LastUpdateSeq>,
     player_query: Query<&Position, With<PlayerId>>,
     speed_query: Query<&Speed>,
     player_face_query: Query<(&Position, &FaceDirection), With<PlayerId>>,
@@ -58,6 +59,7 @@ pub fn process_server_events_system(
                         &mut player_map,
                         &mut item_map,
                         &mut rtt,
+                        &mut last_update_seq,
                         &player_query,
                         &speed_query,
                         &player_face_query,
@@ -104,6 +106,7 @@ fn process_message_logged_in(
     players: &mut ResMut<PlayerMap>,
     items: &mut ResMut<ItemMap>,
     rtt: &mut ResMut<RoundTripTime>,
+    last_update_seq: &mut ResMut<crate::resources::LastUpdateSeq>,
     player_query: &Query<&Position, With<PlayerId>>,
     speed_query: &Query<&Speed>,
     player_face_query: &Query<(&Position, &FaceDirection), With<PlayerId>>,
@@ -129,6 +132,7 @@ fn process_message_logged_in(
             players,
             items,
             rtt,
+            last_update_seq,
             player_query,
             camera_query,
             my_player_id,
@@ -242,11 +246,24 @@ fn handle_update_message(
     players: &mut ResMut<PlayerMap>,
     items: &mut ResMut<ItemMap>,
     rtt: &ResMut<RoundTripTime>,
+    last_update_seq: &mut ResMut<crate::resources::LastUpdateSeq>,
     player_query: &Query<&Position, With<PlayerId>>,
     camera_query: &Query<Entity, With<Camera3d>>,
     my_player_id: PlayerId,
     msg: SUpdate,
 ) {
+    // Ignore outdated updates
+    if msg.seq <= last_update_seq.0 {
+        warn!(
+            "Ignoring outdated SUpdate (seq: {}, last: {})",
+            msg.seq, last_update_seq.0
+        );
+        return;
+    }
+    
+    // Update the last received sequence number
+    last_update_seq.0 = msg.seq;
+
     // Track which players the server knows about in this snapshot
     let update_ids: HashSet<PlayerId> = msg.players.iter().map(|(id, _)| *id).collect();
 

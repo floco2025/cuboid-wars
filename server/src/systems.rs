@@ -323,6 +323,7 @@ fn process_message_not_logged_in(
 
             // Send the initial Update to the new player
             let update_msg = ServerMessage::Update(SUpdate {
+                seq: 0,
                 players: all_players,
                 items: all_items,
             });
@@ -466,6 +467,7 @@ fn handle_shot(
 pub fn broadcast_state_system(
     time: Res<Time>,
     mut timer: Local<f32>,
+    mut seq: Local<u32>,
     positions: Query<&Position>,
     speeds: Query<&Speed>,
     face_dirs: Query<&FaceDirection>,
@@ -477,6 +479,9 @@ pub fn broadcast_state_system(
         return;
     }
     *timer = 0.0;
+
+    // Increment sequence number
+    *seq = seq.wrapping_add(1);
 
     // Collect all logged-in players
     let all_players = snapshot_logged_in_players(&players, &positions, &speeds, &face_dirs);
@@ -499,6 +504,7 @@ pub fn broadcast_state_system(
 
     // Broadcast to all logged-in clients
     let msg = ServerMessage::Update(SUpdate {
+        seq: *seq,
         players: all_players,
         items: all_items,
     });

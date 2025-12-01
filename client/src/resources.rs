@@ -47,6 +47,10 @@ pub struct ItemInfo {
 #[derive(Resource, Default)]
 pub struct ItemMap(pub HashMap<ItemId, ItemInfo>);
 
+// Last received SUpdate sequence number
+#[derive(Resource, Default)]
+pub struct LastUpdateSeq(pub u32);
+
 // Round-trip time to server
 #[derive(Resource, Default)]
 pub struct RoundTripTime {

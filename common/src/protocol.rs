@@ -243,6 +243,7 @@ struct SShot {
 message! {
 // Server to Client: Periodic game state update for all players.
 struct SUpdate {
+    pub seq: u32,
     pub players: Vec<(PlayerId, Player)>,
     pub items: Vec<(ItemId, Item)>,
 }

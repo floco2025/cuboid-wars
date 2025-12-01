@@ -8,7 +8,7 @@ use tokio::{runtime::Runtime, time::Duration};
 use client::{
     config::configure_client,
     net::network_io_task,
-    resources::{CameraViewMode, ClientToServerChannel, ItemMap, PlayerMap, RoundTripTime, ServerToClientChannel},
+    resources::{CameraViewMode, ClientToServerChannel, ItemMap, LastUpdateSeq, PlayerMap, RoundTripTime, ServerToClientChannel},
     systems::{
         animations::animate_items_system,
         collision::client_hit_detection_system,
@@ -102,6 +102,7 @@ fn main() -> Result<()> {
     .insert_resource(PlayerMap::default())
     .insert_resource(ItemMap::default())
     .insert_resource(RoundTripTime::default())
+    .insert_resource(LastUpdateSeq::default())
     .insert_resource(CameraViewMode::default())
     .add_systems(Startup, setup_world_system)
     .add_systems(
