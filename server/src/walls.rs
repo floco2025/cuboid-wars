@@ -4,7 +4,7 @@ use std::collections::{HashSet, VecDeque};
 use crate::constants::NUM_WALL_SEGMENTS;
 use common::{
     constants::*,
-    protocol::{Wall, WallOrientation},
+    protocol::{Roof, Wall, WallOrientation},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -259,4 +259,94 @@ pub fn generate_walls() -> Vec<Wall> {
     }
 
     walls
+}
+
+// Generate roofs for grid cells that have 2 or more walls.
+// Each eligible cell has a 50% chance of getting a roof.
+#[must_use]
+#[allow(clippy::cast_precision_loss)]
+#[allow(clippy::cast_possible_truncation)]
+#[allow(clippy::cast_sign_loss)]
+pub fn generate_roofs(walls: &[Wall]) -> Vec<Roof> {
+    let mut rng = rand::rng();
+    let grid_cols = (FIELD_WIDTH / GRID_SIZE) as i32;
+    let grid_rows = (FIELD_DEPTH / GRID_SIZE) as i32;
+
+    // Convert walls to GridEdge representation for easier counting
+    let mut placed_edges: HashSet<GridEdge> = HashSet::new();
+    
+    for wall in walls {
+        // Convert world position back to grid position
+        let grid_x = ((wall.x + FIELD_WIDTH / 2.0) / GRID_SIZE) as i32;
+        let grid_z = ((wall.z + FIELD_DEPTH / 2.0) / GRID_SIZE) as i32;
+        
+        let edge = match wall.orientation {
+            WallOrientation::Horizontal => GridEdge {
+                x: grid_x,
+                z: grid_z,
+                horizontal: true,
+            },
+            WallOrientation::Vertical => GridEdge {
+                x: grid_x,
+                z: grid_z,
+                horizontal: false,
+            },
+        };
+        placed_edges.insert(edge);
+    }
+
+    // For each grid cell, count how many walls it has
+    let mut roofs = Vec::new();
+    
+    for row in 0..grid_rows {
+        for col in 0..grid_cols {
+            let mut wall_count = 0;
+            
+            // Check north edge
+            if placed_edges.contains(&GridEdge {
+                x: col,
+                z: row,
+                horizontal: true,
+            }) {
+                wall_count += 1;
+            }
+            
+            // Check south edge
+            if placed_edges.contains(&GridEdge {
+                x: col,
+                z: row + 1,
+                horizontal: true,
+            }) {
+                wall_count += 1;
+            }
+            
+            // Check west edge
+            if placed_edges.contains(&GridEdge {
+                x: col,
+                z: row,
+                horizontal: false,
+            }) {
+                wall_count += 1;
+            }
+            
+            // Check east edge
+            if placed_edges.contains(&GridEdge {
+                x: col + 1,
+                z: row,
+                horizontal: false,
+            }) {
+                wall_count += 1;
+            }
+            
+            // If cell has 2+ walls, 50% chance to add a roof
+            if wall_count >= 2 && rng.random_bool(0.5) {
+                roofs.push(Roof {
+                    row: row as u32,
+                    col: col as u32,
+                });
+            }
+        }
+    }
+
+    roofs
 }

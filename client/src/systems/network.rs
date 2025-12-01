@@ -85,9 +85,10 @@ fn process_message_not_logged_in(msg: ServerMessage, commands: &mut Commands) {
         // Store player ID as resource
         commands.insert_resource(MyPlayerId(init_msg.id));
 
-        // Store walls configuration
+        // Store walls and roofs configuration
         commands.insert_resource(WallConfig {
             walls: init_msg.walls,
+            roofs: init_msg.roofs,
         });
 
         // Note: We don't spawn anything here. The first SUpdate will contain

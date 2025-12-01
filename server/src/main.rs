@@ -18,7 +18,7 @@ use server::{
         item_despawn_system, item_expiration_system, item_spawn_system, process_client_message_system,
         server_movement_system,
     },
-    walls::generate_walls,
+    walls::{generate_roofs, generate_walls},
 };
 
 const SERVER_LOOP_FREQUENCY: u64 = 30;
@@ -57,11 +57,15 @@ async fn main() -> Result<()> {
     // Spawn task to accept connections
     tokio::spawn(accept_connections_task(endpoint, to_server_from_accept, to_server));
 
-    // Generate walls
-    let wall_config = WallConfig {
-        walls: generate_walls(),
-    };
-    info!("generated {} wall segments", wall_config.walls.len());
+    // Generate walls and roofs
+    let walls = generate_walls();
+    let roofs = generate_roofs(&walls);
+    let wall_config = WallConfig { walls, roofs };
+    info!(
+        "generated {} wall segments and {} roofs",
+        wall_config.walls.len(),
+        wall_config.roofs.len()
+    );
 
     // Create Bevy app with ECS - run in non-blocking mode
     let mut app = App::new();

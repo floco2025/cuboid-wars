@@ -126,6 +126,15 @@ struct Wall {
 }
 }
 
+// Roof - a roof covering a grid cell.
+message! {
+#[derive(Copy)]
+struct Roof {
+    pub row: u32,  // Grid row
+    pub col: u32,  // Grid column
+}
+}
+
 // Item type - different types of items.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
@@ -197,6 +206,7 @@ message! {
 struct SInit {
     pub id: PlayerId,
     pub walls: Vec<Wall>,
+    pub roofs: Vec<Roof>,
 }
 }
 

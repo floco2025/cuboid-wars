@@ -254,10 +254,11 @@ fn process_message_not_logged_in(
                 (channel, player_info.hits, player_info.name.clone())
             };
 
-            // Send Init to the connecting player (their ID and walls)
+            // Send Init to the connecting player (their ID, walls, and roofs)
             let init_msg = ServerMessage::Init(SInit {
                 id,
                 walls: wall_config.walls.clone(),
+                roofs: wall_config.roofs.clone(),
             });
             if let Err(e) = channel.send(ServerToClient::Send(init_msg)) {
                 warn!("failed to send init to {:?}: {}", id, e);

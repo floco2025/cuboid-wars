@@ -13,6 +13,7 @@ use common::protocol::*;
 #[derive(Resource)]
 pub struct WallConfig {
     pub walls: Vec<Wall>,
+    pub roofs: Vec<Roof>,
 }
 
 // Player information (server-side)

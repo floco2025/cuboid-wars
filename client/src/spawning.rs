@@ -184,6 +184,37 @@ pub fn spawn_wall(
     ));
 }
 
+// Spawn a roof entity based on a shared `Roof` config.
+pub fn spawn_roof(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    roof: &Roof,
+) {
+    let roof_color = Color::srgb(0.0, 0.7, 0.0); // Same as walls
+
+    // Calculate world position from grid coordinates
+    #[allow(clippy::cast_precision_loss)]
+    let world_x = (roof.col as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+    #[allow(clippy::cast_precision_loss)]
+    let world_z = (roof.row as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+
+    // Create a thin horizontal plane at wall height
+    let roof_thickness = 0.1;
+
+    commands.spawn((
+        Mesh3d(meshes.add(Cuboid::new(GRID_SIZE, roof_thickness, GRID_SIZE))),
+        MeshMaterial3d(materials.add(roof_color)),
+        Transform::from_xyz(
+            world_x,
+            WALL_HEIGHT, // Position at top of walls
+            world_z,
+        ),
+        Visibility::default(),
+        crate::systems::walls::RoofMarker,
+    ));
+}
+
 const fn player_color(is_local: bool) -> Color {
     if is_local {
         Color::srgb(0.3, 0.3, 1.0)
