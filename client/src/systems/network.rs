@@ -9,10 +9,10 @@ use crate::{
     constants::ECHO_INTERVAL,
     net::{ClientToServer, ServerToClient},
     resources::{
-        ClientToServerChannel, ItemInfo, ItemMap, MyPlayerId, PlayerInfo, PlayerMap,
+        ClientToServerChannel, GhostInfo, GhostMap, ItemInfo, ItemMap, MyPlayerId, PlayerInfo, PlayerMap,
         RoundTripTime, ServerToClientChannel, WallConfig,
     },
-    spawning::{spawn_item, spawn_player},
+    spawning::{spawn_ghost, spawn_item, spawn_player},
 };
 use common::constants::SPEED_POWER_UP_MULTIPLIER;
 use common::protocol::*;
@@ -29,11 +29,11 @@ pub fn process_server_events_system(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut images: ResMut<Assets<Image>>,
-    mut player_map: ResMut<PlayerMap>,
-    mut item_map: ResMut<ItemMap>,
+    mut maps: ParamSet<(ResMut<PlayerMap>, ResMut<ItemMap>, ResMut<GhostMap>)>,
     mut rtt: ResMut<RoundTripTime>,
     mut last_update_seq: ResMut<crate::resources::LastUpdateSeq>,
     player_query: Query<&Position, With<PlayerId>>,
+    ghost_query: Query<&Position, With<crate::spawning::GhostMarker>>,
     speed_query: Query<&Speed>,
     player_face_query: Query<(&Position, &FaceDirection), With<PlayerId>>,
     camera_query: Query<Entity, With<Camera3d>>,
@@ -56,11 +56,11 @@ pub fn process_server_events_system(
                         &mut meshes,
                         &mut materials,
                         &mut images,
-                        &mut player_map,
-                        &mut item_map,
+                        &mut maps,
                         &mut rtt,
                         &mut last_update_seq,
                         &player_query,
+                        &ghost_query,
                         &speed_query,
                         &player_face_query,
                         &camera_query,
@@ -104,11 +104,11 @@ fn process_message_logged_in(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
     images: &mut ResMut<Assets<Image>>,
-    players: &mut ResMut<PlayerMap>,
-    items: &mut ResMut<ItemMap>,
+    maps: &mut ParamSet<(ResMut<PlayerMap>, ResMut<ItemMap>, ResMut<GhostMap>)>,
     rtt: &mut ResMut<RoundTripTime>,
     last_update_seq: &mut ResMut<crate::resources::LastUpdateSeq>,
     player_query: &Query<&Position, With<PlayerId>>,
+    ghost_query: &Query<&Position, With<crate::spawning::GhostMarker>>,
     speed_query: &Query<&Speed>,
     player_face_query: &Query<(&Position, &FaceDirection), With<PlayerId>>,
     camera_query: &Query<Entity, With<Camera3d>>,
@@ -118,30 +118,31 @@ fn process_message_logged_in(
         ServerMessage::Init(_) => {
             error!("received Init more than once");
         }
-        ServerMessage::Login(login) => handle_login_message(commands, meshes, materials, images, players, login),
-        ServerMessage::Logoff(logoff) => handle_logoff_message(commands, players, logoff),
-        ServerMessage::Speed(speed_msg) => handle_speed_message(commands, players, speed_msg),
-        ServerMessage::Face(face_msg) => handle_face_message(commands, players, face_msg),
+        ServerMessage::Login(login) => handle_login_message(commands, meshes, materials, images, &mut maps.p0(), login),
+        ServerMessage::Logoff(logoff) => handle_logoff_message(commands, &mut maps.p0(), logoff),
+        ServerMessage::Speed(speed_msg) => handle_speed_message(commands, &maps.p0(), player_query, rtt, speed_msg),
+        ServerMessage::Face(face_msg) => handle_face_message(commands, &maps.p0(), face_msg),
         ServerMessage::Shot(shot_msg) => {
-            handle_shot_message(commands, meshes, materials, players, player_face_query, shot_msg);
+            handle_shot_message(commands, meshes, materials, &maps.p0(), player_face_query, shot_msg);
         }
         ServerMessage::Update(update_msg) => handle_update_message(
             commands,
             meshes,
             materials,
             images,
-            players,
-            items,
+            maps,
             rtt,
             last_update_seq,
             player_query,
+            ghost_query,
             camera_query,
             my_player_id,
             update_msg,
         ),
-        ServerMessage::Hit(hit_msg) => handle_hit_message(commands, players, camera_query, my_player_id, hit_msg),
-        ServerMessage::PowerUp(power_up_msg) => handle_power_up_message(commands, players, speed_query, power_up_msg),
+        ServerMessage::Hit(hit_msg) => handle_hit_message(commands, &maps.p0(), camera_query, my_player_id, hit_msg),
+        ServerMessage::PowerUp(power_up_msg) => handle_power_up_message(commands, &mut maps.p0(), speed_query, power_up_msg),
         ServerMessage::Echo(echo_msg) => handle_echo_message(time, rtt, echo_msg),
+        ServerMessage::Ghost(ghost_msg) => handle_ghost_message(commands, meshes, materials, &mut maps.p2(), rtt, ghost_query, ghost_msg),
     }
 }
 
@@ -194,7 +195,13 @@ fn handle_logoff_message(commands: &mut Commands, players: &mut ResMut<PlayerMap
     }
 }
 
-fn handle_speed_message(commands: &mut Commands, players: &ResMut<PlayerMap>, msg: SSpeed) {
+fn handle_speed_message(
+    commands: &mut Commands,
+    players: &ResMut<PlayerMap>,
+    player_query: &Query<&Position, With<PlayerId>>,
+    rtt: &ResMut<RoundTripTime>,
+    msg: SSpeed,
+) {
     trace!("{:?} speed: {:?}", msg.id, msg);
     if let Some(player) = players.0.get(&msg.id) {
         let mut velocity = msg.speed.to_velocity();
@@ -202,7 +209,22 @@ fn handle_speed_message(commands: &mut Commands, players: &ResMut<PlayerMap>, ms
             velocity.x *= SPEED_POWER_UP_MULTIPLIER;
             velocity.z *= SPEED_POWER_UP_MULTIPLIER;
         }
-        commands.entity(player.entity).insert(velocity);
+        
+        // Add server reconciliation if we have client position
+        if let Ok(client_pos) = player_query.get(player.entity) {
+            commands.entity(player.entity).insert((
+                velocity,
+                ServerReconciliation {
+                    client_pos: *client_pos,
+                    server_pos: msg.pos,
+                    server_vel: velocity,
+                    timer: 0.0,
+                    rtt: rtt.rtt.as_secs_f32(),
+                },
+            ));
+        } else {
+            commands.entity(player.entity).insert(velocity);
+        }
     }
 }
 
@@ -244,11 +266,11 @@ fn handle_update_message(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
     images: &mut ResMut<Assets<Image>>,
-    players: &mut ResMut<PlayerMap>,
-    items: &mut ResMut<ItemMap>,
+    maps: &mut ParamSet<(ResMut<PlayerMap>, ResMut<ItemMap>, ResMut<GhostMap>)>,
     rtt: &ResMut<RoundTripTime>,
     last_update_seq: &mut ResMut<crate::resources::LastUpdateSeq>,
     player_query: &Query<&Position, With<PlayerId>>,
+    ghost_query: &Query<&Position, With<crate::spawning::GhostMarker>>,
     camera_query: &Query<Entity, With<Camera3d>>,
     my_player_id: PlayerId,
     msg: SUpdate,
@@ -265,116 +287,178 @@ fn handle_update_message(
     // Update the last received sequence number
     last_update_seq.0 = msg.seq;
 
-    // Track which players the server knows about in this snapshot
-    let update_ids: HashSet<PlayerId> = msg.players.iter().map(|(id, _)| *id).collect();
+    // Handle players
+    {
+        let players = &mut maps.p0();
+        // Track which players the server knows about in this snapshot
+        let update_ids: HashSet<PlayerId> = msg.players.iter().map(|(id, _)| *id).collect();
 
-    // Spawn any players that appear in the update but are missing locally
-    for (id, player) in &msg.players {
-        if players.0.contains_key(id) {
-            continue;
-        }
+        // Spawn any players that appear in the update but are missing locally
+        for (id, player) in &msg.players {
+            if players.0.contains_key(id) {
+                continue;
+            }
 
-        let is_local = *id == my_player_id;
-        debug!("spawning player {:?} from Update (is_local: {})", id, is_local);
-        let mut velocity = player.speed.to_velocity();
-        if player.speed_power_up {
-            velocity.x *= SPEED_POWER_UP_MULTIPLIER;
-            velocity.z *= SPEED_POWER_UP_MULTIPLIER;
-        }
-        let entity = spawn_player(
-            commands,
-            meshes,
-            materials,
-            images,
-            id.0,
-            &player.name,
-            &player.pos,
-            velocity,
-            player.face_dir,
-            is_local,
-        );
+            let is_local = *id == my_player_id;
+            debug!("spawning player {:?} from Update (is_local: {})", id, is_local);
+            let mut velocity = player.speed.to_velocity();
+            if player.speed_power_up {
+                velocity.x *= SPEED_POWER_UP_MULTIPLIER;
+                velocity.z *= SPEED_POWER_UP_MULTIPLIER;
+            }
+            let entity = spawn_player(
+                commands,
+                meshes,
+                materials,
+                images,
+                id.0,
+                &player.name,
+                &player.pos,
+                velocity,
+                player.face_dir,
+                is_local,
+            );
 
-        if is_local && let Ok(camera_entity) = camera_query.single() {
-            let camera_rotation = player.face_dir + std::f32::consts::PI;
-            commands.entity(camera_entity).insert(
-                Transform::from_xyz(player.pos.x, 2.5, player.pos.z + 3.0)
-                    .with_rotation(Quat::from_rotation_y(camera_rotation)),
+            if is_local && let Ok(camera_entity) = camera_query.single() {
+                let camera_rotation = player.face_dir + std::f32::consts::PI;
+                commands.entity(camera_entity).insert(
+                    Transform::from_xyz(player.pos.x, 2.5, player.pos.z + 3.0)
+                        .with_rotation(Quat::from_rotation_y(camera_rotation)),
+                );
+            }
+
+            players.0.insert(
+                *id,
+                PlayerInfo {
+                    entity,
+                    hits: player.hits,
+                    name: player.name.clone(),
+                    speed_power_up: player.speed_power_up,
+                    multi_shot_power_up: player.multi_shot_power_up,
+                },
             );
         }
 
-        players.0.insert(
-            *id,
-            PlayerInfo {
-                entity,
-                hits: player.hits,
-                name: player.name.clone(),
-                speed_power_up: player.speed_power_up,
-                multi_shot_power_up: player.multi_shot_power_up,
-            },
-        );
-    }
+        // Despawn players no longer present in the authoritative snapshot
+        let stale_ids: Vec<PlayerId> = players
+            .0
+            .keys()
+            .filter(|id| !update_ids.contains(id))
+            .copied()
+            .collect();
 
-    // Despawn players no longer present in the authoritative snapshot
-    let stale_ids: Vec<PlayerId> = players
-        .0
-        .keys()
-        .filter(|id| !update_ids.contains(id))
-        .copied()
-        .collect();
-
-    for id in stale_ids {
-        if let Some(player) = players.0.remove(&id) {
-            commands.entity(player.entity).despawn();
-        }
-    }
-
-    // Update existing players with server state
-    for (id, server_player) in msg.players {
-        if let Some(client_player) = players.0.get_mut(&id) {
-            if let Ok(client_pos) = player_query.get(client_player.entity) {
-                let mut server_vel = server_player.speed.to_velocity();
-                if server_player.speed_power_up {
-                    server_vel.x *= SPEED_POWER_UP_MULTIPLIER;
-                    server_vel.z *= SPEED_POWER_UP_MULTIPLIER;
-                }
-                commands.entity(client_player.entity).insert(ServerReconciliation {
-                    client_pos: *client_pos,
-                    server_pos: server_player.pos,
-                    server_vel,
-                    timer: 0.0,
-                    rtt: rtt.rtt.as_secs_f32(),
-                });
+        for id in stale_ids {
+            if let Some(player) = players.0.remove(&id) {
+                commands.entity(player.entity).despawn();
             }
+        }
 
-            client_player.hits = server_player.hits;
-            client_player.speed_power_up = server_player.speed_power_up;
-            client_player.multi_shot_power_up = server_player.multi_shot_power_up;
+        // Update existing players with server state
+        for (id, server_player) in &msg.players {
+            if let Some(client_player) = players.0.get_mut(&id) {
+                if let Ok(client_pos) = player_query.get(client_player.entity) {
+                    let mut server_vel = server_player.speed.to_velocity();
+                    if server_player.speed_power_up {
+                        server_vel.x *= SPEED_POWER_UP_MULTIPLIER;
+                        server_vel.z *= SPEED_POWER_UP_MULTIPLIER;
+                    }
+                    commands.entity(client_player.entity).insert(ServerReconciliation {
+                        client_pos: *client_pos,
+                        server_pos: server_player.pos,
+                        server_vel,
+                        timer: 0.0,
+                        rtt: rtt.rtt.as_secs_f32(),
+                    });
+                }
+
+                client_player.hits = server_player.hits;
+                client_player.speed_power_up = server_player.speed_power_up;
+                client_player.multi_shot_power_up = server_player.multi_shot_power_up;
+            }
         }
     }
 
-    // Handle items - track which ones server has by ID
-    let server_item_ids: HashSet<ItemId> = msg.items.iter().map(|(id, _)| *id).collect();
+    // Handle items
+    {
+        let items = &mut maps.p1();
+        let server_item_ids: HashSet<ItemId> = msg.items.iter().map(|(id, _)| *id).collect();
 
-    // Spawn any items that appear in the update but are missing locally
-    for (item_id, item) in &msg.items {
-        if items.0.contains_key(item_id) {
-            continue;
+        // Spawn any items that appear in the update but are missing locally
+        for (item_id, item) in &msg.items {
+            if items.0.contains_key(item_id) {
+                continue;
+            }
+            let entity = spawn_item(commands, meshes, materials, *item_id, item.item_type, &item.pos);
+            items.0.insert(*item_id, ItemInfo { entity });
         }
-        let entity = spawn_item(commands, meshes, materials, *item_id, item.item_type, &item.pos);
-        items.0.insert(*item_id, ItemInfo { entity });
+
+        // Despawn items no longer present in the authoritative snapshot
+        let stale_item_ids: Vec<ItemId> = items
+            .0
+            .keys()
+            .filter(|id| !server_item_ids.contains(id))
+            .copied()
+            .collect();
+
+        for item_id in stale_item_ids {
+            if let Some(item_info) = items.0.remove(&item_id) {
+                commands.entity(item_info.entity).despawn();
+            }
+        }
     }
 
-    // Despawn items no longer present in the authoritative snapshot
-    let stale_item_ids: Vec<ItemId> = items
-        .0
-        .keys()
-        .filter(|id| !server_item_ids.contains(id))
-        .copied()
-        .collect();
+    // Handle ghosts
+    {
+        let ghosts = &mut maps.p2();
+        let server_ghost_ids: HashSet<GhostId> = msg.ghosts.iter().map(|(id, _)| *id).collect();
 
-    for item_id in stale_item_ids {
-        if let Some(item_info) = items.0.remove(&item_id) {
-            commands.entity(item_info.entity).despawn();
+        // Spawn any ghosts that appear in the update but are missing locally
+        for (ghost_id, ghost) in &msg.ghosts {
+            if ghosts.0.contains_key(ghost_id) {
+                continue;
+            }
+            let entity = spawn_ghost(commands, meshes, materials, *ghost_id, &ghost.pos, &ghost.vel);
+            ghosts.0.insert(*ghost_id, GhostInfo { entity });
+        }
+
+        // Despawn ghosts no longer present in the authoritative snapshot
+        let stale_ghost_ids: Vec<GhostId> = ghosts
+            .0
+            .keys()
+            .filter(|id| !server_ghost_ids.contains(id))
+            .copied()
+            .collect();
+
+        for ghost_id in stale_ghost_ids {
+            if let Some(ghost_info) = ghosts.0.remove(&ghost_id) {
+                commands.entity(ghost_info.entity).despawn();
+            }
+        }
+
+        // Update existing ghosts with server state (position and velocity)
+        for (ghost_id, server_ghost) in &msg.ghosts {
+            if let Some(client_ghost) = ghosts.0.get(&ghost_id) {
+                // Check if we have a client position to track reconciliation
+                if let Ok(client_pos) = ghost_query.get(client_ghost.entity) {
+                    commands.entity(client_ghost.entity).insert((
+                        server_ghost.pos,
+                        server_ghost.vel,
+                        ServerReconciliation {
+                            client_pos: *client_pos,
+                            server_pos: server_ghost.pos,
+                            server_vel: server_ghost.vel,
+                            timer: 0.0,
+                            rtt: rtt.rtt.as_secs_f32(),
+                        },
+                    ));
+                } else {
+                    // No client position yet, just set server state
+                    commands.entity(client_ghost.entity).insert((
+                        server_ghost.pos,
+                        server_ghost.vel,
+                    ));
+                }
+            }
         }
     }
 }
@@ -455,6 +539,45 @@ fn handle_power_up_message(commands: &mut Commands, players: &mut ResMut<PlayerM
                 commands.entity(player_info.entity).insert(velocity);
             }
         }
+    }
+}
+
+fn handle_ghost_message(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    ghosts: &mut ResMut<GhostMap>,
+    rtt: &ResMut<RoundTripTime>,
+    ghost_query: &Query<&Position, With<crate::spawning::GhostMarker>>,
+    msg: SGhost,
+) {
+    debug!("received ghost message for {:?}", msg.id);
+    
+    if let Some(ghost_info) = ghosts.0.get(&msg.id) {
+        // Update existing ghost with reconciliation
+        if let Ok(client_pos) = ghost_query.get(ghost_info.entity) {
+            commands.entity(ghost_info.entity).insert((
+                msg.ghost.pos,
+                msg.ghost.vel,
+                ServerReconciliation {
+                    client_pos: *client_pos,
+                    server_pos: msg.ghost.pos,
+                    server_vel: msg.ghost.vel,
+                    timer: 0.0,
+                    rtt: rtt.rtt.as_secs_f32(),
+                },
+            ));
+        } else {
+            // No client position yet, just set server state
+            commands.entity(ghost_info.entity).insert((
+                msg.ghost.pos,
+                msg.ghost.vel,
+            ));
+        }
+    } else {
+        // Spawn new ghost
+        let entity = spawn_ghost(commands, meshes, materials, msg.id, &msg.ghost.pos, &msg.ghost.vel);
+        ghosts.0.insert(msg.id, GhostInfo { entity });
     }
 }
 

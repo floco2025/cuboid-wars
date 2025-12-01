@@ -9,7 +9,7 @@ use tokio::sync::mpsc::{
 };
 
 use crate::net::{ClientToServer, ServerToClient};
-use common::protocol::{ItemId, PlayerId, Roof, Wall};
+use common::protocol::{ItemId, PlayerId, Roof, Wall, GhostId};
 
 // ============================================================================
 // Bevy Resources
@@ -47,6 +47,15 @@ pub struct ItemInfo {
 // Map of all items (client-side source of truth)
 #[derive(Resource, Default)]
 pub struct ItemMap(pub HashMap<ItemId, ItemInfo>);
+
+// Ghost information (client-side)
+pub struct GhostInfo {
+    pub entity: Entity,
+}
+
+// Map of all ghosts (client-side source of truth)
+#[derive(Resource, Default)]
+pub struct GhostMap(pub HashMap<GhostId, GhostInfo>);
 
 // Last received SUpdate sequence number
 #[derive(Resource, Default)]

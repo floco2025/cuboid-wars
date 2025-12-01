@@ -216,3 +216,48 @@ fn trigger_collision_feedback(
 
     state.was_colliding = true;
 }
+
+// ============================================================================
+// Ghost Movement System
+// ============================================================================
+
+// Client-side ghost movement system - applies velocity with server reconciliation
+// Ghosts don't have client-side collision detection (server handles that)
+pub fn ghost_movement_system(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut ghost_query: Query<
+        (Entity, &mut Position, &Velocity, Option<&mut ServerReconciliation>),
+        With<crate::spawning::GhostMarker>,
+    >,
+) {
+    let delta = time.delta_secs();
+
+    for (entity, mut pos, vel, server_snapshot) in &mut ghost_query {
+        if let Some(mut recon) = server_snapshot {
+            // Ghosts: smoothly interpolate from client to server position
+            const CORRECTION_TIME: f32 = 3.0; // Fast smooth correction
+            let correction_factor = (UPDATE_BROADCAST_INTERVAL / CORRECTION_TIME).clamp(0.0, 1.0);
+
+            recon.timer += delta * correction_factor;
+            if recon.timer >= UPDATE_BROADCAST_INTERVAL {
+                commands.entity(entity).remove::<ServerReconciliation>();
+            }
+
+            // Predict where the server thinks the ghost should be now
+            let time_since_update = delta;
+            let server_pos_x = recon.server_pos.x + recon.server_vel.x * time_since_update;
+            let server_pos_z = recon.server_pos.z + recon.server_vel.z * time_since_update;
+
+            // Smoothly lerp from current client position to predicted server position
+            let lerp_amount = (delta * correction_factor / UPDATE_BROADCAST_INTERVAL).clamp(0.0, 1.0);
+            
+            pos.x = pos.x + (server_pos_x - pos.x) * lerp_amount;
+            pos.z = pos.z + (server_pos_z - pos.z) * lerp_amount;
+        } else {
+            // No reconciliation - just apply velocity normally
+            pos.x = vel.x.mul_add(delta, pos.x);
+            pos.z = vel.z.mul_add(delta, pos.z);
+        }
+    }
+}

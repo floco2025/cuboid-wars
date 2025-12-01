@@ -9,7 +9,7 @@ use client::{
     config::configure_client,
     net::network_io_task,
     resources::{
-        CameraViewMode, ClientToServerChannel, FpsMeasurement, ItemMap, LastUpdateSeq, PlayerMap, RoofRenderingEnabled, RoundTripTime,
+        CameraViewMode, ClientToServerChannel, FpsMeasurement, GhostMap, ItemMap, LastUpdateSeq, PlayerMap, RoofRenderingEnabled, RoundTripTime,
         ServerToClientChannel,
     },
     systems::{
@@ -17,7 +17,7 @@ use client::{
         collision::client_hit_detection_system,
         effects::{apply_camera_shake_system, apply_cuboid_shake_system},
         input::{camera_view_toggle_system, cursor_toggle_system, input_system, roof_toggle_system, shooting_input_system},
-        movement::client_movement_system,
+        movement::{client_movement_system, ghost_movement_system},
         network::{echo_system, process_server_events_system},
         sync::{
             billboard_player_id_text_system, sync_camera_to_player_system, sync_face_to_transform_system,
@@ -107,6 +107,7 @@ fn main() -> Result<()> {
     .insert_resource(ServerToClientChannel::new(from_server))
     .insert_resource(PlayerMap::default())
     .insert_resource(ItemMap::default())
+    .insert_resource(GhostMap::default())
     .insert_resource(RoundTripTime::default())
     .insert_resource(FpsMeasurement::default())
     .insert_resource(LastUpdateSeq::default())
@@ -116,43 +117,60 @@ fn main() -> Result<()> {
     .add_systems(
         Update,
         (
-            (
-                // Input handling
-                cursor_toggle_system,
-                camera_view_toggle_system,
-                roof_toggle_system,
-                input_system,
-                shooting_input_system,
-                // Network
-                process_server_events_system,
-                echo_system,
-                // Game logic
-                spawn_walls_system,
-                client_movement_system,
-                sync_projectiles_system,
-                client_hit_detection_system,
-            ),
-            (
-                // Rendering sync
-                sync_camera_to_player_system,
-                sync_position_to_transform_system,
-                sync_face_to_transform_system,
-                sync_local_player_visibility_system,
-                billboard_player_id_text_system,
-                // Visual effects
-                animate_items_system,
-                apply_camera_shake_system,
-                apply_cuboid_shake_system,
-                // Toggle wall and roof opacity based on view mode
-                toggle_wall_opacity_system,
-                // Toggle roof visibility based on setting
-                toggle_roof_visibility_system,
-                // UI updates
-                toggle_crosshair_system,
-                update_player_list_system,
-                update_rtt_system,
-                update_fps_system,
-            ),
+            cursor_toggle_system,
+            camera_view_toggle_system,
+            roof_toggle_system,
+            input_system,
+            shooting_input_system,
+        ),
+    )
+    .add_systems(Update, process_server_events_system)
+    .add_systems(
+        Update,
+        (
+            echo_system,
+            spawn_walls_system,
+            client_movement_system,
+            ghost_movement_system,
+            sync_projectiles_system,
+        ),
+    )
+    .add_systems(
+        Update,
+        (
+            client_hit_detection_system,
+            sync_camera_to_player_system,
+            sync_position_to_transform_system,
+            sync_face_to_transform_system,
+        ),
+    )
+    .add_systems(
+        Update,
+        (
+            sync_local_player_visibility_system,
+            billboard_player_id_text_system,
+            animate_items_system,
+            apply_camera_shake_system,
+        ),
+    )
+    .add_systems(
+        Update,
+        (
+            billboard_player_id_text_system,
+            animate_items_system,
+            apply_camera_shake_system,
+            apply_cuboid_shake_system,
+            toggle_wall_opacity_system,
+        ),
+    )
+    .add_systems(
+        Update,
+        (
+            toggle_roof_visibility_system,
+            toggle_crosshair_system,
+            update_player_list_system,
+            update_rtt_system,
+            update_fps_system,
         ),
     )
     .run();

@@ -50,3 +50,7 @@ pub const UPDATE_BROADCAST_INTERVAL: f32 = 0.25; // seconds
 pub const SPEED_POWER_UP_MULTIPLIER: f32 = 1.8;
 pub const MULTI_SHOT_MULTIPLER: i32 = 5;
 pub const MULTI_SHOT_ANGLE: f32 = 3.0;
+
+// Ghost dimensions (meters)
+pub const GHOST_SIZE: f32 = 3.0; // Cube side length
+

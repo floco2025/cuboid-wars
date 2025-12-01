@@ -10,8 +10,8 @@ use crate::{
 };
 use common::{
     collision::{
-        check_player_item_collision, check_player_player_collision, check_player_wall_collision,
-        check_projectile_player_hit,
+        check_ghost_wall_collision, check_player_item_collision, check_player_player_collision,
+        check_player_wall_collision, check_projectile_player_hit,
     },
     constants::*,
     protocol::*,
@@ -21,34 +21,6 @@ use common::{
 // ============================================================================
 // Helper Functions
 // ============================================================================
-
-fn position_intersects_wall(pos: &Position, wall: &Wall) -> bool {
-    const MARGIN: f32 = 0.1;
-    let player_half_x = PLAYER_WIDTH / 2.0 + MARGIN;
-    let player_half_z = PLAYER_DEPTH / 2.0 + MARGIN;
-
-    let (wall_half_x, wall_half_z) = match wall.orientation {
-        WallOrientation::Horizontal => (WALL_LENGTH / 2.0, WALL_WIDTH / 2.0),
-        WallOrientation::Vertical => (WALL_WIDTH / 2.0, WALL_LENGTH / 2.0),
-    };
-
-    let player_min_x = pos.x - player_half_x;
-    let player_max_x = pos.x + player_half_x;
-    let player_min_z = pos.z - player_half_z;
-    let player_max_z = pos.z + player_half_z;
-
-    let wall_min_x = wall.x - wall_half_x;
-    let wall_max_x = wall.x + wall_half_x;
-    let wall_min_z = wall.z - wall_half_z;
-    let wall_max_z = wall.z + wall_half_z;
-
-    ranges_intersect(player_min_x, player_max_x, wall_min_x, wall_max_x)
-        && ranges_intersect(player_min_z, player_max_z, wall_min_z, wall_max_z)
-}
-
-fn ranges_intersect(a_min: f32, a_max: f32, b_min: f32, b_max: f32) -> bool {
-    a_max >= b_min && a_min <= b_max
-}
 
 // Generate a random spawn position that doesn't intersect with any walls
 fn generate_spawn_position(wall_config: &WallConfig) -> Position {
@@ -66,7 +38,7 @@ fn generate_spawn_position(wall_config: &WallConfig) -> Position {
         let intersects = wall_config
             .walls
             .iter()
-            .any(|wall| position_intersects_wall(&pos, wall));
+            .any(|wall| check_player_wall_collision(&pos, wall));
 
         if !intersects {
             return pos;
@@ -327,6 +299,7 @@ fn process_message_not_logged_in(
                 seq: 0,
                 players: all_players,
                 items: all_items,
+                ghosts: vec![],  // TODO: Add ghosts when they're spawned
             });
             channel.send(ServerToClient::Send(update_msg)).ok();
 
@@ -369,7 +342,7 @@ fn process_message_logged_in(
         }
         ClientMessage::Speed(msg) => {
             trace!("{:?} speed: {:?}", id, msg);
-            handle_speed(commands, entity, id, msg, players);
+            handle_speed(commands, entity, id, msg, players, positions);
         }
         ClientMessage::Face(msg) => {
             trace!("{:?} face direction: {}", id, msg.dir);
@@ -395,12 +368,15 @@ fn process_message_logged_in(
 // Movement Handlers
 // ============================================================================
 
-fn handle_speed(commands: &mut Commands, entity: Entity, id: PlayerId, msg: CSpeed, players: &PlayerMap) {
+fn handle_speed(commands: &mut Commands, entity: Entity, id: PlayerId, msg: CSpeed, players: &PlayerMap, positions: &Query<&Position>) {
     // Update the player's speed
     commands.entity(entity).insert(msg.speed);
 
-    // Broadcast speed update to all other logged-in players
-    broadcast_to_logged_in(players, id, ServerMessage::Speed(SSpeed { id, speed: msg.speed }));
+    // Get current position for reconciliation
+    if let Ok(pos) = positions.get(entity) {
+        // Broadcast speed update with position to all other logged-in players
+        broadcast_to_logged_in(players, id, ServerMessage::Speed(SSpeed { id, speed: msg.speed, pos: *pos }));
+    }
 }
 
 fn handle_face_direction(commands: &mut Commands, entity: Entity, id: PlayerId, msg: CFace, players: &PlayerMap) {
@@ -472,8 +448,10 @@ pub fn broadcast_state_system(
     positions: Query<&Position>,
     speeds: Query<&Speed>,
     face_dirs: Query<&FaceDirection>,
+    velocities: Query<&Velocity>,
     players: Res<PlayerMap>,
     items: Res<ItemMap>,
+    ghosts: Res<crate::resources::GhostMap>,
 ) {
     *timer += time.delta_secs();
     if *timer < UPDATE_BROADCAST_INTERVAL {
@@ -503,11 +481,29 @@ pub fn broadcast_state_system(
         })
         .collect();
 
+    // Collect all ghosts
+    let all_ghosts: Vec<(GhostId, Ghost)> = ghosts
+        .0
+        .iter()
+        .map(|(id, info)| {
+            let pos_component = positions.get(info.entity).expect("Ghost entity missing Position");
+            let vel_component = velocities.get(info.entity).expect("Ghost entity missing Velocity");
+            (
+                *id,
+                Ghost {
+                    pos: *pos_component,
+                    vel: *vel_component,
+                },
+            )
+        })
+        .collect();
+
     // Broadcast to all logged-in clients
     let msg = ServerMessage::Update(SUpdate {
         seq: *seq,
         players: all_players,
         items: all_items,
+        ghosts: all_ghosts,
     });
     //trace!("broadcasting update: {:?}", msg);
     for info in players.0.values() {
@@ -859,5 +855,111 @@ pub fn item_expiration_system(time: Res<Time>, mut players: ResMut<PlayerMap>) {
     // Send power-up updates to all clients
     for msg in power_up_messages {
         broadcast_to_all(&players, ServerMessage::PowerUp(msg));
+    }
+}
+
+// ============================================================================
+// Ghost Systems
+// ============================================================================
+
+// System to spawn initial ghosts on server startup
+pub fn ghost_spawn_system(
+    mut commands: Commands,
+    mut ghosts: ResMut<crate::resources::GhostMap>,
+    wall_config: Res<WallConfig>,
+    query: Query<&GhostId>,
+) {
+    // Only spawn if no ghosts exist yet
+    if !query.is_empty() {
+        return;
+    }
+
+    const NUM_GHOSTS: u32 = 5;
+    let mut rng = rand::rng();
+
+    for i in 0..NUM_GHOSTS {
+        // Find a random position that doesn't intersect walls
+        let mut pos = Position { x: 0.0, y: 0.0, z: 0.0 };
+        let mut attempts = 0;
+        loop {
+            pos.x = rng.random_range(-FIELD_WIDTH / 2.0..FIELD_WIDTH / 2.0);
+            pos.z = rng.random_range(-FIELD_DEPTH / 2.0..FIELD_DEPTH / 2.0);
+            
+            // Check if position is valid (not in a wall)
+            let mut valid = true;
+            for wall in &wall_config.walls {
+                if check_ghost_wall_collision(&pos, wall) {
+                    valid = false;
+                    break;
+                }
+            }
+            
+            if valid || attempts > 100 {
+                break;
+            }
+            attempts += 1;
+        }
+
+        // Random initial velocity direction
+        let angle = rng.random_range(0.0..std::f32::consts::TAU);
+        let speed = 8.0; // Ghosts move at 8 m/s
+        let vel = Velocity {
+            x: speed * angle.cos(),
+            y: 0.0,
+            z: speed * angle.sin(),
+        };
+
+        let ghost_id = GhostId(i);
+        let entity = commands.spawn((ghost_id, pos, vel)).id();
+        
+        ghosts.0.insert(ghost_id, crate::resources::GhostInfo { entity });
+        info!("Spawned ghost {:?} at ({}, {})", ghost_id, pos.x, pos.z);
+    }
+}
+
+// System to move ghosts with wall avoidance (Pac-Man style)
+pub fn ghost_movement_system(
+    time: Res<Time>,
+    wall_config: Res<WallConfig>,
+    mut ghost_query: Query<(&GhostId, &mut Position, &mut Velocity)>,
+) {
+    let delta = time.delta_secs();
+    let mut rng = rand::rng();
+
+    for (ghost_id, mut pos, mut vel) in ghost_query.iter_mut() {
+        // Try to move in current direction
+        let new_x = pos.x + vel.x * delta;
+        let new_z = pos.z + vel.z * delta;
+        let test_pos = Position { x: new_x, y: 0.0, z: new_z };
+
+        // Check if new position would hit a wall
+        let mut hit_wall = false;
+        for wall in &wall_config.walls {
+            if check_ghost_wall_collision(&test_pos, wall) {
+                hit_wall = true;
+                break;
+            }
+        }
+
+        // Check arena bounds (use GHOST_SIZE for proper boundary)
+        if new_x.abs() > FIELD_WIDTH / 2.0 - GHOST_SIZE / 2.0
+            || new_z.abs() > FIELD_DEPTH / 2.0 - GHOST_SIZE / 2.0
+        {
+            hit_wall = true;
+        }
+
+        if hit_wall {
+            // Pick a new random direction when hitting a wall
+            let angle = rng.random_range(0.0..std::f32::consts::TAU);
+            let speed = vel.x.hypot(vel.z); // Maintain same speed
+            vel.x = speed * angle.cos();
+            vel.z = speed * angle.sin();
+            
+            trace!("Ghost {:?} hit wall, new direction: ({}, {})", ghost_id, vel.x, vel.z);
+        } else {
+            // Move normally
+            pos.x = new_x;
+            pos.z = new_z;
+        }
     }
 }

@@ -428,3 +428,38 @@ pub fn spawn_item(
         ))
         .id()
 }
+
+// Marker component for ghosts
+#[derive(Component)]
+pub struct GhostMarker;
+
+// Spawn a ghost cube
+pub fn spawn_ghost(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    ghost_id: GhostId,
+    position: &Position,
+    velocity: &Velocity,
+) -> Entity {
+    use common::constants::GHOST_SIZE;
+    use crate::constants::GHOST_COLOR;
+    
+    let color = Color::srgba(GHOST_COLOR[0], GHOST_COLOR[1], GHOST_COLOR[2], GHOST_COLOR[3]);
+
+    commands
+        .spawn((
+            ghost_id,
+            GhostMarker,
+            *position,
+            *velocity,
+            Mesh3d(meshes.add(Cuboid::new(GHOST_SIZE, GHOST_SIZE, GHOST_SIZE))),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: color,
+                alpha_mode: AlphaMode::Blend,
+                ..default()
+            })),
+            Transform::from_xyz(position.x, GHOST_SIZE / 2.0, position.z),
+        ))
+        .id()
+}

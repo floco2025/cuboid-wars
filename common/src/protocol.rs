@@ -69,7 +69,7 @@ impl Speed {
     }
 }
 
-#[derive(Copy, Clone, Component, PartialEq, Default)]
+#[derive(Debug, Copy, Clone, Component, PartialEq, Default)]
 #[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "bincode", derive(Encode, Decode))]
 pub struct Velocity {
@@ -89,6 +89,12 @@ pub struct PlayerId(pub u32);
 #[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "bincode", derive(Encode, Decode))]
 pub struct ItemId(pub u32);
+
+// Ghost ID component - identifies which ghost an entity represents.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Component)]
+#[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bincode", derive(Encode, Decode))]
+pub struct GhostId(pub u32);
 
 // FaceDirection component - direction player is facing (for rotation/aiming).
 #[derive(Component, Default)]
@@ -150,6 +156,15 @@ message! {
 struct Item {
     pub item_type: ItemType,
     pub pos: Position,
+}
+}
+
+// Ghost - a ghost moving around the map.
+message! {
+#[derive(Copy)]
+struct Ghost {
+    pub pos: Position,
+    pub vel: Velocity,
 }
 }
 
@@ -227,10 +242,11 @@ struct SLogoff {
 }
 
 message! {
-// Server to Client: Player speed update.
+// Server to Client: Player speed update with position for reconciliation.
 struct SSpeed {
     pub id: PlayerId,
     pub speed: Speed,
+    pub pos: Position,
 }
 }
 
@@ -256,6 +272,7 @@ struct SUpdate {
     pub seq: u32,
     pub players: Vec<(PlayerId, Player)>,
     pub items: Vec<(ItemId, Item)>,
+    pub ghosts: Vec<(GhostId, Ghost)>,
 }
 }
 
@@ -281,6 +298,14 @@ message! {
 // Server to Client: Echo response.
 struct SEcho {
     pub timestamp_nanos: u64,
+}
+}
+
+message! {
+// Server to Client: Ghost direction changed.
+struct SGhost {
+    pub id: GhostId,
+    pub ghost: Ghost,
 }
 }
 
@@ -316,4 +341,5 @@ pub enum ServerMessage {
     Hit(SHit),
     PowerUp(SPowerUp),
     Echo(SEcho),
+    Ghost(SGhost),
 }

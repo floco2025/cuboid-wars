@@ -12,11 +12,11 @@ use common::systems::projectiles_system;
 use server::{
     config::configure_server,
     net::accept_connections_task,
-    resources::{FromAcceptChannel, FromClientsChannel, ItemMap, ItemSpawner, PlayerMap, WallConfig},
+    resources::{FromAcceptChannel, FromClientsChannel, GhostMap, ItemMap, ItemSpawner, PlayerMap, WallConfig},
     systems::{
-        accept_connections_system, broadcast_state_system, hit_detection_system, item_collection_system,
-        item_despawn_system, item_expiration_system, item_spawn_system, process_client_message_system,
-        server_movement_system,
+        accept_connections_system, broadcast_state_system, ghost_movement_system, ghost_spawn_system,
+        hit_detection_system, item_collection_system, item_despawn_system, item_expiration_system,
+        item_spawn_system, process_client_message_system, server_movement_system,
     },
     walls::{generate_roofs, generate_walls},
 };
@@ -77,6 +77,7 @@ async fn main() -> Result<()> {
         })
         .insert_resource(PlayerMap::default())
         .insert_resource(ItemMap::default())
+        .insert_resource(GhostMap::default())
         .insert_resource(ItemSpawner::default())
         .insert_resource(FromAcceptChannel::new(from_accept))
         .insert_resource(FromClientsChannel::new(from_clients))
@@ -92,6 +93,10 @@ async fn main() -> Result<()> {
                 process_client_message_system,
                 // Server movement with wall collision
                 server_movement_system,
+                // Ghost spawning (one-time at startup)
+                ghost_spawn_system,
+                // Ghost movement with wall avoidance
+                ghost_movement_system,
                 // Update projectiles (lifetime and despawn)
                 projectiles_system,
                 // Check for projectile hits

@@ -167,19 +167,19 @@ pub fn check_projectile_wall_hit(proj_pos: &Position, projectile: &Projectile, d
 // Check if a player position intersects with a wall
 #[must_use]
 pub fn check_player_wall_collision(player_pos: &Position, wall: &Wall) -> bool {
-    // Player dimensions
-    let player_half_width = PLAYER_WIDTH / 2.0;
-    let player_half_depth = PLAYER_DEPTH / 2.0;
+    const MARGIN: f32 = 0.1; // Small margin to prevent clipping through walls
+    let player_half_x = PLAYER_WIDTH / 2.0 + MARGIN;
+    let player_half_z = PLAYER_DEPTH / 2.0 + MARGIN;
 
     let (wall_half_x, wall_half_z) = match wall.orientation {
         WallOrientation::Horizontal => (WALL_LENGTH / 2.0, WALL_WIDTH / 2.0),
         WallOrientation::Vertical => (WALL_WIDTH / 2.0, WALL_LENGTH / 2.0),
     };
 
-    let player_min_x = player_pos.x - player_half_width;
-    let player_max_x = player_pos.x + player_half_width;
-    let player_min_z = player_pos.z - player_half_depth;
-    let player_max_z = player_pos.z + player_half_depth;
+    let player_min_x = player_pos.x - player_half_x;
+    let player_max_x = player_pos.x + player_half_x;
+    let player_min_z = player_pos.z - player_half_z;
+    let player_max_z = player_pos.z + player_half_z;
 
     let wall_min_x = wall.x - wall_half_x;
     let wall_max_x = wall.x + wall_half_x;
@@ -188,6 +188,31 @@ pub fn check_player_wall_collision(player_pos: &Position, wall: &Wall) -> bool {
 
     ranges_overlap(player_min_x, player_max_x, wall_min_x, wall_max_x)
         && ranges_overlap(player_min_z, player_max_z, wall_min_z, wall_max_z)
+}
+
+// Check if a ghost position intersects with a wall
+#[must_use]
+pub fn check_ghost_wall_collision(ghost_pos: &Position, wall: &Wall) -> bool {
+    const MARGIN: f32 = 0.2; // Extra margin for larger ghosts
+    let ghost_half_size = GHOST_SIZE / 2.0 + MARGIN;
+
+    let (wall_half_x, wall_half_z) = match wall.orientation {
+        WallOrientation::Horizontal => (WALL_LENGTH / 2.0, WALL_WIDTH / 2.0),
+        WallOrientation::Vertical => (WALL_WIDTH / 2.0, WALL_LENGTH / 2.0),
+    };
+
+    let ghost_min_x = ghost_pos.x - ghost_half_size;
+    let ghost_max_x = ghost_pos.x + ghost_half_size;
+    let ghost_min_z = ghost_pos.z - ghost_half_size;
+    let ghost_max_z = ghost_pos.z + ghost_half_size;
+
+    let wall_min_x = wall.x - wall_half_x;
+    let wall_max_x = wall.x + wall_half_x;
+    let wall_min_z = wall.z - wall_half_z;
+    let wall_max_z = wall.z + wall_half_z;
+
+    ranges_overlap(ghost_min_x, ghost_max_x, wall_min_x, wall_max_x)
+        && ranges_overlap(ghost_min_z, ghost_max_z, wall_min_z, wall_max_z)
 }
 
 // Check if two players collide with each other

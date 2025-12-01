@@ -42,6 +42,15 @@ pub struct ItemInfo {
 #[derive(Resource, Default)]
 pub struct ItemMap(pub HashMap<ItemId, ItemInfo>);
 
+// Ghost info
+pub struct GhostInfo {
+    pub entity: Entity,
+}
+
+// Map of all ghosts (server-side source of truth)
+#[derive(Resource, Default)]
+pub struct GhostMap(pub HashMap<GhostId, GhostInfo>);
+
 // Resource wrapper for the channel from the accept connections task, which gives us the channel to
 // send from thee server to the client.
 #[derive(Resource)]
