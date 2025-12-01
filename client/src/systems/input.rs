@@ -4,7 +4,7 @@ use super::movement::LocalPlayer;
 use crate::constants::*;
 use crate::{
     net::ClientToServer,
-    resources::{CameraViewMode, ClientToServerChannel},
+    resources::{CameraViewMode, ClientToServerChannel, RoofRenderingEnabled},
     spawning::spawn_projectiles_local,
 };
 use common::constants::SPEED_POWER_UP_MULTIPLIER;
@@ -27,6 +27,17 @@ pub fn camera_view_toggle_system(keyboard: Res<ButtonInput<KeyCode>>, mut view_m
                 CameraViewMode::FirstPerson
             }
         };
+    }
+}
+
+// Toggle roof rendering with R key
+pub fn roof_toggle_system(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut roof_enabled: ResMut<RoofRenderingEnabled>,
+) {
+    if keyboard.just_pressed(KeyCode::KeyR) {
+        roof_enabled.0 = !roof_enabled.0;
+        info!("Roof rendering: {}", if roof_enabled.0 { "enabled" } else { "disabled" });
     }
 }
 

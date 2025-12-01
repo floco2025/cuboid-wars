@@ -76,6 +76,16 @@ pub enum CameraViewMode {
     TopDown,
 }
 
+// Roof rendering toggle
+#[derive(Resource, PartialEq, Eq, Clone, Copy, Debug)]
+pub struct RoofRenderingEnabled(pub bool);
+
+impl Default for RoofRenderingEnabled {
+    fn default() -> Self {
+        Self(true) // Roofs enabled by default
+    }
+}
+
 // Resource wrapper for the client to server channel
 #[derive(Resource)]
 pub struct ClientToServerChannel(UnboundedSender<ClientToServer>);

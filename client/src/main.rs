@@ -9,14 +9,14 @@ use client::{
     config::configure_client,
     net::network_io_task,
     resources::{
-        CameraViewMode, ClientToServerChannel, FpsMeasurement, ItemMap, LastUpdateSeq, PlayerMap, RoundTripTime,
+        CameraViewMode, ClientToServerChannel, FpsMeasurement, ItemMap, LastUpdateSeq, PlayerMap, RoofRenderingEnabled, RoundTripTime,
         ServerToClientChannel,
     },
     systems::{
         animations::animate_items_system,
         collision::client_hit_detection_system,
         effects::{apply_camera_shake_system, apply_cuboid_shake_system},
-        input::{camera_view_toggle_system, cursor_toggle_system, input_system, shooting_input_system},
+        input::{camera_view_toggle_system, cursor_toggle_system, input_system, roof_toggle_system, shooting_input_system},
         movement::client_movement_system,
         network::{echo_system, process_server_events_system},
         sync::{
@@ -27,7 +27,7 @@ use client::{
             setup_world_system, toggle_crosshair_system, update_fps_system, update_player_list_system,
             update_rtt_system,
         },
-        walls::{spawn_walls_system, toggle_wall_opacity_system},
+        walls::{spawn_walls_system, toggle_roof_visibility_system, toggle_wall_opacity_system},
     },
 };
 use common::net::MessageStream;
@@ -111,6 +111,7 @@ fn main() -> Result<()> {
     .insert_resource(FpsMeasurement::default())
     .insert_resource(LastUpdateSeq::default())
     .insert_resource(CameraViewMode::default())
+    .insert_resource(RoofRenderingEnabled::default())
     .add_systems(Startup, setup_world_system)
     .add_systems(
         Update,
@@ -119,6 +120,7 @@ fn main() -> Result<()> {
                 // Input handling
                 cursor_toggle_system,
                 camera_view_toggle_system,
+                roof_toggle_system,
                 input_system,
                 shooting_input_system,
                 // Network
@@ -143,6 +145,8 @@ fn main() -> Result<()> {
                 apply_cuboid_shake_system,
                 // Toggle wall and roof opacity based on view mode
                 toggle_wall_opacity_system,
+                // Toggle roof visibility based on setting
+                toggle_roof_visibility_system,
                 // UI updates
                 toggle_crosshair_system,
                 update_player_list_system,

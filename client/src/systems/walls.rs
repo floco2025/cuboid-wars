@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::{
     constants::{TOPDOWN_ROOF_ALPHA, TOPDOWN_WALL_ALPHA},
-    resources::{CameraViewMode, WallConfig},
+    resources::{CameraViewMode, RoofRenderingEnabled, WallConfig},
     spawning::{spawn_roof, spawn_wall},
 };
 
@@ -83,3 +83,24 @@ pub fn toggle_wall_opacity_system(
         }
     }
 }
+
+// System to toggle roof visibility based on RoofRenderingEnabled resource
+pub fn toggle_roof_visibility_system(
+    roof_enabled: Res<RoofRenderingEnabled>,
+    mut roof_query: Query<&mut Visibility, With<RoofMarker>>,
+) {
+    if !roof_enabled.is_changed() {
+        return;
+    }
+
+    let visibility = if roof_enabled.0 {
+        Visibility::Visible
+    } else {
+        Visibility::Hidden
+    };
+
+    for mut vis in &mut roof_query {
+        *vis = visibility;
+    }
+}
+

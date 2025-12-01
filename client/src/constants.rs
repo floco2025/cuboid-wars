@@ -14,7 +14,7 @@ pub const TOPDOWN_LOOKAT_X: f32 = 0.0; // X coordinate camera looks at
 pub const TOPDOWN_LOOKAT_Y: f32 = 0.0; // Y coordinate camera looks at
 pub const TOPDOWN_LOOKAT_Z: f32 = 8.5; // Z coordinate camera looks at
 pub const TOPDOWN_WALL_ALPHA: f32 = 0.8; // Opacity for walls in top-down view
-pub const TOPDOWN_ROOF_ALPHA: f32 = 0.2; // Opacity for roofs in top-down view
+pub const TOPDOWN_ROOF_ALPHA: f32 = 0.5; // Opacity for roofs in top-down view
 
 // Mouse sensitivity as radians per pixel
 pub const MOUSE_SENSITIVITY: f32 = 0.002;
