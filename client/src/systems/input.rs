@@ -4,7 +4,7 @@ use super::movement::LocalPlayer;
 use crate::constants::*;
 use crate::{
     net::ClientToServer,
-    resources::{CameraViewMode, ClientToServerChannel, RoofRenderingEnabled},
+    resources::{CameraViewMode, ClientToServerChannel, MyPlayerId, PlayerMap, RoofRenderingEnabled},
     spawning::spawn_projectiles_local,
 };
 use common::constants::SPEED_POWER_UP_MULTIPLIER;
@@ -31,13 +31,13 @@ pub fn camera_view_toggle_system(keyboard: Res<ButtonInput<KeyCode>>, mut view_m
 }
 
 // Toggle roof rendering with R key
-pub fn roof_toggle_system(
-    keyboard: Res<ButtonInput<KeyCode>>,
-    mut roof_enabled: ResMut<RoofRenderingEnabled>,
-) {
+pub fn roof_toggle_system(keyboard: Res<ButtonInput<KeyCode>>, mut roof_enabled: ResMut<RoofRenderingEnabled>) {
     if keyboard.just_pressed(KeyCode::KeyR) {
         roof_enabled.0 = !roof_enabled.0;
-        info!("Roof rendering: {}", if roof_enabled.0 { "enabled" } else { "disabled" });
+        info!(
+            "Roof rendering: {}",
+            if roof_enabled.0 { "enabled" } else { "disabled" }
+        );
     }
 }
 
@@ -82,8 +82,8 @@ pub fn input_system(
     cursor_options: Single<&bevy::window::CursorOptions>,
     to_server: Res<ClientToServerChannel>,
     time: Res<Time>,
-    my_player_id: Option<Res<crate::resources::MyPlayerId>>,
-    players: Res<crate::resources::PlayerMap>,
+    my_player_id: Option<Res<MyPlayerId>>,
+    players: Res<PlayerMap>,
     mut local_state: Local<InputState>,
     mut local_player_query: Query<(&mut Velocity, &mut FaceDirection), With<LocalPlayer>>,
     mut camera_query: Query<&mut Transform, With<Camera3d>>,
@@ -225,8 +225,8 @@ pub fn shooting_input_system(
     asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    my_player_id: Option<Res<crate::resources::MyPlayerId>>,
-    players: Res<crate::resources::PlayerMap>,
+    my_player_id: Option<Res<MyPlayerId>>,
+    players: Res<PlayerMap>,
 ) {
     // Only allow shooting when cursor is locked
     let cursor_locked = cursor_options.grab_mode != bevy::window::CursorGrabMode::None;
@@ -246,11 +246,19 @@ pub fn shooting_input_system(
         let _ = to_server.send(ClientToServer::Send(shot_msg));
 
         // Check if player has multi-shot power-up
-        let has_multi_shot = my_player_id.as_ref()
+        let has_multi_shot = my_player_id
+            .as_ref()
             .and_then(|id| players.0.get(&id.0))
             .map_or(false, |info| info.multi_shot_power_up);
 
         // Spawn projectile(s) based on power-up status
-        spawn_projectiles_local(&mut commands, &mut meshes, &mut materials, pos, face_dir.0, has_multi_shot);
+        spawn_projectiles_local(
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            pos,
+            face_dir.0,
+            has_multi_shot,
+        );
     }
 }

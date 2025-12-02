@@ -9,10 +9,10 @@ use crate::{
     constants::ECHO_INTERVAL,
     net::{ClientToServer, ServerToClient},
     resources::{
-        ClientToServerChannel, GhostInfo, GhostMap, ItemInfo, ItemMap, MyPlayerId, PlayerInfo, PlayerMap,
-        RoundTripTime, ServerToClientChannel, WallConfig,
+        ClientToServerChannel, GhostInfo, GhostMap, ItemInfo, ItemMap, LastUpdateSeq, MyPlayerId, PlayerInfo,
+        PlayerMap, RoundTripTime, ServerToClientChannel, WallConfig,
     },
-    spawning::{spawn_ghost, spawn_item, spawn_player},
+    spawning::{spawn_ghost, spawn_item, spawn_player, spawn_projectiles_local},
 };
 use common::constants::SPEED_POWER_UP_MULTIPLIER;
 use common::protocol::*;
@@ -31,7 +31,7 @@ pub fn process_server_events_system(
     mut images: ResMut<Assets<Image>>,
     mut maps: ParamSet<(ResMut<PlayerMap>, ResMut<ItemMap>, ResMut<GhostMap>)>,
     mut rtt: ResMut<RoundTripTime>,
-    mut last_update_seq: ResMut<crate::resources::LastUpdateSeq>,
+    mut last_update_seq: ResMut<LastUpdateSeq>,
     player_query: Query<&Position, With<PlayerId>>,
     ghost_query: Query<&Position, With<GhostId>>,
     speed_query: Query<&Speed>,
@@ -106,7 +106,7 @@ fn process_message_logged_in(
     images: &mut ResMut<Assets<Image>>,
     maps: &mut ParamSet<(ResMut<PlayerMap>, ResMut<ItemMap>, ResMut<GhostMap>)>,
     rtt: &mut ResMut<RoundTripTime>,
-    last_update_seq: &mut ResMut<crate::resources::LastUpdateSeq>,
+    last_update_seq: &mut ResMut<LastUpdateSeq>,
     player_query: &Query<&Position, With<PlayerId>>,
     ghost_query: &Query<&Position, With<GhostId>>,
     speed_query: &Query<&Speed>,
@@ -140,9 +140,13 @@ fn process_message_logged_in(
             update_msg,
         ),
         ServerMessage::Hit(hit_msg) => handle_hit_message(commands, &maps.p0(), camera_query, my_player_id, hit_msg),
-        ServerMessage::PowerUp(power_up_msg) => handle_power_up_message(commands, &mut maps.p0(), speed_query, power_up_msg),
+        ServerMessage::PowerUp(power_up_msg) => {
+            handle_power_up_message(commands, &mut maps.p0(), speed_query, power_up_msg)
+        }
         ServerMessage::Echo(echo_msg) => handle_echo_message(time, rtt, echo_msg),
-        ServerMessage::Ghost(ghost_msg) => handle_ghost_message(commands, meshes, materials, &mut maps.p2(), rtt, ghost_query, ghost_msg),
+        ServerMessage::Ghost(ghost_msg) => {
+            handle_ghost_message(commands, meshes, materials, &mut maps.p2(), rtt, ghost_query, ghost_msg)
+        }
     }
 }
 
@@ -209,7 +213,7 @@ fn handle_speed_message(
             velocity.x *= SPEED_POWER_UP_MULTIPLIER;
             velocity.z *= SPEED_POWER_UP_MULTIPLIER;
         }
-        
+
         // Add server reconciliation if we have client position
         if let Ok(client_pos) = player_query.get(player.entity) {
             commands.entity(player.entity).insert((
@@ -246,10 +250,10 @@ fn handle_shot_message(
     trace!("{:?} shot: {:?}", msg.id, msg);
     if let Some(player) = players.0.get(&msg.id) {
         commands.entity(player.entity).insert(FaceDirection(msg.face_dir));
-        
+
         // Spawn projectile(s) based on player's multi-shot power-up status
         if let Ok((pos, _)) = player_face_query.get(player.entity) {
-            crate::spawning::spawn_projectiles_local(
+            spawn_projectiles_local(
                 commands,
                 meshes,
                 materials,
@@ -268,7 +272,7 @@ fn handle_update_message(
     images: &mut ResMut<Assets<Image>>,
     maps: &mut ParamSet<(ResMut<PlayerMap>, ResMut<ItemMap>, ResMut<GhostMap>)>,
     rtt: &ResMut<RoundTripTime>,
-    last_update_seq: &mut ResMut<crate::resources::LastUpdateSeq>,
+    last_update_seq: &mut ResMut<LastUpdateSeq>,
     player_query: &Query<&Position, With<PlayerId>>,
     ghost_query: &Query<&Position, With<GhostId>>,
     camera_query: &Query<Entity, With<Camera3d>>,
@@ -283,7 +287,7 @@ fn handle_update_message(
         );
         return;
     }
-    
+
     // Update the last received sequence number
     last_update_seq.0 = msg.seq;
 
@@ -457,10 +461,9 @@ fn handle_update_message(
                     ));
                 } else {
                     // No client position yet, just set server state
-                    commands.entity(client_ghost.entity).insert((
-                        server_ghost.pos,
-                        server_ghost.vel,
-                    ));
+                    commands
+                        .entity(client_ghost.entity)
+                        .insert((server_ghost.pos, server_ghost.vel));
                 }
             }
         }
@@ -526,12 +529,17 @@ fn handle_echo_message(time: &Time, rtt: &mut ResMut<RoundTripTime>, msg: SEcho)
     }
 }
 
-fn handle_power_up_message(commands: &mut Commands, players: &mut ResMut<PlayerMap>, speeds: &Query<&Speed>, msg: SPowerUp) {
+fn handle_power_up_message(
+    commands: &mut Commands,
+    players: &mut ResMut<PlayerMap>,
+    speeds: &Query<&Speed>,
+    msg: SPowerUp,
+) {
     if let Some(player_info) = players.0.get_mut(&msg.id) {
         let old_speed_power_up = player_info.speed_power_up;
         player_info.speed_power_up = msg.speed_power_up;
         player_info.multi_shot_power_up = msg.multi_shot_power_up;
-        
+
         // If speed power-up status changed, recalculate velocity
         if old_speed_power_up != msg.speed_power_up {
             if let Ok(speed) = speeds.get(player_info.entity) {
@@ -555,7 +563,7 @@ fn handle_ghost_message(
     ghost_query: &Query<&Position, With<GhostId>>,
     msg: SGhost,
 ) {
-        if let Some(ghost_info) = ghosts.0.get(&msg.id) {
+    if let Some(ghost_info) = ghosts.0.get(&msg.id) {
         // Update existing ghost with reconciliation
         if let Ok(client_pos) = ghost_query.get(ghost_info.entity) {
             commands.entity(ghost_info.entity).insert((
@@ -570,10 +578,9 @@ fn handle_ghost_message(
             ));
         } else {
             // No client position yet, just set server state
-            commands.entity(ghost_info.entity).insert((
-                msg.ghost.pos,
-                msg.ghost.vel,
-            ));
+            commands
+                .entity(ghost_info.entity)
+                .insert((msg.ghost.pos, msg.ghost.vel));
         }
     } else {
         // Spawn new ghost

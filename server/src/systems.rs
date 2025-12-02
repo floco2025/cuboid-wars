@@ -5,7 +5,8 @@ use crate::{
     constants::*,
     net::{ClientToServer, ServerToClient},
     resources::{
-        FromAcceptChannel, FromClientsChannel, GridConfig, ItemInfo, ItemMap, ItemSpawner, PlayerInfo, PlayerMap,
+        FromAcceptChannel, FromClientsChannel, GhostInfo, GhostMap, GridCell, GridConfig, ItemInfo, ItemMap,
+        ItemSpawner, PlayerInfo, PlayerMap,
     },
 };
 use common::{
@@ -141,7 +142,7 @@ pub fn process_client_message_system(
     mut players: ResMut<PlayerMap>,
     items: Res<ItemMap>,
     grid_config: Res<GridConfig>,
-    ghosts: Res<crate::resources::GhostMap>,
+    ghosts: Res<GhostMap>,
     positions: Query<&Position>,
     speeds: Query<&Speed>,
     face_dirs: Query<&FaceDirection>,
@@ -208,7 +209,7 @@ fn process_message_not_logged_in(
     players: &mut ResMut<PlayerMap>,
     grid_config: &Res<GridConfig>,
     items: &Res<ItemMap>,
-    ghosts: &Res<crate::resources::GhostMap>,
+    ghosts: &Res<GhostMap>,
 ) {
     match msg {
         ClientMessage::Login(login) => {
@@ -484,7 +485,7 @@ pub fn broadcast_state_system(
     velocities: Query<&Velocity>,
     players: Res<PlayerMap>,
     items: Res<ItemMap>,
-    ghosts: Res<crate::resources::GhostMap>,
+    ghosts: Res<GhostMap>,
 ) {
     *timer += time.delta_secs();
     if *timer < UPDATE_BROADCAST_INTERVAL {
@@ -936,7 +937,7 @@ fn velocity_from_direction(direction: i32) -> Velocity {
 }
 
 // Helper function to check if a direction is blocked by a wall
-fn is_direction_blocked(cell: &crate::resources::GridCell, direction: i32) -> bool {
+fn is_direction_blocked(cell: &GridCell, direction: i32) -> bool {
     match direction {
         0 => cell.has_east_wall,  // Right
         1 => cell.has_north_wall, // Up
@@ -947,7 +948,7 @@ fn is_direction_blocked(cell: &crate::resources::GridCell, direction: i32) -> bo
 }
 
 // Helper function to get all valid (non-blocked) directions
-fn get_valid_directions(cell: &crate::resources::GridCell) -> Vec<i32> {
+fn get_valid_directions(cell: &GridCell) -> Vec<i32> {
     let mut valid = Vec::new();
     if !cell.has_east_wall {
         valid.push(0);
@@ -978,7 +979,7 @@ fn get_forward_directions(valid_directions: &[i32], current_direction: i32) -> V
 // System to spawn initial ghosts on server startup
 pub fn ghost_spawn_system(
     mut commands: Commands,
-    mut ghosts: ResMut<crate::resources::GhostMap>,
+    mut ghosts: ResMut<GhostMap>,
     grid_config: Res<GridConfig>,
     query: Query<&GhostId>,
 ) {
@@ -1058,7 +1059,7 @@ pub fn ghost_spawn_system(
         let ghost_id = GhostId(i);
         let entity = commands.spawn((ghost_id, pos, vel)).id();
 
-        ghosts.0.insert(ghost_id, crate::resources::GhostInfo { entity });
+        ghosts.0.insert(ghost_id, GhostInfo { entity });
     }
 }
 

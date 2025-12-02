@@ -4,7 +4,11 @@ use super::{
     effects::{CameraShake, CuboidShake},
     movement::LocalPlayer,
 };
-use crate::{constants::*, resources::CameraViewMode, spawning::PlayerIdTextMesh};
+use crate::{
+    constants::*,
+    resources::CameraViewMode,
+    spawning::{ItemMarker, PlayerIdTextMesh},
+};
 use common::{
     constants::{GHOST_SIZE, PLAYER_HEIGHT},
     protocol::{FaceDirection, GhostId, Position},
@@ -60,10 +64,7 @@ pub fn sync_camera_to_player_system(
 
 // Update Transform from Position component for rendering
 pub fn sync_position_to_transform_system(
-    mut player_query: Query<
-        (&Position, &mut Transform, Option<&CuboidShake>),
-        (Without<crate::spawning::ItemMarker>, Without<GhostId>),
-    >,
+    mut player_query: Query<(&Position, &mut Transform, Option<&CuboidShake>), (Without<ItemMarker>, Without<GhostId>)>,
     mut ghost_query: Query<(&Position, &mut Transform), With<GhostId>>,
 ) {
     // Sync players
