@@ -12,7 +12,6 @@ use crate::{
 use common::{
     constants::{GHOST_SIZE, PLAYER_HEIGHT},
     protocol::{FaceDirection, GhostId, PlayerId, Position},
-    systems::Projectile,
 };
 
 // ============================================================================
@@ -93,22 +92,6 @@ pub fn sync_position_to_transform_system(
 pub fn sync_face_to_transform_system(mut query: Query<(&FaceDirection, &mut Transform), Without<Camera3d>>) {
     for (face_dir, mut transform) in &mut query {
         transform.rotation = Quat::from_rotation_y(face_dir.0);
-    }
-}
-
-// Update projectiles - position updates and despawn
-pub fn sync_projectiles_system(
-    mut commands: Commands,
-    time: Res<Time>,
-    mut projectile_query: Query<(Entity, &mut Transform, &mut Projectile)>,
-) {
-    for (entity, mut transform, mut projectile) in &mut projectile_query {
-        projectile.lifetime.tick(time.delta());
-        if projectile.lifetime.is_finished() {
-            commands.entity(entity).despawn();
-        } else {
-            transform.translation += projectile.velocity * time.delta_secs();
-        }
     }
 }
 
