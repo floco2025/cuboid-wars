@@ -13,7 +13,7 @@ use client::{
         RoofRenderingEnabled, RoundTripTime, ServerToClientChannel,
     },
     systems::{
-        animations::animate_items_system,
+        items::animate_items_system,
         collision::client_hit_detection_system,
         effects::{apply_camera_shake_system, apply_cuboid_shake_system},
         ghosts::ghost_movement_system,
