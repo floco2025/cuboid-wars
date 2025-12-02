@@ -7,6 +7,26 @@ use common::{
     protocol::{PlayerId, Position, Speed},
 };
 
+#[derive(Copy, Clone)]
+struct PlannedMove {
+    entity: Entity,
+    target: Position,
+}
+
+fn speed_multiplier(players: &PlayerMap, player_id: &PlayerId) -> f32 {
+    players
+        .0
+        .get(player_id)
+        .and_then(|info| (info.speed_power_up_timer > 0.0).then_some(SPEED_POWER_UP_MULTIPLIER))
+        .unwrap_or(1.0)
+}
+
+fn overlaps_other_player(candidate: &PlannedMove, planned_moves: &[PlannedMove]) -> bool {
+    planned_moves.iter().any(|other| {
+        other.entity != candidate.entity && check_player_player_collision(&candidate.target, &other.target)
+    })
+}
+
 // ============================================================================
 // Movement System (Server with Wall Collision)
 // ============================================================================
@@ -18,71 +38,48 @@ pub fn server_movement_system(
     mut query: Query<(Entity, &mut Position, &Speed, &PlayerId)>,
 ) {
     let delta = time.delta_secs();
+    let walls = &grid_config.walls;
 
     // Pass 1: Calculate all intended new positions (after wall collision check with sliding)
-    let mut intended_positions: Vec<(Entity, Position)> = Vec::new();
+    let mut planned_moves: Vec<PlannedMove> = Vec::new();
 
     for (entity, pos, speed, player_id) in query.iter() {
-        // Convert Speed to Velocity
+        let multiplier = speed_multiplier(&players, player_id);
         let mut velocity = speed.to_velocity();
+        velocity.x *= multiplier;
+        velocity.z *= multiplier;
 
-        // Apply speed power-up multiplier if active
-        if let Some(player_info) = players.0.get(player_id) {
-            if player_info.speed_power_up_timer > 0.0 {
-                velocity.x *= SPEED_POWER_UP_MULTIPLIER;
-                velocity.z *= SPEED_POWER_UP_MULTIPLIER;
-            }
+        if velocity.x == 0.0 && velocity.z == 0.0 {
+            planned_moves.push(PlannedMove {
+                entity,
+                target: *pos,
+            });
+            continue;
         }
 
-        let speed = velocity.x.hypot(velocity.z);
+        let new_pos = Position {
+            x: velocity.x.mul_add(delta, pos.x),
+            y: pos.y,
+            z: velocity.z.mul_add(delta, pos.z),
+        };
 
-        if speed > 0.0 {
-            // Calculate new position
-            let new_pos = Position {
-                x: velocity.x.mul_add(delta, pos.x),
-                y: pos.y,
-                z: velocity.z.mul_add(delta, pos.z),
-            };
-
-            // Check if new position collides with any wall
-            let collides_with_wall = grid_config
-                .walls
-                .iter()
-                .any(|wall| check_player_wall_collision(&new_pos, wall));
-
-            // Store intended position (slide along wall if collision, new otherwise)
-            if collides_with_wall {
-                let slide_pos = calculate_wall_slide(
-                    &grid_config.walls,
-                    pos,
-                    &new_pos,
-                    velocity.x,
-                    velocity.z,
-                    delta,
-                );
-                intended_positions.push((entity, slide_pos));
-            } else {
-                intended_positions.push((entity, new_pos));
-            }
+        let target = if walls.iter().any(|wall| check_player_wall_collision(&new_pos, wall)) {
+            calculate_wall_slide(walls, pos, &new_pos, velocity.x, velocity.z, delta)
         } else {
-            // Not moving, keep current position
-            intended_positions.push((entity, *pos));
-        }
+            new_pos
+        };
+
+        planned_moves.push(PlannedMove { entity, target });
     }
 
     // Pass 2: Check player-player collisions and apply positions
-    for (entity, intended_pos) in &intended_positions {
-        // Check if intended position collides with any other player's intended position
-        let collides_with_player = intended_positions.iter().any(|(other_entity, other_intended_pos)| {
-            *other_entity != *entity && check_player_player_collision(intended_pos, other_intended_pos)
-        });
-
-        if !collides_with_player {
-            // No collision, apply intended position
-            if let Ok((_, mut pos, _, _)) = query.get_mut(*entity) {
-                *pos = *intended_pos;
-            }
+    for planned_move in &planned_moves {
+        if overlaps_other_player(planned_move, &planned_moves) {
+            continue;
         }
-        // If collision, don't update position (stays at current)
+
+        if let Ok((_, mut pos, _, _)) = query.get_mut(planned_move.entity) {
+            *pos = planned_move.target;
+        }
     }
 }

@@ -2,7 +2,9 @@ use bevy::prelude::*;
 
 use crate::resources::WallConfig;
 use common::{
-    collision::{calculate_wall_slide, check_ghost_wall_collision, check_player_player_collision, check_player_wall_collision},
+    collision::{
+        calculate_wall_slide, check_ghost_wall_collision, check_player_player_collision, check_player_wall_collision,
+    },
     constants::{RUN_SPEED, UPDATE_BROADCAST_INTERVAL},
     protocol::{GhostId, PlayerId, Position, Velocity},
 };
@@ -60,7 +62,6 @@ pub fn client_movement_system(
     mut bump_flash_ui: Query<(&mut BackgroundColor, &mut Visibility), With<super::ui::BumpFlashUIMarker>>,
 ) {
     let delta = time.delta_secs();
-    let walls = wall_config.as_deref();
     let entity_positions: Vec<(Entity, Position)> =
         query.iter().map(|(entity, pos, _, _, _, _)| (entity, *pos)).collect();
 
@@ -112,6 +113,7 @@ pub fn client_movement_system(
             continue;
         }
 
+        let walls = wall_config.as_deref();
         let hits_wall = player_hits_wall(walls, &target_pos);
         let hits_player = player_hits_other_player(entity, &target_pos, &entity_positions);
         if !hits_wall && !hits_player {
@@ -158,9 +160,9 @@ fn player_hits_wall(walls: Option<&WallConfig>, new_pos: &Position) -> bool {
 }
 
 fn player_hits_other_player(entity: Entity, new_pos: &Position, positions: &[(Entity, Position)]) -> bool {
-    positions.iter().any(|(other_entity, other_pos)| {
-        *other_entity != entity && check_player_player_collision(new_pos, other_pos)
-    })
+    positions
+        .iter()
+        .any(|(other_entity, other_pos)| *other_entity != entity && check_player_player_collision(new_pos, other_pos))
 }
 
 fn decay_flash_timer(
@@ -224,11 +226,10 @@ pub fn ghost_movement_system(
     mut ghost_query: Query<(Entity, &mut Position, &mut Velocity, Option<&mut ServerReconciliation>), With<GhostId>>,
 ) {
     let delta = time.delta_secs();
-    let walls = wall_config.as_deref();
 
     for (entity, mut client_pos, client_vel, recon_option) in &mut ghost_query {
         let target_pos = if let Some(mut recon) = recon_option {
-            const CORRECTION_TIME: f32 = 2.0;
+            const CORRECTION_TIME: f32 = 1.0;
             let correction_factor = (UPDATE_BROADCAST_INTERVAL / CORRECTION_TIME).clamp(0.0, 1.0);
 
             recon.timer += delta * correction_factor;
@@ -258,6 +259,7 @@ pub fn ghost_movement_system(
             }
         };
 
+        let walls = wall_config.as_deref();
         let hits_wall = ghost_hits_wall(walls, &target_pos);
         if !hits_wall {
             *client_pos = target_pos;
