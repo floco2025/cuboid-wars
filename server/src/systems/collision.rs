@@ -1,7 +1,14 @@
 use bevy::prelude::*;
 
-use crate::{net::ServerToClient, resources::{GridConfig, PlayerMap}};
-use common::{collision::{check_projectile_player_hit, check_projectile_wall_hit}, protocol::*, systems::Projectile};
+use crate::{
+    net::ServerToClient,
+    resources::{GridConfig, PlayerMap},
+};
+use common::{
+    collision::{check_projectile_player_hit, check_projectile_wall_hit},
+    protocol::*,
+    systems::Projectile,
+};
 
 // ============================================================================
 // Hit Detection System

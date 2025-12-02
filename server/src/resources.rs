@@ -12,10 +12,10 @@ use common::protocol::*;
 // Grid cell wall edges - bitflags for efficient lookup
 #[derive(Debug, Clone, Copy, Default)]
 pub struct GridCell {
-    pub has_north_wall: bool,  // Horizontal wall at top edge (z)
-    pub has_south_wall: bool,  // Horizontal wall at bottom edge (z+1)
-    pub has_west_wall: bool,   // Vertical wall at left edge (x)
-    pub has_east_wall: bool,   // Vertical wall at right edge (x+1)
+    pub has_north_wall: bool, // Horizontal wall at top edge (z)
+    pub has_south_wall: bool, // Horizontal wall at bottom edge (z+1)
+    pub has_west_wall: bool,  // Vertical wall at left edge (x)
+    pub has_east_wall: bool,  // Vertical wall at right edge (x+1)
 }
 
 // Grid configuration - generated once at server startup
@@ -23,7 +23,7 @@ pub struct GridCell {
 pub struct GridConfig {
     pub walls: Vec<Wall>,
     pub roofs: Vec<Roof>,
-    pub grid: Vec<Vec<GridCell>>,  // [row][col] - indexed by grid_z, grid_x
+    pub grid: Vec<Vec<GridCell>>, // [row][col] - indexed by grid_z, grid_x
 }
 
 // Player information (server-side)
@@ -33,7 +33,7 @@ pub struct PlayerInfo {
     pub channel: UnboundedSender<ServerToClient>,
     pub hits: i32,
     pub name: String,
-    pub speed_power_up_timer: f32,      // Remaining time for speed power-up (0.0 = inactive)
+    pub speed_power_up_timer: f32, // Remaining time for speed power-up (0.0 = inactive)
     pub multi_shot_power_up_timer: f32, // Remaining time for multi-shot power-up (0.0 = inactive)
 }
 
@@ -101,9 +101,6 @@ pub struct ItemSpawner {
 
 impl Default for ItemSpawner {
     fn default() -> Self {
-        Self {
-            timer: 0.0,
-            next_id: 0,
-        }
+        Self { timer: 0.0, next_id: 0 }
     }
 }

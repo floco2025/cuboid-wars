@@ -1,8 +1,8 @@
 use bevy::audio::{PlaybackMode, Volume};
 use bevy::prelude::*;
 
-use crate::resources::WallConfig;
 use super::players::LocalPlayer;
+use crate::resources::WallConfig;
 use common::{
     collision::{check_projectile_player_hit, check_projectile_wall_hit},
     protocol::{FaceDirection, PlayerId, Position},

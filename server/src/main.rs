@@ -11,16 +11,16 @@ use tokio::{
 use common::systems::projectiles_system;
 use server::{
     config::configure_server,
+    map::generate_grid,
     net::accept_connections_task,
     resources::{FromAcceptChannel, FromClientsChannel, GhostMap, ItemMap, ItemSpawner, PlayerMap},
     systems::{
         collision::hit_detection_system,
         ghosts::{ghost_movement_system, ghost_spawn_system},
         items::{item_collection_system, item_despawn_system, item_expiration_system, item_spawn_system},
-        players::player_movement_system,
         network::{accept_connections_system, broadcast_state_system, process_client_message_system},
+        players::player_movement_system,
     },
-    map::generate_grid,
 };
 
 const SERVER_LOOP_FREQUENCY: u64 = 30;

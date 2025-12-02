@@ -101,11 +101,7 @@ fn valid_directions(cell: &GridCell) -> Vec<GridDirection> {
 }
 
 fn forward_directions(valid: &[GridDirection], current: GridDirection) -> Vec<GridDirection> {
-    valid
-        .iter()
-        .copied()
-        .filter(|dir| *dir != current.opposite())
-        .collect()
+    valid.iter().copied().filter(|dir| *dir != current.opposite()).collect()
 }
 
 fn pick_direction<T: rand::Rng>(rng: &mut T, options: &[GridDirection]) -> Option<GridDirection> {

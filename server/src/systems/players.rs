@@ -50,10 +50,7 @@ pub fn player_movement_system(
         velocity.z *= multiplier;
 
         if velocity.x == 0.0 && velocity.z == 0.0 {
-            planned_moves.push(PlannedMove {
-                entity,
-                target: *pos,
-            });
+            planned_moves.push(PlannedMove { entity, target: *pos });
             continue;
         }
 

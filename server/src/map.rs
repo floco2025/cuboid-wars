@@ -1,8 +1,11 @@
-use rand::{rngs::ThreadRng, Rng};
+use rand::{Rng, rngs::ThreadRng};
 use std::collections::{HashSet, VecDeque};
 
 use crate::{
-    constants::{NUM_WALL_SEGMENTS, ROOF_PROBABILITY_2_WALLS, ROOF_PROBABILITY_3_WALLS, ROOF_PROBABILITY_WITH_NEIGHBOR, WALL_2ND_PROBABILITY_RATIO, WALL_3RD_PROBABILITY_RATIO},
+    constants::{
+        NUM_WALL_SEGMENTS, ROOF_PROBABILITY_2_WALLS, ROOF_PROBABILITY_3_WALLS, ROOF_PROBABILITY_WITH_NEIGHBOR,
+        WALL_2ND_PROBABILITY_RATIO, WALL_3RD_PROBABILITY_RATIO,
+    },
     resources::{GridCell, GridConfig},
 };
 use common::{
@@ -73,26 +76,26 @@ fn all_cells_reachable(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) -
 
     while let Some((row, col)) = queue.pop_front() {
         let cell = &grid[row as usize][col as usize];
-        
+
         // Check all 4 directions
         // North
         if row > 0 && !cell.has_north_wall && !visited.contains(&(row - 1, col)) {
             visited.insert((row - 1, col));
             queue.push_back((row - 1, col));
         }
-        
+
         // South
         if row < grid_rows - 1 && !cell.has_south_wall && !visited.contains(&(row + 1, col)) {
             visited.insert((row + 1, col));
             queue.push_back((row + 1, col));
         }
-        
+
         // West
         if col > 0 && !cell.has_west_wall && !visited.contains(&(row, col - 1)) {
             visited.insert((row, col - 1));
             queue.push_back((row, col - 1));
         }
-        
+
         // East
         if col < grid_cols - 1 && !cell.has_east_wall && !visited.contains(&(row, col + 1)) {
             visited.insert((row, col + 1));
@@ -125,15 +128,15 @@ pub fn generate_grid() -> GridConfig {
     // Calculate grid dimensions
     let grid_cols = (FIELD_WIDTH / GRID_SIZE) as i32;
     let grid_rows = (FIELD_DEPTH / GRID_SIZE) as i32;
-    
+
     // Initialize grid with perimeter walls
     let mut grid = vec![vec![GridCell::default(); grid_cols as usize]; grid_rows as usize];
-    
+
     // Set perimeter walls
     for row in 0..grid_rows {
         for col in 0..grid_cols {
             let cell = &mut grid[row as usize][col as usize];
-            
+
             if row == 0 {
                 cell.has_north_wall = true;
             }
@@ -152,14 +155,14 @@ pub fn generate_grid() -> GridConfig {
     // Generate list of all possible interior walls
     // Each wall is represented as (row, col, direction) where direction is: 0=south, 1=east
     let mut possible_walls = Vec::new();
-    
+
     // Horizontal walls (south edge of cells, except bottom row)
     for row in 0..(grid_rows - 1) {
         for col in 0..grid_cols {
             possible_walls.push((row, col, 0)); // south wall
         }
     }
-    
+
     // Vertical walls (east edge of cells, except rightmost column)
     for row in 0..grid_rows {
         for col in 0..(grid_cols - 1) {
@@ -181,14 +184,14 @@ pub fn generate_grid() -> GridConfig {
         }
 
         let cell = &grid[row as usize][col as usize];
-        
+
         // Check if wall is already placed
         let already_has_wall = match direction {
             0 => cell.has_south_wall,
             1 => cell.has_east_wall,
             _ => continue,
         };
-        
+
         if already_has_wall {
             continue;
         }
@@ -203,7 +206,7 @@ pub fn generate_grid() -> GridConfig {
                 } else {
                     0
                 }
-            },
+            }
             1 => {
                 // East wall - check cell to the right
                 if col < grid_cols - 1 {
@@ -211,10 +214,10 @@ pub fn generate_grid() -> GridConfig {
                 } else {
                     0
                 }
-            },
+            }
             _ => 0,
         };
-        
+
         let max_walls = cell1_walls.max(cell2_walls);
 
         // Apply probability based on existing wall count
@@ -236,14 +239,14 @@ pub fn generate_grid() -> GridConfig {
                 if row < grid_rows - 1 {
                     grid[(row + 1) as usize][col as usize].has_north_wall = true;
                 }
-            },
+            }
             1 => {
                 grid[row as usize][col as usize].has_east_wall = true;
                 if col < grid_cols - 1 {
                     grid[row as usize][(col + 1) as usize].has_west_wall = true;
                 }
-            },
-            _ => {},
+            }
+            _ => {}
         }
 
         // Check if all cells are still reachable
@@ -255,14 +258,14 @@ pub fn generate_grid() -> GridConfig {
                     if row < grid_rows - 1 {
                         grid[(row + 1) as usize][col as usize].has_north_wall = false;
                     }
-                },
+                }
                 1 => {
                     grid[row as usize][col as usize].has_east_wall = false;
                     if col < grid_cols - 1 {
                         grid[row as usize][(col + 1) as usize].has_west_wall = false;
                     }
-                },
-                _ => {},
+                }
+                _ => {}
             }
         } else {
             interior_walls_placed += 1;
@@ -274,7 +277,7 @@ pub fn generate_grid() -> GridConfig {
     for row in 0..grid_rows {
         for col in 0..grid_cols {
             let cell = &grid[row as usize][col as usize];
-            
+
             // North wall (horizontal)
             if cell.has_north_wall {
                 let world_x = (col as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
@@ -285,7 +288,7 @@ pub fn generate_grid() -> GridConfig {
                     orientation: WallOrientation::Horizontal,
                 });
             }
-            
+
             // South wall (horizontal) - only if it's the last row or neighbor doesn't have it
             if cell.has_south_wall && (row == grid_rows - 1 || !grid[(row + 1) as usize][col as usize].has_north_wall) {
                 let world_x = (col as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
@@ -296,7 +299,7 @@ pub fn generate_grid() -> GridConfig {
                     orientation: WallOrientation::Horizontal,
                 });
             }
-            
+
             // West wall (vertical)
             if cell.has_west_wall {
                 let world_x = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
@@ -307,7 +310,7 @@ pub fn generate_grid() -> GridConfig {
                     orientation: WallOrientation::Vertical,
                 });
             }
-            
+
             // East wall (vertical) - only if it's the last column or neighbor doesn't have it
             if cell.has_east_wall && (col == grid_cols - 1 || !grid[row as usize][(col + 1) as usize].has_west_wall) {
                 let world_x = ((col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
@@ -323,7 +326,7 @@ pub fn generate_grid() -> GridConfig {
 
     // Generate roofs based on grid
     let roofs = generate_roofs_from_grid(&grid, grid_cols, grid_rows);
-    
+
     GridConfig { walls, roofs, grid }
 }
 
@@ -339,12 +342,12 @@ fn generate_roofs_from_grid(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i
 
     // Count walls for each cell
     let mut wall_counts = vec![vec![0u8; grid_cols as usize]; grid_rows as usize];
-    
+
     for row in 0..grid_rows {
         for col in 0..grid_cols {
             let cell = &grid[row as usize][col as usize];
             let mut wall_count = 0;
-            
+
             if cell.has_north_wall {
                 wall_count += 1;
             }
@@ -357,24 +360,24 @@ fn generate_roofs_from_grid(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i
             if cell.has_east_wall {
                 wall_count += 1;
             }
-            
+
             wall_counts[row as usize][col as usize] = wall_count;
         }
     }
 
     // Pass 1: Place roofs based on wall count (no neighbor consideration)
     let mut roof_cells: HashSet<(i32, i32)> = HashSet::new();
-    
+
     for row in 0..grid_rows {
         for col in 0..grid_cols {
             let wall_count = wall_counts[row as usize][col as usize];
-            
+
             let should_place_roof = match wall_count {
                 2 => rng.random_bool(ROOF_PROBABILITY_2_WALLS),
                 3 => rng.random_bool(ROOF_PROBABILITY_3_WALLS),
                 _ => false, // 0, 1, or 4 walls: no roof
             };
-            
+
             if should_place_roof {
                 roof_cells.insert((row, col));
             }
@@ -385,14 +388,14 @@ fn generate_roofs_from_grid(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i
     let mut added_more = true;
     while added_more {
         added_more = false;
-        
+
         for row in 0..grid_rows {
             for col in 0..grid_cols {
                 // Skip if already has roof or not enough walls
                 if roof_cells.contains(&(row, col)) || wall_counts[row as usize][col as usize] < 2 {
                     continue;
                 }
-                
+
                 // Check if any neighbor has a roof
                 let neighbors = [
                     (row - 1, col), // North
@@ -400,11 +403,11 @@ fn generate_roofs_from_grid(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i
                     (row, col - 1), // West
                     (row, col + 1), // East
                 ];
-                
-                let has_neighbor_with_roof = neighbors.iter().any(|&(r, c)| {
-                    r >= 0 && r < grid_rows && c >= 0 && c < grid_cols && roof_cells.contains(&(r, c))
-                });
-                
+
+                let has_neighbor_with_roof = neighbors
+                    .iter()
+                    .any(|&(r, c)| r >= 0 && r < grid_rows && c >= 0 && c < grid_cols && roof_cells.contains(&(r, c)));
+
                 if has_neighbor_with_roof && rng.random_bool(ROOF_PROBABILITY_WITH_NEIGHBOR) {
                     roof_cells.insert((row, col));
                     added_more = true;

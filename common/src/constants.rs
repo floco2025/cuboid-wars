@@ -53,4 +53,3 @@ pub const MULTI_SHOT_ANGLE: f32 = 3.0;
 
 // Ghost dimensions (meters)
 pub const GHOST_SIZE: f32 = 3.0; // Cube side length
-

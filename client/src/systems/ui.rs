@@ -78,9 +78,7 @@ pub fn setup_world_system(
 
     // Add camera (initial position will be immediately overridden by sync system)
     commands.spawn((
-        Camera3d {
-            ..default()
-        },
+        Camera3d { ..default() },
         Projection::from(PerspectiveProjection {
             fov: FPV_CAMERA_FOV_DEGREES.to_radians(),
             ..default()
@@ -286,7 +284,13 @@ pub fn update_player_list_system(
     let local_player_id = my_player_id.as_ref().map(|id| id.0);
 
     // Just rebuild the entire list on every change for simplicity
-    rebuild_player_list(&mut commands, *player_list_ui, &players, local_player_id, &children_query);
+    rebuild_player_list(
+        &mut commands,
+        *player_list_ui,
+        &players,
+        local_player_id,
+        &children_query,
+    );
 }
 
 fn rebuild_player_list(
@@ -315,11 +319,7 @@ fn rebuild_player_list(
     commands.entity(player_list_entity).replace_children(&ordered_children);
 }
 
-fn spawn_player_entry(
-    commands: &mut Commands,
-    player_info: &PlayerInfo,
-    is_local: bool,
-) -> Entity {
+fn spawn_player_entry(commands: &mut Commands, player_info: &PlayerInfo, is_local: bool) -> Entity {
     let background_color = if is_local {
         BackgroundColor(Color::srgba(0.8, 0.8, 0.0, 0.3))
     } else {

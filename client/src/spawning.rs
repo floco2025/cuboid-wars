@@ -7,8 +7,8 @@ use bevy::{
 use crate::{
     constants::*,
     systems::{
-        players::{BumpFlashState, LocalPlayer},
         map::{RoofMarker, WallMarker},
+        players::{BumpFlashState, LocalPlayer},
     },
 };
 use common::{constants::*, protocol::*, systems::Projectile};

@@ -39,7 +39,11 @@ pub fn spawn_walls_system(
         return;
     }
 
-    info!("Spawning {} wall segments and {} roofs", wall_config.walls.len(), wall_config.roofs.len());
+    info!(
+        "Spawning {} wall segments and {} roofs",
+        wall_config.walls.len(),
+        wall_config.roofs.len()
+    );
 
     for wall in &wall_config.walls {
         spawn_wall(&mut commands, &mut meshes, &mut materials, wall);
@@ -119,4 +123,3 @@ pub fn toggle_roof_visibility_system(
         *vis = visibility;
     }
 }
-

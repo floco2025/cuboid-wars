@@ -9,7 +9,7 @@ use tokio::sync::mpsc::{
 };
 
 use crate::net::{ClientToServer, ServerToClient};
-use common::protocol::{ItemId, PlayerId, Roof, Wall, GhostId};
+use common::protocol::{GhostId, ItemId, PlayerId, Roof, Wall};
 
 // ============================================================================
 // Bevy Resources

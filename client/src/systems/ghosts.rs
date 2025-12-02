@@ -73,9 +73,7 @@ fn ghost_hits_wall(walls: Option<&WallConfig>, new_pos: &Position) -> bool {
 // ============================================================================
 
 // Update ghost Transform from Position component for rendering
-pub fn sync_position_to_transform_system(
-    mut ghost_query: Query<(&Position, &mut Transform), With<GhostId>>,
-) {
+pub fn sync_position_to_transform_system(mut ghost_query: Query<(&Position, &mut Transform), With<GhostId>>) {
     for (pos, mut transform) in &mut ghost_query {
         transform.translation.x = pos.x;
         transform.translation.y = GHOST_SIZE / 2.0; // Ghost center at correct height
