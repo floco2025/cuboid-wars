@@ -65,7 +65,7 @@ pub fn client_movement_system(
     let entity_positions: Vec<(Entity, Position)> =
         query.iter().map(|(entity, pos, _, _, _, _)| (entity, *pos)).collect();
 
-    for (entity, mut client_pos, client_vel, mut flash_state, mut server_snapshot, is_local) in &mut query {
+    for (entity, mut client_pos, client_vel, mut flash_state, mut recon_option, is_local) in &mut query {
         if let Some(state) = flash_state.as_mut() {
             decay_flash_timer(state, delta, is_local, &mut bump_flash_ui);
         }
@@ -73,7 +73,7 @@ pub fn client_movement_system(
         let abs_velocity = calculate_absolute_velocity(client_vel);
         let is_standing_still = abs_velocity < f32::EPSILON;
 
-        let target_pos = if let Some(recon) = server_snapshot.as_mut() {
+        let target_pos = if let Some(recon) = recon_option.as_mut() {
             const IDLE_CORRECTION_TIME: f32 = 5.0; // Standing still: slow, smooth correction
             const RUN_CORRECTION_TIME: f32 = 3.5; // Running: faster, more responsive correction
 
@@ -231,10 +231,9 @@ pub fn ghost_movement_system(
     >,
 ) {
     let delta = time.delta_secs();
-    let walls = wall_config.as_deref();
 
-    for (entity, mut pos, mut vel, server_snapshot) in &mut ghost_query {
-        let (target_pos, target_vel) = if let Some(mut recon) = server_snapshot {
+    for (entity, mut client_pos, client_vel, recon_option) in &mut ghost_query {
+        let target_pos = if let Some(mut recon) = recon_option {
             // Ghosts: smoothly interpolate from client to server position
             const CORRECTION_TIME: f32 = 3.0; // Fast smooth correction
             let correction_factor = (UPDATE_BROADCAST_INTERVAL / CORRECTION_TIME).clamp(0.0, 1.0);
@@ -252,36 +251,25 @@ pub fn ghost_movement_system(
             // Smoothly lerp from current client position to predicted server position
             let lerp_amount = (delta * correction_factor / UPDATE_BROADCAST_INTERVAL).clamp(0.0, 1.0);
 
-            (
-                Position {
-                    x: pos.x + (server_pos_x - pos.x) * lerp_amount,
-                    y: pos.y,
-                    z: pos.z + (server_pos_z - pos.z) * lerp_amount,
-                },
-                recon.server_vel,
-            )
+            Position {
+                x: client_pos.x + (server_pos_x - client_pos.x) * lerp_amount,
+                y: client_pos.y,
+                z: client_pos.z + (server_pos_z - client_pos.z) * lerp_amount,
+            }
         } else {
             // No reconciliation - just apply velocity normally
-            (
-                Position {
-                    x: vel.x.mul_add(delta, pos.x),
-                    y: pos.y,
-                    z: vel.z.mul_add(delta, pos.z),
-                },
-                *vel,
-            )
+
+            Position {
+                x: client_vel.x.mul_add(delta, client_pos.x),
+                y: client_pos.y,
+                z: client_vel.z.mul_add(delta, client_pos.z),
+            }
         };
 
+        let walls = wall_config.as_deref();
         let hits_wall = ghost_hits_wall(walls, &target_pos);
-
         if !hits_wall {
-            *pos = target_pos;
-            *vel = target_vel;
-        } else {
-            // Stop the ghost when it hits a wall to prevent jittering
-            // The server will send updated velocity when it changes direction
-            vel.x = 0.0;
-            vel.z = 0.0;
+            *client_pos = target_pos;
         }
     }
 }

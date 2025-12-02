@@ -213,7 +213,7 @@ fn handle_speed_message(
         // Add server reconciliation if we have client position
         if let Ok(client_pos) = player_query.get(player.entity) {
             commands.entity(player.entity).insert((
-                velocity,
+                velocity, // Never the local player, so we can always insert velocity
                 ServerReconciliation {
                     client_pos: *client_pos,
                     server_pos: msg.pos,
@@ -362,6 +362,11 @@ fn handle_update_message(
                         server_vel.x *= SPEED_POWER_UP_MULTIPLIER;
                         server_vel.z *= SPEED_POWER_UP_MULTIPLIER;
                     }
+                    // The local player's velocity is always authoritive, so don't overwrite from
+                    // server updates
+                    if *id != my_player_id {
+                        commands.entity(client_player.entity).insert(server_vel);
+                    }
                     commands.entity(client_player.entity).insert(ServerReconciliation {
                         client_pos: *client_pos,
                         server_pos: server_player.pos,
@@ -441,7 +446,6 @@ fn handle_update_message(
                 // Check if we have a client position to track reconciliation
                 if let Ok(client_pos) = ghost_query.get(client_ghost.entity) {
                     commands.entity(client_ghost.entity).insert((
-                        server_ghost.pos,
                         server_ghost.vel,
                         ServerReconciliation {
                             client_pos: *client_pos,
@@ -555,7 +559,6 @@ fn handle_ghost_message(
         // Update existing ghost with reconciliation
         if let Ok(client_pos) = ghost_query.get(ghost_info.entity) {
             commands.entity(ghost_info.entity).insert((
-                msg.ghost.pos,
                 msg.ghost.vel,
                 ServerReconciliation {
                     client_pos: *client_pos,

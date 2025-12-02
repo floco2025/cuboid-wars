@@ -53,7 +53,7 @@ fn generate_spawn_position(grid_config: &GridConfig) -> Position {
     Position::default()
 }
 
-fn broadcast_to_logged_in(players: &PlayerMap, skip: PlayerId, message: ServerMessage) {
+fn broadcast_to_others(players: &PlayerMap, skip: PlayerId, message: ServerMessage) {
     for (other_id, other_info) in &players.0 {
         if *other_id != skip && other_info.logged_in {
             let _ = other_info.channel.send(ServerToClient::Send(message.clone()));
@@ -164,7 +164,7 @@ pub fn process_client_message_system(
 
                 // Broadcast logoff to all other logged-in players if they were logged in
                 if was_logged_in {
-                    broadcast_to_logged_in(&players, id, ServerMessage::Logoff(SLogoff { id, graceful: false }));
+                    broadcast_to_others(&players, id, ServerMessage::Logoff(SLogoff { id, graceful: false }));
                 }
             }
             ClientToServer::Message(message) => {
@@ -322,7 +322,7 @@ fn process_message_not_logged_in(
 
             // Broadcast Login to all other logged-in players
             let login_msg = SLogin { id, player };
-            broadcast_to_logged_in(players, id, ServerMessage::Login(login_msg));
+            broadcast_to_others(players, id, ServerMessage::Login(login_msg));
         }
         _ => {
             warn!(
@@ -352,7 +352,7 @@ fn process_message_logged_in(
             commands.entity(entity).despawn();
 
             // Broadcast graceful logoff to all other players
-            broadcast_to_logged_in(players, id, ServerMessage::Logoff(SLogoff { id, graceful: true }));
+            broadcast_to_others(players, id, ServerMessage::Logoff(SLogoff { id, graceful: true }));
         }
         ClientMessage::Speed(msg) => {
             trace!("{:?} speed: {:?}", id, msg);
@@ -396,7 +396,7 @@ fn handle_speed(
     // Get current position for reconciliation
     if let Ok(pos) = positions.get(entity) {
         // Broadcast speed update with position to all other logged-in players
-        broadcast_to_logged_in(
+        broadcast_to_others(
             players,
             id,
             ServerMessage::Speed(SSpeed {
@@ -412,7 +412,7 @@ fn handle_face_direction(commands: &mut Commands, entity: Entity, id: PlayerId, 
     // Update the player's face direction
     commands.entity(entity).insert(FaceDirection(msg.dir));
 
-    broadcast_to_logged_in(players, id, ServerMessage::Face(SFace { id, dir: msg.dir }));
+    broadcast_to_others(players, id, ServerMessage::Face(SFace { id, dir: msg.dir }));
 }
 
 fn handle_shot(
@@ -463,7 +463,7 @@ fn handle_shot(
     }
 
     // Broadcast shot with face direction to all other logged-in players
-    broadcast_to_logged_in(
+    broadcast_to_others(
         players,
         id,
         ServerMessage::Shot(SShot {
