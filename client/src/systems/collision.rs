@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use crate::{resources::WallConfig, systems::movement::LocalPlayer};
 use common::{
     collision::{check_projectile_player_hit, check_projectile_wall_hit},
-    protocol::{FaceDirection, Position},
+    protocol::{FaceDirection, PlayerId, Position},
     systems::Projectile,
 };
 
@@ -19,7 +19,7 @@ pub fn client_hit_detection_system(
     time: Res<Time>,
     asset_server: Res<AssetServer>,
     projectile_query: Query<(Entity, &Transform, &Projectile)>,
-    player_query: Query<(Entity, &Position, &FaceDirection, Has<LocalPlayer>), Without<Projectile>>,
+    player_query: Query<(Entity, &Position, &FaceDirection, Has<LocalPlayer>), With<PlayerId>>,
     wall_config: Option<Res<WallConfig>>,
 ) {
     let delta = time.delta_secs();
@@ -96,7 +96,7 @@ fn handle_player_collisions(
     projectile: &Projectile,
     projectile_pos: &Position,
     delta: f32,
-    player_query: &Query<(Entity, &Position, &FaceDirection, Has<LocalPlayer>), Without<Projectile>>,
+    player_query: &Query<(Entity, &Position, &FaceDirection, Has<LocalPlayer>), With<PlayerId>>,
 ) -> bool {
     for (_player_entity, player_pos, face_dir, is_local_player) in player_query.iter() {
         let result = check_projectile_player_hit(projectile_pos, projectile, delta, player_pos, face_dir.0);

@@ -385,12 +385,9 @@ pub const fn item_type_color(item_type: ItemType) -> Color {
     }
 }
 
-// Component to mark item entities with animation state
+// Component to track item animation timer
 #[derive(Component)]
-pub struct ItemMarker {
-    pub item_type: ItemType,
-    pub anim_timer: f32,
-}
+pub struct ItemAnimTimer(pub f32);
 
 // Spawn a item cube
 pub fn spawn_item(
@@ -408,10 +405,7 @@ pub fn spawn_item(
     commands
         .spawn((
             item_id,
-            ItemMarker {
-                item_type,
-                anim_timer: random_phase,
-            },
+            ItemAnimTimer(random_phase),
             *position,
             Mesh3d(meshes.add(Cuboid::new(ITEM_SIZE, ITEM_SIZE, ITEM_SIZE))),
             MeshMaterial3d(materials.add(StandardMaterial {

@@ -7,11 +7,11 @@ use super::{
 use crate::{
     constants::*,
     resources::CameraViewMode,
-    spawning::{ItemMarker, PlayerIdTextMesh},
+    spawning::PlayerIdTextMesh,
 };
 use common::{
     constants::{GHOST_SIZE, PLAYER_HEIGHT},
-    protocol::{FaceDirection, GhostId, Position},
+    protocol::{FaceDirection, GhostId, PlayerId, Position},
     systems::Projectile,
 };
 
@@ -64,7 +64,7 @@ pub fn sync_camera_to_player_system(
 
 // Update Transform from Position component for rendering
 pub fn sync_position_to_transform_system(
-    mut player_query: Query<(&Position, &mut Transform, Option<&CuboidShake>), (Without<ItemMarker>, Without<GhostId>)>,
+    mut player_query: Query<(&Position, &mut Transform, Option<&CuboidShake>), With<PlayerId>>,
     mut ghost_query: Query<(&Position, &mut Transform), With<GhostId>>,
 ) {
     // Sync players
