@@ -7,6 +7,10 @@ use crate::{
     protocol::{Position, Wall, WallOrientation},
 };
 
+// ============================================================================
+// Projectile Component
+// ============================================================================
+
 // Component attached to projectile entities to track velocity and lifetime.
 #[derive(Component)]
 pub struct Projectile {

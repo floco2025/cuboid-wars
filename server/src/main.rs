@@ -13,7 +13,7 @@ use server::{
     map::generate_grid,
     net::accept_connections_task,
     resources::*,
-    systems::{projectiles::*, ghosts::*, items::*, network::*, players::*},
+    systems::{ghosts::*, items::*, network::*, players::*, projectiles::*},
 };
 
 const SERVER_LOOP_FREQUENCY: u64 = 30;
@@ -79,19 +79,19 @@ async fn main() -> Result<()> {
             Update,
             (
                 // ApplyDeferred after accept_connections_system, so that new entities queryable
-                accept_connections_system,
+                network_accept_connections_system,
                 ApplyDeferred,
-                process_client_message_system,
+                network_client_message_system,
+                network_broadcast_state_system,
                 players_movement_system,
                 ghosts_spawn_system,
                 ghosts_movement_system,
-                projectiles_system,
-                hit_detection_system,
+                projectiles_movement_system,
+                projectiles_hit_detection_system,
                 item_spawn_system,
                 item_despawn_system,
                 item_collection_system,
                 item_expiration_system,
-                broadcast_state_system,
             )
                 .chain(),
         );

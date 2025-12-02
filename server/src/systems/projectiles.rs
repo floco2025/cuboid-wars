@@ -14,7 +14,7 @@ use common::{
 // ============================================================================
 
 // Update projectile positions and despawn them once their timer elapses.
-pub fn projectiles_system(
+pub fn projectiles_movement_system(
     mut commands: Commands,
     time: Res<Time>,
     mut projectile_query: Query<(Entity, &mut Position, &mut Projectile)>,
@@ -39,7 +39,7 @@ pub fn projectiles_system(
 // ============================================================================
 
 // Server-side hit detection - authoritative collision detection
-pub fn hit_detection_system(
+pub fn projectiles_hit_detection_system(
     mut commands: Commands,
     time: Res<Time>,
     projectile_query: Query<(Entity, &Position, &Projectile, &PlayerId)>,

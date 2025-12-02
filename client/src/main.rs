@@ -98,7 +98,6 @@ fn main() -> Result<()> {
     .add_systems(
         Update,
         (
-            // input.rs
             input_movement_system,
             input_shooting_system,
             input_cursor_toggle_system,
@@ -109,15 +108,13 @@ fn main() -> Result<()> {
     .add_systems(
         Update,
         (
-            // network.rs
             network_echo_system,
-            network_server_events_system,
+            network_server_message_system,
         ),
     )
     .add_systems(
         Update,
         (
-            // players.rs
             players_movement_system,
             players_transform_sync_system,
             placers_face_to_transform_system,
@@ -131,7 +128,6 @@ fn main() -> Result<()> {
     .add_systems(
         Update,
         (
-            // ghosts.rs
             ghosts_movement_system,
             ghosts_transform_sync_system,
         ),
@@ -139,7 +135,6 @@ fn main() -> Result<()> {
     .add_systems(
         Update,
         (
-            // projectiles.rs
             projectiles_movement_system,
             projectiles_hit_detection_system,
         ),
@@ -147,14 +142,12 @@ fn main() -> Result<()> {
     .add_systems(
         Update,
         (
-            // items.rs
             items_animation_system,
         ),
     )
     .add_systems(
         Update,
         (
-            // map.rs
             map_spawn_walls_system,
             map_toggle_wall_opacity_system,
             map_toggle_roof_visibility_system,
@@ -163,11 +156,10 @@ fn main() -> Result<()> {
     .add_systems(
         Update,
         (
-            // ui.rs
-            toggle_crosshair_system,
-            update_player_list_system,
-            update_rtt_system,
-            update_fps_system,
+            ui_toggle_crosshair_system,
+            ui_player_list_system,
+            ui_rtt_system,
+            ui_fps_system,
         ),
     )
     .run();

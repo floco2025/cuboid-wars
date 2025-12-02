@@ -142,7 +142,7 @@ fn generate_spawn_position(grid_config: &GridConfig) -> Position {
 // ============================================================================
 
 /// Drain newly accepted connections into ECS entities and tracking state.
-pub fn accept_connections_system(
+pub fn network_accept_connections_system(
     mut commands: Commands,
     mut from_accept: ResMut<FromAcceptChannel>,
     mut players: ResMut<PlayerMap>,
@@ -171,7 +171,7 @@ pub fn accept_connections_system(
 
 // NOTE: Must run after accept_connections_system with apply_deferred in between, otherwise entities
 // for the messages might not be spawned yet.
-pub fn process_client_message_system(
+pub fn network_client_message_system(
     mut commands: Commands,
     mut from_clients: ResMut<FromClientsChannel>,
     mut players: ResMut<PlayerMap>,
@@ -486,7 +486,7 @@ fn handle_shot(
 // ============================================================================
 
 // Broadcast authoritative game state in regular time intervals
-pub fn broadcast_state_system(
+pub fn network_broadcast_state_system(
     time: Res<Time>,
     mut timer: Local<f32>,
     mut seq: Local<u32>,

@@ -220,7 +220,7 @@ pub fn setup_world_system(
 // ============================================================================
 
 // Update RTT display
-pub fn update_rtt_system(rtt: Res<RoundTripTime>, mut query: Single<&mut Text, With<RttUIMarker>>) {
+pub fn ui_rtt_system(rtt: Res<RoundTripTime>, mut query: Single<&mut Text, With<RttUIMarker>>) {
     if !rtt.is_changed() {
         return;
     }
@@ -233,7 +233,7 @@ pub fn update_rtt_system(rtt: Res<RoundTripTime>, mut query: Single<&mut Text, W
 }
 
 // Update FPS measurement and display
-pub fn update_fps_system(
+pub fn ui_fps_system(
     time: Res<Time>,
     mut fps: ResMut<FpsMeasurement>,
     mut query: Single<&mut Text, With<FpsUIMarker>>,
@@ -254,7 +254,7 @@ pub fn update_fps_system(
 }
 
 // Toggle crosshair visibility based on camera view mode
-pub fn toggle_crosshair_system(
+pub fn ui_toggle_crosshair_system(
     view_mode: Res<CameraViewMode>,
     mut query: Query<&mut Visibility, With<CrosshairUIMarker>>,
 ) {
@@ -271,7 +271,7 @@ pub fn toggle_crosshair_system(
 }
 
 // Update player list UI with all players and their hit counts
-pub fn update_player_list_system(
+pub fn ui_player_list_system(
     mut commands: Commands,
     players: Res<PlayerMap>,
     my_player_id: Option<Res<MyPlayerId>>,

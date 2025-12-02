@@ -32,7 +32,7 @@ pub struct ServerReconciliation {
 // ============================================================================
 
 // System to process messages from the server
-pub fn network_server_events_system(
+pub fn network_server_message_system(
     mut commands: Commands,
     mut from_server: ResMut<ServerToClientChannel>,
     mut exit: MessageWriter<AppExit>,
