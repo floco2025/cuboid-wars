@@ -1,9 +1,6 @@
 use bevy::prelude::*;
 
-use super::{
-    effects::{CameraShake, CuboidShake},
-    players::LocalPlayer,
-};
+use super::players::{CameraShake, CuboidShake, LocalPlayer};
 use crate::{
     constants::*,
     resources::CameraViewMode,

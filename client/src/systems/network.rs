@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use std::{collections::HashSet, time::Duration};
 
-use super::effects::{CameraShake, CuboidShake};
+use super::players::{CameraShake, CuboidShake};
 use crate::{
     constants::ECHO_INTERVAL,
     net::{ClientToServer, ServerToClient},
