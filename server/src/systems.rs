@@ -996,75 +996,111 @@ pub fn ghost_movement_system(
         let grid_x = ((pos.x + FIELD_WIDTH / 2.0) / GRID_SIZE).floor() as i32;
         let grid_z = ((pos.z + FIELD_DEPTH / 2.0) / GRID_SIZE).floor() as i32;
 
+        // Check if ghost is within grid bounds
+        if grid_x < 0 || grid_x >= GRID_COLS || grid_z < 0 || grid_z >= GRID_ROWS {
+            error!("{:?} out of bounds at grid ({}, {}), clamping", ghost_id, grid_x, grid_z);
+            // Clamp position to grid bounds
+            pos.x = pos.x.clamp(-FIELD_WIDTH / 2.0 + GRID_SIZE / 2.0, FIELD_WIDTH / 2.0 - GRID_SIZE / 2.0);
+            pos.z = pos.z.clamp(-FIELD_DEPTH / 2.0 + GRID_SIZE / 2.0, FIELD_DEPTH / 2.0 - GRID_SIZE / 2.0);
+            // Reverse velocity to bounce back
+            vel.x = -vel.x;
+            vel.z = -vel.z;
+            continue;
+        }
+
         // Calculate grid cell center
         let grid_center_x = (grid_x as f32 + 0.5) * GRID_SIZE - FIELD_WIDTH / 2.0;
         let grid_center_z = (grid_z as f32 + 0.5) * GRID_SIZE - FIELD_DEPTH / 2.0;
 
         // Check if we're at grid center (within small threshold)
-        const CENTER_THRESHOLD: f32 = 0.5;
+        const CENTER_THRESHOLD: f32 = 0.1;
         let at_center_x = (pos.x - grid_center_x).abs() < CENTER_THRESHOLD;
         let at_center_z = (pos.z - grid_center_z).abs() < CENTER_THRESHOLD;
         let at_intersection = at_center_x && at_center_z;
 
         if at_intersection {
-            let mut valid_directions = Vec::new();
             let cell = &grid_config.grid[grid_z as usize][grid_x as usize];
+            
+            // Check if current direction is blocked
+            let current_blocked = if vel.x > 0.0 {
+                cell.has_east_wall  // Moving right
+            } else if vel.x < 0.0 {
+                cell.has_west_wall  // Moving left
+            } else if vel.z < 0.0 {
+                cell.has_north_wall // Moving up
+            } else if vel.z > 0.0 {
+                cell.has_south_wall // Moving down
+            } else {
+                true // Not moving - force direction change
+            };
+            
+            // Change direction if blocked OR randomly with probability
+            let should_change_direction = current_blocked || rng.random_bool(GHOST_RANDOM_TURN_PROBABILITY);
+            
+            if should_change_direction {
+                let mut valid_directions = Vec::new();
 
-            if !cell.has_east_wall {
-                valid_directions.push(0); // Right
-            }
-            if !cell.has_north_wall {
-                valid_directions.push(1); // Up
-            }
-            if !cell.has_west_wall {
-                valid_directions.push(2); // Left
-            }
-            if !cell.has_south_wall {
-                valid_directions.push(3); // Down
-            }
+                if !cell.has_east_wall {
+                    valid_directions.push(0); // Right
+                }
+                if !cell.has_north_wall {
+                    valid_directions.push(1); // Up
+                }
+                if !cell.has_west_wall {
+                    valid_directions.push(2); // Left
+                }
+                if !cell.has_south_wall {
+                    valid_directions.push(3); // Down
+                }
 
-            if !valid_directions.is_empty() {
-                let direction = valid_directions[rng.random_range(0..valid_directions.len())];
-                *vel = match direction {
-                    0 => Velocity {
-                        x: GHOST_SPEED,
-                        y: 0.0,
-                        z: 0.0,
-                    }, // Right
-                    1 => Velocity {
-                        x: 0.0,
-                        y: 0.0,
-                        z: -GHOST_SPEED,
-                    }, // Up (negative Z)
-                    2 => Velocity {
-                        x: -GHOST_SPEED,
-                        y: 0.0,
-                        z: 0.0,
-                    }, // Left
-                    _ => Velocity {
-                        x: 0.0,
-                        y: 0.0,
-                        z: GHOST_SPEED,
-                    }, // Down (positive Z)
-                };
+                if !valid_directions.is_empty() {
+                    let direction = valid_directions[rng.random_range(0..valid_directions.len())];
+                    *vel = match direction {
+                        0 => Velocity {
+                            x: GHOST_SPEED,
+                            y: 0.0,
+                            z: 0.0,
+                        }, // Right
+                        1 => Velocity {
+                            x: 0.0,
+                            y: 0.0,
+                            z: -GHOST_SPEED,
+                        }, // Up (negative Z)
+                        2 => Velocity {
+                            x: -GHOST_SPEED,
+                            y: 0.0,
+                            z: 0.0,
+                        }, // Left
+                        _ => Velocity {
+                            x: 0.0,
+                            y: 0.0,
+                            z: GHOST_SPEED,
+                        }, // Down (positive Z)
+                    };
 
-                // Snap to exact grid intersection
-                pos.x = grid_center_x;
-                pos.z = grid_center_z;
-
-                // Broadcast direction change immediately to all clients
-                broadcast_to_all(
-                    &players,
-                    ServerMessage::Ghost(SGhost {
-                        id: *ghost_id,
-                        ghost: Ghost { pos: *pos, vel: *vel },
-                    }),
-                );
+                    // Broadcast direction change immediately to all clients
+                    broadcast_to_all(
+                        &players,
+                        ServerMessage::Ghost(SGhost {
+                            id: *ghost_id,
+                            ghost: Ghost { pos: *pos, vel: *vel },
+                        }),
+                    );
+                }
             }
-            // If no valid directions, just continue in current direction (don't change)
-        } else {
-            pos.x = pos.x + vel.x * delta;
-            pos.z = pos.z + vel.z * delta;
+        }
+        
+        // Always move based on current velocity
+        pos.x += vel.x * delta;
+        pos.z += vel.z * delta;
+        
+        // Snap to grid line if we're moving along it
+        if vel.x.abs() > 0.0 && vel.z.abs() < 0.01 {
+            // Moving horizontally - snap Z to grid center
+            pos.z = grid_center_z;
+        } else if vel.z.abs() > 0.0 && vel.x.abs() < 0.01 {
+            // Moving vertically - snap X to grid center
+            pos.x = grid_center_x;
         }
     }
 }
