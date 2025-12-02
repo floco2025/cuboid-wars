@@ -5,7 +5,7 @@ use common::{
     collision::check_ghost_wall_collision,
     collision::check_player_wall_collision,
     constants::{RUN_SPEED, UPDATE_BROADCAST_INTERVAL},
-    protocol::{Position, Velocity},
+    protocol::{GhostId, PlayerId, Position, Velocity},
 };
 
 // ============================================================================
@@ -48,6 +48,7 @@ type MovementQuery<'w, 's> = Query<
         Option<&'static mut ServerReconciliation>,
         Has<LocalPlayer>,
     ),
+    With<PlayerId>,
 >;
 
 // Client-side movement system with wall collision detection for smooth prediction
@@ -57,10 +58,9 @@ pub fn client_movement_system(
     asset_server: Res<AssetServer>,
     wall_config: Option<Res<WallConfig>>,
     mut query: MovementQuery,
-    mut bump_flash_ui: Query<(&mut BackgroundColor, &mut Visibility), With<super::ui::BumpFlashUI>>,
+    mut bump_flash_ui: Query<(&mut BackgroundColor, &mut Visibility), With<super::ui::BumpFlashUIMarker>>,
 ) {
     let delta = time.delta_secs();
-
     let walls = wall_config.as_deref();
     let entity_positions: Vec<(Entity, Position)> =
         query.iter().map(|(entity, pos, _, _, _, _)| (entity, *pos)).collect();
@@ -115,7 +115,6 @@ pub fn client_movement_system(
 
         let hits_wall = player_hits_wall(walls, &target_pos);
         let hits_player = player_hits_other_player(entity, &target_pos, &entity_positions);
-
         if !hits_wall && !hits_player {
             *client_pos = target_pos;
             if let Some(state) = flash_state.as_mut() {
@@ -169,7 +168,7 @@ fn decay_flash_timer(
     state: &mut Mut<BumpFlashState>,
     delta: f32,
     is_local: bool,
-    bump_flash_ui: &mut Query<(&mut BackgroundColor, &mut Visibility), With<super::ui::BumpFlashUI>>,
+    bump_flash_ui: &mut Query<(&mut BackgroundColor, &mut Visibility), With<super::ui::BumpFlashUIMarker>>,
 ) {
     if state.flash_timer <= 0.0 {
         return;
@@ -188,7 +187,7 @@ fn decay_flash_timer(
 fn trigger_collision_feedback(
     commands: &mut Commands,
     asset_server: &AssetServer,
-    bump_flash_ui: &mut Query<(&mut BackgroundColor, &mut Visibility), With<super::ui::BumpFlashUI>>,
+    bump_flash_ui: &mut Query<(&mut BackgroundColor, &mut Visibility), With<super::ui::BumpFlashUIMarker>>,
     state: &mut Mut<BumpFlashState>,
     collided_with_wall: bool,
 ) {
@@ -219,23 +218,18 @@ fn trigger_collision_feedback(
 // Ghost Movement System
 // ============================================================================
 
-// Client-side ghost movement system - applies velocity with server reconciliation
-// Enforces client-side wall collision to prevent visual clipping
 pub fn ghost_movement_system(
     mut commands: Commands,
     time: Res<Time>,
     wall_config: Option<Res<WallConfig>>,
-    mut ghost_query: Query<
-        (Entity, &mut Position, &mut Velocity, Option<&mut ServerReconciliation>),
-        With<crate::spawning::GhostMarker>,
-    >,
+    mut ghost_query: Query<(Entity, &mut Position, &mut Velocity, Option<&mut ServerReconciliation>), With<GhostId>>,
 ) {
     let delta = time.delta_secs();
+    let walls = wall_config.as_deref();
 
     for (entity, mut client_pos, client_vel, recon_option) in &mut ghost_query {
         let target_pos = if let Some(mut recon) = recon_option {
-            // Ghosts: smoothly interpolate from client to server position
-            const CORRECTION_TIME: f32 = 3.0; // Fast smooth correction
+            const CORRECTION_TIME: f32 = 2.0;
             let correction_factor = (UPDATE_BROADCAST_INTERVAL / CORRECTION_TIME).clamp(0.0, 1.0);
 
             recon.timer += delta * correction_factor;
@@ -243,22 +237,21 @@ pub fn ghost_movement_system(
                 commands.entity(entity).remove::<ServerReconciliation>();
             }
 
-            // Predict where the server thinks the ghost should be now
-            let time_since_update = delta;
-            let server_pos_x = recon.server_pos.x + recon.server_vel.x * time_since_update;
-            let server_pos_z = recon.server_pos.z + recon.server_vel.z * time_since_update;
+            let server_pos_x = recon.server_pos.x + recon.server_vel.x * recon.rtt / 2.0;
+            let server_pos_z = recon.server_pos.z + recon.server_vel.z * recon.rtt / 2.0;
 
-            // Smoothly lerp from current client position to predicted server position
-            let lerp_amount = (delta * correction_factor / UPDATE_BROADCAST_INTERVAL).clamp(0.0, 1.0);
+            let total_dx = server_pos_x - recon.client_pos.x;
+            let total_dz = server_pos_z - recon.client_pos.z;
+
+            let dx = total_dx * delta * correction_factor / UPDATE_BROADCAST_INTERVAL;
+            let dz = total_dz * delta * correction_factor / UPDATE_BROADCAST_INTERVAL;
 
             Position {
-                x: client_pos.x + (server_pos_x - client_pos.x) * lerp_amount,
+                x: client_vel.x.mul_add(delta, client_pos.x) + dx,
                 y: client_pos.y,
-                z: client_pos.z + (server_pos_z - client_pos.z) * lerp_amount,
+                z: client_vel.z.mul_add(delta, client_pos.z) + dz,
             }
         } else {
-            // No reconciliation - just apply velocity normally
-
             Position {
                 x: client_vel.x.mul_add(delta, client_pos.x),
                 y: client_pos.y,
@@ -266,7 +259,6 @@ pub fn ghost_movement_system(
             }
         };
 
-        let walls = wall_config.as_deref();
         let hits_wall = ghost_hits_wall(walls, &target_pos);
         if !hits_wall {
             *client_pos = target_pos;

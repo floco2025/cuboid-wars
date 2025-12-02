@@ -4,11 +4,10 @@ use super::{
     effects::{CameraShake, CuboidShake},
     movement::LocalPlayer,
 };
-use crate::resources::CameraViewMode;
-use crate::{constants::*, spawning::{PlayerIdTextMesh, GhostMarker}};
+use crate::{constants::*, resources::CameraViewMode, spawning::PlayerIdTextMesh};
 use common::{
-    constants::{PLAYER_HEIGHT, GHOST_SIZE},
-    protocol::{FaceDirection, Position},
+    constants::{GHOST_SIZE, PLAYER_HEIGHT},
+    protocol::{FaceDirection, GhostId, Position},
     systems::Projectile,
 };
 
@@ -61,8 +60,11 @@ pub fn sync_camera_to_player_system(
 
 // Update Transform from Position component for rendering
 pub fn sync_position_to_transform_system(
-    mut player_query: Query<(&Position, &mut Transform, Option<&CuboidShake>), (Without<crate::spawning::ItemMarker>, Without<GhostMarker>)>,
-    mut ghost_query: Query<(&Position, &mut Transform), With<GhostMarker>>,
+    mut player_query: Query<
+        (&Position, &mut Transform, Option<&CuboidShake>),
+        (Without<crate::spawning::ItemMarker>, Without<GhostId>),
+    >,
+    mut ghost_query: Query<(&Position, &mut Transform), With<GhostId>>,
 ) {
     // Sync players
     for (pos, mut transform, maybe_shake) in &mut player_query {
@@ -77,7 +79,7 @@ pub fn sync_position_to_transform_system(
             transform.translation.z += shake.offset_z;
         }
     }
-    
+
     // Sync ghosts (different height)
     for (pos, mut transform) in &mut ghost_query {
         transform.translation.x = pos.x;

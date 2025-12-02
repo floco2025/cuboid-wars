@@ -15,23 +15,23 @@ use common::{
 
 // Marker component for the player list UI
 #[derive(Component)]
-pub struct PlayerListUI;
+pub struct PlayerListUIMarker;
 
 // Marker component for the crosshair UI
 #[derive(Component)]
-pub struct CrosshairUI;
+pub struct CrosshairUIMarker;
 
 // Marker component for the RTT display
 #[derive(Component)]
-pub struct RttUI;
+pub struct RttUIMarker;
 
 // Marker component for the FPS display
 #[derive(Component)]
-pub struct FpsUI;
+pub struct FpsUIMarker;
 
 // Marker component for the bump flash overlay
 #[derive(Component)]
-pub struct BumpFlashUI;
+pub struct BumpFlashUIMarker;
 
 // ============================================================================
 // UI Setup System
@@ -116,7 +116,7 @@ pub fn setup_world_system(
             row_gap: Val::Px(5.0),
             ..default()
         },
-        PlayerListUI,
+        PlayerListUIMarker,
     ));
 
     // Create crosshair UI
@@ -136,7 +136,7 @@ pub fn setup_world_system(
                 align_items: AlignItems::Center,
                 ..default()
             },
-            CrosshairUI,
+            CrosshairUIMarker,
         ))
         .with_children(|parent| {
             // Horizontal line
@@ -179,7 +179,7 @@ pub fn setup_world_system(
             top: Val::Px(10.0),
             ..default()
         },
-        RttUI,
+        RttUIMarker,
     ));
 
     // Create FPS display below RTT
@@ -196,7 +196,7 @@ pub fn setup_world_system(
             top: Val::Px(35.0),
             ..default()
         },
-        FpsUI,
+        FpsUIMarker,
     ));
 
     // Create bump flash overlay (invisible by default, shown on wall collision)
@@ -210,7 +210,7 @@ pub fn setup_world_system(
             ..default()
         },
         BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.0)), // Transparent by default (white)
-        BumpFlashUI,
+        BumpFlashUIMarker,
         Visibility::Hidden, // Start hidden
     ));
 }
@@ -220,7 +220,7 @@ pub fn setup_world_system(
 // ============================================================================
 
 // Update RTT display
-pub fn update_rtt_system(rtt: Res<RoundTripTime>, mut query: Single<&mut Text, With<RttUI>>) {
+pub fn update_rtt_system(rtt: Res<RoundTripTime>, mut query: Single<&mut Text, With<RttUIMarker>>) {
     if !rtt.is_changed() {
         return;
     }
@@ -236,7 +236,7 @@ pub fn update_rtt_system(rtt: Res<RoundTripTime>, mut query: Single<&mut Text, W
 pub fn update_fps_system(
     time: Res<Time>,
     mut fps: ResMut<FpsMeasurement>,
-    mut query: Single<&mut Text, With<FpsUI>>,
+    mut query: Single<&mut Text, With<FpsUIMarker>>,
 ) {
     // Update FPS measurement
     fps.frame_count += 1;
@@ -256,7 +256,7 @@ pub fn update_fps_system(
 // Toggle crosshair visibility based on camera view mode
 pub fn toggle_crosshair_system(
     view_mode: Res<CameraViewMode>,
-    mut query: Query<&mut Visibility, With<CrosshairUI>>,
+    mut query: Query<&mut Visibility, With<CrosshairUIMarker>>,
 ) {
     if !view_mode.is_changed() {
         return;
@@ -275,7 +275,7 @@ pub fn update_player_list_system(
     mut commands: Commands,
     players: Res<PlayerMap>,
     my_player_id: Option<Res<MyPlayerId>>,
-    player_list_ui: Single<Entity, With<PlayerListUI>>,
+    player_list_ui: Single<Entity, With<PlayerListUIMarker>>,
     children_query: Query<&Children>,
 ) {
     // Bail out unless the player list changed

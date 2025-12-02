@@ -429,10 +429,6 @@ pub fn spawn_item(
         .id()
 }
 
-// Marker component for ghosts
-#[derive(Component)]
-pub struct GhostMarker;
-
 // Spawn a ghost cube
 pub fn spawn_ghost(
     commands: &mut Commands,
@@ -450,7 +446,6 @@ pub fn spawn_ghost(
     commands
         .spawn((
             ghost_id,
-            GhostMarker,
             *position,
             *velocity,
             Mesh3d(meshes.add(Cuboid::new(GHOST_SIZE, GHOST_SIZE, GHOST_SIZE))),

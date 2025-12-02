@@ -9,14 +9,16 @@ use client::{
     config::configure_client,
     net::network_io_task,
     resources::{
-        CameraViewMode, ClientToServerChannel, FpsMeasurement, GhostMap, ItemMap, LastUpdateSeq, PlayerMap, RoofRenderingEnabled, RoundTripTime,
-        ServerToClientChannel,
+        CameraViewMode, ClientToServerChannel, FpsMeasurement, GhostMap, ItemMap, LastUpdateSeq, PlayerMap,
+        RoofRenderingEnabled, RoundTripTime, ServerToClientChannel,
     },
     systems::{
         animations::animate_items_system,
         collision::client_hit_detection_system,
         effects::{apply_camera_shake_system, apply_cuboid_shake_system},
-        input::{camera_view_toggle_system, cursor_toggle_system, input_system, roof_toggle_system, shooting_input_system},
+        input::{
+            camera_view_toggle_system, cursor_toggle_system, input_system, roof_toggle_system, shooting_input_system,
+        },
         movement::{client_movement_system, ghost_movement_system},
         network::{echo_system, process_server_events_system},
         sync::{
