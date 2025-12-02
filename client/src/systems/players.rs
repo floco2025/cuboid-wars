@@ -8,9 +8,7 @@ use crate::{
     spawning::PlayerIdTextMesh,
 };
 use common::{
-    collision::{
-        calculate_wall_slide, check_player_player_collision, check_player_wall_collision,
-    },
+    collision::{calculate_wall_slide, check_player_player_collision, check_player_wall_collision},
     constants::{PLAYER_HEIGHT, RUN_SPEED, UPDATE_BROADCAST_INTERVAL},
     protocol::{FaceDirection, PlayerId, Position, Velocity},
 };
@@ -93,8 +91,8 @@ pub fn player_movement_system(
         let is_standing_still = abs_velocity < f32::EPSILON;
 
         let target_pos = if let Some(recon) = recon_option.as_mut() {
-            const IDLE_CORRECTION_TIME: f32 = 5.0; // Standing still: slow, smooth correction
-            const RUN_CORRECTION_TIME: f32 = 3.5; // Running: faster, more responsive correction
+            const IDLE_CORRECTION_TIME: f32 = 10.0; // Standing still: slow, smooth correction
+            const RUN_CORRECTION_TIME: f32 = 0.5; // Running: fast, responsive correction
 
             let speed_ratio = (abs_velocity / RUN_SPEED).clamp(0.0, 1.0); // Ignore speed power-ups
             let correction_time_interval = IDLE_CORRECTION_TIME.lerp(RUN_CORRECTION_TIME, speed_ratio);
@@ -110,6 +108,13 @@ pub fn player_movement_system(
 
             let total_dx = server_pos_x - recon.client_pos.x;
             let total_dz = server_pos_z - recon.client_pos.z;
+
+            // If the client got totally out of sync, we jump to the server position
+            if total_dx >= 5.0 || total_dz >= 5.0 {
+                warn!("client out of sync, jumping to server position");
+                *client_pos = recon.server_pos;
+                continue;
+            }
 
             let dx = total_dx * delta * correction_factor / UPDATE_BROADCAST_INTERVAL;
             let dz = total_dz * delta * correction_factor / UPDATE_BROADCAST_INTERVAL;
@@ -129,6 +134,7 @@ pub fn player_movement_system(
 
         // Skip collision checks if player is standing still
         if is_standing_still {
+            *client_pos = target_pos;
             continue;
         }
 
@@ -397,7 +403,7 @@ pub fn sync_local_player_visibility_system(
 // ============================================================================
 
 // Make player ID text meshes billboard (always face camera)
-pub fn billboard_player_id_text_system(
+pub fn player_billboard_system(
     camera_query: Query<&GlobalTransform, With<Camera3d>>,
     mut text_mesh_query: Query<(&GlobalTransform, &mut Transform), With<PlayerIdTextMesh>>,
 ) {

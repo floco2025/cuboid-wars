@@ -20,7 +20,7 @@ use client::{
         },
         network::{echo_system, process_server_events_system},
         players::{
-            apply_camera_shake_system, apply_cuboid_shake_system, billboard_player_id_text_system,
+            apply_camera_shake_system, apply_cuboid_shake_system, player_billboard_system,
             player_movement_system, sync_camera_to_player_system, sync_face_to_transform_system,
             sync_local_player_visibility_system, sync_position_to_transform_system as sync_player_position,
         },
@@ -119,6 +119,7 @@ fn main() -> Result<()> {
     .add_systems(
         Update,
         (
+            // input.rs
             cursor_toggle_system,
             camera_view_toggle_system,
             roof_toggle_system,
@@ -126,50 +127,64 @@ fn main() -> Result<()> {
             shooting_input_system,
         ),
     )
-    .add_systems(Update, process_server_events_system)
     .add_systems(
         Update,
         (
+            // network.rs
             echo_system,
-            spawn_walls_system,
+            process_server_events_system,
+        ),
+    )
+    .add_systems(
+        Update,
+        (
+            // players.rs
             player_movement_system,
-            ghost_movement_system,
-            sync_projectiles_system,
-        ),
-    )
-    .add_systems(
-        Update,
-        (
-            client_hit_detection_system,
-            sync_camera_to_player_system,
-            sync_player_position,
-            sync_ghost_position,
-            sync_face_to_transform_system,
-        ),
-    )
-    .add_systems(
-        Update,
-        (
-            sync_local_player_visibility_system,
-            billboard_player_id_text_system,
-            animate_items_system,
-            apply_camera_shake_system,
-        ),
-    )
-    .add_systems(
-        Update,
-        (
-            billboard_player_id_text_system,
-            animate_items_system,
             apply_camera_shake_system,
             apply_cuboid_shake_system,
-            toggle_wall_opacity_system,
+            sync_camera_to_player_system,
+            sync_player_position,
+            sync_face_to_transform_system,
+            sync_local_player_visibility_system,
+            player_billboard_system,
         ),
     )
     .add_systems(
         Update,
         (
+            // ghosts.rs
+            ghost_movement_system,
+            sync_ghost_position,
+        ),
+    )
+    .add_systems(
+        Update,
+        (
+            // projectiles.rs
+            sync_projectiles_system,
+            client_hit_detection_system,
+        ),
+    )
+    .add_systems(
+        Update,
+        (
+            // items.rs
+            animate_items_system,
+        ),
+    )
+    .add_systems(
+        Update,
+        (
+            // walls.rs
+            spawn_walls_system,
+            toggle_wall_opacity_system,
             toggle_roof_visibility_system,
+        ),
+    )
+    .add_systems(
+        Update,
+        (
+            // ui.rs
             toggle_crosshair_system,
             update_player_list_system,
             update_rtt_system,
