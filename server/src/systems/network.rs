@@ -442,7 +442,7 @@ fn handle_shot(
         let num_shots = if players
             .0
             .get(&id)
-            .map_or(false, |info| info.multi_shot_power_up_timer > 0.0)
+            .is_some_and(|info| info.multi_shot_power_up_timer > 0.0)
         {
             MULTI_SHOT_MULTIPLER
         } else {
@@ -454,7 +454,7 @@ fn handle_shot(
         let start_offset = -(num_shots - 1) as f32 * angle_step / 2.0;
 
         for i in 0..num_shots {
-            let angle_offset = start_offset + i as f32 * angle_step;
+            let angle_offset = (i as f32).mul_add(angle_step, start_offset);
             let shot_dir = msg.face_dir + angle_offset;
             let spawn_pos = Projectile::calculate_spawn_position(Vec3::new(pos.x, pos.y, pos.z), shot_dir);
             let projectile = Projectile::new(shot_dir);

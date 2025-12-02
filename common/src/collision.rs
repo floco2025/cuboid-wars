@@ -239,7 +239,7 @@ pub fn check_player_player_collision(pos1: &Position, pos2: &Position) -> bool {
 pub fn check_player_item_collision(player_pos: &Position, item_pos: &Position, collection_radius: f32) -> bool {
     let dx = player_pos.x - item_pos.x;
     let dz = player_pos.z - item_pos.z;
-    let dist_sq = dx * dx + dz * dz;
+    let dist_sq = dx.mul_add(dx, dz * dz);
     dist_sq <= collection_radius * collection_radius
 }
 

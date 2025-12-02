@@ -106,11 +106,10 @@ pub fn item_collection_system(
 
             // Check against all players
             for (player_id, player_info) in &players.0 {
-                if let Ok(player_pos) = player_positions.get(player_info.entity) {
-                    if check_player_item_collision(player_pos, item_pos, ITEM_COLLECTION_RADIUS) {
+                if let Ok(player_pos) = player_positions.get(player_info.entity)
+                    && check_player_item_collision(player_pos, item_pos, ITEM_COLLECTION_RADIUS) {
                         return Some((*player_id, *item_id, item_info.item_type));
                     }
-                }
             }
             None
         })

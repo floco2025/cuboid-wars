@@ -27,31 +27,31 @@ enum GridDirection {
 }
 
 impl GridDirection {
-    const ALL: [GridDirection; 4] = [
-        GridDirection::East,
-        GridDirection::North,
-        GridDirection::West,
-        GridDirection::South,
+    const ALL: [Self; 4] = [
+        Self::East,
+        Self::North,
+        Self::West,
+        Self::South,
     ];
 
     fn to_velocity(self) -> Velocity {
         match self {
-            GridDirection::East => Velocity {
+            Self::East => Velocity {
                 x: GHOST_SPEED,
                 y: 0.0,
                 z: 0.0,
             },
-            GridDirection::North => Velocity {
+            Self::North => Velocity {
                 x: 0.0,
                 y: 0.0,
                 z: -GHOST_SPEED,
             },
-            GridDirection::West => Velocity {
+            Self::West => Velocity {
                 x: -GHOST_SPEED,
                 y: 0.0,
                 z: 0.0,
             },
-            GridDirection::South => Velocity {
+            Self::South => Velocity {
                 x: 0.0,
                 y: 0.0,
                 z: GHOST_SPEED,
@@ -59,21 +59,21 @@ impl GridDirection {
         }
     }
 
-    fn opposite(self) -> GridDirection {
+    const fn opposite(self) -> Self {
         match self {
-            GridDirection::East => GridDirection::West,
-            GridDirection::North => GridDirection::South,
-            GridDirection::West => GridDirection::East,
-            GridDirection::South => GridDirection::North,
+            Self::East => Self::West,
+            Self::North => Self::South,
+            Self::West => Self::East,
+            Self::South => Self::North,
         }
     }
 
-    fn is_blocked(self, cell: &GridCell) -> bool {
+    const fn is_blocked(self, cell: &GridCell) -> bool {
         match self {
-            GridDirection::East => cell.has_east_wall,
-            GridDirection::North => cell.has_north_wall,
-            GridDirection::West => cell.has_west_wall,
-            GridDirection::South => cell.has_south_wall,
+            Self::East => cell.has_east_wall,
+            Self::North => cell.has_north_wall,
+            Self::West => cell.has_west_wall,
+            Self::South => cell.has_south_wall,
         }
     }
 }
@@ -180,13 +180,13 @@ pub fn ghost_movement_system(
     let delta = time.delta_secs();
     let mut rng = rand::rng();
 
-    for (ghost_id, mut pos, mut vel) in ghost_query.iter_mut() {
+    for (ghost_id, mut pos, mut vel) in &mut ghost_query {
         // Calculate which grid cell we're in
         let grid_x = ((pos.x + FIELD_WIDTH / 2.0) / GRID_SIZE).floor() as i32;
         let grid_z = ((pos.z + FIELD_DEPTH / 2.0) / GRID_SIZE).floor() as i32;
 
         // Check if ghost is within grid bounds
-        if grid_x < 0 || grid_x >= GRID_COLS || grid_z < 0 || grid_z >= GRID_ROWS {
+        if !(0..GRID_COLS).contains(&grid_x) || !(0..GRID_ROWS).contains(&grid_z) {
             error!(
                 "{:?} out of bounds at grid ({}, {}), clamping",
                 ghost_id, grid_x, grid_z
@@ -220,8 +220,8 @@ pub fn ghost_movement_system(
             let valid_directions = valid_directions(cell);
             let mut direction_changed = false;
 
-            if let Some(current_direction) = direction_from_velocity(&vel) {
-                if current_direction.is_blocked(cell) {
+            if let Some(current_direction) = direction_from_velocity(&vel)
+                && current_direction.is_blocked(cell) {
                     let forward_options = forward_directions(&valid_directions, current_direction);
                     if forward_options.is_empty() {
                         let new_direction = valid_directions.first().copied().expect("no valid direction");
@@ -232,14 +232,12 @@ pub fn ghost_movement_system(
                         direction_changed = true;
                     }
                 }
-            }
 
-            if rng.random_bool(GHOST_RANDOM_TURN_PROBABILITY) && !valid_directions.is_empty() {
-                if let Some(new_direction) = pick_direction(&mut rng, &valid_directions) {
+            if rng.random_bool(GHOST_RANDOM_TURN_PROBABILITY) && !valid_directions.is_empty()
+                && let Some(new_direction) = pick_direction(&mut rng, &valid_directions) {
                     *vel = new_direction.to_velocity();
                     direction_changed = true;
                 }
-            }
 
             // Broadcast once after final direction is determined
             if direction_changed {

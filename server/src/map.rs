@@ -17,14 +17,16 @@ use common::{
 // Grid Helper Functions
 // ============================================================================
 
+#[must_use] 
 pub fn cell_center(grid_x: i32, grid_z: i32) -> Position {
     Position {
-        x: (grid_x as f32 + 0.5) * GRID_SIZE - FIELD_WIDTH / 2.0,
+        x: (grid_x as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)),
         y: 0.0,
-        z: (grid_z as f32 + 0.5) * GRID_SIZE - FIELD_DEPTH / 2.0,
+        z: (grid_z as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0)),
     }
 }
 
+#[must_use] 
 pub fn grid_coords_from_position(pos: &Position) -> (i32, i32) {
     let grid_x = ((pos.x + FIELD_WIDTH / 2.0) / GRID_SIZE).floor() as i32;
     let grid_z = ((pos.z + FIELD_DEPTH / 2.0) / GRID_SIZE).floor() as i32;
@@ -44,7 +46,7 @@ pub fn find_unoccupied_cell(rng: &mut ThreadRng, occupied_cells: &HashSet<(i32, 
 }
 
 // Helper to count walls in a cell
-fn count_cell_walls(cell: &GridCell) -> u8 {
+const fn count_cell_walls(cell: &GridCell) -> u8 {
     let mut count = 0;
     if cell.has_north_wall {
         count += 1;
@@ -250,7 +252,9 @@ pub fn generate_grid() -> GridConfig {
         }
 
         // Check if all cells are still reachable
-        if !all_cells_reachable(&grid, grid_cols, grid_rows) {
+        if all_cells_reachable(&grid, grid_cols, grid_rows) {
+            interior_walls_placed += 1;
+        } else {
             // Remove the wall
             match direction {
                 0 => {
@@ -267,8 +271,6 @@ pub fn generate_grid() -> GridConfig {
                 }
                 _ => {}
             }
-        } else {
-            interior_walls_placed += 1;
         }
     }
 
