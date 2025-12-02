@@ -345,7 +345,7 @@ pub fn sync_camera_to_player_system(
 }
 
 // Update player Transform from Position component for rendering
-pub fn sync_position_to_transform_system(
+pub fn sync_players_to_transform_system(
     mut player_query: Query<(&Position, &mut Transform, Option<&CuboidShake>), With<PlayerId>>,
 ) {
     for (pos, mut transform, maybe_shake) in &mut player_query {

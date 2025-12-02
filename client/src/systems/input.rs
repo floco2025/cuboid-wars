@@ -6,14 +6,13 @@ use bevy::{
 };
 
 use super::players::LocalPlayer;
-use crate::constants::*;
 use crate::{
+    constants::*,
     net::ClientToServer,
     resources::{CameraViewMode, ClientToServerChannel, MyPlayerId, PlayerMap, RoofRenderingEnabled},
     spawning::spawn_projectiles_local,
 };
-use common::constants::SPEED_POWER_UP_MULTIPLIER;
-use common::protocol::{CFace, CShot, CSpeed, ClientMessage, FaceDirection, Position, Speed, SpeedLevel, Velocity};
+use common::{constants::SPEED_POWER_UP_MULTIPLIER, protocol::*};
 
 // ============================================================================
 // Input Helpers

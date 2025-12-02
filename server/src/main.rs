@@ -13,14 +13,8 @@ use server::{
     config::configure_server,
     map::generate_grid,
     net::accept_connections_task,
-    resources::{FromAcceptChannel, FromClientsChannel, GhostMap, ItemMap, ItemSpawner, PlayerMap},
-    systems::{
-        collision::hit_detection_system,
-        ghosts::{ghost_movement_system, ghost_spawn_system},
-        items::{item_collection_system, item_despawn_system, item_expiration_system, item_spawn_system},
-        network::{accept_connections_system, broadcast_state_system, process_client_message_system},
-        players::player_movement_system,
-    },
+    resources::*,
+    systems::{collision::*, ghosts::*, items::*, network::*, players::*},
 };
 
 const SERVER_LOOP_FREQUENCY: u64 = 30;
@@ -85,31 +79,19 @@ async fn main() -> Result<()> {
         .add_systems(
             Update,
             (
-                // Accept new connections and spawn entities
+                // ApplyDeferred after accept_connections_system, so that new entities queryable
                 accept_connections_system,
-                // Makes new entities queryable
                 ApplyDeferred,
-                // Process messages from clients
                 process_client_message_system,
-                // Server movement with wall collision
                 player_movement_system,
-                // Ghost spawning (one-time at startup)
                 ghost_spawn_system,
-                // Ghost movement with wall avoidance
                 ghost_movement_system,
-                // Update projectiles (lifetime and despawn)
                 projectiles_system,
-                // Check for projectile hits
                 hit_detection_system,
-                // Spawn items
                 item_spawn_system,
-                // Despawn old items
                 item_despawn_system,
-                // Collect items when players touch them
                 item_collection_system,
-                // Expire player items over time
                 item_expiration_system,
-                // Broadcast authoritative state to clients
                 broadcast_state_system,
             )
                 .chain(),

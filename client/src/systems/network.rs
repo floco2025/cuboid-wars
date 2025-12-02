@@ -11,8 +11,7 @@ use crate::{
     },
     spawning::{spawn_ghost, spawn_item, spawn_player, spawn_projectiles_local},
 };
-use common::constants::SPEED_POWER_UP_MULTIPLIER;
-use common::protocol::*;
+use common::{constants::SPEED_POWER_UP_MULTIPLIER, protocol::*};
 
 // ============================================================================
 // Components
