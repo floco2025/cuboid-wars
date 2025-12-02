@@ -20,7 +20,7 @@ use server::{
         movement::server_movement_system,
         network::{accept_connections_system, broadcast_state_system, process_client_message_system},
     },
-    walls::generate_grid,
+    grid::generate_grid,
 };
 
 const SERVER_LOOP_FREQUENCY: u64 = 30;

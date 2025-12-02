@@ -1,14 +1,26 @@
 use bevy::prelude::*;
 use rand::Rng as _;
+use std::collections::HashSet;
 
-use crate::{constants::*, resources::{ItemInfo, ItemMap, ItemSpawner, PlayerMap}};
+use crate::{
+    constants::*,
+    grid::{cell_center, find_unoccupied_cell, grid_coords_from_position},
+    resources::{ItemInfo, ItemMap, ItemSpawner, PlayerMap},
+};
 use common::{
     collision::check_player_item_collision,
-    constants::*,
     protocol::{ItemId, ItemType, PlayerId, Position, SPowerUp, ServerMessage},
 };
 
 use super::network::broadcast_to_all;
+
+fn choose_item_type(rng: &mut rand::rngs::ThreadRng) -> ItemType {
+    if rng.random_bool(0.5) {
+        ItemType::SpeedPowerUp
+    } else {
+        ItemType::MultiShotPowerUp
+    }
+}
 
 // ============================================================================
 // Item Systems
@@ -29,62 +41,30 @@ pub fn item_spawn_system(
         spawner.timer = 0.0;
 
         // Get occupied grid cells from existing items
-        let occupied_cells: std::collections::HashSet<(i32, i32)> = items
+        let occupied_cells: HashSet<(i32, i32)> = items
             .0
             .values()
-            .filter_map(|info| {
-                positions.get(info.entity).ok().map(|pos| {
-                    let grid_x = ((pos.x + FIELD_WIDTH / 2.0) / GRID_SIZE).floor() as i32;
-                    let grid_z = ((pos.z + FIELD_DEPTH / 2.0) / GRID_SIZE).floor() as i32;
-                    (grid_x, grid_z)
-                })
-            })
+            .filter_map(|info| positions.get(info.entity).ok().map(grid_coords_from_position))
             .collect();
 
-        // Find an unoccupied grid cell
         let mut rng = rand::rng();
-        let max_attempts = 100;
 
-        for _ in 0..max_attempts {
-            let grid_x = rng.random_range(0..GRID_COLS);
-            let grid_z = rng.random_range(0..GRID_ROWS);
+        if let Some((grid_x, grid_z)) = find_unoccupied_cell(&mut rng, &occupied_cells) {
+            let item_id = ItemId(spawner.next_id);
+            spawner.next_id += 1;
+            let position = cell_center(grid_x, grid_z);
+            let item_type = choose_item_type(&mut rng);
 
-            if !occupied_cells.contains(&(grid_x, grid_z)) {
-                // Spawn item in the center of this grid cell
-                let world_x = (grid_x as f32 + 0.5) * GRID_SIZE - FIELD_WIDTH / 2.0;
-                let world_z = (grid_z as f32 + 0.5) * GRID_SIZE - FIELD_DEPTH / 2.0;
+            let entity = commands.spawn((item_id, position)).id();
 
-                let item_type = if rng.random_bool(0.5) {
-                    ItemType::SpeedPowerUp
-                } else {
-                    ItemType::MultiShotPowerUp
-                };
-
-                let item_id = ItemId(spawner.next_id);
-                spawner.next_id += 1;
-
-                let entity = commands
-                    .spawn((
-                        item_id,
-                        Position {
-                            x: world_x,
-                            y: 0.0,
-                            z: world_z,
-                        },
-                    ))
-                    .id();
-
-                items.0.insert(
-                    item_id,
-                    ItemInfo {
-                        entity,
-                        item_type,
-                        spawn_time: time.elapsed_secs(),
-                    },
-                );
-
-                break;
-            }
+            items.0.insert(
+                item_id,
+                ItemInfo {
+                    entity,
+                    item_type,
+                    spawn_time: time.elapsed_secs(),
+                },
+            );
         }
     }
 }

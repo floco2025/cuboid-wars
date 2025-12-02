@@ -1,7 +1,11 @@
 use bevy::prelude::*;
 use rand::Rng as _;
 
-use crate::{constants::*, resources::{GhostInfo, GhostMap, GridCell, GridConfig, PlayerMap}};
+use crate::{
+    constants::*,
+    grid::cell_center,
+    resources::{GhostInfo, GhostMap, GridCell, GridConfig, PlayerMap},
+};
 use common::{
     collision::check_ghost_wall_collision,
     constants::*,
@@ -109,14 +113,6 @@ fn pick_direction<T: rand::Rng>(rng: &mut T, options: &[GridDirection]) -> Optio
         None
     } else {
         Some(options[rng.random_range(0..options.len())])
-    }
-}
-
-fn cell_center(grid_x: i32, grid_z: i32) -> Position {
-    Position {
-        x: (grid_x as f32 + 0.5) * GRID_SIZE - FIELD_WIDTH / 2.0,
-        y: 0.0,
-        z: (grid_z as f32 + 0.5) * GRID_SIZE - FIELD_DEPTH / 2.0,
     }
 }
 

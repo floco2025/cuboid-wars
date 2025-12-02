@@ -1,4 +1,4 @@
-use rand::Rng;
+use rand::{rngs::ThreadRng, Rng};
 use std::collections::{HashSet, VecDeque};
 
 use crate::{
@@ -7,8 +7,38 @@ use crate::{
 };
 use common::{
     constants::*,
-    protocol::{Roof, Wall, WallOrientation},
+    protocol::{Position, Roof, Wall, WallOrientation},
 };
+
+// ============================================================================
+// Grid Helper Functions
+// ============================================================================
+
+pub fn cell_center(grid_x: i32, grid_z: i32) -> Position {
+    Position {
+        x: (grid_x as f32 + 0.5) * GRID_SIZE - FIELD_WIDTH / 2.0,
+        y: 0.0,
+        z: (grid_z as f32 + 0.5) * GRID_SIZE - FIELD_DEPTH / 2.0,
+    }
+}
+
+pub fn grid_coords_from_position(pos: &Position) -> (i32, i32) {
+    let grid_x = ((pos.x + FIELD_WIDTH / 2.0) / GRID_SIZE).floor() as i32;
+    let grid_z = ((pos.z + FIELD_DEPTH / 2.0) / GRID_SIZE).floor() as i32;
+    (grid_x, grid_z)
+}
+
+pub fn find_unoccupied_cell(rng: &mut ThreadRng, occupied_cells: &HashSet<(i32, i32)>) -> Option<(i32, i32)> {
+    const MAX_ATTEMPTS: usize = 100;
+    for _ in 0..MAX_ATTEMPTS {
+        let grid_x = rng.random_range(0..GRID_COLS);
+        let grid_z = rng.random_range(0..GRID_ROWS);
+        if !occupied_cells.contains(&(grid_x, grid_z)) {
+            return Some((grid_x, grid_z));
+        }
+    }
+    None
+}
 
 // Helper to count walls in a cell
 fn count_cell_walls(cell: &GridCell) -> u8 {
@@ -77,12 +107,13 @@ fn all_cells_reachable(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) -
     }
 }
 
-// Generate grid configuration for the playing field.
-//
+// ============================================================================
+// Grid Generation
+// ============================================================================
+
 // Walls are placed along grid lines in a maze-like pattern.
 // Ensures all grid cells remain reachable from each other.
 // Always places walls around the perimeter of the field.
-// Returns a complete GridConfig with walls, roofs, and grid cell data.
 #[must_use]
 #[allow(clippy::too_many_lines)]
 #[allow(clippy::cast_precision_loss)]
