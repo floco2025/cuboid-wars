@@ -78,11 +78,19 @@ async fn main() -> Result<()> {
         .add_systems(
             Update,
             (
-                // ApplyDeferred after accept_connections_system, so that new entities queryable
-                network_accept_connections_system,
-                ApplyDeferred,
-                network_client_message_system,
-                network_broadcast_state_system,
+                // Network systems must run in order:
+                // 1. Accept new connections (spawns entities)
+                // 2. ApplyDeferred (makes entities queryable)
+                // 3. Process client messages (needs to query those entities)
+                // 4. Broadcast state to all clients
+                (
+                    network_accept_connections_system,
+                    ApplyDeferred,
+                    network_client_message_system,
+                    network_broadcast_state_system,
+                )
+                    .chain(),
+                // Game logic systems can run in parallel
                 players_movement_system,
                 ghosts_spawn_system,
                 ghosts_movement_system,
@@ -92,8 +100,7 @@ async fn main() -> Result<()> {
                 item_despawn_system,
                 item_collection_system,
                 item_expiration_system,
-            )
-                .chain(),
+            ),
         );
 
     info!("starting ECS server loop...");
