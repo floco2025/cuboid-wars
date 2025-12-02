@@ -106,14 +106,14 @@ pub fn spawn_projectiles_local(
     has_multi_shot: bool,
 ) {
     // Determine number of shots
-    let num_shots = if has_multi_shot { MULTI_SHOT_MULTIPLER as i32 } else { 1 };
+    let num_shots = if has_multi_shot { MULTI_SHOT_MULTIPLER } else { 1 };
 
     // Spawn projectiles in an arc
     let angle_step = MULTI_SHOT_ANGLE.to_radians();
     let start_offset = -(num_shots - 1) as f32 * angle_step / 2.0;
 
     for i in 0..num_shots {
-        let angle_offset = start_offset + i as f32 * angle_step;
+        let angle_offset = (i as f32).mul_add(angle_step, start_offset);
         let shot_dir = face_dir + angle_offset;
         spawn_single_projectile(commands, meshes, materials, pos, shot_dir);
     }
@@ -374,6 +374,7 @@ pub fn spawn_player_id_display(
 }
 
 // Get the color for an item type
+#[must_use]
 pub const fn item_type_color(item_type: ItemType) -> Color {
     match item_type {
         ItemType::SpeedPowerUp => Color::srgb(ITEM_SPEED_COLOR[0], ITEM_SPEED_COLOR[1], ITEM_SPEED_COLOR[2]),

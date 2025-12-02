@@ -23,4 +23,7 @@ unimplemented = "warn"
 wildcard_imports = "allow"
 needless_pass_by_value = "allow"
 too_many_arguments = "allow"
-
+items_after_statements = "allow"
+cast_precision_loss = "allow"
+cast_possible_truncation = "allow"
+cast_sign_loss = "allow"

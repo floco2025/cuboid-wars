@@ -68,7 +68,7 @@ impl GridDirection {
         }
     }
 
-    const fn is_blocked(self, cell: &GridCell) -> bool {
+    const fn is_blocked(self, cell: GridCell) -> bool {
         match self {
             Self::East => cell.has_east_wall,
             Self::North => cell.has_north_wall,
@@ -92,7 +92,7 @@ fn direction_from_velocity(vel: &Velocity) -> Option<GridDirection> {
     }
 }
 
-fn valid_directions(cell: &GridCell) -> Vec<GridDirection> {
+fn valid_directions(cell: GridCell) -> Vec<GridDirection> {
     GridDirection::ALL
         .iter()
         .copied()
@@ -217,11 +217,11 @@ pub fn ghost_movement_system(
 
         if at_intersection {
             let cell = &grid_config.grid[grid_z as usize][grid_x as usize];
-            let valid_directions = valid_directions(cell);
+            let valid_directions = valid_directions(*cell);
             let mut direction_changed = false;
 
             if let Some(current_direction) = direction_from_velocity(&vel)
-                && current_direction.is_blocked(cell) {
+                && current_direction.is_blocked(*cell) {
                     let forward_options = forward_directions(&valid_directions, current_direction);
                     if forward_options.is_empty() {
                         let new_direction = valid_directions.first().copied().expect("no valid direction");

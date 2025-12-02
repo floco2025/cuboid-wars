@@ -78,7 +78,7 @@ pub fn setup_world_system(
 
     // Add camera (initial position will be immediately overridden by sync system)
     commands.spawn((
-        Camera3d { ..default() },
+        Camera3d::default(),
         Projection::from(PerspectiveProjection {
             fov: FPV_CAMERA_FOV_DEGREES.to_radians(),
             ..default()

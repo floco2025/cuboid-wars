@@ -69,7 +69,7 @@ type MovementQuery<'w, 's> = Query<
     With<PlayerId>,
 >;
 
-// Client-side movement system with wall collision detection for smooth prediction
+#[allow(clippy::similar_names)]
 pub fn player_movement_system(
     mut commands: Commands,
     time: Res<Time>,

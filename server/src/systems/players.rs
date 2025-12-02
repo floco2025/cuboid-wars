@@ -13,10 +13,10 @@ struct PlannedMove {
     target: Position,
 }
 
-fn speed_multiplier(players: &PlayerMap, player_id: &PlayerId) -> f32 {
+fn speed_multiplier(players: &PlayerMap, player_id: PlayerId) -> f32 {
     players
         .0
-        .get(player_id)
+        .get(&player_id)
         .and_then(|info| (info.speed_power_up_timer > 0.0).then_some(SPEED_POWER_UP_MULTIPLIER))
         .unwrap_or(1.0)
 }
@@ -44,7 +44,7 @@ pub fn player_movement_system(
     let mut planned_moves: Vec<PlannedMove> = Vec::new();
 
     for (entity, pos, speed, player_id) in query.iter() {
-        let multiplier = speed_multiplier(&players, player_id);
+        let multiplier = speed_multiplier(&players, *player_id);
         let mut velocity = speed.to_velocity();
         velocity.x *= multiplier;
         velocity.z *= multiplier;

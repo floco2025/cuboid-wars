@@ -33,6 +33,7 @@ pub fn grid_coords_from_position(pos: &Position) -> (i32, i32) {
     (grid_x, grid_z)
 }
 
+#[allow(clippy::implicit_hasher)]
 pub fn find_unoccupied_cell(rng: &mut ThreadRng, occupied_cells: &HashSet<(i32, i32)>) -> Option<(i32, i32)> {
     const MAX_ATTEMPTS: usize = 100;
     for _ in 0..MAX_ATTEMPTS {
@@ -46,7 +47,7 @@ pub fn find_unoccupied_cell(rng: &mut ThreadRng, occupied_cells: &HashSet<(i32, 
 }
 
 // Helper to count walls in a cell
-const fn count_cell_walls(cell: &GridCell) -> u8 {
+const fn count_cell_walls(cell: GridCell) -> u8 {
     let mut count = 0;
     if cell.has_north_wall {
         count += 1;
@@ -199,12 +200,12 @@ pub fn generate_grid() -> GridConfig {
         }
 
         // Count existing walls in both cells adjacent to this potential wall
-        let cell1_walls = count_cell_walls(cell);
+        let cell1_walls = count_cell_walls(*cell);
         let cell2_walls = match direction {
             0 => {
                 // South wall - check cell below
                 if row < grid_rows - 1 {
-                    count_cell_walls(&grid[(row + 1) as usize][col as usize])
+                    count_cell_walls(grid[(row + 1) as usize][col as usize])
                 } else {
                     0
                 }
@@ -212,7 +213,7 @@ pub fn generate_grid() -> GridConfig {
             1 => {
                 // East wall - check cell to the right
                 if col < grid_cols - 1 {
-                    count_cell_walls(&grid[row as usize][(col + 1) as usize])
+                    count_cell_walls(grid[row as usize][(col + 1) as usize])
                 } else {
                     0
                 }
@@ -226,7 +227,6 @@ pub fn generate_grid() -> GridConfig {
         let ratio = match max_walls {
             0 => 1.0,
             1 => WALL_2ND_PROBABILITY_RATIO,
-            2 => WALL_3RD_PROBABILITY_RATIO,
             _ => WALL_3RD_PROBABILITY_RATIO,
         };
 

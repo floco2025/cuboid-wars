@@ -152,11 +152,11 @@ fn process_message_logged_in(
         ),
         ServerMessage::Hit(hit_msg) => handle_hit_message(commands, &maps.p0(), camera_query, my_player_id, hit_msg),
         ServerMessage::PowerUp(power_up_msg) => {
-            handle_power_up_message(commands, &mut maps.p0(), speed_query, power_up_msg)
+            handle_power_up_message(commands, &mut maps.p0(), speed_query, power_up_msg);
         }
         ServerMessage::Echo(echo_msg) => handle_echo_message(time, rtt, echo_msg),
         ServerMessage::Ghost(ghost_msg) => {
-            handle_ghost_message(commands, meshes, materials, &mut maps.p2(), rtt, ghost_query, ghost_msg)
+            handle_ghost_message(commands, meshes, materials, &mut maps.p2(), rtt, ghost_query, ghost_msg);
         }
     }
 }

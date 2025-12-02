@@ -11,6 +11,7 @@ use common::protocol::*;
 
 // Grid cell wall edges - bitflags for efficient lookup
 #[derive(Debug, Clone, Copy, Default)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct GridCell {
     pub has_north_wall: bool, // Horizontal wall at top edge (z)
     pub has_south_wall: bool, // Horizontal wall at bottom edge (z+1)

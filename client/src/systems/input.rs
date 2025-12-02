@@ -107,14 +107,14 @@ pub fn input_system(
             for (mut player_velocity, _) in &mut local_player_query {
                 let mut velocity = speed.to_velocity();
                 // Apply speed multiplier if local player has speed power-up
-                if let Some(my_id) = my_player_id.as_ref() {
-                    if let Some(player_info) = players.0.get(&my_id.0) {
-                        if player_info.speed_power_up {
-                            velocity.x *= SPEED_POWER_UP_MULTIPLIER;
-                            velocity.z *= SPEED_POWER_UP_MULTIPLIER;
-                        }
-                    }
+                if let Some(my_id) = my_player_id.as_ref()
+                    && let Some(player_info) = players.0.get(&my_id.0)
+                    && player_info.speed_power_up
+                {
+                    velocity.x *= SPEED_POWER_UP_MULTIPLIER;
+                    velocity.z *= SPEED_POWER_UP_MULTIPLIER;
                 }
+
                 *player_velocity = velocity;
             }
             let msg = ClientMessage::Speed(CSpeed { speed });
@@ -178,14 +178,14 @@ pub fn input_system(
     for (mut player_velocity, mut player_face) in &mut local_player_query {
         let mut velocity = speed.to_velocity();
         // Apply speed multiplier if local player has speed power-up
-        if let Some(my_id) = my_player_id.as_ref() {
-            if let Some(player_info) = players.0.get(&my_id.0) {
-                if player_info.speed_power_up {
-                    velocity.x *= SPEED_POWER_UP_MULTIPLIER;
-                    velocity.z *= SPEED_POWER_UP_MULTIPLIER;
-                }
-            }
+        if let Some(my_id) = my_player_id.as_ref()
+            && let Some(player_info) = players.0.get(&my_id.0)
+            && player_info.speed_power_up
+        {
+            velocity.x *= SPEED_POWER_UP_MULTIPLIER;
+            velocity.z *= SPEED_POWER_UP_MULTIPLIER;
         }
+
         *player_velocity = velocity;
         player_face.0 = face_yaw;
     }
@@ -253,7 +253,7 @@ pub fn shooting_input_system(
         let has_multi_shot = my_player_id
             .as_ref()
             .and_then(|id| players.0.get(&id.0))
-            .map_or(false, |info| info.multi_shot_power_up);
+            .is_some_and(|info| info.multi_shot_power_up);
 
         // Spawn projectile(s) based on power-up status
         spawn_projectiles_local(
