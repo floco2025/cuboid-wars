@@ -4,7 +4,7 @@ use super::network::ServerReconciliation;
 use crate::resources::WallConfig;
 use common::{
     collision::check_ghost_wall_collision,
-    constants::UPDATE_BROADCAST_INTERVAL,
+    constants::{GHOST_SIZE, UPDATE_BROADCAST_INTERVAL},
     protocol::{GhostId, Position, Velocity},
 };
 
@@ -66,4 +66,19 @@ fn ghost_hits_wall(walls: Option<&WallConfig>, new_pos: &Position) -> bool {
         .walls
         .iter()
         .any(|wall| check_ghost_wall_collision(new_pos, wall))
+}
+
+// ============================================================================
+// Ghost Sync System
+// ============================================================================
+
+// Update ghost Transform from Position component for rendering
+pub fn sync_position_to_transform_system(
+    mut ghost_query: Query<(&Position, &mut Transform), With<GhostId>>,
+) {
+    for (pos, mut transform) in &mut ghost_query {
+        transform.translation.x = pos.x;
+        transform.translation.y = GHOST_SIZE / 2.0; // Ghost center at correct height
+        transform.translation.z = pos.z;
+    }
 }

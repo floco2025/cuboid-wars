@@ -3,7 +3,7 @@ use rand::Rng as _;
 
 use crate::{
     constants::*,
-    grid::cell_center,
+    map::cell_center,
     resources::{GhostInfo, GhostMap, GridCell, GridConfig, PlayerMap},
 };
 use common::{

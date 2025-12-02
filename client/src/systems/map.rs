@@ -6,6 +6,10 @@ use crate::{
     spawning::{spawn_roof, spawn_wall},
 };
 
+// ============================================================================
+// Components
+// ============================================================================
+
 // Marker component for walls
 #[derive(Component)]
 pub struct WallMarker;
@@ -13,6 +17,10 @@ pub struct WallMarker;
 // Marker component for roofs
 #[derive(Component)]
 pub struct RoofMarker;
+
+// ============================================================================
+// Wall Spawning System
+// ============================================================================
 
 // System to spawn walls and roofs when WallConfig is available
 pub fn spawn_walls_system(
@@ -43,6 +51,10 @@ pub fn spawn_walls_system(
 
     *spawned = true;
 }
+
+// ============================================================================
+// Wall Opacity System
+// ============================================================================
 
 // System to toggle wall and roof opacity based on camera view mode
 pub fn toggle_wall_opacity_system(
@@ -83,6 +95,10 @@ pub fn toggle_wall_opacity_system(
         }
     }
 }
+
+// ============================================================================
+// Roof Opacity System
+// ============================================================================
 
 // System to toggle roof visibility based on RoofRenderingEnabled resource
 pub fn toggle_roof_visibility_system(

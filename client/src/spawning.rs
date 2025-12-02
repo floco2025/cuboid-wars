@@ -8,7 +8,7 @@ use crate::{
     constants::*,
     systems::{
         players::{BumpFlashState, LocalPlayer},
-        walls::{RoofMarker, WallMarker},
+        map::{RoofMarker, WallMarker},
     },
 };
 use common::{constants::*, protocol::*, systems::Projectile};

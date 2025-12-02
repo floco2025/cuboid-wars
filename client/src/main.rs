@@ -14,22 +14,22 @@ use client::{
     },
     systems::{
         items::animate_items_system,
-        ghosts::ghost_movement_system,
+        ghosts::{ghost_movement_system, sync_position_to_transform_system as sync_ghost_position},
         input::{
             camera_view_toggle_system, cursor_toggle_system, input_system, roof_toggle_system, shooting_input_system,
         },
         network::{echo_system, process_server_events_system},
-        players::{apply_camera_shake_system, apply_cuboid_shake_system, player_movement_system},
-        projectiles::{client_hit_detection_system, sync_projectiles_system},
-        sync::{
-            billboard_player_id_text_system, sync_camera_to_player_system, sync_face_to_transform_system,
-            sync_local_player_visibility_system, sync_position_to_transform_system,
+        players::{
+            apply_camera_shake_system, apply_cuboid_shake_system, billboard_player_id_text_system,
+            player_movement_system, sync_camera_to_player_system, sync_face_to_transform_system,
+            sync_local_player_visibility_system, sync_position_to_transform_system as sync_player_position,
         },
+        projectiles::{client_hit_detection_system, sync_projectiles_system},
         ui::{
             setup_world_system, toggle_crosshair_system, update_fps_system, update_player_list_system,
             update_rtt_system,
         },
-        walls::{spawn_walls_system, toggle_roof_visibility_system, toggle_wall_opacity_system},
+        map::{spawn_walls_system, toggle_roof_visibility_system, toggle_wall_opacity_system},
     },
 };
 use common::net::MessageStream;
@@ -142,7 +142,8 @@ fn main() -> Result<()> {
         (
             client_hit_detection_system,
             sync_camera_to_player_system,
-            sync_position_to_transform_system,
+            sync_player_position,
+            sync_ghost_position,
             sync_face_to_transform_system,
         ),
     )

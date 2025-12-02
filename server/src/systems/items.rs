@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use crate::{
     constants::*,
-    grid::{cell_center, find_unoccupied_cell, grid_coords_from_position},
+    map::{cell_center, find_unoccupied_cell, grid_coords_from_position},
     resources::{ItemInfo, ItemMap, ItemSpawner, PlayerMap},
 };
 use common::{

@@ -11,7 +11,7 @@ use common::constants::SPEED_POWER_UP_MULTIPLIER;
 use common::protocol::{CFace, CShot, CSpeed, ClientMessage, FaceDirection, Position, Speed, SpeedLevel, Velocity};
 
 // ============================================================================
-// Input Systems
+// Input Helpers
 // ============================================================================
 
 // Toggle camera view mode with V key
@@ -65,6 +65,10 @@ pub fn cursor_toggle_system(
         // Note: The click event will still be available for the shooting system
     }
 }
+
+// ============================================================================
+// Input Systems
+// ============================================================================
 
 #[derive(Default)]
 pub struct InputState {
