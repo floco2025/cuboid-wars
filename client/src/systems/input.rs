@@ -1,6 +1,6 @@
 use bevy::{math::Vec2, prelude::*};
 
-use super::movement::LocalPlayer;
+use super::players::LocalPlayer;
 use crate::constants::*;
 use crate::{
     net::ClientToServer,

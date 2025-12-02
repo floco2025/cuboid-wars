@@ -1,10 +1,7 @@
 use bevy::prelude::*;
 use std::{collections::HashSet, time::Duration};
 
-use super::{
-    effects::{CameraShake, CuboidShake},
-    movement::ServerReconciliation,
-};
+use super::effects::{CameraShake, CuboidShake};
 use crate::{
     constants::ECHO_INTERVAL,
     net::{ClientToServer, ServerToClient},
@@ -16,6 +13,20 @@ use crate::{
 };
 use common::constants::SPEED_POWER_UP_MULTIPLIER;
 use common::protocol::*;
+
+// ============================================================================
+// Components
+// ============================================================================
+
+// Server's authoritative snapshot for this entity
+#[derive(Component)]
+pub struct ServerReconciliation {
+    pub client_pos: Position,
+    pub server_pos: Position,
+    pub server_vel: Velocity,
+    pub timer: f32,
+    pub rtt: f32,
+}
 
 // ============================================================================
 // Network Message Processing

@@ -7,7 +7,7 @@ use bevy::{
 use crate::{
     constants::*,
     systems::{
-        movement::{BumpFlashState, LocalPlayer},
+        players::{BumpFlashState, LocalPlayer},
         walls::{RoofMarker, WallMarker},
     },
 };

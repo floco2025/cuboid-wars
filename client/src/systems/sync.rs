@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use super::{
     effects::{CameraShake, CuboidShake},
-    movement::LocalPlayer,
+    players::LocalPlayer,
 };
 use crate::{
     constants::*,

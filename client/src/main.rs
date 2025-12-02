@@ -16,11 +16,12 @@ use client::{
         animations::animate_items_system,
         collision::client_hit_detection_system,
         effects::{apply_camera_shake_system, apply_cuboid_shake_system},
+        ghosts::ghost_movement_system,
         input::{
             camera_view_toggle_system, cursor_toggle_system, input_system, roof_toggle_system, shooting_input_system,
         },
-        movement::{player_movement_system, ghost_movement_system},
         network::{echo_system, process_server_events_system},
+        players::player_movement_system,
         sync::{
             billboard_player_id_text_system, sync_camera_to_player_system, sync_face_to_transform_system,
             sync_local_player_visibility_system, sync_position_to_transform_system, sync_projectiles_system,
