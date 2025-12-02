@@ -3,16 +3,20 @@ use rand::Rng as _;
 
 use crate::{
     net::{ClientToServer, ServerToClient},
-    resources::{
-        FromAcceptChannel, FromClientsChannel, GhostMap, GridConfig, ItemMap, PlayerInfo, PlayerMap,
-    },
+    resources::{FromAcceptChannel, FromClientsChannel, GhostMap, GridConfig, ItemMap, PlayerInfo, PlayerMap},
 };
-use common::{collision::check_player_wall_collision, constants::{MULTI_SHOT_ANGLE, *}, protocol::*, systems::Projectile};
+use common::{
+    collision::check_player_wall_collision,
+    constants::{MULTI_SHOT_ANGLE, *},
+    protocol::*,
+    systems::Projectile,
+};
 
 // ============================================================================
 // Helper Functions
 // ============================================================================
 
+// Broadcast `message` to every logged-in player except `skip`.
 pub fn broadcast_to_others(players: &PlayerMap, skip: PlayerId, message: ServerMessage) {
     for (other_id, other_info) in &players.0 {
         if *other_id != skip && other_info.logged_in {
@@ -21,6 +25,7 @@ pub fn broadcast_to_others(players: &PlayerMap, skip: PlayerId, message: ServerM
     }
 }
 
+// Broadcast `message` to every logged-in player.
 pub fn broadcast_to_all(players: &PlayerMap, message: ServerMessage) {
     for player_info in players.0.values() {
         if player_info.logged_in {
@@ -61,6 +66,48 @@ fn snapshot_logged_in_players(
         .collect()
 }
 
+// Build the authoritative item list that gets replicated to clients.
+fn collect_items(items: &ItemMap, positions: &Query<&Position>) -> Vec<(ItemId, Item)> {
+    items
+        .0
+        .iter()
+        .map(|(id, info)| {
+            let pos_component = positions.get(info.entity).expect("Item entity missing Position");
+            (
+                *id,
+                Item {
+                    item_type: info.item_type,
+                    pos: *pos_component,
+                },
+            )
+        })
+        .collect()
+}
+
+// Build the authoritative ghost list that gets replicated to clients.
+fn collect_ghosts(
+    ghosts: &GhostMap,
+    positions: &Query<&Position>,
+    velocities: &Query<&Velocity>,
+) -> Vec<(GhostId, Ghost)> {
+    ghosts
+        .0
+        .iter()
+        .map(|(id, info)| {
+            let pos_component = positions.get(info.entity).expect("Ghost entity missing Position");
+            let vel_component = velocities.get(info.entity).expect("Ghost entity missing Velocity");
+            (
+                *id,
+                Ghost {
+                    pos: *pos_component,
+                    vel: *vel_component,
+                },
+            )
+        })
+        .collect()
+}
+
+// Try to find a spawn point that does not intersect any generated wall.
 fn generate_spawn_position(grid_config: &GridConfig) -> Position {
     let mut rng = rand::rng();
     let max_attempts = 100;
@@ -266,37 +313,10 @@ fn process_message_not_logged_in(
             all_players.push((id, player.clone()));
 
             // Collect all items for the initial update
-            let all_items: Vec<(ItemId, Item)> = items
-                .0
-                .iter()
-                .map(|(id, info)| {
-                    let pos_component = positions.get(info.entity).expect("Item entity missing Position");
-                    (
-                        *id,
-                        Item {
-                            item_type: info.item_type,
-                            pos: *pos_component,
-                        },
-                    )
-                })
-                .collect();
+            let all_items = collect_items(items, positions);
 
             // Collect all ghosts for the initial update
-            let all_ghosts: Vec<(GhostId, Ghost)> = ghosts
-                .0
-                .iter()
-                .map(|(id, info)| {
-                    let pos_component = positions.get(info.entity).expect("Ghost entity missing Position");
-                    let vel_component = velocities.get(info.entity).expect("Ghost entity missing Velocity");
-                    (
-                        *id,
-                        Ghost {
-                            pos: *pos_component,
-                            vel: *vel_component,
-                        },
-                    )
-                })
-                .collect();
+            let all_ghosts = collect_ghosts(ghosts, positions, velocities);
 
             // Send the initial Update to the new player
             let update_msg = ServerMessage::Update(SUpdate {
@@ -488,41 +508,18 @@ pub fn broadcast_state_system(
     // Increment sequence number
     *seq = seq.wrapping_add(1);
 
+    if players.0.values().all(|info| !info.logged_in) {
+        return; // Nothing to broadcast yet
+    }
+
     // Collect all logged-in players
     let all_players = snapshot_logged_in_players(&players, &positions, &speeds, &face_dirs);
 
     // Collect all items
-    let all_items: Vec<(ItemId, Item)> = items
-        .0
-        .iter()
-        .map(|(id, info)| {
-            let pos_component = positions.get(info.entity).expect("Item entity missing Position");
-            (
-                *id,
-                Item {
-                    item_type: info.item_type,
-                    pos: *pos_component,
-                },
-            )
-        })
-        .collect();
+    let all_items = collect_items(&items, &positions);
 
     // Collect all ghosts
-    let all_ghosts: Vec<(GhostId, Ghost)> = ghosts
-        .0
-        .iter()
-        .map(|(id, info)| {
-            let pos_component = positions.get(info.entity).expect("Ghost entity missing Position");
-            let vel_component = velocities.get(info.entity).expect("Ghost entity missing Velocity");
-            (
-                *id,
-                Ghost {
-                    pos: *pos_component,
-                    vel: *vel_component,
-                },
-            )
-        })
-        .collect();
+    let all_ghosts = collect_ghosts(&ghosts, &positions, &velocities);
 
     // Broadcast to all logged-in clients
     let msg = ServerMessage::Update(SUpdate {
@@ -532,9 +529,5 @@ pub fn broadcast_state_system(
         ghosts: all_ghosts,
     });
     //trace!("broadcasting update: {:?}", msg);
-    for info in players.0.values() {
-        if info.logged_in {
-            let _ = info.channel.send(ServerToClient::Send(msg.clone()));
-        }
-    }
+    broadcast_to_all(&players, msg);
 }
