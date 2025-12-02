@@ -11,7 +11,7 @@ use crate::{
         players::{BumpFlashState, LocalPlayer},
     },
 };
-use common::{constants::*, protocol::*, systems::Projectile};
+use common::{constants::*, protocol::*, collision::Projectile};
 
 #[derive(Component)]
 pub struct PlayerIdText;

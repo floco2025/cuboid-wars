@@ -5,9 +5,8 @@ use crate::{
     resources::{GridConfig, PlayerMap},
 };
 use common::{
-    collision::{check_projectile_player_hit, check_projectile_wall_hit},
+    collision::{Projectile, check_projectile_player_hit, check_projectile_wall_hit},
     protocol::*,
-    systems::Projectile,
 };
 
 // ============================================================================
@@ -34,7 +33,6 @@ pub fn projectiles_system(
         }
     }
 }
-
 
 // ============================================================================
 // Projectiles Hit Detection System

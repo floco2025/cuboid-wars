@@ -1,8 +1,45 @@
-use crate::systems::Projectile;
+use bevy_ecs::prelude::*;
+use bevy_math::Vec3;
+use bevy_time::{Timer, TimerMode};
+
 use crate::{
     constants::*,
     protocol::{Position, Wall, WallOrientation},
 };
+
+// Component attached to projectile entities to track velocity and lifetime.
+#[derive(Component)]
+pub struct Projectile {
+    pub velocity: Vec3,
+    pub lifetime: Timer,
+}
+
+impl Projectile {
+    // Create a new projectile traveling along the provided facing direction.
+    #[must_use]
+    pub fn new(face_dir: f32) -> Self {
+        let velocity = Vec3::new(
+            face_dir.sin() * PROJECTILE_SPEED,
+            0.0,
+            face_dir.cos() * PROJECTILE_SPEED,
+        );
+
+        Self {
+            velocity,
+            lifetime: Timer::from_seconds(PROJECTILE_LIFETIME, TimerMode::Once),
+        }
+    }
+
+    // Calculate the spawn position in front of a shooter.
+    #[must_use]
+    pub fn calculate_spawn_position(shooter_pos: Vec3, face_dir: f32) -> Vec3 {
+        Vec3::new(
+            face_dir.sin().mul_add(PROJECTILE_SPAWN_OFFSET, shooter_pos.x),
+            PROJECTILE_SPAWN_HEIGHT,
+            face_dir.cos().mul_add(PROJECTILE_SPAWN_OFFSET, shooter_pos.z),
+        )
+    }
+}
 
 // ============================================================================
 // Projectile Hit Detection

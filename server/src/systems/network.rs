@@ -6,10 +6,9 @@ use crate::{
     resources::{FromAcceptChannel, FromClientsChannel, GhostMap, GridConfig, ItemMap, PlayerInfo, PlayerMap},
 };
 use common::{
-    collision::check_player_wall_collision,
+    collision::{Projectile, check_player_wall_collision},
     constants::{MULTI_SHOT_ANGLE, *},
     protocol::*,
-    systems::Projectile,
 };
 
 // ============================================================================

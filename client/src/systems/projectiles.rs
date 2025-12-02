@@ -4,9 +4,8 @@ use bevy::prelude::*;
 use super::players::LocalPlayer;
 use crate::resources::WallConfig;
 use common::{
-    collision::{check_projectile_player_hit, check_projectile_wall_hit},
+    collision::{Projectile, check_projectile_player_hit, check_projectile_wall_hit},
     protocol::{FaceDirection, PlayerId, Position},
-    systems::Projectile,
 };
 
 // ============================================================================
