@@ -1,4 +1,9 @@
-use bevy::{math::Vec2, prelude::*};
+use bevy::{
+    input::mouse::{MouseButton, MouseMotion},
+    math::Vec2,
+    prelude::*,
+    window::{CursorGrabMode, CursorOptions},
+};
 
 use super::players::LocalPlayer;
 use crate::constants::*;
@@ -44,8 +49,8 @@ pub fn roof_toggle_system(keyboard: Res<ButtonInput<KeyCode>>, mut roof_enabled:
 // Toggle cursor lock with Escape key or mouse click
 pub fn cursor_toggle_system(
     keyboard: Res<ButtonInput<KeyCode>>,
-    mouse: Res<ButtonInput<bevy::input::mouse::MouseButton>>,
-    mut cursor_options: Single<&mut bevy::window::CursorOptions>,
+    mouse: Res<ButtonInput<MouseButton>>,
+    mut cursor_options: Single<&mut CursorOptions>,
 ) {
     // Escape key toggles cursor lock
     if keyboard.just_pressed(KeyCode::Escape) {
@@ -82,8 +87,8 @@ pub struct InputState {
 // Handle WASD movement and mouse rotation
 pub fn input_system(
     keyboard: Res<ButtonInput<KeyCode>>,
-    mut mouse_motion: MessageReader<bevy::input::mouse::MouseMotion>,
-    cursor_options: Single<&bevy::window::CursorOptions>,
+    mut mouse_motion: MessageReader<MouseMotion>,
+    cursor_options: Single<&CursorOptions>,
     to_server: Res<ClientToServerChannel>,
     time: Res<Time>,
     my_player_id: Option<Res<MyPlayerId>>,
@@ -94,40 +99,84 @@ pub fn input_system(
     view_mode: Res<CameraViewMode>,
 ) {
     // Require locked cursor before processing movement input
-    let cursor_locked = cursor_options.grab_mode != bevy::window::CursorGrabMode::None;
+    let cursor_locked = cursor_options.grab_mode != CursorGrabMode::None;
     if !cursor_locked {
-        // Drain pending mouse events and ensure player stops moving
-        for _ in mouse_motion.read() {}
-
-        if local_state.last_sent_speed.speed_level != SpeedLevel::Idle {
-            let speed = Speed {
-                speed_level: SpeedLevel::Idle,
-                move_dir: 0.0,
-            };
-            for (mut player_velocity, _) in &mut local_player_query {
-                let mut velocity = speed.to_velocity();
-                // Apply speed multiplier if local player has speed power-up
-                if let Some(my_id) = my_player_id.as_ref()
-                    && let Some(player_info) = players.0.get(&my_id.0)
-                    && player_info.speed_power_up
-                {
-                    velocity.x *= SPEED_POWER_UP_MULTIPLIER;
-                    velocity.z *= SPEED_POWER_UP_MULTIPLIER;
-                }
-
-                *player_velocity = velocity;
-            }
-            let msg = ClientMessage::Speed(CSpeed { speed });
-            let _ = to_server.send(ClientToServer::Send(msg));
-            local_state.last_sent_speed = speed;
-            local_state.last_send_speed_time = 0.0;
-        }
-
+        handle_unlocked_cursor(
+            &mut mouse_motion,
+            &to_server,
+            my_player_id.as_ref(),
+            &players,
+            &mut local_state,
+            &mut local_player_query,
+        );
         return;
     }
 
+    let current_yaw = calculate_current_yaw(&mut mouse_motion, &camera_query, &view_mode, &mut local_state);
+    let face_yaw = current_yaw + std::f32::consts::PI;
+    let speed = calculate_movement_speed(&keyboard, face_yaw);
+
+    update_player_velocity_and_face(
+        speed,
+        face_yaw,
+        my_player_id.as_ref(),
+        &players,
+        &mut local_player_query,
+    );
+
+    send_throttled_updates(speed, face_yaw, &time, &to_server, &mut local_state);
+
+    if *view_mode == CameraViewMode::FirstPerson {
+        for mut transform in &mut camera_query {
+            transform.rotation = Quat::from_rotation_y(current_yaw);
+        }
+    }
+}
+
+fn handle_unlocked_cursor(
+    mouse_motion: &mut MessageReader<MouseMotion>,
+    to_server: &Res<ClientToServerChannel>,
+    my_player_id: Option<&Res<MyPlayerId>>,
+    players: &Res<PlayerMap>,
+    local_state: &mut Local<InputState>,
+    local_player_query: &mut Query<(&mut Velocity, &mut FaceDirection), With<LocalPlayer>>,
+) {
+    // Drain pending mouse events and ensure player stops moving
+    for _ in mouse_motion.read() {}
+
+    if local_state.last_sent_speed.speed_level != SpeedLevel::Idle {
+        let speed = Speed {
+            speed_level: SpeedLevel::Idle,
+            move_dir: 0.0,
+        };
+        for (mut player_velocity, _) in local_player_query {
+            let mut velocity = speed.to_velocity();
+            // Apply speed multiplier if local player has speed power-up
+            if let Some(my_id) = my_player_id
+                && let Some(player_info) = players.0.get(&my_id.0)
+                && player_info.speed_power_up
+            {
+                velocity.x *= SPEED_POWER_UP_MULTIPLIER;
+                velocity.z *= SPEED_POWER_UP_MULTIPLIER;
+            }
+
+            *player_velocity = velocity;
+        }
+        let msg = ClientMessage::Speed(CSpeed { speed });
+        let _ = to_server.send(ClientToServer::Send(msg));
+        local_state.last_sent_speed = speed;
+        local_state.last_send_speed_time = 0.0;
+    }
+}
+
+fn calculate_current_yaw(
+    mouse_motion: &mut MessageReader<MouseMotion>,
+    camera_query: &Query<&mut Transform, With<Camera3d>>,
+    view_mode: &Res<CameraViewMode>,
+    local_state: &mut Local<InputState>,
+) -> f32 {
     // Determine the yaw baseline (camera vs stored value depending on view mode)
-    let current_yaw = if *view_mode == CameraViewMode::FirstPerson
+    let current_yaw = if **view_mode == CameraViewMode::FirstPerson
         && !view_mode.is_changed()
         && let Some(transform) = camera_query.iter().next()
     {
@@ -142,8 +191,10 @@ pub fn input_system(
     });
 
     local_state.stored_yaw = current_yaw;
-    let face_yaw = current_yaw + std::f32::consts::PI;
+    current_yaw
+}
 
+fn calculate_movement_speed(keyboard: &Res<ButtonInput<KeyCode>>, face_yaw: f32) -> Speed {
     // Build movement input vector (forward=z, right=x)
     let mut move_input = Vec2::ZERO;
     if keyboard.pressed(KeyCode::KeyW) {
@@ -174,11 +225,20 @@ pub fn input_system(
         (SpeedLevel::Idle, 0.0)
     };
 
-    let speed = Speed { speed_level, move_dir };
-    for (mut player_velocity, mut player_face) in &mut local_player_query {
+    Speed { speed_level, move_dir }
+}
+
+fn update_player_velocity_and_face(
+    speed: Speed,
+    face_yaw: f32,
+    my_player_id: Option<&Res<MyPlayerId>>,
+    players: &Res<PlayerMap>,
+    local_player_query: &mut Query<(&mut Velocity, &mut FaceDirection), With<LocalPlayer>>,
+) {
+    for (mut player_velocity, mut player_face) in local_player_query {
         let mut velocity = speed.to_velocity();
         // Apply speed multiplier if local player has speed power-up
-        if let Some(my_id) = my_player_id.as_ref()
+        if let Some(my_id) = my_player_id
             && let Some(player_info) = players.0.get(&my_id.0)
             && player_info.speed_power_up
         {
@@ -189,7 +249,15 @@ pub fn input_system(
         *player_velocity = velocity;
         player_face.0 = face_yaw;
     }
+}
 
+fn send_throttled_updates(
+    speed: Speed,
+    face_yaw: f32,
+    time: &Res<Time>,
+    to_server: &Res<ClientToServerChannel>,
+    local_state: &mut Local<InputState>,
+) {
     // Throttle network updates when movement/face changes
     let delta = time.delta_secs();
     local_state.last_send_speed_time += delta;
@@ -212,18 +280,12 @@ pub fn input_system(
         local_state.last_sent_face = face_yaw;
         local_state.last_send_face_time = 0.0;
     }
-
-    if *view_mode == CameraViewMode::FirstPerson {
-        for mut transform in &mut camera_query {
-            transform.rotation = Quat::from_rotation_y(current_yaw);
-        }
-    }
 }
 
 pub fn shooting_input_system(
     mut commands: Commands,
-    mouse: Res<ButtonInput<bevy::input::mouse::MouseButton>>,
-    cursor_options: Single<&bevy::window::CursorOptions>,
+    mouse: Res<ButtonInput<MouseButton>>,
+    cursor_options: Single<&CursorOptions>,
     local_player_query: Query<(&Position, &FaceDirection), With<LocalPlayer>>,
     to_server: Res<ClientToServerChannel>,
     asset_server: Res<AssetServer>,
@@ -233,10 +295,10 @@ pub fn shooting_input_system(
     players: Res<PlayerMap>,
 ) {
     // Only allow shooting when cursor is locked
-    let cursor_locked = cursor_options.grab_mode != bevy::window::CursorGrabMode::None;
+    let cursor_locked = cursor_options.grab_mode != CursorGrabMode::None;
 
     if cursor_locked
-        && mouse.just_pressed(bevy::input::mouse::MouseButton::Left)
+        && mouse.just_pressed(MouseButton::Left)
         && let Some((pos, face_dir)) = local_player_query.iter().next()
     {
         // Play shooting sound

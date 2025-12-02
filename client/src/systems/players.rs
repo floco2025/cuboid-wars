@@ -173,7 +173,7 @@ pub fn player_movement_system(
 const BUMP_FLASH_DURATION: f32 = 0.08;
 
 fn calculate_absolute_velocity(velocity: &Velocity) -> f32 {
-    (velocity.x * velocity.x + velocity.z * velocity.z).sqrt()
+    velocity.x.hypot(velocity.z)
 }
 
 fn player_hits_wall(walls: Option<&WallConfig>, new_pos: &Position) -> bool {
