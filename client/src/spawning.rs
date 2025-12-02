@@ -212,7 +212,7 @@ pub fn spawn_roof(
             WALL_HEIGHT - roof_thickness / 2.0, // Position so top of roof aligns with top of wall
             world_z,
         ),
-        Visibility::default(),
+        Visibility::Visible,
         RoofMarker,
     ));
 }
