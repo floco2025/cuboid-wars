@@ -432,9 +432,6 @@ pub fn spawn_ghost(
     position: &Position,
     velocity: &Velocity,
 ) -> Entity {
-    use common::constants::GHOST_SIZE;
-    use crate::constants::GHOST_COLOR;
-    
     let color = Color::srgba(GHOST_COLOR[0], GHOST_COLOR[1], GHOST_COLOR[2], GHOST_COLOR[3]);
 
     commands

@@ -2,8 +2,7 @@ use bevy::prelude::*;
 
 use crate::resources::WallConfig;
 use common::{
-    collision::check_ghost_wall_collision,
-    collision::check_player_wall_collision,
+    collision::{calculate_wall_slide, check_ghost_wall_collision, check_player_player_collision, check_player_wall_collision},
     constants::{RUN_SPEED, UPDATE_BROADCAST_INTERVAL},
     protocol::{GhostId, PlayerId, Position, Velocity},
 };
@@ -122,7 +121,7 @@ pub fn client_movement_system(
             }
         } else if hits_wall {
             // Slide along the wall instead of stopping
-            let slide_pos = common::collision::calculate_wall_slide(
+            let slide_pos = calculate_wall_slide(
                 &walls.expect("walls should exist if hit_wall is true").walls,
                 &client_pos,
                 &target_pos,
@@ -160,7 +159,7 @@ fn player_hits_wall(walls: Option<&WallConfig>, new_pos: &Position) -> bool {
 
 fn player_hits_other_player(entity: Entity, new_pos: &Position, positions: &[(Entity, Position)]) -> bool {
     positions.iter().any(|(other_entity, other_pos)| {
-        *other_entity != entity && common::collision::check_player_player_collision(new_pos, other_pos)
+        *other_entity != entity && check_player_player_collision(new_pos, other_pos)
     })
 }
 

@@ -1,12 +1,14 @@
 use anyhow::{Context, Result};
 use quinn::ClientConfig;
 
+use common::config::{create_quinn_client_config, load_certs};
+
 // ============================================================================
 // Connection Configuration
 // ============================================================================
 
 pub fn configure_client() -> Result<ClientConfig> {
-    let certs = common::config::load_certs()?;
+    let certs = load_certs()?;
 
     let mut roots = rustls::RootCertStore::empty();
     for cert in certs {
@@ -18,5 +20,5 @@ pub fn configure_client() -> Result<ClientConfig> {
         .with_no_client_auth();
     crypto.alpn_protocols = vec![b"game".to_vec()];
 
-    common::config::create_quinn_client_config(crypto)
+    create_quinn_client_config(crypto)
 }

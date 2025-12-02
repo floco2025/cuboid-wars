@@ -1,13 +1,15 @@
 use anyhow::{Context, Result};
 use quinn::ServerConfig;
 
+use common::config::{create_quinn_server_config, load_certs, load_private_key};
+
 // ============================================================================
 // Connection Configuration
 // ============================================================================
 
 pub fn configure_server() -> Result<ServerConfig> {
-    let certs = common::config::load_certs()?;
-    let private_key = common::config::load_private_key()?;
+    let certs = load_certs()?;
+    let private_key = load_private_key()?;
 
     let mut crypto = rustls::ServerConfig::builder()
         .with_no_client_auth()
@@ -15,5 +17,5 @@ pub fn configure_server() -> Result<ServerConfig> {
         .context("Failed to configure TLS")?;
     crypto.alpn_protocols = vec![b"game".to_vec()];
 
-    common::config::create_quinn_server_config(crypto)
+    create_quinn_server_config(crypto)
 }

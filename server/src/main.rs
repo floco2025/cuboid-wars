@@ -14,9 +14,11 @@ use server::{
     net::accept_connections_task,
     resources::{FromAcceptChannel, FromClientsChannel, GhostMap, ItemMap, ItemSpawner, PlayerMap},
     systems::{
-        accept_connections_system, broadcast_state_system, ghost_movement_system, ghost_spawn_system,
-        hit_detection_system, item_collection_system, item_despawn_system, item_expiration_system,
-        item_spawn_system, process_client_message_system, server_movement_system,
+        collision::hit_detection_system,
+        ghosts::{ghost_movement_system, ghost_spawn_system},
+        items::{item_collection_system, item_despawn_system, item_expiration_system, item_spawn_system},
+        movement::server_movement_system,
+        network::{accept_connections_system, broadcast_state_system, process_client_message_system},
     },
     walls::generate_grid,
 };
