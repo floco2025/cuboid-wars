@@ -35,7 +35,7 @@ pub struct ServerReconciliation {
 }
 
 // ============================================================================
-// Client-side Movement System
+// Player Movement System
 // ============================================================================
 
 type MovementQuery<'w, 's> = Query<
@@ -53,7 +53,7 @@ type MovementQuery<'w, 's> = Query<
 >;
 
 // Client-side movement system with wall collision detection for smooth prediction
-pub fn client_movement_system(
+pub fn player_movement_system(
     mut commands: Commands,
     time: Res<Time>,
     asset_server: Res<AssetServer>,

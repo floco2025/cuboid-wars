@@ -28,10 +28,10 @@ fn overlaps_other_player(candidate: &PlannedMove, planned_moves: &[PlannedMove])
 }
 
 // ============================================================================
-// Movement System (Server with Wall Collision)
+// Player Movement System
 // ============================================================================
 
-pub fn server_movement_system(
+pub fn player_movement_system(
     time: Res<Time>,
     grid_config: Res<GridConfig>,
     players: Res<PlayerMap>,

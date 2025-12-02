@@ -19,7 +19,7 @@ use client::{
         input::{
             camera_view_toggle_system, cursor_toggle_system, input_system, roof_toggle_system, shooting_input_system,
         },
-        movement::{client_movement_system, ghost_movement_system},
+        movement::{player_movement_system, ghost_movement_system},
         network::{echo_system, process_server_events_system},
         sync::{
             billboard_player_id_text_system, sync_camera_to_player_system, sync_face_to_transform_system,
@@ -132,7 +132,7 @@ fn main() -> Result<()> {
         (
             echo_system,
             spawn_walls_system,
-            client_movement_system,
+            player_movement_system,
             ghost_movement_system,
             sync_projectiles_system,
         ),

@@ -17,7 +17,7 @@ use server::{
         collision::hit_detection_system,
         ghosts::{ghost_movement_system, ghost_spawn_system},
         items::{item_collection_system, item_despawn_system, item_expiration_system, item_spawn_system},
-        movement::server_movement_system,
+        players::player_movement_system,
         network::{accept_connections_system, broadcast_state_system, process_client_message_system},
     },
     grid::generate_grid,
@@ -92,7 +92,7 @@ async fn main() -> Result<()> {
                 // Process messages from clients
                 process_client_message_system,
                 // Server movement with wall collision
-                server_movement_system,
+                player_movement_system,
                 // Ghost spawning (one-time at startup)
                 ghost_spawn_system,
                 // Ghost movement with wall avoidance
