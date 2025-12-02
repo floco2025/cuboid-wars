@@ -32,7 +32,7 @@ pub struct ServerReconciliation {
 // ============================================================================
 
 // System to process messages from the server
-pub fn process_server_events_system(
+pub fn network_server_events_system(
     mut commands: Commands,
     mut from_server: ResMut<ServerToClientChannel>,
     mut exit: MessageWriter<AppExit>,
@@ -647,7 +647,7 @@ fn handle_ghost_message(
 // ============================================================================
 
 // System to send echo requests every ECHO_INTERVAL seconds
-pub fn echo_system(
+pub fn network_echo_system(
     time: Res<Time>,
     mut rtt: ResMut<RoundTripTime>,
     to_server: Res<ClientToServerChannel>,

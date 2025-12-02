@@ -23,7 +23,7 @@ fn choose_item_type(rng: &mut rand::rngs::ThreadRng) -> ItemType {
 }
 
 // ============================================================================
-// Item Systems
+// Item Spawn/Despawn Systems
 // ============================================================================
 
 // System to spawn items at regular intervals
@@ -89,6 +89,10 @@ pub fn item_despawn_system(mut commands: Commands, time: Res<Time>, mut items: R
     }
 }
 
+// ============================================================================
+// Item Collection System
+// ============================================================================
+
 // System to detect player-item collisions and grant items
 pub fn item_collection_system(
     mut commands: Commands,
@@ -107,9 +111,10 @@ pub fn item_collection_system(
             // Check against all players
             for (player_id, player_info) in &players.0 {
                 if let Ok(player_pos) = player_positions.get(player_info.entity)
-                    && check_player_item_collision(player_pos, item_pos, ITEM_COLLECTION_RADIUS) {
-                        return Some((*player_id, *item_id, item_info.item_type));
-                    }
+                    && check_player_item_collision(player_pos, item_pos, ITEM_COLLECTION_RADIUS)
+                {
+                    return Some((*player_id, *item_id, item_info.item_type));
+                }
             }
             None
         })
@@ -150,6 +155,10 @@ pub fn item_collection_system(
         broadcast_to_all(&players, ServerMessage::PowerUp(msg));
     }
 }
+
+// ============================================================================
+// Item Expiration System
+// ============================================================================
 
 // System to expire player items over time
 pub fn item_expiration_system(time: Res<Time>, mut players: ResMut<PlayerMap>) {

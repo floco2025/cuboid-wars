@@ -11,10 +11,36 @@ use common::{
 };
 
 // ============================================================================
-// Hit Detection System
+// Projectiles Movement System
 // ============================================================================
 
-// Hit detection system - authoritative collision detection
+// Update projectile positions and despawn them once their timer elapses.
+pub fn projectiles_system(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut projectile_query: Query<(Entity, &mut Position, &mut Projectile)>,
+) {
+    let delta_seconds = time.delta_secs();
+    let frame_time = time.delta();
+
+    for (entity, mut pos, mut projectile) in &mut projectile_query {
+        pos.x += projectile.velocity.x * delta_seconds;
+        pos.y += projectile.velocity.y * delta_seconds;
+        pos.z += projectile.velocity.z * delta_seconds;
+
+        projectile.lifetime.tick(frame_time);
+        if projectile.lifetime.is_finished() {
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
+
+// ============================================================================
+// Projectiles Hit Detection System
+// ============================================================================
+
+// Server-side hit detection - authoritative collision detection
 pub fn hit_detection_system(
     mut commands: Commands,
     time: Res<Time>,

@@ -23,7 +23,7 @@ pub struct RoofMarker;
 // ============================================================================
 
 // System to spawn walls and roofs when WallConfig is available
-pub fn spawn_walls_system(
+pub fn map_spawn_walls_system(
     mut commands: Commands,
     wall_config: Option<Res<WallConfig>>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -61,7 +61,7 @@ pub fn spawn_walls_system(
 // ============================================================================
 
 // System to toggle wall and roof opacity based on camera view mode
-pub fn toggle_wall_opacity_system(
+pub fn map_toggle_wall_opacity_system(
     view_mode: Res<CameraViewMode>,
     wall_query: Query<&MeshMaterial3d<StandardMaterial>, With<WallMarker>>,
     roof_query: Query<&MeshMaterial3d<StandardMaterial>, With<RoofMarker>>,
@@ -105,7 +105,7 @@ pub fn toggle_wall_opacity_system(
 // ============================================================================
 
 // System to toggle roof visibility based on RoofRenderingEnabled resource
-pub fn toggle_roof_visibility_system(
+pub fn map_toggle_roof_visibility_system(
     roof_enabled: Res<RoofRenderingEnabled>,
     mut roof_query: Query<&mut Visibility, With<RoofMarker>>,
 ) {

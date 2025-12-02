@@ -99,65 +99,65 @@ fn main() -> Result<()> {
         Update,
         (
             // input.rs
-            cursor_toggle_system,
-            camera_view_toggle_system,
-            roof_toggle_system,
-            input_system,
-            shooting_input_system,
+            input_movement_system,
+            input_shooting_system,
+            input_cursor_toggle_system,
+            input_camera_view_toggle_system,
+            input_roof_toggle_system,
         ),
     )
     .add_systems(
         Update,
         (
             // network.rs
-            echo_system,
-            process_server_events_system,
+            network_echo_system,
+            network_server_events_system,
         ),
     )
     .add_systems(
         Update,
         (
             // players.rs
-            player_movement_system,
-            apply_camera_shake_system,
-            apply_cuboid_shake_system,
-            sync_camera_to_player_system,
-            sync_players_to_transform_system,
-            sync_face_to_transform_system,
-            sync_local_player_visibility_system,
-            player_billboard_system,
+            players_movement_system,
+            players_transform_sync_system,
+            placers_face_to_transform_system,
+            players_billboard_system,
+            local_player_camera_shake_system,
+            local_player_cuboid_shake_system,
+            local_player_camera_sync_system,
+            local_player_visibility_sync_system,
         ),
     )
     .add_systems(
         Update,
         (
             // ghosts.rs
-            ghost_movement_system,
-            sync_ghosts_to_transform_system,
+            ghosts_movement_system,
+            ghosts_transform_sync_system,
         ),
     )
     .add_systems(
         Update,
         (
             // projectiles.rs
-            sync_projectiles_system,
-            client_hit_detection_system,
+            projectiles_movement_system,
+            projectiles_hit_detection_system,
         ),
     )
     .add_systems(
         Update,
         (
             // items.rs
-            animate_items_system,
+            items_animation_system,
         ),
     )
     .add_systems(
         Update,
         (
-            // walls.rs
-            spawn_walls_system,
-            toggle_wall_opacity_system,
-            toggle_roof_visibility_system,
+            // map.rs
+            map_spawn_walls_system,
+            map_toggle_wall_opacity_system,
+            map_toggle_roof_visibility_system,
         ),
     )
     .add_systems(

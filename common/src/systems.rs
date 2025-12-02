@@ -43,7 +43,7 @@ impl Projectile {
 }
 
 // ============================================================================
-// Shared Game Systems
+// Projectiles Movement System
 // ============================================================================
 
 // Update projectile positions and despawn them once their timer elapses.

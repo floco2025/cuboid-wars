@@ -10,11 +10,60 @@ use common::{
 };
 
 // ============================================================================
-// Projectile Systems
+// Helper Functions
+// ============================================================================
+
+fn handle_player_collisions(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    projectile_entity: Entity,
+    projectile: &Projectile,
+    projectile_pos: &Position,
+    delta: f32,
+    player_query: &Query<(Entity, &Position, &FaceDirection, Has<LocalPlayer>), With<PlayerId>>,
+) -> bool {
+    for (_player_entity, player_pos, face_dir, is_local_player) in player_query.iter() {
+        let result = check_projectile_player_hit(projectile_pos, projectile, delta, player_pos, face_dir.0);
+        if result.hit {
+            play_sound(
+                commands,
+                asset_server,
+                "sounds/player_hits_player.ogg",
+                PlaybackSettings::DESPAWN,
+            );
+
+            if is_local_player {
+                play_sound(
+                    commands,
+                    asset_server,
+                    "sounds/player_gets_hit.ogg",
+                    PlaybackSettings::DESPAWN,
+                );
+            }
+
+            commands.entity(projectile_entity).despawn();
+            return true;
+        }
+    }
+
+    false
+}
+
+fn play_sound(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    asset_path: &'static str,
+    settings: PlaybackSettings,
+) {
+    commands.spawn((AudioPlayer::new(asset_server.load(asset_path)), settings));
+}
+
+// ============================================================================
+// Projectiles Movement System
 // ============================================================================
 
 // Update projectiles - position updates and despawn
-pub fn sync_projectiles_system(
+pub fn projectiles_movement_system(
     mut commands: Commands,
     time: Res<Time>,
     mut projectile_query: Query<(Entity, &mut Transform, &mut Projectile)>,
@@ -29,9 +78,13 @@ pub fn sync_projectiles_system(
     }
 }
 
+// ============================================================================
+// Projectiles Hit Detection System
+// ============================================================================
+
 // Client-side hit detection - only for despawning projectiles visually
 // Server is authoritative for actual hit scoring
-pub fn client_hit_detection_system(
+pub fn projectiles_hit_detection_system(
     mut commands: Commands,
     time: Res<Time>,
     asset_server: Res<AssetServer>,
@@ -104,49 +157,4 @@ fn handle_wall_collisions(
     }
 
     false
-}
-
-fn handle_player_collisions(
-    commands: &mut Commands,
-    asset_server: &AssetServer,
-    projectile_entity: Entity,
-    projectile: &Projectile,
-    projectile_pos: &Position,
-    delta: f32,
-    player_query: &Query<(Entity, &Position, &FaceDirection, Has<LocalPlayer>), With<PlayerId>>,
-) -> bool {
-    for (_player_entity, player_pos, face_dir, is_local_player) in player_query.iter() {
-        let result = check_projectile_player_hit(projectile_pos, projectile, delta, player_pos, face_dir.0);
-        if result.hit {
-            play_sound(
-                commands,
-                asset_server,
-                "sounds/player_hits_player.ogg",
-                PlaybackSettings::DESPAWN,
-            );
-
-            if is_local_player {
-                play_sound(
-                    commands,
-                    asset_server,
-                    "sounds/player_gets_hit.ogg",
-                    PlaybackSettings::DESPAWN,
-                );
-            }
-
-            commands.entity(projectile_entity).despawn();
-            return true;
-        }
-    }
-
-    false
-}
-
-fn play_sound(
-    commands: &mut Commands,
-    asset_server: &AssetServer,
-    asset_path: &'static str,
-    settings: PlaybackSettings,
-) {
-    commands.spawn((AudioPlayer::new(asset_server.load(asset_path)), settings));
 }

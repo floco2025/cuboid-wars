@@ -15,7 +15,7 @@ use common::{
 use super::network::broadcast_to_all;
 
 // ============================================================================
-// Ghost Helper Functions
+// Helper Functions
 // ============================================================================
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -113,11 +113,11 @@ fn pick_direction<T: rand::Rng>(rng: &mut T, options: &[GridDirection]) -> Optio
 }
 
 // ============================================================================
-// Ghost Systems
+// Ghosts Spawn System
 // ============================================================================
 
 // System to spawn initial ghosts on server startup
-pub fn ghost_spawn_system(
+pub fn ghosts_spawn_system(
     mut commands: Commands,
     mut ghosts: ResMut<GhostMap>,
     grid_config: Res<GridConfig>,
@@ -170,8 +170,11 @@ pub fn ghost_spawn_system(
     }
 }
 
-// System to move ghosts with wall avoidance (Pac-Man style)
-pub fn ghost_movement_system(
+// ============================================================================
+// Ghosts Movement System
+// ============================================================================
+
+pub fn ghosts_movement_system(
     time: Res<Time>,
     grid_config: Res<GridConfig>,
     players: Res<PlayerMap>,

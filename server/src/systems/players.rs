@@ -7,6 +7,10 @@ use common::{
     protocol::{PlayerId, Position, Speed},
 };
 
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
 #[derive(Copy, Clone)]
 struct PlannedMove {
     entity: Entity,
@@ -28,10 +32,10 @@ fn overlaps_other_player(candidate: &PlannedMove, planned_moves: &[PlannedMove])
 }
 
 // ============================================================================
-// Player Movement System
+// Players Movement System
 // ============================================================================
 
-pub fn player_movement_system(
+pub fn players_movement_system(
     time: Res<Time>,
     grid_config: Res<GridConfig>,
     players: Res<PlayerMap>,

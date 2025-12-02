@@ -9,11 +9,11 @@ use common::{
 };
 
 // ============================================================================
-// Ghost Movement System
+// Ghosts Movement System
 // ============================================================================
 
 #[allow(clippy::similar_names)]
-pub fn ghost_movement_system(
+pub fn ghosts_movement_system(
     mut commands: Commands,
     time: Res<Time>,
     wall_config: Option<Res<WallConfig>>,
@@ -70,11 +70,11 @@ fn ghost_hits_wall(walls: Option<&WallConfig>, new_pos: &Position) -> bool {
 }
 
 // ============================================================================
-// Ghost Sync System
+// Ghosts Sync System
 // ============================================================================
 
 // Update ghost Transform from Position component for rendering
-pub fn sync_ghosts_to_transform_system(mut ghost_query: Query<(&Position, &mut Transform), With<GhostId>>) {
+pub fn ghosts_transform_sync_system(mut ghost_query: Query<(&Position, &mut Transform), With<GhostId>>) {
     for (pos, mut transform) in &mut ghost_query {
         transform.translation.x = pos.x;
         transform.translation.y = GHOST_SIZE / 2.0; // Ghost center at correct height

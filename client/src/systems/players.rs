@@ -52,7 +52,81 @@ pub struct CuboidShake {
 }
 
 // ============================================================================
-// Player Movement System
+// Helper Functions
+// ============================================================================
+
+const BUMP_FLASH_DURATION: f32 = 0.08;
+
+fn calculate_absolute_velocity(velocity: &Velocity) -> f32 {
+    velocity.x.hypot(velocity.z)
+}
+
+fn player_hits_wall(walls: Option<&WallConfig>, new_pos: &Position) -> bool {
+    let Some(config) = walls else { return false };
+    config
+        .walls
+        .iter()
+        .any(|wall| check_player_wall_collision(new_pos, wall))
+}
+
+fn player_hits_other_player(entity: Entity, new_pos: &Position, positions: &[(Entity, Position)]) -> bool {
+    positions
+        .iter()
+        .any(|(other_entity, other_pos)| *other_entity != entity && check_player_player_collision(new_pos, other_pos))
+}
+
+fn decay_flash_timer(
+    state: &mut Mut<BumpFlashState>,
+    delta: f32,
+    is_local: bool,
+    bump_flash_ui: &mut Query<(&mut BackgroundColor, &mut Visibility), With<super::ui::BumpFlashUIMarker>>,
+) {
+    if state.flash_timer <= 0.0 {
+        return;
+    }
+
+    state.flash_timer -= delta;
+    if state.flash_timer <= 0.0
+        && is_local
+        && let Some((mut bg_color, mut visibility)) = bump_flash_ui.iter_mut().next()
+    {
+        *visibility = Visibility::Hidden;
+        bg_color.0 = Color::srgba(1.0, 1.0, 1.0, 0.0);
+    }
+}
+
+fn trigger_collision_feedback(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    bump_flash_ui: &mut Query<(&mut BackgroundColor, &mut Visibility), With<super::ui::BumpFlashUIMarker>>,
+    state: &mut Mut<BumpFlashState>,
+    collided_with_wall: bool,
+) {
+    if !state.was_colliding {
+        if let Some((mut bg_color, mut visibility)) = bump_flash_ui.iter_mut().next() {
+            *visibility = Visibility::Visible;
+            bg_color.0 = Color::srgba(1.0, 1.0, 1.0, 0.2);
+        }
+
+        let sound_path = if collided_with_wall {
+            "sounds/player_bumps_wall.ogg"
+        } else {
+            "sounds/player_bumps_player.ogg"
+        };
+
+        commands.spawn((
+            AudioPlayer::new(asset_server.load(sound_path)),
+            PlaybackSettings::DESPAWN,
+        ));
+
+        state.flash_timer = BUMP_FLASH_DURATION;
+    }
+
+    state.was_colliding = true;
+}
+
+// ============================================================================
+// Players Movement System
 // ============================================================================
 
 type MovementQuery<'w, 's> = Query<
@@ -70,7 +144,7 @@ type MovementQuery<'w, 's> = Query<
 >;
 
 #[allow(clippy::similar_names)]
-pub fn player_movement_system(
+pub fn players_movement_system(
     mut commands: Commands,
     time: Res<Time>,
     asset_server: Res<AssetServer>,
@@ -170,82 +244,12 @@ pub fn player_movement_system(
     }
 }
 
-const BUMP_FLASH_DURATION: f32 = 0.08;
-
-fn calculate_absolute_velocity(velocity: &Velocity) -> f32 {
-    velocity.x.hypot(velocity.z)
-}
-
-fn player_hits_wall(walls: Option<&WallConfig>, new_pos: &Position) -> bool {
-    let Some(config) = walls else { return false };
-    config
-        .walls
-        .iter()
-        .any(|wall| check_player_wall_collision(new_pos, wall))
-}
-
-fn player_hits_other_player(entity: Entity, new_pos: &Position, positions: &[(Entity, Position)]) -> bool {
-    positions
-        .iter()
-        .any(|(other_entity, other_pos)| *other_entity != entity && check_player_player_collision(new_pos, other_pos))
-}
-
-fn decay_flash_timer(
-    state: &mut Mut<BumpFlashState>,
-    delta: f32,
-    is_local: bool,
-    bump_flash_ui: &mut Query<(&mut BackgroundColor, &mut Visibility), With<super::ui::BumpFlashUIMarker>>,
-) {
-    if state.flash_timer <= 0.0 {
-        return;
-    }
-
-    state.flash_timer -= delta;
-    if state.flash_timer <= 0.0
-        && is_local
-        && let Some((mut bg_color, mut visibility)) = bump_flash_ui.iter_mut().next()
-    {
-        *visibility = Visibility::Hidden;
-        bg_color.0 = Color::srgba(1.0, 1.0, 1.0, 0.0);
-    }
-}
-
-fn trigger_collision_feedback(
-    commands: &mut Commands,
-    asset_server: &AssetServer,
-    bump_flash_ui: &mut Query<(&mut BackgroundColor, &mut Visibility), With<super::ui::BumpFlashUIMarker>>,
-    state: &mut Mut<BumpFlashState>,
-    collided_with_wall: bool,
-) {
-    if !state.was_colliding {
-        if let Some((mut bg_color, mut visibility)) = bump_flash_ui.iter_mut().next() {
-            *visibility = Visibility::Visible;
-            bg_color.0 = Color::srgba(1.0, 1.0, 1.0, 0.2);
-        }
-
-        let sound_path = if collided_with_wall {
-            "sounds/player_bumps_wall.ogg"
-        } else {
-            "sounds/player_bumps_player.ogg"
-        };
-
-        commands.spawn((
-            AudioPlayer::new(asset_server.load(sound_path)),
-            PlaybackSettings::DESPAWN,
-        ));
-
-        state.flash_timer = BUMP_FLASH_DURATION;
-    }
-
-    state.was_colliding = true;
-}
-
 // ============================================================================
 // Visual Effects Systems
 // ============================================================================
 
 // Apply camera shake effect - updates shake offset
-pub fn apply_camera_shake_system(
+pub fn local_player_camera_shake_system(
     mut commands: Commands,
     time: Res<Time>,
     mut camera_query: Query<(Entity, &mut CameraShake), With<Camera3d>>,
@@ -256,7 +260,7 @@ pub fn apply_camera_shake_system(
 }
 
 // Apply cuboid shake effect - updates shake offset
-pub fn apply_cuboid_shake_system(
+pub fn local_player_cuboid_shake_system(
     mut commands: Commands,
     time: Res<Time>,
     mut cuboid_query: Query<(Entity, &mut CuboidShake)>,
@@ -298,11 +302,11 @@ fn update_cuboid_shake(commands: &mut Commands, entity: Entity, delta: Duration,
 }
 
 // ============================================================================
-// Player Sync Systems
+// Players Sync Systems
 // ============================================================================
 
 // Update camera position to follow local player
-pub fn sync_camera_to_player_system(
+pub fn local_player_camera_sync_system(
     local_player_query: Query<&Position, With<LocalPlayer>>,
     mut camera_query: Query<(&mut Transform, &mut Projection, Option<&CameraShake>), With<Camera3d>>,
     view_mode: Res<CameraViewMode>,
@@ -344,33 +348,8 @@ pub fn sync_camera_to_player_system(
     }
 }
 
-// Update player Transform from Position component for rendering
-pub fn sync_players_to_transform_system(
-    mut player_query: Query<(&Position, &mut Transform, Option<&CuboidShake>), With<PlayerId>>,
-) {
-    for (pos, mut transform, maybe_shake) in &mut player_query {
-        // Base position
-        transform.translation.x = pos.x;
-        transform.translation.y = PLAYER_HEIGHT / 2.0; // Lift so bottom is at ground (y=0)
-        transform.translation.z = pos.z;
-
-        // Apply shake offset if active
-        if let Some(shake) = maybe_shake {
-            transform.translation.x += shake.offset_x;
-            transform.translation.z += shake.offset_z;
-        }
-    }
-}
-
-// Update player cuboid rotation from stored face direction component
-pub fn sync_face_to_transform_system(mut query: Query<(&FaceDirection, &mut Transform), Without<Camera3d>>) {
-    for (face_dir, mut transform) in &mut query {
-        transform.rotation = Quat::from_rotation_y(face_dir.0);
-    }
-}
-
 // Update local player visibility based on camera view mode
-pub fn sync_local_player_visibility_system(
+pub fn local_player_visibility_sync_system(
     view_mode: Res<CameraViewMode>,
     mut local_player_query: Query<(Entity, &mut Visibility, Has<Mesh3d>), With<LocalPlayer>>,
 ) {
@@ -398,12 +377,37 @@ pub fn sync_local_player_visibility_system(
     }
 }
 
+// Update player Transform from Position component for rendering
+pub fn players_transform_sync_system(
+    mut player_query: Query<(&Position, &mut Transform, Option<&CuboidShake>), With<PlayerId>>,
+) {
+    for (pos, mut transform, maybe_shake) in &mut player_query {
+        // Base position
+        transform.translation.x = pos.x;
+        transform.translation.y = PLAYER_HEIGHT / 2.0; // Lift so bottom is at ground (y=0)
+        transform.translation.z = pos.z;
+
+        // Apply shake offset if active
+        if let Some(shake) = maybe_shake {
+            transform.translation.x += shake.offset_x;
+            transform.translation.z += shake.offset_z;
+        }
+    }
+}
+
+// Update player cuboid rotation from stored face direction component
+pub fn placers_face_to_transform_system(mut query: Query<(&FaceDirection, &mut Transform), Without<Camera3d>>) {
+    for (face_dir, mut transform) in &mut query {
+        transform.rotation = Quat::from_rotation_y(face_dir.0);
+    }
+}
+
 // ============================================================================
-// Billboard System
+// Players Billboard System
 // ============================================================================
 
 // Make player ID text meshes billboard (always face camera)
-pub fn player_billboard_system(
+pub fn players_billboard_system(
     camera_query: Query<&GlobalTransform, With<Camera3d>>,
     mut text_mesh_query: Query<(&GlobalTransform, &mut Transform), With<PlayerIdTextMesh>>,
 ) {

@@ -8,13 +8,12 @@ use tokio::{
     time::{self, Duration, Instant, MissedTickBehavior},
 };
 
-use common::systems::projectiles_system;
 use server::{
     config::configure_server,
     map::generate_grid,
     net::accept_connections_task,
     resources::*,
-    systems::{collision::*, ghosts::*, items::*, network::*, players::*},
+    systems::{projectiles::*, ghosts::*, items::*, network::*, players::*},
 };
 
 const SERVER_LOOP_FREQUENCY: u64 = 30;
@@ -83,9 +82,9 @@ async fn main() -> Result<()> {
                 accept_connections_system,
                 ApplyDeferred,
                 process_client_message_system,
-                player_movement_system,
-                ghost_spawn_system,
-                ghost_movement_system,
+                players_movement_system,
+                ghosts_spawn_system,
+                ghosts_movement_system,
                 projectiles_system,
                 hit_detection_system,
                 item_spawn_system,
