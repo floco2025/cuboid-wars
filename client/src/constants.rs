@@ -40,8 +40,10 @@ pub const LABEL_BACKGROUND_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 0.2]; // Transparen
 pub const LABEL_FONT_SIZE: f32 = 40.0; // Font size in pixels
 
 // Item visual settings
-pub const ITEM_SIZE: f32 = 0.2; // 20 cm cube
-pub const ITEM_HEIGHT_ABOVE_FLOOR: f32 = 0.5; // 10 cm above floor
+pub const ITEM_SIZE: f32 = 0.2;
+pub const ITEM_HEIGHT_ABOVE_FLOOR: f32 = 1.0;
+pub const ITEM_ANIMATION_HEIGHT: f32 = 0.5;
+pub const ITEM_ANIMATION_SPEED: f32 = 1.5;
 pub const ITEM_SPEED_COLOR: [f32; 4] = [0.2, 0.7, 1.0, 1.0]; // Light blue
 pub const ITEM_MULTISHOT_COLOR: [f32; 4] = [1.0, 0.5, 0.2, 1.0]; // Orange
 
