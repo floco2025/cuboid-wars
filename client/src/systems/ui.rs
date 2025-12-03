@@ -1,6 +1,5 @@
 use bevy::prelude::*;
 use bevy::camera::Viewport;
-use bevy::camera::visibility::RenderLayers;
 use std::time::Duration;
 
 use crate::{
@@ -58,7 +57,6 @@ pub fn setup_world_system(
         MeshMaterial3d(materials.add(Color::srgb(0.3, 0.5, 0.3))),
         Transform::from_xyz(0.0, 0.0, 0.0),
         Visibility::default(),
-        RenderLayers::layer(0), // World layer
     ));
 
     // Create grid lines
@@ -72,7 +70,6 @@ pub fn setup_world_system(
             Mesh3d(meshes.add(Cuboid::new(FIELD_WIDTH, line_height, WALL_WIDTH))),
             MeshMaterial3d(grid_material.clone()),
             Transform::from_xyz(0.0, line_height / 2.0, z_pos),
-            RenderLayers::layer(0), // World layer
         ));
     }
 
@@ -83,7 +80,6 @@ pub fn setup_world_system(
             Mesh3d(meshes.add(Cuboid::new(WALL_WIDTH, line_height, FIELD_DEPTH))),
             MeshMaterial3d(grid_material.clone()),
             Transform::from_xyz(x_pos, line_height / 2.0, 0.0),
-            RenderLayers::layer(0), // World layer
         ));
     }
 
@@ -101,7 +97,6 @@ pub fn setup_world_system(
         }),
         Transform::from_xyz(0.0, PLAYER_HEIGHT * FPV_CAMERA_HEIGHT_RATIO, 0.0)
             .looking_at(Vec3::new(0.0, 0.0, -1.0), Vec3::Y),
-        RenderLayers::layer(0).with(1), // Render both world (layer 0) and UI (layer 1)
         IsDefaultUiCamera, // Mark this as the UI camera
     ));
 
@@ -121,7 +116,6 @@ pub fn setup_world_system(
             clear_color: bevy::camera::ClearColorConfig::None,
             ..default()
         },
-        RenderLayers::layer(0), // Only render world objects on layer 0
         Projection::from(PerspectiveProjection {
             fov: REARVIEW_FOV_DEGREES.to_radians(),
             ..default()
@@ -159,7 +153,6 @@ pub fn setup_world_system(
             ..default()
         },
         PlayerListUIMarker,
-        RenderLayers::layer(1), // UI layer
     ));
 
     // Create crosshair UI
@@ -180,7 +173,6 @@ pub fn setup_world_system(
                 ..default()
             },
             CrosshairUIMarker,
-            RenderLayers::layer(1), // UI layer
         ))
         .with_children(|parent| {
             // Horizontal line
@@ -224,7 +216,6 @@ pub fn setup_world_system(
             ..default()
         },
         RttUIMarker,
-        RenderLayers::layer(1), // UI layer
     ));
 
     // Create FPS display below RTT
@@ -242,7 +233,6 @@ pub fn setup_world_system(
             ..default()
         },
         FpsUIMarker,
-        RenderLayers::layer(1), // UI layer
     ));
 
     // Create bump flash overlay (invisible by default, shown on wall collision)
@@ -258,7 +248,6 @@ pub fn setup_world_system(
         BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.0)), // Transparent by default (white)
         BumpFlashUIMarker,
         Visibility::Hidden, // Start hidden
-        RenderLayers::layer(1), // UI layer
     ));
 }
 

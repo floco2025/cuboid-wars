@@ -1,6 +1,5 @@
 use bevy::{
     asset::RenderAssetUsages,
-    camera::visibility::RenderLayers,
     prelude::*,
     render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages},
 };
@@ -59,7 +58,6 @@ pub fn spawn_player(
             )
             .with_rotation(Quat::from_rotation_y(face_dir)),
             player_visibility(is_local),
-            RenderLayers::layer(0), // World layer
         ))
         .id();
 
@@ -141,7 +139,6 @@ fn spawn_face_sphere(
             Visibility::Inherited,
             ViewVisibility::default(),
             InheritedVisibility::default(),
-            RenderLayers::layer(0), // World layer
         ))
         .id()
 }
@@ -307,7 +304,6 @@ fn spawn_single_projectile(
         })),
         Transform::from_translation(spawn_pos),
         projectile,
-        RenderLayers::layer(0), // World layer
     ));
 }
 
@@ -365,7 +361,6 @@ pub fn spawn_wall(
         ),
         Visibility::default(),
         WallMarker,
-        RenderLayers::layer(0), // World layer
     ));
 }
 
@@ -399,7 +394,6 @@ pub fn spawn_roof(
         ),
         Visibility::Visible,
         RoofMarker,
-        RenderLayers::layer(0), // World layer
     ));
 }
 
@@ -451,7 +445,6 @@ pub fn spawn_item(
                     ..default()
                 })),
                 Transform::from_xyz(position.x, COOKIE_HEIGHT, position.z),
-                RenderLayers::layer(0), // World layer
             ))
             .id();
     }
@@ -476,7 +469,6 @@ pub fn spawn_item(
                 ..default()
             })),
             Transform::from_xyz(position.x, ITEM_HEIGHT_ABOVE_FLOOR + ITEM_SIZE / 2.0, position.z),
-            RenderLayers::layer(0), // World layer
         ))
         .id()
 }
@@ -508,7 +500,6 @@ pub fn spawn_ghost(
                 ..default()
             })),
             Transform::from_xyz(position.x, GHOST_SIZE / 2.0, position.z),
-            RenderLayers::layer(0), // World layer
         ))
         .id()
 }
