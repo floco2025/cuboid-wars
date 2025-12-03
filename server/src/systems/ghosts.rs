@@ -362,6 +362,7 @@ fn pre_patrol_movement(
         let new_direction = pick_direction(rng, &valid_directions).expect("no valid direction");
         *vel = new_direction.to_velocity();
         ghost_info.mode = GhostMode::Patrol;
+        ghost_info.mode_timer = GHOST_COOLDOWN_DURATION; // Set cooldown before can detect players again
 
         broadcast_to_all(
             players,
