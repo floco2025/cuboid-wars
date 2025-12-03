@@ -82,10 +82,11 @@ pub fn item_spawn_system(
     if spawner.timer >= ITEM_SPAWN_INTERVAL {
         spawner.timer = 0.0;
 
-        // Get occupied grid cells from existing items
+        // Get occupied grid cells from existing power-ups (ignore cookies)
         let occupied_cells: HashSet<(i32, i32)> = items
             .0
             .values()
+            .filter(|info| info.item_type != ItemType::Cookie)
             .filter_map(|info| positions.get(info.entity).ok().map(grid_coords_from_position))
             .collect();
 
