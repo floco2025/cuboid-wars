@@ -194,10 +194,14 @@ pub fn ghosts_movement_system(
     // First, collect all ghost data and player data we need
     let mut ghost_updates = Vec::new();
 
-    // Collect player positions and speeds
+    // Collect player positions and speeds (excluding stunned players)
     let player_data: Vec<(PlayerId, Position, Speed)> = param_set
         .p1()
         .iter()
+        .filter(|(id, _, _)| {
+            // Filter out stunned players
+            players.0.get(id).is_some_and(|info| info.stun_timer <= 0.0)
+        })
         .map(|(id, pos, speed)| (*id, *pos, *speed))
         .collect();
 
@@ -212,7 +216,7 @@ pub fn ghosts_movement_system(
             continue;
         };
 
-        // Update mode timer
+        // Update mode timer``
         ghost_info.mode_timer -= delta;
 
         // Handle mode transitions
