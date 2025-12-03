@@ -31,3 +31,7 @@ pub const GHOST_COOLDOWN_DURATION: f32 = 10.0; // Cooldown before ghost can dete
 pub const GHOST_VISION_RANGE: f32 = 64.0; // Maximum distance to detect players (whole map)
 pub const GHOST_STUN_DURATION: f32 = 10.0; // How long player is stunned after ghost hit (seconds)
 pub const GHOST_HIT_PENALTY: i32 = 10; // Points lost when hit by ghost
+
+// Cookie settings
+pub const COOKIE_RESPAWN_TIME: f32 = 30.0; // seconds
+pub const COOKIE_POINTS: i32 = 1; // points awarded per cookie

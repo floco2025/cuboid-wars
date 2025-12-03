@@ -10,7 +10,7 @@ use crate::{
 };
 use common::{
     collision::check_player_item_overlap,
-    constants::{COOKIE_POINTS, COOKIE_RESPAWN_TIME, GRID_COLS, GRID_ROWS},
+    constants::{GRID_COLS, GRID_ROWS},
     protocol::{ItemId, ItemType, PlayerId, Position, SCookieCollected, SPlayerStatus, ServerMessage},
 };
 
@@ -151,6 +151,11 @@ pub fn item_collection_system(
         .0
         .iter()
         .filter_map(|(item_id, item_info)| {
+            // Skip cookies that are currently respawning
+            if item_info.item_type == ItemType::Cookie && item_info.spawn_time > 0.0 {
+                return None;
+            }
+
             let item_pos = item_positions.get(item_info.entity).ok()?;
 
             // Check against all players
@@ -169,12 +174,31 @@ pub fn item_collection_system(
     let mut power_up_messages = Vec::new();
 
     for (player_id, item_id, item_type) in items_to_collect {
-        // Remove the item from the map
+        // Handle cookies differently - don't despawn, just set respawn timer
+        if item_type == ItemType::Cookie {
+            if let Some(player_info) = players.0.get_mut(&player_id) {
+                // Give points for cookie
+                player_info.hits += COOKIE_POINTS;
+                
+                // Set spawn_time to respawn countdown
+                if let Some(item_info) = items.0.get_mut(&item_id) {
+                    item_info.spawn_time = COOKIE_RESPAWN_TIME;
+                }
+                
+                // Send cookie collection message only to this player
+                let _ = player_info.channel.send(ServerToClient::Send(
+                    ServerMessage::CookieCollected(SCookieCollected {}),
+                ));
+            }
+            continue; // Don't despawn the cookie
+        }
+
+        // Remove non-cookie items from the map and despawn
         if let Some(item_info) = items.0.remove(&item_id) {
             commands.entity(item_info.entity).despawn();
         }
 
-        // Update player's power-up timer or points
+        // Update player's power-up timer
         if let Some(player_info) = players.0.get_mut(&player_id) {
             match item_type {
                 ItemType::SpeedPowerUp => {
@@ -186,19 +210,7 @@ pub fn item_collection_system(
                 ItemType::ReflectPowerUp => {
                     player_info.reflect_power_up_timer = POWER_UP_MULTI_SHOT_DURATION;
                 }
-                ItemType::Cookie => {
-                    // Give points for cookie
-                    player_info.hits += COOKIE_POINTS;
-                    // Set spawn_time to respawn countdown
-                    if let Some(item_info) = items.0.get_mut(&item_id) {
-                        item_info.spawn_time = COOKIE_RESPAWN_TIME;
-                    }
-                    // Send cookie collection message only to this player
-                    let _ = player_info.channel.send(ServerToClient::Send(
-                        ServerMessage::CookieCollected(SCookieCollected {}),
-                    ));
-                    continue; // Skip despawning the cookie
-                }
+                ItemType::Cookie => unreachable!(), // Already handled above
             }
 
             power_up_messages.push(SPlayerStatus {
