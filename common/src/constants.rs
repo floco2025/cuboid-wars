@@ -26,8 +26,8 @@ pub const PLAYER_HEIGHT: f32 = 1.8; // up/down
 pub const PLAYER_DEPTH: f32 = 0.3; // front to back
 
 // Player speeds (meters per second)
-pub const WALK_SPEED: f32 = 9.0;
-pub const RUN_SPEED: f32 = 9.0;
+pub const SPEED_WALK: f32 = 9.0;
+pub const SPEED_RUN: f32 = 9.0;
 
 // Projectile constants
 pub const PROJECTILE_SPEED: f32 = 25.0; // meters per second (dodgeball throw speed)
@@ -47,9 +47,9 @@ pub const PLAYER_NOSE_HEIGHT: f32 = 0.5; // relative to ground
 pub const UPDATE_BROADCAST_INTERVAL: f32 = 0.25; // seconds
 
 // Power-up setting
-pub const SPEED_POWER_UP_MULTIPLIER: f32 = 1.8;
-pub const MULTI_SHOT_MULTIPLER: i32 = 5;
-pub const MULTI_SHOT_ANGLE: f32 = 3.0;
+pub const POWER_UP_SPEED_MULTIPLIER: f32 = 1.8;
+pub const POWER_UP_MULTI_SHOT_MULTIPLER: i32 = 5;
+pub const POWER_UP_MULTI_SHOT_ANGLE: f32 = 3.0;
 
 // Ghost dimensions (meters)
 pub const GHOST_SIZE: f32 = 3.0; // Cube side length

@@ -10,7 +10,7 @@ use crate::{
 };
 use common::{
     collision::{calculate_wall_slide, check_player_player_overlap, check_player_wall_sweep},
-    constants::{PLAYER_HEIGHT, RUN_SPEED, UPDATE_BROADCAST_INTERVAL},
+    constants::{PLAYER_HEIGHT, SPEED_RUN, UPDATE_BROADCAST_INTERVAL},
     protocol::{FaceDirection, PlayerId, Position, Velocity},
 };
 
@@ -173,7 +173,7 @@ pub fn players_movement_system(
             const IDLE_CORRECTION_TIME: f32 = 10.0; // Standing still: slow, smooth correction
             const RUN_CORRECTION_TIME: f32 = 0.5; // Running: fast, responsive correction
 
-            let speed_ratio = (abs_velocity / RUN_SPEED).clamp(0.0, 1.0); // Ignore speed power-ups
+            let speed_ratio = (abs_velocity / SPEED_RUN).clamp(0.0, 1.0); // Ignore speed power-ups
             let correction_time_interval = IDLE_CORRECTION_TIME.lerp(RUN_CORRECTION_TIME, speed_ratio);
             let correction_factor = (UPDATE_BROADCAST_INTERVAL / correction_time_interval).clamp(0.0, 1.0);
 

@@ -11,7 +11,7 @@ use crate::{
     },
     spawning::{spawn_ghost, spawn_item, spawn_player, spawn_projectiles},
 };
-use common::{constants::SPEED_POWER_UP_MULTIPLIER, protocol::*};
+use common::{constants::POWER_UP_SPEED_MULTIPLIER, protocol::*};
 
 // ============================================================================
 // Components
@@ -206,8 +206,8 @@ fn handle_login_message(
 
     let mut velocity = msg.player.speed.to_velocity();
     if msg.player.speed_power_up {
-        velocity.x *= SPEED_POWER_UP_MULTIPLIER;
-        velocity.z *= SPEED_POWER_UP_MULTIPLIER;
+        velocity.x *= POWER_UP_SPEED_MULTIPLIER;
+        velocity.z *= POWER_UP_SPEED_MULTIPLIER;
     }
     let entity = spawn_player(
         commands,
@@ -253,8 +253,8 @@ fn handle_speed_message(
     if let Some(player) = players.0.get(&msg.id) {
         let mut velocity = msg.speed.to_velocity();
         if player.speed_power_up {
-            velocity.x *= SPEED_POWER_UP_MULTIPLIER;
-            velocity.z *= SPEED_POWER_UP_MULTIPLIER;
+            velocity.x *= POWER_UP_SPEED_MULTIPLIER;
+            velocity.z *= POWER_UP_SPEED_MULTIPLIER;
         }
 
         // Add server reconciliation if we have client position
@@ -388,8 +388,8 @@ fn handle_players_update(
         debug!("spawning player {:?} from Update (is_local: {})", id, is_local);
         let mut velocity = player.speed.to_velocity();
         if player.speed_power_up {
-            velocity.x *= SPEED_POWER_UP_MULTIPLIER;
-            velocity.z *= SPEED_POWER_UP_MULTIPLIER;
+            velocity.x *= POWER_UP_SPEED_MULTIPLIER;
+            velocity.z *= POWER_UP_SPEED_MULTIPLIER;
         }
         let entity = spawn_player(
             commands,
@@ -446,8 +446,8 @@ fn handle_players_update(
             if let Ok(client_pos) = player_query.get(client_player.entity) {
                 let mut server_vel = server_player.speed.to_velocity();
                 if server_player.speed_power_up {
-                    server_vel.x *= SPEED_POWER_UP_MULTIPLIER;
-                    server_vel.z *= SPEED_POWER_UP_MULTIPLIER;
+                    server_vel.x *= POWER_UP_SPEED_MULTIPLIER;
+                    server_vel.z *= POWER_UP_SPEED_MULTIPLIER;
                 }
                 // The local player's velocity is always authoritive, so don't overwrite from
                 // server updates
@@ -651,8 +651,8 @@ fn handle_player_status_message(
         {
             let mut velocity = speed.to_velocity();
             if msg.speed_power_up {
-                velocity.x *= SPEED_POWER_UP_MULTIPLIER;
-                velocity.z *= SPEED_POWER_UP_MULTIPLIER;
+                velocity.x *= POWER_UP_SPEED_MULTIPLIER;
+                velocity.z *= POWER_UP_SPEED_MULTIPLIER;
             }
             commands.entity(player_info.entity).insert(velocity);
         }

@@ -3,7 +3,7 @@ use std::collections::{HashSet, VecDeque};
 
 use crate::{
     constants::{
-        NUM_WALL_SEGMENTS, ROOF_PROBABILITY_2_WALLS, ROOF_PROBABILITY_3_WALLS, ROOF_PROBABILITY_WITH_NEIGHBOR,
+        WALL_NUM_SEGMENTS, ROOF_PROBABILITY_2_WALLS, ROOF_PROBABILITY_3_WALLS, ROOF_PROBABILITY_WITH_NEIGHBOR,
         WALL_2ND_PROBABILITY_RATIO, WALL_3RD_PROBABILITY_RATIO,
     },
     resources::{GridCell, GridConfig},
@@ -182,7 +182,7 @@ pub fn generate_grid() -> GridConfig {
     // Try to place walls
     let mut interior_walls_placed = 0;
     for (row, col, direction) in possible_walls {
-        if interior_walls_placed >= NUM_WALL_SEGMENTS {
+        if interior_walls_placed >= WALL_NUM_SEGMENTS {
             break;
         }
 

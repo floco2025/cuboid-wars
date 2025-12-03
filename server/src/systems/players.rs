@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use crate::resources::{GridConfig, PlayerMap};
 use common::{
     collision::{calculate_wall_slide, check_player_player_overlap, check_player_wall_sweep},
-    constants::SPEED_POWER_UP_MULTIPLIER,
+    constants::POWER_UP_SPEED_MULTIPLIER,
     protocol::{PlayerId, Position, Speed, SPlayerStatus, ServerMessage},
 };
 
@@ -23,7 +23,7 @@ fn speed_multiplier(players: &PlayerMap, player_id: PlayerId) -> f32 {
     players
         .0
         .get(&player_id)
-        .and_then(|info| (info.speed_power_up_timer > 0.0).then_some(SPEED_POWER_UP_MULTIPLIER))
+        .and_then(|info| (info.speed_power_up_timer > 0.0).then_some(POWER_UP_SPEED_MULTIPLIER))
         .unwrap_or(1.0)
 }
 

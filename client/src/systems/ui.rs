@@ -201,7 +201,7 @@ pub fn setup_world_system(
             ));
         });
 
-    // Create RTT display in upper right corner
+    // Create RTT display in lower left corner
     commands.spawn((
         Text::new("RTT: --ms"),
         TextFont {
@@ -211,8 +211,8 @@ pub fn setup_world_system(
         TextColor(Color::WHITE),
         Node {
             position_type: PositionType::Absolute,
-            right: Val::Px(10.0),
-            top: Val::Px(10.0),
+            left: Val::Px(10.0),
+            bottom: Val::Px(40.0),
             ..default()
         },
         RttUIMarker,
@@ -228,8 +228,8 @@ pub fn setup_world_system(
         TextColor(Color::WHITE),
         Node {
             position_type: PositionType::Absolute,
-            right: Val::Px(10.0),
-            top: Val::Px(40.0),
+            left: Val::Px(10.0),
+            bottom: Val::Px(10.0),
             ..default()
         },
         FpsUIMarker,

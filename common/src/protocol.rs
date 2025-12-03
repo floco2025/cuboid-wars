@@ -5,7 +5,7 @@ use bincode::{Decode, Encode};
 #[cfg(feature = "json")]
 use serde::{Deserialize, Serialize};
 
-use crate::constants::{RUN_SPEED, WALK_SPEED};
+use crate::constants::{SPEED_RUN, SPEED_WALK};
 
 // Macro to reduce boilerplate for structs
 macro_rules! message {
@@ -58,8 +58,8 @@ impl Speed {
     pub fn to_velocity(&self) -> Velocity {
         let speed_magnitude = match self.speed_level {
             SpeedLevel::Idle => 0.0,
-            SpeedLevel::Walk => WALK_SPEED,
-            SpeedLevel::Run => RUN_SPEED,
+            SpeedLevel::Walk => SPEED_WALK,
+            SpeedLevel::Run => SPEED_RUN,
         };
         Velocity {
             x: self.move_dir.sin() * speed_magnitude,

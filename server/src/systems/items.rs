@@ -178,13 +178,13 @@ pub fn item_collection_system(
         if let Some(player_info) = players.0.get_mut(&player_id) {
             match item_type {
                 ItemType::SpeedPowerUp => {
-                    player_info.speed_power_up_timer = SPEED_POWER_UP_DURATION;
+                    player_info.speed_power_up_timer = POWER_UP_SPEED_DURATION;
                 }
                 ItemType::MultiShotPowerUp => {
-                    player_info.multi_shot_power_up_timer = MULTI_SHOT_POWER_UP_DURATION;
+                    player_info.multi_shot_power_up_timer = POWER_UP_MULTI_SHOT_DURATION;
                 }
                 ItemType::ReflectPowerUp => {
-                    player_info.reflect_power_up_timer = MULTI_SHOT_POWER_UP_DURATION;
+                    player_info.reflect_power_up_timer = POWER_UP_MULTI_SHOT_DURATION;
                 }
                 ItemType::Cookie => {
                     // Give points for cookie

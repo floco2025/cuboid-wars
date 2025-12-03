@@ -12,7 +12,7 @@ use crate::{
     resources::{CameraViewMode, ClientToServerChannel, MyPlayerId, PlayerMap, RoofRenderingEnabled},
     spawning::spawn_projectiles,
 };
-use common::{constants::SPEED_POWER_UP_MULTIPLIER, protocol::*};
+use common::{constants::POWER_UP_SPEED_MULTIPLIER, protocol::*};
 
 // ============================================================================
 // Input Movement System
@@ -99,8 +99,8 @@ fn handle_unlocked_cursor(
                 && let Some(player_info) = players.0.get(&my_id.0)
                 && player_info.speed_power_up
             {
-                velocity.x *= SPEED_POWER_UP_MULTIPLIER;
-                velocity.z *= SPEED_POWER_UP_MULTIPLIER;
+                velocity.x *= POWER_UP_SPEED_MULTIPLIER;
+                velocity.z *= POWER_UP_SPEED_MULTIPLIER;
             }
 
             *player_velocity = velocity;
@@ -201,8 +201,8 @@ fn update_player_velocity_and_face(
             && let Some(player_info) = players.0.get(&my_id.0)
             && player_info.speed_power_up
         {
-            velocity.x *= SPEED_POWER_UP_MULTIPLIER;
-            velocity.z *= SPEED_POWER_UP_MULTIPLIER;
+            velocity.x *= POWER_UP_SPEED_MULTIPLIER;
+            velocity.z *= POWER_UP_SPEED_MULTIPLIER;
         }
 
         *player_velocity = velocity;

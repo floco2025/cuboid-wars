@@ -125,7 +125,7 @@ pub fn ghosts_spawn_system(
 
     let mut rng = rand::rng();
 
-    for i in 0..NUM_GHOSTS {
+    for i in 0..GHOSTS_NUM {
         // Pick a random grid cell - grid centers never have walls
         let grid_x = rng.random_range(0..GRID_COLS);
         let grid_z = rng.random_range(0..GRID_ROWS);
