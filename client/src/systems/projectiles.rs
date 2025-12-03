@@ -2,7 +2,7 @@ use bevy::audio::{PlaybackMode, Volume};
 use bevy::prelude::*;
 
 use super::players::LocalPlayer;
-use crate::resources::{PlayerMap, WallConfig};
+use crate::resources::WallConfig;
 use common::{
     collision::{Projectile, check_projectile_player_hit},
     protocol::{FaceDirection, PlayerId, Position},
@@ -86,25 +86,19 @@ pub fn projectiles_hit_detection_system(
     mut commands: Commands,
     time: Res<Time>,
     asset_server: Res<AssetServer>,
-    mut projectile_query: Query<(Entity, &mut Transform, &mut Projectile, Option<&PlayerId>)>,
+    mut projectile_query: Query<(Entity, &mut Transform, &mut Projectile)>,
     player_query: Query<(Entity, &Position, &FaceDirection, Has<LocalPlayer>), With<PlayerId>>,
     wall_config: Option<Res<WallConfig>>,
-    player_map: Option<Res<PlayerMap>>,
 ) {
     let delta = time.delta_secs();
     let walls = wall_config.as_deref();
 
-    for (projectile_entity, mut projectile_transform, mut projectile, maybe_shooter_id) in projectile_query.iter_mut() {
+    for (projectile_entity, mut projectile_transform, mut projectile) in projectile_query.iter_mut() {
         let projectile_pos = Position {
             x: projectile_transform.translation.x,
             y: projectile_transform.translation.y,
             z: projectile_transform.translation.z,
         };
-
-        // Check if shooter has reflect power-up
-        let has_reflect = maybe_shooter_id
-            .and_then(|shooter_id| player_map.as_ref().and_then(|pm| pm.0.get(shooter_id)))
-            .is_some_and(|info| info.reflect_power_up);
 
         // Check wall collisions and handle bouncing/despawning
         let new_pos = if let Some(pos_after_bounce) = handle_wall_collisions(
@@ -115,7 +109,6 @@ pub fn projectiles_hit_detection_system(
             &projectile_pos,
             delta,
             walls,
-            has_reflect,
         ) {
             pos_after_bounce
         } else {
@@ -156,7 +149,6 @@ fn handle_wall_collisions(
     projectile_pos: &Position,
     delta: f32,
     wall_config: Option<&WallConfig>,
-    has_reflect: bool,
 ) -> Option<Position> {
     let Some(config) = wall_config else {
         return None;
@@ -175,7 +167,7 @@ fn handle_wall_collisions(
                 },
             );
             
-            if has_reflect {
+            if projectile.reflects {
                 // Move projectile to collision point
                 let collision_x = projectile.velocity.x.mul_add(delta * t_collision, projectile_pos.x);
                 let collision_y = projectile.velocity.y.mul_add(delta * t_collision, projectile_pos.y);

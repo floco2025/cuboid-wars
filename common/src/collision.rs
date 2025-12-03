@@ -16,12 +16,13 @@ use crate::{
 pub struct Projectile {
     pub velocity: Vec3,
     pub lifetime: Timer,
+    pub reflects: bool, // Whether this projectile bounces off walls
 }
 
 impl Projectile {
     // Create a new projectile traveling along the provided facing direction.
     #[must_use]
-    pub fn new(face_dir: f32) -> Self {
+    pub fn new(face_dir: f32, reflects: bool) -> Self {
         let velocity = Vec3::new(
             face_dir.sin() * PROJECTILE_SPEED,
             0.0,
@@ -31,6 +32,7 @@ impl Projectile {
         Self {
             velocity,
             lifetime: Timer::from_seconds(PROJECTILE_LIFETIME, TimerMode::Once),
+            reflects,
         }
     }
 

@@ -264,6 +264,12 @@ pub fn input_shooting_system(
             .and_then(|id| players.0.get(&id.0))
             .is_some_and(|info| info.multi_shot_power_up);
 
+        // Check if player has reflect power-up
+        let has_reflect = my_player_id
+            .as_ref()
+            .and_then(|id| players.0.get(&id.0))
+            .is_some_and(|info| info.reflect_power_up);
+
         // Spawn projectile(s) based on power-up status
         spawn_projectiles_local(
             &mut commands,
@@ -272,7 +278,7 @@ pub fn input_shooting_system(
             pos,
             face_dir.0,
             has_multi_shot,
-            my_player_id.as_ref().map(|id| id.0),
+            has_reflect,
         );
     }
 }

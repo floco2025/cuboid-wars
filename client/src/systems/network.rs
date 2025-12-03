@@ -278,7 +278,7 @@ fn handle_shot_message(
                 pos,
                 msg.face_dir,
                 player.multi_shot_power_up,
-                Some(msg.id),
+                player.reflect_power_up,
             );
         }
     }

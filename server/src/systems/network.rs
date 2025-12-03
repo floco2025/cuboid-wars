@@ -440,6 +440,12 @@ fn handle_shot(
 
     // Spawn projectile(s) on server for hit detection
     if let Ok(pos) = positions.get(entity) {
+        // Check if player has reflect power-up
+        let has_reflect = players
+            .0
+            .get(&id)
+            .is_some_and(|info| info.reflect_power_up_timer > 0.0);
+        
         // Determine number of shots based on multi-shot power-up
         let num_shots = if players
             .0
@@ -459,7 +465,7 @@ fn handle_shot(
             let angle_offset = (i as f32).mul_add(angle_step, start_offset);
             let shot_dir = msg.face_dir + angle_offset;
             let spawn_pos = Projectile::calculate_spawn_position(Vec3::new(pos.x, pos.y, pos.z), shot_dir);
-            let projectile = Projectile::new(shot_dir);
+            let projectile = Projectile::new(shot_dir, has_reflect);
 
             commands.spawn((
                 Position {

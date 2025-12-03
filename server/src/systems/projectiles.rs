@@ -48,14 +48,10 @@ pub fn projectiles_hit_detection_system(
     for (proj_entity, mut proj_pos, mut projectile, shooter_id) in projectile_query.iter_mut() {
         let mut hit_something = false;
 
-        // Check if shooter has reflect power-up
-        let has_reflect = players.0.get(shooter_id)
-            .is_some_and(|info| info.reflect_power_up_timer > 0.0);
-
         // Check wall collisions first
         for wall in &grid_config.walls {
             if let Some((normal_x, normal_z, t_collision)) = common::collision::check_projectile_wall_hit_with_normal(&proj_pos, &projectile, delta, wall) {
-                if has_reflect {
+                if projectile.reflects {
                     info!("Projectile from {:?} bouncing off wall (has reflect power-up)", shooter_id);
                     // Move projectile to collision point
                     let collision_x = projectile.velocity.x.mul_add(delta * t_collision, proj_pos.x);
