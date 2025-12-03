@@ -7,7 +7,7 @@ use crate::{
     resources::{GhostInfo, GhostMap, GridCell, GridConfig, PlayerMap},
 };
 use common::{
-    collision::check_ghost_wall_collision,
+    collision::check_ghost_wall_overlap,
     constants::*,
     protocol::{Ghost, GhostId, Position, SGhost, ServerMessage, Velocity},
 };
@@ -144,7 +144,7 @@ pub fn ghosts_spawn_system(
             // Check if position is valid (not in a wall)
             let mut valid = true;
             for wall in &grid_config.walls {
-                if check_ghost_wall_collision(&pos, wall) {
+                if check_ghost_wall_overlap(&pos, wall) {
                     valid = false;
                     break;
                 }

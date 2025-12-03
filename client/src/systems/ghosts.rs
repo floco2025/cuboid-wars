@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use super::network::ServerReconciliation;
 use crate::resources::WallConfig;
 use common::{
-    collision::check_ghost_wall_collision,
+    collision::check_ghost_wall_overlap,
     constants::{GHOST_SIZE, UPDATE_BROADCAST_INTERVAL},
     protocol::{GhostId, Position, Velocity},
 };
@@ -66,7 +66,7 @@ fn ghost_hits_wall(walls: Option<&WallConfig>, new_pos: &Position) -> bool {
     config
         .walls
         .iter()
-        .any(|wall| check_ghost_wall_collision(new_pos, wall))
+        .any(|wall| check_ghost_wall_overlap(new_pos, wall))
 }
 
 // ============================================================================

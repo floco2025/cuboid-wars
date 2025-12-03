@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::resources::{GridConfig, PlayerMap};
 use common::{
-    collision::{calculate_wall_slide, check_player_player_collision, check_player_wall_collision},
+    collision::{calculate_wall_slide, check_player_player_overlap, check_player_wall_sweep},
     constants::SPEED_POWER_UP_MULTIPLIER,
     protocol::{PlayerId, Position, Speed},
 };
@@ -27,7 +27,7 @@ fn speed_multiplier(players: &PlayerMap, player_id: PlayerId) -> f32 {
 
 fn overlaps_other_player(candidate: &PlannedMove, planned_moves: &[PlannedMove]) -> bool {
     planned_moves.iter().any(|other| {
-        other.entity != candidate.entity && check_player_player_collision(&candidate.target, &other.target)
+        other.entity != candidate.entity && check_player_player_overlap(&candidate.target, &other.target)
     })
 }
 
@@ -64,7 +64,7 @@ pub fn players_movement_system(
             z: velocity.z.mul_add(delta, pos.z),
         };
 
-        let target = if walls.iter().any(|wall| check_player_wall_collision(&new_pos, wall)) {
+        let target = if walls.iter().any(|wall| check_player_wall_sweep(pos, &new_pos, wall)) {
             calculate_wall_slide(walls, pos, &new_pos, velocity.x, velocity.z, delta)
         } else {
             new_pos

@@ -8,7 +8,7 @@ use crate::{
     spawning::PlayerIdTextMesh,
 };
 use common::{
-    collision::{calculate_wall_slide, check_player_player_collision, check_player_wall_collision},
+    collision::{calculate_wall_slide, check_player_player_overlap, check_player_wall_sweep},
     constants::{PLAYER_HEIGHT, RUN_SPEED, UPDATE_BROADCAST_INTERVAL},
     protocol::{FaceDirection, PlayerId, Position, Velocity},
 };
@@ -61,18 +61,18 @@ fn calculate_absolute_velocity(velocity: &Velocity) -> f32 {
     velocity.x.hypot(velocity.z)
 }
 
-fn player_hits_wall(walls: Option<&WallConfig>, new_pos: &Position) -> bool {
+fn player_hits_wall(walls: Option<&WallConfig>, old_pos: &Position, new_pos: &Position) -> bool {
     let Some(config) = walls else { return false };
     config
         .walls
         .iter()
-        .any(|wall| check_player_wall_collision(new_pos, wall))
+        .any(|wall| check_player_wall_sweep(old_pos, new_pos, wall))
 }
 
 fn player_hits_other_player(entity: Entity, new_pos: &Position, positions: &[(Entity, Position)]) -> bool {
     positions
         .iter()
-        .any(|(other_entity, other_pos)| *other_entity != entity && check_player_player_collision(new_pos, other_pos))
+        .any(|(other_entity, other_pos)| *other_entity != entity && check_player_player_overlap(new_pos, other_pos))
 }
 
 fn decay_flash_timer(
@@ -213,7 +213,7 @@ pub fn players_movement_system(
         }
 
         let walls = wall_config.as_deref();
-        let hits_wall = player_hits_wall(walls, &target_pos);
+        let hits_wall = player_hits_wall(walls, &client_pos, &target_pos);
         let hits_player = player_hits_other_player(entity, &target_pos, &entity_positions);
         if !hits_wall && !hits_player {
             *client_pos = target_pos;

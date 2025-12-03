@@ -5,7 +5,7 @@ use crate::{
     resources::{GridConfig, PlayerMap},
 };
 use common::{
-    collision::{Projectile, check_projectile_player_hit},
+    collision::{Projectile, check_projectile_player_sweep_hit},
     protocol::*,
 };
 
@@ -64,7 +64,7 @@ pub fn projectiles_movement_system(
             }
 
             // Use common hit detection logic
-            let result = check_projectile_player_hit(&proj_pos, &projectile, delta, player_pos, player_face_dir.0);
+            let result = check_projectile_player_sweep_hit(&proj_pos, &projectile, delta, player_pos, player_face_dir.0);
 
             if result.hit {
                 info!("{:?} hits {:?}", shooter_id, target_id);

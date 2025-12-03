@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use super::players::LocalPlayer;
 use crate::resources::WallConfig;
 use common::{
-    collision::{Projectile, check_projectile_player_hit},
+    collision::{Projectile, check_projectile_player_sweep_hit},
     protocol::{FaceDirection, PlayerId, Position},
 };
 
@@ -22,7 +22,7 @@ fn handle_player_collisions(
     player_query: &Query<(Entity, &Position, &FaceDirection, Has<LocalPlayer>), With<PlayerId>>,
 ) -> bool {
     for (_player_entity, player_pos, face_dir, is_local_player) in player_query.iter() {
-        let result = check_projectile_player_hit(projectile_pos, projectile, delta, player_pos, face_dir.0);
+        let result = check_projectile_player_sweep_hit(projectile_pos, projectile, delta, player_pos, face_dir.0);
         if result.hit {
             play_sound(
                 commands,

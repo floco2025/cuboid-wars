@@ -61,7 +61,7 @@ impl Projectile {
         wall: &Wall,
     ) -> Option<Position> {
         if let Some((normal_x, normal_z, t_collision)) = 
-            check_projectile_wall_hit_with_normal(projectile_pos, self, delta, wall) 
+            check_projectile_wall_sweep_hit(projectile_pos, self, delta, wall) 
         {
             if self.reflects {
                 // Move projectile to collision point
@@ -107,7 +107,7 @@ pub struct HitResult {
 // 
 // Returns HitResult with hit flag and normalized direction.
 #[must_use]
-pub fn check_projectile_player_hit(
+pub fn check_projectile_player_sweep_hit(
     proj_pos: &Position,
     projectile: &Projectile,
     delta: f32,
@@ -202,7 +202,7 @@ pub fn check_projectile_player_hit(
 // 
 // `t_collision` is between 0.0 and 1.0, representing how far along the movement the collision occurs.
 #[must_use]
-pub fn check_projectile_wall_hit_with_normal(
+pub fn check_projectile_wall_sweep_hit(
     proj_pos: &Position,
     projectile: &Projectile,
     delta: f32,
@@ -276,8 +276,8 @@ pub fn check_projectile_wall_hit_with_normal(
 
 // Check if a projectile hits a wall (simplified version without normal/time).
 #[must_use]
-pub fn check_projectile_wall_hit(proj_pos: &Position, projectile: &Projectile, delta: f32, wall: &Wall) -> bool {
-    check_projectile_wall_hit_with_normal(proj_pos, projectile, delta, wall).is_some()
+pub fn check_projectile_wall_sweep(proj_pos: &Position, projectile: &Projectile, delta: f32, wall: &Wall) -> bool {
+    check_projectile_wall_sweep_hit(proj_pos, projectile, delta, wall).is_some()
 }
 
 // ============================================================================
@@ -286,7 +286,7 @@ pub fn check_projectile_wall_hit(proj_pos: &Position, projectile: &Projectile, d
 
 // Check if a player position intersects with a wall (AABB collision).
 #[must_use]
-pub fn check_player_wall_collision(player_pos: &Position, wall: &Wall) -> bool {
+pub fn check_player_wall_overlap(player_pos: &Position, wall: &Wall) -> bool {
     let player_half_x = PLAYER_WIDTH / 2.0;
     let player_half_z = PLAYER_DEPTH / 2.0;
 
@@ -309,6 +309,59 @@ pub fn check_player_wall_collision(player_pos: &Position, wall: &Wall) -> bool {
         && ranges_overlap(player_min_z, player_max_z, wall_min_z, wall_max_z)
 }
 
+// Check if a player moving from start_pos to end_pos would collide with a wall.
+// Uses swept AABB collision to prevent tunneling through walls.
+// 
+// Returns true if collision occurs during the movement.
+#[must_use]
+pub fn check_player_wall_sweep(
+    start_pos: &Position,
+    end_pos: &Position,
+    wall: &Wall,
+) -> bool {
+    let player_half_x = PLAYER_WIDTH / 2.0;
+    let player_half_z = PLAYER_DEPTH / 2.0;
+
+    let (wall_half_x, wall_half_z) = match wall.orientation {
+        WallOrientation::Horizontal => (WALL_LENGTH / 2.0, WALL_WIDTH / 2.0),
+        WallOrientation::Vertical => (WALL_WIDTH / 2.0, WALL_LENGTH / 2.0),
+    };
+
+    // Movement vector
+    let ray_dir_x = end_pos.x - start_pos.x;
+    let ray_dir_z = end_pos.z - start_pos.z;
+
+    // Expanded AABB dimensions (player + wall)
+    let half_x = player_half_x + wall_half_x;
+    let half_z = player_half_z + wall_half_z;
+
+    // Position relative to wall center
+    let local_x = start_pos.x - wall.x;
+    let local_z = start_pos.z - wall.z;
+
+    let mut t_min = 0.0_f32;
+    let mut t_max = 1.0_f32;
+
+    // Check X axis
+    if let Some((min_x, max_x)) = slab_interval(local_x, ray_dir_x, half_x, t_min, t_max) {
+        t_min = min_x;
+        t_max = max_x;
+    } else {
+        return false;
+    }
+
+    // Check Z axis
+    if let Some((min_z, max_z)) = slab_interval(local_z, ray_dir_z, half_z, t_min, t_max) {
+        t_min = min_z;
+        t_max = max_z;
+    } else {
+        return false;
+    }
+
+    // Collision occurs if intervals overlap within the movement range
+    t_min <= t_max && t_max >= 0.0 && t_min <= 1.0
+}
+
 // Calculate sliding movement along a wall when a collision occurs.
 // 
 // Returns the new position that slides along the wall surface.
@@ -323,7 +376,7 @@ pub fn calculate_wall_slide(
 ) -> Position {
     // Find which wall we're hitting
     for wall in walls {
-        if !check_player_wall_collision(target_pos, wall) {
+        if !check_player_wall_overlap(target_pos, wall) {
             continue;
         }
 
@@ -358,7 +411,7 @@ pub fn calculate_wall_slide(
         };
 
         // Make sure the slide position doesn't collide with ANY wall
-        let hits_any_wall = walls.iter().any(|w| check_player_wall_collision(&slide_pos, w));
+        let hits_any_wall = walls.iter().any(|w| check_player_wall_overlap(&slide_pos, w));
         if !hits_any_wall {
             return slide_pos;
         }
@@ -373,7 +426,7 @@ pub fn calculate_wall_slide(
 
 // Check if two players collide with each other (AABB collision).
 #[must_use]
-pub fn check_player_player_collision(pos1: &Position, pos2: &Position) -> bool {
+pub fn check_player_player_overlap(pos1: &Position, pos2: &Position) -> bool {
     let player_half_width = PLAYER_WIDTH / 2.0;
     let player_half_depth = PLAYER_DEPTH / 2.0;
 
@@ -397,7 +450,7 @@ pub fn check_player_player_collision(pos1: &Position, pos2: &Position) -> bool {
 
 // Check if a ghost position intersects with a wall (AABB collision).
 #[must_use]
-pub fn check_ghost_wall_collision(ghost_pos: &Position, wall: &Wall) -> bool {
+pub fn check_ghost_wall_overlap(ghost_pos: &Position, wall: &Wall) -> bool {
     let ghost_half_size = GHOST_SIZE / 2.0;
 
     let (wall_half_x, wall_half_z) = match wall.orientation {
@@ -421,7 +474,7 @@ pub fn check_ghost_wall_collision(ghost_pos: &Position, wall: &Wall) -> bool {
 
 // Check if a player is close enough to an item to collect it (circle collision).
 #[must_use]
-pub fn check_player_item_collision(player_pos: &Position, item_pos: &Position, collection_radius: f32) -> bool {
+pub fn check_player_item_overlap(player_pos: &Position, item_pos: &Position, collection_radius: f32) -> bool {
     let dx = player_pos.x - item_pos.x;
     let dz = player_pos.z - item_pos.z;
     let dist_sq = dx.mul_add(dx, dz * dz);

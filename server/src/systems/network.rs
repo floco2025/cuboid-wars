@@ -6,7 +6,7 @@ use crate::{
     resources::{FromAcceptChannel, FromClientsChannel, GhostMap, GridConfig, ItemMap, PlayerInfo, PlayerMap},
 };
 use common::{
-    collision::{Projectile, check_player_wall_collision},
+    collision::{Projectile, check_player_wall_overlap},
     constants::{MULTI_SHOT_ANGLE, *},
     protocol::*,
 };
@@ -123,7 +123,7 @@ fn generate_spawn_position(grid_config: &GridConfig) -> Position {
         let intersects = grid_config
             .walls
             .iter()
-            .any(|wall| check_player_wall_collision(&pos, wall));
+            .any(|wall| check_player_wall_overlap(&pos, wall));
 
         if !intersects {
             return pos;
