@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use super::network::ServerReconciliation;
 use crate::resources::WallConfig;
 use common::{
-    collision::{calculate_wall_slide, check_ghost_wall_overlap},
+    collision::{calculate_ghost_wall_slide, check_ghost_wall_overlap},
     constants::{GHOST_SIZE, UPDATE_BROADCAST_INTERVAL},
     protocol::{GhostId, Position, Velocity},
 };
@@ -85,8 +85,8 @@ fn apply_ghost_wall_sliding(
         .any(|wall| check_ghost_wall_overlap(target_pos, wall));
 
     if hits_wall {
-        // Apply wall sliding using the same algorithm as the server
-        calculate_wall_slide(&config.walls, current_pos, target_pos, velocity.x, velocity.z, delta)
+        // Apply ghost wall sliding using the same algorithm as the server
+        calculate_ghost_wall_slide(&config.walls, current_pos, target_pos, velocity.x, velocity.z, delta)
     } else {
         *target_pos
     }

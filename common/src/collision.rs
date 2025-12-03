@@ -8,6 +8,177 @@ use crate::{
 };
 
 // ============================================================================
+// Helper Functions
+// ============================================================================
+
+// Result of a projectile hit detection check
+#[derive(Debug, Clone, Copy)]
+pub struct HitResult {
+    pub hit: bool,
+    pub hit_dir_x: f32,
+    pub hit_dir_z: f32,
+}
+
+// Create a HitResult indicating no hit
+const fn no_hit() -> HitResult {
+    HitResult {
+        hit: false,
+        hit_dir_x: 0.0,
+        hit_dir_z: 0.0,
+    }
+}
+
+// Generic AABB wall overlap check with parameterized entity dimensions
+fn check_aabb_wall_overlap(entity_pos: &Position, wall: &Wall, half_x: f32, half_z: f32) -> bool {
+    let (wall_half_x, wall_half_z) = match wall.orientation {
+        WallOrientation::Horizontal => (WALL_LENGTH / 2.0, WALL_WIDTH / 2.0),
+        WallOrientation::Vertical => (WALL_WIDTH / 2.0, WALL_LENGTH / 2.0),
+    };
+
+    let entity_min_x = entity_pos.x - half_x;
+    let entity_max_x = entity_pos.x + half_x;
+    let entity_min_z = entity_pos.z - half_z;
+    let entity_max_z = entity_pos.z + half_z;
+
+    let wall_min_x = wall.x - wall_half_x;
+    let wall_max_x = wall.x + wall_half_x;
+    let wall_min_z = wall.z - wall_half_z;
+    let wall_max_z = wall.z + wall_half_z;
+
+    ranges_overlap(entity_min_x, entity_max_x, wall_min_x, wall_max_x)
+        && ranges_overlap(entity_min_z, entity_max_z, wall_min_z, wall_max_z)
+}
+
+// Generic swept AABB wall collision check with parameterized entity dimensions
+fn check_aabb_wall_sweep(start_pos: &Position, end_pos: &Position, wall: &Wall, half_x: f32, half_z: f32) -> bool {
+    let (wall_half_x, wall_half_z) = match wall.orientation {
+        WallOrientation::Horizontal => (WALL_LENGTH / 2.0, WALL_WIDTH / 2.0),
+        WallOrientation::Vertical => (WALL_WIDTH / 2.0, WALL_LENGTH / 2.0),
+    };
+
+    // Movement vector
+    let ray_dir_x = end_pos.x - start_pos.x;
+    let ray_dir_z = end_pos.z - start_pos.z;
+
+    // Expanded AABB dimensions (entity + wall)
+    let combined_half_x = half_x + wall_half_x;
+    let combined_half_z = half_z + wall_half_z;
+
+    // Position relative to wall center
+    let local_x = start_pos.x - wall.x;
+    let local_z = start_pos.z - wall.z;
+
+    let mut t_min = 0.0_f32;
+    let mut t_max = 1.0_f32;
+
+    // Check X axis
+    if let Some((min_x, max_x)) = slab_interval(local_x, ray_dir_x, combined_half_x, t_min, t_max) {
+        t_min = min_x;
+        t_max = max_x;
+    } else {
+        return false;
+    }
+
+    // Check Z axis
+    if let Some((min_z, max_z)) = slab_interval(local_z, ray_dir_z, combined_half_z, t_min, t_max) {
+        t_min = min_z;
+        t_max = max_z;
+    } else {
+        return false;
+    }
+
+    // Collision occurs if intervals overlap within the movement range
+    t_min <= t_max && t_max >= 0.0 && t_min <= 1.0
+}
+
+// Generic wall sliding calculation with parameterized collision check function
+fn calculate_entity_wall_slide<F>(
+    walls: &[Wall],
+    current_pos: &Position,
+    target_pos: &Position,
+    velocity_x: f32,
+    velocity_z: f32,
+    delta: f32,
+    collision_check: F,
+) -> Position
+where
+    F: Fn(&Position, &Wall) -> bool,
+{
+    // Find which wall we're hitting
+    for wall in walls {
+        if !collision_check(target_pos, wall) {
+            continue;
+        }
+
+        // Get wall normal based on orientation
+        let (wall_normal_x, wall_normal_z) = match wall.orientation {
+            WallOrientation::Horizontal => (0.0, 1.0), // Normal points along Z
+            WallOrientation::Vertical => (1.0, 0.0),   // Normal points along X
+        };
+
+        // Calculate which side of the wall we're on
+        let to_wall_x = target_pos.x - wall.x;
+        let to_wall_z = target_pos.z - wall.z;
+        let dot = to_wall_x.mul_add(wall_normal_x, to_wall_z * wall_normal_z);
+
+        // Flip normal if we're on the other side
+        let (normal_x, normal_z) = if dot < 0.0 {
+            (-wall_normal_x, -wall_normal_z)
+        } else {
+            (wall_normal_x, wall_normal_z)
+        };
+
+        // Calculate slide vector by removing the component of velocity along the normal
+        let vel_dot_normal = velocity_x.mul_add(normal_x, velocity_z * normal_z);
+        let slide_vel_x = vel_dot_normal.mul_add(-normal_x, velocity_x);
+        let slide_vel_z = vel_dot_normal.mul_add(-normal_z, velocity_z);
+
+        // Apply slide velocity from current position
+        let slide_pos = Position {
+            x: slide_vel_x.mul_add(delta, current_pos.x),
+            y: current_pos.y,
+            z: slide_vel_z.mul_add(delta, current_pos.z),
+        };
+
+        // Make sure the slide position doesn't collide with ANY wall
+        let hits_any_wall = walls.iter().any(|w| collision_check(&slide_pos, w));
+        if !hits_any_wall {
+            return slide_pos;
+        }
+
+        // If it still collides, just return current position
+        return *current_pos;
+    }
+
+    // No collision found (shouldn't happen), return target
+    *target_pos
+}
+
+// Compute the intersection interval of a ray with a slab (used in ray-AABB tests)
+fn slab_interval(local_coord: f32, ray_dir: f32, half_extent: f32, t_min: f32, t_max: f32) -> Option<(f32, f32)> {
+    if ray_dir.abs() > 1e-6 {
+        let t1 = (-half_extent - local_coord) / ray_dir;
+        let t2 = (half_extent - local_coord) / ray_dir;
+        let new_min = t_min.max(t1.min(t2));
+        let new_max = t_max.min(t1.max(t2));
+        if new_min <= new_max {
+            Some((new_min, new_max))
+        } else {
+            None
+        }
+    } else if local_coord.abs() > half_extent {
+        None
+    } else {
+        Some((t_min, t_max))
+    }
+}
+
+// Check if two 1D ranges overlap.
+fn ranges_overlap(a_min: f32, a_max: f32, b_min: f32, b_max: f32) -> bool {
+    a_max >= b_min && a_min <= b_max
+}
+
+// ============================================================================
 // Projectile Component
 // ============================================================================
 
@@ -46,34 +217,29 @@ impl Projectile {
         )
     }
 
-    // Handle wall collision and bounce if reflects is true.
-    // 
+    // Handle wall collision and bounce if reflects is true
+    //
     // Returns:
     // - `Some(new_position)` if wall was hit
     // - `None` if no collision
-    // 
-    // If reflects=false and wall hit, caller should despawn the projectile.
+    //
+    // If reflects=false and wall hit, caller should despawn the projectile
     #[must_use]
-    pub fn handle_wall_bounce(
-        &mut self,
-        projectile_pos: &Position,
-        delta: f32,
-        wall: &Wall,
-    ) -> Option<Position> {
-        if let Some((normal_x, normal_z, t_collision)) = 
-            check_projectile_wall_sweep_hit(projectile_pos, self, delta, wall) 
+    pub fn handle_wall_bounce(&mut self, projectile_pos: &Position, delta: f32, wall: &Wall) -> Option<Position> {
+        if let Some((normal_x, normal_z, t_collision)) =
+            check_projectile_wall_sweep_hit(projectile_pos, self, delta, wall)
         {
             if self.reflects {
                 // Move projectile to collision point
                 let collision_x = self.velocity.x.mul_add(delta * t_collision, projectile_pos.x);
                 let collision_y = self.velocity.y.mul_add(delta * t_collision, projectile_pos.y);
                 let collision_z = self.velocity.z.mul_add(delta * t_collision, projectile_pos.z);
-                
+
                 // Reflect velocity off the wall normal
                 let dot = self.velocity.x.mul_add(normal_x, self.velocity.z * normal_z);
                 self.velocity.x -= 2.0 * dot * normal_x;
                 self.velocity.z -= 2.0 * dot * normal_z;
-                
+
                 // Continue moving for remaining time after bounce
                 let remaining_time = delta * (1.0 - t_collision);
                 Some(Position {
@@ -95,17 +261,9 @@ impl Projectile {
 // Collision Detection - Projectiles
 // ============================================================================
 
-// Result of a projectile hit detection check.
-#[derive(Debug, Clone, Copy)]
-pub struct HitResult {
-    pub hit: bool,
-    pub hit_dir_x: f32,
-    pub hit_dir_z: f32,
-}
-
-// Check if a projectile hits a player using swept sphere collision.
-// 
-// Returns HitResult with hit flag and normalized direction.
+// Check if a projectile hits a player using swept sphere collision
+//
+// Returns HitResult with hit flag and normalized direction
 #[must_use]
 pub fn check_projectile_player_sweep_hit(
     proj_pos: &Position,
@@ -194,13 +352,14 @@ pub fn check_projectile_player_sweep_hit(
     }
 }
 
-// Check if a projectile hits a wall using swept sphere collision.
-// 
+// Check if a projectile hits a wall using swept sphere collision
+//
 // Returns:
 // - `Some((normal_x, normal_z, t_collision))` if hit
 // - `None` if no collision
-// 
-// `t_collision` is between 0.0 and 1.0, representing how far along the movement the collision occurs.
+//
+// `t_collision` is between 0.0 and 1.0, representing how far along the movement the collision
+// occurs
 #[must_use]
 pub fn check_projectile_wall_sweep_hit(
     proj_pos: &Position,
@@ -263,7 +422,11 @@ pub fn check_projectile_wall_sweep_hit(
                 if local_z > 0.0 { (0.0, 1.0) } else { (0.0, -1.0) }
             }
             WallOrientation::Vertical => {
-                if local_x > 0.0 { (1.0, 0.0) } else { (-1.0, 0.0) }
+                if local_x > 0.0 {
+                    (1.0, 0.0)
+                } else {
+                    (-1.0, 0.0)
+                }
             }
         };
         // Clamp t_min to [0.0, 1.0] for the collision time
@@ -274,7 +437,7 @@ pub fn check_projectile_wall_sweep_hit(
     }
 }
 
-// Check if a projectile hits a wall (simplified version without normal/time).
+// Check if a projectile hits a wall (simplified version without normal/time)
 #[must_use]
 pub fn check_projectile_wall_sweep(proj_pos: &Position, projectile: &Projectile, delta: f32, wall: &Wall) -> bool {
     check_projectile_wall_sweep_hit(proj_pos, projectile, delta, wall).is_some()
@@ -284,87 +447,24 @@ pub fn check_projectile_wall_sweep(proj_pos: &Position, projectile: &Projectile,
 // Collision Detection - Players and Walls
 // ============================================================================
 
-// Check if a player position intersects with a wall (AABB collision).
+// Check if a player position intersects with a wall (AABB collision)
 #[must_use]
 pub fn check_player_wall_overlap(player_pos: &Position, wall: &Wall) -> bool {
-    let player_half_x = PLAYER_WIDTH / 2.0;
-    let player_half_z = PLAYER_DEPTH / 2.0;
-
-    let (wall_half_x, wall_half_z) = match wall.orientation {
-        WallOrientation::Horizontal => (WALL_LENGTH / 2.0, WALL_WIDTH / 2.0),
-        WallOrientation::Vertical => (WALL_WIDTH / 2.0, WALL_LENGTH / 2.0),
-    };
-
-    let player_min_x = player_pos.x - player_half_x;
-    let player_max_x = player_pos.x + player_half_x;
-    let player_min_z = player_pos.z - player_half_z;
-    let player_max_z = player_pos.z + player_half_z;
-
-    let wall_min_x = wall.x - wall_half_x;
-    let wall_max_x = wall.x + wall_half_x;
-    let wall_min_z = wall.z - wall_half_z;
-    let wall_max_z = wall.z + wall_half_z;
-
-    ranges_overlap(player_min_x, player_max_x, wall_min_x, wall_max_x)
-        && ranges_overlap(player_min_z, player_max_z, wall_min_z, wall_max_z)
+    check_aabb_wall_overlap(player_pos, wall, PLAYER_WIDTH / 2.0, PLAYER_DEPTH / 2.0)
 }
 
-// Check if a player moving from start_pos to end_pos would collide with a wall.
-// Uses swept AABB collision to prevent tunneling through walls.
-// 
-// Returns true if collision occurs during the movement.
+// Check if a player moving from start_pos to end_pos would collide with a wall
+// Uses swept AABB collision to prevent tunneling through walls
+//
+// Returns true if collision occurs during the movement
 #[must_use]
-pub fn check_player_wall_sweep(
-    start_pos: &Position,
-    end_pos: &Position,
-    wall: &Wall,
-) -> bool {
-    let player_half_x = PLAYER_WIDTH / 2.0;
-    let player_half_z = PLAYER_DEPTH / 2.0;
-
-    let (wall_half_x, wall_half_z) = match wall.orientation {
-        WallOrientation::Horizontal => (WALL_LENGTH / 2.0, WALL_WIDTH / 2.0),
-        WallOrientation::Vertical => (WALL_WIDTH / 2.0, WALL_LENGTH / 2.0),
-    };
-
-    // Movement vector
-    let ray_dir_x = end_pos.x - start_pos.x;
-    let ray_dir_z = end_pos.z - start_pos.z;
-
-    // Expanded AABB dimensions (player + wall)
-    let half_x = player_half_x + wall_half_x;
-    let half_z = player_half_z + wall_half_z;
-
-    // Position relative to wall center
-    let local_x = start_pos.x - wall.x;
-    let local_z = start_pos.z - wall.z;
-
-    let mut t_min = 0.0_f32;
-    let mut t_max = 1.0_f32;
-
-    // Check X axis
-    if let Some((min_x, max_x)) = slab_interval(local_x, ray_dir_x, half_x, t_min, t_max) {
-        t_min = min_x;
-        t_max = max_x;
-    } else {
-        return false;
-    }
-
-    // Check Z axis
-    if let Some((min_z, max_z)) = slab_interval(local_z, ray_dir_z, half_z, t_min, t_max) {
-        t_min = min_z;
-        t_max = max_z;
-    } else {
-        return false;
-    }
-
-    // Collision occurs if intervals overlap within the movement range
-    t_min <= t_max && t_max >= 0.0 && t_min <= 1.0
+pub fn check_player_wall_sweep(start_pos: &Position, end_pos: &Position, wall: &Wall) -> bool {
+    check_aabb_wall_sweep(start_pos, end_pos, wall, PLAYER_WIDTH / 2.0, PLAYER_DEPTH / 2.0)
 }
 
-// Calculate sliding movement along a wall when a collision occurs.
-// 
-// Returns the new position that slides along the wall surface.
+// Calculate sliding movement along a wall when a collision occurs
+//
+// Returns the new position that slides along the wall surface
 #[must_use]
 pub fn calculate_wall_slide(
     walls: &[Wall],
@@ -374,54 +474,38 @@ pub fn calculate_wall_slide(
     velocity_z: f32,
     delta: f32,
 ) -> Position {
-    // Find which wall we're hitting
-    for wall in walls {
-        if !check_player_wall_overlap(target_pos, wall) {
-            continue;
-        }
+    calculate_entity_wall_slide(
+        walls,
+        current_pos,
+        target_pos,
+        velocity_x,
+        velocity_z,
+        delta,
+        check_player_wall_overlap,
+    )
+}
 
-        // Get wall normal based on orientation
-        let (wall_normal_x, wall_normal_z) = match wall.orientation {
-            WallOrientation::Horizontal => (0.0, 1.0), // Normal points along Z
-            WallOrientation::Vertical => (1.0, 0.0),   // Normal points along X
-        };
-
-        // Calculate which side of the wall we're on
-        let to_wall_x = target_pos.x - wall.x;
-        let to_wall_z = target_pos.z - wall.z;
-        let dot = to_wall_x.mul_add(wall_normal_x, to_wall_z * wall_normal_z);
-
-        // Flip normal if we're on the other side
-        let (normal_x, normal_z) = if dot < 0.0 {
-            (-wall_normal_x, -wall_normal_z)
-        } else {
-            (wall_normal_x, wall_normal_z)
-        };
-
-        // Calculate slide vector by removing the component of velocity along the normal
-        let vel_dot_normal = velocity_x.mul_add(normal_x, velocity_z * normal_z);
-        let slide_vel_x = vel_dot_normal.mul_add(-normal_x, velocity_x);
-        let slide_vel_z = vel_dot_normal.mul_add(-normal_z, velocity_z);
-
-        // Apply slide velocity from current position
-        let slide_pos = Position {
-            x: slide_vel_x.mul_add(delta, current_pos.x),
-            y: current_pos.y,
-            z: slide_vel_z.mul_add(delta, current_pos.z),
-        };
-
-        // Make sure the slide position doesn't collide with ANY wall
-        let hits_any_wall = walls.iter().any(|w| check_player_wall_overlap(&slide_pos, w));
-        if !hits_any_wall {
-            return slide_pos;
-        }
-
-        // If it still collides, just return current position
-        return *current_pos;
-    }
-
-    // No collision found (shouldn't happen), return target
-    *target_pos
+// Calculate sliding movement along a wall when a collision occurs for ghosts
+//
+// Returns the new position that slides along the wall surface
+#[must_use]
+pub fn calculate_ghost_wall_slide(
+    walls: &[Wall],
+    current_pos: &Position,
+    target_pos: &Position,
+    velocity_x: f32,
+    velocity_z: f32,
+    delta: f32,
+) -> Position {
+    calculate_entity_wall_slide(
+        walls,
+        current_pos,
+        target_pos,
+        velocity_x,
+        velocity_z,
+        delta,
+        check_ghost_wall_overlap,
+    )
 }
 
 // Check if two players collide with each other (AABB collision).
@@ -440,80 +524,25 @@ pub fn check_player_player_overlap(pos1: &Position, pos2: &Position) -> bool {
     let p2_min_z = pos2.z - player_half_depth;
     let p2_max_z = pos2.z + player_half_depth;
 
-    ranges_overlap(p1_min_x, p1_max_x, p2_min_x, p2_max_x) 
-        && ranges_overlap(p1_min_z, p1_max_z, p2_min_z, p2_max_z)
+    ranges_overlap(p1_min_x, p1_max_x, p2_min_x, p2_max_x) && ranges_overlap(p1_min_z, p1_max_z, p2_min_z, p2_max_z)
 }
 
 // ============================================================================
 // Collision Detection - Ghosts and Items
 // ============================================================================
 
-// Check if a ghost position intersects with a wall (AABB collision).
+// Check if a ghost position intersects with a wall (AABB collision)
 #[must_use]
 pub fn check_ghost_wall_overlap(ghost_pos: &Position, wall: &Wall) -> bool {
     let ghost_half_size = GHOST_SIZE / 2.0;
-
-    let (wall_half_x, wall_half_z) = match wall.orientation {
-        WallOrientation::Horizontal => (WALL_LENGTH / 2.0, WALL_WIDTH / 2.0),
-        WallOrientation::Vertical => (WALL_WIDTH / 2.0, WALL_LENGTH / 2.0),
-    };
-
-    let ghost_min_x = ghost_pos.x - ghost_half_size;
-    let ghost_max_x = ghost_pos.x + ghost_half_size;
-    let ghost_min_z = ghost_pos.z - ghost_half_size;
-    let ghost_max_z = ghost_pos.z + ghost_half_size;
-
-    let wall_min_x = wall.x - wall_half_x;
-    let wall_max_x = wall.x + wall_half_x;
-    let wall_min_z = wall.z - wall_half_z;
-    let wall_max_z = wall.z + wall_half_z;
-
-    ranges_overlap(ghost_min_x, ghost_max_x, wall_min_x, wall_max_x)
-        && ranges_overlap(ghost_min_z, ghost_max_z, wall_min_z, wall_max_z)
+    check_aabb_wall_overlap(ghost_pos, wall, ghost_half_size, ghost_half_size)
 }
 
-// Check if a player is close enough to an item to collect it (circle collision).
+// Check if a player is close enough to an item to collect it (circle collision)
 #[must_use]
 pub fn check_player_item_overlap(player_pos: &Position, item_pos: &Position, collection_radius: f32) -> bool {
     let dx = player_pos.x - item_pos.x;
     let dz = player_pos.z - item_pos.z;
     let dist_sq = dx.mul_add(dx, dz * dz);
     dist_sq <= collection_radius * collection_radius
-}
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-// Compute the intersection interval of a ray with a slab (used in ray-AABB tests).
-fn slab_interval(local_coord: f32, ray_dir: f32, half_extent: f32, t_min: f32, t_max: f32) -> Option<(f32, f32)> {
-    if ray_dir.abs() > 1e-6 {
-        let t1 = (-half_extent - local_coord) / ray_dir;
-        let t2 = (half_extent - local_coord) / ray_dir;
-        let new_min = t_min.max(t1.min(t2));
-        let new_max = t_max.min(t1.max(t2));
-        if new_min <= new_max {
-            Some((new_min, new_max))
-        } else {
-            None
-        }
-    } else if local_coord.abs() > half_extent {
-        None
-    } else {
-        Some((t_min, t_max))
-    }
-}
-
-// Create a HitResult indicating no hit.
-const fn no_hit() -> HitResult {
-    HitResult {
-        hit: false,
-        hit_dir_x: 0.0,
-        hit_dir_z: 0.0,
-    }
-}
-
-// Check if two 1D ranges overlap.
-fn ranges_overlap(a_min: f32, a_max: f32, b_min: f32, b_max: f32) -> bool {
-    a_max >= b_min && a_min <= b_max
 }

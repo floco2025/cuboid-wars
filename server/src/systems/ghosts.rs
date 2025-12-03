@@ -7,7 +7,7 @@ use crate::{
     resources::{GhostInfo, GhostMap, GhostMode, GridCell, GridConfig, PlayerMap},
 };
 use common::{
-    collision::{calculate_wall_slide, check_ghost_wall_overlap, check_player_wall_sweep},
+    collision::{calculate_ghost_wall_slide, check_ghost_wall_overlap, check_player_wall_sweep},
     constants::*,
     protocol::{Ghost, GhostId, PlayerId, Position, SGhost, ServerMessage, Speed, SpeedLevel, Velocity, Wall},
 };
@@ -530,8 +530,8 @@ fn follow_movement(
     }
     
     if collides {
-        // Use the wall sliding algorithm from common
-        final_pos = calculate_wall_slide(walls, pos, &target_frame_pos, desired_vel.x, desired_vel.z, delta);
+        // Use the ghost wall sliding algorithm from common
+        final_pos = calculate_ghost_wall_slide(walls, pos, &target_frame_pos, desired_vel.x, desired_vel.z, delta);
     }
 
     // Update velocity based on actual movement
