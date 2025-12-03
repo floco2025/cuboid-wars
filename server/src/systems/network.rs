@@ -138,7 +138,7 @@ fn generate_spawn_position(grid_config: &GridConfig) -> Position {
 
     // Fallback: return center if we couldn't find a valid position
     warn!(
-        "Could not find spawn position without wall collision after {} attempts, spawning at center",
+        "could not find spawn position without wall collision after {} attempts, spawning at center",
         max_attempts
     );
     Position::default()

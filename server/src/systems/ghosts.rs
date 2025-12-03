@@ -126,36 +126,17 @@ pub fn ghosts_spawn_system(
     let mut rng = rand::rng();
 
     for i in 0..NUM_GHOSTS {
-        // Find a random grid cell that doesn't intersect walls
-        let mut grid_x;
-        let mut grid_z;
-        let mut attempts = 0;
-
-        loop {
-            grid_x = rng.random_range(0..GRID_COLS);
-            grid_z = rng.random_range(0..GRID_ROWS);
-            let pos = cell_center(grid_x, grid_z);
-
-            // Check if position is valid (not in a wall)
-            let mut valid = true;
-            for wall in &grid_config.walls {
-                if check_ghost_wall_overlap(&pos, wall) {
-                    valid = false;
-                    break;
-                }
-            }
-
-            if valid || attempts > 100 {
-                break;
-            }
-            attempts += 1;
-        }
+        // Pick a random grid cell - grid centers never have walls
+        let grid_x = rng.random_range(0..GRID_COLS);
+        let grid_z = rng.random_range(0..GRID_ROWS);
 
         // Spawn at grid center
         let pos = cell_center(grid_x, grid_z);
 
-        // Random initial velocity direction (only horizontal or vertical)
-        let direction = pick_direction(&mut rng, &GridDirection::ALL).unwrap_or(GridDirection::East);
+        // Pick a valid direction based on the cell's walls
+        let cell = &grid_config.grid[grid_z as usize][grid_x as usize];
+        let valid_directions = valid_directions(*cell);
+        let direction = pick_direction(&mut rng, &valid_directions).expect("no valid direction");
         let vel = direction.to_velocity();
 
         let ghost_id = GhostId(i);
