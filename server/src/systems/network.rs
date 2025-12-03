@@ -73,6 +73,10 @@ fn collect_items(items: &ItemMap, positions: &Query<&Position>) -> Vec<(ItemId, 
     items
         .0
         .iter()
+        .filter(|(_, info)| {
+            // Filter out cookies that are currently respawning (spawn_time > 0)
+            info.item_type != ItemType::Cookie || info.spawn_time == 0.0
+        })
         .map(|(id, info)| {
             let pos_component = positions.get(info.entity).expect("Item entity missing Position");
             (

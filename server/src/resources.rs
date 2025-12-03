@@ -48,7 +48,7 @@ pub struct PlayerMap(pub HashMap<PlayerId, PlayerInfo>);
 pub struct ItemInfo {
     pub entity: Entity,
     pub item_type: ItemType,
-    pub spawn_time: f32,
+    pub spawn_time: f32, // For power-ups: spawn time; For cookies: respawn countdown (0.0 = available)
 }
 
 // Map of all items (server-side source of truth)

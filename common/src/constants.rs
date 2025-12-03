@@ -53,3 +53,7 @@ pub const MULTI_SHOT_ANGLE: f32 = 3.0;
 
 // Ghost dimensions (meters)
 pub const GHOST_SIZE: f32 = 3.0; // Cube side length
+
+// Cookie settings
+pub const COOKIE_RESPAWN_TIME: f32 = 10.0; // seconds
+pub const COOKIE_POINTS: i32 = 1; // points awarded per cookie

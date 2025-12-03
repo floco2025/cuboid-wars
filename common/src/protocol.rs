@@ -151,6 +151,7 @@ pub enum ItemType {
     SpeedPowerUp,
     MultiShotPowerUp,
     ReflectPowerUp,
+    Cookie,
 }
 
 // Item - an item on the map.
@@ -314,6 +315,11 @@ struct SGhost {
 }
 }
 
+message! {
+// Server to Client: Player collected a cookie.
+struct SCookieCollected {}
+}
+
 // ============================================================================
 // Message Envelopes
 // ============================================================================
@@ -347,4 +353,5 @@ pub enum ServerMessage {
     PlayerStatus(SPlayerStatus),
     Echo(SEcho),
     Ghost(SGhost),
+    CookieCollected(SCookieCollected),
 }

@@ -412,6 +412,7 @@ pub const fn item_type_color(item_type: ItemType) -> Color {
             ITEM_MULTISHOT_COLOR[2],
         ),
         ItemType::ReflectPowerUp => Color::srgb(ITEM_REFLECT_COLOR[0], ITEM_REFLECT_COLOR[1], ITEM_REFLECT_COLOR[2]),
+        ItemType::Cookie => Color::srgb(COOKIE_COLOR[0], COOKIE_COLOR[1], COOKIE_COLOR[2]),
     }
 }
 
@@ -426,6 +427,29 @@ pub fn spawn_item(
 ) -> Entity {
     let color = item_type_color(item_type);
 
+    // Cookies are rendered differently - small spheres on the floor
+    if item_type == ItemType::Cookie {
+        return commands
+            .spawn((
+                item_id,
+                *position,
+                Mesh3d(meshes.add(Sphere::new(COOKIE_SIZE))),
+                MeshMaterial3d(materials.add(StandardMaterial {
+                    base_color: color,
+                    emissive: LinearRgba::new(
+                        color.to_srgba().red * 0.3,
+                        color.to_srgba().green * 0.3,
+                        color.to_srgba().blue * 0.3,
+                        1.0,
+                    ),
+                    ..default()
+                })),
+                Transform::from_xyz(position.x, COOKIE_HEIGHT, position.z),
+            ))
+            .id();
+    }
+
+    // Power-ups are cubes that bounce
     let random_phase = rand::random::<f32>() * std::f32::consts::TAU;
 
     commands

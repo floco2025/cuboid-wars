@@ -48,5 +48,10 @@ pub const ITEM_SPEED_COLOR: [f32; 4] = [0.2, 0.7, 1.0, 1.0]; // Light blue
 pub const ITEM_MULTISHOT_COLOR: [f32; 4] = [1.0, 0.5, 0.2, 1.0]; // Orange
 pub const ITEM_REFLECT_COLOR: [f32; 4] = [1.0, 0.2, 0.2, 1.0]; // Red
 
+// Cookie visual settings
+pub const COOKIE_SIZE: f32 = 0.15; // Small sphere radius
+pub const COOKIE_HEIGHT: f32 = 0.1; // Slightly above floor to avoid z-fighting
+pub const COOKIE_COLOR: [f32; 4] = [0.55, 0.35, 0.2, 1.0]; // Brown
+
 // Ghost visual settings
 pub const GHOST_COLOR: [f32; 4] = [0xF8 as f32 / 255.0, 0xF8 as f32 / 255.0, 0xFF as f32 / 255.0, 0.5];

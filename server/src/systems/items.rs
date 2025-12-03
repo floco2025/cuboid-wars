@@ -5,11 +5,13 @@ use std::collections::HashSet;
 use crate::{
     constants::*,
     map::{cell_center, find_unoccupied_cell, grid_coords_from_position},
+    net::ServerToClient,
     resources::{ItemInfo, ItemMap, ItemSpawner, PlayerMap},
 };
 use common::{
     collision::check_player_item_overlap,
-    protocol::{ItemId, ItemType, PlayerId, Position, SPlayerStatus, ServerMessage},
+    constants::{COOKIE_POINTS, COOKIE_RESPAWN_TIME, GRID_COLS, GRID_ROWS},
+    protocol::{ItemId, ItemType, PlayerId, Position, SCookieCollected, SPlayerStatus, ServerMessage},
 };
 
 use super::network::broadcast_to_all;
@@ -28,6 +30,43 @@ fn choose_item_type(rng: &mut rand::rngs::ThreadRng) -> ItemType {
 // ============================================================================
 // Item Spawn/Despawn Systems
 // ============================================================================
+
+// System to spawn cookies on all grid cells at startup
+pub fn item_initial_spawn_system(
+    mut commands: Commands,
+    mut spawner: ResMut<ItemSpawner>,
+    mut items: ResMut<ItemMap>,
+    query: Query<&ItemId>,
+) {
+    // Only spawn cookies once - check if any cookies exist
+    let has_cookies = query.iter().any(|id| {
+        items.0.get(id).is_some_and(|info| info.item_type == ItemType::Cookie)
+    });
+
+    if has_cookies {
+        return;
+    }
+
+    // Spawn one cookie on each grid cell
+    for grid_z in 0..GRID_ROWS {
+        for grid_x in 0..GRID_COLS {
+            let item_id = ItemId(spawner.next_id);
+            spawner.next_id += 1;
+            let position = cell_center(grid_x, grid_z);
+
+            let entity = commands.spawn((item_id, position)).id();
+
+            items.0.insert(
+                item_id,
+                ItemInfo {
+                    entity,
+                    item_type: ItemType::Cookie,
+                    spawn_time: 0.0, // Cookie is available (not respawning)
+                },
+            );
+        }
+    }
+}
 
 // System to spawn items at regular intervals
 pub fn item_spawn_system(
@@ -76,11 +115,14 @@ pub fn item_spawn_system(
 pub fn item_despawn_system(mut commands: Commands, time: Res<Time>, mut items: ResMut<ItemMap>) {
     let current_time = time.elapsed_secs();
 
-    // Collect items to remove
+    // Collect items to remove (skip cookies - they respawn instead)
     let items_to_remove: Vec<ItemId> = items
         .0
         .iter()
-        .filter(|(_, info)| current_time - info.spawn_time >= ITEM_LIFETIME)
+        .filter(|(_, info)| {
+            info.item_type != ItemType::Cookie
+                && current_time - info.spawn_time >= ITEM_LIFETIME
+        })
         .map(|(id, _)| *id)
         .collect();
 
@@ -132,7 +174,7 @@ pub fn item_collection_system(
             commands.entity(item_info.entity).despawn();
         }
 
-        // Update player's power-up timer
+        // Update player's power-up timer or points
         if let Some(player_info) = players.0.get_mut(&player_id) {
             match item_type {
                 ItemType::SpeedPowerUp => {
@@ -143,6 +185,20 @@ pub fn item_collection_system(
                 }
                 ItemType::ReflectPowerUp => {
                     player_info.reflect_power_up_timer = MULTI_SHOT_POWER_UP_DURATION;
+                }
+                ItemType::Cookie => {
+                    // Give points for cookie
+                    player_info.hits += COOKIE_POINTS;
+                    // Set spawn_time to respawn countdown
+                    if let Some(item_info) = items.0.get_mut(&item_id) {
+                        item_info.spawn_time = COOKIE_RESPAWN_TIME;
+                    }
+                    // Send cookie collection message only to this player
+                    let _ = player_info.channel.send(ServerToClient::Send(
+                        ServerMessage::CookieCollected(SCookieCollected {}),
+                    ));
+                    debug!("Player {:?} collected cookie, +{} points", player_id, COOKIE_POINTS);
+                    continue; // Skip despawning the cookie
                 }
             }
 
@@ -161,5 +217,29 @@ pub fn item_collection_system(
     // Send power-up updates to all clients
     for msg in power_up_messages {
         broadcast_to_all(&players, ServerMessage::PlayerStatus(msg));
+    }
+}
+
+// ============================================================================
+// Cookie Respawn System
+// ============================================================================
+
+// System to handle cookie respawning after collection
+pub fn item_respawn_system(time: Res<Time>, mut items: ResMut<ItemMap>) {
+    let delta = time.delta_secs();
+
+    for item_info in items.0.values_mut() {
+        if item_info.item_type != ItemType::Cookie {
+            continue;
+        }
+
+        // If spawn_time > 0, it's counting down to respawn
+        if item_info.spawn_time > 0.0 {
+            item_info.spawn_time -= delta;
+            if item_info.spawn_time <= 0.0 {
+                item_info.spawn_time = 0.0; // Cookie has respawned
+                debug!("Cookie respawned");
+            }
+        }
     }
 }

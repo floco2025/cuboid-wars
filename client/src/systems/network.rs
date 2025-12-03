@@ -182,6 +182,9 @@ fn process_message_logged_in(
         ServerMessage::Ghost(ghost_msg) => {
             handle_ghost_message(commands, meshes, materials, &mut maps.p2(), rtt, ghost_query, ghost_msg);
         }
+        ServerMessage::CookieCollected(cookie_msg) => {
+            handle_cookie_collected_message(commands, cookie_msg, asset_server);
+        }
     }
 }
 
@@ -686,6 +689,18 @@ fn handle_ghost_message(
         let entity = spawn_ghost(commands, meshes, materials, msg.id, &msg.ghost.pos, &msg.ghost.vel);
         ghosts.0.insert(msg.id, GhostInfo { entity });
     }
+}
+
+fn handle_cookie_collected_message(
+    commands: &mut Commands,
+    _msg: SCookieCollected,
+    asset_server: &AssetServer,
+) {
+    // Play sound - this message is only sent to the player who collected it
+    commands.spawn((
+        AudioPlayer::new(asset_server.load("sounds/player_cookie.ogg")),
+        PlaybackSettings::DESPAWN,
+    ));
 }
 
 // ============================================================================
