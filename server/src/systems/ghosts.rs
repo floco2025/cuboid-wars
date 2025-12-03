@@ -27,12 +27,7 @@ enum GridDirection {
 }
 
 impl GridDirection {
-    const ALL: [Self; 4] = [
-        Self::East,
-        Self::North,
-        Self::West,
-        Self::South,
-    ];
+    const ALL: [Self; 4] = [Self::East, Self::North, Self::West, Self::South];
 
     fn to_velocity(self) -> Velocity {
         match self {
@@ -173,6 +168,7 @@ pub fn ghosts_spawn_system(
                 mode: GhostMode::Patrol,
                 mode_timer: 0.0,
                 follow_target: None,
+                at_intersection: true, // Spawned at grid center
             },
         );
     }
@@ -197,9 +193,10 @@ pub fn ghosts_movement_system(
 
     // First, collect all ghost data and player data we need
     let mut ghost_updates = Vec::new();
-    
+
     // Collect player positions and speeds
-    let player_data: Vec<(PlayerId, Position, Speed)> = param_set.p1()
+    let player_data: Vec<(PlayerId, Position, Speed)> = param_set
+        .p1()
         .iter()
         .map(|(id, pos, speed)| (*id, *pos, *speed))
         .collect();
@@ -222,7 +219,8 @@ pub fn ghosts_movement_system(
         match ghost_info.mode {
             GhostMode::Patrol => {
                 // Check if we can see any moving players
-                if let Some(target_player_id) = find_visible_moving_player(&ghost_pos, &player_data, &grid_config.walls) {
+                if let Some(target_player_id) = find_visible_moving_player(&ghost_pos, &player_data, &grid_config.walls)
+                {
                     // Switch to follow mode
                     ghost_info.mode = GhostMode::Follow;
                     ghost_info.mode_timer = GHOST_FOLLOW_DURATION;
@@ -236,7 +234,7 @@ pub fn ghosts_movement_system(
                     ghost_info.mode = GhostMode::PrePatrol;
                     ghost_info.mode_timer = GHOST_COOLDOWN_DURATION;
                     ghost_info.follow_target = None;
-                    
+
                     debug!("{:?} follow time expired, entering pre-patrol", ghost_id);
                 } else {
                     // Check if target player still exists
@@ -247,7 +245,7 @@ pub fn ghosts_movement_system(
                             ghost_info.mode = GhostMode::PrePatrol;
                             ghost_info.mode_timer = GHOST_COOLDOWN_DURATION;
                             ghost_info.follow_target = None;
-                            
+
                             debug!("{:?} lost target {:?}, entering pre-patrol", ghost_id, target_id);
                         }
                     }
@@ -287,6 +285,7 @@ pub fn ghosts_movement_system(
                     &ghost_id,
                     &mut ghost_pos,
                     &mut ghost_vel,
+                    ghost_info,
                     &grid_config,
                     &players,
                     delta,
@@ -308,7 +307,7 @@ pub fn ghosts_movement_system(
                 }
             }
         }
-        
+
         // Write back the updated position and velocity
         if let Ok((_, mut pos, mut vel)) = param_set.p0().get_mut(ghost_info.entity) {
             *pos = ghost_pos;
@@ -332,9 +331,9 @@ fn find_visible_moving_player(
         if player_speed.speed_level == SpeedLevel::Idle {
             continue;
         }
-        
+
         let distance = ((player_pos.x - ghost_pos.x).powi(2) + (player_pos.z - ghost_pos.z).powi(2)).sqrt();
-        
+
         if distance > GHOST_VISION_RANGE {
             continue;
         }
@@ -358,6 +357,8 @@ fn has_line_of_sight(from: &Position, to: &Position, walls: &[Wall]) -> bool {
     true
 }
 
+const GHOST_CENTER_THRESHOLD: f32 = 0.2;
+
 // Pre-patrol mode movement - navigates to grid center before entering patrol
 fn pre_patrol_movement(
     ghost_id: &GhostId,
@@ -377,33 +378,29 @@ fn pre_patrol_movement(
     let center = cell_center(grid_x, grid_z);
 
     // Check if we're at grid center (within small threshold)
-    const CENTER_THRESHOLD: f32 = 0.5;
-    let at_center_x = (pos.x - center.x).abs() < CENTER_THRESHOLD;
-    let at_center_z = (pos.z - center.z).abs() < CENTER_THRESHOLD;
+    let at_center_x = (pos.x - center.x).abs() < GHOST_CENTER_THRESHOLD;
+    let at_center_z = (pos.z - center.z).abs() < GHOST_CENTER_THRESHOLD;
     let at_intersection = at_center_x && at_center_z;
 
     if at_intersection {
         // We've reached the grid center - pick a valid direction and transition to patrol
         let cell = &grid_config.grid[grid_z as usize][grid_x as usize];
         let valid_directions = valid_directions(*cell);
-        
+
         if let Some(new_direction) = pick_direction(rng, &valid_directions) {
             *vel = new_direction.to_velocity();
-            
+
             // Transition to PatrolCooldown (still in cooldown period after follow)
             ghost_info.mode = GhostMode::PatrolCooldown;
             // Keep the existing mode_timer (cooldown time)
-            
+
             debug!("{:?} reached grid center, entering patrol cooldown", ghost_id);
-            
+
             broadcast_to_all(
                 players,
                 ServerMessage::Ghost(SGhost {
                     id: *ghost_id,
-                    ghost: Ghost {
-                        pos: *pos,
-                        vel: *vel,
-                    },
+                    ghost: Ghost { pos: *pos, vel: *vel },
                 }),
             );
         }
@@ -412,35 +409,32 @@ fn pre_patrol_movement(
         let dx = center.x - pos.x;
         let dz = center.z - pos.z;
         let distance = (dx * dx + dz * dz).sqrt();
-        
+
         // Normalize and apply ghost speed
         let dir_x = dx / distance;
         let dir_z = dz / distance;
-        
+
         let new_vel = Velocity {
             x: dir_x * GHOST_SPEED,
             y: 0.0,
             z: dir_z * GHOST_SPEED,
         };
-        
+
         // Only broadcast if velocity changed
         let vel_changed = (new_vel.x - vel.x).abs() > 0.1 || (new_vel.z - vel.z).abs() > 0.1;
-        
+
         *vel = new_vel;
-        
+
         if vel_changed {
             broadcast_to_all(
                 players,
                 ServerMessage::Ghost(SGhost {
                     id: *ghost_id,
-                    ghost: Ghost {
-                        pos: *pos,
-                        vel: *vel,
-                    },
+                    ghost: Ghost { pos: *pos, vel: *vel },
                 }),
             );
         }
-        
+
         // Move based on velocity
         pos.x += vel.x * delta;
         pos.z += vel.z * delta;
@@ -452,6 +446,7 @@ fn patrol_movement(
     ghost_id: &GhostId,
     pos: &mut Position,
     vel: &mut Velocity,
+    ghost_info: &mut GhostInfo,
     grid_config: &GridConfig,
     players: &PlayerMap,
     delta: f32,
@@ -467,12 +462,17 @@ fn patrol_movement(
     let center = cell_center(grid_x, grid_z);
 
     // Check if we're at grid center (within small threshold)
-    const CENTER_THRESHOLD: f32 = 0.1;
-    let at_center_x = (pos.x - center.x).abs() < CENTER_THRESHOLD;
-    let at_center_z = (pos.z - center.z).abs() < CENTER_THRESHOLD;
+    let at_center_x = (pos.x - center.x).abs() < GHOST_CENTER_THRESHOLD;
+    let at_center_z = (pos.z - center.z).abs() < GHOST_CENTER_THRESHOLD;
     let at_intersection = at_center_x && at_center_z;
 
-    if at_intersection {
+    // Detect transition into intersection (just arrived)
+    let just_arrived = at_intersection && !ghost_info.at_intersection;
+
+    // Update intersection state
+    ghost_info.at_intersection = at_intersection;
+
+    if just_arrived {
         let cell = &grid_config.grid[grid_z as usize][grid_x as usize];
         let valid_directions = valid_directions(*cell);
         let mut direction_changed = false;
@@ -482,10 +482,7 @@ fn patrol_movement(
         {
             let forward_options = forward_directions(&valid_directions, current_direction);
             if forward_options.is_empty() {
-                let new_direction = valid_directions
-                    .first()
-                    .copied()
-                    .expect("no valid direction");
+                let new_direction = valid_directions.first().copied().expect("no valid direction");
                 *vel = new_direction.to_velocity();
                 direction_changed = true;
             } else if let Some(new_direction) = pick_direction(rng, &forward_options) {
@@ -508,10 +505,7 @@ fn patrol_movement(
                 players,
                 ServerMessage::Ghost(SGhost {
                     id: *ghost_id,
-                    ghost: Ghost {
-                        pos: *pos,
-                        vel: *vel,
-                    },
+                    ghost: Ghost { pos: *pos, vel: *vel },
                 }),
             );
         }
@@ -585,14 +579,14 @@ fn follow_movement(
     // Check for wall collisions and apply sliding
     let mut final_pos = target_frame_pos;
     let mut collides = false;
-    
+
     for wall in walls {
         if check_ghost_wall_overlap(&final_pos, wall) {
             collides = true;
             break;
         }
     }
-    
+
     if collides {
         // Use the ghost wall sliding algorithm from common
         final_pos = calculate_ghost_wall_slide(walls, pos, &target_frame_pos, desired_vel.x, desired_vel.z, delta);
@@ -601,7 +595,7 @@ fn follow_movement(
     // Update velocity based on actual movement
     let actual_dx = final_pos.x - pos.x;
     let actual_dz = final_pos.z - pos.z;
-    
+
     let new_vel = Velocity {
         x: actual_dx / delta,
         y: 0.0,
@@ -610,7 +604,7 @@ fn follow_movement(
 
     // Only broadcast if velocity changed significantly
     let vel_changed = (new_vel.x - vel.x).abs() > 0.1 || (new_vel.z - vel.z).abs() > 0.1;
-    
+
     *vel = new_vel;
     *pos = final_pos;
 
@@ -619,10 +613,7 @@ fn follow_movement(
             players,
             ServerMessage::Ghost(SGhost {
                 id: *ghost_id,
-                ghost: Ghost {
-                    pos: *pos,
-                    vel: *vel,
-                },
+                ghost: Ghost { pos: *pos, vel: *vel },
             }),
         );
     }
