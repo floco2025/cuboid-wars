@@ -6,9 +6,10 @@ use crate::{
     resources::{FromAcceptChannel, FromClientsChannel, GhostMap, GridConfig, ItemMap, PlayerInfo, PlayerMap},
 };
 use common::{
-    collision::{Projectile, check_player_wall_overlap, check_player_wall_sweep},
-    constants::{MULTI_SHOT_ANGLE, *},
+    collision::{Projectile, check_player_wall_overlap},
+    constants::*,
     protocol::*,
+    spawning::calculate_projectile_spawns,
 };
 
 // ============================================================================
@@ -208,7 +209,15 @@ pub fn network_client_message_system(
             ClientToServer::Message(message) => {
                 let is_logged_in = player_info.logged_in;
                 if is_logged_in {
-                    process_message_logged_in(&mut commands, player_info.entity, id, message, &players, &positions, &grid_config);
+                    process_message_logged_in(
+                        &mut commands,
+                        player_info.entity,
+                        id,
+                        message,
+                        &players,
+                        &positions,
+                        &grid_config,
+                    );
                 } else {
                     process_message_not_logged_in(
                         &mut commands,
@@ -443,52 +452,23 @@ fn handle_shot(
     // Spawn projectile(s) on server for hit detection
     if let Ok(pos) = positions.get(entity) {
         // Check if player has reflect power-up
-        let has_reflect = players
+        let has_reflect = players.0.get(&id).is_some_and(|info| info.reflect_power_up_timer > 0.0);
+
+        // Check if player has multi-shot power-up
+        let has_multi_shot = players
             .0
             .get(&id)
-            .is_some_and(|info| info.reflect_power_up_timer > 0.0);
-        
-        // Determine number of shots based on multi-shot power-up
-        let num_shots = if players
-            .0
-            .get(&id)
-            .is_some_and(|info| info.multi_shot_power_up_timer > 0.0)
-        {
-            MULTI_SHOT_MULTIPLER
-        } else {
-            1
-        };
+            .is_some_and(|info| info.multi_shot_power_up_timer > 0.0);
 
-        // Spawn projectiles in an arc
-        let angle_step = MULTI_SHOT_ANGLE.to_radians();
-        let start_offset = -(num_shots - 1) as f32 * angle_step / 2.0;
+        // Calculate valid projectile spawn positions
+        let spawns = calculate_projectile_spawns(pos, msg.face_dir, has_multi_shot, has_reflect, &grid_config.walls);
 
-        for i in 0..num_shots {
-            let angle_offset = (i as f32).mul_add(angle_step, start_offset);
-            let shot_dir = msg.face_dir + angle_offset;
-            let spawn_pos = Projectile::calculate_spawn_position(Vec3::new(pos.x, pos.y, pos.z), shot_dir);
-            
-            // Check if the path from player to spawn position crosses through a wall
-            let spawn_position = Position {
-                x: spawn_pos.x,
-                y: spawn_pos.y,
-                z: spawn_pos.z,
-            };
-            
-            let is_spawn_blocked = grid_config
-                .walls
-                .iter()
-                .any(|wall| check_player_wall_sweep(pos, &spawn_position, wall));
-            
-            // Skip spawning this projectile if the spawn path is blocked by a wall
-            if is_spawn_blocked {
-                continue;
-            }
-            
-            let projectile = Projectile::new(shot_dir, has_reflect);
+        // Spawn each projectile
+        for spawn_info in spawns {
+            let projectile = Projectile::new(spawn_info.direction, spawn_info.reflects);
 
             commands.spawn((
-                spawn_position,
+                spawn_info.position,
                 projectile,
                 id, // Tag projectile with shooter's ID
             ));

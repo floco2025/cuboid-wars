@@ -37,12 +37,10 @@ pub fn projectiles_movement_system(
         for wall in &grid_config.walls {
             if let Some(new_pos) = projectile.handle_wall_bounce(&proj_pos, delta, wall) {
                 if projectile.reflects {
-                    info!("Projectile from {:?} bouncing off wall (has reflect power-up)", shooter_id);
                     proj_pos.x = new_pos.x;
                     proj_pos.y = new_pos.y;
                     proj_pos.z = new_pos.z;
                 } else {
-                    info!("Projectile from {:?} hit wall without reflect power-up, despawning", shooter_id);
                     commands.entity(proj_entity).despawn();
                 }
                 

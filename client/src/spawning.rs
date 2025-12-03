@@ -11,7 +11,7 @@ use crate::{
         players::{BumpFlashState, LocalPlayer},
     },
 };
-use common::{constants::*, protocol::*, collision::Projectile};
+use common::{collision::Projectile, constants::*, protocol::*, spawning::calculate_projectile_spawns};
 
 #[derive(Component)]
 pub struct PlayerIdText;
@@ -107,17 +107,10 @@ pub fn spawn_projectiles(
     has_reflect: bool,
     walls: &[Wall],
 ) {
-    // Determine number of shots
-    let num_shots = if has_multi_shot { MULTI_SHOT_MULTIPLER } else { 1 };
+    let spawns = calculate_projectile_spawns(pos, face_dir, has_multi_shot, has_reflect, walls);
 
-    // Spawn projectiles in an arc
-    let angle_step = MULTI_SHOT_ANGLE.to_radians();
-    let start_offset = -(num_shots - 1) as f32 * angle_step / 2.0;
-
-    for i in 0..num_shots {
-        let angle_offset = (i as f32).mul_add(angle_step, start_offset);
-        let shot_dir = face_dir + angle_offset;
-        spawn_single_projectile(commands, meshes, materials, pos, shot_dir, has_reflect, walls);
+    for spawn_info in spawns {
+        spawn_single_projectile(commands, meshes, materials, &spawn_info);
     }
 }
 
@@ -126,32 +119,13 @@ fn spawn_single_projectile(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
-    pos: &Position,
-    face_dir: f32,
-    reflects: bool,
-    walls: &[Wall],
+    spawn_info: &common::spawning::ProjectileSpawnInfo,
 ) {
-    let spawn_pos = Projectile::calculate_spawn_position(Vec3::new(pos.x, pos.y, pos.z), face_dir);
-    
-    // Check if the path from player to spawn position crosses through a wall
-    let spawn_position = Position {
-        x: spawn_pos.x,
-        y: spawn_pos.y,
-        z: spawn_pos.z,
-    };
-    
-    let is_spawn_blocked = walls
-        .iter()
-        .any(|wall| common::collision::check_player_wall_sweep(pos, &spawn_position, wall));
-    
-    // Skip spawning this projectile if the spawn path is blocked by a wall
-    if is_spawn_blocked {
-        return;
-    }
-    
-    let projectile = Projectile::new(face_dir, reflects);
+    let spawn_pos = Vec3::new(spawn_info.position.x, spawn_info.position.y, spawn_info.position.z);
+
+    let projectile = Projectile::new(spawn_info.direction, spawn_info.reflects);
     let projectile_color = Color::srgb(10.0, 10.0, 0.0); // Very bright yellow
-    
+
     commands.spawn((
         Mesh3d(meshes.add(Sphere::new(PROJECTILE_RADIUS))),
         MeshMaterial3d(materials.add(StandardMaterial {
@@ -177,7 +151,16 @@ pub fn spawn_projectile_for_player(
 ) {
     // Get position and face direction for this player entity
     if let Ok((pos, face_dir)) = player_pos_face_query.get(entity) {
-        spawn_projectiles(commands, meshes, materials, pos, face_dir.0, has_multi_shot, has_reflect, walls);
+        spawn_projectiles(
+            commands,
+            meshes,
+            materials,
+            pos,
+            face_dir.0,
+            has_multi_shot,
+            has_reflect,
+            walls,
+        );
     }
 }
 
@@ -407,11 +390,7 @@ pub const fn item_type_color(item_type: ItemType) -> Color {
             ITEM_MULTISHOT_COLOR[1],
             ITEM_MULTISHOT_COLOR[2],
         ),
-        ItemType::ReflectPowerUp => Color::srgb(
-            ITEM_REFLECT_COLOR[0],
-            ITEM_REFLECT_COLOR[1],
-            ITEM_REFLECT_COLOR[2],
-        ),
+        ItemType::ReflectPowerUp => Color::srgb(ITEM_REFLECT_COLOR[0], ITEM_REFLECT_COLOR[1], ITEM_REFLECT_COLOR[2]),
     }
 }
 
