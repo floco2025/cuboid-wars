@@ -9,21 +9,21 @@ use tokio::{
 use common::net::MessageStream;
 use common::protocol::*;
 
-/// Message emitted by the network task toward the Bevy world.
+// Message emitted by the network task toward the Bevy world.
 #[derive(Debug, Clone)]
 pub enum ServerToClient {
     Message(ServerMessage),
     Disconnected,
 }
 
-/// Message emitted by the Bevy world toward the network task.
+// Message emitted by the Bevy world toward the network task.
 #[derive(Debug, Clone)]
 pub enum ClientToServer {
     Send(ClientMessage),
     Close,
 }
 
-/// Bidirectional bridge between the server connection and the Bevy world.
+// Bidirectional bridge between the server connection and the Bevy world.
 pub async fn network_io_task(
     connection: Connection,
     to_client: UnboundedSender<ServerToClient>,

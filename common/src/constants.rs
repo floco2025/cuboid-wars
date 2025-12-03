@@ -26,8 +26,8 @@ pub const PLAYER_HEIGHT: f32 = 1.8; // up/down
 pub const PLAYER_DEPTH: f32 = 0.3; // front to back
 
 // Player speeds (meters per second)
-pub const WALK_SPEED: f32 = 10.0;
-pub const RUN_SPEED: f32 = 10.0;
+pub const WALK_SPEED: f32 = 8.0;
+pub const RUN_SPEED: f32 = 8.0;
 
 // Projectile constants
 pub const PROJECTILE_SPEED: f32 = 25.0; // meters per second (dodgeball throw speed)

@@ -35,27 +35,14 @@ pub fn projectiles_movement_system(
 
         // Check wall collisions first
         for wall in &grid_config.walls {
-            if let Some((normal_x, normal_z, t_collision)) = common::collision::check_projectile_wall_hit_with_normal(&proj_pos, &projectile, delta, wall) {
+            if let Some(new_pos) = projectile.handle_wall_bounce(&proj_pos, delta, wall) {
                 if projectile.reflects {
                     info!("Projectile from {:?} bouncing off wall (has reflect power-up)", shooter_id);
-                    // Move projectile to collision point
-                    let collision_x = projectile.velocity.x.mul_add(delta * t_collision, proj_pos.x);
-                    let collision_y = projectile.velocity.y.mul_add(delta * t_collision, proj_pos.y);
-                    let collision_z = projectile.velocity.z.mul_add(delta * t_collision, proj_pos.z);
-                    
-                    // Reflect velocity off the wall normal
-                    let dot = projectile.velocity.x.mul_add(normal_x, projectile.velocity.z * normal_z);
-                    projectile.velocity.x -= 2.0 * dot * normal_x;
-                    projectile.velocity.z -= 2.0 * dot * normal_z;
-                    
-                    // Continue moving for remaining time after bounce
-                    let remaining_time = delta * (1.0 - t_collision);
-                    proj_pos.x = projectile.velocity.x.mul_add(remaining_time, collision_x);
-                    proj_pos.y = projectile.velocity.y.mul_add(remaining_time, collision_y);
-                    proj_pos.z = projectile.velocity.z.mul_add(remaining_time, collision_z);
+                    proj_pos.x = new_pos.x;
+                    proj_pos.y = new_pos.y;
+                    proj_pos.z = new_pos.z;
                 } else {
                     info!("Projectile from {:?} hit wall without reflect power-up, despawning", shooter_id);
-                    // Despawn projectile without reflect power-up
                     commands.entity(proj_entity).despawn();
                 }
                 

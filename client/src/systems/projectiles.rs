@@ -141,7 +141,7 @@ fn handle_wall_collisions(
     };
 
     for wall in &config.walls {
-        if let Some((normal_x, normal_z, t_collision)) = common::collision::check_projectile_wall_hit_with_normal(projectile_pos, projectile, delta, wall) {
+        if let Some(new_pos) = projectile.handle_wall_bounce(projectile_pos, delta, wall) {
             play_sound(
                 commands,
                 asset_server,
@@ -153,31 +153,12 @@ fn handle_wall_collisions(
                 },
             );
             
-            if projectile.reflects {
-                // Move projectile to collision point
-                let collision_x = projectile.velocity.x.mul_add(delta * t_collision, projectile_pos.x);
-                let collision_y = projectile.velocity.y.mul_add(delta * t_collision, projectile_pos.y);
-                let collision_z = projectile.velocity.z.mul_add(delta * t_collision, projectile_pos.z);
-                
-                // Reflect velocity off the wall normal
-                let dot = projectile.velocity.x.mul_add(normal_x, projectile.velocity.z * normal_z);
-                projectile.velocity.x -= 2.0 * dot * normal_x;
-                projectile.velocity.z -= 2.0 * dot * normal_z;
-                
-                // Continue moving for remaining time after bounce
-                let remaining_time = delta * (1.0 - t_collision);
-                let new_pos = Position {
-                    x: projectile.velocity.x.mul_add(remaining_time, collision_x),
-                    y: projectile.velocity.y.mul_add(remaining_time, collision_y),
-                    z: projectile.velocity.z.mul_add(remaining_time, collision_z),
-                };
-                
-                return Some(new_pos);
-            } else {
+            if !projectile.reflects {
                 // Despawn projectile without reflect power-up
                 commands.entity(projectile_entity).despawn();
-                return Some(*projectile_pos); // Return current position (will be despawned anyway)
             }
+            
+            return Some(new_pos);
         }
     }
 

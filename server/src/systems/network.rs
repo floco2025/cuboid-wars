@@ -142,7 +142,7 @@ fn generate_spawn_position(grid_config: &GridConfig) -> Position {
 // Accept Connections System
 // ============================================================================
 
-/// Drain newly accepted connections into ECS entities and tracking state.
+// Drain newly accepted connections into ECS entities and tracking state.
 pub fn network_accept_connections_system(
     mut commands: Commands,
     mut from_accept: ResMut<FromAcceptChannel>,
