@@ -10,7 +10,7 @@ use crate::{
     constants::*,
     net::ClientToServer,
     resources::{CameraViewMode, ClientToServerChannel, MyPlayerId, PlayerMap, RoofRenderingEnabled},
-    spawning::spawn_projectiles_local,
+    spawning::spawn_projectiles,
 };
 use common::{constants::SPEED_POWER_UP_MULTIPLIER, protocol::*};
 
@@ -240,6 +240,7 @@ pub fn input_shooting_system(
     mut materials: ResMut<Assets<StandardMaterial>>,
     my_player_id: Option<Res<MyPlayerId>>,
     players: Res<PlayerMap>,
+    wall_config: Option<Res<crate::resources::WallConfig>>,
 ) {
     // Only allow shooting when cursor is locked
     let cursor_locked = cursor_options.grab_mode != CursorGrabMode::None;
@@ -271,7 +272,8 @@ pub fn input_shooting_system(
             .is_some_and(|info| info.reflect_power_up);
 
         // Spawn projectile(s) based on power-up status
-        spawn_projectiles_local(
+        let walls = wall_config.as_ref().map_or(&[][..], |config| &config.walls);
+        spawn_projectiles(
             &mut commands,
             &mut meshes,
             &mut materials,
@@ -279,6 +281,7 @@ pub fn input_shooting_system(
             face_dir.0,
             has_multi_shot,
             has_reflect,
+            walls,
         );
     }
 }

@@ -6,7 +6,7 @@ use crate::{
     resources::{FromAcceptChannel, FromClientsChannel, GhostMap, GridConfig, ItemMap, PlayerInfo, PlayerMap},
 };
 use common::{
-    collision::{Projectile, check_player_wall_overlap},
+    collision::{Projectile, check_player_wall_overlap, check_player_wall_sweep},
     constants::{MULTI_SHOT_ANGLE, *},
     protocol::*,
 };
@@ -208,7 +208,7 @@ pub fn network_client_message_system(
             ClientToServer::Message(message) => {
                 let is_logged_in = player_info.logged_in;
                 if is_logged_in {
-                    process_message_logged_in(&mut commands, player_info.entity, id, message, &players, &positions);
+                    process_message_logged_in(&mut commands, player_info.entity, id, message, &players, &positions, &grid_config);
                 } else {
                     process_message_not_logged_in(
                         &mut commands,
@@ -353,6 +353,7 @@ fn process_message_logged_in(
     msg: ClientMessage,
     players: &PlayerMap,
     positions: &Query<&Position>,
+    grid_config: &GridConfig,
 ) {
     match msg {
         ClientMessage::Login(_) => {
@@ -376,7 +377,7 @@ fn process_message_logged_in(
         }
         ClientMessage::Shot(msg) => {
             debug!("{id:?} shot");
-            handle_shot(commands, entity, id, msg, players, positions);
+            handle_shot(commands, entity, id, msg, players, positions, grid_config);
         }
         ClientMessage::Echo(msg) => {
             trace!("{:?} echo: {:?}", id, msg);
@@ -434,6 +435,7 @@ fn handle_shot(
     msg: CShot,
     players: &PlayerMap,
     positions: &Query<&Position>,
+    grid_config: &GridConfig,
 ) {
     // Update the shooter's face direction to exact facing direction
     commands.entity(entity).insert(FaceDirection(msg.face_dir));
@@ -465,14 +467,28 @@ fn handle_shot(
             let angle_offset = (i as f32).mul_add(angle_step, start_offset);
             let shot_dir = msg.face_dir + angle_offset;
             let spawn_pos = Projectile::calculate_spawn_position(Vec3::new(pos.x, pos.y, pos.z), shot_dir);
+            
+            // Check if the path from player to spawn position crosses through a wall
+            let spawn_position = Position {
+                x: spawn_pos.x,
+                y: spawn_pos.y,
+                z: spawn_pos.z,
+            };
+            
+            let is_spawn_blocked = grid_config
+                .walls
+                .iter()
+                .any(|wall| check_player_wall_sweep(pos, &spawn_position, wall));
+            
+            // Skip spawning this projectile if the spawn path is blocked by a wall
+            if is_spawn_blocked {
+                continue;
+            }
+            
             let projectile = Projectile::new(shot_dir, has_reflect);
 
             commands.spawn((
-                Position {
-                    x: spawn_pos.x,
-                    y: spawn_pos.y,
-                    z: spawn_pos.z,
-                },
+                spawn_position,
                 projectile,
                 id, // Tag projectile with shooter's ID
             ));

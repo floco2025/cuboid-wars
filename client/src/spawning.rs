@@ -97,7 +97,7 @@ pub fn spawn_player(
 }
 
 // Spawn projectile(s) locally based on whether player has multi-shot power-up
-pub fn spawn_projectiles_local(
+pub fn spawn_projectiles(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
@@ -105,6 +105,7 @@ pub fn spawn_projectiles_local(
     face_dir: f32,
     has_multi_shot: bool,
     has_reflect: bool,
+    walls: &[Wall],
 ) {
     // Determine number of shots
     let num_shots = if has_multi_shot { MULTI_SHOT_MULTIPLER } else { 1 };
@@ -116,7 +117,7 @@ pub fn spawn_projectiles_local(
     for i in 0..num_shots {
         let angle_offset = (i as f32).mul_add(angle_step, start_offset);
         let shot_dir = face_dir + angle_offset;
-        spawn_single_projectile(commands, meshes, materials, pos, shot_dir, has_reflect);
+        spawn_single_projectile(commands, meshes, materials, pos, shot_dir, has_reflect, walls);
     }
 }
 
@@ -128,8 +129,26 @@ fn spawn_single_projectile(
     pos: &Position,
     face_dir: f32,
     reflects: bool,
+    walls: &[Wall],
 ) {
     let spawn_pos = Projectile::calculate_spawn_position(Vec3::new(pos.x, pos.y, pos.z), face_dir);
+    
+    // Check if the path from player to spawn position crosses through a wall
+    let spawn_position = Position {
+        x: spawn_pos.x,
+        y: spawn_pos.y,
+        z: spawn_pos.z,
+    };
+    
+    let is_spawn_blocked = walls
+        .iter()
+        .any(|wall| common::collision::check_player_wall_sweep(pos, &spawn_position, wall));
+    
+    // Skip spawning this projectile if the spawn path is blocked by a wall
+    if is_spawn_blocked {
+        return;
+    }
+    
     let projectile = Projectile::new(face_dir, reflects);
     let projectile_color = Color::srgb(10.0, 10.0, 0.0); // Very bright yellow
     
@@ -154,10 +173,11 @@ pub fn spawn_projectile_for_player(
     entity: Entity,
     has_multi_shot: bool,
     has_reflect: bool,
+    walls: &[Wall],
 ) {
     // Get position and face direction for this player entity
     if let Ok((pos, face_dir)) = player_pos_face_query.get(entity) {
-        spawn_projectiles_local(commands, meshes, materials, pos, face_dir.0, has_multi_shot, has_reflect);
+        spawn_projectiles(commands, meshes, materials, pos, face_dir.0, has_multi_shot, has_reflect, walls);
     }
 }
 

@@ -9,7 +9,7 @@ use crate::{
         ClientToServerChannel, GhostInfo, GhostMap, ItemInfo, ItemMap, LastUpdateSeq, MyPlayerId, PlayerInfo,
         PlayerMap, RoundTripTime, ServerToClientChannel, WallConfig,
     },
-    spawning::{spawn_ghost, spawn_item, spawn_player, spawn_projectiles_local},
+    spawning::{spawn_ghost, spawn_item, spawn_player, spawn_projectiles},
 };
 use common::{constants::SPEED_POWER_UP_MULTIPLIER, protocol::*};
 
@@ -50,6 +50,7 @@ pub fn network_server_message_system(
         Query<Entity, With<Camera3d>>,
     ),
     my_player_id: Option<Res<MyPlayerId>>,
+    wall_config: Option<Res<WallConfig>>,
     time: Res<Time>,
     asset_server: Res<AssetServer>,
 ) {
@@ -81,6 +82,7 @@ pub fn network_server_message_system(
                         &camera_query,
                         &time,
                         &asset_server,
+                        wall_config.as_deref(),
                     );
                 } else {
                     process_message_not_logged_in(message, &mut commands);
@@ -130,6 +132,7 @@ fn process_message_logged_in(
     camera_query: &Query<Entity, With<Camera3d>>,
     time: &Res<Time>,
     asset_server: &Res<AssetServer>,
+    wall_config: Option<&WallConfig>,
 ) {
     match msg {
         ServerMessage::Init(_) => {
@@ -140,7 +143,7 @@ fn process_message_logged_in(
         ServerMessage::Speed(speed_msg) => handle_speed_message(commands, &maps.p0(), player_query, rtt, speed_msg),
         ServerMessage::Face(face_msg) => handle_face_message(commands, &maps.p0(), face_msg),
         ServerMessage::Shot(shot_msg) => {
-            handle_shot_message(commands, meshes, materials, &maps.p0(), player_face_query, shot_msg);
+            handle_shot_message(commands, meshes, materials, &maps.p0(), player_face_query, shot_msg, wall_config);
         }
         ServerMessage::Update(update_msg) => handle_update_message(
             commands,
@@ -264,6 +267,7 @@ fn handle_shot_message(
     players: &ResMut<PlayerMap>,
     player_face_query: &Query<(&Position, &FaceDirection), With<PlayerId>>,
     msg: SShot,
+    wall_config: Option<&WallConfig>,
 ) {
     trace!("{:?} shot: {:?}", msg.id, msg);
     if let Some(player) = players.0.get(&msg.id) {
@@ -271,7 +275,8 @@ fn handle_shot_message(
 
         // Spawn projectile(s) based on player's multi-shot power-up status
         if let Ok((pos, _)) = player_face_query.get(player.entity) {
-            spawn_projectiles_local(
+            let walls = wall_config.map_or(&[][..], |config| &config.walls);
+            spawn_projectiles(
                 commands,
                 meshes,
                 materials,
@@ -279,6 +284,7 @@ fn handle_shot_message(
                 msg.face_dir,
                 player.multi_shot_power_up,
                 player.reflect_power_up,
+                walls,
             );
         }
     }
