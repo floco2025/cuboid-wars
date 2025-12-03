@@ -43,7 +43,7 @@ pub fn projectiles_movement_system(
                 } else {
                     commands.entity(proj_entity).despawn();
                 }
-                
+
                 hit_something = true;
                 break;
             }
@@ -62,7 +62,8 @@ pub fn projectiles_movement_system(
             }
 
             // Use common hit detection logic
-            let result = check_projectile_player_sweep_hit(&proj_pos, &projectile, delta, player_pos, player_face_dir.0);
+            let result =
+                check_projectile_player_sweep_hit(&proj_pos, &projectile, delta, player_pos, player_face_dir.0);
 
             if result.hit {
                 info!("{:?} hits {:?}", shooter_id, target_id);
@@ -93,7 +94,7 @@ pub fn projectiles_movement_system(
                 break; // Projectile can only hit one player
             }
         }
-        
+
         // If no collisions occurred, move normally
         if !hit_something {
             proj_pos.x += projectile.velocity.x * delta;

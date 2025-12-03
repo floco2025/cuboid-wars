@@ -26,9 +26,9 @@ fn speed_multiplier(players: &PlayerMap, player_id: PlayerId) -> f32 {
 }
 
 fn overlaps_other_player(candidate: &PlannedMove, planned_moves: &[PlannedMove]) -> bool {
-    planned_moves.iter().any(|other| {
-        other.entity != candidate.entity && check_player_player_overlap(&candidate.target, &other.target)
-    })
+    planned_moves
+        .iter()
+        .any(|other| other.entity != candidate.entity && check_player_player_overlap(&candidate.target, &other.target))
 }
 
 // ============================================================================

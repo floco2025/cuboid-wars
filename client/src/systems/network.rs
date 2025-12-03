@@ -55,7 +55,7 @@ pub fn network_server_message_system(
     asset_server: Res<AssetServer>,
 ) {
     let (player_query, ghost_query, speed_query, player_face_query, camera_query) = queries;
-    
+
     // Process all messages from the server
     while let Ok(msg) = from_server.try_recv() {
         match msg {
@@ -143,7 +143,15 @@ fn process_message_logged_in(
         ServerMessage::Speed(speed_msg) => handle_speed_message(commands, &maps.p0(), player_query, rtt, speed_msg),
         ServerMessage::Face(face_msg) => handle_face_message(commands, &maps.p0(), face_msg),
         ServerMessage::Shot(shot_msg) => {
-            handle_shot_message(commands, meshes, materials, &maps.p0(), player_face_query, shot_msg, wall_config);
+            handle_shot_message(
+                commands,
+                meshes,
+                materials,
+                &maps.p0(),
+                player_face_query,
+                shot_msg,
+                wall_config,
+            );
         }
         ServerMessage::Update(update_msg) => handle_update_message(
             commands,
@@ -161,7 +169,14 @@ fn process_message_logged_in(
         ),
         ServerMessage::Hit(hit_msg) => handle_hit_message(commands, &maps.p0(), camera_query, my_player_id, hit_msg),
         ServerMessage::PowerUp(power_up_msg) => {
-            handle_power_up_message(commands, &mut maps.p0(), speed_query, power_up_msg, my_player_id, asset_server);
+            handle_power_up_message(
+                commands,
+                &mut maps.p0(),
+                speed_query,
+                power_up_msg,
+                my_player_id,
+                asset_server,
+            );
         }
         ServerMessage::Echo(echo_msg) => handle_echo_message(time, rtt, echo_msg),
         ServerMessage::Ghost(ghost_msg) => {

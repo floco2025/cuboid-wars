@@ -109,18 +109,18 @@ where
         y: current_pos.y,
         z: current_pos.z,
     };
-    
+
     let x_collides = walls.iter().any(|w| collision_check(&x_only_pos, w));
-    
+
     // Try moving only in Z direction
     let z_only_pos = Position {
         x: current_pos.x,
         y: current_pos.y,
         z: velocity_z.mul_add(delta, current_pos.z),
     };
-    
+
     let z_collides = walls.iter().any(|w| collision_check(&z_only_pos, w));
-    
+
     // If neither axis causes collision, use the one with larger movement
     if !x_collides && !z_collides {
         if velocity_x.abs() > velocity_z.abs() {

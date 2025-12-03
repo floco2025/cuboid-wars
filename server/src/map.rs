@@ -17,7 +17,7 @@ use common::{
 // Grid Helper Functions
 // ============================================================================
 
-#[must_use] 
+#[must_use]
 pub fn cell_center(grid_x: i32, grid_z: i32) -> Position {
     Position {
         x: (grid_x as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)),
@@ -26,7 +26,7 @@ pub fn cell_center(grid_x: i32, grid_z: i32) -> Position {
     }
 }
 
-#[must_use] 
+#[must_use]
 pub fn grid_coords_from_position(pos: &Position) -> (i32, i32) {
     let grid_x = ((pos.x + FIELD_WIDTH / 2.0) / GRID_SIZE).floor() as i32;
     let grid_z = ((pos.z + FIELD_DEPTH / 2.0) / GRID_SIZE).floor() as i32;

@@ -1,5 +1,5 @@
 use crate::{
-    collision::{check_player_wall_sweep, Projectile},
+    collision::{Projectile, check_player_wall_sweep},
     constants::*,
     protocol::{Position, Wall},
 };
@@ -18,7 +18,7 @@ pub struct ProjectileSpawnInfo {
 }
 
 // Calculate valid projectile spawn positions for a shot
-// 
+//
 // Returns a list of projectiles that should be spawned, excluding any that would
 // be blocked by walls.
 pub fn calculate_projectile_spawns(
@@ -31,11 +31,7 @@ pub fn calculate_projectile_spawns(
     let mut spawns = Vec::new();
 
     // Determine number of shots
-    let num_shots = if has_multi_shot {
-        MULTI_SHOT_MULTIPLER
-    } else {
-        1
-    };
+    let num_shots = if has_multi_shot { MULTI_SHOT_MULTIPLER } else { 1 };
 
     // Spawn projectiles in an arc
     let angle_step = MULTI_SHOT_ANGLE.to_radians();
@@ -44,10 +40,8 @@ pub fn calculate_projectile_spawns(
     for i in 0..num_shots {
         let angle_offset = (i as f32).mul_add(angle_step, start_offset);
         let shot_dir = face_dir + angle_offset;
-        let spawn_pos = Projectile::calculate_spawn_position(
-            Vec3::new(shooter_pos.x, shooter_pos.y, shooter_pos.z),
-            shot_dir,
-        );
+        let spawn_pos =
+            Projectile::calculate_spawn_position(Vec3::new(shooter_pos.x, shooter_pos.y, shooter_pos.z), shot_dir);
 
         // Check if the path from player to spawn position crosses through a wall
         let spawn_position = Position {

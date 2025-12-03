@@ -111,7 +111,7 @@ pub fn projectiles_movement_system(
                 // Hit a player, projectile was despawned
                 continue;
             }
-            
+
             // No collisions, move normally
             Position {
                 x: projectile.velocity.x.mul_add(delta, projectile_pos.x),
@@ -119,7 +119,7 @@ pub fn projectiles_movement_system(
                 z: projectile.velocity.z.mul_add(delta, projectile_pos.z),
             }
         };
-        
+
         // Update transform to new position
         projectile_transform.translation.x = new_pos.x;
         projectile_transform.translation.y = new_pos.y;
@@ -152,12 +152,12 @@ fn handle_wall_collisions(
                     ..default()
                 },
             );
-            
+
             if !projectile.reflects {
                 // Despawn projectile without reflect power-up
                 commands.entity(projectile_entity).despawn();
             }
-            
+
             return Some(new_pos);
         }
     }

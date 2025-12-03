@@ -105,14 +105,8 @@ fn main() -> Result<()> {
             input_roof_toggle_system,
         ),
     )
-    .add_systems(
-        Update,
-        network_echo_system,
-    )
-    .add_systems(
-        Update,
-        network_server_message_system,
-    )
+    .add_systems(Update, network_echo_system)
+    .add_systems(Update, network_server_message_system)
     .add_systems(
         Update,
         (
@@ -126,23 +120,9 @@ fn main() -> Result<()> {
             local_player_visibility_sync_system,
         ),
     )
-    .add_systems(
-        Update,
-        (
-            ghosts_movement_system,
-            ghosts_transform_sync_system,
-        ),
-    )
-    .add_systems(
-        Update,
-        projectiles_movement_system,
-    )
-    .add_systems(
-        Update,
-        (
-            items_animation_system,
-        ),
-    )
+    .add_systems(Update, (ghosts_movement_system, ghosts_transform_sync_system))
+    .add_systems(Update, projectiles_movement_system)
+    .add_systems(Update, (items_animation_system,))
     .add_systems(
         Update,
         (
