@@ -31,7 +31,11 @@ pub fn calculate_projectile_spawns(
     let mut spawns = Vec::new();
 
     // Determine number of shots
-    let num_shots = if has_multi_shot { POWER_UP_MULTI_SHOT_MULTIPLER } else { 1 };
+    let num_shots = if has_multi_shot {
+        POWER_UP_MULTI_SHOT_MULTIPLER
+    } else {
+        1
+    };
 
     // Spawn projectiles in an arc
     let angle_step = POWER_UP_MULTI_SHOT_ANGLE.to_radians();

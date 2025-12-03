@@ -1,5 +1,5 @@
-use bevy::prelude::*;
 use bevy::camera::Viewport;
+use bevy::prelude::*;
 use std::time::Duration;
 
 use super::network::ServerReconciliation;
@@ -312,7 +312,10 @@ fn update_cuboid_shake(commands: &mut Commands, entity: Entity, delta: Duration,
 // Update camera position to follow local player
 pub fn local_player_camera_sync_system(
     local_player_query: Query<&Position, With<LocalPlayer>>,
-    mut camera_query: Query<(&mut Transform, &mut Projection, Option<&CameraShake>), (With<Camera3d>, Without<RearviewCamera>)>,
+    mut camera_query: Query<
+        (&mut Transform, &mut Projection, Option<&CameraShake>),
+        (With<Camera3d>, Without<RearviewCamera>),
+    >,
     view_mode: Res<CameraViewMode>,
 ) {
     let Some(player_pos) = local_player_query.iter().next() else {
@@ -435,7 +438,7 @@ pub fn rearview_camera_viewport_system(
     mut rearview_query: Query<&mut Camera, With<RearviewCamera>>,
     view_mode: Res<CameraViewMode>,
 ) {
-    use crate::constants::{REARVIEW_WIDTH_RATIO, REARVIEW_HEIGHT_RATIO, REARVIEW_MARGIN};
+    use crate::constants::{REARVIEW_HEIGHT_RATIO, REARVIEW_MARGIN, REARVIEW_WIDTH_RATIO};
 
     let Ok(window) = windows.single() else {
         return;
@@ -472,7 +475,6 @@ pub fn rearview_camera_viewport_system(
         depth: 0.0..1.0,
     });
 }
-
 
 // Make player ID text meshes billboard (always face camera)
 pub fn players_billboard_system(

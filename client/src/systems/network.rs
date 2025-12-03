@@ -694,11 +694,7 @@ fn handle_ghost_message(
     }
 }
 
-fn handle_cookie_collected_message(
-    commands: &mut Commands,
-    _msg: SCookieCollected,
-    asset_server: &AssetServer,
-) {
+fn handle_cookie_collected_message(commands: &mut Commands, _msg: SCookieCollected, asset_server: &AssetServer) {
     // Play sound - this message is only sent to the player who collected it
     commands.spawn((
         AudioPlayer::new(asset_server.load("sounds/player_cookie.ogg")),
@@ -706,11 +702,7 @@ fn handle_cookie_collected_message(
     ));
 }
 
-fn handle_ghost_hit_message(
-    commands: &mut Commands,
-    _msg: SGhostHit,
-    asset_server: &AssetServer,
-) {
+fn handle_ghost_hit_message(commands: &mut Commands, _msg: SGhostHit, asset_server: &AssetServer) {
     // Play sound - this message is only sent to the player who was hit
     commands.spawn((
         AudioPlayer::new(asset_server.load("sounds/ghost_hits_player.wav")),

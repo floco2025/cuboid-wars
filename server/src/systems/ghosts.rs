@@ -7,9 +7,13 @@ use crate::{
     resources::{GhostInfo, GhostMap, GhostMode, GridCell, GridConfig, PlayerMap},
 };
 use common::{
-    collision::{calculate_ghost_wall_slide, check_ghost_player_overlap, check_ghost_wall_overlap, check_player_wall_sweep},
+    collision::{
+        calculate_ghost_wall_slide, check_ghost_player_overlap, check_ghost_wall_overlap, check_player_wall_sweep,
+    },
     constants::*,
-    protocol::{Ghost, GhostId, PlayerId, Position, SGhost, SGhostHit, ServerMessage, Speed, SpeedLevel, Velocity, Wall},
+    protocol::{
+        Ghost, GhostId, PlayerId, Position, SGhost, SGhostHit, ServerMessage, Speed, SpeedLevel, Velocity, Wall,
+    },
 };
 
 use super::network::broadcast_to_all;
@@ -206,7 +210,8 @@ pub fn ghosts_movement_system(
                 // Only check for visible players if cooldown timer has expired
                 if ghost_info.mode_timer <= 0.0 {
                     // Check if we can see any moving players
-                    if let Some(target_player_id) = find_visible_moving_player(&ghost_pos, &player_data, &grid_config.walls)
+                    if let Some(target_player_id) =
+                        find_visible_moving_player(&ghost_pos, &player_data, &grid_config.walls)
                     {
                         // Switch to follow mode
                         ghost_info.mode = GhostMode::Follow;
@@ -224,9 +229,10 @@ pub fn ghosts_movement_system(
                 } else {
                     // Check if target player still exists and is not stunned
                     if let Some(target_id) = ghost_info.follow_target {
-                        let target_valid = players.0.get(&target_id).is_some_and(|info| {
-                            info.logged_in && info.stun_timer <= 0.0
-                        });
+                        let target_valid = players
+                            .0
+                            .get(&target_id)
+                            .is_some_and(|info| info.logged_in && info.stun_timer <= 0.0);
                         if !target_valid {
                             // Target disconnected or stunned, switch to pre-patrol
                             ghost_info.mode = GhostMode::PrePatrol;
@@ -635,9 +641,9 @@ pub fn ghost_player_collision_system(
             };
 
             // Send ghost hit message only to the hit player for sound effect
-            let _ = player_info.channel.send(crate::net::ServerToClient::Send(
-                ServerMessage::GhostHit(SGhostHit {}),
-            ));
+            let _ = player_info
+                .channel
+                .send(crate::net::ServerToClient::Send(ServerMessage::GhostHit(SGhostHit {})));
 
             broadcast_to_all(&players, ServerMessage::PlayerStatus(status_msg));
         }

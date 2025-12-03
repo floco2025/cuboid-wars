@@ -1,5 +1,5 @@
-use bevy::prelude::*;
 use bevy::camera::Viewport;
+use bevy::prelude::*;
 use std::time::Duration;
 
 use crate::{
@@ -357,7 +357,12 @@ fn rebuild_player_list(
     commands.entity(player_list_entity).replace_children(&ordered_children);
 }
 
-fn spawn_player_entry(commands: &mut Commands, player_info: &PlayerInfo, player_id: PlayerId, is_local: bool) -> Entity {
+fn spawn_player_entry(
+    commands: &mut Commands,
+    player_info: &PlayerInfo,
+    player_id: PlayerId,
+    is_local: bool,
+) -> Entity {
     let background_color = if is_local {
         BackgroundColor(Color::srgba(0.8, 0.8, 0.0, 0.3))
     } else {
@@ -464,7 +469,7 @@ pub fn ui_stunned_blink_system(
     for (marker, mut bg_color) in &mut query {
         if let Some(player_info) = players.0.get(&marker.0) {
             let is_local = local_player_id == Some(marker.0);
-            
+
             if player_info.stunned {
                 // Blink between red and the base color
                 let base_color = if is_local {
@@ -473,7 +478,7 @@ pub fn ui_stunned_blink_system(
                     Color::srgba(0.0, 0.0, 0.0, 0.0)
                 };
                 let stun_color = Color::srgba(1.0, 0.0, 0.0, 0.5);
-                
+
                 *bg_color = BackgroundColor(Color::srgba(
                     base_color.to_srgba().red * (1.0 - blink_value) + stun_color.to_srgba().red * blink_value,
                     base_color.to_srgba().green * (1.0 - blink_value) + stun_color.to_srgba().green * blink_value,

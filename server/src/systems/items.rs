@@ -39,9 +39,9 @@ pub fn item_initial_spawn_system(
     query: Query<&ItemId>,
 ) {
     // Only spawn cookies once - check if any cookies exist
-    let has_cookies = query.iter().any(|id| {
-        items.0.get(id).is_some_and(|info| info.item_type == ItemType::Cookie)
-    });
+    let has_cookies = query
+        .iter()
+        .any(|id| items.0.get(id).is_some_and(|info| info.item_type == ItemType::Cookie));
 
     if has_cookies {
         return;
@@ -120,10 +120,7 @@ pub fn item_despawn_system(mut commands: Commands, time: Res<Time>, mut items: R
     let items_to_remove: Vec<ItemId> = items
         .0
         .iter()
-        .filter(|(_, info)| {
-            info.item_type != ItemType::Cookie
-                && current_time - info.spawn_time >= ITEM_LIFETIME
-        })
+        .filter(|(_, info)| info.item_type != ItemType::Cookie && current_time - info.spawn_time >= ITEM_LIFETIME)
         .map(|(id, _)| *id)
         .collect();
 
@@ -180,16 +177,18 @@ pub fn item_collection_system(
             if let Some(player_info) = players.0.get_mut(&player_id) {
                 // Give points for cookie
                 player_info.hits += COOKIE_POINTS;
-                
+
                 // Set spawn_time to respawn countdown
                 if let Some(item_info) = items.0.get_mut(&item_id) {
                     item_info.spawn_time = COOKIE_RESPAWN_TIME;
                 }
-                
+
                 // Send cookie collection message only to this player
-                let _ = player_info.channel.send(ServerToClient::Send(
-                    ServerMessage::CookieCollected(SCookieCollected {}),
-                ));
+                let _ = player_info
+                    .channel
+                    .send(ServerToClient::Send(ServerMessage::CookieCollected(
+                        SCookieCollected {},
+                    )));
             }
             continue; // Don't despawn the cookie
         }

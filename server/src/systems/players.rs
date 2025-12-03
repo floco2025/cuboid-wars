@@ -4,7 +4,7 @@ use crate::resources::{GridConfig, PlayerMap};
 use common::{
     collision::{calculate_wall_slide, check_player_player_overlap, check_player_wall_sweep},
     constants::POWER_UP_SPEED_MULTIPLIER,
-    protocol::{PlayerId, Position, Speed, SPlayerStatus, ServerMessage},
+    protocol::{PlayerId, Position, SPlayerStatus, ServerMessage, Speed},
 };
 
 use super::network::broadcast_to_all;
@@ -52,7 +52,7 @@ pub fn players_movement_system(
     for (entity, pos, speed, player_id) in query.iter() {
         // Check if player is stunned
         let is_stunned = players.0.get(player_id).is_some_and(|info| info.stun_timer > 0.0);
-        
+
         if is_stunned {
             // Stunned players cannot move
             planned_moves.push(PlannedMove { entity, target: *pos });
@@ -124,7 +124,11 @@ pub fn players_timer_system(time: Res<Time>, mut players: ResMut<PlayerMap>) {
         let new_stunned = player_info.stun_timer > 0.0;
 
         // Track changes to broadcast
-        if old_speed != new_speed || old_multi_shot != new_multi_shot || old_reflect != new_reflect || old_stunned != new_stunned {
+        if old_speed != new_speed
+            || old_multi_shot != new_multi_shot
+            || old_reflect != new_reflect
+            || old_stunned != new_stunned
+        {
             status_messages.push(SPlayerStatus {
                 id: *player_id,
                 speed_power_up: new_speed,
