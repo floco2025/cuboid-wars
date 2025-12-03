@@ -272,6 +272,7 @@ pub fn input_shooting_system(
             pos,
             face_dir.0,
             has_multi_shot,
+            my_player_id.as_ref().map(|id| id.0),
         );
     }
 }

@@ -33,6 +33,7 @@ pub struct PlayerInfo {
     pub name: String,
     pub speed_power_up: bool,
     pub multi_shot_power_up: bool,
+    pub reflect_power_up: bool,
 }
 
 // Map of all players (client-side source of truth)

@@ -46,6 +46,7 @@ pub const ITEM_ANIMATION_HEIGHT: f32 = 0.5;
 pub const ITEM_ANIMATION_SPEED: f32 = 1.5;
 pub const ITEM_SPEED_COLOR: [f32; 4] = [0.2, 0.7, 1.0, 1.0]; // Light blue
 pub const ITEM_MULTISHOT_COLOR: [f32; 4] = [1.0, 0.5, 0.2, 1.0]; // Orange
+pub const ITEM_REFLECT_COLOR: [f32; 4] = [1.0, 0.2, 0.2, 1.0]; // Red
 
 // Ghost visual settings
 pub const GHOST_COLOR: [f32; 4] = [0xF8 as f32 / 255.0, 0xF8 as f32 / 255.0, 0xFF as f32 / 255.0, 0.5];

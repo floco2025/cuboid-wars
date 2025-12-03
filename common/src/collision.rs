@@ -148,9 +148,15 @@ pub fn check_projectile_player_hit(
 }
 
 // Check if a projectile hits a wall
-// Returns true if the projectile intersects with the wall
+// Returns Some with (normal_x, normal_z, t_collision) if hit, None otherwise
+// t_collision is between 0.0 and 1.0, representing how far along the movement the collision occurs
 #[must_use]
-pub fn check_projectile_wall_hit(proj_pos: &Position, projectile: &Projectile, delta: f32, wall: &Wall) -> bool {
+pub fn check_projectile_wall_hit_with_normal(
+    proj_pos: &Position,
+    projectile: &Projectile,
+    delta: f32,
+    wall: &Wall,
+) -> Option<(f32, f32, f32)> {
     // Calculate projectile movement this frame
     let ray_start_x = proj_pos.x;
     let ray_start_y = proj_pos.y;
@@ -181,24 +187,47 @@ pub fn check_projectile_wall_hit(proj_pos: &Position, projectile: &Projectile, d
         t_min = min_x;
         t_max = max_x;
     } else {
-        return false;
+        return None;
     }
 
     if let Some((min_y, max_y)) = slab_interval(local_y, ray_dir_y, half_height, t_min, t_max) {
         t_min = min_y;
         t_max = max_y;
     } else {
-        return false;
+        return None;
     }
 
     if let Some((min_z, max_z)) = slab_interval(local_z, ray_dir_z, half_z, t_min, t_max) {
         t_min = min_z;
         t_max = max_z;
     } else {
-        return false;
+        return None;
     }
 
-    t_min <= t_max && t_max >= 0.0 && t_min <= 1.0
+    if t_min <= t_max && t_max >= 0.0 && t_min <= 1.0 {
+        // Return the normal based on wall orientation
+        let (normal_x, normal_z) = match wall.orientation {
+            WallOrientation::Horizontal => {
+                // Determine which side based on position relative to wall
+                if local_z > 0.0 { (0.0, 1.0) } else { (0.0, -1.0) }
+            }
+            WallOrientation::Vertical => {
+                if local_x > 0.0 { (1.0, 0.0) } else { (-1.0, 0.0) }
+            }
+        };
+        // Clamp t_min to [0.0, 1.0] for the collision time
+        let t_collision = t_min.max(0.0).min(1.0);
+        Some((normal_x, normal_z, t_collision))
+    } else {
+        None
+    }
+}
+
+// Check if a projectile hits a wall
+// Returns true if the projectile intersects with the wall
+#[must_use]
+pub fn check_projectile_wall_hit(proj_pos: &Position, projectile: &Projectile, delta: f32, wall: &Wall) -> bool {
+    check_projectile_wall_hit_with_normal(proj_pos, projectile, delta, wall).is_some()
 }
 
 // ============================================================================

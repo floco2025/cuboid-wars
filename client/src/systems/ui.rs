@@ -380,6 +380,17 @@ fn spawn_player_entry(commands: &mut Commands, player_info: &PlayerInfo, is_loca
                     BackgroundColor(item_type_color(ItemType::MultiShotPowerUp)),
                 ));
             }
+            if player_info.reflect_power_up {
+                row.spawn((
+                    Node {
+                        width: Val::Px(12.0),
+                        height: Val::Px(12.0),
+                        align_self: AlignSelf::Center,
+                        ..default()
+                    },
+                    BackgroundColor(item_type_color(ItemType::ReflectPowerUp)),
+                ));
+            }
         })
         .id()
 }

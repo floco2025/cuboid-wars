@@ -110,6 +110,7 @@ struct Player {
     pub hits: i32,
     pub speed_power_up: bool,
     pub multi_shot_power_up: bool,
+    pub reflect_power_up: bool,
 }
 }
 
@@ -148,6 +149,7 @@ struct Roof {
 pub enum ItemType {
     SpeedPowerUp,
     MultiShotPowerUp,
+    ReflectPowerUp,
 }
 
 // Item - an item on the map.
@@ -291,6 +293,7 @@ struct SPowerUp {
     pub id: PlayerId,
     pub speed_power_up: bool,
     pub multi_shot_power_up: bool,
+    pub reflect_power_up: bool,
 }
 }
 

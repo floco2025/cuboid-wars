@@ -2,9 +2,9 @@ use bevy::audio::{PlaybackMode, Volume};
 use bevy::prelude::*;
 
 use super::players::LocalPlayer;
-use crate::resources::WallConfig;
+use crate::resources::{PlayerMap, WallConfig};
 use common::{
-    collision::{Projectile, check_projectile_player_hit, check_projectile_wall_hit},
+    collision::{Projectile, check_projectile_player_hit},
     protocol::{FaceDirection, PlayerId, Position},
 };
 
@@ -61,18 +61,17 @@ fn play_sound(
 // Projectiles Movement System
 // ============================================================================
 
-// Update projectiles - position updates and despawn
+// Update projectile lifetimes and despawn expired ones
+// Position updates are handled in the hit detection system
 pub fn projectiles_movement_system(
     mut commands: Commands,
     time: Res<Time>,
-    mut projectile_query: Query<(Entity, &mut Transform, &mut Projectile)>,
+    mut projectile_query: Query<(Entity, &mut Projectile)>,
 ) {
-    for (entity, mut transform, mut projectile) in &mut projectile_query {
+    for (entity, mut projectile) in &mut projectile_query {
         projectile.lifetime.tick(time.delta());
         if projectile.lifetime.is_finished() {
             commands.entity(entity).despawn();
-        } else {
-            transform.translation += projectile.velocity * time.delta_secs();
         }
     }
 }
@@ -87,41 +86,65 @@ pub fn projectiles_hit_detection_system(
     mut commands: Commands,
     time: Res<Time>,
     asset_server: Res<AssetServer>,
-    projectile_query: Query<(Entity, &Transform, &Projectile)>,
+    mut projectile_query: Query<(Entity, &mut Transform, &mut Projectile, Option<&PlayerId>)>,
     player_query: Query<(Entity, &Position, &FaceDirection, Has<LocalPlayer>), With<PlayerId>>,
     wall_config: Option<Res<WallConfig>>,
+    player_map: Option<Res<PlayerMap>>,
 ) {
     let delta = time.delta_secs();
     let walls = wall_config.as_deref();
 
-    for (projectile_entity, projectile_transform, projectile) in projectile_query.iter() {
+    for (projectile_entity, mut projectile_transform, mut projectile, maybe_shooter_id) in projectile_query.iter_mut() {
         let projectile_pos = Position {
             x: projectile_transform.translation.x,
             y: projectile_transform.translation.y,
             z: projectile_transform.translation.z,
         };
 
-        if handle_wall_collisions(
+        // Check if shooter has reflect power-up
+        let has_reflect = maybe_shooter_id
+            .and_then(|shooter_id| player_map.as_ref().and_then(|pm| pm.0.get(shooter_id)))
+            .is_some_and(|info| info.reflect_power_up);
+
+        // Check wall collisions and handle bouncing/despawning
+        let new_pos = if let Some(pos_after_bounce) = handle_wall_collisions(
             &mut commands,
             asset_server.as_ref(),
             projectile_entity,
-            projectile,
+            &mut projectile,
             &projectile_pos,
             delta,
             walls,
+            has_reflect,
         ) {
-            continue;
-        }
-
-        handle_player_collisions(
-            &mut commands,
-            asset_server.as_ref(),
-            projectile_entity,
-            projectile,
-            &projectile_pos,
-            delta,
-            &player_query,
-        );
+            pos_after_bounce
+        } else {
+            // No wall collision, check player collisions
+            if handle_player_collisions(
+                &mut commands,
+                asset_server.as_ref(),
+                projectile_entity,
+                &projectile,
+                &projectile_pos,
+                delta,
+                &player_query,
+            ) {
+                // Hit a player, projectile was despawned
+                continue;
+            }
+            
+            // No collisions, move normally
+            Position {
+                x: projectile.velocity.x.mul_add(delta, projectile_pos.x),
+                y: projectile.velocity.y.mul_add(delta, projectile_pos.y),
+                z: projectile.velocity.z.mul_add(delta, projectile_pos.z),
+            }
+        };
+        
+        // Update transform to new position
+        projectile_transform.translation.x = new_pos.x;
+        projectile_transform.translation.y = new_pos.y;
+        projectile_transform.translation.z = new_pos.z;
     }
 }
 
@@ -129,17 +152,18 @@ fn handle_wall_collisions(
     commands: &mut Commands,
     asset_server: &AssetServer,
     projectile_entity: Entity,
-    projectile: &Projectile,
+    projectile: &mut Projectile,
     projectile_pos: &Position,
     delta: f32,
     wall_config: Option<&WallConfig>,
-) -> bool {
+    has_reflect: bool,
+) -> Option<Position> {
     let Some(config) = wall_config else {
-        return false;
+        return None;
     };
 
     for wall in &config.walls {
-        if check_projectile_wall_hit(projectile_pos, projectile, delta, wall) {
+        if let Some((normal_x, normal_z, t_collision)) = common::collision::check_projectile_wall_hit_with_normal(projectile_pos, projectile, delta, wall) {
             play_sound(
                 commands,
                 asset_server,
@@ -150,10 +174,34 @@ fn handle_wall_collisions(
                     ..default()
                 },
             );
-            commands.entity(projectile_entity).despawn();
-            return true;
+            
+            if has_reflect {
+                // Move projectile to collision point
+                let collision_x = projectile.velocity.x.mul_add(delta * t_collision, projectile_pos.x);
+                let collision_y = projectile.velocity.y.mul_add(delta * t_collision, projectile_pos.y);
+                let collision_z = projectile.velocity.z.mul_add(delta * t_collision, projectile_pos.z);
+                
+                // Reflect velocity off the wall normal
+                let dot = projectile.velocity.x.mul_add(normal_x, projectile.velocity.z * normal_z);
+                projectile.velocity.x -= 2.0 * dot * normal_x;
+                projectile.velocity.z -= 2.0 * dot * normal_z;
+                
+                // Continue moving for remaining time after bounce
+                let remaining_time = delta * (1.0 - t_collision);
+                let new_pos = Position {
+                    x: projectile.velocity.x.mul_add(remaining_time, collision_x),
+                    y: projectile.velocity.y.mul_add(remaining_time, collision_y),
+                    z: projectile.velocity.z.mul_add(remaining_time, collision_z),
+                };
+                
+                return Some(new_pos);
+            } else {
+                // Despawn projectile without reflect power-up
+                commands.entity(projectile_entity).despawn();
+                return Some(*projectile_pos); // Return current position (will be despawned anyway)
+            }
         }
     }
 
-    false
+    None
 }

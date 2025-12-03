@@ -59,6 +59,7 @@ fn snapshot_logged_in_players(
                     hits: info.hits,
                     speed_power_up: info.speed_power_up_timer > 0.0,
                     multi_shot_power_up: info.multi_shot_power_up_timer > 0.0,
+                    reflect_power_up: info.reflect_power_up_timer > 0.0,
                 },
             ))
         })
@@ -160,6 +161,7 @@ pub fn network_accept_connections_system(
                 name: String::new(),
                 speed_power_up_timer: 0.0,
                 multi_shot_power_up_timer: 0.0,
+                reflect_power_up_timer: 0.0,
             },
         );
     }
@@ -301,6 +303,7 @@ fn process_message_not_logged_in(
                 hits,
                 speed_power_up: false,
                 multi_shot_power_up: false,
+                reflect_power_up: false,
             };
 
             // Construct the initial Update for the new player

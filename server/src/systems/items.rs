@@ -15,10 +15,13 @@ use common::{
 use super::network::broadcast_to_all;
 
 fn choose_item_type(rng: &mut rand::rngs::ThreadRng) -> ItemType {
-    if rng.random_bool(0.5) {
+    let rand_val = rng.random::<f64>();
+    if rand_val < 0.33 {
         ItemType::SpeedPowerUp
-    } else {
+    } else if rand_val < 0.67 {
         ItemType::MultiShotPowerUp
+    } else {
+        ItemType::ReflectPowerUp
     }
 }
 
@@ -138,12 +141,16 @@ pub fn item_collection_system(
                 ItemType::MultiShotPowerUp => {
                     player_info.multi_shot_power_up_timer = MULTI_SHOT_POWER_UP_DURATION;
                 }
+                ItemType::ReflectPowerUp => {
+                    player_info.reflect_power_up_timer = MULTI_SHOT_POWER_UP_DURATION;
+                }
             }
 
             power_up_messages.push(SPowerUp {
                 id: player_id,
                 speed_power_up: player_info.speed_power_up_timer > 0.0,
                 multi_shot_power_up: player_info.multi_shot_power_up_timer > 0.0,
+                reflect_power_up: player_info.reflect_power_up_timer > 0.0,
             });
 
             debug!("Player {:?} collected {:?}", player_id, item_type);
@@ -169,20 +176,24 @@ pub fn item_expiration_system(time: Res<Time>, mut players: ResMut<PlayerMap>) {
     for (player_id, player_info) in &mut players.0 {
         let old_speed = player_info.speed_power_up_timer > 0.0;
         let old_multi_shot = player_info.multi_shot_power_up_timer > 0.0;
+        let old_reflect = player_info.reflect_power_up_timer > 0.0;
 
         // Decrease power-up timers
         player_info.speed_power_up_timer = (player_info.speed_power_up_timer - delta).max(0.0);
         player_info.multi_shot_power_up_timer = (player_info.multi_shot_power_up_timer - delta).max(0.0);
+        player_info.reflect_power_up_timer = (player_info.reflect_power_up_timer - delta).max(0.0);
 
         let new_speed = player_info.speed_power_up_timer > 0.0;
         let new_multi_shot = player_info.multi_shot_power_up_timer > 0.0;
+        let new_reflect = player_info.reflect_power_up_timer > 0.0;
 
         // Track changes to broadcast
-        if old_speed != new_speed || old_multi_shot != new_multi_shot {
+        if old_speed != new_speed || old_multi_shot != new_multi_shot || old_reflect != new_reflect {
             power_up_messages.push(SPowerUp {
                 id: *player_id,
                 speed_power_up: new_speed,
                 multi_shot_power_up: new_multi_shot,
+                reflect_power_up: new_reflect,
             });
         }
     }

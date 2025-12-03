@@ -205,6 +205,7 @@ fn handle_login_message(
             name: msg.player.name,
             speed_power_up: msg.player.speed_power_up,
             multi_shot_power_up: msg.player.multi_shot_power_up,
+            reflect_power_up: msg.player.reflect_power_up,
         },
     );
 }
@@ -277,6 +278,7 @@ fn handle_shot_message(
                 pos,
                 msg.face_dir,
                 player.multi_shot_power_up,
+                Some(msg.id),
             );
         }
     }
@@ -390,6 +392,7 @@ fn handle_players_update(
                 name: player.name.clone(),
                 speed_power_up: player.speed_power_up,
                 multi_shot_power_up: player.multi_shot_power_up,
+                reflect_power_up: player.reflect_power_up,
             },
         );
     }
@@ -434,6 +437,7 @@ fn handle_players_update(
             client_player.hits = server_player.hits;
             client_player.speed_power_up = server_player.speed_power_up;
             client_player.multi_shot_power_up = server_player.multi_shot_power_up;
+            client_player.reflect_power_up = server_player.reflect_power_up;
         }
     }
 }
@@ -601,9 +605,10 @@ fn handle_power_up_message(
         let old_speed_power_up = player_info.speed_power_up;
         player_info.speed_power_up = msg.speed_power_up;
         player_info.multi_shot_power_up = msg.multi_shot_power_up;
+        player_info.reflect_power_up = msg.reflect_power_up;
 
         // Play sound if this is the local player and they have a power-up
-        if msg.id == my_player_id && (msg.speed_power_up || msg.multi_shot_power_up) {
+        if msg.id == my_player_id && (msg.speed_power_up || msg.multi_shot_power_up || msg.reflect_power_up) {
             commands.spawn((
                 AudioPlayer::new(asset_server.load("sounds/player_powerup.wav")),
                 PlaybackSettings::DESPAWN,

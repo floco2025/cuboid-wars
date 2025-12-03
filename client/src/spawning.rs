@@ -104,6 +104,7 @@ pub fn spawn_projectiles_local(
     pos: &Position,
     face_dir: f32,
     has_multi_shot: bool,
+    shooter_id: Option<PlayerId>,
 ) {
     // Determine number of shots
     let num_shots = if has_multi_shot { MULTI_SHOT_MULTIPLER } else { 1 };
@@ -115,7 +116,7 @@ pub fn spawn_projectiles_local(
     for i in 0..num_shots {
         let angle_offset = (i as f32).mul_add(angle_step, start_offset);
         let shot_dir = face_dir + angle_offset;
-        spawn_single_projectile(commands, meshes, materials, pos, shot_dir);
+        spawn_single_projectile(commands, meshes, materials, pos, shot_dir, shooter_id);
     }
 }
 
@@ -126,11 +127,13 @@ fn spawn_single_projectile(
     materials: &mut ResMut<Assets<StandardMaterial>>,
     pos: &Position,
     face_dir: f32,
+    shooter_id: Option<PlayerId>,
 ) {
     let spawn_pos = Projectile::calculate_spawn_position(Vec3::new(pos.x, pos.y, pos.z), face_dir);
     let projectile = Projectile::new(face_dir);
     let projectile_color = Color::srgb(10.0, 10.0, 0.0); // Very bright yellow
-    commands.spawn((
+    
+    let mut entity = commands.spawn((
         Mesh3d(meshes.add(Sphere::new(PROJECTILE_RADIUS))),
         MeshMaterial3d(materials.add(StandardMaterial {
             base_color: projectile_color,
@@ -140,6 +143,11 @@ fn spawn_single_projectile(
         Transform::from_translation(spawn_pos),
         projectile,
     ));
+    
+    // Add shooter ID if provided
+    if let Some(id) = shooter_id {
+        entity.insert(id);
+    }
 }
 
 // Spawn a projectile for a player (when receiving shot from server).
@@ -147,13 +155,13 @@ pub fn spawn_projectile_for_player(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
-    player_pos_face_query: &Query<(&Position, &FaceDirection), With<PlayerId>>,
+    player_pos_face_query: &Query<(&Position, &FaceDirection, &PlayerId), With<PlayerId>>,
     entity: Entity,
     has_multi_shot: bool,
 ) {
-    // Get position and face direction for this player entity
-    if let Ok((pos, face_dir)) = player_pos_face_query.get(entity) {
-        spawn_projectiles_local(commands, meshes, materials, pos, face_dir.0, has_multi_shot);
+    // Get position, face direction, and player ID for this player entity
+    if let Ok((pos, face_dir, player_id)) = player_pos_face_query.get(entity) {
+        spawn_projectiles_local(commands, meshes, materials, pos, face_dir.0, has_multi_shot, Some(*player_id));
     }
 }
 
@@ -382,6 +390,11 @@ pub const fn item_type_color(item_type: ItemType) -> Color {
             ITEM_MULTISHOT_COLOR[0],
             ITEM_MULTISHOT_COLOR[1],
             ITEM_MULTISHOT_COLOR[2],
+        ),
+        ItemType::ReflectPowerUp => Color::srgb(
+            ITEM_REFLECT_COLOR[0],
+            ITEM_REFLECT_COLOR[1],
+            ITEM_REFLECT_COLOR[2],
         ),
     }
 }
