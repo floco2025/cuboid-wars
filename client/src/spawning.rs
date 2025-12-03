@@ -13,11 +13,22 @@ use crate::{
 };
 use common::{collision::Projectile, constants::*, protocol::*, spawning::calculate_projectile_spawns};
 
+// ============================================================================
+// Components
+// ============================================================================
+
 #[derive(Component)]
 pub struct PlayerIdText;
 
 #[derive(Component)]
 pub struct PlayerIdTextMesh;
+
+#[derive(Component)]
+pub struct ItemAnimTimer(pub f32);
+
+// ============================================================================
+// Player Spawning
+// ============================================================================
 
 // Spawn a player cuboid plus cosmetic children, returning the new entity id.
 pub fn spawn_player(
@@ -96,135 +107,7 @@ pub fn spawn_player(
     entity_id
 }
 
-// Spawn projectile(s) locally based on whether player has multi-shot power-up
-pub fn spawn_projectiles(
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    pos: &Position,
-    face_dir: f32,
-    has_multi_shot: bool,
-    has_reflect: bool,
-    walls: &[Wall],
-) {
-    let spawns = calculate_projectile_spawns(pos, face_dir, has_multi_shot, has_reflect, walls);
-
-    for spawn_info in spawns {
-        spawn_single_projectile(commands, meshes, materials, &spawn_info);
-    }
-}
-
-// Internal helper to spawn a single projectile
-fn spawn_single_projectile(
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    spawn_info: &common::spawning::ProjectileSpawnInfo,
-) {
-    let spawn_pos = Vec3::new(spawn_info.position.x, spawn_info.position.y, spawn_info.position.z);
-
-    let projectile = Projectile::new(spawn_info.direction, spawn_info.reflects);
-    let projectile_color = Color::srgb(10.0, 10.0, 0.0); // Very bright yellow
-
-    commands.spawn((
-        Mesh3d(meshes.add(Sphere::new(PROJECTILE_RADIUS))),
-        MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: projectile_color,
-            emissive: LinearRgba::rgb(10.0, 10.0, 0.0), // Make it glow
-            ..default()
-        })),
-        Transform::from_translation(spawn_pos),
-        projectile,
-    ));
-}
-
-// Spawn a projectile for a player (when receiving shot from server).
-pub fn spawn_projectile_for_player(
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    player_pos_face_query: &Query<(&Position, &FaceDirection), With<PlayerId>>,
-    entity: Entity,
-    has_multi_shot: bool,
-    has_reflect: bool,
-    walls: &[Wall],
-) {
-    // Get position and face direction for this player entity
-    if let Ok((pos, face_dir)) = player_pos_face_query.get(entity) {
-        spawn_projectiles(
-            commands,
-            meshes,
-            materials,
-            pos,
-            face_dir.0,
-            has_multi_shot,
-            has_reflect,
-            walls,
-        );
-    }
-}
-
-// Spawn a wall segment entity based on a shared `Wall` config.
-pub fn spawn_wall(
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    wall: &Wall,
-) {
-    let wall_color = Color::srgb(0.0, 0.7, 0.0); // Green
-
-    let (size_x, size_z) = match wall.orientation {
-        WallOrientation::Horizontal => (WALL_LENGTH, WALL_WIDTH),
-        WallOrientation::Vertical => (WALL_WIDTH, WALL_LENGTH),
-    };
-
-    commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(size_x, WALL_HEIGHT, size_z))),
-        MeshMaterial3d(materials.add(wall_color)),
-        Transform::from_xyz(
-            wall.x,
-            WALL_HEIGHT / 2.0, // Lift so bottom is at y=0
-            wall.z,
-        ),
-        Visibility::default(),
-        WallMarker,
-    ));
-}
-
-// Spawn a roof entity based on a shared `Roof` config.
-pub fn spawn_roof(
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    roof: &Roof,
-) {
-    let roof_color = Color::srgb(0.0, 0.7, 0.0); // Same as walls
-
-    // Calculate world position from grid coordinates
-    #[allow(clippy::cast_precision_loss)]
-    let world_x = (roof.col as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-    #[allow(clippy::cast_precision_loss)]
-    let world_z = (roof.row as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
-
-    // Create a thin horizontal plane at wall height
-    // Use same dimensions as walls for consistency
-    let roof_size = WALL_LENGTH; // Same overlap as walls to cover corners
-    let roof_thickness = WALL_WIDTH; // Same thickness as walls
-
-    commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(roof_size, roof_thickness, roof_size))),
-        MeshMaterial3d(materials.add(roof_color)),
-        Transform::from_xyz(
-            world_x,
-            WALL_HEIGHT - roof_thickness / 2.0, // Position so top of roof aligns with top of wall
-            world_z,
-        ),
-        Visibility::Visible,
-        RoofMarker,
-    ));
-}
-
-const fn player_color(is_local: bool) -> Color {
+fn player_color(is_local: bool) -> Color {
     if is_local {
         Color::srgb(0.3, 0.3, 1.0)
     } else {
@@ -232,7 +115,7 @@ const fn player_color(is_local: bool) -> Color {
     }
 }
 
-const fn player_visibility(is_local: bool) -> Visibility {
+fn player_visibility(is_local: bool) -> Visibility {
     if is_local {
         Visibility::Hidden
     } else {
@@ -260,7 +143,6 @@ fn spawn_face_sphere(
         .id()
 }
 
-// Setup the player ID text rendering system: create texture and camera for a single player
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn setup_player_id_text_rendering(
     commands: &mut Commands,
@@ -309,7 +191,6 @@ fn setup_player_id_text_rendering(
     (image_handle, text_camera)
 }
 
-// Spawn player ID text UI and mesh for a specific player
 pub fn spawn_player_id_display(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
@@ -380,6 +261,146 @@ pub fn spawn_player_id_display(
     (text_entity, mesh_entity)
 }
 
+// ============================================================================
+// Projectile Spawning
+// ============================================================================
+
+// Spawn projectile(s) on whether player has multi-shot power-up
+pub fn spawn_projectiles(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    pos: &Position,
+    face_dir: f32,
+    has_multi_shot: bool,
+    has_reflect: bool,
+    walls: &[Wall],
+) {
+    let spawns = calculate_projectile_spawns(pos, face_dir, has_multi_shot, has_reflect, walls);
+
+    for spawn_info in spawns {
+        spawn_single_projectile(commands, meshes, materials, &spawn_info);
+    }
+}
+
+// Internal helper to spawn a single projectile
+fn spawn_single_projectile(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    spawn_info: &common::spawning::ProjectileSpawnInfo,
+) {
+    let spawn_pos = Vec3::new(spawn_info.position.x, spawn_info.position.y, spawn_info.position.z);
+
+    let projectile = Projectile::new(spawn_info.direction, spawn_info.reflects);
+    let projectile_color = Color::srgb(10.0, 10.0, 0.0); // Very bright yellow
+
+    commands.spawn((
+        Mesh3d(meshes.add(Sphere::new(PROJECTILE_RADIUS))),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: projectile_color,
+            emissive: LinearRgba::rgb(10.0, 10.0, 0.0), // Make it glow
+            ..default()
+        })),
+        Transform::from_translation(spawn_pos),
+        projectile,
+    ));
+}
+
+// Spawn a projectile for a player (when receiving shot from server).
+pub fn spawn_projectile_for_player(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    player_pos_face_query: &Query<(&Position, &FaceDirection), With<PlayerId>>,
+    entity: Entity,
+    has_multi_shot: bool,
+    has_reflect: bool,
+    walls: &[Wall],
+) {
+    // Get position and face direction for this player entity
+    if let Ok((pos, face_dir)) = player_pos_face_query.get(entity) {
+        spawn_projectiles(
+            commands,
+            meshes,
+            materials,
+            pos,
+            face_dir.0,
+            has_multi_shot,
+            has_reflect,
+            walls,
+        );
+    }
+}
+
+// ============================================================================
+// Map Spawning
+// ============================================================================
+
+// Spawn a wall segment entity based on a shared `Wall` config.
+pub fn spawn_wall(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    wall: &Wall,
+) {
+    let wall_color = Color::srgb(0.0, 0.7, 0.0); // Green
+
+    let (size_x, size_z) = match wall.orientation {
+        WallOrientation::Horizontal => (WALL_LENGTH, WALL_WIDTH),
+        WallOrientation::Vertical => (WALL_WIDTH, WALL_LENGTH),
+    };
+
+    commands.spawn((
+        Mesh3d(meshes.add(Cuboid::new(size_x, WALL_HEIGHT, size_z))),
+        MeshMaterial3d(materials.add(wall_color)),
+        Transform::from_xyz(
+            wall.x,
+            WALL_HEIGHT / 2.0, // Lift so bottom is at y=0
+            wall.z,
+        ),
+        Visibility::default(),
+        WallMarker,
+    ));
+}
+
+// Spawn a roof entity based on a shared `Roof` config.
+pub fn spawn_roof(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    roof: &Roof,
+) {
+    let roof_color = Color::srgb(0.0, 0.7, 0.0); // Same as walls
+
+    // Calculate world position from grid coordinates
+    #[allow(clippy::cast_precision_loss)]
+    let world_x = (roof.col as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+    #[allow(clippy::cast_precision_loss)]
+    let world_z = (roof.row as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+
+    // Create a thin horizontal plane at wall height
+    // Use same dimensions as walls for consistency
+    let roof_size = WALL_LENGTH; // Same overlap as walls to cover corners
+    let roof_thickness = WALL_WIDTH; // Same thickness as walls
+
+    commands.spawn((
+        Mesh3d(meshes.add(Cuboid::new(roof_size, roof_thickness, roof_size))),
+        MeshMaterial3d(materials.add(roof_color)),
+        Transform::from_xyz(
+            world_x,
+            WALL_HEIGHT - roof_thickness / 2.0, // Position so top of roof aligns with top of wall
+            world_z,
+        ),
+        Visibility::Visible,
+        RoofMarker,
+    ));
+}
+
+// ============================================================================
+// Item Spawning
+// ============================================================================
+
 // Get the color for an item type
 #[must_use]
 pub const fn item_type_color(item_type: ItemType) -> Color {
@@ -394,11 +415,7 @@ pub const fn item_type_color(item_type: ItemType) -> Color {
     }
 }
 
-// Component to track item animation timer
-#[derive(Component)]
-pub struct ItemAnimTimer(pub f32);
-
-// Spawn a item cube
+// Spawn an item cube
 pub fn spawn_item(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
@@ -431,6 +448,10 @@ pub fn spawn_item(
         ))
         .id()
 }
+
+// ============================================================================
+// Ghost Spawning
+// ============================================================================
 
 // Spawn a ghost cube
 pub fn spawn_ghost(
