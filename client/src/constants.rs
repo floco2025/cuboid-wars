@@ -55,3 +55,9 @@ pub const COOKIE_COLOR: [f32; 4] = [0.55, 0.35, 0.2, 1.0]; // Brown
 
 // Ghost visual settings
 pub const GHOST_COLOR: [f32; 4] = [0xF8 as f32 / 255.0, 0xF8 as f32 / 255.0, 0xFF as f32 / 255.0, 0.5];
+
+// Rearview mirror settings
+pub const REARVIEW_WIDTH_RATIO: f32 = 0.25; // Width as ratio of screen width (25%)
+pub const REARVIEW_HEIGHT_RATIO: f32 = 0.25; // Height as ratio of screen height (25%)
+pub const REARVIEW_MARGIN: f32 = 0.02; // Margin from edge as ratio of screen size (2%)
+pub const REARVIEW_FOV_DEGREES: f32 = 90.0; // Field of view for rearview mirror

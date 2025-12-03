@@ -1,4 +1,6 @@
 use bevy::prelude::*;
+use bevy::camera::Viewport;
+use bevy::camera::visibility::RenderLayers;
 use std::time::Duration;
 
 use crate::{
@@ -56,6 +58,7 @@ pub fn setup_world_system(
         MeshMaterial3d(materials.add(Color::srgb(0.3, 0.5, 0.3))),
         Transform::from_xyz(0.0, 0.0, 0.0),
         Visibility::default(),
+        RenderLayers::layer(0), // World layer
     ));
 
     // Create grid lines
@@ -69,6 +72,7 @@ pub fn setup_world_system(
             Mesh3d(meshes.add(Cuboid::new(FIELD_WIDTH, line_height, WALL_WIDTH))),
             MeshMaterial3d(grid_material.clone()),
             Transform::from_xyz(0.0, line_height / 2.0, z_pos),
+            RenderLayers::layer(0), // World layer
         ));
     }
 
@@ -79,18 +83,52 @@ pub fn setup_world_system(
             Mesh3d(meshes.add(Cuboid::new(WALL_WIDTH, line_height, FIELD_DEPTH))),
             MeshMaterial3d(grid_material.clone()),
             Transform::from_xyz(x_pos, line_height / 2.0, 0.0),
+            RenderLayers::layer(0), // World layer
         ));
     }
 
-    // Add camera (initial position will be immediately overridden by sync system)
+    // Add main camera (initial position will be immediately overridden by sync system)
     commands.spawn((
         Camera3d::default(),
+        Camera {
+            // Render first to full window
+            order: 0,
+            ..default()
+        },
         Projection::from(PerspectiveProjection {
             fov: FPV_CAMERA_FOV_DEGREES.to_radians(),
             ..default()
         }),
         Transform::from_xyz(0.0, PLAYER_HEIGHT * FPV_CAMERA_HEIGHT_RATIO, 0.0)
             .looking_at(Vec3::new(0.0, 0.0, -1.0), Vec3::Y),
+        RenderLayers::layer(0).with(1), // Render both world (layer 0) and UI (layer 1)
+        IsDefaultUiCamera, // Mark this as the UI camera
+    ));
+
+    // Add rearview mirror camera (renders to lower-right viewport)
+    commands.spawn((
+        Camera3d::default(),
+        Camera {
+            // Render after main camera to its viewport only
+            order: 1,
+            // Viewport will be set by rearview_camera_viewport_system
+            viewport: Some(Viewport {
+                physical_position: UVec2::ZERO,
+                physical_size: UVec2::new(100, 100),
+                depth: 0.0..1.0,
+            }),
+            // Don't clear the viewport - render on top
+            clear_color: bevy::camera::ClearColorConfig::None,
+            ..default()
+        },
+        RenderLayers::layer(0), // Only render world objects on layer 0
+        Projection::from(PerspectiveProjection {
+            fov: REARVIEW_FOV_DEGREES.to_radians(),
+            ..default()
+        }),
+        Transform::from_xyz(0.0, PLAYER_HEIGHT * FPV_CAMERA_HEIGHT_RATIO, 0.0)
+            .looking_at(Vec3::new(0.0, 0.0, 1.0), Vec3::Y), // Looking backwards (positive Z)
+        super::players::RearviewCamera,
     ));
 
     // Add soft directional light from above for shadows and definition
@@ -121,6 +159,7 @@ pub fn setup_world_system(
             ..default()
         },
         PlayerListUIMarker,
+        RenderLayers::layer(1), // UI layer
     ));
 
     // Create crosshair UI
@@ -141,6 +180,7 @@ pub fn setup_world_system(
                 ..default()
             },
             CrosshairUIMarker,
+            RenderLayers::layer(1), // UI layer
         ))
         .with_children(|parent| {
             // Horizontal line
@@ -171,7 +211,7 @@ pub fn setup_world_system(
 
     // Create RTT display in upper right corner
     commands.spawn((
-        Text::new("RTT: --"),
+        Text::new("RTT: --ms"),
         TextFont {
             font_size: 20.0,
             ..default()
@@ -184,6 +224,7 @@ pub fn setup_world_system(
             ..default()
         },
         RttUIMarker,
+        RenderLayers::layer(1), // UI layer
     ));
 
     // Create FPS display below RTT
@@ -197,10 +238,11 @@ pub fn setup_world_system(
         Node {
             position_type: PositionType::Absolute,
             right: Val::Px(10.0),
-            top: Val::Px(35.0),
+            top: Val::Px(40.0),
             ..default()
         },
         FpsUIMarker,
+        RenderLayers::layer(1), // UI layer
     ));
 
     // Create bump flash overlay (invisible by default, shown on wall collision)
@@ -216,6 +258,7 @@ pub fn setup_world_system(
         BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.0)), // Transparent by default (white)
         BumpFlashUIMarker,
         Visibility::Hidden, // Start hidden
+        RenderLayers::layer(1), // UI layer
     ));
 }
 

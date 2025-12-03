@@ -117,6 +117,8 @@ fn main() -> Result<()> {
             local_player_camera_shake_system,
             local_player_cuboid_shake_system,
             local_player_camera_sync_system,
+            local_player_rearview_camera_sync_system.after(input_movement_system), // Run after input sets camera rotation
+            rearview_camera_viewport_system,
             local_player_visibility_sync_system,
         ),
     )

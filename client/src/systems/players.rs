@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::camera::Viewport;
 use std::time::Duration;
 
 use super::network::ServerReconciliation;
@@ -20,6 +21,10 @@ use common::{
 // Marker component for the local player (yourself)
 #[derive(Component)]
 pub struct LocalPlayer;
+
+// Marker component for the rearview mirror camera
+#[derive(Component)]
+pub struct RearviewCamera;
 
 // Track bump flash effect state for local player
 #[derive(Component, Default)]
@@ -307,7 +312,7 @@ fn update_cuboid_shake(commands: &mut Commands, entity: Entity, delta: Duration,
 // Update camera position to follow local player
 pub fn local_player_camera_sync_system(
     local_player_query: Query<&Position, With<LocalPlayer>>,
-    mut camera_query: Query<(&mut Transform, &mut Projection, Option<&CameraShake>), With<Camera3d>>,
+    mut camera_query: Query<(&mut Transform, &mut Projection, Option<&CameraShake>), (With<Camera3d>, Without<RearviewCamera>)>,
     view_mode: Res<CameraViewMode>,
 ) {
     let Some(player_pos) = local_player_query.iter().next() else {
@@ -353,7 +358,7 @@ pub fn local_player_visibility_sync_system(
     mut local_player_query: Query<(Entity, &mut Visibility, Has<Mesh3d>), With<LocalPlayer>>,
 ) {
     // Always check and update, not just when changed, to ensure it's correct
-    for (entity, mut visibility, has_mesh) in &mut local_player_query {
+    for (_entity, mut visibility, _has_mesh) in &mut local_player_query {
         let desired_visibility = match *view_mode {
             CameraViewMode::FirstPerson => Visibility::Hidden,
             CameraViewMode::TopDown => Visibility::Visible,
@@ -394,9 +399,84 @@ pub fn placers_face_to_transform_system(mut query: Query<(&FaceDirection, &mut T
 // Players Billboard System
 // ============================================================================
 
+// Update rearview camera to look backwards from local player
+pub fn local_player_rearview_camera_sync_system(
+    local_player_query: Query<&Position, With<LocalPlayer>>,
+    main_camera_query: Query<&Transform, (With<Camera3d>, Without<RearviewCamera>, Without<Camera2d>)>,
+    mut rearview_query: Query<&mut Transform, With<RearviewCamera>>,
+    view_mode: Res<CameraViewMode>,
+) {
+    let Some(player_pos) = local_player_query.iter().next() else {
+        return;
+    };
+
+    let Ok(mut rearview_transform) = rearview_query.single_mut() else {
+        return;
+    };
+
+    // Only update in first-person view mode
+    if *view_mode == CameraViewMode::FirstPerson {
+        rearview_transform.translation.x = player_pos.x;
+        rearview_transform.translation.z = player_pos.z;
+        rearview_transform.translation.y = PLAYER_HEIGHT * FPV_CAMERA_HEIGHT_RATIO;
+
+        // Get the main camera's rotation and rotate 180 degrees
+        if let Ok(main_transform) = main_camera_query.single() {
+            let main_yaw = main_transform.rotation.to_euler(EulerRot::YXZ).0;
+            let backwards_yaw = main_yaw + std::f32::consts::PI;
+            rearview_transform.rotation = Quat::from_rotation_y(backwards_yaw);
+        }
+    }
+}
+
+// Update rearview camera viewport based on window size
+pub fn rearview_camera_viewport_system(
+    windows: Query<&Window>,
+    mut rearview_query: Query<&mut Camera, With<RearviewCamera>>,
+    view_mode: Res<CameraViewMode>,
+) {
+    use crate::constants::{REARVIEW_WIDTH_RATIO, REARVIEW_HEIGHT_RATIO, REARVIEW_MARGIN};
+
+    let Ok(window) = windows.single() else {
+        return;
+    };
+
+    let Ok(mut camera) = rearview_query.single_mut() else {
+        return;
+    };
+
+    // Only show rearview in first-person mode
+    let is_active = *view_mode == CameraViewMode::FirstPerson;
+    camera.is_active = is_active;
+
+    if !is_active {
+        return;
+    }
+
+    let window_width = window.physical_width();
+    let window_height = window.physical_height();
+
+    let viewport_width = (window_width as f32 * REARVIEW_WIDTH_RATIO) as u32;
+    let viewport_height = (window_height as f32 * REARVIEW_HEIGHT_RATIO) as u32;
+
+    let margin_x = (window_width as f32 * REARVIEW_MARGIN) as u32;
+    let margin_y = (window_height as f32 * REARVIEW_MARGIN) as u32;
+
+    // Position in lower-right corner
+    let x = window_width.saturating_sub(viewport_width + margin_x);
+    let y = margin_y;
+
+    camera.viewport = Some(Viewport {
+        physical_position: UVec2::new(x, y),
+        physical_size: UVec2::new(viewport_width, viewport_height),
+        depth: 0.0..1.0,
+    });
+}
+
+
 // Make player ID text meshes billboard (always face camera)
 pub fn players_billboard_system(
-    camera_query: Query<&GlobalTransform, With<Camera3d>>,
+    camera_query: Query<&GlobalTransform, (With<Camera3d>, Without<RearviewCamera>)>,
     mut text_mesh_query: Query<(&GlobalTransform, &mut Transform), With<PlayerIdTextMesh>>,
 ) {
     let Ok(camera_transform) = camera_query.single() else {
