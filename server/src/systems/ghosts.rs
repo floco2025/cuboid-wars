@@ -225,7 +225,6 @@ pub fn ghosts_movement_system(
                     ghost_info.mode = GhostMode::Follow;
                     ghost_info.mode_timer = GHOST_FOLLOW_DURATION;
                     ghost_info.follow_target = Some(target_player_id);
-                    debug!("{:?} spotted {:?}, entering follow mode", ghost_id, target_player_id);
                 }
             }
             GhostMode::Follow => {
@@ -234,8 +233,6 @@ pub fn ghosts_movement_system(
                     ghost_info.mode = GhostMode::PrePatrol;
                     ghost_info.mode_timer = GHOST_COOLDOWN_DURATION;
                     ghost_info.follow_target = None;
-
-                    debug!("{:?} follow time expired, entering pre-patrol", ghost_id);
                 } else {
                     // Check if target player still exists
                     if let Some(target_id) = ghost_info.follow_target {
@@ -245,8 +242,6 @@ pub fn ghosts_movement_system(
                             ghost_info.mode = GhostMode::PrePatrol;
                             ghost_info.mode_timer = GHOST_COOLDOWN_DURATION;
                             ghost_info.follow_target = None;
-
-                            debug!("{:?} lost target {:?}, entering pre-patrol", ghost_id, target_id);
                         }
                     }
                 }
@@ -256,7 +251,6 @@ pub fn ghosts_movement_system(
                     // Switch back to active patrol
                     ghost_info.mode = GhostMode::Patrol;
                     ghost_info.mode_timer = 0.0;
-                    debug!("{:?} cooldown complete, active patrol", ghost_id);
                 }
             }
             GhostMode::PrePatrol => {
@@ -370,14 +364,10 @@ fn pre_patrol_movement(
     delta: f32,
     rng: &mut impl rand::Rng,
 ) {
-    // Calculate which grid cell we're in
     let grid_x = (((pos.x + FIELD_WIDTH / 2.0) / GRID_SIZE).floor() as i32).clamp(0, GRID_COLS - 1);
     let grid_z = (((pos.z + FIELD_DEPTH / 2.0) / GRID_SIZE).floor() as i32).clamp(0, GRID_ROWS - 1);
-
-    // Calculate grid cell center
     let center = cell_center(grid_x, grid_z);
 
-    // Check if we're at grid center (within small threshold)
     let at_center_x = (pos.x - center.x).abs() < GHOST_CENTER_THRESHOLD;
     let at_center_z = (pos.z - center.z).abs() < GHOST_CENTER_THRESHOLD;
     let at_intersection = at_center_x && at_center_z;
@@ -386,24 +376,17 @@ fn pre_patrol_movement(
         // We've reached the grid center - pick a valid direction and transition to patrol
         let cell = &grid_config.grid[grid_z as usize][grid_x as usize];
         let valid_directions = valid_directions(*cell);
+        let new_direction = pick_direction(rng, &valid_directions).expect("no valid direction");
+        *vel = new_direction.to_velocity();
+        ghost_info.mode = GhostMode::PatrolCooldown;
 
-        if let Some(new_direction) = pick_direction(rng, &valid_directions) {
-            *vel = new_direction.to_velocity();
-
-            // Transition to PatrolCooldown (still in cooldown period after follow)
-            ghost_info.mode = GhostMode::PatrolCooldown;
-            // Keep the existing mode_timer (cooldown time)
-
-            debug!("{:?} reached grid center, entering patrol cooldown", ghost_id);
-
-            broadcast_to_all(
-                players,
-                ServerMessage::Ghost(SGhost {
-                    id: *ghost_id,
-                    ghost: Ghost { pos: *pos, vel: *vel },
-                }),
-            );
-        }
+        broadcast_to_all(
+            players,
+            ServerMessage::Ghost(SGhost {
+                id: *ghost_id,
+                ghost: Ghost { pos: *pos, vel: *vel },
+            }),
+        );
     } else {
         // Not at center yet - move directly toward it
         let dx = center.x - pos.x;
@@ -413,7 +396,6 @@ fn pre_patrol_movement(
         // Normalize and apply ghost speed
         let dir_x = dx / distance;
         let dir_z = dz / distance;
-
         let new_vel = Velocity {
             x: dir_x * GHOST_SPEED,
             y: 0.0,
@@ -435,7 +417,6 @@ fn pre_patrol_movement(
             );
         }
 
-        // Move based on velocity
         pos.x += vel.x * delta;
         pos.z += vel.z * delta;
     }
@@ -452,34 +433,25 @@ fn patrol_movement(
     delta: f32,
     rng: &mut impl rand::Rng,
 ) {
-    // Calculate which grid cell we're in
-    // Clamp to valid grid indices (0 to GRID_COLS-1, 0 to GRID_ROWS-1)
-    // This handles edge cases where position is exactly at field boundary
     let grid_x = (((pos.x + FIELD_WIDTH / 2.0) / GRID_SIZE).floor() as i32).clamp(0, GRID_COLS - 1);
     let grid_z = (((pos.z + FIELD_DEPTH / 2.0) / GRID_SIZE).floor() as i32).clamp(0, GRID_ROWS - 1);
-
-    // Calculate grid cell center
     let center = cell_center(grid_x, grid_z);
 
-    // Check if we're at grid center (within small threshold)
     let at_center_x = (pos.x - center.x).abs() < GHOST_CENTER_THRESHOLD;
     let at_center_z = (pos.z - center.z).abs() < GHOST_CENTER_THRESHOLD;
     let at_intersection = at_center_x && at_center_z;
 
-    // Detect transition into intersection (just arrived)
     let just_arrived = at_intersection && !ghost_info.at_intersection;
-
-    // Update intersection state
     ghost_info.at_intersection = at_intersection;
+
+    let mut current_direction = direction_from_velocity(vel).expect("no current direction");
 
     if just_arrived {
         let cell = &grid_config.grid[grid_z as usize][grid_x as usize];
         let valid_directions = valid_directions(*cell);
         let mut direction_changed = false;
 
-        if let Some(current_direction) = direction_from_velocity(vel)
-            && current_direction.is_blocked(*cell)
-        {
+        if current_direction.is_blocked(*cell) {
             let forward_options = forward_directions(&valid_directions, current_direction);
             if forward_options.is_empty() {
                 let new_direction = valid_directions.first().copied().expect("no valid direction");
@@ -499,7 +471,6 @@ fn patrol_movement(
             direction_changed = true;
         }
 
-        // Broadcast once after final direction is determined
         if direction_changed {
             broadcast_to_all(
                 players,
@@ -508,20 +479,24 @@ fn patrol_movement(
                     ghost: Ghost { pos: *pos, vel: *vel },
                 }),
             );
+
+            current_direction = direction_from_velocity(vel).expect("no current direction");
         }
     }
 
-    // Move based on current velocity
     pos.x += vel.x * delta;
     pos.z += vel.z * delta;
 
-    // Snap to grid lines to prevent drift
-    if vel.x.abs() > 0.0 && vel.z.abs() < 0.01 {
-        // Moving horizontally - snap Z to grid center
-        pos.z = center.z;
-    } else if vel.z.abs() > 0.0 && vel.x.abs() < 0.01 {
-        // Moving vertically - snap X to grid center
-        pos.x = center.x;
+    // Incrementally adjust position toward grid line based on current direction
+    match current_direction {
+        GridDirection::East | GridDirection::West => {
+            let diff = center.z - pos.z;
+            pos.z += diff.signum() * (diff.abs().min(GHOST_SPEED * delta * 0.5));
+        }
+        GridDirection::North | GridDirection::South => {
+            let diff = center.x - pos.x;
+            pos.x += diff.signum() * (diff.abs().min(GHOST_SPEED * delta * 0.5));
+        }
     }
 }
 
@@ -561,8 +536,6 @@ fn follow_movement(
     // Normalize direction and apply follow speed
     let dir_x = dx / distance;
     let dir_z = dz / distance;
-
-    // Calculate desired velocity
     let desired_vel = Velocity {
         x: dir_x * GHOST_FOLLOW_SPEED,
         y: 0.0,
@@ -588,14 +561,11 @@ fn follow_movement(
     }
 
     if collides {
-        // Use the ghost wall sliding algorithm from common
         final_pos = calculate_ghost_wall_slide(walls, pos, &target_frame_pos, desired_vel.x, desired_vel.z, delta);
     }
 
-    // Update velocity based on actual movement
     let actual_dx = final_pos.x - pos.x;
     let actual_dz = final_pos.z - pos.z;
-
     let new_vel = Velocity {
         x: actual_dx / delta,
         y: 0.0,
