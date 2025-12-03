@@ -94,6 +94,7 @@ async fn main() -> Result<()> {
                 players_movement_system,
                 ghosts_spawn_system,
                 ghosts_movement_system,
+                ghost_player_collision_system,
                 projectiles_movement_system,
                 item_spawn_system,
                 item_despawn_system,

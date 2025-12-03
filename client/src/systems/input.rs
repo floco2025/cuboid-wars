@@ -57,7 +57,7 @@ pub fn input_movement_system(
 
     let current_yaw = calculate_current_yaw(&mut mouse_motion, &camera_query, &view_mode, &mut local_state);
     let face_yaw = current_yaw + std::f32::consts::PI;
-    let speed = calculate_movement_speed(&keyboard, face_yaw);
+    let speed = calculate_movement_speed(&keyboard, face_yaw, my_player_id.as_ref(), &players);
 
     update_player_velocity_and_face(
         speed,
@@ -137,7 +137,23 @@ fn calculate_current_yaw(
     current_yaw
 }
 
-fn calculate_movement_speed(keyboard: &Res<ButtonInput<KeyCode>>, face_yaw: f32) -> Speed {
+fn calculate_movement_speed(
+    keyboard: &Res<ButtonInput<KeyCode>>,
+    face_yaw: f32,
+    my_player_id: Option<&Res<MyPlayerId>>,
+    players: &Res<PlayerMap>,
+) -> Speed {
+    // Check if stunned - if so, no movement
+    if let Some(my_id) = my_player_id
+        && let Some(player_info) = players.0.get(&my_id.0)
+        && player_info.stunned
+    {
+        return Speed {
+            speed_level: SpeedLevel::Idle,
+            move_dir: 0.0,
+        };
+    }
+
     // Build movement input vector (forward=z, right=x)
     let mut move_input = Vec2::ZERO;
     if keyboard.pressed(KeyCode::KeyW) {

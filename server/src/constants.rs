@@ -29,3 +29,5 @@ pub const GHOST_RANDOM_TURN_PROBABILITY: f64 = 0.3; // Probability ghost randoml
 pub const GHOST_FOLLOW_DURATION: f32 = 10.0; // How long ghost follows player (seconds)
 pub const GHOST_COOLDOWN_DURATION: f32 = 10.0; // Cooldown before ghost can detect players again (seconds)
 pub const GHOST_VISION_RANGE: f32 = 64.0; // Maximum distance to detect players (whole map)
+pub const GHOST_STUN_DURATION: f32 = 10.0; // How long player is stunned after ghost hit (seconds)
+pub const GHOST_HIT_PENALTY: i32 = 10; // Points lost when hit by ghost

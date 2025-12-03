@@ -136,6 +136,7 @@ fn main() -> Result<()> {
         (
             ui_toggle_crosshair_system,
             ui_player_list_system,
+            ui_stunned_blink_system,
             ui_rtt_system,
             ui_fps_system,
         ),

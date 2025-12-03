@@ -518,6 +518,16 @@ pub fn check_ghost_wall_overlap(ghost_pos: &Position, wall: &Wall) -> bool {
     check_aabb_wall_overlap(ghost_pos, wall, ghost_half_size, ghost_half_size)
 }
 
+// Check if a ghost and player are overlapping (circle collision)
+#[must_use]
+pub fn check_ghost_player_overlap(ghost_pos: &Position, player_pos: &Position) -> bool {
+    let dx = player_pos.x - ghost_pos.x;
+    let dz = player_pos.z - ghost_pos.z;
+    let dist_sq = dx.mul_add(dx, dz * dz);
+    let collision_radius = GHOST_SIZE / 2.0 + (PLAYER_WIDTH.max(PLAYER_DEPTH) / 2.0);
+    dist_sq <= collision_radius * collision_radius
+}
+
 // Check if a player is close enough to an item to collect it (circle collision)
 #[must_use]
 pub fn check_player_item_overlap(player_pos: &Position, item_pos: &Position, collection_radius: f32) -> bool {

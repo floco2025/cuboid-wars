@@ -7,7 +7,7 @@ use crate::{
     resources::{GhostInfo, GhostMap, GhostMode, GridCell, GridConfig, PlayerMap},
 };
 use common::{
-    collision::{calculate_ghost_wall_slide, check_ghost_wall_overlap, check_player_wall_sweep},
+    collision::{calculate_ghost_wall_slide, check_ghost_player_overlap, check_ghost_wall_overlap, check_player_wall_sweep},
     constants::*,
     protocol::{Ghost, GhostId, PlayerId, Position, SGhost, ServerMessage, Speed, SpeedLevel, Velocity, Wall},
 };
@@ -586,5 +586,66 @@ fn follow_movement(
                 ghost: Ghost { pos: *pos, vel: *vel },
             }),
         );
+    }
+}
+
+// ============================================================================
+// Ghost-Player Collision System
+// ============================================================================
+
+// Check for ghost-player collisions and apply stun
+pub fn ghost_player_collision_system(
+    _ghosts: Res<GhostMap>,
+    mut players: ResMut<PlayerMap>,
+    ghost_query: Query<(&GhostId, &Position)>,
+    player_query: Query<(&PlayerId, &Position)>,
+) {
+    use crate::constants::{GHOST_HIT_PENALTY, GHOST_STUN_DURATION};
+    use common::protocol::SPlayerStatus;
+
+    // Collect ghost positions
+    let ghost_positions: Vec<(GhostId, Position)> = ghost_query.iter().map(|(id, pos)| (*id, *pos)).collect();
+
+    // Collect player collisions first
+    let mut player_hits: Vec<(PlayerId, GhostId)> = Vec::new();
+
+    for (player_id, player_pos) in &player_query {
+        let Some(player_info) = players.0.get(player_id) else {
+            continue;
+        };
+
+        // Skip if already stunned
+        if player_info.stun_timer > 0.0 {
+            continue;
+        }
+
+        // Check collision with any ghost
+        for (ghost_id, ghost_pos) in &ghost_positions {
+            if check_ghost_player_overlap(ghost_pos, player_pos) {
+                player_hits.push((*player_id, *ghost_id));
+                break; // Only one hit per frame
+            }
+        }
+    }
+
+    // Apply stun and broadcast
+    for (player_id, ghost_id) in player_hits {
+        if let Some(player_info) = players.0.get_mut(&player_id) {
+            player_info.stun_timer = GHOST_STUN_DURATION;
+            player_info.hits -= GHOST_HIT_PENALTY;
+
+            debug!("{:?} was hit by {:?}, stunned for {}s, lost {} points",
+                player_id, ghost_id, GHOST_STUN_DURATION, GHOST_HIT_PENALTY);
+
+            let status_msg = SPlayerStatus {
+                id: player_id,
+                speed_power_up: player_info.speed_power_up_timer > 0.0,
+                multi_shot_power_up: player_info.multi_shot_power_up_timer > 0.0,
+                reflect_power_up: player_info.reflect_power_up_timer > 0.0,
+                stunned: true,
+            };
+
+            broadcast_to_all(&players, ServerMessage::PlayerStatus(status_msg));
+        }
     }
 }

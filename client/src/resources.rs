@@ -34,6 +34,7 @@ pub struct PlayerInfo {
     pub speed_power_up: bool,
     pub multi_shot_power_up: bool,
     pub reflect_power_up: bool,
+    pub stunned: bool,
 }
 
 // Map of all players (client-side source of truth)

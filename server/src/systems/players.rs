@@ -48,6 +48,15 @@ pub fn players_movement_system(
     let mut planned_moves: Vec<PlannedMove> = Vec::new();
 
     for (entity, pos, speed, player_id) in query.iter() {
+        // Check if player is stunned
+        let is_stunned = players.0.get(player_id).is_some_and(|info| info.stun_timer > 0.0);
+        
+        if is_stunned {
+            // Stunned players cannot move
+            planned_moves.push(PlannedMove { entity, target: *pos });
+            continue;
+        }
+
         let multiplier = speed_multiplier(&players, *player_id);
         let mut velocity = speed.to_velocity();
         velocity.x *= multiplier;

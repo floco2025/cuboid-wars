@@ -35,6 +35,10 @@ pub struct FpsUIMarker;
 #[derive(Component)]
 pub struct BumpFlashUIMarker;
 
+// Marker component for player entry rows
+#[derive(Component)]
+pub struct PlayerEntryMarker(pub PlayerId);
+
 // ============================================================================
 // UI Setup System
 // ============================================================================
@@ -314,14 +318,14 @@ fn rebuild_player_list(
 
     let mut ordered_children = Vec::with_capacity(sorted_players.len());
     for (player_id, player_info) in sorted_players {
-        let entity = spawn_player_entry(commands, player_info, local_player_id == Some(*player_id));
+        let entity = spawn_player_entry(commands, player_info, *player_id, local_player_id == Some(*player_id));
         ordered_children.push(entity);
     }
 
     commands.entity(player_list_entity).replace_children(&ordered_children);
 }
 
-fn spawn_player_entry(commands: &mut Commands, player_info: &PlayerInfo, is_local: bool) -> Entity {
+fn spawn_player_entry(commands: &mut Commands, player_info: &PlayerInfo, player_id: PlayerId, is_local: bool) -> Entity {
     let background_color = if is_local {
         BackgroundColor(Color::srgba(0.8, 0.8, 0.0, 0.3))
     } else {
@@ -337,6 +341,7 @@ fn spawn_player_entry(commands: &mut Commands, player_info: &PlayerInfo, is_loca
                 ..default()
             },
             background_color,
+            PlayerEntryMarker(player_id),
         ))
         .with_children(|row| {
             row.spawn((
@@ -410,5 +415,48 @@ const fn hit_value_color(hits: i32) -> Color {
         Color::srgb(1.0, 0.3, 0.3)
     } else {
         Color::srgb(0.8, 0.8, 0.8)
+    }
+}
+
+// Make stunned player entries blink
+pub fn ui_stunned_blink_system(
+    time: Res<Time>,
+    players: Res<PlayerMap>,
+    my_player_id: Option<Res<MyPlayerId>>,
+    mut query: Query<(&PlayerEntryMarker, &mut BackgroundColor)>,
+) {
+    let local_player_id = my_player_id.as_ref().map(|id| id.0);
+    let blink_frequency = 3.0; // Blinks per second
+    let blink_value = ((time.elapsed_secs() * blink_frequency * std::f32::consts::PI * 2.0).sin() + 1.0) / 2.0;
+
+    for (marker, mut bg_color) in &mut query {
+        if let Some(player_info) = players.0.get(&marker.0) {
+            let is_local = local_player_id == Some(marker.0);
+            
+            if player_info.stunned {
+                // Blink between red and the base color
+                let base_color = if is_local {
+                    Color::srgba(0.8, 0.8, 0.0, 0.3)
+                } else {
+                    Color::srgba(0.0, 0.0, 0.0, 0.0)
+                };
+                let stun_color = Color::srgba(1.0, 0.0, 0.0, 0.5);
+                
+                *bg_color = BackgroundColor(Color::srgba(
+                    base_color.to_srgba().red * (1.0 - blink_value) + stun_color.to_srgba().red * blink_value,
+                    base_color.to_srgba().green * (1.0 - blink_value) + stun_color.to_srgba().green * blink_value,
+                    base_color.to_srgba().blue * (1.0 - blink_value) + stun_color.to_srgba().blue * blink_value,
+                    base_color.to_srgba().alpha * (1.0 - blink_value) + stun_color.to_srgba().alpha * blink_value,
+                ));
+            } else {
+                // Not stunned - reset to base color
+                let base_color = if is_local {
+                    Color::srgba(0.8, 0.8, 0.0, 0.3)
+                } else {
+                    Color::NONE
+                };
+                *bg_color = BackgroundColor(base_color);
+            }
+        }
     }
 }

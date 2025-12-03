@@ -111,6 +111,7 @@ struct Player {
     pub speed_power_up: bool,
     pub multi_shot_power_up: bool,
     pub reflect_power_up: bool,
+    pub stunned: bool,
 }
 }
 
@@ -288,12 +289,13 @@ struct SHit {
 }
 
 message! {
-// Server to Client: Player power-up status changed.
-struct SPowerUp {
+// Server to Client: Player status effects changed.
+struct SPlayerStatus {
     pub id: PlayerId,
     pub speed_power_up: bool,
     pub multi_shot_power_up: bool,
     pub reflect_power_up: bool,
+    pub stunned: bool,
 }
 }
 
@@ -342,7 +344,7 @@ pub enum ServerMessage {
     Shot(SShot),
     Update(SUpdate),
     Hit(SHit),
-    PowerUp(SPowerUp),
+    PlayerStatus(SPlayerStatus),
     Echo(SEcho),
     Ghost(SGhost),
 }
