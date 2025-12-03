@@ -354,23 +354,12 @@ pub fn local_player_visibility_sync_system(
 ) {
     // Always check and update, not just when changed, to ensure it's correct
     for (entity, mut visibility, has_mesh) in &mut local_player_query {
-        if view_mode.is_changed() {
-            debug!(
-                "Local player {:?} has_mesh={} current_visibility={:?} view_mode={:?}",
-                entity, has_mesh, *visibility, *view_mode
-            );
-        }
-
         let desired_visibility = match *view_mode {
             CameraViewMode::FirstPerson => Visibility::Hidden,
             CameraViewMode::TopDown => Visibility::Visible,
         };
 
         if *visibility != desired_visibility {
-            debug!(
-                "Updating local player {:?} visibility from {:?} to {:?}",
-                entity, *visibility, desired_visibility
-            );
             *visibility = desired_visibility;
         }
     }

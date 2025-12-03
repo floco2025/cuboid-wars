@@ -9,7 +9,7 @@ use crate::{
 use common::{
     collision::{calculate_ghost_wall_slide, check_ghost_player_overlap, check_ghost_wall_overlap, check_player_wall_sweep},
     constants::*,
-    protocol::{Ghost, GhostId, PlayerId, Position, SGhost, ServerMessage, Speed, SpeedLevel, Velocity, Wall},
+    protocol::{Ghost, GhostId, PlayerId, Position, SGhost, SGhostHit, ServerMessage, Speed, SpeedLevel, Velocity, Wall},
 };
 
 use super::network::broadcast_to_all;
@@ -241,11 +241,13 @@ pub fn ghosts_movement_system(
                     ghost_info.mode_timer = GHOST_COOLDOWN_DURATION;
                     ghost_info.follow_target = None;
                 } else {
-                    // Check if target player still exists
+                    // Check if target player still exists and is not stunned
                     if let Some(target_id) = ghost_info.follow_target {
-                        let target_exists = players.0.get(&target_id).is_some_and(|info| info.logged_in);
-                        if !target_exists {
-                            // Target disconnected, switch to pre-patrol
+                        let target_valid = players.0.get(&target_id).is_some_and(|info| {
+                            info.logged_in && info.stun_timer <= 0.0
+                        });
+                        if !target_valid {
+                            // Target disconnected or stunned, switch to pre-patrol
                             ghost_info.mode = GhostMode::PrePatrol;
                             ghost_info.mode_timer = GHOST_COOLDOWN_DURATION;
                             ghost_info.follow_target = None;
@@ -634,9 +636,6 @@ pub fn ghost_player_collision_system(
             player_info.stun_timer = GHOST_STUN_DURATION;
             player_info.hits -= GHOST_HIT_PENALTY;
 
-            debug!("{:?} was hit by {:?}, stunned for {}s, lost {} points",
-                player_id, ghost_id, GHOST_STUN_DURATION, GHOST_HIT_PENALTY);
-
             let status_msg = SPlayerStatus {
                 id: player_id,
                 speed_power_up: player_info.speed_power_up_timer > 0.0,
@@ -645,6 +644,11 @@ pub fn ghost_player_collision_system(
                 stunned: true,
             };
 
+            // Send ghost hit message only to the hit player for sound effect
+            let _ = player_info.channel.send(crate::net::ServerToClient::Send(
+                ServerMessage::GhostHit(SGhostHit {}),
+            ));
+
             broadcast_to_all(&players, ServerMessage::PlayerStatus(status_msg));
         }
 
@@ -652,7 +656,6 @@ pub fn ghost_player_collision_system(
         if let Some(ghost_info) = ghosts.0.get_mut(&ghost_id) {
             ghost_info.mode = GhostMode::PrePatrol;
             ghost_info.mode_timer = 0.0;
-            debug!("{:?} entering PrePatrol after stunning {:?}", ghost_id, player_id);
         }
     }
 }

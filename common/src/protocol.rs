@@ -320,6 +320,11 @@ message! {
 struct SCookieCollected {}
 }
 
+message! {
+// Server to Client: Ghost hit a player.
+struct SGhostHit {}
+}
+
 // ============================================================================
 // Message Envelopes
 // ============================================================================
@@ -354,4 +359,5 @@ pub enum ServerMessage {
     Echo(SEcho),
     Ghost(SGhost),
     CookieCollected(SCookieCollected),
+    GhostHit(SGhostHit),
 }

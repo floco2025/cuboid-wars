@@ -197,7 +197,6 @@ pub fn item_collection_system(
                     let _ = player_info.channel.send(ServerToClient::Send(
                         ServerMessage::CookieCollected(SCookieCollected {}),
                     ));
-                    debug!("Player {:?} collected cookie, +{} points", player_id, COOKIE_POINTS);
                     continue; // Skip despawning the cookie
                 }
             }
@@ -209,8 +208,6 @@ pub fn item_collection_system(
                 reflect_power_up: player_info.reflect_power_up_timer > 0.0,
                 stunned: player_info.stun_timer > 0.0,
             });
-
-            debug!("Player {:?} collected {:?}", player_id, item_type);
         }
     }
 
@@ -238,7 +235,6 @@ pub fn item_respawn_system(time: Res<Time>, mut items: ResMut<ItemMap>) {
             item_info.spawn_time -= delta;
             if item_info.spawn_time <= 0.0 {
                 item_info.spawn_time = 0.0; // Cookie has respawned
-                debug!("Cookie respawned");
             }
         }
     }

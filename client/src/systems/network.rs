@@ -185,6 +185,9 @@ fn process_message_logged_in(
         ServerMessage::CookieCollected(cookie_msg) => {
             handle_cookie_collected_message(commands, cookie_msg, asset_server);
         }
+        ServerMessage::GhostHit(ghost_hit_msg) => {
+            handle_ghost_hit_message(commands, ghost_hit_msg, asset_server);
+        }
     }
 }
 
@@ -699,6 +702,18 @@ fn handle_cookie_collected_message(
     // Play sound - this message is only sent to the player who collected it
     commands.spawn((
         AudioPlayer::new(asset_server.load("sounds/player_cookie.ogg")),
+        PlaybackSettings::DESPAWN,
+    ));
+}
+
+fn handle_ghost_hit_message(
+    commands: &mut Commands,
+    _msg: SGhostHit,
+    asset_server: &AssetServer,
+) {
+    // Play sound - this message is only sent to the player who was hit
+    commands.spawn((
+        AudioPlayer::new(asset_server.load("sounds/ghost_hits_player.wav")),
         PlaybackSettings::DESPAWN,
     ));
 }
