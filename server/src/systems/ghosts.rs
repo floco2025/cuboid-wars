@@ -4,12 +4,12 @@ use rand::Rng as _;
 use crate::{
     constants::*,
     map::cell_center,
-    resources::{GhostInfo, GhostMap, GridCell, GridConfig, PlayerMap},
+    resources::{GhostInfo, GhostMap, GhostMode, GridCell, GridConfig, PlayerMap},
 };
 use common::{
-    collision::check_ghost_wall_overlap,
+    collision::{calculate_wall_slide, check_ghost_wall_overlap, check_player_wall_sweep},
     constants::*,
-    protocol::{Ghost, GhostId, Position, SGhost, ServerMessage, Velocity},
+    protocol::{Ghost, GhostId, PlayerId, Position, SGhost, ServerMessage, Speed, SpeedLevel, Velocity, Wall},
 };
 
 use super::network::broadcast_to_all;
@@ -166,7 +166,15 @@ pub fn ghosts_spawn_system(
         let ghost_id = GhostId(i);
         let entity = commands.spawn((ghost_id, pos, vel)).id();
 
-        ghosts.0.insert(ghost_id, GhostInfo { entity });
+        ghosts.0.insert(
+            ghost_id,
+            GhostInfo {
+                entity,
+                mode: GhostMode::Patrol,
+                mode_timer: 0.0,
+                follow_target: None,
+            },
+        );
     }
 }
 
@@ -178,93 +186,380 @@ pub fn ghosts_movement_system(
     time: Res<Time>,
     grid_config: Res<GridConfig>,
     players: Res<PlayerMap>,
-    mut ghost_query: Query<(&GhostId, &mut Position, &mut Velocity)>,
+    mut ghosts: ResMut<GhostMap>,
+    mut param_set: ParamSet<(
+        Query<(&GhostId, &mut Position, &mut Velocity)>,
+        Query<(&PlayerId, &Position, &Speed), With<PlayerId>>,
+    )>,
 ) {
     let delta = time.delta_secs();
     let mut rng = rand::rng();
 
-    for (ghost_id, mut pos, mut vel) in &mut ghost_query {
-        // Calculate which grid cell we're in
-        let grid_x = ((pos.x + FIELD_WIDTH / 2.0) / GRID_SIZE).floor() as i32;
-        let grid_z = ((pos.z + FIELD_DEPTH / 2.0) / GRID_SIZE).floor() as i32;
+    // First, collect all ghost data and player data we need
+    let mut ghost_updates = Vec::new();
+    
+    // Collect player positions and speeds
+    let player_data: Vec<(PlayerId, Position, Speed)> = param_set.p1()
+        .iter()
+        .map(|(id, pos, speed)| (*id, *pos, *speed))
+        .collect();
 
-        // Check if ghost is within grid bounds
-        if !(0..GRID_COLS).contains(&grid_x) || !(0..GRID_ROWS).contains(&grid_z) {
-            error!(
-                "{:?} out of bounds at grid ({}, {}), clamping",
-                ghost_id, grid_x, grid_z
-            );
-            // Clamp position to grid bounds
-            pos.x = pos.x.clamp(
-                -FIELD_WIDTH / 2.0 + GRID_SIZE / 2.0,
-                FIELD_WIDTH / 2.0 - GRID_SIZE / 2.0,
-            );
-            pos.z = pos.z.clamp(
-                -FIELD_DEPTH / 2.0 + GRID_SIZE / 2.0,
-                FIELD_DEPTH / 2.0 - GRID_SIZE / 2.0,
-            );
-            // Reverse velocity to bounce back
-            vel.x = -vel.x;
-            vel.z = -vel.z;
+    // Process each ghost
+    for (ghost_id, ghost_pos, ghost_vel) in param_set.p0().iter() {
+        ghost_updates.push((*ghost_id, *ghost_pos, *ghost_vel));
+    }
+
+    // Now process ghost updates
+    for (ghost_id, mut ghost_pos, mut ghost_vel) in ghost_updates {
+        let Some(ghost_info) = ghosts.0.get_mut(&ghost_id) else {
             continue;
-        }
+        };
 
-        // Calculate grid cell center
-        let center = cell_center(grid_x, grid_z);
+        // Update mode timer
+        ghost_info.mode_timer -= delta;
 
-        // Check if we're at grid center (within small threshold)
-        const CENTER_THRESHOLD: f32 = 0.1;
-        let at_center_x = (pos.x - center.x).abs() < CENTER_THRESHOLD;
-        let at_center_z = (pos.z - center.z).abs() < CENTER_THRESHOLD;
-        let at_intersection = at_center_x && at_center_z;
-
-        if at_intersection {
-            let cell = &grid_config.grid[grid_z as usize][grid_x as usize];
-            let valid_directions = valid_directions(*cell);
-            let mut direction_changed = false;
-
-            if let Some(current_direction) = direction_from_velocity(&vel)
-                && current_direction.is_blocked(*cell) {
-                    let forward_options = forward_directions(&valid_directions, current_direction);
-                    if forward_options.is_empty() {
-                        let new_direction = valid_directions.first().copied().expect("no valid direction");
-                        *vel = new_direction.to_velocity();
-                        direction_changed = true;
-                    } else if let Some(new_direction) = pick_direction(&mut rng, &forward_options) {
-                        *vel = new_direction.to_velocity();
-                        direction_changed = true;
+        // Handle mode transitions
+        match ghost_info.mode {
+            GhostMode::Patrol => {
+                // Check if we can see any moving players
+                if let Some(target_player_id) = find_visible_moving_player(&ghost_pos, &player_data, &grid_config.walls) {
+                    // Switch to follow mode
+                    ghost_info.mode = GhostMode::Follow;
+                    ghost_info.mode_timer = GHOST_FOLLOW_DURATION;
+                    ghost_info.follow_target = Some(target_player_id);
+                    debug!("{:?} spotted {:?}, entering follow mode", ghost_id, target_player_id);
+                }
+            }
+            GhostMode::Follow => {
+                if ghost_info.mode_timer <= 0.0 {
+                    // Switch to cooldown patrol - need to reset velocity to grid-aligned
+                    ghost_info.mode = GhostMode::PatrolCooldown;
+                    ghost_info.mode_timer = GHOST_COOLDOWN_DURATION;
+                    ghost_info.follow_target = None;
+                    
+                    // Snap velocity to nearest cardinal direction for patrol mode
+                    snap_to_grid_direction(&mut ghost_vel);
+                    
+                    debug!("{:?} follow time expired, entering cooldown", ghost_id);
+                } else {
+                    // Check if target player still exists
+                    if let Some(target_id) = ghost_info.follow_target {
+                        let target_exists = players.0.get(&target_id).is_some_and(|info| info.logged_in);
+                        if !target_exists {
+                            // Target disconnected, switch to patrol - need to reset velocity
+                            ghost_info.mode = GhostMode::Patrol;
+                            ghost_info.mode_timer = 0.0;
+                            ghost_info.follow_target = None;
+                            
+                            // Snap velocity to nearest cardinal direction for patrol mode
+                            snap_to_grid_direction(&mut ghost_vel);
+                            
+                            debug!("{:?} lost target {:?}, back to patrol", ghost_id, target_id);
+                        }
                     }
                 }
-
-            if rng.random_bool(GHOST_RANDOM_TURN_PROBABILITY) && !valid_directions.is_empty()
-                && let Some(new_direction) = pick_direction(&mut rng, &valid_directions) {
-                    *vel = new_direction.to_velocity();
-                    direction_changed = true;
+            }
+            GhostMode::PatrolCooldown => {
+                if ghost_info.mode_timer <= 0.0 {
+                    // Switch back to active patrol
+                    ghost_info.mode = GhostMode::Patrol;
+                    ghost_info.mode_timer = 0.0;
+                    debug!("{:?} cooldown complete, active patrol", ghost_id);
                 }
-
-            // Broadcast once after final direction is determined
-            if direction_changed {
-                broadcast_to_all(
-                    &players,
-                    ServerMessage::Ghost(SGhost {
-                        id: *ghost_id,
-                        ghost: Ghost { pos: *pos, vel: *vel },
-                    }),
-                );
             }
         }
 
-        // Always move based on current velocity
-        pos.x += vel.x * delta;
-        pos.z += vel.z * delta;
-
-        // Snap to grid line if we're moving along it
-        if vel.x.abs() > 0.0 && vel.z.abs() < 0.01 {
-            // Moving horizontally - snap Z to grid center
-            pos.z = center.z;
-        } else if vel.z.abs() > 0.0 && vel.x.abs() < 0.01 {
-            // Moving vertically - snap X to grid center
-            pos.x = center.x;
+        // Execute movement based on current mode
+        match ghost_info.mode {
+            GhostMode::Patrol | GhostMode::PatrolCooldown => {
+                patrol_movement(
+                    &ghost_id,
+                    &mut ghost_pos,
+                    &mut ghost_vel,
+                    &grid_config,
+                    &players,
+                    delta,
+                    &mut rng,
+                );
+            }
+            GhostMode::Follow => {
+                if let Some(target_id) = ghost_info.follow_target {
+                    follow_movement(
+                        &ghost_id,
+                        &mut ghost_pos,
+                        &mut ghost_vel,
+                        target_id,
+                        &player_data,
+                        &grid_config.walls,
+                        &players,
+                        delta,
+                    );
+                }
+            }
         }
+        
+        // Write back the updated position and velocity
+        if let Ok((_, mut pos, mut vel)) = param_set.p0().get_mut(ghost_info.entity) {
+            *pos = ghost_pos;
+            *vel = ghost_vel;
+        }
+    }
+}
+
+// ============================================================================
+// AI Helper Functions
+// ============================================================================
+
+// Snap velocity to nearest cardinal direction for patrol mode
+fn snap_to_grid_direction(vel: &mut Velocity) {
+    // Determine which axis has stronger movement
+    let abs_x = vel.x.abs();
+    let abs_z = vel.z.abs();
+    
+    if abs_x > abs_z {
+        // Favor X-axis movement
+        vel.x = if vel.x > 0.0 { GHOST_SPEED } else { -GHOST_SPEED };
+        vel.z = 0.0;
+    } else {
+        // Favor Z-axis movement
+        vel.x = 0.0;
+        vel.z = if vel.z > 0.0 { GHOST_SPEED } else { -GHOST_SPEED };
+    }
+}
+
+// Find the first moving player visible from ghost's position using line-of-sight check
+fn find_visible_moving_player(
+    ghost_pos: &Position,
+    player_data: &[(PlayerId, Position, Speed)],
+    walls: &[Wall],
+) -> Option<PlayerId> {
+    for (player_id, player_pos, player_speed) in player_data {
+        // Ignore players that are not moving (Idle speed)
+        if player_speed.speed_level == SpeedLevel::Idle {
+            continue;
+        }
+        
+        let distance = ((player_pos.x - ghost_pos.x).powi(2) + (player_pos.z - ghost_pos.z).powi(2)).sqrt();
+        
+        if distance > GHOST_VISION_RANGE {
+            continue;
+        }
+
+        // Check line of sight - use player sweep to check if path is clear
+        if has_line_of_sight(ghost_pos, player_pos, walls) {
+            return Some(*player_id);
+        }
+    }
+    None
+}
+
+// Check if there's a clear line of sight between two positions
+fn has_line_of_sight(from: &Position, to: &Position, walls: &[Wall]) -> bool {
+    // Use swept collision check to see if any wall blocks the path
+    for wall in walls {
+        if check_player_wall_sweep(from, to, wall) {
+            return false;
+        }
+    }
+    true
+}
+
+// Patrol mode movement - follows grid lines
+fn patrol_movement(
+    ghost_id: &GhostId,
+    pos: &mut Position,
+    vel: &mut Velocity,
+    grid_config: &GridConfig,
+    players: &PlayerMap,
+    delta: f32,
+    rng: &mut impl rand::Rng,
+) {
+    // Calculate which grid cell we're in
+    let grid_x = ((pos.x + FIELD_WIDTH / 2.0) / GRID_SIZE).floor() as i32;
+    let grid_z = ((pos.z + FIELD_DEPTH / 2.0) / GRID_SIZE).floor() as i32;
+
+    // Check if ghost is within grid bounds
+    if !(0..GRID_COLS).contains(&grid_x) || !(0..GRID_ROWS).contains(&grid_z) {
+        error!(
+            "{:?} out of bounds at grid ({}, {}), clamping",
+            ghost_id, grid_x, grid_z
+        );
+        // Clamp position to grid bounds
+        pos.x = pos.x.clamp(
+            -FIELD_WIDTH / 2.0 + GRID_SIZE / 2.0,
+            FIELD_WIDTH / 2.0 - GRID_SIZE / 2.0,
+        );
+        pos.z = pos.z.clamp(
+            -FIELD_DEPTH / 2.0 + GRID_SIZE / 2.0,
+            FIELD_DEPTH / 2.0 - GRID_SIZE / 2.0,
+        );
+        // Reverse velocity to bounce back
+        vel.x = -vel.x;
+        vel.z = -vel.z;
+        return;
+    }
+
+    // Calculate grid cell center
+    let center = cell_center(grid_x, grid_z);
+
+    // Check if we're at grid center (within small threshold)
+    const CENTER_THRESHOLD: f32 = 0.1;
+    let at_center_x = (pos.x - center.x).abs() < CENTER_THRESHOLD;
+    let at_center_z = (pos.z - center.z).abs() < CENTER_THRESHOLD;
+    let at_intersection = at_center_x && at_center_z;
+
+    if at_intersection {
+        let cell = &grid_config.grid[grid_z as usize][grid_x as usize];
+        let valid_directions = valid_directions(*cell);
+        let mut direction_changed = false;
+
+        if let Some(current_direction) = direction_from_velocity(vel)
+            && current_direction.is_blocked(*cell)
+        {
+            let forward_options = forward_directions(&valid_directions, current_direction);
+            if forward_options.is_empty() {
+                let new_direction = valid_directions
+                    .first()
+                    .copied()
+                    .expect("no valid direction");
+                *vel = new_direction.to_velocity();
+                direction_changed = true;
+            } else if let Some(new_direction) = pick_direction(rng, &forward_options) {
+                *vel = new_direction.to_velocity();
+                direction_changed = true;
+            }
+        }
+
+        if rng.random_bool(GHOST_RANDOM_TURN_PROBABILITY)
+            && !valid_directions.is_empty()
+            && let Some(new_direction) = pick_direction(rng, &valid_directions)
+        {
+            *vel = new_direction.to_velocity();
+            direction_changed = true;
+        }
+
+        // Broadcast once after final direction is determined
+        if direction_changed {
+            broadcast_to_all(
+                players,
+                ServerMessage::Ghost(SGhost {
+                    id: *ghost_id,
+                    ghost: Ghost {
+                        pos: *pos,
+                        vel: *vel,
+                    },
+                }),
+            );
+        }
+    }
+
+    // Always move based on current velocity
+    pos.x += vel.x * delta;
+    pos.z += vel.z * delta;
+
+    // Snap to grid line if we're moving along it
+    if vel.x.abs() > 0.0 && vel.z.abs() < 0.01 {
+        // Moving horizontally - snap Z to grid center
+        pos.z = center.z;
+    } else if vel.z.abs() > 0.0 && vel.x.abs() < 0.01 {
+        // Moving vertically - snap X to grid center
+        pos.x = center.x;
+    }
+}
+
+// Follow mode movement - moves toward target player with wall sliding
+fn follow_movement(
+    ghost_id: &GhostId,
+    pos: &mut Position,
+    vel: &mut Velocity,
+    target_id: PlayerId,
+    player_data: &[(PlayerId, Position, Speed)],
+    walls: &[Wall],
+    players: &PlayerMap,
+    delta: f32,
+) {
+    // Find target player position
+    let target_pos = player_data
+        .iter()
+        .find(|(id, _, _)| *id == target_id)
+        .map(|(_, pos, _)| pos);
+
+    let Some(target_pos) = target_pos else {
+        return;
+    };
+
+    // Calculate direction to target
+    let dx = target_pos.x - pos.x;
+    let dz = target_pos.z - pos.z;
+    let distance = (dx * dx + dz * dz).sqrt();
+
+    if distance < 0.01 {
+        // Already at target
+        vel.x = 0.0;
+        vel.z = 0.0;
+        return;
+    }
+
+    // Normalize direction and apply follow speed
+    let dir_x = dx / distance;
+    let dir_z = dz / distance;
+
+    // Calculate desired velocity
+    let desired_vel = Velocity {
+        x: dir_x * GHOST_FOLLOW_SPEED,
+        y: 0.0,
+        z: dir_z * GHOST_FOLLOW_SPEED,
+    };
+
+    // Calculate target position for this frame
+    let target_frame_pos = Position {
+        x: pos.x + desired_vel.x * delta,
+        y: 0.0,
+        z: pos.z + desired_vel.z * delta,
+    };
+
+    // Check for wall collisions and apply sliding
+    let mut final_pos = target_frame_pos;
+    let mut collides = false;
+    
+    for wall in walls {
+        if check_ghost_wall_overlap(&final_pos, wall) {
+            collides = true;
+            break;
+        }
+    }
+    
+    if collides {
+        // Use the wall sliding algorithm from common
+        final_pos = calculate_wall_slide(walls, pos, &target_frame_pos, desired_vel.x, desired_vel.z, delta);
+    }
+
+    // Update velocity based on actual movement
+    let actual_dx = final_pos.x - pos.x;
+    let actual_dz = final_pos.z - pos.z;
+    
+    let new_vel = Velocity {
+        x: actual_dx / delta,
+        y: 0.0,
+        z: actual_dz / delta,
+    };
+
+    // Only broadcast if velocity changed significantly
+    let vel_changed = (new_vel.x - vel.x).abs() > 0.1 || (new_vel.z - vel.z).abs() > 0.1;
+    
+    *vel = new_vel;
+    *pos = final_pos;
+
+    if vel_changed {
+        broadcast_to_all(
+            players,
+            ServerMessage::Ghost(SGhost {
+                id: *ghost_id,
+                ghost: Ghost {
+                    pos: *pos,
+                    vel: *vel,
+                },
+            }),
+        );
     }
 }

@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use super::network::ServerReconciliation;
 use crate::resources::WallConfig;
 use common::{
-    collision::check_ghost_wall_overlap,
+    collision::{calculate_wall_slide, check_ghost_wall_overlap},
     constants::{GHOST_SIZE, UPDATE_BROADCAST_INTERVAL},
     protocol::{GhostId, Position, Velocity},
 };
@@ -37,6 +37,14 @@ pub fn ghosts_movement_system(
             let total_dx = server_pos_x - recon.client_pos.x;
             let total_dz = server_pos_z - recon.client_pos.z;
 
+            // If the client got totally out of sync, we jump to the server position
+            if total_dx.abs() >= 5.0 || total_dz.abs() >= 5.0 {
+                warn!("ghost out of sync, jumping to server position");
+                *client_pos = recon.server_pos;
+                commands.entity(entity).remove::<ServerReconciliation>();
+                continue;
+            }
+
             let dx = total_dx * delta * correction_factor / UPDATE_BROADCAST_INTERVAL;
             let dz = total_dz * delta * correction_factor / UPDATE_BROADCAST_INTERVAL;
 
@@ -54,19 +62,34 @@ pub fn ghosts_movement_system(
         };
 
         let walls = wall_config.as_deref();
-        let hits_wall = ghost_hits_wall(walls, &target_pos);
-        if !hits_wall {
-            *client_pos = target_pos;
-        }
+        let final_pos = apply_ghost_wall_sliding(walls, &client_pos, &target_pos, &client_vel, delta);
+        *client_pos = final_pos;
     }
 }
 
-fn ghost_hits_wall(walls: Option<&WallConfig>, new_pos: &Position) -> bool {
-    let Some(config) = walls else { return false };
-    config
+fn apply_ghost_wall_sliding(
+    walls: Option<&WallConfig>,
+    current_pos: &Position,
+    target_pos: &Position,
+    velocity: &Velocity,
+    delta: f32,
+) -> Position {
+    let Some(config) = walls else {
+        return *target_pos;
+    };
+
+    // Check if target position hits a wall
+    let hits_wall = config
         .walls
         .iter()
-        .any(|wall| check_ghost_wall_overlap(new_pos, wall))
+        .any(|wall| check_ghost_wall_overlap(target_pos, wall));
+
+    if hits_wall {
+        // Apply wall sliding using the same algorithm as the server
+        calculate_wall_slide(&config.walls, current_pos, target_pos, velocity.x, velocity.z, delta)
+    } else {
+        *target_pos
+    }
 }
 
 // ============================================================================

@@ -54,9 +54,20 @@ pub struct ItemInfo {
 #[derive(Resource, Default)]
 pub struct ItemMap(pub HashMap<ItemId, ItemInfo>);
 
+// Ghost AI mode
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GhostMode {
+    Patrol,           // Moving along grid, can detect players
+    Follow,           // Following a specific player
+    PatrolCooldown,   // Moving along grid, cannot detect players yet
+}
+
 // Ghost info
 pub struct GhostInfo {
     pub entity: Entity,
+    pub mode: GhostMode,
+    pub mode_timer: f32,           // Time remaining in current mode
+    pub follow_target: Option<PlayerId>, // Player being followed (only in Follow mode)
 }
 
 // Map of all ghosts (server-side source of truth)
