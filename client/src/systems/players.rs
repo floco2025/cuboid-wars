@@ -225,7 +225,6 @@ pub fn players_movement_system(
             let slide_pos = calculate_wall_slide(
                 &walls.expect("walls should exist if hit_wall is true").walls,
                 &client_pos,
-                &target_pos,
                 client_vel.x,
                 client_vel.z,
                 delta,

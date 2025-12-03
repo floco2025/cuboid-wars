@@ -65,7 +65,7 @@ pub fn players_movement_system(
         };
 
         let target = if walls.iter().any(|wall| check_player_wall_sweep(pos, &new_pos, wall)) {
-            calculate_wall_slide(walls, pos, &new_pos, velocity.x, velocity.z, delta)
+            calculate_wall_slide(walls, pos, velocity.x, velocity.z, delta)
         } else {
             new_pos
         };

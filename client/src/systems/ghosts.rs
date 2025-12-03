@@ -86,7 +86,7 @@ fn apply_ghost_wall_sliding(
 
     if hits_wall {
         // Apply ghost wall sliding using the same algorithm as the server
-        calculate_ghost_wall_slide(&config.walls, current_pos, target_pos, velocity.x, velocity.z, delta)
+        calculate_ghost_wall_slide(&config.walls, current_pos, velocity.x, velocity.z, delta)
     } else {
         *target_pos
     }

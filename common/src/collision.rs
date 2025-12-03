@@ -95,7 +95,6 @@ fn check_aabb_wall_sweep(start_pos: &Position, end_pos: &Position, wall: &Wall, 
 fn calculate_entity_wall_slide<F>(
     walls: &[Wall],
     current_pos: &Position,
-    _target_pos: &Position,
     velocity_x: f32,
     velocity_z: f32,
     delta: f32,
@@ -454,7 +453,6 @@ pub fn check_player_wall_sweep(start_pos: &Position, end_pos: &Position, wall: &
 pub fn calculate_wall_slide(
     walls: &[Wall],
     current_pos: &Position,
-    target_pos: &Position,
     velocity_x: f32,
     velocity_z: f32,
     delta: f32,
@@ -462,7 +460,6 @@ pub fn calculate_wall_slide(
     calculate_entity_wall_slide(
         walls,
         current_pos,
-        target_pos,
         velocity_x,
         velocity_z,
         delta,
@@ -477,7 +474,6 @@ pub fn calculate_wall_slide(
 pub fn calculate_ghost_wall_slide(
     walls: &[Wall],
     current_pos: &Position,
-    target_pos: &Position,
     velocity_x: f32,
     velocity_z: f32,
     delta: f32,
@@ -485,7 +481,6 @@ pub fn calculate_ghost_wall_slide(
     calculate_entity_wall_slide(
         walls,
         current_pos,
-        target_pos,
         velocity_x,
         velocity_z,
         delta,
