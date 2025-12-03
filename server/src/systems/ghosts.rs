@@ -604,6 +604,14 @@ pub fn ghost_player_collision_system(
 
         // Check collision with any ghost
         for (ghost_id, ghost_pos) in &ghost_positions {
+            let Some(ghost_info) = ghosts.0.get(ghost_id) else {
+                continue;
+            };
+
+            if ghost_info.mode != GhostMode::Follow {
+                continue; // Skip stunning if ghost is not following
+            }
+
             if check_ghost_player_overlap(ghost_pos, player_pos) {
                 player_hits.push((*player_id, *ghost_id));
                 break; // Only one hit per frame
