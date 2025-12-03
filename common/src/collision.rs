@@ -95,7 +95,7 @@ fn check_aabb_wall_sweep(start_pos: &Position, end_pos: &Position, wall: &Wall, 
 fn calculate_entity_wall_slide<F>(
     walls: &[Wall],
     current_pos: &Position,
-    target_pos: &Position,
+    _target_pos: &Position,
     velocity_x: f32,
     velocity_z: f32,
     delta: f32,
@@ -104,54 +104,39 @@ fn calculate_entity_wall_slide<F>(
 where
     F: Fn(&Position, &Wall) -> bool,
 {
-    // Find which wall we're hitting
-    for wall in walls {
-        if !collision_check(target_pos, wall) {
-            continue;
-        }
-
-        // Get wall normal based on orientation
-        let (wall_normal_x, wall_normal_z) = match wall.orientation {
-            WallOrientation::Horizontal => (0.0, 1.0), // Normal points along Z
-            WallOrientation::Vertical => (1.0, 0.0),   // Normal points along X
-        };
-
-        // Calculate which side of the wall we're on
-        let to_wall_x = target_pos.x - wall.x;
-        let to_wall_z = target_pos.z - wall.z;
-        let dot = to_wall_x.mul_add(wall_normal_x, to_wall_z * wall_normal_z);
-
-        // Flip normal if we're on the other side
-        let (normal_x, normal_z) = if dot < 0.0 {
-            (-wall_normal_x, -wall_normal_z)
+    // Try moving only in X direction
+    let x_only_pos = Position {
+        x: velocity_x.mul_add(delta, current_pos.x),
+        y: current_pos.y,
+        z: current_pos.z,
+    };
+    
+    let x_collides = walls.iter().any(|w| collision_check(&x_only_pos, w));
+    
+    // Try moving only in Z direction
+    let z_only_pos = Position {
+        x: current_pos.x,
+        y: current_pos.y,
+        z: velocity_z.mul_add(delta, current_pos.z),
+    };
+    
+    let z_collides = walls.iter().any(|w| collision_check(&z_only_pos, w));
+    
+    // If neither axis causes collision, use the one with larger movement
+    if !x_collides && !z_collides {
+        if velocity_x.abs() > velocity_z.abs() {
+            x_only_pos
         } else {
-            (wall_normal_x, wall_normal_z)
-        };
-
-        // Calculate slide vector by removing the component of velocity along the normal
-        let vel_dot_normal = velocity_x.mul_add(normal_x, velocity_z * normal_z);
-        let slide_vel_x = vel_dot_normal.mul_add(-normal_x, velocity_x);
-        let slide_vel_z = vel_dot_normal.mul_add(-normal_z, velocity_z);
-
-        // Apply slide velocity from current position
-        let slide_pos = Position {
-            x: slide_vel_x.mul_add(delta, current_pos.x),
-            y: current_pos.y,
-            z: slide_vel_z.mul_add(delta, current_pos.z),
-        };
-
-        // Make sure the slide position doesn't collide with ANY wall
-        let hits_any_wall = walls.iter().any(|w| collision_check(&slide_pos, w));
-        if !hits_any_wall {
-            return slide_pos;
+            z_only_pos
         }
-
-        // If it still collides, just return current position
-        return *current_pos;
+    } else if !x_collides {
+        x_only_pos
+    } else if !z_collides {
+        z_only_pos
+    } else {
+        // Both directions blocked, stay in place
+        *current_pos
     }
-
-    // No collision found (shouldn't happen), return target
-    *target_pos
 }
 
 // Compute the intersection interval of a ray with a slab (used in ray-AABB tests)
