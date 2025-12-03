@@ -92,6 +92,7 @@ async fn main() -> Result<()> {
                     .chain(),
                 // Game logic systems can run in parallel
                 players_movement_system,
+                players_timer_system,
                 ghosts_spawn_system,
                 ghosts_movement_system,
                 ghost_player_collision_system,
@@ -99,7 +100,6 @@ async fn main() -> Result<()> {
                 item_spawn_system,
                 item_despawn_system,
                 item_collection_system,
-                item_expiration_system,
             ),
         );
 

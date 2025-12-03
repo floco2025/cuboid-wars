@@ -4,8 +4,10 @@ use crate::resources::{GridConfig, PlayerMap};
 use common::{
     collision::{calculate_wall_slide, check_player_player_overlap, check_player_wall_sweep},
     constants::SPEED_POWER_UP_MULTIPLIER,
-    protocol::{PlayerId, Position, Speed},
+    protocol::{PlayerId, Position, Speed, SPlayerStatus, ServerMessage},
 };
+
+use super::network::broadcast_to_all;
 
 // ============================================================================
 // Helper Functions
@@ -91,5 +93,50 @@ pub fn players_movement_system(
         if let Ok((_, mut pos, _, _)) = query.get_mut(planned_move.entity) {
             *pos = planned_move.target;
         }
+    }
+}
+
+// ============================================================================
+// Players Timer System
+// ============================================================================
+
+// System to count down player power-up and stun timers
+pub fn players_timer_system(time: Res<Time>, mut players: ResMut<PlayerMap>) {
+    let delta = time.delta_secs();
+
+    let mut status_messages = Vec::new();
+
+    for (player_id, player_info) in &mut players.0 {
+        let old_speed = player_info.speed_power_up_timer > 0.0;
+        let old_multi_shot = player_info.multi_shot_power_up_timer > 0.0;
+        let old_reflect = player_info.reflect_power_up_timer > 0.0;
+        let old_stunned = player_info.stun_timer > 0.0;
+
+        // Decrease power-up timers
+        player_info.speed_power_up_timer = (player_info.speed_power_up_timer - delta).max(0.0);
+        player_info.multi_shot_power_up_timer = (player_info.multi_shot_power_up_timer - delta).max(0.0);
+        player_info.reflect_power_up_timer = (player_info.reflect_power_up_timer - delta).max(0.0);
+        player_info.stun_timer = (player_info.stun_timer - delta).max(0.0);
+
+        let new_speed = player_info.speed_power_up_timer > 0.0;
+        let new_multi_shot = player_info.multi_shot_power_up_timer > 0.0;
+        let new_reflect = player_info.reflect_power_up_timer > 0.0;
+        let new_stunned = player_info.stun_timer > 0.0;
+
+        // Track changes to broadcast
+        if old_speed != new_speed || old_multi_shot != new_multi_shot || old_reflect != new_reflect || old_stunned != new_stunned {
+            status_messages.push(SPlayerStatus {
+                id: *player_id,
+                speed_power_up: new_speed,
+                multi_shot_power_up: new_multi_shot,
+                reflect_power_up: new_reflect,
+                stunned: new_stunned,
+            });
+        }
+    }
+
+    // Send status updates to all clients
+    for msg in status_messages {
+        broadcast_to_all(&players, ServerMessage::PlayerStatus(msg));
     }
 }

@@ -218,13 +218,16 @@ pub fn ghosts_movement_system(
         // Handle mode transitions
         match ghost_info.mode {
             GhostMode::Patrol => {
-                // Check if we can see any moving players
-                if let Some(target_player_id) = find_visible_moving_player(&ghost_pos, &player_data, &grid_config.walls)
-                {
-                    // Switch to follow mode
-                    ghost_info.mode = GhostMode::Follow;
-                    ghost_info.mode_timer = GHOST_FOLLOW_DURATION;
-                    ghost_info.follow_target = Some(target_player_id);
+                // Only check for visible players if cooldown timer has expired
+                if ghost_info.mode_timer <= 0.0 {
+                    // Check if we can see any moving players
+                    if let Some(target_player_id) = find_visible_moving_player(&ghost_pos, &player_data, &grid_config.walls)
+                    {
+                        // Switch to follow mode
+                        ghost_info.mode = GhostMode::Follow;
+                        ghost_info.mode_timer = GHOST_FOLLOW_DURATION;
+                        ghost_info.follow_target = Some(target_player_id);
+                    }
                 }
             }
             GhostMode::Follow => {
@@ -244,13 +247,6 @@ pub fn ghosts_movement_system(
                             ghost_info.follow_target = None;
                         }
                     }
-                }
-            }
-            GhostMode::PatrolCooldown => {
-                if ghost_info.mode_timer <= 0.0 {
-                    // Switch back to active patrol
-                    ghost_info.mode = GhostMode::Patrol;
-                    ghost_info.mode_timer = 0.0;
                 }
             }
             GhostMode::PrePatrol => {
@@ -274,7 +270,7 @@ pub fn ghosts_movement_system(
                     &mut rng,
                 );
             }
-            GhostMode::Patrol | GhostMode::PatrolCooldown => {
+            GhostMode::Patrol => {
                 patrol_movement(
                     &ghost_id,
                     &mut ghost_pos,
@@ -378,7 +374,7 @@ fn pre_patrol_movement(
         let valid_directions = valid_directions(*cell);
         let new_direction = pick_direction(rng, &valid_directions).expect("no valid direction");
         *vel = new_direction.to_velocity();
-        ghost_info.mode = GhostMode::PatrolCooldown;
+        ghost_info.mode = GhostMode::Patrol;
 
         broadcast_to_all(
             players,
@@ -595,7 +591,7 @@ fn follow_movement(
 
 // Check for ghost-player collisions and apply stun
 pub fn ghost_player_collision_system(
-    _ghosts: Res<GhostMap>,
+    mut ghosts: ResMut<GhostMap>,
     mut players: ResMut<PlayerMap>,
     ghost_query: Query<(&GhostId, &Position)>,
     player_query: Query<(&PlayerId, &Position)>,
@@ -646,6 +642,13 @@ pub fn ghost_player_collision_system(
             };
 
             broadcast_to_all(&players, ServerMessage::PlayerStatus(status_msg));
+        }
+
+        // Put ghost into pre-patrol mode after hitting a player (will return to grid center)
+        if let Some(ghost_info) = ghosts.0.get_mut(&ghost_id) {
+            ghost_info.mode = GhostMode::PrePatrol;
+            ghost_info.mode_timer = 0.0;
+            debug!("{:?} entering PrePatrol after stunning {:?}", ghost_id, player_id);
         }
     }
 }
