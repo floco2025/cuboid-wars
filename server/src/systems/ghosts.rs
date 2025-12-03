@@ -232,29 +232,23 @@ pub fn ghosts_movement_system(
             }
             GhostMode::Follow => {
                 if ghost_info.mode_timer <= 0.0 {
-                    // Switch to cooldown patrol - need to reset velocity to grid-aligned
-                    ghost_info.mode = GhostMode::PatrolCooldown;
+                    // Switch to pre-patrol to navigate to grid
+                    ghost_info.mode = GhostMode::PrePatrol;
                     ghost_info.mode_timer = GHOST_COOLDOWN_DURATION;
                     ghost_info.follow_target = None;
                     
-                    // Snap velocity to nearest cardinal direction for patrol mode
-                    snap_to_grid_direction(&mut ghost_vel);
-                    
-                    debug!("{:?} follow time expired, entering cooldown", ghost_id);
+                    debug!("{:?} follow time expired, entering pre-patrol", ghost_id);
                 } else {
                     // Check if target player still exists
                     if let Some(target_id) = ghost_info.follow_target {
                         let target_exists = players.0.get(&target_id).is_some_and(|info| info.logged_in);
                         if !target_exists {
-                            // Target disconnected, switch to patrol - need to reset velocity
-                            ghost_info.mode = GhostMode::Patrol;
-                            ghost_info.mode_timer = 0.0;
+                            // Target disconnected, switch to pre-patrol
+                            ghost_info.mode = GhostMode::PrePatrol;
+                            ghost_info.mode_timer = GHOST_COOLDOWN_DURATION;
                             ghost_info.follow_target = None;
                             
-                            // Snap velocity to nearest cardinal direction for patrol mode
-                            snap_to_grid_direction(&mut ghost_vel);
-                            
-                            debug!("{:?} lost target {:?}, back to patrol", ghost_id, target_id);
+                            debug!("{:?} lost target {:?}, entering pre-patrol", ghost_id, target_id);
                         }
                     }
                 }
@@ -267,10 +261,27 @@ pub fn ghosts_movement_system(
                     debug!("{:?} cooldown complete, active patrol", ghost_id);
                 }
             }
+            GhostMode::PrePatrol => {
+                // PrePatrol doesn't have a timer - it transitions when reaching grid center
+                // The transition is handled in pre_patrol_movement
+            }
         }
 
         // Execute movement based on current mode
         match ghost_info.mode {
+            GhostMode::PrePatrol => {
+                // PrePatrol needs mutable ghost_info to transition state
+                pre_patrol_movement(
+                    &ghost_id,
+                    &mut ghost_pos,
+                    &mut ghost_vel,
+                    ghost_info,
+                    &grid_config,
+                    &players,
+                    delta,
+                    &mut rng,
+                );
+            }
             GhostMode::Patrol | GhostMode::PatrolCooldown => {
                 patrol_movement(
                     &ghost_id,
@@ -310,23 +321,6 @@ pub fn ghosts_movement_system(
 // AI Helper Functions
 // ============================================================================
 
-// Snap velocity to nearest cardinal direction for patrol mode
-fn snap_to_grid_direction(vel: &mut Velocity) {
-    // Determine which axis has stronger movement
-    let abs_x = vel.x.abs();
-    let abs_z = vel.z.abs();
-    
-    if abs_x > abs_z {
-        // Favor X-axis movement
-        vel.x = if vel.x > 0.0 { GHOST_SPEED } else { -GHOST_SPEED };
-        vel.z = 0.0;
-    } else {
-        // Favor Z-axis movement
-        vel.x = 0.0;
-        vel.z = if vel.z > 0.0 { GHOST_SPEED } else { -GHOST_SPEED };
-    }
-}
-
 // Find the first moving player visible from ghost's position using line-of-sight check
 fn find_visible_moving_player(
     ghost_pos: &Position,
@@ -364,6 +358,95 @@ fn has_line_of_sight(from: &Position, to: &Position, walls: &[Wall]) -> bool {
     true
 }
 
+// Pre-patrol mode movement - navigates to grid center before entering patrol
+fn pre_patrol_movement(
+    ghost_id: &GhostId,
+    pos: &mut Position,
+    vel: &mut Velocity,
+    ghost_info: &mut GhostInfo,
+    grid_config: &GridConfig,
+    players: &PlayerMap,
+    delta: f32,
+    rng: &mut impl rand::Rng,
+) {
+    // Calculate which grid cell we're in
+    let grid_x = (((pos.x + FIELD_WIDTH / 2.0) / GRID_SIZE).floor() as i32).clamp(0, GRID_COLS - 1);
+    let grid_z = (((pos.z + FIELD_DEPTH / 2.0) / GRID_SIZE).floor() as i32).clamp(0, GRID_ROWS - 1);
+
+    // Calculate grid cell center
+    let center = cell_center(grid_x, grid_z);
+
+    // Check if we're at grid center (within small threshold)
+    const CENTER_THRESHOLD: f32 = 0.5;
+    let at_center_x = (pos.x - center.x).abs() < CENTER_THRESHOLD;
+    let at_center_z = (pos.z - center.z).abs() < CENTER_THRESHOLD;
+    let at_intersection = at_center_x && at_center_z;
+
+    if at_intersection {
+        // We've reached the grid center - pick a valid direction and transition to patrol
+        let cell = &grid_config.grid[grid_z as usize][grid_x as usize];
+        let valid_directions = valid_directions(*cell);
+        
+        if let Some(new_direction) = pick_direction(rng, &valid_directions) {
+            *vel = new_direction.to_velocity();
+            
+            // Transition to PatrolCooldown (still in cooldown period after follow)
+            ghost_info.mode = GhostMode::PatrolCooldown;
+            // Keep the existing mode_timer (cooldown time)
+            
+            debug!("{:?} reached grid center, entering patrol cooldown", ghost_id);
+            
+            broadcast_to_all(
+                players,
+                ServerMessage::Ghost(SGhost {
+                    id: *ghost_id,
+                    ghost: Ghost {
+                        pos: *pos,
+                        vel: *vel,
+                    },
+                }),
+            );
+        }
+    } else {
+        // Not at center yet - move directly toward it
+        let dx = center.x - pos.x;
+        let dz = center.z - pos.z;
+        let distance = (dx * dx + dz * dz).sqrt();
+        
+        // Normalize and apply ghost speed
+        let dir_x = dx / distance;
+        let dir_z = dz / distance;
+        
+        let new_vel = Velocity {
+            x: dir_x * GHOST_SPEED,
+            y: 0.0,
+            z: dir_z * GHOST_SPEED,
+        };
+        
+        // Only broadcast if velocity changed
+        let vel_changed = (new_vel.x - vel.x).abs() > 0.1 || (new_vel.z - vel.z).abs() > 0.1;
+        
+        *vel = new_vel;
+        
+        if vel_changed {
+            broadcast_to_all(
+                players,
+                ServerMessage::Ghost(SGhost {
+                    id: *ghost_id,
+                    ghost: Ghost {
+                        pos: *pos,
+                        vel: *vel,
+                    },
+                }),
+            );
+        }
+        
+        // Move based on velocity
+        pos.x += vel.x * delta;
+        pos.z += vel.z * delta;
+    }
+}
+
 // Patrol mode movement - follows grid lines
 fn patrol_movement(
     ghost_id: &GhostId,
@@ -375,29 +458,10 @@ fn patrol_movement(
     rng: &mut impl rand::Rng,
 ) {
     // Calculate which grid cell we're in
-    let grid_x = ((pos.x + FIELD_WIDTH / 2.0) / GRID_SIZE).floor() as i32;
-    let grid_z = ((pos.z + FIELD_DEPTH / 2.0) / GRID_SIZE).floor() as i32;
-
-    // Check if ghost is within grid bounds
-    if !(0..GRID_COLS).contains(&grid_x) || !(0..GRID_ROWS).contains(&grid_z) {
-        error!(
-            "{:?} out of bounds at grid ({}, {}), clamping",
-            ghost_id, grid_x, grid_z
-        );
-        // Clamp position to grid bounds
-        pos.x = pos.x.clamp(
-            -FIELD_WIDTH / 2.0 + GRID_SIZE / 2.0,
-            FIELD_WIDTH / 2.0 - GRID_SIZE / 2.0,
-        );
-        pos.z = pos.z.clamp(
-            -FIELD_DEPTH / 2.0 + GRID_SIZE / 2.0,
-            FIELD_DEPTH / 2.0 - GRID_SIZE / 2.0,
-        );
-        // Reverse velocity to bounce back
-        vel.x = -vel.x;
-        vel.z = -vel.z;
-        return;
-    }
+    // Clamp to valid grid indices (0 to GRID_COLS-1, 0 to GRID_ROWS-1)
+    // This handles edge cases where position is exactly at field boundary
+    let grid_x = (((pos.x + FIELD_WIDTH / 2.0) / GRID_SIZE).floor() as i32).clamp(0, GRID_COLS - 1);
+    let grid_z = (((pos.z + FIELD_DEPTH / 2.0) / GRID_SIZE).floor() as i32).clamp(0, GRID_ROWS - 1);
 
     // Calculate grid cell center
     let center = cell_center(grid_x, grid_z);
@@ -453,11 +517,11 @@ fn patrol_movement(
         }
     }
 
-    // Always move based on current velocity
+    // Move based on current velocity
     pos.x += vel.x * delta;
     pos.z += vel.z * delta;
 
-    // Snap to grid line if we're moving along it
+    // Snap to grid lines to prevent drift
     if vel.x.abs() > 0.0 && vel.z.abs() < 0.01 {
         // Moving horizontally - snap Z to grid center
         pos.z = center.z;

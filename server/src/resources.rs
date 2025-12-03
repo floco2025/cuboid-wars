@@ -57,6 +57,7 @@ pub struct ItemMap(pub HashMap<ItemId, ItemInfo>);
 // Ghost AI mode
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GhostMode {
+    PrePatrol,        // Navigating to grid center before patrol
     Patrol,           // Moving along grid, can detect players
     Follow,           // Following a specific player
     PatrolCooldown,   // Moving along grid, cannot detect players yet
