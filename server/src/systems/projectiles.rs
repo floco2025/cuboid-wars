@@ -13,29 +13,7 @@ use common::{
 // Projectiles Movement System
 // ============================================================================
 
-// Update projectile lifetimes and despawn expired ones
-// Position updates are handled in the hit detection system
 pub fn projectiles_movement_system(
-    mut commands: Commands,
-    time: Res<Time>,
-    mut projectile_query: Query<(Entity, &mut Projectile)>,
-) {
-    let frame_time = time.delta();
-
-    for (entity, mut projectile) in &mut projectile_query {
-        projectile.lifetime.tick(frame_time);
-        if projectile.lifetime.is_finished() {
-            commands.entity(entity).despawn();
-        }
-    }
-}
-
-// ============================================================================
-// Projectiles Hit Detection System
-// ============================================================================
-
-// Server-side hit detection - authoritative collision detection
-pub fn projectiles_hit_detection_system(
     mut commands: Commands,
     time: Res<Time>,
     mut projectile_query: Query<(Entity, &mut Position, &mut Projectile, &PlayerId)>,
@@ -46,6 +24,13 @@ pub fn projectiles_hit_detection_system(
     let delta = time.delta_secs();
 
     for (proj_entity, mut proj_pos, mut projectile, shooter_id) in projectile_query.iter_mut() {
+        // Check lifetime and despawn if expired
+        projectile.lifetime.tick(time.delta());
+        if projectile.lifetime.is_finished() {
+            commands.entity(proj_entity).despawn();
+            continue;
+        }
+
         let mut hit_something = false;
 
         // Check wall collisions first

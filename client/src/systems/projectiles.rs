@@ -61,28 +61,7 @@ fn play_sound(
 // Projectiles Movement System
 // ============================================================================
 
-// Update projectile lifetimes and despawn expired ones
-// Position updates are handled in the hit detection system
 pub fn projectiles_movement_system(
-    mut commands: Commands,
-    time: Res<Time>,
-    mut projectile_query: Query<(Entity, &mut Projectile)>,
-) {
-    for (entity, mut projectile) in &mut projectile_query {
-        projectile.lifetime.tick(time.delta());
-        if projectile.lifetime.is_finished() {
-            commands.entity(entity).despawn();
-        }
-    }
-}
-
-// ============================================================================
-// Projectiles Hit Detection System
-// ============================================================================
-
-// Client-side hit detection - only for despawning projectiles visually
-// Server is authoritative for actual hit scoring
-pub fn projectiles_hit_detection_system(
     mut commands: Commands,
     time: Res<Time>,
     asset_server: Res<AssetServer>,
@@ -94,6 +73,13 @@ pub fn projectiles_hit_detection_system(
     let walls = wall_config.as_deref();
 
     for (projectile_entity, mut projectile_transform, mut projectile) in projectile_query.iter_mut() {
+        // Check lifetime and despawn if expired
+        projectile.lifetime.tick(time.delta());
+        if projectile.lifetime.is_finished() {
+            commands.entity(projectile_entity).despawn();
+            continue;
+        }
+
         let projectile_pos = Position {
             x: projectile_transform.translation.x,
             y: projectile_transform.translation.y,

@@ -135,10 +135,7 @@ fn main() -> Result<()> {
     )
     .add_systems(
         Update,
-        (
-            projectiles_movement_system,
-            projectiles_hit_detection_system,
-        ),
+        projectiles_movement_system,
     )
     .add_systems(
         Update,
