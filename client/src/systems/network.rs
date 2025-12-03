@@ -42,14 +42,19 @@ pub fn network_server_message_system(
     mut maps: ParamSet<(ResMut<PlayerMap>, ResMut<ItemMap>, ResMut<GhostMap>)>,
     mut rtt: ResMut<RoundTripTime>,
     mut last_update_seq: ResMut<LastUpdateSeq>,
-    player_query: Query<&Position, With<PlayerId>>,
-    ghost_query: Query<&Position, With<GhostId>>,
-    speed_query: Query<&Speed>,
-    player_face_query: Query<(&Position, &FaceDirection), With<PlayerId>>,
-    camera_query: Query<Entity, With<Camera3d>>,
+    queries: (
+        Query<&Position, With<PlayerId>>,
+        Query<&Position, With<GhostId>>,
+        Query<&Speed>,
+        Query<(&Position, &FaceDirection), With<PlayerId>>,
+        Query<Entity, With<Camera3d>>,
+    ),
     my_player_id: Option<Res<MyPlayerId>>,
     time: Res<Time>,
+    asset_server: Res<AssetServer>,
 ) {
+    let (player_query, ghost_query, speed_query, player_face_query, camera_query) = queries;
+    
     // Process all messages from the server
     while let Ok(msg) = from_server.try_recv() {
         match msg {
@@ -75,6 +80,7 @@ pub fn network_server_message_system(
                         &player_face_query,
                         &camera_query,
                         &time,
+                        &asset_server,
                     );
                 } else {
                     process_message_not_logged_in(message, &mut commands);
@@ -123,6 +129,7 @@ fn process_message_logged_in(
     player_face_query: &Query<(&Position, &FaceDirection), With<PlayerId>>,
     camera_query: &Query<Entity, With<Camera3d>>,
     time: &Res<Time>,
+    asset_server: &Res<AssetServer>,
 ) {
     match msg {
         ServerMessage::Init(_) => {
@@ -151,7 +158,7 @@ fn process_message_logged_in(
         ),
         ServerMessage::Hit(hit_msg) => handle_hit_message(commands, &maps.p0(), camera_query, my_player_id, hit_msg),
         ServerMessage::PowerUp(power_up_msg) => {
-            handle_power_up_message(commands, &mut maps.p0(), speed_query, power_up_msg);
+            handle_power_up_message(commands, &mut maps.p0(), speed_query, power_up_msg, my_player_id, asset_server);
         }
         ServerMessage::Echo(echo_msg) => handle_echo_message(time, rtt, echo_msg),
         ServerMessage::Ghost(ghost_msg) => {
@@ -587,11 +594,21 @@ fn handle_power_up_message(
     players: &mut ResMut<PlayerMap>,
     speeds: &Query<&Speed>,
     msg: SPowerUp,
+    my_player_id: PlayerId,
+    asset_server: &AssetServer,
 ) {
     if let Some(player_info) = players.0.get_mut(&msg.id) {
         let old_speed_power_up = player_info.speed_power_up;
         player_info.speed_power_up = msg.speed_power_up;
         player_info.multi_shot_power_up = msg.multi_shot_power_up;
+
+        // Play sound if this is the local player and they have a power-up
+        if msg.id == my_player_id && (msg.speed_power_up || msg.multi_shot_power_up) {
+            commands.spawn((
+                AudioPlayer::new(asset_server.load("sounds/player_powerup.wav")),
+                PlaybackSettings::DESPAWN,
+            ));
+        }
 
         // If speed power-up status changed, recalculate velocity
         if old_speed_power_up != msg.speed_power_up

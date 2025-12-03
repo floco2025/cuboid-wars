@@ -107,10 +107,11 @@ fn main() -> Result<()> {
     )
     .add_systems(
         Update,
-        (
-            network_echo_system,
-            network_server_message_system,
-        ),
+        network_echo_system,
+    )
+    .add_systems(
+        Update,
+        network_server_message_system,
     )
     .add_systems(
         Update,
