@@ -23,8 +23,8 @@ pub const POWER_UP_MULTI_SHOT_DURATION: f32 = 30.0; // seconds
 
 // Ghost settings
 pub const GHOSTS_NUM: u32 = 4; // Number of ghosts to spawn
-pub const GHOST_SPEED: f32 = 5.0; // Speed in m/s (patrol mode)
-pub const GHOST_FOLLOW_SPEED: f32 = 7.0; // Speed in m/s (follow mode)
+pub const GHOST_SPEED: f32 = 6.0; // Speed in m/s (patrol mode)
+pub const GHOST_FOLLOW_SPEED: f32 = 8.0; // Speed in m/s (follow mode)
 pub const GHOST_RANDOM_TURN_PROBABILITY: f64 = 0.3; // Probability ghost randomly changes direction at intersection
 pub const GHOST_FOLLOW_DURATION: f32 = 10.0; // How long ghost follows player (seconds)
 pub const GHOST_COOLDOWN_DURATION: f32 = 20.0; // Cooldown before ghost can detect players again (seconds)
