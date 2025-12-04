@@ -403,7 +403,7 @@ pub fn placers_face_to_transform_system(mut query: Query<(&FaceDirection, &mut T
 // ============================================================================
 
 // Update rearview camera to look backwards from local player
-pub fn local_player_rearview_camera_sync_system(
+pub fn local_player_rearview_sync_system(
     local_player_query: Query<&Position, With<LocalPlayer>>,
     main_camera_query: Query<&Transform, (With<Camera3d>, Without<RearviewCamera>, Without<Camera2d>)>,
     mut rearview_query: Query<&mut Transform, With<RearviewCamera>>,
@@ -433,7 +433,7 @@ pub fn local_player_rearview_camera_sync_system(
 }
 
 // Update rearview camera viewport based on window size
-pub fn rearview_camera_viewport_system(
+pub fn local_player_rearview_system(
     windows: Query<&Window>,
     mut rearview_query: Query<&mut Camera, With<RearviewCamera>>,
     view_mode: Res<CameraViewMode>,
