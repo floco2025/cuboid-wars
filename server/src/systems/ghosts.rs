@@ -11,9 +11,7 @@ use common::{
         calculate_ghost_wall_slide, check_ghost_player_overlap, check_ghost_wall_overlap, check_player_wall_sweep,
     },
     constants::*,
-    protocol::{
-        Ghost, GhostId, PlayerId, Position, SGhost, SGhostHit, ServerMessage, Speed, SpeedLevel, Velocity, Wall,
-    },
+    protocol::*,
 };
 
 use super::network::broadcast_to_all;
@@ -590,9 +588,6 @@ pub fn ghost_player_collision_system(
     ghost_query: Query<(&GhostId, &Position)>,
     player_query: Query<(&PlayerId, &Position)>,
 ) {
-    use crate::constants::{GHOST_HIT_PENALTY, GHOST_STUN_DURATION};
-    use common::protocol::SPlayerStatus;
-
     // Collect ghost positions
     let ghost_positions: Vec<(GhostId, Position)> = ghost_query.iter().map(|(id, pos)| (*id, *pos)).collect();
 
