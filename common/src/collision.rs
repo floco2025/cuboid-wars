@@ -524,7 +524,7 @@ pub fn check_ghost_player_overlap(ghost_pos: &Position, player_pos: &Position) -
     let dx = player_pos.x - ghost_pos.x;
     let dz = player_pos.z - ghost_pos.z;
     let dist_sq = dx.mul_add(dx, dz * dz);
-    let collision_radius = GHOST_SIZE / 2.0;// + (PLAYER_WIDTH.max(PLAYER_DEPTH) / 2.0);
+    let collision_radius = GHOST_SIZE / 2.0; // + (PLAYER_WIDTH.max(PLAYER_DEPTH) / 2.0);
     dist_sq <= collision_radius * collision_radius
 }
 
