@@ -5,7 +5,7 @@ use bevy::{
     window::{CursorGrabMode, CursorOptions},
 };
 
-use super::players::LocalPlayer;
+use super::players::{LocalPlayer, PlayerMovementMut};
 use crate::{
     constants::*,
     net::ClientToServer,
@@ -37,7 +37,7 @@ pub fn input_movement_system(
     my_player_id: Option<Res<MyPlayerId>>,
     players: Res<PlayerMap>,
     mut local_state: Local<InputState>,
-    mut local_player_query: Query<(&mut Velocity, &mut FaceDirection), With<LocalPlayer>>,
+    mut local_player_query: Query<PlayerMovementMut, With<LocalPlayer>>,
     mut camera_query: Query<&mut Transform, With<Camera3d>>,
     view_mode: Res<CameraViewMode>,
 ) {
@@ -82,7 +82,7 @@ fn handle_unlocked_cursor(
     my_player_id: Option<&Res<MyPlayerId>>,
     players: &Res<PlayerMap>,
     local_state: &mut Local<InputState>,
-    local_player_query: &mut Query<(&mut Velocity, &mut FaceDirection), With<LocalPlayer>>,
+    local_player_query: &mut Query<PlayerMovementMut, With<LocalPlayer>>,
 ) {
     // Drain pending mouse events and ensure player stops moving
     for _ in mouse_motion.read() {}
@@ -92,7 +92,7 @@ fn handle_unlocked_cursor(
             speed_level: SpeedLevel::Idle,
             move_dir: 0.0,
         };
-        for (mut player_velocity, _) in local_player_query {
+        for mut player in local_player_query {
             let mut velocity = speed.to_velocity();
             // Apply speed multiplier if local player has speed power-up
             if let Some(my_id) = my_player_id
@@ -103,7 +103,7 @@ fn handle_unlocked_cursor(
                 velocity.z *= POWER_UP_SPEED_MULTIPLIER;
             }
 
-            *player_velocity = velocity;
+            *player.velocity = velocity;
         }
         let msg = ClientMessage::Speed(CSpeed { speed });
         let _ = to_server.send(ClientToServer::Send(msg));
@@ -192,9 +192,9 @@ fn update_player_velocity_and_face(
     face_yaw: f32,
     my_player_id: Option<&Res<MyPlayerId>>,
     players: &Res<PlayerMap>,
-    local_player_query: &mut Query<(&mut Velocity, &mut FaceDirection), With<LocalPlayer>>,
+    local_player_query: &mut Query<PlayerMovementMut, With<LocalPlayer>>,
 ) {
-    for (mut player_velocity, mut player_face) in local_player_query {
+    for mut player in local_player_query {
         let mut velocity = speed.to_velocity();
         // Apply speed multiplier if local player has speed power-up
         if let Some(my_id) = my_player_id
@@ -205,8 +205,8 @@ fn update_player_velocity_and_face(
             velocity.z *= POWER_UP_SPEED_MULTIPLIER;
         }
 
-        *player_velocity = velocity;
-        player_face.0 = face_yaw;
+        *player.velocity = velocity;
+        player.face_direction.0 = face_yaw;
     }
 }
 

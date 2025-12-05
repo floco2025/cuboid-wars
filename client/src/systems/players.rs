@@ -33,6 +33,30 @@ pub struct BumpFlashState {
     pub flash_timer: f32,
 }
 
+// ============================================================================
+// Query Bundles
+// ============================================================================
+
+// Common query for player movement (read-only)
+#[derive(bevy::ecs::query::QueryData)]
+#[query_data(mutable)]
+pub struct PlayerMovement {
+    pub position: &'static Position,
+    pub face_direction: &'static FaceDirection,
+}
+
+// Common query for player movement (mutable)
+#[derive(bevy::ecs::query::QueryData)]
+#[query_data(mutable)]
+pub struct PlayerMovementMut {
+    pub velocity: &'static mut Velocity,
+    pub face_direction: &'static mut FaceDirection,
+}
+
+// ============================================================================
+// Camera and Visual Effects
+// ============================================================================
+
 // Camera shake effect - tracks duration and intensity
 #[derive(Component)]
 pub struct CameraShake {

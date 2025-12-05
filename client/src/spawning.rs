@@ -27,6 +27,57 @@ pub struct PlayerIdTextMesh;
 pub struct ItemAnimTimer(pub f32);
 
 // ============================================================================
+// Bundles
+// ============================================================================
+
+#[derive(Bundle)]
+struct ProjectileBundle {
+    mesh: Mesh3d,
+    material: MeshMaterial3d<StandardMaterial>,
+    transform: Transform,
+    projectile: Projectile,
+}
+
+impl ProjectileBundle {
+    fn new(
+        meshes: &mut Assets<Mesh>,
+        materials: &mut Assets<StandardMaterial>,
+        position: Vec3,
+        direction: f32,
+        reflects: bool,
+    ) -> Self {
+        Self {
+            mesh: Mesh3d(meshes.add(Sphere::new(PROJECTILE_RADIUS))),
+            material: MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: Color::srgb(10.0, 10.0, 0.0),
+                emissive: LinearRgba::rgb(10.0, 10.0, 0.0),
+                ..default()
+            })),
+            transform: Transform::from_translation(position),
+            projectile: Projectile::new(direction, reflects),
+        }
+    }
+}
+
+#[derive(Bundle)]
+struct WallBundle {
+    mesh: Mesh3d,
+    material: MeshMaterial3d<StandardMaterial>,
+    transform: Transform,
+    visibility: Visibility,
+    marker: WallMarker,
+}
+
+#[derive(Bundle)]
+struct RoofBundle {
+    mesh: Mesh3d,
+    material: MeshMaterial3d<StandardMaterial>,
+    transform: Transform,
+    visibility: Visibility,
+    marker: RoofMarker,
+}
+
+// ============================================================================
 // Player Spawning
 // ============================================================================
 
@@ -292,18 +343,12 @@ fn spawn_single_projectile(
 ) {
     let spawn_pos = Vec3::new(spawn_info.position.x, spawn_info.position.y, spawn_info.position.z);
 
-    let projectile = Projectile::new(spawn_info.direction, spawn_info.reflects);
-    let projectile_color = Color::srgb(10.0, 10.0, 0.0); // Very bright yellow
-
-    commands.spawn((
-        Mesh3d(meshes.add(Sphere::new(PROJECTILE_RADIUS))),
-        MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: projectile_color,
-            emissive: LinearRgba::rgb(10.0, 10.0, 0.0), // Make it glow
-            ..default()
-        })),
-        Transform::from_translation(spawn_pos),
-        projectile,
+    commands.spawn(ProjectileBundle::new(
+        meshes,
+        materials,
+        spawn_pos,
+        spawn_info.direction,
+        spawn_info.reflects,
     ));
 }
 
@@ -351,17 +396,17 @@ pub fn spawn_wall(
         WallOrientation::Vertical => (WALL_WIDTH, WALL_LENGTH),
     };
 
-    commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(size_x, WALL_HEIGHT, size_z))),
-        MeshMaterial3d(materials.add(wall_color)),
-        Transform::from_xyz(
+    commands.spawn(WallBundle {
+        mesh: Mesh3d(meshes.add(Cuboid::new(size_x, WALL_HEIGHT, size_z))),
+        material: MeshMaterial3d(materials.add(wall_color)),
+        transform: Transform::from_xyz(
             wall.x,
             WALL_HEIGHT / 2.0, // Lift so bottom is at y=0
             wall.z,
         ),
-        Visibility::default(),
-        WallMarker,
-    ));
+        visibility: Visibility::default(),
+        marker: WallMarker,
+    });
 }
 
 // Spawn a roof entity based on a shared `Roof` config.
@@ -384,17 +429,17 @@ pub fn spawn_roof(
     let roof_size = WALL_LENGTH; // Same overlap as walls to cover corners
     let roof_thickness = WALL_WIDTH; // Same thickness as walls
 
-    commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(roof_size, roof_thickness, roof_size))),
-        MeshMaterial3d(materials.add(roof_color)),
-        Transform::from_xyz(
+    commands.spawn(RoofBundle {
+        mesh: Mesh3d(meshes.add(Cuboid::new(roof_size, roof_thickness, roof_size))),
+        material: MeshMaterial3d(materials.add(roof_color)),
+        transform: Transform::from_xyz(
             world_x,
             WALL_HEIGHT - roof_thickness / 2.0, // Position so top of roof aligns with top of wall
             world_z,
         ),
-        Visibility::Visible,
-        RoofMarker,
-    ));
+        visibility: Visibility::Visible,
+        marker: RoofMarker,
+    });
 }
 
 // ============================================================================

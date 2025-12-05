@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use std::{collections::HashSet, time::Duration};
 
-use super::players::{CameraShake, CuboidShake};
+use super::players::{CameraShake, CuboidShake, PlayerMovement};
 use crate::{
     constants::ECHO_INTERVAL,
     net::{ClientToServer, ServerToClient},
@@ -28,6 +28,20 @@ pub struct ServerReconciliation {
 }
 
 // ============================================================================
+// Query Bundles
+// ============================================================================
+
+// Bundle of common queries used in network message processing
+#[derive(bevy::ecs::system::SystemParam)]
+pub struct NetworkQueries<'w, 's> {
+    pub player_positions: Query<'w, 's, &'static Position, With<PlayerId>>,
+    pub ghost_positions: Query<'w, 's, &'static Position, With<GhostId>>,
+    pub speeds: Query<'w, 's, &'static Speed>,
+    pub player_facing: Query<'w, 's, PlayerMovement, With<PlayerId>>,
+    pub cameras: Query<'w, 's, Entity, With<Camera3d>>,
+}
+
+// ============================================================================
 // Network Message Processing
 // ============================================================================
 
@@ -42,20 +56,12 @@ pub fn network_server_message_system(
     mut maps: ParamSet<(ResMut<PlayerMap>, ResMut<ItemMap>, ResMut<GhostMap>)>,
     mut rtt: ResMut<RoundTripTime>,
     mut last_update_seq: ResMut<LastUpdateSeq>,
-    queries: (
-        Query<&Position, With<PlayerId>>,
-        Query<&Position, With<GhostId>>,
-        Query<&Speed>,
-        Query<(&Position, &FaceDirection), With<PlayerId>>,
-        Query<Entity, With<Camera3d>>,
-    ),
+    queries: NetworkQueries,
     my_player_id: Option<Res<MyPlayerId>>,
     wall_config: Option<Res<WallConfig>>,
     time: Res<Time>,
     asset_server: Res<AssetServer>,
 ) {
-    let (player_query, ghost_query, speed_query, player_face_query, camera_query) = queries;
-
     // Process all messages from the server
     while let Ok(msg) = from_server.try_recv() {
         match msg {
@@ -75,11 +81,7 @@ pub fn network_server_message_system(
                         &mut maps,
                         &mut rtt,
                         &mut last_update_seq,
-                        &player_query,
-                        &ghost_query,
-                        &speed_query,
-                        &player_face_query,
-                        &camera_query,
+                        &queries,
                         &time,
                         &asset_server,
                         wall_config.as_deref(),
@@ -125,11 +127,7 @@ fn process_message_logged_in(
     maps: &mut ParamSet<(ResMut<PlayerMap>, ResMut<ItemMap>, ResMut<GhostMap>)>,
     rtt: &mut ResMut<RoundTripTime>,
     last_update_seq: &mut ResMut<LastUpdateSeq>,
-    player_query: &Query<&Position, With<PlayerId>>,
-    ghost_query: &Query<&Position, With<GhostId>>,
-    speed_query: &Query<&Speed>,
-    player_face_query: &Query<(&Position, &FaceDirection), With<PlayerId>>,
-    camera_query: &Query<Entity, With<Camera3d>>,
+    queries: &NetworkQueries,
     time: &Res<Time>,
     asset_server: &Res<AssetServer>,
     wall_config: Option<&WallConfig>,
@@ -140,7 +138,7 @@ fn process_message_logged_in(
         }
         ServerMessage::Login(login) => handle_login_message(commands, meshes, materials, images, &mut maps.p0(), login),
         ServerMessage::Logoff(logoff) => handle_logoff_message(commands, &mut maps.p0(), logoff),
-        ServerMessage::Speed(speed_msg) => handle_speed_message(commands, &maps.p0(), player_query, rtt, speed_msg),
+        ServerMessage::Speed(speed_msg) => handle_speed_message(commands, &maps.p0(), &queries.player_positions, rtt, speed_msg),
         ServerMessage::Face(face_msg) => handle_face_message(commands, &maps.p0(), face_msg),
         ServerMessage::Shot(shot_msg) => {
             handle_shot_message(
@@ -148,7 +146,7 @@ fn process_message_logged_in(
                 meshes,
                 materials,
                 &maps.p0(),
-                player_face_query,
+                &queries.player_facing,
                 shot_msg,
                 wall_config,
             );
@@ -161,18 +159,18 @@ fn process_message_logged_in(
             maps,
             rtt,
             last_update_seq,
-            player_query,
-            ghost_query,
-            camera_query,
+            &queries.player_positions,
+            &queries.ghost_positions,
+            &queries.cameras,
             my_player_id,
             update_msg,
         ),
-        ServerMessage::Hit(hit_msg) => handle_hit_message(commands, &maps.p0(), camera_query, my_player_id, hit_msg),
+        ServerMessage::Hit(hit_msg) => handle_hit_message(commands, &maps.p0(), &queries.cameras, my_player_id, hit_msg),
         ServerMessage::PlayerStatus(player_status_msg) => {
             handle_player_status_message(
                 commands,
                 &mut maps.p0(),
-                speed_query,
+                &queries.speeds,
                 player_status_msg,
                 my_player_id,
                 asset_server,
@@ -180,7 +178,7 @@ fn process_message_logged_in(
         }
         ServerMessage::Echo(echo_msg) => handle_echo_message(time, rtt, echo_msg),
         ServerMessage::Ghost(ghost_msg) => {
-            handle_ghost_message(commands, meshes, materials, &mut maps.p2(), rtt, ghost_query, ghost_msg);
+            handle_ghost_message(commands, meshes, materials, &mut maps.p2(), rtt, &queries.ghost_positions, ghost_msg);
         }
         ServerMessage::CookieCollected(cookie_msg) => {
             handle_cookie_collected_message(commands, cookie_msg, asset_server);
@@ -287,7 +285,7 @@ fn handle_shot_message(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
     players: &ResMut<PlayerMap>,
-    player_face_query: &Query<(&Position, &FaceDirection), With<PlayerId>>,
+    player_face_query: &Query<PlayerMovement, With<PlayerId>>,
     msg: SShot,
     wall_config: Option<&WallConfig>,
 ) {
@@ -296,13 +294,13 @@ fn handle_shot_message(
         commands.entity(player.entity).insert(FaceDirection(msg.face_dir));
 
         // Spawn projectile(s) based on player's multi-shot power-up status
-        if let Ok((pos, _)) = player_face_query.get(player.entity) {
+        if let Ok(player_facing) = player_face_query.get(player.entity) {
             let walls = wall_config.map_or(&[][..], |config| &config.walls);
             spawn_projectiles(
                 commands,
                 meshes,
                 materials,
-                pos,
+                player_facing.position,
                 msg.face_dir,
                 player.multi_shot_power_up,
                 player.reflect_power_up,
