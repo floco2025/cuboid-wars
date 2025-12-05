@@ -10,6 +10,18 @@ use common::{
 };
 
 // ============================================================================
+// Query Bundles
+// ============================================================================
+
+// Common query for player target (used in projectile collision)
+#[derive(bevy::ecs::query::QueryData)]
+pub struct PlayerTarget {
+    pub position: &'static Position,
+    pub face_direction: &'static FaceDirection,
+    pub player_id: &'static PlayerId,
+}
+
+// ============================================================================
 // Projectiles Movement System
 // ============================================================================
 
@@ -17,7 +29,7 @@ pub fn projectiles_movement_system(
     mut commands: Commands,
     time: Res<Time>,
     mut projectile_query: Query<(Entity, &mut Position, &mut Projectile, &PlayerId)>,
-    player_query: Query<(&Position, &FaceDirection, &PlayerId), Without<Projectile>>,
+    player_query: Query<PlayerTarget, Without<Projectile>>,
     grid_config: Res<GridConfig>,
     mut players: ResMut<PlayerMap>,
 ) {
@@ -55,33 +67,33 @@ pub fn projectiles_movement_system(
         }
 
         // Check player collisions
-        for (player_pos, player_face_dir, target_id) in player_query.iter() {
+        for player in player_query.iter() {
             // Don't hit yourself
-            if shooter_id == target_id {
+            if shooter_id == player.player_id {
                 continue;
             }
 
             // Use common hit detection logic
             let result =
-                check_projectile_player_sweep_hit(&proj_pos, &projectile, delta, player_pos, player_face_dir.0);
+                check_projectile_player_sweep_hit(&proj_pos, &projectile, delta, player.position, player.face_direction.0);
 
             if result.hit {
-                info!("{:?} hits {:?}", shooter_id, target_id);
+                info!("{:?} hits {:?}", shooter_id, player.player_id);
 
                 // Update hit counters
                 if let Some(shooter_info) = players.0.get_mut(shooter_id) {
                     shooter_info.hits += 1;
                     info!("  {:?} now has {} hits", shooter_id, shooter_info.hits);
                 }
-                if let Some(target_info) = players.0.get_mut(target_id) {
+                if let Some(target_info) = players.0.get_mut(player.player_id) {
                     target_info.hits -= 1;
-                    info!("  {:?} now has {} hits", target_id, target_info.hits);
+                    info!("  {:?} now has {} hits", player.player_id, target_info.hits);
                 }
 
                 // Broadcast hit message to all clients
                 for player_info in players.0.values() {
                     let _ = player_info.channel.send(ServerToClient::Send(ServerMessage::Hit(SHit {
-                        id: *target_id,
+                        id: *player.player_id,
                         hit_dir_x: result.hit_dir_x,
                         hit_dir_z: result.hit_dir_z,
                     })));

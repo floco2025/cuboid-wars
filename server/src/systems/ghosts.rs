@@ -17,6 +17,25 @@ use common::{
 use super::network::broadcast_to_all;
 
 // ============================================================================
+// Query Bundles
+// ============================================================================
+
+// Common query for player location
+#[derive(bevy::ecs::query::QueryData)]
+pub struct PlayerLocation {
+    pub player_id: &'static PlayerId,
+    pub position: &'static Position,
+}
+
+// Common query for player movement state
+#[derive(bevy::ecs::query::QueryData)]
+pub struct PlayerMovementState {
+    pub player_id: &'static PlayerId,
+    pub position: &'static Position,
+    pub speed: &'static Speed,
+}
+
+// ============================================================================
 // Helper Functions
 // ============================================================================
 
@@ -168,7 +187,7 @@ pub fn ghosts_movement_system(
     mut ghosts: ResMut<GhostMap>,
     mut param_set: ParamSet<(
         Query<(&GhostId, &mut Position, &mut Velocity)>,
-        Query<(&PlayerId, &Position, &Speed), With<PlayerId>>,
+        Query<PlayerMovementState, With<PlayerId>>,
     )>,
 ) {
     let delta = time.delta_secs();
@@ -181,11 +200,11 @@ pub fn ghosts_movement_system(
     let player_data: Vec<(PlayerId, Position, Speed)> = param_set
         .p1()
         .iter()
-        .filter(|(id, _, _)| {
+        .filter(|player| {
             // Filter out stunned players
-            players.0.get(id).is_some_and(|info| info.stun_timer <= 0.0)
+            players.0.get(player.player_id).is_some_and(|info| info.stun_timer <= 0.0)
         })
-        .map(|(id, pos, speed)| (*id, *pos, *speed))
+        .map(|player| (*player.player_id, *player.position, *player.speed))
         .collect();
 
     // Process each ghost
@@ -586,7 +605,7 @@ pub fn ghost_player_collision_system(
     mut ghosts: ResMut<GhostMap>,
     mut players: ResMut<PlayerMap>,
     ghost_query: Query<(&GhostId, &Position)>,
-    player_query: Query<(&PlayerId, &Position)>,
+    player_query: Query<PlayerLocation>,
 ) {
     // Collect ghost positions
     let ghost_positions: Vec<(GhostId, Position)> = ghost_query.iter().map(|(id, pos)| (*id, *pos)).collect();
@@ -594,8 +613,8 @@ pub fn ghost_player_collision_system(
     // Collect player collisions first
     let mut player_hits: Vec<(PlayerId, GhostId)> = Vec::new();
 
-    for (player_id, player_pos) in &player_query {
-        let Some(player_info) = players.0.get(player_id) else {
+    for player in &player_query {
+        let Some(player_info) = players.0.get(player.player_id) else {
             continue;
         };
 
@@ -614,8 +633,8 @@ pub fn ghost_player_collision_system(
                 continue; // Skip stunning if ghost is not following
             }
 
-            if check_ghost_player_overlap(ghost_pos, player_pos) {
-                player_hits.push((*player_id, *ghost_id));
+            if check_ghost_player_overlap(ghost_pos, player.position) {
+                player_hits.push((*player.player_id, *ghost_id));
                 break; // Only one hit per frame
             }
         }

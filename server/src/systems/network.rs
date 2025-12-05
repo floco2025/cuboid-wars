@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::ecs::system::SystemParam;
 use rand::Rng as _;
 
 use crate::{
@@ -11,6 +12,19 @@ use common::{
     protocol::*,
     spawning::calculate_projectile_spawns,
 };
+
+// ============================================================================
+// SystemParam Bundles
+// ============================================================================
+
+// Groups commonly used queries for network message processing
+#[derive(SystemParam)]
+pub struct NetworkEntityQueries<'w, 's> {
+    pub positions: Query<'w, 's, &'static Position>,
+    pub speeds: Query<'w, 's, &'static Speed>,
+    pub face_dirs: Query<'w, 's, &'static FaceDirection>,
+    pub velocities: Query<'w, 's, &'static Velocity>,
+}
 
 // ============================================================================
 // Helper Functions
@@ -36,9 +50,7 @@ pub fn broadcast_to_all(players: &PlayerMap, message: ServerMessage) {
 
 fn snapshot_logged_in_players(
     players: &PlayerMap,
-    positions: &Query<&Position>,
-    speeds: &Query<&Speed>,
-    face_dirs: &Query<&FaceDirection>,
+    queries: &NetworkEntityQueries,
 ) -> Vec<(PlayerId, Player)> {
     players
         .0
@@ -47,9 +59,9 @@ fn snapshot_logged_in_players(
             if !info.logged_in {
                 return None;
             }
-            let pos = positions.get(info.entity).ok()?;
-            let speed = speeds.get(info.entity).ok()?;
-            let face_dir = face_dirs.get(info.entity).ok()?;
+            let pos = queries.positions.get(info.entity).ok()?;
+            let speed = queries.speeds.get(info.entity).ok()?;
+            let face_dir = queries.face_dirs.get(info.entity).ok()?;
             Some((
                 *player_id,
                 Player {
@@ -93,15 +105,14 @@ fn collect_items(items: &ItemMap, positions: &Query<&Position>) -> Vec<(ItemId, 
 // Build the authoritative ghost list that gets replicated to clients.
 fn collect_ghosts(
     ghosts: &GhostMap,
-    positions: &Query<&Position>,
-    velocities: &Query<&Velocity>,
+    queries: &NetworkEntityQueries,
 ) -> Vec<(GhostId, Ghost)> {
     ghosts
         .0
         .iter()
         .map(|(id, info)| {
-            let pos_component = positions.get(info.entity).expect("Ghost entity missing Position");
-            let vel_component = velocities.get(info.entity).expect("Ghost entity missing Velocity");
+            let pos_component = queries.positions.get(info.entity).expect("Ghost entity missing Position");
+            let vel_component = queries.velocities.get(info.entity).expect("Ghost entity missing Velocity");
             (
                 *id,
                 Ghost {
@@ -184,13 +195,10 @@ pub fn network_client_message_system(
     mut commands: Commands,
     mut from_clients: ResMut<FromClientsChannel>,
     mut players: ResMut<PlayerMap>,
-    items: Res<ItemMap>,
     grid_config: Res<GridConfig>,
+    items: Res<ItemMap>,
     ghosts: Res<GhostMap>,
-    positions: Query<&Position>,
-    speeds: Query<&Speed>,
-    face_dirs: Query<&FaceDirection>,
-    velocities: Query<&Velocity>,
+    queries: NetworkEntityQueries,
 ) {
     while let Ok((id, event)) = from_clients.try_recv() {
         let Some(player_info) = players.0.get(&id) else {
@@ -221,7 +229,7 @@ pub fn network_client_message_system(
                         id,
                         message,
                         &players,
-                        &positions,
+                        &queries,
                         &grid_config,
                     );
                 } else {
@@ -230,10 +238,7 @@ pub fn network_client_message_system(
                         player_info.entity,
                         id,
                         message,
-                        &positions,
-                        &speeds,
-                        &face_dirs,
-                        &velocities,
+                        &queries,
                         &mut players,
                         &grid_config,
                         &items,
@@ -254,10 +259,7 @@ fn process_message_not_logged_in(
     entity: Entity,
     id: PlayerId,
     msg: ClientMessage,
-    positions: &Query<&Position>,
-    speeds: &Query<&Speed>,
-    face_dirs: &Query<&FaceDirection>,
-    velocities: &Query<&Velocity>,
+    queries: &NetworkEntityQueries,
     players: &mut ResMut<PlayerMap>,
     grid_config: &Res<GridConfig>,
     items: &Res<ItemMap>,
@@ -323,7 +325,7 @@ fn process_message_not_logged_in(
             };
 
             // Construct the initial Update for the new player
-            let mut all_players = snapshot_logged_in_players(players, positions, speeds, face_dirs)
+            let mut all_players = snapshot_logged_in_players(players, queries)
                 .into_iter()
                 .filter(|(player_id, _)| *player_id != id)
                 .collect::<Vec<_>>();
@@ -331,10 +333,10 @@ fn process_message_not_logged_in(
             all_players.push((id, player.clone()));
 
             // Collect all items for the initial update
-            let all_items = collect_items(items, positions);
+            let all_items = collect_items(items, &queries.positions);
 
             // Collect all ghosts for the initial update
-            let all_ghosts = collect_ghosts(ghosts, positions, velocities);
+            let all_ghosts = collect_ghosts(ghosts, queries);
 
             // Send the initial Update to the new player
             let update_msg = ServerMessage::Update(SUpdate {
@@ -368,7 +370,7 @@ fn process_message_logged_in(
     id: PlayerId,
     msg: ClientMessage,
     players: &PlayerMap,
-    positions: &Query<&Position>,
+    queries: &NetworkEntityQueries,
     grid_config: &GridConfig,
 ) {
     match msg {
@@ -385,7 +387,7 @@ fn process_message_logged_in(
         }
         ClientMessage::Speed(msg) => {
             trace!("{:?} speed: {:?}", id, msg);
-            handle_speed(commands, entity, id, msg, players, positions);
+            handle_speed(commands, entity, id, msg, players, &queries.positions);
         }
         ClientMessage::Face(msg) => {
             trace!("{:?} face direction: {}", id, msg.dir);
@@ -393,7 +395,7 @@ fn process_message_logged_in(
         }
         ClientMessage::Shot(msg) => {
             debug!("{id:?} shot");
-            handle_shot(commands, entity, id, msg, players, positions, grid_config);
+            handle_shot(commands, entity, id, msg, players, &queries.positions, grid_config);
         }
         ClientMessage::Echo(msg) => {
             trace!("{:?} echo: {:?}", id, msg);
@@ -502,10 +504,7 @@ pub fn network_broadcast_state_system(
     time: Res<Time>,
     mut timer: Local<f32>,
     mut seq: Local<u32>,
-    positions: Query<&Position>,
-    speeds: Query<&Speed>,
-    face_dirs: Query<&FaceDirection>,
-    velocities: Query<&Velocity>,
+    queries: NetworkEntityQueries,
     players: Res<PlayerMap>,
     items: Res<ItemMap>,
     ghosts: Res<GhostMap>,
@@ -524,13 +523,13 @@ pub fn network_broadcast_state_system(
     }
 
     // Collect all logged-in players
-    let all_players = snapshot_logged_in_players(&players, &positions, &speeds, &face_dirs);
+    let all_players = snapshot_logged_in_players(&players, &queries);
 
     // Collect all items
-    let all_items = collect_items(&items, &positions);
+    let all_items = collect_items(&items, &queries.positions);
 
     // Collect all ghosts
-    let all_ghosts = collect_ghosts(&ghosts, &positions, &velocities);
+    let all_ghosts = collect_ghosts(&ghosts, &queries);
 
     // Broadcast to all logged-in clients
     let msg = ServerMessage::Update(SUpdate {

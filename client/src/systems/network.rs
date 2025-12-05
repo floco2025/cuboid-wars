@@ -28,7 +28,7 @@ pub struct ServerReconciliation {
 }
 
 // ============================================================================
-// Query Bundles
+// SystemParam Bundles
 // ============================================================================
 
 // Bundle of common queries used in network message processing
@@ -41,6 +41,22 @@ pub struct NetworkQueries<'w, 's> {
     pub cameras: Query<'w, 's, Entity, With<Camera3d>>,
 }
 
+// Bundle of entity maps used in network message processing
+#[derive(bevy::ecs::system::SystemParam)]
+pub struct EntityMaps<'w> {
+    pub players: ResMut<'w, PlayerMap>,
+    pub items: ResMut<'w, ItemMap>,
+    pub ghosts: ResMut<'w, GhostMap>,
+}
+
+// Bundle of asset managers for spawning entities
+#[derive(bevy::ecs::system::SystemParam)]
+pub struct AssetManagers<'w> {
+    pub meshes: ResMut<'w, Assets<Mesh>>,
+    pub materials: ResMut<'w, Assets<StandardMaterial>>,
+    pub images: ResMut<'w, Assets<Image>>,
+}
+
 // ============================================================================
 // Network Message Processing
 // ============================================================================
@@ -50,10 +66,8 @@ pub fn network_server_message_system(
     mut commands: Commands,
     mut from_server: ResMut<ServerToClientChannel>,
     mut exit: MessageWriter<AppExit>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut images: ResMut<Assets<Image>>,
-    mut maps: ParamSet<(ResMut<PlayerMap>, ResMut<ItemMap>, ResMut<GhostMap>)>,
+    mut assets: AssetManagers,
+    mut maps: EntityMaps,
     mut rtt: ResMut<RoundTripTime>,
     mut last_update_seq: ResMut<LastUpdateSeq>,
     queries: NetworkQueries,
@@ -75,10 +89,10 @@ pub fn network_server_message_system(
                         message,
                         my_id.0,
                         &mut commands,
-                        &mut meshes,
-                        &mut materials,
-                        &mut images,
-                        &mut maps,
+                        &mut assets,
+                        &mut maps.players,
+                        &mut maps.items,
+                        &mut maps.ghosts,
                         &mut rtt,
                         &mut last_update_seq,
                         &queries,
@@ -121,10 +135,10 @@ fn process_message_logged_in(
     msg: ServerMessage,
     my_player_id: PlayerId,
     commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    images: &mut ResMut<Assets<Image>>,
-    maps: &mut ParamSet<(ResMut<PlayerMap>, ResMut<ItemMap>, ResMut<GhostMap>)>,
+    assets: &mut AssetManagers,
+    players: &mut ResMut<PlayerMap>,
+    items: &mut ResMut<ItemMap>,
+    ghosts: &mut ResMut<GhostMap>,
     rtt: &mut ResMut<RoundTripTime>,
     last_update_seq: &mut ResMut<LastUpdateSeq>,
     queries: &NetworkQueries,
@@ -136,16 +150,15 @@ fn process_message_logged_in(
         ServerMessage::Init(_) => {
             error!("received Init more than once");
         }
-        ServerMessage::Login(login) => handle_login_message(commands, meshes, materials, images, &mut maps.p0(), login),
-        ServerMessage::Logoff(logoff) => handle_logoff_message(commands, &mut maps.p0(), logoff),
-        ServerMessage::Speed(speed_msg) => handle_speed_message(commands, &maps.p0(), &queries.player_positions, rtt, speed_msg),
-        ServerMessage::Face(face_msg) => handle_face_message(commands, &maps.p0(), face_msg),
+        ServerMessage::Login(login) => handle_login_message(commands, assets, players, login),
+        ServerMessage::Logoff(logoff) => handle_logoff_message(commands, players, logoff),
+        ServerMessage::Speed(speed_msg) => handle_speed_message(commands, players, &queries.player_positions, rtt, speed_msg),
+        ServerMessage::Face(face_msg) => handle_face_message(commands, players, face_msg),
         ServerMessage::Shot(shot_msg) => {
             handle_shot_message(
                 commands,
-                meshes,
-                materials,
-                &maps.p0(),
+                assets,
+                players,
                 &queries.player_facing,
                 shot_msg,
                 wall_config,
@@ -153,10 +166,10 @@ fn process_message_logged_in(
         }
         ServerMessage::Update(update_msg) => handle_update_message(
             commands,
-            meshes,
-            materials,
-            images,
-            maps,
+            assets,
+            players,
+            items,
+            ghosts,
             rtt,
             last_update_seq,
             &queries.player_positions,
@@ -165,11 +178,11 @@ fn process_message_logged_in(
             my_player_id,
             update_msg,
         ),
-        ServerMessage::Hit(hit_msg) => handle_hit_message(commands, &maps.p0(), &queries.cameras, my_player_id, hit_msg),
+        ServerMessage::Hit(hit_msg) => handle_hit_message(commands, players, &queries.cameras, my_player_id, hit_msg),
         ServerMessage::PlayerStatus(player_status_msg) => {
             handle_player_status_message(
                 commands,
-                &mut maps.p0(),
+                players,
                 &queries.speeds,
                 player_status_msg,
                 my_player_id,
@@ -178,7 +191,7 @@ fn process_message_logged_in(
         }
         ServerMessage::Echo(echo_msg) => handle_echo_message(time, rtt, echo_msg),
         ServerMessage::Ghost(ghost_msg) => {
-            handle_ghost_message(commands, meshes, materials, &mut maps.p2(), rtt, &queries.ghost_positions, ghost_msg);
+            handle_ghost_message(commands, assets, ghosts, rtt, &queries.ghost_positions, ghost_msg);
         }
         ServerMessage::CookieCollected(cookie_msg) => {
             handle_cookie_collected_message(commands, cookie_msg, asset_server);
@@ -191,9 +204,7 @@ fn process_message_logged_in(
 
 fn handle_login_message(
     commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    images: &mut ResMut<Assets<Image>>,
+    assets: &mut AssetManagers,
     players: &mut ResMut<PlayerMap>,
     msg: SLogin,
 ) {
@@ -209,9 +220,9 @@ fn handle_login_message(
     }
     let entity = spawn_player(
         commands,
-        meshes,
-        materials,
-        images,
+        &mut assets.meshes,
+        &mut assets.materials,
+        &mut assets.images,
         msg.id.0,
         &msg.player.name,
         &msg.player.pos,
@@ -282,8 +293,7 @@ fn handle_face_message(commands: &mut Commands, players: &ResMut<PlayerMap>, msg
 
 fn handle_shot_message(
     commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
+    assets: &mut AssetManagers,
     players: &ResMut<PlayerMap>,
     player_face_query: &Query<PlayerMovement, With<PlayerId>>,
     msg: SShot,
@@ -298,8 +308,8 @@ fn handle_shot_message(
             let walls = wall_config.map_or(&[][..], |config| &config.walls);
             spawn_projectiles(
                 commands,
-                meshes,
-                materials,
+                &mut assets.meshes,
+                &mut assets.materials,
                 player_facing.position,
                 msg.face_dir,
                 player.multi_shot_power_up,
@@ -313,10 +323,10 @@ fn handle_shot_message(
 #[allow(clippy::too_many_lines)]
 fn handle_update_message(
     commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    images: &mut ResMut<Assets<Image>>,
-    maps: &mut ParamSet<(ResMut<PlayerMap>, ResMut<ItemMap>, ResMut<GhostMap>)>,
+    assets: &mut AssetManagers,
+    players: &mut ResMut<PlayerMap>,
+    items: &mut ResMut<ItemMap>,
+    ghosts: &mut ResMut<GhostMap>,
     rtt: &ResMut<RoundTripTime>,
     last_update_seq: &mut ResMut<LastUpdateSeq>,
     player_query: &Query<&Position, With<PlayerId>>,
@@ -339,22 +349,19 @@ fn handle_update_message(
 
     handle_players_update(
         commands,
-        meshes,
-        materials,
-        images,
-        &mut maps.p0(),
+        assets,
+        players,
         rtt,
         player_query,
         camera_query,
         my_player_id,
         &msg.players,
     );
-    handle_items_update(commands, meshes, materials, &mut maps.p1(), &msg.items);
+    handle_items_update(commands, assets, items, &msg.items);
     handle_ghosts_update(
         commands,
-        meshes,
-        materials,
-        &mut maps.p2(),
+        assets,
+        ghosts,
         rtt,
         ghost_query,
         &msg.ghosts,
@@ -363,9 +370,7 @@ fn handle_update_message(
 
 fn handle_players_update(
     commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    images: &mut ResMut<Assets<Image>>,
+    assets: &mut AssetManagers,
     players: &mut ResMut<PlayerMap>,
     rtt: &ResMut<RoundTripTime>,
     player_query: &Query<&Position, With<PlayerId>>,
@@ -391,9 +396,9 @@ fn handle_players_update(
         }
         let entity = spawn_player(
             commands,
-            meshes,
-            materials,
-            images,
+            &mut assets.meshes,
+            &mut assets.materials,
+            &mut assets.images,
             id.0,
             &player.name,
             &player.pos,
@@ -471,8 +476,7 @@ fn handle_players_update(
 
 fn handle_items_update(
     commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
+    assets: &mut AssetManagers,
     items: &mut ResMut<ItemMap>,
     server_items: &[(ItemId, Item)],
 ) {
@@ -483,7 +487,7 @@ fn handle_items_update(
         if items.0.contains_key(item_id) {
             continue;
         }
-        let entity = spawn_item(commands, meshes, materials, *item_id, item.item_type, &item.pos);
+        let entity = spawn_item(commands, &mut assets.meshes, &mut assets.materials, *item_id, item.item_type, &item.pos);
         items.0.insert(*item_id, ItemInfo { entity });
     }
 
@@ -504,8 +508,7 @@ fn handle_items_update(
 
 fn handle_ghosts_update(
     commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
+    assets: &mut AssetManagers,
     ghosts: &mut ResMut<GhostMap>,
     rtt: &ResMut<RoundTripTime>,
     ghost_query: &Query<&Position, With<GhostId>>,
@@ -518,7 +521,7 @@ fn handle_ghosts_update(
         if ghosts.0.contains_key(ghost_id) {
             continue;
         }
-        let entity = spawn_ghost(commands, meshes, materials, *ghost_id, &ghost.pos, &ghost.vel);
+        let entity = spawn_ghost(commands, &mut assets.meshes, &mut assets.materials, *ghost_id, &ghost.pos, &ghost.vel);
         ghosts.0.insert(*ghost_id, GhostInfo { entity });
     }
 
@@ -659,8 +662,7 @@ fn handle_player_status_message(
 
 fn handle_ghost_message(
     commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
+    assets: &mut AssetManagers,
     ghosts: &mut ResMut<GhostMap>,
     rtt: &ResMut<RoundTripTime>,
     ghost_query: &Query<&Position, With<GhostId>>,
@@ -687,7 +689,7 @@ fn handle_ghost_message(
         }
     } else {
         // Spawn new ghost
-        let entity = spawn_ghost(commands, meshes, materials, msg.id, &msg.ghost.pos, &msg.ghost.vel);
+        let entity = spawn_ghost(commands, &mut assets.meshes, &mut assets.materials, msg.id, &msg.ghost.pos, &msg.ghost.vel);
         ghosts.0.insert(msg.id, GhostInfo { entity });
     }
 }
