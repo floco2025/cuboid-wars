@@ -224,12 +224,17 @@ impl Projectile {
                 self.velocity.x -= 2.0 * dot * normal_x;
                 self.velocity.z -= 2.0 * dot * normal_z;
 
+                // Push projectile slightly away from wall surface to prevent getting stuck inside
+                const SEPARATION_EPSILON: f32 = 0.01;
+                let separated_x = collision_x + normal_x * SEPARATION_EPSILON;
+                let separated_z = collision_z + normal_z * SEPARATION_EPSILON;
+
                 // Continue moving for remaining time after bounce
                 let remaining_time = delta * (1.0 - t_collision);
                 Some(Position {
-                    x: self.velocity.x.mul_add(remaining_time, collision_x),
+                    x: self.velocity.x.mul_add(remaining_time, separated_x),
                     y: self.velocity.y.mul_add(remaining_time, collision_y),
-                    z: self.velocity.z.mul_add(remaining_time, collision_z),
+                    z: self.velocity.z.mul_add(remaining_time, separated_z),
                 })
             } else {
                 // Hit wall without reflect - return current position, caller should despawn
