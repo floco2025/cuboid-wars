@@ -1,6 +1,8 @@
 use anyhow::{Context, Result};
-use bevy::prelude::*;
-use bevy::window::{CursorGrabMode, CursorOptions, WindowPlugin, WindowPosition};
+use bevy::{
+    prelude::*,
+    window::{CursorGrabMode, CursorOptions, WindowPlugin, WindowPosition},
+};
 use clap::Parser;
 use quinn::Endpoint;
 use tokio::{runtime::Runtime, time::Duration};
@@ -11,8 +13,7 @@ use client::{
     resources::*,
     systems::{ghosts::*, input::*, items::*, map::*, network::*, players::*, projectiles::*, ui::*},
 };
-use common::net::MessageStream;
-use common::protocol::*;
+use common::{net::MessageStream, protocol::*};
 
 // ============================================================================
 // CLI Arguments
