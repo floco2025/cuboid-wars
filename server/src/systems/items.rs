@@ -16,6 +16,10 @@ use common::{
 
 use super::network::broadcast_to_all;
 
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
 fn choose_item_type(rng: &mut rand::rngs::ThreadRng) -> ItemType {
     let rand_val = rng.random::<f64>();
     if rand_val < 0.33 {

@@ -31,6 +31,47 @@ pub struct ItemAnimTimer(pub f32);
 // ============================================================================
 
 #[derive(Bundle)]
+struct PlayerBundle {
+    player_id: PlayerId,
+    position: Position,
+    velocity: Velocity,
+    face_direction: FaceDirection,
+    mesh: Mesh3d,
+    material: MeshMaterial3d<StandardMaterial>,
+    transform: Transform,
+    visibility: Visibility,
+}
+
+#[derive(Bundle)]
+struct FaceSphereBundle {
+    mesh: Mesh3d,
+    material: MeshMaterial3d<StandardMaterial>,
+    transform: Transform,
+    visibility: Visibility,
+    view_visibility: ViewVisibility,
+    inherited_visibility: InheritedVisibility,
+}
+
+#[derive(Bundle)]
+struct ItemBundle {
+    item_id: ItemId,
+    position: Position,
+    mesh: Mesh3d,
+    material: MeshMaterial3d<StandardMaterial>,
+    transform: Transform,
+}
+
+#[derive(Bundle)]
+struct GhostBundle {
+    ghost_id: GhostId,
+    position: Position,
+    velocity: Velocity,
+    mesh: Mesh3d,
+    material: MeshMaterial3d<StandardMaterial>,
+    transform: Transform,
+}
+
+#[derive(Bundle)]
 struct ProjectileBundle {
     mesh: Mesh3d,
     material: MeshMaterial3d<StandardMaterial>,
@@ -76,7 +117,6 @@ struct RoofBundle {
     visibility: Visibility,
     marker: RoofMarker,
 }
-
 // ============================================================================
 // Player Spawning
 // ============================================================================
@@ -95,27 +135,21 @@ pub fn spawn_player(
     is_local: bool,
 ) -> Entity {
     let entity = commands
-        .spawn((
-            PlayerId(player_id),
-            *position,               // Add Position component
-            velocity,                // Add Velocity component
-            FaceDirection(face_dir), // Add FaceDirection component
-            Mesh3d(meshes.add(Cuboid::new(PLAYER_WIDTH, PLAYER_HEIGHT, PLAYER_DEPTH))),
-            MeshMaterial3d(materials.add(player_color(is_local))),
-            Transform::from_xyz(
-                position.x,
-                PLAYER_HEIGHT / 2.0, // Lift so bottom is at y=0
-                position.z,
-            )
-            .with_rotation(Quat::from_rotation_y(face_dir)),
-            player_visibility(is_local),
-        ))
+        .spawn(PlayerBundle {
+            player_id: PlayerId(player_id),
+            position: *position,
+            velocity,
+            face_direction: FaceDirection(face_dir),
+            mesh: Mesh3d(meshes.add(Cuboid::new(PLAYER_WIDTH, PLAYER_HEIGHT, PLAYER_DEPTH))),
+            material: MeshMaterial3d(materials.add(player_color(is_local))),
+            transform: Transform::from_xyz(position.x, PLAYER_HEIGHT / 2.0, position.z)
+                .with_rotation(Quat::from_rotation_y(face_dir)),
+            visibility: player_visibility(is_local),
+        })
         .id();
 
     if is_local {
-        commands
-            .entity(entity)
-            .insert((LocalPlayer, BumpFlashState::default()));
+        commands.entity(entity).insert((LocalPlayer, BumpFlashState::default()));
     }
 
     // Nose and eyes share the same component boilerplate; spawn each and attach.
@@ -183,14 +217,14 @@ fn spawn_face_sphere(
     translation: Vec3,
 ) -> Entity {
     commands
-        .spawn((
-            Mesh3d(meshes.add(Sphere::new(radius))),
-            MeshMaterial3d(materials.add(color)),
-            Transform::from_translation(translation),
-            Visibility::Inherited,
-            ViewVisibility::default(),
-            InheritedVisibility::default(),
-        ))
+        .spawn(FaceSphereBundle {
+            mesh: Mesh3d(meshes.add(Sphere::new(radius))),
+            material: MeshMaterial3d(materials.add(color)),
+            transform: Transform::from_translation(translation),
+            visibility: Visibility::Inherited,
+            view_visibility: ViewVisibility::default(),
+            inherited_visibility: InheritedVisibility::default(),
+        })
         .id()
 }
 
@@ -475,11 +509,11 @@ pub fn spawn_item(
     // Cookies are rendered differently - small spheres on the floor
     if item_type == ItemType::Cookie {
         return commands
-            .spawn((
+            .spawn(ItemBundle {
                 item_id,
-                *position,
-                Mesh3d(meshes.add(Sphere::new(COOKIE_SIZE))),
-                MeshMaterial3d(materials.add(StandardMaterial {
+                position: *position,
+                mesh: Mesh3d(meshes.add(Sphere::new(COOKIE_SIZE))),
+                material: MeshMaterial3d(materials.add(StandardMaterial {
                     base_color: color,
                     emissive: LinearRgba::new(
                         color.to_srgba().red * 0.3,
@@ -489,8 +523,8 @@ pub fn spawn_item(
                     ),
                     ..default()
                 })),
-                Transform::from_xyz(position.x, COOKIE_HEIGHT, position.z),
-            ))
+                transform: Transform::from_xyz(position.x, COOKIE_HEIGHT, position.z),
+            })
             .id();
     }
 
@@ -499,21 +533,23 @@ pub fn spawn_item(
 
     commands
         .spawn((
-            item_id,
+            ItemBundle {
+                item_id,
+                position: *position,
+                mesh: Mesh3d(meshes.add(Cuboid::new(ITEM_SIZE, ITEM_SIZE, ITEM_SIZE))),
+                material: MeshMaterial3d(materials.add(StandardMaterial {
+                    base_color: color,
+                    emissive: LinearRgba::new(
+                        color.to_srgba().red * 0.5,
+                        color.to_srgba().green * 0.5,
+                        color.to_srgba().blue * 0.5,
+                        1.0,
+                    ),
+                    ..default()
+                })),
+                transform: Transform::from_xyz(position.x, ITEM_HEIGHT_ABOVE_FLOOR + ITEM_SIZE / 2.0, position.z),
+            },
             ItemAnimTimer(random_phase),
-            *position,
-            Mesh3d(meshes.add(Cuboid::new(ITEM_SIZE, ITEM_SIZE, ITEM_SIZE))),
-            MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: color,
-                emissive: LinearRgba::new(
-                    color.to_srgba().red * 0.5,
-                    color.to_srgba().green * 0.5,
-                    color.to_srgba().blue * 0.5,
-                    1.0,
-                ),
-                ..default()
-            })),
-            Transform::from_xyz(position.x, ITEM_HEIGHT_ABOVE_FLOOR + ITEM_SIZE / 2.0, position.z),
         ))
         .id()
 }
@@ -534,17 +570,17 @@ pub fn spawn_ghost(
     let color = Color::srgba(GHOST_COLOR[0], GHOST_COLOR[1], GHOST_COLOR[2], GHOST_COLOR[3]);
 
     commands
-        .spawn((
+        .spawn(GhostBundle {
             ghost_id,
-            *position,
-            *velocity,
-            Mesh3d(meshes.add(Cuboid::new(GHOST_SIZE, GHOST_SIZE, GHOST_SIZE))),
-            MeshMaterial3d(materials.add(StandardMaterial {
+            position: *position,
+            velocity: *velocity,
+            mesh: Mesh3d(meshes.add(Cuboid::new(GHOST_SIZE, GHOST_SIZE, GHOST_SIZE))),
+            material: MeshMaterial3d(materials.add(StandardMaterial {
                 base_color: color,
                 alpha_mode: AlphaMode::Blend,
                 ..default()
             })),
-            Transform::from_xyz(position.x, GHOST_SIZE / 2.0, position.z),
-        ))
+            transform: Transform::from_xyz(position.x, GHOST_SIZE / 2.0, position.z),
+        })
         .id()
 }
