@@ -94,7 +94,7 @@ pub fn spawn_player(
     face_dir: f32,
     is_local: bool,
 ) -> Entity {
-    let entity_id = commands
+    let entity = commands
         .spawn((
             PlayerId(player_id),
             *position,               // Add Position component
@@ -114,12 +114,12 @@ pub fn spawn_player(
 
     if is_local {
         commands
-            .entity(entity_id)
+            .entity(entity)
             .insert((LocalPlayer, BumpFlashState::default()));
     }
 
     // Nose and eyes share the same component boilerplate; spawn each and attach.
-    let nose_id = spawn_face_sphere(
+    let nose = spawn_face_sphere(
         commands,
         meshes,
         materials,
@@ -128,7 +128,7 @@ pub fn spawn_player(
         Vec3::new(0.0, PLAYER_NOSE_HEIGHT, PLAYER_DEPTH / 2.0),
     );
     let eye_color = Color::WHITE;
-    let left_eye_id = spawn_face_sphere(
+    let left_eye = spawn_face_sphere(
         commands,
         meshes,
         materials,
@@ -136,7 +136,7 @@ pub fn spawn_player(
         eye_color,
         Vec3::new(-PLAYER_EYE_SPACING, PLAYER_EYE_HEIGHT, PLAYER_DEPTH / 2.0),
     );
-    let right_eye_id = spawn_face_sphere(
+    let right_eye = spawn_face_sphere(
         commands,
         meshes,
         materials,
@@ -145,7 +145,7 @@ pub fn spawn_player(
         Vec3::new(PLAYER_EYE_SPACING, PLAYER_EYE_HEIGHT, PLAYER_DEPTH / 2.0),
     );
 
-    let mut children = vec![nose_id, left_eye_id, right_eye_id];
+    let mut children = vec![nose, left_eye, right_eye];
 
     // Create individual texture and camera for this player's ID text
     let (image_handle, text_camera) = setup_player_id_text_rendering(commands, images);
@@ -153,9 +153,9 @@ pub fn spawn_player(
         spawn_player_id_display(commands, meshes, materials, player_name, image_handle, text_camera);
     children.push(mesh_entity);
 
-    commands.entity(entity_id).add_children(&children);
+    commands.entity(entity).add_children(&children);
 
-    entity_id
+    entity
 }
 
 fn player_color(is_local: bool) -> Color {
