@@ -202,7 +202,10 @@ pub fn ghosts_movement_system(
         .iter()
         .filter(|player| {
             // Filter out stunned players
-            players.0.get(player.player_id).is_some_and(|info| info.stun_timer <= 0.0)
+            players
+                .0
+                .get(player.player_id)
+                .is_some_and(|info| info.stun_timer <= 0.0)
         })
         .map(|player| (*player.player_id, *player.position, *player.speed))
         .collect();

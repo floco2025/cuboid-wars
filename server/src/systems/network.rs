@@ -1,5 +1,5 @@
-use bevy::prelude::*;
 use bevy::ecs::system::SystemParam;
+use bevy::prelude::*;
 use rand::Rng as _;
 
 use crate::{
@@ -48,10 +48,7 @@ pub fn broadcast_to_all(players: &PlayerMap, message: ServerMessage) {
     }
 }
 
-fn snapshot_logged_in_players(
-    players: &PlayerMap,
-    queries: &NetworkEntityQueries,
-) -> Vec<(PlayerId, Player)> {
+fn snapshot_logged_in_players(players: &PlayerMap, queries: &NetworkEntityQueries) -> Vec<(PlayerId, Player)> {
     players
         .0
         .iter()
@@ -103,16 +100,19 @@ fn collect_items(items: &ItemMap, positions: &Query<&Position>) -> Vec<(ItemId, 
 }
 
 // Build the authoritative ghost list that gets replicated to clients.
-fn collect_ghosts(
-    ghosts: &GhostMap,
-    queries: &NetworkEntityQueries,
-) -> Vec<(GhostId, Ghost)> {
+fn collect_ghosts(ghosts: &GhostMap, queries: &NetworkEntityQueries) -> Vec<(GhostId, Ghost)> {
     ghosts
         .0
         .iter()
         .map(|(id, info)| {
-            let pos_component = queries.positions.get(info.entity).expect("Ghost entity missing Position");
-            let vel_component = queries.velocities.get(info.entity).expect("Ghost entity missing Velocity");
+            let pos_component = queries
+                .positions
+                .get(info.entity)
+                .expect("Ghost entity missing Position");
+            let vel_component = queries
+                .velocities
+                .get(info.entity)
+                .expect("Ghost entity missing Velocity");
             (
                 *id,
                 Ghost {

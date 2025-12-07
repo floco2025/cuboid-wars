@@ -74,8 +74,13 @@ pub fn projectiles_movement_system(
             }
 
             // Use common hit detection logic
-            let result =
-                check_projectile_player_sweep_hit(&proj_pos, &projectile, delta, player.position, player.face_direction.0);
+            let result = check_projectile_player_sweep_hit(
+                &proj_pos,
+                &projectile,
+                delta,
+                player.position,
+                player.face_direction.0,
+            );
 
             if result.hit {
                 info!("{:?} hits {:?}", shooter_id, player.player_id);

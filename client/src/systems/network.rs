@@ -152,17 +152,12 @@ fn process_message_logged_in(
         }
         ServerMessage::Login(login) => handle_login_message(commands, assets, players, login),
         ServerMessage::Logoff(logoff) => handle_logoff_message(commands, players, logoff),
-        ServerMessage::Speed(speed_msg) => handle_speed_message(commands, players, &queries.player_positions, rtt, speed_msg),
+        ServerMessage::Speed(speed_msg) => {
+            handle_speed_message(commands, players, &queries.player_positions, rtt, speed_msg)
+        }
         ServerMessage::Face(face_msg) => handle_face_message(commands, players, face_msg),
         ServerMessage::Shot(shot_msg) => {
-            handle_shot_message(
-                commands,
-                assets,
-                players,
-                &queries.player_facing,
-                shot_msg,
-                wall_config,
-            );
+            handle_shot_message(commands, assets, players, &queries.player_facing, shot_msg, wall_config);
         }
         ServerMessage::Update(update_msg) => handle_update_message(
             commands,
@@ -358,14 +353,7 @@ fn handle_update_message(
         &msg.players,
     );
     handle_items_update(commands, assets, items, &msg.items);
-    handle_ghosts_update(
-        commands,
-        assets,
-        ghosts,
-        rtt,
-        ghost_query,
-        &msg.ghosts,
-    );
+    handle_ghosts_update(commands, assets, ghosts, rtt, ghost_query, &msg.ghosts);
 }
 
 fn handle_players_update(
@@ -487,7 +475,14 @@ fn handle_items_update(
         if items.0.contains_key(item_id) {
             continue;
         }
-        let entity = spawn_item(commands, &mut assets.meshes, &mut assets.materials, *item_id, item.item_type, &item.pos);
+        let entity = spawn_item(
+            commands,
+            &mut assets.meshes,
+            &mut assets.materials,
+            *item_id,
+            item.item_type,
+            &item.pos,
+        );
         items.0.insert(*item_id, ItemInfo { entity });
     }
 
@@ -521,7 +516,14 @@ fn handle_ghosts_update(
         if ghosts.0.contains_key(ghost_id) {
             continue;
         }
-        let entity = spawn_ghost(commands, &mut assets.meshes, &mut assets.materials, *ghost_id, &ghost.pos, &ghost.vel);
+        let entity = spawn_ghost(
+            commands,
+            &mut assets.meshes,
+            &mut assets.materials,
+            *ghost_id,
+            &ghost.pos,
+            &ghost.vel,
+        );
         ghosts.0.insert(*ghost_id, GhostInfo { entity });
     }
 
@@ -689,7 +691,14 @@ fn handle_ghost_message(
         }
     } else {
         // Spawn new ghost
-        let entity = spawn_ghost(commands, &mut assets.meshes, &mut assets.materials, msg.id, &msg.ghost.pos, &msg.ghost.vel);
+        let entity = spawn_ghost(
+            commands,
+            &mut assets.meshes,
+            &mut assets.materials,
+            msg.id,
+            &msg.ghost.pos,
+            &msg.ghost.vel,
+        );
         ghosts.0.insert(msg.id, GhostInfo { entity });
     }
 }
