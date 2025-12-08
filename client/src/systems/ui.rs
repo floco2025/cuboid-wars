@@ -1,5 +1,6 @@
 use bevy::camera::Viewport;
 use bevy::prelude::*;
+use bevy::render::render_resource::Face;
 use std::time::Duration;
 
 use crate::{
@@ -50,7 +51,19 @@ pub fn setup_world_system(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
 ) {
+    // Create skybox sphere
+    commands.spawn((
+        Mesh3d(meshes.add(Sphere::new(500.0))),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color_texture: Some(asset_server.load("background.jpg")),
+            unlit: true,
+            cull_mode: Some(Face::Front), // Cull front faces to see inside
+            ..default()
+        })),
+    ));
+
     // Create the ground plane
     commands.spawn((
         Mesh3d(meshes.add(Plane3d::default().mesh().size(FIELD_WIDTH, FIELD_DEPTH))),
