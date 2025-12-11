@@ -82,18 +82,18 @@ pub fn map_toggle_wall_opacity_system(
             }
         }
         CameraViewMode::TopDown => {
-            // Walls semi-transparent
+            // Walls semi-transparent - use AlphaToCoverage for depth testing with transparency
             for material_handle in &wall_query {
                 if let Some(material) = materials.get_mut(&material_handle.0) {
                     material.base_color.set_alpha(TOPDOWN_WALL_ALPHA);
-                    material.alpha_mode = AlphaMode::Blend;
+                    material.alpha_mode = AlphaMode::AlphaToCoverage;
                 }
             }
-            // Roofs more transparent
+            // Roofs more transparent - use AlphaToCoverage for depth testing with transparency
             for material_handle in &roof_query {
                 if let Some(material) = materials.get_mut(&material_handle.0) {
                     material.base_color.set_alpha(TOPDOWN_ROOF_ALPHA);
-                    material.alpha_mode = AlphaMode::Blend;
+                    material.alpha_mode = AlphaMode::AlphaToCoverage;
                 }
             }
         }
