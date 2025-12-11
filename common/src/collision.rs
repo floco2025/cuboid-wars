@@ -48,23 +48,25 @@ fn check_aabb_wall_overlap(entity_pos: &Position, wall: &Wall, half_x: f32, half
 }
 
 // Generic swept AABB wall collision check with parameterized entity dimensions
+// NOTE: Assumes axis-aligned walls (horizontal or vertical, not diagonal)
 fn check_aabb_wall_sweep(start_pos: &Position, end_pos: &Position, wall: &Wall, half_x: f32, half_z: f32) -> bool {
     // Calculate wall center and half dimensions
     let wall_center_x = (wall.x1 + wall.x2) / 2.0;
     let wall_center_z = (wall.z1 + wall.z2) / 2.0;
     
-    // Calculate wall length (along its primary axis)
-    let dx = wall.x2 - wall.x1;
-    let dz = wall.z2 - wall.z1;
-    let wall_half_length = dx.hypot(dz) / 2.0;
+    // Calculate wall dimensions from corners
+    // For axis-aligned walls, either dx or dz is zero
+    let dx = (wall.x2 - wall.x1).abs();
+    let dz = (wall.z2 - wall.z1).abs();
     let wall_half_width = wall.wall_width / 2.0;
     
-    // Determine if wall is more horizontal or vertical
-    let is_horizontal = dx.abs() > dz.abs();
-    let (wall_half_x, wall_half_z) = if is_horizontal {
-        (wall_half_length, wall_half_width)
+    // Determine wall orientation and set AABB dimensions
+    // Horizontal wall: extends along X axis, thin in Z direction
+    // Vertical wall: extends along Z axis, thin in X direction
+    let (wall_half_x, wall_half_z) = if dx > dz {
+        (dx / 2.0, wall_half_width)
     } else {
-        (wall_half_width, wall_half_length)
+        (wall_half_width, dz / 2.0)
     };
 
     // Movement vector
@@ -377,21 +379,22 @@ pub fn check_projectile_wall_sweep_hit(
     let ray_dir_z = projectile.velocity.z * delta;
 
     // Wall dimensions - calculate center and dimensions from corners
+    // NOTE: Assumes axis-aligned walls (horizontal or vertical, not diagonal)
     let wall_center_x = (wall.x1 + wall.x2) / 2.0;
     let wall_center_z = (wall.z1 + wall.z2) / 2.0;
     
-    let dx = wall.x2 - wall.x1;
-    let dz = wall.z2 - wall.z1;
-    let wall_half_length = dx.hypot(dz) / 2.0 + PROJECTILE_RADIUS;
+    // For axis-aligned walls, either dx or dz is zero
+    let dx = (wall.x2 - wall.x1).abs();
+    let dz = (wall.z2 - wall.z1).abs();
     let wall_half_thickness = wall.wall_width / 2.0 + PROJECTILE_RADIUS;
     let half_height = WALL_HEIGHT / 2.0 + PROJECTILE_RADIUS;
     
-    // Determine if wall is more horizontal or vertical
-    let is_horizontal = dx.abs() > dz.abs();
+    // Determine wall orientation and set AABB dimensions (with projectile radius)
+    let is_horizontal = dx > dz;
     let (half_x, half_z) = if is_horizontal {
-        (wall_half_length, wall_half_thickness)
+        (dx / 2.0 + PROJECTILE_RADIUS, wall_half_thickness)
     } else {
-        (wall_half_thickness, wall_half_length)
+        (wall_half_thickness, dz / 2.0 + PROJECTILE_RADIUS)
     };
 
     let local_x = ray_start_x - wall_center_x;
