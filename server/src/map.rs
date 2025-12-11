@@ -426,10 +426,48 @@ fn merge_adjacent_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) 
                     }
                 }
                 
+                // Check if there's a vertical wall at start that we should extend to meet
+                let extend_at_start = {
+                    if start_col == 0 {
+                        // Left edge - check west wall
+                        let above = row > 0 && grid[(row - 1) as usize][0].has_west_wall;
+                        let below = row < grid_rows && grid[row as usize][0].has_west_wall;
+                        // Extend if there's a vertical wall on either side (corner case)
+                        (above || below) && !(above && below) // XOR: one but not both
+                    } else if start_col < grid_cols {
+                        // Interior - check west wall
+                        let above = row > 0 && grid[(row - 1) as usize][start_col as usize].has_west_wall;
+                        let below = row < grid_rows && grid[row as usize][start_col as usize].has_west_wall;
+                        (above || below) && !(above && below)
+                    } else {
+                        false
+                    }
+                };
+                
+                // Check if there's a vertical wall at end that we should extend to meet
+                let extend_at_end = {
+                    if end_col < grid_cols {
+                        // Interior - check west wall
+                        let above = row > 0 && grid[(row - 1) as usize][end_col as usize].has_west_wall;
+                        let below = row < grid_rows && grid[row as usize][end_col as usize].has_west_wall;
+                        (above || below) && !(above && below)
+                    } else if end_col == grid_cols {
+                        // Right edge - check east wall
+                        let above = row > 0 && grid[(row - 1) as usize][(grid_cols - 1) as usize].has_east_wall;
+                        let below = row < grid_rows && grid[row as usize][(grid_cols - 1) as usize].has_east_wall;
+                        (above || below) && !(above && below)
+                    } else {
+                        false
+                    }
+                };
+                
                 // Create merged wall segment
+                // Extend by WALL_WIDTH/2 at corners
                 let world_z = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
-                let x1 = (start_col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-                let x2 = (end_col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+                let x1 = (start_col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)) 
+                    - if extend_at_start { WALL_WIDTH / 2.0 } else { 0.0 };
+                let x2 = (end_col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)) 
+                    + if extend_at_end { WALL_WIDTH / 2.0 } else { 0.0 };
                 
                 walls.push(Wall {
                     x1,
@@ -489,9 +527,10 @@ fn merge_adjacent_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) 
                 }
                 
                 // Create merged wall segment
+                // Vertical walls inset to fit between horizontal walls
                 let world_x = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-                let z1 = (start_row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
-                let z2 = (end_row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+                let z1 = (start_row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0)) + WALL_WIDTH / 2.0;
+                let z2 = (end_row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0)) - WALL_WIDTH / 2.0;
                 
                 walls.push(Wall {
                     x1: world_x,
