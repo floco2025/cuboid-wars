@@ -369,14 +369,98 @@ fn generate_roofs_from_grid(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i
         }
     }
 
-    // Convert to Roof structs
-    roof_cells
-        .into_iter()
-        .map(|(row, col)| Roof {
-            row: row as u32,
-            col: col as u32,
-        })
-        .collect()
+    // Convert roof cells to merged Roof segments
+    merge_adjacent_roofs(&roof_cells, grid_cols, grid_rows)
+}
+
+// Merge adjacent roof cells into larger rectangular segments
+fn merge_adjacent_roofs(roof_cells: &HashSet<(i32, i32)>, grid_cols: i32, grid_rows: i32) -> Vec<Roof> {
+    let mut roofs = Vec::new();
+    let mut processed = HashSet::new();
+    
+    // Process cells in row-major order for better merging
+    for row in 0..grid_rows {
+        for col in 0..grid_cols {
+            if !roof_cells.contains(&(row, col)) || processed.contains(&(row, col)) {
+                continue;
+            }
+            
+            // Try extending horizontally first
+            let mut h_end_col = col;
+            while h_end_col + 1 < grid_cols 
+                && roof_cells.contains(&(row, h_end_col + 1)) 
+                && !processed.contains(&(row, h_end_col + 1)) {
+                h_end_col += 1;
+            }
+            
+            let mut h_end_row = row;
+            'h_outer: loop {
+                for c in col..=h_end_col {
+                    if !roof_cells.contains(&(h_end_row + 1, c)) || processed.contains(&(h_end_row + 1, c)) {
+                        break 'h_outer;
+                    }
+                }
+                h_end_row += 1;
+            }
+            
+            let h_width = h_end_col - col + 1;
+            let h_height = h_end_row - row + 1;
+            let h_area = h_width * h_height;
+            
+            // Try extending vertically first
+            let mut v_end_row = row;
+            while v_end_row + 1 < grid_rows 
+                && roof_cells.contains(&(v_end_row + 1, col)) 
+                && !processed.contains(&(v_end_row + 1, col)) {
+                v_end_row += 1;
+            }
+            
+            let mut v_end_col = col;
+            'v_outer: loop {
+                for r in row..=v_end_row {
+                    if !roof_cells.contains(&(r, v_end_col + 1)) || processed.contains(&(r, v_end_col + 1)) {
+                        break 'v_outer;
+                    }
+                }
+                v_end_col += 1;
+            }
+            
+            let v_width = v_end_col - col + 1;
+            let v_height = v_end_row - row + 1;
+            let v_area = v_width * v_height;
+            
+            // Choose the orientation that gives the larger rectangle
+            let (end_col, end_row) = if h_area >= v_area {
+                (h_end_col, h_end_row)
+            } else {
+                (v_end_col, v_end_row)
+            };
+            
+            // Mark all cells in this rectangle as processed
+            for r in row..=end_row {
+                for c in col..=end_col {
+                    processed.insert((r, c));
+                }
+            }
+            
+            // Calculate world coordinates for this roof segment
+            // Inset by WALL_WIDTH/2 on all sides to fit between walls
+            let world_x1 = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)) + WALL_WIDTH / 2.0;
+            let world_x2 = ((end_col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)) - WALL_WIDTH / 2.0;
+            let world_z1 = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0)) + WALL_WIDTH / 2.0;
+            let world_z2 = ((end_row + 1) as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0)) - WALL_WIDTH / 2.0;
+            
+            roofs.push(Roof {
+                x1: world_x1,
+                z1: world_z1,
+                x2: world_x2,
+                z2: world_z2,
+                roof_thickness: WALL_WIDTH,
+            });
+        }
+    }
+    
+    roofs
 }
 
 // Merge adjacent walls into longer segments

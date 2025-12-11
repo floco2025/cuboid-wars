@@ -473,26 +473,34 @@ pub fn spawn_roof(
     materials: &mut ResMut<Assets<StandardMaterial>>,
     roof: &Roof,
 ) {
-    let roof_color = Color::srgb(0.0, 0.7, 0.0); // Same as walls
+    use rand::Rng;
+    
+    // Use random color if enabled, otherwise use green
+    let roof_color = if USE_RANDOM_ROOF_COLORS {
+        let mut rng = rand::rng();
+        Color::srgb(
+            rng.random_range(0.2..1.0),
+            rng.random_range(0.2..1.0),
+            rng.random_range(0.2..1.0),
+        )
+    } else {
+        Color::srgb(0.0, 0.7, 0.0) // Green
+    };
 
-    // Calculate world position from grid coordinates
-    #[allow(clippy::cast_precision_loss)]
-    let world_x = (roof.col as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-    #[allow(clippy::cast_precision_loss)]
-    let world_z = (roof.row as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
-
-    // Create a thin horizontal plane at wall height
-    // Use same dimensions as walls for consistency
-    let roof_size = WALL_LENGTH; // Same overlap as walls to cover corners
-    let roof_thickness = WALL_WIDTH; // Same thickness as walls
+    // Calculate roof center and dimensions from corners
+    let center_x = (roof.x1 + roof.x2) / 2.0;
+    let center_z = (roof.z1 + roof.z2) / 2.0;
+    
+    let width = (roof.x2 - roof.x1).abs();
+    let depth = (roof.z2 - roof.z1).abs();
 
     commands.spawn(RoofBundle {
-        mesh: Mesh3d(meshes.add(Cuboid::new(roof_size, roof_thickness, roof_size))),
+        mesh: Mesh3d(meshes.add(Cuboid::new(width, roof.roof_thickness, depth))),
         material: MeshMaterial3d(materials.add(roof_color)),
         transform: Transform::from_xyz(
-            world_x,
-            WALL_HEIGHT - roof_thickness / 2.0, // Position so top of roof aligns with top of wall
-            world_z,
+            center_x,
+            WALL_HEIGHT + roof.roof_thickness / 2.0, // Position so bottom of roof sits on top of wall
+            center_z,
         ),
         visibility: Visibility::Visible,
         marker: RoofMarker,

@@ -13,9 +13,9 @@ pub const WALL_WIDTH: f32 = 0.2; // Wall thickness
 pub const WALL_HEIGHT: f32 = 4.0; // Wall height
 
 // Roof generation settings
-pub const ROOF_PROBABILITY_2_WALLS: f64 = 0.1; // Chance if cell has 2 walls and no neighbor with roof
-pub const ROOF_PROBABILITY_3_WALLS: f64 = 0.1; // Chance if cell has 3 walls and no neighbor with roof
-pub const ROOF_PROBABILITY_WITH_NEIGHBOR: f64 = 0.25; // Chance if cell has 2+ walls and neighbor with roof
+pub const ROOF_PROBABILITY_2_WALLS: f64 = 0.2; // Chance if cell has 2 walls and no neighbor with roof
+pub const ROOF_PROBABILITY_3_WALLS: f64 = 0.2; // Chance if cell has 3 walls and no neighbor with roof
+pub const ROOF_PROBABILITY_WITH_NEIGHBOR: f64 = 0.5; // Chance if cell has 2+ walls and neighbor with roof
 
 // Item settings
 pub const ITEM_SPAWN_INTERVAL: f32 = 10.0; // seconds

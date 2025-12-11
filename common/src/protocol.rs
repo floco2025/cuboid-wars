@@ -127,12 +127,15 @@ struct Wall {
 }
 }
 
-// Roof - a roof covering a grid cell.
+// Roof - a roof segment with corner coordinates.
 message! {
 #[derive(Copy)]
 struct Roof {
-    pub row: u32,  // Grid row
-    pub col: u32,  // Grid column
+    pub x1: f32,          // First corner X coordinate
+    pub z1: f32,          // First corner Z coordinate
+    pub x2: f32,          // Second corner X coordinate
+    pub z2: f32,          // Second corner Z coordinate
+    pub roof_thickness: f32, // Thickness of the roof
 }
 }
 

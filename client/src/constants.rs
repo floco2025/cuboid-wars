@@ -13,8 +13,8 @@ pub const TOPDOWN_CAMERA_Z_OFFSET: f32 = 50.0; // How far along Z axis from cent
 pub const TOPDOWN_LOOKAT_X: f32 = 0.0; // X coordinate camera looks at
 pub const TOPDOWN_LOOKAT_Y: f32 = 0.0; // Y coordinate camera looks at
 pub const TOPDOWN_LOOKAT_Z: f32 = 8.5; // Z coordinate camera looks at
-pub const TOPDOWN_WALL_ALPHA: f32 = 0.8; // Opacity for walls in top-down view
-pub const TOPDOWN_ROOF_ALPHA: f32 = 0.5; // Opacity for roofs in top-down view
+pub const TOPDOWN_WALL_ALPHA: f32 = 1.0; //0.8; // Opacity for walls in top-down view
+pub const TOPDOWN_ROOF_ALPHA: f32 = 1.0; //0.5; // Opacity for roofs in top-down view
 
 // Mouse sensitivity as radians per pixel
 pub const MOUSE_SENSITIVITY: f32 = 0.002;
@@ -50,6 +50,7 @@ pub const ITEM_REFLECT_COLOR: [f32; 4] = [1.0, 0.2, 0.2, 1.0]; // Red
 
 // Wall visual settings
 pub const USE_RANDOM_WALL_COLORS: bool = true; // Set to true to visualize merged wall segments with random colors
+pub const USE_RANDOM_ROOF_COLORS: bool = true; // Set to true to visualize merged roof segments with random colors
 
 // Cookie visual settings
 pub const COOKIE_SIZE: f32 = 0.15; // Small sphere radius
