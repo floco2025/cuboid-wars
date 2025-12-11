@@ -26,6 +26,7 @@ pub struct RoofMarker;
 pub fn map_spawn_walls_system(
     mut commands: Commands,
     wall_config: Option<Res<WallConfig>>,
+    asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut spawned: Local<bool>,
@@ -46,11 +47,11 @@ pub fn map_spawn_walls_system(
     );
 
     for wall in &wall_config.walls {
-        spawn_wall(&mut commands, &mut meshes, &mut materials, wall);
+        spawn_wall(&mut commands, &mut meshes, &mut materials, &asset_server, wall);
     }
 
     for roof in &wall_config.roofs {
-        spawn_roof(&mut commands, &mut meshes, &mut materials, roof);
+        spawn_roof(&mut commands, &mut meshes, &mut materials, &asset_server, roof);
     }
 
     *spawned = true;

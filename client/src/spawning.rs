@@ -422,22 +422,11 @@ pub fn spawn_wall(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
+    asset_server: &Res<AssetServer>,
     wall: &Wall,
 ) {
     use rand::Rng;
     
-    // Use random color if enabled, otherwise use green
-    let wall_color = if USE_RANDOM_WALL_COLORS {
-        let mut rng = rand::rng();
-        Color::srgb(
-            rng.random_range(0.2..1.0),
-            rng.random_range(0.2..1.0),
-            rng.random_range(0.2..1.0),
-        )
-    } else {
-        Color::srgb(0.0, 0.7, 0.0) // Green
-    };
-
     // Calculate wall center and dimensions from corners
     let center_x = (wall.x1 + wall.x2) / 2.0;
     let center_z = (wall.z1 + wall.z2) / 2.0;
@@ -446,21 +435,46 @@ pub fn spawn_wall(
     let dz = wall.z2 - wall.z1;
     let length = dx.hypot(dz);
     
-    // Determine if wall is more horizontal or vertical for mesh sizing
-    let (size_x, size_z) = if dx.abs() > dz.abs() {
-        (length, wall.wall_width)
+    // Determine if wall is vertical (runs north-south along Z axis)
+    let is_vertical = dz.abs() > dx.abs();
+    
+    // Always create the mesh with length along X axis for consistent UV mapping
+    let mesh_size_x = length;
+    let mesh_size_z = wall.wall_width;
+    
+    // Rotate 90 degrees for vertical walls so they align correctly in world space
+    let rotation = if is_vertical {
+        Quat::from_rotation_y(std::f32::consts::FRAC_PI_2) // 90 degrees
     } else {
-        (wall.wall_width, length)
+        Quat::IDENTITY
+    };
+    
+    // Create material based on whether random colors are enabled
+    let wall_material = if WALL_RANDOM_COLORS {
+        let mut rng = rand::rng();
+        StandardMaterial {
+            base_color: Color::srgb(
+                rng.random_range(0.2..1.0),
+                rng.random_range(0.2..1.0),
+                rng.random_range(0.2..1.0),
+            ),
+            ..default()
+        }
+    } else {
+        StandardMaterial {
+            base_color_texture: Some(asset_server.load("wall.png")),
+            ..default()
+        }
     };
 
     commands.spawn(WallBundle {
-        mesh: Mesh3d(meshes.add(Cuboid::new(size_x, WALL_HEIGHT, size_z))),
-        material: MeshMaterial3d(materials.add(wall_color)),
+        mesh: Mesh3d(meshes.add(Cuboid::new(mesh_size_x, WALL_HEIGHT, mesh_size_z))),
+        material: MeshMaterial3d(materials.add(wall_material)),
         transform: Transform::from_xyz(
             center_x,
             WALL_HEIGHT / 2.0, // Lift so bottom is at y=0
             center_z,
-        ),
+        ).with_rotation(rotation),
         visibility: Visibility::default(),
         marker: WallMarker,
     });
@@ -471,32 +485,39 @@ pub fn spawn_roof(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
+    asset_server: &Res<AssetServer>,
     roof: &Roof,
 ) {
     use rand::Rng;
     
-    // Use random color if enabled, otherwise use green
-    let roof_color = if USE_RANDOM_ROOF_COLORS {
-        let mut rng = rand::rng();
-        Color::srgb(
-            rng.random_range(0.2..1.0),
-            rng.random_range(0.2..1.0),
-            rng.random_range(0.2..1.0),
-        )
-    } else {
-        Color::srgb(0.0, 0.7, 0.0) // Green
-    };
-
     // Calculate roof center and dimensions from corners
     let center_x = (roof.x1 + roof.x2) / 2.0;
     let center_z = (roof.z1 + roof.z2) / 2.0;
     
     let width = (roof.x2 - roof.x1).abs();
     let depth = (roof.z2 - roof.z1).abs();
+    
+    // Create material based on whether random colors are enabled
+    let roof_material = if ROOF_RANDOM_COLORS {
+        let mut rng = rand::rng();
+        StandardMaterial {
+            base_color: Color::srgb(
+                rng.random_range(0.2..1.0),
+                rng.random_range(0.2..1.0),
+                rng.random_range(0.2..1.0),
+            ),
+            ..default()
+        }
+    } else {
+        StandardMaterial {
+            base_color_texture: Some(asset_server.load("roof.png")),
+            ..default()
+        }
+    };
 
     commands.spawn(RoofBundle {
         mesh: Mesh3d(meshes.add(Cuboid::new(width, roof.roof_thickness, depth))),
-        material: MeshMaterial3d(materials.add(roof_color)),
+        material: MeshMaterial3d(materials.add(roof_material)),
         transform: Transform::from_xyz(
             center_x,
             WALL_HEIGHT + roof.roof_thickness / 2.0, // Position so bottom of roof sits on top of wall

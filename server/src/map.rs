@@ -274,23 +274,154 @@ pub fn generate_grid() -> GridConfig {
         }
     }
 
-    // Build wall list from grid with merging of adjacent segments
-    let walls = merge_adjacent_walls(&grid, grid_cols, grid_rows);
+    // Build wall list from grid with individual segments
+    let walls = generate_individual_walls(&grid, grid_cols, grid_rows);
 
     // Generate roofs based on grid
-    let roofs = generate_roofs_from_grid(&grid, grid_cols, grid_rows);
+    let roofs = generate_individual_roofs(&grid, grid_cols, grid_rows);
 
     GridConfig { walls, roofs, grid }
 }
 
-// Generate roofs based on wall count in each cell, with two-pass algorithm
-// Pass 1: Place roofs based on wall count
-// Pass 2: Place additional roofs adjacent to existing ones
+// Generate individual wall segments (no merging) with gap-filling extensions
 #[must_use]
 #[allow(clippy::cast_precision_loss)]
-#[allow(clippy::cast_possible_truncation)]
-#[allow(clippy::cast_sign_loss)]
-fn generate_roofs_from_grid(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) -> Vec<Roof> {
+fn generate_individual_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) -> Vec<Wall> {
+    let mut walls = Vec::new();
+    
+    // Process horizontal walls (north/south edges)
+    for row in 0..=grid_rows {
+        for col in 0..grid_cols {
+            // Check if this cell has a horizontal wall at this row position
+            let has_wall = if row == 0 {
+                grid[0][col as usize].has_north_wall
+            } else if row == grid_rows {
+                grid[(grid_rows - 1) as usize][col as usize].has_south_wall
+            } else {
+                grid[row as usize][col as usize].has_north_wall
+            };
+            
+            if !has_wall {
+                continue;
+            }
+            
+            // Check if we should extend at start (west) - only for perpendicular walls (L-corners)
+            let extend_at_start = {
+                // Check for perpendicular vertical wall (L-corner case)
+                if col == 0 {
+                    let above = row > 0 && grid[(row - 1) as usize][0].has_west_wall;
+                    let below = row < grid_rows && grid[row as usize][0].has_west_wall;
+                    (above || below) && !(above && below) // XOR: one but not both
+                } else {
+                    let above = row > 0 && grid[(row - 1) as usize][col as usize].has_west_wall;
+                    let below = row < grid_rows && grid[row as usize][col as usize].has_west_wall;
+                    (above || below) && !(above && below)
+                }
+            };
+            
+            // Check if we should extend at end (east) - only for perpendicular walls (L-corners)
+            let extend_at_end = {
+                // Check for perpendicular vertical wall (L-corner case)
+                if col == grid_cols - 1 {
+                    let above = row > 0 && grid[(row - 1) as usize][col as usize].has_east_wall;
+                    let below = row < grid_rows && grid[row as usize][col as usize].has_east_wall;
+                    (above || below) && !(above && below)
+                } else {
+                    let above = row > 0 && grid[(row - 1) as usize][(col + 1) as usize].has_west_wall;
+                    let below = row < grid_rows && grid[row as usize][(col + 1) as usize].has_west_wall;
+                    (above || below) && !(above && below)
+                }
+            };
+            
+            // Create wall segment
+            let world_z = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+            let x1 = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)) 
+                - if extend_at_start { WALL_WIDTH / 2.0 } else { 0.0 };
+            let x2 = ((col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)) 
+                + if extend_at_end { WALL_WIDTH / 2.0 } else { 0.0 };
+            
+            walls.push(Wall {
+                x1,
+                z1: world_z,
+                x2,
+                z2: world_z,
+                wall_width: WALL_WIDTH,
+            });
+        }
+    }
+    
+    // Process vertical walls (west/east edges)
+    for col in 0..=grid_cols {
+        for row in 0..grid_rows {
+            // Check if this cell has a vertical wall at this column position
+            let has_wall = if col == 0 {
+                grid[row as usize][0].has_west_wall
+            } else if col == grid_cols {
+                grid[row as usize][(grid_cols - 1) as usize].has_east_wall
+            } else {
+                grid[row as usize][col as usize].has_west_wall
+            };
+            
+            if !has_wall {
+                continue;
+            }
+            
+            // Check if we should extend at start (north) to meet adjacent or perpendicular walls
+            let extend_at_start = {
+                // Check for adjacent vertical wall to the north
+                let has_adjacent_north = row > 0 && {
+                    if col == 0 {
+                        grid[(row - 1) as usize][0].has_west_wall
+                    } else if col == grid_cols {
+                        grid[(row - 1) as usize][(grid_cols - 1) as usize].has_east_wall
+                    } else {
+                        grid[(row - 1) as usize][col as usize].has_west_wall
+                    }
+                };
+                
+                !has_adjacent_north // Only inset if there's NO adjacent wall
+            };
+            
+            // Check if we should extend at end (south) to meet adjacent or perpendicular walls
+            let extend_at_end = {
+                // Check for adjacent vertical wall to the south
+                let has_adjacent_south = row < grid_rows - 1 && {
+                    if col == 0 {
+                        grid[(row + 1) as usize][0].has_west_wall
+                    } else if col == grid_cols {
+                        grid[(row + 1) as usize][(grid_cols - 1) as usize].has_east_wall
+                    } else {
+                        grid[(row + 1) as usize][col as usize].has_west_wall
+                    }
+                };
+                
+                !has_adjacent_south // Only inset if there's NO adjacent wall
+            };
+            
+            // Create wall segment
+            let world_x = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+            let z1 = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0)) 
+                + if extend_at_start { WALL_WIDTH / 2.0 } else { 0.0 };
+            let z2 = ((row + 1) as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0)) 
+                - if extend_at_end { WALL_WIDTH / 2.0 } else { 0.0 };
+            
+            walls.push(Wall {
+                x1: world_x,
+                z1,
+                x2: world_x,
+                z2,
+                wall_width: WALL_WIDTH,
+            });
+        }
+    }
+    
+    walls
+}
+
+// Generate individual roof segments (no merging) covering full grid cells
+#[must_use]
+#[allow(clippy::cast_precision_loss)]
+fn generate_individual_roofs(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) -> Vec<Roof> {
     let mut rng = rand::rng();
 
     // Count walls for each cell
@@ -318,7 +449,7 @@ fn generate_roofs_from_grid(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i
         }
     }
 
-    // Pass 1: Place roofs based on wall count (no neighbor consideration)
+    // Pass 1: Place roofs based on wall count
     let mut roof_cells: HashSet<(i32, i32)> = HashSet::new();
 
     for row in 0..grid_rows {
@@ -328,7 +459,7 @@ fn generate_roofs_from_grid(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i
             let should_place_roof = match wall_count {
                 2 => rng.random_bool(ROOF_PROBABILITY_2_WALLS),
                 3 => rng.random_bool(ROOF_PROBABILITY_3_WALLS),
-                _ => false, // 0, 1, or 4 walls: no roof
+                _ => false,
             };
 
             if should_place_roof {
@@ -344,17 +475,15 @@ fn generate_roofs_from_grid(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i
 
         for row in 0..grid_rows {
             for col in 0..grid_cols {
-                // Skip if already has roof or not enough walls
                 if roof_cells.contains(&(row, col)) || wall_counts[row as usize][col as usize] < 2 {
                     continue;
                 }
 
-                // Check if any neighbor has a roof
                 let neighbors = [
-                    (row - 1, col), // North
-                    (row + 1, col), // South
-                    (row, col - 1), // West
-                    (row, col + 1), // East
+                    (row - 1, col),
+                    (row + 1, col),
+                    (row, col - 1),
+                    (row, col + 1),
                 ];
 
                 let has_neighbor_with_roof = neighbors
@@ -369,267 +498,26 @@ fn generate_roofs_from_grid(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i
         }
     }
 
-    // Convert roof cells to merged Roof segments
-    merge_adjacent_roofs(&roof_cells, grid_cols, grid_rows)
-}
-
-// Merge adjacent roof cells into larger rectangular segments
-fn merge_adjacent_roofs(roof_cells: &HashSet<(i32, i32)>, grid_cols: i32, grid_rows: i32) -> Vec<Roof> {
+    // Convert roof cells to individual Roof segments
     let mut roofs = Vec::new();
-    let mut processed = HashSet::new();
     
-    // Process cells in row-major order for better merging
-    for row in 0..grid_rows {
-        for col in 0..grid_cols {
-            if !roof_cells.contains(&(row, col)) || processed.contains(&(row, col)) {
-                continue;
-            }
-            
-            // Try extending horizontally first
-            let mut h_end_col = col;
-            while h_end_col + 1 < grid_cols 
-                && roof_cells.contains(&(row, h_end_col + 1)) 
-                && !processed.contains(&(row, h_end_col + 1)) {
-                h_end_col += 1;
-            }
-            
-            let mut h_end_row = row;
-            'h_outer: loop {
-                for c in col..=h_end_col {
-                    if !roof_cells.contains(&(h_end_row + 1, c)) || processed.contains(&(h_end_row + 1, c)) {
-                        break 'h_outer;
-                    }
-                }
-                h_end_row += 1;
-            }
-            
-            let h_width = h_end_col - col + 1;
-            let h_height = h_end_row - row + 1;
-            let h_area = h_width * h_height;
-            
-            // Try extending vertically first
-            let mut v_end_row = row;
-            while v_end_row + 1 < grid_rows 
-                && roof_cells.contains(&(v_end_row + 1, col)) 
-                && !processed.contains(&(v_end_row + 1, col)) {
-                v_end_row += 1;
-            }
-            
-            let mut v_end_col = col;
-            'v_outer: loop {
-                for r in row..=v_end_row {
-                    if !roof_cells.contains(&(r, v_end_col + 1)) || processed.contains(&(r, v_end_col + 1)) {
-                        break 'v_outer;
-                    }
-                }
-                v_end_col += 1;
-            }
-            
-            let v_width = v_end_col - col + 1;
-            let v_height = v_end_row - row + 1;
-            let v_area = v_width * v_height;
-            
-            // Choose the orientation that gives the larger rectangle
-            let (end_col, end_row) = if h_area >= v_area {
-                (h_end_col, h_end_row)
-            } else {
-                (v_end_col, v_end_row)
-            };
-            
-            // Mark all cells in this rectangle as processed
-            for r in row..=end_row {
-                for c in col..=end_col {
-                    processed.insert((r, c));
-                }
-            }
-            
-            // Calculate world coordinates for this roof segment
-            // Extend to grid boundaries to cover full wall length without gaps
-            let world_x1 = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-            let world_x2 = ((end_col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-            let world_z1 = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
-            let world_z2 = ((end_row + 1) as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
-            
-            roofs.push(Roof {
-                x1: world_x1,
-                z1: world_z1,
-                x2: world_x2,
-                z2: world_z2,
-                roof_thickness: WALL_WIDTH,
-            });
-        }
+    for &(row, col) in &roof_cells {
+        // Calculate world coordinates - extend to grid boundaries to cover full wall length
+        let world_x1 = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+        let world_x2 = ((col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+        let world_z1 = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+        let world_z2 = ((row + 1) as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+        
+        roofs.push(Roof {
+            x1: world_x1,
+            z1: world_z1,
+            x2: world_x2,
+            z2: world_z2,
+            roof_thickness: WALL_WIDTH,
+        });
     }
     
     roofs
 }
 
-// Merge adjacent walls into longer segments
-// This reduces the number of wall entities and makes visualization clearer
-fn merge_adjacent_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) -> Vec<Wall> {
-    let mut walls = Vec::new();
-    
-    // Track which horizontal wall edges we've already processed
-    let mut processed_horizontal = HashSet::new();
-    
-    // Process horizontal walls (north/south edges)
-    for row in 0..=grid_rows {
-        let mut col = 0;
-        while col < grid_cols {
-            // Check if this is a wall edge we should process
-            let has_wall = if row == 0 {
-                // Top edge - check north wall of row 0
-                grid[0][col as usize].has_north_wall
-            } else if row == grid_rows {
-                // Bottom edge - check south wall of last row
-                grid[(grid_rows - 1) as usize][col as usize].has_south_wall
-            } else {
-                // Interior edge - check if there's a wall between rows
-                grid[row as usize][col as usize].has_north_wall
-            };
-            
-            if has_wall && !processed_horizontal.contains(&(row, col)) {
-                // Found start of a horizontal wall segment, find how far it extends
-                let start_col = col;
-                let mut end_col = col;
-                
-                // Extend as far as possible
-                while end_col < grid_cols {
-                    let next_has_wall = if row == 0 {
-                        grid[0][end_col as usize].has_north_wall
-                    } else if row == grid_rows {
-                        grid[(grid_rows - 1) as usize][end_col as usize].has_south_wall
-                    } else {
-                        grid[row as usize][end_col as usize].has_north_wall
-                    };
-                    
-                    if next_has_wall {
-                        processed_horizontal.insert((row, end_col));
-                        end_col += 1;
-                    } else {
-                        break;
-                    }
-                }
-                
-                // Check if there's a vertical wall at start that we should extend to meet
-                let extend_at_start = {
-                    if start_col == 0 {
-                        // Left edge - check west wall
-                        let above = row > 0 && grid[(row - 1) as usize][0].has_west_wall;
-                        let below = row < grid_rows && grid[row as usize][0].has_west_wall;
-                        // Extend if there's a vertical wall on either side (corner case)
-                        (above || below) && !(above && below) // XOR: one but not both
-                    } else if start_col < grid_cols {
-                        // Interior - check west wall
-                        let above = row > 0 && grid[(row - 1) as usize][start_col as usize].has_west_wall;
-                        let below = row < grid_rows && grid[row as usize][start_col as usize].has_west_wall;
-                        (above || below) && !(above && below)
-                    } else {
-                        false
-                    }
-                };
-                
-                // Check if there's a vertical wall at end that we should extend to meet
-                let extend_at_end = {
-                    if end_col < grid_cols {
-                        // Interior - check west wall
-                        let above = row > 0 && grid[(row - 1) as usize][end_col as usize].has_west_wall;
-                        let below = row < grid_rows && grid[row as usize][end_col as usize].has_west_wall;
-                        (above || below) && !(above && below)
-                    } else if end_col == grid_cols {
-                        // Right edge - check east wall
-                        let above = row > 0 && grid[(row - 1) as usize][(grid_cols - 1) as usize].has_east_wall;
-                        let below = row < grid_rows && grid[row as usize][(grid_cols - 1) as usize].has_east_wall;
-                        (above || below) && !(above && below)
-                    } else {
-                        false
-                    }
-                };
-                
-                // Create merged wall segment
-                // Extend by WALL_WIDTH/2 at corners
-                let world_z = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
-                let x1 = (start_col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)) 
-                    - if extend_at_start { WALL_WIDTH / 2.0 } else { 0.0 };
-                let x2 = (end_col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)) 
-                    + if extend_at_end { WALL_WIDTH / 2.0 } else { 0.0 };
-                
-                walls.push(Wall {
-                    x1,
-                    z1: world_z,
-                    x2,
-                    z2: world_z,
-                    wall_width: WALL_WIDTH,
-                });
-                
-                col = end_col;
-            } else {
-                col += 1;
-            }
-        }
-    }
-    
-    // Track which vertical wall edges we've already processed
-    let mut processed_vertical = HashSet::new();
-    
-    // Process vertical walls (west/east edges)
-    for col in 0..=grid_cols {
-        let mut row = 0;
-        while row < grid_rows {
-            // Check if this is a wall edge we should process
-            let has_wall = if col == 0 {
-                // Left edge - check west wall
-                grid[row as usize][0].has_west_wall
-            } else if col == grid_cols {
-                // Right edge - check east wall of last column
-                grid[row as usize][(grid_cols - 1) as usize].has_east_wall
-            } else {
-                // Interior edge - check if there's a wall between columns
-                grid[row as usize][col as usize].has_west_wall
-            };
-            
-            if has_wall && !processed_vertical.contains(&(row, col)) {
-                // Found start of a vertical wall segment, find how far it extends
-                let start_row = row;
-                let mut end_row = row;
-                
-                // Extend as far as possible
-                while end_row < grid_rows {
-                    let next_has_wall = if col == 0 {
-                        grid[end_row as usize][0].has_west_wall
-                    } else if col == grid_cols {
-                        grid[end_row as usize][(grid_cols - 1) as usize].has_east_wall
-                    } else {
-                        grid[end_row as usize][col as usize].has_west_wall
-                    };
-                    
-                    if next_has_wall {
-                        processed_vertical.insert((end_row, col));
-                        end_row += 1;
-                    } else {
-                        break;
-                    }
-                }
-                
-                // Create merged wall segment
-                // Vertical walls inset to fit between horizontal walls
-                let world_x = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-                let z1 = (start_row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0)) + WALL_WIDTH / 2.0;
-                let z2 = (end_row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0)) - WALL_WIDTH / 2.0;
-                
-                walls.push(Wall {
-                    x1: world_x,
-                    z1,
-                    x2: world_x,
-                    z2,
-                    wall_width: WALL_WIDTH,
-                });
-                
-                row = end_row;
-            } else {
-                row += 1;
-            }
-        }
-    }
-    
-    walls
-}
+// Check if all cells in the grid are reachable from cell (0, 0)
