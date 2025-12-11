@@ -7,6 +7,11 @@ pub const WALL_NUM_SEGMENTS: usize = 35;
 pub const WALL_2ND_PROBABILITY_RATIO: f64 = 5.0; // Probability of 2nd wall relative to 1st
 pub const WALL_3RD_PROBABILITY_RATIO: f64 = 0.2; // Probability of 3rd wall relative to 1st
 
+// Wall segment dimensions
+pub const WALL_LENGTH: f32 = 8.2; // Slightly longer than grid to avoid corner gaps
+pub const WALL_WIDTH: f32 = 0.2; // Wall thickness
+pub const WALL_HEIGHT: f32 = 4.0; // Wall height
+
 // Roof generation settings
 pub const ROOF_PROBABILITY_2_WALLS: f64 = 0.1; // Chance if cell has 2 walls and no neighbor with roof
 pub const ROOF_PROBABILITY_3_WALLS: f64 = 0.1; // Chance if cell has 3 walls and no neighbor with roof

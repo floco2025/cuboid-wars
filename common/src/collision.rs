@@ -4,7 +4,7 @@ use bevy_time::{Timer, TimerMode};
 
 use crate::{
     constants::*,
-    protocol::{Position, Wall, WallOrientation},
+    protocol::{Position, Wall},
 };
 
 // ============================================================================
@@ -30,20 +30,18 @@ const fn no_hit() -> HitResult {
 
 // Generic AABB wall overlap check with parameterized entity dimensions
 fn check_aabb_wall_overlap(entity_pos: &Position, wall: &Wall, half_x: f32, half_z: f32) -> bool {
-    let (wall_half_x, wall_half_z) = match wall.orientation {
-        WallOrientation::Horizontal => (WALL_LENGTH / 2.0, WALL_WIDTH / 2.0),
-        WallOrientation::Vertical => (WALL_WIDTH / 2.0, WALL_LENGTH / 2.0),
-    };
+    // Wall bounding box - use min/max of corners plus thickness
+    let wall_half_width = wall.wall_width / 2.0;
+    
+    let wall_min_x = wall.x1.min(wall.x2) - wall_half_width;
+    let wall_max_x = wall.x1.max(wall.x2) + wall_half_width;
+    let wall_min_z = wall.z1.min(wall.z2) - wall_half_width;
+    let wall_max_z = wall.z1.max(wall.z2) + wall_half_width;
 
     let entity_min_x = entity_pos.x - half_x;
     let entity_max_x = entity_pos.x + half_x;
     let entity_min_z = entity_pos.z - half_z;
     let entity_max_z = entity_pos.z + half_z;
-
-    let wall_min_x = wall.x - wall_half_x;
-    let wall_max_x = wall.x + wall_half_x;
-    let wall_min_z = wall.z - wall_half_z;
-    let wall_max_z = wall.z + wall_half_z;
 
     ranges_overlap(entity_min_x, entity_max_x, wall_min_x, wall_max_x)
         && ranges_overlap(entity_min_z, entity_max_z, wall_min_z, wall_max_z)
@@ -51,9 +49,22 @@ fn check_aabb_wall_overlap(entity_pos: &Position, wall: &Wall, half_x: f32, half
 
 // Generic swept AABB wall collision check with parameterized entity dimensions
 fn check_aabb_wall_sweep(start_pos: &Position, end_pos: &Position, wall: &Wall, half_x: f32, half_z: f32) -> bool {
-    let (wall_half_x, wall_half_z) = match wall.orientation {
-        WallOrientation::Horizontal => (WALL_LENGTH / 2.0, WALL_WIDTH / 2.0),
-        WallOrientation::Vertical => (WALL_WIDTH / 2.0, WALL_LENGTH / 2.0),
+    // Calculate wall center and half dimensions
+    let wall_center_x = (wall.x1 + wall.x2) / 2.0;
+    let wall_center_z = (wall.z1 + wall.z2) / 2.0;
+    
+    // Calculate wall length (along its primary axis)
+    let dx = wall.x2 - wall.x1;
+    let dz = wall.z2 - wall.z1;
+    let wall_half_length = dx.hypot(dz) / 2.0;
+    let wall_half_width = wall.wall_width / 2.0;
+    
+    // Determine if wall is more horizontal or vertical
+    let is_horizontal = dx.abs() > dz.abs();
+    let (wall_half_x, wall_half_z) = if is_horizontal {
+        (wall_half_length, wall_half_width)
+    } else {
+        (wall_half_width, wall_half_length)
     };
 
     // Movement vector
@@ -65,8 +76,8 @@ fn check_aabb_wall_sweep(start_pos: &Position, end_pos: &Position, wall: &Wall, 
     let combined_half_z = half_z + wall_half_z;
 
     // Position relative to wall center
-    let local_x = start_pos.x - wall.x;
-    let local_z = start_pos.z - wall.z;
+    let local_x = start_pos.x - wall_center_x;
+    let local_z = start_pos.z - wall_center_z;
 
     let mut t_min = 0.0_f32;
     let mut t_max = 1.0_f32;
@@ -365,19 +376,27 @@ pub fn check_projectile_wall_sweep_hit(
     let ray_dir_y = projectile.velocity.y * delta;
     let ray_dir_z = projectile.velocity.z * delta;
 
-    // Wall dimensions
+    // Wall dimensions - calculate center and dimensions from corners
+    let wall_center_x = (wall.x1 + wall.x2) / 2.0;
+    let wall_center_z = (wall.z1 + wall.z2) / 2.0;
+    
+    let dx = wall.x2 - wall.x1;
+    let dz = wall.z2 - wall.z1;
+    let wall_half_length = dx.hypot(dz) / 2.0 + PROJECTILE_RADIUS;
+    let wall_half_thickness = wall.wall_width / 2.0 + PROJECTILE_RADIUS;
     let half_height = WALL_HEIGHT / 2.0 + PROJECTILE_RADIUS;
-    let half_thickness = WALL_WIDTH / 2.0 + PROJECTILE_RADIUS;
-    let half_length = WALL_LENGTH / 2.0 + PROJECTILE_RADIUS;
-
-    let (half_x, half_z) = match wall.orientation {
-        WallOrientation::Horizontal => (half_length, half_thickness),
-        WallOrientation::Vertical => (half_thickness, half_length),
+    
+    // Determine if wall is more horizontal or vertical
+    let is_horizontal = dx.abs() > dz.abs();
+    let (half_x, half_z) = if is_horizontal {
+        (wall_half_length, wall_half_thickness)
+    } else {
+        (wall_half_thickness, wall_half_length)
     };
 
-    let local_x = ray_start_x - wall.x;
+    let local_x = ray_start_x - wall_center_x;
     let local_y = ray_start_y - WALL_HEIGHT / 2.0;
-    let local_z = ray_start_z - wall.z;
+    let local_z = ray_start_z - wall_center_z;
 
     let mut t_min = 0.0_f32;
     let mut t_max = 1.0_f32;
@@ -405,18 +424,12 @@ pub fn check_projectile_wall_sweep_hit(
 
     if t_min <= t_max && t_max >= 0.0 && t_min <= 1.0 {
         // Return the normal based on wall orientation
-        let (normal_x, normal_z) = match wall.orientation {
-            WallOrientation::Horizontal => {
-                // Determine which side based on position relative to wall
-                if local_z > 0.0 { (0.0, 1.0) } else { (0.0, -1.0) }
-            }
-            WallOrientation::Vertical => {
-                if local_x > 0.0 {
-                    (1.0, 0.0)
-                } else {
-                    (-1.0, 0.0)
-                }
-            }
+        let (normal_x, normal_z) = if is_horizontal {
+            // Horizontal wall - normal is perpendicular to X axis
+            if local_z > 0.0 { (0.0, 1.0) } else { (0.0, -1.0) }
+        } else {
+            // Vertical wall - normal is perpendicular to Z axis
+            if local_x > 0.0 { (1.0, 0.0) } else { (-1.0, 0.0) }
         };
         // Clamp t_min to [0.0, 1.0] for the collision time
         let t_collision = t_min.max(0.0).min(1.0);

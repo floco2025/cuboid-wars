@@ -426,18 +426,28 @@ pub fn spawn_wall(
 ) {
     let wall_color = Color::srgb(0.0, 0.7, 0.0); // Green
 
-    let (size_x, size_z) = match wall.orientation {
-        WallOrientation::Horizontal => (WALL_LENGTH, WALL_WIDTH),
-        WallOrientation::Vertical => (WALL_WIDTH, WALL_LENGTH),
+    // Calculate wall center and dimensions from corners
+    let center_x = (wall.x1 + wall.x2) / 2.0;
+    let center_z = (wall.z1 + wall.z2) / 2.0;
+    
+    let dx = wall.x2 - wall.x1;
+    let dz = wall.z2 - wall.z1;
+    let length = dx.hypot(dz);
+    
+    // Determine if wall is more horizontal or vertical for mesh sizing
+    let (size_x, size_z) = if dx.abs() > dz.abs() {
+        (length, wall.wall_width)
+    } else {
+        (wall.wall_width, length)
     };
 
     commands.spawn(WallBundle {
         mesh: Mesh3d(meshes.add(Cuboid::new(size_x, WALL_HEIGHT, size_z))),
         material: MeshMaterial3d(materials.add(wall_color)),
         transform: Transform::from_xyz(
-            wall.x,
+            center_x,
             WALL_HEIGHT / 2.0, // Lift so bottom is at y=0
-            wall.z,
+            center_z,
         ),
         visibility: Visibility::default(),
         marker: WallMarker,

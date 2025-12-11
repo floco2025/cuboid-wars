@@ -115,22 +115,15 @@ struct Player {
 }
 }
 
-// Wall orientation - horizontal (along X axis) or vertical (along Z axis).
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "bincode", derive(Encode, Decode))]
-pub enum WallOrientation {
-    Horizontal, // Along X axis
-    Vertical,   // Along Z axis
-}
-
 // Wall - a wall segment on the grid.
 message! {
 #[derive(Copy)]
 struct Wall {
-    pub x: f32,                     // Center X position
-    pub z: f32,                     // Center Z position
-    pub orientation: WallOrientation,
+    pub x1: f32,                    // Start X position
+    pub z1: f32,                    // Start Z position
+    pub x2: f32,                    // End X position
+    pub z2: f32,                    // End Z position
+    pub wall_width: f32,            // Width (thickness) of the wall
 }
 }
 

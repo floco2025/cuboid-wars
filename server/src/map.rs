@@ -10,7 +10,7 @@ use crate::{
 };
 use common::{
     constants::*,
-    protocol::{Position, Roof, Wall, WallOrientation},
+    protocol::{Position, Roof, Wall},
 };
 
 // ============================================================================
@@ -282,45 +282,57 @@ pub fn generate_grid() -> GridConfig {
 
             // North wall (horizontal)
             if cell.has_north_wall {
-                let world_x = (col as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
                 let world_z = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+                let x1 = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+                let x2 = ((col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
                 walls.push(Wall {
-                    x: world_x,
-                    z: world_z,
-                    orientation: WallOrientation::Horizontal,
+                    x1,
+                    z1: world_z,
+                    x2,
+                    z2: world_z,
+                    wall_width: WALL_WIDTH,
                 });
             }
 
             // South wall (horizontal) - only if it's the last row or neighbor doesn't have it
             if cell.has_south_wall && (row == grid_rows - 1 || !grid[(row + 1) as usize][col as usize].has_north_wall) {
-                let world_x = (col as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
                 let world_z = ((row + 1) as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+                let x1 = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+                let x2 = ((col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
                 walls.push(Wall {
-                    x: world_x,
-                    z: world_z,
-                    orientation: WallOrientation::Horizontal,
+                    x1,
+                    z1: world_z,
+                    x2,
+                    z2: world_z,
+                    wall_width: WALL_WIDTH,
                 });
             }
 
             // West wall (vertical)
             if cell.has_west_wall {
                 let world_x = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-                let world_z = (row as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+                let z1 = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+                let z2 = ((row + 1) as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
                 walls.push(Wall {
-                    x: world_x,
-                    z: world_z,
-                    orientation: WallOrientation::Vertical,
+                    x1: world_x,
+                    z1,
+                    x2: world_x,
+                    z2,
+                    wall_width: WALL_WIDTH,
                 });
             }
 
             // East wall (vertical) - only if it's the last column or neighbor doesn't have it
             if cell.has_east_wall && (col == grid_cols - 1 || !grid[row as usize][(col + 1) as usize].has_west_wall) {
                 let world_x = ((col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-                let world_z = (row as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+                let z1 = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+                let z2 = ((row + 1) as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
                 walls.push(Wall {
-                    x: world_x,
-                    z: world_z,
-                    orientation: WallOrientation::Vertical,
+                    x1: world_x,
+                    z1,
+                    x2: world_x,
+                    z2,
+                    wall_width: WALL_WIDTH,
                 });
             }
         }

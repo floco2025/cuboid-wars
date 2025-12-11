@@ -15,11 +15,6 @@ pub const FIELD_DEPTH: f32 = GRID_ROWS as f32 * GRID_SIZE; // Total depth
 pub const SPAWN_RANGE_X: f32 = FIELD_WIDTH / 2.0;
 pub const SPAWN_RANGE_Z: f32 = FIELD_DEPTH / 2.0;
 
-// Wall segment dimensions
-pub const WALL_LENGTH: f32 = 8.2; // Slightly longer than grid to avoid corner gaps
-pub const WALL_WIDTH: f32 = 0.2; // Wall thickness
-pub const WALL_HEIGHT: f32 = 4.0; // Wall height
-
 // Player dimensions (meters)
 pub const PLAYER_WIDTH: f32 = 0.5; // side to side
 pub const PLAYER_HEIGHT: f32 = 1.8; // up/down
@@ -35,6 +30,11 @@ pub const PROJECTILE_LIFETIME: f32 = 4.0; // seconds
 pub const PROJECTILE_SPAWN_OFFSET: f32 = 0.6; // meters in front of thrower
 pub const PROJECTILE_SPAWN_HEIGHT: f32 = 1.5; // meters above ground (shoulder height)
 pub const PROJECTILE_RADIUS: f32 = 0.11; // meters (22cm diameter dodgeball)
+
+// Wall dimensions (meters)
+pub const WALL_HEIGHT: f32 = 4.0; // Wall height
+pub const WALL_WIDTH: f32 = 0.2; // Wall thickness
+pub const WALL_LENGTH: f32 = 8.2; // Slightly longer than grid to avoid corner gaps
 
 // Visual details (meters)
 pub const PLAYER_NOSE_RADIUS: f32 = 0.08;
