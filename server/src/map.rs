@@ -444,11 +444,11 @@ fn merge_adjacent_roofs(roof_cells: &HashSet<(i32, i32)>, grid_cols: i32, grid_r
             }
             
             // Calculate world coordinates for this roof segment
-            // Inset by WALL_WIDTH/2 on all sides to fit between walls
-            let world_x1 = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)) + WALL_WIDTH / 2.0;
-            let world_x2 = ((end_col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)) - WALL_WIDTH / 2.0;
-            let world_z1 = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0)) + WALL_WIDTH / 2.0;
-            let world_z2 = ((end_row + 1) as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0)) - WALL_WIDTH / 2.0;
+            // Extend to grid boundaries to cover full wall length without gaps
+            let world_x1 = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+            let world_x2 = ((end_col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+            let world_z1 = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+            let world_z2 = ((end_row + 1) as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
             
             roofs.push(Roof {
                 x1: world_x1,
