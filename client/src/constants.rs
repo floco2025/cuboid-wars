@@ -48,6 +48,9 @@ pub const ITEM_SPEED_COLOR: [f32; 4] = [0.2, 0.7, 1.0, 1.0]; // Light blue
 pub const ITEM_MULTISHOT_COLOR: [f32; 4] = [1.0, 0.5, 0.2, 1.0]; // Orange
 pub const ITEM_REFLECT_COLOR: [f32; 4] = [1.0, 0.2, 0.2, 1.0]; // Red
 
+// Wall visual settings
+pub const USE_RANDOM_WALL_COLORS: bool = true; // Set to true to visualize merged wall segments with random colors
+
 // Cookie visual settings
 pub const COOKIE_SIZE: f32 = 0.15; // Small sphere radius
 pub const COOKIE_HEIGHT: f32 = 0.1; // Slightly above floor to avoid z-fighting

@@ -424,7 +424,19 @@ pub fn spawn_wall(
     materials: &mut ResMut<Assets<StandardMaterial>>,
     wall: &Wall,
 ) {
-    let wall_color = Color::srgb(0.0, 0.7, 0.0); // Green
+    use rand::Rng;
+    
+    // Use random color if enabled, otherwise use green
+    let wall_color = if USE_RANDOM_WALL_COLORS {
+        let mut rng = rand::rng();
+        Color::srgb(
+            rng.random_range(0.2..1.0),
+            rng.random_range(0.2..1.0),
+            rng.random_range(0.2..1.0),
+        )
+    } else {
+        Color::srgb(0.0, 0.7, 0.0) // Green
+    };
 
     // Calculate wall center and dimensions from corners
     let center_x = (wall.x1 + wall.x2) / 2.0;
