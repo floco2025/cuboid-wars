@@ -7,6 +7,12 @@ pub const WALL_NUM_SEGMENTS: usize = 35;
 pub const WALL_2ND_PROBABILITY_RATIO: f64 = 5.0; // Probability of 2nd wall relative to 1st
 pub const WALL_3RD_PROBABILITY_RATIO: f64 = 0.2; // Probability of 3rd wall relative to 1st
 
+// Wall/Roof generation mode
+// false: Non-overlapping mode - walls meet exactly at corners using smart extension logic
+// true: Overlapping mode - all walls extend by wall_width/2 on both ends for guaranteed no-gap coverage
+pub const WALL_OVERLAP_MODE: bool = false;
+pub const ROOF_OVERLAP_MODE: bool = false;
+
 // Wall segment dimensions
 pub const WALL_LENGTH: f32 = 8.2; // Slightly longer than grid to avoid corner gaps
 pub const WALL_WIDTH: f32 = 0.2; // Wall thickness

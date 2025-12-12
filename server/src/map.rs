@@ -305,32 +305,38 @@ fn generate_individual_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: 
                 continue;
             }
             
-            // Check if we should extend at start (west) - only for perpendicular walls (L-corners)
-            let extend_at_start = {
-                // Check for perpendicular vertical wall (L-corner case)
-                if col == 0 {
-                    let above = row > 0 && grid[(row - 1) as usize][0].has_west_wall;
-                    let below = row < grid_rows && grid[row as usize][0].has_west_wall;
-                    (above || below) && !(above && below) // XOR: one but not both
-                } else {
-                    let above = row > 0 && grid[(row - 1) as usize][col as usize].has_west_wall;
-                    let below = row < grid_rows && grid[row as usize][col as usize].has_west_wall;
-                    (above || below) && !(above && below)
-                }
-            };
-            
-            // Check if we should extend at end (east) - only for perpendicular walls (L-corners)
-            let extend_at_end = {
-                // Check for perpendicular vertical wall (L-corner case)
-                if col == grid_cols - 1 {
-                    let above = row > 0 && grid[(row - 1) as usize][col as usize].has_east_wall;
-                    let below = row < grid_rows && grid[row as usize][col as usize].has_east_wall;
-                    (above || below) && !(above && below)
-                } else {
-                    let above = row > 0 && grid[(row - 1) as usize][(col + 1) as usize].has_west_wall;
-                    let below = row < grid_rows && grid[row as usize][(col + 1) as usize].has_west_wall;
-                    (above || below) && !(above && below)
-                }
+            let (extend_at_start, extend_at_end) = if crate::constants::WALL_OVERLAP_MODE {
+                // Overlap mode: always extend on both sides for guaranteed coverage
+                (true, true)
+            } else {
+                // Non-overlap mode: smart extension only at L-corners
+                let extend_start = {
+                    // Check for perpendicular vertical wall (L-corner case)
+                    if col == 0 {
+                        let above = row > 0 && grid[(row - 1) as usize][0].has_west_wall;
+                        let below = row < grid_rows && grid[row as usize][0].has_west_wall;
+                        (above || below) && !(above && below) // XOR: one but not both
+                    } else {
+                        let above = row > 0 && grid[(row - 1) as usize][col as usize].has_west_wall;
+                        let below = row < grid_rows && grid[row as usize][col as usize].has_west_wall;
+                        (above || below) && !(above && below)
+                    }
+                };
+                
+                let extend_end = {
+                    // Check for perpendicular vertical wall (L-corner case)
+                    if col == grid_cols - 1 {
+                        let above = row > 0 && grid[(row - 1) as usize][col as usize].has_east_wall;
+                        let below = row < grid_rows && grid[row as usize][col as usize].has_east_wall;
+                        (above || below) && !(above && below)
+                    } else {
+                        let above = row > 0 && grid[(row - 1) as usize][(col + 1) as usize].has_west_wall;
+                        let below = row < grid_rows && grid[row as usize][(col + 1) as usize].has_west_wall;
+                        (above || below) && !(above && below)
+                    }
+                };
+                
+                (extend_start, extend_end)
             };
             
             // Create wall segment
@@ -366,36 +372,42 @@ fn generate_individual_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: 
                 continue;
             }
             
-            // Check if we should extend at start (north) to meet adjacent or perpendicular walls
-            let extend_at_start = {
-                // Check for adjacent vertical wall to the north
-                let has_adjacent_north = row > 0 && {
-                    if col == 0 {
-                        grid[(row - 1) as usize][0].has_west_wall
-                    } else if col == grid_cols {
-                        grid[(row - 1) as usize][(grid_cols - 1) as usize].has_east_wall
-                    } else {
-                        grid[(row - 1) as usize][col as usize].has_west_wall
-                    }
+            let (extend_at_start, extend_at_end) = if crate::constants::WALL_OVERLAP_MODE {
+                // Overlap mode: never inset, extend on both sides for guaranteed coverage
+                (false, false)
+            } else {
+                // Non-overlap mode: inset where there's no adjacent wall
+                let extend_start = {
+                    // Check for adjacent vertical wall to the north
+                    let has_adjacent_north = row > 0 && {
+                        if col == 0 {
+                            grid[(row - 1) as usize][0].has_west_wall
+                        } else if col == grid_cols {
+                            grid[(row - 1) as usize][(grid_cols - 1) as usize].has_east_wall
+                        } else {
+                            grid[(row - 1) as usize][col as usize].has_west_wall
+                        }
+                    };
+                    
+                    !has_adjacent_north // Only inset if there's NO adjacent wall
                 };
                 
-                !has_adjacent_north // Only inset if there's NO adjacent wall
-            };
-            
-            // Check if we should extend at end (south) to meet adjacent or perpendicular walls
-            let extend_at_end = {
-                // Check for adjacent vertical wall to the south
-                let has_adjacent_south = row < grid_rows - 1 && {
-                    if col == 0 {
-                        grid[(row + 1) as usize][0].has_west_wall
-                    } else if col == grid_cols {
-                        grid[(row + 1) as usize][(grid_cols - 1) as usize].has_east_wall
-                    } else {
-                        grid[(row + 1) as usize][col as usize].has_west_wall
-                    }
+                let extend_end = {
+                    // Check for adjacent vertical wall to the south
+                    let has_adjacent_south = row < grid_rows - 1 && {
+                        if col == 0 {
+                            grid[(row + 1) as usize][0].has_west_wall
+                        } else if col == grid_cols {
+                            grid[(row + 1) as usize][(grid_cols - 1) as usize].has_east_wall
+                        } else {
+                            grid[(row + 1) as usize][col as usize].has_west_wall
+                        }
+                    };
+                    
+                    !has_adjacent_south // Only inset if there's NO adjacent wall
                 };
                 
-                !has_adjacent_south // Only inset if there's NO adjacent wall
+                (extend_start, extend_end)
             };
             
             // Create wall segment
@@ -502,11 +514,22 @@ fn generate_individual_roofs(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: 
     let mut roofs = Vec::new();
     
     for &(row, col) in &roof_cells {
-        // Calculate world coordinates - extend to grid boundaries to cover full wall length
-        let world_x1 = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-        let world_x2 = ((col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-        let world_z1 = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
-        let world_z2 = ((row + 1) as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+        // Calculate world coordinates
+        let (world_x1, world_x2, world_z1, world_z2) = if crate::constants::ROOF_OVERLAP_MODE {
+            // Overlap mode: extend on all sides by roof_thickness/2 for guaranteed coverage
+            let x1 = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)) - WALL_WIDTH / 2.0;
+            let x2 = ((col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)) + WALL_WIDTH / 2.0;
+            let z1 = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0)) - WALL_WIDTH / 2.0;
+            let z2 = ((row + 1) as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0)) + WALL_WIDTH / 2.0;
+            (x1, x2, z1, z2)
+        } else {
+            // Non-overlap mode: extend to grid boundaries to cover full wall length
+            let x1 = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+            let x2 = ((col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+            let z1 = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+            let z2 = ((row + 1) as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+            (x1, x2, z1, z2)
+        };
         
         roofs.push(Roof {
             x1: world_x1,

@@ -30,13 +30,22 @@ const fn no_hit() -> HitResult {
 
 // Generic AABB wall overlap check with parameterized entity dimensions
 fn check_aabb_wall_overlap(entity_pos: &Position, wall: &Wall, half_x: f32, half_z: f32) -> bool {
-    // Wall bounding box - use min/max of corners plus thickness
+    // Calculate wall dimensions and orientation
+    let dx = (wall.x2 - wall.x1).abs();
+    let dz = (wall.z2 - wall.z1).abs();
     let wall_half_width = wall.wall_width / 2.0;
     
-    let wall_min_x = wall.x1.min(wall.x2) - wall_half_width;
-    let wall_max_x = wall.x1.max(wall.x2) + wall_half_width;
-    let wall_min_z = wall.z1.min(wall.z2) - wall_half_width;
-    let wall_max_z = wall.z1.max(wall.z2) + wall_half_width;
+    // Determine wall bounding box based on orientation
+    // Only expand perpendicular to the wall direction, not along its length
+    let (wall_min_x, wall_max_x, wall_min_z, wall_max_z) = if dx > dz {
+        // Horizontal wall (runs along X axis) - expand in Z, not X
+        (wall.x1.min(wall.x2), wall.x1.max(wall.x2), 
+         wall.z1.min(wall.z2) - wall_half_width, wall.z1.max(wall.z2) + wall_half_width)
+    } else {
+        // Vertical wall (runs along Z axis) - expand in X, not Z
+        (wall.x1.min(wall.x2) - wall_half_width, wall.x1.max(wall.x2) + wall_half_width,
+         wall.z1.min(wall.z2), wall.z1.max(wall.z2))
+    };
 
     let entity_min_x = entity_pos.x - half_x;
     let entity_max_x = entity_pos.x + half_x;
