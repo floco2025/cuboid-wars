@@ -11,7 +11,7 @@ pub const WALL_3RD_PROBABILITY_RATIO: f64 = 0.2; // Probability of 3rd wall rela
 // false: Non-overlapping mode - walls meet exactly at corners using smart extension logic
 // true: Overlapping mode - all walls extend by wall_width/2 on both ends for guaranteed no-gap coverage
 pub const WALL_OVERLAP_MODE: bool = false;
-pub const ROOF_OVERLAP_MODE: bool = false;
+pub const ROOF_OVERLAP_MODE: bool = true;
 
 // Wall segment dimensions
 pub const WALL_LENGTH: f32 = 8.2; // Slightly longer than grid to avoid corner gaps
