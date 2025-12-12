@@ -354,12 +354,12 @@ fn generate_individual_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: 
             
             // Check for perpendicular horizontal walls at ends (for L-corners)
             let has_perp_top = row > 0 && {
-                let check_col = if col == 0 || col == grid_cols { 0 } else { col - 1 };
+                let check_col = if col == 0 { 0 } else if col == grid_cols { grid_cols - 1 } else { col - 1 };
                 grid[(row - 1) as usize][check_col as usize].has_south_wall
                     || grid[row as usize][col.min(grid_cols - 1) as usize].has_north_wall
             };
             let has_perp_bottom = row < grid_rows - 1 && {
-                let check_col = if col == 0 || col == grid_cols { 0 } else { col - 1 };
+                let check_col = if col == 0 { 0 } else if col == grid_cols { grid_cols - 1 } else { col - 1 };
                 grid[row as usize][check_col as usize].has_south_wall
                     || grid[(row + 1) as usize][col.min(grid_cols - 1) as usize].has_north_wall
             };
