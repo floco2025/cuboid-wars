@@ -314,8 +314,6 @@ fn perpendicular_horizontal_walls(
     grid_cols: i32,
     grid_rows: i32,
 ) -> (bool, bool) {
-    let _ = grid_cols; // grid_cols unused after switching to has_horizontal_wall checks
-
     // Top endpoint is at grid line `row`; check horizontal walls on both sides of the vertical line.
     let has_perp_top = row > 0
         && (
