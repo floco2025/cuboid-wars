@@ -1,7 +1,8 @@
 use bevy::{
     asset::RenderAssetUsages,
+    image::{ImageAddressMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor},
     prelude::*,
-    render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages},
+    render::render_resource::{Extent3d, PrimitiveTopology, TextureDimension, TextureFormat, TextureUsages},
 };
 
 use crate::{
@@ -121,6 +122,127 @@ struct RoofBundle {
     transform: Transform,
     visibility: Visibility,
     marker: RoofMarker,
+}
+
+// ============================================================================
+// Mesh Helpers
+// ============================================================================
+
+// Build a cuboid mesh with UVs that tile based on a single tile size.
+// Maps U to X extent on ±X faces, and to Z extent on ±Z faces; V maps to Y on side faces.
+fn tiled_cuboid(size_x: f32, size_y: f32, size_z: f32, tile_size: f32) -> Mesh {
+    let hx = size_x / 2.0;
+    let hy = size_y / 2.0;
+    let hz = size_z / 2.0;
+
+    let repeat_x = size_x / tile_size;
+    let repeat_y = size_y / tile_size;
+    let repeat_z = size_z / tile_size;
+
+    let mut positions = Vec::with_capacity(36);
+    let mut normals = Vec::with_capacity(36);
+    let mut uvs = Vec::with_capacity(36);
+
+    // Helper to push two triangles (quad) given four corner positions (p0..p3) in CCW order.
+    let mut push_face = |
+        p0: [f32; 3],
+        p1: [f32; 3],
+        p2: [f32; 3],
+        p3: [f32; 3],
+        normal: [f32; 3],
+        uv00: [f32; 2],
+        uv11: [f32; 2],
+    | {
+        // Triangle 1: p0 (uv00), p1 (u max), p2 (u,v max)
+        positions.extend_from_slice(&[p0, p1, p2]);
+        normals.extend_from_slice(&[normal; 3]);
+        uvs.extend_from_slice(&[
+            [uv00[0], uv00[1]],
+            [uv11[0], uv00[1]],
+            [uv11[0], uv11[1]],
+        ]);
+
+        // Triangle 2: p0 (uv00), p2 (u,v max), p3 (v max)
+        positions.extend_from_slice(&[p0, p2, p3]);
+        normals.extend_from_slice(&[normal; 3]);
+        uvs.extend_from_slice(&[
+            [uv00[0], uv00[1]],
+            [uv11[0], uv11[1]],
+            [uv00[0], uv11[1]],
+        ]);
+    };
+
+    // +X face (U along height to keep scale; V clamped across thin thickness)
+    push_face(
+        [hx, -hy, -hz],
+        [hx, hy, -hz],
+        [hx, hy, hz],
+        [hx, -hy, hz],
+        [1.0, 0.0, 0.0],
+        [0.0, 0.0],
+        [repeat_y, 1.0],
+    );
+
+    // -X face
+    push_face(
+        [-hx, -hy, hz],
+        [-hx, hy, hz],
+        [-hx, hy, -hz],
+        [-hx, -hy, -hz],
+        [-1.0, 0.0, 0.0],
+        [0.0, 0.0],
+        [repeat_y, 1.0],
+    );
+
+    // +Y face (u along X, v along Z)
+    push_face(
+        [-hx, hy, -hz],
+        [-hx, hy, hz],
+        [hx, hy, hz],
+        [hx, hy, -hz],
+        [0.0, 1.0, 0.0],
+        [0.0, 0.0],
+        [repeat_x, repeat_z],
+    );
+
+    // -Y face
+    push_face(
+        [-hx, -hy, hz],
+        [-hx, -hy, -hz],
+        [hx, -hy, -hz],
+        [hx, -hy, hz],
+        [0.0, -1.0, 0.0],
+        [0.0, 0.0],
+        [repeat_x, repeat_z],
+    );
+
+    // +Z face (u along length X, v along Y) - main face
+    push_face(
+        [-hx, -hy, hz],
+        [hx, -hy, hz],
+        [hx, hy, hz],
+        [-hx, hy, hz],
+        [0.0, 0.0, 1.0],
+        [0.0, 0.0],
+        [repeat_x, repeat_y],
+    );
+
+    // -Z face
+    push_face(
+        [hx, -hy, -hz],
+        [-hx, -hy, -hz],
+        [-hx, hy, -hz],
+        [hx, hy, -hz],
+        [0.0, 0.0, -1.0],
+        [0.0, 0.0],
+        [repeat_x, repeat_y],
+    );
+
+    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default());
+    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
+    mesh
 }
 
 // ============================================================================
@@ -420,6 +542,18 @@ pub fn spawn_projectile_for_player(
 // Map Spawning
 // ============================================================================
 
+// Load a texture with repeat addressing so UVs beyond 0..1 tile instead of clamping.
+fn load_repeating_texture(asset_server: &AssetServer, path: &'static str) -> Handle<Image> {
+    asset_server.load_with_settings(path, |settings: &mut ImageLoaderSettings| {
+        settings.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
+            address_mode_u: ImageAddressMode::Repeat,
+            address_mode_v: ImageAddressMode::Repeat,
+            address_mode_w: ImageAddressMode::Repeat,
+            ..default()
+        });
+    })
+}
+
 // Spawn a wall segment entity based on a shared `Wall` config.
 pub fn spawn_wall(
     commands: &mut Commands,
@@ -438,19 +572,10 @@ pub fn spawn_wall(
     let dz = wall.z2 - wall.z1;
     let length = dx.hypot(dz);
 
-    // Determine if wall is vertical (runs north-south along Z axis)
-    let is_vertical = dz.abs() > dx.abs();
-
-    // Always create the mesh with length along X axis for consistent UV mapping
+    // Put length on local X (visible faces will be the ±Z quads after rotation), width on Z is thickness.
     let mesh_size_x = length;
     let mesh_size_z = wall.width;
-
-    // Rotate 90 degrees for vertical walls so they align correctly in world space
-    let rotation = if is_vertical {
-        Quat::from_rotation_y(std::f32::consts::FRAC_PI_2) // 90 degrees
-    } else {
-        Quat::IDENTITY
-    };
+    let rotation = Quat::from_rotation_y(dz.atan2(dx));
 
     // Create material based on whether random colors are enabled
     let wall_material = if WALL_RANDOM_COLORS {
@@ -465,13 +590,15 @@ pub fn spawn_wall(
         }
     } else {
         StandardMaterial {
-            base_color_texture: Some(asset_server.load("wall.png")),
+            base_color_texture: Some(load_repeating_texture(asset_server, "wall.png")),
             ..default()
         }
     };
 
+    let mesh = tiled_cuboid(mesh_size_x, WALL_HEIGHT, mesh_size_z, WALL_TEXTURE_TILE_SIZE);
+
     commands.spawn(WallBundle {
-        mesh: Mesh3d(meshes.add(Cuboid::new(mesh_size_x, WALL_HEIGHT, mesh_size_z))),
+        mesh: Mesh3d(meshes.add(mesh)),
         material: MeshMaterial3d(materials.add(wall_material)),
         transform: Transform::from_xyz(
             center_x,
@@ -514,13 +641,15 @@ pub fn spawn_roof(
         }
     } else {
         StandardMaterial {
-            base_color_texture: Some(asset_server.load("roof.png")),
+            base_color_texture: Some(load_repeating_texture(asset_server, "roof.png")),
             ..default()
         }
     };
 
+    let mesh = tiled_cuboid(width, roof.thickness, depth, ROOF_TEXTURE_TILE_SIZE);
+
     commands.spawn(RoofBundle {
-        mesh: Mesh3d(meshes.add(Cuboid::new(width, roof.thickness, depth))),
+        mesh: Mesh3d(meshes.add(mesh)),
         material: MeshMaterial3d(materials.add(roof_material)),
         transform: Transform::from_xyz(
             center_x,
