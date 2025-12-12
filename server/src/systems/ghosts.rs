@@ -4,6 +4,7 @@ use rand::Rng as _;
 use crate::{
     constants::*,
     map::cell_center,
+    net::ServerToClient,
     resources::{GhostInfo, GhostMap, GhostMode, GridCell, GridConfig, PlayerMap},
 };
 use common::{
@@ -660,7 +661,7 @@ pub fn ghost_player_collision_system(
             // Send ghost hit message only to the hit player for sound effect
             let _ = player_info
                 .channel
-                .send(crate::net::ServerToClient::Send(ServerMessage::GhostHit(SGhostHit {})));
+                .send(ServerToClient::Send(ServerMessage::GhostHit(SGhostHit {})));
 
             broadcast_to_all(&players, ServerMessage::PlayerStatus(status_msg));
         }

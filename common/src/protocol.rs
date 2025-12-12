@@ -1,5 +1,4 @@
-use bevy_ecs::component::Component;
-use bevy_ecs::message::Message;
+use bevy_ecs::{component::Component, message::Message};
 #[cfg(feature = "bincode")]
 use bincode::{Decode, Encode};
 #[cfg(feature = "json")]

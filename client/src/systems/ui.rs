@@ -1,6 +1,4 @@
-use bevy::camera::Viewport;
-use bevy::prelude::*;
-use bevy::render::render_resource::Face;
+use bevy::{camera::Viewport, prelude::*, render::render_resource::Face};
 use std::time::Duration;
 
 use crate::{
@@ -74,7 +72,7 @@ pub fn setup_world_system(
     ));
 
     // Create grid lines (optional)
-    if crate::constants::GRID_LINES {
+    if GRID_LINES {
         let grid_material = materials.add(Color::srgb(0.5, 0.5, 0.5)); // Grey color
         let line_height = 0.01; // Slightly above ground to avoid z-fighting
 
@@ -480,7 +478,10 @@ pub fn ui_stunned_blink_system(
 ) {
     let local_player_id = my_player_id.as_ref().map(|id| id.0);
     let blink_frequency = 3.0; // Blinks per second
-    let blink_value = f32::midpoint((time.elapsed_secs() * blink_frequency * std::f32::consts::PI * 2.0).sin(), 1.0);
+    let blink_value = f32::midpoint(
+        (time.elapsed_secs() * blink_frequency * std::f32::consts::PI * 2.0).sin(),
+        1.0,
+    );
 
     for (marker, mut bg_color) in &mut query {
         if let Some(player_info) = players.0.get(&marker.0) {
@@ -496,10 +497,22 @@ pub fn ui_stunned_blink_system(
                 let stun_color = Color::srgba(1.0, 0.0, 0.0, 0.5);
 
                 *bg_color = BackgroundColor(Color::srgba(
-                    base_color.to_srgba().red.mul_add(1.0 - blink_value, stun_color.to_srgba().red * blink_value),
-                    base_color.to_srgba().green.mul_add(1.0 - blink_value, stun_color.to_srgba().green * blink_value),
-                    base_color.to_srgba().blue.mul_add(1.0 - blink_value, stun_color.to_srgba().blue * blink_value),
-                    base_color.to_srgba().alpha.mul_add(1.0 - blink_value, stun_color.to_srgba().alpha * blink_value),
+                    base_color
+                        .to_srgba()
+                        .red
+                        .mul_add(1.0 - blink_value, stun_color.to_srgba().red * blink_value),
+                    base_color
+                        .to_srgba()
+                        .green
+                        .mul_add(1.0 - blink_value, stun_color.to_srgba().green * blink_value),
+                    base_color
+                        .to_srgba()
+                        .blue
+                        .mul_add(1.0 - blink_value, stun_color.to_srgba().blue * blink_value),
+                    base_color
+                        .to_srgba()
+                        .alpha
+                        .mul_add(1.0 - blink_value, stun_color.to_srgba().alpha * blink_value),
                 ));
             } else {
                 // Not stunned - reset to base color

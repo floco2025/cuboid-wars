@@ -11,7 +11,12 @@ use crate::{
         players::{BumpFlashState, LocalPlayer},
     },
 };
-use common::{collision::Projectile, constants::*, protocol::*, spawning::calculate_projectile_spawns};
+use common::{
+    collision::Projectile,
+    constants::*,
+    protocol::*,
+    spawning::{ProjectileSpawnInfo, calculate_projectile_spawns},
+};
 
 // ============================================================================
 // Components
@@ -372,7 +377,7 @@ fn spawn_single_projectile(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
-    spawn_info: &common::spawning::ProjectileSpawnInfo,
+    spawn_info: &ProjectileSpawnInfo,
 ) {
     let spawn_pos = Vec3::new(spawn_info.position.x, spawn_info.position.y, spawn_info.position.z);
 
@@ -424,29 +429,29 @@ pub fn spawn_wall(
     wall: &Wall,
 ) {
     use rand::Rng;
-    
+
     // Calculate wall center and dimensions from corners
     let center_x = f32::midpoint(wall.x1, wall.x2);
     let center_z = f32::midpoint(wall.z1, wall.z2);
-    
+
     let dx = wall.x2 - wall.x1;
     let dz = wall.z2 - wall.z1;
     let length = dx.hypot(dz);
-    
+
     // Determine if wall is vertical (runs north-south along Z axis)
     let is_vertical = dz.abs() > dx.abs();
-    
+
     // Always create the mesh with length along X axis for consistent UV mapping
     let mesh_size_x = length;
     let mesh_size_z = wall.width;
-    
+
     // Rotate 90 degrees for vertical walls so they align correctly in world space
     let rotation = if is_vertical {
         Quat::from_rotation_y(std::f32::consts::FRAC_PI_2) // 90 degrees
     } else {
         Quat::IDENTITY
     };
-    
+
     // Create material based on whether random colors are enabled
     let wall_material = if WALL_RANDOM_COLORS {
         let mut rng = rand::rng();
@@ -472,7 +477,8 @@ pub fn spawn_wall(
             center_x,
             WALL_HEIGHT / 2.0, // Lift so bottom is at y=0
             center_z,
-        ).with_rotation(rotation),
+        )
+        .with_rotation(rotation),
         visibility: Visibility::default(),
         marker: WallMarker,
     });
@@ -487,14 +493,14 @@ pub fn spawn_roof(
     roof: &Roof,
 ) {
     use rand::Rng;
-    
+
     // Calculate roof center and dimensions from corners
     let center_x = f32::midpoint(roof.x1, roof.x2);
     let center_z = f32::midpoint(roof.z1, roof.z2);
-    
+
     let width = (roof.x2 - roof.x1).abs();
     let depth = (roof.z2 - roof.z1).abs();
-    
+
     // Create material based on whether random colors are enabled
     let roof_material = if ROOF_RANDOM_COLORS {
         let mut rng = rand::rng();

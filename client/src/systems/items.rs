@@ -1,7 +1,6 @@
 use bevy::prelude::*;
 
-use crate::constants::*;
-use crate::spawning::ItemAnimTimer;
+use crate::{constants::*, spawning::ItemAnimTimer};
 
 // ============================================================================
 // Items Animation System

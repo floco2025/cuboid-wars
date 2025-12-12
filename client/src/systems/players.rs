@@ -1,8 +1,7 @@
-use bevy::camera::Viewport;
-use bevy::prelude::*;
+use bevy::{camera::Viewport, prelude::*};
 use std::time::Duration;
 
-use super::network::ServerReconciliation;
+use super::{network::ServerReconciliation, ui::BumpFlashUIMarker};
 use crate::{
     constants::*,
     resources::{CameraViewMode, WallConfig},
@@ -108,7 +107,7 @@ fn decay_flash_timer(
     state: &mut Mut<BumpFlashState>,
     delta: f32,
     is_local: bool,
-    bump_flash_ui: &mut Query<(&mut BackgroundColor, &mut Visibility), With<super::ui::BumpFlashUIMarker>>,
+    bump_flash_ui: &mut Query<(&mut BackgroundColor, &mut Visibility), With<BumpFlashUIMarker>>,
 ) {
     if state.flash_timer <= 0.0 {
         return;
@@ -127,7 +126,7 @@ fn decay_flash_timer(
 fn trigger_collision_feedback(
     commands: &mut Commands,
     asset_server: &AssetServer,
-    bump_flash_ui: &mut Query<(&mut BackgroundColor, &mut Visibility), With<super::ui::BumpFlashUIMarker>>,
+    bump_flash_ui: &mut Query<(&mut BackgroundColor, &mut Visibility), With<BumpFlashUIMarker>>,
     state: &mut Mut<BumpFlashState>,
     collided_with_wall: bool,
 ) {
@@ -178,7 +177,7 @@ pub fn players_movement_system(
     asset_server: Res<AssetServer>,
     wall_config: Option<Res<WallConfig>>,
     mut query: MovementQuery,
-    mut bump_flash_ui: Query<(&mut BackgroundColor, &mut Visibility), With<super::ui::BumpFlashUIMarker>>,
+    mut bump_flash_ui: Query<(&mut BackgroundColor, &mut Visibility), With<BumpFlashUIMarker>>,
 ) {
     let delta = time.delta_secs();
     let entity_positions: Vec<(Entity, Position)> =
@@ -461,8 +460,6 @@ pub fn local_player_rearview_system(
     mut rearview_query: Query<&mut Camera, With<RearviewCamera>>,
     view_mode: Res<CameraViewMode>,
 ) {
-    use crate::constants::{REARVIEW_HEIGHT_RATIO, REARVIEW_MARGIN, REARVIEW_WIDTH_RATIO};
-
     let Ok(window) = windows.single() else {
         return;
     };

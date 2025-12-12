@@ -34,17 +34,25 @@ fn check_aabb_wall_overlap(entity_pos: &Position, wall: &Wall, half_x: f32, half
     let dx = (wall.x2 - wall.x1).abs();
     let dz = (wall.z2 - wall.z1).abs();
     let wall_half_width = wall.width / 2.0;
-    
+
     // Determine wall bounding box based on orientation
     // Only expand perpendicular to the wall direction, not along its length
     let (wall_min_x, wall_max_x, wall_min_z, wall_max_z) = if dx > dz {
         // Horizontal wall (runs along X axis) - expand in Z, not X
-        (wall.x1.min(wall.x2), wall.x1.max(wall.x2), 
-         wall.z1.min(wall.z2) - wall_half_width, wall.z1.max(wall.z2) + wall_half_width)
+        (
+            wall.x1.min(wall.x2),
+            wall.x1.max(wall.x2),
+            wall.z1.min(wall.z2) - wall_half_width,
+            wall.z1.max(wall.z2) + wall_half_width,
+        )
     } else {
         // Vertical wall (runs along Z axis) - expand in X, not Z
-        (wall.x1.min(wall.x2) - wall_half_width, wall.x1.max(wall.x2) + wall_half_width,
-         wall.z1.min(wall.z2), wall.z1.max(wall.z2))
+        (
+            wall.x1.min(wall.x2) - wall_half_width,
+            wall.x1.max(wall.x2) + wall_half_width,
+            wall.z1.min(wall.z2),
+            wall.z1.max(wall.z2),
+        )
     };
 
     let entity_min_x = entity_pos.x - half_x;
@@ -62,13 +70,13 @@ fn check_aabb_wall_sweep(start_pos: &Position, end_pos: &Position, wall: &Wall, 
     // Calculate wall center and half dimensions
     let wall_center_x = f32::midpoint(wall.x1, wall.x2);
     let wall_center_z = f32::midpoint(wall.z1, wall.z2);
-    
+
     // Calculate wall dimensions from corners
     // For axis-aligned walls, either dx or dz is zero
     let dx = (wall.x2 - wall.x1).abs();
     let dz = (wall.z2 - wall.z1).abs();
     let wall_half_width = wall.width / 2.0;
-    
+
     // Determine wall orientation and set AABB dimensions
     // Horizontal wall: extends along X axis, thin in Z direction
     // Vertical wall: extends along Z axis, thin in X direction
@@ -391,13 +399,13 @@ pub fn check_projectile_wall_sweep_hit(
     // NOTE: Assumes axis-aligned walls (horizontal or vertical, not diagonal)
     let wall_center_x = f32::midpoint(wall.x1, wall.x2);
     let wall_center_z = f32::midpoint(wall.z1, wall.z2);
-    
+
     // For axis-aligned walls, either dx or dz is zero
     let dx = (wall.x2 - wall.x1).abs();
     let dz = (wall.z2 - wall.z1).abs();
     let wall_half_thickness = wall.width / 2.0 + PROJECTILE_RADIUS;
     let half_height = WALL_HEIGHT / 2.0 + PROJECTILE_RADIUS;
-    
+
     // Determine wall orientation and set AABB dimensions (with projectile radius)
     let is_horizontal = dx > dz;
     let (half_x, half_z) = if is_horizontal {

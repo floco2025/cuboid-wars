@@ -1,5 +1,7 @@
-use bevy::audio::{PlaybackMode, Volume};
-use bevy::prelude::*;
+use bevy::{
+    audio::{PlaybackMode, Volume},
+    prelude::*,
+};
 
 use super::players::LocalPlayer;
 use crate::resources::WallConfig;

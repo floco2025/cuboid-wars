@@ -9,7 +9,7 @@ use super::players::{LocalPlayer, PlayerMovementMut};
 use crate::{
     constants::*,
     net::ClientToServer,
-    resources::{CameraViewMode, ClientToServerChannel, MyPlayerId, PlayerMap, RoofRenderingEnabled},
+    resources::{CameraViewMode, ClientToServerChannel, MyPlayerId, PlayerMap, RoofRenderingEnabled, WallConfig},
     spawning::spawn_projectiles,
 };
 use common::{constants::POWER_UP_SPEED_MULTIPLIER, protocol::*};
@@ -256,7 +256,7 @@ pub fn input_shooting_system(
     mut materials: ResMut<Assets<StandardMaterial>>,
     my_player_id: Option<Res<MyPlayerId>>,
     players: Res<PlayerMap>,
-    wall_config: Option<Res<crate::resources::WallConfig>>,
+    wall_config: Option<Res<WallConfig>>,
 ) {
     // Only allow shooting when cursor is locked
     let cursor_locked = cursor_options.grab_mode != CursorGrabMode::None;

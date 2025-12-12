@@ -1,6 +1,5 @@
-use bevy::ecs::system::SystemParam;
-use bevy::prelude::*;
-use rand::Rng as _;
+use bevy::{ecs::system::SystemParam, prelude::*};
+use rand::Rng;
 
 use crate::{
     net::{ClientToServer, ServerToClient},

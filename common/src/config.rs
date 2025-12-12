@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use quinn::TransportConfig;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
-use std::{sync::Arc, time::Duration};
+use std::{fs::read, sync::Arc, time::Duration};
 
 // ============================================================================
 // Constants
@@ -15,14 +15,14 @@ const KEEPALIVE_INTERVAL_SECS: u64 = 2;
 // ============================================================================
 
 pub fn load_certs() -> Result<Vec<CertificateDer<'static>>> {
-    let cert = std::fs::read("cert.pem").context("Failed to read cert.pem")?;
+    let cert = read("cert.pem").context("Failed to read cert.pem")?;
     rustls_pemfile::certs(&mut &cert[..])
         .collect::<Result<Vec<_>, _>>()
         .context("Failed to parse certificates")
 }
 
 pub fn load_private_key() -> Result<PrivateKeyDer<'static>> {
-    let key = std::fs::read("key.pem").context("Failed to read key.pem")?;
+    let key = read("key.pem").context("Failed to read key.pem")?;
     rustls_pemfile::private_key(&mut &key[..])
         .context("Failed to read private key")?
         .ok_or_else(|| anyhow::anyhow!("No private key found"))

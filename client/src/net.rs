@@ -6,8 +6,7 @@ use tokio::{
     time::{Duration, sleep},
 };
 
-use common::net::MessageStream;
-use common::protocol::*;
+use common::{net::MessageStream, protocol::*};
 
 // Message emitted by the network task toward the Bevy world.
 #[derive(Debug, Clone)]
