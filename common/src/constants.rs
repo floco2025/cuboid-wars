@@ -25,7 +25,7 @@ pub const SPEED_RUN: f32 = 9.0;
 // Projectile constants
 pub const PROJECTILE_SPEED: f32 = 25.0; // meters per second (dodgeball throw speed)
 pub const PROJECTILE_LIFETIME: f32 = 4.0; // seconds
-pub const PROJECTILE_SPAWN_OFFSET: f32 = 0.6; // meters in front of thrower
+pub const PROJECTILE_SPAWN_OFFSET: f32 = 1.0; // meters in front of thrower
 pub const PROJECTILE_SPAWN_HEIGHT: f32 = 1.5; // meters above ground (shoulder height)
 pub const PROJECTILE_RADIUS: f32 = 0.11; // meters (22cm diameter dodgeball)
 
