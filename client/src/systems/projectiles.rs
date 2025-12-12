@@ -72,7 +72,7 @@ pub fn projectiles_movement_system(
     let delta = time.delta_secs();
     let walls = wall_config.as_deref();
 
-    for (projectile_entity, mut projectile_transform, mut projectile) in projectile_query.iter_mut() {
+    for (projectile_entity, mut projectile_transform, mut projectile) in &mut projectile_query {
         // Check lifetime and despawn if expired
         projectile.lifetime.tick(time.delta());
         if projectile.lifetime.is_finished() {

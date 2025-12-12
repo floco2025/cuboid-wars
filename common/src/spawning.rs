@@ -21,6 +21,7 @@ pub struct ProjectileSpawnInfo {
 //
 // Returns a list of projectiles that should be spawned, excluding any that would
 // be blocked by walls.
+#[must_use] 
 pub fn calculate_projectile_spawns(
     shooter_pos: &Position,
     face_dir: f32,

@@ -335,7 +335,7 @@ fn find_visible_moving_player(
             continue;
         }
 
-        let distance = ((player_pos.x - ghost_pos.x).powi(2) + (player_pos.z - ghost_pos.z).powi(2)).sqrt();
+        let distance = (player_pos.x - ghost_pos.x).hypot(player_pos.z - ghost_pos.z);
 
         if distance > GHOST_VISION_RANGE {
             continue;
@@ -401,7 +401,7 @@ fn pre_patrol_movement(
         // Not at center yet - move directly toward it
         let dx = center.x - pos.x;
         let dz = center.z - pos.z;
-        let distance = (dx * dx + dz * dz).sqrt();
+        let distance = dx.hypot(dz);
 
         // Normalize and apply ghost speed
         let dir_x = dx / distance;
@@ -534,7 +534,7 @@ fn follow_movement(
     // Calculate direction to target
     let dx = target_pos.x - pos.x;
     let dz = target_pos.z - pos.z;
-    let distance = (dx * dx + dz * dz).sqrt();
+    let distance = dx.hypot(dz);
 
     if distance < 0.01 {
         // Already at target
@@ -554,9 +554,9 @@ fn follow_movement(
 
     // Calculate target position for this frame
     let target_frame_pos = Position {
-        x: pos.x + desired_vel.x * delta,
+        x: desired_vel.x.mul_add(delta, pos.x),
         y: 0.0,
-        z: pos.z + desired_vel.z * delta,
+        z: desired_vel.z.mul_add(delta, pos.z),
     };
 
     // Check for wall collisions and apply sliding

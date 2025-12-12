@@ -279,7 +279,7 @@ pub fn generate_grid() -> GridConfig {
     // Generate roofs based on grid
     let roofs = generate_individual_roofs(&grid, grid_cols, grid_rows);
 
-    GridConfig { walls, roofs, grid }
+    GridConfig { grid, walls, roofs }
 }
 
 // Does the grid line at (row, col) have a horizontal wall? Handles perimeter rows.

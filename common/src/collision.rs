@@ -60,8 +60,8 @@ fn check_aabb_wall_overlap(entity_pos: &Position, wall: &Wall, half_x: f32, half
 // NOTE: Assumes axis-aligned walls (horizontal or vertical, not diagonal)
 fn check_aabb_wall_sweep(start_pos: &Position, end_pos: &Position, wall: &Wall, half_x: f32, half_z: f32) -> bool {
     // Calculate wall center and half dimensions
-    let wall_center_x = (wall.x1 + wall.x2) / 2.0;
-    let wall_center_z = (wall.z1 + wall.z2) / 2.0;
+    let wall_center_x = f32::midpoint(wall.x1, wall.x2);
+    let wall_center_z = f32::midpoint(wall.z1, wall.z2);
     
     // Calculate wall dimensions from corners
     // For axis-aligned walls, either dx or dz is zero
@@ -248,8 +248,8 @@ impl Projectile {
 
                 // Push projectile slightly away from wall surface to prevent getting stuck inside
                 const SEPARATION_EPSILON: f32 = 0.01;
-                let separated_x = collision_x + normal_x * SEPARATION_EPSILON;
-                let separated_z = collision_z + normal_z * SEPARATION_EPSILON;
+                let separated_x = normal_x.mul_add(SEPARATION_EPSILON, collision_x);
+                let separated_z = normal_z.mul_add(SEPARATION_EPSILON, collision_z);
 
                 // Continue moving for remaining time after bounce
                 let remaining_time = delta * (1.0 - t_collision);
@@ -389,8 +389,8 @@ pub fn check_projectile_wall_sweep_hit(
 
     // Wall dimensions - calculate center and dimensions from corners
     // NOTE: Assumes axis-aligned walls (horizontal or vertical, not diagonal)
-    let wall_center_x = (wall.x1 + wall.x2) / 2.0;
-    let wall_center_z = (wall.z1 + wall.z2) / 2.0;
+    let wall_center_x = f32::midpoint(wall.x1, wall.x2);
+    let wall_center_z = f32::midpoint(wall.z1, wall.z2);
     
     // For axis-aligned walls, either dx or dz is zero
     let dx = (wall.x2 - wall.x1).abs();

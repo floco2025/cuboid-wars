@@ -193,7 +193,7 @@ pub fn spawn_player(
     entity
 }
 
-fn player_color(is_local: bool) -> Color {
+const fn player_color(is_local: bool) -> Color {
     if is_local {
         Color::srgb(0.3, 0.3, 1.0)
     } else {
@@ -201,7 +201,7 @@ fn player_color(is_local: bool) -> Color {
     }
 }
 
-fn player_visibility(is_local: bool) -> Visibility {
+const fn player_visibility(is_local: bool) -> Visibility {
     if is_local {
         Visibility::Hidden
     } else {
@@ -426,8 +426,8 @@ pub fn spawn_wall(
     use rand::Rng;
     
     // Calculate wall center and dimensions from corners
-    let center_x = (wall.x1 + wall.x2) / 2.0;
-    let center_z = (wall.z1 + wall.z2) / 2.0;
+    let center_x = f32::midpoint(wall.x1, wall.x2);
+    let center_z = f32::midpoint(wall.z1, wall.z2);
     
     let dx = wall.x2 - wall.x1;
     let dz = wall.z2 - wall.z1;
@@ -489,8 +489,8 @@ pub fn spawn_roof(
     use rand::Rng;
     
     // Calculate roof center and dimensions from corners
-    let center_x = (roof.x1 + roof.x2) / 2.0;
-    let center_z = (roof.z1 + roof.z2) / 2.0;
+    let center_x = f32::midpoint(roof.x1, roof.x2);
+    let center_z = f32::midpoint(roof.z1, roof.z2);
     
     let width = (roof.x2 - roof.x1).abs();
     let depth = (roof.z2 - roof.z1).abs();

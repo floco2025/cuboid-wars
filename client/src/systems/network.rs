@@ -153,7 +153,7 @@ fn process_message_logged_in(
         ServerMessage::Login(login) => handle_login_message(commands, assets, players, login),
         ServerMessage::Logoff(logoff) => handle_logoff_message(commands, players, logoff),
         ServerMessage::Speed(speed_msg) => {
-            handle_speed_message(commands, players, &queries.player_positions, rtt, speed_msg)
+            handle_speed_message(commands, players, &queries.player_positions, rtt, speed_msg);
         }
         ServerMessage::Face(face_msg) => handle_face_message(commands, players, face_msg),
         ServerMessage::Shot(shot_msg) => {

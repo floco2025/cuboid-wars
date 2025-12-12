@@ -35,7 +35,7 @@ pub fn projectiles_movement_system(
 ) {
     let delta = time.delta_secs();
 
-    for (proj_entity, mut proj_pos, mut projectile, shooter_id) in projectile_query.iter_mut() {
+    for (proj_entity, mut proj_pos, mut projectile, shooter_id) in &mut projectile_query {
         // Check lifetime and despawn if expired
         projectile.lifetime.tick(time.delta());
         if projectile.lifetime.is_finished() {
