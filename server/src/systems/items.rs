@@ -212,7 +212,7 @@ pub fn item_collection_system(
                     player_info.multi_shot_power_up_timer = POWER_UP_MULTI_SHOT_DURATION;
                 }
                 ItemType::ReflectPowerUp => {
-                    player_info.reflect_power_up_timer = POWER_UP_MULTI_SHOT_DURATION;
+                    player_info.reflect_power_up_timer = POWER_UP_REFLECT_DURATION;
                 }
                 ItemType::Cookie => unreachable!(), // Already handled above
             }

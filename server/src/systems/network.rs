@@ -375,7 +375,10 @@ fn process_message_logged_in(
     match msg {
         ClientMessage::Login(_) => {
             warn!("{:?} sent login after already authenticated", id);
-            commands.entity(entity).despawn();
+            if let Some(player) = players.0.get(&id) {
+                // Terminate the connection to enforce a single-login flow
+                let _ = player.channel.send(ServerToClient::Close);
+            }
         }
         ClientMessage::Logoff(_) => {
             debug!("{:?} logged off", id);

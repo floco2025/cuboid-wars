@@ -26,6 +26,7 @@ pub const ITEM_COLLECTION_RADIUS: f32 = 1.0; // Distance to collect an item
 // Power-Up settings
 pub const POWER_UP_SPEED_DURATION: f32 = 30.0; // seconds
 pub const POWER_UP_MULTI_SHOT_DURATION: f32 = 30.0; // seconds
+pub const POWER_UP_REFLECT_DURATION: f32 = 30.0; // seconds
 
 // Ghost settings
 pub const GHOSTS_NUM: u32 = 3; // Number of ghosts to spawn
