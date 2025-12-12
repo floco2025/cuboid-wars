@@ -112,10 +112,7 @@ fn all_cells_reachable(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) -
     }
 
     // All cells should be reachable
-    #[allow(clippy::cast_sign_loss)]
-    {
-        visited.len() == (grid_rows * grid_cols) as usize
-    }
+    visited.len() == (grid_rows * grid_cols) as usize
 }
 
 // ============================================================================
@@ -127,9 +124,6 @@ fn all_cells_reachable(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) -
 // Always places walls around the perimeter of the field.
 #[must_use]
 #[allow(clippy::too_many_lines)]
-#[allow(clippy::cast_precision_loss)]
-#[allow(clippy::cast_possible_truncation)]
-#[allow(clippy::cast_sign_loss)]
 pub fn generate_grid() -> GridConfig {
     let mut rng = rand::rng();
 
@@ -337,7 +331,6 @@ fn perpendicular_horizontal_walls(
 
 // Generate individual wall segments (no merging) with gap-filling extensions
 #[must_use]
-#[allow(clippy::cast_precision_loss)]
 fn generate_individual_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) -> Vec<Wall> {
     let mut walls = Vec::new();
 
@@ -423,7 +416,6 @@ fn generate_individual_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: 
 
 // Generate individual roof segments (no merging) covering full grid cells
 #[must_use]
-#[allow(clippy::cast_precision_loss)]
 fn generate_individual_roofs(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) -> Vec<Roof> {
     let mut rng = rand::rng();
 

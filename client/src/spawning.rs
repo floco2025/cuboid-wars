@@ -229,7 +229,6 @@ fn spawn_face_sphere(
         .id()
 }
 
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn setup_player_id_text_rendering(
     commands: &mut Commands,
     images: &mut ResMut<Assets<Image>>,
@@ -285,7 +284,6 @@ pub fn spawn_player_id_display(
     image_handle: Handle<Image>,
     text_camera: Entity,
 ) -> (Entity, Entity) {
-    #[allow(clippy::cast_precision_loss)]
     const LABEL_HEIGHT: f32 = LABEL_WIDTH * (LABEL_TEXTURE_HEIGHT as f32 / LABEL_TEXTURE_WIDTH as f32);
 
     // Create UI text that renders to texture

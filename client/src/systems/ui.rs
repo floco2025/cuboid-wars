@@ -46,7 +46,6 @@ pub struct PlayerEntryMarker(pub PlayerId);
 // ============================================================================
 
 #[allow(clippy::too_many_lines)]
-#[allow(clippy::cast_precision_loss)]
 pub fn setup_world_system(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
