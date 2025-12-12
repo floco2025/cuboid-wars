@@ -211,7 +211,7 @@ pub fn players_movement_system(
             let total_dz = server_pos_z - recon.client_pos.z;
 
             // If the client got totally out of sync, we jump to the server position
-            if total_dx >= 5.0 || total_dz >= 5.0 {
+            if total_dx.abs() >= 5.0 || total_dz.abs() >= 5.0 {
                 warn!("client out of sync, jumping to server position");
                 *client_pos = recon.server_pos;
                 continue;
