@@ -68,10 +68,6 @@ pub fn projectiles_movement_system(
 
         // Check player collisions
         for player in player_query.iter() {
-            // Don't hit yourself
-            if shooter_id == player.player_id {
-                continue;
-            }
 
             // Use common hit detection logic
             let result = check_projectile_player_sweep_hit(
@@ -83,6 +79,13 @@ pub fn projectiles_movement_system(
             );
 
             if result.hit {
+                // Self-hit: despawn without scoring to match client expectations
+                if shooter_id == player.player_id {
+                    commands.entity(proj_entity).despawn();
+                    hit_something = true;
+                    break;
+                }
+
                 info!("{:?} hits {:?}", shooter_id, player.player_id);
 
                 // Update hit counters
