@@ -3,8 +3,9 @@ use std::collections::{HashSet, VecDeque};
 
 use crate::{
     constants::{
-        ROOF_OVERLAP_MODE, ROOF_PROBABILITY_2_WALLS, ROOF_PROBABILITY_3_WALLS, ROOF_PROBABILITY_WITH_NEIGHBOR,
-        WALL_2ND_PROBABILITY_RATIO, WALL_3RD_PROBABILITY_RATIO, WALL_NUM_SEGMENTS, WALL_OVERLAP_MODE,
+        MERGE_ROOF_SEGMENTS, MERGE_WALL_SEGMENTS, OVERLAP_ROOFS, ROOF_PROBABILITY_2_WALLS,
+        ROOF_PROBABILITY_3_WALLS, ROOF_PROBABILITY_WITH_NEIGHBOR, WALL_2ND_PROBABILITY_RATIO,
+        WALL_3RD_PROBABILITY_RATIO, WALL_NUM_SEGMENTS, OVERLAP_WALLS,
     },
     resources::{GridCell, GridConfig},
 };
@@ -273,10 +274,16 @@ pub fn generate_grid() -> GridConfig {
     }
 
     // Build wall list from grid with individual segments
-    let walls = generate_individual_walls(&grid, grid_cols, grid_rows);
+    let mut walls = generate_individual_walls(&grid, grid_cols, grid_rows);
+    if MERGE_WALL_SEGMENTS && !OVERLAP_WALLS {
+        walls = merge_walls(walls);
+    }
 
     // Generate roofs based on grid
-    let roofs = generate_individual_roofs(&grid, grid_cols, grid_rows);
+    let mut roofs = generate_individual_roofs(&grid, grid_cols, grid_rows);
+    if MERGE_ROOF_SEGMENTS && !OVERLAP_ROOFS {
+        roofs = merge_roofs(roofs);
+    }
 
     GridConfig { grid, walls, roofs }
 }
@@ -359,7 +366,7 @@ fn generate_individual_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: 
             let world_z = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
             // Horizontal walls inset only when a vertical passes through (T); extend otherwise for corners/ends
             let x1 = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0))
-                + if WALL_OVERLAP_MODE {
+                + if OVERLAP_WALLS {
                     -WALL_WIDTH / 2.0
                 } else if left_vert_through && !has_left {
                     WALL_WIDTH / 2.0 // inset at T so vertical can pass through
@@ -369,7 +376,7 @@ fn generate_individual_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: 
                     0.0
                 };
             let x2 = ((col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0))
-                + if WALL_OVERLAP_MODE {
+                + if OVERLAP_WALLS {
                     WALL_WIDTH / 2.0
                 } else if right_vert_through && !has_right {
                     -WALL_WIDTH / 2.0 // inset at T on the right
@@ -497,7 +504,7 @@ fn generate_individual_roofs(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: 
 
     for &(row, col) in &roof_cells {
         // Calculate world coordinates
-        let (world_x1, world_x2, world_z1, world_z2) = if ROOF_OVERLAP_MODE {
+        let (world_x1, world_x2, world_z1, world_z2) = if OVERLAP_ROOFS {
             // Overlap mode: extend on all sides by roof_thickness/2 for guaranteed coverage
             let x1 = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)) - WALL_WIDTH / 2.0;
             let x2 = ((col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)) + WALL_WIDTH / 2.0;
@@ -550,4 +557,149 @@ fn generate_individual_roofs(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: 
     roofs
 }
 
-// Check if all cells in the grid are reachable from cell (0, 0)
+// ============================================================================
+// Merging helpers
+// ============================================================================
+
+const MERGE_EPS: f32 = 1e-4;
+
+fn normalize_wall(mut w: Wall) -> Wall {
+    if (w.z1 - w.z2).abs() < MERGE_EPS {
+        // horizontal: order by x
+        if w.x1 > w.x2 {
+            std::mem::swap(&mut w.x1, &mut w.x2);
+        }
+    } else if (w.x1 - w.x2).abs() < MERGE_EPS {
+        // vertical: order by z
+        if w.z1 > w.z2 {
+            std::mem::swap(&mut w.z1, &mut w.z2);
+        }
+    }
+    w
+}
+
+fn merge_walls(walls: Vec<Wall>) -> Vec<Wall> {
+    let mut horizontals = Vec::new();
+    let mut verticals = Vec::new();
+    let mut others = Vec::new();
+
+    for w in walls {
+        let w = normalize_wall(w);
+        if (w.z1 - w.z2).abs() < MERGE_EPS {
+            horizontals.push(w);
+        } else if (w.x1 - w.x2).abs() < MERGE_EPS {
+            verticals.push(w);
+        } else {
+            others.push(w);
+        }
+    }
+
+    horizontals.sort_by(|a, b| {
+        a.z1
+            .partial_cmp(&b.z1)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| a.x1.partial_cmp(&b.x1).unwrap_or(std::cmp::Ordering::Equal))
+    });
+    verticals.sort_by(|a, b| {
+        a.x1
+            .partial_cmp(&b.x1)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| a.z1.partial_cmp(&b.z1).unwrap_or(std::cmp::Ordering::Equal))
+    });
+
+    let mut merged = Vec::new();
+
+    let merge_line = |list: Vec<Wall>, is_horizontal: bool, out: &mut Vec<Wall>| {
+        let mut iter = list.into_iter();
+        if let Some(mut cur) = iter.next() {
+            for w in iter {
+                if is_horizontal {
+                    if (cur.z1 - w.z1).abs() < MERGE_EPS && (cur.width - w.width).abs() < MERGE_EPS {
+                        if w.x1 <= cur.x2 + MERGE_EPS {
+                            cur.x2 = cur.x2.max(w.x2);
+                            continue;
+                        }
+                    }
+                } else if (cur.x1 - w.x1).abs() < MERGE_EPS && (cur.width - w.width).abs() < MERGE_EPS {
+                    if w.z1 <= cur.z2 + MERGE_EPS {
+                        cur.z2 = cur.z2.max(w.z2);
+                        continue;
+                    }
+                }
+                out.push(cur);
+                cur = w;
+            }
+            out.push(cur);
+        }
+    };
+
+    merge_line(horizontals, true, &mut merged);
+    merge_line(verticals, false, &mut merged);
+    merged.extend(others);
+    merged
+}
+
+fn merge_roofs(mut roofs: Vec<Roof>) -> Vec<Roof> {
+    // Normalize ordering
+    for r in &mut roofs {
+        if r.x1 > r.x2 {
+            std::mem::swap(&mut r.x1, &mut r.x2);
+        }
+        if r.z1 > r.z2 {
+            std::mem::swap(&mut r.z1, &mut r.z2);
+        }
+    }
+
+    let mut changed = true;
+    while changed {
+        changed = false;
+        let mut used = vec![false; roofs.len()];
+        let mut out: Vec<Roof> = Vec::new();
+
+        for i in 0..roofs.len() {
+            if used[i] {
+                continue;
+            }
+            let mut acc = roofs[i];
+            used[i] = true;
+
+            let mut merged_this_round = true;
+            while merged_this_round {
+                merged_this_round = false;
+                for j in 0..roofs.len() {
+                    if used[j] {
+                        continue;
+                    }
+                    let b = roofs[j];
+                    let same_thickness = (acc.thickness - b.thickness).abs() < MERGE_EPS;
+                    if !same_thickness {
+                        continue;
+                    }
+
+                    // Horizontal merge: same z span, adjacent in x
+                    let same_z_span = (acc.z1 - b.z1).abs() < MERGE_EPS && (acc.z2 - b.z2).abs() < MERGE_EPS;
+                    let adjacent_x = (acc.x2 - b.x1).abs() < MERGE_EPS || (b.x2 - acc.x1).abs() < MERGE_EPS;
+
+                    // Vertical merge: same x span, adjacent in z
+                    let same_x_span = (acc.x1 - b.x1).abs() < MERGE_EPS && (acc.x2 - b.x2).abs() < MERGE_EPS;
+                    let adjacent_z = (acc.z2 - b.z1).abs() < MERGE_EPS || (b.z2 - acc.z1).abs() < MERGE_EPS;
+
+                    if (same_z_span && adjacent_x) || (same_x_span && adjacent_z) {
+                        acc.x1 = acc.x1.min(b.x1);
+                        acc.x2 = acc.x2.max(b.x2);
+                        acc.z1 = acc.z1.min(b.z1);
+                        acc.z2 = acc.z2.max(b.z2);
+                        used[j] = true;
+                        merged_this_round = true;
+                        changed = true;
+                    }
+                }
+            }
+            out.push(acc);
+        }
+
+        roofs = out;
+    }
+
+    roofs
+}

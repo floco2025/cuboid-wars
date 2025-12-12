@@ -10,8 +10,12 @@ pub const WALL_3RD_PROBABILITY_RATIO: f64 = 0.2; // Probability of 3rd wall rela
 // Wall/Roof generation mode
 // false: Non-overlapping mode - walls meet exactly at corners using smart extension logic
 // true: Overlapping mode - all walls extend by wall_width/2 on both ends for guaranteed no-gap coverage
-pub const WALL_OVERLAP_MODE: bool = false;
-pub const ROOF_OVERLAP_MODE: bool = false;
+pub const OVERLAP_WALLS: bool = false;
+pub const OVERLAP_ROOFS: bool = false;
+
+// Optional merging of collinear/adjacent segments to reduce draw calls
+pub const MERGE_WALL_SEGMENTS: bool = true;
+pub const MERGE_ROOF_SEGMENTS: bool = true;
 
 // Roof generation settings
 pub const ROOF_PROBABILITY_2_WALLS: f64 = 0.1; // Chance if cell has 2 walls and no neighbor with roof
