@@ -172,7 +172,6 @@ type MovementQuery<'w, 's> = Query<
     With<PlayerId>,
 >;
 
-#[allow(clippy::similar_names)]
 pub fn players_movement_system(
     mut commands: Commands,
     time: Res<Time>,

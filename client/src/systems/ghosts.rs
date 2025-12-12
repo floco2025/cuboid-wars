@@ -12,7 +12,6 @@ use common::{
 // Ghosts Movement System
 // ============================================================================
 
-#[allow(clippy::similar_names)]
 pub fn ghosts_movement_system(
     mut commands: Commands,
     time: Res<Time>,

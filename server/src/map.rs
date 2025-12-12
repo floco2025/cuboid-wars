@@ -123,7 +123,6 @@ fn all_cells_reachable(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) -
 // Ensures all grid cells remain reachable from each other.
 // Always places walls around the perimeter of the field.
 #[must_use]
-#[allow(clippy::too_many_lines)]
 pub fn generate_grid() -> GridConfig {
     let mut rng = rand::rng();
 

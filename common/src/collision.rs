@@ -444,7 +444,7 @@ pub fn check_projectile_wall_sweep_hit(
             if local_x > 0.0 { (1.0, 0.0) } else { (-1.0, 0.0) }
         };
         // Clamp t_min to [0.0, 1.0] for the collision time
-        let t_collision = t_min.max(0.0).min(1.0);
+        let t_collision = t_min.clamp(0.0, 1.0);
         Some((normal_x, normal_z, t_collision))
     } else {
         None

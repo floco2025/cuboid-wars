@@ -136,9 +136,7 @@ fn handle_wall_collisions(
     delta: f32,
     wall_config: Option<&WallConfig>,
 ) -> Option<Position> {
-    let Some(config) = wall_config else {
-        return None;
-    };
+    let config = wall_config?;
 
     for wall in &config.walls {
         if let Some(new_pos) = projectile.handle_wall_bounce(projectile_pos, delta, wall) {

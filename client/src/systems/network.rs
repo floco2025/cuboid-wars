@@ -315,7 +315,6 @@ fn handle_shot_message(
     }
 }
 
-#[allow(clippy::too_many_lines)]
 fn handle_update_message(
     commands: &mut Commands,
     assets: &mut AssetManagers,
