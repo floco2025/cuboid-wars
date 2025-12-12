@@ -3,9 +3,8 @@ use std::collections::{HashSet, VecDeque};
 
 use crate::{
     constants::{
-        ROOF_OVERLAP_MODE, ROOF_PROBABILITY_2_WALLS, ROOF_PROBABILITY_3_WALLS,
-        ROOF_PROBABILITY_WITH_NEIGHBOR, WALL_2ND_PROBABILITY_RATIO, WALL_3RD_PROBABILITY_RATIO,
-        WALL_NUM_SEGMENTS, WALL_OVERLAP_MODE,
+        ROOF_OVERLAP_MODE, ROOF_PROBABILITY_2_WALLS, ROOF_PROBABILITY_3_WALLS, ROOF_PROBABILITY_WITH_NEIGHBOR,
+        WALL_2ND_PROBABILITY_RATIO, WALL_3RD_PROBABILITY_RATIO, WALL_NUM_SEGMENTS, WALL_OVERLAP_MODE,
     },
     resources::{GridCell, GridConfig},
 };
@@ -47,7 +46,7 @@ pub fn find_unoccupied_cell(rng: &mut ThreadRng, occupied_cells: &HashSet<(i32, 
     None
 }
 
-// Helper to count walls in a cell
+// Count how many walls a cell has (0-4)
 const fn count_cell_walls(cell: GridCell) -> u8 {
     let mut count = 0;
     if cell.has_north_wall {
@@ -73,6 +72,7 @@ fn all_cells_reachable(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) -
 
     let mut visited = HashSet::new();
     let mut queue = VecDeque::new();
+    let target_count = (grid_rows * grid_cols) as usize;
 
     // Start from cell (0, 0)
     queue.push_back((0, 0));
@@ -104,6 +104,10 @@ fn all_cells_reachable(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) -
         if col < grid_cols - 1 && !cell.has_east_wall && !visited.contains(&(row, col + 1)) {
             visited.insert((row, col + 1));
             queue.push_back((row, col + 1));
+        }
+
+        if visited.len() == target_count {
+            return true;
         }
     }
 
@@ -284,7 +288,7 @@ pub fn generate_grid() -> GridConfig {
     GridConfig { walls, roofs, grid }
 }
 
-// Helper: Check if a horizontal wall exists at given position
+// Does the grid line at (row, col) have a horizontal wall? Handles perimeter rows.
 #[inline]
 fn has_horizontal_wall(grid: &[Vec<GridCell>], row: i32, col: i32, grid_rows: i32) -> bool {
     if row == 0 {
@@ -296,7 +300,7 @@ fn has_horizontal_wall(grid: &[Vec<GridCell>], row: i32, col: i32, grid_rows: i3
     }
 }
 
-// Helper: Check if a vertical wall exists at given position
+// Does the grid line at (row, col) have a vertical wall? Handles perimeter columns.
 #[inline]
 fn has_vertical_wall(grid: &[Vec<GridCell>], row: i32, col: i32, grid_cols: i32) -> bool {
     if col == 0 {
@@ -308,29 +312,60 @@ fn has_vertical_wall(grid: &[Vec<GridCell>], row: i32, col: i32, grid_cols: i32)
     }
 }
 
+// For a vertical wall at (row, col), report if horizontal walls meet its top/bottom ends (edge-safe)
+#[inline]
+fn perpendicular_horizontal_walls(
+    grid: &[Vec<GridCell>],
+    row: i32,
+    col: i32,
+    grid_cols: i32,
+    grid_rows: i32,
+) -> (bool, bool) {
+    let check_col = (col - 1).clamp(0, grid_cols - 1);
+    let edge_col = col.min(grid_cols - 1);
+
+    let has_perp_top = row > 0
+        && (grid[(row - 1) as usize][check_col as usize].has_south_wall
+            || grid[row as usize][edge_col as usize].has_north_wall);
+
+    let has_perp_bottom = row < grid_rows - 1
+        && (grid[row as usize][check_col as usize].has_south_wall
+            || grid[(row + 1) as usize][edge_col as usize].has_north_wall);
+
+    (has_perp_top, has_perp_bottom)
+}
+
 // Generate individual wall segments (no merging) with gap-filling extensions
 #[must_use]
 #[allow(clippy::cast_precision_loss)]
 fn generate_individual_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) -> Vec<Wall> {
     let mut walls = Vec::new();
-    
+
     // Process horizontal walls (north/south edges)
     for row in 0..=grid_rows {
         for col in 0..grid_cols {
             if !has_horizontal_wall(grid, row, col, grid_rows) {
                 continue;
             }
-            
+
             // Check for adjacent horizontal walls
             let has_left = col > 0 && has_horizontal_wall(grid, row, col - 1, grid_rows);
             let has_right = col < grid_cols - 1 && has_horizontal_wall(grid, row, col + 1, grid_rows);
-            
+
             let world_z = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
-            let x1 = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)) 
-                - if WALL_OVERLAP_MODE || !has_left { WALL_WIDTH / 2.0 } else { 0.0 };
-            let x2 = ((col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)) 
-                + if WALL_OVERLAP_MODE || !has_right { WALL_WIDTH / 2.0 } else { 0.0 };
-            
+            let x1 = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0))
+                - if WALL_OVERLAP_MODE || !has_left {
+                    WALL_WIDTH / 2.0
+                } else {
+                    0.0
+                };
+            let x2 = ((col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0))
+                + if WALL_OVERLAP_MODE || !has_right {
+                    WALL_WIDTH / 2.0
+                } else {
+                    0.0
+                };
+
             walls.push(Wall {
                 x1,
                 z1: world_z,
@@ -340,48 +375,39 @@ fn generate_individual_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: 
             });
         }
     }
-    
+
     // Process vertical walls (west/east edges)
     for col in 0..=grid_cols {
         for row in 0..grid_rows {
             if !has_vertical_wall(grid, row, col, grid_cols) {
                 continue;
             }
-            
+
             // Check for adjacent vertical walls
             let has_top = row > 0 && has_vertical_wall(grid, row - 1, col, grid_cols);
             let has_bottom = row < grid_rows - 1 && has_vertical_wall(grid, row + 1, col, grid_cols);
-            
+
             // Check for perpendicular horizontal walls at ends (for L-corners)
-            let has_perp_top = row > 0 && {
-                let check_col = if col == 0 { 0 } else if col == grid_cols { grid_cols - 1 } else { col - 1 };
-                grid[(row - 1) as usize][check_col as usize].has_south_wall
-                    || grid[row as usize][col.min(grid_cols - 1) as usize].has_north_wall
-            };
-            let has_perp_bottom = row < grid_rows - 1 && {
-                let check_col = if col == 0 { 0 } else if col == grid_cols { grid_cols - 1 } else { col - 1 };
-                grid[row as usize][check_col as usize].has_south_wall
-                    || grid[(row + 1) as usize][col.min(grid_cols - 1) as usize].has_north_wall
-            };
-            
+            let (has_perp_top, has_perp_bottom) = perpendicular_horizontal_walls(grid, row, col, grid_cols, grid_rows);
+
             let world_x = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-            let z1 = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0)) 
-                + if has_perp_top && !has_top { 
-                    WALL_WIDTH / 2.0  // Inset for L-corner
-                } else if !has_top && !has_perp_top { 
-                    -WALL_WIDTH / 2.0  // Extend for isolated end
-                } else { 
+            let z1 = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0))
+                + if has_perp_top && !has_top {
+                    WALL_WIDTH / 2.0 // Inset for L-corner
+                } else if !has_top && !has_perp_top {
+                    -WALL_WIDTH / 2.0 // Extend for isolated end
+                } else {
                     0.0
                 };
-            let z2 = ((row + 1) as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0)) 
-                + if has_perp_bottom && !has_bottom { 
-                    -WALL_WIDTH / 2.0  // Inset for L-corner
-                } else if !has_bottom && !has_perp_bottom { 
-                    WALL_WIDTH / 2.0  // Extend for isolated end
-                } else { 
+            let z2 = ((row + 1) as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0))
+                + if has_perp_bottom && !has_bottom {
+                    -WALL_WIDTH / 2.0 // Inset for L-corner
+                } else if !has_bottom && !has_perp_bottom {
+                    WALL_WIDTH / 2.0 // Extend for isolated end
+                } else {
                     0.0
                 };
-            
+
             walls.push(Wall {
                 x1: world_x,
                 z1,
@@ -391,7 +417,7 @@ fn generate_individual_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: 
             });
         }
     }
-    
+
     walls
 }
 
@@ -406,23 +432,7 @@ fn generate_individual_roofs(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: 
 
     for row in 0..grid_rows {
         for col in 0..grid_cols {
-            let cell = &grid[row as usize][col as usize];
-            let mut wall_count = 0;
-
-            if cell.has_north_wall {
-                wall_count += 1;
-            }
-            if cell.has_south_wall {
-                wall_count += 1;
-            }
-            if cell.has_west_wall {
-                wall_count += 1;
-            }
-            if cell.has_east_wall {
-                wall_count += 1;
-            }
-
-            wall_counts[row as usize][col as usize] = wall_count;
+            wall_counts[row as usize][col as usize] = count_cell_walls(grid[row as usize][col as usize]);
         }
     }
 
@@ -456,12 +466,7 @@ fn generate_individual_roofs(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: 
                     continue;
                 }
 
-                let neighbors = [
-                    (row - 1, col),
-                    (row + 1, col),
-                    (row, col - 1),
-                    (row, col + 1),
-                ];
+                let neighbors = [(row - 1, col), (row + 1, col), (row, col - 1), (row, col + 1)];
 
                 let has_neighbor_with_roof = neighbors
                     .iter()
@@ -477,7 +482,7 @@ fn generate_individual_roofs(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: 
 
     // Convert roof cells to individual Roof segments
     let mut roofs = Vec::new();
-    
+
     for &(row, col) in &roof_cells {
         // Calculate world coordinates
         let (world_x1, world_x2, world_z1, world_z2) = if ROOF_OVERLAP_MODE {
@@ -495,7 +500,7 @@ fn generate_individual_roofs(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: 
             let z2 = ((row + 1) as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
             (x1, x2, z1, z2)
         };
-        
+
         roofs.push(Roof {
             x1: world_x1,
             z1: world_z1,
@@ -504,7 +509,7 @@ fn generate_individual_roofs(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: 
             thickness: WALL_WIDTH,
         });
     }
-    
+
     roofs
 }
 
