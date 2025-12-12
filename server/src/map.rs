@@ -314,16 +314,21 @@ fn perpendicular_horizontal_walls(
     grid_cols: i32,
     grid_rows: i32,
 ) -> (bool, bool) {
-    let check_col = (col - 1).clamp(0, grid_cols - 1);
-    let edge_col = col.min(grid_cols - 1);
+    let _ = grid_cols; // grid_cols unused after switching to has_horizontal_wall checks
 
+    // Top endpoint is at grid line `row`; check horizontal walls on both sides of the vertical line.
     let has_perp_top = row > 0
-        && (grid[(row - 1) as usize][check_col as usize].has_south_wall
-            || grid[row as usize][edge_col as usize].has_north_wall);
+        && (
+            (col < grid_cols && has_horizontal_wall(grid, row, col, grid_rows)) // right side (guarded)
+                || (col > 0 && has_horizontal_wall(grid, row, col - 1, grid_rows)) // left side (guarded)
+        );
 
-    let has_perp_bottom = row < grid_rows - 1
-        && (grid[row as usize][check_col as usize].has_south_wall
-            || grid[(row + 1) as usize][edge_col as usize].has_north_wall);
+    // Bottom endpoint is at grid line `row + 1`; check the horizontals that meet there.
+    let has_perp_bottom = row < grid_rows
+        && (
+            (col < grid_cols && has_horizontal_wall(grid, row + 1, col, grid_rows)) // right side (guarded)
+                || (col > 0 && has_horizontal_wall(grid, row + 1, col - 1, grid_rows)) // left side (guarded)
+        );
 
     (has_perp_top, has_perp_bottom)
 }
@@ -344,16 +349,34 @@ fn generate_individual_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: 
             let has_left = col > 0 && has_horizontal_wall(grid, row, col - 1, grid_rows);
             let has_right = col < grid_cols - 1 && has_horizontal_wall(grid, row, col + 1, grid_rows);
 
+            // Detect vertical walls passing through the left and right endpoints (true T vs corner)
+            let left_vert_top = row > 0 && has_vertical_wall(grid, row - 1, col, grid_cols);
+            let left_vert_bottom = row < grid_rows && has_vertical_wall(grid, row, col, grid_cols);
+            let left_vert_through = left_vert_top && left_vert_bottom;
+
+            let right_vert_top = row > 0 && has_vertical_wall(grid, row - 1, col + 1, grid_cols);
+            let right_vert_bottom = row < grid_rows && has_vertical_wall(grid, row, col + 1, grid_cols);
+            let right_vert_through = right_vert_top && right_vert_bottom;
+
             let world_z = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+            // Horizontal walls inset only when a vertical passes through (T); extend otherwise for corners/ends
             let x1 = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0))
-                - if WALL_OVERLAP_MODE || !has_left {
-                    WALL_WIDTH / 2.0
+                + if WALL_OVERLAP_MODE {
+                    -WALL_WIDTH / 2.0
+                } else if left_vert_through && !has_left {
+                    WALL_WIDTH / 2.0 // inset at T so vertical can pass through
+                } else if !has_left {
+                    -WALL_WIDTH / 2.0 // extend to meet corners or isolated ends
                 } else {
                     0.0
                 };
             let x2 = ((col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0))
-                + if WALL_OVERLAP_MODE || !has_right {
+                + if WALL_OVERLAP_MODE {
                     WALL_WIDTH / 2.0
+                } else if right_vert_through && !has_right {
+                    -WALL_WIDTH / 2.0 // inset at T on the right
+                } else if !has_right {
+                    WALL_WIDTH / 2.0 // extend for corners or isolated ends
                 } else {
                     0.0
                 };
