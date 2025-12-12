@@ -33,7 +33,7 @@ fn check_aabb_wall_overlap(entity_pos: &Position, wall: &Wall, half_x: f32, half
     // Calculate wall dimensions and orientation
     let dx = (wall.x2 - wall.x1).abs();
     let dz = (wall.z2 - wall.z1).abs();
-    let wall_half_width = wall.wall_width / 2.0;
+    let wall_half_width = wall.width / 2.0;
     
     // Determine wall bounding box based on orientation
     // Only expand perpendicular to the wall direction, not along its length
@@ -67,7 +67,7 @@ fn check_aabb_wall_sweep(start_pos: &Position, end_pos: &Position, wall: &Wall, 
     // For axis-aligned walls, either dx or dz is zero
     let dx = (wall.x2 - wall.x1).abs();
     let dz = (wall.z2 - wall.z1).abs();
-    let wall_half_width = wall.wall_width / 2.0;
+    let wall_half_width = wall.width / 2.0;
     
     // Determine wall orientation and set AABB dimensions
     // Horizontal wall: extends along X axis, thin in Z direction
@@ -395,7 +395,7 @@ pub fn check_projectile_wall_sweep_hit(
     // For axis-aligned walls, either dx or dz is zero
     let dx = (wall.x2 - wall.x1).abs();
     let dz = (wall.z2 - wall.z1).abs();
-    let wall_half_thickness = wall.wall_width / 2.0 + PROJECTILE_RADIUS;
+    let wall_half_thickness = wall.width / 2.0 + PROJECTILE_RADIUS;
     let half_height = WALL_HEIGHT / 2.0 + PROJECTILE_RADIUS;
     
     // Determine wall orientation and set AABB dimensions (with projectile radius)

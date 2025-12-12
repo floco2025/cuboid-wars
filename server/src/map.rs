@@ -3,8 +3,9 @@ use std::collections::{HashSet, VecDeque};
 
 use crate::{
     constants::{
-        ROOF_PROBABILITY_2_WALLS, ROOF_PROBABILITY_3_WALLS, ROOF_PROBABILITY_WITH_NEIGHBOR, WALL_2ND_PROBABILITY_RATIO,
-        WALL_3RD_PROBABILITY_RATIO, WALL_NUM_SEGMENTS,
+        ROOF_OVERLAP_MODE, ROOF_PROBABILITY_2_WALLS, ROOF_PROBABILITY_3_WALLS,
+        ROOF_PROBABILITY_WITH_NEIGHBOR, WALL_2ND_PROBABILITY_RATIO, WALL_3RD_PROBABILITY_RATIO,
+        WALL_NUM_SEGMENTS, WALL_OVERLAP_MODE,
     },
     resources::{GridCell, GridConfig},
 };
@@ -283,74 +284,59 @@ pub fn generate_grid() -> GridConfig {
     GridConfig { walls, roofs, grid }
 }
 
+// Helper: Check if a horizontal wall exists at given position
+#[inline]
+fn has_horizontal_wall(grid: &[Vec<GridCell>], row: i32, col: i32, grid_rows: i32) -> bool {
+    if row == 0 {
+        grid[0][col as usize].has_north_wall
+    } else if row == grid_rows {
+        grid[(grid_rows - 1) as usize][col as usize].has_south_wall
+    } else {
+        grid[row as usize][col as usize].has_north_wall
+    }
+}
+
+// Helper: Check if a vertical wall exists at given position
+#[inline]
+fn has_vertical_wall(grid: &[Vec<GridCell>], row: i32, col: i32, grid_cols: i32) -> bool {
+    if col == 0 {
+        grid[row as usize][0].has_west_wall
+    } else if col == grid_cols {
+        grid[row as usize][(grid_cols - 1) as usize].has_east_wall
+    } else {
+        grid[row as usize][col as usize].has_west_wall
+    }
+}
+
 // Generate individual wall segments (no merging) with gap-filling extensions
 #[must_use]
 #[allow(clippy::cast_precision_loss)]
 fn generate_individual_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) -> Vec<Wall> {
     let mut walls = Vec::new();
     
-    let extend_walls = crate::constants::WALL_OVERLAP_MODE;
-    
     // Process horizontal walls (north/south edges)
     for row in 0..=grid_rows {
         for col in 0..grid_cols {
-            // Check if this cell has a horizontal wall at this row position
-            let has_wall = if row == 0 {
-                grid[0][col as usize].has_north_wall
-            } else if row == grid_rows {
-                grid[(grid_rows - 1) as usize][col as usize].has_south_wall
-            } else {
-                grid[row as usize][col as usize].has_north_wall
-            };
-            
-            if !has_wall {
+            if !has_horizontal_wall(grid, row, col, grid_rows) {
                 continue;
             }
             
-            // Check for adjacent horizontal walls (same direction)
-            let has_horizontal_at_left = col > 0 && {
-                if row == 0 {
-                    grid[0][(col - 1) as usize].has_north_wall
-                } else if row == grid_rows {
-                    grid[(grid_rows - 1) as usize][(col - 1) as usize].has_south_wall
-                } else {
-                    grid[row as usize][(col - 1) as usize].has_north_wall
-                }
-            };
-            
-            let has_horizontal_at_right = col < grid_cols - 1 && {
-                if row == 0 {
-                    grid[0][(col + 1) as usize].has_north_wall
-                } else if row == grid_rows {
-                    grid[(grid_rows - 1) as usize][(col + 1) as usize].has_south_wall
-                } else {
-                    grid[row as usize][(col + 1) as usize].has_north_wall
-                }
-            };
+            // Check for adjacent horizontal walls
+            let has_left = col > 0 && has_horizontal_wall(grid, row, col - 1, grid_rows);
+            let has_right = col < grid_cols - 1 && has_horizontal_wall(grid, row, col + 1, grid_rows);
             
             let world_z = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
-            // Horizontal walls:
-            // - Extend by half width if isolated OR L-corner (no adjacent horizontal)
-            // - Don't extend if adjacent horizontal present
             let x1 = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)) 
-                - if extend_walls || !has_horizontal_at_left {
-                    WALL_WIDTH / 2.0  // Extend for isolated end or L-corner
-                } else {
-                    0.0  // Adjacent wall present
-                };
+                - if WALL_OVERLAP_MODE || !has_left { WALL_WIDTH / 2.0 } else { 0.0 };
             let x2 = ((col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)) 
-                + if extend_walls || !has_horizontal_at_right {
-                    WALL_WIDTH / 2.0  // Extend for isolated end or L-corner
-                } else {
-                    0.0  // Adjacent wall present
-                };
+                + if WALL_OVERLAP_MODE || !has_right { WALL_WIDTH / 2.0 } else { 0.0 };
             
             walls.push(Wall {
                 x1,
                 z1: world_z,
                 x2,
                 z2: world_z,
-                wall_width: WALL_WIDTH,
+                width: WALL_WIDTH,
             });
         }
     }
@@ -358,85 +344,42 @@ fn generate_individual_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: 
     // Process vertical walls (west/east edges)
     for col in 0..=grid_cols {
         for row in 0..grid_rows {
-            // Check if this cell has a vertical wall at this column position
-            let has_wall = if col == 0 {
-                grid[row as usize][0].has_west_wall
-            } else if col == grid_cols {
-                grid[row as usize][(grid_cols - 1) as usize].has_east_wall
-            } else {
-                grid[row as usize][col as usize].has_west_wall
-            };
-            
-            if !has_wall {
+            if !has_vertical_wall(grid, row, col, grid_cols) {
                 continue;
             }
             
-            // Check for adjacent vertical walls (same direction)
-            let has_vertical_at_top = row > 0 && {
-                if col == 0 {
-                    grid[(row - 1) as usize][0].has_west_wall
-                } else if col == grid_cols {
-                    grid[(row - 1) as usize][(grid_cols - 1) as usize].has_east_wall
-                } else {
-                    grid[(row - 1) as usize][col as usize].has_west_wall
-                }
-            };
+            // Check for adjacent vertical walls
+            let has_top = row > 0 && has_vertical_wall(grid, row - 1, col, grid_cols);
+            let has_bottom = row < grid_rows - 1 && has_vertical_wall(grid, row + 1, col, grid_cols);
             
-            let has_vertical_at_bottom = row < grid_rows - 1 && {
-                if col == 0 {
-                    grid[(row + 1) as usize][0].has_west_wall
-                } else if col == grid_cols {
-                    grid[(row + 1) as usize][(grid_cols - 1) as usize].has_east_wall
-                } else {
-                    grid[(row + 1) as usize][col as usize].has_west_wall
-                }
+            // Check for perpendicular horizontal walls at ends (for L-corners)
+            let has_perp_top = row > 0 && {
+                let check_col = if col == 0 || col == grid_cols { 0 } else { col - 1 };
+                grid[(row - 1) as usize][check_col as usize].has_south_wall
+                    || grid[row as usize][col.min(grid_cols - 1) as usize].has_north_wall
             };
-            
-            // Check for perpendicular horizontal walls at the ends - simplified to only check the two adjacent cells
-            let has_horizontal_at_top = row > 0 && {
-                if col == 0 {
-                    grid[(row - 1) as usize][0].has_south_wall || grid[row as usize][0].has_north_wall
-                } else if col == grid_cols {
-                    grid[(row - 1) as usize][(grid_cols - 1) as usize].has_south_wall 
-                    || grid[row as usize][(grid_cols - 1) as usize].has_north_wall
-                } else {
-                    grid[(row - 1) as usize][(col - 1) as usize].has_south_wall
-                    || grid[row as usize][col as usize].has_north_wall
-                }
-            };
-            
-            let has_horizontal_at_bottom = row < grid_rows - 1 && {
-                if col == 0 {
-                    grid[row as usize][0].has_south_wall || grid[(row + 1) as usize][0].has_north_wall
-                } else if col == grid_cols {
-                    grid[row as usize][(grid_cols - 1) as usize].has_south_wall 
-                    || grid[(row + 1) as usize][(grid_cols - 1) as usize].has_north_wall
-                } else {
-                    grid[row as usize][(col - 1) as usize].has_south_wall
-                    || grid[(row + 1) as usize][col as usize].has_north_wall
-                }
+            let has_perp_bottom = row < grid_rows - 1 && {
+                let check_col = if col == 0 || col == grid_cols { 0 } else { col - 1 };
+                grid[row as usize][check_col as usize].has_south_wall
+                    || grid[(row + 1) as usize][col.min(grid_cols - 1) as usize].has_north_wall
             };
             
             let world_x = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-            // Vertical walls: 
-            // - Inset if perpendicular horizontal present AND no adjacent vertical (L-corner)
-            // - Extend if no adjacent vertical AND no perpendicular horizontal (isolated end)
-            // - Otherwise stay at grid line (adjacent vertical present)
             let z1 = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0)) 
-                + if has_horizontal_at_top && !has_vertical_at_top { 
+                + if has_perp_top && !has_top { 
                     WALL_WIDTH / 2.0  // Inset for L-corner
-                } else if !has_vertical_at_top && !has_horizontal_at_top { 
-                    -WALL_WIDTH / 2.0  // Extend if isolated
+                } else if !has_top && !has_perp_top { 
+                    -WALL_WIDTH / 2.0  // Extend for isolated end
                 } else { 
-                    0.0  // Stay at grid line
+                    0.0
                 };
             let z2 = ((row + 1) as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0)) 
-                + if has_horizontal_at_bottom && !has_vertical_at_bottom { 
+                + if has_perp_bottom && !has_bottom { 
                     -WALL_WIDTH / 2.0  // Inset for L-corner
-                } else if !has_vertical_at_bottom && !has_horizontal_at_bottom { 
-                    WALL_WIDTH / 2.0  // Extend if isolated
+                } else if !has_bottom && !has_perp_bottom { 
+                    WALL_WIDTH / 2.0  // Extend for isolated end
                 } else { 
-                    0.0  // Stay at grid line
+                    0.0
                 };
             
             walls.push(Wall {
@@ -444,7 +387,7 @@ fn generate_individual_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: 
                 z1,
                 x2: world_x,
                 z2,
-                wall_width: WALL_WIDTH,
+                width: WALL_WIDTH,
             });
         }
     }
@@ -537,7 +480,7 @@ fn generate_individual_roofs(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: 
     
     for &(row, col) in &roof_cells {
         // Calculate world coordinates
-        let (world_x1, world_x2, world_z1, world_z2) = if crate::constants::ROOF_OVERLAP_MODE {
+        let (world_x1, world_x2, world_z1, world_z2) = if ROOF_OVERLAP_MODE {
             // Overlap mode: extend on all sides by roof_thickness/2 for guaranteed coverage
             let x1 = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)) - WALL_WIDTH / 2.0;
             let x2 = ((col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)) + WALL_WIDTH / 2.0;
@@ -558,7 +501,7 @@ fn generate_individual_roofs(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: 
             z1: world_z1,
             x2: world_x2,
             z2: world_z2,
-            roof_thickness: WALL_WIDTH,
+            thickness: WALL_WIDTH,
         });
     }
     

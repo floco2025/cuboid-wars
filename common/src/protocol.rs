@@ -119,11 +119,11 @@ struct Player {
 message! {
 #[derive(Copy)]
 struct Wall {
-    pub x1: f32,                    // Start X position
-    pub z1: f32,                    // Start Z position
-    pub x2: f32,                    // End X position
-    pub z2: f32,                    // End Z position
-    pub wall_width: f32,            // Width (thickness) of the wall
+    pub x1: f32,
+    pub z1: f32,
+    pub x2: f32,
+    pub z2: f32,
+    pub width: f32,
 }
 }
 
@@ -131,11 +131,11 @@ struct Wall {
 message! {
 #[derive(Copy)]
 struct Roof {
-    pub x1: f32,          // First corner X coordinate
-    pub z1: f32,          // First corner Z coordinate
-    pub x2: f32,          // Second corner X coordinate
-    pub z2: f32,          // Second corner Z coordinate
-    pub roof_thickness: f32, // Thickness of the roof
+    pub x1: f32,
+    pub z1: f32,
+    pub x2: f32,
+    pub z2: f32,
+    pub thickness: f32,
 }
 }
 

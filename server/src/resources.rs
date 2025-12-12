@@ -22,9 +22,9 @@ pub struct GridCell {
 // Grid configuration - generated once at server startup
 #[derive(Resource)]
 pub struct GridConfig {
+    pub grid: Vec<Vec<GridCell>>, // [row][col] - indexed by grid_z, grid_x
     pub walls: Vec<Wall>,
     pub roofs: Vec<Roof>,
-    pub grid: Vec<Vec<GridCell>>, // [row][col] - indexed by grid_z, grid_x
 }
 
 // Player information (server-side)

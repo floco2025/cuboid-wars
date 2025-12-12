@@ -440,7 +440,7 @@ pub fn spawn_wall(
     
     // Always create the mesh with length along X axis for consistent UV mapping
     let mesh_size_x = length;
-    let mesh_size_z = wall.wall_width;
+    let mesh_size_z = wall.width;
     
     // Rotate 90 degrees for vertical walls so they align correctly in world space
     let rotation = if is_vertical {
@@ -516,11 +516,11 @@ pub fn spawn_roof(
     };
 
     commands.spawn(RoofBundle {
-        mesh: Mesh3d(meshes.add(Cuboid::new(width, roof.roof_thickness, depth))),
+        mesh: Mesh3d(meshes.add(Cuboid::new(width, roof.thickness, depth))),
         material: MeshMaterial3d(materials.add(roof_material)),
         transform: Transform::from_xyz(
             center_x,
-            WALL_HEIGHT + roof.roof_thickness / 2.0, // Position so bottom of roof sits on top of wall
+            WALL_HEIGHT + roof.thickness / 2.0, // Position so bottom of roof sits on top of wall
             center_z,
         ),
         visibility: Visibility::Visible,
