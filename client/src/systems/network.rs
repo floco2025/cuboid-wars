@@ -636,6 +636,7 @@ fn handle_player_status_message(
             // Don't play power-up sound effect if this message is due to a stun change
             if player_info.stunned == msg.stunned {
                 // Only play power-up sound effect if it wasn't a downgrade
+                #[allow(clippy::nonminimal_bool)]
                 if !(player_info.speed_power_up && !msg.speed_power_up
                     || player_info.multi_shot_power_up && !msg.multi_shot_power_up
                     || player_info.reflect_power_up && !msg.reflect_power_up)

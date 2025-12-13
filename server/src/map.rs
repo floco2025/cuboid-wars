@@ -614,18 +614,16 @@ fn merge_walls(walls: Vec<Wall>) -> Vec<Wall> {
         if let Some(mut cur) = iter.next() {
             for w in iter {
                 if is_horizontal {
-                    if (cur.z1 - w.z1).abs() < MERGE_EPS && (cur.width - w.width).abs() < MERGE_EPS {
-                        if w.x1 <= cur.x2 + MERGE_EPS {
+                    if (cur.z1 - w.z1).abs() < MERGE_EPS && (cur.width - w.width).abs() < MERGE_EPS
+                        && w.x1 <= cur.x2 + MERGE_EPS {
                             cur.x2 = cur.x2.max(w.x2);
                             continue;
                         }
-                    }
-                } else if (cur.x1 - w.x1).abs() < MERGE_EPS && (cur.width - w.width).abs() < MERGE_EPS {
-                    if w.z1 <= cur.z2 + MERGE_EPS {
+                } else if (cur.x1 - w.x1).abs() < MERGE_EPS && (cur.width - w.width).abs() < MERGE_EPS
+                    && w.z1 <= cur.z2 + MERGE_EPS {
                         cur.z2 = cur.z2.max(w.z2);
                         continue;
                     }
-                }
                 out.push(cur);
                 cur = w;
             }
