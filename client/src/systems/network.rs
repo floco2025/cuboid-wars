@@ -632,17 +632,26 @@ fn handle_player_status_message(
 ) {
     if let Some(player_info) = players.0.get_mut(&msg.id) {
         let old_speed_power_up = player_info.speed_power_up;
+        let old_multi_shot_power_up = player_info.multi_shot_power_up;
+        let old_reflect_power_up = player_info.reflect_power_up;
+        
         player_info.speed_power_up = msg.speed_power_up;
         player_info.multi_shot_power_up = msg.multi_shot_power_up;
         player_info.reflect_power_up = msg.reflect_power_up;
         player_info.stunned = msg.stunned;
 
-        // Play sound if this is the local player and they have a power-up
-        if msg.id == my_player_id && (msg.speed_power_up || msg.multi_shot_power_up || msg.reflect_power_up) {
-            commands.spawn((
-                AudioPlayer::new(asset_server.load("sounds/player_powerup.wav")),
-                PlaybackSettings::DESPAWN,
-            ));
+        // Play sound if this is the local player and they gained a power-up (not expired)
+        if msg.id == my_player_id {
+            let gained_power_up = (!old_speed_power_up && msg.speed_power_up)
+                || (!old_multi_shot_power_up && msg.multi_shot_power_up)
+                || (!old_reflect_power_up && msg.reflect_power_up);
+            
+            if gained_power_up {
+                commands.spawn((
+                    AudioPlayer::new(asset_server.load("sounds/player_powerup.wav")),
+                    PlaybackSettings::DESPAWN,
+                ));
+            }
         }
 
         // If speed power-up status changed, recalculate velocity
