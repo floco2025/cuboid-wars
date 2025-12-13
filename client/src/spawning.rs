@@ -195,6 +195,7 @@ fn tiled_cuboid(size_x: f32, size_y: f32, size_z: f32, tile_size: f32) -> Mesh {
     );
 
     // +Y face (u along X, v along Z)
+    // Vertex order steps along Z then X; swap UV axes to preserve winding without flipping the normal.
     push_face(
         [-hx, hy, -hz],  // p0: X min, Z min
         [-hx, hy, hz],   // p1: X min, Z max (Z increases → V increases)
