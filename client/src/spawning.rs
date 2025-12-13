@@ -196,24 +196,24 @@ fn tiled_cuboid(size_x: f32, size_y: f32, size_z: f32, tile_size: f32) -> Mesh {
 
     // +Y face (u along X, v along Z)
     push_face(
-        [-hx, hy, -hz],
-        [-hx, hy, hz],
-        [hx, hy, hz],
-        [hx, hy, -hz],
+        [-hx, hy, -hz],  // p0: X min, Z min
+        [-hx, hy, hz],   // p1: X min, Z max (Z increases → V increases)
+        [hx, hy, hz],    // p2: X max, Z max
+        [hx, hy, -hz],   // p3: X max, Z min (X increases from p1→p2)
         [0.0, 1.0, 0.0],
         [0.0, 0.0],
-        [repeat_x, repeat_z],
+        [repeat_z, repeat_x],  // Swapped: U along Z, V along X
     );
 
-    // -Y face
+    // -Y face (u along X, v along Z)
     push_face(
-        [-hx, -hy, hz],
-        [-hx, -hy, -hz],
-        [hx, -hy, -hz],
-        [hx, -hy, hz],
+        [-hx, -hy, hz],   // p0: X min, Z max
+        [-hx, -hy, -hz],  // p1: X min, Z min (Z decreases → V increases)
+        [hx, -hy, -hz],   // p2: X max, Z min
+        [hx, -hy, hz],    // p3: X max, Z max (X increases from p1→p2)
         [0.0, -1.0, 0.0],
         [0.0, 0.0],
-        [repeat_x, repeat_z],
+        [repeat_z, repeat_x],  // Swapped: U along Z, V along X
     );
 
     // +Z face (u along length X, v along Y) - main face
@@ -646,6 +646,7 @@ pub fn spawn_roof(
         }
     };
 
+    // Use the actual aspect ratio to compute tile repeats for square texels
     let mesh = tiled_cuboid(width, roof.thickness, depth, ROOF_TEXTURE_TILE_SIZE);
 
     commands.spawn(RoofBundle {
