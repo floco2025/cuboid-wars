@@ -1,8 +1,5 @@
 use bevy_ecs::{component::Component, message::Message};
-#[cfg(feature = "bincode")]
 use bincode::{Decode, Encode};
-#[cfg(feature = "json")]
-use serde::{Deserialize, Serialize};
 
 use crate::constants::{SPEED_RUN, SPEED_WALK};
 
@@ -10,9 +7,7 @@ use crate::constants::{SPEED_RUN, SPEED_WALK};
 macro_rules! message {
     ($(#[$meta:meta])* struct $name:ident $body:tt) => {
         $(#[$meta])*
-        #[derive(Debug, Clone)]
-        #[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
-        #[cfg_attr(feature = "bincode", derive(Encode, Decode))]
+        #[derive(Debug, Clone, Encode, Decode)]
         pub struct $name $body
     };
 }
@@ -33,9 +28,7 @@ struct Position {
 }
 
 // SpeedLevel - discrete speed level.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
-#[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "bincode", derive(Encode, Decode))]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Default, Encode, Decode)]
 pub enum SpeedLevel {
     #[default]
     Idle,
@@ -68,9 +61,7 @@ impl Speed {
     }
 }
 
-#[derive(Debug, Copy, Clone, Component, PartialEq, Default)]
-#[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "bincode", derive(Encode, Decode))]
+#[derive(Debug, Copy, Clone, Component, PartialEq, Default, Encode, Decode)]
 pub struct Velocity {
     pub x: f32, // m/s
     pub y: f32, // m/s (up/down - always 0 for now)
@@ -78,21 +69,15 @@ pub struct Velocity {
 }
 
 // Player ID component - identifies which player an entity represents.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Component)]
-#[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "bincode", derive(Encode, Decode))]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Component, Encode, Decode)]
 pub struct PlayerId(pub u32);
 
 // Item ID component - identifies which item an entity represents.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Component)]
-#[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "bincode", derive(Encode, Decode))]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Component, Encode, Decode)]
 pub struct ItemId(pub u32);
 
 // Ghost ID component - identifies which ghost an entity represents.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Component)]
-#[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "bincode", derive(Encode, Decode))]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Component, Encode, Decode)]
 pub struct GhostId(pub u32);
 
 // FaceDirection component - direction player is facing (for rotation/aiming).
@@ -139,9 +124,7 @@ struct Roof {
 }
 
 // Item type - different types of items.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "bincode", derive(Encode, Decode))]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Encode, Decode)]
 pub enum ItemType {
     SpeedPowerUp,
     MultiShotPowerUp,
@@ -325,9 +308,7 @@ struct SGhostHit {}
 // ============================================================================
 
 // All client to server messages
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "bincode", derive(Encode, Decode))]
+#[derive(Debug, Clone, Encode, Decode)]
 pub enum ClientMessage {
     Login(CLogin),
     Logoff(CLogoff),
@@ -338,9 +319,7 @@ pub enum ClientMessage {
 }
 
 // All server to client messages
-#[derive(Debug, Clone, Message)]
-#[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "bincode", derive(Encode, Decode))]
+#[derive(Debug, Clone, Message, Encode, Decode)]
 pub enum ServerMessage {
     Init(SInit),
     Login(SLogin),
