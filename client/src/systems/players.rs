@@ -86,10 +86,6 @@ pub struct CuboidShake {
 
 const BUMP_FLASH_DURATION: f32 = 0.08;
 
-fn calculate_absolute_velocity(velocity: &Velocity) -> f32 {
-    velocity.x.hypot(velocity.z)
-}
-
 fn decay_flash_timer(
     state: &mut Mut<BumpFlashState>,
     delta: f32,
@@ -178,7 +174,7 @@ pub fn players_movement_system(
             decay_flash_timer(state, delta, is_local, &mut bump_flash_ui);
         }
 
-        let abs_velocity = calculate_absolute_velocity(client_vel);
+        let abs_velocity = client_vel.x.hypot(client_vel.z);
         let is_standing_still = abs_velocity < f32::EPSILON;
 
         // Calculate intended position from velocity (with server reconciliation if needed)
