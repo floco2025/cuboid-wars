@@ -198,7 +198,8 @@ pub fn players_movement_system(
             let total_dz = server_pos_z - recon.client_pos.z;
 
             // If the client got totally out of sync, we jump to the server position
-            if total_dx.abs() >= 5.0 || total_dz.abs() >= 5.0 {
+            let out_of_sync_distance = if is_standing_still { 2.0 } else { 5.0 };
+            if total_dx.abs() >= out_of_sync_distance || total_dz.abs() >= out_of_sync_distance {
                 warn!("client out of sync, jumping to server position");
                 *client_pos = recon.server_pos;
                 continue;
