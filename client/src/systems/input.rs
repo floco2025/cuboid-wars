@@ -310,14 +310,8 @@ pub fn input_shooting_system(
 pub fn input_camera_view_toggle_system(keyboard: Res<ButtonInput<KeyCode>>, mut view_mode: ResMut<CameraViewMode>) {
     if keyboard.just_pressed(KeyCode::KeyV) {
         *view_mode = match *view_mode {
-            CameraViewMode::FirstPerson => {
-                info!("Switching to TopDown view");
-                CameraViewMode::TopDown
-            }
-            CameraViewMode::TopDown => {
-                info!("Switching to FirstPerson view");
-                CameraViewMode::FirstPerson
-            }
+            CameraViewMode::FirstPerson => CameraViewMode::TopDown,
+            CameraViewMode::TopDown => CameraViewMode::FirstPerson,
         };
     }
 }
@@ -326,10 +320,6 @@ pub fn input_camera_view_toggle_system(keyboard: Res<ButtonInput<KeyCode>>, mut 
 pub fn input_roof_toggle_system(keyboard: Res<ButtonInput<KeyCode>>, mut roof_enabled: ResMut<RoofRenderingEnabled>) {
     if keyboard.just_pressed(KeyCode::KeyR) {
         roof_enabled.0 = !roof_enabled.0;
-        info!(
-            "Roof rendering: {}",
-            if roof_enabled.0 { "enabled" } else { "disabled" }
-        );
     }
 }
 

@@ -41,7 +41,7 @@ pub fn map_spawn_walls_system(
     }
 
     info!(
-        "Spawning {} wall segments and {} roofs",
+        "spawning {} wall segments and {} roofs",
         wall_config.walls.len(),
         wall_config.roofs.len()
     );

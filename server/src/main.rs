@@ -49,10 +49,9 @@ async fn main() -> Result<()> {
     // Channel for sending from all per client network IO tasks to the server
     let (to_server, from_clients) = unbounded_channel();
 
-    // Spawn task to accept connections
     tokio::spawn(accept_connections_task(endpoint, to_server_from_accept, to_server));
+    let mut app = App::new();
 
-    // Generate grid configuration (walls, roofs, and grid)
     let grid_config = generate_grid();
     info!(
         "generated {} wall segments and {} roofs",
@@ -60,8 +59,6 @@ async fn main() -> Result<()> {
         grid_config.roofs.len()
     );
 
-    // Create Bevy app with ECS - run in non-blocking mode
-    let mut app = App::new();
     app.add_plugins(MinimalPlugins)
         .add_plugins(bevy::log::LogPlugin {
             level: bevy::log::Level::INFO,

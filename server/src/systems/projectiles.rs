@@ -91,11 +91,9 @@ pub fn projectiles_movement_system(
                 // Update hit counters
                 if let Some(shooter_info) = players.0.get_mut(shooter_id) {
                     shooter_info.hits += 1;
-                    info!("  {:?} now has {} hits", shooter_id, shooter_info.hits);
                 }
                 if let Some(target_info) = players.0.get_mut(player.player_id) {
                     target_info.hits -= 1;
-                    info!("  {:?} now has {} hits", player.player_id, target_info.hits);
                 }
 
                 // Broadcast hit message to all clients
