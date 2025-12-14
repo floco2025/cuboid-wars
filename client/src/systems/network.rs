@@ -446,6 +446,7 @@ fn handle_players_update(
                     server_vel.x *= POWER_UP_SPEED_MULTIPLIER;
                     server_vel.z *= POWER_UP_SPEED_MULTIPLIER;
                 }
+                
                 // The local player's velocity is always authoritive, so don't overwrite from
                 // server updates
                 if *id != my_player_id {
@@ -667,6 +668,7 @@ fn handle_player_status_message(
                 velocity.x *= POWER_UP_SPEED_MULTIPLIER;
                 velocity.z *= POWER_UP_SPEED_MULTIPLIER;
             }
+            
             commands.entity(player_info.entity).insert(velocity);
         }
 

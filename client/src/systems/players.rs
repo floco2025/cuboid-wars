@@ -8,8 +8,9 @@ use crate::{
     spawning::PlayerIdTextMesh,
 };
 use common::{
-    collision::{calculate_wall_slide, check_player_player_overlap, check_player_wall_sweep},
+    collision::{calculate_wall_slide, check_player_wall_sweep},
     constants::{PLAYER_HEIGHT, SPEED_RUN, UPDATE_BROADCAST_INTERVAL},
+    players::{overlaps_other_player, PlannedMove},
     protocol::{FaceDirection, PlayerId, Position, Velocity, Wall},
 };
 
@@ -156,19 +157,6 @@ type MovementQuery<'w, 's> = Query<
         Has<LocalPlayer>,
     ),
 >;
-
-#[derive(Copy, Clone)]
-struct PlannedMove {
-    entity: Entity,
-    target: Position,
-    hits_wall: bool,
-}
-
-fn overlaps_other_player(candidate: &PlannedMove, planned_moves: &[PlannedMove]) -> bool {
-    planned_moves
-        .iter()
-        .any(|other| other.entity != candidate.entity && check_player_player_overlap(&candidate.target, &other.target))
-}
 
 pub fn players_movement_system(
     mut commands: Commands,

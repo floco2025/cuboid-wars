@@ -2,38 +2,13 @@ use bevy::prelude::*;
 
 use crate::resources::{GridConfig, PlayerMap};
 use common::{
-    collision::{calculate_wall_slide, check_player_player_overlap, check_player_wall_sweep},
+    collision::{calculate_wall_slide, check_player_wall_sweep},
     constants::POWER_UP_SPEED_MULTIPLIER,
+    players::{overlaps_other_player, PlannedMove},
     protocol::{PlayerId, Position, SPlayerStatus, ServerMessage, Speed, Wall},
 };
 
 use super::network::broadcast_to_all;
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-#[derive(Copy, Clone)]
-struct PlannedMove {
-    entity: Entity,
-    target: Position,
-    #[allow(dead_code)] // Server doesn't use this for feedback, but kept for consistency with client
-    hits_wall: bool,
-}
-
-fn speed_multiplier(players: &PlayerMap, player_id: PlayerId) -> f32 {
-    players
-        .0
-        .get(&player_id)
-        .and_then(|info| (info.speed_power_up_timer > 0.0).then_some(POWER_UP_SPEED_MULTIPLIER))
-        .unwrap_or(1.0)
-}
-
-fn overlaps_other_player(candidate: &PlannedMove, planned_moves: &[PlannedMove]) -> bool {
-    planned_moves
-        .iter()
-        .any(|other| other.entity != candidate.entity && check_player_player_overlap(&candidate.target, &other.target))
-}
 
 // ============================================================================
 // Players Movement System
@@ -61,7 +36,11 @@ pub fn players_movement_system(
         }
 
         // Calculate intended position from velocity
-        let multiplier = speed_multiplier(&players, *player_id);
+        let multiplier = players
+            .0
+            .get(player_id)
+            .and_then(|info| (info.speed_power_up_timer > 0.0).then_some(POWER_UP_SPEED_MULTIPLIER))
+            .unwrap_or(1.0);
         let mut velocity = speed.to_velocity();
         velocity.x *= multiplier;
         velocity.z *= multiplier;
