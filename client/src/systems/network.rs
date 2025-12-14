@@ -120,8 +120,13 @@ fn process_message_not_logged_in(msg: ServerMessage, commands: &mut Commands) {
         commands.insert_resource(MyPlayerId(init_msg.id));
 
         // Store walls and roofs configuration
+        let mut all_walls = init_msg.boundary_walls.clone();
+        all_walls.extend_from_slice(&init_msg.interior_walls);
+        
         commands.insert_resource(WallConfig {
-            walls: init_msg.walls,
+            boundary_walls: init_msg.boundary_walls,
+            interior_walls: init_msg.interior_walls,
+            all_walls,
             roofs: init_msg.roofs,
         });
 
@@ -234,6 +239,7 @@ fn handle_login_message(
             speed_power_up: msg.player.speed_power_up,
             multi_shot_power_up: msg.player.multi_shot_power_up,
             reflect_power_up: msg.player.reflect_power_up,
+            phasing_power_up: msg.player.phasing_power_up,
             stunned: msg.player.stunned,
         },
     );
@@ -300,7 +306,7 @@ fn handle_shot_message(
 
         // Spawn projectile(s) based on player's multi-shot power-up status
         if let Ok(player_facing) = player_face_query.get(player.entity) {
-            let walls = wall_config.map_or(&[][..], |config| &config.walls);
+            let walls = wall_config.map_or(&[][..], |config| &config.all_walls);
             spawn_projectiles(
                 commands,
                 &mut assets.meshes,
@@ -411,6 +417,7 @@ fn handle_players_update(
                 speed_power_up: player.speed_power_up,
                 multi_shot_power_up: player.multi_shot_power_up,
                 reflect_power_up: player.reflect_power_up,
+                phasing_power_up: player.phasing_power_up,
                 stunned: player.stunned,
             },
         );
@@ -457,6 +464,7 @@ fn handle_players_update(
             client_player.speed_power_up = server_player.speed_power_up;
             client_player.multi_shot_power_up = server_player.multi_shot_power_up;
             client_player.reflect_power_up = server_player.reflect_power_up;
+            client_player.phasing_power_up = server_player.phasing_power_up;
         }
     }
 }
@@ -639,7 +647,8 @@ fn handle_player_status_message(
                 #[allow(clippy::nonminimal_bool)]
                 if !(player_info.speed_power_up && !msg.speed_power_up
                     || player_info.multi_shot_power_up && !msg.multi_shot_power_up
-                    || player_info.reflect_power_up && !msg.reflect_power_up)
+                    || player_info.reflect_power_up && !msg.reflect_power_up
+                    || player_info.phasing_power_up && !msg.phasing_power_up)
                 {
                     commands.spawn((
                         AudioPlayer::new(asset_server.load("sounds/player_powerup.wav")),
@@ -664,6 +673,7 @@ fn handle_player_status_message(
         player_info.speed_power_up = msg.speed_power_up;
         player_info.multi_shot_power_up = msg.multi_shot_power_up;
         player_info.reflect_power_up = msg.reflect_power_up;
+        player_info.phasing_power_up = msg.phasing_power_up;
         player_info.stunned = msg.stunned;
     }
 }

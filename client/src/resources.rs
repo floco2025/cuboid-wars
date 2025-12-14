@@ -18,7 +18,9 @@ use common::protocol::{GhostId, ItemId, PlayerId, Roof, Wall};
 // Wall configuration received from server
 #[derive(Resource)]
 pub struct WallConfig {
-    pub walls: Vec<Wall>,
+    pub boundary_walls: Vec<Wall>,
+    pub interior_walls: Vec<Wall>,
+    pub all_walls: Vec<Wall>, // Pre-computed: boundary + interior
     pub roofs: Vec<Roof>,
 }
 
@@ -34,6 +36,7 @@ pub struct PlayerInfo {
     pub speed_power_up: bool,
     pub multi_shot_power_up: bool,
     pub reflect_power_up: bool,
+    pub phasing_power_up: bool,
     pub stunned: bool,
 }
 

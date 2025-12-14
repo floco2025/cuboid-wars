@@ -4,13 +4,13 @@ use std::time::Duration;
 use super::{network::ServerReconciliation, ui::BumpFlashUIMarker};
 use crate::{
     constants::*,
-    resources::{CameraViewMode, WallConfig},
+    resources::{CameraViewMode, PlayerMap, WallConfig},
     spawning::PlayerIdTextMesh,
 };
 use common::{
     collision::{calculate_wall_slide, check_player_player_overlap, check_player_wall_sweep},
     constants::{PLAYER_HEIGHT, SPEED_RUN, UPDATE_BROADCAST_INTERVAL},
-    protocol::{FaceDirection, PlayerId, Position, Velocity},
+    protocol::{FaceDirection, PlayerId, Position, Velocity, Wall},
 };
 
 // ============================================================================
@@ -89,20 +89,6 @@ fn calculate_absolute_velocity(velocity: &Velocity) -> f32 {
     velocity.x.hypot(velocity.z)
 }
 
-fn player_hits_wall(walls: Option<&WallConfig>, old_pos: &Position, new_pos: &Position) -> bool {
-    let Some(config) = walls else { return false };
-    config
-        .walls
-        .iter()
-        .any(|wall| check_player_wall_sweep(old_pos, new_pos, wall))
-}
-
-fn player_hits_other_player(entity: Entity, new_pos: &Position, positions: &[(Entity, Position)]) -> bool {
-    positions
-        .iter()
-        .any(|(other_entity, other_pos)| *other_entity != entity && check_player_player_overlap(new_pos, other_pos))
-}
-
 fn decay_flash_timer(
     state: &mut Mut<BumpFlashState>,
     delta: f32,
@@ -162,28 +148,43 @@ type MovementQuery<'w, 's> = Query<
     's,
     (
         Entity,
+        &'static PlayerId,
         &'static mut Position,
         &'static Velocity,
         Option<&'static mut BumpFlashState>,
         Option<&'static mut ServerReconciliation>,
         Has<LocalPlayer>,
     ),
-    With<PlayerId>,
 >;
+
+#[derive(Copy, Clone)]
+struct PlannedMove {
+    entity: Entity,
+    target: Position,
+    hits_wall: bool,
+}
+
+fn overlaps_other_player(candidate: &PlannedMove, planned_moves: &[PlannedMove]) -> bool {
+    planned_moves
+        .iter()
+        .any(|other| other.entity != candidate.entity && check_player_player_overlap(&candidate.target, &other.target))
+}
 
 pub fn players_movement_system(
     mut commands: Commands,
     time: Res<Time>,
     asset_server: Res<AssetServer>,
     wall_config: Option<Res<WallConfig>>,
+    players: Res<PlayerMap>,
     mut query: MovementQuery,
     mut bump_flash_ui: Query<(&mut BackgroundColor, &mut Visibility), With<BumpFlashUIMarker>>,
 ) {
     let delta = time.delta_secs();
-    let entity_positions: Vec<(Entity, Position)> =
-        query.iter().map(|(entity, pos, _, _, _, _)| (entity, *pos)).collect();
 
-    for (entity, mut client_pos, client_vel, mut flash_state, mut recon_option, is_local) in &mut query {
+    // Pass 1: For each player, calculate intended position, then apply wall collision logic
+    let mut planned_moves: Vec<PlannedMove> = Vec::new();
+
+    for (entity, player_id, mut client_pos, client_vel, mut flash_state, mut recon_option, is_local) in query.iter_mut() {
         if let Some(state) = flash_state.as_mut() {
             decay_flash_timer(state, delta, is_local, &mut bump_flash_ui);
         }
@@ -191,6 +192,7 @@ pub fn players_movement_system(
         let abs_velocity = calculate_absolute_velocity(client_vel);
         let is_standing_still = abs_velocity < f32::EPSILON;
 
+        // Calculate intended position from velocity (with server reconciliation if needed)
         let target_pos = if let Some(recon) = recon_option.as_mut() {
             const IDLE_CORRECTION_TIME: f32 = 10.0; // Standing still: slow, smooth correction
             const RUN_CORRECTION_TIME: f32 = 0.5; // Running: fast, responsive correction
@@ -235,36 +237,66 @@ pub fn players_movement_system(
 
         // Skip collision checks if player is standing still
         if is_standing_still {
-            *client_pos = target_pos;
+            planned_moves.push(PlannedMove {
+                entity,
+                target: target_pos,
+                hits_wall: false,
+            });
             continue;
         }
 
-        let walls = wall_config.as_deref();
-        let hits_wall = player_hits_wall(walls, &client_pos, &target_pos);
-        let hits_player = player_hits_other_player(entity, &target_pos, &entity_positions);
-        if !hits_wall && !hits_player {
-            *client_pos = target_pos;
-            if let Some(state) = flash_state.as_mut() {
-                state.was_colliding = false;
-            }
-        } else if hits_wall {
-            // Slide along the wall instead of stopping
-            let slide_pos = calculate_wall_slide(
-                &walls.expect("walls should exist if hit_wall is true").walls,
-                &client_pos,
-                client_vel.x,
-                client_vel.z,
-                delta,
-            );
-            *client_pos = slide_pos;
+        // Wall collision - Select walls based on phasing power-up
+        let has_phasing = players.0.get(player_id).is_some_and(|info| info.phasing_power_up);
 
-            if is_local && let Some(state) = flash_state.as_mut() {
-                trigger_collision_feedback(&mut commands, &asset_server, &mut bump_flash_ui, state, true);
+        let (wall_adjusted_target, hits_wall) = if let Some(config) = wall_config.as_ref() {
+            let walls_to_check: &[Wall] = if has_phasing {
+                &config.boundary_walls
+            } else {
+                &config.all_walls
+            };
+
+            // Check wall collision and calculate target (with sliding if hit)
+            if walls_to_check.iter().any(|wall| check_player_wall_sweep(&client_pos, &target_pos, wall)) {
+                (calculate_wall_slide(walls_to_check, &client_pos, client_vel.x, client_vel.z, delta), true)
+            } else {
+                (target_pos, false)
             }
-        } else if hits_player {
+        } else {
+            (target_pos, false)
+        };
+
+        planned_moves.push(PlannedMove {
+            entity,
+            target: wall_adjusted_target,
+            hits_wall,
+        });
+    }
+
+    // Pass 2: Check player-player collisions and apply final positions
+    for planned_move in &planned_moves {
+        let Ok((_, _, mut client_pos, _, mut flash_state, _, is_local)) = query.get_mut(planned_move.entity) else {
+            continue;
+        };
+
+        let hits_player = overlaps_other_player(planned_move, &planned_moves);
+        
+        // Apply final position and feedback
+        if hits_player {
             // Stop for player collisions
             if is_local && let Some(state) = flash_state.as_mut() {
                 trigger_collision_feedback(&mut commands, &asset_server, &mut bump_flash_ui, state, false);
+            }
+        } else {
+            *client_pos = planned_move.target;
+            
+            if let Some(state) = flash_state.as_mut() {
+                if planned_move.hits_wall {
+                    if is_local {
+                        trigger_collision_feedback(&mut commands, &asset_server, &mut bump_flash_ui, state, true);
+                    }
+                } else {
+                    state.was_colliding = false;
+                }
             }
         }
     }

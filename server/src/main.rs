@@ -55,7 +55,7 @@ async fn main() -> Result<()> {
     let grid_config = generate_grid();
     info!(
         "generated {} wall segments and {} roofs",
-        grid_config.walls.len(),
+        grid_config.all_walls.len(),
         grid_config.roofs.len()
     );
 

@@ -232,7 +232,7 @@ pub fn ghosts_movement_system(
                 if ghost_info.mode_timer <= 0.0 {
                     // Check if we can see any moving players
                     if let Some(target_player_id) =
-                        find_visible_moving_player(&ghost_pos, &player_data, &grid_config.walls)
+                        find_visible_moving_player(&ghost_pos, &player_data, &grid_config.all_walls)
                     {
                         // Switch to follow mode
                         ghost_info.mode = GhostMode::Follow;
@@ -304,7 +304,7 @@ pub fn ghosts_movement_system(
                         &mut ghost_vel,
                         target_id,
                         &player_data,
-                        &grid_config.walls,
+                        &grid_config.all_walls,
                         &players,
                         delta,
                     );
@@ -655,6 +655,7 @@ pub fn ghost_player_collision_system(
                 speed_power_up: player_info.speed_power_up_timer > 0.0,
                 multi_shot_power_up: player_info.multi_shot_power_up_timer > 0.0,
                 reflect_power_up: player_info.reflect_power_up_timer > 0.0,
+                phasing_power_up: player_info.phasing_power_up_timer > 0.0,
                 stunned: true,
             };
 

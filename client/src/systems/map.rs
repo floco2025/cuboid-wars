@@ -42,11 +42,11 @@ pub fn map_spawn_walls_system(
 
     info!(
         "spawning {} wall segments and {} roofs",
-        wall_config.walls.len(),
+        wall_config.all_walls.len(),
         wall_config.roofs.len()
     );
 
-    for wall in &wall_config.walls {
+    for wall in &wall_config.all_walls {
         spawn_wall(&mut commands, &mut meshes, &mut materials, &asset_server, wall);
     }
 

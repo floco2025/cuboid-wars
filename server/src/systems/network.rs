@@ -69,6 +69,7 @@ fn snapshot_logged_in_players(players: &PlayerMap, queries: &NetworkEntityQuerie
                     speed_power_up: info.speed_power_up_timer > 0.0,
                     multi_shot_power_up: info.multi_shot_power_up_timer > 0.0,
                     reflect_power_up: info.reflect_power_up_timer > 0.0,
+                    phasing_power_up: info.phasing_power_up_timer > 0.0,
                     stunned: info.stun_timer > 0.0,
                 },
             ))
@@ -137,7 +138,7 @@ fn generate_spawn_position(grid_config: &GridConfig) -> Position {
 
         // Check if position intersects with any wall
         let intersects = grid_config
-            .walls
+            .all_walls
             .iter()
             .any(|wall| check_player_wall_overlap(&pos, wall));
 
@@ -178,6 +179,7 @@ pub fn network_accept_connections_system(
                 speed_power_up_timer: 0.0,
                 multi_shot_power_up_timer: 0.0,
                 reflect_power_up_timer: 0.0,
+                phasing_power_up_timer: 0.0,
                 stun_timer: 0.0,
             },
         );
@@ -289,7 +291,8 @@ fn process_message_not_logged_in(
             // Send Init to the connecting player (their ID, walls, and roofs)
             let init_msg = ServerMessage::Init(SInit {
                 id,
-                walls: grid_config.walls.clone(),
+                boundary_walls: grid_config.boundary_walls.clone(),
+                interior_walls: grid_config.interior_walls.clone(),
                 roofs: grid_config.roofs.clone(),
             });
             if let Err(e) = channel.send(ServerToClient::Send(init_msg)) {
@@ -320,6 +323,7 @@ fn process_message_not_logged_in(
                 speed_power_up: false,
                 multi_shot_power_up: false,
                 reflect_power_up: false,
+                phasing_power_up: false,
                 stunned: false,
             };
 
@@ -472,7 +476,7 @@ fn handle_shot(
             .is_some_and(|info| info.multi_shot_power_up_timer > 0.0);
 
         // Calculate valid projectile spawn positions
-        let spawns = calculate_projectile_spawns(pos, msg.face_dir, has_multi_shot, has_reflect, &grid_config.walls);
+        let spawns = calculate_projectile_spawns(pos, msg.face_dir, has_multi_shot, has_reflect, &grid_config.all_walls);
 
         // Spawn each projectile
         for spawn_info in spawns {

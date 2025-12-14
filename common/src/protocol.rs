@@ -95,6 +95,7 @@ struct Player {
     pub speed_power_up: bool,
     pub multi_shot_power_up: bool,
     pub reflect_power_up: bool,
+    pub phasing_power_up: bool,
     pub stunned: bool,
 }
 }
@@ -129,6 +130,7 @@ pub enum ItemType {
     SpeedPowerUp,
     MultiShotPowerUp,
     ReflectPowerUp,
+    PhasingPowerUp,
     Cookie,
 }
 
@@ -202,7 +204,8 @@ message! {
 // Server to Client: Initial connection acknowledgment with assigned player ID.
 struct SInit {
     pub id: PlayerId,
-    pub walls: Vec<Wall>,
+    pub boundary_walls: Vec<Wall>,
+    pub interior_walls: Vec<Wall>,
     pub roofs: Vec<Roof>,
 }
 }
@@ -274,6 +277,7 @@ struct SPlayerStatus {
     pub speed_power_up: bool,
     pub multi_shot_power_up: bool,
     pub reflect_power_up: bool,
+    pub phasing_power_up: bool,
     pub stunned: bool,
 }
 }

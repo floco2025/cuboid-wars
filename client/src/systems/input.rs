@@ -288,7 +288,7 @@ pub fn input_shooting_system(
             .is_some_and(|info| info.reflect_power_up);
 
         // Spawn projectile(s) based on power-up status
-        let walls = wall_config.as_ref().map_or(&[][..], |config| &config.walls);
+        let walls = wall_config.as_ref().map_or(&[][..], |config| &config.all_walls);
         spawn_projectiles(
             &mut commands,
             &mut meshes,

@@ -140,7 +140,7 @@ fn handle_wall_collisions(
 ) -> Option<Position> {
     let config = wall_config?;
 
-    for wall in &config.walls {
+    for wall in &config.all_walls {
         if let Some(new_pos) = projectile.handle_wall_bounce(projectile_pos, delta, wall) {
             play_sound(
                 commands,

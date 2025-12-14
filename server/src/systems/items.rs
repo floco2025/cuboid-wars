@@ -22,12 +22,14 @@ use super::network::broadcast_to_all;
 
 fn choose_item_type(rng: &mut rand::rngs::ThreadRng) -> ItemType {
     let rand_val = rng.random::<f64>();
-    if rand_val < 0.33 {
+    if rand_val < 0.25 {
         ItemType::SpeedPowerUp
-    } else if rand_val < 0.67 {
+    } else if rand_val < 0.50 {
         ItemType::MultiShotPowerUp
-    } else {
+    } else if rand_val < 0.75 {
         ItemType::ReflectPowerUp
+    } else {
+        ItemType::PhasingPowerUp
     }
 }
 
@@ -214,6 +216,9 @@ pub fn item_collection_system(
                 ItemType::ReflectPowerUp => {
                     player_info.reflect_power_up_timer = POWER_UP_REFLECT_DURATION;
                 }
+                ItemType::PhasingPowerUp => {
+                    player_info.phasing_power_up_timer = POWER_UP_PHASING_DURATION;
+                }
                 ItemType::Cookie => unreachable!(), // Already handled above
             }
 
@@ -222,6 +227,7 @@ pub fn item_collection_system(
                 speed_power_up: player_info.speed_power_up_timer > 0.0,
                 multi_shot_power_up: player_info.multi_shot_power_up_timer > 0.0,
                 reflect_power_up: player_info.reflect_power_up_timer > 0.0,
+                phasing_power_up: player_info.phasing_power_up_timer > 0.0,
                 stunned: player_info.stun_timer > 0.0,
             });
         }

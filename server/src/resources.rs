@@ -22,7 +22,9 @@ pub struct GridCell {
 #[derive(Resource)]
 pub struct GridConfig {
     pub grid: Vec<Vec<GridCell>>, // [row][col] - indexed by grid_z, grid_x
-    pub walls: Vec<Wall>,
+    pub boundary_walls: Vec<Wall>,
+    pub interior_walls: Vec<Wall>,
+    pub all_walls: Vec<Wall>, // Pre-computed: boundary + interior
     pub roofs: Vec<Roof>,
 }
 
@@ -36,6 +38,7 @@ pub struct PlayerInfo {
     pub speed_power_up_timer: f32, // Remaining time for speed power-up (0.0 = inactive)
     pub multi_shot_power_up_timer: f32, // Remaining time for multi-shot power-up (0.0 = inactive)
     pub reflect_power_up_timer: f32, // Remaining time for reflect power-up (0.0 = inactive)
+    pub phasing_power_up_timer: f32, // Remaining time for phasing power-up (0.0 = inactive)
     pub stun_timer: f32,           // Remaining time stunned (0.0 = not stunned)
 }
 
