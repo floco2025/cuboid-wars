@@ -131,9 +131,9 @@ fn generate_spawn_position(grid_config: &GridConfig) -> Position {
 
     for _ in 0..max_attempts {
         let pos = Position {
-            x: rng.random_range(-SPAWN_RANGE_X..=SPAWN_RANGE_X),
+            x: rng.random_range(-FIELD_WIDTH / 2.0..=FIELD_WIDTH / 2.0),
             y: 0.0,
-            z: rng.random_range(-SPAWN_RANGE_Z..=SPAWN_RANGE_Z),
+            z: rng.random_range(-FIELD_DEPTH / 2.0..=FIELD_DEPTH / 2.0),
         };
 
         // Check if position intersects with any wall

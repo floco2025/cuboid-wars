@@ -50,12 +50,12 @@ pub const ITEM_REFLECT_COLOR: [f32; 4] = [1.0, 0.2, 0.2, 1.0]; // Red
 pub const ITEM_PHASING_COLOR: [f32; 4] = [0.2, 1.0, 0.2, 1.0]; // Green
 
 // Texture tiling (meters per tile)
-pub const WALL_TEXTURE_TILE_SIZE: f32 = 3.0;
-pub const ROOF_TEXTURE_TILE_SIZE: f32 = 3.0;
+pub const TEXTURE_WALL_TILE_SIZE: f32 = 3.0;
+pub const TEXTURE_ROOF_TILE_SIZE: f32 = 3.0;
 
-// Visual settings for debuggin
-pub const WALL_RANDOM_COLORS: bool = false;
-pub const ROOF_RANDOM_COLORS: bool = false;
+// Visual settings for debugging
+pub const RANDOM_WALL_COLORS: bool = false;
+pub const RANDOM_ROOF_COLORS: bool = false;
 pub const GRID_LINES: bool = false;
 
 // Cookie visual settings

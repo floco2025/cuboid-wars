@@ -10,8 +10,6 @@ pub const GRID_ROWS: i32 = 8; // Number of grid rows (Z axis)
 // Calculated field dimensions (meters)
 pub const FIELD_WIDTH: f32 = GRID_COLS as f32 * GRID_SIZE; // Total width
 pub const FIELD_DEPTH: f32 = GRID_ROWS as f32 * GRID_SIZE; // Total depth
-pub const SPAWN_RANGE_X: f32 = FIELD_WIDTH / 2.0;
-pub const SPAWN_RANGE_Z: f32 = FIELD_DEPTH / 2.0;
 
 // Player dimensions (meters)
 pub const PLAYER_WIDTH: f32 = 0.5; // side to side

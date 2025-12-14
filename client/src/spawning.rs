@@ -564,7 +564,7 @@ pub fn spawn_wall(
     let rotation = Quat::from_rotation_y(dz.atan2(dx));
 
     // Create material based on whether random colors are enabled
-    let wall_material = if WALL_RANDOM_COLORS {
+    let wall_material = if RANDOM_WALL_COLORS {
         let mut rng = rand::rng();
         StandardMaterial {
             base_color: Color::srgb(
@@ -581,7 +581,7 @@ pub fn spawn_wall(
         }
     };
 
-    let mesh = tiled_cuboid(mesh_size_x, WALL_HEIGHT, mesh_size_z, WALL_TEXTURE_TILE_SIZE);
+    let mesh = tiled_cuboid(mesh_size_x, WALL_HEIGHT, mesh_size_z, TEXTURE_WALL_TILE_SIZE);
 
     commands.spawn(WallBundle {
         mesh: Mesh3d(meshes.add(mesh)),
@@ -615,7 +615,7 @@ pub fn spawn_roof(
     let depth = (roof.z2 - roof.z1).abs();
 
     // Create material based on whether random colors are enabled
-    let roof_material = if ROOF_RANDOM_COLORS {
+    let roof_material = if RANDOM_ROOF_COLORS {
         let mut rng = rand::rng();
         StandardMaterial {
             base_color: Color::srgb(
@@ -633,7 +633,7 @@ pub fn spawn_roof(
     };
 
     // Use the actual aspect ratio to compute tile repeats for square texels
-    let mesh = tiled_cuboid(width, roof.thickness, depth, ROOF_TEXTURE_TILE_SIZE);
+    let mesh = tiled_cuboid(width, roof.thickness, depth, TEXTURE_ROOF_TILE_SIZE);
 
     commands.spawn(RoofBundle {
         mesh: Mesh3d(meshes.add(mesh)),
