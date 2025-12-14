@@ -4,7 +4,7 @@ use crate::resources::{GridConfig, PlayerMap};
 use common::{
     collision::{calculate_wall_slide, check_player_wall_sweep},
     constants::POWER_UP_SPEED_MULTIPLIER,
-    players::{overlaps_other_player, PlannedMove},
+    players::{PlannedMove, overlaps_other_player},
     protocol::{PlayerId, Position, SPlayerStatus, ServerMessage, Speed, Wall},
 };
 
@@ -31,7 +31,11 @@ pub fn players_movement_system(
 
         if is_stunned {
             // Stunned players cannot move
-            planned_moves.push(PlannedMove { entity, target: *pos, hits_wall: false });
+            planned_moves.push(PlannedMove {
+                entity,
+                target: *pos,
+                hits_wall: false,
+            });
             continue;
         }
 
@@ -49,7 +53,11 @@ pub fn players_movement_system(
         let is_standing_still = abs_velocity < f32::EPSILON;
 
         if is_standing_still {
-            planned_moves.push(PlannedMove { entity, target: *pos, hits_wall: false });
+            planned_moves.push(PlannedMove {
+                entity,
+                target: *pos,
+                hits_wall: false,
+            });
             continue;
         }
 
@@ -72,13 +80,23 @@ pub fn players_movement_system(
         };
 
         // Check wall collision and calculate target (with sliding if hit)
-        let (target, hits_wall) = if walls_to_check.iter().any(|wall| check_player_wall_sweep(pos, &new_pos, wall)) {
-            (calculate_wall_slide(walls_to_check, pos, velocity.x, velocity.z, delta), true)
+        let (target, hits_wall) = if walls_to_check
+            .iter()
+            .any(|wall| check_player_wall_sweep(pos, &new_pos, wall))
+        {
+            (
+                calculate_wall_slide(walls_to_check, pos, velocity.x, velocity.z, delta),
+                true,
+            )
         } else {
             (new_pos, false)
         };
 
-        planned_moves.push(PlannedMove { entity, target, hits_wall });
+        planned_moves.push(PlannedMove {
+            entity,
+            target,
+            hits_wall,
+        });
     }
 
     // Pass 2: Check player-player collisions and apply final positions

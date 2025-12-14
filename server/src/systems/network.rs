@@ -476,7 +476,8 @@ fn handle_shot(
             .is_some_and(|info| info.multi_shot_power_up_timer > 0.0);
 
         // Calculate valid projectile spawn positions
-        let spawns = calculate_projectile_spawns(pos, msg.face_dir, has_multi_shot, has_reflect, &grid_config.all_walls);
+        let spawns =
+            calculate_projectile_spawns(pos, msg.face_dir, has_multi_shot, has_reflect, &grid_config.all_walls);
 
         // Spawn each projectile
         for spawn_info in spawns {

@@ -288,19 +288,23 @@ pub fn generate_grid() -> GridConfig {
     let half_field_width = FIELD_WIDTH / 2.0;
     let half_field_depth = FIELD_DEPTH / 2.0;
     let epsilon = 0.01;
-    
-    let (boundary_walls, interior_walls): (Vec<Wall>, Vec<Wall>) = walls
-        .iter()
-        .partition(|w| {
-            // Check if wall is at the boundary (within epsilon)
-            let at_left = (w.x1 + half_field_width).abs() < epsilon && (w.x2 + half_field_width).abs() < epsilon;
-            let at_right = (w.x1 - half_field_width).abs() < epsilon && (w.x2 - half_field_width).abs() < epsilon;
-            let at_top = (w.z1 + half_field_depth).abs() < epsilon && (w.z2 + half_field_depth).abs() < epsilon;
-            let at_bottom = (w.z1 - half_field_depth).abs() < epsilon && (w.z2 - half_field_depth).abs() < epsilon;
-            at_left || at_right || at_top || at_bottom
-        });
 
-    GridConfig { grid, boundary_walls, interior_walls, all_walls: walls, roofs }
+    let (boundary_walls, interior_walls): (Vec<Wall>, Vec<Wall>) = walls.iter().partition(|w| {
+        // Check if wall is at the boundary (within epsilon)
+        let at_left = (w.x1 + half_field_width).abs() < epsilon && (w.x2 + half_field_width).abs() < epsilon;
+        let at_right = (w.x1 - half_field_width).abs() < epsilon && (w.x2 - half_field_width).abs() < epsilon;
+        let at_top = (w.z1 + half_field_depth).abs() < epsilon && (w.z2 + half_field_depth).abs() < epsilon;
+        let at_bottom = (w.z1 - half_field_depth).abs() < epsilon && (w.z2 - half_field_depth).abs() < epsilon;
+        at_left || at_right || at_top || at_bottom
+    });
+
+    GridConfig {
+        grid,
+        boundary_walls,
+        interior_walls,
+        all_walls: walls,
+        roofs,
+    }
 }
 
 // Does the grid line at (row, col) have a horizontal wall? Handles perimeter rows.

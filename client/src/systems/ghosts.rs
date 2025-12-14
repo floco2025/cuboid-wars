@@ -78,7 +78,8 @@ fn apply_ghost_wall_sliding(
     };
 
     // Check if target position hits a wall
-    let hits_wall = config.all_walls
+    let hits_wall = config
+        .all_walls
         .iter()
         .any(|wall| check_ghost_wall_overlap(target_pos, wall));
 

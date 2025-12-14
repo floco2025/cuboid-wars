@@ -10,7 +10,7 @@ use crate::{
 use common::{
     collision::{calculate_wall_slide, check_player_wall_sweep},
     constants::{PLAYER_HEIGHT, SPEED_RUN, UPDATE_BROADCAST_INTERVAL},
-    players::{overlaps_other_player, PlannedMove},
+    players::{PlannedMove, overlaps_other_player},
     protocol::{FaceDirection, PlayerId, Position, Velocity, Wall},
 };
 
@@ -172,7 +172,8 @@ pub fn players_movement_system(
     // Pass 1: For each player, calculate intended position, then apply wall collision logic
     let mut planned_moves: Vec<PlannedMove> = Vec::new();
 
-    for (entity, player_id, mut client_pos, client_vel, mut flash_state, mut recon_option, is_local) in query.iter_mut() {
+    for (entity, player_id, mut client_pos, client_vel, mut flash_state, mut recon_option, is_local) in query.iter_mut()
+    {
         if let Some(state) = flash_state.as_mut() {
             decay_flash_timer(state, delta, is_local, &mut bump_flash_ui);
         }
@@ -244,8 +245,14 @@ pub fn players_movement_system(
             };
 
             // Check wall collision and calculate target (with sliding if hit)
-            if walls_to_check.iter().any(|wall| check_player_wall_sweep(&client_pos, &target_pos, wall)) {
-                (calculate_wall_slide(walls_to_check, &client_pos, client_vel.x, client_vel.z, delta), true)
+            if walls_to_check
+                .iter()
+                .any(|wall| check_player_wall_sweep(&client_pos, &target_pos, wall))
+            {
+                (
+                    calculate_wall_slide(walls_to_check, &client_pos, client_vel.x, client_vel.z, delta),
+                    true,
+                )
             } else {
                 (target_pos, false)
             }
@@ -267,7 +274,7 @@ pub fn players_movement_system(
         };
 
         let hits_player = overlaps_other_player(planned_move, &planned_moves);
-        
+
         // Apply final position and feedback
         if hits_player {
             // Stop for player collisions
@@ -276,7 +283,7 @@ pub fn players_movement_system(
             }
         } else {
             *client_pos = planned_move.target;
-            
+
             if let Some(state) = flash_state.as_mut() {
                 if planned_move.hits_wall {
                     if is_local {
