@@ -70,6 +70,7 @@ fn snapshot_logged_in_players(players: &PlayerMap, queries: &NetworkEntityQuerie
                     multi_shot_power_up: info.multi_shot_power_up_timer > 0.0,
                     reflect_power_up: info.reflect_power_up_timer > 0.0,
                     phasing_power_up: info.phasing_power_up_timer > 0.0,
+                    ghost_hunt_power_up: info.ghost_hunt_power_up_timer > 0.0,
                     stunned: info.stun_timer > 0.0,
                 },
             ))
@@ -180,6 +181,7 @@ pub fn network_accept_connections_system(
                 multi_shot_power_up_timer: 0.0,
                 reflect_power_up_timer: 0.0,
                 phasing_power_up_timer: 0.0,
+                ghost_hunt_power_up_timer: 0.0,
                 stun_timer: 0.0,
             },
         );
@@ -324,6 +326,7 @@ fn process_message_not_logged_in(
                 multi_shot_power_up: false,
                 reflect_power_up: false,
                 phasing_power_up: false,
+                ghost_hunt_power_up: false,
                 stunned: false,
             };
 

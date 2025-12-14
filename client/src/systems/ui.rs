@@ -458,6 +458,17 @@ fn spawn_player_entry(
                     BackgroundColor(item_type_color(ItemType::PhasingPowerUp)),
                 ));
             }
+            if player_info.ghost_hunt_power_up {
+                row.spawn((
+                    Node {
+                        width: Val::Px(12.0),
+                        height: Val::Px(12.0),
+                        align_self: AlignSelf::Center,
+                        ..default()
+                    },
+                    BackgroundColor(item_type_color(ItemType::GhostHuntPowerUp)),
+                ));
+            }
         })
         .id()
 }

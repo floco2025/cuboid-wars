@@ -48,6 +48,7 @@ pub const ITEM_SPEED_COLOR: [f32; 4] = [0.2, 0.7, 1.0, 1.0]; // Light blue
 pub const ITEM_MULTISHOT_COLOR: [f32; 4] = [1.0, 0.5, 0.2, 1.0]; // Orange
 pub const ITEM_REFLECT_COLOR: [f32; 4] = [1.0, 0.2, 0.2, 1.0]; // Red
 pub const ITEM_PHASING_COLOR: [f32; 4] = [0.2, 1.0, 0.2, 1.0]; // Green
+pub const ITEM_GHOST_HUNT_COLOR: [f32; 3] = [0.973, 0.973, 1.0]; // Pale blue (same as ghost color)
 
 // Texture tiling (meters per tile)
 pub const TEXTURE_WALL_TILE_SIZE: f32 = 3.0;
@@ -64,7 +65,7 @@ pub const COOKIE_HEIGHT: f32 = 0.1; // Slightly above floor to avoid z-fighting
 pub const COOKIE_COLOR: [f32; 4] = [0.55, 0.35, 0.2, 1.0]; // Brown
 
 // Ghost visual settings
-pub const GHOST_COLOR: [f32; 4] = [0xF8 as f32 / 255.0, 0xF8 as f32 / 255.0, 0xFF as f32 / 255.0, 0.5];
+pub const GHOST_COLOR: [f32; 4] = [0.973, 0.973, 1.0, 0.5];
 
 // Rearview mirror settings
 pub const REARVIEW_WIDTH_RATIO: f32 = 0.25; // Width as ratio of screen width (25%)

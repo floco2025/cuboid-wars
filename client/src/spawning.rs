@@ -664,6 +664,11 @@ pub const fn item_type_color(item_type: ItemType) -> Color {
         ),
         ItemType::ReflectPowerUp => Color::srgb(ITEM_REFLECT_COLOR[0], ITEM_REFLECT_COLOR[1], ITEM_REFLECT_COLOR[2]),
         ItemType::PhasingPowerUp => Color::srgb(ITEM_PHASING_COLOR[0], ITEM_PHASING_COLOR[1], ITEM_PHASING_COLOR[2]),
+        ItemType::GhostHuntPowerUp => Color::srgb(
+            ITEM_GHOST_HUNT_COLOR[0],
+            ITEM_GHOST_HUNT_COLOR[1],
+            ITEM_GHOST_HUNT_COLOR[2],
+        ),
         ItemType::Cookie => Color::srgb(COOKIE_COLOR[0], COOKIE_COLOR[1], COOKIE_COLOR[2]),
     }
 }

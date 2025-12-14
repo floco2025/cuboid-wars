@@ -240,6 +240,7 @@ fn handle_login_message(
             multi_shot_power_up: msg.player.multi_shot_power_up,
             reflect_power_up: msg.player.reflect_power_up,
             phasing_power_up: msg.player.phasing_power_up,
+            ghost_hunt_power_up: msg.player.ghost_hunt_power_up,
             stunned: msg.player.stunned,
         },
     );
@@ -418,6 +419,7 @@ fn handle_players_update(
                 multi_shot_power_up: player.multi_shot_power_up,
                 reflect_power_up: player.reflect_power_up,
                 phasing_power_up: player.phasing_power_up,
+                ghost_hunt_power_up: player.ghost_hunt_power_up,
                 stunned: player.stunned,
             },
         );
@@ -676,6 +678,7 @@ fn handle_player_status_message(
         player_info.multi_shot_power_up = msg.multi_shot_power_up;
         player_info.reflect_power_up = msg.reflect_power_up;
         player_info.phasing_power_up = msg.phasing_power_up;
+        player_info.ghost_hunt_power_up = msg.ghost_hunt_power_up;
         player_info.stunned = msg.stunned;
     }
 }
