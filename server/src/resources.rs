@@ -63,7 +63,7 @@ pub struct ItemMap(pub HashMap<ItemId, ItemInfo>);
 pub enum GhostMode {
     PrePatrol, // Navigating to grid center before patrol
     Patrol,    // Moving along grid, can detect players (unless mode_timer > 0)
-    Follow,    // Following a specific player
+    Target,    // Targeting a specific player (chase or flee)
 }
 
 // Ghost info
@@ -71,7 +71,7 @@ pub struct GhostInfo {
     pub entity: Entity,
     pub mode: GhostMode,
     pub mode_timer: f32,                 // Time remaining in current mode
-    pub follow_target: Option<PlayerId>, // Player being followed (only in Follow mode)
+    pub follow_target: Option<PlayerId>, // Player being targeted (only in Target mode)
     pub at_intersection: bool,           // Track if currently at an intersection (for patrol mode)
 }
 

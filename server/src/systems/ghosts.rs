@@ -222,8 +222,17 @@ pub fn ghosts_movement_system(
             continue;
         };
 
-        // Update mode timer``
-        ghost_info.mode_timer -= delta;
+        // Check if we're fleeing from a player with ghost hunt power-up
+        let is_fleeing = ghost_info.mode == GhostMode::Target
+            && ghost_info
+                .follow_target
+                .and_then(|target_id| players.0.get(&target_id))
+                .is_some_and(|info| info.ghost_hunt_power_up_timer > 0.0);
+
+        // Update mode timer (don't decrement when fleeing - flee indefinitely)
+        if !is_fleeing {
+            ghost_info.mode_timer -= delta;
+        }
 
         // Handle mode transitions
         match ghost_info.mode {
@@ -234,31 +243,42 @@ pub fn ghosts_movement_system(
                     if let Some(target_player_id) =
                         find_visible_moving_player(&ghost_pos, &player_data, &grid_config.all_walls)
                     {
-                        // Switch to follow mode
-                        ghost_info.mode = GhostMode::Follow;
+                        // Switch to target mode
+                        ghost_info.mode = GhostMode::Target;
                         ghost_info.mode_timer = GHOST_FOLLOW_DURATION;
                         ghost_info.follow_target = Some(target_player_id);
                     }
                 }
             }
-            GhostMode::Follow => {
+            GhostMode::Target => {
                 if ghost_info.mode_timer <= 0.0 {
-                    // Switch to pre-patrol to navigate to grid
+                    // Timer expired (only happens for regular follow, not flee)
+                    // Switch to pre-patrol with cooldown
                     ghost_info.mode = GhostMode::PrePatrol;
                     ghost_info.mode_timer = GHOST_COOLDOWN_DURATION;
                     ghost_info.follow_target = None;
                 } else {
                     // Check if target player still exists and is not stunned
                     if let Some(target_id) = ghost_info.follow_target {
-                        let target_valid = players
-                            .0
-                            .get(&target_id)
-                            .is_some_and(|info| info.logged_in && info.stun_timer <= 0.0);
+                        let target_info = players.0.get(&target_id);
+                        let target_valid = target_info.is_some_and(|info| info.logged_in && info.stun_timer <= 0.0);
+                        
                         if !target_valid {
                             // Target disconnected or stunned, switch to pre-patrol
                             ghost_info.mode = GhostMode::PrePatrol;
                             ghost_info.mode_timer = GHOST_COOLDOWN_DURATION;
                             ghost_info.follow_target = None;
+                        } else if let Some(info) = target_info {
+                            // Check if we were fleeing and the ghost hunt power-up ended
+                            let was_fleeing = info.ghost_hunt_power_up_timer <= 0.0
+                                && ghost_info.mode_timer > GHOST_FOLLOW_DURATION;
+                            
+                            if was_fleeing {
+                                // Ghost hunt ended, switch to pre-patrol with no cooldown
+                                ghost_info.mode = GhostMode::PrePatrol;
+                                ghost_info.mode_timer = 0.0;
+                                ghost_info.follow_target = None;
+                            }
                         }
                     }
                 }
@@ -296,7 +316,7 @@ pub fn ghosts_movement_system(
                     &mut rng,
                 );
             }
-            GhostMode::Follow => {
+            GhostMode::Target => {
                 if let Some(target_id) = ghost_info.follow_target {
                     follow_movement(
                         &ghost_id,
@@ -512,6 +532,7 @@ fn patrol_movement(
 }
 
 // Follow mode movement - moves toward target player with wall sliding
+// If the target player has ghost hunt power-up, reverses direction to flee
 fn follow_movement(
     ghost_id: &GhostId,
     pos: &mut Position,
@@ -532,6 +553,12 @@ fn follow_movement(
         return;
     };
 
+    // Check if target has ghost hunt power-up active
+    let target_has_ghost_hunt = players
+        .0
+        .get(&target_id)
+        .is_some_and(|info| info.ghost_hunt_power_up_timer > 0.0);
+
     // Calculate direction to target
     let dx = target_pos.x - pos.x;
     let dz = target_pos.z - pos.z;
@@ -544,13 +571,22 @@ fn follow_movement(
         return;
     }
 
-    // Normalize direction and apply follow speed
+    // Normalize direction
     let dir_x = dx / distance;
     let dir_z = dz / distance;
+
+    // If target has ghost hunt power-up, reverse direction (flee instead of follow)
+    let (final_dir_x, final_dir_z) = if target_has_ghost_hunt {
+        (-dir_x, -dir_z)
+    } else {
+        (dir_x, dir_z)
+    };
+
+    // Apply follow speed
     let desired_vel = Velocity {
-        x: dir_x * GHOST_FOLLOW_SPEED,
+        x: final_dir_x * GHOST_FOLLOW_SPEED,
         y: 0.0,
-        z: dir_z * GHOST_FOLLOW_SPEED,
+        z: final_dir_z * GHOST_FOLLOW_SPEED,
     };
 
     // Calculate target position for this frame
@@ -633,8 +669,8 @@ pub fn ghost_player_collision_system(
                 continue;
             };
 
-            if ghost_info.mode != GhostMode::Follow {
-                continue; // Skip stunning if ghost is not following
+            if ghost_info.mode != GhostMode::Target {
+                continue; // Skip stunning if ghost is not targeting
             }
 
             if check_ghost_player_overlap(ghost_pos, player.position) {

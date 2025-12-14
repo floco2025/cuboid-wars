@@ -22,7 +22,7 @@ pub const ROOF_NUM_SEGMENTS: usize = 20; // Target number of roof segments to ge
 pub const ROOF_NEIGHBOR_PREFERENCE: f64 = 4.0; // Multiplier for cells with roofed neighbors
 
 // Item settings
-pub const ITEM_SPAWN_INTERVAL: f32 = 10.0; // seconds
+pub const ITEM_SPAWN_INTERVAL: f32 = 1.0; // seconds
 pub const ITEM_LIFETIME: f32 = 60.0; // seconds
 pub const ITEM_COLLECTION_RADIUS: f32 = 1.0; // Distance to collect an item
 
