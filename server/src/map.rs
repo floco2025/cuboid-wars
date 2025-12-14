@@ -3,8 +3,8 @@ use std::collections::{HashSet, VecDeque};
 
 use crate::{
     constants::{
-        MERGE_ROOF_SEGMENTS, MERGE_WALL_SEGMENTS, OVERLAP_ROOFS, ROOF_PROBABILITY_2_WALLS,
-        ROOF_PROBABILITY_3_WALLS, ROOF_PROBABILITY_WITH_NEIGHBOR, WALL_2ND_PROBABILITY_RATIO,
+        MERGE_ROOF_SEGMENTS, MERGE_WALL_SEGMENTS, OVERLAP_ROOFS, ROOF_NEIGHBOR_PREFERENCE,
+        ROOF_NUM_SEGMENTS, WALL_2ND_PROBABILITY_RATIO,
         WALL_3RD_PROBABILITY_RATIO, WALL_NUM_SEGMENTS, OVERLAP_WALLS,
     },
     resources::{GridCell, GridConfig},
@@ -455,46 +455,69 @@ fn generate_individual_roofs(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: 
         }
     }
 
-    // Pass 1: Place roofs based on wall count
     let mut roof_cells: HashSet<(i32, i32)> = HashSet::new();
 
-    for row in 0..grid_rows {
-        for col in 0..grid_cols {
-            let wall_count = wall_counts[row as usize][col as usize];
-
-            let should_place_roof = match wall_count {
-                2 => rng.random_bool(ROOF_PROBABILITY_2_WALLS),
-                3 => rng.random_bool(ROOF_PROBABILITY_3_WALLS),
-                _ => false,
-            };
-
-            if should_place_roof {
-                roof_cells.insert((row, col));
-            }
-        }
-    }
-
-    // Pass 2: Cells with 2+ walls adjacent to a roof get ROOF_PROBABILITY_WITH_NEIGHBOR chance
-    let mut added_more = true;
-    while added_more {
-        added_more = false;
+    // Iteratively place roofs until we reach target count
+    while roof_cells.len() < ROOF_NUM_SEGMENTS {
+        // Build weighted list of candidate cells
+        let mut candidates = Vec::new();
 
         for row in 0..grid_rows {
             for col in 0..grid_cols {
-                if roof_cells.contains(&(row, col)) || wall_counts[row as usize][col as usize] < 2 {
+                if roof_cells.contains(&(row, col)) {
                     continue;
                 }
 
-                let neighbors = [(row - 1, col), (row + 1, col), (row, col - 1), (row, col + 1)];
-
-                let has_neighbor_with_roof = neighbors
-                    .iter()
-                    .any(|&(r, c)| r >= 0 && r < grid_rows && c >= 0 && c < grid_cols && roof_cells.contains(&(r, c)));
-
-                if has_neighbor_with_roof && rng.random_bool(ROOF_PROBABILITY_WITH_NEIGHBOR) {
-                    roof_cells.insert((row, col));
-                    added_more = true;
+                let wall_count = wall_counts[row as usize][col as usize];
+                let cell = grid[row as usize][col as usize];
+                
+                // Count roofed neighbors that don't have walls between them
+                let mut neighbor_count = 0;
+                
+                // North neighbor (row - 1)
+                if row > 0 && !cell.has_north_wall && roof_cells.contains(&(row - 1, col)) {
+                    neighbor_count += 1;
                 }
+                // South neighbor (row + 1)
+                if row < grid_rows - 1 && !cell.has_south_wall && roof_cells.contains(&(row + 1, col)) {
+                    neighbor_count += 1;
+                }
+                // West neighbor (col - 1)
+                if col > 0 && !cell.has_west_wall && roof_cells.contains(&(row, col - 1)) {
+                    neighbor_count += 1;
+                }
+                // East neighbor (col + 1)
+                if col < grid_cols - 1 && !cell.has_east_wall && roof_cells.contains(&(row, col + 1)) {
+                    neighbor_count += 1;
+                }
+
+                // Skip cells with <2 walls unless they have at least two roofed neighbors
+                if wall_count < 2 && neighbor_count < 2 {
+                    continue;
+                }
+
+                // Weight = base weight * neighbor multiplier
+                let base_weight = if wall_count >= 2 { 1.0 } else { 0.5 };
+                let neighbor_multiplier = 1.0 + (neighbor_count as f64 * ROOF_NEIGHBOR_PREFERENCE);
+                let weight = base_weight * neighbor_multiplier;
+
+                candidates.push(((row, col), weight));
+            }
+        }
+
+        if candidates.is_empty() {
+            break; // No valid candidates left
+        }
+
+        // Pick weighted random candidate
+        let total_weight: f64 = candidates.iter().map(|(_, w)| w).sum();
+        let mut pick = rng.random_range(0.0..total_weight);
+
+        for ((row, col), weight) in candidates {
+            pick -= weight;
+            if pick <= 0.0 {
+                roof_cells.insert((row, col));
+                break;
             }
         }
     }

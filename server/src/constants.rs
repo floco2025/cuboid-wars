@@ -3,7 +3,7 @@
 // ============================================================================
 
 // Wall generation settings
-pub const WALL_NUM_SEGMENTS: usize = 35;
+pub const WALL_NUM_SEGMENTS: usize = 30;
 pub const WALL_2ND_PROBABILITY_RATIO: f64 = 5.0; // Probability of 2nd wall relative to 1st
 pub const WALL_3RD_PROBABILITY_RATIO: f64 = 0.2; // Probability of 3rd wall relative to 1st
 
@@ -18,9 +18,8 @@ pub const MERGE_WALL_SEGMENTS: bool = true;
 pub const MERGE_ROOF_SEGMENTS: bool = true;
 
 // Roof generation settings
-pub const ROOF_PROBABILITY_2_WALLS: f64 = 0.1; // Chance if cell has 2 walls and no neighbor with roof
-pub const ROOF_PROBABILITY_3_WALLS: f64 = 0.1; // Chance if cell has 3 walls and no neighbor with roof
-pub const ROOF_PROBABILITY_WITH_NEIGHBOR: f64 = 0.4; // Chance if cell has 2+ walls and neighbor with roof
+pub const ROOF_NUM_SEGMENTS: usize = 20; // Target number of roof segments to generate
+pub const ROOF_NEIGHBOR_PREFERENCE: f64 = 4.0; // Multiplier for cells with roofed neighbors
 
 // Item settings
 pub const ITEM_SPAWN_INTERVAL: f32 = 10.0; // seconds
