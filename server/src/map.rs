@@ -3,9 +3,8 @@ use std::collections::{HashSet, VecDeque};
 
 use crate::{
     constants::{
-        MERGE_ROOF_SEGMENTS, MERGE_WALL_SEGMENTS, OVERLAP_ROOFS, ROOF_NEIGHBOR_PREFERENCE,
-        ROOF_NUM_SEGMENTS, WALL_2ND_PROBABILITY_RATIO,
-        WALL_3RD_PROBABILITY_RATIO, WALL_NUM_SEGMENTS, OVERLAP_WALLS,
+        MERGE_ROOF_SEGMENTS, MERGE_WALL_SEGMENTS, OVERLAP_ROOFS, OVERLAP_WALLS, ROOF_NEIGHBOR_PREFERENCE,
+        ROOF_NUM_SEGMENTS, WALL_2ND_PROBABILITY_RATIO, WALL_3RD_PROBABILITY_RATIO, WALL_NUM_SEGMENTS,
     },
     resources::{GridCell, GridConfig},
 };
@@ -325,14 +324,16 @@ fn perpendicular_horizontal_walls(
     let has_perp_top = row > 0
         && (
             (col < grid_cols && has_horizontal_wall(grid, row, col, grid_rows)) // right side (guarded)
-                || (col > 0 && has_horizontal_wall(grid, row, col - 1, grid_rows)) // left side (guarded)
+                || (col > 0 && has_horizontal_wall(grid, row, col - 1, grid_rows))
+            // left side (guarded)
         );
 
     // Bottom endpoint is at grid line `row + 1`; check the horizontals that meet there.
     let has_perp_bottom = row < grid_rows
         && (
             (col < grid_cols && has_horizontal_wall(grid, row + 1, col, grid_rows)) // right side (guarded)
-                || (col > 0 && has_horizontal_wall(grid, row + 1, col - 1, grid_rows)) // left side (guarded)
+                || (col > 0 && has_horizontal_wall(grid, row + 1, col - 1, grid_rows))
+            // left side (guarded)
         );
 
     (has_perp_top, has_perp_bottom)
@@ -470,10 +471,10 @@ fn generate_individual_roofs(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: 
 
                 let wall_count = wall_counts[row as usize][col as usize];
                 let cell = grid[row as usize][col as usize];
-                
+
                 // Count roofed neighbors that don't have walls between them
                 let mut neighbor_count = 0;
-                
+
                 // North neighbor (row - 1)
                 if row > 0 && !cell.has_north_wall && roof_cells.contains(&(row - 1, col)) {
                     neighbor_count += 1;
@@ -618,14 +619,12 @@ fn merge_walls(walls: Vec<Wall>) -> Vec<Wall> {
     }
 
     horizontals.sort_by(|a, b| {
-        a.z1
-            .partial_cmp(&b.z1)
+        a.z1.partial_cmp(&b.z1)
             .unwrap_or(std::cmp::Ordering::Equal)
             .then_with(|| a.x1.partial_cmp(&b.x1).unwrap_or(std::cmp::Ordering::Equal))
     });
     verticals.sort_by(|a, b| {
-        a.x1
-            .partial_cmp(&b.x1)
+        a.x1.partial_cmp(&b.x1)
             .unwrap_or(std::cmp::Ordering::Equal)
             .then_with(|| a.z1.partial_cmp(&b.z1).unwrap_or(std::cmp::Ordering::Equal))
     });
@@ -637,16 +636,20 @@ fn merge_walls(walls: Vec<Wall>) -> Vec<Wall> {
         if let Some(mut cur) = iter.next() {
             for w in iter {
                 if is_horizontal {
-                    if (cur.z1 - w.z1).abs() < MERGE_EPS && (cur.width - w.width).abs() < MERGE_EPS
-                        && w.x1 <= cur.x2 + MERGE_EPS {
-                            cur.x2 = cur.x2.max(w.x2);
-                            continue;
-                        }
-                } else if (cur.x1 - w.x1).abs() < MERGE_EPS && (cur.width - w.width).abs() < MERGE_EPS
-                    && w.z1 <= cur.z2 + MERGE_EPS {
-                        cur.z2 = cur.z2.max(w.z2);
+                    if (cur.z1 - w.z1).abs() < MERGE_EPS
+                        && (cur.width - w.width).abs() < MERGE_EPS
+                        && w.x1 <= cur.x2 + MERGE_EPS
+                    {
+                        cur.x2 = cur.x2.max(w.x2);
                         continue;
                     }
+                } else if (cur.x1 - w.x1).abs() < MERGE_EPS
+                    && (cur.width - w.width).abs() < MERGE_EPS
+                    && w.z1 <= cur.z2 + MERGE_EPS
+                {
+                    cur.z2 = cur.z2.max(w.z2);
+                    continue;
+                }
                 out.push(cur);
                 cur = w;
             }

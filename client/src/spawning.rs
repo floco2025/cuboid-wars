@@ -144,33 +144,18 @@ fn tiled_cuboid(size_x: f32, size_y: f32, size_z: f32, tile_size: f32) -> Mesh {
     let mut uvs = Vec::with_capacity(36);
 
     // Helper to push two triangles (quad) given four corner positions (p0..p3) in CCW order.
-    let mut push_face = |
-        p0: [f32; 3],
-        p1: [f32; 3],
-        p2: [f32; 3],
-        p3: [f32; 3],
-        normal: [f32; 3],
-        uv00: [f32; 2],
-        uv11: [f32; 2],
-    | {
-        // Triangle 1: p0 (uv00), p1 (u max), p2 (u,v max)
-        positions.extend_from_slice(&[p0, p1, p2]);
-        normals.extend_from_slice(&[normal; 3]);
-        uvs.extend_from_slice(&[
-            [uv00[0], uv00[1]],
-            [uv11[0], uv00[1]],
-            [uv11[0], uv11[1]],
-        ]);
+    let mut push_face =
+        |p0: [f32; 3], p1: [f32; 3], p2: [f32; 3], p3: [f32; 3], normal: [f32; 3], uv00: [f32; 2], uv11: [f32; 2]| {
+            // Triangle 1: p0 (uv00), p1 (u max), p2 (u,v max)
+            positions.extend_from_slice(&[p0, p1, p2]);
+            normals.extend_from_slice(&[normal; 3]);
+            uvs.extend_from_slice(&[[uv00[0], uv00[1]], [uv11[0], uv00[1]], [uv11[0], uv11[1]]]);
 
-        // Triangle 2: p0 (uv00), p2 (u,v max), p3 (v max)
-        positions.extend_from_slice(&[p0, p2, p3]);
-        normals.extend_from_slice(&[normal; 3]);
-        uvs.extend_from_slice(&[
-            [uv00[0], uv00[1]],
-            [uv11[0], uv11[1]],
-            [uv00[0], uv11[1]],
-        ]);
-    };
+            // Triangle 2: p0 (uv00), p2 (u,v max), p3 (v max)
+            positions.extend_from_slice(&[p0, p2, p3]);
+            normals.extend_from_slice(&[normal; 3]);
+            uvs.extend_from_slice(&[[uv00[0], uv00[1]], [uv11[0], uv11[1]], [uv00[0], uv11[1]]]);
+        };
 
     // +X face (U along height to keep scale; V clamped across thin thickness)
     push_face(
@@ -197,24 +182,24 @@ fn tiled_cuboid(size_x: f32, size_y: f32, size_z: f32, tile_size: f32) -> Mesh {
     // +Y face (u along X, v along Z)
     // Vertex order steps along Z then X; swap UV axes to preserve winding without flipping the normal.
     push_face(
-        [-hx, hy, -hz],  // p0: X min, Z min
-        [-hx, hy, hz],   // p1: X min, Z max (Z increases → V increases)
-        [hx, hy, hz],    // p2: X max, Z max
-        [hx, hy, -hz],   // p3: X max, Z min (X increases from p1→p2)
+        [-hx, hy, -hz], // p0: X min, Z min
+        [-hx, hy, hz],  // p1: X min, Z max (Z increases → V increases)
+        [hx, hy, hz],   // p2: X max, Z max
+        [hx, hy, -hz],  // p3: X max, Z min (X increases from p1→p2)
         [0.0, 1.0, 0.0],
         [0.0, 0.0],
-        [repeat_z, repeat_x],  // Swapped: U along Z, V along X
+        [repeat_z, repeat_x], // Swapped: U along Z, V along X
     );
 
     // -Y face (u along X, v along Z)
     push_face(
-        [-hx, -hy, hz],   // p0: X min, Z max
-        [-hx, -hy, -hz],  // p1: X min, Z min (Z decreases → V increases)
-        [hx, -hy, -hz],   // p2: X max, Z min
-        [hx, -hy, hz],    // p3: X max, Z max (X increases from p1→p2)
+        [-hx, -hy, hz],  // p0: X min, Z max
+        [-hx, -hy, -hz], // p1: X min, Z min (Z decreases → V increases)
+        [hx, -hy, -hz],  // p2: X max, Z min
+        [hx, -hy, hz],   // p3: X max, Z max (X increases from p1→p2)
         [0.0, -1.0, 0.0],
         [0.0, 0.0],
-        [repeat_z, repeat_x],  // Swapped: U along Z, V along X
+        [repeat_z, repeat_x], // Swapped: U along Z, V along X
     );
 
     // +Z face (u along length X, v along Y) - main face

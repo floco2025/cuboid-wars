@@ -68,7 +68,6 @@ pub fn projectiles_movement_system(
 
         // Check player collisions
         for player in player_query.iter() {
-
             // Use common hit detection logic
             let result = check_projectile_player_sweep_hit(
                 &proj_pos,

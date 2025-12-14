@@ -1,6 +1,6 @@
 use anyhow::Result;
-use quinn::Connection;
 use bincode::{Decode, Encode};
+use quinn::Connection;
 
 // ============================================================================
 // Message Stream Abstraction
