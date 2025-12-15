@@ -11,6 +11,7 @@ use crate::{
 use common::{
     collision::check_player_item_overlap,
     constants::{GRID_COLS, GRID_ROWS},
+    markers::{ItemMarker, PlayerMarker},
     protocol::{ItemId, ItemType, PlayerId, Position, SCookieCollected, SPlayerStatus, ServerMessage},
 };
 
@@ -62,7 +63,7 @@ pub fn item_initial_spawn_system(
             spawner.next_id += 1;
             let position = cell_center(grid_x, grid_z);
 
-            let entity = commands.spawn((item_id, position)).id();
+            let entity = commands.spawn((item_id, ItemMarker, position)).id();
 
             items.0.insert(
                 item_id,
@@ -106,7 +107,7 @@ pub fn item_spawn_system(
             let position = cell_center(grid_x, grid_z);
             let item_type = choose_item_type(&mut rng);
 
-            let entity = commands.spawn((item_id, position)).id();
+            let entity = commands.spawn((item_id, ItemMarker, position)).id();
 
             items.0.insert(
                 item_id,
@@ -149,8 +150,8 @@ pub fn item_collection_system(
     mut commands: Commands,
     mut players: ResMut<PlayerMap>,
     mut items: ResMut<ItemMap>,
-    player_positions: Query<&Position, With<PlayerId>>,
-    item_positions: Query<&Position, With<ItemId>>,
+    player_positions: Query<&Position, With<PlayerMarker>>,
+    item_positions: Query<&Position, With<ItemMarker>>,
 ) {
     // Check each item against each player
     let items_to_collect: Vec<(PlayerId, ItemId, ItemType)> = items

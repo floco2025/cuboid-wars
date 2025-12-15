@@ -4,6 +4,7 @@ use crate::resources::{GridConfig, PlayerMap};
 use common::{
     collision::{calculate_wall_slide, check_player_wall_sweep},
     constants::POWER_UP_SPEED_MULTIPLIER,
+    markers::PlayerMarker,
     players::{PlannedMove, overlaps_other_player},
     protocol::{PlayerId, Position, SPlayerStatus, ServerMessage, Speed, Wall},
 };
@@ -18,7 +19,7 @@ pub fn players_movement_system(
     time: Res<Time>,
     grid_config: Res<GridConfig>,
     players: Res<PlayerMap>,
-    mut query: Query<(Entity, &mut Position, &Speed, &PlayerId)>,
+    mut query: Query<(Entity, &mut Position, &Speed, &PlayerId), With<PlayerMarker>>,
 ) {
     let delta = time.delta_secs();
 

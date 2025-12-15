@@ -15,6 +15,7 @@ use crate::{
 use common::{
     collision::Projectile,
     constants::*,
+    markers::{GhostMarker, ItemMarker, PlayerMarker, ProjectileMarker},
     protocol::*,
     spawning::{ProjectileSpawnInfo, calculate_projectile_spawns},
 };
@@ -39,6 +40,7 @@ pub struct ItemAnimTimer(pub f32);
 #[derive(Bundle)]
 struct PlayerBundle {
     player_id: PlayerId,
+    player_marker: PlayerMarker,
     position: Position,
     velocity: Velocity,
     face_direction: FaceDirection,
@@ -61,6 +63,7 @@ struct FaceSphereBundle {
 #[derive(Bundle)]
 struct ItemBundle {
     item_id: ItemId,
+    item_marker: ItemMarker,
     position: Position,
     mesh: Mesh3d,
     material: MeshMaterial3d<StandardMaterial>,
@@ -70,6 +73,7 @@ struct ItemBundle {
 #[derive(Bundle)]
 struct GhostBundle {
     ghost_id: GhostId,
+    ghost_marker: GhostMarker,
     position: Position,
     velocity: Velocity,
     mesh: Mesh3d,
@@ -84,6 +88,7 @@ struct ProjectileBundle {
     transform: Transform,
     projectile: Projectile,
     player_id: PlayerId,
+    projectile_marker: ProjectileMarker,
 }
 
 impl ProjectileBundle {
@@ -105,6 +110,7 @@ impl ProjectileBundle {
             transform: Transform::from_translation(position),
             projectile: Projectile::new(direction, reflects),
             player_id: shooter_id,
+            projectile_marker: ProjectileMarker,
         }
     }
 }
@@ -254,6 +260,7 @@ pub fn spawn_player(
     let entity = commands
         .spawn(PlayerBundle {
             player_id: PlayerId(player_id),
+            player_marker: PlayerMarker,
             position: *position,
             velocity,
             face_direction: FaceDirection(face_dir),
@@ -696,6 +703,7 @@ pub fn spawn_item(
         return commands
             .spawn(ItemBundle {
                 item_id,
+                item_marker: ItemMarker,
                 position: *position,
                 mesh: Mesh3d(meshes.add(Sphere::new(COOKIE_SIZE))),
                 material: MeshMaterial3d(materials.add(StandardMaterial {
@@ -720,6 +728,7 @@ pub fn spawn_item(
         .spawn((
             ItemBundle {
                 item_id,
+                item_marker: ItemMarker,
                 position: *position,
                 mesh: Mesh3d(meshes.add(Cuboid::new(ITEM_SIZE, ITEM_SIZE, ITEM_SIZE))),
                 material: MeshMaterial3d(materials.add(StandardMaterial {
@@ -757,6 +766,7 @@ pub fn spawn_ghost(
     commands
         .spawn(GhostBundle {
             ghost_id,
+            ghost_marker: GhostMarker,
             position: *position,
             velocity: *velocity,
             mesh: Mesh3d(meshes.add(Cuboid::new(GHOST_SIZE, GHOST_SIZE, GHOST_SIZE))),

@@ -6,8 +6,9 @@ use bevy::{
 use super::players::LocalPlayer;
 use crate::resources::{PlayerMap, WallConfig};
 use common::{
-    collision::{check_projectile_ghost_sweep_hit, check_projectile_player_sweep_hit, Projectile},
-    protocol::{FaceDirection, GhostId, PlayerId, Position},
+    collision::{Projectile, check_projectile_ghost_sweep_hit, check_projectile_player_sweep_hit},
+    markers::{GhostMarker, PlayerMarker, ProjectileMarker},
+    protocol::{FaceDirection, PlayerId, Position},
 };
 
 // ============================================================================
@@ -22,14 +23,14 @@ fn handle_ghost_collisions(
     projectile_pos: &Position,
     shooter_id: &PlayerId,
     delta: f32,
-    ghost_query: &Query<&Position, With<GhostId>>,
+    ghost_query: &Query<&Position, With<GhostMarker>>,
     players: &PlayerMap,
 ) -> bool {
     // Only check ghost collisions if shooter has ghost hunt power-up
     let Some(shooter_info) = players.0.get(shooter_id) else {
         return false;
     };
-    
+
     if !shooter_info.ghost_hunt_power_up {
         return false;
     }
@@ -58,7 +59,7 @@ fn handle_player_collisions(
     projectile: &Projectile,
     projectile_pos: &Position,
     delta: f32,
-    player_query: &Query<(Entity, &Position, &FaceDirection, Has<LocalPlayer>), With<PlayerId>>,
+    player_query: &Query<(Entity, &Position, &FaceDirection, Has<LocalPlayer>), With<PlayerMarker>>,
 ) -> bool {
     for (_player_entity, player_pos, face_dir, is_local_player) in player_query.iter() {
         let result = check_projectile_player_sweep_hit(projectile_pos, projectile, delta, player_pos, face_dir.0);
@@ -104,9 +105,9 @@ pub fn projectiles_movement_system(
     mut commands: Commands,
     time: Res<Time>,
     asset_server: Res<AssetServer>,
-    mut projectile_query: Query<(Entity, &mut Transform, &mut Projectile, &PlayerId)>,
-    player_query: Query<(Entity, &Position, &FaceDirection, Has<LocalPlayer>), With<PlayerId>>,
-    ghost_query: Query<&Position, With<GhostId>>,
+    mut projectile_query: Query<(Entity, &mut Transform, &mut Projectile, &PlayerId), With<ProjectileMarker>>,
+    player_query: Query<(Entity, &Position, &FaceDirection, Has<LocalPlayer>), With<PlayerMarker>>,
+    ghost_query: Query<&Position, With<GhostMarker>>,
     players: Res<PlayerMap>,
     wall_config: Option<Res<WallConfig>>,
 ) {

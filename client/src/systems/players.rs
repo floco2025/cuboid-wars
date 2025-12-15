@@ -10,6 +10,7 @@ use crate::{
 use common::{
     collision::{calculate_wall_slide, check_player_wall_sweep},
     constants::{PLAYER_HEIGHT, SPEED_RUN, UPDATE_BROADCAST_INTERVAL},
+    markers::PlayerMarker,
     players::{PlannedMove, overlaps_other_player},
     protocol::{FaceDirection, PlayerId, Position, Velocity, Wall},
 };
@@ -421,7 +422,7 @@ pub fn local_player_visibility_sync_system(
 
 // Update player Transform from Position component for rendering
 pub fn players_transform_sync_system(
-    mut player_query: Query<(&Position, &mut Transform, Option<&CuboidShake>), With<PlayerId>>,
+    mut player_query: Query<(&Position, &mut Transform, Option<&CuboidShake>), With<PlayerMarker>>,
 ) {
     for (pos, mut transform, maybe_shake) in &mut player_query {
         // Base position

@@ -6,6 +6,7 @@ use crate::{
 };
 use common::{
     collision::{Projectile, check_projectile_ghost_sweep_hit, check_projectile_player_sweep_hit},
+    markers::{GhostMarker, PlayerMarker, ProjectileMarker},
     protocol::*,
 };
 
@@ -30,9 +31,9 @@ pub struct PlayerTarget {
 pub fn projectiles_movement_system(
     mut commands: Commands,
     time: Res<Time>,
-    mut projectile_query: Query<(Entity, &mut Position, &mut Projectile, &PlayerId)>,
-    player_query: Query<PlayerTarget, Without<Projectile>>,
-    ghost_query: Query<(&GhostId, &Position), Without<Projectile>>,
+    mut projectile_query: Query<(Entity, &mut Position, &mut Projectile, &PlayerId), With<ProjectileMarker>>,
+    player_query: Query<PlayerTarget, (With<PlayerMarker>, Without<ProjectileMarker>)>,
+    ghost_query: Query<(&GhostId, &Position), (With<GhostMarker>, Without<ProjectileMarker>)>,
     grid_config: Res<GridConfig>,
     mut players: ResMut<PlayerMap>,
     ghosts: Res<GhostMap>,

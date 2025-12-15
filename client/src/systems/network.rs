@@ -11,7 +11,11 @@ use crate::{
     },
     spawning::{spawn_ghost, spawn_item, spawn_player, spawn_projectiles},
 };
-use common::{constants::POWER_UP_SPEED_MULTIPLIER, protocol::*};
+use common::{
+    constants::POWER_UP_SPEED_MULTIPLIER,
+    markers::{GhostMarker, PlayerMarker},
+    protocol::*,
+};
 
 // ============================================================================
 // Components
@@ -34,10 +38,10 @@ pub struct ServerReconciliation {
 // Bundle of common queries used in network message processing
 #[derive(bevy::ecs::system::SystemParam)]
 pub struct NetworkQueries<'w, 's> {
-    pub player_positions: Query<'w, 's, &'static Position, With<PlayerId>>,
-    pub ghost_positions: Query<'w, 's, &'static Position, With<GhostId>>,
+    pub player_positions: Query<'w, 's, &'static Position, With<PlayerMarker>>,
+    pub ghost_positions: Query<'w, 's, &'static Position, With<GhostMarker>>,
     pub speeds: Query<'w, 's, &'static Speed>,
-    pub player_facing: Query<'w, 's, PlayerMovement, With<PlayerId>>,
+    pub player_facing: Query<'w, 's, PlayerMovement, With<PlayerMarker>>,
     pub cameras: Query<'w, 's, Entity, With<Camera3d>>,
 }
 
@@ -256,7 +260,7 @@ fn handle_logoff_message(commands: &mut Commands, players: &mut ResMut<PlayerMap
 fn handle_speed_message(
     commands: &mut Commands,
     players: &ResMut<PlayerMap>,
-    player_query: &Query<&Position, With<PlayerId>>,
+    player_query: &Query<&Position, With<PlayerMarker>>,
     rtt: &ResMut<RoundTripTime>,
     msg: SSpeed,
 ) {
@@ -297,7 +301,7 @@ fn handle_shot_message(
     commands: &mut Commands,
     assets: &mut AssetManagers,
     players: &ResMut<PlayerMap>,
-    player_face_query: &Query<PlayerMovement, With<PlayerId>>,
+    player_face_query: &Query<PlayerMovement, With<PlayerMarker>>,
     msg: SShot,
     wall_config: Option<&WallConfig>,
 ) {
@@ -331,8 +335,8 @@ fn handle_update_message(
     ghosts: &mut ResMut<GhostMap>,
     rtt: &ResMut<RoundTripTime>,
     last_update_seq: &mut ResMut<LastUpdateSeq>,
-    player_query: &Query<&Position, With<PlayerId>>,
-    ghost_query: &Query<&Position, With<GhostId>>,
+    player_query: &Query<&Position, With<PlayerMarker>>,
+    ghost_query: &Query<&Position, With<GhostMarker>>,
     camera_query: &Query<Entity, With<Camera3d>>,
     my_player_id: PlayerId,
     msg: SUpdate,
@@ -368,7 +372,7 @@ fn handle_players_update(
     assets: &mut AssetManagers,
     players: &mut ResMut<PlayerMap>,
     rtt: &ResMut<RoundTripTime>,
-    player_query: &Query<&Position, With<PlayerId>>,
+    player_query: &Query<&Position, With<PlayerMarker>>,
     camera_query: &Query<Entity, With<Camera3d>>,
     my_player_id: PlayerId,
     server_players: &[(PlayerId, Player)],
@@ -517,7 +521,7 @@ fn handle_ghosts_update(
     assets: &mut AssetManagers,
     ghosts: &mut ResMut<GhostMap>,
     rtt: &ResMut<RoundTripTime>,
-    ghost_query: &Query<&Position, With<GhostId>>,
+    ghost_query: &Query<&Position, With<GhostMarker>>,
     server_ghosts: &[(GhostId, Ghost)],
 ) {
     let server_ghost_ids: HashSet<GhostId> = server_ghosts.iter().map(|(id, _)| *id).collect();
@@ -689,7 +693,7 @@ fn handle_ghost_message(
     assets: &mut AssetManagers,
     ghosts: &mut ResMut<GhostMap>,
     rtt: &ResMut<RoundTripTime>,
-    ghost_query: &Query<&Position, With<GhostId>>,
+    ghost_query: &Query<&Position, With<GhostMarker>>,
     msg: SGhost,
 ) {
     if let Some(ghost_info) = ghosts.0.get(&msg.id) {

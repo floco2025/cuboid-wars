@@ -5,7 +5,8 @@ use crate::resources::WallConfig;
 use common::{
     collision::{calculate_ghost_wall_slide, check_ghost_wall_overlap},
     constants::{GHOST_SIZE, UPDATE_BROADCAST_INTERVAL},
-    protocol::{GhostId, Position, Velocity},
+    markers::GhostMarker,
+    protocol::{Position, Velocity},
 };
 
 // ============================================================================
@@ -16,7 +17,10 @@ pub fn ghosts_movement_system(
     mut commands: Commands,
     time: Res<Time>,
     wall_config: Option<Res<WallConfig>>,
-    mut ghost_query: Query<(Entity, &mut Position, &mut Velocity, Option<&mut ServerReconciliation>), With<GhostId>>,
+    mut ghost_query: Query<
+        (Entity, &mut Position, &mut Velocity, Option<&mut ServerReconciliation>),
+        With<GhostMarker>,
+    >,
 ) {
     let delta = time.delta_secs();
 
@@ -96,7 +100,7 @@ fn apply_ghost_wall_sliding(
 // ============================================================================
 
 // Update ghost Transform from Position component for rendering
-pub fn ghosts_transform_sync_system(mut ghost_query: Query<(&Position, &mut Transform), With<GhostId>>) {
+pub fn ghosts_transform_sync_system(mut ghost_query: Query<(&Position, &mut Transform), With<GhostMarker>>) {
     for (pos, mut transform) in &mut ghost_query {
         transform.translation.x = pos.x;
         transform.translation.y = GHOST_SIZE / 2.0; // Ghost center at correct height

@@ -9,10 +9,10 @@ use crate::{
 };
 use common::{
     collision::{
-        Projectile, calculate_ghost_wall_slide, check_ghost_player_overlap, check_ghost_wall_overlap,
-        check_player_wall_sweep,
+        calculate_ghost_wall_slide, check_ghost_player_overlap, check_ghost_wall_overlap, check_player_wall_sweep,
     },
     constants::*,
+    markers::{GhostMarker, PlayerMarker},
     protocol::*,
 };
 
@@ -144,7 +144,7 @@ pub fn ghosts_spawn_system(
         let vel = direction.to_velocity();
 
         let ghost_id = GhostId(i);
-        let entity = commands.spawn((ghost_id, pos, vel)).id();
+        let entity = commands.spawn((ghost_id, GhostMarker, pos, vel)).id();
 
         ghosts.0.insert(
             ghost_id,
@@ -169,8 +169,8 @@ pub fn ghosts_movement_system(
     players: Res<PlayerMap>,
     mut ghosts: ResMut<GhostMap>,
     mut param_set: ParamSet<(
-        Query<(&GhostId, &mut Position, &mut Velocity)>,
-        Query<(&PlayerId, &Position, &Speed), With<PlayerId>>,
+        Query<(&GhostId, &mut Position, &mut Velocity), With<GhostMarker>>,
+        Query<(&PlayerId, &Position, &Speed), With<PlayerMarker>>,
     )>,
 ) {
     let delta = time.delta_secs();
@@ -618,8 +618,8 @@ fn follow_movement(
 pub fn ghost_player_collision_system(
     mut ghosts: ResMut<GhostMap>,
     mut players: ResMut<PlayerMap>,
-    ghost_query: Query<(&GhostId, &Position)>,
-    player_query: Query<(&PlayerId, &Position), Without<Projectile>>,
+    ghost_query: Query<(&GhostId, &Position), With<GhostMarker>>,
+    player_query: Query<(&PlayerId, &Position), With<PlayerMarker>>,
 ) {
     // Collect ghost positions
     let ghost_positions: Vec<(GhostId, Position)> = ghost_query.iter().map(|(id, pos)| (*id, *pos)).collect();

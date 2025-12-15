@@ -8,6 +8,7 @@ use crate::{
 use common::{
     collision::{Projectile, check_player_wall_overlap},
     constants::*,
+    markers::{PlayerMarker, ProjectileMarker},
     protocol::*,
     spawning::calculate_projectile_spawns,
 };
@@ -168,7 +169,7 @@ pub fn network_accept_connections_system(
 ) {
     while let Ok((id, to_client)) = from_accept.try_recv() {
         debug!("{:?} connected", id);
-        let entity = commands.spawn(id).id();
+        let entity = commands.spawn((id, PlayerMarker)).id();
         players.0.insert(
             id,
             PlayerInfo {
@@ -490,6 +491,7 @@ fn handle_shot(
                 spawn_info.position,
                 projectile,
                 id, // Tag projectile with shooter's ID
+                ProjectileMarker,
             ));
         }
     }
