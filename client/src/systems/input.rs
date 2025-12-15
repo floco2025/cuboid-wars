@@ -289,16 +289,19 @@ pub fn input_shooting_system(
 
         // Spawn projectile(s) based on power-up status
         let walls = wall_config.as_ref().map_or(&[][..], |config| &config.all_walls);
-        spawn_projectiles(
-            &mut commands,
-            &mut meshes,
-            &mut materials,
-            pos,
-            face_dir.0,
-            has_multi_shot,
-            has_reflect,
-            walls,
-        );
+        if let Some(my_id) = my_player_id.as_ref() {
+            spawn_projectiles(
+                &mut commands,
+                &mut meshes,
+                &mut materials,
+                pos,
+                face_dir.0,
+                has_multi_shot,
+                has_reflect,
+                walls,
+                my_id.0,
+            );
+        }
     }
 }
 

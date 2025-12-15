@@ -83,6 +83,7 @@ struct ProjectileBundle {
     material: MeshMaterial3d<StandardMaterial>,
     transform: Transform,
     projectile: Projectile,
+    player_id: PlayerId,
 }
 
 impl ProjectileBundle {
@@ -92,6 +93,7 @@ impl ProjectileBundle {
         position: Vec3,
         direction: f32,
         reflects: bool,
+        shooter_id: PlayerId,
     ) -> Self {
         Self {
             mesh: Mesh3d(meshes.add(Sphere::new(PROJECTILE_RADIUS))),
@@ -102,6 +104,7 @@ impl ProjectileBundle {
             })),
             transform: Transform::from_translation(position),
             projectile: Projectile::new(direction, reflects),
+            player_id: shooter_id,
         }
     }
 }
@@ -472,11 +475,12 @@ pub fn spawn_projectiles(
     has_multi_shot: bool,
     has_reflect: bool,
     walls: &[Wall],
+    shooter_id: PlayerId,
 ) {
     let spawns = calculate_projectile_spawns(pos, face_dir, has_multi_shot, has_reflect, walls);
 
     for spawn_info in spawns {
-        spawn_single_projectile(commands, meshes, materials, &spawn_info);
+        spawn_single_projectile(commands, meshes, materials, &spawn_info, shooter_id);
     }
 }
 
@@ -486,6 +490,7 @@ fn spawn_single_projectile(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
     spawn_info: &ProjectileSpawnInfo,
+    shooter_id: PlayerId,
 ) {
     let spawn_pos = Vec3::new(spawn_info.position.x, spawn_info.position.y, spawn_info.position.z);
 
@@ -495,6 +500,7 @@ fn spawn_single_projectile(
         spawn_pos,
         spawn_info.direction,
         spawn_info.reflects,
+        shooter_id,
     ));
 }
 
@@ -503,14 +509,14 @@ pub fn spawn_projectile_for_player(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
-    player_pos_face_query: &Query<(&Position, &FaceDirection), With<PlayerId>>,
+    player_query: &Query<(&PlayerId, &Position, &FaceDirection)>,
     entity: Entity,
     has_multi_shot: bool,
     has_reflect: bool,
     walls: &[Wall],
 ) {
-    // Get position and face direction for this player entity
-    if let Ok((pos, face_dir)) = player_pos_face_query.get(entity) {
+    // Get player ID, position and face direction for this player entity
+    if let Ok((player_id, pos, face_dir)) = player_query.get(entity) {
         spawn_projectiles(
             commands,
             meshes,
@@ -520,6 +526,7 @@ pub fn spawn_projectile_for_player(
             has_multi_shot,
             has_reflect,
             walls,
+            *player_id,
         );
     }
 }

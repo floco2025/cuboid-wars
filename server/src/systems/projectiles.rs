@@ -1,13 +1,15 @@
 use bevy::prelude::*;
 
 use crate::{
-    net::ServerToClient,
-    resources::{GridConfig, PlayerMap},
+    constants::GHOST_HIT_REWARD,
+    resources::{GhostMap, GhostMode, GridConfig, PlayerMap},
 };
 use common::{
-    collision::{Projectile, check_projectile_player_sweep_hit},
+    collision::{Projectile, check_projectile_ghost_sweep_hit, check_projectile_player_sweep_hit},
     protocol::*,
 };
+
+use super::network::broadcast_to_all;
 
 // ============================================================================
 // Query Bundles
@@ -30,8 +32,10 @@ pub fn projectiles_movement_system(
     time: Res<Time>,
     mut projectile_query: Query<(Entity, &mut Position, &mut Projectile, &PlayerId)>,
     player_query: Query<PlayerTarget, Without<Projectile>>,
+    ghost_query: Query<(&GhostId, &Position), Without<Projectile>>,
     grid_config: Res<GridConfig>,
     mut players: ResMut<PlayerMap>,
+    ghosts: Res<GhostMap>,
 ) {
     let delta = time.delta_secs();
 
@@ -66,6 +70,70 @@ pub fn projectiles_movement_system(
             continue;
         }
 
+        // Check ghost collisions (only for players with ghost hunt power-up who are being targeted)
+        let shooter_has_ghost_hunt = players
+            .0
+            .get(shooter_id)
+            .is_some_and(|info| info.ghost_hunt_power_up_timer > 0.0);
+
+        if shooter_has_ghost_hunt {
+            for (ghost_id, ghost_pos) in ghost_query.iter() {
+                let Some(ghost_info) = ghosts.0.get(ghost_id) else {
+                    continue;
+                };
+
+                // Only allow hitting ghosts that are fleeing (in Target mode with ghost hunt active)
+                if ghost_info.mode != GhostMode::Target {
+                    continue;
+                }
+
+                // Check if the ghost is targeting the shooter (the player must be targeted to hit ghosts)
+                let ghost_targets_shooter = ghost_info
+                    .follow_target
+                    .is_some_and(|target_id| target_id == *shooter_id);
+
+                if !ghost_targets_shooter {
+                    continue;
+                }
+
+                // Check collision
+                if check_projectile_ghost_sweep_hit(&proj_pos, &projectile, delta, ghost_pos) {
+                    // Update shooter
+                    if let Some(shooter_info) = players.0.get_mut(shooter_id) {
+                        shooter_info.hits += GHOST_HIT_REWARD;
+                        shooter_info.ghost_hunt_power_up_timer = 0.0;
+                    }
+
+                    // Broadcast power-up removal to all clients (we just set timer to 0 above)
+                    if let Some(shooter_info) = players.0.get(shooter_id) {
+                        broadcast_to_all(
+                            &players,
+                            ServerMessage::PlayerStatus(SPlayerStatus {
+                                id: *shooter_id,
+                                speed_power_up: shooter_info.speed_power_up_timer > 0.0,
+                                multi_shot_power_up: shooter_info.multi_shot_power_up_timer > 0.0,
+                                reflect_power_up: shooter_info.reflect_power_up_timer > 0.0,
+                                phasing_power_up: shooter_info.phasing_power_up_timer > 0.0,
+                                ghost_hunt_power_up: false,
+                                stunned: shooter_info.stun_timer > 0.0,
+                            }),
+                        );
+                    }
+
+                    // Despawn the projectile
+                    commands.entity(proj_entity).despawn();
+
+                    hit_something = true;
+                    break;
+                }
+            }
+        }
+
+        // If we hit a ghost, skip to next projectile
+        if hit_something {
+            continue;
+        }
+
         // Check player collisions
         for player in player_query.iter() {
             // Use common hit detection logic
@@ -87,22 +155,27 @@ pub fn projectiles_movement_system(
 
                 info!("{:?} hits {:?}", shooter_id, player.player_id);
 
-                // Update hit counters
-                if let Some(shooter_info) = players.0.get_mut(shooter_id) {
-                    shooter_info.hits += 1;
+                // Update hit counters in separate scopes to avoid borrow conflicts
+                {
+                    if let Some(shooter_info) = players.0.get_mut(shooter_id) {
+                        shooter_info.hits += 1;
+                    }
                 }
-                if let Some(target_info) = players.0.get_mut(player.player_id) {
-                    target_info.hits -= 1;
+                {
+                    if let Some(target_info) = players.0.get_mut(player.player_id) {
+                        target_info.hits -= 1;
+                    }
                 }
 
                 // Broadcast hit message to all clients
-                for player_info in players.0.values() {
-                    let _ = player_info.channel.send(ServerToClient::Send(ServerMessage::Hit(SHit {
+                broadcast_to_all(
+                    &players,
+                    ServerMessage::Hit(SHit {
                         id: *player.player_id,
                         hit_dir_x: result.hit_dir_x,
                         hit_dir_z: result.hit_dir_z,
-                    })));
-                }
+                    }),
+                );
 
                 // Despawn the projectile
                 commands.entity(proj_entity).despawn();

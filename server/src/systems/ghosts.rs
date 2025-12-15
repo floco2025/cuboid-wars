@@ -222,38 +222,43 @@ pub fn ghosts_movement_system(
             continue;
         };
 
-        // Check if we're fleeing from a player with ghost hunt power-up
-        let is_fleeing = ghost_info.mode == GhostMode::Target
-            && ghost_info
-                .follow_target
-                .and_then(|target_id| players.0.get(&target_id))
-                .is_some_and(|info| info.ghost_hunt_power_up_timer > 0.0);
-
-        // Update mode timer (don't decrement when fleeing - flee indefinitely)
-        if !is_fleeing {
-            ghost_info.mode_timer -= delta;
-        }
-
         // Handle mode transitions
         match ghost_info.mode {
             GhostMode::Patrol => {
-                // Only check for visible players if cooldown timer has expired
-                if ghost_info.mode_timer <= 0.0 {
-                    // Check if we can see any moving players
-                    if let Some(target_player_id) =
-                        find_visible_moving_player(&ghost_pos, &player_data, &grid_config.all_walls)
-                    {
-                        // Switch to target mode
+                // Decrement cooldown timer
+                ghost_info.mode_timer -= delta;
+                
+                // Always check for visible players
+                if let Some(target_player_id) =
+                    find_visible_moving_player(&ghost_pos, &player_data, &grid_config.all_walls)
+                {
+                    let player_has_ghost_hunt = players
+                        .0
+                        .get(&target_player_id)
+                        .is_some_and(|info| info.ghost_hunt_power_up_timer > 0.0);
+                    
+                    // Enter target mode if: player has ghost hunt (flee) OR cooldown expired (attack)
+                    if player_has_ghost_hunt || ghost_info.mode_timer <= 0.0 {
                         ghost_info.mode = GhostMode::Target;
-                        ghost_info.mode_timer = GHOST_FOLLOW_DURATION;
+                        ghost_info.mode_timer = GHOST_TARGET_DURATION;
                         ghost_info.follow_target = Some(target_player_id);
                     }
                 }
             }
             GhostMode::Target => {
-                if ghost_info.mode_timer <= 0.0 {
-                    // Timer expired (only happens for regular follow, not flee)
-                    // Switch to pre-patrol with cooldown
+                // Check if we're fleeing from a player with ghost hunt power-up
+                let is_fleeing = ghost_info
+                    .follow_target
+                    .and_then(|target_id| players.0.get(&target_id))
+                    .is_some_and(|info| info.ghost_hunt_power_up_timer > 0.0);
+
+                // Update target timer: only decrement when not fleeing
+                if !is_fleeing {
+                    ghost_info.mode_timer -= delta;
+                }
+                
+                if ghost_info.mode_timer <= 0.0  {
+                    // Target timer expired, switch to pre-patrol with cooldown
                     ghost_info.mode = GhostMode::PrePatrol;
                     ghost_info.mode_timer = GHOST_COOLDOWN_DURATION;
                     ghost_info.follow_target = None;
@@ -268,17 +273,6 @@ pub fn ghosts_movement_system(
                             ghost_info.mode = GhostMode::PrePatrol;
                             ghost_info.mode_timer = GHOST_COOLDOWN_DURATION;
                             ghost_info.follow_target = None;
-                        } else if let Some(info) = target_info {
-                            // Check if we were fleeing and the ghost hunt power-up ended
-                            let was_fleeing = info.ghost_hunt_power_up_timer <= 0.0
-                                && ghost_info.mode_timer > GHOST_FOLLOW_DURATION;
-                            
-                            if was_fleeing {
-                                // Ghost hunt ended, switch to pre-patrol with no cooldown
-                                ghost_info.mode = GhostMode::PrePatrol;
-                                ghost_info.mode_timer = 0.0;
-                                ghost_info.follow_target = None;
-                            }
                         }
                     }
                 }
@@ -292,7 +286,6 @@ pub fn ghosts_movement_system(
         // Execute movement based on current mode
         match ghost_info.mode {
             GhostMode::PrePatrol => {
-                // PrePatrol needs mutable ghost_info to transition state
                 pre_patrol_movement(
                     &ghost_id,
                     &mut ghost_pos,

@@ -317,6 +317,7 @@ fn handle_shot_message(
                 player.multi_shot_power_up,
                 player.reflect_power_up,
                 walls,
+                msg.id,
             );
         }
     }

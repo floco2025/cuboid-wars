@@ -566,6 +566,56 @@ pub fn check_ghost_player_overlap(ghost_pos: &Position, player_pos: &Position) -
     dist_sq <= collision_radius * collision_radius
 }
 
+// Check if a projectile hits a ghost using swept sphere collision
+#[must_use]
+pub fn check_projectile_ghost_sweep_hit(
+    proj_pos: &Position,
+    projectile: &Projectile,
+    delta: f32,
+    ghost_pos: &Position,
+) -> bool {
+    // Calculate projectile movement this frame
+    let ray_dir_x = projectile.velocity.x * delta;
+    let ray_dir_z = projectile.velocity.z * delta;
+
+    // Current position relative to ghost
+    let dx = proj_pos.x - ghost_pos.x;
+    let dz = proj_pos.z - ghost_pos.z;
+
+    // Combined collision radius (projectile + ghost)
+    let collision_radius = PROJECTILE_RADIUS + GHOST_SIZE / 2.0;
+    let radius_sq = collision_radius * collision_radius;
+
+    // Check if already overlapping
+    let dist_sq = dx.mul_add(dx, dz * dz);
+    if dist_sq <= radius_sq {
+        return true;
+    }
+
+    // Ray-sphere intersection for swept collision
+    // Solving: |start + t*dir - center|^2 = radius^2
+    let a = ray_dir_x.mul_add(ray_dir_x, ray_dir_z * ray_dir_z);
+    
+    if a < 1e-6 {
+        return false; // No movement
+    }
+
+    let b = 2.0 * dx.mul_add(ray_dir_x, dz * ray_dir_z);
+    let c = dist_sq - radius_sq;
+    let discriminant = b.mul_add(b, -4.0 * a * c);
+
+    if discriminant < 0.0 {
+        return false; // No intersection
+    }
+
+    let sqrt_disc = discriminant.sqrt();
+    let t1 = (-b - sqrt_disc) / (2.0 * a);
+    let t2 = (-b + sqrt_disc) / (2.0 * a);
+
+    // Hit if any intersection point is within [0, 1]
+    (t1 >= 0.0 && t1 <= 1.0) || (t2 >= 0.0 && t2 <= 1.0) || (t1 < 0.0 && t2 > 1.0)
+}
+
 // Check if a player is close enough to an item to collect it (circle collision)
 #[must_use]
 pub fn check_player_item_overlap(player_pos: &Position, item_pos: &Position, collection_radius: f32) -> bool {
