@@ -30,7 +30,6 @@ pub struct PlayerIdTextMarker;
 #[derive(Component)]
 pub struct PlayerIdTextMeshMarker;
 
-
 #[derive(Component)]
 pub struct ItemAnimTimer(pub f32);
 

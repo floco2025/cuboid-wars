@@ -39,7 +39,6 @@ pub struct BumpFlashUIMarker;
 #[derive(Component)]
 pub struct PlayerEntryMarker;
 
-
 // ============================================================================
 // UI Setup System
 // ============================================================================
@@ -262,7 +261,7 @@ pub fn setup_world_system(
             ..default()
         },
         BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.0)), // Transparent by default (white)
-        Visibility::Hidden, // Start hidden
+        Visibility::Hidden,                                // Start hidden
     ));
 }
 

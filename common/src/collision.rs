@@ -595,7 +595,7 @@ pub fn check_projectile_ghost_sweep_hit(
     // Ray-sphere intersection for swept collision
     // Solving: |start + t*dir - center|^2 = radius^2
     let a = ray_dir_x.mul_add(ray_dir_x, ray_dir_z * ray_dir_z);
-    
+
     if a < 1e-6 {
         return false; // No movement
     }
