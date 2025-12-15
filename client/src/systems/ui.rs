@@ -106,6 +106,7 @@ pub fn setup_world_system(
         Camera {
             // Render first to full window
             order: 0,
+            is_active: false, // Start disabled until skybox is attached
             ..default()
         },
         Projection::from(PerspectiveProjection {
@@ -131,6 +132,7 @@ pub fn setup_world_system(
             }),
             // Don't clear the viewport - render on top
             clear_color: bevy::camera::ClearColorConfig::None,
+            is_active: false, // Start disabled until skybox is attached
             ..default()
         },
         Projection::from(PerspectiveProjection {
