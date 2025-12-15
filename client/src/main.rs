@@ -95,7 +95,7 @@ fn main() -> Result<()> {
     .insert_resource(LastUpdateSeq::default())
     .insert_resource(CameraViewMode::default())
     .insert_resource(RoofRenderingEnabled::default())
-    .add_systems(Startup, (setup_world_system, setup_skybox_from_cross))
+    .add_systems(Startup, (setup_world_system, /* setup_skybox_from_cross */))
     .add_systems(
         Update,
         (
@@ -143,10 +143,10 @@ fn main() -> Result<()> {
             ui_fps_system,
         ),
     )
-    .add_systems(
-        Update,
-        (skybox_convert_cross_to_cubemap_system, skybox_update_camera_system),
-    )
+    // .add_systems(
+    //     Update,
+    //     (skybox_convert_cross_to_cubemap_system, skybox_update_camera_system),
+    // )
     .run();
 
     Ok(())

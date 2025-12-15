@@ -154,19 +154,30 @@ fn tiled_cuboid(size_x: f32, size_y: f32, size_z: f32, tile_size: f32) -> Mesh {
 
     // Helper to push two triangles (quad) given four corner positions (p0..p3) in CCW order.
     let mut push_face =
-        |p0: [f32; 3], p1: [f32; 3], p2: [f32; 3], p3: [f32; 3], normal: [f32; 3], uv00: [f32; 2], uv11: [f32; 2]| {
-            // Triangle 1: p0 (uv00), p1 (u max), p2 (u,v max)
-            positions.extend_from_slice(&[p0, p1, p2]);
-            normals.extend_from_slice(&[normal; 3]);
-            uvs.extend_from_slice(&[[uv00[0], uv00[1]], [uv11[0], uv00[1]], [uv11[0], uv11[1]]]);
+        |p0: [f32; 3], p1: [f32; 3], p2: [f32; 3], p3: [f32; 3], normal: [f32; 3], uv00: [f32; 2], uv11: [f32; 2], rotate_uv: bool| {
+            if rotate_uv {
+                // Rotate UVs 90° clockwise: p0→(V,0), p1→(V,U), p2→(0,U), p3→(0,0)
+                positions.extend_from_slice(&[p0, p1, p2]);
+                normals.extend_from_slice(&[normal; 3]);
+                uvs.extend_from_slice(&[[uv11[1], uv00[0]], [uv11[1], uv11[0]], [uv00[1], uv11[0]]]);
 
-            // Triangle 2: p0 (uv00), p2 (u,v max), p3 (v max)
-            positions.extend_from_slice(&[p0, p2, p3]);
-            normals.extend_from_slice(&[normal; 3]);
-            uvs.extend_from_slice(&[[uv00[0], uv00[1]], [uv11[0], uv11[1]], [uv00[0], uv11[1]]]);
+                positions.extend_from_slice(&[p0, p2, p3]);
+                normals.extend_from_slice(&[normal; 3]);
+                uvs.extend_from_slice(&[[uv11[1], uv00[0]], [uv00[1], uv11[0]], [uv00[1], uv00[0]]]);
+            } else {
+                // Triangle 1: p0 (uv00), p1 (u max), p2 (u,v max)
+                positions.extend_from_slice(&[p0, p1, p2]);
+                normals.extend_from_slice(&[normal; 3]);
+                uvs.extend_from_slice(&[[uv00[0], uv00[1]], [uv11[0], uv00[1]], [uv11[0], uv11[1]]]);
+
+                // Triangle 2: p0 (uv00), p2 (u,v max), p3 (v max)
+                positions.extend_from_slice(&[p0, p2, p3]);
+                normals.extend_from_slice(&[normal; 3]);
+                uvs.extend_from_slice(&[[uv00[0], uv00[1]], [uv11[0], uv11[1]], [uv00[0], uv11[1]]]);
+            }
         };
 
-    // +X face (U along Y height, V along Z depth)
+    // +X face (U along Y height, V along Z depth) - rotated 90°
     push_face(
         [hx, -hy, -hz],
         [hx, hy, -hz],
@@ -175,6 +186,7 @@ fn tiled_cuboid(size_x: f32, size_y: f32, size_z: f32, tile_size: f32) -> Mesh {
         [1.0, 0.0, 0.0],
         [0.0, 0.0],
         [repeat_y, repeat_z],
+        true,
     );
 
     // -X face
@@ -186,6 +198,7 @@ fn tiled_cuboid(size_x: f32, size_y: f32, size_z: f32, tile_size: f32) -> Mesh {
         [-1.0, 0.0, 0.0],
         [0.0, 0.0],
         [repeat_y, repeat_z],
+        true,
     );
 
     // +Y face (u along X, v along Z)
@@ -198,6 +211,7 @@ fn tiled_cuboid(size_x: f32, size_y: f32, size_z: f32, tile_size: f32) -> Mesh {
         [0.0, 1.0, 0.0],
         [0.0, 0.0],
         [repeat_z, repeat_x], // Swapped: U along Z, V along X
+        false,
     );
 
     // -Y face (u along X, v along Z)
@@ -209,6 +223,7 @@ fn tiled_cuboid(size_x: f32, size_y: f32, size_z: f32, tile_size: f32) -> Mesh {
         [0.0, -1.0, 0.0],
         [0.0, 0.0],
         [repeat_z, repeat_x], // Swapped: U along Z, V along X
+        false,
     );
 
     // +Z face (u along length X, v along Y) - main face
@@ -220,6 +235,7 @@ fn tiled_cuboid(size_x: f32, size_y: f32, size_z: f32, tile_size: f32) -> Mesh {
         [0.0, 0.0, 1.0],
         [0.0, 0.0],
         [repeat_x, repeat_y],
+        false,
     );
 
     // -Z face
@@ -231,6 +247,7 @@ fn tiled_cuboid(size_x: f32, size_y: f32, size_z: f32, tile_size: f32) -> Mesh {
         [0.0, 0.0, -1.0],
         [0.0, 0.0],
         [repeat_x, repeat_y],
+        false,
     );
 
     let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default());
