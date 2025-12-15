@@ -11,7 +11,7 @@ use client::{
     config::configure_client,
     net::network_io_task,
     resources::*,
-    systems::{ghosts::*, input::*, items::*, map::*, network::*, players::*, projectiles::*, ui::*},
+    systems::{ghosts::*, input::*, items::*, map::*, network::*, players::*, projectiles::*, skybox::*, ui::*},
 };
 use common::{net::MessageStream, protocol::*};
 
@@ -95,7 +95,7 @@ fn main() -> Result<()> {
     .insert_resource(LastUpdateSeq::default())
     .insert_resource(CameraViewMode::default())
     .insert_resource(RoofRenderingEnabled::default())
-    .add_systems(Startup, setup_world_system)
+    .add_systems(Startup, (setup_world_system, setup_skybox_from_cross))
     .add_systems(
         Update,
         (
@@ -106,8 +106,7 @@ fn main() -> Result<()> {
             input_roof_toggle_system,
         ),
     )
-    .add_systems(Update, network_echo_system)
-    .add_systems(Update, network_server_message_system)
+    .add_systems(Update, (network_echo_system, network_server_message_system))
     .add_systems(
         Update,
         (
@@ -143,6 +142,10 @@ fn main() -> Result<()> {
             ui_rtt_system,
             ui_fps_system,
         ),
+    )
+    .add_systems(
+        Update,
+        (skybox_convert_cross_to_cubemap_system, skybox_update_camera_system),
     )
     .run();
 

@@ -5,4 +5,5 @@ pub mod map;
 pub mod network;
 pub mod players;
 pub mod projectiles;
+pub mod skybox;
 pub mod ui;

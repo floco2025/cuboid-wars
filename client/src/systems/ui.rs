@@ -1,10 +1,16 @@
-use bevy::{camera::Viewport, math::Affine2, prelude::*, render::render_resource::Face};
+use bevy::{
+    camera::Viewport, 
+    core_pipeline::Skybox,
+    math::Affine2, 
+    prelude::*,
+};
 use std::time::Duration;
 
 use crate::{
     constants::*,
     resources::{CameraViewMode, FpsMeasurement, MyPlayerId, PlayerInfo, PlayerMap, RoundTripTime},
     spawning::{item_type_color, load_repeating_texture, load_repeating_texture_linear},
+    systems::skybox::SkyboxCubemap,
 };
 use common::{
     constants::{FIELD_DEPTH, FIELD_WIDTH, GRID_COLS, GRID_ROWS, GRID_SIZE, PLAYER_HEIGHT, WALL_WIDTH},
@@ -49,16 +55,7 @@ pub fn setup_world_system(
     mut materials: ResMut<Assets<StandardMaterial>>,
     asset_server: Res<AssetServer>,
 ) {
-    // Create skybox sphere
-    commands.spawn((
-        Mesh3d(meshes.add(Sphere::new(500.0))),
-        MeshMaterial3d(materials.add(StandardMaterial {
-            base_color_texture: Some(asset_server.load("background.jpg")),
-            unlit: true,
-            cull_mode: Some(Face::Front), // Cull front faces to see inside
-            ..default()
-        })),
-    ));
+    // Skybox will be added to cameras by update_camera_skybox system once ready
 
     // Create the ground plane
     let mut ground_mesh = Mesh::from(Plane3d::default().mesh().size(FIELD_WIDTH, FIELD_DEPTH));
@@ -566,5 +563,24 @@ pub fn ui_stunned_blink_system(
                 *bg_color = BackgroundColor(base_color);
             }
         }
+    }
+}
+
+// Add skybox to cameras once the cubemap is ready
+pub fn skybox_update_camera_system(
+    cubemap: Option<Res<SkyboxCubemap>>,
+    cameras: Query<Entity, (With<Camera3d>, Without<Skybox>)>,
+    mut commands: Commands,
+) {
+    let Some(cubemap) = cubemap else {
+        return;
+    };
+    
+    for entity in &cameras {
+        commands.entity(entity).insert(Skybox {
+            image: cubemap.0.clone(),
+            brightness: 1000.0,
+            rotation: Quat::IDENTITY,
+        });
     }
 }
