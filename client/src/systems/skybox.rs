@@ -113,20 +113,14 @@ fn create_cubemap_from_cross(cross_image: &Image) -> Image {
 // Add skybox to cameras once the cubemap is ready
 pub fn skybox_update_camera_system(
     cubemap: Option<Res<SkyboxCubemap>>,
-    mut cameras: Query<(Entity, &mut Camera), (With<Camera3d>, Without<Skybox>)>,
+    cameras: Query<Entity, (With<Camera3d>, Without<Skybox>)>,
     mut commands: Commands,
 ) {
     let Some(cubemap) = cubemap else {
-        // Skybox not ready yet - disable cameras to prevent flickering
-        for (_, mut camera) in &mut cameras {
-            camera.is_active = false;
-        }
         return;
     };
 
-    for (entity, mut camera) in &mut cameras {
-        // Enable camera and add skybox
-        camera.is_active = true;
+    for entity in &cameras {
         commands.entity(entity).insert(Skybox {
             image: cubemap.0.clone(),
             brightness: 1000.0,
