@@ -22,7 +22,7 @@ pub const ROOF_NUM_SEGMENTS: usize = 20; // Target number of roof segments to ge
 pub const ROOF_NEIGHBOR_PREFERENCE: f64 = 4.0; // Multiplier for cells with roofed neighbors
 
 // Item settings
-pub const ITEM_SPAWN_INTERVAL: f32 = 1.0; // seconds
+pub const ITEM_SPAWN_INTERVAL: f32 = 10.0; // seconds
 pub const ITEM_LIFETIME: f32 = 60.0; // seconds
 pub const ITEM_COLLECTION_RADIUS: f32 = 1.0; // Distance to collect an item
 
@@ -43,7 +43,7 @@ pub const GHOST_COOLDOWN_DURATION: f32 = 15.0; // Cooldown before ghost can dete
 pub const GHOST_VISION_RANGE: f32 = 64.0; // Maximum distance to detect players (whole map)
 pub const GHOST_STUN_DURATION: f32 = 3.0; // How long player is stunned after ghost hit (seconds)
 pub const GHOST_HIT_PENALTY: i32 = 10; // Points lost when hit by ghost
-pub const GHOST_HIT_REWARD: i32 = 5; // Points awarded for hitting a fleeing ghost
+pub const GHOST_HIT_REWARD: i32 = 20; // Points awarded for hitting a fleeing ghost
 
 // Cookie settings
 pub const COOKIE_RESPAWN_TIME: f32 = 30.0; // seconds

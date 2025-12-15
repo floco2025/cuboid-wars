@@ -9,32 +9,14 @@ use crate::{
 };
 use common::{
     collision::{
-        calculate_ghost_wall_slide, check_ghost_player_overlap, check_ghost_wall_overlap, check_player_wall_sweep,
+        Projectile, calculate_ghost_wall_slide, check_ghost_player_overlap, check_ghost_wall_overlap,
+        check_player_wall_sweep,
     },
     constants::*,
     protocol::*,
 };
 
 use super::network::broadcast_to_all;
-
-// ============================================================================
-// Query Bundles
-// ============================================================================
-
-// Common query for player location
-#[derive(bevy::ecs::query::QueryData)]
-pub struct PlayerLocation {
-    pub player_id: &'static PlayerId,
-    pub position: &'static Position,
-}
-
-// Common query for player movement state
-#[derive(bevy::ecs::query::QueryData)]
-pub struct PlayerMovementState {
-    pub player_id: &'static PlayerId,
-    pub position: &'static Position,
-    pub speed: &'static Speed,
-}
 
 // ============================================================================
 // Helper Functions
@@ -188,30 +170,25 @@ pub fn ghosts_movement_system(
     mut ghosts: ResMut<GhostMap>,
     mut param_set: ParamSet<(
         Query<(&GhostId, &mut Position, &mut Velocity)>,
-        Query<PlayerMovementState, With<PlayerId>>,
+        Query<(&PlayerId, &Position, &Speed), With<PlayerId>>,
     )>,
 ) {
     let delta = time.delta_secs();
     let mut rng = rand::rng();
 
-    // First, collect all ghost data and player data we need
-    let mut ghost_updates = Vec::new();
-
     // Collect player positions and speeds (excluding stunned players)
     let player_data: Vec<(PlayerId, Position, Speed)> = param_set
         .p1()
         .iter()
-        .filter(|player| {
+        .filter(|(player_id, _, _)| {
             // Filter out stunned players
-            players
-                .0
-                .get(player.player_id)
-                .is_some_and(|info| info.stun_timer <= 0.0)
+            players.0.get(player_id).is_some_and(|info| info.stun_timer <= 0.0)
         })
-        .map(|player| (*player.player_id, *player.position, *player.speed))
+        .map(|(player_id, position, speed)| (*player_id, *position, *speed))
         .collect();
 
-    // Process each ghost
+    // First, collect all ghost data and player data we need
+    let mut ghost_updates = Vec::new();
     for (ghost_id, ghost_pos, ghost_vel) in param_set.p0().iter() {
         ghost_updates.push((*ghost_id, *ghost_pos, *ghost_vel));
     }
@@ -642,7 +619,7 @@ pub fn ghost_player_collision_system(
     mut ghosts: ResMut<GhostMap>,
     mut players: ResMut<PlayerMap>,
     ghost_query: Query<(&GhostId, &Position)>,
-    player_query: Query<PlayerLocation>,
+    player_query: Query<(&PlayerId, &Position), Without<Projectile>>,
 ) {
     // Collect ghost positions
     let ghost_positions: Vec<(GhostId, Position)> = ghost_query.iter().map(|(id, pos)| (*id, *pos)).collect();
@@ -650,13 +627,18 @@ pub fn ghost_player_collision_system(
     // Collect player collisions first
     let mut player_hits: Vec<(PlayerId, GhostId)> = Vec::new();
 
-    for player in &player_query {
-        let Some(player_info) = players.0.get(player.player_id) else {
+    for (player_id, player_position) in &player_query {
+        let Some(player_info) = players.0.get(player_id) else {
             continue;
         };
 
         // Skip if already stunned
         if player_info.stun_timer > 0.0 {
+            continue;
+        }
+
+        // Skip if player has hunt power-up
+        if player_info.ghost_hunt_power_up_timer > 0.0 {
             continue;
         }
 
@@ -670,8 +652,12 @@ pub fn ghost_player_collision_system(
                 continue; // Skip stunning if ghost is not targeting
             }
 
-            if check_ghost_player_overlap(ghost_pos, player.position) {
-                player_hits.push((*player.player_id, *ghost_id));
+            if ghost_info.follow_target != Some(*player_id) {
+                continue; // Ghost is targeting someone else
+            }
+
+            if check_ghost_player_overlap(ghost_pos, player_position) {
+                player_hits.push((*player_id, *ghost_id));
                 break; // Only one hit per frame
             }
         }
