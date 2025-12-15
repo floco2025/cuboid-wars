@@ -100,6 +100,7 @@ pub fn setup_world_system(
 
     // Add main camera (initial position will be immediately overridden by sync system)
     commands.spawn((
+        IsDefaultUiCamera, // Mark this as the UI camera
         Camera3d::default(),
         Camera {
             // Render first to full window
@@ -112,11 +113,11 @@ pub fn setup_world_system(
         }),
         Transform::from_xyz(0.0, PLAYER_HEIGHT * FPV_CAMERA_HEIGHT_RATIO, 0.0)
             .looking_at(Vec3::new(0.0, 0.0, -1.0), Vec3::Y),
-        IsDefaultUiCamera, // Mark this as the UI camera
     ));
 
     // Add rearview mirror camera (renders to lower-right viewport)
     commands.spawn((
+        super::players::RearviewCamera,
         Camera3d::default(),
         Camera {
             // Render after main camera to its viewport only
@@ -137,7 +138,6 @@ pub fn setup_world_system(
         }),
         Transform::from_xyz(0.0, PLAYER_HEIGHT * FPV_CAMERA_HEIGHT_RATIO, 0.0)
             .looking_at(Vec3::new(0.0, 0.0, 1.0), Vec3::Y), // Looking backwards (positive Z)
-        super::players::RearviewCamera,
     ));
 
     // Add soft directional light from above for shadows and definition
@@ -159,6 +159,7 @@ pub fn setup_world_system(
 
     // Create player list UI
     commands.spawn((
+        PlayerListUIMarker,
         Node {
             position_type: PositionType::Absolute,
             left: Val::Px(10.0),
@@ -167,7 +168,6 @@ pub fn setup_world_system(
             row_gap: Val::Px(5.0),
             ..default()
         },
-        PlayerListUIMarker,
     ));
 
     // Create crosshair UI
@@ -177,6 +177,7 @@ pub fn setup_world_system(
 
     commands
         .spawn((
+            CrosshairUIMarker,
             Node {
                 position_type: PositionType::Absolute,
                 left: Val::Percent(50.0),
@@ -187,7 +188,6 @@ pub fn setup_world_system(
                 align_items: AlignItems::Center,
                 ..default()
             },
-            CrosshairUIMarker,
         ))
         .with_children(|parent| {
             // Horizontal line
@@ -218,6 +218,7 @@ pub fn setup_world_system(
 
     // Create RTT display in lower left corner
     commands.spawn((
+        RttUIMarker,
         Text::new("RTT: --ms"),
         TextFont {
             font_size: 20.0,
@@ -230,11 +231,11 @@ pub fn setup_world_system(
             bottom: Val::Px(40.0),
             ..default()
         },
-        RttUIMarker,
     ));
 
     // Create FPS display below RTT
     commands.spawn((
+        FpsUIMarker,
         Text::new("FPS: --"),
         TextFont {
             font_size: 20.0,
@@ -247,11 +248,11 @@ pub fn setup_world_system(
             bottom: Val::Px(10.0),
             ..default()
         },
-        FpsUIMarker,
     ));
 
     // Create bump flash overlay (invisible by default, shown on wall collision)
     commands.spawn((
+        BumpFlashUIMarker,
         Node {
             position_type: PositionType::Absolute,
             left: Val::Px(0.0),
@@ -261,7 +262,6 @@ pub fn setup_world_system(
             ..default()
         },
         BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.0)), // Transparent by default (white)
-        BumpFlashUIMarker,
         Visibility::Hidden, // Start hidden
     ));
 }
@@ -386,6 +386,8 @@ fn spawn_player_entry(
 
     commands
         .spawn((
+            PlayerEntryMarker,
+            player_id,
             Node {
                 flex_direction: FlexDirection::Row,
                 column_gap: Val::Px(10.0),
@@ -393,8 +395,6 @@ fn spawn_player_entry(
                 ..default()
             },
             background_color,
-            PlayerEntryMarker,
-            player_id,
         ))
         .with_children(|row| {
             row.spawn((

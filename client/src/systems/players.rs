@@ -5,7 +5,7 @@ use super::{network::ServerReconciliation, ui::BumpFlashUIMarker};
 use crate::{
     constants::*,
     resources::{CameraViewMode, PlayerMap, WallConfig},
-    spawning::PlayerIdTextMesh,
+    spawning::PlayerIdTextMeshMarker,
 };
 use common::{
     collision::{calculate_wall_slide, check_player_wall_sweep},
@@ -524,7 +524,7 @@ pub fn local_player_rearview_system(
 // Make player ID text meshes billboard (always face camera)
 pub fn players_billboard_system(
     camera_query: Query<&GlobalTransform, (With<Camera3d>, Without<RearviewCamera>)>,
-    mut text_mesh_query: Query<(&GlobalTransform, &mut Transform), With<PlayerIdTextMesh>>,
+    mut text_mesh_query: Query<(&GlobalTransform, &mut Transform), With<PlayerIdTextMeshMarker>>,
 ) {
     let Ok(camera_transform) = camera_query.single() else {
         return;

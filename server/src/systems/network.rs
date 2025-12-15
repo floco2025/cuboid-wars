@@ -169,7 +169,7 @@ pub fn network_accept_connections_system(
 ) {
     while let Ok((id, to_client)) = from_accept.try_recv() {
         debug!("{:?} connected", id);
-        let entity = commands.spawn((id, PlayerMarker)).id();
+        let entity = commands.spawn((PlayerMarker, id)).id();
         players.0.insert(
             id,
             PlayerInfo {
@@ -488,10 +488,10 @@ fn handle_shot(
             let projectile = Projectile::new(spawn_info.direction, spawn_info.reflects);
 
             commands.spawn((
+                ProjectileMarker,
+                id, // Tag projectile with shooter's ID
                 spawn_info.position,
                 projectile,
-                id, // Tag projectile with shooter's ID
-                ProjectileMarker,
             ));
         }
     }

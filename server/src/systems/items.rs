@@ -63,7 +63,7 @@ pub fn item_initial_spawn_system(
             spawner.next_id += 1;
             let position = cell_center(grid_x, grid_z);
 
-            let entity = commands.spawn((item_id, ItemMarker, position)).id();
+            let entity = commands.spawn((ItemMarker, item_id, position)).id();
 
             items.0.insert(
                 item_id,
@@ -107,7 +107,7 @@ pub fn item_spawn_system(
             let position = cell_center(grid_x, grid_z);
             let item_type = choose_item_type(&mut rng);
 
-            let entity = commands.spawn((item_id, ItemMarker, position)).id();
+            let entity = commands.spawn((ItemMarker, item_id, position)).id();
 
             items.0.insert(
                 item_id,

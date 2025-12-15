@@ -144,7 +144,7 @@ pub fn ghosts_spawn_system(
         let vel = direction.to_velocity();
 
         let ghost_id = GhostId(i);
-        let entity = commands.spawn((ghost_id, GhostMarker, pos, vel)).id();
+        let entity = commands.spawn((GhostMarker, ghost_id, pos, vel)).id();
 
         ghosts.0.insert(
             ghost_id,

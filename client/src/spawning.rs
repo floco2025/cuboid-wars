@@ -25,10 +25,11 @@ use common::{
 // ============================================================================
 
 #[derive(Component)]
-pub struct PlayerIdText;
+pub struct PlayerIdTextMarker;
 
 #[derive(Component)]
-pub struct PlayerIdTextMesh;
+pub struct PlayerIdTextMeshMarker;
+
 
 #[derive(Component)]
 pub struct ItemAnimTimer(pub f32);
@@ -441,7 +442,7 @@ pub fn spawn_player_id_display(
                     LABEL_TEXT_COLOR[3],
                 )),
                 TextLayout::new_with_no_wrap(),
-                PlayerIdText,
+                PlayerIdTextMarker,
             ));
         })
         .id();
@@ -449,6 +450,7 @@ pub fn spawn_player_id_display(
     // Create 3D plane mesh with the rendered texture
     let mesh_entity = commands
         .spawn((
+            PlayerIdTextMeshMarker,
             Mesh3d(meshes.add(Rectangle::new(LABEL_WIDTH, LABEL_HEIGHT))),
             MeshMaterial3d(materials.add(StandardMaterial {
                 base_color_texture: Some(image_handle),
@@ -461,7 +463,6 @@ pub fn spawn_player_id_display(
                 PLAYER_HEIGHT / 2.0 + LABEL_HEIGHT_ABOVE_PLAYER + LABEL_HEIGHT / 2.0,
                 0.0,
             ),
-            PlayerIdTextMesh,
         ))
         .id();
 
