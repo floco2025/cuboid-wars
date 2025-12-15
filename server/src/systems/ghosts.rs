@@ -227,7 +227,7 @@ pub fn ghosts_movement_system(
             GhostMode::Patrol => {
                 // Decrement cooldown timer
                 ghost_info.mode_timer -= delta;
-                
+
                 // Always check for visible players
                 if let Some(target_player_id) =
                     find_visible_moving_player(&ghost_pos, &player_data, &grid_config.all_walls)
@@ -236,7 +236,7 @@ pub fn ghosts_movement_system(
                         .0
                         .get(&target_player_id)
                         .is_some_and(|info| info.ghost_hunt_power_up_timer > 0.0);
-                    
+
                     // Enter target mode if: player has ghost hunt (flee) OR cooldown expired (attack)
                     if player_has_ghost_hunt || ghost_info.mode_timer <= 0.0 {
                         ghost_info.mode = GhostMode::Target;
@@ -253,11 +253,15 @@ pub fn ghosts_movement_system(
                     .is_some_and(|info| info.ghost_hunt_power_up_timer > 0.0);
 
                 // Update target timer: only decrement when not fleeing
-                if !is_fleeing {
+                if is_fleeing {
+                    // If a ghost was attacking and is now fleeing, the timer has been decremented
+                    // previously, so we reset it every time we are fleeing
+                    ghost_info.mode_timer = GHOST_TARGET_DURATION;
+                } else {
                     ghost_info.mode_timer -= delta;
                 }
-                
-                if ghost_info.mode_timer <= 0.0  {
+
+                if ghost_info.mode_timer <= 0.0 {
                     // Target timer expired, switch to pre-patrol with cooldown
                     ghost_info.mode = GhostMode::PrePatrol;
                     ghost_info.mode_timer = GHOST_COOLDOWN_DURATION;
@@ -267,7 +271,7 @@ pub fn ghosts_movement_system(
                     if let Some(target_id) = ghost_info.follow_target {
                         let target_info = players.0.get(&target_id);
                         let target_valid = target_info.is_some_and(|info| info.logged_in && info.stun_timer <= 0.0);
-                        
+
                         if !target_valid {
                             // Target disconnected or stunned, switch to pre-patrol
                             ghost_info.mode = GhostMode::PrePatrol;
