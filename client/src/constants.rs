@@ -8,11 +8,11 @@ pub const FPV_CAMERA_FOV_DEGREES: f32 = 90.0; // Field of view in degrees
 
 // Top-down view camera settings
 pub const TOPDOWN_CAMERA_FOV_DEGREES: f32 = 45.0; // Field of view in degrees
-pub const TOPDOWN_CAMERA_HEIGHT: f32 = 50.0; // Height above ground (meters)
-pub const TOPDOWN_CAMERA_Z_OFFSET: f32 = 50.0; // How far along Z axis from center (positive = south side)
+pub const TOPDOWN_CAMERA_HEIGHT: f32 = 68.0; // Height above ground (meters)
+pub const TOPDOWN_CAMERA_Z_OFFSET: f32 = 55.0; // How far along Z axis from center (positive = south side)
 pub const TOPDOWN_LOOKAT_X: f32 = 0.0; // X coordinate camera looks at
 pub const TOPDOWN_LOOKAT_Y: f32 = 0.0; // Y coordinate camera looks at
-pub const TOPDOWN_LOOKAT_Z: f32 = 8.5; // Z coordinate camera looks at
+pub const TOPDOWN_LOOKAT_Z: f32 = 8.7; // Z coordinate camera looks at
 pub const TOPDOWN_WALL_ALPHA: f32 = 1.0; //0.7; // Opacity for walls in top-down view
 pub const TOPDOWN_ROOF_ALPHA: f32 = 1.0; //0.3; // Opacity for roofs in top-down view
 

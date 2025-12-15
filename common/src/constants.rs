@@ -4,8 +4,8 @@
 
 // Grid-based playing field dimensions
 pub const GRID_SIZE: f32 = 8.0; // Each grid cell is 5 meters
-pub const GRID_COLS: i32 = 8; // Number of grid columns (X axis)
-pub const GRID_ROWS: i32 = 8; // Number of grid rows (Z axis)
+pub const GRID_COLS: i32 = 10; // Number of grid columns (X axis)
+pub const GRID_ROWS: i32 = 10; // Number of grid rows (Z axis)
 
 // Calculated field dimensions (meters)
 pub const FIELD_WIDTH: f32 = GRID_COLS as f32 * GRID_SIZE; // Total width
