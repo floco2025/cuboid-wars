@@ -166,7 +166,7 @@ fn tiled_cuboid(size_x: f32, size_y: f32, size_z: f32, tile_size: f32) -> Mesh {
             uvs.extend_from_slice(&[[uv00[0], uv00[1]], [uv11[0], uv11[1]], [uv00[0], uv11[1]]]);
         };
 
-    // +X face (U along height to keep scale; V clamped across thin thickness)
+    // +X face (U along Y height, V along Z depth)
     push_face(
         [hx, -hy, -hz],
         [hx, hy, -hz],
@@ -174,7 +174,7 @@ fn tiled_cuboid(size_x: f32, size_y: f32, size_z: f32, tile_size: f32) -> Mesh {
         [hx, -hy, hz],
         [1.0, 0.0, 0.0],
         [0.0, 0.0],
-        [repeat_y, 1.0],
+        [repeat_y, repeat_z],
     );
 
     // -X face
@@ -185,7 +185,7 @@ fn tiled_cuboid(size_x: f32, size_y: f32, size_z: f32, tile_size: f32) -> Mesh {
         [-hx, -hy, -hz],
         [-1.0, 0.0, 0.0],
         [0.0, 0.0],
-        [repeat_y, 1.0],
+        [repeat_y, repeat_z],
     );
 
     // +Y face (u along X, v along Z)
