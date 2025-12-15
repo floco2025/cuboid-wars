@@ -1,10 +1,10 @@
-use bevy::{camera::Viewport, prelude::*, render::render_resource::Face};
+use bevy::{camera::Viewport, math::Affine2, prelude::*, render::render_resource::Face};
 use std::time::Duration;
 
 use crate::{
     constants::*,
     resources::{CameraViewMode, FpsMeasurement, MyPlayerId, PlayerInfo, PlayerMap, RoundTripTime},
-    spawning::item_type_color,
+    spawning::{item_type_color, load_repeating_texture, load_repeating_texture_linear},
 };
 use common::{
     constants::{FIELD_DEPTH, FIELD_WIDTH, GRID_COLS, GRID_ROWS, GRID_SIZE, PLAYER_HEIGHT, WALL_WIDTH},
@@ -61,10 +61,29 @@ pub fn setup_world_system(
     ));
 
     // Create the ground plane
+    let mut ground_mesh = Mesh::from(Plane3d::default().mesh().size(FIELD_WIDTH, FIELD_DEPTH));
+    let _ = ground_mesh.generate_tangents();
+
+    let uv_scale = Vec2::new(FIELD_WIDTH / TEXTURE_FLOOR_TILE_SIZE, FIELD_DEPTH / TEXTURE_FLOOR_TILE_SIZE);
+
     commands.spawn((
-        Mesh3d(meshes.add(Plane3d::default().mesh().size(FIELD_WIDTH, FIELD_DEPTH))),
+        Mesh3d(meshes.add(ground_mesh)),
         MeshMaterial3d(materials.add(StandardMaterial {
-            base_color_texture: Some(asset_server.load("floor.png")),
+            base_color_texture: Some(load_repeating_texture(
+                &asset_server,
+                TEXTURE_FLOOR_ALBEDO,
+            )),
+            normal_map_texture: Some(load_repeating_texture_linear(
+                &asset_server,
+                TEXTURE_FLOOR_NORMAL,
+            )),
+            occlusion_texture: Some(load_repeating_texture_linear(
+                &asset_server,
+                TEXTURE_FLOOR_AO,
+            )),
+            uv_transform: Affine2::from_scale(uv_scale),
+            perceptual_roughness: 0.7,
+            metallic: 0.0,
             ..default()
         })),
         Transform::from_xyz(0.0, 0.0, 0.0),

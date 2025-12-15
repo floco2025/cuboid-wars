@@ -50,9 +50,21 @@ pub const ITEM_REFLECT_COLOR: [f32; 4] = [1.0, 0.2, 0.2, 1.0]; // Red
 pub const ITEM_PHASING_COLOR: [f32; 4] = [0.2, 1.0, 0.2, 1.0]; // Green
 pub const ITEM_GHOST_HUNT_COLOR: [f32; 3] = [0.973, 0.973, 1.0]; // Pale blue (same as ghost color)
 
-// Texture tiling (meters per tile)
-pub const TEXTURE_WALL_TILE_SIZE: f32 = 3.0;
-pub const TEXTURE_ROOF_TILE_SIZE: f32 = 3.0;
+// Textures
+pub const TEXTURE_WALL_TILE_SIZE: f32 = 6.0;
+pub const TEXTURE_WALL_ALBEDO: &str = "textures/wall-albedo.png";
+pub const TEXTURE_WALL_NORMAL: &str = "textures/wall-normal-dx.png";
+pub const TEXTURE_WALL_AO: &str = "textures/wall-ao.png";
+
+pub const TEXTURE_ROOF_TILE_SIZE: f32 = 6.0;
+pub const TEXTURE_ROOF_ALBEDO: &str = "textures/roof-albedo.png";
+pub const TEXTURE_ROOF_NORMAL: &str = "textures/roof-normal-dx.png";
+pub const TEXTURE_ROOF_AO: &str = "textures/roof-ao.png";
+
+pub const TEXTURE_FLOOR_TILE_SIZE: f32 = 8.0;
+pub const TEXTURE_FLOOR_ALBEDO: &str = "textures/floor-albedo.png";
+pub const TEXTURE_FLOOR_NORMAL: &str = "textures/floor-normal-dx.png";
+pub const TEXTURE_FLOOR_AO: &str = "textures/floor-ao.png";
 
 // Visual settings for debugging
 pub const RANDOM_WALL_COLORS: bool = false;

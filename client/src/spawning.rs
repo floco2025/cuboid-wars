@@ -1,6 +1,6 @@
 use bevy::{
-    asset::RenderAssetUsages,
-    image::{ImageAddressMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor},
+    asset::{AssetPath, RenderAssetUsages},
+    image::{ImageAddressMode, ImageFilterMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor},
     prelude::*,
     render::render_resource::{Extent3d, PrimitiveTopology, TextureDimension, TextureFormat, TextureUsages},
 };
@@ -543,12 +543,32 @@ pub fn spawn_projectile_for_player(
 // ============================================================================
 
 // Load a texture with repeat addressing so UVs beyond 0..1 tile instead of clamping.
-fn load_repeating_texture(asset_server: &AssetServer, path: &'static str) -> Handle<Image> {
+pub fn load_repeating_texture(asset_server: &AssetServer, path: impl Into<AssetPath<'static>>) -> Handle<Image> {
     asset_server.load_with_settings(path, |settings: &mut ImageLoaderSettings| {
         settings.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
             address_mode_u: ImageAddressMode::Repeat,
             address_mode_v: ImageAddressMode::Repeat,
             address_mode_w: ImageAddressMode::Repeat,
+            mag_filter: ImageFilterMode::Linear,
+            min_filter: ImageFilterMode::Linear,
+            mipmap_filter: ImageFilterMode::Linear,
+            anisotropy_clamp: 8,
+            ..default()
+        });
+    })
+}
+
+pub fn load_repeating_texture_linear(asset_server: &AssetServer, path: impl Into<AssetPath<'static>>) -> Handle<Image> {
+    asset_server.load_with_settings(path, |settings: &mut ImageLoaderSettings| {
+        settings.is_srgb = false;
+        settings.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
+            address_mode_u: ImageAddressMode::Repeat,
+            address_mode_v: ImageAddressMode::Repeat,
+            address_mode_w: ImageAddressMode::Repeat,
+            mag_filter: ImageFilterMode::Linear,
+            min_filter: ImageFilterMode::Linear,
+            mipmap_filter: ImageFilterMode::Linear,
+            anisotropy_clamp: 8,
             ..default()
         });
     })
@@ -590,12 +610,26 @@ pub fn spawn_wall(
         }
     } else {
         StandardMaterial {
-            base_color_texture: Some(load_repeating_texture(asset_server, "wall.png")),
+            base_color_texture: Some(load_repeating_texture(
+                asset_server,
+                TEXTURE_WALL_ALBEDO,
+            )),
+            normal_map_texture: Some(load_repeating_texture_linear(
+                asset_server,
+                TEXTURE_WALL_NORMAL,
+            )),
+            occlusion_texture: Some(load_repeating_texture_linear(
+                asset_server,
+                TEXTURE_WALL_AO,
+            )),
+            perceptual_roughness: 0.7,
+            metallic: 0.0,
             ..default()
         }
     };
 
-    let mesh = tiled_cuboid(mesh_size_x, WALL_HEIGHT, mesh_size_z, TEXTURE_WALL_TILE_SIZE);
+    let mut mesh = tiled_cuboid(mesh_size_x, WALL_HEIGHT, mesh_size_z, TEXTURE_WALL_TILE_SIZE);
+    let _ = mesh.generate_tangents();
 
     commands.spawn(WallBundle {
         mesh: Mesh3d(meshes.add(mesh)),
@@ -641,13 +675,27 @@ pub fn spawn_roof(
         }
     } else {
         StandardMaterial {
-            base_color_texture: Some(load_repeating_texture(asset_server, "roof.png")),
+            base_color_texture: Some(load_repeating_texture(
+                asset_server,
+                TEXTURE_ROOF_ALBEDO,
+            )),
+            normal_map_texture: Some(load_repeating_texture_linear(
+                asset_server,
+                TEXTURE_ROOF_NORMAL,
+            )),
+            occlusion_texture: Some(load_repeating_texture_linear(
+                asset_server,
+                TEXTURE_ROOF_AO,
+            )),
+            perceptual_roughness: 0.8,
+            metallic: 0.0,
             ..default()
         }
     };
 
     // Use the actual aspect ratio to compute tile repeats for square texels
-    let mesh = tiled_cuboid(width, roof.thickness, depth, TEXTURE_ROOF_TILE_SIZE);
+    let mut mesh = tiled_cuboid(width, roof.thickness, depth, TEXTURE_ROOF_TILE_SIZE);
+    let _ = mesh.generate_tangents();
 
     commands.spawn(RoofBundle {
         mesh: Mesh3d(meshes.add(mesh)),
