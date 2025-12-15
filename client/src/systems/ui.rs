@@ -37,7 +37,8 @@ pub struct BumpFlashUIMarker;
 
 // Marker component for player entry rows
 #[derive(Component)]
-pub struct PlayerEntryMarker(pub PlayerId);
+pub struct PlayerEntryMarker;
+
 
 // ============================================================================
 // UI Setup System
@@ -392,7 +393,8 @@ fn spawn_player_entry(
                 ..default()
             },
             background_color,
-            PlayerEntryMarker(player_id),
+            PlayerEntryMarker,
+            player_id,
         ))
         .with_children(|row| {
             row.spawn((
@@ -496,7 +498,7 @@ pub fn ui_stunned_blink_system(
     time: Res<Time>,
     players: Res<PlayerMap>,
     my_player_id: Option<Res<MyPlayerId>>,
-    mut query: Query<(&PlayerEntryMarker, &mut BackgroundColor)>,
+    mut query: Query<(&PlayerId, &mut BackgroundColor), With<PlayerEntryMarker>>,
 ) {
     let local_player_id = my_player_id.as_ref().map(|id| id.0);
     let blink_frequency = 3.0; // Blinks per second
@@ -505,9 +507,9 @@ pub fn ui_stunned_blink_system(
         1.0,
     );
 
-    for (marker, mut bg_color) in &mut query {
-        if let Some(player_info) = players.0.get(&marker.0) {
-            let is_local = local_player_id == Some(marker.0);
+    for (entry_id, mut bg_color) in &mut query {
+        if let Some(player_info) = players.0.get(entry_id) {
+            let is_local = local_player_id == Some(*entry_id);
 
             if player_info.stunned {
                 // Blink between red and the base color
