@@ -1,4 +1,5 @@
 use bevy::{
+    core_pipeline::Skybox,
     prelude::*,
     render::render_resource::{Extent3d, TextureDimension, TextureFormat},
 };
@@ -21,9 +22,10 @@ pub fn skybox_convert_cross_to_cubemap_system(
     mut commands: Commands,
     cross_image: Option<Res<SkyboxCrossImage>>,
     mut images: ResMut<Assets<Image>>,
-    mut done: Local<bool>,
+    cubemap: Option<Res<SkyboxCubemap>>,
 ) {
-    if *done {
+    // If we already have a cubemap, we're done
+    if cubemap.is_some() {
         return;
     }
 
@@ -41,8 +43,6 @@ pub fn skybox_convert_cross_to_cubemap_system(
 
     commands.insert_resource(SkyboxCubemap(cubemap_handle));
     commands.remove_resource::<SkyboxCrossImage>();
-
-    *done = true;
 }
 
 fn create_cubemap_from_cross(cross_image: &Image) -> Image {
@@ -108,4 +108,29 @@ fn create_cubemap_from_cross(cross_image: &Image) -> Image {
     }
 
     cubemap
+}
+
+// Add skybox to cameras once the cubemap is ready
+pub fn skybox_update_camera_system(
+    cubemap: Option<Res<SkyboxCubemap>>,
+    mut cameras: Query<(Entity, &mut Camera), (With<Camera3d>, Without<Skybox>)>,
+    mut commands: Commands,
+) {
+    let Some(cubemap) = cubemap else {
+        // Skybox not ready yet - disable cameras to prevent flickering
+        for (_, mut camera) in &mut cameras {
+            camera.is_active = false;
+        }
+        return;
+    };
+
+    for (entity, mut camera) in &mut cameras {
+        // Enable camera and add skybox
+        camera.is_active = true;
+        commands.entity(entity).insert(Skybox {
+            image: cubemap.0.clone(),
+            brightness: 1000.0,
+            rotation: Quat::IDENTITY,
+        });
+    }
 }
