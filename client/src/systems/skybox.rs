@@ -2,7 +2,7 @@ use bevy::{
     asset::RenderAssetUsages,
     core_pipeline::Skybox,
     prelude::*,
-    render::render_resource::{Extent3d, TextureDimension, TextureFormat},
+    render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureViewDescriptor, TextureViewDimension},
 };
 
 pub fn setup_skybox_from_cross(mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -68,8 +68,8 @@ fn create_cubemap_from_cross(cross_image: &Image) -> Image {
         TextureFormat::Rgba8UnormSrgb,
         RenderAssetUsages::default(),
     );
-    cubemap.texture_view_descriptor = Some(bevy::render::render_resource::TextureViewDescriptor {
-        dimension: Some(bevy::render::render_resource::TextureViewDimension::Cube),
+    cubemap.texture_view_descriptor = Some(TextureViewDescriptor {
+        dimension: Some(TextureViewDimension::Cube),
         ..default()
     });
 
