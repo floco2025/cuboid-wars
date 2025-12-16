@@ -95,7 +95,7 @@ fn create_cubemap_from_cross(cross_image: &Image) -> Image {
     let cubemap_data = cubemap.data.as_mut().expect("cubemap has no data");
 
     for (face_idx, (x_offset, y_offset)) in face_positions.iter().enumerate() {
-        let dst_face_offset = (face_idx * face_size as usize * face_size as usize * bytes_per_pixel) as usize;
+        let dst_face_offset = (face_idx * face_size as usize * face_size as usize * bytes_per_pixel);
 
         for y in 0..face_size {
             let src_y = y_offset + y;

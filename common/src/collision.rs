@@ -613,7 +613,7 @@ pub fn check_projectile_ghost_sweep_hit(
     let t2 = (-b + sqrt_disc) / (2.0 * a);
 
     // Hit if any intersection point is within [0, 1]
-    (t1 >= 0.0 && t1 <= 1.0) || (t2 >= 0.0 && t2 <= 1.0) || (t1 < 0.0 && t2 > 1.0)
+    (0.0..=1.0).contains(&t1) || (0.0..=1.0).contains(&t2) || (t1 < 0.0 && t2 > 1.0)
 }
 
 // Check if a player is close enough to an item to collect it (circle collision)

@@ -519,7 +519,7 @@ fn generate_individual_roofs(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: 
 
                 // Weight = base weight * neighbor multiplier
                 let base_weight = if wall_count >= 2 { 1.0 } else { 0.5 };
-                let neighbor_multiplier = 1.0 + (neighbor_count as f64 * ROOF_NEIGHBOR_PREFERENCE);
+                let neighbor_multiplier = 1.0 + (f64::from(neighbor_count) * ROOF_NEIGHBOR_PREFERENCE);
                 let weight = base_weight * neighbor_multiplier;
 
                 candidates.push(((row, col), weight));
