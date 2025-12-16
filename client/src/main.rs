@@ -95,8 +95,10 @@ fn main() -> Result<()> {
     .insert_resource(LastUpdateSeq::default())
     .insert_resource(CameraViewMode::default())
     .insert_resource(RoofRenderingEnabled::default())
-    .add_systems(Startup, setup_world_system)
-    .add_systems(Startup, setup_skybox_from_cross.after(setup_world_system))
+    .add_systems(
+        Startup,
+        (setup_world_system, setup_skybox_from_cross.after(setup_world_system)),
+    )
     .add_systems(
         Update,
         (
@@ -115,6 +117,11 @@ fn main() -> Result<()> {
             players_transform_sync_system,
             placers_face_to_transform_system,
             players_billboard_system,
+        ),
+    )
+    .add_systems(
+        Update,
+        (
             local_player_camera_shake_system,
             local_player_cuboid_shake_system,
             local_player_camera_sync_system,
@@ -125,7 +132,7 @@ fn main() -> Result<()> {
     )
     .add_systems(Update, (ghosts_movement_system, ghosts_transform_sync_system))
     .add_systems(Update, projectiles_movement_system)
-    .add_systems(Update, (items_animation_system,))
+    .add_systems(Update, items_animation_system)
     .add_systems(
         Update,
         (
@@ -146,11 +153,10 @@ fn main() -> Result<()> {
     )
     .add_systems(
         Update,
-        skybox_convert_cross_to_cubemap_system.run_if(resource_exists::<SkyboxCrossImage>),
-    )
-    .add_systems(
-        Update,
-        skybox_update_camera_system.run_if(resource_exists::<SkyboxCubemap>),
+        (
+            skybox_convert_cross_to_cubemap_system.run_if(resource_exists::<SkyboxCrossImage>),
+            skybox_update_camera_system.run_if(resource_exists::<SkyboxCubemap>),
+        ),
     )
     .run();
 
