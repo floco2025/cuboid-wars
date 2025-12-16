@@ -5,7 +5,7 @@ use bevy::{
     window::{CursorGrabMode, CursorOptions},
 };
 
-use super::players::{LocalPlayer, PlayerMovementMut};
+use super::players::{LocalPlayerMarker, MainCameraMarker, PlayerMovementMut};
 use crate::{
     constants::*,
     net::ClientToServer,
@@ -37,8 +37,8 @@ pub fn input_movement_system(
     my_player_id: Option<Res<MyPlayerId>>,
     players: Res<PlayerMap>,
     mut local_state: Local<InputState>,
-    mut local_player_query: Query<PlayerMovementMut, With<LocalPlayer>>,
-    mut camera_query: Query<&mut Transform, With<Camera3d>>,
+    mut local_player_query: Query<PlayerMovementMut, With<LocalPlayerMarker>>,
+    mut camera_query: Query<&mut Transform, (With<Camera3d>, With<MainCameraMarker>)>,
     view_mode: Res<CameraViewMode>,
 ) {
     // Require locked cursor before processing movement input
@@ -82,7 +82,7 @@ fn handle_unlocked_cursor(
     my_player_id: Option<&Res<MyPlayerId>>,
     players: &Res<PlayerMap>,
     local_state: &mut Local<InputState>,
-    local_player_query: &mut Query<PlayerMovementMut, With<LocalPlayer>>,
+    local_player_query: &mut Query<PlayerMovementMut, With<LocalPlayerMarker>>,
 ) {
     // Drain pending mouse events and ensure player stops moving
     for _ in mouse_motion.read() {}
@@ -114,7 +114,7 @@ fn handle_unlocked_cursor(
 
 fn calculate_current_yaw(
     mouse_motion: &mut MessageReader<MouseMotion>,
-    camera_query: &Query<&mut Transform, With<Camera3d>>,
+    camera_query: &Query<&mut Transform, (With<Camera3d>, With<MainCameraMarker>)>,
     view_mode: &Res<CameraViewMode>,
     local_state: &mut Local<InputState>,
 ) -> f32 {
@@ -192,7 +192,7 @@ fn update_player_velocity_and_face(
     face_yaw: f32,
     my_player_id: Option<&Res<MyPlayerId>>,
     players: &Res<PlayerMap>,
-    local_player_query: &mut Query<PlayerMovementMut, With<LocalPlayer>>,
+    local_player_query: &mut Query<PlayerMovementMut, With<LocalPlayerMarker>>,
 ) {
     for mut player in local_player_query {
         let mut velocity = speed.to_velocity();
@@ -249,7 +249,7 @@ pub fn input_shooting_system(
     mut commands: Commands,
     mouse: Res<ButtonInput<MouseButton>>,
     cursor_options: Single<&CursorOptions>,
-    local_player_query: Query<(&Position, &FaceDirection), With<LocalPlayer>>,
+    local_player_query: Query<(&Position, &FaceDirection), With<LocalPlayerMarker>>,
     to_server: Res<ClientToServerChannel>,
     asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,

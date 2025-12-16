@@ -3,7 +3,7 @@ use bevy::{
     prelude::*,
 };
 
-use super::players::LocalPlayer;
+use super::players::LocalPlayerMarker;
 use crate::resources::{PlayerMap, WallConfig};
 use common::{
     collision::{Projectile, check_projectile_ghost_sweep_hit, check_projectile_player_sweep_hit},
@@ -59,7 +59,7 @@ fn handle_player_collisions(
     projectile: &Projectile,
     projectile_pos: &Position,
     delta: f32,
-    player_query: &Query<(Entity, &Position, &FaceDirection, Has<LocalPlayer>), With<PlayerMarker>>,
+    player_query: &Query<(Entity, &Position, &FaceDirection, Has<LocalPlayerMarker>), With<PlayerMarker>>,
 ) -> bool {
     for (_player_entity, player_pos, face_dir, is_local_player) in player_query.iter() {
         let result = check_projectile_player_sweep_hit(projectile_pos, projectile, delta, player_pos, face_dir.0);
@@ -106,7 +106,7 @@ pub fn projectiles_movement_system(
     time: Res<Time>,
     asset_server: Res<AssetServer>,
     mut projectile_query: Query<(Entity, &mut Transform, &mut Projectile, &PlayerId), With<ProjectileMarker>>,
-    player_query: Query<(Entity, &Position, &FaceDirection, Has<LocalPlayer>), With<PlayerMarker>>,
+    player_query: Query<(Entity, &Position, &FaceDirection, Has<LocalPlayerMarker>), With<PlayerMarker>>,
     ghost_query: Query<&Position, With<GhostMarker>>,
     players: Res<PlayerMap>,
     wall_config: Option<Res<WallConfig>>,

@@ -1,6 +1,7 @@
 use bevy::{camera::Viewport, math::Affine2, prelude::*};
 use std::time::Duration;
 
+use super::players::{MainCameraMarker, RearviewCameraMarker};
 use crate::{
     constants::*,
     resources::{CameraViewMode, FpsMeasurement, MyPlayerId, PlayerInfo, PlayerMap, RoundTripTime},
@@ -102,11 +103,11 @@ pub fn setup_world_system(
     // Add main camera (initial position will be immediately overridden by sync system)
     commands.spawn((
         IsDefaultUiCamera, // Mark this as the UI camera
+        MainCameraMarker,
         Camera3d::default(),
         Camera {
             // Render first to full window
             order: 0,
-            is_active: false, // Start disabled until skybox is attached
             ..default()
         },
         Projection::from(PerspectiveProjection {
@@ -119,7 +120,7 @@ pub fn setup_world_system(
 
     // Add rearview mirror camera (renders to lower-right viewport)
     commands.spawn((
-        super::players::RearviewCamera,
+        RearviewCameraMarker,
         Camera3d::default(),
         Camera {
             // Render after main camera to its viewport only
@@ -132,7 +133,6 @@ pub fn setup_world_system(
             }),
             // Don't clear the viewport - render on top
             clear_color: bevy::camera::ClearColorConfig::None,
-            is_active: false, // Start disabled until skybox is attached
             ..default()
         },
         Projection::from(PerspectiveProjection {

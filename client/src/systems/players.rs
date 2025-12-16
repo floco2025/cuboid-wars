@@ -21,11 +21,15 @@ use common::{
 
 // Marker component for the local player (yourself)
 #[derive(Component)]
-pub struct LocalPlayer;
+pub struct LocalPlayerMarker;
+
+// Marker component for the main camera
+#[derive(Component)]
+pub struct MainCameraMarker;
 
 // Marker component for the rearview mirror camera
 #[derive(Component)]
-pub struct RearviewCamera;
+pub struct RearviewCameraMarker;
 
 // Track bump flash effect state for local player
 #[derive(Component, Default)]
@@ -151,7 +155,7 @@ type MovementQuery<'w, 's> = Query<
         &'static Velocity,
         Option<&'static mut BumpFlashState>,
         Option<&'static mut ServerReconciliation>,
-        Has<LocalPlayer>,
+        Has<LocalPlayerMarker>,
     ),
 >;
 
@@ -358,10 +362,10 @@ fn update_cuboid_shake(commands: &mut Commands, entity: Entity, delta: Duration,
 
 // Update camera position to follow local player
 pub fn local_player_camera_sync_system(
-    local_player_query: Query<&Position, With<LocalPlayer>>,
+    local_player_query: Query<&Position, With<LocalPlayerMarker>>,
     mut camera_query: Query<
         (&mut Transform, &mut Projection, Option<&CameraShake>),
-        (With<Camera3d>, Without<RearviewCamera>),
+        (With<Camera3d>, With<MainCameraMarker>),
     >,
     view_mode: Res<CameraViewMode>,
 ) {
@@ -405,7 +409,7 @@ pub fn local_player_camera_sync_system(
 // Update local player visibility based on camera view mode
 pub fn local_player_visibility_sync_system(
     view_mode: Res<CameraViewMode>,
-    mut local_player_query: Query<(Entity, &mut Visibility, Has<Mesh3d>), With<LocalPlayer>>,
+    mut local_player_query: Query<(Entity, &mut Visibility, Has<Mesh3d>), With<LocalPlayerMarker>>,
 ) {
     // Always check and update, not just when changed, to ensure it's correct
     for (_entity, mut visibility, _has_mesh) in &mut local_player_query {
@@ -451,9 +455,9 @@ pub fn placers_face_to_transform_system(mut query: Query<(&FaceDirection, &mut T
 
 // Update rearview camera to look backwards from local player
 pub fn local_player_rearview_sync_system(
-    local_player_query: Query<&Position, With<LocalPlayer>>,
-    main_camera_query: Query<&Transform, (With<Camera3d>, Without<RearviewCamera>, Without<Camera2d>)>,
-    mut rearview_query: Query<&mut Transform, With<RearviewCamera>>,
+    local_player_query: Query<&Position, With<LocalPlayerMarker>>,
+    main_camera_query: Query<&Transform, (With<Camera3d>, With<MainCameraMarker>, Without<RearviewCameraMarker>)>,
+    mut rearview_query: Query<&mut Transform, (With<RearviewCameraMarker>, Without<MainCameraMarker>)>,
     view_mode: Res<CameraViewMode>,
 ) {
     let Some(player_pos) = local_player_query.iter().next() else {
@@ -482,7 +486,7 @@ pub fn local_player_rearview_sync_system(
 // Update rearview camera viewport based on window size
 pub fn local_player_rearview_system(
     windows: Query<&Window>,
-    mut rearview_query: Query<&mut Camera, With<RearviewCamera>>,
+    mut rearview_query: Query<&mut Camera, With<RearviewCameraMarker>>,
     view_mode: Res<CameraViewMode>,
 ) {
     let Ok(window) = windows.single() else {
@@ -523,7 +527,7 @@ pub fn local_player_rearview_system(
 
 // Make player ID text meshes billboard (always face camera)
 pub fn players_billboard_system(
-    camera_query: Query<&GlobalTransform, (With<Camera3d>, Without<RearviewCamera>)>,
+    camera_query: Query<&GlobalTransform, (With<Camera3d>, Without<RearviewCameraMarker>)>,
     mut text_mesh_query: Query<(&GlobalTransform, &mut Transform), With<PlayerIdTextMeshMarker>>,
 ) {
     let Ok(camera_transform) = camera_query.single() else {

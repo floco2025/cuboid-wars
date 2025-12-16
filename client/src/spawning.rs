@@ -9,7 +9,7 @@ use crate::{
     constants::*,
     systems::{
         map::{RoofMarker, WallMarker},
-        players::{BumpFlashState, LocalPlayer},
+        players::{BumpFlashState, LocalPlayerMarker},
     },
 };
 use common::{
@@ -286,7 +286,7 @@ pub fn spawn_player(
         .id();
 
     if is_local {
-        commands.entity(entity).insert((LocalPlayer, BumpFlashState::default()));
+        commands.entity(entity).insert((LocalPlayerMarker, BumpFlashState::default()));
     }
 
     // Nose and eyes share the same component boilerplate; spawn each and attach.
