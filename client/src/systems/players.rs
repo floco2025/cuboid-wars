@@ -238,7 +238,7 @@ pub fn players_movement_system(
         // Wall collision - Select walls based on phasing power-up
         let has_phasing = players.0.get(player_id).is_some_and(|info| info.phasing_power_up);
 
-        let (wall_adjusted_target, hits_wall) = if let Some(config) = wall_config.as_ref() {
+        let (wall_adjusted_target, hits_wall) = wall_config.as_ref().map_or((target_pos, false), |config| {
             let walls_to_check: &[Wall] = if has_phasing {
                 &config.boundary_walls
             } else {
@@ -257,9 +257,7 @@ pub fn players_movement_system(
             } else {
                 (target_pos, false)
             }
-        } else {
-            (target_pos, false)
-        };
+        });
 
         planned_moves.push(PlannedMove {
             entity,

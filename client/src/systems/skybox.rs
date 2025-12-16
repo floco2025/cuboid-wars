@@ -1,4 +1,5 @@
 use bevy::{
+    asset::RenderAssetUsages,
     core_pipeline::Skybox,
     prelude::*,
     render::render_resource::{Extent3d, TextureDimension, TextureFormat},
@@ -65,7 +66,7 @@ fn create_cubemap_from_cross(cross_image: &Image) -> Image {
         TextureDimension::D2,
         vec![0; (face_size * face_size * 4 * 6) as usize],
         TextureFormat::Rgba8UnormSrgb,
-        Default::default(),
+        RenderAssetUsages::default(),
     );
     cubemap.texture_view_descriptor = Some(bevy::render::render_resource::TextureViewDescriptor {
         dimension: Some(bevy::render::render_resource::TextureViewDimension::Cube),
@@ -95,7 +96,7 @@ fn create_cubemap_from_cross(cross_image: &Image) -> Image {
     let cubemap_data = cubemap.data.as_mut().expect("cubemap has no data");
 
     for (face_idx, (x_offset, y_offset)) in face_positions.iter().enumerate() {
-        let dst_face_offset = (face_idx * face_size as usize * face_size as usize * bytes_per_pixel);
+        let dst_face_offset = face_idx * face_size as usize * face_size as usize * bytes_per_pixel;
 
         for y in 0..face_size {
             let src_y = y_offset + y;
