@@ -15,7 +15,7 @@ pub struct PlannedMove {
 }
 
 // Check if a planned move would overlap with any other player's planned position
-#[must_use] 
+#[must_use]
 pub fn overlaps_other_player(candidate: &PlannedMove, planned_moves: &[PlannedMove]) -> bool {
     planned_moves
         .iter()

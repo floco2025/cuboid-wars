@@ -173,8 +173,7 @@ pub fn players_movement_system(
     // Pass 1: For each player, calculate intended position, then apply wall collision logic
     let mut planned_moves: Vec<PlannedMove> = Vec::new();
 
-    for (entity, player_id, mut client_pos, client_vel, mut flash_state, mut recon_option, is_local) in &mut query
-    {
+    for (entity, player_id, mut client_pos, client_vel, mut flash_state, mut recon_option, is_local) in &mut query {
         if let Some(state) = flash_state.as_mut() {
             decay_flash_timer(state, delta, is_local, &mut bump_flash_ui);
         }
