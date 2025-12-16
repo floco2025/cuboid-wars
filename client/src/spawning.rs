@@ -154,19 +154,25 @@ fn tiled_cuboid(size_x: f32, size_y: f32, size_z: f32, tile_size: f32) -> Mesh {
 
     // Helper to push two triangles (quad) given four corner positions (p0..p3) in CCW order.
     // For UV rotation: pass in uv coordinates that are already arranged for the desired orientation.
-    let mut push_face =
-        |p0: [f32; 3], p1: [f32; 3], p2: [f32; 3], p3: [f32; 3], normal: [f32; 3], 
-         uv0: [f32; 2], uv1: [f32; 2], uv2: [f32; 2], uv3: [f32; 2]| {
-            // Triangle 1: p0, p1, p2
-            positions.extend_from_slice(&[p0, p1, p2]);
-            normals.extend_from_slice(&[normal; 3]);
-            uvs.extend_from_slice(&[uv0, uv1, uv2]);
+    let mut push_face = |p0: [f32; 3],
+                         p1: [f32; 3],
+                         p2: [f32; 3],
+                         p3: [f32; 3],
+                         normal: [f32; 3],
+                         uv0: [f32; 2],
+                         uv1: [f32; 2],
+                         uv2: [f32; 2],
+                         uv3: [f32; 2]| {
+        // Triangle 1: p0, p1, p2
+        positions.extend_from_slice(&[p0, p1, p2]);
+        normals.extend_from_slice(&[normal; 3]);
+        uvs.extend_from_slice(&[uv0, uv1, uv2]);
 
-            // Triangle 2: p0, p2, p3
-            positions.extend_from_slice(&[p0, p2, p3]);
-            normals.extend_from_slice(&[normal; 3]);
-            uvs.extend_from_slice(&[uv0, uv2, uv3]);
-        };
+        // Triangle 2: p0, p2, p3
+        positions.extend_from_slice(&[p0, p2, p3]);
+        normals.extend_from_slice(&[normal; 3]);
+        uvs.extend_from_slice(&[uv0, uv2, uv3]);
+    };
 
     // +X face (rotated 90° clockwise for proper texture orientation)
     push_face(
@@ -286,7 +292,9 @@ pub fn spawn_player(
         .id();
 
     if is_local {
-        commands.entity(entity).insert((LocalPlayerMarker, BumpFlashState::default()));
+        commands
+            .entity(entity)
+            .insert((LocalPlayerMarker, BumpFlashState::default()));
     }
 
     // Nose and eyes share the same component boilerplate; spawn each and attach.
@@ -623,18 +631,9 @@ pub fn spawn_wall(
         }
     } else {
         StandardMaterial {
-            base_color_texture: Some(load_repeating_texture(
-                asset_server,
-                TEXTURE_WALL_ALBEDO,
-            )),
-            normal_map_texture: Some(load_repeating_texture_linear(
-                asset_server,
-                TEXTURE_WALL_NORMAL,
-            )),
-            occlusion_texture: Some(load_repeating_texture_linear(
-                asset_server,
-                TEXTURE_WALL_AO,
-            )),
+            base_color_texture: Some(load_repeating_texture(asset_server, TEXTURE_WALL_ALBEDO)),
+            normal_map_texture: Some(load_repeating_texture_linear(asset_server, TEXTURE_WALL_NORMAL)),
+            occlusion_texture: Some(load_repeating_texture_linear(asset_server, TEXTURE_WALL_AO)),
             perceptual_roughness: 0.7,
             metallic: 0.0,
             ..default()
@@ -688,18 +687,9 @@ pub fn spawn_roof(
         }
     } else {
         StandardMaterial {
-            base_color_texture: Some(load_repeating_texture(
-                asset_server,
-                TEXTURE_ROOF_ALBEDO,
-            )),
-            normal_map_texture: Some(load_repeating_texture_linear(
-                asset_server,
-                TEXTURE_ROOF_NORMAL,
-            )),
-            occlusion_texture: Some(load_repeating_texture_linear(
-                asset_server,
-                TEXTURE_ROOF_AO,
-            )),
+            base_color_texture: Some(load_repeating_texture(asset_server, TEXTURE_ROOF_ALBEDO)),
+            normal_map_texture: Some(load_repeating_texture_linear(asset_server, TEXTURE_ROOF_NORMAL)),
+            occlusion_texture: Some(load_repeating_texture_linear(asset_server, TEXTURE_ROOF_AO)),
             perceptual_roughness: 0.8,
             metallic: 0.0,
             ..default()
