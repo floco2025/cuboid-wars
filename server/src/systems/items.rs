@@ -4,9 +4,9 @@ use std::collections::HashSet;
 
 use crate::{
     constants::*,
-    map::{cell_center, find_unoccupied_cell, grid_coords_from_position},
+    map::{cell_center, find_unoccupied_cell_not_ramp, grid_coords_from_position},
     net::ServerToClient,
-    resources::{ItemInfo, ItemMap, ItemSpawner, PlayerMap},
+    resources::{GridConfig, ItemInfo, ItemMap, ItemSpawner, PlayerMap},
 };
 use common::{
     collision::check_player_item_overlap,
@@ -84,6 +84,7 @@ pub fn item_spawn_system(
     mut spawner: ResMut<ItemSpawner>,
     mut items: ResMut<ItemMap>,
     positions: Query<&Position>,
+    grid_config: Res<GridConfig>,
 ) {
     let delta = time.delta_secs();
     spawner.timer += delta;
@@ -101,7 +102,7 @@ pub fn item_spawn_system(
 
         let mut rng = rand::rng();
 
-        if let Some((grid_x, grid_z)) = find_unoccupied_cell(&mut rng, &occupied_cells) {
+        if let Some((grid_x, grid_z)) = find_unoccupied_cell_not_ramp(&mut rng, &occupied_cells, &grid_config.grid) {
             let item_id = ItemId(spawner.next_id);
             spawner.next_id += 1;
             let position = cell_center(grid_x, grid_z);

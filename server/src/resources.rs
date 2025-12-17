@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, error::TryRecvError};
 
 use crate::net::{ClientToServer, ServerToClient};
-use common::protocol::*;
+use common::{constants::*, protocol::*};
 
 // ============================================================================
 // Bevy Resources
@@ -48,16 +48,16 @@ impl GridConfig {
     /// Check if a world position (x, z) is on a roof cell
     pub fn is_position_on_roof(&self, x: f32, z: f32) -> bool {
         use common::constants::*;
-        
+
         // Convert world coordinates to grid coordinates
         let col = ((x + FIELD_WIDTH / 2.0) / GRID_SIZE).floor() as i32;
         let row = ((z + FIELD_DEPTH / 2.0) / GRID_SIZE).floor() as i32;
-        
+
         // Check bounds
         if row < 0 || row >= GRID_ROWS || col < 0 || col >= GRID_COLS {
             return false;
         }
-        
+
         self.grid[row as usize][col as usize].has_roof
     }
 }

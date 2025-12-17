@@ -134,7 +134,7 @@ pub fn ghosts_spawn_system(
         let (grid_x, grid_z) = loop {
             let x = rng.random_range(0..GRID_COLS);
             let z = rng.random_range(0..GRID_ROWS);
-            
+
             // Check if cell has a ramp
             if !grid_config.grid[z as usize][x as usize].has_ramp {
                 break (x, z);
@@ -219,9 +219,7 @@ pub fn ghosts_movement_system(
                 ghost_info.mode_timer -= delta;
 
                 // Always check for visible players
-                if let Some(target_player_id) =
-                    find_visible_moving_player(&ghost_pos, &player_data, &ghost_walls)
-                {
+                if let Some(target_player_id) = find_visible_moving_player(&ghost_pos, &player_data, &ghost_walls) {
                     let player_has_ghost_hunt = players
                         .0
                         .get(&target_player_id)

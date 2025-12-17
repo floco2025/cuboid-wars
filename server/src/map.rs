@@ -3,8 +3,8 @@ use std::collections::{HashSet, VecDeque};
 
 use crate::{
     constants::{
-        MERGE_ROOF_SEGMENTS, MERGE_WALL_SEGMENTS, OVERLAP_ROOFS, OVERLAP_WALLS, ROOF_NEIGHBOR_PREFERENCE,
-        ROOF_NUM_SEGMENTS, RAMP_COUNT, RAMP_LENGTH_CELLS, RAMP_MIN_SEPARATION_CELLS, RAMP_WIDTH_CELLS,
+        MERGE_ROOF_SEGMENTS, MERGE_WALL_SEGMENTS, OVERLAP_ROOFS, OVERLAP_WALLS, RAMP_COUNT, RAMP_LENGTH_CELLS,
+        RAMP_MIN_SEPARATION_CELLS, RAMP_WIDTH_CELLS, ROOF_NEIGHBOR_PREFERENCE, ROOF_NUM_SEGMENTS,
         WALL_2ND_PROBABILITY_RATIO, WALL_3RD_PROBABILITY_RATIO, WALL_NUM_SEGMENTS,
     },
     resources::{GridCell, GridConfig},
@@ -47,6 +47,23 @@ pub fn find_unoccupied_cell(rng: &mut ThreadRng, occupied_cells: &HashSet<(i32, 
     None
 }
 
+// Find an unoccupied cell that's not on a ramp, given grid config
+pub fn find_unoccupied_cell_not_ramp(
+    rng: &mut ThreadRng,
+    occupied_cells: &HashSet<(i32, i32)>,
+    grid: &[Vec<GridCell>],
+) -> Option<(i32, i32)> {
+    const MAX_ATTEMPTS: usize = 100;
+    for _ in 0..MAX_ATTEMPTS {
+        let grid_x = rng.random_range(0..GRID_COLS);
+        let grid_z = rng.random_range(0..GRID_ROWS);
+        if !occupied_cells.contains(&(grid_x, grid_z)) && !grid[grid_z as usize][grid_x as usize].has_ramp {
+            return Some((grid_x, grid_z));
+        }
+    }
+    None
+}
+
 // Count how many walls a cell has (0-4)
 const fn count_cell_walls(cell: GridCell) -> u8 {
     let mut count = 0;
@@ -73,7 +90,7 @@ fn all_cells_reachable(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) -
 
     let mut visited = HashSet::new();
     let mut queue = VecDeque::new();
-    
+
     // Count only non-ramp cells as the target
     let mut target_count = 0;
     for row in 0..grid_rows {
@@ -96,7 +113,7 @@ fn all_cells_reachable(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) -
             }
         }
     }
-    
+
     if !start_found {
         return true; // No non-ramp cells to check
     }
@@ -239,23 +256,23 @@ pub fn generate_grid() -> GridConfig {
         // Disallow walls that would block a ramp base or run through ramp cells
         let ramp_blocked = match direction {
             // south wall between (row,col) and (row+1,col)
-            0 => cell.ramp_base_south
-                || cell.ramp_top_south
-                || (row + 1 < grid_rows
-                    && (grid[(row + 1) as usize][col as usize].ramp_base_north
-                        || grid[(row + 1) as usize][col as usize].ramp_top_north))
-                || (cell.has_ramp
-                    && row + 1 < grid_rows
-                    && grid[(row + 1) as usize][col as usize].has_ramp),
+            0 => {
+                cell.ramp_base_south
+                    || cell.ramp_top_south
+                    || (row + 1 < grid_rows
+                        && (grid[(row + 1) as usize][col as usize].ramp_base_north
+                            || grid[(row + 1) as usize][col as usize].ramp_top_north))
+                    || (cell.has_ramp && row + 1 < grid_rows && grid[(row + 1) as usize][col as usize].has_ramp)
+            }
             // east wall between (row,col) and (row,col+1)
-            1 => cell.ramp_base_east
-                || cell.ramp_top_east
-                || (col + 1 < grid_cols
-                    && (grid[row as usize][(col + 1) as usize].ramp_base_west
-                        || grid[row as usize][(col + 1) as usize].ramp_top_west))
-                || (cell.has_ramp
-                    && col + 1 < grid_cols
-                    && grid[row as usize][(col + 1) as usize].has_ramp),
+            1 => {
+                cell.ramp_base_east
+                    || cell.ramp_top_east
+                    || (col + 1 < grid_cols
+                        && (grid[row as usize][(col + 1) as usize].ramp_base_west
+                            || grid[row as usize][(col + 1) as usize].ramp_top_west))
+                    || (cell.has_ramp && col + 1 < grid_cols && grid[row as usize][(col + 1) as usize].has_ramp)
+            }
             _ => false,
         };
         if ramp_blocked {
@@ -540,7 +557,11 @@ fn generate_individual_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: 
 // Generate individual roof segments (no merging) covering full grid cells
 // Returns roofs and updated grid with has_roof flags set
 #[must_use]
-fn generate_individual_roofs(mut grid: Vec<Vec<GridCell>>, grid_cols: i32, grid_rows: i32) -> (Vec<Roof>, Vec<Vec<GridCell>>) {
+fn generate_individual_roofs(
+    mut grid: Vec<Vec<GridCell>>,
+    grid_cols: i32,
+    grid_rows: i32,
+) -> (Vec<Roof>, Vec<Vec<GridCell>>) {
     let mut rng = rand::rng();
 
     // Count walls for each cell
@@ -556,11 +577,11 @@ fn generate_individual_roofs(mut grid: Vec<Vec<GridCell>>, grid_cols: i32, grid_
 
     // Phase 1: Find all cells adjacent to ramp tops
     let mut ramp_top_adjacent: Vec<(i32, i32)> = Vec::new();
-    
+
     for row in 0..grid_rows {
         for col in 0..grid_cols {
             let cell = grid[row as usize][col as usize];
-            
+
             // Check each elevated edge and collect adjacent cells
             if cell.ramp_top_north && row > 0 {
                 let neighbor = (row - 1, col);
@@ -591,7 +612,7 @@ fn generate_individual_roofs(mut grid: Vec<Vec<GridCell>>, grid_cols: i32, grid_
 
     // Connect each ramp-top-adjacent cell to its nearest neighbor
     let mut connected_pairs: HashSet<(i32, i32)> = HashSet::new();
-    
+
     for (i, &start) in ramp_top_adjacent.iter().enumerate() {
         if connected_pairs.contains(&start) {
             continue; // This one already has at least one connection
@@ -787,7 +808,7 @@ fn generate_individual_roofs(mut grid: Vec<Vec<GridCell>>, grid_cols: i32, grid_
             z2: world_z2,
             thickness: ROOF_THICKNESS,
         });
-        
+
         // Mark cell as having a roof
         grid[row as usize][col as usize].has_roof = true;
     }
@@ -835,7 +856,7 @@ fn generate_ramps(grid: &mut [Vec<GridCell>], grid_cols: i32, grid_rows: i32) ->
                 let dist_to_north = row;
                 let dist_to_south = (grid_rows - 1) - row;
                 let min_dist = dist_to_west.min(dist_to_east).min(dist_to_north).min(dist_to_south);
-                
+
                 // Allowed zone: cells must be 1 or 2 cells from border
                 if min_dist < 1 || min_dist > 2 {
                     in_allowed_zone = false;

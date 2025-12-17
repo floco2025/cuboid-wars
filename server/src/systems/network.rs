@@ -10,6 +10,7 @@ use common::{
     constants::*,
     markers::{PlayerMarker, ProjectileMarker},
     protocol::*,
+    ramps::is_on_ramp,
     spawning::calculate_projectile_spawns,
 };
 
@@ -126,7 +127,7 @@ fn collect_ghosts(ghosts: &GhostMap, queries: &NetworkEntityQueries) -> Vec<(Gho
         .collect()
 }
 
-// Try to find a spawn point that does not intersect any generated wall.
+// Try to find a spawn point that does not intersect any generated wall or ramp.
 fn generate_spawn_position(grid_config: &GridConfig) -> Position {
     let mut rng = rand::rng();
     let max_attempts = 100;
@@ -144,7 +145,10 @@ fn generate_spawn_position(grid_config: &GridConfig) -> Position {
             .iter()
             .any(|wall| check_player_wall_overlap(&pos, wall));
 
-        if !intersects {
+        // Check if position is on a ramp
+        let on_ramp = is_on_ramp(&grid_config.ramps, pos.x, pos.z);
+
+        if !intersects && !on_ramp {
             return pos;
         }
     }

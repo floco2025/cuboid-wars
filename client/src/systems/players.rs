@@ -1,15 +1,15 @@
 use bevy::{camera::Viewport, prelude::*};
 use std::time::Duration;
 
-use super::{network::ServerReconciliation, ui::BumpFlashUIMarker};
 use crate::{
     constants::*,
     resources::{CameraViewMode, PlayerMap, WallConfig},
     spawning::PlayerIdTextMeshMarker,
+    systems::{network::ServerReconciliation, ui::BumpFlashUIMarker},
 };
 use common::{
     collision::{calculate_wall_slide, check_player_wall_sweep},
-    constants::{PLAYER_HEIGHT, SPEED_RUN, UPDATE_BROADCAST_INTERVAL},
+    constants::{PLAYER_HEIGHT, ROOF_HEIGHT, SPEED_RUN, UPDATE_BROADCAST_INTERVAL},
     markers::PlayerMarker,
     players::{PlannedMove, overlaps_other_player},
     protocol::{FaceDirection, PlayerId, Position, Velocity, Wall},
@@ -247,7 +247,7 @@ pub fn players_movement_system(
 
         let (wall_adjusted_target, hits_wall) = wall_config.as_ref().map_or((target_pos, false), |config| {
             let mut walls_to_check = Vec::new();
-            
+
             if is_on_roof(client_pos.y) {
                 // On roof: only roof edge walls (which have openings at ramp connections)
                 walls_to_check.extend_from_slice(&config.roof_edge_walls);
@@ -268,22 +268,32 @@ pub fn players_movement_system(
                 .any(|wall| check_player_wall_sweep(&client_pos, &target_pos, wall))
             {
                 (
-                    calculate_wall_slide(&walls_to_check, &config.ramps, &client_pos, client_vel.x, client_vel.z, delta),
+                    calculate_wall_slide(
+                        &walls_to_check,
+                        &config.ramps,
+                        &client_pos,
+                        client_vel.x,
+                        client_vel.z,
+                        delta,
+                    ),
                     true,
                 )
             } else {
                 (target_pos, false)
             }
         });
-        
+
         // Now calculate final Y based on the collision-adjusted X/Z position
         let final_target = if let Some(config) = wall_config.as_ref() {
-            let ramp_height = calculate_height_at_position(&config.ramps, wall_adjusted_target.x, wall_adjusted_target.z);
+            let ramp_height =
+                calculate_height_at_position(&config.ramps, wall_adjusted_target.x, wall_adjusted_target.z);
             let final_y = if ramp_height > 0.0 {
                 ramp_height
-            } else if config.is_position_on_roof(wall_adjusted_target.x, wall_adjusted_target.z) && is_on_roof(client_pos.y) {
+            } else if config.is_position_on_roof(wall_adjusted_target.x, wall_adjusted_target.z)
+                && is_on_roof(client_pos.y)
+            {
                 // Only stay on roof if already at roof height
-                common::constants::ROOF_HEIGHT
+                ROOF_HEIGHT
             } else {
                 0.0
             };

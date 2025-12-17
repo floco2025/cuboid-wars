@@ -1,16 +1,17 @@
 use bevy::prelude::*;
 
-use crate::resources::{GridConfig, PlayerMap};
+use crate::{
+    resources::{GridConfig, PlayerMap},
+    systems::network::broadcast_to_all,
+};
 use common::{
     collision::{calculate_wall_slide, check_player_wall_sweep},
-    constants::POWER_UP_SPEED_MULTIPLIER,
+    constants::{POWER_UP_SPEED_MULTIPLIER, ROOF_HEIGHT},
     markers::PlayerMarker,
     players::{PlannedMove, overlaps_other_player},
     protocol::{PlayerId, Position, SPlayerStatus, ServerMessage, Speed, Wall},
     ramps::{calculate_height_at_position, is_on_roof},
 };
-
-use super::network::broadcast_to_all;
 
 // ============================================================================
 // Players Movement System
@@ -77,7 +78,7 @@ pub fn players_movement_system(
             .is_some_and(|info| info.phasing_power_up_timer > 0.0);
 
         let mut walls_to_check = Vec::new();
-        
+
         if is_on_roof(pos.y) {
             // On roof: only roof edge walls (which have openings at ramp connections)
             walls_to_check.extend_from_slice(&grid_config.roof_edge_walls);
@@ -104,7 +105,7 @@ pub fn players_movement_system(
         } else {
             (new_pos_xz, false)
         };
-        
+
         // Now calculate final Y based on the collision-adjusted X/Z position
         let final_y = {
             let ramp_height = calculate_height_at_position(&grid_config.ramps, target_xz.x, target_xz.z);
@@ -112,12 +113,12 @@ pub fn players_movement_system(
                 ramp_height
             } else if grid_config.is_position_on_roof(target_xz.x, target_xz.z) && is_on_roof(pos.y) {
                 // Only stay on roof if already at roof height
-                common::constants::ROOF_HEIGHT
+                ROOF_HEIGHT
             } else {
                 0.0
             }
         };
-        
+
         let target = Position {
             x: target_xz.x,
             y: final_y,

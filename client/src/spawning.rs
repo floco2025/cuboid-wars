@@ -280,13 +280,17 @@ fn build_ramp_meshes(x1: f32, z1: f32, x2: f32, z2: f32, y_low: f32, y_high: f32
     let max_z = z1.max(z2);
 
     let slope_axis_x = (x2 - x1).abs() >= (z2 - z1).abs();
-    let (y_lo, y_hi) = if y_low <= y_high { (y_low, y_high) } else { (y_high, y_low) };
+    let (y_lo, y_hi) = if y_low <= y_high {
+        (y_low, y_high)
+    } else {
+        (y_high, y_low)
+    };
     let tile_top = TEXTURE_FLOOR_TILE_SIZE;
     let tile_side = TEXTURE_WALL_TILE_SIZE;
 
     // Determine direction: does the ramp go in positive or negative direction?
-    let x_direction_positive = x2 > x1;  // true if ramp rises in +X direction
-    let z_direction_positive = z2 > z1;  // true if ramp rises in +Z direction
+    let x_direction_positive = x2 > x1; // true if ramp rises in +X direction
+    let z_direction_positive = z2 > z1; // true if ramp rises in +Z direction
 
     // Build vertices: low edge at (x1, z1), high edge at (x2, z2)
     let (a, b, c, d, e, f) = if slope_axis_x {
