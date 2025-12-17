@@ -4,7 +4,7 @@ use std::collections::{HashSet, VecDeque};
 use crate::{
     constants::{
         MERGE_ROOF_SEGMENTS, MERGE_WALL_SEGMENTS, OVERLAP_ROOFS, OVERLAP_WALLS, ROOF_NEIGHBOR_PREFERENCE,
-        ROOF_NUM_SEGMENTS, RAMP_COUNT, RAMP_LENGTH_CELLS, RAMP_WIDTH_CELLS,
+        ROOF_NUM_SEGMENTS, RAMP_COUNT, RAMP_LENGTH_CELLS, RAMP_MIN_SEPARATION_CELLS, RAMP_WIDTH_CELLS,
         WALL_2ND_PROBABILITY_RATIO, WALL_3RD_PROBABILITY_RATIO, WALL_NUM_SEGMENTS,
     },
     resources::{GridCell, GridConfig},
@@ -631,20 +631,38 @@ fn generate_ramps(grid: &mut [Vec<GridCell>], grid_cols: i32, grid_rows: i32) ->
     let mut rng = rand::rng();
     let mut ramps = Vec::new();
 
-    if grid_cols < RAMP_LENGTH_CELLS || grid_rows < RAMP_WIDTH_CELLS {
+    if grid_cols < RAMP_LENGTH_CELLS + 2 || grid_rows < RAMP_WIDTH_CELLS + 2 {
         return ramps;
     }
 
+    // Central exclusion zone where ramps cannot overlap
+    let center_width = grid_cols / 2;
+    let center_height = grid_rows / 2;
+    let center_col0 = (grid_cols - center_width) / 2;
+    let center_row0 = (grid_rows - center_height) / 2;
+    let center_col1 = center_col0 + center_width;
+    let center_row1 = center_row0 + center_height;
+
     // Enumerate every legal footprint in both orientations, then shuffle
     let mut candidates = Vec::new();
-    for col0 in 0..=grid_cols - RAMP_LENGTH_CELLS {
-        for row0 in 0..=grid_rows - RAMP_WIDTH_CELLS {
-            candidates.push((col0, row0, true));
+
+    let max_col_x = grid_cols - RAMP_LENGTH_CELLS - 1;
+    let max_row_x = grid_rows - RAMP_WIDTH_CELLS - 1;
+    if max_col_x >= 1 && max_row_x >= 1 {
+        for col0 in 1..=max_col_x {
+            for row0 in 1..=max_row_x {
+                candidates.push((col0, row0, true));
+            }
         }
     }
-    for col0 in 0..=grid_cols - RAMP_WIDTH_CELLS {
-        for row0 in 0..=grid_rows - RAMP_LENGTH_CELLS {
-            candidates.push((col0, row0, false));
+
+    let max_col_z = grid_cols - RAMP_WIDTH_CELLS - 1;
+    let max_row_z = grid_rows - RAMP_LENGTH_CELLS - 1;
+    if max_col_z >= 1 && max_row_z >= 1 {
+        for col0 in 1..=max_col_z {
+            for row0 in 1..=max_row_z {
+                candidates.push((col0, row0, false));
+            }
         }
     }
     for i in (1..candidates.len()).rev() {
@@ -666,17 +684,31 @@ fn generate_ramps(grid: &mut [Vec<GridCell>], grid_cols: i32, grid_rows: i32) ->
         let col_end = col0 + len_cells;
         let row_end = row0 + width_cells;
 
-        // Reject overlaps with already-placed ramps
+        // Skip ramps that overlap the central exclusion rectangle
+        if center_width > 0
+            && center_height > 0
+            && col0 < center_col1
+            && col_end > center_col0
+            && row0 < center_row1
+            && row_end > center_row0
+        {
+            continue;
+        }
+
+        // Reject overlaps and enforce separation padding around existing ramps
         let mut overlaps = false;
-        for col in col0..col_end {
-            for row in row0..row_end {
+        let pad = RAMP_MIN_SEPARATION_CELLS;
+        let col_start_pad = (col0 - pad).max(0);
+        let col_end_pad = (col_end + pad).min(grid_cols);
+        let row_start_pad = (row0 - pad).max(0);
+        let row_end_pad = (row_end + pad).min(grid_rows);
+
+        'check: for col in col_start_pad..col_end_pad {
+            for row in row_start_pad..row_end_pad {
                 if grid[row as usize][col as usize].has_ramp {
                     overlaps = true;
-                    break;
+                    break 'check;
                 }
-            }
-            if overlaps {
-                break;
             }
         }
         if overlaps {

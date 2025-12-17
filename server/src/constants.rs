@@ -37,7 +37,7 @@ pub const POWER_UP_GHOST_HUNT_DURATION: f32 = 15.0; // seconds
 pub const RAMP_COUNT: usize = 100; // Place exactly two ramps
 pub const RAMP_LENGTH_CELLS: i32 = 2; // Run length in grid cells
 pub const RAMP_WIDTH_CELLS: i32 = 1; // Footprint width in grid cells
-pub const RAMP_MIN_SEPARATION_CELLS: i32 = 3; // Min spacing between ramps on both axes
+pub const RAMP_MIN_SEPARATION_CELLS: i32 = 1; // Minimum empty cells between ramps on all sides
 
 // Ghost settings
 pub const GHOSTS_NUM: u32 = 0; // Number of ghosts to spawn
