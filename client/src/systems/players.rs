@@ -13,7 +13,7 @@ use common::{
     markers::PlayerMarker,
     players::{PlannedMove, overlaps_other_player},
     protocol::{FaceDirection, PlayerId, Position, Velocity, Wall},
-    ramps::{calculate_height_at_position, is_on_ramp},
+    ramps::calculate_height_at_position,
 };
 
 // ============================================================================
@@ -258,14 +258,9 @@ pub fn players_movement_system(
                 &config.all_walls
             };
 
-            // Only add ramp side walls if currently OFF ramp and destination ON ramp
-            // This blocks entering from side but allows exiting and moving while on ramp
+            // Always include ramp side walls - treat them like normal walls
             let mut walls_to_check = base_walls.to_vec();
-            let current_on_ramp = is_on_ramp(&config.ramps, client_pos.x, client_pos.z);
-            let target_on_ramp = is_on_ramp(&config.ramps, target_pos.x, target_pos.z);
-            if !current_on_ramp && target_on_ramp {
-                walls_to_check.extend_from_slice(&config.ramp_side_walls);
-            }
+            walls_to_check.extend_from_slice(&config.ramp_side_walls);
 
             // Check wall collision and calculate target (with sliding if hit)
             if walls_to_check
