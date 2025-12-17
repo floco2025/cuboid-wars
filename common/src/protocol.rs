@@ -17,12 +17,12 @@ macro_rules! message {
 // ============================================================================
 
 // Position component - 3D coordinates in meters (Bevy's coordinate system: X, Y=up, Z).
-// Stored as individual fields for serialization; Y is effectively 0 for the flat arena.
+// Stored as individual fields for serialization; Y varies based on ramps and roofs.
 message! {
 #[derive(Copy, Component, PartialEq, Default)]
 struct Position {
     pub x: f32, // meters
-    pub y: f32, // meters (up/down - always 0 for now)
+    pub y: f32, // meters (up/down - elevation from ramps/roofs)
     pub z: f32, // meters
 }
 }

@@ -582,7 +582,7 @@ fn follow_movement(
     }
 
     if collides {
-        final_pos = calculate_ghost_wall_slide(walls, pos, desired_vel.x, desired_vel.z, delta);
+        final_pos = calculate_ghost_wall_slide(walls, &[], pos, desired_vel.x, desired_vel.z, delta);
     }
 
     let actual_dx = final_pos.x - pos.x;

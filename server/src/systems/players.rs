@@ -7,6 +7,7 @@ use common::{
     markers::PlayerMarker,
     players::{PlannedMove, overlaps_other_player},
     protocol::{PlayerId, Position, SPlayerStatus, ServerMessage, Speed, Wall},
+    ramps::calculate_height_at_position,
 };
 
 use super::network::broadcast_to_all;
@@ -64,7 +65,7 @@ pub fn players_movement_system(
 
         let new_pos = Position {
             x: velocity.x.mul_add(delta, pos.x),
-            y: pos.y,
+            y: calculate_height_at_position(&grid_config.ramps, velocity.x.mul_add(delta, pos.x), velocity.z.mul_add(delta, pos.z)),
             z: velocity.z.mul_add(delta, pos.z),
         };
 
@@ -86,7 +87,7 @@ pub fn players_movement_system(
             .any(|wall| check_player_wall_sweep(pos, &new_pos, wall))
         {
             (
-                calculate_wall_slide(walls_to_check, pos, velocity.x, velocity.z, delta),
+                calculate_wall_slide(walls_to_check, &grid_config.ramps, pos, velocity.x, velocity.z, delta),
                 true,
             )
         } else {

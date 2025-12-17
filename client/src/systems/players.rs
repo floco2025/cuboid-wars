@@ -13,6 +13,7 @@ use common::{
     markers::PlayerMarker,
     players::{PlannedMove, overlaps_other_player},
     protocol::{FaceDirection, PlayerId, Position, Velocity, Wall},
+    ramps::calculate_height_at_position,
 };
 
 // ============================================================================
@@ -213,16 +214,27 @@ pub fn players_movement_system(
             let dx = total_dx * delta * correction_factor / UPDATE_BROADCAST_INTERVAL;
             let dz = total_dz * delta * correction_factor / UPDATE_BROADCAST_INTERVAL;
 
+            let new_x = client_vel.x.mul_add(delta, client_pos.x) + dx;
+            let new_z = client_vel.z.mul_add(delta, client_pos.z) + dz;
+            let new_y = wall_config
+                .as_ref()
+                .map_or(0.0, |config| calculate_height_at_position(&config.ramps, new_x, new_z));
+
             Position {
-                x: client_vel.x.mul_add(delta, client_pos.x) + dx,
-                y: client_pos.y,
-                z: client_vel.z.mul_add(delta, client_pos.z) + dz,
+                x: new_x,
+                y: new_y,
+                z: new_z,
             }
         } else {
+            let new_x = client_vel.x.mul_add(delta, client_pos.x);
+            let new_z = client_vel.z.mul_add(delta, client_pos.z);
+            let new_y = wall_config
+                .as_ref()
+                .map_or(0.0, |config| calculate_height_at_position(&config.ramps, new_x, new_z));
             Position {
-                x: client_vel.x.mul_add(delta, client_pos.x),
-                y: client_pos.y,
-                z: client_vel.z.mul_add(delta, client_pos.z),
+                x: new_x,
+                y: new_y,
+                z: new_z,
             }
         };
 
@@ -252,7 +264,7 @@ pub fn players_movement_system(
                 .any(|wall| check_player_wall_sweep(&client_pos, &target_pos, wall))
             {
                 (
-                    calculate_wall_slide(walls_to_check, &client_pos, client_vel.x, client_vel.z, delta),
+                    calculate_wall_slide(walls_to_check, &config.ramps, &client_pos, client_vel.x, client_vel.z, delta),
                     true,
                 )
             } else {
@@ -376,7 +388,7 @@ pub fn local_player_camera_sync_system(
             CameraViewMode::FirstPerson => {
                 camera_transform.translation.x = player_pos.x;
                 camera_transform.translation.z = player_pos.z;
-                camera_transform.translation.y = PLAYER_HEIGHT * FPV_CAMERA_HEIGHT_RATIO;
+                camera_transform.translation.y = player_pos.y + PLAYER_HEIGHT * FPV_CAMERA_HEIGHT_RATIO;
 
                 if let Some(shake) = maybe_shake {
                     camera_transform.translation.x += shake.offset_x;
@@ -429,7 +441,7 @@ pub fn players_transform_sync_system(
     for (pos, mut transform, maybe_shake) in &mut player_query {
         // Base position
         transform.translation.x = pos.x;
-        transform.translation.y = PLAYER_HEIGHT / 2.0; // Lift so bottom is at ground (y=0)
+        transform.translation.y = pos.y + PLAYER_HEIGHT / 2.0; // Lift so bottom is at pos.y
         transform.translation.z = pos.z;
 
         // Apply shake offset if active
@@ -470,7 +482,7 @@ pub fn local_player_rearview_sync_system(
     if *view_mode == CameraViewMode::FirstPerson {
         rearview_transform.translation.x = player_pos.x;
         rearview_transform.translation.z = player_pos.z;
-        rearview_transform.translation.y = PLAYER_HEIGHT * FPV_CAMERA_HEIGHT_RATIO;
+        rearview_transform.translation.y = player_pos.y + PLAYER_HEIGHT * FPV_CAMERA_HEIGHT_RATIO;
 
         // Get the main camera's rotation and rotate 180 degrees
         if let Ok(main_transform) = main_camera_query.single() {

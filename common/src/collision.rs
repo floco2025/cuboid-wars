@@ -4,7 +4,8 @@ use bevy_time::{Timer, TimerMode};
 
 use crate::{
     constants::*,
-    protocol::{Position, Wall},
+    protocol::{Position, Ramp, Wall},
+    ramps::calculate_height_at_position,
 };
 
 // ============================================================================
@@ -124,6 +125,7 @@ fn check_aabb_wall_sweep(start_pos: &Position, end_pos: &Position, wall: &Wall, 
 // Generic wall sliding calculation with parameterized collision check function
 fn calculate_entity_wall_slide<F>(
     walls: &[Wall],
+    ramps: &[Ramp],
     current_pos: &Position,
     velocity_x: f32,
     velocity_z: f32,
@@ -134,19 +136,21 @@ where
     F: Fn(&Position, &Wall) -> bool,
 {
     // Try moving only in X direction
+    let x_only_x = velocity_x.mul_add(delta, current_pos.x);
     let x_only_pos = Position {
-        x: velocity_x.mul_add(delta, current_pos.x),
-        y: current_pos.y,
+        x: x_only_x,
+        y: calculate_height_at_position(ramps, x_only_x, current_pos.z),
         z: current_pos.z,
     };
 
     let x_collides = walls.iter().any(|w| collision_check(&x_only_pos, w));
 
     // Try moving only in Z direction
+    let z_only_z = velocity_z.mul_add(delta, current_pos.z);
     let z_only_pos = Position {
         x: current_pos.x,
-        y: current_pos.y,
-        z: velocity_z.mul_add(delta, current_pos.z),
+        y: calculate_height_at_position(ramps, current_pos.x, z_only_z),
+        z: z_only_z,
     };
 
     let z_collides = walls.iter().any(|w| collision_check(&z_only_pos, w));
@@ -490,6 +494,7 @@ pub fn check_player_wall_sweep(start_pos: &Position, end_pos: &Position, wall: &
 #[must_use]
 pub fn calculate_wall_slide(
     walls: &[Wall],
+    ramps: &[Ramp],
     current_pos: &Position,
     velocity_x: f32,
     velocity_z: f32,
@@ -497,6 +502,7 @@ pub fn calculate_wall_slide(
 ) -> Position {
     calculate_entity_wall_slide(
         walls,
+        ramps,
         current_pos,
         velocity_x,
         velocity_z,
@@ -511,6 +517,7 @@ pub fn calculate_wall_slide(
 #[must_use]
 pub fn calculate_ghost_wall_slide(
     walls: &[Wall],
+    ramps: &[Ramp],
     current_pos: &Position,
     velocity_x: f32,
     velocity_z: f32,
@@ -518,6 +525,7 @@ pub fn calculate_ghost_wall_slide(
 ) -> Position {
     calculate_entity_wall_slide(
         walls,
+        ramps,
         current_pos,
         velocity_x,
         velocity_z,
