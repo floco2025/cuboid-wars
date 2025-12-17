@@ -4,13 +4,14 @@ use std::collections::{HashSet, VecDeque};
 use crate::{
     constants::{
         MERGE_ROOF_SEGMENTS, MERGE_WALL_SEGMENTS, OVERLAP_ROOFS, OVERLAP_WALLS, ROOF_NEIGHBOR_PREFERENCE,
-        ROOF_NUM_SEGMENTS, WALL_2ND_PROBABILITY_RATIO, WALL_3RD_PROBABILITY_RATIO, WALL_NUM_SEGMENTS,
+        ROOF_NUM_SEGMENTS, RAMP_COUNT, RAMP_LENGTH_CELLS, RAMP_MIN_SEPARATION_CELLS, RAMP_WIDTH_CELLS,
+        WALL_2ND_PROBABILITY_RATIO, WALL_3RD_PROBABILITY_RATIO, WALL_NUM_SEGMENTS,
     },
     resources::{GridCell, GridConfig},
 };
 use common::{
     constants::*,
-    protocol::{Position, Roof, Wall},
+    protocol::{Position, Ramp, Roof, Wall},
 };
 
 // ============================================================================
@@ -153,6 +154,9 @@ pub fn generate_grid() -> GridConfig {
         }
     }
 
+    // Generate ramps early so wall placement can respect ramp bases
+    let ramps = generate_ramps(&mut grid, grid_cols, grid_rows);
+
     // Generate list of all possible interior walls
     // Each wall is represented as (row, col, direction) where direction is: 0=south, 1=east
     let mut possible_walls = Vec::new();
@@ -194,6 +198,26 @@ pub fn generate_grid() -> GridConfig {
         };
 
         if already_has_wall {
+            continue;
+        }
+
+        // Disallow walls that would block a ramp base or run through ramp cells
+        let ramp_blocked = match direction {
+            // south wall between (row,col) and (row+1,col)
+            0 => cell.ramp_base_south
+                || (row + 1 < grid_rows && grid[(row + 1) as usize][col as usize].ramp_base_north)
+                || (cell.has_ramp
+                    && row + 1 < grid_rows
+                    && grid[(row + 1) as usize][col as usize].has_ramp),
+            // east wall between (row,col) and (row,col+1)
+            1 => cell.ramp_base_east
+                || (col + 1 < grid_cols && grid[row as usize][(col + 1) as usize].ramp_base_west)
+                || (cell.has_ramp
+                    && col + 1 < grid_cols
+                    && grid[row as usize][(col + 1) as usize].has_ramp),
+            _ => false,
+        };
+        if ramp_blocked {
             continue;
         }
 
@@ -304,6 +328,7 @@ pub fn generate_grid() -> GridConfig {
         interior_walls,
         all_walls: walls,
         roofs,
+        ramps,
     }
 }
 
@@ -485,7 +510,7 @@ fn generate_individual_roofs(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: 
 
         for row in 0..grid_rows {
             for col in 0..grid_cols {
-                if roof_cells.contains(&(row, col)) {
+                if roof_cells.contains(&(row, col)) || grid[row as usize][col as usize].has_ramp {
                     continue;
                 }
 
@@ -599,6 +624,143 @@ fn generate_individual_roofs(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: 
     }
 
     roofs
+}
+
+// Generate ramps as right triangular prisms using opposite corners
+fn generate_ramps(grid: &mut [Vec<GridCell>], grid_cols: i32, grid_rows: i32) -> Vec<Ramp> {
+    let mut rng = rand::rng();
+    let mut ramps = Vec::new();
+    let mut centers: Vec<(f32, f32)> = Vec::new();
+
+    // Require enough space for the footprint
+    if grid_cols < RAMP_LENGTH_CELLS || grid_rows < RAMP_WIDTH_CELLS {
+        return ramps;
+    }
+
+    // Avoid perimeter to keep boundary walls intact
+    let min_col_start = 1;
+    let min_row_start = 1;
+    let max_col_start = (grid_cols - RAMP_LENGTH_CELLS - 1).max(min_col_start);
+    let max_row_start = (grid_rows - RAMP_WIDTH_CELLS - 1).max(min_row_start);
+    if max_col_start < min_col_start || max_row_start < min_row_start {
+        return ramps;
+    }
+    let max_attempts = 200;
+
+    let grid_center_col = grid_cols as f32 / 2.0;
+    let grid_center_row = grid_rows as f32 / 2.0;
+
+    for _ in 0..max_attempts {
+        if ramps.len() >= RAMP_COUNT {
+            break;
+        }
+
+        let along_x = rng.random_bool(0.5);
+
+        let col0 = rng.random_range(min_col_start..=max_col_start);
+        let row0 = rng.random_range(min_row_start..=max_row_start);
+
+        let (low_col, high_col, low_row, high_row, slope_axis_x) = if along_x {
+            // Run along +X or -X depending on which end is nearer center
+            let pos_end = col0 + RAMP_LENGTH_CELLS;
+            let neg_end = col0;
+            let row_end = row0 + RAMP_WIDTH_CELLS;
+
+            let dist_pos = ((pos_end as f32) - grid_center_col).abs();
+            let dist_neg = ((neg_end as f32) - grid_center_col).abs();
+
+            if dist_pos < dist_neg {
+                // High end at +X
+                (col0, pos_end, row0, row_end, true)
+            } else {
+                // High end at -X
+                (col0 + RAMP_LENGTH_CELLS, col0, row0, row_end, true)
+            }
+        } else {
+            // Run along +Z or -Z depending on center
+            let pos_end = row0 + RAMP_LENGTH_CELLS;
+            let neg_end = row0;
+            let col_end = col0 + RAMP_WIDTH_CELLS;
+
+            let dist_pos = ((pos_end as f32) - grid_center_row).abs();
+            let dist_neg = ((neg_end as f32) - grid_center_row).abs();
+
+            if dist_pos < dist_neg {
+                (col0, col_end, row0, pos_end, false)
+            } else {
+                (col0, col_end, row0 + RAMP_LENGTH_CELLS, row0, false)
+            }
+        };
+
+        // Enforce separation from already placed ramps using footprint centers
+        let center_col = (low_col + high_col) as f32 / 2.0;
+        let center_row = (low_row + high_row) as f32 / 2.0;
+        let too_close = centers.iter().any(|(c, r)| {
+            (center_col - *c).abs() < RAMP_MIN_SEPARATION_CELLS as f32
+                && (center_row - *r).abs() < RAMP_MIN_SEPARATION_CELLS as f32
+        });
+        if too_close {
+            continue;
+        }
+
+        // Convert grid corners (cell edges) to world coordinates
+        let x1 = (low_col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+        let z1 = (low_row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+        let x2 = (high_col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+        let z2 = (high_row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+
+        // Mark ramp base edges to prevent wall placement
+        // Mark ramp base edges to prevent wall placement and flag ramp cells
+        if slope_axis_x {
+            let is_pos = high_col > low_col; // high end on +X if true
+            let base_col = if is_pos { low_col } else { high_col };
+            for row in low_row..high_row {
+                let cell = &mut grid[row as usize][base_col as usize];
+                cell.has_ramp = true;
+                if is_pos {
+                    cell.ramp_base_west = true;
+                } else {
+                    cell.ramp_base_east = true;
+                }
+            }
+            // Mark ramp cells across width
+            for col in low_col..high_col {
+                for row in low_row..high_row {
+                    grid[row as usize][col as usize].has_ramp = true;
+                }
+            }
+        } else {
+            let is_pos = high_row > low_row; // high end on +Z if true
+            let base_row = if is_pos { low_row } else { high_row };
+            for col in low_col..high_col {
+                let cell = &mut grid[base_row as usize][col as usize];
+                cell.has_ramp = true;
+                if is_pos {
+                    cell.ramp_base_north = true;
+                } else {
+                    cell.ramp_base_south = true;
+                }
+            }
+            // Mark ramp cells across width
+            for col in low_col..high_col {
+                for row in low_row..high_row {
+                    grid[row as usize][col as usize].has_ramp = true;
+                }
+            }
+        }
+
+        ramps.push(Ramp {
+            x1,
+            y1: 0.0,
+            z1,
+            x2,
+            y2: WALL_HEIGHT,
+            z2,
+        });
+        centers.push((center_col, center_row));
+    }
+
+    ramps
 }
 
 // ============================================================================

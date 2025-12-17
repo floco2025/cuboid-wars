@@ -9,7 +9,7 @@ use tokio::sync::mpsc::{
 };
 
 use crate::net::{ClientToServer, ServerToClient};
-use common::protocol::{GhostId, ItemId, PlayerId, Roof, Wall};
+use common::protocol::{GhostId, ItemId, PlayerId, Ramp, Roof, Wall};
 
 // ============================================================================
 // Bevy Resources
@@ -22,6 +22,7 @@ pub struct WallConfig {
     pub interior_walls: Vec<Wall>,
     pub all_walls: Vec<Wall>, // Pre-computed: boundary + interior
     pub roofs: Vec<Roof>,
+    pub ramps: Vec<Ramp>,
 }
 
 // My player ID assigned by the server

@@ -16,6 +16,12 @@ pub struct GridCell {
     pub has_south_wall: bool, // Horizontal wall at bottom edge (z+1)
     pub has_west_wall: bool,  // Vertical wall at left edge (x)
     pub has_east_wall: bool,  // Vertical wall at right edge (x+1)
+    pub has_ramp: bool,       // Cell occupied by a ramp footprint
+    // Ramp bases disallow walls on their entry edge
+    pub ramp_base_north: bool,
+    pub ramp_base_south: bool,
+    pub ramp_base_west: bool,
+    pub ramp_base_east: bool,
 }
 
 // Grid configuration - generated once at server startup
@@ -26,6 +32,7 @@ pub struct GridConfig {
     pub interior_walls: Vec<Wall>,
     pub all_walls: Vec<Wall>, // Pre-computed: boundary + interior
     pub roofs: Vec<Roof>,
+    pub ramps: Vec<Ramp>,
 }
 
 // Player information (server-side)

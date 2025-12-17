@@ -125,6 +125,24 @@ struct Roof {
 }
 }
 
+// Ramp - right triangular prism defined by low and high opposite corners
+// Convention:
+// - (x1, y1, z1) is on the floor at the low edge.
+// - (x2, y2, z2) is on the roof at the opposite corner (high edge).
+// - Footprint is the axis-aligned rectangle spanned by (x1, z1) and (x2, z2).
+// - Slope runs from the low edge to the high edge across that rectangle.
+message! {
+#[derive(Copy)]
+struct Ramp {
+    pub x1: f32,
+    pub y1: f32,
+    pub z1: f32,
+    pub x2: f32,
+    pub y2: f32,
+    pub z2: f32,
+}
+}
+
 // Item type - different types of items.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Encode, Decode)]
 pub enum ItemType {
@@ -209,6 +227,7 @@ struct SInit {
     pub boundary_walls: Vec<Wall>,
     pub interior_walls: Vec<Wall>,
     pub roofs: Vec<Roof>,
+    pub ramps: Vec<Ramp>,
 }
 }
 

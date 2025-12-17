@@ -54,9 +54,10 @@ async fn main() -> Result<()> {
 
     let grid_config = generate_grid();
     info!(
-        "generated {} wall segments and {} roofs",
+        "generated {} wall segments, {} roofs, {} ramps",
         grid_config.all_walls.len(),
-        grid_config.roofs.len()
+        grid_config.roofs.len(),
+        grid_config.ramps.len()
     );
 
     app.add_plugins(MinimalPlugins)

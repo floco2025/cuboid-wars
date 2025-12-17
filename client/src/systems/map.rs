@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use crate::{
     constants::{TOPDOWN_ROOF_ALPHA, TOPDOWN_WALL_ALPHA},
     resources::{CameraViewMode, RoofRenderingEnabled, WallConfig},
-    spawning::{spawn_roof, spawn_wall},
+    spawning::{spawn_ramp, spawn_roof, spawn_wall},
 };
 
 // ============================================================================
@@ -41,9 +41,10 @@ pub fn map_spawn_walls_system(
     }
 
     info!(
-        "spawning {} wall segments and {} roofs",
+        "spawning {} wall segments, {} roofs, {} ramps",
         wall_config.all_walls.len(),
-        wall_config.roofs.len()
+        wall_config.roofs.len(),
+        wall_config.ramps.len()
     );
 
     for wall in &wall_config.all_walls {
@@ -52,6 +53,10 @@ pub fn map_spawn_walls_system(
 
     for roof in &wall_config.roofs {
         spawn_roof(&mut commands, &mut meshes, &mut materials, &asset_server, roof);
+    }
+
+    for ramp in &wall_config.ramps {
+        spawn_ramp(&mut commands, &mut meshes, &mut materials, &asset_server, ramp);
     }
 
     *spawned = true;

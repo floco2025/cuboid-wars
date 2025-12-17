@@ -33,6 +33,9 @@ pub struct PlayerIdTextMeshMarker;
 #[derive(Component)]
 pub struct ItemAnimTimer(pub f32);
 
+#[derive(Component)]
+pub struct RampMarker;
+
 // ============================================================================
 // Bundles
 // ============================================================================
@@ -131,6 +134,15 @@ struct RoofBundle {
     transform: Transform,
     visibility: Visibility,
     marker: RoofMarker,
+}
+
+#[derive(Bundle)]
+struct RampBundle {
+    mesh: Mesh3d,
+    material: MeshMaterial3d<StandardMaterial>,
+    transform: Transform,
+    visibility: Visibility,
+    marker: RampMarker,
 }
 
 // ============================================================================
@@ -256,6 +268,95 @@ fn tiled_cuboid(size_x: f32, size_y: f32, size_z: f32, tile_size: f32) -> Mesh {
     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
     mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
     mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
+    mesh
+}
+
+// Build a ramp mesh: rectangular footprint, sloped top (two triangles), vertical high face, and two sloped side triangles.
+fn build_ramp_mesh(x1: f32, z1: f32, x2: f32, z2: f32, y_low: f32, y_high: f32) -> Mesh {
+    let min_x = x1.min(x2);
+    let max_x = x1.max(x2);
+    let min_z = z1.min(z2);
+    let max_z = z1.max(z2);
+
+    let slope_axis_x = (x2 - x1).abs() >= (z2 - z1).abs();
+    let (y_lo, y_hi) = if y_low <= y_high { (y_low, y_high) } else { (y_high, y_low) };
+    let tile = TEXTURE_WALL_TILE_SIZE;
+
+    // Vertices: a/b are low edge, c/d are high edge, e/f are high-side bottoms for the vertical face.
+    let (a, b, c, d, e, f) = if slope_axis_x {
+        // High edge on +X side
+        (
+            [min_x, y_lo, min_z], // a: low south
+            [min_x, y_lo, max_z], // b: low north
+            [max_x, y_hi, min_z], // c: high south (top)
+            [max_x, y_hi, max_z], // d: high north (top)
+            [max_x, y_lo, min_z], // e: high south (bottom)
+            [max_x, y_lo, max_z], // f: high north (bottom)
+        )
+    } else {
+        // High edge on +Z side
+        (
+            [min_x, y_lo, min_z], // a: low west-south
+            [max_x, y_lo, min_z], // b: low east-south
+            [min_x, y_hi, max_z], // c: high west-north (top)
+            [max_x, y_hi, max_z], // d: high east-north (top)
+            [min_x, y_lo, max_z], // e: high west-north (bottom)
+            [max_x, y_lo, max_z], // f: high east-north (bottom)
+        )
+    };
+
+    let mut positions = Vec::with_capacity(18);
+    let mut normals = Vec::with_capacity(18);
+    let mut uvs = Vec::with_capacity(18);
+
+    let mut push_tri = |p0: [f32; 3], p1: [f32; 3], p2: [f32; 3], uv0: [f32; 2], uv1: [f32; 2], uv2: [f32; 2]| {
+        let u = Vec3::new(p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]);
+        let v = Vec3::new(p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2]);
+        let normal = u.cross(v).normalize_or_zero();
+
+        positions.extend_from_slice(&[p0, p1, p2]);
+        normals.extend_from_slice(&[[normal.x, normal.y, normal.z]; 3]);
+        uvs.extend_from_slice(&[uv0, uv1, uv2]);
+    };
+
+    // UV helpers: top maps X/Z; vertical faces map horizontal axis to U and height to V.
+    let uv_top = |p: [f32; 3]| -> [f32; 2] { [(p[0] - min_x) / tile, (p[2] - min_z) / tile] };
+    let uv_vert_x = |p: [f32; 3]| -> [f32; 2] { [(p[2] - min_z) / tile, (p[1] - y_lo) / tile] };
+    let uv_vert_z = |p: [f32; 3]| -> [f32; 2] { [(p[0] - min_x) / tile, (p[1] - y_lo) / tile] };
+
+    if slope_axis_x {
+        // Top (upward-ish normal)
+        push_tri(a, b, d, uv_top(a), uv_top(b), uv_top(d));
+        push_tri(a, d, c, uv_top(a), uv_top(d), uv_top(c));
+
+        // High vertical face (+X)
+        push_tri(e, c, d, uv_vert_x(e), uv_vert_x(c), uv_vert_x(d));
+        push_tri(e, d, f, uv_vert_x(e), uv_vert_x(d), uv_vert_x(f));
+
+        // South face (-Z)
+        push_tri(a, c, e, uv_vert_z(a), uv_vert_z(c), uv_vert_z(e));
+        // North face (+Z)
+        push_tri(b, f, d, uv_vert_z(b), uv_vert_z(f), uv_vert_z(d));
+    } else {
+        // Top (upward-ish normal)
+        push_tri(a, c, d, uv_top(a), uv_top(c), uv_top(d));
+        push_tri(a, d, b, uv_top(a), uv_top(d), uv_top(b));
+
+        // High vertical face (+Z)
+        push_tri(e, f, d, uv_vert_z(e), uv_vert_z(f), uv_vert_z(d));
+        push_tri(e, d, c, uv_vert_z(e), uv_vert_z(d), uv_vert_z(c));
+
+        // West face (-X)
+        push_tri(a, e, c, uv_vert_x(a), uv_vert_x(e), uv_vert_x(c));
+        // East face (+X)
+        push_tri(b, d, f, uv_vert_x(b), uv_vert_x(d), uv_vert_x(f));
+    }
+
+    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
+    let _ = mesh.generate_tangents();
     mesh
 }
 
@@ -710,6 +811,38 @@ pub fn spawn_roof(
         ),
         visibility: Visibility::Visible,
         marker: RoofMarker,
+    });
+}
+
+// Spawn a ramp entity based on shared `Ramp` config.
+pub fn spawn_ramp(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    asset_server: &Res<AssetServer>,
+    ramp: &Ramp,
+) {
+    // Build the mesh from the two opposite corners
+    let mesh = build_ramp_mesh(ramp.x1, ramp.z1, ramp.x2, ramp.z2, ramp.y1, ramp.y2);
+
+    // Use wall material for now
+    let mut ramp_material = StandardMaterial {
+        base_color_texture: Some(load_repeating_texture(asset_server, TEXTURE_WALL_ALBEDO)),
+        normal_map_texture: Some(load_repeating_texture_linear(asset_server, TEXTURE_WALL_NORMAL)),
+        occlusion_texture: Some(load_repeating_texture_linear(asset_server, TEXTURE_WALL_AO)),
+        perceptual_roughness: 0.7,
+        metallic: 0.0,
+        ..default()
+    };
+    ramp_material.alpha_mode = AlphaMode::Opaque; // ensure fully opaque ramps
+    ramp_material.base_color.set_alpha(1.0);
+
+    commands.spawn(RampBundle {
+        mesh: Mesh3d(meshes.add(mesh)),
+        material: MeshMaterial3d(materials.add(ramp_material)),
+        transform: Transform::default(),
+        visibility: Visibility::Visible,
+        marker: RampMarker,
     });
 }
 
