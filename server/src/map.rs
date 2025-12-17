@@ -205,13 +205,19 @@ pub fn generate_grid() -> GridConfig {
         let ramp_blocked = match direction {
             // south wall between (row,col) and (row+1,col)
             0 => cell.ramp_base_south
-                || (row + 1 < grid_rows && grid[(row + 1) as usize][col as usize].ramp_base_north)
+                || cell.ramp_top_south
+                || (row + 1 < grid_rows
+                    && (grid[(row + 1) as usize][col as usize].ramp_base_north
+                        || grid[(row + 1) as usize][col as usize].ramp_top_north))
                 || (cell.has_ramp
                     && row + 1 < grid_rows
                     && grid[(row + 1) as usize][col as usize].has_ramp),
             // east wall between (row,col) and (row,col+1)
             1 => cell.ramp_base_east
-                || (col + 1 < grid_cols && grid[row as usize][(col + 1) as usize].ramp_base_west)
+                || cell.ramp_top_east
+                || (col + 1 < grid_cols
+                    && (grid[row as usize][(col + 1) as usize].ramp_base_west
+                        || grid[row as usize][(col + 1) as usize].ramp_top_west))
                 || (cell.has_ramp
                     && col + 1 < grid_cols
                     && grid[row as usize][(col + 1) as usize].has_ramp),
@@ -723,9 +729,10 @@ fn generate_ramps(grid: &mut [Vec<GridCell>], grid_cols: i32, grid_rows: i32) ->
         let x2 = (col_end as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
         let z2 = (row_end as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
 
-        // Mark ramp base edge and footprint
+        // Mark ramp base/top edges and footprint
         if along_x {
             let base_col = if high_at_end { col0 } else { col_end - 1 };
+            let top_col = if high_at_end { col_end - 1 } else { col0 };
             for row in row0..row_end {
                 let cell = &mut grid[row as usize][base_col as usize];
                 cell.has_ramp = true;
@@ -735,8 +742,18 @@ fn generate_ramps(grid: &mut [Vec<GridCell>], grid_cols: i32, grid_rows: i32) ->
                     cell.ramp_base_east = true;
                 }
             }
+            for row in row0..row_end {
+                let cell = &mut grid[row as usize][top_col as usize];
+                cell.has_ramp = true;
+                if high_at_end {
+                    cell.ramp_top_east = true;
+                } else {
+                    cell.ramp_top_west = true;
+                }
+            }
         } else {
             let base_row = if high_at_end { row0 } else { row_end - 1 };
+            let top_row = if high_at_end { row_end - 1 } else { row0 };
             for col in col0..col_end {
                 let cell = &mut grid[base_row as usize][col as usize];
                 cell.has_ramp = true;
@@ -744,6 +761,15 @@ fn generate_ramps(grid: &mut [Vec<GridCell>], grid_cols: i32, grid_rows: i32) ->
                     cell.ramp_base_north = true;
                 } else {
                     cell.ramp_base_south = true;
+                }
+            }
+            for col in col0..col_end {
+                let cell = &mut grid[top_row as usize][col as usize];
+                cell.has_ramp = true;
+                if high_at_end {
+                    cell.ramp_top_south = true;
+                } else {
+                    cell.ramp_top_north = true;
                 }
             }
         }

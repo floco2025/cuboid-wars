@@ -22,6 +22,11 @@ pub struct GridCell {
     pub ramp_base_south: bool,
     pub ramp_base_west: bool,
     pub ramp_base_east: bool,
+    // Ramp tops disallow walls on their exit edge
+    pub ramp_top_north: bool,
+    pub ramp_top_south: bool,
+    pub ramp_top_west: bool,
+    pub ramp_top_east: bool,
 }
 
 // Grid configuration - generated once at server startup
