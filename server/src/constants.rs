@@ -3,7 +3,7 @@
 // ============================================================================
 
 // Wall generation settings
-pub const WALL_NUM_SEGMENTS: usize = 0; //45;
+pub const WALL_NUM_SEGMENTS: usize = 35; //45;
 pub const WALL_2ND_PROBABILITY_RATIO: f64 = 5.0; // Probability of 2nd wall relative to 1st
 pub const WALL_3RD_PROBABILITY_RATIO: f64 = 0.2; // Probability of 3rd wall relative to 1st
 
@@ -18,7 +18,7 @@ pub const MERGE_WALL_SEGMENTS: bool = true;
 pub const MERGE_ROOF_SEGMENTS: bool = true;
 
 // Roof generation settings
-pub const ROOF_NUM_SEGMENTS: usize = 0; // Target number of roof segments to generate
+pub const ROOF_NUM_SEGMENTS: usize = 40; // Target number of roof segments to generate
 pub const ROOF_NEIGHBOR_PREFERENCE: f64 = 4.0; // Multiplier for cells with roofed neighbors
 
 // Item settings
@@ -34,10 +34,10 @@ pub const POWER_UP_PHASING_DURATION: f32 = 15.0; // seconds
 pub const POWER_UP_GHOST_HUNT_DURATION: f32 = 15.0; // seconds
 
 // Ramp settings
-pub const RAMP_COUNT: usize = 10; // Max. number of ramps
+pub const RAMP_COUNT: usize = 5; // Max. number of ramps
 pub const RAMP_LENGTH_CELLS: i32 = 2; // Run length in grid cells
 pub const RAMP_WIDTH_CELLS: i32 = 1; // Footprint width in grid cells
-pub const RAMP_MIN_SEPARATION_CELLS: i32 = 0; // Minimum empty cells between ramps on all sides
+pub const RAMP_MIN_SEPARATION_CELLS: i32 = 3; // Minimum empty cells between ramps on all sides
 
 // Ghost settings
 pub const GHOSTS_NUM: u32 = 0; // Number of ghosts to spawn

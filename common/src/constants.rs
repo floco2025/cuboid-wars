@@ -32,6 +32,9 @@ pub const WALL_HEIGHT: f32 = 4.0; // Wall height
 pub const WALL_WIDTH: f32 = 0.2; // Wall thickness
 pub const WALL_LENGTH: f32 = 8.2; // Slightly longer than grid to avoid corner gaps
 
+// Roof dimensions (meters)
+pub const ROOF_THICKNESS: f32 = 0.4; // Roof thickness
+
 // Visual details (meters)
 pub const PLAYER_NOSE_RADIUS: f32 = 0.08;
 pub const PLAYER_EYE_RADIUS: f32 = 0.05;

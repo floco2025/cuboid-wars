@@ -544,6 +544,121 @@ fn generate_individual_roofs(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: 
 
     let mut roof_cells: HashSet<(i32, i32)> = HashSet::new();
 
+    // Phase 1: Find all cells adjacent to ramp tops
+    let mut ramp_top_adjacent: Vec<(i32, i32)> = Vec::new();
+    
+    for row in 0..grid_rows {
+        for col in 0..grid_cols {
+            let cell = grid[row as usize][col as usize];
+            
+            // Check each elevated edge and collect adjacent cells
+            if cell.ramp_top_north && row > 0 {
+                let neighbor = (row - 1, col);
+                if !grid[neighbor.0 as usize][neighbor.1 as usize].has_ramp {
+                    ramp_top_adjacent.push(neighbor);
+                }
+            }
+            if cell.ramp_top_south && row < grid_rows - 1 {
+                let neighbor = (row + 1, col);
+                if !grid[neighbor.0 as usize][neighbor.1 as usize].has_ramp {
+                    ramp_top_adjacent.push(neighbor);
+                }
+            }
+            if cell.ramp_top_west && col > 0 {
+                let neighbor = (row, col - 1);
+                if !grid[neighbor.0 as usize][neighbor.1 as usize].has_ramp {
+                    ramp_top_adjacent.push(neighbor);
+                }
+            }
+            if cell.ramp_top_east && col < grid_cols - 1 {
+                let neighbor = (row, col + 1);
+                if !grid[neighbor.0 as usize][neighbor.1 as usize].has_ramp {
+                    ramp_top_adjacent.push(neighbor);
+                }
+            }
+        }
+    }
+
+    // Connect each ramp-top-adjacent cell to its nearest neighbor
+    let mut connected_pairs: HashSet<(i32, i32)> = HashSet::new();
+    
+    for (i, &start) in ramp_top_adjacent.iter().enumerate() {
+        if connected_pairs.contains(&start) {
+            continue; // This one already has at least one connection
+        }
+
+        // Find nearest other ramp-adjacent cell
+        let mut nearest_target: Option<(i32, i32)> = None;
+        let mut nearest_dist = i32::MAX;
+
+        for (j, &other) in ramp_top_adjacent.iter().enumerate() {
+            if i == j {
+                continue;
+            }
+            let dist = (start.0 - other.0).abs() + (start.1 - other.1).abs();
+            if dist < nearest_dist {
+                nearest_dist = dist;
+                nearest_target = Some(other);
+            }
+        }
+
+        if let Some(target) = nearest_target {
+            // BFS to find shortest path from start to target
+            let mut queue = VecDeque::new();
+            let mut visited: HashSet<(i32, i32)> = HashSet::new();
+            let mut parent: std::collections::HashMap<(i32, i32), (i32, i32)> = std::collections::HashMap::new();
+
+            queue.push_back(start);
+            visited.insert(start);
+
+            let mut found = false;
+            while let Some((row, col)) = queue.pop_front() {
+                if (row, col) == target {
+                    found = true;
+                    break;
+                }
+
+                // Check all 4 neighbors
+                let neighbors = [
+                    (row - 1, col), // North
+                    (row + 1, col), // South
+                    (row, col - 1), // West
+                    (row, col + 1), // East
+                ];
+
+                for &(nr, nc) in &neighbors {
+                    if nr < 0 || nr >= grid_rows || nc < 0 || nc >= grid_cols {
+                        continue;
+                    }
+                    if visited.contains(&(nr, nc)) || grid[nr as usize][nc as usize].has_ramp {
+                        continue;
+                    }
+
+                    visited.insert((nr, nc));
+                    parent.insert((nr, nc), (row, col));
+                    queue.push_back((nr, nc));
+                }
+            }
+
+            // Trace back path and add to roof_cells
+            if found {
+                let mut current = target;
+                while current != start {
+                    roof_cells.insert(current);
+                    connected_pairs.insert(current);
+                    if let Some(&prev) = parent.get(&current) {
+                        current = prev;
+                    } else {
+                        break;
+                    }
+                }
+                roof_cells.insert(start);
+                connected_pairs.insert(start);
+            }
+        }
+    }
+
+    // Phase 2: Place remaining roofs using weighted selection
     // Iteratively place roofs until we reach target count
     while roof_cells.len() < ROOF_NUM_SEGMENTS {
         // Build weighted list of candidate cells
@@ -660,7 +775,7 @@ fn generate_individual_roofs(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: 
             z1: world_z1,
             x2: world_x2,
             z2: world_z2,
-            thickness: WALL_WIDTH,
+            thickness: ROOF_THICKNESS,
         });
     }
 
@@ -789,7 +904,7 @@ fn generate_ramps(grid: &mut [Vec<GridCell>], grid_cols: i32, grid_rows: i32) ->
             y1: 0.0,
             z1,
             x2,
-            y2: WALL_HEIGHT,
+            y2: WALL_HEIGHT + ROOF_THICKNESS, // Ramp top goes to top of roof
             z2,
         });
     }
