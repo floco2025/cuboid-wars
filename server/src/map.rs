@@ -744,26 +744,45 @@ fn generate_ramps(grid: &mut [Vec<GridCell>], grid_cols: i32, grid_rows: i32) ->
             }
         }
 
-        // Mark base (beginning/low) and top (end/high) edge flags
+        // Randomly decide which end is elevated
+        let high_at_end = rng.random_bool(0.5);
+
+        // Mark base (low) and top (high) edge flags
         if along_x {
-            // Ramp runs from col0 (west/low) to col_end-1 (east/high)
+            // Ramp along X: choose which end (west or east) is high
             for row in row0..row_end {
-                grid[row as usize][col0 as usize].ramp_base_west = true;
-                grid[row as usize][(col_end - 1) as usize].ramp_top_east = true;
+                if high_at_end {
+                    grid[row as usize][col0 as usize].ramp_base_west = true;
+                    grid[row as usize][(col_end - 1) as usize].ramp_top_east = true;
+                } else {
+                    grid[row as usize][(col_end - 1) as usize].ramp_base_east = true;
+                    grid[row as usize][col0 as usize].ramp_top_west = true;
+                }
             }
         } else {
-            // Ramp runs from row0 (north/low) to row_end-1 (south/high)
+            // Ramp along Z: choose which end (north or south) is high
             for col in col0..col_end {
-                grid[row0 as usize][col as usize].ramp_base_north = true;
-                grid[(row_end - 1) as usize][col as usize].ramp_top_south = true;
+                if high_at_end {
+                    grid[row0 as usize][col as usize].ramp_base_north = true;
+                    grid[(row_end - 1) as usize][col as usize].ramp_top_south = true;
+                } else {
+                    grid[(row_end - 1) as usize][col as usize].ramp_base_south = true;
+                    grid[row0 as usize][col as usize].ramp_top_north = true;
+                }
             }
         }
 
-        // Create Ramp geometry: beginning at (col0, row0) is low, end at (col_end, row_end) is high
-        let x1 = (col0 as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-        let z1 = (row0 as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
-        let x2 = (col_end as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-        let z2 = (row_end as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+        // Create Ramp: (x1,y1,z1) = low corner, (x2,y2,z2) = high corner
+        let x_start = (col0 as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+        let z_start = (row0 as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+        let x_end = (col_end as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+        let z_end = (row_end as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+
+        let (x1, z1, x2, z2) = if high_at_end {
+            (x_start, z_start, x_end, z_end)
+        } else {
+            (x_end, z_end, x_start, z_start)
+        };
 
         ramps.push(Ramp {
             x1,

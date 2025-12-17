@@ -273,6 +273,7 @@ fn tiled_cuboid(size_x: f32, size_y: f32, size_z: f32, tile_size: f32) -> Mesh {
 
 // Build ramp meshes split into top (uses floor texture) and sides (use wall texture).
 fn build_ramp_meshes(x1: f32, z1: f32, x2: f32, z2: f32, y_low: f32, y_high: f32) -> (Mesh, Mesh) {
+    // Protocol: (x1, z1, y_low) is low corner, (x2, z2, y_high) is high corner
     let min_x = x1.min(x2);
     let max_x = x1.max(x2);
     let min_z = z1.min(z2);
@@ -283,26 +284,30 @@ fn build_ramp_meshes(x1: f32, z1: f32, x2: f32, z2: f32, y_low: f32, y_high: f32
     let tile_top = TEXTURE_FLOOR_TILE_SIZE;
     let tile_side = TEXTURE_WALL_TILE_SIZE;
 
-    // Vertices: a/b are low edge, c/d are high edge, e/f are high-side bottoms for the vertical face.
+    // Determine direction: does the ramp go in positive or negative direction?
+    let x_direction_positive = x2 > x1;  // true if ramp rises in +X direction
+    let z_direction_positive = z2 > z1;  // true if ramp rises in +Z direction
+
+    // Build vertices: low edge at (x1, z1), high edge at (x2, z2)
     let (a, b, c, d, e, f) = if slope_axis_x {
-        // High edge on +X side
+        // Ramp along X axis: x1 is low edge, x2 is high edge
         (
-            [min_x, y_lo, min_z], // a: low south
-            [min_x, y_lo, max_z], // b: low north
-            [max_x, y_hi, min_z], // c: high south (top)
-            [max_x, y_hi, max_z], // d: high north (top)
-            [max_x, y_lo, min_z], // e: high south (bottom)
-            [max_x, y_lo, max_z], // f: high north (bottom)
+            [x1, y_lo, min_z], // a: low south
+            [x1, y_lo, max_z], // b: low north
+            [x2, y_hi, min_z], // c: high south (top)
+            [x2, y_hi, max_z], // d: high north (top)
+            [x2, y_lo, min_z], // e: high south (bottom)
+            [x2, y_lo, max_z], // f: high north (bottom)
         )
     } else {
-        // High edge on +Z side
+        // Ramp along Z axis: z1 is low edge, z2 is high edge
         (
-            [min_x, y_lo, min_z], // a: low west-south
-            [max_x, y_lo, min_z], // b: low east-south
-            [min_x, y_hi, max_z], // c: high west-north (top)
-            [max_x, y_hi, max_z], // d: high east-north (top)
-            [min_x, y_lo, max_z], // e: high west-north (bottom)
-            [max_x, y_lo, max_z], // f: high east-north (bottom)
+            [min_x, y_lo, z1], // a: low west
+            [max_x, y_lo, z1], // b: low east
+            [min_x, y_hi, z2], // c: high west (top)
+            [max_x, y_hi, z2], // d: high east (top)
+            [min_x, y_lo, z2], // e: high west (bottom)
+            [max_x, y_lo, z2], // f: high east (bottom)
         )
     };
 
@@ -340,31 +345,61 @@ fn build_ramp_meshes(x1: f32, z1: f32, x2: f32, z2: f32, y_low: f32, y_high: f32
     let uv_vert_z = |p: [f32; 3]| -> [f32; 2] { [(p[0] - min_x) / tile_side, (p[1] - y_lo) / tile_side] };
 
     if slope_axis_x {
-        // Top (upward-ish normal)
-        push_top(a, b, d, uv_top(a), uv_top(b), uv_top(d));
-        push_top(a, d, c, uv_top(a), uv_top(d), uv_top(c));
+        // Top slanted surface - winding order depends on X direction
+        if x_direction_positive {
+            push_top(a, b, d, uv_top(a), uv_top(b), uv_top(d));
+            push_top(a, d, c, uv_top(a), uv_top(d), uv_top(c));
+        } else {
+            // Reversed direction: flip winding order
+            push_top(a, c, d, uv_top(a), uv_top(c), uv_top(d));
+            push_top(a, d, b, uv_top(a), uv_top(d), uv_top(b));
+        }
 
-        // High vertical face (+X)
-        push_side(e, c, d, uv_vert_x(e), uv_vert_x(c), uv_vert_x(d));
-        push_side(e, d, f, uv_vert_x(e), uv_vert_x(d), uv_vert_x(f));
+        // High vertical face - winding order depends on direction
+        if x_direction_positive {
+            push_side(e, c, d, uv_vert_x(e), uv_vert_x(c), uv_vert_x(d));
+            push_side(e, d, f, uv_vert_x(e), uv_vert_x(d), uv_vert_x(f));
+        } else {
+            push_side(e, d, c, uv_vert_x(e), uv_vert_x(d), uv_vert_x(c));
+            push_side(e, f, d, uv_vert_x(e), uv_vert_x(f), uv_vert_x(d));
+        }
 
-        // South face (-Z)
-        push_side(a, c, e, uv_vert_z(a), uv_vert_z(c), uv_vert_z(e));
-        // North face (+Z)
-        push_side(b, f, d, uv_vert_z(b), uv_vert_z(f), uv_vert_z(d));
+        // South and North faces
+        if x_direction_positive {
+            push_side(a, c, e, uv_vert_z(a), uv_vert_z(c), uv_vert_z(e));
+            push_side(b, f, d, uv_vert_z(b), uv_vert_z(f), uv_vert_z(d));
+        } else {
+            push_side(a, e, c, uv_vert_z(a), uv_vert_z(e), uv_vert_z(c));
+            push_side(b, d, f, uv_vert_z(b), uv_vert_z(d), uv_vert_z(f));
+        }
     } else {
-        // Top (upward-ish normal)
-        push_top(a, c, d, uv_top(a), uv_top(c), uv_top(d));
-        push_top(a, d, b, uv_top(a), uv_top(d), uv_top(b));
+        // Top slanted surface - winding order depends on Z direction
+        if z_direction_positive {
+            push_top(a, c, d, uv_top(a), uv_top(c), uv_top(d));
+            push_top(a, d, b, uv_top(a), uv_top(d), uv_top(b));
+        } else {
+            // Reversed direction: flip winding order
+            push_top(a, b, d, uv_top(a), uv_top(b), uv_top(d));
+            push_top(a, d, c, uv_top(a), uv_top(d), uv_top(c));
+        }
 
-        // High vertical face (+Z)
-        push_side(e, f, d, uv_vert_z(e), uv_vert_z(f), uv_vert_z(d));
-        push_side(e, d, c, uv_vert_z(e), uv_vert_z(d), uv_vert_z(c));
+        // High vertical face - winding order depends on direction
+        if z_direction_positive {
+            push_side(e, f, d, uv_vert_z(e), uv_vert_z(f), uv_vert_z(d));
+            push_side(e, d, c, uv_vert_z(e), uv_vert_z(d), uv_vert_z(c));
+        } else {
+            push_side(e, c, d, uv_vert_z(e), uv_vert_z(c), uv_vert_z(d));
+            push_side(e, d, f, uv_vert_z(e), uv_vert_z(d), uv_vert_z(f));
+        }
 
-        // West face (-X)
-        push_side(a, e, c, uv_vert_x(a), uv_vert_x(e), uv_vert_x(c));
-        // East face (+X)
-        push_side(b, d, f, uv_vert_x(b), uv_vert_x(d), uv_vert_x(f));
+        // West and East faces
+        if z_direction_positive {
+            push_side(a, e, c, uv_vert_x(a), uv_vert_x(e), uv_vert_x(c));
+            push_side(b, d, f, uv_vert_x(b), uv_vert_x(d), uv_vert_x(f));
+        } else {
+            push_side(a, c, e, uv_vert_x(a), uv_vert_x(c), uv_vert_x(e));
+            push_side(b, f, d, uv_vert_x(b), uv_vert_x(f), uv_vert_x(d));
+        }
     }
 
     let mut mesh_top = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD);
