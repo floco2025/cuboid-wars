@@ -258,11 +258,12 @@ pub fn players_movement_system(
                 &config.all_walls
             };
 
-            // Combine base walls with ramp side walls for collision check
-            // Only include ramp side walls if player is NOT currently on a ramp
-            // This allows stepping OFF but prevents stepping ON from the side
+            // Only add ramp side walls if currently OFF ramp and destination ON ramp
+            // This blocks entering from side but allows exiting and moving while on ramp
             let mut walls_to_check = base_walls.to_vec();
-            if !is_on_ramp(&config.ramps, client_pos.x, client_pos.z) {
+            let current_on_ramp = is_on_ramp(&config.ramps, client_pos.x, client_pos.z);
+            let target_on_ramp = is_on_ramp(&config.ramps, target_pos.x, target_pos.z);
+            if !current_on_ramp && target_on_ramp {
                 walls_to_check.extend_from_slice(&config.ramp_side_walls);
             }
 
