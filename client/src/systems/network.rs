@@ -133,6 +133,8 @@ fn process_message_not_logged_in(msg: ServerMessage, commands: &mut Commands) {
             all_walls,
             roofs: init_msg.roofs,
             ramps: init_msg.ramps,
+            ramp_side_walls: init_msg.ramp_side_walls,
+            ramp_all_walls: init_msg.ramp_all_walls,
         });
 
         // Note: We don't spawn anything here. The first SUpdate will contain

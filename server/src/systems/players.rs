@@ -75,11 +75,15 @@ pub fn players_movement_system(
             .get(player_id)
             .is_some_and(|info| info.phasing_power_up_timer > 0.0);
 
-        let walls_to_check: &[Wall] = if has_phasing {
+        let base_walls: &[Wall] = if has_phasing {
             &grid_config.boundary_walls
         } else {
             &grid_config.all_walls
         };
+
+        // Combine base walls with ramp side walls for collision check
+        let mut walls_to_check = base_walls.to_vec();
+        walls_to_check.extend_from_slice(&grid_config.ramp_side_walls);
 
         // Check wall collision and calculate target (with sliding if hit)
         let (target, hits_wall) = if walls_to_check
@@ -87,7 +91,7 @@ pub fn players_movement_system(
             .any(|wall| check_player_wall_sweep(pos, &new_pos, wall))
         {
             (
-                calculate_wall_slide(walls_to_check, &grid_config.ramps, pos, velocity.x, velocity.z, delta),
+                calculate_wall_slide(&walls_to_check, &grid_config.ramps, pos, velocity.x, velocity.z, delta),
                 true,
             )
         } else {

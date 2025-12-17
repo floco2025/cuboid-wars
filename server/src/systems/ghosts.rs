@@ -130,9 +130,18 @@ pub fn ghosts_spawn_system(
     let mut rng = rand::rng();
 
     for i in 0..GHOSTS_NUM {
-        // Pick a random grid cell - grid centers never have walls
-        let grid_x = rng.random_range(0..GRID_COLS);
-        let grid_z = rng.random_range(0..GRID_ROWS);
+        // Pick a random grid cell that doesn't have a ramp
+        let (grid_x, grid_z) = loop {
+            let x = rng.random_range(0..GRID_COLS);
+            let z = rng.random_range(0..GRID_ROWS);
+            
+            // Check if cell has a ramp
+            if !grid_config.grid[z as usize][x as usize].has_ramp {
+                break (x, z);
+            }
+            // If all cells have ramps (unlikely), this would loop forever,
+            // but in practice there are many non-ramp cells
+        };
 
         // Spawn at grid center
         let pos = cell_center(grid_x, grid_z);
@@ -176,6 +185,10 @@ pub fn ghosts_movement_system(
     let delta = time.delta_secs();
     let mut rng = rand::rng();
 
+    // Combine all walls with ramp collision walls for ghosts
+    let mut ghost_walls = grid_config.all_walls.clone();
+    ghost_walls.extend_from_slice(&grid_config.ramp_all_walls);
+
     // Collect player positions and speeds (excluding stunned players)
     let player_data: Vec<(PlayerId, Position, Speed)> = param_set
         .p1()
@@ -207,7 +220,7 @@ pub fn ghosts_movement_system(
 
                 // Always check for visible players
                 if let Some(target_player_id) =
-                    find_visible_moving_player(&ghost_pos, &player_data, &grid_config.all_walls)
+                    find_visible_moving_player(&ghost_pos, &player_data, &ghost_walls)
                 {
                     let player_has_ghost_hunt = players
                         .0
@@ -298,7 +311,7 @@ pub fn ghosts_movement_system(
                         &mut ghost_vel,
                         target_id,
                         &player_data,
-                        &grid_config.all_walls,
+                        &ghost_walls,
                         &players,
                         delta,
                     );

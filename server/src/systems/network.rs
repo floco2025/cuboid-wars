@@ -298,6 +298,8 @@ fn process_message_not_logged_in(
                 interior_walls: grid_config.interior_walls.clone(),
                 roofs: grid_config.roofs.clone(),
                 ramps: grid_config.ramps.clone(),
+                ramp_side_walls: grid_config.ramp_side_walls.clone(),
+                ramp_all_walls: grid_config.ramp_all_walls.clone(),
             });
             if let Err(e) = channel.send(ServerToClient::Send(init_msg)) {
                 warn!("failed to send init to {:?}: {}", id, e);

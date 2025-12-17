@@ -363,6 +363,9 @@ pub fn generate_grid() -> GridConfig {
         at_left || at_right || at_top || at_bottom
     });
 
+    // Generate collision walls for ramps
+    let (ramp_side_walls, ramp_all_walls) = generate_ramp_collision_walls(&ramps, &grid);
+
     GridConfig {
         grid,
         boundary_walls,
@@ -370,6 +373,8 @@ pub fn generate_grid() -> GridConfig {
         all_walls: walls,
         roofs,
         ramps,
+        ramp_side_walls,
+        ramp_all_walls,
     }
 }
 
@@ -910,6 +915,116 @@ fn generate_ramps(grid: &mut [Vec<GridCell>], grid_cols: i32, grid_rows: i32) ->
     }
 
     ramps
+}
+
+/// Generate collision walls for ramps
+/// Returns (ramp_side_walls, ramp_all_walls)
+/// - ramp_side_walls: Only the sides perpendicular to slope (for players)
+/// - ramp_all_walls: All four edges (for ghosts)
+fn generate_ramp_collision_walls(ramps: &[Ramp], _grid: &[Vec<GridCell>]) -> (Vec<Wall>, Vec<Wall>) {
+    let mut ramp_side_walls = Vec::new();
+    let mut ramp_all_walls = Vec::new();
+
+    for ramp in ramps {
+        // Determine ramp direction from low (x1, z1) to high (x2, z2)
+        let dx = ramp.x2 - ramp.x1;
+        let dz = ramp.z2 - ramp.z1;
+
+        // Ramp footprint boundaries (axis-aligned bounding box)
+        let min_x = ramp.x1.min(ramp.x2);
+        let max_x = ramp.x1.max(ramp.x2);
+        let min_z = ramp.z1.min(ramp.z2);
+        let max_z = ramp.z1.max(ramp.z2);
+
+        // Determine if ramp runs along X or Z axis
+        let runs_along_x = dx.abs() > dz.abs();
+
+        if runs_along_x {
+            // Ramp runs along X axis, sides are perpendicular (along Z)
+            // Side walls at constant Z: min_z and max_z
+            let side_wall_1 = Wall {
+                x1: min_x,
+                z1: min_z,
+                x2: max_x,
+                z2: min_z,
+                width: WALL_WIDTH,
+            };
+            let side_wall_2 = Wall {
+                x1: min_x,
+                z1: max_z,
+                x2: max_x,
+                z2: max_z,
+                width: WALL_WIDTH,
+            };
+            ramp_side_walls.push(side_wall_1);
+            ramp_side_walls.push(side_wall_2);
+
+            // Entry/exit walls at constant X: min_x and max_x
+            let end_wall_1 = Wall {
+                x1: min_x,
+                z1: min_z,
+                x2: min_x,
+                z2: max_z,
+                width: WALL_WIDTH,
+            };
+            let end_wall_2 = Wall {
+                x1: max_x,
+                z1: min_z,
+                x2: max_x,
+                z2: max_z,
+                width: WALL_WIDTH,
+            };
+
+            // Add all four walls to ramp_all_walls
+            ramp_all_walls.push(side_wall_1);
+            ramp_all_walls.push(side_wall_2);
+            ramp_all_walls.push(end_wall_1);
+            ramp_all_walls.push(end_wall_2);
+        } else {
+            // Ramp runs along Z axis, sides are perpendicular (along X)
+            // Side walls at constant X: min_x and max_x
+            let side_wall_1 = Wall {
+                x1: min_x,
+                z1: min_z,
+                x2: min_x,
+                z2: max_z,
+                width: WALL_WIDTH,
+            };
+            let side_wall_2 = Wall {
+                x1: max_x,
+                z1: min_z,
+                x2: max_x,
+                z2: max_z,
+                width: WALL_WIDTH,
+            };
+            ramp_side_walls.push(side_wall_1);
+            ramp_side_walls.push(side_wall_2);
+
+            // Entry/exit walls at constant Z: min_z and max_z
+            let end_wall_1 = Wall {
+                x1: min_x,
+                z1: min_z,
+                x2: max_x,
+                z2: min_z,
+                width: WALL_WIDTH,
+            };
+            let end_wall_2 = Wall {
+                x1: min_x,
+                z1: max_z,
+                x2: max_x,
+                z2: max_z,
+                width: WALL_WIDTH,
+            };
+
+            // Add all four walls to ramp_all_walls
+            ramp_all_walls.push(side_wall_1);
+            ramp_all_walls.push(side_wall_2);
+            ramp_all_walls.push(end_wall_1);
+            ramp_all_walls.push(end_wall_2);
+        }
+    }
+
+    (ramp_side_walls, ramp_all_walls)
 }
 
 // ============================================================================
