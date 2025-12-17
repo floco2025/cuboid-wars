@@ -81,14 +81,12 @@ pub fn players_movement_system(
             &grid_config.all_walls
         };
 
-        // Only add ramp side walls if currently OFF ramp and destination ON ramp
-        // This blocks entering from side but allows exiting and moving while on ramp
+        // Add ramp side walls when OFF ramp (for wall sliding and blocking entry)
+        // This allows sliding along ramp sides and blocks entering from side
+        // When ON ramp, don't check side walls (allows exiting)
         let mut walls_to_check = base_walls.to_vec();
         let current_on_ramp = is_on_ramp(&grid_config.ramps, pos.x, pos.z);
-        let target_on_ramp = is_on_ramp(&grid_config.ramps, new_pos.x, new_pos.z);
-        if !current_on_ramp && target_on_ramp {
-            println!("SERVER: Adding side walls - pos=({:.2},{:.2}) target=({:.2},{:.2})", 
-                pos.x, pos.z, new_pos.x, new_pos.z);
+        if !current_on_ramp {
             walls_to_check.extend_from_slice(&grid_config.ramp_side_walls);
         }
 
