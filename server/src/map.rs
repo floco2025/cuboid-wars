@@ -641,144 +641,94 @@ fn generate_ramps(grid: &mut [Vec<GridCell>], grid_cols: i32, grid_rows: i32) ->
         return ramps;
     }
 
-    // Central exclusion zone where ramps cannot overlap
-    let center_width = grid_cols / 2;
-    let center_height = grid_rows / 2;
-    let center_col0 = (grid_cols - center_width) / 2;
-    let center_row0 = (grid_rows - center_height) / 2;
-    let center_col1 = center_col0 + center_width;
-    let center_row1 = center_row0 + center_height;
+    // Try placing ramps until we reach target count
+    let mut attempts = 0;
+    const MAX_ATTEMPTS: usize = 100;
 
-    // Enumerate every legal footprint in both orientations, then shuffle
-    let mut candidates = Vec::new();
+    while ramps.len() < RAMP_COUNT && attempts < MAX_ATTEMPTS {
+        attempts += 1;
 
-    let max_col_x = grid_cols - RAMP_LENGTH_CELLS - 1;
-    let max_row_x = grid_rows - RAMP_WIDTH_CELLS - 1;
-    if max_col_x >= 1 && max_row_x >= 1 {
-        for col0 in 1..=max_col_x {
-            for row0 in 1..=max_row_x {
-                candidates.push((col0, row0, true));
-            }
-        }
-    }
+        // Random orientation: true = along X axis (west-east), false = along Z axis (north-south)
+        let along_x = rng.random_bool(0.5);
 
-    let max_col_z = grid_cols - RAMP_WIDTH_CELLS - 1;
-    let max_row_z = grid_rows - RAMP_LENGTH_CELLS - 1;
-    if max_col_z >= 1 && max_row_z >= 1 {
-        for col0 in 1..=max_col_z {
-            for row0 in 1..=max_row_z {
-                candidates.push((col0, row0, false));
-            }
-        }
-    }
-    for i in (1..candidates.len()).rev() {
-        let j = rng.random_range(0..=i);
-        candidates.swap(i, j);
-    }
-
-    for (col0, row0, along_x) in candidates {
-        if ramps.len() >= RAMP_COUNT {
-            break;
-        }
-
-        let (len_cells, width_cells) = if along_x {
-            (RAMP_LENGTH_CELLS, RAMP_WIDTH_CELLS)
+        // Random position
+        let (col0, row0, col_end, row_end) = if along_x {
+            let c0 = rng.random_range(1..=(grid_cols - RAMP_LENGTH_CELLS - 1));
+            let r0 = rng.random_range(1..=(grid_rows - RAMP_WIDTH_CELLS - 1));
+            (c0, r0, c0 + RAMP_LENGTH_CELLS, r0 + RAMP_WIDTH_CELLS)
         } else {
-            (RAMP_WIDTH_CELLS, RAMP_LENGTH_CELLS)
+            let c0 = rng.random_range(1..=(grid_cols - RAMP_WIDTH_CELLS - 1));
+            let r0 = rng.random_range(1..=(grid_rows - RAMP_LENGTH_CELLS - 1));
+            (c0, r0, c0 + RAMP_WIDTH_CELLS, r0 + RAMP_LENGTH_CELLS)
         };
 
-        let col_end = col0 + len_cells;
-        let row_end = row0 + width_cells;
-
-        // Skip ramps that overlap the central exclusion rectangle
-        if center_width > 0
-            && center_height > 0
-            && col0 < center_col1
-            && col_end > center_col0
-            && row0 < center_row1
-            && row_end > center_row0
-        {
+        // Check if all cells in ramp footprint are in allowed zone (1-2 cells from any border)
+        let mut in_allowed_zone = true;
+        'zone_check: for col in col0..col_end {
+            for row in row0..row_end {
+                // Distance from border walls (cell 0 and cell grid_cols-1 are border walls)
+                let dist_to_west = col;
+                let dist_to_east = (grid_cols - 1) - col;
+                let dist_to_north = row;
+                let dist_to_south = (grid_rows - 1) - row;
+                let min_dist = dist_to_west.min(dist_to_east).min(dist_to_north).min(dist_to_south);
+                
+                // Allowed zone: cells must be 1 or 2 cells from border
+                if min_dist < 1 || min_dist > 2 {
+                    in_allowed_zone = false;
+                    break 'zone_check;
+                }
+            }
+        }
+        if !in_allowed_zone {
             continue;
         }
 
-        // Reject overlaps and enforce separation padding around existing ramps
-        let mut overlaps = false;
+        // Check for overlaps with existing ramps (including separation padding)
         let pad = RAMP_MIN_SEPARATION_CELLS;
-        let col_start_pad = (col0 - pad).max(0);
-        let col_end_pad = (col_end + pad).min(grid_cols);
-        let row_start_pad = (row0 - pad).max(0);
-        let row_end_pad = (row_end + pad).min(grid_rows);
-
-        'check: for col in col_start_pad..col_end_pad {
-            for row in row_start_pad..row_end_pad {
+        let mut overlaps = false;
+        for col in (col0 - pad).max(0)..(col_end + pad).min(grid_cols) {
+            for row in (row0 - pad).max(0)..(row_end + pad).min(grid_rows) {
                 if grid[row as usize][col as usize].has_ramp {
                     overlaps = true;
-                    break 'check;
+                    break;
                 }
+            }
+            if overlaps {
+                break;
             }
         }
         if overlaps {
             continue;
         }
 
-        // Randomly choose which end is high along the length axis
-        let high_at_end = rng.random_bool(0.5);
-
-        let x1 = (col0 as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-        let z1 = (row0 as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
-        let x2 = (col_end as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-        let z2 = (row_end as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
-
-        // Mark ramp base/top edges and footprint
-        if along_x {
-            let base_col = if high_at_end { col0 } else { col_end - 1 };
-            let top_col = if high_at_end { col_end - 1 } else { col0 };
-            for row in row0..row_end {
-                let cell = &mut grid[row as usize][base_col as usize];
-                cell.has_ramp = true;
-                if high_at_end {
-                    cell.ramp_base_west = true;
-                } else {
-                    cell.ramp_base_east = true;
-                }
-            }
-            for row in row0..row_end {
-                let cell = &mut grid[row as usize][top_col as usize];
-                cell.has_ramp = true;
-                if high_at_end {
-                    cell.ramp_top_east = true;
-                } else {
-                    cell.ramp_top_west = true;
-                }
-            }
-        } else {
-            let base_row = if high_at_end { row0 } else { row_end - 1 };
-            let top_row = if high_at_end { row_end - 1 } else { row0 };
-            for col in col0..col_end {
-                let cell = &mut grid[base_row as usize][col as usize];
-                cell.has_ramp = true;
-                if high_at_end {
-                    cell.ramp_base_north = true;
-                } else {
-                    cell.ramp_base_south = true;
-                }
-            }
-            for col in col0..col_end {
-                let cell = &mut grid[top_row as usize][col as usize];
-                cell.has_ramp = true;
-                if high_at_end {
-                    cell.ramp_top_south = true;
-                } else {
-                    cell.ramp_top_north = true;
-                }
-            }
-        }
-
+        // Mark all cells in footprint
         for col in col0..col_end {
             for row in row0..row_end {
                 grid[row as usize][col as usize].has_ramp = true;
             }
         }
+
+        // Mark base (beginning/low) and top (end/high) edge flags
+        if along_x {
+            // Ramp runs from col0 (west/low) to col_end-1 (east/high)
+            for row in row0..row_end {
+                grid[row as usize][col0 as usize].ramp_base_west = true;
+                grid[row as usize][(col_end - 1) as usize].ramp_top_east = true;
+            }
+        } else {
+            // Ramp runs from row0 (north/low) to row_end-1 (south/high)
+            for col in col0..col_end {
+                grid[row0 as usize][col as usize].ramp_base_north = true;
+                grid[(row_end - 1) as usize][col as usize].ramp_top_south = true;
+            }
+        }
+
+        // Create Ramp geometry: beginning at (col0, row0) is low, end at (col_end, row_end) is high
+        let x1 = (col0 as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+        let z1 = (row0 as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+        let x2 = (col_end as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+        let z2 = (row_end as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
 
         ramps.push(Ramp {
             x1,

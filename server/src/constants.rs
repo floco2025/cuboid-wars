@@ -3,7 +3,7 @@
 // ============================================================================
 
 // Wall generation settings
-pub const WALL_NUM_SEGMENTS: usize = 30; //45;
+pub const WALL_NUM_SEGMENTS: usize = 1000; //45;
 pub const WALL_2ND_PROBABILITY_RATIO: f64 = 5.0; // Probability of 2nd wall relative to 1st
 pub const WALL_3RD_PROBABILITY_RATIO: f64 = 0.2; // Probability of 3rd wall relative to 1st
 
