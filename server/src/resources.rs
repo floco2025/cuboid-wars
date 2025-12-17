@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, error::TryRecvError};
 
 use crate::net::{ClientToServer, ServerToClient};
-use common::{constants::*, protocol::*};
+use common::protocol::*;
 
 // ============================================================================
 // Bevy Resources
