@@ -47,3 +47,21 @@ pub fn calculate_height_at_position(ramps: &[Ramp], x: f32, z: f32) -> f32 {
     // Not on any ramp
     0.0
 }
+
+/// Check if a position (x, z) is currently on any ramp.
+#[must_use]
+pub fn is_on_ramp(ramps: &[Ramp], x: f32, z: f32) -> bool {
+    for ramp in ramps {
+        // Determine ramp footprint bounds
+        let min_x = ramp.x1.min(ramp.x2);
+        let max_x = ramp.x1.max(ramp.x2);
+        let min_z = ramp.z1.min(ramp.z2);
+        let max_z = ramp.z1.max(ramp.z2);
+
+        // Check if position is within ramp footprint
+        if x >= min_x && x <= max_x && z >= min_z && z <= max_z {
+            return true;
+        }
+    }
+    false
+}
