@@ -1,4 +1,4 @@
-use crate::protocol::Ramp;
+use crate::{constants::ROOF_HEIGHT, protocol::Ramp};
 
 /// Calculate the Y position (height) for a given (x, z) position based on ramps.
 /// Returns the interpolated Y value if the position is on a ramp, otherwise returns 0.0.
@@ -64,4 +64,12 @@ pub fn is_on_ramp(ramps: &[Ramp], x: f32, z: f32) -> bool {
         }
     }
     false
+}
+
+/// Check if a player is on a roof based on their Y position.
+/// Returns true if Y is approximately at roof height.
+#[must_use]
+pub fn is_on_roof(y: f32) -> bool {
+    const HEIGHT_TOLERANCE: f32 = 0.1;
+    (y - ROOF_HEIGHT).abs() < HEIGHT_TOLERANCE
 }

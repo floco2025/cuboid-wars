@@ -344,10 +344,16 @@ pub fn generate_grid() -> GridConfig {
     }
 
     // Generate roofs based on grid
-    let mut roofs = generate_individual_roofs(&grid, grid_cols, grid_rows);
+    let (mut roofs, grid) = generate_individual_roofs(grid, grid_cols, grid_rows);
     if MERGE_ROOF_SEGMENTS && !OVERLAP_ROOFS {
         roofs = merge_roofs(roofs);
     }
+
+    // Generate collision walls for ramps
+    let (ramp_side_walls, ramp_all_walls) = generate_ramp_collision_walls(&ramps, &grid);
+
+    // Generate collision walls for roof edges
+    let roof_edge_walls = generate_roof_edge_walls(&grid, grid_cols, grid_rows);
 
     // Separate walls into boundary and interior
     let half_field_width = FIELD_WIDTH / 2.0;
@@ -363,9 +369,6 @@ pub fn generate_grid() -> GridConfig {
         at_left || at_right || at_top || at_bottom
     });
 
-    // Generate collision walls for ramps
-    let (ramp_side_walls, ramp_all_walls) = generate_ramp_collision_walls(&ramps, &grid);
-
     GridConfig {
         grid,
         boundary_walls,
@@ -375,6 +378,7 @@ pub fn generate_grid() -> GridConfig {
         ramps,
         ramp_side_walls,
         ramp_all_walls,
+        roof_edge_walls,
     }
 }
 
@@ -534,8 +538,9 @@ fn generate_individual_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: 
 }
 
 // Generate individual roof segments (no merging) covering full grid cells
+// Returns roofs and updated grid with has_roof flags set
 #[must_use]
-fn generate_individual_roofs(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) -> Vec<Roof> {
+fn generate_individual_roofs(mut grid: Vec<Vec<GridCell>>, grid_cols: i32, grid_rows: i32) -> (Vec<Roof>, Vec<Vec<GridCell>>) {
     let mut rng = rand::rng();
 
     // Count walls for each cell
@@ -782,9 +787,12 @@ fn generate_individual_roofs(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: 
             z2: world_z2,
             thickness: ROOF_THICKNESS,
         });
+        
+        // Mark cell as having a roof
+        grid[row as usize][col as usize].has_roof = true;
     }
 
-    roofs
+    (roofs, grid)
 }
 
 // Generate ramps as right triangular prisms using opposite corners
@@ -1025,6 +1033,82 @@ fn generate_ramp_collision_walls(ramps: &[Ramp], _grid: &[Vec<GridCell>]) -> (Ve
     }
 
     (ramp_side_walls, ramp_all_walls)
+}
+
+// Generate collision walls for roof edges to prevent players from falling off
+// Only add edges where there's no adjacent roof or no ramp connection
+fn generate_roof_edge_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) -> Vec<Wall> {
+    let mut roof_edge_walls = Vec::new();
+
+    for row in 0..grid_rows {
+        for col in 0..grid_cols {
+            let cell = grid[row as usize][col as usize];
+            if !cell.has_roof {
+                continue;
+            }
+
+            // Calculate cell boundaries in world coordinates
+            let x1 = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+            let x2 = ((col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+            let z1 = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+            let z2 = ((row + 1) as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+
+            // Check each edge - add wall if no adjacent roof and no ramp connection
+            // North edge (z1) - check if neighbor to the north has a ramp_top_south (connecting upward to this roof)
+            let has_north_neighbor_roof = row > 0 && grid[(row - 1) as usize][col as usize].has_roof;
+            let has_north_ramp = row > 0 && grid[(row - 1) as usize][col as usize].ramp_top_south;
+            if !has_north_neighbor_roof && !has_north_ramp {
+                roof_edge_walls.push(Wall {
+                    x1,
+                    z1,
+                    x2,
+                    z2: z1,
+                    width: WALL_WIDTH,
+                });
+            }
+
+            // South edge (z2) - check if neighbor to the south has a ramp_top_north
+            let has_south_neighbor_roof = row < grid_rows - 1 && grid[(row + 1) as usize][col as usize].has_roof;
+            let has_south_ramp = row < grid_rows - 1 && grid[(row + 1) as usize][col as usize].ramp_top_north;
+            if !has_south_neighbor_roof && !has_south_ramp {
+                roof_edge_walls.push(Wall {
+                    x1,
+                    z1: z2,
+                    x2,
+                    z2,
+                    width: WALL_WIDTH,
+                });
+            }
+
+            // West edge (x1) - check if neighbor to the west has a ramp_top_east
+            let has_west_neighbor_roof = col > 0 && grid[row as usize][(col - 1) as usize].has_roof;
+            let has_west_ramp = col > 0 && grid[row as usize][(col - 1) as usize].ramp_top_east;
+            if !has_west_neighbor_roof && !has_west_ramp {
+                roof_edge_walls.push(Wall {
+                    x1,
+                    z1,
+                    x2: x1,
+                    z2,
+                    width: WALL_WIDTH,
+                });
+            }
+
+            // East edge (x2) - check if neighbor to the east has a ramp_top_west
+            let has_east_neighbor_roof = col < grid_cols - 1 && grid[row as usize][(col + 1) as usize].has_roof;
+            let has_east_ramp = col < grid_cols - 1 && grid[row as usize][(col + 1) as usize].ramp_top_west;
+            if !has_east_neighbor_roof && !has_east_ramp {
+                roof_edge_walls.push(Wall {
+                    x1: x2,
+                    z1,
+                    x2,
+                    z2,
+                    width: WALL_WIDTH,
+                });
+            }
+        }
+    }
+
+    roof_edge_walls
 }
 
 // ============================================================================

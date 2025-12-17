@@ -13,7 +13,7 @@ use common::{
     markers::PlayerMarker,
     players::{PlannedMove, overlaps_other_player},
     protocol::{FaceDirection, PlayerId, Position, Velocity, Wall},
-    ramps::calculate_height_at_position,
+    ramps::{calculate_height_at_position, is_on_roof},
 };
 
 // ============================================================================
@@ -216,24 +216,18 @@ pub fn players_movement_system(
 
             let new_x = client_vel.x.mul_add(delta, client_pos.x) + dx;
             let new_z = client_vel.z.mul_add(delta, client_pos.z) + dz;
-            let new_y = wall_config
-                .as_ref()
-                .map_or(0.0, |config| calculate_height_at_position(&config.ramps, new_x, new_z));
 
             Position {
                 x: new_x,
-                y: new_y,
+                y: client_pos.y, // Keep current Y for collision detection
                 z: new_z,
             }
         } else {
             let new_x = client_vel.x.mul_add(delta, client_pos.x);
             let new_z = client_vel.z.mul_add(delta, client_pos.z);
-            let new_y = wall_config
-                .as_ref()
-                .map_or(0.0, |config| calculate_height_at_position(&config.ramps, new_x, new_z));
             Position {
                 x: new_x,
-                y: new_y,
+                y: client_pos.y, // Keep current Y for collision detection
                 z: new_z,
             }
         };
@@ -248,19 +242,25 @@ pub fn players_movement_system(
             continue;
         }
 
-        // Wall collision - Select walls based on phasing power-up
+        // Wall collision - Select walls based on phasing power-up and height
         let has_phasing = players.0.get(player_id).is_some_and(|info| info.phasing_power_up);
 
         let (wall_adjusted_target, hits_wall) = wall_config.as_ref().map_or((target_pos, false), |config| {
-            let base_walls: &[Wall] = if has_phasing {
-                &config.boundary_walls
+            let mut walls_to_check = Vec::new();
+            
+            if is_on_roof(client_pos.y) {
+                // On roof: only roof edge walls (which have openings at ramp connections)
+                walls_to_check.extend_from_slice(&config.roof_edge_walls);
             } else {
-                &config.all_walls
-            };
-
-            // Always include ramp side walls - treat them like normal walls
-            let mut walls_to_check = base_walls.to_vec();
-            walls_to_check.extend_from_slice(&config.ramp_side_walls);
+                // On ground: all walls (or just boundary if phasing) plus ramp walls
+                let base_walls: &[Wall] = if has_phasing {
+                    &config.boundary_walls
+                } else {
+                    &config.all_walls
+                };
+                walls_to_check.extend_from_slice(base_walls);
+                walls_to_check.extend_from_slice(&config.ramp_side_walls);
+            }
 
             // Check wall collision and calculate target (with sliding if hit)
             if walls_to_check
@@ -275,10 +275,30 @@ pub fn players_movement_system(
                 (target_pos, false)
             }
         });
+        
+        // Now calculate final Y based on the collision-adjusted X/Z position
+        let final_target = if let Some(config) = wall_config.as_ref() {
+            let ramp_height = calculate_height_at_position(&config.ramps, wall_adjusted_target.x, wall_adjusted_target.z);
+            let final_y = if ramp_height > 0.0 {
+                ramp_height
+            } else if config.is_position_on_roof(wall_adjusted_target.x, wall_adjusted_target.z) && is_on_roof(client_pos.y) {
+                // Only stay on roof if already at roof height
+                common::constants::ROOF_HEIGHT
+            } else {
+                0.0
+            };
+            Position {
+                x: wall_adjusted_target.x,
+                y: final_y,
+                z: wall_adjusted_target.z,
+            }
+        } else {
+            wall_adjusted_target
+        };
 
         planned_moves.push(PlannedMove {
             entity,
-            target: wall_adjusted_target,
+            target: final_target,
             hits_wall,
         });
     }

@@ -17,6 +17,7 @@ pub struct GridCell {
     pub has_west_wall: bool,  // Vertical wall at left edge (x)
     pub has_east_wall: bool,  // Vertical wall at right edge (x+1)
     pub has_ramp: bool,       // Cell occupied by a ramp footprint
+    pub has_roof: bool,       // Cell has a roof on top
     // Ramp bases disallow walls on their entry edge
     pub ramp_base_north: bool,
     pub ramp_base_south: bool,
@@ -40,6 +41,25 @@ pub struct GridConfig {
     pub ramps: Vec<Ramp>,
     pub ramp_side_walls: Vec<Wall>, // Collision boxes for ramp sides (for players)
     pub ramp_all_walls: Vec<Wall>,  // Collision boxes for all ramp edges (for ghosts)
+    pub roof_edge_walls: Vec<Wall>, // Collision boxes for roof edges (prevent falling off)
+}
+
+impl GridConfig {
+    /// Check if a world position (x, z) is on a roof cell
+    pub fn is_position_on_roof(&self, x: f32, z: f32) -> bool {
+        use common::constants::*;
+        
+        // Convert world coordinates to grid coordinates
+        let col = ((x + FIELD_WIDTH / 2.0) / GRID_SIZE).floor() as i32;
+        let row = ((z + FIELD_DEPTH / 2.0) / GRID_SIZE).floor() as i32;
+        
+        // Check bounds
+        if row < 0 || row >= GRID_ROWS || col < 0 || col >= GRID_COLS {
+            return false;
+        }
+        
+        self.grid[row as usize][col as usize].has_roof
+    }
 }
 
 // Player information (server-side)
