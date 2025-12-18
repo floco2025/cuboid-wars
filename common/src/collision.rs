@@ -123,7 +123,7 @@ fn check_aabb_wall_sweep(start_pos: &Position, end_pos: &Position, wall: &Wall, 
 }
 
 // Generic wall sliding calculation with parameterized collision check function
-fn calculate_entity_slide<F>(
+fn calculate_entity_slide<F, R>(
     walls: &[Wall],
     ramps: &[Ramp],
     current_pos: &Position,
@@ -131,9 +131,11 @@ fn calculate_entity_slide<F>(
     velocity_z: f32,
     delta: f32,
     collision_check: F,
+    ramp_edge_check: R,
 ) -> Position
 where
     F: Fn(&Position, &Wall) -> bool,
+    R: Fn(&Position, &Position, &Ramp) -> bool,
 {
     // Try moving only in X direction
     let x_only_x = velocity_x.mul_add(delta, current_pos.x);
@@ -143,7 +145,8 @@ where
         z: current_pos.z,
     };
 
-    let x_collides = walls.iter().any(|w| collision_check(&x_only_pos, w));
+    let x_collides = walls.iter().any(|w| collision_check(&x_only_pos, w))
+        || ramps.iter().any(|r| ramp_edge_check(current_pos, &x_only_pos, r));
 
     // Try moving only in Z direction
     let z_only_z = velocity_z.mul_add(delta, current_pos.z);
@@ -153,7 +156,8 @@ where
         z: z_only_z,
     };
 
-    let z_collides = walls.iter().any(|w| collision_check(&z_only_pos, w));
+    let z_collides = walls.iter().any(|w| collision_check(&z_only_pos, w))
+        || ramps.iter().any(|r| ramp_edge_check(current_pos, &z_only_pos, r));
 
     // If neither axis causes collision, use the one with larger movement
     if !x_collides && !z_collides {
@@ -236,6 +240,55 @@ impl Projectile {
     pub fn handle_ramp_bounce(&mut self, projectile_pos: &Position, delta: f32, ramp: &Ramp) -> Option<Position> {
         use crate::ramps::calculate_height_at_position;
         
+        // First check collision with the four vertical edge walls of the ramp
+        let min_x = ramp.x1.min(ramp.x2);
+        let max_x = ramp.x1.max(ramp.x2);
+        let min_z = ramp.z1.min(ramp.z2);
+        let max_z = ramp.z1.max(ramp.z2);
+        
+        // Determine which direction the ramp runs (X or Z)
+        let dx = (ramp.x2 - ramp.x1).abs();
+        let dz = (ramp.z2 - ramp.z1).abs();
+        let runs_along_x = dx > dz;
+        
+        // Create temporary walls for the perpendicular edges (sides that block projectiles)
+        // If ramp runs along X, the sides are at min_z and max_z
+        // If ramp runs along Z, the sides are at min_x and max_x
+        let side_walls: Vec<Wall> = if runs_along_x {
+            vec![
+                Wall { x1: min_x, z1: min_z, x2: max_x, z2: min_z, width: WALL_WIDTH },
+                Wall { x1: min_x, z1: max_z, x2: max_x, z2: max_z, width: WALL_WIDTH },
+            ]
+        } else {
+            vec![
+                Wall { x1: min_x, z1: min_z, x2: min_x, z2: max_z, width: WALL_WIDTH },
+                Wall { x1: max_x, z1: min_z, x2: max_x, z2: max_z, width: WALL_WIDTH },
+            ]
+        };
+        
+        // Check collision with side walls, but only if projectile is below the ramp's height at that position
+        for wall in &side_walls {
+            // First check if there would be a collision with the wall
+            if let Some((_, _, t_collision)) = check_projectile_wall_sweep_hit(projectile_pos, self, delta, wall) {
+                // Calculate the collision position
+                let collision_x = self.velocity.x.mul_add(delta * t_collision, projectile_pos.x);
+                let collision_y = self.velocity.y.mul_add(delta * t_collision, projectile_pos.y);
+                let collision_z = self.velocity.z.mul_add(delta * t_collision, projectile_pos.z);
+                
+                // Get the ramp height at this collision position
+                let ramp_height_at_collision = calculate_height_at_position(&[*ramp], collision_x, collision_z);
+                
+                // Only process the collision if the projectile is at or below the ramp height
+                // Add some tolerance (projectile radius) to allow shots just above the ramp edge
+                if collision_y <= ramp_height_at_collision + PROJECTILE_RADIUS {
+                    if let Some(result) = self.handle_wall_bounce(projectile_pos, delta, wall) {
+                        return Some(result);
+                    }
+                }
+            }
+        }
+        
+        // Now check collision with the sloped ramp surface
         // Sample multiple points along the projectile's path to find collision
         let num_samples = 5;
         for i in 0..=num_samples {
@@ -245,11 +298,6 @@ impl Projectile {
             let sample_z = projectile_pos.z + self.velocity.z * delta * t;
             
             // Check if this sample point is within the ramp footprint
-            let min_x = ramp.x1.min(ramp.x2);
-            let max_x = ramp.x1.max(ramp.x2);
-            let min_z = ramp.z1.min(ramp.z2);
-            let max_z = ramp.z1.max(ramp.z2);
-            
             if sample_x >= min_x && sample_x <= max_x && sample_z >= min_z && sample_z <= max_z {
                 // Get the ramp height at this XZ position
                 let ramp_height = calculate_height_at_position(&[*ramp], sample_x, sample_z);
@@ -573,6 +621,7 @@ pub fn calculate_wall_slide(
         velocity_z,
         delta,
         check_player_wall_overlap,
+        check_player_ramp_edge_sweep,
     )
 }
 
@@ -596,6 +645,7 @@ pub fn calculate_ghost_slide(
         velocity_z,
         delta,
         check_ghost_wall_overlap,
+        check_ghost_ramp_edge_sweep,
     )
 }
 
