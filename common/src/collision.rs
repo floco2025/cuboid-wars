@@ -238,112 +238,41 @@ impl Projectile {
     // If reflects=false and wall hit, caller should despawn the projectile
     #[must_use]
     pub fn handle_ramp_bounce(&mut self, projectile_pos: &Position, delta: f32, ramp: &Ramp) -> Option<Position> {
-        use crate::ramps::calculate_height_at_position;
-        
-        // First check collision with the four vertical edge walls of the ramp
-        let min_x = ramp.x1.min(ramp.x2);
-        let max_x = ramp.x1.max(ramp.x2);
-        let min_z = ramp.z1.min(ramp.z2);
-        let max_z = ramp.z1.max(ramp.z2);
-        
-        // Determine which direction the ramp runs (X or Z)
-        let dx = (ramp.x2 - ramp.x1).abs();
-        let dz = (ramp.z2 - ramp.z1).abs();
-        let runs_along_x = dx > dz;
-        
-        // Create temporary walls for the perpendicular edges (sides that block projectiles)
-        // If ramp runs along X, the sides are at min_z and max_z
-        // If ramp runs along Z, the sides are at min_x and max_x
-        let side_walls: Vec<Wall> = if runs_along_x {
-            vec![
-                Wall { x1: min_x, z1: min_z, x2: max_x, z2: min_z, width: WALL_WIDTH },
-                Wall { x1: min_x, z1: max_z, x2: max_x, z2: max_z, width: WALL_WIDTH },
-            ]
-        } else {
-            vec![
-                Wall { x1: min_x, z1: min_z, x2: min_x, z2: max_z, width: WALL_WIDTH },
-                Wall { x1: max_x, z1: min_z, x2: max_x, z2: max_z, width: WALL_WIDTH },
-            ]
-        };
-        
-        // Check collision with side walls, but only if projectile is below the ramp's height at that position
-        for wall in &side_walls {
-            // First check if there would be a collision with the wall
-            if let Some((_, _, t_collision)) = check_projectile_wall_sweep_hit(projectile_pos, self, delta, wall) {
-                // Calculate the collision position
+        if let Some((normal_x, normal_y, normal_z, t_collision)) =
+            check_projectile_ramp_sweep_hit(projectile_pos, self, delta, ramp)
+        {
+            if self.reflects {
+                // Move projectile to collision point
                 let collision_x = self.velocity.x.mul_add(delta * t_collision, projectile_pos.x);
                 let collision_y = self.velocity.y.mul_add(delta * t_collision, projectile_pos.y);
                 let collision_z = self.velocity.z.mul_add(delta * t_collision, projectile_pos.z);
-                
-                // Get the ramp height at this collision position
-                let ramp_height_at_collision = calculate_height_at_position(&[*ramp], collision_x, collision_z);
-                
-                // Only process the collision if the projectile is at or below the ramp height
-                // Add some tolerance (projectile radius) to allow shots just above the ramp edge
-                if collision_y <= ramp_height_at_collision + PROJECTILE_RADIUS {
-                    if let Some(result) = self.handle_wall_bounce(projectile_pos, delta, wall) {
-                        return Some(result);
-                    }
-                }
+
+                // Reflect velocity off the ramp normal
+                let dot = self.velocity.x.mul_add(normal_x, self.velocity.y.mul_add(normal_y, self.velocity.z * normal_z));
+                self.velocity.x -= 2.0 * dot * normal_x;
+                self.velocity.y -= 2.0 * dot * normal_y;
+                self.velocity.z -= 2.0 * dot * normal_z;
+
+                // Push projectile slightly away from surface to prevent getting stuck inside
+                const SEPARATION_EPSILON: f32 = 0.01;
+                let separated_x = normal_x.mul_add(SEPARATION_EPSILON, collision_x);
+                let separated_y = normal_y.mul_add(SEPARATION_EPSILON, collision_y);
+                let separated_z = normal_z.mul_add(SEPARATION_EPSILON, collision_z);
+
+                // Continue moving for remaining time after bounce
+                let remaining_time = delta * (1.0 - t_collision);
+                Some(Position {
+                    x: self.velocity.x.mul_add(remaining_time, separated_x),
+                    y: self.velocity.y.mul_add(remaining_time, separated_y),
+                    z: self.velocity.z.mul_add(remaining_time, separated_z),
+                })
+            } else {
+                // Hit ramp without reflect - return current position, caller should despawn
+                Some(*projectile_pos)
             }
+        } else {
+            None
         }
-        
-        // Now check collision with the sloped ramp surface
-        // Sample multiple points along the projectile's path to find collision
-        let num_samples = 5;
-        for i in 0..=num_samples {
-            let t = i as f32 / num_samples as f32;
-            let sample_x = projectile_pos.x + self.velocity.x * delta * t;
-            let sample_y = projectile_pos.y + self.velocity.y * delta * t;
-            let sample_z = projectile_pos.z + self.velocity.z * delta * t;
-            
-            // Check if this sample point is within the ramp footprint
-            if sample_x >= min_x && sample_x <= max_x && sample_z >= min_z && sample_z <= max_z {
-                // Get the ramp height at this XZ position
-                let ramp_height = calculate_height_at_position(&[*ramp], sample_x, sample_z);
-                
-                // Check if projectile is close to the ramp surface (within radius)
-                if (sample_y - ramp_height).abs() < PROJECTILE_RADIUS * 2.0 {
-                    if self.reflects {
-                        // Calculate ramp normal (perpendicular to slope)
-                        let dx = ramp.x2 - ramp.x1;
-                        let dy = ramp.y2 - ramp.y1;
-                        let dz = ramp.z2 - ramp.z1;
-                        let length_xz = (dx * dx + dz * dz).sqrt();
-                        
-                        // Ramp normal points upward and perpendicular to slope direction
-                        let normal_x = -dy * dx / (length_xz * (dx * dx + dy * dy + dz * dz).sqrt());
-                        let normal_y = length_xz / (dx * dx + dy * dy + dz * dz).sqrt();
-                        let normal_z = -dy * dz / (length_xz * (dx * dx + dy * dy + dz * dz).sqrt());
-                        
-                        // Reflect velocity off the ramp normal
-                        let dot = self.velocity.x * normal_x + self.velocity.y * normal_y + self.velocity.z * normal_z;
-                        self.velocity.x -= 2.0 * dot * normal_x;
-                        self.velocity.y -= 2.0 * dot * normal_y;
-                        self.velocity.z -= 2.0 * dot * normal_z;
-                        
-                        // Push projectile slightly away from ramp surface
-                        const SEPARATION_EPSILON: f32 = 0.01;
-                        let separated_x = sample_x + normal_x * SEPARATION_EPSILON;
-                        let separated_y = sample_y + normal_y * SEPARATION_EPSILON;
-                        let separated_z = sample_z + normal_z * SEPARATION_EPSILON;
-                        
-                        // Continue moving for remaining time after bounce
-                        let remaining_time = delta * (1.0 - t);
-                        return Some(Position {
-                            x: self.velocity.x.mul_add(remaining_time, separated_x),
-                            y: self.velocity.y.mul_add(remaining_time, separated_y),
-                            z: self.velocity.z.mul_add(remaining_time, separated_z),
-                        });
-                    } else {
-                        // Hit ramp without reflect - return current position, caller should despawn
-                        return Some(*projectile_pos);
-                    }
-                }
-            }
-        }
-        
-        None
     }
 
     #[must_use]
@@ -387,6 +316,108 @@ impl Projectile {
 // ============================================================================
 // Collision Detection - Projectiles
 // ============================================================================
+
+// Check if a projectile hits a ramp using swept sphere collision (treating ramp as box)
+//
+// Returns:
+// - `Some((normal_x, normal_y, normal_z, t_collision))` if hit
+// - `None` if no collision
+#[must_use]
+pub fn check_projectile_ramp_sweep_hit(
+    proj_pos: &Position,
+    projectile: &Projectile,
+    delta: f32,
+    ramp: &Ramp,
+) -> Option<(f32, f32, f32, f32)> {
+    // Treat ramp as an axis-aligned box (cuboid)
+    let min_x = ramp.x1.min(ramp.x2);
+    let max_x = ramp.x1.max(ramp.x2);
+    let min_y = ramp.y1.min(ramp.y2);
+    let max_y = ramp.y1.max(ramp.y2);
+    let min_z = ramp.z1.min(ramp.z2);
+    let max_z = ramp.z1.max(ramp.z2);
+    
+    let center_x = (min_x + max_x) / 2.0;
+    let center_y = (min_y + max_y) / 2.0;
+    let center_z = (min_z + max_z) / 2.0;
+    
+    let half_x = (max_x - min_x) / 2.0 + PROJECTILE_RADIUS;
+    let half_y = (max_y - min_y) / 2.0 + PROJECTILE_RADIUS;
+    let half_z = (max_z - min_z) / 2.0 + PROJECTILE_RADIUS;
+    
+    let ray_dir_x = projectile.velocity.x * delta;
+    let ray_dir_y = projectile.velocity.y * delta;
+    let ray_dir_z = projectile.velocity.z * delta;
+    
+    let local_x = proj_pos.x - center_x;
+    let local_y = proj_pos.y - center_y;
+    let local_z = proj_pos.z - center_z;
+    
+    let mut t_min = 0.0_f32;
+    let mut t_max = 1.0_f32;
+    
+    if let Some((min_x, max_x)) = slab_interval(local_x, ray_dir_x, half_x, t_min, t_max) {
+        t_min = min_x;
+        t_max = max_x;
+    } else {
+        return None;
+    }
+    
+    if let Some((min_y, max_y)) = slab_interval(local_y, ray_dir_y, half_y, t_min, t_max) {
+        t_min = min_y;
+        t_max = max_y;
+    } else {
+        return None;
+    }
+    
+    if let Some((min_z, max_z)) = slab_interval(local_z, ray_dir_z, half_z, t_min, t_max) {
+        t_min = min_z;
+        t_max = max_z;
+    } else {
+        return None;
+    }
+    
+    if t_min <= t_max && t_max >= 0.0 && t_min <= 1.0 {
+        let t_collision = t_min.clamp(0.0, 1.0);
+        
+        // Calculate hit normal based on which face was hit
+        let epsilon = 1e-4;
+        let mut normal_x = 0.0;
+        let mut normal_y = 0.0;
+        let mut normal_z = 0.0;
+        
+        if ray_dir_x.abs() > epsilon {
+            let t_near_x = (-half_x - local_x) / ray_dir_x;
+            let t_far_x = (half_x - local_x) / ray_dir_x;
+            let t_x_min = t_near_x.min(t_far_x);
+            if (t_x_min - t_collision).abs() < epsilon {
+                normal_x = if local_x > 0.0 { 1.0 } else { -1.0 };
+            }
+        }
+        
+        if ray_dir_y.abs() > epsilon {
+            let t_near_y = (-half_y - local_y) / ray_dir_y;
+            let t_far_y = (half_y - local_y) / ray_dir_y;
+            let t_y_min = t_near_y.min(t_far_y);
+            if (t_y_min - t_collision).abs() < epsilon {
+                normal_y = if local_y > 0.0 { 1.0 } else { -1.0 };
+            }
+        }
+        
+        if ray_dir_z.abs() > epsilon {
+            let t_near_z = (-half_z - local_z) / ray_dir_z;
+            let t_far_z = (half_z - local_z) / ray_dir_z;
+            let t_z_min = t_near_z.min(t_far_z);
+            if (t_z_min - t_collision).abs() < epsilon {
+                normal_z = if local_z > 0.0 { 1.0 } else { -1.0 };
+            }
+        }
+        
+        Some((normal_x, normal_y, normal_z, t_collision))
+    } else {
+        None
+    }
+}
 
 // Check if a projectile hits a player using swept sphere collision
 //
