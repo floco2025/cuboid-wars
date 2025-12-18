@@ -1,8 +1,8 @@
 use super::helpers::{
-    overlap_aabb_vs_wall, ranges_overlap_1d, slide_along_axes, sweep_aabb_vs_wall, sweep_ramp_edges, sweep_ramp_high_cap,
+    overlap_aabb_vs_wall, ranges_overlap_1d, slide_along_axes, sweep_aabb_vs_wall, sweep_slab_interval,
 };
 use crate::{
-    constants::{GHOST_SIZE, PLAYER_DEPTH, PLAYER_HEIGHT, PLAYER_WIDTH, RAMP_EDGE_WIDTH},
+    constants::{GHOST_SIZE, PLAYER_DEPTH, PLAYER_HEIGHT, PLAYER_WIDTH},
     protocol::{Position, Ramp, Wall},
 };
 
@@ -19,14 +19,61 @@ pub fn sweep_ghost_vs_wall(start_pos: &Position, end_pos: &Position, wall: &Wall
 }
 
 #[must_use]
-pub fn sweep_ghost_vs_ramp_edges(start_pos: &Position, end_pos: &Position, ramp: &Ramp) -> bool {
+pub fn sweep_ghost_vs_ramp_footprint(start_pos: &Position, end_pos: &Position, ramp: &Ramp) -> bool {
+    // Swept AABB against the ramp footprint expanded by ghost half extents.
     let half = GHOST_SIZE / 2.0;
-    let edge_half = RAMP_EDGE_WIDTH / 2.0;
 
-    let on_ground = start_pos.y <= 0.1;
+    let min_x = ramp.x1.min(ramp.x2);
+    let max_x = ramp.x1.max(ramp.x2);
+    let min_z = ramp.z1.min(ramp.z2);
+    let max_z = ramp.z1.max(ramp.z2);
 
-    sweep_ramp_edges(start_pos, end_pos, ramp, half, half, edge_half)
-        || (on_ground && sweep_ramp_high_cap(start_pos, end_pos, ramp, half, half, edge_half))
+    let center_x = (min_x + max_x) / 2.0;
+    let center_z = (min_z + max_z) / 2.0;
+    let half_x = (max_x - min_x) / 2.0 + half;
+    let half_z = (max_z - min_z) / 2.0 + half;
+
+    let dir_x = end_pos.x - start_pos.x;
+    let dir_z = end_pos.z - start_pos.z;
+
+    let local_x = start_pos.x - center_x;
+    let local_z = start_pos.z - center_z;
+
+    let mut t_min = 0.0_f32;
+    let mut t_max = 1.0_f32;
+
+    if let Some((new_min, new_max)) = sweep_slab_interval(local_x, dir_x, half_x, t_min, t_max) {
+        t_min = new_min;
+        t_max = new_max;
+    } else {
+        return false;
+    }
+
+    if let Some((new_min, new_max)) = sweep_slab_interval(local_z, dir_z, half_z, t_min, t_max) {
+        t_min = new_min;
+        t_max = new_max;
+    } else {
+        return false;
+    }
+
+    t_min <= t_max && t_max >= 0.0 && t_min <= 1.0
+}
+
+#[must_use]
+pub fn overlap_ghost_vs_ramp_footprint(ghost_pos: &Position, ramp: &Ramp) -> bool {
+    let half = GHOST_SIZE / 2.0;
+
+    let g_min_x = ghost_pos.x - half;
+    let g_max_x = ghost_pos.x + half;
+    let g_min_z = ghost_pos.z - half;
+    let g_max_z = ghost_pos.z + half;
+
+    let r_min_x = ramp.x1.min(ramp.x2);
+    let r_max_x = ramp.x1.max(ramp.x2);
+    let r_min_z = ramp.z1.min(ramp.z2);
+    let r_max_z = ramp.z1.max(ramp.z2);
+
+    ranges_overlap_1d(g_min_x, g_max_x, r_min_x, r_max_x) && ranges_overlap_1d(g_min_z, g_max_z, r_min_z, r_max_z)
 }
 
 #[must_use]
@@ -96,13 +143,17 @@ fn slide_ghost(
             walls
                 .iter()
                 .any(|w| sweep_ghost_vs_wall(current_pos, candidate, w))
-                || ramps.iter().any(|r| sweep_ghost_vs_ramp_edges(current_pos, candidate, r))
+                || ramps
+                    .iter()
+                    .any(|r| sweep_ghost_vs_ramp_footprint(current_pos, candidate, r))
         },
         |candidate| {
             walls
                 .iter()
                 .any(|w| sweep_ghost_vs_wall(current_pos, candidate, w))
-                || ramps.iter().any(|r| sweep_ghost_vs_ramp_edges(current_pos, candidate, r))
+                || ramps
+                    .iter()
+                    .any(|r| sweep_ghost_vs_ramp_footprint(current_pos, candidate, r))
         },
     )
 }

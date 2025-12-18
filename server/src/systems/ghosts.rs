@@ -9,9 +9,7 @@ use crate::{
 };
 use common::{
     collision::{
-        ghosts::{
-            overlap_ghost_vs_player, overlap_ghost_vs_wall, slide_ghost_along_obstacles, sweep_ghost_vs_ramp_edges,
-        },
+        ghosts::{overlap_ghost_vs_player, slide_ghost_along_obstacles, sweep_ghost_vs_ramp_footprint, sweep_ghost_vs_wall},
         players::sweep_player_vs_wall,
     },
     constants::*,
@@ -94,12 +92,54 @@ fn direction_from_velocity(vel: &Velocity) -> Option<GridDirection> {
     }
 }
 
-fn valid_directions(cell: GridCell) -> Vec<GridDirection> {
-    GridDirection::ALL
+fn valid_directions(grid_config: &GridConfig, grid_x: i32, grid_z: i32, cell: GridCell) -> Vec<GridDirection> {
+    assert!(
+        grid_x >= 0 && grid_x < GRID_COLS && grid_z >= 0 && grid_z < GRID_ROWS,
+        "ghost current cell OOB in valid_directions: ({}, {})",
+        grid_x,
+        grid_z
+    );
+
+    // Prefer non-ramp exits; we expect at least one exists for a non-ramp cell
+    let open: Vec<_> = GridDirection::ALL
         .iter()
         .copied()
         .filter(|dir| !dir.is_blocked(cell))
-        .collect()
+        .collect();
+
+    assert!(!open.is_empty(), "no open directions from grid cell");
+
+    let ramp_safe: Vec<_> = open
+        .iter()
+        .copied()
+        .filter(|dir| !direction_leads_to_ramp(grid_config, grid_x, grid_z, *dir))
+        .collect();
+
+    assert!(!ramp_safe.is_empty(), "all open directions lead to ramps");
+
+    ramp_safe
+}
+
+fn direction_leads_to_ramp(grid_config: &GridConfig, grid_x: i32, grid_z: i32, dir: GridDirection) -> bool {
+    assert!(
+        grid_x >= 0 && grid_x < GRID_COLS && grid_z >= 0 && grid_z < GRID_ROWS,
+        "ghost current cell OOB in direction_leads_to_ramp: ({}, {})",
+        grid_x,
+        grid_z
+    );
+
+    let (next_x, next_z) = match dir {
+        GridDirection::East => (grid_x + 1, grid_z),
+        GridDirection::North => (grid_x, grid_z - 1),
+        GridDirection::West => (grid_x - 1, grid_z),
+        GridDirection::South => (grid_x, grid_z + 1),
+    };
+
+    if next_x < 0 || next_x >= GRID_COLS || next_z < 0 || next_z >= GRID_ROWS {
+        return true; // out-of-bounds neighbor is considered blocked
+    }
+
+    grid_config.grid[next_z as usize][next_x as usize].has_ramp
 }
 
 fn forward_directions(valid: &[GridDirection], current: GridDirection) -> Vec<GridDirection> {
@@ -151,7 +191,7 @@ pub fn ghosts_spawn_system(
 
         // Pick a valid direction based on the cell's walls
         let cell = &grid_config.grid[grid_z as usize][grid_x as usize];
-        let valid_directions = valid_directions(*cell);
+        let valid_directions = valid_directions(&grid_config, grid_x, grid_z, *cell);
         let direction = pick_direction(&mut rng, &valid_directions).expect("no valid direction");
         let vel = direction.to_velocity();
 
@@ -394,7 +434,7 @@ fn pre_patrol_movement(
     if at_intersection {
         // We've reached the grid center - pick a valid direction and transition to patrol
         let cell = &grid_config.grid[grid_z as usize][grid_x as usize];
-        let valid_directions = valid_directions(*cell);
+        let valid_directions = valid_directions(&grid_config, grid_x, grid_z, *cell);
         let new_direction = pick_direction(rng, &valid_directions).expect("no valid direction");
         *vel = new_direction.to_velocity();
         ghost_info.mode = GhostMode::Patrol;
@@ -468,10 +508,11 @@ fn patrol_movement(
 
     if just_arrived {
         let cell = &grid_config.grid[grid_z as usize][grid_x as usize];
-        let valid_directions = valid_directions(*cell);
+        let valid_directions = valid_directions(&grid_config, grid_x, grid_z, *cell);
         let mut direction_changed = false;
 
-        if current_direction.is_blocked(*cell) {
+        if current_direction.is_blocked(*cell) || direction_leads_to_ramp(&grid_config, grid_x, grid_z, current_direction)
+        {
             let forward_options = forward_directions(&valid_directions, current_direction);
             if forward_options.is_empty() {
                 let new_direction = valid_directions.first().copied().expect("no valid direction");
@@ -592,16 +633,15 @@ fn follow_movement(
     let mut collides = false;
 
     for wall in walls {
-        if overlap_ghost_vs_wall(&final_pos, wall) {
+        if sweep_ghost_vs_wall(pos, &final_pos, wall) {
             collides = true;
             break;
         }
     }
 
-    // Check ramp edge collisions
     if !collides {
         for ramp in &grid_config.ramps {
-            if sweep_ghost_vs_ramp_edges(pos, &final_pos, ramp) {
+            if sweep_ghost_vs_ramp_footprint(pos, &final_pos, ramp) {
                 collides = true;
                 break;
             }
