@@ -23,8 +23,10 @@ pub fn sweep_player_vs_ramp_edges(start_pos: &Position, end_pos: &Position, ramp
     let half_z = PLAYER_DEPTH / 2.0;
     let edge_half = RAMP_EDGE_WIDTH / 2.0;
 
+    let on_ground = start_pos.y <= 0.1;
+
     sweep_ramp_edges(start_pos, end_pos, ramp, half_x, half_z, edge_half)
-        || sweep_ramp_high_cap(start_pos, end_pos, ramp, half_x, half_z, edge_half)
+        || (on_ground && sweep_ramp_high_cap(start_pos, end_pos, ramp, half_x, half_z, edge_half))
 }
 
 #[must_use]

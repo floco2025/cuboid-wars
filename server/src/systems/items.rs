@@ -171,10 +171,15 @@ pub fn item_collection_system(
 
             // Check against all players
             for (player_id, player_info) in &players.0 {
-                if let Ok(player_pos) = player_positions.get(player_info.entity)
-                    && overlap_player_vs_item(player_pos, item_pos, ITEM_COLLECTION_RADIUS)
-                {
-                    return Some((*player_id, *item_id, item_info.item_type));
+                if let Ok(player_pos) = player_positions.get(player_info.entity) {
+                    // Only allow pickup when player is effectively on the ground
+                    if player_pos.y > 0.1 {
+                        continue;
+                    }
+
+                    if overlap_player_vs_item(player_pos, item_pos, ITEM_COLLECTION_RADIUS) {
+                        return Some((*player_id, *item_id, item_info.item_type));
+                    }
                 }
             }
             None

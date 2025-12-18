@@ -9,7 +9,7 @@ use super::players::{LocalPlayerMarker, MainCameraMarker, PlayerMovementMut};
 use crate::{
     constants::*,
     net::ClientToServer,
-    resources::{CameraViewMode, ClientToServerChannel, MyPlayerId, PlayerMap, RoofRenderingEnabled, WallConfig},
+    resources::{CameraViewMode, ClientToServerChannel, InputSettings, MyPlayerId, PlayerMap, RoofRenderingEnabled, WallConfig},
     spawning::spawn_projectiles,
 };
 use common::{
@@ -44,6 +44,7 @@ pub fn input_movement_system(
     time: Res<Time>,
     my_player_id: Option<Res<MyPlayerId>>,
     players: Res<PlayerMap>,
+    input_settings: Res<InputSettings>,
     mut local_state: Local<InputState>,
     mut local_player_query: Query<PlayerMovementMut, With<LocalPlayerMarker>>,
     mut camera_query: Query<&mut Transform, (With<Camera3d>, With<MainCameraMarker>)>,
@@ -63,8 +64,13 @@ pub fn input_movement_system(
         return;
     }
 
-    let (current_yaw, current_pitch) =
-        calculate_current_orientation(&mut mouse_motion, &camera_query, &view_mode, &mut local_state);
+    let (current_yaw, current_pitch) = calculate_current_orientation(
+        &mut mouse_motion,
+        &camera_query,
+        &view_mode,
+        &mut local_state,
+        input_settings.invert_pitch,
+    );
     let face_yaw = current_yaw + std::f32::consts::PI;
     let speed = calculate_movement_speed(&keyboard, face_yaw, my_player_id.as_ref(), &players);
 
@@ -126,7 +132,9 @@ fn calculate_current_orientation(
     camera_query: &Query<&mut Transform, (With<Camera3d>, With<MainCameraMarker>)>,
     view_mode: &Res<CameraViewMode>,
     local_state: &mut Local<InputState>,
+    invert_pitch: bool,
 ) -> (f32, f32) {
+    let pitch_sign = if invert_pitch { MOUSE_SENSITIVITY } else { -MOUSE_SENSITIVITY };
     // Determine the yaw/pitch baseline (camera vs stored value depending on view mode)
     let (mut current_yaw, mut current_pitch) = if **view_mode == CameraViewMode::FirstPerson
         && !view_mode.is_changed()
@@ -142,7 +150,7 @@ fn calculate_current_orientation(
     for motion in mouse_motion.read() {
         current_yaw = motion.delta.x.mul_add(-MOUSE_SENSITIVITY, current_yaw);
         if **view_mode == CameraViewMode::FirstPerson {
-            current_pitch = motion.delta.y.mul_add(-MOUSE_SENSITIVITY, current_pitch);
+            current_pitch = motion.delta.y.mul_add(pitch_sign, current_pitch);
         }
     }
 

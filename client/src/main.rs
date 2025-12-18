@@ -49,6 +49,10 @@ struct Args {
     // Window height
     #[arg(long, default_value = "800")]
     window_height: u32,
+
+    // Invert mouse pitch (up/down)
+    #[arg(short, long, default_value_t = false)]
+    invert_pitch: bool,
 }
 
 // ============================================================================
@@ -95,6 +99,9 @@ fn main() -> Result<()> {
     .insert_resource(LastUpdateSeq::default())
     .insert_resource(CameraViewMode::default())
     .insert_resource(RoofRenderingEnabled::default())
+    .insert_resource(InputSettings {
+        invert_pitch: args.invert_pitch,
+    })
     .add_systems(
         Startup,
         (setup_world_system, setup_skybox_from_cross.after(setup_world_system)),

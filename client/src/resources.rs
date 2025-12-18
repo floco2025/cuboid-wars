@@ -120,6 +120,12 @@ impl Default for RoofRenderingEnabled {
     }
 }
 
+// Input settings
+#[derive(Resource, Clone, Copy, Debug)]
+pub struct InputSettings {
+    pub invert_pitch: bool,
+}
+
 // Resource wrapper for the client to server channel
 #[derive(Resource)]
 pub struct ClientToServerChannel(UnboundedSender<ClientToServer>);

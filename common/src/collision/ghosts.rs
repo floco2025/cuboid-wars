@@ -23,8 +23,10 @@ pub fn sweep_ghost_vs_ramp_edges(start_pos: &Position, end_pos: &Position, ramp:
     let half = GHOST_SIZE / 2.0;
     let edge_half = RAMP_EDGE_WIDTH / 2.0;
 
+    let on_ground = start_pos.y <= 0.1;
+
     sweep_ramp_edges(start_pos, end_pos, ramp, half, half, edge_half)
-        || sweep_ramp_high_cap(start_pos, end_pos, ramp, half, half, edge_half)
+        || (on_ground && sweep_ramp_high_cap(start_pos, end_pos, ramp, half, half, edge_half))
 }
 
 #[must_use]
