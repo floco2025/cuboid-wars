@@ -14,7 +14,7 @@ use crate::{
 };
 use common::{
     constants::{
-        ALWAYS_MULTI_SHOT, ALWAYS_REFLECT, ALWAYS_SPEED, POWER_UP_SPEED_MULTIPLIER,
+        ALWAYS_MULTI_SHOT, ALWAYS_REFLECT, ALWAYS_SPEED, POWER_UP_SPEED_MULTIPLIER, PROJECTILE_COOLDOWN_TIME,
     },
     protocol::*,
 };
@@ -287,6 +287,8 @@ pub fn input_shooting_system(
     players: Res<PlayerMap>,
     wall_config: Option<Res<WallConfig>>,
     view_mode: Res<CameraViewMode>,
+    time: Res<Time>,
+    mut last_shot_time: Local<f32>,
 ) {
     // Only allow shooting when cursor is locked
     let cursor_locked = cursor_options.grab_mode != CursorGrabMode::None;
@@ -295,6 +297,8 @@ pub fn input_shooting_system(
         && mouse.just_pressed(MouseButton::Left)
         && let Some((pos, face_dir)) = local_player_query.iter().next()
     {
+        let now = time.elapsed_secs();
+
         let pitch = if *view_mode == CameraViewMode::FirstPerson {
             camera_query
                 .iter()
@@ -304,6 +308,18 @@ pub fn input_shooting_system(
         } else {
             0.0
         };
+
+        // Client-side cooldown guard (server still authoritative)
+        if now - *last_shot_time < PROJECTILE_COOLDOWN_TIME {
+            // Play dry click feedback when throttled locally
+            commands.spawn((
+                AudioPlayer::new(asset_server.load("sounds/player_dry_click.ogg")),
+                PlaybackSettings::DESPAWN,
+            ));
+            return;
+        }
+
+        *last_shot_time = now;
 
         // Play shooting sound
         commands.spawn((

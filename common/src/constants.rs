@@ -27,6 +27,7 @@ pub const PROJECTILE_SPAWN_OFFSET: f32 = 1.0; // meters in front of thrower
 // Spawn from camera/eye height (match FPV camera height): ~90% of player height above ground
 pub const PROJECTILE_SPAWN_HEIGHT: f32 = PLAYER_HEIGHT * 0.9;
 pub const PROJECTILE_RADIUS: f32 = 0.11; // meters
+pub const PROJECTILE_COOLDOWN_TIME: f32 = 0.1; // Minimum time between shots
 
 // Wall dimensions (meters)
 pub const WALL_THICKNESS: f32 = 0.3; // Wall thickness

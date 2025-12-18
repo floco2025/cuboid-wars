@@ -188,6 +188,7 @@ pub fn network_accept_connections_system(
                 phasing_power_up_timer: 0.0,
                 ghost_hunt_power_up_timer: 0.0,
                 stun_timer: 0.0,
+                last_shot_time: f32::NEG_INFINITY,
             },
         );
     }
@@ -203,6 +204,7 @@ pub fn network_client_message_system(
     mut commands: Commands,
     mut from_clients: ResMut<FromClientsChannel>,
     mut players: ResMut<PlayerMap>,
+    time: Res<Time>,
     grid_config: Res<GridConfig>,
     items: Res<ItemMap>,
     ghosts: Res<GhostMap>,
@@ -236,7 +238,8 @@ pub fn network_client_message_system(
                         player_info.entity,
                         id,
                         message,
-                        &players,
+                        &mut players,
+                        &time,
                         &queries,
                         &grid_config,
                     );
@@ -382,7 +385,8 @@ fn process_message_logged_in(
     entity: Entity,
     id: PlayerId,
     msg: ClientMessage,
-    players: &PlayerMap,
+    players: &mut PlayerMap,
+    time: &Res<Time>,
     queries: &NetworkEntityQueries,
     grid_config: &GridConfig,
 ) {
@@ -403,15 +407,15 @@ fn process_message_logged_in(
         }
         ClientMessage::Speed(msg) => {
             trace!("{:?} speed: {:?}", id, msg);
-            handle_speed(commands, entity, id, msg, players, &queries.positions);
+            handle_speed(commands, entity, id, msg, &*players, &queries.positions);
         }
         ClientMessage::Face(msg) => {
             trace!("{:?} face direction: {}", id, msg.dir);
-            handle_face_direction(commands, entity, id, msg, players);
+            handle_face_direction(commands, entity, id, msg, &*players);
         }
         ClientMessage::Shot(msg) => {
             debug!("{id:?} shot");
-            handle_shot(commands, entity, id, msg, players, &queries.positions, grid_config);
+            handle_shot(commands, entity, id, msg, players, time, &queries.positions, grid_config);
         }
         ClientMessage::Echo(msg) => {
             trace!("{:?} echo: {:?}", id, msg);
@@ -467,26 +471,35 @@ fn handle_shot(
     entity: Entity,
     id: PlayerId,
     msg: CShot,
-    players: &PlayerMap,
+    players: &mut PlayerMap,
+    time: &Res<Time>,
     positions: &Query<&Position>,
     grid_config: &GridConfig,
 ) {
+    let now = time.elapsed_secs();
+
+    let (has_reflect, has_multi_shot) = {
+        let Some(player_info) = players.0.get_mut(&id) else {
+            return;
+        };
+
+        if now - player_info.last_shot_time < PROJECTILE_COOLDOWN_TIME {
+            return; // Throttled: ignore
+        }
+
+        player_info.last_shot_time = now;
+
+        (
+            ALWAYS_REFLECT || player_info.reflect_power_up_timer > 0.0,
+            ALWAYS_MULTI_SHOT || player_info.multi_shot_power_up_timer > 0.0,
+        )
+    };
+
     // Update the shooter's face direction to exact facing direction
     commands.entity(entity).insert(FaceDirection(msg.face_dir));
 
     // Spawn projectile(s) on server for hit detection
     if let Ok(pos) = positions.get(entity) {
-        // Check if player has reflect power-up
-        let has_reflect = ALWAYS_REFLECT
-            || players.0.get(&id).is_some_and(|info| info.reflect_power_up_timer > 0.0);
-
-        // Check if player has multi-shot power-up
-        let has_multi_shot = ALWAYS_MULTI_SHOT
-            || players
-                .0
-                .get(&id)
-                .is_some_and(|info| info.multi_shot_power_up_timer > 0.0);
-
         // Calculate valid projectile spawn positions (all_walls excludes roof-edge guards)
         let spawns = calculate_projectile_spawns(
             pos,

@@ -73,6 +73,7 @@ pub struct PlayerInfo {
     pub phasing_power_up_timer: f32, // Remaining time for phasing power-up (0.0 = inactive)
     pub ghost_hunt_power_up_timer: f32, // Remaining time for ghost hunt power-up (0.0 = inactive)
     pub stun_timer: f32,           // Remaining time stunned (0.0 = not stunned)
+    pub last_shot_time: f32,       // Timestamp of last accepted shot (seconds)
 }
 
 // Map of all players (server-side source of truth)
