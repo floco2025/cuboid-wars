@@ -200,6 +200,26 @@ fn handle_wall_collisions(
 ) -> Option<Position> {
     let config = wall_config?;
 
+    // Ground bounce first
+    if let Some(new_pos) = projectile.handle_ground_bounce(projectile_pos, delta) {
+        play_sound(
+            commands,
+            asset_server,
+            "sounds/player_hits_wall.ogg",
+            PlaybackSettings {
+                mode: PlaybackMode::Despawn,
+                volume: Volume::Linear(0.2),
+                ..default()
+            },
+        );
+
+        if !projectile.reflects {
+            commands.entity(projectile_entity).despawn();
+        }
+
+        return Some(new_pos);
+    }
+
     // Check walls
     for wall in &config.all_walls {
         if let Some(new_pos) = projectile.handle_wall_bounce(projectile_pos, delta, wall) {
@@ -215,7 +235,28 @@ fn handle_wall_collisions(
             );
 
             if !projectile.reflects {
-                // Despawn projectile without reflect power-up
+                commands.entity(projectile_entity).despawn();
+            }
+
+            return Some(new_pos);
+        }
+    }
+
+    // Check roofs
+    for roof in &config.roofs {
+        if let Some(new_pos) = projectile.handle_roof_bounce(projectile_pos, delta, roof) {
+            play_sound(
+                commands,
+                asset_server,
+                "sounds/player_hits_wall.ogg",
+                PlaybackSettings {
+                    mode: PlaybackMode::Despawn,
+                    volume: Volume::Linear(0.2),
+                    ..default()
+                },
+            );
+
+            if !projectile.reflects {
                 commands.entity(projectile_entity).despawn();
             }
 

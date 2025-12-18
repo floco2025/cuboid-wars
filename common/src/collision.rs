@@ -4,7 +4,7 @@ use bevy_time::{Timer, TimerMode};
 
 use crate::{
     constants::*,
-    protocol::{Position, Ramp, Wall},
+    protocol::{Position, Ramp, Roof, Wall},
     ramps::calculate_height_at_position,
 };
 
@@ -317,6 +317,92 @@ impl Projectile {
             None
         }
     }
+
+    #[must_use]
+    pub fn handle_roof_bounce(&mut self, projectile_pos: &Position, delta: f32, roof: &Roof) -> Option<Position> {
+        if let Some((normal_x, normal_y, normal_z, t_collision)) =
+            check_projectile_roof_sweep_hit(projectile_pos, self, delta, roof)
+        {
+            if self.reflects {
+                let collision_x = self.velocity.x.mul_add(delta * t_collision, projectile_pos.x);
+                let collision_y = self.velocity.y.mul_add(delta * t_collision, projectile_pos.y);
+                let collision_z = self.velocity.z.mul_add(delta * t_collision, projectile_pos.z);
+
+                let dot = self.velocity.x.mul_add(normal_x,
+                    self.velocity.y.mul_add(normal_y, self.velocity.z * normal_z));
+                self.velocity.x -= 2.0 * dot * normal_x;
+                self.velocity.y -= 2.0 * dot * normal_y;
+                self.velocity.z -= 2.0 * dot * normal_z;
+
+                const SEPARATION_EPSILON: f32 = 0.01;
+                let separated_x = normal_x.mul_add(SEPARATION_EPSILON, collision_x);
+                let separated_y = normal_y.mul_add(SEPARATION_EPSILON, collision_y);
+                let separated_z = normal_z.mul_add(SEPARATION_EPSILON, collision_z);
+
+                let remaining_time = delta * (1.0 - t_collision);
+                Some(Position {
+                    x: self.velocity.x.mul_add(remaining_time, separated_x),
+                    y: self.velocity.y.mul_add(remaining_time, separated_y),
+                    z: self.velocity.z.mul_add(remaining_time, separated_z),
+                })
+            } else {
+                Some(*projectile_pos)
+            }
+        } else {
+            None
+        }
+    }
+
+    // Bounce off the ground plane (y=0) if moving downward and reflects is true.
+    #[must_use]
+    pub fn handle_ground_bounce(&mut self, projectile_pos: &Position, delta: f32) -> Option<Position> {
+        let vy = self.velocity.y;
+
+        // Only consider if moving downward toward the ground.
+        if vy >= 0.0 {
+            return None;
+        }
+
+        // Solve for time when bottom of sphere reaches y=0.
+        let t_hit = (PROJECTILE_RADIUS - projectile_pos.y) / (vy * delta);
+
+        if t_hit < 0.0 || t_hit > 1.0 {
+            return None;
+        }
+
+        // Move to collision point.
+        let collision_x = self.velocity.x.mul_add(delta * t_hit, projectile_pos.x);
+        let collision_y = self.velocity.y.mul_add(delta * t_hit, projectile_pos.y);
+        let collision_z = self.velocity.z.mul_add(delta * t_hit, projectile_pos.z);
+
+        let normal_x = 0.0;
+        let normal_y = 1.0;
+        let normal_z = 0.0;
+
+        if self.reflects {
+            // Reflect velocity on ground plane.
+            let dot = self.velocity.x.mul_add(normal_x,
+                self.velocity.y.mul_add(normal_y, self.velocity.z * normal_z));
+            self.velocity.x -= 2.0 * dot * normal_x;
+            self.velocity.y -= 2.0 * dot * normal_y;
+            self.velocity.z -= 2.0 * dot * normal_z;
+
+            const SEPARATION_EPSILON: f32 = 0.01;
+            let separated_x = normal_x.mul_add(SEPARATION_EPSILON, collision_x);
+            let separated_y = normal_y.mul_add(SEPARATION_EPSILON, collision_y);
+            let separated_z = normal_z.mul_add(SEPARATION_EPSILON, collision_z);
+
+            let remaining_time = delta * (1.0 - t_hit);
+            Some(Position {
+                x: self.velocity.x.mul_add(remaining_time, separated_x),
+                y: self.velocity.y.mul_add(remaining_time, separated_y),
+                z: self.velocity.z.mul_add(remaining_time, separated_z),
+            })
+        } else {
+            // No reflect: treat as hit and let caller despawn
+            Some(*projectile_pos)
+        }
+    }
 }
 
 // ============================================================================
@@ -619,47 +705,27 @@ pub fn check_projectile_player_sweep_hit(
     }
 }
 
-// Check if a projectile hits a wall using swept sphere collision
-//
-// Returns:
-// - `Some((normal_x, normal_y, normal_z, t_collision))` if hit
-// - `None` if no collision
-//
-// `t_collision` is between 0.0 and 1.0, representing how far along the movement the collision
-// occurs
+// Generic swept sphere vs axis-aligned cuboid.
 #[must_use]
-pub fn check_projectile_wall_sweep_hit(
+pub fn check_projectile_cuboid_sweep_hit(
     proj_pos: &Position,
     projectile: &Projectile,
     delta: f32,
-    wall: &Wall,
+    center_x: f32,
+    center_y: f32,
+    center_z: f32,
+    half_x: f32,
+    half_y: f32,
+    half_z: f32,
 ) -> Option<(f32, f32, f32, f32)> {
-    // Movement vector (segment over the frame)
     let ray_dir_x = projectile.velocity.x * delta;
     let ray_dir_y = projectile.velocity.y * delta;
     let ray_dir_z = projectile.velocity.z * delta;
 
-    // Wall as expanded AABB (Minkowski sum with projectile radius)
-    let wall_center_x = f32::midpoint(wall.x1, wall.x2);
-    let wall_center_z = f32::midpoint(wall.z1, wall.z2);
-    let wall_center_y = WALL_HEIGHT / 2.0;
+    let local_x = proj_pos.x - center_x;
+    let local_y = proj_pos.y - center_y;
+    let local_z = proj_pos.z - center_z;
 
-    let dx = (wall.x2 - wall.x1).abs();
-    let dz = (wall.z2 - wall.z1).abs();
-    let wall_half_thickness = wall.width / 2.0;
-
-    // Orientation: horizontal means along X; vertical means along Z
-    let is_horizontal = dx > dz;
-    let half_x = if is_horizontal { dx / 2.0 } else { wall_half_thickness } + PROJECTILE_RADIUS;
-    let half_z = if is_horizontal { wall_half_thickness } else { dz / 2.0 } + PROJECTILE_RADIUS;
-    let half_y = WALL_HEIGHT / 2.0 + PROJECTILE_RADIUS;
-
-    // Ray start in wall local space
-    let local_x = proj_pos.x - wall_center_x;
-    let local_y = proj_pos.y - wall_center_y;
-    let local_z = proj_pos.z - wall_center_z;
-
-    // Slab intersection
     let mut t_enter = 0.0_f32;
     let mut t_exit = 1.0_f32;
     let mut hit_normal = (0.0_f32, 0.0_f32, 0.0_f32);
@@ -683,7 +749,7 @@ pub fn check_projectile_wall_sweep_hit(
         }
     }
 
-    // Y slab (enables top/bottom hits)
+    // Y slab
     if ray_dir_y.abs() < 1e-6 {
         if local_y.abs() > half_y {
             return None;
@@ -721,8 +787,11 @@ pub fn check_projectile_wall_sweep_hit(
         }
     }
 
-    // Valid hit within movement segment
     if t_exit < 0.0 || t_enter > 1.0 {
+        return None;
+    }
+
+    if hit_normal.0 == 0.0 && hit_normal.1 == 0.0 && hit_normal.2 == 0.0 {
         return None;
     }
 
@@ -730,10 +799,84 @@ pub fn check_projectile_wall_sweep_hit(
     Some((hit_normal.0, hit_normal.1, hit_normal.2, t_collision))
 }
 
+// Walls: thin cuboid aligned to the grid.
+#[must_use]
+pub fn check_projectile_wall_sweep_hit(
+    proj_pos: &Position,
+    projectile: &Projectile,
+    delta: f32,
+    wall: &Wall,
+) -> Option<(f32, f32, f32, f32)> {
+    let wall_center_x = f32::midpoint(wall.x1, wall.x2);
+    let wall_center_z = f32::midpoint(wall.z1, wall.z2);
+    let wall_center_y = WALL_HEIGHT / 2.0;
+
+    let dx = (wall.x2 - wall.x1).abs();
+    let dz = (wall.z2 - wall.z1).abs();
+    let wall_half_thickness = wall.width / 2.0;
+    let is_horizontal = dx > dz;
+
+    let half_x = if is_horizontal { dx / 2.0 } else { wall_half_thickness } + PROJECTILE_RADIUS;
+    let half_z = if is_horizontal { wall_half_thickness } else { dz / 2.0 } + PROJECTILE_RADIUS;
+    let half_y = WALL_HEIGHT / 2.0 + PROJECTILE_RADIUS;
+
+    check_projectile_cuboid_sweep_hit(
+        proj_pos,
+        projectile,
+        delta,
+        wall_center_x,
+        wall_center_y,
+        wall_center_z,
+        half_x,
+        half_y,
+        half_z,
+    )
+}
+
+// Roofs: flat cuboid at roof height.
+#[must_use]
+pub fn check_projectile_roof_sweep_hit(
+    proj_pos: &Position,
+    projectile: &Projectile,
+    delta: f32,
+    roof: &Roof,
+) -> Option<(f32, f32, f32, f32)> {
+    let min_x = roof.x1.min(roof.x2);
+    let max_x = roof.x1.max(roof.x2);
+    let min_z = roof.z1.min(roof.z2);
+    let max_z = roof.z1.max(roof.z2);
+
+    let center_x = (min_x + max_x) / 2.0;
+    let center_z = (min_z + max_z) / 2.0;
+    let center_y = ROOF_HEIGHT - roof.thickness / 2.0;
+
+    let half_x = (max_x - min_x) / 2.0 + PROJECTILE_RADIUS;
+    let half_z = (max_z - min_z) / 2.0 + PROJECTILE_RADIUS;
+    let half_y = roof.thickness / 2.0 + PROJECTILE_RADIUS;
+
+    check_projectile_cuboid_sweep_hit(
+        proj_pos,
+        projectile,
+        delta,
+        center_x,
+        center_y,
+        center_z,
+        half_x,
+        half_y,
+        half_z,
+    )
+}
+
 // Check if a projectile hits a wall (simplified version without normal/time)
 #[must_use]
 pub fn check_projectile_wall_sweep(proj_pos: &Position, projectile: &Projectile, delta: f32, wall: &Wall) -> bool {
     check_projectile_wall_sweep_hit(proj_pos, projectile, delta, wall).is_some()
+}
+
+// Check if a projectile hits a roof (simplified version without normal/time)
+#[must_use]
+pub fn check_projectile_roof_sweep(proj_pos: &Position, projectile: &Projectile, delta: f32, roof: &Roof) -> bool {
+    check_projectile_roof_sweep_hit(proj_pos, projectile, delta, roof).is_some()
 }
 
 // ============================================================================

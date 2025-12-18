@@ -54,8 +54,22 @@ pub fn projectiles_movement_system(
 
         let mut hit_something = false;
 
+        // Ground bounce
+        if let Some(new_pos) = projectile.handle_ground_bounce(&proj_pos, delta) {
+            if projectile.reflects {
+                proj_pos.x = new_pos.x;
+                proj_pos.y = new_pos.y;
+                proj_pos.z = new_pos.z;
+            } else {
+                commands.entity(proj_entity).despawn();
+            }
+
+            hit_something = true;
+        }
+
         // Check wall collisions
-        for wall in &grid_config.all_walls {
+        if !hit_something {
+            for wall in &grid_config.all_walls {
             if let Some(new_pos) = projectile.handle_wall_bounce(&proj_pos, delta, wall) {
                 if projectile.reflects {
                     proj_pos.x = new_pos.x;
@@ -67,6 +81,25 @@ pub fn projectiles_movement_system(
 
                 hit_something = true;
                 break;
+            }
+        }
+        }
+
+        // Check roof collisions
+        if !hit_something {
+            for roof in &grid_config.roofs {
+                if let Some(new_pos) = projectile.handle_roof_bounce(&proj_pos, delta, roof) {
+                    if projectile.reflects {
+                        proj_pos.x = new_pos.x;
+                        proj_pos.y = new_pos.y;
+                        proj_pos.z = new_pos.z;
+                    } else {
+                        commands.entity(proj_entity).despawn();
+                    }
+
+                    hit_something = true;
+                    break;
+                }
             }
         }
 
