@@ -1,3 +1,5 @@
+use bevy::prelude::*;
+
 use crate::protocol::{Position, Ramp, Wall};
 
 // Check if two 1D ranges overlap.
@@ -169,6 +171,12 @@ pub fn sweep_ramp_high_cap(
 
     let local_x = start_pos.x - center_x;
     let local_z = start_pos.z - center_z;
+
+    // If we already start inside the cap volume, allow movement to escape it
+    if local_x.abs() <= half_x + half_x_cap && local_z.abs() <= half_z + half_z_cap {
+        warn!("Escaping from inside ramp high-side cap; this should not normally happen");
+        return false;
+    }
 
     let mut t_min = 0.0_f32;
     let mut t_max = 1.0_f32;

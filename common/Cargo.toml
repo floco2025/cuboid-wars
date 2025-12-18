@@ -7,6 +7,7 @@ edition = "2024"
 workspace = true
 
 [dependencies]
+bevy = { version = "0.17", default-features = false, features = ["bevy_log"] }
 bevy_ecs = "0.17"
 bevy_math = "0.17"
 bevy_time = "0.17"
