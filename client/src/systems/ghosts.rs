@@ -26,8 +26,8 @@ pub fn ghosts_movement_system(
 
     for (entity, mut client_pos, client_vel, recon_option) in &mut ghost_query {
         let target_pos = if let Some(mut recon) = recon_option {
-            const CORRECTION_TIME: f32 = 0.25;
-            let correction_factor = (UPDATE_BROADCAST_INTERVAL / CORRECTION_TIME).clamp(0.0, 1.0);
+            let correction_time: f32 = recon.rtt * 5.0; // Benchmark: RTT = 100ms equals 0.5s correction time
+            let correction_factor = (UPDATE_BROADCAST_INTERVAL / correction_time).clamp(0.0, 1.0);
 
             recon.timer += delta * correction_factor;
             if recon.timer >= UPDATE_BROADCAST_INTERVAL {

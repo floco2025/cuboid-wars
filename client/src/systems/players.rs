@@ -187,10 +187,10 @@ pub fn players_movement_system(
         // Calculate intended position from velocity (with server reconciliation if needed)
         let target_pos = if let Some(recon) = recon_option.as_mut() {
             const IDLE_CORRECTION_TIME: f32 = 10.0; // Standing still: slow, smooth correction
-            const RUN_CORRECTION_TIME: f32 = 0.5; // Running: fast, responsive correction
+            let run_correction_time: f32 = recon.rtt * 5.0; // Benchmark: RTT = 100ms equals 0.5s correction time
 
             let speed_ratio = (abs_velocity / SPEED_RUN).clamp(0.0, 1.0); // Ignore speed power-ups
-            let correction_time_interval = IDLE_CORRECTION_TIME.lerp(RUN_CORRECTION_TIME, speed_ratio);
+            let correction_time_interval = IDLE_CORRECTION_TIME.lerp(run_correction_time, speed_ratio);
             let correction_factor = (UPDATE_BROADCAST_INTERVAL / correction_time_interval).clamp(0.0, 1.0);
 
             recon.timer += delta * correction_factor;
@@ -205,7 +205,7 @@ pub fn players_movement_system(
             let total_dz = server_pos_z - recon.client_pos.z;
 
             // If the player got totally out of sync, we jump to the server position
-            let out_of_sync_distance = if is_standing_still { 2.0 } else { 5.0 };
+            let out_of_sync_distance = if is_standing_still { 3.0 } else { 5.0 };
             if total_dx.abs() >= out_of_sync_distance || total_dz.abs() >= out_of_sync_distance {
                 warn!("player out of sync, jumping to server position");
                 *client_pos = recon.server_pos;
