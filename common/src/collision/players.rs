@@ -2,8 +2,8 @@ use super::helpers::{
     overlap_aabb_vs_wall, slide_along_axes, sweep_aabb_vs_aabb, sweep_aabb_vs_wall, sweep_ramp_edges, sweep_ramp_high_cap,
 };
 use crate::{
-    constants::{PLAYER_DEPTH, PLAYER_HEIGHT, PLAYER_WIDTH, RAMP_EDGE_WIDTH},
-    protocol::{Position, Ramp, Wall},
+    constants::{PLAYER_DEPTH, PLAYER_HEIGHT, PLAYER_WIDTH, RAMP_EDGE_WIDTH, ROOF_HEIGHT},
+    protocol::{Position, Ramp, Roof, Wall},
     ramps::calculate_height_at_position,
 };
 
@@ -15,6 +15,43 @@ pub fn overlap_player_vs_wall(player_pos: &Position, wall: &Wall) -> bool {
 #[must_use]
 pub fn sweep_player_vs_wall(start_pos: &Position, end_pos: &Position, wall: &Wall) -> bool {
     sweep_aabb_vs_wall(start_pos, end_pos, wall, PLAYER_WIDTH / 2.0, PLAYER_DEPTH / 2.0)
+}
+
+/// Sweep the muzzle->spawn segment against a roof slab; returns true if it intersects.
+#[must_use]
+pub fn sweep_player_vs_roof(start: &Position, end: &Position, roof: &Roof, radius: f32) -> bool {
+    let min_x = roof.x1.min(roof.x2);
+    let max_x = roof.x1.max(roof.x2);
+    let min_z = roof.z1.min(roof.z2);
+    let max_z = roof.z1.max(roof.z2);
+
+    let start_inside = start.x >= min_x && start.x <= max_x && start.z >= min_z && start.z <= max_z;
+    let end_inside = end.x >= min_x && end.x <= max_x && end.z >= min_z && end.z <= max_z;
+
+    if !start_inside && !end_inside {
+        return false;
+    }
+
+    let slab_bottom = ROOF_HEIGHT - roof.thickness;
+    let slab_top = ROOF_HEIGHT;
+
+    let seg_min_y = start.y.min(end.y);
+    let seg_max_y = start.y.max(end.y);
+
+    // Allow shooting over the roof if either endpoint is at/above the roof top (within radius cushion)
+    if start.y >= slab_top - radius || end.y >= slab_top - radius {
+        return false;
+    }
+
+    // If segment entirely above or below slab (with cushion), no hit
+    if seg_min_y >= slab_top + radius {
+        return false;
+    }
+    if seg_max_y <= slab_bottom - radius {
+        return false;
+    }
+
+    true
 }
 
 #[must_use]

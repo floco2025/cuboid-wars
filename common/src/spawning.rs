@@ -1,5 +1,5 @@
 use crate::{
-    collision::players::sweep_player_vs_wall,
+    collision::players::{sweep_player_vs_roof, sweep_player_vs_wall},
     constants::*,
     protocol::{Position, Ramp, Roof, Wall},
     ramps::calculate_height_at_position,
@@ -97,36 +97,12 @@ pub fn calculate_projectile_spawns(
 
         let is_spawn_blocked = blocked_by_wall || blocked_by_ramp;
 
-        // Block shots that would originate inside a roof slab (but allow shooting fully under or fully over roofs)
-        let blocked_by_roof = roofs.iter().any(|roof| {
-            let min_x = roof.x1.min(roof.x2);
-            let max_x = roof.x1.max(roof.x2);
-            let min_z = roof.z1.min(roof.z2);
-            let max_z = roof.z1.max(roof.z2);
-
-            let shooter_inside = shooter_pos.x >= min_x
-                && shooter_pos.x <= max_x
-                && shooter_pos.z >= min_z
-                && shooter_pos.z <= max_z;
-            let spawn_inside = spawn_position.x >= min_x
-                && spawn_position.x <= max_x
-                && spawn_position.z >= min_z
-                && spawn_position.z <= max_z;
-
-            if !shooter_inside && !spawn_inside {
-                return false;
-            }
-
-            let slab_min_y = ROOF_HEIGHT - roof.thickness - PROJECTILE_RADIUS;
-            let slab_max_y = ROOF_HEIGHT + PROJECTILE_RADIUS;
-            let seg_min_y = shooter_pos.y.min(spawn_position.y);
-            let seg_max_y = shooter_pos.y.max(spawn_position.y);
-
-            seg_max_y >= slab_min_y && seg_min_y <= slab_max_y
-        });
+        // Block shots whose muzzle-to-spawn segment intersects the roof slab volume (sweep-style test)
+        let blocked_by_roof = roofs
+            .iter()
+            .any(|roof| sweep_player_vs_roof(shooter_pos, &spawn_position, roof, PROJECTILE_RADIUS));
 
         let is_spawn_blocked = is_spawn_blocked || blocked_by_roof;
-
         // Skip this projectile if the spawn path is blocked by a wall
         if is_spawn_blocked {
             continue;

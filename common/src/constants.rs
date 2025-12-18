@@ -24,7 +24,8 @@ pub const SPEED_RUN: f32 = 9.0;
 pub const PROJECTILE_SPEED: f32 = 25.0; // meters per second
 pub const PROJECTILE_LIFETIME: f32 = 4.0; // seconds
 pub const PROJECTILE_SPAWN_OFFSET: f32 = 1.0; // meters in front of thrower
-pub const PROJECTILE_SPAWN_HEIGHT: f32 = 1.5; // meters above ground
+// Spawn from camera/eye height (match FPV camera height): ~90% of player height above ground
+pub const PROJECTILE_SPAWN_HEIGHT: f32 = PLAYER_HEIGHT * 0.9;
 pub const PROJECTILE_RADIUS: f32 = 0.11; // meters
 
 // Wall dimensions (meters)

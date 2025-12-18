@@ -591,6 +591,7 @@ pub fn projectile_hits_roof(proj_pos: &Position, projectile: &Projectile, delta:
     sweep_projectile_vs_roof(proj_pos, projectile, delta, roof).is_some()
 }
 
+
 #[must_use]
 pub fn projectile_hits_ghost(
     proj_pos: &Position,
