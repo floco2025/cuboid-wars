@@ -314,7 +314,7 @@ fn handle_shot_message(
         // Spawn projectile(s) based on player's multi-shot power-up status
         if let Ok(player_facing) = player_face_query.get(player.entity) {
             // Use all_walls but exclude roof_edge_walls to allow shooting from roof edges
-            let (spawn_blocking_walls, ramps) = wall_config
+            let (all_walls, ramps) = wall_config
                 .map(|config| (config.all_walls.as_slice(), config.ramps.as_slice()))
                 .unwrap_or_default();
             spawn_projectiles(
@@ -326,7 +326,7 @@ fn handle_shot_message(
                 msg.face_pitch,
                 player.multi_shot_power_up,
                 player.reflect_power_up,
-                &spawn_blocking_walls,
+                &all_walls,
                 &ramps,
                 msg.id,
             );

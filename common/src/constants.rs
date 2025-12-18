@@ -56,10 +56,10 @@ pub const POWER_UP_MULTI_SHOT_ANGLE: f32 = 3.0;
 
 // Debug: Always enable power-ups (for testing)
 pub const ALWAYS_SPEED: bool = false;
-pub const ALWAYS_MULTI_SHOT: bool = false;
+pub const ALWAYS_MULTI_SHOT: bool = true;
 pub const ALWAYS_REFLECT: bool = true;
 pub const ALWAYS_PHASING: bool = false;
-pub const ALWAYS_GHOST_HUNT: bool = false;
+pub const ALWAYS_GHOST_HUNT: bool = true;
 
 // Ghost dimensions (meters)
 pub const GHOST_SIZE: f32 = 3.0; // Cube side length

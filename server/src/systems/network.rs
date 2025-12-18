@@ -487,16 +487,14 @@ fn handle_shot(
                 .get(&id)
                 .is_some_and(|info| info.multi_shot_power_up_timer > 0.0);
 
-        // Calculate valid projectile spawn positions
-        // Use all_walls but exclude roof_edge_walls to allow shooting from roof edges
-        let spawn_blocking_walls = grid_config.all_walls.clone();
+        // Calculate valid projectile spawn positions (all_walls excludes roof-edge guards)
         let spawns = calculate_projectile_spawns(
             pos,
             msg.face_dir,
             msg.face_pitch,
             has_multi_shot,
             has_reflect,
-            &spawn_blocking_walls,
+            &grid_config.all_walls,
             &grid_config.ramps,
         );
 

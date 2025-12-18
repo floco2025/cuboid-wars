@@ -334,7 +334,7 @@ pub fn input_shooting_system(
 
         // Spawn projectile(s) based on power-up status
         // Use all_walls but exclude roof_edge_walls to allow shooting from roof edges
-        let (spawn_blocking_walls, ramps) = wall_config
+        let (all_walls, ramps) = wall_config
             .as_ref()
             .map(|config| (config.all_walls.as_slice(), config.ramps.as_slice()))
             .unwrap_or_default();
@@ -348,7 +348,7 @@ pub fn input_shooting_system(
                 pitch,
                 has_multi_shot,
                 has_reflect,
-                spawn_blocking_walls,
+                all_walls,
                 ramps,
                 my_id.0,
             );
