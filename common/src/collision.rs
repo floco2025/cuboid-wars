@@ -134,7 +134,7 @@ fn calculate_entity_slide<F, R>(
     ramp_edge_check: R,
 ) -> Position
 where
-    F: Fn(&Position, &Wall) -> bool,
+    F: Fn(&Position, &Position, &Wall) -> bool,
     R: Fn(&Position, &Position, &Ramp) -> bool,
 {
     // Try moving only in X direction
@@ -145,7 +145,7 @@ where
         z: current_pos.z,
     };
 
-    let x_collides = walls.iter().any(|w| collision_check(&x_only_pos, w))
+    let x_collides = walls.iter().any(|w| collision_check(current_pos, &x_only_pos, w))
         || ramps.iter().any(|r| ramp_edge_check(current_pos, &x_only_pos, r));
 
     // Try moving only in Z direction
@@ -156,7 +156,7 @@ where
         z: z_only_z,
     };
 
-    let z_collides = walls.iter().any(|w| collision_check(&z_only_pos, w))
+    let z_collides = walls.iter().any(|w| collision_check(current_pos, &z_only_pos, w))
         || ramps.iter().any(|r| ramp_edge_check(current_pos, &z_only_pos, r));
 
     // If neither axis causes collision, use the one with larger movement
@@ -475,7 +475,6 @@ pub fn check_projectile_ramp_sweep_hit(
     let mut t_enter = 0.0_f32;
     let mut t_exit = 1.0_f32;
     let mut hit_normal_x = 0.0_f32;
-    let mut hit_normal_y = 0.0_f32;
     let mut hit_normal_z = 0.0_f32;
 
     // X slab
@@ -490,7 +489,6 @@ pub fn check_projectile_ramp_sweep_hit(
         if tx_min > t_enter {
             t_enter = tx_min;
             hit_normal_x = if tx1 < tx2 { -1.0 } else { 1.0 };
-            hit_normal_y = 0.0;
             hit_normal_z = 0.0;
         }
         if tx_max < t_exit {
@@ -513,7 +511,6 @@ pub fn check_projectile_ramp_sweep_hit(
         if tz_min > t_enter {
             t_enter = tz_min;
             hit_normal_x = 0.0;
-            hit_normal_y = 0.0;
             hit_normal_z = if tz1 < tz2 { -1.0 } else { 1.0 };
         }
         if tz_max < t_exit {
@@ -917,7 +914,7 @@ pub fn calculate_wall_slide(
         velocity_x,
         velocity_z,
         delta,
-        check_player_wall_overlap,
+        check_player_wall_sweep,
         check_player_ramp_edge_sweep,
     )
 }
@@ -941,35 +938,50 @@ pub fn calculate_ghost_slide(
         velocity_x,
         velocity_z,
         delta,
-        check_ghost_wall_overlap,
+        check_ghost_wall_sweep,
         check_ghost_ramp_edge_sweep,
     )
 }
 
-// Check if two players collide with each other (AABB collision).
+// Swept player-player collision (prevents tunneling during a frame).
 #[must_use]
-pub fn check_player_player_overlap(pos1: &Position, pos2: &Position) -> bool {
-    // Height check: players must be at similar heights to collide
-    // Player AABBs extend from y to y+PLAYER_HEIGHT, so they overlap if |y1-y2| < PLAYER_HEIGHT
-    let y_diff = (pos1.y - pos2.y).abs();
-    if y_diff >= PLAYER_HEIGHT {
+pub fn check_player_player_sweep(start1: &Position, end1: &Position, start2: &Position, end2: &Position) -> bool {
+    // Height gate: if both endpoints are well separated vertically, skip.
+    let y_diff_start = (start1.y - start2.y).abs();
+    let y_diff_end = (end1.y - end2.y).abs();
+    if y_diff_start >= PLAYER_HEIGHT && y_diff_end >= PLAYER_HEIGHT {
         return false;
     }
 
-    let player_half_width = PLAYER_WIDTH / 2.0;
-    let player_half_depth = PLAYER_DEPTH / 2.0;
+    let half_x = PLAYER_WIDTH / 2.0 + PLAYER_WIDTH / 2.0;
+    let half_z = PLAYER_DEPTH / 2.0 + PLAYER_DEPTH / 2.0;
 
-    let p1_min_x = pos1.x - player_half_width;
-    let p1_max_x = pos1.x + player_half_width;
-    let p1_min_z = pos1.z - player_half_depth;
-    let p1_max_z = pos1.z + player_half_depth;
+    // Relative motion: treat player2 as static, player1 moves by (d1 - d2)
+    let rel_start_x = start1.x - start2.x;
+    let rel_start_z = start1.z - start2.z;
+    let rel_dir_x = (end1.x - start1.x) - (end2.x - start2.x);
+    let rel_dir_z = (end1.z - start1.z) - (end2.z - start2.z);
 
-    let p2_min_x = pos2.x - player_half_width;
-    let p2_max_x = pos2.x + player_half_width;
-    let p2_min_z = pos2.z - player_half_depth;
-    let p2_max_z = pos2.z + player_half_depth;
+    let mut t_min = 0.0_f32;
+    let mut t_max = 1.0_f32;
 
-    ranges_overlap(p1_min_x, p1_max_x, p2_min_x, p2_max_x) && ranges_overlap(p1_min_z, p1_max_z, p2_min_z, p2_max_z)
+    // X slab
+    if let Some((new_min, new_max)) = slab_interval(rel_start_x, rel_dir_x, half_x, t_min, t_max) {
+        t_min = new_min;
+        t_max = new_max;
+    } else {
+        return false;
+    }
+
+    // Z slab
+    if let Some((new_min, new_max)) = slab_interval(rel_start_z, rel_dir_z, half_z, t_min, t_max) {
+        t_min = new_min;
+        t_max = new_max;
+    } else {
+        return false;
+    }
+
+    t_min <= t_max && t_max >= 0.0 && t_min <= 1.0
 }
 
 // ============================================================================
@@ -983,24 +995,40 @@ pub fn check_ghost_wall_overlap(ghost_pos: &Position, wall: &Wall) -> bool {
     check_aabb_wall_overlap(ghost_pos, wall, ghost_half_size, ghost_half_size)
 }
 
+// Swept ghost vs wall to prevent tunneling.
+#[must_use]
+pub fn check_ghost_wall_sweep(start_pos: &Position, end_pos: &Position, wall: &Wall) -> bool {
+    let ghost_half_size = GHOST_SIZE / 2.0;
+    check_aabb_wall_sweep(start_pos, end_pos, wall, ghost_half_size, ghost_half_size)
+}
+
 // Check if a ghost and player are overlapping (circle collision)
 #[must_use]
 pub fn check_ghost_player_overlap(ghost_pos: &Position, player_pos: &Position) -> bool {
     // Height check: ghost and player must be at similar heights
-    // Ghost is always at ground level (y=0), player center is at player_pos.y + PLAYER_HEIGHT/2
     let player_center_y = player_pos.y + PLAYER_HEIGHT / 2.0;
     let ghost_center_y = GHOST_SIZE / 2.0; // Ghost cube center
     let y_diff = (player_center_y - ghost_center_y).abs();
-    // AABBs overlap vertically if distance between centers < sum of half-heights
     if y_diff > (PLAYER_HEIGHT + GHOST_SIZE) / 2.0 {
         return false;
     }
 
-    let dx = player_pos.x - ghost_pos.x;
-    let dz = player_pos.z - ghost_pos.z;
-    let dist_sq = dx.mul_add(dx, dz * dz);
-    let collision_radius = GHOST_SIZE / 2.0;
-    dist_sq <= collision_radius * collision_radius
+    // AABB vs AABB in XZ
+    let player_half_x = PLAYER_WIDTH / 2.0;
+    let player_half_z = PLAYER_DEPTH / 2.0;
+    let ghost_half = GHOST_SIZE / 2.0;
+
+    let p_min_x = player_pos.x - player_half_x;
+    let p_max_x = player_pos.x + player_half_x;
+    let p_min_z = player_pos.z - player_half_z;
+    let p_max_z = player_pos.z + player_half_z;
+
+    let g_min_x = ghost_pos.x - ghost_half;
+    let g_max_x = ghost_pos.x + ghost_half;
+    let g_min_z = ghost_pos.z - ghost_half;
+    let g_max_z = ghost_pos.z + ghost_half;
+
+    ranges_overlap(p_min_x, p_max_x, g_min_x, g_max_x) && ranges_overlap(p_min_z, p_max_z, g_min_z, g_max_z)
 }
 
 // Check if a projectile hits a ghost using swept sphere collision
@@ -1075,8 +1103,7 @@ pub fn check_player_item_overlap(player_pos: &Position, item_pos: &Position, col
 // Collision Detection - Ramps
 // ============================================================================
 
-// Check if a swept AABB collides with ramp edges
-// Returns true if the entity moving from start_pos to end_pos would hit a ramp edge
+// Check if a swept AABB collides with ramp edges (side guards) without using wall helpers.
 #[must_use]
 pub fn check_aabb_ramp_edge_sweep(
     start_pos: &Position,
@@ -1085,59 +1112,57 @@ pub fn check_aabb_ramp_edge_sweep(
     half_x: f32,
     half_z: f32,
 ) -> bool {
-    // Determine ramp footprint bounds
+    // Ramp footprint bounds
     let min_x = ramp.x1.min(ramp.x2);
     let max_x = ramp.x1.max(ramp.x2);
     let min_z = ramp.z1.min(ramp.z2);
     let max_z = ramp.z1.max(ramp.z2);
 
-    // Determine if ramp is primarily along X or Z axis
+    // Choose which edges to block: side edges perpendicular to ramp direction
     let dx = (ramp.x2 - ramp.x1).abs();
     let dz = (ramp.z2 - ramp.z1).abs();
-    let is_x_ramp = dx >= dz;
+    let block_sides_along_z = dx >= dz; // X-ramp blocks Z edges; Z-ramp blocks X edges
 
-    // For entities moving along the ramp, check if they hit the side edges
-    // For entities crossing perpendicular to the ramp, check if they hit the end edges
-    
-    // Create walls for the edges that should block movement
-    if is_x_ramp {
-        // X-aligned ramp: block side edges (Z direction), allow movement along X
-        let side_wall_1 = Wall {
-            x1: min_x,
-            z1: min_z,
-            x2: max_x,
-            z2: min_z,
-            width: 0.2,
-        };
-        let side_wall_2 = Wall {
-            x1: min_x,
-            z1: max_z,
-            x2: max_x,
-            z2: max_z,
-            width: 0.2,
-        };
-        
-        check_aabb_wall_sweep(start_pos, end_pos, &side_wall_1, half_x, half_z)
-            || check_aabb_wall_sweep(start_pos, end_pos, &side_wall_2, half_x, half_z)
+    // Helper: swept AABB vs thin edge box in XZ
+    let sweep_edge = |center_x: f32, center_z: f32, half_x_edge: f32, half_z_edge: f32| -> bool {
+        let dir_x = end_pos.x - start_pos.x;
+        let dir_z = end_pos.z - start_pos.z;
+
+        let local_x = start_pos.x - center_x;
+        let local_z = start_pos.z - center_z;
+
+        let mut t_min = 0.0_f32;
+        let mut t_max = 1.0_f32;
+
+        if let Some((new_min, new_max)) = slab_interval(local_x, dir_x, half_x + half_x_edge, t_min, t_max) {
+            t_min = new_min;
+            t_max = new_max;
+        } else {
+            return false;
+        }
+
+        if let Some((new_min, new_max)) = slab_interval(local_z, dir_z, half_z + half_z_edge, t_min, t_max) {
+            t_min = new_min;
+            t_max = new_max;
+        } else {
+            return false;
+        }
+
+        t_min <= t_max && t_max >= 0.0 && t_min <= 1.0
+    };
+
+    let edge_half = RAMP_EDGE_WIDTH / 2.0;
+
+    if block_sides_along_z {
+        // Block Z edges at min_z and max_z (span X)
+        let center_x = (min_x + max_x) / 2.0;
+        let half_x_edge = (max_x - min_x) / 2.0;
+        sweep_edge(center_x, min_z, half_x_edge, edge_half) || sweep_edge(center_x, max_z, half_x_edge, edge_half)
     } else {
-        // Z-aligned ramp: block side edges (X direction), allow movement along Z
-        let side_wall_1 = Wall {
-            x1: min_x,
-            z1: min_z,
-            x2: min_x,
-            z2: max_z,
-            width: 0.2,
-        };
-        let side_wall_2 = Wall {
-            x1: max_x,
-            z1: min_z,
-            x2: max_x,
-            z2: max_z,
-            width: 0.2,
-        };
-        
-        check_aabb_wall_sweep(start_pos, end_pos, &side_wall_1, half_x, half_z)
-            || check_aabb_wall_sweep(start_pos, end_pos, &side_wall_2, half_x, half_z)
+        // Block X edges at min_x and max_x (span Z)
+        let center_z = (min_z + max_z) / 2.0;
+        let half_z_edge = (max_z - min_z) / 2.0;
+        sweep_edge(min_x, center_z, edge_half, half_z_edge) || sweep_edge(max_x, center_z, edge_half, half_z_edge)
     }
 }
 

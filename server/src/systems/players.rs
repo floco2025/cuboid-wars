@@ -36,6 +36,7 @@ pub fn players_movement_system(
             // Stunned players cannot move
             planned_moves.push(PlannedMove {
                 entity,
+                start: *pos,
                 target: *pos,
                 hits_wall: false,
             });
@@ -58,6 +59,7 @@ pub fn players_movement_system(
         if is_standing_still {
             planned_moves.push(PlannedMove {
                 entity,
+                start: *pos,
                 target: *pos,
                 hits_wall: false,
             });
@@ -132,6 +134,7 @@ pub fn players_movement_system(
 
         planned_moves.push(PlannedMove {
             entity,
+            start: *pos,
             target,
             hits_wall,
         });

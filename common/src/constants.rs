@@ -36,6 +36,9 @@ pub const WALL_LENGTH: f32 = 8.2; // Slightly longer than grid to avoid corner g
 pub const ROOF_THICKNESS: f32 = 0.4; // Roof thickness
 pub const ROOF_HEIGHT: f32 = WALL_HEIGHT + ROOF_THICKNESS; // Top of roof
 
+// Ramp edge guard (meters)
+pub const RAMP_EDGE_WIDTH: f32 = 0.2; // Thin blocker along ramp sides to prevent sliding off
+
 // Visual details (meters)
 pub const PLAYER_NOSE_RADIUS: f32 = 0.08;
 pub const PLAYER_EYE_RADIUS: f32 = 0.05;

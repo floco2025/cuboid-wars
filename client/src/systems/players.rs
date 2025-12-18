@@ -236,6 +236,7 @@ pub fn players_movement_system(
         if is_standing_still {
             planned_moves.push(PlannedMove {
                 entity,
+                start: *client_pos,
                 target: target_pos,
                 hits_wall: false,
             });
@@ -313,6 +314,7 @@ pub fn players_movement_system(
 
         planned_moves.push(PlannedMove {
             entity,
+            start: *client_pos,
             target: final_target,
             hits_wall,
         });
