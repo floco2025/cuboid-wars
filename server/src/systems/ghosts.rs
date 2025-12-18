@@ -9,7 +9,8 @@ use crate::{
 };
 use common::{
     collision::{
-        calculate_ghost_wall_slide, check_ghost_player_overlap, check_ghost_wall_overlap, check_player_wall_sweep,
+        calculate_ghost_slide, check_ghost_player_overlap, check_ghost_ramp_edge_sweep,
+        check_ghost_wall_overlap, check_player_wall_sweep,
     },
     constants::*,
     markers::{GhostMarker, PlayerMarker},
@@ -185,9 +186,8 @@ pub fn ghosts_movement_system(
     let delta = time.delta_secs();
     let mut rng = rand::rng();
 
-    // Combine all walls with ramp collision walls for ghosts
-    let mut ghost_walls = grid_config.all_walls.clone();
-    ghost_walls.extend_from_slice(&grid_config.ramp_all_walls);
+    // Use all_walls for ghost collision (ghosts never go on roofs)
+    let ghost_walls = &grid_config.all_walls;
 
     // Collect player positions and speeds (excluding stunned players)
     let player_data: Vec<(PlayerId, Position, Speed)> = param_set
@@ -311,6 +311,7 @@ pub fn ghosts_movement_system(
                         target_id,
                         &player_data,
                         &ghost_walls,
+                        &grid_config,
                         &players,
                         delta,
                     );
@@ -526,6 +527,7 @@ fn follow_movement(
     target_id: PlayerId,
     player_data: &[(PlayerId, Position, Speed)],
     walls: &[Wall],
+    grid_config: &GridConfig,
     players: &PlayerMap,
     delta: f32,
 ) {
@@ -594,8 +596,18 @@ fn follow_movement(
         }
     }
 
+    // Check ramp edge collisions
+    if !collides {
+        for ramp in &grid_config.ramps {
+            if check_ghost_ramp_edge_sweep(pos, &final_pos, ramp) {
+                collides = true;
+                break;
+            }
+        }
+    }
+
     if collides {
-        final_pos = calculate_ghost_wall_slide(walls, &[], pos, desired_vel.x, desired_vel.z, delta);
+        final_pos = calculate_ghost_slide(walls, &grid_config.ramps, pos, desired_vel.x, desired_vel.z, delta);
     }
 
     let actual_dx = final_pos.x - pos.x;

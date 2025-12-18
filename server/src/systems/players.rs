@@ -5,12 +5,10 @@ use crate::{
     systems::network::broadcast_to_all,
 };
 use common::{
-    collision::{calculate_wall_slide, check_player_wall_sweep},
-    constants::{
-        ALWAYS_PHASING, ALWAYS_SPEED, POWER_UP_SPEED_MULTIPLIER, ROOF_HEIGHT,
-    },
+    collision::{calculate_wall_slide, check_player_ramp_edge_sweep, check_player_wall_sweep},
+    constants::{ALWAYS_PHASING, ALWAYS_SPEED, POWER_UP_SPEED_MULTIPLIER, ROOF_HEIGHT},
     markers::PlayerMarker,
-    players::{PlannedMove, overlaps_other_player},
+    players::{overlaps_other_player, PlannedMove},
     protocol::{PlayerId, Position, SPlayerStatus, ServerMessage, Speed, Wall},
     ramps::{calculate_height_at_position, is_on_roof},
 };
@@ -93,14 +91,18 @@ pub fn players_movement_system(
                 &grid_config.all_walls
             };
             walls_to_check.extend_from_slice(base_walls);
-            walls_to_check.extend_from_slice(&grid_config.ramp_side_walls);
         }
 
         // Check wall collision and calculate target (with sliding if hit)
-        let (target_xz, hits_wall) = if walls_to_check
+        let hits_wall = walls_to_check
             .iter()
             .any(|wall| check_player_wall_sweep(pos, &new_pos_xz, wall))
-        {
+            || grid_config
+                .ramps
+                .iter()
+                .any(|ramp| check_player_ramp_edge_sweep(pos, &new_pos_xz, ramp));
+
+        let (target_xz, hits_wall) = if hits_wall {
             (
                 calculate_wall_slide(&walls_to_check, &grid_config.ramps, pos, velocity.x, velocity.z, delta),
                 true,

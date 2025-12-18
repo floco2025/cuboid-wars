@@ -133,8 +133,6 @@ fn process_message_not_logged_in(msg: ServerMessage, commands: &mut Commands) {
             all_walls,
             roofs: init_msg.roofs,
             ramps: init_msg.ramps,
-            ramp_side_walls: init_msg.ramp_side_walls,
-            ramp_all_walls: init_msg.ramp_all_walls,
             roof_edge_walls: init_msg.roof_edge_walls,
         });
 
@@ -315,13 +313,9 @@ fn handle_shot_message(
 
         // Spawn projectile(s) based on player's multi-shot power-up status
         if let Ok(player_facing) = player_face_query.get(player.entity) {
-            // Use all_walls + ramp_all_walls but exclude roof_edge_walls to allow shooting from roof edges
-            let spawn_blocking_walls = wall_config
-                .map(|config| {
-                    let mut walls = config.all_walls.clone();
-                    walls.extend_from_slice(&config.ramp_all_walls);
-                    walls
-                })
+            // Use all_walls but exclude roof_edge_walls to allow shooting from roof edges
+            let (spawn_blocking_walls, ramps) = wall_config
+                .map(|config| (config.all_walls.as_slice(), config.ramps.as_slice()))
                 .unwrap_or_default();
             spawn_projectiles(
                 commands,
@@ -332,6 +326,7 @@ fn handle_shot_message(
                 player.multi_shot_power_up,
                 player.reflect_power_up,
                 &spawn_blocking_walls,
+                &ramps,
                 msg.id,
             );
         }

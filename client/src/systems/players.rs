@@ -8,10 +8,10 @@ use crate::{
     systems::{network::ServerReconciliation, ui::BumpFlashUIMarker},
 };
 use common::{
-    collision::{calculate_wall_slide, check_player_wall_sweep},
+    collision::{calculate_wall_slide, check_player_ramp_edge_sweep, check_player_wall_sweep},
     constants::{ALWAYS_PHASING, PLAYER_HEIGHT, ROOF_HEIGHT, SPEED_RUN, UPDATE_BROADCAST_INTERVAL},
     markers::PlayerMarker,
-    players::{PlannedMove, overlaps_other_player},
+    players::{overlaps_other_player, PlannedMove},
     protocol::{FaceDirection, PlayerId, Position, Velocity, Wall},
     ramps::{calculate_height_at_position, is_on_roof},
 };
@@ -259,14 +259,19 @@ pub fn players_movement_system(
                     &config.all_walls
                 };
                 walls_to_check.extend_from_slice(base_walls);
-                walls_to_check.extend_from_slice(&config.ramp_side_walls);
             }
 
-            // Check wall collision and calculate target (with sliding if hit)
-            if walls_to_check
+            // Check collision - walls and ramp edges
+            let collides = walls_to_check
                 .iter()
                 .any(|wall| check_player_wall_sweep(&client_pos, &target_pos, wall))
-            {
+                || config
+                    .ramps
+                    .iter()
+                    .any(|ramp| check_player_ramp_edge_sweep(&client_pos, &target_pos, ramp));
+
+            // Calculate target (with sliding if hit)
+            if collides {
                 (
                     calculate_wall_slide(
                         &walls_to_check,

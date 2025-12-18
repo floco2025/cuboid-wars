@@ -1,7 +1,7 @@
 use crate::{
-    collision::check_player_wall_sweep,
+    collision::{check_player_ramp_edge_sweep, check_player_wall_sweep},
     constants::*,
-    protocol::{Position, Wall},
+    protocol::{Position, Ramp, Wall},
 };
 use bevy_math::Vec3;
 
@@ -20,7 +20,7 @@ pub struct ProjectileSpawnInfo {
 // Calculate valid projectile spawn positions for a shot
 //
 // Returns a list of projectiles that should be spawned, excluding any that would
-// be blocked by walls.
+// be blocked by walls or ramp edges.
 #[must_use]
 pub fn calculate_projectile_spawns(
     shooter_pos: &Position,
@@ -28,6 +28,7 @@ pub fn calculate_projectile_spawns(
     has_multi_shot: bool,
     has_reflect: bool,
     walls: &[Wall],
+    ramps: &[Ramp],
 ) -> Vec<ProjectileSpawnInfo> {
     let mut spawns = Vec::new();
 
@@ -61,7 +62,10 @@ pub fn calculate_projectile_spawns(
 
         let is_spawn_blocked = walls
             .iter()
-            .any(|wall| check_player_wall_sweep(shooter_pos, &spawn_position, wall));
+            .any(|wall| check_player_wall_sweep(shooter_pos, &spawn_position, wall))
+            || ramps
+                .iter()
+                .any(|ramp| check_player_ramp_edge_sweep(shooter_pos, &spawn_position, ramp));
 
         // Skip this projectile if the spawn path is blocked by a wall
         if is_spawn_blocked {

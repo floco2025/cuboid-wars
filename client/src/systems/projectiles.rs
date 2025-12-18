@@ -6,7 +6,10 @@ use bevy::{
 use super::players::LocalPlayerMarker;
 use crate::resources::{PlayerMap, WallConfig};
 use common::{
-    collision::{Projectile, check_projectile_ghost_sweep_hit, check_projectile_player_sweep_hit},
+    collision::{
+        check_projectile_ghost_sweep_hit, check_projectile_player_sweep_hit,
+        Projectile,
+    },
     constants::ALWAYS_GHOST_HUNT,
     markers::{GhostMarker, PlayerMarker, ProjectileMarker},
     protocol::{FaceDirection, PlayerId, Position},
@@ -197,7 +200,7 @@ fn handle_wall_collisions(
 ) -> Option<Position> {
     let config = wall_config?;
 
-    // Check walls (not ramp walls - projectiles can fly over ramps)
+    // Check walls
     for wall in &config.all_walls {
         if let Some(new_pos) = projectile.handle_wall_bounce(projectile_pos, delta, wall) {
             play_sound(
@@ -217,6 +220,30 @@ fn handle_wall_collisions(
             }
 
             return Some(new_pos);
+        }
+    }
+
+    // Check ramps
+    for ramp in &config.ramps {
+        if let Some(new_pos) = projectile.handle_ramp_bounce(projectile_pos, delta, ramp) {
+            play_sound(
+                commands,
+                asset_server,
+                "sounds/player_hits_wall.ogg",
+                PlaybackSettings {
+                    mode: PlaybackMode::Despawn,
+                    volume: Volume::Linear(0.2),
+                    ..default()
+                },
+            );
+
+            if projectile.reflects {
+                return Some(new_pos);
+            } else {
+                // Despawn projectile
+                commands.entity(projectile_entity).despawn();
+                return Some(*projectile_pos);
+            }
         }
     }
 

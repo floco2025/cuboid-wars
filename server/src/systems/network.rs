@@ -302,8 +302,6 @@ fn process_message_not_logged_in(
                 interior_walls: grid_config.interior_walls.clone(),
                 roofs: grid_config.roofs.clone(),
                 ramps: grid_config.ramps.clone(),
-                ramp_side_walls: grid_config.ramp_side_walls.clone(),
-                ramp_all_walls: grid_config.ramp_all_walls.clone(),
                 roof_edge_walls: grid_config.roof_edge_walls.clone(),
             });
             if let Err(e) = channel.send(ServerToClient::Send(init_msg)) {
@@ -490,15 +488,15 @@ fn handle_shot(
                 .is_some_and(|info| info.multi_shot_power_up_timer > 0.0);
 
         // Calculate valid projectile spawn positions
-        // Use all_walls + ramp_all_walls but exclude roof_edge_walls to allow shooting from roof edges
-        let mut spawn_blocking_walls = grid_config.all_walls.clone();
-        spawn_blocking_walls.extend_from_slice(&grid_config.ramp_all_walls);
+        // Use all_walls but exclude roof_edge_walls to allow shooting from roof edges
+        let spawn_blocking_walls = grid_config.all_walls.clone();
         let spawns = calculate_projectile_spawns(
             pos,
             msg.face_dir,
             has_multi_shot,
             has_reflect,
             &spawn_blocking_walls,
+            &grid_config.ramps,
         );
 
         // Spawn each projectile

@@ -39,8 +39,6 @@ pub struct GridConfig {
     pub all_walls: Vec<Wall>, // Pre-computed: boundary + interior
     pub roofs: Vec<Roof>,
     pub ramps: Vec<Ramp>,
-    pub ramp_side_walls: Vec<Wall>, // Collision boxes for ramp sides (for players)
-    pub ramp_all_walls: Vec<Wall>,  // Collision boxes for all ramp edges (for ghosts)
     pub roof_edge_walls: Vec<Wall>, // Collision boxes for roof edges (prevent falling off)
 }
 

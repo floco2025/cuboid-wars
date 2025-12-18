@@ -228,8 +228,6 @@ struct SInit {
     pub interior_walls: Vec<Wall>,
     pub roofs: Vec<Roof>,
     pub ramps: Vec<Ramp>,
-    pub ramp_side_walls: Vec<Wall>,
-    pub ramp_all_walls: Vec<Wall>,
     pub roof_edge_walls: Vec<Wall>,
 }
 }

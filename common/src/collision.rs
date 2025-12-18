@@ -123,7 +123,7 @@ fn check_aabb_wall_sweep(start_pos: &Position, end_pos: &Position, wall: &Wall, 
 }
 
 // Generic wall sliding calculation with parameterized collision check function
-fn calculate_entity_wall_slide<F>(
+fn calculate_entity_slide<F>(
     walls: &[Wall],
     ramps: &[Ramp],
     current_pos: &Position,
@@ -232,6 +232,72 @@ impl Projectile {
     // - `None` if no collision
     //
     // If reflects=false and wall hit, caller should despawn the projectile
+    #[must_use]
+    pub fn handle_ramp_bounce(&mut self, projectile_pos: &Position, delta: f32, ramp: &Ramp) -> Option<Position> {
+        use crate::ramps::calculate_height_at_position;
+        
+        // Sample multiple points along the projectile's path to find collision
+        let num_samples = 5;
+        for i in 0..=num_samples {
+            let t = i as f32 / num_samples as f32;
+            let sample_x = projectile_pos.x + self.velocity.x * delta * t;
+            let sample_y = projectile_pos.y + self.velocity.y * delta * t;
+            let sample_z = projectile_pos.z + self.velocity.z * delta * t;
+            
+            // Check if this sample point is within the ramp footprint
+            let min_x = ramp.x1.min(ramp.x2);
+            let max_x = ramp.x1.max(ramp.x2);
+            let min_z = ramp.z1.min(ramp.z2);
+            let max_z = ramp.z1.max(ramp.z2);
+            
+            if sample_x >= min_x && sample_x <= max_x && sample_z >= min_z && sample_z <= max_z {
+                // Get the ramp height at this XZ position
+                let ramp_height = calculate_height_at_position(&[*ramp], sample_x, sample_z);
+                
+                // Check if projectile is close to the ramp surface (within radius)
+                if (sample_y - ramp_height).abs() < PROJECTILE_RADIUS * 2.0 {
+                    if self.reflects {
+                        // Calculate ramp normal (perpendicular to slope)
+                        let dx = ramp.x2 - ramp.x1;
+                        let dy = ramp.y2 - ramp.y1;
+                        let dz = ramp.z2 - ramp.z1;
+                        let length_xz = (dx * dx + dz * dz).sqrt();
+                        
+                        // Ramp normal points upward and perpendicular to slope direction
+                        let normal_x = -dy * dx / (length_xz * (dx * dx + dy * dy + dz * dz).sqrt());
+                        let normal_y = length_xz / (dx * dx + dy * dy + dz * dz).sqrt();
+                        let normal_z = -dy * dz / (length_xz * (dx * dx + dy * dy + dz * dz).sqrt());
+                        
+                        // Reflect velocity off the ramp normal
+                        let dot = self.velocity.x * normal_x + self.velocity.y * normal_y + self.velocity.z * normal_z;
+                        self.velocity.x -= 2.0 * dot * normal_x;
+                        self.velocity.y -= 2.0 * dot * normal_y;
+                        self.velocity.z -= 2.0 * dot * normal_z;
+                        
+                        // Push projectile slightly away from ramp surface
+                        const SEPARATION_EPSILON: f32 = 0.01;
+                        let separated_x = sample_x + normal_x * SEPARATION_EPSILON;
+                        let separated_y = sample_y + normal_y * SEPARATION_EPSILON;
+                        let separated_z = sample_z + normal_z * SEPARATION_EPSILON;
+                        
+                        // Continue moving for remaining time after bounce
+                        let remaining_time = delta * (1.0 - t);
+                        return Some(Position {
+                            x: self.velocity.x.mul_add(remaining_time, separated_x),
+                            y: self.velocity.y.mul_add(remaining_time, separated_y),
+                            z: self.velocity.z.mul_add(remaining_time, separated_z),
+                        });
+                    } else {
+                        // Hit ramp without reflect - return current position, caller should despawn
+                        return Some(*projectile_pos);
+                    }
+                }
+            }
+        }
+        
+        None
+    }
+
     #[must_use]
     pub fn handle_wall_bounce(&mut self, projectile_pos: &Position, delta: f32, wall: &Wall) -> Option<Position> {
         if let Some((normal_x, normal_z, t_collision)) =
@@ -487,9 +553,9 @@ pub fn check_player_wall_sweep(start_pos: &Position, end_pos: &Position, wall: &
     check_aabb_wall_sweep(start_pos, end_pos, wall, PLAYER_WIDTH / 2.0, PLAYER_DEPTH / 2.0)
 }
 
-// Calculate sliding movement along a wall when a collision occurs
+// Calculate sliding movement when a collision occurs
 //
-// Returns the new position that slides along the wall surface
+// Returns the new position that slides along the surface
 #[must_use]
 pub fn calculate_wall_slide(
     walls: &[Wall],
@@ -499,7 +565,7 @@ pub fn calculate_wall_slide(
     velocity_z: f32,
     delta: f32,
 ) -> Position {
-    calculate_entity_wall_slide(
+    calculate_entity_slide(
         walls,
         ramps,
         current_pos,
@@ -510,11 +576,11 @@ pub fn calculate_wall_slide(
     )
 }
 
-// Calculate sliding movement along a wall when a collision occurs for ghosts
+// Calculate sliding movement when a collision occurs for ghosts
 //
-// Returns the new position that slides along the wall surface
+// Returns the new position that slides along the surface
 #[must_use]
-pub fn calculate_ghost_wall_slide(
+pub fn calculate_ghost_slide(
     walls: &[Wall],
     ramps: &[Ramp],
     current_pos: &Position,
@@ -522,7 +588,7 @@ pub fn calculate_ghost_wall_slide(
     velocity_z: f32,
     delta: f32,
 ) -> Position {
-    calculate_entity_wall_slide(
+    calculate_entity_slide(
         walls,
         ramps,
         current_pos,
@@ -656,4 +722,126 @@ pub fn check_player_item_overlap(player_pos: &Position, item_pos: &Position, col
     let dz = player_pos.z - item_pos.z;
     let dist_sq = dx.mul_add(dx, dz * dz);
     dist_sq <= collection_radius * collection_radius
+}
+
+// ============================================================================
+// Collision Detection - Ramps
+// ============================================================================
+
+// Check if a swept AABB collides with ramp edges
+// Returns true if the entity moving from start_pos to end_pos would hit a ramp edge
+#[must_use]
+pub fn check_aabb_ramp_edge_sweep(
+    start_pos: &Position,
+    end_pos: &Position,
+    ramp: &Ramp,
+    half_x: f32,
+    half_z: f32,
+) -> bool {
+    // Determine ramp footprint bounds
+    let min_x = ramp.x1.min(ramp.x2);
+    let max_x = ramp.x1.max(ramp.x2);
+    let min_z = ramp.z1.min(ramp.z2);
+    let max_z = ramp.z1.max(ramp.z2);
+
+    // Determine if ramp is primarily along X or Z axis
+    let dx = (ramp.x2 - ramp.x1).abs();
+    let dz = (ramp.z2 - ramp.z1).abs();
+    let is_x_ramp = dx >= dz;
+
+    // For entities moving along the ramp, check if they hit the side edges
+    // For entities crossing perpendicular to the ramp, check if they hit the end edges
+    
+    // Create walls for the edges that should block movement
+    if is_x_ramp {
+        // X-aligned ramp: block side edges (Z direction), allow movement along X
+        let side_wall_1 = Wall {
+            x1: min_x,
+            z1: min_z,
+            x2: max_x,
+            z2: min_z,
+            width: 0.2,
+        };
+        let side_wall_2 = Wall {
+            x1: min_x,
+            z1: max_z,
+            x2: max_x,
+            z2: max_z,
+            width: 0.2,
+        };
+        
+        check_aabb_wall_sweep(start_pos, end_pos, &side_wall_1, half_x, half_z)
+            || check_aabb_wall_sweep(start_pos, end_pos, &side_wall_2, half_x, half_z)
+    } else {
+        // Z-aligned ramp: block side edges (X direction), allow movement along Z
+        let side_wall_1 = Wall {
+            x1: min_x,
+            z1: min_z,
+            x2: min_x,
+            z2: max_z,
+            width: 0.2,
+        };
+        let side_wall_2 = Wall {
+            x1: max_x,
+            z1: min_z,
+            x2: max_x,
+            z2: max_z,
+            width: 0.2,
+        };
+        
+        check_aabb_wall_sweep(start_pos, end_pos, &side_wall_1, half_x, half_z)
+            || check_aabb_wall_sweep(start_pos, end_pos, &side_wall_2, half_x, half_z)
+    }
+}
+
+// Check if a projectile hits a ramp
+// Returns true if the projectile at its height intersects with the ramp surface
+#[must_use]
+pub fn check_projectile_ramp_hit(
+    proj_pos: &Position,
+    projectile: &Projectile,
+    delta: f32,
+    ramp: &Ramp,
+) -> bool {
+    use crate::ramps::calculate_height_at_position;
+    
+    // Sample multiple points along the projectile's path
+    let num_samples = 5;
+    for i in 0..=num_samples {
+        let t = i as f32 / num_samples as f32;
+        let sample_x = proj_pos.x + projectile.velocity.x * delta * t;
+        let sample_y = proj_pos.y + projectile.velocity.y * delta * t;
+        let sample_z = proj_pos.z + projectile.velocity.z * delta * t;
+        
+        // Check if this sample point is within the ramp footprint
+        let min_x = ramp.x1.min(ramp.x2);
+        let max_x = ramp.x1.max(ramp.x2);
+        let min_z = ramp.z1.min(ramp.z2);
+        let max_z = ramp.z1.max(ramp.z2);
+        
+        if sample_x >= min_x && sample_x <= max_x && sample_z >= min_z && sample_z <= max_z {
+            // Get the ramp height at this XZ position
+            let ramp_height = calculate_height_at_position(&[*ramp], sample_x, sample_z);
+            
+            // Check if projectile is close to the ramp surface (within radius)
+            if (sample_y - ramp_height).abs() < PROJECTILE_RADIUS * 2.0 {
+                return true;
+            }
+        }
+    }
+    
+    false
+}
+
+// Check if a player moving from start to end hits a ramp edge
+#[must_use]
+pub fn check_player_ramp_edge_sweep(start_pos: &Position, end_pos: &Position, ramp: &Ramp) -> bool {
+    check_aabb_ramp_edge_sweep(start_pos, end_pos, ramp, PLAYER_WIDTH / 2.0, PLAYER_DEPTH / 2.0)
+}
+
+// Check if a ghost moving hits a ramp edge
+#[must_use]
+pub fn check_ghost_ramp_edge_sweep(start_pos: &Position, end_pos: &Position, ramp: &Ramp) -> bool {
+    let ghost_half_size = GHOST_SIZE / 2.0;
+    check_aabb_ramp_edge_sweep(start_pos, end_pos, ramp, ghost_half_size, ghost_half_size)
 }

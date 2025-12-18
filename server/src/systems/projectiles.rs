@@ -5,7 +5,10 @@ use crate::{
     resources::{GhostMap, GhostMode, GridConfig, PlayerMap},
 };
 use common::{
-    collision::{Projectile, check_projectile_ghost_sweep_hit, check_projectile_player_sweep_hit},
+    collision::{
+        check_projectile_ghost_sweep_hit, check_projectile_player_sweep_hit,
+        Projectile,
+    },
     constants::ALWAYS_GHOST_HUNT,
     markers::{GhostMarker, PlayerMarker, ProjectileMarker},
     protocol::*,
@@ -51,7 +54,7 @@ pub fn projectiles_movement_system(
 
         let mut hit_something = false;
 
-        // Check wall collisions (not ramp walls - projectiles can fly over ramps)
+        // Check wall collisions
         for wall in &grid_config.all_walls {
             if let Some(new_pos) = projectile.handle_wall_bounce(&proj_pos, delta, wall) {
                 if projectile.reflects {
@@ -64,6 +67,23 @@ pub fn projectiles_movement_system(
 
                 hit_something = true;
                 break;
+            }
+        }
+
+        // Check ramp collisions
+        if !hit_something {
+            for ramp in &grid_config.ramps {
+                if let Some(new_pos) = projectile.handle_ramp_bounce(&proj_pos, delta, ramp) {
+                    if projectile.reflects {
+                        proj_pos.x = new_pos.x;
+                        proj_pos.y = new_pos.y;
+                        proj_pos.z = new_pos.z;
+                    } else {
+                        commands.entity(proj_entity).despawn();
+                    }
+                    hit_something = true;
+                    break;
+                }
             }
         }
 

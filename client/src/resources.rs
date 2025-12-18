@@ -23,8 +23,6 @@ pub struct WallConfig {
     pub all_walls: Vec<Wall>, // Pre-computed: boundary + interior
     pub roofs: Vec<Roof>,
     pub ramps: Vec<Ramp>,
-    pub ramp_side_walls: Vec<Wall>, // Ramp sides only (for player collision)
-    pub ramp_all_walls: Vec<Wall>,  // All ramp edges (for ghost collision)
     pub roof_edge_walls: Vec<Wall>, // Roof edges (prevent falling off)
 }
 

@@ -665,9 +665,10 @@ pub fn spawn_projectiles(
     has_multi_shot: bool,
     has_reflect: bool,
     walls: &[Wall],
+    ramps: &[Ramp],
     shooter_id: PlayerId,
 ) {
-    let spawns = calculate_projectile_spawns(pos, face_dir, has_multi_shot, has_reflect, walls);
+    let spawns = calculate_projectile_spawns(pos, face_dir, has_multi_shot, has_reflect, walls, ramps);
 
     for spawn_info in spawns {
         spawn_single_projectile(commands, meshes, materials, &spawn_info, shooter_id);
@@ -704,6 +705,7 @@ pub fn spawn_projectile_for_player(
     has_multi_shot: bool,
     has_reflect: bool,
     walls: &[Wall],
+    ramps: &[Ramp],
 ) {
     // Get player ID, position and face direction for this player entity
     if let Ok((player_id, pos, face_dir)) = player_query.get(entity) {
@@ -716,6 +718,7 @@ pub fn spawn_projectile_for_player(
             has_multi_shot,
             has_reflect,
             walls,
+            ramps,
             *player_id,
         );
     }

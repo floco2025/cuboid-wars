@@ -214,9 +214,6 @@ pub fn generate_grid() -> GridConfig {
         roofs = roofs::merge_roofs(roofs);
     }
 
-    // Generate collision walls for ramps
-    let (ramp_side_walls, ramp_all_walls) = collision::generate_ramp_collision_walls(&ramps, &grid);
-
     // Generate collision walls for roof edges
     let roof_edge_walls = collision::generate_roof_edge_walls(&grid, grid_cols, grid_rows);
 
@@ -241,8 +238,6 @@ pub fn generate_grid() -> GridConfig {
         all_walls: walls,
         roofs,
         ramps,
-        ramp_side_walls,
-        ramp_all_walls,
         roof_edge_walls,
     }
 }

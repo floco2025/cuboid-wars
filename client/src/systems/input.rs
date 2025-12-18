@@ -295,14 +295,10 @@ pub fn input_shooting_system(
                 .is_some_and(|info| info.reflect_power_up);
 
         // Spawn projectile(s) based on power-up status
-        // Use all_walls + ramp_all_walls but exclude roof_edge_walls to allow shooting from roof edges
-        let spawn_blocking_walls = wall_config
+        // Use all_walls but exclude roof_edge_walls to allow shooting from roof edges
+        let (spawn_blocking_walls, ramps) = wall_config
             .as_ref()
-            .map(|config| {
-                let mut walls = config.all_walls.clone();
-                walls.extend_from_slice(&config.ramp_all_walls);
-                walls
-            })
+            .map(|config| (config.all_walls.as_slice(), config.ramps.as_slice()))
             .unwrap_or_default();
         if let Some(my_id) = my_player_id.as_ref() {
             spawn_projectiles(
@@ -313,7 +309,8 @@ pub fn input_shooting_system(
                 face_dir.0,
                 has_multi_shot,
                 has_reflect,
-                &spawn_blocking_walls,
+                spawn_blocking_walls,
+                ramps,
                 my_id.0,
             );
         }
