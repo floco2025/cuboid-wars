@@ -332,26 +332,39 @@ pub fn input_shooting_system(
                 .and_then(|id| players.0.get(&id.0))
                 .is_some_and(|info| info.reflect_power_up);
 
-        // Spawn projectile(s) based on power-up status
-        // Use all_walls but exclude roof_edge_walls to allow shooting from roof edges
-        let (all_walls, ramps) = wall_config
-            .as_ref()
-            .map(|config| (config.all_walls.as_slice(), config.ramps.as_slice()))
-            .unwrap_or_default();
         if let Some(my_id) = my_player_id.as_ref() {
-            spawn_projectiles(
-                &mut commands,
-                &mut meshes,
-                &mut materials,
-                pos,
-                face_dir.0,
-                pitch,
-                has_multi_shot,
-                has_reflect,
-                all_walls,
-                ramps,
-                my_id.0,
-            );
+            if let Some(config) = wall_config.as_ref() {
+                // all_walls already excludes roof edges; pass roofs for roof blocking
+                spawn_projectiles(
+                    &mut commands,
+                    &mut meshes,
+                    &mut materials,
+                    pos,
+                    face_dir.0,
+                    pitch,
+                    has_multi_shot,
+                    has_reflect,
+                    config.all_walls.as_slice(),
+                    config.ramps.as_slice(),
+                    config.roofs.as_slice(),
+                    my_id.0,
+                );
+            } else {
+                spawn_projectiles(
+                    &mut commands,
+                    &mut meshes,
+                    &mut materials,
+                    pos,
+                    face_dir.0,
+                    pitch,
+                    has_multi_shot,
+                    has_reflect,
+                    &[][..],
+                    &[][..],
+                    &[][..],
+                    my_id.0,
+                );
+            }
         }
     }
 }

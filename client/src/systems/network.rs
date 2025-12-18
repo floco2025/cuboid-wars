@@ -313,23 +313,37 @@ fn handle_shot_message(
 
         // Spawn projectile(s) based on player's multi-shot power-up status
         if let Ok(player_facing) = player_face_query.get(player.entity) {
-            // Use all_walls but exclude roof_edge_walls to allow shooting from roof edges
-            let (all_walls, ramps) = wall_config
-                .map(|config| (config.all_walls.as_slice(), config.ramps.as_slice()))
-                .unwrap_or_default();
-            spawn_projectiles(
-                commands,
-                &mut assets.meshes,
-                &mut assets.materials,
-                player_facing.position,
-                msg.face_dir,
-                msg.face_pitch,
-                player.multi_shot_power_up,
-                player.reflect_power_up,
-                &all_walls,
-                &ramps,
-                msg.id,
-            );
+            if let Some(config) = wall_config {
+                spawn_projectiles(
+                    commands,
+                    &mut assets.meshes,
+                    &mut assets.materials,
+                    player_facing.position,
+                    msg.face_dir,
+                    msg.face_pitch,
+                    player.multi_shot_power_up,
+                    player.reflect_power_up,
+                    config.all_walls.as_slice(),
+                    config.ramps.as_slice(),
+                    config.roofs.as_slice(),
+                    msg.id,
+                );
+            } else {
+                spawn_projectiles(
+                    commands,
+                    &mut assets.meshes,
+                    &mut assets.materials,
+                    player_facing.position,
+                    msg.face_dir,
+                    msg.face_pitch,
+                    player.multi_shot_power_up,
+                    player.reflect_power_up,
+                    &[][..],
+                    &[][..],
+                    &[][..],
+                    msg.id,
+                );
+            }
         }
     }
 }

@@ -496,6 +496,7 @@ fn handle_shot(
             has_reflect,
             &grid_config.all_walls,
             &grid_config.ramps,
+            &grid_config.roofs,
         );
 
         // Spawn each projectile
