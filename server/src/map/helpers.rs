@@ -7,7 +7,7 @@ use common::{
     protocol::Position,
 };
 
-/// Calculate the center position of a grid cell
+// Calculate the center position of a grid cell
 #[must_use]
 pub fn cell_center(grid_x: i32, grid_z: i32) -> Position {
     Position {
@@ -17,7 +17,7 @@ pub fn cell_center(grid_x: i32, grid_z: i32) -> Position {
     }
 }
 
-/// Convert a world position to grid coordinates
+// Convert a world position to grid coordinates
 #[must_use]
 pub fn grid_coords_from_position(pos: &Position) -> (i32, i32) {
     let grid_x = ((pos.x + FIELD_WIDTH / 2.0) / GRID_SIZE).floor() as i32;
@@ -25,7 +25,7 @@ pub fn grid_coords_from_position(pos: &Position) -> (i32, i32) {
     (grid_x, grid_z)
 }
 
-/// Find a random unoccupied grid cell
+// Find a random unoccupied grid cell
 #[allow(clippy::implicit_hasher)]
 pub fn find_unoccupied_cell(rng: &mut ThreadRng, occupied_cells: &HashSet<(i32, i32)>) -> Option<(i32, i32)> {
     const MAX_ATTEMPTS: usize = 100;
@@ -39,7 +39,7 @@ pub fn find_unoccupied_cell(rng: &mut ThreadRng, occupied_cells: &HashSet<(i32, 
     None
 }
 
-/// Find an unoccupied cell that's not on a ramp
+// Find an unoccupied cell that's not on a ramp
 pub fn find_unoccupied_cell_not_ramp(
     rng: &mut ThreadRng,
     occupied_cells: &HashSet<(i32, i32)>,
@@ -56,7 +56,7 @@ pub fn find_unoccupied_cell_not_ramp(
     None
 }
 
-/// Count how many walls a cell has (0-4)
+// Count how many walls a cell has (0-4)
 pub(super) const fn count_cell_walls(cell: GridCell) -> u8 {
     let mut count = 0;
     if cell.has_north_wall {

@@ -29,16 +29,14 @@ pub const PROJECTILE_SPAWN_HEIGHT: f32 = PLAYER_HEIGHT * 0.9;
 pub const PROJECTILE_RADIUS: f32 = 0.11; // meters
 
 // Wall dimensions (meters)
+pub const WALL_THICKNESS: f32 = 0.3; // Wall thickness
 pub const WALL_HEIGHT: f32 = 4.0; // Wall height
-pub const WALL_WIDTH: f32 = 0.2; // Wall thickness
 pub const WALL_LENGTH: f32 = 8.2; // Slightly longer than grid to avoid corner gaps
 
 // Roof dimensions (meters)
 pub const ROOF_THICKNESS: f32 = 0.4; // Roof thickness
 pub const ROOF_HEIGHT: f32 = WALL_HEIGHT + ROOF_THICKNESS; // Top of roof
-
-// Ramp edge guard (meters)
-pub const RAMP_EDGE_WIDTH: f32 = 0.2; // Thin blocker along ramp sides to prevent sliding off
+pub const ROOF_WALL_THICKNESS: f32 = 0.01; // Invisible roof-edge guard
 
 // Visual details (meters)
 pub const PLAYER_NOSE_RADIUS: f32 = 0.08;
@@ -53,14 +51,14 @@ pub const UPDATE_BROADCAST_INTERVAL: f32 = 0.25; // seconds
 // Power-up setting
 pub const POWER_UP_SPEED_MULTIPLIER: f32 = 1.8;
 pub const POWER_UP_MULTI_SHOT_MULTIPLER: i32 = 5;
-pub const POWER_UP_MULTI_SHOT_ANGLE: f32 = 3.0;
+pub const POWER_UP_MULTI_SHOT_ANGLE: f32 = 2.0;
 
 // Debug: Always enable power-ups (for testing)
 pub const ALWAYS_SPEED: bool = false;
 pub const ALWAYS_MULTI_SHOT: bool = true;
 pub const ALWAYS_REFLECT: bool = true;
 pub const ALWAYS_PHASING: bool = false;
-pub const ALWAYS_GHOST_HUNT: bool = true;
+pub const ALWAYS_GHOST_HUNT: bool = false;
 
 // Ghost dimensions (meters)
 pub const GHOST_SIZE: f32 = 3.0; // Cube side length

@@ -43,7 +43,7 @@ pub struct GridConfig {
 }
 
 impl GridConfig {
-    /// Check if a world position (x, z) is on a roof cell
+    // Check if a world position (x, z) is on a roof cell
     pub fn is_position_on_roof(&self, x: f32, z: f32) -> bool {
         use common::constants::*;
 

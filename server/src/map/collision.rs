@@ -4,8 +4,8 @@ use common::{
     protocol::Wall,
 };
 
-/// Generate collision walls for roof edges to prevent players from falling off.
-/// Only adds edges where there's no adjacent roof or no ramp connection.
+// Generate collision walls for roof edges to prevent players from falling off.
+// Only adds edges where there's no adjacent roof or no ramp connection.
 pub fn generate_roof_edge_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) -> Vec<Wall> {
     let mut roof_edge_walls = Vec::new();
 
@@ -32,7 +32,7 @@ pub fn generate_roof_edge_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_row
                     z1,
                     x2,
                     z2: z1,
-                    width: WALL_WIDTH,
+                    width: ROOF_WALL_THICKNESS,
                 });
             }
 
@@ -45,7 +45,7 @@ pub fn generate_roof_edge_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_row
                     z1: z2,
                     x2,
                     z2,
-                    width: WALL_WIDTH,
+                    width: ROOF_WALL_THICKNESS,
                 });
             }
 
@@ -58,7 +58,7 @@ pub fn generate_roof_edge_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_row
                     z1,
                     x2: x1,
                     z2,
-                    width: WALL_WIDTH,
+                    width: ROOF_WALL_THICKNESS,
                 });
             }
 
@@ -71,7 +71,7 @@ pub fn generate_roof_edge_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_row
                     z1,
                     x2,
                     z2,
-                    width: WALL_WIDTH,
+                    width: ROOF_WALL_THICKNESS,
                 });
             }
         }

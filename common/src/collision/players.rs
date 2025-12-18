@@ -2,7 +2,7 @@ use super::helpers::{
     overlap_aabb_vs_wall, slide_along_axes, sweep_aabb_vs_aabb, sweep_aabb_vs_wall, sweep_ramp_edges, sweep_ramp_high_cap,
 };
 use crate::{
-    constants::{PLAYER_DEPTH, PLAYER_HEIGHT, PLAYER_WIDTH, RAMP_EDGE_WIDTH, ROOF_HEIGHT},
+    constants::{PLAYER_DEPTH, PLAYER_HEIGHT, PLAYER_WIDTH, WALL_THICKNESS, ROOF_HEIGHT},
     protocol::{Position, Ramp, Roof, Wall},
     ramps::calculate_height_at_position,
 };
@@ -17,7 +17,7 @@ pub fn sweep_player_vs_wall(start_pos: &Position, end_pos: &Position, wall: &Wal
     sweep_aabb_vs_wall(start_pos, end_pos, wall, PLAYER_WIDTH / 2.0, PLAYER_DEPTH / 2.0)
 }
 
-/// Sweep the muzzle->spawn segment against a roof slab; returns true if it intersects.
+// Sweep the muzzle->spawn segment against a roof slab; returns true if it intersects.
 #[must_use]
 pub fn sweep_player_vs_roof(start: &Position, end: &Position, roof: &Roof, radius: f32) -> bool {
     let min_x = roof.x1.min(roof.x2);
@@ -58,7 +58,7 @@ pub fn sweep_player_vs_roof(start: &Position, end: &Position, roof: &Roof, radiu
 pub fn sweep_player_vs_ramp_edges(start_pos: &Position, end_pos: &Position, ramp: &Ramp) -> bool {
     let half_x = PLAYER_WIDTH / 2.0;
     let half_z = PLAYER_DEPTH / 2.0;
-    let edge_half = RAMP_EDGE_WIDTH / 2.0;
+    let edge_half = WALL_THICKNESS / 2.0;
 
     let on_ground = start_pos.y <= 0.1;
 

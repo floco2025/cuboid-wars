@@ -5,7 +5,7 @@ use crate::{
     constants::{OVERLAP_ROOFS, ROOF_NEIGHBOR_PREFERENCE, ROOF_NUM_SEGMENTS},
     resources::GridCell,
 };
-use super::utils::count_cell_walls;
+use super::helpers::count_cell_walls;
 use common::{
     constants::*,
     protocol::Roof,
@@ -13,8 +13,8 @@ use common::{
 
 const MERGE_EPS: f32 = 0.01;
 
-/// Generate individual roof segments (no merging) covering full grid cells.
-/// Returns roofs and updated grid with has_roof flags set.
+// Generate individual roof segments (no merging) covering full grid cells.
+// Returns roofs and updated grid with has_roof flags set.
 #[must_use]
 pub fn generate_individual_roofs(
     mut grid: Vec<Vec<GridCell>>,
@@ -221,10 +221,10 @@ pub fn generate_individual_roofs(
         // Calculate world coordinates
         let (world_x1, world_x2, world_z1, world_z2) = if OVERLAP_ROOFS {
             // Overlap mode: extend on all sides by roof_thickness/2 for guaranteed coverage
-            let x1 = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)) - WALL_WIDTH / 2.0;
-            let x2 = ((col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)) + WALL_WIDTH / 2.0;
-            let z1 = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0)) - WALL_WIDTH / 2.0;
-            let z2 = ((row + 1) as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0)) + WALL_WIDTH / 2.0;
+            let x1 = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)) - WALL_THICKNESS / 2.0;
+            let x2 = ((col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)) + WALL_THICKNESS / 2.0;
+            let z1 = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0)) - WALL_THICKNESS / 2.0;
+            let z2 = ((row + 1) as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0)) + WALL_THICKNESS / 2.0;
             (x1, x2, z1, z2)
         } else {
             // Non-overlap mode: extend outward unless a neighboring roof would overlap
@@ -236,25 +236,25 @@ pub fn generate_individual_roofs(
             // West: extend if no west neighbor roof
             let neighbor_w = col > 0 && roof_cells.contains(&(row, col - 1));
             if !neighbor_w {
-                x1 -= WALL_WIDTH / 2.0;
+                x1 -= WALL_THICKNESS / 2.0;
             }
 
             // East: extend if no east neighbor roof
             let neighbor_e = col < grid_cols - 1 && roof_cells.contains(&(row, col + 1));
             if !neighbor_e {
-                x2 += WALL_WIDTH / 2.0;
+                x2 += WALL_THICKNESS / 2.0;
             }
 
             // North: extend if no north neighbor roof
             let neighbor_n = row > 0 && roof_cells.contains(&(row - 1, col));
             if !neighbor_n {
-                z1 -= WALL_WIDTH / 2.0;
+                z1 -= WALL_THICKNESS / 2.0;
             }
 
             // South: extend if no south neighbor roof
             let neighbor_s = row < grid_rows - 1 && roof_cells.contains(&(row + 1, col));
             if !neighbor_s {
-                z2 += WALL_WIDTH / 2.0;
+                z2 += WALL_THICKNESS / 2.0;
             }
 
             (x1, x2, z1, z2)
@@ -275,7 +275,7 @@ pub fn generate_individual_roofs(
     (roofs, grid)
 }
 
-/// Merge adjacent roofs into larger segments
+// Merge adjacent roofs into larger segments
 pub fn merge_roofs(mut roofs: Vec<Roof>) -> Vec<Roof> {
     // Normalize ordering
     for r in &mut roofs {

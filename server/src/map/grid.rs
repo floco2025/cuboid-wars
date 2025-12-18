@@ -2,7 +2,7 @@ use std::collections::{HashSet, VecDeque};
 
 use crate::resources::GridCell;
 
-/// Check if all non-ramp cells are reachable from each other
+// Check if all non-ramp cells are reachable from each other
 pub fn all_cells_reachable(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) -> bool {
     if grid_cols <= 0 || grid_rows <= 0 {
         return true;

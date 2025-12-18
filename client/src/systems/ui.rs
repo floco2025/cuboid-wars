@@ -8,7 +8,7 @@ use crate::{
     spawning::{item_type_color, load_repeating_texture, load_repeating_texture_linear},
 };
 use common::{
-    constants::{FIELD_DEPTH, FIELD_WIDTH, GRID_COLS, GRID_ROWS, GRID_SIZE, PLAYER_HEIGHT, WALL_WIDTH},
+    constants::{FIELD_DEPTH, FIELD_WIDTH, GRID_COLS, GRID_ROWS, GRID_SIZE, PLAYER_HEIGHT, WALL_THICKNESS},
     protocol::{ItemType, PlayerId},
 };
 
@@ -83,7 +83,7 @@ pub fn setup_world_system(
         for i in 0..=GRID_ROWS {
             let z_pos = (i as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
             commands.spawn((
-                Mesh3d(meshes.add(Cuboid::new(FIELD_WIDTH, line_height, WALL_WIDTH))),
+                Mesh3d(meshes.add(Cuboid::new(FIELD_WIDTH, line_height, WALL_THICKNESS))),
                 MeshMaterial3d(grid_material.clone()),
                 Transform::from_xyz(0.0, line_height / 2.0, z_pos),
             ));
@@ -93,7 +93,7 @@ pub fn setup_world_system(
         for i in 0..=GRID_COLS {
             let x_pos = (i as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
             commands.spawn((
-                Mesh3d(meshes.add(Cuboid::new(WALL_WIDTH, line_height, FIELD_DEPTH))),
+                Mesh3d(meshes.add(Cuboid::new(WALL_THICKNESS, line_height, FIELD_DEPTH))),
                 MeshMaterial3d(grid_material.clone()),
                 Transform::from_xyz(x_pos, line_height / 2.0, 0.0),
             ));

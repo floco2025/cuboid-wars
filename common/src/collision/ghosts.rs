@@ -93,6 +93,7 @@ pub fn overlap_ghost_vs_player(ghost_pos: &Position, player_pos: &Position) -> b
     let player_center_y = player_pos.y + PLAYER_HEIGHT / 2.0;
     let ghost_center_y = GHOST_SIZE / 2.0;
     let y_diff = (player_center_y - ghost_center_y).abs();
+
     if y_diff > (PLAYER_HEIGHT + GHOST_SIZE) / 2.0 {
         return false;
     }
@@ -140,17 +141,13 @@ fn slide_ghost(
             z: velocity_z.mul_add(dt, current_pos.z),
         },
         |candidate| {
-            walls
-                .iter()
-                .any(|w| sweep_ghost_vs_wall(current_pos, candidate, w))
+            walls.iter().any(|w| sweep_ghost_vs_wall(current_pos, candidate, w))
                 || ramps
                     .iter()
                     .any(|r| sweep_ghost_vs_ramp_footprint(current_pos, candidate, r))
         },
         |candidate| {
-            walls
-                .iter()
-                .any(|w| sweep_ghost_vs_wall(current_pos, candidate, w))
+            walls.iter().any(|w| sweep_ghost_vs_wall(current_pos, candidate, w))
                 || ramps
                     .iter()
                     .any(|r| sweep_ghost_vs_ramp_footprint(current_pos, candidate, r))

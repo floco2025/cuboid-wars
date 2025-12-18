@@ -2,7 +2,7 @@ mod collision;
 mod grid;
 mod ramps;
 mod roofs;
-mod utils;
+mod helpers;
 mod walls;
 
 use rand::Rng;
@@ -20,9 +20,9 @@ use common::{
 };
 
 // Re-export public utilities
-pub use utils::{cell_center, grid_coords_from_position, find_unoccupied_cell, find_unoccupied_cell_not_ramp};
+pub use helpers::{cell_center, grid_coords_from_position, find_unoccupied_cell, find_unoccupied_cell_not_ramp};
 
-/// Generate a complete map grid with walls, roofs, and ramps
+// Generate a complete map grid with walls, roofs, and ramps
 #[must_use]
 pub fn generate_grid() -> GridConfig {
     let mut rng = rand::rng();
@@ -128,12 +128,12 @@ pub fn generate_grid() -> GridConfig {
         }
 
         // Count existing walls in both cells adjacent to this potential wall
-        let cell1_walls = utils::count_cell_walls(*cell);
+        let cell1_walls = helpers::count_cell_walls(*cell);
         let cell2_walls = match direction {
             0 => {
                 // South wall - check cell below
                 if row < grid_rows - 1 {
-                    utils::count_cell_walls(grid[(row + 1) as usize][col as usize])
+                    helpers::count_cell_walls(grid[(row + 1) as usize][col as usize])
                 } else {
                     0
                 }
@@ -141,7 +141,7 @@ pub fn generate_grid() -> GridConfig {
             1 => {
                 // East wall - check cell to the right
                 if col < grid_cols - 1 {
-                    utils::count_cell_walls(grid[row as usize][(col + 1) as usize])
+                    helpers::count_cell_walls(grid[row as usize][(col + 1) as usize])
                 } else {
                     0
                 }

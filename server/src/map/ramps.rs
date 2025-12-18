@@ -9,7 +9,7 @@ use common::{
     protocol::Ramp,
 };
 
-/// Generate ramps as right triangular prisms using opposite corners
+// Generate ramps as right triangular prisms using opposite corners
 pub fn generate_ramps(grid: &mut [Vec<GridCell>], grid_cols: i32, grid_rows: i32) -> Vec<Ramp> {
     let mut rng = rand::rng();
     let mut ramps = Vec::new();

@@ -9,7 +9,7 @@ use common::{
 
 const MERGE_EPS: f32 = 0.01;
 
-/// Check if grid line has horizontal wall at position
+// Check if grid line has horizontal wall at position
 #[inline]
 fn has_horizontal_wall(grid: &[Vec<GridCell>], row: i32, col: i32, grid_rows: i32) -> bool {
     if row == 0 {
@@ -21,7 +21,7 @@ fn has_horizontal_wall(grid: &[Vec<GridCell>], row: i32, col: i32, grid_rows: i3
     }
 }
 
-/// Check if grid line has vertical wall at position
+// Check if grid line has vertical wall at position
 #[inline]
 fn has_vertical_wall(grid: &[Vec<GridCell>], row: i32, col: i32, grid_cols: i32) -> bool {
     if col == 0 {
@@ -33,7 +33,7 @@ fn has_vertical_wall(grid: &[Vec<GridCell>], row: i32, col: i32, grid_cols: i32)
     }
 }
 
-/// Check if horizontal walls meet the top/bottom of a vertical wall
+// Check if horizontal walls meet the top/bottom of a vertical wall
 #[inline]
 fn perpendicular_horizontal_walls(
     grid: &[Vec<GridCell>],
@@ -61,7 +61,7 @@ fn perpendicular_horizontal_walls(
     (has_perp_top, has_perp_bottom)
 }
 
-/// Generate individual wall segments (no merging) with gap-filling extensions
+// Generate individual wall segments (no merging) with gap-filling extensions
 #[must_use]
 pub fn generate_individual_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) -> Vec<Wall> {
     let mut walls = Vec::new();
@@ -90,21 +90,21 @@ pub fn generate_individual_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_ro
             // Horizontal walls inset only when a vertical passes through (T); extend otherwise for corners/ends
             let x1 = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0))
                 + if OVERLAP_WALLS {
-                    -WALL_WIDTH / 2.0
+                    -WALL_THICKNESS / 2.0
                 } else if left_vert_through && !has_left {
-                    WALL_WIDTH / 2.0 // inset at T so vertical can pass through
+                    WALL_THICKNESS / 2.0 // inset at T so vertical can pass through
                 } else if !has_left {
-                    -WALL_WIDTH / 2.0 // extend to meet corners or isolated ends
+                    -WALL_THICKNESS / 2.0 // extend to meet corners or isolated ends
                 } else {
                     0.0
                 };
             let x2 = ((col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0))
                 + if OVERLAP_WALLS {
-                    WALL_WIDTH / 2.0
+                    WALL_THICKNESS / 2.0
                 } else if right_vert_through && !has_right {
-                    -WALL_WIDTH / 2.0 // inset at T on the right
+                    -WALL_THICKNESS / 2.0 // inset at T on the right
                 } else if !has_right {
-                    WALL_WIDTH / 2.0 // extend for corners or isolated ends
+                    WALL_THICKNESS / 2.0 // extend for corners or isolated ends
                 } else {
                     0.0
                 };
@@ -114,7 +114,7 @@ pub fn generate_individual_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_ro
                 z1: world_z,
                 x2,
                 z2: world_z,
-                width: WALL_WIDTH,
+                width: WALL_THICKNESS,
             });
         }
     }
@@ -136,17 +136,17 @@ pub fn generate_individual_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_ro
             let world_x = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
             let z1 = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0))
                 + if has_perp_top && !has_top {
-                    WALL_WIDTH / 2.0 // Inset for L-corner
+                    WALL_THICKNESS / 2.0 // Inset for L-corner
                 } else if !has_top && !has_perp_top {
-                    -WALL_WIDTH / 2.0 // Extend for isolated end
+                    -WALL_THICKNESS / 2.0 // Extend for isolated end
                 } else {
                     0.0
                 };
             let z2 = ((row + 1) as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0))
                 + if has_perp_bottom && !has_bottom {
-                    -WALL_WIDTH / 2.0 // Inset for L-corner
+                    -WALL_THICKNESS / 2.0 // Inset for L-corner
                 } else if !has_bottom && !has_perp_bottom {
-                    WALL_WIDTH / 2.0 // Extend for isolated end
+                    WALL_THICKNESS / 2.0 // Extend for isolated end
                 } else {
                     0.0
                 };
@@ -156,7 +156,7 @@ pub fn generate_individual_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_ro
                 z1,
                 x2: world_x,
                 z2,
-                width: WALL_WIDTH,
+                width: WALL_THICKNESS,
             });
         }
     }
@@ -164,7 +164,7 @@ pub fn generate_individual_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_ro
     walls
 }
 
-/// Normalize wall coordinates so they're in consistent order
+// Normalize wall coordinates so they're in consistent order
 fn normalize_wall(mut w: Wall) -> Wall {
     if (w.z1 - w.z2).abs() < MERGE_EPS {
         // horizontal: order by x
@@ -180,7 +180,7 @@ fn normalize_wall(mut w: Wall) -> Wall {
     w
 }
 
-/// Merge adjacent collinear walls into longer segments
+// Merge adjacent collinear walls into longer segments
 pub fn merge_walls(walls: Vec<Wall>) -> Vec<Wall> {
     let mut horizontals = Vec::new();
     let mut verticals = Vec::new();

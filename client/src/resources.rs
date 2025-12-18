@@ -27,7 +27,7 @@ pub struct WallConfig {
 }
 
 impl WallConfig {
-    /// Check if a world position (x, z) is on a roof
+    // Check if a world position (x, z) is on a roof
     pub fn is_position_on_roof(&self, x: f32, z: f32) -> bool {
         for roof in &self.roofs {
             let min_x = roof.x1.min(roof.x2);

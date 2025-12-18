@@ -302,9 +302,13 @@ pub fn ghosts_movement_system(
                     if let Some(target_id) = ghost_info.follow_target {
                         let target_info = players.0.get(&target_id);
                         let target_valid = target_info.is_some_and(|info| info.logged_in && info.stun_timer <= 0.0);
+                        let target_on_roof = player_data
+                            .iter()
+                            .find(|(id, _, _)| *id == target_id)
+                            .is_some_and(|(_, pos, _)| pos.y >= ROOF_HEIGHT);
 
-                        if !target_valid {
-                            // Target disconnected or stunned, switch to pre-patrol
+                        if !target_valid || target_on_roof {
+                            // Target disconnected, stunned, or on a roof, switch to pre-patrol
                             ghost_info.mode = GhostMode::PrePatrol;
                             ghost_info.mode_timer = GHOST_COOLDOWN_DURATION;
                             ghost_info.follow_target = None;
@@ -382,6 +386,11 @@ fn find_visible_moving_player(
     for (player_id, player_pos, player_speed) in player_data {
         // Ignore players that are not moving (Idle speed)
         if player_speed.speed_level == SpeedLevel::Idle {
+            continue;
+        }
+
+        // Ignore players that are on or above the roof
+        if player_pos.y >= ROOF_HEIGHT {
             continue;
         }
 
@@ -577,7 +586,7 @@ fn follow_movement(
     // Find target player position
     let target_pos = player_data
         .iter()
-        .find(|(id, _, _)| *id == target_id)
+        .find(|(id, pos, _)| *id == target_id && pos.y < ROOF_HEIGHT)
         .map(|(_, pos, _)| pos);
 
     let Some(target_pos) = target_pos else {
