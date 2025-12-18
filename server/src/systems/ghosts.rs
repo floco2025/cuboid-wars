@@ -220,10 +220,11 @@ pub fn ghosts_movement_system(
 
                 // Always check for visible players
                 if let Some(target_player_id) = find_visible_moving_player(&ghost_pos, &player_data, &ghost_walls) {
-                    let player_has_ghost_hunt = players
-                        .0
-                        .get(&target_player_id)
-                        .is_some_and(|info| info.ghost_hunt_power_up_timer > 0.0);
+                    let player_has_ghost_hunt = ALWAYS_GHOST_HUNT
+                        || players
+                            .0
+                            .get(&target_player_id)
+                            .is_some_and(|info| info.ghost_hunt_power_up_timer > 0.0);
 
                     // Enter target mode if: player has ghost hunt (flee) OR cooldown expired (attack)
                     if player_has_ghost_hunt || ghost_info.mode_timer <= 0.0 {
@@ -238,7 +239,7 @@ pub fn ghosts_movement_system(
                 let is_fleeing = ghost_info
                     .follow_target
                     .and_then(|target_id| players.0.get(&target_id))
-                    .is_some_and(|info| info.ghost_hunt_power_up_timer > 0.0);
+                    .is_some_and(|info| ALWAYS_GHOST_HUNT || info.ghost_hunt_power_up_timer > 0.0);
 
                 // Update target timer: only decrement when not fleeing
                 if is_fleeing {
@@ -539,10 +540,11 @@ fn follow_movement(
     };
 
     // Check if target has ghost hunt power-up active
-    let target_has_ghost_hunt = players
-        .0
-        .get(&target_id)
-        .is_some_and(|info| info.ghost_hunt_power_up_timer > 0.0);
+    let target_has_ghost_hunt = ALWAYS_GHOST_HUNT
+        || players
+            .0
+            .get(&target_id)
+            .is_some_and(|info| info.ghost_hunt_power_up_timer > 0.0);
 
     // Calculate direction to target
     let dx = target_pos.x - pos.x;
@@ -649,7 +651,7 @@ pub fn ghost_player_collision_system(
         }
 
         // Skip if player has hunt power-up
-        if player_info.ghost_hunt_power_up_timer > 0.0 {
+        if ALWAYS_GHOST_HUNT || player_info.ghost_hunt_power_up_timer > 0.0 {
             continue;
         }
 
@@ -682,11 +684,11 @@ pub fn ghost_player_collision_system(
 
             let status_msg = SPlayerStatus {
                 id: player_id,
-                speed_power_up: player_info.speed_power_up_timer > 0.0,
-                multi_shot_power_up: player_info.multi_shot_power_up_timer > 0.0,
-                reflect_power_up: player_info.reflect_power_up_timer > 0.0,
-                phasing_power_up: player_info.phasing_power_up_timer > 0.0,
-                ghost_hunt_power_up: player_info.ghost_hunt_power_up_timer > 0.0,
+                speed_power_up: ALWAYS_SPEED || player_info.speed_power_up_timer > 0.0,
+                multi_shot_power_up: ALWAYS_MULTI_SHOT || player_info.multi_shot_power_up_timer > 0.0,
+                reflect_power_up: ALWAYS_REFLECT || player_info.reflect_power_up_timer > 0.0,
+                phasing_power_up: ALWAYS_PHASING || player_info.phasing_power_up_timer > 0.0,
+                ghost_hunt_power_up: ALWAYS_GHOST_HUNT || player_info.ghost_hunt_power_up_timer > 0.0,
                 stunned: true,
             };
 

@@ -1,5 +1,5 @@
 use crate::{
-    collision::{Projectile, check_player_wall_sweep},
+    collision::check_player_wall_sweep,
     constants::*,
     protocol::{Position, Wall},
 };
@@ -45,8 +45,12 @@ pub fn calculate_projectile_spawns(
     for i in 0..num_shots {
         let angle_offset = (i as f32).mul_add(angle_step, start_offset);
         let shot_dir = face_dir + angle_offset;
-        let spawn_pos =
-            Projectile::calculate_spawn_position(Vec3::new(shooter_pos.x, shooter_pos.y, shooter_pos.z), shot_dir);
+        // Spawn projectile at constant height offset from player's feet position
+        let spawn_pos = Vec3::new(
+            shot_dir.sin().mul_add(PROJECTILE_SPAWN_OFFSET, shooter_pos.x),
+            shooter_pos.y + PROJECTILE_SPAWN_HEIGHT,
+            shot_dir.cos().mul_add(PROJECTILE_SPAWN_OFFSET, shooter_pos.z),
+        );
 
         // Check if the path from player to spawn position crosses through a wall
         let spawn_position = Position {

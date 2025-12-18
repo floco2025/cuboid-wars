@@ -7,6 +7,7 @@ use super::players::LocalPlayerMarker;
 use crate::resources::{PlayerMap, WallConfig};
 use common::{
     collision::{Projectile, check_projectile_ghost_sweep_hit, check_projectile_player_sweep_hit},
+    constants::ALWAYS_GHOST_HUNT,
     markers::{GhostMarker, PlayerMarker, ProjectileMarker},
     protocol::{FaceDirection, PlayerId, Position},
 };
@@ -31,7 +32,7 @@ fn handle_ghost_collisions(
         return false;
     };
 
-    if !shooter_info.ghost_hunt_power_up {
+    if !ALWAYS_GHOST_HUNT && !shooter_info.ghost_hunt_power_up {
         return false;
     }
 
@@ -196,6 +197,7 @@ fn handle_wall_collisions(
 ) -> Option<Position> {
     let config = wall_config?;
 
+    // Check walls (not ramp walls - projectiles can fly over ramps)
     for wall in &config.all_walls {
         if let Some(new_pos) = projectile.handle_wall_bounce(projectile_pos, delta, wall) {
             play_sound(

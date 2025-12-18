@@ -68,11 +68,11 @@ fn snapshot_logged_in_players(players: &PlayerMap, queries: &NetworkEntityQuerie
                     speed: *speed,
                     face_dir: face_dir.0,
                     hits: info.hits,
-                    speed_power_up: info.speed_power_up_timer > 0.0,
-                    multi_shot_power_up: info.multi_shot_power_up_timer > 0.0,
-                    reflect_power_up: info.reflect_power_up_timer > 0.0,
-                    phasing_power_up: info.phasing_power_up_timer > 0.0,
-                    ghost_hunt_power_up: info.ghost_hunt_power_up_timer > 0.0,
+                    speed_power_up: ALWAYS_SPEED || info.speed_power_up_timer > 0.0,
+                    multi_shot_power_up: ALWAYS_MULTI_SHOT || info.multi_shot_power_up_timer > 0.0,
+                    reflect_power_up: ALWAYS_REFLECT || info.reflect_power_up_timer > 0.0,
+                    phasing_power_up: ALWAYS_PHASING || info.phasing_power_up_timer > 0.0,
+                    ghost_hunt_power_up: ALWAYS_GHOST_HUNT || info.ghost_hunt_power_up_timer > 0.0,
                     stunned: info.stun_timer > 0.0,
                 },
             ))
@@ -479,17 +479,27 @@ fn handle_shot(
     // Spawn projectile(s) on server for hit detection
     if let Ok(pos) = positions.get(entity) {
         // Check if player has reflect power-up
-        let has_reflect = players.0.get(&id).is_some_and(|info| info.reflect_power_up_timer > 0.0);
+        let has_reflect = ALWAYS_REFLECT
+            || players.0.get(&id).is_some_and(|info| info.reflect_power_up_timer > 0.0);
 
         // Check if player has multi-shot power-up
-        let has_multi_shot = players
-            .0
-            .get(&id)
-            .is_some_and(|info| info.multi_shot_power_up_timer > 0.0);
+        let has_multi_shot = ALWAYS_MULTI_SHOT
+            || players
+                .0
+                .get(&id)
+                .is_some_and(|info| info.multi_shot_power_up_timer > 0.0);
 
         // Calculate valid projectile spawn positions
-        let spawns =
-            calculate_projectile_spawns(pos, msg.face_dir, has_multi_shot, has_reflect, &grid_config.all_walls);
+        // Use all_walls + ramp_all_walls but exclude roof_edge_walls to allow shooting from roof edges
+        let mut spawn_blocking_walls = grid_config.all_walls.clone();
+        spawn_blocking_walls.extend_from_slice(&grid_config.ramp_all_walls);
+        let spawns = calculate_projectile_spawns(
+            pos,
+            msg.face_dir,
+            has_multi_shot,
+            has_reflect,
+            &spawn_blocking_walls,
+        );
 
         // Spawn each projectile
         for spawn_info in spawns {

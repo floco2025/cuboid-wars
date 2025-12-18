@@ -225,16 +225,6 @@ impl Projectile {
         }
     }
 
-    // Calculate the spawn position in front of a shooter
-    #[must_use]
-    pub fn calculate_spawn_position(shooter_pos: Vec3, face_dir: f32) -> Vec3 {
-        Vec3::new(
-            face_dir.sin().mul_add(PROJECTILE_SPAWN_OFFSET, shooter_pos.x),
-            PROJECTILE_SPAWN_HEIGHT,
-            face_dir.cos().mul_add(PROJECTILE_SPAWN_OFFSET, shooter_pos.z),
-        )
-    }
-
     // Handle wall collision and bounce if reflects is true
     //
     // Returns:
@@ -295,6 +285,15 @@ pub fn check_projectile_player_sweep_hit(
     player_pos: &Position,
     player_face_dir: f32,
 ) -> HitResult {
+    // Height check: projectile and player must be at similar heights
+    // Player center is at player_pos.y + PLAYER_HEIGHT/2
+    let player_center_y = player_pos.y + PLAYER_HEIGHT / 2.0;
+    let y_diff = (proj_pos.y - player_center_y).abs();
+    // Allow some tolerance for height matching (half player height)
+    if y_diff > PLAYER_HEIGHT / 2.0 + PROJECTILE_RADIUS {
+        return no_hit();
+    }
+
     // Calculate projectile movement this frame
     let ray_dir_x = projectile.velocity.x * delta;
     let ray_dir_y = projectile.velocity.y * delta;
@@ -310,7 +309,7 @@ pub fn check_projectile_player_sweep_hit(
     // Current position in local space
     let local_x = dx.mul_add(cos_rot, -(dz * sin_rot));
     let local_z = dx.mul_add(sin_rot, dz * cos_rot);
-    let local_y = proj_pos.y - (player_pos.y + PLAYER_HEIGHT / 2.0);
+    let local_y = proj_pos.y - player_center_y;
 
     // Ray direction in local space
     let ray_local_x = ray_dir_x.mul_add(cos_rot, -(ray_dir_z * sin_rot));
@@ -537,6 +536,13 @@ pub fn calculate_ghost_wall_slide(
 // Check if two players collide with each other (AABB collision).
 #[must_use]
 pub fn check_player_player_overlap(pos1: &Position, pos2: &Position) -> bool {
+    // Height check: players must be at similar heights to collide
+    // Player AABBs extend from y to y+PLAYER_HEIGHT, so they overlap if |y1-y2| < PLAYER_HEIGHT
+    let y_diff = (pos1.y - pos2.y).abs();
+    if y_diff >= PLAYER_HEIGHT {
+        return false;
+    }
+
     let player_half_width = PLAYER_WIDTH / 2.0;
     let player_half_depth = PLAYER_DEPTH / 2.0;
 
@@ -567,10 +573,20 @@ pub fn check_ghost_wall_overlap(ghost_pos: &Position, wall: &Wall) -> bool {
 // Check if a ghost and player are overlapping (circle collision)
 #[must_use]
 pub fn check_ghost_player_overlap(ghost_pos: &Position, player_pos: &Position) -> bool {
+    // Height check: ghost and player must be at similar heights
+    // Ghost is always at ground level (y=0), player center is at player_pos.y + PLAYER_HEIGHT/2
+    let player_center_y = player_pos.y + PLAYER_HEIGHT / 2.0;
+    let ghost_center_y = GHOST_SIZE / 2.0; // Ghost cube center
+    let y_diff = (player_center_y - ghost_center_y).abs();
+    // AABBs overlap vertically if distance between centers < sum of half-heights
+    if y_diff > (PLAYER_HEIGHT + GHOST_SIZE) / 2.0 {
+        return false;
+    }
+
     let dx = player_pos.x - ghost_pos.x;
     let dz = player_pos.z - ghost_pos.z;
     let dist_sq = dx.mul_add(dx, dz * dz);
-    let collision_radius = GHOST_SIZE / 2.0; // + (PLAYER_WIDTH.max(PLAYER_DEPTH) / 2.0);
+    let collision_radius = GHOST_SIZE / 2.0;
     dist_sq <= collision_radius * collision_radius
 }
 
@@ -582,6 +598,15 @@ pub fn check_projectile_ghost_sweep_hit(
     delta: f32,
     ghost_pos: &Position,
 ) -> bool {
+    // Height check: projectile and ghost must be at similar heights
+    // Ghost is always at ground level (y=0), center at GHOST_SIZE/2
+    let ghost_center_y = 0.0 + GHOST_SIZE / 2.0;
+    let y_diff = (proj_pos.y - ghost_center_y).abs();
+    // Allow collision if projectile is within ghost's vertical bounds
+    if y_diff > GHOST_SIZE / 2.0 + PROJECTILE_RADIUS {
+        return false;
+    }
+
     // Calculate projectile movement this frame
     let ray_dir_x = projectile.velocity.x * delta;
     let ray_dir_z = projectile.velocity.z * delta;

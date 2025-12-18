@@ -12,7 +12,12 @@ use crate::{
     resources::{CameraViewMode, ClientToServerChannel, MyPlayerId, PlayerMap, RoofRenderingEnabled, WallConfig},
     spawning::spawn_projectiles,
 };
-use common::{constants::POWER_UP_SPEED_MULTIPLIER, protocol::*};
+use common::{
+    constants::{
+        ALWAYS_MULTI_SHOT, ALWAYS_REFLECT, ALWAYS_SPEED, POWER_UP_SPEED_MULTIPLIER,
+    },
+    protocol::*,
+};
 
 // ============================================================================
 // Input Movement System
@@ -97,7 +102,7 @@ fn handle_unlocked_cursor(
             // Apply speed multiplier if local player has speed power-up
             if let Some(my_id) = my_player_id
                 && let Some(player_info) = players.0.get(&my_id.0)
-                && player_info.speed_power_up
+                && (ALWAYS_SPEED || player_info.speed_power_up)
             {
                 velocity.x *= POWER_UP_SPEED_MULTIPLIER;
                 velocity.z *= POWER_UP_SPEED_MULTIPLIER;
@@ -199,7 +204,7 @@ fn update_player_velocity_and_face(
         // Apply speed multiplier if local player has speed power-up
         if let Some(my_id) = my_player_id
             && let Some(player_info) = players.0.get(&my_id.0)
-            && player_info.speed_power_up
+            && (ALWAYS_SPEED || player_info.speed_power_up)
         {
             velocity.x *= POWER_UP_SPEED_MULTIPLIER;
             velocity.z *= POWER_UP_SPEED_MULTIPLIER;
@@ -276,19 +281,29 @@ pub fn input_shooting_system(
         let _ = to_server.send(ClientToServer::Send(shot_msg));
 
         // Check if player has multi-shot power-up
-        let has_multi_shot = my_player_id
-            .as_ref()
-            .and_then(|id| players.0.get(&id.0))
-            .is_some_and(|info| info.multi_shot_power_up);
+        let has_multi_shot = ALWAYS_MULTI_SHOT
+            || my_player_id
+                .as_ref()
+                .and_then(|id| players.0.get(&id.0))
+                .is_some_and(|info| info.multi_shot_power_up);
 
         // Check if player has reflect power-up
-        let has_reflect = my_player_id
-            .as_ref()
-            .and_then(|id| players.0.get(&id.0))
-            .is_some_and(|info| info.reflect_power_up);
+        let has_reflect = ALWAYS_REFLECT
+            || my_player_id
+                .as_ref()
+                .and_then(|id| players.0.get(&id.0))
+                .is_some_and(|info| info.reflect_power_up);
 
         // Spawn projectile(s) based on power-up status
-        let walls = wall_config.as_ref().map_or(&[][..], |config| &config.all_walls);
+        // Use all_walls + ramp_all_walls but exclude roof_edge_walls to allow shooting from roof edges
+        let spawn_blocking_walls = wall_config
+            .as_ref()
+            .map(|config| {
+                let mut walls = config.all_walls.clone();
+                walls.extend_from_slice(&config.ramp_all_walls);
+                walls
+            })
+            .unwrap_or_default();
         if let Some(my_id) = my_player_id.as_ref() {
             spawn_projectiles(
                 &mut commands,
@@ -298,7 +313,7 @@ pub fn input_shooting_system(
                 face_dir.0,
                 has_multi_shot,
                 has_reflect,
-                walls,
+                &spawn_blocking_walls,
                 my_id.0,
             );
         }

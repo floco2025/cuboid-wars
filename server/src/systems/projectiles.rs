@@ -6,6 +6,7 @@ use crate::{
 };
 use common::{
     collision::{Projectile, check_projectile_ghost_sweep_hit, check_projectile_player_sweep_hit},
+    constants::ALWAYS_GHOST_HUNT,
     markers::{GhostMarker, PlayerMarker, ProjectileMarker},
     protocol::*,
 };
@@ -50,7 +51,7 @@ pub fn projectiles_movement_system(
 
         let mut hit_something = false;
 
-        // Check wall collisions first
+        // Check wall collisions (not ramp walls - projectiles can fly over ramps)
         for wall in &grid_config.all_walls {
             if let Some(new_pos) = projectile.handle_wall_bounce(&proj_pos, delta, wall) {
                 if projectile.reflects {
@@ -72,10 +73,11 @@ pub fn projectiles_movement_system(
         }
 
         // Check ghost collisions (only for players with ghost hunt power-up who are being targeted)
-        let shooter_has_ghost_hunt = players
-            .0
-            .get(shooter_id)
-            .is_some_and(|info| info.ghost_hunt_power_up_timer > 0.0);
+        let shooter_has_ghost_hunt = ALWAYS_GHOST_HUNT
+            || players
+                .0
+                .get(shooter_id)
+                .is_some_and(|info| info.ghost_hunt_power_up_timer > 0.0);
 
         if shooter_has_ghost_hunt {
             for (ghost_id, ghost_pos) in ghost_query.iter() {

@@ -9,7 +9,7 @@ use crate::{
 };
 use common::{
     collision::{calculate_wall_slide, check_player_wall_sweep},
-    constants::{PLAYER_HEIGHT, ROOF_HEIGHT, SPEED_RUN, UPDATE_BROADCAST_INTERVAL},
+    constants::{ALWAYS_PHASING, PLAYER_HEIGHT, ROOF_HEIGHT, SPEED_RUN, UPDATE_BROADCAST_INTERVAL},
     markers::PlayerMarker,
     players::{PlannedMove, overlaps_other_player},
     protocol::{FaceDirection, PlayerId, Position, Velocity, Wall},
@@ -243,7 +243,7 @@ pub fn players_movement_system(
         }
 
         // Wall collision - Select walls based on phasing power-up and height
-        let has_phasing = players.0.get(player_id).is_some_and(|info| info.phasing_power_up);
+        let has_phasing = ALWAYS_PHASING || players.0.get(player_id).is_some_and(|info| info.phasing_power_up);
 
         let (wall_adjusted_target, hits_wall) = wall_config.as_ref().map_or((target_pos, false), |config| {
             let mut walls_to_check = Vec::new();

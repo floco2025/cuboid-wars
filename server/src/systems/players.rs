@@ -6,7 +6,9 @@ use crate::{
 };
 use common::{
     collision::{calculate_wall_slide, check_player_wall_sweep},
-    constants::{POWER_UP_SPEED_MULTIPLIER, ROOF_HEIGHT},
+    constants::{
+        ALWAYS_PHASING, ALWAYS_SPEED, POWER_UP_SPEED_MULTIPLIER, ROOF_HEIGHT,
+    },
     markers::PlayerMarker,
     players::{PlannedMove, overlaps_other_player},
     protocol::{PlayerId, Position, SPlayerStatus, ServerMessage, Speed, Wall},
@@ -46,7 +48,7 @@ pub fn players_movement_system(
         let multiplier = players
             .0
             .get(player_id)
-            .and_then(|info| (info.speed_power_up_timer > 0.0).then_some(POWER_UP_SPEED_MULTIPLIER))
+            .and_then(|info| (ALWAYS_SPEED || info.speed_power_up_timer > 0.0).then_some(POWER_UP_SPEED_MULTIPLIER))
             .unwrap_or(1.0);
         let mut velocity = speed.to_velocity();
         velocity.x *= multiplier;
@@ -72,10 +74,11 @@ pub fn players_movement_system(
         };
 
         // Wall collision - Select walls based on phasing power-up and height
-        let has_phasing = players
-            .0
-            .get(player_id)
-            .is_some_and(|info| info.phasing_power_up_timer > 0.0);
+        let has_phasing = ALWAYS_PHASING
+            || players
+                .0
+                .get(player_id)
+                .is_some_and(|info| info.phasing_power_up_timer > 0.0);
 
         let mut walls_to_check = Vec::new();
 
