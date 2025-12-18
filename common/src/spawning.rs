@@ -14,7 +14,8 @@ use bevy_math::Vec3;
 #[derive(Debug, Clone)]
 pub struct ProjectileSpawnInfo {
     pub position: Position,
-    pub direction: f32,
+    pub direction_yaw: f32,
+    pub direction_pitch: f32,
     pub reflects: bool,
 }
 
@@ -26,6 +27,7 @@ pub struct ProjectileSpawnInfo {
 pub fn calculate_projectile_spawns(
     shooter_pos: &Position,
     face_dir: f32,
+    face_pitch: f32,
     has_multi_shot: bool,
     has_reflect: bool,
     walls: &[Wall],
@@ -46,12 +48,21 @@ pub fn calculate_projectile_spawns(
 
     for i in 0..num_shots {
         let angle_offset = (i as f32).mul_add(angle_step, start_offset);
-        let shot_dir = face_dir + angle_offset;
-        // Spawn projectile at constant height offset from player's feet position
+        let shot_yaw = face_dir + angle_offset;
+
+        let pitch_sin = face_pitch.sin();
+        let pitch_cos = face_pitch.cos();
+
+        // Aim direction vector using yaw + pitch (unit length)
+        let dir_x = shot_yaw.sin() * pitch_cos;
+        let dir_y = pitch_sin;
+        let dir_z = shot_yaw.cos() * pitch_cos;
+
+        // Spawn projectile at constant height offset from player's feet position, nudged along aim direction
         let spawn_pos = Vec3::new(
-            shot_dir.sin().mul_add(PROJECTILE_SPAWN_OFFSET, shooter_pos.x),
-            shooter_pos.y + PROJECTILE_SPAWN_HEIGHT,
-            shot_dir.cos().mul_add(PROJECTILE_SPAWN_OFFSET, shooter_pos.z),
+            dir_x.mul_add(PROJECTILE_SPAWN_OFFSET, shooter_pos.x),
+            dir_y.mul_add(PROJECTILE_SPAWN_OFFSET, shooter_pos.y + PROJECTILE_SPAWN_HEIGHT),
+            dir_z.mul_add(PROJECTILE_SPAWN_OFFSET, shooter_pos.z),
         );
 
         // Check if the path from player to spawn position crosses through a wall
@@ -89,7 +100,8 @@ pub fn calculate_projectile_spawns(
 
         spawns.push(ProjectileSpawnInfo {
             position: spawn_position,
-            direction: shot_dir,
+            direction_yaw: shot_yaw,
+            direction_pitch: face_pitch,
             reflects: has_reflect,
         });
     }

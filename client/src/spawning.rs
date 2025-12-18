@@ -99,7 +99,8 @@ impl ProjectileBundle {
         meshes: &mut Assets<Mesh>,
         materials: &mut Assets<StandardMaterial>,
         position: Vec3,
-        direction: f32,
+        direction_yaw: f32,
+        direction_pitch: f32,
         reflects: bool,
         shooter_id: PlayerId,
     ) -> Self {
@@ -111,7 +112,7 @@ impl ProjectileBundle {
                 ..default()
             })),
             transform: Transform::from_translation(position),
-            projectile: Projectile::new(direction, reflects),
+            projectile: Projectile::new(direction_yaw, direction_pitch, reflects),
             player_id: shooter_id,
             projectile_marker: ProjectileMarker,
         }
@@ -662,13 +663,14 @@ pub fn spawn_projectiles(
     materials: &mut ResMut<Assets<StandardMaterial>>,
     pos: &Position,
     face_dir: f32,
+    face_pitch: f32,
     has_multi_shot: bool,
     has_reflect: bool,
     walls: &[Wall],
     ramps: &[Ramp],
     shooter_id: PlayerId,
 ) {
-    let spawns = calculate_projectile_spawns(pos, face_dir, has_multi_shot, has_reflect, walls, ramps);
+    let spawns = calculate_projectile_spawns(pos, face_dir, face_pitch, has_multi_shot, has_reflect, walls, ramps);
 
     for spawn_info in spawns {
         spawn_single_projectile(commands, meshes, materials, &spawn_info, shooter_id);
@@ -689,7 +691,8 @@ fn spawn_single_projectile(
         meshes,
         materials,
         spawn_pos,
-        spawn_info.direction,
+        spawn_info.direction_yaw,
+        spawn_info.direction_pitch,
         spawn_info.reflects,
         shooter_id,
     ));
@@ -715,6 +718,7 @@ pub fn spawn_projectile_for_player(
             materials,
             pos,
             face_dir.0,
+            0.0,
             has_multi_shot,
             has_reflect,
             walls,

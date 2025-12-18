@@ -323,6 +323,7 @@ fn handle_shot_message(
                 &mut assets.materials,
                 player_facing.position,
                 msg.face_dir,
+                msg.face_pitch,
                 player.multi_shot_power_up,
                 player.reflect_power_up,
                 &spawn_blocking_walls,

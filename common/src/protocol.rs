@@ -205,7 +205,8 @@ struct CFace {
 message! {
 // Client to Server: Shot fired.
 struct CShot {
-    pub face_dir: f32, // radians - direction player is facing when shooting
+    pub face_dir: f32,   // radians - yaw direction player is facing when shooting
+    pub face_pitch: f32, // radians - pitch (up/down) when shooting
 }
 }
 
@@ -269,7 +270,8 @@ message! {
 // Server to Client: Player shot fired.
 struct SShot {
     pub id: PlayerId,
-    pub face_dir: f32, // radians - direction player is facing when shooting
+    pub face_dir: f32,   // radians - yaw direction player is facing when shooting
+    pub face_pitch: f32, // radians - pitch (up/down) when shooting
 }
 }
 

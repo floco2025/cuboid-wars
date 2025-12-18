@@ -30,7 +30,10 @@ pub struct InputState {
     last_send_speed_time: f32,
     last_send_face_time: f32,
     stored_yaw: f32,
+    stored_pitch: f32,
 }
+
+const MAX_PITCH: f32 = std::f32::consts::FRAC_PI_2 - 0.05;
 
 // Handle WASD movement and mouse rotation
 pub fn input_movement_system(
@@ -60,7 +63,8 @@ pub fn input_movement_system(
         return;
     }
 
-    let current_yaw = calculate_current_yaw(&mut mouse_motion, &camera_query, &view_mode, &mut local_state);
+    let (current_yaw, current_pitch) =
+        calculate_current_orientation(&mut mouse_motion, &camera_query, &view_mode, &mut local_state);
     let face_yaw = current_yaw + std::f32::consts::PI;
     let speed = calculate_movement_speed(&keyboard, face_yaw, my_player_id.as_ref(), &players);
 
@@ -76,7 +80,7 @@ pub fn input_movement_system(
 
     if *view_mode == CameraViewMode::FirstPerson {
         for mut transform in &mut camera_query {
-            transform.rotation = Quat::from_rotation_y(current_yaw);
+            transform.rotation = Quat::from_euler(EulerRot::YXZ, current_yaw, current_pitch, 0.0);
         }
     }
 }
@@ -117,29 +121,40 @@ fn handle_unlocked_cursor(
     }
 }
 
-fn calculate_current_yaw(
+fn calculate_current_orientation(
     mouse_motion: &mut MessageReader<MouseMotion>,
     camera_query: &Query<&mut Transform, (With<Camera3d>, With<MainCameraMarker>)>,
     view_mode: &Res<CameraViewMode>,
     local_state: &mut Local<InputState>,
-) -> f32 {
-    // Determine the yaw baseline (camera vs stored value depending on view mode)
-    let current_yaw = if **view_mode == CameraViewMode::FirstPerson
+) -> (f32, f32) {
+    // Determine the yaw/pitch baseline (camera vs stored value depending on view mode)
+    let (mut current_yaw, mut current_pitch) = if **view_mode == CameraViewMode::FirstPerson
         && !view_mode.is_changed()
         && let Some(transform) = camera_query.iter().next()
     {
-        transform.rotation.to_euler(EulerRot::YXZ).0
+        let (yaw, pitch, _roll) = transform.rotation.to_euler(EulerRot::YXZ);
+        (yaw, pitch)
     } else {
-        local_state.stored_yaw
+        (local_state.stored_yaw, local_state.stored_pitch)
     };
 
-    // Apply mouse delta to yaw
-    let current_yaw = mouse_motion.read().fold(current_yaw, |yaw, motion| {
-        motion.delta.x.mul_add(-MOUSE_SENSITIVITY, yaw)
-    });
+    // Apply mouse delta to yaw/pitch (pitch only in first-person)
+    for motion in mouse_motion.read() {
+        current_yaw = motion.delta.x.mul_add(-MOUSE_SENSITIVITY, current_yaw);
+        if **view_mode == CameraViewMode::FirstPerson {
+            current_pitch = motion.delta.y.mul_add(-MOUSE_SENSITIVITY, current_pitch);
+        }
+    }
+
+    if **view_mode != CameraViewMode::FirstPerson {
+        current_pitch = 0.0;
+    } else {
+        current_pitch = current_pitch.clamp(-MAX_PITCH, MAX_PITCH);
+    }
 
     local_state.stored_yaw = current_yaw;
-    current_yaw
+    local_state.stored_pitch = current_pitch;
+    (current_yaw, current_pitch)
 }
 
 fn calculate_movement_speed(
@@ -255,6 +270,7 @@ pub fn input_shooting_system(
     mouse: Res<ButtonInput<MouseButton>>,
     cursor_options: Single<&CursorOptions>,
     local_player_query: Query<(&Position, &FaceDirection), With<LocalPlayerMarker>>,
+    camera_query: Query<&Transform, (With<Camera3d>, With<MainCameraMarker>)>,
     to_server: Res<ClientToServerChannel>,
     asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -262,6 +278,7 @@ pub fn input_shooting_system(
     my_player_id: Option<Res<MyPlayerId>>,
     players: Res<PlayerMap>,
     wall_config: Option<Res<WallConfig>>,
+    view_mode: Res<CameraViewMode>,
 ) {
     // Only allow shooting when cursor is locked
     let cursor_locked = cursor_options.grab_mode != CursorGrabMode::None;
@@ -270,6 +287,16 @@ pub fn input_shooting_system(
         && mouse.just_pressed(MouseButton::Left)
         && let Some((pos, face_dir)) = local_player_query.iter().next()
     {
+        let pitch = if *view_mode == CameraViewMode::FirstPerson {
+            camera_query
+                .iter()
+                .next()
+                .map(|transform| transform.rotation.to_euler(EulerRot::YXZ).1)
+                .unwrap_or(0.0)
+        } else {
+            0.0
+        };
+
         // Play shooting sound
         commands.spawn((
             AudioPlayer::new(asset_server.load("sounds/player_fires.ogg")),
@@ -277,7 +304,10 @@ pub fn input_shooting_system(
         ));
 
         // Send shot message with current face direction to server
-        let shot_msg = ClientMessage::Shot(CShot { face_dir: face_dir.0 });
+        let shot_msg = ClientMessage::Shot(CShot {
+            face_dir: face_dir.0,
+            face_pitch: pitch,
+        });
         let _ = to_server.send(ClientToServer::Send(shot_msg));
 
         // Check if player has multi-shot power-up
@@ -307,6 +337,7 @@ pub fn input_shooting_system(
                 &mut materials,
                 pos,
                 face_dir.0,
+                pitch,
                 has_multi_shot,
                 has_reflect,
                 spawn_blocking_walls,

@@ -493,6 +493,7 @@ fn handle_shot(
         let spawns = calculate_projectile_spawns(
             pos,
             msg.face_dir,
+            msg.face_pitch,
             has_multi_shot,
             has_reflect,
             &spawn_blocking_walls,
@@ -501,7 +502,8 @@ fn handle_shot(
 
         // Spawn each projectile
         for spawn_info in spawns {
-            let projectile = Projectile::new(spawn_info.direction, spawn_info.reflects);
+            let projectile =
+                Projectile::new(spawn_info.direction_yaw, spawn_info.direction_pitch, spawn_info.reflects);
 
             commands.spawn((
                 ProjectileMarker,
@@ -519,6 +521,7 @@ fn handle_shot(
         ServerMessage::Shot(SShot {
             id,
             face_dir: msg.face_dir,
+            face_pitch: msg.face_pitch,
         }),
     );
 }

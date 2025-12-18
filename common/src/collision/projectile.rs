@@ -34,11 +34,13 @@ pub struct Projectile {
 
 impl Projectile {
     #[must_use]
-    pub fn new(face_dir: f32, reflects: bool) -> Self {
+    pub fn new(face_dir: f32, face_pitch: f32, reflects: bool) -> Self {
+        let pitch_sin = face_pitch.sin();
+        let pitch_cos = face_pitch.cos();
         let velocity = Vec3::new(
-            face_dir.sin() * PROJECTILE_SPEED,
-            0.0,
-            face_dir.cos() * PROJECTILE_SPEED,
+            face_dir.sin() * pitch_cos * PROJECTILE_SPEED,
+            pitch_sin * PROJECTILE_SPEED,
+            face_dir.cos() * pitch_cos * PROJECTILE_SPEED,
         );
 
         Self {
