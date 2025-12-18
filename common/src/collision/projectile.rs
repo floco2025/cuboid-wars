@@ -536,27 +536,13 @@ pub fn sweep_projectile_vs_roof(
     let ray_dir_z = projectile.velocity.z * delta;
 
     sweep_point_vs_cuboid(
-        proj_pos,
-        ray_dir_x,
-        ray_dir_y,
-        ray_dir_z,
-        center_x,
-        center_y,
-        center_z,
-        half_x,
-        half_y,
-        half_z,
+        proj_pos, ray_dir_x, ray_dir_y, ray_dir_z, center_x, center_y, center_z, half_x, half_y, half_z,
     )
 }
 
 // Sample-based ramp hit test for projectiles.
 #[must_use]
-pub fn projectile_hits_ramp(
-    proj_pos: &Position,
-    projectile_velocity: &Vec3,
-    delta: f32,
-    ramp: &Ramp,
-) -> bool {
+pub fn projectile_hits_ramp(proj_pos: &Position, projectile_velocity: &Vec3, delta: f32, ramp: &Ramp) -> bool {
     let num_samples = 5;
     for i in 0..=num_samples {
         let t = i as f32 / num_samples as f32;
@@ -591,14 +577,8 @@ pub fn projectile_hits_roof(proj_pos: &Position, projectile: &Projectile, delta:
     sweep_projectile_vs_roof(proj_pos, projectile, delta, roof).is_some()
 }
 
-
 #[must_use]
-pub fn projectile_hits_ghost(
-    proj_pos: &Position,
-    projectile: &Projectile,
-    delta: f32,
-    ghost_pos: &Position,
-) -> bool {
+pub fn projectile_hits_ghost(proj_pos: &Position, projectile: &Projectile, delta: f32, ghost_pos: &Position) -> bool {
     let ghost_center_y = GHOST_SIZE / 2.0;
     let y_diff = (proj_pos.y - ghost_center_y).abs();
     if y_diff > GHOST_SIZE / 2.0 + PROJECTILE_RADIUS {

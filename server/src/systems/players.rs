@@ -1,16 +1,12 @@
 use bevy::prelude::*;
 
-use crate::{
-    resources::{GridConfig, PlayerMap},
-    systems::network::broadcast_to_all,
-};
+use crate::{resources::PlayerMap, systems::network::broadcast_to_all};
+use common::protocol::GridConfig;
 use common::{
-    collision::{
-        players::{slide_player_along_obstacles, sweep_player_vs_ramp_edges, sweep_player_vs_wall},
-    },
+    collision::players::{slide_player_along_obstacles, sweep_player_vs_ramp_edges, sweep_player_vs_wall},
     constants::{ALWAYS_PHASING, ALWAYS_SPEED, POWER_UP_SPEED_MULTIPLIER, ROOF_HEIGHT},
     markers::PlayerMarker,
-    players::{overlaps_other_player, PlannedMove},
+    players::{PlannedMove, overlaps_other_player},
     protocol::{PlayerId, Position, SPlayerStatus, ServerMessage, Speed, Wall},
     ramps::{calculate_height_at_position, is_on_roof},
 };

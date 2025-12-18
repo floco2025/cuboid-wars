@@ -1,26 +1,21 @@
 mod collision;
 mod grid;
+mod helpers;
 mod ramps;
 mod roofs;
-mod helpers;
 mod walls;
 
 use rand::Rng;
 
-use crate::{
-    constants::{
-        MERGE_ROOF_SEGMENTS, MERGE_WALL_SEGMENTS, OVERLAP_ROOFS, OVERLAP_WALLS,
-        WALL_NUM_SEGMENTS, WALL_2ND_PROBABILITY_RATIO, WALL_3RD_PROBABILITY_RATIO,
-    },
-    resources::{GridCell, GridConfig},
+use crate::constants::{
+    MERGE_ROOF_SEGMENTS, MERGE_WALL_SEGMENTS, OVERLAP_ROOFS, OVERLAP_WALLS, WALL_2ND_PROBABILITY_RATIO,
+    WALL_3RD_PROBABILITY_RATIO, WALL_NUM_SEGMENTS,
 };
-use common::{
-    constants::*,
-    protocol::Wall,
-};
+use common::protocol::{GridCell, GridConfig};
+use common::{constants::*, protocol::Wall};
 
 // Re-export public utilities
-pub use helpers::{cell_center, grid_coords_from_position, find_unoccupied_cell, find_unoccupied_cell_not_ramp};
+pub use helpers::{cell_center, find_unoccupied_cell, find_unoccupied_cell_not_ramp, grid_coords_from_position};
 
 // Generate a complete map grid with walls, roofs, and ramps
 #[must_use]

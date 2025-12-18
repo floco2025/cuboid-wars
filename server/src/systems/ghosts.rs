@@ -5,11 +5,14 @@ use crate::{
     constants::*,
     map::cell_center,
     net::ServerToClient,
-    resources::{GhostInfo, GhostMap, GhostMode, GridCell, GridConfig, PlayerMap},
+    resources::{GhostInfo, GhostMap, GhostMode, PlayerMap},
 };
+use common::protocol::{GridCell, GridConfig};
 use common::{
     collision::{
-        ghosts::{overlap_ghost_vs_player, slide_ghost_along_obstacles, sweep_ghost_vs_ramp_footprint, sweep_ghost_vs_wall},
+        ghosts::{
+            overlap_ghost_vs_player, slide_ghost_along_obstacles, sweep_ghost_vs_ramp_footprint, sweep_ghost_vs_wall,
+        },
         players::sweep_player_vs_wall,
     },
     constants::*,
@@ -520,7 +523,8 @@ fn patrol_movement(
         let valid_directions = valid_directions(&grid_config, grid_x, grid_z, *cell);
         let mut direction_changed = false;
 
-        if current_direction.is_blocked(*cell) || direction_leads_to_ramp(&grid_config, grid_x, grid_z, current_direction)
+        if current_direction.is_blocked(*cell)
+            || direction_leads_to_ramp(&grid_config, grid_x, grid_z, current_direction)
         {
             let forward_options = forward_directions(&valid_directions, current_direction);
             if forward_options.is_empty() {

@@ -1,8 +1,9 @@
 use super::helpers::{
-    overlap_aabb_vs_wall, slide_along_axes, sweep_aabb_vs_aabb, sweep_aabb_vs_wall, sweep_ramp_edges, sweep_ramp_high_cap,
+    overlap_aabb_vs_wall, slide_along_axes, sweep_aabb_vs_aabb, sweep_aabb_vs_wall, sweep_ramp_edges,
+    sweep_ramp_high_cap,
 };
 use crate::{
-    constants::{PLAYER_DEPTH, PLAYER_HEIGHT, PLAYER_WIDTH, WALL_THICKNESS, ROOF_HEIGHT},
+    constants::{PLAYER_DEPTH, PLAYER_HEIGHT, PLAYER_WIDTH, ROOF_HEIGHT, WALL_THICKNESS},
     protocol::{Position, Ramp, Roof, Wall},
     ramps::calculate_height_at_position,
 };
@@ -80,15 +81,7 @@ pub fn slide_player_along_obstacles(
 
 #[must_use]
 pub fn sweep_player_vs_player(start1: &Position, end1: &Position, start2: &Position, end2: &Position) -> bool {
-    sweep_aabb_vs_aabb(
-        start1,
-        end1,
-        start2,
-        end2,
-        PLAYER_WIDTH,
-        PLAYER_DEPTH,
-        PLAYER_HEIGHT,
-    )
+    sweep_aabb_vs_aabb(start1, end1, start2, end2, PLAYER_WIDTH, PLAYER_DEPTH, PLAYER_HEIGHT)
 }
 
 // --- private helpers ---
@@ -122,16 +115,16 @@ fn slide_player(
             }
         },
         |candidate| {
-            walls
-                .iter()
-                .any(|w| sweep_player_vs_wall(current_pos, candidate, w))
-                || ramps.iter().any(|r| sweep_player_vs_ramp_edges(current_pos, candidate, r))
+            walls.iter().any(|w| sweep_player_vs_wall(current_pos, candidate, w))
+                || ramps
+                    .iter()
+                    .any(|r| sweep_player_vs_ramp_edges(current_pos, candidate, r))
         },
         |candidate| {
-            walls
-                .iter()
-                .any(|w| sweep_player_vs_wall(current_pos, candidate, w))
-                || ramps.iter().any(|r| sweep_player_vs_ramp_edges(current_pos, candidate, r))
+            walls.iter().any(|w| sweep_player_vs_wall(current_pos, candidate, w))
+                || ramps
+                    .iter()
+                    .any(|r| sweep_player_vs_ramp_edges(current_pos, candidate, r))
         },
     )
 }

@@ -87,7 +87,11 @@ pub fn calculate_projectile_spawns(
             let min_z = ramp.z1.min(ramp.z2);
             let max_z = ramp.z1.max(ramp.z2);
 
-            if spawn_position.x < min_x || spawn_position.x > max_x || spawn_position.z < min_z || spawn_position.z > max_z {
+            if spawn_position.x < min_x
+                || spawn_position.x > max_x
+                || spawn_position.z < min_z
+                || spawn_position.z > max_z
+            {
                 return false;
             }
 

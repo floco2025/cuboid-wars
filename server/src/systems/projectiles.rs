@@ -2,10 +2,11 @@ use bevy::prelude::*;
 
 use crate::{
     constants::GHOST_HIT_REWARD,
-    resources::{GhostMap, GhostMode, GridConfig, PlayerMap},
+    resources::{GhostMap, GhostMode, PlayerMap},
 };
+use common::protocol::GridConfig;
 use common::{
-    collision::projectile::{projectile_hits_ghost, sweep_projectile_vs_player, Projectile},
+    collision::projectile::{Projectile, projectile_hits_ghost, sweep_projectile_vs_player},
     constants::ALWAYS_GHOST_HUNT,
     markers::{GhostMarker, PlayerMarker, ProjectileMarker},
     protocol::*,
@@ -67,19 +68,19 @@ pub fn projectiles_movement_system(
         // Check wall collisions
         if !hit_something {
             for wall in &grid_config.lower_walls {
-            if let Some(new_pos) = projectile.handle_wall_bounce(&proj_pos, delta, wall) {
-                if projectile.reflects {
-                    proj_pos.x = new_pos.x;
-                    proj_pos.y = new_pos.y;
-                    proj_pos.z = new_pos.z;
-                } else {
-                    commands.entity(proj_entity).despawn();
-                }
+                if let Some(new_pos) = projectile.handle_wall_bounce(&proj_pos, delta, wall) {
+                    if projectile.reflects {
+                        proj_pos.x = new_pos.x;
+                        proj_pos.y = new_pos.y;
+                        proj_pos.z = new_pos.z;
+                    } else {
+                        commands.entity(proj_entity).despawn();
+                    }
 
-                hit_something = true;
-                break;
+                    hit_something = true;
+                    break;
+                }
             }
-        }
         }
 
         // Check roof collisions
@@ -190,13 +191,8 @@ pub fn projectiles_movement_system(
         // Check player collisions
         for player in player_query.iter() {
             // Use common hit detection logic
-            let result = sweep_projectile_vs_player(
-                &proj_pos,
-                &projectile,
-                delta,
-                player.position,
-                player.face_direction.0,
-            );
+            let result =
+                sweep_projectile_vs_player(&proj_pos, &projectile, delta, player.position, player.face_direction.0);
 
             if result.hit {
                 // Self-hit: despawn without scoring to match client expectations

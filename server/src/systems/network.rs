@@ -3,8 +3,9 @@ use rand::Rng;
 
 use crate::{
     net::{ClientToServer, ServerToClient},
-    resources::{FromAcceptChannel, FromClientsChannel, GhostMap, GridConfig, ItemMap, PlayerInfo, PlayerMap},
+    resources::{FromAcceptChannel, FromClientsChannel, GhostMap, ItemMap, PlayerInfo, PlayerMap},
 };
+use common::protocol::GridConfig;
 use common::{
     collision::{players::overlap_player_vs_wall, projectile::Projectile},
     constants::*,
@@ -411,7 +412,16 @@ fn process_message_logged_in(
         }
         ClientMessage::Shot(msg) => {
             debug!("{id:?} shot");
-            handle_shot(commands, entity, id, msg, players, time, &queries.positions, grid_config);
+            handle_shot(
+                commands,
+                entity,
+                id,
+                msg,
+                players,
+                time,
+                &queries.positions,
+                grid_config,
+            );
         }
         ClientMessage::Echo(msg) => {
             trace!("{:?} echo: {:?}", id, msg);
@@ -510,8 +520,11 @@ fn handle_shot(
 
         // Spawn each projectile
         for spawn_info in spawns {
-            let projectile =
-                Projectile::new(spawn_info.direction_yaw, spawn_info.direction_pitch, spawn_info.reflects);
+            let projectile = Projectile::new(
+                spawn_info.direction_yaw,
+                spawn_info.direction_pitch,
+                spawn_info.reflects,
+            );
 
             commands.spawn((
                 ProjectileMarker,

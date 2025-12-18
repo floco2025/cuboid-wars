@@ -1,10 +1,9 @@
 use rand::{Rng, rngs::ThreadRng};
 use std::collections::HashSet;
 
-use crate::resources::GridCell;
 use common::{
     constants::*,
-    protocol::Position,
+    protocol::{GridCell, Position},
 };
 
 // Calculate the center position of a grid cell

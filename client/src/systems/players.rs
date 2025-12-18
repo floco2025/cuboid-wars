@@ -8,12 +8,10 @@ use crate::{
     systems::{network::ServerReconciliation, ui::BumpFlashUIMarker},
 };
 use common::{
-    collision::{
-        players::{slide_player_along_obstacles, sweep_player_vs_ramp_edges, sweep_player_vs_wall},
-    },
+    collision::players::{slide_player_along_obstacles, sweep_player_vs_ramp_edges, sweep_player_vs_wall},
     constants::{ALWAYS_PHASING, PLAYER_HEIGHT, ROOF_HEIGHT, SPEED_RUN, UPDATE_BROADCAST_INTERVAL},
     markers::PlayerMarker,
-    players::{overlaps_other_player, PlannedMove},
+    players::{PlannedMove, overlaps_other_player},
     protocol::{FaceDirection, GridConfig, PlayerId, Position, Velocity, Wall},
     ramps::{calculate_height_at_position, is_on_roof},
 };

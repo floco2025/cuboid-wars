@@ -1,15 +1,10 @@
 use rand::Rng;
 use std::collections::{HashMap, HashSet, VecDeque};
 
-use crate::{
-    constants::{OVERLAP_ROOFS, ROOF_NEIGHBOR_PREFERENCE, ROOF_NUM_SEGMENTS},
-    resources::GridCell,
-};
 use super::helpers::count_cell_walls;
-use common::{
-    constants::*,
-    protocol::Roof,
-};
+use crate::constants::{OVERLAP_ROOFS, ROOF_NEIGHBOR_PREFERENCE, ROOF_NUM_SEGMENTS};
+use common::protocol::GridCell;
+use common::{constants::*, protocol::Roof};
 
 const MERGE_EPS: f32 = 0.01;
 const CORNER_EPS: f32 = 0.01; // Small inset to avoid overlap for edge fillers

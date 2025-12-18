@@ -9,9 +9,6 @@ use common::protocol::*;
 // Bevy Resources
 // ============================================================================
 
-// Re-export shared protocol types
-pub use common::protocol::{GridCell, GridConfig};
-
 // Player information (server-side)
 pub struct PlayerInfo {
     pub entity: Entity,

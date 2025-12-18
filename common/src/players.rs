@@ -18,10 +18,8 @@ pub struct PlannedMove {
 // Check if a planned move would overlap with any other player's planned position
 #[must_use]
 pub fn overlaps_other_player(candidate: &PlannedMove, planned_moves: &[PlannedMove]) -> bool {
-    planned_moves
-        .iter()
-        .any(|other| {
-            other.entity != candidate.entity
-                && sweep_player_vs_player(&candidate.start, &candidate.target, &other.start, &other.target)
-        })
+    planned_moves.iter().any(|other| {
+        other.entity != candidate.entity
+            && sweep_player_vs_player(&candidate.start, &candidate.target, &other.start, &other.target)
+    })
 }

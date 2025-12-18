@@ -1,7 +1,6 @@
-use crate::resources::GridCell;
 use common::{
     constants::*,
-    protocol::Wall,
+    protocol::{GridCell, Wall},
 };
 
 // Generate collision walls for roof edges to prevent players from falling off.

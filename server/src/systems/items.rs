@@ -6,13 +6,13 @@ use crate::{
     constants::*,
     map::{cell_center, find_unoccupied_cell_not_ramp, grid_coords_from_position},
     net::ServerToClient,
-    resources::{GridConfig, ItemInfo, ItemMap, ItemSpawner, PlayerMap},
+    resources::{ItemInfo, ItemMap, ItemSpawner, PlayerMap},
 };
+use common::protocol::GridConfig;
 use common::{
     collision::items::overlap_player_vs_item,
     constants::{
-        ALWAYS_GHOST_HUNT, ALWAYS_MULTI_SHOT, ALWAYS_PHASING,
-        ALWAYS_REFLECT, ALWAYS_SPEED, GRID_COLS, GRID_ROWS,
+        ALWAYS_GHOST_HUNT, ALWAYS_MULTI_SHOT, ALWAYS_PHASING, ALWAYS_REFLECT, ALWAYS_SPEED, GRID_COLS, GRID_ROWS,
     },
     markers::{ItemMarker, PlayerMarker},
     protocol::{ItemId, ItemType, PlayerId, Position, SCookieCollected, SPlayerStatus, ServerMessage},

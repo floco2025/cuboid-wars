@@ -1,13 +1,8 @@
 use rand::Rng;
 
-use crate::{
-    constants::{RAMP_COUNT, RAMP_LENGTH_CELLS, RAMP_MIN_SEPARATION_CELLS, RAMP_WIDTH_CELLS},
-    resources::GridCell,
-};
-use common::{
-    constants::*,
-    protocol::Ramp,
-};
+use crate::constants::{RAMP_COUNT, RAMP_LENGTH_CELLS, RAMP_MIN_SEPARATION_CELLS, RAMP_WIDTH_CELLS};
+use common::protocol::GridCell;
+use common::{constants::*, protocol::Ramp};
 
 // Generate ramps as right triangular prisms using opposite corners
 pub fn generate_ramps(grid: &mut [Vec<GridCell>], grid_cols: i32, grid_rows: i32) -> Vec<Ramp> {

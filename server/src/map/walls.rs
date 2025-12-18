@@ -1,11 +1,6 @@
-use crate::{
-    constants::OVERLAP_WALLS,
-    resources::GridCell,
-};
-use common::{
-    constants::*,
-    protocol::Wall,
-};
+use crate::constants::OVERLAP_WALLS;
+use common::protocol::GridCell;
+use common::{constants::*, protocol::Wall};
 
 const MERGE_EPS: f32 = 0.01;
 

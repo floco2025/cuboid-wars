@@ -99,7 +99,14 @@ fn apply_ghost_wall_sliding(
 
     if collides {
         // Apply the same slide logic as server: walls + ramp footprints
-        slide_ghost_along_obstacles(&config.lower_walls, &config.ramps, current_pos, velocity.x, velocity.z, delta)
+        slide_ghost_along_obstacles(
+            &config.lower_walls,
+            &config.ramps,
+            current_pos,
+            velocity.x,
+            velocity.z,
+            delta,
+        )
     } else {
         *target_pos
     }

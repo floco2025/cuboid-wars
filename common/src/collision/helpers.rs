@@ -150,20 +150,10 @@ pub fn sweep_ramp_high_cap(
 
     let (center_x, center_z, half_x_cap, half_z_cap) = if along_x {
         let high_x = if high_along_positive { ramp.x2 } else { ramp.x1 };
-        (
-            high_x,
-            (min_z + max_z) / 2.0,
-            cap_half,
-            (max_z - min_z) / 2.0,
-        )
+        (high_x, (min_z + max_z) / 2.0, cap_half, (max_z - min_z) / 2.0)
     } else {
         let high_z = if high_along_positive { ramp.z2 } else { ramp.z1 };
-        (
-            (min_x + max_x) / 2.0,
-            high_z,
-            (max_x - min_x) / 2.0,
-            cap_half,
-        )
+        ((min_x + max_x) / 2.0, high_z, (max_x - min_x) / 2.0, cap_half)
     };
 
     let dir_x = end_pos.x - start_pos.x;

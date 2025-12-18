@@ -161,7 +161,7 @@ pub fn map_make_wall_lights_emissive_system(
         if processed.contains(&id) {
             continue;
         }
-        
+
         // Check if this material has properties suggesting it's glass
         // (typically has some transparency or specific naming)
         if material.alpha_mode != AlphaMode::Opaque || material.base_color.alpha() < 1.0 {
