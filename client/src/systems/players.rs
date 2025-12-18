@@ -265,13 +265,23 @@ pub fn players_movement_system(
             }
 
             // Check collision - walls and ramp edges
-            let collides = walls_to_check
-                .iter()
-                .any(|wall| sweep_player_vs_wall(&client_pos, &target_pos, wall))
-                || config
-                    .ramps
-                    .iter()
-                    .any(|ramp| sweep_player_vs_ramp_edges(&client_pos, &target_pos, ramp));
+            let mut collides = false;
+
+            for wall in &walls_to_check {
+                if sweep_player_vs_wall(&client_pos, &target_pos, wall) {
+                    collides = true;
+                    break;
+                }
+            }
+
+            if !collides {
+                for ramp in &config.ramps {
+                    if sweep_player_vs_ramp_edges(&client_pos, &target_pos, ramp) {
+                        collides = true;
+                        break;
+                    }
+                }
+            }
 
             // Calculate target (with sliding if hit)
             if collides {

@@ -97,14 +97,24 @@ pub fn players_movement_system(
             walls_to_check.extend_from_slice(base_walls);
         }
 
-        // Check wall collision and calculate target (with sliding if hit)
-        let hits_wall = walls_to_check
-            .iter()
-            .any(|wall| sweep_player_vs_wall(pos, &new_pos_xz, wall))
-            || grid_config
-                .ramps
-                .iter()
-                .any(|ramp| sweep_player_vs_ramp_edges(pos, &new_pos_xz, ramp));
+        // Check wall/ramp collision and calculate target (with sliding if hit)
+        let mut hits_wall = false;
+
+        for wall in &walls_to_check {
+            if sweep_player_vs_wall(pos, &new_pos_xz, wall) {
+                hits_wall = true;
+                break;
+            }
+        }
+
+        if !hits_wall {
+            for ramp in &grid_config.ramps {
+                if sweep_player_vs_ramp_edges(pos, &new_pos_xz, ramp) {
+                    hits_wall = true;
+                    break;
+                }
+            }
+        }
 
         let (target_xz, hits_wall) = if hits_wall {
             (
