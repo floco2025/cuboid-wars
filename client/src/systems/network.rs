@@ -7,7 +7,7 @@ use crate::{
     net::{ClientToServer, ServerToClient},
     resources::{
         ClientToServerChannel, GhostInfo, GhostMap, ItemInfo, ItemMap, LastUpdateSeq, MyPlayerId, PlayerInfo,
-        PlayerMap, RoundTripTime, ServerToClientChannel, WallConfig,
+        PlayerMap, RoundTripTime, ServerToClientChannel,
     },
     spawning::{spawn_ghost, spawn_item, spawn_player, spawn_projectiles},
 };
@@ -76,7 +76,7 @@ pub fn network_server_message_system(
     mut last_update_seq: ResMut<LastUpdateSeq>,
     queries: NetworkQueries,
     my_player_id: Option<Res<MyPlayerId>>,
-    wall_config: Option<Res<WallConfig>>,
+    grid_config: Option<Res<GridConfig>>,
     time: Res<Time>,
     asset_server: Res<AssetServer>,
 ) {
@@ -102,7 +102,7 @@ pub fn network_server_message_system(
                         &queries,
                         &time,
                         &asset_server,
-                        wall_config.as_deref(),
+                        grid_config.as_deref(),
                     );
                 } else {
                     process_message_not_logged_in(message, &mut commands);
@@ -123,18 +123,8 @@ fn process_message_not_logged_in(msg: ServerMessage, commands: &mut Commands) {
         // Store player ID as resource
         commands.insert_resource(MyPlayerId(init_msg.id));
 
-        // Store walls and roofs configuration
-        let mut all_walls = init_msg.boundary_walls.clone();
-        all_walls.extend_from_slice(&init_msg.interior_walls);
-
-        commands.insert_resource(WallConfig {
-            boundary_walls: init_msg.boundary_walls,
-            interior_walls: init_msg.interior_walls,
-            all_walls,
-            roofs: init_msg.roofs,
-            ramps: init_msg.ramps,
-            roof_edge_walls: init_msg.roof_edge_walls,
-        });
+        // Store grid configuration
+        commands.insert_resource(init_msg.grid_config);
 
         // Note: We don't spawn anything here. The first SUpdate will contain
         // all players including ourselves and will trigger spawning via the
@@ -155,7 +145,7 @@ fn process_message_logged_in(
     queries: &NetworkQueries,
     time: &Res<Time>,
     asset_server: &Res<AssetServer>,
-    wall_config: Option<&WallConfig>,
+    grid_config: Option<&GridConfig>,
 ) {
     match msg {
         ServerMessage::Init(_) => {
@@ -168,7 +158,7 @@ fn process_message_logged_in(
         }
         ServerMessage::Face(face_msg) => handle_face_message(commands, players, face_msg),
         ServerMessage::Shot(shot_msg) => {
-            handle_shot_message(commands, assets, players, &queries.player_facing, shot_msg, wall_config);
+            handle_shot_message(commands, assets, players, &queries.player_facing, shot_msg, grid_config);
         }
         ServerMessage::Update(update_msg) => handle_update_message(
             commands,
@@ -305,7 +295,7 @@ fn handle_shot_message(
     players: &ResMut<PlayerMap>,
     player_face_query: &Query<PlayerMovement, With<PlayerMarker>>,
     msg: SShot,
-    wall_config: Option<&WallConfig>,
+    grid_config: Option<&GridConfig>,
 ) {
     trace!("{:?} shot: {:?}", msg.id, msg);
     if let Some(player) = players.0.get(&msg.id) {
@@ -313,7 +303,7 @@ fn handle_shot_message(
 
         // Spawn projectile(s) based on player's multi-shot power-up status
         if let Ok(player_facing) = player_face_query.get(player.entity) {
-            if let Some(config) = wall_config {
+            if let Some(config) = grid_config {
                 spawn_projectiles(
                     commands,
                     &mut assets.meshes,
@@ -323,7 +313,7 @@ fn handle_shot_message(
                     msg.face_pitch,
                     player.multi_shot_power_up,
                     player.reflect_power_up,
-                    config.all_walls.as_slice(),
+                    config.lower_walls.as_slice(),
                     config.ramps.as_slice(),
                     config.roofs.as_slice(),
                     msg.id,

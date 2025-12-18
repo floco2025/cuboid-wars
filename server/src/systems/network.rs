@@ -141,7 +141,7 @@ fn generate_spawn_position(grid_config: &GridConfig) -> Position {
 
         // Check if position intersects with any wall
         let intersects = grid_config
-            .all_walls
+            .lower_walls
             .iter()
             .any(|wall| overlap_player_vs_wall(&pos, wall));
 
@@ -298,14 +298,10 @@ fn process_message_not_logged_in(
                 (channel, player_info.hits, player_info.name.clone())
             };
 
-            // Send Init to the connecting player (their ID, walls, and roofs)
+            // Send Init to the connecting player (their ID and grid config)
             let init_msg = ServerMessage::Init(SInit {
                 id,
-                boundary_walls: grid_config.boundary_walls.clone(),
-                interior_walls: grid_config.interior_walls.clone(),
-                roofs: grid_config.roofs.clone(),
-                ramps: grid_config.ramps.clone(),
-                roof_edge_walls: grid_config.roof_edge_walls.clone(),
+                grid_config: (*grid_config).clone(),
             });
             if let Err(e) = channel.send(ServerToClient::Send(init_msg)) {
                 warn!("failed to send init to {:?}: {}", id, e);
@@ -507,7 +503,7 @@ fn handle_shot(
             msg.face_pitch,
             has_multi_shot,
             has_reflect,
-            &grid_config.all_walls,
+            &grid_config.lower_walls,
             &grid_config.ramps,
             &grid_config.roofs,
         );

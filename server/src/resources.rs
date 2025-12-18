@@ -9,56 +9,8 @@ use common::protocol::*;
 // Bevy Resources
 // ============================================================================
 
-// Grid cell wall edges - bitflags for efficient lookup
-#[derive(Debug, Clone, Copy, Default)]
-pub struct GridCell {
-    pub has_north_wall: bool, // Horizontal wall at top edge (z)
-    pub has_south_wall: bool, // Horizontal wall at bottom edge (z+1)
-    pub has_west_wall: bool,  // Vertical wall at left edge (x)
-    pub has_east_wall: bool,  // Vertical wall at right edge (x+1)
-    pub has_ramp: bool,       // Cell occupied by a ramp footprint
-    pub has_roof: bool,       // Cell has a roof on top
-    // Ramp bases disallow walls on their entry edge
-    pub ramp_base_north: bool,
-    pub ramp_base_south: bool,
-    pub ramp_base_west: bool,
-    pub ramp_base_east: bool,
-    // Ramp tops disallow walls on their exit edge
-    pub ramp_top_north: bool,
-    pub ramp_top_south: bool,
-    pub ramp_top_west: bool,
-    pub ramp_top_east: bool,
-}
-
-// Grid configuration - generated once at server startup
-#[derive(Resource)]
-pub struct GridConfig {
-    pub grid: Vec<Vec<GridCell>>, // [row][col] - indexed by grid_z, grid_x
-    pub boundary_walls: Vec<Wall>,
-    pub interior_walls: Vec<Wall>,
-    pub all_walls: Vec<Wall>, // Pre-computed: boundary + interior
-    pub roofs: Vec<Roof>,
-    pub ramps: Vec<Ramp>,
-    pub roof_edge_walls: Vec<Wall>, // Collision boxes for roof edges (prevent falling off)
-}
-
-impl GridConfig {
-    // Check if a world position (x, z) is on a roof cell
-    pub fn is_position_on_roof(&self, x: f32, z: f32) -> bool {
-        use common::constants::*;
-
-        // Convert world coordinates to grid coordinates
-        let col = ((x + FIELD_WIDTH / 2.0) / GRID_SIZE).floor() as i32;
-        let row = ((z + FIELD_DEPTH / 2.0) / GRID_SIZE).floor() as i32;
-
-        // Check bounds
-        if row < 0 || row >= GRID_ROWS || col < 0 || col >= GRID_COLS {
-            return false;
-        }
-
-        self.grid[row as usize][col as usize].has_roof
-    }
-}
+// Re-export shared protocol types
+pub use common::protocol::{GridCell, GridConfig};
 
 // Player information (server-side)
 pub struct PlayerInfo {

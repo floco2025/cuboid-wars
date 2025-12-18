@@ -1,12 +1,11 @@
 use bevy::prelude::*;
 
 use super::network::ServerReconciliation;
-use crate::resources::WallConfig;
 use common::{
     collision::ghosts::{slide_ghost_along_obstacles, sweep_ghost_vs_ramp_footprint, sweep_ghost_vs_wall},
     constants::{GHOST_SIZE, UPDATE_BROADCAST_INTERVAL},
     markers::GhostMarker,
-    protocol::{Position, Velocity},
+    protocol::{GridConfig, Position, Velocity},
 };
 
 // ============================================================================
@@ -16,7 +15,7 @@ use common::{
 pub fn ghosts_movement_system(
     mut commands: Commands,
     time: Res<Time>,
-    wall_config: Option<Res<WallConfig>>,
+    grid_config: Option<Res<GridConfig>>,
     mut ghost_query: Query<
         (Entity, &mut Position, &mut Velocity, Option<&mut ServerReconciliation>),
         With<GhostMarker>,
@@ -64,26 +63,25 @@ pub fn ghosts_movement_system(
             }
         };
 
-        let walls = wall_config.as_deref();
-        let final_pos = apply_ghost_wall_sliding(walls, &client_pos, &target_pos, &client_vel, delta);
+        let final_pos = apply_ghost_wall_sliding(grid_config.as_deref(), &client_pos, &target_pos, &client_vel, delta);
         *client_pos = final_pos;
     }
 }
 
 fn apply_ghost_wall_sliding(
-    walls: Option<&WallConfig>,
+    grid_config: Option<&GridConfig>,
     current_pos: &Position,
     target_pos: &Position,
     velocity: &Velocity,
     delta: f32,
 ) -> Position {
-    let Some(config) = walls else {
+    let Some(config) = grid_config else {
         return *target_pos;
     };
 
     let mut collides = false;
 
-    for wall in &config.all_walls {
+    for wall in &config.lower_walls {
         if sweep_ghost_vs_wall(current_pos, target_pos, wall) {
             collides = true;
             break;
@@ -101,7 +99,7 @@ fn apply_ghost_wall_sliding(
 
     if collides {
         // Apply the same slide logic as server: walls + ramp footprints
-        slide_ghost_along_obstacles(&config.all_walls, &config.ramps, current_pos, velocity.x, velocity.z, delta)
+        slide_ghost_along_obstacles(&config.lower_walls, &config.ramps, current_pos, velocity.x, velocity.z, delta)
     } else {
         *target_pos
     }

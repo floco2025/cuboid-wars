@@ -4,12 +4,12 @@ use bevy::{
 };
 
 use super::players::LocalPlayerMarker;
-use crate::resources::{PlayerMap, WallConfig};
+use crate::resources::PlayerMap;
 use common::{
     collision::projectile::{projectile_hits_ghost, sweep_projectile_vs_player, Projectile},
     constants::ALWAYS_GHOST_HUNT,
     markers::{GhostMarker, PlayerMarker, ProjectileMarker},
-    protocol::{FaceDirection, PlayerId, Position},
+    protocol::{FaceDirection, GridConfig, PlayerId, Position},
 };
 
 // ============================================================================
@@ -110,10 +110,10 @@ pub fn projectiles_movement_system(
     player_query: Query<(Entity, &Position, &FaceDirection, Has<LocalPlayerMarker>), With<PlayerMarker>>,
     ghost_query: Query<&Position, With<GhostMarker>>,
     players: Res<PlayerMap>,
-    wall_config: Option<Res<WallConfig>>,
+    grid_config: Option<Res<GridConfig>>,
 ) {
     let delta = time.delta_secs();
-    let walls = wall_config.as_deref();
+    let config = grid_config.as_deref();
 
     for (projectile_entity, mut projectile_transform, mut projectile, shooter_id) in &mut projectile_query {
         // Check lifetime and despawn if expired
@@ -137,7 +137,7 @@ pub fn projectiles_movement_system(
             &mut projectile,
             &projectile_pos,
             delta,
-            walls,
+            config,
         ) {
             pos_after_bounce
         } else {
@@ -193,9 +193,9 @@ fn handle_wall_collisions(
     projectile: &mut Projectile,
     projectile_pos: &Position,
     delta: f32,
-    wall_config: Option<&WallConfig>,
+    grid_config: Option<&GridConfig>,
 ) -> Option<Position> {
-    let config = wall_config?;
+    let config = grid_config?;
 
     // Ground bounce first
     if let Some(new_pos) = projectile.handle_ground_bounce(projectile_pos, delta) {
@@ -218,7 +218,7 @@ fn handle_wall_collisions(
     }
 
     // Check walls
-    for wall in &config.all_walls {
+    for wall in &config.lower_walls {
         if let Some(new_pos) = projectile.handle_wall_bounce(projectile_pos, delta, wall) {
             play_sound(
                 commands,

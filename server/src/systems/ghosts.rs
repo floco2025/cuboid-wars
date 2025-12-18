@@ -229,7 +229,7 @@ pub fn ghosts_movement_system(
     let mut rng = rand::rng();
 
     // Use all_walls for ghost collision (ghosts never go on roofs)
-    let ghost_walls = &grid_config.all_walls;
+    let ghost_walls = &grid_config.lower_walls;
 
     // Collect player positions and speeds (excluding stunned players)
     let player_data: Vec<(PlayerId, Position, Speed)> = param_set

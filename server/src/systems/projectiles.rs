@@ -66,7 +66,7 @@ pub fn projectiles_movement_system(
 
         // Check wall collisions
         if !hit_something {
-            for wall in &grid_config.all_walls {
+            for wall in &grid_config.lower_walls {
             if let Some(new_pos) = projectile.handle_wall_bounce(&proj_pos, delta, wall) {
                 if projectile.reflects {
                     proj_pos.x = new_pos.x;

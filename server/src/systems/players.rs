@@ -92,7 +92,7 @@ pub fn players_movement_system(
             let base_walls: &[Wall] = if has_phasing {
                 &grid_config.boundary_walls
             } else {
-                &grid_config.all_walls
+                &grid_config.lower_walls
             };
             walls_to_check.extend_from_slice(base_walls);
         }

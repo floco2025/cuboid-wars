@@ -9,39 +9,11 @@ use tokio::sync::mpsc::{
 };
 
 use crate::net::{ClientToServer, ServerToClient};
-use common::protocol::{GhostId, ItemId, PlayerId, Ramp, Roof, Speed, SpeedLevel, Wall};
+use common::protocol::{GhostId, ItemId, PlayerId, Speed, SpeedLevel};
 
 // ============================================================================
 // Bevy Resources
 // ============================================================================
-
-// Wall configuration received from server
-#[derive(Resource)]
-pub struct WallConfig {
-    pub boundary_walls: Vec<Wall>,
-    pub interior_walls: Vec<Wall>,
-    pub all_walls: Vec<Wall>, // Pre-computed: boundary + interior
-    pub roofs: Vec<Roof>,
-    pub ramps: Vec<Ramp>,
-    pub roof_edge_walls: Vec<Wall>, // Roof edges (prevent falling off)
-}
-
-impl WallConfig {
-    // Check if a world position (x, z) is on a roof
-    pub fn is_position_on_roof(&self, x: f32, z: f32) -> bool {
-        for roof in &self.roofs {
-            let min_x = roof.x1.min(roof.x2);
-            let max_x = roof.x1.max(roof.x2);
-            let min_z = roof.z1.min(roof.z2);
-            let max_z = roof.z1.max(roof.z2);
-
-            if x >= min_x && x <= max_x && z >= min_z && z <= max_z {
-                return true;
-            }
-        }
-        false
-    }
-}
 
 // My player ID assigned by the server
 #[derive(Resource)]

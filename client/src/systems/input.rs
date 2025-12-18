@@ -9,7 +9,7 @@ use super::players::{LocalPlayerMarker, MainCameraMarker, PlayerMovementMut};
 use crate::{
     constants::*,
     net::ClientToServer,
-    resources::{CameraViewMode, ClientToServerChannel, InputSettings, LocalPlayerInfo, MyPlayerId, PlayerMap, RoofRenderingEnabled, WallConfig},
+    resources::{CameraViewMode, ClientToServerChannel, InputSettings, LocalPlayerInfo, MyPlayerId, PlayerMap, RoofRenderingEnabled},
     spawning::spawn_projectiles,
 };
 use common::{
@@ -273,7 +273,7 @@ pub fn input_shooting_system(
     mut materials: ResMut<Assets<StandardMaterial>>,
     my_player_id: Option<Res<MyPlayerId>>,
     players: Res<PlayerMap>,
-    wall_config: Option<Res<WallConfig>>,
+    grid_config: Option<Res<GridConfig>>,
     view_mode: Res<CameraViewMode>,
     time: Res<Time>,
     mut local_player_info: ResMut<LocalPlayerInfo>,
@@ -337,7 +337,7 @@ pub fn input_shooting_system(
                 .is_some_and(|info| info.reflect_power_up);
 
         if let Some(my_id) = my_player_id.as_ref() {
-            if let Some(config) = wall_config.as_ref() {
+            if let Some(config) = grid_config.as_ref() {
                 // all_walls already excludes roof edges; pass roofs for roof blocking
                 spawn_projectiles(
                     &mut commands,
@@ -348,7 +348,7 @@ pub fn input_shooting_system(
                     pitch,
                     has_multi_shot,
                     has_reflect,
-                    config.all_walls.as_slice(),
+                    config.lower_walls.as_slice(),
                     config.ramps.as_slice(),
                     config.roofs.as_slice(),
                     my_id.0,

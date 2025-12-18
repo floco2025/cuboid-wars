@@ -2,9 +2,10 @@ use bevy::prelude::*;
 
 use crate::{
     constants::{TOPDOWN_ROOF_ALPHA, TOPDOWN_WALL_ALPHA},
-    resources::{CameraViewMode, RoofRenderingEnabled, WallConfig},
+    resources::{CameraViewMode, RoofRenderingEnabled},
     spawning::{spawn_ramp, spawn_roof, spawn_wall},
 };
+use common::protocol::GridConfig;
 
 // ============================================================================
 // Components
@@ -22,17 +23,17 @@ pub struct RoofMarker;
 // Wall Spawning System
 // ============================================================================
 
-// System to spawn walls and roofs when WallConfig is available
+// System to spawn walls and roofs when GridConfig is available
 pub fn map_spawn_walls_system(
     mut commands: Commands,
-    wall_config: Option<Res<WallConfig>>,
+    grid_config: Option<Res<GridConfig>>,
     asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut spawned: Local<bool>,
 ) {
     // Spawn exactly once after the server shares its wall configuration
-    let Some(wall_config) = wall_config else {
+    let Some(config) = grid_config else {
         return;
     };
 
@@ -42,27 +43,27 @@ pub fn map_spawn_walls_system(
 
     info!(
         "spawning {} wall segments, {} roofs, {} ramps",
-        wall_config.all_walls.len(),
-        wall_config.roofs.len(),
-        wall_config.ramps.len()
+        config.lower_walls.len(),
+        config.roofs.len(),
+        config.ramps.len()
     );
 
-    for wall in &wall_config.all_walls {
+    for wall in &config.lower_walls {
         spawn_wall(
             &mut commands,
             &mut meshes,
             &mut materials,
             &asset_server,
             wall,
-            &wall_config.roofs,
+            &config.roofs,
         );
     }
 
-    for roof in &wall_config.roofs {
+    for roof in &config.roofs {
         spawn_roof(&mut commands, &mut meshes, &mut materials, &asset_server, roof);
     }
 
-    for ramp in &wall_config.ramps {
+    for ramp in &config.ramps {
         spawn_ramp(&mut commands, &mut meshes, &mut materials, &asset_server, ramp);
     }
 

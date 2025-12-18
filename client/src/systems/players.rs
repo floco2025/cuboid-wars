@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use crate::{
     constants::*,
-    resources::{CameraViewMode, PlayerMap, WallConfig},
+    resources::{CameraViewMode, PlayerMap},
     spawning::PlayerIdTextMeshMarker,
     systems::{network::ServerReconciliation, ui::BumpFlashUIMarker},
 };
@@ -14,7 +14,7 @@ use common::{
     constants::{ALWAYS_PHASING, PLAYER_HEIGHT, ROOF_HEIGHT, SPEED_RUN, UPDATE_BROADCAST_INTERVAL},
     markers::PlayerMarker,
     players::{overlaps_other_player, PlannedMove},
-    protocol::{FaceDirection, PlayerId, Position, Velocity, Wall},
+    protocol::{FaceDirection, GridConfig, PlayerId, Position, Velocity, Wall},
     ramps::{calculate_height_at_position, is_on_roof},
 };
 
@@ -166,7 +166,7 @@ pub fn players_movement_system(
     mut commands: Commands,
     time: Res<Time>,
     asset_server: Res<AssetServer>,
-    wall_config: Option<Res<WallConfig>>,
+    grid_config: Option<Res<GridConfig>>,
     players: Res<PlayerMap>,
     mut query: MovementQuery,
     mut bump_flash_ui: Query<(&mut BackgroundColor, &mut Visibility), With<BumpFlashUIMarker>>,
@@ -248,7 +248,7 @@ pub fn players_movement_system(
         // Wall collision - Select walls based on phasing power-up and height
         let has_phasing = ALWAYS_PHASING || players.0.get(player_id).is_some_and(|info| info.phasing_power_up);
 
-        let (wall_adjusted_target, hits_wall) = wall_config.as_ref().map_or((target_pos, false), |config| {
+        let (wall_adjusted_target, hits_wall) = grid_config.as_ref().map_or((target_pos, false), |config| {
             let mut walls_to_check = Vec::new();
 
             if is_on_roof(client_pos.y) {
@@ -259,7 +259,7 @@ pub fn players_movement_system(
                 let base_walls: &[Wall] = if has_phasing {
                     &config.boundary_walls
                 } else {
-                    &config.all_walls
+                    &config.lower_walls
                 };
                 walls_to_check.extend_from_slice(base_walls);
             }
@@ -302,7 +302,7 @@ pub fn players_movement_system(
         });
 
         // Now calculate final Y based on the collision-adjusted X/Z position
-        let final_target = if let Some(config) = wall_config.as_ref() {
+        let final_target = if let Some(config) = grid_config.as_ref() {
             let ramp_height =
                 calculate_height_at_position(&config.ramps, wall_adjusted_target.x, wall_adjusted_target.z);
             let final_y = if ramp_height > 0.0 {

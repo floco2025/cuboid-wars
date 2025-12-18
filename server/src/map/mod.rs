@@ -203,9 +203,9 @@ pub fn generate_grid() -> GridConfig {
     }
 
     // Build wall list from grid with individual segments
-    let mut walls = walls::generate_individual_walls(&grid, grid_cols, grid_rows);
+    let mut lower_walls = walls::generate_individual_walls(&grid, grid_cols, grid_rows);
     if MERGE_WALL_SEGMENTS && !OVERLAP_WALLS {
-        walls = walls::merge_walls(walls);
+        lower_walls = walls::merge_walls(lower_walls);
     }
 
     // Generate roofs based on grid
@@ -222,7 +222,7 @@ pub fn generate_grid() -> GridConfig {
     let half_field_depth = FIELD_DEPTH / 2.0;
     let epsilon = 0.01;
 
-    let (boundary_walls, interior_walls): (Vec<Wall>, Vec<Wall>) = walls.iter().partition(|w| {
+    let (boundary_walls, interior_walls): (Vec<Wall>, Vec<Wall>) = lower_walls.iter().partition(|w| {
         // Check if wall is at the boundary (within epsilon)
         let at_left = (w.x1 + half_field_width).abs() < epsilon && (w.x2 + half_field_width).abs() < epsilon;
         let at_right = (w.x1 - half_field_width).abs() < epsilon && (w.x2 - half_field_width).abs() < epsilon;
@@ -235,7 +235,7 @@ pub fn generate_grid() -> GridConfig {
         grid,
         boundary_walls,
         interior_walls,
-        all_walls: walls,
+        lower_walls,
         roofs,
         ramps,
         roof_edge_walls,
