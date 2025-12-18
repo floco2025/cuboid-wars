@@ -72,9 +72,12 @@ pub fn calculate_projectile_spawns(
             z: spawn_pos.z,
         };
 
-        let blocked_by_wall = walls
-            .iter()
-            .any(|wall| sweep_player_vs_wall(shooter_pos, &spawn_position, wall));
+        // If the spawn height sits above the top of ground walls, skip wall blocking (roof-edge shots, ramps)
+        let spawn_above_walls = spawn_position.y - PROJECTILE_RADIUS >= WALL_HEIGHT;
+        let blocked_by_wall = !spawn_above_walls
+            && walls
+                .iter()
+                .any(|wall| sweep_player_vs_wall(shooter_pos, &spawn_position, wall));
 
         // If the muzzle point sits inside the ramp volume (e.g., standing at the base facing the ramp), block the shot.
         let blocked_by_ramp = ramps.iter().any(|ramp| {
