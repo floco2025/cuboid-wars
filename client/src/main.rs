@@ -147,6 +147,7 @@ fn main() -> Result<()> {
             map_spawn_walls_system,
             map_toggle_wall_opacity_system,
             map_toggle_roof_visibility_system,
+            map_make_wall_lights_emissive_system,
         ),
     )
     .add_systems(

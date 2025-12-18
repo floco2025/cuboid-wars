@@ -48,7 +48,14 @@ pub fn map_spawn_walls_system(
     );
 
     for wall in &wall_config.all_walls {
-        spawn_wall(&mut commands, &mut meshes, &mut materials, &asset_server, wall);
+        spawn_wall(
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &asset_server,
+            wall,
+            &wall_config.roofs,
+        );
     }
 
     for roof in &wall_config.roofs {
@@ -135,5 +142,32 @@ pub fn map_toggle_roof_visibility_system(
 
     for mut vis in &mut roof_query {
         *vis = visibility;
+    }
+}
+
+// ============================================================================
+// Wall Light Emissive System
+// ============================================================================
+
+// System to make wall light glass materials emissive after they load
+pub fn map_make_wall_lights_emissive_system(
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut processed: Local<std::collections::HashSet<AssetId<StandardMaterial>>>,
+) {
+    // Check all materials for ones that look like wall light glass
+    for (id, material) in materials.iter_mut() {
+        // Skip if already processed
+        if processed.contains(&id) {
+            continue;
+        }
+        
+        // Check if this material has properties suggesting it's glass
+        // (typically has some transparency or specific naming)
+        if material.alpha_mode != AlphaMode::Opaque || material.base_color.alpha() < 1.0 {
+            // Make it emissive
+            material.emissive = LinearRgba::rgb(10.0, 9.5, 8.0); // Bright warm white
+            material.base_color = Color::srgba(1.0, 0.95, 0.85, material.base_color.alpha());
+            processed.insert(id);
+        }
     }
 }

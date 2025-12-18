@@ -1,8 +1,10 @@
 use bevy::{
     asset::{AssetPath, RenderAssetUsages},
+    gltf::GltfAssetLabel,
     image::{ImageAddressMode, ImageFilterMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor},
     prelude::*,
     render::render_resource::{Extent3d, PrimitiveTopology, TextureDimension, TextureFormat, TextureUsages},
+    scene::SceneRoot,
 };
 
 use crate::{
@@ -783,6 +785,7 @@ pub fn spawn_wall(
     materials: &mut ResMut<Assets<StandardMaterial>>,
     asset_server: &Res<AssetServer>,
     wall: &Wall,
+    roofs: &[Roof],
 ) {
     use rand::Rng;
 
@@ -824,18 +827,275 @@ pub fn spawn_wall(
     let mut mesh = tiled_cuboid(mesh_size_x, WALL_HEIGHT, mesh_size_z, TEXTURE_WALL_TILE_SIZE);
     let _ = mesh.generate_tangents();
 
-    commands.spawn(WallBundle {
-        mesh: Mesh3d(meshes.add(mesh)),
-        material: MeshMaterial3d(materials.add(wall_material)),
-        transform: Transform::from_xyz(
-            center_x,
-            WALL_HEIGHT / 2.0, // Lift so bottom is at y=0
-            center_z,
-        )
-        .with_rotation(rotation),
-        visibility: Visibility::default(),
-        marker: WallMarker,
+    let wall_entity = commands
+        .spawn(WallBundle {
+            mesh: Mesh3d(meshes.add(mesh)),
+            material: MeshMaterial3d(materials.add(wall_material)),
+            transform: Transform::from_xyz(
+                center_x,
+                WALL_HEIGHT / 2.0, // Lift so bottom is at y=0
+                center_z,
+            )
+            .with_rotation(rotation),
+            visibility: Visibility::default(),
+            marker: WallMarker,
+        })
+        .id();
+
+    // Spawn wall lights: one per grid cell that has a roof over it
+    // Determine if wall is horizontal (along X) or vertical (along Z)
+    let is_horizontal = dx.abs() > dz.abs();
+    
+    if is_horizontal {
+        // Wall runs along X axis - iterate through X positions
+        let x_min = wall.x1.min(wall.x2);
+        let x_max = wall.x1.max(wall.x2);
+        let wall_z = center_z;
+        
+        // Find all grid cells this wall passes through
+        let grid_start = (x_min / GRID_SIZE).floor() as i32;
+        let grid_end = (x_max / GRID_SIZE).floor() as i32;
+        
+        for grid_x in grid_start..=grid_end {
+            // Calculate center of this grid cell on the wall
+            let grid_center_x = (grid_x as f32 + 0.5) * GRID_SIZE;
+            
+            // Skip if grid center is outside wall bounds
+            if grid_center_x < x_min || grid_center_x > x_max {
+                continue;
+            }
+            
+            let (needs_pos, needs_neg) = light_sides_for_horizontal(grid_center_x, wall_z, mesh_size_z, roofs);
+
+            if needs_pos {
+                spawn_wall_light(
+                    commands,
+                    asset_server,
+                    wall_entity,
+                    grid_center_x,
+                    wall_z,
+                    center_x,
+                    center_z,
+                    rotation,
+                    mesh_size_z,
+                    1.0,
+                );
+            }
+
+            if needs_neg {
+                spawn_wall_light(
+                    commands,
+                    asset_server,
+                    wall_entity,
+                    grid_center_x,
+                    wall_z,
+                    center_x,
+                    center_z,
+                    rotation,
+                    mesh_size_z,
+                    -1.0,
+                );
+            }
+        }
+    } else {
+        // Wall runs along Z axis - iterate through Z positions
+        let z_min = wall.z1.min(wall.z2);
+        let z_max = wall.z1.max(wall.z2);
+        let wall_x = center_x;
+        
+        // Find all grid cells this wall passes through
+        let grid_start = (z_min / GRID_SIZE).floor() as i32;
+        let grid_end = (z_max / GRID_SIZE).floor() as i32;
+        
+        for grid_z in grid_start..=grid_end {
+            // Calculate center of this grid cell on the wall
+            let grid_center_z = (grid_z as f32 + 0.5) * GRID_SIZE;
+            
+            // Skip if grid center is outside wall bounds
+            if grid_center_z < z_min || grid_center_z > z_max {
+                continue;
+            }
+            
+            let (needs_pos, needs_neg) = light_sides_for_vertical(wall_x, grid_center_z, mesh_size_z, roofs);
+
+            if needs_pos {
+                spawn_wall_light(
+                    commands,
+                    asset_server,
+                    wall_entity,
+                    wall_x,
+                    grid_center_z,
+                    center_x,
+                    center_z,
+                    rotation,
+                    mesh_size_z,
+                    1.0,
+                );
+            }
+
+            if needs_neg {
+                spawn_wall_light(
+                    commands,
+                    asset_server,
+                    wall_entity,
+                    wall_x,
+                    grid_center_z,
+                    center_x,
+                    center_z,
+                    rotation,
+                    mesh_size_z,
+                    -1.0,
+                );
+            }
+        }
+    }
+}
+
+// Helper function to spawn a single wall light at a specific position
+fn spawn_wall_light(
+    commands: &mut Commands,
+    asset_server: &Res<AssetServer>,
+    wall_entity: Entity,
+    world_x: f32,
+    world_z: f32,
+    wall_center_x: f32,
+    wall_center_z: f32,
+    wall_rotation: Quat,
+    wall_width: f32,
+    side_sign: f32,
+) {
+    // Calculate local position relative to wall center
+    let world_offset = Vec3::new(world_x - wall_center_x, 0.0, world_z - wall_center_z);
+    
+    // Rotate offset into wall's local space
+    let local_offset = wall_rotation.inverse() * world_offset;
+    
+    let local_y = WALL_LIGHT_HEIGHT - (WALL_HEIGHT / 2.0);
+    let local_z = side_sign * (wall_width / 2.0 + 0.02); // Position almost flush with wall
+    let forward_offset = (wall_width * 0.1).clamp(0.02, 0.06); // move light slightly off surface
+    let light_radius = (wall_width * 0.25).clamp(0.05, 0.25); // scale radius with thickness to reduce bleed
+    
+    // Load glTF scene
+    let light_scene: Handle<Scene> = asset_server.load(
+        GltfAssetLabel::Scene(0).from_asset(WALL_LIGHT_MODEL)
+    );
+    
+    commands.entity(wall_entity).with_children(|parent| {
+        // Spawn glTF model
+        let model_facing = if side_sign >= 0.0 {
+            Quat::IDENTITY
+        } else {
+            Quat::from_rotation_y(std::f32::consts::PI)
+        };
+
+        parent.spawn((
+            SceneRoot(light_scene),
+            Transform::from_xyz(local_offset.x, local_y, local_z)
+                .with_scale(Vec3::splat(WALL_LIGHT_SCALE))
+                .with_rotation(model_facing),
+            GlobalTransform::default(),
+            Visibility::Visible,
+            InheritedVisibility::default(),
+            ViewVisibility::default(),
+        ));
+
+        // Add point light for illumination
+        parent.spawn((
+            PointLight {
+                intensity: WALL_LIGHT_BRIGHTNESS, // Single effective value
+                range: WALL_LIGHT_RANGE * 2.5,
+                radius: light_radius, // scaled by wall thickness
+                shadows_enabled: false, // Disable shadows for performance
+                color: Color::srgb(1.0, 0.95, 0.85), // Warm white light
+                ..default()
+            },
+            Transform::from_xyz(local_offset.x, local_y, local_z + forward_offset), // keep close to fixture to avoid bleed
+        ));
     });
+}
+
+// Decide which sides of a horizontal wall (runs along X) need lights for a given grid cell.
+fn light_sides_for_horizontal(
+    grid_center_x: f32,
+    wall_z: f32,
+    wall_width: f32,
+    roofs: &[Roof],
+) -> (bool, bool) {
+    let half_thickness = wall_width * 0.5 + 0.02;
+    let mut needs_pos = false;
+    let mut needs_neg = false;
+
+    for roof in roofs {
+        let roof_min_x = roof.x1.min(roof.x2);
+        let roof_max_x = roof.x1.max(roof.x2);
+        let roof_min_z = roof.z1.min(roof.z2);
+        let roof_max_z = roof.z1.max(roof.z2);
+
+        // Require the cell center to be inside the roof X span, and the wall line (with small thickness) inside Z span
+        let within_x = grid_center_x >= roof_min_x - 0.01 && grid_center_x <= roof_max_x + 0.01;
+        let within_z = wall_z + half_thickness >= roof_min_z - 0.01 && wall_z - half_thickness <= roof_max_z + 0.01;
+        if !within_x || !within_z {
+            continue;
+        }
+
+        // Side choice: if roof spans across wall thickness, light both; else pick by roof center
+        let roof_crosses = roof_min_z <= wall_z - half_thickness && roof_max_z >= wall_z + half_thickness;
+        if roof_crosses {
+            needs_pos = true;
+            needs_neg = true;
+        } else {
+            let roof_center_z = (roof_min_z + roof_max_z) * 0.5;
+            if roof_center_z >= wall_z {
+                needs_pos = true;
+            } else {
+                needs_neg = true;
+            }
+        }
+    }
+
+    (needs_pos, needs_neg)
+}
+
+// Decide which sides of a vertical wall (runs along Z) need lights for a given grid cell.
+fn light_sides_for_vertical(
+    wall_x: f32,
+    grid_center_z: f32,
+    wall_width: f32,
+    roofs: &[Roof],
+) -> (bool, bool) {
+    let half_thickness = wall_width * 0.5 + 0.02;
+    let mut needs_pos = false;
+    let mut needs_neg = false;
+
+    for roof in roofs {
+        let roof_min_x = roof.x1.min(roof.x2);
+        let roof_max_x = roof.x1.max(roof.x2);
+        let roof_min_z = roof.z1.min(roof.z2);
+        let roof_max_z = roof.z1.max(roof.z2);
+
+        // Require the cell center to be inside the roof Z span, and the wall line (with small thickness) inside X span
+        let within_z = grid_center_z >= roof_min_z - 0.01 && grid_center_z <= roof_max_z + 0.01;
+        let within_x = wall_x + half_thickness >= roof_min_x - 0.01 && wall_x - half_thickness <= roof_max_x + 0.01;
+        if !within_x || !within_z {
+            continue;
+        }
+
+        // Side choice: if roof spans across wall thickness, light both; else pick by roof center
+        let roof_crosses = roof_min_x <= wall_x - half_thickness && roof_max_x >= wall_x + half_thickness;
+        if roof_crosses {
+            needs_pos = true;
+            needs_neg = true;
+        } else {
+            let roof_center_x = (roof_min_x + roof_max_x) * 0.5;
+            if roof_center_x >= wall_x {
+                needs_pos = true;
+            } else {
+                needs_neg = true;
+            }
+        }
+    }
+
+    (needs_pos, needs_neg)
 }
 
 // Spawn a roof entity based on a shared `Roof` config.

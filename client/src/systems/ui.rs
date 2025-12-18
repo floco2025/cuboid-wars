@@ -146,7 +146,7 @@ pub fn setup_world_system(
     // Add soft directional light from above for shadows and definition
     commands.spawn((
         DirectionalLight {
-            illuminance: 8000.0,
+            illuminance: LIGHT_DIRECTIONAL_BRIGHTNESS,
             shadows_enabled: true,
             ..default()
         },
@@ -156,7 +156,7 @@ pub fn setup_world_system(
     // Add ambient light for diffuse fill lighting
     commands.insert_resource(AmbientLight {
         color: Color::WHITE,
-        brightness: 500.0,
+        brightness: LIGHT_AMBIENT_BRIGHTNESS,
         affects_lightmapped_meshes: false,
     });
 

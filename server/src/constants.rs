@@ -18,7 +18,7 @@ pub const MERGE_WALL_SEGMENTS: bool = true;
 pub const MERGE_ROOF_SEGMENTS: bool = true;
 
 // Roof generation settings
-pub const ROOF_NUM_SEGMENTS: usize = 40; // Target number of roof segments to generate
+pub const ROOF_NUM_SEGMENTS: usize = 50; // Target number of roof segments to generate
 pub const ROOF_NEIGHBOR_PREFERENCE: f64 = 4.0; // Multiplier for cells with roofed neighbors
 
 // Item settings
@@ -40,7 +40,7 @@ pub const RAMP_WIDTH_CELLS: i32 = 1; // Footprint width in grid cells
 pub const RAMP_MIN_SEPARATION_CELLS: i32 = 3; // Minimum empty cells between ramps on all sides
 
 // Ghost settings
-pub const GHOSTS_NUM: u32 = 4; // Number of ghosts to spawn
+pub const GHOSTS_NUM: u32 = 0; // Number of ghosts to spawn
 pub const GHOST_SPEED: f32 = 6.0; // Speed in m/s (patrol mode)
 pub const GHOST_FOLLOW_SPEED: f32 = 8.0; // Speed in m/s (follow mode)
 pub const GHOST_RANDOM_TURN_PROBABILITY: f64 = 0.3; // Probability ghost randomly changes direction at intersection
