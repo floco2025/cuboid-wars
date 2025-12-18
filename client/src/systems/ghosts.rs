@@ -26,7 +26,7 @@ pub fn ghosts_movement_system(
 
     for (entity, mut client_pos, client_vel, recon_option) in &mut ghost_query {
         let target_pos = if let Some(mut recon) = recon_option {
-            const CORRECTION_TIME: f32 = 1.0;
+            const CORRECTION_TIME: f32 = 0.25;
             let correction_factor = (UPDATE_BROADCAST_INTERVAL / CORRECTION_TIME).clamp(0.0, 1.0);
 
             recon.timer += delta * correction_factor;
@@ -41,7 +41,7 @@ pub fn ghosts_movement_system(
             let total_dz = server_pos_z - recon.client_pos.z;
 
             // If the ghost got totally out of sync, we jump to the server position
-            if total_dx.abs() >= 5.0 || total_dz.abs() >= 5.0 {
+            if total_dx.abs() >= 3.0 || total_dz.abs() >= 3.0 {
                 warn!("ghost out of sync, jumping to server position");
                 *client_pos = recon.server_pos;
                 commands.entity(entity).remove::<ServerReconciliation>();
