@@ -280,7 +280,7 @@ impl Projectile {
 
     #[must_use]
     pub fn handle_wall_bounce(&mut self, projectile_pos: &Position, delta: f32, wall: &Wall) -> Option<Position> {
-        if let Some((normal_x, normal_z, t_collision)) =
+        if let Some((normal_x, normal_y, normal_z, t_collision)) =
             check_projectile_wall_sweep_hit(projectile_pos, self, delta, wall)
         {
             if self.reflects {
@@ -290,20 +290,23 @@ impl Projectile {
                 let collision_z = self.velocity.z.mul_add(delta * t_collision, projectile_pos.z);
 
                 // Reflect velocity off the wall normal
-                let dot = self.velocity.x.mul_add(normal_x, self.velocity.z * normal_z);
+                let dot = self.velocity.x.mul_add(normal_x,
+                    self.velocity.y.mul_add(normal_y, self.velocity.z * normal_z));
                 self.velocity.x -= 2.0 * dot * normal_x;
+                self.velocity.y -= 2.0 * dot * normal_y;
                 self.velocity.z -= 2.0 * dot * normal_z;
 
                 // Push projectile slightly away from wall surface to prevent getting stuck inside
                 const SEPARATION_EPSILON: f32 = 0.01;
                 let separated_x = normal_x.mul_add(SEPARATION_EPSILON, collision_x);
+                let separated_y = normal_y.mul_add(SEPARATION_EPSILON, collision_y);
                 let separated_z = normal_z.mul_add(SEPARATION_EPSILON, collision_z);
 
                 // Continue moving for remaining time after bounce
                 let remaining_time = delta * (1.0 - t_collision);
                 Some(Position {
                     x: self.velocity.x.mul_add(remaining_time, separated_x),
-                    y: self.velocity.y.mul_add(remaining_time, collision_y),
+                    y: self.velocity.y.mul_add(remaining_time, separated_y),
                     z: self.velocity.z.mul_add(remaining_time, separated_z),
                 })
             } else {
@@ -619,7 +622,7 @@ pub fn check_projectile_player_sweep_hit(
 // Check if a projectile hits a wall using swept sphere collision
 //
 // Returns:
-// - `Some((normal_x, normal_z, t_collision))` if hit
+// - `Some((normal_x, normal_y, normal_z, t_collision))` if hit
 // - `None` if no collision
 //
 // `t_collision` is between 0.0 and 1.0, representing how far along the movement the collision
@@ -630,78 +633,101 @@ pub fn check_projectile_wall_sweep_hit(
     projectile: &Projectile,
     delta: f32,
     wall: &Wall,
-) -> Option<(f32, f32, f32)> {
-    // Calculate projectile movement this frame
-    let ray_start_x = proj_pos.x;
-    let ray_start_y = proj_pos.y;
-    let ray_start_z = proj_pos.z;
-
+) -> Option<(f32, f32, f32, f32)> {
+    // Movement vector (segment over the frame)
     let ray_dir_x = projectile.velocity.x * delta;
     let ray_dir_y = projectile.velocity.y * delta;
     let ray_dir_z = projectile.velocity.z * delta;
 
-    // Wall dimensions - calculate center and dimensions from corners
-    // NOTE: Assumes axis-aligned walls (horizontal or vertical, not diagonal)
+    // Wall as expanded AABB (Minkowski sum with projectile radius)
     let wall_center_x = f32::midpoint(wall.x1, wall.x2);
     let wall_center_z = f32::midpoint(wall.z1, wall.z2);
+    let wall_center_y = WALL_HEIGHT / 2.0;
 
-    // For axis-aligned walls, either dx or dz is zero
     let dx = (wall.x2 - wall.x1).abs();
     let dz = (wall.z2 - wall.z1).abs();
-    let wall_half_thickness = wall.width / 2.0 + PROJECTILE_RADIUS;
-    let half_height = WALL_HEIGHT / 2.0 + PROJECTILE_RADIUS;
+    let wall_half_thickness = wall.width / 2.0;
 
-    // Determine wall orientation and set AABB dimensions (with projectile radius)
+    // Orientation: horizontal means along X; vertical means along Z
     let is_horizontal = dx > dz;
-    let (half_x, half_z) = if is_horizontal {
-        (dx / 2.0 + PROJECTILE_RADIUS, wall_half_thickness)
+    let half_x = if is_horizontal { dx / 2.0 } else { wall_half_thickness } + PROJECTILE_RADIUS;
+    let half_z = if is_horizontal { wall_half_thickness } else { dz / 2.0 } + PROJECTILE_RADIUS;
+    let half_y = WALL_HEIGHT / 2.0 + PROJECTILE_RADIUS;
+
+    // Ray start in wall local space
+    let local_x = proj_pos.x - wall_center_x;
+    let local_y = proj_pos.y - wall_center_y;
+    let local_z = proj_pos.z - wall_center_z;
+
+    // Slab intersection
+    let mut t_enter = 0.0_f32;
+    let mut t_exit = 1.0_f32;
+    let mut hit_normal = (0.0_f32, 0.0_f32, 0.0_f32);
+
+    // X slab
+    if ray_dir_x.abs() < 1e-6 {
+        if local_x.abs() > half_x {
+            return None;
+        }
     } else {
-        (wall_half_thickness, dz / 2.0 + PROJECTILE_RADIUS)
-    };
+        let tx1 = (-half_x - local_x) / ray_dir_x;
+        let tx2 = (half_x - local_x) / ray_dir_x;
+        let (tx_min, tx_max) = if tx1 < tx2 { (tx1, tx2) } else { (tx2, tx1) };
+        if tx_min > t_enter {
+            t_enter = tx_min;
+            hit_normal = (if ray_dir_x > 0.0 { -1.0 } else { 1.0 }, 0.0, 0.0);
+        }
+        t_exit = t_exit.min(tx_max);
+        if t_enter > t_exit {
+            return None;
+        }
+    }
 
-    let local_x = ray_start_x - wall_center_x;
-    let local_y = ray_start_y - WALL_HEIGHT / 2.0;
-    let local_z = ray_start_z - wall_center_z;
-
-    let mut t_min = 0.0_f32;
-    let mut t_max = 1.0_f32;
-
-    if let Some((min_x, max_x)) = slab_interval(local_x, ray_dir_x, half_x, t_min, t_max) {
-        t_min = min_x;
-        t_max = max_x;
+    // Y slab (enables top/bottom hits)
+    if ray_dir_y.abs() < 1e-6 {
+        if local_y.abs() > half_y {
+            return None;
+        }
     } else {
+        let ty1 = (-half_y - local_y) / ray_dir_y;
+        let ty2 = (half_y - local_y) / ray_dir_y;
+        let (ty_min, ty_max) = if ty1 < ty2 { (ty1, ty2) } else { (ty2, ty1) };
+        if ty_min > t_enter {
+            t_enter = ty_min;
+            hit_normal = (0.0, if ray_dir_y > 0.0 { -1.0 } else { 1.0 }, 0.0);
+        }
+        t_exit = t_exit.min(ty_max);
+        if t_enter > t_exit {
+            return None;
+        }
+    }
+
+    // Z slab
+    if ray_dir_z.abs() < 1e-6 {
+        if local_z.abs() > half_z {
+            return None;
+        }
+    } else {
+        let tz1 = (-half_z - local_z) / ray_dir_z;
+        let tz2 = (half_z - local_z) / ray_dir_z;
+        let (tz_min, tz_max) = if tz1 < tz2 { (tz1, tz2) } else { (tz2, tz1) };
+        if tz_min > t_enter {
+            t_enter = tz_min;
+            hit_normal = (0.0, 0.0, if ray_dir_z > 0.0 { -1.0 } else { 1.0 });
+        }
+        t_exit = t_exit.min(tz_max);
+        if t_enter > t_exit {
+            return None;
+        }
+    }
+
+    // Valid hit within movement segment
+    if t_exit < 0.0 || t_enter > 1.0 {
         return None;
     }
 
-    if let Some((min_y, max_y)) = slab_interval(local_y, ray_dir_y, half_height, t_min, t_max) {
-        t_min = min_y;
-        t_max = max_y;
-    } else {
-        return None;
-    }
-
-    if let Some((min_z, max_z)) = slab_interval(local_z, ray_dir_z, half_z, t_min, t_max) {
-        t_min = min_z;
-        t_max = max_z;
-    } else {
-        return None;
-    }
-
-    if t_min <= t_max && t_max >= 0.0 && t_min <= 1.0 {
-        // Return the normal based on wall orientation
-        let (normal_x, normal_z) = if is_horizontal {
-            // Horizontal wall - normal is perpendicular to X axis
-            if local_z > 0.0 { (0.0, 1.0) } else { (0.0, -1.0) }
-        } else {
-            // Vertical wall - normal is perpendicular to Z axis
-            if local_x > 0.0 { (1.0, 0.0) } else { (-1.0, 0.0) }
-        };
-        // Clamp t_min to [0.0, 1.0] for the collision time
-        let t_collision = t_min.clamp(0.0, 1.0);
-        Some((normal_x, normal_z, t_collision))
-    } else {
-        None
-    }
+    let t_collision = t_enter.clamp(0.0, 1.0);
+    Some((hit_normal.0, hit_normal.1, hit_normal.2, t_collision))
 }
 
 // Check if a projectile hits a wall (simplified version without normal/time)
