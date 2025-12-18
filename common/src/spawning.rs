@@ -1,7 +1,8 @@
 use crate::{
-    collision::players::{sweep_player_vs_ramp_edges, sweep_player_vs_wall},
+    collision::players::sweep_player_vs_wall,
     constants::*,
     protocol::{Position, Ramp, Wall},
+    ramps::calculate_height_at_position,
 };
 use bevy_math::Vec3;
 
@@ -20,7 +21,7 @@ pub struct ProjectileSpawnInfo {
 // Calculate valid projectile spawn positions for a shot
 //
 // Returns a list of projectiles that should be spawned, excluding any that would
-// be blocked by walls or ramp edges.
+// be blocked by walls on the way from the muzzle to the spawn point.
 #[must_use]
 pub fn calculate_projectile_spawns(
     shooter_pos: &Position,
@@ -60,12 +61,26 @@ pub fn calculate_projectile_spawns(
             z: spawn_pos.z,
         };
 
-        let is_spawn_blocked = walls
+        let blocked_by_wall = walls
             .iter()
-            .any(|wall| sweep_player_vs_wall(shooter_pos, &spawn_position, wall))
-            || ramps
-                .iter()
-                .any(|ramp| sweep_player_vs_ramp_edges(shooter_pos, &spawn_position, ramp));
+            .any(|wall| sweep_player_vs_wall(shooter_pos, &spawn_position, wall));
+
+        // If the muzzle point sits inside the ramp volume (e.g., standing at the base facing the ramp), block the shot.
+        let blocked_by_ramp = ramps.iter().any(|ramp| {
+            let min_x = ramp.x1.min(ramp.x2);
+            let max_x = ramp.x1.max(ramp.x2);
+            let min_z = ramp.z1.min(ramp.z2);
+            let max_z = ramp.z1.max(ramp.z2);
+
+            if spawn_position.x < min_x || spawn_position.x > max_x || spawn_position.z < min_z || spawn_position.z > max_z {
+                return false;
+            }
+
+            let ramp_height = calculate_height_at_position(&[*ramp], spawn_position.x, spawn_position.z);
+            ramp_height > 0.0 && spawn_position.y - PROJECTILE_RADIUS <= ramp_height
+        });
+
+        let is_spawn_blocked = blocked_by_wall || blocked_by_ramp;
 
         // Skip this projectile if the spawn path is blocked by a wall
         if is_spawn_blocked {
