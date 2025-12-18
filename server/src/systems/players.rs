@@ -5,7 +5,9 @@ use crate::{
     systems::network::broadcast_to_all,
 };
 use common::{
-    collision::{calculate_wall_slide, check_player_ramp_edge_sweep, check_player_wall_sweep},
+    collision::{
+        players::{slide_player_along_obstacles, sweep_player_vs_ramp_edges, sweep_player_vs_wall},
+    },
     constants::{ALWAYS_PHASING, ALWAYS_SPEED, POWER_UP_SPEED_MULTIPLIER, ROOF_HEIGHT},
     markers::PlayerMarker,
     players::{overlaps_other_player, PlannedMove},
@@ -98,15 +100,15 @@ pub fn players_movement_system(
         // Check wall collision and calculate target (with sliding if hit)
         let hits_wall = walls_to_check
             .iter()
-            .any(|wall| check_player_wall_sweep(pos, &new_pos_xz, wall))
+            .any(|wall| sweep_player_vs_wall(pos, &new_pos_xz, wall))
             || grid_config
                 .ramps
                 .iter()
-                .any(|ramp| check_player_ramp_edge_sweep(pos, &new_pos_xz, ramp));
+                .any(|ramp| sweep_player_vs_ramp_edges(pos, &new_pos_xz, ramp));
 
         let (target_xz, hits_wall) = if hits_wall {
             (
-                calculate_wall_slide(&walls_to_check, &grid_config.ramps, pos, velocity.x, velocity.z, delta),
+                slide_player_along_obstacles(&walls_to_check, &grid_config.ramps, pos, velocity.x, velocity.z, delta),
                 true,
             )
         } else {

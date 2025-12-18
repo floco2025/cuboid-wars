@@ -9,8 +9,10 @@ use crate::{
 };
 use common::{
     collision::{
-        calculate_ghost_slide, check_ghost_player_overlap, check_ghost_ramp_edge_sweep,
-        check_ghost_wall_overlap, check_player_wall_sweep,
+        ghosts::{
+            overlap_ghost_vs_player, overlap_ghost_vs_wall, slide_ghost_along_obstacles, sweep_ghost_vs_ramp_edges,
+        },
+        players::sweep_player_vs_wall,
     },
     constants::*,
     markers::{GhostMarker, PlayerMarker},
@@ -361,7 +363,7 @@ fn find_visible_moving_player(
 fn has_line_of_sight(from: &Position, to: &Position, walls: &[Wall]) -> bool {
     // Use swept collision check to see if any wall blocks the path
     for wall in walls {
-        if check_player_wall_sweep(from, to, wall) {
+        if sweep_player_vs_wall(from, to, wall) {
             return false;
         }
     }
@@ -590,7 +592,7 @@ fn follow_movement(
     let mut collides = false;
 
     for wall in walls {
-        if check_ghost_wall_overlap(&final_pos, wall) {
+        if overlap_ghost_vs_wall(&final_pos, wall) {
             collides = true;
             break;
         }
@@ -599,7 +601,7 @@ fn follow_movement(
     // Check ramp edge collisions
     if !collides {
         for ramp in &grid_config.ramps {
-            if check_ghost_ramp_edge_sweep(pos, &final_pos, ramp) {
+            if sweep_ghost_vs_ramp_edges(pos, &final_pos, ramp) {
                 collides = true;
                 break;
             }
@@ -607,7 +609,7 @@ fn follow_movement(
     }
 
     if collides {
-        final_pos = calculate_ghost_slide(walls, &grid_config.ramps, pos, desired_vel.x, desired_vel.z, delta);
+        final_pos = slide_ghost_along_obstacles(walls, &grid_config.ramps, pos, desired_vel.x, desired_vel.z, delta);
     }
 
     let actual_dx = final_pos.x - pos.x;
@@ -681,7 +683,7 @@ pub fn ghost_player_collision_system(
                 continue; // Ghost is targeting someone else
             }
 
-            if check_ghost_player_overlap(ghost_pos, player_position) {
+            if overlap_ghost_vs_player(ghost_pos, player_position) {
                 player_hits.push((*player_id, *ghost_id));
                 break; // Only one hit per frame
             }

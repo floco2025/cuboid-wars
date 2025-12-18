@@ -1,5 +1,5 @@
 use crate::{
-    collision::{check_player_ramp_edge_sweep, check_player_wall_sweep},
+    collision::players::{sweep_player_vs_ramp_edges, sweep_player_vs_wall},
     constants::*,
     protocol::{Position, Ramp, Wall},
 };
@@ -62,10 +62,10 @@ pub fn calculate_projectile_spawns(
 
         let is_spawn_blocked = walls
             .iter()
-            .any(|wall| check_player_wall_sweep(shooter_pos, &spawn_position, wall))
+            .any(|wall| sweep_player_vs_wall(shooter_pos, &spawn_position, wall))
             || ramps
                 .iter()
-                .any(|ramp| check_player_ramp_edge_sweep(shooter_pos, &spawn_position, ramp));
+                .any(|ramp| sweep_player_vs_ramp_edges(shooter_pos, &spawn_position, ramp));
 
         // Skip this projectile if the spawn path is blocked by a wall
         if is_spawn_blocked {

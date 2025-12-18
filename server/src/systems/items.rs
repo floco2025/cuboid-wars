@@ -9,7 +9,7 @@ use crate::{
     resources::{GridConfig, ItemInfo, ItemMap, ItemSpawner, PlayerMap},
 };
 use common::{
-    collision::check_player_item_overlap,
+    collision::items::overlap_player_vs_item,
     constants::{
         ALWAYS_GHOST_HUNT, ALWAYS_MULTI_SHOT, ALWAYS_PHASING,
         ALWAYS_REFLECT, ALWAYS_SPEED, GRID_COLS, GRID_ROWS,
@@ -172,7 +172,7 @@ pub fn item_collection_system(
             // Check against all players
             for (player_id, player_info) in &players.0 {
                 if let Ok(player_pos) = player_positions.get(player_info.entity)
-                    && check_player_item_overlap(player_pos, item_pos, ITEM_COLLECTION_RADIUS)
+                    && overlap_player_vs_item(player_pos, item_pos, ITEM_COLLECTION_RADIUS)
                 {
                     return Some((*player_id, *item_id, item_info.item_type));
                 }

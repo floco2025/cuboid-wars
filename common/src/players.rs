@@ -1,6 +1,6 @@
 use bevy_ecs::prelude::*;
 
-use crate::{collision::check_player_player_sweep, protocol::Position};
+use crate::{collision::players::sweep_player_vs_player, protocol::Position};
 
 // ============================================================================
 // Planned Move - Used in two-pass movement system
@@ -22,6 +22,6 @@ pub fn overlaps_other_player(candidate: &PlannedMove, planned_moves: &[PlannedMo
         .iter()
         .any(|other| {
             other.entity != candidate.entity
-                && check_player_player_sweep(&candidate.start, &candidate.target, &other.start, &other.target)
+                && sweep_player_vs_player(&candidate.start, &candidate.target, &other.start, &other.target)
         })
 }

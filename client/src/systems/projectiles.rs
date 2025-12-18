@@ -6,10 +6,7 @@ use bevy::{
 use super::players::LocalPlayerMarker;
 use crate::resources::{PlayerMap, WallConfig};
 use common::{
-    collision::{
-        check_projectile_ghost_sweep_hit, check_projectile_player_sweep_hit,
-        Projectile,
-    },
+    collision::projectile::{projectile_hits_ghost, sweep_projectile_vs_player, Projectile},
     constants::ALWAYS_GHOST_HUNT,
     markers::{GhostMarker, PlayerMarker, ProjectileMarker},
     protocol::{FaceDirection, PlayerId, Position},
@@ -40,7 +37,7 @@ fn handle_ghost_collisions(
     }
 
     for ghost_pos in ghost_query.iter() {
-        if check_projectile_ghost_sweep_hit(projectile_pos, projectile, delta, ghost_pos) {
+        if projectile_hits_ghost(projectile_pos, projectile, delta, ghost_pos) {
             play_sound(
                 commands,
                 asset_server,
@@ -66,7 +63,7 @@ fn handle_player_collisions(
     player_query: &Query<(Entity, &Position, &FaceDirection, Has<LocalPlayerMarker>), With<PlayerMarker>>,
 ) -> bool {
     for (_player_entity, player_pos, face_dir, is_local_player) in player_query.iter() {
-        let result = check_projectile_player_sweep_hit(projectile_pos, projectile, delta, player_pos, face_dir.0);
+        let result = sweep_projectile_vs_player(projectile_pos, projectile, delta, player_pos, face_dir.0);
         if result.hit {
             play_sound(
                 commands,

@@ -5,10 +5,7 @@ use crate::{
     resources::{GhostMap, GhostMode, GridConfig, PlayerMap},
 };
 use common::{
-    collision::{
-        check_projectile_ghost_sweep_hit, check_projectile_player_sweep_hit,
-        Projectile,
-    },
+    collision::projectile::{projectile_hits_ghost, sweep_projectile_vs_player, Projectile},
     constants::ALWAYS_GHOST_HUNT,
     markers::{GhostMarker, PlayerMarker, ProjectileMarker},
     protocol::*,
@@ -153,7 +150,7 @@ pub fn projectiles_movement_system(
                 }
 
                 // Check collision
-                if check_projectile_ghost_sweep_hit(&proj_pos, &projectile, delta, ghost_pos) {
+                if projectile_hits_ghost(&proj_pos, &projectile, delta, ghost_pos) {
                     // Update shooter
                     if let Some(shooter_info) = players.0.get_mut(shooter_id) {
                         shooter_info.hits += GHOST_HIT_REWARD;
@@ -193,7 +190,7 @@ pub fn projectiles_movement_system(
         // Check player collisions
         for player in player_query.iter() {
             // Use common hit detection logic
-            let result = check_projectile_player_sweep_hit(
+            let result = sweep_projectile_vs_player(
                 &proj_pos,
                 &projectile,
                 delta,

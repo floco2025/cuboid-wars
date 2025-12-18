@@ -1,0 +1,98 @@
+use super::helpers::{overlap_aabb_vs_wall, slide_along_axes, sweep_aabb_vs_aabb, sweep_aabb_vs_wall, sweep_ramp_edges};
+use crate::{
+    constants::{PLAYER_DEPTH, PLAYER_HEIGHT, PLAYER_WIDTH, RAMP_EDGE_WIDTH},
+    protocol::{Position, Ramp, Wall},
+    ramps::calculate_height_at_position,
+};
+
+#[must_use]
+pub fn overlap_player_vs_wall(player_pos: &Position, wall: &Wall) -> bool {
+    overlap_aabb_vs_wall(player_pos, wall, PLAYER_WIDTH / 2.0, PLAYER_DEPTH / 2.0)
+}
+
+#[must_use]
+pub fn sweep_player_vs_wall(start_pos: &Position, end_pos: &Position, wall: &Wall) -> bool {
+    sweep_aabb_vs_wall(start_pos, end_pos, wall, PLAYER_WIDTH / 2.0, PLAYER_DEPTH / 2.0)
+}
+
+#[must_use]
+pub fn sweep_player_vs_ramp_edges(start_pos: &Position, end_pos: &Position, ramp: &Ramp) -> bool {
+    sweep_ramp_edges(
+        start_pos,
+        end_pos,
+        ramp,
+        PLAYER_WIDTH / 2.0,
+        PLAYER_DEPTH / 2.0,
+        RAMP_EDGE_WIDTH / 2.0,
+    )
+}
+
+#[must_use]
+pub fn slide_player_along_obstacles(
+    walls: &[Wall],
+    ramps: &[Ramp],
+    current_pos: &Position,
+    velocity_x: f32,
+    velocity_z: f32,
+    delta: f32,
+) -> Position {
+    slide_player(current_pos, velocity_x, velocity_z, delta, walls, ramps)
+}
+
+#[must_use]
+pub fn sweep_player_vs_player(start1: &Position, end1: &Position, start2: &Position, end2: &Position) -> bool {
+    sweep_aabb_vs_aabb(
+        start1,
+        end1,
+        start2,
+        end2,
+        PLAYER_WIDTH,
+        PLAYER_DEPTH,
+        PLAYER_HEIGHT,
+    )
+}
+
+// --- private helpers ---
+fn slide_player(
+    current_pos: &Position,
+    velocity_x: f32,
+    velocity_z: f32,
+    delta: f32,
+    walls: &[Wall],
+    ramps: &[Ramp],
+) -> Position {
+    slide_along_axes(
+        current_pos,
+        velocity_x,
+        velocity_z,
+        delta,
+        |dt| {
+            let x = velocity_x.mul_add(dt, current_pos.x);
+            Position {
+                x,
+                y: calculate_height_at_position(ramps, x, current_pos.z),
+                z: current_pos.z,
+            }
+        },
+        |dt| {
+            let z = velocity_z.mul_add(dt, current_pos.z);
+            Position {
+                x: current_pos.x,
+                y: calculate_height_at_position(ramps, current_pos.x, z),
+                z,
+            }
+        },
+        |candidate| {
+            walls
+                .iter()
+                .any(|w| sweep_player_vs_wall(current_pos, candidate, w))
+                || ramps.iter().any(|r| sweep_player_vs_ramp_edges(current_pos, candidate, r))
+        },
+        |candidate| {
+            walls
+                .iter()
+                .any(|w| sweep_player_vs_wall(current_pos, candidate, w))
+                || ramps.iter().any(|r| sweep_player_vs_ramp_edges(current_pos, candidate, r))
+        },
+    )
+}

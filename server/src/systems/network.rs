@@ -6,7 +6,7 @@ use crate::{
     resources::{FromAcceptChannel, FromClientsChannel, GhostMap, GridConfig, ItemMap, PlayerInfo, PlayerMap},
 };
 use common::{
-    collision::{Projectile, check_player_wall_overlap},
+    collision::{players::overlap_player_vs_wall, projectile::Projectile},
     constants::*,
     markers::{PlayerMarker, ProjectileMarker},
     protocol::*,
@@ -143,7 +143,7 @@ fn generate_spawn_position(grid_config: &GridConfig) -> Position {
         let intersects = grid_config
             .all_walls
             .iter()
-            .any(|wall| check_player_wall_overlap(&pos, wall));
+            .any(|wall| overlap_player_vs_wall(&pos, wall));
 
         // Check if position is on a ramp
         let on_ramp = is_on_ramp(&grid_config.ramps, pos.x, pos.z);
