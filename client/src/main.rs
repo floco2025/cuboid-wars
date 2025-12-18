@@ -94,6 +94,7 @@ fn main() -> Result<()> {
     .insert_resource(PlayerMap::default())
     .insert_resource(ItemMap::default())
     .insert_resource(GhostMap::default())
+    .insert_resource(LocalPlayerInfo::default())
     .insert_resource(RoundTripTime::default())
     .insert_resource(FpsMeasurement::default())
     .insert_resource(LastUpdateSeq::default())

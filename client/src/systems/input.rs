@@ -9,7 +9,7 @@ use super::players::{LocalPlayerMarker, MainCameraMarker, PlayerMovementMut};
 use crate::{
     constants::*,
     net::ClientToServer,
-    resources::{CameraViewMode, ClientToServerChannel, InputSettings, MyPlayerId, PlayerMap, RoofRenderingEnabled, WallConfig},
+    resources::{CameraViewMode, ClientToServerChannel, InputSettings, LocalPlayerInfo, MyPlayerId, PlayerMap, RoofRenderingEnabled, WallConfig},
     spawning::spawn_projectiles,
 };
 use common::{
@@ -18,20 +18,6 @@ use common::{
     },
     protocol::*,
 };
-
-// ============================================================================
-// Input Movement System
-// ============================================================================
-
-#[derive(Default)]
-pub struct InputState {
-    last_sent_speed: Speed,
-    last_sent_face: f32,
-    last_send_speed_time: f32,
-    last_send_face_time: f32,
-    stored_yaw: f32,
-    stored_pitch: f32,
-}
 
 const MAX_PITCH: f32 = std::f32::consts::FRAC_PI_2 - 0.05;
 
@@ -45,7 +31,7 @@ pub fn input_movement_system(
     my_player_id: Option<Res<MyPlayerId>>,
     players: Res<PlayerMap>,
     input_settings: Res<InputSettings>,
-    mut local_state: Local<InputState>,
+        mut local_player_info: ResMut<LocalPlayerInfo>,
     mut local_player_query: Query<PlayerMovementMut, With<LocalPlayerMarker>>,
     mut camera_query: Query<&mut Transform, (With<Camera3d>, With<MainCameraMarker>)>,
     view_mode: Res<CameraViewMode>,
@@ -58,7 +44,7 @@ pub fn input_movement_system(
             &to_server,
             my_player_id.as_ref(),
             &players,
-            &mut local_state,
+                &mut local_player_info,
             &mut local_player_query,
         );
         return;
@@ -68,7 +54,7 @@ pub fn input_movement_system(
         &mut mouse_motion,
         &camera_query,
         &view_mode,
-        &mut local_state,
+            &mut local_player_info,
         input_settings.invert_pitch,
     );
     let face_yaw = current_yaw + std::f32::consts::PI;
@@ -82,7 +68,7 @@ pub fn input_movement_system(
         &mut local_player_query,
     );
 
-    send_throttled_updates(speed, face_yaw, &time, &to_server, &mut local_state);
+        send_throttled_updates(speed, face_yaw, &time, &to_server, &mut local_player_info);
 
     if *view_mode == CameraViewMode::FirstPerson {
         for mut transform in &mut camera_query {
@@ -96,13 +82,13 @@ fn handle_unlocked_cursor(
     to_server: &Res<ClientToServerChannel>,
     my_player_id: Option<&Res<MyPlayerId>>,
     players: &Res<PlayerMap>,
-    local_state: &mut Local<InputState>,
+    local_player_info: &mut LocalPlayerInfo,
     local_player_query: &mut Query<PlayerMovementMut, With<LocalPlayerMarker>>,
 ) {
     // Drain pending mouse events and ensure player stops moving
     for _ in mouse_motion.read() {}
 
-    if local_state.last_sent_speed.speed_level != SpeedLevel::Idle {
+    if local_player_info.last_sent_speed.speed_level != SpeedLevel::Idle {
         let speed = Speed {
             speed_level: SpeedLevel::Idle,
             move_dir: 0.0,
@@ -122,8 +108,8 @@ fn handle_unlocked_cursor(
         }
         let msg = ClientMessage::Speed(CSpeed { speed });
         let _ = to_server.send(ClientToServer::Send(msg));
-        local_state.last_sent_speed = speed;
-        local_state.last_send_speed_time = 0.0;
+        local_player_info.last_sent_speed = speed;
+        local_player_info.last_send_speed_time = 0.0;
     }
 }
 
@@ -131,7 +117,7 @@ fn calculate_current_orientation(
     mouse_motion: &mut MessageReader<MouseMotion>,
     camera_query: &Query<&mut Transform, (With<Camera3d>, With<MainCameraMarker>)>,
     view_mode: &Res<CameraViewMode>,
-    local_state: &mut Local<InputState>,
+    local_player_info: &mut LocalPlayerInfo,
     invert_pitch: bool,
 ) -> (f32, f32) {
     let pitch_sign = if invert_pitch { MOUSE_SENSITIVITY } else { -MOUSE_SENSITIVITY };
@@ -143,7 +129,7 @@ fn calculate_current_orientation(
         let (yaw, pitch, _roll) = transform.rotation.to_euler(EulerRot::YXZ);
         (yaw, pitch)
     } else {
-        (local_state.stored_yaw, local_state.stored_pitch)
+        (local_player_info.stored_yaw, local_player_info.stored_pitch)
     };
 
     // Apply mouse delta to yaw/pitch (pitch only in first-person)
@@ -160,8 +146,8 @@ fn calculate_current_orientation(
         current_pitch = current_pitch.clamp(-MAX_PITCH, MAX_PITCH);
     }
 
-    local_state.stored_yaw = current_yaw;
-    local_state.stored_pitch = current_pitch;
+    local_player_info.stored_yaw = current_yaw;
+    local_player_info.stored_pitch = current_pitch;
     (current_yaw, current_pitch)
 }
 
@@ -243,29 +229,31 @@ fn send_throttled_updates(
     face_yaw: f32,
     time: &Res<Time>,
     to_server: &Res<ClientToServerChannel>,
-    local_state: &mut Local<InputState>,
+    local_player_info: &mut LocalPlayerInfo,
 ) {
     // Throttle network updates when movement/face changes
     let delta = time.delta_secs();
-    local_state.last_send_speed_time += delta;
-    local_state.last_send_face_time += delta;
+    local_player_info.last_send_speed_time += delta;
+    local_player_info.last_send_face_time += delta;
 
-    let speed_level_changed = local_state.last_sent_speed.speed_level != speed.speed_level;
+    let speed_level_changed = local_player_info.last_sent_speed.speed_level != speed.speed_level;
     let move_dir_changed =
-        (speed.move_dir - local_state.last_sent_speed.move_dir).abs() > SPEED_DIR_CHANGE_THRESHOLD.to_radians();
-    if speed_level_changed || (move_dir_changed && local_state.last_send_speed_time >= SPEED_MAX_SEND_INTERVAL) {
+        (speed.move_dir - local_player_info.last_sent_speed.move_dir).abs() > SPEED_DIR_CHANGE_THRESHOLD.to_radians();
+    if speed_level_changed
+        || (move_dir_changed && local_player_info.last_send_speed_time >= SPEED_MAX_SEND_INTERVAL)
+    {
         let msg = ClientMessage::Speed(CSpeed { speed });
         let _ = to_server.send(ClientToServer::Send(msg));
-        local_state.last_sent_speed = speed;
-        local_state.last_send_speed_time = 0.0;
+        local_player_info.last_sent_speed = speed;
+        local_player_info.last_send_speed_time = 0.0;
     }
 
-    let face_changed = (face_yaw - local_state.last_sent_face).abs() > FACE_CHANGE_THRESHOLD.to_radians();
-    if face_changed && local_state.last_send_face_time >= FACE_MAX_SEND_INTERVAL {
+    let face_changed = (face_yaw - local_player_info.last_sent_face).abs() > FACE_CHANGE_THRESHOLD.to_radians();
+    if face_changed && local_player_info.last_send_face_time >= FACE_MAX_SEND_INTERVAL {
         let msg = ClientMessage::Face(CFace { dir: face_yaw });
         let _ = to_server.send(ClientToServer::Send(msg));
-        local_state.last_sent_face = face_yaw;
-        local_state.last_send_face_time = 0.0;
+        local_player_info.last_sent_face = face_yaw;
+        local_player_info.last_send_face_time = 0.0;
     }
 }
 
@@ -288,7 +276,7 @@ pub fn input_shooting_system(
     wall_config: Option<Res<WallConfig>>,
     view_mode: Res<CameraViewMode>,
     time: Res<Time>,
-    mut last_shot_time: Local<f32>,
+    mut local_player_info: ResMut<LocalPlayerInfo>,
 ) {
     // Only allow shooting when cursor is locked
     let cursor_locked = cursor_options.grab_mode != CursorGrabMode::None;
@@ -310,7 +298,7 @@ pub fn input_shooting_system(
         };
 
         // Client-side cooldown guard (server still authoritative)
-        if now - *last_shot_time < PROJECTILE_COOLDOWN_TIME {
+        if now - local_player_info.last_shot_time < PROJECTILE_COOLDOWN_TIME {
             // Play dry click feedback when throttled locally
             commands.spawn((
                 AudioPlayer::new(asset_server.load("sounds/player_dry_click.ogg")),
@@ -319,7 +307,7 @@ pub fn input_shooting_system(
             return;
         }
 
-        *last_shot_time = now;
+        local_player_info.last_shot_time = now;
 
         // Play shooting sound
         commands.spawn((

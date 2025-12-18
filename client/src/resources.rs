@@ -9,7 +9,7 @@ use tokio::sync::mpsc::{
 };
 
 use crate::net::{ClientToServer, ServerToClient};
-use common::protocol::{GhostId, ItemId, PlayerId, Ramp, Roof, Wall};
+use common::protocol::{GhostId, ItemId, PlayerId, Ramp, Roof, Speed, SpeedLevel, Wall};
 
 // ============================================================================
 // Bevy Resources
@@ -85,6 +85,35 @@ pub struct GhostMap(pub HashMap<GhostId, GhostInfo>);
 // Last received SUpdate sequence number
 #[derive(Resource, Default)]
 pub struct LastUpdateSeq(pub u32);
+
+// Client-only local player state (not synced)
+#[derive(Resource)]
+pub struct LocalPlayerInfo {
+    pub last_shot_time: f32,
+    pub last_sent_speed: Speed,
+    pub last_sent_face: f32,
+    pub last_send_speed_time: f32,
+    pub last_send_face_time: f32,
+    pub stored_yaw: f32,
+    pub stored_pitch: f32,
+}
+
+impl Default for LocalPlayerInfo {
+    fn default() -> Self {
+        Self {
+            last_shot_time: f32::NEG_INFINITY,
+            last_sent_speed: Speed {
+                speed_level: SpeedLevel::Idle,
+                move_dir: 0.0,
+            },
+            last_sent_face: 0.0,
+            last_send_speed_time: 0.0,
+            last_send_face_time: 0.0,
+            stored_yaw: 0.0,
+            stored_pitch: 0.0,
+        }
+    }
+}
 
 // FPS measurement tracking
 #[derive(Resource, Default)]
