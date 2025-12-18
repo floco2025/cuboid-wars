@@ -55,7 +55,7 @@ pub fn map_spawn_walls_system(
             &mut materials,
             &asset_server,
             wall,
-            &config.roofs,
+            &config.grid,
         );
     }
 

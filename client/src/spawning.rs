@@ -785,7 +785,7 @@ pub fn spawn_wall(
     materials: &mut ResMut<Assets<StandardMaterial>>,
     asset_server: &Res<AssetServer>,
     wall: &Wall,
-    roofs: &[Roof],
+    grid: &[Vec<GridCell>],
 ) {
     use rand::Rng;
 
@@ -842,30 +842,28 @@ pub fn spawn_wall(
         })
         .id();
 
-    // Spawn wall lights: one per grid cell that has a roof over it
-    // Determine if wall is horizontal (along X) or vertical (along Z)
+    // Spawn wall lights using per-cell roof data from GridConfig
     let is_horizontal = dx.abs() > dz.abs();
 
     if is_horizontal {
-        // Wall runs along X axis - iterate through X positions
+        let row_line = ((center_z + FIELD_DEPTH / 2.0) / GRID_SIZE).round() as i32;
+        if row_line < 0 || row_line > GRID_ROWS {
+            return;
+        }
+
         let x_min = wall.x1.min(wall.x2);
         let x_max = wall.x1.max(wall.x2);
-        let wall_z = center_z;
 
-        // Find all grid cells this wall passes through
-        let grid_start = (x_min / GRID_SIZE).floor() as i32;
-        let grid_end = (x_max / GRID_SIZE).floor() as i32;
+        let start_col_line = (((x_min + FIELD_WIDTH / 2.0) / GRID_SIZE).round() as i32).clamp(0, GRID_COLS);
+        let end_col_line = (((x_max + FIELD_WIDTH / 2.0) / GRID_SIZE).round() as i32).clamp(0, GRID_COLS);
 
-        for grid_x in grid_start..=grid_end {
-            // Calculate center of this grid cell on the wall
-            let grid_center_x = (grid_x as f32 + 0.5) * GRID_SIZE;
-
-            // Skip if grid center is outside wall bounds
-            if grid_center_x < x_min || grid_center_x > x_max {
+        for col_line in start_col_line..end_col_line {
+            if col_line < 0 || col_line >= GRID_COLS {
                 continue;
             }
 
-            let (needs_pos, needs_neg) = light_sides_for_horizontal(grid_center_x, wall_z, mesh_size_z, roofs);
+            let grid_center_x = (col_line as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+            let (needs_pos, needs_neg) = light_sides_for_horizontal(row_line, col_line, grid);
 
             if needs_pos {
                 spawn_wall_light(
@@ -873,7 +871,7 @@ pub fn spawn_wall(
                     asset_server,
                     wall_entity,
                     grid_center_x,
-                    wall_z,
+                    center_z,
                     center_x,
                     center_z,
                     rotation,
@@ -888,7 +886,7 @@ pub fn spawn_wall(
                     asset_server,
                     wall_entity,
                     grid_center_x,
-                    wall_z,
+                    center_z,
                     center_x,
                     center_z,
                     rotation,
@@ -898,32 +896,31 @@ pub fn spawn_wall(
             }
         }
     } else {
-        // Wall runs along Z axis - iterate through Z positions
+        let col_line = ((center_x + FIELD_WIDTH / 2.0) / GRID_SIZE).round() as i32;
+        if col_line < 0 || col_line > GRID_COLS {
+            return;
+        }
+
         let z_min = wall.z1.min(wall.z2);
         let z_max = wall.z1.max(wall.z2);
-        let wall_x = center_x;
 
-        // Find all grid cells this wall passes through
-        let grid_start = (z_min / GRID_SIZE).floor() as i32;
-        let grid_end = (z_max / GRID_SIZE).floor() as i32;
+        let start_row_line = (((z_min + FIELD_DEPTH / 2.0) / GRID_SIZE).round() as i32).clamp(0, GRID_ROWS);
+        let end_row_line = (((z_max + FIELD_DEPTH / 2.0) / GRID_SIZE).round() as i32).clamp(0, GRID_ROWS);
 
-        for grid_z in grid_start..=grid_end {
-            // Calculate center of this grid cell on the wall
-            let grid_center_z = (grid_z as f32 + 0.5) * GRID_SIZE;
-
-            // Skip if grid center is outside wall bounds
-            if grid_center_z < z_min || grid_center_z > z_max {
+        for row_line in start_row_line..end_row_line {
+            if row_line < 0 || row_line >= GRID_ROWS {
                 continue;
             }
 
-            let (needs_pos, needs_neg) = light_sides_for_vertical(wall_x, grid_center_z, mesh_size_z, roofs);
+            let grid_center_z = (row_line as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+            let (needs_pos, needs_neg) = light_sides_for_vertical(row_line, col_line, grid);
 
             if needs_pos {
                 spawn_wall_light(
                     commands,
                     asset_server,
                     wall_entity,
-                    wall_x,
+                    center_x,
                     grid_center_z,
                     center_x,
                     center_z,
@@ -938,7 +935,7 @@ pub fn spawn_wall(
                     commands,
                     asset_server,
                     wall_entity,
-                    wall_x,
+                    center_x,
                     grid_center_z,
                     center_x,
                     center_z,
@@ -1013,77 +1010,45 @@ fn spawn_wall_light(
 }
 
 // Decide which sides of a horizontal wall (runs along X) need lights for a given grid cell.
-fn light_sides_for_horizontal(grid_center_x: f32, wall_z: f32, wall_width: f32, roofs: &[Roof]) -> (bool, bool) {
-    let half_thickness = wall_width * 0.5 + 0.02;
-    let mut needs_pos = false;
-    let mut needs_neg = false;
-
-    for roof in roofs {
-        let roof_min_x = roof.x1.min(roof.x2);
-        let roof_max_x = roof.x1.max(roof.x2);
-        let roof_min_z = roof.z1.min(roof.z2);
-        let roof_max_z = roof.z1.max(roof.z2);
-
-        // Require the cell center to be inside the roof X span, and the wall line (with small thickness) inside Z span
-        let within_x = grid_center_x >= roof_min_x - 0.01 && grid_center_x <= roof_max_x + 0.01;
-        let within_z = wall_z + half_thickness >= roof_min_z - 0.01 && wall_z - half_thickness <= roof_max_z + 0.01;
-        if !within_x || !within_z {
-            continue;
-        }
-
-        // Side choice: if roof spans across wall thickness, light both; else pick by roof center
-        let roof_crosses = roof_min_z <= wall_z - half_thickness && roof_max_z >= wall_z + half_thickness;
-        if roof_crosses {
-            needs_pos = true;
-            needs_neg = true;
-        } else {
-            let roof_center_z = (roof_min_z + roof_max_z) * 0.5;
-            if roof_center_z >= wall_z {
-                needs_pos = true;
-            } else {
-                needs_neg = true;
-            }
-        }
+fn light_sides_for_horizontal(row_line: i32, col: i32, grid: &[Vec<GridCell>]) -> (bool, bool) {
+    if col < 0 || col >= GRID_COLS {
+        return (false, false);
     }
 
-    (needs_pos, needs_neg)
+    let south_roof = if row_line >= 0 && row_line < GRID_ROWS {
+        grid[row_line as usize][col as usize].has_roof
+    } else {
+        false
+    };
+
+    let north_roof = if row_line > 0 && row_line <= GRID_ROWS {
+        grid[(row_line - 1) as usize][col as usize].has_roof
+    } else {
+        false
+    };
+
+    (south_roof, north_roof)
 }
 
 // Decide which sides of a vertical wall (runs along Z) need lights for a given grid cell.
-fn light_sides_for_vertical(wall_x: f32, grid_center_z: f32, wall_width: f32, roofs: &[Roof]) -> (bool, bool) {
-    let half_thickness = wall_width * 0.5 + 0.02;
-    let mut needs_pos = false;
-    let mut needs_neg = false;
-
-    for roof in roofs {
-        let roof_min_x = roof.x1.min(roof.x2);
-        let roof_max_x = roof.x1.max(roof.x2);
-        let roof_min_z = roof.z1.min(roof.z2);
-        let roof_max_z = roof.z1.max(roof.z2);
-
-        // Require the cell center to be inside the roof Z span, and the wall line (with small thickness) inside X span
-        let within_z = grid_center_z >= roof_min_z - 0.01 && grid_center_z <= roof_max_z + 0.01;
-        let within_x = wall_x + half_thickness >= roof_min_x - 0.01 && wall_x - half_thickness <= roof_max_x + 0.01;
-        if !within_x || !within_z {
-            continue;
-        }
-
-        // Side choice: if roof spans across wall thickness, light both; else pick by roof center
-        let roof_crosses = roof_min_x <= wall_x - half_thickness && roof_max_x >= wall_x + half_thickness;
-        if roof_crosses {
-            needs_pos = true;
-            needs_neg = true;
-        } else {
-            let roof_center_x = (roof_min_x + roof_max_x) * 0.5;
-            if roof_center_x >= wall_x {
-                needs_pos = true;
-            } else {
-                needs_neg = true;
-            }
-        }
+fn light_sides_for_vertical(row: i32, col_line: i32, grid: &[Vec<GridCell>]) -> (bool, bool) {
+    if row < 0 || row >= GRID_ROWS {
+        return (false, false);
     }
 
-    (needs_pos, needs_neg)
+    let east_roof = if col_line >= 0 && col_line < GRID_COLS {
+        grid[row as usize][col_line as usize].has_roof
+    } else {
+        false
+    };
+
+    let west_roof = if col_line > 0 && col_line <= GRID_COLS {
+        grid[row as usize][(col_line - 1) as usize].has_roof
+    } else {
+        false
+    };
+
+    (east_roof, west_roof)
 }
 
 // Spawn a roof entity based on a shared `Roof` config.
