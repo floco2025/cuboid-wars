@@ -233,27 +233,42 @@ pub fn generate_individual_roofs(
             let mut z1 = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
             let mut z2 = ((row + 1) as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
 
-            // West: extend if no west neighbor roof
+            // Neighbor checks for overlap control
             let neighbor_w = col > 0 && roof_cells.contains(&(row, col - 1));
-            if !neighbor_w {
+            let neighbor_e = col < grid_cols - 1 && roof_cells.contains(&(row, col + 1));
+            let neighbor_n = row > 0 && roof_cells.contains(&(row - 1, col));
+            let neighbor_s = row < grid_rows - 1 && roof_cells.contains(&(row + 1, col));
+
+            let neighbor_nw = row > 0 && col > 0 && roof_cells.contains(&(row - 1, col - 1));
+            let neighbor_ne = row > 0 && col < grid_cols - 1 && roof_cells.contains(&(row - 1, col + 1));
+            let neighbor_sw = row < grid_rows - 1 && col > 0 && roof_cells.contains(&(row + 1, col - 1));
+            let neighbor_se = row < grid_rows - 1 && col < grid_cols - 1 && roof_cells.contains(&(row + 1, col + 1));
+
+            // Decide which sides can extend; suppress diagonal corner overlaps
+            let extend_w = !neighbor_w;
+            let extend_e = !neighbor_e;
+            let mut extend_n = !neighbor_n;
+            let mut extend_s = !neighbor_s;
+
+            // For diagonal neighbors, trim the axis pointing toward them (vertical for north/south diagonals)
+            // to prevent corner overlap while keeping lateral length where possible.
+            if neighbor_nw || neighbor_ne {
+                extend_n = false;
+            }
+            if neighbor_sw || neighbor_se {
+                extend_s = false;
+            }
+
+            if extend_w {
                 x1 -= WALL_THICKNESS / 2.0;
             }
-
-            // East: extend if no east neighbor roof
-            let neighbor_e = col < grid_cols - 1 && roof_cells.contains(&(row, col + 1));
-            if !neighbor_e {
+            if extend_e {
                 x2 += WALL_THICKNESS / 2.0;
             }
-
-            // North: extend if no north neighbor roof
-            let neighbor_n = row > 0 && roof_cells.contains(&(row - 1, col));
-            if !neighbor_n {
+            if extend_n {
                 z1 -= WALL_THICKNESS / 2.0;
             }
-
-            // South: extend if no south neighbor roof
-            let neighbor_s = row < grid_rows - 1 && roof_cells.contains(&(row + 1, col));
-            if !neighbor_s {
+            if extend_s {
                 z2 += WALL_THICKNESS / 2.0;
             }
 

@@ -78,8 +78,8 @@ pub const TEXTURE_FLOOR_NORMAL: &str = "textures/floor-normal-dx.png";
 pub const TEXTURE_FLOOR_AO: &str = "textures/floor-ao.png";
 
 // Visual settings for debugging
-pub const RANDOM_WALL_COLORS: bool = false;
-pub const RANDOM_ROOF_COLORS: bool = false;
+pub const RANDOM_WALL_COLORS: bool = true;
+pub const RANDOM_ROOF_COLORS: bool = true;
 pub const GRID_LINES: bool = false;
 
 // Cookie visual settings
