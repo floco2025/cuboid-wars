@@ -1,4 +1,6 @@
-use super::helpers::{overlap_aabb_vs_wall, slide_along_axes, sweep_aabb_vs_aabb, sweep_aabb_vs_wall, sweep_ramp_edges};
+use super::helpers::{
+    overlap_aabb_vs_wall, slide_along_axes, sweep_aabb_vs_aabb, sweep_aabb_vs_wall, sweep_ramp_edges, sweep_ramp_high_cap,
+};
 use crate::{
     constants::{PLAYER_DEPTH, PLAYER_HEIGHT, PLAYER_WIDTH, RAMP_EDGE_WIDTH},
     protocol::{Position, Ramp, Wall},
@@ -17,14 +19,12 @@ pub fn sweep_player_vs_wall(start_pos: &Position, end_pos: &Position, wall: &Wal
 
 #[must_use]
 pub fn sweep_player_vs_ramp_edges(start_pos: &Position, end_pos: &Position, ramp: &Ramp) -> bool {
-    sweep_ramp_edges(
-        start_pos,
-        end_pos,
-        ramp,
-        PLAYER_WIDTH / 2.0,
-        PLAYER_DEPTH / 2.0,
-        RAMP_EDGE_WIDTH / 2.0,
-    )
+    let half_x = PLAYER_WIDTH / 2.0;
+    let half_z = PLAYER_DEPTH / 2.0;
+    let edge_half = RAMP_EDGE_WIDTH / 2.0;
+
+    sweep_ramp_edges(start_pos, end_pos, ramp, half_x, half_z, edge_half)
+        || sweep_ramp_high_cap(start_pos, end_pos, ramp, half_x, half_z, edge_half)
 }
 
 #[must_use]

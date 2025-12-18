@@ -127,6 +127,69 @@ pub fn sweep_ramp_edges(
     }
 }
 
+// Swept AABB vs the high-side cap of a ramp (blocks entering through the tall face).
+pub fn sweep_ramp_high_cap(
+    start_pos: &Position,
+    end_pos: &Position,
+    ramp: &Ramp,
+    half_x: f32,
+    half_z: f32,
+    cap_half: f32,
+) -> bool {
+    let min_x = ramp.x1.min(ramp.x2);
+    let max_x = ramp.x1.max(ramp.x2);
+    let min_z = ramp.z1.min(ramp.z2);
+    let max_z = ramp.z1.max(ramp.z2);
+
+    let dx = (ramp.x2 - ramp.x1).abs();
+    let dz = (ramp.z2 - ramp.z1).abs();
+    let along_x = dx >= dz;
+    let high_along_positive = ramp.y2 >= ramp.y1;
+
+    let (center_x, center_z, half_x_cap, half_z_cap) = if along_x {
+        let high_x = if high_along_positive { ramp.x2 } else { ramp.x1 };
+        (
+            high_x,
+            (min_z + max_z) / 2.0,
+            cap_half,
+            (max_z - min_z) / 2.0,
+        )
+    } else {
+        let high_z = if high_along_positive { ramp.z2 } else { ramp.z1 };
+        (
+            (min_x + max_x) / 2.0,
+            high_z,
+            (max_x - min_x) / 2.0,
+            cap_half,
+        )
+    };
+
+    let dir_x = end_pos.x - start_pos.x;
+    let dir_z = end_pos.z - start_pos.z;
+
+    let local_x = start_pos.x - center_x;
+    let local_z = start_pos.z - center_z;
+
+    let mut t_min = 0.0_f32;
+    let mut t_max = 1.0_f32;
+
+    if let Some((new_min, new_max)) = sweep_slab_interval(local_x, dir_x, half_x + half_x_cap, t_min, t_max) {
+        t_min = new_min;
+        t_max = new_max;
+    } else {
+        return false;
+    }
+
+    if let Some((new_min, new_max)) = sweep_slab_interval(local_z, dir_z, half_z + half_z_cap, t_min, t_max) {
+        t_min = new_min;
+        t_max = new_max;
+    } else {
+        return false;
+    }
+
+    t_min <= t_max && t_max >= 0.0 && t_min <= 1.0
+}
+
 // Swept point vs axis-aligned cuboid; returns hit normal and collision time if within [0,1].
 pub fn sweep_point_vs_cuboid(
     proj_pos: &Position,

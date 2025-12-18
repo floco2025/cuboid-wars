@@ -1,4 +1,6 @@
-use super::helpers::{overlap_aabb_vs_wall, ranges_overlap_1d, slide_along_axes, sweep_aabb_vs_wall, sweep_ramp_edges};
+use super::helpers::{
+    overlap_aabb_vs_wall, ranges_overlap_1d, slide_along_axes, sweep_aabb_vs_wall, sweep_ramp_edges, sweep_ramp_high_cap,
+};
 use crate::{
     constants::{GHOST_SIZE, PLAYER_DEPTH, PLAYER_HEIGHT, PLAYER_WIDTH, RAMP_EDGE_WIDTH},
     protocol::{Position, Ramp, Wall},
@@ -18,14 +20,11 @@ pub fn sweep_ghost_vs_wall(start_pos: &Position, end_pos: &Position, wall: &Wall
 
 #[must_use]
 pub fn sweep_ghost_vs_ramp_edges(start_pos: &Position, end_pos: &Position, ramp: &Ramp) -> bool {
-    sweep_ramp_edges(
-        start_pos,
-        end_pos,
-        ramp,
-        GHOST_SIZE / 2.0,
-        GHOST_SIZE / 2.0,
-        RAMP_EDGE_WIDTH / 2.0,
-    )
+    let half = GHOST_SIZE / 2.0;
+    let edge_half = RAMP_EDGE_WIDTH / 2.0;
+
+    sweep_ramp_edges(start_pos, end_pos, ramp, half, half, edge_half)
+        || sweep_ramp_high_cap(start_pos, end_pos, ramp, half, half, edge_half)
 }
 
 #[must_use]
