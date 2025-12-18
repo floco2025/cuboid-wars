@@ -12,6 +12,7 @@ use common::{
 };
 
 const MERGE_EPS: f32 = 0.01;
+const CORNER_EPS: f32 = 0.01; // Small inset to avoid overlap for edge fillers
 
 // Generate individual roof segments (no merging) covering full grid cells.
 // Returns roofs and updated grid with has_roof flags set.
@@ -219,19 +220,20 @@ pub fn generate_individual_roofs(
 
     for &(row, col) in &roof_cells {
         // Calculate world coordinates
-        let (world_x1, world_x2, world_z1, world_z2) = if OVERLAP_ROOFS {
+        let (world_x1, world_x2, world_z1, world_z2, edge_fillers) = if OVERLAP_ROOFS {
             // Overlap mode: extend on all sides by roof_thickness/2 for guaranteed coverage
             let x1 = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)) - WALL_THICKNESS / 2.0;
             let x2 = ((col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)) + WALL_THICKNESS / 2.0;
             let z1 = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0)) - WALL_THICKNESS / 2.0;
             let z2 = ((row + 1) as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0)) + WALL_THICKNESS / 2.0;
-            (x1, x2, z1, z2)
+            (x1, x2, z1, z2, Vec::new())
         } else {
             // Non-overlap mode: extend outward unless a neighboring roof would overlap
             let mut x1 = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
             let mut x2 = ((col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
             let mut z1 = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
             let mut z2 = ((row + 1) as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+            let mut edge_fillers: Vec<Roof> = Vec::new();
 
             // Neighbor checks for overlap control
             let neighbor_w = col > 0 && roof_cells.contains(&(row, col - 1));
@@ -272,7 +274,40 @@ pub fn generate_individual_roofs(
                 z2 += WALL_THICKNESS / 2.0;
             }
 
-            (x1, x2, z1, z2)
+            // Edge fillers: if a diagonal blocks north/south but no direct neighbor, add a thin strip inset from corners
+            let north_ramp = row > 0 && grid[(row - 1) as usize][col as usize].has_ramp;
+            let south_ramp = row < grid_rows - 1 && grid[(row + 1) as usize][col as usize].has_ramp;
+            let pad = (WALL_THICKNESS / 2.0) - CORNER_EPS;
+            if pad > 0.0 {
+                if !extend_n && !neighbor_n && !north_ramp && (neighbor_nw || neighbor_ne) {
+                    let fx1 = if neighbor_nw { x1 + pad } else { x1 };
+                    let fx2 = if neighbor_ne { x2 - pad } else { x2 };
+                    if fx2 > fx1 {
+                        edge_fillers.push(Roof {
+                            x1: fx1,
+                            z1: z1 - pad,
+                            x2: fx2,
+                            z2: z1,
+                            thickness: ROOF_THICKNESS,
+                        });
+                    }
+                }
+                if !extend_s && !neighbor_s && !south_ramp && (neighbor_sw || neighbor_se) {
+                    let fx1 = if neighbor_sw { x1 + pad } else { x1 };
+                    let fx2 = if neighbor_se { x2 - pad } else { x2 };
+                    if fx2 > fx1 {
+                        edge_fillers.push(Roof {
+                            x1: fx1,
+                            z1: z2,
+                            x2: fx2,
+                            z2: z2 + pad,
+                            thickness: ROOF_THICKNESS,
+                        });
+                    }
+                }
+            }
+
+            (x1, x2, z1, z2, edge_fillers)
         };
 
         roofs.push(Roof {
@@ -282,6 +317,8 @@ pub fn generate_individual_roofs(
             z2: world_z2,
             thickness: ROOF_THICKNESS,
         });
+
+        roofs.extend(edge_fillers);
 
         // Mark cell as having a roof
         grid[row as usize][col as usize].has_roof = true;
