@@ -164,7 +164,7 @@ pub fn sweep_ramp_high_cap(
 
     // If we already start inside the cap volume, allow movement to escape it
     if local_x.abs() <= half_x + half_x_cap && local_z.abs() <= half_z + half_z_cap {
-        warn!("Escaping from inside ramp high-side cap; this should not normally happen");
+        warn!("escaping from inside ramp high-side cap; this should not normally happen");
         return false;
     }
 
