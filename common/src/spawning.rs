@@ -2,7 +2,7 @@ use crate::{
     collision::players::{sweep_player_vs_roof, sweep_player_vs_wall},
     constants::*,
     protocol::{Position, Ramp, Roof, Wall},
-    ramps::calculate_height_at_position,
+    map::calculate_height_at_position,
 };
 use bevy_math::Vec3;
 

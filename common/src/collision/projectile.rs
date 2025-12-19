@@ -556,7 +556,7 @@ pub fn projectile_hits_ramp(proj_pos: &Position, projectile_velocity: &Vec3, del
         let max_z = ramp.z1.max(ramp.z2);
 
         if sample_x >= min_x && sample_x <= max_x && sample_z >= min_z && sample_z <= max_z {
-            let ramp_height = crate::ramps::calculate_height_at_position(&[*ramp], sample_x, sample_z);
+            let ramp_height = crate::map::calculate_height_at_position(&[*ramp], sample_x, sample_z);
 
             if (sample_y - ramp_height).abs() < PROJECTILE_RADIUS * 2.0 {
                 return true;

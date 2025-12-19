@@ -9,9 +9,9 @@ use common::protocol::MapLayout;
 use common::{
     collision::{players::overlap_player_vs_wall, projectile::Projectile},
     constants::*,
+    map::is_on_ramp,
     markers::{PlayerMarker, ProjectileMarker},
     protocol::*,
-    ramps::is_on_ramp,
     spawning::calculate_projectile_spawns,
 };
 

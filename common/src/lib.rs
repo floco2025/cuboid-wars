@@ -5,5 +5,5 @@ pub mod markers;
 pub mod net;
 pub mod players;
 pub mod protocol;
-pub mod ramps;
+pub mod map;
 pub mod spawning;

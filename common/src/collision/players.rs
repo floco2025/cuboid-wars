@@ -5,7 +5,7 @@ use super::helpers::{
 use crate::{
     constants::{PLAYER_DEPTH, PLAYER_HEIGHT, PLAYER_WIDTH, ROOF_HEIGHT, WALL_THICKNESS},
     protocol::{Position, Ramp, Roof, Wall},
-    ramps::calculate_height_at_position,
+    map::calculate_height_at_position,
 };
 
 #[must_use]

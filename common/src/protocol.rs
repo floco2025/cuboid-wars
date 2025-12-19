@@ -167,25 +167,6 @@ struct MapLayout {
 }
 }
 
-impl MapLayout {
-    // Check if a world position (x, z) is on a roof cell
-    #[must_use]
-    pub fn is_position_on_roof(&self, x: f32, z: f32) -> bool {
-        for roof in &self.roofs {
-            let min_x = roof.x1.min(roof.x2);
-            let max_x = roof.x1.max(roof.x2);
-            let min_z = roof.z1.min(roof.z2);
-            let max_z = roof.z1.max(roof.z2);
-
-            if x >= min_x && x <= max_x && z >= min_z && z <= max_z {
-                return true;
-            }
-        }
-
-        false
-    }
-}
-
 // Item type - different types of items.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Encode, Decode)]
 pub enum ItemType {

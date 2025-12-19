@@ -10,10 +10,10 @@ use crate::{
 use common::{
     collision::players::{slide_player_along_obstacles, sweep_player_vs_ramp_edges, sweep_player_vs_wall},
     constants::{ALWAYS_PHASING, PLAYER_HEIGHT, ROOF_HEIGHT, SPEED_RUN, UPDATE_BROADCAST_INTERVAL},
+    map::{calculate_height_at_position, is_on_roof, is_position_on_roof},
     markers::PlayerMarker,
     players::{PlannedMove, overlaps_other_player},
     protocol::{FaceDirection, MapLayout, PlayerId, Position, Velocity, Wall},
-    ramps::{calculate_height_at_position, is_on_roof},
 };
 
 // ============================================================================
@@ -303,11 +303,11 @@ pub fn players_movement_system(
         let final_target = if let Some(config) = grid_config.as_ref() {
             let ramp_height =
                 calculate_height_at_position(&config.ramps, wall_adjusted_target.x, wall_adjusted_target.z);
+            let on_roof = is_position_on_roof(&config.roofs, wall_adjusted_target.x, wall_adjusted_target.z);
+
             let final_y = if ramp_height > 0.0 {
                 ramp_height
-            } else if config.is_position_on_roof(wall_adjusted_target.x, wall_adjusted_target.z)
-                && is_on_roof(client_pos.y)
-            {
+            } else if on_roof && is_on_roof(client_pos.y) {
                 // Only stay on roof if already at roof height
                 ROOF_HEIGHT
             } else {

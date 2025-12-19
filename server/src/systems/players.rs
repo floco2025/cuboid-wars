@@ -5,10 +5,10 @@ use common::protocol::MapLayout;
 use common::{
     collision::players::{slide_player_along_obstacles, sweep_player_vs_ramp_edges, sweep_player_vs_wall},
     constants::{ALWAYS_PHASING, ALWAYS_SPEED, POWER_UP_SPEED_MULTIPLIER, ROOF_HEIGHT},
+    map::{calculate_height_at_position, is_on_roof, is_position_on_roof},
     markers::PlayerMarker,
     players::{PlannedMove, overlaps_other_player},
     protocol::{PlayerId, Position, SPlayerStatus, ServerMessage, Speed, Wall},
-    ramps::{calculate_height_at_position, is_on_roof},
 };
 
 // ============================================================================
@@ -122,11 +122,13 @@ pub fn players_movement_system(
         };
 
         // Now calculate final Y based on the collision-adjusted X/Z position
+        let on_roof = is_position_on_roof(&grid_config.roofs, target_xz.x, target_xz.z);
+
         let final_y = {
             let ramp_height = calculate_height_at_position(&grid_config.ramps, target_xz.x, target_xz.z);
             if ramp_height > 0.0 {
                 ramp_height
-            } else if grid_config.is_position_on_roof(target_xz.x, target_xz.z) && is_on_roof(pos.y) {
+            } else if on_roof && is_on_roof(pos.y) {
                 // Only stay on roof if already at roof height
                 ROOF_HEIGHT
             } else {
