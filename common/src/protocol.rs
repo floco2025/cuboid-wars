@@ -143,6 +143,16 @@ struct Ramp {
 }
 }
 
+// Precomputed wall light placement sent from server to client.
+message! {
+#[derive(Copy)]
+struct WallLight {
+    pub model_pos: Position,
+    pub light_pos: Position,
+    pub yaw: f32,
+}
+}
+
 // Grid cell wall/ramp/roof flags used by both server and client.
 message! {
 #[derive(Copy, Default)]
@@ -177,6 +187,7 @@ struct MapLayout {
     pub roofs: Vec<Roof>,
     pub ramps: Vec<Ramp>,
     pub roof_edge_walls: Vec<Wall>, // Collision boxes for roof edges (prevent falling off)
+    pub wall_lights: Vec<WallLight>, // Precomputed light placements
 }
 }
 

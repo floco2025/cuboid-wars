@@ -19,9 +19,8 @@ pub const TOPDOWN_ROOF_ALPHA: f32 = 1.0; //0.3; // Opacity for roofs in top-down
 // Mouse sensitivity as radians per pixel
 pub const MOUSE_SENSITIVITY: f32 = 0.002;
 
-// Wall light asset and placement
+// Wall light asset
 pub const WALL_LIGHT_MODEL: &str = "models/wall_light.glb";
-pub const WALL_LIGHT_HEIGHT: f32 = 2.5; // meters above ground
 pub const WALL_LIGHT_SCALE: f32 = 1.6; // uniform scale applied to light model
 pub const WALL_LIGHT_BRIGHTNESS: f32 = 400000.0; // point light intensity (effective, no extra multiplier)
 pub const WALL_LIGHT_RANGE: f32 = 10.0; // meters

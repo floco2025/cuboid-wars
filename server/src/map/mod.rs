@@ -1,6 +1,7 @@
 mod collision;
 mod grid;
 mod helpers;
+mod lights;
 mod ramps;
 mod roofs;
 mod walls;
@@ -11,8 +12,11 @@ use crate::constants::{
     MERGE_ROOF_SEGMENTS, MERGE_WALL_SEGMENTS, OVERLAP_ROOFS, OVERLAP_WALLS, WALL_2ND_PROBABILITY_RATIO,
     WALL_3RD_PROBABILITY_RATIO, WALL_NUM_SEGMENTS,
 };
-use common::protocol::{GridCell, MapLayout};
-use common::{constants::*, protocol::Wall};
+use common::{
+    constants::*,
+    protocol::{GridCell, MapLayout, Wall},
+};
+use lights::generate_wall_lights;
 
 // Re-export public utilities
 pub use helpers::{cell_center, find_unoccupied_cell, find_unoccupied_cell_not_ramp, grid_coords_from_position};
@@ -226,6 +230,8 @@ pub fn generate_grid() -> MapLayout {
         at_left || at_right || at_top || at_bottom
     });
 
+    let wall_lights = generate_wall_lights(&grid, &lower_walls);
+
     MapLayout {
         grid,
         boundary_walls,
@@ -234,5 +240,6 @@ pub fn generate_grid() -> MapLayout {
         roofs,
         ramps,
         roof_edge_walls,
+        wall_lights,
     }
 }

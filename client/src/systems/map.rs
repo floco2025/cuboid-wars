@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use crate::{
     constants::{TOPDOWN_ROOF_ALPHA, TOPDOWN_WALL_ALPHA},
     resources::{CameraViewMode, RoofRenderingEnabled},
-    spawning::{spawn_ramp, spawn_roof, spawn_wall},
+    spawning::{spawn_ramp, spawn_roof, spawn_wall, spawn_wall_light_from_layout},
 };
 use common::protocol::MapLayout;
 
@@ -55,8 +55,11 @@ pub fn map_spawn_walls_system(
             &mut materials,
             &asset_server,
             wall,
-            &config.grid,
         );
+    }
+
+    for light in &config.wall_lights {
+        spawn_wall_light_from_layout(&mut commands, &asset_server, light);
     }
 
     for roof in &config.roofs {
