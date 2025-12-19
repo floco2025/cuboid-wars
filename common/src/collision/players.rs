@@ -39,11 +39,6 @@ pub fn sweep_player_vs_roof(start: &Position, end: &Position, roof: &Roof, radiu
     let seg_min_y = start.y.min(end.y);
     let seg_max_y = start.y.max(end.y);
 
-    // Allow shooting over the roof if either endpoint is at/above the roof top (within radius cushion)
-    if start.y >= slab_top - radius || end.y >= slab_top - radius {
-        return false;
-    }
-
     // If segment entirely above or below slab (with cushion), no hit
     if seg_min_y >= slab_top + radius {
         return false;

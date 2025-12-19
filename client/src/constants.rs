@@ -3,7 +3,6 @@
 // ============================================================================
 
 // First-person view camera settings
-pub const FPV_CAMERA_HEIGHT_RATIO: f32 = 0.9; // Camera height as ratio of player height (0.9 = 90% = eye level)
 pub const FPV_CAMERA_FOV_DEGREES: f32 = 90.0; // Field of view in degrees
 
 // Top-down view camera settings

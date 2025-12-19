@@ -15,6 +15,7 @@ pub const FIELD_DEPTH: f32 = GRID_ROWS as f32 * GRID_SIZE; // Total depth
 pub const PLAYER_WIDTH: f32 = 0.5; // side to side
 pub const PLAYER_HEIGHT: f32 = 1.8; // up/down
 pub const PLAYER_DEPTH: f32 = 0.3; // front to back
+pub const PLAYER_EYE_HEIGHT_RATIO: f32 = 0.9; // Eye/camera height as ratio of player height
 
 // Player speeds (meters per second)
 pub const SPEED_WALK: f32 = 9.0;
@@ -24,8 +25,6 @@ pub const SPEED_RUN: f32 = 9.0;
 pub const PROJECTILE_SPEED: f32 = 25.0; // meters per second
 pub const PROJECTILE_LIFETIME: f32 = 4.0; // seconds
 pub const PROJECTILE_SPAWN_OFFSET: f32 = 1.0; // meters in front of thrower
-// Spawn from camera/eye height (match FPV camera height): ~90% of player height above ground
-pub const PROJECTILE_SPAWN_HEIGHT: f32 = PLAYER_HEIGHT * 0.9;
 pub const PROJECTILE_RADIUS: f32 = 0.11; // meters
 pub const PROJECTILE_COOLDOWN_TIME: f32 = 0.1; // Minimum time between shots
 

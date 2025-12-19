@@ -672,7 +672,7 @@ pub fn spawn_projectiles(
     ramps: &[Ramp],
     roofs: &[Roof],
     shooter_id: PlayerId,
-) {
+) -> usize {
     let spawns = calculate_projectile_spawns(
         pos,
         face_dir,
@@ -684,9 +684,11 @@ pub fn spawn_projectiles(
         roofs,
     );
 
-    for spawn_info in spawns {
+    for spawn_info in &spawns {
         spawn_single_projectile(commands, meshes, materials, &spawn_info, shooter_id);
     }
+
+    spawns.len()
 }
 
 // Internal helper to spawn a single projectile

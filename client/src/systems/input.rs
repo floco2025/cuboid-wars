@@ -301,7 +301,6 @@ pub fn input_shooting_system(
 
         // Client-side cooldown guard (server still authoritative)
         if now - local_player_info.last_shot_time < PROJECTILE_COOLDOWN_TIME {
-            // Play dry click feedback when throttled locally
             commands.spawn((
                 AudioPlayer::new(asset_server.load("sounds/player_dry_click.ogg")),
                 PlaybackSettings::DESPAWN,
@@ -310,12 +309,6 @@ pub fn input_shooting_system(
         }
 
         local_player_info.last_shot_time = now;
-
-        // Play shooting sound
-        commands.spawn((
-            AudioPlayer::new(asset_server.load("sounds/player_fires.ogg")),
-            PlaybackSettings::DESPAWN,
-        ));
 
         // Send shot message with current face direction to server
         let shot_msg = ClientMessage::Shot(CShot {
@@ -338,38 +331,33 @@ pub fn input_shooting_system(
                 .and_then(|id| players.0.get(&id.0))
                 .is_some_and(|info| info.reflect_power_up);
 
-        if let Some(my_id) = my_player_id.as_ref() {
-            if let Some(map_layout) = map_layout.as_ref() {
-                // all_walls already excludes roof edges; pass roofs for roof blocking
-                spawn_projectiles(
-                    &mut commands,
-                    &mut meshes,
-                    &mut materials,
-                    pos,
-                    face_dir.0,
-                    pitch,
-                    has_multi_shot,
-                    has_reflect,
-                    map_layout.lower_walls.as_slice(),
-                    map_layout.ramps.as_slice(),
-                    map_layout.roofs.as_slice(),
-                    my_id.0,
-                );
+        if let Some(my_id) = my_player_id.as_ref()
+            && let Some(map_layout) = map_layout.as_ref()
+        {
+            if spawn_projectiles(
+                &mut commands,
+                &mut meshes,
+                &mut materials,
+                pos,
+                face_dir.0,
+                pitch,
+                has_multi_shot,
+                has_reflect,
+                map_layout.lower_walls.as_slice(),
+                map_layout.ramps.as_slice(),
+                map_layout.roofs.as_slice(),
+                my_id.0,
+            ) > 0
+            {
+                commands.spawn((
+                    AudioPlayer::new(asset_server.load("sounds/player_fires.ogg")),
+                    PlaybackSettings::DESPAWN,
+                ));
             } else {
-                spawn_projectiles(
-                    &mut commands,
-                    &mut meshes,
-                    &mut materials,
-                    pos,
-                    face_dir.0,
-                    pitch,
-                    has_multi_shot,
-                    has_reflect,
-                    &[][..],
-                    &[][..],
-                    &[][..],
-                    my_id.0,
-                );
+                commands.spawn((
+                    AudioPlayer::new(asset_server.load("sounds/player_dry_click.ogg")),
+                    PlaybackSettings::DESPAWN,
+                ));
             }
         }
     }

@@ -9,7 +9,7 @@ use crate::{
 };
 use common::{
     collision::players::{slide_player_along_obstacles, sweep_player_vs_ramp_edges, sweep_player_vs_wall},
-    constants::{ALWAYS_PHASING, PLAYER_HEIGHT, ROOF_HEIGHT, SPEED_RUN, UPDATE_BROADCAST_INTERVAL},
+    constants::{ALWAYS_PHASING, PLAYER_EYE_HEIGHT_RATIO, PLAYER_HEIGHT, ROOF_HEIGHT, SPEED_RUN, UPDATE_BROADCAST_INTERVAL},
     map::{close_to_roof, has_roof, height_on_ramp},
     markers::PlayerMarker,
     players::{PlannedMove, overlaps_other_player},
@@ -414,7 +414,7 @@ pub fn local_player_camera_sync_system(
             CameraViewMode::FirstPerson => {
                 camera_transform.translation.x = player_pos.x;
                 camera_transform.translation.z = player_pos.z;
-                camera_transform.translation.y = PLAYER_HEIGHT.mul_add(FPV_CAMERA_HEIGHT_RATIO, player_pos.y);
+                camera_transform.translation.y = PLAYER_HEIGHT.mul_add(PLAYER_EYE_HEIGHT_RATIO, player_pos.y);
 
                 if let Some(shake) = maybe_shake {
                     camera_transform.translation.x += shake.offset_x;
@@ -508,7 +508,7 @@ pub fn local_player_rearview_sync_system(
     if *view_mode == CameraViewMode::FirstPerson {
         rearview_transform.translation.x = player_pos.x;
         rearview_transform.translation.z = player_pos.z;
-        rearview_transform.translation.y = PLAYER_HEIGHT.mul_add(FPV_CAMERA_HEIGHT_RATIO, player_pos.y);
+        rearview_transform.translation.y = PLAYER_HEIGHT.mul_add(PLAYER_EYE_HEIGHT_RATIO, player_pos.y);
 
         // Get the main camera's rotation and rotate 180 degrees
         if let Ok(main_transform) = main_camera_query.single() {

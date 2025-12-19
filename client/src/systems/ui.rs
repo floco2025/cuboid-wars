@@ -8,7 +8,7 @@ use crate::{
     spawning::{item_type_color, load_repeating_texture, load_repeating_texture_linear},
 };
 use common::{
-    constants::{FIELD_DEPTH, FIELD_WIDTH, GRID_COLS, GRID_ROWS, GRID_SIZE, PLAYER_HEIGHT, WALL_THICKNESS},
+    constants::{PLAYER_EYE_HEIGHT_RATIO, FIELD_DEPTH, FIELD_WIDTH, GRID_COLS, GRID_ROWS, GRID_SIZE, PLAYER_HEIGHT, WALL_THICKNESS},
     protocol::{ItemType, PlayerId},
 };
 
@@ -114,7 +114,7 @@ pub fn setup_world_system(
             fov: FPV_CAMERA_FOV_DEGREES.to_radians(),
             ..default()
         }),
-        Transform::from_xyz(0.0, PLAYER_HEIGHT * FPV_CAMERA_HEIGHT_RATIO, 0.0)
+        Transform::from_xyz(0.0, PLAYER_HEIGHT * PLAYER_EYE_HEIGHT_RATIO, 0.0)
             .looking_at(Vec3::new(0.0, 0.0, -1.0), Vec3::Y),
     ));
 
@@ -139,7 +139,7 @@ pub fn setup_world_system(
             fov: REARVIEW_FOV_DEGREES.to_radians(),
             ..default()
         }),
-        Transform::from_xyz(0.0, PLAYER_HEIGHT * FPV_CAMERA_HEIGHT_RATIO, 0.0)
+        Transform::from_xyz(0.0, PLAYER_HEIGHT * PLAYER_EYE_HEIGHT_RATIO, 0.0)
             .looking_at(Vec3::new(0.0, 0.0, 1.0), Vec3::Y), // Looking backwards (positive Z)
     ));
 

@@ -59,12 +59,9 @@ pub fn calculate_projectile_spawns(
         let dir_y = pitch_sin;
         let dir_z = shot_yaw.cos() * pitch_cos;
 
-        // Spawn projectile at constant height offset from player's feet position, nudged along aim direction
-        let spawn_pos = Vec3::new(
-            dir_x.mul_add(PROJECTILE_SPAWN_OFFSET, shooter_pos.x),
-            dir_y.mul_add(PROJECTILE_SPAWN_OFFSET, shooter_pos.y + PROJECTILE_SPAWN_HEIGHT),
-            dir_z.mul_add(PROJECTILE_SPAWN_OFFSET, shooter_pos.z),
-        );
+        // Camera origin at eye height (match FPV) and push forward along aim direction
+        let camera_origin = Vec3::new(shooter_pos.x, shooter_pos.y + PLAYER_HEIGHT * PLAYER_EYE_HEIGHT_RATIO, shooter_pos.z);
+        let spawn_pos = camera_origin + Vec3::new(dir_x, dir_y, dir_z) * PROJECTILE_SPAWN_OFFSET;
 
         // Check if the path from player to spawn position crosses through a wall
         let spawn_position = Position {
@@ -78,7 +75,11 @@ pub fn calculate_projectile_spawns(
         let blocked_by_wall = !spawn_above_walls
             && walls
                 .iter()
-                .any(|wall| sweep_player_vs_wall(shooter_pos, &spawn_position, wall));
+                .any(|wall| sweep_player_vs_wall(&Position {
+                    x: camera_origin.x,
+                    y: camera_origin.y,
+                    z: camera_origin.z,
+                }, &spawn_position, wall));
 
         // If the muzzle point sits inside the ramp volume (e.g., standing at the base facing the ramp), block the shot.
         let blocked_by_ramp = ramps.iter().any(|ramp| {
@@ -104,10 +105,14 @@ pub fn calculate_projectile_spawns(
         // Block shots whose muzzle-to-spawn segment intersects the roof slab volume (sweep-style test)
         let blocked_by_roof = roofs
             .iter()
-            .any(|roof| sweep_player_vs_roof(shooter_pos, &spawn_position, roof, PROJECTILE_RADIUS));
+            .any(|roof| sweep_player_vs_roof(&Position {
+                x: camera_origin.x,
+                y: camera_origin.y,
+                z: camera_origin.z,
+            }, &spawn_position, roof, PROJECTILE_RADIUS));
 
         let is_spawn_blocked = is_spawn_blocked || blocked_by_roof;
-        // Skip this projectile if the spawn path is blocked by a wall
+        // Skip this projectile if the spawn path is blocked
         if is_spawn_blocked {
             continue;
         }
