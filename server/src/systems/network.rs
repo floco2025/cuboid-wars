@@ -129,7 +129,7 @@ fn collect_ghosts(ghosts: &GhostMap, queries: &NetworkEntityQueries) -> Vec<(Gho
 }
 
 // Try to find a spawn point that does not intersect any generated wall or ramp.
-fn generate_spawn_position(grid_config: &MapLayout) -> Position {
+fn generate_player_spawn_position(map_layout: &MapLayout) -> Position {
     let mut rng = rand::rng();
     let max_attempts = 100;
 
@@ -141,13 +141,13 @@ fn generate_spawn_position(grid_config: &MapLayout) -> Position {
         };
 
         // Check if position intersects with any wall
-        let intersects = grid_config
+        let intersects = map_layout
             .lower_walls
             .iter()
             .any(|wall| overlap_player_vs_wall(&pos, wall));
 
         // Check if position is on a ramp
-        let on_ramp = is_on_ramp(&grid_config.ramps, pos.x, pos.z);
+        let on_ramp = is_on_ramp(&map_layout.ramps, pos.x, pos.z);
 
         if !intersects && !on_ramp {
             return pos;
@@ -206,7 +206,7 @@ pub fn network_client_message_system(
     mut from_clients: ResMut<FromClientsChannel>,
     mut players: ResMut<PlayerMap>,
     time: Res<Time>,
-    grid_config: Res<MapLayout>,
+    map_layout: Res<MapLayout>,
     items: Res<ItemMap>,
     ghosts: Res<GhostMap>,
     queries: NetworkEntityQueries,
@@ -242,7 +242,7 @@ pub fn network_client_message_system(
                         &mut players,
                         &time,
                         &queries,
-                        &grid_config,
+                        &map_layout,
                     );
                 } else {
                     process_message_not_logged_in(
@@ -252,7 +252,7 @@ pub fn network_client_message_system(
                         message,
                         &queries,
                         &mut players,
-                        &grid_config,
+                        &map_layout,
                         &items,
                         &ghosts,
                     );
@@ -273,7 +273,7 @@ fn process_message_not_logged_in(
     msg: ClientMessage,
     queries: &NetworkEntityQueries,
     players: &mut ResMut<PlayerMap>,
-    grid_config: &Res<MapLayout>,
+    map_layout: &Res<MapLayout>,
     items: &Res<ItemMap>,
     ghosts: &Res<GhostMap>,
 ) {
@@ -302,7 +302,7 @@ fn process_message_not_logged_in(
             // Send Init to the connecting player (their ID and grid config)
             let init_msg = ServerMessage::Init(SInit {
                 id,
-                grid_config: (*grid_config).clone(),
+                map_layout: (*map_layout).clone(),
             });
             if let Err(e) = channel.send(ServerToClient::Send(init_msg)) {
                 warn!("failed to send init to {:?}: {}", id, e);
@@ -310,7 +310,7 @@ fn process_message_not_logged_in(
             }
 
             // Generate random initial position for the new player
-            let pos = generate_spawn_position(grid_config);
+            let pos = generate_player_spawn_position(map_layout);
 
             // Calculate initial facing direction toward center
             let face_dir = (-pos.x).atan2(-pos.z);
@@ -385,7 +385,7 @@ fn process_message_logged_in(
     players: &mut PlayerMap,
     time: &Res<Time>,
     queries: &NetworkEntityQueries,
-    grid_config: &MapLayout,
+    map_layout: &MapLayout,
 ) {
     match msg {
         ClientMessage::Login(_) => {
@@ -420,7 +420,7 @@ fn process_message_logged_in(
                 players,
                 time,
                 &queries.positions,
-                grid_config,
+                map_layout,
             );
         }
         ClientMessage::Echo(msg) => {
@@ -480,7 +480,7 @@ fn handle_shot(
     players: &mut PlayerMap,
     time: &Res<Time>,
     positions: &Query<&Position>,
-    grid_config: &MapLayout,
+    map_layout: &MapLayout,
 ) {
     let now = time.elapsed_secs();
 
@@ -513,9 +513,9 @@ fn handle_shot(
             msg.face_pitch,
             has_multi_shot,
             has_reflect,
-            &grid_config.lower_walls,
-            &grid_config.ramps,
-            &grid_config.roofs,
+            &map_layout.lower_walls,
+            &map_layout.ramps,
+            &map_layout.roofs,
         );
 
         // Spawn each projectile

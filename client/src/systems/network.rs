@@ -124,7 +124,7 @@ fn process_message_not_logged_in(msg: ServerMessage, commands: &mut Commands) {
         commands.insert_resource(MyPlayerId(init_msg.id));
 
         // Store grid configuration
-        commands.insert_resource(init_msg.grid_config);
+        commands.insert_resource(init_msg.map_layout);
 
         // Note: We don't spawn anything here. The first SUpdate will contain
         // all players including ourselves and will trigger spawning via the

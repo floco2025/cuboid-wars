@@ -214,7 +214,7 @@ pub struct CEcho {
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SInit {
     pub id: PlayerId,
-    pub grid_config: MapLayout,
+    pub map_layout: MapLayout,
 }
 
 // Server to Client: Another player connected.

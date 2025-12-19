@@ -36,7 +36,7 @@ pub fn projectiles_movement_system(
     mut projectile_query: Query<(Entity, &mut Position, &mut Projectile, &PlayerId), With<ProjectileMarker>>,
     player_query: Query<PlayerTarget, (With<PlayerMarker>, Without<ProjectileMarker>)>,
     ghost_query: Query<(&GhostId, &Position), (With<GhostMarker>, Without<ProjectileMarker>)>,
-    grid_config: Res<MapLayout>,
+    map_layout: Res<MapLayout>,
     mut players: ResMut<PlayerMap>,
     ghosts: Res<GhostMap>,
 ) {
@@ -67,7 +67,7 @@ pub fn projectiles_movement_system(
 
         // Check wall collisions
         if !hit_something {
-            for wall in &grid_config.lower_walls {
+            for wall in &map_layout.lower_walls {
                 if let Some(new_pos) = projectile.handle_wall_bounce(&proj_pos, delta, wall) {
                     if projectile.reflects {
                         proj_pos.x = new_pos.x;
@@ -85,7 +85,7 @@ pub fn projectiles_movement_system(
 
         // Check roof collisions
         if !hit_something {
-            for roof in &grid_config.roofs {
+            for roof in &map_layout.roofs {
                 if let Some(new_pos) = projectile.handle_roof_bounce(&proj_pos, delta, roof) {
                     if projectile.reflects {
                         proj_pos.x = new_pos.x;
@@ -103,7 +103,7 @@ pub fn projectiles_movement_system(
 
         // Check ramp collisions
         if !hit_something {
-            for ramp in &grid_config.ramps {
+            for ramp in &map_layout.ramps {
                 if let Some(new_pos) = projectile.handle_ramp_bounce(&proj_pos, delta, ramp) {
                     if projectile.reflects {
                         proj_pos.x = new_pos.x;

@@ -233,7 +233,7 @@ pub fn generate_grid() -> (MapLayout, GridConfig) {
 
     let wall_lights = generate_wall_lights(&grid);
 
-    let layout = MapLayout {
+    let map_layout = MapLayout {
         boundary_walls,
         interior_walls,
         lower_walls,
@@ -245,5 +245,5 @@ pub fn generate_grid() -> (MapLayout, GridConfig) {
 
     let grid_config = GridConfig { grid };
 
-    (layout, grid_config)
+    (map_layout, grid_config)
 }
