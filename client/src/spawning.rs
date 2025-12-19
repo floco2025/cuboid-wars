@@ -15,7 +15,7 @@ use crate::{
     },
 };
 use common::{
-    collision::projectile::Projectile,
+    collision::projectiles::Projectile,
     constants::*,
     markers::{GhostMarker, ItemMarker, PlayerMarker, ProjectileMarker},
     protocol::*,

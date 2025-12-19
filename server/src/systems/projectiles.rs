@@ -6,7 +6,7 @@ use crate::{
 };
 use common::protocol::MapLayout;
 use common::{
-    collision::projectile::{Projectile, projectile_hits_ghost, sweep_projectile_vs_player},
+    collision::projectiles::{Projectile, projectile_hits_ghost, sweep_projectile_vs_player},
     constants::ALWAYS_GHOST_HUNT,
     markers::{GhostMarker, PlayerMarker, ProjectileMarker},
     protocol::*,

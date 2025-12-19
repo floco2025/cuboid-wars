@@ -7,7 +7,7 @@ use crate::{
 };
 use common::protocol::MapLayout;
 use common::{
-    collision::{players::overlap_player_vs_wall, projectile::Projectile},
+    collision::{players::overlap_player_vs_wall, projectiles::Projectile},
     constants::*,
     map::is_on_ramp,
     markers::{PlayerMarker, ProjectileMarker},
