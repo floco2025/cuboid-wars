@@ -8,7 +8,10 @@ use crate::{
     spawning::{item_type_color, load_repeating_texture, load_repeating_texture_linear},
 };
 use common::{
-    constants::{PLAYER_EYE_HEIGHT_RATIO, FIELD_DEPTH, FIELD_WIDTH, GRID_COLS, GRID_ROWS, GRID_SIZE, PLAYER_HEIGHT, WALL_THICKNESS},
+    constants::{
+        FIELD_DEPTH, FIELD_WIDTH, GRID_COLS, GRID_ROWS, GRID_SIZE, PLAYER_EYE_HEIGHT_RATIO, PLAYER_HEIGHT,
+        WALL_THICKNESS,
+    },
     protocol::{ItemType, PlayerId},
 };
 

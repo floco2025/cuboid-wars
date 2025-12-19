@@ -9,7 +9,9 @@ use crate::{
 };
 use common::{
     collision::players::{slide_player_along_obstacles, sweep_player_vs_ramp_edges, sweep_player_vs_wall},
-    constants::{ALWAYS_PHASING, PLAYER_EYE_HEIGHT_RATIO, PLAYER_HEIGHT, ROOF_HEIGHT, SPEED_RUN, UPDATE_BROADCAST_INTERVAL},
+    constants::{
+        ALWAYS_PHASING, PLAYER_EYE_HEIGHT_RATIO, PLAYER_HEIGHT, ROOF_HEIGHT, SPEED_RUN, UPDATE_BROADCAST_INTERVAL,
+    },
     map::{close_to_roof, has_roof, height_on_ramp},
     markers::PlayerMarker,
     players::{PlannedMove, overlaps_other_player},

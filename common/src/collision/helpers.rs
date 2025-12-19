@@ -3,13 +3,13 @@ use bevy::prelude::*;
 use crate::protocol::{Position, Ramp, Wall};
 
 // Check if two 1D ranges overlap.
-#[must_use] 
+#[must_use]
 pub fn ranges_overlap_1d(a_min: f32, a_max: f32, b_min: f32, b_max: f32) -> bool {
     a_max >= b_min && a_min <= b_max
 }
 
 // Compute the intersection interval of a ray with a slab (used in ray-AABB tests)
-#[must_use] 
+#[must_use]
 pub fn sweep_slab_interval(
     local_coord: f32,
     ray_dir: f32,
@@ -35,7 +35,7 @@ pub fn sweep_slab_interval(
 }
 
 // Generic swept AABB vs AABB (same height) in the XZ plane; caller supplies combined half extents and height.
-#[must_use] 
+#[must_use]
 pub fn sweep_aabb_vs_aabb(
     start1: &Position,
     end1: &Position,
@@ -77,7 +77,7 @@ pub fn sweep_aabb_vs_aabb(
 }
 
 // Swept AABB vs ramp side edges; caller supplies entity half-extents and edge half-width.
-#[must_use] 
+#[must_use]
 pub fn sweep_ramp_edges(
     start_pos: &Position,
     end_pos: &Position,
@@ -193,7 +193,7 @@ pub fn sweep_ramp_high_cap(
 }
 
 // Swept point vs axis-aligned cuboid; returns hit normal and collision time if within [0,1].
-#[must_use] 
+#[must_use]
 pub fn sweep_point_vs_cuboid(
     proj_pos: &Position,
     ray_dir_x: f32,
@@ -281,7 +281,7 @@ pub fn sweep_point_vs_cuboid(
 }
 
 // Axis-aligned wall overlap against an AABB with given half-extents.
-#[must_use] 
+#[must_use]
 pub fn overlap_aabb_vs_wall(entity_pos: &Position, wall: &Wall, half_x: f32, half_z: f32) -> bool {
     let dx = (wall.x2 - wall.x1).abs();
     let dz = (wall.z2 - wall.z1).abs();
@@ -313,7 +313,7 @@ pub fn overlap_aabb_vs_wall(entity_pos: &Position, wall: &Wall, half_x: f32, hal
 }
 
 // Swept AABB vs wall (axis-aligned) to prevent tunneling.
-#[must_use] 
+#[must_use]
 pub fn sweep_aabb_vs_wall(start_pos: &Position, end_pos: &Position, wall: &Wall, half_x: f32, half_z: f32) -> bool {
     let wall_center_x = f32::midpoint(wall.x1, wall.x2);
     let wall_center_z = f32::midpoint(wall.z1, wall.z2);

@@ -409,16 +409,7 @@ fn process_message_logged_in(
         }
         ClientMessage::Shot(msg) => {
             debug!("{id:?} shot");
-            handle_shot(
-                commands,
-                entity,
-                id,
-                msg,
-                players,
-                time,
-                &queries.positions,
-                map_layout,
-            );
+            handle_shot(commands, entity, id, msg, players, time, &queries.positions, map_layout);
         }
         ClientMessage::Echo(msg) => {
             trace!("{:?} echo: {:?}", id, msg);
@@ -513,10 +504,7 @@ fn handle_shot(
 
         // Spawn each projectile
         for spawn_info in spawns {
-            let projectile = Projectile::new(
-                spawn_info.direction_yaw,
-                spawn_info.direction_pitch,
-            );
+            let projectile = Projectile::new(spawn_info.direction_yaw, spawn_info.direction_pitch);
 
             commands.spawn((
                 ProjectileMarker,

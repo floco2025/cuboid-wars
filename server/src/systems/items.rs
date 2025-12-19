@@ -10,9 +10,7 @@ use crate::{
 };
 use common::{
     collision::items::overlap_player_vs_item,
-    constants::{
-        ALWAYS_GHOST_HUNT, ALWAYS_MULTI_SHOT, ALWAYS_PHASING, ALWAYS_SPEED, GRID_COLS, GRID_ROWS,
-    },
+    constants::{ALWAYS_GHOST_HUNT, ALWAYS_MULTI_SHOT, ALWAYS_PHASING, ALWAYS_SPEED, GRID_COLS, GRID_ROWS},
     markers::{ItemMarker, PlayerMarker},
     protocol::{ItemId, ItemType, PlayerId, Position, SCookieCollected, SPlayerStatus, ServerMessage},
 };

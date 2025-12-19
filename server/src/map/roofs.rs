@@ -14,11 +14,7 @@ const CORNER_EPS: f32 = 0.01; // Small inset to avoid overlap for edge fillers
 // Generate individual roof segments (no merging) covering full grid cells.
 // Returns roofs and updated grid with has_roof flags set.
 #[must_use]
-pub fn generate_roofs(
-    mut grid: Vec<Vec<GridCell>>,
-    grid_cols: i32,
-    grid_rows: i32,
-) -> (Vec<Roof>, Vec<Vec<GridCell>>) {
+pub fn generate_roofs(mut grid: Vec<Vec<GridCell>>, grid_cols: i32, grid_rows: i32) -> (Vec<Roof>, Vec<Vec<GridCell>>) {
     let mut rng = rand::rng();
 
     // Count walls for each cell
