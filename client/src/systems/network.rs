@@ -76,7 +76,7 @@ pub fn network_server_message_system(
     mut last_update_seq: ResMut<LastUpdateSeq>,
     queries: NetworkQueries,
     my_player_id: Option<Res<MyPlayerId>>,
-    grid_config: Option<Res<MapLayout>>,
+    map_layout: Option<Res<MapLayout>>,
     time: Res<Time>,
     asset_server: Res<AssetServer>,
 ) {
@@ -102,7 +102,7 @@ pub fn network_server_message_system(
                         &queries,
                         &time,
                         &asset_server,
-                        grid_config.as_deref(),
+                        map_layout.as_deref(),
                     );
                 } else {
                     process_message_not_logged_in(message, &mut commands);
@@ -145,7 +145,7 @@ fn process_message_logged_in(
     queries: &NetworkQueries,
     time: &Res<Time>,
     asset_server: &Res<AssetServer>,
-    grid_config: Option<&MapLayout>,
+    map_layout: Option<&MapLayout>,
 ) {
     match msg {
         ServerMessage::Init(_) => {
@@ -158,7 +158,7 @@ fn process_message_logged_in(
         }
         ServerMessage::Face(face_msg) => handle_face_message(commands, players, face_msg),
         ServerMessage::Shot(shot_msg) => {
-            handle_shot_message(commands, assets, players, &queries.player_facing, shot_msg, grid_config);
+            handle_shot_message(commands, assets, players, &queries.player_facing, shot_msg, map_layout);
         }
         ServerMessage::Update(update_msg) => handle_update_message(
             commands,
@@ -295,7 +295,7 @@ fn handle_shot_message(
     players: &ResMut<PlayerMap>,
     player_face_query: &Query<PlayerMovement, With<PlayerMarker>>,
     msg: SShot,
-    grid_config: Option<&MapLayout>,
+    map_layout: Option<&MapLayout>,
 ) {
     trace!("{:?} shot: {:?}", msg.id, msg);
     if let Some(player) = players.0.get(&msg.id) {
@@ -303,7 +303,7 @@ fn handle_shot_message(
 
         // Spawn projectile(s) based on player's multi-shot power-up status
         if let Ok(player_facing) = player_face_query.get(player.entity) {
-            if let Some(config) = grid_config {
+            if let Some(map_layout) = map_layout {
                 spawn_projectiles(
                     commands,
                     &mut assets.meshes,
@@ -313,9 +313,9 @@ fn handle_shot_message(
                     msg.face_pitch,
                     player.multi_shot_power_up,
                     player.reflect_power_up,
-                    config.lower_walls.as_slice(),
-                    config.ramps.as_slice(),
-                    config.roofs.as_slice(),
+                    map_layout.lower_walls.as_slice(),
+                    map_layout.ramps.as_slice(),
+                    map_layout.roofs.as_slice(),
                     msg.id,
                 );
             } else {

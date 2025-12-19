@@ -276,7 +276,7 @@ pub fn input_shooting_system(
     mut materials: ResMut<Assets<StandardMaterial>>,
     my_player_id: Option<Res<MyPlayerId>>,
     players: Res<PlayerMap>,
-    grid_config: Option<Res<MapLayout>>,
+    map_layout: Option<Res<MapLayout>>,
     view_mode: Res<CameraViewMode>,
     time: Res<Time>,
     mut local_player_info: ResMut<LocalPlayerInfo>,
@@ -340,7 +340,7 @@ pub fn input_shooting_system(
                 .is_some_and(|info| info.reflect_power_up);
 
         if let Some(my_id) = my_player_id.as_ref() {
-            if let Some(config) = grid_config.as_ref() {
+            if let Some(map_layout) = map_layout.as_ref() {
                 // all_walls already excludes roof edges; pass roofs for roof blocking
                 spawn_projectiles(
                     &mut commands,
@@ -351,9 +351,9 @@ pub fn input_shooting_system(
                     pitch,
                     has_multi_shot,
                     has_reflect,
-                    config.lower_walls.as_slice(),
-                    config.ramps.as_slice(),
-                    config.roofs.as_slice(),
+                    map_layout.lower_walls.as_slice(),
+                    map_layout.ramps.as_slice(),
+                    map_layout.roofs.as_slice(),
                     my_id.0,
                 );
             } else {

@@ -110,10 +110,10 @@ pub fn projectiles_movement_system(
     player_query: Query<(Entity, &Position, &FaceDirection, Has<LocalPlayerMarker>), With<PlayerMarker>>,
     ghost_query: Query<&Position, With<GhostMarker>>,
     players: Res<PlayerMap>,
-    grid_config: Option<Res<MapLayout>>,
+    map_layout: Option<Res<MapLayout>>,
 ) {
     let delta = time.delta_secs();
-    let config = grid_config.as_deref();
+    let map_layout = map_layout.as_deref();
 
     for (projectile_entity, mut projectile_transform, mut projectile, shooter_id) in &mut projectile_query {
         // Check lifetime and despawn if expired
@@ -137,7 +137,7 @@ pub fn projectiles_movement_system(
             &mut projectile,
             &projectile_pos,
             delta,
-            config,
+            map_layout,
         ) {
             pos_after_bounce
         } else {
@@ -193,9 +193,9 @@ fn handle_wall_collisions(
     projectile: &mut Projectile,
     projectile_pos: &Position,
     delta: f32,
-    grid_config: Option<&MapLayout>,
+    map_layout: Option<&MapLayout>,
 ) -> Option<Position> {
-    let config = grid_config?;
+    let map_layout = map_layout?;
 
     // Ground bounce first
     if let Some(new_pos) = projectile.handle_ground_bounce(projectile_pos, delta) {
@@ -218,7 +218,7 @@ fn handle_wall_collisions(
     }
 
     // Check walls
-    for wall in &config.lower_walls {
+    for wall in &map_layout.lower_walls {
         if let Some(new_pos) = projectile.handle_wall_bounce(projectile_pos, delta, wall) {
             play_sound(
                 commands,
@@ -240,7 +240,7 @@ fn handle_wall_collisions(
     }
 
     // Check roofs
-    for roof in &config.roofs {
+    for roof in &map_layout.roofs {
         if let Some(new_pos) = projectile.handle_roof_bounce(projectile_pos, delta, roof) {
             play_sound(
                 commands,
@@ -262,7 +262,7 @@ fn handle_wall_collisions(
     }
 
     // Check ramps
-    for ramp in &config.ramps {
+    for ramp in &map_layout.ramps {
         if let Some(new_pos) = projectile.handle_ramp_bounce(projectile_pos, delta, ramp) {
             play_sound(
                 commands,

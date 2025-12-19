@@ -26,14 +26,14 @@ pub struct RoofMarker;
 // System to spawn walls and roofs when GridConfig is available
 pub fn map_spawn_walls_system(
     mut commands: Commands,
-    grid_config: Option<Res<MapLayout>>,
+    map_layout: Option<Res<MapLayout>>,
     asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut spawned: Local<bool>,
 ) {
     // Spawn exactly once after the server shares its wall configuration
-    let Some(config) = grid_config else {
+    let Some(map_layout) = map_layout else {
         return;
     };
 
@@ -43,24 +43,24 @@ pub fn map_spawn_walls_system(
 
     info!(
         "spawning {} wall segments, {} roofs, {} ramps",
-        config.lower_walls.len(),
-        config.roofs.len(),
-        config.ramps.len()
+        map_layout.lower_walls.len(),
+        map_layout.roofs.len(),
+        map_layout.ramps.len()
     );
 
-    for wall in &config.lower_walls {
+    for wall in &map_layout.lower_walls {
         spawn_wall(&mut commands, &mut meshes, &mut materials, &asset_server, wall);
     }
 
-    for light in &config.wall_lights {
+    for light in &map_layout.wall_lights {
         spawn_wall_light_from_layout(&mut commands, &asset_server, light);
     }
 
-    for roof in &config.roofs {
+    for roof in &map_layout.roofs {
         spawn_roof(&mut commands, &mut meshes, &mut materials, &asset_server, roof);
     }
 
-    for ramp in &config.ramps {
+    for ramp in &map_layout.ramps {
         spawn_ramp(&mut commands, &mut meshes, &mut materials, &asset_server, ramp);
     }
 

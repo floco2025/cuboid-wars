@@ -164,7 +164,7 @@ pub fn players_movement_system(
     mut commands: Commands,
     time: Res<Time>,
     asset_server: Res<AssetServer>,
-    grid_config: Option<Res<MapLayout>>,
+    map_layout: Option<Res<MapLayout>>,
     players: Res<PlayerMap>,
     mut query: MovementQuery,
     mut bump_flash_ui: Query<(&mut BackgroundColor, &mut Visibility), With<BumpFlashUIMarker>>,
@@ -246,18 +246,18 @@ pub fn players_movement_system(
         // Wall collision - Select walls based on phasing power-up and height
         let has_phasing = ALWAYS_PHASING || players.0.get(player_id).is_some_and(|info| info.phasing_power_up);
 
-        let (wall_adjusted_target, hits_wall) = grid_config.as_ref().map_or((target_pos, false), |config| {
+        let (wall_adjusted_target, hits_wall) = map_layout.as_ref().map_or((target_pos, false), |map_layout| {
             let mut walls_to_check = Vec::new();
 
             if is_on_roof(client_pos.y) {
                 // On roof: only roof edge walls (which have openings at ramp connections)
-                walls_to_check.extend_from_slice(&config.roof_edge_walls);
+                walls_to_check.extend_from_slice(&map_layout.roof_edge_walls);
             } else {
                 // On ground: all walls (or just boundary if phasing) plus ramp walls
                 let base_walls: &[Wall] = if has_phasing {
-                    &config.boundary_walls
+                    &map_layout.boundary_walls
                 } else {
-                    &config.lower_walls
+                    &map_layout.lower_walls
                 };
                 walls_to_check.extend_from_slice(base_walls);
             }
@@ -273,7 +273,7 @@ pub fn players_movement_system(
             }
 
             if !collides {
-                for ramp in &config.ramps {
+                for ramp in &map_layout.ramps {
                     if sweep_player_vs_ramp_edges(&client_pos, &target_pos, ramp) {
                         collides = true;
                         break;
@@ -286,7 +286,7 @@ pub fn players_movement_system(
                 (
                     slide_player_along_obstacles(
                         &walls_to_check,
-                        &config.ramps,
+                        &map_layout.ramps,
                         &client_pos,
                         client_vel.x,
                         client_vel.z,
@@ -300,10 +300,10 @@ pub fn players_movement_system(
         });
 
         // Now calculate final Y based on the collision-adjusted X/Z position
-        let final_target = if let Some(config) = grid_config.as_ref() {
+        let final_target = if let Some(map_layout) = map_layout.as_ref() {
             let ramp_height =
-                calculate_height_at_position(&config.ramps, wall_adjusted_target.x, wall_adjusted_target.z);
-            let on_roof = is_position_on_roof(&config.roofs, wall_adjusted_target.x, wall_adjusted_target.z);
+                calculate_height_at_position(&map_layout.ramps, wall_adjusted_target.x, wall_adjusted_target.z);
+            let on_roof = is_position_on_roof(&map_layout.roofs, wall_adjusted_target.x, wall_adjusted_target.z);
 
             let final_y = if ramp_height > 0.0 {
                 ramp_height

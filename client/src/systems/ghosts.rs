@@ -15,7 +15,7 @@ use common::{
 pub fn ghosts_movement_system(
     mut commands: Commands,
     time: Res<Time>,
-    grid_config: Option<Res<MapLayout>>,
+    map_layout: Option<Res<MapLayout>>,
     mut ghost_query: Query<
         (Entity, &mut Position, &mut Velocity, Option<&mut ServerReconciliation>),
         With<GhostMarker>,
@@ -63,25 +63,25 @@ pub fn ghosts_movement_system(
             }
         };
 
-        let final_pos = apply_ghost_wall_sliding(grid_config.as_deref(), &client_pos, &target_pos, &client_vel, delta);
+        let final_pos = apply_ghost_wall_sliding(map_layout.as_deref(), &client_pos, &target_pos, &client_vel, delta);
         *client_pos = final_pos;
     }
 }
 
 fn apply_ghost_wall_sliding(
-    grid_config: Option<&MapLayout>,
+    map_layout: Option<&MapLayout>,
     current_pos: &Position,
     target_pos: &Position,
     velocity: &Velocity,
     delta: f32,
 ) -> Position {
-    let Some(config) = grid_config else {
+    let Some(map_layout) = map_layout else {
         return *target_pos;
     };
 
     let mut collides = false;
 
-    for wall in &config.lower_walls {
+    for wall in &map_layout.lower_walls {
         if sweep_ghost_vs_wall(current_pos, target_pos, wall) {
             collides = true;
             break;
@@ -89,7 +89,7 @@ fn apply_ghost_wall_sliding(
     }
 
     if !collides {
-        for ramp in &config.ramps {
+        for ramp in &map_layout.ramps {
             if sweep_ghost_vs_ramp_footprint(current_pos, target_pos, ramp) {
                 collides = true;
                 break;
@@ -100,8 +100,8 @@ fn apply_ghost_wall_sliding(
     if collides {
         // Apply the same slide logic as server: walls + ramp footprints
         slide_ghost_along_obstacles(
-            &config.lower_walls,
-            &config.ramps,
+            &map_layout.lower_walls,
+            &map_layout.ramps,
             current_pos,
             velocity.x,
             velocity.z,
