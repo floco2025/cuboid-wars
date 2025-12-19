@@ -55,7 +55,7 @@ pub fn is_on_ramp(ramps: &[Ramp], x: f32, z: f32) -> bool {
 // Check if a player is on a roof based on their Y position.
 #[must_use]
 pub fn close_to_roof(y: f32) -> bool {
-    const HEIGHT_TOLERANCE: f32 = 0.1;
+    const HEIGHT_TOLERANCE: f32 = 0.5;
     (y - ROOF_HEIGHT).abs() < HEIGHT_TOLERANCE
 }
 

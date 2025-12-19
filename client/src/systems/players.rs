@@ -10,7 +10,7 @@ use crate::{
 use common::{
     collision::players::{slide_player_along_obstacles, sweep_player_vs_ramp_edges, sweep_player_vs_wall},
     constants::{ALWAYS_PHASING, PLAYER_HEIGHT, ROOF_HEIGHT, SPEED_RUN, UPDATE_BROADCAST_INTERVAL},
-    map::{has_roof, height_on_ramp, close_to_roof},
+    map::{close_to_roof, has_roof, height_on_ramp},
     markers::PlayerMarker,
     players::{PlannedMove, overlaps_other_player},
     protocol::{FaceDirection, MapLayout, PlayerId, Position, Velocity},
@@ -290,12 +290,8 @@ pub fn players_movement_system(
 
             if target_height_on_ramp > 0.0 {
                 target_pos.y = target_height_on_ramp;
-            } else if target_has_roof {
-                if close_to_roof(client_pos.y) {
-                    target_pos.y = ROOF_HEIGHT;
-                } else {
-                    target_pos.y = 0.0;
-                }
+            } else if target_has_roof && close_to_roof(client_pos.y) {
+                target_pos.y = ROOF_HEIGHT;
             } else {
                 target_pos.y = 0.0;
             }
