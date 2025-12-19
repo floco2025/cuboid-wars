@@ -215,7 +215,10 @@ pub fn generate_grid() -> (MapLayout, GridConfig) {
     }
 
     // Generate collision walls for roof edges
-    let roof_walls = collision::generate_roof_walls(&grid, grid_cols, grid_rows);
+    let mut roof_walls = collision::generate_roof_walls(&grid, grid_cols, grid_rows);
+    if MERGE_WALL_SEGMENTS && !OVERLAP_WALLS {
+        roof_walls = collision::merge_roof_walls(roof_walls);
+    }
 
     // Separate walls into boundary and interior
     let half_field_width = FIELD_WIDTH / 2.0;

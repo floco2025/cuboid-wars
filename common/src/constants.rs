@@ -36,7 +36,7 @@ pub const WALL_LENGTH: f32 = 8.2; // Slightly longer than grid to avoid corner g
 // Roof dimensions (meters)
 pub const ROOF_THICKNESS: f32 = 0.4; // Roof thickness
 pub const ROOF_HEIGHT: f32 = WALL_HEIGHT + ROOF_THICKNESS; // Top of roof
-pub const ROOF_WALL_THICKNESS: f32 = 0.01; // Invisible roof-edge guard
+pub const ROOF_WALL_THICKNESS: f32 = 0.1; // Roof-edge collision barrier (same as wall thickness for reliable sliding)
 
 // Visual details (meters)
 pub const PLAYER_NOSE_RADIUS: f32 = 0.08;

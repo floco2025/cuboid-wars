@@ -1,6 +1,8 @@
 use crate::resources::GridCell;
 use common::{constants::*, protocol::Wall};
 
+const MERGE_EPS: f32 = 0.01;
+
 // Generate collision walls for roof edges to prevent players from falling off.
 // Only adds edges where there's no adjacent roof or no ramp connection.
 pub fn generate_roof_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) -> Vec<Wall> {
@@ -75,4 +77,82 @@ pub fn generate_roof_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i3
     }
 
     roof_edge_walls
+}
+
+// Normalize wall coordinates so they're in consistent order
+fn normalize_roof_wall(mut w: Wall) -> Wall {
+    if (w.z1 - w.z2).abs() < MERGE_EPS {
+        // horizontal: order by x
+        if w.x1 > w.x2 {
+            std::mem::swap(&mut w.x1, &mut w.x2);
+        }
+    } else if (w.x1 - w.x2).abs() < MERGE_EPS {
+        // vertical: order by z
+        if w.z1 > w.z2 {
+            std::mem::swap(&mut w.z1, &mut w.z2);
+        }
+    }
+    w
+}
+
+// Merge adjacent collinear roof walls into longer segments
+pub fn merge_roof_walls(walls: Vec<Wall>) -> Vec<Wall> {
+    let mut horizontals = Vec::new();
+    let mut verticals = Vec::new();
+    let mut others = Vec::new();
+
+    for w in walls {
+        let w = normalize_roof_wall(w);
+        if (w.z1 - w.z2).abs() < MERGE_EPS {
+            horizontals.push(w);
+        } else if (w.x1 - w.x2).abs() < MERGE_EPS {
+            verticals.push(w);
+        } else {
+            others.push(w);
+        }
+    }
+
+    horizontals.sort_by(|a, b| {
+        a.z1.partial_cmp(&b.z1)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| a.x1.partial_cmp(&b.x1).unwrap_or(std::cmp::Ordering::Equal))
+    });
+    verticals.sort_by(|a, b| {
+        a.x1.partial_cmp(&b.x1)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| a.z1.partial_cmp(&b.z1).unwrap_or(std::cmp::Ordering::Equal))
+    });
+
+    let mut merged = Vec::new();
+
+    let merge_line = |list: Vec<Wall>, is_horizontal: bool, out: &mut Vec<Wall>| {
+        let mut iter = list.into_iter();
+        if let Some(mut cur) = iter.next() {
+            for w in iter {
+                if is_horizontal {
+                    if (cur.z1 - w.z1).abs() < MERGE_EPS
+                        && (cur.width - w.width).abs() < MERGE_EPS
+                        && w.x1 <= cur.x2 + MERGE_EPS
+                    {
+                        cur.x2 = cur.x2.max(w.x2);
+                        continue;
+                    }
+                } else if (cur.x1 - w.x1).abs() < MERGE_EPS
+                    && (cur.width - w.width).abs() < MERGE_EPS
+                    && w.z1 <= cur.z2 + MERGE_EPS
+                {
+                    cur.z2 = cur.z2.max(w.z2);
+                    continue;
+                }
+                out.push(cur);
+                cur = w;
+            }
+            out.push(cur);
+        }
+    };
+
+    merge_line(horizontals, true, &mut merged);
+    merge_line(verticals, false, &mut merged);
+    merged.extend(others);
+    merged
 }
