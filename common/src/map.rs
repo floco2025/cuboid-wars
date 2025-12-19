@@ -1,4 +1,7 @@
-use crate::{constants::ROOF_HEIGHT, protocol::{Ramp, Roof}};
+use crate::{
+    constants::ROOF_HEIGHT,
+    protocol::{Ramp, Roof},
+};
 
 /// Calculate the Y position (height) for a given (x, z) position based on ramps.
 /// Returns the interpolated Y value if the position is on a ramp, otherwise returns 0.0.

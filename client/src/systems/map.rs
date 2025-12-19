@@ -49,13 +49,7 @@ pub fn map_spawn_walls_system(
     );
 
     for wall in &config.lower_walls {
-        spawn_wall(
-            &mut commands,
-            &mut meshes,
-            &mut materials,
-            &asset_server,
-            wall,
-        );
+        spawn_wall(&mut commands, &mut meshes, &mut materials, &asset_server, wall);
     }
 
     for light in &config.wall_lights {

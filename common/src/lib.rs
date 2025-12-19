@@ -1,9 +1,9 @@
 pub mod collision;
 pub mod config;
 pub mod constants;
+pub mod map;
 pub mod markers;
 pub mod net;
 pub mod players;
 pub mod protocol;
-pub mod map;
 pub mod spawning;

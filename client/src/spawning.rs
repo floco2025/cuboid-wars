@@ -838,7 +838,6 @@ pub fn spawn_wall(
         visibility: Visibility::default(),
         marker: WallMarker,
     });
-
 }
 
 // Spawn a roof entity based on a shared `Roof` config.
@@ -1038,11 +1037,7 @@ pub fn spawn_item(
 }
 
 // Spawn a wall light from precomputed layout data (world-space positions and yaw).
-pub fn spawn_wall_light_from_layout(
-    commands: &mut Commands,
-    asset_server: &Res<AssetServer>,
-    light: &WallLight,
-) {
+pub fn spawn_wall_light_from_layout(commands: &mut Commands, asset_server: &Res<AssetServer>, light: &WallLight) {
     let light_scene: Handle<Scene> = asset_server.load(GltfAssetLabel::Scene(0).from_asset(WALL_LIGHT_MODEL));
 
     let model_yaw = Quat::from_rotation_y(light.yaw);
