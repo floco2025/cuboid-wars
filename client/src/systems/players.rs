@@ -10,7 +10,7 @@ use crate::{
 use common::{
     collision::players::{slide_player_along_obstacles, sweep_player_vs_ramp_edges, sweep_player_vs_wall},
     constants::{ALWAYS_PHASING, PLAYER_HEIGHT, ROOF_HEIGHT, SPEED_RUN, UPDATE_BROADCAST_INTERVAL},
-    map::{calculate_height_on_ramp, is_on_roof, is_position_on_roof},
+    map::{has_roof, height_on_ramp, close_to_roof},
     markers::PlayerMarker,
     players::{PlannedMove, overlaps_other_player},
     protocol::{FaceDirection, MapLayout, PlayerId, Position, Velocity},
@@ -247,7 +247,7 @@ pub fn players_movement_system(
         let mut collides = false;
 
         if let Some(map_layout) = map_layout.as_ref() {
-            let walls_to_check = if is_on_roof(client_pos.y) {
+            let walls_to_check = if close_to_roof(client_pos.y) {
                 &map_layout.roof_walls
             } else {
                 let has_phasing = ALWAYS_PHASING || players.0.get(player_id).is_some_and(|info| info.phasing_power_up);
@@ -285,14 +285,20 @@ pub fn players_movement_system(
                 );
             }
 
-            let height_on_ramp = calculate_height_on_ramp(&map_layout.ramps, target_pos.x, target_pos.z);
-            if height_on_ramp > 0.0 {
-                target_pos.y = height_on_ramp;
-            } else if is_position_on_roof(&map_layout.roofs, target_pos.x, target_pos.z) && is_on_roof(client_pos.y) {
-                target_pos.y = ROOF_HEIGHT;
+            let target_height_on_ramp = height_on_ramp(&map_layout.ramps, target_pos.x, target_pos.z);
+            let target_has_roof = has_roof(&map_layout.roofs, target_pos.x, target_pos.z);
+
+            if target_height_on_ramp > 0.0 {
+                target_pos.y = target_height_on_ramp;
+            } else if target_has_roof {
+                if close_to_roof(client_pos.y) {
+                    target_pos.y = ROOF_HEIGHT;
+                } else {
+                    target_pos.y = 0.0;
+                }
             } else {
-                target_pos.y = 0.0
-            };
+                target_pos.y = 0.0;
+            }
         };
 
         planned_moves.push(PlannedMove {

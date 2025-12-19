@@ -1,7 +1,7 @@
 use crate::{
     collision::players::{sweep_player_vs_roof, sweep_player_vs_wall},
     constants::*,
-    map::calculate_height_on_ramp,
+    map::height_on_ramp,
     protocol::{Position, Ramp, Roof, Wall},
 };
 use bevy_math::Vec3;
@@ -95,7 +95,7 @@ pub fn calculate_projectile_spawns(
                 return false;
             }
 
-            let ramp_height = calculate_height_on_ramp(&[*ramp], spawn_position.x, spawn_position.z);
+            let ramp_height = height_on_ramp(&[*ramp], spawn_position.x, spawn_position.z);
             ramp_height > 0.0 && spawn_position.y - PROJECTILE_RADIUS <= ramp_height
         });
 

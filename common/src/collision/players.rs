@@ -4,7 +4,7 @@ use super::helpers::{
 };
 use crate::{
     constants::{PLAYER_DEPTH, PLAYER_HEIGHT, PLAYER_WIDTH, ROOF_HEIGHT, WALL_THICKNESS},
-    map::calculate_height_on_ramp,
+    map::height_on_ramp,
     protocol::{Position, Ramp, Roof, Wall},
 };
 
@@ -85,7 +85,7 @@ pub fn slide_player_along_obstacles(
             let x = velocity_x.mul_add(dt, current_pos.x);
             Position {
                 x,
-                y: calculate_height_on_ramp(ramps, x, current_pos.z),
+                y: height_on_ramp(ramps, x, current_pos.z),
                 z: current_pos.z,
             }
         },
@@ -93,7 +93,7 @@ pub fn slide_player_along_obstacles(
             let z = velocity_z.mul_add(dt, current_pos.z);
             Position {
                 x: current_pos.x,
-                y: calculate_height_on_ramp(ramps, current_pos.x, z),
+                y: height_on_ramp(ramps, current_pos.x, z),
                 z,
             }
         },

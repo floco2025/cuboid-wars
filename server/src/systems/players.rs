@@ -5,7 +5,7 @@ use common::protocol::MapLayout;
 use common::{
     collision::players::{slide_player_along_obstacles, sweep_player_vs_ramp_edges, sweep_player_vs_wall},
     constants::{ALWAYS_PHASING, ALWAYS_SPEED, POWER_UP_SPEED_MULTIPLIER, ROOF_HEIGHT},
-    map::{calculate_height_on_ramp, is_on_roof, is_position_on_roof},
+    map::{has_roof, height_on_ramp, close_to_roof},
     markers::PlayerMarker,
     players::{PlannedMove, overlaps_other_player},
     protocol::{PlayerId, Position, SPlayerStatus, ServerMessage, Speed},
@@ -72,7 +72,7 @@ pub fn players_movement_system(
         };
 
         // Check collision and calculate target (with sliding if collision)
-        let walls_to_check = if is_on_roof(pos.y) {
+        let walls_to_check = if close_to_roof(pos.y) {
             &map_layout.roof_walls
         } else {
             let has_phasing = ALWAYS_PHASING
@@ -111,14 +111,20 @@ pub fn players_movement_system(
                 slide_player_along_obstacles(&walls_to_check, &map_layout.ramps, pos, velocity.x, velocity.z, delta);
         }
 
-        let height_on_ramp = calculate_height_on_ramp(&map_layout.ramps, target_pos.x, target_pos.z);
-        if height_on_ramp > 0.0 {
-            target_pos.y = height_on_ramp;
-        } else if is_position_on_roof(&map_layout.roofs, target_pos.x, target_pos.z) && is_on_roof(pos.y) {
-            target_pos.y = ROOF_HEIGHT;
+        let target_height_on_ramp = height_on_ramp(&map_layout.ramps, target_pos.x, target_pos.z);
+        let target_has_roof = has_roof(&map_layout.roofs, target_pos.x, target_pos.z);
+
+        if target_height_on_ramp > 0.0 {
+            target_pos.y = target_height_on_ramp;
+        } else if target_has_roof {
+            if close_to_roof(pos.y) {
+                target_pos.y = ROOF_HEIGHT;
+            } else {
+                target_pos.y = 0.0;
+            }
         } else {
-            target_pos.y = 0.0
-        };
+            target_pos.y = 0.0;
+        }
 
         planned_moves.push(PlannedMove {
             entity,
