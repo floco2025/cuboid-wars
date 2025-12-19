@@ -103,7 +103,6 @@ impl ProjectileBundle {
         position: Vec3,
         direction_yaw: f32,
         direction_pitch: f32,
-        reflects: bool,
         shooter_id: PlayerId,
     ) -> Self {
         Self {
@@ -114,7 +113,7 @@ impl ProjectileBundle {
                 ..default()
             })),
             transform: Transform::from_translation(position),
-            projectile: Projectile::new(direction_yaw, direction_pitch, reflects),
+            projectile: Projectile::new(direction_yaw, direction_pitch),
             player_id: shooter_id,
             projectile_marker: ProjectileMarker,
         }
@@ -667,7 +666,6 @@ pub fn spawn_projectiles(
     face_dir: f32,
     face_pitch: f32,
     has_multi_shot: bool,
-    has_reflect: bool,
     walls: &[Wall],
     ramps: &[Ramp],
     roofs: &[Roof],
@@ -678,7 +676,6 @@ pub fn spawn_projectiles(
         face_dir,
         face_pitch,
         has_multi_shot,
-        has_reflect,
         walls,
         ramps,
         roofs,
@@ -707,7 +704,6 @@ fn spawn_single_projectile(
         spawn_pos,
         spawn_info.direction_yaw,
         spawn_info.direction_pitch,
-        spawn_info.reflects,
         shooter_id,
     ));
 }
@@ -720,7 +716,6 @@ pub fn spawn_projectile_for_player(
     player_query: &Query<(&PlayerId, &Position, &FaceDirection)>,
     entity: Entity,
     has_multi_shot: bool,
-    has_reflect: bool,
     walls: &[Wall],
     ramps: &[Ramp],
     roofs: &[Roof],
@@ -735,7 +730,6 @@ pub fn spawn_projectile_for_player(
             face_dir.0,
             0.0,
             has_multi_shot,
-            has_reflect,
             walls,
             ramps,
             roofs,
@@ -966,7 +960,6 @@ pub const fn item_type_color(item_type: ItemType) -> Color {
             ITEM_MULTISHOT_COLOR[1],
             ITEM_MULTISHOT_COLOR[2],
         ),
-        ItemType::ReflectPowerUp => Color::srgb(ITEM_REFLECT_COLOR[0], ITEM_REFLECT_COLOR[1], ITEM_REFLECT_COLOR[2]),
         ItemType::PhasingPowerUp => Color::srgb(ITEM_PHASING_COLOR[0], ITEM_PHASING_COLOR[1], ITEM_PHASING_COLOR[2]),
         ItemType::GhostHuntPowerUp => Color::srgb(
             ITEM_GHOST_HUNT_COLOR[0],

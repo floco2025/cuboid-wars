@@ -11,7 +11,7 @@ use crate::{
 use common::{
     collision::items::overlap_player_vs_item,
     constants::{
-        ALWAYS_GHOST_HUNT, ALWAYS_MULTI_SHOT, ALWAYS_PHASING, ALWAYS_REFLECT, ALWAYS_SPEED, GRID_COLS, GRID_ROWS,
+        ALWAYS_GHOST_HUNT, ALWAYS_MULTI_SHOT, ALWAYS_PHASING, ALWAYS_SPEED, GRID_COLS, GRID_ROWS,
     },
     markers::{ItemMarker, PlayerMarker},
     protocol::{ItemId, ItemType, PlayerId, Position, SCookieCollected, SPlayerStatus, ServerMessage},
@@ -25,13 +25,11 @@ use super::network::broadcast_to_all;
 
 fn choose_item_type(rng: &mut rand::rngs::ThreadRng) -> ItemType {
     let rand_val = rng.random::<f64>();
-    if rand_val < 0.20 {
+    if rand_val < 0.25 {
         ItemType::SpeedPowerUp
-    } else if rand_val < 0.40 {
+    } else if rand_val < 0.50 {
         ItemType::MultiShotPowerUp
-    } else if rand_val < 0.60 {
-        ItemType::ReflectPowerUp
-    } else if rand_val < 0.80 {
+    } else if rand_val < 0.75 {
         ItemType::PhasingPowerUp
     } else {
         ItemType::GhostHuntPowerUp
@@ -224,9 +222,6 @@ pub fn item_collection_system(
                 ItemType::MultiShotPowerUp => {
                     player_info.multi_shot_power_up_timer = POWER_UP_MULTI_SHOT_DURATION;
                 }
-                ItemType::ReflectPowerUp => {
-                    player_info.reflect_power_up_timer = POWER_UP_REFLECT_DURATION;
-                }
                 ItemType::PhasingPowerUp => {
                     player_info.phasing_power_up_timer = POWER_UP_PHASING_DURATION;
                 }
@@ -240,7 +235,6 @@ pub fn item_collection_system(
                 id: player_id,
                 speed_power_up: ALWAYS_SPEED || player_info.speed_power_up_timer > 0.0,
                 multi_shot_power_up: ALWAYS_MULTI_SHOT || player_info.multi_shot_power_up_timer > 0.0,
-                reflect_power_up: ALWAYS_REFLECT || player_info.reflect_power_up_timer > 0.0,
                 phasing_power_up: ALWAYS_PHASING || player_info.phasing_power_up_timer > 0.0,
                 ghost_hunt_power_up: ALWAYS_GHOST_HUNT || player_info.ghost_hunt_power_up_timer > 0.0,
                 stunned: player_info.stun_timer > 0.0,

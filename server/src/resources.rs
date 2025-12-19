@@ -45,7 +45,6 @@ pub struct PlayerInfo {
     pub name: String,
     pub speed_power_up_timer: f32, // Remaining time for speed power-up (0.0 = inactive)
     pub multi_shot_power_up_timer: f32, // Remaining time for multi-shot power-up (0.0 = inactive)
-    pub reflect_power_up_timer: f32, // Remaining time for reflect power-up (0.0 = inactive)
     pub phasing_power_up_timer: f32, // Remaining time for phasing power-up (0.0 = inactive)
     pub ghost_hunt_power_up_timer: f32, // Remaining time for ghost hunt power-up (0.0 = inactive)
     pub stun_timer: f32,           // Remaining time stunned (0.0 = not stunned)

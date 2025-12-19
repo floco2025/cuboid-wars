@@ -29,12 +29,11 @@ const fn no_hit() -> HitResult {
 pub struct Projectile {
     pub velocity: Vec3,
     pub lifetime: Timer,
-    pub reflects: bool,
 }
 
 impl Projectile {
     #[must_use]
-    pub fn new(face_dir: f32, face_pitch: f32, reflects: bool) -> Self {
+    pub fn new(face_dir: f32, face_pitch: f32) -> Self {
         let pitch_sin = face_pitch.sin();
         let pitch_cos = face_pitch.cos();
         let velocity = Vec3::new(
@@ -46,7 +45,6 @@ impl Projectile {
         Self {
             velocity,
             lifetime: Timer::from_seconds(PROJECTILE_LIFETIME, TimerMode::Once),
-            reflects,
         }
     }
 
@@ -59,29 +57,25 @@ impl Projectile {
             let collision_y = self.velocity.y.mul_add(delta * t_collision, projectile_pos.y);
             let collision_z = self.velocity.z.mul_add(delta * t_collision, projectile_pos.z);
 
-            if self.reflects {
-                let dot = self
-                    .velocity
-                    .x
-                    .mul_add(normal_x, self.velocity.y.mul_add(normal_y, self.velocity.z * normal_z));
-                self.velocity.x -= 2.0 * dot * normal_x;
-                self.velocity.y -= 2.0 * dot * normal_y;
-                self.velocity.z -= 2.0 * dot * normal_z;
+            let dot = self
+                .velocity
+                .x
+                .mul_add(normal_x, self.velocity.y.mul_add(normal_y, self.velocity.z * normal_z));
+            self.velocity.x -= 2.0 * dot * normal_x;
+            self.velocity.y -= 2.0 * dot * normal_y;
+            self.velocity.z -= 2.0 * dot * normal_z;
 
-                const SEPARATION_EPSILON: f32 = 0.01;
-                let separated_x = normal_x.mul_add(SEPARATION_EPSILON, collision_x);
-                let separated_y = normal_y.mul_add(SEPARATION_EPSILON, collision_y);
-                let separated_z = normal_z.mul_add(SEPARATION_EPSILON, collision_z);
+            const SEPARATION_EPSILON: f32 = 0.01;
+            let separated_x = normal_x.mul_add(SEPARATION_EPSILON, collision_x);
+            let separated_y = normal_y.mul_add(SEPARATION_EPSILON, collision_y);
+            let separated_z = normal_z.mul_add(SEPARATION_EPSILON, collision_z);
 
-                let remaining_time = delta * (1.0 - t_collision);
-                Some(Position {
-                    x: self.velocity.x.mul_add(remaining_time, separated_x),
-                    y: self.velocity.y.mul_add(remaining_time, separated_y),
-                    z: self.velocity.z.mul_add(remaining_time, separated_z),
-                })
-            } else {
-                Some(*projectile_pos)
-            }
+            let remaining_time = delta * (1.0 - t_collision);
+            Some(Position {
+                x: self.velocity.x.mul_add(remaining_time, separated_x),
+                y: self.velocity.y.mul_add(remaining_time, separated_y),
+                z: self.velocity.z.mul_add(remaining_time, separated_z),
+            })
         } else {
             None
         }
@@ -92,33 +86,29 @@ impl Projectile {
         if let Some((normal_x, normal_y, normal_z, t_collision)) =
             sweep_projectile_vs_wall(projectile_pos, self, delta, wall)
         {
-            if self.reflects {
-                let collision_x = self.velocity.x.mul_add(delta * t_collision, projectile_pos.x);
-                let collision_y = self.velocity.y.mul_add(delta * t_collision, projectile_pos.y);
-                let collision_z = self.velocity.z.mul_add(delta * t_collision, projectile_pos.z);
+            let collision_x = self.velocity.x.mul_add(delta * t_collision, projectile_pos.x);
+            let collision_y = self.velocity.y.mul_add(delta * t_collision, projectile_pos.y);
+            let collision_z = self.velocity.z.mul_add(delta * t_collision, projectile_pos.z);
 
-                let dot = self
-                    .velocity
-                    .x
-                    .mul_add(normal_x, self.velocity.y.mul_add(normal_y, self.velocity.z * normal_z));
-                self.velocity.x -= 2.0 * dot * normal_x;
-                self.velocity.y -= 2.0 * dot * normal_y;
-                self.velocity.z -= 2.0 * dot * normal_z;
+            let dot = self
+                .velocity
+                .x
+                .mul_add(normal_x, self.velocity.y.mul_add(normal_y, self.velocity.z * normal_z));
+            self.velocity.x -= 2.0 * dot * normal_x;
+            self.velocity.y -= 2.0 * dot * normal_y;
+            self.velocity.z -= 2.0 * dot * normal_z;
 
-                const SEPARATION_EPSILON: f32 = 0.01;
-                let separated_x = normal_x.mul_add(SEPARATION_EPSILON, collision_x);
-                let separated_y = normal_y.mul_add(SEPARATION_EPSILON, collision_y);
-                let separated_z = normal_z.mul_add(SEPARATION_EPSILON, collision_z);
+            const SEPARATION_EPSILON: f32 = 0.01;
+            let separated_x = normal_x.mul_add(SEPARATION_EPSILON, collision_x);
+            let separated_y = normal_y.mul_add(SEPARATION_EPSILON, collision_y);
+            let separated_z = normal_z.mul_add(SEPARATION_EPSILON, collision_z);
 
-                let remaining_time = delta * (1.0 - t_collision);
-                Some(Position {
-                    x: self.velocity.x.mul_add(remaining_time, separated_x),
-                    y: self.velocity.y.mul_add(remaining_time, separated_y),
-                    z: self.velocity.z.mul_add(remaining_time, separated_z),
-                })
-            } else {
-                Some(*projectile_pos)
-            }
+            let remaining_time = delta * (1.0 - t_collision);
+            Some(Position {
+                x: self.velocity.x.mul_add(remaining_time, separated_x),
+                y: self.velocity.y.mul_add(remaining_time, separated_y),
+                z: self.velocity.z.mul_add(remaining_time, separated_z),
+            })
         } else {
             None
         }
@@ -129,39 +119,35 @@ impl Projectile {
         if let Some((normal_x, normal_y, normal_z, t_collision)) =
             sweep_projectile_vs_roof(projectile_pos, self, delta, roof)
         {
-            if self.reflects {
-                let collision_x = self.velocity.x.mul_add(delta * t_collision, projectile_pos.x);
-                let collision_y = self.velocity.y.mul_add(delta * t_collision, projectile_pos.y);
-                let collision_z = self.velocity.z.mul_add(delta * t_collision, projectile_pos.z);
+            let collision_x = self.velocity.x.mul_add(delta * t_collision, projectile_pos.x);
+            let collision_y = self.velocity.y.mul_add(delta * t_collision, projectile_pos.y);
+            let collision_z = self.velocity.z.mul_add(delta * t_collision, projectile_pos.z);
 
-                let dot = self
-                    .velocity
-                    .x
-                    .mul_add(normal_x, self.velocity.y.mul_add(normal_y, self.velocity.z * normal_z));
-                self.velocity.x -= 2.0 * dot * normal_x;
-                self.velocity.y -= 2.0 * dot * normal_y;
-                self.velocity.z -= 2.0 * dot * normal_z;
+            let dot = self
+                .velocity
+                .x
+                .mul_add(normal_x, self.velocity.y.mul_add(normal_y, self.velocity.z * normal_z));
+            self.velocity.x -= 2.0 * dot * normal_x;
+            self.velocity.y -= 2.0 * dot * normal_y;
+            self.velocity.z -= 2.0 * dot * normal_z;
 
-                const SEPARATION_EPSILON: f32 = 0.01;
-                let separated_x = normal_x.mul_add(SEPARATION_EPSILON, collision_x);
-                let separated_y = normal_y.mul_add(SEPARATION_EPSILON, collision_y);
-                let separated_z = normal_z.mul_add(SEPARATION_EPSILON, collision_z);
+            const SEPARATION_EPSILON: f32 = 0.01;
+            let separated_x = normal_x.mul_add(SEPARATION_EPSILON, collision_x);
+            let separated_y = normal_y.mul_add(SEPARATION_EPSILON, collision_y);
+            let separated_z = normal_z.mul_add(SEPARATION_EPSILON, collision_z);
 
-                let remaining_time = delta * (1.0 - t_collision);
-                Some(Position {
-                    x: self.velocity.x.mul_add(remaining_time, separated_x),
-                    y: self.velocity.y.mul_add(remaining_time, separated_y),
-                    z: self.velocity.z.mul_add(remaining_time, separated_z),
-                })
-            } else {
-                Some(*projectile_pos)
-            }
+            let remaining_time = delta * (1.0 - t_collision);
+            Some(Position {
+                x: self.velocity.x.mul_add(remaining_time, separated_x),
+                y: self.velocity.y.mul_add(remaining_time, separated_y),
+                z: self.velocity.z.mul_add(remaining_time, separated_z),
+            })
         } else {
             None
         }
     }
 
-    // Bounce off the ground plane (y=0) if moving downward and reflects is true.
+    // Bounce off the ground plane (y=0) if moving downward
     #[must_use]
     pub fn handle_ground_bounce(&mut self, projectile_pos: &Position, delta: f32) -> Option<Position> {
         let vy = self.velocity.y;
@@ -184,29 +170,25 @@ impl Projectile {
         let normal_y = 1.0;
         let normal_z = 0.0;
 
-        if self.reflects {
-            let dot = self
-                .velocity
-                .x
-                .mul_add(normal_x, self.velocity.y.mul_add(normal_y, self.velocity.z * normal_z));
-            self.velocity.x -= 2.0 * dot * normal_x;
-            self.velocity.y -= 2.0 * dot * normal_y;
-            self.velocity.z -= 2.0 * dot * normal_z;
+        let dot = self
+            .velocity
+            .x
+            .mul_add(normal_x, self.velocity.y.mul_add(normal_y, self.velocity.z * normal_z));
+        self.velocity.x -= 2.0 * dot * normal_x;
+        self.velocity.y -= 2.0 * dot * normal_y;
+        self.velocity.z -= 2.0 * dot * normal_z;
 
-            const SEPARATION_EPSILON: f32 = 0.01;
-            let separated_x = normal_x.mul_add(SEPARATION_EPSILON, collision_x);
-            let separated_y = normal_y.mul_add(SEPARATION_EPSILON, collision_y);
-            let separated_z = normal_z.mul_add(SEPARATION_EPSILON, collision_z);
+        const SEPARATION_EPSILON: f32 = 0.01;
+        let separated_x = normal_x.mul_add(SEPARATION_EPSILON, collision_x);
+        let separated_y = normal_y.mul_add(SEPARATION_EPSILON, collision_y);
+        let separated_z = normal_z.mul_add(SEPARATION_EPSILON, collision_z);
 
-            let remaining_time = delta * (1.0 - t_hit);
-            Some(Position {
-                x: self.velocity.x.mul_add(remaining_time, separated_x),
-                y: self.velocity.y.mul_add(remaining_time, separated_y),
-                z: self.velocity.z.mul_add(remaining_time, separated_z),
-            })
-        } else {
-            Some(*projectile_pos)
-        }
+        let remaining_time = delta * (1.0 - t_hit);
+        Some(Position {
+            x: self.velocity.x.mul_add(remaining_time, separated_x),
+            y: self.velocity.y.mul_add(remaining_time, separated_y),
+            z: self.velocity.z.mul_add(remaining_time, separated_z),
+        })
     }
 }
 
@@ -371,15 +353,14 @@ pub fn sweep_projectile_vs_ramp(
     if let Some(t_top) = top_hit {
         let cx = ray_dir_x.mul_add(t_top, proj_pos.x);
         let cz = ray_dir_z.mul_add(t_top, proj_pos.z);
-        if cx >= min_x - 1e-4 && cx <= max_x + 1e-4 && cz >= min_z - 1e-4 && cz <= max_z + 1e-4
-            && t_top < best_t {
-                let denom = (1.0 + slope * slope).sqrt();
-                let normal_x = if along_x { -slope / denom } else { 0.0 };
-                let normal_z = if along_x { 0.0 } else { -slope / denom };
-                let normal_y = 1.0 / denom;
-                best_t = t_top;
-                best_normal = (normal_x, normal_y, normal_z);
-            }
+        if cx >= min_x - 1e-4 && cx <= max_x + 1e-4 && cz >= min_z - 1e-4 && cz <= max_z + 1e-4 && t_top < best_t {
+            let denom = (1.0 + slope * slope).sqrt();
+            let normal_x = if along_x { -slope / denom } else { 0.0 };
+            let normal_z = if along_x { 0.0 } else { -slope / denom };
+            let normal_y = 1.0 / denom;
+            best_t = t_top;
+            best_normal = (normal_x, normal_y, normal_z);
+        }
     }
 
     if best_t.is_finite() {

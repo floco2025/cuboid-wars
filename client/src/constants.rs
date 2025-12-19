@@ -27,7 +27,6 @@ pub const WALL_LIGHT_INWARD_OFFSET: f32 = 0.2; // push the point light further i
 pub const WALL_LIGHT_RADIUS: f32 = 0.01;
 pub const WALL_LIGHT_EMISSIVE_LUMINANCE: f32 = 2.0;
 
-
 // Ambient light settings
 pub const LIGHT_AMBIENT_BRIGHTNESS: f32 = 100.0;
 pub const LIGHT_DIRECTIONAL_BRIGHTNESS: f32 = 8000.0;
@@ -58,8 +57,7 @@ pub const ITEM_HEIGHT_ABOVE_FLOOR: f32 = 1.0;
 pub const ITEM_ANIMATION_HEIGHT: f32 = 0.5;
 pub const ITEM_ANIMATION_SPEED: f32 = 1.5;
 pub const ITEM_SPEED_COLOR: [f32; 4] = [0.2, 0.7, 1.0, 1.0]; // Light blue
-pub const ITEM_MULTISHOT_COLOR: [f32; 4] = [1.0, 0.5, 0.2, 1.0]; // Orange
-pub const ITEM_REFLECT_COLOR: [f32; 4] = [1.0, 0.2, 0.2, 1.0]; // Red
+pub const ITEM_MULTISHOT_COLOR: [f32; 4] = [1.0, 0.2, 0.2, 1.0]; // Red
 pub const ITEM_PHASING_COLOR: [f32; 4] = [0.2, 1.0, 0.2, 1.0]; // Green
 pub const ITEM_GHOST_HUNT_COLOR: [f32; 3] = [0.973, 0.973, 1.0]; // Pale blue (same as ghost color)
 

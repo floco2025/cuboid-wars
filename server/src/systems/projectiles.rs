@@ -54,14 +54,9 @@ pub fn projectiles_movement_system(
 
         // Ground bounce
         if let Some(new_pos) = projectile.handle_ground_bounce(&proj_pos, delta) {
-            if projectile.reflects {
-                proj_pos.x = new_pos.x;
-                proj_pos.y = new_pos.y;
-                proj_pos.z = new_pos.z;
-            } else {
-                commands.entity(proj_entity).despawn();
-            }
-
+            proj_pos.x = new_pos.x;
+            proj_pos.y = new_pos.y;
+            proj_pos.z = new_pos.z;
             hit_something = true;
         }
 
@@ -69,14 +64,9 @@ pub fn projectiles_movement_system(
         if !hit_something {
             for wall in &map_layout.lower_walls {
                 if let Some(new_pos) = projectile.handle_wall_bounce(&proj_pos, delta, wall) {
-                    if projectile.reflects {
-                        proj_pos.x = new_pos.x;
-                        proj_pos.y = new_pos.y;
-                        proj_pos.z = new_pos.z;
-                    } else {
-                        commands.entity(proj_entity).despawn();
-                    }
-
+                    proj_pos.x = new_pos.x;
+                    proj_pos.y = new_pos.y;
+                    proj_pos.z = new_pos.z;
                     hit_something = true;
                     break;
                 }
@@ -87,14 +77,9 @@ pub fn projectiles_movement_system(
         if !hit_something {
             for roof in &map_layout.roofs {
                 if let Some(new_pos) = projectile.handle_roof_bounce(&proj_pos, delta, roof) {
-                    if projectile.reflects {
-                        proj_pos.x = new_pos.x;
-                        proj_pos.y = new_pos.y;
-                        proj_pos.z = new_pos.z;
-                    } else {
-                        commands.entity(proj_entity).despawn();
-                    }
-
+                    proj_pos.x = new_pos.x;
+                    proj_pos.y = new_pos.y;
+                    proj_pos.z = new_pos.z;
                     hit_something = true;
                     break;
                 }
@@ -105,13 +90,9 @@ pub fn projectiles_movement_system(
         if !hit_something {
             for ramp in &map_layout.ramps {
                 if let Some(new_pos) = projectile.handle_ramp_bounce(&proj_pos, delta, ramp) {
-                    if projectile.reflects {
-                        proj_pos.x = new_pos.x;
-                        proj_pos.y = new_pos.y;
-                        proj_pos.z = new_pos.z;
-                    } else {
-                        commands.entity(proj_entity).despawn();
-                    }
+                    proj_pos.x = new_pos.x;
+                    proj_pos.y = new_pos.y;
+                    proj_pos.z = new_pos.z;
                     hit_something = true;
                     break;
                 }
@@ -166,7 +147,6 @@ pub fn projectiles_movement_system(
                                 id: *shooter_id,
                                 speed_power_up: shooter_info.speed_power_up_timer > 0.0,
                                 multi_shot_power_up: shooter_info.multi_shot_power_up_timer > 0.0,
-                                reflect_power_up: shooter_info.reflect_power_up_timer > 0.0,
                                 phasing_power_up: shooter_info.phasing_power_up_timer > 0.0,
                                 ghost_hunt_power_up: false,
                                 stunned: shooter_info.stun_timer > 0.0,

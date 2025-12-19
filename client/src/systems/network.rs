@@ -234,7 +234,6 @@ fn handle_login_message(
             name: msg.player.name,
             speed_power_up: msg.player.speed_power_up,
             multi_shot_power_up: msg.player.multi_shot_power_up,
-            reflect_power_up: msg.player.reflect_power_up,
             phasing_power_up: msg.player.phasing_power_up,
             ghost_hunt_power_up: msg.player.ghost_hunt_power_up,
             stunned: msg.player.stunned,
@@ -302,38 +301,22 @@ fn handle_shot_message(
         commands.entity(player.entity).insert(FaceDirection(msg.face_dir));
 
         // Spawn projectile(s) based on player's multi-shot power-up status
-        if let Ok(player_facing) = player_face_query.get(player.entity) {
-            if let Some(map_layout) = map_layout {
-                spawn_projectiles(
-                    commands,
-                    &mut assets.meshes,
-                    &mut assets.materials,
-                    player_facing.position,
-                    msg.face_dir,
-                    msg.face_pitch,
-                    player.multi_shot_power_up,
-                    player.reflect_power_up,
-                    map_layout.lower_walls.as_slice(),
-                    map_layout.ramps.as_slice(),
-                    map_layout.roofs.as_slice(),
-                    msg.id,
-                );
-            } else {
-                spawn_projectiles(
-                    commands,
-                    &mut assets.meshes,
-                    &mut assets.materials,
-                    player_facing.position,
-                    msg.face_dir,
-                    msg.face_pitch,
-                    player.multi_shot_power_up,
-                    player.reflect_power_up,
-                    &[][..],
-                    &[][..],
-                    &[][..],
-                    msg.id,
-                );
-            }
+        if let Ok(player_facing) = player_face_query.get(player.entity)
+            && let Some(map_layout) = map_layout
+        {
+            spawn_projectiles(
+                commands,
+                &mut assets.meshes,
+                &mut assets.materials,
+                player_facing.position,
+                msg.face_dir,
+                msg.face_pitch,
+                player.multi_shot_power_up,
+                map_layout.lower_walls.as_slice(),
+                map_layout.ramps.as_slice(),
+                map_layout.roofs.as_slice(),
+                msg.id,
+            );
         }
     }
 }
@@ -433,7 +416,6 @@ fn handle_players_update(
                 name: player.name.clone(),
                 speed_power_up: player.speed_power_up,
                 multi_shot_power_up: player.multi_shot_power_up,
-                reflect_power_up: player.reflect_power_up,
                 phasing_power_up: player.phasing_power_up,
                 ghost_hunt_power_up: player.ghost_hunt_power_up,
                 stunned: player.stunned,
@@ -482,7 +464,6 @@ fn handle_players_update(
             client_player.hits = server_player.hits;
             client_player.speed_power_up = server_player.speed_power_up;
             client_player.multi_shot_power_up = server_player.multi_shot_power_up;
-            client_player.reflect_power_up = server_player.reflect_power_up;
             client_player.phasing_power_up = server_player.phasing_power_up;
         }
     }
@@ -666,7 +647,6 @@ fn handle_player_status_message(
                 #[allow(clippy::nonminimal_bool)]
                 if !(player_info.speed_power_up && !msg.speed_power_up
                     || player_info.multi_shot_power_up && !msg.multi_shot_power_up
-                    || player_info.reflect_power_up && !msg.reflect_power_up
                     || player_info.phasing_power_up && !msg.phasing_power_up)
                 {
                     commands.spawn((
@@ -692,7 +672,6 @@ fn handle_player_status_message(
 
         player_info.speed_power_up = msg.speed_power_up;
         player_info.multi_shot_power_up = msg.multi_shot_power_up;
-        player_info.reflect_power_up = msg.reflect_power_up;
         player_info.phasing_power_up = msg.phasing_power_up;
         player_info.ghost_hunt_power_up = msg.ghost_hunt_power_up;
         player_info.stunned = msg.stunned;

@@ -71,7 +71,6 @@ fn snapshot_logged_in_players(players: &PlayerMap, queries: &NetworkEntityQuerie
                     hits: info.hits,
                     speed_power_up: ALWAYS_SPEED || info.speed_power_up_timer > 0.0,
                     multi_shot_power_up: ALWAYS_MULTI_SHOT || info.multi_shot_power_up_timer > 0.0,
-                    reflect_power_up: ALWAYS_REFLECT || info.reflect_power_up_timer > 0.0,
                     phasing_power_up: ALWAYS_PHASING || info.phasing_power_up_timer > 0.0,
                     ghost_hunt_power_up: ALWAYS_GHOST_HUNT || info.ghost_hunt_power_up_timer > 0.0,
                     stunned: info.stun_timer > 0.0,
@@ -185,7 +184,6 @@ pub fn network_accept_connections_system(
                 name: String::new(),
                 speed_power_up_timer: 0.0,
                 multi_shot_power_up_timer: 0.0,
-                reflect_power_up_timer: 0.0,
                 phasing_power_up_timer: 0.0,
                 ghost_hunt_power_up_timer: 0.0,
                 stun_timer: 0.0,
@@ -331,7 +329,6 @@ fn process_message_not_logged_in(
                 hits,
                 speed_power_up: false,
                 multi_shot_power_up: false,
-                reflect_power_up: false,
                 phasing_power_up: false,
                 ghost_hunt_power_up: false,
                 stunned: false,
@@ -484,7 +481,7 @@ fn handle_shot(
 ) {
     let now = time.elapsed_secs();
 
-    let (has_reflect, has_multi_shot) = {
+    let has_multi_shot = {
         let Some(player_info) = players.0.get_mut(&id) else {
             return;
         };
@@ -495,10 +492,7 @@ fn handle_shot(
 
         player_info.last_shot_time = now;
 
-        (
-            ALWAYS_REFLECT || player_info.reflect_power_up_timer > 0.0,
-            ALWAYS_MULTI_SHOT || player_info.multi_shot_power_up_timer > 0.0,
-        )
+        ALWAYS_MULTI_SHOT || player_info.multi_shot_power_up_timer > 0.0
     };
 
     // Update the shooter's face direction to exact facing direction
@@ -512,7 +506,6 @@ fn handle_shot(
             msg.face_dir,
             msg.face_pitch,
             has_multi_shot,
-            has_reflect,
             &map_layout.lower_walls,
             &map_layout.ramps,
             &map_layout.roofs,
@@ -523,7 +516,6 @@ fn handle_shot(
             let projectile = Projectile::new(
                 spawn_info.direction_yaw,
                 spawn_info.direction_pitch,
-                spawn_info.reflects,
             );
 
             commands.spawn((

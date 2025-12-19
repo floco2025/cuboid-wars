@@ -155,7 +155,6 @@ pub fn players_timer_system(time: Res<Time>, mut players: ResMut<PlayerMap>) {
     for (player_id, player_info) in &mut players.0 {
         let old_speed = player_info.speed_power_up_timer > 0.0;
         let old_multi_shot = player_info.multi_shot_power_up_timer > 0.0;
-        let old_reflect = player_info.reflect_power_up_timer > 0.0;
         let old_phasing = player_info.phasing_power_up_timer > 0.0;
         let old_ghost_hunt = player_info.ghost_hunt_power_up_timer > 0.0;
         let old_stunned = player_info.stun_timer > 0.0;
@@ -163,14 +162,12 @@ pub fn players_timer_system(time: Res<Time>, mut players: ResMut<PlayerMap>) {
         // Decrease power-up timers
         player_info.speed_power_up_timer = (player_info.speed_power_up_timer - delta).max(0.0);
         player_info.multi_shot_power_up_timer = (player_info.multi_shot_power_up_timer - delta).max(0.0);
-        player_info.reflect_power_up_timer = (player_info.reflect_power_up_timer - delta).max(0.0);
         player_info.phasing_power_up_timer = (player_info.phasing_power_up_timer - delta).max(0.0);
         player_info.ghost_hunt_power_up_timer = (player_info.ghost_hunt_power_up_timer - delta).max(0.0);
         player_info.stun_timer = (player_info.stun_timer - delta).max(0.0);
 
         let new_speed = player_info.speed_power_up_timer > 0.0;
         let new_multi_shot = player_info.multi_shot_power_up_timer > 0.0;
-        let new_reflect = player_info.reflect_power_up_timer > 0.0;
         let new_phasing = player_info.phasing_power_up_timer > 0.0;
         let new_ghost_hunt = player_info.ghost_hunt_power_up_timer > 0.0;
         let new_stunned = player_info.stun_timer > 0.0;
@@ -178,7 +175,6 @@ pub fn players_timer_system(time: Res<Time>, mut players: ResMut<PlayerMap>) {
         // Track changes to broadcast
         if old_speed != new_speed
             || old_multi_shot != new_multi_shot
-            || old_reflect != new_reflect
             || old_phasing != new_phasing
             || old_ghost_hunt != new_ghost_hunt
             || old_stunned != new_stunned
@@ -187,7 +183,6 @@ pub fn players_timer_system(time: Res<Time>, mut players: ResMut<PlayerMap>) {
                 id: *player_id,
                 speed_power_up: new_speed,
                 multi_shot_power_up: new_multi_shot,
-                reflect_power_up: new_reflect,
                 phasing_power_up: new_phasing,
                 ghost_hunt_power_up: new_ghost_hunt,
                 stunned: new_stunned,

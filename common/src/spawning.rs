@@ -16,7 +16,6 @@ pub struct ProjectileSpawnInfo {
     pub position: Position,
     pub direction_yaw: f32,
     pub direction_pitch: f32,
-    pub reflects: bool,
 }
 
 // Calculate valid projectile spawn positions for a shot
@@ -29,7 +28,6 @@ pub fn calculate_projectile_spawns(
     face_dir: f32,
     face_pitch: f32,
     has_multi_shot: bool,
-    has_reflect: bool,
     walls: &[Wall],
     ramps: &[Ramp],
     roofs: &[Roof],
@@ -121,7 +119,6 @@ pub fn calculate_projectile_spawns(
             position: spawn_position,
             direction_yaw: shot_yaw,
             direction_pitch: face_pitch,
-            reflects: has_reflect,
         });
     }
 

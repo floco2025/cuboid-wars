@@ -749,7 +749,6 @@ pub fn ghost_player_collision_system(
                 id: player_id,
                 speed_power_up: ALWAYS_SPEED || player_info.speed_power_up_timer > 0.0,
                 multi_shot_power_up: ALWAYS_MULTI_SHOT || player_info.multi_shot_power_up_timer > 0.0,
-                reflect_power_up: ALWAYS_REFLECT || player_info.reflect_power_up_timer > 0.0,
                 phasing_power_up: ALWAYS_PHASING || player_info.phasing_power_up_timer > 0.0,
                 ghost_hunt_power_up: ALWAYS_GHOST_HUNT || player_info.ghost_hunt_power_up_timer > 0.0,
                 stunned: true,

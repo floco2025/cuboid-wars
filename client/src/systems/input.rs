@@ -16,7 +16,7 @@ use crate::{
     spawning::spawn_projectiles,
 };
 use common::{
-    constants::{ALWAYS_MULTI_SHOT, ALWAYS_REFLECT, ALWAYS_SPEED, POWER_UP_SPEED_MULTIPLIER, PROJECTILE_COOLDOWN_TIME},
+    constants::{ALWAYS_MULTI_SHOT, ALWAYS_SPEED, POWER_UP_SPEED_MULTIPLIER, PROJECTILE_COOLDOWN_TIME},
     protocol::*,
 };
 
@@ -324,13 +324,6 @@ pub fn input_shooting_system(
                 .and_then(|id| players.0.get(&id.0))
                 .is_some_and(|info| info.multi_shot_power_up);
 
-        // Check if player has reflect power-up
-        let has_reflect = ALWAYS_REFLECT
-            || my_player_id
-                .as_ref()
-                .and_then(|id| players.0.get(&id.0))
-                .is_some_and(|info| info.reflect_power_up);
-
         if let Some(my_id) = my_player_id.as_ref()
             && let Some(map_layout) = map_layout.as_ref()
         {
@@ -342,7 +335,6 @@ pub fn input_shooting_system(
                 face_dir.0,
                 pitch,
                 has_multi_shot,
-                has_reflect,
                 map_layout.lower_walls.as_slice(),
                 map_layout.ramps.as_slice(),
                 map_layout.roofs.as_slice(),

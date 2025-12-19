@@ -133,7 +133,6 @@ pub fn projectiles_movement_system(
         let new_pos = if let Some(pos_after_bounce) = handle_wall_collisions(
             &mut commands,
             asset_server.as_ref(),
-            projectile_entity,
             &mut projectile,
             &projectile_pos,
             delta,
@@ -189,7 +188,6 @@ pub fn projectiles_movement_system(
 fn handle_wall_collisions(
     commands: &mut Commands,
     asset_server: &AssetServer,
-    projectile_entity: Entity,
     projectile: &mut Projectile,
     projectile_pos: &Position,
     delta: f32,
@@ -210,10 +208,6 @@ fn handle_wall_collisions(
             },
         );
 
-        if !projectile.reflects {
-            commands.entity(projectile_entity).despawn();
-        }
-
         return Some(new_pos);
     }
 
@@ -230,10 +224,6 @@ fn handle_wall_collisions(
                     ..default()
                 },
             );
-
-            if !projectile.reflects {
-                commands.entity(projectile_entity).despawn();
-            }
 
             return Some(new_pos);
         }
@@ -253,10 +243,6 @@ fn handle_wall_collisions(
                 },
             );
 
-            if !projectile.reflects {
-                commands.entity(projectile_entity).despawn();
-            }
-
             return Some(new_pos);
         }
     }
@@ -275,12 +261,7 @@ fn handle_wall_collisions(
                 },
             );
 
-            if projectile.reflects {
-                return Some(new_pos);
-            }
-            // Despawn projectile
-            commands.entity(projectile_entity).despawn();
-            return Some(*projectile_pos);
+            return Some(new_pos);
         }
     }
 

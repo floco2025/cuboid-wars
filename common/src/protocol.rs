@@ -81,7 +81,6 @@ pub struct Player {
     pub hits: i32,
     pub speed_power_up: bool,
     pub multi_shot_power_up: bool,
-    pub reflect_power_up: bool,
     pub phasing_power_up: bool,
     pub ghost_hunt_power_up: bool,
     pub stunned: bool,
@@ -147,7 +146,6 @@ pub struct MapLayout {
 pub enum ItemType {
     SpeedPowerUp,
     MultiShotPowerUp,
-    ReflectPowerUp,
     PhasingPowerUp,
     GhostHuntPowerUp,
     Cookie,
@@ -277,7 +275,6 @@ pub struct SPlayerStatus {
     pub id: PlayerId,
     pub speed_power_up: bool,
     pub multi_shot_power_up: bool,
-    pub reflect_power_up: bool,
     pub phasing_power_up: bool,
     pub ghost_hunt_power_up: bool,
     pub stunned: bool,

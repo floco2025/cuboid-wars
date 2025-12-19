@@ -441,17 +441,6 @@ fn spawn_player_entry(
                     BackgroundColor(item_type_color(ItemType::MultiShotPowerUp)),
                 ));
             }
-            if player_info.reflect_power_up {
-                row.spawn((
-                    Node {
-                        width: Val::Px(12.0),
-                        height: Val::Px(12.0),
-                        align_self: AlignSelf::Center,
-                        ..default()
-                    },
-                    BackgroundColor(item_type_color(ItemType::ReflectPowerUp)),
-                ));
-            }
             if player_info.phasing_power_up {
                 row.spawn((
                     Node {
