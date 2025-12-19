@@ -21,9 +21,13 @@ pub const MOUSE_SENSITIVITY: f32 = 0.002;
 
 // Wall light asset
 pub const WALL_LIGHT_MODEL: &str = "models/wall_light.glb";
-pub const WALL_LIGHT_SCALE: f32 = 1.6; // uniform scale applied to light model
-pub const WALL_LIGHT_BRIGHTNESS: f32 = 400000.0; // point light intensity (effective, no extra multiplier)
+pub const WALL_LIGHT_SCALE: f32 = 1.5; // uniform scale applied to light model
+pub const WALL_LIGHT_BRIGHTNESS: f32 = 100000.0; // point light intensity
 pub const WALL_LIGHT_RANGE: f32 = 10.0; // meters
+pub const WALL_LIGHT_INWARD_OFFSET: f32 = 0.2; // push the point light further into the cell to avoid wall overlap
+pub const WALL_LIGHT_RADIUS: f32 = 0.01;
+pub const WALL_LIGHT_EMISSIVE_LUMINANCE: f32 = 2.0;
+
 
 // Ambient light settings
 pub const LIGHT_AMBIENT_BRIGHTNESS: f32 = 100.0;
@@ -77,8 +81,8 @@ pub const TEXTURE_FLOOR_NORMAL: &str = "textures/floor-normal-dx.png";
 pub const TEXTURE_FLOOR_AO: &str = "textures/floor-ao.png";
 
 // Visual settings for debugging
-pub const RANDOM_WALL_COLORS: bool = true;
-pub const RANDOM_ROOF_COLORS: bool = true;
+pub const RANDOM_WALL_COLORS: bool = false;
+pub const RANDOM_ROOF_COLORS: bool = false;
 pub const GRID_LINES: bool = false;
 
 // Cookie visual settings

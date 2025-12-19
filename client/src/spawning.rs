@@ -1036,15 +1036,21 @@ pub fn spawn_item(
         .id()
 }
 
-// Spawn a wall light from precomputed layout data (world-space positions and yaw).
+// Spawn a wall light from precomputed layout data (world-space position and yaw).
 pub fn spawn_wall_light_from_layout(commands: &mut Commands, asset_server: &Res<AssetServer>, light: &WallLight) {
     let light_scene: Handle<Scene> = asset_server.load(GltfAssetLabel::Scene(0).from_asset(WALL_LIGHT_MODEL));
 
     let model_yaw = Quat::from_rotation_y(light.yaw);
+    let (sin_yaw, cos_yaw) = light.yaw.sin_cos();
+    let light_pos = Vec3::new(
+        light.pos.x + WALL_LIGHT_INWARD_OFFSET * sin_yaw,
+        light.pos.y,
+        light.pos.z + WALL_LIGHT_INWARD_OFFSET * cos_yaw,
+    );
 
     commands.spawn((
         SceneRoot(light_scene.clone()),
-        Transform::from_xyz(light.model_pos.x, light.model_pos.y, light.model_pos.z)
+        Transform::from_xyz(light.pos.x, light.pos.y, light.pos.z)
             .with_scale(Vec3::splat(WALL_LIGHT_SCALE))
             .with_rotation(model_yaw),
         GlobalTransform::default(),
@@ -1056,15 +1062,13 @@ pub fn spawn_wall_light_from_layout(commands: &mut Commands, asset_server: &Res<
     commands.spawn((
         PointLight {
             intensity: WALL_LIGHT_BRIGHTNESS,
-            range: WALL_LIGHT_RANGE * 2.5,
-            radius: (light.model_pos.x - light.light_pos.x)
-                .hypot(light.model_pos.z - light.light_pos.z)
-                .max(0.08),
+            range: WALL_LIGHT_RANGE,
+            radius: WALL_LIGHT_RADIUS,
             shadows_enabled: false,
             color: Color::srgb(1.0, 0.95, 0.85),
             ..default()
         },
-        Transform::from_xyz(light.light_pos.x, light.light_pos.y, light.light_pos.z),
+        Transform::from_xyz(light_pos.x, light_pos.y, light_pos.z),
     ));
 }
 

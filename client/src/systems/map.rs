@@ -1,3 +1,4 @@
+use crate::constants::WALL_LIGHT_EMISSIVE_LUMINANCE;
 use bevy::prelude::*;
 
 use crate::{
@@ -162,9 +163,14 @@ pub fn map_make_wall_lights_emissive_system(
         // Check if this material has properties suggesting it's glass
         // (typically has some transparency or specific naming)
         if material.alpha_mode != AlphaMode::Opaque || material.base_color.alpha() < 1.0 {
-            // Make it emissive
-            material.emissive = LinearRgba::rgb(10.0, 9.5, 8.0); // Bright warm white
-            material.base_color = Color::srgba(1.0, 0.95, 0.85, material.base_color.alpha());
+            // Make it emissive using configurable fixture settings
+            let warm_tint = (1.0, 0.95, 0.85);
+            material.emissive = LinearRgba::rgb(
+                warm_tint.0 * WALL_LIGHT_EMISSIVE_LUMINANCE,
+                warm_tint.1 * WALL_LIGHT_EMISSIVE_LUMINANCE,
+                warm_tint.2 * WALL_LIGHT_EMISSIVE_LUMINANCE,
+            );
+            material.base_color = Color::srgba(warm_tint.0, warm_tint.1, warm_tint.2, material.base_color.alpha());
             processed.insert(id);
         }
     }

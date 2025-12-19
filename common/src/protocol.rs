@@ -126,8 +126,7 @@ pub struct Ramp {
 // Precomputed wall light placement sent from server to client.
 #[derive(Debug, Clone, Encode, Decode, Copy)]
 pub struct WallLight {
-    pub model_pos: Position,
-    pub light_pos: Position,
+    pub pos: Position,
     pub yaw: f32,
 }
 
