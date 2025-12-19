@@ -9,6 +9,33 @@ use common::protocol::*;
 // Bevy Resources
 // ============================================================================
 
+// Grid cell flags
+#[derive(Copy, Clone, Debug, Default)]
+pub struct GridCell {
+    pub has_north_wall: bool, // Horizontal wall at top edge (z)
+    pub has_south_wall: bool, // Horizontal wall at bottom edge (z+1)
+    pub has_west_wall: bool,  // Vertical wall at left edge (x)
+    pub has_east_wall: bool,  // Vertical wall at right edge (x+1)
+    pub has_ramp: bool,       // Cell occupied by a ramp footprint
+    pub has_roof: bool,       // Cell has a roof on top
+    // Ramp bases disallow walls on their entry edge
+    pub ramp_base_north: bool,
+    pub ramp_base_south: bool,
+    pub ramp_base_west: bool,
+    pub ramp_base_east: bool,
+    // Ramp tops disallow walls on their exit edge
+    pub ramp_top_north: bool,
+    pub ramp_top_south: bool,
+    pub ramp_top_west: bool,
+    pub ramp_top_east: bool,
+}
+
+// Grid configuration
+#[derive(Resource, Clone)]
+pub struct GridConfig {
+    pub grid: Vec<Vec<GridCell>>, // [row][col] - indexed by grid_z, grid_x
+}
+
 // Player information (server-side)
 pub struct PlayerInfo {
     pub entity: Entity,

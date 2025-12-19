@@ -5,9 +5,8 @@ use crate::{
     constants::*,
     map::cell_center,
     net::ServerToClient,
-    resources::{GhostInfo, GhostMap, GhostMode, PlayerMap},
+    resources::{GhostInfo, GhostMap, GhostMode, GridCell, GridConfig, PlayerMap},
 };
-use common::protocol::{GridCell, MapLayout};
 use common::{
     collision::{
         ghosts::{
@@ -95,7 +94,7 @@ fn direction_from_velocity(vel: &Velocity) -> Option<GridDirection> {
     }
 }
 
-fn valid_directions(grid_config: &MapLayout, grid_x: i32, grid_z: i32, cell: GridCell) -> Vec<GridDirection> {
+fn valid_directions(grid_config: &GridConfig, grid_x: i32, grid_z: i32, cell: GridCell) -> Vec<GridDirection> {
     assert!(
         grid_x >= 0 && grid_x < GRID_COLS && grid_z >= 0 && grid_z < GRID_ROWS,
         "ghost current cell OOB in valid_directions: ({}, {})",
@@ -123,7 +122,7 @@ fn valid_directions(grid_config: &MapLayout, grid_x: i32, grid_z: i32, cell: Gri
     ramp_safe
 }
 
-fn direction_leads_to_ramp(grid_config: &MapLayout, grid_x: i32, grid_z: i32, dir: GridDirection) -> bool {
+fn direction_leads_to_ramp(grid_config: &GridConfig, grid_x: i32, grid_z: i32, dir: GridDirection) -> bool {
     assert!(
         grid_x >= 0 && grid_x < GRID_COLS && grid_z >= 0 && grid_z < GRID_ROWS,
         "ghost current cell OOB in direction_leads_to_ramp: ({}, {})",
@@ -165,7 +164,7 @@ fn pick_direction<T: rand::Rng>(rng: &mut T, options: &[GridDirection]) -> Optio
 pub fn ghosts_spawn_system(
     mut commands: Commands,
     mut ghosts: ResMut<GhostMap>,
-    grid_config: Res<MapLayout>,
+    grid_config: Res<GridConfig>,
     query: Query<&GhostId>,
 ) {
     // Only spawn if no ghosts exist yet
@@ -220,7 +219,8 @@ pub fn ghosts_spawn_system(
 
 pub fn ghosts_movement_system(
     time: Res<Time>,
-    grid_config: Res<MapLayout>,
+    map_layout: Res<MapLayout>,
+    grid_config: Res<GridConfig>,
     players: Res<PlayerMap>,
     mut ghosts: ResMut<GhostMap>,
     mut param_set: ParamSet<(
@@ -232,7 +232,7 @@ pub fn ghosts_movement_system(
     let mut rng = rand::rng();
 
     // Use all_walls for ghost collision (ghosts never go on roofs)
-    let ghost_walls = &grid_config.lower_walls;
+    let ghost_walls = &map_layout.lower_walls;
 
     // Collect player positions and speeds (excluding stunned players)
     let player_data: Vec<(PlayerId, Position, Speed)> = param_set
@@ -360,7 +360,7 @@ pub fn ghosts_movement_system(
                         target_id,
                         &player_data,
                         &ghost_walls,
-                        &grid_config,
+                        &map_layout.ramps,
                         &players,
                         delta,
                     );
@@ -430,7 +430,7 @@ fn pre_patrol_movement(
     pos: &mut Position,
     vel: &mut Velocity,
     ghost_info: &mut GhostInfo,
-    grid_config: &MapLayout,
+    grid_config: &GridConfig,
     players: &PlayerMap,
     delta: f32,
     rng: &mut impl rand::Rng,
@@ -500,7 +500,7 @@ fn patrol_movement(
     pos: &mut Position,
     vel: &mut Velocity,
     ghost_info: &mut GhostInfo,
-    grid_config: &MapLayout,
+    grid_config: &GridConfig,
     players: &PlayerMap,
     delta: f32,
     rng: &mut impl rand::Rng,
@@ -583,7 +583,7 @@ fn follow_movement(
     target_id: PlayerId,
     player_data: &[(PlayerId, Position, Speed)],
     walls: &[Wall],
-    grid_config: &MapLayout,
+    ramps: &[Ramp],
     players: &PlayerMap,
     delta: f32,
 ) {
@@ -653,7 +653,7 @@ fn follow_movement(
     }
 
     if !collides {
-        for ramp in &grid_config.ramps {
+        for ramp in ramps {
             if sweep_ghost_vs_ramp_footprint(pos, &final_pos, ramp) {
                 collides = true;
                 break;
@@ -662,7 +662,7 @@ fn follow_movement(
     }
 
     if collides {
-        final_pos = slide_ghost_along_obstacles(walls, &grid_config.ramps, pos, desired_vel.x, desired_vel.z, delta);
+        final_pos = slide_ghost_along_obstacles(walls, ramps, pos, desired_vel.x, desired_vel.z, delta);
     }
 
     let actual_dx = final_pos.x - pos.x;

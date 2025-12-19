@@ -52,12 +52,12 @@ async fn main() -> Result<()> {
     tokio::spawn(accept_connections_task(endpoint, to_server_from_accept, to_server));
     let mut app = App::new();
 
-    let grid_config = generate_grid();
+    let (map_layout, grid_config) = generate_grid();
     info!(
         "generated {} wall segments, {} roofs, {} ramps",
-        grid_config.lower_walls.len(),
-        grid_config.roofs.len(),
-        grid_config.ramps.len()
+        map_layout.lower_walls.len(),
+        map_layout.roofs.len(),
+        map_layout.ramps.len()
     );
 
     app.add_plugins(MinimalPlugins)
@@ -66,6 +66,7 @@ async fn main() -> Result<()> {
             filter: LOG_FILTER.to_string(),
             ..default()
         })
+        .insert_resource(map_layout)
         .insert_resource(grid_config)
         .insert_resource(PlayerMap::default())
         .insert_resource(ItemMap::default())

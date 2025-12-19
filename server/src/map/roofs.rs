@@ -2,8 +2,10 @@ use rand::Rng;
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use super::helpers::count_cell_walls;
-use crate::constants::{OVERLAP_ROOFS, ROOF_NEIGHBOR_PREFERENCE, ROOF_NUM_SEGMENTS};
-use common::protocol::GridCell;
+use crate::{
+    constants::{OVERLAP_ROOFS, ROOF_NEIGHBOR_PREFERENCE, ROOF_NUM_SEGMENTS},
+    resources::GridCell,
+};
 use common::{constants::*, protocol::Roof};
 
 const MERGE_EPS: f32 = 0.01;

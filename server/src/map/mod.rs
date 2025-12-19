@@ -12,9 +12,10 @@ use crate::constants::{
     MERGE_ROOF_SEGMENTS, MERGE_WALL_SEGMENTS, OVERLAP_ROOFS, OVERLAP_WALLS, WALL_2ND_PROBABILITY_RATIO,
     WALL_3RD_PROBABILITY_RATIO, WALL_NUM_SEGMENTS,
 };
+use crate::resources::{GridCell, GridConfig};
 use common::{
     constants::*,
-    protocol::{GridCell, MapLayout, Wall},
+    protocol::{MapLayout, Wall},
 };
 use lights::generate_wall_lights;
 
@@ -23,7 +24,7 @@ pub use helpers::{cell_center, find_unoccupied_cell, find_unoccupied_cell_not_ra
 
 // Generate a complete map grid with walls, roofs, and ramps
 #[must_use]
-pub fn generate_grid() -> MapLayout {
+pub fn generate_grid() -> (MapLayout, GridConfig) {
     let mut rng = rand::rng();
 
     // Calculate grid dimensions
@@ -232,8 +233,7 @@ pub fn generate_grid() -> MapLayout {
 
     let wall_lights = generate_wall_lights(&grid, &lower_walls);
 
-    MapLayout {
-        grid,
+    let layout = MapLayout {
         boundary_walls,
         interior_walls,
         lower_walls,
@@ -241,5 +241,9 @@ pub fn generate_grid() -> MapLayout {
         ramps,
         roof_edge_walls,
         wall_lights,
-    }
+    };
+
+    let grid_config = GridConfig { grid };
+
+    (layout, grid_config)
 }

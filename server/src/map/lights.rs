@@ -1,7 +1,7 @@
-use crate::constants::WALL_LIGHT_HEIGHT;
+use crate::{constants::WALL_LIGHT_HEIGHT, resources::GridCell};
 use common::{
     constants::{FIELD_DEPTH, FIELD_WIDTH, GRID_COLS, GRID_ROWS, GRID_SIZE},
-    protocol::{GridCell, Position, Wall, WallLight},
+    protocol::{Position, Wall, WallLight},
 };
 
 const LOCAL_Z_PUSH: f32 = 0.1; // push fixture off the wall

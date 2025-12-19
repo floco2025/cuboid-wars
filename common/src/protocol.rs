@@ -1,7 +1,7 @@
 use bevy_ecs::prelude::*;
 use bincode::{Decode, Encode};
 
-use crate::constants::{FIELD_DEPTH, FIELD_WIDTH, GRID_COLS, GRID_ROWS, GRID_SIZE, SPEED_RUN, SPEED_WALK};
+use crate::constants::{SPEED_RUN, SPEED_WALK};
 
 // Macro to reduce boilerplate for structs
 macro_rules! message {
@@ -153,34 +153,10 @@ struct WallLight {
 }
 }
 
-// Grid cell wall/ramp/roof flags used by both server and client.
-message! {
-#[derive(Copy, Default)]
-struct GridCell {
-    pub has_north_wall: bool, // Horizontal wall at top edge (z)
-    pub has_south_wall: bool, // Horizontal wall at bottom edge (z+1)
-    pub has_west_wall: bool,  // Vertical wall at left edge (x)
-    pub has_east_wall: bool,  // Vertical wall at right edge (x+1)
-    pub has_ramp: bool,       // Cell occupied by a ramp footprint
-    pub has_roof: bool,       // Cell has a roof on top
-    // Ramp bases disallow walls on their entry edge
-    pub ramp_base_north: bool,
-    pub ramp_base_south: bool,
-    pub ramp_base_west: bool,
-    pub ramp_base_east: bool,
-    // Ramp tops disallow walls on their exit edge
-    pub ramp_top_north: bool,
-    pub ramp_top_south: bool,
-    pub ramp_top_west: bool,
-    pub ramp_top_east: bool,
-}
-}
-
 // Full grid configuration sent once on connect.
 message! {
 #[derive(Resource)]
 struct MapLayout {
-    pub grid: Vec<Vec<GridCell>>, // [row][col] - indexed by grid_z, grid_x
     pub boundary_walls: Vec<Wall>,
     pub interior_walls: Vec<Wall>,
     pub lower_walls: Vec<Wall>, // Pre-computed: boundary + interior
@@ -195,16 +171,18 @@ impl MapLayout {
     // Check if a world position (x, z) is on a roof cell
     #[must_use]
     pub fn is_position_on_roof(&self, x: f32, z: f32) -> bool {
-        // Convert world coordinates to grid coordinates
-        let col = ((x + FIELD_WIDTH / 2.0) / GRID_SIZE).floor() as i32;
-        let row = ((z + FIELD_DEPTH / 2.0) / GRID_SIZE).floor() as i32;
+        for roof in &self.roofs {
+            let min_x = roof.x1.min(roof.x2);
+            let max_x = roof.x1.max(roof.x2);
+            let min_z = roof.z1.min(roof.z2);
+            let max_z = roof.z1.max(roof.z2);
 
-        // Check bounds
-        if row < 0 || row >= GRID_ROWS || col < 0 || col >= GRID_COLS {
-            return false;
+            if x >= min_x && x <= max_x && z >= min_z && z <= max_z {
+                return true;
+            }
         }
 
-        self.grid[row as usize][col as usize].has_roof
+        false
     }
 }
 
