@@ -76,7 +76,7 @@ pub fn network_server_message_system(
     mut last_update_seq: ResMut<LastUpdateSeq>,
     queries: NetworkQueries,
     my_player_id: Option<Res<MyPlayerId>>,
-    grid_config: Option<Res<GridConfig>>,
+    grid_config: Option<Res<MapLayout>>,
     time: Res<Time>,
     asset_server: Res<AssetServer>,
 ) {
@@ -145,7 +145,7 @@ fn process_message_logged_in(
     queries: &NetworkQueries,
     time: &Res<Time>,
     asset_server: &Res<AssetServer>,
-    grid_config: Option<&GridConfig>,
+    grid_config: Option<&MapLayout>,
 ) {
     match msg {
         ServerMessage::Init(_) => {
@@ -295,7 +295,7 @@ fn handle_shot_message(
     players: &ResMut<PlayerMap>,
     player_face_query: &Query<PlayerMovement, With<PlayerMarker>>,
     msg: SShot,
-    grid_config: Option<&GridConfig>,
+    grid_config: Option<&MapLayout>,
 ) {
     trace!("{:?} shot: {:?}", msg.id, msg);
     if let Some(player) = players.0.get(&msg.id) {

@@ -5,7 +5,7 @@ use crate::{
     resources::{CameraViewMode, RoofRenderingEnabled},
     spawning::{spawn_ramp, spawn_roof, spawn_wall},
 };
-use common::protocol::GridConfig;
+use common::protocol::MapLayout;
 
 // ============================================================================
 // Components
@@ -26,7 +26,7 @@ pub struct RoofMarker;
 // System to spawn walls and roofs when GridConfig is available
 pub fn map_spawn_walls_system(
     mut commands: Commands,
-    grid_config: Option<Res<GridConfig>>,
+    grid_config: Option<Res<MapLayout>>,
     asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,

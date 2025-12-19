@@ -7,7 +7,7 @@ use crate::{
     net::ServerToClient,
     resources::{GhostInfo, GhostMap, GhostMode, PlayerMap},
 };
-use common::protocol::{GridCell, GridConfig};
+use common::protocol::{GridCell, MapLayout};
 use common::{
     collision::{
         ghosts::{
@@ -95,7 +95,7 @@ fn direction_from_velocity(vel: &Velocity) -> Option<GridDirection> {
     }
 }
 
-fn valid_directions(grid_config: &GridConfig, grid_x: i32, grid_z: i32, cell: GridCell) -> Vec<GridDirection> {
+fn valid_directions(grid_config: &MapLayout, grid_x: i32, grid_z: i32, cell: GridCell) -> Vec<GridDirection> {
     assert!(
         grid_x >= 0 && grid_x < GRID_COLS && grid_z >= 0 && grid_z < GRID_ROWS,
         "ghost current cell OOB in valid_directions: ({}, {})",
@@ -123,7 +123,7 @@ fn valid_directions(grid_config: &GridConfig, grid_x: i32, grid_z: i32, cell: Gr
     ramp_safe
 }
 
-fn direction_leads_to_ramp(grid_config: &GridConfig, grid_x: i32, grid_z: i32, dir: GridDirection) -> bool {
+fn direction_leads_to_ramp(grid_config: &MapLayout, grid_x: i32, grid_z: i32, dir: GridDirection) -> bool {
     assert!(
         grid_x >= 0 && grid_x < GRID_COLS && grid_z >= 0 && grid_z < GRID_ROWS,
         "ghost current cell OOB in direction_leads_to_ramp: ({}, {})",
@@ -165,7 +165,7 @@ fn pick_direction<T: rand::Rng>(rng: &mut T, options: &[GridDirection]) -> Optio
 pub fn ghosts_spawn_system(
     mut commands: Commands,
     mut ghosts: ResMut<GhostMap>,
-    grid_config: Res<GridConfig>,
+    grid_config: Res<MapLayout>,
     query: Query<&GhostId>,
 ) {
     // Only spawn if no ghosts exist yet
@@ -220,7 +220,7 @@ pub fn ghosts_spawn_system(
 
 pub fn ghosts_movement_system(
     time: Res<Time>,
-    grid_config: Res<GridConfig>,
+    grid_config: Res<MapLayout>,
     players: Res<PlayerMap>,
     mut ghosts: ResMut<GhostMap>,
     mut param_set: ParamSet<(
@@ -430,7 +430,7 @@ fn pre_patrol_movement(
     pos: &mut Position,
     vel: &mut Velocity,
     ghost_info: &mut GhostInfo,
-    grid_config: &GridConfig,
+    grid_config: &MapLayout,
     players: &PlayerMap,
     delta: f32,
     rng: &mut impl rand::Rng,
@@ -500,7 +500,7 @@ fn patrol_movement(
     pos: &mut Position,
     vel: &mut Velocity,
     ghost_info: &mut GhostInfo,
-    grid_config: &GridConfig,
+    grid_config: &MapLayout,
     players: &PlayerMap,
     delta: f32,
     rng: &mut impl rand::Rng,
@@ -583,7 +583,7 @@ fn follow_movement(
     target_id: PlayerId,
     player_data: &[(PlayerId, Position, Speed)],
     walls: &[Wall],
-    grid_config: &GridConfig,
+    grid_config: &MapLayout,
     players: &PlayerMap,
     delta: f32,
 ) {

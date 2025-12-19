@@ -169,7 +169,7 @@ struct GridCell {
 // Full grid configuration sent once on connect.
 message! {
 #[derive(Resource)]
-struct GridConfig {
+struct MapLayout {
     pub grid: Vec<Vec<GridCell>>, // [row][col] - indexed by grid_z, grid_x
     pub boundary_walls: Vec<Wall>,
     pub interior_walls: Vec<Wall>,
@@ -180,7 +180,7 @@ struct GridConfig {
 }
 }
 
-impl GridConfig {
+impl MapLayout {
     // Check if a world position (x, z) is on a roof cell
     #[must_use]
     pub fn is_position_on_roof(&self, x: f32, z: f32) -> bool {
@@ -279,7 +279,7 @@ message! {
 // Server to Client: Initial connection acknowledgment with assigned player ID.
 struct SInit {
     pub id: PlayerId,
-    pub grid_config: GridConfig,
+    pub grid_config: MapLayout,
 }
 }
 

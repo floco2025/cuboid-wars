@@ -9,7 +9,7 @@ use common::{
     collision::projectile::{Projectile, projectile_hits_ghost, sweep_projectile_vs_player},
     constants::ALWAYS_GHOST_HUNT,
     markers::{GhostMarker, PlayerMarker, ProjectileMarker},
-    protocol::{FaceDirection, GridConfig, PlayerId, Position},
+    protocol::{FaceDirection, MapLayout, PlayerId, Position},
 };
 
 // ============================================================================
@@ -110,7 +110,7 @@ pub fn projectiles_movement_system(
     player_query: Query<(Entity, &Position, &FaceDirection, Has<LocalPlayerMarker>), With<PlayerMarker>>,
     ghost_query: Query<&Position, With<GhostMarker>>,
     players: Res<PlayerMap>,
-    grid_config: Option<Res<GridConfig>>,
+    grid_config: Option<Res<MapLayout>>,
 ) {
     let delta = time.delta_secs();
     let config = grid_config.as_deref();
@@ -193,7 +193,7 @@ fn handle_wall_collisions(
     projectile: &mut Projectile,
     projectile_pos: &Position,
     delta: f32,
-    grid_config: Option<&GridConfig>,
+    grid_config: Option<&MapLayout>,
 ) -> Option<Position> {
     let config = grid_config?;
 

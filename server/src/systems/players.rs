@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::{resources::PlayerMap, systems::network::broadcast_to_all};
-use common::protocol::GridConfig;
+use common::protocol::MapLayout;
 use common::{
     collision::players::{slide_player_along_obstacles, sweep_player_vs_ramp_edges, sweep_player_vs_wall},
     constants::{ALWAYS_PHASING, ALWAYS_SPEED, POWER_UP_SPEED_MULTIPLIER, ROOF_HEIGHT},
@@ -17,7 +17,7 @@ use common::{
 
 pub fn players_movement_system(
     time: Res<Time>,
-    grid_config: Res<GridConfig>,
+    grid_config: Res<MapLayout>,
     players: Res<PlayerMap>,
     mut query: Query<(Entity, &mut Position, &Speed, &PlayerId), With<PlayerMarker>>,
 ) {

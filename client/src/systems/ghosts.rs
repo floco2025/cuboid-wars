@@ -5,7 +5,7 @@ use common::{
     collision::ghosts::{slide_ghost_along_obstacles, sweep_ghost_vs_ramp_footprint, sweep_ghost_vs_wall},
     constants::{GHOST_SIZE, UPDATE_BROADCAST_INTERVAL},
     markers::GhostMarker,
-    protocol::{GridConfig, Position, Velocity},
+    protocol::{MapLayout, Position, Velocity},
 };
 
 // ============================================================================
@@ -15,7 +15,7 @@ use common::{
 pub fn ghosts_movement_system(
     mut commands: Commands,
     time: Res<Time>,
-    grid_config: Option<Res<GridConfig>>,
+    grid_config: Option<Res<MapLayout>>,
     mut ghost_query: Query<
         (Entity, &mut Position, &mut Velocity, Option<&mut ServerReconciliation>),
         With<GhostMarker>,
@@ -69,7 +69,7 @@ pub fn ghosts_movement_system(
 }
 
 fn apply_ghost_wall_sliding(
-    grid_config: Option<&GridConfig>,
+    grid_config: Option<&MapLayout>,
     current_pos: &Position,
     target_pos: &Position,
     velocity: &Velocity,

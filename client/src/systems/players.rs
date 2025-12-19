@@ -12,7 +12,7 @@ use common::{
     constants::{ALWAYS_PHASING, PLAYER_HEIGHT, ROOF_HEIGHT, SPEED_RUN, UPDATE_BROADCAST_INTERVAL},
     markers::PlayerMarker,
     players::{PlannedMove, overlaps_other_player},
-    protocol::{FaceDirection, GridConfig, PlayerId, Position, Velocity, Wall},
+    protocol::{FaceDirection, MapLayout, PlayerId, Position, Velocity, Wall},
     ramps::{calculate_height_at_position, is_on_roof},
 };
 
@@ -164,7 +164,7 @@ pub fn players_movement_system(
     mut commands: Commands,
     time: Res<Time>,
     asset_server: Res<AssetServer>,
-    grid_config: Option<Res<GridConfig>>,
+    grid_config: Option<Res<MapLayout>>,
     players: Res<PlayerMap>,
     mut query: MovementQuery,
     mut bump_flash_ui: Query<(&mut BackgroundColor, &mut Visibility), With<BumpFlashUIMarker>>,

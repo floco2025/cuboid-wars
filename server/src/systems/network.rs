@@ -5,7 +5,7 @@ use crate::{
     net::{ClientToServer, ServerToClient},
     resources::{FromAcceptChannel, FromClientsChannel, GhostMap, ItemMap, PlayerInfo, PlayerMap},
 };
-use common::protocol::GridConfig;
+use common::protocol::MapLayout;
 use common::{
     collision::{players::overlap_player_vs_wall, projectile::Projectile},
     constants::*,
@@ -129,7 +129,7 @@ fn collect_ghosts(ghosts: &GhostMap, queries: &NetworkEntityQueries) -> Vec<(Gho
 }
 
 // Try to find a spawn point that does not intersect any generated wall or ramp.
-fn generate_spawn_position(grid_config: &GridConfig) -> Position {
+fn generate_spawn_position(grid_config: &MapLayout) -> Position {
     let mut rng = rand::rng();
     let max_attempts = 100;
 
@@ -206,7 +206,7 @@ pub fn network_client_message_system(
     mut from_clients: ResMut<FromClientsChannel>,
     mut players: ResMut<PlayerMap>,
     time: Res<Time>,
-    grid_config: Res<GridConfig>,
+    grid_config: Res<MapLayout>,
     items: Res<ItemMap>,
     ghosts: Res<GhostMap>,
     queries: NetworkEntityQueries,
@@ -273,7 +273,7 @@ fn process_message_not_logged_in(
     msg: ClientMessage,
     queries: &NetworkEntityQueries,
     players: &mut ResMut<PlayerMap>,
-    grid_config: &Res<GridConfig>,
+    grid_config: &Res<MapLayout>,
     items: &Res<ItemMap>,
     ghosts: &Res<GhostMap>,
 ) {
@@ -385,7 +385,7 @@ fn process_message_logged_in(
     players: &mut PlayerMap,
     time: &Res<Time>,
     queries: &NetworkEntityQueries,
-    grid_config: &GridConfig,
+    grid_config: &MapLayout,
 ) {
     match msg {
         ClientMessage::Login(_) => {
@@ -480,7 +480,7 @@ fn handle_shot(
     players: &mut PlayerMap,
     time: &Res<Time>,
     positions: &Query<&Position>,
-    grid_config: &GridConfig,
+    grid_config: &MapLayout,
 ) {
     let now = time.elapsed_secs();
 

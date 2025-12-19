@@ -8,7 +8,7 @@ use crate::{
     net::ServerToClient,
     resources::{ItemInfo, ItemMap, ItemSpawner, PlayerMap},
 };
-use common::protocol::GridConfig;
+use common::protocol::MapLayout;
 use common::{
     collision::items::overlap_player_vs_item,
     constants::{
@@ -87,7 +87,7 @@ pub fn item_spawn_system(
     mut spawner: ResMut<ItemSpawner>,
     mut items: ResMut<ItemMap>,
     positions: Query<&Position>,
-    grid_config: Res<GridConfig>,
+    grid_config: Res<MapLayout>,
 ) {
     let delta = time.delta_secs();
     spawner.timer += delta;

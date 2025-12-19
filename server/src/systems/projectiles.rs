@@ -4,7 +4,7 @@ use crate::{
     constants::GHOST_HIT_REWARD,
     resources::{GhostMap, GhostMode, PlayerMap},
 };
-use common::protocol::GridConfig;
+use common::protocol::MapLayout;
 use common::{
     collision::projectile::{Projectile, projectile_hits_ghost, sweep_projectile_vs_player},
     constants::ALWAYS_GHOST_HUNT,
@@ -36,7 +36,7 @@ pub fn projectiles_movement_system(
     mut projectile_query: Query<(Entity, &mut Position, &mut Projectile, &PlayerId), With<ProjectileMarker>>,
     player_query: Query<PlayerTarget, (With<PlayerMarker>, Without<ProjectileMarker>)>,
     ghost_query: Query<(&GhostId, &Position), (With<GhostMarker>, Without<ProjectileMarker>)>,
-    grid_config: Res<GridConfig>,
+    grid_config: Res<MapLayout>,
     mut players: ResMut<PlayerMap>,
     ghosts: Res<GhostMap>,
 ) {

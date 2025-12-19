@@ -276,7 +276,7 @@ pub fn input_shooting_system(
     mut materials: ResMut<Assets<StandardMaterial>>,
     my_player_id: Option<Res<MyPlayerId>>,
     players: Res<PlayerMap>,
-    grid_config: Option<Res<GridConfig>>,
+    grid_config: Option<Res<MapLayout>>,
     view_mode: Res<CameraViewMode>,
     time: Res<Time>,
     mut local_player_info: ResMut<LocalPlayerInfo>,
