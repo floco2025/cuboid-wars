@@ -276,7 +276,7 @@ pub fn players_movement_system(
 
             if collides {
                 target_pos = slide_player_along_obstacles(
-                    &walls_to_check,
+                    walls_to_check,
                     &map_layout.ramps,
                     &client_pos,
                     client_vel.x,
@@ -299,7 +299,7 @@ pub fn players_movement_system(
             } else {
                 target_pos.y = 0.0;
             }
-        };
+        }
 
         planned_moves.push(PlannedMove {
             entity,
@@ -418,7 +418,7 @@ pub fn local_player_camera_sync_system(
             CameraViewMode::FirstPerson => {
                 camera_transform.translation.x = player_pos.x;
                 camera_transform.translation.z = player_pos.z;
-                camera_transform.translation.y = player_pos.y + PLAYER_HEIGHT * FPV_CAMERA_HEIGHT_RATIO;
+                camera_transform.translation.y = PLAYER_HEIGHT.mul_add(FPV_CAMERA_HEIGHT_RATIO, player_pos.y);
 
                 if let Some(shake) = maybe_shake {
                     camera_transform.translation.x += shake.offset_x;
@@ -512,7 +512,7 @@ pub fn local_player_rearview_sync_system(
     if *view_mode == CameraViewMode::FirstPerson {
         rearview_transform.translation.x = player_pos.x;
         rearview_transform.translation.z = player_pos.z;
-        rearview_transform.translation.y = player_pos.y + PLAYER_HEIGHT * FPV_CAMERA_HEIGHT_RATIO;
+        rearview_transform.translation.y = PLAYER_HEIGHT.mul_add(FPV_CAMERA_HEIGHT_RATIO, player_pos.y);
 
         // Get the main camera's rotation and rotate 180 degrees
         if let Ok(main_transform) = main_camera_query.single() {

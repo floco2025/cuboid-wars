@@ -108,7 +108,7 @@ pub fn players_movement_system(
 
         if collides {
             target_pos =
-                slide_player_along_obstacles(&walls_to_check, &map_layout.ramps, pos, velocity.x, velocity.z, delta);
+                slide_player_along_obstacles(walls_to_check, &map_layout.ramps, pos, velocity.x, velocity.z, delta);
         }
 
         let target_height_on_ramp = height_on_ramp(&map_layout.ramps, target_pos.x, target_pos.z);

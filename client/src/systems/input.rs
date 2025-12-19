@@ -145,10 +145,10 @@ fn calculate_current_orientation(
         }
     }
 
-    if **view_mode != CameraViewMode::FirstPerson {
-        current_pitch = 0.0;
-    } else {
+    if **view_mode == CameraViewMode::FirstPerson {
         current_pitch = current_pitch.clamp(-MAX_PITCH, MAX_PITCH);
+    } else {
+        current_pitch = 0.0;
     }
 
     local_player_info.stored_yaw = current_yaw;
@@ -294,8 +294,7 @@ pub fn input_shooting_system(
             camera_query
                 .iter()
                 .next()
-                .map(|transform| transform.rotation.to_euler(EulerRot::YXZ).1)
-                .unwrap_or(0.0)
+                .map_or(0.0, |transform| transform.rotation.to_euler(EulerRot::YXZ).1)
         } else {
             0.0
         };

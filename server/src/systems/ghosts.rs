@@ -96,10 +96,8 @@ fn direction_from_velocity(vel: &Velocity) -> Option<GridDirection> {
 
 fn valid_directions(grid_config: &GridConfig, grid_x: i32, grid_z: i32, cell: GridCell) -> Vec<GridDirection> {
     assert!(
-        grid_x >= 0 && grid_x < GRID_COLS && grid_z >= 0 && grid_z < GRID_ROWS,
-        "ghost current cell OOB in valid_directions: ({}, {})",
-        grid_x,
-        grid_z
+        (0..GRID_COLS).contains(&grid_x) && (0..GRID_ROWS).contains(&grid_z),
+        "ghost current cell OOB in valid_directions: ({grid_x}, {grid_z})"
     );
 
     // Prefer non-ramp exits; we expect at least one exists for a non-ramp cell
@@ -124,10 +122,8 @@ fn valid_directions(grid_config: &GridConfig, grid_x: i32, grid_z: i32, cell: Gr
 
 fn direction_leads_to_ramp(grid_config: &GridConfig, grid_x: i32, grid_z: i32, dir: GridDirection) -> bool {
     assert!(
-        grid_x >= 0 && grid_x < GRID_COLS && grid_z >= 0 && grid_z < GRID_ROWS,
-        "ghost current cell OOB in direction_leads_to_ramp: ({}, {})",
-        grid_x,
-        grid_z
+        (0..GRID_COLS).contains(&grid_x) && (0..GRID_ROWS).contains(&grid_z),
+        "ghost current cell OOB in direction_leads_to_ramp: ({grid_x}, {grid_z})"
     );
 
     let (next_x, next_z) = match dir {
@@ -137,7 +133,7 @@ fn direction_leads_to_ramp(grid_config: &GridConfig, grid_x: i32, grid_z: i32, d
         GridDirection::South => (grid_x, grid_z + 1),
     };
 
-    if next_x < 0 || next_x >= GRID_COLS || next_z < 0 || next_z >= GRID_ROWS {
+    if !(0..GRID_COLS).contains(&next_x) || !(0..GRID_ROWS).contains(&next_z) {
         return true; // out-of-bounds neighbor is considered blocked
     }
 
@@ -264,7 +260,7 @@ pub fn ghosts_movement_system(
                 ghost_info.mode_timer -= delta;
 
                 // Always check for visible players
-                if let Some(target_player_id) = find_visible_moving_player(&ghost_pos, &player_data, &ghost_walls) {
+                if let Some(target_player_id) = find_visible_moving_player(&ghost_pos, &player_data, ghost_walls) {
                     let player_has_ghost_hunt = ALWAYS_GHOST_HUNT
                         || players
                             .0
@@ -359,7 +355,7 @@ pub fn ghosts_movement_system(
                         &mut ghost_vel,
                         target_id,
                         &player_data,
-                        &ghost_walls,
+                        ghost_walls,
                         &map_layout.ramps,
                         &players,
                         delta,
@@ -446,7 +442,7 @@ fn pre_patrol_movement(
     if at_intersection {
         // We've reached the grid center - pick a valid direction and transition to patrol
         let cell = &grid_config.grid[grid_z as usize][grid_x as usize];
-        let valid_directions = valid_directions(&grid_config, grid_x, grid_z, *cell);
+        let valid_directions = valid_directions(grid_config, grid_x, grid_z, *cell);
         let new_direction = pick_direction(rng, &valid_directions).expect("no valid direction");
         *vel = new_direction.to_velocity();
         ghost_info.mode = GhostMode::Patrol;
@@ -520,11 +516,11 @@ fn patrol_movement(
 
     if just_arrived {
         let cell = &grid_config.grid[grid_z as usize][grid_x as usize];
-        let valid_directions = valid_directions(&grid_config, grid_x, grid_z, *cell);
+        let valid_directions = valid_directions(grid_config, grid_x, grid_z, *cell);
         let mut direction_changed = false;
 
         if current_direction.is_blocked(*cell)
-            || direction_leads_to_ramp(&grid_config, grid_x, grid_z, current_direction)
+            || direction_leads_to_ramp(grid_config, grid_x, grid_z, current_direction)
         {
             let forward_options = forward_directions(&valid_directions, current_direction);
             if forward_options.is_empty() {

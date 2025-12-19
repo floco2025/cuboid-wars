@@ -1043,13 +1043,13 @@ pub fn spawn_wall_light_from_layout(commands: &mut Commands, asset_server: &Res<
     let model_yaw = Quat::from_rotation_y(light.yaw);
     let (sin_yaw, cos_yaw) = light.yaw.sin_cos();
     let light_pos = Vec3::new(
-        light.pos.x + WALL_LIGHT_INWARD_OFFSET * sin_yaw,
+        WALL_LIGHT_INWARD_OFFSET.mul_add(sin_yaw, light.pos.x),
         light.pos.y,
-        light.pos.z + WALL_LIGHT_INWARD_OFFSET * cos_yaw,
+        WALL_LIGHT_INWARD_OFFSET.mul_add(cos_yaw, light.pos.z),
     );
 
     commands.spawn((
-        SceneRoot(light_scene.clone()),
+        SceneRoot(light_scene),
         Transform::from_xyz(light.pos.x, light.pos.y, light.pos.z)
             .with_scale(Vec3::splat(WALL_LIGHT_SCALE))
             .with_rotation(model_yaw),

@@ -277,11 +277,10 @@ fn handle_wall_collisions(
 
             if projectile.reflects {
                 return Some(new_pos);
-            } else {
-                // Despawn projectile
-                commands.entity(projectile_entity).despawn();
-                return Some(*projectile_pos);
             }
+            // Despawn projectile
+            commands.entity(projectile_entity).despawn();
+            return Some(*projectile_pos);
         }
     }
 

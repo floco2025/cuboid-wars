@@ -172,7 +172,7 @@ impl Projectile {
 
         let t_hit = (PROJECTILE_RADIUS - projectile_pos.y) / (vy * delta);
 
-        if t_hit < 0.0 || t_hit > 1.0 {
+        if !(0.0..=1.0).contains(&t_hit) {
             return None;
         }
 
@@ -320,9 +320,9 @@ pub fn sweep_projectile_vs_ramp(
         if !(0.0..=1.0).contains(&t) {
             return None;
         }
-        let cx = proj_pos.x + ray_dir_x * t;
-        let cz = proj_pos.z + ray_dir_z * t;
-        let cy = proj_pos.y + ray_dir_y * t;
+        let cx = ray_dir_x.mul_add(t, proj_pos.x);
+        let cz = ray_dir_z.mul_add(t, proj_pos.z);
+        let cy = ray_dir_y.mul_add(t, proj_pos.y);
 
         let clamped_x = cx.clamp(min_x, max_x);
         let clamped_z = cz.clamp(min_z, max_z);
@@ -342,11 +342,11 @@ pub fn sweep_projectile_vs_ramp(
     }
 
     let height_linear = if along_x {
-        let c0 = ramp.y1 + ((proj_pos.x - ramp.x1) * slope);
+        let c0 = (proj_pos.x - ramp.x1).mul_add(slope, ramp.y1);
         let c1 = slope * ray_dir_x;
         (c0, c1)
     } else {
-        let c0 = ramp.y1 + ((proj_pos.z - ramp.z1) * slope);
+        let c0 = (proj_pos.z - ramp.z1).mul_add(slope, ramp.y1);
         let c1 = slope * ray_dir_z;
         (c0, c1)
     };
@@ -369,10 +369,10 @@ pub fn sweep_projectile_vs_ramp(
     }
 
     if let Some(t_top) = top_hit {
-        let cx = proj_pos.x + ray_dir_x * t_top;
-        let cz = proj_pos.z + ray_dir_z * t_top;
-        if cx >= min_x - 1e-4 && cx <= max_x + 1e-4 && cz >= min_z - 1e-4 && cz <= max_z + 1e-4 {
-            if t_top < best_t {
+        let cx = ray_dir_x.mul_add(t_top, proj_pos.x);
+        let cz = ray_dir_z.mul_add(t_top, proj_pos.z);
+        if cx >= min_x - 1e-4 && cx <= max_x + 1e-4 && cz >= min_z - 1e-4 && cz <= max_z + 1e-4
+            && t_top < best_t {
                 let denom = (1.0 + slope * slope).sqrt();
                 let normal_x = if along_x { -slope / denom } else { 0.0 };
                 let normal_z = if along_x { 0.0 } else { -slope / denom };
@@ -380,7 +380,6 @@ pub fn sweep_projectile_vs_ramp(
                 best_t = t_top;
                 best_normal = (normal_x, normal_y, normal_z);
             }
-        }
     }
 
     if best_t.is_finite() {
@@ -523,8 +522,8 @@ pub fn sweep_projectile_vs_roof(
     let min_z = roof.z1.min(roof.z2);
     let max_z = roof.z1.max(roof.z2);
 
-    let center_x = (min_x + max_x) / 2.0;
-    let center_z = (min_z + max_z) / 2.0;
+    let center_x = f32::midpoint(min_x, max_x);
+    let center_z = f32::midpoint(min_z, max_z);
     let center_y = ROOF_HEIGHT - roof.thickness / 2.0;
 
     let half_x = (max_x - min_x) / 2.0 + PROJECTILE_RADIUS;
@@ -546,9 +545,9 @@ pub fn projectile_hits_ramp(proj_pos: &Position, projectile_velocity: &Vec3, del
     let num_samples = 5;
     for i in 0..=num_samples {
         let t = i as f32 / num_samples as f32;
-        let sample_x = proj_pos.x + projectile_velocity.x * delta * t;
-        let sample_y = proj_pos.y + projectile_velocity.y * delta * t;
-        let sample_z = proj_pos.z + projectile_velocity.z * delta * t;
+        let sample_x = (projectile_velocity.x * delta).mul_add(t, proj_pos.x);
+        let sample_y = (projectile_velocity.y * delta).mul_add(t, proj_pos.y);
+        let sample_z = (projectile_velocity.z * delta).mul_add(t, proj_pos.z);
 
         let min_x = ramp.x1.min(ramp.x2);
         let max_x = ramp.x1.max(ramp.x2);

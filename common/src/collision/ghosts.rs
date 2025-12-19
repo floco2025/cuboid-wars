@@ -28,8 +28,8 @@ pub fn sweep_ghost_vs_ramp_footprint(start_pos: &Position, end_pos: &Position, r
     let min_z = ramp.z1.min(ramp.z2);
     let max_z = ramp.z1.max(ramp.z2);
 
-    let center_x = (min_x + max_x) / 2.0;
-    let center_z = (min_z + max_z) / 2.0;
+    let center_x = f32::midpoint(min_x, max_x);
+    let center_z = f32::midpoint(min_z, max_z);
     let half_x = (max_x - min_x) / 2.0 + half;
     let half_z = (max_z - min_z) / 2.0 + half;
 
@@ -94,7 +94,7 @@ pub fn overlap_ghost_vs_player(ghost_pos: &Position, player_pos: &Position) -> b
     let ghost_center_y = GHOST_SIZE / 2.0;
     let y_diff = (player_center_y - ghost_center_y).abs();
 
-    if y_diff > (PLAYER_HEIGHT + GHOST_SIZE) / 2.0 {
+    if y_diff > f32::midpoint(PLAYER_HEIGHT, GHOST_SIZE) {
         return false;
     }
 

@@ -8,7 +8,7 @@ pub fn generate_wall_lights(grid: &[Vec<GridCell>]) -> Vec<WallLight> {
     let mut lights = Vec::new();
 
     let grid_rows = grid.len() as i32;
-    let grid_cols = grid.first().map_or(0, |row| row.len()) as i32;
+    let grid_cols = grid.first().map_or(0, Vec::len) as i32;
 
     for row in 0..grid_rows {
         for col in 0..grid_cols {

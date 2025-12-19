@@ -48,7 +48,7 @@ pub fn generate_ramps(grid: &mut [Vec<GridCell>], grid_cols: i32, grid_rows: i32
                 let min_dist = dist_to_west.min(dist_to_east).min(dist_to_north).min(dist_to_south);
 
                 // Allowed zone: cells must be 1 or 2 cells from border
-                if min_dist < 1 || min_dist > 2 {
+                if !(1..=2).contains(&min_dist) {
                     in_allowed_zone = false;
                     break 'zone_check;
                 }
