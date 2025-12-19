@@ -57,7 +57,8 @@ for i in $(seq 0 $((NUM_CLIENTS - 1))); do
     Y=$(echo "$Y_LOGICAL * $SCALE_FACTOR" | bc | awk '{print int($1)}')
     
     echo "Client $i: COL=$COL, ROW=$ROW, Logical=($X_LOGICAL, $Y_LOGICAL), Physical=($X, $Y)"
-    cargo run --bin client -- --window-x $X --window-y $Y --window-width $WINDOW_WIDTH --window-height $WINDOW_HEIGHT --name "" --lag-ms $LAG_MS &
+    cargo run --bin client --release -- --window-x $X --window-y $Y --window-width $WINDOW_WIDTH --window-height $WINDOW_HEIGHT \
+    --name "" --lag-ms $LAG_MS &
 done
 
 # Bring all client windows to the foreground
