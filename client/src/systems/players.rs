@@ -10,10 +10,10 @@ use crate::{
 use common::{
     collision::players::{slide_player_along_obstacles, sweep_player_vs_ramp_edges, sweep_player_vs_wall},
     constants::{ALWAYS_PHASING, PLAYER_HEIGHT, ROOF_HEIGHT, SPEED_RUN, UPDATE_BROADCAST_INTERVAL},
-    map::{calculate_height_at_position, is_on_roof, is_position_on_roof},
+    map::{calculate_height_on_ramp, is_on_roof, is_position_on_roof},
     markers::PlayerMarker,
     players::{PlannedMove, overlaps_other_player},
-    protocol::{FaceDirection, MapLayout, PlayerId, Position, Velocity, Wall},
+    protocol::{FaceDirection, MapLayout, PlayerId, Position, Velocity},
 };
 
 // ============================================================================
@@ -183,7 +183,7 @@ pub fn players_movement_system(
         let is_standing_still = abs_velocity < f32::EPSILON;
 
         // Calculate intended position from velocity (with server reconciliation if needed)
-        let target_pos = if let Some(recon) = recon_option.as_mut() {
+        let mut target_pos = if let Some(recon) = recon_option.as_mut() {
             const IDLE_CORRECTION_TIME: f32 = 10.0; // Standing still: slow, smooth correction
             let run_correction_time: f32 = recon.rtt * 5.0; // Benchmark: RTT = 100ms equals 0.5s correction time
 
@@ -238,34 +238,27 @@ pub fn players_movement_system(
                 entity,
                 start: *client_pos,
                 target: target_pos,
-                hits_wall: false,
+                collides: false,
             });
             continue;
         }
 
-        // Wall collision - Select walls based on phasing power-up and height
-        let has_phasing = ALWAYS_PHASING || players.0.get(player_id).is_some_and(|info| info.phasing_power_up);
+        // Check collision and calculate target (with sliding if collision)
+        let mut collides = false;
 
-        let (wall_adjusted_target, hits_wall) = map_layout.as_ref().map_or((target_pos, false), |map_layout| {
-            let mut walls_to_check = Vec::new();
-
-            if is_on_roof(client_pos.y) {
-                // On roof: only roof edge walls (which have openings at ramp connections)
-                walls_to_check.extend_from_slice(&map_layout.roof_walls);
+        if let Some(map_layout) = map_layout.as_ref() {
+            let walls_to_check = if is_on_roof(client_pos.y) {
+                &map_layout.roof_walls
             } else {
-                // On ground: all walls (or just boundary if phasing) plus ramp walls
-                let base_walls: &[Wall] = if has_phasing {
+                let has_phasing = ALWAYS_PHASING || players.0.get(player_id).is_some_and(|info| info.phasing_power_up);
+                if has_phasing {
                     &map_layout.boundary_walls
                 } else {
                     &map_layout.lower_walls
-                };
-                walls_to_check.extend_from_slice(base_walls);
-            }
+                }
+            };
 
-            // Check collision - walls and ramp edges
-            let mut collides = false;
-
-            for wall in &walls_to_check {
+            for wall in walls_to_check {
                 if sweep_player_vs_wall(&client_pos, &target_pos, wall) {
                     collides = true;
                     break;
@@ -281,52 +274,32 @@ pub fn players_movement_system(
                 }
             }
 
-            // Calculate target (with sliding if hit)
             if collides {
-                (
-                    slide_player_along_obstacles(
-                        &walls_to_check,
-                        &map_layout.ramps,
-                        &client_pos,
-                        client_vel.x,
-                        client_vel.z,
-                        delta,
-                    ),
-                    true,
-                )
-            } else {
-                (target_pos, false)
+                target_pos = slide_player_along_obstacles(
+                    &walls_to_check,
+                    &map_layout.ramps,
+                    &client_pos,
+                    client_vel.x,
+                    client_vel.z,
+                    delta,
+                );
             }
-        });
 
-        // Now calculate final Y based on the collision-adjusted X/Z position
-        let final_target = if let Some(map_layout) = map_layout.as_ref() {
-            let ramp_height =
-                calculate_height_at_position(&map_layout.ramps, wall_adjusted_target.x, wall_adjusted_target.z);
-            let on_roof = is_position_on_roof(&map_layout.roofs, wall_adjusted_target.x, wall_adjusted_target.z);
-
-            let final_y = if ramp_height > 0.0 {
-                ramp_height
-            } else if on_roof && is_on_roof(client_pos.y) {
-                // Only stay on roof if already at roof height
-                ROOF_HEIGHT
+            let height_on_ramp = calculate_height_on_ramp(&map_layout.ramps, target_pos.x, target_pos.z);
+            if height_on_ramp > 0.0 {
+                target_pos.y = height_on_ramp;
+            } else if is_position_on_roof(&map_layout.roofs, target_pos.x, target_pos.z) && is_on_roof(client_pos.y) {
+                target_pos.y = ROOF_HEIGHT;
             } else {
-                0.0
+                target_pos.y = 0.0
             };
-            Position {
-                x: wall_adjusted_target.x,
-                y: final_y,
-                z: wall_adjusted_target.z,
-            }
-        } else {
-            wall_adjusted_target
         };
 
         planned_moves.push(PlannedMove {
             entity,
             start: *client_pos,
-            target: final_target,
-            hits_wall,
+            target: target_pos,
+            collides,
         });
     }
 
@@ -348,7 +321,7 @@ pub fn players_movement_system(
             *client_pos = planned_move.target;
 
             if let Some(state) = flash_state.as_mut() {
-                if planned_move.hits_wall {
+                if planned_move.collides {
                     if is_local {
                         trigger_collision_feedback(&mut commands, &asset_server, &mut bump_flash_ui, state, true);
                     }

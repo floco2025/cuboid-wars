@@ -5,10 +5,10 @@ use common::protocol::MapLayout;
 use common::{
     collision::players::{slide_player_along_obstacles, sweep_player_vs_ramp_edges, sweep_player_vs_wall},
     constants::{ALWAYS_PHASING, ALWAYS_SPEED, POWER_UP_SPEED_MULTIPLIER, ROOF_HEIGHT},
-    map::{calculate_height_at_position, is_on_roof, is_position_on_roof},
+    map::{calculate_height_on_ramp, is_on_roof, is_position_on_roof},
     markers::PlayerMarker,
     players::{PlannedMove, overlaps_other_player},
-    protocol::{PlayerId, Position, SPlayerStatus, ServerMessage, Speed, Wall},
+    protocol::{PlayerId, Position, SPlayerStatus, ServerMessage, Speed},
 };
 
 // ============================================================================
@@ -17,7 +17,7 @@ use common::{
 
 pub fn players_movement_system(
     time: Res<Time>,
-    grid_config: Res<MapLayout>,
+    map_layout: Res<MapLayout>,
     players: Res<PlayerMap>,
     mut query: Query<(Entity, &mut Position, &Speed, &PlayerId), With<PlayerMarker>>,
 ) {
@@ -36,7 +36,7 @@ pub fn players_movement_system(
                 entity,
                 start: *pos,
                 target: *pos,
-                hits_wall: false,
+                collides: false,
             });
             continue;
         }
@@ -59,94 +59,72 @@ pub fn players_movement_system(
                 entity,
                 start: *pos,
                 target: *pos,
-                hits_wall: false,
+                collides: false,
             });
             continue;
         }
 
-        // Calculate new X/Z position but keep Y for collision detection
-        let new_pos_xz = Position {
+        // Calculate intended position from velocity
+        let mut target_pos = Position {
             x: velocity.x.mul_add(delta, pos.x),
             y: pos.y, // Keep current Y for collision detection
             z: velocity.z.mul_add(delta, pos.z),
         };
 
-        // Wall collision - Select walls based on phasing power-up and height
-        let has_phasing = ALWAYS_PHASING
-            || players
-                .0
-                .get(player_id)
-                .is_some_and(|info| info.phasing_power_up_timer > 0.0);
-
-        let mut walls_to_check = Vec::new();
-
-        if is_on_roof(pos.y) {
-            // On roof: only roof edge walls (which have openings at ramp connections)
-            walls_to_check.extend_from_slice(&grid_config.roof_walls);
+        // Check collision and calculate target (with sliding if collision)
+        let walls_to_check = if is_on_roof(pos.y) {
+            &map_layout.roof_walls
         } else {
-            // On ground: all walls (or just boundary if phasing) plus ramp walls
-            let base_walls: &[Wall] = if has_phasing {
-                &grid_config.boundary_walls
+            let has_phasing = ALWAYS_PHASING
+                || players
+                    .0
+                    .get(player_id)
+                    .is_some_and(|info| info.phasing_power_up_timer > 0.0);
+            if has_phasing {
+                &map_layout.boundary_walls
             } else {
-                &grid_config.lower_walls
-            };
-            walls_to_check.extend_from_slice(base_walls);
-        }
+                &map_layout.lower_walls
+            }
+        };
 
-        // Check wall/ramp collision and calculate target (with sliding if hit)
-        let mut hits_wall = false;
+        // Check collision and calculate target (with sliding if collision)
+        let mut collides = false;
 
-        for wall in &walls_to_check {
-            if sweep_player_vs_wall(pos, &new_pos_xz, wall) {
-                hits_wall = true;
+        for wall in walls_to_check {
+            if sweep_player_vs_wall(pos, &target_pos, wall) {
+                collides = true;
                 break;
             }
         }
 
-        if !hits_wall {
-            for ramp in &grid_config.ramps {
-                if sweep_player_vs_ramp_edges(pos, &new_pos_xz, ramp) {
-                    hits_wall = true;
+        if !collides {
+            for ramp in &map_layout.ramps {
+                if sweep_player_vs_ramp_edges(pos, &target_pos, ramp) {
+                    collides = true;
                     break;
                 }
             }
         }
 
-        let (target_xz, hits_wall) = if hits_wall {
-            (
-                slide_player_along_obstacles(&walls_to_check, &grid_config.ramps, pos, velocity.x, velocity.z, delta),
-                true,
-            )
+        if collides {
+            target_pos =
+                slide_player_along_obstacles(&walls_to_check, &map_layout.ramps, pos, velocity.x, velocity.z, delta);
+        }
+
+        let height_on_ramp = calculate_height_on_ramp(&map_layout.ramps, target_pos.x, target_pos.z);
+        if height_on_ramp > 0.0 {
+            target_pos.y = height_on_ramp;
+        } else if is_position_on_roof(&map_layout.roofs, target_pos.x, target_pos.z) && is_on_roof(pos.y) {
+            target_pos.y = ROOF_HEIGHT;
         } else {
-            (new_pos_xz, false)
-        };
-
-        // Now calculate final Y based on the collision-adjusted X/Z position
-        let on_roof = is_position_on_roof(&grid_config.roofs, target_xz.x, target_xz.z);
-
-        let final_y = {
-            let ramp_height = calculate_height_at_position(&grid_config.ramps, target_xz.x, target_xz.z);
-            if ramp_height > 0.0 {
-                ramp_height
-            } else if on_roof && is_on_roof(pos.y) {
-                // Only stay on roof if already at roof height
-                ROOF_HEIGHT
-            } else {
-                0.0
-            }
-        };
-
-        let target = Position {
-            x: target_xz.x,
-            y: final_y,
-            z: target_xz.z,
+            target_pos.y = 0.0
         };
 
         planned_moves.push(PlannedMove {
             entity,
             start: *pos,
-            target,
-            hits_wall,
+            target: target_pos,
+            collides,
         });
     }
 

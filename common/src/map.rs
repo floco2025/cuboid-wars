@@ -3,10 +3,10 @@ use crate::{
     protocol::{Ramp, Roof},
 };
 
-/// Calculate the Y position (height) for a given (x, z) position based on ramps.
-/// Returns the interpolated Y value if the position is on a ramp, otherwise returns 0.0.
+// Calculate the Y position (height) for a given (x, z) position based on ramps.
+// Returns the interpolated Y value if the position is on a ramp, otherwise returns 0.0.
 #[must_use]
-pub fn calculate_height_at_position(ramps: &[Ramp], x: f32, z: f32) -> f32 {
+pub fn calculate_height_on_ramp(ramps: &[Ramp], x: f32, z: f32) -> f32 {
     for ramp in ramps {
         let min_x = ramp.x1.min(ramp.x2);
         let max_x = ramp.x1.max(ramp.x2);
@@ -39,7 +39,7 @@ pub fn calculate_height_at_position(ramps: &[Ramp], x: f32, z: f32) -> f32 {
     0.0
 }
 
-/// Check if a position (x, z) is currently on any ramp.
+// Check if a position (x, z) is currently on any ramp.
 #[must_use]
 pub fn is_on_ramp(ramps: &[Ramp], x: f32, z: f32) -> bool {
     ramps.iter().any(|ramp| {
@@ -52,14 +52,14 @@ pub fn is_on_ramp(ramps: &[Ramp], x: f32, z: f32) -> bool {
     })
 }
 
-/// Check if a player is on a roof based on their Y position.
+// Check if a player is on a roof based on their Y position.
 #[must_use]
 pub fn is_on_roof(y: f32) -> bool {
     const HEIGHT_TOLERANCE: f32 = 0.1;
     (y - ROOF_HEIGHT).abs() < HEIGHT_TOLERANCE
 }
 
-/// Returns true if the point (x, z) lies within any roof rectangle.
+// Returns true if the point (x, z) lies within any roof rectangle.
 #[must_use]
 pub fn is_position_on_roof(roofs: &[Roof], x: f32, z: f32) -> bool {
     roofs.iter().any(|roof| {

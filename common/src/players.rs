@@ -12,7 +12,7 @@ pub struct PlannedMove {
     pub entity: Entity,
     pub start: Position,
     pub target: Position,
-    pub hits_wall: bool,
+    pub collides: bool,
 }
 
 // Check if a planned move would overlap with any other player's planned position

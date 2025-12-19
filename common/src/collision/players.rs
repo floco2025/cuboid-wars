@@ -4,7 +4,7 @@ use super::helpers::{
 };
 use crate::{
     constants::{PLAYER_DEPTH, PLAYER_HEIGHT, PLAYER_WIDTH, ROOF_HEIGHT, WALL_THICKNESS},
-    map::calculate_height_at_position,
+    map::calculate_height_on_ramp,
     protocol::{Position, Ramp, Roof, Wall},
 };
 
@@ -76,23 +76,6 @@ pub fn slide_player_along_obstacles(
     velocity_z: f32,
     delta: f32,
 ) -> Position {
-    slide_player(current_pos, velocity_x, velocity_z, delta, walls, ramps)
-}
-
-#[must_use]
-pub fn sweep_player_vs_player(start1: &Position, end1: &Position, start2: &Position, end2: &Position) -> bool {
-    sweep_aabb_vs_aabb(start1, end1, start2, end2, PLAYER_WIDTH, PLAYER_DEPTH, PLAYER_HEIGHT)
-}
-
-// --- private helpers ---
-fn slide_player(
-    current_pos: &Position,
-    velocity_x: f32,
-    velocity_z: f32,
-    delta: f32,
-    walls: &[Wall],
-    ramps: &[Ramp],
-) -> Position {
     slide_along_axes(
         current_pos,
         velocity_x,
@@ -102,7 +85,7 @@ fn slide_player(
             let x = velocity_x.mul_add(dt, current_pos.x);
             Position {
                 x,
-                y: calculate_height_at_position(ramps, x, current_pos.z),
+                y: calculate_height_on_ramp(ramps, x, current_pos.z),
                 z: current_pos.z,
             }
         },
@@ -110,7 +93,7 @@ fn slide_player(
             let z = velocity_z.mul_add(dt, current_pos.z);
             Position {
                 x: current_pos.x,
-                y: calculate_height_at_position(ramps, current_pos.x, z),
+                y: calculate_height_on_ramp(ramps, current_pos.x, z),
                 z,
             }
         },
@@ -127,4 +110,9 @@ fn slide_player(
                     .any(|r| sweep_player_vs_ramp_edges(current_pos, candidate, r))
         },
     )
+}
+
+#[must_use]
+pub fn sweep_player_vs_player(start1: &Position, end1: &Position, start2: &Position, end2: &Position) -> bool {
+    sweep_aabb_vs_aabb(start1, end1, start2, end2, PLAYER_WIDTH, PLAYER_DEPTH, PLAYER_HEIGHT)
 }
