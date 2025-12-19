@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use crate::{
     constants::{TOPDOWN_ROOF_ALPHA, TOPDOWN_WALL_ALPHA},
     resources::{CameraViewMode, RoofRenderingEnabled},
-    spawning::{spawn_ramp, spawn_roof, spawn_wall, spawn_wall_light_from_layout},
+    spawning::{spawn_ramp, spawn_roof, spawn_roof_wall, spawn_wall, spawn_wall_light_from_layout},
 };
 use common::protocol::MapLayout;
 
@@ -19,6 +19,10 @@ pub struct WallMarker;
 // Marker component for roofs
 #[derive(Component)]
 pub struct RoofMarker;
+
+// Marker component for roof walls
+#[derive(Component)]
+pub struct RoofWallMarker;
 
 // ============================================================================
 // Wall Spawning System
@@ -43,10 +47,11 @@ pub fn map_spawn_walls_system(
     }
 
     info!(
-        "spawning {} wall segments, {} roofs, {} ramps",
+        "spawning {} wall segments, {} roofs, {} ramps, {} roof walls",
         map_layout.lower_walls.len(),
         map_layout.roofs.len(),
-        map_layout.ramps.len()
+        map_layout.ramps.len(),
+        map_layout.roof_walls.len()
     );
 
     for wall in &map_layout.lower_walls {
@@ -63,6 +68,10 @@ pub fn map_spawn_walls_system(
 
     for ramp in &map_layout.ramps {
         spawn_ramp(&mut commands, &mut meshes, &mut materials, &asset_server, ramp);
+    }
+
+    for roof_wall in &map_layout.roof_walls {
+        spawn_roof_wall(&mut commands, &mut meshes, &mut materials, roof_wall);
     }
 
     *spawned = true;

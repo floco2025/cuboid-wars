@@ -10,7 +10,7 @@ use bevy::{
 use crate::{
     constants::*,
     systems::{
-        map::{RoofMarker, WallMarker},
+        map::{RoofMarker, RoofWallMarker, WallMarker},
         players::{BumpFlashState, LocalPlayerMarker},
     },
 };
@@ -136,6 +136,15 @@ struct RoofBundle {
     transform: Transform,
     visibility: Visibility,
     marker: RoofMarker,
+}
+
+#[derive(Bundle)]
+struct RoofWallBundle {
+    mesh: Mesh3d,
+    material: MeshMaterial3d<StandardMaterial>,
+    transform: Transform,
+    visibility: Visibility,
+    marker: RoofWallMarker,
 }
 
 #[derive(Bundle)]
@@ -825,6 +834,63 @@ pub fn spawn_wall(
         .with_rotation(rotation),
         visibility: Visibility::default(),
         marker: WallMarker,
+    });
+}
+
+// Spawn a roof wall entity based on a shared `Wall` config.
+// Roof walls are normally invisible (only used for collision), but when
+// RANDOM_ROOF_WALL_COLORS is enabled, they're rendered with random colors for debugging.
+pub fn spawn_roof_wall(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    wall: &Wall,
+) {
+    // Only spawn visible roof walls when debugging is enabled
+    if !RANDOM_ROOF_WALL_COLORS {
+        return;
+    }
+
+    use rand::Rng;
+
+    // Calculate wall center and dimensions from corners
+    let center_x = f32::midpoint(wall.x1, wall.x2);
+    let center_z = f32::midpoint(wall.z1, wall.z2);
+
+    let dx = wall.x2 - wall.x1;
+    let dz = wall.z2 - wall.z1;
+    let length = dx.hypot(dz);
+
+    // Put length on local X, width on Z is thickness.
+    let mesh_size_x = length;
+    let mesh_size_z = wall.width;
+    let rotation = Quat::from_rotation_y(dz.atan2(dx));
+
+    // Create material with random colors for debugging
+    let mut rng = rand::rng();
+    let roof_wall_material = StandardMaterial {
+        base_color: Color::srgb(
+            rng.random_range(0.2..1.0),
+            rng.random_range(0.2..1.0),
+            rng.random_range(0.2..1.0),
+        ),
+        ..default()
+    };
+
+    let mut mesh = tiled_cuboid(mesh_size_x, WALL_HEIGHT, mesh_size_z, TEXTURE_WALL_TILE_SIZE);
+    let _ = mesh.generate_tangents();
+
+    commands.spawn(RoofWallBundle {
+        mesh: Mesh3d(meshes.add(mesh)),
+        material: MeshMaterial3d(materials.add(roof_wall_material)),
+        transform: Transform::from_xyz(
+            center_x,
+            ROOF_HEIGHT + WALL_HEIGHT / 2.0, // Position at roof level
+            center_z,
+        )
+        .with_rotation(rotation),
+        visibility: Visibility::default(),
+        marker: RoofWallMarker,
     });
 }
 
