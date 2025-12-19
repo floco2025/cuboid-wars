@@ -3,7 +3,7 @@ use common::{constants::*, protocol::Wall};
 
 // Generate collision walls for roof edges to prevent players from falling off.
 // Only adds edges where there's no adjacent roof or no ramp connection.
-pub fn generate_roof_edge_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) -> Vec<Wall> {
+pub fn generate_roof_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) -> Vec<Wall> {
     let mut roof_edge_walls = Vec::new();
 
     for row in 0..grid_rows {

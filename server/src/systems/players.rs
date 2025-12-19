@@ -82,7 +82,7 @@ pub fn players_movement_system(
 
         if is_on_roof(pos.y) {
             // On roof: only roof edge walls (which have openings at ramp connections)
-            walls_to_check.extend_from_slice(&grid_config.roof_edge_walls);
+            walls_to_check.extend_from_slice(&grid_config.roof_walls);
         } else {
             // On ground: all walls (or just boundary if phasing) plus ramp walls
             let base_walls: &[Wall] = if has_phasing {

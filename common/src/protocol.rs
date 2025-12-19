@@ -136,11 +136,11 @@ pub struct WallLight {
 pub struct MapLayout {
     pub boundary_walls: Vec<Wall>,
     pub interior_walls: Vec<Wall>,
-    pub lower_walls: Vec<Wall>, // Pre-computed: boundary + interior
+    pub lower_walls: Vec<Wall>, // Boundary walls + interior walls
+    pub roof_walls: Vec<Wall>,  // Invisible roof walls for collision
     pub roofs: Vec<Roof>,
     pub ramps: Vec<Ramp>,
-    pub roof_edge_walls: Vec<Wall>, // Collision boxes for roof edges (prevent falling off)
-    pub wall_lights: Vec<WallLight>, // Precomputed light placements
+    pub wall_lights: Vec<WallLight>,
 }
 
 // Item type - different types of items.
@@ -267,9 +267,9 @@ pub struct SUpdate {
 // Server to Client: Player was hit by a projectile.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SHit {
-    pub id: PlayerId,        // Player who was hit
-    pub hit_dir_x: f32,      // Direction of hit (normalized)
-    pub hit_dir_z: f32,      // Direction of hit (normalized)
+    pub id: PlayerId,   // Player who was hit
+    pub hit_dir_x: f32, // Direction of hit (normalized)
+    pub hit_dir_z: f32, // Direction of hit (normalized)
 }
 
 // Server to Client: Player status effects changed.

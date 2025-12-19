@@ -29,7 +29,7 @@ fn has_vertical_wall(grid: &[Vec<GridCell>], row: i32, col: i32, grid_cols: i32)
 
 // Check if horizontal walls meet the top/bottom of a vertical wall
 #[inline]
-fn perpendicular_horizontal_walls(
+fn has_perpendicular_horizontal_walls(
     grid: &[Vec<GridCell>],
     row: i32,
     col: i32,
@@ -57,7 +57,7 @@ fn perpendicular_horizontal_walls(
 
 // Generate individual wall segments (no merging) with gap-filling extensions
 #[must_use]
-pub fn generate_individual_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) -> Vec<Wall> {
+pub fn generate_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) -> Vec<Wall> {
     let mut walls = Vec::new();
 
     // Process horizontal walls (north/south edges)
@@ -125,7 +125,7 @@ pub fn generate_individual_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_ro
             let has_bottom = row < grid_rows - 1 && has_vertical_wall(grid, row + 1, col, grid_cols);
 
             // Check for perpendicular horizontal walls at ends (for L-corners)
-            let (has_perp_top, has_perp_bottom) = perpendicular_horizontal_walls(grid, row, col, grid_cols, grid_rows);
+            let (has_perp_top, has_perp_bottom) = has_perpendicular_horizontal_walls(grid, row, col, grid_cols, grid_rows);
 
             let world_x = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
             let z1 = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0))
