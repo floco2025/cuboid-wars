@@ -968,9 +968,10 @@ fn spawn_wall_light(
     let local_offset = wall_rotation.inverse() * world_offset;
 
     let local_y = WALL_LIGHT_HEIGHT - (WALL_HEIGHT / 2.0);
-    let local_z = side_sign * (wall_width / 2.0 + 0.02); // Position almost flush with wall
-    let forward_offset = (wall_width * 0.1).clamp(0.02, 0.06); // move light slightly off surface
-    let light_radius = (wall_width * 0.25).clamp(0.05, 0.25); // scale radius with thickness to reduce bleed
+    // Put the light clearly outside the wall to guarantee it lights the outward face
+    let local_z = side_sign * (wall_width / 2.0 + 0.1);
+    let forward_offset = 0.05; // small extra push off the surface
+    let light_radius = (wall_width * 0.2).clamp(0.08, 0.18); // tight spill control
 
     // Load glTF scene
     let light_scene: Handle<Scene> = asset_server.load(GltfAssetLabel::Scene(0).from_asset(WALL_LIGHT_MODEL));
