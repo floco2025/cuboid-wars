@@ -3,28 +3,17 @@ use bincode::{Decode, Encode};
 
 use crate::constants::{SPEED_RUN, SPEED_WALK};
 
-// Macro to reduce boilerplate for structs
-macro_rules! message {
-    ($(#[$meta:meta])* struct $name:ident $body:tt) => {
-        $(#[$meta])*
-        #[derive(Debug, Clone, Encode, Decode)]
-        pub struct $name $body
-    };
-}
-
 // ============================================================================
 // Common Data Types
 // ============================================================================
 
 // Position component - 3D coordinates in meters (Bevy's coordinate system: X, Y=up, Z).
 // Stored as individual fields for serialization; Y varies based on ramps and roofs.
-message! {
-#[derive(Copy, Component, PartialEq, Default)]
-struct Position {
+#[derive(Debug, Clone, Encode, Decode, Copy, Component, PartialEq, Default)]
+pub struct Position {
     pub x: f32, // meters
     pub y: f32, // meters (up/down - elevation from ramps/roofs)
     pub z: f32, // meters
-}
 }
 
 // SpeedLevel - discrete speed level.
@@ -37,12 +26,10 @@ pub enum SpeedLevel {
 }
 
 // Speed component - speed level and direction.
-message! {
-#[derive(Copy, Component, Default)]
-struct Speed {
+#[derive(Debug, Clone, Encode, Decode, Copy, Component, Default)]
+pub struct Speed {
     pub speed_level: SpeedLevel,
     pub move_dir: f32, // radians - direction of movement
-}
 }
 
 impl Speed {
@@ -85,8 +72,8 @@ pub struct GhostId(pub u32);
 pub struct FaceDirection(pub f32); // radians
 
 // Player - complete player state snapshot sent across the network.
-message! {
-struct Player {
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct Player {
     pub name: String,
     pub pos: Position,
     pub speed: Speed,
@@ -99,30 +86,25 @@ struct Player {
     pub ghost_hunt_power_up: bool,
     pub stunned: bool,
 }
-}
 
 // Wall - a wall segment on the grid.
-message! {
-#[derive(Copy)]
-struct Wall {
+#[derive(Debug, Clone, Encode, Decode, Copy)]
+pub struct Wall {
     pub x1: f32,
     pub z1: f32,
     pub x2: f32,
     pub z2: f32,
     pub width: f32,
 }
-}
 
 // Roof - a roof segment with corner coordinates.
-message! {
-#[derive(Copy)]
-struct Roof {
+#[derive(Debug, Clone, Encode, Decode, Copy)]
+pub struct Roof {
     pub x1: f32,
     pub z1: f32,
     pub x2: f32,
     pub z2: f32,
     pub thickness: f32,
-}
 }
 
 // Ramp - right triangular prism defined by low and high opposite corners
@@ -131,9 +113,8 @@ struct Roof {
 // - (x2, y2, z2) is on the roof at the opposite corner (high edge).
 // - Footprint is the axis-aligned rectangle spanned by (x1, z1) and (x2, z2).
 // - Slope runs from the low edge to the high edge across that rectangle.
-message! {
-#[derive(Copy)]
-struct Ramp {
+#[derive(Debug, Clone, Encode, Decode, Copy)]
+pub struct Ramp {
     pub x1: f32,
     pub y1: f32,
     pub z1: f32,
@@ -141,22 +122,18 @@ struct Ramp {
     pub y2: f32,
     pub z2: f32,
 }
-}
 
 // Precomputed wall light placement sent from server to client.
-message! {
-#[derive(Copy)]
-struct WallLight {
+#[derive(Debug, Clone, Encode, Decode, Copy)]
+pub struct WallLight {
     pub model_pos: Position,
     pub light_pos: Position,
     pub yaw: f32,
 }
-}
 
 // Full grid configuration sent once on connect.
-message! {
-#[derive(Resource)]
-struct MapLayout {
+#[derive(Debug, Clone, Encode, Decode, Resource)]
+pub struct MapLayout {
     pub boundary_walls: Vec<Wall>,
     pub interior_walls: Vec<Wall>,
     pub lower_walls: Vec<Wall>, // Pre-computed: boundary + interior
@@ -164,7 +141,6 @@ struct MapLayout {
     pub ramps: Vec<Ramp>,
     pub roof_edge_walls: Vec<Wall>, // Collision boxes for roof edges (prevent falling off)
     pub wall_lights: Vec<WallLight>, // Precomputed light placements
-}
 }
 
 // Item type - different types of items.
@@ -179,144 +155,126 @@ pub enum ItemType {
 }
 
 // Item - an item on the map.
-message! {
-#[derive(Copy)]
-struct Item {
+#[derive(Debug, Clone, Encode, Decode, Copy)]
+pub struct Item {
     pub item_type: ItemType,
     pub pos: Position,
 }
-}
 
 // Ghost - a ghost moving around the map.
-message! {
-#[derive(Copy)]
-struct Ghost {
+#[derive(Debug, Clone, Encode, Decode, Copy)]
+pub struct Ghost {
     pub pos: Position,
     pub vel: Velocity,
-}
 }
 
 // ============================================================================
 // Client Messages
 // ============================================================================
 
-message! {
 // Client to Server: Login request.
-struct CLogin {
-    pub name: String
-}
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct CLogin {
+    pub name: String,
 }
 
-message! {
 // Client to Server: Graceful disconnect notification.
-struct CLogoff {}
-}
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct CLogoff {}
 
-message! {
 // Client to Server: Speed update.
-struct CSpeed {
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct CSpeed {
     pub speed: Speed,
 }
-}
 
-message! {
 // Client to Server: Facing direction update.
-struct CFace {
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct CFace {
     pub dir: f32, // radians - direction player is facing
 }
-}
 
-message! {
 // Client to Server: Shot fired.
-struct CShot {
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct CShot {
     pub face_dir: f32,   // radians - yaw direction player is facing when shooting
     pub face_pitch: f32, // radians - pitch (up/down) when shooting
 }
-}
 
-message! {
 // Client to Server: Echo request with timestamp (Duration since app start, serialized as nanoseconds).
-struct CEcho {
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct CEcho {
     pub timestamp_nanos: u64,
-}
 }
 
 // ============================================================================
 // Server Messages
 // ============================================================================
 
-message! {
 // Server to Client: Initial connection acknowledgment with assigned player ID.
-struct SInit {
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SInit {
     pub id: PlayerId,
     pub grid_config: MapLayout,
 }
-}
 
-message! {
 // Server to Client: Another player connected.
-struct SLogin {
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SLogin {
     pub id: PlayerId,
     pub player: Player,
 }
-}
 
-message! {
 // Server to Client: A player disconnected.
-struct SLogoff {
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SLogoff {
     pub id: PlayerId,
     pub graceful: bool,
 }
-}
 
-message! {
 // Server to Client: Player speed update with position for reconciliation.
-struct SSpeed {
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SSpeed {
     pub id: PlayerId,
     pub speed: Speed,
     pub pos: Position,
 }
-}
 
-message! {
 // Server to Client: Player facing direction update.
-struct SFace {
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SFace {
     pub id: PlayerId,
     pub dir: f32, // radians - direction player is facing
 }
-}
 
-message! {
 // Server to Client: Player shot fired.
-struct SShot {
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SShot {
     pub id: PlayerId,
     pub face_dir: f32,   // radians - yaw direction player is facing when shooting
     pub face_pitch: f32, // radians - pitch (up/down) when shooting
 }
-}
 
-message! {
 // Server to Client: Periodic game state update for all players.
-struct SUpdate {
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SUpdate {
     pub seq: u32,
     pub players: Vec<(PlayerId, Player)>,
     pub items: Vec<(ItemId, Item)>,
     pub ghosts: Vec<(GhostId, Ghost)>,
 }
-}
 
-message! {
 // Server to Client: Player was hit by a projectile.
-struct SHit {
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SHit {
     pub id: PlayerId,        // Player who was hit
     pub hit_dir_x: f32,      // Direction of hit (normalized)
     pub hit_dir_z: f32,      // Direction of hit (normalized)
 }
-}
 
-message! {
 // Server to Client: Player status effects changed.
-struct SPlayerStatus {
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SPlayerStatus {
     pub id: PlayerId,
     pub speed_power_up: bool,
     pub multi_shot_power_up: bool,
@@ -325,32 +283,27 @@ struct SPlayerStatus {
     pub ghost_hunt_power_up: bool,
     pub stunned: bool,
 }
-}
 
-message! {
 // Server to Client: Echo response.
-struct SEcho {
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SEcho {
     pub timestamp_nanos: u64,
 }
-}
 
-message! {
 // Server to Client: Ghost direction changed.
-struct SGhost {
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SGhost {
     pub id: GhostId,
     pub ghost: Ghost,
 }
-}
 
-message! {
 // Server to Client: Player collected a cookie.
-struct SCookieCollected {}
-}
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SCookieCollected {}
 
-message! {
 // Server to Client: Ghost hit a player.
-struct SGhostHit {}
-}
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SGhostHit {}
 
 // ============================================================================
 // Message Envelopes
