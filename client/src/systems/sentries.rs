@@ -3,9 +3,9 @@ use bevy::prelude::*;
 use super::network::ServerReconciliation;
 use common::{
     collision::sentries::{slide_sentry_along_obstacles, sweep_sentry_vs_ramp_footprint, sweep_sentry_vs_wall},
-    constants::{SENTRY_SIZE, UPDATE_BROADCAST_INTERVAL},
+    constants::{SENTRY_HEIGHT, UPDATE_BROADCAST_INTERVAL},
     markers::SentryMarker,
-    protocol::{MapLayout, Position, Velocity},
+    protocol::{FaceDirection, MapLayout, Position, Velocity},
 };
 
 // ============================================================================
@@ -116,11 +116,12 @@ fn apply_sentry_wall_sliding(
 // Sentries Sync System
 // ============================================================================
 
-// Update sentry Transform from Position component for rendering
-pub fn sentries_transform_sync_system(mut sentry_query: Query<(&Position, &mut Transform), With<SentryMarker>>) {
-    for (pos, mut transform) in &mut sentry_query {
+// Update sentry Transform from Position and FaceDirection components for rendering
+pub fn sentries_transform_sync_system(mut sentry_query: Query<(&Position, &FaceDirection, &mut Transform), With<SentryMarker>>) {
+    for (pos, face_dir, mut transform) in &mut sentry_query {
         transform.translation.x = pos.x;
-        transform.translation.y = SENTRY_SIZE / 2.0; // Sentry center at correct height
+        transform.translation.y = SENTRY_HEIGHT / 2.0; // Sentry center at correct height
         transform.translation.z = pos.z;
+        transform.rotation = Quat::from_rotation_y(face_dir.0);
     }
 }

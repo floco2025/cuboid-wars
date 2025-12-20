@@ -38,13 +38,6 @@ pub const ROOF_THICKNESS: f32 = 0.4; // Roof thickness
 pub const ROOF_HEIGHT: f32 = WALL_HEIGHT + ROOF_THICKNESS; // Top of roof
 pub const ROOF_WALL_THICKNESS: f32 = 0.1; // Roof-edge collision barrier (same as wall thickness for reliable sliding)
 
-// Visual details (meters)
-pub const PLAYER_NOSE_RADIUS: f32 = 0.08;
-pub const PLAYER_EYE_RADIUS: f32 = 0.05;
-pub const PLAYER_EYE_SPACING: f32 = 0.1; // distance from center
-pub const PLAYER_EYE_HEIGHT: f32 = 0.7; // relative to ground
-pub const PLAYER_NOSE_HEIGHT: f32 = 0.5; // relative to ground
-
 // Server update interval
 pub const UPDATE_BROADCAST_INTERVAL: f32 = 0.25; // seconds
 
@@ -60,4 +53,6 @@ pub const ALWAYS_PHASING: bool = false;
 pub const ALWAYS_SENTRY_HUNT: bool = false;
 
 // Sentry dimensions (meters)
-pub const SENTRY_SIZE: f32 = 3.0; // Cube side length
+pub const SENTRY_HEIGHT: f32 = 3.0; // up/down
+pub const SENTRY_WIDTH: f32 = 2.0; // side to side
+pub const SENTRY_DEPTH: f32 = 1.5; // front to back

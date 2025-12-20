@@ -193,9 +193,12 @@ pub fn sentries_spawn_system(
         let valid_directions = valid_directions(&grid_config, grid_x, grid_z, *cell);
         let direction = pick_direction(&mut rng, &valid_directions).expect("no valid direction");
         let vel = direction.to_velocity();
+        let face_dir = vel.z.atan2(vel.x);
 
         let sentry_id = SentryId(i);
-        let entity = commands.spawn((SentryMarker, sentry_id, pos, vel)).id();
+        let entity = commands
+            .spawn((SentryMarker, sentry_id, pos, vel, FaceDirection(face_dir)))
+            .id();
 
         sentries.0.insert(
             sentry_id,
@@ -221,7 +224,7 @@ pub fn sentries_movement_system(
     players: Res<PlayerMap>,
     mut sentries: ResMut<SentryMap>,
     mut param_set: ParamSet<(
-        Query<(&SentryId, &mut Position, &mut Velocity), With<SentryMarker>>,
+        Query<(&SentryId, &mut Position, &mut Velocity, &mut FaceDirection), With<SentryMarker>>,
         Query<(&PlayerId, &Position, &Speed), With<PlayerMarker>>,
     )>,
 ) {
@@ -244,12 +247,12 @@ pub fn sentries_movement_system(
 
     // First, collect all sentry data and player data we need
     let mut sentry_updates = Vec::new();
-    for (sentry_id, sentry_pos, sentry_vel) in param_set.p0().iter() {
-        sentry_updates.push((*sentry_id, *sentry_pos, *sentry_vel));
+    for (sentry_id, sentry_pos, sentry_vel, face_dir) in param_set.p0().iter() {
+        sentry_updates.push((*sentry_id, *sentry_pos, *sentry_vel, face_dir.0));
     }
 
     // Now process sentry updates
-    for (sentry_id, mut sentry_pos, mut sentry_vel) in sentry_updates {
+    for (sentry_id, mut sentry_pos, mut sentry_vel, mut face_dir) in sentry_updates {
         let Some(sentry_info) = sentries.0.get_mut(&sentry_id) else {
             continue;
         };
@@ -329,6 +332,7 @@ pub fn sentries_movement_system(
                     &sentry_id,
                     &mut sentry_pos,
                     &mut sentry_vel,
+                    &mut face_dir,
                     sentry_info,
                     &grid_config,
                     &players,
@@ -341,6 +345,7 @@ pub fn sentries_movement_system(
                     &sentry_id,
                     &mut sentry_pos,
                     &mut sentry_vel,
+                    &mut face_dir,
                     sentry_info,
                     &grid_config,
                     &players,
@@ -365,10 +370,11 @@ pub fn sentries_movement_system(
             }
         }
 
-        // Write back the updated position and velocity
-        if let Ok((_, mut pos, mut vel)) = param_set.p0().get_mut(sentry_info.entity) {
+        // Write back the updated position, velocity, and face direction
+        if let Ok((_, mut pos, mut vel, mut fd)) = param_set.p0().get_mut(sentry_info.entity) {
             *pos = sentry_pos;
             *vel = sentry_vel;
+            fd.0 = face_dir;
         }
     }
 }
@@ -426,6 +432,7 @@ fn pre_patrol_movement(
     sentry_id: &SentryId,
     pos: &mut Position,
     vel: &mut Velocity,
+    face_dir: &mut f32,
     sentry_info: &mut SentryInfo,
     grid_config: &GridConfig,
     players: &PlayerMap,
@@ -446,6 +453,7 @@ fn pre_patrol_movement(
         let valid_directions = valid_directions(grid_config, grid_x, grid_z, *cell);
         let new_direction = pick_direction(rng, &valid_directions).expect("no valid direction");
         *vel = new_direction.to_velocity();
+        *face_dir = vel.z.atan2(vel.x);
         sentry_info.mode = SentryMode::Patrol;
         sentry_info.mode_timer = SENTRY_COOLDOWN_DURATION; // Set cooldown before can detect players again
 
@@ -453,7 +461,7 @@ fn pre_patrol_movement(
             players,
             ServerMessage::Sentry(SSentry {
                 id: *sentry_id,
-                sentry: Sentry { pos: *pos, vel: *vel },
+                sentry: Sentry { pos: *pos, vel: *vel, face_dir: vel.z.atan2(vel.x) },
             }),
         );
     } else {
@@ -475,13 +483,14 @@ fn pre_patrol_movement(
         let vel_changed = (new_vel.x - vel.x).abs() > 0.1 || (new_vel.z - vel.z).abs() > 0.1;
 
         *vel = new_vel;
+        *face_dir = vel.z.atan2(vel.x);
 
         if vel_changed {
             broadcast_to_all(
                 players,
                 ServerMessage::Sentry(SSentry {
                     id: *sentry_id,
-                    sentry: Sentry { pos: *pos, vel: *vel },
+                    sentry: Sentry { pos: *pos, vel: *vel, face_dir: vel.z.atan2(vel.x) },
                 }),
             );
         }
@@ -496,6 +505,7 @@ fn patrol_movement(
     sentry_id: &SentryId,
     pos: &mut Position,
     vel: &mut Velocity,
+    face_dir: &mut f32,
     sentry_info: &mut SentryInfo,
     grid_config: &GridConfig,
     players: &PlayerMap,
@@ -543,11 +553,12 @@ fn patrol_movement(
         }
 
         if direction_changed {
+            *face_dir = vel.z.atan2(vel.x);
             broadcast_to_all(
                 players,
                 ServerMessage::Sentry(SSentry {
                     id: *sentry_id,
-                    sentry: Sentry { pos: *pos, vel: *vel },
+                    sentry: Sentry { pos: *pos, vel: *vel, face_dir: *face_dir },
                 }),
             );
 
@@ -681,7 +692,7 @@ fn follow_movement(
             players,
             ServerMessage::Sentry(SSentry {
                 id: *sentry_id,
-                sentry: Sentry { pos: *pos, vel: *vel },
+                sentry: Sentry { pos: *pos, vel: *vel, face_dir: vel.z.atan2(vel.x) },
             }),
         );
     }

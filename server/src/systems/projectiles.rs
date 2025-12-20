@@ -35,7 +35,7 @@ pub fn projectiles_movement_system(
     time: Res<Time>,
     mut projectile_query: Query<(Entity, &mut Position, &mut Projectile, &PlayerId), With<ProjectileMarker>>,
     player_query: Query<PlayerTarget, (With<PlayerMarker>, Without<ProjectileMarker>)>,
-    sentry_query: Query<(&SentryId, &Position), (With<SentryMarker>, Without<ProjectileMarker>)>,
+    sentry_query: Query<(&SentryId, &Position, &FaceDirection), (With<SentryMarker>, Without<ProjectileMarker>)>,
     map_layout: Res<MapLayout>,
     mut players: ResMut<PlayerMap>,
     sentries: Res<SentryMap>,
@@ -112,7 +112,7 @@ pub fn projectiles_movement_system(
                 .is_some_and(|info| info.sentry_hunt_power_up_timer > 0.0);
 
         if shooter_has_sentry_hunt {
-            for (sentry_id, sentry_pos) in sentry_query.iter() {
+            for (sentry_id, sentry_pos, sentry_face_dir) in sentry_query.iter() {
                 let Some(sentry_info) = sentries.0.get(sentry_id) else {
                     continue;
                 };
@@ -132,7 +132,7 @@ pub fn projectiles_movement_system(
                 }
 
                 // Check collision
-                if projectile_hits_sentry(&proj_pos, &projectile, delta, sentry_pos) {
+                if projectile_hits_sentry(&proj_pos, &projectile, delta, sentry_pos, sentry_face_dir.0) {
                     // Update shooter
                     if let Some(shooter_info) = players.0.get_mut(shooter_id) {
                         shooter_info.hits += SENTRY_HIT_REWARD;

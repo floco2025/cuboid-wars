@@ -61,6 +61,7 @@ struct SentryBundle {
     sentry_marker: SentryMarker,
     position: Position,
     velocity: Velocity,
+    face_direction: FaceDirection,
     mesh: Mesh3d,
     material: MeshMaterial3d<StandardMaterial>,
     transform: Transform,
@@ -1102,6 +1103,7 @@ pub fn spawn_sentry(
     sentry_id: SentryId,
     position: &Position,
     velocity: &Velocity,
+    face_dir: f32,
 ) -> Entity {
     let color = Color::srgba(SENTRY_COLOR[0], SENTRY_COLOR[1], SENTRY_COLOR[2], SENTRY_COLOR[3]);
 
@@ -1111,13 +1113,15 @@ pub fn spawn_sentry(
             sentry_marker: SentryMarker,
             position: *position,
             velocity: *velocity,
-            mesh: Mesh3d(meshes.add(Cuboid::new(SENTRY_SIZE, SENTRY_SIZE, SENTRY_SIZE))),
+            face_direction: FaceDirection(face_dir),
+            mesh: Mesh3d(meshes.add(Cuboid::new(SENTRY_WIDTH, SENTRY_HEIGHT, SENTRY_DEPTH))),
             material: MeshMaterial3d(materials.add(StandardMaterial {
                 base_color: color,
                 alpha_mode: AlphaMode::Blend,
                 ..default()
             })),
-            transform: Transform::from_xyz(position.x, SENTRY_SIZE / 2.0, position.z),
+            transform: Transform::from_xyz(position.x, SENTRY_HEIGHT / 2.0, position.z)
+                .with_rotation(Quat::from_rotation_y(face_dir)),
         })
         .id()
 }

@@ -370,17 +370,21 @@ pub fn sweep_projectile_vs_ramp(
     }
 }
 
+// Generic oriented bounding box collision detection for projectiles vs cuboids
 #[must_use]
-pub fn sweep_projectile_vs_player(
+pub fn sweep_projectile_vs_cuboid(
     proj_pos: &Position,
     projectile: &Projectile,
     delta: f32,
-    player_pos: &Position,
-    player_face_dir: f32,
+    cuboid_pos: &Position,
+    cuboid_center_y: f32,
+    cuboid_face_dir: f32,
+    cuboid_width: f32,
+    cuboid_height: f32,
+    cuboid_depth: f32,
 ) -> HitResult {
-    let player_center_y = player_pos.y + PLAYER_HEIGHT / 2.0;
-    let y_diff = (proj_pos.y - player_center_y).abs();
-    if y_diff > PLAYER_HEIGHT / 2.0 + PROJECTILE_RADIUS {
+    let y_diff = (proj_pos.y - cuboid_center_y).abs();
+    if y_diff > cuboid_height / 2.0 + PROJECTILE_RADIUS {
         return no_hit();
     }
 
@@ -388,23 +392,24 @@ pub fn sweep_projectile_vs_player(
     let ray_dir_y = projectile.velocity.y * delta;
     let ray_dir_z = projectile.velocity.z * delta;
 
-    let dx = proj_pos.x - player_pos.x;
-    let dz = proj_pos.z - player_pos.z;
+    let dx = proj_pos.x - cuboid_pos.x;
+    let dz = proj_pos.z - cuboid_pos.z;
 
-    let cos_rot = player_face_dir.cos();
-    let sin_rot = player_face_dir.sin();
+    // Transform to cuboid's local coordinate system
+    let cos_rot = cuboid_face_dir.cos();
+    let sin_rot = cuboid_face_dir.sin();
 
     let local_x = dx.mul_add(cos_rot, -(dz * sin_rot));
     let local_z = dx.mul_add(sin_rot, dz * cos_rot);
-    let local_y = proj_pos.y - player_center_y;
+    let local_y = proj_pos.y - cuboid_center_y;
 
     let ray_local_x = ray_dir_x.mul_add(cos_rot, -(ray_dir_z * sin_rot));
     let ray_local_z = ray_dir_x.mul_add(sin_rot, ray_dir_z * cos_rot);
     let ray_local_y = ray_dir_y;
 
-    let half_width = PLAYER_WIDTH / 2.0 + PROJECTILE_RADIUS;
-    let half_height = PLAYER_HEIGHT / 2.0 + PROJECTILE_RADIUS;
-    let half_depth = PLAYER_DEPTH / 2.0 + PROJECTILE_RADIUS;
+    let half_width = cuboid_width / 2.0 + PROJECTILE_RADIUS;
+    let half_height = cuboid_height / 2.0 + PROJECTILE_RADIUS;
+    let half_depth = cuboid_depth / 2.0 + PROJECTILE_RADIUS;
 
     let mut t_min = 0.0_f32;
     let mut t_max = 1.0_f32;
@@ -451,6 +456,28 @@ pub fn sweep_projectile_vs_player(
     } else {
         no_hit()
     }
+}
+
+#[must_use]
+pub fn sweep_projectile_vs_player(
+    proj_pos: &Position,
+    projectile: &Projectile,
+    delta: f32,
+    player_pos: &Position,
+    player_face_dir: f32,
+) -> HitResult {
+    let player_center_y = player_pos.y + PLAYER_HEIGHT / 2.0;
+    sweep_projectile_vs_cuboid(
+        proj_pos,
+        projectile,
+        delta,
+        player_pos,
+        player_center_y,
+        player_face_dir,
+        PLAYER_WIDTH,
+        PLAYER_HEIGHT,
+        PLAYER_DEPTH,
+    )
 }
 
 #[must_use]
@@ -548,54 +575,17 @@ pub fn projectile_hits_ramp(proj_pos: &Position, projectile_velocity: &Vec3, del
 }
 
 #[must_use]
-pub fn projectile_hits_wall(proj_pos: &Position, projectile: &Projectile, delta: f32, wall: &Wall) -> bool {
-    sweep_projectile_vs_wall(proj_pos, projectile, delta, wall).is_some()
-}
-
-#[must_use]
-pub fn projectile_hits_roof(proj_pos: &Position, projectile: &Projectile, delta: f32, roof: &Roof) -> bool {
-    sweep_projectile_vs_roof(proj_pos, projectile, delta, roof).is_some()
-}
-
-#[must_use]
-pub fn projectile_hits_sentry(proj_pos: &Position, projectile: &Projectile, delta: f32, sentry_pos: &Position) -> bool {
-    let sentry_center_y = SENTRY_SIZE / 2.0;
-    let y_diff = (proj_pos.y - sentry_center_y).abs();
-    if y_diff > SENTRY_SIZE / 2.0 + PROJECTILE_RADIUS {
-        return false;
-    }
-
-    let ray_dir_x = projectile.velocity.x * delta;
-    let ray_dir_z = projectile.velocity.z * delta;
-
-    let dx = proj_pos.x - sentry_pos.x;
-    let dz = proj_pos.z - sentry_pos.z;
-
-    let collision_radius = PROJECTILE_RADIUS + SENTRY_SIZE / 2.0;
-    let radius_sq = collision_radius * collision_radius;
-
-    let dist_sq = dx.mul_add(dx, dz * dz);
-    if dist_sq <= radius_sq {
-        return true;
-    }
-
-    let a = ray_dir_x.mul_add(ray_dir_x, ray_dir_z * ray_dir_z);
-
-    if a < 1e-6 {
-        return false;
-    }
-
-    let b = 2.0 * dx.mul_add(ray_dir_x, dz * ray_dir_z);
-    let c = dist_sq - radius_sq;
-    let discriminant = b.mul_add(b, -4.0 * a * c);
-
-    if discriminant < 0.0 {
-        return false;
-    }
-
-    let sqrt_disc = discriminant.sqrt();
-    let t1 = (-b - sqrt_disc) / (2.0 * a);
-    let t2 = (-b + sqrt_disc) / (2.0 * a);
-
-    (0.0..=1.0).contains(&t1) || (0.0..=1.0).contains(&t2) || (t1 < 0.0 && t2 > 1.0)
+pub fn projectile_hits_sentry(proj_pos: &Position, projectile: &Projectile, delta: f32, sentry_pos: &Position, sentry_face_dir: f32) -> bool {
+    let sentry_center_y = sentry_pos.y + SENTRY_HEIGHT / 2.0;
+    sweep_projectile_vs_cuboid(
+        proj_pos,
+        projectile,
+        delta,
+        sentry_pos,
+        sentry_center_y,
+        sentry_face_dir,
+        SENTRY_WIDTH,
+        SENTRY_HEIGHT,
+        SENTRY_DEPTH,
+    ).hit
 }

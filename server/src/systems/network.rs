@@ -116,11 +116,16 @@ fn collect_sentries(sentries: &SentryMap, queries: &NetworkEntityQueries) -> Vec
                 .velocities
                 .get(info.entity)
                 .expect("Sentry entity missing Velocity");
+            let face_dir_component = queries
+                .face_dirs
+                .get(info.entity)
+                .expect("Sentry entity missing FaceDirection");
             (
                 *id,
                 Sentry {
                     pos: *pos_component,
                     vel: *vel_component,
+                    face_dir: face_dir_component.0,
                 },
             )
         })

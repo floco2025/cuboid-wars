@@ -26,7 +26,7 @@ fn handle_sentry_collisions(
     projectile_pos: &Position,
     shooter_id: &PlayerId,
     delta: f32,
-    sentry_query: &Query<&Position, With<SentryMarker>>,
+    sentry_query: &Query<(&Position, &FaceDirection), With<SentryMarker>>,
     players: &PlayerMap,
 ) -> bool {
     // Only check sentry collisions if shooter has sentry hunt power-up
@@ -38,8 +38,8 @@ fn handle_sentry_collisions(
         return false;
     }
 
-    for sentry_pos in sentry_query.iter() {
-        if projectile_hits_sentry(projectile_pos, projectile, delta, sentry_pos) {
+    for (sentry_pos, sentry_face_dir) in sentry_query.iter() {
+        if projectile_hits_sentry(projectile_pos, projectile, delta, sentry_pos, sentry_face_dir.0) {
             play_sound(
                 commands,
                 asset_server,
@@ -110,7 +110,7 @@ pub fn projectiles_movement_system(
     asset_server: Res<AssetServer>,
     mut projectile_query: Query<(Entity, &mut Transform, &mut Projectile, &PlayerId), With<ProjectileMarker>>,
     player_query: Query<(Entity, &Position, &FaceDirection, Has<LocalPlayerMarker>), With<PlayerMarker>>,
-    sentry_query: Query<&Position, With<SentryMarker>>,
+    sentry_query: Query<(&Position, &FaceDirection), With<SentryMarker>>,
     players: Res<PlayerMap>,
     map_layout: Option<Res<MapLayout>>,
 ) {
