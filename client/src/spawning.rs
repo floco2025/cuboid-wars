@@ -469,7 +469,7 @@ pub fn spawn_player(
         let debug_box = commands.spawn((
             Mesh3d(meshes.add(Cuboid::new(PLAYER_WIDTH, PLAYER_HEIGHT, PLAYER_DEPTH))),
             MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgba(0.5, 0.5, 0.5, 0.3),
+                base_color: Color::srgba(0.5, 0.5, 0.5, 0.15),
                 alpha_mode: AlphaMode::Blend,
                 ..default()
             })),
@@ -1137,7 +1137,7 @@ pub fn spawn_sentry(
         let debug_box = commands.spawn((
             Mesh3d(meshes.add(Cuboid::new(SENTRY_WIDTH, SENTRY_HEIGHT, SENTRY_DEPTH))),
             MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgba(0.5, 0.5, 0.5, 0.3),
+                base_color: Color::srgba(0.5, 0.5, 0.5, 0.15),
                 alpha_mode: AlphaMode::Blend,
                 ..default()
             })),

@@ -32,7 +32,7 @@ pub const WALL_LIGHT_HEIGHT: f32 = 2.5; // meters above ground
 // ============================================================================
 
 pub const SENTRIES_NUM: u32 = 4;
-pub const SENTRY_SPEED: f32 = 0.00006; // m/s (patrol mode)
+pub const SENTRY_SPEED: f32 = 6.0; // m/s (patrol mode)
 pub const SENTRY_FOLLOW_SPEED: f32 = 8.0; // m/s (follow mode)
 pub const SENTRY_RANDOM_TURN_PROBABILITY: f64 = 0.3;
 pub const SENTRY_TARGET_DURATION: f32 = 10.0; // seconds

@@ -193,7 +193,7 @@ pub fn sentries_spawn_system(
         let valid_directions = valid_directions(&grid_config, grid_x, grid_z, *cell);
         let direction = pick_direction(&mut rng, &valid_directions).expect("no valid direction");
         let vel = direction.to_velocity();
-        let face_dir = vel.z.atan2(vel.x);
+        let face_dir = vel.x.atan2(vel.z);
 
         let sentry_id = SentryId(i);
         let entity = commands
@@ -453,7 +453,7 @@ fn pre_patrol_movement(
         let valid_directions = valid_directions(grid_config, grid_x, grid_z, *cell);
         let new_direction = pick_direction(rng, &valid_directions).expect("no valid direction");
         *vel = new_direction.to_velocity();
-        *face_dir = vel.z.atan2(vel.x);
+        *face_dir = vel.x.atan2(vel.z);
         sentry_info.mode = SentryMode::Patrol;
         sentry_info.mode_timer = SENTRY_COOLDOWN_DURATION; // Set cooldown before can detect players again
 
@@ -461,7 +461,7 @@ fn pre_patrol_movement(
             players,
             ServerMessage::Sentry(SSentry {
                 id: *sentry_id,
-                sentry: Sentry { pos: *pos, vel: *vel, face_dir: vel.z.atan2(vel.x) },
+                sentry: Sentry { pos: *pos, vel: *vel, face_dir: vel.x.atan2(vel.z) },
             }),
         );
     } else {
@@ -483,14 +483,14 @@ fn pre_patrol_movement(
         let vel_changed = (new_vel.x - vel.x).abs() > 0.1 || (new_vel.z - vel.z).abs() > 0.1;
 
         *vel = new_vel;
-        *face_dir = vel.z.atan2(vel.x);
+        *face_dir = vel.x.atan2(vel.z);
 
         if vel_changed {
             broadcast_to_all(
                 players,
                 ServerMessage::Sentry(SSentry {
                     id: *sentry_id,
-                    sentry: Sentry { pos: *pos, vel: *vel, face_dir: vel.z.atan2(vel.x) },
+                    sentry: Sentry { pos: *pos, vel: *vel, face_dir: vel.x.atan2(vel.z) },
                 }),
             );
         }
@@ -553,7 +553,7 @@ fn patrol_movement(
         }
 
         if direction_changed {
-            *face_dir = vel.z.atan2(vel.x);
+            *face_dir = vel.x.atan2(vel.z);
             broadcast_to_all(
                 players,
                 ServerMessage::Sentry(SSentry {
@@ -692,7 +692,7 @@ fn follow_movement(
             players,
             ServerMessage::Sentry(SSentry {
                 id: *sentry_id,
-                sentry: Sentry { pos: *pos, vel: *vel, face_dir: vel.z.atan2(vel.x) },
+                sentry: Sentry { pos: *pos, vel: *vel, face_dir: vel.x.atan2(vel.z) },
             }),
         );
     }
