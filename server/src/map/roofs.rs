@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 use super::helpers::count_cell_walls;
 use crate::{
-    constants::{OVERLAP_ROOFS, ROOF_NEIGHBOR_PREFERENCE, ROOF_NUM_SEGMENTS},
+    constants::{ROOF_OVERLAP, ROOF_NEIGHBOR_PREFERENCE, ROOF_NUM_SEGMENTS},
     resources::GridCell,
 };
 use common::{constants::*, protocol::Roof};
@@ -213,7 +213,7 @@ pub fn generate_roofs(mut grid: Vec<Vec<GridCell>>, grid_cols: i32, grid_rows: i
 
     for &(row, col) in &roof_cells {
         // Calculate world coordinates
-        let (world_x1, world_x2, world_z1, world_z2, edge_fillers) = if OVERLAP_ROOFS {
+        let (world_x1, world_x2, world_z1, world_z2, edge_fillers) = if ROOF_OVERLAP {
             // Overlap mode: extend on all sides by roof_thickness/2 for guaranteed coverage
             let x1 = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)) - WALL_THICKNESS / 2.0;
             let x2 = ((col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)) + WALL_THICKNESS / 2.0;

@@ -1,8 +1,7 @@
 // ============================================================================
-// Client Game Constants
+// Camera Settings
 // ============================================================================
 
-// === Camera Settings ===
 // First-person view
 pub const FPV_CAMERA_FOV_DEGREES: f32 = 90.0;
 
@@ -22,17 +21,26 @@ pub const REARVIEW_HEIGHT_RATIO: f32 = 0.25; // Height as ratio of screen height
 pub const REARVIEW_MARGIN: f32 = 0.02; // Margin from edge as ratio of screen size
 pub const REARVIEW_FOV_DEGREES: f32 = 90.0;
 
-// === Input ===
+// ============================================================================
+// Input
+// ============================================================================
+
 pub const MOUSE_SENSITIVITY: f32 = 0.002; // radians per pixel
 
-// === Player Model ===
+// ============================================================================
+// Player Model
+// ============================================================================
+
 pub const PLAYER_MODEL: &str = "models/player.glb#Scene0";
 pub const PLAYER_MODEL_SCALE: f32 = 0.53;
 pub const PLAYER_MODEL_HEIGHT_OFFSET: f32 = 0.0;
 pub const PLAYER_MODEL_ANIMATION_SPEED: f32 = 2.0;
 pub const PLAYER_BOUNDING_BOX: bool = false; // Debug visualization
 
-// === Lighting ===
+// ============================================================================
+// Lighting
+// ============================================================================
+
 // Wall lights
 pub const WALL_LIGHT_MODEL: &str = "models/wall_light.glb";
 pub const WALL_LIGHT_SCALE: f32 = 1.5;
@@ -46,7 +54,10 @@ pub const WALL_LIGHT_EMISSIVE_LUMINANCE: f32 = 2.0;
 pub const LIGHT_AMBIENT_BRIGHTNESS: f32 = 100.0;
 pub const LIGHT_DIRECTIONAL_BRIGHTNESS: f32 = 8000.0;
 
-// === Network Throttling ===
+// ============================================================================
+// Network Throttling
+// ============================================================================
+
 // Speed updates
 pub const SPEED_MAX_SEND_INTERVAL: f32 = 0.05; // seconds
 pub const SPEED_DIR_CHANGE_THRESHOLD: f32 = 1.0; // degrees
@@ -58,7 +69,10 @@ pub const FACE_CHANGE_THRESHOLD: f32 = 2.0; // degrees
 // Round-trip time
 pub const ECHO_INTERVAL: f32 = 10.0; // seconds
 
-// === Player Labels ===
+// ============================================================================
+// Player Labels
+// ============================================================================
+
 pub const LABEL_HEIGHT_ABOVE_PLAYER: f32 = 0.5; // meters
 pub const LABEL_WIDTH: f32 = 1.0; // world units
 pub const LABEL_TEXTURE_WIDTH: u32 = 256; // pixels
@@ -67,7 +81,10 @@ pub const LABEL_TEXT_COLOR: [f32; 4] = [1.0, 1.0, 1.0, 1.0]; // RGBA
 pub const LABEL_BACKGROUND_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 0.2]; // RGBA
 pub const LABEL_FONT_SIZE: f32 = 40.0; // pixels
 
-// === Power-Up Items ===
+// ============================================================================
+// Power-Up Items
+// ============================================================================
+
 pub const ITEM_SIZE: f32 = 0.2;
 pub const ITEM_HEIGHT_ABOVE_FLOOR: f32 = 1.0;
 pub const ITEM_ANIMATION_HEIGHT: f32 = 0.5;
@@ -77,15 +94,24 @@ pub const ITEM_MULTISHOT_COLOR: [f32; 4] = [1.0, 0.2, 0.2, 1.0]; // Red
 pub const ITEM_PHASING_COLOR: [f32; 4] = [0.2, 1.0, 0.2, 1.0]; // Green
 pub const ITEM_SENTRY_HUNT_COLOR: [f32; 3] = [0.973, 0.973, 1.0]; // Pale blue
 
-// === Cookies ===
+// ============================================================================
+// Cookies
+// ============================================================================
+
 pub const COOKIE_SIZE: f32 = 0.15; // sphere radius
 pub const COOKIE_HEIGHT: f32 = 0.1; // meters above floor
 pub const COOKIE_COLOR: [f32; 4] = [0.55, 0.35, 0.2, 1.0]; // Brown
 
-// === Sentries ===
+// ============================================================================
+// Sentries
+// ============================================================================
+
 pub const SENTRY_COLOR: [f32; 4] = [0.973, 0.973, 1.0, 0.5];
 
-// === Textures ===
+// ============================================================================
+// Textures
+// ============================================================================
+
 // Walls
 pub const TEXTURE_WALL_TILE_SIZE: f32 = 6.0;
 pub const TEXTURE_WALL_ALBEDO: &str = "textures/wall-albedo.png";
@@ -104,7 +130,10 @@ pub const TEXTURE_FLOOR_ALBEDO: &str = "textures/floor-albedo.png";
 pub const TEXTURE_FLOOR_NORMAL: &str = "textures/floor-normal-dx.png";
 pub const TEXTURE_FLOOR_AO: &str = "textures/floor-ao.png";
 
-// === Debug Visualization ===
+// ============================================================================
+// Debug Visualization
+// ============================================================================
+
 pub const RANDOM_WALL_COLORS: bool = false;
 pub const RANDOM_ROOF_COLORS: bool = false;
 pub const RANDOM_ROOF_WALL_COLORS: bool = false;

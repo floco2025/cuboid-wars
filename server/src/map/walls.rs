@@ -1,4 +1,4 @@
-use crate::{constants::OVERLAP_WALLS, resources::GridCell};
+use crate::{constants::WALL_OVERLAP, resources::GridCell};
 use common::{constants::*, protocol::Wall};
 
 const MERGE_EPS: f32 = 0.01;
@@ -83,7 +83,7 @@ pub fn generate_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) ->
             let world_z = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
             // Horizontal walls inset only when a vertical passes through (T); extend otherwise for corners/ends
             let x1 = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0))
-                + if OVERLAP_WALLS {
+                + if WALL_OVERLAP {
                     -WALL_THICKNESS / 2.0
                 } else if left_vert_through && !has_left {
                     WALL_THICKNESS / 2.0 // inset at T so vertical can pass through
@@ -93,7 +93,7 @@ pub fn generate_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) ->
                     0.0
                 };
             let x2 = ((col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0))
-                + if OVERLAP_WALLS {
+                + if WALL_OVERLAP {
                     WALL_THICKNESS / 2.0
                 } else if right_vert_through && !has_right {
                     -WALL_THICKNESS / 2.0 // inset at T on the right

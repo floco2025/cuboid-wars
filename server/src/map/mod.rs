@@ -9,7 +9,7 @@ mod walls;
 use rand::Rng;
 
 use crate::constants::{
-    MERGE_ROOF_SEGMENTS, MERGE_WALL_SEGMENTS, OVERLAP_ROOFS, OVERLAP_WALLS, WALL_2ND_PROBABILITY_RATIO,
+    ROOF_MERGE_SEGMENTS, WALL_MERGE_SEGMENTS, ROOF_OVERLAP, WALL_OVERLAP, WALL_2ND_PROBABILITY_RATIO,
     WALL_3RD_PROBABILITY_RATIO, WALL_NUM_SEGMENTS,
 };
 use crate::resources::{GridCell, GridConfig};
@@ -204,19 +204,19 @@ pub fn generate_grid() -> (MapLayout, GridConfig) {
 
     // Build wall list from grid with individual segments
     let mut lower_walls = walls::generate_walls(&grid, grid_cols, grid_rows);
-    if MERGE_WALL_SEGMENTS && !OVERLAP_WALLS {
+    if WALL_MERGE_SEGMENTS && !WALL_OVERLAP {
         lower_walls = walls::merge_walls(lower_walls);
     }
 
     // Generate roofs based on grid
     let (mut roofs, grid) = roofs::generate_roofs(grid, grid_cols, grid_rows);
-    if MERGE_ROOF_SEGMENTS && !OVERLAP_ROOFS {
+    if ROOF_MERGE_SEGMENTS && !ROOF_OVERLAP {
         roofs = roofs::merge_roofs(roofs);
     }
 
     // Generate collision walls for roof edges
     let mut roof_walls = collision::generate_roof_walls(&grid, grid_cols, grid_rows);
-    if MERGE_WALL_SEGMENTS && !OVERLAP_WALLS {
+    if WALL_MERGE_SEGMENTS && !WALL_OVERLAP {
         roof_walls = collision::merge_roof_walls(roof_walls);
     }
 
