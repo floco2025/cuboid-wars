@@ -5,7 +5,7 @@ use crate::{
     constants::*,
     map::cell_center,
     net::ServerToClient,
-    resources::{GhostInfo, GhostMap, GhostMode, GridCell, GridConfig, PlayerMap},
+    resources::{GhostInfo, GhostMap, GhostMode, GhostSpawnConfig, GridCell, GridConfig, PlayerMap},
 };
 use common::{
     collision::{
@@ -161,6 +161,7 @@ pub fn ghosts_spawn_system(
     mut commands: Commands,
     mut ghosts: ResMut<GhostMap>,
     grid_config: Res<GridConfig>,
+    spawn_config: Res<GhostSpawnConfig>,
     query: Query<&GhostId>,
 ) {
     // Only spawn if no ghosts exist yet
@@ -170,7 +171,7 @@ pub fn ghosts_spawn_system(
 
     let mut rng = rand::rng();
 
-    for i in 0..GHOSTS_NUM {
+    for i in 0..spawn_config.num_ghosts {
         // Pick a random grid cell that doesn't have a ramp
         let (grid_x, grid_z) = loop {
             let x = rng.random_range(0..GRID_COLS);

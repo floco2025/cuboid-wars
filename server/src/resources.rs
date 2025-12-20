@@ -66,6 +66,12 @@ pub struct ItemInfo {
 #[derive(Resource, Default)]
 pub struct ItemMap(pub HashMap<ItemId, ItemInfo>);
 
+// Configuration for ghost spawning
+#[derive(Resource)]
+pub struct GhostSpawnConfig {
+    pub num_ghosts: u32,
+}
+
 // Ghost AI mode
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GhostMode {

@@ -49,20 +49,8 @@ struct PlayerBundle {
     position: Position,
     velocity: Velocity,
     face_direction: FaceDirection,
-    mesh: Mesh3d,
-    material: MeshMaterial3d<StandardMaterial>,
     transform: Transform,
     visibility: Visibility,
-}
-
-#[derive(Bundle)]
-struct FaceSphereBundle {
-    mesh: Mesh3d,
-    material: MeshMaterial3d<StandardMaterial>,
-    transform: Transform,
-    visibility: Visibility,
-    view_visibility: ViewVisibility,
-    inherited_visibility: InheritedVisibility,
 }
 
 #[derive(Bundle)]
@@ -436,9 +424,10 @@ fn build_ramp_meshes(x1: f32, z1: f32, x2: f32, z2: f32, y_low: f32, y_high: f32
 // Player Spawning
 // ============================================================================
 
-// Spawn a player cuboid plus cosmetic children, returning the new entity id.
+// Spawn a player model plus cosmetic children, returning the new entity id.
 pub fn spawn_player(
     commands: &mut Commands,
+    asset_server: &Res<AssetServer>,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
     images: &mut ResMut<Assets<Image>>,
@@ -456,13 +445,13 @@ pub fn spawn_player(
             position: *position,
             velocity,
             face_direction: FaceDirection(face_dir),
-            mesh: Mesh3d(meshes.add(Cuboid::new(PLAYER_WIDTH, PLAYER_HEIGHT, PLAYER_DEPTH))),
-            material: MeshMaterial3d(materials.add(player_color(is_local))),
-            transform: Transform::from_xyz(position.x, PLAYER_HEIGHT / 2.0, position.z)
+            transform: Transform::from_xyz(position.x, position.y + PLAYER_HEIGHT / 2.0, position.z)
                 .with_rotation(Quat::from_rotation_y(face_dir)),
             visibility: player_visibility(is_local),
         })
         .id();
+
+
 
     if is_local {
         commands
@@ -470,34 +459,29 @@ pub fn spawn_player(
             .insert((LocalPlayerMarker, BumpFlashState::default()));
     }
 
-    // Nose and eyes share the same component boilerplate; spawn each and attach.
-    let nose = spawn_face_sphere(
-        commands,
-        meshes,
-        materials,
-        PLAYER_NOSE_RADIUS,
-        Color::srgb(1.0, 1.0, 0.0),
-        Vec3::new(0.0, PLAYER_NOSE_HEIGHT, PLAYER_DEPTH / 2.0),
-    );
-    let eye_color = Color::WHITE;
-    let left_eye = spawn_face_sphere(
-        commands,
-        meshes,
-        materials,
-        PLAYER_EYE_RADIUS,
-        eye_color,
-        Vec3::new(-PLAYER_EYE_SPACING, PLAYER_EYE_HEIGHT, PLAYER_DEPTH / 2.0),
-    );
-    let right_eye = spawn_face_sphere(
-        commands,
-        meshes,
-        materials,
-        PLAYER_EYE_RADIUS,
-        eye_color,
-        Vec3::new(PLAYER_EYE_SPACING, PLAYER_EYE_HEIGHT, PLAYER_DEPTH / 2.0),
-    );
+    let mut children = vec![];
 
-    let mut children = vec![nose, left_eye, right_eye];
+    // Add transparent cuboid debug visualization if enabled
+    if PLAYER_BOUNDING_BOX {
+        let debug_box = commands.spawn((
+            Mesh3d(meshes.add(Cuboid::new(PLAYER_WIDTH, PLAYER_HEIGHT, PLAYER_DEPTH))),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: Color::srgba(0.5, 0.5, 0.5, 0.3),
+                alpha_mode: AlphaMode::Blend,
+                ..default()
+            })),
+            Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+        )).id();
+        children.push(debug_box);
+    }
+
+    // Add the GLB player model
+    let model = commands.spawn((
+        SceneRoot(asset_server.load(PLAYER_MODEL)),
+        Transform::from_scale(Vec3::splat(PLAYER_MODEL_SCALE))
+            .with_translation(Vec3::new(0.0, PLAYER_MODEL_HEIGHT_OFFSET - PLAYER_HEIGHT / 2.0, 0.0)),
+    )).id();
+    children.push(model);
 
     // Create individual texture and camera for this player's ID text
     let (image_handle, text_camera) = setup_player_id_text_rendering(commands, images);
@@ -510,40 +494,12 @@ pub fn spawn_player(
     entity
 }
 
-const fn player_color(is_local: bool) -> Color {
-    if is_local {
-        Color::srgb(0.3, 0.3, 1.0)
-    } else {
-        Color::srgb(1.0, 0.3, 0.3)
-    }
-}
-
 const fn player_visibility(is_local: bool) -> Visibility {
     if is_local {
         Visibility::Hidden
     } else {
         Visibility::Visible
     }
-}
-
-fn spawn_face_sphere(
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    radius: f32,
-    color: Color,
-    translation: Vec3,
-) -> Entity {
-    commands
-        .spawn(FaceSphereBundle {
-            mesh: Mesh3d(meshes.add(Sphere::new(radius))),
-            material: MeshMaterial3d(materials.add(color)),
-            transform: Transform::from_translation(translation),
-            visibility: Visibility::Inherited,
-            view_visibility: ViewVisibility::default(),
-            inherited_visibility: InheritedVisibility::default(),
-        })
-        .id()
 }
 
 fn setup_player_id_text_rendering(

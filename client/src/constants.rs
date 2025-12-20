@@ -18,6 +18,12 @@ pub const TOPDOWN_ROOF_ALPHA: f32 = 1.0; //0.3; // Opacity for roofs in top-down
 // Mouse sensitivity as radians per pixel
 pub const MOUSE_SENSITIVITY: f32 = 0.002;
 
+// Player model
+pub const PLAYER_MODEL: &str = "models/player.glb#Scene0";
+pub const PLAYER_MODEL_SCALE: f32 = 0.53;
+pub const PLAYER_MODEL_HEIGHT_OFFSET: f32 = 0.0; // Offset from ground level (0.0 = model base at ground)
+pub const PLAYER_BOUNDING_BOX: bool = false; // Show transparent debug box with old player dimensions
+
 // Wall light asset
 pub const WALL_LIGHT_MODEL: &str = "models/wall_light.glb";
 pub const WALL_LIGHT_SCALE: f32 = 1.5; // uniform scale applied to light model

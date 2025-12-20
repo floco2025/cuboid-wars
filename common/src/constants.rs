@@ -12,9 +12,9 @@ pub const FIELD_WIDTH: f32 = GRID_COLS as f32 * GRID_SIZE; // Total width
 pub const FIELD_DEPTH: f32 = GRID_ROWS as f32 * GRID_SIZE; // Total depth
 
 // Player dimensions (meters)
-pub const PLAYER_WIDTH: f32 = 0.5; // side to side
 pub const PLAYER_HEIGHT: f32 = 1.8; // up/down
-pub const PLAYER_DEPTH: f32 = 0.3; // front to back
+pub const PLAYER_WIDTH: f32 = 1.0; // side to side
+pub const PLAYER_DEPTH: f32 = 0.6; // front to back
 pub const PLAYER_EYE_HEIGHT_RATIO: f32 = 0.9; // Eye/camera height as ratio of player height
 
 // Player speeds (meters per second)

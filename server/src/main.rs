@@ -10,6 +10,7 @@ use tokio::{
 
 use server::{
     config::configure_server,
+    constants::GHOSTS_NUM,
     map::generate_grid,
     net::accept_connections_task,
     resources::*,
@@ -29,6 +30,10 @@ struct Args {
     // Address to bind server to
     #[arg(short, long, default_value = "127.0.0.1:8080")]
     bind: String,
+
+    // Disable ghost spawning
+    #[arg(long, default_value_t = false)]
+    no_ghosts: bool,
 }
 
 // ============================================================================
@@ -60,6 +65,10 @@ async fn main() -> Result<()> {
         map_layout.ramps.len()
     );
 
+    let ghost_spawn_config = GhostSpawnConfig {
+        num_ghosts: if args.no_ghosts { 0 } else { GHOSTS_NUM },
+    };
+
     app.add_plugins(MinimalPlugins)
         .add_plugins(bevy::log::LogPlugin {
             level: bevy::log::Level::INFO,
@@ -68,6 +77,7 @@ async fn main() -> Result<()> {
         })
         .insert_resource(map_layout)
         .insert_resource(grid_config)
+        .insert_resource(ghost_spawn_config)
         .insert_resource(PlayerMap::default())
         .insert_resource(ItemMap::default())
         .insert_resource(GhostMap::default())

@@ -151,7 +151,7 @@ fn process_message_logged_in(
         ServerMessage::Init(_) => {
             error!("received Init more than once");
         }
-        ServerMessage::Login(login) => handle_login_message(commands, assets, players, login),
+        ServerMessage::Login(login) => handle_login_message(commands, assets, players, asset_server, login),
         ServerMessage::Logoff(logoff) => handle_logoff_message(commands, players, logoff),
         ServerMessage::Speed(speed_msg) => {
             handle_speed_message(commands, players, &queries.player_positions, rtt, speed_msg);
@@ -172,6 +172,7 @@ fn process_message_logged_in(
             &queries.ghost_positions,
             &queries.cameras,
             my_player_id,
+            asset_server,
             update_msg,
         ),
         ServerMessage::Hit(hit_msg) => handle_hit_message(commands, players, &queries.cameras, my_player_id, hit_msg),
@@ -202,6 +203,7 @@ fn handle_login_message(
     commands: &mut Commands,
     assets: &mut AssetManagers,
     players: &mut ResMut<PlayerMap>,
+    asset_server: &Res<AssetServer>,
     msg: SLogin,
 ) {
     debug!("{:?} logged in", msg.id);
@@ -216,6 +218,7 @@ fn handle_login_message(
     }
     let entity = spawn_player(
         commands,
+        &asset_server,
         &mut assets.meshes,
         &mut assets.materials,
         &mut assets.images,
@@ -333,6 +336,7 @@ fn handle_update_message(
     ghost_query: &Query<&Position, With<GhostMarker>>,
     camera_query: &Query<Entity, With<Camera3d>>,
     my_player_id: PlayerId,
+    asset_server: &Res<AssetServer>,
     msg: SUpdate,
 ) {
     // Ignore outdated updates
@@ -355,6 +359,7 @@ fn handle_update_message(
         player_query,
         camera_query,
         my_player_id,
+        asset_server,
         &msg.players,
     );
     handle_items_update(commands, assets, items, &msg.items);
@@ -369,6 +374,7 @@ fn handle_players_update(
     player_query: &Query<&Position, With<PlayerMarker>>,
     camera_query: &Query<Entity, With<Camera3d>>,
     my_player_id: PlayerId,
+    asset_server: &Res<AssetServer>,
     server_players: &[(PlayerId, Player)],
 ) {
     // Track which players the server knows about in this snapshot
@@ -389,6 +395,7 @@ fn handle_players_update(
         }
         let entity = spawn_player(
             commands,
+            &asset_server,
             &mut assets.meshes,
             &mut assets.materials,
             &mut assets.images,
