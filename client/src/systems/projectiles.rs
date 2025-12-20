@@ -29,23 +29,34 @@ fn handle_sentry_collisions(
     sentry_query: &Query<(&Position, &FaceDirection), With<SentryMarker>>,
     players: &PlayerMap,
 ) -> bool {
-    // Only check sentry collisions if shooter has sentry hunt power-up
-    let Some(shooter_info) = players.0.get(shooter_id) else {
-        return false;
-    };
-
-    if !ALWAYS_SENTRY_HUNT && !shooter_info.sentry_hunt_power_up {
-        return false;
-    }
-
+    // Always check sentry collisions
     for (sentry_pos, sentry_face_dir) in sentry_query.iter() {
         if projectile_hits_sentry(projectile_pos, projectile, delta, sentry_pos, sentry_face_dir.0) {
-            play_sound(
-                commands,
-                asset_server,
-                "sounds/player_hits_sentry.wav",
-                PlaybackSettings::DESPAWN,
-            );
+            // Check if shooter has sentry hunt power-up
+            let shooter_has_hunt = players.0.get(shooter_id)
+                .is_some_and(|info| ALWAYS_SENTRY_HUNT || info.sentry_hunt_power_up);
+
+            if shooter_has_hunt {
+                // With hunt power-up: play sentry hit sound
+                play_sound(
+                    commands,
+                    asset_server,
+                    "sounds/player_hits_sentry.wav",
+                    PlaybackSettings::DESPAWN,
+                );
+            } else {
+                // Without hunt power-up: play wall hit sound
+                play_sound(
+                    commands,
+                    asset_server,
+                    "sounds/player_hits_sentry_no_damage.ogg",
+                    PlaybackSettings {
+                        mode: PlaybackMode::Despawn,
+                        volume: Volume::Linear(0.2),
+                        ..default()
+                    },
+                );
+            }
 
             commands.entity(projectile_entity).despawn();
             return true;

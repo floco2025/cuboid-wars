@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::{
-    constants::SENTRY_HIT_REWARD,
+    constants::{SENTRY_HIT_REWARD, SENTRY_TARGET_DURATION},
     resources::{SentryMap, SentryMode, PlayerMap},
 };
 use common::protocol::MapLayout;
@@ -38,7 +38,7 @@ pub fn projectiles_movement_system(
     sentry_query: Query<(&SentryId, &Position, &FaceDirection), (With<SentryMarker>, Without<ProjectileMarker>)>,
     map_layout: Res<MapLayout>,
     mut players: ResMut<PlayerMap>,
-    sentries: Res<SentryMap>,
+    mut sentries: ResMut<SentryMap>,
 ) {
     let delta = time.delta_secs();
 
@@ -104,42 +104,30 @@ pub fn projectiles_movement_system(
             continue;
         }
 
-        // Check sentry collisions (only for players with sentry hunt power-up who are being targeted)
-        let shooter_has_sentry_hunt = ALWAYS_SENTRY_HUNT
-            || players
-                .0
-                .get(shooter_id)
-                .is_some_and(|info| info.sentry_hunt_power_up_timer > 0.0);
+        // Check sentry collisions - projectiles always hit sentries
+        for (sentry_id, sentry_pos, sentry_face_dir) in sentry_query.iter() {
+            // Check collision
+            if projectile_hits_sentry(&proj_pos, &projectile, delta, sentry_pos, sentry_face_dir.0) {
+                // Check if shooter has sentry hunt power-up
+                let shooter_has_sentry_hunt = ALWAYS_SENTRY_HUNT
+                    || players
+                        .0
+                        .get(shooter_id)
+                        .is_some_and(|info| info.sentry_hunt_power_up_timer > 0.0);
 
-        if shooter_has_sentry_hunt {
-            for (sentry_id, sentry_pos, sentry_face_dir) in sentry_query.iter() {
-                let Some(sentry_info) = sentries.0.get(sentry_id) else {
-                    continue;
-                };
+                if shooter_has_sentry_hunt {
+                    // With hunt power-up: give points, remove power-up, make sentry attack
+                    let Some(sentry_info) = sentries.0.get_mut(sentry_id) else {
+                        continue;
+                    };
 
-                // Only allow hitting sentries that are fleeing (in Target mode with sentry hunt active)
-                if sentry_info.mode != SentryMode::Target {
-                    continue;
-                }
-
-                // Check if the sentry is targeting the shooter (the player must be targeted to hit sentries)
-                let sentry_targets_shooter = sentry_info
-                    .follow_target
-                    .is_some_and(|target_id| target_id == *shooter_id);
-
-                if !sentry_targets_shooter {
-                    continue;
-                }
-
-                // Check collision
-                if projectile_hits_sentry(&proj_pos, &projectile, delta, sentry_pos, sentry_face_dir.0) {
                     // Update shooter
                     if let Some(shooter_info) = players.0.get_mut(shooter_id) {
                         shooter_info.hits += SENTRY_HIT_REWARD;
                         shooter_info.sentry_hunt_power_up_timer = 0.0;
                     }
 
-                    // Broadcast power-up removal to all clients (we just set timer to 0 above)
+                    // Broadcast power-up removal to all clients
                     if let Some(shooter_info) = players.0.get(shooter_id) {
                         broadcast_to_all(
                             &players,
@@ -154,12 +142,18 @@ pub fn projectiles_movement_system(
                         );
                     }
 
-                    // Despawn the projectile
-                    commands.entity(proj_entity).despawn();
-
-                    hit_something = true;
-                    break;
+                    // Make sentry target the shooter (attack behavior)
+                    sentry_info.mode = SentryMode::Target;
+                    sentry_info.mode_timer = SENTRY_TARGET_DURATION;
+                    sentry_info.follow_target = Some(*shooter_id);
                 }
+                // Without hunt power-up: just despawn projectile (no points, no behavior change)
+
+                // Always despawn the projectile
+                commands.entity(proj_entity).despawn();
+
+                hit_something = true;
+                break;
             }
         }
 
