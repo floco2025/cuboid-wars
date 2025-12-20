@@ -1,10 +1,10 @@
-use bevy::{camera::Viewport, prelude::*};
+use bevy::{camera::Viewport, prelude::*, scene::SceneInstanceReady};
 use std::time::Duration;
 
 use crate::{
     constants::*,
     resources::{CameraViewMode, PlayerMap},
-    spawning::PlayerIdTextMeshMarker,
+    spawning::{AnimationToPlay, PlayerIdTextMeshMarker, PlayerModelBaseY, PlayerModelMarker},
     systems::{network::ServerReconciliation, ui::BumpFlashUIMarker},
 };
 use common::{
@@ -596,5 +596,53 @@ pub fn players_billboard_system(
             let new_local_y_angle = world_y_angle - parent_y_angle;
             transform.rotation = Quat::from_rotation_y(new_local_y_angle);
         }
+    }
+}
+
+// ============================================================================
+// Animation System
+// ============================================================================
+
+// System that plays animations when the player scene is loaded
+pub fn players_animation_system(
+    scene_ready: On<SceneInstanceReady>,
+    mut commands: Commands,
+    children: Query<&Children>,
+    animations_to_play: Query<&AnimationToPlay>,
+    mut players: Query<&mut AnimationPlayer>,
+) {
+    // The entity we spawned in `spawn_player` is the trigger's target.
+    // Start by finding the AnimationToPlay component we added to that entity.
+    if let Ok(animation_to_play) = animations_to_play.get(scene_ready.entity) {
+        // The SceneRoot component will have spawned the scene as a hierarchy
+        // of entities parented to our entity. Since the asset contained a skinned
+        // mesh and animations, it will also have spawned an animation player
+        // component. Search our entity's descendants to find the animation player.
+        for child in children.iter_descendants(scene_ready.entity) {
+            if let Ok(mut player) = players.get_mut(child) {
+                // Tell the animation player to start the animation and keep
+                // repeating it.
+                player.play(animation_to_play.index).repeat();
+
+                // Add the animation graph. This only needs to be done once to
+                // connect the animation player to the mesh.
+                commands
+                    .entity(child)
+                    .insert(AnimationGraphHandle(animation_to_play.graph_handle.clone()));
+            }
+        }
+    }
+}
+
+// System to scale the vertical movement of player model animations
+pub fn players_animation_scale_system(
+    mut model_query: Query<(&mut Transform, &PlayerModelBaseY), With<PlayerModelMarker>>,
+) {
+    for (mut transform, base_y) in &mut model_query {
+        // Calculate deviation from base Y position
+        let y_offset = transform.translation.y - base_y.0;
+        
+        // Scale the deviation and add back to base
+        transform.translation.y = base_y.0 + (y_offset * PLAYER_MODEL_ANIMATION_Y_SCALE);
     }
 }

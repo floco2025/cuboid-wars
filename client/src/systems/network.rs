@@ -59,6 +59,7 @@ pub struct AssetManagers<'w> {
     pub meshes: ResMut<'w, Assets<Mesh>>,
     pub materials: ResMut<'w, Assets<StandardMaterial>>,
     pub images: ResMut<'w, Assets<Image>>,
+    pub graphs: ResMut<'w, Assets<AnimationGraph>>,
 }
 
 // ============================================================================
@@ -222,6 +223,7 @@ fn handle_login_message(
         &mut assets.meshes,
         &mut assets.materials,
         &mut assets.images,
+        &mut assets.graphs,
         msg.id.0,
         &msg.player.name,
         &msg.player.pos,
@@ -399,6 +401,7 @@ fn handle_players_update(
             &mut assets.meshes,
             &mut assets.materials,
             &mut assets.images,
+            &mut assets.graphs,
             id.0,
             &player.name,
             &player.pos,

@@ -11,7 +11,7 @@ use crate::{
     constants::*,
     systems::{
         map::{RoofMarker, RoofWallMarker, WallMarker},
-        players::{BumpFlashState, LocalPlayerMarker},
+        players::{BumpFlashState, LocalPlayerMarker, players_animation_system},
     },
 };
 use common::{
@@ -37,6 +37,21 @@ pub struct ItemAnimTimer(pub f32);
 
 #[derive(Component)]
 pub struct RampMarker;
+
+// Marker for player model entities (for animation scaling)
+#[derive(Component)]
+pub struct PlayerModelMarker;
+
+// Tracks the base Y position of player model for animation scaling
+#[derive(Component)]
+pub struct PlayerModelBaseY(pub f32);
+
+// Component that stores a reference to an animation we want to play
+#[derive(Component, Clone)]
+pub struct AnimationToPlay {
+    pub graph_handle: Handle<AnimationGraph>,
+    pub index: AnimationNodeIndex,
+}
 
 // ============================================================================
 // Bundles
@@ -431,6 +446,7 @@ pub fn spawn_player(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
     images: &mut ResMut<Assets<Image>>,
+    graphs: &mut ResMut<Assets<AnimationGraph>>,
     player_id: u32,
     player_name: &str,
     position: &Position,
@@ -438,20 +454,31 @@ pub fn spawn_player(
     face_dir: f32,
     is_local: bool,
 ) -> Entity {
+    // Create animation graph for this player
+    let (graph, index) = AnimationGraph::from_clip(
+        asset_server.load(GltfAssetLabel::Animation(0).from_asset(PLAYER_MODEL)),
+    );
+    let graph_handle = graphs.add(graph);
+    let animation_to_play = AnimationToPlay {
+        graph_handle,
+        index,
+    };
+
     let entity = commands
-        .spawn(PlayerBundle {
-            player_id: PlayerId(player_id),
-            player_marker: PlayerMarker,
-            position: *position,
-            velocity,
-            face_direction: FaceDirection(face_dir),
-            transform: Transform::from_xyz(position.x, position.y + PLAYER_HEIGHT / 2.0, position.z)
-                .with_rotation(Quat::from_rotation_y(face_dir)),
-            visibility: player_visibility(is_local),
-        })
+        .spawn((
+            PlayerBundle {
+                player_id: PlayerId(player_id),
+                player_marker: PlayerMarker,
+                position: *position,
+                velocity,
+                face_direction: FaceDirection(face_dir),
+                transform: Transform::from_xyz(position.x, position.y + PLAYER_HEIGHT / 2.0, position.z)
+                    .with_rotation(Quat::from_rotation_y(face_dir)),
+                visibility: player_visibility(is_local),
+            },
+            animation_to_play.clone(),
+        ))
         .id();
-
-
 
     if is_local {
         commands
@@ -475,12 +502,18 @@ pub fn spawn_player(
         children.push(debug_box);
     }
 
-    // Add the GLB player model
+    // Add the GLB player model with animation observer
+    let base_y = PLAYER_MODEL_HEIGHT_OFFSET - PLAYER_HEIGHT / 2.0;
     let model = commands.spawn((
         SceneRoot(asset_server.load(PLAYER_MODEL)),
         Transform::from_scale(Vec3::splat(PLAYER_MODEL_SCALE))
-            .with_translation(Vec3::new(0.0, PLAYER_MODEL_HEIGHT_OFFSET - PLAYER_HEIGHT / 2.0, 0.0)),
-    )).id();
+            .with_translation(Vec3::new(0.0, base_y, 0.0)),
+        animation_to_play.clone(),
+        PlayerModelMarker,
+        PlayerModelBaseY(base_y),
+    ))
+    .observe(players_animation_system)
+    .id();
     children.push(model);
 
     // Create individual texture and camera for this player's ID text
