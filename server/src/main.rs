@@ -10,11 +10,11 @@ use tokio::{
 
 use server::{
     config::configure_server,
-    constants::GHOSTS_NUM,
+    constants::SENTRIES_NUM,
     map::generate_grid,
     net::accept_connections_task,
     resources::*,
-    systems::{ghosts::*, items::*, network::*, players::*, projectiles::*},
+    systems::{sentries::*, items::*, network::*, players::*, projectiles::*},
 };
 
 const SERVER_LOOP_FREQUENCY: u64 = 30;
@@ -31,9 +31,9 @@ struct Args {
     #[arg(short, long, default_value = "127.0.0.1:8080")]
     bind: String,
 
-    // Disable ghost spawning
+    // Disable sentry spawning
     #[arg(long, default_value_t = false)]
-    no_ghosts: bool,
+    no_sentries: bool,
 }
 
 // ============================================================================
@@ -65,8 +65,8 @@ async fn main() -> Result<()> {
         map_layout.ramps.len()
     );
 
-    let ghost_spawn_config = GhostSpawnConfig {
-        num_ghosts: if args.no_ghosts { 0 } else { GHOSTS_NUM },
+    let sentry_spawn_config = SentrySpawnConfig {
+        num_sentries: if args.no_sentries { 0 } else { SENTRIES_NUM },
     };
 
     app.add_plugins(MinimalPlugins)
@@ -77,10 +77,10 @@ async fn main() -> Result<()> {
         })
         .insert_resource(map_layout)
         .insert_resource(grid_config)
-        .insert_resource(ghost_spawn_config)
+        .insert_resource(sentry_spawn_config)
         .insert_resource(PlayerMap::default())
         .insert_resource(ItemMap::default())
-        .insert_resource(GhostMap::default())
+        .insert_resource(SentryMap::default())
         .insert_resource(ItemSpawner::default())
         .insert_resource(FromAcceptChannel::new(from_accept))
         .insert_resource(FromClientsChannel::new(from_clients))
@@ -102,9 +102,9 @@ async fn main() -> Result<()> {
                 // Game logic systems can run in parallel
                 players_movement_system,
                 players_timer_system,
-                ghosts_spawn_system,
-                ghosts_movement_system,
-                ghost_player_collision_system,
+                sentries_spawn_system,
+                sentries_movement_system,
+                sentry_player_collision_system,
                 projectiles_movement_system,
                 item_initial_spawn_system,
                 item_spawn_system,

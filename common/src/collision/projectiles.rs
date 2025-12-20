@@ -558,20 +558,20 @@ pub fn projectile_hits_roof(proj_pos: &Position, projectile: &Projectile, delta:
 }
 
 #[must_use]
-pub fn projectile_hits_ghost(proj_pos: &Position, projectile: &Projectile, delta: f32, ghost_pos: &Position) -> bool {
-    let ghost_center_y = GHOST_SIZE / 2.0;
-    let y_diff = (proj_pos.y - ghost_center_y).abs();
-    if y_diff > GHOST_SIZE / 2.0 + PROJECTILE_RADIUS {
+pub fn projectile_hits_sentry(proj_pos: &Position, projectile: &Projectile, delta: f32, sentry_pos: &Position) -> bool {
+    let sentry_center_y = SENTRY_SIZE / 2.0;
+    let y_diff = (proj_pos.y - sentry_center_y).abs();
+    if y_diff > SENTRY_SIZE / 2.0 + PROJECTILE_RADIUS {
         return false;
     }
 
     let ray_dir_x = projectile.velocity.x * delta;
     let ray_dir_z = projectile.velocity.z * delta;
 
-    let dx = proj_pos.x - ghost_pos.x;
-    let dz = proj_pos.z - ghost_pos.z;
+    let dx = proj_pos.x - sentry_pos.x;
+    let dz = proj_pos.z - sentry_pos.z;
 
-    let collision_radius = PROJECTILE_RADIUS + GHOST_SIZE / 2.0;
+    let collision_radius = PROJECTILE_RADIUS + SENTRY_SIZE / 2.0;
     let radius_sq = collision_radius * collision_radius;
 
     let dist_sq = dx.mul_add(dx, dz * dz);

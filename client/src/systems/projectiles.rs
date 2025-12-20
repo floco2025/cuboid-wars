@@ -8,9 +8,9 @@ use crate::{
     resources::PlayerMap,
 };
 use common::{
-    collision::projectiles::{Projectile, projectile_hits_ghost, sweep_projectile_vs_player},
-    constants::ALWAYS_GHOST_HUNT,
-    markers::{GhostMarker, PlayerMarker, ProjectileMarker},
+    collision::projectiles::{Projectile, projectile_hits_sentry, sweep_projectile_vs_player},
+    constants::ALWAYS_SENTRY_HUNT,
+    markers::{SentryMarker, PlayerMarker, ProjectileMarker},
     protocol::{FaceDirection, MapLayout, PlayerId, Position},
 };
 
@@ -18,7 +18,7 @@ use common::{
 // Helper Functions
 // ============================================================================
 
-fn handle_ghost_collisions(
+fn handle_sentry_collisions(
     commands: &mut Commands,
     asset_server: &AssetServer,
     projectile_entity: Entity,
@@ -26,24 +26,24 @@ fn handle_ghost_collisions(
     projectile_pos: &Position,
     shooter_id: &PlayerId,
     delta: f32,
-    ghost_query: &Query<&Position, With<GhostMarker>>,
+    sentry_query: &Query<&Position, With<SentryMarker>>,
     players: &PlayerMap,
 ) -> bool {
-    // Only check ghost collisions if shooter has ghost hunt power-up
+    // Only check sentry collisions if shooter has sentry hunt power-up
     let Some(shooter_info) = players.0.get(shooter_id) else {
         return false;
     };
 
-    if !ALWAYS_GHOST_HUNT && !shooter_info.ghost_hunt_power_up {
+    if !ALWAYS_SENTRY_HUNT && !shooter_info.sentry_hunt_power_up {
         return false;
     }
 
-    for ghost_pos in ghost_query.iter() {
-        if projectile_hits_ghost(projectile_pos, projectile, delta, ghost_pos) {
+    for sentry_pos in sentry_query.iter() {
+        if projectile_hits_sentry(projectile_pos, projectile, delta, sentry_pos) {
             play_sound(
                 commands,
                 asset_server,
-                "sounds/player_hits_ghost.wav",
+                "sounds/player_hits_sentry.wav",
                 PlaybackSettings::DESPAWN,
             );
 
@@ -110,7 +110,7 @@ pub fn projectiles_movement_system(
     asset_server: Res<AssetServer>,
     mut projectile_query: Query<(Entity, &mut Transform, &mut Projectile, &PlayerId), With<ProjectileMarker>>,
     player_query: Query<(Entity, &Position, &FaceDirection, Has<LocalPlayerMarker>), With<PlayerMarker>>,
-    ghost_query: Query<&Position, With<GhostMarker>>,
+    sentry_query: Query<&Position, With<SentryMarker>>,
     players: Res<PlayerMap>,
     map_layout: Option<Res<MapLayout>>,
 ) {
@@ -142,8 +142,8 @@ pub fn projectiles_movement_system(
         ) {
             pos_after_bounce
         } else {
-            // No wall collision, check ghost collisions first
-            if handle_ghost_collisions(
+            // No wall collision, check sentry collisions first
+            if handle_sentry_collisions(
                 &mut commands,
                 asset_server.as_ref(),
                 projectile_entity,
@@ -151,10 +151,10 @@ pub fn projectiles_movement_system(
                 &projectile_pos,
                 shooter_id,
                 delta,
-                &ghost_query,
+                &sentry_query,
                 &players,
             ) {
-                // Hit a ghost, projectile was despawned
+                // Hit a sentry, projectile was despawned
                 continue;
             }
 

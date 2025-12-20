@@ -10,7 +10,7 @@ use crate::{
 };
 use common::{
     collision::items::overlap_player_vs_item,
-    constants::{ALWAYS_GHOST_HUNT, ALWAYS_MULTI_SHOT, ALWAYS_PHASING, ALWAYS_SPEED, GRID_COLS, GRID_ROWS},
+    constants::{ALWAYS_SENTRY_HUNT, ALWAYS_MULTI_SHOT, ALWAYS_PHASING, ALWAYS_SPEED, GRID_COLS, GRID_ROWS},
     markers::{ItemMarker, PlayerMarker},
     protocol::{ItemId, ItemType, PlayerId, Position, SCookieCollected, SPlayerStatus, ServerMessage},
 };
@@ -30,7 +30,7 @@ fn choose_item_type(rng: &mut rand::rngs::ThreadRng) -> ItemType {
     } else if rand_val < 0.75 {
         ItemType::PhasingPowerUp
     } else {
-        ItemType::GhostHuntPowerUp
+        ItemType::SentryHunterPowerUp
     }
 }
 
@@ -223,8 +223,8 @@ pub fn item_collection_system(
                 ItemType::PhasingPowerUp => {
                     player_info.phasing_power_up_timer = POWER_UP_PHASING_DURATION;
                 }
-                ItemType::GhostHuntPowerUp => {
-                    player_info.ghost_hunt_power_up_timer = POWER_UP_GHOST_HUNT_DURATION;
+                ItemType::SentryHunterPowerUp => {
+                    player_info.sentry_hunt_power_up_timer = POWER_UP_SENTRY_HUNT_DURATION;
                 }
                 ItemType::Cookie => unreachable!(), // Already handled above
             }
@@ -234,7 +234,7 @@ pub fn item_collection_system(
                 speed_power_up: ALWAYS_SPEED || player_info.speed_power_up_timer > 0.0,
                 multi_shot_power_up: ALWAYS_MULTI_SHOT || player_info.multi_shot_power_up_timer > 0.0,
                 phasing_power_up: ALWAYS_PHASING || player_info.phasing_power_up_timer > 0.0,
-                ghost_hunt_power_up: ALWAYS_GHOST_HUNT || player_info.ghost_hunt_power_up_timer > 0.0,
+                sentry_hunt_power_up: ALWAYS_SENTRY_HUNT || player_info.sentry_hunt_power_up_timer > 0.0,
                 stunned: player_info.stun_timer > 0.0,
             });
         }

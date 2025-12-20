@@ -1,5 +1,5 @@
 pub mod animations;
-pub mod ghosts;
+pub mod sentries;
 pub mod input;
 pub mod items;
 pub mod map;

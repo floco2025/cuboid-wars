@@ -1,14 +1,14 @@
 use bevy::prelude::*;
 
 use crate::{
-    constants::GHOST_HIT_REWARD,
-    resources::{GhostMap, GhostMode, PlayerMap},
+    constants::SENTRY_HIT_REWARD,
+    resources::{SentryMap, SentryMode, PlayerMap},
 };
 use common::protocol::MapLayout;
 use common::{
-    collision::projectiles::{Projectile, projectile_hits_ghost, sweep_projectile_vs_player},
-    constants::ALWAYS_GHOST_HUNT,
-    markers::{GhostMarker, PlayerMarker, ProjectileMarker},
+    collision::projectiles::{Projectile, projectile_hits_sentry, sweep_projectile_vs_player},
+    constants::ALWAYS_SENTRY_HUNT,
+    markers::{SentryMarker, PlayerMarker, ProjectileMarker},
     protocol::*,
 };
 
@@ -35,10 +35,10 @@ pub fn projectiles_movement_system(
     time: Res<Time>,
     mut projectile_query: Query<(Entity, &mut Position, &mut Projectile, &PlayerId), With<ProjectileMarker>>,
     player_query: Query<PlayerTarget, (With<PlayerMarker>, Without<ProjectileMarker>)>,
-    ghost_query: Query<(&GhostId, &Position), (With<GhostMarker>, Without<ProjectileMarker>)>,
+    sentry_query: Query<(&SentryId, &Position), (With<SentryMarker>, Without<ProjectileMarker>)>,
     map_layout: Res<MapLayout>,
     mut players: ResMut<PlayerMap>,
-    ghosts: Res<GhostMap>,
+    sentries: Res<SentryMap>,
 ) {
     let delta = time.delta_secs();
 
@@ -104,39 +104,39 @@ pub fn projectiles_movement_system(
             continue;
         }
 
-        // Check ghost collisions (only for players with ghost hunt power-up who are being targeted)
-        let shooter_has_ghost_hunt = ALWAYS_GHOST_HUNT
+        // Check sentry collisions (only for players with sentry hunt power-up who are being targeted)
+        let shooter_has_sentry_hunt = ALWAYS_SENTRY_HUNT
             || players
                 .0
                 .get(shooter_id)
-                .is_some_and(|info| info.ghost_hunt_power_up_timer > 0.0);
+                .is_some_and(|info| info.sentry_hunt_power_up_timer > 0.0);
 
-        if shooter_has_ghost_hunt {
-            for (ghost_id, ghost_pos) in ghost_query.iter() {
-                let Some(ghost_info) = ghosts.0.get(ghost_id) else {
+        if shooter_has_sentry_hunt {
+            for (sentry_id, sentry_pos) in sentry_query.iter() {
+                let Some(sentry_info) = sentries.0.get(sentry_id) else {
                     continue;
                 };
 
-                // Only allow hitting ghosts that are fleeing (in Target mode with ghost hunt active)
-                if ghost_info.mode != GhostMode::Target {
+                // Only allow hitting sentries that are fleeing (in Target mode with sentry hunt active)
+                if sentry_info.mode != SentryMode::Target {
                     continue;
                 }
 
-                // Check if the ghost is targeting the shooter (the player must be targeted to hit ghosts)
-                let ghost_targets_shooter = ghost_info
+                // Check if the sentry is targeting the shooter (the player must be targeted to hit sentries)
+                let sentry_targets_shooter = sentry_info
                     .follow_target
                     .is_some_and(|target_id| target_id == *shooter_id);
 
-                if !ghost_targets_shooter {
+                if !sentry_targets_shooter {
                     continue;
                 }
 
                 // Check collision
-                if projectile_hits_ghost(&proj_pos, &projectile, delta, ghost_pos) {
+                if projectile_hits_sentry(&proj_pos, &projectile, delta, sentry_pos) {
                     // Update shooter
                     if let Some(shooter_info) = players.0.get_mut(shooter_id) {
-                        shooter_info.hits += GHOST_HIT_REWARD;
-                        shooter_info.ghost_hunt_power_up_timer = 0.0;
+                        shooter_info.hits += SENTRY_HIT_REWARD;
+                        shooter_info.sentry_hunt_power_up_timer = 0.0;
                     }
 
                     // Broadcast power-up removal to all clients (we just set timer to 0 above)
@@ -148,7 +148,7 @@ pub fn projectiles_movement_system(
                                 speed_power_up: shooter_info.speed_power_up_timer > 0.0,
                                 multi_shot_power_up: shooter_info.multi_shot_power_up_timer > 0.0,
                                 phasing_power_up: shooter_info.phasing_power_up_timer > 0.0,
-                                ghost_hunt_power_up: false,
+                                sentry_hunt_power_up: false,
                                 stunned: shooter_info.stun_timer > 0.0,
                             }),
                         );
@@ -163,7 +163,7 @@ pub fn projectiles_movement_system(
             }
         }
 
-        // If we hit a ghost, skip to next projectile
+        // If we hit a sentry, skip to next projectile
         if hit_something {
             continue;
         }

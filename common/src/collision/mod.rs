@@ -1,4 +1,4 @@
-pub mod ghosts;
+pub mod sentries;
 pub mod helpers;
 pub mod items;
 pub mod players;

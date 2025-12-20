@@ -57,7 +57,7 @@ pub const POWER_UP_MULTI_SHOT_ANGLE: f32 = 2.0;
 pub const ALWAYS_SPEED: bool = false;
 pub const ALWAYS_MULTI_SHOT: bool = false;
 pub const ALWAYS_PHASING: bool = false;
-pub const ALWAYS_GHOST_HUNT: bool = false;
+pub const ALWAYS_SENTRY_HUNT: bool = false;
 
-// Ghost dimensions (meters)
-pub const GHOST_SIZE: f32 = 3.0; // Cube side length
+// Sentry dimensions (meters)
+pub const SENTRY_SIZE: f32 = 3.0; // Cube side length

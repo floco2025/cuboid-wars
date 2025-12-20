@@ -5,7 +5,7 @@ use bevy_ecs::prelude::*;
 pub struct PlayerMarker;
 
 #[derive(Component, Debug, Default)]
-pub struct GhostMarker;
+pub struct SentryMarker;
 
 #[derive(Component, Debug, Default)]
 pub struct ProjectileMarker;

@@ -63,9 +63,9 @@ pub struct PlayerId(pub u32);
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Component, Encode, Decode)]
 pub struct ItemId(pub u32);
 
-// Ghost ID component - identifies which ghost an entity represents.
+// Sentry ID component - identifies which sentry an entity represents.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Component, Encode, Decode)]
-pub struct GhostId(pub u32);
+pub struct SentryId(pub u32);
 
 // FaceDirection component - direction player is facing (for rotation/aiming).
 #[derive(Component, Default)]
@@ -82,7 +82,7 @@ pub struct Player {
     pub speed_power_up: bool,
     pub multi_shot_power_up: bool,
     pub phasing_power_up: bool,
-    pub ghost_hunt_power_up: bool,
+    pub sentry_hunt_power_up: bool,
     pub stunned: bool,
 }
 
@@ -147,7 +147,7 @@ pub enum ItemType {
     SpeedPowerUp,
     MultiShotPowerUp,
     PhasingPowerUp,
-    GhostHuntPowerUp,
+    SentryHunterPowerUp,
     Cookie,
 }
 
@@ -158,9 +158,9 @@ pub struct Item {
     pub pos: Position,
 }
 
-// Ghost - a ghost moving around the map.
+// Sentry - a sentry moving around the map.
 #[derive(Debug, Clone, Encode, Decode, Copy)]
-pub struct Ghost {
+pub struct Sentry {
     pub pos: Position,
     pub vel: Velocity,
 }
@@ -258,7 +258,7 @@ pub struct SUpdate {
     pub seq: u32,
     pub players: Vec<(PlayerId, Player)>,
     pub items: Vec<(ItemId, Item)>,
-    pub ghosts: Vec<(GhostId, Ghost)>,
+    pub sentries: Vec<(SentryId, Sentry)>,
 }
 
 // Server to Client: Player was hit by a projectile.
@@ -276,7 +276,7 @@ pub struct SPlayerStatus {
     pub speed_power_up: bool,
     pub multi_shot_power_up: bool,
     pub phasing_power_up: bool,
-    pub ghost_hunt_power_up: bool,
+    pub sentry_hunt_power_up: bool,
     pub stunned: bool,
 }
 
@@ -286,20 +286,20 @@ pub struct SEcho {
     pub timestamp_nanos: u64,
 }
 
-// Server to Client: Ghost direction changed.
+// Server to Client: Sentry direction changed.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct SGhost {
-    pub id: GhostId,
-    pub ghost: Ghost,
+pub struct SSentry {
+    pub id: SentryId,
+    pub sentry: Sentry,
 }
 
 // Server to Client: Player collected a cookie.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SCookieCollected {}
 
-// Server to Client: Ghost hit a player.
+// Server to Client: Sentry hit a player.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct SGhostHit {}
+pub struct SSentryHit {}
 
 // ============================================================================
 // Message Envelopes
@@ -329,7 +329,7 @@ pub enum ServerMessage {
     Hit(SHit),
     PlayerStatus(SPlayerStatus),
     Echo(SEcho),
-    Ghost(SGhost),
+    Sentry(SSentry),
     CookieCollected(SCookieCollected),
-    GhostHit(SGhostHit),
+    SentryHit(SSentryHit),
 }

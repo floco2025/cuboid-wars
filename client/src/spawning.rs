@@ -18,7 +18,7 @@ use crate::{
 use common::{
     collision::projectiles::Projectile,
     constants::*,
-    markers::{GhostMarker, ItemMarker, PlayerMarker, ProjectileMarker},
+    markers::{SentryMarker, ItemMarker, PlayerMarker, ProjectileMarker},
     protocol::*,
     spawning::{ProjectileSpawnInfo, calculate_projectile_spawns},
 };
@@ -56,9 +56,9 @@ struct ItemBundle {
 }
 
 #[derive(Bundle)]
-struct GhostBundle {
-    ghost_id: GhostId,
-    ghost_marker: GhostMarker,
+struct SentryBundle {
+    sentry_id: SentryId,
+    sentry_marker: SentryMarker,
     position: Position,
     velocity: Velocity,
     mesh: Mesh3d,
@@ -984,10 +984,10 @@ pub const fn item_type_color(item_type: ItemType) -> Color {
             ITEM_MULTISHOT_COLOR[2],
         ),
         ItemType::PhasingPowerUp => Color::srgb(ITEM_PHASING_COLOR[0], ITEM_PHASING_COLOR[1], ITEM_PHASING_COLOR[2]),
-        ItemType::GhostHuntPowerUp => Color::srgb(
-            ITEM_GHOST_HUNT_COLOR[0],
-            ITEM_GHOST_HUNT_COLOR[1],
-            ITEM_GHOST_HUNT_COLOR[2],
+        ItemType::SentryHunterPowerUp => Color::srgb(
+            ITEM_SENTRY_HUNT_COLOR[0],
+            ITEM_SENTRY_HUNT_COLOR[1],
+            ITEM_SENTRY_HUNT_COLOR[2],
         ),
         ItemType::Cookie => Color::srgb(COOKIE_COLOR[0], COOKIE_COLOR[1], COOKIE_COLOR[2]),
     }
@@ -1091,33 +1091,33 @@ pub fn spawn_wall_light_from_layout(commands: &mut Commands, asset_server: &Res<
 }
 
 // ============================================================================
-// Ghost Spawning
+// Sentry Spawning
 // ============================================================================
 
-// Spawn a ghost cube
-pub fn spawn_ghost(
+// Spawn a sentry cube
+pub fn spawn_sentry(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
-    ghost_id: GhostId,
+    sentry_id: SentryId,
     position: &Position,
     velocity: &Velocity,
 ) -> Entity {
-    let color = Color::srgba(GHOST_COLOR[0], GHOST_COLOR[1], GHOST_COLOR[2], GHOST_COLOR[3]);
+    let color = Color::srgba(SENTRY_COLOR[0], SENTRY_COLOR[1], SENTRY_COLOR[2], SENTRY_COLOR[3]);
 
     commands
-        .spawn(GhostBundle {
-            ghost_id,
-            ghost_marker: GhostMarker,
+        .spawn(SentryBundle {
+            sentry_id,
+            sentry_marker: SentryMarker,
             position: *position,
             velocity: *velocity,
-            mesh: Mesh3d(meshes.add(Cuboid::new(GHOST_SIZE, GHOST_SIZE, GHOST_SIZE))),
+            mesh: Mesh3d(meshes.add(Cuboid::new(SENTRY_SIZE, SENTRY_SIZE, SENTRY_SIZE))),
             material: MeshMaterial3d(materials.add(StandardMaterial {
                 base_color: color,
                 alpha_mode: AlphaMode::Blend,
                 ..default()
             })),
-            transform: Transform::from_xyz(position.x, GHOST_SIZE / 2.0, position.z),
+            transform: Transform::from_xyz(position.x, SENTRY_SIZE / 2.0, position.z),
         })
         .id()
 }

@@ -46,7 +46,7 @@ pub struct PlayerInfo {
     pub speed_power_up_timer: f32, // Remaining time for speed power-up (0.0 = inactive)
     pub multi_shot_power_up_timer: f32, // Remaining time for multi-shot power-up (0.0 = inactive)
     pub phasing_power_up_timer: f32, // Remaining time for phasing power-up (0.0 = inactive)
-    pub ghost_hunt_power_up_timer: f32, // Remaining time for ghost hunt power-up (0.0 = inactive)
+    pub sentry_hunt_power_up_timer: f32, // Remaining time for sentry hunter power-up (0.0 = inactive)
     pub stun_timer: f32,           // Remaining time stunned (0.0 = not stunned)
     pub last_shot_time: f32,       // Timestamp of last accepted shot (seconds)
 }
@@ -66,32 +66,32 @@ pub struct ItemInfo {
 #[derive(Resource, Default)]
 pub struct ItemMap(pub HashMap<ItemId, ItemInfo>);
 
-// Configuration for ghost spawning
+// Configuration for sentry spawning
 #[derive(Resource)]
-pub struct GhostSpawnConfig {
-    pub num_ghosts: u32,
+pub struct SentrySpawnConfig {
+    pub num_sentries: u32,
 }
 
-// Ghost AI mode
+// Sentry AI mode
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum GhostMode {
+pub enum SentryMode {
     PrePatrol, // Navigating to grid center before patrol
     Patrol,    // Moving along grid, can detect players (unless mode_timer > 0)
     Target,    // Targeting a specific player (chase or flee)
 }
 
-// Ghost info
-pub struct GhostInfo {
+// Sentry info
+pub struct SentryInfo {
     pub entity: Entity,
-    pub mode: GhostMode,
+    pub mode: SentryMode,
     pub mode_timer: f32,                 // Time remaining in current mode
     pub follow_target: Option<PlayerId>, // Player being targeted (only in Target mode)
     pub at_intersection: bool,           // Track if currently at an intersection (for patrol mode)
 }
 
-// Map of all ghosts (server-side source of truth)
+// Map of all sentries (server-side source of truth)
 #[derive(Resource, Default)]
-pub struct GhostMap(pub HashMap<GhostId, GhostInfo>);
+pub struct SentryMap(pub HashMap<SentryId, SentryInfo>);
 
 // Resource wrapper for the channel from the accept connections task, which gives us the channel to
 // send from thee server to the client.

@@ -427,7 +427,7 @@ fn spawn_player_entry(
                     BackgroundColor(item_type_color(ItemType::PhasingPowerUp)),
                 ));
             }
-            if player_info.ghost_hunt_power_up {
+            if player_info.sentry_hunt_power_up {
                 row.spawn((
                     Node {
                         width: Val::Px(12.0),
@@ -435,7 +435,7 @@ fn spawn_player_entry(
                         align_self: AlignSelf::Center,
                         ..default()
                     },
-                    BackgroundColor(item_type_color(ItemType::GhostHuntPowerUp)),
+                    BackgroundColor(item_type_color(ItemType::SentryHunterPowerUp)),
                 ));
             }
         })

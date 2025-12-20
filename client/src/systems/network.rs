@@ -6,14 +6,14 @@ use crate::{
     constants::ECHO_INTERVAL,
     net::{ClientToServer, ServerToClient},
     resources::{
-        ClientToServerChannel, GhostInfo, GhostMap, ItemInfo, ItemMap, LastUpdateSeq, MyPlayerId, PlayerInfo,
+        ClientToServerChannel, SentryInfo, SentryMap, ItemInfo, ItemMap, LastUpdateSeq, MyPlayerId, PlayerInfo,
         PlayerMap, RoundTripTime, ServerToClientChannel,
     },
-    spawning::{spawn_ghost, spawn_item, spawn_player, spawn_projectiles},
+    spawning::{spawn_sentry, spawn_item, spawn_player, spawn_projectiles},
 };
 use common::{
     constants::POWER_UP_SPEED_MULTIPLIER,
-    markers::{GhostMarker, PlayerMarker},
+    markers::{SentryMarker, PlayerMarker},
     protocol::*,
 };
 
@@ -39,7 +39,7 @@ pub struct ServerReconciliation {
 #[derive(bevy::ecs::system::SystemParam)]
 pub struct NetworkQueries<'w, 's> {
     pub player_positions: Query<'w, 's, &'static Position, With<PlayerMarker>>,
-    pub ghost_positions: Query<'w, 's, &'static Position, With<GhostMarker>>,
+    pub sentry_positions: Query<'w, 's, &'static Position, With<SentryMarker>>,
     pub speeds: Query<'w, 's, &'static Speed>,
     pub player_facing: Query<'w, 's, PlayerMovement, With<PlayerMarker>>,
     pub cameras: Query<'w, 's, Entity, With<Camera3d>>,
@@ -50,7 +50,7 @@ pub struct NetworkQueries<'w, 's> {
 pub struct EntityMaps<'w> {
     pub players: ResMut<'w, PlayerMap>,
     pub items: ResMut<'w, ItemMap>,
-    pub ghosts: ResMut<'w, GhostMap>,
+    pub sentries: ResMut<'w, SentryMap>,
 }
 
 // Bundle of asset managers for spawning entities
@@ -97,7 +97,7 @@ pub fn network_server_message_system(
                         &mut assets,
                         &mut maps.players,
                         &mut maps.items,
-                        &mut maps.ghosts,
+                        &mut maps.sentries,
                         &mut rtt,
                         &mut last_update_seq,
                         &queries,
@@ -140,7 +140,7 @@ fn process_message_logged_in(
     assets: &mut AssetManagers,
     players: &mut ResMut<PlayerMap>,
     items: &mut ResMut<ItemMap>,
-    ghosts: &mut ResMut<GhostMap>,
+    sentries: &mut ResMut<SentryMap>,
     rtt: &mut ResMut<RoundTripTime>,
     last_update_seq: &mut ResMut<LastUpdateSeq>,
     queries: &NetworkQueries,
@@ -166,11 +166,11 @@ fn process_message_logged_in(
             assets,
             players,
             items,
-            ghosts,
+            sentries,
             rtt,
             last_update_seq,
             &queries.player_positions,
-            &queries.ghost_positions,
+            &queries.sentry_positions,
             &queries.cameras,
             my_player_id,
             asset_server,
@@ -188,14 +188,14 @@ fn process_message_logged_in(
             );
         }
         ServerMessage::Echo(echo_msg) => handle_echo_message(time, rtt, echo_msg),
-        ServerMessage::Ghost(ghost_msg) => {
-            handle_ghost_message(commands, assets, ghosts, rtt, &queries.ghost_positions, ghost_msg);
+        ServerMessage::Sentry(sentry_msg) => {
+            handle_sentry_message(commands, assets, sentries, rtt, &queries.sentry_positions, sentry_msg);
         }
         ServerMessage::CookieCollected(cookie_msg) => {
             handle_cookie_collected_message(commands, cookie_msg, asset_server);
         }
-        ServerMessage::GhostHit(ghost_hit_msg) => {
-            handle_ghost_hit_message(commands, ghost_hit_msg, asset_server);
+        ServerMessage::SentryHit(sentry_hit_msg) => {
+            handle_sentry_hit_message(commands, sentry_hit_msg, asset_server);
         }
     }
 }
@@ -240,7 +240,7 @@ fn handle_login_message(
             speed_power_up: msg.player.speed_power_up,
             multi_shot_power_up: msg.player.multi_shot_power_up,
             phasing_power_up: msg.player.phasing_power_up,
-            ghost_hunt_power_up: msg.player.ghost_hunt_power_up,
+            sentry_hunt_power_up: msg.player.sentry_hunt_power_up,
             stunned: msg.player.stunned,
         },
     );
@@ -331,11 +331,11 @@ fn handle_update_message(
     assets: &mut AssetManagers,
     players: &mut ResMut<PlayerMap>,
     items: &mut ResMut<ItemMap>,
-    ghosts: &mut ResMut<GhostMap>,
+    sentries: &mut ResMut<SentryMap>,
     rtt: &ResMut<RoundTripTime>,
     last_update_seq: &mut ResMut<LastUpdateSeq>,
     player_query: &Query<&Position, With<PlayerMarker>>,
-    ghost_query: &Query<&Position, With<GhostMarker>>,
+    sentry_query: &Query<&Position, With<SentryMarker>>,
     camera_query: &Query<Entity, With<Camera3d>>,
     my_player_id: PlayerId,
     asset_server: &Res<AssetServer>,
@@ -365,7 +365,7 @@ fn handle_update_message(
         &msg.players,
     );
     handle_items_update(commands, assets, items, &msg.items);
-    handle_ghosts_update(commands, assets, ghosts, rtt, ghost_query, &msg.ghosts);
+    handle_sentrys_update(commands, assets, sentries, rtt, sentry_query, &msg.sentries);
 }
 
 fn handle_players_update(
@@ -427,7 +427,7 @@ fn handle_players_update(
                 speed_power_up: player.speed_power_up,
                 multi_shot_power_up: player.multi_shot_power_up,
                 phasing_power_up: player.phasing_power_up,
-                ghost_hunt_power_up: player.ghost_hunt_power_up,
+                sentry_hunt_power_up: player.sentry_hunt_power_up,
                 stunned: player.stunned,
             },
         );
@@ -518,57 +518,57 @@ fn handle_items_update(
     }
 }
 
-fn handle_ghosts_update(
+fn handle_sentrys_update(
     commands: &mut Commands,
     assets: &mut AssetManagers,
-    ghosts: &mut ResMut<GhostMap>,
+    sentries: &mut ResMut<SentryMap>,
     rtt: &ResMut<RoundTripTime>,
-    ghost_query: &Query<&Position, With<GhostMarker>>,
-    server_ghosts: &[(GhostId, Ghost)],
+    sentry_query: &Query<&Position, With<SentryMarker>>,
+    server_sentrys: &[(SentryId, Sentry)],
 ) {
-    let server_ghost_ids: HashSet<GhostId> = server_ghosts.iter().map(|(id, _)| *id).collect();
+    let server_sentry_ids: HashSet<SentryId> = server_sentrys.iter().map(|(id, _)| *id).collect();
 
-    // Spawn any ghosts that appear in the update but are missing locally
-    for (ghost_id, ghost) in server_ghosts {
-        if ghosts.0.contains_key(ghost_id) {
+    // Spawn any sentries that appear in the update but are missing locally
+    for (sentry_id, server_sentry) in server_sentrys {
+        if sentries.0.contains_key(sentry_id) {
             continue;
         }
-        let entity = spawn_ghost(
+        let entity = spawn_sentry(
             commands,
             &mut assets.meshes,
             &mut assets.materials,
-            *ghost_id,
-            &ghost.pos,
-            &ghost.vel,
+            *sentry_id,
+            &server_sentry.pos,
+            &server_sentry.vel,
         );
-        ghosts.0.insert(*ghost_id, GhostInfo { entity });
+        sentries.0.insert(*sentry_id, SentryInfo { entity });
     }
 
-    // Despawn ghosts no longer present in the authoritative snapshot
-    let stale_ghost_ids: Vec<GhostId> = ghosts
+    // Despawn sentries no longer present in the authoritative snapshot
+    let stale_sentry_ids: Vec<SentryId> = sentries
         .0
         .keys()
-        .filter(|id| !server_ghost_ids.contains(id))
+        .filter(|id| !server_sentry_ids.contains(id))
         .copied()
         .collect();
 
-    for ghost_id in stale_ghost_ids {
-        if let Some(ghost_info) = ghosts.0.remove(&ghost_id) {
-            commands.entity(ghost_info.entity).despawn();
+    for sentry_id in stale_sentry_ids {
+        if let Some(sentry_info) = sentries.0.remove(&sentry_id) {
+            commands.entity(sentry_info.entity).despawn();
         }
     }
 
-    // Update existing ghosts with server state (position and velocity)
-    for (ghost_id, server_ghost) in server_ghosts {
-        if let Some(client_ghost) = ghosts.0.get(ghost_id) {
+    // Update existing sentries with server state (position and velocity)
+    for (sentry_id, server_sentry) in server_sentrys {
+        if let Some(client_sentry) = sentries.0.get(sentry_id) {
             // Check if we have a client position to track reconciliation
-            if let Ok(client_pos) = ghost_query.get(client_ghost.entity) {
-                commands.entity(client_ghost.entity).insert((
-                    server_ghost.vel,
+            if let Ok(client_pos) = sentry_query.get(client_sentry.entity) {
+                commands.entity(client_sentry.entity).insert((
+                    server_sentry.vel,
                     ServerReconciliation {
                         client_pos: *client_pos,
-                        server_pos: server_ghost.pos,
-                        server_vel: server_ghost.vel,
+                        server_pos: server_sentry.pos,
+                        server_vel: server_sentry.vel,
                         timer: 0.0,
                         rtt: rtt.rtt.as_secs_f32(),
                     },
@@ -576,8 +576,8 @@ fn handle_ghosts_update(
             } else {
                 // No client position yet, just set server state
                 commands
-                    .entity(client_ghost.entity)
-                    .insert((server_ghost.pos, server_ghost.vel));
+                    .entity(client_sentry.entity)
+                    .insert((server_sentry.pos, server_sentry.vel));
             }
         }
     }
@@ -683,28 +683,28 @@ fn handle_player_status_message(
         player_info.speed_power_up = msg.speed_power_up;
         player_info.multi_shot_power_up = msg.multi_shot_power_up;
         player_info.phasing_power_up = msg.phasing_power_up;
-        player_info.ghost_hunt_power_up = msg.ghost_hunt_power_up;
+        player_info.sentry_hunt_power_up = msg.sentry_hunt_power_up;
         player_info.stunned = msg.stunned;
     }
 }
 
-fn handle_ghost_message(
+fn handle_sentry_message(
     commands: &mut Commands,
     assets: &mut AssetManagers,
-    ghosts: &mut ResMut<GhostMap>,
+    sentries: &mut ResMut<SentryMap>,
     rtt: &ResMut<RoundTripTime>,
-    ghost_query: &Query<&Position, With<GhostMarker>>,
-    msg: SGhost,
+    sentry_query: &Query<&Position, With<SentryMarker>>,
+    msg: SSentry,
 ) {
-    if let Some(ghost_info) = ghosts.0.get(&msg.id) {
-        // Update existing ghost with reconciliation
-        if let Ok(client_pos) = ghost_query.get(ghost_info.entity) {
-            commands.entity(ghost_info.entity).insert((
-                msg.ghost.vel,
+    if let Some(sentry_info) = sentries.0.get(&msg.id) {
+        // Update existing sentry with reconciliation
+        if let Ok(client_pos) = sentry_query.get(sentry_info.entity) {
+            commands.entity(sentry_info.entity).insert((
+                msg.sentry.vel,
                 ServerReconciliation {
                     client_pos: *client_pos,
-                    server_pos: msg.ghost.pos,
-                    server_vel: msg.ghost.vel,
+                    server_pos: msg.sentry.pos,
+                    server_vel: msg.sentry.vel,
                     timer: 0.0,
                     rtt: rtt.rtt.as_secs_f32(),
                 },
@@ -712,20 +712,20 @@ fn handle_ghost_message(
         } else {
             // No client position yet, just set server state
             commands
-                .entity(ghost_info.entity)
-                .insert((msg.ghost.pos, msg.ghost.vel));
+                .entity(sentry_info.entity)
+                .insert((msg.sentry.pos, msg.sentry.vel));
         }
     } else {
-        // Spawn new ghost
-        let entity = spawn_ghost(
+        // Spawn new sentry
+        let entity = spawn_sentry(
             commands,
             &mut assets.meshes,
             &mut assets.materials,
             msg.id,
-            &msg.ghost.pos,
-            &msg.ghost.vel,
+            &msg.sentry.pos,
+            &msg.sentry.vel,
         );
-        ghosts.0.insert(msg.id, GhostInfo { entity });
+        sentries.0.insert(msg.id, SentryInfo { entity });
     }
 }
 
@@ -737,10 +737,10 @@ fn handle_cookie_collected_message(commands: &mut Commands, _msg: SCookieCollect
     ));
 }
 
-fn handle_ghost_hit_message(commands: &mut Commands, _msg: SGhostHit, asset_server: &AssetServer) {
+fn handle_sentry_hit_message(commands: &mut Commands, _msg: SSentryHit, asset_server: &AssetServer) {
     // Play sound - this message is only sent to the player who was hit
     commands.spawn((
-        AudioPlayer::new(asset_server.load("sounds/ghost_hits_player.wav")),
+        AudioPlayer::new(asset_server.load("sounds/sentry_hits_player.wav")),
         PlaybackSettings::DESPAWN,
     ));
 }

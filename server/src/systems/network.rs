@@ -3,7 +3,7 @@ use rand::Rng;
 
 use crate::{
     net::{ClientToServer, ServerToClient},
-    resources::{FromAcceptChannel, FromClientsChannel, GhostMap, ItemMap, PlayerInfo, PlayerMap},
+    resources::{FromAcceptChannel, FromClientsChannel, SentryMap, ItemMap, PlayerInfo, PlayerMap},
 };
 use common::protocol::MapLayout;
 use common::{
@@ -72,7 +72,7 @@ fn snapshot_logged_in_players(players: &PlayerMap, queries: &NetworkEntityQuerie
                     speed_power_up: ALWAYS_SPEED || info.speed_power_up_timer > 0.0,
                     multi_shot_power_up: ALWAYS_MULTI_SHOT || info.multi_shot_power_up_timer > 0.0,
                     phasing_power_up: ALWAYS_PHASING || info.phasing_power_up_timer > 0.0,
-                    ghost_hunt_power_up: ALWAYS_GHOST_HUNT || info.ghost_hunt_power_up_timer > 0.0,
+                    sentry_hunt_power_up: ALWAYS_SENTRY_HUNT || info.sentry_hunt_power_up_timer > 0.0,
                     stunned: info.stun_timer > 0.0,
                 },
             ))
@@ -102,23 +102,23 @@ fn collect_items(items: &ItemMap, positions: &Query<&Position>) -> Vec<(ItemId, 
         .collect()
 }
 
-// Build the authoritative ghost list that gets replicated to clients.
-fn collect_ghosts(ghosts: &GhostMap, queries: &NetworkEntityQueries) -> Vec<(GhostId, Ghost)> {
-    ghosts
+// Build the authoritative sentry list that gets replicated to clients.
+fn collect_sentries(sentries: &SentryMap, queries: &NetworkEntityQueries) -> Vec<(SentryId, Sentry)> {
+    sentries
         .0
         .iter()
         .map(|(id, info)| {
             let pos_component = queries
                 .positions
                 .get(info.entity)
-                .expect("Ghost entity missing Position");
+                .expect("Sentry entity missing Position");
             let vel_component = queries
                 .velocities
                 .get(info.entity)
-                .expect("Ghost entity missing Velocity");
+                .expect("Sentry entity missing Velocity");
             (
                 *id,
-                Ghost {
+                Sentry {
                     pos: *pos_component,
                     vel: *vel_component,
                 },
@@ -185,7 +185,7 @@ pub fn network_accept_connections_system(
                 speed_power_up_timer: 0.0,
                 multi_shot_power_up_timer: 0.0,
                 phasing_power_up_timer: 0.0,
-                ghost_hunt_power_up_timer: 0.0,
+                sentry_hunt_power_up_timer: 0.0,
                 stun_timer: 0.0,
                 last_shot_time: f32::NEG_INFINITY,
             },
@@ -206,7 +206,7 @@ pub fn network_client_message_system(
     time: Res<Time>,
     map_layout: Res<MapLayout>,
     items: Res<ItemMap>,
-    ghosts: Res<GhostMap>,
+    sentries: Res<SentryMap>,
     queries: NetworkEntityQueries,
 ) {
     while let Ok((id, event)) = from_clients.try_recv() {
@@ -252,7 +252,7 @@ pub fn network_client_message_system(
                         &mut players,
                         &map_layout,
                         &items,
-                        &ghosts,
+                        &sentries,
                     );
                 }
             }
@@ -273,7 +273,7 @@ fn process_message_not_logged_in(
     players: &mut ResMut<PlayerMap>,
     map_layout: &Res<MapLayout>,
     items: &Res<ItemMap>,
-    ghosts: &Res<GhostMap>,
+    sentries: &Res<SentryMap>,
 ) {
     match msg {
         ClientMessage::Login(login) => {
@@ -330,7 +330,7 @@ fn process_message_not_logged_in(
                 speed_power_up: false,
                 multi_shot_power_up: false,
                 phasing_power_up: false,
-                ghost_hunt_power_up: false,
+                sentry_hunt_power_up: false,
                 stunned: false,
             };
 
@@ -345,15 +345,15 @@ fn process_message_not_logged_in(
             // Collect all items for the initial update
             let all_items = collect_items(items, &queries.positions);
 
-            // Collect all ghosts for the initial update
-            let all_ghosts = collect_ghosts(ghosts, queries);
+            // Collect all sentries for the initial update
+            let all_sentries = collect_sentries(sentries, queries);
 
             // Send the initial Update to the new player
             let update_msg = ServerMessage::Update(SUpdate {
                 seq: 0,
                 players: all_players,
                 items: all_items,
-                ghosts: all_ghosts,
+                sentries: all_sentries,
             });
             channel.send(ServerToClient::Send(update_msg)).ok();
 
@@ -539,7 +539,7 @@ pub fn network_broadcast_state_system(
     queries: NetworkEntityQueries,
     players: Res<PlayerMap>,
     items: Res<ItemMap>,
-    ghosts: Res<GhostMap>,
+    sentries: Res<SentryMap>,
 ) {
     *timer += time.delta_secs();
     if *timer < UPDATE_BROADCAST_INTERVAL {
@@ -560,15 +560,15 @@ pub fn network_broadcast_state_system(
     // Collect all items
     let all_items = collect_items(&items, &queries.positions);
 
-    // Collect all ghosts
-    let all_ghosts = collect_ghosts(&ghosts, &queries);
+    // Collect all sentries
+    let all_sentries = collect_sentries(&sentries, &queries);
 
     // Broadcast to all logged-in clients
     let msg = ServerMessage::Update(SUpdate {
         seq: *seq,
         players: all_players,
         items: all_items,
-        ghosts: all_ghosts,
+        sentries: all_sentries,
     });
     //trace!("broadcasting update: {:?}", msg);
     broadcast_to_all(&players, msg);

@@ -389,4 +389,4 @@ pub fn slide_along_axes(
     }
 }
 
-// Helper is intentionally small; higher-level sliding lives with players/ghosts.
+// Helper is intentionally small; higher-level sliding lives with players/sentries.

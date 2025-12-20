@@ -33,7 +33,7 @@ pub const ITEM_COLLECTION_RADIUS: f32 = 1.0; // Distance to collect an item
 pub const POWER_UP_SPEED_DURATION: f32 = 20.0; // seconds
 pub const POWER_UP_MULTI_SHOT_DURATION: f32 = 20.0; // seconds
 pub const POWER_UP_PHASING_DURATION: f32 = 15.0; // seconds
-pub const POWER_UP_GHOST_HUNT_DURATION: f32 = 15.0; // seconds
+pub const POWER_UP_SENTRY_HUNT_DURATION: f32 = 15.0; // seconds
 
 // Ramp settings
 pub const RAMP_COUNT: usize = 5; // Max. number of ramps
@@ -41,17 +41,17 @@ pub const RAMP_LENGTH_CELLS: i32 = 2; // Run length in grid cells
 pub const RAMP_WIDTH_CELLS: i32 = 1; // Footprint width in grid cells
 pub const RAMP_MIN_SEPARATION_CELLS: i32 = 3; // Minimum empty cells between ramps on all sides
 
-// Ghost settings
-pub const GHOSTS_NUM: u32 = 4; // Number of ghosts to spawn
-pub const GHOST_SPEED: f32 = 6.0; // Speed in m/s (patrol mode)
-pub const GHOST_FOLLOW_SPEED: f32 = 8.0; // Speed in m/s (follow mode)
-pub const GHOST_RANDOM_TURN_PROBABILITY: f64 = 0.3; // Probability ghost randomly changes direction at intersection
-pub const GHOST_TARGET_DURATION: f32 = 10.0; // How long ghost targets (seconds)
-pub const GHOST_COOLDOWN_DURATION: f32 = 15.0; // Cooldown before ghost can detect players again (seconds)
-pub const GHOST_VISION_RANGE: f32 = 64.0; // Maximum distance to detect players (whole map)
-pub const GHOST_STUN_DURATION: f32 = 3.0; // How long player is stunned after ghost hit (seconds)
-pub const GHOST_HIT_PENALTY: i32 = 10; // Points lost when hit by ghost
-pub const GHOST_HIT_REWARD: i32 = 20; // Points awarded for hitting a fleeing ghost
+// Sentry settings
+pub const SENTRIES_NUM: u32 = 4; // Number of sentries to spawn
+pub const SENTRY_SPEED: f32 = 6.0; // Speed in m/s (patrol mode)
+pub const SENTRY_FOLLOW_SPEED: f32 = 8.0; // Speed in m/s (follow mode)
+pub const SENTRY_RANDOM_TURN_PROBABILITY: f64 = 0.3; // Probability sentry randomly changes direction at intersection
+pub const SENTRY_TARGET_DURATION: f32 = 10.0; // How long sentry targets (seconds)
+pub const SENTRY_COOLDOWN_DURATION: f32 = 15.0; // Cooldown before sentry can detect players again (seconds)
+pub const SENTRY_VISION_RANGE: f32 = 64.0; // Maximum distance to detect players (whole map)
+pub const SENTRY_STUN_DURATION: f32 = 3.0; // How long player is stunned after sentry hit (seconds)
+pub const SENTRY_HIT_PENALTY: i32 = 10; // Points lost when hit by sentry
+pub const SENTRY_HIT_REWARD: i32 = 20; // Points awarded for hitting a fleeing sentry
 
 // Cookie settings
 pub const COOKIE_RESPAWN_TIME: f32 = 30.0; // seconds

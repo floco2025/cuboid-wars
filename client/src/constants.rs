@@ -67,7 +67,7 @@ pub const ITEM_ANIMATION_SPEED: f32 = 1.5;
 pub const ITEM_SPEED_COLOR: [f32; 4] = [0.2, 0.7, 1.0, 1.0]; // Light blue
 pub const ITEM_MULTISHOT_COLOR: [f32; 4] = [1.0, 0.2, 0.2, 1.0]; // Red
 pub const ITEM_PHASING_COLOR: [f32; 4] = [0.2, 1.0, 0.2, 1.0]; // Green
-pub const ITEM_GHOST_HUNT_COLOR: [f32; 3] = [0.973, 0.973, 1.0]; // Pale blue (same as ghost color)
+pub const ITEM_SENTRY_HUNT_COLOR: [f32; 3] = [0.973, 0.973, 1.0]; // Pale blue (same as sentry color)
 
 // Textures
 pub const TEXTURE_WALL_TILE_SIZE: f32 = 6.0;
@@ -96,8 +96,8 @@ pub const COOKIE_SIZE: f32 = 0.15; // Small sphere radius
 pub const COOKIE_HEIGHT: f32 = 0.1; // Slightly above floor to avoid z-fighting
 pub const COOKIE_COLOR: [f32; 4] = [0.55, 0.35, 0.2, 1.0]; // Brown
 
-// Ghost visual settings
-pub const GHOST_COLOR: [f32; 4] = [0.973, 0.973, 1.0, 0.5];
+// Sentry visual settings
+pub const SENTRY_COLOR: [f32; 4] = [0.973, 0.973, 1.0, 0.5];
 
 // Rearview mirror settings
 pub const REARVIEW_WIDTH_RATIO: f32 = 0.25; // Width as ratio of screen width (25%)

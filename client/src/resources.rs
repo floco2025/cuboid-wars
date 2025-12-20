@@ -9,7 +9,7 @@ use tokio::sync::mpsc::{
 };
 
 use crate::net::{ClientToServer, ServerToClient};
-use common::protocol::{GhostId, ItemId, PlayerId, Speed, SpeedLevel};
+use common::protocol::{SentryId, ItemId, PlayerId, Speed, SpeedLevel};
 
 // ============================================================================
 // Bevy Resources
@@ -27,7 +27,7 @@ pub struct PlayerInfo {
     pub speed_power_up: bool,
     pub multi_shot_power_up: bool,
     pub phasing_power_up: bool,
-    pub ghost_hunt_power_up: bool,
+    pub sentry_hunt_power_up: bool,
     pub stunned: bool,
 }
 
@@ -44,14 +44,14 @@ pub struct ItemInfo {
 #[derive(Resource, Default)]
 pub struct ItemMap(pub HashMap<ItemId, ItemInfo>);
 
-// Ghost information (client-side)
-pub struct GhostInfo {
+// Sentry information (client-side)
+pub struct SentryInfo {
     pub entity: Entity,
 }
 
-// Map of all ghosts (client-side source of truth)
+// Map of all sentries (client-side source of truth)
 #[derive(Resource, Default)]
-pub struct GhostMap(pub HashMap<GhostId, GhostInfo>);
+pub struct SentryMap(pub HashMap<SentryId, SentryInfo>);
 
 // Last received SUpdate sequence number
 #[derive(Resource, Default)]
