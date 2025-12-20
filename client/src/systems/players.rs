@@ -406,19 +406,10 @@ pub fn local_player_camera_sync_system(
         (With<Camera3d>, With<MainCameraMarker>),
     >,
     view_mode: Res<CameraViewMode>,
-    mut has_logged: Local<bool>,
 ) {
     let Some(player_pos) = local_player_query.iter().next() else {
         return;
     };
-
-    // Debug: log position once
-    if !*has_logged {
-        info!("Local player Position.y = {}, Camera Y should be = {}", 
-              player_pos.y, 
-              player_pos.y + PLAYER_HEIGHT * PLAYER_EYE_HEIGHT_RATIO);
-        *has_logged = true;
-    }
 
     for (mut camera_transform, mut projection, maybe_shake) in &mut camera_query {
         match *view_mode {
