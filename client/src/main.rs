@@ -125,7 +125,6 @@ fn main() -> Result<()> {
             players_transform_sync_system,
             placers_face_to_transform_system,
             players_billboard_system,
-            players_animation_scale_system,
         ),
     )
     .add_systems(

@@ -4,7 +4,7 @@ use std::time::Duration;
 use crate::{
     constants::*,
     resources::{CameraViewMode, PlayerMap},
-    spawning::{AnimationToPlay, PlayerIdTextMeshMarker, PlayerModelBaseY, PlayerModelMarker},
+    spawning::{AnimationToPlay, PlayerIdTextMeshMarker},
     systems::{network::ServerReconciliation, ui::BumpFlashUIMarker},
 };
 use common::{
@@ -622,7 +622,7 @@ pub fn players_animation_system(
             if let Ok(mut player) = players.get_mut(child) {
                 // Tell the animation player to start the animation and keep
                 // repeating it.
-                player.play(animation_to_play.index).repeat();
+                player.play(animation_to_play.index).repeat().set_speed(PLAYER_MODEL_ANIMATION_SPEED);
 
                 // Add the animation graph. This only needs to be done once to
                 // connect the animation player to the mesh.
@@ -634,15 +634,3 @@ pub fn players_animation_system(
     }
 }
 
-// System to scale the vertical movement of player model animations
-pub fn players_animation_scale_system(
-    mut model_query: Query<(&mut Transform, &PlayerModelBaseY), With<PlayerModelMarker>>,
-) {
-    for (mut transform, base_y) in &mut model_query {
-        // Calculate deviation from base Y position
-        let y_offset = transform.translation.y - base_y.0;
-        
-        // Scale the deviation and add back to base
-        transform.translation.y = base_y.0 + (y_offset * PLAYER_MODEL_ANIMATION_Y_SCALE);
-    }
-}

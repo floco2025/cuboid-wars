@@ -22,7 +22,8 @@ pub const MOUSE_SENSITIVITY: f32 = 0.002;
 pub const PLAYER_MODEL: &str = "models/player.glb#Scene0";
 pub const PLAYER_MODEL_SCALE: f32 = 0.53;
 pub const PLAYER_MODEL_HEIGHT_OFFSET: f32 = 0.0; // Offset from ground level (0.0 = model base at ground)
-pub const PLAYER_MODEL_ANIMATION_Y_SCALE: f32 = 0.1; // Scale factor for vertical animation movement (0.0-1.0)
+
+pub const PLAYER_MODEL_ANIMATION_SPEED: f32 = 2.0; // Animation playback speed multiplier
 pub const PLAYER_BOUNDING_BOX: bool = true; // Show transparent debug box with old player dimensions
 
 // Wall light asset

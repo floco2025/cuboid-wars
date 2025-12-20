@@ -42,10 +42,6 @@ pub struct RampMarker;
 #[derive(Component)]
 pub struct PlayerModelMarker;
 
-// Tracks the base Y position of player model for animation scaling
-#[derive(Component)]
-pub struct PlayerModelBaseY(pub f32);
-
 // Component that stores a reference to an animation we want to play
 #[derive(Component, Clone)]
 pub struct AnimationToPlay {
@@ -510,7 +506,6 @@ pub fn spawn_player(
             .with_translation(Vec3::new(0.0, base_y, 0.0)),
         animation_to_play.clone(),
         PlayerModelMarker,
-        PlayerModelBaseY(base_y),
     ))
     .observe(players_animation_system)
     .id();
