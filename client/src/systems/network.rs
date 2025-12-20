@@ -189,7 +189,7 @@ fn process_message_logged_in(
         }
         ServerMessage::Echo(echo_msg) => handle_echo_message(time, rtt, echo_msg),
         ServerMessage::Sentry(sentry_msg) => {
-            handle_sentry_message(commands, assets, sentries, rtt, &queries.sentry_positions, sentry_msg);
+            handle_sentry_message(commands, assets, sentries, rtt, &queries.sentry_positions, sentry_msg, asset_server);
         }
         ServerMessage::CookieCollected(cookie_msg) => {
             handle_cookie_collected_message(commands, cookie_msg, asset_server);
@@ -365,7 +365,7 @@ fn handle_update_message(
         &msg.players,
     );
     handle_items_update(commands, assets, items, &msg.items);
-    handle_sentrys_update(commands, assets, sentries, rtt, sentry_query, &msg.sentries);
+    handle_sentrys_update(commands, assets, sentries, rtt, sentry_query, &msg.sentries, asset_server);
 }
 
 fn handle_players_update(
@@ -525,6 +525,7 @@ fn handle_sentrys_update(
     rtt: &ResMut<RoundTripTime>,
     sentry_query: &Query<&Position, With<SentryMarker>>,
     server_sentrys: &[(SentryId, Sentry)],
+    asset_server: &Res<AssetServer>,
 ) {
     let server_sentry_ids: HashSet<SentryId> = server_sentrys.iter().map(|(id, _)| *id).collect();
 
@@ -537,6 +538,8 @@ fn handle_sentrys_update(
             commands,
             &mut assets.meshes,
             &mut assets.materials,
+            &asset_server,
+            &mut assets.graphs,
             *sentry_id,
             &server_sentry.pos,
             &server_sentry.vel,
@@ -696,6 +699,7 @@ fn handle_sentry_message(
     rtt: &ResMut<RoundTripTime>,
     sentry_query: &Query<&Position, With<SentryMarker>>,
     msg: SSentry,
+    asset_server: &Res<AssetServer>,
 ) {
     if let Some(sentry_info) = sentries.0.get(&msg.id) {
         // Update existing sentry with reconciliation
@@ -723,6 +727,8 @@ fn handle_sentry_message(
             commands,
             &mut assets.meshes,
             &mut assets.materials,
+            &asset_server,
+            &mut assets.graphs,
             msg.id,
             &msg.sentry.pos,
             &msg.sentry.vel,

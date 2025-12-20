@@ -106,7 +106,12 @@ pub const COOKIE_COLOR: [f32; 4] = [0.55, 0.35, 0.2, 1.0]; // Brown
 // Sentries
 // ============================================================================
 
-pub const SENTRY_COLOR: [f32; 4] = [0.973, 0.973, 1.0, 0.5];
+pub const SENTRY_MODEL: &str = "models/sentries.glb#Scene0";
+pub const SENTRY_MODEL_SCALE: f32 = 0.012;
+pub const SENTRY_MODEL_HEIGHT_OFFSET: f32 = 0.0;
+pub const SENTRY_MODEL_DEPTH_OFFSET: f32 = 0.1;
+pub const SENTRY_MODEL_ANIMATION_SPEED: f32 = 2.0;
+pub const SENTRY_BOUNDING_BOX: bool = true; // Debug visualization
 
 // ============================================================================
 // Textures

@@ -47,3 +47,24 @@ pub fn players_animation_system(
         }
     }
 }
+
+// System that plays animations when the sentry scene is loaded
+pub fn sentries_animation_system(
+    scene_ready: On<SceneInstanceReady>,
+    mut commands: Commands,
+    children: Query<&Children>,
+    animations_to_play: Query<&AnimationToPlay>,
+    mut players: Query<&mut AnimationPlayer>,
+) {
+    if let Ok(animation_to_play) = animations_to_play.get(scene_ready.entity) {
+        for child in children.iter_descendants(scene_ready.entity) {
+            if let Ok(mut player) = players.get_mut(child) {
+                player.play(animation_to_play.index).repeat().set_speed(SENTRY_MODEL_ANIMATION_SPEED);
+
+                commands
+                    .entity(child)
+                    .insert(AnimationGraphHandle(animation_to_play.graph_handle.clone()));
+            }
+        }
+    }
+}

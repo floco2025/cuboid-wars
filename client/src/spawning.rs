@@ -11,7 +11,7 @@ use crate::{
     constants::*,
     markers::*,
     systems::{
-        animations::{AnimationToPlay, players_animation_system},
+        animations::{AnimationToPlay, players_animation_system, sentries_animation_system},
         players::BumpFlashState,
     },
 };
@@ -62,8 +62,6 @@ struct SentryBundle {
     position: Position,
     velocity: Velocity,
     face_direction: FaceDirection,
-    mesh: Mesh3d,
-    material: MeshMaterial3d<StandardMaterial>,
     transform: Transform,
 }
 
@@ -1100,28 +1098,69 @@ pub fn spawn_sentry(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
+    asset_server: &Res<AssetServer>,
+    graphs: &mut ResMut<Assets<AnimationGraph>>,
     sentry_id: SentryId,
     position: &Position,
     velocity: &Velocity,
     face_dir: f32,
 ) -> Entity {
-    let color = Color::srgba(SENTRY_COLOR[0], SENTRY_COLOR[1], SENTRY_COLOR[2], SENTRY_COLOR[3]);
+    // Create animation graph for this sentry
+    let (graph, index) = AnimationGraph::from_clip(
+        asset_server.load(GltfAssetLabel::Animation(0).from_asset(SENTRY_MODEL)),
+    );
+    let graph_handle = graphs.add(graph);
+    let animation_to_play = AnimationToPlay {
+        graph_handle,
+        index,
+    };
 
-    commands
-        .spawn(SentryBundle {
-            sentry_id,
-            sentry_marker: SentryMarker,
-            position: *position,
-            velocity: *velocity,
-            face_direction: FaceDirection(face_dir),
-            mesh: Mesh3d(meshes.add(Cuboid::new(SENTRY_WIDTH, SENTRY_HEIGHT, SENTRY_DEPTH))),
-            material: MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: color,
+    let entity = commands
+        .spawn((
+            SentryBundle {
+                sentry_id,
+                sentry_marker: SentryMarker,
+                position: *position,
+                velocity: *velocity,
+                face_direction: FaceDirection(face_dir),
+                transform: Transform::from_xyz(position.x, position.y + SENTRY_HEIGHT / 2.0, position.z)
+                    .with_rotation(Quat::from_rotation_y(face_dir)),
+            },
+            animation_to_play.clone(),
+        ))
+        .id();
+
+    let mut children = vec![];
+
+    // Add transparent cuboid debug visualization if enabled
+    if SENTRY_BOUNDING_BOX {
+        let debug_box = commands.spawn((
+            Mesh3d(meshes.add(Cuboid::new(SENTRY_WIDTH, SENTRY_HEIGHT, SENTRY_DEPTH))),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: Color::srgba(0.5, 0.5, 0.5, 0.3),
                 alpha_mode: AlphaMode::Blend,
                 ..default()
             })),
-            transform: Transform::from_xyz(position.x, SENTRY_HEIGHT / 2.0, position.z)
-                .with_rotation(Quat::from_rotation_y(face_dir)),
-        })
-        .id()
+            Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+        )).id();
+        children.push(debug_box);
+    }
+
+    // Add the GLB sentry model with animation observer
+    let base_y = SENTRY_MODEL_HEIGHT_OFFSET - SENTRY_HEIGHT / 2.0;
+    let model = commands.spawn((
+        SceneRoot(asset_server.load(SENTRY_MODEL)),
+        Transform::from_scale(Vec3::splat(SENTRY_MODEL_SCALE))
+            .with_rotation(Quat::from_rotation_x(std::f32::consts::PI))
+            .with_translation(Vec3::new(0.0, base_y, SENTRY_MODEL_DEPTH_OFFSET)),
+        animation_to_play.clone(),
+        SentryModelMarker,
+    ))
+    .observe(sentries_animation_system)
+    .id();
+    children.push(model);
+
+    commands.entity(entity).add_children(&children);
+
+    entity
 }

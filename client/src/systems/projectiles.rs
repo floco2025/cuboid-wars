@@ -49,7 +49,7 @@ fn handle_sentry_collisions(
                 play_sound(
                     commands,
                     asset_server,
-                    "sounds/player_hits_sentry_no_damage.ogg",
+                    "sounds/projectile_hits_sentry_no_damage.ogg",
                     PlaybackSettings {
                         mode: PlaybackMode::Despawn,
                         volume: Volume::Linear(0.2),
@@ -81,7 +81,7 @@ fn handle_player_collisions(
             play_sound(
                 commands,
                 asset_server,
-                "sounds/player_hits_player.ogg",
+                "sounds/projectile_hits_player.ogg",
                 PlaybackSettings::DESPAWN,
             );
 
@@ -213,7 +213,7 @@ fn handle_wall_collisions(
         play_sound(
             commands,
             asset_server,
-            "sounds/player_hits_wall.ogg",
+            "sounds/projectile_hits_wall.ogg",
             PlaybackSettings {
                 mode: PlaybackMode::Despawn,
                 volume: Volume::Linear(0.2),
@@ -230,7 +230,7 @@ fn handle_wall_collisions(
             play_sound(
                 commands,
                 asset_server,
-                "sounds/player_hits_wall.ogg",
+                "sounds/projectile_hits_wall.ogg",
                 PlaybackSettings {
                     mode: PlaybackMode::Despawn,
                     volume: Volume::Linear(0.2),
@@ -248,7 +248,7 @@ fn handle_wall_collisions(
             play_sound(
                 commands,
                 asset_server,
-                "sounds/player_hits_wall.ogg",
+                "sounds/projectile_hits_wall.ogg",
                 PlaybackSettings {
                     mode: PlaybackMode::Despawn,
                     volume: Volume::Linear(0.2),
@@ -266,7 +266,7 @@ fn handle_wall_collisions(
             play_sound(
                 commands,
                 asset_server,
-                "sounds/player_hits_wall.ogg",
+                "sounds/projectile_hits_wall.ogg",
                 PlaybackSettings {
                     mode: PlaybackMode::Despawn,
                     volume: Volume::Linear(0.2),

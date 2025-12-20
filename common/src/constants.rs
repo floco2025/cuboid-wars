@@ -43,9 +43,9 @@ pub const PROJECTILE_COOLDOWN_TIME: f32 = 0.1; // Minimum time between shots
 // ============================================================================
 
 // Dimensions (meters)
-pub const SENTRY_HEIGHT: f32 = 3.0; // up/down
-pub const SENTRY_WIDTH: f32 = 2.0; // side to side
-pub const SENTRY_DEPTH: f32 = 1.5; // front to back
+pub const SENTRY_HEIGHT: f32 = 2.5; // up/down
+pub const SENTRY_WIDTH: f32 = 3.5; // side to side
+pub const SENTRY_DEPTH: f32 = 2.8; // front to back
 
 // ============================================================================
 // Map Geometry

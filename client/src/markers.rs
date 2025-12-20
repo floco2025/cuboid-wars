@@ -12,6 +12,10 @@ pub struct LocalPlayerMarker;
 #[derive(Component)]
 pub struct PlayerModelMarker;
 
+/// Marker component for sentry model entities (for animation)
+#[derive(Component)]
+pub struct SentryModelMarker;
+
 // ============================================================================
 // Camera Markers
 // ============================================================================
