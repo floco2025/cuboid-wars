@@ -136,14 +136,16 @@ pub const TEXTURE_FLOOR_NORMAL: &str = "textures/floor-normal-dx.png";
 pub const TEXTURE_FLOOR_AO: &str = "textures/floor-ao.png";
 
 // Power-ups
-pub const TEXTURE_ITEM_ALBEDO: &str = "textures/item_COL_2K.png";
-pub const TEXTURE_ITEM_NORMAL: &str = "textures/item_NRM_2K.png";
-pub const TEXTURE_ITEM_AO: &str = "textures/item_AO_2K.png";
+pub const TEXTURE_ITEM_ALBEDO: &str = "textures/item_basecolor.png";
+pub const TEXTURE_ITEM_NORMAL: &str = "textures/item_normal-dx.png";
+pub const TEXTURE_ITEM_AO: &str = "textures/item_AO.png";
 
 // Cookies
-pub const TEXTURE_COOKIE_ALBEDO: &str = "textures/cookie.png";
-pub const TEXTURE_COOKIE_NORMAL: &str = "textures/cookie-normal-dx.png";
-pub const TEXTURE_COOKIE_AO: &str = "textures/cookie-ao.png";
+pub const TEXTURE_COOKIE_ALBEDO: &str = "textures/cookie_albedo.png";
+pub const TEXTURE_COOKIE_NORMAL: &str = "textures/cookie_normal-dx.png";
+pub const TEXTURE_COOKIE_AO: &str = "textures/cookie_ao.png";
+pub const TEXTURE_COOKIE_METALLIC: &str = "textures/cookie_metallic.png";
+pub const TEXTURE_COOKIE_ROUGHNESS: &str = "textures/cookie_roughness.png";
 
 // ============================================================================
 // Debug Visualization

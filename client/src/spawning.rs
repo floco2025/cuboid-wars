@@ -1016,6 +1016,8 @@ pub fn spawn_item(
                     base_color_texture: Some(asset_server.load(TEXTURE_COOKIE_ALBEDO)),
                     normal_map_texture: Some(asset_server.load(TEXTURE_COOKIE_NORMAL)),
                     occlusion_texture: Some(asset_server.load(TEXTURE_COOKIE_AO)),
+                    metallic: 1.0,
+                    perceptual_roughness: 0.5,
                     ..default()
                 })),
                 transform: Transform::from_xyz(position.x, COOKIE_HEIGHT, position.z),
@@ -1034,16 +1036,11 @@ pub fn spawn_item(
                 position: *position,
                 mesh: Mesh3d(meshes.add(Cuboid::new(ITEM_SIZE, ITEM_SIZE, ITEM_SIZE))),
                 material: MeshMaterial3d(materials.add(StandardMaterial {
-                    base_color: color, // Tints the texture
-                    base_color_texture: Some(asset_server.load(TEXTURE_ITEM_ALBEDO)),
-                    normal_map_texture: Some(asset_server.load(TEXTURE_ITEM_NORMAL)),
-                    occlusion_texture: Some(asset_server.load(TEXTURE_ITEM_AO)),
-                    emissive: LinearRgba::new(
-                        color.to_srgba().red * 0.5,
-                        color.to_srgba().green * 0.5,
-                        color.to_srgba().blue * 0.5,
-                        1.0,
-                    ),
+                    base_color_texture: Some(asset_server.load(TEXTURE_COOKIE_ALBEDO)),
+                    normal_map_texture: Some(asset_server.load(TEXTURE_COOKIE_NORMAL)),
+                    occlusion_texture: Some(asset_server.load(TEXTURE_COOKIE_AO)),
+                    metallic: 1.0,
+                    perceptual_roughness: 0.5,
                     ..default()
                 })),
                 transform: Transform::from_xyz(position.x, ITEM_HEIGHT_ABOVE_FLOOR + ITEM_SIZE / 2.0, position.z),
