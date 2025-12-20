@@ -988,7 +988,7 @@ pub const fn item_type_color(item_type: ItemType) -> Color {
             ITEM_SENTRY_HUNT_COLOR[1],
             ITEM_SENTRY_HUNT_COLOR[2],
         ),
-        ItemType::Cookie => Color::srgb(COOKIE_COLOR[0], COOKIE_COLOR[1], COOKIE_COLOR[2]),
+        ItemType::Cookie => Color::WHITE, // Cookies use textures, not colors
     }
 }
 
@@ -997,13 +997,14 @@ pub fn spawn_item(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
+    asset_server: &Res<AssetServer>,
     item_id: ItemId,
     item_type: ItemType,
     position: &Position,
 ) -> Entity {
     let color = item_type_color(item_type);
 
-    // Cookies are rendered differently - small spheres on the floor
+    // Cookies are rendered differently - small spheres on the floor with textures
     if item_type == ItemType::Cookie {
         return commands
             .spawn(ItemBundle {
@@ -1012,13 +1013,9 @@ pub fn spawn_item(
                 position: *position,
                 mesh: Mesh3d(meshes.add(Sphere::new(COOKIE_SIZE))),
                 material: MeshMaterial3d(materials.add(StandardMaterial {
-                    base_color: color,
-                    emissive: LinearRgba::new(
-                        color.to_srgba().red * 0.3,
-                        color.to_srgba().green * 0.3,
-                        color.to_srgba().blue * 0.3,
-                        1.0,
-                    ),
+                    base_color_texture: Some(asset_server.load(TEXTURE_COOKIE_ALBEDO)),
+                    normal_map_texture: Some(asset_server.load(TEXTURE_COOKIE_NORMAL)),
+                    occlusion_texture: Some(asset_server.load(TEXTURE_COOKIE_AO)),
                     ..default()
                 })),
                 transform: Transform::from_xyz(position.x, COOKIE_HEIGHT, position.z),
@@ -1026,7 +1023,7 @@ pub fn spawn_item(
             .id();
     }
 
-    // Power-ups are cubes that bounce
+    // Power-ups are cubes that bounce with textured materials
     let random_phase = rand::random::<f32>() * std::f32::consts::TAU;
 
     commands
@@ -1037,7 +1034,10 @@ pub fn spawn_item(
                 position: *position,
                 mesh: Mesh3d(meshes.add(Cuboid::new(ITEM_SIZE, ITEM_SIZE, ITEM_SIZE))),
                 material: MeshMaterial3d(materials.add(StandardMaterial {
-                    base_color: color,
+                    base_color: color, // Tints the texture
+                    base_color_texture: Some(asset_server.load(TEXTURE_ITEM_ALBEDO)),
+                    normal_map_texture: Some(asset_server.load(TEXTURE_ITEM_NORMAL)),
+                    occlusion_texture: Some(asset_server.load(TEXTURE_ITEM_AO)),
                     emissive: LinearRgba::new(
                         color.to_srgba().red * 0.5,
                         color.to_srgba().green * 0.5,

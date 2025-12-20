@@ -85,10 +85,10 @@ pub const LABEL_FONT_SIZE: f32 = 40.0; // pixels
 // Power-Up Items
 // ============================================================================
 
-pub const ITEM_SIZE: f32 = 0.2;
+pub const ITEM_SIZE: f32 = 0.8;
 pub const ITEM_HEIGHT_ABOVE_FLOOR: f32 = 1.0;
-pub const ITEM_ANIMATION_HEIGHT: f32 = 0.5;
-pub const ITEM_ANIMATION_SPEED: f32 = 1.5;
+pub const ITEM_ANIMATION_HEIGHT: f32 = 0.4;
+pub const ITEM_ANIMATION_SPEED: f32 = 0.1;
 pub const ITEM_SPEED_COLOR: [f32; 4] = [0.2, 0.7, 1.0, 1.0]; // Light blue
 pub const ITEM_MULTISHOT_COLOR: [f32; 4] = [1.0, 0.2, 0.2, 1.0]; // Red
 pub const ITEM_PHASING_COLOR: [f32; 4] = [0.2, 1.0, 0.2, 1.0]; // Green
@@ -98,9 +98,8 @@ pub const ITEM_SENTRY_HUNT_COLOR: [f32; 3] = [0.973, 0.973, 1.0]; // Pale blue
 // Cookies
 // ============================================================================
 
-pub const COOKIE_SIZE: f32 = 0.15; // sphere radius
-pub const COOKIE_HEIGHT: f32 = 0.1; // meters above floor
-pub const COOKIE_COLOR: [f32; 4] = [0.55, 0.35, 0.2, 1.0]; // Brown
+pub const COOKIE_SIZE: f32 = 0.20; // sphere radius
+pub const COOKIE_HEIGHT: f32 = 0.21; // meters above floor
 
 // ============================================================================
 // Sentries
@@ -135,6 +134,16 @@ pub const TEXTURE_FLOOR_TILE_SIZE: f32 = 8.0;
 pub const TEXTURE_FLOOR_ALBEDO: &str = "textures/floor-albedo.png";
 pub const TEXTURE_FLOOR_NORMAL: &str = "textures/floor-normal-dx.png";
 pub const TEXTURE_FLOOR_AO: &str = "textures/floor-ao.png";
+
+// Power-ups
+pub const TEXTURE_ITEM_ALBEDO: &str = "textures/item_COL_2K.png";
+pub const TEXTURE_ITEM_NORMAL: &str = "textures/item_NRM_2K.png";
+pub const TEXTURE_ITEM_AO: &str = "textures/item_AO_2K.png";
+
+// Cookies
+pub const TEXTURE_COOKIE_ALBEDO: &str = "textures/cookie.png";
+pub const TEXTURE_COOKIE_NORMAL: &str = "textures/cookie-normal-dx.png";
+pub const TEXTURE_COOKIE_AO: &str = "textures/cookie-ao.png";
 
 // ============================================================================
 // Debug Visualization

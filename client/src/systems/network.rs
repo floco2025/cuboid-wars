@@ -364,7 +364,7 @@ fn handle_update_message(
         asset_server,
         &msg.players,
     );
-    handle_items_update(commands, assets, items, &msg.items);
+    handle_items_update(commands, assets, items, asset_server, &msg.items);
     handle_sentrys_update(commands, assets, sentries, rtt, sentry_query, &msg.sentries, asset_server);
 }
 
@@ -483,6 +483,7 @@ fn handle_items_update(
     commands: &mut Commands,
     assets: &mut AssetManagers,
     items: &mut ResMut<ItemMap>,
+    asset_server: &Res<AssetServer>,
     server_items: &[(ItemId, Item)],
 ) {
     let server_item_ids: HashSet<ItemId> = server_items.iter().map(|(id, _)| *id).collect();
@@ -496,6 +497,7 @@ fn handle_items_update(
             commands,
             &mut assets.meshes,
             &mut assets.materials,
+            asset_server,
             *item_id,
             item.item_type,
             &item.pos,
