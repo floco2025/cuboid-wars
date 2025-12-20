@@ -125,3 +125,5 @@ pub fn sentries_transform_sync_system(mut sentry_query: Query<(&Position, &FaceD
         transform.rotation = Quat::from_rotation_y(face_dir.0);
     }
 }
+
+

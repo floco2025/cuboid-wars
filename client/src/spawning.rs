@@ -1105,14 +1105,18 @@ pub fn spawn_sentry(
     velocity: &Velocity,
     face_dir: f32,
 ) -> Entity {
-    // Create animation graph for this sentry
-    let (graph, index) = AnimationGraph::from_clip(
-        asset_server.load(GltfAssetLabel::Animation(0).from_asset(SENTRY_MODEL)),
+    // Create animation graph with walk animation
+    let mut graph = AnimationGraph::new();
+    let walk_clip = asset_server.load(
+        GltfAssetLabel::Animation(SENTRY_WALK_ANIMATION_INDEX).from_asset(SENTRY_MODEL)
     );
+    let walk_index = graph.add_clip(walk_clip, 1.0, graph.root);
+    
     let graph_handle = graphs.add(graph);
+    
     let animation_to_play = AnimationToPlay {
         graph_handle,
-        index,
+        index: walk_index,
     };
 
     let entity = commands

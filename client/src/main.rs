@@ -138,7 +138,13 @@ fn main() -> Result<()> {
             local_player_visibility_sync_system,
         ),
     )
-    .add_systems(Update, (sentries_movement_system, sentries_transform_sync_system))
+    .add_systems(
+        Update,
+        (
+            sentries_movement_system,
+            sentries_transform_sync_system,
+        ),
+    )
     .add_systems(Update, projectiles_movement_system)
     .add_systems(Update, items_animation_system)
     .add_systems(
