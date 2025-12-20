@@ -1,3 +1,4 @@
+pub mod animations;
 pub mod ghosts;
 pub mod input;
 pub mod items;

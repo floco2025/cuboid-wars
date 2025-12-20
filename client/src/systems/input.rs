@@ -5,9 +5,10 @@ use bevy::{
     window::{CursorGrabMode, CursorOptions},
 };
 
-use super::players::{LocalPlayerMarker, MainCameraMarker, PlayerMovementMut};
+use super::players::PlayerMovementMut;
 use crate::{
     constants::*,
+    markers::{LocalPlayerMarker, MainCameraMarker},
     net::ClientToServer,
     resources::{
         CameraViewMode, ClientToServerChannel, InputSettings, LocalPlayerInfo, MyPlayerId, PlayerMap,

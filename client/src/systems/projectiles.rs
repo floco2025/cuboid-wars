@@ -3,8 +3,10 @@ use bevy::{
     prelude::*,
 };
 
-use super::players::LocalPlayerMarker;
-use crate::resources::PlayerMap;
+use crate::{
+    markers::LocalPlayerMarker,
+    resources::PlayerMap,
+};
 use common::{
     collision::projectiles::{Projectile, projectile_hits_ghost, sweep_projectile_vs_player},
     constants::ALWAYS_GHOST_HUNT,

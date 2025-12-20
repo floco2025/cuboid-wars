@@ -3,26 +3,11 @@ use bevy::prelude::*;
 
 use crate::{
     constants::{TOPDOWN_ROOF_ALPHA, TOPDOWN_WALL_ALPHA},
+    markers::*,
     resources::{CameraViewMode, RoofRenderingEnabled},
     spawning::{spawn_ramp, spawn_roof, spawn_roof_wall, spawn_wall, spawn_wall_light_from_layout},
 };
 use common::protocol::MapLayout;
-
-// ============================================================================
-// Components
-// ============================================================================
-
-// Marker component for walls
-#[derive(Component)]
-pub struct WallMarker;
-
-// Marker component for roofs
-#[derive(Component)]
-pub struct RoofMarker;
-
-// Marker component for roof walls
-#[derive(Component)]
-pub struct RoofWallMarker;
 
 // ============================================================================
 // Wall Spawning System

@@ -1,9 +1,9 @@
 use bevy::{camera::Viewport, math::Affine2, prelude::*};
 use std::time::Duration;
 
-use super::players::{MainCameraMarker, RearviewCameraMarker};
 use crate::{
     constants::*,
+    markers::*,
     resources::{CameraViewMode, FpsMeasurement, MyPlayerId, PlayerInfo, PlayerMap, RoundTripTime},
     spawning::{item_type_color, load_repeating_texture, load_repeating_texture_linear},
 };
@@ -14,34 +14,6 @@ use common::{
     },
     protocol::{ItemType, PlayerId},
 };
-
-// ============================================================================
-// Components
-// ============================================================================
-
-// Marker component for the player list UI
-#[derive(Component)]
-pub struct PlayerListUIMarker;
-
-// Marker component for the crosshair UI
-#[derive(Component)]
-pub struct CrosshairUIMarker;
-
-// Marker component for the RTT display
-#[derive(Component)]
-pub struct RttUIMarker;
-
-// Marker component for the FPS display
-#[derive(Component)]
-pub struct FpsUIMarker;
-
-// Marker component for the bump flash overlay
-#[derive(Component)]
-pub struct BumpFlashUIMarker;
-
-// Marker component for player entry rows
-#[derive(Component)]
-pub struct PlayerEntryMarker;
 
 // ============================================================================
 // UI Setup System

@@ -9,9 +9,10 @@ use bevy::{
 
 use crate::{
     constants::*,
+    markers::*,
     systems::{
-        map::{RoofMarker, RoofWallMarker, WallMarker},
-        players::{BumpFlashState, LocalPlayerMarker, players_animation_system},
+        animations::{AnimationToPlay, players_animation_system},
+        players::BumpFlashState,
     },
 };
 use common::{
@@ -27,27 +28,7 @@ use common::{
 // ============================================================================
 
 #[derive(Component)]
-pub struct PlayerIdTextMarker;
-
-#[derive(Component)]
-pub struct PlayerIdTextMeshMarker;
-
-#[derive(Component)]
 pub struct ItemAnimTimer(pub f32);
-
-#[derive(Component)]
-pub struct RampMarker;
-
-// Marker for player model entities (for animation scaling)
-#[derive(Component)]
-pub struct PlayerModelMarker;
-
-// Component that stores a reference to an animation we want to play
-#[derive(Component, Clone)]
-pub struct AnimationToPlay {
-    pub graph_handle: Handle<AnimationGraph>,
-    pub index: AnimationNodeIndex,
-}
 
 // ============================================================================
 // Bundles
