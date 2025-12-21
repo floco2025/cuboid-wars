@@ -90,11 +90,14 @@ pub fn slide_sentry_along_obstacles(
 
 #[must_use]
 pub fn overlap_sentry_vs_player(sentry_pos: &Position, player_pos: &Position) -> bool {
-    let player_center_y = player_pos.y + PLAYER_HEIGHT / 2.0;
-    let sentry_center_y = SENTRY_HEIGHT / 2.0;
-    let y_diff = (player_center_y - sentry_center_y).abs();
+    // Check Y-axis overlap: sentry is at ground level (0 to SENTRY_HEIGHT)
+    // player is at player_pos.y to (player_pos.y + PLAYER_HEIGHT)
+    let sentry_min_y = 0.0;
+    let sentry_max_y = SENTRY_HEIGHT;
+    let player_min_y = player_pos.y;
+    let player_max_y = player_pos.y + PLAYER_HEIGHT;
 
-    if y_diff > f32::midpoint(PLAYER_HEIGHT, SENTRY_HEIGHT) {
+    if !ranges_overlap_1d(sentry_min_y, sentry_max_y, player_min_y, player_max_y) {
         return false;
     }
 
