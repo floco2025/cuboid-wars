@@ -22,7 +22,7 @@ use common::{
 // ============================================================================
 
 // Find the first moving player visible from sentry's position using line-of-sight check
-#[must_use] 
+#[must_use]
 pub fn find_visible_moving_player(
     sentry_pos: &Position,
     player_data: &[(PlayerId, Position, Speed)],

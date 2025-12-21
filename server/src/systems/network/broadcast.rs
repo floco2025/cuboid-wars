@@ -37,7 +37,7 @@ pub fn broadcast_to_all(players: &PlayerMap, message: ServerMessage) {
 // ============================================================================
 
 /// Collect all logged-in players for network updates.
-#[must_use] 
+#[must_use]
 pub fn snapshot_logged_in_players(
     players: &PlayerMap,
     player_data: &Query<(&Position, &Speed, &FaceDirection), With<PlayerMarker>>,
@@ -70,7 +70,7 @@ pub fn snapshot_logged_in_players(
 }
 
 /// Build the authoritative item list that gets replicated to clients.
-#[must_use] 
+#[must_use]
 pub fn collect_items(items: &ItemMap, item_positions: &Query<&Position, With<ItemMarker>>) -> Vec<(ItemId, Item)> {
     items
         .0
@@ -93,7 +93,7 @@ pub fn collect_items(items: &ItemMap, item_positions: &Query<&Position, With<Ite
 }
 
 /// Build the authoritative sentry list that gets replicated to clients.
-#[must_use] 
+#[must_use]
 pub fn collect_sentries(
     sentries: &SentryMap,
     sentry_data: &Query<(&Position, &Velocity, &FaceDirection), With<SentryMarker>>,
