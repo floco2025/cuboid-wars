@@ -170,7 +170,7 @@ fn generate_player_spawn_position(
             .any(|(p_pos, _, _)| {
                 let dx = pos.x - p_pos.x;
                 let dz = pos.z - p_pos.z;
-                dx * dx + dz * dz < MIN_DISTANCE * MIN_DISTANCE
+                dx.mul_add(dx, dz * dz) < MIN_DISTANCE * MIN_DISTANCE
             });
 
         // Check if position is too close to any sentry
@@ -182,7 +182,7 @@ fn generate_player_spawn_position(
                 .any(|(s_pos, _, _)| {
                     let dx = pos.x - s_pos.x;
                     let dz = pos.z - s_pos.z;
-                    dx * dx + dz * dz < MIN_DISTANCE * MIN_DISTANCE
+                    dx.mul_add(dx, dz * dz) < MIN_DISTANCE * MIN_DISTANCE
                 });
 
         if !too_close_to_player && !too_close_to_sentry {

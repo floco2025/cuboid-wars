@@ -482,7 +482,7 @@ pub fn spawn_player(
         .spawn((
             SceneRoot(asset_server.load(PLAYER_MODEL)),
             Transform::from_scale(Vec3::splat(PLAYER_MODEL_SCALE)).with_translation(Vec3::new(0.0, base_y, 0.0)),
-            animation_to_play.clone(),
+            animation_to_play,
             PlayerModelMarker,
         ))
         .observe(players_animation_system)
@@ -645,7 +645,7 @@ pub fn spawn_projectiles(
     let spawns = calculate_projectile_spawns(pos, face_dir, face_pitch, has_multi_shot, walls, ramps, roofs);
 
     for spawn_info in &spawns {
-        spawn_single_projectile(commands, meshes, materials, &spawn_info, shooter_id);
+        spawn_single_projectile(commands, meshes, materials, spawn_info, shooter_id);
     }
 
     spawns.len()
@@ -1183,7 +1183,7 @@ pub fn spawn_sentry(
             Transform::from_scale(Vec3::splat(SENTRY_MODEL_SCALE))
                 .with_rotation(Quat::from_rotation_x(std::f32::consts::PI))
                 .with_translation(Vec3::new(0.0, base_y, SENTRY_MODEL_DEPTH_OFFSET)),
-            animation_to_play.clone(),
+            animation_to_play,
             SentryModelMarker,
         ))
         .observe(sentries_animation_system)

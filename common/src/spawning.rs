@@ -60,7 +60,7 @@ pub fn calculate_projectile_spawns(
         // Camera origin at eye height (match FPV) and push forward along aim direction
         let camera_origin = Vec3::new(
             shooter_pos.x,
-            shooter_pos.y + PLAYER_HEIGHT * PLAYER_EYE_HEIGHT_RATIO,
+            PLAYER_HEIGHT.mul_add(PLAYER_EYE_HEIGHT_RATIO, shooter_pos.y),
             shooter_pos.z,
         );
         let spawn_pos = camera_origin + Vec3::new(dir_x, dir_y, dir_z) * PROJECTILE_SPAWN_OFFSET;

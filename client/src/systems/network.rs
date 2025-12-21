@@ -150,7 +150,7 @@ fn process_message_logged_in(
         ),
         ServerMessage::Logoff(logoff) => handle_logoff_message(commands, players, logoff),
         ServerMessage::Speed(speed_msg) => {
-            handle_speed_message(commands, players, &player_data, rtt, speed_msg);
+            handle_speed_message(commands, players, player_data, rtt, speed_msg);
         }
         ServerMessage::Face(face_msg) => handle_face_message(commands, players, face_msg),
         ServerMessage::Shot(shot_msg) => {
@@ -159,7 +159,7 @@ fn process_message_logged_in(
                 &mut assets.meshes,
                 &mut assets.materials,
                 players,
-                &player_data,
+                player_data,
                 shot_msg,
                 map_layout,
             );
@@ -175,7 +175,7 @@ fn process_message_logged_in(
             sentries,
             rtt,
             last_update_seq,
-            &player_data,
+            player_data,
             sentry_positions,
             cameras,
             my_player_id,
@@ -187,7 +187,7 @@ fn process_message_logged_in(
             handle_player_status_message(
                 commands,
                 players,
-                &player_data,
+                player_data,
                 player_status_msg,
                 my_player_id,
                 asset_server,
@@ -238,7 +238,7 @@ fn handle_login_message(
     }
     let entity = spawn_player(
         commands,
-        &asset_server,
+        asset_server,
         meshes,
         materials,
         images,
@@ -436,7 +436,7 @@ fn handle_players_update(
         }
         let entity = spawn_player(
             commands,
-            &asset_server,
+            asset_server,
             meshes,
             materials,
             images,
@@ -582,7 +582,7 @@ fn handle_sentrys_update(
             commands,
             meshes,
             materials,
-            &asset_server,
+            asset_server,
             graphs,
             *sentry_id,
             &server_sentry.pos,
@@ -775,7 +775,7 @@ fn handle_sentry_message(
             commands,
             meshes,
             materials,
-            &asset_server,
+            asset_server,
             graphs,
             msg.id,
             &msg.sentry.pos,
