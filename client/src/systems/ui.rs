@@ -2,7 +2,7 @@ use bevy::{camera::Viewport, math::Affine2, prelude::*};
 use std::time::Duration;
 
 use crate::spawning::item::item_type_color;
-use crate::spawning::map::{load_repeating_texture, load_repeating_texture_linear};
+use crate::spawning::map::helpers::{load_repeating_texture, load_repeating_texture_linear};
 use crate::{
     constants::*,
     markers::*,
