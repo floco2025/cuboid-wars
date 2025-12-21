@@ -31,9 +31,9 @@ struct Args {
     #[arg(short, long, default_value = "127.0.0.1:8080")]
     bind: String,
 
-    // Disable sentry spawning
-    #[arg(long, default_value_t = false)]
-    no_sentries: bool,
+    // Number of sentries to spawn
+    #[arg(long)]
+    num_sentries: Option<u32>,
 }
 
 // ============================================================================
@@ -66,7 +66,7 @@ async fn main() -> Result<()> {
     );
 
     let sentry_spawn_config = SentrySpawnConfig {
-        num_sentries: if args.no_sentries { 0 } else { SENTRIES_NUM },
+        num_sentries: args.num_sentries.unwrap_or(SENTRIES_NUM),
     };
 
     app.add_plugins(MinimalPlugins)
