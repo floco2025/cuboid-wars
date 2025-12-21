@@ -2,14 +2,13 @@ use bevy::prelude::*;
 
 use super::network::broadcast_to_all;
 use crate::resources::PlayerMap;
-use common::protocol::MapLayout;
 use common::{
-    collision::players::{slide_player_along_obstacles, sweep_player_vs_ramp_edges, sweep_player_vs_wall},
+    collision::{slide_player_along_obstacles, sweep_player_vs_ramp_edges, sweep_player_vs_wall},
     constants::{ALWAYS_PHASING, ALWAYS_SPEED, POWER_UP_SPEED_MULTIPLIER, ROOF_HEIGHT},
     map::{close_to_roof, has_roof, height_on_ramp},
     markers::PlayerMarker,
     players::{PlannedMove, overlaps_other_player},
-    protocol::{PlayerId, Position, SPlayerStatus, ServerMessage, Speed},
+    protocol::{MapLayout, PlayerId, Position, SPlayerStatus, ServerMessage, Speed},
 };
 
 // ============================================================================

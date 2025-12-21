@@ -8,7 +8,7 @@ use crate::{
     systems::network::broadcast_to_all,
 };
 use common::{
-    collision::sentries::overlap_sentry_vs_player,
+    collision::overlap_sentry_vs_player,
     constants::*,
     markers::{PlayerMarker, SentryMarker},
     protocol::*,

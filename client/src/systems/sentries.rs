@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use super::network::ServerReconciliation;
 use common::{
-    collision::sentries::{slide_sentry_along_obstacles, sweep_sentry_vs_ramp_footprint, sweep_sentry_vs_wall},
+    collision::{slide_sentry_along_obstacles, sweep_sentry_vs_ramp_footprint, sweep_sentry_vs_wall},
     constants::{SENTRY_HEIGHT, UPDATE_BROADCAST_INTERVAL},
     markers::SentryMarker,
     protocol::{FaceDirection, MapLayout, Position, Velocity},

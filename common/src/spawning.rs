@@ -1,5 +1,5 @@
 use crate::{
-    collision::players::{sweep_player_vs_roof, sweep_player_vs_wall},
+    collision::{sweep_player_vs_roof, sweep_player_vs_wall},
     constants::*,
     map::height_on_ramp,
     protocol::{Position, Ramp, Roof, Wall},

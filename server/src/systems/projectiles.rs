@@ -6,7 +6,7 @@ use crate::{
     resources::{PlayerMap, SentryMap, SentryMode},
 };
 use common::{
-    collision::projectiles::{Projectile, projectile_hits_sentry, sweep_projectile_vs_player},
+    collision::{Projectile, projectile_hits_sentry, sweep_projectile_vs_player},
     constants::ALWAYS_SENTRY_HUNT,
     markers::{PlayerMarker, ProjectileMarker, SentryMarker},
     protocol::{MapLayout, *},

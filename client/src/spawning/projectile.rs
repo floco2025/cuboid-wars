@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use common::{
-    collision::projectiles::Projectile,
+    collision::Projectile,
     constants::*,
     markers::ProjectileMarker,
     protocol::*,

@@ -8,7 +8,7 @@ use crate::{
     systems::network::ServerReconciliation,
 };
 use common::{
-    collision::players::{slide_player_along_obstacles, sweep_player_vs_ramp_edges, sweep_player_vs_wall},
+    collision::{slide_player_along_obstacles, sweep_player_vs_ramp_edges, sweep_player_vs_wall},
     constants::{
         ALWAYS_PHASING, PLAYER_EYE_HEIGHT_RATIO, PLAYER_HEIGHT, ROOF_HEIGHT, SPEED_RUN, UPDATE_BROADCAST_INTERVAL,
     },

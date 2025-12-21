@@ -7,7 +7,7 @@ use crate::{
 };
 use common::protocol::MapLayout;
 use common::{
-    collision::projectiles::Projectile,
+    collision::Projectile,
     constants::*,
     markers::{ItemMarker, PlayerMarker, ProjectileMarker, SentryMarker},
     protocol::*,

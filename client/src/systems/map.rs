@@ -1,14 +1,11 @@
 use crate::constants::WALL_LIGHT_EMISSIVE_LUMINANCE;
 use bevy::prelude::*;
 
-use crate::spawning::item::spawn_wall_light_from_layout;
-use crate::spawning::map::ramps::spawn_ramp;
-use crate::spawning::map::roofs::spawn_roof;
-use crate::spawning::map::walls::{spawn_roof_wall, spawn_wall};
 use crate::{
     constants::{TOPDOWN_ROOF_ALPHA, TOPDOWN_WALL_ALPHA},
     markers::*,
     resources::{CameraViewMode, RoofRenderingEnabled},
+    spawning::{spawn_ramp, spawn_roof, spawn_roof_wall, spawn_wall, spawn_wall_light_from_layout},
 };
 use common::protocol::MapLayout;
 

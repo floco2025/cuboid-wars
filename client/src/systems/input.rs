@@ -14,7 +14,7 @@ use crate::{
         CameraViewMode, ClientToServerChannel, InputSettings, LocalPlayerInfo, MyPlayerId, PlayerMap,
         RoofRenderingEnabled,
     },
-    spawning::projectile::spawn_projectiles,
+    spawning::spawn_projectiles,
 };
 use common::{
     constants::{ALWAYS_MULTI_SHOT, ALWAYS_SPEED, POWER_UP_SPEED_MULTIPLIER, PROJECTILE_COOLDOWN_TIME},

@@ -9,7 +9,7 @@ use crate::{
         ClientToServerChannel, ItemInfo, ItemMap, LastUpdateSeq, MyPlayerId, PlayerInfo, PlayerMap, RoundTripTime,
         SentryInfo, SentryMap, ServerToClientChannel,
     },
-    spawning::{item::spawn_item, player::spawn_player, projectile::spawn_projectiles, sentry::spawn_sentry},
+    spawning::{spawn_item, spawn_player, spawn_projectiles, spawn_sentry},
 };
 use common::{
     constants::POWER_UP_SPEED_MULTIPLIER,

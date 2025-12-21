@@ -1,6 +1,6 @@
 use bevy_ecs::prelude::*;
 
-use crate::{collision::players::sweep_player_vs_player, protocol::Position};
+use crate::{collision::sweep_player_vs_player, protocol::Position};
 
 // ============================================================================
 // Planned Move - Used in two-pass movement system
