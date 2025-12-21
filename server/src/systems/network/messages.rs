@@ -1,24 +1,21 @@
 use bevy::prelude::*;
 
-use crate::net::ServerToClient;
-use crate::resources::PlayerMap;
-use common::protocol::MapLayout;
+use super::broadcast::broadcast_to_others;
+use crate::{net::ServerToClient, resources::PlayerMap};
 use common::{
     collision::Projectile,
     constants::PROJECTILE_COOLDOWN_TIME,
     markers::{PlayerMarker, ProjectileMarker},
-    protocol::*,
+    protocol::{MapLayout, *},
     spawning::calculate_projectile_spawns,
 };
 
-use super::broadcast::broadcast_to_others;
-
 // ============================================================================
-// Message Processing for Logged-in Players
+// Message Dispatcher
 // ============================================================================
 
-/// Process messages from players who are already logged in.
-pub fn process_message_logged_in(
+/// Dispatch messages from players who are already logged in to appropriate handlers.
+pub fn dispatch_message(
     commands: &mut Commands,
     entity: Entity,
     id: PlayerId,
@@ -36,33 +33,23 @@ pub fn process_message_logged_in(
                 let _ = player.channel.send(ServerToClient::Close);
             }
         }
-        ClientMessage::Logoff(_) => {
-            debug!("{:?} logged off", id);
-            commands.entity(entity).despawn();
-
-            // Broadcast graceful logoff to all other players
-            broadcast_to_others(players, id, ServerMessage::Logoff(SLogoff { id, graceful: true }));
+        ClientMessage::Logoff(msg) => {
+            handle_logoff_message(commands, entity, id, msg, players);
         }
         ClientMessage::Speed(msg) => {
             trace!("{:?} speed: {:?}", id, msg);
-            handle_speed(commands, entity, id, msg, &*players, player_data);
+            handle_speed_message(commands, entity, id, msg, &*players, player_data);
         }
         ClientMessage::Face(msg) => {
             trace!("{:?} face direction: {}", id, msg.dir);
-            handle_face_direction(commands, entity, id, msg, &*players);
+            handle_face_message(commands, entity, id, msg, &*players);
         }
         ClientMessage::Shot(msg) => {
             debug!("{id:?} shot");
-            handle_shot(commands, entity, id, msg, players, time, player_data, map_layout);
+            handle_shot_message(commands, entity, id, msg, players, time, player_data, map_layout);
         }
         ClientMessage::Echo(msg) => {
-            trace!("{:?} echo: {:?}", id, msg);
-            if let Some(player_info) = players.0.get(&id) {
-                let echo_msg = ServerMessage::Echo(SEcho {
-                    timestamp_nanos: msg.timestamp_nanos,
-                });
-                let _ = player_info.channel.send(ServerToClient::Send(echo_msg));
-            }
+            handle_echo_message(id, msg, players);
         }
     }
 }
@@ -71,8 +58,17 @@ pub fn process_message_logged_in(
 // Message Handlers
 // ============================================================================
 
-/// Handle player speed changes.
-fn handle_speed(
+/// Handle logoff message.
+fn handle_logoff_message(commands: &mut Commands, entity: Entity, id: PlayerId, _msg: CLogoff, players: &PlayerMap) {
+    debug!("{:?} logged off", id);
+    commands.entity(entity).despawn();
+
+    // Broadcast graceful logoff to all other players
+    broadcast_to_others(players, id, ServerMessage::Logoff(SLogoff { id, graceful: true }));
+}
+
+/// Handle speed message.
+fn handle_speed_message(
     commands: &mut Commands,
     entity: Entity,
     id: PlayerId,
@@ -98,16 +94,16 @@ fn handle_speed(
     }
 }
 
-/// Handle player face direction changes.
-fn handle_face_direction(commands: &mut Commands, entity: Entity, id: PlayerId, msg: CFace, players: &PlayerMap) {
+/// Handle face direction message.
+fn handle_face_message(commands: &mut Commands, entity: Entity, id: PlayerId, msg: CFace, players: &PlayerMap) {
     // Update the player's face direction
     commands.entity(entity).insert(FaceDirection(msg.dir));
 
     broadcast_to_others(players, id, ServerMessage::Face(SFace { id, dir: msg.dir }));
 }
 
-/// Handle player shooting.
-fn handle_shot(
+/// Handle shot message.
+fn handle_shot_message(
     commands: &mut Commands,
     entity: Entity,
     id: PlayerId,
@@ -174,4 +170,15 @@ fn handle_shot(
             face_pitch: msg.face_pitch,
         }),
     );
+}
+
+/// Handle echo message.
+fn handle_echo_message(id: PlayerId, msg: CEcho, players: &PlayerMap) {
+    trace!("{:?} echo: {:?}", id, msg);
+    if let Some(player_info) = players.0.get(&id) {
+        let echo_msg = ServerMessage::Echo(SEcho {
+            timestamp_nanos: msg.timestamp_nanos,
+        });
+        let _ = player_info.channel.send(ServerToClient::Send(echo_msg));
+    }
 }

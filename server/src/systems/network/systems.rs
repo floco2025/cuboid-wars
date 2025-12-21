@@ -1,19 +1,19 @@
 use bevy::prelude::*;
 
+use super::{
+    broadcast::{broadcast_to_all, broadcast_to_others, collect_items, collect_sentries, snapshot_logged_in_players},
+    login::handle_login_message,
+    messages::dispatch_message,
+};
 use crate::{
     net::ClientToServer,
     resources::{FromClientsChannel, GridConfig, ItemMap, PlayerMap, SentryMap},
 };
-use common::protocol::MapLayout;
 use common::{
     constants::UPDATE_BROADCAST_INTERVAL,
     markers::{ItemMarker, PlayerMarker, SentryMarker},
-    protocol::*,
+    protocol::{MapLayout, *},
 };
-
-use super::broadcast::{broadcast_to_all, broadcast_to_others, collect_items, collect_sentries, snapshot_logged_in_players};
-use super::login::process_message_not_logged_in;
-use super::messages::process_message_logged_in;
 
 // ============================================================================
 // Client Event Processing System
@@ -58,7 +58,7 @@ pub fn network_client_message_system(
             ClientToServer::Message(message) => {
                 let is_logged_in = player_info.logged_in;
                 if is_logged_in {
-                    process_message_logged_in(
+                    dispatch_message(
                         &mut commands,
                         player_info.entity,
                         id,
@@ -69,7 +69,7 @@ pub fn network_client_message_system(
                         &map_layout,
                     );
                 } else {
-                    process_message_not_logged_in(
+                    handle_login_message(
                         &mut commands,
                         player_info.entity,
                         id,

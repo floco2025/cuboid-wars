@@ -1,13 +1,14 @@
 use bevy::prelude::*;
 use rand::prelude::*;
 
-use crate::net::ServerToClient;
-use crate::resources::{GridConfig, ItemMap, PlayerMap, SentryMap};
-use common::protocol::MapLayout;
+use crate::{
+    net::ServerToClient,
+    resources::{GridConfig, ItemMap, PlayerMap, SentryMap},
+};
 use common::{
     constants::{FIELD_DEPTH, FIELD_WIDTH, GRID_SIZE},
     markers::{ItemMarker, PlayerMarker, SentryMarker},
-    protocol::*,
+    protocol::{MapLayout, *},
 };
 
 use super::broadcast::{broadcast_to_others, collect_items, collect_sentries, snapshot_logged_in_players};
@@ -16,8 +17,8 @@ use super::broadcast::{broadcast_to_others, collect_items, collect_sentries, sna
 // Login Flow
 // ============================================================================
 
-/// Process messages from players who have not yet logged in.
-pub fn process_message_not_logged_in(
+/// Handle login message from a player who has not yet logged in.
+pub fn handle_login_message(
     commands: &mut Commands,
     entity: Entity,
     id: PlayerId,
@@ -39,7 +40,7 @@ pub fn process_message_not_logged_in(
                 let player_info = players
                     .0
                     .get_mut(&id)
-                    .expect("process_message_not_logged_in called for unknown player");
+                    .expect("handle_login_message called for unknown player");
                 let channel = player_info.channel.clone();
                 player_info.logged_in = true;
 
