@@ -1,4 +1,7 @@
-use crate::{constants::*, resources::{GridCell, GridConfig}};
+use crate::{
+    constants::*,
+    resources::{GridCell, GridConfig},
+};
 use common::{constants::*, protocol::Velocity};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]

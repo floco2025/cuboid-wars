@@ -1,7 +1,10 @@
 use bevy::prelude::*;
 use std::collections::HashSet;
 
-use crate::{resources::{ItemInfo, ItemMap}, spawning::spawn_item};
+use crate::{
+    resources::{ItemInfo, ItemMap},
+    spawning::spawn_item,
+};
 use common::protocol::*;
 
 // ============================================================================

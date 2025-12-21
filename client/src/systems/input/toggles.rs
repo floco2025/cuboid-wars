@@ -1,8 +1,4 @@
-use bevy::{
-    input::mouse::MouseButton,
-    prelude::*,
-    window::CursorOptions,
-};
+use bevy::{input::mouse::MouseButton, prelude::*, window::CursorOptions};
 
 use crate::resources::{CameraViewMode, RoofRenderingEnabled};
 

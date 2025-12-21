@@ -9,9 +9,7 @@ use crate::{
     constants::*,
     markers::{LocalPlayerMarker, MainCameraMarker},
     net::ClientToServer,
-    resources::{
-        CameraViewMode, ClientToServerChannel, InputSettings, LocalPlayerInfo, MyPlayerId, PlayerMap,
-    },
+    resources::{CameraViewMode, ClientToServerChannel, InputSettings, LocalPlayerInfo, MyPlayerId, PlayerMap},
     systems::players::PlayerMovementMut,
 };
 use common::{

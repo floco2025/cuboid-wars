@@ -1,6 +1,6 @@
 use super::navigation::{
-    direction_from_velocity, direction_leads_to_ramp, forward_directions, pick_direction, valid_directions,
-    GridDirection,
+    GridDirection, direction_from_velocity, direction_leads_to_ramp, forward_directions, pick_direction,
+    valid_directions,
 };
 use crate::{
     constants::*,
