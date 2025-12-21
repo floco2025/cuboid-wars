@@ -123,7 +123,7 @@ fn main() -> Result<()> {
         (
             players_movement_system,
             players_transform_sync_system,
-            placers_face_to_transform_system,
+            players_face_to_transform_system,
             players_billboard_system,
         ),
     )
