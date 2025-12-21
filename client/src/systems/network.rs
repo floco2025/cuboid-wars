@@ -2,6 +2,10 @@ use bevy::{ecs::system::SystemParam, prelude::*};
 use std::{collections::HashSet, time::Duration};
 
 use super::players::{CameraShake, CuboidShake, PlayerMovement};
+use crate::spawning::item::spawn_item;
+use crate::spawning::player::spawn_player;
+use crate::spawning::projectile::spawn_projectiles;
+use crate::spawning::sentry::spawn_sentry;
 use crate::{
     constants::ECHO_INTERVAL,
     net::{ClientToServer, ServerToClient},
@@ -9,7 +13,6 @@ use crate::{
         ClientToServerChannel, ItemInfo, ItemMap, LastUpdateSeq, MyPlayerId, PlayerInfo, PlayerMap, RoundTripTime,
         SentryInfo, SentryMap, ServerToClientChannel,
     },
-    spawning::{spawn_item, spawn_player, spawn_projectiles, spawn_sentry},
 };
 use common::{
     constants::POWER_UP_SPEED_MULTIPLIER,

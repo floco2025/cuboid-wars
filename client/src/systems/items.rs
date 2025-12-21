@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
-use crate::{constants::*, spawning::ItemAnimTimer};
+use crate::constants::*;
+use crate::spawning::item::ItemAnimTimer;
 use common::markers::ItemMarker;
 
 // ============================================================================
