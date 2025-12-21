@@ -1,10 +1,10 @@
 pub mod animations;
-pub mod sentries;
 pub mod input;
 pub mod items;
 pub mod map;
 pub mod network;
 pub mod players;
 pub mod projectiles;
+pub mod sentries;
 pub mod skybox;
 pub mod ui;

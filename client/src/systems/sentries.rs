@@ -117,7 +117,9 @@ fn apply_sentry_wall_sliding(
 // ============================================================================
 
 // Update sentry Transform from Position and FaceDirection components for rendering
-pub fn sentries_transform_sync_system(mut sentry_query: Query<(&Position, &FaceDirection, &mut Transform), With<SentryMarker>>) {
+pub fn sentries_transform_sync_system(
+    mut sentry_query: Query<(&Position, &FaceDirection, &mut Transform), With<SentryMarker>>,
+) {
     for (pos, face_dir, mut transform) in &mut sentry_query {
         transform.translation.x = pos.x;
         transform.translation.y = SENTRY_HEIGHT / 2.0; // Sentry center at correct height
@@ -125,5 +127,3 @@ pub fn sentries_transform_sync_system(mut sentry_query: Query<(&Position, &FaceD
         transform.rotation = Quat::from_rotation_y(face_dir.0);
     }
 }
-
-

@@ -344,7 +344,7 @@ pub fn local_player_camera_shake_system(
 pub fn local_player_cuboid_shake_system(
     mut commands: Commands,
     time: Res<Time>,
-    mut cuboid_query: Query<(Entity, &mut CuboidShake)>,
+    mut cuboid_query: Query<(Entity, &mut CuboidShake), With<PlayerMarker>>,
 ) {
     for (entity, mut shake) in &mut cuboid_query {
         update_cuboid_shake(&mut commands, entity, time.delta(), &mut shake);
@@ -469,6 +469,8 @@ pub fn players_transform_sync_system(
 }
 
 // Update player cuboid rotation from stored face direction component
+// This query matches both players and sentries (both have FaceDirection)
+// but excludes cameras to avoid conflicts
 pub fn placers_face_to_transform_system(mut query: Query<(&FaceDirection, &mut Transform), Without<Camera3d>>) {
     for (face_dir, mut transform) in &mut query {
         transform.rotation = Quat::from_rotation_y(face_dir.0);
@@ -586,5 +588,3 @@ pub fn players_billboard_system(
         }
     }
 }
-
-

@@ -36,7 +36,10 @@ pub fn players_animation_system(
             if let Ok(mut player) = players.get_mut(child) {
                 // Tell the animation player to start the animation and keep
                 // repeating it.
-                player.play(animation_to_play.index).repeat().set_speed(PLAYER_MODEL_ANIMATION_SPEED);
+                player
+                    .play(animation_to_play.index)
+                    .repeat()
+                    .set_speed(PLAYER_MODEL_ANIMATION_SPEED);
 
                 // Add the animation graph. This only needs to be done once to
                 // connect the animation player to the mesh.
@@ -59,7 +62,10 @@ pub fn sentries_animation_system(
     if let Ok(animation_to_play) = animations_to_play.get(scene_ready.entity) {
         for child in children.iter_descendants(scene_ready.entity) {
             if let Ok(mut player) = players.get_mut(child) {
-                player.play(animation_to_play.index).repeat().set_speed(SENTRY_MODEL_ANIMATION_SPEED);
+                player
+                    .play(animation_to_play.index)
+                    .repeat()
+                    .set_speed(SENTRY_MODEL_ANIMATION_SPEED);
 
                 commands
                     .entity(child)
@@ -68,5 +74,3 @@ pub fn sentries_animation_system(
         }
     }
 }
-
-

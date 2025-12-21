@@ -1,13 +1,17 @@
 use bevy::prelude::*;
 
 use crate::{constants::*, spawning::ItemAnimTimer};
+use common::markers::ItemMarker;
 
 // ============================================================================
 // Items Animation System
 // ============================================================================
 
 // Animate items bobbing up and down
-pub fn items_animation_system(time: Res<Time>, mut query: Query<(&mut Transform, &mut ItemAnimTimer)>) {
+pub fn items_animation_system(
+    time: Res<Time>,
+    mut query: Query<(&mut Transform, &mut ItemAnimTimer), With<ItemMarker>>,
+) {
     let delta = time.delta_secs();
 
     for (mut transform, mut timer) in &mut query {

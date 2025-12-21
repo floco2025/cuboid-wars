@@ -10,7 +10,7 @@ use crate::{
 };
 use common::{
     collision::items::overlap_player_vs_item,
-    constants::{ALWAYS_SENTRY_HUNT, ALWAYS_MULTI_SHOT, ALWAYS_PHASING, ALWAYS_SPEED, GRID_COLS, GRID_ROWS},
+    constants::{ALWAYS_MULTI_SHOT, ALWAYS_PHASING, ALWAYS_SENTRY_HUNT, ALWAYS_SPEED, GRID_COLS, GRID_ROWS},
     markers::{ItemMarker, PlayerMarker},
     protocol::{ItemId, ItemType, PlayerId, Position, SCookieCollected, SPlayerStatus, ServerMessage},
 };
@@ -43,7 +43,7 @@ pub fn item_initial_spawn_system(
     mut commands: Commands,
     mut spawner: ResMut<ItemSpawner>,
     mut items: ResMut<ItemMap>,
-    query: Query<&ItemId>,
+    query: Query<&ItemId, With<ItemMarker>>,
 ) {
     // Only spawn cookies once - check if any cookies exist
     let has_cookies = query
@@ -81,7 +81,7 @@ pub fn item_spawn_system(
     time: Res<Time>,
     mut spawner: ResMut<ItemSpawner>,
     mut items: ResMut<ItemMap>,
-    positions: Query<&Position>,
+    positions: Query<&Position, With<ItemMarker>>,
     grid_config: Res<GridConfig>,
 ) {
     let delta = time.delta_secs();

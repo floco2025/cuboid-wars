@@ -3,14 +3,11 @@ use bevy::{
     prelude::*,
 };
 
-use crate::{
-    markers::LocalPlayerMarker,
-    resources::PlayerMap,
-};
+use crate::{markers::LocalPlayerMarker, resources::PlayerMap};
 use common::{
     collision::projectiles::{Projectile, projectile_hits_sentry, sweep_projectile_vs_player},
     constants::ALWAYS_SENTRY_HUNT,
-    markers::{SentryMarker, PlayerMarker, ProjectileMarker},
+    markers::{PlayerMarker, ProjectileMarker, SentryMarker},
     protocol::{FaceDirection, MapLayout, PlayerId, Position},
 };
 
@@ -33,7 +30,9 @@ fn handle_sentry_collisions(
     for (sentry_pos, sentry_face_dir) in sentry_query.iter() {
         if projectile_hits_sentry(projectile_pos, projectile, delta, sentry_pos, sentry_face_dir.0) {
             // Check if shooter has sentry hunt power-up
-            let shooter_has_hunt = players.0.get(shooter_id)
+            let shooter_has_hunt = players
+                .0
+                .get(shooter_id)
                 .is_some_and(|info| ALWAYS_SENTRY_HUNT || info.sentry_hunt_power_up);
 
             if shooter_has_hunt {

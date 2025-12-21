@@ -14,7 +14,7 @@ use server::{
     map::generate_grid,
     net::accept_connections_task,
     resources::*,
-    systems::{sentries::*, items::*, network::*, players::*, projectiles::*},
+    systems::{items::*, network::*, players::*, projectiles::*, sentries::*},
 };
 
 const SERVER_LOOP_FREQUENCY: u64 = 30;

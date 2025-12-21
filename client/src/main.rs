@@ -11,7 +11,7 @@ use client::{
     config::configure_client,
     net::network_io_task,
     resources::*,
-    systems::{sentries::*, input::*, items::*, map::*, network::*, players::*, projectiles::*, skybox::*, ui::*},
+    systems::{input::*, items::*, map::*, network::*, players::*, projectiles::*, sentries::*, skybox::*, ui::*},
 };
 use common::{net::MessageStream, protocol::*};
 
@@ -138,13 +138,7 @@ fn main() -> Result<()> {
             local_player_visibility_sync_system,
         ),
     )
-    .add_systems(
-        Update,
-        (
-            sentries_movement_system,
-            sentries_transform_sync_system,
-        ),
-    )
+    .add_systems(Update, (sentries_movement_system, sentries_transform_sync_system))
     .add_systems(Update, projectiles_movement_system)
     .add_systems(Update, items_animation_system)
     .add_systems(

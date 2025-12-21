@@ -575,7 +575,13 @@ pub fn projectile_hits_ramp(proj_pos: &Position, projectile_velocity: &Vec3, del
 }
 
 #[must_use]
-pub fn projectile_hits_sentry(proj_pos: &Position, projectile: &Projectile, delta: f32, sentry_pos: &Position, sentry_face_dir: f32) -> bool {
+pub fn projectile_hits_sentry(
+    proj_pos: &Position,
+    projectile: &Projectile,
+    delta: f32,
+    sentry_pos: &Position,
+    sentry_face_dir: f32,
+) -> bool {
     let sentry_center_y = sentry_pos.y + SENTRY_HEIGHT / 2.0;
     sweep_projectile_vs_cuboid(
         proj_pos,
@@ -587,5 +593,6 @@ pub fn projectile_hits_sentry(proj_pos: &Position, projectile: &Projectile, delt
         SENTRY_WIDTH,
         SENTRY_HEIGHT,
         SENTRY_DEPTH,
-    ).hit
+    )
+    .hit
 }

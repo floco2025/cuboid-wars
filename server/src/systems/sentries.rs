@@ -5,17 +5,18 @@ use crate::{
     constants::*,
     map::cell_center,
     net::ServerToClient,
-    resources::{SentryInfo, SentryMap, SentryMode, SentrySpawnConfig, GridCell, GridConfig, PlayerMap},
+    resources::{GridCell, GridConfig, PlayerMap, SentryInfo, SentryMap, SentryMode, SentrySpawnConfig},
 };
 use common::{
     collision::{
-        sentries::{
-            overlap_sentry_vs_player, slide_sentry_along_obstacles, sweep_sentry_vs_ramp_footprint, sweep_sentry_vs_wall,
-        },
         players::sweep_player_vs_wall,
+        sentries::{
+            overlap_sentry_vs_player, slide_sentry_along_obstacles, sweep_sentry_vs_ramp_footprint,
+            sweep_sentry_vs_wall,
+        },
     },
     constants::*,
-    markers::{SentryMarker, PlayerMarker},
+    markers::{PlayerMarker, SentryMarker},
     protocol::*,
 };
 
@@ -162,7 +163,7 @@ pub fn sentries_spawn_system(
     mut sentries: ResMut<SentryMap>,
     grid_config: Res<GridConfig>,
     spawn_config: Res<SentrySpawnConfig>,
-    query: Query<&SentryId>,
+    query: Query<&SentryId, With<SentryMarker>>,
 ) {
     // Only spawn if no sentries exist yet
     if !query.is_empty() {
@@ -461,7 +462,11 @@ fn pre_patrol_movement(
             players,
             ServerMessage::Sentry(SSentry {
                 id: *sentry_id,
-                sentry: Sentry { pos: *pos, vel: *vel, face_dir: vel.x.atan2(vel.z) },
+                sentry: Sentry {
+                    pos: *pos,
+                    vel: *vel,
+                    face_dir: vel.x.atan2(vel.z),
+                },
             }),
         );
     } else {
@@ -490,7 +495,11 @@ fn pre_patrol_movement(
                 players,
                 ServerMessage::Sentry(SSentry {
                     id: *sentry_id,
-                    sentry: Sentry { pos: *pos, vel: *vel, face_dir: vel.x.atan2(vel.z) },
+                    sentry: Sentry {
+                        pos: *pos,
+                        vel: *vel,
+                        face_dir: vel.x.atan2(vel.z),
+                    },
                 }),
             );
         }
@@ -558,7 +567,11 @@ fn patrol_movement(
                 players,
                 ServerMessage::Sentry(SSentry {
                     id: *sentry_id,
-                    sentry: Sentry { pos: *pos, vel: *vel, face_dir: *face_dir },
+                    sentry: Sentry {
+                        pos: *pos,
+                        vel: *vel,
+                        face_dir: *face_dir,
+                    },
                 }),
             );
 
@@ -692,7 +705,11 @@ fn follow_movement(
             players,
             ServerMessage::Sentry(SSentry {
                 id: *sentry_id,
-                sentry: Sentry { pos: *pos, vel: *vel, face_dir: vel.x.atan2(vel.z) },
+                sentry: Sentry {
+                    pos: *pos,
+                    vel: *vel,
+                    face_dir: vel.x.atan2(vel.z),
+                },
             }),
         );
     }

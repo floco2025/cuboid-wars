@@ -18,7 +18,7 @@ use crate::{
 use common::{
     collision::projectiles::Projectile,
     constants::*,
-    markers::{SentryMarker, ItemMarker, PlayerMarker, ProjectileMarker},
+    markers::{ItemMarker, PlayerMarker, ProjectileMarker, SentryMarker},
     protocol::*,
     spawning::{ProjectileSpawnInfo, calculate_projectile_spawns},
 };
@@ -431,14 +431,10 @@ pub fn spawn_player(
     is_local: bool,
 ) -> Entity {
     // Create animation graph for this player
-    let (graph, index) = AnimationGraph::from_clip(
-        asset_server.load(GltfAssetLabel::Animation(0).from_asset(PLAYER_MODEL)),
-    );
+    let (graph, index) =
+        AnimationGraph::from_clip(asset_server.load(GltfAssetLabel::Animation(0).from_asset(PLAYER_MODEL)));
     let graph_handle = graphs.add(graph);
-    let animation_to_play = AnimationToPlay {
-        graph_handle,
-        index,
-    };
+    let animation_to_play = AnimationToPlay { graph_handle, index };
 
     let entity = commands
         .spawn((
@@ -466,29 +462,31 @@ pub fn spawn_player(
 
     // Add transparent cuboid debug visualization if enabled
     if PLAYER_BOUNDING_BOX {
-        let debug_box = commands.spawn((
-            Mesh3d(meshes.add(Cuboid::new(PLAYER_WIDTH, PLAYER_HEIGHT, PLAYER_DEPTH))),
-            MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgba(0.5, 0.5, 0.5, 0.15),
-                alpha_mode: AlphaMode::Blend,
-                ..default()
-            })),
-            Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
-        )).id();
+        let debug_box = commands
+            .spawn((
+                Mesh3d(meshes.add(Cuboid::new(PLAYER_WIDTH, PLAYER_HEIGHT, PLAYER_DEPTH))),
+                MeshMaterial3d(materials.add(StandardMaterial {
+                    base_color: Color::srgba(0.5, 0.5, 0.5, 0.15),
+                    alpha_mode: AlphaMode::Blend,
+                    ..default()
+                })),
+                Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+            ))
+            .id();
         children.push(debug_box);
     }
 
     // Add the GLB player model with animation observer
     let base_y = PLAYER_MODEL_HEIGHT_OFFSET - PLAYER_HEIGHT / 2.0;
-    let model = commands.spawn((
-        SceneRoot(asset_server.load(PLAYER_MODEL)),
-        Transform::from_scale(Vec3::splat(PLAYER_MODEL_SCALE))
-            .with_translation(Vec3::new(0.0, base_y, 0.0)),
-        animation_to_play.clone(),
-        PlayerModelMarker,
-    ))
-    .observe(players_animation_system)
-    .id();
+    let model = commands
+        .spawn((
+            SceneRoot(asset_server.load(PLAYER_MODEL)),
+            Transform::from_scale(Vec3::splat(PLAYER_MODEL_SCALE)).with_translation(Vec3::new(0.0, base_y, 0.0)),
+            animation_to_play.clone(),
+            PlayerModelMarker,
+        ))
+        .observe(players_animation_system)
+        .id();
     children.push(model);
 
     // Create individual texture and camera for this player's ID text
@@ -678,7 +676,7 @@ pub fn spawn_projectile_for_player(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
-    player_query: &Query<(&PlayerId, &Position, &FaceDirection)>,
+    player_query: &Query<(&PlayerId, &Position, &FaceDirection), With<PlayerMarker>>,
     entity: Entity,
     has_multi_shot: bool,
     walls: &[Wall],
@@ -776,9 +774,15 @@ pub fn spawn_wall(
     } else {
         StandardMaterial {
             base_color_texture: Some(load_repeating_texture(asset_server, "textures/wall/albedo.png")),
-            normal_map_texture: Some(load_repeating_texture_linear(asset_server, "textures/wall/normal-dx.png")),
+            normal_map_texture: Some(load_repeating_texture_linear(
+                asset_server,
+                "textures/wall/normal-dx.png",
+            )),
             occlusion_texture: Some(load_repeating_texture_linear(asset_server, "textures/wall/ao.png")),
-            metallic_roughness_texture: Some(load_repeating_texture_linear(asset_server, "textures/wall/metallic-roughness.png")),
+            metallic_roughness_texture: Some(load_repeating_texture_linear(
+                asset_server,
+                "textures/wall/metallic-roughness.png",
+            )),
             perceptual_roughness: TEXTURE_WALL_ROUGHNESS,
             metallic: TEXTURE_WALL_METALLIC,
             ..default()
@@ -890,9 +894,15 @@ pub fn spawn_roof(
     } else {
         StandardMaterial {
             base_color_texture: Some(load_repeating_texture(asset_server, "textures/roof/albedo.png")),
-            normal_map_texture: Some(load_repeating_texture_linear(asset_server, "textures/roof/normal-dx.png")),
+            normal_map_texture: Some(load_repeating_texture_linear(
+                asset_server,
+                "textures/roof/normal-dx.png",
+            )),
             occlusion_texture: Some(load_repeating_texture_linear(asset_server, "textures/roof/ao.png")),
-            metallic_roughness_texture: Some(load_repeating_texture_linear(asset_server, "textures/roof/metallic-roughness.png")),
+            metallic_roughness_texture: Some(load_repeating_texture_linear(
+                asset_server,
+                "textures/roof/metallic-roughness.png",
+            )),
             perceptual_roughness: TEXTURE_ROOF_ROUGHNESS,
             metallic: TEXTURE_ROOF_METALLIC,
             ..default()
@@ -930,9 +940,15 @@ pub fn spawn_ramp(
     // Floor material for the ramp top
     let mut top_material = StandardMaterial {
         base_color_texture: Some(load_repeating_texture(asset_server, "textures/ground/albedo.png")),
-        normal_map_texture: Some(load_repeating_texture_linear(asset_server, "textures/ground/normal-dx.png")),
+        normal_map_texture: Some(load_repeating_texture_linear(
+            asset_server,
+            "textures/ground/normal-dx.png",
+        )),
         occlusion_texture: Some(load_repeating_texture_linear(asset_server, "textures/ground/ao.png")),
-        metallic_roughness_texture: Some(load_repeating_texture_linear(asset_server, "textures/ground/metallic-roughness.png")),
+        metallic_roughness_texture: Some(load_repeating_texture_linear(
+            asset_server,
+            "textures/ground/metallic-roughness.png",
+        )),
         perceptual_roughness: TEXTURE_FLOOR_ROUGHNESS,
         metallic: TEXTURE_FLOOR_METALLIC,
         ..default()
@@ -943,9 +959,15 @@ pub fn spawn_ramp(
     // Wall material for the ramp sides
     let mut side_material = StandardMaterial {
         base_color_texture: Some(load_repeating_texture(asset_server, "textures/wall/albedo.png")),
-        normal_map_texture: Some(load_repeating_texture_linear(asset_server, "textures/wall/normal-dx.png")),
+        normal_map_texture: Some(load_repeating_texture_linear(
+            asset_server,
+            "textures/wall/normal-dx.png",
+        )),
         occlusion_texture: Some(load_repeating_texture_linear(asset_server, "textures/wall/ao.png")),
-        metallic_roughness_texture: Some(load_repeating_texture_linear(asset_server, "textures/wall/metallic-roughness.png")),
+        metallic_roughness_texture: Some(load_repeating_texture_linear(
+            asset_server,
+            "textures/wall/metallic-roughness.png",
+        )),
         perceptual_roughness: TEXTURE_WALL_ROUGHNESS,
         metallic: TEXTURE_WALL_METALLIC,
         ..default()
@@ -1110,13 +1132,11 @@ pub fn spawn_sentry(
 ) -> Entity {
     // Create animation graph with walk animation
     let mut graph = AnimationGraph::new();
-    let walk_clip = asset_server.load(
-        GltfAssetLabel::Animation(SENTRY_WALK_ANIMATION_INDEX).from_asset(SENTRY_MODEL)
-    );
+    let walk_clip = asset_server.load(GltfAssetLabel::Animation(SENTRY_WALK_ANIMATION_INDEX).from_asset(SENTRY_MODEL));
     let walk_index = graph.add_clip(walk_clip, 1.0, graph.root);
-    
+
     let graph_handle = graphs.add(graph);
-    
+
     let animation_to_play = AnimationToPlay {
         graph_handle,
         index: walk_index,
@@ -1141,30 +1161,33 @@ pub fn spawn_sentry(
 
     // Add transparent cuboid debug visualization if enabled
     if SENTRY_BOUNDING_BOX {
-        let debug_box = commands.spawn((
-            Mesh3d(meshes.add(Cuboid::new(SENTRY_WIDTH, SENTRY_HEIGHT, SENTRY_DEPTH))),
-            MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgba(0.5, 0.5, 0.5, 0.15),
-                alpha_mode: AlphaMode::Blend,
-                ..default()
-            })),
-            Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
-        )).id();
+        let debug_box = commands
+            .spawn((
+                Mesh3d(meshes.add(Cuboid::new(SENTRY_WIDTH, SENTRY_HEIGHT, SENTRY_DEPTH))),
+                MeshMaterial3d(materials.add(StandardMaterial {
+                    base_color: Color::srgba(0.5, 0.5, 0.5, 0.15),
+                    alpha_mode: AlphaMode::Blend,
+                    ..default()
+                })),
+                Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+            ))
+            .id();
         children.push(debug_box);
     }
 
     // Add the GLB sentry model with animation observer
     let base_y = SENTRY_MODEL_HEIGHT_OFFSET - SENTRY_HEIGHT / 2.0;
-    let model = commands.spawn((
-        SceneRoot(asset_server.load(SENTRY_MODEL)),
-        Transform::from_scale(Vec3::splat(SENTRY_MODEL_SCALE))
-            .with_rotation(Quat::from_rotation_x(std::f32::consts::PI))
-            .with_translation(Vec3::new(0.0, base_y, SENTRY_MODEL_DEPTH_OFFSET)),
-        animation_to_play.clone(),
-        SentryModelMarker,
-    ))
-    .observe(sentries_animation_system)
-    .id();
+    let model = commands
+        .spawn((
+            SceneRoot(asset_server.load(SENTRY_MODEL)),
+            Transform::from_scale(Vec3::splat(SENTRY_MODEL_SCALE))
+                .with_rotation(Quat::from_rotation_x(std::f32::consts::PI))
+                .with_translation(Vec3::new(0.0, base_y, SENTRY_MODEL_DEPTH_OFFSET)),
+            animation_to_play.clone(),
+            SentryModelMarker,
+        ))
+        .observe(sentries_animation_system)
+        .id();
     children.push(model);
 
     commands.entity(entity).add_children(&children);

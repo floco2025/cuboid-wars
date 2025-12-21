@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{ecs::system::SystemParam, prelude::*};
 use std::{collections::HashSet, time::Duration};
 
 use super::players::{CameraShake, CuboidShake, PlayerMovement};
@@ -6,14 +6,14 @@ use crate::{
     constants::ECHO_INTERVAL,
     net::{ClientToServer, ServerToClient},
     resources::{
-        ClientToServerChannel, SentryInfo, SentryMap, ItemInfo, ItemMap, LastUpdateSeq, MyPlayerId, PlayerInfo,
-        PlayerMap, RoundTripTime, ServerToClientChannel,
+        ClientToServerChannel, ItemInfo, ItemMap, LastUpdateSeq, MyPlayerId, PlayerInfo, PlayerMap, RoundTripTime,
+        SentryInfo, SentryMap, ServerToClientChannel,
     },
-    spawning::{spawn_sentry, spawn_item, spawn_player, spawn_projectiles},
+    spawning::{spawn_item, spawn_player, spawn_projectiles, spawn_sentry},
 };
 use common::{
     constants::POWER_UP_SPEED_MULTIPLIER,
-    markers::{SentryMarker, PlayerMarker},
+    markers::{PlayerMarker, SentryMarker},
     protocol::*,
 };
 
@@ -31,30 +31,8 @@ pub struct ServerReconciliation {
     pub rtt: f32,
 }
 
-// ============================================================================
-// SystemParam Bundles
-// ============================================================================
-
-// Bundle of common queries used in network message processing
-#[derive(bevy::ecs::system::SystemParam)]
-pub struct NetworkQueries<'w, 's> {
-    pub player_positions: Query<'w, 's, &'static Position, With<PlayerMarker>>,
-    pub sentry_positions: Query<'w, 's, &'static Position, With<SentryMarker>>,
-    pub speeds: Query<'w, 's, &'static Speed>,
-    pub player_facing: Query<'w, 's, PlayerMovement, With<PlayerMarker>>,
-    pub cameras: Query<'w, 's, Entity, With<Camera3d>>,
-}
-
-// Bundle of entity maps used in network message processing
-#[derive(bevy::ecs::system::SystemParam)]
-pub struct EntityMaps<'w> {
-    pub players: ResMut<'w, PlayerMap>,
-    pub items: ResMut<'w, ItemMap>,
-    pub sentries: ResMut<'w, SentryMap>,
-}
-
-// Bundle of asset managers for spawning entities
-#[derive(bevy::ecs::system::SystemParam)]
+// System params to reduce parameter count
+#[derive(SystemParam)]
 pub struct AssetManagers<'w> {
     pub meshes: ResMut<'w, Assets<Mesh>>,
     pub materials: ResMut<'w, Assets<StandardMaterial>>,
@@ -71,11 +49,15 @@ pub fn network_server_message_system(
     mut commands: Commands,
     mut from_server: ResMut<ServerToClientChannel>,
     mut exit: MessageWriter<AppExit>,
-    mut assets: AssetManagers,
-    mut maps: EntityMaps,
+    mut players: ResMut<PlayerMap>,
+    mut items: ResMut<ItemMap>,
+    mut sentries: ResMut<SentryMap>,
     mut rtt: ResMut<RoundTripTime>,
     mut last_update_seq: ResMut<LastUpdateSeq>,
-    queries: NetworkQueries,
+    mut assets: AssetManagers,
+    player_data: Query<(&Position, &Speed, PlayerMovement), With<PlayerMarker>>,
+    sentry_positions: Query<&Position, With<SentryMarker>>,
+    cameras: Query<Entity, With<Camera3d>>,
     my_player_id: Option<Res<MyPlayerId>>,
     map_layout: Option<Res<MapLayout>>,
     time: Res<Time>,
@@ -94,13 +76,15 @@ pub fn network_server_message_system(
                         message,
                         my_id.0,
                         &mut commands,
-                        &mut assets,
-                        &mut maps.players,
-                        &mut maps.items,
-                        &mut maps.sentries,
+                        &mut players,
+                        &mut items,
+                        &mut sentries,
                         &mut rtt,
                         &mut last_update_seq,
-                        &queries,
+                        &mut assets,
+                        &player_data,
+                        &sentry_positions,
+                        &cameras,
                         &time,
                         &asset_server,
                         map_layout.as_deref(),
@@ -137,13 +121,15 @@ fn process_message_logged_in(
     msg: ServerMessage,
     my_player_id: PlayerId,
     commands: &mut Commands,
-    assets: &mut AssetManagers,
     players: &mut ResMut<PlayerMap>,
     items: &mut ResMut<ItemMap>,
     sentries: &mut ResMut<SentryMap>,
     rtt: &mut ResMut<RoundTripTime>,
     last_update_seq: &mut ResMut<LastUpdateSeq>,
-    queries: &NetworkQueries,
+    assets: &mut AssetManagers,
+    player_data: &Query<(&Position, &Speed, PlayerMovement), With<PlayerMarker>>,
+    sentry_positions: &Query<&Position, With<SentryMarker>>,
+    cameras: &Query<Entity, With<Camera3d>>,
     time: &Res<Time>,
     asset_server: &Res<AssetServer>,
     map_layout: Option<&MapLayout>,
@@ -152,36 +138,56 @@ fn process_message_logged_in(
         ServerMessage::Init(_) => {
             error!("received Init more than once");
         }
-        ServerMessage::Login(login) => handle_login_message(commands, assets, players, asset_server, login),
+        ServerMessage::Login(login) => handle_login_message(
+            commands,
+            &mut assets.meshes,
+            &mut assets.materials,
+            &mut assets.images,
+            &mut assets.graphs,
+            players,
+            asset_server,
+            login,
+        ),
         ServerMessage::Logoff(logoff) => handle_logoff_message(commands, players, logoff),
         ServerMessage::Speed(speed_msg) => {
-            handle_speed_message(commands, players, &queries.player_positions, rtt, speed_msg);
+            handle_speed_message(commands, players, &player_data, rtt, speed_msg);
         }
         ServerMessage::Face(face_msg) => handle_face_message(commands, players, face_msg),
         ServerMessage::Shot(shot_msg) => {
-            handle_shot_message(commands, assets, players, &queries.player_facing, shot_msg, map_layout);
+            handle_shot_message(
+                commands,
+                &mut assets.meshes,
+                &mut assets.materials,
+                players,
+                &player_data,
+                shot_msg,
+                map_layout,
+            );
         }
         ServerMessage::Update(update_msg) => handle_update_message(
             commands,
-            assets,
+            &mut assets.meshes,
+            &mut assets.materials,
+            &mut assets.images,
+            &mut assets.graphs,
             players,
             items,
             sentries,
             rtt,
             last_update_seq,
-            &queries.player_positions,
-            &queries.sentry_positions,
-            &queries.cameras,
+            &player_data,
+            sentry_positions,
+            cameras,
             my_player_id,
             asset_server,
             update_msg,
         ),
-        ServerMessage::Hit(hit_msg) => handle_hit_message(commands, players, &queries.cameras, my_player_id, hit_msg),
+        ServerMessage::Hit(hit_msg) => handle_hit_message(commands, players, cameras, my_player_id, hit_msg),
         ServerMessage::PlayerStatus(player_status_msg) => {
             handle_player_status_message(
                 commands,
                 players,
-                &queries.speeds,
+                &player_data,
                 player_status_msg,
                 my_player_id,
                 asset_server,
@@ -189,7 +195,17 @@ fn process_message_logged_in(
         }
         ServerMessage::Echo(echo_msg) => handle_echo_message(time, rtt, echo_msg),
         ServerMessage::Sentry(sentry_msg) => {
-            handle_sentry_message(commands, assets, sentries, rtt, &queries.sentry_positions, sentry_msg, asset_server);
+            handle_sentry_message(
+                commands,
+                &mut assets.meshes,
+                &mut assets.materials,
+                &mut assets.graphs,
+                sentries,
+                rtt,
+                sentry_positions,
+                sentry_msg,
+                asset_server,
+            );
         }
         ServerMessage::CookieCollected(cookie_msg) => {
             handle_cookie_collected_message(commands, cookie_msg, asset_server);
@@ -202,7 +218,10 @@ fn process_message_logged_in(
 
 fn handle_login_message(
     commands: &mut Commands,
-    assets: &mut AssetManagers,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    images: &mut ResMut<Assets<Image>>,
+    graphs: &mut ResMut<Assets<AnimationGraph>>,
     players: &mut ResMut<PlayerMap>,
     asset_server: &Res<AssetServer>,
     msg: SLogin,
@@ -220,10 +239,10 @@ fn handle_login_message(
     let entity = spawn_player(
         commands,
         &asset_server,
-        &mut assets.meshes,
-        &mut assets.materials,
-        &mut assets.images,
-        &mut assets.graphs,
+        meshes,
+        materials,
+        images,
+        graphs,
         msg.id.0,
         &msg.player.name,
         &msg.player.pos,
@@ -256,7 +275,7 @@ fn handle_logoff_message(commands: &mut Commands, players: &mut ResMut<PlayerMap
 fn handle_speed_message(
     commands: &mut Commands,
     players: &ResMut<PlayerMap>,
-    player_query: &Query<&Position, With<PlayerMarker>>,
+    player_data: &Query<(&Position, &Speed, PlayerMovement), With<PlayerMarker>>,
     rtt: &ResMut<RoundTripTime>,
     msg: SSpeed,
 ) {
@@ -269,7 +288,7 @@ fn handle_speed_message(
         }
 
         // Add server reconciliation if we have client position
-        if let Ok(client_pos) = player_query.get(player.entity) {
+        if let Ok((client_pos, _, _)) = player_data.get(player.entity) {
             commands.entity(player.entity).insert((
                 velocity, // Never the local player, so we can always insert velocity
                 ServerReconciliation {
@@ -295,9 +314,10 @@ fn handle_face_message(commands: &mut Commands, players: &ResMut<PlayerMap>, msg
 
 fn handle_shot_message(
     commands: &mut Commands,
-    assets: &mut AssetManagers,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
     players: &ResMut<PlayerMap>,
-    player_face_query: &Query<PlayerMovement, With<PlayerMarker>>,
+    player_data: &Query<(&Position, &Speed, PlayerMovement), With<PlayerMarker>>,
     msg: SShot,
     map_layout: Option<&MapLayout>,
 ) {
@@ -306,13 +326,13 @@ fn handle_shot_message(
         commands.entity(player.entity).insert(FaceDirection(msg.face_dir));
 
         // Spawn projectile(s) based on player's multi-shot power-up status
-        if let Ok(player_facing) = player_face_query.get(player.entity)
+        if let Ok((_, _, player_facing)) = player_data.get(player.entity)
             && let Some(map_layout) = map_layout
         {
             spawn_projectiles(
                 commands,
-                &mut assets.meshes,
-                &mut assets.materials,
+                meshes,
+                materials,
                 player_facing.position,
                 msg.face_dir,
                 msg.face_pitch,
@@ -328,13 +348,16 @@ fn handle_shot_message(
 
 fn handle_update_message(
     commands: &mut Commands,
-    assets: &mut AssetManagers,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    images: &mut ResMut<Assets<Image>>,
+    graphs: &mut ResMut<Assets<AnimationGraph>>,
     players: &mut ResMut<PlayerMap>,
     items: &mut ResMut<ItemMap>,
     sentries: &mut ResMut<SentryMap>,
     rtt: &ResMut<RoundTripTime>,
     last_update_seq: &mut ResMut<LastUpdateSeq>,
-    player_query: &Query<&Position, With<PlayerMarker>>,
+    player_data: &Query<(&Position, &Speed, PlayerMovement), With<PlayerMarker>>,
     sentry_query: &Query<&Position, With<SentryMarker>>,
     camera_query: &Query<Entity, With<Camera3d>>,
     my_player_id: PlayerId,
@@ -355,25 +378,41 @@ fn handle_update_message(
 
     handle_players_update(
         commands,
-        assets,
+        meshes,
+        materials,
+        images,
+        graphs,
         players,
         rtt,
-        player_query,
+        player_data,
         camera_query,
         my_player_id,
         asset_server,
         &msg.players,
     );
-    handle_items_update(commands, assets, items, asset_server, &msg.items);
-    handle_sentrys_update(commands, assets, sentries, rtt, sentry_query, &msg.sentries, asset_server);
+    handle_items_update(commands, meshes, materials, items, asset_server, &msg.items);
+    handle_sentrys_update(
+        commands,
+        meshes,
+        materials,
+        graphs,
+        sentries,
+        rtt,
+        sentry_query,
+        &msg.sentries,
+        asset_server,
+    );
 }
 
 fn handle_players_update(
     commands: &mut Commands,
-    assets: &mut AssetManagers,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    images: &mut ResMut<Assets<Image>>,
+    graphs: &mut ResMut<Assets<AnimationGraph>>,
     players: &mut ResMut<PlayerMap>,
     rtt: &ResMut<RoundTripTime>,
-    player_query: &Query<&Position, With<PlayerMarker>>,
+    player_data: &Query<(&Position, &Speed, PlayerMovement), With<PlayerMarker>>,
     camera_query: &Query<Entity, With<Camera3d>>,
     my_player_id: PlayerId,
     asset_server: &Res<AssetServer>,
@@ -398,10 +437,10 @@ fn handle_players_update(
         let entity = spawn_player(
             commands,
             &asset_server,
-            &mut assets.meshes,
-            &mut assets.materials,
-            &mut assets.images,
-            &mut assets.graphs,
+            meshes,
+            materials,
+            images,
+            graphs,
             id.0,
             &player.name,
             &player.pos,
@@ -450,7 +489,7 @@ fn handle_players_update(
     // Update existing players with server state
     for (id, server_player) in server_players {
         if let Some(client_player) = players.0.get_mut(id) {
-            if let Ok(client_pos) = player_query.get(client_player.entity) {
+            if let Ok((client_pos, _, _)) = player_data.get(client_player.entity) {
                 let mut server_vel = server_player.speed.to_velocity();
                 if server_player.speed_power_up {
                     server_vel.x *= POWER_UP_SPEED_MULTIPLIER;
@@ -481,7 +520,8 @@ fn handle_players_update(
 
 fn handle_items_update(
     commands: &mut Commands,
-    assets: &mut AssetManagers,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
     items: &mut ResMut<ItemMap>,
     asset_server: &Res<AssetServer>,
     server_items: &[(ItemId, Item)],
@@ -495,8 +535,8 @@ fn handle_items_update(
         }
         let entity = spawn_item(
             commands,
-            &mut assets.meshes,
-            &mut assets.materials,
+            meshes,
+            materials,
             asset_server,
             *item_id,
             item.item_type,
@@ -522,7 +562,9 @@ fn handle_items_update(
 
 fn handle_sentrys_update(
     commands: &mut Commands,
-    assets: &mut AssetManagers,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    graphs: &mut ResMut<Assets<AnimationGraph>>,
     sentries: &mut ResMut<SentryMap>,
     rtt: &ResMut<RoundTripTime>,
     sentry_query: &Query<&Position, With<SentryMarker>>,
@@ -538,10 +580,10 @@ fn handle_sentrys_update(
         }
         let entity = spawn_sentry(
             commands,
-            &mut assets.meshes,
-            &mut assets.materials,
+            meshes,
+            materials,
             &asset_server,
-            &mut assets.graphs,
+            graphs,
             *sentry_id,
             &server_sentry.pos,
             &server_sentry.vel,
@@ -649,7 +691,7 @@ fn handle_echo_message(time: &Time, rtt: &mut ResMut<RoundTripTime>, msg: SEcho)
 fn handle_player_status_message(
     commands: &mut Commands,
     players: &mut ResMut<PlayerMap>,
-    speeds: &Query<&Speed>,
+    player_data: &Query<(&Position, &Speed, PlayerMovement), With<PlayerMarker>>,
     msg: SPlayerStatus,
     my_player_id: PlayerId,
     asset_server: &AssetServer,
@@ -675,7 +717,7 @@ fn handle_player_status_message(
 
         // If speed power-up status changed, recalculate velocity
         if player_info.speed_power_up != msg.speed_power_up
-            && let Ok(speed) = speeds.get(player_info.entity)
+            && let Ok((_, speed, _)) = player_data.get(player_info.entity)
         {
             let mut velocity = speed.to_velocity();
             if msg.speed_power_up {
@@ -696,7 +738,9 @@ fn handle_player_status_message(
 
 fn handle_sentry_message(
     commands: &mut Commands,
-    assets: &mut AssetManagers,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    graphs: &mut ResMut<Assets<AnimationGraph>>,
     sentries: &mut ResMut<SentryMap>,
     rtt: &ResMut<RoundTripTime>,
     sentry_query: &Query<&Position, With<SentryMarker>>,
@@ -719,18 +763,20 @@ fn handle_sentry_message(
             ));
         } else {
             // No client position yet, just set server state
-            commands
-                .entity(sentry_info.entity)
-                .insert((msg.sentry.pos, msg.sentry.vel, FaceDirection(msg.sentry.face_dir)));
+            commands.entity(sentry_info.entity).insert((
+                msg.sentry.pos,
+                msg.sentry.vel,
+                FaceDirection(msg.sentry.face_dir),
+            ));
         }
     } else {
         // Spawn new sentry
         let entity = spawn_sentry(
             commands,
-            &mut assets.meshes,
-            &mut assets.materials,
+            meshes,
+            materials,
             &asset_server,
-            &mut assets.graphs,
+            graphs,
             msg.id,
             &msg.sentry.pos,
             &msg.sentry.vel,

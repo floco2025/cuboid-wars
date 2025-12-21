@@ -1,32 +1,18 @@
-use bevy::{ecs::system::SystemParam, prelude::*};
-use rand::Rng;
+use bevy::prelude::*;
+use rand::prelude::*;
 
 use crate::{
     net::{ClientToServer, ServerToClient},
-    resources::{FromAcceptChannel, FromClientsChannel, SentryMap, ItemMap, PlayerInfo, PlayerMap},
+    resources::{FromAcceptChannel, FromClientsChannel, GridConfig, ItemMap, PlayerInfo, PlayerMap, SentryMap},
 };
 use common::protocol::MapLayout;
 use common::{
-    collision::{players::overlap_player_vs_wall, projectiles::Projectile},
+    collision::projectiles::Projectile,
     constants::*,
-    map::is_on_ramp,
-    markers::{PlayerMarker, ProjectileMarker},
+    markers::{ItemMarker, PlayerMarker, ProjectileMarker, SentryMarker},
     protocol::*,
     spawning::calculate_projectile_spawns,
 };
-
-// ============================================================================
-// SystemParam Bundles
-// ============================================================================
-
-// Groups commonly used queries for network message processing
-#[derive(SystemParam)]
-pub struct NetworkEntityQueries<'w, 's> {
-    pub positions: Query<'w, 's, &'static Position>,
-    pub speeds: Query<'w, 's, &'static Speed>,
-    pub face_dirs: Query<'w, 's, &'static FaceDirection>,
-    pub velocities: Query<'w, 's, &'static Velocity>,
-}
 
 // ============================================================================
 // Helper Functions
@@ -50,7 +36,10 @@ pub fn broadcast_to_all(players: &PlayerMap, message: ServerMessage) {
     }
 }
 
-fn snapshot_logged_in_players(players: &PlayerMap, queries: &NetworkEntityQueries) -> Vec<(PlayerId, Player)> {
+fn snapshot_logged_in_players(
+    players: &PlayerMap,
+    player_data: &Query<(&Position, &Speed, &FaceDirection), With<PlayerMarker>>,
+) -> Vec<(PlayerId, Player)> {
     players
         .0
         .iter()
@@ -58,9 +47,7 @@ fn snapshot_logged_in_players(players: &PlayerMap, queries: &NetworkEntityQuerie
             if !info.logged_in {
                 return None;
             }
-            let pos = queries.positions.get(info.entity).ok()?;
-            let speed = queries.speeds.get(info.entity).ok()?;
-            let face_dir = queries.face_dirs.get(info.entity).ok()?;
+            let (pos, speed, face_dir) = player_data.get(info.entity).ok()?;
             Some((
                 *player_id,
                 Player {
@@ -81,7 +68,7 @@ fn snapshot_logged_in_players(players: &PlayerMap, queries: &NetworkEntityQuerie
 }
 
 // Build the authoritative item list that gets replicated to clients.
-fn collect_items(items: &ItemMap, positions: &Query<&Position>) -> Vec<(ItemId, Item)> {
+fn collect_items(items: &ItemMap, item_positions: &Query<&Position, With<ItemMarker>>) -> Vec<(ItemId, Item)> {
     items
         .0
         .iter()
@@ -90,7 +77,7 @@ fn collect_items(items: &ItemMap, positions: &Query<&Position>) -> Vec<(ItemId, 
             info.item_type != ItemType::Cookie || info.spawn_time == 0.0
         })
         .map(|(id, info)| {
-            let pos_component = positions.get(info.entity).expect("Item entity missing Position");
+            let pos_component = item_positions.get(info.entity).expect("Item entity missing Position");
             (
                 *id,
                 Item {
@@ -103,23 +90,16 @@ fn collect_items(items: &ItemMap, positions: &Query<&Position>) -> Vec<(ItemId, 
 }
 
 // Build the authoritative sentry list that gets replicated to clients.
-fn collect_sentries(sentries: &SentryMap, queries: &NetworkEntityQueries) -> Vec<(SentryId, Sentry)> {
+fn collect_sentries(
+    sentries: &SentryMap,
+    sentry_data: &Query<(&Position, &Velocity, &FaceDirection), With<SentryMarker>>,
+) -> Vec<(SentryId, Sentry)> {
     sentries
         .0
         .iter()
         .map(|(id, info)| {
-            let pos_component = queries
-                .positions
-                .get(info.entity)
-                .expect("Sentry entity missing Position");
-            let vel_component = queries
-                .velocities
-                .get(info.entity)
-                .expect("Sentry entity missing Velocity");
-            let face_dir_component = queries
-                .face_dirs
-                .get(info.entity)
-                .expect("Sentry entity missing FaceDirection");
+            let (pos_component, vel_component, face_dir_component) =
+                sentry_data.get(info.entity).expect("Sentry entity missing components");
             (
                 *id,
                 Sentry {
@@ -132,35 +112,87 @@ fn collect_sentries(sentries: &SentryMap, queries: &NetworkEntityQueries) -> Vec
         .collect()
 }
 
-// Try to find a spawn point that does not intersect any generated wall or ramp.
-fn generate_player_spawn_position(map_layout: &MapLayout) -> Position {
+// Generate a spawn position in a random grid cell without a ramp,
+// spawning in the inner 50% of the cell to avoid walls.
+fn generate_player_spawn_position(
+    grid_config: &GridConfig,
+    players: &PlayerMap,
+    sentries: &SentryMap,
+    player_data: &Query<(&Position, &Speed, &FaceDirection), With<PlayerMarker>>,
+    sentry_data: &Query<(&Position, &Velocity, &FaceDirection), With<SentryMarker>>,
+) -> Position {
+    use common::constants::{FIELD_DEPTH, FIELD_WIDTH, GRID_SIZE};
+
     let mut rng = rand::rng();
+    let grid_rows = grid_config.grid.len() as i32;
+    let grid_cols = grid_config.grid[0].len() as i32;
     let max_attempts = 100;
+    const MIN_DISTANCE: f32 = 10.0; // Minimum distance from other entities
+
+    // Collect all cells without ramps
+    let mut valid_cells = Vec::new();
+    for row in 0..grid_rows {
+        for col in 0..grid_cols {
+            if !grid_config.grid[row as usize][col as usize].has_ramp {
+                valid_cells.push((row, col));
+            }
+        }
+    }
+
+    if valid_cells.is_empty() {
+        warn!("no valid spawn cells found (all have ramps), spawning at center");
+        return Position::default();
+    }
 
     for _ in 0..max_attempts {
+        // Pick a random valid cell
+        let &(row, col) = valid_cells.choose(&mut rng).unwrap();
+
+        // Calculate cell center in world coordinates
+        let cell_center_x = (col as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+        let cell_center_z = (row as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+
+        // Spawn in inner 50% of the cell (25% margin from each edge)
+        let spawn_range = GRID_SIZE * 0.5 / 2.0; // 50% of cell size / 2 for radius
+
         let pos = Position {
-            x: rng.random_range(-FIELD_WIDTH / 2.0..=FIELD_WIDTH / 2.0),
+            x: cell_center_x + rng.random_range(-spawn_range..=spawn_range),
             y: 0.0,
-            z: rng.random_range(-FIELD_DEPTH / 2.0..=FIELD_DEPTH / 2.0),
+            z: cell_center_z + rng.random_range(-spawn_range..=spawn_range),
         };
 
-        // Check if position intersects with any wall
-        let intersects = map_layout
-            .lower_walls
-            .iter()
-            .any(|wall| overlap_player_vs_wall(&pos, wall));
+        // Check if position is too close to any existing player
+        let too_close_to_player = players
+            .0
+            .values()
+            .filter(|p| p.logged_in)
+            .filter_map(|p| player_data.get(p.entity).ok())
+            .any(|(p_pos, _, _)| {
+                let dx = pos.x - p_pos.x;
+                let dz = pos.z - p_pos.z;
+                dx * dx + dz * dz < MIN_DISTANCE * MIN_DISTANCE
+            });
 
-        // Check if position is on a ramp
-        let on_ramp = is_on_ramp(&map_layout.ramps, pos.x, pos.z);
+        // Check if position is too close to any sentry
+        let too_close_to_sentry =
+            sentries
+                .0
+                .values()
+                .filter_map(|s| sentry_data.get(s.entity).ok())
+                .any(|(s_pos, _, _)| {
+                    let dx = pos.x - s_pos.x;
+                    let dz = pos.z - s_pos.z;
+                    dx * dx + dz * dz < MIN_DISTANCE * MIN_DISTANCE
+                });
 
-        if !intersects && !on_ramp {
+        if !too_close_to_player && !too_close_to_sentry {
             return pos;
         }
     }
 
-    // Fallback: return center if we couldn't find a valid position
+    // Fallback: return center if we somehow failed
     warn!(
-        "could not find spawn position without wall collision after {} attempts, spawning at center",
+        "Could not generate spawn position after {} attempts, spawning at center",
         max_attempts
     );
     Position::default()
@@ -210,9 +242,12 @@ pub fn network_client_message_system(
     mut players: ResMut<PlayerMap>,
     time: Res<Time>,
     map_layout: Res<MapLayout>,
+    grid_config: Res<GridConfig>,
     items: Res<ItemMap>,
     sentries: Res<SentryMap>,
-    queries: NetworkEntityQueries,
+    player_data: Query<(&Position, &Speed, &FaceDirection), With<PlayerMarker>>,
+    item_positions: Query<&Position, With<ItemMarker>>,
+    sentry_data: Query<(&Position, &Velocity, &FaceDirection), With<SentryMarker>>,
 ) {
     while let Ok((id, event)) = from_clients.try_recv() {
         let Some(player_info) = players.0.get(&id) else {
@@ -244,7 +279,7 @@ pub fn network_client_message_system(
                         message,
                         &mut players,
                         &time,
-                        &queries,
+                        &player_data,
                         &map_layout,
                     );
                 } else {
@@ -253,11 +288,14 @@ pub fn network_client_message_system(
                         player_info.entity,
                         id,
                         message,
-                        &queries,
                         &mut players,
                         &map_layout,
+                        &grid_config,
                         &items,
                         &sentries,
+                        &player_data,
+                        &item_positions,
+                        &sentry_data,
                     );
                 }
             }
@@ -274,11 +312,14 @@ fn process_message_not_logged_in(
     entity: Entity,
     id: PlayerId,
     msg: ClientMessage,
-    queries: &NetworkEntityQueries,
     players: &mut ResMut<PlayerMap>,
     map_layout: &Res<MapLayout>,
+    grid_config: &Res<GridConfig>,
     items: &Res<ItemMap>,
     sentries: &Res<SentryMap>,
+    player_data: &Query<(&Position, &Speed, &FaceDirection), With<PlayerMarker>>,
+    item_positions: &Query<&Position, With<ItemMarker>>,
+    sentry_data: &Query<(&Position, &Velocity, &FaceDirection), With<SentryMarker>>,
 ) {
     match msg {
         ClientMessage::Login(login) => {
@@ -313,7 +354,7 @@ fn process_message_not_logged_in(
             }
 
             // Generate random initial position for the new player
-            let pos = generate_player_spawn_position(map_layout);
+            let pos = generate_player_spawn_position(grid_config, players, sentries, player_data, sentry_data);
 
             // Calculate initial facing direction toward center
             let face_dir = (-pos.x).atan2(-pos.z);
@@ -340,7 +381,7 @@ fn process_message_not_logged_in(
             };
 
             // Construct the initial Update for the new player
-            let mut all_players = snapshot_logged_in_players(players, queries)
+            let mut all_players = snapshot_logged_in_players(players, player_data)
                 .into_iter()
                 .filter(|(player_id, _)| *player_id != id)
                 .collect::<Vec<_>>();
@@ -348,10 +389,10 @@ fn process_message_not_logged_in(
             all_players.push((id, player.clone()));
 
             // Collect all items for the initial update
-            let all_items = collect_items(items, &queries.positions);
+            let all_items = collect_items(items, item_positions);
 
             // Collect all sentries for the initial update
-            let all_sentries = collect_sentries(sentries, queries);
+            let all_sentries = collect_sentries(sentries, sentry_data);
 
             // Send the initial Update to the new player
             let update_msg = ServerMessage::Update(SUpdate {
@@ -386,7 +427,7 @@ fn process_message_logged_in(
     msg: ClientMessage,
     players: &mut PlayerMap,
     time: &Res<Time>,
-    queries: &NetworkEntityQueries,
+    player_data: &Query<(&Position, &Speed, &FaceDirection), With<PlayerMarker>>,
     map_layout: &MapLayout,
 ) {
     match msg {
@@ -406,7 +447,7 @@ fn process_message_logged_in(
         }
         ClientMessage::Speed(msg) => {
             trace!("{:?} speed: {:?}", id, msg);
-            handle_speed(commands, entity, id, msg, &*players, &queries.positions);
+            handle_speed(commands, entity, id, msg, &*players, player_data);
         }
         ClientMessage::Face(msg) => {
             trace!("{:?} face direction: {}", id, msg.dir);
@@ -414,7 +455,7 @@ fn process_message_logged_in(
         }
         ClientMessage::Shot(msg) => {
             debug!("{id:?} shot");
-            handle_shot(commands, entity, id, msg, players, time, &queries.positions, map_layout);
+            handle_shot(commands, entity, id, msg, players, time, player_data, map_layout);
         }
         ClientMessage::Echo(msg) => {
             trace!("{:?} echo: {:?}", id, msg);
@@ -438,13 +479,13 @@ fn handle_speed(
     id: PlayerId,
     msg: CSpeed,
     players: &PlayerMap,
-    positions: &Query<&Position>,
+    player_data: &Query<(&Position, &Speed, &FaceDirection), With<PlayerMarker>>,
 ) {
     // Update the player's speed
     commands.entity(entity).insert(msg.speed);
 
     // Get current position for reconciliation
-    if let Ok(pos) = positions.get(entity) {
+    if let Ok((pos, _, _)) = player_data.get(entity) {
         // Broadcast speed update with position to all other logged-in players
         broadcast_to_others(
             players,
@@ -472,7 +513,7 @@ fn handle_shot(
     msg: CShot,
     players: &mut PlayerMap,
     time: &Res<Time>,
-    positions: &Query<&Position>,
+    player_data: &Query<(&Position, &Speed, &FaceDirection), With<PlayerMarker>>,
     map_layout: &MapLayout,
 ) {
     let now = time.elapsed_secs();
@@ -495,7 +536,7 @@ fn handle_shot(
     commands.entity(entity).insert(FaceDirection(msg.face_dir));
 
     // Spawn projectile(s) on server for hit detection
-    if let Ok(pos) = positions.get(entity) {
+    if let Ok((pos, _, _)) = player_data.get(entity) {
         // Calculate valid projectile spawn positions (all_walls excludes roof-edge guards)
         let spawns = calculate_projectile_spawns(
             pos,
@@ -541,10 +582,12 @@ pub fn network_broadcast_state_system(
     time: Res<Time>,
     mut timer: Local<f32>,
     mut seq: Local<u32>,
-    queries: NetworkEntityQueries,
     players: Res<PlayerMap>,
     items: Res<ItemMap>,
     sentries: Res<SentryMap>,
+    player_data: Query<(&Position, &Speed, &FaceDirection), With<PlayerMarker>>,
+    item_positions: Query<&Position, With<ItemMarker>>,
+    sentry_data: Query<(&Position, &Velocity, &FaceDirection), With<SentryMarker>>,
 ) {
     *timer += time.delta_secs();
     if *timer < UPDATE_BROADCAST_INTERVAL {
@@ -560,13 +603,13 @@ pub fn network_broadcast_state_system(
     }
 
     // Collect all logged-in players
-    let all_players = snapshot_logged_in_players(&players, &queries);
+    let all_players = snapshot_logged_in_players(&players, &player_data);
 
     // Collect all items
-    let all_items = collect_items(&items, &queries.positions);
+    let all_items = collect_items(&items, &item_positions);
 
     // Collect all sentries
-    let all_sentries = collect_sentries(&sentries, &queries);
+    let all_sentries = collect_sentries(&sentries, &sentry_data);
 
     // Broadcast to all logged-in clients
     let msg = ServerMessage::Update(SUpdate {

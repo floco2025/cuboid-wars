@@ -2,13 +2,13 @@ use bevy::prelude::*;
 
 use crate::{
     constants::{SENTRY_HIT_REWARD, SENTRY_TARGET_DURATION},
-    resources::{SentryMap, SentryMode, PlayerMap},
+    resources::{PlayerMap, SentryMap, SentryMode},
 };
 use common::protocol::MapLayout;
 use common::{
     collision::projectiles::{Projectile, projectile_hits_sentry, sweep_projectile_vs_player},
     constants::ALWAYS_SENTRY_HUNT,
-    markers::{SentryMarker, PlayerMarker, ProjectileMarker},
+    markers::{PlayerMarker, ProjectileMarker, SentryMarker},
     protocol::*,
 };
 

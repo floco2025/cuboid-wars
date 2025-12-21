@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 use super::helpers::count_cell_walls;
 use crate::{
-    constants::{ROOF_OVERLAP, ROOF_NEIGHBOR_PREFERENCE, ROOF_NUM_SEGMENTS},
+    constants::{ROOF_NEIGHBOR_PREFERENCE, ROOF_NUM_SEGMENTS, ROOF_OVERLAP},
     resources::GridCell,
 };
 use common::{constants::*, protocol::Roof};

@@ -2,7 +2,7 @@ use super::helpers::{
     overlap_aabb_vs_wall, ranges_overlap_1d, slide_along_axes, sweep_aabb_vs_wall, sweep_slab_interval,
 };
 use crate::{
-    constants::{SENTRY_DEPTH, SENTRY_HEIGHT, SENTRY_WIDTH, PLAYER_DEPTH, PLAYER_HEIGHT, PLAYER_WIDTH},
+    constants::{PLAYER_DEPTH, PLAYER_HEIGHT, PLAYER_WIDTH, SENTRY_DEPTH, SENTRY_HEIGHT, SENTRY_WIDTH},
     protocol::{Position, Ramp, Wall},
 };
 
