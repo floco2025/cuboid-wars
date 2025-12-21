@@ -102,10 +102,14 @@ pub fn projectiles_movement_system(
             continue;
         }
 
-        // Check sentry collisions - projectiles always hit sentries
+        // Check sentry collisions
         for (sentry_id, sentry_pos, sentry_face_dir) in sentry_query.iter() {
             // Check collision
             if projectile_hits_sentry(&proj_pos, &projectile, delta, sentry_pos, sentry_face_dir.0) {
+                let Some(sentry_info) = sentries.0.get_mut(sentry_id) else {
+                    continue;
+                };
+
                 // Check if shooter has sentry hunt power-up
                 let shooter_has_sentry_hunt = ALWAYS_SENTRY_HUNT
                     || players
@@ -114,11 +118,7 @@ pub fn projectiles_movement_system(
                         .is_some_and(|info| info.sentry_hunt_power_up_timer > 0.0);
 
                 if shooter_has_sentry_hunt {
-                    // With hunt power-up: give points, remove power-up, make sentry attack
-                    let Some(sentry_info) = sentries.0.get_mut(sentry_id) else {
-                        continue;
-                    };
-
+                    // With hunt power-up: give points and remove power-up
                     // Update shooter
                     if let Some(shooter_info) = players.0.get_mut(shooter_id) {
                         shooter_info.hits += SENTRY_HIT_REWARD;
@@ -139,13 +139,13 @@ pub fn projectiles_movement_system(
                             }),
                         );
                     }
-
-                    // Make sentry target the shooter (attack behavior)
-                    sentry_info.mode = SentryMode::Target;
-                    sentry_info.mode_timer = SENTRY_TARGET_DURATION;
-                    sentry_info.follow_target = Some(*shooter_id);
                 }
-                // Without hunt power-up: just despawn projectile (no points, no behavior change)
+                // Without hunt power-up: no points, just make sentry attack
+
+                // Always make sentry target the shooter (attack behavior)
+                sentry_info.mode = SentryMode::Target;
+                sentry_info.mode_timer = SENTRY_TARGET_DURATION;
+                sentry_info.follow_target = Some(*shooter_id);
 
                 // Always despawn the projectile
                 commands.entity(proj_entity).despawn();
