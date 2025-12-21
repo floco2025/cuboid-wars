@@ -1,0 +1,66 @@
+use bevy::prelude::*;
+use rand::Rng as _;
+
+use super::navigation::{pick_direction, valid_directions};
+use crate::{
+    map::cell_center,
+    resources::{GridConfig, SentryInfo, SentryMap, SentryMode, SentrySpawnConfig},
+};
+use common::{constants::*, markers::SentryMarker, protocol::*};
+
+// System to spawn initial sentries on server startup
+pub fn sentries_spawn_system(
+    mut commands: Commands,
+    mut sentries: ResMut<SentryMap>,
+    grid_config: Res<GridConfig>,
+    spawn_config: Res<SentrySpawnConfig>,
+    query: Query<&SentryId, With<SentryMarker>>,
+) {
+    // Only spawn if no sentries exist yet
+    if !query.is_empty() {
+        return;
+    }
+
+    let mut rng = rand::rng();
+
+    for i in 0..spawn_config.num_sentries {
+        // Pick a random grid cell that doesn't have a ramp
+        let (grid_x, grid_z) = loop {
+            let x = rng.random_range(0..GRID_COLS);
+            let z = rng.random_range(0..GRID_ROWS);
+
+            // Check if cell has a ramp
+            if !grid_config.grid[z as usize][x as usize].has_ramp {
+                break (x, z);
+            }
+            // If all cells have ramps (unlikely), this would loop forever,
+            // but in practice there are many non-ramp cells
+        };
+
+        // Spawn at grid center
+        let pos = cell_center(grid_x, grid_z);
+
+        // Pick a valid direction based on the cell's walls
+        let cell = &grid_config.grid[grid_z as usize][grid_x as usize];
+        let valid_directions = valid_directions(&grid_config, grid_x, grid_z, *cell);
+        let direction = pick_direction(&mut rng, &valid_directions).expect("no valid direction");
+        let vel = direction.to_velocity();
+        let face_dir = vel.x.atan2(vel.z);
+
+        let sentry_id = SentryId(i);
+        let entity = commands
+            .spawn((SentryMarker, sentry_id, pos, vel, FaceDirection(face_dir)))
+            .id();
+
+        sentries.0.insert(
+            sentry_id,
+            SentryInfo {
+                entity,
+                mode: SentryMode::Patrol,
+                mode_timer: 0.0,
+                follow_target: None,
+                at_intersection: true, // Spawned at grid center
+            },
+        );
+    }
+}
