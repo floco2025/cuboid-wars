@@ -11,7 +11,9 @@ use client::{
     config::configure_client,
     net::network_io_task,
     resources::*,
-    systems::{input::*, items::*, map::*, network::*, players::*, projectiles::*, sentries::*, skybox::*, ui::*},
+    systems::{
+        cameras::*, input::*, items::*, map::*, network::*, players::*, projectiles::*, sentries::*, skybox::*, ui::*,
+    },
 };
 use common::{net::MessageStream, protocol::*};
 
@@ -105,7 +107,12 @@ fn main() -> Result<()> {
     })
     .add_systems(
         Startup,
-        (setup_world_system, setup_skybox_from_cross.after(setup_world_system)),
+        (
+            setup_world_geometry_system,
+            setup_cameras_system,
+            setup_ui_system,
+            setup_skybox_from_cross.after(setup_world_geometry_system),
+        ),
     )
     .add_systems(
         Update,

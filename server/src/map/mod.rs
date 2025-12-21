@@ -8,18 +8,19 @@ mod walls;
 
 use rand::Rng;
 
-use crate::constants::{
-    ROOF_MERGE_SEGMENTS, ROOF_OVERLAP, WALL_2ND_PROBABILITY_RATIO, WALL_3RD_PROBABILITY_RATIO, WALL_MERGE_SEGMENTS,
-    WALL_NUM_SEGMENTS, WALL_OVERLAP,
+use crate::{
+    constants::{
+        ROOF_MERGE_SEGMENTS, ROOF_OVERLAP, WALL_2ND_PROBABILITY_RATIO, WALL_3RD_PROBABILITY_RATIO, WALL_MERGE_SEGMENTS,
+        WALL_NUM_SEGMENTS, WALL_OVERLAP,
+    },
+    resources::{GridCell, GridConfig},
 };
-use crate::resources::{GridCell, GridConfig};
 use common::{
     constants::*,
     protocol::{MapLayout, Wall},
 };
 use lights::generate_wall_lights;
 
-// Re-export public utilities
 pub use helpers::{cell_center, find_unoccupied_cell, find_unoccupied_cell_not_ramp, grid_coords_from_position};
 
 // Generate a complete map grid with walls, roofs, and ramps

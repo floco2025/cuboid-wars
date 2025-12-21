@@ -3,12 +3,10 @@ use bevy::prelude::*;
 use common::{
     collision::Projectile,
     constants::*,
-    markers::ProjectileMarker,
+    markers::{PlayerMarker, ProjectileMarker},
     protocol::*,
     spawning::{ProjectileSpawnInfo, calculate_projectile_spawns},
 };
-
-use common::markers::PlayerMarker;
 
 // ============================================================================
 // Bundles

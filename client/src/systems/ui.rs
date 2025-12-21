@@ -1,147 +1,18 @@
-use bevy::{camera::Viewport, math::Affine2, prelude::*};
+use bevy::prelude::*;
 use std::time::Duration;
 
 use crate::{
-    constants::*,
     markers::*,
     resources::{CameraViewMode, FpsMeasurement, MyPlayerId, PlayerInfo, PlayerMap, RoundTripTime},
-    spawning::{item_type_color, load_repeating_texture, load_repeating_texture_linear},
+    spawning::item_type_color,
 };
-use common::{
-    constants::{
-        FIELD_DEPTH, FIELD_WIDTH, GRID_COLS, GRID_ROWS, GRID_SIZE, PLAYER_EYE_HEIGHT_RATIO, PLAYER_HEIGHT,
-        WALL_THICKNESS,
-    },
-    protocol::{ItemType, PlayerId},
-};
+use common::protocol::{ItemType, PlayerId};
 
 // ============================================================================
 // UI Setup System
 // ============================================================================
 
-pub fn setup_world_system(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    asset_server: Res<AssetServer>,
-) {
-    // Create the ground plane
-    let mut ground_mesh = Mesh::from(Plane3d::default().mesh().size(FIELD_WIDTH, FIELD_DEPTH));
-    let _ = ground_mesh.generate_tangents();
-
-    let uv_scale = Vec2::new(
-        FIELD_WIDTH / TEXTURE_FLOOR_TILE_SIZE,
-        FIELD_DEPTH / TEXTURE_FLOOR_TILE_SIZE,
-    );
-
-    commands.spawn((
-        Mesh3d(meshes.add(ground_mesh)),
-        MeshMaterial3d(materials.add(StandardMaterial {
-            base_color_texture: Some(load_repeating_texture(&asset_server, "textures/ground/albedo.png")),
-            normal_map_texture: Some(load_repeating_texture_linear(
-                &asset_server,
-                "textures/ground/normal-dx.png",
-            )),
-            occlusion_texture: Some(load_repeating_texture_linear(&asset_server, "textures/ground/ao.png")),
-            metallic_roughness_texture: Some(load_repeating_texture_linear(
-                &asset_server,
-                "textures/ground/metallic-roughness.png",
-            )),
-            uv_transform: Affine2::from_scale(uv_scale),
-            perceptual_roughness: TEXTURE_FLOOR_ROUGHNESS,
-            metallic: TEXTURE_FLOOR_METALLIC,
-            ..default()
-        })),
-        Transform::from_xyz(0.0, 0.0, 0.0),
-        Visibility::default(),
-    ));
-
-    // Create grid lines (optional)
-    if GRID_LINES {
-        let grid_material = materials.add(Color::srgb(0.5, 0.5, 0.5)); // Grey color
-        let line_height = 0.01; // Slightly above ground to avoid z-fighting
-
-        // Vertical grid lines (along X axis, varying Z position)
-        for i in 0..=GRID_ROWS {
-            let z_pos = (i as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
-            commands.spawn((
-                Mesh3d(meshes.add(Cuboid::new(FIELD_WIDTH, line_height, WALL_THICKNESS))),
-                MeshMaterial3d(grid_material.clone()),
-                Transform::from_xyz(0.0, line_height / 2.0, z_pos),
-            ));
-        }
-
-        // Horizontal grid lines (along Z axis, varying X position)
-        for i in 0..=GRID_COLS {
-            let x_pos = (i as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-            commands.spawn((
-                Mesh3d(meshes.add(Cuboid::new(WALL_THICKNESS, line_height, FIELD_DEPTH))),
-                MeshMaterial3d(grid_material.clone()),
-                Transform::from_xyz(x_pos, line_height / 2.0, 0.0),
-            ));
-        }
-    }
-
-    // Add main camera (initial position will be immediately overridden by sync system)
-    commands.spawn((
-        IsDefaultUiCamera, // Mark this as the UI camera
-        MainCameraMarker,
-        Camera3d::default(),
-        Camera {
-            // Render first to full window
-            order: 0,
-            ..default()
-        },
-        Projection::from(PerspectiveProjection {
-            fov: FPV_CAMERA_FOV_DEGREES.to_radians(),
-            ..default()
-        }),
-        Transform::from_xyz(0.0, PLAYER_HEIGHT * PLAYER_EYE_HEIGHT_RATIO, 0.0)
-            .looking_at(Vec3::new(0.0, 0.0, -1.0), Vec3::Y),
-    ));
-
-    // Add rearview mirror camera (renders to lower-right viewport)
-    commands.spawn((
-        RearviewCameraMarker,
-        Camera3d::default(),
-        Camera {
-            // Render after main camera to its viewport only
-            order: 1,
-            // Viewport will be set by rearview_camera_viewport_system
-            viewport: Some(Viewport {
-                physical_position: UVec2::ZERO,
-                physical_size: UVec2::new(100, 100),
-                depth: 0.0..1.0,
-            }),
-            // Don't clear the viewport - render on top
-            clear_color: bevy::camera::ClearColorConfig::None,
-            ..default()
-        },
-        Projection::from(PerspectiveProjection {
-            fov: REARVIEW_FOV_DEGREES.to_radians(),
-            ..default()
-        }),
-        Transform::from_xyz(0.0, PLAYER_HEIGHT * PLAYER_EYE_HEIGHT_RATIO, 0.0)
-            .looking_at(Vec3::new(0.0, 0.0, 1.0), Vec3::Y), // Looking backwards (positive Z)
-    ));
-
-    // Add soft directional light from above for shadows and definition
-    commands.spawn((
-        DirectionalLight {
-            illuminance: LIGHT_DIRECTIONAL_BRIGHTNESS,
-            shadows_enabled: true,
-            ..default()
-        },
-        Transform::from_xyz(5.0, 15.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
-    ));
-
-    // Add ambient light for diffuse fill lighting
-    commands.insert_resource(AmbientLight {
-        color: Color::WHITE,
-        brightness: LIGHT_AMBIENT_BRIGHTNESS,
-        affects_lightmapped_meshes: false,
-    });
-
+pub fn setup_ui_system(mut commands: Commands) {
     // Create player list UI
     commands.spawn((
         PlayerListUIMarker,

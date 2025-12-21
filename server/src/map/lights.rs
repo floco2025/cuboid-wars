@@ -1,6 +1,8 @@
 use crate::{constants::WALL_LIGHT_HEIGHT, resources::GridCell};
-use common::constants::{FIELD_DEPTH, FIELD_WIDTH, GRID_SIZE, WALL_THICKNESS};
-use common::protocol::{Position, WallLight};
+use common::{
+    constants::{FIELD_DEPTH, FIELD_WIDTH, GRID_SIZE, WALL_THICKNESS},
+    protocol::{Position, WallLight},
+};
 
 const MODEL_INSET: f32 = WALL_THICKNESS / 2.0 + 0.02; // place fixture just inside the cell away from wall surface
 
