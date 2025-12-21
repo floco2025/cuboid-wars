@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
-use crate::{resources::PlayerMap, systems::network::broadcast_to_all};
+use super::network::broadcast_to_all;
+use crate::resources::PlayerMap;
 use common::protocol::MapLayout;
 use common::{
     collision::players::{slide_player_along_obstacles, sweep_player_vs_ramp_edges, sweep_player_vs_wall},

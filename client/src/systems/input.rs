@@ -6,7 +6,6 @@ use bevy::{
 };
 
 use super::players::PlayerMovementMut;
-use crate::spawning::projectile::spawn_projectiles;
 use crate::{
     constants::*,
     markers::{LocalPlayerMarker, MainCameraMarker},
@@ -15,6 +14,7 @@ use crate::{
         CameraViewMode, ClientToServerChannel, InputSettings, LocalPlayerInfo, MyPlayerId, PlayerMap,
         RoofRenderingEnabled,
     },
+    spawning::projectile::spawn_projectiles,
 };
 use common::{
     constants::{ALWAYS_MULTI_SHOT, ALWAYS_SPEED, POWER_UP_SPEED_MULTIPLIER, PROJECTILE_COOLDOWN_TIME},

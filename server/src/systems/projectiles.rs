@@ -1,18 +1,16 @@
 use bevy::prelude::*;
 
+use super::network::broadcast_to_all;
 use crate::{
     constants::{SENTRY_HIT_REWARD, SENTRY_TARGET_DURATION},
     resources::{PlayerMap, SentryMap, SentryMode},
 };
-use common::protocol::MapLayout;
 use common::{
     collision::projectiles::{Projectile, projectile_hits_sentry, sweep_projectile_vs_player},
     constants::ALWAYS_SENTRY_HUNT,
     markers::{PlayerMarker, ProjectileMarker, SentryMarker},
-    protocol::*,
+    protocol::{MapLayout, *},
 };
-
-use super::network::broadcast_to_all;
 
 // ============================================================================
 // Query Bundles

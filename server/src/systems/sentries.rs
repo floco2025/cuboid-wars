@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use rand::Rng as _;
 
+use super::network::broadcast_to_all;
 use crate::{
     constants::*,
     map::cell_center,
@@ -19,8 +20,6 @@ use common::{
     markers::{PlayerMarker, SentryMarker},
     protocol::*,
 };
-
-use super::network::broadcast_to_all;
 
 // ============================================================================
 // Helper Functions

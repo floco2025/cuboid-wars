@@ -1,9 +1,8 @@
 use bevy::prelude::*;
 
+use super::helpers::{load_repeating_texture, load_repeating_texture_linear, tiled_cuboid};
 use crate::{constants::*, markers::*};
 use common::{constants::*, protocol::*};
-
-use super::helpers::{load_repeating_texture, load_repeating_texture_linear, tiled_cuboid};
 
 #[derive(Bundle)]
 struct RoofBundle {

@@ -1,9 +1,8 @@
 use bevy::prelude::*;
 
+use super::helpers::{build_ramp_meshes, load_repeating_texture, load_repeating_texture_linear};
 use crate::{constants::*, markers::*};
 use common::protocol::*;
-
-use super::helpers::{build_ramp_meshes, load_repeating_texture, load_repeating_texture_linear};
 
 #[derive(Bundle)]
 struct RampBundle {
