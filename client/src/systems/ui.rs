@@ -37,12 +37,13 @@ pub fn setup_world_system(
     commands.spawn((
         Mesh3d(meshes.add(ground_mesh)),
         MeshMaterial3d(materials.add(StandardMaterial {
-            base_color_texture: Some(load_repeating_texture(&asset_server, TEXTURE_FLOOR_ALBEDO)),
-            normal_map_texture: Some(load_repeating_texture_linear(&asset_server, TEXTURE_FLOOR_NORMAL)),
-            occlusion_texture: Some(load_repeating_texture_linear(&asset_server, TEXTURE_FLOOR_AO)),
+            base_color_texture: Some(load_repeating_texture(&asset_server, "textures/ground/albedo.png")),
+            normal_map_texture: Some(load_repeating_texture_linear(&asset_server, "textures/ground/normal-dx.png")),
+            occlusion_texture: Some(load_repeating_texture_linear(&asset_server, "textures/ground/ao.png")),
+            metallic_roughness_texture: Some(load_repeating_texture_linear(&asset_server, "textures/ground/metallic-roughness.png")),
             uv_transform: Affine2::from_scale(uv_scale),
-            perceptual_roughness: 0.7,
-            metallic: 0.0,
+            perceptual_roughness: TEXTURE_FLOOR_ROUGHNESS,
+            metallic: TEXTURE_FLOOR_METALLIC,
             ..default()
         })),
         Transform::from_xyz(0.0, 0.0, 0.0),

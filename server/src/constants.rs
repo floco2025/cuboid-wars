@@ -53,7 +53,7 @@ pub const COOKIE_POINTS: i32 = 1; // points per cookie
 // Items
 // ============================================================================
 
-pub const ITEM_SPAWN_INTERVAL: f32 = 1.0; //8.0; // seconds
+pub const ITEM_SPAWN_INTERVAL: f32 = 8.0; // seconds
 pub const ITEM_LIFETIME: f32 = 60.0; // seconds
 pub const ITEM_COLLECTION_RADIUS: f32 = 1.0; // meters
 

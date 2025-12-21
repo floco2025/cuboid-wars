@@ -717,7 +717,7 @@ pub fn load_repeating_texture(asset_server: &AssetServer, path: impl Into<AssetP
             mag_filter: ImageFilterMode::Linear,
             min_filter: ImageFilterMode::Linear,
             mipmap_filter: ImageFilterMode::Linear,
-            anisotropy_clamp: 8,
+            anisotropy_clamp: 16,
             ..default()
         });
     })
@@ -733,7 +733,7 @@ pub fn load_repeating_texture_linear(asset_server: &AssetServer, path: impl Into
             mag_filter: ImageFilterMode::Linear,
             min_filter: ImageFilterMode::Linear,
             mipmap_filter: ImageFilterMode::Linear,
-            anisotropy_clamp: 8,
+            anisotropy_clamp: 16,
             ..default()
         });
     })
@@ -775,11 +775,12 @@ pub fn spawn_wall(
         }
     } else {
         StandardMaterial {
-            base_color_texture: Some(load_repeating_texture(asset_server, TEXTURE_WALL_ALBEDO)),
-            normal_map_texture: Some(load_repeating_texture_linear(asset_server, TEXTURE_WALL_NORMAL)),
-            occlusion_texture: Some(load_repeating_texture_linear(asset_server, TEXTURE_WALL_AO)),
-            perceptual_roughness: 0.7,
-            metallic: 0.0,
+            base_color_texture: Some(load_repeating_texture(asset_server, "textures/wall/albedo.png")),
+            normal_map_texture: Some(load_repeating_texture_linear(asset_server, "textures/wall/normal-dx.png")),
+            occlusion_texture: Some(load_repeating_texture_linear(asset_server, "textures/wall/ao.png")),
+            metallic_roughness_texture: Some(load_repeating_texture_linear(asset_server, "textures/wall/metallic-roughness.png")),
+            perceptual_roughness: TEXTURE_WALL_ROUGHNESS,
+            metallic: TEXTURE_WALL_METALLIC,
             ..default()
         }
     };
@@ -888,11 +889,12 @@ pub fn spawn_roof(
         }
     } else {
         StandardMaterial {
-            base_color_texture: Some(load_repeating_texture(asset_server, TEXTURE_ROOF_ALBEDO)),
-            normal_map_texture: Some(load_repeating_texture_linear(asset_server, TEXTURE_ROOF_NORMAL)),
-            occlusion_texture: Some(load_repeating_texture_linear(asset_server, TEXTURE_ROOF_AO)),
-            perceptual_roughness: 0.8,
-            metallic: 0.0,
+            base_color_texture: Some(load_repeating_texture(asset_server, "textures/roof/albedo.png")),
+            normal_map_texture: Some(load_repeating_texture_linear(asset_server, "textures/roof/normal-dx.png")),
+            occlusion_texture: Some(load_repeating_texture_linear(asset_server, "textures/roof/ao.png")),
+            metallic_roughness_texture: Some(load_repeating_texture_linear(asset_server, "textures/roof/metallic-roughness.png")),
+            perceptual_roughness: TEXTURE_ROOF_ROUGHNESS,
+            metallic: TEXTURE_ROOF_METALLIC,
             ..default()
         }
     };
@@ -927,11 +929,12 @@ pub fn spawn_ramp(
 
     // Floor material for the ramp top
     let mut top_material = StandardMaterial {
-        base_color_texture: Some(load_repeating_texture(asset_server, TEXTURE_FLOOR_ALBEDO)),
-        normal_map_texture: Some(load_repeating_texture_linear(asset_server, TEXTURE_FLOOR_NORMAL)),
-        occlusion_texture: Some(load_repeating_texture_linear(asset_server, TEXTURE_FLOOR_AO)),
-        perceptual_roughness: 0.6,
-        metallic: 0.0,
+        base_color_texture: Some(load_repeating_texture(asset_server, "textures/ground/albedo.png")),
+        normal_map_texture: Some(load_repeating_texture_linear(asset_server, "textures/ground/normal-dx.png")),
+        occlusion_texture: Some(load_repeating_texture_linear(asset_server, "textures/ground/ao.png")),
+        metallic_roughness_texture: Some(load_repeating_texture_linear(asset_server, "textures/ground/metallic-roughness.png")),
+        perceptual_roughness: TEXTURE_FLOOR_ROUGHNESS,
+        metallic: TEXTURE_FLOOR_METALLIC,
         ..default()
     };
     top_material.alpha_mode = AlphaMode::Opaque;
@@ -939,11 +942,12 @@ pub fn spawn_ramp(
 
     // Wall material for the ramp sides
     let mut side_material = StandardMaterial {
-        base_color_texture: Some(load_repeating_texture(asset_server, TEXTURE_WALL_ALBEDO)),
-        normal_map_texture: Some(load_repeating_texture_linear(asset_server, TEXTURE_WALL_NORMAL)),
-        occlusion_texture: Some(load_repeating_texture_linear(asset_server, TEXTURE_WALL_AO)),
-        perceptual_roughness: 0.7,
-        metallic: 0.0,
+        base_color_texture: Some(load_repeating_texture(asset_server, "textures/wall/albedo.png")),
+        normal_map_texture: Some(load_repeating_texture_linear(asset_server, "textures/wall/normal-dx.png")),
+        occlusion_texture: Some(load_repeating_texture_linear(asset_server, "textures/wall/ao.png")),
+        metallic_roughness_texture: Some(load_repeating_texture_linear(asset_server, "textures/wall/metallic-roughness.png")),
+        perceptual_roughness: TEXTURE_WALL_ROUGHNESS,
+        metallic: TEXTURE_WALL_METALLIC,
         ..default()
     };
     side_material.alpha_mode = AlphaMode::Opaque;
@@ -1002,8 +1006,6 @@ pub fn spawn_item(
     item_type: ItemType,
     position: &Position,
 ) -> Entity {
-    let color = item_type_color(item_type);
-
     // Cookies are rendered differently - small spheres on the floor with textures
     if item_type == ItemType::Cookie {
         return commands
@@ -1013,11 +1015,12 @@ pub fn spawn_item(
                 position: *position,
                 mesh: Mesh3d(meshes.add(Sphere::new(COOKIE_SIZE))),
                 material: MeshMaterial3d(materials.add(StandardMaterial {
-                    base_color_texture: Some(asset_server.load(TEXTURE_COOKIE_ALBEDO)),
-                    normal_map_texture: Some(asset_server.load(TEXTURE_COOKIE_NORMAL)),
-                    occlusion_texture: Some(asset_server.load(TEXTURE_COOKIE_AO)),
-                    metallic: 1.0,
-                    perceptual_roughness: 0.5,
+                    base_color_texture: Some(asset_server.load("textures/cookie/albedo.png")),
+                    normal_map_texture: Some(asset_server.load("textures/cookie/normal-dx.png")),
+                    occlusion_texture: Some(asset_server.load("textures/cookie/ao.png")),
+                    metallic_roughness_texture: Some(asset_server.load("textures/cookie/metallic-roughness.png")),
+                    metallic: TEXTURE_COOKIE_METALLIC,
+                    perceptual_roughness: TEXTURE_COOKIE_ROUGHNESS,
                     ..default()
                 })),
                 transform: Transform::from_xyz(position.x, COOKIE_HEIGHT, position.z),
@@ -1036,11 +1039,14 @@ pub fn spawn_item(
                 position: *position,
                 mesh: Mesh3d(meshes.add(Cuboid::new(ITEM_SIZE, ITEM_SIZE, ITEM_SIZE))),
                 material: MeshMaterial3d(materials.add(StandardMaterial {
-                    base_color_texture: Some(asset_server.load(TEXTURE_COOKIE_ALBEDO)),
-                    normal_map_texture: Some(asset_server.load(TEXTURE_COOKIE_NORMAL)),
-                    occlusion_texture: Some(asset_server.load(TEXTURE_COOKIE_AO)),
-                    metallic: 1.0,
-                    perceptual_roughness: 0.5,
+                    base_color_texture: Some(asset_server.load("textures/item/albedo.png")),
+                    normal_map_texture: Some(asset_server.load("textures/item/normal-dx.png")),
+                    occlusion_texture: Some(asset_server.load("textures/item/ao.png")),
+                    metallic_roughness_texture: Some(asset_server.load("textures/item/metallic-roughness.png")),
+                    base_color: item_type_color(item_type),
+                    emissive: LinearRgba::from(item_type_color(item_type)) * ITEM_EMISSIVE_STRENGTH,
+                    metallic: TEXTURE_ITEM_METALLIC,
+                    perceptual_roughness: TEXTURE_ITEM_ROUGHNESS,
                     ..default()
                 })),
                 transform: Transform::from_xyz(position.x, ITEM_HEIGHT_ABOVE_FLOOR + ITEM_SIZE / 2.0, position.z),

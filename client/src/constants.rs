@@ -47,7 +47,7 @@ pub const WALL_LIGHT_SCALE: f32 = 1.5;
 pub const WALL_LIGHT_BRIGHTNESS: f32 = 100000.0;
 pub const WALL_LIGHT_RANGE: f32 = 10.0; // meters
 pub const WALL_LIGHT_INWARD_OFFSET: f32 = 0.2; // meters
-pub const WALL_LIGHT_RADIUS: f32 = 0.01;
+pub const WALL_LIGHT_RADIUS: f32 = 0.1; // Larger radius = softer specular highlights, less shimmer
 pub const WALL_LIGHT_EMISSIVE_LUMINANCE: f32 = 2.0;
 
 // Scene lighting
@@ -85,21 +85,22 @@ pub const LABEL_FONT_SIZE: f32 = 40.0; // pixels
 // Power-Up Items
 // ============================================================================
 
-pub const ITEM_SIZE: f32 = 0.8;
-pub const ITEM_HEIGHT_ABOVE_FLOOR: f32 = 1.0;
+pub const ITEM_SIZE: f32 = 0.3;
+pub const ITEM_HEIGHT_ABOVE_FLOOR: f32 = 1.2;
 pub const ITEM_ANIMATION_HEIGHT: f32 = 0.4;
-pub const ITEM_ANIMATION_SPEED: f32 = 0.1;
-pub const ITEM_SPEED_COLOR: [f32; 4] = [0.2, 0.7, 1.0, 1.0]; // Light blue
-pub const ITEM_MULTISHOT_COLOR: [f32; 4] = [1.0, 0.2, 0.2, 1.0]; // Red
-pub const ITEM_PHASING_COLOR: [f32; 4] = [0.2, 1.0, 0.2, 1.0]; // Green
+pub const ITEM_ANIMATION_SPEED: f32 = 0.8;
+pub const ITEM_EMISSIVE_STRENGTH: f32 = 0.1; // Multiplier for emissive glow
+pub const ITEM_SPEED_COLOR: [f32; 3] = [0.2, 0.7, 1.0]; // Light blue
+pub const ITEM_MULTISHOT_COLOR: [f32; 3] = [1.0, 0.2, 0.2]; // Red
+pub const ITEM_PHASING_COLOR: [f32; 3] = [0.2, 1.0, 0.2]; // Green
 pub const ITEM_SENTRY_HUNT_COLOR: [f32; 3] = [0.973, 0.973, 1.0]; // Pale blue
 
 // ============================================================================
 // Cookies
 // ============================================================================
 
-pub const COOKIE_SIZE: f32 = 0.20; // sphere radius
-pub const COOKIE_HEIGHT: f32 = 0.21; // meters above floor
+pub const COOKIE_SIZE: f32 = 0.15; // sphere radius
+pub const COOKIE_HEIGHT: f32 = 0.16; // meters above floor
 
 // ============================================================================
 // Sentries
@@ -114,38 +115,33 @@ pub const SENTRY_WALK_ANIMATION_INDEX: usize = 20; // Index of walk animation in
 pub const SENTRY_BOUNDING_BOX: bool = false; // Debug visualization
 
 // ============================================================================
-// Textures
+// Textures & Materials
 // ============================================================================
 
-// Walls
+// Tile sizes
 pub const TEXTURE_WALL_TILE_SIZE: f32 = 6.0;
-pub const TEXTURE_WALL_ALBEDO: &str = "textures/wall-albedo.png";
-pub const TEXTURE_WALL_NORMAL: &str = "textures/wall-normal-dx.png";
-pub const TEXTURE_WALL_AO: &str = "textures/wall-ao.png";
-
-// Roofs
 pub const TEXTURE_ROOF_TILE_SIZE: f32 = 6.0;
-pub const TEXTURE_ROOF_ALBEDO: &str = "textures/roof-albedo.png";
-pub const TEXTURE_ROOF_NORMAL: &str = "textures/roof-normal-dx.png";
-pub const TEXTURE_ROOF_AO: &str = "textures/roof-ao.png";
-
-// Floor
 pub const TEXTURE_FLOOR_TILE_SIZE: f32 = 8.0;
-pub const TEXTURE_FLOOR_ALBEDO: &str = "textures/floor-albedo.png";
-pub const TEXTURE_FLOOR_NORMAL: &str = "textures/floor-normal-dx.png";
-pub const TEXTURE_FLOOR_AO: &str = "textures/floor-ao.png";
 
-// Power-ups
-pub const TEXTURE_ITEM_ALBEDO: &str = "textures/item_basecolor.png";
-pub const TEXTURE_ITEM_NORMAL: &str = "textures/item_normal-dx.png";
-pub const TEXTURE_ITEM_AO: &str = "textures/item_AO.png";
+// Material properties - Walls
+pub const TEXTURE_WALL_METALLIC: f32 = 0.5;
+pub const TEXTURE_WALL_ROUGHNESS: f32 = 0.5;
 
-// Cookies
-pub const TEXTURE_COOKIE_ALBEDO: &str = "textures/cookie_albedo.png";
-pub const TEXTURE_COOKIE_NORMAL: &str = "textures/cookie_normal-dx.png";
-pub const TEXTURE_COOKIE_AO: &str = "textures/cookie_ao.png";
-pub const TEXTURE_COOKIE_METALLIC: &str = "textures/cookie_metallic.png";
-pub const TEXTURE_COOKIE_ROUGHNESS: &str = "textures/cookie_roughness.png";
+// Material properties - Roofs
+pub const TEXTURE_ROOF_METALLIC: f32 = 0.5;
+pub const TEXTURE_ROOF_ROUGHNESS: f32 = 0.5;
+
+// Material properties - Floor
+pub const TEXTURE_FLOOR_METALLIC: f32 = 0.5;
+pub const TEXTURE_FLOOR_ROUGHNESS: f32 = 0.5;
+
+// Material properties - Cookies
+pub const TEXTURE_COOKIE_METALLIC: f32 = 1.0;
+pub const TEXTURE_COOKIE_ROUGHNESS: f32 = 1.0;
+
+// Material properties - Power-ups
+pub const TEXTURE_ITEM_METALLIC: f32 = 1.0;
+pub const TEXTURE_ITEM_ROUGHNESS: f32 = 1.0;
 
 // ============================================================================
 // Debug Visualization
