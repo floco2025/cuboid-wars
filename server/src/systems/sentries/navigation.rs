@@ -15,6 +15,7 @@ pub enum GridDirection {
 impl GridDirection {
     pub const ALL: [Self; 4] = [Self::East, Self::North, Self::West, Self::South];
 
+    #[must_use] 
     pub fn to_velocity(self) -> Velocity {
         match self {
             Self::East => Velocity {
@@ -40,6 +41,7 @@ impl GridDirection {
         }
     }
 
+    #[must_use] 
     pub const fn opposite(self) -> Self {
         match self {
             Self::East => Self::West,
@@ -49,6 +51,7 @@ impl GridDirection {
         }
     }
 
+    #[must_use] 
     pub const fn is_blocked(self, cell: GridCell) -> bool {
         match self {
             Self::East => cell.has_east_wall,
@@ -59,6 +62,7 @@ impl GridDirection {
     }
 }
 
+#[must_use] 
 pub fn direction_from_velocity(vel: &Velocity) -> Option<GridDirection> {
     if vel.x > 0.0 {
         Some(GridDirection::East)
@@ -73,6 +77,7 @@ pub fn direction_from_velocity(vel: &Velocity) -> Option<GridDirection> {
     }
 }
 
+#[must_use] 
 pub fn valid_directions(grid_config: &GridConfig, grid_x: i32, grid_z: i32, cell: GridCell) -> Vec<GridDirection> {
     assert!(
         (0..GRID_COLS).contains(&grid_x) && (0..GRID_ROWS).contains(&grid_z),
@@ -99,6 +104,7 @@ pub fn valid_directions(grid_config: &GridConfig, grid_x: i32, grid_z: i32, cell
     ramp_safe
 }
 
+#[must_use] 
 pub fn direction_leads_to_ramp(grid_config: &GridConfig, grid_x: i32, grid_z: i32, dir: GridDirection) -> bool {
     assert!(
         (0..GRID_COLS).contains(&grid_x) && (0..GRID_ROWS).contains(&grid_z),
@@ -119,6 +125,7 @@ pub fn direction_leads_to_ramp(grid_config: &GridConfig, grid_x: i32, grid_z: i3
     grid_config.grid[next_z as usize][next_x as usize].has_ramp
 }
 
+#[must_use] 
 pub fn forward_directions(valid: &[GridDirection], current: GridDirection) -> Vec<GridDirection> {
     valid.iter().copied().filter(|dir| *dir != current.opposite()).collect()
 }

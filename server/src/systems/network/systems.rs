@@ -20,7 +20,7 @@ use common::{
 // ============================================================================
 
 /// Process incoming messages from clients.
-/// NOTE: Must run after accept_connections_system with apply_deferred in between,
+/// NOTE: Must run after `accept_connections_system` with `apply_deferred` in between,
 /// otherwise entities for the messages might not be spawned yet.
 pub fn network_client_message_system(
     mut commands: Commands,

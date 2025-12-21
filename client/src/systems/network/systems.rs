@@ -73,7 +73,7 @@ pub fn network_server_message_system(
 // Echo/Ping System
 // ============================================================================
 
-/// System to send echo requests every ECHO_INTERVAL seconds.
+/// System to send echo requests every `ECHO_INTERVAL` seconds.
 pub fn network_echo_system(
     time: Res<Time>,
     mut rtt: ResMut<RoundTripTime>,
