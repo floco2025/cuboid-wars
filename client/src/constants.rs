@@ -44,7 +44,7 @@ pub const PLAYER_BOUNDING_BOX: bool = false; // Debug visualization
 // Wall lights
 pub const WALL_LIGHT_MODEL: &str = "models/wall_light.glb";
 pub const WALL_LIGHT_SCALE: f32 = 1.5;
-pub const WALL_LIGHT_BRIGHTNESS: f32 = 100000.0;
+pub const WALL_LIGHT_BRIGHTNESS: f32 = 100_000.0;
 pub const WALL_LIGHT_RANGE: f32 = 10.0; // meters
 pub const WALL_LIGHT_INWARD_OFFSET: f32 = 0.2; // meters
 pub const WALL_LIGHT_RADIUS: f32 = 0.1; // Larger radius = softer specular highlights, less shimmer

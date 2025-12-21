@@ -146,7 +146,7 @@ fn generate_player_spawn_position(
 
     for _ in 0..max_attempts {
         // Pick a random valid cell
-        let &(row, col) = valid_cells.choose(&mut rng).unwrap();
+        let &(row, col) = valid_cells.choose(&mut rng).expect("valid_cells should not be empty");
 
         // Calculate cell center in world coordinates
         let cell_center_x = (col as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));

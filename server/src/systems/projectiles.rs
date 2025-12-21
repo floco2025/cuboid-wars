@@ -50,15 +50,15 @@ pub fn projectiles_movement_system(
             continue;
         }
 
-        let mut hit_something = false;
-
         // Ground bounce
-        if let Some(new_pos) = projectile.handle_ground_bounce(&proj_pos, delta) {
+        let mut hit_something = if let Some(new_pos) = projectile.handle_ground_bounce(&proj_pos, delta) {
             proj_pos.x = new_pos.x;
             proj_pos.y = new_pos.y;
             proj_pos.z = new_pos.z;
-            hit_something = true;
-        }
+            true
+        } else {
+            false
+        };
 
         // Check wall collisions
         if !hit_something {

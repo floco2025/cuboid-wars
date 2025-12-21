@@ -143,6 +143,7 @@ pub fn map_toggle_roof_visibility_system(
 // ============================================================================
 
 // System to make wall light glass materials emissive after they load
+#[allow(clippy::implicit_hasher)]
 pub fn map_make_wall_lights_emissive_system(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut processed: Local<std::collections::HashSet<AssetId<StandardMaterial>>>,

@@ -262,6 +262,7 @@ fn tiled_cuboid(size_x: f32, size_y: f32, size_z: f32, tile_size: f32) -> Mesh {
 }
 
 // Build ramp meshes split into top (uses floor texture) and sides (use wall texture).
+#[allow(clippy::many_single_char_names)]
 fn build_ramp_meshes(x1: f32, z1: f32, x2: f32, z2: f32, y_low: f32, y_high: f32) -> (Mesh, Mesh) {
     // Protocol: (x1, z1, y_low) is low corner, (x2, z2, y_high) is high corner
     let min_x = x1.min(x2);

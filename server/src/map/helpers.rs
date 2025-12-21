@@ -37,6 +37,7 @@ pub fn find_unoccupied_cell(rng: &mut ThreadRng, occupied_cells: &HashSet<(i32, 
 }
 
 // Find an unoccupied cell that's not on a ramp
+#[allow(clippy::implicit_hasher)]
 pub fn find_unoccupied_cell_not_ramp(
     rng: &mut ThreadRng,
     occupied_cells: &HashSet<(i32, i32)>,
