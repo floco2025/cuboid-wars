@@ -9,6 +9,4 @@ pub use players::{
     sweep_player_vs_wall,
 };
 pub use projectiles::{Projectile, projectile_hits_sentry, sweep_projectile_vs_player};
-pub use sentries::{
-    overlap_sentry_vs_player, slide_sentry_along_obstacles, sweep_sentry_vs_ramp_footprint, sweep_sentry_vs_wall,
-};
+pub use sentries::{overlap_sentry_vs_player, slide_sentry_along_obstacles};

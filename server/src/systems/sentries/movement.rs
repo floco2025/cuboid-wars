@@ -6,10 +6,7 @@ use crate::{
     systems::network::broadcast_to_all,
 };
 use common::{
-    collision::{
-        players::sweep_player_vs_wall,
-        sentries::{slide_sentry_along_obstacles, sweep_sentry_vs_ramp_footprint, sweep_sentry_vs_wall},
-    },
+    collision::{slide_sentry_along_obstacles, sweep_player_vs_wall},
     constants::*,
     protocol::*,
 };
@@ -344,36 +341,8 @@ pub fn target_movement(
         z: final_dir_z * SENTRY_FOLLOW_SPEED,
     };
 
-    // Calculate target position for this frame
-    let target_frame_pos = Position {
-        x: desired_vel.x.mul_add(delta, pos.x),
-        y: 0.0,
-        z: desired_vel.z.mul_add(delta, pos.z),
-    };
-
-    // Check for wall collisions and apply sliding
-    let mut final_pos = target_frame_pos;
-    let mut collides = false;
-
-    for wall in walls {
-        if sweep_sentry_vs_wall(pos, &final_pos, wall) {
-            collides = true;
-            break;
-        }
-    }
-
-    if !collides {
-        for ramp in ramps {
-            if sweep_sentry_vs_ramp_footprint(pos, &final_pos, ramp) {
-                collides = true;
-                break;
-            }
-        }
-    }
-
-    if collides {
-        final_pos = slide_sentry_along_obstacles(walls, ramps, pos, desired_vel.x, desired_vel.z, delta);
-    }
+    // Apply sliding movement
+    let final_pos = slide_sentry_along_obstacles(walls, ramps, pos, desired_vel.x, desired_vel.z, delta);
 
     let actual_dx = final_pos.x - pos.x;
     let actual_dz = final_pos.z - pos.z;

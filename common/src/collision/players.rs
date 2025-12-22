@@ -1,17 +1,11 @@
 use super::helpers::{
-    overlap_aabb_vs_wall, slide_along_axes, sweep_aabb_vs_aabb, sweep_aabb_vs_wall, sweep_ramp_edges,
-    sweep_ramp_high_cap,
+    slide_along_axes, sweep_aabb_vs_aabb, sweep_aabb_vs_wall, sweep_ramp_edges, sweep_ramp_high_cap,
 };
 use crate::{
     constants::{PLAYER_DEPTH, PLAYER_HEIGHT, PLAYER_WIDTH, ROOF_HEIGHT, WALL_THICKNESS},
     map::height_on_ramp,
     protocol::{Position, Ramp, Roof, Wall},
 };
-
-#[must_use]
-pub fn overlap_player_vs_wall(player_pos: &Position, wall: &Wall) -> bool {
-    overlap_aabb_vs_wall(player_pos, wall, PLAYER_WIDTH / 2.0, PLAYER_DEPTH / 2.0)
-}
 
 #[must_use]
 pub fn sweep_player_vs_wall(start_pos: &Position, end_pos: &Position, wall: &Wall) -> bool {

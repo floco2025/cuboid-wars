@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use super::network::ServerReconciliation;
 use common::{
-    collision::{slide_sentry_along_obstacles, sweep_sentry_vs_ramp_footprint, sweep_sentry_vs_wall},
+    collision::slide_sentry_along_obstacles,
     constants::{SENTRY_HEIGHT, UPDATE_BROADCAST_INTERVAL},
     markers::SentryMarker,
     protocol::{FaceDirection, MapLayout, Position, Velocity},
@@ -79,37 +79,14 @@ fn apply_sentry_wall_sliding(
         return *target_pos;
     };
 
-    let mut collides = false;
-
-    for wall in &map_layout.lower_walls {
-        if sweep_sentry_vs_wall(current_pos, target_pos, wall) {
-            collides = true;
-            break;
-        }
-    }
-
-    if !collides {
-        for ramp in &map_layout.ramps {
-            if sweep_sentry_vs_ramp_footprint(current_pos, target_pos, ramp) {
-                collides = true;
-                break;
-            }
-        }
-    }
-
-    if collides {
-        // Apply the same slide logic as server: walls + ramp footprints
-        slide_sentry_along_obstacles(
-            &map_layout.lower_walls,
-            &map_layout.ramps,
-            current_pos,
-            velocity.x,
-            velocity.z,
-            delta,
-        )
-    } else {
-        *target_pos
-    }
+    slide_sentry_along_obstacles(
+        &map_layout.lower_walls,
+        &map_layout.ramps,
+        current_pos,
+        velocity.x,
+        velocity.z,
+        delta,
+    )
 }
 
 // ============================================================================

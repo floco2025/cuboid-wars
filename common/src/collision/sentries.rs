@@ -1,23 +1,16 @@
-use super::helpers::{
-    overlap_aabb_vs_wall, ranges_overlap_1d, slide_along_axes, sweep_aabb_vs_wall, sweep_slab_interval,
-};
+use super::helpers::{ranges_overlap_1d, slide_along_axes, sweep_aabb_vs_wall, sweep_slab_interval};
 use crate::{
     constants::{PLAYER_DEPTH, PLAYER_HEIGHT, PLAYER_WIDTH, SENTRY_DEPTH, SENTRY_HEIGHT, SENTRY_WIDTH},
     protocol::{Position, Ramp, Wall},
 };
 
 #[must_use]
-pub fn overlap_sentry_vs_wall(sentry_pos: &Position, wall: &Wall) -> bool {
-    overlap_aabb_vs_wall(sentry_pos, wall, SENTRY_WIDTH / 2.0, SENTRY_DEPTH / 2.0)
-}
-
-#[must_use]
-pub fn sweep_sentry_vs_wall(start_pos: &Position, end_pos: &Position, wall: &Wall) -> bool {
+fn sweep_sentry_vs_wall(start_pos: &Position, end_pos: &Position, wall: &Wall) -> bool {
     sweep_aabb_vs_wall(start_pos, end_pos, wall, SENTRY_WIDTH / 2.0, SENTRY_DEPTH / 2.0)
 }
 
 #[must_use]
-pub fn sweep_sentry_vs_ramp_footprint(start_pos: &Position, end_pos: &Position, ramp: &Ramp) -> bool {
+fn sweep_sentry_vs_ramp_footprint(start_pos: &Position, end_pos: &Position, ramp: &Ramp) -> bool {
     // Swept AABB against the ramp footprint expanded by sentry half extents.
     let half_x = SENTRY_WIDTH / 2.0;
     let half_z = SENTRY_DEPTH / 2.0;
@@ -56,24 +49,6 @@ pub fn sweep_sentry_vs_ramp_footprint(start_pos: &Position, end_pos: &Position, 
     }
 
     t_min <= t_max && t_max >= 0.0 && t_min <= 1.0
-}
-
-#[must_use]
-pub fn overlap_sentry_vs_ramp_footprint(sentry_pos: &Position, ramp: &Ramp) -> bool {
-    let half_x = SENTRY_WIDTH / 2.0;
-    let half_z = SENTRY_DEPTH / 2.0;
-
-    let g_min_x = sentry_pos.x - half_x;
-    let g_max_x = sentry_pos.x + half_x;
-    let g_min_z = sentry_pos.z - half_z;
-    let g_max_z = sentry_pos.z + half_z;
-
-    let r_min_x = ramp.x1.min(ramp.x2);
-    let r_max_x = ramp.x1.max(ramp.x2);
-    let r_min_z = ramp.z1.min(ramp.z2);
-    let r_max_z = ramp.z1.max(ramp.z2);
-
-    ranges_overlap_1d(g_min_x, g_max_x, r_min_x, r_max_x) && ranges_overlap_1d(g_min_z, g_max_z, r_min_z, r_max_z)
 }
 
 #[must_use]
