@@ -4,7 +4,7 @@ use super::movement::{find_visible_moving_player, follow_movement, patrol_moveme
 use crate::{
     constants::*,
     net::ServerToClient,
-    resources::{GridConfig, PlayerMap, SentryMap, SentryMode},
+    resources::{GridConfig, PlayerMap, SentryGrid, SentryMap, SentryMode},
     systems::network::broadcast_to_all,
 };
 use common::{
@@ -24,6 +24,7 @@ pub fn sentries_movement_system(
     grid_config: Res<GridConfig>,
     players: Res<PlayerMap>,
     mut sentries: ResMut<SentryMap>,
+    mut sentry_grid_map: ResMut<SentryGrid>,
     mut param_set: ParamSet<(
         Query<(&SentryId, &mut Position, &mut Velocity, &mut FaceDirection), With<SentryMarker>>,
         Query<(&PlayerId, &Position, &Speed), With<PlayerMarker>>,
@@ -77,6 +78,14 @@ pub fn sentries_movement_system(
                         sentry_info.mode = SentryMode::Target;
                         sentry_info.mode_timer = SENTRY_TARGET_DURATION;
                         sentry_info.follow_target = Some(target_player_id);
+                        // Remove from field map when leaving patrol mode
+                        for row in &mut sentry_grid_map.0 {
+                            for cell in row {
+                                if *cell == Some(sentry_id) {
+                                    *cell = None;
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -101,6 +110,14 @@ pub fn sentries_movement_system(
                     sentry_info.mode = SentryMode::PrePatrol;
                     sentry_info.mode_timer = SENTRY_COOLDOWN_DURATION;
                     sentry_info.follow_target = None;
+                    // Remove from field map when leaving target mode (shouldn't be in map, but clean up just in case)
+                    for row in &mut sentry_grid_map.0 {
+                        for cell in row {
+                            if *cell == Some(sentry_id) {
+                                *cell = None;
+                            }
+                        }
+                    }
                 } else {
                     // Check if target player still exists and is not stunned
                     if let Some(target_id) = sentry_info.follow_target {
@@ -116,6 +133,14 @@ pub fn sentries_movement_system(
                             sentry_info.mode = SentryMode::PrePatrol;
                             sentry_info.mode_timer = SENTRY_COOLDOWN_DURATION;
                             sentry_info.follow_target = None;
+                            // Remove from field map when leaving target mode
+                            for row in &mut sentry_grid_map.0 {
+                                for cell in row {
+                                    if *cell == Some(sentry_id) {
+                                        *cell = None;
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -136,6 +161,7 @@ pub fn sentries_movement_system(
                     &mut face_dir,
                     sentry_info,
                     &players,
+                    &mut sentry_grid_map,
                     delta,
                 );
             }
@@ -148,6 +174,7 @@ pub fn sentries_movement_system(
                     sentry_info,
                     &grid_config,
                     &players,
+                    &mut sentry_grid_map,
                     delta,
                     &mut rng,
                 );

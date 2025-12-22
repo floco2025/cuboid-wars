@@ -3,7 +3,7 @@ use rand::Rng as _;
 
 use crate::{
     map::cell_center,
-    resources::{GridConfig, SentryInfo, SentryMap, SentryMode, SentrySpawnConfig},
+    resources::{GridConfig, SentryGrid, SentryInfo, SentryMap, SentryMode, SentrySpawnConfig},
 };
 use common::{constants::*, markers::SentryMarker, protocol::*};
 
@@ -11,6 +11,7 @@ use common::{constants::*, markers::SentryMarker, protocol::*};
 pub fn sentries_spawn_system(
     mut commands: Commands,
     mut sentries: ResMut<SentryMap>,
+    mut sentry_grid: ResMut<SentryGrid>,
     grid_config: Res<GridConfig>,
     spawn_config: Res<SentrySpawnConfig>,
     query: Query<&SentryId, With<SentryMarker>>,
@@ -58,5 +59,8 @@ pub fn sentries_spawn_system(
                 at_intersection: true,
             },
         );
+
+        // Add to field map (only current cell, no heading yet since velocity is zero)
+        sentry_grid.0[grid_z as usize][grid_x as usize] = Some(sentry_id);
     }
 }

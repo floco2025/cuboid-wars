@@ -8,6 +8,7 @@ use tokio::{
     time::{self, Duration, Instant, MissedTickBehavior},
 };
 
+use common::constants::{GRID_COLS, GRID_ROWS};
 use server::{
     config::configure_server,
     constants::SENTRIES_NUM,
@@ -81,6 +82,7 @@ async fn main() -> Result<()> {
         .insert_resource(PlayerMap::default())
         .insert_resource(ItemMap::default())
         .insert_resource(SentryMap::default())
+        .insert_resource(SentryGrid(vec![vec![None; GRID_COLS as usize]; GRID_ROWS as usize]))
         .insert_resource(ItemSpawner::default())
         .insert_resource(FromAcceptChannel::new(from_accept))
         .insert_resource(FromClientsChannel::new(from_clients))

@@ -93,6 +93,11 @@ pub struct SentryInfo {
 #[derive(Resource, Default)]
 pub struct SentryMap(pub HashMap<SentryId, SentryInfo>);
 
+// Grid of cells showing which sentry occupies each cell (for collision avoidance)
+// grid[z][x] = Some(SentryId) or None
+#[derive(Resource, Clone)]
+pub struct SentryGrid(pub Vec<Vec<Option<SentryId>>>);
+
 // Resource wrapper for the channel from the accept connections task, which gives us the channel to
 // send from thee server to the client.
 #[derive(Resource)]

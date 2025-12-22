@@ -5,7 +5,7 @@ use super::navigation::{
 use crate::{
     constants::*,
     map::cell_center,
-    resources::{GridConfig, PlayerMap, SentryInfo, SentryMode},
+    resources::{GridConfig, PlayerMap, SentryGrid, SentryInfo, SentryMode},
     systems::network::broadcast_to_all,
 };
 use common::{
@@ -78,6 +78,7 @@ pub fn pre_patrol_movement(
     face_dir: &mut f32,
     sentry_info: &mut SentryInfo,
     players: &PlayerMap,
+    sentry_grid: &mut SentryGrid,
     delta: f32,
 ) {
     let grid_x = (((pos.x + FIELD_WIDTH / 2.0) / GRID_SIZE).floor() as i32).clamp(0, GRID_COLS - 1);
@@ -95,6 +96,9 @@ pub fn pre_patrol_movement(
         sentry_info.mode = SentryMode::Patrol;
         sentry_info.mode_timer = SENTRY_COOLDOWN_DURATION; // Set cooldown before can detect players again
         sentry_info.at_intersection = true;
+
+        // Add to field map (only current cell, no heading yet)
+        sentry_grid.0[grid_z as usize][grid_x as usize] = Some(*sentry_id);
 
         broadcast_to_all(
             players,
@@ -156,6 +160,7 @@ pub fn patrol_movement(
     sentry_info: &mut SentryInfo,
     grid_config: &GridConfig,
     players: &PlayerMap,
+    sentry_grid: &mut SentryGrid,
     delta: f32,
     rng: &mut impl rand::Rng,
 ) {
@@ -172,6 +177,21 @@ pub fn patrol_movement(
     sentry_info.at_intersection = at_intersection;
 
     if just_arrived {
+        // Remove old heading field from map (only if we have a direction)
+        if current_direction != GridDirection::None {
+            let (old_heading_x, old_heading_z) = match current_direction {
+                GridDirection::North => (grid_x, grid_z - 1),
+                GridDirection::South => (grid_x, grid_z + 1),
+                GridDirection::East => (grid_x + 1, grid_z),
+                GridDirection::West => (grid_x - 1, grid_z),
+                GridDirection::None => (grid_x, grid_z), // Won't be used
+            };
+            // Bounds check before clearing
+            if (0..GRID_COLS).contains(&old_heading_x) && (0..GRID_ROWS).contains(&old_heading_z) {
+                sentry_grid.0[old_heading_z as usize][old_heading_x as usize] = None;
+            }
+        }
+
         let cell = &grid_config.grid[grid_z as usize][grid_x as usize];
         let valid_directions = valid_directions(grid_config, grid_x, grid_z, *cell);
         let mut direction_changed = false;
@@ -200,6 +220,24 @@ pub fn patrol_movement(
 
         if direction_changed {
             *face_dir = vel.x.atan2(vel.z);
+            
+            current_direction = direction_from_velocity(vel);
+            
+            // Add new heading field to map (only if we have a direction)
+            if current_direction != GridDirection::None {
+                let (new_heading_x, new_heading_z) = match current_direction {
+                    GridDirection::North => (grid_x, grid_z - 1),
+                    GridDirection::South => (grid_x, grid_z + 1),
+                    GridDirection::East => (grid_x + 1, grid_z),
+                    GridDirection::West => (grid_x - 1, grid_z),
+                    GridDirection::None => (grid_x, grid_z), // Won't be used
+                };
+                // Bounds check before setting
+                if (0..GRID_COLS).contains(&new_heading_x) && (0..GRID_ROWS).contains(&new_heading_z) {
+                    sentry_grid.0[new_heading_z as usize][new_heading_x as usize] = Some(*sentry_id);
+                }
+            }
+            
             broadcast_to_all(
                 players,
                 ServerMessage::Sentry(SSentry {
