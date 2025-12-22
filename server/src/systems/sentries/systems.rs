@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use super::movement::{find_visible_moving_player, follow_movement, patrol_movement, pre_patrol_movement};
+use super::movement::{find_visible_moving_player, target_movement, patrol_movement, pre_patrol_movement};
 use crate::{
     constants::*,
     net::ServerToClient,
@@ -181,7 +181,7 @@ pub fn sentries_movement_system(
             }
             SentryMode::Target => {
                 if let Some(target_id) = sentry_info.follow_target {
-                    follow_movement(
+                    target_movement(
                         &sentry_id,
                         &mut sentry_pos,
                         &mut sentry_vel,

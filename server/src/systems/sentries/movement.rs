@@ -82,6 +82,16 @@ pub fn pre_patrol_movement(
     let grid_z = (((pos.z + FIELD_DEPTH / 2.0) / GRID_SIZE).floor() as i32).clamp(0, GRID_ROWS - 1);
     let center = cell_center(grid_x, grid_z);
 
+    // If the destination cell is already occupied by another sentry, stop immediately
+    let field = &mut sentry_grid.0[grid_z as usize][grid_x as usize];
+    if field.is_some() && field.unwrap() != *sentry_id {
+        *vel = Velocity { x: 0.0, y: 0.0, z: 0.0 };
+        *face_dir = 0.0;
+        return;
+    }
+
+    *field = Some(*sentry_id);
+
     let at_center_x = (pos.x - center.x).abs() < SENTRY_CENTER_THRESHOLD;
     let at_center_z = (pos.z - center.z).abs() < SENTRY_CENTER_THRESHOLD;
     let at_intersection = at_center_x && at_center_z;
@@ -89,14 +99,6 @@ pub fn pre_patrol_movement(
     if at_intersection {
         *vel = Velocity { x: 0.0, y: 0.0, z: 0.0 };
         *face_dir = 0.0;
-
-        // Wait here if another sentry already occupies this cell to avoid double-booking
-        let field = &mut sentry_grid.0[grid_z as usize][grid_x as usize];
-        if field.is_some() && field.unwrap() != *sentry_id {
-            return;
-        }
-
-        *field = Some(*sentry_id);
 
         sentry_info.mode = SentryMode::Patrol;
         sentry_info.mode_timer = SENTRY_COOLDOWN_DURATION;
@@ -282,9 +284,9 @@ pub fn patrol_movement(
     }
 }
 
-// Follow mode movement - moves toward target player with wall sliding
+// Target mode movement - moves toward target player with wall sliding
 // If the target player has sentry hunt power-up, reverses direction to flee
-pub fn follow_movement(
+pub fn target_movement(
     sentry_id: &SentryId,
     pos: &mut Position,
     vel: &mut Velocity,
