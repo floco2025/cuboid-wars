@@ -1,7 +1,4 @@
-use super::navigation::{
-    GridDirection, direction_from_velocity, direction_leads_to_ramp, forward_directions, pick_direction,
-    valid_directions,
-};
+use super::navigation::{GridDirection, ahead_directions, direction_from_velocity, pick_direction, valid_directions};
 use crate::{
     constants::*,
     map::cell_center,
@@ -166,6 +163,11 @@ pub fn patrol_movement(
 ) {
     let grid_x = (((pos.x + FIELD_WIDTH / 2.0) / GRID_SIZE).floor() as i32).clamp(0, GRID_COLS - 1);
     let grid_z = (((pos.z + FIELD_DEPTH / 2.0) / GRID_SIZE).floor() as i32).clamp(0, GRID_ROWS - 1);
+
+    let field = &mut sentry_grid.0[grid_z as usize][grid_x as usize];
+    assert!(field.is_some());
+    assert!(field.unwrap() == *sentry_id);
+
     let center = cell_center(grid_x, grid_z);
 
     let at_center_x = (pos.x - center.x).abs() < SENTRY_CENTER_THRESHOLD;
@@ -173,71 +175,59 @@ pub fn patrol_movement(
     let at_intersection = at_center_x && at_center_z;
 
     let mut current_direction = direction_from_velocity(vel);
-    let just_arrived = at_intersection && (!sentry_info.at_intersection || current_direction == GridDirection::None);
+    let just_arrived = at_intersection && !sentry_info.at_intersection;
     sentry_info.at_intersection = at_intersection;
 
-    if just_arrived {
-        // Remove old heading field from map (only if we have a direction)
+    if just_arrived || current_direction == GridDirection::None {
         if current_direction != GridDirection::None {
-            let (old_heading_x, old_heading_z) = match current_direction {
-                GridDirection::North => (grid_x, grid_z - 1),
-                GridDirection::South => (grid_x, grid_z + 1),
-                GridDirection::East => (grid_x + 1, grid_z),
-                GridDirection::West => (grid_x - 1, grid_z),
-                GridDirection::None => (grid_x, grid_z), // Won't be used
+            let (prev_grid_x, prev_grid_z) = match current_direction {
+                GridDirection::North => (grid_x, grid_z + 1),
+                GridDirection::South => (grid_x, grid_z - 1),
+                GridDirection::East => (grid_x - 1, grid_z),
+                GridDirection::West => (grid_x + 1, grid_z),
+                GridDirection::None => unreachable!("none case guarded above"),
             };
-            // Bounds check before clearing
-            if (0..GRID_COLS).contains(&old_heading_x) && (0..GRID_ROWS).contains(&old_heading_z) {
-                sentry_grid.0[old_heading_z as usize][old_heading_x as usize] = None;
-            }
+            assert!((0..GRID_COLS).contains(&prev_grid_x));
+            assert!((0..GRID_ROWS).contains(&prev_grid_z));
+            let field = &mut sentry_grid.0[prev_grid_z as usize][prev_grid_x as usize];
+            assert!(field.is_some());
+            assert!(field.unwrap() == *sentry_id);
+            *field = None;
         }
 
-        let cell = &grid_config.grid[grid_z as usize][grid_x as usize];
-        let valid_directions = valid_directions(grid_config, grid_x, grid_z, *cell);
+        let valid_directions = valid_directions(grid_config, grid_x, grid_z, &sentry_grid.0, *sentry_id);
         let mut direction_changed = false;
 
-        if current_direction.is_blocked(*cell)
-            || direction_leads_to_ramp(grid_config, grid_x, grid_z, current_direction)
-        {
-            let forward_options = forward_directions(&valid_directions, current_direction);
-            if forward_options.is_empty() {
-                let new_direction = valid_directions.first().copied().expect("no valid direction");
-                *vel = new_direction.to_velocity();
+        if valid_directions.is_empty() {
+            if current_direction != GridDirection::None {
+                *vel = Velocity { x: 0.0, y: 0.0, z: 0.0 };
                 direction_changed = true;
-            } else if let Some(new_direction) = pick_direction(rng, &forward_options) {
+            }
+        } else {
+            if current_direction.is_blocked(grid_config, grid_x, grid_z, &sentry_grid.0, *sentry_id) {
+                let ahead_directions = ahead_directions(&valid_directions, current_direction);
+                if ahead_directions.is_empty() {
+                    let new_direction = valid_directions.first().copied().expect("no valid direction");
+                    *vel = new_direction.to_velocity();
+                    direction_changed = true;
+                } else if let Some(new_direction) = pick_direction(rng, &ahead_directions) {
+                    *vel = new_direction.to_velocity();
+                    direction_changed = true;
+                }
+            }
+
+            if rng.random_bool(SENTRY_RANDOM_TURN_PROBABILITY)
+                && !valid_directions.is_empty()
+                && let Some(new_direction) = pick_direction(rng, &valid_directions)
+            {
                 *vel = new_direction.to_velocity();
                 direction_changed = true;
             }
-        }
-
-        if rng.random_bool(SENTRY_RANDOM_TURN_PROBABILITY)
-            && !valid_directions.is_empty()
-            && let Some(new_direction) = pick_direction(rng, &valid_directions)
-        {
-            *vel = new_direction.to_velocity();
-            direction_changed = true;
         }
 
         if direction_changed {
             *face_dir = vel.x.atan2(vel.z);
-            
-            current_direction = direction_from_velocity(vel);
-            
-            // Add new heading field to map (only if we have a direction)
-            if current_direction != GridDirection::None {
-                let (new_heading_x, new_heading_z) = match current_direction {
-                    GridDirection::North => (grid_x, grid_z - 1),
-                    GridDirection::South => (grid_x, grid_z + 1),
-                    GridDirection::East => (grid_x + 1, grid_z),
-                    GridDirection::West => (grid_x - 1, grid_z),
-                    GridDirection::None => (grid_x, grid_z), // Won't be used
-                };
-                // Bounds check before setting
-                if (0..GRID_COLS).contains(&new_heading_x) && (0..GRID_ROWS).contains(&new_heading_z) {
-                    sentry_grid.0[new_heading_z as usize][new_heading_x as usize] = Some(*sentry_id);
-                }
-            }
-            
+
             broadcast_to_all(
                 players,
                 ServerMessage::Sentry(SSentry {
@@ -249,8 +239,22 @@ pub fn patrol_movement(
                     },
                 }),
             );
+        }
 
-            current_direction = direction_from_velocity(vel);
+        current_direction = direction_from_velocity(vel);
+        if current_direction != GridDirection::None {
+            let (next_grid_x, next_grid_z) = match current_direction {
+                GridDirection::North => (grid_x, grid_z - 1),
+                GridDirection::South => (grid_x, grid_z + 1),
+                GridDirection::East => (grid_x + 1, grid_z),
+                GridDirection::West => (grid_x - 1, grid_z),
+                GridDirection::None => unreachable!("none case guarded above"),
+            };
+            assert!((0..GRID_COLS).contains(&next_grid_x));
+            assert!((0..GRID_ROWS).contains(&next_grid_z));
+            let field = &mut sentry_grid.0[next_grid_z as usize][next_grid_x as usize];
+            assert!(field.is_none() || field.unwrap() == *sentry_id);
+            *field = Some(*sentry_id);
         }
     }
 

@@ -24,17 +24,20 @@ pub fn sentries_spawn_system(
     let mut rng = rand::rng();
 
     for i in 0..spawn_config.num_sentries {
-        // Pick a random grid cell that doesn't have a ramp
+        // Pick a random grid cell that doesn't have a sentry or a ramp
         let (grid_x, grid_z) = loop {
-            let x = rng.random_range(0..GRID_COLS);
-            let z = rng.random_range(0..GRID_ROWS);
+            let grid_x = rng.random_range(0..GRID_COLS);
+            let grid_z = rng.random_range(0..GRID_ROWS);
 
-            // Check if cell has a ramp
-            if !grid_config.grid[z as usize][x as usize].has_ramp {
-                break (x, z);
+            if sentry_grid.0[grid_z as usize][grid_x as usize].is_some() {
+                continue;
             }
-            // If all cells have ramps (unlikely), this would loop forever,
-            // but in practice there are many non-ramp cells
+
+            if grid_config.grid[grid_z as usize][grid_x as usize].has_ramp {
+                continue;
+            }
+
+            break (grid_x, grid_z);
         };
 
         // Spawn at grid center

@@ -1,8 +1,8 @@
 use crate::{
     constants::*,
-    resources::{GridCell, GridConfig},
+    resources::GridConfig,
 };
-use common::{constants::*, protocol::Velocity};
+use common::{constants::*, protocol::{SentryId, Velocity}};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum GridDirection {
@@ -59,14 +59,59 @@ impl GridDirection {
     }
 
     #[must_use]
-    pub const fn is_blocked(self, cell: GridCell) -> bool {
-        match self {
+    pub fn is_blocked(
+        self,
+        grid_config: &GridConfig,
+        grid_x: i32,
+        grid_z: i32,
+        sentry_grid: &[Vec<Option<SentryId>>],
+        sentry_id: SentryId,
+    ) -> bool {
+        if self == Self::None {
+            return false;
+        }
+
+        let cell = grid_config.grid[grid_z as usize][grid_x as usize];
+
+        // Check walls
+        let wall_blocked = match self {
             Self::None => false,
             Self::East => cell.has_east_wall,
             Self::North => cell.has_north_wall,
             Self::West => cell.has_west_wall,
             Self::South => cell.has_south_wall,
+        };
+
+        if wall_blocked {
+            return true;
         }
+
+        // Check if leads to ramp
+        let (next_x, next_z) = match self {
+            Self::North => (grid_x, grid_z - 1),
+            Self::South => (grid_x, grid_z + 1),
+            Self::East => (grid_x + 1, grid_z),
+            Self::West => (grid_x - 1, grid_z),
+            Self::None => (grid_x, grid_z),
+        };
+
+        if !(0..GRID_COLS).contains(&next_x) || !(0..GRID_ROWS).contains(&next_z) {
+            return true; // out-of-bounds neighbor is considered blocked
+        }
+
+        if grid_config.grid[next_z as usize][next_x as usize].has_ramp {
+            return true;
+        }
+
+        // Check if target cell is occupied by another sentry
+        let cell_occupant = sentry_grid[next_z as usize][next_x as usize];
+        if let Some(occupant) = cell_occupant {
+            if occupant != sentry_id {
+                return true; // Blocked by another sentry
+            }
+        }
+
+        false
     }
 }
 
@@ -86,56 +131,30 @@ pub fn direction_from_velocity(vel: &Velocity) -> GridDirection {
 }
 
 #[must_use]
-pub fn valid_directions(grid_config: &GridConfig, grid_x: i32, grid_z: i32, cell: GridCell) -> Vec<GridDirection> {
+pub fn valid_directions(
+    grid_config: &GridConfig,
+    grid_x: i32,
+    grid_z: i32,
+    sentry_grid: &[Vec<Option<SentryId>>],
+    sentry_id: SentryId,
+) -> Vec<GridDirection> {
     assert!(
         (0..GRID_COLS).contains(&grid_x) && (0..GRID_ROWS).contains(&grid_z),
         "sentry current cell OOB in valid_directions: ({grid_x}, {grid_z})"
     );
 
-    // Prefer non-ramp exits; we expect at least one exists for a non-ramp cell
-    let open: Vec<_> = GridDirection::ALL
+    // Filter all directions using the unified is_blocked check
+    let valid: Vec<_> = GridDirection::ALL
         .iter()
         .copied()
-        .filter(|dir| !dir.is_blocked(cell))
+        .filter(|dir| !dir.is_blocked(grid_config, grid_x, grid_z, sentry_grid, sentry_id))
         .collect();
 
-    assert!(!open.is_empty(), "no open directions from grid cell");
-
-    let ramp_safe: Vec<_> = open
-        .iter()
-        .copied()
-        .filter(|dir| !direction_leads_to_ramp(grid_config, grid_x, grid_z, *dir))
-        .collect();
-
-    assert!(!ramp_safe.is_empty(), "all open directions lead to ramps");
-
-    ramp_safe
+    valid
 }
 
 #[must_use]
-pub fn direction_leads_to_ramp(grid_config: &GridConfig, grid_x: i32, grid_z: i32, dir: GridDirection) -> bool {
-    assert!(
-        (0..GRID_COLS).contains(&grid_x) && (0..GRID_ROWS).contains(&grid_z),
-        "sentry current cell OOB in direction_leads_to_ramp: ({grid_x}, {grid_z})"
-    );
-
-    let (next_x, next_z) = match dir {
-        GridDirection::None => return false,
-        GridDirection::East => (grid_x + 1, grid_z),
-        GridDirection::North => (grid_x, grid_z - 1),
-        GridDirection::West => (grid_x - 1, grid_z),
-        GridDirection::South => (grid_x, grid_z + 1),
-    };
-
-    if !(0..GRID_COLS).contains(&next_x) || !(0..GRID_ROWS).contains(&next_z) {
-        return true; // out-of-bounds neighbor is considered blocked
-    }
-
-    grid_config.grid[next_z as usize][next_x as usize].has_ramp
-}
-
-#[must_use]
-pub fn forward_directions(valid: &[GridDirection], current: GridDirection) -> Vec<GridDirection> {
+pub fn ahead_directions(valid: &[GridDirection], current: GridDirection) -> Vec<GridDirection> {
     valid.iter().copied().filter(|dir| *dir != current.opposite()).collect()
 }
 
