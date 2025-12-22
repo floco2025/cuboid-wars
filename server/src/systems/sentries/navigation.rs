@@ -6,6 +6,7 @@ use common::{constants::*, protocol::Velocity};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum GridDirection {
+    None,
     East,
     North,
     West,
@@ -18,6 +19,11 @@ impl GridDirection {
     #[must_use]
     pub fn to_velocity(self) -> Velocity {
         match self {
+            Self::None => Velocity {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
             Self::East => Velocity {
                 x: SENTRY_SPEED,
                 y: 0.0,
@@ -44,6 +50,7 @@ impl GridDirection {
     #[must_use]
     pub const fn opposite(self) -> Self {
         match self {
+            Self::None => Self::None,
             Self::East => Self::West,
             Self::North => Self::South,
             Self::West => Self::East,
@@ -54,6 +61,7 @@ impl GridDirection {
     #[must_use]
     pub const fn is_blocked(self, cell: GridCell) -> bool {
         match self {
+            Self::None => false,
             Self::East => cell.has_east_wall,
             Self::North => cell.has_north_wall,
             Self::West => cell.has_west_wall,
@@ -63,17 +71,17 @@ impl GridDirection {
 }
 
 #[must_use]
-pub fn direction_from_velocity(vel: &Velocity) -> Option<GridDirection> {
+pub fn direction_from_velocity(vel: &Velocity) -> GridDirection {
     if vel.x > 0.0 {
-        Some(GridDirection::East)
+        GridDirection::East
     } else if vel.x < 0.0 {
-        Some(GridDirection::West)
+        GridDirection::West
     } else if vel.z < 0.0 {
-        Some(GridDirection::North)
+        GridDirection::North
     } else if vel.z > 0.0 {
-        Some(GridDirection::South)
+        GridDirection::South
     } else {
-        None
+        GridDirection::None
     }
 }
 
@@ -112,6 +120,7 @@ pub fn direction_leads_to_ramp(grid_config: &GridConfig, grid_x: i32, grid_z: i3
     );
 
     let (next_x, next_z) = match dir {
+        GridDirection::None => return false,
         GridDirection::East => (grid_x + 1, grid_z),
         GridDirection::North => (grid_x, grid_z - 1),
         GridDirection::West => (grid_x - 1, grid_z),

@@ -77,10 +77,8 @@ pub fn pre_patrol_movement(
     vel: &mut Velocity,
     face_dir: &mut f32,
     sentry_info: &mut SentryInfo,
-    grid_config: &GridConfig,
     players: &PlayerMap,
     delta: f32,
-    rng: &mut impl rand::Rng,
 ) {
     let grid_x = (((pos.x + FIELD_WIDTH / 2.0) / GRID_SIZE).floor() as i32).clamp(0, GRID_COLS - 1);
     let grid_z = (((pos.z + FIELD_DEPTH / 2.0) / GRID_SIZE).floor() as i32).clamp(0, GRID_ROWS - 1);
@@ -91,14 +89,12 @@ pub fn pre_patrol_movement(
     let at_intersection = at_center_x && at_center_z;
 
     if at_intersection {
-        // We've reached the grid center - pick a valid direction and transition to patrol
-        let cell = &grid_config.grid[grid_z as usize][grid_x as usize];
-        let valid_directions = valid_directions(grid_config, grid_x, grid_z, *cell);
-        let new_direction = pick_direction(rng, &valid_directions).expect("no valid direction");
-        *vel = new_direction.to_velocity();
-        *face_dir = vel.x.atan2(vel.z);
+        // We've reached the grid center - transition to patrol with zero velocity
+        *vel = Velocity { x: 0.0, y: 0.0, z: 0.0 };
+        *face_dir = 0.0;
         sentry_info.mode = SentryMode::Patrol;
         sentry_info.mode_timer = SENTRY_COOLDOWN_DURATION; // Set cooldown before can detect players again
+        sentry_info.at_intersection = true;
 
         broadcast_to_all(
             players,
@@ -171,10 +167,9 @@ pub fn patrol_movement(
     let at_center_z = (pos.z - center.z).abs() < SENTRY_CENTER_THRESHOLD;
     let at_intersection = at_center_x && at_center_z;
 
-    let just_arrived = at_intersection && !sentry_info.at_intersection;
+    let mut current_direction = direction_from_velocity(vel);
+    let just_arrived = at_intersection && (!sentry_info.at_intersection || current_direction == GridDirection::None);
     sentry_info.at_intersection = at_intersection;
-
-    let mut current_direction = direction_from_velocity(vel).expect("no current direction");
 
     if just_arrived {
         let cell = &grid_config.grid[grid_z as usize][grid_x as usize];
@@ -217,7 +212,7 @@ pub fn patrol_movement(
                 }),
             );
 
-            current_direction = direction_from_velocity(vel).expect("no current direction");
+            current_direction = direction_from_velocity(vel);
         }
     }
 
@@ -226,6 +221,9 @@ pub fn patrol_movement(
 
     // Incrementally adjust position toward grid line based on current direction
     match current_direction {
+        GridDirection::None => {
+            // No direction, no adjustment needed
+        }
         GridDirection::East | GridDirection::West => {
             let diff = center.z - pos.z;
             pos.z += diff.signum() * (diff.abs().min(SENTRY_SPEED * delta * 0.5));

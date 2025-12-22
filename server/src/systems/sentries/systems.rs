@@ -135,10 +135,8 @@ pub fn sentries_movement_system(
                     &mut sentry_vel,
                     &mut face_dir,
                     sentry_info,
-                    &grid_config,
                     &players,
                     delta,
-                    &mut rng,
                 );
             }
             SentryMode::Patrol => {

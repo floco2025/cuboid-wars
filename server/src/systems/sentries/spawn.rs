@@ -1,7 +1,6 @@
 use bevy::prelude::*;
 use rand::Rng as _;
 
-use super::navigation::{pick_direction, valid_directions};
 use crate::{
     map::cell_center,
     resources::{GridConfig, SentryInfo, SentryMap, SentryMode, SentrySpawnConfig},
@@ -40,12 +39,9 @@ pub fn sentries_spawn_system(
         // Spawn at grid center
         let pos = cell_center(grid_x, grid_z);
 
-        // Pick a valid direction based on the cell's walls
-        let cell = &grid_config.grid[grid_z as usize][grid_x as usize];
-        let valid_directions = valid_directions(&grid_config, grid_x, grid_z, *cell);
-        let direction = pick_direction(&mut rng, &valid_directions).expect("no valid direction");
-        let vel = direction.to_velocity();
-        let face_dir = vel.x.atan2(vel.z);
+        // Start with zero velocity - patrol movement will pick initial direction
+        let vel = Velocity { x: 0.0, y: 0.0, z: 0.0 };
+        let face_dir = 0.0;
 
         let sentry_id = SentryId(i);
         let entity = commands
@@ -59,7 +55,7 @@ pub fn sentries_spawn_system(
                 mode: SentryMode::Patrol,
                 mode_timer: 0.0,
                 follow_target: None,
-                at_intersection: true, // Spawned at grid center
+                at_intersection: true,
             },
         );
     }
