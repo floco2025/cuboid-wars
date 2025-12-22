@@ -87,15 +87,20 @@ pub fn pre_patrol_movement(
     let at_intersection = at_center_x && at_center_z;
 
     if at_intersection {
-        // We've reached the grid center - transition to patrol with zero velocity
         *vel = Velocity { x: 0.0, y: 0.0, z: 0.0 };
         *face_dir = 0.0;
-        sentry_info.mode = SentryMode::Patrol;
-        sentry_info.mode_timer = SENTRY_COOLDOWN_DURATION; // Set cooldown before can detect players again
-        sentry_info.at_intersection = true;
 
-        // Add to field map (only current cell, no heading yet)
-        sentry_grid.0[grid_z as usize][grid_x as usize] = Some(*sentry_id);
+        // Wait here if another sentry already occupies this cell to avoid double-booking
+        let field = &mut sentry_grid.0[grid_z as usize][grid_x as usize];
+        if field.is_some() && field.unwrap() != *sentry_id {
+            return;
+        }
+
+        *field = Some(*sentry_id);
+
+        sentry_info.mode = SentryMode::Patrol;
+        sentry_info.mode_timer = SENTRY_COOLDOWN_DURATION;
+        sentry_info.at_intersection = true;
 
         broadcast_to_all(
             players,
@@ -253,7 +258,7 @@ pub fn patrol_movement(
             assert!((0..GRID_COLS).contains(&next_grid_x));
             assert!((0..GRID_ROWS).contains(&next_grid_z));
             let field = &mut sentry_grid.0[next_grid_z as usize][next_grid_x as usize];
-            assert!(field.is_none() || field.unwrap() == *sentry_id);
+            assert!(field.is_none());
             *field = Some(*sentry_id);
         }
     }
