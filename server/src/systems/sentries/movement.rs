@@ -258,7 +258,7 @@ pub fn patrol_movement(
             assert!((0..GRID_COLS).contains(&next_grid_x));
             assert!((0..GRID_ROWS).contains(&next_grid_z));
             let field = &mut sentry_grid.0[next_grid_z as usize][next_grid_x as usize];
-            assert!(field.is_none());
+            assert!(field.is_none() || field.unwrap() == *sentry_id);
             *field = Some(*sentry_id);
         }
     }
