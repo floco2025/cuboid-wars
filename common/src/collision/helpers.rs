@@ -368,19 +368,28 @@ pub fn slide_along_axes(
     collides_x: impl Fn(&Position) -> bool,
     collides_z: impl Fn(&Position) -> bool,
 ) -> Position {
+    // Try full diagonal movement first
+    let diagonal_pos = Position {
+        x: velocity_x.mul_add(delta, current_pos.x),
+        y: current_pos.y,
+        z: velocity_z.mul_add(delta, current_pos.z),
+    };
+    
+    // Check if diagonal path collides
+    let diagonal_collides = collides_x(&diagonal_pos) || collides_z(&diagonal_pos);
+    
+    if !diagonal_collides {
+        return diagonal_pos;
+    }
+    
+    // Diagonal blocked, try axis-aligned sliding
     let x_only_pos = make_pos_x(delta);
     let z_only_pos = make_pos_z(delta);
 
     let x_collides = collides_x(&x_only_pos);
     let z_collides = collides_z(&z_only_pos);
 
-    if !x_collides && !z_collides {
-        if velocity_x.abs() > velocity_z.abs() {
-            x_only_pos
-        } else {
-            z_only_pos
-        }
-    } else if !x_collides {
+    if !x_collides {
         x_only_pos
     } else if !z_collides {
         z_only_pos
