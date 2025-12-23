@@ -10,7 +10,7 @@ use crate::{
     markers::{LocalPlayerMarker, MainCameraMarker},
     net::ClientToServer,
     resources::{CameraViewMode, ClientToServerChannel, InputSettings, LocalPlayerInfo, MyPlayerId, PlayerMap},
-    systems::players::PlayerMovementMut,
+
 };
 use common::{
     constants::{ALWAYS_SPEED, POWER_UP_SPEED_MULTIPLIER},
@@ -30,7 +30,7 @@ pub fn input_movement_system(
     players: Res<PlayerMap>,
     input_settings: Res<InputSettings>,
     mut local_player_info: ResMut<LocalPlayerInfo>,
-    mut local_player_query: Query<PlayerMovementMut, With<LocalPlayerMarker>>,
+    mut local_player_query: Query<(&mut Velocity, &mut FaceDirection), With<LocalPlayerMarker>>,
     mut camera_query: Query<&mut Transform, (With<Camera3d>, With<MainCameraMarker>)>,
     view_mode: Res<CameraViewMode>,
 ) {
@@ -81,7 +81,7 @@ fn handle_unlocked_cursor(
     my_player_id: Option<&Res<MyPlayerId>>,
     players: &Res<PlayerMap>,
     local_player_info: &mut LocalPlayerInfo,
-    local_player_query: &mut Query<PlayerMovementMut, With<LocalPlayerMarker>>,
+    local_player_query: &mut Query<(&mut Velocity, &mut FaceDirection), With<LocalPlayerMarker>>,
 ) {
     // Drain pending mouse events and ensure player stops moving
     for _ in mouse_motion.read() {}
@@ -91,18 +91,18 @@ fn handle_unlocked_cursor(
             speed_level: SpeedLevel::Idle,
             move_dir: 0.0,
         };
-        for mut player in local_player_query {
-            let mut velocity = speed.to_velocity();
+        for (mut velocity, _) in local_player_query.iter_mut() {
+            let mut new_velocity = speed.to_velocity();
             // Apply speed multiplier if local player has speed power-up
             if let Some(my_id) = my_player_id
                 && let Some(player_info) = players.0.get(&my_id.0)
                 && (ALWAYS_SPEED || player_info.speed_power_up)
             {
-                velocity.x *= POWER_UP_SPEED_MULTIPLIER;
-                velocity.z *= POWER_UP_SPEED_MULTIPLIER;
+                new_velocity.x *= POWER_UP_SPEED_MULTIPLIER;
+                new_velocity.z *= POWER_UP_SPEED_MULTIPLIER;
             }
 
-            *player.velocity = velocity;
+            *velocity = new_velocity;
         }
         let msg = ClientMessage::Speed(CSpeed { speed });
         let _ = to_server.send(ClientToServer::Send(msg));
@@ -208,21 +208,21 @@ fn update_player_velocity_and_face(
     face_yaw: f32,
     my_player_id: Option<&Res<MyPlayerId>>,
     players: &Res<PlayerMap>,
-    local_player_query: &mut Query<PlayerMovementMut, With<LocalPlayerMarker>>,
+    local_player_query: &mut Query<(&mut Velocity, &mut FaceDirection), With<LocalPlayerMarker>>,
 ) {
-    for mut player in local_player_query {
-        let mut velocity = speed.to_velocity();
+    for (mut velocity, mut face_direction) in local_player_query.iter_mut() {
+        let mut new_velocity = speed.to_velocity();
         // Apply speed multiplier if local player has speed power-up
         if let Some(my_id) = my_player_id
             && let Some(player_info) = players.0.get(&my_id.0)
             && (ALWAYS_SPEED || player_info.speed_power_up)
         {
-            velocity.x *= POWER_UP_SPEED_MULTIPLIER;
-            velocity.z *= POWER_UP_SPEED_MULTIPLIER;
+            new_velocity.x *= POWER_UP_SPEED_MULTIPLIER;
+            new_velocity.z *= POWER_UP_SPEED_MULTIPLIER;
         }
 
-        *player.velocity = velocity;
-        player.face_direction.0 = face_yaw;
+        *velocity = new_velocity;
+        face_direction.0 = face_yaw;
     }
 }
 

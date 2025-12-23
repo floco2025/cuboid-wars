@@ -27,7 +27,7 @@ pub fn network_server_message_system(
     mut rtt: ResMut<RoundTripTime>,
     mut last_update_seq: ResMut<LastUpdateSeq>,
     mut assets: AssetManagers,
-    player_data: Query<(&Position, &Speed, crate::systems::players::PlayerMovement), With<PlayerMarker>>,
+    player_data: Query<(&Position, &FaceDirection), With<PlayerMarker>>,
     sentry_positions: Query<&Position, With<SentryMarker>>,
     cameras: Query<Entity, With<Camera3d>>,
     my_player_id: Option<Res<MyPlayerId>>,

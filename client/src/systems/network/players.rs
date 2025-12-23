@@ -5,7 +5,7 @@ use super::components::ServerReconciliation;
 use crate::{
     resources::{PlayerInfo, PlayerMap, RoundTripTime},
     spawning::{spawn_player, spawn_projectiles},
-    systems::players::{CameraShake, CuboidShake, PlayerMovement},
+    systems::players::{CameraShake, CuboidShake},
 };
 use common::{constants::POWER_UP_SPEED_MULTIPLIER, markers::PlayerMarker, protocol::*};
 
@@ -17,7 +17,7 @@ use common::{constants::POWER_UP_SPEED_MULTIPLIER, markers::PlayerMarker, protoc
 pub fn handle_player_speed_message(
     commands: &mut Commands,
     players: &ResMut<PlayerMap>,
-    player_data: &Query<(&Position, &Speed, PlayerMovement), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &FaceDirection), With<PlayerMarker>>,
     rtt: &ResMut<RoundTripTime>,
     msg: SSpeed,
 ) {
@@ -30,7 +30,7 @@ pub fn handle_player_speed_message(
         }
 
         // Add server reconciliation if we have client position
-        if let Ok((client_pos, _, _)) = player_data.get(player.entity) {
+        if let Ok((client_pos, _)) = player_data.get(player.entity) {
             commands.entity(player.entity).insert((
                 velocity, // Never the local player, so we can always insert velocity
                 ServerReconciliation {
@@ -61,7 +61,7 @@ pub fn handle_player_shot_message(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
     players: &ResMut<PlayerMap>,
-    player_data: &Query<(&Position, &Speed, PlayerMovement), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &FaceDirection), With<PlayerMarker>>,
     msg: SShot,
     map_layout: Option<&MapLayout>,
 ) {
@@ -70,14 +70,14 @@ pub fn handle_player_shot_message(
         commands.entity(player.entity).insert(FaceDirection(msg.face_dir));
 
         // Spawn projectile(s) based on player's multi-shot power-up status
-        if let Ok((_, _, player_facing)) = player_data.get(player.entity)
+        if let Ok((position, _)) = player_data.get(player.entity)
             && let Some(map_layout) = map_layout
         {
             spawn_projectiles(
                 commands,
                 meshes,
                 materials,
-                player_facing.position,
+                position,
                 msg.face_dir,
                 msg.face_pitch,
                 player.multi_shot_power_up,
@@ -127,7 +127,7 @@ pub fn handle_player_hit_message(
 pub fn handle_player_status_message(
     commands: &mut Commands,
     players: &mut ResMut<PlayerMap>,
-    player_data: &Query<(&Position, &Speed, PlayerMovement), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &FaceDirection), With<PlayerMarker>>,
     msg: SPlayerStatus,
     my_player_id: PlayerId,
     asset_server: &AssetServer,
@@ -151,19 +151,6 @@ pub fn handle_player_status_message(
             }
         }
 
-        // If speed power-up status changed, recalculate velocity
-        if player_info.speed_power_up != msg.speed_power_up
-            && let Ok((_, speed, _)) = player_data.get(player_info.entity)
-        {
-            let mut velocity = speed.to_velocity();
-            if msg.speed_power_up {
-                velocity.x *= POWER_UP_SPEED_MULTIPLIER;
-                velocity.z *= POWER_UP_SPEED_MULTIPLIER;
-            }
-
-            commands.entity(player_info.entity).insert(velocity);
-        }
-
         player_info.speed_power_up = msg.speed_power_up;
         player_info.multi_shot_power_up = msg.multi_shot_power_up;
         player_info.phasing_power_up = msg.phasing_power_up;
@@ -185,7 +172,7 @@ pub fn sync_players(
     graphs: &mut ResMut<Assets<AnimationGraph>>,
     players: &mut ResMut<PlayerMap>,
     rtt: &ResMut<RoundTripTime>,
-    player_data: &Query<(&Position, &Speed, PlayerMovement), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &FaceDirection), With<PlayerMarker>>,
     camera_query: &Query<Entity, With<Camera3d>>,
     my_player_id: PlayerId,
     asset_server: &Res<AssetServer>,
@@ -262,7 +249,7 @@ pub fn sync_players(
     // Update existing players with server state
     for (id, server_player) in server_players {
         if let Some(client_player) = players.0.get_mut(id) {
-            if let Ok((client_pos, _, _)) = player_data.get(client_player.entity) {
+            if let Ok((client_pos, _)) = player_data.get(client_player.entity) {
                 let mut server_vel = server_player.speed.to_velocity();
                 if server_player.speed_power_up {
                     server_vel.x *= POWER_UP_SPEED_MULTIPLIER;

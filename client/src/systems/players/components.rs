@@ -1,7 +1,5 @@
 use bevy::prelude::*;
 
-use common::protocol::{FaceDirection, Position};
-
 // ============================================================================
 // Components
 // ============================================================================
@@ -11,26 +9,6 @@ use common::protocol::{FaceDirection, Position};
 pub struct BumpFlashState {
     pub was_colliding: bool,
     pub flash_timer: f32,
-}
-
-// ============================================================================
-// Query Bundles
-// ============================================================================
-
-// Common query for player movement (read-only)
-#[derive(bevy::ecs::query::QueryData)]
-#[query_data(mutable)]
-pub struct PlayerMovement {
-    pub position: &'static Position,
-    pub face_direction: &'static FaceDirection,
-}
-
-// Common query for player movement (mutable)
-#[derive(bevy::ecs::query::QueryData)]
-#[query_data(mutable)]
-pub struct PlayerMovementMut {
-    pub velocity: &'static mut common::protocol::Velocity,
-    pub face_direction: &'static mut FaceDirection,
 }
 
 // ============================================================================
