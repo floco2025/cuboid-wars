@@ -13,18 +13,6 @@ use common::{
 };
 
 // ============================================================================
-// Query Bundles
-// ============================================================================
-
-// Common query for player target (used in projectile collision)
-#[derive(bevy::ecs::query::QueryData)]
-pub struct PlayerTarget {
-    pub position: &'static Position,
-    pub face_direction: &'static FaceDirection,
-    pub player_id: &'static PlayerId,
-}
-
-// ============================================================================
 // Projectiles Movement System
 // ============================================================================
 
@@ -32,7 +20,7 @@ pub fn projectiles_movement_system(
     mut commands: Commands,
     time: Res<Time>,
     mut projectile_query: Query<(Entity, &mut Position, &mut Projectile, &PlayerId), With<ProjectileMarker>>,
-    player_query: Query<PlayerTarget, (With<PlayerMarker>, Without<ProjectileMarker>)>,
+    player_query: Query<(&Position, &FaceDirection, &PlayerId), (With<PlayerMarker>, Without<ProjectileMarker>)>,
     sentry_query: Query<(&SentryId, &Position, &FaceDirection), (With<SentryMarker>, Without<ProjectileMarker>)>,
     map_layout: Res<MapLayout>,
     mut players: ResMut<PlayerMap>,
@@ -161,20 +149,20 @@ pub fn projectiles_movement_system(
         }
 
         // Check player collisions
-        for player in player_query.iter() {
+        for (position, face_direction, player_id) in player_query.iter() {
             // Use common hit detection logic
             let result =
-                sweep_projectile_vs_player(&proj_pos, &projectile, delta, player.position, player.face_direction.0);
+                sweep_projectile_vs_player(&proj_pos, &projectile, delta, position, face_direction.0);
 
             if result.hit {
                 // Self-hit: despawn without scoring to match client expectations
-                if shooter_id == player.player_id {
+                if shooter_id == player_id {
                     commands.entity(proj_entity).despawn();
                     hit_something = true;
                     break;
                 }
 
-                info!("{:?} hits {:?}", shooter_id, player.player_id);
+                info!("{:?} hits {:?}", shooter_id, player_id);
 
                 // Update hit counters in separate scopes to avoid borrow conflicts
                 {
@@ -183,7 +171,7 @@ pub fn projectiles_movement_system(
                     }
                 }
                 {
-                    if let Some(target_info) = players.0.get_mut(player.player_id) {
+                    if let Some(target_info) = players.0.get_mut(player_id) {
                         target_info.hits -= 1;
                     }
                 }
@@ -192,7 +180,7 @@ pub fn projectiles_movement_system(
                 broadcast_to_all(
                     &players,
                     ServerMessage::Hit(SHit {
-                        id: *player.player_id,
+                        id: *player_id,
                         hit_dir_x: result.hit_dir_x,
                         hit_dir_z: result.hit_dir_z,
                     }),
