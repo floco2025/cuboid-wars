@@ -4,6 +4,7 @@ use std::time::Duration;
 use super::{components::AssetManagers, login::handle_init_message, messages::dispatch_message};
 use crate::{
     constants::ECHO_INTERVAL,
+    markers::MainCameraMarker,
     net::{ClientToServer, ServerToClient},
     resources::{
         ClientToServerChannel, ItemMap, LastUpdateSeq, MyPlayerId, PlayerMap, RoundTripTime, SentryMap,
@@ -29,7 +30,7 @@ pub fn network_server_message_system(
     mut assets: AssetManagers,
     player_data: Query<(&Position, &FaceDirection), With<PlayerMarker>>,
     sentry_positions: Query<&Position, With<SentryMarker>>,
-    cameras: Query<Entity, With<Camera3d>>,
+    cameras: Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     my_player_id: Option<Res<MyPlayerId>>,
     map_layout: Option<Res<MapLayout>>,
     time: Res<Time>,

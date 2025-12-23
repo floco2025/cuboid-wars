@@ -3,6 +3,7 @@ use std::collections::HashSet;
 
 use super::components::ServerReconciliation;
 use crate::{
+    markers::MainCameraMarker,
     resources::{PlayerInfo, PlayerMap, RoundTripTime},
     spawning::{spawn_player, spawn_projectiles},
     systems::players::{CameraShake, CuboidShake},
@@ -94,7 +95,7 @@ pub fn handle_player_shot_message(
 pub fn handle_player_hit_message(
     commands: &mut Commands,
     players: &ResMut<PlayerMap>,
-    camera_query: &Query<Entity, With<Camera3d>>,
+    camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     my_player_id: PlayerId,
     msg: SHit,
 ) {
@@ -172,7 +173,7 @@ pub fn sync_players(
     players: &mut ResMut<PlayerMap>,
     rtt: &ResMut<RoundTripTime>,
     player_data: &Query<(&Position, &FaceDirection), With<PlayerMarker>>,
-    camera_query: &Query<Entity, With<Camera3d>>,
+    camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     my_player_id: PlayerId,
     asset_server: &Res<AssetServer>,
     server_players: &[(PlayerId, Player)],

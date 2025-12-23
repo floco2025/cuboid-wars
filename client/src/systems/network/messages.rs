@@ -11,7 +11,10 @@ use super::{
     sentries::{handle_sentry_hit_message, handle_sentry_message},
     systems::handle_echo_message,
 };
-use crate::resources::{ItemMap, LastUpdateSeq, PlayerMap, RoundTripTime, SentryMap};
+use crate::{
+    markers::MainCameraMarker,
+    resources::{ItemMap, LastUpdateSeq, PlayerMap, RoundTripTime, SentryMap},
+};
 use common::{markers::PlayerMarker, markers::SentryMarker, protocol::*};
 
 // ============================================================================
@@ -31,7 +34,7 @@ pub fn dispatch_message(
     assets: &mut AssetManagers,
     player_data: &Query<(&Position, &FaceDirection), With<PlayerMarker>>,
     sentry_positions: &Query<&Position, With<SentryMarker>>,
-    cameras: &Query<Entity, With<Camera3d>>,
+    cameras: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     time: &Res<Time>,
     asset_server: &Res<AssetServer>,
     map_layout: Option<&MapLayout>,
@@ -135,7 +138,7 @@ pub fn handle_update_message(
     last_update_seq: &mut ResMut<LastUpdateSeq>,
     player_data: &Query<(&Position, &FaceDirection), With<PlayerMarker>>,
     sentry_query: &Query<&Position, With<SentryMarker>>,
-    camera_query: &Query<Entity, With<Camera3d>>,
+    camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     my_player_id: PlayerId,
     asset_server: &Res<AssetServer>,
     msg: SUpdate,
