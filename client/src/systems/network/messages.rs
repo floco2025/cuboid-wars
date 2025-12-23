@@ -89,7 +89,6 @@ pub fn dispatch_message(
             handle_player_status_message(
                 commands,
                 players,
-                player_data,
                 player_status_msg,
                 my_player_id,
                 asset_server,

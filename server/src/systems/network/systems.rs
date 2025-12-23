@@ -33,7 +33,7 @@ pub fn network_client_message_system(
     sentries: Res<SentryMap>,
     player_data: Query<(&Position, &Speed, &FaceDirection), With<PlayerMarker>>,
     item_positions: Query<&Position, With<ItemMarker>>,
-    sentry_data: Query<(&Position, &Velocity, &FaceDirection), With<SentryMarker>>,
+    sentry_data: Query<(&Position, &Velocity), With<SentryMarker>>,
 ) {
     while let Ok((id, event)) = from_clients.try_recv() {
         let Some(player_info) = players.0.get(&id) else {
@@ -103,7 +103,7 @@ pub fn network_broadcast_state_system(
     sentries: Res<SentryMap>,
     player_data: Query<(&Position, &Speed, &FaceDirection), With<PlayerMarker>>,
     item_positions: Query<&Position, With<ItemMarker>>,
-    sentry_data: Query<(&Position, &Velocity, &FaceDirection), With<SentryMarker>>,
+    sentry_data: Query<(&Position, &Velocity), With<SentryMarker>>,
 ) {
     *timer += time.delta_secs();
     if *timer < UPDATE_BROADCAST_INTERVAL {

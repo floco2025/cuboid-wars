@@ -29,7 +29,6 @@ pub fn handle_sentry_message(
         if let Ok(client_pos) = sentry_query.get(sentry_info.entity) {
             commands.entity(sentry_info.entity).insert((
                 msg.sentry.vel,
-                FaceDirection(msg.sentry.face_dir),
                 ServerReconciliation {
                     client_pos: *client_pos,
                     server_pos: msg.sentry.pos,
@@ -43,7 +42,6 @@ pub fn handle_sentry_message(
             commands.entity(sentry_info.entity).insert((
                 msg.sentry.pos,
                 msg.sentry.vel,
-                FaceDirection(msg.sentry.face_dir),
             ));
         }
     } else {
@@ -57,7 +55,6 @@ pub fn handle_sentry_message(
             msg.id,
             &msg.sentry.pos,
             &msg.sentry.vel,
-            msg.sentry.face_dir,
         );
         sentries.0.insert(msg.id, SentryInfo { entity });
     }
@@ -104,7 +101,6 @@ pub fn sync_sentries(
             *sentry_id,
             &server_sentry.pos,
             &server_sentry.vel,
-            server_sentry.face_dir,
         );
         sentries.0.insert(*sentry_id, SentryInfo { entity });
     }

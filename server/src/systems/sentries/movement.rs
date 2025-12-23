@@ -108,7 +108,6 @@ pub fn pre_patrol_movement(
                 sentry: Sentry {
                     pos: *pos,
                     vel: *vel,
-                    face_dir: vel.x.atan2(vel.z),
                 },
             }),
         );
@@ -141,7 +140,6 @@ pub fn pre_patrol_movement(
                     sentry: Sentry {
                         pos: *pos,
                         vel: *vel,
-                        face_dir: vel.x.atan2(vel.z),
                     },
                 }),
             );
@@ -239,7 +237,6 @@ pub fn patrol_movement(
                     sentry: Sentry {
                         pos: *pos,
                         vel: *vel,
-                        face_dir: *face_dir,
                     },
                 }),
             );
@@ -366,7 +363,6 @@ pub fn target_movement(
                 sentry: Sentry {
                     pos: *pos,
                     vel: *vel,
-                    face_dir: vel.x.atan2(vel.z),
                 },
             }),
         );

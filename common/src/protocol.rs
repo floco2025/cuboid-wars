@@ -163,7 +163,6 @@ pub struct Item {
 pub struct Sentry {
     pub pos: Position,
     pub vel: Velocity,
-    pub face_dir: f32, // Direction sentry is facing (radians)
 }
 
 // ============================================================================

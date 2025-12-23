@@ -35,7 +35,6 @@ pub fn spawn_sentry(
     sentry_id: SentryId,
     position: &Position,
     velocity: &Velocity,
-    face_dir: f32,
 ) -> Entity {
     // Create animation graph with walk animation
     let mut graph = AnimationGraph::new();
@@ -47,6 +46,13 @@ pub fn spawn_sentry(
     let animation_to_play = AnimationToPlay {
         graph_handle,
         index: walk_index,
+    };
+    
+    // Calculate initial face direction from velocity
+    let face_dir = if velocity.x.abs() > 0.01 || velocity.z.abs() > 0.01 {
+        velocity.x.atan2(velocity.z)
+    } else {
+        0.0  // Default facing direction when stopped
     };
 
     let entity = commands

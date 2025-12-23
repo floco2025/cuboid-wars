@@ -30,7 +30,7 @@ pub fn handle_login_message(
     sentries: &Res<SentryMap>,
     player_data: &Query<(&Position, &Speed, &FaceDirection), With<PlayerMarker>>,
     item_positions: &Query<&Position, With<ItemMarker>>,
-    sentry_data: &Query<(&Position, &Velocity, &FaceDirection), With<SentryMarker>>,
+    sentry_data: &Query<(&Position, &Velocity), With<SentryMarker>>,
 ) {
     match msg {
         ClientMessage::Login(login) => {
@@ -142,7 +142,7 @@ fn generate_player_spawn_position(
     players: &PlayerMap,
     sentries: &SentryMap,
     player_data: &Query<(&Position, &Speed, &FaceDirection), With<PlayerMarker>>,
-    sentry_data: &Query<(&Position, &Velocity, &FaceDirection), With<SentryMarker>>,
+    sentry_data: &Query<(&Position, &Velocity), With<SentryMarker>>,
 ) -> Position {
     let mut rng = rand::rng();
     let grid_rows = grid_config.grid.len() as i32;
@@ -200,7 +200,7 @@ fn generate_player_spawn_position(
                 .0
                 .values()
                 .filter_map(|s| sentry_data.get(s.entity).ok())
-                .any(|(s_pos, _, _)| {
+                .any(|(s_pos, _)| {
                     let dx = pos.x - s_pos.x;
                     let dz = pos.z - s_pos.z;
                     dx.mul_add(dx, dz * dz) < MIN_DISTANCE * MIN_DISTANCE

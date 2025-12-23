@@ -127,7 +127,6 @@ pub fn handle_player_hit_message(
 pub fn handle_player_status_message(
     commands: &mut Commands,
     players: &mut ResMut<PlayerMap>,
-    player_data: &Query<(&Position, &FaceDirection), With<PlayerMarker>>,
     msg: SPlayerStatus,
     my_player_id: PlayerId,
     asset_server: &AssetServer,

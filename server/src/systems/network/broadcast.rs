@@ -96,20 +96,19 @@ pub fn collect_items(items: &ItemMap, item_positions: &Query<&Position, With<Ite
 #[must_use]
 pub fn collect_sentries(
     sentries: &SentryMap,
-    sentry_data: &Query<(&Position, &Velocity, &FaceDirection), With<SentryMarker>>,
+    sentry_data: &Query<(&Position, &Velocity), With<SentryMarker>>,
 ) -> Vec<(SentryId, Sentry)> {
     sentries
         .0
         .iter()
         .map(|(id, info)| {
-            let (pos_component, vel_component, face_dir_component) =
+            let (pos_component, vel_component) =
                 sentry_data.get(info.entity).expect("Sentry entity missing components");
             (
                 *id,
                 Sentry {
                     pos: *pos_component,
                     vel: *vel_component,
-                    face_dir: face_dir_component.0,
                 },
             )
         })
