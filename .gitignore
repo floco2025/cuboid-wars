@@ -5,9 +5,10 @@ Cargo.lock
 bacon.toml
 
 
-# Ignore Claude files
+# Ignore AI files
 .claude
 Claude.md
+AGENTS.md
 
 # Ignore all TLS certificates and private keys
 *.pem
