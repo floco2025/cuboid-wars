@@ -81,7 +81,7 @@ pub fn pre_patrol_movement(
 
     // If the destination cell is already occupied by another sentry, stop immediately
     let field = &mut sentry_grid.0[grid_z as usize][grid_x as usize];
-    if field.is_some() && field.unwrap() != *sentry_id {
+    if field.is_some() && field.expect("should be some") != *sentry_id {
         *vel = Velocity { x: 0.0, y: 0.0, z: 0.0 };
         *face_dir = 0.0;
         return;
@@ -168,7 +168,7 @@ pub fn patrol_movement(
 
     let field = &mut sentry_grid.0[grid_z as usize][grid_x as usize];
     assert!(field.is_some());
-    assert!(field.unwrap() == *sentry_id);
+    assert!(field.expect("should be some") == *sentry_id);
 
     let center = cell_center(grid_x, grid_z);
 
@@ -193,7 +193,7 @@ pub fn patrol_movement(
             assert!((0..GRID_ROWS).contains(&prev_grid_z));
             let field = &mut sentry_grid.0[prev_grid_z as usize][prev_grid_x as usize];
             assert!(field.is_some());
-            assert!(field.unwrap() == *sentry_id);
+            assert!(field.expect("should be some") == *sentry_id);
             *field = None;
         }
 
@@ -254,7 +254,7 @@ pub fn patrol_movement(
             assert!((0..GRID_COLS).contains(&next_grid_x));
             assert!((0..GRID_ROWS).contains(&next_grid_z));
             let field = &mut sentry_grid.0[next_grid_z as usize][next_grid_x as usize];
-            assert!(field.is_none() || field.unwrap() == *sentry_id);
+            assert!(field.is_none() || field.expect("should be some") == *sentry_id);
             *field = Some(*sentry_id);
         }
     }
