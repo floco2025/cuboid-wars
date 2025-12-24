@@ -2,6 +2,13 @@ use bevy::prelude::*;
 
 use crate::protocol::{Position, Ramp, Wall};
 
+/// Result of a sweep collision test: surface normal and time of impact.
+#[derive(Debug, Clone, Copy)]
+pub struct Collision {
+    pub normal: Vec3,
+    pub t: f32,
+}
+
 // Check if two 1D ranges overlap.
 #[must_use]
 pub fn ranges_overlap_1d(a_min: f32, a_max: f32, b_min: f32, b_max: f32) -> bool {
@@ -186,7 +193,7 @@ pub fn sweep_ramp_high_cap(
     t_min <= t_max && t_max >= 0.0 && t_min <= 1.0
 }
 
-// Swept point vs axis-aligned cuboid; returns hit normal and collision time if within [0,1].
+/// Swept point vs axis-aligned cuboid; returns collision info if within [0,1].
 #[must_use]
 pub fn sweep_point_vs_cuboid(
     proj_pos: &Position,
@@ -199,14 +206,14 @@ pub fn sweep_point_vs_cuboid(
     half_x: f32,
     half_y: f32,
     half_z: f32,
-) -> Option<(f32, f32, f32, f32)> {
+) -> Option<Collision> {
     let local_x = proj_pos.x - center_x;
     let local_y = proj_pos.y - center_y;
     let local_z = proj_pos.z - center_z;
 
     let mut t_enter = 0.0_f32;
     let mut t_exit = 1.0_f32;
-    let mut hit_normal = (0.0_f32, 0.0_f32, 0.0_f32);
+    let mut hit_normal = Vec3::ZERO;
 
     if ray_dir_x.abs() < 1e-6 {
         if local_x.abs() > half_x {
@@ -218,7 +225,7 @@ pub fn sweep_point_vs_cuboid(
         let (tx_min, tx_max) = if tx1 < tx2 { (tx1, tx2) } else { (tx2, tx1) };
         if tx_min > t_enter {
             t_enter = tx_min;
-            hit_normal = (if ray_dir_x > 0.0 { -1.0 } else { 1.0 }, 0.0, 0.0);
+            hit_normal = Vec3::new(if ray_dir_x > 0.0 { -1.0 } else { 1.0 }, 0.0, 0.0);
         }
         t_exit = t_exit.min(tx_max);
         if t_enter > t_exit {
@@ -236,7 +243,7 @@ pub fn sweep_point_vs_cuboid(
         let (ty_min, ty_max) = if ty1 < ty2 { (ty1, ty2) } else { (ty2, ty1) };
         if ty_min > t_enter {
             t_enter = ty_min;
-            hit_normal = (0.0, if ray_dir_y > 0.0 { -1.0 } else { 1.0 }, 0.0);
+            hit_normal = Vec3::new(0.0, if ray_dir_y > 0.0 { -1.0 } else { 1.0 }, 0.0);
         }
         t_exit = t_exit.min(ty_max);
         if t_enter > t_exit {
@@ -254,7 +261,7 @@ pub fn sweep_point_vs_cuboid(
         let (tz_min, tz_max) = if tz1 < tz2 { (tz1, tz2) } else { (tz2, tz1) };
         if tz_min > t_enter {
             t_enter = tz_min;
-            hit_normal = (0.0, 0.0, if ray_dir_z > 0.0 { -1.0 } else { 1.0 });
+            hit_normal = Vec3::new(0.0, 0.0, if ray_dir_z > 0.0 { -1.0 } else { 1.0 });
         }
         t_exit = t_exit.min(tz_max);
         if t_enter > t_exit {
@@ -266,12 +273,14 @@ pub fn sweep_point_vs_cuboid(
         return None;
     }
 
-    if hit_normal.0 == 0.0 && hit_normal.1 == 0.0 && hit_normal.2 == 0.0 {
+    if hit_normal == Vec3::ZERO {
         return None;
     }
 
-    let t_collision = t_enter.clamp(0.0, 1.0);
-    Some((hit_normal.0, hit_normal.1, hit_normal.2, t_collision))
+    Some(Collision {
+        normal: hit_normal,
+        t: t_enter.clamp(0.0, 1.0),
+    })
 }
 
 // Axis-aligned wall overlap against an AABB with given half-extents.

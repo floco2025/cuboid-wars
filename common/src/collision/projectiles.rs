@@ -2,7 +2,7 @@ use bevy_ecs::prelude::*;
 use bevy_math::Vec3;
 use bevy_time::{Timer, TimerMode};
 
-use super::helpers::{sweep_point_vs_cuboid, sweep_slab_interval};
+use super::helpers::{sweep_point_vs_cuboid, sweep_slab_interval, Collision};
 use crate::{
     constants::*,
     protocol::{Position, Ramp, Roof, Wall},
@@ -41,157 +41,66 @@ impl Projectile {
 
     #[must_use]
     pub fn handle_ramp_bounce(&mut self, projectile_pos: &Position, delta: f32, ramp: &Ramp) -> Option<Position> {
-        if let Some((normal_x, normal_y, normal_z, t_collision)) =
-            sweep_projectile_vs_ramp(projectile_pos, self, delta, ramp)
-        {
-            let collision_x = self.velocity.x.mul_add(delta * t_collision, projectile_pos.x);
-            let collision_y = self.velocity.y.mul_add(delta * t_collision, projectile_pos.y);
-            let collision_z = self.velocity.z.mul_add(delta * t_collision, projectile_pos.z);
-
-            let dot = self
-                .velocity
-                .x
-                .mul_add(normal_x, self.velocity.y.mul_add(normal_y, self.velocity.z * normal_z));
-            self.velocity.x -= 2.0 * dot * normal_x;
-            self.velocity.y -= 2.0 * dot * normal_y;
-            self.velocity.z -= 2.0 * dot * normal_z;
-
-            const SEPARATION_EPSILON: f32 = 0.01;
-            let separated_x = normal_x.mul_add(SEPARATION_EPSILON, collision_x);
-            let separated_y = normal_y.mul_add(SEPARATION_EPSILON, collision_y);
-            let separated_z = normal_z.mul_add(SEPARATION_EPSILON, collision_z);
-
-            let remaining_time = delta * (1.0 - t_collision);
-            Some(Position {
-                x: self.velocity.x.mul_add(remaining_time, separated_x),
-                y: self.velocity.y.mul_add(remaining_time, separated_y),
-                z: self.velocity.z.mul_add(remaining_time, separated_z),
-            })
-        } else {
-            None
-        }
+        let collision = sweep_projectile_vs_ramp(projectile_pos, self, delta, ramp)?;
+        Some(self.apply_bounce(projectile_pos, delta, collision))
     }
 
     #[must_use]
     pub fn handle_wall_bounce(&mut self, projectile_pos: &Position, delta: f32, wall: &Wall) -> Option<Position> {
-        if let Some((normal_x, normal_y, normal_z, t_collision)) =
-            sweep_projectile_vs_wall(projectile_pos, self, delta, wall)
-        {
-            let collision_x = self.velocity.x.mul_add(delta * t_collision, projectile_pos.x);
-            let collision_y = self.velocity.y.mul_add(delta * t_collision, projectile_pos.y);
-            let collision_z = self.velocity.z.mul_add(delta * t_collision, projectile_pos.z);
-
-            let dot = self
-                .velocity
-                .x
-                .mul_add(normal_x, self.velocity.y.mul_add(normal_y, self.velocity.z * normal_z));
-            self.velocity.x -= 2.0 * dot * normal_x;
-            self.velocity.y -= 2.0 * dot * normal_y;
-            self.velocity.z -= 2.0 * dot * normal_z;
-
-            const SEPARATION_EPSILON: f32 = 0.01;
-            let separated_x = normal_x.mul_add(SEPARATION_EPSILON, collision_x);
-            let separated_y = normal_y.mul_add(SEPARATION_EPSILON, collision_y);
-            let separated_z = normal_z.mul_add(SEPARATION_EPSILON, collision_z);
-
-            let remaining_time = delta * (1.0 - t_collision);
-            Some(Position {
-                x: self.velocity.x.mul_add(remaining_time, separated_x),
-                y: self.velocity.y.mul_add(remaining_time, separated_y),
-                z: self.velocity.z.mul_add(remaining_time, separated_z),
-            })
-        } else {
-            None
-        }
+        let collision = sweep_projectile_vs_wall(projectile_pos, self, delta, wall)?;
+        Some(self.apply_bounce(projectile_pos, delta, collision))
     }
 
     #[must_use]
     pub fn handle_roof_bounce(&mut self, projectile_pos: &Position, delta: f32, roof: &Roof) -> Option<Position> {
-        if let Some((normal_x, normal_y, normal_z, t_collision)) =
-            sweep_projectile_vs_roof(projectile_pos, self, delta, roof)
-        {
-            let collision_x = self.velocity.x.mul_add(delta * t_collision, projectile_pos.x);
-            let collision_y = self.velocity.y.mul_add(delta * t_collision, projectile_pos.y);
-            let collision_z = self.velocity.z.mul_add(delta * t_collision, projectile_pos.z);
-
-            let dot = self
-                .velocity
-                .x
-                .mul_add(normal_x, self.velocity.y.mul_add(normal_y, self.velocity.z * normal_z));
-            self.velocity.x -= 2.0 * dot * normal_x;
-            self.velocity.y -= 2.0 * dot * normal_y;
-            self.velocity.z -= 2.0 * dot * normal_z;
-
-            const SEPARATION_EPSILON: f32 = 0.01;
-            let separated_x = normal_x.mul_add(SEPARATION_EPSILON, collision_x);
-            let separated_y = normal_y.mul_add(SEPARATION_EPSILON, collision_y);
-            let separated_z = normal_z.mul_add(SEPARATION_EPSILON, collision_z);
-
-            let remaining_time = delta * (1.0 - t_collision);
-            Some(Position {
-                x: self.velocity.x.mul_add(remaining_time, separated_x),
-                y: self.velocity.y.mul_add(remaining_time, separated_y),
-                z: self.velocity.z.mul_add(remaining_time, separated_z),
-            })
-        } else {
-            None
-        }
+        let collision = sweep_projectile_vs_roof(projectile_pos, self, delta, roof)?;
+        Some(self.apply_bounce(projectile_pos, delta, collision))
     }
 
-    // Bounce off the ground plane (y=0) if moving downward
     #[must_use]
     pub fn handle_ground_bounce(&mut self, projectile_pos: &Position, delta: f32) -> Option<Position> {
-        let vy = self.velocity.y;
-
-        if vy >= 0.0 {
+        if self.velocity.y >= 0.0 {
             return None;
         }
 
-        let t_hit = (PROJECTILE_RADIUS - projectile_pos.y) / (vy * delta);
-
-        if !(0.0..=1.0).contains(&t_hit) {
+        let t = (PROJECTILE_RADIUS - projectile_pos.y) / (self.velocity.y * delta);
+        if !(0.0..=1.0).contains(&t) {
             return None;
         }
 
-        let collision_x = self.velocity.x.mul_add(delta * t_hit, projectile_pos.x);
-        let collision_y = self.velocity.y.mul_add(delta * t_hit, projectile_pos.y);
-        let collision_z = self.velocity.z.mul_add(delta * t_hit, projectile_pos.z);
+        let collision = Collision {
+            normal: Vec3::Y,
+            t,
+        };
+        Some(self.apply_bounce(projectile_pos, delta, collision))
+    }
 
-        let normal_x = 0.0;
-        let normal_y = 1.0;
-        let normal_z = 0.0;
+    /// Applies bounce physics: reflects velocity off the surface and returns the new position.
+    fn apply_bounce(&mut self, projectile_pos: &Position, delta: f32, collision: Collision) -> Position {
+        // Calculate collision point
+        let collision_pos = Vec3::from(*projectile_pos) + self.velocity * delta * collision.t;
 
-        let dot = self
-            .velocity
-            .x
-            .mul_add(normal_x, self.velocity.y.mul_add(normal_y, self.velocity.z * normal_z));
-        self.velocity.x -= 2.0 * dot * normal_x;
-        self.velocity.y -= 2.0 * dot * normal_y;
-        self.velocity.z -= 2.0 * dot * normal_z;
+        // Reflect velocity: v' = v - 2(v·n)n
+        let dot = self.velocity.dot(collision.normal);
+        self.velocity -= 2.0 * dot * collision.normal;
 
+        // Separate from surface and continue with remaining time
         const SEPARATION_EPSILON: f32 = 0.01;
-        let separated_x = normal_x.mul_add(SEPARATION_EPSILON, collision_x);
-        let separated_y = normal_y.mul_add(SEPARATION_EPSILON, collision_y);
-        let separated_z = normal_z.mul_add(SEPARATION_EPSILON, collision_z);
+        let separated_pos = collision_pos + collision.normal * SEPARATION_EPSILON;
+        let remaining_time = delta * (1.0 - collision.t);
 
-        let remaining_time = delta * (1.0 - t_hit);
-        Some(Position {
-            x: self.velocity.x.mul_add(remaining_time, separated_x),
-            y: self.velocity.y.mul_add(remaining_time, separated_y),
-            z: self.velocity.z.mul_add(remaining_time, separated_z),
-        })
+        (separated_pos + self.velocity * remaining_time).into()
     }
 }
 
 // === Projectile sweep helpers ===
 
-#[must_use]
-pub fn sweep_projectile_vs_ramp(
+fn sweep_projectile_vs_ramp(
     proj_pos: &Position,
     projectile: &Projectile,
     delta: f32,
     ramp: &Ramp,
-) -> Option<(f32, f32, f32, f32)> {
+) -> Option<Collision> {
     let (min_x, max_x, min_z, max_z) = ramp.bounds_xz();
     let (min_y, max_y) = ramp.bounds_y();
 
@@ -285,7 +194,7 @@ pub fn sweep_projectile_vs_ramp(
     let mut best_t = f32::INFINITY;
     let mut best_normal = (0.0_f32, 0.0_f32, 0.0_f32);
 
-    let test_side = |t: f32, nx: f32, nz: f32, height_at: &dyn Fn(f32, f32) -> f32| -> Option<(f32, f32, f32, f32)> {
+    let test_side = |t: f32, nx: f32, nz: f32, height_at: &dyn Fn(f32, f32) -> f32| -> Option<Collision> {
         if !(0.0..=1.0).contains(&t) {
             return None;
         }
@@ -299,15 +208,18 @@ pub fn sweep_projectile_vs_ramp(
         let floor = min_y - PROJECTILE_RADIUS;
 
         if cy >= floor && cy <= h {
-            Some((nx, 0.0, nz, t))
+            Some(Collision {
+                normal: Vec3::new(nx, 0.0, nz),
+                t,
+            })
         } else {
             None
         }
     };
 
-    if let Some((nx, ny, nz, t)) = test_side(t_enter, hit_normal_x, hit_normal_z, &height_at) {
-        best_t = t;
-        best_normal = (nx, ny, nz);
+    if let Some(collision) = test_side(t_enter, hit_normal_x, hit_normal_z, &height_at) {
+        best_t = collision.t;
+        best_normal = (collision.normal.x, collision.normal.y, collision.normal.z);
     }
 
     let height_linear = if along_x {
@@ -351,7 +263,10 @@ pub fn sweep_projectile_vs_ramp(
     }
 
     if best_t.is_finite() {
-        Some((best_normal.0, best_normal.1, best_normal.2, best_t))
+        Some(Collision {
+            normal: Vec3::new(best_normal.0, best_normal.1, best_normal.2),
+            t: best_t,
+        })
     } else {
         None
     }
@@ -452,13 +367,12 @@ pub fn sweep_projectile_vs_player(
     )
 }
 
-#[must_use]
-pub fn sweep_projectile_vs_wall(
+fn sweep_projectile_vs_wall(
     proj_pos: &Position,
     projectile: &Projectile,
     delta: f32,
     wall: &Wall,
-) -> Option<(f32, f32, f32, f32)> {
+) -> Option<Collision> {
     let wall_center_x = f32::midpoint(wall.x1, wall.x2);
     let wall_center_z = f32::midpoint(wall.z1, wall.z2);
     let wall_center_y = WALL_HEIGHT / 2.0;
@@ -490,13 +404,12 @@ pub fn sweep_projectile_vs_wall(
     )
 }
 
-#[must_use]
-pub fn sweep_projectile_vs_roof(
+fn sweep_projectile_vs_roof(
     proj_pos: &Position,
     projectile: &Projectile,
     delta: f32,
     roof: &Roof,
-) -> Option<(f32, f32, f32, f32)> {
+) -> Option<Collision> {
     let (min_x, max_x, min_z, max_z) = roof.bounds_xz();
 
     let center_x = f32::midpoint(min_x, max_x);
