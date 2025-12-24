@@ -124,17 +124,17 @@ fn sweep_projectile_vs_ramp(
 
     let along_x = (ramp.x2 - ramp.x1).abs() >= (ramp.z2 - ramp.z1).abs();
     let slope = if along_x {
-        (ramp.y2 - ramp.y1) / (ramp.x2 - ramp.x1 + 1e-6)
+        (ramp.y2 - ramp.y1) / (ramp.x2 - ramp.x1 + PHYSICS_EPSILON)
     } else {
-        (ramp.y2 - ramp.y1) / (ramp.z2 - ramp.z1 + 1e-6)
+        (ramp.y2 - ramp.y1) / (ramp.z2 - ramp.z1 + PHYSICS_EPSILON)
     };
 
     let height_at = |x: f32, z: f32| {
         if along_x {
-            let t = ((x - ramp.x1) / (ramp.x2 - ramp.x1 + 1e-6)).clamp(0.0, 1.0);
+            let t = ((x - ramp.x1) / (ramp.x2 - ramp.x1 + PHYSICS_EPSILON)).clamp(0.0, 1.0);
             ramp.y1 + t * (ramp.y2 - ramp.y1)
         } else {
-            let t = ((z - ramp.z1) / (ramp.z2 - ramp.z1 + 1e-6)).clamp(0.0, 1.0);
+            let t = ((z - ramp.z1) / (ramp.z2 - ramp.z1 + PHYSICS_EPSILON)).clamp(0.0, 1.0);
             ramp.y1 + t * (ramp.y2 - ramp.y1)
         }
     };
@@ -149,7 +149,7 @@ fn sweep_projectile_vs_ramp(
     let mut hit_normal_x = 0.0_f32;
     let mut hit_normal_z = 0.0_f32;
 
-    if ray_dir_x.abs() < 1e-6 {
+    if ray_dir_x.abs() < PHYSICS_EPSILON {
         if proj_pos.x < exp_min_x || proj_pos.x > exp_max_x {
             return None;
         }
@@ -170,7 +170,7 @@ fn sweep_projectile_vs_ramp(
         }
     }
 
-    if ray_dir_z.abs() < 1e-6 {
+    if ray_dir_z.abs() < PHYSICS_EPSILON {
         if proj_pos.z < exp_min_z || proj_pos.z > exp_max_z {
             return None;
         }
@@ -238,7 +238,7 @@ fn sweep_projectile_vs_ramp(
     let f1 = ray_dir_y - top_c1;
 
     let mut top_hit: Option<f32> = None;
-    if f1.abs() < 1e-6 {
+    if f1.abs() < PHYSICS_EPSILON {
         if f0 <= 0.0 {
             top_hit = Some(0.0);
         }
@@ -252,8 +252,8 @@ fn sweep_projectile_vs_ramp(
     if let Some(t_top) = top_hit {
         let cx = ray_dir_x.mul_add(t_top, proj_pos.x);
         let cz = ray_dir_z.mul_add(t_top, proj_pos.z);
-        if cx >= min_x - 1e-4 && cx <= max_x + 1e-4 && cz >= min_z - 1e-4 && cz <= max_z + 1e-4 && t_top < best_t {
-            let denom = (1.0 + slope * slope).sqrt();
+        if cx >= min_x - PHYSICS_EPSILON && cx <= max_x + PHYSICS_EPSILON && cz >= min_z - PHYSICS_EPSILON && cz <= max_z + PHYSICS_EPSILON && t_top < best_t {
+            let denom = slope.mul_add(slope, 1.0).sqrt();
             let normal_x = if along_x { -slope / denom } else { 0.0 };
             let normal_z = if along_x { 0.0 } else { -slope / denom };
             let normal_y = 1.0 / denom;

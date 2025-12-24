@@ -1,6 +1,9 @@
 use bevy::prelude::*;
 
-use crate::protocol::{Position, Ramp, Wall};
+use crate::{
+    constants::PHYSICS_EPSILON,
+    protocol::{Position, Ramp, Wall},
+};
 
 /// Result of a sweep collision test: surface normal and time of impact.
 #[derive(Debug, Clone, Copy)]
@@ -24,7 +27,7 @@ pub fn sweep_slab_interval(
     t_min: f32,
     t_max: f32,
 ) -> Option<(f32, f32)> {
-    if ray_dir.abs() > 1e-6 {
+    if ray_dir.abs() > PHYSICS_EPSILON {
         let t1 = (-half_extent - local_coord) / ray_dir;
         let t2 = (half_extent - local_coord) / ray_dir;
         let new_min = t_min.max(t1.min(t2));
@@ -215,7 +218,7 @@ pub fn sweep_point_vs_cuboid(
     let mut t_exit = 1.0_f32;
     let mut hit_normal = Vec3::ZERO;
 
-    if ray_dir_x.abs() < 1e-6 {
+    if ray_dir_x.abs() < PHYSICS_EPSILON {
         if local_x.abs() > half_x {
             return None;
         }
@@ -233,7 +236,7 @@ pub fn sweep_point_vs_cuboid(
         }
     }
 
-    if ray_dir_y.abs() < 1e-6 {
+    if ray_dir_y.abs() < PHYSICS_EPSILON {
         if local_y.abs() > half_y {
             return None;
         }
@@ -251,7 +254,7 @@ pub fn sweep_point_vs_cuboid(
         }
     }
 
-    if ray_dir_z.abs() < 1e-6 {
+    if ray_dir_z.abs() < PHYSICS_EPSILON {
         if local_z.abs() > half_z {
             return None;
         }

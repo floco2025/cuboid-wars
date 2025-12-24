@@ -5,6 +5,13 @@
 pub const UPDATE_BROADCAST_INTERVAL: f32 = 0.25; // seconds
 
 // ============================================================================
+// Floating-Point Comparisons
+// ============================================================================
+
+// Small value for floating-point comparisons (near-zero checks, division guards).
+pub const PHYSICS_EPSILON: f32 = 1e-6;
+
+// ============================================================================
 // Grid & Field
 // ============================================================================
 

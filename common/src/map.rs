@@ -1,5 +1,5 @@
 use crate::{
-    constants::{EPSILON, ROOF_HEIGHT},
+    constants::{PHYSICS_EPSILON, ROOF_HEIGHT},
     protocol::{Ramp, Roof},
 };
 
@@ -20,12 +20,12 @@ pub fn height_on_ramp(ramps: &[Ramp], x: f32, z: f32) -> f32 {
             let dz = (ramp.z2 - ramp.z1).abs();
 
             let progress = if dx >= dz {
-                if (max_x - min_x).abs() < EPSILON {
+                if (max_x - min_x).abs() < PHYSICS_EPSILON {
                     0.0
                 } else {
                     ((x - ramp.x1) / (ramp.x2 - ramp.x1)).clamp(0.0, 1.0)
                 }
-            } else if (max_z - min_z).abs() < EPSILON {
+            } else if (max_z - min_z).abs() < PHYSICS_EPSILON {
                 0.0
             } else {
                 ((z - ramp.z1) / (ramp.z2 - ramp.z1)).clamp(0.0, 1.0)

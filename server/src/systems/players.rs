@@ -4,7 +4,7 @@ use super::network::broadcast_to_all;
 use crate::resources::PlayerMap;
 use common::{
     collision::{slide_player_along_obstacles, sweep_player_vs_ramp_edges, sweep_player_vs_wall},
-    constants::{ALWAYS_PHASING, ALWAYS_SPEED, POWER_UP_SPEED_MULTIPLIER, ROOF_HEIGHT},
+    constants::{ALWAYS_PHASING, ALWAYS_SPEED, PHYSICS_EPSILON, POWER_UP_SPEED_MULTIPLIER, ROOF_HEIGHT},
     map::{close_to_roof, has_roof, height_on_ramp},
     markers::PlayerMarker,
     players::{PlannedMove, overlaps_other_player},
@@ -52,7 +52,7 @@ pub fn players_movement_system(
         velocity.z *= multiplier;
 
         let abs_velocity = velocity.x.hypot(velocity.z);
-        let is_standing_still = abs_velocity < f32::EPSILON;
+        let is_standing_still = abs_velocity < PHYSICS_EPSILON;
 
         if is_standing_still {
             planned_moves.push(PlannedMove {

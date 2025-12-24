@@ -4,7 +4,7 @@ use super::components::BumpFlashState;
 use crate::{markers::*, resources::PlayerMap, systems::network::ServerReconciliation};
 use common::{
     collision::{slide_player_along_obstacles, sweep_player_vs_ramp_edges, sweep_player_vs_wall},
-    constants::{ALWAYS_PHASING, ROOF_HEIGHT, SPEED_RUN, UPDATE_BROADCAST_INTERVAL},
+    constants::{ALWAYS_PHASING, PHYSICS_EPSILON, ROOF_HEIGHT, SPEED_RUN, UPDATE_BROADCAST_INTERVAL},
     map::{close_to_roof, has_roof, height_on_ramp},
     players::{PlannedMove, overlaps_other_player},
     protocol::{MapLayout, PlayerId, Position, Velocity},
@@ -104,7 +104,7 @@ pub fn players_movement_system(
         }
 
         let abs_velocity = client_vel.x.hypot(client_vel.z);
-        let is_standing_still = abs_velocity < f32::EPSILON;
+        let is_standing_still = abs_velocity < PHYSICS_EPSILON;
 
         // Calculate intended position from velocity (with server reconciliation if needed)
         let mut target_pos = if let Some(recon) = recon_option.as_mut() {
