@@ -37,22 +37,16 @@ pub fn projectiles_movement_system(
         }
 
         // Ground bounce
-        let mut hit_something = if let Some(new_pos) = projectile.handle_ground_bounce(&proj_pos, delta) {
-            proj_pos.x = new_pos.x;
-            proj_pos.y = new_pos.y;
-            proj_pos.z = new_pos.z;
+        let mut hit_something = projectile.handle_ground_bounce(&proj_pos, delta).is_some_and(|new_pos| {
+            *proj_pos = new_pos;
             true
-        } else {
-            false
-        };
+        });
 
         // Check wall collisions
         if !hit_something {
             for wall in &map_layout.lower_walls {
                 if let Some(new_pos) = projectile.handle_wall_bounce(&proj_pos, delta, wall) {
-                    proj_pos.x = new_pos.x;
-                    proj_pos.y = new_pos.y;
-                    proj_pos.z = new_pos.z;
+                    *proj_pos = new_pos;
                     hit_something = true;
                     break;
                 }
@@ -63,9 +57,7 @@ pub fn projectiles_movement_system(
         if !hit_something {
             for roof in &map_layout.roofs {
                 if let Some(new_pos) = projectile.handle_roof_bounce(&proj_pos, delta, roof) {
-                    proj_pos.x = new_pos.x;
-                    proj_pos.y = new_pos.y;
-                    proj_pos.z = new_pos.z;
+                    *proj_pos = new_pos;
                     hit_something = true;
                     break;
                 }
@@ -76,9 +68,7 @@ pub fn projectiles_movement_system(
         if !hit_something {
             for ramp in &map_layout.ramps {
                 if let Some(new_pos) = projectile.handle_ramp_bounce(&proj_pos, delta, ramp) {
-                    proj_pos.x = new_pos.x;
-                    proj_pos.y = new_pos.y;
-                    proj_pos.z = new_pos.z;
+                    *proj_pos = new_pos;
                     hit_something = true;
                     break;
                 }

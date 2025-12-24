@@ -363,7 +363,7 @@ pub struct SHit {
 }
 
 // Server to Client: Player status effects changed.
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct SPlayerStatus {
     pub id: PlayerId,
     pub speed_power_up: bool,

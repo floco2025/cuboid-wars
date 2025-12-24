@@ -70,6 +70,15 @@ impl PlayerInfo {
             stunned: self.stun_timer > 0.0,
         }
     }
+
+    /// Tick all power-up and status timers by delta, clamping to 0.
+    pub fn tick_timers(&mut self, delta: f32) {
+        self.speed_power_up_timer = (self.speed_power_up_timer - delta).max(0.0);
+        self.multi_shot_power_up_timer = (self.multi_shot_power_up_timer - delta).max(0.0);
+        self.phasing_power_up_timer = (self.phasing_power_up_timer - delta).max(0.0);
+        self.sentry_hunt_power_up_timer = (self.sentry_hunt_power_up_timer - delta).max(0.0);
+        self.stun_timer = (self.stun_timer - delta).max(0.0);
+    }
 }
 
 // Map of all players (server-side source of truth)
