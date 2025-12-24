@@ -24,7 +24,11 @@ pub fn handle_player_speed_message(
 ) {
     trace!("{:?} speed: {:?}", msg.id, msg);
     if let Some(player) = players.0.get(&msg.id) {
-        let multiplier = if player.speed_power_up { POWER_UP_SPEED_MULTIPLIER } else { 1.0 };
+        let multiplier = if player.speed_power_up {
+            POWER_UP_SPEED_MULTIPLIER
+        } else {
+            1.0
+        };
         let velocity = msg.speed.to_velocity().with_speed_multiplier(multiplier);
 
         // Add server reconciliation if we have client position
@@ -136,10 +140,11 @@ pub fn handle_player_status_message(
             if player_info.stunned == msg.stunned {
                 // Only play power-up sound effect if it wasn't a downgrade
                 #[allow(clippy::nonminimal_bool)]
-                if !(player_info.speed_power_up && !msg.speed_power_up
+                let lost_power_up = player_info.speed_power_up && !msg.speed_power_up
                     || player_info.multi_shot_power_up && !msg.multi_shot_power_up
-                    || player_info.phasing_power_up && !msg.phasing_power_up)
-                {
+                    || player_info.phasing_power_up && !msg.phasing_power_up;
+
+                if !lost_power_up {
                     commands.spawn((
                         AudioPlayer::new(asset_server.load("sounds/player_powerup.wav")),
                         PlaybackSettings::DESPAWN,
@@ -186,7 +191,11 @@ pub fn sync_players(
 
         let is_local = *id == my_player_id;
         debug!("spawning player {:?} from Update (is_local: {})", id, is_local);
-        let multiplier = if player.speed_power_up { POWER_UP_SPEED_MULTIPLIER } else { 1.0 };
+        let multiplier = if player.speed_power_up {
+            POWER_UP_SPEED_MULTIPLIER
+        } else {
+            1.0
+        };
         let velocity = player.speed.to_velocity().with_speed_multiplier(multiplier);
         let entity = spawn_player(
             commands,
@@ -240,7 +249,11 @@ pub fn sync_players(
     for (id, server_player) in server_players {
         if let Some(client_player) = players.0.get_mut(id) {
             if let Ok((client_pos, _)) = player_data.get(client_player.entity) {
-                let multiplier = if server_player.speed_power_up { POWER_UP_SPEED_MULTIPLIER } else { 1.0 };
+                let multiplier = if server_player.speed_power_up {
+                    POWER_UP_SPEED_MULTIPLIER
+                } else {
+                    1.0
+                };
                 let server_vel = server_player.speed.to_velocity().with_speed_multiplier(multiplier);
 
                 // The local player's velocity is always authoritive, so don't overwrite from
