@@ -1,11 +1,16 @@
 use crate::{constants::WALL_OVERLAP, resources::GridCell};
 use common::{constants::*, protocol::Wall};
 
+/// Epsilon for merging adjacent walls.
 const MERGE_EPS: f32 = 0.01;
 
-// Check if grid line has horizontal wall at position
+// ============================================================================
+// Lower Wall Generation
+// ============================================================================
+
+// Check if grid line has horizontal lower wall at position
 #[inline]
-fn has_horizontal_wall(grid: &[Vec<GridCell>], row: i32, col: i32, grid_rows: i32) -> bool {
+fn has_horizontal_lower_wall(grid: &[Vec<GridCell>], row: i32, col: i32, grid_rows: i32) -> bool {
     if row == 0 {
         grid[0][col as usize].has_north_wall
     } else if row == grid_rows {
@@ -15,9 +20,9 @@ fn has_horizontal_wall(grid: &[Vec<GridCell>], row: i32, col: i32, grid_rows: i3
     }
 }
 
-// Check if grid line has vertical wall at position
+// Check if grid line has vertical lower wall at position
 #[inline]
-fn has_vertical_wall(grid: &[Vec<GridCell>], row: i32, col: i32, grid_cols: i32) -> bool {
+fn has_vertical_lower_wall(grid: &[Vec<GridCell>], row: i32, col: i32, grid_cols: i32) -> bool {
     if col == 0 {
         grid[row as usize][0].has_west_wall
     } else if col == grid_cols {
@@ -27,9 +32,9 @@ fn has_vertical_wall(grid: &[Vec<GridCell>], row: i32, col: i32, grid_cols: i32)
     }
 }
 
-// Check if horizontal walls meet the top/bottom of a vertical wall
+// Check if horizontal lower walls meet the top/bottom of a vertical lower wall
 #[inline]
-fn has_perpendicular_horizontal_walls(
+fn has_perpendicular_lower_walls(
     grid: &[Vec<GridCell>],
     row: i32,
     col: i32,
@@ -39,45 +44,45 @@ fn has_perpendicular_horizontal_walls(
     // Top endpoint is at grid line `row`; check horizontal walls on both sides of the vertical line.
     let has_perp_top = row > 0
         && (
-            (col < grid_cols && has_horizontal_wall(grid, row, col, grid_rows)) // right side (guarded)
-                || (col > 0 && has_horizontal_wall(grid, row, col - 1, grid_rows))
+            (col < grid_cols && has_horizontal_lower_wall(grid, row, col, grid_rows)) // right side (guarded)
+                || (col > 0 && has_horizontal_lower_wall(grid, row, col - 1, grid_rows))
             // left side (guarded)
         );
 
     // Bottom endpoint is at grid line `row + 1`; check the horizontals that meet there.
     let has_perp_bottom = row < grid_rows
         && (
-            (col < grid_cols && has_horizontal_wall(grid, row + 1, col, grid_rows)) // right side (guarded)
-                || (col > 0 && has_horizontal_wall(grid, row + 1, col - 1, grid_rows))
+            (col < grid_cols && has_horizontal_lower_wall(grid, row + 1, col, grid_rows)) // right side (guarded)
+                || (col > 0 && has_horizontal_lower_wall(grid, row + 1, col - 1, grid_rows))
             // left side (guarded)
         );
 
     (has_perp_top, has_perp_bottom)
 }
 
-// Generate individual wall segments (no merging) with gap-filling extensions
+// Generate individual lower wall segments (no merging) with gap-filling extensions
 #[must_use]
-pub fn generate_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) -> Vec<Wall> {
+pub fn generate_lower_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) -> Vec<Wall> {
     let mut walls = Vec::new();
 
     // Process horizontal walls (north/south edges)
     for row in 0..=grid_rows {
         for col in 0..grid_cols {
-            if !has_horizontal_wall(grid, row, col, grid_rows) {
+            if !has_horizontal_lower_wall(grid, row, col, grid_rows) {
                 continue;
             }
 
             // Check for adjacent horizontal walls
-            let has_left = col > 0 && has_horizontal_wall(grid, row, col - 1, grid_rows);
-            let has_right = col < grid_cols - 1 && has_horizontal_wall(grid, row, col + 1, grid_rows);
+            let has_left = col > 0 && has_horizontal_lower_wall(grid, row, col - 1, grid_rows);
+            let has_right = col < grid_cols - 1 && has_horizontal_lower_wall(grid, row, col + 1, grid_rows);
 
             // Detect vertical walls passing through the left and right endpoints (true T vs corner)
-            let left_vert_top = row > 0 && has_vertical_wall(grid, row - 1, col, grid_cols);
-            let left_vert_bottom = row < grid_rows && has_vertical_wall(grid, row, col, grid_cols);
+            let left_vert_top = row > 0 && has_vertical_lower_wall(grid, row - 1, col, grid_cols);
+            let left_vert_bottom = row < grid_rows && has_vertical_lower_wall(grid, row, col, grid_cols);
             let left_vert_through = left_vert_top && left_vert_bottom;
 
-            let right_vert_top = row > 0 && has_vertical_wall(grid, row - 1, col + 1, grid_cols);
-            let right_vert_bottom = row < grid_rows && has_vertical_wall(grid, row, col + 1, grid_cols);
+            let right_vert_top = row > 0 && has_vertical_lower_wall(grid, row - 1, col + 1, grid_cols);
+            let right_vert_bottom = row < grid_rows && has_vertical_lower_wall(grid, row, col + 1, grid_cols);
             let right_vert_through = right_vert_top && right_vert_bottom;
 
             let world_z = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
@@ -116,17 +121,16 @@ pub fn generate_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) ->
     // Process vertical walls (west/east edges)
     for col in 0..=grid_cols {
         for row in 0..grid_rows {
-            if !has_vertical_wall(grid, row, col, grid_cols) {
+            if !has_vertical_lower_wall(grid, row, col, grid_cols) {
                 continue;
             }
 
             // Check for adjacent vertical walls
-            let has_top = row > 0 && has_vertical_wall(grid, row - 1, col, grid_cols);
-            let has_bottom = row < grid_rows - 1 && has_vertical_wall(grid, row + 1, col, grid_cols);
+            let has_top = row > 0 && has_vertical_lower_wall(grid, row - 1, col, grid_cols);
+            let has_bottom = row < grid_rows - 1 && has_vertical_lower_wall(grid, row + 1, col, grid_cols);
 
             // Check for perpendicular horizontal walls at ends (for L-corners)
-            let (has_perp_top, has_perp_bottom) =
-                has_perpendicular_horizontal_walls(grid, row, col, grid_cols, grid_rows);
+            let (has_perp_top, has_perp_bottom) = has_perpendicular_lower_walls(grid, row, col, grid_cols, grid_rows);
 
             let world_x = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
             let z1 = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0))
@@ -159,6 +163,91 @@ pub fn generate_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) ->
     walls
 }
 
+// ============================================================================
+// Roof Edge Wall Generation
+// ============================================================================
+
+/// Generate walls for roof edges to prevent players from falling off.
+/// Only adds edges where there's no adjacent roof or no ramp connection.
+#[must_use]
+pub fn generate_roof_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) -> Vec<Wall> {
+    let mut roof_edge_walls = Vec::new();
+
+    for row in 0..grid_rows {
+        for col in 0..grid_cols {
+            let cell = grid[row as usize][col as usize];
+            if !cell.has_roof {
+                continue;
+            }
+
+            // Calculate cell boundaries in world coordinates
+            let x1 = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+            let x2 = ((col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+            let z1 = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+            let z2 = ((row + 1) as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+
+            // Check each edge - add wall if no adjacent roof and no ramp connection
+            // North edge (z1) - check if neighbor to the north has a ramp_top_south (connecting upward to this roof)
+            let has_north_neighbor_roof = row > 0 && grid[(row - 1) as usize][col as usize].has_roof;
+            let has_north_ramp = row > 0 && grid[(row - 1) as usize][col as usize].ramp_top_south;
+            if !has_north_neighbor_roof && !has_north_ramp {
+                roof_edge_walls.push(Wall {
+                    x1,
+                    z1,
+                    x2,
+                    z2: z1,
+                    width: ROOF_WALL_THICKNESS,
+                });
+            }
+
+            // South edge (z2) - check if neighbor to the south has a ramp_top_north
+            let has_south_neighbor_roof = row < grid_rows - 1 && grid[(row + 1) as usize][col as usize].has_roof;
+            let has_south_ramp = row < grid_rows - 1 && grid[(row + 1) as usize][col as usize].ramp_top_north;
+            if !has_south_neighbor_roof && !has_south_ramp {
+                roof_edge_walls.push(Wall {
+                    x1,
+                    z1: z2,
+                    x2,
+                    z2,
+                    width: ROOF_WALL_THICKNESS,
+                });
+            }
+
+            // West edge (x1) - check if neighbor to the west has a ramp_top_east
+            let has_west_neighbor_roof = col > 0 && grid[row as usize][(col - 1) as usize].has_roof;
+            let has_west_ramp = col > 0 && grid[row as usize][(col - 1) as usize].ramp_top_east;
+            if !has_west_neighbor_roof && !has_west_ramp {
+                roof_edge_walls.push(Wall {
+                    x1,
+                    z1,
+                    x2: x1,
+                    z2,
+                    width: ROOF_WALL_THICKNESS,
+                });
+            }
+
+            // East edge (x2) - check if neighbor to the east has a ramp_top_west
+            let has_east_neighbor_roof = col < grid_cols - 1 && grid[row as usize][(col + 1) as usize].has_roof;
+            let has_east_ramp = col < grid_cols - 1 && grid[row as usize][(col + 1) as usize].ramp_top_west;
+            if !has_east_neighbor_roof && !has_east_ramp {
+                roof_edge_walls.push(Wall {
+                    x1: x2,
+                    z1,
+                    x2,
+                    z2,
+                    width: ROOF_WALL_THICKNESS,
+                });
+            }
+        }
+    }
+
+    roof_edge_walls
+}
+
+// ============================================================================
+// Wall Merging (generic - works for both lower and roof walls)
+// ============================================================================
+
 // Normalize wall coordinates so they're in consistent order
 fn normalize_wall(mut w: Wall) -> Wall {
     if (w.z1 - w.z2).abs() < MERGE_EPS {
@@ -173,6 +262,33 @@ fn normalize_wall(mut w: Wall) -> Wall {
         }
     }
     w
+}
+
+/// Merge collinear walls that are adjacent or overlapping.
+fn merge_walls_line(list: Vec<Wall>, is_horizontal: bool, out: &mut Vec<Wall>) {
+    let mut iter = list.into_iter();
+    if let Some(mut cur) = iter.next() {
+        for w in iter {
+            if is_horizontal {
+                if (cur.z1 - w.z1).abs() < MERGE_EPS
+                    && (cur.width - w.width).abs() < MERGE_EPS
+                    && w.x1 <= cur.x2 + MERGE_EPS
+                {
+                    cur.x2 = cur.x2.max(w.x2);
+                    continue;
+                }
+            } else if (cur.x1 - w.x1).abs() < MERGE_EPS
+                && (cur.width - w.width).abs() < MERGE_EPS
+                && w.z1 <= cur.z2 + MERGE_EPS
+            {
+                cur.z2 = cur.z2.max(w.z2);
+                continue;
+            }
+            out.push(cur);
+            cur = w;
+        }
+        out.push(cur);
+    }
 }
 
 // Merge adjacent collinear walls into longer segments
@@ -204,35 +320,8 @@ pub fn merge_walls(walls: Vec<Wall>) -> Vec<Wall> {
     });
 
     let mut merged = Vec::new();
-
-    let merge_line = |list: Vec<Wall>, is_horizontal: bool, out: &mut Vec<Wall>| {
-        let mut iter = list.into_iter();
-        if let Some(mut cur) = iter.next() {
-            for w in iter {
-                if is_horizontal {
-                    if (cur.z1 - w.z1).abs() < MERGE_EPS
-                        && (cur.width - w.width).abs() < MERGE_EPS
-                        && w.x1 <= cur.x2 + MERGE_EPS
-                    {
-                        cur.x2 = cur.x2.max(w.x2);
-                        continue;
-                    }
-                } else if (cur.x1 - w.x1).abs() < MERGE_EPS
-                    && (cur.width - w.width).abs() < MERGE_EPS
-                    && w.z1 <= cur.z2 + MERGE_EPS
-                {
-                    cur.z2 = cur.z2.max(w.z2);
-                    continue;
-                }
-                out.push(cur);
-                cur = w;
-            }
-            out.push(cur);
-        }
-    };
-
-    merge_line(horizontals, true, &mut merged);
-    merge_line(verticals, false, &mut merged);
+    merge_walls_line(horizontals, true, &mut merged);
+    merge_walls_line(verticals, false, &mut merged);
     merged.extend(others);
     merged
 }

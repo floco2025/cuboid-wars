@@ -1,4 +1,3 @@
-mod collision;
 mod grid;
 mod helpers;
 mod lights;
@@ -204,7 +203,7 @@ pub fn generate_grid() -> (MapLayout, GridConfig) {
     }
 
     // Build wall list from grid with individual segments
-    let mut lower_walls = walls::generate_walls(&grid, grid_cols, grid_rows);
+    let mut lower_walls = walls::generate_lower_walls(&grid, grid_cols, grid_rows);
     if WALL_MERGE_SEGMENTS && !WALL_OVERLAP {
         lower_walls = walls::merge_walls(lower_walls);
     }
@@ -215,10 +214,10 @@ pub fn generate_grid() -> (MapLayout, GridConfig) {
         roofs = roofs::merge_roofs(roofs);
     }
 
-    // Generate collision walls for roof edges
-    let mut roof_walls = collision::generate_roof_walls(&grid, grid_cols, grid_rows);
+    // Generate walls for roof edges
+    let mut roof_walls = walls::generate_roof_walls(&grid, grid_cols, grid_rows);
     if WALL_MERGE_SEGMENTS && !WALL_OVERLAP {
-        roof_walls = collision::merge_roof_walls(roof_walls);
+        roof_walls = walls::merge_walls(roof_walls);
     }
 
     // Separate walls into boundary and interior
