@@ -242,25 +242,22 @@ pub fn sentry_player_collision_system(
 
     // Apply stun and broadcast
     for (player_id, sentry_id) in player_hits {
-        if let Some(player_info) = players.0.get_mut(&player_id) {
+        let status_msg = if let Some(player_info) = players.0.get_mut(&player_id) {
             player_info.stun_timer = SENTRY_STUN_DURATION;
             player_info.hits -= SENTRY_HIT_PENALTY;
-
-            let status_msg = SPlayerStatus {
-                id: player_id,
-                speed_power_up: ALWAYS_SPEED || player_info.speed_power_up_timer > 0.0,
-                multi_shot_power_up: ALWAYS_MULTI_SHOT || player_info.multi_shot_power_up_timer > 0.0,
-                phasing_power_up: ALWAYS_PHASING || player_info.phasing_power_up_timer > 0.0,
-                sentry_hunt_power_up: ALWAYS_SENTRY_HUNT || player_info.sentry_hunt_power_up_timer > 0.0,
-                stunned: true,
-            };
 
             // Send sentry hit message only to the hit player for sound effect
             let _ = player_info
                 .channel
                 .send(ServerToClient::Send(ServerMessage::SentryHit(SSentryHit {})));
 
-            broadcast_to_all(&players, ServerMessage::PlayerStatus(status_msg));
+            Some(player_info.status(player_id))
+        } else {
+            None
+        };
+
+        if let Some(status) = status_msg {
+            broadcast_to_all(&players, ServerMessage::PlayerStatus(status));
         }
 
         // Put sentry into pre-patrol mode after hitting a player (will return to grid center)

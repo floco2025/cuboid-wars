@@ -11,9 +11,9 @@ use crate::{
 };
 use common::{
     collision::items::overlap_player_vs_item,
-    constants::{ALWAYS_MULTI_SHOT, ALWAYS_PHASING, ALWAYS_SENTRY_HUNT, ALWAYS_SPEED, GRID_COLS, GRID_ROWS},
+    constants::{GRID_COLS, GRID_ROWS},
     markers::{ItemMarker, PlayerMarker},
-    protocol::{ItemId, ItemType, PlayerId, Position, SCookieCollected, SPlayerStatus, ServerMessage},
+    protocol::{ItemId, ItemType, PlayerId, Position, SCookieCollected, ServerMessage},
 };
 
 // ============================================================================
@@ -228,14 +228,7 @@ pub fn item_collection_system(
                 ItemType::Cookie => unreachable!(), // Already handled above
             }
 
-            power_up_messages.push(SPlayerStatus {
-                id: player_id,
-                speed_power_up: ALWAYS_SPEED || player_info.speed_power_up_timer > 0.0,
-                multi_shot_power_up: ALWAYS_MULTI_SHOT || player_info.multi_shot_power_up_timer > 0.0,
-                phasing_power_up: ALWAYS_PHASING || player_info.phasing_power_up_timer > 0.0,
-                sentry_hunt_power_up: ALWAYS_SENTRY_HUNT || player_info.sentry_hunt_power_up_timer > 0.0,
-                stunned: player_info.stun_timer > 0.0,
-            });
+            power_up_messages.push(player_info.status(player_id));
         }
     }
 

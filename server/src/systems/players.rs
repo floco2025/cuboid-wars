@@ -8,7 +8,7 @@ use common::{
     map::{close_to_roof, has_roof, height_on_ramp},
     markers::PlayerMarker,
     players::{PlannedMove, overlaps_other_player},
-    protocol::{MapLayout, PlayerId, Position, SPlayerStatus, ServerMessage, Speed},
+    protocol::{MapLayout, PlayerId, Position, ServerMessage, Speed},
 };
 
 // ============================================================================
@@ -177,14 +177,7 @@ pub fn players_timer_system(time: Res<Time>, mut players: ResMut<PlayerMap>) {
             || old_sentry_hunt != new_sentry_hunt
             || old_stunned != new_stunned
         {
-            status_messages.push(SPlayerStatus {
-                id: *player_id,
-                speed_power_up: new_speed,
-                multi_shot_power_up: new_multi_shot,
-                phasing_power_up: new_phasing,
-                sentry_hunt_power_up: new_sentry_hunt,
-                stunned: new_stunned,
-            });
+            status_messages.push(player_info.status(*player_id));
         }
     }
 

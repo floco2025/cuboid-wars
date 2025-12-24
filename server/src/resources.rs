@@ -3,7 +3,13 @@ use std::collections::HashMap;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, error::TryRecvError};
 
 use crate::net::{ClientToServer, ServerToClient};
-use common::{constants::{FIELD_DEPTH, FIELD_WIDTH, GRID_COLS, GRID_ROWS, GRID_SIZE}, protocol::*};
+use common::{
+    constants::{
+        ALWAYS_MULTI_SHOT, ALWAYS_PHASING, ALWAYS_SENTRY_HUNT, ALWAYS_SPEED, FIELD_DEPTH, FIELD_WIDTH, GRID_COLS,
+        GRID_ROWS, GRID_SIZE,
+    },
+    protocol::*,
+};
 
 // ============================================================================
 // Bevy Resources
@@ -49,6 +55,21 @@ pub struct PlayerInfo {
     pub sentry_hunt_power_up_timer: f32, // Remaining time for sentry hunter power-up (0.0 = inactive)
     pub stun_timer: f32,           // Remaining time stunned (0.0 = not stunned)
     pub last_shot_time: f32,       // Timestamp of last accepted shot (seconds)
+}
+
+impl PlayerInfo {
+    /// Build status message from current power-up timers.
+    #[must_use]
+    pub fn status(&self, id: PlayerId) -> SPlayerStatus {
+        SPlayerStatus {
+            id,
+            speed_power_up: ALWAYS_SPEED || self.speed_power_up_timer > 0.0,
+            multi_shot_power_up: ALWAYS_MULTI_SHOT || self.multi_shot_power_up_timer > 0.0,
+            phasing_power_up: ALWAYS_PHASING || self.phasing_power_up_timer > 0.0,
+            sentry_hunt_power_up: ALWAYS_SENTRY_HUNT || self.sentry_hunt_power_up_timer > 0.0,
+            stunned: self.stun_timer > 0.0,
+        }
+    }
 }
 
 // Map of all players (server-side source of truth)

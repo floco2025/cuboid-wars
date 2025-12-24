@@ -114,18 +114,12 @@ pub fn projectiles_movement_system(
                     }
 
                     // Broadcast power-up removal to all clients
+                    // Note: sentry_hunt is explicitly false (not using status()) because hitting
+                    // a sentry removes the power-up even when ALWAYS_SENTRY_HUNT debug flag is on
                     if let Some(shooter_info) = players.0.get(shooter_id) {
-                        broadcast_to_all(
-                            &players,
-                            ServerMessage::PlayerStatus(SPlayerStatus {
-                                id: *shooter_id,
-                                speed_power_up: shooter_info.speed_power_up_timer > 0.0,
-                                multi_shot_power_up: shooter_info.multi_shot_power_up_timer > 0.0,
-                                phasing_power_up: shooter_info.phasing_power_up_timer > 0.0,
-                                sentry_hunt_power_up: false,
-                                stunned: shooter_info.stun_timer > 0.0,
-                            }),
-                        );
+                        let mut status = shooter_info.status(*shooter_id);
+                        status.sentry_hunt_power_up = false;
+                        broadcast_to_all(&players, ServerMessage::PlayerStatus(status));
                     }
                 }
                 // Without hunt power-up: no points, just make sentry attack
