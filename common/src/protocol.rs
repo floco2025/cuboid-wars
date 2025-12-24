@@ -72,6 +72,18 @@ pub struct Velocity {
     pub z: f32, // m/s
 }
 
+impl Velocity {
+    /// Returns a new velocity with the horizontal (x, z) components multiplied.
+    #[must_use]
+    pub fn with_speed_multiplier(self, multiplier: f32) -> Self {
+        Self {
+            x: self.x * multiplier,
+            y: self.y,
+            z: self.z * multiplier,
+        }
+    }
+}
+
 // Player ID component - identifies which player an entity represents.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Component, Encode, Decode)]
 pub struct PlayerId(pub u32);

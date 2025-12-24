@@ -24,11 +24,8 @@ pub fn handle_player_speed_message(
 ) {
     trace!("{:?} speed: {:?}", msg.id, msg);
     if let Some(player) = players.0.get(&msg.id) {
-        let mut velocity = msg.speed.to_velocity();
-        if player.speed_power_up {
-            velocity.x *= POWER_UP_SPEED_MULTIPLIER;
-            velocity.z *= POWER_UP_SPEED_MULTIPLIER;
-        }
+        let multiplier = if player.speed_power_up { POWER_UP_SPEED_MULTIPLIER } else { 1.0 };
+        let velocity = msg.speed.to_velocity().with_speed_multiplier(multiplier);
 
         // Add server reconciliation if we have client position
         if let Ok((client_pos, _)) = player_data.get(player.entity) {
@@ -189,11 +186,8 @@ pub fn sync_players(
 
         let is_local = *id == my_player_id;
         debug!("spawning player {:?} from Update (is_local: {})", id, is_local);
-        let mut velocity = player.speed.to_velocity();
-        if player.speed_power_up {
-            velocity.x *= POWER_UP_SPEED_MULTIPLIER;
-            velocity.z *= POWER_UP_SPEED_MULTIPLIER;
-        }
+        let multiplier = if player.speed_power_up { POWER_UP_SPEED_MULTIPLIER } else { 1.0 };
+        let velocity = player.speed.to_velocity().with_speed_multiplier(multiplier);
         let entity = spawn_player(
             commands,
             asset_server,
@@ -250,11 +244,8 @@ pub fn sync_players(
     for (id, server_player) in server_players {
         if let Some(client_player) = players.0.get_mut(id) {
             if let Ok((client_pos, _)) = player_data.get(client_player.entity) {
-                let mut server_vel = server_player.speed.to_velocity();
-                if server_player.speed_power_up {
-                    server_vel.x *= POWER_UP_SPEED_MULTIPLIER;
-                    server_vel.z *= POWER_UP_SPEED_MULTIPLIER;
-                }
+                let multiplier = if server_player.speed_power_up { POWER_UP_SPEED_MULTIPLIER } else { 1.0 };
+                let server_vel = server_player.speed.to_velocity().with_speed_multiplier(multiplier);
 
                 // The local player's velocity is always authoritive, so don't overwrite from
                 // server updates

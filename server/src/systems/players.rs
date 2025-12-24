@@ -47,9 +47,7 @@ pub fn players_movement_system(
             .get(player_id)
             .and_then(|info| (ALWAYS_SPEED || info.speed_power_up_timer > 0.0).then_some(POWER_UP_SPEED_MULTIPLIER))
             .unwrap_or(1.0);
-        let mut velocity = speed.to_velocity();
-        velocity.x *= multiplier;
-        velocity.z *= multiplier;
+        let velocity = speed.to_velocity().with_speed_multiplier(multiplier);
 
         let abs_velocity = velocity.x.hypot(velocity.z);
         let is_standing_still = abs_velocity < PHYSICS_EPSILON;

@@ -92,17 +92,11 @@ fn handle_unlocked_cursor(
             move_dir: 0.0,
         };
         for (mut velocity, _) in local_player_query.iter_mut() {
-            let mut new_velocity = speed.to_velocity();
-            // Apply speed multiplier if local player has speed power-up
-            if let Some(my_id) = my_player_id
-                && let Some(player_info) = players.0.get(&my_id.0)
-                && (ALWAYS_SPEED || player_info.speed_power_up)
-            {
-                new_velocity.x *= POWER_UP_SPEED_MULTIPLIER;
-                new_velocity.z *= POWER_UP_SPEED_MULTIPLIER;
-            }
-
-            *velocity = new_velocity;
+            let has_speed_powerup = my_player_id
+                .and_then(|my_id| players.0.get(&my_id.0))
+                .is_some_and(|info| ALWAYS_SPEED || info.speed_power_up);
+            let multiplier = if has_speed_powerup { POWER_UP_SPEED_MULTIPLIER } else { 1.0 };
+            *velocity = speed.to_velocity().with_speed_multiplier(multiplier);
         }
         let msg = ClientMessage::Speed(CSpeed { speed });
         let _ = to_server.send(ClientToServer::Send(msg));
@@ -211,17 +205,11 @@ fn update_player_velocity_and_face(
     local_player_query: &mut Query<(&mut Velocity, &mut FaceDirection), With<LocalPlayerMarker>>,
 ) {
     for (mut velocity, mut face_direction) in local_player_query.iter_mut() {
-        let mut new_velocity = speed.to_velocity();
-        // Apply speed multiplier if local player has speed power-up
-        if let Some(my_id) = my_player_id
-            && let Some(player_info) = players.0.get(&my_id.0)
-            && (ALWAYS_SPEED || player_info.speed_power_up)
-        {
-            new_velocity.x *= POWER_UP_SPEED_MULTIPLIER;
-            new_velocity.z *= POWER_UP_SPEED_MULTIPLIER;
-        }
-
-        *velocity = new_velocity;
+        let has_speed_powerup = my_player_id
+            .and_then(|my_id| players.0.get(&my_id.0))
+            .is_some_and(|info| ALWAYS_SPEED || info.speed_power_up);
+        let multiplier = if has_speed_powerup { POWER_UP_SPEED_MULTIPLIER } else { 1.0 };
+        *velocity = speed.to_velocity().with_speed_multiplier(multiplier);
         face_direction.0 = face_yaw;
     }
 }
