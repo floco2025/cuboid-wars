@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use super::helpers::{load_repeating_texture, load_repeating_texture_linear, tiled_cuboid};
-use crate::{constants::*, markers::*};
+use crate::{markers::*, constants::*};
 use common::{constants::*, protocol::*};
 
 #[derive(Bundle)]
@@ -29,6 +29,7 @@ pub fn spawn_wall(
     materials: &mut ResMut<Assets<StandardMaterial>>,
     asset_server: &Res<AssetServer>,
     wall: &Wall,
+    debug_colors: bool,
 ) {
     use rand::Rng;
 
@@ -45,8 +46,8 @@ pub fn spawn_wall(
     let mesh_size_z = wall.width;
     let rotation = Quat::from_rotation_y(dz.atan2(dx));
 
-    // Create material based on whether random colors are enabled
-    let wall_material = if RANDOM_WALL_COLORS {
+    // Create material based on whether debug colors are enabled
+    let wall_material = if debug_colors {
         let mut rng = rand::rng();
         StandardMaterial {
             base_color: Color::srgb(
@@ -93,15 +94,16 @@ pub fn spawn_wall(
 
 // Spawn a roof wall entity based on a shared `Wall` config.
 // Roof walls are normally invisible (only used for collision), but when
-// RANDOM_ROOF_WALL_COLORS is enabled, they're rendered with random colors for debugging.
+// debug_colors is enabled, they're rendered with random colors for debugging.
 pub fn spawn_roof_wall(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
     wall: &Wall,
+    debug_colors: bool,
 ) {
     // Only spawn visible roof walls when debugging is enabled
-    if !RANDOM_ROOF_WALL_COLORS {
+    if !debug_colors {
         return;
     }
 

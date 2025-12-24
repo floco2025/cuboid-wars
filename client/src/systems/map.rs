@@ -3,7 +3,7 @@ use bevy::{math::Affine2, prelude::*};
 use crate::{
     constants::*,
     markers::*,
-    resources::{CameraViewMode, RoofRenderingEnabled},
+    resources::{CameraViewMode, DebugColors, RoofRenderingEnabled},
     spawning::{
         load_repeating_texture, load_repeating_texture_linear, spawn_ramp, spawn_roof, spawn_roof_wall, spawn_wall,
         spawn_wall_light_from_layout,
@@ -110,6 +110,7 @@ pub fn map_spawn_walls_system(
     asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    debug_colors: Res<DebugColors>,
     mut spawned: Local<bool>,
 ) {
     // Spawn exactly once after the server shares its wall configuration
@@ -130,7 +131,7 @@ pub fn map_spawn_walls_system(
     );
 
     for wall in &map_layout.lower_walls {
-        spawn_wall(&mut commands, &mut meshes, &mut materials, &asset_server, wall);
+        spawn_wall(&mut commands, &mut meshes, &mut materials, &asset_server, wall, debug_colors.0);
     }
 
     for light in &map_layout.wall_lights {
@@ -138,7 +139,7 @@ pub fn map_spawn_walls_system(
     }
 
     for roof in &map_layout.roofs {
-        spawn_roof(&mut commands, &mut meshes, &mut materials, &asset_server, roof);
+        spawn_roof(&mut commands, &mut meshes, &mut materials, &asset_server, roof, debug_colors.0);
     }
 
     for ramp in &map_layout.ramps {
@@ -146,7 +147,7 @@ pub fn map_spawn_walls_system(
     }
 
     for roof_wall in &map_layout.roof_walls {
-        spawn_roof_wall(&mut commands, &mut meshes, &mut materials, roof_wall);
+        spawn_roof_wall(&mut commands, &mut meshes, &mut materials, roof_wall, debug_colors.0);
     }
 
     *spawned = true;

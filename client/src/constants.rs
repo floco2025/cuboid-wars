@@ -147,7 +147,4 @@ pub const TEXTURE_ITEM_ROUGHNESS: f32 = 1.0;
 // Debug Visualization
 // ============================================================================
 
-pub const RANDOM_WALL_COLORS: bool = false;
-pub const RANDOM_ROOF_COLORS: bool = false;
-pub const RANDOM_ROOF_WALL_COLORS: bool = false;
 pub const GRID_LINES: bool = false;

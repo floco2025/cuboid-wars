@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use super::helpers::{load_repeating_texture, load_repeating_texture_linear, tiled_cuboid};
-use crate::{constants::*, markers::*};
+use crate::{markers::*, constants::*};
 use common::{constants::*, protocol::*};
 
 #[derive(Bundle)]
@@ -20,6 +20,7 @@ pub fn spawn_roof(
     materials: &mut ResMut<Assets<StandardMaterial>>,
     asset_server: &Res<AssetServer>,
     roof: &Roof,
+    debug_colors: bool,
 ) {
     use rand::Rng;
 
@@ -30,8 +31,8 @@ pub fn spawn_roof(
     let width = (roof.x2 - roof.x1).abs();
     let depth = (roof.z2 - roof.z1).abs();
 
-    // Create material based on whether random colors are enabled
-    let roof_material = if RANDOM_ROOF_COLORS {
+    // Create material based on whether debug colors are enabled
+    let roof_material = if debug_colors {
         let mut rng = rand::rng();
         StandardMaterial {
             base_color: Color::srgb(

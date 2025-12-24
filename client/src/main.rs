@@ -10,7 +10,7 @@ use tokio::{runtime::Runtime, time::Duration};
 use client::{
     config::configure_client,
     net::network_io_task,
-    resources::*,
+    resources::{*, DebugColors},
     systems::{
         cameras::*, input::*, items::*, map::*, network::*, players::*, projectiles::*, sentries::*, skybox::*, ui::*,
     },
@@ -55,6 +55,10 @@ struct Args {
     // Invert mouse pitch (up/down)
     #[arg(short, long, default_value_t = false)]
     invert_pitch: bool,
+
+    // Render walls and roofs with random colors for debugging
+    #[arg(long, default_value_t = false)]
+    debug_colors: bool,
 }
 
 // ============================================================================
@@ -105,6 +109,7 @@ fn main() -> Result<()> {
     .insert_resource(InputSettings {
         invert_pitch: args.invert_pitch,
     })
+    .insert_resource(DebugColors(args.debug_colors))
     .add_systems(
         Startup,
         (
