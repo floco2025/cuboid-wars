@@ -129,14 +129,41 @@ pub struct SentryMap(pub HashMap<SentryId, SentryInfo>);
 pub struct SentryGrid(pub Vec<Vec<Option<SentryId>>>);
 
 impl SentryGrid {
-    // Clear a sentry from the grid cell at the given position.
-    // Only clears if the cell contains the specified sentry ID.
-    pub fn clear_at_position(&mut self, pos: &Position, sentry_id: SentryId) {
-        let grid_x = (((pos.x + FIELD_WIDTH / 2.0) / GRID_SIZE).floor() as i32).clamp(0, GRID_COLS - 1) as usize;
-        let grid_z = (((pos.z + FIELD_DEPTH / 2.0) / GRID_SIZE).floor() as i32).clamp(0, GRID_ROWS - 1) as usize;
+    // Clear a sentry from both cells it occupies while patrolling.
+    // A patrolling sentry occupies two adjacent cells along its axis of movement:
+    // - If in first half (before cell center): current cell + cell in velocity direction
+    // - If in second half (past cell center): current cell + cell opposite to velocity direction
+    // Since determining which half is complex, we simply clear both adjacent cells along the
+    // movement axis. The extra clear is harmless (no-op if cell doesn't contain this sentry).
+    pub fn clear_patrol_cells(&mut self, pos: &Position, vel: &Velocity, sentry_id: SentryId) {
+        let grid_x = (((pos.x + FIELD_WIDTH / 2.0) / GRID_SIZE).floor() as i32).clamp(0, GRID_COLS - 1);
+        let grid_z = (((pos.z + FIELD_DEPTH / 2.0) / GRID_SIZE).floor() as i32).clamp(0, GRID_ROWS - 1);
 
-        if self.0[grid_z][grid_x] == Some(sentry_id) {
-            self.0[grid_z][grid_x] = None;
+        // Clear current cell
+        if self.0[grid_z as usize][grid_x as usize] == Some(sentry_id) {
+            self.0[grid_z as usize][grid_x as usize] = None;
+        }
+
+        // Clear both adjacent cells along the axis of movement
+        if vel.x.abs() > 0.0 {
+            // Moving East/West - clear both East and West neighbors
+            self.clear_cell_if_matches(grid_x + 1, grid_z, sentry_id);
+            self.clear_cell_if_matches(grid_x - 1, grid_z, sentry_id);
+        } else if vel.z.abs() > 0.0 {
+            // Moving North/South - clear both North and South neighbors
+            self.clear_cell_if_matches(grid_x, grid_z + 1, sentry_id);
+            self.clear_cell_if_matches(grid_x, grid_z - 1, sentry_id);
+        }
+        // If velocity is zero, sentry only occupies current cell (already cleared above)
+    }
+
+    // Helper: clear a cell if it contains the specified sentry and is in bounds
+    fn clear_cell_if_matches(&mut self, grid_x: i32, grid_z: i32, sentry_id: SentryId) {
+        if (0..GRID_COLS).contains(&grid_x)
+            && (0..GRID_ROWS).contains(&grid_z)
+            && self.0[grid_z as usize][grid_x as usize] == Some(sentry_id)
+        {
+            self.0[grid_z as usize][grid_x as usize] = None;
         }
     }
 }

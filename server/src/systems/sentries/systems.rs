@@ -79,7 +79,8 @@ pub fn sentries_movement_system(
                         sentry_info.mode_timer = SENTRY_TARGET_DURATION;
                         sentry_info.follow_target = Some(target_player_id);
                         // Remove from field map when leaving patrol mode
-                        sentry_grid_map.clear_at_position(&sentry_pos, sentry_id);
+                        // Must clear both current AND destination cells (sentry occupies two cells while patrolling)
+                        sentry_grid_map.clear_patrol_cells(&sentry_pos, &sentry_vel, sentry_id);
                     }
                 }
             }
@@ -104,8 +105,6 @@ pub fn sentries_movement_system(
                     sentry_info.mode = SentryMode::PrePatrol;
                     sentry_info.mode_timer = SENTRY_COOLDOWN_DURATION;
                     sentry_info.follow_target = None;
-                    // Remove from field map when leaving target mode (shouldn't be in map, but clean up just in case)
-                    sentry_grid_map.clear_at_position(&sentry_pos, sentry_id);
                 } else {
                     // Check if target player still exists and is not stunned
                     if let Some(target_id) = sentry_info.follow_target {
@@ -121,8 +120,6 @@ pub fn sentries_movement_system(
                             sentry_info.mode = SentryMode::PrePatrol;
                             sentry_info.mode_timer = SENTRY_COOLDOWN_DURATION;
                             sentry_info.follow_target = None;
-                            // Remove from field map when leaving target mode
-                            sentry_grid_map.clear_at_position(&sentry_pos, sentry_id);
                         }
                     }
                 }
