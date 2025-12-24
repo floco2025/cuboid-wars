@@ -227,18 +227,14 @@ pub fn sync_players(
     }
 
     // Despawn players no longer present in the authoritative snapshot
-    let stale_ids: Vec<PlayerId> = players
-        .0
-        .keys()
-        .filter(|id| !update_ids.contains(id))
-        .copied()
-        .collect();
-
-    for id in stale_ids {
-        if let Some(player) = players.0.remove(&id) {
+    players.0.retain(|id, player| {
+        if update_ids.contains(id) {
+            true
+        } else {
             commands.entity(player.entity).despawn();
+            false
         }
-    }
+    });
 
     // Update existing players with server state
     for (id, server_player) in server_players {

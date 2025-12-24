@@ -106,18 +106,14 @@ pub fn sync_sentries(
     }
 
     // Despawn sentries no longer present in the authoritative snapshot
-    let stale_sentry_ids: Vec<SentryId> = sentries
-        .0
-        .keys()
-        .filter(|id| !server_sentry_ids.contains(id))
-        .copied()
-        .collect();
-
-    for sentry_id in stale_sentry_ids {
-        if let Some(sentry_info) = sentries.0.remove(&sentry_id) {
+    sentries.0.retain(|id, sentry_info| {
+        if server_sentry_ids.contains(id) {
+            true
+        } else {
             commands.entity(sentry_info.entity).despawn();
+            false
         }
-    }
+    });
 
     // Update existing sentries with server state (position and velocity)
     for (sentry_id, server_sentry) in server_sentries {
