@@ -8,6 +8,9 @@ use crate::{
 };
 use common::protocol::{ItemType, PlayerId};
 
+// Background color for local player in the player list
+const LOCAL_PLAYER_BG_COLOR: Color = Color::srgba(0.8, 0.8, 0.0, 0.3);
+
 // ============================================================================
 // UI Setup System
 // ============================================================================
@@ -235,7 +238,7 @@ fn spawn_player_entry(
     is_local: bool,
 ) -> Entity {
     let background_color = if is_local {
-        BackgroundColor(Color::srgba(0.8, 0.8, 0.0, 0.3))
+        BackgroundColor(LOCAL_PLAYER_BG_COLOR)
     } else {
         BackgroundColor(Color::NONE)
     };
@@ -355,41 +358,22 @@ pub fn ui_stunned_blink_system(
     for (entry_id, mut bg_color) in &mut query {
         if let Some(player_info) = players.0.get(entry_id) {
             let is_local = local_player_id == Some(*entry_id);
+            let base_color = if is_local { LOCAL_PLAYER_BG_COLOR } else { Color::NONE };
 
             if player_info.stunned {
                 // Blink between red and the base color
-                let base_color = if is_local {
-                    Color::srgba(0.8, 0.8, 0.0, 0.3)
-                } else {
-                    Color::srgba(0.0, 0.0, 0.0, 0.0)
-                };
                 let stun_color = Color::srgba(1.0, 0.0, 0.0, 0.5);
+                let base = base_color.to_srgba();
+                let stun = stun_color.to_srgba();
 
                 *bg_color = BackgroundColor(Color::srgba(
-                    base_color
-                        .to_srgba()
-                        .red
-                        .mul_add(1.0 - blink_value, stun_color.to_srgba().red * blink_value),
-                    base_color
-                        .to_srgba()
-                        .green
-                        .mul_add(1.0 - blink_value, stun_color.to_srgba().green * blink_value),
-                    base_color
-                        .to_srgba()
-                        .blue
-                        .mul_add(1.0 - blink_value, stun_color.to_srgba().blue * blink_value),
-                    base_color
-                        .to_srgba()
-                        .alpha
-                        .mul_add(1.0 - blink_value, stun_color.to_srgba().alpha * blink_value),
+                    base.red.mul_add(1.0 - blink_value, stun.red * blink_value),
+                    base.green.mul_add(1.0 - blink_value, stun.green * blink_value),
+                    base.blue.mul_add(1.0 - blink_value, stun.blue * blink_value),
+                    base.alpha.mul_add(1.0 - blink_value, stun.alpha * blink_value),
                 ));
             } else {
                 // Not stunned - reset to base color
-                let base_color = if is_local {
-                    Color::srgba(0.8, 0.8, 0.0, 0.3)
-                } else {
-                    Color::NONE
-                };
                 *bg_color = BackgroundColor(base_color);
             }
         }
