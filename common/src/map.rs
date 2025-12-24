@@ -1,39 +1,39 @@
 use crate::{
-    constants::ROOF_HEIGHT,
+    constants::{EPSILON, ROOF_HEIGHT},
     protocol::{Ramp, Roof},
 };
 
-// Calculate the Y position (height) for a given (x, z) position based on ramps.
-// Returns the interpolated Y value if the position is on a ramp, otherwise returns 0.0.
+/// Calculate the Y position (height) for a given (x, z) position based on ramps.
+/// Returns the interpolated Y value if the position is on a ramp, otherwise returns 0.0.
 #[must_use]
 pub fn height_on_ramp(ramps: &[Ramp], x: f32, z: f32) -> f32 {
-    for ramp in ramps {
-        let (min_x, max_x, min_z, max_z) = ramp.bounds_xz();
+    ramps
+        .iter()
+        .find_map(|ramp| {
+            let (min_x, max_x, min_z, max_z) = ramp.bounds_xz();
 
-        if x < min_x || x > max_x || z < min_z || z > max_z {
-            continue;
-        }
+            if x < min_x || x > max_x || z < min_z || z > max_z {
+                return None;
+            }
 
-        let dx = (ramp.x2 - ramp.x1).abs();
-        let dz = (ramp.z2 - ramp.z1).abs();
+            let dx = (ramp.x2 - ramp.x1).abs();
+            let dz = (ramp.z2 - ramp.z1).abs();
 
-        let progress = if dx >= dz {
-            if (max_x - min_x).abs() < f32::EPSILON {
+            let progress = if dx >= dz {
+                if (max_x - min_x).abs() < EPSILON {
+                    0.0
+                } else {
+                    ((x - ramp.x1) / (ramp.x2 - ramp.x1)).clamp(0.0, 1.0)
+                }
+            } else if (max_z - min_z).abs() < EPSILON {
                 0.0
             } else {
-                ((x - ramp.x1) / (ramp.x2 - ramp.x1)).clamp(0.0, 1.0)
-            }
-        } else if (max_z - min_z).abs() < f32::EPSILON {
-            0.0
-        } else {
-            ((z - ramp.z1) / (ramp.z2 - ramp.z1)).clamp(0.0, 1.0)
-        };
+                ((z - ramp.z1) / (ramp.z2 - ramp.z1)).clamp(0.0, 1.0)
+            };
 
-        let y = ramp.y1 + progress * (ramp.y2 - ramp.y1);
-        return y;
-    }
-
-    0.0
+            Some(ramp.y1 + progress * (ramp.y2 - ramp.y1))
+        })
+        .unwrap_or(0.0)
 }
 
 // Check if a position (x, z) is currently on any ramp.
