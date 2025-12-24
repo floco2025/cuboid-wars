@@ -1,8 +1,9 @@
 /target
-.vscode
-bacon.toml
-.DS_Store
 Cargo.lock
+.vscode
+.DS_Store
+bacon.toml
+
 
 # Ignore Claude files
 .claude
