@@ -75,8 +75,7 @@ fn handle_player_collisions(
     player_query: &Query<(Entity, &Position, &FaceDirection, Has<LocalPlayerMarker>), With<PlayerMarker>>,
 ) -> bool {
     for (_player_entity, player_pos, face_dir, is_local_player) in player_query.iter() {
-        let result = sweep_projectile_vs_player(projectile_pos, projectile, delta, player_pos, face_dir.0);
-        if result.hit {
+        if sweep_projectile_vs_player(projectile_pos, projectile, delta, player_pos, face_dir.0).is_some() {
             play_sound(
                 commands,
                 asset_server,
@@ -135,11 +134,7 @@ pub fn projectiles_movement_system(
             continue;
         }
 
-        let projectile_pos = Position {
-            x: projectile_transform.translation.x,
-            y: projectile_transform.translation.y,
-            z: projectile_transform.translation.z,
-        };
+        let projectile_pos: Position = projectile_transform.translation.into();
 
         // Check wall collisions and handle bouncing/despawning
         let new_pos = if let Some(pos_after_bounce) = handle_wall_collisions(
@@ -191,9 +186,7 @@ pub fn projectiles_movement_system(
         };
 
         // Update transform to new position
-        projectile_transform.translation.x = new_pos.x;
-        projectile_transform.translation.y = new_pos.y;
-        projectile_transform.translation.z = new_pos.z;
+        projectile_transform.translation = new_pos.into();
     }
 }
 

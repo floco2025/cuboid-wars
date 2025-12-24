@@ -151,10 +151,9 @@ pub fn projectiles_movement_system(
         // Check player collisions
         for (position, face_direction, player_id) in player_query.iter() {
             // Use common hit detection logic
-            let result =
-                sweep_projectile_vs_player(&proj_pos, &projectile, delta, position, face_direction.0);
-
-            if result.hit {
+            if let Some(hit_dir) =
+                sweep_projectile_vs_player(&proj_pos, &projectile, delta, position, face_direction.0)
+            {
                 // Self-hit: despawn without scoring to match client expectations
                 if shooter_id == player_id {
                     commands.entity(proj_entity).despawn();
@@ -181,8 +180,8 @@ pub fn projectiles_movement_system(
                     &players,
                     ServerMessage::Hit(SHit {
                         id: *player_id,
-                        hit_dir_x: result.hit_dir_x,
-                        hit_dir_z: result.hit_dir_z,
+                        hit_dir_x: hit_dir.x,
+                        hit_dir_z: hit_dir.z,
                     }),
                 );
 

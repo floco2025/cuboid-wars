@@ -8,10 +8,7 @@ use crate::{
 #[must_use]
 pub fn height_on_ramp(ramps: &[Ramp], x: f32, z: f32) -> f32 {
     for ramp in ramps {
-        let min_x = ramp.x1.min(ramp.x2);
-        let max_x = ramp.x1.max(ramp.x2);
-        let min_z = ramp.z1.min(ramp.z2);
-        let max_z = ramp.z1.max(ramp.z2);
+        let (min_x, max_x, min_z, max_z) = ramp.bounds_xz();
 
         if x < min_x || x > max_x || z < min_z || z > max_z {
             continue;
@@ -43,11 +40,7 @@ pub fn height_on_ramp(ramps: &[Ramp], x: f32, z: f32) -> f32 {
 #[must_use]
 pub fn is_on_ramp(ramps: &[Ramp], x: f32, z: f32) -> bool {
     ramps.iter().any(|ramp| {
-        let min_x = ramp.x1.min(ramp.x2);
-        let max_x = ramp.x1.max(ramp.x2);
-        let min_z = ramp.z1.min(ramp.z2);
-        let max_z = ramp.z1.max(ramp.z2);
-
+        let (min_x, max_x, min_z, max_z) = ramp.bounds_xz();
         x >= min_x && x <= max_x && z >= min_z && z <= max_z
     })
 }
@@ -63,11 +56,7 @@ pub fn close_to_roof(y: f32) -> bool {
 #[must_use]
 pub fn has_roof(roofs: &[Roof], x: f32, z: f32) -> bool {
     roofs.iter().any(|roof| {
-        let min_x = roof.x1.min(roof.x2);
-        let max_x = roof.x1.max(roof.x2);
-        let min_z = roof.z1.min(roof.z2);
-        let max_z = roof.z1.max(roof.z2);
-
+        let (min_x, max_x, min_z, max_z) = roof.bounds_xz();
         x >= min_x && x <= max_x && z >= min_z && z <= max_z
     })
 }

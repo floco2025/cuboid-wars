@@ -15,10 +15,7 @@ pub fn sweep_player_vs_wall(start_pos: &Position, end_pos: &Position, wall: &Wal
 // Sweep the muzzle->spawn segment against a roof slab; returns true if it intersects.
 #[must_use]
 pub fn sweep_player_vs_roof(start: &Position, end: &Position, roof: &Roof, radius: f32) -> bool {
-    let min_x = roof.x1.min(roof.x2);
-    let max_x = roof.x1.max(roof.x2);
-    let min_z = roof.z1.min(roof.z2);
-    let max_z = roof.z1.max(roof.z2);
+    let (min_x, max_x, min_z, max_z) = roof.bounds_xz();
 
     let start_inside = start.x >= min_x && start.x <= max_x && start.z >= min_z && start.z <= max_z;
     let end_inside = end.x >= min_x && end.x <= max_x && end.z >= min_z && end.z <= max_z;

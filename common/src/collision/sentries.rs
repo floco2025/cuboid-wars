@@ -15,10 +15,7 @@ fn sweep_sentry_vs_ramp_footprint(start_pos: &Position, end_pos: &Position, ramp
     let half_x = SENTRY_WIDTH / 2.0;
     let half_z = SENTRY_DEPTH / 2.0;
 
-    let min_x = ramp.x1.min(ramp.x2);
-    let max_x = ramp.x1.max(ramp.x2);
-    let min_z = ramp.z1.min(ramp.z2);
-    let max_z = ramp.z1.max(ramp.z2);
+    let (min_x, max_x, min_z, max_z) = ramp.bounds_xz();
 
     let center_x = f32::midpoint(min_x, max_x);
     let center_z = f32::midpoint(min_z, max_z);

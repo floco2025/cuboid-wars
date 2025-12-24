@@ -8,20 +8,11 @@ use crate::{
     protocol::{Position, Ramp, Roof, Wall},
 };
 
-// Result of a projectile hit detection check
+/// Direction of a projectile hit (normalized XZ vector).
 #[derive(Debug, Clone, Copy)]
-pub struct HitResult {
-    pub hit: bool,
-    pub hit_dir_x: f32,
-    pub hit_dir_z: f32,
-}
-
-const fn no_hit() -> HitResult {
-    HitResult {
-        hit: false,
-        hit_dir_x: 0.0,
-        hit_dir_z: 0.0,
-    }
+pub struct HitDirection {
+    pub x: f32,
+    pub z: f32,
 }
 
 // Component attached to projectile entities to track velocity, lifetime, and bounce behavior
@@ -201,12 +192,8 @@ pub fn sweep_projectile_vs_ramp(
     delta: f32,
     ramp: &Ramp,
 ) -> Option<(f32, f32, f32, f32)> {
-    let min_x = ramp.x1.min(ramp.x2);
-    let max_x = ramp.x1.max(ramp.x2);
-    let min_z = ramp.z1.min(ramp.z2);
-    let max_z = ramp.z1.max(ramp.z2);
-    let min_y = ramp.y1.min(ramp.y2);
-    let max_y = ramp.y1.max(ramp.y2);
+    let (min_x, max_x, min_z, max_z) = ramp.bounds_xz();
+    let (min_y, max_y) = ramp.bounds_y();
 
     let ray_dir_x = projectile.velocity.x * delta;
     let ray_dir_y = projectile.velocity.y * delta;
@@ -382,10 +369,10 @@ pub fn sweep_projectile_vs_cuboid(
     cuboid_width: f32,
     cuboid_height: f32,
     cuboid_depth: f32,
-) -> HitResult {
+) -> Option<HitDirection> {
     let y_diff = (proj_pos.y - cuboid_center_y).abs();
     if y_diff > cuboid_height / 2.0 + PROJECTILE_RADIUS {
-        return no_hit();
+        return None;
     }
 
     let ray_dir_x = projectile.velocity.x * delta;
@@ -414,47 +401,32 @@ pub fn sweep_projectile_vs_cuboid(
     let mut t_min = 0.0_f32;
     let mut t_max = 1.0_f32;
 
-    if let Some((new_min, new_max)) = sweep_slab_interval(local_x, ray_local_x, half_width, t_min, t_max) {
-        t_min = new_min;
-        t_max = new_max;
-    } else {
-        return no_hit();
-    }
+    let (new_min, new_max) = sweep_slab_interval(local_x, ray_local_x, half_width, t_min, t_max)?;
+    t_min = new_min;
+    t_max = new_max;
 
-    if let Some((new_min, new_max)) = sweep_slab_interval(local_y, ray_local_y, half_height, t_min, t_max) {
-        t_min = new_min;
-        t_max = new_max;
-    } else {
-        return no_hit();
-    }
+    let (new_min, new_max) = sweep_slab_interval(local_y, ray_local_y, half_height, t_min, t_max)?;
+    t_min = new_min;
+    t_max = new_max;
 
-    if let Some((new_min, new_max)) = sweep_slab_interval(local_z, ray_local_z, half_depth, t_min, t_max) {
-        t_min = new_min;
-        t_max = new_max;
-    } else {
-        return no_hit();
-    }
+    let (new_min, new_max) = sweep_slab_interval(local_z, ray_local_z, half_depth, t_min, t_max)?;
+    t_min = new_min;
+    t_max = new_max;
 
     if t_min <= t_max && t_max >= 0.0 && t_min <= 1.0 {
         let vel_len = projectile.velocity.x.hypot(projectile.velocity.z);
-        let hit_dir_x = if vel_len > 0.0 {
-            projectile.velocity.x / vel_len
+        let (x, z) = if vel_len > 0.0 {
+            (
+                projectile.velocity.x / vel_len,
+                projectile.velocity.z / vel_len,
+            )
         } else {
-            0.0
-        };
-        let hit_dir_z = if vel_len > 0.0 {
-            projectile.velocity.z / vel_len
-        } else {
-            0.0
+            (0.0, 0.0)
         };
 
-        HitResult {
-            hit: true,
-            hit_dir_x,
-            hit_dir_z,
-        }
+        Some(HitDirection { x, z })
     } else {
-        no_hit()
+        None
     }
 }
 
@@ -465,7 +437,7 @@ pub fn sweep_projectile_vs_player(
     delta: f32,
     player_pos: &Position,
     player_face_dir: f32,
-) -> HitResult {
+) -> Option<HitDirection> {
     let player_center_y = player_pos.y + PLAYER_HEIGHT / 2.0;
     sweep_projectile_vs_cuboid(
         proj_pos,
@@ -525,10 +497,7 @@ pub fn sweep_projectile_vs_roof(
     delta: f32,
     roof: &Roof,
 ) -> Option<(f32, f32, f32, f32)> {
-    let min_x = roof.x1.min(roof.x2);
-    let max_x = roof.x1.max(roof.x2);
-    let min_z = roof.z1.min(roof.z2);
-    let max_z = roof.z1.max(roof.z2);
+    let (min_x, max_x, min_z, max_z) = roof.bounds_xz();
 
     let center_x = f32::midpoint(min_x, max_x);
     let center_z = f32::midpoint(min_z, max_z);
@@ -550,17 +519,13 @@ pub fn sweep_projectile_vs_roof(
 // Sample-based ramp hit test for projectiles.
 #[must_use]
 pub fn projectile_hits_ramp(proj_pos: &Position, projectile_velocity: &Vec3, delta: f32, ramp: &Ramp) -> bool {
+    let (min_x, max_x, min_z, max_z) = ramp.bounds_xz();
     let num_samples = 5;
     for i in 0..=num_samples {
         let t = i as f32 / num_samples as f32;
         let sample_x = (projectile_velocity.x * delta).mul_add(t, proj_pos.x);
         let sample_y = (projectile_velocity.y * delta).mul_add(t, proj_pos.y);
         let sample_z = (projectile_velocity.z * delta).mul_add(t, proj_pos.z);
-
-        let min_x = ramp.x1.min(ramp.x2);
-        let max_x = ramp.x1.max(ramp.x2);
-        let min_z = ramp.z1.min(ramp.z2);
-        let max_z = ramp.z1.max(ramp.z2);
 
         if sample_x >= min_x && sample_x <= max_x && sample_z >= min_z && sample_z <= max_z {
             let ramp_height = crate::map::height_on_ramp(&[*ramp], sample_x, sample_z);
@@ -594,5 +559,5 @@ pub fn projectile_hits_sentry(
         SENTRY_HEIGHT,
         SENTRY_DEPTH,
     )
-    .hit
+    .is_some()
 }

@@ -86,10 +86,7 @@ pub fn sweep_ramp_edges(
     half_z: f32,
     edge_half: f32,
 ) -> bool {
-    let min_x = ramp.x1.min(ramp.x2);
-    let max_x = ramp.x1.max(ramp.x2);
-    let min_z = ramp.z1.min(ramp.z2);
-    let max_z = ramp.z1.max(ramp.z2);
+    let (min_x, max_x, min_z, max_z) = ramp.bounds_xz();
 
     let dx = (ramp.x2 - ramp.x1).abs();
     let dz = (ramp.z2 - ramp.z1).abs();
@@ -142,10 +139,7 @@ pub fn sweep_ramp_high_cap(
     half_z: f32,
     cap_half: f32,
 ) -> bool {
-    let min_x = ramp.x1.min(ramp.x2);
-    let max_x = ramp.x1.max(ramp.x2);
-    let min_z = ramp.z1.min(ramp.z2);
-    let max_z = ramp.z1.max(ramp.z2);
+    let (min_x, max_x, min_z, max_z) = ramp.bounds_xz();
 
     let dx = (ramp.x2 - ramp.x1).abs();
     let dz = (ramp.z2 - ramp.z1).abs();

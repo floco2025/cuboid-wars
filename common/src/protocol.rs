@@ -1,4 +1,5 @@
 use bevy_ecs::prelude::*;
+use bevy_math::Vec3;
 use bincode::{Decode, Encode};
 
 use crate::constants::{SPEED_RUN, SPEED_WALK};
@@ -14,6 +15,22 @@ pub struct Position {
     pub x: f32, // meters
     pub y: f32, // meters (up/down - elevation from ramps/roofs)
     pub z: f32, // meters
+}
+
+impl From<Vec3> for Position {
+    fn from(v: Vec3) -> Self {
+        Self {
+            x: v.x,
+            y: v.y,
+            z: v.z,
+        }
+    }
+}
+
+impl From<Position> for Vec3 {
+    fn from(p: Position) -> Self {
+        Self::new(p.x, p.y, p.z)
+    }
 }
 
 // SpeedLevel - discrete speed level.
@@ -96,6 +113,19 @@ pub struct Wall {
     pub width: f32,
 }
 
+impl Wall {
+    /// Returns `(min_x, max_x, min_z, max_z)` bounds for this wall.
+    #[must_use]
+    pub const fn bounds_xz(&self) -> (f32, f32, f32, f32) {
+        (
+            self.x1.min(self.x2),
+            self.x1.max(self.x2),
+            self.z1.min(self.z2),
+            self.z1.max(self.z2),
+        )
+    }
+}
+
 // Roof - a roof segment with corner coordinates.
 #[derive(Debug, Clone, Encode, Decode, Copy)]
 pub struct Roof {
@@ -104,6 +134,19 @@ pub struct Roof {
     pub x2: f32,
     pub z2: f32,
     pub thickness: f32,
+}
+
+impl Roof {
+    /// Returns `(min_x, max_x, min_z, max_z)` bounds for this roof.
+    #[must_use]
+    pub const fn bounds_xz(&self) -> (f32, f32, f32, f32) {
+        (
+            self.x1.min(self.x2),
+            self.x1.max(self.x2),
+            self.z1.min(self.z2),
+            self.z1.max(self.z2),
+        )
+    }
 }
 
 // Ramp - right triangular prism defined by low and high opposite corners
@@ -120,6 +163,25 @@ pub struct Ramp {
     pub x2: f32,
     pub y2: f32,
     pub z2: f32,
+}
+
+impl Ramp {
+    /// Returns `(min_x, max_x, min_z, max_z)` bounds for this ramp's footprint.
+    #[must_use]
+    pub const fn bounds_xz(&self) -> (f32, f32, f32, f32) {
+        (
+            self.x1.min(self.x2),
+            self.x1.max(self.x2),
+            self.z1.min(self.z2),
+            self.z1.max(self.z2),
+        )
+    }
+
+    /// Returns `(min_y, max_y)` height bounds for this ramp.
+    #[must_use]
+    pub const fn bounds_y(&self) -> (f32, f32) {
+        (self.y1.min(self.y2), self.y1.max(self.y2))
+    }
 }
 
 // Precomputed wall light placement sent from server to client.
