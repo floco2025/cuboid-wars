@@ -78,18 +78,7 @@ pub fn handle_login_message(
             };
 
             // Construct player data
-            let player = Player {
-                name,
-                pos,
-                speed,
-                face_dir,
-                hits,
-                speed_power_up: false,
-                multi_shot_power_up: false,
-                phasing_power_up: false,
-                sentry_hunt_power_up: false,
-                stunned: false,
-            };
+            let player = Player::new(name, pos, speed, face_dir, hits);
 
             // Construct the initial Update for the new player
             let mut all_players = snapshot_logged_in_players(players, player_data)

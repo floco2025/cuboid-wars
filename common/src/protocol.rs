@@ -88,7 +88,7 @@ pub struct SentryId(pub u32);
 #[derive(Component, Default)]
 pub struct FaceDirection(pub f32); // radians
 
-// Player - complete player state snapshot sent across the network.
+/// Player - complete player state snapshot sent across the network.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct Player {
     pub name: String,
@@ -101,6 +101,25 @@ pub struct Player {
     pub phasing_power_up: bool,
     pub sentry_hunt_power_up: bool,
     pub stunned: bool,
+}
+
+impl Player {
+    /// Creates a new player with the given core fields and all status flags set to `false`.
+    #[must_use]
+    pub const fn new(name: String, pos: Position, speed: Speed, face_dir: f32, hits: i32) -> Self {
+        Self {
+            name,
+            pos,
+            speed,
+            face_dir,
+            hits,
+            speed_power_up: false,
+            multi_shot_power_up: false,
+            phasing_power_up: false,
+            sentry_hunt_power_up: false,
+            stunned: false,
+        }
+    }
 }
 
 // Wall - a wall segment on the grid.
