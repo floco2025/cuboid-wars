@@ -105,11 +105,10 @@ impl GridDirection {
 
         // Check if target cell is occupied by another sentry
         let cell_occupant = sentry_grid[next_z as usize][next_x as usize];
-        if let Some(occupant) = cell_occupant {
-            if occupant != sentry_id {
+        if let Some(occupant) = cell_occupant
+            && occupant != sentry_id {
                 return true; // Blocked by another sentry
             }
-        }
 
         false
     }

@@ -63,7 +63,7 @@ pub fn sentries_movement_system(
             }
         };
 
-        let final_pos = apply_sentry_wall_sliding(map_layout.as_deref(), &client_pos, &target_pos, &client_vel, delta);
+        let final_pos = apply_sentry_wall_sliding(map_layout.as_deref(), &client_pos, &target_pos, client_vel, delta);
         *client_pos = final_pos;
         
         // Update face direction based on velocity (unless stopped)
