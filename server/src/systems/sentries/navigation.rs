@@ -1,8 +1,8 @@
-use crate::{
+use crate::{constants::*, resources::GridConfig};
+use common::{
     constants::*,
-    resources::GridConfig,
+    protocol::{SentryId, Velocity},
 };
-use common::{constants::*, protocol::{SentryId, Velocity}};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum GridDirection {
@@ -19,11 +19,7 @@ impl GridDirection {
     #[must_use]
     pub fn to_velocity(self) -> Velocity {
         match self {
-            Self::None => Velocity {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            },
+            Self::None => Velocity { x: 0.0, y: 0.0, z: 0.0 },
             Self::East => Velocity {
                 x: SENTRY_SPEED,
                 y: 0.0,
@@ -106,9 +102,10 @@ impl GridDirection {
         // Check if target cell is occupied by another sentry
         let cell_occupant = sentry_grid[next_z as usize][next_x as usize];
         if let Some(occupant) = cell_occupant
-            && occupant != sentry_id {
-                return true; // Blocked by another sentry
-            }
+            && occupant != sentry_id
+        {
+            return true; // Blocked by another sentry
+        }
 
         false
     }

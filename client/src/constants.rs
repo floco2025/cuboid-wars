@@ -142,4 +142,3 @@ pub const TEXTURE_COOKIE_ROUGHNESS: f32 = 1.0;
 // Material properties - Power-ups
 pub const TEXTURE_ITEM_METALLIC: f32 = 1.0;
 pub const TEXTURE_ITEM_ROUGHNESS: f32 = 1.0;
-

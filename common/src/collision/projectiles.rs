@@ -2,7 +2,7 @@ use bevy_ecs::prelude::*;
 use bevy_math::Vec3;
 use bevy_time::{Timer, TimerMode};
 
-use super::helpers::{sweep_point_vs_cuboid, sweep_slab_interval, Collision};
+use super::helpers::{Collision, sweep_point_vs_cuboid, sweep_slab_interval};
 use crate::{
     constants::*,
     protocol::{Position, Ramp, Roof, Wall},
@@ -68,10 +68,7 @@ impl Projectile {
             return None;
         }
 
-        let collision = Collision {
-            normal: Vec3::Y,
-            t,
-        };
+        let collision = Collision { normal: Vec3::Y, t };
         Some(self.apply_bounce(projectile_pos, delta, collision))
     }
 
@@ -252,7 +249,12 @@ fn sweep_projectile_vs_ramp(
     if let Some(t_top) = top_hit {
         let cx = ray_dir_x.mul_add(t_top, proj_pos.x);
         let cz = ray_dir_z.mul_add(t_top, proj_pos.z);
-        if cx >= min_x - PHYSICS_EPSILON && cx <= max_x + PHYSICS_EPSILON && cz >= min_z - PHYSICS_EPSILON && cz <= max_z + PHYSICS_EPSILON && t_top < best_t {
+        if cx >= min_x - PHYSICS_EPSILON
+            && cx <= max_x + PHYSICS_EPSILON
+            && cz >= min_z - PHYSICS_EPSILON
+            && cz <= max_z + PHYSICS_EPSILON
+            && t_top < best_t
+        {
             let denom = slope.mul_add(slope, 1.0).sqrt();
             let normal_x = if along_x { -slope / denom } else { 0.0 };
             let normal_z = if along_x { 0.0 } else { -slope / denom };
@@ -331,10 +333,7 @@ pub fn sweep_projectile_vs_cuboid(
     if t_min <= t_max && t_max >= 0.0 && t_min <= 1.0 {
         let vel_len = projectile.velocity.x.hypot(projectile.velocity.z);
         let (x, z) = if vel_len > 0.0 {
-            (
-                projectile.velocity.x / vel_len,
-                projectile.velocity.z / vel_len,
-            )
+            (projectile.velocity.x / vel_len, projectile.velocity.z / vel_len)
         } else {
             (0.0, 0.0)
         };

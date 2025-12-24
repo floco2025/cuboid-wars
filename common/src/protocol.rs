@@ -19,11 +19,7 @@ pub struct Position {
 
 impl From<Vec3> for Position {
     fn from(v: Vec3) -> Self {
-        Self {
-            x: v.x,
-            y: v.y,
-            z: v.z,
-        }
+        Self { x: v.x, y: v.y, z: v.z }
     }
 }
 

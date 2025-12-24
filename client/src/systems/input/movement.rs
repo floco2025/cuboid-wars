@@ -10,7 +10,6 @@ use crate::{
     markers::{LocalPlayerMarker, MainCameraMarker},
     net::ClientToServer,
     resources::{CameraViewMode, ClientToServerChannel, InputSettings, LocalPlayerInfo, MyPlayerId, PlayerMap},
-
 };
 use common::{
     constants::{ALWAYS_SPEED, POWER_UP_SPEED_MULTIPLIER},
@@ -95,7 +94,11 @@ fn handle_unlocked_cursor(
             let has_speed_powerup = my_player_id
                 .and_then(|my_id| players.0.get(&my_id.0))
                 .is_some_and(|info| ALWAYS_SPEED || info.speed_power_up);
-            let multiplier = if has_speed_powerup { POWER_UP_SPEED_MULTIPLIER } else { 1.0 };
+            let multiplier = if has_speed_powerup {
+                POWER_UP_SPEED_MULTIPLIER
+            } else {
+                1.0
+            };
             *velocity = speed.to_velocity().with_speed_multiplier(multiplier);
         }
         let msg = ClientMessage::Speed(CSpeed { speed });
@@ -208,7 +211,11 @@ fn update_player_velocity_and_face(
         let has_speed_powerup = my_player_id
             .and_then(|my_id| players.0.get(&my_id.0))
             .is_some_and(|info| ALWAYS_SPEED || info.speed_power_up);
-        let multiplier = if has_speed_powerup { POWER_UP_SPEED_MULTIPLIER } else { 1.0 };
+        let multiplier = if has_speed_powerup {
+            POWER_UP_SPEED_MULTIPLIER
+        } else {
+            1.0
+        };
         *velocity = speed.to_velocity().with_speed_multiplier(multiplier);
         face_direction.0 = face_yaw;
     }

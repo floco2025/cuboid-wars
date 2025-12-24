@@ -380,14 +380,14 @@ pub fn slide_along_axes(
         y: current_pos.y,
         z: velocity_z.mul_add(delta, current_pos.z),
     };
-    
+
     // Check if diagonal path collides
     let diagonal_collides = collides_x(&diagonal_pos) || collides_z(&diagonal_pos);
-    
+
     if !diagonal_collides {
         return diagonal_pos;
     }
-    
+
     // Diagonal blocked, try axis-aligned sliding
     let x_only_pos = make_pos_x(delta);
     let z_only_pos = make_pos_z(delta);

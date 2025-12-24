@@ -105,7 +105,14 @@ pub fn map_spawn_walls_system(
     );
 
     for wall in &map_layout.lower_walls {
-        spawn_wall(&mut commands, &mut meshes, &mut materials, &asset_server, wall, debug_colors.0);
+        spawn_wall(
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &asset_server,
+            wall,
+            debug_colors.0,
+        );
     }
 
     for light in &map_layout.wall_lights {
@@ -113,7 +120,14 @@ pub fn map_spawn_walls_system(
     }
 
     for roof in &map_layout.roofs {
-        spawn_roof(&mut commands, &mut meshes, &mut materials, &asset_server, roof, debug_colors.0);
+        spawn_roof(
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &asset_server,
+            roof,
+            debug_colors.0,
+        );
     }
 
     for ramp in &map_layout.ramps {

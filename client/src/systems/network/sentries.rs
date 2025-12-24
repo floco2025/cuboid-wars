@@ -39,10 +39,9 @@ pub fn handle_sentry_message(
             ));
         } else {
             // No client position yet, just set server state
-            commands.entity(sentry_info.entity).insert((
-                msg.sentry.pos,
-                msg.sentry.vel,
-            ));
+            commands
+                .entity(sentry_info.entity)
+                .insert((msg.sentry.pos, msg.sentry.vel));
         }
     } else {
         // Spawn new sentry

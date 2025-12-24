@@ -1,6 +1,4 @@
-use super::helpers::{
-    slide_along_axes, sweep_aabb_vs_aabb, sweep_aabb_vs_wall, sweep_ramp_edges, sweep_ramp_high_cap,
-};
+use super::helpers::{slide_along_axes, sweep_aabb_vs_aabb, sweep_aabb_vs_wall, sweep_ramp_edges, sweep_ramp_high_cap};
 use crate::{
     constants::{PLAYER_DEPTH, PLAYER_HEIGHT, PLAYER_WIDTH, ROOF_HEIGHT, WALL_THICKNESS},
     map::height_on_ramp,

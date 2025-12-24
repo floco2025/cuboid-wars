@@ -47,12 +47,12 @@ pub fn spawn_sentry(
         graph_handle,
         index: walk_index,
     };
-    
+
     // Calculate initial face direction from velocity
     let face_dir = if velocity.x.abs() > 0.01 || velocity.z.abs() > 0.01 {
         velocity.x.atan2(velocity.z)
     } else {
-        0.0  // Default facing direction when stopped
+        0.0 // Default facing direction when stopped
     };
 
     let entity = commands

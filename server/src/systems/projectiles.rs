@@ -37,10 +37,12 @@ pub fn projectiles_movement_system(
         }
 
         // Ground bounce
-        let mut hit_something = projectile.handle_ground_bounce(&proj_pos, delta).is_some_and(|new_pos| {
-            *proj_pos = new_pos;
-            true
-        });
+        let mut hit_something = projectile
+            .handle_ground_bounce(&proj_pos, delta)
+            .is_some_and(|new_pos| {
+                *proj_pos = new_pos;
+                true
+            });
 
         // Check wall collisions
         if !hit_something {
@@ -135,8 +137,7 @@ pub fn projectiles_movement_system(
         // Check player collisions
         for (position, face_direction, player_id) in player_query.iter() {
             // Use common hit detection logic
-            if let Some(hit_dir) =
-                sweep_projectile_vs_player(&proj_pos, &projectile, delta, position, face_direction.0)
+            if let Some(hit_dir) = sweep_projectile_vs_player(&proj_pos, &projectile, delta, position, face_direction.0)
             {
                 // Self-hit: despawn without scoring to match client expectations
                 if shooter_id == player_id {

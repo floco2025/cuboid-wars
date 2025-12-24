@@ -89,13 +89,7 @@ pub fn dispatch_message(
         ),
         ServerMessage::Hit(hit_msg) => handle_player_hit_message(commands, players, cameras, my_player_id, hit_msg),
         ServerMessage::PlayerStatus(player_status_msg) => {
-            handle_player_status_message(
-                commands,
-                players,
-                player_status_msg,
-                my_player_id,
-                asset_server,
-            );
+            handle_player_status_message(commands, players, player_status_msg, my_player_id, asset_server);
         }
         ServerMessage::Echo(echo_msg) => handle_echo_message(time, rtt, echo_msg),
         ServerMessage::Sentry(sentry_msg) => {

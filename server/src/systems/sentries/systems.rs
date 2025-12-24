@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use super::movement::{find_visible_moving_player, target_movement, patrol_movement, pre_patrol_movement};
+use super::movement::{find_visible_moving_player, patrol_movement, pre_patrol_movement, target_movement};
 use crate::{
     constants::*,
     net::ServerToClient,

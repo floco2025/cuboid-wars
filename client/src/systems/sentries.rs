@@ -17,7 +17,13 @@ pub fn sentries_movement_system(
     time: Res<Time>,
     map_layout: Option<Res<MapLayout>>,
     mut sentry_query: Query<
-        (Entity, &mut Position, &Velocity, &mut FaceDirection, Option<&mut ServerReconciliation>),
+        (
+            Entity,
+            &mut Position,
+            &Velocity,
+            &mut FaceDirection,
+            Option<&mut ServerReconciliation>,
+        ),
         With<SentryMarker>,
     >,
 ) {
@@ -65,7 +71,7 @@ pub fn sentries_movement_system(
 
         let final_pos = apply_sentry_wall_sliding(map_layout.as_deref(), &client_pos, &target_pos, client_vel, delta);
         *client_pos = final_pos;
-        
+
         // Update face direction based on velocity (unless stopped)
         if client_vel.x.abs() > 0.01 || client_vel.z.abs() > 0.01 {
             face_dir.0 = client_vel.x.atan2(client_vel.z);

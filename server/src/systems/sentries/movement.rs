@@ -107,10 +107,7 @@ pub fn pre_patrol_movement(
             players,
             ServerMessage::Sentry(SSentry {
                 id: *sentry_id,
-                sentry: Sentry {
-                    pos: *pos,
-                    vel: *vel,
-                },
+                sentry: Sentry { pos: *pos, vel: *vel },
             }),
         );
     } else {
@@ -139,10 +136,7 @@ pub fn pre_patrol_movement(
                 players,
                 ServerMessage::Sentry(SSentry {
                     id: *sentry_id,
-                    sentry: Sentry {
-                        pos: *pos,
-                        vel: *vel,
-                    },
+                    sentry: Sentry { pos: *pos, vel: *vel },
                 }),
             );
         }
@@ -236,10 +230,7 @@ pub fn patrol_movement(
                 players,
                 ServerMessage::Sentry(SSentry {
                     id: *sentry_id,
-                    sentry: Sentry {
-                        pos: *pos,
-                        vel: *vel,
-                    },
+                    sentry: Sentry { pos: *pos, vel: *vel },
                 }),
             );
         }
@@ -362,10 +353,7 @@ pub fn target_movement(
             players,
             ServerMessage::Sentry(SSentry {
                 id: *sentry_id,
-                sentry: Sentry {
-                    pos: *pos,
-                    vel: *vel,
-                },
+                sentry: Sentry { pos: *pos, vel: *vel },
             }),
         );
     }

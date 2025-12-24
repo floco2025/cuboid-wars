@@ -102,10 +102,7 @@ fn is_blocked_by_ramp(spawn_position: &Position, ramps: &[Ramp]) -> bool {
     ramps.iter().any(|ramp| {
         let (min_x, max_x, min_z, max_z) = ramp.bounds_xz();
 
-        if spawn_position.x < min_x
-            || spawn_position.x > max_x
-            || spawn_position.z < min_z
-            || spawn_position.z > max_z
+        if spawn_position.x < min_x || spawn_position.x > max_x || spawn_position.z < min_z || spawn_position.z > max_z
         {
             return false;
         }
