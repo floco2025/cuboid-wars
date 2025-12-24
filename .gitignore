@@ -3,7 +3,10 @@
 bacon.toml
 .DS_Store
 Cargo.lock
+
+# Ignore Claude files
 .claude
+Claude.md
 
 # Ignore all TLS certificates and private keys
 *.pem
