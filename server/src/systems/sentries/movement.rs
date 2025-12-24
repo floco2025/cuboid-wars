@@ -33,9 +33,11 @@ pub fn find_visible_moving_player(
             continue;
         }
 
-        let distance = (player_pos.x - sentry_pos.x).hypot(player_pos.z - sentry_pos.z);
+        let dx = player_pos.x - sentry_pos.x;
+        let dz = player_pos.z - sentry_pos.z;
+        let distance_sq = dx.mul_add(dx, dz * dz);
 
-        if distance > SENTRY_VISION_RANGE {
+        if distance_sq > SENTRY_VISION_RANGE * SENTRY_VISION_RANGE {
             continue;
         }
 

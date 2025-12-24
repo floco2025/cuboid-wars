@@ -49,8 +49,8 @@ pub fn players_movement_system(
             .unwrap_or(1.0);
         let velocity = speed.to_velocity().with_speed_multiplier(multiplier);
 
-        let abs_velocity = velocity.x.hypot(velocity.z);
-        let is_standing_still = abs_velocity < PHYSICS_EPSILON;
+        let velocity_sq = velocity.x.mul_add(velocity.x, velocity.z * velocity.z);
+        let is_standing_still = velocity_sq < PHYSICS_EPSILON * PHYSICS_EPSILON;
 
         if is_standing_still {
             planned_moves.push(PlannedMove {
