@@ -17,7 +17,7 @@ use super::broadcast::{broadcast_to_others, collect_items, collect_sentries, sna
 // Login Flow
 // ============================================================================
 
-/// Handle login message from a player who has not yet logged in.
+// Handle login message from a player who has not yet logged in.
 pub fn handle_login_message(
     commands: &mut Commands,
     entity: Entity,
@@ -124,8 +124,8 @@ pub fn handle_login_message(
 // Spawn Position Generation
 // ============================================================================
 
-/// Generate a spawn position in a random grid cell without a ramp,
-/// spawning in the inner 50% of the cell to avoid walls.
+// Generate a spawn position in a random grid cell without a ramp,
+// spawning in the inner 50% of the cell to avoid walls.
 fn generate_player_spawn_position(
     grid_config: &GridConfig,
     players: &PlayerMap,

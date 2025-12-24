@@ -73,7 +73,7 @@ pub struct Velocity {
 }
 
 impl Velocity {
-    /// Returns a new velocity with the horizontal (x, z) components multiplied.
+    // Returns a new velocity with the horizontal (x, z) components multiplied.
     #[must_use]
     pub fn with_speed_multiplier(self, multiplier: f32) -> Self {
         Self {
@@ -100,7 +100,7 @@ pub struct SentryId(pub u32);
 #[derive(Component, Default)]
 pub struct FaceDirection(pub f32); // radians
 
-/// Player - complete player state snapshot sent across the network.
+// Player - complete player state snapshot sent across the network.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct Player {
     pub name: String,
@@ -116,7 +116,7 @@ pub struct Player {
 }
 
 impl Player {
-    /// Creates a new player with the given core fields and all status flags set to `false`.
+    // Creates a new player with the given core fields and all status flags set to `false`.
     #[must_use]
     pub const fn new(name: String, pos: Position, speed: Speed, face_dir: f32, hits: i32) -> Self {
         Self {
@@ -145,7 +145,7 @@ pub struct Wall {
 }
 
 impl Wall {
-    /// Returns `(min_x, max_x, min_z, max_z)` bounds for this wall.
+    // Returns `(min_x, max_x, min_z, max_z)` bounds for this wall.
     #[must_use]
     pub const fn bounds_xz(&self) -> (f32, f32, f32, f32) {
         (
@@ -168,7 +168,7 @@ pub struct Roof {
 }
 
 impl Roof {
-    /// Returns `(min_x, max_x, min_z, max_z)` bounds for this roof.
+    // Returns `(min_x, max_x, min_z, max_z)` bounds for this roof.
     #[must_use]
     pub const fn bounds_xz(&self) -> (f32, f32, f32, f32) {
         (
@@ -197,7 +197,7 @@ pub struct Ramp {
 }
 
 impl Ramp {
-    /// Returns `(min_x, max_x, min_z, max_z)` bounds for this ramp's footprint.
+    // Returns `(min_x, max_x, min_z, max_z)` bounds for this ramp's footprint.
     #[must_use]
     pub const fn bounds_xz(&self) -> (f32, f32, f32, f32) {
         (
@@ -208,7 +208,7 @@ impl Ramp {
         )
     }
 
-    /// Returns `(min_y, max_y)` height bounds for this ramp.
+    // Returns `(min_y, max_y)` height bounds for this ramp.
     #[must_use]
     pub const fn bounds_y(&self) -> (f32, f32) {
         (self.y1.min(self.y2), self.y1.max(self.y2))

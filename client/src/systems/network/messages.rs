@@ -21,7 +21,7 @@ use common::{markers::PlayerMarker, markers::SentryMarker, protocol::*};
 // Message Dispatcher
 // ============================================================================
 
-/// Route logged-in messages to appropriate handlers.
+// Route logged-in messages to appropriate handlers.
 pub fn dispatch_message(
     msg: ServerMessage,
     my_player_id: PlayerId,
@@ -124,7 +124,7 @@ pub fn dispatch_message(
 // Update Message Handler
 // ============================================================================
 
-/// Handle bulk state synchronization from Update message.
+// Handle bulk state synchronization from Update message.
 pub fn handle_update_message(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,

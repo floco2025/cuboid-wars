@@ -14,7 +14,7 @@ use common::{
 // Message Dispatcher
 // ============================================================================
 
-/// Dispatch messages from players who are already logged in to appropriate handlers.
+// Dispatch messages from players who are already logged in to appropriate handlers.
 pub fn dispatch_message(
     commands: &mut Commands,
     entity: Entity,
@@ -58,7 +58,7 @@ pub fn dispatch_message(
 // Message Handlers
 // ============================================================================
 
-/// Handle logoff message.
+// Handle logoff message.
 fn handle_logoff_message(commands: &mut Commands, entity: Entity, id: PlayerId, _msg: CLogoff, players: &PlayerMap) {
     debug!("{:?} logged off", id);
     commands.entity(entity).despawn();
@@ -67,7 +67,7 @@ fn handle_logoff_message(commands: &mut Commands, entity: Entity, id: PlayerId, 
     broadcast_to_others(players, id, ServerMessage::Logoff(SLogoff { id, graceful: true }));
 }
 
-/// Handle speed message.
+// Handle speed message.
 fn handle_speed_message(
     commands: &mut Commands,
     entity: Entity,
@@ -94,7 +94,7 @@ fn handle_speed_message(
     }
 }
 
-/// Handle face direction message.
+// Handle face direction message.
 fn handle_face_message(commands: &mut Commands, entity: Entity, id: PlayerId, msg: CFace, players: &PlayerMap) {
     // Update the player's face direction
     commands.entity(entity).insert(FaceDirection(msg.dir));
@@ -102,7 +102,7 @@ fn handle_face_message(commands: &mut Commands, entity: Entity, id: PlayerId, ms
     broadcast_to_others(players, id, ServerMessage::Face(SFace { id, dir: msg.dir }));
 }
 
-/// Handle shot message.
+// Handle shot message.
 fn handle_shot_message(
     commands: &mut Commands,
     entity: Entity,
@@ -172,7 +172,7 @@ fn handle_shot_message(
     );
 }
 
-/// Handle echo message.
+// Handle echo message.
 fn handle_echo_message(id: PlayerId, msg: CEcho, players: &PlayerMap) {
     trace!("{:?} echo: {:?}", id, msg);
     if let Some(player_info) = players.0.get(&id) {

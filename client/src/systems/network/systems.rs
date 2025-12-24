@@ -17,7 +17,7 @@ use common::{markers::PlayerMarker, markers::SentryMarker, protocol::*};
 // Network Message Processing System
 // ============================================================================
 
-/// Main system to process all incoming messages from the server.
+// Main system to process all incoming messages from the server.
 pub fn network_server_message_system(
     mut commands: Commands,
     mut from_server: ResMut<ServerToClientChannel>,
@@ -74,7 +74,7 @@ pub fn network_server_message_system(
 // Echo/Ping System
 // ============================================================================
 
-/// System to send echo requests every `ECHO_INTERVAL` seconds.
+// System to send echo requests every `ECHO_INTERVAL` seconds.
 pub fn network_echo_system(
     time: Res<Time>,
     mut rtt: ResMut<RoundTripTime>,
@@ -102,7 +102,7 @@ pub fn network_echo_system(
     }
 }
 
-/// Handle echo response from server to calculate RTT.
+// Handle echo response from server to calculate RTT.
 pub fn handle_echo_message(time: &Res<Time>, rtt: &mut ResMut<RoundTripTime>, msg: SEcho) {
     if rtt.pending_sent_at == Duration::ZERO {
         return;

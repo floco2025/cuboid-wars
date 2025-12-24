@@ -58,7 +58,7 @@ pub struct PlayerInfo {
 }
 
 impl PlayerInfo {
-    /// Build status message from current power-up timers.
+    // Build status message from current power-up timers.
     #[must_use]
     pub fn status(&self, id: PlayerId) -> SPlayerStatus {
         SPlayerStatus {
@@ -71,7 +71,7 @@ impl PlayerInfo {
         }
     }
 
-    /// Tick all power-up and status timers by delta, clamping to 0.
+    // Tick all power-up and status timers by delta, clamping to 0.
     pub fn tick_timers(&mut self, delta: f32) {
         self.speed_power_up_timer = (self.speed_power_up_timer - delta).max(0.0);
         self.multi_shot_power_up_timer = (self.multi_shot_power_up_timer - delta).max(0.0);
@@ -129,8 +129,8 @@ pub struct SentryMap(pub HashMap<SentryId, SentryInfo>);
 pub struct SentryGrid(pub Vec<Vec<Option<SentryId>>>);
 
 impl SentryGrid {
-    /// Clear a sentry from the grid cell at the given position.
-    /// Only clears if the cell contains the specified sentry ID.
+    // Clear a sentry from the grid cell at the given position.
+    // Only clears if the cell contains the specified sentry ID.
     pub fn clear_at_position(&mut self, pos: &Position, sentry_id: SentryId) {
         let grid_x = (((pos.x + FIELD_WIDTH / 2.0) / GRID_SIZE).floor() as i32).clamp(0, GRID_COLS - 1) as usize;
         let grid_z = (((pos.z + FIELD_DEPTH / 2.0) / GRID_SIZE).floor() as i32).clamp(0, GRID_ROWS - 1) as usize;

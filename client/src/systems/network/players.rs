@@ -14,7 +14,7 @@ use common::{constants::POWER_UP_SPEED_MULTIPLIER, markers::PlayerMarker, protoc
 // Player Message Handlers
 // ============================================================================
 
-/// Handle player speed update with server reconciliation.
+// Handle player speed update with server reconciliation.
 pub fn handle_player_speed_message(
     commands: &mut Commands,
     players: &ResMut<PlayerMap>,
@@ -49,7 +49,7 @@ pub fn handle_player_speed_message(
     }
 }
 
-/// Handle player face direction update.
+// Handle player face direction update.
 pub fn handle_player_face_message(commands: &mut Commands, players: &ResMut<PlayerMap>, msg: SFace) {
     trace!("{:?} face direction: {}", msg.id, msg.dir);
     if let Some(player) = players.0.get(&msg.id) {
@@ -57,7 +57,7 @@ pub fn handle_player_face_message(commands: &mut Commands, players: &ResMut<Play
     }
 }
 
-/// Handle player shooting - spawn projectile(s) on client.
+// Handle player shooting - spawn projectile(s) on client.
 pub fn handle_player_shot_message(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
@@ -92,7 +92,7 @@ pub fn handle_player_shot_message(
     }
 }
 
-/// Handle player being hit - apply camera shake or cuboid shake.
+// Handle player being hit - apply camera shake or cuboid shake.
 pub fn handle_player_hit_message(
     commands: &mut Commands,
     players: &ResMut<PlayerMap>,
@@ -125,7 +125,7 @@ pub fn handle_player_hit_message(
     }
 }
 
-/// Handle player status update (power-ups, stun).
+// Handle player status update (power-ups, stun).
 pub fn handle_player_status_message(
     commands: &mut Commands,
     players: &mut ResMut<PlayerMap>,
@@ -165,7 +165,7 @@ pub fn handle_player_status_message(
 // Player Synchronization Helper
 // ============================================================================
 
-/// Synchronize players from bulk Update message - spawn/despawn/reconcile.
+// Synchronize players from bulk Update message - spawn/despawn/reconcile.
 pub fn sync_players(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,

@@ -19,9 +19,9 @@ use common::{
 // Client Event Processing System
 // ============================================================================
 
-/// Process incoming messages from clients.
-/// NOTE: Must run after `accept_connections_system` with `apply_deferred` in between,
-/// otherwise entities for the messages might not be spawned yet.
+// Process incoming messages from clients.
+// NOTE: Must run after `accept_connections_system` with `apply_deferred` in between,
+// otherwise entities for the messages might not be spawned yet.
 pub fn network_client_message_system(
     mut commands: Commands,
     mut from_clients: ResMut<FromClientsChannel>,
@@ -93,7 +93,7 @@ pub fn network_client_message_system(
 // Broadcast System
 // ============================================================================
 
-/// Broadcast authoritative game state in regular time intervals.
+// Broadcast authoritative game state in regular time intervals.
 pub fn network_broadcast_state_system(
     time: Res<Time>,
     mut timer: Local<f32>,

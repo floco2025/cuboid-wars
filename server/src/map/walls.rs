@@ -1,7 +1,7 @@
 use crate::{constants::WALL_OVERLAP, resources::GridCell};
 use common::{constants::*, protocol::Wall};
 
-/// Epsilon for merging adjacent walls.
+// Epsilon for merging adjacent walls.
 const MERGE_EPS: f32 = 0.01;
 
 // ============================================================================
@@ -167,8 +167,8 @@ pub fn generate_lower_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i
 // Roof Edge Wall Generation
 // ============================================================================
 
-/// Generate walls for roof edges to prevent players from falling off.
-/// Only adds edges where there's no adjacent roof or no ramp connection.
+// Generate walls for roof edges to prevent players from falling off.
+// Only adds edges where there's no adjacent roof or no ramp connection.
 #[must_use]
 pub fn generate_roof_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) -> Vec<Wall> {
     let mut roof_edge_walls = Vec::new();
@@ -264,7 +264,7 @@ fn normalize_wall(mut w: Wall) -> Wall {
     w
 }
 
-/// Merge collinear walls that are adjacent or overlapping.
+// Merge collinear walls that are adjacent or overlapping.
 fn merge_walls_line(list: Vec<Wall>, is_horizontal: bool, out: &mut Vec<Wall>) {
     let mut iter = list.into_iter();
     if let Some(mut cur) = iter.next() {

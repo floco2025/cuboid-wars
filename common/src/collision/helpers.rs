@@ -5,7 +5,7 @@ use crate::{
     protocol::{Position, Ramp, Wall},
 };
 
-/// Result of a sweep collision test: surface normal and time of impact.
+// Result of a sweep collision test: surface normal and time of impact.
 #[derive(Debug, Clone, Copy)]
 pub struct Collision {
     pub normal: Vec3,
@@ -196,7 +196,7 @@ pub fn sweep_ramp_high_cap(
     t_min <= t_max && t_max >= 0.0 && t_min <= 1.0
 }
 
-/// Swept point vs axis-aligned cuboid; returns collision info if within [0,1].
+// Swept point vs axis-aligned cuboid; returns collision info if within [0,1].
 #[must_use]
 pub fn sweep_point_vs_cuboid(
     proj_pos: &Position,

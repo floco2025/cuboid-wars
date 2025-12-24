@@ -8,7 +8,7 @@ use crate::{
     protocol::{Position, Ramp, Roof, Wall},
 };
 
-/// Direction of a projectile hit (normalized XZ vector).
+// Direction of a projectile hit (normalized XZ vector).
 #[derive(Debug, Clone, Copy)]
 pub struct HitDirection {
     pub x: f32,
@@ -75,7 +75,7 @@ impl Projectile {
         Some(self.apply_bounce(projectile_pos, delta, collision))
     }
 
-    /// Applies bounce physics: reflects velocity off the surface and returns the new position.
+    // Applies bounce physics: reflects velocity off the surface and returns the new position.
     fn apply_bounce(&mut self, projectile_pos: &Position, delta: f32, collision: Collision) -> Position {
         // Calculate collision point
         let collision_pos = Vec3::from(*projectile_pos) + self.velocity * delta * collision.t;

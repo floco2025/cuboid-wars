@@ -11,7 +11,7 @@ use common::protocol::*;
 // Item Message Handlers
 // ============================================================================
 
-/// Handle item collected message - play sound effect.
+// Handle item collected message - play sound effect.
 pub fn handle_item_collected_message(commands: &mut Commands, _msg: SCookieCollected, asset_server: &AssetServer) {
     // Play sound - this message is only sent to the player who collected it
     commands.spawn((
@@ -24,7 +24,7 @@ pub fn handle_item_collected_message(commands: &mut Commands, _msg: SCookieColle
 // Item Synchronization Helper
 // ============================================================================
 
-/// Synchronize items from bulk Update message - spawn/despawn.
+// Synchronize items from bulk Update message - spawn/despawn.
 pub fn sync_items(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,

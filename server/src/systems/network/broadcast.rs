@@ -14,7 +14,7 @@ use common::{
 // Broadcasting Helpers
 // ============================================================================
 
-/// Broadcast `message` to every logged-in player except `skip`.
+// Broadcast `message` to every logged-in player except `skip`.
 pub fn broadcast_to_others(players: &PlayerMap, skip: PlayerId, message: ServerMessage) {
     for (other_id, other_info) in &players.0 {
         if *other_id != skip && other_info.logged_in {
@@ -23,7 +23,7 @@ pub fn broadcast_to_others(players: &PlayerMap, skip: PlayerId, message: ServerM
     }
 }
 
-/// Broadcast `message` to every logged-in player.
+// Broadcast `message` to every logged-in player.
 pub fn broadcast_to_all(players: &PlayerMap, message: ServerMessage) {
     for player_info in players.0.values() {
         if player_info.logged_in {
@@ -36,7 +36,7 @@ pub fn broadcast_to_all(players: &PlayerMap, message: ServerMessage) {
 // Data Collection Functions
 // ============================================================================
 
-/// Collect all logged-in players for network updates.
+// Collect all logged-in players for network updates.
 #[must_use]
 pub fn snapshot_logged_in_players(
     players: &PlayerMap,
@@ -69,7 +69,7 @@ pub fn snapshot_logged_in_players(
         .collect()
 }
 
-/// Build the authoritative item list that gets replicated to clients.
+// Build the authoritative item list that gets replicated to clients.
 #[must_use]
 pub fn collect_items(items: &ItemMap, item_positions: &Query<&Position, With<ItemMarker>>) -> Vec<(ItemId, Item)> {
     items
@@ -92,7 +92,7 @@ pub fn collect_items(items: &ItemMap, item_positions: &Query<&Position, With<Ite
         .collect()
 }
 
-/// Build the authoritative sentry list that gets replicated to clients.
+// Build the authoritative sentry list that gets replicated to clients.
 #[must_use]
 pub fn collect_sentries(
     sentries: &SentryMap,

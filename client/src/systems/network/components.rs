@@ -5,7 +5,7 @@ use common::protocol::{Position, Velocity};
 // Components
 // ============================================================================
 
-/// Server's authoritative snapshot for this entity used for reconciliation.
+// Server's authoritative snapshot for this entity used for reconciliation.
 #[derive(Component)]
 pub struct ServerReconciliation {
     pub client_pos: Position,
@@ -19,7 +19,7 @@ pub struct ServerReconciliation {
 // System Parameters
 // ============================================================================
 
-/// System params to reduce parameter count across message handlers.
+// System params to reduce parameter count across message handlers.
 #[derive(SystemParam)]
 pub struct AssetManagers<'w> {
     pub meshes: ResMut<'w, Assets<Mesh>>,

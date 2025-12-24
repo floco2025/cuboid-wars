@@ -12,7 +12,7 @@ use common::{markers::SentryMarker, protocol::*};
 // Sentry Message Handlers
 // ============================================================================
 
-/// Handle individual sentry update with reconciliation.
+// Handle individual sentry update with reconciliation.
 pub fn handle_sentry_message(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
@@ -60,7 +60,7 @@ pub fn handle_sentry_message(
     }
 }
 
-/// Handle sentry hitting player - play sound effect.
+// Handle sentry hitting player - play sound effect.
 pub fn handle_sentry_hit_message(commands: &mut Commands, _msg: SSentryHit, asset_server: &AssetServer) {
     // Play sound - this message is only sent to the player who was hit
     commands.spawn((
@@ -73,7 +73,7 @@ pub fn handle_sentry_hit_message(commands: &mut Commands, _msg: SSentryHit, asse
 // Sentry Synchronization Helper
 // ============================================================================
 
-/// Synchronize sentries from bulk Update message - spawn/despawn/reconcile.
+// Synchronize sentries from bulk Update message - spawn/despawn/reconcile.
 pub fn sync_sentries(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,

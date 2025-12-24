@@ -10,7 +10,7 @@ use common::{constants::POWER_UP_SPEED_MULTIPLIER, protocol::*};
 // Login/Logout Handlers
 // ============================================================================
 
-/// Handle Init message when not yet logged in - stores player ID and map layout.
+// Handle Init message when not yet logged in - stores player ID and map layout.
 pub fn handle_init_message(msg: ServerMessage, commands: &mut Commands) {
     if let ServerMessage::Init(init_msg) = msg {
         debug!("received Init: my_id={:?}", init_msg.id);
@@ -27,7 +27,7 @@ pub fn handle_init_message(msg: ServerMessage, commands: &mut Commands) {
     }
 }
 
-/// Handle another player logging in - spawn their entity.
+// Handle another player logging in - spawn their entity.
 pub fn handle_player_login_message(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
@@ -77,7 +77,7 @@ pub fn handle_player_login_message(
     );
 }
 
-/// Handle player logging off - despawn their entity.
+// Handle player logging off - despawn their entity.
 pub fn handle_player_logoff_message(commands: &mut Commands, players: &mut ResMut<PlayerMap>, msg: SLogoff) {
     debug!("{:?} logged off (graceful: {})", msg.id, msg.graceful);
     if let Some(player) = players.0.remove(&msg.id) {
