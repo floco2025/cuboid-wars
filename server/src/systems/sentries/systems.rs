@@ -79,13 +79,7 @@ pub fn sentries_movement_system(
                         sentry_info.mode_timer = SENTRY_TARGET_DURATION;
                         sentry_info.follow_target = Some(target_player_id);
                         // Remove from field map when leaving patrol mode
-                        for row in &mut sentry_grid_map.0 {
-                            for cell in row {
-                                if *cell == Some(sentry_id) {
-                                    *cell = None;
-                                }
-                            }
-                        }
+                        sentry_grid_map.clear_at_position(&sentry_pos, sentry_id);
                     }
                 }
             }
@@ -111,13 +105,7 @@ pub fn sentries_movement_system(
                     sentry_info.mode_timer = SENTRY_COOLDOWN_DURATION;
                     sentry_info.follow_target = None;
                     // Remove from field map when leaving target mode (shouldn't be in map, but clean up just in case)
-                    for row in &mut sentry_grid_map.0 {
-                        for cell in row {
-                            if *cell == Some(sentry_id) {
-                                *cell = None;
-                            }
-                        }
-                    }
+                    sentry_grid_map.clear_at_position(&sentry_pos, sentry_id);
                 } else {
                     // Check if target player still exists and is not stunned
                     if let Some(target_id) = sentry_info.follow_target {
@@ -134,13 +122,7 @@ pub fn sentries_movement_system(
                             sentry_info.mode_timer = SENTRY_COOLDOWN_DURATION;
                             sentry_info.follow_target = None;
                             // Remove from field map when leaving target mode
-                            for row in &mut sentry_grid_map.0 {
-                                for cell in row {
-                                    if *cell == Some(sentry_id) {
-                                        *cell = None;
-                                    }
-                                }
-                            }
+                            sentry_grid_map.clear_at_position(&sentry_pos, sentry_id);
                         }
                     }
                 }
