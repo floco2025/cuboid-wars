@@ -127,6 +127,18 @@ fn sweep_projectile_vs_ground(
     projectile: &Projectile,
     delta: f32,
 ) -> Option<Collision> {
+    let half_width = FIELD_WIDTH / 2.0;
+    let half_depth = FIELD_DEPTH / 2.0;
+
+    // No ground outside the playing field (field is centered at origin)
+    if proj_pos.x < -half_width
+        || proj_pos.x > half_width
+        || proj_pos.z < -half_depth
+        || proj_pos.z > half_depth
+    {
+        return None;
+    }
+
     let ground_level = PROJECTILE_RADIUS;
 
     // If already at or below ground and moving downward, treat as immediate collision (t=0)
@@ -144,6 +156,17 @@ fn sweep_projectile_vs_ground(
 
     let t = (ground_level - proj_pos.y) / (projectile.velocity.y * delta);
     if !(0.0..=1.0).contains(&t) {
+        return None;
+    }
+
+    // Check if collision point is within field bounds
+    let collision_x = (projectile.velocity.x * delta).mul_add(t, proj_pos.x);
+    let collision_z = (projectile.velocity.z * delta).mul_add(t, proj_pos.z);
+    if collision_x < -half_width
+        || collision_x > half_width
+        || collision_z < -half_depth
+        || collision_z > half_depth
+    {
         return None;
     }
 
