@@ -3,7 +3,6 @@
 A fast-paced multiplayer arena shooter built with Rust, Bevy, and QUIC networking.
 
 ![Cuboid Wars Screenshot](client/assets/screenshot1.png)
-![Cuboid Wars Screenshot](client/assets/screenshot2.png)
 
 ## Overview
 
