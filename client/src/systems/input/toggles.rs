@@ -1,4 +1,8 @@
-use bevy::{input::mouse::MouseButton, prelude::*, window::CursorOptions};
+use bevy::{
+    input::mouse::MouseButton,
+    prelude::*,
+    window::{CursorOptions, MonitorSelection, WindowMode},
+};
 
 use crate::resources::{CameraViewMode, RoofRenderingEnabled};
 
@@ -20,6 +24,21 @@ pub fn input_camera_view_toggle_system(keyboard: Res<ButtonInput<KeyCode>>, mut 
 pub fn input_roof_toggle_system(keyboard: Res<ButtonInput<KeyCode>>, mut roof_enabled: ResMut<RoofRenderingEnabled>) {
     if keyboard.just_pressed(KeyCode::KeyR) {
         roof_enabled.0 = !roof_enabled.0;
+    }
+}
+
+// Toggle fullscreen with Cmd/Ctrl+F or F11
+pub fn input_fullscreen_toggle_system(keyboard: Res<ButtonInput<KeyCode>>, mut window: Single<&mut Window>) {
+    let cmd_held = keyboard.pressed(KeyCode::SuperLeft) || keyboard.pressed(KeyCode::SuperRight);
+    let ctrl_held = keyboard.pressed(KeyCode::ControlLeft) || keyboard.pressed(KeyCode::ControlRight);
+    let f_pressed = keyboard.just_pressed(KeyCode::KeyF);
+    let f11_pressed = keyboard.just_pressed(KeyCode::F11);
+
+    if ((cmd_held || ctrl_held) && f_pressed) || f11_pressed {
+        window.mode = match window.mode {
+            WindowMode::Windowed => WindowMode::BorderlessFullscreen(MonitorSelection::Current),
+            _ => WindowMode::Windowed,
+        };
     }
 }
 

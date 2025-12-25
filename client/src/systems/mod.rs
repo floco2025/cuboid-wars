@@ -13,8 +13,8 @@ pub mod ui;
 pub use animations::{AnimationToPlay, players_animation_system, sentries_animation_system};
 pub use cameras::setup_cameras_system;
 pub use input::{
-    input_camera_view_toggle_system, input_cursor_toggle_system, input_movement_system, input_roof_toggle_system,
-    input_shooting_system,
+    input_camera_view_toggle_system, input_cursor_toggle_system, input_fullscreen_toggle_system,
+    input_movement_system, input_roof_toggle_system, input_shooting_system,
 };
 pub use items::items_animation_system;
 pub use map::{

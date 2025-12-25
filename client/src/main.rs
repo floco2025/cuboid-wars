@@ -127,6 +127,7 @@ fn main() -> Result<()> {
             input_cursor_toggle_system,
             input_camera_view_toggle_system,
             input_roof_toggle_system,
+            input_fullscreen_toggle_system,
         ),
     )
     .add_systems(Update, (network_echo_system, network_server_message_system))
