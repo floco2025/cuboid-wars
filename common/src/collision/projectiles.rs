@@ -83,16 +83,7 @@ impl Projectile {
 
     #[must_use]
     pub fn handle_ground_bounce(&mut self, projectile_pos: &Position, delta: f32) -> Option<Position> {
-        if self.velocity.y >= 0.0 {
-            return None;
-        }
-
-        let t = (PROJECTILE_RADIUS - projectile_pos.y) / (self.velocity.y * delta);
-        if !(0.0..=1.0).contains(&t) {
-            return None;
-        }
-
-        let collision = Collision { normal: Vec3::Y, t };
+        let collision = sweep_projectile_vs_ground(projectile_pos, self, delta)?;
         Some(self.apply_bounce(projectile_pos, delta, collision))
     }
 
@@ -101,9 +92,24 @@ impl Projectile {
         // Calculate collision point
         let collision_pos = Vec3::from(*projectile_pos) + self.velocity * delta * collision.t;
 
-        // Reflect velocity: v' = v - 2(v·n)n
+        // Calculate impact angle: |dot|/speed = cos(angle from surface normal)
+        // cos = 1.0 means head-on (perpendicular), cos = 0.0 means glancing (parallel)
+        let speed = self.velocity.length();
         let dot = self.velocity.dot(collision.normal);
+        let cos_impact = if speed > PHYSICS_EPSILON {
+            (dot.abs() / speed).min(1.0)
+        } else {
+            0.0
+        };
+
+        // Reflect velocity: v' = v - 2(v·n)n
         self.velocity -= 2.0 * dot * collision.normal;
+
+        // Apply energy loss based on impact angle:
+        // - Head-on (cos=1): full energy loss (use PROJECTILE_BOUNCE_RETENTION)
+        // - Glancing (cos=0): minimal energy loss (retention = 1.0)
+        let retention = 1.0 - cos_impact * (1.0 - PROJECTILE_BOUNCE_RETENTION);
+        self.velocity *= retention;
 
         // Separate from surface and continue with remaining time
         const SEPARATION_EPSILON: f32 = 0.01;
@@ -115,6 +121,34 @@ impl Projectile {
 }
 
 // === Projectile sweep helpers ===
+
+fn sweep_projectile_vs_ground(
+    proj_pos: &Position,
+    projectile: &Projectile,
+    delta: f32,
+) -> Option<Collision> {
+    let ground_level = PROJECTILE_RADIUS;
+
+    // If already at or below ground and moving downward, treat as immediate collision (t=0)
+    if proj_pos.y <= ground_level {
+        if projectile.velocity.y >= 0.0 {
+            return None;
+        }
+        return Some(Collision { normal: Vec3::Y, t: 0.0 });
+    }
+
+    // Sweep test: will we hit the ground this frame?
+    if projectile.velocity.y >= 0.0 {
+        return None;
+    }
+
+    let t = (ground_level - proj_pos.y) / (projectile.velocity.y * delta);
+    if !(0.0..=1.0).contains(&t) {
+        return None;
+    }
+
+    Some(Collision { normal: Vec3::Y, t })
+}
 
 fn sweep_projectile_vs_ramp(
     proj_pos: &Position,

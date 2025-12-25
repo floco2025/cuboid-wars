@@ -40,51 +40,50 @@ pub fn projectiles_movement_system(
         projectile.apply_gravity(delta);
         projectile.apply_drag(delta);
 
-        // Ground bounce
-        let mut hit_something = projectile
-            .handle_ground_bounce(&proj_pos, delta)
-            .is_some_and(|new_pos| {
-                *proj_pos = new_pos;
-                true
-            });
-
         // Check wall collisions
-        if !hit_something {
-            for wall in &map_layout.lower_walls {
-                if let Some(new_pos) = projectile.handle_wall_bounce(&proj_pos, delta, wall) {
-                    *proj_pos = new_pos;
-                    hit_something = true;
-                    break;
-                }
+        let mut bounced = false;
+        for wall in &map_layout.lower_walls {
+            if let Some(new_pos) = projectile.handle_wall_bounce(&proj_pos, delta, wall) {
+                *proj_pos = new_pos;
+                bounced = true;
+                break;
             }
         }
 
         // Check roof collisions
-        if !hit_something {
+        if !bounced {
             for roof in &map_layout.roofs {
                 if let Some(new_pos) = projectile.handle_roof_bounce(&proj_pos, delta, roof) {
                     *proj_pos = new_pos;
-                    hit_something = true;
+                    bounced = true;
                     break;
                 }
             }
         }
 
         // Check ramp collisions
-        if !hit_something {
+        if !bounced {
             for ramp in &map_layout.ramps {
                 if let Some(new_pos) = projectile.handle_ramp_bounce(&proj_pos, delta, ramp) {
                     *proj_pos = new_pos;
-                    hit_something = true;
+                    bounced = true;
                     break;
                 }
             }
         }
 
-        // If we hit a wall and despawned, skip to next projectile
-        if hit_something {
+        // Ground bounce - checked after geometry to catch projectiles pushed below ground
+        if let Some(new_pos) = projectile.handle_ground_bounce(&proj_pos, delta) {
+            *proj_pos = new_pos;
+            bounced = true;
+        }
+
+        // If we bounced off something, skip entity collision checks this frame
+        if bounced {
             continue;
         }
+
+        let mut hit_something = false;
 
         // Check sentry collisions
         for (sentry_id, sentry_pos, sentry_face_dir) in sentry_query.iter() {
