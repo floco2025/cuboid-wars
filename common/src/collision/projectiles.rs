@@ -41,21 +41,25 @@ impl Projectile {
 
     // Applies gravity to the projectile's velocity.
     pub fn apply_gravity(&mut self, delta: f32) {
-        self.velocity.y -= PROJECTILE_GRAVITY * delta;
+        if PROJECTILE_GRAVITY > 0.0 {
+            self.velocity.y -= PROJECTILE_GRAVITY * delta;
+        }
     }
 
     // Applies air resistance (drag) to the projectile's velocity.
     // Drag force opposes motion and is proportional to velocity squared.
     pub fn apply_drag(&mut self, delta: f32) {
-        let speed = self.velocity.length();
-        if speed > PHYSICS_EPSILON && PROJECTILE_DRAG_FACTOR > 0.0 {
-            // Deceleration magnitude = drag_factor * v^2
-            let deceleration = PROJECTILE_DRAG_FACTOR * speed * speed;
-            // Apply deceleration opposite to velocity direction
-            let speed_reduction = deceleration * delta;
-            // Don't reduce speed below zero
-            let new_speed = (speed - speed_reduction).max(0.0);
-            self.velocity = self.velocity.normalize() * new_speed;
+        if PROJECTILE_DRAG_FACTOR > 0.0 {
+            let speed = self.velocity.length();
+            if speed > PHYSICS_EPSILON {
+                // Deceleration magnitude = drag_factor * v^2
+                let deceleration = PROJECTILE_DRAG_FACTOR * speed * speed;
+                // Apply deceleration opposite to velocity direction
+                let speed_reduction = deceleration * delta;
+                // Don't reduce speed below zero
+                let new_speed = (speed - speed_reduction).max(0.0);
+                self.velocity = self.velocity.normalize() * new_speed;
+            }
         }
     }
 
