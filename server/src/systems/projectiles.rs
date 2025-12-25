@@ -36,6 +36,10 @@ pub fn projectiles_movement_system(
             continue;
         }
 
+        // Apply gravity and air resistance
+        projectile.apply_gravity(delta);
+        projectile.apply_drag(delta);
+
         // Ground bounce
         let mut hit_something = projectile
             .handle_ground_bounce(&proj_pos, delta)

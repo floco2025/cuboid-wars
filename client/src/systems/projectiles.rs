@@ -134,6 +134,10 @@ pub fn projectiles_movement_system(
             continue;
         }
 
+        // Apply gravity and air resistance
+        projectile.apply_gravity(delta);
+        projectile.apply_drag(delta);
+
         let projectile_pos: Position = projectile_transform.translation.into();
 
         // Check wall collisions and handle bouncing/despawning

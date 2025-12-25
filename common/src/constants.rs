@@ -40,10 +40,25 @@ pub const SPEED_RUN: f32 = 9.0;
 // ============================================================================
 
 pub const PROJECTILE_SPEED: f32 = 25.0; // meters per second
+//pub const PROJECTILE_SPEED: f32 = 40.0; // meters per second
 pub const PROJECTILE_LIFETIME: f32 = 4.0; // seconds
+//pub const PROJECTILE_LIFETIME: f32 = 10.0; // seconds
 pub const PROJECTILE_SPAWN_OFFSET: f32 = 1.0; // meters in front of thrower
 pub const PROJECTILE_RADIUS: f32 = 0.11; // meters
 pub const PROJECTILE_COOLDOWN_TIME: f32 = 0.1; // Minimum time between shots
+//pub const PROJECTILE_GRAVITY: f32 = 9.81; // meters per second squared
+pub const PROJECTILE_GRAVITY: f32 = 0.0; // meters per second squared
+
+// Air resistance: F_drag = 0.5 * rho * v^2 * C_d * A
+// Deceleration = F_drag / mass = (0.5 * rho * C_d * A / mass) * v^2
+// We precompute the coefficient: 0.5 * rho * C_d * A / mass
+// const PROJECTILE_MASS: f32 = 1.0; // kg
+// const AIR_DENSITY: f32 = 1.225; // kg/m^3 at sea level
+// const SPHERE_DRAG_COEFFICIENT: f32 = 0.47; // dimensionless
+// const PROJECTILE_CROSS_SECTION: f32 = std::f32::consts::PI * PROJECTILE_RADIUS * PROJECTILE_RADIUS;
+// pub const PROJECTILE_DRAG_FACTOR: f32 =
+//     0.5 * AIR_DENSITY * SPHERE_DRAG_COEFFICIENT * PROJECTILE_CROSS_SECTION / PROJECTILE_MASS;
+pub const PROJECTILE_DRAG_FACTOR: f32 = 0.0;
 
 // ============================================================================
 // Sentries
