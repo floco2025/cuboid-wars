@@ -97,7 +97,7 @@ pub fn map_spawn_walls_system(
     }
 
     info!(
-        "spawning {} wall segments, {} roofs, {} ramps, {} roof walls",
+        "spawning {} lower walls, {} roofs, {} ramps, {} roof walls",
         map_layout.lower_walls.len(),
         map_layout.roofs.len(),
         map_layout.ramps.len(),
