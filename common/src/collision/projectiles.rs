@@ -87,10 +87,19 @@ impl Projectile {
         self.velocity *= retention;
     }
 
-    #[must_use]
-    pub fn handle_ramp_bounce(&mut self, projectile_pos: &Position, delta: f32, ramp: &Ramp) -> Option<Position> {
-        let collision = sweep_projectile_vs_ramp(projectile_pos, self, delta, ramp)?;
-        Some(self.apply_bounce(projectile_pos, delta, collision))
+    // Advance to collision point, reflect velocity, return separated position and remaining delta time.
+    fn step_after_collision(&mut self, start_pos: &Position, delta: f32, collision: Collision) -> (Position, f32) {
+        let collision_pos = Vec3::from(*start_pos) + self.velocity * delta * collision.t;
+        self.reflect_with_retention(collision.normal);
+        let separated_pos = collision_pos + collision.normal * SEPARATION_EPSILON;
+        let remaining_time = delta * (1.0 - collision.t);
+        (separated_pos.into(), remaining_time)
+    }
+
+    // Applies bounce physics: reflects velocity off the surface and returns the new position.
+    fn apply_bounce(&mut self, projectile_pos: &Position, delta: f32, collision: Collision) -> Position {
+        let (separated_pos, remaining_time) = self.step_after_collision(projectile_pos, delta, collision);
+        (Vec3::from(separated_pos) + self.velocity * remaining_time).into()
     }
 
     #[must_use]
@@ -117,16 +126,10 @@ impl Projectile {
                 break;
             };
 
-            // Move to the collision point
-            let collision_pos = Vec3::from(current_pos) + self.velocity * remaining_delta * collision.t;
-
-            // Reflect velocity with shared retention logic
-            self.reflect_with_retention(collision.normal);
-
-            // Separate slightly from the wall to avoid immediate re-collision with zero progress.
-            current_pos = (collision_pos + collision.normal * SEPARATION_EPSILON).into();
-
-            remaining_delta *= 1.0 - collision.t;
+            // Step to hit point, reflect, and continue with remaining time.
+            let (next_pos, next_delta) = self.step_after_collision(&current_pos, remaining_delta, collision);
+            current_pos = next_pos;
+            remaining_delta = next_delta;
             collided = true;
 
             if remaining_delta <= PHYSICS_EPSILON {
@@ -143,6 +146,12 @@ impl Projectile {
     }
 
     #[must_use]
+    pub fn handle_ramp_bounce(&mut self, projectile_pos: &Position, delta: f32, ramp: &Ramp) -> Option<Position> {
+        let collision = sweep_projectile_vs_ramp(projectile_pos, self, delta, ramp)?;
+        Some(self.apply_bounce(projectile_pos, delta, collision))
+    }
+
+    #[must_use]
     pub fn handle_roof_bounce(&mut self, projectile_pos: &Position, delta: f32, roof: &Roof) -> Option<Position> {
         let collision = sweep_projectile_vs_roof(projectile_pos, self, delta, roof)?;
         Some(self.apply_bounce(projectile_pos, delta, collision))
@@ -152,20 +161,6 @@ impl Projectile {
     pub fn handle_ground_bounce(&mut self, projectile_pos: &Position, delta: f32) -> Option<Position> {
         let collision = sweep_projectile_vs_ground(projectile_pos, self, delta)?;
         Some(self.apply_bounce(projectile_pos, delta, collision))
-    }
-
-    // Applies bounce physics: reflects velocity off the surface and returns the new position.
-    fn apply_bounce(&mut self, projectile_pos: &Position, delta: f32, collision: Collision) -> Position {
-        // Calculate collision point
-        let collision_pos = Vec3::from(*projectile_pos) + self.velocity * delta * collision.t;
-
-        self.reflect_with_retention(collision.normal);
-
-        // Separate from surface and continue with remaining time
-        let separated_pos = collision_pos + collision.normal * SEPARATION_EPSILON;
-        let remaining_time = delta * (1.0 - collision.t);
-
-        (separated_pos + self.velocity * remaining_time).into()
     }
 }
 
