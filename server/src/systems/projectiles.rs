@@ -42,12 +42,9 @@ pub fn projectiles_movement_system(
 
         // Check wall collisions
         let mut bounced = false;
-        for wall in &map_layout.lower_walls {
-            if let Some(new_pos) = projectile.handle_wall_bounce(&proj_pos, delta, wall) {
-                *proj_pos = new_pos;
-                bounced = true;
-                break;
-            }
+        if let Some(new_pos) = projectile.handle_wall_bounces(&proj_pos, delta, &map_layout.lower_walls) {
+            *proj_pos = new_pos;
+            bounced = true;
         }
 
         // Check roof collisions

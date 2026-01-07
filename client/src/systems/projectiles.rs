@@ -207,21 +207,18 @@ fn handle_wall_collisions(
     let mut result_pos: Option<Position> = None;
 
     // Check walls
-    for wall in &map_layout.lower_walls {
-        if let Some(new_pos) = projectile.handle_wall_bounce(projectile_pos, delta, wall) {
-            play_sound(
-                commands,
-                asset_server,
-                "sounds/projectile_hits_wall.ogg",
-                PlaybackSettings {
-                    mode: PlaybackMode::Despawn,
-                    volume: Volume::Linear(0.2),
-                    ..default()
-                },
-            );
-            result_pos = Some(new_pos);
-            break;
-        }
+    if let Some(new_pos) = projectile.handle_wall_bounces(projectile_pos, delta, &map_layout.lower_walls) {
+        play_sound(
+            commands,
+            asset_server,
+            "sounds/projectile_hits_wall.ogg",
+            PlaybackSettings {
+                mode: PlaybackMode::Despawn,
+                volume: Volume::Linear(0.2),
+                ..default()
+            },
+        );
+        result_pos = Some(new_pos);
     }
 
     // Check roofs

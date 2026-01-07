@@ -70,9 +70,64 @@ impl Projectile {
     }
 
     #[must_use]
-    pub fn handle_wall_bounce(&mut self, projectile_pos: &Position, delta: f32, wall: &Wall) -> Option<Position> {
-        let collision = sweep_projectile_vs_wall(projectile_pos, self, delta, wall)?;
-        Some(self.apply_bounce(projectile_pos, delta, collision))
+    pub fn handle_wall_bounces(&mut self, projectile_pos: &Position, delta: f32, walls: &[Wall]) -> Option<Position> {
+        let mut current_pos = *projectile_pos;
+        let mut remaining_delta = delta;
+        let mut collided = false;
+
+        // Cap the number of sequential wall bounces processed in one frame to avoid infinite loops.
+        const MAX_BOUNCES: usize = 3;
+
+        for _ in 0..MAX_BOUNCES {
+            let mut earliest: Option<Collision> = None;
+
+            for wall in walls {
+                if let Some(collision) = sweep_projectile_vs_wall(&current_pos, self, remaining_delta, wall) {
+                    if earliest.map_or(true, |current| collision.t < current.t) {
+                        earliest = Some(collision);
+                    }
+                }
+            }
+
+            let Some(collision) = earliest else {
+                break;
+            };
+
+            // Move to the collision point
+            let collision_pos = Vec3::from(current_pos) + self.velocity * remaining_delta * collision.t;
+
+            // Reflect velocity with angle-dependent energy retention (same math as apply_bounce)
+            let speed = self.velocity.length();
+            let dot = self.velocity.dot(collision.normal);
+            let cos_impact = if speed > PHYSICS_EPSILON {
+                (dot.abs() / speed).min(1.0)
+            } else {
+                0.0
+            };
+
+            self.velocity -= 2.0 * dot * collision.normal;
+
+            let retention = 1.0 - cos_impact * (1.0 - PROJECTILE_BOUNCE_RETENTION);
+            self.velocity *= retention;
+
+            // Separate slightly from the wall to avoid immediate re-collision with zero progress.
+            const SEPARATION_EPSILON: f32 = 0.01;
+            current_pos = (collision_pos + collision.normal * SEPARATION_EPSILON).into();
+
+            remaining_delta *= 1.0 - collision.t;
+            collided = true;
+
+            if remaining_delta <= PHYSICS_EPSILON {
+                break;
+            }
+        }
+
+        if collided {
+            let final_pos = Vec3::from(current_pos) + self.velocity * remaining_delta;
+            Some(final_pos.into())
+        } else {
+            None
+        }
     }
 
     #[must_use]
@@ -122,20 +177,12 @@ impl Projectile {
 
 // === Projectile sweep helpers ===
 
-fn sweep_projectile_vs_ground(
-    proj_pos: &Position,
-    projectile: &Projectile,
-    delta: f32,
-) -> Option<Collision> {
+fn sweep_projectile_vs_ground(proj_pos: &Position, projectile: &Projectile, delta: f32) -> Option<Collision> {
     let half_width = FIELD_WIDTH / 2.0;
     let half_depth = FIELD_DEPTH / 2.0;
 
     // No ground outside the playing field (field is centered at origin)
-    if proj_pos.x < -half_width
-        || proj_pos.x > half_width
-        || proj_pos.z < -half_depth
-        || proj_pos.z > half_depth
-    {
+    if proj_pos.x < -half_width || proj_pos.x > half_width || proj_pos.z < -half_depth || proj_pos.z > half_depth {
         return None;
     }
 
@@ -146,7 +193,10 @@ fn sweep_projectile_vs_ground(
         if projectile.velocity.y >= 0.0 {
             return None;
         }
-        return Some(Collision { normal: Vec3::Y, t: 0.0 });
+        return Some(Collision {
+            normal: Vec3::Y,
+            t: 0.0,
+        });
     }
 
     // Sweep test: will we hit the ground this frame?
@@ -162,11 +212,7 @@ fn sweep_projectile_vs_ground(
     // Check if collision point is within field bounds
     let collision_x = (projectile.velocity.x * delta).mul_add(t, proj_pos.x);
     let collision_z = (projectile.velocity.z * delta).mul_add(t, proj_pos.z);
-    if collision_x < -half_width
-        || collision_x > half_width
-        || collision_z < -half_depth
-        || collision_z > half_depth
-    {
+    if collision_x < -half_width || collision_x > half_width || collision_z < -half_depth || collision_z > half_depth {
         return None;
     }
 
