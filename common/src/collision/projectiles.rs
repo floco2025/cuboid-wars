@@ -15,6 +15,8 @@ pub struct HitDirection {
     pub z: f32,
 }
 
+const SEPARATION_EPSILON: f32 = 0.01;
+
 // Component attached to projectile entities to track velocity, lifetime, and bounce behavior
 #[derive(Component)]
 pub struct Projectile {
@@ -63,6 +65,28 @@ impl Projectile {
         }
     }
 
+    // Reflect velocity about the surface normal with angle-dependent energy retention.
+    fn reflect_with_retention(&mut self, normal: Vec3) {
+        // Calculate impact angle: |dot|/speed = cos(angle from surface normal)
+        // cos = 1.0 means head-on (perpendicular), cos = 0.0 means glancing (parallel)
+        let speed = self.velocity.length();
+        let dot = self.velocity.dot(normal);
+        let cos_impact = if speed > PHYSICS_EPSILON {
+            (dot.abs() / speed).min(1.0)
+        } else {
+            0.0
+        };
+
+        // Reflect velocity: v' = v - 2(v·n)n
+        self.velocity -= 2.0 * dot * normal;
+
+        // Apply energy loss based on impact angle:
+        // - Head-on (cos=1): full energy loss (use PROJECTILE_BOUNCE_RETENTION)
+        // - Glancing (cos=0): minimal energy loss (retention = 1.0)
+        let retention = 1.0 - cos_impact * (1.0 - PROJECTILE_BOUNCE_RETENTION);
+        self.velocity *= retention;
+    }
+
     #[must_use]
     pub fn handle_ramp_bounce(&mut self, projectile_pos: &Position, delta: f32, ramp: &Ramp) -> Option<Position> {
         let collision = sweep_projectile_vs_ramp(projectile_pos, self, delta, ramp)?;
@@ -96,22 +120,10 @@ impl Projectile {
             // Move to the collision point
             let collision_pos = Vec3::from(current_pos) + self.velocity * remaining_delta * collision.t;
 
-            // Reflect velocity with angle-dependent energy retention (same math as apply_bounce)
-            let speed = self.velocity.length();
-            let dot = self.velocity.dot(collision.normal);
-            let cos_impact = if speed > PHYSICS_EPSILON {
-                (dot.abs() / speed).min(1.0)
-            } else {
-                0.0
-            };
-
-            self.velocity -= 2.0 * dot * collision.normal;
-
-            let retention = 1.0 - cos_impact * (1.0 - PROJECTILE_BOUNCE_RETENTION);
-            self.velocity *= retention;
+            // Reflect velocity with shared retention logic
+            self.reflect_with_retention(collision.normal);
 
             // Separate slightly from the wall to avoid immediate re-collision with zero progress.
-            const SEPARATION_EPSILON: f32 = 0.01;
             current_pos = (collision_pos + collision.normal * SEPARATION_EPSILON).into();
 
             remaining_delta *= 1.0 - collision.t;
@@ -147,27 +159,9 @@ impl Projectile {
         // Calculate collision point
         let collision_pos = Vec3::from(*projectile_pos) + self.velocity * delta * collision.t;
 
-        // Calculate impact angle: |dot|/speed = cos(angle from surface normal)
-        // cos = 1.0 means head-on (perpendicular), cos = 0.0 means glancing (parallel)
-        let speed = self.velocity.length();
-        let dot = self.velocity.dot(collision.normal);
-        let cos_impact = if speed > PHYSICS_EPSILON {
-            (dot.abs() / speed).min(1.0)
-        } else {
-            0.0
-        };
-
-        // Reflect velocity: v' = v - 2(v·n)n
-        self.velocity -= 2.0 * dot * collision.normal;
-
-        // Apply energy loss based on impact angle:
-        // - Head-on (cos=1): full energy loss (use PROJECTILE_BOUNCE_RETENTION)
-        // - Glancing (cos=0): minimal energy loss (retention = 1.0)
-        let retention = 1.0 - cos_impact * (1.0 - PROJECTILE_BOUNCE_RETENTION);
-        self.velocity *= retention;
+        self.reflect_with_retention(collision.normal);
 
         // Separate from surface and continue with remaining time
-        const SEPARATION_EPSILON: f32 = 0.01;
         let separated_pos = collision_pos + collision.normal * SEPARATION_EPSILON;
         let remaining_time = delta * (1.0 - collision.t);
 
