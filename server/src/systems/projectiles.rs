@@ -42,35 +42,13 @@ pub fn projectiles_movement_system(
 
         // Check wall collisions
         let mut bounced = false;
-        if let Some(new_pos) = projectile.handle_wall_bounces(&proj_pos, delta, &map_layout.lower_walls) {
-            *proj_pos = new_pos;
-            bounced = true;
-        }
-
-        // Check roof collisions
-        if !bounced {
-            for roof in &map_layout.roofs {
-                if let Some(new_pos) = projectile.handle_roof_bounce(&proj_pos, delta, roof) {
-                    *proj_pos = new_pos;
-                    bounced = true;
-                    break;
-                }
-            }
-        }
-
-        // Check ramp collisions
-        if !bounced {
-            for ramp in &map_layout.ramps {
-                if let Some(new_pos) = projectile.handle_ramp_bounce(&proj_pos, delta, ramp) {
-                    *proj_pos = new_pos;
-                    bounced = true;
-                    break;
-                }
-            }
-        }
-
-        // Ground bounce - checked after geometry to catch projectiles pushed below ground
-        if let Some(new_pos) = projectile.handle_ground_bounce(&proj_pos, delta) {
+        if let Some(new_pos) = projectile.handle_bounces(
+            &proj_pos,
+            delta,
+            &map_layout.lower_walls,
+            &map_layout.roofs,
+            &map_layout.ramps,
+        ) {
             *proj_pos = new_pos;
             bounced = true;
         }

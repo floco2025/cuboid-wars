@@ -16,6 +16,7 @@ pub struct HitDirection {
 }
 
 const SEPARATION_EPSILON: f32 = 0.01;
+const MAX_SURFACE_BOUNCES: usize = 3;
 
 // Component attached to projectile entities to track velocity, lifetime, and bounce behavior
 #[derive(Component)]
@@ -97,21 +98,20 @@ impl Projectile {
     }
 
     // Applies bounce physics: reflects velocity off the surface and returns the new position.
-    fn apply_bounce(&mut self, projectile_pos: &Position, delta: f32, collision: Collision) -> Position {
-        let (separated_pos, remaining_time) = self.step_after_collision(projectile_pos, delta, collision);
-        (Vec3::from(separated_pos) + self.velocity * remaining_time).into()
-    }
-
     #[must_use]
-    pub fn handle_wall_bounces(&mut self, projectile_pos: &Position, delta: f32, walls: &[Wall]) -> Option<Position> {
+    pub fn handle_bounces(
+        &mut self,
+        projectile_pos: &Position,
+        delta: f32,
+        walls: &[Wall],
+        roofs: &[Roof],
+        ramps: &[Ramp],
+    ) -> Option<Position> {
         let mut current_pos = *projectile_pos;
         let mut remaining_delta = delta;
         let mut collided = false;
 
-        // Cap the number of sequential wall bounces processed in one frame to avoid infinite loops.
-        const MAX_BOUNCES: usize = 3;
-
-        for _ in 0..MAX_BOUNCES {
+        for _ in 0..MAX_SURFACE_BOUNCES {
             let mut earliest: Option<Collision> = None;
 
             for wall in walls {
@@ -122,11 +122,32 @@ impl Projectile {
                 }
             }
 
+            for roof in roofs {
+                if let Some(collision) = sweep_projectile_vs_roof(&current_pos, self, remaining_delta, roof) {
+                    if earliest.map_or(true, |current| collision.t < current.t) {
+                        earliest = Some(collision);
+                    }
+                }
+            }
+
+            for ramp in ramps {
+                if let Some(collision) = sweep_projectile_vs_ramp(&current_pos, self, remaining_delta, ramp) {
+                    if earliest.map_or(true, |current| collision.t < current.t) {
+                        earliest = Some(collision);
+                    }
+                }
+            }
+
+            if let Some(collision) = sweep_projectile_vs_ground(&current_pos, self, remaining_delta) {
+                if earliest.map_or(true, |current| collision.t < current.t) {
+                    earliest = Some(collision);
+                }
+            }
+
             let Some(collision) = earliest else {
                 break;
             };
 
-            // Step to hit point, reflect, and continue with remaining time.
             let (next_pos, next_delta) = self.step_after_collision(&current_pos, remaining_delta, collision);
             current_pos = next_pos;
             remaining_delta = next_delta;
@@ -143,24 +164,6 @@ impl Projectile {
         } else {
             None
         }
-    }
-
-    #[must_use]
-    pub fn handle_ramp_bounce(&mut self, projectile_pos: &Position, delta: f32, ramp: &Ramp) -> Option<Position> {
-        let collision = sweep_projectile_vs_ramp(projectile_pos, self, delta, ramp)?;
-        Some(self.apply_bounce(projectile_pos, delta, collision))
-    }
-
-    #[must_use]
-    pub fn handle_roof_bounce(&mut self, projectile_pos: &Position, delta: f32, roof: &Roof) -> Option<Position> {
-        let collision = sweep_projectile_vs_roof(projectile_pos, self, delta, roof)?;
-        Some(self.apply_bounce(projectile_pos, delta, collision))
-    }
-
-    #[must_use]
-    pub fn handle_ground_bounce(&mut self, projectile_pos: &Position, delta: f32) -> Option<Position> {
-        let collision = sweep_projectile_vs_ground(projectile_pos, self, delta)?;
-        Some(self.apply_bounce(projectile_pos, delta, collision))
     }
 }
 

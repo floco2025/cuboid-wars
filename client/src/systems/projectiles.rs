@@ -206,8 +206,14 @@ fn handle_wall_collisions(
 
     let mut result_pos: Option<Position> = None;
 
-    // Check walls
-    if let Some(new_pos) = projectile.handle_wall_bounces(projectile_pos, delta, &map_layout.lower_walls) {
+    // Check walls, roofs, ramps, and ground together to catch junction corner cases.
+    if let Some(new_pos) = projectile.handle_bounces(
+        projectile_pos,
+        delta,
+        &map_layout.lower_walls,
+        &map_layout.roofs,
+        &map_layout.ramps,
+    ) {
         play_sound(
             commands,
             asset_server,
@@ -219,62 +225,6 @@ fn handle_wall_collisions(
             },
         );
         result_pos = Some(new_pos);
-    }
-
-    // Check roofs
-    if result_pos.is_none() {
-        for roof in &map_layout.roofs {
-            if let Some(new_pos) = projectile.handle_roof_bounce(projectile_pos, delta, roof) {
-                play_sound(
-                    commands,
-                    asset_server,
-                    "sounds/projectile_hits_wall.ogg",
-                    PlaybackSettings {
-                        mode: PlaybackMode::Despawn,
-                        volume: Volume::Linear(0.2),
-                        ..default()
-                    },
-                );
-                result_pos = Some(new_pos);
-                break;
-            }
-        }
-    }
-
-    // Check ramps
-    if result_pos.is_none() {
-        for ramp in &map_layout.ramps {
-            if let Some(new_pos) = projectile.handle_ramp_bounce(projectile_pos, delta, ramp) {
-                play_sound(
-                    commands,
-                    asset_server,
-                    "sounds/projectile_hits_wall.ogg",
-                    PlaybackSettings {
-                        mode: PlaybackMode::Despawn,
-                        volume: Volume::Linear(0.2),
-                        ..default()
-                    },
-                );
-                result_pos = Some(new_pos);
-                break;
-            }
-        }
-    }
-
-    // Ground bounce - checked last to catch projectiles pushed below ground by geometry bounces
-    let check_pos = result_pos.as_ref().unwrap_or(projectile_pos);
-    if let Some(new_pos) = projectile.handle_ground_bounce(check_pos, delta) {
-        play_sound(
-            commands,
-            asset_server,
-            "sounds/projectile_hits_wall.ogg",
-            PlaybackSettings {
-                mode: PlaybackMode::Despawn,
-                volume: Volume::Linear(0.2),
-                ..default()
-            },
-        );
-        return Some(new_pos);
     }
 
     result_pos
