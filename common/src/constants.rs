@@ -39,8 +39,8 @@ pub const SPEED_RUN: f32 = 9.0;
 // Projectiles
 // ============================================================================
 
-pub const PROJECTILE_SPEED: f32 = 60.0; // meters per second
-pub const PROJECTILE_LIFETIME: f32 = 8.0; // seconds
+pub const PROJECTILE_SPEED: f32 = 70.0; // meters per second
+pub const PROJECTILE_LIFETIME: f32 = 7.0; // seconds
 pub const PROJECTILE_SPAWN_OFFSET: f32 = 1.0; // meters in front of thrower
 pub const PROJECTILE_RADIUS: f32 = 0.11; // meters
 pub const PROJECTILE_COOLDOWN_TIME: f32 = 0.1; // Minimum time between shots
