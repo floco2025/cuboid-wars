@@ -260,7 +260,8 @@ pub fn sentry_player_collision_system(
         // Put sentry into pre-patrol mode after hitting a player (will return to grid center)
         if let Some(sentry_info) = sentries.0.get_mut(&sentry_id) {
             sentry_info.mode = SentryMode::PrePatrol;
-            sentry_info.mode_timer = 0.0;
+            sentry_info.mode_timer = SENTRY_COOLDOWN_DURATION;
+            sentry_info.follow_target = None;
         }
     }
 }
