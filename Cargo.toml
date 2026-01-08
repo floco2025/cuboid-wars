@@ -7,7 +7,6 @@ unsafe_code = "forbid"
 unused = { level = "warn", priority = -1 }
 
 [workspace.lints.clippy]
-
 pedantic = { level = "warn", priority = -1 }
 nursery = { level = "warn", priority = -1 }
 cargo = { level = "warn", priority = -1 }
