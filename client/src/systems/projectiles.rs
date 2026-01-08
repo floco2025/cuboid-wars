@@ -5,7 +5,7 @@ use bevy::{
 
 use crate::{markers::LocalPlayerMarker, resources::PlayerMap};
 use common::{
-    collision::{Projectile, projectile_hits_sentry, sweep_projectile_vs_player},
+    collision::{ProjectileMotion, projectile_hits_sentry, sweep_projectile_vs_player},
     constants::ALWAYS_SENTRY_HUNT,
     markers::{PlayerMarker, ProjectileMarker, SentryMarker},
     protocol::{FaceDirection, MapLayout, PlayerId, Position},
@@ -18,9 +18,9 @@ use common::{
 fn handle_sentry_collisions(
     commands: &mut Commands,
     asset_server: &AssetServer,
-    projectile_entity: Entity,
-    projectile: &Projectile,
-    projectile_pos: &Position,
+    proj_entity: Entity,
+    proj_motion: &ProjectileMotion,
+    proj_pos: &Position,
     shooter_id: &PlayerId,
     delta: f32,
     sentry_query: &Query<(&Position, &FaceDirection), With<SentryMarker>>,
@@ -28,7 +28,7 @@ fn handle_sentry_collisions(
 ) -> bool {
     // Always check sentry collisions
     for (sentry_pos, sentry_face_dir) in sentry_query.iter() {
-        if projectile_hits_sentry(projectile_pos, projectile, delta, sentry_pos, sentry_face_dir.0) {
+        if projectile_hits_sentry(proj_pos, proj_motion, delta, sentry_pos, sentry_face_dir.0) {
             // Check if shooter has sentry hunt power-up
             let shooter_has_hunt = players
                 .0
@@ -57,7 +57,7 @@ fn handle_sentry_collisions(
                 );
             }
 
-            commands.entity(projectile_entity).despawn();
+            commands.entity(proj_entity).despawn();
             return true;
         }
     }
@@ -68,14 +68,14 @@ fn handle_sentry_collisions(
 fn handle_player_collisions(
     commands: &mut Commands,
     asset_server: &AssetServer,
-    projectile_entity: Entity,
-    projectile: &Projectile,
-    projectile_pos: &Position,
+    proj_entity: Entity,
+    proj_motion: &ProjectileMotion,
+    proj_pos: &Position,
     delta: f32,
     player_query: &Query<(Entity, &Position, &FaceDirection, Has<LocalPlayerMarker>), With<PlayerMarker>>,
 ) -> bool {
     for (_player_entity, player_pos, face_dir, is_local_player) in player_query.iter() {
-        if sweep_projectile_vs_player(projectile_pos, projectile, delta, player_pos, face_dir.0).is_some() {
+        if sweep_projectile_vs_player(proj_pos, proj_motion, delta, player_pos, face_dir.0).is_some() {
             play_sound(
                 commands,
                 asset_server,
@@ -92,7 +92,7 @@ fn handle_player_collisions(
                 );
             }
 
-            commands.entity(projectile_entity).despawn();
+            commands.entity(proj_entity).despawn();
             return true;
         }
     }
@@ -117,7 +117,7 @@ pub fn projectiles_movement_system(
     mut commands: Commands,
     time: Res<Time>,
     asset_server: Res<AssetServer>,
-    mut projectile_query: Query<(Entity, &mut Transform, &mut Projectile, &PlayerId), With<ProjectileMarker>>,
+    mut projectile_query: Query<(Entity, &mut Transform, &mut ProjectileMotion, &PlayerId), With<ProjectileMarker>>,
     player_query: Query<(Entity, &Position, &FaceDirection, Has<LocalPlayerMarker>), With<PlayerMarker>>,
     sentry_query: Query<(&Position, &FaceDirection), With<SentryMarker>>,
     players: Res<PlayerMap>,
@@ -197,8 +197,8 @@ pub fn projectiles_movement_system(
 fn handle_wall_collisions(
     commands: &mut Commands,
     asset_server: &AssetServer,
-    projectile: &mut Projectile,
-    projectile_pos: &Position,
+    proj_motion: &mut ProjectileMotion,
+    proj_pos: &Position,
     delta: f32,
     map_layout: Option<&MapLayout>,
 ) -> Option<Position> {
@@ -207,8 +207,8 @@ fn handle_wall_collisions(
     let mut result_pos: Option<Position> = None;
 
     // Check walls, roofs, ramps, and ground together to catch junction corner cases.
-    if let Some(new_pos) = projectile.handle_bounces(
-        projectile_pos,
+    if let Some(new_pos) = proj_motion.handle_bounces(
+        proj_pos,
         delta,
         &map_layout.lower_walls,
         &map_layout.roofs,

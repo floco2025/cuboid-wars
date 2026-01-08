@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use common::{
-    collision::Projectile,
+    collision::ProjectileMotion,
     constants::*,
     markers::{PlayerMarker, ProjectileMarker},
     protocol::*,
@@ -17,9 +17,9 @@ struct ProjectileBundle {
     mesh: Mesh3d,
     material: MeshMaterial3d<StandardMaterial>,
     transform: Transform,
-    projectile: Projectile,
+    proj_motion: ProjectileMotion,
+    proj_marker: ProjectileMarker,
     player_id: PlayerId,
-    projectile_marker: ProjectileMarker,
 }
 
 impl ProjectileBundle {
@@ -39,9 +39,9 @@ impl ProjectileBundle {
                 ..default()
             })),
             transform: Transform::from_translation(position),
-            projectile: Projectile::new(direction_yaw, direction_pitch),
+            proj_motion: ProjectileMotion::new(direction_yaw, direction_pitch),
             player_id: shooter_id,
-            projectile_marker: ProjectileMarker,
+            proj_marker: ProjectileMarker,
         }
     }
 }

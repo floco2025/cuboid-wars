@@ -20,12 +20,12 @@ const MAX_SURFACE_BOUNCES: usize = 3;
 
 // Component attached to projectile entities to track velocity, lifetime, and bounce behavior
 #[derive(Component)]
-pub struct Projectile {
+pub struct ProjectileMotion {
     pub velocity: Vec3,
     pub lifetime: Timer,
 }
 
-impl Projectile {
+impl ProjectileMotion {
     #[must_use]
     pub fn new(face_dir: f32, face_pitch: f32) -> Self {
         let pitch_sin = face_pitch.sin();
@@ -169,7 +169,7 @@ impl Projectile {
 
 // === Projectile sweep helpers ===
 
-fn sweep_projectile_vs_ground(proj_pos: &Position, projectile: &Projectile, delta: f32) -> Option<Collision> {
+fn sweep_projectile_vs_ground(proj_pos: &Position, proj_motion: &ProjectileMotion, delta: f32) -> Option<Collision> {
     let half_width = FIELD_WIDTH / 2.0;
     let half_depth = FIELD_DEPTH / 2.0;
 
@@ -182,7 +182,7 @@ fn sweep_projectile_vs_ground(proj_pos: &Position, projectile: &Projectile, delt
 
     // If already at or below ground and moving downward, treat as immediate collision (t=0)
     if proj_pos.y <= ground_level {
-        if projectile.velocity.y >= 0.0 {
+        if proj_motion.velocity.y >= 0.0 {
             return None;
         }
         return Some(Collision {
@@ -192,18 +192,18 @@ fn sweep_projectile_vs_ground(proj_pos: &Position, projectile: &Projectile, delt
     }
 
     // Sweep test: will we hit the ground this frame?
-    if projectile.velocity.y >= 0.0 {
+    if proj_motion.velocity.y >= 0.0 {
         return None;
     }
 
-    let t = (ground_level - proj_pos.y) / (projectile.velocity.y * delta);
+    let t = (ground_level - proj_pos.y) / (proj_motion.velocity.y * delta);
     if !(0.0..=1.0).contains(&t) {
         return None;
     }
 
     // Check if collision point is within field bounds
-    let collision_x = (projectile.velocity.x * delta).mul_add(t, proj_pos.x);
-    let collision_z = (projectile.velocity.z * delta).mul_add(t, proj_pos.z);
+    let collision_x = (proj_motion.velocity.x * delta).mul_add(t, proj_pos.x);
+    let collision_z = (proj_motion.velocity.z * delta).mul_add(t, proj_pos.z);
     if collision_x < -half_width || collision_x > half_width || collision_z < -half_depth || collision_z > half_depth {
         return None;
     }
@@ -213,16 +213,16 @@ fn sweep_projectile_vs_ground(proj_pos: &Position, projectile: &Projectile, delt
 
 fn sweep_projectile_vs_ramp(
     proj_pos: &Position,
-    projectile: &Projectile,
+    proj_motion: &ProjectileMotion,
     delta: f32,
     ramp: &Ramp,
 ) -> Option<Collision> {
     let (min_x, max_x, min_z, max_z) = ramp.bounds_xz();
     let (min_y, max_y) = ramp.bounds_y();
 
-    let ray_dir_x = projectile.velocity.x * delta;
-    let ray_dir_y = projectile.velocity.y * delta;
-    let ray_dir_z = projectile.velocity.z * delta;
+    let ray_dir_x = proj_motion.velocity.x * delta;
+    let ray_dir_y = proj_motion.velocity.y * delta;
+    let ray_dir_z = proj_motion.velocity.z * delta;
 
     let seg_min_x = proj_pos.x.min(proj_pos.x + ray_dir_x) - PROJECTILE_RADIUS;
     let seg_max_x = proj_pos.x.max(proj_pos.x + ray_dir_x) + PROJECTILE_RADIUS;
@@ -397,7 +397,7 @@ fn sweep_projectile_vs_ramp(
 #[must_use]
 pub fn sweep_projectile_vs_cuboid(
     proj_pos: &Position,
-    projectile: &Projectile,
+    proj_motion: &ProjectileMotion,
     delta: f32,
     cuboid_pos: &Position,
     cuboid_center_y: f32,
@@ -411,9 +411,9 @@ pub fn sweep_projectile_vs_cuboid(
         return None;
     }
 
-    let ray_dir_x = projectile.velocity.x * delta;
-    let ray_dir_y = projectile.velocity.y * delta;
-    let ray_dir_z = projectile.velocity.z * delta;
+    let ray_dir_x = proj_motion.velocity.x * delta;
+    let ray_dir_y = proj_motion.velocity.y * delta;
+    let ray_dir_z = proj_motion.velocity.z * delta;
 
     let dx = proj_pos.x - cuboid_pos.x;
     let dz = proj_pos.z - cuboid_pos.z;
@@ -450,9 +450,9 @@ pub fn sweep_projectile_vs_cuboid(
     t_max = new_max;
 
     if t_min <= t_max && t_max >= 0.0 && t_min <= 1.0 {
-        let vel_len = projectile.velocity.x.hypot(projectile.velocity.z);
+        let vel_len = proj_motion.velocity.x.hypot(proj_motion.velocity.z);
         let (x, z) = if vel_len > 0.0 {
-            (projectile.velocity.x / vel_len, projectile.velocity.z / vel_len)
+            (proj_motion.velocity.x / vel_len, proj_motion.velocity.z / vel_len)
         } else {
             (0.0, 0.0)
         };
@@ -466,7 +466,7 @@ pub fn sweep_projectile_vs_cuboid(
 #[must_use]
 pub fn sweep_projectile_vs_player(
     proj_pos: &Position,
-    projectile: &Projectile,
+    proj_motion: &ProjectileMotion,
     delta: f32,
     player_pos: &Position,
     player_face_dir: f32,
@@ -474,7 +474,7 @@ pub fn sweep_projectile_vs_player(
     let player_center_y = player_pos.y + PLAYER_HEIGHT / 2.0;
     sweep_projectile_vs_cuboid(
         proj_pos,
-        projectile,
+        proj_motion,
         delta,
         player_pos,
         player_center_y,
@@ -487,7 +487,7 @@ pub fn sweep_projectile_vs_player(
 
 fn sweep_projectile_vs_wall(
     proj_pos: &Position,
-    projectile: &Projectile,
+    proj_motion: &ProjectileMotion,
     delta: f32,
     wall: &Wall,
 ) -> Option<Collision> {
@@ -504,9 +504,9 @@ fn sweep_projectile_vs_wall(
     let half_z = if is_horizontal { wall_half_thickness } else { dz / 2.0 } + PROJECTILE_RADIUS;
     let half_y = WALL_HEIGHT / 2.0 + PROJECTILE_RADIUS;
 
-    let ray_dir_x = projectile.velocity.x * delta;
-    let ray_dir_y = projectile.velocity.y * delta;
-    let ray_dir_z = projectile.velocity.z * delta;
+    let ray_dir_x = proj_motion.velocity.x * delta;
+    let ray_dir_y = proj_motion.velocity.y * delta;
+    let ray_dir_z = proj_motion.velocity.z * delta;
 
     sweep_point_vs_cuboid(
         proj_pos,
@@ -524,7 +524,7 @@ fn sweep_projectile_vs_wall(
 
 fn sweep_projectile_vs_roof(
     proj_pos: &Position,
-    projectile: &Projectile,
+    proj_motion: &ProjectileMotion,
     delta: f32,
     roof: &Roof,
 ) -> Option<Collision> {
@@ -538,9 +538,9 @@ fn sweep_projectile_vs_roof(
     let half_z = (max_z - min_z) / 2.0 + PROJECTILE_RADIUS;
     let half_y = roof.thickness / 2.0 + PROJECTILE_RADIUS;
 
-    let ray_dir_x = projectile.velocity.x * delta;
-    let ray_dir_y = projectile.velocity.y * delta;
-    let ray_dir_z = projectile.velocity.z * delta;
+    let ray_dir_x = proj_motion.velocity.x * delta;
+    let ray_dir_y = proj_motion.velocity.y * delta;
+    let ray_dir_z = proj_motion.velocity.z * delta;
 
     sweep_point_vs_cuboid(
         proj_pos, ray_dir_x, ray_dir_y, ray_dir_z, center_x, center_y, center_z, half_x, half_y, half_z,
@@ -573,7 +573,7 @@ pub fn projectile_hits_ramp(proj_pos: &Position, projectile_velocity: &Vec3, del
 #[must_use]
 pub fn projectile_hits_sentry(
     proj_pos: &Position,
-    projectile: &Projectile,
+    proj_motion: &ProjectileMotion,
     delta: f32,
     sentry_pos: &Position,
     sentry_face_dir: f32,
@@ -581,7 +581,7 @@ pub fn projectile_hits_sentry(
     let sentry_center_y = sentry_pos.y + SENTRY_HEIGHT / 2.0;
     sweep_projectile_vs_cuboid(
         proj_pos,
-        projectile,
+        proj_motion,
         delta,
         sentry_pos,
         sentry_center_y,

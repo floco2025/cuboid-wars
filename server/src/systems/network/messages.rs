@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use super::broadcast::broadcast_to_others;
 use crate::{net::ServerToClient, resources::PlayerMap};
 use common::{
-    collision::Projectile,
+    collision::ProjectileMotion,
     constants::PROJECTILE_COOLDOWN_TIME,
     markers::{PlayerMarker, ProjectileMarker},
     protocol::{MapLayout, *},
@@ -149,13 +149,13 @@ fn handle_shot_message(
 
         // Spawn each projectile
         for spawn_info in spawns {
-            let projectile = Projectile::new(spawn_info.direction_yaw, spawn_info.direction_pitch);
+            let proj_motion = ProjectileMotion::new(spawn_info.direction_yaw, spawn_info.direction_pitch);
 
             commands.spawn((
                 ProjectileMarker,
                 id, // Tag projectile with shooter's ID
                 spawn_info.position,
-                projectile,
+                proj_motion,
             ));
         }
     }

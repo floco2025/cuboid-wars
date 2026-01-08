@@ -6,7 +6,7 @@ use crate::{
     resources::{PlayerMap, SentryMap, SentryMode},
 };
 use common::{
-    collision::{Projectile, projectile_hits_sentry, sweep_projectile_vs_player},
+    collision::{ProjectileMotion, projectile_hits_sentry, sweep_projectile_vs_player},
     constants::ALWAYS_SENTRY_HUNT,
     markers::{PlayerMarker, ProjectileMarker, SentryMarker},
     protocol::{MapLayout, *},
@@ -19,7 +19,7 @@ use common::{
 pub fn projectiles_movement_system(
     mut commands: Commands,
     time: Res<Time>,
-    mut projectile_query: Query<(Entity, &mut Position, &mut Projectile, &PlayerId), With<ProjectileMarker>>,
+    mut projectile_query: Query<(Entity, &mut Position, &mut ProjectileMotion, &PlayerId), With<ProjectileMarker>>,
     player_query: Query<(&Position, &FaceDirection, &PlayerId), (With<PlayerMarker>, Without<ProjectileMarker>)>,
     sentry_query: Query<(&SentryId, &Position, &FaceDirection), (With<SentryMarker>, Without<ProjectileMarker>)>,
     map_layout: Res<MapLayout>,
