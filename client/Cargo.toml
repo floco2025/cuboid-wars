@@ -16,4 +16,4 @@ clap = { version = "4", features = ["derive"] }
 anyhow = "1"
 bevy = { version = "0.17", features = ["vorbis", "wav", "jpeg", "bevy_gltf"] }
 rand = "0.9"
-whoami = "1.6"
+whoami = "2.0.1"

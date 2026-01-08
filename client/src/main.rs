@@ -69,9 +69,9 @@ fn main() -> Result<()> {
     let args = Args::parse();
 
     let player_name = args.name.clone().unwrap_or_else(|| {
-        let full_name = whoami::realname();
+        let full_name = whoami::realname().unwrap_or_default();
         let first_name = full_name.split_whitespace().next();
-        first_name.unwrap_or("").to_string()
+        first_name.unwrap_or_default().to_string()
     });
 
     let rt = Runtime::new()?;
