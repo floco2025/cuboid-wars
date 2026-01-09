@@ -46,7 +46,7 @@ pub const PROJECTILE_RADIUS: f32 = 0.11; // meters
 pub const PROJECTILE_COOLDOWN_TIME: f32 = 0.1; // Minimum time between shots
 pub const PROJECTILE_GRAVITY: f32 = 9.81; // meters per second squared
 pub const PROJECTILE_DRAG_FACTOR: f32 = 0.01; // Air resistance coefficient applied per frame
-pub const PROJECTILE_BOUNCE_RETENTION: f32 = 0.8; // fraction of speed retained after bounce (0.0-1.0)
+pub const PROJECTILE_BOUNCE_RETENTION: f32 = 0.9; // fraction of speed retained after bounce (0.0-1.0)
 
 // ============================================================================
 // Sentries

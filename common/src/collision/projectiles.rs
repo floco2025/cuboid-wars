@@ -1,3 +1,5 @@
+use std::sync::LazyLock;
+
 use bevy_ecs::prelude::*;
 use bevy_math::Vec3;
 use bevy_time::{Timer, TimerMode};
@@ -19,7 +21,9 @@ const SEPARATION_EPSILON: f32 = 0.01;
 const MAX_SURFACE_BOUNCES: usize = 3;
 
 // Velocity gained from falling the epsilon separation distance: sqrt(2 * g * h)
-const EPSILON_FALL_VELOCITY: f32 = 0.443; // sqrt(2 * 9.81 * SEPARATION_EPSILON)
+static EPSILON_FALL_VELOCITY: LazyLock<f32> = LazyLock::new(|| {
+    (2.0 * PROJECTILE_GRAVITY * SEPARATION_EPSILON).sqrt()
+});
 
 // Component attached to projectile entities to track velocity, lifetime, and bounce behavior
 #[derive(Component)]
@@ -99,7 +103,7 @@ impl ProjectileMotion {
 
         // Compensate for energy the epsilon push adds. Gravity will convert the Y component
         // of the push into downward velocity, so subtract that amount to keep energy balanced.
-        self.velocity.y -= EPSILON_FALL_VELOCITY * collision.normal.y;
+        self.velocity.y -= *EPSILON_FALL_VELOCITY * collision.normal.y;
 
         let remaining_time = delta * (1.0 - collision.t);
         (separated_pos.into(), remaining_time)
