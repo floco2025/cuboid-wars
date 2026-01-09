@@ -3,7 +3,11 @@ use bevy::{
     prelude::*,
 };
 
-use crate::{markers::LocalPlayerMarker, resources::PlayerMap};
+use crate::{
+    constants::{PROJECTILE_MAX_BOUNCE_SOUNDS_PER_SECOND, PROJECTILE_MIN_BOUNCE_SOUND_SPEED},
+    markers::LocalPlayerMarker,
+    resources::{LastBounceSoundTime, PlayerMap},
+};
 use common::{
     collision::{ProjectileMotion, projectile_hits_sentry, sweep_projectile_vs_player},
     constants::ALWAYS_SENTRY_HUNT,
@@ -122,8 +126,10 @@ pub fn projectiles_movement_system(
     sentry_query: Query<(&Position, &FaceDirection), With<SentryMarker>>,
     players: Res<PlayerMap>,
     map_layout: Option<Res<MapLayout>>,
+    mut last_bounce_sound: ResMut<LastBounceSoundTime>,
 ) {
     let delta = time.delta_secs();
+    let current_time = time.elapsed_secs();
     let map_layout = map_layout.as_deref();
 
     for (projectile_entity, mut projectile_transform, mut projectile, shooter_id) in &mut projectile_query {
@@ -148,6 +154,8 @@ pub fn projectiles_movement_system(
             &projectile_pos,
             delta,
             map_layout,
+            current_time,
+            &mut last_bounce_sound,
         ) {
             pos_after_bounce
         } else {
@@ -201,9 +209,9 @@ fn handle_wall_collisions(
     proj_pos: &Position,
     delta: f32,
     map_layout: Option<&MapLayout>,
+    current_time: f32,
+    last_bounce_sound: &mut LastBounceSoundTime,
 ) -> Option<Position> {
-    use common::constants::PROJECTILE_MIN_BOUNCE_SOUND_SPEED;
-
     let map_layout = map_layout?;
 
     // Check speed before bounce to decide if we should play sound
@@ -218,7 +226,11 @@ fn handle_wall_collisions(
         &map_layout.ramps,
     )?;
 
-    if speed_before >= PROJECTILE_MIN_BOUNCE_SOUND_SPEED {
+    // Play sound if speed is high enough and rate limit allows
+    let min_interval = 1.0 / PROJECTILE_MAX_BOUNCE_SOUNDS_PER_SECOND;
+    if speed_before >= PROJECTILE_MIN_BOUNCE_SOUND_SPEED
+        && current_time - last_bounce_sound.0 >= min_interval
+    {
         play_sound(
             commands,
             asset_server,
@@ -229,6 +241,7 @@ fn handle_wall_collisions(
                 ..default()
             },
         );
+        last_bounce_sound.0 = current_time;
     }
 
     Some(new_pos)

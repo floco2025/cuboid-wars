@@ -110,6 +110,7 @@ fn main() -> Result<()> {
         invert_pitch: args.invert_pitch,
     })
     .insert_resource(DebugColors(args.debug_colors))
+    .insert_resource(LastBounceSoundTime::default())
     .add_systems(
         Startup,
         (

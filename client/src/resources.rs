@@ -130,6 +130,10 @@ pub struct InputSettings {
 #[derive(Resource, Clone, Copy, Debug, Default)]
 pub struct DebugColors(pub bool);
 
+// Last time a projectile bounce sound was played (for rate limiting)
+#[derive(Resource, Default)]
+pub struct LastBounceSoundTime(pub f32);
+
 // Resource wrapper for the client to server channel
 #[derive(Resource)]
 pub struct ClientToServerChannel(UnboundedSender<ClientToServer>);

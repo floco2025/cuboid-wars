@@ -142,3 +142,10 @@ pub const TEXTURE_COOKIE_ROUGHNESS: f32 = 1.0;
 // Material properties - Power-ups
 pub const TEXTURE_ITEM_METALLIC: f32 = 1.0;
 pub const TEXTURE_ITEM_ROUGHNESS: f32 = 1.0;
+
+// ============================================================================
+// Projectiles
+// ============================================================================
+
+pub const PROJECTILE_MIN_BOUNCE_SOUND_SPEED: f32 = 10.0; // minimum speed to play bounce sound
+pub const PROJECTILE_MAX_BOUNCE_SOUNDS_PER_SECOND: f32 = 30.0; // rate limit for bounce sounds
