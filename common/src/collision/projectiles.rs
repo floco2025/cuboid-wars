@@ -18,6 +18,9 @@ pub struct HitDirection {
 const SEPARATION_EPSILON: f32 = 0.01;
 const MAX_SURFACE_BOUNCES: usize = 3;
 
+// Velocity gained from falling the epsilon separation distance: sqrt(2 * g * h)
+const EPSILON_FALL_VELOCITY: f32 = 0.443; // sqrt(2 * 9.81 * SEPARATION_EPSILON)
+
 // Component attached to projectile entities to track velocity, lifetime, and bounce behavior
 #[derive(Component)]
 pub struct ProjectileMotion {
@@ -93,6 +96,11 @@ impl ProjectileMotion {
         let collision_pos = Vec3::from(*start_pos) + self.velocity * delta * collision.t;
         self.reflect_with_retention(collision.normal);
         let separated_pos = collision_pos + collision.normal * SEPARATION_EPSILON;
+
+        // Compensate for energy the epsilon push adds. Gravity will convert the Y component
+        // of the push into downward velocity, so subtract that amount to keep energy balanced.
+        self.velocity.y -= EPSILON_FALL_VELOCITY * collision.normal.y;
+
         let remaining_time = delta * (1.0 - collision.t);
         (separated_pos.into(), remaining_time)
     }

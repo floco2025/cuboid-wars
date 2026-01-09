@@ -202,18 +202,23 @@ fn handle_wall_collisions(
     delta: f32,
     map_layout: Option<&MapLayout>,
 ) -> Option<Position> {
+    use common::constants::PROJECTILE_MIN_BOUNCE_SOUND_SPEED;
+
     let map_layout = map_layout?;
 
-    let mut result_pos: Option<Position> = None;
+    // Check speed before bounce to decide if we should play sound
+    let speed_before = proj_motion.velocity.length();
 
     // Check walls, roofs, ramps, and ground together to catch junction corner cases.
-    if let Some(new_pos) = proj_motion.handle_bounces(
+    let new_pos = proj_motion.handle_bounces(
         proj_pos,
         delta,
         &map_layout.lower_walls,
         &map_layout.roofs,
         &map_layout.ramps,
-    ) {
+    )?;
+
+    if speed_before >= PROJECTILE_MIN_BOUNCE_SOUND_SPEED {
         play_sound(
             commands,
             asset_server,
@@ -224,8 +229,7 @@ fn handle_wall_collisions(
                 ..default()
             },
         );
-        result_pos = Some(new_pos);
     }
 
-    result_pos
+    Some(new_pos)
 }
