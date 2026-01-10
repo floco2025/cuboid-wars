@@ -31,10 +31,7 @@ pub fn spawn_ramp(
             asset_server,
             "textures/ground/normal-dx.png",
         )),
-        occlusion_texture: Some(load_repeating_texture_linear(
-            asset_server,
-            "textures/ground/ao.png",
-        )),
+        occlusion_texture: Some(load_repeating_texture_linear(asset_server, "textures/ground/ao.png")),
         metallic_roughness_texture: Some(load_repeating_texture_linear(
             asset_server,
             "textures/ground/metallic-roughness.png",
@@ -53,10 +50,7 @@ pub fn spawn_ramp(
             asset_server,
             "textures/wall/normal-dx.png",
         )),
-        occlusion_texture: Some(load_repeating_texture_linear(
-            asset_server,
-            "textures/wall/ao.png",
-        )),
+        occlusion_texture: Some(load_repeating_texture_linear(asset_server, "textures/wall/ao.png")),
         metallic_roughness_texture: Some(load_repeating_texture_linear(
             asset_server,
             "textures/wall/metallic-roughness.png",

@@ -228,9 +228,7 @@ fn handle_wall_collisions(
 
     // Play sound if speed is high enough and rate limit allows
     let min_interval = 1.0 / PROJECTILE_MAX_BOUNCE_SOUNDS_PER_SECOND;
-    if speed_before >= PROJECTILE_MIN_BOUNCE_SOUND_SPEED
-        && current_time - last_bounce_sound.0 >= min_interval
-    {
+    if speed_before >= PROJECTILE_MIN_BOUNCE_SOUND_SPEED && current_time - last_bounce_sound.0 >= min_interval {
         play_sound(
             commands,
             asset_server,

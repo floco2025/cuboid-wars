@@ -41,10 +41,7 @@ pub fn setup_world_geometry_system(
                 &asset_server,
                 "textures/ground/normal-dx.png",
             )),
-            occlusion_texture: Some(load_repeating_texture_linear(
-                &asset_server,
-                "textures/ground/ao.png",
-            )),
+            occlusion_texture: Some(load_repeating_texture_linear(&asset_server, "textures/ground/ao.png")),
             metallic_roughness_texture: Some(load_repeating_texture_linear(
                 &asset_server,
                 "textures/ground/metallic-roughness.png",

@@ -3,7 +3,7 @@ use bevy::{
     prelude::*,
     window::{CursorGrabMode, CursorOptions, WindowPlugin, WindowPosition},
 };
-use bevy_mod_mipmap_generator::{generate_mipmaps, MipmapGeneratorPlugin};
+use bevy_mod_mipmap_generator::{MipmapGeneratorPlugin, generate_mipmaps};
 use clap::Parser;
 use quinn::Endpoint;
 use tokio::{runtime::Runtime, time::Duration};
