@@ -3,7 +3,6 @@ use bevy::{
     prelude::*,
     window::{CursorGrabMode, CursorOptions, WindowPlugin, WindowPosition},
 };
-use bevy_mod_mipmap_generator::{MipmapGeneratorPlugin, MipmapGeneratorSettings, generate_mipmaps};
 use clap::Parser;
 use quinn::Endpoint;
 use tokio::{runtime::Runtime, time::Duration};
@@ -91,16 +90,11 @@ fn main() -> Result<()> {
 
     // Start Bevy app
     let mut app = App::new();
-    app.add_plugins((
+    app.add_plugins(
         DefaultPlugins
             .set(asset_plugin())
             .set(window_plugin(&args, window_position)),
-        MipmapGeneratorPlugin,
-    ))
-    .insert_resource(MipmapGeneratorSettings {
-        anisotropic_filtering: 16,
-        ..default()
-    })
+    )
     .insert_resource(ClientToServerChannel::new(to_server))
     .insert_resource(ServerToClientChannel::new(from_server))
     .insert_resource(PlayerMap::default())
@@ -187,7 +181,6 @@ fn main() -> Result<()> {
             skybox_update_camera_system.run_if(resource_exists::<SkyboxCubemap>),
         ),
     )
-    .add_systems(Update, generate_mipmaps::<StandardMaterial>)
     .run();
 
     Ok(())

@@ -292,7 +292,7 @@ pub fn load_repeating_texture(asset_server: &AssetServer, path: impl Into<AssetP
             mag_filter: ImageFilterMode::Linear,
             min_filter: ImageFilterMode::Linear,
             mipmap_filter: ImageFilterMode::Linear,
-            anisotropy_clamp: 16,
+            anisotropy_clamp: 8,
             ..default()
         });
     })
@@ -308,7 +308,7 @@ pub fn load_repeating_texture_linear(asset_server: &AssetServer, path: impl Into
             mag_filter: ImageFilterMode::Linear,
             min_filter: ImageFilterMode::Linear,
             mipmap_filter: ImageFilterMode::Linear,
-            anisotropy_clamp: 16,
+            anisotropy_clamp: 8,
             ..default()
         });
     })
