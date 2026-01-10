@@ -59,15 +59,15 @@ pub fn spawn_wall(
         }
     } else {
         StandardMaterial {
-            base_color_texture: Some(load_repeating_texture(asset_server, "textures/wall/albedo.png")),
+            base_color_texture: Some(load_repeating_texture(asset_server, "textures/wall/albedo.png.ktx2")),
             normal_map_texture: Some(load_repeating_texture_linear(
                 asset_server,
-                "textures/wall/normal-dx.png",
+                "textures/wall/normal-dx.png.ktx2",
             )),
-            occlusion_texture: Some(load_repeating_texture_linear(asset_server, "textures/wall/ao.png")),
+            occlusion_texture: Some(load_repeating_texture_linear(asset_server, "textures/wall/ao.png.ktx2")),
             metallic_roughness_texture: Some(load_repeating_texture_linear(
                 asset_server,
-                "textures/wall/metallic-roughness.png",
+                "textures/wall/metallic-roughness.png.ktx2",
             )),
             perceptual_roughness: TEXTURE_WALL_ROUGHNESS,
             metallic: TEXTURE_WALL_METALLIC,

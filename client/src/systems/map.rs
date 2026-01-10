@@ -36,15 +36,18 @@ pub fn setup_world_geometry_system(
     commands.spawn((
         Mesh3d(meshes.add(ground_mesh)),
         MeshMaterial3d(materials.add(StandardMaterial {
-            base_color_texture: Some(load_repeating_texture(&asset_server, "textures/ground/albedo.png")),
+            base_color_texture: Some(load_repeating_texture(&asset_server, "textures/ground/albedo.png.ktx2")),
             normal_map_texture: Some(load_repeating_texture_linear(
                 &asset_server,
-                "textures/ground/normal-dx.png",
+                "textures/ground/normal-dx.png.ktx2",
             )),
-            occlusion_texture: Some(load_repeating_texture_linear(&asset_server, "textures/ground/ao.png")),
+            occlusion_texture: Some(load_repeating_texture_linear(
+                &asset_server,
+                "textures/ground/ao.png.ktx2",
+            )),
             metallic_roughness_texture: Some(load_repeating_texture_linear(
                 &asset_server,
-                "textures/ground/metallic-roughness.png",
+                "textures/ground/metallic-roughness.png.ktx2",
             )),
             uv_transform: Affine2::from_scale(uv_scale),
             perceptual_roughness: TEXTURE_FLOOR_ROUGHNESS,
