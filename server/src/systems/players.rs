@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use super::network::broadcast_to_all;
 use crate::resources::PlayerMap;
 use common::{
-    collision::{slide_player_along_obstacles, sweep_player_vs_ramp_edges, sweep_player_vs_wall},
+    collision::{overlap_player_vs_wall, slide_player_along_obstacles, sweep_player_vs_ramp_edges, sweep_player_vs_wall},
     constants::{ALWAYS_PHASING, ALWAYS_SPEED, PHYSICS_EPSILON, POWER_UP_SPEED_MULTIPLIER, ROOF_HEIGHT},
     map::{close_to_roof, has_roof, height_on_ramp},
     markers::PlayerMarker,
@@ -78,7 +78,13 @@ pub fn players_movement_system(
                     .0
                     .get(player_id)
                     .is_some_and(|info| info.phasing_power_up_timer > 0.0);
-            if has_phasing {
+            let is_stuck_in_wall = !has_phasing
+                && map_layout
+                    .interior_walls
+                    .iter()
+                    .any(|wall| overlap_player_vs_wall(pos, wall));
+
+            if has_phasing || is_stuck_in_wall {
                 &map_layout.boundary_walls
             } else {
                 &map_layout.lower_walls

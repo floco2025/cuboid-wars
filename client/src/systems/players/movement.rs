@@ -3,7 +3,9 @@ use bevy::prelude::*;
 use super::components::BumpFlashState;
 use crate::{markers::*, resources::PlayerMap, systems::network::ServerReconciliation};
 use common::{
-    collision::{slide_player_along_obstacles, sweep_player_vs_ramp_edges, sweep_player_vs_wall},
+    collision::{
+        overlap_player_vs_wall, slide_player_along_obstacles, sweep_player_vs_ramp_edges, sweep_player_vs_wall,
+    },
     constants::{ALWAYS_PHASING, PHYSICS_EPSILON, ROOF_HEIGHT, SPEED_RUN, UPDATE_BROADCAST_INTERVAL},
     map::{close_to_roof, has_roof, height_on_ramp},
     players::{PlannedMove, overlaps_other_player},
@@ -175,7 +177,13 @@ pub fn players_movement_system(
                 &map_layout.roof_walls
             } else {
                 let has_phasing = ALWAYS_PHASING || players.0.get(player_id).is_some_and(|info| info.phasing_power_up);
-                if has_phasing {
+                let is_stuck_in_wall = !has_phasing
+                    && map_layout
+                        .interior_walls
+                        .iter()
+                        .any(|wall| overlap_player_vs_wall(&client_pos, wall));
+
+                if has_phasing || is_stuck_in_wall {
                     &map_layout.boundary_walls
                 } else {
                     &map_layout.lower_walls
