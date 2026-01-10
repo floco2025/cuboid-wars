@@ -15,5 +15,6 @@ rustls = { version = "0.23", default-features = false, features = ["ring"] }
 clap = { version = "4", features = ["derive"] }
 anyhow = "1"
 bevy = { version = "0.17", features = ["vorbis", "wav", "jpeg", "bevy_gltf"] }
+bevy_mod_mipmap_generator = { git = "https://github.com/DGriffin91/bevy_mod_mipmap_generator" }
 rand = "0.9"
 whoami = "2.0.1"
