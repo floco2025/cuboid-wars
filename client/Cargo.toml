@@ -17,3 +17,4 @@ anyhow = "1"
 bevy = { version = "0.17", features = ["vorbis", "wav", "jpeg", "bevy_gltf"] }
 rand = "0.9"
 whoami = "2.0.1"
+bevy_mod_mipmap_generator = { git = "https://github.com/DGriffin91/bevy_mod_mipmap_generator" }

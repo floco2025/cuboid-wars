@@ -3,6 +3,7 @@ use bevy::{
     prelude::*,
     window::{CursorGrabMode, CursorOptions, WindowPlugin, WindowPosition},
 };
+use bevy_mod_mipmap_generator::{generate_mipmaps, MipmapGeneratorPlugin};
 use clap::Parser;
 use quinn::Endpoint;
 use tokio::{runtime::Runtime, time::Duration};
@@ -90,11 +91,12 @@ fn main() -> Result<()> {
 
     // Start Bevy app
     let mut app = App::new();
-    app.add_plugins(
+    app.add_plugins((
         DefaultPlugins
             .set(asset_plugin())
             .set(window_plugin(&args, window_position)),
-    )
+        MipmapGeneratorPlugin,
+    ))
     .insert_resource(ClientToServerChannel::new(to_server))
     .insert_resource(ServerToClientChannel::new(from_server))
     .insert_resource(PlayerMap::default())
@@ -164,6 +166,7 @@ fn main() -> Result<()> {
             map_make_wall_lights_emissive_system,
         ),
     )
+    .add_systems(Update, generate_mipmaps::<StandardMaterial>)
     .add_systems(
         Update,
         (

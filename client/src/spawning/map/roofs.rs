@@ -44,15 +44,15 @@ pub fn spawn_roof(
         }
     } else {
         StandardMaterial {
-            base_color_texture: Some(load_repeating_texture(asset_server, "textures/roof/albedo.png.ktx2")),
+            base_color_texture: Some(load_repeating_texture(asset_server, "textures/roof/albedo.png")),
             normal_map_texture: Some(load_repeating_texture_linear(
                 asset_server,
-                "textures/roof/normal-dx.png.ktx2",
+                "textures/roof/normal-dx.png",
             )),
-            occlusion_texture: Some(load_repeating_texture_linear(asset_server, "textures/roof/ao.png.ktx2")),
+            occlusion_texture: Some(load_repeating_texture_linear(asset_server, "textures/roof/ao.png")),
             metallic_roughness_texture: Some(load_repeating_texture_linear(
                 asset_server,
-                "textures/roof/metallic-roughness.png.ktx2",
+                "textures/roof/metallic-roughness.png",
             )),
             perceptual_roughness: TEXTURE_ROOF_ROUGHNESS,
             metallic: TEXTURE_ROOF_METALLIC,
