@@ -11,7 +11,7 @@ use tokio::{runtime::Runtime, time::Duration};
 use client::{
     config::configure_client,
     net::network_io_task,
-    resources::{DebugColors, *},
+    resources::*,
     systems::{
         cameras::*, input::*, items::*, map::*, network::*, players::*, projectiles::*, sentries::*, skybox::*, ui::*,
     },
