@@ -1,5 +1,6 @@
 use bevy::{
     asset::RenderAssetUsages,
+    camera::RenderTarget,
     gltf::GltfAssetLabel,
     prelude::*,
     render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages},
@@ -160,7 +161,6 @@ fn setup_player_id_text_rendering(
             Camera2d,
             Camera {
                 order: -1,
-                target: bevy::camera::RenderTarget::Image(image_handle.clone().into()),
                 clear_color: bevy::camera::ClearColorConfig::Custom(Color::srgba(
                     LABEL_BACKGROUND_COLOR[0],
                     LABEL_BACKGROUND_COLOR[1],
@@ -169,6 +169,7 @@ fn setup_player_id_text_rendering(
                 )),
                 ..default()
             },
+            RenderTarget::Image(image_handle.clone().into()),
         ))
         .id();
 

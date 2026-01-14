@@ -66,7 +66,7 @@ pub fn setup_world_geometry_system(
     ));
 
     // Add ambient light for diffuse fill lighting
-    commands.insert_resource(AmbientLight {
+    commands.insert_resource(GlobalAmbientLight {
         color: Color::WHITE,
         brightness: LIGHT_AMBIENT_BRIGHTNESS,
         affects_lightmapped_meshes: false,
