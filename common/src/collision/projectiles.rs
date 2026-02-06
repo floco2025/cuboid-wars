@@ -125,34 +125,30 @@ impl ProjectileMotion {
             let mut earliest: Option<Collision> = None;
 
             for wall in walls {
-                if let Some(collision) = sweep_projectile_vs_wall(&current_pos, self, remaining_delta, wall) {
-                    if earliest.map_or(true, |current| collision.t < current.t) {
+                if let Some(collision) = sweep_projectile_vs_wall(&current_pos, self, remaining_delta, wall)
+                    && earliest.is_none_or(|current| collision.t < current.t) {
                         earliest = Some(collision);
                     }
-                }
             }
 
             for roof in roofs {
-                if let Some(collision) = sweep_projectile_vs_roof(&current_pos, self, remaining_delta, roof) {
-                    if earliest.map_or(true, |current| collision.t < current.t) {
+                if let Some(collision) = sweep_projectile_vs_roof(&current_pos, self, remaining_delta, roof)
+                    && earliest.is_none_or(|current| collision.t < current.t) {
                         earliest = Some(collision);
                     }
-                }
             }
 
             for ramp in ramps {
-                if let Some(collision) = sweep_projectile_vs_ramp(&current_pos, self, remaining_delta, ramp) {
-                    if earliest.map_or(true, |current| collision.t < current.t) {
+                if let Some(collision) = sweep_projectile_vs_ramp(&current_pos, self, remaining_delta, ramp)
+                    && earliest.is_none_or(|current| collision.t < current.t) {
                         earliest = Some(collision);
                     }
-                }
             }
 
-            if let Some(collision) = sweep_projectile_vs_ground(&current_pos, self, remaining_delta) {
-                if earliest.map_or(true, |current| collision.t < current.t) {
+            if let Some(collision) = sweep_projectile_vs_ground(&current_pos, self, remaining_delta)
+                && earliest.is_none_or(|current| collision.t < current.t) {
                     earliest = Some(collision);
                 }
-            }
 
             let Some(collision) = earliest else {
                 break;
