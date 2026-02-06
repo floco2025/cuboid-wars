@@ -23,7 +23,6 @@ pub fn grid_coords_from_position(pos: &Position) -> (i32, i32) {
 }
 
 // Find a random unoccupied grid cell
-#[allow(clippy::implicit_hasher)]
 pub fn find_unoccupied_cell(rng: &mut ThreadRng, occupied_cells: &HashSet<(i32, i32)>) -> Option<(i32, i32)> {
     const MAX_ATTEMPTS: usize = 100;
     for _ in 0..MAX_ATTEMPTS {
@@ -37,7 +36,6 @@ pub fn find_unoccupied_cell(rng: &mut ThreadRng, occupied_cells: &HashSet<(i32, 
 }
 
 // Find an unoccupied cell that's not on a ramp
-#[allow(clippy::implicit_hasher)]
 pub fn find_unoccupied_cell_not_ramp(
     rng: &mut ThreadRng,
     occupied_cells: &HashSet<(i32, i32)>,
