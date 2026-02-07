@@ -1,12 +1,12 @@
 use bevy::prelude::*;
 
 use super::network::broadcast_to_all;
-use crate::resources::PlayerMap;
+use crate::resources::{PlayerInfo, PlayerMap};
 use common::{
     collision::{
         overlap_player_vs_wall, slide_player_along_obstacles, sweep_player_vs_ramp_edges, sweep_player_vs_wall,
     },
-    constants::{ALWAYS_PHASING, ALWAYS_SPEED, PHYSICS_EPSILON, POWER_UP_SPEED_MULTIPLIER, ROOF_HEIGHT},
+    constants::{PHYSICS_EPSILON, POWER_UP_SPEED_MULTIPLIER, ROOF_HEIGHT},
     map::{close_to_roof, has_roof, height_on_ramp},
     markers::PlayerMarker,
     players::{PlannedMove, overlaps_other_player},
@@ -47,7 +47,7 @@ pub fn players_movement_system(
         let multiplier = players
             .0
             .get(player_id)
-            .and_then(|info| (ALWAYS_SPEED || info.speed_power_up_timer > 0.0).then_some(POWER_UP_SPEED_MULTIPLIER))
+            .and_then(|info| info.has_speed().then_some(POWER_UP_SPEED_MULTIPLIER))
             .unwrap_or(1.0);
         let velocity = speed.to_velocity().with_speed_multiplier(multiplier);
 
@@ -75,11 +75,7 @@ pub fn players_movement_system(
         let walls_to_check = if close_to_roof(pos.y) {
             &map_layout.roof_walls
         } else {
-            let has_phasing = ALWAYS_PHASING
-                || players
-                    .0
-                    .get(player_id)
-                    .is_some_and(|info| info.phasing_power_up_timer > 0.0);
+            let has_phasing = players.0.get(player_id).is_some_and(PlayerInfo::has_phasing);
             let is_stuck_in_wall = !has_phasing
                 && map_layout
                     .interior_walls

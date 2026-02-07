@@ -53,16 +53,12 @@ pub fn sync_items(
     }
 
     // Despawn items no longer present in the authoritative snapshot
-    let stale_item_ids: Vec<ItemId> = items
-        .0
-        .keys()
-        .filter(|id| !server_item_ids.contains(id))
-        .copied()
-        .collect();
-
-    for item_id in stale_item_ids {
-        if let Some(item_info) = items.0.remove(&item_id) {
+    items.0.retain(|id, item_info| {
+        if server_item_ids.contains(id) {
+            true
+        } else {
             commands.entity(item_info.entity).despawn();
+            false
         }
-    }
+    });
 }

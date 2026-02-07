@@ -2,7 +2,7 @@ use super::navigation::{GridDirection, ahead_directions, direction_from_velocity
 use crate::{
     constants::*,
     map::cell_center,
-    resources::{GridConfig, PlayerMap, SentryGrid, SentryInfo, SentryMode},
+    resources::{GridConfig, PlayerInfo, PlayerMap, SentryGrid, SentryInfo, SentryMode},
     systems::network::broadcast_to_all,
 };
 use common::{
@@ -12,7 +12,7 @@ use common::{
 };
 
 // ============================================================================
-// AI Helper Functions
+// Helpers
 // ============================================================================
 
 // Find the first moving player visible from sentry's position using line-of-sight check
@@ -62,6 +62,22 @@ fn has_line_of_sight(from: &Position, to: &Position, walls: &[Wall]) -> bool {
 
 const SENTRY_CENTER_THRESHOLD: f32 = 0.2;
 
+fn position_to_grid(pos: &Position) -> (i32, i32) {
+    let grid_x = (((pos.x + FIELD_WIDTH / 2.0) / GRID_SIZE).floor() as i32).clamp(0, GRID_COLS - 1);
+    let grid_z = (((pos.z + FIELD_DEPTH / 2.0) / GRID_SIZE).floor() as i32).clamp(0, GRID_ROWS - 1);
+    (grid_x, grid_z)
+}
+
+fn broadcast_sentry_state(players: &PlayerMap, sentry_id: SentryId, pos: Position, vel: Velocity) {
+    broadcast_to_all(
+        players,
+        ServerMessage::Sentry(SSentry {
+            id: sentry_id,
+            sentry: Sentry { pos, vel },
+        }),
+    );
+}
+
 // ============================================================================
 // Movement Modes
 // ============================================================================
@@ -77,8 +93,7 @@ pub fn pre_patrol_movement(
     sentry_grid: &mut SentryGrid,
     delta: f32,
 ) {
-    let grid_x = (((pos.x + FIELD_WIDTH / 2.0) / GRID_SIZE).floor() as i32).clamp(0, GRID_COLS - 1);
-    let grid_z = (((pos.z + FIELD_DEPTH / 2.0) / GRID_SIZE).floor() as i32).clamp(0, GRID_ROWS - 1);
+    let (grid_x, grid_z) = position_to_grid(pos);
     let center = cell_center(grid_x, grid_z);
 
     // If the destination cell is already occupied by another sentry, stop immediately
@@ -103,13 +118,7 @@ pub fn pre_patrol_movement(
         sentry_info.mode_timer = SENTRY_COOLDOWN_DURATION;
         sentry_info.at_intersection = true;
 
-        broadcast_to_all(
-            players,
-            ServerMessage::Sentry(SSentry {
-                id: *sentry_id,
-                sentry: Sentry { pos: *pos, vel: *vel },
-            }),
-        );
+        broadcast_sentry_state(players, *sentry_id, *pos, *vel);
     } else {
         // Not at center yet - move directly toward it
         let dx = center.x - pos.x;
@@ -132,13 +141,7 @@ pub fn pre_patrol_movement(
         *face_dir = vel.x.atan2(vel.z);
 
         if vel_changed {
-            broadcast_to_all(
-                players,
-                ServerMessage::Sentry(SSentry {
-                    id: *sentry_id,
-                    sentry: Sentry { pos: *pos, vel: *vel },
-                }),
-            );
+            broadcast_sentry_state(players, *sentry_id, *pos, *vel);
         }
 
         pos.x += vel.x * delta;
@@ -159,8 +162,7 @@ pub fn patrol_movement(
     delta: f32,
     rng: &mut impl rand::Rng,
 ) {
-    let grid_x = (((pos.x + FIELD_WIDTH / 2.0) / GRID_SIZE).floor() as i32).clamp(0, GRID_COLS - 1);
-    let grid_z = (((pos.z + FIELD_DEPTH / 2.0) / GRID_SIZE).floor() as i32).clamp(0, GRID_ROWS - 1);
+    let (grid_x, grid_z) = position_to_grid(pos);
 
     let field = &mut sentry_grid.0[grid_z as usize][grid_x as usize];
     assert!(field.is_some());
@@ -178,13 +180,7 @@ pub fn patrol_movement(
 
     if just_arrived || current_direction == GridDirection::None {
         if current_direction != GridDirection::None {
-            let (prev_grid_x, prev_grid_z) = match current_direction {
-                GridDirection::North => (grid_x, grid_z + 1),
-                GridDirection::South => (grid_x, grid_z - 1),
-                GridDirection::East => (grid_x - 1, grid_z),
-                GridDirection::West => (grid_x + 1, grid_z),
-                GridDirection::None => unreachable!("none case guarded above"),
-            };
+            let (prev_grid_x, prev_grid_z) = current_direction.opposite().offset(grid_x, grid_z);
             assert!((0..GRID_COLS).contains(&prev_grid_x));
             assert!((0..GRID_ROWS).contains(&prev_grid_z));
             let field = &mut sentry_grid.0[prev_grid_z as usize][prev_grid_x as usize];
@@ -226,24 +222,12 @@ pub fn patrol_movement(
         if direction_changed {
             *face_dir = vel.x.atan2(vel.z);
 
-            broadcast_to_all(
-                players,
-                ServerMessage::Sentry(SSentry {
-                    id: *sentry_id,
-                    sentry: Sentry { pos: *pos, vel: *vel },
-                }),
-            );
+            broadcast_sentry_state(players, *sentry_id, *pos, *vel);
         }
 
         current_direction = direction_from_velocity(vel);
         if current_direction != GridDirection::None {
-            let (next_grid_x, next_grid_z) = match current_direction {
-                GridDirection::North => (grid_x, grid_z - 1),
-                GridDirection::South => (grid_x, grid_z + 1),
-                GridDirection::East => (grid_x + 1, grid_z),
-                GridDirection::West => (grid_x - 1, grid_z),
-                GridDirection::None => unreachable!("none case guarded above"),
-            };
+            let (next_grid_x, next_grid_z) = current_direction.offset(grid_x, grid_z);
             assert!((0..GRID_COLS).contains(&next_grid_x));
             assert!((0..GRID_ROWS).contains(&next_grid_z));
             let field = &mut sentry_grid.0[next_grid_z as usize][next_grid_x as usize];
@@ -295,11 +279,7 @@ pub fn target_movement(
     };
 
     // Check if target has sentry hunt power-up active
-    let target_has_sentry_hunt = ALWAYS_SENTRY_HUNT
-        || players
-            .0
-            .get(&target_id)
-            .is_some_and(|info| info.sentry_hunt_power_up_timer > 0.0);
+    let target_has_sentry_hunt = players.0.get(&target_id).is_some_and(PlayerInfo::has_sentry_hunt);
 
     // Calculate direction to target
     let dx = target_pos.x - pos.x;
@@ -349,12 +329,6 @@ pub fn target_movement(
     *pos = final_pos;
 
     if vel_changed {
-        broadcast_to_all(
-            players,
-            ServerMessage::Sentry(SSentry {
-                id: *sentry_id,
-                sentry: Sentry { pos: *pos, vel: *vel },
-            }),
-        );
+        broadcast_sentry_state(players, *sentry_id, *pos, *vel);
     }
 }

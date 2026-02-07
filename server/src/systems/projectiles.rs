@@ -3,11 +3,10 @@ use bevy::prelude::*;
 use super::network::broadcast_to_all;
 use crate::{
     constants::{SENTRY_HIT_REWARD, SENTRY_TARGET_DURATION},
-    resources::{PlayerMap, SentryMap, SentryMode},
+    resources::{PlayerInfo, PlayerMap, SentryMap, SentryMode},
 };
 use common::{
     collision::{ProjectileMotion, projectile_hits_sentry, sweep_projectile_vs_player},
-    constants::ALWAYS_SENTRY_HUNT,
     markers::{PlayerMarker, ProjectileMarker, SentryMarker},
     protocol::{MapLayout, *},
 };
@@ -69,11 +68,7 @@ pub fn projectiles_movement_system(
                 };
 
                 // Check if shooter has sentry hunt power-up
-                let shooter_has_sentry_hunt = ALWAYS_SENTRY_HUNT
-                    || players
-                        .0
-                        .get(shooter_id)
-                        .is_some_and(|info| info.sentry_hunt_power_up_timer > 0.0);
+                let shooter_has_sentry_hunt = players.0.get(shooter_id).is_some_and(PlayerInfo::has_sentry_hunt);
 
                 if shooter_has_sentry_hunt {
                     // With hunt power-up: give points and remove power-up

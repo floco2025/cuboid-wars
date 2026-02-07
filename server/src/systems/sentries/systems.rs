@@ -4,7 +4,7 @@ use super::movement::{find_visible_moving_player, patrol_movement, pre_patrol_mo
 use crate::{
     constants::*,
     net::ServerToClient,
-    resources::{GridConfig, PlayerMap, SentryGrid, SentryMap, SentryMode},
+    resources::{GridConfig, PlayerInfo, PlayerMap, SentryGrid, SentryMap, SentryMode},
     systems::network::broadcast_to_all,
 };
 use common::{
@@ -67,11 +67,10 @@ pub fn sentries_movement_system(
 
                 // Always check for visible players
                 if let Some(target_player_id) = find_visible_moving_player(&sentry_pos, &player_data, sentry_walls) {
-                    let player_has_sentry_hunt = ALWAYS_SENTRY_HUNT
-                        || players
-                            .0
-                            .get(&target_player_id)
-                            .is_some_and(|info| info.sentry_hunt_power_up_timer > 0.0);
+                    let player_has_sentry_hunt = players
+                        .0
+                        .get(&target_player_id)
+                        .is_some_and(PlayerInfo::has_sentry_hunt);
 
                     // Enter target mode if: player has sentry hunt (flee) OR cooldown expired (attack)
                     if player_has_sentry_hunt || sentry_info.mode_timer <= 0.0 {
@@ -89,7 +88,7 @@ pub fn sentries_movement_system(
                 let is_fleeing = sentry_info
                     .follow_target
                     .and_then(|target_id| players.0.get(&target_id))
-                    .is_some_and(|info| ALWAYS_SENTRY_HUNT || info.sentry_hunt_power_up_timer > 0.0);
+                    .is_some_and(PlayerInfo::has_sentry_hunt);
 
                 // Update target timer: only decrement when not fleeing
                 if is_fleeing {
@@ -212,7 +211,7 @@ pub fn sentry_player_collision_system(
         }
 
         // Skip if player has hunt power-up
-        if ALWAYS_SENTRY_HUNT || player_info.sentry_hunt_power_up_timer > 0.0 {
+        if player_info.has_sentry_hunt() {
             continue;
         }
 

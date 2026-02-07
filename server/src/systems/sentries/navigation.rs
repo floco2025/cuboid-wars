@@ -43,6 +43,18 @@ impl GridDirection {
         }
     }
 
+    // Returns the neighbor grid coordinates in this direction.
+    #[must_use]
+    pub const fn offset(self, grid_x: i32, grid_z: i32) -> (i32, i32) {
+        match self {
+            Self::North => (grid_x, grid_z - 1),
+            Self::South => (grid_x, grid_z + 1),
+            Self::East => (grid_x + 1, grid_z),
+            Self::West => (grid_x - 1, grid_z),
+            Self::None => (grid_x, grid_z),
+        }
+    }
+
     #[must_use]
     pub const fn opposite(self) -> Self {
         match self {
@@ -83,13 +95,7 @@ impl GridDirection {
         }
 
         // Check if leads to ramp
-        let (next_x, next_z) = match self {
-            Self::North => (grid_x, grid_z - 1),
-            Self::South => (grid_x, grid_z + 1),
-            Self::East => (grid_x + 1, grid_z),
-            Self::West => (grid_x - 1, grid_z),
-            Self::None => (grid_x, grid_z),
-        };
+        let (next_x, next_z) = self.offset(grid_x, grid_z);
 
         if !(0..GRID_COLS).contains(&next_x) || !(0..GRID_ROWS).contains(&next_z) {
             return true; // out-of-bounds neighbor is considered blocked

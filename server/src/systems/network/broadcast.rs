@@ -5,7 +5,6 @@ use crate::{
     resources::{ItemMap, PlayerMap, SentryMap},
 };
 use common::{
-    constants::*,
     markers::{ItemMarker, PlayerMarker, SentryMarker},
     protocol::*,
 };
@@ -58,10 +57,10 @@ pub fn snapshot_logged_in_players(
                     speed: *speed,
                     face_dir: face_dir.0,
                     hits: info.hits,
-                    speed_power_up: ALWAYS_SPEED || info.speed_power_up_timer > 0.0,
-                    multi_shot_power_up: ALWAYS_MULTI_SHOT || info.multi_shot_power_up_timer > 0.0,
-                    phasing_power_up: ALWAYS_PHASING || info.phasing_power_up_timer > 0.0,
-                    sentry_hunt_power_up: ALWAYS_SENTRY_HUNT || info.sentry_hunt_power_up_timer > 0.0,
+                    speed_power_up: info.has_speed(),
+                    multi_shot_power_up: info.has_multi_shot(),
+                    phasing_power_up: info.has_phasing(),
+                    sentry_hunt_power_up: info.has_sentry_hunt(),
                     stunned: info.stun_timer > 0.0,
                 },
             ))

@@ -58,27 +58,68 @@ pub struct PlayerInfo {
 }
 
 impl PlayerInfo {
+    #[must_use]
+    pub fn new(entity: Entity, channel: UnboundedSender<ServerToClient>) -> Self {
+        Self {
+            entity,
+            logged_in: false,
+            channel,
+            hits: 0,
+            name: String::new(),
+            speed_power_up_timer: 0.0,
+            multi_shot_power_up_timer: 0.0,
+            phasing_power_up_timer: 0.0,
+            sentry_hunt_power_up_timer: 0.0,
+            stun_timer: 0.0,
+            last_shot_time: f32::NEG_INFINITY,
+        }
+    }
+
+    #[must_use]
+    pub fn has_speed(&self) -> bool {
+        ALWAYS_SPEED || self.speed_power_up_timer > 0.0
+    }
+
+    #[must_use]
+    pub fn has_multi_shot(&self) -> bool {
+        ALWAYS_MULTI_SHOT || self.multi_shot_power_up_timer > 0.0
+    }
+
+    #[must_use]
+    pub fn has_phasing(&self) -> bool {
+        ALWAYS_PHASING || self.phasing_power_up_timer > 0.0
+    }
+
+    #[must_use]
+    pub fn has_sentry_hunt(&self) -> bool {
+        ALWAYS_SENTRY_HUNT || self.sentry_hunt_power_up_timer > 0.0
+    }
+
     // Build status message from current power-up timers.
     #[must_use]
     pub fn status(&self, id: PlayerId) -> SPlayerStatus {
         SPlayerStatus {
             id,
-            speed_power_up: ALWAYS_SPEED || self.speed_power_up_timer > 0.0,
-            multi_shot_power_up: ALWAYS_MULTI_SHOT || self.multi_shot_power_up_timer > 0.0,
-            phasing_power_up: ALWAYS_PHASING || self.phasing_power_up_timer > 0.0,
-            sentry_hunt_power_up: ALWAYS_SENTRY_HUNT || self.sentry_hunt_power_up_timer > 0.0,
+            speed_power_up: self.has_speed(),
+            multi_shot_power_up: self.has_multi_shot(),
+            phasing_power_up: self.has_phasing(),
+            sentry_hunt_power_up: self.has_sentry_hunt(),
             stunned: self.stun_timer > 0.0,
         }
     }
 
     // Tick all power-up and status timers by delta, clamping to 0.
     pub fn tick_timers(&mut self, delta: f32) {
-        self.speed_power_up_timer = (self.speed_power_up_timer - delta).max(0.0);
-        self.multi_shot_power_up_timer = (self.multi_shot_power_up_timer - delta).max(0.0);
-        self.phasing_power_up_timer = (self.phasing_power_up_timer - delta).max(0.0);
-        self.sentry_hunt_power_up_timer = (self.sentry_hunt_power_up_timer - delta).max(0.0);
-        self.stun_timer = (self.stun_timer - delta).max(0.0);
+        tick_timer(&mut self.speed_power_up_timer, delta);
+        tick_timer(&mut self.multi_shot_power_up_timer, delta);
+        tick_timer(&mut self.phasing_power_up_timer, delta);
+        tick_timer(&mut self.sentry_hunt_power_up_timer, delta);
+        tick_timer(&mut self.stun_timer, delta);
     }
+}
+
+fn tick_timer(timer: &mut f32, delta: f32) {
+    *timer = (*timer - delta).max(0.0);
 }
 
 // Map of all players (server-side source of truth)

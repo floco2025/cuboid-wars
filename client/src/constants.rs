@@ -1,3 +1,5 @@
+use bevy::color::Color;
+
 // ============================================================================
 // Camera Settings
 // ============================================================================
@@ -77,8 +79,8 @@ pub const LABEL_HEIGHT_ABOVE_PLAYER: f32 = 0.5; // meters
 pub const LABEL_WIDTH: f32 = 1.0; // world units
 pub const LABEL_TEXTURE_WIDTH: u32 = 256; // pixels
 pub const LABEL_TEXTURE_HEIGHT: u32 = 64; // pixels
-pub const LABEL_TEXT_COLOR: [f32; 4] = [1.0, 1.0, 1.0, 1.0]; // RGBA
-pub const LABEL_BACKGROUND_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 0.2]; // RGBA
+pub const LABEL_TEXT_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 1.0);
+pub const LABEL_BACKGROUND_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.2);
 pub const LABEL_FONT_SIZE: f32 = 40.0; // pixels
 
 // ============================================================================
@@ -90,10 +92,10 @@ pub const ITEM_HEIGHT_ABOVE_FLOOR: f32 = 1.2;
 pub const ITEM_ANIMATION_HEIGHT: f32 = 0.4;
 pub const ITEM_ANIMATION_SPEED: f32 = 0.8;
 pub const ITEM_EMISSIVE_STRENGTH: f32 = 0.1; // Multiplier for emissive glow
-pub const ITEM_SPEED_COLOR: [f32; 3] = [0.2, 0.7, 1.0]; // Light blue
-pub const ITEM_MULTISHOT_COLOR: [f32; 3] = [1.0, 0.2, 0.2]; // Red
-pub const ITEM_PHASING_COLOR: [f32; 3] = [0.2, 1.0, 0.2]; // Green
-pub const ITEM_SENTRY_HUNT_COLOR: [f32; 3] = [0.973, 0.973, 1.0]; // Pale blue
+pub const ITEM_SPEED_COLOR: Color = Color::srgb(0.2, 0.7, 1.0); // Light blue
+pub const ITEM_MULTISHOT_COLOR: Color = Color::srgb(1.0, 0.2, 0.2); // Red
+pub const ITEM_PHASING_COLOR: Color = Color::srgb(0.2, 1.0, 0.2); // Green
+pub const ITEM_SENTRY_HUNT_COLOR: Color = Color::srgb(0.973, 0.973, 1.0); // Pale blue
 
 // ============================================================================
 // Cookies

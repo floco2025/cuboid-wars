@@ -32,19 +32,11 @@ struct ItemBundle {
 #[must_use]
 pub const fn item_type_color(item_type: ItemType) -> Color {
     match item_type {
-        ItemType::SpeedPowerUp => Color::srgb(ITEM_SPEED_COLOR[0], ITEM_SPEED_COLOR[1], ITEM_SPEED_COLOR[2]),
-        ItemType::MultiShotPowerUp => Color::srgb(
-            ITEM_MULTISHOT_COLOR[0],
-            ITEM_MULTISHOT_COLOR[1],
-            ITEM_MULTISHOT_COLOR[2],
-        ),
-        ItemType::PhasingPowerUp => Color::srgb(ITEM_PHASING_COLOR[0], ITEM_PHASING_COLOR[1], ITEM_PHASING_COLOR[2]),
-        ItemType::SentryHunterPowerUp => Color::srgb(
-            ITEM_SENTRY_HUNT_COLOR[0],
-            ITEM_SENTRY_HUNT_COLOR[1],
-            ITEM_SENTRY_HUNT_COLOR[2],
-        ),
-        ItemType::Cookie => Color::WHITE, // Cookies use textures, not colors
+        ItemType::SpeedPowerUp => ITEM_SPEED_COLOR,
+        ItemType::MultiShotPowerUp => ITEM_MULTISHOT_COLOR,
+        ItemType::PhasingPowerUp => ITEM_PHASING_COLOR,
+        ItemType::SentryHunterPowerUp => ITEM_SENTRY_HUNT_COLOR,
+        ItemType::Cookie => Color::WHITE,
     }
 }
 

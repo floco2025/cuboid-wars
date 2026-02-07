@@ -1,6 +1,6 @@
 use bevy::{
     asset::RenderAssetUsages,
-    camera::RenderTarget,
+    camera::{ClearColorConfig, RenderTarget},
     gltf::GltfAssetLabel,
     prelude::*,
     render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages},
@@ -139,14 +139,15 @@ fn setup_player_id_text_rendering(
         ..default()
     };
 
+    let bg = LABEL_BACKGROUND_COLOR.to_srgba();
     let mut image = Image::new_fill(
         size,
         TextureDimension::D2,
         &[
-            (LABEL_BACKGROUND_COLOR[2] * 255.0) as u8, // B
-            (LABEL_BACKGROUND_COLOR[1] * 255.0) as u8, // G
-            (LABEL_BACKGROUND_COLOR[0] * 255.0) as u8, // R
-            (LABEL_BACKGROUND_COLOR[3] * 255.0) as u8, // A
+            (bg.blue * 255.0) as u8,
+            (bg.green * 255.0) as u8,
+            (bg.red * 255.0) as u8,
+            (bg.alpha * 255.0) as u8,
         ],
         TextureFormat::Bgra8UnormSrgb,
         RenderAssetUsages::default(),
@@ -161,12 +162,7 @@ fn setup_player_id_text_rendering(
             Camera2d,
             Camera {
                 order: -1,
-                clear_color: bevy::camera::ClearColorConfig::Custom(Color::srgba(
-                    LABEL_BACKGROUND_COLOR[0],
-                    LABEL_BACKGROUND_COLOR[1],
-                    LABEL_BACKGROUND_COLOR[2],
-                    LABEL_BACKGROUND_COLOR[3],
-                )),
+                clear_color: ClearColorConfig::Custom(LABEL_BACKGROUND_COLOR),
                 ..default()
             },
             RenderTarget::Image(image_handle.clone().into()),
@@ -196,12 +192,7 @@ pub fn spawn_player_id_display(
                 align_items: AlignItems::Center,
                 ..default()
             },
-            BackgroundColor(Color::srgba(
-                LABEL_BACKGROUND_COLOR[0],
-                LABEL_BACKGROUND_COLOR[1],
-                LABEL_BACKGROUND_COLOR[2],
-                LABEL_BACKGROUND_COLOR[3],
-            )),
+            BackgroundColor(LABEL_BACKGROUND_COLOR),
             UiTargetCamera(text_camera),
         ))
         .with_children(|parent| {
@@ -211,12 +202,7 @@ pub fn spawn_player_id_display(
                     font_size: LABEL_FONT_SIZE,
                     ..default()
                 },
-                TextColor(Color::srgba(
-                    LABEL_TEXT_COLOR[0],
-                    LABEL_TEXT_COLOR[1],
-                    LABEL_TEXT_COLOR[2],
-                    LABEL_TEXT_COLOR[3],
-                )),
+                TextColor(LABEL_TEXT_COLOR),
                 TextLayout::new_with_no_wrap(),
                 PlayerIdTextMarker,
             ));
