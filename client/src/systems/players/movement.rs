@@ -127,7 +127,10 @@ pub fn players_movement_system(
 
             // If the player got totally out of sync, we jump to the server position
             let out_of_sync_distance = if is_standing_still { 3.0 } else { 5.0 };
-            if total_delta.x.abs() >= out_of_sync_distance || total_delta.y.abs() >= 1.0 || total_delta.z.abs() >= out_of_sync_distance {
+            if total_delta.x.abs() >= out_of_sync_distance
+                || total_delta.y.abs() >= 1.0
+                || total_delta.z.abs() >= out_of_sync_distance
+            {
                 warn!("player out of sync, jumping to server position");
                 *client_pos = recon.server_pos;
                 commands.entity(entity).remove::<ServerReconciliation>();

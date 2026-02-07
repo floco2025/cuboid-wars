@@ -3,7 +3,9 @@ use bevy::prelude::*;
 use super::network::broadcast_to_all;
 use crate::resources::PlayerMap;
 use common::{
-    collision::{overlap_player_vs_wall, slide_player_along_obstacles, sweep_player_vs_ramp_edges, sweep_player_vs_wall},
+    collision::{
+        overlap_player_vs_wall, slide_player_along_obstacles, sweep_player_vs_ramp_edges, sweep_player_vs_wall,
+    },
     constants::{ALWAYS_PHASING, ALWAYS_SPEED, PHYSICS_EPSILON, POWER_UP_SPEED_MULTIPLIER, ROOF_HEIGHT},
     map::{close_to_roof, has_roof, height_on_ramp},
     markers::PlayerMarker,
