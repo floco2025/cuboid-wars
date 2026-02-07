@@ -122,25 +122,20 @@ pub fn players_movement_system(
                 commands.entity(entity).remove::<ServerReconciliation>();
             }
 
-            let server_pos_x = recon.server_pos.x + recon.server_vel.x * recon.rtt / 2.0;
-            let server_pos_y = recon.server_pos.y + recon.server_vel.y * recon.rtt / 2.0;
-            let server_pos_z = recon.server_pos.z + recon.server_vel.z * recon.rtt / 2.0;
-
-            let total_dx = server_pos_x - recon.client_pos.x;
-            let total_dy = server_pos_y - recon.client_pos.y;
-            let total_dz = server_pos_z - recon.client_pos.z;
+            let server_pos = Vec3::from(recon.server_pos) + Vec3::from(recon.server_vel) * recon.rtt / 2.0;
+            let total_delta = server_pos - Vec3::from(recon.client_pos);
 
             // If the player got totally out of sync, we jump to the server position
             let out_of_sync_distance = if is_standing_still { 3.0 } else { 5.0 };
-            if total_dx.abs() >= out_of_sync_distance || total_dy.abs() >= 1.0 || total_dz.abs() >= out_of_sync_distance {
+            if total_delta.x.abs() >= out_of_sync_distance || total_delta.y.abs() >= 1.0 || total_delta.z.abs() >= out_of_sync_distance {
                 warn!("player out of sync, jumping to server position");
                 *client_pos = recon.server_pos;
                 commands.entity(entity).remove::<ServerReconciliation>();
                 continue;
             }
 
-            let dx = total_dx * delta * correction_factor / UPDATE_BROADCAST_INTERVAL;
-            let dz = total_dz * delta * correction_factor / UPDATE_BROADCAST_INTERVAL;
+            let dx = total_delta.x * delta * correction_factor / UPDATE_BROADCAST_INTERVAL;
+            let dz = total_delta.z * delta * correction_factor / UPDATE_BROADCAST_INTERVAL;
 
             let new_x = client_vel.x.mul_add(delta, client_pos.x) + dx;
             let new_z = client_vel.z.mul_add(delta, client_pos.z) + dz;

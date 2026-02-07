@@ -1,3 +1,5 @@
+use std::ops::AddAssign;
+
 use bevy_ecs::prelude::*;
 use bevy_math::Vec3;
 use bincode::{Decode, Encode};
@@ -26,6 +28,14 @@ impl From<Vec3> for Position {
 impl From<Position> for Vec3 {
     fn from(p: Position) -> Self {
         Self::new(p.x, p.y, p.z)
+    }
+}
+
+impl AddAssign<Vec3> for Position {
+    fn add_assign(&mut self, rhs: Vec3) {
+        self.x += rhs.x;
+        self.y += rhs.y;
+        self.z += rhs.z;
     }
 }
 
@@ -66,6 +76,12 @@ pub struct Velocity {
     pub x: f32, // m/s
     pub y: f32, // m/s (up/down - always 0 for now)
     pub z: f32, // m/s
+}
+
+impl From<Velocity> for Vec3 {
+    fn from(v: Velocity) -> Self {
+        Self::new(v.x, v.y, v.z)
+    }
 }
 
 impl Velocity {

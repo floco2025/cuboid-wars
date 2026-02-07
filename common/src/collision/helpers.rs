@@ -200,35 +200,27 @@ pub fn sweep_ramp_high_cap(
 #[must_use]
 pub fn sweep_point_vs_cuboid(
     proj_pos: &Position,
-    ray_dir_x: f32,
-    ray_dir_y: f32,
-    ray_dir_z: f32,
-    center_x: f32,
-    center_y: f32,
-    center_z: f32,
-    half_x: f32,
-    half_y: f32,
-    half_z: f32,
+    ray_dir: Vec3,
+    center: Vec3,
+    half_extents: Vec3,
 ) -> Option<Collision> {
-    let local_x = proj_pos.x - center_x;
-    let local_y = proj_pos.y - center_y;
-    let local_z = proj_pos.z - center_z;
+    let local = Vec3::from(*proj_pos) - center;
 
     let mut t_enter = 0.0_f32;
     let mut t_exit = 1.0_f32;
     let mut hit_normal = Vec3::ZERO;
 
-    if ray_dir_x.abs() < PHYSICS_EPSILON {
-        if local_x.abs() > half_x {
+    if ray_dir.x.abs() < PHYSICS_EPSILON {
+        if local.x.abs() > half_extents.x {
             return None;
         }
     } else {
-        let tx1 = (-half_x - local_x) / ray_dir_x;
-        let tx2 = (half_x - local_x) / ray_dir_x;
+        let tx1 = (-half_extents.x - local.x) / ray_dir.x;
+        let tx2 = (half_extents.x - local.x) / ray_dir.x;
         let (tx_min, tx_max) = if tx1 < tx2 { (tx1, tx2) } else { (tx2, tx1) };
         if tx_min > t_enter {
             t_enter = tx_min;
-            hit_normal = Vec3::new(if ray_dir_x > 0.0 { -1.0 } else { 1.0 }, 0.0, 0.0);
+            hit_normal = Vec3::new(if ray_dir.x > 0.0 { -1.0 } else { 1.0 }, 0.0, 0.0);
         }
         t_exit = t_exit.min(tx_max);
         if t_enter > t_exit {
@@ -236,17 +228,17 @@ pub fn sweep_point_vs_cuboid(
         }
     }
 
-    if ray_dir_y.abs() < PHYSICS_EPSILON {
-        if local_y.abs() > half_y {
+    if ray_dir.y.abs() < PHYSICS_EPSILON {
+        if local.y.abs() > half_extents.y {
             return None;
         }
     } else {
-        let ty1 = (-half_y - local_y) / ray_dir_y;
-        let ty2 = (half_y - local_y) / ray_dir_y;
+        let ty1 = (-half_extents.y - local.y) / ray_dir.y;
+        let ty2 = (half_extents.y - local.y) / ray_dir.y;
         let (ty_min, ty_max) = if ty1 < ty2 { (ty1, ty2) } else { (ty2, ty1) };
         if ty_min > t_enter {
             t_enter = ty_min;
-            hit_normal = Vec3::new(0.0, if ray_dir_y > 0.0 { -1.0 } else { 1.0 }, 0.0);
+            hit_normal = Vec3::new(0.0, if ray_dir.y > 0.0 { -1.0 } else { 1.0 }, 0.0);
         }
         t_exit = t_exit.min(ty_max);
         if t_enter > t_exit {
@@ -254,17 +246,17 @@ pub fn sweep_point_vs_cuboid(
         }
     }
 
-    if ray_dir_z.abs() < PHYSICS_EPSILON {
-        if local_z.abs() > half_z {
+    if ray_dir.z.abs() < PHYSICS_EPSILON {
+        if local.z.abs() > half_extents.z {
             return None;
         }
     } else {
-        let tz1 = (-half_z - local_z) / ray_dir_z;
-        let tz2 = (half_z - local_z) / ray_dir_z;
+        let tz1 = (-half_extents.z - local.z) / ray_dir.z;
+        let tz2 = (half_extents.z - local.z) / ray_dir.z;
         let (tz_min, tz_max) = if tz1 < tz2 { (tz1, tz2) } else { (tz2, tz1) };
         if tz_min > t_enter {
             t_enter = tz_min;
-            hit_normal = Vec3::new(0.0, 0.0, if ray_dir_z > 0.0 { -1.0 } else { 1.0 });
+            hit_normal = Vec3::new(0.0, 0.0, if ray_dir.z > 0.0 { -1.0 } else { 1.0 });
         }
         t_exit = t_exit.min(tz_max);
         if t_enter > t_exit {

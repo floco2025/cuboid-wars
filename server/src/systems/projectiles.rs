@@ -158,9 +158,7 @@ pub fn projectiles_movement_system(
 
         // If no collisions occurred, move normally
         if !hit_something {
-            proj_pos.x += projectile.velocity.x * delta;
-            proj_pos.y += projectile.velocity.y * delta;
-            proj_pos.z += projectile.velocity.z * delta;
+            *proj_pos += projectile.velocity * delta;
         }
     }
 }

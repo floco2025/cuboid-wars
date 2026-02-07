@@ -39,24 +39,19 @@ pub fn sentries_movement_system(
                 commands.entity(entity).remove::<ServerReconciliation>();
             }
 
-            let server_pos_x = recon.server_pos.x + recon.server_vel.x * recon.rtt / 2.0;
-            let server_pos_y = recon.server_pos.y + recon.server_vel.y * recon.rtt / 2.0;
-            let server_pos_z = recon.server_pos.z + recon.server_vel.z * recon.rtt / 2.0;
-
-            let total_dx = server_pos_x - recon.client_pos.x;
-            let total_dy = server_pos_y - recon.client_pos.y;
-            let total_dz = server_pos_z - recon.client_pos.z;
+            let server_pos = Vec3::from(recon.server_pos) + Vec3::from(recon.server_vel) * recon.rtt / 2.0;
+            let total_delta = server_pos - Vec3::from(recon.client_pos);
 
             // If the sentry got totally out of sync, we jump to the server position
-            if total_dx.abs() >= 3.0 || total_dy.abs() >= 1.0 || total_dz.abs() >= 3.0 {
+            if total_delta.x.abs() >= 3.0 || total_delta.y.abs() >= 1.0 || total_delta.z.abs() >= 3.0 {
                 warn!("sentry out of sync, jumping to server position");
                 *client_pos = recon.server_pos;
                 commands.entity(entity).remove::<ServerReconciliation>();
                 continue;
             }
 
-            let dx = total_dx * delta * correction_factor / UPDATE_BROADCAST_INTERVAL;
-            let dz = total_dz * delta * correction_factor / UPDATE_BROADCAST_INTERVAL;
+            let dx = total_delta.x * delta * correction_factor / UPDATE_BROADCAST_INTERVAL;
+            let dz = total_delta.z * delta * correction_factor / UPDATE_BROADCAST_INTERVAL;
 
             Position {
                 x: client_vel.x.mul_add(delta, client_pos.x) + dx,

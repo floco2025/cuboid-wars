@@ -208,9 +208,8 @@ fn sweep_projectile_vs_ground(proj_pos: &Position, proj_motion: &ProjectileMotio
     }
 
     // Check if collision point is within field bounds
-    let collision_x = (proj_motion.velocity.x * delta).mul_add(t, proj_pos.x);
-    let collision_z = (proj_motion.velocity.z * delta).mul_add(t, proj_pos.z);
-    if collision_x < -half_width || collision_x > half_width || collision_z < -half_depth || collision_z > half_depth {
+    let collision = Vec3::from(*proj_pos) + proj_motion.velocity * delta * t;
+    if collision.x < -half_width || collision.x > half_width || collision.z < -half_depth || collision.z > half_depth {
         return None;
     }
 
@@ -226,21 +225,16 @@ fn sweep_projectile_vs_ramp(
     let (min_x, max_x, min_z, max_z) = ramp.bounds_xz();
     let (min_y, max_y) = ramp.bounds_y();
 
-    let ray_dir_x = proj_motion.velocity.x * delta;
-    let ray_dir_y = proj_motion.velocity.y * delta;
-    let ray_dir_z = proj_motion.velocity.z * delta;
+    let ray_dir = proj_motion.velocity * delta;
 
-    let seg_min_x = proj_pos.x.min(proj_pos.x + ray_dir_x) - PROJECTILE_RADIUS;
-    let seg_max_x = proj_pos.x.max(proj_pos.x + ray_dir_x) + PROJECTILE_RADIUS;
-    let seg_min_y = proj_pos.y.min(proj_pos.y + ray_dir_y) - PROJECTILE_RADIUS;
-    let seg_max_y = proj_pos.y.max(proj_pos.y + ray_dir_y) + PROJECTILE_RADIUS;
-    let seg_min_z = proj_pos.z.min(proj_pos.z + ray_dir_z) - PROJECTILE_RADIUS;
-    let seg_max_z = proj_pos.z.max(proj_pos.z + ray_dir_z) + PROJECTILE_RADIUS;
-
-    if seg_max_x < min_x || seg_min_x > max_x || seg_max_z < min_z || seg_min_z > max_z {
+    let pos = Vec3::from(*proj_pos);
+    let end = pos + ray_dir;
+    let seg_min = pos.min(end) - PROJECTILE_RADIUS;
+    let seg_max = pos.max(end) + PROJECTILE_RADIUS;
+    if seg_max.x < min_x || seg_min.x > max_x || seg_max.z < min_z || seg_min.z > max_z {
         return None;
     }
-    if seg_max_y < min_y - PROJECTILE_RADIUS || seg_min_y > max_y + PROJECTILE_RADIUS {
+    if seg_max.y < min_y - PROJECTILE_RADIUS || seg_min.y > max_y + PROJECTILE_RADIUS {
         return None;
     }
 
@@ -271,13 +265,13 @@ fn sweep_projectile_vs_ramp(
     let mut hit_normal_x = 0.0_f32;
     let mut hit_normal_z = 0.0_f32;
 
-    if ray_dir_x.abs() < PHYSICS_EPSILON {
+    if ray_dir.x.abs() < PHYSICS_EPSILON {
         if proj_pos.x < exp_min_x || proj_pos.x > exp_max_x {
             return None;
         }
     } else {
-        let tx1 = (exp_min_x - proj_pos.x) / ray_dir_x;
-        let tx2 = (exp_max_x - proj_pos.x) / ray_dir_x;
+        let tx1 = (exp_min_x - proj_pos.x) / ray_dir.x;
+        let tx2 = (exp_max_x - proj_pos.x) / ray_dir.x;
         let (tx_min, tx_max) = if tx1 < tx2 { (tx1, tx2) } else { (tx2, tx1) };
         if tx_min > t_enter {
             t_enter = tx_min;
@@ -292,13 +286,13 @@ fn sweep_projectile_vs_ramp(
         }
     }
 
-    if ray_dir_z.abs() < PHYSICS_EPSILON {
+    if ray_dir.z.abs() < PHYSICS_EPSILON {
         if proj_pos.z < exp_min_z || proj_pos.z > exp_max_z {
             return None;
         }
     } else {
-        let tz1 = (exp_min_z - proj_pos.z) / ray_dir_z;
-        let tz2 = (exp_max_z - proj_pos.z) / ray_dir_z;
+        let tz1 = (exp_min_z - proj_pos.z) / ray_dir.z;
+        let tz2 = (exp_max_z - proj_pos.z) / ray_dir.z;
         let (tz_min, tz_max) = if tz1 < tz2 { (tz1, tz2) } else { (tz2, tz1) };
         if tz_min > t_enter {
             t_enter = tz_min;
@@ -314,22 +308,20 @@ fn sweep_projectile_vs_ramp(
     }
 
     let mut best_t = f32::INFINITY;
-    let mut best_normal = (0.0_f32, 0.0_f32, 0.0_f32);
+    let mut best_normal = Vec3::ZERO;
 
     let test_side = |t: f32, nx: f32, nz: f32, height_at: &dyn Fn(f32, f32) -> f32| -> Option<Collision> {
         if !(0.0..=1.0).contains(&t) {
             return None;
         }
-        let cx = ray_dir_x.mul_add(t, proj_pos.x);
-        let cz = ray_dir_z.mul_add(t, proj_pos.z);
-        let cy = ray_dir_y.mul_add(t, proj_pos.y);
+        let c = pos + ray_dir * t;
 
-        let clamped_x = cx.clamp(min_x, max_x);
-        let clamped_z = cz.clamp(min_z, max_z);
+        let clamped_x = c.x.clamp(min_x, max_x);
+        let clamped_z = c.z.clamp(min_z, max_z);
         let h = height_at(clamped_x, clamped_z) + PROJECTILE_RADIUS;
         let floor = min_y - PROJECTILE_RADIUS;
 
-        if cy >= floor && cy <= h {
+        if c.y >= floor && c.y <= h {
             Some(Collision {
                 normal: Vec3::new(nx, 0.0, nz),
                 t,
@@ -341,23 +333,23 @@ fn sweep_projectile_vs_ramp(
 
     if let Some(collision) = test_side(t_enter, hit_normal_x, hit_normal_z, &height_at) {
         best_t = collision.t;
-        best_normal = (collision.normal.x, collision.normal.y, collision.normal.z);
+        best_normal = collision.normal;
     }
 
     let height_linear = if along_x {
         let c0 = (proj_pos.x - ramp.x1).mul_add(slope, ramp.y1);
-        let c1 = slope * ray_dir_x;
+        let c1 = slope * ray_dir.x;
         (c0, c1)
     } else {
         let c0 = (proj_pos.z - ramp.z1).mul_add(slope, ramp.y1);
-        let c1 = slope * ray_dir_z;
+        let c1 = slope * ray_dir.z;
         (c0, c1)
     };
 
     let top_c0 = height_linear.0 + PROJECTILE_RADIUS;
     let top_c1 = height_linear.1;
     let f0 = proj_pos.y - top_c0;
-    let f1 = ray_dir_y - top_c1;
+    let f1 = ray_dir.y - top_c1;
 
     let mut top_hit: Option<f32> = None;
     if f1.abs() < PHYSICS_EPSILON {
@@ -372,26 +364,26 @@ fn sweep_projectile_vs_ramp(
     }
 
     if let Some(t_top) = top_hit {
-        let cx = ray_dir_x.mul_add(t_top, proj_pos.x);
-        let cz = ray_dir_z.mul_add(t_top, proj_pos.z);
-        if cx >= min_x - PHYSICS_EPSILON
-            && cx <= max_x + PHYSICS_EPSILON
-            && cz >= min_z - PHYSICS_EPSILON
-            && cz <= max_z + PHYSICS_EPSILON
+        let c = pos + ray_dir * t_top;
+        if c.x >= min_x - PHYSICS_EPSILON
+            && c.x <= max_x + PHYSICS_EPSILON
+            && c.z >= min_z - PHYSICS_EPSILON
+            && c.z <= max_z + PHYSICS_EPSILON
             && t_top < best_t
         {
             let denom = slope.mul_add(slope, 1.0).sqrt();
-            let normal_x = if along_x { -slope / denom } else { 0.0 };
-            let normal_z = if along_x { 0.0 } else { -slope / denom };
-            let normal_y = 1.0 / denom;
             best_t = t_top;
-            best_normal = (normal_x, normal_y, normal_z);
+            best_normal = Vec3::new(
+                if along_x { -slope / denom } else { 0.0 },
+                1.0 / denom,
+                if along_x { 0.0 } else { -slope / denom },
+            );
         }
     }
 
     if best_t.is_finite() {
         Some(Collision {
-            normal: Vec3::new(best_normal.0, best_normal.1, best_normal.2),
+            normal: best_normal,
             t: best_t,
         })
     } else {
@@ -417,9 +409,7 @@ pub fn sweep_projectile_vs_cuboid(
         return None;
     }
 
-    let ray_dir_x = proj_motion.velocity.x * delta;
-    let ray_dir_y = proj_motion.velocity.y * delta;
-    let ray_dir_z = proj_motion.velocity.z * delta;
+    let ray_dir = proj_motion.velocity * delta;
 
     let dx = proj_pos.x - cuboid_pos.x;
     let dz = proj_pos.z - cuboid_pos.z;
@@ -432,9 +422,9 @@ pub fn sweep_projectile_vs_cuboid(
     let local_z = dx.mul_add(sin_rot, dz * cos_rot);
     let local_y = proj_pos.y - cuboid_center_y;
 
-    let ray_local_x = ray_dir_x.mul_add(cos_rot, -(ray_dir_z * sin_rot));
-    let ray_local_z = ray_dir_x.mul_add(sin_rot, ray_dir_z * cos_rot);
-    let ray_local_y = ray_dir_y;
+    let ray_local_x = ray_dir.x.mul_add(cos_rot, -(ray_dir.z * sin_rot));
+    let ray_local_z = ray_dir.x.mul_add(sin_rot, ray_dir.z * cos_rot);
+    let ray_local_y = ray_dir.y;
 
     let half_width = cuboid_width / 2.0 + PROJECTILE_RADIUS;
     let half_height = cuboid_height / 2.0 + PROJECTILE_RADIUS;
@@ -497,35 +487,23 @@ fn sweep_projectile_vs_wall(
     delta: f32,
     wall: &Wall,
 ) -> Option<Collision> {
-    let wall_center_x = f32::midpoint(wall.x1, wall.x2);
-    let wall_center_z = f32::midpoint(wall.z1, wall.z2);
-    let wall_center_y = WALL_HEIGHT / 2.0;
-
     let dx = (wall.x2 - wall.x1).abs();
     let dz = (wall.z2 - wall.z1).abs();
     let wall_half_thickness = wall.width / 2.0;
     let is_horizontal = dx > dz;
 
-    let half_x = if is_horizontal { dx / 2.0 } else { wall_half_thickness } + PROJECTILE_RADIUS;
-    let half_z = if is_horizontal { wall_half_thickness } else { dz / 2.0 } + PROJECTILE_RADIUS;
-    let half_y = WALL_HEIGHT / 2.0 + PROJECTILE_RADIUS;
+    let center = Vec3::new(
+        f32::midpoint(wall.x1, wall.x2),
+        WALL_HEIGHT / 2.0,
+        f32::midpoint(wall.z1, wall.z2),
+    );
+    let half_extents = Vec3::new(
+        if is_horizontal { dx / 2.0 } else { wall_half_thickness } + PROJECTILE_RADIUS,
+        WALL_HEIGHT / 2.0 + PROJECTILE_RADIUS,
+        if is_horizontal { wall_half_thickness } else { dz / 2.0 } + PROJECTILE_RADIUS,
+    );
 
-    let ray_dir_x = proj_motion.velocity.x * delta;
-    let ray_dir_y = proj_motion.velocity.y * delta;
-    let ray_dir_z = proj_motion.velocity.z * delta;
-
-    sweep_point_vs_cuboid(
-        proj_pos,
-        ray_dir_x,
-        ray_dir_y,
-        ray_dir_z,
-        wall_center_x,
-        wall_center_y,
-        wall_center_z,
-        half_x,
-        half_y,
-        half_z,
-    )
+    sweep_point_vs_cuboid(proj_pos, proj_motion.velocity * delta, center, half_extents)
 }
 
 fn sweep_projectile_vs_roof(
@@ -536,38 +514,35 @@ fn sweep_projectile_vs_roof(
 ) -> Option<Collision> {
     let (min_x, max_x, min_z, max_z) = roof.bounds_xz();
 
-    let center_x = f32::midpoint(min_x, max_x);
-    let center_z = f32::midpoint(min_z, max_z);
-    let center_y = ROOF_HEIGHT - roof.thickness / 2.0;
+    let center = Vec3::new(
+        f32::midpoint(min_x, max_x),
+        ROOF_HEIGHT - roof.thickness / 2.0,
+        f32::midpoint(min_z, max_z),
+    );
+    let half_extents = Vec3::new(
+        (max_x - min_x) / 2.0 + PROJECTILE_RADIUS,
+        roof.thickness / 2.0 + PROJECTILE_RADIUS,
+        (max_z - min_z) / 2.0 + PROJECTILE_RADIUS,
+    );
 
-    let half_x = (max_x - min_x) / 2.0 + PROJECTILE_RADIUS;
-    let half_z = (max_z - min_z) / 2.0 + PROJECTILE_RADIUS;
-    let half_y = roof.thickness / 2.0 + PROJECTILE_RADIUS;
-
-    let ray_dir_x = proj_motion.velocity.x * delta;
-    let ray_dir_y = proj_motion.velocity.y * delta;
-    let ray_dir_z = proj_motion.velocity.z * delta;
-
-    sweep_point_vs_cuboid(
-        proj_pos, ray_dir_x, ray_dir_y, ray_dir_z, center_x, center_y, center_z, half_x, half_y, half_z,
-    )
+    sweep_point_vs_cuboid(proj_pos, proj_motion.velocity * delta, center, half_extents)
 }
 
 // Sample-based ramp hit test for projectiles.
 #[must_use]
 pub fn projectile_hits_ramp(proj_pos: &Position, projectile_velocity: &Vec3, delta: f32, ramp: &Ramp) -> bool {
     let (min_x, max_x, min_z, max_z) = ramp.bounds_xz();
+    let pos = Vec3::from(*proj_pos);
+    let ray_dir = *projectile_velocity * delta;
     let num_samples = 5;
     for i in 0..=num_samples {
         let t = i as f32 / num_samples as f32;
-        let sample_x = (projectile_velocity.x * delta).mul_add(t, proj_pos.x);
-        let sample_y = (projectile_velocity.y * delta).mul_add(t, proj_pos.y);
-        let sample_z = (projectile_velocity.z * delta).mul_add(t, proj_pos.z);
+        let sample = ray_dir.mul_add(Vec3::splat(t), pos);
 
-        if sample_x >= min_x && sample_x <= max_x && sample_z >= min_z && sample_z <= max_z {
-            let ramp_height = crate::map::height_on_ramp(&[*ramp], sample_x, sample_z);
+        if sample.x >= min_x && sample.x <= max_x && sample.z >= min_z && sample.z <= max_z {
+            let ramp_height = crate::map::height_on_ramp(&[*ramp], sample.x, sample.z);
 
-            if (sample_y - ramp_height).abs() < PROJECTILE_RADIUS * 2.0 {
+            if (sample.y - ramp_height).abs() < PROJECTILE_RADIUS * 2.0 {
                 return true;
             }
         }
