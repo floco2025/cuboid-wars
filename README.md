@@ -10,7 +10,7 @@ Cuboid Wars is a networked 3D game where players navigate a procedurally-generat
 
 ## Technical Stack
 
-- **Engine**: Bevy 0.17.3 (ECS game engine)
+- **Engine**: Bevy 0.18 (ECS game engine)
 - **Networking**: QUIC protocol via quinn for low-latency multiplayer
 - **Serialization**: bincode for efficient binary message encoding
 - **Architecture**: Client-server with shared common crate
