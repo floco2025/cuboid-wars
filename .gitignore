@@ -4,12 +4,6 @@ Cargo.lock
 .DS_Store
 bacon.toml
 
-
-# Ignore AI files
-.claude
-Claude.md
-AGENTS.md
-
 # Ignore all TLS certificates and private keys
 *.pem
 *.key
@@ -19,3 +13,8 @@ AGENTS.md
 # Allow only these specific certificates for development and testing
 !/cert.pem
 !/key.pem
+
+# Ignore AI files
+.claude
+Claude.md
+AGENTS.md
