@@ -4,7 +4,7 @@ use super::broadcast::broadcast_to_others;
 use crate::{net::ServerToClient, resources::PlayerMap};
 use common::{
     collision::ProjectileMotion,
-    constants::PROJECTILE_COOLDOWN_TIME,
+    constants::{ALWAYS_MULTI_SHOT, PROJECTILE_COOLDOWN_TIME},
     markers::{PlayerMarker, ProjectileMarker},
     protocol::{MapLayout, *},
     spawning::calculate_projectile_spawns,
@@ -113,8 +113,6 @@ fn handle_shot_message(
     player_data: &Query<(&Position, &Speed, &FaceDirection), With<PlayerMarker>>,
     map_layout: &MapLayout,
 ) {
-    use common::constants::ALWAYS_MULTI_SHOT;
-
     let now = time.elapsed_secs();
 
     let has_multi_shot = {

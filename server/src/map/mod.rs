@@ -5,7 +5,7 @@ mod ramps;
 mod roofs;
 mod walls;
 
-use rand::Rng;
+use rand::{RngExt, rng};
 
 use crate::{
     constants::{
@@ -25,7 +25,7 @@ pub use helpers::{cell_center, find_unoccupied_cell, find_unoccupied_cell_not_ra
 // Generate a complete map grid with walls, roofs, and ramps
 #[must_use]
 pub fn generate_grid() -> (MapLayout, GridConfig) {
-    let mut rng = rand::rng();
+    let mut rng = rng();
 
     // Calculate grid dimensions
     let grid_cols = (FIELD_WIDTH / GRID_SIZE) as i32;

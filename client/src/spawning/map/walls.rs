@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use rand::{RngExt, rng};
 
 use super::helpers::{load_repeating_texture, load_repeating_texture_linear, tiled_cuboid};
 use crate::{constants::*, markers::*};
@@ -31,8 +32,6 @@ pub fn spawn_wall(
     wall: &Wall,
     debug_colors: bool,
 ) {
-    use rand::Rng;
-
     // Calculate wall center and dimensions from corners
     let center_x = f32::midpoint(wall.x1, wall.x2);
     let center_z = f32::midpoint(wall.z1, wall.z2);
@@ -48,7 +47,7 @@ pub fn spawn_wall(
 
     // Create material based on whether debug colors are enabled
     let wall_material = if debug_colors {
-        let mut rng = rand::rng();
+        let mut rng = rng();
         StandardMaterial {
             base_color: Color::srgb(
                 rng.random_range(0.2..1.0),
@@ -107,8 +106,6 @@ pub fn spawn_roof_wall(
         return;
     }
 
-    use rand::Rng;
-
     // Calculate wall center and dimensions from corners
     let center_x = f32::midpoint(wall.x1, wall.x2);
     let center_z = f32::midpoint(wall.z1, wall.z2);
@@ -123,7 +120,7 @@ pub fn spawn_roof_wall(
     let rotation = Quat::from_rotation_y(dz.atan2(dx));
 
     // Create material with random colors for debugging
-    let mut rng = rand::rng();
+    let mut rng = rng();
     let roof_wall_material = StandardMaterial {
         base_color: Color::srgb(
             rng.random_range(0.2..1.0),

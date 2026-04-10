@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use rand::Rng as _;
+use rand::{RngExt, rng};
 
 use crate::{
     map::cell_center,
@@ -21,7 +21,7 @@ pub fn sentries_spawn_system(
         return;
     }
 
-    let mut rng = rand::rng();
+    let mut rng = rng();
 
     for i in 0..spawn_config.num_sentries {
         // Pick a random grid cell that doesn't have a sentry or a ramp

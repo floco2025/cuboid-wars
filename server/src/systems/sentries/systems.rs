@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use rand::rng;
 
 use super::movement::{find_visible_moving_player, patrol_movement, pre_patrol_movement, target_movement};
 use crate::{
@@ -31,7 +32,7 @@ pub fn sentries_movement_system(
     )>,
 ) {
     let delta = time.delta_secs();
-    let mut rng = rand::rng();
+    let mut rng = rng();
 
     // Use all_walls for sentry collision (sentries never go on roofs)
     let sentry_walls = &map_layout.lower_walls;

@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use rand::Rng as _;
+use rand::{RngExt, rng, rngs::ThreadRng};
 use std::collections::HashSet;
 
 use super::network::broadcast_to_all;
@@ -20,7 +20,7 @@ use common::{
 // Helper Functions
 // ============================================================================
 
-fn choose_item_type(rng: &mut rand::rngs::ThreadRng) -> ItemType {
+fn choose_item_type(rng: &mut ThreadRng) -> ItemType {
     let rand_val = rng.random::<f64>();
     if rand_val < 0.25 {
         ItemType::SpeedPowerUp
@@ -97,7 +97,7 @@ pub fn item_spawn_system(
             .filter_map(|info| positions.get(info.entity).ok().map(grid_coords_from_position))
             .collect();
 
-        let mut rng = rand::rng();
+        let mut rng = rng();
 
         if let Some((grid_x, grid_z)) = find_unoccupied_cell_not_ramp(&mut rng, &occupied_cells, &grid_config.grid) {
             let item_id = ItemId(spawner.next_id);

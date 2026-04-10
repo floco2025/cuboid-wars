@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use rand::{RngExt, rng};
 
 use super::helpers::{load_repeating_texture, load_repeating_texture_linear, tiled_cuboid};
 use crate::{constants::*, markers::*};
@@ -22,8 +23,6 @@ pub fn spawn_roof(
     roof: &Roof,
     debug_colors: bool,
 ) {
-    use rand::Rng;
-
     // Calculate roof center and dimensions from corners
     let center_x = f32::midpoint(roof.x1, roof.x2);
     let center_z = f32::midpoint(roof.z1, roof.z2);
@@ -33,7 +32,7 @@ pub fn spawn_roof(
 
     // Create material based on whether debug colors are enabled
     let roof_material = if debug_colors {
-        let mut rng = rand::rng();
+        let mut rng = rng();
         StandardMaterial {
             base_color: Color::srgb(
                 rng.random_range(0.2..1.0),

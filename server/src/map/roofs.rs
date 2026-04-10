@@ -1,4 +1,4 @@
-use rand::Rng;
+use rand::{RngExt, rng};
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use super::helpers::count_cell_walls;
@@ -15,7 +15,7 @@ const CORNER_EPS: f32 = 0.01; // Small inset to avoid overlap for edge fillers
 // Returns roofs and updated grid with has_roof flags set.
 #[must_use]
 pub fn generate_roofs(mut grid: Vec<Vec<GridCell>>, grid_cols: i32, grid_rows: i32) -> (Vec<Roof>, Vec<Vec<GridCell>>) {
-    let mut rng = rand::rng();
+    let mut rng = rng();
 
     // Count walls for each cell
     let mut wall_counts = vec![vec![0u8; grid_cols as usize]; grid_rows as usize];

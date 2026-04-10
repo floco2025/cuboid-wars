@@ -1,4 +1,4 @@
-use rand::{Rng, rngs::ThreadRng};
+use rand::{RngExt, rngs::ThreadRng};
 use std::collections::HashSet;
 
 use crate::resources::GridCell;

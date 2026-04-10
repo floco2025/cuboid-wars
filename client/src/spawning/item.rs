@@ -1,4 +1,5 @@
 use bevy::{gltf::GltfAssetLabel, prelude::*, scene::SceneRoot};
+use rand::random;
 
 use crate::constants::*;
 use common::{markers::ItemMarker, protocol::*};
@@ -73,7 +74,7 @@ pub fn spawn_item(
     }
 
     // Power-ups are cubes that bounce with textured materials
-    let random_phase = rand::random::<f32>() * std::f32::consts::TAU;
+    let random_phase = random::<f32>() * std::f32::consts::TAU;
 
     commands
         .spawn((

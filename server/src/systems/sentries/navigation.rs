@@ -3,6 +3,7 @@ use common::{
     constants::*,
     protocol::{SentryId, Velocity},
 };
+use rand::{Rng, RngExt};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum GridDirection {
@@ -160,7 +161,7 @@ pub fn ahead_directions(valid: &[GridDirection], current: GridDirection) -> Vec<
     valid.iter().copied().filter(|dir| *dir != current.opposite()).collect()
 }
 
-pub fn pick_direction<T: rand::Rng>(rng: &mut T, options: &[GridDirection]) -> Option<GridDirection> {
+pub fn pick_direction<T: Rng>(rng: &mut T, options: &[GridDirection]) -> Option<GridDirection> {
     if options.is_empty() {
         None
     } else {

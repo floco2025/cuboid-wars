@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use rand::prelude::*;
+use rand::{RngExt, rng, seq::IndexedRandom};
 
 use crate::{
     net::ServerToClient,
@@ -133,7 +133,7 @@ fn generate_player_spawn_position(
     player_data: &Query<(&Position, &Speed, &FaceDirection), With<PlayerMarker>>,
     sentry_data: &Query<(&Position, &Velocity), With<SentryMarker>>,
 ) -> Position {
-    let mut rng = rand::rng();
+    let mut rng = rng();
     let grid_rows = grid_config.grid.len() as i32;
     let grid_cols = grid_config.grid[0].len() as i32;
     let max_attempts = 100;

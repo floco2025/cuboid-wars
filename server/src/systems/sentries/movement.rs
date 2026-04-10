@@ -10,6 +10,7 @@ use common::{
     constants::*,
     protocol::*,
 };
+use rand::{Rng, RngExt};
 
 // ============================================================================
 // Helpers
@@ -160,7 +161,7 @@ pub fn patrol_movement(
     players: &PlayerMap,
     sentry_grid: &mut SentryGrid,
     delta: f32,
-    rng: &mut impl rand::Rng,
+    rng: &mut impl Rng,
 ) {
     let (grid_x, grid_z) = position_to_grid(pos);
 
