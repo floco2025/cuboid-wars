@@ -11,9 +11,6 @@ pub const UPDATE_BROADCAST_INTERVAL: f32 = 0.25; // seconds
 // Small value for floating-point comparisons (near-zero checks, division guards).
 pub const PHYSICS_EPSILON: f32 = 1e-6;
 
-// Universal world gravity, applied to anything that falls.
-pub const GRAVITY: f32 = 9.81; // m/s²
-
 // ============================================================================
 // Grid & Field
 // ============================================================================
@@ -37,15 +34,20 @@ pub const PLAYER_EYE_HEIGHT_RATIO: f32 = 0.9; // Eye/camera height as ratio of p
 // Speed (meters per second)
 pub const PLAYER_SPEED: f32 = 9.0;
 
-// Vertical motion: terminal downward velocity cap (m/s).
-pub const PLAYER_TERMINAL_VELOCITY: f32 = 50.0;
+// Gravity acting on falling players. Higher than real-world (9.81) for snappier
+// game feel.
+pub const PLAYER_GRAVITY: f32 = 25.0; // m/s²
+
+// Hard cap on a falling player's downward speed. Prevents arbitrarily large
+// velocities from very tall drops.
+pub const PLAYER_TERMINAL_VELOCITY: f32 = 50.0; // m/s
 
 // Vertical slop for floor-support detection: a player whose feet are within this
 // distance of a floor's surface is considered supported by it.
 pub const PLAYER_LANDING_EPSILON: f32 = 0.5;
 
 // Players whose Y falls below this die and respawn.
-pub const PLAYER_DEATH_Y: f32 = -1000.0;
+pub const PLAYER_DEATH_Y: f32 = -100.0;
 
 // Time after respawn during which the player stays still (de-facto invulnerability).
 pub const PLAYER_RESPAWN_INVULN_SECS: f32 = 1.0;
@@ -59,6 +61,7 @@ pub const PROJECTILE_LIFETIME: f32 = 8.0; // seconds
 pub const PROJECTILE_SPAWN_OFFSET: f32 = 1.0; // meters in front of thrower
 pub const PROJECTILE_RADIUS: f32 = 0.11; // meters
 pub const PROJECTILE_COOLDOWN_TIME: f32 = 0.1; // Minimum time between shots
+pub const PROJECTILE_GRAVITY: f32 = 9.81; // m/s² (real-world for nice arcs)
 pub const PROJECTILE_DRAG_FACTOR: f32 = 0.01; // Air resistance coefficient applied per frame
 pub const PROJECTILE_BOUNCE_RETENTION: f32 = 0.9; // fraction of speed retained after bounce (0.0-1.0)
 
@@ -73,7 +76,6 @@ pub const WALL_HEIGHT: f32 = 4.0;
 // Roofs
 pub const ROOF_THICKNESS: f32 = 0.4;
 pub const ROOF_HEIGHT: f32 = WALL_HEIGHT + ROOF_THICKNESS; // Top of roof
-pub const ROOF_WALL_THICKNESS: f32 = 0.1; // Roof-edge collision barrier
 
 // ============================================================================
 // Power-Ups

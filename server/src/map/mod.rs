@@ -214,12 +214,6 @@ pub fn generate_grid() -> (MapLayout, GridConfig) {
         roofs = roofs::merge_roofs(roofs);
     }
 
-    // Generate walls for roof edges
-    let mut roof_walls = walls::generate_roof_walls(&grid, grid_cols, grid_rows);
-    if WALL_MERGE_SEGMENTS && !WALL_OVERLAP {
-        roof_walls = walls::merge_walls(roof_walls);
-    }
-
     // Separate walls into boundary and interior
     let half_field_width = FIELD_WIDTH / 2.0;
     let half_field_depth = FIELD_DEPTH / 2.0;
@@ -266,7 +260,6 @@ pub fn generate_grid() -> (MapLayout, GridConfig) {
         lower_walls,
         roofs,
         ramps,
-        roof_walls,
         wall_lights,
         floors,
     };

@@ -273,9 +273,8 @@ pub struct MapLayout {
     pub boundary_walls: Vec<Wall>,
     pub interior_walls: Vec<Wall>,
     pub lower_walls: Vec<Wall>, // Boundary walls + interior walls
-    pub roof_walls: Vec<Wall>,  // Invisible roof walls for collision
     pub roofs: Vec<Roof>,
     pub ramps: Vec<Ramp>,
     pub wall_lights: Vec<WallLight>,
-    pub floors: Vec<Floor>, // Generic slabs (level 0 = ground; level 1+ = roofs)
+    pub floors: Vec<Floor>,
 }

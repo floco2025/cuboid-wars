@@ -5,7 +5,7 @@ use crate::{
     markers::*,
     resources::{CameraViewMode, DebugColors, RoofRenderingEnabled},
     spawning::{
-        load_repeating_texture, load_repeating_texture_linear, spawn_ramp, spawn_roof, spawn_roof_wall, spawn_wall,
+        load_repeating_texture, load_repeating_texture_linear, spawn_ramp, spawn_roof, spawn_wall,
         spawn_wall_light_from_layout,
     },
 };
@@ -97,11 +97,10 @@ pub fn map_spawn_walls_system(
     }
 
     info!(
-        "spawning {} lower walls, {} roofs, {} ramps, {} roof walls",
+        "spawning {} lower walls, {} roofs, {} ramps",
         map_layout.lower_walls.len(),
         map_layout.roofs.len(),
         map_layout.ramps.len(),
-        map_layout.roof_walls.len()
     );
 
     for wall in &map_layout.lower_walls {
@@ -132,10 +131,6 @@ pub fn map_spawn_walls_system(
 
     for ramp in &map_layout.ramps {
         spawn_ramp(&mut commands, &mut meshes, &mut materials, &asset_server, ramp);
-    }
-
-    for roof_wall in &map_layout.roof_walls {
-        spawn_roof_wall(&mut commands, &mut meshes, &mut materials, roof_wall, debug_colors.0);
     }
 
     *spawned = true;

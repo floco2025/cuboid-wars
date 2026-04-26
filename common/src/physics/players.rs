@@ -7,7 +7,8 @@ use super::helpers::{
 };
 use crate::{
     constants::{
-        GRAVITY, PLAYER_DEPTH, PLAYER_HEIGHT, PLAYER_TERMINAL_VELOCITY, PLAYER_WIDTH, ROOF_HEIGHT, WALL_THICKNESS,
+        PLAYER_DEPTH, PLAYER_GRAVITY, PLAYER_HEIGHT, PLAYER_TERMINAL_VELOCITY, PLAYER_WIDTH, ROOF_HEIGHT,
+        WALL_THICKNESS,
     },
     map::height_on_ramp,
     protocol::{Position, Ramp, Roof, Wall},
@@ -23,7 +24,7 @@ pub struct PlayerMotion {
 
 impl PlayerMotion {
     pub fn apply_gravity(&mut self, delta: f32) {
-        self.velocity.y -= GRAVITY * delta;
+        self.velocity.y -= PLAYER_GRAVITY * delta;
     }
 
     pub fn apply_terminal_velocity(&mut self) {

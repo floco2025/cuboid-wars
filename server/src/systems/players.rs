@@ -53,9 +53,7 @@ pub fn players_movement_system(
 
         // Check collision and calculate target (with sliding if collision)
         let player_level = compute_player_level(pos.y);
-        let walls_to_check: &[Wall] = if player_level == 1 {
-            &map_layout.roof_walls
-        } else {
+        let walls_to_check: &[Wall] = if player_level == 0 {
             let has_phasing = players.0.get(player_id).is_some_and(PlayerInfo::has_phasing);
             let is_stuck_in_wall = !has_phasing
                 && map_layout
@@ -68,6 +66,9 @@ pub fn players_movement_system(
             } else {
                 &map_layout.lower_walls
             }
+        } else {
+            // Upper levels currently have no walls — players walk freely until they fall off.
+            &[]
         };
 
         let mut collides = false;

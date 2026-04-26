@@ -21,7 +21,7 @@ const SEPARATION_EPSILON: f32 = 0.01;
 const MAX_SURFACE_BOUNCES: usize = 3;
 
 // Velocity gained from falling the epsilon separation distance: sqrt(2 * g * h)
-static EPSILON_FALL_VELOCITY: LazyLock<f32> = LazyLock::new(|| (2.0 * GRAVITY * SEPARATION_EPSILON).sqrt());
+static EPSILON_FALL_VELOCITY: LazyLock<f32> = LazyLock::new(|| (2.0 * PROJECTILE_GRAVITY * SEPARATION_EPSILON).sqrt());
 
 // Component attached to projectile entities to track velocity, lifetime, and bounce behavior
 #[derive(Component)]
@@ -49,8 +49,8 @@ impl ProjectileMotion {
 
     // Applies gravity to the projectile's velocity.
     pub fn apply_gravity(&mut self, delta: f32) {
-        if GRAVITY > 0.0 {
-            self.velocity.y -= GRAVITY * delta;
+        if PROJECTILE_GRAVITY > 0.0 {
+            self.velocity.y -= PROJECTILE_GRAVITY * delta;
         }
     }
 

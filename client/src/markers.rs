@@ -36,10 +36,6 @@ pub struct WallMarker;
 #[derive(Component)]
 pub struct RoofMarker;
 
-// Marker component for roof walls
-#[derive(Component)]
-pub struct RoofWallMarker;
-
 // Marker component for ramps
 #[derive(Component)]
 pub struct RampMarker;
