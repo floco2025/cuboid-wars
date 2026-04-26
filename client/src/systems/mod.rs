@@ -1,13 +1,13 @@
-pub mod animations;
-pub mod cameras;
-pub mod input;
-pub mod items;
-pub mod map;
-pub mod network;
-pub mod players;
-pub mod projectiles;
-pub mod skybox;
-pub mod ui;
+mod animations;
+mod cameras;
+mod input;
+mod items;
+mod map;
+mod network;
+mod players;
+mod projectiles;
+mod skybox;
+mod ui;
 
 pub use animations::{AnimationToPlay, players_animation_system};
 pub use cameras::setup_cameras_system;

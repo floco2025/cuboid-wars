@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use crate::{
     net::ServerToClient,
     resources::{GridConfig, ItemMap, PlayerMap},
-    systems::players::generate_player_spawn_position,
+    systems::generate_player_spawn_position,
 };
 use common::{
     markers::{ItemMarker, PlayerMarker},

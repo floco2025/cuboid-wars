@@ -6,7 +6,7 @@ use crate::{
     markers::MainCameraMarker,
     resources::{PlayerInfo, PlayerMap, RoundTripTime},
     spawning::{spawn_player, spawn_projectiles},
-    systems::players::{CameraShake, CuboidShake},
+    systems::{CameraShake, CuboidShake},
 };
 use common::{markers::PlayerMarker, physics::PlayerMotion, protocol::*};
 

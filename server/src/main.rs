@@ -8,13 +8,7 @@ use tokio::{
     time::{self, Duration, Instant, MissedTickBehavior},
 };
 
-use server::{
-    config::configure_server,
-    map::generate_grid,
-    net::accept_connections_task,
-    resources::*,
-    systems::{items::*, network::*, players::*, projectiles::*},
-};
+use server::{config::configure_server, map::generate_grid, net::accept_connections_task, resources::*, systems::*};
 
 const SERVER_LOOP_FREQUENCY: u64 = 30;
 const LOG_FILTER: &str = "wgpu=error,naga=warn";

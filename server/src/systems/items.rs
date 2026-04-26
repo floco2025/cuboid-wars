@@ -12,7 +12,7 @@ use crate::{
 use common::{
     constants::{GRID_COLS, GRID_ROWS},
     markers::{ItemMarker, PlayerMarker},
-    physics::items::overlap_player_vs_item,
+    physics::overlap_player_vs_item,
     protocol::{ItemId, ItemType, PlayerId, Position, SCookieCollected, ServerMessage},
 };
 

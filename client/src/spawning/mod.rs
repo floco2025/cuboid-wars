@@ -1,7 +1,7 @@
-pub mod item;
-pub mod map;
-pub mod player;
-pub mod projectile;
+mod item;
+mod map;
+mod player;
+mod projectile;
 
 pub use item::{ItemAnimTimer, item_type_color, spawn_item, spawn_wall_light_from_layout};
 pub use map::{

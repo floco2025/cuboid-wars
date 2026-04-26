@@ -8,12 +8,7 @@ use clap::Parser;
 use quinn::Endpoint;
 use tokio::{runtime::Runtime, time::Duration};
 
-use client::{
-    config::configure_client,
-    net::network_io_task,
-    resources::*,
-    systems::{cameras::*, input::*, items::*, map::*, network::*, players::*, projectiles::*, skybox::*, ui::*},
-};
+use client::{config::configure_client, net::network_io_task, resources::*, systems::*};
 use common::{net::MessageStream, protocol::*};
 
 // ============================================================================

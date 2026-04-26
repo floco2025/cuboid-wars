@@ -531,26 +531,3 @@ fn sweep_projectile_vs_roof(
 
     sweep_point_vs_cuboid(proj_pos, proj_motion.velocity * delta, center, half_extents)
 }
-
-// Sample-based ramp hit test for projectiles.
-#[must_use]
-pub fn projectile_hits_ramp(proj_pos: &Position, projectile_velocity: &Vec3, delta: f32, ramp: &Ramp) -> bool {
-    let (min_x, max_x, min_z, max_z) = ramp.bounds_xz();
-    let pos = Vec3::from(*proj_pos);
-    let ray_dir = *projectile_velocity * delta;
-    let num_samples = 5;
-    for i in 0..=num_samples {
-        let t = i as f32 / num_samples as f32;
-        let sample = ray_dir.mul_add(Vec3::splat(t), pos);
-
-        if sample.x >= min_x && sample.x <= max_x && sample.z >= min_z && sample.z <= max_z {
-            let ramp_height = crate::map::height_on_ramp(&[*ramp], sample.x, sample.z);
-
-            if (sample.y - ramp_height).abs() < PROJECTILE_RADIUS * 2.0 {
-                return true;
-            }
-        }
-    }
-
-    false
-}

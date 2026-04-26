@@ -10,10 +10,7 @@ use bevy::{
 use crate::{
     constants::*,
     markers::*,
-    systems::{
-        animations::{AnimationToPlay, players_animation_system},
-        players::BumpFlashState,
-    },
+    systems::{AnimationToPlay, BumpFlashState, players_animation_system},
 };
 use common::{constants::*, markers::PlayerMarker, physics::PlayerMotion, protocol::*};
 
