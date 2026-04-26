@@ -5,17 +5,16 @@ use super::{
     items::handle_item_collected_message,
     login::{handle_player_login_message, handle_player_logoff_message},
     players::{
-        handle_player_face_message, handle_player_hit_message, handle_player_shot_message, handle_player_speed_message,
-        handle_player_status_message,
+        handle_player_face_message, handle_player_hit_message, handle_player_move_input_message,
+        handle_player_shot_message, handle_player_status_message,
     },
-    sentries::{handle_sentry_hit_message, handle_sentry_message},
     systems::handle_echo_message,
 };
 use crate::{
     markers::MainCameraMarker,
-    resources::{ItemMap, LastUpdateSeq, PlayerMap, RoundTripTime, SentryMap},
+    resources::{ItemMap, LastUpdateSeq, PlayerMap, RoundTripTime},
 };
-use common::{markers::PlayerMarker, markers::SentryMarker, protocol::*};
+use common::{markers::PlayerMarker, protocol::*};
 
 // ============================================================================
 // Message Dispatcher
@@ -28,12 +27,10 @@ pub fn dispatch_message(
     commands: &mut Commands,
     players: &mut ResMut<PlayerMap>,
     items: &mut ResMut<ItemMap>,
-    sentries: &mut ResMut<SentryMap>,
     rtt: &mut ResMut<RoundTripTime>,
     last_update_seq: &mut ResMut<LastUpdateSeq>,
     assets: &mut AssetManagers,
     player_data: &Query<(&Position, &FaceDirection), With<PlayerMarker>>,
-    sentry_positions: &Query<&Position, With<SentryMarker>>,
     cameras: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     time: &Res<Time>,
     asset_server: &Res<AssetServer>,
@@ -54,8 +51,8 @@ pub fn dispatch_message(
             login,
         ),
         ServerMessage::Logoff(logoff) => handle_player_logoff_message(commands, players, logoff),
-        ServerMessage::Speed(speed_msg) => {
-            handle_player_speed_message(commands, players, player_data, rtt, speed_msg);
+        ServerMessage::MoveInput(move_input_msg) => {
+            handle_player_move_input_message(commands, players, player_data, rtt, move_input_msg);
         }
         ServerMessage::Face(face_msg) => handle_player_face_message(commands, players, face_msg),
         ServerMessage::Shot(shot_msg) => {
@@ -77,11 +74,9 @@ pub fn dispatch_message(
             &mut assets.graphs,
             players,
             items,
-            sentries,
             rtt,
             last_update_seq,
             player_data,
-            sentry_positions,
             cameras,
             my_player_id,
             asset_server,
@@ -92,24 +87,8 @@ pub fn dispatch_message(
             handle_player_status_message(commands, players, player_status_msg, my_player_id, asset_server);
         }
         ServerMessage::Echo(echo_msg) => handle_echo_message(time, rtt, echo_msg),
-        ServerMessage::Sentry(sentry_msg) => {
-            handle_sentry_message(
-                commands,
-                &mut assets.meshes,
-                &mut assets.materials,
-                &mut assets.graphs,
-                sentries,
-                rtt,
-                sentry_positions,
-                sentry_msg,
-                asset_server,
-            );
-        }
         ServerMessage::CookieCollected(cookie_msg) => {
             handle_item_collected_message(commands, cookie_msg, asset_server);
-        }
-        ServerMessage::SentryHit(sentry_hit_msg) => {
-            handle_sentry_hit_message(commands, sentry_hit_msg, asset_server);
         }
     }
 }
@@ -127,11 +106,9 @@ pub fn handle_update_message(
     graphs: &mut ResMut<Assets<AnimationGraph>>,
     players: &mut ResMut<PlayerMap>,
     items: &mut ResMut<ItemMap>,
-    sentries: &mut ResMut<SentryMap>,
     rtt: &ResMut<RoundTripTime>,
     last_update_seq: &mut ResMut<LastUpdateSeq>,
     player_data: &Query<(&Position, &FaceDirection), With<PlayerMarker>>,
-    sentry_query: &Query<&Position, With<SentryMarker>>,
     camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     my_player_id: PlayerId,
     asset_server: &Res<AssetServer>,
@@ -164,15 +141,4 @@ pub fn handle_update_message(
         &msg.players,
     );
     super::items::sync_items(commands, meshes, materials, items, asset_server, &msg.items);
-    super::sentries::sync_sentries(
-        commands,
-        meshes,
-        materials,
-        graphs,
-        sentries,
-        rtt,
-        sentry_query,
-        &msg.sentries,
-        asset_server,
-    );
 }

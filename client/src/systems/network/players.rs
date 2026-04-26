@@ -8,51 +8,38 @@ use crate::{
     spawning::{spawn_player, spawn_projectiles},
     systems::players::{CameraShake, CuboidShake},
 };
-use common::{constants::POWER_UP_SPEED_MULTIPLIER, markers::PlayerMarker, protocol::*};
-
-// ============================================================================
-// Helpers
-// ============================================================================
-
-fn compute_velocity(speed: Speed, has_speed_power_up: bool) -> Velocity {
-    let multiplier = if has_speed_power_up {
-        POWER_UP_SPEED_MULTIPLIER
-    } else {
-        1.0
-    };
-    speed.to_velocity().with_speed_multiplier(multiplier)
-}
+use common::{markers::PlayerMarker, protocol::*};
 
 // ============================================================================
 // Player Message Handlers
 // ============================================================================
 
-// Handle player speed update with server reconciliation.
-pub fn handle_player_speed_message(
+// Handle player move-input update with server reconciliation.
+pub fn handle_player_move_input_message(
     commands: &mut Commands,
     players: &ResMut<PlayerMap>,
     player_data: &Query<(&Position, &FaceDirection), With<PlayerMarker>>,
     rtt: &ResMut<RoundTripTime>,
-    msg: SSpeed,
+    msg: SMoveInput,
 ) {
-    trace!("{:?} speed: {:?}", msg.id, msg);
+    trace!("{:?} move input: {:?}", msg.id, msg);
     if let Some(player) = players.0.get(&msg.id) {
-        let velocity = compute_velocity(msg.speed, player.speed_power_up);
+        let server_vel = msg.input.to_velocity_for_player(player.speed_power_up);
 
         // Add server reconciliation if we have client position
         if let Ok((client_pos, _)) = player_data.get(player.entity) {
             commands.entity(player.entity).insert((
-                velocity, // Never the local player, so we can always insert velocity
+                msg.input, // Never the local player, so we can always overwrite intent
                 ServerReconciliation {
                     client_pos: *client_pos,
                     server_pos: msg.pos,
-                    server_vel: velocity,
+                    server_vel,
                     timer: 0.0,
                     rtt: rtt.rtt.as_secs_f32(),
                 },
             ));
         } else {
-            commands.entity(player.entity).insert(velocity);
+            commands.entity(player.entity).insert(msg.input);
         }
     }
 }
@@ -163,7 +150,6 @@ pub fn handle_player_status_message(
         player_info.speed_power_up = msg.speed_power_up;
         player_info.multi_shot_power_up = msg.multi_shot_power_up;
         player_info.phasing_power_up = msg.phasing_power_up;
-        player_info.sentry_hunt_power_up = msg.sentry_hunt_power_up;
         player_info.stunned = msg.stunned;
     }
 }
@@ -198,7 +184,6 @@ pub fn sync_players(
 
         let is_local = *id == my_player_id;
         debug!("spawning player {:?} from Update (is_local: {})", id, is_local);
-        let velocity = compute_velocity(player.speed, player.speed_power_up);
         let entity = spawn_player(
             commands,
             asset_server,
@@ -209,7 +194,7 @@ pub fn sync_players(
             id.0,
             &player.name,
             &player.pos,
-            velocity,
+            player.move_input,
             player.face_dir,
             is_local,
         );
@@ -231,7 +216,6 @@ pub fn sync_players(
                 speed_power_up: player.speed_power_up,
                 multi_shot_power_up: player.multi_shot_power_up,
                 phasing_power_up: player.phasing_power_up,
-                sentry_hunt_power_up: player.sentry_hunt_power_up,
                 stunned: player.stunned,
             },
         );
@@ -251,12 +235,14 @@ pub fn sync_players(
     for (id, server_player) in server_players {
         if let Some(client_player) = players.0.get_mut(id) {
             if let Ok((client_pos, _)) = player_data.get(client_player.entity) {
-                let server_vel = compute_velocity(server_player.speed, server_player.speed_power_up);
+                let server_vel = server_player
+                    .move_input
+                    .to_velocity_for_player(server_player.speed_power_up);
 
-                // The local player's velocity is always authoritive, so don't overwrite from
-                // server updates
+                // The local player's input is always authoritative locally; don't overwrite
+                // it from server updates.
                 if *id != my_player_id {
-                    commands.entity(client_player.entity).insert(server_vel);
+                    commands.entity(client_player.entity).insert(server_player.move_input);
                 }
                 commands.entity(client_player.entity).insert(ServerReconciliation {
                     client_pos: *client_pos,

@@ -28,21 +28,6 @@ pub const RAMP_MIN_SEPARATION_CELLS: i32 = 3; // Minimum empty cells between ram
 pub const WALL_LIGHT_HEIGHT: f32 = 2.5; // meters above ground
 
 // ============================================================================
-// Sentries
-// ============================================================================
-
-pub const SENTRIES_NUM: u32 = 4;
-pub const SENTRY_SPEED: f32 = 6.0; // m/s (patrol mode)
-pub const SENTRY_FOLLOW_SPEED: f32 = 8.0; // m/s (follow mode)
-pub const SENTRY_RANDOM_TURN_PROBABILITY: f64 = 0.3;
-pub const SENTRY_TARGET_DURATION: f32 = 10.0; // seconds
-pub const SENTRY_COOLDOWN_DURATION: f32 = 15.0; // seconds
-pub const SENTRY_VISION_RANGE: f32 = 64.0; // meters (whole map)
-pub const SENTRY_STUN_DURATION: f32 = 3.0; // seconds
-pub const SENTRY_HIT_PENALTY: i32 = 10; // points lost when hit
-pub const SENTRY_HIT_REWARD: i32 = 20; // points for hitting fleeing sentry
-
-// ============================================================================
 // Cookies
 // ============================================================================
 
@@ -64,4 +49,3 @@ pub const ITEM_COLLECTION_RADIUS: f32 = 1.0; // meters
 pub const POWER_UP_SPEED_DURATION: f32 = 20.0; // seconds
 pub const POWER_UP_MULTI_SHOT_DURATION: f32 = 20.0; // seconds
 pub const POWER_UP_PHASING_DURATION: f32 = 15.0; // seconds
-pub const POWER_UP_SENTRY_HUNT_DURATION: f32 = 15.0; // seconds

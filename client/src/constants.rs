@@ -95,7 +95,6 @@ pub const ITEM_EMISSIVE_STRENGTH: f32 = 0.1; // Multiplier for emissive glow
 pub const ITEM_SPEED_COLOR: Color = Color::srgb(0.2, 0.7, 1.0); // Light blue
 pub const ITEM_MULTISHOT_COLOR: Color = Color::srgb(1.0, 0.2, 0.2); // Red
 pub const ITEM_PHASING_COLOR: Color = Color::srgb(0.2, 1.0, 0.2); // Green
-pub const ITEM_SENTRY_HUNT_COLOR: Color = Color::srgb(0.973, 0.973, 1.0); // Pale blue
 
 // ============================================================================
 // Cookies
@@ -103,18 +102,6 @@ pub const ITEM_SENTRY_HUNT_COLOR: Color = Color::srgb(0.973, 0.973, 1.0); // Pal
 
 pub const COOKIE_SIZE: f32 = 0.15; // sphere radius
 pub const COOKIE_HEIGHT: f32 = 0.16; // meters above floor
-
-// ============================================================================
-// Sentries
-// ============================================================================
-
-pub const SENTRY_MODEL: &str = "models/sentry.glb#Scene0";
-pub const SENTRY_MODEL_SCALE: f32 = 0.012;
-pub const SENTRY_MODEL_HEIGHT_OFFSET: f32 = 0.0;
-pub const SENTRY_MODEL_DEPTH_OFFSET: f32 = 0.1;
-pub const SENTRY_MODEL_ANIMATION_SPEED: f32 = 1.0; // Walk animation speed
-pub const SENTRY_WALK_ANIMATION_INDEX: usize = 20; // Index of walk animation in glb
-pub const SENTRY_BOUNDING_BOX: bool = false; // Debug visualization
 
 // ============================================================================
 // Textures & Materials

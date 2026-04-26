@@ -12,9 +12,7 @@ use client::{
     config::configure_client,
     net::network_io_task,
     resources::*,
-    systems::{
-        cameras::*, input::*, items::*, map::*, network::*, players::*, projectiles::*, sentries::*, skybox::*, ui::*,
-    },
+    systems::{cameras::*, input::*, items::*, map::*, network::*, players::*, projectiles::*, skybox::*, ui::*},
 };
 use common::{net::MessageStream, protocol::*};
 
@@ -101,7 +99,6 @@ fn main() -> Result<()> {
     .insert_resource(ServerToClientChannel::new(from_server))
     .insert_resource(PlayerMap::default())
     .insert_resource(ItemMap::default())
-    .insert_resource(SentryMap::default())
     .insert_resource(LocalPlayerInfo::default())
     .insert_resource(RoundTripTime::default())
     .insert_resource(FpsMeasurement::default())
@@ -154,7 +151,6 @@ fn main() -> Result<()> {
             local_player_visibility_sync_system,
         ),
     )
-    .add_systems(Update, (sentries_movement_system, sentries_transform_sync_system))
     .add_systems(Update, projectiles_movement_system)
     .add_systems(Update, items_animation_system)
     .add_systems(

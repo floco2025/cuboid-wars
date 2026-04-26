@@ -21,7 +21,7 @@ const SEPARATION_EPSILON: f32 = 0.01;
 const MAX_SURFACE_BOUNCES: usize = 3;
 
 // Velocity gained from falling the epsilon separation distance: sqrt(2 * g * h)
-static EPSILON_FALL_VELOCITY: LazyLock<f32> = LazyLock::new(|| (2.0 * PROJECTILE_GRAVITY * SEPARATION_EPSILON).sqrt());
+static EPSILON_FALL_VELOCITY: LazyLock<f32> = LazyLock::new(|| (2.0 * GRAVITY * SEPARATION_EPSILON).sqrt());
 
 // Component attached to projectile entities to track velocity, lifetime, and bounce behavior
 #[derive(Component)]
@@ -49,8 +49,8 @@ impl ProjectileMotion {
 
     // Applies gravity to the projectile's velocity.
     pub fn apply_gravity(&mut self, delta: f32) {
-        if PROJECTILE_GRAVITY > 0.0 {
-            self.velocity.y -= PROJECTILE_GRAVITY * delta;
+        if GRAVITY > 0.0 {
+            self.velocity.y -= GRAVITY * delta;
         }
     }
 
@@ -553,27 +553,4 @@ pub fn projectile_hits_ramp(proj_pos: &Position, projectile_velocity: &Vec3, del
     }
 
     false
-}
-
-#[must_use]
-pub fn projectile_hits_sentry(
-    proj_pos: &Position,
-    proj_motion: &ProjectileMotion,
-    delta: f32,
-    sentry_pos: &Position,
-    sentry_face_dir: f32,
-) -> bool {
-    let sentry_center_y = sentry_pos.y + SENTRY_HEIGHT / 2.0;
-    sweep_projectile_vs_cuboid(
-        proj_pos,
-        proj_motion,
-        delta,
-        sentry_pos,
-        sentry_center_y,
-        sentry_face_dir,
-        SENTRY_WIDTH,
-        SENTRY_HEIGHT,
-        SENTRY_DEPTH,
-    )
-    .is_some()
 }

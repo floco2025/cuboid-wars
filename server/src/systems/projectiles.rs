@@ -1,13 +1,10 @@
 use bevy::prelude::*;
 
 use super::network::broadcast_to_all;
-use crate::{
-    constants::{SENTRY_HIT_REWARD, SENTRY_TARGET_DURATION},
-    resources::{PlayerInfo, PlayerMap, SentryMap, SentryMode},
-};
+use crate::resources::PlayerMap;
 use common::{
-    collision::{ProjectileMotion, projectile_hits_sentry, sweep_projectile_vs_player},
-    markers::{PlayerMarker, ProjectileMarker, SentryMarker},
+    markers::{PlayerMarker, ProjectileMarker},
+    physics::{ProjectileMotion, sweep_projectile_vs_player},
     protocol::{MapLayout, *},
 };
 
@@ -20,10 +17,8 @@ pub fn projectiles_movement_system(
     time: Res<Time>,
     mut projectile_query: Query<(Entity, &mut Position, &mut ProjectileMotion, &PlayerId), With<ProjectileMarker>>,
     player_query: Query<(&Position, &FaceDirection, &PlayerId), (With<PlayerMarker>, Without<ProjectileMarker>)>,
-    sentry_query: Query<(&SentryId, &Position, &FaceDirection), (With<SentryMarker>, Without<ProjectileMarker>)>,
     map_layout: Res<MapLayout>,
     mut players: ResMut<PlayerMap>,
-    mut sentries: ResMut<SentryMap>,
 ) {
     let delta = time.delta_secs();
 
@@ -58,54 +53,6 @@ pub fn projectiles_movement_system(
         }
 
         let mut hit_something = false;
-
-        // Check sentry collisions
-        for (sentry_id, sentry_pos, sentry_face_dir) in sentry_query.iter() {
-            // Check collision
-            if projectile_hits_sentry(&proj_pos, &projectile, delta, sentry_pos, sentry_face_dir.0) {
-                let Some(sentry_info) = sentries.0.get_mut(sentry_id) else {
-                    continue;
-                };
-
-                // Check if shooter has sentry hunt power-up
-                let shooter_has_sentry_hunt = players.0.get(shooter_id).is_some_and(PlayerInfo::has_sentry_hunt);
-
-                if shooter_has_sentry_hunt {
-                    // With hunt power-up: give points and remove power-up
-                    // Update shooter
-                    if let Some(shooter_info) = players.0.get_mut(shooter_id) {
-                        shooter_info.hits += SENTRY_HIT_REWARD;
-                        shooter_info.sentry_hunt_power_up_timer = 0.0;
-                    }
-
-                    // Broadcast power-up removal to all clients
-                    // Note: sentry_hunt is explicitly false (not using status()) because hitting
-                    // a sentry removes the power-up even when ALWAYS_SENTRY_HUNT debug flag is on
-                    if let Some(shooter_info) = players.0.get(shooter_id) {
-                        let mut status = shooter_info.status(*shooter_id);
-                        status.sentry_hunt_power_up = false;
-                        broadcast_to_all(&players, ServerMessage::PlayerStatus(status));
-                    }
-                }
-                // Without hunt power-up: no points, just make sentry attack
-
-                // Always make sentry target the shooter (attack behavior)
-                sentry_info.mode = SentryMode::Target;
-                sentry_info.mode_timer = SENTRY_TARGET_DURATION;
-                sentry_info.follow_target = Some(*shooter_id);
-
-                // Always despawn the projectile
-                commands.entity(proj_entity).despawn();
-
-                hit_something = true;
-                break;
-            }
-        }
-
-        // If we hit a sentry, skip to next projectile
-        if hit_something {
-            continue;
-        }
 
         // Check player collisions
         for (position, face_direction, player_id) in player_query.iter() {

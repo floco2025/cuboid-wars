@@ -6,11 +6,10 @@ pub mod map;
 pub mod network;
 pub mod players;
 pub mod projectiles;
-pub mod sentries;
 pub mod skybox;
 pub mod ui;
 
-pub use animations::{AnimationToPlay, players_animation_system, sentries_animation_system};
+pub use animations::{AnimationToPlay, players_animation_system};
 pub use cameras::setup_cameras_system;
 pub use input::{
     input_camera_view_toggle_system, input_cursor_toggle_system, input_fullscreen_toggle_system, input_movement_system,
@@ -29,7 +28,6 @@ pub use players::{
     players_movement_system, players_transform_sync_system,
 };
 pub use projectiles::projectiles_movement_system;
-pub use sentries::{sentries_movement_system, sentries_transform_sync_system};
 pub use skybox::{
     SkyboxCrossImage, SkyboxCubemap, setup_skybox_from_cross, skybox_convert_cross_to_cubemap_system,
     skybox_update_camera_system,

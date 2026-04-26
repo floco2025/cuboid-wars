@@ -1,12 +1,37 @@
+use bevy_ecs::prelude::*;
+use bevy_math::Vec3;
+
 use super::helpers::{
     overlap_aabb_vs_wall, slide_along_axes, sweep_aabb_vs_aabb, sweep_aabb_vs_wall, sweep_ramp_edges,
     sweep_ramp_high_cap,
 };
 use crate::{
-    constants::{PLAYER_DEPTH, PLAYER_HEIGHT, PLAYER_WIDTH, ROOF_HEIGHT, WALL_THICKNESS},
+    constants::{
+        GRAVITY, PLAYER_DEPTH, PLAYER_HEIGHT, PLAYER_TERMINAL_VELOCITY, PLAYER_WIDTH, ROOF_HEIGHT, WALL_THICKNESS,
+    },
     map::height_on_ramp,
     protocol::{Position, Ramp, Roof, Wall},
 };
+
+// Component attached to player entities tracking 3D velocity for gravity and falling.
+// Horizontal motion is still derived from `Speed` each tick; the vertical component
+// here drives gravity/landing physics.
+#[derive(Component, Default)]
+pub struct PlayerMotion {
+    pub velocity: Vec3,
+}
+
+impl PlayerMotion {
+    pub fn apply_gravity(&mut self, delta: f32) {
+        self.velocity.y -= GRAVITY * delta;
+    }
+
+    pub fn apply_terminal_velocity(&mut self) {
+        if self.velocity.y < -PLAYER_TERMINAL_VELOCITY {
+            self.velocity.y = -PLAYER_TERMINAL_VELOCITY;
+        }
+    }
+}
 
 #[must_use]
 pub fn sweep_player_vs_wall(start_pos: &Position, end_pos: &Position, wall: &Wall) -> bool {

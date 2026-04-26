@@ -5,11 +5,14 @@
 pub const UPDATE_BROADCAST_INTERVAL: f32 = 0.25; // seconds
 
 // ============================================================================
-// Floating-Point Comparisons
+// Physics
 // ============================================================================
 
 // Small value for floating-point comparisons (near-zero checks, division guards).
 pub const PHYSICS_EPSILON: f32 = 1e-6;
+
+// Universal world gravity, applied to anything that falls.
+pub const GRAVITY: f32 = 9.81; // m/s²
 
 // ============================================================================
 // Grid & Field
@@ -31,9 +34,15 @@ pub const PLAYER_WIDTH: f32 = 1.0; // side to side
 pub const PLAYER_DEPTH: f32 = 0.6; // front to back
 pub const PLAYER_EYE_HEIGHT_RATIO: f32 = 0.9; // Eye/camera height as ratio of player height
 
-// Speeds (meters per second)
-pub const SPEED_WALK: f32 = 9.0;
-pub const SPEED_RUN: f32 = 9.0;
+// Speed (meters per second)
+pub const PLAYER_SPEED: f32 = 9.0;
+
+// Vertical motion: terminal downward velocity cap (m/s).
+pub const PLAYER_TERMINAL_VELOCITY: f32 = 50.0;
+
+// Vertical slop for floor-support detection: a player whose feet are within this
+// distance of a floor's surface is considered supported by it.
+pub const PLAYER_LANDING_EPSILON: f32 = 0.5;
 
 // ============================================================================
 // Projectiles
@@ -44,18 +53,8 @@ pub const PROJECTILE_LIFETIME: f32 = 8.0; // seconds
 pub const PROJECTILE_SPAWN_OFFSET: f32 = 1.0; // meters in front of thrower
 pub const PROJECTILE_RADIUS: f32 = 0.11; // meters
 pub const PROJECTILE_COOLDOWN_TIME: f32 = 0.1; // Minimum time between shots
-pub const PROJECTILE_GRAVITY: f32 = 9.81; // meters per second squared
 pub const PROJECTILE_DRAG_FACTOR: f32 = 0.01; // Air resistance coefficient applied per frame
 pub const PROJECTILE_BOUNCE_RETENTION: f32 = 0.9; // fraction of speed retained after bounce (0.0-1.0)
-
-// ============================================================================
-// Sentries
-// ============================================================================
-
-// Dimensions (meters)
-pub const SENTRY_HEIGHT: f32 = 2.5; // up/down
-pub const SENTRY_WIDTH: f32 = 3.7; // side to side
-pub const SENTRY_DEPTH: f32 = 2.8; // front to back
 
 // ============================================================================
 // Map Geometry
@@ -85,4 +84,3 @@ pub const POWER_UP_MULTI_SHOT_ANGLE: f32 = 2.0;
 pub const ALWAYS_SPEED: bool = false;
 pub const ALWAYS_MULTI_SHOT: bool = false;
 pub const ALWAYS_PHASING: bool = false;
-pub const ALWAYS_SENTRY_HUNT: bool = false;

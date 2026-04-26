@@ -3,9 +3,9 @@ use bevy::prelude::*;
 use super::broadcast::broadcast_to_others;
 use crate::{net::ServerToClient, resources::PlayerMap};
 use common::{
-    collision::ProjectileMotion,
     constants::{ALWAYS_MULTI_SHOT, PROJECTILE_COOLDOWN_TIME},
     markers::{PlayerMarker, ProjectileMarker},
+    physics::ProjectileMotion,
     protocol::{MapLayout, *},
     spawning::calculate_projectile_spawns,
 };
@@ -22,7 +22,7 @@ pub fn dispatch_message(
     msg: ClientMessage,
     players: &mut PlayerMap,
     time: &Res<Time>,
-    player_data: &Query<(&Position, &Speed, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
     map_layout: &MapLayout,
 ) {
     match msg {
@@ -36,9 +36,9 @@ pub fn dispatch_message(
         ClientMessage::Logoff(msg) => {
             handle_logoff_message(commands, entity, id, msg, players);
         }
-        ClientMessage::Speed(msg) => {
-            trace!("{:?} speed: {:?}", id, msg);
-            handle_speed_message(commands, entity, id, msg, &*players, player_data);
+        ClientMessage::MoveInput(msg) => {
+            trace!("{:?} move input: {:?}", id, msg);
+            handle_move_input_message(commands, entity, id, msg, &*players, player_data);
         }
         ClientMessage::Face(msg) => {
             trace!("{:?} face direction: {}", id, msg.dir);
@@ -67,27 +67,27 @@ fn handle_logoff_message(commands: &mut Commands, entity: Entity, id: PlayerId, 
     broadcast_to_others(players, id, ServerMessage::Logoff(SLogoff { id, graceful: true }));
 }
 
-// Handle speed message.
-fn handle_speed_message(
+// Handle move-input message.
+fn handle_move_input_message(
     commands: &mut Commands,
     entity: Entity,
     id: PlayerId,
-    msg: CSpeed,
+    msg: CMoveInput,
     players: &PlayerMap,
-    player_data: &Query<(&Position, &Speed, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
 ) {
-    // Update the player's speed
-    commands.entity(entity).insert(msg.speed);
+    // Update the player's input intent
+    commands.entity(entity).insert(msg.input);
 
     // Get current position for reconciliation
     if let Ok((pos, _, _)) = player_data.get(entity) {
-        // Broadcast speed update with position to all other logged-in players
+        // Broadcast move-input update with position to all other logged-in players
         broadcast_to_others(
             players,
             id,
-            ServerMessage::Speed(SSpeed {
+            ServerMessage::MoveInput(SMoveInput {
                 id,
-                speed: msg.speed,
+                input: msg.input,
                 pos: *pos,
             }),
         );
@@ -110,7 +110,7 @@ fn handle_shot_message(
     msg: CShot,
     players: &mut PlayerMap,
     time: &Res<Time>,
-    player_data: &Query<(&Position, &Speed, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
     map_layout: &MapLayout,
 ) {
     let now = time.elapsed_secs();

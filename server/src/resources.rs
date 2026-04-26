@@ -4,10 +4,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, error::TryRecvError}
 
 use crate::net::{ClientToServer, ServerToClient};
 use common::{
-    constants::{
-        ALWAYS_MULTI_SHOT, ALWAYS_PHASING, ALWAYS_SENTRY_HUNT, ALWAYS_SPEED, FIELD_DEPTH, FIELD_WIDTH, GRID_COLS,
-        GRID_ROWS, GRID_SIZE,
-    },
+    constants::{ALWAYS_MULTI_SHOT, ALWAYS_PHASING, ALWAYS_SPEED},
     protocol::*,
 };
 
@@ -52,7 +49,6 @@ pub struct PlayerInfo {
     pub speed_power_up_timer: f32, // Remaining time for speed power-up (0.0 = inactive)
     pub multi_shot_power_up_timer: f32, // Remaining time for multi-shot power-up (0.0 = inactive)
     pub phasing_power_up_timer: f32, // Remaining time for phasing power-up (0.0 = inactive)
-    pub sentry_hunt_power_up_timer: f32, // Remaining time for sentry hunter power-up (0.0 = inactive)
     pub stun_timer: f32,           // Remaining time stunned (0.0 = not stunned)
     pub last_shot_time: f32,       // Timestamp of last accepted shot (seconds)
 }
@@ -69,7 +65,6 @@ impl PlayerInfo {
             speed_power_up_timer: 0.0,
             multi_shot_power_up_timer: 0.0,
             phasing_power_up_timer: 0.0,
-            sentry_hunt_power_up_timer: 0.0,
             stun_timer: 0.0,
             last_shot_time: f32::NEG_INFINITY,
         }
@@ -90,11 +85,6 @@ impl PlayerInfo {
         ALWAYS_PHASING || self.phasing_power_up_timer > 0.0
     }
 
-    #[must_use]
-    pub fn has_sentry_hunt(&self) -> bool {
-        ALWAYS_SENTRY_HUNT || self.sentry_hunt_power_up_timer > 0.0
-    }
-
     // Build status message from current power-up timers.
     #[must_use]
     pub fn status(&self, id: PlayerId) -> SPlayerStatus {
@@ -103,7 +93,6 @@ impl PlayerInfo {
             speed_power_up: self.has_speed(),
             multi_shot_power_up: self.has_multi_shot(),
             phasing_power_up: self.has_phasing(),
-            sentry_hunt_power_up: self.has_sentry_hunt(),
             stunned: self.stun_timer > 0.0,
         }
     }
@@ -113,7 +102,6 @@ impl PlayerInfo {
         tick_timer(&mut self.speed_power_up_timer, delta);
         tick_timer(&mut self.multi_shot_power_up_timer, delta);
         tick_timer(&mut self.phasing_power_up_timer, delta);
-        tick_timer(&mut self.sentry_hunt_power_up_timer, delta);
         tick_timer(&mut self.stun_timer, delta);
     }
 }
@@ -136,78 +124,6 @@ pub struct ItemInfo {
 // Map of all items (server-side source of truth)
 #[derive(Resource, Default)]
 pub struct ItemMap(pub HashMap<ItemId, ItemInfo>);
-
-// Configuration for sentry spawning
-#[derive(Resource)]
-pub struct SentrySpawnConfig {
-    pub num_sentries: u32,
-}
-
-// Sentry AI mode
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SentryMode {
-    PrePatrol, // Navigating to grid center before patrol
-    Patrol,    // Moving along grid, can detect players (unless mode_timer > 0)
-    Target,    // Targeting a specific player (chase or flee)
-}
-
-// Sentry info
-pub struct SentryInfo {
-    pub entity: Entity,
-    pub mode: SentryMode,
-    pub mode_timer: f32,                 // Time remaining in current mode
-    pub follow_target: Option<PlayerId>, // Player being targeted (only in Target mode)
-    pub at_intersection: bool,           // Track if currently at an intersection (for patrol mode)
-}
-
-// Map of all sentries (server-side source of truth)
-#[derive(Resource, Default)]
-pub struct SentryMap(pub HashMap<SentryId, SentryInfo>);
-
-// Grid of cells showing which sentry occupies each cell (for collision avoidance)
-// grid[z][x] = Some(SentryId) or None
-#[derive(Resource, Clone)]
-pub struct SentryGrid(pub Vec<Vec<Option<SentryId>>>);
-
-impl SentryGrid {
-    // Clear a sentry from both cells it occupies while patrolling.
-    // A patrolling sentry occupies two adjacent cells along its axis of movement:
-    // - If in first half (before cell center): current cell + cell in velocity direction
-    // - If in second half (past cell center): current cell + cell opposite to velocity direction
-    // Since determining which half is complex, we simply clear both adjacent cells along the
-    // movement axis. The extra clear is harmless (no-op if cell doesn't contain this sentry).
-    pub fn clear_patrol_cells(&mut self, pos: &Position, vel: &Velocity, sentry_id: SentryId) {
-        let grid_x = (((pos.x + FIELD_WIDTH / 2.0) / GRID_SIZE).floor() as i32).clamp(0, GRID_COLS - 1);
-        let grid_z = (((pos.z + FIELD_DEPTH / 2.0) / GRID_SIZE).floor() as i32).clamp(0, GRID_ROWS - 1);
-
-        // Clear current cell
-        if self.0[grid_z as usize][grid_x as usize] == Some(sentry_id) {
-            self.0[grid_z as usize][grid_x as usize] = None;
-        }
-
-        // Clear both adjacent cells along the axis of movement
-        if vel.x.abs() > 0.0 {
-            // Moving East/West - clear both East and West neighbors
-            self.clear_cell_if_matches(grid_x + 1, grid_z, sentry_id);
-            self.clear_cell_if_matches(grid_x - 1, grid_z, sentry_id);
-        } else if vel.z.abs() > 0.0 {
-            // Moving North/South - clear both North and South neighbors
-            self.clear_cell_if_matches(grid_x, grid_z + 1, sentry_id);
-            self.clear_cell_if_matches(grid_x, grid_z - 1, sentry_id);
-        }
-        // If velocity is zero, sentry only occupies current cell (already cleared above)
-    }
-
-    // Helper: clear a cell if it contains the specified sentry and is in bounds
-    fn clear_cell_if_matches(&mut self, grid_x: i32, grid_z: i32, sentry_id: SentryId) {
-        if (0..GRID_COLS).contains(&grid_x)
-            && (0..GRID_ROWS).contains(&grid_z)
-            && self.0[grid_z as usize][grid_x as usize] == Some(sentry_id)
-        {
-            self.0[grid_z as usize][grid_x as usize] = None;
-        }
-    }
-}
 
 // Resource wrapper for the channel from the accept connections task, which gives us the channel to
 // send from thee server to the client.

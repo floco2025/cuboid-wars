@@ -17,10 +17,10 @@ pub struct CLogin {
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct CLogoff {}
 
-// Client to Server: Speed update.
+// Client to Server: Movement-input update.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct CSpeed {
-    pub speed: Speed,
+pub struct CMoveInput {
+    pub input: MoveInput,
 }
 
 // Client to Server: Facing direction update.
@@ -67,11 +67,11 @@ pub struct SLogoff {
     pub graceful: bool,
 }
 
-// Server to Client: Player speed update with position for reconciliation.
+// Server to Client: Movement-input update with position for reconciliation.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct SSpeed {
+pub struct SMoveInput {
     pub id: PlayerId,
-    pub speed: Speed,
+    pub input: MoveInput,
     pub pos: Position,
 }
 
@@ -96,7 +96,6 @@ pub struct SUpdate {
     pub seq: u32,
     pub players: Vec<(PlayerId, Player)>,
     pub items: Vec<(ItemId, Item)>,
-    pub sentries: Vec<(SentryId, Sentry)>,
 }
 
 // Server to Client: Player was hit by a projectile.
@@ -114,7 +113,6 @@ pub struct SPlayerStatus {
     pub speed_power_up: bool,
     pub multi_shot_power_up: bool,
     pub phasing_power_up: bool,
-    pub sentry_hunt_power_up: bool,
     pub stunned: bool,
 }
 
@@ -124,20 +122,9 @@ pub struct SEcho {
     pub timestamp_nanos: u64,
 }
 
-// Server to Client: Sentry direction changed.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct SSentry {
-    pub id: SentryId,
-    pub sentry: Sentry,
-}
-
 // Server to Client: Player collected a cookie.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SCookieCollected {}
-
-// Server to Client: Sentry hit a player.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct SSentryHit {}
 
 // ============================================================================
 // Message Envelopes
@@ -148,7 +135,7 @@ pub struct SSentryHit {}
 pub enum ClientMessage {
     Login(CLogin),
     Logoff(CLogoff),
-    Speed(CSpeed),
+    MoveInput(CMoveInput),
     Face(CFace),
     Shot(CShot),
     Echo(CEcho),
@@ -160,14 +147,12 @@ pub enum ServerMessage {
     Init(SInit),
     Login(SLogin),
     Logoff(SLogoff),
-    Speed(SSpeed),
+    MoveInput(SMoveInput),
     Face(SFace),
     Shot(SShot),
     Update(SUpdate),
     Hit(SHit),
     PlayerStatus(SPlayerStatus),
     Echo(SEcho),
-    Sentry(SSentry),
     CookieCollected(SCookieCollected),
-    SentryHit(SSentryHit),
 }

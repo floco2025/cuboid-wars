@@ -3,15 +3,16 @@ use rand::{RngExt, rng, seq::IndexedRandom};
 
 use crate::{
     net::ServerToClient,
-    resources::{GridConfig, ItemMap, PlayerMap, SentryMap},
+    resources::{GridConfig, ItemMap, PlayerMap},
 };
 use common::{
     constants::{FIELD_DEPTH, FIELD_WIDTH, GRID_SIZE},
-    markers::{ItemMarker, PlayerMarker, SentryMarker},
+    markers::{ItemMarker, PlayerMarker},
+    physics::PlayerMotion,
     protocol::{MapLayout, *},
 };
 
-use super::broadcast::{broadcast_to_others, collect_items, collect_sentries, snapshot_logged_in_players};
+use super::broadcast::{broadcast_to_others, collect_items, snapshot_logged_in_players};
 
 // ============================================================================
 // Login Flow
@@ -27,10 +28,9 @@ pub fn handle_login_message(
     map_layout: &Res<MapLayout>,
     grid_config: &Res<GridConfig>,
     items: &Res<ItemMap>,
-    sentries: &Res<SentryMap>,
-    player_data: &Query<(&Position, &Speed, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
+    motions: &Query<&PlayerMotion, With<PlayerMarker>>,
     item_positions: &Query<&Position, With<ItemMarker>>,
-    sentry_data: &Query<(&Position, &Velocity), With<SentryMarker>>,
 ) {
     match msg {
         ClientMessage::Login(login) => {
@@ -65,23 +65,19 @@ pub fn handle_login_message(
             }
 
             // Generate random initial position for the new player
-            let pos = generate_player_spawn_position(grid_config, players, sentries, player_data, sentry_data);
+            let pos = generate_player_spawn_position(grid_config, players, player_data);
 
             // Calculate initial facing direction toward center
             let face_dir = (-pos.x).atan2(-pos.z);
 
-            // Initial speed for the new player
-            let speed = Speed {
-                speed_level: SpeedLevel::Idle,
-                // move_dir: 0.0,
-                move_dir: std::f32::consts::PI, // Same as face_dir - facing toward origin
-            };
+            // Initial move-input intent for the new player (idle)
+            let move_input = MoveInput::Idle;
 
             // Construct player data
-            let player = Player::new(name, pos, speed, face_dir, hits);
+            let player = Player::new(name, pos, move_input, face_dir, hits);
 
             // Construct the initial Update for the new player
-            let mut all_players = snapshot_logged_in_players(players, player_data)
+            let mut all_players = snapshot_logged_in_players(players, player_data, motions)
                 .into_iter()
                 .filter(|(player_id, _)| *player_id != id)
                 .collect::<Vec<_>>();
@@ -91,20 +87,18 @@ pub fn handle_login_message(
             // Collect all items for the initial update
             let all_items = collect_items(items, item_positions);
 
-            // Collect all sentries for the initial update
-            let all_sentries = collect_sentries(sentries, sentry_data);
-
             // Send the initial Update to the new player
             let update_msg = ServerMessage::Update(SUpdate {
                 seq: 0,
                 players: all_players,
                 items: all_items,
-                sentries: all_sentries,
             });
             channel.send(ServerToClient::Send(update_msg)).ok();
 
-            // Now update entity: add Position + Speed + FaceDirection
-            commands.entity(entity).insert((pos, speed, FaceDirection(face_dir)));
+            // Now update entity: add Position + MoveInput + FaceDirection + PlayerMotion
+            commands
+                .entity(entity)
+                .insert((pos, move_input, FaceDirection(face_dir), PlayerMotion::default()));
 
             // Broadcast Login to all other logged-in players
             let login_msg = SLogin { id, player };
@@ -129,9 +123,7 @@ pub fn handle_login_message(
 fn generate_player_spawn_position(
     grid_config: &GridConfig,
     players: &PlayerMap,
-    sentries: &SentryMap,
-    player_data: &Query<(&Position, &Speed, &FaceDirection), With<PlayerMarker>>,
-    sentry_data: &Query<(&Position, &Velocity), With<SentryMarker>>,
+    player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
 ) -> Position {
     let mut rng = rng();
     let grid_rows = grid_config.grid.len() as i32;
@@ -183,19 +175,7 @@ fn generate_player_spawn_position(
                 dx.mul_add(dx, dz * dz) < MIN_DISTANCE * MIN_DISTANCE
             });
 
-        // Check if position is too close to any sentry
-        let too_close_to_sentry =
-            sentries
-                .0
-                .values()
-                .filter_map(|s| sentry_data.get(s.entity).ok())
-                .any(|(s_pos, _)| {
-                    let dx = pos.x - s_pos.x;
-                    let dz = pos.z - s_pos.z;
-                    dx.mul_add(dx, dz * dz) < MIN_DISTANCE * MIN_DISTANCE
-                });
-
-        if !too_close_to_player && !too_close_to_sentry {
+        if !too_close_to_player {
             return pos;
         }
     }

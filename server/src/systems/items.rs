@@ -10,9 +10,9 @@ use crate::{
     resources::{GridConfig, ItemInfo, ItemMap, ItemSpawner, PlayerMap},
 };
 use common::{
-    collision::items::overlap_player_vs_item,
     constants::{GRID_COLS, GRID_ROWS},
     markers::{ItemMarker, PlayerMarker},
+    physics::items::overlap_player_vs_item,
     protocol::{ItemId, ItemType, PlayerId, Position, SCookieCollected, ServerMessage},
 };
 
@@ -22,14 +22,12 @@ use common::{
 
 fn choose_item_type(rng: &mut ThreadRng) -> ItemType {
     let rand_val = rng.random::<f64>();
-    if rand_val < 0.25 {
+    if rand_val < 1.0 / 3.0 {
         ItemType::SpeedPowerUp
-    } else if rand_val < 0.50 {
+    } else if rand_val < 2.0 / 3.0 {
         ItemType::MultiShotPowerUp
-    } else if rand_val < 0.75 {
-        ItemType::PhasingPowerUp
     } else {
-        ItemType::SentryHunterPowerUp
+        ItemType::PhasingPowerUp
     }
 }
 
@@ -221,9 +219,6 @@ pub fn item_collection_system(
                 }
                 ItemType::PhasingPowerUp => {
                     player_info.phasing_power_up_timer = POWER_UP_PHASING_DURATION;
-                }
-                ItemType::SentryHunterPowerUp => {
-                    player_info.sentry_hunt_power_up_timer = POWER_UP_SENTRY_HUNT_DURATION;
                 }
                 ItemType::Cookie => unreachable!(), // Already handled above
             }

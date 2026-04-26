@@ -1,17 +1,18 @@
 use bevy::prelude::*;
 
 use super::{
-    broadcast::{broadcast_to_all, broadcast_to_others, collect_items, collect_sentries, snapshot_logged_in_players},
+    broadcast::{broadcast_to_all, broadcast_to_others, collect_items, snapshot_logged_in_players},
     login::handle_login_message,
     messages::dispatch_message,
 };
 use crate::{
     net::ClientToServer,
-    resources::{FromClientsChannel, GridConfig, ItemMap, PlayerMap, SentryMap},
+    resources::{FromClientsChannel, GridConfig, ItemMap, PlayerMap},
 };
 use common::{
     constants::UPDATE_BROADCAST_INTERVAL,
-    markers::{ItemMarker, PlayerMarker, SentryMarker},
+    markers::{ItemMarker, PlayerMarker},
+    physics::PlayerMotion,
     protocol::{MapLayout, *},
 };
 
@@ -30,10 +31,9 @@ pub fn network_client_message_system(
     map_layout: Res<MapLayout>,
     grid_config: Res<GridConfig>,
     items: Res<ItemMap>,
-    sentries: Res<SentryMap>,
-    player_data: Query<(&Position, &Speed, &FaceDirection), With<PlayerMarker>>,
+    player_data: Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
+    motions: Query<&PlayerMotion, With<PlayerMarker>>,
     item_positions: Query<&Position, With<ItemMarker>>,
-    sentry_data: Query<(&Position, &Velocity), With<SentryMarker>>,
 ) {
     while let Ok((id, event)) = from_clients.try_recv() {
         let Some(player_info) = players.0.get(&id) else {
@@ -78,10 +78,9 @@ pub fn network_client_message_system(
                         &map_layout,
                         &grid_config,
                         &items,
-                        &sentries,
                         &player_data,
+                        &motions,
                         &item_positions,
-                        &sentry_data,
                     );
                 }
             }
@@ -100,10 +99,9 @@ pub fn network_broadcast_state_system(
     mut seq: Local<u32>,
     players: Res<PlayerMap>,
     items: Res<ItemMap>,
-    sentries: Res<SentryMap>,
-    player_data: Query<(&Position, &Speed, &FaceDirection), With<PlayerMarker>>,
+    player_data: Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
+    motions: Query<&PlayerMotion, With<PlayerMarker>>,
     item_positions: Query<&Position, With<ItemMarker>>,
-    sentry_data: Query<(&Position, &Velocity), With<SentryMarker>>,
 ) {
     *timer += time.delta_secs();
     if *timer < UPDATE_BROADCAST_INTERVAL {
@@ -119,20 +117,16 @@ pub fn network_broadcast_state_system(
     }
 
     // Collect all logged-in players
-    let all_players = snapshot_logged_in_players(&players, &player_data);
+    let all_players = snapshot_logged_in_players(&players, &player_data, &motions);
 
     // Collect all items
     let all_items = collect_items(&items, &item_positions);
-
-    // Collect all sentries
-    let all_sentries = collect_sentries(&sentries, &sentry_data);
 
     // Broadcast to all logged-in clients
     let msg = ServerMessage::Update(SUpdate {
         seq: *seq,
         players: all_players,
         items: all_items,
-        sentries: all_sentries,
     });
     //trace!("broadcasting update: {:?}", msg);
     broadcast_to_all(&players, msg);

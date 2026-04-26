@@ -2,10 +2,11 @@ use bevy::prelude::*;
 
 use crate::{
     net::ServerToClient,
-    resources::{ItemMap, PlayerMap, SentryMap},
+    resources::{ItemMap, PlayerMap},
 };
 use common::{
-    markers::{ItemMarker, PlayerMarker, SentryMarker},
+    markers::{ItemMarker, PlayerMarker},
+    physics::PlayerMotion,
     protocol::*,
 };
 
@@ -39,7 +40,8 @@ pub fn broadcast_to_all(players: &PlayerMap, message: ServerMessage) {
 #[must_use]
 pub fn snapshot_logged_in_players(
     players: &PlayerMap,
-    player_data: &Query<(&Position, &Speed, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
+    motions: &Query<&PlayerMotion, With<PlayerMarker>>,
 ) -> Vec<(PlayerId, Player)> {
     players
         .0
@@ -48,19 +50,20 @@ pub fn snapshot_logged_in_players(
             if !info.logged_in {
                 return None;
             }
-            let (pos, speed, face_dir) = player_data.get(info.entity).ok()?;
+            let (pos, move_input, face_dir) = player_data.get(info.entity).ok()?;
+            let vy = motions.get(info.entity).map(|m| m.velocity.y).unwrap_or(0.0);
             Some((
                 *player_id,
                 Player {
                     name: info.name.clone(),
                     pos: *pos,
-                    speed: *speed,
+                    move_input: *move_input,
+                    vy,
                     face_dir: face_dir.0,
                     hits: info.hits,
                     speed_power_up: info.has_speed(),
                     multi_shot_power_up: info.has_multi_shot(),
                     phasing_power_up: info.has_phasing(),
-                    sentry_hunt_power_up: info.has_sentry_hunt(),
                     stunned: info.stun_timer > 0.0,
                 },
             ))
@@ -85,29 +88,6 @@ pub fn collect_items(items: &ItemMap, item_positions: &Query<&Position, With<Ite
                 Item {
                     item_type: info.item_type,
                     pos: *pos_component,
-                },
-            )
-        })
-        .collect()
-}
-
-// Build the authoritative sentry list that gets replicated to clients.
-#[must_use]
-pub fn collect_sentries(
-    sentries: &SentryMap,
-    sentry_data: &Query<(&Position, &Velocity), With<SentryMarker>>,
-) -> Vec<(SentryId, Sentry)> {
-    sentries
-        .0
-        .iter()
-        .map(|(id, info)| {
-            let (pos_component, vel_component) =
-                sentry_data.get(info.entity).expect("Sentry entity missing components");
-            (
-                *id,
-                Sentry {
-                    pos: *pos_component,
-                    vel: *vel_component,
                 },
             )
         })

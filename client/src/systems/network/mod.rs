@@ -3,7 +3,6 @@ mod items;
 mod login;
 mod messages;
 mod players;
-mod sentries;
 mod systems;
 
 pub use components::{AssetManagers, ServerReconciliation};

@@ -2,7 +2,6 @@
 Cargo.lock
 .vscode
 .DS_Store
-bacon.toml
 
 # Ignore all TLS certificates and private keys
 *.pem
@@ -14,7 +13,5 @@ bacon.toml
 !/cert.pem
 !/key.pem
 
-# Ignore AI files
+# Per-user Claude Code state (permission decisions, etc.)
 .claude
-Claude.md
-AGENTS.md

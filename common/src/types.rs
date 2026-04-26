@@ -4,7 +4,7 @@ use bevy_ecs::prelude::*;
 use bevy_math::Vec3;
 use bincode::{Decode, Encode};
 
-use crate::constants::{SPEED_RUN, SPEED_WALK};
+use crate::constants::PLAYER_SPEED;
 
 // ============================================================================
 // Components
@@ -39,60 +39,46 @@ impl AddAssign<Vec3> for Position {
     }
 }
 
-// SpeedLevel - discrete speed level.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Default, Encode, Decode)]
-pub enum SpeedLevel {
+// MoveInput component - the player's movement intent. `Idle` while standing still,
+// `Moving { direction }` while moving (radians, world-space). The horizontal
+// velocity is derived each tick from this plus the speed power-up multiplier.
+#[derive(Debug, Clone, Encode, Decode, Copy, Component, Default, PartialEq)]
+pub enum MoveInput {
     #[default]
     Idle,
-    Walk,
-    Run,
+    Moving {
+        direction: f32,
+    },
 }
 
-// Speed component - speed level and direction.
-#[derive(Debug, Clone, Encode, Decode, Copy, Component, Default)]
-pub struct Speed {
-    pub speed_level: SpeedLevel,
-    pub move_dir: f32, // radians - direction of movement
-}
-
-impl Speed {
+impl MoveInput {
+    // Movement direction (radians) if active, else `None`.
     #[must_use]
-    pub fn to_velocity(&self) -> Velocity {
-        let speed_magnitude = match self.speed_level {
-            SpeedLevel::Idle => 0.0,
-            SpeedLevel::Walk => SPEED_WALK,
-            SpeedLevel::Run => SPEED_RUN,
+    pub const fn direction(&self) -> Option<f32> {
+        match self {
+            Self::Idle => None,
+            Self::Moving { direction } => Some(*direction),
+        }
+    }
+
+    // Convert intent to a horizontal world-space velocity at the given magnitude.
+    #[must_use]
+    pub fn to_velocity(&self, magnitude: f32) -> Vec3 {
+        match self {
+            Self::Idle => Vec3::ZERO,
+            Self::Moving { direction } => Vec3::new(direction.sin() * magnitude, 0.0, direction.cos() * magnitude),
+        }
+    }
+
+    // Velocity for a player with the speed power-up multiplier applied.
+    #[must_use]
+    pub fn to_velocity_for_player(&self, has_speed_power_up: bool) -> Vec3 {
+        let mag = if has_speed_power_up {
+            PLAYER_SPEED * crate::constants::POWER_UP_SPEED_MULTIPLIER
+        } else {
+            PLAYER_SPEED
         };
-        Velocity {
-            x: self.move_dir.sin() * speed_magnitude,
-            y: 0.0,
-            z: self.move_dir.cos() * speed_magnitude,
-        }
-    }
-}
-
-#[derive(Debug, Copy, Clone, Component, PartialEq, Default, Encode, Decode)]
-pub struct Velocity {
-    pub x: f32, // m/s
-    pub y: f32, // m/s (up/down - always 0 for now)
-    pub z: f32, // m/s
-}
-
-impl From<Velocity> for Vec3 {
-    fn from(v: Velocity) -> Self {
-        Self::new(v.x, v.y, v.z)
-    }
-}
-
-impl Velocity {
-    // Returns a new velocity with the horizontal (x, z) components multiplied.
-    #[must_use]
-    pub fn with_speed_multiplier(self, multiplier: f32) -> Self {
-        Self {
-            x: self.x * multiplier,
-            y: self.y,
-            z: self.z * multiplier,
-        }
+        self.to_velocity(mag)
     }
 }
 
@@ -103,10 +89,6 @@ pub struct PlayerId(pub u32);
 // Item ID component - identifies which item an entity represents.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Component, Encode, Decode)]
 pub struct ItemId(pub u32);
-
-// Sentry ID component - identifies which sentry an entity represents.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Component, Encode, Decode)]
-pub struct SentryId(pub u32);
 
 // FaceDirection component - direction player is facing (for rotation/aiming).
 #[derive(Component, Default)]
@@ -124,6 +106,7 @@ pub struct Wall {
     pub x2: f32,
     pub z2: f32,
     pub width: f32,
+    pub level: u8,
 }
 
 impl Wall {
@@ -151,6 +134,32 @@ pub struct Roof {
 
 impl Roof {
     // Returns `(min_x, max_x, min_z, max_z)` bounds for this roof.
+    #[must_use]
+    pub const fn bounds_xz(&self) -> (f32, f32, f32, f32) {
+        (
+            self.x1.min(self.x2),
+            self.x1.max(self.x2),
+            self.z1.min(self.z2),
+            self.z1.max(self.z2),
+        )
+    }
+}
+
+// Floor - a horizontal slab at some level (level 0 = ground). `y` is
+// the top (standing) surface; the slab extends down to `y - thickness`.
+#[derive(Debug, Clone, Encode, Decode, Copy)]
+pub struct Floor {
+    pub x1: f32,
+    pub z1: f32,
+    pub x2: f32,
+    pub z2: f32,
+    pub y: f32,
+    pub thickness: f32,
+    pub level: u8,
+}
+
+impl Floor {
+    // Returns `(min_x, max_x, min_z, max_z)` bounds for this floor.
     #[must_use]
     pub const fn bounds_xz(&self) -> (f32, f32, f32, f32) {
         (
@@ -214,7 +223,6 @@ pub enum ItemType {
     SpeedPowerUp,
     MultiShotPowerUp,
     PhasingPowerUp,
-    SentryHunterPowerUp,
     Cookie,
 }
 
@@ -223,30 +231,30 @@ pub enum ItemType {
 pub struct Player {
     pub name: String,
     pub pos: Position,
-    pub speed: Speed,
+    pub move_input: MoveInput,
+    pub vy: f32, // vertical velocity (m/s, negative = falling)
     pub face_dir: f32,
     pub hits: i32,
     pub speed_power_up: bool,
     pub multi_shot_power_up: bool,
     pub phasing_power_up: bool,
-    pub sentry_hunt_power_up: bool,
     pub stunned: bool,
 }
 
 impl Player {
     // Creates a new player with the given core fields and all status flags set to `false`.
     #[must_use]
-    pub const fn new(name: String, pos: Position, speed: Speed, face_dir: f32, hits: i32) -> Self {
+    pub const fn new(name: String, pos: Position, move_input: MoveInput, face_dir: f32, hits: i32) -> Self {
         Self {
             name,
             pos,
-            speed,
+            move_input,
+            vy: 0.0,
             face_dir,
             hits,
             speed_power_up: false,
             multi_shot_power_up: false,
             phasing_power_up: false,
-            sentry_hunt_power_up: false,
             stunned: false,
         }
     }
@@ -259,13 +267,6 @@ pub struct Item {
     pub pos: Position,
 }
 
-// Sentry - a sentry moving around the map.
-#[derive(Debug, Clone, Encode, Decode, Copy)]
-pub struct Sentry {
-    pub pos: Position,
-    pub vel: Velocity,
-}
-
 // Full grid configuration sent once on connect.
 #[derive(Debug, Clone, Encode, Decode, Resource)]
 pub struct MapLayout {
@@ -276,4 +277,5 @@ pub struct MapLayout {
     pub roofs: Vec<Roof>,
     pub ramps: Vec<Ramp>,
     pub wall_lights: Vec<WallLight>,
+    pub floors: Vec<Floor>, // Generic slabs (level 0 = ground; level 1+ = roofs)
 }

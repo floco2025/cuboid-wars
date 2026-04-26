@@ -36,7 +36,6 @@ pub const fn item_type_color(item_type: ItemType) -> Color {
         ItemType::SpeedPowerUp => ITEM_SPEED_COLOR,
         ItemType::MultiShotPowerUp => ITEM_MULTISHOT_COLOR,
         ItemType::PhasingPowerUp => ITEM_PHASING_COLOR,
-        ItemType::SentryHunterPowerUp => ITEM_SENTRY_HUNT_COLOR,
         ItemType::Cookie => Color::WHITE,
     }
 }

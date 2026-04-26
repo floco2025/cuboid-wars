@@ -114,6 +114,7 @@ pub fn generate_lower_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i
                 x2,
                 z2: world_z,
                 width: WALL_THICKNESS,
+                level: 0,
             });
         }
     }
@@ -156,6 +157,7 @@ pub fn generate_lower_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i
                 x2: world_x,
                 z2,
                 width: WALL_THICKNESS,
+                level: 0,
             });
         }
     }
@@ -197,6 +199,7 @@ pub fn generate_roof_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i3
                     x2,
                     z2: z1,
                     width: ROOF_WALL_THICKNESS,
+                    level: 1,
                 });
             }
 
@@ -210,6 +213,7 @@ pub fn generate_roof_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i3
                     x2,
                     z2,
                     width: ROOF_WALL_THICKNESS,
+                    level: 1,
                 });
             }
 
@@ -223,6 +227,7 @@ pub fn generate_roof_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i3
                     x2: x1,
                     z2,
                     width: ROOF_WALL_THICKNESS,
+                    level: 1,
                 });
             }
 
@@ -236,6 +241,7 @@ pub fn generate_roof_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i3
                     x2,
                     z2,
                     width: ROOF_WALL_THICKNESS,
+                    level: 1,
                 });
             }
         }

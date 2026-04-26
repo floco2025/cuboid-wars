@@ -16,7 +16,7 @@ use crate::{
 };
 use common::{
     constants::*,
-    protocol::{MapLayout, Wall},
+    protocol::{Floor, MapLayout, Wall},
 };
 use lights::generate_wall_lights;
 
@@ -236,6 +236,30 @@ pub fn generate_grid() -> (MapLayout, GridConfig) {
 
     let wall_lights = generate_wall_lights(&grid);
 
+    let half_w = FIELD_WIDTH / 2.0;
+    let half_d = FIELD_DEPTH / 2.0;
+    let mut floors = Vec::with_capacity(roofs.len() + 1);
+    floors.push(Floor {
+        x1: -half_w,
+        z1: -half_d,
+        x2: half_w,
+        z2: half_d,
+        y: 0.0,
+        thickness: 0.0,
+        level: 0,
+    });
+    for roof in &roofs {
+        floors.push(Floor {
+            x1: roof.x1,
+            z1: roof.z1,
+            x2: roof.x2,
+            z2: roof.z2,
+            y: ROOF_HEIGHT,
+            thickness: roof.thickness,
+            level: 1,
+        });
+    }
+
     let map_layout = MapLayout {
         boundary_walls,
         interior_walls,
@@ -244,6 +268,7 @@ pub fn generate_grid() -> (MapLayout, GridConfig) {
         ramps,
         roof_walls,
         wall_lights,
+        floors,
     };
 
     let grid_config = GridConfig { grid };

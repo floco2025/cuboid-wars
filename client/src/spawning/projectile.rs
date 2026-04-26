@@ -1,9 +1,9 @@
 use bevy::prelude::*;
 
 use common::{
-    collision::ProjectileMotion,
     constants::*,
     markers::{PlayerMarker, ProjectileMarker},
+    physics::ProjectileMotion,
     protocol::*,
     spawning::{ProjectileSpawnInfo, calculate_projectile_spawns},
 };

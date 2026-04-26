@@ -6,68 +6,17 @@ use bevy::{
 use crate::{
     constants::{PROJECTILE_MAX_BOUNCE_SOUNDS_PER_SECOND, PROJECTILE_MIN_BOUNCE_SOUND_SPEED},
     markers::LocalPlayerMarker,
-    resources::{LastBounceSoundTime, PlayerMap},
+    resources::LastBounceSoundTime,
 };
 use common::{
-    collision::{ProjectileMotion, projectile_hits_sentry, sweep_projectile_vs_player},
-    constants::ALWAYS_SENTRY_HUNT,
-    markers::{PlayerMarker, ProjectileMarker, SentryMarker},
+    markers::{PlayerMarker, ProjectileMarker},
+    physics::{ProjectileMotion, sweep_projectile_vs_player},
     protocol::{FaceDirection, MapLayout, PlayerId, Position},
 };
 
 // ============================================================================
 // Helper Functions
 // ============================================================================
-
-fn handle_sentry_collisions(
-    commands: &mut Commands,
-    asset_server: &AssetServer,
-    proj_entity: Entity,
-    proj_motion: &ProjectileMotion,
-    proj_pos: &Position,
-    shooter_id: &PlayerId,
-    delta: f32,
-    sentry_query: &Query<(&Position, &FaceDirection), With<SentryMarker>>,
-    players: &PlayerMap,
-) -> bool {
-    // Always check sentry collisions
-    for (sentry_pos, sentry_face_dir) in sentry_query.iter() {
-        if projectile_hits_sentry(proj_pos, proj_motion, delta, sentry_pos, sentry_face_dir.0) {
-            // Check if shooter has sentry hunt power-up
-            let shooter_has_hunt = players
-                .0
-                .get(shooter_id)
-                .is_some_and(|info| ALWAYS_SENTRY_HUNT || info.sentry_hunt_power_up);
-
-            if shooter_has_hunt {
-                // With hunt power-up: play sentry hit sound
-                play_sound(
-                    commands,
-                    asset_server,
-                    "sounds/player_hits_sentry.wav",
-                    PlaybackSettings::DESPAWN,
-                );
-            } else {
-                // Without hunt power-up: play wall hit sound
-                play_sound(
-                    commands,
-                    asset_server,
-                    "sounds/projectile_hits_sentry_no_damage.ogg",
-                    PlaybackSettings {
-                        mode: PlaybackMode::Despawn,
-                        volume: Volume::Linear(0.2),
-                        ..default()
-                    },
-                );
-            }
-
-            commands.entity(proj_entity).despawn();
-            return true;
-        }
-    }
-
-    false
-}
 
 fn handle_player_collisions(
     commands: &mut Commands,
@@ -123,8 +72,6 @@ pub fn projectiles_movement_system(
     asset_server: Res<AssetServer>,
     mut projectile_query: Query<(Entity, &mut Transform, &mut ProjectileMotion, &PlayerId), With<ProjectileMarker>>,
     player_query: Query<(Entity, &Position, &FaceDirection, Has<LocalPlayerMarker>), With<PlayerMarker>>,
-    sentry_query: Query<(&Position, &FaceDirection), With<SentryMarker>>,
-    players: Res<PlayerMap>,
     map_layout: Option<Res<MapLayout>>,
     mut last_bounce_sound: ResMut<LastBounceSoundTime>,
 ) {
@@ -132,7 +79,7 @@ pub fn projectiles_movement_system(
     let current_time = time.elapsed_secs();
     let map_layout = map_layout.as_deref();
 
-    for (projectile_entity, mut projectile_transform, mut projectile, shooter_id) in &mut projectile_query {
+    for (projectile_entity, mut projectile_transform, mut projectile, _shooter_id) in &mut projectile_query {
         // Check lifetime and despawn if expired
         projectile.lifetime.tick(time.delta());
         if projectile.lifetime.is_finished() {
@@ -159,22 +106,6 @@ pub fn projectiles_movement_system(
         ) {
             pos_after_bounce
         } else {
-            // No wall collision, check sentry collisions first
-            if handle_sentry_collisions(
-                &mut commands,
-                asset_server.as_ref(),
-                projectile_entity,
-                &projectile,
-                &projectile_pos,
-                shooter_id,
-                delta,
-                &sentry_query,
-                &players,
-            ) {
-                // Hit a sentry, projectile was despawned
-                continue;
-            }
-
             // Check player collisions
             if handle_player_collisions(
                 &mut commands,

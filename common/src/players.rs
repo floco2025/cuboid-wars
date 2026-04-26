@@ -1,6 +1,6 @@
 use bevy_ecs::prelude::*;
 
-use crate::{collision::sweep_player_vs_player, protocol::Position};
+use crate::{physics::sweep_player_vs_player, protocol::Position};
 
 // ============================================================================
 // Planned Move - Used in two-pass movement system
@@ -12,6 +12,7 @@ pub struct PlannedMove {
     pub entity: Entity,
     pub start: Position,
     pub target: Position,
+    pub target_vy: f32,
     pub collides: bool,
 }
 

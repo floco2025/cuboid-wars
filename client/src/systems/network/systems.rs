@@ -7,11 +7,10 @@ use crate::{
     markers::MainCameraMarker,
     net::{ClientToServer, ServerToClient},
     resources::{
-        ClientToServerChannel, ItemMap, LastUpdateSeq, MyPlayerId, PlayerMap, RoundTripTime, SentryMap,
-        ServerToClientChannel,
+        ClientToServerChannel, ItemMap, LastUpdateSeq, MyPlayerId, PlayerMap, RoundTripTime, ServerToClientChannel,
     },
 };
-use common::{markers::PlayerMarker, markers::SentryMarker, protocol::*};
+use common::{markers::PlayerMarker, protocol::*};
 
 // ============================================================================
 // Network Message Processing System
@@ -24,12 +23,10 @@ pub fn network_server_message_system(
     mut exit: MessageWriter<AppExit>,
     mut players: ResMut<PlayerMap>,
     mut items: ResMut<ItemMap>,
-    mut sentries: ResMut<SentryMap>,
     mut rtt: ResMut<RoundTripTime>,
     mut last_update_seq: ResMut<LastUpdateSeq>,
     mut assets: AssetManagers,
     player_data: Query<(&Position, &FaceDirection), With<PlayerMarker>>,
-    sentry_positions: Query<&Position, With<SentryMarker>>,
     cameras: Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     my_player_id: Option<Res<MyPlayerId>>,
     map_layout: Option<Res<MapLayout>>,
@@ -51,12 +48,10 @@ pub fn network_server_message_system(
                         &mut commands,
                         &mut players,
                         &mut items,
-                        &mut sentries,
                         &mut rtt,
                         &mut last_update_seq,
                         &mut assets,
                         &player_data,
-                        &sentry_positions,
                         &cameras,
                         &time,
                         &asset_server,

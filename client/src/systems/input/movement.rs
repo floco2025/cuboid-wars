@@ -11,10 +11,7 @@ use crate::{
     net::ClientToServer,
     resources::{CameraViewMode, ClientToServerChannel, InputSettings, LocalPlayerInfo, MyPlayerId, PlayerMap},
 };
-use common::{
-    constants::{ALWAYS_SPEED, POWER_UP_SPEED_MULTIPLIER},
-    protocol::*,
-};
+use common::protocol::*;
 
 const MAX_PITCH: f32 = std::f32::consts::FRAC_PI_2 - 0.05;
 
@@ -29,7 +26,7 @@ pub fn input_movement_system(
     players: Res<PlayerMap>,
     input_settings: Res<InputSettings>,
     mut local_player_info: ResMut<LocalPlayerInfo>,
-    mut local_player_query: Query<(&mut Velocity, &mut FaceDirection), With<LocalPlayerMarker>>,
+    mut local_player_query: Query<(&mut MoveInput, &mut FaceDirection), With<LocalPlayerMarker>>,
     mut camera_query: Query<&mut Transform, (With<Camera3d>, With<MainCameraMarker>)>,
     view_mode: Res<CameraViewMode>,
 ) {
@@ -39,8 +36,6 @@ pub fn input_movement_system(
         handle_unlocked_cursor(
             &mut mouse_motion,
             &to_server,
-            my_player_id.as_ref(),
-            &players,
             &mut local_player_info,
             &mut local_player_query,
         );
@@ -55,17 +50,11 @@ pub fn input_movement_system(
         input_settings.invert_pitch,
     );
     let face_yaw = current_yaw + std::f32::consts::PI;
-    let speed = calculate_movement_speed(&keyboard, face_yaw, my_player_id.as_ref(), &players);
+    let move_input = calculate_move_input(&keyboard, face_yaw, my_player_id.as_ref(), &players);
 
-    update_player_velocity_and_face(
-        speed,
-        face_yaw,
-        my_player_id.as_ref(),
-        &players,
-        &mut local_player_query,
-    );
+    update_player_input_and_face(move_input, face_yaw, &mut local_player_query);
 
-    send_throttled_updates(speed, face_yaw, &time, &to_server, &mut local_player_info);
+    send_throttled_updates(move_input, face_yaw, &time, &to_server, &mut local_player_info);
 
     if *view_mode == CameraViewMode::FirstPerson {
         for mut transform in &mut camera_query {
@@ -77,34 +66,21 @@ pub fn input_movement_system(
 fn handle_unlocked_cursor(
     mouse_motion: &mut MessageReader<MouseMotion>,
     to_server: &Res<ClientToServerChannel>,
-    my_player_id: Option<&Res<MyPlayerId>>,
-    players: &Res<PlayerMap>,
     local_player_info: &mut LocalPlayerInfo,
-    local_player_query: &mut Query<(&mut Velocity, &mut FaceDirection), With<LocalPlayerMarker>>,
+    local_player_query: &mut Query<(&mut MoveInput, &mut FaceDirection), With<LocalPlayerMarker>>,
 ) {
     // Drain pending mouse events and ensure player stops moving
     for _ in mouse_motion.read() {}
 
-    if local_player_info.last_sent_speed.speed_level != SpeedLevel::Idle {
-        let speed = Speed {
-            speed_level: SpeedLevel::Idle,
-            move_dir: 0.0,
-        };
-        for (mut velocity, _) in local_player_query.iter_mut() {
-            let has_speed_powerup = my_player_id
-                .and_then(|my_id| players.0.get(&my_id.0))
-                .is_some_and(|info| ALWAYS_SPEED || info.speed_power_up);
-            let multiplier = if has_speed_powerup {
-                POWER_UP_SPEED_MULTIPLIER
-            } else {
-                1.0
-            };
-            *velocity = speed.to_velocity().with_speed_multiplier(multiplier);
+    if local_player_info.last_sent_input.direction().is_some() {
+        let idle = MoveInput::Idle;
+        for (mut input, _) in local_player_query.iter_mut() {
+            *input = idle;
         }
-        let msg = ClientMessage::Speed(CSpeed { speed });
+        let msg = ClientMessage::MoveInput(CMoveInput { input: idle });
         let _ = to_server.send(ClientToServer::Send(msg));
-        local_player_info.last_sent_speed = speed;
-        local_player_info.last_send_speed_time = 0.0;
+        local_player_info.last_sent_input = idle;
+        local_player_info.last_send_input_time = 0.0;
     }
 }
 
@@ -150,79 +126,59 @@ fn calculate_current_orientation(
     (current_yaw, current_pitch)
 }
 
-fn calculate_movement_speed(
+fn calculate_move_input(
     keyboard: &Res<ButtonInput<KeyCode>>,
     face_yaw: f32,
     my_player_id: Option<&Res<MyPlayerId>>,
     players: &Res<PlayerMap>,
-) -> Speed {
-    // Check if stunned - if so, no movement
+) -> MoveInput {
+    // Stunned players cannot move
     if let Some(my_id) = my_player_id
         && let Some(player_info) = players.0.get(&my_id.0)
         && player_info.stunned
     {
-        return Speed {
-            speed_level: SpeedLevel::Idle,
-            move_dir: 0.0,
-        };
+        return MoveInput::Idle;
     }
 
     // Build movement input vector (forward=z, right=x)
-    let mut move_input = Vec2::ZERO;
+    let mut keyboard_vec = Vec2::ZERO;
     if keyboard.pressed(KeyCode::KeyW) {
-        move_input.y += 1.0;
+        keyboard_vec.y += 1.0;
     }
     if keyboard.pressed(KeyCode::KeyS) {
-        move_input.y -= 1.0;
+        keyboard_vec.y -= 1.0;
     }
     if keyboard.pressed(KeyCode::KeyA) {
-        move_input.x += 1.0;
+        keyboard_vec.x += 1.0;
     }
     if keyboard.pressed(KeyCode::KeyD) {
-        move_input.x -= 1.0;
+        keyboard_vec.x -= 1.0;
     }
 
-    // Translate input vector into move_dir + speed level
-    let (speed_level, move_dir) = if move_input.length_squared() > 0.0 {
-        let normalized_input = move_input.normalize();
+    if keyboard_vec.length_squared() > 0.0 {
+        let normalized_input = keyboard_vec.normalize();
         let angle_offset = normalized_input.x.atan2(normalized_input.y);
-        let move_dir = face_yaw + angle_offset;
-        let speed_level = if keyboard.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]) {
-            SpeedLevel::Run
-        } else {
-            SpeedLevel::Walk
-        };
-        (speed_level, move_dir)
+        MoveInput::Moving {
+            direction: face_yaw + angle_offset,
+        }
     } else {
-        (SpeedLevel::Idle, 0.0)
-    };
-
-    Speed { speed_level, move_dir }
+        MoveInput::Idle
+    }
 }
 
-fn update_player_velocity_and_face(
-    speed: Speed,
+fn update_player_input_and_face(
+    move_input: MoveInput,
     face_yaw: f32,
-    my_player_id: Option<&Res<MyPlayerId>>,
-    players: &Res<PlayerMap>,
-    local_player_query: &mut Query<(&mut Velocity, &mut FaceDirection), With<LocalPlayerMarker>>,
+    local_player_query: &mut Query<(&mut MoveInput, &mut FaceDirection), With<LocalPlayerMarker>>,
 ) {
-    for (mut velocity, mut face_direction) in local_player_query.iter_mut() {
-        let has_speed_powerup = my_player_id
-            .and_then(|my_id| players.0.get(&my_id.0))
-            .is_some_and(|info| ALWAYS_SPEED || info.speed_power_up);
-        let multiplier = if has_speed_powerup {
-            POWER_UP_SPEED_MULTIPLIER
-        } else {
-            1.0
-        };
-        *velocity = speed.to_velocity().with_speed_multiplier(multiplier);
+    for (mut input, mut face_direction) in local_player_query.iter_mut() {
+        *input = move_input;
         face_direction.0 = face_yaw;
     }
 }
 
 fn send_throttled_updates(
-    speed: Speed,
+    move_input: MoveInput,
     face_yaw: f32,
     time: &Res<Time>,
     to_server: &Res<ClientToServerChannel>,
@@ -230,17 +186,21 @@ fn send_throttled_updates(
 ) {
     // Throttle network updates when movement/face changes
     let delta = time.delta_secs();
-    local_player_info.last_send_speed_time += delta;
+    local_player_info.last_send_input_time += delta;
     local_player_info.last_send_face_time += delta;
 
-    let speed_level_changed = local_player_info.last_sent_speed.speed_level != speed.speed_level;
-    let move_dir_changed =
-        (speed.move_dir - local_player_info.last_sent_speed.move_dir).abs() > SPEED_DIR_CHANGE_THRESHOLD.to_radians();
-    if speed_level_changed || (move_dir_changed && local_player_info.last_send_speed_time >= SPEED_MAX_SEND_INTERVAL) {
-        let msg = ClientMessage::Speed(CSpeed { speed });
+    let last_dir = local_player_info.last_sent_input.direction();
+    let new_dir = move_input.direction();
+    let active_changed = last_dir.is_some() != new_dir.is_some();
+    let direction_changed = match (new_dir, last_dir) {
+        (Some(new_d), Some(old_d)) => (new_d - old_d).abs() > SPEED_DIR_CHANGE_THRESHOLD.to_radians(),
+        _ => false,
+    };
+    if active_changed || (direction_changed && local_player_info.last_send_input_time >= SPEED_MAX_SEND_INTERVAL) {
+        let msg = ClientMessage::MoveInput(CMoveInput { input: move_input });
         let _ = to_server.send(ClientToServer::Send(msg));
-        local_player_info.last_sent_speed = speed;
-        local_player_info.last_send_speed_time = 0.0;
+        local_player_info.last_sent_input = move_input;
+        local_player_info.last_send_input_time = 0.0;
     }
 
     let face_changed = (face_yaw - local_player_info.last_sent_face).abs() > FACE_CHANGE_THRESHOLD.to_radians();

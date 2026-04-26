@@ -3,13 +3,14 @@ use bevy::prelude::*;
 use super::components::BumpFlashState;
 use crate::{markers::*, resources::PlayerMap, systems::network::ServerReconciliation};
 use common::{
-    collision::{
-        overlap_player_vs_wall, slide_player_along_obstacles, sweep_player_vs_ramp_edges, sweep_player_vs_wall,
+    constants::{ALWAYS_PHASING, PHYSICS_EPSILON, PLAYER_SPEED, UPDATE_BROADCAST_INTERVAL},
+    map::{compute_player_level, find_support_floor},
+    physics::{
+        PlayerMotion, overlap_player_vs_wall, slide_player_along_obstacles, sweep_player_vs_ramp_edges,
+        sweep_player_vs_wall,
     },
-    constants::{ALWAYS_PHASING, PHYSICS_EPSILON, ROOF_HEIGHT, SPEED_RUN, UPDATE_BROADCAST_INTERVAL},
-    map::{close_to_roof, has_roof, height_on_ramp},
     players::{PlannedMove, overlaps_other_player},
-    protocol::{MapLayout, PlayerId, Position, Velocity},
+    protocol::{MapLayout, MoveInput, PlayerId, Position, Wall},
 };
 
 // ============================================================================
@@ -79,7 +80,8 @@ type MovementQuery<'w, 's> = Query<
         Entity,
         &'static PlayerId,
         &'static mut Position,
-        &'static Velocity,
+        &'static MoveInput,
+        &'static mut PlayerMotion,
         Option<&'static mut BumpFlashState>,
         Option<&'static mut ServerReconciliation>,
         Has<LocalPlayerMarker>,
@@ -100,20 +102,24 @@ pub fn players_movement_system(
     // Pass 1: For each player, calculate intended position, then apply wall collision logic
     let mut planned_moves: Vec<PlannedMove> = Vec::new();
 
-    for (entity, player_id, mut client_pos, client_vel, mut flash_state, mut recon_option, is_local) in &mut query {
+    for (entity, player_id, mut client_pos, move_input, motion, mut flash_state, mut recon_option, is_local) in
+        &mut query
+    {
         if let Some(state) = flash_state.as_mut() {
             decay_flash_timer(state, delta, is_local, &mut bump_flash_ui);
         }
 
-        let abs_velocity = client_vel.x.hypot(client_vel.z);
-        let is_standing_still = abs_velocity < PHYSICS_EPSILON;
+        // Derive horizontal velocity from input intent + speed power-up.
+        let has_speed_power_up = players.0.get(player_id).is_some_and(|info| info.speed_power_up);
+        let h_vel = move_input.to_velocity_for_player(has_speed_power_up);
+        let is_standing_still = h_vel.x.hypot(h_vel.z) < PHYSICS_EPSILON;
 
         // Calculate intended position from velocity (with server reconciliation if needed)
         let mut target_pos = if let Some(recon) = recon_option.as_mut() {
             const IDLE_CORRECTION_TIME: f32 = 10.0; // Standing still: slow, smooth correction
             let run_correction_time: f32 = recon.rtt * 5.0; // Benchmark: RTT = 100ms equals 0.5s correction time
 
-            let speed_ratio = (abs_velocity / SPEED_RUN).clamp(0.0, 1.0); // Ignore speed power-ups
+            let speed_ratio = (h_vel.x.hypot(h_vel.z) / PLAYER_SPEED).clamp(0.0, 1.0); // Ignore speed power-ups
             let correction_time_interval = IDLE_CORRECTION_TIME.lerp(run_correction_time, speed_ratio);
             let correction_factor = (UPDATE_BROADCAST_INTERVAL / correction_time_interval).clamp(0.0, 1.0);
 
@@ -122,7 +128,7 @@ pub fn players_movement_system(
                 commands.entity(entity).remove::<ServerReconciliation>();
             }
 
-            let server_pos = Vec3::from(recon.server_pos) + Vec3::from(recon.server_vel) * recon.rtt / 2.0;
+            let server_pos = Vec3::from(recon.server_pos) + recon.server_vel * recon.rtt / 2.0;
             let total_delta = server_pos - Vec3::from(recon.client_pos);
 
             // If the player got totally out of sync, we jump to the server position
@@ -140,8 +146,8 @@ pub fn players_movement_system(
             let dx = total_delta.x * delta * correction_factor / UPDATE_BROADCAST_INTERVAL;
             let dz = total_delta.z * delta * correction_factor / UPDATE_BROADCAST_INTERVAL;
 
-            let new_x = client_vel.x.mul_add(delta, client_pos.x) + dx;
-            let new_z = client_vel.z.mul_add(delta, client_pos.z) + dz;
+            let new_x = h_vel.x.mul_add(delta, client_pos.x) + dx;
+            let new_z = h_vel.z.mul_add(delta, client_pos.z) + dz;
 
             Position {
                 x: new_x,
@@ -149,8 +155,8 @@ pub fn players_movement_system(
                 z: new_z,
             }
         } else {
-            let new_x = client_vel.x.mul_add(delta, client_pos.x);
-            let new_z = client_vel.z.mul_add(delta, client_pos.z);
+            let new_x = h_vel.x.mul_add(delta, client_pos.x);
+            let new_z = h_vel.z.mul_add(delta, client_pos.z);
             Position {
                 x: new_x,
                 y: client_pos.y, // Keep current Y for collision detection
@@ -158,12 +164,40 @@ pub fn players_movement_system(
             }
         };
 
+        // Vertical integration: gravity + landing snap. Computed regardless of horizontal motion
+        // so that even a stationary player stays anchored to its support.
+        let mut next_motion = PlayerMotion {
+            velocity: motion.velocity,
+        };
+        next_motion.apply_gravity(delta);
+        next_motion.apply_terminal_velocity();
+
+        let mut target_vy = next_motion.velocity.y;
+
         // Skip collision checks if player is standing still
         if is_standing_still {
+            if let Some(map_layout) = map_layout.as_ref() {
+                let support = find_support_floor(
+                    &map_layout.floors,
+                    &map_layout.ramps,
+                    target_pos.x,
+                    target_pos.z,
+                    client_pos.y,
+                );
+                if next_motion.velocity.y <= 0.0
+                    && let Some(s) = support
+                {
+                    target_pos.y = s;
+                    target_vy = 0.0;
+                } else {
+                    target_pos.y = next_motion.velocity.y.mul_add(delta, client_pos.y);
+                }
+            }
             planned_moves.push(PlannedMove {
                 entity,
                 start: *client_pos,
                 target: target_pos,
+                target_vy,
                 collides: false,
             });
             continue;
@@ -173,7 +207,8 @@ pub fn players_movement_system(
         let mut collides = false;
 
         if let Some(map_layout) = map_layout.as_ref() {
-            let walls_to_check = if close_to_roof(client_pos.y) {
+            let player_level = compute_player_level(client_pos.y);
+            let walls_to_check: &[Wall] = if player_level == 1 {
                 &map_layout.roof_walls
             } else {
                 let has_phasing = ALWAYS_PHASING || players.0.get(player_id).is_some_and(|info| info.phasing_power_up);
@@ -211,21 +246,26 @@ pub fn players_movement_system(
                     walls_to_check,
                     &map_layout.ramps,
                     &client_pos,
-                    client_vel.x,
-                    client_vel.z,
+                    h_vel.x,
+                    h_vel.z,
                     delta,
                 );
             }
 
-            let target_height_on_ramp = height_on_ramp(&map_layout.ramps, target_pos.x, target_pos.z);
-            let target_has_roof = has_roof(&map_layout.roofs, target_pos.x, target_pos.z);
-
-            if target_height_on_ramp > 0.0 {
-                target_pos.y = target_height_on_ramp;
-            } else if target_has_roof && close_to_roof(client_pos.y) {
-                target_pos.y = ROOF_HEIGHT;
+            let support = find_support_floor(
+                &map_layout.floors,
+                &map_layout.ramps,
+                target_pos.x,
+                target_pos.z,
+                client_pos.y,
+            );
+            if next_motion.velocity.y <= 0.0
+                && let Some(s) = support
+            {
+                target_pos.y = s;
+                target_vy = 0.0;
             } else {
-                target_pos.y = 0.0;
+                target_pos.y = next_motion.velocity.y.mul_add(delta, client_pos.y);
             }
         }
 
@@ -233,13 +273,16 @@ pub fn players_movement_system(
             entity,
             start: *client_pos,
             target: target_pos,
+            target_vy,
             collides,
         });
     }
 
     // Pass 2: Check player-player collisions and apply final positions
     for planned_move in &planned_moves {
-        let Ok((_, _, mut client_pos, _, mut flash_state, _, is_local)) = query.get_mut(planned_move.entity) else {
+        let Ok((_, _, mut client_pos, _, mut motion, mut flash_state, _, is_local)) =
+            query.get_mut(planned_move.entity)
+        else {
             continue;
         };
 
@@ -253,6 +296,7 @@ pub fn players_movement_system(
             }
         } else {
             *client_pos = planned_move.target;
+            motion.velocity.y = planned_move.target_vy;
 
             if let Some(state) = flash_state.as_mut() {
                 if planned_move.collides {

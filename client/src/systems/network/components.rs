@@ -1,5 +1,5 @@
 use bevy::{ecs::system::SystemParam, prelude::*};
-use common::protocol::{Position, Velocity};
+use common::protocol::Position;
 
 // ============================================================================
 // Components
@@ -10,7 +10,7 @@ use common::protocol::{Position, Velocity};
 pub struct ServerReconciliation {
     pub client_pos: Position,
     pub server_pos: Position,
-    pub server_vel: Velocity,
+    pub server_vel: Vec3,
     pub timer: f32,
     pub rtt: f32,
 }

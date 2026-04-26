@@ -4,7 +4,7 @@ use crate::{
     resources::{MyPlayerId, PlayerInfo, PlayerMap},
     spawning::spawn_player,
 };
-use common::{constants::POWER_UP_SPEED_MULTIPLIER, protocol::*};
+use common::protocol::*;
 
 // ============================================================================
 // Login/Logout Handlers
@@ -43,11 +43,6 @@ pub fn handle_player_login_message(
         return;
     }
 
-    let mut velocity = msg.player.speed.to_velocity();
-    if msg.player.speed_power_up {
-        velocity.x *= POWER_UP_SPEED_MULTIPLIER;
-        velocity.z *= POWER_UP_SPEED_MULTIPLIER;
-    }
     let entity = spawn_player(
         commands,
         asset_server,
@@ -58,7 +53,7 @@ pub fn handle_player_login_message(
         msg.id.0,
         &msg.player.name,
         &msg.player.pos,
-        velocity,
+        msg.player.move_input,
         msg.player.face_dir,
         false,
     );
@@ -71,7 +66,6 @@ pub fn handle_player_login_message(
             speed_power_up: msg.player.speed_power_up,
             multi_shot_power_up: msg.player.multi_shot_power_up,
             phasing_power_up: msg.player.phasing_power_up,
-            sentry_hunt_power_up: msg.player.sentry_hunt_power_up,
             stunned: msg.player.stunned,
         },
     );

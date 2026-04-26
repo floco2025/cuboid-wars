@@ -15,7 +15,7 @@ use crate::{
         players::BumpFlashState,
     },
 };
-use common::{constants::*, markers::PlayerMarker, protocol::*};
+use common::{constants::*, markers::PlayerMarker, physics::PlayerMotion, protocol::*};
 
 // ============================================================================
 // Bundles
@@ -26,7 +26,8 @@ struct PlayerBundle {
     player_id: PlayerId,
     player_marker: PlayerMarker,
     position: Position,
-    velocity: Velocity,
+    move_input: MoveInput,
+    motion: PlayerMotion,
     face_direction: FaceDirection,
     transform: Transform,
     visibility: Visibility,
@@ -47,7 +48,7 @@ pub fn spawn_player(
     player_id: u32,
     player_name: &str,
     position: &Position,
-    velocity: Velocity,
+    move_input: MoveInput,
     face_dir: f32,
     is_local: bool,
 ) -> Entity {
@@ -63,7 +64,8 @@ pub fn spawn_player(
                 player_id: PlayerId(player_id),
                 player_marker: PlayerMarker,
                 position: *position,
-                velocity,
+                move_input,
+                motion: PlayerMotion::default(),
                 face_direction: FaceDirection(face_dir),
                 transform: Transform::from_xyz(position.x, position.y + PLAYER_HEIGHT / 2.0, position.z)
                     .with_rotation(Quat::from_rotation_y(face_dir)),

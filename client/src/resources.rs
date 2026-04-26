@@ -9,7 +9,7 @@ use tokio::sync::mpsc::{
 };
 
 use crate::net::{ClientToServer, ServerToClient};
-use common::protocol::{ItemId, PlayerId, SentryId, Speed, SpeedLevel};
+use common::protocol::{ItemId, MoveInput, PlayerId};
 
 // ============================================================================
 // Bevy Resources
@@ -27,7 +27,6 @@ pub struct PlayerInfo {
     pub speed_power_up: bool,
     pub multi_shot_power_up: bool,
     pub phasing_power_up: bool,
-    pub sentry_hunt_power_up: bool,
     pub stunned: bool,
 }
 
@@ -44,15 +43,6 @@ pub struct ItemInfo {
 #[derive(Resource, Default)]
 pub struct ItemMap(pub HashMap<ItemId, ItemInfo>);
 
-// Sentry information (client-side)
-pub struct SentryInfo {
-    pub entity: Entity,
-}
-
-// Map of all sentries (client-side source of truth)
-#[derive(Resource, Default)]
-pub struct SentryMap(pub HashMap<SentryId, SentryInfo>);
-
 // Last received SUpdate sequence number
 #[derive(Resource, Default)]
 pub struct LastUpdateSeq(pub u32);
@@ -61,9 +51,9 @@ pub struct LastUpdateSeq(pub u32);
 #[derive(Resource)]
 pub struct LocalPlayerInfo {
     pub last_shot_time: f32,
-    pub last_sent_speed: Speed,
+    pub last_sent_input: MoveInput,
     pub last_sent_face: f32,
-    pub last_send_speed_time: f32,
+    pub last_send_input_time: f32,
     pub last_send_face_time: f32,
     pub stored_yaw: f32,
     pub stored_pitch: f32,
@@ -73,12 +63,9 @@ impl Default for LocalPlayerInfo {
     fn default() -> Self {
         Self {
             last_shot_time: f32::NEG_INFINITY,
-            last_sent_speed: Speed {
-                speed_level: SpeedLevel::Idle,
-                move_dir: 0.0,
-            },
+            last_sent_input: MoveInput::default(),
             last_sent_face: 0.0,
-            last_send_speed_time: 0.0,
+            last_send_input_time: 0.0,
             last_send_face_time: 0.0,
             stored_yaw: 0.0,
             stored_pitch: 0.0,
