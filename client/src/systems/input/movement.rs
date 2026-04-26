@@ -77,7 +77,7 @@ fn handle_unlocked_cursor(
         for (mut input, _) in local_player_query.iter_mut() {
             *input = idle;
         }
-        let msg = ClientMessage::MoveInput(CMoveInput { input: idle });
+        let msg = ClientMessage::MoveInput(CMoveInput { move_input: idle });
         let _ = to_server.send(ClientToServer::Send(msg));
         local_player_info.last_sent_input = idle;
         local_player_info.last_send_input_time = 0.0;
@@ -193,11 +193,11 @@ fn send_throttled_updates(
     let new_dir = move_input.direction();
     let active_changed = last_dir.is_some() != new_dir.is_some();
     let direction_changed = match (new_dir, last_dir) {
-        (Some(new_d), Some(old_d)) => (new_d - old_d).abs() > SPEED_DIR_CHANGE_THRESHOLD.to_radians(),
+        (Some(new_d), Some(old_d)) => (new_d - old_d).abs() > MOVE_INPUT_DIR_CHANGE_THRESHOLD.to_radians(),
         _ => false,
     };
-    if active_changed || (direction_changed && local_player_info.last_send_input_time >= SPEED_MAX_SEND_INTERVAL) {
-        let msg = ClientMessage::MoveInput(CMoveInput { input: move_input });
+    if active_changed || (direction_changed && local_player_info.last_send_input_time >= MOVE_INPUT_MAX_SEND_INTERVAL) {
+        let msg = ClientMessage::MoveInput(CMoveInput { move_input });
         let _ = to_server.send(ClientToServer::Send(msg));
         local_player_info.last_sent_input = move_input;
         local_player_info.last_send_input_time = 0.0;

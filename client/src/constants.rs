@@ -60,9 +60,9 @@ pub const LIGHT_DIRECTIONAL_BRIGHTNESS: f32 = 8000.0;
 // Network Throttling
 // ============================================================================
 
-// Speed updates
-pub const SPEED_MAX_SEND_INTERVAL: f32 = 0.05; // seconds
-pub const SPEED_DIR_CHANGE_THRESHOLD: f32 = 1.0; // degrees
+// Move-input updates
+pub const MOVE_INPUT_MAX_SEND_INTERVAL: f32 = 0.05; // seconds
+pub const MOVE_INPUT_DIR_CHANGE_THRESHOLD: f32 = 1.0; // degrees
 
 // Face direction updates
 pub const FACE_MAX_SEND_INTERVAL: f32 = 0.1; // seconds

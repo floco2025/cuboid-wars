@@ -20,7 +20,7 @@ pub struct CLogoff {}
 // Client to Server: Movement-input update.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct CMoveInput {
-    pub input: MoveInput,
+    pub move_input: MoveInput,
 }
 
 // Client to Server: Facing direction update.
@@ -71,7 +71,7 @@ pub struct SLogoff {
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SMoveInput {
     pub id: PlayerId,
-    pub input: MoveInput,
+    pub move_input: MoveInput,
     pub pos: Position,
 }
 

@@ -24,12 +24,12 @@ pub fn handle_player_move_input_message(
 ) {
     trace!("{:?} move input: {:?}", msg.id, msg);
     if let Some(player) = players.0.get(&msg.id) {
-        let server_vel = msg.input.to_velocity_for_player(player.speed_power_up);
+        let server_vel = msg.move_input.to_velocity_for_player(player.speed_power_up);
 
         // Add server reconciliation if we have client position
         if let Ok((client_pos, _)) = player_data.get(player.entity) {
             commands.entity(player.entity).insert((
-                msg.input, // Never the local player, so we can always overwrite intent
+                msg.move_input, // Never the local player, so we can always overwrite intent
                 ServerReconciliation {
                     client_pos: *client_pos,
                     server_pos: msg.pos,
@@ -39,7 +39,7 @@ pub fn handle_player_move_input_message(
                 },
             ));
         } else {
-            commands.entity(player.entity).insert(msg.input);
+            commands.entity(player.entity).insert(msg.move_input);
         }
     }
 }

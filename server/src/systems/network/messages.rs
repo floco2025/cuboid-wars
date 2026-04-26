@@ -77,7 +77,7 @@ fn handle_move_input_message(
     player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
 ) {
     // Update the player's input intent
-    commands.entity(entity).insert(msg.input);
+    commands.entity(entity).insert(msg.move_input);
 
     // Get current position for reconciliation
     if let Ok((pos, _, _)) = player_data.get(entity) {
@@ -87,7 +87,7 @@ fn handle_move_input_message(
             id,
             ServerMessage::MoveInput(SMoveInput {
                 id,
-                input: msg.input,
+                move_input: msg.move_input,
                 pos: *pos,
             }),
         );
