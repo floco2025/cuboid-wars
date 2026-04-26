@@ -30,6 +30,14 @@ pub fn input_movement_system(
     mut camera_query: Query<&mut Transform, (With<Camera3d>, With<MainCameraMarker>)>,
     view_mode: Res<CameraViewMode>,
 ) {
+    // Wait for the local player entity to exist before sampling input or sending updates.
+    // Otherwise we'd compute a face direction from the default camera transform and
+    // broadcast it to the server, overwriting the authoritative spawn-time facing.
+    if local_player_query.is_empty() {
+        for _ in mouse_motion.read() {}
+        return;
+    }
+
     // Require locked cursor before processing movement input
     let cursor_locked = cursor_options.grab_mode != CursorGrabMode::None;
     if !cursor_locked {
