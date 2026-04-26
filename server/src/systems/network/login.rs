@@ -1,12 +1,11 @@
 use bevy::prelude::*;
-use rand::{RngExt, rng, seq::IndexedRandom};
 
 use crate::{
     net::ServerToClient,
     resources::{GridConfig, ItemMap, PlayerMap},
+    systems::players::generate_player_spawn_position,
 };
 use common::{
-    constants::{FIELD_DEPTH, FIELD_WIDTH, GRID_SIZE},
     markers::{ItemMarker, PlayerMarker},
     physics::PlayerMotion,
     protocol::{MapLayout, *},
@@ -64,8 +63,16 @@ pub fn handle_login_message(
                 return;
             }
 
-            // Generate random initial position for the new player
-            let pos = generate_player_spawn_position(grid_config, players, player_data);
+            // Generate random initial position for the new player.
+            // Avoid spawning on top of any other logged-in player.
+            let occupied_positions: Vec<Position> = players
+                .0
+                .values()
+                .filter(|p| p.logged_in && p.entity != entity)
+                .filter_map(|p| player_data.get(p.entity).ok())
+                .map(|(pos, _, _)| *pos)
+                .collect();
+            let pos = generate_player_spawn_position(grid_config, &occupied_positions);
 
             // Calculate initial facing direction toward center
             let face_dir = (-pos.x).atan2(-pos.z);
@@ -112,78 +119,4 @@ pub fn handle_login_message(
             // Don't despawn - Init message will likely arrive soon
         }
     }
-}
-
-// ============================================================================
-// Spawn Position Generation
-// ============================================================================
-
-// Generate a spawn position in a random grid cell without a ramp,
-// spawning in the inner 50% of the cell to avoid walls.
-fn generate_player_spawn_position(
-    grid_config: &GridConfig,
-    players: &PlayerMap,
-    player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
-) -> Position {
-    let mut rng = rng();
-    let grid_rows = grid_config.grid.len() as i32;
-    let grid_cols = grid_config.grid[0].len() as i32;
-    let max_attempts = 100;
-    const MIN_DISTANCE: f32 = 10.0; // Minimum distance from other entities
-
-    // Collect all cells without ramps
-    let mut valid_cells = Vec::new();
-    for row in 0..grid_rows {
-        for col in 0..grid_cols {
-            if !grid_config.grid[row as usize][col as usize].has_ramp {
-                valid_cells.push((row, col));
-            }
-        }
-    }
-
-    if valid_cells.is_empty() {
-        warn!("no valid spawn cells found (all have ramps), spawning at center");
-        return Position::default();
-    }
-
-    for _ in 0..max_attempts {
-        // Pick a random valid cell
-        let &(row, col) = valid_cells.choose(&mut rng).expect("valid_cells should not be empty");
-
-        // Calculate cell center in world coordinates
-        let cell_center_x = (col as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-        let cell_center_z = (row as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
-
-        // Spawn in inner 50% of the cell (25% margin from each edge)
-        let spawn_range = GRID_SIZE * 0.5 / 2.0; // 50% of cell size / 2 for radius
-
-        let pos = Position {
-            x: cell_center_x + rng.random_range(-spawn_range..=spawn_range),
-            y: 0.0,
-            z: cell_center_z + rng.random_range(-spawn_range..=spawn_range),
-        };
-
-        // Check if position is too close to any existing player
-        let too_close_to_player = players
-            .0
-            .values()
-            .filter(|p| p.logged_in)
-            .filter_map(|p| player_data.get(p.entity).ok())
-            .any(|(p_pos, _, _)| {
-                let dx = pos.x - p_pos.x;
-                let dz = pos.z - p_pos.z;
-                dx.mul_add(dx, dz * dz) < MIN_DISTANCE * MIN_DISTANCE
-            });
-
-        if !too_close_to_player {
-            return pos;
-        }
-    }
-
-    // Fallback: return center if we somehow failed
-    warn!(
-        "Could not generate spawn position after {} attempts, spawning at center",
-        max_attempts
-    );
-    Position::default()
 }

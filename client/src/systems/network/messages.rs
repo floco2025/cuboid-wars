@@ -5,8 +5,8 @@ use super::{
     items::handle_item_collected_message,
     login::{handle_player_login_message, handle_player_logoff_message},
     players::{
-        handle_player_face_message, handle_player_hit_message, handle_player_move_input_message,
-        handle_player_shot_message, handle_player_status_message,
+        handle_player_death_message, handle_player_face_message, handle_player_hit_message,
+        handle_player_move_input_message, handle_player_shot_message, handle_player_status_message,
     },
     systems::handle_echo_message,
 };
@@ -83,6 +83,7 @@ pub fn dispatch_message(
             update_msg,
         ),
         ServerMessage::Hit(hit_msg) => handle_player_hit_message(commands, players, cameras, my_player_id, hit_msg),
+        ServerMessage::Death(death_msg) => handle_player_death_message(commands, players, my_player_id, death_msg),
         ServerMessage::PlayerStatus(player_status_msg) => {
             handle_player_status_message(commands, players, player_status_msg, my_player_id, asset_server);
         }

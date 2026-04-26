@@ -1,9 +1,10 @@
 use bevy::prelude::*;
+use rand::{RngExt, rng, seq::IndexedRandom};
 
 use super::network::broadcast_to_all;
-use crate::resources::{PlayerInfo, PlayerMap};
+use crate::resources::{GridConfig, PlayerInfo, PlayerMap};
 use common::{
-    constants::PHYSICS_EPSILON,
+    constants::{FIELD_DEPTH, FIELD_WIDTH, GRID_SIZE, PHYSICS_EPSILON, PLAYER_DEATH_Y, PLAYER_RESPAWN_INVULN_SECS},
     map::{compute_player_level, find_support_floor},
     markers::PlayerMarker,
     physics::{
@@ -11,7 +12,7 @@ use common::{
         sweep_player_vs_wall,
     },
     players::{PlannedMove, overlaps_other_player},
-    protocol::{MapLayout, MoveInput, PlayerId, Position, ServerMessage, Wall},
+    protocol::{MapLayout, MoveInput, PlayerId, Position, SDeath, ServerMessage, Wall},
 };
 
 // ============================================================================
@@ -160,4 +161,106 @@ pub fn players_timer_system(time: Res<Time>, mut players: ResMut<PlayerMap>) {
     for msg in status_messages {
         broadcast_to_all(&players, ServerMessage::PlayerStatus(msg));
     }
+}
+
+// ============================================================================
+// Players Death System
+// ============================================================================
+
+// Detect players that have fallen below the death threshold and respawn them.
+// Sets a brief stun timer on respawn so the player stays still as their
+// "invulnerability" window. Broadcasts an `SDeath` message so clients can
+// teleport the entity immediately rather than waiting for the next `SUpdate`.
+pub fn players_death_system(
+    mut players: ResMut<PlayerMap>,
+    grid_config: Res<GridConfig>,
+    mut player_query: Query<(Entity, &PlayerId, &mut Position, &mut PlayerMotion), With<PlayerMarker>>,
+) {
+    let dead: Vec<(Entity, PlayerId)> = player_query
+        .iter()
+        .filter_map(|(entity, id, pos, _)| (pos.y < PLAYER_DEATH_Y).then_some((entity, *id)))
+        .collect();
+
+    if dead.is_empty() {
+        return;
+    }
+
+    // Snapshot all current positions so spawn-distance checks see a consistent view.
+    let occupied_positions: Vec<Position> = player_query.iter().map(|(_, _, pos, _)| *pos).collect();
+
+    for (entity, id) in dead {
+        let respawn_pos = generate_player_spawn_position(&grid_config, &occupied_positions);
+
+        if let Ok((_, _, mut pos, mut motion)) = player_query.get_mut(entity) {
+            *pos = respawn_pos;
+            motion.velocity = Vec3::ZERO;
+        }
+
+        if let Some(info) = players.0.get_mut(&id) {
+            info.stun_timer = PLAYER_RESPAWN_INVULN_SECS;
+        }
+
+        info!("{:?} died and respawned at {:?}", id, respawn_pos);
+        broadcast_to_all(&players, ServerMessage::Death(SDeath { id, respawn_pos }));
+    }
+}
+
+// ============================================================================
+// Spawn Position Helper
+// ============================================================================
+
+const SPAWN_MIN_DISTANCE: f32 = 10.0;
+const SPAWN_MAX_ATTEMPTS: usize = 100;
+
+// Pick a random spawn position in a non-ramp grid cell, at least
+// `SPAWN_MIN_DISTANCE` away from every position in `occupied_positions`.
+// Returns the field center if no valid placement is found in time.
+#[must_use]
+pub fn generate_player_spawn_position(grid_config: &GridConfig, occupied_positions: &[Position]) -> Position {
+    let mut rng = rng();
+    let grid_rows = grid_config.grid.len() as i32;
+    let grid_cols = grid_config.grid[0].len() as i32;
+
+    let mut valid_cells = Vec::new();
+    for row in 0..grid_rows {
+        for col in 0..grid_cols {
+            if !grid_config.grid[row as usize][col as usize].has_ramp {
+                valid_cells.push((row, col));
+            }
+        }
+    }
+
+    if valid_cells.is_empty() {
+        warn!("no valid spawn cells found (all have ramps), spawning at center");
+        return Position::default();
+    }
+
+    for _ in 0..SPAWN_MAX_ATTEMPTS {
+        let &(row, col) = valid_cells.choose(&mut rng).expect("valid_cells should not be empty");
+        let cell_center_x = (col as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+        let cell_center_z = (row as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+        let spawn_range = GRID_SIZE * 0.5 / 2.0;
+
+        let pos = Position {
+            x: cell_center_x + rng.random_range(-spawn_range..=spawn_range),
+            y: 0.0,
+            z: cell_center_z + rng.random_range(-spawn_range..=spawn_range),
+        };
+
+        let too_close = occupied_positions.iter().any(|p| {
+            let dx = pos.x - p.x;
+            let dz = pos.z - p.z;
+            dx.mul_add(dx, dz * dz) < SPAWN_MIN_DISTANCE * SPAWN_MIN_DISTANCE
+        });
+
+        if !too_close {
+            return pos;
+        }
+    }
+
+    warn!(
+        "could not generate spawn position after {} attempts, spawning at center",
+        SPAWN_MAX_ATTEMPTS
+    );
+    Position::default()
 }

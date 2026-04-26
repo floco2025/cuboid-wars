@@ -8,7 +8,7 @@ use crate::{
     spawning::{spawn_player, spawn_projectiles},
     systems::players::{CameraShake, CuboidShake},
 };
-use common::{markers::PlayerMarker, protocol::*};
+use common::{markers::PlayerMarker, physics::PlayerMotion, protocol::*};
 
 // ============================================================================
 // Player Message Handlers
@@ -117,6 +117,26 @@ pub fn handle_player_hit_message(
             offset_x: 0.0,
             offset_z: 0.0,
         });
+    }
+}
+
+// Handle a player's death + respawn: teleport their entity to the new position
+// and zero out vertical velocity so they don't immediately resume falling.
+pub fn handle_player_death_message(
+    commands: &mut Commands,
+    players: &ResMut<PlayerMap>,
+    my_player_id: PlayerId,
+    msg: SDeath,
+) {
+    if msg.id == my_player_id {
+        info!("you died, respawning at {:?}", msg.respawn_pos);
+    } else {
+        debug!("{:?} died, respawning at {:?}", msg.id, msg.respawn_pos);
+    }
+    if let Some(player) = players.0.get(&msg.id) {
+        commands
+            .entity(player.entity)
+            .insert((msg.respawn_pos, PlayerMotion::default()));
     }
 }
 

@@ -106,6 +106,13 @@ pub struct SHit {
     pub hit_dir_z: f32, // Direction of hit (normalized)
 }
 
+// Server to Client: Player died (fell below the death threshold) and is respawning.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SDeath {
+    pub id: PlayerId,
+    pub respawn_pos: Position,
+}
+
 // Server to Client: Player status effects changed.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct SPlayerStatus {
@@ -152,6 +159,7 @@ pub enum ServerMessage {
     Shot(SShot),
     Update(SUpdate),
     Hit(SHit),
+    Death(SDeath),
     PlayerStatus(SPlayerStatus),
     Echo(SEcho),
     CookieCollected(SCookieCollected),
