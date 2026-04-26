@@ -45,7 +45,7 @@ pub const PLAYER_TERMINAL_VELOCITY: f32 = 50.0;
 pub const PLAYER_LANDING_EPSILON: f32 = 0.5;
 
 // Players whose Y falls below this die and respawn.
-pub const PLAYER_DEATH_Y: f32 = -10.0;
+pub const PLAYER_DEATH_Y: f32 = -1000.0;
 
 // Time after respawn during which the player stays still (de-facto invulnerability).
 pub const PLAYER_RESPAWN_INVULN_SECS: f32 = 1.0;
