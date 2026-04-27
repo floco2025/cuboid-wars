@@ -32,14 +32,18 @@ NO_FLOOR = "█"
 ATRIUM = "░"
 RAMP_NORTH_UP = "▲"   # ramp surface ascending north (walk north to go up)
 RAMP_SOUTH_UP = "▼"   # ramp surface ascending south
+RAMP_EAST_UP = "▶"    # ramp surface ascending east
+RAMP_WEST_UP = "◀"    # ramp surface ascending west
 RAMP_BODY = "▒"       # ramp body — wedge from below pokes through this floor
 RAMP_EXIT_NORTH = "↑" # cell where you step off a north-up ramp from the floor below
 RAMP_EXIT_SOUTH = "↓" # cell where you step off a south-up ramp from the floor below
+RAMP_EXIT_EAST = "→"  # cell where you step off an east-up ramp from the floor below
+RAMP_EXIT_WEST = "←"  # cell where you step off a west-up ramp from the floor below
 
 # Cell types that render as a contiguous block: when adjacent cells match,
 # the wall-edge / corner positions between them are filled with the same glyph
 # instead of left as whitespace.
-FILLABLE = {NO_FLOOR, ATRIUM, RAMP_BODY, RAMP_NORTH_UP, RAMP_SOUTH_UP}
+FILLABLE = {NO_FLOOR, ATRIUM, RAMP_BODY, RAMP_NORTH_UP, RAMP_SOUTH_UP, RAMP_EAST_UP, RAMP_WEST_UP}
 
 # Wall-edge glyphs (placed during edge pass; corners are computed at the end).
 HORIZ = "─"
@@ -73,6 +77,12 @@ def in_rect(rect, col, row):
     return c0 <= col < c_end and r0 <= row < r_end
 
 
+def has_floor(level, col, row):
+    return any(in_rect(rect, col, row) for rect in level["floors"]) and not any(
+        in_rect(rect, col, row) for rect in level.get("voids", [])
+    )
+
+
 def render_level(building, level_idx):
     level = building["levels"][level_idx]
     cols = building["grid_cols"]
@@ -83,68 +93,65 @@ def render_level(building, level_idx):
     w = 2 * cols + 1
     grid = [[NONE] * w for _ in range(h)]
 
-    floor_rect = level["floor_rect"]
-    atrium = level.get("atrium")
-
     # Cell interiors at (2*row+1, 2*col+1).
     for row in range(rows):
         for col in range(cols):
-            ch = NO_FLOOR
-            if in_rect(floor_rect, col, row):
-                ch = FLOOR
-            if atrium and in_rect(atrium, col, row):
+            ch = FLOOR if has_floor(level, col, row) else NO_FLOOR
+            if any(in_rect(rect, col, row) for rect in level.get("voids", [])):
                 ch = ATRIUM
             grid[2 * row + 1][2 * col + 1] = ch
 
     # Ramps: surface at lower_level, body + landing at lower_level + 1.
     for ramp in ramps:
         lower = ramp["lower_level"]
-        col = ramp["col"]
-        row0 = ramp["row0"]
-        direction = ramp["direction"]
+        c0, r0, c_end, r_end = ramp["rect"]
+        up = ramp["up"]
         if level_idx == lower:
-            ch = RAMP_NORTH_UP if direction == "north-up" else RAMP_SOUTH_UP
-            for dr in (0, 1):
-                grid[2 * (row0 + dr) + 1][2 * col + 1] = ch
+            ch = {
+                "north": RAMP_NORTH_UP,
+                "south": RAMP_SOUTH_UP,
+                "east": RAMP_EAST_UP,
+                "west": RAMP_WEST_UP,
+            }[up]
+            for row in range(r0, r_end):
+                for col in range(c0, c_end):
+                    grid[2 * row + 1][2 * col + 1] = ch
         elif level_idx == lower + 1:
-            for dr in (0, 1):
-                grid[2 * (row0 + dr) + 1][2 * col + 1] = RAMP_BODY
-            if direction == "north-up":
-                exit_row, exit_ch = row0 - 1, RAMP_EXIT_NORTH
-            else:
-                exit_row, exit_ch = row0 + 2, RAMP_EXIT_SOUTH
-            if 0 <= exit_row < rows:
-                grid[2 * exit_row + 1][2 * col + 1] = exit_ch
+            for row in range(r0, r_end):
+                for col in range(c0, c_end):
+                    grid[2 * row + 1][2 * col + 1] = RAMP_BODY
+            if up == "north":
+                exit_row = r0 - 1
+                if 0 <= exit_row < rows:
+                    for col in range(c0, c_end):
+                        grid[2 * exit_row + 1][2 * col + 1] = RAMP_EXIT_NORTH
+            elif up == "south":
+                exit_row = r_end
+                if 0 <= exit_row < rows:
+                    for col in range(c0, c_end):
+                        grid[2 * exit_row + 1][2 * col + 1] = RAMP_EXIT_SOUTH
+            elif up == "east":
+                exit_col = c_end
+                if 0 <= exit_col < cols:
+                    for row in range(r0, r_end):
+                        grid[2 * row + 1][2 * exit_col + 1] = RAMP_EXIT_EAST
+            elif up == "west":
+                exit_col = c0 - 1
+                if 0 <= exit_col < cols:
+                    for row in range(r0, r_end):
+                        grid[2 * row + 1][2 * exit_col + 1] = RAMP_EXIT_WEST
 
-    # Wall edges: perimeter + rooms. Doors clear the edge afterwards.
-    rects = []
-    perim = level.get("perimeter")
-    if perim:
-        rects.append(perim)
-    rects.extend(level.get("rooms", []))
-
-    for room in rects:
-        c0, r0, c_end, r_end = room["rect"]
-        for col in range(c0, c_end):
-            grid[2 * r0][2 * col + 1] = HORIZ
-            grid[2 * r_end][2 * col + 1] = HORIZ
-        for row in range(r0, r_end):
-            grid[2 * row + 1][2 * c0] = VERT
-            grid[2 * row + 1][2 * c_end] = VERT
-
-    for room in rects:
-        c0, r0, c_end, r_end = room["rect"]
-        for door in room.get("doors", []):
-            side = door["side"]
-            at = door["at"]
-            if side == "N":
-                grid[2 * r0][2 * at + 1] = NONE
-            elif side == "S":
-                grid[2 * r_end][2 * at + 1] = NONE
-            elif side == "W":
-                grid[2 * at + 1][2 * c0] = NONE
-            elif side == "E":
-                grid[2 * at + 1][2 * c_end] = NONE
+    # Wall edges: explicit grid-line segments. Doorways are gaps between
+    # segments, so no separate clearing pass is needed.
+    for wall in level.get("walls", []):
+        c0, r0 = wall["from"]
+        c1, r1 = wall["to"]
+        if r0 == r1:
+            for col in range(min(c0, c1), max(c0, c1)):
+                grid[2 * r0][2 * col + 1] = HORIZ
+        else:
+            for row in range(min(r0, r1), max(r0, r1)):
+                grid[2 * row + 1][2 * c0] = VERT
 
     # Corners: choose glyph based on which neighboring edges have walls.
     for r in range(0, h, 2):
@@ -226,8 +233,8 @@ def render_blueprint(building, level_filter=None):
 
 def main():
     parser = argparse.ArgumentParser(description="ASCII preview of a building blueprint TOML.")
-    parser.add_argument("--file", type=Path, default=DEFAULT_BLUEPRINT, help="Path to the blueprint TOML.")
-    parser.add_argument("--level", type=int, default=None, help="Render only this level index (0-based).")
+    parser.add_argument("-f", "--file", type=Path, default=DEFAULT_BLUEPRINT, help="Path to the blueprint TOML.")
+    parser.add_argument("-l", "--level", type=int, default=None, help="Render only this level index (0-based).")
     args = parser.parse_args()
 
     with args.file.open("rb") as f:

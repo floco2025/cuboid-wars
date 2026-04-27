@@ -4,11 +4,12 @@
 # half-open: `[col0, row0, col_end, row_end]` covers cols col0..col_end-1
 # and rows row0..row_end-1.
 #
-# Levels: 0 = basement, 1 = lobby, 2 = rooms-low, 3 = rooms-high, 4 = rooftop.
-#
-# `perimeter` puts a wall around a rect (with optional doors). Inset
-# `perimeter.rect` from `floor_rect` to leave the floor extending past the
-# wall as a recessed balcony.
+# The authoring format uses the same primitives the game consumes:
+# - `floors` are floor-cell masks.
+# - `voids` remove floor cells, e.g. an atrium.
+# - `walls` are explicit grid-line segments. Doorways are gaps between
+#   segments, not separate door records.
+# - `ramps` are rectangular ramp footprints with an ascending direction.
 
 [building]
 grid_cols = 20
@@ -21,152 +22,200 @@ num_levels = 5
 
 [[building.levels]]
 name = "basement"
-floor_rect = [0, 0, 20, 20]
-perimeter = { rect = [0, 0, 20, 20], doors = [] }   # walls flush with the floor edge
-rooms = [
-    # West stair shaft. Door on the south side at col 3 (east half of the shaft).
-    { rect = [2, 3, 4, 7], doors = [{ side = "S", at = 3 }] },
-    # East stair shaft. Door on the south side at col 16 (west half of the shaft).
-    { rect = [16, 3, 18, 7], doors = [{ side = "S", at = 16 }] },
+floors = [[0, 0, 20, 20]]
+walls = [
+    { from = [0, 0], to = [20, 0] },
+    { from = [0, 20], to = [20, 20] },
+    { from = [0, 0], to = [0, 20] },
+    { from = [20, 0], to = [20, 20] },
+
+    { from = [1, 1], to = [7, 1] },
+    { from = [1, 6], to = [6, 6] },
+    { from = [1, 1], to = [1, 6] },
+    { from = [7, 1], to = [7, 6] },
+
+    { from = [14, 14], to = [19, 14] },
+    { from = [13, 19], to = [19, 19] },
+    { from = [13, 14], to = [13, 19] },
+    { from = [19, 14], to = [19, 19] },
 ]
 
 [[building.levels]]
 name = "lobby"
-floor_rect = [0, 0, 20, 20]
-perimeter = { rect = [0, 0, 20, 20], doors = [] }
-rooms = []
+floors = [[0, 0, 20, 20]]
+walls = [
+    { from = [0, 0], to = [20, 0] },
+    { from = [0, 20], to = [20, 20] },
+    { from = [0, 0], to = [0, 20] },
+    { from = [20, 0], to = [20, 20] },
+
+    { from = [1, 1], to = [7, 1] },
+    { from = [1, 6], to = [6, 6] },
+    { from = [1, 1], to = [1, 6] },
+    { from = [7, 1], to = [7, 6] },
+
+    { from = [14, 14], to = [19, 14] },
+    { from = [13, 19], to = [19, 19] },
+    { from = [13, 14], to = [13, 19] },
+    { from = [19, 14], to = [19, 19] },
+]
 
 [[building.levels]]
 name = "rooms-low"
-floor_rect = [0, 0, 20, 20]
-atrium = [7, 7, 12, 12]   # 5x5 void centered in the building
-# Perimeter wall inset 1 cell. The strip between the wall and the floor
-# edge is balcony space; apartment doors on the perimeter open onto each
-# apartment's slice of that strip. The perimeter itself has no doors of
-# its own — all balcony access is through apartments.
-perimeter = { rect = [1, 1, 19, 19], doors = [] }
-rooms = [
-    # Stair shafts. The U-staircase's lobby->rooms-low ramp is north-up,
-    # so the player arrives at the *north* end of the shaft on this level
-    # — door on the north side or they can't exit. The south door from
-    # the basement plan would dump them onto the lobby->rooms-low ramp's
-    # body and drop them back to the lobby.
-    { rect = [2, 3, 4, 7], doors = [{ side = "N", at = 3 }] },
-    { rect = [16, 3, 18, 7], doors = [{ side = "N", at = 16 }] },
+floors = [[0, 0, 20, 20]]
+voids = [[8, 7, 12, 12]]
+walls = [
+    { from = [1, 1], to = [4, 1] },
+    { from = [5, 1], to = [7, 1] },
+    { from = [8, 1], to = [10, 1] },
+    { from = [11, 1], to = [16, 1] },
+    { from = [17, 1], to = [19, 1] },
+    { from = [1, 19], to = [4, 19] },
+    { from = [5, 19], to = [7, 19] },
+    { from = [8, 19], to = [11, 19] },
+    { from = [12, 19], to = [16, 19] },
+    { from = [17, 19], to = [19, 19] },
+    { from = [1, 1], to = [1, 3] },
+    { from = [1, 4], to = [1, 16] },
+    { from = [1, 17], to = [1, 19] },
+    { from = [19, 1], to = [19, 3] },
+    { from = [19, 4], to = [19, 16] },
+    { from = [19, 17], to = [19, 19] },
 
-    # Six apartments. Each: one corridor door on the interior side, one
-    # balcony door on the exterior side (which doubles as a hole in the
-    # perimeter wall, since the apartment's outer wall coincides with it).
+    { from = [2, 8], to = [3, 8] },
+    { from = [1, 11], to = [3, 11] },
+    { from = [1, 8], to = [1, 11] },
+    { from = [3, 8], to = [3, 11] },
+    { from = [17, 8], to = [18, 8] },
+    { from = [17, 11], to = [19, 11] },
+    { from = [17, 8], to = [17, 11] },
+    { from = [19, 8], to = [19, 11] },
 
-    # North: two big units along the top of the building, between the stair
-    # shafts and the atrium-edge corridor at row 6.
-    { rect = [4, 1, 10, 6], doors = [
-        { side = "S", at = 6 },   # south wall (row 6)  -> corridor
-        { side = "N", at = 6 },   # north wall (row 1)  -> balcony
-    ] },
-    { rect = [10, 1, 16, 6], doors = [
-        { side = "S", at = 13 },
-        { side = "N", at = 13 },
-    ] },
+    { from = [1, 1], to = [4, 1] },
+    { from = [1, 6], to = [3, 6] },
+    { from = [4, 6], to = [5, 6] },
+    { from = [1, 1], to = [1, 3] },
+    { from = [1, 4], to = [1, 6] },
+    { from = [5, 1], to = [5, 6] },
+    { from = [5, 1], to = [7, 1] },
+    { from = [8, 1], to = [9, 1] },
+    { from = [5, 6], to = [7, 6] },
+    { from = [8, 6], to = [9, 6] },
+    { from = [9, 1], to = [9, 6] },
+    { from = [9, 1], to = [10, 1] },
+    { from = [11, 1], to = [14, 1] },
+    { from = [9, 6], to = [11, 6] },
+    { from = [12, 6], to = [14, 6] },
+    { from = [14, 1], to = [14, 6] },
+    { from = [14, 1], to = [16, 1] },
+    { from = [17, 1], to = [19, 1] },
+    { from = [14, 6], to = [16, 6] },
+    { from = [17, 6], to = [19, 6] },
+    { from = [19, 1], to = [19, 3] },
+    { from = [19, 4], to = [19, 6] },
 
-    # South: mirror of north.
-    { rect = [4, 14, 10, 19], doors = [
-        { side = "N", at = 6 },   # north wall (row 14) -> corridor
-        { side = "S", at = 6 },   # south wall (row 19) -> balcony
-    ] },
-    { rect = [10, 14, 16, 19], doors = [
-        { side = "N", at = 13 },
-        { side = "S", at = 13 },
-    ] },
+    { from = [3, 7], to = [7, 7] },
+    { from = [3, 9], to = [7, 9] },
+    { from = [3, 7], to = [3, 9] },
+    { from = [7, 7], to = [7, 8] },
+    { from = [5, 11], to = [7, 11] },
+    { from = [5, 13], to = [7, 13] },
+    { from = [5, 11], to = [5, 13] },
+    { from = [7, 11], to = [7, 12] },
+    { from = [13, 7], to = [17, 7] },
+    { from = [13, 9], to = [17, 9] },
+    { from = [13, 7], to = [13, 8] },
+    { from = [17, 7], to = [17, 9] },
+    { from = [13, 11], to = [15, 11] },
+    { from = [13, 13], to = [15, 13] },
+    { from = [13, 11], to = [13, 12] },
+    { from = [15, 11], to = [15, 13] },
 
-    # West: one apartment along the left side, between the two stair-shaft
-    # rows and the atrium-edge corridor at col 6.
-    { rect = [1, 8, 6, 12], doors = [
-        { side = "E", at = 10 },  # east wall (col 6)  -> corridor
-        { side = "W", at = 10 },  # west wall (col 1)  -> balcony
-    ] },
-    # East: mirror.
-    { rect = [14, 8, 19, 12], doors = [
-        { side = "W", at = 10 },
-        { side = "E", at = 10 },
-    ] },
+    { from = [1, 11], to = [3, 11] },
+    { from = [4, 11], to = [5, 11] },
+    { from = [1, 19], to = [4, 19] },
+    { from = [1, 11], to = [1, 16] },
+    { from = [1, 17], to = [1, 19] },
+    { from = [5, 11], to = [5, 19] },
+    { from = [5, 13], to = [7, 13] },
+    { from = [8, 13], to = [9, 13] },
+    { from = [5, 19], to = [7, 19] },
+    { from = [8, 19], to = [9, 19] },
+    { from = [9, 13], to = [9, 19] },
+    { from = [9, 13], to = [11, 13] },
+    { from = [12, 13], to = [15, 13] },
+    { from = [9, 19], to = [11, 19] },
+    { from = [12, 19], to = [15, 19] },
+    { from = [15, 13], to = [15, 19] },
+    { from = [15, 11], to = [16, 11] },
+    { from = [17, 11], to = [19, 11] },
+    { from = [15, 19], to = [16, 19] },
+    { from = [17, 19], to = [19, 19] },
+    { from = [15, 11], to = [15, 19] },
+    { from = [19, 11], to = [19, 16] },
+    { from = [19, 17], to = [19, 19] },
 ]
 
 [[building.levels]]
 name = "rooms-high"
-floor_rect = [0, 0, 20, 20]
-atrium = [7, 7, 12, 12]
-perimeter = { rect = [1, 1, 19, 19], doors = [
-    { side = "N", at = 9 }, { side = "N", at = 10 },
-    { side = "S", at = 9 }, { side = "S", at = 10 },
-    { side = "E", at = 9 }, { side = "E", at = 10 },
-    { side = "W", at = 9 }, { side = "W", at = 10 },
-] }
-rooms = []
+floors = [[0, 0, 20, 20]]
+voids = [[7, 7, 12, 12]]
+walls = [
+    { from = [1, 1], to = [9, 1] },
+    { from = [11, 1], to = [19, 1] },
+    { from = [1, 19], to = [9, 19] },
+    { from = [11, 19], to = [19, 19] },
+    { from = [1, 1], to = [1, 9] },
+    { from = [1, 11], to = [1, 19] },
+    { from = [19, 1], to = [19, 9] },
+    { from = [19, 11], to = [19, 19] },
+]
 
 [[building.levels]]
 name = "rooftop"
-floor_rect = [2, 2, 18, 18]   # 16x16 setback (2 cells inset on each side)
-# No perimeter walls: the rooftop is open.
-rooms = []
+floors = [[2, 2, 18, 18]]
+walls = []
 
 # ----------------------------------------------------------------------------
 # Ramps
 # ----------------------------------------------------------------------------
-#
-# Two U-shaped staircases, each spanning basement -> rooftop. Within a
-# 2-cell-wide shaft, ramps zig-zag between the two columns and alternate
-# direction (south-up / north-up) so the player walks up one flight, turns
-# 180°, walks up the next.
-
-# West staircase (cols 2-3)
-[[building.ramps]]
-direction = "south-up"
-col = 2
-row0 = 4
-lower_level = 0           # basement -> lobby
 
 [[building.ramps]]
-direction = "north-up"
-col = 3
-row0 = 4
-lower_level = 1           # lobby -> rooms-low
-
-[[building.ramps]]
-direction = "south-up"
-col = 2
-row0 = 4
-lower_level = 2           # rooms-low -> rooms-high
-
-[[building.ramps]]
-direction = "north-up"
-col = 3
-row0 = 4
-lower_level = 3           # rooms-high -> rooftop
-
-# East staircase (cols 16-17) — mirror of the west staircase: south-up on the
-# outer column (17), north-up on the inner column (16). This makes both stair
-# landings face the building interior.
-[[building.ramps]]
-direction = "south-up"
-col = 17
-row0 = 4
+rect = [2, 3, 3, 5]
+up = "south"
 lower_level = 0
 
 [[building.ramps]]
-direction = "north-up"
-col = 16
-row0 = 4
+rect = [1, 9, 2, 11]
+up = "north"
 lower_level = 1
 
 [[building.ramps]]
-direction = "south-up"
-col = 17
-row0 = 4
+rect = [2, 9, 3, 11]
+up = "south"
 lower_level = 2
 
 [[building.ramps]]
-direction = "north-up"
-col = 16
-row0 = 4
+rect = [3, 3, 4, 5]
+up = "north"
+lower_level = 3
+
+[[building.ramps]]
+rect = [17, 15, 18, 17]
+up = "south"
+lower_level = 0
+
+[[building.ramps]]
+rect = [18, 9, 19, 11]
+up = "north"
+lower_level = 1
+
+[[building.ramps]]
+rect = [17, 9, 18, 11]
+up = "south"
+lower_level = 2
+
+[[building.ramps]]
+rect = [16, 15, 17, 17]
+up = "north"
 lower_level = 3
