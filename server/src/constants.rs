@@ -13,7 +13,7 @@ pub const WALL_MERGE_SEGMENTS: bool = true; // Reduce draw calls
 pub const NUM_LEVELS: u32 = 5; // basement / lobby / rooms-low / rooms-high / rooftop
 pub const BUILDING_FOOTPRINT_CELLS: i32 = 20; // Building fills the whole grid; field is the building
 pub const ROOFTOP_FOOTPRINT_CELLS: i32 = 14; // Setback at the top
-pub const ATRIUM_CELLS: i32 = 3; // Side length of the central atrium void (3x3 cells)
+pub const ATRIUM_CELLS: i32 = 6; // Side length of the central atrium void (6x6 cells = ~24m x 24m)
 pub const RAMP_LENGTH_CELLS: i32 = 2;
 pub const RAMP_WIDTH_CELLS: i32 = 1;
 

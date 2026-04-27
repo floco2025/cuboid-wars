@@ -41,18 +41,25 @@ pub fn generate_grid() -> (MapLayout, GridConfig) {
     let footprint = centered_rect(BUILDING_FOOTPRINT_CELLS, grid_cols, grid_rows);
     let rooftop = centered_rect(ROOFTOP_FOOTPRINT_CELLS, grid_cols, grid_rows);
 
-    // Ramps. Each is a single 2-cell along-Z ramp going north-up; they're
-    // placed at fixed XZ inside the footprint such that no two ramps share
-    // an XZ at adjacent levels.
-    let utility_low = north_up_ramp(/*col*/ 6, /*row0*/ 8, /*lower*/ 0); // basement -> lobby
-    let main_lower = north_up_ramp(/*col*/ 9, /*row0*/ 6, /*lower*/ 1); // lobby -> rooms-low
-    let main_upper = north_up_ramp(/*col*/ 10, /*row0*/ 11, /*lower*/ 2); // rooms-low -> rooms-high
-    let utility_high = north_up_ramp(/*col*/ 13, /*row0*/ 8, /*lower*/ 3); // rooms-high -> rooftop
+    // Ramps. Each is a single 2-cell along-Z ramp; they're placed at the
+    // building's perimeter, well clear of the central atrium, so neither
+    // their footprints nor their entry/exit cells fall inside the atrium void.
+    //
+    // Main stair: a straight shot up the west wall, columns chained — main_lower
+    // exits onto the row that main_upper enters from, so the player walks
+    // straight from one ramp to the next without crossing the atrium.
+    let main_lower = south_up_ramp(/*col*/ 2, /*row0*/ 4, /*lower*/ 1); // lobby -> rooms-low
+    let main_upper = south_up_ramp(/*col*/ 2, /*row0*/ 7, /*lower*/ 2); // rooms-low -> rooms-high
+    // Utility legs: separate XZs, both inside the rooftop setback for the
+    // upper leg's exit to land on rooftop floor.
+    let utility_low = south_up_ramp(/*col*/ 17, /*row0*/ 4, /*lower*/ 0); // basement -> lobby
+    let utility_high = south_up_ramp(/*col*/ 14, /*row0*/ 4, /*lower*/ 3); // rooms-high -> rooftop
     let ramp_specs = vec![utility_low, main_lower, main_upper, utility_high];
 
-    // Central atrium: 3x3 void at the building's center, spanning lobby
-    // (level 1) up through rooms-low (level 2). 50% chance to extend up
-    // through rooms-high (level 3) for a 3-storey atrium.
+    // Central atrium: a void above the lobby. The lobby floor itself is
+    // solid (you stand on it and look up); the void cuts through rooms-low
+    // (level 2) always, and rooms-high (level 3) with 50% probability for
+    // either a 1- or 2-storey atrium.
     let atrium = centered_rect(ATRIUM_CELLS, grid_cols, grid_rows);
     let atrium_top: u32 = if rng.random_bool(0.5) { 2 } else { 3 };
 
@@ -75,7 +82,7 @@ pub fn generate_grid() -> (MapLayout, GridConfig) {
                     }
                 }
             }
-            if level >= 1 && level <= atrium_top {
+            if level >= 2 && level <= atrium_top {
                 subtract_rect(&mut m, atrium);
             }
             m
@@ -162,9 +169,11 @@ fn subtract_rect(mask: &mut Mask, rect: Rect) {
     }
 }
 
-// 2-cell ramp at (col, row0) going north-up: footprint occupies (row0, col)
-// and (row0 + 1, col), with the high end at row0 + 1.
-fn north_up_ramp(col: i32, row0: i32, lower_level: u32) -> RampSpec {
+// 2-cell along-Z ramp at (col, row0). Footprint occupies (row0, col) and
+// (row0 + 1, col). The base is at row0 (the north end); the high cell is at
+// row0 + 1 (the south end), so the player enters from the north and walks
+// south up the ramp. Exit cell is at (row0 + 2, col) on the upper level.
+fn south_up_ramp(col: i32, row0: i32, lower_level: u32) -> RampSpec {
     RampSpec {
         lower_level,
         along_x: false,
