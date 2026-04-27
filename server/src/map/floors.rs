@@ -3,13 +3,15 @@ use crate::constants::FLOOR_OVERLAP;
 use common::{constants::*, protocol::Floor};
 
 const MERGE_EPS: f32 = 0.01;
-const CORNER_EPS: f32 = 0.01;
 
 // Emit `Floor` segments for every cell in `mask` at level `level` (Y = `y`).
-// Cells that have neighbors in the same mask get their slab edges nudged so
-// adjacent slabs meet without overlap; cells with no neighbor on a side are
-// extended outward to cover the wall thickness. All levels use the same
-// `FLOOR_THICKNESS` so a hole in any tier looks like a real edge.
+// Cells without a 4-connected neighbor on a side are extended outward by
+// `WALL_THICKNESS / 2` to cover the wall-thickness gap that would otherwise
+// appear at the edge. Diagonal-only adjacencies leave a single-point gap at
+// the corner — players can't pass through it because of player width.
+//
+// All levels use the same `FLOOR_THICKNESS` so a hole in any tier looks like
+// a real slab edge.
 #[must_use]
 pub fn emit_floor_tier(mask: &Mask, grid_cols: i32, grid_rows: i32, level: u8, y: f32) -> Vec<Floor> {
     let thickness = FLOOR_THICKNESS;
@@ -23,18 +25,17 @@ pub fn emit_floor_tier(mask: &Mask, grid_cols: i32, grid_rows: i32, level: u8, y
                 continue;
             }
 
-            let (world_x1, world_x2, world_z1, world_z2, edge_fillers) = if FLOOR_OVERLAP {
+            let (x1, x2, z1, z2) = if FLOOR_OVERLAP {
                 let x1 = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)) - WALL_THICKNESS / 2.0;
                 let x2 = ((col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)) + WALL_THICKNESS / 2.0;
                 let z1 = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0)) - WALL_THICKNESS / 2.0;
                 let z2 = ((row + 1) as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0)) + WALL_THICKNESS / 2.0;
-                (x1, x2, z1, z2, Vec::new())
+                (x1, x2, z1, z2)
             } else {
                 let mut x1 = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
                 let mut x2 = ((col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
                 let mut z1 = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
                 let mut z2 = ((row + 1) as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
-                let mut edge_fillers: Vec<Floor> = Vec::new();
 
                 let neighbor_w = in_mask(row, col - 1);
                 let neighbor_e = in_mask(row, col + 1);
@@ -46,22 +47,17 @@ pub fn emit_floor_tier(mask: &Mask, grid_cols: i32, grid_rows: i32, level: u8, y
                 let neighbor_sw = in_mask(row + 1, col - 1);
                 let neighbor_se = in_mask(row + 1, col + 1);
 
-                let extend_w = !neighbor_w;
-                let extend_e = !neighbor_e;
-                let mut extend_n = !neighbor_n;
-                let mut extend_s = !neighbor_s;
+                // Skip the north/south extension when a diagonal neighbor on
+                // that side exists. Without this, cell A's south-east
+                // extension and cell B's north-west extension would overlap
+                // by 2 * pad in the corner where they meet.
+                let extend_n = !neighbor_n && !neighbor_nw && !neighbor_ne;
+                let extend_s = !neighbor_s && !neighbor_sw && !neighbor_se;
 
-                if neighbor_nw || neighbor_ne {
-                    extend_n = false;
-                }
-                if neighbor_sw || neighbor_se {
-                    extend_s = false;
-                }
-
-                if extend_w {
+                if !neighbor_w {
                     x1 -= WALL_THICKNESS / 2.0;
                 }
-                if extend_e {
+                if !neighbor_e {
                     x2 += WALL_THICKNESS / 2.0;
                 }
                 if extend_n {
@@ -71,54 +67,18 @@ pub fn emit_floor_tier(mask: &Mask, grid_cols: i32, grid_rows: i32, level: u8, y
                     z2 += WALL_THICKNESS / 2.0;
                 }
 
-                let pad = (WALL_THICKNESS / 2.0) - CORNER_EPS;
-                if pad > 0.0 {
-                    if !extend_n && !neighbor_n && (neighbor_nw || neighbor_ne) {
-                        let fx1 = if neighbor_nw { x1 + pad } else { x1 };
-                        let fx2 = if neighbor_ne { x2 - pad } else { x2 };
-                        if fx2 > fx1 {
-                            edge_fillers.push(Floor {
-                                x1: fx1,
-                                z1: z1 - pad,
-                                x2: fx2,
-                                z2: z1,
-                                y,
-                                thickness,
-                                level,
-                            });
-                        }
-                    }
-                    if !extend_s && !neighbor_s && (neighbor_sw || neighbor_se) {
-                        let fx1 = if neighbor_sw { x1 + pad } else { x1 };
-                        let fx2 = if neighbor_se { x2 - pad } else { x2 };
-                        if fx2 > fx1 {
-                            edge_fillers.push(Floor {
-                                x1: fx1,
-                                z1: z2,
-                                x2: fx2,
-                                z2: z2 + pad,
-                                y,
-                                thickness,
-                                level,
-                            });
-                        }
-                    }
-                }
-
-                (x1, x2, z1, z2, edge_fillers)
+                (x1, x2, z1, z2)
             };
 
             floors.push(Floor {
-                x1: world_x1,
-                z1: world_z1,
-                x2: world_x2,
-                z2: world_z2,
+                x1,
+                z1,
+                x2,
+                z2,
                 y,
                 thickness,
                 level,
             });
-
-            floors.extend(edge_fillers);
         }
     }
 
