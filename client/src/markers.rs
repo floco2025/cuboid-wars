@@ -45,6 +45,13 @@ pub struct GroundMarker;
 #[derive(Component)]
 pub struct RampMarker;
 
+// Records which level a map entity belongs to. Walls and floors get the
+// level they sit on; ramps get the lower of the two levels they connect.
+// Used by the level-focus toggle to hide entities not at the local
+// player's current level.
+#[derive(Component, Copy, Clone, Debug)]
+pub struct MapLevel(pub u8);
+
 // ============================================================================
 // UI Markers
 // ============================================================================

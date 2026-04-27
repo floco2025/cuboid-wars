@@ -97,15 +97,11 @@ pub enum CameraViewMode {
     TopDown,
 }
 
-// Roof rendering toggle
-#[derive(Resource, PartialEq, Eq, Clone, Copy, Debug)]
-pub struct RoofRenderingEnabled(pub bool);
-
-impl Default for RoofRenderingEnabled {
-    fn default() -> Self {
-        Self(true) // Roofs enabled by default
-    }
-}
+// Level focus toggle (R key). When enabled, hides walls/floors at other levels
+// and ramps that don't connect to the local player's level — useful for
+// inspecting one tier of a multi-level world without occluders.
+#[derive(Resource, PartialEq, Eq, Clone, Copy, Debug, Default)]
+pub struct LevelFocusEnabled(pub bool);
 
 // Input settings
 #[derive(Resource, Clone, Copy, Debug)]

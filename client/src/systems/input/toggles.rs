@@ -4,7 +4,7 @@ use bevy::{
     window::{CursorOptions, MonitorSelection, WindowMode},
 };
 
-use crate::resources::{CameraViewMode, RoofRenderingEnabled};
+use crate::resources::{CameraViewMode, LevelFocusEnabled};
 
 // ============================================================================
 // Input Toggle Systems
@@ -20,10 +20,12 @@ pub fn input_camera_view_toggle_system(keyboard: Res<ButtonInput<KeyCode>>, mut 
     }
 }
 
-// Toggle roof rendering with R key
-pub fn input_roof_toggle_system(keyboard: Res<ButtonInput<KeyCode>>, mut roof_enabled: ResMut<RoofRenderingEnabled>) {
+// Toggle level-focus mode with R key. When enabled, the visibility system
+// hides walls/floors at other levels and ramps that don't touch the local
+// player's current level.
+pub fn input_level_focus_toggle_system(keyboard: Res<ButtonInput<KeyCode>>, mut focus: ResMut<LevelFocusEnabled>) {
     if keyboard.just_pressed(KeyCode::KeyR) {
-        roof_enabled.0 = !roof_enabled.0;
+        focus.0 = !focus.0;
     }
 }
 

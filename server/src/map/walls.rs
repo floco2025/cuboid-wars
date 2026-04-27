@@ -1,3 +1,8 @@
+#![allow(dead_code)]
+// Wall generation is dormant during Phase 1 of the multi-level rebuild. The
+// generators stay here and get re-enabled by Phase 2; until then nothing in
+// the rest of the crate calls them.
+
 use crate::{constants::WALL_OVERLAP, resources::GridCell};
 use common::{constants::*, protocol::Wall};
 

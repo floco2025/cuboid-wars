@@ -67,14 +67,28 @@ pub fn sweep_player_vs_floor(start: &Position, end: &Position, floor: &Floor, ra
 
 #[must_use]
 pub fn sweep_player_vs_ramp_edges(start_pos: &Position, end_pos: &Position, ramp: &Ramp) -> bool {
+    // Skip ramps whose vertical extent doesn't overlap the player's body.
+    // Without this, a player walking at level 0 collides with the side of a
+    // ramp that sits at level 2.
+    let player_y_low = start_pos.y.min(end_pos.y);
+    let player_y_high = start_pos.y.max(end_pos.y) + PLAYER_HEIGHT;
+    let ramp_y_low = ramp.y1.min(ramp.y2);
+    let ramp_y_high = ramp.y1.max(ramp.y2);
+    if player_y_high < ramp_y_low || player_y_low > ramp_y_high {
+        return false;
+    }
+
     let half_x = PLAYER_WIDTH / 2.0;
     let half_z = PLAYER_DEPTH / 2.0;
     let edge_half = WALL_THICKNESS / 2.0;
 
-    let on_ground = start_pos.y <= 0.1;
+    // The high-cap is meant to block players at the bottom of a ramp from
+    // walking into its tall face. Apply when the player's feet sit roughly at
+    // the ramp's low edge — generalized from the old "y <= 0.1" check.
+    let on_low_edge = (start_pos.y - ramp_y_low).abs() <= 0.2;
 
     sweep_ramp_edges(start_pos, end_pos, ramp, half_x, half_z, edge_half)
-        || (on_ground && sweep_ramp_high_cap(start_pos, end_pos, ramp, half_x, half_z, edge_half))
+        || (on_low_edge && sweep_ramp_high_cap(start_pos, end_pos, ramp, half_x, half_z, edge_half))
 }
 
 #[must_use]

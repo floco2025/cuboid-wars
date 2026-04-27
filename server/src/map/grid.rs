@@ -1,11 +1,13 @@
 use std::collections::{HashSet, VecDeque};
 
-use super::ramps::Mask;
+use super::mask::Mask;
 use crate::resources::GridCell;
 
 // Check that every non-ramp cell within `mask` is reachable from a starting
 // non-ramp masked cell. Used to reject wall placements that would split the
-// playable area into disconnected regions.
+// playable area into disconnected regions. Currently unused — Phase 2 of the
+// multi-level rebuild will call it when wall placement returns.
+#[allow(dead_code)]
 pub fn all_cells_reachable_within_mask(grid: &[Vec<GridCell>], mask: &Mask, grid_cols: i32, grid_rows: i32) -> bool {
     if grid_cols <= 0 || grid_rows <= 0 {
         return true;

@@ -45,14 +45,21 @@ pub fn is_on_ramp(ramps: &[Ramp], x: f32, z: f32) -> bool {
     })
 }
 
-// Determine which level a player is on from their Y position.
-// Level 0 is the ground; level 1 is the upper deck (`LEVEL_HEIGHT`).
+// Determine which level a player is on from their Y position. The level
+// surface for level k is at `k * LEVEL_HEIGHT`; a player counts as "on level k"
+// from `k*LEVEL_HEIGHT - PLAYER_LANDING_EPSILON` up to just below the next
+// level's surface, so brief jumps don't change levels. Negative `y` (e.g.
+// mid-fall through a ground hole) clamps to level 0.
 #[must_use]
 pub fn compute_player_level(y: f32) -> u8 {
-    if (y - LEVEL_HEIGHT).abs() < PLAYER_LANDING_EPSILON {
-        1
-    } else {
+    if y < -PLAYER_LANDING_EPSILON {
+        return 0;
+    }
+    let raw = ((y + PLAYER_LANDING_EPSILON) / LEVEL_HEIGHT).floor();
+    if raw < 0.0 {
         0
+    } else {
+        raw.min(f32::from(u8::MAX)) as u8
     }
 }
 

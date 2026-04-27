@@ -99,7 +99,7 @@ fn main() -> Result<()> {
     .insert_resource(FpsMeasurement::default())
     .insert_resource(LastUpdateSeq::default())
     .insert_resource(CameraViewMode::default())
-    .insert_resource(RoofRenderingEnabled::default())
+    .insert_resource(LevelFocusEnabled::default())
     .insert_resource(InputSettings {
         invert_pitch: args.invert_pitch,
     })
@@ -121,7 +121,7 @@ fn main() -> Result<()> {
             input_shooting_system,
             input_cursor_toggle_system,
             input_camera_view_toggle_system,
-            input_roof_toggle_system,
+            input_level_focus_toggle_system,
             input_fullscreen_toggle_system,
         ),
     )
@@ -153,7 +153,7 @@ fn main() -> Result<()> {
         (
             map_spawn_walls_system,
             map_toggle_wall_opacity_system,
-            map_toggle_roof_visibility_system,
+            map_level_focus_visibility_system,
             map_make_wall_lights_emissive_system,
         ),
     )

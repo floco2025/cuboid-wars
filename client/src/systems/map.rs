@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use crate::{
     constants::*,
     markers::*,
-    resources::{CameraViewMode, DebugColors, RoofRenderingEnabled},
+    resources::{CameraViewMode, DebugColors, LevelFocusEnabled},
     spawning::{spawn_floor, spawn_ramp, spawn_wall, spawn_wall_light_from_layout},
 };
 use common::protocol::MapLayout;
@@ -145,26 +145,54 @@ pub fn map_toggle_wall_opacity_system(
 }
 
 // ============================================================================
-// Roof Opacity System
+// Level Focus Visibility System
 // ============================================================================
 
-// System to toggle roof visibility based on RoofRenderingEnabled resource
-pub fn map_toggle_roof_visibility_system(
-    roof_enabled: Res<RoofRenderingEnabled>,
-    mut roof_query: Query<&mut Visibility, With<RoofMarker>>,
+// When `LevelFocusEnabled` is on, hide walls/floors at any level other than
+// the local player's, and hide ramps that don't connect to the local player's
+// level. When off, show everything. Runs every frame because the player's
+// level can change as they walk up/down ramps.
+pub fn map_level_focus_visibility_system(
+    focus: Res<LevelFocusEnabled>,
+    local_player: Query<&common::protocol::Position, With<LocalPlayerMarker>>,
+    mut walls_floors: Query<
+        (&MapLevel, &mut Visibility),
+        (
+            Or<(With<WallMarker>, With<RoofMarker>, With<GroundMarker>)>,
+            Without<RampMarker>,
+        ),
+    >,
+    mut ramps: Query<(&MapLevel, &mut Visibility), With<RampMarker>>,
 ) {
-    if !roof_enabled.is_changed() {
+    if !focus.0 {
+        for (_, mut vis) in &mut walls_floors {
+            *vis = Visibility::Visible;
+        }
+        for (_, mut vis) in &mut ramps {
+            *vis = Visibility::Visible;
+        }
         return;
     }
 
-    let visibility = if roof_enabled.0 {
-        Visibility::Visible
-    } else {
-        Visibility::Hidden
+    let Ok(pos) = local_player.single() else {
+        return;
     };
+    let player_level = common::map::compute_player_level(pos.y);
 
-    for mut vis in &mut roof_query {
-        *vis = visibility;
+    for (level, mut vis) in &mut walls_floors {
+        *vis = if level.0 == player_level {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        };
+    }
+    for (level, mut vis) in &mut ramps {
+        // Show a ramp if it touches the player's level on either side.
+        *vis = if level.0 == player_level || level.0 + 1 == player_level {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        };
     }
 }
 

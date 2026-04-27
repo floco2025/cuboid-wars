@@ -69,11 +69,14 @@ pub fn spawn_wall(
     let _ = mesh.generate_tangents();
 
     let level_y = f32::from(wall.level) * LEVEL_HEIGHT;
-    commands.spawn(WallBundle {
-        mesh: Mesh3d(meshes.add(mesh)),
-        material: MeshMaterial3d(materials.add(wall_material)),
-        transform: Transform::from_xyz(center_x, level_y + WALL_HEIGHT / 2.0, center_z).with_rotation(rotation),
-        visibility: Visibility::default(),
-        marker: WallMarker,
-    });
+    commands.spawn((
+        WallBundle {
+            mesh: Mesh3d(meshes.add(mesh)),
+            material: MeshMaterial3d(materials.add(wall_material)),
+            transform: Transform::from_xyz(center_x, level_y + WALL_HEIGHT / 2.0, center_z).with_rotation(rotation),
+            visibility: Visibility::default(),
+            marker: WallMarker,
+        },
+        MapLevel(wall.level),
+    ));
 }

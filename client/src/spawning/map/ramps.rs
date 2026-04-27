@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use super::helpers::{build_ramp_meshes, load_repeating_texture, load_repeating_texture_linear};
 use crate::{constants::*, markers::*};
-use common::protocol::*;
+use common::{constants::LEVEL_HEIGHT, protocol::*};
 
 #[derive(Bundle)]
 struct RampBundle {
@@ -62,21 +62,31 @@ pub fn spawn_ramp(
     side_material.alpha_mode = AlphaMode::Opaque;
     side_material.base_color.set_alpha(1.0);
 
+    // Lower of the two levels this ramp connects (derived from the lower y).
+    let y_low = ramp.y1.min(ramp.y2);
+    let lower_level = (y_low / LEVEL_HEIGHT).round().clamp(0.0, f32::from(u8::MAX)) as u8;
+
     // Top entity (floor texture)
-    commands.spawn(RampBundle {
-        mesh: Mesh3d(meshes.add(mesh_top)),
-        material: MeshMaterial3d(materials.add(top_material)),
-        transform: Transform::default(),
-        visibility: Visibility::Visible,
-        marker: RampMarker,
-    });
+    commands.spawn((
+        RampBundle {
+            mesh: Mesh3d(meshes.add(mesh_top)),
+            material: MeshMaterial3d(materials.add(top_material)),
+            transform: Transform::default(),
+            visibility: Visibility::Visible,
+            marker: RampMarker,
+        },
+        MapLevel(lower_level),
+    ));
 
     // Side entity (wall texture)
-    commands.spawn(RampBundle {
-        mesh: Mesh3d(meshes.add(mesh_side)),
-        material: MeshMaterial3d(materials.add(side_material)),
-        transform: Transform::default(),
-        visibility: Visibility::Visible,
-        marker: RampMarker,
-    });
+    commands.spawn((
+        RampBundle {
+            mesh: Mesh3d(meshes.add(mesh_side)),
+            material: MeshMaterial3d(materials.add(side_material)),
+            transform: Transform::default(),
+            visibility: Visibility::Visible,
+            marker: RampMarker,
+        },
+        MapLevel(lower_level),
+    ));
 }

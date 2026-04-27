@@ -205,8 +205,8 @@ pub fn players_death_system(
 const SPAWN_MIN_DISTANCE: f32 = 10.0;
 const SPAWN_MAX_ATTEMPTS: usize = 100;
 
-// Pick a random spawn position in a non-ramp grid cell, at least
-// `SPAWN_MIN_DISTANCE` away from every position in `occupied_positions`.
+// Pick a random spawn position in a level-0 floor cell that isn't a ramp,
+// at least `SPAWN_MIN_DISTANCE` away from every position in `occupied_positions`.
 // Returns the field center if no valid placement is found in time.
 #[must_use]
 pub fn generate_player_spawn_position(grid_config: &GridConfig, occupied_positions: &[Position]) -> Position {
@@ -217,14 +217,15 @@ pub fn generate_player_spawn_position(grid_config: &GridConfig, occupied_positio
     let mut valid_cells = Vec::new();
     for row in 0..grid_rows {
         for col in 0..grid_cols {
-            if !grid_config.grid[row as usize][col as usize].has_ramp {
+            let cell = &grid_config.grid[row as usize][col as usize];
+            if cell.has_floor && !cell.has_ramp {
                 valid_cells.push((row, col));
             }
         }
     }
 
     if valid_cells.is_empty() {
-        warn!("no valid spawn cells found (all have ramps), spawning at center");
+        warn!("no valid spawn cells (no level-0 floor without a ramp), spawning at center");
         return Position::default();
     }
 

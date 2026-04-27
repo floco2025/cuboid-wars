@@ -35,7 +35,7 @@ pub fn find_unoccupied_cell(rng: &mut ThreadRng, occupied_cells: &HashSet<(i32, 
     None
 }
 
-// Find an unoccupied cell that's not on a ramp
+// Find an unoccupied level-0 floor cell that isn't on a ramp.
 pub fn find_unoccupied_cell_not_ramp(
     rng: &mut ThreadRng,
     occupied_cells: &HashSet<(i32, i32)>,
@@ -45,14 +45,17 @@ pub fn find_unoccupied_cell_not_ramp(
     for _ in 0..MAX_ATTEMPTS {
         let grid_x = rng.random_range(0..GRID_COLS);
         let grid_z = rng.random_range(0..GRID_ROWS);
-        if !occupied_cells.contains(&(grid_x, grid_z)) && !grid[grid_z as usize][grid_x as usize].has_ramp {
+        let cell = grid[grid_z as usize][grid_x as usize];
+        if !occupied_cells.contains(&(grid_x, grid_z)) && cell.has_floor && !cell.has_ramp {
             return Some((grid_x, grid_z));
         }
     }
     None
 }
 
-// Count how many walls a cell has (0-4)
+// Count how many walls a cell has (0-4). Unused during Phase 1 of the
+// multi-level rebuild; the wall placer will re-call it in Phase 2.
+#[allow(dead_code)]
 pub(super) const fn count_cell_walls(cell: GridCell) -> u8 {
     let mut count = 0;
     if cell.has_north_wall {
