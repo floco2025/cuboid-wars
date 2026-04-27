@@ -194,7 +194,12 @@ def widen(row):
     out = []
     for i, ch in enumerate(row):
         if i % 2 == 1:
-            filler = HORIZ if ch == HORIZ else " "
+            if ch == HORIZ:
+                filler = HORIZ
+            elif ch == NO_FLOOR:
+                filler = NO_FLOOR
+            else:
+                filler = " "
             out.append(filler + ch + filler)
         else:
             out.append(ch)
