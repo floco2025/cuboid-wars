@@ -36,6 +36,11 @@ RAMP_BODY = "▒"       # ramp body — wedge from below pokes through this floo
 RAMP_EXIT_NORTH = "↑" # cell where you step off a north-up ramp from the floor below
 RAMP_EXIT_SOUTH = "↓" # cell where you step off a south-up ramp from the floor below
 
+# Cell types that render as a contiguous block: when adjacent cells match,
+# the wall-edge / corner positions between them are filled with the same glyph
+# instead of left as whitespace.
+FILLABLE = {NO_FLOOR, ATRIUM, RAMP_BODY, RAMP_NORTH_UP, RAMP_SOUTH_UP}
+
 # Wall-edge glyphs (placed during edge pass; corners are computed at the end).
 HORIZ = "─"
 VERT = "│"
@@ -150,38 +155,38 @@ def render_level(building, level_idx):
             w_ = c > 0 and grid[r][c - 1] == HORIZ
             grid[r][c] = CORNERS[(n, s, e, w_)]
 
-    # Fill no-floor regions: wall-edge / corner positions surrounded by no-floor
-    # cells become NO_FLOOR too, so the area outside the building renders as a
-    # contiguous solid block.
-    no_floor = [[not in_rect(floor_rect, c, r) for c in range(cols)] for r in range(rows)]
-
-    def is_nf(cell_row, cell_col):
+    # Fill regions of FILLABLE cell types: a wall-edge or corner position
+    # surrounded by cells that all share the same fillable type takes that
+    # type's glyph, so the region renders as a contiguous block (no-floor
+    # outside the building, atrium void, ramp surface, ramp body).
+    def cell_at(cell_row, cell_col):
         if not (0 <= cell_row < rows and 0 <= cell_col < cols):
-            return True
-        return no_floor[cell_row][cell_col]
+            return NO_FLOOR
+        return grid[2 * cell_row + 1][2 * cell_col + 1]
 
     for r in range(h):
         for c in range(w):
             if grid[r][c] != NONE:
                 continue
             r_odd, c_odd = r % 2 == 1, c % 2 == 1
+            if r_odd and c_odd:
+                continue  # cell interior, already set
             if not r_odd and c_odd:
-                # Horizontal wall edge: between cell rows r/2-1 and r/2.
-                if is_nf(r // 2 - 1, (c - 1) // 2) and is_nf(r // 2, (c - 1) // 2):
-                    grid[r][c] = NO_FLOOR
+                touching = [(r // 2 - 1, (c - 1) // 2), (r // 2, (c - 1) // 2)]
             elif r_odd and not c_odd:
-                # Vertical wall edge: between cell cols c/2-1 and c/2.
-                if is_nf((r - 1) // 2, c // 2 - 1) and is_nf((r - 1) // 2, c // 2):
-                    grid[r][c] = NO_FLOOR
-            elif not r_odd and not c_odd:
-                # Corner: four surrounding cells.
-                if (
-                    is_nf(r // 2 - 1, c // 2 - 1)
-                    and is_nf(r // 2 - 1, c // 2)
-                    and is_nf(r // 2, c // 2 - 1)
-                    and is_nf(r // 2, c // 2)
-                ):
-                    grid[r][c] = NO_FLOOR
+                touching = [((r - 1) // 2, c // 2 - 1), ((r - 1) // 2, c // 2)]
+            else:
+                touching = [
+                    (r // 2 - 1, c // 2 - 1),
+                    (r // 2 - 1, c // 2),
+                    (r // 2, c // 2 - 1),
+                    (r // 2, c // 2),
+                ]
+            types = {cell_at(rr, cc) for rr, cc in touching}
+            if len(types) == 1:
+                t = next(iter(types))
+                if t in FILLABLE:
+                    grid[r][c] = t
 
     return grid
 
@@ -196,8 +201,8 @@ def widen(row):
         if i % 2 == 1:
             if ch == HORIZ:
                 filler = HORIZ
-            elif ch == NO_FLOOR:
-                filler = NO_FLOOR
+            elif ch in FILLABLE:
+                filler = ch
             else:
                 filler = " "
             out.append(filler + ch + filler)
