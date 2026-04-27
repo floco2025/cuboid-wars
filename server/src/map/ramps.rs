@@ -234,6 +234,12 @@ pub fn place_connecting_ramps(rng: &mut ThreadRng, masks: &[Mask], grid_cols: i3
     // viewed from the other side).
     let mut high_cells: Vec<HashSet<(i32, i32)>> = vec![HashSet::new(); masks.len()];
     let mut exit_cells: Vec<HashSet<(i32, i32)>> = vec![HashSet::new(); masks.len()];
+    // Per-level: XZ cells that are part of an accepted ramp's footprint
+    // (whose footprint sits at this level). A new ramp's footprint can't
+    // share an XZ with a ramp one level above or below — the climbing
+    // player needs PLAYER_HEIGHT clearance above the lower ramp's surface,
+    // and the upper ramp's body would be right there.
+    let mut footprint_xz: Vec<HashSet<(i32, i32)>> = vec![HashSet::new(); masks.len()];
     let total_in_mask = count_in_mask_cells(masks);
 
     loop {
@@ -250,6 +256,9 @@ pub fn place_connecting_ramps(rng: &mut ThreadRng, masks: &[Mask], grid_cols: i3
                 continue;
             }
             if conflicts_with_levels(cand, &high_cells, &exit_cells) {
+                continue;
+            }
+            if conflicts_with_stacked_footprint(cand, &footprint_xz) {
                 continue;
             }
             let mut trial = accepted.clone();
@@ -286,10 +295,43 @@ pub fn place_connecting_ramps(rng: &mut ThreadRng, masks: &[Mask], grid_cols: i3
                 exit_cells[upper].insert((r, c));
             }
         }
+        for (r, c) in chosen.footprint_cells() {
+            footprint_xz[lower].insert((r, c));
+        }
         accepted.push(chosen);
     }
 
     accepted
+}
+
+// Reject a candidate whose footprint XZ matches an already-accepted ramp's
+// footprint XZ at a directly-adjacent level. The climbing player on the
+// lower ramp needs PLAYER_HEIGHT clearance above its top surface, which
+// would intersect the upper ramp's body sitting at the same XZ.
+fn conflicts_with_stacked_footprint(cand: &RampSpec, footprint_xz: &[HashSet<(i32, i32)>]) -> bool {
+    let lower = cand.lower_level as usize;
+    let above = lower + 1;
+    let below = lower.checked_sub(1);
+
+    let cand_cells = cand.footprint_cells();
+
+    if let Some(set) = footprint_xz.get(above) {
+        for cell in &cand_cells {
+            if set.contains(cell) {
+                return true;
+            }
+        }
+    }
+    if let Some(b) = below
+        && let Some(set) = footprint_xz.get(b)
+    {
+        for cell in &cand_cells {
+            if set.contains(cell) {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 fn conflicts_with_levels(
