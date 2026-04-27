@@ -39,10 +39,15 @@ pub fn emit_floor_tier(mask: &Mask, grid_cols: i32, grid_rows: i32, level: u8, y
                 let z2 = ((row + 1) as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0)) + WALL_THICKNESS / 2.0;
                 (x1, x2, z1, z2, Vec::new())
             } else {
-                let mut x1 = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-                let mut x2 = ((col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-                let mut z1 = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
-                let mut z2 = ((row + 1) as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+                let x1_orig = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+                let x2_orig = ((col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+                let z1_orig = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+                let z2_orig = ((row + 1) as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+
+                let mut x1 = x1_orig;
+                let mut x2 = x2_orig;
+                let mut z1 = z1_orig;
+                let mut z2 = z2_orig;
                 let mut edge_fillers: Vec<Floor> = Vec::new();
 
                 let neighbor_w = in_mask(row, col - 1);
@@ -86,20 +91,22 @@ pub fn emit_floor_tier(mask: &Mask, grid_cols: i32, grid_rows: i32, level: u8, y
                 // Corner-filler strips. When a diagonal neighbor suppressed
                 // the N/S extension, the resulting L-shape leaves a gap on
                 // the side of the cell opposite the diagonal. Add a thin
-                // strip there, inset from the corner shared with the
-                // diagonal cell so it doesn't overlap that cell's W/E
-                // extension.
+                // strip there. The inset must use the *unextended* grid-line
+                // (`x1_orig`/`x2_orig`) plus `pad`, because the diagonal
+                // cell's W/E extension reaches `pad` past the grid line —
+                // insetting from the cell's own extended `x1`/`x2` would
+                // still overlap the diagonal cell.
                 let pad = (WALL_THICKNESS / 2.0) - CORNER_EPS;
                 if pad > 0.0 {
                     if !extend_n && !neighbor_n && (neighbor_nw || neighbor_ne) {
-                        let fx1 = if neighbor_nw { x1 + pad } else { x1 };
-                        let fx2 = if neighbor_ne { x2 - pad } else { x2 };
+                        let fx1 = if neighbor_nw { x1_orig + pad } else { x1 };
+                        let fx2 = if neighbor_ne { x2_orig - pad } else { x2 };
                         if fx2 > fx1 {
                             edge_fillers.push(Floor {
                                 x1: fx1,
-                                z1: z1 - pad,
+                                z1: z1_orig - pad,
                                 x2: fx2,
-                                z2: z1,
+                                z2: z1_orig,
                                 y,
                                 thickness,
                                 level,
@@ -107,14 +114,14 @@ pub fn emit_floor_tier(mask: &Mask, grid_cols: i32, grid_rows: i32, level: u8, y
                         }
                     }
                     if !extend_s && !neighbor_s && (neighbor_sw || neighbor_se) {
-                        let fx1 = if neighbor_sw { x1 + pad } else { x1 };
-                        let fx2 = if neighbor_se { x2 - pad } else { x2 };
+                        let fx1 = if neighbor_sw { x1_orig + pad } else { x1 };
+                        let fx2 = if neighbor_se { x2_orig - pad } else { x2 };
                         if fx2 > fx1 {
                             edge_fillers.push(Floor {
                                 x1: fx1,
-                                z1: z2,
+                                z1: z2_orig,
                                 x2: fx2,
-                                z2: z2 + pad,
+                                z2: z2_orig + pad,
                                 y,
                                 thickness,
                                 level,
