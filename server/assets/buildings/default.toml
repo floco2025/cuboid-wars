@@ -1,0 +1,129 @@
+# Default building blueprint.
+#
+# Coordinates: cols increase east, rows increase south. Rectangles are
+# half-open: `[col0, row0, col_end, row_end]` covers cols col0..col_end-1
+# and rows row0..row_end-1.
+#
+# Levels: 0 = basement, 1 = lobby, 2 = rooms-low, 3 = rooms-high, 4 = rooftop.
+#
+# `perimeter` puts a wall around a rect (with optional doors). Inset
+# `perimeter.rect` from `floor_rect` to leave the floor extending past the
+# wall as a recessed balcony.
+
+[building]
+grid_cols = 20
+grid_rows = 20
+num_levels = 5
+
+# ----------------------------------------------------------------------------
+# Levels
+# ----------------------------------------------------------------------------
+
+[[building.levels]]
+name = "basement"
+floor_rect = [0, 0, 20, 20]
+perimeter = { rect = [0, 0, 20, 20], doors = [] }   # walls flush with the floor edge
+rooms = [
+    # West stair shaft. Door on the south side at col 3 (east half of the shaft).
+    { rect = [2, 3, 4, 7], doors = [{ side = "S", at = 3 }] },
+    # East stair shaft. Door on the south side at col 16 (west half of the shaft).
+    { rect = [16, 3, 18, 7], doors = [{ side = "S", at = 16 }] },
+]
+
+[[building.levels]]
+name = "lobby"
+floor_rect = [0, 0, 20, 20]
+perimeter = { rect = [0, 0, 20, 20], doors = [] }
+rooms = []
+
+[[building.levels]]
+name = "rooms-low"
+floor_rect = [0, 0, 20, 20]
+atrium = [7, 7, 12, 12]   # 5x5 void centered in the building
+# Recessed balcony: perimeter wall inset 1 cell on every side. Floor still
+# extends to the building edge; the strip between the wall and the edge is
+# the balcony. Doors on each side at the centre give balcony access.
+perimeter = { rect = [1, 1, 19, 19], doors = [
+    { side = "N", at = 9 }, { side = "N", at = 10 },
+    { side = "S", at = 9 }, { side = "S", at = 10 },
+    { side = "E", at = 9 }, { side = "E", at = 10 },
+    { side = "W", at = 9 }, { side = "W", at = 10 },
+] }
+rooms = []
+
+[[building.levels]]
+name = "rooms-high"
+floor_rect = [0, 0, 20, 20]
+atrium = [7, 7, 12, 12]
+perimeter = { rect = [1, 1, 19, 19], doors = [
+    { side = "N", at = 9 }, { side = "N", at = 10 },
+    { side = "S", at = 9 }, { side = "S", at = 10 },
+    { side = "E", at = 9 }, { side = "E", at = 10 },
+    { side = "W", at = 9 }, { side = "W", at = 10 },
+] }
+rooms = []
+
+[[building.levels]]
+name = "rooftop"
+floor_rect = [2, 2, 18, 18]   # 16x16 setback (2 cells inset on each side)
+# No perimeter walls: the rooftop is open.
+rooms = []
+
+# ----------------------------------------------------------------------------
+# Ramps
+# ----------------------------------------------------------------------------
+#
+# Two U-shaped staircases, each spanning basement -> rooftop. Within a
+# 2-cell-wide shaft, ramps zig-zag between the two columns and alternate
+# direction (south-up / north-up) so the player walks up one flight, turns
+# 180°, walks up the next.
+
+# West staircase (cols 2-3)
+[[building.ramps]]
+direction = "south-up"
+col = 2
+row0 = 4
+lower_level = 0           # basement -> lobby
+
+[[building.ramps]]
+direction = "north-up"
+col = 3
+row0 = 4
+lower_level = 1           # lobby -> rooms-low
+
+[[building.ramps]]
+direction = "south-up"
+col = 2
+row0 = 4
+lower_level = 2           # rooms-low -> rooms-high
+
+[[building.ramps]]
+direction = "north-up"
+col = 3
+row0 = 4
+lower_level = 3           # rooms-high -> rooftop
+
+# East staircase (cols 16-17)
+[[building.ramps]]
+direction = "south-up"
+col = 16
+row0 = 4
+lower_level = 0
+
+[[building.ramps]]
+direction = "north-up"
+col = 17
+row0 = 4
+lower_level = 1
+
+[[building.ramps]]
+direction = "south-up"
+col = 16
+row0 = 4
+lower_level = 2
+
+[[building.ramps]]
+direction = "north-up"
+col = 17
+row0 = 4
+lower_level = 3
