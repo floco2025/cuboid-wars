@@ -68,8 +68,8 @@ pub fn sweep_player_vs_floor(start: &Position, end: &Position, floor: &Floor, ra
 #[must_use]
 pub fn sweep_player_vs_ramp_edges(start_pos: &Position, end_pos: &Position, ramp: &Ramp) -> bool {
     // Skip ramps whose vertical extent doesn't overlap the player's body.
-    // Without this, a player walking at level 0 collides with the side of a
-    // ramp that sits at level 2.
+    // Without this, a player walking on level 0 collides with the side of a
+    // ramp that sits on level 2.
     let player_y_low = start_pos.y.min(end_pos.y);
     let player_y_high = start_pos.y.max(end_pos.y) + PLAYER_HEIGHT;
     let ramp_y_low = ramp.y1.min(ramp.y2);

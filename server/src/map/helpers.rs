@@ -53,8 +53,7 @@ pub fn find_unoccupied_cell_not_ramp(
     None
 }
 
-// Count how many walls a cell has (0-4). Unused during Phase 1 of the
-// multi-level rebuild; the wall placer will re-call it in Phase 2.
+// Count how many walls a cell has (0-4).
 #[allow(dead_code)]
 pub(super) const fn count_cell_walls(cell: GridCell) -> u8 {
     let mut count = 0;

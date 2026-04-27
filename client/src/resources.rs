@@ -98,8 +98,8 @@ pub enum CameraViewMode {
 }
 
 // Level focus toggle (R key). When enabled, hides walls/floors at other levels
-// and ramps that don't connect to the local player's level — useful for
-// inspecting one tier of a multi-level world without occluders.
+// and ramps that don't connect to the local player's level. Useful for
+// inspecting one level without occluders.
 #[derive(Resource, PartialEq, Eq, Clone, Copy, Debug, Default)]
 pub struct LevelFocusEnabled(pub bool);
 

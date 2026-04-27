@@ -20,7 +20,7 @@ pub struct GridCell {
     pub has_west_wall: bool,   // Vertical wall at left edge (x)
     pub has_east_wall: bool,   // Vertical wall at right edge (x+1)
     pub has_ramp: bool,        // Cell occupied by a ramp footprint
-    pub has_floor: bool,       // Cell has floor at this level (false where the mask was a hole)
+    pub has_floor: bool,       // Cell has floor on this level
     pub has_floor_above: bool, // Cell has a level-1 floor slab above it
     // Ramp bases disallow walls on their entry edge
     pub ramp_base_north: bool,

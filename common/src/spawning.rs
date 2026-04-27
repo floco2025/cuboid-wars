@@ -90,7 +90,7 @@ pub fn calculate_projectile_spawns(
 
 fn is_blocked_by_wall(camera_pos: &Position, spawn_position: &Position, walls: &[Wall]) -> bool {
     // If the spawn height sits above the top of ground walls, skip wall blocking
-    // (shots from upper floors or ramps clear the level-0 walls).
+    // (shots from upper levels or ramps clear the level-0 walls).
     let spawn_above_walls = spawn_position.y - PROJECTILE_RADIUS >= WALL_HEIGHT;
     !spawn_above_walls
         && walls

@@ -17,4 +17,4 @@ anyhow = "1"
 bevy = { version = "0.18", default-features = false, features = ["bevy_core_pipeline"] }
 rand = "0.10"
 serde = { version = "1", features = ["derive"] }
-toml = "1.1"
+serde_json = "1"

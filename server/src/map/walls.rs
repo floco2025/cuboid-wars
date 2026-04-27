@@ -1,7 +1,7 @@
 // Wall generation: turn per-cell `has_*_wall` flags into world-space `Wall`
 // segments, with corner-correct insets and extensions for T-junctions and
-// L-corners. The blueprint compiler sets the cell flags from room rectangles
-// minus doors; this module emits the segments.
+// L-corners. The building compiler sets the cell flags from explicit wall
+// edges; this module emits the world-space segments.
 
 use crate::{constants::WALL_OVERLAP, resources::GridCell};
 use common::{constants::*, protocol::Wall};
