@@ -15,9 +15,9 @@ pub const PHYSICS_EPSILON: f32 = 1e-6;
 // Grid & Field
 // ============================================================================
 
-pub const GRID_SIZE: f32 = 8.0; // Each grid cell size in meters
-pub const GRID_COLS: i32 = 10; // Number of grid columns (X axis)
-pub const GRID_ROWS: i32 = 10; // Number of grid rows (Z axis)
+pub const GRID_SIZE: f32 = 4.0; // Each grid cell size in meters
+pub const GRID_COLS: i32 = 20; // Number of grid columns (X axis)
+pub const GRID_ROWS: i32 = 20; // Number of grid rows (Z axis)
 pub const FIELD_WIDTH: f32 = GRID_COLS as f32 * GRID_SIZE; // Total field width (80m)
 pub const FIELD_DEPTH: f32 = GRID_ROWS as f32 * GRID_SIZE; // Total field depth (80m)
 
