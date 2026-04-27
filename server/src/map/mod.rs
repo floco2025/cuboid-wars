@@ -6,8 +6,10 @@ mod mask;
 mod ramps;
 mod walls;
 
+use rand::{RngExt, rng};
+
 use crate::{
-    constants::{BUILDING_FOOTPRINT_CELLS, FLOOR_OVERLAP, NUM_LEVELS, ROOFTOP_FOOTPRINT_CELLS},
+    constants::{ATRIUM_CELLS, BUILDING_FOOTPRINT_CELLS, FLOOR_OVERLAP, NUM_LEVELS, ROOFTOP_FOOTPRINT_CELLS},
     resources::{GridCell, GridConfig},
 };
 use common::{
@@ -31,6 +33,7 @@ pub use helpers::{cell_center, find_unoccupied_cell, find_unoccupied_cell_not_ra
 // variation.
 #[must_use]
 pub fn generate_grid() -> (MapLayout, GridConfig) {
+    let mut rng = rng();
     let grid_cols = GRID_COLS;
     let grid_rows = GRID_ROWS;
 
@@ -47,9 +50,15 @@ pub fn generate_grid() -> (MapLayout, GridConfig) {
     let utility_high = north_up_ramp(/*col*/ 13, /*row0*/ 8, /*lower*/ 3); // rooms-high -> rooftop
     let ramp_specs = vec![utility_low, main_lower, main_upper, utility_high];
 
+    // Central atrium: 3x3 void at the building's center, spanning lobby
+    // (level 1) up through rooms-low (level 2). 50% chance to extend up
+    // through rooms-high (level 3) for a 3-storey atrium.
+    let atrium = centered_rect(ATRIUM_CELLS, grid_cols, grid_rows);
+    let atrium_top: u32 = if rng.random_bool(0.5) { 2 } else { 3 };
+
     // Per-level masks: start from the level's footprint, subtract ramp
     // footprints (this level), subtract ramp body cells (level above a
-    // ramp). No fallback BFS; the layout is connected by construction.
+    // ramp), subtract atrium void where applicable.
     let masks: Vec<Mask> = (0..NUM_LEVELS)
         .map(|level| {
             let base = if level == NUM_LEVELS - 1 { rooftop } else { footprint };
@@ -65,6 +74,9 @@ pub fn generate_grid() -> (MapLayout, GridConfig) {
                         m[row as usize][col as usize] = false;
                     }
                 }
+            }
+            if level >= 1 && level <= atrium_top {
+                subtract_rect(&mut m, atrium);
             }
             m
         })
@@ -135,6 +147,19 @@ fn mask_from_rect(rect: Rect, grid_cols: i32, grid_rows: i32) -> Mask {
         }
     }
     m
+}
+
+fn subtract_rect(mask: &mut Mask, rect: Rect) {
+    let rows = mask.len() as i32;
+    if rows == 0 {
+        return;
+    }
+    let cols = mask[0].len() as i32;
+    for row in rect.row0.max(0)..rect.row_end.min(rows) {
+        for col in rect.col0.max(0)..rect.col_end.min(cols) {
+            mask[row as usize][col as usize] = false;
+        }
+    }
 }
 
 // 2-cell ramp at (col, row0) going north-up: footprint occupies (row0, col)
