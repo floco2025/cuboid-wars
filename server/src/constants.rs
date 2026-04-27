@@ -9,17 +9,16 @@ pub const WALL_3RD_PROBABILITY_RATIO: f64 = 0.2; // Probability of 3rd wall rela
 pub const WALL_OVERLAP: bool = false; // Non-overlapping mode by default
 pub const WALL_MERGE_SEGMENTS: bool = true; // Reduce draw calls
 
-// Floors (per-level slabs)
-pub const FLOOR_GROUND_DENSITY: f32 = 0.9; // Level-0 floor coverage; <1.0 produces ground holes
-pub const FLOOR_TOP_DENSITY: f32 = 0.4; // Top-level floor coverage; intermediate levels lerp
-pub const FLOOR_SEED_COUNT: usize = 2; // Seed cells per level (more = more disconnected regions; pruning may drop unreachable ones)
-pub const FLOOR_OVERLAP: bool = false; // Non-overlapping mode by default
-pub const FLOOR_MERGE_SEGMENTS: bool = true; // Reduce draw calls
+// Building shape (deterministic blueprint generator)
+pub const NUM_LEVELS: u32 = 5; // basement / lobby / rooms-low / rooms-high / rooftop
+pub const BUILDING_FOOTPRINT_CELLS: i32 = 20; // Building fills the whole grid; field is the building
+pub const ROOFTOP_FOOTPRINT_CELLS: i32 = 14; // Setback at the top
+pub const RAMP_LENGTH_CELLS: i32 = 2;
+pub const RAMP_WIDTH_CELLS: i32 = 1;
 
-// Ramps
-pub const RAMP_LENGTH_CELLS: i32 = 2; // Run length in grid cells
-pub const RAMP_WIDTH_CELLS: i32 = 1; // Footprint width in grid cells
-pub const RAMP_MIN_SEPARATION_CELLS: i32 = 3; // Minimum empty cells between ramps
+// Floor mesh
+pub const FLOOR_OVERLAP: bool = false; // Non-overlapping mode (uses edge fillers)
+pub const FLOOR_MERGE_SEGMENTS: bool = true; // Reduce draw calls
 
 // ============================================================================
 // Lighting

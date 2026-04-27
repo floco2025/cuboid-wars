@@ -23,10 +23,6 @@ struct Args {
     // Address to bind server to
     #[arg(short, long, default_value = "127.0.0.1:8080")]
     bind: String,
-
-    // Number of map levels (level 0 = ground, level 1 = first floor tier, ...)
-    #[arg(short, long, default_value_t = 2)]
-    levels: u32,
 }
 
 // ============================================================================
@@ -50,7 +46,7 @@ async fn main() -> Result<()> {
     tokio::spawn(accept_connections_task(endpoint, to_server_from_accept, to_server));
     let mut app = App::new();
 
-    let (map_layout, grid_config) = generate_grid(args.levels);
+    let (map_layout, grid_config) = generate_grid();
 
     app.add_plugins(MinimalPlugins).add_plugins(bevy::log::LogPlugin {
         level: bevy::log::Level::INFO,
@@ -59,8 +55,7 @@ async fn main() -> Result<()> {
     });
 
     info!(
-        "generated {} levels, {} walls, {} ramps, {} floors",
-        args.levels,
+        "generated map: {} walls, {} ramps, {} floors",
         map_layout.walls.len(),
         map_layout.ramps.len(),
         map_layout.floors.len(),
