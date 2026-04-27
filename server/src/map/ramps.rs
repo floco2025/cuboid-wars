@@ -60,6 +60,25 @@ impl RampSpec {
         out
     }
 
+    // Footprint cells on the high end (surface y = (lower_level+1) * LEVEL_HEIGHT).
+    // These cells sit at the lower level but their ramp surface is at the
+    // upper level's height, so no other ramp can target them as an exit.
+    fn high_footprint_cells(&self) -> Vec<(i32, i32)> {
+        let mut out = Vec::new();
+        if self.along_x {
+            let col = if self.high_at_end { self.col_end - 1 } else { self.col0 };
+            for row in self.row0..self.row_end {
+                out.push((row, col));
+            }
+        } else {
+            let row = if self.high_at_end { self.row_end - 1 } else { self.row0 };
+            for col in self.col0..self.col_end {
+                out.push((row, col));
+            }
+        }
+        out
+    }
+
     // Cells at the upper level adjacent to the top side of the footprint.
     // Players exiting the ramp walk out onto one of these.
     fn upper_exit_cells(&self) -> Vec<(i32, i32)> {
@@ -207,6 +226,14 @@ pub fn place_connecting_ramps(rng: &mut ThreadRng, masks: &[Mask], grid_cols: i3
 
     let mut accepted: Vec<RampSpec> = Vec::new();
     let mut occupied: HashSet<(i32, i32, u32)> = HashSet::new();
+    // Per-level: cells that are the high (upper-Y) end of an accepted ramp's
+    // footprint, and cells that are the upper exit of an accepted ramp.
+    // A new ramp can't have its upper exit on a high-cell (the player would
+    // arrive at the lower-level Y but the ramp surface is at the upper-level Y),
+    // and can't have its high cell on an existing exit cell (same conflict
+    // viewed from the other side).
+    let mut high_cells: Vec<HashSet<(i32, i32)>> = vec![HashSet::new(); masks.len()];
+    let mut exit_cells: Vec<HashSet<(i32, i32)>> = vec![HashSet::new(); masks.len()];
     let total_in_mask = count_in_mask_cells(masks);
 
     loop {
@@ -215,12 +242,14 @@ pub fn place_connecting_ramps(rng: &mut ThreadRng, masks: &[Mask], grid_cols: i3
             break;
         }
 
-        // For each available candidate, compute the gain in reachability.
         let mut best_gain: usize = 0;
         let mut best_pool: Vec<RampSpec> = Vec::new();
 
         for cand in &candidates {
             if conflicts_with_occupied(cand, &occupied) {
+                continue;
+            }
+            if conflicts_with_levels(cand, &high_cells, &exit_cells) {
                 continue;
             }
             let mut trial = accepted.clone();
@@ -247,10 +276,45 @@ pub fn place_connecting_ramps(rng: &mut ThreadRng, masks: &[Mask], grid_cols: i3
         for (r, c) in footprint_with_pad(&chosen, grid_cols, grid_rows) {
             occupied.insert((r, c, chosen.lower_level));
         }
+        let lower = chosen.lower_level as usize;
+        let upper = lower + 1;
+        for (r, c) in chosen.high_footprint_cells() {
+            high_cells[lower].insert((r, c));
+        }
+        if upper < exit_cells.len() {
+            for (r, c) in chosen.upper_exit_cells() {
+                exit_cells[upper].insert((r, c));
+            }
+        }
         accepted.push(chosen);
     }
 
     accepted
+}
+
+fn conflicts_with_levels(
+    cand: &RampSpec,
+    high_cells: &[HashSet<(i32, i32)>],
+    exit_cells: &[HashSet<(i32, i32)>],
+) -> bool {
+    let lower = cand.lower_level as usize;
+    let upper = lower + 1;
+
+    if let Some(set) = exit_cells.get(lower) {
+        for cell in cand.high_footprint_cells() {
+            if set.contains(&cell) {
+                return true;
+            }
+        }
+    }
+    if let Some(set) = high_cells.get(upper) {
+        for cell in cand.upper_exit_cells() {
+            if set.contains(&cell) {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 fn footprint_with_pad(spec: &RampSpec, grid_cols: i32, grid_rows: i32) -> Vec<(i32, i32)> {
