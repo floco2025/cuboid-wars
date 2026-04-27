@@ -40,16 +40,57 @@ rooms = []
 name = "rooms-low"
 floor_rect = [0, 0, 20, 20]
 atrium = [7, 7, 12, 12]   # 5x5 void centered in the building
-# Recessed balcony: perimeter wall inset 1 cell on every side. Floor still
-# extends to the building edge; the strip between the wall and the edge is
-# the balcony. Doors on each side at the centre give balcony access.
-perimeter = { rect = [1, 1, 19, 19], doors = [
-    { side = "N", at = 9 }, { side = "N", at = 10 },
-    { side = "S", at = 9 }, { side = "S", at = 10 },
-    { side = "E", at = 9 }, { side = "E", at = 10 },
-    { side = "W", at = 9 }, { side = "W", at = 10 },
-] }
-rooms = []
+# Perimeter wall inset 1 cell. The strip between the wall and the floor
+# edge is balcony space; apartment doors on the perimeter open onto each
+# apartment's slice of that strip. The perimeter itself has no doors of
+# its own — all balcony access is through apartments.
+perimeter = { rect = [1, 1, 19, 19], doors = [] }
+rooms = [
+    # Stair shafts. The U-staircase's lobby->rooms-low ramp is north-up,
+    # so the player arrives at the *north* end of the shaft on this level
+    # — door on the north side or they can't exit. The south door from
+    # the basement plan would dump them onto the lobby->rooms-low ramp's
+    # body and drop them back to the lobby.
+    { rect = [2, 3, 4, 7], doors = [{ side = "N", at = 3 }] },
+    { rect = [16, 3, 18, 7], doors = [{ side = "N", at = 16 }] },
+
+    # Six apartments. Each: one corridor door on the interior side, one
+    # balcony door on the exterior side (which doubles as a hole in the
+    # perimeter wall, since the apartment's outer wall coincides with it).
+
+    # North: two big units along the top of the building, between the stair
+    # shafts and the atrium-edge corridor at row 6.
+    { rect = [4, 1, 10, 6], doors = [
+        { side = "S", at = 6 },   # south wall (row 6)  -> corridor
+        { side = "N", at = 6 },   # north wall (row 1)  -> balcony
+    ] },
+    { rect = [10, 1, 16, 6], doors = [
+        { side = "S", at = 13 },
+        { side = "N", at = 13 },
+    ] },
+
+    # South: mirror of north.
+    { rect = [4, 14, 10, 19], doors = [
+        { side = "N", at = 6 },   # north wall (row 14) -> corridor
+        { side = "S", at = 6 },   # south wall (row 19) -> balcony
+    ] },
+    { rect = [10, 14, 16, 19], doors = [
+        { side = "N", at = 13 },
+        { side = "S", at = 13 },
+    ] },
+
+    # West: one apartment along the left side, between the two stair-shaft
+    # rows and the atrium-edge corridor at col 6.
+    { rect = [1, 8, 6, 12], doors = [
+        { side = "E", at = 10 },  # east wall (col 6)  -> corridor
+        { side = "W", at = 10 },  # west wall (col 1)  -> balcony
+    ] },
+    # East: mirror.
+    { rect = [14, 8, 19, 12], doors = [
+        { side = "W", at = 10 },
+        { side = "E", at = 10 },
+    ] },
+]
 
 [[building.levels]]
 name = "rooms-high"
@@ -103,27 +144,29 @@ col = 3
 row0 = 4
 lower_level = 3           # rooms-high -> rooftop
 
-# East staircase (cols 16-17)
+# East staircase (cols 16-17) — mirror of the west staircase: south-up on the
+# outer column (17), north-up on the inner column (16). This makes both stair
+# landings face the building interior.
 [[building.ramps]]
 direction = "south-up"
-col = 16
+col = 17
 row0 = 4
 lower_level = 0
 
 [[building.ramps]]
 direction = "north-up"
-col = 17
+col = 16
 row0 = 4
 lower_level = 1
 
 [[building.ramps]]
 direction = "south-up"
-col = 16
+col = 17
 row0 = 4
 lower_level = 2
 
 [[building.ramps]]
 direction = "north-up"
-col = 17
+col = 16
 row0 = 4
 lower_level = 3
