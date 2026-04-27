@@ -15,7 +15,7 @@ pub fn generate_wall_lights(grid: &[Vec<GridCell>]) -> Vec<WallLight> {
     for row in 0..grid_rows {
         for col in 0..grid_cols {
             let cell = &grid[row as usize][col as usize];
-            if !cell.has_roof {
+            if !cell.has_floor_above {
                 continue;
             }
 

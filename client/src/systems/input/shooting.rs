@@ -90,9 +90,9 @@ pub fn input_shooting_system(
                 face_dir.0,
                 pitch,
                 has_multi_shot,
-                map_layout.lower_walls.as_slice(),
+                map_layout.walls.as_slice(),
                 map_layout.ramps.as_slice(),
-                map_layout.roofs.as_slice(),
+                map_layout.floors.as_slice(),
                 my_id.0,
             ) > 0
             {

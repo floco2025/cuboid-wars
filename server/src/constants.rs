@@ -9,11 +9,11 @@ pub const WALL_3RD_PROBABILITY_RATIO: f64 = 0.2; // Probability of 3rd wall rela
 pub const WALL_OVERLAP: bool = false; // Non-overlapping mode by default
 pub const WALL_MERGE_SEGMENTS: bool = true; // Reduce draw calls
 
-// Roofs
-pub const ROOF_NUM_SEGMENTS: usize = 45;
-pub const ROOF_NEIGHBOR_PREFERENCE: f64 = 4.0; // Multiplier for cells with roofed neighbors
-pub const ROOF_OVERLAP: bool = false; // Non-overlapping mode by default
-pub const ROOF_MERGE_SEGMENTS: bool = true; // Reduce draw calls
+// Floors (upper-level slabs)
+pub const FLOOR_NUM_SEGMENTS: usize = 45;
+pub const FLOOR_NEIGHBOR_PREFERENCE: f64 = 4.0; // Multiplier for cells adjacent to existing floor cells
+pub const FLOOR_OVERLAP: bool = false; // Non-overlapping mode by default
+pub const FLOOR_MERGE_SEGMENTS: bool = true; // Reduce draw calls
 
 // Ramps
 pub const RAMP_COUNT: usize = 5; // Max number of ramps

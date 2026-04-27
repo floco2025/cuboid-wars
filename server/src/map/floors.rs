@@ -3,18 +3,22 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 use super::helpers::count_cell_walls;
 use crate::{
-    constants::{ROOF_NEIGHBOR_PREFERENCE, ROOF_NUM_SEGMENTS, ROOF_OVERLAP},
+    constants::{FLOOR_NEIGHBOR_PREFERENCE, FLOOR_NUM_SEGMENTS, FLOOR_OVERLAP},
     resources::GridCell,
 };
-use common::{constants::*, protocol::Roof};
+use common::{constants::*, protocol::Floor};
 
 const MERGE_EPS: f32 = 0.01;
 const CORNER_EPS: f32 = 0.01; // Small inset to avoid overlap for edge fillers
 
-// Generate individual roof segments (no merging) covering full grid cells.
-// Returns roofs and updated grid with has_roof flags set.
+// Generate individual level-1 floor segments (no merging) covering full grid cells.
+// Returns floors at `Y = LEVEL_HEIGHT` and updated grid with has_floor_above flags set.
 #[must_use]
-pub fn generate_roofs(mut grid: Vec<Vec<GridCell>>, grid_cols: i32, grid_rows: i32) -> (Vec<Roof>, Vec<Vec<GridCell>>) {
+pub fn generate_level1_floors(
+    mut grid: Vec<Vec<GridCell>>,
+    grid_cols: i32,
+    grid_rows: i32,
+) -> (Vec<Floor>, Vec<Vec<GridCell>>) {
     let mut rng = rng();
 
     // Count walls for each cell
@@ -26,7 +30,7 @@ pub fn generate_roofs(mut grid: Vec<Vec<GridCell>>, grid_cols: i32, grid_rows: i
         }
     }
 
-    let mut roof_cells: HashSet<(i32, i32)> = HashSet::new();
+    let mut floor_cells: HashSet<(i32, i32)> = HashSet::new();
 
     // Phase 1: Find all cells adjacent to ramp tops
     let mut ramp_top_adjacent: Vec<(i32, i32)> = Vec::new();
@@ -124,11 +128,11 @@ pub fn generate_roofs(mut grid: Vec<Vec<GridCell>>, grid_cols: i32, grid_rows: i
                 }
             }
 
-            // Trace back path and add to roof_cells
+            // Trace back path and add to floor_cells
             if found {
                 let mut current = target;
                 while current != start {
-                    roof_cells.insert(current);
+                    floor_cells.insert(current);
                     connected_pairs.insert(current);
                     if let Some(&prev) = parent.get(&current) {
                         current = prev;
@@ -136,55 +140,55 @@ pub fn generate_roofs(mut grid: Vec<Vec<GridCell>>, grid_cols: i32, grid_rows: i
                         break;
                     }
                 }
-                roof_cells.insert(start);
+                floor_cells.insert(start);
                 connected_pairs.insert(start);
             }
         }
     }
 
-    // Phase 2: Place remaining roofs using weighted selection
-    // Iteratively place roofs until we reach target count
-    while roof_cells.len() < ROOF_NUM_SEGMENTS {
+    // Phase 2: Place remaining floor cells using weighted selection
+    // Iteratively place floor cells until we reach target count
+    while floor_cells.len() < FLOOR_NUM_SEGMENTS {
         // Build weighted list of candidate cells
         let mut candidates = Vec::new();
 
         for row in 0..grid_rows {
             for col in 0..grid_cols {
-                if roof_cells.contains(&(row, col)) || grid[row as usize][col as usize].has_ramp {
+                if floor_cells.contains(&(row, col)) || grid[row as usize][col as usize].has_ramp {
                     continue;
                 }
 
                 let wall_count = wall_counts[row as usize][col as usize];
                 let cell = grid[row as usize][col as usize];
 
-                // Count roofed neighbors that don't have walls between them
+                // Count floor neighbors that don't have walls between them
                 let mut neighbor_count = 0;
 
                 // North neighbor (row - 1)
-                if row > 0 && !cell.has_north_wall && roof_cells.contains(&(row - 1, col)) {
+                if row > 0 && !cell.has_north_wall && floor_cells.contains(&(row - 1, col)) {
                     neighbor_count += 1;
                 }
                 // South neighbor (row + 1)
-                if row < grid_rows - 1 && !cell.has_south_wall && roof_cells.contains(&(row + 1, col)) {
+                if row < grid_rows - 1 && !cell.has_south_wall && floor_cells.contains(&(row + 1, col)) {
                     neighbor_count += 1;
                 }
                 // West neighbor (col - 1)
-                if col > 0 && !cell.has_west_wall && roof_cells.contains(&(row, col - 1)) {
+                if col > 0 && !cell.has_west_wall && floor_cells.contains(&(row, col - 1)) {
                     neighbor_count += 1;
                 }
                 // East neighbor (col + 1)
-                if col < grid_cols - 1 && !cell.has_east_wall && roof_cells.contains(&(row, col + 1)) {
+                if col < grid_cols - 1 && !cell.has_east_wall && floor_cells.contains(&(row, col + 1)) {
                     neighbor_count += 1;
                 }
 
-                // Skip cells with <2 walls unless they have at least two roofed neighbors
+                // Skip cells with <2 walls unless they have at least two floor neighbors
                 if wall_count < 2 && neighbor_count < 2 {
                     continue;
                 }
 
                 // Weight = base weight * neighbor multiplier
                 let base_weight = if wall_count >= 2 { 1.0 } else { 0.5 };
-                let neighbor_multiplier = 1.0 + (f64::from(neighbor_count) * ROOF_NEIGHBOR_PREFERENCE);
+                let neighbor_multiplier = 1.0 + (f64::from(neighbor_count) * FLOOR_NEIGHBOR_PREFERENCE);
                 let weight = base_weight * neighbor_multiplier;
 
                 candidates.push(((row, col), weight));
@@ -202,42 +206,42 @@ pub fn generate_roofs(mut grid: Vec<Vec<GridCell>>, grid_cols: i32, grid_rows: i
         for ((row, col), weight) in candidates {
             pick -= weight;
             if pick <= 0.0 {
-                roof_cells.insert((row, col));
+                floor_cells.insert((row, col));
                 break;
             }
         }
     }
 
-    // Convert roof cells to individual Roof segments
-    let mut roofs = Vec::new();
+    // Convert floor cells to individual Floor segments
+    let mut floors = Vec::new();
 
-    for &(row, col) in &roof_cells {
+    for &(row, col) in &floor_cells {
         // Calculate world coordinates
-        let (world_x1, world_x2, world_z1, world_z2, edge_fillers) = if ROOF_OVERLAP {
-            // Overlap mode: extend on all sides by roof_thickness/2 for guaranteed coverage
+        let (world_x1, world_x2, world_z1, world_z2, edge_fillers) = if FLOOR_OVERLAP {
+            // Overlap mode: extend on all sides by FLOOR_THICKNESS/2 for guaranteed coverage
             let x1 = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)) - WALL_THICKNESS / 2.0;
             let x2 = ((col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)) + WALL_THICKNESS / 2.0;
             let z1 = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0)) - WALL_THICKNESS / 2.0;
             let z2 = ((row + 1) as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0)) + WALL_THICKNESS / 2.0;
             (x1, x2, z1, z2, Vec::new())
         } else {
-            // Non-overlap mode: extend outward unless a neighboring roof would overlap
+            // Non-overlap mode: extend outward unless a neighboring floor cell would overlap
             let mut x1 = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
             let mut x2 = ((col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
             let mut z1 = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
             let mut z2 = ((row + 1) as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
-            let mut edge_fillers: Vec<Roof> = Vec::new();
+            let mut edge_fillers: Vec<Floor> = Vec::new();
 
             // Neighbor checks for overlap control
-            let neighbor_w = col > 0 && roof_cells.contains(&(row, col - 1));
-            let neighbor_e = col < grid_cols - 1 && roof_cells.contains(&(row, col + 1));
-            let neighbor_n = row > 0 && roof_cells.contains(&(row - 1, col));
-            let neighbor_s = row < grid_rows - 1 && roof_cells.contains(&(row + 1, col));
+            let neighbor_w = col > 0 && floor_cells.contains(&(row, col - 1));
+            let neighbor_e = col < grid_cols - 1 && floor_cells.contains(&(row, col + 1));
+            let neighbor_n = row > 0 && floor_cells.contains(&(row - 1, col));
+            let neighbor_s = row < grid_rows - 1 && floor_cells.contains(&(row + 1, col));
 
-            let neighbor_nw = row > 0 && col > 0 && roof_cells.contains(&(row - 1, col - 1));
-            let neighbor_ne = row > 0 && col < grid_cols - 1 && roof_cells.contains(&(row - 1, col + 1));
-            let neighbor_sw = row < grid_rows - 1 && col > 0 && roof_cells.contains(&(row + 1, col - 1));
-            let neighbor_se = row < grid_rows - 1 && col < grid_cols - 1 && roof_cells.contains(&(row + 1, col + 1));
+            let neighbor_nw = row > 0 && col > 0 && floor_cells.contains(&(row - 1, col - 1));
+            let neighbor_ne = row > 0 && col < grid_cols - 1 && floor_cells.contains(&(row - 1, col + 1));
+            let neighbor_sw = row < grid_rows - 1 && col > 0 && floor_cells.contains(&(row + 1, col - 1));
+            let neighbor_se = row < grid_rows - 1 && col < grid_cols - 1 && floor_cells.contains(&(row + 1, col + 1));
 
             // Decide which sides can extend; suppress diagonal corner overlaps
             let extend_w = !neighbor_w;
@@ -276,12 +280,14 @@ pub fn generate_roofs(mut grid: Vec<Vec<GridCell>>, grid_cols: i32, grid_rows: i
                     let fx1 = if neighbor_nw { x1 + pad } else { x1 };
                     let fx2 = if neighbor_ne { x2 - pad } else { x2 };
                     if fx2 > fx1 {
-                        edge_fillers.push(Roof {
+                        edge_fillers.push(Floor {
                             x1: fx1,
                             z1: z1 - pad,
                             x2: fx2,
                             z2: z1,
-                            thickness: ROOF_THICKNESS,
+                            y: LEVEL_HEIGHT,
+                            thickness: FLOOR_THICKNESS,
+                            level: 1,
                         });
                     }
                 }
@@ -289,12 +295,14 @@ pub fn generate_roofs(mut grid: Vec<Vec<GridCell>>, grid_cols: i32, grid_rows: i
                     let fx1 = if neighbor_sw { x1 + pad } else { x1 };
                     let fx2 = if neighbor_se { x2 - pad } else { x2 };
                     if fx2 > fx1 {
-                        edge_fillers.push(Roof {
+                        edge_fillers.push(Floor {
                             x1: fx1,
                             z1: z2,
                             x2: fx2,
                             z2: z2 + pad,
-                            thickness: ROOF_THICKNESS,
+                            y: LEVEL_HEIGHT,
+                            thickness: FLOOR_THICKNESS,
+                            level: 1,
                         });
                     }
                 }
@@ -303,27 +311,29 @@ pub fn generate_roofs(mut grid: Vec<Vec<GridCell>>, grid_cols: i32, grid_rows: i
             (x1, x2, z1, z2, edge_fillers)
         };
 
-        roofs.push(Roof {
+        floors.push(Floor {
             x1: world_x1,
             z1: world_z1,
             x2: world_x2,
             z2: world_z2,
-            thickness: ROOF_THICKNESS,
+            y: LEVEL_HEIGHT,
+            thickness: FLOOR_THICKNESS,
+            level: 1,
         });
 
-        roofs.extend(edge_fillers);
+        floors.extend(edge_fillers);
 
-        // Mark cell as having a roof
-        grid[row as usize][col as usize].has_roof = true;
+        // Mark cell as having a floor above
+        grid[row as usize][col as usize].has_floor_above = true;
     }
 
-    (roofs, grid)
+    (floors, grid)
 }
 
-// Merge adjacent roofs into larger segments
-pub fn merge_roofs(mut roofs: Vec<Roof>) -> Vec<Roof> {
+// Merge adjacent floors at the same level into larger segments
+pub fn merge_floors(mut floors: Vec<Floor>) -> Vec<Floor> {
     // Normalize ordering
-    for r in &mut roofs {
+    for r in &mut floors {
         if r.x1 > r.x2 {
             std::mem::swap(&mut r.x1, &mut r.x2);
         }
@@ -335,26 +345,28 @@ pub fn merge_roofs(mut roofs: Vec<Roof>) -> Vec<Roof> {
     let mut changed = true;
     while changed {
         changed = false;
-        let mut used = vec![false; roofs.len()];
-        let mut out: Vec<Roof> = Vec::new();
+        let mut used = vec![false; floors.len()];
+        let mut out: Vec<Floor> = Vec::new();
 
-        for i in 0..roofs.len() {
+        for i in 0..floors.len() {
             if used[i] {
                 continue;
             }
-            let mut acc = roofs[i];
+            let mut acc = floors[i];
             used[i] = true;
 
             let mut merged_this_round = true;
             while merged_this_round {
                 merged_this_round = false;
-                for j in 0..roofs.len() {
+                for j in 0..floors.len() {
                     if used[j] {
                         continue;
                     }
-                    let b = roofs[j];
+                    let b = floors[j];
                     let same_thickness = (acc.thickness - b.thickness).abs() < MERGE_EPS;
-                    if !same_thickness {
+                    let same_level = acc.level == b.level;
+                    let same_y = (acc.y - b.y).abs() < MERGE_EPS;
+                    if !same_thickness || !same_level || !same_y {
                         continue;
                     }
 
@@ -380,8 +392,8 @@ pub fn merge_roofs(mut roofs: Vec<Roof>) -> Vec<Roof> {
             out.push(acc);
         }
 
-        roofs = out;
+        floors = out;
     }
 
-    roofs
+    floors
 }

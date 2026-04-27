@@ -113,7 +113,7 @@ pub struct InputSettings {
     pub invert_pitch: bool,
 }
 
-// Debug colors mode (renders walls/roofs with random colors)
+// Debug colors mode (renders walls/floors with random colors)
 #[derive(Resource, Clone, Copy, Debug, Default)]
 pub struct DebugColors(pub bool);
 

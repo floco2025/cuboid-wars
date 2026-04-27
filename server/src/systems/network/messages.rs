@@ -134,15 +134,14 @@ fn handle_shot_message(
 
     // Spawn projectile(s) on server for hit detection
     if let Ok((pos, _, _)) = player_data.get(entity) {
-        // Calculate valid projectile spawn positions (all_walls excludes roof-edge guards)
         let spawns = calculate_projectile_spawns(
             pos,
             msg.face_dir,
             msg.face_pitch,
             has_multi_shot,
-            &map_layout.lower_walls,
+            &map_layout.walls,
             &map_layout.ramps,
-            &map_layout.roofs,
+            &map_layout.floors,
         );
 
         // Spawn each projectile

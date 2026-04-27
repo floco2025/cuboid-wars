@@ -73,9 +73,10 @@ pub const PROJECTILE_BOUNCE_RETENTION: f32 = 0.9; // fraction of speed retained 
 pub const WALL_THICKNESS: f32 = 0.3;
 pub const WALL_HEIGHT: f32 = 4.0;
 
-// Roofs
-pub const ROOF_THICKNESS: f32 = 0.4;
-pub const ROOF_HEIGHT: f32 = WALL_HEIGHT + ROOF_THICKNESS; // Top of roof
+// Floors
+pub const FLOOR_THICKNESS: f32 = 0.4;
+// Vertical spacing per level. The standing surface of level k is at `LEVEL_HEIGHT * k`.
+pub const LEVEL_HEIGHT: f32 = WALL_HEIGHT + FLOOR_THICKNESS;
 
 // ============================================================================
 // Power-Ups

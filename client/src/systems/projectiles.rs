@@ -148,12 +148,11 @@ fn handle_wall_collisions(
     // Check speed before bounce to decide if we should play sound
     let speed_before = proj_motion.velocity.length();
 
-    // Check walls, roofs, ramps, and ground together to catch junction corner cases.
     let new_pos = proj_motion.handle_bounces(
         proj_pos,
         delta,
-        &map_layout.lower_walls,
-        &map_layout.roofs,
+        &map_layout.walls,
+        &map_layout.floors,
         &map_layout.ramps,
     )?;
 

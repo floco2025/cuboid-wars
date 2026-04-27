@@ -7,7 +7,7 @@ use bevy_time::{Timer, TimerMode};
 use super::helpers::{Collision, sweep_point_vs_cuboid, sweep_slab_interval};
 use crate::{
     constants::*,
-    protocol::{Position, Ramp, Roof, Wall},
+    protocol::{Floor, Position, Ramp, Wall},
 };
 
 // Direction of a projectile hit (normalized XZ vector).
@@ -114,7 +114,7 @@ impl ProjectileMotion {
         projectile_pos: &Position,
         delta: f32,
         walls: &[Wall],
-        roofs: &[Roof],
+        floors: &[Floor],
         ramps: &[Ramp],
     ) -> Option<Position> {
         let mut current_pos = *projectile_pos;
@@ -132,8 +132,8 @@ impl ProjectileMotion {
                 }
             }
 
-            for roof in roofs {
-                if let Some(collision) = sweep_projectile_vs_roof(&current_pos, self, remaining_delta, roof)
+            for floor in floors {
+                if let Some(collision) = sweep_projectile_vs_floor(&current_pos, self, remaining_delta, floor)
                     && earliest.is_none_or(|current| collision.t < current.t)
                 {
                     earliest = Some(collision);
@@ -510,22 +510,22 @@ fn sweep_projectile_vs_wall(
     sweep_point_vs_cuboid(proj_pos, proj_motion.velocity * delta, center, half_extents)
 }
 
-fn sweep_projectile_vs_roof(
+fn sweep_projectile_vs_floor(
     proj_pos: &Position,
     proj_motion: &ProjectileMotion,
     delta: f32,
-    roof: &Roof,
+    floor: &Floor,
 ) -> Option<Collision> {
-    let (min_x, max_x, min_z, max_z) = roof.bounds_xz();
+    let (min_x, max_x, min_z, max_z) = floor.bounds_xz();
 
     let center = Vec3::new(
         f32::midpoint(min_x, max_x),
-        ROOF_HEIGHT - roof.thickness / 2.0,
+        floor.y - floor.thickness / 2.0,
         f32::midpoint(min_z, max_z),
     );
     let half_extents = Vec3::new(
         (max_x - min_x) / 2.0 + PROJECTILE_RADIUS,
-        roof.thickness / 2.0 + PROJECTILE_RADIUS,
+        floor.thickness / 2.0 + PROJECTILE_RADIUS,
         (max_z - min_z) / 2.0 + PROJECTILE_RADIUS,
     );
 

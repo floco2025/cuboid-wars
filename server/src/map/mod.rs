@@ -1,30 +1,31 @@
+mod floors;
 mod grid;
 mod helpers;
 mod lights;
 mod ramps;
-mod roofs;
 mod walls;
 
 use rand::{RngExt, rng};
 
 use crate::{
     constants::{
-        ROOF_MERGE_SEGMENTS, ROOF_OVERLAP, WALL_2ND_PROBABILITY_RATIO, WALL_3RD_PROBABILITY_RATIO, WALL_MERGE_SEGMENTS,
-        WALL_NUM_SEGMENTS, WALL_OVERLAP,
+        FLOOR_MERGE_SEGMENTS, FLOOR_OVERLAP, WALL_2ND_PROBABILITY_RATIO, WALL_3RD_PROBABILITY_RATIO,
+        WALL_MERGE_SEGMENTS, WALL_NUM_SEGMENTS, WALL_OVERLAP,
     },
     resources::{GridCell, GridConfig},
 };
 use common::{
     constants::*,
-    protocol::{Floor, MapLayout, Wall},
+    protocol::{Floor, MapLayout},
 };
 use lights::generate_wall_lights;
 
 pub use helpers::{cell_center, find_unoccupied_cell, find_unoccupied_cell_not_ramp, grid_coords_from_position};
 
-// Generate a complete map grid with walls, roofs, and ramps
+// Generate a complete map grid with walls, floors, and ramps for `num_levels` levels.
 #[must_use]
-pub fn generate_grid() -> (MapLayout, GridConfig) {
+pub fn generate_grid(num_levels: u32) -> (MapLayout, GridConfig) {
+    let num_levels = num_levels.max(1);
     let mut rng = rng();
 
     // Calculate grid dimensions
@@ -202,37 +203,21 @@ pub fn generate_grid() -> (MapLayout, GridConfig) {
         }
     }
 
-    // Build wall list from grid with individual segments
-    let mut lower_walls = walls::generate_lower_walls(&grid, grid_cols, grid_rows);
+    let mut level0_walls = walls::generate_lower_walls(&grid, grid_cols, grid_rows);
     if WALL_MERGE_SEGMENTS && !WALL_OVERLAP {
-        lower_walls = walls::merge_walls(lower_walls);
+        level0_walls = walls::merge_walls(level0_walls);
     }
 
-    // Generate roofs based on grid
-    let (mut roofs, grid) = roofs::generate_roofs(grid, grid_cols, grid_rows);
-    if ROOF_MERGE_SEGMENTS && !ROOF_OVERLAP {
-        roofs = roofs::merge_roofs(roofs);
+    let (mut level1_floors, grid) = floors::generate_level1_floors(grid, grid_cols, grid_rows);
+    if FLOOR_MERGE_SEGMENTS && !FLOOR_OVERLAP {
+        level1_floors = floors::merge_floors(level1_floors);
     }
-
-    // Separate walls into boundary and interior
-    let half_field_width = FIELD_WIDTH / 2.0;
-    let half_field_depth = FIELD_DEPTH / 2.0;
-    let epsilon = 0.01;
-
-    let (boundary_walls, interior_walls): (Vec<Wall>, Vec<Wall>) = lower_walls.iter().partition(|w| {
-        // Check if wall is at the boundary (within epsilon)
-        let at_left = (w.x1 + half_field_width).abs() < epsilon && (w.x2 + half_field_width).abs() < epsilon;
-        let at_right = (w.x1 - half_field_width).abs() < epsilon && (w.x2 - half_field_width).abs() < epsilon;
-        let at_top = (w.z1 + half_field_depth).abs() < epsilon && (w.z2 + half_field_depth).abs() < epsilon;
-        let at_bottom = (w.z1 - half_field_depth).abs() < epsilon && (w.z2 - half_field_depth).abs() < epsilon;
-        at_left || at_right || at_top || at_bottom
-    });
 
     let wall_lights = generate_wall_lights(&grid);
 
     let half_w = FIELD_WIDTH / 2.0;
     let half_d = FIELD_DEPTH / 2.0;
-    let mut floors = Vec::with_capacity(roofs.len() + 1);
+    let mut floors = Vec::with_capacity(1 + level1_floors.len() * (num_levels.saturating_sub(1) as usize));
     floors.push(Floor {
         x1: -half_w,
         z1: -half_d,
@@ -242,23 +227,24 @@ pub fn generate_grid() -> (MapLayout, GridConfig) {
         thickness: 0.0,
         level: 0,
     });
-    for roof in &roofs {
-        floors.push(Floor {
-            x1: roof.x1,
-            z1: roof.z1,
-            x2: roof.x2,
-            z2: roof.z2,
-            y: ROOF_HEIGHT,
-            thickness: roof.thickness,
-            level: 1,
-        });
+    for level in 1..num_levels {
+        let level_y = LEVEL_HEIGHT * level as f32;
+        let level_u8 = u8::try_from(level).unwrap_or(u8::MAX);
+        for f in &level1_floors {
+            floors.push(Floor {
+                x1: f.x1,
+                z1: f.z1,
+                x2: f.x2,
+                z2: f.z2,
+                y: level_y,
+                thickness: f.thickness,
+                level: level_u8,
+            });
+        }
     }
 
     let map_layout = MapLayout {
-        boundary_walls,
-        interior_walls,
-        lower_walls,
-        roofs,
+        walls: level0_walls,
         ramps,
         wall_lights,
         floors,

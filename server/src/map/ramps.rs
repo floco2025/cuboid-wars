@@ -128,7 +128,7 @@ pub fn generate_ramps(grid: &mut [Vec<GridCell>], grid_cols: i32, grid_rows: i32
             y1: 0.0,
             z1,
             x2,
-            y2: WALL_HEIGHT + ROOF_THICKNESS, // Ramp top goes to top of roof
+            y2: LEVEL_HEIGHT, // Ramp top lands on the level-1 floor surface
             z2,
         });
     }

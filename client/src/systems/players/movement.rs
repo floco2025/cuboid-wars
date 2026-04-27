@@ -208,22 +208,18 @@ pub fn players_movement_system(
 
         if let Some(map_layout) = map_layout.as_ref() {
             let player_level = compute_player_level(client_pos.y);
-            let walls_to_check: &[Wall] = if player_level == 0 {
-                let has_phasing = ALWAYS_PHASING || players.0.get(player_id).is_some_and(|info| info.phasing_power_up);
-                let is_stuck_in_wall = !has_phasing
-                    && map_layout
-                        .interior_walls
-                        .iter()
-                        .any(|wall| overlap_player_vs_wall(&client_pos, wall));
-
-                if has_phasing || is_stuck_in_wall {
-                    &map_layout.boundary_walls
-                } else {
-                    &map_layout.lower_walls
-                }
-            } else {
-                // Upper levels currently have no walls — players walk freely until they fall off.
+            let level_walls: Vec<Wall> = map_layout
+                .walls
+                .iter()
+                .filter(|w| w.level == player_level)
+                .copied()
+                .collect();
+            let has_phasing = ALWAYS_PHASING || players.0.get(player_id).is_some_and(|info| info.phasing_power_up);
+            let is_overlapping_wall = level_walls.iter().any(|wall| overlap_player_vs_wall(&client_pos, wall));
+            let walls_to_check: &[Wall] = if has_phasing || is_overlapping_wall {
                 &[]
+            } else {
+                &level_walls
             };
 
             for wall in walls_to_check {

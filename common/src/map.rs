@@ -1,6 +1,6 @@
 use crate::{
-    constants::{PHYSICS_EPSILON, PLAYER_LANDING_EPSILON, ROOF_HEIGHT},
-    protocol::{Floor, Ramp, Roof},
+    constants::{LEVEL_HEIGHT, PHYSICS_EPSILON, PLAYER_LANDING_EPSILON},
+    protocol::{Floor, Ramp},
 };
 
 // Calculate the Y position (height) for a given (x, z) position based on ramps.
@@ -46,23 +46,14 @@ pub fn is_on_ramp(ramps: &[Ramp], x: f32, z: f32) -> bool {
 }
 
 // Determine which level a player is on from their Y position.
-// Level 0 is the ground; level 1 is the upper deck (`ROOF_HEIGHT`).
+// Level 0 is the ground; level 1 is the upper deck (`LEVEL_HEIGHT`).
 #[must_use]
 pub fn compute_player_level(y: f32) -> u8 {
-    if (y - ROOF_HEIGHT).abs() < PLAYER_LANDING_EPSILON {
+    if (y - LEVEL_HEIGHT).abs() < PLAYER_LANDING_EPSILON {
         1
     } else {
         0
     }
-}
-
-// Returns true if the point (x, z) lies within any roof rectangle.
-#[must_use]
-pub fn has_roof(roofs: &[Roof], x: f32, z: f32) -> bool {
-    roofs.iter().any(|roof| {
-        let (min_x, max_x, min_z, max_z) = roof.bounds_xz();
-        x >= min_x && x <= max_x && z >= min_z && z <= max_z
-    })
 }
 
 // Find the highest supporting surface (ramp or floor) within `±PLAYER_LANDING_EPSILON`

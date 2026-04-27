@@ -50,7 +50,7 @@ struct Args {
     #[arg(short, long, default_value_t = false)]
     invert_pitch: bool,
 
-    // Render walls and roofs with random colors for debugging
+    // Render walls and floors with random colors for debugging
     #[arg(long, default_value_t = false)]
     debug_colors: bool,
 }

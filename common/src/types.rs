@@ -11,11 +11,11 @@ use crate::constants::PLAYER_SPEED;
 // ============================================================================
 
 // Position component - 3D coordinates in meters (Bevy's coordinate system: X, Y=up, Z).
-// Stored as individual fields for serialization; Y varies based on ramps and roofs.
+// Stored as individual fields for serialization; Y varies based on ramps and floors.
 #[derive(Debug, Clone, Encode, Decode, Copy, Component, PartialEq, Default)]
 pub struct Position {
     pub x: f32, // meters
-    pub y: f32, // meters (up/down - elevation from ramps/roofs)
+    pub y: f32, // meters (up/down - elevation from ramps/floors)
     pub z: f32, // meters
 }
 
@@ -122,29 +122,6 @@ impl Wall {
     }
 }
 
-// Roof - a roof segment with corner coordinates.
-#[derive(Debug, Clone, Encode, Decode, Copy)]
-pub struct Roof {
-    pub x1: f32,
-    pub z1: f32,
-    pub x2: f32,
-    pub z2: f32,
-    pub thickness: f32,
-}
-
-impl Roof {
-    // Returns `(min_x, max_x, min_z, max_z)` bounds for this roof.
-    #[must_use]
-    pub const fn bounds_xz(&self) -> (f32, f32, f32, f32) {
-        (
-            self.x1.min(self.x2),
-            self.x1.max(self.x2),
-            self.z1.min(self.z2),
-            self.z1.max(self.z2),
-        )
-    }
-}
-
 // Floor - a horizontal slab at some level (level 0 = ground). `y` is
 // the top (standing) surface; the slab extends down to `y - thickness`.
 #[derive(Debug, Clone, Encode, Decode, Copy)]
@@ -173,8 +150,8 @@ impl Floor {
 
 // Ramp - right triangular prism defined by low and high opposite corners
 // Convention:
-// - (x1, y1, z1) is on the floor at the low edge.
-// - (x2, y2, z2) is on the roof at the opposite corner (high edge).
+// - (x1, y1, z1) is on the lower floor at the low edge.
+// - (x2, y2, z2) is on the upper floor at the opposite corner (high edge).
 // - Footprint is the axis-aligned rectangle spanned by (x1, z1) and (x2, z2).
 // - Slope runs from the low edge to the high edge across that rectangle.
 #[derive(Debug, Clone, Encode, Decode, Copy)]
@@ -270,11 +247,8 @@ pub struct Item {
 // Full grid configuration sent once on connect.
 #[derive(Debug, Clone, Encode, Decode, Resource)]
 pub struct MapLayout {
-    pub boundary_walls: Vec<Wall>,
-    pub interior_walls: Vec<Wall>,
-    pub lower_walls: Vec<Wall>, // Boundary walls + interior walls
-    pub roofs: Vec<Roof>,
+    pub walls: Vec<Wall>,
     pub ramps: Vec<Ramp>,
-    pub wall_lights: Vec<WallLight>,
     pub floors: Vec<Floor>,
+    pub wall_lights: Vec<WallLight>,
 }

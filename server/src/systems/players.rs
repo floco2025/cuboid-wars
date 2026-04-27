@@ -51,24 +51,21 @@ pub fn players_movement_system(
             }
         };
 
-        // Check collision and calculate target (with sliding if collision)
+        // Phasing players pass through walls. A player whose phasing wears off
+        // while overlapping a wall ignores wall collisions until they exit it.
         let player_level = compute_player_level(pos.y);
-        let walls_to_check: &[Wall] = if player_level == 0 {
-            let has_phasing = players.0.get(player_id).is_some_and(PlayerInfo::has_phasing);
-            let is_stuck_in_wall = !has_phasing
-                && map_layout
-                    .interior_walls
-                    .iter()
-                    .any(|wall| overlap_player_vs_wall(pos, wall));
-
-            if has_phasing || is_stuck_in_wall {
-                &map_layout.boundary_walls
-            } else {
-                &map_layout.lower_walls
-            }
-        } else {
-            // Upper levels currently have no walls — players walk freely until they fall off.
+        let level_walls: Vec<Wall> = map_layout
+            .walls
+            .iter()
+            .filter(|w| w.level == player_level)
+            .copied()
+            .collect();
+        let has_phasing = players.0.get(player_id).is_some_and(PlayerInfo::has_phasing);
+        let is_overlapping_wall = level_walls.iter().any(|wall| overlap_player_vs_wall(pos, wall));
+        let walls_to_check: &[Wall] = if has_phasing || is_overlapping_wall {
             &[]
+        } else {
+            &level_walls
         };
 
         let mut collides = false;

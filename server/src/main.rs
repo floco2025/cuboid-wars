@@ -23,6 +23,10 @@ struct Args {
     // Address to bind server to
     #[arg(short, long, default_value = "127.0.0.1:8080")]
     bind: String,
+
+    // Number of map levels (level 0 = ground, level 1 = first floor tier, ...)
+    #[arg(short, long, default_value_t = 2)]
+    levels: u32,
 }
 
 // ============================================================================
@@ -46,12 +50,13 @@ async fn main() -> Result<()> {
     tokio::spawn(accept_connections_task(endpoint, to_server_from_accept, to_server));
     let mut app = App::new();
 
-    let (map_layout, grid_config) = generate_grid();
+    let (map_layout, grid_config) = generate_grid(args.levels);
     info!(
-        "generated {} wall segments, {} roofs, {} ramps",
-        map_layout.lower_walls.len(),
-        map_layout.roofs.len(),
-        map_layout.ramps.len()
+        "generated {} levels, {} walls, {} ramps, {} floors",
+        args.levels,
+        map_layout.walls.len(),
+        map_layout.ramps.len(),
+        map_layout.floors.len(),
     );
 
     app.add_plugins(MinimalPlugins)

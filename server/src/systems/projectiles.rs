@@ -39,8 +39,8 @@ pub fn projectiles_movement_system(
         if let Some(new_pos) = projectile.handle_bounces(
             &proj_pos,
             delta,
-            &map_layout.lower_walls,
-            &map_layout.roofs,
+            &map_layout.walls,
+            &map_layout.floors,
             &map_layout.ramps,
         ) {
             *proj_pos = new_pos;

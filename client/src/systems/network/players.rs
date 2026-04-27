@@ -78,9 +78,9 @@ pub fn handle_player_shot_message(
                 msg.face_dir,
                 msg.face_pitch,
                 player.multi_shot_power_up,
-                map_layout.lower_walls.as_slice(),
+                map_layout.walls.as_slice(),
                 map_layout.ramps.as_slice(),
-                map_layout.roofs.as_slice(),
+                map_layout.floors.as_slice(),
                 msg.id,
             );
         }

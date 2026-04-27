@@ -32,9 +32,14 @@ pub struct RearviewCameraMarker;
 #[derive(Component)]
 pub struct WallMarker;
 
-// Marker component for roofs
+// Marker component for upper-level floor slabs (visibility toggled by the R key,
+// transparent in top-down view). Level-0 ground is not tagged.
 #[derive(Component)]
 pub struct RoofMarker;
+
+// Marker component for the ground plane (level-0 floor).
+#[derive(Component)]
+pub struct GroundMarker;
 
 // Marker component for ramps
 #[derive(Component)]

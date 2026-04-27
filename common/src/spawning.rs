@@ -1,8 +1,8 @@
 use crate::{
     constants::*,
     map::height_on_ramp,
-    physics::{sweep_player_vs_roof, sweep_player_vs_wall},
-    protocol::{Position, Ramp, Roof, Wall},
+    physics::{sweep_player_vs_floor, sweep_player_vs_wall},
+    protocol::{Floor, Position, Ramp, Wall},
 };
 use bevy_math::Vec3;
 
@@ -30,7 +30,7 @@ pub fn calculate_projectile_spawns(
     has_multi_shot: bool,
     walls: &[Wall],
     ramps: &[Ramp],
-    roofs: &[Roof],
+    floors: &[Floor],
 ) -> Vec<ProjectileSpawnInfo> {
     let mut spawns = Vec::new();
 
@@ -72,7 +72,7 @@ pub fn calculate_projectile_spawns(
         // Check blocking conditions with short-circuit evaluation
         let is_blocked = is_blocked_by_wall(&camera_pos, &spawn_position, walls)
             || is_blocked_by_ramp(&spawn_position, ramps)
-            || is_blocked_by_roof(&camera_pos, &spawn_position, roofs);
+            || is_blocked_by_floor(&camera_pos, &spawn_position, floors);
 
         if is_blocked {
             continue;
@@ -89,7 +89,8 @@ pub fn calculate_projectile_spawns(
 }
 
 fn is_blocked_by_wall(camera_pos: &Position, spawn_position: &Position, walls: &[Wall]) -> bool {
-    // If the spawn height sits above the top of ground walls, skip wall blocking (roof-edge shots, ramps)
+    // If the spawn height sits above the top of ground walls, skip wall blocking
+    // (shots from upper floors or ramps clear the level-0 walls).
     let spawn_above_walls = spawn_position.y - PROJECTILE_RADIUS >= WALL_HEIGHT;
     !spawn_above_walls
         && walls
@@ -112,9 +113,8 @@ fn is_blocked_by_ramp(spawn_position: &Position, ramps: &[Ramp]) -> bool {
     })
 }
 
-fn is_blocked_by_roof(camera_pos: &Position, spawn_position: &Position, roofs: &[Roof]) -> bool {
-    // Block shots whose muzzle-to-spawn segment intersects the roof slab volume
-    roofs
+fn is_blocked_by_floor(camera_pos: &Position, spawn_position: &Position, floors: &[Floor]) -> bool {
+    floors
         .iter()
-        .any(|roof| sweep_player_vs_roof(camera_pos, spawn_position, roof, PROJECTILE_RADIUS))
+        .any(|floor| sweep_player_vs_floor(camera_pos, spawn_position, floor, PROJECTILE_RADIUS))
 }

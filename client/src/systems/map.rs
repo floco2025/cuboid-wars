@@ -1,61 +1,18 @@
-use bevy::{math::Affine2, prelude::*};
+use bevy::prelude::*;
 
 use crate::{
     constants::*,
     markers::*,
     resources::{CameraViewMode, DebugColors, RoofRenderingEnabled},
-    spawning::{
-        load_repeating_texture, load_repeating_texture_linear, spawn_ramp, spawn_roof, spawn_wall,
-        spawn_wall_light_from_layout,
-    },
+    spawning::{spawn_floor, spawn_ramp, spawn_wall, spawn_wall_light_from_layout},
 };
-use common::{
-    constants::{FIELD_DEPTH, FIELD_WIDTH},
-    protocol::MapLayout,
-};
+use common::protocol::MapLayout;
 
 // ============================================================================
 // World Geometry Setup System
 // ============================================================================
 
-pub fn setup_world_geometry_system(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    asset_server: Res<AssetServer>,
-) {
-    // Create the ground plane
-    let mut ground_mesh = Mesh::from(Plane3d::default().mesh().size(FIELD_WIDTH, FIELD_DEPTH));
-    let _ = ground_mesh.generate_tangents();
-
-    let uv_scale = Vec2::new(
-        FIELD_WIDTH / TEXTURE_FLOOR_TILE_SIZE,
-        FIELD_DEPTH / TEXTURE_FLOOR_TILE_SIZE,
-    );
-
-    commands.spawn((
-        Mesh3d(meshes.add(ground_mesh)),
-        MeshMaterial3d(materials.add(StandardMaterial {
-            base_color_texture: Some(load_repeating_texture(&asset_server, "textures/ground/albedo.png")),
-            normal_map_texture: Some(load_repeating_texture_linear(
-                &asset_server,
-                "textures/ground/normal-dx.png",
-            )),
-            occlusion_texture: Some(load_repeating_texture_linear(&asset_server, "textures/ground/ao.png")),
-            metallic_roughness_texture: Some(load_repeating_texture_linear(
-                &asset_server,
-                "textures/ground/metallic-roughness.png",
-            )),
-            uv_transform: Affine2::from_scale(uv_scale),
-            perceptual_roughness: TEXTURE_FLOOR_ROUGHNESS,
-            metallic: TEXTURE_FLOOR_METALLIC,
-            ..default()
-        })),
-        Transform::from_xyz(0.0, 0.0, 0.0),
-        Visibility::default(),
-    ));
-
-    // Add soft directional light from above for shadows and definition
+pub fn setup_world_geometry_system(mut commands: Commands) {
     commands.spawn((
         DirectionalLight {
             illuminance: LIGHT_DIRECTIONAL_BRIGHTNESS,
@@ -65,7 +22,6 @@ pub fn setup_world_geometry_system(
         Transform::from_xyz(5.0, 15.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
     ));
 
-    // Add ambient light for diffuse fill lighting
     commands.insert_resource(GlobalAmbientLight {
         color: Color::WHITE,
         brightness: LIGHT_AMBIENT_BRIGHTNESS,
@@ -97,13 +53,13 @@ pub fn map_spawn_walls_system(
     }
 
     info!(
-        "spawning {} lower walls, {} roofs, {} ramps",
-        map_layout.lower_walls.len(),
-        map_layout.roofs.len(),
+        "spawning {} walls, {} floors, {} ramps",
+        map_layout.walls.len(),
+        map_layout.floors.len(),
         map_layout.ramps.len(),
     );
 
-    for wall in &map_layout.lower_walls {
+    for wall in &map_layout.walls {
         spawn_wall(
             &mut commands,
             &mut meshes,
@@ -118,13 +74,13 @@ pub fn map_spawn_walls_system(
         spawn_wall_light_from_layout(&mut commands, &asset_server, light);
     }
 
-    for roof in &map_layout.roofs {
-        spawn_roof(
+    for floor in &map_layout.floors {
+        spawn_floor(
             &mut commands,
             &mut meshes,
             &mut materials,
             &asset_server,
-            roof,
+            floor,
             debug_colors.0,
         );
     }

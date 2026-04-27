@@ -6,12 +6,9 @@ use super::helpers::{
     sweep_ramp_high_cap,
 };
 use crate::{
-    constants::{
-        PLAYER_DEPTH, PLAYER_GRAVITY, PLAYER_HEIGHT, PLAYER_TERMINAL_VELOCITY, PLAYER_WIDTH, ROOF_HEIGHT,
-        WALL_THICKNESS,
-    },
+    constants::{PLAYER_DEPTH, PLAYER_GRAVITY, PLAYER_HEIGHT, PLAYER_TERMINAL_VELOCITY, PLAYER_WIDTH, WALL_THICKNESS},
     map::height_on_ramp,
-    protocol::{Position, Ramp, Roof, Wall},
+    protocol::{Floor, Position, Ramp, Wall},
 };
 
 // Component attached to player entities tracking 3D velocity for gravity and falling.
@@ -39,10 +36,10 @@ pub fn sweep_player_vs_wall(start_pos: &Position, end_pos: &Position, wall: &Wal
     sweep_aabb_vs_wall(start_pos, end_pos, wall, PLAYER_WIDTH / 2.0, PLAYER_DEPTH / 2.0)
 }
 
-// Sweep the muzzle->spawn segment against a roof slab; returns true if it intersects.
+// Sweep the muzzle->spawn segment against a floor slab; returns true if it intersects.
 #[must_use]
-pub fn sweep_player_vs_roof(start: &Position, end: &Position, roof: &Roof, radius: f32) -> bool {
-    let (min_x, max_x, min_z, max_z) = roof.bounds_xz();
+pub fn sweep_player_vs_floor(start: &Position, end: &Position, floor: &Floor, radius: f32) -> bool {
+    let (min_x, max_x, min_z, max_z) = floor.bounds_xz();
 
     let start_inside = start.x >= min_x && start.x <= max_x && start.z >= min_z && start.z <= max_z;
     let end_inside = end.x >= min_x && end.x <= max_x && end.z >= min_z && end.z <= max_z;
@@ -51,8 +48,8 @@ pub fn sweep_player_vs_roof(start: &Position, end: &Position, roof: &Roof, radiu
         return false;
     }
 
-    let slab_bottom = ROOF_HEIGHT - roof.thickness;
-    let slab_top = ROOF_HEIGHT;
+    let slab_bottom = floor.y - floor.thickness;
+    let slab_top = floor.y;
 
     let seg_min_y = start.y.min(end.y);
     let seg_max_y = start.y.max(end.y);
