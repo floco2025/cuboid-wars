@@ -4,7 +4,7 @@ use rand::{RngExt, rng, seq::IndexedRandom};
 use super::network::broadcast_to_all;
 use crate::resources::{GridConfig, PlayerInfo, PlayerMap};
 use common::{
-    constants::{FIELD_DEPTH, FIELD_WIDTH, GRID_SIZE, PHYSICS_EPSILON, PLAYER_DEATH_Y, PLAYER_RESPAWN_INVULN_SECS},
+    constants::{FIELD_DEPTH, FIELD_WIDTH, GRID_SIZE, PHYSICS_EPSILON, PLAYER_DEATH_Y},
     map::{compute_player_level, find_support_floor},
     markers::PlayerMarker,
     physics::{
@@ -166,11 +166,10 @@ pub fn players_timer_system(time: Res<Time>, mut players: ResMut<PlayerMap>) {
 // ============================================================================
 
 // Detect players that have fallen below the death threshold and respawn them.
-// Sets a brief stun timer on respawn so the player stays still as their
-// "invulnerability" window. Broadcasts an `SDeath` message so clients can
-// teleport the entity immediately rather than waiting for the next `SUpdate`.
+// Broadcasts an `SDeath` message so clients can teleport the entity immediately
+// rather than waiting for the next `SUpdate`.
 pub fn players_death_system(
-    mut players: ResMut<PlayerMap>,
+    players: Res<PlayerMap>,
     grid_config: Res<GridConfig>,
     mut player_query: Query<(Entity, &PlayerId, &mut Position, &mut PlayerMotion), With<PlayerMarker>>,
 ) {
@@ -192,10 +191,6 @@ pub fn players_death_system(
         if let Ok((_, _, mut pos, mut motion)) = player_query.get_mut(entity) {
             *pos = respawn_pos;
             motion.velocity = Vec3::ZERO;
-        }
-
-        if let Some(info) = players.0.get_mut(&id) {
-            info.stun_timer = PLAYER_RESPAWN_INVULN_SECS;
         }
 
         info!("{:?} died and respawned at {:?}", id, respawn_pos);

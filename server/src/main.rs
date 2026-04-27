@@ -51,6 +51,13 @@ async fn main() -> Result<()> {
     let mut app = App::new();
 
     let (map_layout, grid_config) = generate_grid(args.levels);
+
+    app.add_plugins(MinimalPlugins).add_plugins(bevy::log::LogPlugin {
+        level: bevy::log::Level::INFO,
+        filter: LOG_FILTER.to_string(),
+        ..default()
+    });
+
     info!(
         "generated {} levels, {} walls, {} ramps, {} floors",
         args.levels,
@@ -59,13 +66,7 @@ async fn main() -> Result<()> {
         map_layout.floors.len(),
     );
 
-    app.add_plugins(MinimalPlugins)
-        .add_plugins(bevy::log::LogPlugin {
-            level: bevy::log::Level::INFO,
-            filter: LOG_FILTER.to_string(),
-            ..default()
-        })
-        .insert_resource(map_layout)
+    app.insert_resource(map_layout)
         .insert_resource(grid_config)
         .insert_resource(PlayerMap::default())
         .insert_resource(ItemMap::default())

@@ -60,9 +60,10 @@ fn has_perpendicular_lower_walls(
     (has_perp_top, has_perp_bottom)
 }
 
-// Generate individual lower wall segments (no merging) with gap-filling extensions
+// Generate individual wall segments (no merging) with gap-filling extensions,
+// tagging each wall with `level`.
 #[must_use]
-pub fn generate_lower_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32) -> Vec<Wall> {
+pub fn generate_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32, level: u8) -> Vec<Wall> {
     let mut walls = Vec::new();
 
     // Process horizontal walls (north/south edges)
@@ -114,7 +115,7 @@ pub fn generate_lower_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i
                 x2,
                 z2: world_z,
                 width: WALL_THICKNESS,
-                level: 0,
+                level,
             });
         }
     }
@@ -157,7 +158,7 @@ pub fn generate_lower_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i
                 x2: world_x,
                 z2,
                 width: WALL_THICKNESS,
-                level: 0,
+                level,
             });
         }
     }
