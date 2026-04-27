@@ -6,8 +6,6 @@ mod mask;
 mod ramps;
 mod walls;
 
-use rand::{RngExt, rng};
-
 use crate::{
     constants::{ATRIUM_CELLS, BUILDING_FOOTPRINT_CELLS, FLOOR_OVERLAP, NUM_LEVELS, ROOFTOP_FOOTPRINT_CELLS},
     resources::{GridCell, GridConfig},
@@ -33,7 +31,6 @@ pub use helpers::{cell_center, find_unoccupied_cell, find_unoccupied_cell_not_ra
 // variation.
 #[must_use]
 pub fn generate_grid() -> (MapLayout, GridConfig) {
-    let mut rng = rng();
     let grid_cols = GRID_COLS;
     let grid_rows = GRID_ROWS;
 
@@ -41,26 +38,20 @@ pub fn generate_grid() -> (MapLayout, GridConfig) {
     let footprint = centered_rect(BUILDING_FOOTPRINT_CELLS, grid_cols, grid_rows);
     let rooftop = centered_rect(ROOFTOP_FOOTPRINT_CELLS, grid_cols, grid_rows);
 
-    // Two real U-shaped staircases (West and East), each spanning basement
-    // through rooms-high (levels 0..3). Within each staircase shaft the
+    // Two real U-shaped staircases (West and East), each spanning the
+    // entire building from basement through rooftop. Within each shaft the
     // ramps zig-zag between two columns and alternate direction so the
-    // player walks up one flight, turns 180°, walks up the next flight.
-    // The shaft footprint is the same on every floor it serves.
-    //
-    // Plus a single rooftop ramp (rooms-high -> rooftop) at the centre,
-    // making the rooftop a separate destination not part of either main
-    // staircase (the user's gating concept).
+    // player walks up one flight, turns 180°, walks up the next. The shaft
+    // footprint is the same on every floor it serves, including the rooftop.
     let mut ramp_specs = Vec::new();
     ramp_specs.extend(u_staircase_ramps(/*west_col*/ 2)); // West staircase, cols 2-3
     ramp_specs.extend(u_staircase_ramps(/*west_col*/ 16)); // East staircase, cols 16-17
-    ramp_specs.push(south_up_ramp(/*col*/ 10, /*row0*/ 14, /*lower*/ 3)); // rooms-high -> rooftop
 
     // Central atrium: a void above the lobby. The lobby floor itself is
-    // solid (you stand on it and look up); the void cuts through rooms-low
-    // (level 2) always, and rooms-high (level 3) with 50% probability for
-    // either a 1- or 2-storey atrium.
+    // solid; the void cuts through both rooms floors (levels 2 and 3) for
+    // a fixed 2-storey atrium.
     let atrium = centered_rect(ATRIUM_CELLS, grid_cols, grid_rows);
-    let atrium_top: u32 = if rng.random_bool(0.5) { 2 } else { 3 };
+    let atrium_top: u32 = 3;
 
     // Per-level masks: start from the level's footprint, then subtract
     // *only* the cells at the upper level above each ramp (the "ramp body"
@@ -196,14 +187,15 @@ fn north_up_ramp(col: i32, row0: i32, lower_level: u32) -> RampSpec {
     }
 }
 
-// A U-shaped 3-flight staircase occupying a 2×4 shaft at (cols [west_col,
+// A U-shaped 4-flight staircase occupying a 2×4 shaft at (cols [west_col,
 // west_col+1], rows 3..6). Same footprint on every floor it serves
-// (basement -> rooms-high). The three ramps alternate columns and
-// directions so the player zig-zags up:
+// (basement → rooftop). The four ramps alternate columns and directions
+// so the player zig-zags up:
 //
-//   - basement → lobby:    south-up at west_col
-//   - lobby → rooms-low:   north-up at west_col+1
-//   - rooms-low → rooms-high: south-up at west_col
+//   - basement → lobby:        south-up at west_col
+//   - lobby → rooms-low:       north-up at west_col+1
+//   - rooms-low → rooms-high:  south-up at west_col
+//   - rooms-high → rooftop:    north-up at west_col+1
 //
 // Exits and entries chain inside the shaft footprint — the player never
 // has to leave the shaft between floors.
@@ -213,5 +205,6 @@ fn u_staircase_ramps(west_col: i32) -> Vec<RampSpec> {
         south_up_ramp(west_col, 4, 0),
         north_up_ramp(east_col, 4, 1),
         south_up_ramp(west_col, 4, 2),
+        north_up_ramp(east_col, 4, 3),
     ]
 }
