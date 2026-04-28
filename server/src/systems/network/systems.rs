@@ -66,6 +66,7 @@ pub fn network_client_message_system(
                         &mut players,
                         &time,
                         &player_data,
+                        &motions,
                         &map_layout,
                     );
                 } else {

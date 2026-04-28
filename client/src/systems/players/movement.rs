@@ -4,10 +4,10 @@ use super::components::BumpFlashState;
 use crate::{markers::*, resources::PlayerMap, systems::network::ServerReconciliation};
 use common::{
     constants::{ALWAYS_PHASING, PHYSICS_EPSILON, PLAYER_SPEED, UPDATE_BROADCAST_INTERVAL},
-    map::{compute_player_level, find_support_floor},
+    map::compute_player_level,
     physics::{
-        PlayerMotion, overlap_player_vs_wall, slide_player_along_obstacles, sweep_player_vs_ramp_edges,
-        sweep_player_vs_wall,
+        PlayerMotion, overlap_player_vs_wall, slide_player_along_obstacles, step_player_vertical_motion,
+        sweep_player_vs_ramp_edges, sweep_player_vs_wall,
     },
     players::{PlannedMove, overlaps_other_player},
     protocol::{MapLayout, MoveInput, PlayerId, Position, Wall},
@@ -164,34 +164,22 @@ pub fn players_movement_system(
             }
         };
 
-        // Vertical integration: gravity + landing snap. Computed regardless of horizontal motion
-        // so that even a stationary player stays anchored to its support.
-        let mut next_motion = PlayerMotion {
-            velocity: motion.velocity,
-        };
-        next_motion.apply_gravity(delta);
-        next_motion.apply_terminal_velocity();
-
-        let mut target_vy = next_motion.velocity.y;
+        let mut target_vy = motion.velocity.y;
 
         // Skip collision checks if player is standing still
         if is_standing_still {
             if let Some(map_layout) = map_layout.as_ref() {
-                let support = find_support_floor(
+                let vertical = step_player_vertical_motion(
+                    &client_pos,
+                    &motion,
                     &map_layout.floors,
                     &map_layout.ramps,
                     target_pos.x,
                     target_pos.z,
-                    client_pos.y,
+                    delta,
                 );
-                if next_motion.velocity.y <= 0.0
-                    && let Some(s) = support
-                {
-                    target_pos.y = s;
-                    target_vy = 0.0;
-                } else {
-                    target_pos.y = next_motion.velocity.y.mul_add(delta, client_pos.y);
-                }
+                target_pos.y = vertical.y;
+                target_vy = vertical.vy;
             }
             planned_moves.push(PlannedMove {
                 entity,
@@ -250,21 +238,17 @@ pub fn players_movement_system(
                 );
             }
 
-            let support = find_support_floor(
+            let vertical = step_player_vertical_motion(
+                &client_pos,
+                &motion,
                 &map_layout.floors,
                 &map_layout.ramps,
                 target_pos.x,
                 target_pos.z,
-                client_pos.y,
+                delta,
             );
-            if next_motion.velocity.y <= 0.0
-                && let Some(s) = support
-            {
-                target_pos.y = s;
-                target_vy = 0.0;
-            } else {
-                target_pos.y = next_motion.velocity.y.mul_add(delta, client_pos.y);
-            }
+            target_pos.y = vertical.y;
+            target_vy = vertical.vy;
         }
 
         planned_moves.push(PlannedMove {

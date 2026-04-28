@@ -5,7 +5,7 @@ use crate::{net::ServerToClient, resources::PlayerMap};
 use common::{
     constants::{ALWAYS_MULTI_SHOT, PROJECTILE_COOLDOWN_TIME},
     markers::{PlayerMarker, ProjectileMarker},
-    physics::ProjectileMotion,
+    physics::{PlayerMotion, ProjectileMotion, try_start_player_jump},
     protocol::{MapLayout, *},
     spawning::calculate_projectile_spawns,
 };
@@ -23,6 +23,7 @@ pub fn dispatch_message(
     players: &mut PlayerMap,
     time: &Res<Time>,
     player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
+    motions: &Query<&PlayerMotion, With<PlayerMarker>>,
     map_layout: &MapLayout,
 ) {
     match msg {
@@ -39,6 +40,10 @@ pub fn dispatch_message(
         ClientMessage::MoveInput(msg) => {
             trace!("{:?} move input: {:?}", id, msg);
             handle_move_input_message(commands, entity, id, msg, &*players, player_data);
+        }
+        ClientMessage::Jump(msg) => {
+            trace!("{:?} jump: {:?}", id, msg);
+            handle_jump_message(commands, entity, id, &*players, player_data, motions, map_layout);
         }
         ClientMessage::Face(msg) => {
             trace!("{:?} face direction: {}", id, msg.dir);
@@ -92,6 +97,54 @@ fn handle_move_input_message(
             }),
         );
     }
+}
+
+fn handle_jump_message(
+    commands: &mut Commands,
+    entity: Entity,
+    id: PlayerId,
+    players: &PlayerMap,
+    player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
+    motions: &Query<&PlayerMotion, With<PlayerMarker>>,
+    map_layout: &MapLayout,
+) {
+    if players.0.get(&id).is_some_and(|info| info.stun_timer > 0.0) {
+        return;
+    }
+
+    let Ok((pos, _, _)) = player_data.get(entity) else {
+        return;
+    };
+    let Ok(motion) = motions.get(entity) else {
+        return;
+    };
+
+    let mut next_motion = PlayerMotion {
+        velocity: motion.velocity,
+    };
+    if !try_start_player_jump(
+        &mut next_motion,
+        &map_layout.floors,
+        &map_layout.ramps,
+        pos,
+        pos.x,
+        pos.z,
+    ) {
+        return;
+    }
+
+    commands.entity(entity).insert(PlayerMotion {
+        velocity: next_motion.velocity,
+    });
+    broadcast_to_others(
+        players,
+        id,
+        ServerMessage::Jump(SJump {
+            id,
+            pos: *pos,
+            vy: next_motion.velocity.y,
+        }),
+    );
 }
 
 // Handle face direction message.

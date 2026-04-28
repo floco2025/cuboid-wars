@@ -5,7 +5,7 @@ use super::{
     items::handle_item_collected_message,
     login::{handle_player_login_message, handle_player_logoff_message},
     players::{
-        handle_player_death_message, handle_player_face_message, handle_player_hit_message,
+        handle_player_death_message, handle_player_face_message, handle_player_hit_message, handle_player_jump_message,
         handle_player_move_input_message, handle_player_shot_message, handle_player_status_message,
     },
     systems::handle_echo_message,
@@ -30,7 +30,7 @@ pub fn dispatch_message(
     rtt: &mut ResMut<RoundTripTime>,
     last_update_seq: &mut ResMut<LastUpdateSeq>,
     assets: &mut AssetManagers,
-    player_data: &Query<(&Position, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
     cameras: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     time: &Res<Time>,
     asset_server: &Res<AssetServer>,
@@ -53,6 +53,9 @@ pub fn dispatch_message(
         ServerMessage::Logoff(logoff) => handle_player_logoff_message(commands, players, logoff),
         ServerMessage::MoveInput(move_input_msg) => {
             handle_player_move_input_message(commands, players, player_data, rtt, move_input_msg);
+        }
+        ServerMessage::Jump(jump_msg) => {
+            handle_player_jump_message(commands, players, player_data, rtt, jump_msg);
         }
         ServerMessage::Face(face_msg) => handle_player_face_message(commands, players, face_msg),
         ServerMessage::Shot(shot_msg) => {
@@ -109,7 +112,7 @@ pub fn handle_update_message(
     items: &mut ResMut<ItemMap>,
     rtt: &ResMut<RoundTripTime>,
     last_update_seq: &mut ResMut<LastUpdateSeq>,
-    player_data: &Query<(&Position, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
     camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     my_player_id: PlayerId,
     asset_server: &Res<AssetServer>,

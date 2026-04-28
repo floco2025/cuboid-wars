@@ -3,14 +3,14 @@ use bevy_math::Vec3;
 
 use super::helpers::{
     overlap_aabb_vs_wall, slide_along_axes, sweep_aabb_vs_aabb, sweep_aabb_vs_wall, sweep_ramp_edges,
-    sweep_ramp_high_cap,
+    sweep_ramp_high_cap, sweep_slab_interval,
 };
 use crate::{
     constants::{
-        PHYSICS_EPSILON, PLAYER_DEPTH, PLAYER_GRAVITY, PLAYER_HEIGHT, PLAYER_LANDING_EPSILON, PLAYER_TERMINAL_VELOCITY,
-        PLAYER_WIDTH, WALL_THICKNESS,
+        PHYSICS_EPSILON, PLAYER_DEPTH, PLAYER_GRAVITY, PLAYER_HEIGHT, PLAYER_JUMP_SPEED, PLAYER_LANDING_EPSILON,
+        PLAYER_TERMINAL_VELOCITY, PLAYER_WIDTH, WALL_THICKNESS,
     },
-    map::ramp_surface_at,
+    map::{find_support_floor, ramp_surface_at},
     protocol::{Floor, Position, Ramp, Wall},
 };
 
@@ -32,6 +32,156 @@ impl PlayerMotion {
             self.velocity.y = -PLAYER_TERMINAL_VELOCITY;
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PlayerVerticalStep {
+    pub y: f32,
+    pub vy: f32,
+}
+
+#[must_use]
+pub fn try_start_player_jump(
+    motion: &mut PlayerMotion,
+    floors: &[Floor],
+    ramps: &[Ramp],
+    pos: &Position,
+    x: f32,
+    z: f32,
+) -> bool {
+    if motion.velocity.y > 0.0 || find_support_floor(floors, ramps, x, z, pos.y).is_none() {
+        return false;
+    }
+
+    motion.velocity.y = PLAYER_JUMP_SPEED;
+    true
+}
+
+#[must_use]
+pub fn step_player_vertical_motion(
+    pos: &Position,
+    motion: &PlayerMotion,
+    floors: &[Floor],
+    ramps: &[Ramp],
+    x: f32,
+    z: f32,
+    delta: f32,
+) -> PlayerVerticalStep {
+    let mut next_motion = PlayerMotion {
+        velocity: motion.velocity,
+    };
+    next_motion.apply_gravity(delta);
+    next_motion.apply_terminal_velocity();
+
+    let raw_y = next_motion.velocity.y.mul_add(delta, pos.y);
+    if next_motion.velocity.y > 0.0
+        && let Some(ceiling_y) = earliest_floor_slab_collision_y(floors, pos.x, pos.z, x, z, pos.y, raw_y)
+    {
+        return PlayerVerticalStep { y: ceiling_y, vy: 0.0 };
+    }
+
+    let support = find_support_floor(floors, ramps, x, z, pos.y);
+    if next_motion.velocity.y <= 0.0
+        && let Some(support_y) = support
+    {
+        PlayerVerticalStep { y: support_y, vy: 0.0 }
+    } else {
+        PlayerVerticalStep {
+            y: raw_y,
+            vy: next_motion.velocity.y,
+        }
+    }
+}
+
+fn earliest_floor_slab_collision_y(
+    floors: &[Floor],
+    start_x: f32,
+    start_z: f32,
+    end_x: f32,
+    end_z: f32,
+    start_y: f32,
+    end_y: f32,
+) -> Option<f32> {
+    floors
+        .iter()
+        .filter_map(|floor| sweep_upward_player_vs_floor_slab(start_x, start_z, end_x, end_z, start_y, end_y, floor))
+        .min_by(|a, b| a.0.total_cmp(&b.0))
+        .map(|(_, y)| y)
+}
+
+fn sweep_upward_player_vs_floor_slab(
+    start_x: f32,
+    start_z: f32,
+    end_x: f32,
+    end_z: f32,
+    start_y: f32,
+    end_y: f32,
+    floor: &Floor,
+) -> Option<(f32, f32)> {
+    let floor_bottom = floor.y - floor.thickness;
+    let floor_top = floor.y;
+    if start_y >= floor_top - PHYSICS_EPSILON {
+        return None;
+    }
+
+    let dy = end_y - start_y;
+    if dy <= PHYSICS_EPSILON {
+        return None;
+    }
+
+    let start_top = start_y + PLAYER_HEIGHT;
+    let end_top = end_y + PLAYER_HEIGHT;
+    if end_top < floor_bottom - PHYSICS_EPSILON {
+        return None;
+    }
+
+    let vertical_enter_t = if start_top >= floor_bottom - PHYSICS_EPSILON {
+        0.0
+    } else {
+        ((floor_bottom - start_top) / dy).clamp(0.0, 1.0)
+    };
+    let vertical_exit_t = if end_y <= floor_top + PHYSICS_EPSILON {
+        1.0
+    } else {
+        ((floor_top - start_y) / dy).clamp(0.0, 1.0)
+    };
+    if vertical_enter_t > vertical_exit_t {
+        return None;
+    }
+
+    let (xz_enter_t, xz_exit_t) = player_floor_footprint_overlap_interval(start_x, start_z, end_x, end_z, floor)?;
+    let hit_t = vertical_enter_t.max(xz_enter_t);
+    if hit_t > vertical_exit_t.min(xz_exit_t) {
+        return None;
+    }
+
+    Some((hit_t, floor_bottom - PLAYER_HEIGHT - PHYSICS_EPSILON))
+}
+
+fn player_floor_footprint_overlap_interval(
+    start_x: f32,
+    start_z: f32,
+    end_x: f32,
+    end_z: f32,
+    floor: &Floor,
+) -> Option<(f32, f32)> {
+    let (min_x, max_x, min_z, max_z) = floor.bounds_xz();
+    let center_x = f32::midpoint(min_x, max_x);
+    let center_z = f32::midpoint(min_z, max_z);
+    let half_x = (max_x - min_x) / 2.0 + PLAYER_WIDTH / 2.0;
+    let half_z = (max_z - min_z) / 2.0 + PLAYER_DEPTH / 2.0;
+    let dx = end_x - start_x;
+    let dz = end_z - start_z;
+
+    let mut t_min = 0.0_f32;
+    let mut t_max = 1.0_f32;
+
+    let (new_min, new_max) = sweep_slab_interval(start_x - center_x, dx, half_x, t_min, t_max)?;
+    t_min = new_min;
+    t_max = new_max;
+
+    let (new_min, new_max) = sweep_slab_interval(start_z - center_z, dz, half_z, t_min, t_max)?;
+    Some((new_min, new_max))
 }
 
 #[must_use]
@@ -201,6 +351,109 @@ mod tests {
             thickness: FLOOR_THICKNESS,
             level: 1,
         }
+    }
+
+    fn lower_floor() -> Floor {
+        Floor {
+            x1: -4.0,
+            z1: -4.0,
+            x2: 4.0,
+            z2: 4.0,
+            y: 0.0,
+            thickness: FLOOR_THICKNESS,
+            level: 0,
+        }
+    }
+
+    fn upper_floor() -> Floor {
+        Floor {
+            x1: -4.0,
+            z1: -4.0,
+            x2: 4.0,
+            z2: 4.0,
+            y: LEVEL_HEIGHT,
+            thickness: FLOOR_THICKNESS,
+            level: 1,
+        }
+    }
+
+    #[test]
+    fn supported_player_can_start_jump() {
+        let floor = lower_floor();
+        let pos = Position { x: 0.0, y: 0.0, z: 0.0 };
+        let mut motion = PlayerMotion::default();
+
+        assert!(try_start_player_jump(&mut motion, &[floor], &[], &pos, pos.x, pos.z));
+        assert_eq!(motion.velocity.y, PLAYER_JUMP_SPEED);
+    }
+
+    #[test]
+    fn airborne_player_cannot_start_jump() {
+        let floor = lower_floor();
+        let pos = Position { x: 0.0, y: 1.0, z: 0.0 };
+        let mut motion = PlayerMotion::default();
+
+        assert!(!try_start_player_jump(&mut motion, &[floor], &[], &pos, pos.x, pos.z));
+        assert_eq!(motion.velocity.y, 0.0);
+    }
+
+    #[test]
+    fn upward_jump_velocity_moves_player_above_support() {
+        let floor = lower_floor();
+        let pos = Position { x: 0.0, y: 0.0, z: 0.0 };
+        let mut motion = PlayerMotion::default();
+        assert!(try_start_player_jump(&mut motion, &[floor], &[], &pos, pos.x, pos.z));
+
+        let step = step_player_vertical_motion(&pos, &motion, &[floor], &[], pos.x, pos.z, 0.1);
+
+        assert!(step.y > pos.y);
+        assert!(step.vy > 0.0);
+    }
+
+    #[test]
+    fn upward_motion_hits_floor_underside() {
+        let floor = upper_floor();
+        let pos = Position { x: 0.0, y: 1.8, z: 0.0 };
+        let motion = PlayerMotion {
+            velocity: Vec3::new(0.0, PLAYER_JUMP_SPEED, 0.0),
+        };
+
+        let step = step_player_vertical_motion(&pos, &motion, &[floor], &[], pos.x, pos.z, 0.1);
+
+        assert_eq!(step.vy, 0.0);
+        assert!(step.y < floor.y - floor.thickness - PLAYER_HEIGHT);
+    }
+
+    #[test]
+    fn upward_motion_ignores_floor_underside_outside_footprint() {
+        let floor = upper_floor();
+        let pos = Position { x: 5.0, y: 1.8, z: 0.0 };
+        let motion = PlayerMotion {
+            velocity: Vec3::new(0.0, PLAYER_JUMP_SPEED, 0.0),
+        };
+
+        let step = step_player_vertical_motion(&pos, &motion, &[floor], &[], pos.x, pos.z, 0.1);
+
+        assert!(step.vy > 0.0);
+        assert!(step.y > pos.y);
+    }
+
+    #[test]
+    fn upward_motion_hits_floor_slab_when_entering_from_side() {
+        let floor = upper_floor();
+        let pos = Position {
+            x: -5.0,
+            y: 2.3,
+            z: 0.0,
+        };
+        let motion = PlayerMotion {
+            velocity: Vec3::new(0.0, PLAYER_JUMP_SPEED, 0.0),
+        };
+
+        let step = step_player_vertical_motion(&pos, &motion, &[floor], &[], -4.25, pos.z, 0.1);
+
+        assert_eq!(step.vy, 0.0);
+        assert!(step.y < floor.y - floor.thickness - PLAYER_HEIGHT);
     }
 
     #[test]

@@ -18,7 +18,7 @@ use common::{markers::PlayerMarker, physics::PlayerMotion, protocol::*};
 pub fn handle_player_move_input_message(
     commands: &mut Commands,
     players: &ResMut<PlayerMap>,
-    player_data: &Query<(&Position, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
     rtt: &ResMut<RoundTripTime>,
     msg: SMoveInput,
 ) {
@@ -27,7 +27,7 @@ pub fn handle_player_move_input_message(
         let server_vel = msg.move_input.to_velocity_for_player(player.speed_power_up);
 
         // Add server reconciliation if we have client position
-        if let Ok((client_pos, _)) = player_data.get(player.entity) {
+        if let Ok((client_pos, _, _)) = player_data.get(player.entity) {
             commands.entity(player.entity).insert((
                 msg.move_input, // Never the local player, so we can always overwrite intent
                 ServerReconciliation {
@@ -41,6 +41,32 @@ pub fn handle_player_move_input_message(
         } else {
             commands.entity(player.entity).insert(msg.move_input);
         }
+    }
+}
+
+pub fn handle_player_jump_message(
+    commands: &mut Commands,
+    players: &ResMut<PlayerMap>,
+    player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
+    rtt: &ResMut<RoundTripTime>,
+    msg: SJump,
+) {
+    if let Some(player) = players.0.get(&msg.id)
+        && let Ok((client_pos, move_input, _)) = player_data.get(player.entity)
+    {
+        let server_vel = move_input.to_velocity_for_player(player.speed_power_up);
+        commands.entity(player.entity).insert((
+            PlayerMotion {
+                velocity: Vec3::new(0.0, msg.vy, 0.0),
+            },
+            ServerReconciliation {
+                client_pos: *client_pos,
+                server_pos: msg.pos,
+                server_vel,
+                timer: 0.0,
+                rtt: rtt.rtt.as_secs_f32(),
+            },
+        ));
     }
 }
 
@@ -58,7 +84,7 @@ pub fn handle_player_shot_message(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
     players: &ResMut<PlayerMap>,
-    player_data: &Query<(&Position, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
     msg: SShot,
     map_layout: Option<&MapLayout>,
 ) {
@@ -67,7 +93,7 @@ pub fn handle_player_shot_message(
         commands.entity(player.entity).insert(FaceDirection(msg.face_dir));
 
         // Spawn projectile(s) based on player's multi-shot power-up status
-        if let Ok((position, _)) = player_data.get(player.entity)
+        if let Ok((position, _, _)) = player_data.get(player.entity)
             && let Some(map_layout) = map_layout
         {
             spawn_projectiles(
@@ -187,7 +213,7 @@ pub fn sync_players(
     graphs: &mut ResMut<Assets<AnimationGraph>>,
     players: &mut ResMut<PlayerMap>,
     rtt: &ResMut<RoundTripTime>,
-    player_data: &Query<(&Position, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
     camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     my_player_id: PlayerId,
     asset_server: &Res<AssetServer>,
@@ -218,6 +244,9 @@ pub fn sync_players(
             player.face_dir,
             is_local,
         );
+        commands.entity(entity).insert(PlayerMotion {
+            velocity: Vec3::new(0.0, player.vy, 0.0),
+        });
 
         if is_local && let Ok(camera_entity) = camera_query.single() {
             let camera_rotation = player.face_dir + std::f32::consts::PI;
@@ -254,7 +283,7 @@ pub fn sync_players(
     // Update existing players with server state
     for (id, server_player) in server_players {
         if let Some(client_player) = players.0.get_mut(id) {
-            if let Ok((client_pos, _)) = player_data.get(client_player.entity) {
+            if let Ok((client_pos, _, _)) = player_data.get(client_player.entity) {
                 let server_vel = server_player
                     .move_input
                     .to_velocity_for_player(server_player.speed_power_up);
@@ -271,6 +300,11 @@ pub fn sync_players(
                     timer: 0.0,
                     rtt: rtt.rtt.as_secs_f32(),
                 });
+                if *id != my_player_id {
+                    commands.entity(client_player.entity).insert(PlayerMotion {
+                        velocity: Vec3::new(0.0, server_player.vy, 0.0),
+                    });
+                }
             }
 
             client_player.hits = server_player.hits;

@@ -7,11 +7,11 @@ use common::{
     constants::{
         FIELD_DEPTH, FIELD_WIDTH, GRID_SIZE, LEVEL_HEIGHT, PHYSICS_EPSILON, PLAYER_DEATH_Y, PLAYER_DEPTH, PLAYER_WIDTH,
     },
-    map::{compute_player_level, find_support_floor},
+    map::compute_player_level,
     markers::PlayerMarker,
     physics::{
-        PlayerMotion, overlap_player_vs_wall, slide_player_along_obstacles, sweep_player_vs_player,
-        sweep_player_vs_ramp_edges, sweep_player_vs_wall,
+        PlayerMotion, overlap_player_vs_wall, slide_player_along_obstacles, step_player_vertical_motion,
+        sweep_player_vs_player, sweep_player_vs_ramp_edges, sweep_player_vs_wall,
     },
     players::{PlannedMove, overlaps_other_player},
     protocol::{MapLayout, MoveInput, PlayerId, Position, SDeath, ServerMessage, Wall},
@@ -102,29 +102,22 @@ pub fn players_movement_system(
         }
 
         // Vertical integration: apply gravity, then either land on a support or keep falling.
-        let mut next_motion = PlayerMotion {
-            velocity: motion.velocity,
-        };
-        next_motion.apply_gravity(delta);
-        next_motion.apply_terminal_velocity();
-
-        let support = find_support_floor(&map_layout.floors, &map_layout.ramps, target_pos.x, target_pos.z, pos.y);
-        let target_vy;
-        if next_motion.velocity.y <= 0.0
-            && let Some(s) = support
-        {
-            target_pos.y = s;
-            target_vy = 0.0;
-        } else {
-            target_pos.y = next_motion.velocity.y.mul_add(delta, pos.y);
-            target_vy = next_motion.velocity.y;
-        }
+        let vertical = step_player_vertical_motion(
+            pos,
+            motion,
+            &map_layout.floors,
+            &map_layout.ramps,
+            target_pos.x,
+            target_pos.z,
+            delta,
+        );
+        target_pos.y = vertical.y;
 
         planned_moves.push(PlannedMove {
             entity,
             start: *pos,
             target: target_pos,
-            target_vy,
+            target_vy: vertical.vy,
             collides,
         });
     }

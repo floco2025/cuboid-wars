@@ -13,6 +13,7 @@ use crate::{
         CameraViewMode, ClientToServerChannel, InputSettings, LocalPlayerInfo, MyPlayerId, PlayerMap, TopDownCameraYaw,
     },
 };
+use common::physics::{PlayerMotion, try_start_player_jump};
 use common::protocol::*;
 
 const MAX_PITCH: f32 = std::f32::consts::FRAC_PI_2 - 0.05;
@@ -29,9 +30,13 @@ pub fn input_movement_system(
     input_settings: Res<InputSettings>,
     mut local_player_info: ResMut<LocalPlayerInfo>,
     mut top_down_camera_yaw: ResMut<TopDownCameraYaw>,
-    mut local_player_query: Query<(&mut MoveInput, &mut FaceDirection), With<LocalPlayerMarker>>,
+    mut local_player_query: Query<
+        (&Position, &mut MoveInput, &mut FaceDirection, &mut PlayerMotion),
+        With<LocalPlayerMarker>,
+    >,
     mut camera_query: Query<&mut Transform, (With<Camera3d>, With<MainCameraMarker>)>,
     view_mode: Res<CameraViewMode>,
+    map_layout: Option<Res<MapLayout>>,
 ) {
     // Wait for the local player entity to exist before sampling input or sending updates.
     // Otherwise we'd compute a face direction from the default camera transform and
@@ -62,11 +67,26 @@ pub fn input_movement_system(
         input_settings.invert_pitch,
     );
     let face_yaw = current_yaw + std::f32::consts::PI;
-    let move_input = calculate_move_input(&keyboard, face_yaw, my_player_id.as_ref(), &players);
+    let stunned = local_player_stunned(my_player_id.as_ref(), &players);
+    let move_input = calculate_move_input(&keyboard, face_yaw, stunned);
+    let jump_requested = !stunned && keyboard.just_pressed(KeyCode::Space);
 
-    update_player_input_and_face(move_input, face_yaw, &mut local_player_query);
+    update_player_input_face_and_jump(
+        move_input,
+        face_yaw,
+        jump_requested,
+        map_layout.as_deref(),
+        &mut local_player_query,
+    );
 
-    send_throttled_updates(move_input, face_yaw, &time, &to_server, &mut local_player_info);
+    send_throttled_updates(
+        move_input,
+        face_yaw,
+        jump_requested,
+        &time,
+        &to_server,
+        &mut local_player_info,
+    );
 
     if view_mode.is_first_person() {
         for mut transform in &mut camera_query {
@@ -79,14 +99,17 @@ fn handle_unlocked_cursor(
     mouse_motion: &mut MessageReader<MouseMotion>,
     to_server: &Res<ClientToServerChannel>,
     local_player_info: &mut LocalPlayerInfo,
-    local_player_query: &mut Query<(&mut MoveInput, &mut FaceDirection), With<LocalPlayerMarker>>,
+    local_player_query: &mut Query<
+        (&Position, &mut MoveInput, &mut FaceDirection, &mut PlayerMotion),
+        With<LocalPlayerMarker>,
+    >,
 ) {
     // Drain pending mouse events and ensure player stops moving
     for _ in mouse_motion.read() {}
 
     if local_player_info.last_sent_input.direction().is_some() {
         let idle = MoveInput::Idle;
-        for (mut input, _) in local_player_query.iter_mut() {
+        for (_, mut input, _, _) in local_player_query.iter_mut() {
             *input = idle;
         }
         let msg = ClientMessage::MoveInput(CMoveInput { move_input: idle });
@@ -145,17 +168,9 @@ fn calculate_current_orientation(
     (current_yaw, current_pitch)
 }
 
-fn calculate_move_input(
-    keyboard: &Res<ButtonInput<KeyCode>>,
-    face_yaw: f32,
-    my_player_id: Option<&Res<MyPlayerId>>,
-    players: &Res<PlayerMap>,
-) -> MoveInput {
+fn calculate_move_input(keyboard: &Res<ButtonInput<KeyCode>>, face_yaw: f32, stunned: bool) -> MoveInput {
     // Stunned players cannot move
-    if let Some(my_id) = my_player_id
-        && let Some(player_info) = players.0.get(&my_id.0)
-        && player_info.stunned
-    {
+    if stunned {
         return MoveInput::Idle;
     }
 
@@ -185,20 +200,35 @@ fn calculate_move_input(
     }
 }
 
-fn update_player_input_and_face(
+fn local_player_stunned(my_player_id: Option<&Res<MyPlayerId>>, players: &Res<PlayerMap>) -> bool {
+    my_player_id
+        .and_then(|my_id| players.0.get(&my_id.0))
+        .is_some_and(|player_info| player_info.stunned)
+}
+
+fn update_player_input_face_and_jump(
     move_input: MoveInput,
     face_yaw: f32,
-    local_player_query: &mut Query<(&mut MoveInput, &mut FaceDirection), With<LocalPlayerMarker>>,
+    jump_requested: bool,
+    map_layout: Option<&MapLayout>,
+    local_player_query: &mut Query<
+        (&Position, &mut MoveInput, &mut FaceDirection, &mut PlayerMotion),
+        With<LocalPlayerMarker>,
+    >,
 ) {
-    for (mut input, mut face_direction) in local_player_query.iter_mut() {
+    for (pos, mut input, mut face_direction, mut motion) in local_player_query.iter_mut() {
         *input = move_input;
         face_direction.0 = face_yaw;
+        if jump_requested && let Some(map_layout) = map_layout {
+            let _ = try_start_player_jump(&mut motion, &map_layout.floors, &map_layout.ramps, pos, pos.x, pos.z);
+        }
     }
 }
 
 fn send_throttled_updates(
     move_input: MoveInput,
     face_yaw: f32,
+    jump_requested: bool,
     time: &Res<Time>,
     to_server: &Res<ClientToServerChannel>,
     local_player_info: &mut LocalPlayerInfo,
@@ -228,5 +258,10 @@ fn send_throttled_updates(
         let _ = to_server.send(ClientToServer::Send(msg));
         local_player_info.last_sent_face = face_yaw;
         local_player_info.last_send_face_time = 0.0;
+    }
+
+    if jump_requested {
+        let msg = ClientMessage::Jump(CJump {});
+        let _ = to_server.send(ClientToServer::Send(msg));
     }
 }

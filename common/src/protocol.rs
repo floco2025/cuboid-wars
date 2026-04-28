@@ -23,6 +23,10 @@ pub struct CMoveInput {
     pub move_input: MoveInput,
 }
 
+// Client to Server: One-shot jump request.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct CJump {}
+
 // Client to Server: Facing direction update.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct CFace {
@@ -73,6 +77,14 @@ pub struct SMoveInput {
     pub id: PlayerId,
     pub move_input: MoveInput,
     pub pos: Position,
+}
+
+// Server to Client: Player started a jump.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SJump {
+    pub id: PlayerId,
+    pub pos: Position,
+    pub vy: f32,
 }
 
 // Server to Client: Player facing direction update.
@@ -143,6 +155,7 @@ pub enum ClientMessage {
     Login(CLogin),
     Logoff(CLogoff),
     MoveInput(CMoveInput),
+    Jump(CJump),
     Face(CFace),
     Shot(CShot),
     Echo(CEcho),
@@ -155,6 +168,7 @@ pub enum ServerMessage {
     Login(SLogin),
     Logoff(SLogoff),
     MoveInput(SMoveInput),
+    Jump(SJump),
     Face(SFace),
     Shot(SShot),
     Update(SUpdate),

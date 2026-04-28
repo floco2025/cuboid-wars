@@ -37,6 +37,7 @@ pub const PLAYER_SPEED: f32 = 9.0;
 // Gravity acting on falling players. Higher than real-world (9.81) for snappier
 // game feel.
 pub const PLAYER_GRAVITY: f32 = 25.0; // m/s²
+pub const PLAYER_JUMP_SPEED: f32 = 12.0; // m/s initial upward velocity
 
 // Hard cap on a falling player's downward speed. Prevents arbitrarily large
 // velocities from very tall drops.

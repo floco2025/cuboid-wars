@@ -26,7 +26,7 @@ pub fn network_server_message_system(
     mut rtt: ResMut<RoundTripTime>,
     mut last_update_seq: ResMut<LastUpdateSeq>,
     mut assets: AssetManagers,
-    player_data: Query<(&Position, &FaceDirection), With<PlayerMarker>>,
+    player_data: Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
     cameras: Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     my_player_id: Option<Res<MyPlayerId>>,
     map_layout: Option<Res<MapLayout>>,

@@ -75,11 +75,13 @@ async fn main() -> Result<()> {
                 // 1. Accept new connections (spawns entities)
                 // 2. ApplyDeferred (makes entities queryable)
                 // 3. Process client messages (needs to query those entities)
-                // 4. Broadcast state to all clients
+                // 4. ApplyDeferred (makes message-side component changes queryable)
+                // 5. Broadcast state to all clients
                 (
                     network_accept_connections_system,
                     ApplyDeferred,
                     network_client_message_system,
+                    ApplyDeferred,
                     network_broadcast_state_system,
                 )
                     .chain(),
