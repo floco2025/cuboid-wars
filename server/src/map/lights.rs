@@ -178,7 +178,7 @@ fn update_exposure(
 }
 
 fn column_is_open_between(levels: &[LevelGrid], lower_level_idx: usize, row: i32, col: i32) -> bool {
-    !cell_has_floor(&levels[lower_level_idx + 1].cells, row, col)
+    !cell_has_floor_slab(&levels[lower_level_idx + 1].cells, row, col)
 }
 
 fn cell_can_have_wall_light(cells: &CellGrid, row: i32, col: i32) -> bool {
@@ -192,7 +192,7 @@ fn cell_can_have_wall_light(cells: &CellGrid, row: i32, col: i32) -> bool {
         .is_some_and(|cell| !cell.has_ramp && (cell.has_floor || cell.has_ramp_from_below))
 }
 
-fn cell_has_floor(cells: &CellGrid, row: i32, col: i32) -> bool {
+fn cell_has_floor_slab(cells: &CellGrid, row: i32, col: i32) -> bool {
     if row < 0 || col < 0 {
         return false;
     }
@@ -200,7 +200,7 @@ fn cell_has_floor(cells: &CellGrid, row: i32, col: i32) -> bool {
         .rows
         .get(row as usize)
         .and_then(|grid_row| grid_row.get(col as usize))
-        .is_some_and(|cell| cell.has_floor)
+        .is_some_and(|cell| cell.has_floor_slab)
 }
 
 fn cell_in_bounds(cells: &CellGrid, row: i32, col: i32) -> bool {
@@ -228,6 +228,7 @@ mod tests {
         for row in row_min..row_max {
             for col in col_min..col_max {
                 cells.rows[row][col].has_floor = true;
+                cells.rows[row][col].has_floor_slab = true;
             }
         }
     }

@@ -35,13 +35,14 @@ DEFAULT_MAP = REPO_ROOT / "server" / "assets" / "maps" / "default.json"
 SUPPORTED_VERSION = 1
 
 MODE_FLOOR = "Floor"
+MODE_INACCESSIBLE_FLOOR = "Inaccessible Floor"
 MODE_PLAYER_SPAWN = "Player Spawn"
 MODE_WALL = "Wall"
 MODE_RAMP_UP = "Ramp (Up)"
 MODE_RAMP_DOWN = "Ramp (Down)"
 MODE_ERASE = "Erase"
 RAMP_MODES = (MODE_RAMP_UP, MODE_RAMP_DOWN)
-MODES = [MODE_FLOOR, MODE_PLAYER_SPAWN, MODE_WALL, MODE_RAMP_UP, MODE_RAMP_DOWN, MODE_ERASE]
+MODES = [MODE_FLOOR, MODE_INACCESSIBLE_FLOOR, MODE_PLAYER_SPAWN, MODE_WALL, MODE_RAMP_UP, MODE_RAMP_DOWN, MODE_ERASE]
 
 MIN_CELL = 12.0
 DEFAULT_GRID_COLS = 20
@@ -53,7 +54,7 @@ def empty_map() -> dict:
         "grid_cols": DEFAULT_GRID_COLS,
         "grid_rows": DEFAULT_GRID_ROWS,
         "player_spawn_fields": [[0, 0, 0], [0, 1, 0], [0, 0, 1], [0, 1, 1]],
-        "levels": [{"name": "Level 0", "floors": [], "walls": []}],
+        "levels": [{"name": "Level 0", "floors": [], "inaccessible_floors": [], "walls": []}],
         "ramps": [],
     }
 
@@ -137,6 +138,7 @@ def format_map_file(wrapper: dict) -> str:
                 "      {",
                 f'        "name": {json_scalar(level["name"])},',
                 *with_trailing_comma(format_point_array("floors", level["floors"], 8)),
+                *with_trailing_comma(format_point_array("inaccessible_floors", level["inaccessible_floors"], 8)),
                 *format_point_array("walls", level["walls"], 8),
                 "      }" + ("," if level_idx + 1 < len(map_data["levels"]) else ""),
             ]
@@ -175,11 +177,14 @@ def normalize_map(map_data: dict) -> dict:
             {
                 "name": str(level.get("name") or f"Level {idx}"),
                 "floors": [[int(c), int(r)] for c, r in level.get("floors", [])],
+                "inaccessible_floors": [
+                    [int(c), int(r)] for c, r in level.get("inaccessible_floors", [])
+                ],
                 "walls": [[int(c0), int(r0), int(c1), int(r1)] for c0, r0, c1, r1 in level.get("walls", [])],
             }
         )
     if not levels:
-        levels = [{"name": "Level 0", "floors": [], "walls": []}]
+        levels = [{"name": "Level 0", "floors": [], "inaccessible_floors": [], "walls": []}]
 
     ramps = []
     for ramp in map_data.get("ramps", []):
@@ -210,8 +215,12 @@ def canonicalize_map(map_data: dict) -> dict:
     )
     b["player_spawn_fields"] = [[level, c, r] for level, c, r in b["player_spawn_fields"]]
     for level in b["levels"]:
-        level["floors"] = sorted({(c, r) for c, r in level["floors"]}, key=lambda p: (p[1], p[0]))
-        level["floors"] = [[c, r] for c, r in level["floors"]]
+        floors = {(c, r) for c, r in level["floors"]}
+        inaccessible_floors = {(c, r) for c, r in level["inaccessible_floors"]} - floors
+        level["floors"] = [[c, r] for c, r in sorted(floors, key=lambda p: (p[1], p[0]))]
+        level["inaccessible_floors"] = [
+            [c, r] for c, r in sorted(inaccessible_floors, key=lambda p: (p[1], p[0]))
+        ]
 
         walls = {tuple(normalized_wall(wall)) for wall in level["walls"]}
         level["walls"] = [list(wall) for wall in sorted(walls)]
@@ -239,10 +248,16 @@ def enforce_ramp_floor_rules(map_data: dict) -> None:
 
         lower_floors = {tuple(floor) for floor in map_data["levels"][lower]["floors"]}
         upper_floors = {tuple(floor) for floor in map_data["levels"][upper]["floors"]}
+        lower_inaccessible_floors = {tuple(floor) for floor in map_data["levels"][lower]["inaccessible_floors"]}
+        upper_inaccessible_floors = {tuple(floor) for floor in map_data["levels"][upper]["inaccessible_floors"]}
         lower_floors.update(cells)
         upper_floors.difference_update(cells)
+        lower_inaccessible_floors.difference_update(cells)
+        upper_inaccessible_floors.difference_update(cells)
         map_data["levels"][lower]["floors"] = [[c, r] for c, r in lower_floors]
         map_data["levels"][upper]["floors"] = [[c, r] for c, r in upper_floors]
+        map_data["levels"][lower]["inaccessible_floors"] = [[c, r] for c, r in lower_inaccessible_floors]
+        map_data["levels"][upper]["inaccessible_floors"] = [[c, r] for c, r in upper_inaccessible_floors]
 
 
 def normalized_wall(wall: list[int]) -> list[int]:
@@ -278,10 +293,17 @@ def validate_map(map_data: dict) -> list[str]:
         prefix = level_label(level, level_idx)
         if not level["floors"]:
             errors.append(f"{prefix}: at least one floor is required by the Rust loader")
+        floor_set = {tuple(floor) for floor in level["floors"]}
         for floor in level["floors"]:
             c, r = floor
             if not (0 <= c < cols and 0 <= r < rows):
                 errors.append(f"{prefix}: floor {floor} is outside the grid")
+        for floor in level["inaccessible_floors"]:
+            c, r = floor
+            if not (0 <= c < cols and 0 <= r < rows):
+                errors.append(f"{prefix}: inaccessible floor {floor} is outside the grid")
+            if tuple(floor) in floor_set:
+                errors.append(f"{prefix}: inaccessible floor {floor} overlaps a floor")
         for wall in level["walls"]:
             c0, r0, c1, r1 = wall
             if not (grid_point_in_bounds(c0, r0, cols, rows) and grid_point_in_bounds(c1, r1, cols, rows)):
@@ -436,6 +458,14 @@ class Canvas(QWidget):
         painter.setBrush(QColor("#454f5b"))
         for col, row in level["floors"]:
             painter.drawRect(QRectF(col * cell + 1, row * cell + 1, cell - 2, cell - 2))
+        painter.setBrush(QColor("#454f5b"))
+        for col, row in level["inaccessible_floors"]:
+            rect = QRectF(col * cell + 1, row * cell + 1, cell - 2, cell - 2)
+            painter.drawRect(rect)
+            painter.setPen(QPen(QColor("#94a3b8"), 1))
+            painter.drawLine(rect.topLeft(), rect.bottomRight())
+            painter.drawLine(rect.bottomLeft(), rect.topRight())
+            painter.setPen(Qt.PenStyle.NoPen)
 
         for ramp in self.window.map_data["ramps"]:
             lower = ramp["lower_level"]
@@ -450,6 +480,7 @@ class Canvas(QWidget):
             and self.drag_current_cell
             and (
                 self.window.mode in (MODE_FLOOR, MODE_ERASE)
+                or self.window.mode == MODE_INACCESSIBLE_FLOOR
                 or self.window.mode == MODE_PLAYER_SPAWN
             )
         ):
@@ -458,6 +489,8 @@ class Canvas(QWidget):
                 color = QColor(248, 113, 113, 120)
             elif self.window.mode == MODE_FLOOR:
                 color = QColor(111, 180, 255, 120)
+            elif self.window.mode == MODE_INACCESSIBLE_FLOOR:
+                color = QColor(148, 163, 184, 120)
             else:
                 color = QColor(34, 197, 94, 120)
             painter.setBrush(color)
@@ -565,6 +598,8 @@ class Canvas(QWidget):
             return
         if self.window.mode == MODE_FLOOR and self.drag_start_cell and self.drag_current_cell:
             self.window.add_floor_rect(self.drag_start_cell, self.drag_current_cell)
+        elif self.window.mode == MODE_INACCESSIBLE_FLOOR and self.drag_start_cell and self.drag_current_cell:
+            self.window.add_inaccessible_floor_rect(self.drag_start_cell, self.drag_current_cell)
         elif self.window.mode == MODE_PLAYER_SPAWN and self.drag_start_cell and self.drag_current_cell:
             self.window.add_player_spawn_rect(self.drag_start_cell, self.drag_current_cell)
         elif self.window.mode == MODE_WALL and self.drag_start_point and self.drag_current_point:
@@ -800,12 +835,35 @@ class EditorWindow(QMainWindow):
     def add_floor_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         c0, r0, c1, r1 = rect_from_cells(start, end)
         after = copy.deepcopy(self.map_data)
-        floors = {tuple(f) for f in after["levels"][self.current_level]["floors"]}
+        level = after["levels"][self.current_level]
+        floors = {tuple(f) for f in level["floors"]}
+        inaccessible_floors = {tuple(f) for f in level["inaccessible_floors"]}
         for row in range(r0, r1):
             for col in range(c0, c1):
                 floors.add((col, row))
-        after["levels"][self.current_level]["floors"] = [[c, r] for c, r in floors]
+                inaccessible_floors.discard((col, row))
+        level["floors"] = [[c, r] for c, r in floors]
+        level["inaccessible_floors"] = [[c, r] for c, r in inaccessible_floors]
         self.apply_change("Paint Floor", after)
+
+    def add_inaccessible_floor_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
+        c0, r0, c1, r1 = rect_from_cells(start, end)
+        after = copy.deepcopy(self.map_data)
+        level = after["levels"][self.current_level]
+        floors = {tuple(f) for f in level["floors"]}
+        inaccessible_floors = {tuple(f) for f in level["inaccessible_floors"]}
+        for row in range(r0, r1):
+            for col in range(c0, c1):
+                floors.discard((col, row))
+                inaccessible_floors.add((col, row))
+        level["floors"] = [[c, r] for c, r in floors]
+        level["inaccessible_floors"] = [[c, r] for c, r in inaccessible_floors]
+        after["player_spawn_fields"] = [
+            field
+            for field in after["player_spawn_fields"]
+            if not (field[0] == self.current_level and c0 <= field[1] < c1 and r0 <= field[2] < r1)
+        ]
+        self.apply_change("Paint Inaccessible Floor", after)
 
     def add_player_spawn_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         c0, r0, c1, r1 = rect_from_cells(start, end)
@@ -881,6 +939,11 @@ class EditorWindow(QMainWindow):
             for floor in level["floors"]
             if not (c0 <= floor[0] < c1 and r0 <= floor[1] < r1)
         ]
+        level["inaccessible_floors"] = [
+            floor
+            for floor in level["inaccessible_floors"]
+            if not (c0 <= floor[0] < c1 and r0 <= floor[1] < r1)
+        ]
         level["walls"] = [
             wall
             for wall in level["walls"]
@@ -920,6 +983,8 @@ class EditorWindow(QMainWindow):
                 return ("Ramp", (lower, tuple(ramp["low"]), tuple(ramp["high"])))
         if [col, row] in level["floors"]:
             return ("Floor", (col, row))
+        if [col, row] in level["inaccessible_floors"]:
+            return ("Inaccessible Floor", (col, row))
         return None
 
     def erase_hit(self, hit) -> None:
@@ -928,6 +993,8 @@ class EditorWindow(QMainWindow):
         level = after["levels"][self.current_level]
         if kind == "Floor":
             level["floors"] = [floor for floor in level["floors"] if tuple(floor) != value]
+        elif kind == "Inaccessible Floor":
+            level["inaccessible_floors"] = [floor for floor in level["inaccessible_floors"] if tuple(floor) != value]
         elif kind == "Player Spawn":
             after["player_spawn_fields"] = [
                 field
@@ -948,7 +1015,10 @@ class EditorWindow(QMainWindow):
     def add_level(self) -> None:
         after = copy.deepcopy(self.map_data)
         insert_at = self.current_level + 1
-        after["levels"].insert(insert_at, {"name": f"Level {insert_at}", "floors": [], "walls": []})
+        after["levels"].insert(
+            insert_at,
+            {"name": f"Level {insert_at}", "floors": [], "inaccessible_floors": [], "walls": []},
+        )
         for field in after["player_spawn_fields"]:
             if field[0] >= insert_at:
                 field[0] += 1
@@ -1011,6 +1081,7 @@ class EditorWindow(QMainWindow):
             self,
             "Tool Reference",
             "Floor: drag cells to add floor.\n"
+            "Inaccessible Floor: drag cells to add floor slabs that never spawn items, players, or lights.\n"
             "Player Spawn: drag cells on the selected level to add spawn fields.\n"
             "Wall: drag along grid lines to place atomic wall edges.\n"
             "Ramp (Up): drag from this level toward the upper level.\n"

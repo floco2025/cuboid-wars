@@ -6,7 +6,7 @@ use serde::{Deserialize, Deserializer, de};
 use super::{
     floors,
     lights::generate_wall_lights,
-    mask::{Mask, mark_has_floor, mark_has_floor_above},
+    mask::{Mask, mark_has_floor, mark_has_floor_above, mark_has_floor_slab},
     ramps, walls,
 };
 use crate::{
@@ -47,6 +47,8 @@ pub struct LevelDef {
     pub name: Option<String>,
     #[serde(default)]
     pub floors: Vec<[i32; 2]>,
+    #[serde(default)]
+    pub inaccessible_floors: Vec<[i32; 2]>,
     #[serde(default)]
     pub walls: Vec<[i32; 4]>,
 }
@@ -157,6 +159,18 @@ fn validate_map(map_def: &MapDef) -> Result<()> {
                 .with_context(|| format!("{label}: floors[{floor_idx}]"))?;
             if !floors.insert(*floor) {
                 return Err(anyhow!("{label}: duplicate floor {:?}", floor));
+            }
+        }
+
+        let mut inaccessible_floors = BTreeSet::new();
+        for (floor_idx, floor) in level.inaccessible_floors.iter().enumerate() {
+            validate_floor(*floor, map_def.grid_cols, map_def.grid_rows)
+                .with_context(|| format!("{label}: inaccessible_floors[{floor_idx}]"))?;
+            if !inaccessible_floors.insert(*floor) {
+                return Err(anyhow!("{label}: duplicate inaccessible_floor {:?}", floor));
+            }
+            if floors.contains(floor) {
+                return Err(anyhow!("{label}: inaccessible_floor {:?} overlaps a floor", floor));
             }
         }
 
@@ -305,6 +319,8 @@ fn canonicalize(map_def: &mut MapDef) {
     for level in &mut map_def.levels {
         level.floors.sort_by_key(|[col, row]| (*row, *col));
         level.floors.dedup();
+        level.inaccessible_floors.sort_by_key(|[col, row]| (*row, *col));
+        level.inaccessible_floors.dedup();
 
         for wall in &mut level.walls {
             *wall = normalized_wall(*wall);
@@ -333,12 +349,23 @@ pub fn compile_map(map_def: &MapDef) -> (MapLayout, MapConfig) {
 
     let ramp_specs: Vec<ramps::RampSpec> = map_def.ramps.iter().map(ramp_spec_from_def).collect();
 
-    let masks: Vec<Mask> = map_def
+    let regular_floor_masks: Vec<Mask> = map_def
         .levels
         .iter()
         .map(|level| {
             let mut m = empty_mask(cols, rows);
             for [col, row] in &level.floors {
+                m[*row as usize][*col as usize] = true;
+            }
+            m
+        })
+        .collect();
+    let slab_masks: Vec<Mask> = map_def
+        .levels
+        .iter()
+        .map(|level| {
+            let mut m = empty_mask(cols, rows);
+            for [col, row] in level.floors.iter().chain(level.inaccessible_floors.iter()) {
                 m[*row as usize][*col as usize] = true;
             }
             m
@@ -352,7 +379,8 @@ pub fn compile_map(map_def: &MapDef) -> (MapLayout, MapConfig) {
         .map(|(level_idx, level)| {
             let mut cell_grid = CellGrid::new(cols, rows);
             let mut edge_grid = EdgeGrid::new(cols, rows);
-            mark_has_floor(&mut cell_grid, &masks[level_idx]);
+            mark_has_floor(&mut cell_grid, &regular_floor_masks[level_idx]);
+            mark_has_floor_slab(&mut cell_grid, &slab_masks[level_idx]);
             for wall in &level.walls {
                 set_wall_edge(&mut edge_grid, *wall);
             }
@@ -370,7 +398,7 @@ pub fn compile_map(map_def: &MapDef) -> (MapLayout, MapConfig) {
         ramps::apply_to_level_cells(&mut level_grid.cells, &ramp_specs, level_u32);
     }
     for level_idx in 0..level_grids.len().saturating_sub(1) {
-        mark_has_floor_above(&mut level_grids[level_idx].cells, &masks[level_idx + 1]);
+        mark_has_floor_above(&mut level_grids[level_idx].cells, &slab_masks[level_idx + 1]);
     }
 
     let mut wall_lights = Vec::new();
@@ -387,7 +415,7 @@ pub fn compile_map(map_def: &MapDef) -> (MapLayout, MapConfig) {
     }
 
     let mut all_floors: Vec<Floor> = Vec::new();
-    for (level_idx, m) in masks.iter().enumerate() {
+    for (level_idx, m) in slab_masks.iter().enumerate() {
         let level_u8 = u8::try_from(level_idx).unwrap_or(u8::MAX);
         let y = f32::from(level_u8) * LEVEL_HEIGHT;
         let mut tier = floors::emit_floor_tier(m, cols, rows, level_u8, y);
@@ -462,9 +490,14 @@ mod tests {
     use super::*;
 
     fn level(floors: Vec<[i32; 2]>) -> LevelDef {
+        level_with_inaccessible(floors, Vec::new())
+    }
+
+    fn level_with_inaccessible(floors: Vec<[i32; 2]>, inaccessible_floors: Vec<[i32; 2]>) -> LevelDef {
         LevelDef {
             name: None,
             floors,
+            inaccessible_floors,
             walls: Vec::new(),
         }
     }
@@ -498,6 +531,43 @@ mod tests {
         };
 
         validate_map(&map_def).expect("spawn field should be allowed on any level floor");
+    }
+
+    #[test]
+    fn validation_rejects_spawn_field_on_inaccessible_floor() {
+        let map_def = MapDef {
+            grid_cols: 4,
+            grid_rows: 4,
+            player_spawn_fields: vec![spawn(0, 1, 0)],
+            levels: vec![level_with_inaccessible(vec![[0, 0]], vec![[1, 0]])],
+            ramps: Vec::new(),
+        };
+
+        let err = validate_map(&map_def).expect_err("spawn field must require a regular floor");
+        assert!(err.to_string().contains("not a floor on level 0"));
+    }
+
+    #[test]
+    fn inaccessible_floor_emits_physical_slab_but_not_regular_floor() {
+        let map_def = MapDef {
+            grid_cols: 4,
+            grid_rows: 4,
+            player_spawn_fields: vec![spawn(0, 0, 0)],
+            levels: vec![level_with_inaccessible(vec![[0, 0]], vec![[2, 0]])],
+            ramps: Vec::new(),
+        };
+
+        let (layout, config) = compile_map(&map_def);
+        let inaccessible_cell = config.levels[0].cells.rows[0][2];
+        assert!(!inaccessible_cell.has_floor);
+        assert!(inaccessible_cell.has_floor_slab);
+
+        let x = (2.5_f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
+        let z = (0.5_f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+        assert!(layout.floors.iter().any(|floor| {
+            let (min_x, max_x, min_z, max_z) = floor.bounds_xz();
+            min_x <= x && x <= max_x && min_z <= z && z <= max_z
+        }));
     }
 
     #[test]

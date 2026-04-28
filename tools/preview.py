@@ -25,7 +25,7 @@ PLAYER_SPAWN = "S"
 
 WRAPPER_KEYS = {"version", "map"}
 MAP_KEYS = {"grid_cols", "grid_rows", "player_spawn_fields", "levels", "ramps"}
-LEVEL_KEYS = {"name", "floors", "walls"}
+LEVEL_KEYS = {"name", "floors", "inaccessible_floors", "walls"}
 RAMP_KEYS = {"lower_level", "low", "high"}
 
 RAMP_UP = {
@@ -99,7 +99,9 @@ def warn_unknown_keys(path: str, value: object, known_keys: set[str]) -> None:
 
 
 def floor_set(level: dict) -> set[tuple[int, int]]:
-    return {(col, row) for col, row in level.get("floors", [])}
+    floors = {(col, row) for col, row in level.get("floors", [])}
+    floors.update((col, row) for col, row in level.get("inaccessible_floors", []))
+    return floors
 
 
 def ramp_rect(ramp: dict) -> tuple[int, int, int, int]:
