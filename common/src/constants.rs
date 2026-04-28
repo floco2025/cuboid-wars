@@ -80,7 +80,7 @@ pub const LEVEL_HEIGHT: f32 = WALL_HEIGHT + FLOOR_THICKNESS;
 // ============================================================================
 
 pub const POWER_UP_SPEED_MULTIPLIER: f32 = 1.8;
-pub const POWER_UP_MULTI_SHOT_MULTIPLER: i32 = 5;
+pub const POWER_UP_MULTI_SHOT_MULTIPLIER: i32 = 5;
 pub const POWER_UP_MULTI_SHOT_ANGLE: f32 = 2.0;
 
 // ============================================================================

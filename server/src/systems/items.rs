@@ -5,12 +5,13 @@ use std::collections::HashSet;
 use super::network::broadcast_to_all;
 use crate::{
     constants::*,
-    map::{cell_center, find_unoccupied_cell_not_ramp, grid_coords_from_position},
+    map::grid_coords_from_position,
     net::ServerToClient,
     resources::{ItemInfo, ItemMap, ItemSpawner, MapConfig, PlayerMap},
 };
 use common::{
-    constants::{GRID_COLS, GRID_ROWS},
+    constants::{FIELD_DEPTH, FIELD_WIDTH, GRID_SIZE, LEVEL_HEIGHT},
+    map::compute_player_level,
     markers::{ItemMarker, PlayerMarker},
     physics::overlap_player_vs_item,
     protocol::{ItemId, ItemType, PlayerId, Position, SCookieCollected, ServerMessage},
@@ -19,6 +20,8 @@ use common::{
 // ============================================================================
 // Helper Functions
 // ============================================================================
+
+const ITEM_PICKUP_FLOOR_EPSILON: f32 = 0.1;
 
 fn choose_item_type(rng: &mut ThreadRng) -> ItemType {
     let rand_val = rng.random::<f64>();
@@ -31,6 +34,67 @@ fn choose_item_type(rng: &mut ThreadRng) -> ItemType {
     }
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+struct ItemSpawnCell {
+    level: u8,
+    col: i32,
+    row: i32,
+}
+
+impl ItemSpawnCell {
+    fn position(self) -> Position {
+        Position {
+            x: (self.col as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)),
+            y: f32::from(self.level) * LEVEL_HEIGHT,
+            z: (self.row as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0)),
+        }
+    }
+}
+
+fn item_spawn_cell_from_position(pos: &Position) -> ItemSpawnCell {
+    let (col, row) = grid_coords_from_position(pos);
+    ItemSpawnCell {
+        level: compute_player_level(pos.y),
+        col,
+        row,
+    }
+}
+
+fn eligible_item_spawn_cells(map_config: &MapConfig) -> Vec<ItemSpawnCell> {
+    let mut cells = Vec::new();
+    for (level_idx, level_grid) in map_config.levels.iter().enumerate() {
+        let level = u8::try_from(level_idx).unwrap_or(u8::MAX);
+        for (row, grid_row) in level_grid.cells.rows.iter().enumerate() {
+            for (col, cell) in grid_row.iter().enumerate() {
+                if cell.has_floor && !cell.has_ramp {
+                    cells.push(ItemSpawnCell {
+                        level,
+                        col: col as i32,
+                        row: row as i32,
+                    });
+                }
+            }
+        }
+    }
+    cells
+}
+
+fn target_active_power_ups(eligible_cell_count: usize) -> usize {
+    if eligible_cell_count == 0 {
+        return 0;
+    }
+    eligible_cell_count
+        .div_ceil(ITEM_CELLS_PER_ACTIVE)
+        .clamp(ITEM_MIN_ACTIVE, ITEM_MAX_ACTIVE)
+        .min(eligible_cell_count)
+        .max(1)
+}
+
+fn power_up_spawn_interval(eligible_cell_count: usize) -> Option<f32> {
+    let target_active = target_active_power_ups(eligible_cell_count);
+    (target_active > 0).then_some(ITEM_LIFETIME / target_active as f32)
+}
+
 // ============================================================================
 // Item Spawn/Despawn Systems
 // ============================================================================
@@ -41,7 +105,12 @@ pub fn item_initial_spawn_system(
     mut spawner: ResMut<ItemSpawner>,
     mut items: ResMut<ItemMap>,
     query: Query<&ItemId, With<ItemMarker>>,
+    map_config: Res<MapConfig>,
 ) {
+    if !COOKIE_SPAWNING_ENABLED {
+        return;
+    }
+
     // Only spawn cookies once - check if any cookies exist
     let has_cookies = query
         .iter()
@@ -51,24 +120,21 @@ pub fn item_initial_spawn_system(
         return;
     }
 
-    // Spawn one cookie on each grid cell
-    for grid_z in 0..GRID_ROWS {
-        for grid_x in 0..GRID_COLS {
-            let item_id = ItemId(spawner.next_id);
-            spawner.next_id += 1;
-            let position = cell_center(grid_x, grid_z);
+    for spawn_cell in eligible_item_spawn_cells(&map_config) {
+        let item_id = ItemId(spawner.next_id);
+        spawner.next_id += 1;
+        let position = spawn_cell.position();
 
-            let entity = commands.spawn((ItemMarker, item_id, position)).id();
+        let entity = commands.spawn((ItemMarker, item_id, position)).id();
 
-            items.0.insert(
-                item_id,
-                ItemInfo {
-                    entity,
-                    item_type: ItemType::Cookie,
-                    spawn_time: 0.0, // Cookie is available (not respawning)
-                },
-            );
-        }
+        items.0.insert(
+            item_id,
+            ItemInfo {
+                entity,
+                item_type: ItemType::Cookie,
+                spawn_time: 0.0, // Cookie is available (not respawning)
+            },
+        );
     }
 }
 
@@ -84,27 +150,35 @@ pub fn item_spawn_system(
     let delta = time.delta_secs();
     spawner.timer += delta;
 
-    if spawner.timer >= ITEM_SPAWN_INTERVAL {
+    let eligible_cells = eligible_item_spawn_cells(&map_config);
+    let Some(spawn_interval) = power_up_spawn_interval(eligible_cells.len()) else {
+        return;
+    };
+
+    if spawner.timer >= spawn_interval {
         spawner.timer = 0.0;
 
-        // Get occupied grid cells from existing power-ups (ignore cookies)
-        let occupied_cells: HashSet<(i32, i32)> = items
+        let occupied_cells: HashSet<ItemSpawnCell> = items
             .0
             .values()
             .filter(|info| info.item_type != ItemType::Cookie)
-            .filter_map(|info| positions.get(info.entity).ok().map(grid_coords_from_position))
+            .filter_map(|info| positions.get(info.entity).ok().map(item_spawn_cell_from_position))
             .collect();
+        let target_active = target_active_power_ups(eligible_cells.len());
+        if occupied_cells.len() >= target_active {
+            return;
+        }
 
         let mut rng = rng();
-
-        let Some(level0) = map_config.levels.first() else {
-            return;
-        };
-
-        if let Some((grid_x, grid_z)) = find_unoccupied_cell_not_ramp(&mut rng, &occupied_cells, &level0.cells) {
+        let available_cells = eligible_cells
+            .into_iter()
+            .filter(|cell| !occupied_cells.contains(cell))
+            .collect::<Vec<_>>();
+        if !available_cells.is_empty() {
+            let spawn_cell = available_cells[rng.random_range(0..available_cells.len())];
             let item_id = ItemId(spawner.next_id);
             spawner.next_id += 1;
-            let position = cell_center(grid_x, grid_z);
+            let position = spawn_cell.position();
             let item_type = choose_item_type(&mut rng);
 
             let entity = commands.spawn((ItemMarker, item_id, position)).id();
@@ -168,8 +242,8 @@ pub fn item_collection_system(
             // Check against all players
             for (player_id, player_info) in &players.0 {
                 if let Ok(player_pos) = player_positions.get(player_info.entity) {
-                    // Only allow pickup when player is effectively on the ground
-                    if player_pos.y > 0.1 {
+                    // Only allow pickup when the player is on the item's floor level.
+                    if (player_pos.y - item_pos.y).abs() > ITEM_PICKUP_FLOOR_EPSILON {
                         continue;
                     }
 
@@ -257,5 +331,57 @@ pub fn item_respawn_system(time: Res<Time>, mut items: ResMut<ItemMap>) {
                 item_info.spawn_time = 0.0; // Cookie has respawned
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::resources::{CellGrid, EdgeGrid, LevelGrid};
+
+    fn map_config(levels: Vec<LevelGrid>) -> MapConfig {
+        MapConfig {
+            levels,
+            player_spawn_fields: Vec::new(),
+        }
+    }
+
+    fn level_grid(cells: CellGrid) -> LevelGrid {
+        LevelGrid {
+            cells,
+            edges: EdgeGrid::new(1, 1),
+        }
+    }
+
+    #[test]
+    fn item_spawn_cells_include_all_floor_levels_and_skip_ramps() {
+        let mut lower = CellGrid::new(1, 1);
+        lower.rows[0][0].has_floor = true;
+        let mut upper = CellGrid::new(1, 1);
+        upper.rows[0][0].has_floor = true;
+        upper.rows[0][0].has_ramp = true;
+        let config = map_config(vec![level_grid(lower), level_grid(upper)]);
+
+        let cells = eligible_item_spawn_cells(&config);
+
+        assert_eq!(
+            cells,
+            vec![ItemSpawnCell {
+                level: 0,
+                col: 0,
+                row: 0
+            }]
+        );
+    }
+
+    #[test]
+    fn power_up_target_scales_with_eligible_floor_space() {
+        assert_eq!(target_active_power_ups(0), 0);
+        assert_eq!(target_active_power_ups(1), 1);
+        assert_eq!(target_active_power_ups(ITEM_CELLS_PER_ACTIVE * 3), 3);
+        assert_eq!(
+            target_active_power_ups(ITEM_CELLS_PER_ACTIVE * (ITEM_MAX_ACTIVE + 5)),
+            ITEM_MAX_ACTIVE
+        );
     }
 }

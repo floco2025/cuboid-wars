@@ -33,6 +33,7 @@ pub const EXTERIOR_LIGHT_STEP_RETENTION: f32 = 0.75;
 // Cookies
 // ============================================================================
 
+pub const COOKIE_SPAWNING_ENABLED: bool = false;
 pub const COOKIE_RESPAWN_TIME: f32 = 30.0; // seconds
 pub const COOKIE_POINTS: i32 = 1; // points per cookie
 
@@ -40,9 +41,11 @@ pub const COOKIE_POINTS: i32 = 1; // points per cookie
 // Items
 // ============================================================================
 
-pub const ITEM_SPAWN_INTERVAL: f32 = 8.0; // seconds
 pub const ITEM_LIFETIME: f32 = 60.0; // seconds
 pub const ITEM_COLLECTION_RADIUS: f32 = 1.0; // meters
+pub const ITEM_CELLS_PER_ACTIVE: usize = 60;
+pub const ITEM_MIN_ACTIVE: usize = 2;
+pub const ITEM_MAX_ACTIVE: usize = 20;
 
 // ============================================================================
 // Power-Ups

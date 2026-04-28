@@ -67,7 +67,7 @@ pub fn spawn_item(
                     perceptual_roughness: TEXTURE_COOKIE_ROUGHNESS,
                     ..default()
                 })),
-                transform: Transform::from_xyz(position.x, COOKIE_HEIGHT, position.z),
+                transform: Transform::from_xyz(position.x, position.y + COOKIE_HEIGHT, position.z),
             })
             .id();
     }
@@ -93,7 +93,11 @@ pub fn spawn_item(
                     perceptual_roughness: TEXTURE_ITEM_ROUGHNESS,
                     ..default()
                 })),
-                transform: Transform::from_xyz(position.x, ITEM_HEIGHT_ABOVE_FLOOR + ITEM_SIZE / 2.0, position.z),
+                transform: Transform::from_xyz(
+                    position.x,
+                    position.y + ITEM_HEIGHT_ABOVE_FLOOR + ITEM_SIZE / 2.0,
+                    position.z,
+                ),
             },
             ItemAnimTimer(random_phase),
         ))

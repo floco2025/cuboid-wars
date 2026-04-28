@@ -36,7 +36,7 @@ pub fn calculate_projectile_spawns(
 
     // Determine number of shots
     let num_shots = if has_multi_shot {
-        POWER_UP_MULTI_SHOT_MULTIPLER
+        POWER_UP_MULTI_SHOT_MULTIPLIER
     } else {
         1
     };
