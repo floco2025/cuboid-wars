@@ -189,7 +189,7 @@ fn cell_can_have_wall_light(cells: &CellGrid, row: i32, col: i32) -> bool {
         .rows
         .get(row as usize)
         .and_then(|grid_row| grid_row.get(col as usize))
-        .is_some_and(|cell| cell.has_floor && !cell.has_ramp)
+        .is_some_and(|cell| !cell.has_ramp && (cell.has_floor || cell.has_ramp_from_below))
 }
 
 fn cell_has_floor(cells: &CellGrid, row: i32, col: i32) -> bool {
@@ -311,7 +311,6 @@ mod tests {
     #[test]
     fn ramp_footprint_never_gets_wall_lights() {
         let mut cells = CellGrid::new(1, 1);
-        mark_floor_rect(&mut cells, 0, 0, 1, 1);
         cells.rows[0][0].has_ramp = true;
         let mut ceiling = CellGrid::new(1, 1);
         mark_floor_rect(&mut ceiling, 0, 0, 1, 1);
@@ -323,6 +322,22 @@ mod tests {
         let lights = generate_wall_lights_from_parts(&levels, 0);
 
         assert!(lights.is_empty());
+    }
+
+    #[test]
+    fn ramp_from_below_can_support_wall_lights_when_dark() {
+        let mut cells = CellGrid::new(1, 1);
+        cells.rows[0][0].has_ramp_from_below = true;
+        let mut ceiling = CellGrid::new(1, 1);
+        mark_floor_rect(&mut ceiling, 0, 0, 1, 1);
+        let levels = vec![
+            level_grid(cells, enclosed_edges(1, 1)),
+            level_grid(ceiling, EdgeGrid::new(1, 1)),
+        ];
+
+        let lights = generate_wall_lights_from_parts(&levels, 0);
+
+        assert_eq!(lights.len(), 4);
     }
 
     #[test]

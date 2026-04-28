@@ -52,9 +52,14 @@ impl RampSpec {
     }
 }
 
-// Apply ramp flags to a level's cell grid for spawn-cell selection.
+// Apply ramp flags to a level's cell grid.
 pub fn apply_to_level_cells(cells: &mut CellGrid, ramps: &[RampSpec], level: u32) {
     for ramp in ramps {
+        if ramp.lower_level + 1 == level {
+            for (row, col) in ramp.footprint_cells() {
+                cells.rows[row as usize][col as usize].has_ramp_from_below = true;
+            }
+        }
         if ramp.lower_level != level {
             continue;
         }
