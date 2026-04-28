@@ -1,8 +1,13 @@
 use bevy_ecs::prelude::*;
 use bevy_math::Vec3;
+use parry3d::{
+    math::{Pose, Vector},
+    query::{ShapeCastOptions, cast_shapes},
+    shape::{Cuboid as ParryCuboid, Shape},
+};
 
 use super::{
-    helpers::{Collision, Cuboid, sweep_aabb_vs_aabb, sweep_point_vs_cuboid, wall_cuboid},
+    helpers::{Collision, Cuboid, sweep_aabb_vs_aabb, wall_cuboid},
     world::{Axis, CollisionShape, CollisionSolid, CollisionWorld, Wedge},
 };
 use crate::{
@@ -13,6 +18,7 @@ use crate::{
     protocol::{Position, Wall},
 };
 
+const PLAYER_CONTACT_OFFSET: f32 = 0.01;
 // Component attached to player entities tracking 3D velocity for gravity and falling.
 // Horizontal motion is still derived from `Speed` each tick; the vertical component
 // here drives gravity/landing physics.
@@ -130,7 +136,8 @@ fn sweep_player_through_solids(
             break;
         };
 
-        current = Position::from(Vec3::from(current) + remaining * collision.t + collision.normal * PHYSICS_EPSILON);
+        current =
+            Position::from(Vec3::from(current) + remaining * collision.t + collision.normal * PLAYER_CONTACT_OFFSET);
 
         if collision.normal.y > 0.5 {
             hit_floor_top = true;
@@ -172,14 +179,16 @@ fn sweep_player_vs_solid(start: &Position, target: &Position, solid: &CollisionS
             if is_player_on_cuboid_top(start, cuboid) {
                 None
             } else {
-                sweep_player_vs_cuboid(start, target, cuboid)
+                let (solid_pos, solid_shape) = solid.parry_parts();
+                sweep_player_vs_parry_shape(start, target, solid_pos, solid_shape)
             }
         }
         CollisionShape::Wedge(wedge) => {
-            if is_player_on_wedge_top(start, wedge) {
+            if is_player_on_wedge_top(start, wedge) || is_entering_wedge_end(start, target, wedge) {
                 None
             } else {
-                sweep_player_vs_wedge(start, target, wedge)
+                let (solid_pos, solid_shape) = solid.parry_parts();
+                sweep_player_vs_parry_shape(start, target, solid_pos, solid_shape)
             }
         }
     }
@@ -191,121 +200,87 @@ fn is_player_on_cuboid_top(pos: &Position, cuboid: Cuboid) -> bool {
     (pos.y - cuboid_top).abs() <= PLAYER_LANDING_EPSILON
 }
 
-fn sweep_player_vs_cuboid(start: &Position, target: &Position, cuboid: Cuboid) -> Option<Collision> {
-    let expanded = Cuboid {
-        center: cuboid.center,
-        half_extents: cuboid.half_extents + Vec3::new(PLAYER_WIDTH / 2.0, PLAYER_HEIGHT / 2.0, PLAYER_DEPTH / 2.0),
-    };
-    let start_center = Position {
-        x: start.x,
-        y: start.y + PLAYER_HEIGHT / 2.0,
-        z: start.z,
-    };
-    let ray_dir = Vec3::new(target.x - start.x, target.y - start.y, target.z - start.z);
-    sweep_point_vs_cuboid(&start_center, ray_dir, expanded)
-}
-
 fn is_player_on_wedge_top(pos: &Position, wedge: Wedge) -> bool {
     wedge
         .surface_y_at(pos.x, pos.z)
         .is_some_and(|surface_y| (pos.y - surface_y).abs() <= PLAYER_LANDING_EPSILON)
 }
 
-fn sweep_player_vs_wedge(start: &Position, target: &Position, wedge: Wedge) -> Option<Collision> {
-    let player_half_extents = Vec3::new(PLAYER_WIDTH / 2.0, PLAYER_HEIGHT / 2.0, PLAYER_DEPTH / 2.0);
-    let start_center = Vec3::new(start.x, start.y + PLAYER_HEIGHT / 2.0, start.z);
-    let ray_dir = Vec3::new(target.x - start.x, target.y - start.y, target.z - start.z);
-
-    sweep_point_vs_planes(start_center, ray_dir, player_half_extents, &wedge_planes(wedge))
+fn is_entering_wedge_end(start: &Position, target: &Position, wedge: Wedge) -> bool {
+    is_entering_wedge_end_at(start, target, wedge, wedge.low_at, wedge.high_at, wedge.bounds.min_y())
+        || is_entering_wedge_end_at(start, target, wedge, wedge.high_at, wedge.low_at, wedge.bounds.max_y())
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct Plane {
-    normal: Vec3,
-    d: f32,
-}
+fn is_entering_wedge_end_at(
+    start: &Position,
+    target: &Position,
+    wedge: Wedge,
+    end_at: f32,
+    opposite_end_at: f32,
+    end_y: f32,
+) -> bool {
+    if (start.y - end_y).abs() > PLAYER_LANDING_EPSILON {
+        return false;
+    }
 
-fn wedge_planes(wedge: Wedge) -> [Plane; 6] {
-    let bounds = wedge.bounds;
-    let footprint = bounds.footprint();
+    let toward_inside = (opposite_end_at - end_at).signum();
+    if toward_inside.abs() <= PHYSICS_EPSILON {
+        return false;
+    }
 
-    [
-        plane(Vec3::NEG_X, -footprint.min_x),
-        plane(Vec3::X, footprint.max_x),
-        plane(Vec3::NEG_Z, -footprint.min_z),
-        plane(Vec3::Z, footprint.max_z),
-        plane(Vec3::NEG_Y, -bounds.min_y()),
-        wedge_top_plane(wedge),
-    ]
-}
-
-fn wedge_top_plane(wedge: Wedge) -> Plane {
-    let min_y = wedge.bounds.min_y();
-    let max_y = wedge.bounds.max_y();
-    let slope = if (wedge.high_at - wedge.low_at).abs() < PHYSICS_EPSILON {
-        0.0
-    } else {
-        (max_y - min_y) / (wedge.high_at - wedge.low_at)
+    let (start_axis, target_axis, cross_axis) = match wedge.slope_axis {
+        Axis::X => (start.x, target.x, start.z),
+        Axis::Z => (start.z, target.z, start.x),
+    };
+    let footprint = wedge.bounds.footprint();
+    let cross_inside = match wedge.slope_axis {
+        Axis::X => cross_axis >= footprint.min_z && cross_axis <= footprint.max_z,
+        Axis::Z => cross_axis >= footprint.min_x && cross_axis <= footprint.max_x,
     };
 
-    match wedge.slope_axis {
-        Axis::X => plane(Vec3::new(-slope, 1.0, 0.0), min_y - slope * wedge.low_at),
-        Axis::Z => plane(Vec3::new(0.0, 1.0, -slope), min_y - slope * wedge.low_at),
-    }
+    cross_inside && (start_axis - end_at) * toward_inside < 0.0 && (target_axis - start_axis) * toward_inside > 0.0
 }
 
-fn plane(normal: Vec3, d: f32) -> Plane {
-    let length = normal.length();
-    if length <= PHYSICS_EPSILON {
-        Plane { normal, d }
-    } else {
-        Plane {
-            normal: normal / length,
-            d: d / length,
-        }
-    }
-}
+fn sweep_player_vs_parry_shape(
+    start: &Position,
+    target: &Position,
+    solid_pos: &Pose,
+    solid_shape: &dyn Shape,
+) -> Option<Collision> {
+    let player_shape = ParryCuboid::new(Vector::new(PLAYER_WIDTH / 2.0, PLAYER_HEIGHT / 2.0, PLAYER_DEPTH / 2.0));
+    let start_center = Vec3::new(start.x, start.y + PLAYER_HEIGHT / 2.0, start.z);
+    let ray_dir = Vec3::new(target.x - start.x, target.y - start.y, target.z - start.z);
+    let player_pos = Pose::translation(start_center.x, start_center.y, start_center.z);
+    let options = ShapeCastOptions::with_max_time_of_impact(1.0);
+    let hit = cast_shapes(
+        &player_pos,
+        parry_vec(ray_dir),
+        &player_shape,
+        solid_pos,
+        Vector::ZERO,
+        solid_shape,
+        options,
+    )
+    .ok()
+    .flatten()?;
+    let normal = vec3(hit.normal2);
 
-fn sweep_point_vs_planes(start: Vec3, ray_dir: Vec3, half_extents: Vec3, planes: &[Plane]) -> Option<Collision> {
-    let mut t_enter = 0.0_f32;
-    let mut t_exit = 1.0_f32;
-    let mut hit_normal = Vec3::ZERO;
-
-    for plane in planes {
-        let expanded_d = plane.d + half_extents.dot(plane.normal.abs());
-        let dist = plane.normal.dot(start) - expanded_d;
-        let denom = plane.normal.dot(ray_dir);
-
-        if denom.abs() < PHYSICS_EPSILON {
-            if dist > 0.0 {
-                return None;
-            }
-            continue;
-        }
-
-        let t = -dist / denom;
-        if denom < 0.0 {
-            if t > t_enter {
-                t_enter = t;
-                hit_normal = plane.normal;
-            }
-        } else if t < t_exit {
-            t_exit = t;
-        }
-
-        if t_enter > t_exit {
-            return None;
-        }
-    }
-
-    if t_exit < 0.0 || t_enter > 1.0 || hit_normal == Vec3::ZERO {
+    if hit.time_of_impact <= PHYSICS_EPSILON && ray_dir.dot(normal) >= -PHYSICS_EPSILON {
         return None;
     }
 
     Some(Collision {
-        normal: hit_normal,
-        t: t_enter.clamp(0.0, 1.0),
+        normal,
+        t: hit.time_of_impact.clamp(0.0, 1.0),
     })
+}
+
+fn parry_vec(v: Vec3) -> Vector {
+    Vector::new(v.x, v.y, v.z)
+}
+
+fn vec3(v: Vector) -> Vec3 {
+    Vec3::new(v.x, v.y, v.z)
 }
 
 #[must_use]
@@ -381,12 +356,35 @@ mod tests {
         }
     }
 
+    fn low_overhead_floor() -> Floor {
+        Floor {
+            x1: -4.0,
+            z1: -4.0,
+            x2: 4.0,
+            z2: 4.0,
+            y: PLAYER_HEIGHT - 0.05,
+            thickness: FLOOR_THICKNESS,
+            level: 1,
+        }
+    }
+
     fn test_wall() -> Wall {
         Wall {
             x1: 0.0,
             z1: -2.0,
             x2: 0.0,
             z2: 2.0,
+            width: 0.2,
+            level: 0,
+        }
+    }
+
+    fn horizontal_wall() -> Wall {
+        Wall {
+            x1: 0.0,
+            z1: 0.0,
+            x2: 4.0,
+            z2: 0.0,
             width: 0.2,
             level: 0,
         }
@@ -408,7 +406,8 @@ mod tests {
     #[test]
     fn player_hits_wall_cuboid_from_collision_world() {
         let wall = test_wall();
-        let collision_world = collision_world_with(&[wall], &[], &[]);
+        let floor = lower_floor();
+        let collision_world = collision_world_with(&[wall], &[floor], &[]);
         let pos = Position {
             x: -1.0,
             y: 0.0,
@@ -425,7 +424,8 @@ mod tests {
     #[test]
     fn repeated_wall_pressure_does_not_leak_through_wall() {
         let wall = test_wall();
-        let collision_world = collision_world_with(&[wall], &[], &[]);
+        let floor = lower_floor();
+        let collision_world = collision_world_with(&[wall], &[floor], &[]);
         let pos = Position {
             x: -1.0,
             y: 0.0,
@@ -447,6 +447,98 @@ mod tests {
         assert!(first.hit_horizontal);
         assert!(second.hit_horizontal);
         assert!(second.position.x < 0.0);
+    }
+
+    #[test]
+    fn player_slides_along_wall_under_pressure() {
+        let wall = test_wall();
+        let floor = lower_floor();
+        let collision_world = collision_world_with(&[wall], &[floor], &[]);
+        let pos = Position {
+            x: -1.0,
+            y: 0.0,
+            z: 0.0,
+        };
+        let motion = PlayerMotion::default();
+
+        let first = step_player_motion(&pos, &motion, &collision_world, false, 1.0, pos.z, 0.1);
+        let second = step_player_motion(
+            &first.position,
+            &motion,
+            &collision_world,
+            false,
+            1.0,
+            first.position.z + 1.0,
+            0.1,
+        );
+
+        assert!(second.hit_horizontal);
+        assert!(second.position.x < 0.0);
+        assert!(second.position.z > first.position.z);
+    }
+
+    #[test]
+    fn diagonal_wall_hit_slides_in_same_step() {
+        let wall = test_wall();
+        let collision_world = collision_world_with(&[wall], &[], &[]);
+        let pos = Position {
+            x: -1.0,
+            y: 0.0,
+            z: 0.0,
+        };
+        let motion = PlayerMotion::default();
+
+        let step = step_player_motion(&pos, &motion, &collision_world, false, 1.0, 1.0, 0.1);
+
+        assert!(step.hit_horizontal);
+        assert!(step.position.x < 0.0);
+        assert!(step.position.z > 0.0);
+    }
+
+    #[test]
+    fn repeated_diagonal_wall_pressure_keeps_sliding() {
+        let wall = Wall {
+            x1: 0.0,
+            z1: -100.0,
+            x2: 0.0,
+            z2: 100.0,
+            width: 0.2,
+            level: 0,
+        };
+        let floor = lower_floor();
+        let collision_world = collision_world_with(&[wall], &[floor], &[]);
+        let mut pos = Position {
+            x: -1.0,
+            y: 0.0,
+            z: 0.0,
+        };
+        let motion = PlayerMotion::default();
+
+        for _ in 0..20 {
+            let step = step_player_motion(&pos, &motion, &collision_world, false, 1.0, pos.z + 0.25, 0.1);
+            pos = step.position;
+        }
+
+        assert!(pos.x < 0.0);
+        assert!(pos.z > 2.0);
+    }
+
+    #[test]
+    fn diagonal_wall_end_hit_slides_along_wall() {
+        let wall = horizontal_wall();
+        let collision_world = collision_world_with(&[wall], &[], &[]);
+        let pos = Position {
+            x: -1.0,
+            y: 0.0,
+            z: -1.0,
+        };
+        let motion = PlayerMotion::default();
+
+        let step = step_player_motion(&pos, &motion, &collision_world, false, 1.0, 1.0, 0.1);
+
+        assert!(step.hit_horizontal);
+        assert!(step.position.x > pos.x);
+        assert!(step.position.z < 0.0);
     }
 
     #[test]
@@ -521,6 +613,22 @@ mod tests {
 
         assert_eq!(step.vy, 0.0);
         assert!(step.position.y <= floor.y - floor.thickness);
+    }
+
+    #[test]
+    fn initial_ceiling_contact_does_not_cancel_horizontal_movement() {
+        let floor = lower_floor();
+        let ceiling = low_overhead_floor();
+        let collision_world = collision_world(&[floor, ceiling], &[]);
+        let pos = Position { x: 0.0, y: 0.0, z: 0.0 };
+        let motion = PlayerMotion::default();
+
+        let step = step_player_motion(&pos, &motion, &collision_world, false, 0.5, pos.z, 0.1);
+
+        assert!(!step.hit_horizontal);
+        assert!(step.position.x > pos.x);
+        assert_eq!(step.position.y, floor.y);
+        assert_eq!(step.vy, 0.0);
     }
 
     #[test]
@@ -625,6 +733,23 @@ mod tests {
 
         assert!(!step.hit_horizontal);
         assert!(step.position.z > pos.z);
+    }
+
+    #[test]
+    fn upper_floor_player_can_enter_wedge_high_end() {
+        let ramp = test_ramp();
+        let collision_world = collision_world(&[], &[ramp]);
+        let pos = Position {
+            x: 2.0,
+            y: LEVEL_HEIGHT,
+            z: 8.25,
+        };
+        let motion = PlayerMotion::default();
+
+        let step = step_player_motion(&pos, &motion, &collision_world, false, pos.x, 7.75, 0.1);
+
+        assert!(!step.hit_horizontal);
+        assert!(step.position.z < pos.z);
     }
 
     #[test]

@@ -14,5 +14,6 @@ bevy_time = "0.18"
 bincode = "2.0"
 quinn = "0.11"
 anyhow = "1"
+parry3d = "0.26"
 rustls = { version = "0.23", default-features = false }
 rustls-pemfile = "2"

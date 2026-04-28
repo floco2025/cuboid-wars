@@ -1,5 +1,9 @@
 use bevy_ecs::prelude::Resource;
 use bevy_math::Vec3;
+use parry3d::{
+    math::{Pose, Vector},
+    shape::{ConvexPolyhedron, Cuboid as ParryCuboid, Shape},
+};
 
 use super::{Cuboid, floor_cuboid, wall_cuboid};
 use crate::{
@@ -22,7 +26,7 @@ impl CollisionWorld {
             .iter()
             .map(wall_solid)
             .chain(map_layout.floors.iter().map(floor_solid))
-            .chain(map_layout.ramps.iter().map(ramp_solid))
+            .chain(map_layout.ramps.iter().filter_map(ramp_solid))
             .collect();
 
         let supports = map_layout
@@ -48,10 +52,26 @@ impl CollisionWorld {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CollisionSolid {
     pub shape: CollisionShape,
     pub phasing_passthrough: bool,
+    parry_shape: ParrySolid,
+}
+
+impl CollisionSolid {
+    pub(crate) fn parry_parts(&self) -> (&Pose, &dyn Shape) {
+        match &self.parry_shape {
+            ParrySolid::Cuboid { pose, shape } => (pose, shape),
+            ParrySolid::Wedge { pose, shape } => (pose, shape),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum ParrySolid {
+    Cuboid { pose: Pose, shape: ParryCuboid },
+    Wedge { pose: Pose, shape: ConvexPolyhedron },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -199,24 +219,31 @@ impl From<RampAxis> for Axis {
 }
 
 fn wall_solid(wall: &Wall) -> CollisionSolid {
+    let cuboid = wall_cuboid(wall, 0.0);
     CollisionSolid {
-        shape: CollisionShape::Cuboid(wall_cuboid(wall, 0.0)),
+        shape: CollisionShape::Cuboid(cuboid),
         phasing_passthrough: true,
+        parry_shape: parry_cuboid(cuboid),
     }
 }
 
 fn floor_solid(floor: &Floor) -> CollisionSolid {
+    let cuboid = floor_cuboid(floor, 0.0);
     CollisionSolid {
-        shape: CollisionShape::Cuboid(floor_cuboid(floor, 0.0)),
+        shape: CollisionShape::Cuboid(cuboid),
         phasing_passthrough: false,
+        parry_shape: parry_cuboid(cuboid),
     }
 }
 
-fn ramp_solid(ramp: &Ramp) -> CollisionSolid {
-    CollisionSolid {
-        shape: CollisionShape::Wedge(wedge_from_ramp(ramp)),
+fn ramp_solid(ramp: &Ramp) -> Option<CollisionSolid> {
+    let wedge = wedge_from_ramp(ramp);
+    let parry_shape = parry_wedge(wedge)?;
+    Some(CollisionSolid {
+        shape: CollisionShape::Wedge(wedge),
         phasing_passthrough: false,
-    }
+        parry_shape,
+    })
 }
 
 fn floor_support(floor: &Floor) -> SupportSurface {
@@ -272,6 +299,48 @@ fn rect_from_bounds_xz((min_x, max_x, min_z, max_z): (f32, f32, f32, f32)) -> Re
         min_z,
         max_z,
     }
+}
+
+fn parry_cuboid(cuboid: Cuboid) -> ParrySolid {
+    ParrySolid::Cuboid {
+        pose: Pose::translation(cuboid.center.x, cuboid.center.y, cuboid.center.z),
+        shape: ParryCuboid::new(parry_vec(cuboid.half_extents)),
+    }
+}
+
+fn parry_wedge(wedge: Wedge) -> Option<ParrySolid> {
+    let bounds = wedge.bounds;
+    let footprint = bounds.footprint();
+    let min_y = bounds.min_y();
+    let max_y = bounds.max_y();
+
+    let points = match wedge.slope_axis {
+        Axis::X => vec![
+            Vector::new(wedge.low_at, min_y, footprint.min_z),
+            Vector::new(wedge.low_at, min_y, footprint.max_z),
+            Vector::new(wedge.high_at, min_y, footprint.min_z),
+            Vector::new(wedge.high_at, min_y, footprint.max_z),
+            Vector::new(wedge.high_at, max_y, footprint.min_z),
+            Vector::new(wedge.high_at, max_y, footprint.max_z),
+        ],
+        Axis::Z => vec![
+            Vector::new(footprint.min_x, min_y, wedge.low_at),
+            Vector::new(footprint.max_x, min_y, wedge.low_at),
+            Vector::new(footprint.min_x, min_y, wedge.high_at),
+            Vector::new(footprint.max_x, min_y, wedge.high_at),
+            Vector::new(footprint.min_x, max_y, wedge.high_at),
+            Vector::new(footprint.max_x, max_y, wedge.high_at),
+        ],
+    };
+
+    Some(ParrySolid::Wedge {
+        pose: Pose::identity(),
+        shape: ConvexPolyhedron::from_convex_hull(&points)?,
+    })
+}
+
+fn parry_vec(v: Vec3) -> Vector {
+    Vector::new(v.x, v.y, v.z)
 }
 
 #[cfg(test)]
