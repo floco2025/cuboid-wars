@@ -555,11 +555,11 @@ class Canvas(QWidget):
             self.window.add_wall_line(self.drag_start_point, snapped_wall_end(self.drag_start_point, self.drag_current_point))
         elif self.window.mode in RAMP_MODES and self.drag_start_cell and self.drag_current_cell:
             self.window.add_ramp(self.drag_start_cell, self.drag_current_cell, self.window.mode)
-        elif self.window.mode == MODE_ERASE and self.drag_start_cell and self.drag_current_cell:
-            if self.drag_start_cell == self.drag_current_cell:
-                self.window.erase_at(event.position(), self.cell_size())
-            else:
+        elif self.window.mode == MODE_ERASE:
+            if self.drag_start_cell and self.drag_current_cell and self.drag_start_cell != self.drag_current_cell:
                 self.window.erase_cell_rect(self.drag_start_cell, self.drag_current_cell)
+            else:
+                self.window.erase_at(event.position(), self.cell_size())
         self.clear_drag()
         self.update()
 
@@ -842,8 +842,16 @@ class EditorWindow(QMainWindow):
         if msg:
             self.statusBar().showMessage(f"Ramp not placed: {msg}", 4000)
             return
+        new_ramp = {"low": low, "high": high, "lower_level": lower_level}
+        new_rect = ramp_rect(new_ramp)
         after = copy.deepcopy(self.building)
-        after["ramps"].append({"low": low, "high": high, "lower_level": lower_level})
+        after["ramps"] = [
+            ramp
+            for ramp in after["ramps"]
+            if self.current_level not in (ramp["lower_level"], ramp["lower_level"] + 1)
+            or not rects_overlap(new_rect, ramp_rect(ramp))
+        ]
+        after["ramps"].append(new_ramp)
         self.apply_change(f"Place {mode}", after)
 
     def erase_at(self, pos, cell_size: float) -> None:
@@ -859,6 +867,11 @@ class EditorWindow(QMainWindow):
             floor
             for floor in level["floors"]
             if not (c0 <= floor[0] < c1 and r0 <= floor[1] < r1)
+        ]
+        level["walls"] = [
+            wall
+            for wall in level["walls"]
+            if not wall_overlaps_rect(wall, (c0, r0, c1, r1))
         ]
         if self.current_level == 0:
             after["player_spawn_fields"] = [
@@ -1007,6 +1020,18 @@ def ramp_points_from_cells(start: tuple[int, int], end: tuple[int, int]) -> tupl
 
 def rects_overlap(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> bool:
     return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
+
+
+def wall_overlaps_rect(wall: list[int], rect: tuple[int, int, int, int]) -> bool:
+    c0, r0, c1, r1 = rect
+    wc0, wr0, wc1, wr1 = wall
+    if wr0 == wr1:
+        left = min(wc0, wc1)
+        right = max(wc0, wc1)
+        return r0 <= wr0 <= r1 and left < c1 and c0 < right
+    top = min(wr0, wr1)
+    bottom = max(wr0, wr1)
+    return c0 <= wc0 <= c1 and top < r1 and r0 < bottom
 
 
 def snapped_wall_end(start: tuple[int, int], current: tuple[int, int]) -> tuple[int, int]:
