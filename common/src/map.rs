@@ -5,7 +5,8 @@ use crate::{
 
 // Compute the surface Y of a single ramp at (x, z). Caller must have already
 // verified that (x, z) lies inside `ramp.bounds_xz()`.
-fn ramp_surface_at(ramp: &Ramp, x: f32, z: f32) -> f32 {
+#[must_use]
+pub fn ramp_surface_at(ramp: &Ramp, x: f32, z: f32) -> f32 {
     let (min_x, max_x, min_z, max_z) = ramp.bounds_xz();
     let dx = (ramp.x2 - ramp.x1).abs();
     let dz = (ramp.z2 - ramp.z1).abs();

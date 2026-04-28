@@ -109,6 +109,14 @@ pub fn sweep_ramp_edges(
         let local_x = start_pos.x - center_x;
         let local_z = start_pos.z - center_z;
 
+        // If the player already starts inside the side rail's expanded volume,
+        // allow movement to escape it. Reporting a sweep hit here pins the
+        // player because diagonal, x-only, and z-only slide candidates all
+        // collide at t=0.
+        if local_x.abs() <= half_x + half_x_edge && local_z.abs() <= half_z + half_z_edge {
+            return false;
+        }
+
         let mut t_min = 0.0_f32;
         let mut t_max = 1.0_f32;
 

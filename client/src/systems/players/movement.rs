@@ -231,7 +231,7 @@ pub fn players_movement_system(
 
             if !collides {
                 for ramp in &map_layout.ramps {
-                    if sweep_player_vs_ramp_edges(&client_pos, &target_pos, ramp) {
+                    if sweep_player_vs_ramp_edges(&client_pos, &target_pos, ramp, &map_layout.floors) {
                         collides = true;
                         break;
                     }
@@ -242,6 +242,7 @@ pub fn players_movement_system(
                 target_pos = slide_player_along_obstacles(
                     walls_to_check,
                     &map_layout.ramps,
+                    &map_layout.floors,
                     &client_pos,
                     h_vel.x,
                     h_vel.z,
