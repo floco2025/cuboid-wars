@@ -11,7 +11,4 @@ pub use players::{
     try_start_player_jump,
 };
 pub use projectiles::{ProjectileMotion, sweep_projectile_vs_player};
-pub use world::{
-    Axis, Bounds3, CollisionShape, CollisionSolid, CollisionWorld, FlatSupport, Rect, SlopedSupport, SupportSurface,
-    Wedge,
-};
+pub use world::{ColliderKind, CollisionWorld};

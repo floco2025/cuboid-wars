@@ -1,14 +1,14 @@
 use bevy_ecs::prelude::*;
 use bevy_math::Vec3;
-use parry3d::{
-    math::{Pose, Vector},
-    query::{ShapeCastOptions, cast_shapes},
-    shape::{Cuboid as ParryCuboid, Shape},
+use rapier3d::{
+    control::{CharacterLength, KinematicCharacterController},
+    geometry::Cuboid,
+    prelude::{Pose, Vector},
 };
 
 use super::{
-    helpers::{Collision, Cuboid, sweep_aabb_vs_aabb, wall_cuboid},
-    world::{Axis, CollisionShape, CollisionSolid, CollisionWorld, Wedge},
+    helpers::{sweep_aabb_vs_aabb, wall_cuboid},
+    world::CollisionWorld,
 };
 use crate::{
     constants::{
@@ -19,6 +19,7 @@ use crate::{
 };
 
 const PLAYER_CONTACT_OFFSET: f32 = 0.01;
+
 // Component attached to player entities tracking 3D velocity for gravity and falling.
 // Horizontal motion is still derived from `Speed` each tick; the vertical component
 // here drives gravity/landing physics.
@@ -54,7 +55,8 @@ pub fn try_start_player_jump(
     x: f32,
     z: f32,
 ) -> bool {
-    if motion.velocity.y > 0.0 || collision_world.find_support(x, z, pos.y).is_none() {
+    let ground_probe_pos = Position { x, y: pos.y, z };
+    if motion.velocity.y > 0.0 || !is_player_grounded(collision_world, &ground_probe_pos) {
         return false;
     }
 
@@ -83,200 +85,94 @@ pub fn step_player_motion(
         y: next_motion.velocity.y.mul_add(delta, pos.y),
         z,
     };
-    let mut resolved = sweep_player_through_solids(pos, &target, collision_world, has_phasing);
+    let desired_horizontal = Vector::new(target.x - pos.x, 0.0, target.z - pos.z);
+    let desired_vertical = Vector::new(0.0, target.y - pos.y, 0.0);
+    let character_shape = player_shape();
+    let character_pos = player_pose(pos);
+    let controller = player_controller();
+    let mut hit_horizontal = false;
+    let mut hit_ceiling = false;
+    let horizontal_movement = collision_world.move_character(
+        delta,
+        &controller,
+        &character_shape,
+        &character_pos,
+        desired_horizontal,
+        has_phasing,
+        false,
+        |collision| {
+            let normal = vec3(collision.hit.normal2);
+            if normal.y.abs() <= 0.5 {
+                hit_horizontal = true;
+            }
+        },
+    );
+    let after_horizontal = Position {
+        x: pos.x + horizontal_movement.translation.x,
+        y: pos.y + horizontal_movement.translation.y,
+        z: pos.z + horizontal_movement.translation.z,
+    };
+    let vertical_pose = player_pose(&after_horizontal);
+    let vertical_movement = collision_world.move_character(
+        delta,
+        &controller,
+        &character_shape,
+        &vertical_pose,
+        desired_vertical,
+        has_phasing,
+        true,
+        |collision| {
+            let normal = vec3(collision.hit.normal2);
+            if normal.y < -0.5 && desired_vertical.y > 0.0 {
+                hit_ceiling = true;
+            }
+        },
+    );
+    let resolved = Position {
+        x: after_horizontal.x + vertical_movement.translation.x,
+        y: after_horizontal.y + vertical_movement.translation.y,
+        z: after_horizontal.z + vertical_movement.translation.z,
+    };
     let mut vy = next_motion.velocity.y;
 
-    if resolved.hit_floor_top && vy < 0.0 || resolved.hit_ceiling && vy > 0.0 {
-        vy = 0.0;
-    }
-
-    if vy <= 0.0
-        && let Some(support_y) =
-            collision_world.find_support(resolved.position.x, resolved.position.z, resolved.position.y)
+    if vertical_movement.grounded && vy < 0.0
+        || hit_ceiling && vy > 0.0
+        || desired_vertical.y > 0.0 && vertical_movement.translation.y < desired_vertical.y - PHYSICS_EPSILON
     {
-        resolved.position.y = support_y;
         vy = 0.0;
     }
 
     PlayerMotionStep {
-        position: resolved.position,
+        position: resolved,
         vy,
-        hit_horizontal: resolved.hit_horizontal,
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct PlayerSweepResult {
-    position: Position,
-    hit_horizontal: bool,
-    hit_floor_top: bool,
-    hit_ceiling: bool,
-}
-
-fn sweep_player_through_solids(
-    start: &Position,
-    target: &Position,
-    collision_world: &CollisionWorld,
-    has_phasing: bool,
-) -> PlayerSweepResult {
-    let mut current = *start;
-    let mut remaining = Vec3::from(*target) - Vec3::from(*start);
-    let mut hit_horizontal = false;
-    let mut hit_floor_top = false;
-    let mut hit_ceiling = false;
-
-    for _ in 0..3 {
-        if remaining.length_squared() <= PHYSICS_EPSILON * PHYSICS_EPSILON {
-            break;
-        }
-
-        let next = Position::from(Vec3::from(current) + remaining);
-        let Some(collision) = earliest_player_solid_collision(&current, &next, collision_world, has_phasing) else {
-            current = next;
-            break;
-        };
-
-        current =
-            Position::from(Vec3::from(current) + remaining * collision.t + collision.normal * PLAYER_CONTACT_OFFSET);
-
-        if collision.normal.y > 0.5 {
-            hit_floor_top = true;
-        } else if collision.normal.y < -0.5 {
-            hit_ceiling = true;
-        } else {
-            hit_horizontal = true;
-        }
-
-        let remaining_after_hit = remaining * (1.0 - collision.t);
-        remaining = remaining_after_hit - collision.normal * remaining_after_hit.dot(collision.normal);
-    }
-
-    PlayerSweepResult {
-        position: current,
         hit_horizontal,
-        hit_floor_top,
-        hit_ceiling,
     }
 }
 
-fn earliest_player_solid_collision(
-    start: &Position,
-    target: &Position,
-    collision_world: &CollisionWorld,
-    has_phasing: bool,
-) -> Option<Collision> {
+fn is_player_grounded(collision_world: &CollisionWorld, pos: &Position) -> bool {
+    let controller = player_controller();
+    let shape = player_shape();
+    let pose = player_pose(pos);
     collision_world
-        .solids
-        .iter()
-        .filter(|solid| !(has_phasing && solid.phasing_passthrough))
-        .filter_map(|solid| sweep_player_vs_solid(start, target, solid))
-        .min_by(|a, b| a.t.total_cmp(&b.t))
+        .move_character(0.0, &controller, &shape, &pose, Vector::ZERO, false, true, |_| {})
+        .grounded
 }
 
-fn sweep_player_vs_solid(start: &Position, target: &Position, solid: &CollisionSolid) -> Option<Collision> {
-    match solid.shape {
-        CollisionShape::Cuboid(cuboid) => {
-            if is_player_on_cuboid_top(start, cuboid) {
-                None
-            } else {
-                let (solid_pos, solid_shape) = solid.parry_parts();
-                sweep_player_vs_parry_shape(start, target, solid_pos, solid_shape)
-            }
-        }
-        CollisionShape::Wedge(wedge) => {
-            if is_player_on_wedge_top(start, wedge) || is_entering_wedge_end(start, target, wedge) {
-                None
-            } else {
-                let (solid_pos, solid_shape) = solid.parry_parts();
-                sweep_player_vs_parry_shape(start, target, solid_pos, solid_shape)
-            }
-        }
+fn player_controller() -> KinematicCharacterController {
+    KinematicCharacterController {
+        offset: CharacterLength::Absolute(PLAYER_CONTACT_OFFSET),
+        min_slope_slide_angle: std::f32::consts::PI,
+        snap_to_ground: Some(CharacterLength::Absolute(PLAYER_LANDING_EPSILON)),
+        ..KinematicCharacterController::default()
     }
 }
 
-fn is_player_on_cuboid_top(pos: &Position, cuboid: Cuboid) -> bool {
-    let cuboid_top = cuboid.center.y + cuboid.half_extents.y;
-
-    (pos.y - cuboid_top).abs() <= PLAYER_LANDING_EPSILON
+fn player_shape() -> Cuboid {
+    Cuboid::new(Vector::new(PLAYER_WIDTH / 2.0, PLAYER_HEIGHT / 2.0, PLAYER_DEPTH / 2.0))
 }
 
-fn is_player_on_wedge_top(pos: &Position, wedge: Wedge) -> bool {
-    wedge
-        .surface_y_at(pos.x, pos.z)
-        .is_some_and(|surface_y| (pos.y - surface_y).abs() <= PLAYER_LANDING_EPSILON)
-}
-
-fn is_entering_wedge_end(start: &Position, target: &Position, wedge: Wedge) -> bool {
-    is_entering_wedge_end_at(start, target, wedge, wedge.low_at, wedge.high_at, wedge.bounds.min_y())
-        || is_entering_wedge_end_at(start, target, wedge, wedge.high_at, wedge.low_at, wedge.bounds.max_y())
-}
-
-fn is_entering_wedge_end_at(
-    start: &Position,
-    target: &Position,
-    wedge: Wedge,
-    end_at: f32,
-    opposite_end_at: f32,
-    end_y: f32,
-) -> bool {
-    if (start.y - end_y).abs() > PLAYER_LANDING_EPSILON {
-        return false;
-    }
-
-    let toward_inside = (opposite_end_at - end_at).signum();
-    if toward_inside.abs() <= PHYSICS_EPSILON {
-        return false;
-    }
-
-    let (start_axis, target_axis, cross_axis) = match wedge.slope_axis {
-        Axis::X => (start.x, target.x, start.z),
-        Axis::Z => (start.z, target.z, start.x),
-    };
-    let footprint = wedge.bounds.footprint();
-    let cross_inside = match wedge.slope_axis {
-        Axis::X => cross_axis >= footprint.min_z && cross_axis <= footprint.max_z,
-        Axis::Z => cross_axis >= footprint.min_x && cross_axis <= footprint.max_x,
-    };
-
-    cross_inside && (start_axis - end_at) * toward_inside < 0.0 && (target_axis - start_axis) * toward_inside > 0.0
-}
-
-fn sweep_player_vs_parry_shape(
-    start: &Position,
-    target: &Position,
-    solid_pos: &Pose,
-    solid_shape: &dyn Shape,
-) -> Option<Collision> {
-    let player_shape = ParryCuboid::new(Vector::new(PLAYER_WIDTH / 2.0, PLAYER_HEIGHT / 2.0, PLAYER_DEPTH / 2.0));
-    let start_center = Vec3::new(start.x, start.y + PLAYER_HEIGHT / 2.0, start.z);
-    let ray_dir = Vec3::new(target.x - start.x, target.y - start.y, target.z - start.z);
-    let player_pos = Pose::translation(start_center.x, start_center.y, start_center.z);
-    let options = ShapeCastOptions::with_max_time_of_impact(1.0);
-    let hit = cast_shapes(
-        &player_pos,
-        parry_vec(ray_dir),
-        &player_shape,
-        solid_pos,
-        Vector::ZERO,
-        solid_shape,
-        options,
-    )
-    .ok()
-    .flatten()?;
-    let normal = vec3(hit.normal2);
-
-    if hit.time_of_impact <= PHYSICS_EPSILON && ray_dir.dot(normal) >= -PHYSICS_EPSILON {
-        return None;
-    }
-
-    Some(Collision {
-        normal,
-        t: hit.time_of_impact.clamp(0.0, 1.0),
-    })
-}
-
-fn parry_vec(v: Vec3) -> Vector {
-    Vector::new(v.x, v.y, v.z)
+fn player_pose(pos: &Position) -> Pose {
+    Pose::translation(pos.x, pos.y + PLAYER_HEIGHT / 2.0, pos.z)
 }
 
 fn vec3(v: Vector) -> Vec3 {

@@ -1,346 +1,213 @@
 use bevy_ecs::prelude::Resource;
-use bevy_math::Vec3;
-use parry3d::{
-    math::{Pose, Vector},
-    shape::{ConvexPolyhedron, Cuboid as ParryCuboid, Shape},
+use rapier3d::{
+    control::{CharacterCollision, EffectiveCharacterMovement, KinematicCharacterController},
+    prelude::{
+        BroadPhaseBvh, Collider, ColliderBuilder, ColliderHandle, ColliderSet, IntegrationParameters, NarrowPhase,
+        Pose, QueryFilter, RigidBodySet, Shape, Vector,
+    },
 };
 
 use super::{Cuboid, floor_cuboid, wall_cuboid};
 use crate::{
-    constants::{PHYSICS_EPSILON, PLAYER_LANDING_EPSILON},
     map::{RampAxis, ramp_axis},
     protocol::{Floor, MapLayout, Ramp, Wall},
 };
 
-#[derive(Debug, Clone, PartialEq, Resource)]
+#[derive(Resource)]
 pub struct CollisionWorld {
-    pub solids: Vec<CollisionSolid>,
-    pub supports: Vec<SupportSurface>,
+    bodies: RigidBodySet,
+    colliders: ColliderSet,
+    broad_phase: BroadPhaseBvh,
+    narrow_phase: NarrowPhase,
 }
 
 impl CollisionWorld {
     #[must_use]
     pub fn from_map_layout(map_layout: &MapLayout) -> Self {
-        let solids = map_layout
-            .walls
-            .iter()
-            .map(wall_solid)
-            .chain(map_layout.floors.iter().map(floor_solid))
-            .chain(map_layout.ramps.iter().filter_map(ramp_solid))
-            .collect();
+        let bodies = RigidBodySet::new();
+        let mut colliders = ColliderSet::new();
+        let mut collider_handles = Vec::new();
 
-        let supports = map_layout
-            .floors
-            .iter()
-            .map(floor_support)
-            .chain(map_layout.ramps.iter().map(ramp_support))
-            .collect();
+        for wall in &map_layout.walls {
+            collider_handles.push(insert_wall_collider(&mut colliders, wall));
+        }
 
-        Self { solids, supports }
+        for floor in &map_layout.floors {
+            collider_handles.push(insert_floor_collider(&mut colliders, floor));
+        }
+
+        for ramp in &map_layout.ramps {
+            if let Some(handle) = insert_ramp_collider(&mut colliders, ramp) {
+                collider_handles.push(handle);
+            }
+        }
+
+        let mut broad_phase = BroadPhaseBvh::new();
+        let narrow_phase = NarrowPhase::new();
+        let mut events = Vec::new();
+        broad_phase.update(
+            &IntegrationParameters::default(),
+            &colliders,
+            &bodies,
+            &collider_handles,
+            &[],
+            &mut events,
+        );
+
+        Self {
+            bodies,
+            colliders,
+            broad_phase,
+            narrow_phase,
+        }
     }
 
     #[must_use]
-    pub fn find_support(&self, x: f32, z: f32, y: f32) -> Option<f32> {
-        let lo = y - PLAYER_LANDING_EPSILON;
-        let hi = y + PLAYER_LANDING_EPSILON;
-
-        self.supports
-            .iter()
-            .filter_map(|support| support.surface_y_at(x, z))
-            .filter(|support_y| *support_y >= lo && *support_y <= hi)
-            .max_by(f32::total_cmp)
+    pub fn solid_count(&self) -> usize {
+        self.colliders.len()
     }
-}
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct CollisionSolid {
-    pub shape: CollisionShape,
-    pub phasing_passthrough: bool,
-    parry_shape: ParrySolid,
-}
+    #[must_use]
+    pub fn solid_kinds(&self) -> Vec<ColliderKind> {
+        self.colliders
+            .iter()
+            .filter_map(|(_, collider)| ColliderKind::from_user_data(collider.user_data))
+            .collect()
+    }
 
-impl CollisionSolid {
-    pub(crate) fn parry_parts(&self) -> (&Pose, &dyn Shape) {
-        match &self.parry_shape {
-            ParrySolid::Cuboid { pose, shape } => (pose, shape),
-            ParrySolid::Wedge { pose, shape } => (pose, shape),
+    #[must_use]
+    pub fn collider_kind(&self, handle: ColliderHandle) -> Option<ColliderKind> {
+        self.colliders
+            .get(handle)
+            .and_then(|collider| ColliderKind::from_user_data(collider.user_data))
+    }
+
+    pub(crate) fn move_character(
+        &self,
+        dt: f32,
+        controller: &KinematicCharacterController,
+        character_shape: &dyn Shape,
+        character_pos: &Pose,
+        desired_translation: Vector,
+        has_phasing: bool,
+        include_floors: bool,
+        events: impl FnMut(CharacterCollision),
+    ) -> EffectiveCharacterMovement {
+        if has_phasing || !include_floors {
+            let include = |_: ColliderHandle, collider: &Collider| {
+                let kind = ColliderKind::from_user_data(collider.user_data);
+                !(has_phasing && kind == Some(ColliderKind::Wall))
+                    && (include_floors || kind != Some(ColliderKind::Floor))
+            };
+            let query_pipeline = self.broad_phase.as_query_pipeline(
+                self.narrow_phase.query_dispatcher(),
+                &self.bodies,
+                &self.colliders,
+                QueryFilter::default().predicate(&include),
+            );
+            controller.move_shape(
+                dt,
+                &query_pipeline,
+                character_shape,
+                character_pos,
+                desired_translation,
+                events,
+            )
+        } else {
+            let query_pipeline = self.broad_phase.as_query_pipeline(
+                self.narrow_phase.query_dispatcher(),
+                &self.bodies,
+                &self.colliders,
+                QueryFilter::default(),
+            );
+            controller.move_shape(
+                dt,
+                &query_pipeline,
+                character_shape,
+                character_pos,
+                desired_translation,
+                events,
+            )
         }
     }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-enum ParrySolid {
-    Cuboid { pose: Pose, shape: ParryCuboid },
-    Wedge { pose: Pose, shape: ConvexPolyhedron },
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum CollisionShape {
-    Cuboid(Cuboid),
-    Wedge(Wedge),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum SupportSurface {
-    Flat(FlatSupport),
-    Sloped(SlopedSupport),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct FlatSupport {
-    pub footprint: Rect,
-    pub y: f32,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct SlopedSupport {
-    pub wedge: Wedge,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Wedge {
-    pub bounds: Bounds3,
-    pub slope_axis: Axis,
-    pub low_at: f32,
-    pub high_at: f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Axis {
-    X,
-    Z,
+pub enum ColliderKind {
+    Wall,
+    Floor,
+    Ramp,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Rect {
-    pub min_x: f32,
-    pub max_x: f32,
-    pub min_z: f32,
-    pub max_z: f32,
-}
-
-impl Rect {
-    #[must_use]
-    pub fn contains(&self, x: f32, z: f32) -> bool {
-        x >= self.min_x && x <= self.max_x && z >= self.min_z && z <= self.max_z
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Bounds3 {
-    pub center: Vec3,
-    pub half_extents: Vec3,
-}
-
-impl Bounds3 {
-    #[must_use]
-    pub fn min_y(&self) -> f32 {
-        self.center.y - self.half_extents.y
-    }
-
-    #[must_use]
-    pub fn max_y(&self) -> f32 {
-        self.center.y + self.half_extents.y
-    }
-
-    #[must_use]
-    pub fn footprint(&self) -> Rect {
-        Rect {
-            min_x: self.center.x - self.half_extents.x,
-            max_x: self.center.x + self.half_extents.x,
-            min_z: self.center.z - self.half_extents.z,
-            max_z: self.center.z + self.half_extents.z,
-        }
-    }
-}
-
-impl SupportSurface {
-    #[must_use]
-    pub fn surface_y_at(&self, x: f32, z: f32) -> Option<f32> {
+impl ColliderKind {
+    fn user_data(self) -> u128 {
         match self {
-            Self::Flat(flat) => flat.surface_y_at(x, z),
-            Self::Sloped(sloped) => sloped.surface_y_at(x, z),
+            Self::Wall => 1,
+            Self::Floor => 2,
+            Self::Ramp => 3,
+        }
+    }
+
+    fn from_user_data(user_data: u128) -> Option<Self> {
+        match user_data {
+            1 => Some(Self::Wall),
+            2 => Some(Self::Floor),
+            3 => Some(Self::Ramp),
+            _ => None,
         }
     }
 }
 
-impl FlatSupport {
-    #[must_use]
-    pub fn surface_y_at(&self, x: f32, z: f32) -> Option<f32> {
-        self.footprint.contains(x, z).then_some(self.y)
-    }
+fn insert_wall_collider(colliders: &mut ColliderSet, wall: &Wall) -> ColliderHandle {
+    insert_cuboid_collider(colliders, wall_cuboid(wall, 0.0), ColliderKind::Wall)
 }
 
-impl SlopedSupport {
-    #[must_use]
-    pub fn surface_y_at(&self, x: f32, z: f32) -> Option<f32> {
-        self.wedge.surface_y_at(x, z)
-    }
+fn insert_floor_collider(colliders: &mut ColliderSet, floor: &Floor) -> ColliderHandle {
+    insert_cuboid_collider(colliders, floor_cuboid(floor, 0.0), ColliderKind::Floor)
 }
 
-impl Wedge {
-    #[must_use]
-    pub fn surface_y_at(&self, x: f32, z: f32) -> Option<f32> {
-        if !self.bounds.footprint().contains(x, z) {
-            return None;
-        }
-
-        let coord = match self.slope_axis {
-            Axis::X => x,
-            Axis::Z => z,
-        };
-        let denom = self.high_at - self.low_at;
-        let progress = if denom.abs() < PHYSICS_EPSILON {
-            0.0
-        } else {
-            ((coord - self.low_at) / denom).clamp(0.0, 1.0)
-        };
-
-        Some(self.bounds.min_y() + progress * (self.bounds.max_y() - self.bounds.min_y()))
-    }
+fn insert_cuboid_collider(colliders: &mut ColliderSet, cuboid: Cuboid, kind: ColliderKind) -> ColliderHandle {
+    colliders.insert(
+        ColliderBuilder::cuboid(cuboid.half_extents.x, cuboid.half_extents.y, cuboid.half_extents.z)
+            .position(Pose::translation(cuboid.center.x, cuboid.center.y, cuboid.center.z))
+            .user_data(kind.user_data())
+            .build(),
+    )
 }
 
-impl From<Cuboid> for Bounds3 {
-    fn from(cuboid: Cuboid) -> Self {
-        Self {
-            center: cuboid.center,
-            half_extents: cuboid.half_extents,
-        }
-    }
-}
-
-impl From<RampAxis> for Axis {
-    fn from(axis: RampAxis) -> Self {
-        match axis {
-            RampAxis::X => Self::X,
-            RampAxis::Z => Self::Z,
-        }
-    }
-}
-
-fn wall_solid(wall: &Wall) -> CollisionSolid {
-    let cuboid = wall_cuboid(wall, 0.0);
-    CollisionSolid {
-        shape: CollisionShape::Cuboid(cuboid),
-        phasing_passthrough: true,
-        parry_shape: parry_cuboid(cuboid),
-    }
-}
-
-fn floor_solid(floor: &Floor) -> CollisionSolid {
-    let cuboid = floor_cuboid(floor, 0.0);
-    CollisionSolid {
-        shape: CollisionShape::Cuboid(cuboid),
-        phasing_passthrough: false,
-        parry_shape: parry_cuboid(cuboid),
-    }
-}
-
-fn ramp_solid(ramp: &Ramp) -> Option<CollisionSolid> {
-    let wedge = wedge_from_ramp(ramp);
-    let parry_shape = parry_wedge(wedge)?;
-    Some(CollisionSolid {
-        shape: CollisionShape::Wedge(wedge),
-        phasing_passthrough: false,
-        parry_shape,
-    })
-}
-
-fn floor_support(floor: &Floor) -> SupportSurface {
-    SupportSurface::Flat(FlatSupport {
-        footprint: rect_from_bounds_xz(floor.bounds_xz()),
-        y: floor.y,
-    })
-}
-
-fn ramp_support(ramp: &Ramp) -> SupportSurface {
-    SupportSurface::Sloped(SlopedSupport {
-        wedge: wedge_from_ramp(ramp),
-    })
-}
-
-fn wedge_from_ramp(ramp: &Ramp) -> Wedge {
+fn insert_ramp_collider(colliders: &mut ColliderSet, ramp: &Ramp) -> Option<ColliderHandle> {
     let (min_x, max_x, min_z, max_z) = ramp.bounds_xz();
     let (min_y, max_y) = ramp.bounds_y();
-    let slope_axis = Axis::from(ramp_axis(ramp));
     let high_is_second = ramp.y2 >= ramp.y1;
-    let (low_at, high_at) = match slope_axis {
-        Axis::X => {
-            let low = if high_is_second { ramp.x1 } else { ramp.x2 };
-            let high = if high_is_second { ramp.x2 } else { ramp.x1 };
-            (low, high)
+    let points = match ramp_axis(ramp) {
+        RampAxis::X => {
+            let high_x = if high_is_second { ramp.x2 } else { ramp.x1 };
+            vec![
+                Vector::new(min_x, min_y, min_z),
+                Vector::new(min_x, min_y, max_z),
+                Vector::new(max_x, min_y, min_z),
+                Vector::new(max_x, min_y, max_z),
+                Vector::new(high_x, max_y, min_z),
+                Vector::new(high_x, max_y, max_z),
+            ]
         }
-        Axis::Z => {
-            let low = if high_is_second { ramp.z1 } else { ramp.z2 };
-            let high = if high_is_second { ramp.z2 } else { ramp.z1 };
-            (low, high)
+        RampAxis::Z => {
+            let high_z = if high_is_second { ramp.z2 } else { ramp.z1 };
+            vec![
+                Vector::new(min_x, min_y, min_z),
+                Vector::new(max_x, min_y, min_z),
+                Vector::new(min_x, min_y, max_z),
+                Vector::new(max_x, min_y, max_z),
+                Vector::new(min_x, max_y, high_z),
+                Vector::new(max_x, max_y, high_z),
+            ]
         }
     };
 
-    Wedge {
-        bounds: Bounds3 {
-            center: Vec3::new(
-                f32::midpoint(min_x, max_x),
-                f32::midpoint(min_y, max_y),
-                f32::midpoint(min_z, max_z),
-            ),
-            half_extents: Vec3::new((max_x - min_x) / 2.0, (max_y - min_y) / 2.0, (max_z - min_z) / 2.0),
-        },
-        slope_axis,
-        low_at,
-        high_at,
-    }
-}
-
-fn rect_from_bounds_xz((min_x, max_x, min_z, max_z): (f32, f32, f32, f32)) -> Rect {
-    Rect {
-        min_x,
-        max_x,
-        min_z,
-        max_z,
-    }
-}
-
-fn parry_cuboid(cuboid: Cuboid) -> ParrySolid {
-    ParrySolid::Cuboid {
-        pose: Pose::translation(cuboid.center.x, cuboid.center.y, cuboid.center.z),
-        shape: ParryCuboid::new(parry_vec(cuboid.half_extents)),
-    }
-}
-
-fn parry_wedge(wedge: Wedge) -> Option<ParrySolid> {
-    let bounds = wedge.bounds;
-    let footprint = bounds.footprint();
-    let min_y = bounds.min_y();
-    let max_y = bounds.max_y();
-
-    let points = match wedge.slope_axis {
-        Axis::X => vec![
-            Vector::new(wedge.low_at, min_y, footprint.min_z),
-            Vector::new(wedge.low_at, min_y, footprint.max_z),
-            Vector::new(wedge.high_at, min_y, footprint.min_z),
-            Vector::new(wedge.high_at, min_y, footprint.max_z),
-            Vector::new(wedge.high_at, max_y, footprint.min_z),
-            Vector::new(wedge.high_at, max_y, footprint.max_z),
-        ],
-        Axis::Z => vec![
-            Vector::new(footprint.min_x, min_y, wedge.low_at),
-            Vector::new(footprint.max_x, min_y, wedge.low_at),
-            Vector::new(footprint.min_x, min_y, wedge.high_at),
-            Vector::new(footprint.max_x, min_y, wedge.high_at),
-            Vector::new(footprint.min_x, max_y, wedge.high_at),
-            Vector::new(footprint.max_x, max_y, wedge.high_at),
-        ],
-    };
-
-    Some(ParrySolid::Wedge {
-        pose: Pose::identity(),
-        shape: ConvexPolyhedron::from_convex_hull(&points)?,
-    })
-}
-
-fn parry_vec(v: Vec3) -> Vector {
-    Vector::new(v.x, v.y, v.z)
+    let collider = ColliderBuilder::convex_hull(&points)?
+        .user_data(ColliderKind::Ramp.user_data())
+        .build();
+    Some(colliders.insert(collider))
 }
 
 #[cfg(test)]
@@ -383,40 +250,30 @@ mod tests {
     fn collision_world_contains_solids_for_walls_floors_and_ramps() {
         let world = CollisionWorld::from_map_layout(&test_map_layout());
 
-        assert_eq!(world.solids.len(), 3);
-        assert!(matches!(world.solids[0].shape, CollisionShape::Cuboid(_)));
-        assert!(matches!(world.solids[1].shape, CollisionShape::Cuboid(_)));
-        assert!(matches!(world.solids[2].shape, CollisionShape::Wedge(_)));
-    }
-
-    #[test]
-    fn collision_world_contains_supports_for_floors_and_ramps() {
-        let world = CollisionWorld::from_map_layout(&test_map_layout());
-
-        assert_eq!(world.supports.len(), 2);
-        assert!(matches!(world.supports[0], SupportSurface::Flat(_)));
-        assert!(matches!(world.supports[1], SupportSurface::Sloped(_)));
+        assert_eq!(world.solid_count(), 3);
+        assert_eq!(
+            world.solid_kinds(),
+            vec![ColliderKind::Wall, ColliderKind::Floor, ColliderKind::Ramp]
+        );
     }
 
     #[test]
     fn wall_solid_uses_wall_level_height() {
         let world = CollisionWorld::from_map_layout(&test_map_layout());
-        let CollisionShape::Cuboid(cuboid) = world.solids[0].shape else {
-            panic!("expected wall cuboid");
-        };
+        let (_, wall_collider) = world
+            .colliders
+            .iter()
+            .find(|(_, collider)| ColliderKind::from_user_data(collider.user_data) == Some(ColliderKind::Wall))
+            .expect("expected wall collider");
+        let wall_center_y = wall_collider.position().translation.y;
 
-        assert_eq!(cuboid.center.y, LEVEL_HEIGHT + WALL_HEIGHT / 2.0);
+        assert_eq!(wall_center_y, LEVEL_HEIGHT + WALL_HEIGHT / 2.0);
     }
 
     #[test]
-    fn ramp_converts_to_wedge_with_slope_axis() {
+    fn ramp_converts_to_collider() {
         let world = CollisionWorld::from_map_layout(&test_map_layout());
-        let CollisionShape::Wedge(wedge) = world.solids[2].shape else {
-            panic!("expected ramp wedge");
-        };
 
-        assert_eq!(wedge.slope_axis, Axis::Z);
-        assert_eq!(wedge.low_at, 0.0);
-        assert_eq!(wedge.high_at, 8.0);
+        assert!(world.solid_kinds().contains(&ColliderKind::Ramp));
     }
 }
