@@ -14,7 +14,7 @@ use crate::{
     markers::MainCameraMarker,
     resources::{ItemMap, LastUpdateSeq, PlayerMap, RoundTripTime},
 };
-use common::{markers::PlayerMarker, protocol::*};
+use common::{markers::PlayerMarker, physics::CollisionWorld, protocol::*};
 
 // ============================================================================
 // Message Dispatcher
@@ -34,7 +34,7 @@ pub fn dispatch_message(
     cameras: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     time: &Res<Time>,
     asset_server: &Res<AssetServer>,
-    map_layout: Option<&MapLayout>,
+    collision_world: Option<&CollisionWorld>,
 ) {
     match msg {
         ServerMessage::Init(_) => {
@@ -66,7 +66,7 @@ pub fn dispatch_message(
                 players,
                 player_data,
                 shot_msg,
-                map_layout,
+                collision_world,
             );
         }
         ServerMessage::Update(update_msg) => handle_update_message(

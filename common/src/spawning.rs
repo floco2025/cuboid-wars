@@ -1,8 +1,7 @@
 use crate::{
     constants::*,
-    map::ramp_surface_at,
-    physics::{floor_cuboid, segment_intersects_cuboid, wall_cuboid},
-    protocol::{Floor, Position, Ramp, Wall},
+    physics::{ColliderKind, CollisionWorld},
+    protocol::Position,
 };
 use bevy_math::Vec3;
 
@@ -28,9 +27,7 @@ pub fn calculate_projectile_spawns(
     face_dir: f32,
     face_pitch: f32,
     has_multi_shot: bool,
-    walls: &[Wall],
-    ramps: &[Ramp],
-    floors: &[Floor],
+    collision_world: &CollisionWorld,
 ) -> Vec<ProjectileSpawnInfo> {
     let mut spawns = Vec::new();
 
@@ -69,12 +66,7 @@ pub fn calculate_projectile_spawns(
         let spawn_position: Position = spawn_pos.into();
         let camera_pos: Position = camera_origin.into();
 
-        // Check blocking conditions with short-circuit evaluation
-        let is_blocked = is_blocked_by_wall(&camera_pos, &spawn_position, walls)
-            || is_blocked_by_ramp(&camera_pos, &spawn_position, ramps)
-            || is_blocked_by_floor(&camera_pos, &spawn_position, floors);
-
-        if is_blocked {
+        if projectile_spawn_is_blocked(&camera_pos, &spawn_position, collision_world) {
             continue;
         }
 
@@ -88,69 +80,23 @@ pub fn calculate_projectile_spawns(
     spawns
 }
 
-fn is_blocked_by_wall(camera_pos: &Position, spawn_position: &Position, walls: &[Wall]) -> bool {
-    walls
-        .iter()
-        .any(|wall| sweep_projectile_spawn_vs_wall(camera_pos, spawn_position, wall))
-}
+fn projectile_spawn_is_blocked(start: &Position, end: &Position, collision_world: &CollisionWorld) -> bool {
+    let start_vec = Vec3::from(*start);
+    let end_vec = Vec3::from(*end);
 
-fn sweep_projectile_spawn_vs_wall(start: &Position, end: &Position, wall: &Wall) -> bool {
-    let cuboid = wall_cuboid(wall, PROJECTILE_RADIUS);
-    segment_intersects_cuboid(start, end, cuboid)
-}
-
-fn is_blocked_by_ramp(camera_pos: &Position, spawn_position: &Position, ramps: &[Ramp]) -> bool {
-    ramps.iter().any(|ramp| {
-        let start_depth = projectile_depth_inside_ramp(camera_pos, ramp);
-        let end_depth = projectile_depth_inside_ramp(spawn_position, ramp);
-
-        match (start_depth, end_depth) {
-            (None, None) | (Some(_), None) => false,
-            (None, Some(_)) => true,
-            (Some(start), Some(end)) => end >= start - PHYSICS_EPSILON,
-        }
-    })
-}
-
-fn projectile_depth_inside_ramp(pos: &Position, ramp: &Ramp) -> Option<f32> {
-    let (min_x, max_x, min_z, max_z) = ramp.bounds_xz();
-    if pos.x < min_x || pos.x > max_x || pos.z < min_z || pos.z > max_z {
-        return None;
-    }
-
-    let (min_y, _) = ramp.bounds_y();
-    if pos.y + PROJECTILE_RADIUS < min_y {
-        return None;
-    }
-
-    let ramp_height = ramp_surface_at(ramp, pos.x, pos.z);
-    if ramp_height <= min_y + PHYSICS_EPSILON {
-        return None;
-    }
-
-    let top_depth = ramp_height - (pos.y - PROJECTILE_RADIUS);
-    if top_depth < 0.0 {
-        return None;
-    }
-
-    let side_depth = (pos.x - min_x).min(max_x - pos.x).min(pos.z - min_z).min(max_z - pos.z);
-    Some(side_depth.min(top_depth))
-}
-
-fn is_blocked_by_floor(camera_pos: &Position, spawn_position: &Position, floors: &[Floor]) -> bool {
-    floors
-        .iter()
-        .any(|floor| sweep_projectile_spawn_vs_floor(camera_pos, spawn_position, floor))
-}
-
-fn sweep_projectile_spawn_vs_floor(start: &Position, end: &Position, floor: &Floor) -> bool {
-    let cuboid = floor_cuboid(floor, PROJECTILE_RADIUS);
-    segment_intersects_cuboid(start, end, cuboid)
+    collision_world.ball_overlaps_any_of(
+        &start_vec,
+        PROJECTILE_RADIUS,
+        &[ColliderKind::Wall, ColliderKind::Floor],
+    ) || collision_world
+        .cast_ball(&start_vec, end_vec - start_vec, PROJECTILE_RADIUS)
+        .is_some()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::protocol::{Floor, MapLayout, Ramp, Wall};
 
     fn test_wall(level: u8) -> Wall {
         Wall {
@@ -187,6 +133,15 @@ mod tests {
         }
     }
 
+    fn collision_world(walls: &[Wall], ramps: &[Ramp], floors: &[Floor]) -> CollisionWorld {
+        CollisionWorld::from_map_layout(&MapLayout {
+            walls: walls.to_vec(),
+            ramps: ramps.to_vec(),
+            floors: floors.to_vec(),
+            wall_lights: vec![],
+        })
+    }
+
     #[test]
     fn spawn_path_ignores_wall_on_different_level() {
         let start = Position {
@@ -200,8 +155,16 @@ mod tests {
             z: 2.0,
         };
 
-        assert!(is_blocked_by_wall(&start, &end, &[test_wall(0)]));
-        assert!(!is_blocked_by_wall(&start, &end, &[test_wall(1)]));
+        assert!(projectile_spawn_is_blocked(
+            &start,
+            &end,
+            &collision_world(&[test_wall(0)], &[], &[])
+        ));
+        assert!(!projectile_spawn_is_blocked(
+            &start,
+            &end,
+            &collision_world(&[test_wall(1)], &[], &[])
+        ));
     }
 
     #[test]
@@ -210,8 +173,16 @@ mod tests {
         let start = Position { x: 0.0, y, z: 0.0 };
         let end = Position { x: 0.0, y, z: 2.0 };
 
-        assert!(is_blocked_by_wall(&start, &end, &[test_wall(1)]));
-        assert!(!is_blocked_by_wall(&start, &end, &[test_wall(0)]));
+        assert!(projectile_spawn_is_blocked(
+            &start,
+            &end,
+            &collision_world(&[test_wall(1)], &[], &[])
+        ));
+        assert!(!projectile_spawn_is_blocked(
+            &start,
+            &end,
+            &collision_world(&[test_wall(0)], &[], &[])
+        ));
     }
 
     #[test]
@@ -227,7 +198,11 @@ mod tests {
             z: 2.0,
         };
 
-        assert!(is_blocked_by_wall(&start, &end, &[test_wall(0)]));
+        assert!(projectile_spawn_is_blocked(
+            &start,
+            &end,
+            &collision_world(&[test_wall(0)], &[], &[])
+        ));
     }
 
     #[test]
@@ -244,7 +219,11 @@ mod tests {
             z: 0.0,
         };
 
-        assert!(is_blocked_by_floor(&start, &end, &[floor]));
+        assert!(projectile_spawn_is_blocked(
+            &start,
+            &end,
+            &collision_world(&[], &[], &[floor])
+        ));
     }
 
     #[test]
@@ -261,7 +240,11 @@ mod tests {
             z: 0.0,
         };
 
-        assert!(is_blocked_by_floor(&start, &end, &[floor]));
+        assert!(projectile_spawn_is_blocked(
+            &start,
+            &end,
+            &collision_world(&[], &[], &[floor])
+        ));
     }
 
     #[test]
@@ -274,7 +257,11 @@ mod tests {
             z: 4.0,
         };
 
-        assert!(!is_blocked_by_ramp(&start, &end, &[ramp]));
+        assert!(!projectile_spawn_is_blocked(
+            &start,
+            &end,
+            &collision_world(&[], &[ramp], &[])
+        ));
     }
 
     #[test]
@@ -283,7 +270,11 @@ mod tests {
         let start = Position { x: 0.2, y: 1.4, z: 4.0 };
         let end = Position { x: 0.8, y: 1.4, z: 4.0 };
 
-        assert!(is_blocked_by_ramp(&start, &end, &[ramp]));
+        assert!(projectile_spawn_is_blocked(
+            &start,
+            &end,
+            &collision_world(&[], &[ramp], &[])
+        ));
     }
 
     #[test]
@@ -296,6 +287,10 @@ mod tests {
         };
         let end = Position { x: 0.2, y: 1.4, z: 4.0 };
 
-        assert!(is_blocked_by_ramp(&start, &end, &[ramp]));
+        assert!(projectile_spawn_is_blocked(
+            &start,
+            &end,
+            &collision_world(&[], &[ramp], &[])
+        ));
     }
 }

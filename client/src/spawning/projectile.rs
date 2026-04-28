@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use common::{
     constants::*,
     markers::{PlayerMarker, ProjectileMarker},
-    physics::ProjectileMotion,
+    physics::{CollisionWorld, ProjectileMotion},
     protocol::*,
     spawning::{ProjectileSpawnInfo, calculate_projectile_spawns},
 };
@@ -59,12 +59,10 @@ pub fn spawn_projectiles(
     face_dir: f32,
     face_pitch: f32,
     has_multi_shot: bool,
-    walls: &[Wall],
-    ramps: &[Ramp],
-    floors: &[Floor],
+    collision_world: &CollisionWorld,
     shooter_id: PlayerId,
 ) -> usize {
-    let spawns = calculate_projectile_spawns(pos, face_dir, face_pitch, has_multi_shot, walls, ramps, floors);
+    let spawns = calculate_projectile_spawns(pos, face_dir, face_pitch, has_multi_shot, collision_world);
 
     for spawn_info in &spawns {
         spawn_single_projectile(commands, meshes, materials, spawn_info, shooter_id);
@@ -101,9 +99,7 @@ pub fn spawn_projectile_for_player(
     player_query: &Query<(&PlayerId, &Position, &FaceDirection), With<PlayerMarker>>,
     entity: Entity,
     has_multi_shot: bool,
-    walls: &[Wall],
-    ramps: &[Ramp],
-    floors: &[Floor],
+    collision_world: &CollisionWorld,
 ) {
     if let Ok((player_id, pos, face_dir)) = player_query.get(entity) {
         spawn_projectiles(
@@ -114,9 +110,7 @@ pub fn spawn_projectile_for_player(
             face_dir.0,
             0.0,
             has_multi_shot,
-            walls,
-            ramps,
-            floors,
+            collision_world,
             *player_id,
         );
     }

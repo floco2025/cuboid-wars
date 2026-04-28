@@ -12,6 +12,7 @@ use crate::{
 };
 use common::{
     constants::{ALWAYS_MULTI_SHOT, PROJECTILE_COOLDOWN_TIME},
+    physics::CollisionWorld,
     protocol::*,
 };
 
@@ -31,7 +32,7 @@ pub fn input_shooting_system(
     mut materials: ResMut<Assets<StandardMaterial>>,
     my_player_id: Option<Res<MyPlayerId>>,
     players: Res<PlayerMap>,
-    map_layout: Option<Res<MapLayout>>,
+    collision_world: Option<Res<CollisionWorld>>,
     view_mode: Res<CameraViewMode>,
     time: Res<Time>,
     mut local_player_info: ResMut<LocalPlayerInfo>,
@@ -80,7 +81,7 @@ pub fn input_shooting_system(
                 .is_some_and(|info| info.multi_shot_power_up);
 
         if let Some(my_id) = my_player_id.as_ref()
-            && let Some(map_layout) = map_layout.as_ref()
+            && let Some(collision_world) = collision_world.as_ref()
         {
             if spawn_projectiles(
                 &mut commands,
@@ -90,9 +91,7 @@ pub fn input_shooting_system(
                 face_dir.0,
                 pitch,
                 has_multi_shot,
-                map_layout.walls.as_slice(),
-                map_layout.ramps.as_slice(),
-                map_layout.floors.as_slice(),
+                collision_world,
                 my_id.0,
             ) > 0
             {

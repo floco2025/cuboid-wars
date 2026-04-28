@@ -10,8 +10,8 @@ use crate::{
 };
 use common::{
     markers::{PlayerMarker, ProjectileMarker},
-    physics::{ProjectileMotion, sweep_projectile_vs_player},
-    protocol::{FaceDirection, MapLayout, PlayerId, Position},
+    physics::{CollisionWorld, ProjectileMotion, sweep_projectile_vs_player},
+    protocol::{FaceDirection, PlayerId, Position},
 };
 
 // ============================================================================
@@ -72,12 +72,12 @@ pub fn projectiles_movement_system(
     asset_server: Res<AssetServer>,
     mut projectile_query: Query<(Entity, &mut Transform, &mut ProjectileMotion, &PlayerId), With<ProjectileMarker>>,
     player_query: Query<(Entity, &Position, &FaceDirection, Has<LocalPlayerMarker>), With<PlayerMarker>>,
-    map_layout: Option<Res<MapLayout>>,
+    collision_world: Option<Res<CollisionWorld>>,
     mut last_bounce_sound: ResMut<LastBounceSoundTime>,
 ) {
     let delta = time.delta_secs();
     let current_time = time.elapsed_secs();
-    let map_layout = map_layout.as_deref();
+    let collision_world = collision_world.as_deref();
 
     for (projectile_entity, mut projectile_transform, mut projectile, _shooter_id) in &mut projectile_query {
         // Check lifetime and despawn if expired
@@ -100,7 +100,7 @@ pub fn projectiles_movement_system(
             &mut projectile,
             &projectile_pos,
             delta,
-            map_layout,
+            collision_world,
             current_time,
             &mut last_bounce_sound,
         ) {
@@ -139,22 +139,16 @@ fn handle_wall_collisions(
     proj_motion: &mut ProjectileMotion,
     proj_pos: &Position,
     delta: f32,
-    map_layout: Option<&MapLayout>,
+    collision_world: Option<&CollisionWorld>,
     current_time: f32,
     last_bounce_sound: &mut LastBounceSoundTime,
 ) -> Option<Position> {
-    let map_layout = map_layout?;
+    let collision_world = collision_world?;
 
     // Check speed before bounce to decide if we should play sound
     let speed_before = proj_motion.velocity.length();
 
-    let new_pos = proj_motion.handle_bounces(
-        proj_pos,
-        delta,
-        &map_layout.walls,
-        &map_layout.floors,
-        &map_layout.ramps,
-    )?;
+    let new_pos = proj_motion.handle_bounces(proj_pos, delta, collision_world)?;
 
     // Play sound if speed is high enough and rate limit allows
     let min_interval = 1.0 / PROJECTILE_MAX_BOUNCE_SOUNDS_PER_SECOND;

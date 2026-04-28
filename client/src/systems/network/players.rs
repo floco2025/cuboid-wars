@@ -8,7 +8,11 @@ use crate::{
     spawning::{spawn_player, spawn_projectiles},
     systems::{CameraShake, CuboidShake},
 };
-use common::{markers::PlayerMarker, physics::PlayerMotion, protocol::*};
+use common::{
+    markers::PlayerMarker,
+    physics::{CollisionWorld, PlayerMotion},
+    protocol::*,
+};
 
 // ============================================================================
 // Player Message Handlers
@@ -86,7 +90,7 @@ pub fn handle_player_shot_message(
     players: &ResMut<PlayerMap>,
     player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
     msg: SShot,
-    map_layout: Option<&MapLayout>,
+    collision_world: Option<&CollisionWorld>,
 ) {
     trace!("{:?} shot: {:?}", msg.id, msg);
     if let Some(player) = players.0.get(&msg.id) {
@@ -94,7 +98,7 @@ pub fn handle_player_shot_message(
 
         // Spawn projectile(s) based on player's multi-shot power-up status
         if let Ok((position, _, _)) = player_data.get(player.entity)
-            && let Some(map_layout) = map_layout
+            && let Some(collision_world) = collision_world
         {
             spawn_projectiles(
                 commands,
@@ -104,9 +108,7 @@ pub fn handle_player_shot_message(
                 msg.face_dir,
                 msg.face_pitch,
                 player.multi_shot_power_up,
-                map_layout.walls.as_slice(),
-                map_layout.ramps.as_slice(),
-                map_layout.floors.as_slice(),
+                collision_world,
                 msg.id,
             );
         }

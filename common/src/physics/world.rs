@@ -1,14 +1,16 @@
 use bevy_ecs::prelude::Resource;
+use bevy_math::Vec3;
 use rapier3d::{
     control::{CharacterCollision, EffectiveCharacterMovement, KinematicCharacterController},
+    parry::{query::ShapeCastOptions, shape::Ball},
     prelude::{
         BroadPhaseBvh, Collider, ColliderBuilder, ColliderHandle, ColliderSet, IntegrationParameters, NarrowPhase,
         Pose, QueryFilter, RigidBodySet, Shape, Vector,
     },
 };
 
-use super::{Cuboid, floor_cuboid, wall_cuboid};
 use crate::{
+    constants::{LEVEL_HEIGHT, WALL_HEIGHT},
     map::{RampAxis, ramp_axis},
     protocol::{Floor, MapLayout, Ramp, Wall},
 };
@@ -19,6 +21,12 @@ pub struct CollisionWorld {
     colliders: ColliderSet,
     broad_phase: BroadPhaseBvh,
     narrow_phase: NarrowPhase,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ShapeCastCollision {
+    pub normal: Vec3,
+    pub t: f32,
 }
 
 impl CollisionWorld {
@@ -130,6 +138,69 @@ impl CollisionWorld {
             )
         }
     }
+
+    #[must_use]
+    pub fn cast_ball(&self, position: &Vec3, translation: Vec3, radius: f32) -> Option<ShapeCastCollision> {
+        if translation.length_squared() == 0.0 {
+            return None;
+        }
+
+        let query_pipeline = self.broad_phase.as_query_pipeline(
+            self.narrow_phase.query_dispatcher(),
+            &self.bodies,
+            &self.colliders,
+            QueryFilter::default(),
+        );
+        let shape = Ball::new(radius);
+        let pose = Pose::translation(position.x, position.y, position.z);
+        let velocity = Vector::new(translation.x, translation.y, translation.z);
+        let options = ShapeCastOptions {
+            max_time_of_impact: 1.0,
+            stop_at_penetration: false,
+            ..ShapeCastOptions::default()
+        };
+
+        query_pipeline
+            .cast_shape(&pose, velocity, &shape, options)
+            .map(|(_, hit)| ShapeCastCollision {
+                normal: Vec3::new(hit.normal2.x, hit.normal2.y, hit.normal2.z),
+                t: hit.time_of_impact,
+            })
+    }
+
+    #[must_use]
+    pub fn ball_overlaps_any_of(&self, position: &Vec3, radius: f32, kinds: &[ColliderKind]) -> bool {
+        let include = |_: ColliderHandle, collider: &Collider| {
+            ColliderKind::from_user_data(collider.user_data).is_some_and(|kind| kinds.contains(&kind))
+        };
+        let query_pipeline = self.broad_phase.as_query_pipeline(
+            self.narrow_phase.query_dispatcher(),
+            &self.bodies,
+            &self.colliders,
+            QueryFilter::default().predicate(&include),
+        );
+        let shape = Ball::new(radius);
+        let pose = Pose::translation(position.x, position.y, position.z);
+
+        query_pipeline.intersect_shape(pose, &shape).next().is_some()
+    }
+
+    #[must_use]
+    pub fn cuboid_overlaps_any_of(&self, center: &Vec3, half_extents: Vec3, kinds: &[ColliderKind]) -> bool {
+        let include = |_: ColliderHandle, collider: &Collider| {
+            ColliderKind::from_user_data(collider.user_data).is_some_and(|kind| kinds.contains(&kind))
+        };
+        let query_pipeline = self.broad_phase.as_query_pipeline(
+            self.narrow_phase.query_dispatcher(),
+            &self.bodies,
+            &self.colliders,
+            QueryFilter::default().predicate(&include),
+        );
+        let shape = rapier3d::parry::shape::Cuboid::new(Vector::new(half_extents.x, half_extents.y, half_extents.z));
+        let pose = Pose::translation(center.x, center.y, center.z);
+
+        query_pipeline.intersect_shape(pose, &shape).next().is_some()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -159,17 +230,45 @@ impl ColliderKind {
 }
 
 fn insert_wall_collider(colliders: &mut ColliderSet, wall: &Wall) -> ColliderHandle {
-    insert_cuboid_collider(colliders, wall_cuboid(wall, 0.0), ColliderKind::Wall)
+    let dx = (wall.x2 - wall.x1).abs();
+    let dz = (wall.z2 - wall.z1).abs();
+    let wall_half_thickness = wall.width / 2.0;
+    let is_horizontal = dx > dz;
+    let half_extents = Vec3::new(
+        if is_horizontal { dx / 2.0 } else { wall_half_thickness },
+        WALL_HEIGHT / 2.0,
+        if is_horizontal { wall_half_thickness } else { dz / 2.0 },
+    );
+    let center = Vec3::new(
+        f32::midpoint(wall.x1, wall.x2),
+        f32::from(wall.level).mul_add(LEVEL_HEIGHT, WALL_HEIGHT / 2.0),
+        f32::midpoint(wall.z1, wall.z2),
+    );
+
+    insert_cuboid_collider(colliders, center, half_extents, ColliderKind::Wall)
 }
 
 fn insert_floor_collider(colliders: &mut ColliderSet, floor: &Floor) -> ColliderHandle {
-    insert_cuboid_collider(colliders, floor_cuboid(floor, 0.0), ColliderKind::Floor)
+    let (min_x, max_x, min_z, max_z) = floor.bounds_xz();
+    let center = Vec3::new(
+        f32::midpoint(min_x, max_x),
+        floor.y - floor.thickness / 2.0,
+        f32::midpoint(min_z, max_z),
+    );
+    let half_extents = Vec3::new((max_x - min_x) / 2.0, floor.thickness / 2.0, (max_z - min_z) / 2.0);
+
+    insert_cuboid_collider(colliders, center, half_extents, ColliderKind::Floor)
 }
 
-fn insert_cuboid_collider(colliders: &mut ColliderSet, cuboid: Cuboid, kind: ColliderKind) -> ColliderHandle {
+fn insert_cuboid_collider(
+    colliders: &mut ColliderSet,
+    center: Vec3,
+    half_extents: Vec3,
+    kind: ColliderKind,
+) -> ColliderHandle {
     colliders.insert(
-        ColliderBuilder::cuboid(cuboid.half_extents.x, cuboid.half_extents.y, cuboid.half_extents.z)
-            .position(Pose::translation(cuboid.center.x, cuboid.center.y, cuboid.center.z))
+        ColliderBuilder::cuboid(half_extents.x, half_extents.y, half_extents.z)
+            .position(Pose::translation(center.x, center.y, center.z))
             .user_data(kind.user_data())
             .build(),
     )

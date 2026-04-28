@@ -68,7 +68,6 @@ pub fn network_client_message_system(
                         &time,
                         &player_data,
                         &motions,
-                        &map_layout,
                         &collision_world,
                     );
                 } else {
@@ -79,6 +78,7 @@ pub fn network_client_message_system(
                         message,
                         &mut players,
                         &map_layout,
+                        &collision_world,
                         &map_config,
                         &items,
                         &player_data,

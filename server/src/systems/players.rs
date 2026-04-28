@@ -5,13 +5,13 @@ use super::network::broadcast_to_all;
 use crate::resources::{MapConfig, PlayerInfo, PlayerMap};
 use common::{
     constants::{
-        FIELD_DEPTH, FIELD_WIDTH, GRID_SIZE, LEVEL_HEIGHT, PHYSICS_EPSILON, PLAYER_DEATH_Y, PLAYER_DEPTH, PLAYER_WIDTH,
+        FIELD_DEPTH, FIELD_WIDTH, GRID_SIZE, LEVEL_HEIGHT, PHYSICS_EPSILON, PLAYER_DEATH_Y, PLAYER_DEPTH,
+        PLAYER_HEIGHT, PLAYER_WIDTH,
     },
-    map::compute_player_level,
     markers::PlayerMarker,
-    physics::{CollisionWorld, PlayerMotion, overlap_player_vs_wall, step_player_motion, sweep_player_vs_player},
+    physics::{ColliderKind, CollisionWorld, PlayerMotion, step_player_motion, sweep_player_vs_player},
     players::{PlannedMove, overlaps_other_player},
-    protocol::{MapLayout, MoveInput, PlayerId, Position, SDeath, ServerMessage},
+    protocol::{MoveInput, PlayerId, Position, SDeath, ServerMessage},
 };
 
 // ============================================================================
@@ -122,7 +122,7 @@ pub fn players_timer_system(time: Res<Time>, mut players: ResMut<PlayerMap>) {
 pub fn players_death_system(
     players: Res<PlayerMap>,
     map_config: Res<MapConfig>,
-    map_layout: Res<MapLayout>,
+    collision_world: Res<CollisionWorld>,
     mut player_query: Query<(Entity, &PlayerId, &mut Position, &mut PlayerMotion), With<PlayerMarker>>,
 ) {
     let dead: Vec<(Entity, PlayerId)> = player_query
@@ -138,7 +138,7 @@ pub fn players_death_system(
     let occupied_positions: Vec<Position> = player_query.iter().map(|(_, _, pos, _)| *pos).collect();
 
     for (entity, id) in dead {
-        let respawn_pos = generate_player_spawn_position(&map_config, &map_layout, &occupied_positions);
+        let respawn_pos = generate_player_spawn_position(&map_config, &collision_world, &occupied_positions);
 
         if let Ok((_, _, mut pos, mut motion)) = player_query.get_mut(entity) {
             *pos = respawn_pos;
@@ -161,7 +161,7 @@ const SPAWN_MAX_ATTEMPTS: usize = 100;
 #[must_use]
 pub fn generate_player_spawn_position(
     map_config: &MapConfig,
-    map_layout: &MapLayout,
+    collision_world: &CollisionWorld,
     occupied_positions: &[Position],
 ) -> Position {
     let mut rng = rng();
@@ -193,7 +193,7 @@ pub fn generate_player_spawn_position(
         let &(level, row, col) = valid_cells.choose(&mut rng).expect("valid_cells should not be empty");
         let pos = random_position_in_spawn_cell(&mut rng, level, row, col);
 
-        if player_spawn_position_is_clear(&pos, map_layout, occupied_positions) {
+        if player_spawn_position_is_clear(&pos, collision_world, occupied_positions) {
             return pos;
         }
     }
@@ -218,16 +218,18 @@ fn random_position_in_spawn_cell(rng: &mut ThreadRng, level: u8, row: i32, col: 
     }
 }
 
-fn player_spawn_position_is_clear(pos: &Position, map_layout: &MapLayout, occupied_positions: &[Position]) -> bool {
-    let player_level = compute_player_level(pos.y);
+fn player_spawn_position_is_clear(
+    pos: &Position,
+    collision_world: &CollisionWorld,
+    occupied_positions: &[Position],
+) -> bool {
+    let player_center = Vec3::new(pos.x, pos.y + PLAYER_HEIGHT / 2.0, pos.z);
+    let player_half_extents = Vec3::new(PLAYER_WIDTH / 2.0, PLAYER_HEIGHT / 2.0, PLAYER_DEPTH / 2.0);
+
     !occupied_positions
         .iter()
         .any(|other| sweep_player_vs_player_static(pos, other))
-        && !map_layout
-            .walls
-            .iter()
-            .filter(|wall| wall.level == player_level)
-            .any(|wall| overlap_player_vs_wall(pos, wall))
+        && !collision_world.cuboid_overlaps_any_of(&player_center, player_half_extents, &[ColliderKind::Wall])
 }
 
 fn sweep_player_vs_player_static(pos: &Position, other: &Position) -> bool {
@@ -238,7 +240,10 @@ fn sweep_player_vs_player_static(pos: &Position, other: &Position) -> bool {
 mod tests {
     use super::*;
     use crate::resources::{CellGrid, EdgeGrid, LevelGrid, MapConfig, PlayerSpawnField};
-    use common::{constants::WALL_THICKNESS, protocol::Wall};
+    use common::{
+        constants::WALL_THICKNESS,
+        protocol::{MapLayout, Wall},
+    };
 
     fn empty_layout() -> MapLayout {
         MapLayout {
@@ -247,6 +252,10 @@ mod tests {
             floors: Vec::new(),
             wall_lights: Vec::new(),
         }
+    }
+
+    fn collision_world(layout: &MapLayout) -> CollisionWorld {
+        CollisionWorld::from_map_layout(layout)
     }
 
     fn map_config_with_spawn(level: u8, col: i32, row: i32) -> MapConfig {
@@ -266,9 +275,10 @@ mod tests {
     #[test]
     fn spawn_position_rejects_other_player_overlap() {
         let layout = empty_layout();
+        let collision_world = collision_world(&layout);
         let pos = Position::default();
 
-        assert!(!player_spawn_position_is_clear(&pos, &layout, &[pos]));
+        assert!(!player_spawn_position_is_clear(&pos, &collision_world, &[pos]));
     }
 
     #[test]
@@ -282,8 +292,13 @@ mod tests {
             width: WALL_THICKNESS,
             level: 0,
         });
+        let collision_world = collision_world(&layout);
 
-        assert!(!player_spawn_position_is_clear(&Position::default(), &layout, &[]));
+        assert!(!player_spawn_position_is_clear(
+            &Position::default(),
+            &collision_world,
+            &[]
+        ));
     }
 
     #[test]
@@ -297,16 +312,22 @@ mod tests {
             width: WALL_THICKNESS,
             level: 1,
         });
+        let collision_world = collision_world(&layout);
 
-        assert!(player_spawn_position_is_clear(&Position::default(), &layout, &[]));
+        assert!(player_spawn_position_is_clear(
+            &Position::default(),
+            &collision_world,
+            &[]
+        ));
     }
 
     #[test]
     fn spawn_position_uses_configured_spawn_level() {
         let layout = empty_layout();
+        let collision_world = collision_world(&layout);
         let map_config = map_config_with_spawn(1, 0, 0);
 
-        let pos = generate_player_spawn_position(&map_config, &layout, &[]);
+        let pos = generate_player_spawn_position(&map_config, &collision_world, &[]);
 
         assert_eq!(pos.y, LEVEL_HEIGHT);
     }

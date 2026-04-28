@@ -4,8 +4,8 @@ use super::network::broadcast_to_all;
 use crate::resources::PlayerMap;
 use common::{
     markers::{PlayerMarker, ProjectileMarker},
-    physics::{ProjectileMotion, sweep_projectile_vs_player},
-    protocol::{MapLayout, *},
+    physics::{CollisionWorld, ProjectileMotion, sweep_projectile_vs_player},
+    protocol::*,
 };
 
 // ============================================================================
@@ -17,7 +17,7 @@ pub fn projectiles_movement_system(
     time: Res<Time>,
     mut projectile_query: Query<(Entity, &mut Position, &mut ProjectileMotion, &PlayerId), With<ProjectileMarker>>,
     player_query: Query<(&Position, &FaceDirection, &PlayerId), (With<PlayerMarker>, Without<ProjectileMarker>)>,
-    map_layout: Res<MapLayout>,
+    collision_world: Res<CollisionWorld>,
     mut players: ResMut<PlayerMap>,
 ) {
     let delta = time.delta_secs();
@@ -36,13 +36,7 @@ pub fn projectiles_movement_system(
 
         // Check wall collisions
         let mut bounced = false;
-        if let Some(new_pos) = projectile.handle_bounces(
-            &proj_pos,
-            delta,
-            &map_layout.walls,
-            &map_layout.floors,
-            &map_layout.ramps,
-        ) {
+        if let Some(new_pos) = projectile.handle_bounces(&proj_pos, delta, &collision_world) {
             *proj_pos = new_pos;
             bounced = true;
         }

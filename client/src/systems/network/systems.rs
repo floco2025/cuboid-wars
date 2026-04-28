@@ -10,7 +10,7 @@ use crate::{
         ClientToServerChannel, ItemMap, LastUpdateSeq, MyPlayerId, PlayerMap, RoundTripTime, ServerToClientChannel,
     },
 };
-use common::{markers::PlayerMarker, protocol::*};
+use common::{markers::PlayerMarker, physics::CollisionWorld, protocol::*};
 
 // ============================================================================
 // Network Message Processing System
@@ -29,7 +29,7 @@ pub fn network_server_message_system(
     player_data: Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
     cameras: Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     my_player_id: Option<Res<MyPlayerId>>,
-    map_layout: Option<Res<MapLayout>>,
+    collision_world: Option<Res<CollisionWorld>>,
     time: Res<Time>,
     asset_server: Res<AssetServer>,
 ) {
@@ -55,7 +55,7 @@ pub fn network_server_message_system(
                         &cameras,
                         &time,
                         &asset_server,
-                        map_layout.as_deref(),
+                        collision_world.as_deref(),
                     );
                 } else {
                     handle_init_message(message, &mut commands);

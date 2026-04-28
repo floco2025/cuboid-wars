@@ -7,7 +7,7 @@ use crate::{
 };
 use common::{
     markers::{ItemMarker, PlayerMarker},
-    physics::PlayerMotion,
+    physics::{CollisionWorld, PlayerMotion},
     protocol::{MapLayout, *},
 };
 
@@ -25,6 +25,7 @@ pub fn handle_login_message(
     msg: ClientMessage,
     players: &mut ResMut<PlayerMap>,
     map_layout: &Res<MapLayout>,
+    collision_world: &Res<CollisionWorld>,
     map_config: &Res<MapConfig>,
     items: &Res<ItemMap>,
     player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
@@ -72,7 +73,7 @@ pub fn handle_login_message(
                 .filter_map(|p| player_data.get(p.entity).ok())
                 .map(|(pos, _, _)| *pos)
                 .collect();
-            let pos = generate_player_spawn_position(map_config, map_layout, &occupied_positions);
+            let pos = generate_player_spawn_position(map_config, collision_world, &occupied_positions);
 
             // Calculate initial facing direction toward center
             let face_dir = (-pos.x).atan2(-pos.z);

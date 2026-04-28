@@ -3,19 +3,17 @@ use bevy_math::Vec3;
 use rapier3d::{
     control::{CharacterLength, KinematicCharacterController},
     geometry::Cuboid,
+    parry::query::{ShapeCastOptions, cast_shapes, intersection_test},
     prelude::{Pose, Vector},
 };
 
-use super::{
-    helpers::{sweep_aabb_vs_aabb, wall_cuboid},
-    world::CollisionWorld,
-};
+use super::world::CollisionWorld;
 use crate::{
     constants::{
         PHYSICS_EPSILON, PLAYER_DEPTH, PLAYER_GRAVITY, PLAYER_HEIGHT, PLAYER_JUMP_SPEED, PLAYER_LANDING_EPSILON,
         PLAYER_TERMINAL_VELOCITY, PLAYER_WIDTH,
     },
-    protocol::{Position, Wall},
+    protocol::Position,
 };
 
 const PLAYER_CONTACT_OFFSET: f32 = 0.01;
@@ -181,19 +179,28 @@ fn vec3(v: Vector) -> Vec3 {
 
 #[must_use]
 pub fn sweep_player_vs_player(start1: &Position, end1: &Position, start2: &Position, end2: &Position) -> bool {
-    sweep_aabb_vs_aabb(start1, end1, start2, end2, PLAYER_WIDTH, PLAYER_DEPTH, PLAYER_HEIGHT)
-}
+    let shape = player_shape();
+    let velocity1 = Vector::new(end1.x - start1.x, end1.y - start1.y, end1.z - start1.z);
+    let velocity2 = Vector::new(end2.x - start2.x, end2.y - start2.y, end2.z - start2.z);
+    if intersection_test(&player_pose(start1), &shape, &player_pose(start2), &shape).is_ok_and(|overlaps| overlaps) {
+        return true;
+    }
 
-// Check if the player's AABB currently overlaps an axis-aligned wall.
-#[must_use]
-pub fn overlap_player_vs_wall(pos: &Position, wall: &Wall) -> bool {
-    let wall = wall_cuboid(wall, 0.0);
-    let player_center = Vec3::new(pos.x, pos.y + PLAYER_HEIGHT / 2.0, pos.z);
-    let player_half_extents = Vec3::new(PLAYER_WIDTH / 2.0, PLAYER_HEIGHT / 2.0, PLAYER_DEPTH / 2.0);
+    let options = ShapeCastOptions {
+        max_time_of_impact: 1.0,
+        ..ShapeCastOptions::default()
+    };
 
-    (player_center.x - wall.center.x).abs() <= player_half_extents.x + wall.half_extents.x
-        && (player_center.y - wall.center.y).abs() <= player_half_extents.y + wall.half_extents.y
-        && (player_center.z - wall.center.z).abs() <= player_half_extents.z + wall.half_extents.z
+    cast_shapes(
+        &player_pose(start1),
+        velocity1,
+        &shape,
+        &player_pose(start2),
+        velocity2,
+        &shape,
+        options,
+    )
+    .is_ok_and(|hit| hit.is_some())
 }
 
 #[cfg(test)]
@@ -543,7 +550,7 @@ mod tests {
     }
 
     #[test]
-    fn upward_motion_into_floor_slab_side_is_horizontal_collision() {
+    fn upward_motion_under_floor_edge_hits_ceiling_not_horizontal() {
         let floor = upper_floor();
         let collision_world = collision_world(&[floor], &[]);
         let pos = Position {
@@ -557,9 +564,10 @@ mod tests {
 
         let step = step_player_motion(&pos, &motion, &collision_world, false, -4.25, pos.z, 0.1);
 
-        assert!(step.hit_horizontal);
-        assert!(step.vy > 0.0);
-        assert!(step.position.y > pos.y);
+        assert!(!step.hit_horizontal);
+        assert_eq!(step.vy, 0.0);
+        assert!(step.position.y <= floor.y - floor.thickness);
+        assert!(step.position.x > pos.x);
     }
 
     #[test]
@@ -577,7 +585,7 @@ mod tests {
 
         assert!(!step.hit_horizontal);
         assert!(step.position.x > pos.x);
-        assert!(step.position.y < floor.y);
+        assert!(step.position.y >= floor.y);
     }
 
     #[test]
@@ -649,7 +657,7 @@ mod tests {
     }
 
     #[test]
-    fn player_hits_floor_slab_side_when_moving_off_ramp_into_floor() {
+    fn floor_slab_side_does_not_block_horizontal_movement_off_ramp() {
         let ramp = test_ramp();
         let floor = upper_floor_west_of_ramp();
         let collision_world = collision_world(&[floor], &[ramp]);
@@ -659,6 +667,7 @@ mod tests {
 
         let step = step_player_motion(&pos, &motion, &collision_world, false, -1.0, pos.z, 0.1);
 
-        assert!(step.hit_horizontal);
+        assert!(!step.hit_horizontal);
+        assert!(step.position.x < pos.x);
     }
 }

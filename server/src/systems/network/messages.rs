@@ -6,7 +6,7 @@ use common::{
     constants::{ALWAYS_MULTI_SHOT, PROJECTILE_COOLDOWN_TIME},
     markers::{PlayerMarker, ProjectileMarker},
     physics::{CollisionWorld, PlayerMotion, ProjectileMotion, try_start_player_jump},
-    protocol::{MapLayout, *},
+    protocol::*,
     spawning::calculate_projectile_spawns,
 };
 
@@ -24,7 +24,6 @@ pub fn dispatch_message(
     time: &Res<Time>,
     player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
     motions: &Query<&PlayerMotion, With<PlayerMarker>>,
-    map_layout: &MapLayout,
     collision_world: &CollisionWorld,
 ) {
     match msg {
@@ -52,7 +51,7 @@ pub fn dispatch_message(
         }
         ClientMessage::Shot(msg) => {
             debug!("{id:?} shot");
-            handle_shot_message(commands, entity, id, msg, players, time, player_data, map_layout);
+            handle_shot_message(commands, entity, id, msg, players, time, player_data, collision_world);
         }
         ClientMessage::Echo(msg) => {
             handle_echo_message(id, msg, players);
@@ -158,7 +157,7 @@ fn handle_shot_message(
     players: &mut PlayerMap,
     time: &Res<Time>,
     player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
-    map_layout: &MapLayout,
+    collision_world: &CollisionWorld,
 ) {
     let now = time.elapsed_secs();
 
@@ -181,15 +180,7 @@ fn handle_shot_message(
 
     // Spawn projectile(s) on server for hit detection
     if let Ok((pos, _, _)) = player_data.get(entity) {
-        let spawns = calculate_projectile_spawns(
-            pos,
-            msg.face_dir,
-            msg.face_pitch,
-            has_multi_shot,
-            &map_layout.walls,
-            &map_layout.ramps,
-            &map_layout.floors,
-        );
+        let spawns = calculate_projectile_spawns(pos, msg.face_dir, msg.face_pitch, has_multi_shot, collision_world);
 
         // Spawn each projectile
         for spawn_info in spawns {
