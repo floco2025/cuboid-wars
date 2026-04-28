@@ -152,7 +152,6 @@ fn main() -> Result<()> {
         Update,
         (
             map_spawn_walls_system,
-            map_toggle_wall_opacity_system,
             map_level_focus_visibility_system,
             map_make_wall_lights_emissive_system,
         ),

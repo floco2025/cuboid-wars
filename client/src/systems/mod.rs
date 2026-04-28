@@ -9,6 +9,13 @@ mod projectiles;
 mod skybox;
 mod ui;
 
+pub(crate) fn visual_focus_level(y: f32) -> u8 {
+    if y <= 0.0 {
+        return 0;
+    }
+    (y / common::constants::LEVEL_HEIGHT).round().min(f32::from(u8::MAX)) as u8
+}
+
 pub use animations::{AnimationToPlay, players_animation_system};
 pub use cameras::setup_cameras_system;
 pub use input::{
@@ -18,7 +25,7 @@ pub use input::{
 pub use items::items_animation_system;
 pub use map::{
     map_level_focus_visibility_system, map_make_wall_lights_emissive_system, map_spawn_walls_system,
-    map_toggle_wall_opacity_system, setup_world_geometry_system,
+    setup_world_geometry_system,
 };
 pub use network::{AssetManagers, ServerReconciliation, network_echo_system, network_server_message_system};
 pub use players::{

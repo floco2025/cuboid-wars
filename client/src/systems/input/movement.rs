@@ -64,7 +64,7 @@ pub fn input_movement_system(
 
     send_throttled_updates(move_input, face_yaw, &time, &to_server, &mut local_player_info);
 
-    if *view_mode == CameraViewMode::FirstPerson {
+    if view_mode.is_first_person() {
         for mut transform in &mut camera_query {
             transform.rotation = Quat::from_euler(EulerRot::YXZ, current_yaw, current_pitch, 0.0);
         }
@@ -105,7 +105,7 @@ fn calculate_current_orientation(
         -MOUSE_SENSITIVITY
     };
     // Determine the yaw/pitch baseline (camera vs stored value depending on view mode)
-    let (mut current_yaw, mut current_pitch) = if **view_mode == CameraViewMode::FirstPerson
+    let (mut current_yaw, mut current_pitch) = if view_mode.is_first_person()
         && !view_mode.is_changed()
         && let Some(transform) = camera_query.iter().next()
     {
@@ -118,12 +118,12 @@ fn calculate_current_orientation(
     // Apply mouse delta to yaw/pitch (pitch only in first-person)
     for motion in mouse_motion.read() {
         current_yaw = motion.delta.x.mul_add(-MOUSE_SENSITIVITY, current_yaw);
-        if **view_mode == CameraViewMode::FirstPerson {
+        if view_mode.is_first_person() {
             current_pitch = motion.delta.y.mul_add(pitch_sign, current_pitch);
         }
     }
 
-    if **view_mode == CameraViewMode::FirstPerson {
+    if view_mode.is_first_person() {
         current_pitch = current_pitch.clamp(-MAX_PITCH, MAX_PITCH);
     } else {
         current_pitch = 0.0;

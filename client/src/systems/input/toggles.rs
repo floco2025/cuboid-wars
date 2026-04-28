@@ -11,12 +11,21 @@ use crate::resources::{CameraViewMode, LevelFocusEnabled};
 // ============================================================================
 
 // Toggle camera view mode with V key
-pub fn input_camera_view_toggle_system(keyboard: Res<ButtonInput<KeyCode>>, mut view_mode: ResMut<CameraViewMode>) {
+pub fn input_camera_view_toggle_system(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut view_mode: ResMut<CameraViewMode>,
+    mut focus: ResMut<LevelFocusEnabled>,
+) {
     if keyboard.just_pressed(KeyCode::KeyV) {
-        *view_mode = match *view_mode {
-            CameraViewMode::FirstPerson => CameraViewMode::TopDown,
-            CameraViewMode::TopDown => CameraViewMode::FirstPerson,
-        };
+        let old_mode = *view_mode;
+        let new_mode = old_mode.next();
+        *view_mode = new_mode;
+
+        if old_mode.is_first_person() && new_mode.is_top_down() {
+            focus.0 = true;
+        } else if old_mode.is_top_down() && new_mode.is_first_person() {
+            focus.0 = false;
+        }
     }
 }
 

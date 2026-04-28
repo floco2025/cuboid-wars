@@ -9,13 +9,8 @@ pub const FPV_CAMERA_FOV_DEGREES: f32 = 90.0;
 
 // Top-down view
 pub const TOPDOWN_CAMERA_FOV_DEGREES: f32 = 45.0;
-pub const TOPDOWN_CAMERA_HEIGHT: f32 = 80.0; // meters above ground
-pub const TOPDOWN_CAMERA_Z_OFFSET: f32 = 55.0; // meters along Z axis from center
-pub const TOPDOWN_LOOKAT_X: f32 = 0.0;
-pub const TOPDOWN_LOOKAT_Y: f32 = 9.0;
-pub const TOPDOWN_LOOKAT_Z: f32 = 8.7;
-pub const TOPDOWN_WALL_ALPHA: f32 = 1.0;
-pub const TOPDOWN_ROOF_ALPHA: f32 = 1.0;
+pub const TOPDOWN_CAMERA_MARGIN: f32 = 1.15;
+pub const TOPDOWN_CAMERA_TILT_DEGREES: f32 = 35.0;
 
 // Rearview mirror
 pub const REARVIEW_WIDTH_RATIO: f32 = 0.25; // Width as ratio of screen width

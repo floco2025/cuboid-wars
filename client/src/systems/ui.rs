@@ -173,9 +173,10 @@ pub fn ui_toggle_crosshair_system(
     }
 
     for mut visibility in &mut query {
-        *visibility = match *view_mode {
-            CameraViewMode::FirstPerson => Visibility::Visible,
-            CameraViewMode::TopDown => Visibility::Hidden,
+        *visibility = if view_mode.is_first_person() {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
         };
     }
 }

@@ -1,8 +1,11 @@
 use bevy::{gltf::GltfAssetLabel, prelude::*, scene::SceneRoot};
 use rand::random;
 
-use crate::constants::*;
-use common::{markers::ItemMarker, protocol::*};
+use crate::{
+    constants::*,
+    markers::{MapLevel, WallLightMarker},
+};
+use common::{map::compute_player_level, markers::ItemMarker, protocol::*};
 
 // ============================================================================
 // Components
@@ -23,6 +26,7 @@ struct ItemBundle {
     mesh: Mesh3d,
     material: MeshMaterial3d<StandardMaterial>,
     transform: Transform,
+    visibility: Visibility,
 }
 
 // ============================================================================
@@ -50,25 +54,31 @@ pub fn spawn_item(
     item_type: ItemType,
     position: &Position,
 ) -> Entity {
+    let level = MapLevel(compute_player_level(position.y));
+
     // Cookies are rendered differently - small spheres on the floor with textures
     if item_type == ItemType::Cookie {
         return commands
-            .spawn(ItemBundle {
-                item_id,
-                item_marker: ItemMarker,
-                position: *position,
-                mesh: Mesh3d(meshes.add(Sphere::new(COOKIE_SIZE))),
-                material: MeshMaterial3d(materials.add(StandardMaterial {
-                    base_color_texture: Some(asset_server.load("textures/cookie/albedo.png")),
-                    normal_map_texture: Some(asset_server.load("textures/cookie/normal-dx.png")),
-                    occlusion_texture: Some(asset_server.load("textures/cookie/ao.png")),
-                    metallic_roughness_texture: Some(asset_server.load("textures/cookie/metallic-roughness.png")),
-                    metallic: TEXTURE_COOKIE_METALLIC,
-                    perceptual_roughness: TEXTURE_COOKIE_ROUGHNESS,
-                    ..default()
-                })),
-                transform: Transform::from_xyz(position.x, position.y + COOKIE_HEIGHT, position.z),
-            })
+            .spawn((
+                ItemBundle {
+                    item_id,
+                    item_marker: ItemMarker,
+                    position: *position,
+                    mesh: Mesh3d(meshes.add(Sphere::new(COOKIE_SIZE))),
+                    material: MeshMaterial3d(materials.add(StandardMaterial {
+                        base_color_texture: Some(asset_server.load("textures/cookie/albedo.png")),
+                        normal_map_texture: Some(asset_server.load("textures/cookie/normal-dx.png")),
+                        occlusion_texture: Some(asset_server.load("textures/cookie/ao.png")),
+                        metallic_roughness_texture: Some(asset_server.load("textures/cookie/metallic-roughness.png")),
+                        metallic: TEXTURE_COOKIE_METALLIC,
+                        perceptual_roughness: TEXTURE_COOKIE_ROUGHNESS,
+                        ..default()
+                    })),
+                    transform: Transform::from_xyz(position.x, position.y + COOKIE_HEIGHT, position.z),
+                    visibility: Visibility::Visible,
+                },
+                level,
+            ))
             .id();
     }
 
@@ -98,7 +108,9 @@ pub fn spawn_item(
                     position.y + ITEM_HEIGHT_ABOVE_FLOOR + ITEM_SIZE / 2.0,
                     position.z,
                 ),
+                visibility: Visibility::Visible,
             },
+            level,
             ItemAnimTimer(random_phase),
         ))
         .id()
@@ -107,6 +119,7 @@ pub fn spawn_item(
 // Spawn a wall light from precomputed layout data (world-space position and yaw).
 pub fn spawn_wall_light_from_layout(commands: &mut Commands, asset_server: &Res<AssetServer>, light: &WallLight) {
     let light_scene: Handle<Scene> = asset_server.load(GltfAssetLabel::Scene(0).from_asset(WALL_LIGHT_MODEL));
+    let level = MapLevel(compute_player_level(light.pos.y));
 
     let model_yaw = Quat::from_rotation_y(light.yaw);
     let (sin_yaw, cos_yaw) = light.yaw.sin_cos();
@@ -117,6 +130,8 @@ pub fn spawn_wall_light_from_layout(commands: &mut Commands, asset_server: &Res<
     );
 
     commands.spawn((
+        WallLightMarker,
+        level,
         SceneRoot(light_scene),
         Transform::from_xyz(light.pos.x, light.pos.y, light.pos.z)
             .with_scale(Vec3::splat(WALL_LIGHT_SCALE))
@@ -128,6 +143,8 @@ pub fn spawn_wall_light_from_layout(commands: &mut Commands, asset_server: &Res<
     ));
 
     commands.spawn((
+        WallLightMarker,
+        level,
         PointLight {
             intensity: WALL_LIGHT_BRIGHTNESS,
             range: WALL_LIGHT_RANGE,
@@ -137,5 +154,8 @@ pub fn spawn_wall_light_from_layout(commands: &mut Commands, asset_server: &Res<
             ..default()
         },
         Transform::from_xyz(light_pos.x, light_pos.y, light_pos.z),
+        Visibility::Visible,
+        InheritedVisibility::default(),
+        ViewVisibility::default(),
     ));
 }

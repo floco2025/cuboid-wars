@@ -32,8 +32,7 @@ pub struct RearviewCameraMarker;
 #[derive(Component)]
 pub struct WallMarker;
 
-// Marker component for upper-level floor slabs (visibility toggled by the R key,
-// transparent in top-down view). Level-0 ground is not tagged.
+// Marker component for upper-level floor slabs. Level-0 ground is not tagged.
 #[derive(Component)]
 pub struct RoofMarker;
 
@@ -44,6 +43,10 @@ pub struct GroundMarker;
 // Marker component for ramps
 #[derive(Component)]
 pub struct RampMarker;
+
+// Marker component for wall light scene and light entities.
+#[derive(Component)]
+pub struct WallLightMarker;
 
 // Records which level a map entity belongs to. Walls and floors get the
 // level they sit on; ramps get the lower of the two levels they connect.

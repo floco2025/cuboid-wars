@@ -45,7 +45,7 @@ pub fn input_shooting_system(
     {
         let now = time.elapsed_secs();
 
-        let pitch = if *view_mode == CameraViewMode::FirstPerson {
+        let pitch = if view_mode.is_first_person() {
             camera_query
                 .iter()
                 .next()

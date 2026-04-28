@@ -94,7 +94,44 @@ pub struct RoundTripTime {
 pub enum CameraViewMode {
     #[default]
     FirstPerson,
-    TopDown,
+    TopDownSouth,
+    TopDownEast,
+    TopDownNorth,
+    TopDownWest,
+}
+
+impl CameraViewMode {
+    #[must_use]
+    pub const fn next(self) -> Self {
+        match self {
+            Self::FirstPerson => Self::TopDownSouth,
+            Self::TopDownSouth => Self::TopDownEast,
+            Self::TopDownEast => Self::TopDownNorth,
+            Self::TopDownNorth => Self::TopDownWest,
+            Self::TopDownWest => Self::FirstPerson,
+        }
+    }
+
+    #[must_use]
+    pub const fn is_first_person(self) -> bool {
+        matches!(self, Self::FirstPerson)
+    }
+
+    #[must_use]
+    pub const fn is_top_down(self) -> bool {
+        !self.is_first_person()
+    }
+
+    #[must_use]
+    pub fn top_down_direction(self) -> Option<Vec3> {
+        match self {
+            Self::FirstPerson => None,
+            Self::TopDownSouth => Some(Vec3::Z),
+            Self::TopDownEast => Some(Vec3::X),
+            Self::TopDownNorth => Some(Vec3::NEG_Z),
+            Self::TopDownWest => Some(Vec3::NEG_X),
+        }
+    }
 }
 
 // Level focus toggle (R key). When enabled, hides walls/floors at other levels
