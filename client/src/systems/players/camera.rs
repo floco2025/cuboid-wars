@@ -21,6 +21,15 @@ struct FloorBounds {
 }
 
 impl FloorBounds {
+    const fn fallback() -> Self {
+        Self {
+            min_x: -FIELD_WIDTH / 2.0,
+            max_x: FIELD_WIDTH / 2.0,
+            min_z: -FIELD_DEPTH / 2.0,
+            max_z: FIELD_DEPTH / 2.0,
+        }
+    }
+
     fn include_floor(&mut self, floor: &Floor) {
         let (min_x, max_x, min_z, max_z) = floor.bounds_xz();
         self.min_x = self.min_x.min(min_x);
@@ -61,12 +70,7 @@ fn floor_bounds_for_level(map_layout: &MapLayout, level: u8) -> FloorBounds {
     if bounds.min_x.is_finite() {
         bounds
     } else {
-        FloorBounds {
-            min_x: -FIELD_WIDTH / 2.0,
-            max_x: FIELD_WIDTH / 2.0,
-            min_z: -FIELD_DEPTH / 2.0,
-            max_z: FIELD_DEPTH / 2.0,
-        }
+        FloorBounds::fallback()
     }
 }
 
@@ -118,6 +122,49 @@ fn topdown_view_direction(yaw: f32) -> Vec3 {
     Vec3::new(yaw.sin(), 0.0, yaw.cos())
 }
 
+fn window_aspect_ratio(windows: &Query<&Window>) -> f32 {
+    windows
+        .single()
+        .map_or(16.0 / 9.0, |window| window.width() / window.height().max(1.0))
+}
+
+fn topdown_camera_transform(
+    player_pos: &Position,
+    map_layout: Option<&MapLayout>,
+    aspect_ratio: f32,
+    fov: f32,
+    yaw: f32,
+) -> Transform {
+    let view_direction = topdown_view_direction(yaw);
+    let player_level = visual_focus_level(player_pos.y);
+    let floor_bounds = map_layout.map_or_else(FloorBounds::fallback, |layout| {
+        floor_bounds_for_level(layout, player_level)
+    });
+    let mut target = floor_bounds.center();
+    target.y = f32::from(player_level) * LEVEL_HEIGHT;
+    let camera_offset = topdown_camera_offset_to_fit(floor_bounds, aspect_ratio, fov, view_direction);
+    let center_shift = projected_center_shift(floor_bounds, camera_offset, view_direction);
+    target += view_direction * center_shift;
+
+    Transform::from_translation(target + camera_offset).looking_at(target, Vec3::Y)
+}
+
+fn sync_first_person_camera(
+    camera_transform: &mut Transform,
+    player_pos: &Position,
+    maybe_shake: Option<&CameraShake>,
+) {
+    camera_transform.translation.x = player_pos.x;
+    camera_transform.translation.z = player_pos.z;
+    camera_transform.translation.y = PLAYER_HEIGHT.mul_add(PLAYER_EYE_HEIGHT_RATIO, player_pos.y);
+
+    if let Some(shake) = maybe_shake {
+        camera_transform.translation.x += shake.offset_x;
+        camera_transform.translation.y += shake.offset_y;
+        camera_transform.translation.z += shake.offset_z;
+    }
+}
+
 // ============================================================================
 // Camera Sync Systems
 // ============================================================================
@@ -138,70 +185,42 @@ pub fn local_player_camera_sync_system(
         return;
     };
 
-    for (mut camera_transform, mut projection, maybe_shake) in &mut camera_query {
-        match *view_mode {
-            mode if mode.is_first_person() => {
-                camera_transform.translation.x = player_pos.x;
-                camera_transform.translation.z = player_pos.z;
-                camera_transform.translation.y = PLAYER_HEIGHT.mul_add(PLAYER_EYE_HEIGHT_RATIO, player_pos.y);
+    let Ok((mut camera_transform, mut projection, maybe_shake)) = camera_query.single_mut() else {
+        return;
+    };
 
-                if let Some(shake) = maybe_shake {
-                    camera_transform.translation.x += shake.offset_x;
-                    camera_transform.translation.y += shake.offset_y;
-                    camera_transform.translation.z += shake.offset_z;
-                }
+    let Projection::Perspective(persp) = projection.as_mut() else {
+        return;
+    };
 
-                // Set FPV FOV
-                if let Projection::Perspective(persp) = projection.as_mut() {
-                    persp.fov = FPV_CAMERA_FOV_DEGREES.to_radians();
-                }
-            }
-            _ => {
-                if let Projection::Perspective(persp) = projection.as_mut() {
-                    let view_direction = topdown_view_direction(top_down_camera_yaw.0);
-                    persp.fov = TOPDOWN_CAMERA_FOV_DEGREES.to_radians();
-                    let aspect_ratio = windows
-                        .single()
-                        .map_or(16.0 / 9.0, |window| window.width() / window.height().max(1.0));
-                    let player_level = visual_focus_level(player_pos.y);
-                    let floor_bounds = map_layout
-                        .as_deref()
-                        .map_or_else(floor_bounds_for_level_fallback, |layout| {
-                            floor_bounds_for_level(layout, player_level)
-                        });
-                    let mut target = floor_bounds.center();
-                    target.y = f32::from(player_level) * LEVEL_HEIGHT;
-                    let camera_offset =
-                        topdown_camera_offset_to_fit(floor_bounds, aspect_ratio, persp.fov, view_direction);
-                    let center_shift = projected_center_shift(floor_bounds, camera_offset, view_direction);
-                    target += view_direction * center_shift;
-                    camera_transform.translation = target + camera_offset;
-                    camera_transform.look_at(target, Vec3::Y);
-                }
-            }
+    match *view_mode {
+        CameraViewMode::FirstPerson => {
+            persp.fov = FPV_CAMERA_FOV_DEGREES.to_radians();
+            sync_first_person_camera(&mut camera_transform, player_pos, maybe_shake);
         }
-    }
-}
-
-fn floor_bounds_for_level_fallback() -> FloorBounds {
-    FloorBounds {
-        min_x: -FIELD_WIDTH / 2.0,
-        max_x: FIELD_WIDTH / 2.0,
-        min_z: -FIELD_DEPTH / 2.0,
-        max_z: FIELD_DEPTH / 2.0,
+        CameraViewMode::TopDown => {
+            persp.fov = TOPDOWN_CAMERA_FOV_DEGREES.to_radians();
+            *camera_transform = topdown_camera_transform(
+                player_pos,
+                map_layout.as_deref(),
+                window_aspect_ratio(&windows),
+                persp.fov,
+                top_down_camera_yaw.0,
+            );
+        }
     }
 }
 
 // Update local player visibility based on camera view mode
 pub fn local_player_visibility_sync_system(
     view_mode: Res<CameraViewMode>,
-    mut local_player_query: Query<(Entity, &mut Visibility, Has<Mesh3d>), With<LocalPlayerMarker>>,
+    mut local_player_query: Query<&mut Visibility, With<LocalPlayerMarker>>,
 ) {
     // Always check and update, not just when changed, to ensure it's correct
-    for (_entity, mut visibility, _has_mesh) in &mut local_player_query {
+    for mut visibility in &mut local_player_query {
         let desired_visibility = match *view_mode {
-            mode if mode.is_first_person() => Visibility::Hidden,
-            _ => Visibility::Visible,
+            CameraViewMode::FirstPerson => Visibility::Hidden,
+            CameraViewMode::TopDown => Visibility::Visible,
         };
 
         if *visibility != desired_visibility {
@@ -217,6 +236,10 @@ pub fn local_player_rearview_sync_system(
     mut rearview_query: Query<&mut Transform, (With<RearviewCameraMarker>, Without<MainCameraMarker>)>,
     view_mode: Res<CameraViewMode>,
 ) {
+    if !view_mode.is_first_person() {
+        return;
+    }
+
     let Some(player_pos) = local_player_query.iter().next() else {
         return;
     };
@@ -225,18 +248,15 @@ pub fn local_player_rearview_sync_system(
         return;
     };
 
-    // Only update in first-person view mode
-    if view_mode.is_first_person() {
-        rearview_transform.translation.x = player_pos.x;
-        rearview_transform.translation.z = player_pos.z;
-        rearview_transform.translation.y = PLAYER_HEIGHT.mul_add(PLAYER_EYE_HEIGHT_RATIO, player_pos.y);
+    rearview_transform.translation.x = player_pos.x;
+    rearview_transform.translation.z = player_pos.z;
+    rearview_transform.translation.y = PLAYER_HEIGHT.mul_add(PLAYER_EYE_HEIGHT_RATIO, player_pos.y);
 
-        // Get the main camera's rotation and rotate 180 degrees
-        if let Ok(main_transform) = main_camera_query.single() {
-            let main_yaw = main_transform.rotation.to_euler(EulerRot::YXZ).0;
-            let backwards_yaw = main_yaw + std::f32::consts::PI;
-            rearview_transform.rotation = Quat::from_rotation_y(backwards_yaw);
-        }
+    // Get the main camera's rotation and rotate 180 degrees.
+    if let Ok(main_transform) = main_camera_query.single() {
+        let main_yaw = main_transform.rotation.to_euler(EulerRot::YXZ).0;
+        let backwards_yaw = main_yaw + std::f32::consts::PI;
+        rearview_transform.rotation = Quat::from_rotation_y(backwards_yaw);
     }
 }
 

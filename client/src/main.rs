@@ -118,8 +118,8 @@ fn main() -> Result<()> {
     .add_systems(
         Update,
         (
-            input_movement_system,
-            input_shooting_system,
+            input_movement_system.after(input_camera_view_toggle_system),
+            input_shooting_system.after(input_movement_system),
             input_cursor_toggle_system,
             input_camera_view_toggle_system,
             input_level_focus_toggle_system,
@@ -141,10 +141,12 @@ fn main() -> Result<()> {
         (
             local_player_camera_shake_system,
             local_player_cuboid_shake_system,
-            local_player_camera_sync_system,
-            local_player_rearview_sync_system.after(input_movement_system), // Run after input sets camera rotation
-            local_player_rearview_system,
-            local_player_visibility_sync_system,
+            local_player_camera_sync_system
+                .after(input_movement_system)
+                .after(local_player_camera_shake_system),
+            local_player_rearview_sync_system.after(local_player_camera_sync_system),
+            local_player_rearview_system.after(local_player_rearview_sync_system),
+            local_player_visibility_sync_system.after(input_camera_view_toggle_system),
         ),
     )
     .add_systems(Update, projectiles_movement_system)

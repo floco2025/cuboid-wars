@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use std::time::Duration;
 
 use super::components::{CameraShake, CuboidShake};
+use crate::markers::MainCameraMarker;
 use common::markers::PlayerMarker;
 
 // ============================================================================
@@ -12,7 +13,7 @@ use common::markers::PlayerMarker;
 pub fn local_player_camera_shake_system(
     mut commands: Commands,
     time: Res<Time>,
-    mut camera_query: Query<(Entity, &mut CameraShake), With<Camera3d>>,
+    mut camera_query: Query<(Entity, &mut CameraShake), With<MainCameraMarker>>,
 ) {
     for (entity, mut shake) in &mut camera_query {
         update_camera_shake(&mut commands, entity, time.delta(), &mut shake);
