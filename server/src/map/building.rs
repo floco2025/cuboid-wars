@@ -362,13 +362,15 @@ pub fn compile_building(b: &BuildingDef) -> (MapLayout, GridConfig) {
         let level_u32 = u32::try_from(level_idx).unwrap_or(u32::MAX);
         ramps::apply_to_level_grid(grid, &ramp_specs, level_u32);
     }
-    if level_grids.len() > 1
-        && let Some(grid0) = level_grids.get_mut(0)
-    {
-        mark_has_floor_above(grid0, &masks[1]);
+    for level_idx in 0..level_grids.len().saturating_sub(1) {
+        mark_has_floor_above(&mut level_grids[level_idx], &masks[level_idx + 1]);
     }
 
-    let wall_lights = generate_wall_lights(&level_grids[0]);
+    let mut wall_lights = Vec::new();
+    for (level_idx, grid) in level_grids.iter().enumerate() {
+        let level_u8 = u8::try_from(level_idx).unwrap_or(u8::MAX);
+        wall_lights.extend(generate_wall_lights(grid, level_u8));
+    }
 
     let mut all_walls: Vec<Wall> = Vec::new();
     for (level_idx, grid) in level_grids.iter().enumerate() {
