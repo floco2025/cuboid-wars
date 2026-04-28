@@ -94,21 +94,15 @@ pub struct RoundTripTime {
 pub enum CameraViewMode {
     #[default]
     FirstPerson,
-    TopDownSouth,
-    TopDownEast,
-    TopDownNorth,
-    TopDownWest,
+    TopDown,
 }
 
 impl CameraViewMode {
     #[must_use]
     pub const fn next(self) -> Self {
         match self {
-            Self::FirstPerson => Self::TopDownSouth,
-            Self::TopDownSouth => Self::TopDownEast,
-            Self::TopDownEast => Self::TopDownNorth,
-            Self::TopDownNorth => Self::TopDownWest,
-            Self::TopDownWest => Self::FirstPerson,
+            Self::FirstPerson => Self::TopDown,
+            Self::TopDown => Self::FirstPerson,
         }
     }
 
@@ -121,18 +115,11 @@ impl CameraViewMode {
     pub const fn is_top_down(self) -> bool {
         !self.is_first_person()
     }
-
-    #[must_use]
-    pub fn top_down_direction(self) -> Option<Vec3> {
-        match self {
-            Self::FirstPerson => None,
-            Self::TopDownSouth => Some(Vec3::Z),
-            Self::TopDownEast => Some(Vec3::X),
-            Self::TopDownNorth => Some(Vec3::NEG_Z),
-            Self::TopDownWest => Some(Vec3::NEG_X),
-        }
-    }
 }
+
+// Horizontal rotation of the top-down camera around the current level center.
+#[derive(Resource, Clone, Copy, Debug, Default)]
+pub struct TopDownCameraYaw(pub f32);
 
 // Level focus toggle (R key). When enabled, hides walls/floors at other levels
 // and ramps that don't connect to the local player's level. Useful for

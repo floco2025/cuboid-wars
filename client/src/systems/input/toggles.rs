@@ -4,7 +4,7 @@ use bevy::{
     window::{CursorOptions, MonitorSelection, WindowMode},
 };
 
-use crate::resources::{CameraViewMode, LevelFocusEnabled};
+use crate::resources::{CameraViewMode, LevelFocusEnabled, LocalPlayerInfo, TopDownCameraYaw};
 
 // ============================================================================
 // Input Toggle Systems
@@ -15,6 +15,8 @@ pub fn input_camera_view_toggle_system(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut view_mode: ResMut<CameraViewMode>,
     mut focus: ResMut<LevelFocusEnabled>,
+    mut top_down_camera_yaw: ResMut<TopDownCameraYaw>,
+    local_player_info: Res<LocalPlayerInfo>,
 ) {
     if keyboard.just_pressed(KeyCode::KeyV) {
         let old_mode = *view_mode;
@@ -22,6 +24,7 @@ pub fn input_camera_view_toggle_system(
         *view_mode = new_mode;
 
         if old_mode.is_first_person() && new_mode.is_top_down() {
+            top_down_camera_yaw.0 = local_player_info.stored_yaw;
             focus.0 = true;
         } else if old_mode.is_top_down() && new_mode.is_first_person() {
             focus.0 = false;

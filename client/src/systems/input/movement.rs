@@ -9,7 +9,9 @@ use crate::{
     constants::*,
     markers::{LocalPlayerMarker, MainCameraMarker},
     net::ClientToServer,
-    resources::{CameraViewMode, ClientToServerChannel, InputSettings, LocalPlayerInfo, MyPlayerId, PlayerMap},
+    resources::{
+        CameraViewMode, ClientToServerChannel, InputSettings, LocalPlayerInfo, MyPlayerId, PlayerMap, TopDownCameraYaw,
+    },
 };
 use common::protocol::*;
 
@@ -26,6 +28,7 @@ pub fn input_movement_system(
     players: Res<PlayerMap>,
     input_settings: Res<InputSettings>,
     mut local_player_info: ResMut<LocalPlayerInfo>,
+    mut top_down_camera_yaw: ResMut<TopDownCameraYaw>,
     mut local_player_query: Query<(&mut MoveInput, &mut FaceDirection), With<LocalPlayerMarker>>,
     mut camera_query: Query<&mut Transform, (With<Camera3d>, With<MainCameraMarker>)>,
     view_mode: Res<CameraViewMode>,
@@ -55,6 +58,7 @@ pub fn input_movement_system(
         &camera_query,
         &view_mode,
         &mut local_player_info,
+        &mut top_down_camera_yaw,
         input_settings.invert_pitch,
     );
     let face_yaw = current_yaw + std::f32::consts::PI;
@@ -97,6 +101,7 @@ fn calculate_current_orientation(
     camera_query: &Query<&mut Transform, (With<Camera3d>, With<MainCameraMarker>)>,
     view_mode: &Res<CameraViewMode>,
     local_player_info: &mut LocalPlayerInfo,
+    top_down_camera_yaw: &mut TopDownCameraYaw,
     invert_pitch: bool,
 ) -> (f32, f32) {
     let pitch_sign = if invert_pitch {
@@ -105,21 +110,27 @@ fn calculate_current_orientation(
         -MOUSE_SENSITIVITY
     };
     // Determine the yaw/pitch baseline (camera vs stored value depending on view mode)
-    let (mut current_yaw, mut current_pitch) = if view_mode.is_first_person()
-        && !view_mode.is_changed()
-        && let Some(transform) = camera_query.iter().next()
-    {
-        let (yaw, pitch, _roll) = transform.rotation.to_euler(EulerRot::YXZ);
-        (yaw, pitch)
+    let (mut current_yaw, mut current_pitch) = if view_mode.is_first_person() {
+        if !view_mode.is_changed()
+            && let Some(transform) = camera_query.iter().next()
+        {
+            let (yaw, pitch, _roll) = transform.rotation.to_euler(EulerRot::YXZ);
+            (yaw, pitch)
+        } else {
+            (local_player_info.stored_yaw, local_player_info.stored_pitch)
+        }
     } else {
-        (local_player_info.stored_yaw, local_player_info.stored_pitch)
+        (top_down_camera_yaw.0, 0.0)
     };
 
-    // Apply mouse delta to yaw/pitch (pitch only in first-person)
+    // Apply mouse delta to first-person aim or top-down camera rotation.
     for motion in mouse_motion.read() {
-        current_yaw = motion.delta.x.mul_add(-MOUSE_SENSITIVITY, current_yaw);
         if view_mode.is_first_person() {
+            current_yaw = motion.delta.x.mul_add(-MOUSE_SENSITIVITY, current_yaw);
             current_pitch = motion.delta.y.mul_add(pitch_sign, current_pitch);
+        } else {
+            top_down_camera_yaw.0 = motion.delta.x.mul_add(-MOUSE_SENSITIVITY, top_down_camera_yaw.0);
+            current_yaw = top_down_camera_yaw.0;
         }
     }
 

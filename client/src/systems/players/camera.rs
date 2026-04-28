@@ -1,7 +1,12 @@
 use bevy::{camera::Viewport, prelude::*};
 
 use super::components::CameraShake;
-use crate::{constants::*, markers::*, resources::CameraViewMode, systems::visual_focus_level};
+use crate::{
+    constants::*,
+    markers::*,
+    resources::{CameraViewMode, TopDownCameraYaw},
+    systems::visual_focus_level,
+};
 use common::{
     constants::{FIELD_DEPTH, FIELD_WIDTH, LEVEL_HEIGHT, PLAYER_EYE_HEIGHT_RATIO, PLAYER_HEIGHT},
     protocol::{Floor, MapLayout, Position},
@@ -109,6 +114,10 @@ fn floor_extent_across_view(bounds: FloorBounds, view_direction: Vec3) -> f32 {
     }
 }
 
+fn topdown_view_direction(yaw: f32) -> Vec3 {
+    Vec3::new(yaw.sin(), 0.0, yaw.cos())
+}
+
 // ============================================================================
 // Camera Sync Systems
 // ============================================================================
@@ -123,6 +132,7 @@ pub fn local_player_camera_sync_system(
         (With<Camera3d>, With<MainCameraMarker>),
     >,
     view_mode: Res<CameraViewMode>,
+    top_down_camera_yaw: Res<TopDownCameraYaw>,
 ) {
     let Some(player_pos) = local_player_query.iter().next() else {
         return;
@@ -146,11 +156,9 @@ pub fn local_player_camera_sync_system(
                     persp.fov = FPV_CAMERA_FOV_DEGREES.to_radians();
                 }
             }
-            mode => {
+            _ => {
                 if let Projection::Perspective(persp) = projection.as_mut() {
-                    let Some(view_direction) = mode.top_down_direction() else {
-                        continue;
-                    };
+                    let view_direction = topdown_view_direction(top_down_camera_yaw.0);
                     persp.fov = TOPDOWN_CAMERA_FOV_DEGREES.to_radians();
                     let aspect_ratio = windows
                         .single()

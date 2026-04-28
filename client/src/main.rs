@@ -99,6 +99,7 @@ fn main() -> Result<()> {
     .insert_resource(FpsMeasurement::default())
     .insert_resource(LastUpdateSeq::default())
     .insert_resource(CameraViewMode::default())
+    .insert_resource(TopDownCameraYaw::default())
     .insert_resource(LevelFocusEnabled::default())
     .insert_resource(InputSettings {
         invert_pitch: args.invert_pitch,
