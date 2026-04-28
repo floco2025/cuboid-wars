@@ -374,9 +374,8 @@ pub fn compile_map(map_def: &MapDef) -> (MapLayout, MapConfig) {
     }
 
     let mut wall_lights = Vec::new();
-    for (level_idx, level_grid) in level_grids.iter().enumerate() {
-        let level_u8 = u8::try_from(level_idx).unwrap_or(u8::MAX);
-        wall_lights.extend(generate_wall_lights(level_grid, level_u8));
+    for level_idx in 0..level_grids.len() {
+        wall_lights.extend(generate_wall_lights(&level_grids, level_idx));
     }
 
     let mut all_walls: Vec<Wall> = Vec::new();

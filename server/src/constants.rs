@@ -25,6 +25,9 @@ pub const FLOOR_MERGE_SEGMENTS: bool = true; // Reduce draw calls
 // ============================================================================
 
 pub const WALL_LIGHT_HEIGHT: f32 = 2.5; // meters above ground
+pub const WALL_LIGHT_EXPOSURE_THRESHOLD: f32 = 0.3;
+pub const EXTERIOR_LIGHT_SEED: f32 = 1.0;
+pub const EXTERIOR_LIGHT_STEP_RETENTION: f32 = 0.75;
 
 // ============================================================================
 // Cookies
