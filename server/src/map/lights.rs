@@ -34,7 +34,7 @@ fn generate_wall_lights_from_parts(levels: &[LevelGrid], level_idx: usize) -> Ve
     let mut lights = Vec::new();
     for row in 0..grid_rows(cells) {
         for col in 0..grid_cols(cells) {
-            if !cell_has_floor(cells, row, col)
+            if !cell_can_have_wall_light(cells, row, col)
                 || exposure[level_idx][row as usize][col as usize] >= WALL_LIGHT_EXPOSURE_THRESHOLD
             {
                 continue;
@@ -181,6 +181,17 @@ fn column_is_open_between(levels: &[LevelGrid], lower_level_idx: usize, row: i32
     !cell_has_floor(&levels[lower_level_idx + 1].cells, row, col)
 }
 
+fn cell_can_have_wall_light(cells: &CellGrid, row: i32, col: i32) -> bool {
+    if row < 0 || col < 0 {
+        return false;
+    }
+    cells
+        .rows
+        .get(row as usize)
+        .and_then(|grid_row| grid_row.get(col as usize))
+        .is_some_and(|cell| cell.has_floor && !cell.has_ramp)
+}
+
 fn cell_has_floor(cells: &CellGrid, row: i32, col: i32) -> bool {
     if row < 0 || col < 0 {
         return false;
@@ -242,11 +253,13 @@ mod tests {
     fn wall_lights_use_level_height_offset() {
         let mut cells = CellGrid::new(1, 1);
         mark_floor_rect(&mut cells, 0, 0, 1, 1);
+        let mut ceiling = CellGrid::new(1, 1);
+        mark_floor_rect(&mut ceiling, 0, 0, 1, 1);
         let levels = vec![
             level_grid(CellGrid::new(1, 1), EdgeGrid::new(1, 1)),
             level_grid(CellGrid::new(1, 1), EdgeGrid::new(1, 1)),
             level_grid(cells, enclosed_edges(1, 1)),
-            level_grid(CellGrid::new(1, 1), EdgeGrid::new(1, 1)),
+            level_grid(ceiling, EdgeGrid::new(1, 1)),
         ];
 
         let lights = generate_wall_lights_from_parts(&levels, 2);
@@ -293,6 +306,23 @@ mod tests {
         let lights = generate_wall_lights_from_parts(&levels, 0);
 
         assert_eq!(lights.len(), 4);
+    }
+
+    #[test]
+    fn ramp_footprint_never_gets_wall_lights() {
+        let mut cells = CellGrid::new(1, 1);
+        mark_floor_rect(&mut cells, 0, 0, 1, 1);
+        cells.rows[0][0].has_ramp = true;
+        let mut ceiling = CellGrid::new(1, 1);
+        mark_floor_rect(&mut ceiling, 0, 0, 1, 1);
+        let levels = vec![
+            level_grid(cells, enclosed_edges(1, 1)),
+            level_grid(ceiling, EdgeGrid::new(1, 1)),
+        ];
+
+        let lights = generate_wall_lights_from_parts(&levels, 0);
+
+        assert!(lights.is_empty());
     }
 
     #[test]
