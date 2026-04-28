@@ -149,12 +149,6 @@ impl ProjectileMotion {
                 }
             }
 
-            if let Some(collision) = sweep_projectile_vs_ground(&current_pos, self, remaining_delta)
-                && earliest.is_none_or(|current| collision.t < current.t)
-            {
-                earliest = Some(collision);
-            }
-
             let Some(collision) = earliest else {
                 break;
             };
@@ -179,47 +173,6 @@ impl ProjectileMotion {
 }
 
 // === Projectile sweep helpers ===
-
-fn sweep_projectile_vs_ground(proj_pos: &Position, proj_motion: &ProjectileMotion, delta: f32) -> Option<Collision> {
-    let half_width = FIELD_WIDTH / 2.0;
-    let half_depth = FIELD_DEPTH / 2.0;
-
-    // No ground outside the playing field (field is centered at origin)
-    if proj_pos.x < -half_width || proj_pos.x > half_width || proj_pos.z < -half_depth || proj_pos.z > half_depth {
-        return None;
-    }
-
-    let ground_level = PROJECTILE_RADIUS;
-
-    // If already at or below ground and moving downward, treat as immediate collision (t=0)
-    if proj_pos.y <= ground_level {
-        if proj_motion.velocity.y >= 0.0 {
-            return None;
-        }
-        return Some(Collision {
-            normal: Vec3::Y,
-            t: 0.0,
-        });
-    }
-
-    // Sweep test: will we hit the ground this frame?
-    if proj_motion.velocity.y >= 0.0 {
-        return None;
-    }
-
-    let t = (ground_level - proj_pos.y) / (proj_motion.velocity.y * delta);
-    if !(0.0..=1.0).contains(&t) {
-        return None;
-    }
-
-    // Check if collision point is within field bounds
-    let collision = Vec3::from(*proj_pos) + proj_motion.velocity * delta * t;
-    if collision.x < -half_width || collision.x > half_width || collision.z < -half_depth || collision.z > half_depth {
-        return None;
-    }
-
-    Some(Collision { normal: Vec3::Y, t })
-}
 
 fn sweep_projectile_vs_ramp(
     proj_pos: &Position,
@@ -514,8 +467,20 @@ mod tests {
         }
     }
 
+    fn test_floor(level: u8) -> Floor {
+        Floor {
+            x1: -2.0,
+            z1: -2.0,
+            x2: 2.0,
+            z2: 2.0,
+            y: f32::from(level) * LEVEL_HEIGHT,
+            thickness: FLOOR_THICKNESS,
+            level,
+        }
+    }
+
     #[test]
-    fn ground_projectile_ignores_upper_level_wall() {
+    fn lower_level_projectile_ignores_upper_level_wall() {
         let pos = Position {
             x: 0.0,
             y: PROJECTILE_RADIUS,
@@ -537,5 +502,19 @@ mod tests {
         let motion = test_projectile_motion(Vec3::new(0.0, 0.0, 20.0));
 
         assert!(sweep_projectile_vs_wall(&pos, &motion, 0.1, &test_wall(1)).is_some());
+    }
+
+    #[test]
+    fn projectile_hits_level_zero_floor_underside() {
+        let pos = Position {
+            x: 0.0,
+            y: -FLOOR_THICKNESS - PROJECTILE_RADIUS - 0.1,
+            z: 0.0,
+        };
+        let motion = test_projectile_motion(Vec3::new(0.0, 10.0, 0.0));
+
+        let collision = sweep_projectile_vs_floor(&pos, &motion, 0.1, &test_floor(0))
+            .expect("level-zero floor underside should collide like any other floor");
+        assert_eq!(collision.normal, Vec3::NEG_Y);
     }
 }
