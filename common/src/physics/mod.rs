@@ -3,6 +3,7 @@ mod items;
 mod players;
 mod projectiles;
 
+pub use helpers::sweep_point_vs_cuboid;
 pub use items::overlap_player_vs_item;
 pub use players::{
     PlayerMotion, overlap_player_vs_wall, slide_player_along_obstacles, sweep_player_vs_floor, sweep_player_vs_player,

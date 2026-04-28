@@ -1,7 +1,7 @@
 use crate::{
     constants::*,
     map::height_on_ramp,
-    physics::sweep_player_vs_floor,
+    physics::{sweep_player_vs_floor, sweep_point_vs_cuboid},
     protocol::{Floor, Position, Ramp, Wall},
 };
 use bevy_math::Vec3;
@@ -111,34 +111,7 @@ fn sweep_projectile_spawn_vs_wall(start: &Position, end: &Position, wall: &Wall)
         if is_horizontal { wall_half_thickness } else { dz / 2.0 } + PROJECTILE_RADIUS,
     );
 
-    segment_intersects_aabb(start, end, center, half_extents)
-}
-
-fn segment_intersects_aabb(start: &Position, end: &Position, center: Vec3, half_extents: Vec3) -> bool {
-    let start = Vec3::from(*start) - center;
-    let dir = Vec3::from(*end) - center - start;
-    let mut t_min = 0.0_f32;
-    let mut t_max = 1.0_f32;
-
-    for (local, ray_dir, half_extent) in [
-        (start.x, dir.x, half_extents.x),
-        (start.y, dir.y, half_extents.y),
-        (start.z, dir.z, half_extents.z),
-    ] {
-        if ray_dir.abs() > PHYSICS_EPSILON {
-            let t1 = (-half_extent - local) / ray_dir;
-            let t2 = (half_extent - local) / ray_dir;
-            t_min = t_min.max(t1.min(t2));
-            t_max = t_max.min(t1.max(t2));
-            if t_min > t_max {
-                return false;
-            }
-        } else if local.abs() > half_extent {
-            return false;
-        }
-    }
-
-    t_max >= 0.0 && t_min <= 1.0
+    sweep_point_vs_cuboid(start, Vec3::from(*end) - Vec3::from(*start), center, half_extents).is_some()
 }
 
 fn is_blocked_by_ramp(spawn_position: &Position, ramps: &[Ramp]) -> bool {
