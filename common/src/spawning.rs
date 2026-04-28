@@ -1,7 +1,7 @@
 use crate::{
     constants::*,
-    map::height_on_ramp,
-    physics::{sweep_player_vs_floor, sweep_point_vs_cuboid},
+    map::ramp_surface_at,
+    physics::{floor_cuboid, segment_intersects_cuboid, wall_cuboid},
     protocol::{Floor, Position, Ramp, Wall},
 };
 use bevy_math::Vec3;
@@ -71,7 +71,7 @@ pub fn calculate_projectile_spawns(
 
         // Check blocking conditions with short-circuit evaluation
         let is_blocked = is_blocked_by_wall(&camera_pos, &spawn_position, walls)
-            || is_blocked_by_ramp(&spawn_position, ramps)
+            || is_blocked_by_ramp(&camera_pos, &spawn_position, ramps)
             || is_blocked_by_floor(&camera_pos, &spawn_position, floors);
 
         if is_blocked {
@@ -95,44 +95,57 @@ fn is_blocked_by_wall(camera_pos: &Position, spawn_position: &Position, walls: &
 }
 
 fn sweep_projectile_spawn_vs_wall(start: &Position, end: &Position, wall: &Wall) -> bool {
-    let dx = (wall.x2 - wall.x1).abs();
-    let dz = (wall.z2 - wall.z1).abs();
-    let is_horizontal = dx > dz;
-    let wall_half_thickness = wall.width / 2.0;
-
-    let center = Vec3::new(
-        f32::midpoint(wall.x1, wall.x2),
-        f32::from(wall.level).mul_add(LEVEL_HEIGHT, WALL_HEIGHT / 2.0),
-        f32::midpoint(wall.z1, wall.z2),
-    );
-    let half_extents = Vec3::new(
-        if is_horizontal { dx / 2.0 } else { wall_half_thickness } + PROJECTILE_RADIUS,
-        WALL_HEIGHT / 2.0 + PROJECTILE_RADIUS,
-        if is_horizontal { wall_half_thickness } else { dz / 2.0 } + PROJECTILE_RADIUS,
-    );
-
-    sweep_point_vs_cuboid(start, Vec3::from(*end) - Vec3::from(*start), center, half_extents).is_some()
+    let cuboid = wall_cuboid(wall, PROJECTILE_RADIUS);
+    segment_intersects_cuboid(start, end, cuboid)
 }
 
-fn is_blocked_by_ramp(spawn_position: &Position, ramps: &[Ramp]) -> bool {
-    // If the muzzle point sits inside the ramp volume (e.g., standing at the base facing the ramp), block the shot.
+fn is_blocked_by_ramp(camera_pos: &Position, spawn_position: &Position, ramps: &[Ramp]) -> bool {
     ramps.iter().any(|ramp| {
-        let (min_x, max_x, min_z, max_z) = ramp.bounds_xz();
+        let start_depth = projectile_depth_inside_ramp(camera_pos, ramp);
+        let end_depth = projectile_depth_inside_ramp(spawn_position, ramp);
 
-        if spawn_position.x < min_x || spawn_position.x > max_x || spawn_position.z < min_z || spawn_position.z > max_z
-        {
-            return false;
+        match (start_depth, end_depth) {
+            (None, None) | (Some(_), None) => false,
+            (None, Some(_)) => true,
+            (Some(start), Some(end)) => end >= start - PHYSICS_EPSILON,
         }
-
-        let ramp_height = height_on_ramp(&[*ramp], spawn_position.x, spawn_position.z);
-        ramp_height > 0.0 && spawn_position.y - PROJECTILE_RADIUS <= ramp_height
     })
+}
+
+fn projectile_depth_inside_ramp(pos: &Position, ramp: &Ramp) -> Option<f32> {
+    let (min_x, max_x, min_z, max_z) = ramp.bounds_xz();
+    if pos.x < min_x || pos.x > max_x || pos.z < min_z || pos.z > max_z {
+        return None;
+    }
+
+    let (min_y, _) = ramp.bounds_y();
+    if pos.y + PROJECTILE_RADIUS < min_y {
+        return None;
+    }
+
+    let ramp_height = ramp_surface_at(ramp, pos.x, pos.z);
+    if ramp_height <= min_y + PHYSICS_EPSILON {
+        return None;
+    }
+
+    let top_depth = ramp_height - (pos.y - PROJECTILE_RADIUS);
+    if top_depth < 0.0 {
+        return None;
+    }
+
+    let side_depth = (pos.x - min_x).min(max_x - pos.x).min(pos.z - min_z).min(max_z - pos.z);
+    Some(side_depth.min(top_depth))
 }
 
 fn is_blocked_by_floor(camera_pos: &Position, spawn_position: &Position, floors: &[Floor]) -> bool {
     floors
         .iter()
-        .any(|floor| sweep_player_vs_floor(camera_pos, spawn_position, floor, PROJECTILE_RADIUS))
+        .any(|floor| sweep_projectile_spawn_vs_floor(camera_pos, spawn_position, floor))
+}
+
+fn sweep_projectile_spawn_vs_floor(start: &Position, end: &Position, floor: &Floor) -> bool {
+    let cuboid = floor_cuboid(floor, PROJECTILE_RADIUS);
+    segment_intersects_cuboid(start, end, cuboid)
 }
 
 #[cfg(test)]
@@ -147,6 +160,30 @@ mod tests {
             z2: 1.0,
             width: WALL_THICKNESS,
             level,
+        }
+    }
+
+    fn test_floor(level: u8) -> Floor {
+        let y = f32::from(level) * LEVEL_HEIGHT;
+        Floor {
+            x1: -2.0,
+            z1: -2.0,
+            x2: 2.0,
+            z2: 2.0,
+            y,
+            thickness: FLOOR_THICKNESS,
+            level,
+        }
+    }
+
+    fn test_ramp() -> Ramp {
+        Ramp {
+            x1: 0.0,
+            y1: 0.0,
+            z1: 0.0,
+            x2: 4.0,
+            y2: LEVEL_HEIGHT,
+            z2: 8.0,
         }
     }
 
@@ -175,5 +212,90 @@ mod tests {
 
         assert!(is_blocked_by_wall(&start, &end, &[test_wall(1)]));
         assert!(!is_blocked_by_wall(&start, &end, &[test_wall(0)]));
+    }
+
+    #[test]
+    fn spawn_path_blocks_when_starting_inside_wall() {
+        let start = Position {
+            x: 0.0,
+            y: PLAYER_HEIGHT * PLAYER_EYE_HEIGHT_RATIO,
+            z: 1.0,
+        };
+        let end = Position {
+            x: 0.0,
+            y: PLAYER_HEIGHT * PLAYER_EYE_HEIGHT_RATIO,
+            z: 2.0,
+        };
+
+        assert!(is_blocked_by_wall(&start, &end, &[test_wall(0)]));
+    }
+
+    #[test]
+    fn spawn_path_floor_check_catches_crossing_segment() {
+        let floor = test_floor(1);
+        let start = Position {
+            x: 0.0,
+            y: LEVEL_HEIGHT + 1.0,
+            z: 0.0,
+        };
+        let end = Position {
+            x: 0.0,
+            y: LEVEL_HEIGHT - 1.0,
+            z: 0.0,
+        };
+
+        assert!(is_blocked_by_floor(&start, &end, &[floor]));
+    }
+
+    #[test]
+    fn spawn_path_floor_check_blocks_start_inside() {
+        let floor = test_floor(1);
+        let start = Position {
+            x: 0.0,
+            y: LEVEL_HEIGHT,
+            z: 0.0,
+        };
+        let end = Position {
+            x: 0.0,
+            y: LEVEL_HEIGHT + 1.0,
+            z: 0.0,
+        };
+
+        assert!(is_blocked_by_floor(&start, &end, &[floor]));
+    }
+
+    #[test]
+    fn spawn_path_allows_ramp_side_escape() {
+        let ramp = test_ramp();
+        let start = Position { x: 0.2, y: 1.4, z: 4.0 };
+        let end = Position {
+            x: 0.05,
+            y: 1.4,
+            z: 4.0,
+        };
+
+        assert!(!is_blocked_by_ramp(&start, &end, &[ramp]));
+    }
+
+    #[test]
+    fn spawn_path_blocks_into_ramp_side() {
+        let ramp = test_ramp();
+        let start = Position { x: 0.2, y: 1.4, z: 4.0 };
+        let end = Position { x: 0.8, y: 1.4, z: 4.0 };
+
+        assert!(is_blocked_by_ramp(&start, &end, &[ramp]));
+    }
+
+    #[test]
+    fn spawn_path_blocks_entering_ramp_from_outside() {
+        let ramp = test_ramp();
+        let start = Position {
+            x: -0.2,
+            y: 1.4,
+            z: 4.0,
+        };
+        let end = Position { x: 0.2, y: 1.4, z: 4.0 };
+
+        assert!(is_blocked_by_ramp(&start, &end, &[ramp]));
     }
 }

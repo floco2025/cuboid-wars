@@ -4,9 +4,10 @@ use bevy_ecs::prelude::*;
 use bevy_math::Vec3;
 use bevy_time::{Timer, TimerMode};
 
-use super::helpers::{Collision, sweep_point_vs_cuboid, sweep_slab_interval};
+use super::helpers::{Collision, floor_cuboid, sweep_point_vs_cuboid, sweep_slab_interval, wall_cuboid};
 use crate::{
     constants::*,
+    map::{RampAxis, ramp_axis, ramp_slope, ramp_surface_at},
     protocol::{Floor, Position, Ramp, Wall},
 };
 
@@ -242,22 +243,8 @@ fn sweep_projectile_vs_ramp(
         return None;
     }
 
-    let along_x = (ramp.x2 - ramp.x1).abs() >= (ramp.z2 - ramp.z1).abs();
-    let slope = if along_x {
-        (ramp.y2 - ramp.y1) / (ramp.x2 - ramp.x1 + PHYSICS_EPSILON)
-    } else {
-        (ramp.y2 - ramp.y1) / (ramp.z2 - ramp.z1 + PHYSICS_EPSILON)
-    };
-
-    let height_at = |x: f32, z: f32| {
-        if along_x {
-            let t = ((x - ramp.x1) / (ramp.x2 - ramp.x1 + PHYSICS_EPSILON)).clamp(0.0, 1.0);
-            ramp.y1 + t * (ramp.y2 - ramp.y1)
-        } else {
-            let t = ((z - ramp.z1) / (ramp.z2 - ramp.z1 + PHYSICS_EPSILON)).clamp(0.0, 1.0);
-            ramp.y1 + t * (ramp.y2 - ramp.y1)
-        }
-    };
+    let axis = ramp_axis(ramp);
+    let slope = ramp_slope(ramp);
 
     let exp_min_x = min_x - PROJECTILE_RADIUS;
     let exp_max_x = max_x + PROJECTILE_RADIUS;
@@ -314,7 +301,7 @@ fn sweep_projectile_vs_ramp(
     let mut best_t = f32::INFINITY;
     let mut best_normal = Vec3::ZERO;
 
-    let test_side = |t: f32, nx: f32, nz: f32, height_at: &dyn Fn(f32, f32) -> f32| -> Option<Collision> {
+    let test_side = |t: f32, nx: f32, nz: f32| -> Option<Collision> {
         if !(0.0..=1.0).contains(&t) {
             return None;
         }
@@ -322,7 +309,7 @@ fn sweep_projectile_vs_ramp(
 
         let clamped_x = c.x.clamp(min_x, max_x);
         let clamped_z = c.z.clamp(min_z, max_z);
-        let h = height_at(clamped_x, clamped_z) + PROJECTILE_RADIUS;
+        let h = ramp_surface_at(ramp, clamped_x, clamped_z) + PROJECTILE_RADIUS;
         let floor = min_y - PROJECTILE_RADIUS;
 
         if c.y >= floor && c.y <= h {
@@ -335,12 +322,12 @@ fn sweep_projectile_vs_ramp(
         }
     };
 
-    if let Some(collision) = test_side(t_enter, hit_normal_x, hit_normal_z, &height_at) {
+    if let Some(collision) = test_side(t_enter, hit_normal_x, hit_normal_z) {
         best_t = collision.t;
         best_normal = collision.normal;
     }
 
-    let height_linear = if along_x {
+    let height_linear = if axis == RampAxis::X {
         let c0 = (proj_pos.x - ramp.x1).mul_add(slope, ramp.y1);
         let c1 = slope * ray_dir.x;
         (c0, c1)
@@ -378,9 +365,9 @@ fn sweep_projectile_vs_ramp(
             let denom = slope.mul_add(slope, 1.0).sqrt();
             best_t = t_top;
             best_normal = Vec3::new(
-                if along_x { -slope / denom } else { 0.0 },
+                if axis == RampAxis::X { -slope / denom } else { 0.0 },
                 1.0 / denom,
-                if along_x { 0.0 } else { -slope / denom },
+                if axis == RampAxis::X { 0.0 } else { -slope / denom },
             );
         }
     }
@@ -491,23 +478,8 @@ fn sweep_projectile_vs_wall(
     delta: f32,
     wall: &Wall,
 ) -> Option<Collision> {
-    let dx = (wall.x2 - wall.x1).abs();
-    let dz = (wall.z2 - wall.z1).abs();
-    let wall_half_thickness = wall.width / 2.0;
-    let is_horizontal = dx > dz;
-
-    let center = Vec3::new(
-        f32::midpoint(wall.x1, wall.x2),
-        f32::from(wall.level).mul_add(LEVEL_HEIGHT, WALL_HEIGHT / 2.0),
-        f32::midpoint(wall.z1, wall.z2),
-    );
-    let half_extents = Vec3::new(
-        if is_horizontal { dx / 2.0 } else { wall_half_thickness } + PROJECTILE_RADIUS,
-        WALL_HEIGHT / 2.0 + PROJECTILE_RADIUS,
-        if is_horizontal { wall_half_thickness } else { dz / 2.0 } + PROJECTILE_RADIUS,
-    );
-
-    sweep_point_vs_cuboid(proj_pos, proj_motion.velocity * delta, center, half_extents)
+    let cuboid = wall_cuboid(wall, PROJECTILE_RADIUS);
+    sweep_point_vs_cuboid(proj_pos, proj_motion.velocity * delta, cuboid)
 }
 
 fn sweep_projectile_vs_floor(
@@ -516,20 +488,8 @@ fn sweep_projectile_vs_floor(
     delta: f32,
     floor: &Floor,
 ) -> Option<Collision> {
-    let (min_x, max_x, min_z, max_z) = floor.bounds_xz();
-
-    let center = Vec3::new(
-        f32::midpoint(min_x, max_x),
-        floor.y - floor.thickness / 2.0,
-        f32::midpoint(min_z, max_z),
-    );
-    let half_extents = Vec3::new(
-        (max_x - min_x) / 2.0 + PROJECTILE_RADIUS,
-        floor.thickness / 2.0 + PROJECTILE_RADIUS,
-        (max_z - min_z) / 2.0 + PROJECTILE_RADIUS,
-    );
-
-    sweep_point_vs_cuboid(proj_pos, proj_motion.velocity * delta, center, half_extents)
+    let cuboid = floor_cuboid(floor, PROJECTILE_RADIUS);
+    sweep_point_vs_cuboid(proj_pos, proj_motion.velocity * delta, cuboid)
 }
 
 #[cfg(test)]

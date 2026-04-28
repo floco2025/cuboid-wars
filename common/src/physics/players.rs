@@ -39,35 +39,6 @@ pub fn sweep_player_vs_wall(start_pos: &Position, end_pos: &Position, wall: &Wal
     sweep_aabb_vs_wall(start_pos, end_pos, wall, PLAYER_WIDTH / 2.0, PLAYER_DEPTH / 2.0)
 }
 
-// Sweep the muzzle->spawn segment against a floor slab; returns true if it intersects.
-#[must_use]
-pub fn sweep_player_vs_floor(start: &Position, end: &Position, floor: &Floor, radius: f32) -> bool {
-    let (min_x, max_x, min_z, max_z) = floor.bounds_xz();
-
-    let start_inside = start.x >= min_x && start.x <= max_x && start.z >= min_z && start.z <= max_z;
-    let end_inside = end.x >= min_x && end.x <= max_x && end.z >= min_z && end.z <= max_z;
-
-    if !start_inside && !end_inside {
-        return false;
-    }
-
-    let slab_bottom = floor.y - floor.thickness;
-    let slab_top = floor.y;
-
-    let seg_min_y = start.y.min(end.y);
-    let seg_max_y = start.y.max(end.y);
-
-    // If segment entirely above or below slab (with cushion), no hit
-    if seg_min_y >= slab_top + radius {
-        return false;
-    }
-    if seg_max_y <= slab_bottom - radius {
-        return false;
-    }
-
-    true
-}
-
 #[must_use]
 pub fn sweep_player_vs_ramp_edges(start_pos: &Position, end_pos: &Position, ramp: &Ramp, floors: &[Floor]) -> bool {
     // Skip ramps whose vertical extent doesn't overlap the player's body.
@@ -90,7 +61,7 @@ pub fn sweep_player_vs_ramp_edges(start_pos: &Position, end_pos: &Position, ramp
 
     // The high-cap is meant to block players at the bottom of a ramp from
     // walking into its tall face. Apply when the player's feet sit roughly at
-    // the ramp's low edge — generalized from the old "y <= 0.1" check.
+    // the ramp's low edge, generalized from the old "y <= 0.1" check.
     let on_low_edge = (start_pos.y - ramp_y_low).abs() <= 0.2;
     let high_cap_blocked = on_low_edge && sweep_ramp_high_cap(start_pos, end_pos, ramp, half_x, half_z, edge_half);
 

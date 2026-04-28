@@ -3,44 +3,51 @@ use crate::{
     protocol::{Floor, Ramp},
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RampAxis {
+    X,
+    Z,
+}
+
+#[must_use]
+pub fn ramp_axis(ramp: &Ramp) -> RampAxis {
+    if (ramp.x2 - ramp.x1).abs() >= (ramp.z2 - ramp.z1).abs() {
+        RampAxis::X
+    } else {
+        RampAxis::Z
+    }
+}
+
+#[must_use]
+pub fn ramp_slope(ramp: &Ramp) -> f32 {
+    let denom = match ramp_axis(ramp) {
+        RampAxis::X => ramp.x2 - ramp.x1,
+        RampAxis::Z => ramp.z2 - ramp.z1,
+    };
+    if denom.abs() < PHYSICS_EPSILON {
+        0.0
+    } else {
+        (ramp.y2 - ramp.y1) / denom
+    }
+}
+
 // Compute the surface Y of a single ramp at (x, z). Caller must have already
 // verified that (x, z) lies inside `ramp.bounds_xz()`.
 #[must_use]
 pub fn ramp_surface_at(ramp: &Ramp, x: f32, z: f32) -> f32 {
     let (min_x, max_x, min_z, max_z) = ramp.bounds_xz();
-    let dx = (ramp.x2 - ramp.x1).abs();
-    let dz = (ramp.z2 - ramp.z1).abs();
 
-    let progress = if dx >= dz {
-        if (max_x - min_x).abs() < PHYSICS_EPSILON {
-            0.0
-        } else {
+    let progress = match ramp_axis(ramp) {
+        RampAxis::X if (max_x - min_x).abs() >= PHYSICS_EPSILON => {
             ((x - ramp.x1) / (ramp.x2 - ramp.x1)).clamp(0.0, 1.0)
         }
-    } else if (max_z - min_z).abs() < PHYSICS_EPSILON {
-        0.0
-    } else {
-        ((z - ramp.z1) / (ramp.z2 - ramp.z1)).clamp(0.0, 1.0)
+        RampAxis::Z if (max_z - min_z).abs() >= PHYSICS_EPSILON => {
+            ((z - ramp.z1) / (ramp.z2 - ramp.z1)).clamp(0.0, 1.0)
+        }
+        _ => 0.0,
     };
 
     ramp.y1 + progress * (ramp.y2 - ramp.y1)
-}
-
-// Calculate the Y position (height) for a given (x, z) position based on ramps.
-// Returns the surface of the first ramp that contains (x, z); when ramps stack
-// vertically use `ramp_surface_at` directly with the specific ramp.
-#[must_use]
-pub fn height_on_ramp(ramps: &[Ramp], x: f32, z: f32) -> f32 {
-    ramps
-        .iter()
-        .find_map(|ramp| {
-            let (min_x, max_x, min_z, max_z) = ramp.bounds_xz();
-            if x < min_x || x > max_x || z < min_z || z > max_z {
-                return None;
-            }
-            Some(ramp_surface_at(ramp, x, z))
-        })
-        .unwrap_or(0.0)
 }
 
 // Check if a position (x, z) is currently on any ramp.
@@ -107,4 +114,42 @@ pub fn find_support_floor(floors: &[Floor], ramps: &[Ramp], x: f32, z: f32, y: f
     }
 
     best
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::constants::LEVEL_HEIGHT;
+
+    #[test]
+    fn ramp_axis_and_surface_follow_longer_x_axis() {
+        let ramp = Ramp {
+            x1: -4.0,
+            y1: 0.0,
+            z1: 0.0,
+            x2: 4.0,
+            y2: LEVEL_HEIGHT,
+            z2: 2.0,
+        };
+
+        assert_eq!(ramp_axis(&ramp), RampAxis::X);
+        assert!((ramp_slope(&ramp) - LEVEL_HEIGHT / 8.0).abs() < PHYSICS_EPSILON);
+        assert!((ramp_surface_at(&ramp, 0.0, 0.0) - LEVEL_HEIGHT / 2.0).abs() < PHYSICS_EPSILON);
+    }
+
+    #[test]
+    fn ramp_axis_and_surface_follow_longer_z_axis() {
+        let ramp = Ramp {
+            x1: 0.0,
+            y1: 0.0,
+            z1: -4.0,
+            x2: 2.0,
+            y2: LEVEL_HEIGHT,
+            z2: 4.0,
+        };
+
+        assert_eq!(ramp_axis(&ramp), RampAxis::Z);
+        assert!((ramp_slope(&ramp) - LEVEL_HEIGHT / 8.0).abs() < PHYSICS_EPSILON);
+        assert!((ramp_surface_at(&ramp, 0.0, 0.0) - LEVEL_HEIGHT / 2.0).abs() < PHYSICS_EPSILON);
+    }
 }

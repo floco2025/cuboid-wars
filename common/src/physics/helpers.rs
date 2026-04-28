@@ -1,8 +1,9 @@
 use bevy::prelude::*;
 
 use crate::{
-    constants::PHYSICS_EPSILON,
-    protocol::{Position, Ramp, Wall},
+    constants::{LEVEL_HEIGHT, PHYSICS_EPSILON, WALL_HEIGHT},
+    map::{RampAxis, ramp_axis},
+    protocol::{Floor, Position, Ramp, Wall},
 };
 
 // Result of a sweep collision test: surface normal and time of impact.
@@ -10,6 +11,52 @@ use crate::{
 pub struct Collision {
     pub normal: Vec3,
     pub t: f32,
+}
+
+// Axis-aligned cuboid represented by center position and half extents.
+#[derive(Debug, Clone, Copy)]
+pub struct Cuboid {
+    pub center: Vec3,
+    pub half_extents: Vec3,
+}
+
+#[must_use]
+pub fn wall_cuboid(wall: &Wall, radius: f32) -> Cuboid {
+    let dx = (wall.x2 - wall.x1).abs();
+    let dz = (wall.z2 - wall.z1).abs();
+    let wall_half_thickness = wall.width / 2.0;
+    let is_horizontal = dx > dz;
+
+    Cuboid {
+        center: Vec3::new(
+            f32::midpoint(wall.x1, wall.x2),
+            f32::from(wall.level).mul_add(LEVEL_HEIGHT, WALL_HEIGHT / 2.0),
+            f32::midpoint(wall.z1, wall.z2),
+        ),
+        half_extents: Vec3::new(
+            if is_horizontal { dx / 2.0 } else { wall_half_thickness } + radius,
+            WALL_HEIGHT / 2.0 + radius,
+            if is_horizontal { wall_half_thickness } else { dz / 2.0 } + radius,
+        ),
+    }
+}
+
+#[must_use]
+pub fn floor_cuboid(floor: &Floor, radius: f32) -> Cuboid {
+    let (min_x, max_x, min_z, max_z) = floor.bounds_xz();
+
+    Cuboid {
+        center: Vec3::new(
+            f32::midpoint(min_x, max_x),
+            floor.y - floor.thickness / 2.0,
+            f32::midpoint(min_z, max_z),
+        ),
+        half_extents: Vec3::new(
+            (max_x - min_x) / 2.0 + radius,
+            floor.thickness / 2.0 + radius,
+            (max_z - min_z) / 2.0 + radius,
+        ),
+    }
 }
 
 // Check if two 1D ranges overlap.
@@ -98,43 +145,18 @@ pub fn sweep_ramp_edges(
 ) -> bool {
     let (min_x, max_x, min_z, max_z) = ramp.bounds_xz();
 
-    let dx = (ramp.x2 - ramp.x1).abs();
-    let dz = (ramp.z2 - ramp.z1).abs();
-    let block_sides_along_z = dx >= dz;
+    let block_sides_along_z = ramp_axis(ramp) == RampAxis::X;
 
     let sweep_edge = |center_x: f32, center_z: f32, half_x_edge: f32, half_z_edge: f32| -> bool {
-        let dir_x = end_pos.x - start_pos.x;
-        let dir_z = end_pos.z - start_pos.z;
-
-        let local_x = start_pos.x - center_x;
-        let local_z = start_pos.z - center_z;
-
-        // If the player already starts inside the side rail's expanded volume,
-        // allow movement to escape it. Reporting a sweep hit here pins the
-        // player because diagonal, x-only, and z-only slide candidates all
-        // collide at t=0.
-        if local_x.abs() <= half_x + half_x_edge && local_z.abs() <= half_z + half_z_edge {
-            return false;
-        }
-
-        let mut t_min = 0.0_f32;
-        let mut t_max = 1.0_f32;
-
-        if let Some((new_min, new_max)) = sweep_slab_interval(local_x, dir_x, half_x + half_x_edge, t_min, t_max) {
-            t_min = new_min;
-            t_max = new_max;
-        } else {
-            return false;
-        }
-
-        if let Some((new_min, new_max)) = sweep_slab_interval(local_z, dir_z, half_z + half_z_edge, t_min, t_max) {
-            t_min = new_min;
-            t_max = new_max;
-        } else {
-            return false;
-        }
-
-        t_min <= t_max && t_max >= 0.0 && t_min <= 1.0
+        sweep_expanded_aabb_xz(
+            start_pos,
+            end_pos,
+            center_x,
+            center_z,
+            half_x + half_x_edge,
+            half_z + half_z_edge,
+            true,
+        )
     };
 
     if block_sides_along_z {
@@ -159,9 +181,7 @@ pub fn sweep_ramp_high_cap(
 ) -> bool {
     let (min_x, max_x, min_z, max_z) = ramp.bounds_xz();
 
-    let dx = (ramp.x2 - ramp.x1).abs();
-    let dz = (ramp.z2 - ramp.z1).abs();
-    let along_x = dx >= dz;
+    let along_x = ramp_axis(ramp) == RampAxis::X;
     let high_along_positive = ramp.y2 >= ramp.y1;
 
     let (center_x, center_z, half_x_cap, half_z_cap) = if along_x {
@@ -172,29 +192,93 @@ pub fn sweep_ramp_high_cap(
         (f32::midpoint(min_x, max_x), high_z, (max_x - min_x) / 2.0, cap_half)
     };
 
+    let local_x = start_pos.x - center_x;
+    let local_z = start_pos.z - center_z;
+    let combined_half_x = half_x + half_x_cap;
+    let combined_half_z = half_z + half_z_cap;
+
+    // If we already start inside the cap volume, allow movement to escape it
+    if local_x.abs() <= combined_half_x && local_z.abs() <= combined_half_z {
+        warn!("escaping from inside ramp high-side cap; this should not normally happen");
+        return false;
+    }
+
+    sweep_expanded_aabb_xz(
+        start_pos,
+        end_pos,
+        center_x,
+        center_z,
+        combined_half_x,
+        combined_half_z,
+        false,
+    )
+}
+
+fn sweep_expanded_aabb_xz(
+    start_pos: &Position,
+    end_pos: &Position,
+    center_x: f32,
+    center_z: f32,
+    combined_half_x: f32,
+    combined_half_z: f32,
+    ignore_start_inside: bool,
+) -> bool {
     let dir_x = end_pos.x - start_pos.x;
     let dir_z = end_pos.z - start_pos.z;
 
     let local_x = start_pos.x - center_x;
     let local_z = start_pos.z - center_z;
 
-    // If we already start inside the cap volume, allow movement to escape it
-    if local_x.abs() <= half_x + half_x_cap && local_z.abs() <= half_z + half_z_cap {
-        warn!("escaping from inside ramp high-side cap; this should not normally happen");
+    if ignore_start_inside && local_x.abs() <= combined_half_x && local_z.abs() <= combined_half_z {
         return false;
     }
 
     let mut t_min = 0.0_f32;
     let mut t_max = 1.0_f32;
 
-    if let Some((new_min, new_max)) = sweep_slab_interval(local_x, dir_x, half_x + half_x_cap, t_min, t_max) {
+    if let Some((new_min, new_max)) = sweep_slab_interval(local_x, dir_x, combined_half_x, t_min, t_max) {
         t_min = new_min;
         t_max = new_max;
     } else {
         return false;
     }
 
-    if let Some((new_min, new_max)) = sweep_slab_interval(local_z, dir_z, half_z + half_z_cap, t_min, t_max) {
+    if let Some((new_min, new_max)) = sweep_slab_interval(local_z, dir_z, combined_half_z, t_min, t_max) {
+        t_min = new_min;
+        t_max = new_max;
+    } else {
+        return false;
+    }
+
+    t_min <= t_max && t_max >= 0.0 && t_min <= 1.0
+}
+
+// Boolean segment vs axis-aligned cuboid intersection. This treats a segment
+// starting inside the cuboid as intersecting, which is useful for spawn/clearance
+// tests where "already inside" should still block.
+#[must_use]
+pub fn segment_intersects_cuboid(start: &Position, end: &Position, cuboid: Cuboid) -> bool {
+    let local = Vec3::from(*start) - cuboid.center;
+    let ray_dir = Vec3::from(*end) - Vec3::from(*start);
+
+    let mut t_min = 0.0_f32;
+    let mut t_max = 1.0_f32;
+
+    if let Some((new_min, new_max)) = sweep_slab_interval(local.x, ray_dir.x, cuboid.half_extents.x, t_min, t_max) {
+        t_min = new_min;
+        t_max = new_max;
+    } else {
+        return false;
+    }
+
+    if let Some((new_min, new_max)) = sweep_slab_interval(local.y, ray_dir.y, cuboid.half_extents.y, t_min, t_max) {
+        t_min = new_min;
+        t_max = new_max;
+    } else {
+        return false;
+    }
+
+    if let Some((new_min, new_max)) = sweep_slab_interval(local.z, ray_dir.z, cuboid.half_extents.z, t_min, t_max) {
         t_min = new_min;
         t_max = new_max;
     } else {
@@ -205,26 +289,23 @@ pub fn sweep_ramp_high_cap(
 }
 
 // Swept point vs axis-aligned cuboid; returns collision info if within [0,1].
+// A point starting inside the cuboid returns `None` because there is no entering
+// face normal to report. Use `segment_intersects_cuboid` for boolean overlap.
 #[must_use]
-pub fn sweep_point_vs_cuboid(
-    proj_pos: &Position,
-    ray_dir: Vec3,
-    center: Vec3,
-    half_extents: Vec3,
-) -> Option<Collision> {
-    let local = Vec3::from(*proj_pos) - center;
+pub fn sweep_point_vs_cuboid(proj_pos: &Position, ray_dir: Vec3, cuboid: Cuboid) -> Option<Collision> {
+    let local = Vec3::from(*proj_pos) - cuboid.center;
 
     let mut t_enter = 0.0_f32;
     let mut t_exit = 1.0_f32;
     let mut hit_normal = Vec3::ZERO;
 
     if ray_dir.x.abs() < PHYSICS_EPSILON {
-        if local.x.abs() > half_extents.x {
+        if local.x.abs() > cuboid.half_extents.x {
             return None;
         }
     } else {
-        let tx1 = (-half_extents.x - local.x) / ray_dir.x;
-        let tx2 = (half_extents.x - local.x) / ray_dir.x;
+        let tx1 = (-cuboid.half_extents.x - local.x) / ray_dir.x;
+        let tx2 = (cuboid.half_extents.x - local.x) / ray_dir.x;
         let (tx_min, tx_max) = if tx1 < tx2 { (tx1, tx2) } else { (tx2, tx1) };
         if tx_min > t_enter {
             t_enter = tx_min;
@@ -237,12 +318,12 @@ pub fn sweep_point_vs_cuboid(
     }
 
     if ray_dir.y.abs() < PHYSICS_EPSILON {
-        if local.y.abs() > half_extents.y {
+        if local.y.abs() > cuboid.half_extents.y {
             return None;
         }
     } else {
-        let ty1 = (-half_extents.y - local.y) / ray_dir.y;
-        let ty2 = (half_extents.y - local.y) / ray_dir.y;
+        let ty1 = (-cuboid.half_extents.y - local.y) / ray_dir.y;
+        let ty2 = (cuboid.half_extents.y - local.y) / ray_dir.y;
         let (ty_min, ty_max) = if ty1 < ty2 { (ty1, ty2) } else { (ty2, ty1) };
         if ty_min > t_enter {
             t_enter = ty_min;
@@ -255,12 +336,12 @@ pub fn sweep_point_vs_cuboid(
     }
 
     if ray_dir.z.abs() < PHYSICS_EPSILON {
-        if local.z.abs() > half_extents.z {
+        if local.z.abs() > cuboid.half_extents.z {
             return None;
         }
     } else {
-        let tz1 = (-half_extents.z - local.z) / ray_dir.z;
-        let tz2 = (half_extents.z - local.z) / ray_dir.z;
+        let tz1 = (-cuboid.half_extents.z - local.z) / ray_dir.z;
+        let tz2 = (cuboid.half_extents.z - local.z) / ray_dir.z;
         let (tz_min, tz_max) = if tz1 < tz2 { (tz1, tz2) } else { (tz2, tz1) };
         if tz_min > t_enter {
             t_enter = tz_min;
@@ -405,3 +486,110 @@ pub fn slide_along_axes(
 }
 
 // Helper is intentionally small; higher-level sliding lives with players.
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::constants::{FLOOR_THICKNESS, WALL_THICKNESS};
+
+    fn unit_cuboid() -> Cuboid {
+        Cuboid {
+            center: Vec3::ZERO,
+            half_extents: Vec3::splat(1.0),
+        }
+    }
+
+    #[test]
+    fn segment_intersects_cuboid_when_crossing() {
+        let cuboid = unit_cuboid();
+        let start = Position {
+            x: -2.0,
+            y: 0.0,
+            z: 0.0,
+        };
+        let end = Position { x: 2.0, y: 0.0, z: 0.0 };
+
+        assert!(segment_intersects_cuboid(&start, &end, cuboid));
+    }
+
+    #[test]
+    fn segment_intersects_cuboid_when_starting_inside() {
+        let cuboid = unit_cuboid();
+        let start = Position::default();
+        let end = Position { x: 2.0, y: 0.0, z: 0.0 };
+
+        assert!(segment_intersects_cuboid(&start, &end, cuboid));
+    }
+
+    #[test]
+    fn segment_misses_cuboid() {
+        let cuboid = unit_cuboid();
+        let start = Position {
+            x: -2.0,
+            y: 2.0,
+            z: 0.0,
+        };
+        let end = Position { x: 2.0, y: 2.0, z: 0.0 };
+
+        assert!(!segment_intersects_cuboid(&start, &end, cuboid));
+    }
+
+    #[test]
+    fn sweep_point_vs_cuboid_returns_none_when_starting_inside() {
+        let cuboid = unit_cuboid();
+        let start = Position::default();
+
+        assert!(sweep_point_vs_cuboid(&start, Vec3::X, cuboid).is_none());
+    }
+
+    #[test]
+    fn sweep_point_vs_cuboid_reports_entering_normal() {
+        let cuboid = unit_cuboid();
+        let start = Position {
+            x: -2.0,
+            y: 0.0,
+            z: 0.0,
+        };
+        let collision =
+            sweep_point_vs_cuboid(&start, Vec3::new(4.0, 0.0, 0.0), cuboid).expect("segment should enter cuboid");
+
+        assert_eq!(collision.normal, Vec3::NEG_X);
+        assert!((collision.t - 0.25).abs() < PHYSICS_EPSILON);
+    }
+
+    #[test]
+    fn wall_cuboid_uses_wall_level_height() {
+        let wall = Wall {
+            x1: -2.0,
+            z1: 1.0,
+            x2: 2.0,
+            z2: 1.0,
+            width: WALL_THICKNESS,
+            level: 1,
+        };
+        let cuboid = wall_cuboid(&wall, 0.1);
+
+        assert_eq!(cuboid.center, Vec3::new(0.0, LEVEL_HEIGHT + WALL_HEIGHT / 2.0, 1.0));
+        assert_eq!(
+            cuboid.half_extents,
+            Vec3::new(2.1, WALL_HEIGHT / 2.0 + 0.1, WALL_THICKNESS / 2.0 + 0.1)
+        );
+    }
+
+    #[test]
+    fn floor_cuboid_uses_floor_surface_and_thickness() {
+        let floor = Floor {
+            x1: -2.0,
+            z1: -4.0,
+            x2: 2.0,
+            z2: 4.0,
+            y: LEVEL_HEIGHT,
+            thickness: FLOOR_THICKNESS,
+            level: 1,
+        };
+        let cuboid = floor_cuboid(&floor, 0.1);
+
+        assert_eq!(cuboid.center, Vec3::new(0.0, LEVEL_HEIGHT - FLOOR_THICKNESS / 2.0, 0.0));
+        assert_eq!(cuboid.half_extents, Vec3::new(2.1, FLOOR_THICKNESS / 2.0 + 0.1, 4.1));
+    }
+}
