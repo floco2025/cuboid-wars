@@ -34,10 +34,17 @@ pub struct GridCell {
     pub ramp_top_east: bool,
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct PlayerSpawnField {
+    pub col: i32,
+    pub row: i32,
+}
+
 // Grid configuration
 #[derive(Resource, Clone)]
 pub struct GridConfig {
     pub grid: Vec<Vec<GridCell>>, // [row][col] - indexed by grid_z, grid_x
+    pub player_spawn_fields: Vec<PlayerSpawnField>,
 }
 
 // Player information (server-side)

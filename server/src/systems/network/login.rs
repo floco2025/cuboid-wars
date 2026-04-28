@@ -72,7 +72,7 @@ pub fn handle_login_message(
                 .filter_map(|p| player_data.get(p.entity).ok())
                 .map(|(pos, _, _)| *pos)
                 .collect();
-            let pos = generate_player_spawn_position(grid_config, &occupied_positions);
+            let pos = generate_player_spawn_position(grid_config, map_layout, &occupied_positions);
 
             // Calculate initial facing direction toward center
             let face_dir = (-pos.x).atan2(-pos.z);
