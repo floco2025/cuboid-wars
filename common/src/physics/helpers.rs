@@ -109,6 +109,14 @@ pub fn sweep_ramp_edges(
         let local_x = start_pos.x - center_x;
         let local_z = start_pos.z - center_z;
 
+        // If we already start inside the edge's swept volume in XZ (e.g. the
+        // player landed on the ramp surface and their AABB straddles the
+        // footprint boundary), allow movement to escape it. Without this the
+        // 2D sweep blocks any axis-aligned slide and the player gets frozen.
+        if local_x.abs() <= half_x + half_x_edge && local_z.abs() <= half_z + half_z_edge {
+            return false;
+        }
+
         let mut t_min = 0.0_f32;
         let mut t_max = 1.0_f32;
 
