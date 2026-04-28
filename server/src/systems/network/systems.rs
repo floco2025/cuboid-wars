@@ -12,7 +12,7 @@ use crate::{
 use common::{
     constants::UPDATE_BROADCAST_INTERVAL,
     markers::{ItemMarker, PlayerMarker},
-    physics::PlayerMotion,
+    physics::{CollisionWorld, PlayerMotion},
     protocol::{MapLayout, *},
 };
 
@@ -29,6 +29,7 @@ pub fn network_client_message_system(
     mut players: ResMut<PlayerMap>,
     time: Res<Time>,
     map_layout: Res<MapLayout>,
+    collision_world: Res<CollisionWorld>,
     map_config: Res<MapConfig>,
     items: Res<ItemMap>,
     player_data: Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
@@ -68,6 +69,7 @@ pub fn network_client_message_system(
                         &player_data,
                         &motions,
                         &map_layout,
+                        &collision_world,
                     );
                 } else {
                     handle_login_message(

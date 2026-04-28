@@ -4,13 +4,9 @@ use super::components::BumpFlashState;
 use crate::{markers::*, resources::PlayerMap, systems::network::ServerReconciliation};
 use common::{
     constants::{ALWAYS_PHASING, PHYSICS_EPSILON, PLAYER_SPEED, UPDATE_BROADCAST_INTERVAL},
-    map::compute_player_level,
-    physics::{
-        PlayerMotion, overlap_player_vs_wall, slide_player_along_obstacles, step_player_vertical_motion,
-        sweep_player_vs_ramp_edges, sweep_player_vs_wall,
-    },
+    physics::{CollisionWorld, PlayerMotion, step_player_motion},
     players::{PlannedMove, overlaps_other_player},
-    protocol::{MapLayout, MoveInput, PlayerId, Position, Wall},
+    protocol::{MoveInput, PlayerId, Position},
 };
 
 // ============================================================================
@@ -92,7 +88,7 @@ pub fn players_movement_system(
     mut commands: Commands,
     time: Res<Time>,
     asset_server: Res<AssetServer>,
-    map_layout: Option<Res<MapLayout>>,
+    collision_world: Option<Res<CollisionWorld>>,
     players: Res<PlayerMap>,
     mut query: MovementQuery,
     mut bump_flash_ui: Query<(&mut BackgroundColor, &mut Visibility), With<BumpFlashUIMarker>>,
@@ -164,100 +160,35 @@ pub fn players_movement_system(
             }
         };
 
-        let mut target_vy = motion.velocity.y;
-
-        // Skip collision checks if player is standing still
-        if is_standing_still {
-            if let Some(map_layout) = map_layout.as_ref() {
-                let vertical = step_player_vertical_motion(
-                    &client_pos,
-                    &motion,
-                    &map_layout.floors,
-                    &map_layout.ramps,
-                    target_pos.x,
-                    target_pos.z,
-                    delta,
-                );
-                target_pos.y = vertical.y;
-                target_vy = vertical.vy;
-            }
-            planned_moves.push(PlannedMove {
-                entity,
-                start: *client_pos,
-                target: target_pos,
-                target_vy,
-                collides: false,
-            });
-            continue;
-        }
-
-        // Check collision and calculate target (with sliding if collision)
-        let mut collides = false;
-
-        if let Some(map_layout) = map_layout.as_ref() {
-            let player_level = compute_player_level(client_pos.y);
-            let level_walls: Vec<Wall> = map_layout
-                .walls
-                .iter()
-                .filter(|w| w.level == player_level)
-                .copied()
-                .collect();
+        if let Some(collision_world) = collision_world.as_ref() {
             let has_phasing = ALWAYS_PHASING || players.0.get(player_id).is_some_and(|info| info.phasing_power_up);
-            let is_overlapping_wall = level_walls.iter().any(|wall| overlap_player_vs_wall(&client_pos, wall));
-            let walls_to_check: &[Wall] = if has_phasing || is_overlapping_wall {
-                &[]
-            } else {
-                &level_walls
-            };
 
-            for wall in walls_to_check {
-                if sweep_player_vs_wall(&client_pos, &target_pos, wall) {
-                    collides = true;
-                    break;
-                }
-            }
-
-            if !collides {
-                for ramp in &map_layout.ramps {
-                    if sweep_player_vs_ramp_edges(&client_pos, &target_pos, ramp, &map_layout.floors) {
-                        collides = true;
-                        break;
-                    }
-                }
-            }
-
-            if collides {
-                target_pos = slide_player_along_obstacles(
-                    walls_to_check,
-                    &map_layout.ramps,
-                    &map_layout.floors,
-                    &client_pos,
-                    h_vel.x,
-                    h_vel.z,
-                    delta,
-                );
-            }
-
-            let vertical = step_player_vertical_motion(
+            let step = step_player_motion(
                 &client_pos,
                 &motion,
-                &map_layout.floors,
-                &map_layout.ramps,
+                collision_world,
+                has_phasing,
                 target_pos.x,
                 target_pos.z,
                 delta,
             );
-            target_pos.y = vertical.y;
-            target_vy = vertical.vy;
+            target_pos = step.position;
+            planned_moves.push(PlannedMove {
+                entity,
+                start: *client_pos,
+                target: target_pos,
+                target_vy: step.vy,
+                collides: step.hit_horizontal,
+            });
+        } else {
+            planned_moves.push(PlannedMove {
+                entity,
+                start: *client_pos,
+                target: target_pos,
+                target_vy: motion.velocity.y,
+                collides: false,
+            });
         }
-
-        planned_moves.push(PlannedMove {
-            entity,
-            start: *client_pos,
-            target: target_pos,
-            target_vy,
-            collides,
-        });
     }
 
     // Pass 2: Check player-player collisions and apply final positions

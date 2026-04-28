@@ -4,7 +4,7 @@ use crate::{
     resources::{MyPlayerId, PlayerInfo, PlayerMap},
     spawning::spawn_player,
 };
-use common::protocol::*;
+use common::{physics::CollisionWorld, protocol::*};
 
 // ============================================================================
 // Login/Logout Handlers
@@ -19,7 +19,9 @@ pub fn handle_init_message(msg: ServerMessage, commands: &mut Commands) {
         commands.insert_resource(MyPlayerId(init_msg.id));
 
         // Store grid configuration
+        let collision_world = CollisionWorld::from_map_layout(&init_msg.map_layout);
         commands.insert_resource(init_msg.map_layout);
+        commands.insert_resource(collision_world);
 
         // Note: We don't spawn anything here. The first SUpdate will contain
         // all players including ourselves and will trigger spawning via the

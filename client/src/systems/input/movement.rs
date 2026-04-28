@@ -13,7 +13,7 @@ use crate::{
         CameraViewMode, ClientToServerChannel, InputSettings, LocalPlayerInfo, MyPlayerId, PlayerMap, TopDownCameraYaw,
     },
 };
-use common::physics::{PlayerMotion, try_start_player_jump};
+use common::physics::{CollisionWorld, PlayerMotion, try_start_player_jump};
 use common::protocol::*;
 
 const MAX_PITCH: f32 = std::f32::consts::FRAC_PI_2 - 0.05;
@@ -36,7 +36,7 @@ pub fn input_movement_system(
     >,
     mut camera_query: Query<&mut Transform, (With<Camera3d>, With<MainCameraMarker>)>,
     view_mode: Res<CameraViewMode>,
-    map_layout: Option<Res<MapLayout>>,
+    collision_world: Option<Res<CollisionWorld>>,
 ) {
     // Wait for the local player entity to exist before sampling input or sending updates.
     // Otherwise we'd compute a face direction from the default camera transform and
@@ -75,7 +75,7 @@ pub fn input_movement_system(
         move_input,
         face_yaw,
         jump_requested,
-        map_layout.as_deref(),
+        collision_world.as_deref(),
         &mut local_player_query,
     );
 
@@ -210,7 +210,7 @@ fn update_player_input_face_and_jump(
     move_input: MoveInput,
     face_yaw: f32,
     jump_requested: bool,
-    map_layout: Option<&MapLayout>,
+    collision_world: Option<&CollisionWorld>,
     local_player_query: &mut Query<
         (&Position, &mut MoveInput, &mut FaceDirection, &mut PlayerMotion),
         With<LocalPlayerMarker>,
@@ -219,8 +219,8 @@ fn update_player_input_face_and_jump(
     for (pos, mut input, mut face_direction, mut motion) in local_player_query.iter_mut() {
         *input = move_input;
         face_direction.0 = face_yaw;
-        if jump_requested && let Some(map_layout) = map_layout {
-            let _ = try_start_player_jump(&mut motion, &map_layout.floors, &map_layout.ramps, pos, pos.x, pos.z);
+        if jump_requested && let Some(collision_world) = collision_world {
+            let _ = try_start_player_jump(&mut motion, collision_world, pos, pos.x, pos.z);
         }
     }
 }

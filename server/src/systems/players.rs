@@ -9,12 +9,9 @@ use common::{
     },
     map::compute_player_level,
     markers::PlayerMarker,
-    physics::{
-        PlayerMotion, overlap_player_vs_wall, slide_player_along_obstacles, step_player_vertical_motion,
-        sweep_player_vs_player, sweep_player_vs_ramp_edges, sweep_player_vs_wall,
-    },
+    physics::{CollisionWorld, PlayerMotion, overlap_player_vs_wall, step_player_motion, sweep_player_vs_player},
     players::{PlannedMove, overlaps_other_player},
-    protocol::{MapLayout, MoveInput, PlayerId, Position, SDeath, ServerMessage, Wall},
+    protocol::{MapLayout, MoveInput, PlayerId, Position, SDeath, ServerMessage},
 };
 
 // ============================================================================
@@ -23,7 +20,7 @@ use common::{
 
 pub fn players_movement_system(
     time: Res<Time>,
-    map_layout: Res<MapLayout>,
+    collision_world: Res<CollisionWorld>,
     players: Res<PlayerMap>,
     mut query: Query<(Entity, &mut Position, &mut PlayerMotion, &MoveInput, &PlayerId), With<PlayerMarker>>,
 ) {
@@ -43,7 +40,7 @@ pub fn players_movement_system(
         let is_standing_still = velocity_sq < PHYSICS_EPSILON * PHYSICS_EPSILON;
         let suppress_horizontal = is_stunned || is_standing_still;
 
-        let mut target_pos = if suppress_horizontal {
+        let target_xz = if suppress_horizontal {
             *pos
         } else {
             Position {
@@ -53,72 +50,24 @@ pub fn players_movement_system(
             }
         };
 
-        // Phasing players pass through walls. A player whose phasing wears off
-        // while overlapping a wall ignores wall collisions until they exit it.
-        let player_level = compute_player_level(pos.y);
-        let level_walls: Vec<Wall> = map_layout
-            .walls
-            .iter()
-            .filter(|w| w.level == player_level)
-            .copied()
-            .collect();
         let has_phasing = players.0.get(player_id).is_some_and(PlayerInfo::has_phasing);
-        let is_overlapping_wall = level_walls.iter().any(|wall| overlap_player_vs_wall(pos, wall));
-        let walls_to_check: &[Wall] = if has_phasing || is_overlapping_wall {
-            &[]
-        } else {
-            &level_walls
-        };
 
-        let mut collides = false;
-        if !suppress_horizontal {
-            for wall in walls_to_check {
-                if sweep_player_vs_wall(pos, &target_pos, wall) {
-                    collides = true;
-                    break;
-                }
-            }
-
-            if !collides {
-                for ramp in &map_layout.ramps {
-                    if sweep_player_vs_ramp_edges(pos, &target_pos, ramp, &map_layout.floors) {
-                        collides = true;
-                        break;
-                    }
-                }
-            }
-
-            if collides {
-                target_pos = slide_player_along_obstacles(
-                    walls_to_check,
-                    &map_layout.ramps,
-                    &map_layout.floors,
-                    pos,
-                    velocity.x,
-                    velocity.z,
-                    delta,
-                );
-            }
-        }
-
-        // Vertical integration: apply gravity, then either land on a support or keep falling.
-        let vertical = step_player_vertical_motion(
+        let step = step_player_motion(
             pos,
             motion,
-            &map_layout.floors,
-            &map_layout.ramps,
-            target_pos.x,
-            target_pos.z,
+            &collision_world,
+            has_phasing,
+            target_xz.x,
+            target_xz.z,
             delta,
         );
-        target_pos.y = vertical.y;
 
         planned_moves.push(PlannedMove {
             entity,
             start: *pos,
-            target: target_pos,
-            target_vy: vertical.vy,
-            collides,
+            target: step.position,
+            target_vy: step.vy,
+            collides: step.hit_horizontal,
         });
     }
 
@@ -289,7 +238,7 @@ fn sweep_player_vs_player_static(pos: &Position, other: &Position) -> bool {
 mod tests {
     use super::*;
     use crate::resources::{CellGrid, EdgeGrid, LevelGrid, MapConfig, PlayerSpawnField};
-    use common::constants::WALL_THICKNESS;
+    use common::{constants::WALL_THICKNESS, protocol::Wall};
 
     fn empty_layout() -> MapLayout {
         MapLayout {

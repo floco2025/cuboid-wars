@@ -5,7 +5,7 @@ use crate::{net::ServerToClient, resources::PlayerMap};
 use common::{
     constants::{ALWAYS_MULTI_SHOT, PROJECTILE_COOLDOWN_TIME},
     markers::{PlayerMarker, ProjectileMarker},
-    physics::{PlayerMotion, ProjectileMotion, try_start_player_jump},
+    physics::{CollisionWorld, PlayerMotion, ProjectileMotion, try_start_player_jump},
     protocol::{MapLayout, *},
     spawning::calculate_projectile_spawns,
 };
@@ -25,6 +25,7 @@ pub fn dispatch_message(
     player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
     motions: &Query<&PlayerMotion, With<PlayerMarker>>,
     map_layout: &MapLayout,
+    collision_world: &CollisionWorld,
 ) {
     match msg {
         ClientMessage::Login(_) => {
@@ -43,7 +44,7 @@ pub fn dispatch_message(
         }
         ClientMessage::Jump(msg) => {
             trace!("{:?} jump: {:?}", id, msg);
-            handle_jump_message(commands, entity, id, &*players, player_data, motions, map_layout);
+            handle_jump_message(commands, entity, id, &*players, player_data, motions, collision_world);
         }
         ClientMessage::Face(msg) => {
             trace!("{:?} face direction: {}", id, msg.dir);
@@ -106,7 +107,7 @@ fn handle_jump_message(
     players: &PlayerMap,
     player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
     motions: &Query<&PlayerMotion, With<PlayerMarker>>,
-    map_layout: &MapLayout,
+    collision_world: &CollisionWorld,
 ) {
     if players.0.get(&id).is_some_and(|info| info.stun_timer > 0.0) {
         return;
@@ -122,14 +123,7 @@ fn handle_jump_message(
     let mut next_motion = PlayerMotion {
         velocity: motion.velocity,
     };
-    if !try_start_player_jump(
-        &mut next_motion,
-        &map_layout.floors,
-        &map_layout.ramps,
-        pos,
-        pos.x,
-        pos.z,
-    ) {
+    if !try_start_player_jump(&mut next_motion, collision_world, pos, pos.x, pos.z) {
         return;
     }
 
