@@ -1,46 +1,19 @@
-// Wall generation: turn per-cell `has_*_wall` flags into world-space `Wall`
+// Wall generation: turn canonical grid-line wall flags into world-space `Wall`
 // segments, with corner-correct insets and extensions for T-junctions and
-// L-corners. The building compiler sets the cell flags from explicit wall
+// L-corners. The map compiler sets the cell flags from explicit wall
 // edges; this module emits the world-space segments.
 
-use crate::{constants::WALL_OVERLAP, resources::GridCell};
+use super::edges::{has_horizontal_edge, has_vertical_edge};
+use crate::{constants::WALL_OVERLAP, resources::EdgeGrid};
 use common::{constants::*, protocol::Wall};
 
 // Epsilon for merging adjacent walls.
 const MERGE_EPS: f32 = 0.01;
 
-// ============================================================================
-// Lower Wall Generation
-// ============================================================================
-
-// Check if grid line has horizontal lower wall at position
+// Check if horizontal walls meet the top/bottom of a vertical wall.
 #[inline]
-fn has_horizontal_lower_wall(grid: &[Vec<GridCell>], row: i32, col: i32, grid_rows: i32) -> bool {
-    if row == 0 {
-        grid[0][col as usize].has_north_wall
-    } else if row == grid_rows {
-        grid[(grid_rows - 1) as usize][col as usize].has_south_wall
-    } else {
-        grid[row as usize][col as usize].has_north_wall
-    }
-}
-
-// Check if grid line has vertical lower wall at position
-#[inline]
-fn has_vertical_lower_wall(grid: &[Vec<GridCell>], row: i32, col: i32, grid_cols: i32) -> bool {
-    if col == 0 {
-        grid[row as usize][0].has_west_wall
-    } else if col == grid_cols {
-        grid[row as usize][(grid_cols - 1) as usize].has_east_wall
-    } else {
-        grid[row as usize][col as usize].has_west_wall
-    }
-}
-
-// Check if horizontal lower walls meet the top/bottom of a vertical lower wall
-#[inline]
-fn has_perpendicular_lower_walls(
-    grid: &[Vec<GridCell>],
+fn has_perpendicular_horizontal_walls(
+    edge_grid: &EdgeGrid,
     row: i32,
     col: i32,
     grid_cols: i32,
@@ -49,16 +22,16 @@ fn has_perpendicular_lower_walls(
     // Top endpoint is at grid line `row`; check horizontal walls on both sides of the vertical line.
     let has_perp_top = row > 0
         && (
-            (col < grid_cols && has_horizontal_lower_wall(grid, row, col, grid_rows)) // right side (guarded)
-                || (col > 0 && has_horizontal_lower_wall(grid, row, col - 1, grid_rows))
+            (col < grid_cols && has_horizontal_edge(edge_grid, row, col)) // right side (guarded)
+                || (col > 0 && has_horizontal_edge(edge_grid, row, col - 1))
             // left side (guarded)
         );
 
     // Bottom endpoint is at grid line `row + 1`; check the horizontals that meet there.
     let has_perp_bottom = row < grid_rows
         && (
-            (col < grid_cols && has_horizontal_lower_wall(grid, row + 1, col, grid_rows)) // right side (guarded)
-                || (col > 0 && has_horizontal_lower_wall(grid, row + 1, col - 1, grid_rows))
+            (col < grid_cols && has_horizontal_edge(edge_grid, row + 1, col)) // right side (guarded)
+                || (col > 0 && has_horizontal_edge(edge_grid, row + 1, col - 1))
             // left side (guarded)
         );
 
@@ -68,27 +41,27 @@ fn has_perpendicular_lower_walls(
 // Generate individual wall segments (no merging) with gap-filling extensions,
 // tagging each wall with `level`.
 #[must_use]
-pub fn generate_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32, level: u8) -> Vec<Wall> {
+pub fn generate_walls(edge_grid: &EdgeGrid, grid_cols: i32, grid_rows: i32, level: u8) -> Vec<Wall> {
     let mut walls = Vec::new();
 
     // Process horizontal walls (north/south edges)
     for row in 0..=grid_rows {
         for col in 0..grid_cols {
-            if !has_horizontal_lower_wall(grid, row, col, grid_rows) {
+            if !has_horizontal_edge(edge_grid, row, col) {
                 continue;
             }
 
             // Check for adjacent horizontal walls
-            let has_left = col > 0 && has_horizontal_lower_wall(grid, row, col - 1, grid_rows);
-            let has_right = col < grid_cols - 1 && has_horizontal_lower_wall(grid, row, col + 1, grid_rows);
+            let has_left = col > 0 && has_horizontal_edge(edge_grid, row, col - 1);
+            let has_right = col < grid_cols - 1 && has_horizontal_edge(edge_grid, row, col + 1);
 
             // Detect vertical walls passing through the left and right endpoints (true T vs corner)
-            let left_vert_top = row > 0 && has_vertical_lower_wall(grid, row - 1, col, grid_cols);
-            let left_vert_bottom = row < grid_rows && has_vertical_lower_wall(grid, row, col, grid_cols);
+            let left_vert_top = row > 0 && has_vertical_edge(edge_grid, row - 1, col);
+            let left_vert_bottom = row < grid_rows && has_vertical_edge(edge_grid, row, col);
             let left_vert_through = left_vert_top && left_vert_bottom;
 
-            let right_vert_top = row > 0 && has_vertical_lower_wall(grid, row - 1, col + 1, grid_cols);
-            let right_vert_bottom = row < grid_rows && has_vertical_lower_wall(grid, row, col + 1, grid_cols);
+            let right_vert_top = row > 0 && has_vertical_edge(edge_grid, row - 1, col + 1);
+            let right_vert_bottom = row < grid_rows && has_vertical_edge(edge_grid, row, col + 1);
             let right_vert_through = right_vert_top && right_vert_bottom;
 
             let world_z = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
@@ -128,16 +101,17 @@ pub fn generate_walls(grid: &[Vec<GridCell>], grid_cols: i32, grid_rows: i32, le
     // Process vertical walls (west/east edges)
     for col in 0..=grid_cols {
         for row in 0..grid_rows {
-            if !has_vertical_lower_wall(grid, row, col, grid_cols) {
+            if !has_vertical_edge(edge_grid, row, col) {
                 continue;
             }
 
             // Check for adjacent vertical walls
-            let has_top = row > 0 && has_vertical_lower_wall(grid, row - 1, col, grid_cols);
-            let has_bottom = row < grid_rows - 1 && has_vertical_lower_wall(grid, row + 1, col, grid_cols);
+            let has_top = row > 0 && has_vertical_edge(edge_grid, row - 1, col);
+            let has_bottom = row < grid_rows - 1 && has_vertical_edge(edge_grid, row + 1, col);
 
             // Check for perpendicular horizontal walls at ends (for L-corners)
-            let (has_perp_top, has_perp_bottom) = has_perpendicular_lower_walls(grid, row, col, grid_cols, grid_rows);
+            let (has_perp_top, has_perp_bottom) =
+                has_perpendicular_horizontal_walls(edge_grid, row, col, grid_cols, grid_rows);
 
             let world_x = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
             let z1 = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0))

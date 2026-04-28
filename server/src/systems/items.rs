@@ -7,7 +7,7 @@ use crate::{
     constants::*,
     map::{cell_center, find_unoccupied_cell_not_ramp, grid_coords_from_position},
     net::ServerToClient,
-    resources::{GridConfig, ItemInfo, ItemMap, ItemSpawner, PlayerMap},
+    resources::{ItemInfo, ItemMap, ItemSpawner, MapConfig, PlayerMap},
 };
 use common::{
     constants::{GRID_COLS, GRID_ROWS},
@@ -79,7 +79,7 @@ pub fn item_spawn_system(
     mut spawner: ResMut<ItemSpawner>,
     mut items: ResMut<ItemMap>,
     positions: Query<&Position, With<ItemMarker>>,
-    grid_config: Res<GridConfig>,
+    map_config: Res<MapConfig>,
 ) {
     let delta = time.delta_secs();
     spawner.timer += delta;
@@ -97,7 +97,11 @@ pub fn item_spawn_system(
 
         let mut rng = rng();
 
-        if let Some((grid_x, grid_z)) = find_unoccupied_cell_not_ramp(&mut rng, &occupied_cells, &grid_config.grid) {
+        let Some(level0) = map_config.levels.first() else {
+            return;
+        };
+
+        if let Some((grid_x, grid_z)) = find_unoccupied_cell_not_ramp(&mut rng, &occupied_cells, &level0.cells) {
             let item_id = ItemId(spawner.next_id);
             spawner.next_id += 1;
             let position = cell_center(grid_x, grid_z);

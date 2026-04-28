@@ -8,7 +8,7 @@ use tokio::{
     time::{self, Duration, Instant, MissedTickBehavior},
 };
 
-use server::{config::configure_server, map::generate_grid, net::accept_connections_task, resources::*, systems::*};
+use server::{config::configure_server, map::generate_map, net::accept_connections_task, resources::*, systems::*};
 
 const SERVER_LOOP_FREQUENCY: u64 = 30;
 const LOG_FILTER: &str = "wgpu=error,naga=warn";
@@ -46,7 +46,7 @@ async fn main() -> Result<()> {
     tokio::spawn(accept_connections_task(endpoint, to_server_from_accept, to_server));
     let mut app = App::new();
 
-    let (map_layout, grid_config) = generate_grid();
+    let (map_layout, map_config) = generate_map();
 
     app.add_plugins(MinimalPlugins).add_plugins(bevy::log::LogPlugin {
         level: bevy::log::Level::INFO,
@@ -62,7 +62,7 @@ async fn main() -> Result<()> {
     );
 
     app.insert_resource(map_layout)
-        .insert_resource(grid_config)
+        .insert_resource(map_config)
         .insert_resource(PlayerMap::default())
         .insert_resource(ItemMap::default())
         .insert_resource(ItemSpawner::default())

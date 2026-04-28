@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::{
     net::ServerToClient,
-    resources::{GridConfig, ItemMap, PlayerMap},
+    resources::{ItemMap, MapConfig, PlayerMap},
     systems::generate_player_spawn_position,
 };
 use common::{
@@ -25,7 +25,7 @@ pub fn handle_login_message(
     msg: ClientMessage,
     players: &mut ResMut<PlayerMap>,
     map_layout: &Res<MapLayout>,
-    grid_config: &Res<GridConfig>,
+    map_config: &Res<MapConfig>,
     items: &Res<ItemMap>,
     player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
     motions: &Query<&PlayerMotion, With<PlayerMarker>>,
@@ -53,7 +53,7 @@ pub fn handle_login_message(
                 (channel, player_info.hits, player_info.name.clone())
             };
 
-            // Send Init to the connecting player (their ID and grid config)
+            // Send Init to the connecting player (their ID and map config)
             let init_msg = ServerMessage::Init(SInit {
                 id,
                 map_layout: (*map_layout).clone(),
@@ -72,7 +72,7 @@ pub fn handle_login_message(
                 .filter_map(|p| player_data.get(p.entity).ok())
                 .map(|(pos, _, _)| *pos)
                 .collect();
-            let pos = generate_player_spawn_position(grid_config, map_layout, &occupied_positions);
+            let pos = generate_player_spawn_position(map_config, map_layout, &occupied_positions);
 
             // Calculate initial facing direction toward center
             let face_dir = (-pos.x).atan2(-pos.z);

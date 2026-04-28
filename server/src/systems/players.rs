@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use rand::{RngExt, rng, rngs::ThreadRng, seq::IndexedRandom};
 
 use super::network::broadcast_to_all;
-use crate::resources::{GridConfig, PlayerInfo, PlayerMap};
+use crate::resources::{MapConfig, PlayerInfo, PlayerMap};
 use common::{
     constants::{
         FIELD_DEPTH, FIELD_WIDTH, GRID_SIZE, LEVEL_HEIGHT, PHYSICS_EPSILON, PLAYER_DEATH_Y, PLAYER_DEPTH, PLAYER_WIDTH,
@@ -179,7 +179,7 @@ pub fn players_timer_system(time: Res<Time>, mut players: ResMut<PlayerMap>) {
 // rather than waiting for the next `SUpdate`.
 pub fn players_death_system(
     players: Res<PlayerMap>,
-    grid_config: Res<GridConfig>,
+    map_config: Res<MapConfig>,
     map_layout: Res<MapLayout>,
     mut player_query: Query<(Entity, &PlayerId, &mut Position, &mut PlayerMotion), With<PlayerMarker>>,
 ) {
@@ -196,7 +196,7 @@ pub fn players_death_system(
     let occupied_positions: Vec<Position> = player_query.iter().map(|(_, _, pos, _)| *pos).collect();
 
     for (entity, id) in dead {
-        let respawn_pos = generate_player_spawn_position(&grid_config, &map_layout, &occupied_positions);
+        let respawn_pos = generate_player_spawn_position(&map_config, &map_layout, &occupied_positions);
 
         if let Ok((_, _, mut pos, mut motion)) = player_query.get_mut(entity) {
             *pos = respawn_pos;
@@ -218,23 +218,24 @@ const SPAWN_MAX_ATTEMPTS: usize = 100;
 // Returns the world origin if no valid placement is found in time.
 #[must_use]
 pub fn generate_player_spawn_position(
-    grid_config: &GridConfig,
+    map_config: &MapConfig,
     map_layout: &MapLayout,
     occupied_positions: &[Position],
 ) -> Position {
     let mut rng = rng();
 
     let mut valid_cells = Vec::new();
-    for field in &grid_config.player_spawn_fields {
-        let Some(grid) = grid_config.grids.get(field.level as usize) else {
+    for field in &map_config.player_spawn_fields {
+        let Some(level_grid) = map_config.levels.get(field.level as usize) else {
             continue;
         };
+        let cells = &level_grid.cells.rows;
         if field.row >= 0
-            && field.row < grid.len() as i32
+            && field.row < cells.len() as i32
             && field.col >= 0
-            && field.col < grid[field.row as usize].len() as i32
+            && field.col < cells[field.row as usize].len() as i32
         {
-            let cell = &grid[field.row as usize][field.col as usize];
+            let cell = &cells[field.row as usize][field.col as usize];
             if cell.has_floor && !cell.has_ramp {
                 valid_cells.push((field.level, field.row, field.col));
             }
@@ -294,7 +295,7 @@ fn sweep_player_vs_player_static(pos: &Position, other: &Position) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::resources::{GridCell, PlayerSpawnField};
+    use crate::resources::{CellGrid, EdgeGrid, LevelGrid, MapConfig, PlayerSpawnField};
     use common::constants::WALL_THICKNESS;
 
     fn empty_layout() -> MapLayout {
@@ -306,12 +307,16 @@ mod tests {
         }
     }
 
-    fn grid_config_with_spawn(level: u8, col: i32, row: i32) -> GridConfig {
-        let mut grids = vec![vec![vec![GridCell::default(); 2]; 2]; usize::from(level) + 1];
-        grids[usize::from(level)][row as usize][col as usize].has_floor = true;
-        GridConfig {
-            grid: grids[0].clone(),
-            grids,
+    fn map_config_with_spawn(level: u8, col: i32, row: i32) -> MapConfig {
+        let mut levels = (0..=level)
+            .map(|_| LevelGrid {
+                cells: CellGrid::new(2, 2),
+                edges: EdgeGrid::new(2, 2),
+            })
+            .collect::<Vec<_>>();
+        levels[usize::from(level)].cells.rows[row as usize][col as usize].has_floor = true;
+        MapConfig {
+            levels,
             player_spawn_fields: vec![PlayerSpawnField { level, col, row }],
         }
     }
@@ -357,9 +362,9 @@ mod tests {
     #[test]
     fn spawn_position_uses_configured_spawn_level() {
         let layout = empty_layout();
-        let grid_config = grid_config_with_spawn(1, 0, 0);
+        let map_config = map_config_with_spawn(1, 0, 0);
 
-        let pos = generate_player_spawn_position(&grid_config, &layout, &[]);
+        let pos = generate_player_spawn_position(&map_config, &layout, &[]);
 
         assert_eq!(pos.y, LEVEL_HEIGHT);
     }

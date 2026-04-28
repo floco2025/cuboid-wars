@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Native editor for Cuboid Wars building source files."""
+"""Native editor for Cuboid Wars map source files."""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ from PySide6.QtWidgets import (
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_BUILDING = REPO_ROOT / "server" / "assets" / "buildings" / "default.json"
+DEFAULT_MAP = REPO_ROOT / "server" / "assets" / "maps" / "default.json"
 SUPPORTED_VERSION = 1
 
 MODE_FLOOR = "Floor"
@@ -48,7 +48,7 @@ DEFAULT_GRID_COLS = 20
 DEFAULT_GRID_ROWS = 20
 
 
-def empty_building() -> dict:
+def empty_map() -> dict:
     return {
         "grid_cols": DEFAULT_GRID_COLS,
         "grid_rows": DEFAULT_GRID_ROWS,
@@ -58,17 +58,17 @@ def empty_building() -> dict:
     }
 
 
-def read_building(path: Path) -> dict:
+def read_map(path: Path) -> dict:
     with path.open("r", encoding="utf-8") as handle:
         data = json.load(handle)
     if data.get("version") != SUPPORTED_VERSION:
-        raise ValueError(f"unsupported building file version {data.get('version')!r}")
-    return canonicalize_building(normalize_building(data["building"]))
+        raise ValueError(f"unsupported map file version {data.get('version')!r}")
+    return canonicalize_map(normalize_map(data["map"]))
 
 
-def write_building(path: Path, building: dict) -> None:
-    wrapper = {"version": SUPPORTED_VERSION, "building": canonicalize_building(building)}
-    text = format_building_file(wrapper) + "\n"
+def write_map(path: Path, map_data: dict) -> None:
+    wrapper = {"version": SUPPORTED_VERSION, "map": canonicalize_map(map_data)}
+    text = format_map_file(wrapper) + "\n"
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
     try:
@@ -119,34 +119,34 @@ def format_ramp(ramp: dict, indent: int) -> str:
     )
 
 
-def format_building_file(wrapper: dict) -> str:
-    building = wrapper["building"]
+def format_map_file(wrapper: dict) -> str:
+    map_data = wrapper["map"]
     lines = [
         "{",
         f'  "version": {wrapper["version"]},',
-        '  "building": {',
-        f'    "grid_cols": {building["grid_cols"]},',
-        f'    "grid_rows": {building["grid_rows"]},',
-        *with_trailing_comma(format_point_array("player_spawn_fields", building["player_spawn_fields"], 4)),
+        '  "map": {',
+        f'    "grid_cols": {map_data["grid_cols"]},',
+        f'    "grid_rows": {map_data["grid_rows"]},',
+        *with_trailing_comma(format_point_array("player_spawn_fields", map_data["player_spawn_fields"], 4)),
         '    "levels": [',
     ]
 
-    for level_idx, level in enumerate(building["levels"]):
+    for level_idx, level in enumerate(map_data["levels"]):
         lines.extend(
             [
                 "      {",
                 f'        "name": {json_scalar(level["name"])},',
                 *with_trailing_comma(format_point_array("floors", level["floors"], 8)),
                 *format_point_array("walls", level["walls"], 8),
-                "      }" + ("," if level_idx + 1 < len(building["levels"]) else ""),
+                "      }" + ("," if level_idx + 1 < len(map_data["levels"]) else ""),
             ]
         )
 
     lines.append("    ],")
-    if building["ramps"]:
+    if map_data["ramps"]:
         lines.append('    "ramps": [')
-        for idx, ramp in enumerate(building["ramps"]):
-            comma = "," if idx + 1 < len(building["ramps"]) else ""
+        for idx, ramp in enumerate(map_data["ramps"]):
+            comma = "," if idx + 1 < len(map_data["ramps"]) else ""
             lines.append(format_ramp(ramp, 6) + comma)
         lines.append("    ]")
     else:
@@ -156,11 +156,11 @@ def format_building_file(wrapper: dict) -> str:
     return "\n".join(lines)
 
 
-def normalize_building(building: dict) -> dict:
-    cols = int(building.get("grid_cols", DEFAULT_GRID_COLS))
-    rows = int(building.get("grid_rows", DEFAULT_GRID_ROWS))
+def normalize_map(map_data: dict) -> dict:
+    cols = int(map_data.get("grid_cols", DEFAULT_GRID_COLS))
+    rows = int(map_data.get("grid_rows", DEFAULT_GRID_ROWS))
     player_spawn_fields = []
-    for field in building.get("player_spawn_fields", []):
+    for field in map_data.get("player_spawn_fields", []):
         if len(field) == 2:
             c, r = field
             player_spawn_fields.append([0, int(c), int(r)])
@@ -170,7 +170,7 @@ def normalize_building(building: dict) -> dict:
         else:
             player_spawn_fields.append([0, -1, -1])
     levels = []
-    for idx, level in enumerate(building.get("levels", [])):
+    for idx, level in enumerate(map_data.get("levels", [])):
         levels.append(
             {
                 "name": str(level.get("name") or f"Level {idx}"),
@@ -182,7 +182,7 @@ def normalize_building(building: dict) -> dict:
         levels = [{"name": "Level 0", "floors": [], "walls": []}]
 
     ramps = []
-    for ramp in building.get("ramps", []):
+    for ramp in map_data.get("ramps", []):
         low = ramp["low"]
         high = ramp["high"]
         ramps.append(
@@ -201,8 +201,8 @@ def normalize_building(building: dict) -> dict:
     }
 
 
-def canonicalize_building(building: dict) -> dict:
-    b = normalize_building(copy.deepcopy(building))
+def canonicalize_map(map_data: dict) -> dict:
+    b = normalize_map(copy.deepcopy(map_data))
     enforce_ramp_floor_rules(b)
     b["player_spawn_fields"] = sorted(
         {(level, c, r) for level, c, r in b["player_spawn_fields"]},
@@ -227,22 +227,22 @@ def canonicalize_building(building: dict) -> dict:
     return b
 
 
-def enforce_ramp_floor_rules(building: dict) -> None:
-    for ramp in building["ramps"]:
+def enforce_ramp_floor_rules(map_data: dict) -> None:
+    for ramp in map_data["ramps"]:
         lower = ramp["lower_level"]
         upper = lower + 1
-        if lower < 0 or upper >= len(building["levels"]):
+        if lower < 0 or upper >= len(map_data["levels"]):
             continue
         cells = ramp_cells(ramp)
         if not cells:
             continue
 
-        lower_floors = {tuple(floor) for floor in building["levels"][lower]["floors"]}
-        upper_floors = {tuple(floor) for floor in building["levels"][upper]["floors"]}
+        lower_floors = {tuple(floor) for floor in map_data["levels"][lower]["floors"]}
+        upper_floors = {tuple(floor) for floor in map_data["levels"][upper]["floors"]}
         lower_floors.update(cells)
         upper_floors.difference_update(cells)
-        building["levels"][lower]["floors"] = [[c, r] for c, r in lower_floors]
-        building["levels"][upper]["floors"] = [[c, r] for c, r in upper_floors]
+        map_data["levels"][lower]["floors"] = [[c, r] for c, r in lower_floors]
+        map_data["levels"][upper]["floors"] = [[c, r] for c, r in upper_floors]
 
 
 def normalized_wall(wall: list[int]) -> list[int]:
@@ -252,21 +252,21 @@ def normalized_wall(wall: list[int]) -> list[int]:
     return [c0, r0, c1, r1]
 
 
-def validate_building(building: dict) -> list[str]:
+def validate_map(map_data: dict) -> list[str]:
     errors: list[str] = []
-    cols = building["grid_cols"]
-    rows = building["grid_rows"]
+    cols = map_data["grid_cols"]
+    rows = map_data["grid_rows"]
     if cols <= 0 or rows <= 0:
         errors.append("grid_cols and grid_rows must be positive")
-    if not building["levels"]:
+    if not map_data["levels"]:
         errors.append("at least one level is required")
-    if not building["player_spawn_fields"]:
+    if not map_data["player_spawn_fields"]:
         errors.append("at least one player spawn field is required by the Rust loader")
 
     spawn_fields = set()
-    for field in building["player_spawn_fields"]:
+    for field in map_data["player_spawn_fields"]:
         level, c, r = field
-        if not (0 <= level < len(building["levels"])):
+        if not (0 <= level < len(map_data["levels"])):
             errors.append(f"player spawn field {field} has an invalid level")
         if not (0 <= c < cols and 0 <= r < rows):
             errors.append(f"player spawn field {field} is outside the grid")
@@ -274,7 +274,7 @@ def validate_building(building: dict) -> list[str]:
             errors.append(f"duplicate player spawn field {field}")
         spawn_fields.add(tuple(field))
 
-    for level_idx, level in enumerate(building["levels"]):
+    for level_idx, level in enumerate(map_data["levels"]):
         prefix = level_label(level, level_idx)
         if not level["floors"]:
             errors.append(f"{prefix}: at least one floor is required by the Rust loader")
@@ -291,14 +291,14 @@ def validate_building(building: dict) -> list[str]:
 
     for field in spawn_fields:
         level, c, r = field
-        if not (0 <= level < len(building["levels"])):
+        if not (0 <= level < len(map_data["levels"])):
             continue
-        floors = {tuple(floor) for floor in building["levels"][level]["floors"]}
+        floors = {tuple(floor) for floor in map_data["levels"][level]["floors"]}
         if (c, r) not in floors:
             errors.append(f"player spawn field {list(field)} is not a floor on level {level}")
 
-    for ramp in building["ramps"]:
-        msg = ramp_error(ramp["low"], ramp["high"], ramp["lower_level"], cols, rows, len(building["levels"]))
+    for ramp in map_data["ramps"]:
+        msg = ramp_error(ramp["low"], ramp["high"], ramp["lower_level"], cols, rows, len(map_data["levels"]))
         if msg:
             errors.append(f"ramp {ramp}: {msg}")
         lower = ramp["lower_level"]
@@ -365,18 +365,18 @@ def opposite_direction(direction: str) -> str:
     }[direction]
 
 
-class SetBuildingCommand(QUndoCommand):
+class SetMapCommand(QUndoCommand):
     def __init__(self, window: "EditorWindow", text: str, before: dict, after: dict):
         super().__init__(text)
         self.window = window
-        self.before = canonicalize_building(before)
-        self.after = canonicalize_building(after)
+        self.before = canonicalize_map(before)
+        self.after = canonicalize_map(after)
 
     def undo(self) -> None:
-        self.window.set_building(self.before, mark_dirty=True)
+        self.window.set_map(self.before, mark_dirty=True)
 
     def redo(self) -> None:
-        self.window.set_building(self.after, mark_dirty=True)
+        self.window.set_map(self.after, mark_dirty=True)
 
 
 class Canvas(QWidget):
@@ -395,19 +395,19 @@ class Canvas(QWidget):
         return super().minimumSizeHint().expandedTo(QSize(360, 360))
 
     def cell_size(self) -> float:
-        cols = max(1, self.window.building["grid_cols"])
-        rows = max(1, self.window.building["grid_rows"])
+        cols = max(1, self.window.map_data["grid_cols"])
+        rows = max(1, self.window.map_data["grid_rows"])
         return max(MIN_CELL, min(self.width() / cols, self.height() / rows))
 
     def grid_bounds(self) -> tuple[float, float]:
         cell = self.cell_size()
-        return self.window.building["grid_cols"] * cell, self.window.building["grid_rows"] * cell
+        return self.window.map_data["grid_cols"] * cell, self.window.map_data["grid_rows"] * cell
 
     def point_to_cell(self, pos) -> tuple[int, int] | None:
         cell = self.cell_size()
         col = int(pos.x() // cell)
         row = int(pos.y() // cell)
-        if 0 <= col < self.window.building["grid_cols"] and 0 <= row < self.window.building["grid_rows"]:
+        if 0 <= col < self.window.map_data["grid_cols"] and 0 <= row < self.window.map_data["grid_rows"]:
             return col, row
         return None
 
@@ -416,8 +416,8 @@ class Canvas(QWidget):
         col = round(pos.x() / cell)
         row = round(pos.y() / cell)
         return (
-            max(0, min(self.window.building["grid_cols"], col)),
-            max(0, min(self.window.building["grid_rows"], row)),
+            max(0, min(self.window.map_data["grid_cols"], col)),
+            max(0, min(self.window.map_data["grid_rows"], row)),
         )
 
     def paintEvent(self, _event) -> None:
@@ -425,10 +425,10 @@ class Canvas(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.fillRect(self.rect(), QColor("#1f2328"))
         cell = self.cell_size()
-        cols = self.window.building["grid_cols"]
-        rows = self.window.building["grid_rows"]
+        cols = self.window.map_data["grid_cols"]
+        rows = self.window.map_data["grid_rows"]
         level_idx = self.window.current_level
-        level = self.window.building["levels"][level_idx]
+        level = self.window.map_data["levels"][level_idx]
 
         painter.fillRect(QRectF(0, 0, cols * cell, rows * cell), QColor("#111418"))
 
@@ -437,7 +437,7 @@ class Canvas(QWidget):
         for col, row in level["floors"]:
             painter.drawRect(QRectF(col * cell + 1, row * cell + 1, cell - 2, cell - 2))
 
-        for ramp in self.window.building["ramps"]:
+        for ramp in self.window.map_data["ramps"]:
             lower = ramp["lower_level"]
             if level_idx not in (lower, lower + 1):
                 continue
@@ -485,7 +485,7 @@ class Canvas(QWidget):
     def paint_player_spawn_fields(self, painter: QPainter, cell: float, level_idx: int) -> None:
         painter.setPen(QPen(QColor("#86efac"), 2))
         painter.setBrush(QColor(34, 197, 94, 95))
-        for level, col, row in self.window.building["player_spawn_fields"]:
+        for level, col, row in self.window.map_data["player_spawn_fields"]:
             if level != level_idx:
                 continue
             rect = QRectF(col * cell + 4, row * cell + 4, cell - 8, cell - 8)
@@ -600,7 +600,7 @@ class EditorWindow(QMainWindow):
     def __init__(self, path: Path):
         super().__init__()
         self.path: Path | None = path
-        self.building = read_building(path) if path.exists() else empty_building()
+        self.map_data = read_map(path) if path.exists() else empty_map()
         self.current_level = 0
         self.mode = MODE_FLOOR
         self.dirty = False
@@ -677,23 +677,23 @@ class EditorWindow(QMainWindow):
         toolbar.addWidget(self.mode_combo)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
 
-    def set_building(self, building: dict, mark_dirty: bool) -> None:
-        self.building = canonicalize_building(building)
-        self.current_level = max(0, min(self.current_level, len(self.building["levels"]) - 1))
+    def set_map(self, map_data: dict, mark_dirty: bool) -> None:
+        self.map_data = canonicalize_map(map_data)
+        self.current_level = max(0, min(self.current_level, len(self.map_data["levels"]) - 1))
         if mark_dirty:
             self.dirty = True
         self.refresh_ui()
 
     def apply_change(self, label: str, after: dict) -> None:
-        before = self.building
-        if canonicalize_building(before) == canonicalize_building(after):
+        before = self.map_data
+        if canonicalize_map(before) == canonicalize_map(after):
             return
-        self.undo_stack.push(SetBuildingCommand(self, label, before, after))
+        self.undo_stack.push(SetMapCommand(self, label, before, after))
 
     def refresh_ui(self) -> None:
         self.level_combo.blockSignals(True)
         self.level_combo.clear()
-        for idx, level in enumerate(self.building["levels"]):
+        for idx, level in enumerate(self.map_data["levels"]):
             self.level_combo.addItem(level_label(level, idx))
         self.level_combo.setCurrentIndex(self.current_level)
         self.level_combo.blockSignals(False)
@@ -704,7 +704,7 @@ class EditorWindow(QMainWindow):
         self.setWindowTitle(f"Cuboid Wars Editor - {file_name}{suffix}")
 
     def update_status(self) -> None:
-        errors = validate_building(self.building)
+        errors = validate_map(self.map_data)
         if errors:
             self.status_label.setText(f"{len(errors)} structural issue(s)")
             self.status_label.setToolTip("\n".join(errors[:20]))
@@ -713,7 +713,7 @@ class EditorWindow(QMainWindow):
             self.status_label.setToolTip("")
 
     def select_level(self, index: int) -> None:
-        if 0 <= index < len(self.building["levels"]):
+        if 0 <= index < len(self.map_data["levels"]):
             self.current_level = index
             self.canvas.update()
 
@@ -727,7 +727,7 @@ class EditorWindow(QMainWindow):
         self.set_level_index(self.current_level + 1)
 
     def set_level_index(self, index: int) -> None:
-        clamped = max(0, min(index, len(self.building["levels"]) - 1))
+        clamped = max(0, min(index, len(self.map_data["levels"]) - 1))
         if clamped == self.current_level:
             return
         self.current_level = clamped
@@ -748,11 +748,11 @@ class EditorWindow(QMainWindow):
     def open_file(self) -> None:
         if not self.confirm_discard_changes():
             return
-        path, _ = QFileDialog.getOpenFileName(self, "Open Building", str(self.path or DEFAULT_BUILDING), "JSON files (*.json)")
+        path, _ = QFileDialog.getOpenFileName(self, "Open Map", str(self.path or DEFAULT_MAP), "JSON files (*.json)")
         if not path:
             return
         try:
-            self.building = read_building(Path(path))
+            self.map_data = read_map(Path(path))
         except Exception as exc:
             QMessageBox.critical(self, "Open Failed", str(exc))
             return
@@ -766,12 +766,12 @@ class EditorWindow(QMainWindow):
         if self.path is None:
             self.save_as()
             return
-        errors = validate_building(self.building)
+        errors = validate_map(self.map_data)
         if errors:
             QMessageBox.warning(self, "Cannot Save", "Fix structural issues before saving:\n\n" + "\n".join(errors[:12]))
             return
         try:
-            write_building(self.path, self.building)
+            write_map(self.path, self.map_data)
         except Exception as exc:
             QMessageBox.critical(self, "Save Failed", str(exc))
             return
@@ -779,7 +779,7 @@ class EditorWindow(QMainWindow):
         self.refresh_ui()
 
     def save_as(self) -> None:
-        path, _ = QFileDialog.getSaveFileName(self, "Save Building As", str(self.path or DEFAULT_BUILDING), "JSON files (*.json)")
+        path, _ = QFileDialog.getSaveFileName(self, "Save Map As", str(self.path or DEFAULT_MAP), "JSON files (*.json)")
         if not path:
             return
         self.path = Path(path)
@@ -799,7 +799,7 @@ class EditorWindow(QMainWindow):
 
     def add_floor_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         c0, r0, c1, r1 = rect_from_cells(start, end)
-        after = copy.deepcopy(self.building)
+        after = copy.deepcopy(self.map_data)
         floors = {tuple(f) for f in after["levels"][self.current_level]["floors"]}
         for row in range(r0, r1):
             for col in range(c0, c1):
@@ -809,7 +809,7 @@ class EditorWindow(QMainWindow):
 
     def add_player_spawn_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         c0, r0, c1, r1 = rect_from_cells(start, end)
-        after = copy.deepcopy(self.building)
+        after = copy.deepcopy(self.map_data)
         fields = {tuple(f) for f in after["player_spawn_fields"]}
         for row in range(r0, r1):
             for col in range(c0, c1):
@@ -821,7 +821,7 @@ class EditorWindow(QMainWindow):
         edges = wall_segments_between(start, end)
         if not edges:
             return
-        after = copy.deepcopy(self.building)
+        after = copy.deepcopy(self.map_data)
         walls = {tuple(normalized_wall(w)) for w in after["levels"][self.current_level]["walls"]}
         walls.update(tuple(w) for w in edges)
         after["levels"][self.current_level]["walls"] = [list(w) for w in walls]
@@ -830,7 +830,7 @@ class EditorWindow(QMainWindow):
     def add_ramp(self, start_cell: tuple[int, int], end_cell: tuple[int, int], mode: str) -> None:
         start_point, end_point = ramp_points_from_cells(start_cell, end_cell)
         if mode == MODE_RAMP_UP:
-            if self.current_level + 1 >= len(self.building["levels"]):
+            if self.current_level + 1 >= len(self.map_data["levels"]):
                 self.statusBar().showMessage("Ramp not placed: Ramp (Up) needs an upper level", 4000)
                 return
             lower_level = self.current_level
@@ -848,16 +848,16 @@ class EditorWindow(QMainWindow):
             low,
             high,
             lower_level,
-            self.building["grid_cols"],
-            self.building["grid_rows"],
-            len(self.building["levels"]),
+            self.map_data["grid_cols"],
+            self.map_data["grid_rows"],
+            len(self.map_data["levels"]),
         )
         if msg:
             self.statusBar().showMessage(f"Ramp not placed: {msg}", 4000)
             return
         new_ramp = {"low": low, "high": high, "lower_level": lower_level}
         new_rect = ramp_rect(new_ramp)
-        after = copy.deepcopy(self.building)
+        after = copy.deepcopy(self.map_data)
         after["ramps"] = [
             ramp
             for ramp in after["ramps"]
@@ -874,7 +874,7 @@ class EditorWindow(QMainWindow):
 
     def erase_cell_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         c0, r0, c1, r1 = rect_from_cells(start, end)
-        after = copy.deepcopy(self.building)
+        after = copy.deepcopy(self.map_data)
         level = after["levels"][self.current_level]
         level["floors"] = [
             floor
@@ -902,16 +902,16 @@ class EditorWindow(QMainWindow):
     def hit_at(self, pos, cell_size: float):
         col = int(pos.x() // cell_size)
         row = int(pos.y() // cell_size)
-        level = self.building["levels"][self.current_level]
+        level = self.map_data["levels"][self.current_level]
         px = pos.x() / cell_size
         py = pos.y() / cell_size
 
         for wall in level["walls"]:
             if point_near_wall(px, py, wall):
                 return ("Wall", tuple(wall))
-        if [self.current_level, col, row] in self.building["player_spawn_fields"]:
+        if [self.current_level, col, row] in self.map_data["player_spawn_fields"]:
             return ("Player Spawn", (col, row))
-        for ramp in self.building["ramps"]:
+        for ramp in self.map_data["ramps"]:
             lower = ramp["lower_level"]
             if self.current_level not in (lower, lower + 1):
                 continue
@@ -924,7 +924,7 @@ class EditorWindow(QMainWindow):
 
     def erase_hit(self, hit) -> None:
         kind, value = hit
-        after = copy.deepcopy(self.building)
+        after = copy.deepcopy(self.map_data)
         level = after["levels"][self.current_level]
         if kind == "Floor":
             level["floors"] = [floor for floor in level["floors"] if tuple(floor) != value]
@@ -946,7 +946,7 @@ class EditorWindow(QMainWindow):
         self.apply_change(f"Erase {kind}", after)
 
     def add_level(self) -> None:
-        after = copy.deepcopy(self.building)
+        after = copy.deepcopy(self.map_data)
         insert_at = self.current_level + 1
         after["levels"].insert(insert_at, {"name": f"Level {insert_at}", "floors": [], "walls": []})
         for field in after["player_spawn_fields"]:
@@ -960,29 +960,29 @@ class EditorWindow(QMainWindow):
         self.refresh_ui()
 
     def rename_level(self) -> None:
-        level = self.building["levels"][self.current_level]
+        level = self.map_data["levels"][self.current_level]
         text, ok = QInputDialog.getText(self, "Rename Level", "Name:", text=level.get("name") or "")
         if not ok:
             return
-        after = copy.deepcopy(self.building)
+        after = copy.deepcopy(self.map_data)
         after["levels"][self.current_level]["name"] = text.strip() or f"Level {self.current_level}"
         self.apply_change("Rename Level", after)
 
     def remove_level(self) -> None:
-        if len(self.building["levels"]) == 1:
-            QMessageBox.information(self, "Remove Level", "A building must have at least one level.")
+        if len(self.map_data["levels"]) == 1:
+            QMessageBox.information(self, "Remove Level", "A map must have at least one level.")
             return
         result = QMessageBox.question(
             self,
             "Remove Level",
-            f"Remove {level_label(self.building['levels'][self.current_level], self.current_level)}?",
+            f"Remove {level_label(self.map_data['levels'][self.current_level], self.current_level)}?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
             QMessageBox.StandardButton.Cancel,
         )
         if result != QMessageBox.StandardButton.Yes:
             return
         removed = self.current_level
-        after = copy.deepcopy(self.building)
+        after = copy.deepcopy(self.map_data)
         after["levels"].pop(removed)
         adjusted_fields = []
         for field in after["player_spawn_fields"]:
@@ -1127,8 +1127,8 @@ def point_near_wall(px: float, py: float, wall: list[int], tolerance: float = 0.
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Cuboid Wars building editor.")
-    parser.add_argument("file", nargs="?", type=Path, default=DEFAULT_BUILDING, help="Building JSON to edit.")
+    parser = argparse.ArgumentParser(description="Cuboid Wars map editor.")
+    parser.add_argument("file", nargs="?", type=Path, default=DEFAULT_MAP, help="Map JSON to edit.")
     args = parser.parse_args()
 
     app = QApplication(sys.argv)

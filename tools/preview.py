@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ASCII preview of a Cuboid Wars building JSON file."""
+"""ASCII preview of a Cuboid Wars map JSON file."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_BUILDING = REPO_ROOT / "server" / "assets" / "buildings" / "default.json"
+DEFAULT_MAP = REPO_ROOT / "server" / "assets" / "maps" / "default.json"
 
 FLOOR = "·"
 NO_FLOOR = "█"
@@ -23,8 +23,8 @@ RAMP_EAST_DOWN = "▷"
 RAMP_WEST_DOWN = "◁"
 PLAYER_SPAWN = "S"
 
-WRAPPER_KEYS = {"version", "building"}
-BUILDING_KEYS = {"grid_cols", "grid_rows", "player_spawn_fields", "levels", "ramps"}
+WRAPPER_KEYS = {"version", "map"}
+MAP_KEYS = {"grid_cols", "grid_rows", "player_spawn_fields", "levels", "ramps"}
 LEVEL_KEYS = {"name", "floors", "walls"}
 RAMP_KEYS = {"lower_level", "low", "high"}
 
@@ -71,19 +71,19 @@ CORNERS = {
 }
 
 
-def load_building(path: Path) -> dict:
+def load_map(path: Path) -> dict:
     with path.open("r", encoding="utf-8") as handle:
         data = json.load(handle)
     if data.get("version") != 1:
-        sys.exit(f"unsupported building file version {data.get('version')!r}")
+        sys.exit(f"unsupported map file version {data.get('version')!r}")
     warn_unknown_keys("file", data, WRAPPER_KEYS)
-    building = data["building"]
-    warn_unknown_keys("building", building, BUILDING_KEYS)
-    for idx, level in enumerate(building.get("levels", [])):
-        warn_unknown_keys(f"building.levels[{idx}]", level, LEVEL_KEYS)
-    for idx, ramp in enumerate(building.get("ramps", [])):
-        warn_unknown_keys(f"building.ramps[{idx}]", ramp, RAMP_KEYS)
-    return building
+    map_data = data["map"]
+    warn_unknown_keys("map", map_data, MAP_KEYS)
+    for idx, level in enumerate(map_data.get("levels", [])):
+        warn_unknown_keys(f"map.levels[{idx}]", level, LEVEL_KEYS)
+    for idx, ramp in enumerate(map_data.get("ramps", [])):
+        warn_unknown_keys(f"map.ramps[{idx}]", ramp, RAMP_KEYS)
+    return map_data
 
 
 def warn(message: str) -> None:
@@ -127,10 +127,10 @@ def opposite_direction(direction: str) -> str:
     }[direction]
 
 
-def render_level(building: dict, level_idx: int) -> list[list[str]]:
-    level = building["levels"][level_idx]
-    cols = building["grid_cols"]
-    rows = building["grid_rows"]
+def render_level(map_data: dict, level_idx: int) -> list[list[str]]:
+    level = map_data["levels"][level_idx]
+    cols = map_data["grid_cols"]
+    rows = map_data["grid_rows"]
 
     h = 2 * rows + 1
     w = 2 * cols + 1
@@ -142,10 +142,10 @@ def render_level(building: dict, level_idx: int) -> list[list[str]]:
         for col in range(cols):
             grid[2 * row + 1][2 * col + 1] = FLOOR if (col, row) in floors else NO_FLOOR
 
-    paint_player_spawn_fields(grid, building, level_idx)
+    paint_player_spawn_fields(grid, map_data, level_idx)
 
-    for ramp_idx, ramp in enumerate(building.get("ramps", [])):
-        if not ramp_is_previewable(ramp, ramp_idx, len(building["levels"])):
+    for ramp_idx, ramp in enumerate(map_data.get("ramps", [])):
+        if not ramp_is_previewable(ramp, ramp_idx, len(map_data["levels"])):
             continue
         lower = ramp["lower_level"]
         c0, r0, c1, r1 = ramp_rect(ramp)
@@ -182,56 +182,56 @@ def paint_rect(grid: list[list[str]], c0: int, r0: int, c1: int, r1: int, ch: st
             grid[2 * row + 1][2 * col + 1] = ch
 
 
-def paint_player_spawn_fields(grid: list[list[str]], building: dict, level_idx: int) -> None:
-    cols = building["grid_cols"]
-    rows = building["grid_rows"]
-    for idx, field in enumerate(building.get("player_spawn_fields", [])):
+def paint_player_spawn_fields(grid: list[list[str]], map_data: dict, level_idx: int) -> None:
+    cols = map_data["grid_cols"]
+    rows = map_data["grid_rows"]
+    for idx, field in enumerate(map_data.get("player_spawn_fields", [])):
         parsed = parse_spawn_field(field)
         if parsed is None:
-            warn(f"building.player_spawn_fields[{idx}] must be [col, row] or [level, col, row]: {field!r}")
+            warn(f"map.player_spawn_fields[{idx}] must be [col, row] or [level, col, row]: {field!r}")
             continue
         level, col, row = parsed
         if level != level_idx:
             continue
         if not (0 <= col < cols and 0 <= row < rows):
-            warn(f"building.player_spawn_fields[{idx}] is outside the grid: {field!r}")
+            warn(f"map.player_spawn_fields[{idx}] is outside the grid: {field!r}")
             continue
         grid[2 * row + 1][2 * col + 1] = PLAYER_SPAWN
 
 
 def wall_is_previewable(wall: object, level_idx: int, wall_idx: int) -> bool:
     if not (isinstance(wall, list) and len(wall) == 4 and all(isinstance(v, int) for v in wall)):
-        warn(f"building.levels[{level_idx}].walls[{wall_idx}] has unsupported shape {wall!r}")
+        warn(f"map.levels[{level_idx}].walls[{wall_idx}] has unsupported shape {wall!r}")
         return False
     c0, r0, c1, r1 = wall
     if c0 != c1 and r0 != r1:
-        warn(f"building.levels[{level_idx}].walls[{wall_idx}] is diagonal and cannot be previewed: {wall!r}")
+        warn(f"map.levels[{level_idx}].walls[{wall_idx}] is diagonal and cannot be previewed: {wall!r}")
         return False
     return True
 
 
 def ramp_is_previewable(ramp: object, ramp_idx: int, level_count: int) -> bool:
     if not isinstance(ramp, dict):
-        warn(f"building.ramps[{ramp_idx}] is {type(ramp).__name__}, expected object")
+        warn(f"map.ramps[{ramp_idx}] is {type(ramp).__name__}, expected object")
         return False
     required_keys = RAMP_KEYS
     missing_keys = sorted(required_keys - set(ramp))
     if missing_keys:
-        warn(f"building.ramps[{ramp_idx}] is missing keys: {', '.join(missing_keys)}")
+        warn(f"map.ramps[{ramp_idx}] is missing keys: {', '.join(missing_keys)}")
         return False
     lower = ramp["lower_level"]
     if not isinstance(lower, int):
-        warn(f"building.ramps[{ramp_idx}].lower_level is not an integer: {lower!r}")
+        warn(f"map.ramps[{ramp_idx}].lower_level is not an integer: {lower!r}")
         return False
     if not (0 <= lower + 1 < level_count):
-        warn(f"building.ramps[{ramp_idx}].lower_level is out of range: {lower!r}")
+        warn(f"map.ramps[{ramp_idx}].lower_level is out of range: {lower!r}")
         return False
     if not is_int_point(ramp["low"]) or not is_int_point(ramp["high"]):
-        warn(f"building.ramps[{ramp_idx}] has unsupported ramp points: {ramp!r}")
+        warn(f"map.ramps[{ramp_idx}] has unsupported ramp points: {ramp!r}")
         return False
     c0, r0, c1, r1 = ramp_rect(ramp)
     if c0 == c1 or r0 == r1:
-        warn(f"building.ramps[{ramp_idx}] has no previewable area: {ramp!r}")
+        warn(f"map.ramps[{ramp_idx}] has no previewable area: {ramp!r}")
         return False
     return True
 
@@ -335,33 +335,33 @@ def format_even_column(ch: str) -> str:
     return ch
 
 
-def render_building(building: dict, level_filter: int | None = None) -> str:
+def render_map(map_data: dict, level_filter: int | None = None) -> str:
     out = [
         "Legend: S = player spawn; filled ramp arrows go up; hollow ramp arrows go down.",
         "",
     ]
-    for idx, level in enumerate(building["levels"]):
+    for idx, level in enumerate(map_data["levels"]):
         if level_filter is not None and idx != level_filter:
             continue
         name = level.get("name") or f"Level {idx}"
         out.append(f"=== Level {idx} ({name}) ===")
-        for row in render_level(building, idx):
+        for row in render_level(map_data, idx):
             out.append(widen(row))
         out.append("")
     return "\n".join(out)
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="ASCII preview of a Cuboid Wars building JSON file.")
-    parser.add_argument("-f", "--file", type=Path, default=DEFAULT_BUILDING, help="Path to the building JSON file.")
+    parser = argparse.ArgumentParser(description="ASCII preview of a Cuboid Wars map JSON file.")
+    parser.add_argument("-f", "--file", type=Path, default=DEFAULT_MAP, help="Path to the map JSON file.")
     parser.add_argument("-l", "--level", type=int, default=None, help="Render only this level index (0-based).")
     args = parser.parse_args()
 
-    building = load_building(args.file)
-    if args.level is not None and not (0 <= args.level < len(building["levels"])):
-        sys.exit(f"--level {args.level} out of range (0..{len(building['levels']) - 1})")
+    map_data = load_map(args.file)
+    if args.level is not None and not (0 <= args.level < len(map_data["levels"])):
+        sys.exit(f"--level {args.level} out of range (0..{len(map_data['levels']) - 1})")
 
-    print(render_building(building, args.level))
+    print(render_map(map_data, args.level))
 
 
 if __name__ == "__main__":

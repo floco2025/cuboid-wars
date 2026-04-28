@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "building": {
+  "map": {
     "grid_cols": 20,
     "grid_rows": 20,
     "player_spawn_fields": [

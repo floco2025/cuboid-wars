@@ -7,7 +7,7 @@ use super::{
 };
 use crate::{
     net::ClientToServer,
-    resources::{FromClientsChannel, GridConfig, ItemMap, PlayerMap},
+    resources::{FromClientsChannel, ItemMap, MapConfig, PlayerMap},
 };
 use common::{
     constants::UPDATE_BROADCAST_INTERVAL,
@@ -29,7 +29,7 @@ pub fn network_client_message_system(
     mut players: ResMut<PlayerMap>,
     time: Res<Time>,
     map_layout: Res<MapLayout>,
-    grid_config: Res<GridConfig>,
+    map_config: Res<MapConfig>,
     items: Res<ItemMap>,
     player_data: Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
     motions: Query<&PlayerMotion, With<PlayerMarker>>,
@@ -76,7 +76,7 @@ pub fn network_client_message_system(
                         message,
                         &mut players,
                         &map_layout,
-                        &grid_config,
+                        &map_config,
                         &items,
                         &player_data,
                         &motions,

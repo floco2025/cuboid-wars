@@ -11,7 +11,7 @@ use super::{
 };
 use crate::{
     constants::FLOOR_OVERLAP,
-    resources::{GridCell, GridConfig, PlayerSpawnField},
+    resources::{CellGrid, EdgeGrid, LevelGrid, MapConfig, PlayerSpawnField},
 };
 use common::{
     constants::*,
@@ -25,13 +25,13 @@ const SUPPORTED_VERSION: u32 = 1;
 // ============================================================================
 
 #[derive(Debug, Deserialize)]
-pub struct BuildingFile {
+pub struct MapFile {
     pub version: u32,
-    pub building: BuildingDef,
+    pub map: MapDef,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct BuildingDef {
+pub struct MapDef {
     pub grid_cols: i32,
     pub grid_rows: i32,
     #[serde(default)]
@@ -98,54 +98,54 @@ impl<'de> Deserialize<'de> for PlayerSpawnDef {
 // Loading + validation
 // ============================================================================
 
-pub fn load_building(path: &Path) -> Result<BuildingDef> {
-    let text = fs::read_to_string(path).with_context(|| format!("reading building at {}", path.display()))?;
-    let mut file: BuildingFile =
-        serde_json::from_str(&text).with_context(|| format!("parsing building JSON at {}", path.display()))?;
-    validate_file(&file).with_context(|| format!("validating building at {}", path.display()))?;
-    canonicalize(&mut file.building);
-    Ok(file.building)
+pub fn load_map(path: &Path) -> Result<MapDef> {
+    let text = fs::read_to_string(path).with_context(|| format!("reading map at {}", path.display()))?;
+    let mut file: MapFile =
+        serde_json::from_str(&text).with_context(|| format!("parsing map JSON at {}", path.display()))?;
+    validate_file(&file).with_context(|| format!("validating map at {}", path.display()))?;
+    canonicalize(&mut file.map);
+    Ok(file.map)
 }
 
-fn validate_file(file: &BuildingFile) -> Result<()> {
+fn validate_file(file: &MapFile) -> Result<()> {
     if file.version != SUPPORTED_VERSION {
         return Err(anyhow!(
-            "unsupported building file version {} (expected {})",
+            "unsupported map file version {} (expected {})",
             file.version,
             SUPPORTED_VERSION
         ));
     }
-    validate_building(&file.building)
+    validate_map(&file.map)
 }
 
-fn validate_building(b: &BuildingDef) -> Result<()> {
-    if b.grid_cols <= 0 || b.grid_rows <= 0 {
+fn validate_map(map_def: &MapDef) -> Result<()> {
+    if map_def.grid_cols <= 0 || map_def.grid_rows <= 0 {
         return Err(anyhow!("grid_cols and grid_rows must be positive"));
     }
-    if b.levels.is_empty() {
+    if map_def.levels.is_empty() {
         return Err(anyhow!("at least one level is required"));
     }
-    if b.player_spawn_fields.is_empty() {
+    if map_def.player_spawn_fields.is_empty() {
         return Err(anyhow!("at least one player_spawn_fields entry is required"));
     }
 
     let mut spawn_fields = BTreeSet::new();
-    for (spawn_idx, field) in b.player_spawn_fields.iter().enumerate() {
-        if field.level as usize >= b.levels.len() {
+    for (spawn_idx, field) in map_def.player_spawn_fields.iter().enumerate() {
+        if field.level as usize >= map_def.levels.len() {
             return Err(anyhow!(
                 "player_spawn_fields[{spawn_idx}] level {} out of range (level count = {})",
                 field.level,
-                b.levels.len()
+                map_def.levels.len()
             ));
         }
-        validate_floor(field.point(), b.grid_cols, b.grid_rows)
+        validate_floor(field.point(), map_def.grid_cols, map_def.grid_rows)
             .with_context(|| format!("player_spawn_fields[{spawn_idx}]"))?;
         if !spawn_fields.insert(*field) {
             return Err(anyhow!("duplicate player_spawn_fields {:?}", field));
         }
     }
 
-    for (level_idx, level) in b.levels.iter().enumerate() {
+    for (level_idx, level) in map_def.levels.iter().enumerate() {
         let label = level_label(level_idx, level);
         if level.floors.is_empty() {
             return Err(anyhow!("{label}: at least one floor is required"));
@@ -153,7 +153,7 @@ fn validate_building(b: &BuildingDef) -> Result<()> {
 
         let mut floors = BTreeSet::new();
         for (floor_idx, floor) in level.floors.iter().enumerate() {
-            validate_floor(*floor, b.grid_cols, b.grid_rows)
+            validate_floor(*floor, map_def.grid_cols, map_def.grid_rows)
                 .with_context(|| format!("{label}: floors[{floor_idx}]"))?;
             if !floors.insert(*floor) {
                 return Err(anyhow!("{label}: duplicate floor {:?}", floor));
@@ -162,7 +162,8 @@ fn validate_building(b: &BuildingDef) -> Result<()> {
 
         let mut walls_seen = BTreeSet::new();
         for (wall_idx, wall) in level.walls.iter().enumerate() {
-            validate_wall(*wall, b.grid_cols, b.grid_rows).with_context(|| format!("{label}: walls[{wall_idx}]"))?;
+            validate_wall(*wall, map_def.grid_cols, map_def.grid_rows)
+                .with_context(|| format!("{label}: walls[{wall_idx}]"))?;
             let wall = normalized_wall(*wall);
             if !walls_seen.insert(wall) {
                 return Err(anyhow!("{label}: duplicate wall {:?}", wall));
@@ -170,7 +171,7 @@ fn validate_building(b: &BuildingDef) -> Result<()> {
         }
     }
 
-    let floor_sets: Vec<BTreeSet<[i32; 2]>> = b
+    let floor_sets: Vec<BTreeSet<[i32; 2]>> = map_def
         .levels
         .iter()
         .map(|level| level.floors.iter().copied().collect())
@@ -186,8 +187,9 @@ fn validate_building(b: &BuildingDef) -> Result<()> {
     }
 
     let mut ramps_seen = BTreeSet::new();
-    for (idx, ramp) in b.ramps.iter().enumerate() {
-        validate_ramp(ramp, b.grid_cols, b.grid_rows, b.levels.len()).with_context(|| format!("ramps[{idx}]"))?;
+    for (idx, ramp) in map_def.ramps.iter().enumerate() {
+        validate_ramp(ramp, map_def.grid_cols, map_def.grid_rows, map_def.levels.len())
+            .with_context(|| format!("ramps[{idx}]"))?;
         let key = (ramp.lower_level, ramp.low, ramp.high);
         if !ramps_seen.insert(key) {
             return Err(anyhow!("duplicate ramp {:?}", key));
@@ -294,12 +296,13 @@ fn ramp_footprint_cells(ramp: &RampDef) -> Vec<[i32; 2]> {
     cells
 }
 
-fn canonicalize(b: &mut BuildingDef) {
-    b.player_spawn_fields
+fn canonicalize(map_def: &mut MapDef) {
+    map_def
+        .player_spawn_fields
         .sort_by_key(|field| (field.level, field.row, field.col));
-    b.player_spawn_fields.dedup();
+    map_def.player_spawn_fields.dedup();
 
-    for level in &mut b.levels {
+    for level in &mut map_def.levels {
         level.floors.sort_by_key(|[col, row]| (*row, *col));
         level.floors.dedup();
 
@@ -310,8 +313,8 @@ fn canonicalize(b: &mut BuildingDef) {
         level.walls.dedup();
     }
 
-    b.ramps.sort_by_key(|r| (r.lower_level, r.low, r.high));
-    b.ramps.dedup_by_key(|r| (r.lower_level, r.low, r.high));
+    map_def.ramps.sort_by_key(|r| (r.lower_level, r.low, r.high));
+    map_def.ramps.dedup_by_key(|r| (r.lower_level, r.low, r.high));
 }
 
 fn normalized_wall(wall: [i32; 4]) -> [i32; 4] {
@@ -320,17 +323,17 @@ fn normalized_wall(wall: [i32; 4]) -> [i32; 4] {
 }
 
 // ============================================================================
-// Compile building -> MapLayout + GridConfig
+// Compile map source -> MapLayout + MapConfig
 // ============================================================================
 
 #[must_use]
-pub fn compile_building(b: &BuildingDef) -> (MapLayout, GridConfig) {
-    let cols = b.grid_cols;
-    let rows = b.grid_rows;
+pub fn compile_map(map_def: &MapDef) -> (MapLayout, MapConfig) {
+    let cols = map_def.grid_cols;
+    let rows = map_def.grid_rows;
 
-    let ramp_specs: Vec<ramps::RampSpec> = b.ramps.iter().map(ramp_spec_from_def).collect();
+    let ramp_specs: Vec<ramps::RampSpec> = map_def.ramps.iter().map(ramp_spec_from_def).collect();
 
-    let masks: Vec<Mask> = b
+    let masks: Vec<Mask> = map_def
         .levels
         .iter()
         .map(|level| {
@@ -342,40 +345,44 @@ pub fn compile_building(b: &BuildingDef) -> (MapLayout, GridConfig) {
         })
         .collect();
 
-    let mut level_grids: Vec<Vec<Vec<GridCell>>> = b
+    let mut level_grids: Vec<LevelGrid> = map_def
         .levels
         .iter()
         .enumerate()
         .map(|(level_idx, level)| {
-            let mut grid = vec![vec![GridCell::default(); cols as usize]; rows as usize];
-            mark_has_floor(&mut grid, &masks[level_idx]);
+            let mut cell_grid = CellGrid::new(cols, rows);
+            let mut edge_grid = EdgeGrid::new(cols, rows);
+            mark_has_floor(&mut cell_grid, &masks[level_idx]);
             for wall in &level.walls {
-                set_wall_edge(&mut grid, *wall, cols, rows);
+                set_wall_edge(&mut edge_grid, *wall);
             }
-            grid
+            LevelGrid {
+                cells: cell_grid,
+                edges: edge_grid,
+            }
         })
         .collect();
 
-    // Apply ramp flags to each lower-level grid. Spawn selection skips these
-    // cells on any level, while wall-light placement still uses level 0 below.
-    for (level_idx, grid) in level_grids.iter_mut().enumerate() {
+    // Apply ramp flags to each lower-level cell grid. Spawn selection skips
+    // these cells on any level.
+    for (level_idx, level_grid) in level_grids.iter_mut().enumerate() {
         let level_u32 = u32::try_from(level_idx).unwrap_or(u32::MAX);
-        ramps::apply_to_level_grid(grid, &ramp_specs, level_u32);
+        ramps::apply_to_level_cells(&mut level_grid.cells, &ramp_specs, level_u32);
     }
     for level_idx in 0..level_grids.len().saturating_sub(1) {
-        mark_has_floor_above(&mut level_grids[level_idx], &masks[level_idx + 1]);
+        mark_has_floor_above(&mut level_grids[level_idx].cells, &masks[level_idx + 1]);
     }
 
     let mut wall_lights = Vec::new();
-    for (level_idx, grid) in level_grids.iter().enumerate() {
+    for (level_idx, level_grid) in level_grids.iter().enumerate() {
         let level_u8 = u8::try_from(level_idx).unwrap_or(u8::MAX);
-        wall_lights.extend(generate_wall_lights(grid, level_u8));
+        wall_lights.extend(generate_wall_lights(level_grid, level_u8));
     }
 
     let mut all_walls: Vec<Wall> = Vec::new();
-    for (level_idx, grid) in level_grids.iter().enumerate() {
+    for (level_idx, level_grid) in level_grids.iter().enumerate() {
         let level_u8 = u8::try_from(level_idx).unwrap_or(u8::MAX);
-        let mut tier = walls::generate_walls(grid, cols, rows, level_u8);
+        let mut tier = walls::generate_walls(&level_grid.edges, cols, rows, level_u8);
         tier = walls::merge_walls(tier);
         all_walls.extend(tier);
     }
@@ -398,17 +405,11 @@ pub fn compile_building(b: &BuildingDef) -> (MapLayout, GridConfig) {
         floors: all_floors,
     };
 
-    let level0_grid = level_grids
-        .first()
-        .cloned()
-        .unwrap_or_else(|| vec![vec![GridCell::default(); cols as usize]; rows as usize]);
-
     (
         map_layout,
-        GridConfig {
-            grid: level0_grid,
-            grids: level_grids,
-            player_spawn_fields: player_spawn_fields(b),
+        MapConfig {
+            levels: level_grids,
+            player_spawn_fields: player_spawn_fields(map_def),
         },
     )
 }
@@ -425,8 +426,9 @@ fn empty_mask(grid_cols: i32, grid_rows: i32) -> Mask {
     vec![vec![false; grid_cols as usize]; grid_rows as usize]
 }
 
-fn player_spawn_fields(b: &BuildingDef) -> Vec<PlayerSpawnField> {
-    b.player_spawn_fields
+fn player_spawn_fields(map_def: &MapDef) -> Vec<PlayerSpawnField> {
+    map_def
+        .player_spawn_fields
         .iter()
         .map(|field| PlayerSpawnField {
             level: u8::try_from(field.level).unwrap_or(u8::MAX),
@@ -436,32 +438,12 @@ fn player_spawn_fields(b: &BuildingDef) -> Vec<PlayerSpawnField> {
         .collect()
 }
 
-fn set_wall_edge(grid: &mut [Vec<GridCell>], wall: [i32; 4], grid_cols: i32, grid_rows: i32) {
+fn set_wall_edge(edges: &mut EdgeGrid, wall: [i32; 4]) {
     let [c0, r0, c1, r1] = wall;
     if r0 == r1 {
-        set_horizontal_wall(grid, r0, c0.min(c1), grid_rows);
+        edges.horizontal[r0 as usize][c0.min(c1) as usize] = true;
     } else {
-        set_vertical_wall(grid, r0.min(r1), c0, grid_cols);
-    }
-}
-
-fn set_horizontal_wall(grid: &mut [Vec<GridCell>], row: i32, col: i32, grid_rows: i32) {
-    if row == 0 {
-        grid[0][col as usize].has_north_wall = true;
-    } else if row == grid_rows {
-        grid[(grid_rows - 1) as usize][col as usize].has_south_wall = true;
-    } else {
-        grid[row as usize][col as usize].has_north_wall = true;
-    }
-}
-
-fn set_vertical_wall(grid: &mut [Vec<GridCell>], row: i32, col: i32, grid_cols: i32) {
-    if col == 0 {
-        grid[row as usize][0].has_west_wall = true;
-    } else if col == grid_cols {
-        grid[row as usize][(grid_cols - 1) as usize].has_east_wall = true;
-    } else {
-        grid[row as usize][col as usize].has_west_wall = true;
+        edges.vertical[r0.min(r1) as usize][c0 as usize] = true;
     }
 }
 
@@ -483,7 +465,7 @@ mod tests {
 
     #[test]
     fn validation_rejects_spawn_field_without_floor_on_its_level() {
-        let building = BuildingDef {
+        let map_def = MapDef {
             grid_cols: 4,
             grid_rows: 4,
             player_spawn_fields: vec![spawn(1, 0, 0)],
@@ -491,13 +473,13 @@ mod tests {
             ramps: Vec::new(),
         };
 
-        let err = validate_building(&building).expect_err("spawn field must be a floor on its level");
+        let err = validate_map(&map_def).expect_err("spawn field must be a floor on its level");
         assert!(err.to_string().contains("not a floor on level 1"));
     }
 
     #[test]
     fn validation_accepts_spawn_field_on_higher_level_floor() {
-        let building = BuildingDef {
+        let map_def = MapDef {
             grid_cols: 4,
             grid_rows: 4,
             player_spawn_fields: vec![spawn(1, 0, 0)],
@@ -505,12 +487,12 @@ mod tests {
             ramps: Vec::new(),
         };
 
-        validate_building(&building).expect("spawn field should be allowed on any level floor");
+        validate_map(&map_def).expect("spawn field should be allowed on any level floor");
     }
 
     #[test]
     fn validation_rejects_spawn_field_on_same_level_ramp() {
-        let building = BuildingDef {
+        let map_def = MapDef {
             grid_cols: 4,
             grid_rows: 4,
             player_spawn_fields: vec![spawn(1, 0, 0)],
@@ -522,7 +504,7 @@ mod tests {
             }],
         };
 
-        let err = validate_building(&building).expect_err("spawn field must not overlap ramp footprint");
+        let err = validate_map(&map_def).expect_err("spawn field must not overlap ramp footprint");
         assert!(err.to_string().contains("overlaps a ramp on level 1"));
     }
 }

@@ -1,4 +1,4 @@
-use crate::resources::GridCell;
+use crate::resources::CellGrid;
 use common::{constants::*, protocol::Ramp};
 
 // Internal representation of a placed ramp. Downstream code converts it to
@@ -52,36 +52,36 @@ impl RampSpec {
     }
 }
 
-// Apply ramp flags to a level grid for spawn-cell selection and wall generation.
-pub fn apply_to_level_grid(grid: &mut [Vec<GridCell>], ramps: &[RampSpec], level: u32) {
+// Apply ramp flags to a level's cell grid for spawn-cell selection.
+pub fn apply_to_level_cells(cells: &mut CellGrid, ramps: &[RampSpec], level: u32) {
     for ramp in ramps {
         if ramp.lower_level != level {
             continue;
         }
         let [col0, row0, col_end, row_end] = ramp.rect();
         for (row, col) in ramp.footprint_cells() {
-            grid[row as usize][col as usize].has_ramp = true;
+            cells.rows[row as usize][col as usize].has_ramp = true;
         }
         let width = (ramp.high[0] - ramp.low[0]).abs();
         let height = (ramp.high[1] - ramp.low[1]).abs();
         if width > height {
             for row in row0..row_end {
                 if ramp.high[0] > ramp.low[0] {
-                    grid[row as usize][col0 as usize].ramp_base_west = true;
-                    grid[row as usize][(col_end - 1) as usize].ramp_top_east = true;
+                    cells.rows[row as usize][col0 as usize].ramp_base_west = true;
+                    cells.rows[row as usize][(col_end - 1) as usize].ramp_top_east = true;
                 } else {
-                    grid[row as usize][(col_end - 1) as usize].ramp_base_east = true;
-                    grid[row as usize][col0 as usize].ramp_top_west = true;
+                    cells.rows[row as usize][(col_end - 1) as usize].ramp_base_east = true;
+                    cells.rows[row as usize][col0 as usize].ramp_top_west = true;
                 }
             }
         } else {
             for col in col0..col_end {
                 if ramp.high[1] > ramp.low[1] {
-                    grid[row0 as usize][col as usize].ramp_base_north = true;
-                    grid[(row_end - 1) as usize][col as usize].ramp_top_south = true;
+                    cells.rows[row0 as usize][col as usize].ramp_base_north = true;
+                    cells.rows[(row_end - 1) as usize][col as usize].ramp_top_south = true;
                 } else {
-                    grid[(row_end - 1) as usize][col as usize].ramp_base_south = true;
-                    grid[row0 as usize][col as usize].ramp_top_north = true;
+                    cells.rows[(row_end - 1) as usize][col as usize].ramp_base_south = true;
+                    cells.rows[row0 as usize][col as usize].ramp_top_north = true;
                 }
             }
         }

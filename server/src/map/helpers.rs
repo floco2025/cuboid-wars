@@ -1,7 +1,8 @@
 use rand::{RngExt, rngs::ThreadRng};
 use std::collections::HashSet;
 
-use crate::resources::GridCell;
+use super::edges::{CellSide, has_edge_on_cell_side};
+use crate::resources::{CellGrid, EdgeGrid};
 use common::{constants::*, protocol::Position};
 
 // Calculate the center position of a grid cell
@@ -39,13 +40,13 @@ pub fn find_unoccupied_cell(rng: &mut ThreadRng, occupied_cells: &HashSet<(i32, 
 pub fn find_unoccupied_cell_not_ramp(
     rng: &mut ThreadRng,
     occupied_cells: &HashSet<(i32, i32)>,
-    grid: &[Vec<GridCell>],
+    cells: &CellGrid,
 ) -> Option<(i32, i32)> {
     const MAX_ATTEMPTS: usize = 100;
     for _ in 0..MAX_ATTEMPTS {
         let grid_x = rng.random_range(0..GRID_COLS);
         let grid_z = rng.random_range(0..GRID_ROWS);
-        let cell = grid[grid_z as usize][grid_x as usize];
+        let cell = cells.rows[grid_z as usize][grid_x as usize];
         if !occupied_cells.contains(&(grid_x, grid_z)) && cell.has_floor && !cell.has_ramp {
             return Some((grid_x, grid_z));
         }
@@ -53,21 +54,13 @@ pub fn find_unoccupied_cell_not_ramp(
     None
 }
 
-// Count how many walls a cell has (0-4).
+// Count how many cell sides have edges (0-4).
 #[allow(dead_code)]
-pub(super) const fn count_cell_walls(cell: GridCell) -> u8 {
-    let mut count = 0;
-    if cell.has_north_wall {
-        count += 1;
-    }
-    if cell.has_south_wall {
-        count += 1;
-    }
-    if cell.has_west_wall {
-        count += 1;
-    }
-    if cell.has_east_wall {
-        count += 1;
-    }
-    count
+pub(super) fn count_cell_side_edges(edges: &EdgeGrid, row: i32, col: i32) -> u8 {
+    [CellSide::North, CellSide::South, CellSide::West, CellSide::East]
+        .into_iter()
+        .filter(|side| has_edge_on_cell_side(edges, row, col, *side))
+        .count()
+        .try_into()
+        .expect("a cell has at most four edges")
 }

@@ -9,8 +9,8 @@ pub const WALL_3RD_PROBABILITY_RATIO: f64 = 0.2; // Probability of 3rd wall rela
 pub const WALL_OVERLAP: bool = false; // Non-overlapping mode by default
 pub const WALL_MERGE_SEGMENTS: bool = true; // Reduce draw calls
 
-// Building shape helpers
-pub const BUILDING_FOOTPRINT_CELLS: i32 = 20; // Building fills the whole grid; field is the building
+// Map shape helpers
+pub const MAP_FOOTPRINT_CELLS: i32 = 20; // Map fills the whole grid; field is the map
 pub const ROOFTOP_FOOTPRINT_CELLS: i32 = 16; // Setback at the top (still wide enough to include both stair shafts)
 pub const ATRIUM_CELLS: i32 = 5; // Side length of the central atrium void (5x5 cells = 20m x 20m)
 pub const RAMP_LENGTH_CELLS: i32 = 2;

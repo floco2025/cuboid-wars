@@ -12,13 +12,9 @@ use common::{
 // Bevy Resources
 // ============================================================================
 
-// Grid cell flags
+// Cell flags.
 #[derive(Copy, Clone, Debug, Default)]
-pub struct GridCell {
-    pub has_north_wall: bool,  // Horizontal wall at top edge (z)
-    pub has_south_wall: bool,  // Horizontal wall at bottom edge (z+1)
-    pub has_west_wall: bool,   // Vertical wall at left edge (x)
-    pub has_east_wall: bool,   // Vertical wall at right edge (x+1)
+pub struct Cell {
     pub has_ramp: bool,        // Cell occupied by a ramp footprint
     pub has_floor: bool,       // Cell has floor on this level
     pub has_floor_above: bool, // Cell has a floor slab on the next level above it
@@ -34,6 +30,51 @@ pub struct GridCell {
     pub ramp_top_east: bool,
 }
 
+#[derive(Clone, Debug)]
+pub struct CellGrid {
+    pub rows: Vec<Vec<Cell>>,
+}
+
+impl CellGrid {
+    #[must_use]
+    pub fn new(grid_cols: i32, grid_rows: i32) -> Self {
+        Self {
+            rows: vec![vec![Cell::default(); grid_cols as usize]; grid_rows as usize],
+        }
+    }
+}
+
+// Edges live on grid lines, not in cells.
+//
+// horizontal[row][col] covers the horizontal segment from grid point
+// (col, row) to (col + 1, row), so its dimensions are
+// (grid_rows + 1) x grid_cols.
+//
+// vertical[row][col] covers the vertical segment from grid point
+// (col, row) to (col, row + 1), so its dimensions are
+// grid_rows x (grid_cols + 1).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EdgeGrid {
+    pub horizontal: Vec<Vec<bool>>,
+    pub vertical: Vec<Vec<bool>>,
+}
+
+impl EdgeGrid {
+    #[must_use]
+    pub fn new(grid_cols: i32, grid_rows: i32) -> Self {
+        Self {
+            horizontal: vec![vec![false; grid_cols as usize]; grid_rows as usize + 1],
+            vertical: vec![vec![false; grid_cols as usize + 1]; grid_rows as usize],
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct LevelGrid {
+    pub cells: CellGrid,
+    pub edges: EdgeGrid,
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct PlayerSpawnField {
     pub level: u8,
@@ -41,11 +82,10 @@ pub struct PlayerSpawnField {
     pub row: i32,
 }
 
-// Grid configuration
+// Map configuration
 #[derive(Resource, Clone)]
-pub struct GridConfig {
-    pub grid: Vec<Vec<GridCell>>,       // [row][col] - indexed by grid_z, grid_x
-    pub grids: Vec<Vec<Vec<GridCell>>>, // [level][row][col]
+pub struct MapConfig {
+    pub levels: Vec<LevelGrid>,
     pub player_spawn_fields: Vec<PlayerSpawnField>,
 }
 
