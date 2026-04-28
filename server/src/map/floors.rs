@@ -1,5 +1,9 @@
-use super::mask::Mask;
+use super::{
+    mask::Mask,
+    segments::{grid_x, grid_z, horizontal_wall_segment, vertical_wall_segment},
+};
 use crate::constants::FLOOR_OVERLAP;
+use crate::resources::EdgeGrid;
 use common::{constants::*, protocol::Floor};
 
 const MERGE_EPS: f32 = 0.01;
@@ -33,16 +37,16 @@ pub fn emit_floor_tier(mask: &Mask, grid_cols: i32, grid_rows: i32, level: u8, y
             }
 
             let (world_x1, world_x2, world_z1, world_z2, edge_fillers) = if FLOOR_OVERLAP {
-                let x1 = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)) - WALL_THICKNESS / 2.0;
-                let x2 = ((col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)) + WALL_THICKNESS / 2.0;
-                let z1 = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0)) - WALL_THICKNESS / 2.0;
-                let z2 = ((row + 1) as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0)) + WALL_THICKNESS / 2.0;
+                let x1 = grid_x(col) - WALL_THICKNESS / 2.0;
+                let x2 = grid_x(col + 1) + WALL_THICKNESS / 2.0;
+                let z1 = grid_z(row) - WALL_THICKNESS / 2.0;
+                let z2 = grid_z(row + 1) + WALL_THICKNESS / 2.0;
                 (x1, x2, z1, z2, Vec::new())
             } else {
-                let x1_orig = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-                let x2_orig = ((col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-                let z1_orig = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
-                let z2_orig = ((row + 1) as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+                let x1_orig = grid_x(col);
+                let x2_orig = grid_x(col + 1);
+                let z1_orig = grid_z(row);
+                let z2_orig = grid_z(row + 1);
 
                 let mut x1 = x1_orig;
                 let mut x2 = x2_orig;
@@ -150,6 +154,57 @@ pub fn emit_floor_tier(mask: &Mask, grid_cols: i32, grid_rows: i32, level: u8, y
     floors
 }
 
+#[must_use]
+pub fn emit_stacked_wall_trim(
+    lower_edges: &EdgeGrid,
+    upper_edges: &EdgeGrid,
+    upper_mask: &Mask,
+    grid_cols: i32,
+    grid_rows: i32,
+    level: u8,
+    y: f32,
+) -> Vec<Floor> {
+    let mut floors = Vec::new();
+    let in_upper_mask =
+        |r: i32, c: i32| r >= 0 && r < grid_rows && c >= 0 && c < grid_cols && upper_mask[r as usize][c as usize];
+
+    for row in 0..=grid_rows {
+        for col in 0..grid_cols {
+            if !lower_edges.horizontal[row as usize][col as usize]
+                || !upper_edges.horizontal[row as usize][col as usize]
+            {
+                continue;
+            }
+            if in_upper_mask(row - 1, col) || in_upper_mask(row, col) {
+                continue;
+            }
+            let lower_segment = horizontal_wall_segment(lower_edges, row, col, grid_cols, grid_rows);
+            let upper_segment = horizontal_wall_segment(upper_edges, row, col, grid_cols, grid_rows);
+            if let Some(segment) = lower_segment.overlap(upper_segment) {
+                floors.push(segment.floor_strip(y, FLOOR_THICKNESS, level));
+            }
+        }
+    }
+
+    for row in 0..grid_rows {
+        for col in 0..=grid_cols {
+            if !lower_edges.vertical[row as usize][col as usize] || !upper_edges.vertical[row as usize][col as usize] {
+                continue;
+            }
+            if in_upper_mask(row, col - 1) || in_upper_mask(row, col) {
+                continue;
+            }
+            let lower_segment = vertical_wall_segment(lower_edges, row, col, grid_cols, grid_rows);
+            let upper_segment = vertical_wall_segment(upper_edges, row, col, grid_cols, grid_rows);
+            if let Some(segment) = lower_segment.overlap(upper_segment) {
+                floors.push(segment.floor_strip(y, FLOOR_THICKNESS, level));
+            }
+        }
+    }
+
+    floors
+}
+
 // Merge adjacent floors at the same level into larger segments.
 pub fn merge_floors(mut floors: Vec<Floor>) -> Vec<Floor> {
     for r in &mut floors {
@@ -213,4 +268,97 @@ pub fn merge_floors(mut floors: Vec<Floor>) -> Vec<Floor> {
     }
 
     floors
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn empty_mask(cols: usize, rows: usize) -> Mask {
+        vec![vec![false; cols]; rows]
+    }
+
+    #[test]
+    fn stacked_horizontal_wall_emits_physical_trim_strip() {
+        let mut lower_edges = EdgeGrid::new(1, 1);
+        let mut upper_edges = EdgeGrid::new(1, 1);
+        let upper_mask = empty_mask(1, 1);
+        lower_edges.horizontal[1][0] = true;
+        upper_edges.horizontal[1][0] = true;
+
+        let floors = emit_stacked_wall_trim(&lower_edges, &upper_edges, &upper_mask, 1, 1, 1, LEVEL_HEIGHT);
+
+        assert_eq!(floors.len(), 1);
+        assert_eq!(floors[0].x1, -(FIELD_WIDTH / 2.0) - WALL_THICKNESS / 2.0);
+        assert_eq!(floors[0].x2, -(FIELD_WIDTH / 2.0) + GRID_SIZE + WALL_THICKNESS / 2.0);
+        assert_eq!(floors[0].z1, -(FIELD_DEPTH / 2.0) + GRID_SIZE - WALL_THICKNESS / 2.0);
+        assert_eq!(floors[0].z2, -(FIELD_DEPTH / 2.0) + GRID_SIZE + WALL_THICKNESS / 2.0);
+        assert_eq!(floors[0].y, LEVEL_HEIGHT);
+        assert_eq!(floors[0].thickness, FLOOR_THICKNESS);
+        assert_eq!(floors[0].level, 1);
+    }
+
+    #[test]
+    fn stacked_vertical_wall_emits_physical_trim_strip() {
+        let mut lower_edges = EdgeGrid::new(1, 1);
+        let mut upper_edges = EdgeGrid::new(1, 1);
+        let upper_mask = empty_mask(1, 1);
+        lower_edges.vertical[0][1] = true;
+        upper_edges.vertical[0][1] = true;
+
+        let floors = emit_stacked_wall_trim(&lower_edges, &upper_edges, &upper_mask, 1, 1, 1, LEVEL_HEIGHT);
+
+        assert_eq!(floors.len(), 1);
+        assert_eq!(floors[0].x1, -(FIELD_WIDTH / 2.0) + GRID_SIZE - WALL_THICKNESS / 2.0);
+        assert_eq!(floors[0].x2, -(FIELD_WIDTH / 2.0) + GRID_SIZE + WALL_THICKNESS / 2.0);
+        assert_eq!(floors[0].z1, -(FIELD_DEPTH / 2.0) - WALL_THICKNESS / 2.0);
+        assert_eq!(floors[0].z2, -(FIELD_DEPTH / 2.0) + GRID_SIZE + WALL_THICKNESS / 2.0);
+        assert_eq!(floors[0].y, LEVEL_HEIGHT);
+        assert_eq!(floors[0].thickness, FLOOR_THICKNESS);
+        assert_eq!(floors[0].level, 1);
+    }
+
+    #[test]
+    fn unstacked_wall_does_not_emit_trim_strip() {
+        let mut lower_edges = EdgeGrid::new(1, 1);
+        let upper_edges = EdgeGrid::new(1, 1);
+        let upper_mask = empty_mask(1, 1);
+        lower_edges.horizontal[1][0] = true;
+
+        let floors = emit_stacked_wall_trim(&lower_edges, &upper_edges, &upper_mask, 1, 1, 1, LEVEL_HEIGHT);
+
+        assert!(floors.is_empty());
+    }
+
+    #[test]
+    fn stacked_wall_next_to_upper_floor_does_not_duplicate_trim() {
+        let mut lower_edges = EdgeGrid::new(1, 1);
+        let mut upper_edges = EdgeGrid::new(1, 1);
+        let upper_mask = vec![vec![true]];
+        lower_edges.horizontal[1][0] = true;
+        upper_edges.horizontal[1][0] = true;
+        lower_edges.vertical[0][1] = true;
+        upper_edges.vertical[0][1] = true;
+
+        let floors = emit_stacked_wall_trim(&lower_edges, &upper_edges, &upper_mask, 1, 1, 1, LEVEL_HEIGHT);
+
+        assert!(floors.is_empty());
+    }
+
+    #[test]
+    fn stacked_trim_uses_overlapping_wall_endpoint_rules() {
+        let mut lower_edges = EdgeGrid::new(1, 2);
+        let mut upper_edges = EdgeGrid::new(1, 2);
+        let upper_mask = empty_mask(1, 2);
+        lower_edges.horizontal[1][0] = true;
+        upper_edges.horizontal[1][0] = true;
+        upper_edges.vertical[0][0] = true;
+        upper_edges.vertical[1][0] = true;
+
+        let floors = emit_stacked_wall_trim(&lower_edges, &upper_edges, &upper_mask, 1, 2, 1, LEVEL_HEIGHT);
+
+        assert_eq!(floors.len(), 1);
+        assert_eq!(floors[0].x1, -(FIELD_WIDTH / 2.0) + WALL_THICKNESS / 2.0);
+        assert_eq!(floors[0].x2, -(FIELD_WIDTH / 2.0) + GRID_SIZE + WALL_THICKNESS / 2.0);
+    }
 }

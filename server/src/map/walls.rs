@@ -3,40 +3,15 @@
 // L-corners. The map compiler sets the cell flags from explicit wall
 // edges; this module emits the world-space segments.
 
-use super::edges::{has_horizontal_edge, has_vertical_edge};
-use crate::{constants::WALL_OVERLAP, resources::EdgeGrid};
+use super::{
+    edges::{has_horizontal_edge, has_vertical_edge},
+    segments::{horizontal_wall_segment, vertical_wall_segment},
+};
+use crate::resources::EdgeGrid;
 use common::{constants::*, protocol::Wall};
 
 // Epsilon for merging adjacent walls.
 const MERGE_EPS: f32 = 0.01;
-
-// Check if horizontal walls meet the top/bottom of a vertical wall.
-#[inline]
-fn has_perpendicular_horizontal_walls(
-    edge_grid: &EdgeGrid,
-    row: i32,
-    col: i32,
-    grid_cols: i32,
-    grid_rows: i32,
-) -> (bool, bool) {
-    // Top endpoint is at grid line `row`; check horizontal walls on both sides of the vertical line.
-    let has_perp_top = row > 0
-        && (
-            (col < grid_cols && has_horizontal_edge(edge_grid, row, col)) // right side (guarded)
-                || (col > 0 && has_horizontal_edge(edge_grid, row, col - 1))
-            // left side (guarded)
-        );
-
-    // Bottom endpoint is at grid line `row + 1`; check the horizontals that meet there.
-    let has_perp_bottom = row < grid_rows
-        && (
-            (col < grid_cols && has_horizontal_edge(edge_grid, row + 1, col)) // right side (guarded)
-                || (col > 0 && has_horizontal_edge(edge_grid, row + 1, col - 1))
-            // left side (guarded)
-        );
-
-    (has_perp_top, has_perp_bottom)
-}
 
 // Generate individual wall segments (no merging) with gap-filling extensions,
 // tagging each wall with `level`.
@@ -51,47 +26,12 @@ pub fn generate_walls(edge_grid: &EdgeGrid, grid_cols: i32, grid_rows: i32, leve
                 continue;
             }
 
-            // Check for adjacent horizontal walls
-            let has_left = col > 0 && has_horizontal_edge(edge_grid, row, col - 1);
-            let has_right = col < grid_cols - 1 && has_horizontal_edge(edge_grid, row, col + 1);
-
-            // Detect vertical walls passing through the left and right endpoints (true T vs corner)
-            let left_vert_top = row > 0 && has_vertical_edge(edge_grid, row - 1, col);
-            let left_vert_bottom = row < grid_rows && has_vertical_edge(edge_grid, row, col);
-            let left_vert_through = left_vert_top && left_vert_bottom;
-
-            let right_vert_top = row > 0 && has_vertical_edge(edge_grid, row - 1, col + 1);
-            let right_vert_bottom = row < grid_rows && has_vertical_edge(edge_grid, row, col + 1);
-            let right_vert_through = right_vert_top && right_vert_bottom;
-
-            let world_z = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
-            // Horizontal walls inset only when a vertical passes through (T); extend otherwise for corners/ends
-            let x1 = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0))
-                + if WALL_OVERLAP {
-                    -WALL_THICKNESS / 2.0
-                } else if left_vert_through && !has_left {
-                    WALL_THICKNESS / 2.0 // inset at T so vertical can pass through
-                } else if !has_left {
-                    -WALL_THICKNESS / 2.0 // extend to meet corners or isolated ends
-                } else {
-                    0.0
-                };
-            let x2 = ((col + 1) as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0))
-                + if WALL_OVERLAP {
-                    WALL_THICKNESS / 2.0
-                } else if right_vert_through && !has_right {
-                    -WALL_THICKNESS / 2.0 // inset at T on the right
-                } else if !has_right {
-                    WALL_THICKNESS / 2.0 // extend for corners or isolated ends
-                } else {
-                    0.0
-                };
-
+            let segment = horizontal_wall_segment(edge_grid, row, col, grid_cols, grid_rows);
             walls.push(Wall {
-                x1,
-                z1: world_z,
-                x2,
-                z2: world_z,
+                x1: segment.x1,
+                z1: segment.z,
+                x2: segment.x2,
+                z2: segment.z,
                 width: WALL_THICKNESS,
                 level,
             });
@@ -105,37 +45,12 @@ pub fn generate_walls(edge_grid: &EdgeGrid, grid_cols: i32, grid_rows: i32, leve
                 continue;
             }
 
-            // Check for adjacent vertical walls
-            let has_top = row > 0 && has_vertical_edge(edge_grid, row - 1, col);
-            let has_bottom = row < grid_rows - 1 && has_vertical_edge(edge_grid, row + 1, col);
-
-            // Check for perpendicular horizontal walls at ends (for L-corners)
-            let (has_perp_top, has_perp_bottom) =
-                has_perpendicular_horizontal_walls(edge_grid, row, col, grid_cols, grid_rows);
-
-            let world_x = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-            let z1 = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0))
-                + if has_perp_top && !has_top {
-                    WALL_THICKNESS / 2.0 // Inset for L-corner
-                } else if !has_top && !has_perp_top {
-                    -WALL_THICKNESS / 2.0 // Extend for isolated end
-                } else {
-                    0.0
-                };
-            let z2 = ((row + 1) as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0))
-                + if has_perp_bottom && !has_bottom {
-                    -WALL_THICKNESS / 2.0 // Inset for L-corner
-                } else if !has_bottom && !has_perp_bottom {
-                    WALL_THICKNESS / 2.0 // Extend for isolated end
-                } else {
-                    0.0
-                };
-
+            let segment = vertical_wall_segment(edge_grid, row, col, grid_cols, grid_rows);
             walls.push(Wall {
-                x1: world_x,
-                z1,
-                x2: world_x,
-                z2,
+                x1: segment.x,
+                z1: segment.z1,
+                x2: segment.x,
+                z2: segment.z2,
                 width: WALL_THICKNESS,
                 level,
             });

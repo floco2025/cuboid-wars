@@ -391,6 +391,17 @@ pub fn compile_map(map_def: &MapDef) -> (MapLayout, MapConfig) {
         let level_u8 = u8::try_from(level_idx).unwrap_or(u8::MAX);
         let y = f32::from(level_u8) * LEVEL_HEIGHT;
         let mut tier = floors::emit_floor_tier(m, cols, rows, level_u8, y);
+        if level_idx > 0 {
+            tier.extend(floors::emit_stacked_wall_trim(
+                &level_grids[level_idx - 1].edges,
+                &level_grids[level_idx].edges,
+                m,
+                cols,
+                rows,
+                level_u8,
+                y,
+            ));
+        }
         if !FLOOR_OVERLAP {
             tier = floors::merge_floors(tier);
         }

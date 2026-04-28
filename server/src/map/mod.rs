@@ -6,6 +6,7 @@ mod helpers;
 mod lights;
 mod mask;
 mod ramps;
+mod segments;
 mod walls;
 
 use std::path::PathBuf;
