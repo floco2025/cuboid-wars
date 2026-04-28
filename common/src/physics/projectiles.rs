@@ -498,7 +498,7 @@ fn sweep_projectile_vs_wall(
 
     let center = Vec3::new(
         f32::midpoint(wall.x1, wall.x2),
-        WALL_HEIGHT / 2.0,
+        f32::from(wall.level).mul_add(LEVEL_HEIGHT, WALL_HEIGHT / 2.0),
         f32::midpoint(wall.z1, wall.z2),
     );
     let half_extents = Vec3::new(
@@ -530,4 +530,52 @@ fn sweep_projectile_vs_floor(
     );
 
     sweep_point_vs_cuboid(proj_pos, proj_motion.velocity * delta, center, half_extents)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_projectile_motion(velocity: Vec3) -> ProjectileMotion {
+        ProjectileMotion {
+            velocity,
+            lifetime: Timer::from_seconds(PROJECTILE_LIFETIME, TimerMode::Once),
+        }
+    }
+
+    fn test_wall(level: u8) -> Wall {
+        Wall {
+            x1: -2.0,
+            z1: 1.0,
+            x2: 2.0,
+            z2: 1.0,
+            width: WALL_THICKNESS,
+            level,
+        }
+    }
+
+    #[test]
+    fn ground_projectile_ignores_upper_level_wall() {
+        let pos = Position {
+            x: 0.0,
+            y: PROJECTILE_RADIUS,
+            z: 0.0,
+        };
+        let motion = test_projectile_motion(Vec3::new(0.0, 0.0, 20.0));
+
+        assert!(sweep_projectile_vs_wall(&pos, &motion, 0.1, &test_wall(0)).is_some());
+        assert!(sweep_projectile_vs_wall(&pos, &motion, 0.1, &test_wall(1)).is_none());
+    }
+
+    #[test]
+    fn upper_level_projectile_hits_upper_level_wall() {
+        let pos = Position {
+            x: 0.0,
+            y: LEVEL_HEIGHT + PROJECTILE_RADIUS,
+            z: 0.0,
+        };
+        let motion = test_projectile_motion(Vec3::new(0.0, 0.0, 20.0));
+
+        assert!(sweep_projectile_vs_wall(&pos, &motion, 0.1, &test_wall(1)).is_some());
+    }
 }

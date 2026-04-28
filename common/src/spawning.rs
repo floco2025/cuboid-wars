@@ -1,7 +1,7 @@
 use crate::{
     constants::*,
     map::height_on_ramp,
-    physics::{sweep_player_vs_floor, sweep_player_vs_wall},
+    physics::sweep_player_vs_floor,
     protocol::{Floor, Position, Ramp, Wall},
 };
 use bevy_math::Vec3;
@@ -89,13 +89,56 @@ pub fn calculate_projectile_spawns(
 }
 
 fn is_blocked_by_wall(camera_pos: &Position, spawn_position: &Position, walls: &[Wall]) -> bool {
-    // If the spawn height sits above the top of ground walls, skip wall blocking
-    // (shots from upper levels or ramps clear the level-0 walls).
-    let spawn_above_walls = spawn_position.y - PROJECTILE_RADIUS >= WALL_HEIGHT;
-    !spawn_above_walls
-        && walls
-            .iter()
-            .any(|wall| sweep_player_vs_wall(camera_pos, spawn_position, wall))
+    walls
+        .iter()
+        .any(|wall| sweep_projectile_spawn_vs_wall(camera_pos, spawn_position, wall))
+}
+
+fn sweep_projectile_spawn_vs_wall(start: &Position, end: &Position, wall: &Wall) -> bool {
+    let dx = (wall.x2 - wall.x1).abs();
+    let dz = (wall.z2 - wall.z1).abs();
+    let is_horizontal = dx > dz;
+    let wall_half_thickness = wall.width / 2.0;
+
+    let center = Vec3::new(
+        f32::midpoint(wall.x1, wall.x2),
+        f32::from(wall.level).mul_add(LEVEL_HEIGHT, WALL_HEIGHT / 2.0),
+        f32::midpoint(wall.z1, wall.z2),
+    );
+    let half_extents = Vec3::new(
+        if is_horizontal { dx / 2.0 } else { wall_half_thickness } + PROJECTILE_RADIUS,
+        WALL_HEIGHT / 2.0 + PROJECTILE_RADIUS,
+        if is_horizontal { wall_half_thickness } else { dz / 2.0 } + PROJECTILE_RADIUS,
+    );
+
+    segment_intersects_aabb(start, end, center, half_extents)
+}
+
+fn segment_intersects_aabb(start: &Position, end: &Position, center: Vec3, half_extents: Vec3) -> bool {
+    let start = Vec3::from(*start) - center;
+    let dir = Vec3::from(*end) - center - start;
+    let mut t_min = 0.0_f32;
+    let mut t_max = 1.0_f32;
+
+    for (local, ray_dir, half_extent) in [
+        (start.x, dir.x, half_extents.x),
+        (start.y, dir.y, half_extents.y),
+        (start.z, dir.z, half_extents.z),
+    ] {
+        if ray_dir.abs() > PHYSICS_EPSILON {
+            let t1 = (-half_extent - local) / ray_dir;
+            let t2 = (half_extent - local) / ray_dir;
+            t_min = t_min.max(t1.min(t2));
+            t_max = t_max.min(t1.max(t2));
+            if t_min > t_max {
+                return false;
+            }
+        } else if local.abs() > half_extent {
+            return false;
+        }
+    }
+
+    t_max >= 0.0 && t_min <= 1.0
 }
 
 fn is_blocked_by_ramp(spawn_position: &Position, ramps: &[Ramp]) -> bool {
@@ -117,4 +160,47 @@ fn is_blocked_by_floor(camera_pos: &Position, spawn_position: &Position, floors:
     floors
         .iter()
         .any(|floor| sweep_player_vs_floor(camera_pos, spawn_position, floor, PROJECTILE_RADIUS))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_wall(level: u8) -> Wall {
+        Wall {
+            x1: -2.0,
+            z1: 1.0,
+            x2: 2.0,
+            z2: 1.0,
+            width: WALL_THICKNESS,
+            level,
+        }
+    }
+
+    #[test]
+    fn spawn_path_ignores_wall_on_different_level() {
+        let start = Position {
+            x: 0.0,
+            y: PLAYER_HEIGHT * PLAYER_EYE_HEIGHT_RATIO,
+            z: 0.0,
+        };
+        let end = Position {
+            x: 0.0,
+            y: PLAYER_HEIGHT * PLAYER_EYE_HEIGHT_RATIO,
+            z: 2.0,
+        };
+
+        assert!(is_blocked_by_wall(&start, &end, &[test_wall(0)]));
+        assert!(!is_blocked_by_wall(&start, &end, &[test_wall(1)]));
+    }
+
+    #[test]
+    fn spawn_path_blocks_wall_on_same_upper_level() {
+        let y = LEVEL_HEIGHT + PLAYER_HEIGHT * PLAYER_EYE_HEIGHT_RATIO;
+        let start = Position { x: 0.0, y, z: 0.0 };
+        let end = Position { x: 0.0, y, z: 2.0 };
+
+        assert!(is_blocked_by_wall(&start, &end, &[test_wall(1)]));
+        assert!(!is_blocked_by_wall(&start, &end, &[test_wall(0)]));
+    }
 }
