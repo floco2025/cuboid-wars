@@ -2,7 +2,8 @@ use crate::resources::GridCell;
 use common::{constants::*, protocol::Ramp};
 
 // Internal representation of a placed ramp. Downstream code converts it to
-// `Ramp` for the wire protocol and applies its flags to the level-0 grid.
+// `Ramp` for the wire protocol and applies its flags to the matching lower-level
+// grid.
 #[derive(Debug, Clone)]
 pub struct RampSpec {
     pub lower_level: u32,
@@ -51,12 +52,10 @@ impl RampSpec {
     }
 }
 
-// Apply ramp flags to the level-0 grid for spawn-cell selection (player and
-// item placement skip cells with `has_ramp`). Ramps on higher levels don't
-// need flags here because the level-0 grid is the only one downstream consumers see.
-pub fn apply_to_level0_grid(grid: &mut [Vec<GridCell>], ramps: &[RampSpec]) {
+// Apply ramp flags to a level grid for spawn-cell selection and wall generation.
+pub fn apply_to_level_grid(grid: &mut [Vec<GridCell>], ramps: &[RampSpec], level: u32) {
     for ramp in ramps {
-        if ramp.lower_level != 0 {
+        if ramp.lower_level != level {
             continue;
         }
         let [col0, row0, col_end, row_end] = ramp.rect();

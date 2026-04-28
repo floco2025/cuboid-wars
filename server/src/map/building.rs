@@ -1,7 +1,7 @@
 use std::{collections::BTreeSet, fs, path::Path};
 
 use anyhow::{Context, Result, anyhow};
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer, de};
 
 use super::{
     floors,
@@ -35,7 +35,7 @@ pub struct BuildingDef {
     pub grid_cols: i32,
     pub grid_rows: i32,
     #[serde(default)]
-    pub player_spawn_fields: Vec<[i32; 2]>,
+    pub player_spawn_fields: Vec<PlayerSpawnDef>,
     pub levels: Vec<LevelDef>,
     #[serde(default)]
     pub ramps: Vec<RampDef>,
@@ -56,6 +56,42 @@ pub struct RampDef {
     pub low: [i32; 2],
     pub high: [i32; 2],
     pub lower_level: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PlayerSpawnDef {
+    pub level: u32,
+    pub col: i32,
+    pub row: i32,
+}
+
+impl PlayerSpawnDef {
+    const fn legacy(col: i32, row: i32) -> Self {
+        Self { level: 0, col, row }
+    }
+
+    const fn point(self) -> [i32; 2] {
+        [self.col, self.row]
+    }
+}
+
+impl<'de> Deserialize<'de> for PlayerSpawnDef {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let values = Vec::<i32>::deserialize(deserializer)?;
+        match values.as_slice() {
+            [col, row] => Ok(Self::legacy(*col, *row)),
+            [level, col, row] if *level >= 0 => Ok(Self {
+                level: u32::try_from(*level).expect("nonnegative i32 should fit in u32"),
+                col: *col,
+                row: *row,
+            }),
+            [level, ..] if *level < 0 => Err(de::Error::custom("spawn field level must be nonnegative")),
+            _ => Err(de::Error::custom("spawn field must be [col, row] or [level, col, row]")),
+        }
+    }
 }
 
 // ============================================================================
@@ -95,7 +131,14 @@ fn validate_building(b: &BuildingDef) -> Result<()> {
 
     let mut spawn_fields = BTreeSet::new();
     for (spawn_idx, field) in b.player_spawn_fields.iter().enumerate() {
-        validate_floor(*field, b.grid_cols, b.grid_rows)
+        if field.level as usize >= b.levels.len() {
+            return Err(anyhow!(
+                "player_spawn_fields[{spawn_idx}] level {} out of range (level count = {})",
+                field.level,
+                b.levels.len()
+            ));
+        }
+        validate_floor(field.point(), b.grid_cols, b.grid_rows)
             .with_context(|| format!("player_spawn_fields[{spawn_idx}]"))?;
         if !spawn_fields.insert(*field) {
             return Err(anyhow!("duplicate player_spawn_fields {:?}", field));
@@ -127,10 +170,18 @@ fn validate_building(b: &BuildingDef) -> Result<()> {
         }
     }
 
-    let level0_floors: BTreeSet<[i32; 2]> = b.levels[0].floors.iter().copied().collect();
+    let floor_sets: Vec<BTreeSet<[i32; 2]>> = b
+        .levels
+        .iter()
+        .map(|level| level.floors.iter().copied().collect())
+        .collect();
     for field in &spawn_fields {
-        if !level0_floors.contains(field) {
-            return Err(anyhow!("player_spawn_fields {:?} is not a level-0 floor", field));
+        if !floor_sets[field.level as usize].contains(&field.point()) {
+            return Err(anyhow!(
+                "player_spawn_fields {:?} is not a floor on level {}",
+                field.point(),
+                field.level
+            ));
         }
     }
 
@@ -141,10 +192,18 @@ fn validate_building(b: &BuildingDef) -> Result<()> {
         if !ramps_seen.insert(key) {
             return Err(anyhow!("duplicate ramp {:?}", key));
         }
-        if ramp.lower_level == 0 {
-            for cell in ramp_footprint_cells(ramp) {
-                if spawn_fields.contains(&cell) {
-                    return Err(anyhow!("player_spawn_fields {:?} overlaps a level-0 ramp", cell));
+        for cell in ramp_footprint_cells(ramp) {
+            for level in [ramp.lower_level, ramp.lower_level + 1] {
+                if spawn_fields.contains(&PlayerSpawnDef {
+                    level,
+                    col: cell[0],
+                    row: cell[1],
+                }) {
+                    return Err(anyhow!(
+                        "player_spawn_fields {:?} overlaps a ramp on level {}",
+                        cell,
+                        level
+                    ));
                 }
             }
         }
@@ -236,7 +295,8 @@ fn ramp_footprint_cells(ramp: &RampDef) -> Vec<[i32; 2]> {
 }
 
 fn canonicalize(b: &mut BuildingDef) {
-    b.player_spawn_fields.sort_by_key(|[col, row]| (*row, *col));
+    b.player_spawn_fields
+        .sort_by_key(|field| (field.level, field.row, field.col));
     b.player_spawn_fields.dedup();
 
     for level in &mut b.levels {
@@ -296,10 +356,11 @@ pub fn compile_building(b: &BuildingDef) -> (MapLayout, GridConfig) {
         })
         .collect();
 
-    // Apply ramp flags + has_floor_above to the level-0 grid (used by spawn
-    // and wall-light placement).
-    if let Some(grid0) = level_grids.get_mut(0) {
-        ramps::apply_to_level0_grid(grid0, &ramp_specs);
+    // Apply ramp flags to each lower-level grid. Spawn selection skips these
+    // cells on any level, while wall-light placement still uses level 0 below.
+    for (level_idx, grid) in level_grids.iter_mut().enumerate() {
+        let level_u32 = u32::try_from(level_idx).unwrap_or(u32::MAX);
+        ramps::apply_to_level_grid(grid, &ramp_specs, level_u32);
     }
     if level_grids.len() > 1
         && let Some(grid0) = level_grids.get_mut(0)
@@ -336,14 +397,15 @@ pub fn compile_building(b: &BuildingDef) -> (MapLayout, GridConfig) {
     };
 
     let level0_grid = level_grids
-        .into_iter()
-        .next()
+        .first()
+        .cloned()
         .unwrap_or_else(|| vec![vec![GridCell::default(); cols as usize]; rows as usize]);
 
     (
         map_layout,
         GridConfig {
             grid: level0_grid,
+            grids: level_grids,
             player_spawn_fields: player_spawn_fields(b),
         },
     )
@@ -363,9 +425,12 @@ fn empty_mask(grid_cols: i32, grid_rows: i32) -> Mask {
 
 fn player_spawn_fields(b: &BuildingDef) -> Vec<PlayerSpawnField> {
     b.player_spawn_fields
-        .clone()
-        .into_iter()
-        .map(|[col, row]| PlayerSpawnField { col, row })
+        .iter()
+        .map(|field| PlayerSpawnField {
+            level: u8::try_from(field.level).unwrap_or(u8::MAX),
+            col: field.col,
+            row: field.row,
+        })
         .collect()
 }
 
@@ -410,35 +475,52 @@ mod tests {
         }
     }
 
-    #[test]
-    fn validation_rejects_spawn_field_without_level_zero_floor() {
-        let building = BuildingDef {
-            grid_cols: 4,
-            grid_rows: 4,
-            player_spawn_fields: vec![[0, 0]],
-            levels: vec![level(vec![[1, 0]])],
-            ramps: Vec::new(),
-        };
-
-        let err = validate_building(&building).expect_err("spawn field must be a level-0 floor");
-        assert!(err.to_string().contains("not a level-0 floor"));
+    const fn spawn(level: u32, col: i32, row: i32) -> PlayerSpawnDef {
+        PlayerSpawnDef { level, col, row }
     }
 
     #[test]
-    fn validation_rejects_spawn_field_on_level_zero_ramp() {
+    fn validation_rejects_spawn_field_without_floor_on_its_level() {
         let building = BuildingDef {
             grid_cols: 4,
             grid_rows: 4,
-            player_spawn_fields: vec![[0, 0]],
-            levels: vec![level(vec![[0, 0]]), level(vec![[3, 3]])],
+            player_spawn_fields: vec![spawn(1, 0, 0)],
+            levels: vec![level(vec![[0, 0]]), level(vec![[1, 0]])],
+            ramps: Vec::new(),
+        };
+
+        let err = validate_building(&building).expect_err("spawn field must be a floor on its level");
+        assert!(err.to_string().contains("not a floor on level 1"));
+    }
+
+    #[test]
+    fn validation_accepts_spawn_field_on_higher_level_floor() {
+        let building = BuildingDef {
+            grid_cols: 4,
+            grid_rows: 4,
+            player_spawn_fields: vec![spawn(1, 0, 0)],
+            levels: vec![level(vec![[1, 0]]), level(vec![[0, 0]])],
+            ramps: Vec::new(),
+        };
+
+        validate_building(&building).expect("spawn field should be allowed on any level floor");
+    }
+
+    #[test]
+    fn validation_rejects_spawn_field_on_same_level_ramp() {
+        let building = BuildingDef {
+            grid_cols: 4,
+            grid_rows: 4,
+            player_spawn_fields: vec![spawn(1, 0, 0)],
+            levels: vec![level(vec![[3, 3]]), level(vec![[0, 0]]), level(vec![[3, 3]])],
             ramps: vec![RampDef {
                 low: [0, 0],
                 high: [1, 2],
-                lower_level: 0,
+                lower_level: 1,
             }],
         };
 
         let err = validate_building(&building).expect_err("spawn field must not overlap ramp footprint");
-        assert!(err.to_string().contains("overlaps a level-0 ramp"));
+        assert!(err.to_string().contains("overlaps a ramp on level 1"));
     }
 }

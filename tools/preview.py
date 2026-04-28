@@ -142,8 +142,7 @@ def render_level(building: dict, level_idx: int) -> list[list[str]]:
         for col in range(cols):
             grid[2 * row + 1][2 * col + 1] = FLOOR if (col, row) in floors else NO_FLOOR
 
-    if level_idx == 0:
-        paint_player_spawn_fields(grid, building)
+    paint_player_spawn_fields(grid, building, level_idx)
 
     for ramp_idx, ramp in enumerate(building.get("ramps", [])):
         if not ramp_is_previewable(ramp, ramp_idx, len(building["levels"])):
@@ -183,14 +182,17 @@ def paint_rect(grid: list[list[str]], c0: int, r0: int, c1: int, r1: int, ch: st
             grid[2 * row + 1][2 * col + 1] = ch
 
 
-def paint_player_spawn_fields(grid: list[list[str]], building: dict) -> None:
+def paint_player_spawn_fields(grid: list[list[str]], building: dict, level_idx: int) -> None:
     cols = building["grid_cols"]
     rows = building["grid_rows"]
     for idx, field in enumerate(building.get("player_spawn_fields", [])):
-        if not is_int_point(field):
-            warn(f"building.player_spawn_fields[{idx}] has unsupported shape {field!r}")
+        parsed = parse_spawn_field(field)
+        if parsed is None:
+            warn(f"building.player_spawn_fields[{idx}] must be [col, row] or [level, col, row]: {field!r}")
             continue
-        col, row = field
+        level, col, row = parsed
+        if level != level_idx:
+            continue
         if not (0 <= col < cols and 0 <= row < rows):
             warn(f"building.player_spawn_fields[{idx}] is outside the grid: {field!r}")
             continue
@@ -236,6 +238,18 @@ def ramp_is_previewable(ramp: object, ramp_idx: int, level_count: int) -> bool:
 
 def is_int_point(value: object) -> bool:
     return isinstance(value, list) and len(value) == 2 and all(isinstance(v, int) for v in value)
+
+
+def parse_spawn_field(value: object) -> tuple[int, int, int] | None:
+    if not isinstance(value, list) or not all(isinstance(v, int) for v in value):
+        return None
+    if len(value) == 2:
+        col, row = value
+        return 0, col, row
+    if len(value) == 3:
+        level, col, row = value
+        return level, col, row
+    return None
 
 
 def fill_ramp_ends(grid: list[list[str]], c0: int, r0: int, c1: int, r1: int, ch: str, direction: str) -> None:

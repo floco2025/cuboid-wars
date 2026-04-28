@@ -36,6 +36,7 @@ pub struct GridCell {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct PlayerSpawnField {
+    pub level: u8,
     pub col: i32,
     pub row: i32,
 }
@@ -43,7 +44,8 @@ pub struct PlayerSpawnField {
 // Grid configuration
 #[derive(Resource, Clone)]
 pub struct GridConfig {
-    pub grid: Vec<Vec<GridCell>>, // [row][col] - indexed by grid_z, grid_x
+    pub grid: Vec<Vec<GridCell>>,       // [row][col] - indexed by grid_z, grid_x
+    pub grids: Vec<Vec<Vec<GridCell>>>, // [level][row][col]
     pub player_spawn_fields: Vec<PlayerSpawnField>,
 }
 

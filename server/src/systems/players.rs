@@ -4,7 +4,9 @@ use rand::{RngExt, rng, rngs::ThreadRng, seq::IndexedRandom};
 use super::network::broadcast_to_all;
 use crate::resources::{GridConfig, PlayerInfo, PlayerMap};
 use common::{
-    constants::{FIELD_DEPTH, FIELD_WIDTH, GRID_SIZE, PHYSICS_EPSILON, PLAYER_DEATH_Y, PLAYER_DEPTH, PLAYER_WIDTH},
+    constants::{
+        FIELD_DEPTH, FIELD_WIDTH, GRID_SIZE, LEVEL_HEIGHT, PHYSICS_EPSILON, PLAYER_DEATH_Y, PLAYER_DEPTH, PLAYER_WIDTH,
+    },
     map::{compute_player_level, find_support_floor},
     markers::PlayerMarker,
     physics::{
@@ -212,7 +214,7 @@ pub fn players_death_system(
 
 const SPAWN_MAX_ATTEMPTS: usize = 100;
 
-// Pick a random clear position on the configured level-0 player spawn fields.
+// Pick a random clear position on the configured player spawn fields.
 // Returns the world origin if no valid placement is found in time.
 #[must_use]
 pub fn generate_player_spawn_position(
@@ -224,26 +226,29 @@ pub fn generate_player_spawn_position(
 
     let mut valid_cells = Vec::new();
     for field in &grid_config.player_spawn_fields {
+        let Some(grid) = grid_config.grids.get(field.level as usize) else {
+            continue;
+        };
         if field.row >= 0
-            && field.row < grid_config.grid.len() as i32
+            && field.row < grid.len() as i32
             && field.col >= 0
-            && field.col < grid_config.grid[field.row as usize].len() as i32
+            && field.col < grid[field.row as usize].len() as i32
         {
-            let cell = &grid_config.grid[field.row as usize][field.col as usize];
+            let cell = &grid[field.row as usize][field.col as usize];
             if cell.has_floor && !cell.has_ramp {
-                valid_cells.push((field.row, field.col));
+                valid_cells.push((field.level, field.row, field.col));
             }
         }
     }
 
     if valid_cells.is_empty() {
-        warn!("no valid player spawn fields (level-0 floor without a ramp), spawning at center");
+        warn!("no valid player spawn fields (floor without a ramp), spawning at center");
         return Position::default();
     }
 
     for _ in 0..SPAWN_MAX_ATTEMPTS {
-        let &(row, col) = valid_cells.choose(&mut rng).expect("valid_cells should not be empty");
-        let pos = random_position_in_spawn_cell(&mut rng, row, col);
+        let &(level, row, col) = valid_cells.choose(&mut rng).expect("valid_cells should not be empty");
+        let pos = random_position_in_spawn_cell(&mut rng, level, row, col);
 
         if player_spawn_position_is_clear(&pos, map_layout, occupied_positions) {
             return pos;
@@ -257,7 +262,7 @@ pub fn generate_player_spawn_position(
     Position::default()
 }
 
-fn random_position_in_spawn_cell(rng: &mut ThreadRng, row: i32, col: i32) -> Position {
+fn random_position_in_spawn_cell(rng: &mut ThreadRng, level: u8, row: i32, col: i32) -> Position {
     let cell_min_x = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
     let cell_max_x = cell_min_x + GRID_SIZE;
     let cell_min_z = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
@@ -265,7 +270,7 @@ fn random_position_in_spawn_cell(rng: &mut ThreadRng, row: i32, col: i32) -> Pos
 
     Position {
         x: rng.random_range((cell_min_x + PLAYER_WIDTH / 2.0)..=(cell_max_x - PLAYER_WIDTH / 2.0)),
-        y: 0.0,
+        y: f32::from(level) * LEVEL_HEIGHT,
         z: rng.random_range((cell_min_z + PLAYER_DEPTH / 2.0)..=(cell_max_z - PLAYER_DEPTH / 2.0)),
     }
 }
@@ -289,6 +294,7 @@ fn sweep_player_vs_player_static(pos: &Position, other: &Position) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::resources::{GridCell, PlayerSpawnField};
     use common::constants::WALL_THICKNESS;
 
     fn empty_layout() -> MapLayout {
@@ -297,6 +303,16 @@ mod tests {
             ramps: Vec::new(),
             floors: Vec::new(),
             wall_lights: Vec::new(),
+        }
+    }
+
+    fn grid_config_with_spawn(level: u8, col: i32, row: i32) -> GridConfig {
+        let mut grids = vec![vec![vec![GridCell::default(); 2]; 2]; usize::from(level) + 1];
+        grids[usize::from(level)][row as usize][col as usize].has_floor = true;
+        GridConfig {
+            grid: grids[0].clone(),
+            grids,
+            player_spawn_fields: vec![PlayerSpawnField { level, col, row }],
         }
     }
 
@@ -336,5 +352,15 @@ mod tests {
         });
 
         assert!(player_spawn_position_is_clear(&Position::default(), &layout, &[]));
+    }
+
+    #[test]
+    fn spawn_position_uses_configured_spawn_level() {
+        let layout = empty_layout();
+        let grid_config = grid_config_with_spawn(1, 0, 0);
+
+        let pos = generate_player_spawn_position(&grid_config, &layout, &[]);
+
+        assert_eq!(pos.y, LEVEL_HEIGHT);
     }
 }

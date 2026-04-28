@@ -52,7 +52,7 @@ def empty_building() -> dict:
     return {
         "grid_cols": DEFAULT_GRID_COLS,
         "grid_rows": DEFAULT_GRID_ROWS,
-        "player_spawn_fields": [[0, 0], [1, 0], [0, 1], [1, 1]],
+        "player_spawn_fields": [[0, 0, 0], [0, 1, 0], [0, 0, 1], [0, 1, 1]],
         "levels": [{"name": "Level 0", "floors": [], "walls": []}],
         "ramps": [],
     }
@@ -159,7 +159,16 @@ def format_building_file(wrapper: dict) -> str:
 def normalize_building(building: dict) -> dict:
     cols = int(building.get("grid_cols", DEFAULT_GRID_COLS))
     rows = int(building.get("grid_rows", DEFAULT_GRID_ROWS))
-    player_spawn_fields = [[int(c), int(r)] for c, r in building.get("player_spawn_fields", [])]
+    player_spawn_fields = []
+    for field in building.get("player_spawn_fields", []):
+        if len(field) == 2:
+            c, r = field
+            player_spawn_fields.append([0, int(c), int(r)])
+        elif len(field) == 3:
+            level, c, r = field
+            player_spawn_fields.append([int(level), int(c), int(r)])
+        else:
+            player_spawn_fields.append([0, -1, -1])
     levels = []
     for idx, level in enumerate(building.get("levels", [])):
         levels.append(
@@ -196,10 +205,10 @@ def canonicalize_building(building: dict) -> dict:
     b = normalize_building(copy.deepcopy(building))
     enforce_ramp_floor_rules(b)
     b["player_spawn_fields"] = sorted(
-        {(c, r) for c, r in b["player_spawn_fields"]},
-        key=lambda p: (p[1], p[0]),
+        {(level, c, r) for level, c, r in b["player_spawn_fields"]},
+        key=lambda p: (p[0], p[2], p[1]),
     )
-    b["player_spawn_fields"] = [[c, r] for c, r in b["player_spawn_fields"]]
+    b["player_spawn_fields"] = [[level, c, r] for level, c, r in b["player_spawn_fields"]]
     for level in b["levels"]:
         level["floors"] = sorted({(c, r) for c, r in level["floors"]}, key=lambda p: (p[1], p[0]))
         level["floors"] = [[c, r] for c, r in level["floors"]]
@@ -256,7 +265,9 @@ def validate_building(building: dict) -> list[str]:
 
     spawn_fields = set()
     for field in building["player_spawn_fields"]:
-        c, r = field
+        level, c, r = field
+        if not (0 <= level < len(building["levels"])):
+            errors.append(f"player spawn field {field} has an invalid level")
         if not (0 <= c < cols and 0 <= r < rows):
             errors.append(f"player spawn field {field} is outside the grid")
         if tuple(field) in spawn_fields:
@@ -278,20 +289,24 @@ def validate_building(building: dict) -> list[str]:
             if abs(c1 - c0) + abs(r1 - r0) != 1:
                 errors.append(f"{prefix}: wall {wall} is not one grid edge")
 
-    if building["levels"]:
-        level0_floors = {tuple(floor) for floor in building["levels"][0]["floors"]}
-        for field in spawn_fields:
-            if field not in level0_floors:
-                errors.append(f"player spawn field {list(field)} is not a level-0 floor")
+    for field in spawn_fields:
+        level, c, r = field
+        if not (0 <= level < len(building["levels"])):
+            continue
+        floors = {tuple(floor) for floor in building["levels"][level]["floors"]}
+        if (c, r) not in floors:
+            errors.append(f"player spawn field {list(field)} is not a floor on level {level}")
 
     for ramp in building["ramps"]:
         msg = ramp_error(ramp["low"], ramp["high"], ramp["lower_level"], cols, rows, len(building["levels"]))
         if msg:
             errors.append(f"ramp {ramp}: {msg}")
-        if ramp["lower_level"] == 0:
-            for cell in ramp_cells(ramp):
-                if cell in spawn_fields:
-                    errors.append(f"player spawn field {list(cell)} overlaps a level-0 ramp")
+        lower = ramp["lower_level"]
+        for col, row in ramp_cells(ramp):
+            for level in (lower, lower + 1):
+                field = (level, col, row)
+                if field in spawn_fields:
+                    errors.append(f"player spawn field {list(field)} overlaps a ramp on level {level}")
     return errors
 
 
@@ -428,15 +443,14 @@ class Canvas(QWidget):
                 continue
             self.paint_ramp(painter, ramp, cell, lower == level_idx)
 
-        if level_idx == 0:
-            self.paint_player_spawn_fields(painter, cell)
+        self.paint_player_spawn_fields(painter, cell, level_idx)
 
         if (
             self.drag_start_cell
             and self.drag_current_cell
             and (
                 self.window.mode in (MODE_FLOOR, MODE_ERASE)
-                or (self.window.mode == MODE_PLAYER_SPAWN and level_idx == 0)
+                or self.window.mode == MODE_PLAYER_SPAWN
             )
         ):
             c0, r0, c1, r1 = rect_from_cells(self.drag_start_cell, self.drag_current_cell)
@@ -468,10 +482,12 @@ class Canvas(QWidget):
         for c0, r0, c1, r1 in level["walls"]:
             painter.drawLine(c0 * cell, r0 * cell, c1 * cell, r1 * cell)
 
-    def paint_player_spawn_fields(self, painter: QPainter, cell: float) -> None:
+    def paint_player_spawn_fields(self, painter: QPainter, cell: float, level_idx: int) -> None:
         painter.setPen(QPen(QColor("#86efac"), 2))
         painter.setBrush(QColor(34, 197, 94, 95))
-        for col, row in self.window.building["player_spawn_fields"]:
+        for level, col, row in self.window.building["player_spawn_fields"]:
+            if level != level_idx:
+                continue
             rect = QRectF(col * cell + 4, row * cell + 4, cell - 8, cell - 8)
             painter.drawRect(rect)
             painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, "S")
@@ -792,16 +808,13 @@ class EditorWindow(QMainWindow):
         self.apply_change("Paint Floor", after)
 
     def add_player_spawn_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
-        if self.current_level != 0:
-            self.statusBar().showMessage("Player spawn fields can only be placed on level 0", 4000)
-            return
         c0, r0, c1, r1 = rect_from_cells(start, end)
         after = copy.deepcopy(self.building)
         fields = {tuple(f) for f in after["player_spawn_fields"]}
         for row in range(r0, r1):
             for col in range(c0, c1):
-                fields.add((col, row))
-        after["player_spawn_fields"] = [[c, r] for c, r in fields]
+                fields.add((self.current_level, col, row))
+        after["player_spawn_fields"] = [[level, c, r] for level, c, r in fields]
         self.apply_change("Paint Player Spawn", after)
 
     def add_wall_line(self, start: tuple[int, int], end: tuple[int, int]) -> None:
@@ -873,12 +886,11 @@ class EditorWindow(QMainWindow):
             for wall in level["walls"]
             if not wall_overlaps_rect(wall, (c0, r0, c1, r1))
         ]
-        if self.current_level == 0:
-            after["player_spawn_fields"] = [
-                field
-                for field in after["player_spawn_fields"]
-                if not (c0 <= field[0] < c1 and r0 <= field[1] < r1)
-            ]
+        after["player_spawn_fields"] = [
+            field
+            for field in after["player_spawn_fields"]
+            if not (field[0] == self.current_level and c0 <= field[1] < c1 and r0 <= field[2] < r1)
+        ]
         after["ramps"] = [
             ramp
             for ramp in after["ramps"]
@@ -897,7 +909,7 @@ class EditorWindow(QMainWindow):
         for wall in level["walls"]:
             if point_near_wall(px, py, wall):
                 return ("Wall", tuple(wall))
-        if self.current_level == 0 and [col, row] in self.building["player_spawn_fields"]:
+        if [self.current_level, col, row] in self.building["player_spawn_fields"]:
             return ("Player Spawn", (col, row))
         for ramp in self.building["ramps"]:
             lower = ramp["lower_level"]
@@ -917,7 +929,11 @@ class EditorWindow(QMainWindow):
         if kind == "Floor":
             level["floors"] = [floor for floor in level["floors"] if tuple(floor) != value]
         elif kind == "Player Spawn":
-            after["player_spawn_fields"] = [field for field in after["player_spawn_fields"] if tuple(field) != value]
+            after["player_spawn_fields"] = [
+                field
+                for field in after["player_spawn_fields"]
+                if tuple(field) != (self.current_level, value[0], value[1])
+            ]
         elif kind == "Wall":
             level["walls"] = [wall for wall in level["walls"] if tuple(normalized_wall(wall)) != value]
         elif kind == "Ramp":
@@ -933,6 +949,9 @@ class EditorWindow(QMainWindow):
         after = copy.deepcopy(self.building)
         insert_at = self.current_level + 1
         after["levels"].insert(insert_at, {"name": f"Level {insert_at}", "floors": [], "walls": []})
+        for field in after["player_spawn_fields"]:
+            if field[0] >= insert_at:
+                field[0] += 1
         for ramp in after["ramps"]:
             if ramp["lower_level"] >= insert_at:
                 ramp["lower_level"] += 1
@@ -965,6 +984,15 @@ class EditorWindow(QMainWindow):
         removed = self.current_level
         after = copy.deepcopy(self.building)
         after["levels"].pop(removed)
+        adjusted_fields = []
+        for field in after["player_spawn_fields"]:
+            level, col, row = field
+            if level == removed:
+                continue
+            if level > removed:
+                level -= 1
+            adjusted_fields.append([level, col, row])
+        after["player_spawn_fields"] = adjusted_fields
         adjusted = []
         for ramp in after["ramps"]:
             lower = ramp["lower_level"]
@@ -983,7 +1011,7 @@ class EditorWindow(QMainWindow):
             self,
             "Tool Reference",
             "Floor: drag cells to add floor.\n"
-            "Player Spawn: drag level-0 cells to add spawn fields.\n"
+            "Player Spawn: drag cells on the selected level to add spawn fields.\n"
             "Wall: drag along grid lines to place atomic wall edges.\n"
             "Ramp (Up): drag from this level toward the upper level.\n"
             "Ramp (Down): drag from this level toward the lower level.\n"
