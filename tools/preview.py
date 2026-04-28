@@ -21,21 +21,24 @@ RAMP_NORTH_DOWN = "△"
 RAMP_SOUTH_DOWN = "▽"
 RAMP_EAST_DOWN = "▷"
 RAMP_WEST_DOWN = "◁"
-RAMP_EXIT_NORTH = "↑"
-RAMP_EXIT_SOUTH = "↓"
-RAMP_EXIT_EAST = "→"
-RAMP_EXIT_WEST = "←"
+
+RAMP_UP = {
+    "north": RAMP_NORTH_UP,
+    "south": RAMP_SOUTH_UP,
+    "east": RAMP_EAST_UP,
+    "west": RAMP_WEST_UP,
+}
+RAMP_DOWN = {
+    "north": RAMP_NORTH_DOWN,
+    "south": RAMP_SOUTH_DOWN,
+    "east": RAMP_EAST_DOWN,
+    "west": RAMP_WEST_DOWN,
+}
+RAMP_GLYPHS = set(RAMP_UP.values()) | set(RAMP_DOWN.values())
 
 FILLABLE = {
     NO_FLOOR,
-    RAMP_NORTH_UP,
-    RAMP_SOUTH_UP,
-    RAMP_EAST_UP,
-    RAMP_WEST_UP,
-    RAMP_NORTH_DOWN,
-    RAMP_SOUTH_DOWN,
-    RAMP_EAST_DOWN,
-    RAMP_WEST_DOWN,
+    *RAMP_GLYPHS,
 }
 
 HORIZ = "─"
@@ -90,6 +93,15 @@ def ramp_up_direction(ramp: dict) -> str:
     return "south" if dy > 0 else "north"
 
 
+def opposite_direction(direction: str) -> str:
+    return {
+        "north": "south",
+        "south": "north",
+        "east": "west",
+        "west": "east",
+    }[direction]
+
+
 def render_level(building: dict, level_idx: int) -> list[list[str]]:
     level = building["levels"][level_idx]
     cols = building["grid_cols"]
@@ -99,6 +111,7 @@ def render_level(building: dict, level_idx: int) -> list[list[str]]:
     w = 2 * cols + 1
     grid = [[NONE] * w for _ in range(h)]
     floors = floor_set(level)
+    visible_ramps: list[tuple[int, int, int, int, str, str]] = []
 
     for row in range(rows):
         for col in range(cols):
@@ -109,22 +122,14 @@ def render_level(building: dict, level_idx: int) -> list[list[str]]:
         c0, r0, c1, r1 = ramp_rect(ramp)
         up = ramp_up_direction(ramp)
         if level_idx == lower:
-            ch = {
-                "north": RAMP_NORTH_UP,
-                "south": RAMP_SOUTH_UP,
-                "east": RAMP_EAST_UP,
-                "west": RAMP_WEST_UP,
-            }[up]
+            ch = RAMP_UP[up]
             paint_rect(grid, c0, r0, c1, r1, ch)
+            visible_ramps.append((c0, r0, c1, r1, ch, up))
         elif level_idx == lower + 1:
-            ch = {
-                "north": RAMP_SOUTH_DOWN,
-                "south": RAMP_NORTH_DOWN,
-                "east": RAMP_WEST_DOWN,
-                "west": RAMP_EAST_DOWN,
-            }[up]
+            down = opposite_direction(up)
+            ch = RAMP_DOWN[down]
             paint_rect(grid, c0, r0, c1, r1, ch)
-            paint_ramp_exit(grid, up, c0, r0, c1, r1, cols, rows)
+            visible_ramps.append((c0, r0, c1, r1, ch, down))
 
     for c0, r0, c1, r1 in level.get("walls", []):
         if r0 == r1:
@@ -134,6 +139,8 @@ def render_level(building: dict, level_idx: int) -> list[list[str]]:
 
     paint_corners(grid, cols, rows)
     fill_regions(grid, cols, rows)
+    for c0, r0, c1, r1, ch, direction in visible_ramps:
+        fill_ramp_ends(grid, c0, r0, c1, r1, ch, direction)
     return grid
 
 
@@ -143,27 +150,17 @@ def paint_rect(grid: list[list[str]], c0: int, r0: int, c1: int, r1: int, ch: st
             grid[2 * row + 1][2 * col + 1] = ch
 
 
-def paint_ramp_exit(grid: list[list[str]], up: str, c0: int, r0: int, c1: int, r1: int, cols: int, rows: int) -> None:
-    if up == "north":
-        exit_row = r0 - 1
-        if 0 <= exit_row < rows:
-            for col in range(c0, c1):
-                grid[2 * exit_row + 1][2 * col + 1] = RAMP_EXIT_NORTH
-    elif up == "south":
-        exit_row = r1
-        if 0 <= exit_row < rows:
-            for col in range(c0, c1):
-                grid[2 * exit_row + 1][2 * col + 1] = RAMP_EXIT_SOUTH
-    elif up == "east":
-        exit_col = c1
-        if 0 <= exit_col < cols:
-            for row in range(r0, r1):
-                grid[2 * row + 1][2 * exit_col + 1] = RAMP_EXIT_EAST
-    elif up == "west":
-        exit_col = c0 - 1
-        if 0 <= exit_col < cols:
-            for row in range(r0, r1):
-                grid[2 * row + 1][2 * exit_col + 1] = RAMP_EXIT_WEST
+def fill_ramp_ends(grid: list[list[str]], c0: int, r0: int, c1: int, r1: int, ch: str, direction: str) -> None:
+    if direction in ("north", "south"):
+        for grid_row in (2 * r0, 2 * r1):
+            for grid_col in range(2 * c0 + 1, 2 * c1, 2):
+                if grid[grid_row][grid_col] == NONE:
+                    grid[grid_row][grid_col] = ch
+    else:
+        for grid_col in (2 * c0, 2 * c1):
+            for grid_row in range(2 * r0 + 1, 2 * r1, 2):
+                if grid[grid_row][grid_col] == NONE:
+                    grid[grid_row][grid_col] = ch
 
 
 def paint_corners(grid: list[list[str]], cols: int, rows: int) -> None:
@@ -218,18 +215,29 @@ def widen(row: list[str]) -> str:
         if i % 2 == 1:
             if ch == HORIZ:
                 filler = HORIZ
+                out.append(filler + ch + filler)
             elif ch in FILLABLE:
-                filler = ch
+                out.append(format_fillable_cell(ch))
             else:
-                filler = " "
-            out.append(filler + ch + filler)
+                out.append(" " + ch + " ")
         else:
-            out.append(ch)
+            out.append(format_even_column(ch))
     return "".join(out)
 
 
+def format_fillable_cell(ch: str) -> str:
+    return ch * 3
+
+
+def format_even_column(ch: str) -> str:
+    return ch
+
+
 def render_building(building: dict, level_filter: int | None = None) -> str:
-    out = []
+    out = [
+        "Legend: filled ramp arrows go up; hollow ramp arrows go down.",
+        "",
+    ]
     for idx, level in enumerate(building["levels"]):
         if level_filter is not None and idx != level_filter:
             continue
