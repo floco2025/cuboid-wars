@@ -8,7 +8,6 @@ import copy
 import json
 import math
 import os
-import platform
 import signal
 import sys
 import tempfile
@@ -435,20 +434,27 @@ class Canvas(QWidget):
         if (
             self.drag_start_cell
             and self.drag_current_cell
-            and (self.window.mode == MODE_FLOOR or (self.window.mode == MODE_PLAYER_SPAWN and level_idx == 0))
+            and (
+                self.window.mode in (MODE_FLOOR, MODE_ERASE)
+                or (self.window.mode == MODE_PLAYER_SPAWN and level_idx == 0)
+            )
         ):
             c0, r0, c1, r1 = rect_from_cells(self.drag_start_cell, self.drag_current_cell)
-            color = QColor(111, 180, 255, 120) if self.window.mode == MODE_FLOOR else QColor(34, 197, 94, 120)
+            if self.window.mode == MODE_ERASE:
+                color = QColor(248, 113, 113, 120)
+            elif self.window.mode == MODE_FLOOR:
+                color = QColor(111, 180, 255, 120)
+            else:
+                color = QColor(34, 197, 94, 120)
             painter.setBrush(color)
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawRect(QRectF(c0 * cell, r0 * cell, (c1 - c0) * cell, (r1 - r0) * cell))
 
-        if self.drag_start_point and self.drag_current_point and self.window.mode in (MODE_WALL, *RAMP_MODES):
-            if self.window.mode == MODE_WALL:
-                end = snapped_wall_end(self.drag_start_point, self.drag_current_point)
-                self.paint_wall_preview(painter, self.drag_start_point, end, cell)
-            else:
-                self.paint_ramp_preview(painter, self.drag_start_point, self.drag_current_point, cell)
+        if self.drag_start_point and self.drag_current_point and self.window.mode == MODE_WALL:
+            end = snapped_wall_end(self.drag_start_point, self.drag_current_point)
+            self.paint_wall_preview(painter, self.drag_start_point, end, cell)
+        elif self.drag_start_cell and self.drag_current_cell and self.window.mode in RAMP_MODES:
+            self.paint_ramp_preview(painter, self.drag_start_cell, self.drag_current_cell, cell)
 
         painter.setPen(QPen(QColor("#2e343b"), 1))
         for col in range(cols + 1):
@@ -488,15 +494,14 @@ class Canvas(QWidget):
         painter.setPen(QColor("#ffffff"))
         painter.drawText(QRectF(c0 * cell, r0 * cell, (c1 - c0) * cell, (r1 - r0) * cell), Qt.AlignmentFlag.AlignCenter, label)
 
-    def paint_ramp_preview(self, painter: QPainter, start_point: tuple[int, int], end_point: tuple[int, int], cell: float) -> None:
+    def paint_ramp_preview(self, painter: QPainter, start_cell: tuple[int, int], end_cell: tuple[int, int], cell: float) -> None:
+        start_point, end_point = ramp_points_from_cells(start_cell, end_cell)
         c0, r0 = min(start_point[0], end_point[0]), min(start_point[1], end_point[1])
         c1, r1 = max(start_point[0], end_point[0]), max(start_point[1], end_point[1])
-        if c0 == c1 or r0 == r1:
-            return
         painter.setPen(QPen(QColor("#fbbf24"), 2, Qt.PenStyle.DashLine))
         painter.setBrush(QColor(217, 119, 6, 90))
         painter.drawRect(QRectF(c0 * cell, r0 * cell, (c1 - c0) * cell, (r1 - r0) * cell))
-        direction = draw_direction(start_point, end_point)
+        direction = draw_direction(start_cell, end_cell)
         start, end = orthogonal_arrow_points(c0, r0, c1, r1, direction, cell)
         self.draw_arrow(painter, start, end, QColor("#fbbf24"))
 
@@ -530,9 +535,6 @@ class Canvas(QWidget):
         self.drag_current_cell = self.drag_start_cell
         self.drag_start_point = self.point_to_grid_point(event.position())
         self.drag_current_point = self.drag_start_point
-        if self.window.mode == MODE_ERASE:
-            self.window.erase_at(event.position(), self.cell_size())
-            self.clear_drag()
         self.update()
 
     def mouseMoveEvent(self, event) -> None:
@@ -551,8 +553,13 @@ class Canvas(QWidget):
             self.window.add_player_spawn_rect(self.drag_start_cell, self.drag_current_cell)
         elif self.window.mode == MODE_WALL and self.drag_start_point and self.drag_current_point:
             self.window.add_wall_line(self.drag_start_point, snapped_wall_end(self.drag_start_point, self.drag_current_point))
-        elif self.window.mode in RAMP_MODES and self.drag_start_point and self.drag_current_point:
-            self.window.add_ramp(list(self.drag_start_point), list(self.drag_current_point), self.window.mode)
+        elif self.window.mode in RAMP_MODES and self.drag_start_cell and self.drag_current_cell:
+            self.window.add_ramp(self.drag_start_cell, self.drag_current_cell, self.window.mode)
+        elif self.window.mode == MODE_ERASE and self.drag_start_cell and self.drag_current_cell:
+            if self.drag_start_cell == self.drag_current_cell:
+                self.window.erase_at(event.position(), self.cell_size())
+            else:
+                self.window.erase_cell_rect(self.drag_start_cell, self.drag_current_cell)
         self.clear_drag()
         self.update()
 
@@ -610,8 +617,12 @@ class EditorWindow(QMainWindow):
         self.add_menu_action(file_menu, "&Quit", QKeySequence.StandardKey.Quit, self.close)
 
         edit_menu = self.menuBar().addMenu("&Edit")
-        edit_menu.addAction(self.undo_stack.createUndoAction(self, "&Undo"))
-        edit_menu.addAction(self.undo_stack.createRedoAction(self, "&Redo"))
+        undo_action = self.undo_stack.createUndoAction(self, "&Undo")
+        undo_action.setShortcuts(QKeySequence.StandardKey.Undo)
+        edit_menu.addAction(undo_action)
+        redo_action = self.undo_stack.createRedoAction(self, "&Redo")
+        redo_action.setShortcuts(QKeySequence.StandardKey.Redo)
+        edit_menu.addAction(redo_action)
 
         level_menu = self.menuBar().addMenu("&Level")
         self.add_menu_action(level_menu, "&Add Level", None, self.add_level)
@@ -621,10 +632,6 @@ class EditorWindow(QMainWindow):
         help_menu = self.menuBar().addMenu("&Help")
         self.add_menu_action(help_menu, "Tool &Reference", None, self.show_tool_reference)
 
-        undo_key = "Meta+Z" if platform.system() == "Darwin" else "Ctrl+Z"
-        redo_key = "Meta+Shift+Z" if platform.system() == "Darwin" else "Ctrl+Shift+Z"
-        QShortcut(QKeySequence(undo_key), self, self.undo_stack.undo)
-        QShortcut(QKeySequence(redo_key), self, self.undo_stack.redo)
         self.add_shortcut(Qt.Key.Key_Up, self.next_level)
         self.add_shortcut(Qt.Key.Key_Down, self.previous_level)
         self.add_shortcut(Qt.Key.Key_Left, self.previous_tool)
@@ -807,7 +814,8 @@ class EditorWindow(QMainWindow):
         after["levels"][self.current_level]["walls"] = [list(w) for w in walls]
         self.apply_change("Place Wall", after)
 
-    def add_ramp(self, start_point: list[int], end_point: list[int], mode: str) -> None:
+    def add_ramp(self, start_cell: tuple[int, int], end_cell: tuple[int, int], mode: str) -> None:
+        start_point, end_point = ramp_points_from_cells(start_cell, end_cell)
         if mode == MODE_RAMP_UP:
             if self.current_level + 1 >= len(self.building["levels"]):
                 self.statusBar().showMessage("Ramp not placed: Ramp (Up) needs an upper level", 4000)
@@ -842,6 +850,29 @@ class EditorWindow(QMainWindow):
         hit = self.hit_at(pos, cell_size)
         if hit:
             self.erase_hit(hit)
+
+    def erase_cell_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
+        c0, r0, c1, r1 = rect_from_cells(start, end)
+        after = copy.deepcopy(self.building)
+        level = after["levels"][self.current_level]
+        level["floors"] = [
+            floor
+            for floor in level["floors"]
+            if not (c0 <= floor[0] < c1 and r0 <= floor[1] < r1)
+        ]
+        if self.current_level == 0:
+            after["player_spawn_fields"] = [
+                field
+                for field in after["player_spawn_fields"]
+                if not (c0 <= field[0] < c1 and r0 <= field[1] < r1)
+            ]
+        after["ramps"] = [
+            ramp
+            for ramp in after["ramps"]
+            if self.current_level not in (ramp["lower_level"], ramp["lower_level"] + 1)
+            or not rects_overlap((c0, r0, c1, r1), ramp_rect(ramp))
+        ]
+        self.apply_change("Erase Area", after)
 
     def hit_at(self, pos, cell_size: float):
         col = int(pos.x() // cell_size)
@@ -943,7 +974,7 @@ class EditorWindow(QMainWindow):
             "Wall: drag along grid lines to place atomic wall edges.\n"
             "Ramp (Up): drag from this level toward the upper level.\n"
             "Ramp (Down): drag from this level toward the lower level.\n"
-            "Erase: click an item, or right-click for the context menu.",
+            "Erase: click an item, drag cells to erase an area, or right-click for the context menu.",
         )
 
     def closeEvent(self, event) -> None:
@@ -959,6 +990,23 @@ def rect_from_cells(a: tuple[int, int], b: tuple[int, int]) -> tuple[int, int, i
     c1 = max(a[0], b[0]) + 1
     r1 = max(a[1], b[1]) + 1
     return c0, r0, c1, r1
+
+
+def ramp_points_from_cells(start: tuple[int, int], end: tuple[int, int]) -> tuple[list[int], list[int]]:
+    c0, r0, c1, r1 = rect_from_cells(start, end)
+    dx = end[0] - start[0]
+    dy = end[1] - start[1]
+    if abs(dx) >= abs(dy):
+        if dx >= 0:
+            return [c0, r0], [c1, r1]
+        return [c1, r0], [c0, r1]
+    if dy >= 0:
+        return [c0, r0], [c1, r1]
+    return [c0, r1], [c1, r0]
+
+
+def rects_overlap(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> bool:
+    return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
 
 
 def snapped_wall_end(start: tuple[int, int], current: tuple[int, int]) -> tuple[int, int]:
