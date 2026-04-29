@@ -24,7 +24,7 @@ pub struct CollisionWorld {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct ShapeCastCollision {
+pub(crate) struct ShapeCastHit {
     pub normal: Vec3,
     pub t: f32,
 }
@@ -70,13 +70,15 @@ impl CollisionWorld {
         }
     }
 
+    #[cfg(test)]
     #[must_use]
-    pub fn solid_count(&self) -> usize {
+    fn solid_count(&self) -> usize {
         self.colliders.len()
     }
 
+    #[cfg(test)]
     #[must_use]
-    pub fn solid_kinds(&self) -> Vec<ColliderKind> {
+    fn solid_kinds(&self) -> Vec<ColliderKind> {
         self.colliders
             .iter()
             .filter_map(|(_, collider)| ColliderKind::from_user_data(collider.user_data))
@@ -84,12 +86,6 @@ impl CollisionWorld {
     }
 
     #[must_use]
-    pub fn collider_kind(&self, handle: ColliderHandle) -> Option<ColliderKind> {
-        self.colliders
-            .get(handle)
-            .and_then(|collider| ColliderKind::from_user_data(collider.user_data))
-    }
-
     pub(crate) fn move_character(
         &self,
         dt: f32,
@@ -140,7 +136,7 @@ impl CollisionWorld {
     }
 
     #[must_use]
-    pub fn cast_ball(&self, position: &Vec3, translation: Vec3, radius: f32) -> Option<ShapeCastCollision> {
+    pub(crate) fn cast_moving_ball(&self, position: Vec3, translation: Vec3, radius: f32) -> Option<ShapeCastHit> {
         if translation.length_squared() == 0.0 {
             return None;
         }
@@ -162,14 +158,23 @@ impl CollisionWorld {
 
         query_pipeline
             .cast_shape(&pose, velocity, &shape, options)
-            .map(|(_, hit)| ShapeCastCollision {
+            .map(|(_, hit)| ShapeCastHit {
                 normal: Vec3::new(hit.normal2.x, hit.normal2.y, hit.normal2.z),
                 t: hit.time_of_impact,
             })
     }
 
     #[must_use]
-    pub fn ball_overlaps_any_of(&self, position: &Vec3, radius: f32, kinds: &[ColliderKind]) -> bool {
+    pub(crate) fn projectile_spawn_overlaps_blocker(&self, position: Vec3, radius: f32) -> bool {
+        self.ball_overlaps_kinds(position, radius, &[ColliderKind::Wall, ColliderKind::Floor])
+    }
+
+    #[must_use]
+    pub fn cuboid_overlaps_wall(&self, position: Vec3, half_extents: Vec3) -> bool {
+        self.cuboid_overlaps_kinds(position, half_extents, &[ColliderKind::Wall])
+    }
+
+    fn ball_overlaps_kinds(&self, position: Vec3, radius: f32, kinds: &[ColliderKind]) -> bool {
         let include = |_: ColliderHandle, collider: &Collider| {
             ColliderKind::from_user_data(collider.user_data).is_some_and(|kind| kinds.contains(&kind))
         };
@@ -185,8 +190,7 @@ impl CollisionWorld {
         query_pipeline.intersect_shape(pose, &shape).next().is_some()
     }
 
-    #[must_use]
-    pub fn cuboid_overlaps_any_of(&self, center: &Vec3, half_extents: Vec3, kinds: &[ColliderKind]) -> bool {
+    fn cuboid_overlaps_kinds(&self, center: Vec3, half_extents: Vec3, kinds: &[ColliderKind]) -> bool {
         let include = |_: ColliderHandle, collider: &Collider| {
             ColliderKind::from_user_data(collider.user_data).is_some_and(|kind| kinds.contains(&kind))
         };
@@ -204,7 +208,7 @@ impl CollisionWorld {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ColliderKind {
+enum ColliderKind {
     Wall,
     Floor,
     Ramp,

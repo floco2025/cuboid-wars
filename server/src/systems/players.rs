@@ -9,8 +9,9 @@ use common::{
         PLAYER_HEIGHT, PLAYER_WIDTH,
     },
     markers::PlayerMarker,
-    physics::{ColliderKind, CollisionWorld, PlayerMotion, step_player_motion, sweep_player_vs_player},
-    players::{PlannedMove, overlaps_other_player},
+    physics::{
+        CollisionWorld, PlannedMove, PlayerMotion, overlaps_other_player, player_paths_intersect, step_player_motion,
+    },
     protocol::{MoveInput, PlayerId, Position, SDeath, ServerMessage},
 };
 
@@ -26,7 +27,7 @@ pub fn players_movement_system(
 ) {
     let delta = time.delta_secs();
 
-    // Pass 1: For each player, calculate intended position + vy, then apply wall collision logic
+    // Pass 1: For each player, calculate intended position + vy, then apply static-world collision.
     let mut planned_moves: Vec<PlannedMove> = Vec::new();
 
     for (entity, pos, motion, move_input, player_id) in query.iter() {
@@ -228,12 +229,12 @@ fn player_spawn_position_is_clear(
 
     !occupied_positions
         .iter()
-        .any(|other| sweep_player_vs_player_static(pos, other))
-        && !collision_world.cuboid_overlaps_any_of(&player_center, player_half_extents, &[ColliderKind::Wall])
+        .any(|other| player_position_intersects_player(pos, other))
+        && !collision_world.cuboid_overlaps_wall(player_center, player_half_extents)
 }
 
-fn sweep_player_vs_player_static(pos: &Position, other: &Position) -> bool {
-    sweep_player_vs_player(pos, pos, other, other)
+fn player_position_intersects_player(pos: &Position, other: &Position) -> bool {
+    player_paths_intersect(pos, pos, other, other)
 }
 
 #[cfg(test)]

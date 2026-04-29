@@ -4,7 +4,6 @@ pub mod map;
 pub mod markers;
 pub mod net;
 pub mod physics;
-pub mod players;
 pub mod protocol;
 pub mod spawning;
 pub mod types;

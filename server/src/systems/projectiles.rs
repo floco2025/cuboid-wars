@@ -4,7 +4,7 @@ use super::network::broadcast_to_all;
 use crate::resources::PlayerMap;
 use common::{
     markers::{PlayerMarker, ProjectileMarker},
-    physics::{CollisionWorld, ProjectileMotion, sweep_projectile_vs_player},
+    physics::{CollisionWorld, ProjectileMotion, projectile_hits_player},
     protocol::*,
 };
 
@@ -34,9 +34,9 @@ pub fn projectiles_movement_system(
         projectile.apply_gravity(delta);
         projectile.apply_drag(delta);
 
-        // Check wall collisions
+        // Resolve static world collisions before checking entities.
         let mut bounced = false;
-        if let Some(new_pos) = projectile.handle_bounces(&proj_pos, delta, &collision_world) {
+        if let Some(new_pos) = projectile.resolve_world_bounces(&proj_pos, delta, &collision_world) {
             *proj_pos = new_pos;
             bounced = true;
         }
@@ -51,8 +51,7 @@ pub fn projectiles_movement_system(
         // Check player collisions
         for (position, face_direction, player_id) in player_query.iter() {
             // Use common hit detection logic
-            if let Some(hit_dir) = sweep_projectile_vs_player(&proj_pos, &projectile, delta, position, face_direction.0)
-            {
+            if let Some(hit_dir) = projectile_hits_player(&proj_pos, &projectile, delta, position, face_direction.0) {
                 // Self-hit: despawn without scoring to match client expectations
                 if shooter_id == player_id {
                     commands.entity(proj_entity).despawn();

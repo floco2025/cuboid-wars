@@ -4,8 +4,7 @@ use super::components::BumpFlashState;
 use crate::{markers::*, resources::PlayerMap, systems::network::ServerReconciliation};
 use common::{
     constants::{ALWAYS_PHASING, PHYSICS_EPSILON, PLAYER_SPEED, UPDATE_BROADCAST_INTERVAL},
-    physics::{CollisionWorld, PlayerMotion, step_player_motion},
-    players::{PlannedMove, overlaps_other_player},
+    physics::{CollisionWorld, PlannedMove, PlayerMotion, overlaps_other_player, step_player_motion},
     protocol::{MoveInput, PlayerId, Position},
 };
 
@@ -95,7 +94,7 @@ pub fn players_movement_system(
 ) {
     let delta = time.delta_secs();
 
-    // Pass 1: For each player, calculate intended position, then apply wall collision logic
+    // Pass 1: For each player, calculate intended position, then apply static-world collision.
     let mut planned_moves: Vec<PlannedMove> = Vec::new();
 
     for (entity, player_id, mut client_pos, move_input, motion, mut flash_state, mut recon_option, is_local) in

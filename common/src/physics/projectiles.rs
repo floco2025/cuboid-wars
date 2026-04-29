@@ -112,9 +112,9 @@ impl ProjectileMotion {
         (collision_pos.into(), remaining_time)
     }
 
-    // Applies bounce physics: reflects velocity off the surface and returns the new position.
+    // Applies world bounce physics: reflects velocity off static map surfaces and returns the new position.
     #[must_use]
-    pub fn handle_bounces(
+    pub fn resolve_world_bounces(
         &mut self,
         projectile_pos: &Position,
         delta: f32,
@@ -126,7 +126,8 @@ impl ProjectileMotion {
 
         for _ in 0..MAX_SURFACE_BOUNCES {
             let translation = self.velocity * remaining_delta;
-            let Some(collision) = collision_world.cast_ball(&Vec3::from(current_pos), translation, PROJECTILE_RADIUS)
+            let Some(collision) =
+                collision_world.cast_moving_ball(Vec3::from(current_pos), translation, PROJECTILE_RADIUS)
             else {
                 break;
             };
@@ -152,7 +153,7 @@ impl ProjectileMotion {
 }
 
 #[must_use]
-pub fn sweep_projectile_vs_player(
+pub fn projectile_hits_player(
     proj_pos: &Position,
     proj_motion: &ProjectileMotion,
     delta: f32,
@@ -259,12 +260,12 @@ mod tests {
 
         assert!(
             lower_motion
-                .handle_bounces(&pos, 0.1, &collision_world(&[test_wall(0)], &[], &[]))
+                .resolve_world_bounces(&pos, 0.1, &collision_world(&[test_wall(0)], &[], &[]))
                 .is_some()
         );
         assert!(
             upper_motion
-                .handle_bounces(&pos, 0.1, &collision_world(&[test_wall(1)], &[], &[]))
+                .resolve_world_bounces(&pos, 0.1, &collision_world(&[test_wall(1)], &[], &[]))
                 .is_none()
         );
     }
@@ -280,7 +281,7 @@ mod tests {
 
         assert!(
             motion
-                .handle_bounces(&pos, 0.1, &collision_world(&[test_wall(1)], &[], &[]))
+                .resolve_world_bounces(&pos, 0.1, &collision_world(&[test_wall(1)], &[], &[]))
                 .is_some()
         );
     }
@@ -297,7 +298,7 @@ mod tests {
 
         assert!(
             motion
-                .handle_bounces(&pos, 0.1, &collision_world(&[], &[test_floor(0)], &[]))
+                .resolve_world_bounces(&pos, 0.1, &collision_world(&[], &[test_floor(0)], &[]))
                 .is_some()
         );
         assert!(motion.velocity.y < 0.0);

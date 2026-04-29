@@ -1,8 +1,4 @@
-use crate::{
-    constants::*,
-    physics::{ColliderKind, CollisionWorld},
-    protocol::Position,
-};
+use crate::{constants::*, physics::CollisionWorld, protocol::Position};
 use bevy_math::Vec3;
 
 // ============================================================================
@@ -84,13 +80,10 @@ fn projectile_spawn_is_blocked(start: &Position, end: &Position, collision_world
     let start_vec = Vec3::from(*start);
     let end_vec = Vec3::from(*end);
 
-    collision_world.ball_overlaps_any_of(
-        &start_vec,
-        PROJECTILE_RADIUS,
-        &[ColliderKind::Wall, ColliderKind::Floor],
-    ) || collision_world
-        .cast_ball(&start_vec, end_vec - start_vec, PROJECTILE_RADIUS)
-        .is_some()
+    collision_world.projectile_spawn_overlaps_blocker(start_vec, PROJECTILE_RADIUS)
+        || collision_world
+            .cast_moving_ball(start_vec, end_vec - start_vec, PROJECTILE_RADIUS)
+            .is_some()
 }
 
 #[cfg(test)]

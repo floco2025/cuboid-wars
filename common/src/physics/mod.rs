@@ -1,9 +1,10 @@
-mod items;
 mod players;
 mod projectiles;
 mod world;
 
-pub use items::overlap_player_vs_item;
-pub use players::{PlayerMotion, PlayerMotionStep, step_player_motion, sweep_player_vs_player, try_start_player_jump};
-pub use projectiles::{ProjectileMotion, sweep_projectile_vs_player};
-pub use world::{ColliderKind, CollisionWorld};
+pub use players::{
+    PlannedMove, PlayerMotion, PlayerMotionStep, overlap_player_vs_item, overlaps_other_player, player_paths_intersect,
+    step_player_motion, try_start_player_jump,
+};
+pub use projectiles::{ProjectileMotion, projectile_hits_player};
+pub use world::CollisionWorld;

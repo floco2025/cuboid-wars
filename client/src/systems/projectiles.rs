@@ -10,7 +10,7 @@ use crate::{
 };
 use common::{
     markers::{PlayerMarker, ProjectileMarker},
-    physics::{CollisionWorld, ProjectileMotion, sweep_projectile_vs_player},
+    physics::{CollisionWorld, ProjectileMotion, projectile_hits_player},
     protocol::{FaceDirection, PlayerId, Position},
 };
 
@@ -28,7 +28,7 @@ fn handle_player_collisions(
     player_query: &Query<(Entity, &Position, &FaceDirection, Has<LocalPlayerMarker>), With<PlayerMarker>>,
 ) -> bool {
     for (_player_entity, player_pos, face_dir, is_local_player) in player_query.iter() {
-        if sweep_projectile_vs_player(proj_pos, proj_motion, delta, player_pos, face_dir.0).is_some() {
+        if projectile_hits_player(proj_pos, proj_motion, delta, player_pos, face_dir.0).is_some() {
             play_sound(
                 commands,
                 asset_server,
@@ -93,7 +93,7 @@ pub fn projectiles_movement_system(
 
         let projectile_pos: Position = projectile_transform.translation.into();
 
-        // Check wall collisions and handle bouncing/despawning
+        // Resolve static world collisions and handle bouncing/despawning.
         let new_pos = if let Some(pos_after_bounce) = handle_wall_collisions(
             &mut commands,
             asset_server.as_ref(),
@@ -148,7 +148,7 @@ fn handle_wall_collisions(
     // Check speed before bounce to decide if we should play sound
     let speed_before = proj_motion.velocity.length();
 
-    let new_pos = proj_motion.handle_bounces(proj_pos, delta, collision_world)?;
+    let new_pos = proj_motion.resolve_world_bounces(proj_pos, delta, collision_world)?;
 
     // Play sound if speed is high enough and rate limit allows
     let min_interval = 1.0 / PROJECTILE_MAX_BOUNCE_SOUNDS_PER_SECOND;

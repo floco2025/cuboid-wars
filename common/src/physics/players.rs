@@ -45,6 +45,25 @@ pub struct PlayerMotionStep {
     pub hit_horizontal: bool,
 }
 
+// Represents a player's intended movement after static-world collision but before player collision.
+#[derive(Copy, Clone)]
+pub struct PlannedMove {
+    pub entity: Entity,
+    pub start: Position,
+    pub target: Position,
+    pub target_vy: f32,
+    pub collides: bool,
+}
+
+// Check if a planned move would overlap with any other player's planned position.
+#[must_use]
+pub fn overlaps_other_player(candidate: &PlannedMove, planned_moves: &[PlannedMove]) -> bool {
+    planned_moves.iter().any(|other| {
+        other.entity != candidate.entity
+            && player_paths_intersect(&candidate.start, &candidate.target, &other.start, &other.target)
+    })
+}
+
 #[must_use]
 pub fn try_start_player_jump(
     motion: &mut PlayerMotion,
@@ -178,7 +197,7 @@ fn vec3(v: Vector) -> Vec3 {
 }
 
 #[must_use]
-pub fn sweep_player_vs_player(start1: &Position, end1: &Position, start2: &Position, end2: &Position) -> bool {
+pub fn player_paths_intersect(start1: &Position, end1: &Position, start2: &Position, end2: &Position) -> bool {
     let shape = player_shape();
     let velocity1 = Vector::new(end1.x - start1.x, end1.y - start1.y, end1.z - start1.z);
     let velocity2 = Vector::new(end2.x - start2.x, end2.y - start2.y, end2.z - start2.z);
@@ -201,6 +220,14 @@ pub fn sweep_player_vs_player(start1: &Position, end1: &Position, start2: &Posit
         options,
     )
     .is_ok_and(|hit| hit.is_some())
+}
+
+#[must_use]
+pub fn overlap_player_vs_item(player_pos: &Position, item_pos: &Position, collection_radius: f32) -> bool {
+    let dx = player_pos.x - item_pos.x;
+    let dz = player_pos.z - item_pos.z;
+    let dist_sq = dx.mul_add(dx, dz * dz);
+    dist_sq <= collection_radius * collection_radius
 }
 
 #[cfg(test)]
@@ -307,7 +334,7 @@ mod tests {
     }
 
     #[test]
-    fn player_hits_wall_cuboid_from_collision_world() {
+    fn player_hits_wall_collider_from_collision_world() {
         let wall = test_wall();
         let floor = lower_floor();
         let collision_world = collision_world_with(&[wall], &[floor], &[]);
@@ -445,7 +472,7 @@ mod tests {
     }
 
     #[test]
-    fn phasing_player_ignores_wall_cuboid_from_collision_world() {
+    fn phasing_player_ignores_wall_collider_from_collision_world() {
         let wall = test_wall();
         let collision_world = collision_world_with(&[wall], &[], &[]);
         let pos = Position {
