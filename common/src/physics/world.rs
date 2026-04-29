@@ -7,8 +7,8 @@ use rapier3d::{
         shape::Ball,
     },
     prelude::{
-        BroadPhaseBvh, Collider, ColliderBuilder, ColliderHandle, ColliderSet, IntegrationParameters, NarrowPhase,
-        Pose, QueryFilter, RigidBodySet, Shape, Vector,
+        BroadPhaseBvh, ColliderBuilder, ColliderHandle, ColliderSet, Group, IntegrationParameters, InteractionGroups,
+        InteractionTestMode, NarrowPhase, Pose, QueryFilter, RigidBodySet, Shape, Vector,
     },
 };
 
@@ -31,6 +31,10 @@ pub(crate) struct ShapeCastHit {
     pub normal: Vec3,
     pub t: f32,
 }
+
+const WALL_COLLISION_GROUP: Group = Group::GROUP_1;
+const FLOOR_COLLISION_GROUP: Group = Group::GROUP_2;
+const RAMP_COLLISION_GROUP: Group = Group::GROUP_3;
 
 impl CollisionWorld {
     #[must_use]
@@ -100,42 +104,20 @@ impl CollisionWorld {
         include_floors: bool,
         events: impl FnMut(CharacterCollision),
     ) -> EffectiveCharacterMovement {
-        if has_phasing || !include_floors {
-            let include = |_: ColliderHandle, collider: &Collider| {
-                let kind = ColliderKind::from_user_data(collider.user_data);
-                !(has_phasing && kind == Some(ColliderKind::Wall))
-                    && (include_floors || kind != Some(ColliderKind::Floor))
-            };
-            let query_pipeline = self.broad_phase.as_query_pipeline(
-                self.narrow_phase.query_dispatcher(),
-                &self.bodies,
-                &self.colliders,
-                QueryFilter::default().predicate(&include),
-            );
-            controller.move_shape(
-                dt,
-                &query_pipeline,
-                character_shape,
-                character_pos,
-                desired_translation,
-                events,
-            )
-        } else {
-            let query_pipeline = self.broad_phase.as_query_pipeline(
-                self.narrow_phase.query_dispatcher(),
-                &self.bodies,
-                &self.colliders,
-                QueryFilter::default(),
-            );
-            controller.move_shape(
-                dt,
-                &query_pipeline,
-                character_shape,
-                character_pos,
-                desired_translation,
-                events,
-            )
-        }
+        let query_pipeline = self.broad_phase.as_query_pipeline(
+            self.narrow_phase.query_dispatcher(),
+            &self.bodies,
+            &self.colliders,
+            query_filter(character_collision_groups(has_phasing, include_floors)),
+        );
+        controller.move_shape(
+            dt,
+            &query_pipeline,
+            character_shape,
+            character_pos,
+            desired_translation,
+            events,
+        )
     }
 
     #[must_use]
@@ -148,7 +130,7 @@ impl CollisionWorld {
             self.narrow_phase.query_dispatcher(),
             &self.bodies,
             &self.colliders,
-            QueryFilter::default(),
+            query_filter(world_collision_groups()),
         );
         let shape = Ball::new(radius);
         let pose = Pose::translation(position.x, position.y, position.z);
@@ -176,14 +158,11 @@ impl CollisionWorld {
         target_distance: f32,
         has_phasing: bool,
     ) -> Option<ShapeCastHit> {
-        let include = |_: ColliderHandle, collider: &Collider| {
-            !(has_phasing && ColliderKind::from_user_data(collider.user_data) == Some(ColliderKind::Wall))
-        };
         let query_pipeline = self.broad_phase.as_query_pipeline(
             self.narrow_phase.query_dispatcher(),
             &self.bodies,
             &self.colliders,
-            QueryFilter::default().predicate(&include),
+            query_filter(character_collision_groups(has_phasing, true)),
         );
         let options = ShapeCastOptions {
             max_time_of_impact: max_distance,
@@ -199,23 +178,20 @@ impl CollisionWorld {
 
     #[must_use]
     pub(crate) fn projectile_spawn_overlaps_blocker(&self, position: Vec3, radius: f32) -> bool {
-        self.ball_overlaps_kinds(position, radius, &[ColliderKind::Wall, ColliderKind::Floor])
+        self.ball_overlaps_groups(position, radius, WALL_COLLISION_GROUP | FLOOR_COLLISION_GROUP)
     }
 
     #[must_use]
     pub fn cuboid_overlaps_wall(&self, position: Vec3, half_extents: Vec3) -> bool {
-        self.cuboid_overlaps_kinds(position, half_extents, &[ColliderKind::Wall])
+        self.cuboid_overlaps_groups(position, half_extents, WALL_COLLISION_GROUP)
     }
 
-    fn ball_overlaps_kinds(&self, position: Vec3, radius: f32, kinds: &[ColliderKind]) -> bool {
-        let include = |_: ColliderHandle, collider: &Collider| {
-            ColliderKind::from_user_data(collider.user_data).is_some_and(|kind| kinds.contains(&kind))
-        };
+    fn ball_overlaps_groups(&self, position: Vec3, radius: f32, groups: Group) -> bool {
         let query_pipeline = self.broad_phase.as_query_pipeline(
             self.narrow_phase.query_dispatcher(),
             &self.bodies,
             &self.colliders,
-            QueryFilter::default().predicate(&include),
+            query_filter(groups),
         );
         let shape = Ball::new(radius);
         let pose = Pose::translation(position.x, position.y, position.z);
@@ -223,15 +199,12 @@ impl CollisionWorld {
         query_pipeline.intersect_shape(pose, &shape).next().is_some()
     }
 
-    fn cuboid_overlaps_kinds(&self, center: Vec3, half_extents: Vec3, kinds: &[ColliderKind]) -> bool {
-        let include = |_: ColliderHandle, collider: &Collider| {
-            ColliderKind::from_user_data(collider.user_data).is_some_and(|kind| kinds.contains(&kind))
-        };
+    fn cuboid_overlaps_groups(&self, center: Vec3, half_extents: Vec3, groups: Group) -> bool {
         let query_pipeline = self.broad_phase.as_query_pipeline(
             self.narrow_phase.query_dispatcher(),
             &self.bodies,
             &self.colliders,
-            QueryFilter::default().predicate(&include),
+            query_filter(groups),
         );
         let shape = rapier3d::parry::shape::Cuboid::new(Vector::new(half_extents.x, half_extents.y, half_extents.z));
         let pose = Pose::translation(center.x, center.y, center.z);
@@ -253,6 +226,32 @@ fn upward_surface_hit(hit: RapierShapeCastHit) -> Option<ShapeCastHit> {
         })
 }
 
+fn world_collision_groups() -> Group {
+    WALL_COLLISION_GROUP | FLOOR_COLLISION_GROUP | RAMP_COLLISION_GROUP
+}
+
+fn character_collision_groups(has_phasing: bool, include_floors: bool) -> Group {
+    let mut groups = world_collision_groups();
+
+    if has_phasing {
+        groups.remove(WALL_COLLISION_GROUP);
+    }
+
+    if !include_floors {
+        groups.remove(FLOOR_COLLISION_GROUP);
+    }
+
+    groups
+}
+
+fn query_filter(groups: Group) -> QueryFilter<'static> {
+    InteractionGroups::new(Group::ALL, groups, InteractionTestMode::And).into()
+}
+
+fn collider_interaction_groups(kind: ColliderKind) -> InteractionGroups {
+    InteractionGroups::new(kind.group(), Group::ALL, InteractionTestMode::And)
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ColliderKind {
     Wall,
@@ -261,6 +260,14 @@ enum ColliderKind {
 }
 
 impl ColliderKind {
+    fn group(self) -> Group {
+        match self {
+            Self::Wall => WALL_COLLISION_GROUP,
+            Self::Floor => FLOOR_COLLISION_GROUP,
+            Self::Ramp => RAMP_COLLISION_GROUP,
+        }
+    }
+
     fn user_data(self) -> u128 {
         match self {
             Self::Wall => 1,
@@ -269,6 +276,7 @@ impl ColliderKind {
         }
     }
 
+    #[cfg(test)]
     fn from_user_data(user_data: u128) -> Option<Self> {
         match user_data {
             1 => Some(Self::Wall),
@@ -319,6 +327,7 @@ fn insert_cuboid_collider(
     colliders.insert(
         ColliderBuilder::cuboid(half_extents.x, half_extents.y, half_extents.z)
             .position(Pose::translation(center.x, center.y, center.z))
+            .collision_groups(collider_interaction_groups(kind))
             .user_data(kind.user_data())
             .build(),
     )
@@ -354,6 +363,7 @@ fn insert_ramp_collider(colliders: &mut ColliderSet, ramp: &Ramp) -> Option<Coll
     };
 
     let collider = ColliderBuilder::convex_hull(&points)?
+        .collision_groups(collider_interaction_groups(ColliderKind::Ramp))
         .user_data(ColliderKind::Ramp.user_data())
         .build();
     Some(colliders.insert(collider))
