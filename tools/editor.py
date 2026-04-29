@@ -45,6 +45,7 @@ RAMP_MODES = (MODE_RAMP_UP, MODE_RAMP_DOWN)
 MODES = [MODE_FLOOR, MODE_INACCESSIBLE_FLOOR, MODE_PLAYER_SPAWN, MODE_WALL, MODE_RAMP_UP, MODE_RAMP_DOWN, MODE_ERASE]
 
 MIN_CELL = 12.0
+EDITOR_CELL = 36
 DEFAULT_GRID_COLS = 20
 DEFAULT_GRID_ROWS = 20
 
@@ -416,6 +417,11 @@ class Canvas(QWidget):
     def minimumSizeHint(self):
         return super().minimumSizeHint().expandedTo(QSize(360, 360))
 
+    def sizeHint(self):
+        cols = max(1, self.window.map_data["grid_cols"])
+        rows = max(1, self.window.map_data["grid_rows"])
+        return QSize(cols * EDITOR_CELL, rows * EDITOR_CELL).expandedTo(self.minimumSizeHint())
+
     def cell_size(self) -> float:
         cols = max(1, self.window.map_data["grid_cols"])
         rows = max(1, self.window.map_data["grid_rows"])
@@ -645,7 +651,6 @@ class EditorWindow(QMainWindow):
         self.canvas = Canvas(self)
         self.setCentralWidget(self.canvas)
         self.setWindowTitle("Cuboid Wars Editor")
-        self.resize(920, 760)
 
         self.level_combo = QComboBox()
         self.level_combo.currentIndexChanged.connect(self.select_level)
@@ -658,6 +663,7 @@ class EditorWindow(QMainWindow):
         self.build_toolbar()
         self.statusBar().addPermanentWidget(self.status_label)
         self.refresh_ui()
+        self.resize_to_map()
 
     def build_menus(self) -> None:
         file_menu = self.menuBar().addMenu("&File")
@@ -737,6 +743,10 @@ class EditorWindow(QMainWindow):
         suffix = "*" if self.dirty else ""
         file_name = str(self.path) if self.path else "Untitled"
         self.setWindowTitle(f"Cuboid Wars Editor - {file_name}{suffix}")
+
+    def resize_to_map(self) -> None:
+        self.canvas.updateGeometry()
+        self.resize(self.sizeHint())
 
     def update_status(self) -> None:
         errors = validate_map(self.map_data)
