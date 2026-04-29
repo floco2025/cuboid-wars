@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "materials": {
+    "ground": {
+      "tile_size": 8.0,
+      "metallic": 0.5,
+      "roughness": 0.5,
+      "repeat": true,
+      "data_textures_linear": true,
+      "textures": {
+        "base_color": "textures/ground/albedo.png",
+        "normal": "textures/ground/normal-dx.png",
+        "occlusion": "textures/ground/ao.png",
+        "metallic_roughness": "textures/ground/metallic-roughness.png"
+      }
+    },
+    "roof": {
+      "tile_size": 6.0,
+      "metallic": 0.5,
+      "roughness": 0.5,
+      "repeat": true,
+      "data_textures_linear": true,
+      "textures": {
+        "base_color": "textures/roof/albedo.png",
+        "normal": "textures/roof/normal-dx.png",
+        "occlusion": "textures/roof/ao.png",
+        "metallic_roughness": "textures/roof/metallic-roughness.png"
+      }
+    },
+    "wall": {
+      "tile_size": 6.0,
+      "metallic": 0.5,
+      "roughness": 0.5,
+      "repeat": true,
+      "data_textures_linear": true,
+      "textures": {
+        "base_color": "textures/wall/albedo.png",
+        "normal": "textures/wall/normal-dx.png",
+        "occlusion": "textures/wall/ao.png",
+        "metallic_roughness": "textures/wall/metallic-roughness.png"
+      }
+    },
+    "cookie": {
+      "metallic": 1.0,
+      "roughness": 1.0,
+      "repeat": false,
+      "data_textures_linear": false,
+      "textures": {
+        "base_color": "textures/cookie/albedo.png",
+        "normal": "textures/cookie/normal-dx.png",
+        "occlusion": "textures/cookie/ao.png",
+        "metallic_roughness": "textures/cookie/metallic-roughness.png"
+      }
+    },
+    "power_up": {
+      "base_color": "item_type_color",
+      "emissive": "item_type_color",
+      "emissive_strength": 0.1,
+      "metallic": 1.0,
+      "roughness": 1.0,
+      "repeat": false,
+      "data_textures_linear": false,
+      "textures": {
+        "base_color": "textures/item/albedo.png",
+        "normal": "textures/item/normal-dx.png",
+        "occlusion": "textures/item/ao.png",
+        "metallic_roughness": "textures/item/metallic-roughness.png"
+      }
+    }
+  },
+  "material_rules": {
+    "floors": [
+      { "material": "ground", "level": 0 },
+      { "material": "roof" }
+    ],
+    "walls": [
+      { "material": "wall" }
+    ],
+    "ramp_tops": [
+      { "material": "ground" }
+    ],
+    "ramp_sides": [
+      { "material": "wall" }
+    ],
+    "items": [
+      { "material": "cookie", "type": "Cookie" },
+      { "material": "power_up" }
+    ]
+  },
+  "models": {
+    "player": {
+      "scene": "models/player.glb#Scene0",
+      "scale": 0.53,
+      "height_offset": 0.0,
+      "animation_speed": 2.0
+    },
+    "wall_light": {
+      "scene": "models/wall_light.glb",
+      "scale": 1.5
+    }
+  },
+  "sounds": {
+    "player_fire": "sounds/player_fires.ogg",
+    "player_dry_click": "sounds/player_dry_click.ogg",
+    "player_hit": "sounds/player_gets_hit.ogg",
+    "player_power_up": "sounds/player_powerup.wav",
+    "player_cookie": "sounds/player_cookie.ogg",
+    "player_bumps_wall": "sounds/player_bumps_wall.ogg",
+    "player_bumps_player": "sounds/player_bumps_player.ogg",
+    "projectile_hits_wall": "sounds/projectile_hits_wall.ogg",
+    "projectile_hits_player": "sounds/projectile_hits_player.ogg"
+  }
+}

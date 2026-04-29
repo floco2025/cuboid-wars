@@ -16,9 +16,9 @@ pub struct AssetRules {
 impl AssetRules {
     pub fn load_default() -> Result<Self> {
         Self::load_from_first_existing(&[
-            Path::new("client/assets/default.toml"),
-            Path::new("assets/default.toml"),
-            Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../client/assets/default.toml")),
+            Path::new("client/assets/default.json"),
+            Path::new("assets/default.json"),
+            Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../client/assets/default.json")),
         ])
     }
 
@@ -26,13 +26,13 @@ impl AssetRules {
         let path = paths
             .iter()
             .find(|path| path.exists())
-            .with_context(|| "could not find asset set at client/assets/default.toml or assets/default.toml")?;
+            .with_context(|| "could not find asset set at client/assets/default.json or assets/default.json")?;
         Self::load_from_path(path)
     }
 
     fn load_from_path(path: &Path) -> Result<Self> {
         let text = fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
-        toml::from_str(&text).with_context(|| format!("failed to parse {}", path.display()))
+        serde_json::from_str(&text).with_context(|| format!("failed to parse {}", path.display()))
     }
 
     #[must_use]

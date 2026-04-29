@@ -26,7 +26,7 @@ Other notable paths:
 - `tools/editor.py` — PySide6 map editor for `server/assets/maps/*.json`.
 - `tools/preview.py` — ASCII map preview/validation helper.
 - `client/assets/` — 3D models, textures, audio.
-- `client/assets/default.toml` — hand-edited TOML asset set for materials, material rules, models, and sounds.
+- `client/assets/default.json` — hand-edited JSON asset set for materials, material rules, models, and sounds.
 - `cert.pem` / `key.pem` — local-dev TLS for QUIC.
 - `launch_clients.sh` — spawns multiple windowed clients for local multiplayer testing.
 - `bacon.toml` — `bacon` job definitions (`check`, `clippy`, `build`, `test`).

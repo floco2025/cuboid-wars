@@ -17,6 +17,6 @@ anyhow = "1"
 bevy = { version = "0.18", features = ["vorbis", "wav", "jpeg", "bevy_gltf"] }
 rand = "0.10.1"
 serde = { version = "1", features = ["derive"] }
-toml = "0.8"
+serde_json = "1"
 whoami = "2.0.1"
 bevy_mod_mipmap_generator = { git = "https://github.com/DGriffin91/bevy_mod_mipmap_generator" }
