@@ -202,7 +202,9 @@ pub fn players_movement_system(
 
         // Apply final position and feedback
         if hits_player {
-            // Stop for player collisions
+            client_pos.y = planned_move.target.y;
+            motion.velocity.y = planned_move.target_vy;
+
             if is_local && let Some(state) = flash_state.as_mut() {
                 trigger_collision_feedback(&mut commands, &asset_server, &mut bump_flash_ui, state, false);
             }

@@ -225,8 +225,9 @@ pub fn player_paths_intersect(start1: &Position, end1: &Position, start2: &Posit
 #[must_use]
 pub fn overlap_player_vs_item(player_pos: &Position, item_pos: &Position, collection_radius: f32) -> bool {
     let dx = player_pos.x - item_pos.x;
+    let dy = player_pos.y - item_pos.y;
     let dz = player_pos.z - item_pos.z;
-    let dist_sq = dx.mul_add(dx, dz * dz);
+    let dist_sq = dx.mul_add(dx, dy.mul_add(dy, dz * dz));
     dist_sq <= collection_radius * collection_radius
 }
 
@@ -696,5 +697,29 @@ mod tests {
 
         assert!(!step.hit_horizontal);
         assert!(step.position.x < pos.x);
+    }
+
+    #[test]
+    fn item_overlap_uses_vertical_distance() {
+        let player = Position {
+            x: 0.0,
+            y: LEVEL_HEIGHT,
+            z: 0.0,
+        };
+        let item = Position { x: 0.0, y: 0.0, z: 0.0 };
+
+        assert!(!overlap_player_vs_item(&player, &item, 1.0));
+    }
+
+    #[test]
+    fn item_overlap_allows_same_level_collection() {
+        let player = Position {
+            x: 0.25,
+            y: 0.0,
+            z: 0.25,
+        };
+        let item = Position { x: 0.0, y: 0.0, z: 0.0 };
+
+        assert!(overlap_player_vs_item(&player, &item, 1.0));
     }
 }

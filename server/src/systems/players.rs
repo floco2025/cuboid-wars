@@ -74,12 +74,12 @@ pub fn players_movement_system(
 
     // Pass 2: Check player-player collisions and apply final positions
     for planned_move in &planned_moves {
-        if overlaps_other_player(planned_move, &planned_moves) {
-            continue;
-        }
-
         if let Ok((_, mut pos, mut motion, _, _)) = query.get_mut(planned_move.entity) {
-            *pos = planned_move.target;
+            if overlaps_other_player(planned_move, &planned_moves) {
+                pos.y = planned_move.target.y;
+            } else {
+                *pos = planned_move.target;
+            }
             motion.velocity.y = planned_move.target_vy;
         }
     }
