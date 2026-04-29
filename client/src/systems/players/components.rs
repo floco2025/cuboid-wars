@@ -9,6 +9,7 @@ use bevy::prelude::*;
 pub struct BumpFlashState {
     pub was_colliding: bool,
     pub flash_timer: f32,
+    pub release_timer: f32,
 }
 
 // ============================================================================

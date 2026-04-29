@@ -13,6 +13,7 @@ use common::{
 // ============================================================================
 
 const BUMP_FLASH_DURATION: f32 = 0.08;
+const BUMP_COLLISION_RELEASE_DELAY: f32 = 0.25;
 
 fn decay_flash_timer(
     state: &mut Mut<BumpFlashState>,
@@ -62,6 +63,18 @@ fn trigger_collision_feedback(
     }
 
     state.was_colliding = true;
+    state.release_timer = BUMP_COLLISION_RELEASE_DELAY;
+}
+
+fn release_collision_feedback_after_clear_frames(state: &mut Mut<BumpFlashState>, delta: f32) {
+    if !state.was_colliding {
+        return;
+    }
+
+    state.release_timer -= delta;
+    if state.release_timer <= 0.0 {
+        state.was_colliding = false;
+    }
 }
 
 // ============================================================================
@@ -177,7 +190,7 @@ pub fn players_movement_system(
                 start: *client_pos,
                 target: target_pos,
                 target_vy: step.vy,
-                collides: step.hit_horizontal,
+                blocked: step.blocked,
             });
         } else {
             planned_moves.push(PlannedMove {
@@ -185,7 +198,7 @@ pub fn players_movement_system(
                 start: *client_pos,
                 target: target_pos,
                 target_vy: motion.velocity.y,
-                collides: false,
+                blocked: false,
             });
         }
     }
@@ -213,12 +226,12 @@ pub fn players_movement_system(
             motion.velocity.y = planned_move.target_vy;
 
             if let Some(state) = flash_state.as_mut() {
-                if planned_move.collides {
+                if planned_move.blocked {
                     if is_local {
                         trigger_collision_feedback(&mut commands, &asset_server, &mut bump_flash_ui, state, true);
                     }
                 } else {
-                    state.was_colliding = false;
+                    release_collision_feedback_after_clear_frames(state, delta);
                 }
             }
         }

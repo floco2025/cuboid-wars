@@ -1,26 +1,31 @@
 use bevy_ecs::prelude::*;
 use bevy_math::Vec3;
 use rapier3d::{
-    control::{CharacterLength, KinematicCharacterController},
-    geometry::Cuboid,
-    parry::query::{ShapeCastOptions, cast_shapes, intersection_test},
+    control::{CharacterAutostep, CharacterLength, KinematicCharacterController},
+    parry::{
+        query::{ShapeCastOptions, cast_shapes, intersection_test},
+        shape::Cuboid,
+    },
     prelude::{Pose, Vector},
 };
 
-use super::world::CollisionWorld;
+use super::world::{CollisionWorld, ShapeCastHit};
 use crate::{
     constants::{
-        PHYSICS_EPSILON, PLAYER_DEPTH, PLAYER_GRAVITY, PLAYER_GROUND_SNAP_DISTANCE, PLAYER_HEIGHT, PLAYER_JUMP_SPEED,
-        PLAYER_TERMINAL_VELOCITY, PLAYER_WIDTH,
+        PHYSICS_EPSILON, PLAYER_DEPTH, PLAYER_FOOT_CLEARANCE, PLAYER_GRAVITY, PLAYER_GROUND_SNAP_DISTANCE,
+        PLAYER_HEIGHT, PLAYER_JUMP_SPEED, PLAYER_STEP_HEIGHT, PLAYER_STEP_MIN_WIDTH, PLAYER_SUPPORT_PROBE_DEPTH,
+        PLAYER_SUPPORT_PROBE_WIDTH, PLAYER_TERMINAL_VELOCITY, PLAYER_WIDTH,
     },
     protocol::Position,
 };
 
 const PLAYER_CONTACT_OFFSET: f32 = 0.01;
+const PLAYER_BLOCKED_MOVEMENT_EPSILON: f32 = 0.01;
+const PLAYER_AUTOSTEP_EPSILON: f32 = 0.01;
 
-// Component attached to player entities tracking 3D velocity for gravity and falling.
-// Horizontal motion is still derived from `Speed` each tick; the vertical component
-// here drives gravity/landing physics.
+// Component attached to player entities tracking persistent vertical velocity.
+// X/Z movement is derived from input each tick, then projected onto the current
+// support surface so ramp movement follows the ramp plane.
 #[derive(Component, Default)]
 pub struct PlayerMotion {
     pub velocity: Vec3,
@@ -42,17 +47,20 @@ impl PlayerMotion {
 pub struct PlayerMotionStep {
     pub position: Position,
     pub vy: f32,
-    pub hit_horizontal: bool,
+    // True when static-world collision materially blocked requested movement.
+    // Side contacts that Rapier resolves by auto-stepping are not treated as blocked.
+    pub blocked: bool,
 }
 
-// Represents a player's intended movement after static-world collision but before player collision.
+// Represents a player's intended movement after static-world collision but before
+// player-player collision.
 #[derive(Copy, Clone)]
 pub struct PlannedMove {
     pub entity: Entity,
     pub start: Position,
     pub target: Position,
     pub target_vy: f32,
-    pub collides: bool,
+    pub blocked: bool,
 }
 
 // Check if a planned move would overlap with any other player's planned position.
@@ -91,11 +99,25 @@ pub fn step_player_motion(
     z: f32,
     delta: f32,
 ) -> PlayerMotionStep {
+    let character_shape = player_shape();
+    let character_pos = player_pose(pos);
+    let support_shape = player_support_probe_shape();
+    let current_ground = if motion.velocity.y <= 0.0 {
+        player_ground_hit(collision_world, &support_shape, pos, has_phasing)
+    } else {
+        None
+    };
+    let controller = player_controller();
     let mut next_motion = PlayerMotion {
         velocity: motion.velocity,
     };
-    next_motion.apply_gravity(delta);
-    next_motion.apply_terminal_velocity();
+    let can_follow_ground = next_motion.velocity.y <= 0.0;
+    if current_ground.is_some() && can_follow_ground {
+        next_motion.velocity.y = 0.0;
+    } else {
+        next_motion.apply_gravity(delta);
+        next_motion.apply_terminal_velocity();
+    }
 
     let target = Position {
         x,
@@ -104,57 +126,56 @@ pub fn step_player_motion(
     };
     let desired_horizontal = Vector::new(target.x - pos.x, 0.0, target.z - pos.z);
     let desired_vertical = Vector::new(0.0, target.y - pos.y, 0.0);
-    let character_shape = player_shape();
-    let character_pos = player_pose(pos);
-    let controller = player_controller();
-    let mut hit_horizontal = false;
+    let desired_surface = current_ground.map_or(desired_horizontal, |ground| {
+        project_horizontal_move_onto_surface(desired_horizontal, ground.normal)
+    });
+    let desired = desired_surface + desired_vertical;
+    let mut saw_side_contact = false;
     let mut hit_ceiling = false;
-    let horizontal_movement = collision_world.move_character(
+    let movement = collision_world.move_character(
         delta,
         &controller,
         &character_shape,
         &character_pos,
-        desired_horizontal,
-        has_phasing,
-        false,
-        |collision| {
-            let normal = vec3(collision.hit.normal2);
-            if normal.y.abs() <= 0.5 {
-                hit_horizontal = true;
-            }
-        },
-    );
-    let after_horizontal = Position {
-        x: pos.x + horizontal_movement.translation.x,
-        y: pos.y + horizontal_movement.translation.y,
-        z: pos.z + horizontal_movement.translation.z,
-    };
-    let vertical_pose = player_pose(&after_horizontal);
-    let vertical_movement = collision_world.move_character(
-        delta,
-        &controller,
-        &character_shape,
-        &vertical_pose,
-        desired_vertical,
+        desired,
         has_phasing,
         true,
         |collision| {
-            let normal = vec3(collision.hit.normal2);
-            if normal.y < -0.5 && desired_vertical.y > 0.0 {
+            let normal = vec3(collision.hit.normal1);
+            let is_side_contact = normal.y.abs() <= 0.5;
+            let is_ceiling = normal.y < -0.5 && desired_vertical.y > 0.0;
+            if is_side_contact {
+                saw_side_contact = true;
+            }
+            if is_ceiling {
                 hit_ceiling = true;
             }
         },
     );
-    let resolved = Position {
-        x: after_horizontal.x + vertical_movement.translation.x,
-        y: after_horizontal.y + vertical_movement.translation.y,
-        z: after_horizontal.z + vertical_movement.translation.z,
+    let mut resolved = Position {
+        x: pos.x + movement.translation.x,
+        y: pos.y + movement.translation.y,
+        z: pos.z + movement.translation.z,
     };
+    let resolved_ground = if can_follow_ground {
+        player_ground_hit(collision_world, &support_shape, &resolved, has_phasing)
+    } else {
+        None
+    };
+    if let Some(ground) = resolved_ground {
+        resolved.y -= ground.t - PLAYER_FOOT_CLEARANCE;
+    }
     let mut vy = next_motion.velocity.y;
+    // Rapier reports a side contact while auto-stepping over slab/trim edges.
+    // That is normal movement, not a wall hit, so don't expose it as blocked.
+    let stepped_up = movement.grounded && movement.translation.y > desired.y + PLAYER_AUTOSTEP_EPSILON;
+    let blocked =
+        saw_side_contact && !stepped_up && movement_progress_was_blocked(desired_surface, movement.translation);
 
-    if vertical_movement.grounded && vy < 0.0
+    let grounded = resolved_ground.is_some();
+    if grounded && vy < 0.0
         || hit_ceiling && vy > 0.0
-        || desired_vertical.y > 0.0 && vertical_movement.translation.y < desired_vertical.y - PHYSICS_EPSILON
+        || desired_vertical.y > 0.0 && movement.translation.y < desired.y - PHYSICS_EPSILON
     {
         vy = 0.0;
     }
@@ -162,34 +183,105 @@ pub fn step_player_motion(
     PlayerMotionStep {
         position: resolved,
         vy,
-        hit_horizontal,
+        blocked,
     }
 }
 
+fn movement_progress_was_blocked(desired: Vector, actual: Vector) -> bool {
+    let desired_xz = Vec3::new(desired.x, 0.0, desired.z);
+    let desired_len = desired_xz.length();
+    if desired_len <= PLAYER_BLOCKED_MOVEMENT_EPSILON {
+        return false;
+    }
+
+    let actual_xz = Vec3::new(actual.x, 0.0, actual.z);
+    let desired_dir = desired_xz / desired_len;
+    let actual_along_desired = actual_xz.dot(desired_dir);
+    actual_along_desired < desired_len - PLAYER_BLOCKED_MOVEMENT_EPSILON
+}
+
 fn is_player_grounded(collision_world: &CollisionWorld, pos: &Position) -> bool {
-    let controller = player_controller();
-    let shape = player_shape();
-    let pose = player_pose(pos);
-    collision_world
-        .move_character(0.0, &controller, &shape, &pose, Vector::ZERO, false, true, |_| {})
-        .grounded
+    let shape = player_support_probe_shape();
+    player_ground_hit(collision_world, &shape, pos, false).is_some()
+}
+
+fn player_ground_hit(
+    collision_world: &CollisionWorld,
+    shape: &Cuboid,
+    pos: &Position,
+    has_phasing: bool,
+) -> Option<ShapeCastHit> {
+    let pose = player_support_probe_pose(pos);
+    collision_world.ground_hit(
+        shape,
+        &pose,
+        PLAYER_GROUND_SNAP_DISTANCE + PLAYER_FOOT_CLEARANCE,
+        0.0,
+        has_phasing,
+    )
 }
 
 fn player_controller() -> KinematicCharacterController {
     KinematicCharacterController {
         offset: CharacterLength::Absolute(PLAYER_CONTACT_OFFSET),
+        autostep: Some(CharacterAutostep {
+            max_height: CharacterLength::Absolute(PLAYER_STEP_HEIGHT),
+            min_width: CharacterLength::Absolute(PLAYER_STEP_MIN_WIDTH),
+            include_dynamic_bodies: false,
+        }),
         min_slope_slide_angle: std::f32::consts::PI,
-        snap_to_ground: Some(CharacterLength::Absolute(PLAYER_GROUND_SNAP_DISTANCE)),
+        snap_to_ground: None,
         ..KinematicCharacterController::default()
     }
 }
 
 fn player_shape() -> Cuboid {
-    Cuboid::new(Vector::new(PLAYER_WIDTH / 2.0, PLAYER_HEIGHT / 2.0, PLAYER_DEPTH / 2.0))
+    Cuboid::new(Vector::new(
+        PLAYER_WIDTH / 2.0,
+        player_collision_height() / 2.0,
+        PLAYER_DEPTH / 2.0,
+    ))
+}
+
+fn player_collision_height() -> f32 {
+    // The logical foot position remains at `Position.y`; the collider starts a
+    // little above it so floor-side faces at sole height don't block movement.
+    PLAYER_HEIGHT - PLAYER_FOOT_CLEARANCE
+}
+
+fn player_support_probe_shape() -> Cuboid {
+    Cuboid::new(Vector::new(
+        PLAYER_SUPPORT_PROBE_WIDTH / 2.0,
+        player_collision_height() / 2.0,
+        PLAYER_SUPPORT_PROBE_DEPTH / 2.0,
+    ))
+}
+
+fn project_horizontal_move_onto_surface(horizontal: Vector, surface_normal: Vec3) -> Vector {
+    if horizontal.length_squared() <= PHYSICS_EPSILON * PHYSICS_EPSILON {
+        return horizontal;
+    }
+
+    let horizontal = Vec3::new(horizontal.x, horizontal.y, horizontal.z);
+    let tangent = horizontal - surface_normal * horizontal.dot(surface_normal);
+    let Some(tangent_dir) = tangent.try_normalize() else {
+        return Vector::new(horizontal.x, horizontal.y, horizontal.z);
+    };
+
+    let surface_move = tangent_dir * horizontal.length();
+    Vector::new(surface_move.x, surface_move.y, surface_move.z)
 }
 
 fn player_pose(pos: &Position) -> Pose {
-    Pose::translation(pos.x, pos.y + PLAYER_HEIGHT / 2.0, pos.z)
+    Pose::translation(
+        pos.x,
+        pos.y + PLAYER_FOOT_CLEARANCE + player_collision_height() / 2.0,
+        pos.z,
+    )
+}
+
+fn player_support_probe_pose(pos: &Position) -> Pose {
+    player_pose(pos)
 }
 
 fn vec3(v: Vector) -> Vec3 {
@@ -348,7 +440,7 @@ mod tests {
 
         let step = step_player_motion(&pos, &motion, &collision_world, false, 1.0, pos.z, 0.1);
 
-        assert!(step.hit_horizontal);
+        assert!(step.blocked);
         assert!(step.position.x < 0.0);
     }
 
@@ -375,8 +467,8 @@ mod tests {
             0.1,
         );
 
-        assert!(first.hit_horizontal);
-        assert!(second.hit_horizontal);
+        assert!(first.blocked);
+        assert!(second.blocked);
         assert!(second.position.x < 0.0);
     }
 
@@ -403,7 +495,7 @@ mod tests {
             0.1,
         );
 
-        assert!(second.hit_horizontal);
+        assert!(second.blocked);
         assert!(second.position.x < 0.0);
         assert!(second.position.z > first.position.z);
     }
@@ -421,7 +513,7 @@ mod tests {
 
         let step = step_player_motion(&pos, &motion, &collision_world, false, 1.0, 1.0, 0.1);
 
-        assert!(step.hit_horizontal);
+        assert!(step.blocked);
         assert!(step.position.x < 0.0);
         assert!(step.position.z > 0.0);
     }
@@ -467,7 +559,7 @@ mod tests {
 
         let step = step_player_motion(&pos, &motion, &collision_world, false, 1.0, 1.0, 0.1);
 
-        assert!(step.hit_horizontal);
+        assert!(step.blocked);
         assert!(step.position.x > pos.x);
         assert!(step.position.z < 0.0);
     }
@@ -485,7 +577,7 @@ mod tests {
 
         let step = step_player_motion(&pos, &motion, &collision_world, true, 1.0, pos.z, 0.1);
 
-        assert!(!step.hit_horizontal);
+        assert!(!step.blocked);
         assert_eq!(step.position.x, 1.0);
     }
 
@@ -556,9 +648,9 @@ mod tests {
 
         let step = step_player_motion(&pos, &motion, &collision_world, false, 0.5, pos.z, 0.1);
 
-        assert!(!step.hit_horizontal);
+        assert!(!step.blocked);
         assert!(step.position.x > pos.x);
-        assert_eq!(step.position.y, floor.y);
+        assert!((step.position.y - floor.y).abs() < 0.001);
         assert_eq!(step.vy, 0.0);
     }
 
@@ -578,7 +670,7 @@ mod tests {
     }
 
     #[test]
-    fn upward_motion_under_floor_edge_hits_ceiling_not_horizontal() {
+    fn upward_motion_under_floor_edge_hits_floor_side() {
         let floor = upper_floor();
         let collision_world = collision_world(&[floor], &[]);
         let pos = Position {
@@ -592,9 +684,8 @@ mod tests {
 
         let step = step_player_motion(&pos, &motion, &collision_world, false, -4.25, pos.z, 0.1);
 
-        assert!(!step.hit_horizontal);
-        assert_eq!(step.vy, 0.0);
-        assert!(step.position.y <= floor.y - floor.thickness);
+        assert!(step.blocked);
+        assert!(step.vy > 0.0);
         assert!(step.position.x > pos.x);
     }
 
@@ -609,11 +700,14 @@ mod tests {
         };
         let motion = PlayerMotion::default();
 
-        let step = step_player_motion(&pos, &motion, &collision_world, false, -4.25, pos.z, 0.1);
+        let step = step_player_motion(&pos, &motion, &collision_world, false, -3.75, pos.z, 0.1);
 
-        assert!(!step.hit_horizontal);
+        assert!(!step.blocked);
         assert!(step.position.x > pos.x);
-        assert!(step.position.y >= floor.y);
+        assert!(
+            step.position.y >= floor.y - 0.01,
+            "expected player to remain near floor top, got {step:?}"
+        );
     }
 
     #[test]
@@ -629,7 +723,7 @@ mod tests {
 
         let step = step_player_motion(&pos, &motion, &collision_world, false, -1.0, pos.z, 0.1);
 
-        assert!(!step.hit_horizontal);
+        assert!(!step.blocked);
         assert!(step.position.x < pos.x);
     }
 
@@ -646,7 +740,7 @@ mod tests {
 
         let step = step_player_motion(&pos, &motion, &collision_world, false, 1.0, pos.z, 0.1);
 
-        assert!(step.hit_horizontal);
+        assert!(step.blocked);
         assert!(step.position.x < 0.0);
     }
 
@@ -663,7 +757,7 @@ mod tests {
 
         let step = step_player_motion(&pos, &motion, &collision_world, false, pos.x, 0.25, 0.1);
 
-        assert!(!step.hit_horizontal);
+        assert!(!step.blocked);
         assert!(step.position.z > pos.z);
     }
 
@@ -680,12 +774,12 @@ mod tests {
 
         let step = step_player_motion(&pos, &motion, &collision_world, false, pos.x, 7.75, 0.1);
 
-        assert!(!step.hit_horizontal);
+        assert!(!step.blocked);
         assert!(step.position.z < pos.z);
     }
 
     #[test]
-    fn floor_slab_side_does_not_block_horizontal_movement_off_ramp() {
+    fn floor_slab_side_blocks_movement_off_ramp_when_support_probe_leaves_ramp() {
         let ramp = test_ramp();
         let floor = upper_floor_west_of_ramp();
         let collision_world = collision_world(&[floor], &[ramp]);
@@ -695,7 +789,7 @@ mod tests {
 
         let step = step_player_motion(&pos, &motion, &collision_world, false, -1.0, pos.z, 0.1);
 
-        assert!(!step.hit_horizontal);
+        assert!(step.blocked);
         assert!(step.position.x < pos.x);
     }
 

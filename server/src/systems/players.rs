@@ -68,7 +68,7 @@ pub fn players_movement_system(
             start: *pos,
             target: step.position,
             target_vy: step.vy,
-            collides: step.hit_horizontal,
+            blocked: step.blocked,
         });
     }
 

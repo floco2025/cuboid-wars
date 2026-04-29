@@ -2,7 +2,10 @@ use bevy_ecs::prelude::Resource;
 use bevy_math::Vec3;
 use rapier3d::{
     control::{CharacterCollision, EffectiveCharacterMovement, KinematicCharacterController},
-    parry::{query::ShapeCastOptions, shape::Ball},
+    parry::{
+        query::{ShapeCastHit as RapierShapeCastHit, ShapeCastOptions},
+        shape::Ball,
+    },
     prelude::{
         BroadPhaseBvh, Collider, ColliderBuilder, ColliderHandle, ColliderSet, IntegrationParameters, NarrowPhase,
         Pose, QueryFilter, RigidBodySet, Shape, Vector,
@@ -165,6 +168,36 @@ impl CollisionWorld {
     }
 
     #[must_use]
+    pub(crate) fn ground_hit(
+        &self,
+        character_shape: &dyn Shape,
+        character_pos: &Pose,
+        max_distance: f32,
+        target_distance: f32,
+        has_phasing: bool,
+    ) -> Option<ShapeCastHit> {
+        let include = |_: ColliderHandle, collider: &Collider| {
+            !(has_phasing && ColliderKind::from_user_data(collider.user_data) == Some(ColliderKind::Wall))
+        };
+        let query_pipeline = self.broad_phase.as_query_pipeline(
+            self.narrow_phase.query_dispatcher(),
+            &self.bodies,
+            &self.colliders,
+            QueryFilter::default().predicate(&include),
+        );
+        let options = ShapeCastOptions {
+            max_time_of_impact: max_distance,
+            target_distance,
+            stop_at_penetration: false,
+            compute_impact_geometry_on_penetration: true,
+        };
+
+        query_pipeline
+            .cast_shape(character_pos, Vector::NEG_Y, character_shape, options)
+            .and_then(|(_, hit)| upward_surface_hit(hit))
+    }
+
+    #[must_use]
     pub(crate) fn projectile_spawn_overlaps_blocker(&self, position: Vec3, radius: f32) -> bool {
         self.ball_overlaps_kinds(position, radius, &[ColliderKind::Wall, ColliderKind::Floor])
     }
@@ -205,6 +238,19 @@ impl CollisionWorld {
 
         query_pipeline.intersect_shape(pose, &shape).next().is_some()
     }
+}
+
+fn upward_surface_hit(hit: RapierShapeCastHit) -> Option<ShapeCastHit> {
+    [hit.normal1, hit.normal2, -hit.normal1, -hit.normal2]
+        .into_iter()
+        .map(|normal| Vec3::new(normal.x, normal.y, normal.z))
+        .max_by(|a, b| a.y.total_cmp(&b.y))
+        .filter(|normal| normal.y > 0.1)
+        .and_then(|normal| normal.try_normalize())
+        .map(|normal| ShapeCastHit {
+            normal,
+            t: hit.time_of_impact,
+        })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
