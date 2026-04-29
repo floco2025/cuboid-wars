@@ -71,20 +71,18 @@ pub struct SLogoff {
     pub graceful: bool,
 }
 
-// Server to Client: Movement-input update with position for reconciliation.
+// Server to Client: Movement state update for reconciliation after input changes.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SMoveInput {
     pub id: PlayerId,
-    pub move_input: MoveInput,
-    pub pos: Position,
+    pub movement: PlayerMovementState,
 }
 
-// Server to Client: Player started a jump.
+// Server to Client: Player started a jump with authoritative movement state.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SJump {
     pub id: PlayerId,
-    pub pos: Position,
-    pub vy: f32,
+    pub movement: PlayerMovementState,
 }
 
 // Server to Client: Player facing direction update.

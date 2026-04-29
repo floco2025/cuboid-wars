@@ -12,7 +12,7 @@ use crate::{
 use common::{
     constants::UPDATE_BROADCAST_INTERVAL,
     markers::{ItemMarker, PlayerMarker},
-    physics::{CollisionWorld, PlayerMotion},
+    physics::{CollisionWorld, PlayerVerticalMotion},
     protocol::{MapLayout, *},
 };
 
@@ -33,7 +33,7 @@ pub fn network_client_message_system(
     map_config: Res<MapConfig>,
     items: Res<ItemMap>,
     player_data: Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
-    motions: Query<&PlayerMotion, With<PlayerMarker>>,
+    motions: Query<&PlayerVerticalMotion, With<PlayerMarker>>,
     item_positions: Query<&Position, With<ItemMarker>>,
 ) {
     while let Ok((id, event)) = from_clients.try_recv() {
@@ -103,7 +103,7 @@ pub fn network_broadcast_state_system(
     players: Res<PlayerMap>,
     items: Res<ItemMap>,
     player_data: Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
-    motions: Query<&PlayerMotion, With<PlayerMarker>>,
+    motions: Query<&PlayerVerticalMotion, With<PlayerMarker>>,
     item_positions: Query<&Position, With<ItemMarker>>,
 ) {
     *timer += time.delta_secs();

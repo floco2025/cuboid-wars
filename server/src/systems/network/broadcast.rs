@@ -6,7 +6,7 @@ use crate::{
 };
 use common::{
     markers::{ItemMarker, PlayerMarker},
-    physics::PlayerMotion,
+    physics::PlayerVerticalMotion,
     protocol::*,
 };
 
@@ -41,7 +41,7 @@ pub fn broadcast_to_all(players: &PlayerMap, message: ServerMessage) {
 pub fn snapshot_logged_in_players(
     players: &PlayerMap,
     player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
-    motions: &Query<&PlayerMotion, With<PlayerMarker>>,
+    motions: &Query<&PlayerVerticalMotion, With<PlayerMarker>>,
 ) -> Vec<(PlayerId, Player)> {
     players
         .0
@@ -51,14 +51,12 @@ pub fn snapshot_logged_in_players(
                 return None;
             }
             let (pos, move_input, face_dir) = player_data.get(info.entity).ok()?;
-            let vy = motions.get(info.entity).map(|m| m.velocity.y).unwrap_or(0.0);
+            let vertical_velocity = motions.get(info.entity).map_or(0.0, |m| m.vertical_velocity);
             Some((
                 *player_id,
                 Player {
                     name: info.name.clone(),
-                    pos: *pos,
-                    move_input: *move_input,
-                    vy,
+                    movement: PlayerMovementState::new(*pos, *move_input, vertical_velocity),
                     face_dir: face_dir.0,
                     hits: info.hits,
                     speed_power_up: info.has_speed(),

@@ -5,7 +5,10 @@ use crate::{
     resources::{MyPlayerId, PlayerInfo, PlayerMap},
     spawning::spawn_player,
 };
-use common::{physics::CollisionWorld, protocol::*};
+use common::{
+    physics::{CollisionWorld, PlayerVerticalMotion},
+    protocol::*,
+};
 
 // ============================================================================
 // Login/Logout Handlers
@@ -57,11 +60,14 @@ pub fn handle_player_login_message(
         asset_set,
         msg.id.0,
         &msg.player.name,
-        &msg.player.pos,
-        msg.player.move_input,
+        &msg.player.movement.pos,
+        msg.player.movement.move_input,
         msg.player.face_dir,
         false,
     );
+    commands.entity(entity).insert(PlayerVerticalMotion {
+        vertical_velocity: msg.player.movement.vertical_velocity,
+    });
     players.0.insert(
         msg.id,
         PlayerInfo {

@@ -203,13 +203,31 @@ pub enum ItemType {
     Cookie,
 }
 
+// Player movement state needed to continue client-side prediction from an
+// authoritative server point.
+#[derive(Debug, Clone, Copy, Encode, Decode)]
+pub struct PlayerMovementState {
+    pub pos: Position,
+    pub move_input: MoveInput,
+    pub vertical_velocity: f32, // m/s, negative = falling
+}
+
+impl PlayerMovementState {
+    #[must_use]
+    pub const fn new(pos: Position, move_input: MoveInput, vertical_velocity: f32) -> Self {
+        Self {
+            pos,
+            move_input,
+            vertical_velocity,
+        }
+    }
+}
+
 // Player - complete player state snapshot sent across the network.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct Player {
     pub name: String,
-    pub pos: Position,
-    pub move_input: MoveInput,
-    pub vy: f32, // vertical velocity (m/s, negative = falling)
+    pub movement: PlayerMovementState,
     pub face_dir: f32,
     pub hits: i32,
     pub speed_power_up: bool,
@@ -224,9 +242,7 @@ impl Player {
     pub const fn new(name: String, pos: Position, move_input: MoveInput, face_dir: f32, hits: i32) -> Self {
         Self {
             name,
-            pos,
-            move_input,
-            vy: 0.0,
+            movement: PlayerMovementState::new(pos, move_input, 0.0),
             face_dir,
             hits,
             speed_power_up: false,

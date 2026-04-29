@@ -10,7 +10,7 @@ use common::protocol::Position;
 pub struct ServerReconciliation {
     pub client_pos: Position,
     pub server_pos: Position,
-    pub server_vel: Vec3,
+    pub server_velocity: Vec3,
     pub timer: f32,
     pub rtt: f32,
 }

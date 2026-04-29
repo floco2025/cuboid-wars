@@ -11,13 +11,19 @@ use crate::{
 };
 use common::{
     markers::PlayerMarker,
-    physics::{CollisionWorld, PlayerMotion},
+    physics::{CollisionWorld, PlayerVerticalMotion},
     protocol::*,
 };
 
 // ============================================================================
 // Player Message Handlers
 // ============================================================================
+
+fn movement_velocity(movement: PlayerMovementState, has_speed_power_up: bool) -> Vec3 {
+    let mut velocity = movement.move_input.to_velocity_for_player(has_speed_power_up);
+    velocity.y = movement.vertical_velocity;
+    velocity
+}
 
 // Handle player move-input update with server reconciliation.
 pub fn handle_player_move_input_message(
@@ -29,22 +35,22 @@ pub fn handle_player_move_input_message(
 ) {
     trace!("{:?} move input: {:?}", msg.id, msg);
     if let Some(player) = players.0.get(&msg.id) {
-        let server_vel = msg.move_input.to_velocity_for_player(player.speed_power_up);
+        let server_velocity = movement_velocity(msg.movement, player.speed_power_up);
 
         // Add server reconciliation if we have client position
         if let Ok((client_pos, _, _)) = player_data.get(player.entity) {
             commands.entity(player.entity).insert((
-                msg.move_input, // Never the local player, so we can always overwrite intent
+                msg.movement.move_input, // Never the local player, so we can always overwrite intent
                 ServerReconciliation {
                     client_pos: *client_pos,
-                    server_pos: msg.pos,
-                    server_vel,
+                    server_pos: msg.movement.pos,
+                    server_velocity,
                     timer: 0.0,
                     rtt: rtt.rtt.as_secs_f32(),
                 },
             ));
         } else {
-            commands.entity(player.entity).insert(msg.move_input);
+            commands.entity(player.entity).insert(msg.movement.move_input);
         }
     }
 }
@@ -57,17 +63,18 @@ pub fn handle_player_jump_message(
     msg: SJump,
 ) {
     if let Some(player) = players.0.get(&msg.id)
-        && let Ok((client_pos, move_input, _)) = player_data.get(player.entity)
+        && let Ok((client_pos, _, _)) = player_data.get(player.entity)
     {
-        let server_vel = move_input.to_velocity_for_player(player.speed_power_up);
+        let server_velocity = movement_velocity(msg.movement, player.speed_power_up);
         commands.entity(player.entity).insert((
-            PlayerMotion {
-                velocity: Vec3::new(0.0, msg.vy, 0.0),
+            msg.movement.move_input,
+            PlayerVerticalMotion {
+                vertical_velocity: msg.movement.vertical_velocity,
             },
             ServerReconciliation {
                 client_pos: *client_pos,
-                server_pos: msg.pos,
-                server_vel,
+                server_pos: msg.movement.pos,
+                server_velocity,
                 timer: 0.0,
                 rtt: rtt.rtt.as_secs_f32(),
             },
@@ -165,7 +172,7 @@ pub fn handle_player_death_message(
     if let Some(player) = players.0.get(&msg.id) {
         commands
             .entity(player.entity)
-            .insert((msg.respawn_pos, PlayerMotion::default()));
+            .insert((msg.respawn_pos, PlayerVerticalMotion::default()));
     }
 }
 
@@ -245,19 +252,19 @@ pub fn sync_players(
             asset_set,
             id.0,
             &player.name,
-            &player.pos,
-            player.move_input,
+            &player.movement.pos,
+            player.movement.move_input,
             player.face_dir,
             is_local,
         );
-        commands.entity(entity).insert(PlayerMotion {
-            velocity: Vec3::new(0.0, player.vy, 0.0),
+        commands.entity(entity).insert(PlayerVerticalMotion {
+            vertical_velocity: player.movement.vertical_velocity,
         });
 
         if is_local && let Ok(camera_entity) = camera_query.single() {
             let camera_rotation = player.face_dir + std::f32::consts::PI;
             commands.entity(camera_entity).insert(
-                Transform::from_xyz(player.pos.x, 2.5, player.pos.z + 3.0)
+                Transform::from_xyz(player.movement.pos.x, 2.5, player.movement.pos.z + 3.0)
                     .with_rotation(Quat::from_rotation_y(camera_rotation)),
             );
         }
@@ -290,25 +297,25 @@ pub fn sync_players(
     for (id, server_player) in server_players {
         if let Some(client_player) = players.0.get_mut(id) {
             if let Ok((client_pos, _, _)) = player_data.get(client_player.entity) {
-                let server_vel = server_player
-                    .move_input
-                    .to_velocity_for_player(server_player.speed_power_up);
+                let server_velocity = movement_velocity(server_player.movement, server_player.speed_power_up);
 
                 // The local player's input is always authoritative locally; don't overwrite
                 // it from server updates.
                 if *id != my_player_id {
-                    commands.entity(client_player.entity).insert(server_player.move_input);
+                    commands
+                        .entity(client_player.entity)
+                        .insert(server_player.movement.move_input);
                 }
                 commands.entity(client_player.entity).insert(ServerReconciliation {
                     client_pos: *client_pos,
-                    server_pos: server_player.pos,
-                    server_vel,
+                    server_pos: server_player.movement.pos,
+                    server_velocity,
                     timer: 0.0,
                     rtt: rtt.rtt.as_secs_f32(),
                 });
                 if *id != my_player_id {
-                    commands.entity(client_player.entity).insert(PlayerMotion {
-                        velocity: Vec3::new(0.0, server_player.vy, 0.0),
+                    commands.entity(client_player.entity).insert(PlayerVerticalMotion {
+                        vertical_velocity: server_player.movement.vertical_velocity,
                     });
                 }
             }

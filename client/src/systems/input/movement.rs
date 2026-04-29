@@ -13,7 +13,7 @@ use crate::{
         CameraViewMode, ClientToServerChannel, InputSettings, LocalPlayerInfo, MyPlayerId, PlayerMap, TopDownCameraYaw,
     },
 };
-use common::physics::{CollisionWorld, PlayerMotion, try_start_player_jump};
+use common::physics::{CollisionWorld, PlayerVerticalMotion, try_start_player_jump};
 use common::protocol::*;
 
 const MAX_PITCH: f32 = std::f32::consts::FRAC_PI_2 - 0.05;
@@ -31,7 +31,7 @@ pub fn input_movement_system(
     mut local_player_info: ResMut<LocalPlayerInfo>,
     mut top_down_camera_yaw: ResMut<TopDownCameraYaw>,
     mut local_player_query: Query<
-        (&Position, &mut MoveInput, &mut FaceDirection, &mut PlayerMotion),
+        (&Position, &mut MoveInput, &mut FaceDirection, &mut PlayerVerticalMotion),
         With<LocalPlayerMarker>,
     >,
     mut camera_query: Query<&mut Transform, (With<Camera3d>, With<MainCameraMarker>)>,
@@ -100,7 +100,7 @@ fn handle_unlocked_cursor(
     to_server: &Res<ClientToServerChannel>,
     local_player_info: &mut LocalPlayerInfo,
     local_player_query: &mut Query<
-        (&Position, &mut MoveInput, &mut FaceDirection, &mut PlayerMotion),
+        (&Position, &mut MoveInput, &mut FaceDirection, &mut PlayerVerticalMotion),
         With<LocalPlayerMarker>,
     >,
 ) {
@@ -212,7 +212,7 @@ fn update_player_input_face_and_jump(
     jump_requested: bool,
     collision_world: Option<&CollisionWorld>,
     local_player_query: &mut Query<
-        (&Position, &mut MoveInput, &mut FaceDirection, &mut PlayerMotion),
+        (&Position, &mut MoveInput, &mut FaceDirection, &mut PlayerVerticalMotion),
         With<LocalPlayerMarker>,
     >,
 ) {

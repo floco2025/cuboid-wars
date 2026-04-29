@@ -3,8 +3,10 @@ use bevy::prelude::*;
 use super::components::BumpFlashState;
 use crate::{config::AssetSet, markers::*, resources::PlayerMap, systems::network::ServerReconciliation};
 use common::{
-    constants::{ALWAYS_PHASING, PHYSICS_EPSILON, PLAYER_SPEED, UPDATE_BROADCAST_INTERVAL},
-    physics::{CollisionWorld, PlannedMove, PlayerMotion, overlaps_other_player, step_player_motion},
+    constants::{
+        ALWAYS_PHASING, PHYSICS_EPSILON, PLAYER_GROUND_SNAP_DISTANCE, PLAYER_SPEED, UPDATE_BROADCAST_INTERVAL,
+    },
+    physics::{CollisionWorld, PlannedMove, PlayerVerticalMotion, overlaps_other_player, step_player_movement},
     protocol::{MoveInput, PlayerId, Position},
 };
 
@@ -14,6 +16,19 @@ use common::{
 
 const BUMP_FLASH_DURATION: f32 = 0.08;
 const BUMP_COLLISION_RELEASE_DELAY: f32 = 0.25;
+
+fn reconcile_vertical_motion_if_needed(
+    motion: &mut PlayerVerticalMotion,
+    recon: &ServerReconciliation,
+    total_delta: Vec3,
+    is_local: bool,
+) {
+    if !is_local || total_delta.y.abs() < PLAYER_GROUND_SNAP_DISTANCE {
+        return;
+    }
+
+    motion.vertical_velocity = recon.server_velocity.y;
+}
 
 fn decay_flash_timer(
     state: &mut Mut<BumpFlashState>,
@@ -90,7 +105,7 @@ type MovementQuery<'w, 's> = Query<
         &'static PlayerId,
         &'static mut Position,
         &'static MoveInput,
-        &'static mut PlayerMotion,
+        &'static mut PlayerVerticalMotion,
         Option<&'static mut BumpFlashState>,
         Option<&'static mut ServerReconciliation>,
         Has<LocalPlayerMarker>,
@@ -112,7 +127,7 @@ pub fn players_movement_system(
     // Pass 1: For each player, calculate intended position, then apply static-world collision.
     let mut planned_moves: Vec<PlannedMove> = Vec::new();
 
-    for (entity, player_id, mut client_pos, move_input, motion, mut flash_state, mut recon_option, is_local) in
+    for (entity, player_id, mut client_pos, move_input, mut motion, mut flash_state, mut recon_option, is_local) in
         &mut query
     {
         if let Some(state) = flash_state.as_mut() {
@@ -138,8 +153,9 @@ pub fn players_movement_system(
                 commands.entity(entity).remove::<ServerReconciliation>();
             }
 
-            let server_pos = Vec3::from(recon.server_pos) + recon.server_vel * recon.rtt / 2.0;
+            let server_pos = Vec3::from(recon.server_pos) + recon.server_velocity * recon.rtt / 2.0;
             let total_delta = server_pos - Vec3::from(recon.client_pos);
+            reconcile_vertical_motion_if_needed(&mut motion, recon, total_delta, is_local);
 
             // If the player got totally out of sync, we jump to the server position
             let out_of_sync_distance = if is_standing_still { 3.0 } else { 5.0 };
@@ -149,6 +165,7 @@ pub fn players_movement_system(
             {
                 warn!("player out of sync, jumping to server position");
                 *client_pos = recon.server_pos;
+                motion.vertical_velocity = recon.server_velocity.y;
                 commands.entity(entity).remove::<ServerReconciliation>();
                 continue;
             }
@@ -177,7 +194,7 @@ pub fn players_movement_system(
         if let Some(collision_world) = collision_world.as_ref() {
             let has_phasing = ALWAYS_PHASING || players.0.get(player_id).is_some_and(|info| info.phasing_power_up);
 
-            let step = step_player_motion(
+            let step = step_player_movement(
                 &client_pos,
                 &motion,
                 collision_world,
@@ -191,7 +208,7 @@ pub fn players_movement_system(
                 entity,
                 start: *client_pos,
                 target: target_pos,
-                target_vy: step.vy,
+                target_vertical_velocity: step.vertical_velocity,
                 blocked: step.blocked,
             });
         } else {
@@ -199,7 +216,7 @@ pub fn players_movement_system(
                 entity,
                 start: *client_pos,
                 target: target_pos,
-                target_vy: motion.velocity.y,
+                target_vertical_velocity: motion.vertical_velocity,
                 blocked: false,
             });
         }
@@ -218,7 +235,7 @@ pub fn players_movement_system(
         // Apply final position and feedback
         if hits_player {
             client_pos.y = planned_move.target.y;
-            motion.velocity.y = planned_move.target_vy;
+            motion.vertical_velocity = planned_move.target_vertical_velocity;
 
             if is_local && let Some(state) = flash_state.as_mut() {
                 trigger_collision_feedback(
@@ -232,7 +249,7 @@ pub fn players_movement_system(
             }
         } else {
             *client_pos = planned_move.target;
-            motion.velocity.y = planned_move.target_vy;
+            motion.vertical_velocity = planned_move.target_vertical_velocity;
 
             if let Some(state) = flash_state.as_mut() {
                 if planned_move.blocked {

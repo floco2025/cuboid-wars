@@ -10,7 +10,8 @@ use common::{
     },
     markers::PlayerMarker,
     physics::{
-        CollisionWorld, PlannedMove, PlayerMotion, overlaps_other_player, player_paths_intersect, step_player_motion,
+        CollisionWorld, PlannedMove, PlayerVerticalMotion, overlaps_other_player, player_paths_intersect,
+        step_player_movement,
     },
     protocol::{MoveInput, PlayerId, Position, SDeath, ServerMessage},
 };
@@ -23,11 +24,12 @@ pub fn players_movement_system(
     time: Res<Time>,
     collision_world: Res<CollisionWorld>,
     players: Res<PlayerMap>,
-    mut query: Query<(Entity, &mut Position, &mut PlayerMotion, &MoveInput, &PlayerId), With<PlayerMarker>>,
+    mut query: Query<(Entity, &mut Position, &mut PlayerVerticalMotion, &MoveInput, &PlayerId), With<PlayerMarker>>,
 ) {
     let delta = time.delta_secs();
 
-    // Pass 1: For each player, calculate intended position + vy, then apply static-world collision.
+    // Pass 1: For each player, calculate intended position and vertical velocity,
+    // then apply static-world collision.
     let mut planned_moves: Vec<PlannedMove> = Vec::new();
 
     for (entity, pos, motion, move_input, player_id) in query.iter() {
@@ -53,7 +55,7 @@ pub fn players_movement_system(
 
         let has_phasing = players.0.get(player_id).is_some_and(PlayerInfo::has_phasing);
 
-        let step = step_player_motion(
+        let step = step_player_movement(
             pos,
             motion,
             &collision_world,
@@ -67,7 +69,7 @@ pub fn players_movement_system(
             entity,
             start: *pos,
             target: step.position,
-            target_vy: step.vy,
+            target_vertical_velocity: step.vertical_velocity,
             blocked: step.blocked,
         });
     }
@@ -80,7 +82,7 @@ pub fn players_movement_system(
             } else {
                 *pos = planned_move.target;
             }
-            motion.velocity.y = planned_move.target_vy;
+            motion.vertical_velocity = planned_move.target_vertical_velocity;
         }
     }
 }
@@ -124,7 +126,7 @@ pub fn players_death_system(
     players: Res<PlayerMap>,
     map_config: Res<MapConfig>,
     collision_world: Res<CollisionWorld>,
-    mut player_query: Query<(Entity, &PlayerId, &mut Position, &mut PlayerMotion), With<PlayerMarker>>,
+    mut player_query: Query<(Entity, &PlayerId, &mut Position, &mut PlayerVerticalMotion), With<PlayerMarker>>,
 ) {
     let dead: Vec<(Entity, PlayerId)> = player_query
         .iter()
@@ -143,7 +145,7 @@ pub fn players_death_system(
 
         if let Ok((_, _, mut pos, mut motion)) = player_query.get_mut(entity) {
             *pos = respawn_pos;
-            motion.velocity = Vec3::ZERO;
+            motion.vertical_velocity = 0.0;
         }
 
         info!("{:?} died and respawned at {:?}", id, respawn_pos);

@@ -23,30 +23,30 @@ const PLAYER_CONTACT_OFFSET: f32 = 0.01;
 const PLAYER_BLOCKED_MOVEMENT_EPSILON: f32 = 0.01;
 const PLAYER_AUTOSTEP_EPSILON: f32 = 0.01;
 
-// Component attached to player entities tracking persistent vertical velocity.
-// X/Z movement is derived from input each tick, then projected onto the current
-// support surface so ramp movement follows the ramp plane.
+// Component attached to player entities tracking persistent gravity-axis motion.
+// Player-controlled X/Z movement is derived from input each tick. Running on a
+// ramp can add Y displacement for that frame, but it is not stored as velocity.
 #[derive(Component, Default)]
-pub struct PlayerMotion {
-    pub velocity: Vec3,
+pub struct PlayerVerticalMotion {
+    pub vertical_velocity: f32,
 }
 
-impl PlayerMotion {
+impl PlayerVerticalMotion {
     pub fn apply_gravity(&mut self, delta: f32) {
-        self.velocity.y -= PLAYER_GRAVITY * delta;
+        self.vertical_velocity -= PLAYER_GRAVITY * delta;
     }
 
     pub fn apply_terminal_velocity(&mut self) {
-        if self.velocity.y < -PLAYER_TERMINAL_VELOCITY {
-            self.velocity.y = -PLAYER_TERMINAL_VELOCITY;
+        if self.vertical_velocity < -PLAYER_TERMINAL_VELOCITY {
+            self.vertical_velocity = -PLAYER_TERMINAL_VELOCITY;
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct PlayerMotionStep {
+pub struct PlayerMovementResult {
     pub position: Position,
-    pub vy: f32,
+    pub vertical_velocity: f32,
     // True when static-world collision materially blocked requested movement.
     // Side contacts that Rapier resolves by auto-stepping are not treated as blocked.
     pub blocked: bool,
@@ -59,7 +59,7 @@ pub struct PlannedMove {
     pub entity: Entity,
     pub start: Position,
     pub target: Position,
-    pub target_vy: f32,
+    pub target_vertical_velocity: f32,
     pub blocked: bool,
 }
 
@@ -74,62 +74,62 @@ pub fn overlaps_other_player(candidate: &PlannedMove, planned_moves: &[PlannedMo
 
 #[must_use]
 pub fn try_start_player_jump(
-    motion: &mut PlayerMotion,
+    motion: &mut PlayerVerticalMotion,
     collision_world: &CollisionWorld,
     pos: &Position,
     x: f32,
     z: f32,
 ) -> bool {
     let ground_probe_pos = Position { x, y: pos.y, z };
-    if motion.velocity.y > 0.0 || !is_player_grounded(collision_world, &ground_probe_pos) {
+    if motion.vertical_velocity > 0.0 || !is_player_grounded(collision_world, &ground_probe_pos) {
         return false;
     }
 
-    motion.velocity.y = PLAYER_JUMP_SPEED;
+    motion.vertical_velocity = PLAYER_JUMP_SPEED;
     true
 }
 
 #[must_use]
-pub fn step_player_motion(
+pub fn step_player_movement(
     pos: &Position,
-    motion: &PlayerMotion,
+    motion: &PlayerVerticalMotion,
     collision_world: &CollisionWorld,
     has_phasing: bool,
     x: f32,
     z: f32,
     delta: f32,
-) -> PlayerMotionStep {
+) -> PlayerMovementResult {
     let character_shape = player_shape();
     let character_pos = player_pose(pos);
     let support_shape = player_support_probe_shape();
-    let current_ground = if motion.velocity.y <= 0.0 {
+    let current_ground = if motion.vertical_velocity <= 0.0 {
         player_ground_hit(collision_world, &support_shape, pos, has_phasing)
     } else {
         None
     };
-    let controller = player_controller();
-    let mut next_motion = PlayerMotion {
-        velocity: motion.velocity,
+    let mut next_motion = PlayerVerticalMotion {
+        vertical_velocity: motion.vertical_velocity,
     };
-    let can_follow_ground = next_motion.velocity.y <= 0.0;
+    let can_follow_ground = next_motion.vertical_velocity <= 0.0;
     if current_ground.is_some() && can_follow_ground {
-        next_motion.velocity.y = 0.0;
+        next_motion.vertical_velocity = 0.0;
     } else {
         next_motion.apply_gravity(delta);
         next_motion.apply_terminal_velocity();
     }
+    let controller = player_controller();
 
     let target = Position {
         x,
-        y: next_motion.velocity.y.mul_add(delta, pos.y),
+        y: next_motion.vertical_velocity.mul_add(delta, pos.y),
         z,
     };
-    let desired_horizontal = Vector::new(target.x - pos.x, 0.0, target.z - pos.z);
-    let desired_vertical = Vector::new(0.0, target.y - pos.y, 0.0);
-    let desired_surface = current_ground.map_or(desired_horizontal, |ground| {
-        project_horizontal_move_onto_surface(desired_horizontal, ground.normal)
+    let input_move = Vector::new(target.x - pos.x, 0.0, target.z - pos.z);
+    let gravity_axis_move = Vector::new(0.0, target.y - pos.y, 0.0);
+    let supported_input_move = current_ground.map_or(input_move, |ground| {
+        project_input_move_onto_support(input_move, ground.normal)
     });
-    let desired = desired_surface + desired_vertical;
+    let requested_move = supported_input_move + gravity_axis_move;
     let mut saw_side_contact = false;
     let mut hit_ceiling = false;
     let movement = collision_world.move_character(
@@ -137,13 +137,13 @@ pub fn step_player_motion(
         &controller,
         &character_shape,
         &character_pos,
-        desired,
+        requested_move,
         has_phasing,
         true,
         |collision| {
             let normal = vec3(collision.hit.normal1);
             let is_side_contact = normal.y.abs() <= 0.5;
-            let is_ceiling = normal.y < -0.5 && desired_vertical.y > 0.0;
+            let is_ceiling = normal.y < -0.5 && gravity_axis_move.y > 0.0;
             if is_side_contact {
                 saw_side_contact = true;
             }
@@ -165,24 +165,24 @@ pub fn step_player_motion(
     if let Some(ground) = resolved_ground {
         resolved.y -= ground.t - PLAYER_FOOT_CLEARANCE;
     }
-    let mut vy = next_motion.velocity.y;
+    let mut vertical_velocity = next_motion.vertical_velocity;
     // Rapier reports a side contact while auto-stepping over slab/trim edges.
     // That is normal movement, not a wall hit, so don't expose it as blocked.
-    let stepped_up = movement.grounded && movement.translation.y > desired.y + PLAYER_AUTOSTEP_EPSILON;
+    let stepped_up = movement.grounded && movement.translation.y > requested_move.y + PLAYER_AUTOSTEP_EPSILON;
     let blocked =
-        saw_side_contact && !stepped_up && movement_progress_was_blocked(desired_surface, movement.translation);
+        saw_side_contact && !stepped_up && movement_progress_was_blocked(supported_input_move, movement.translation);
 
     let grounded = resolved_ground.is_some();
-    if grounded && vy < 0.0
-        || hit_ceiling && vy > 0.0
-        || desired_vertical.y > 0.0 && movement.translation.y < desired.y - PHYSICS_EPSILON
+    if grounded && vertical_velocity < 0.0
+        || hit_ceiling && vertical_velocity > 0.0
+        || gravity_axis_move.y > 0.0 && movement.translation.y < requested_move.y - PHYSICS_EPSILON
     {
-        vy = 0.0;
+        vertical_velocity = 0.0;
     }
 
-    PlayerMotionStep {
+    PlayerMovementResult {
         position: resolved,
-        vy,
+        vertical_velocity,
         blocked,
     }
 }
@@ -229,7 +229,7 @@ fn player_controller() -> KinematicCharacterController {
             min_width: CharacterLength::Absolute(PLAYER_STEP_MIN_WIDTH),
             include_dynamic_bodies: false,
         }),
-        min_slope_slide_angle: std::f32::consts::PI,
+        min_slope_slide_angle: std::f32::consts::FRAC_PI_3,
         snap_to_ground: None,
         ..KinematicCharacterController::default()
     }
@@ -257,18 +257,18 @@ fn player_support_probe_shape() -> Cuboid {
     ))
 }
 
-fn project_horizontal_move_onto_surface(horizontal: Vector, surface_normal: Vec3) -> Vector {
-    if horizontal.length_squared() <= PHYSICS_EPSILON * PHYSICS_EPSILON {
-        return horizontal;
+fn project_input_move_onto_support(input_move: Vector, support_normal: Vec3) -> Vector {
+    if input_move.length_squared() <= PHYSICS_EPSILON * PHYSICS_EPSILON {
+        return input_move;
     }
 
-    let horizontal = Vec3::new(horizontal.x, horizontal.y, horizontal.z);
-    let tangent = horizontal - surface_normal * horizontal.dot(surface_normal);
+    let input_move = Vec3::new(input_move.x, input_move.y, input_move.z);
+    let tangent = input_move - support_normal * input_move.dot(support_normal);
     let Some(tangent_dir) = tangent.try_normalize() else {
-        return Vector::new(horizontal.x, horizontal.y, horizontal.z);
+        return Vector::new(input_move.x, input_move.y, input_move.z);
     };
 
-    let surface_move = tangent_dir * horizontal.length();
+    let surface_move = tangent_dir * input_move.length();
     Vector::new(surface_move.x, surface_move.y, surface_move.z)
 }
 
@@ -413,6 +413,17 @@ mod tests {
         }
     }
 
+    fn upper_horizontal_wall() -> Wall {
+        Wall {
+            x1: 27.85,
+            z1: 32.0,
+            x2: 35.85,
+            z2: 32.0,
+            width: 0.3,
+            level: 2,
+        }
+    }
+
     fn collision_world(floors: &[Floor], ramps: &[Ramp]) -> CollisionWorld {
         collision_world_with(&[], floors, ramps)
     }
@@ -436,9 +447,9 @@ mod tests {
             y: 0.0,
             z: 0.0,
         };
-        let motion = PlayerMotion::default();
+        let motion = PlayerVerticalMotion::default();
 
-        let step = step_player_motion(&pos, &motion, &collision_world, false, 1.0, pos.z, 0.1);
+        let step = step_player_movement(&pos, &motion, &collision_world, false, 1.0, pos.z, 0.1);
 
         assert!(step.blocked);
         assert!(step.position.x < 0.0);
@@ -454,10 +465,10 @@ mod tests {
             y: 0.0,
             z: 0.0,
         };
-        let motion = PlayerMotion::default();
+        let motion = PlayerVerticalMotion::default();
 
-        let first = step_player_motion(&pos, &motion, &collision_world, false, 1.0, pos.z, 0.1);
-        let second = step_player_motion(
+        let first = step_player_movement(&pos, &motion, &collision_world, false, 1.0, pos.z, 0.1);
+        let second = step_player_movement(
             &first.position,
             &motion,
             &collision_world,
@@ -482,10 +493,10 @@ mod tests {
             y: 0.0,
             z: 0.0,
         };
-        let motion = PlayerMotion::default();
+        let motion = PlayerVerticalMotion::default();
 
-        let first = step_player_motion(&pos, &motion, &collision_world, false, 1.0, pos.z, 0.1);
-        let second = step_player_motion(
+        let first = step_player_movement(&pos, &motion, &collision_world, false, 1.0, pos.z, 0.1);
+        let second = step_player_movement(
             &first.position,
             &motion,
             &collision_world,
@@ -501,6 +512,28 @@ mod tests {
     }
 
     #[test]
+    fn falling_player_pushing_into_wall_keeps_falling() {
+        let wall = upper_horizontal_wall();
+        let collision_world = collision_world_with(&[wall], &[], &[]);
+        let pos = Position {
+            x: 30.391_533,
+            y: 7.973_196,
+            z: 31.539_902,
+        };
+        let motion = PlayerVerticalMotion {
+            vertical_velocity: -PLAYER_TERMINAL_VELOCITY,
+        };
+
+        let step = step_player_movement(&pos, &motion, &collision_world, false, 30.394, 31.699, 0.0177);
+
+        assert!(
+            step.position.y < pos.y - 0.5,
+            "expected falling to continue while sliding on wall, got {step:?}"
+        );
+        assert!(step.vertical_velocity < 0.0);
+    }
+
+    #[test]
     fn diagonal_wall_hit_slides_in_same_step() {
         let wall = test_wall();
         let collision_world = collision_world_with(&[wall], &[], &[]);
@@ -509,9 +542,9 @@ mod tests {
             y: 0.0,
             z: 0.0,
         };
-        let motion = PlayerMotion::default();
+        let motion = PlayerVerticalMotion::default();
 
-        let step = step_player_motion(&pos, &motion, &collision_world, false, 1.0, 1.0, 0.1);
+        let step = step_player_movement(&pos, &motion, &collision_world, false, 1.0, 1.0, 0.1);
 
         assert!(step.blocked);
         assert!(step.position.x < 0.0);
@@ -535,10 +568,10 @@ mod tests {
             y: 0.0,
             z: 0.0,
         };
-        let motion = PlayerMotion::default();
+        let motion = PlayerVerticalMotion::default();
 
         for _ in 0..20 {
-            let step = step_player_motion(&pos, &motion, &collision_world, false, 1.0, pos.z + 0.25, 0.1);
+            let step = step_player_movement(&pos, &motion, &collision_world, false, 1.0, pos.z + 0.25, 0.1);
             pos = step.position;
         }
 
@@ -555,9 +588,9 @@ mod tests {
             y: 0.0,
             z: -1.0,
         };
-        let motion = PlayerMotion::default();
+        let motion = PlayerVerticalMotion::default();
 
-        let step = step_player_motion(&pos, &motion, &collision_world, false, 1.0, 1.0, 0.1);
+        let step = step_player_movement(&pos, &motion, &collision_world, false, 1.0, 1.0, 0.1);
 
         assert!(step.blocked);
         assert!(step.position.x > pos.x);
@@ -573,9 +606,9 @@ mod tests {
             y: 0.0,
             z: 0.0,
         };
-        let motion = PlayerMotion::default();
+        let motion = PlayerVerticalMotion::default();
 
-        let step = step_player_motion(&pos, &motion, &collision_world, true, 1.0, pos.z, 0.1);
+        let step = step_player_movement(&pos, &motion, &collision_world, true, 1.0, pos.z, 0.1);
 
         assert!(!step.blocked);
         assert_eq!(step.position.x, 1.0);
@@ -586,10 +619,10 @@ mod tests {
         let floor = lower_floor();
         let collision_world = collision_world(&[floor], &[]);
         let pos = Position { x: 0.0, y: 0.0, z: 0.0 };
-        let mut motion = PlayerMotion::default();
+        let mut motion = PlayerVerticalMotion::default();
 
         assert!(try_start_player_jump(&mut motion, &collision_world, &pos, pos.x, pos.z));
-        assert_eq!(motion.velocity.y, PLAYER_JUMP_SPEED);
+        assert_eq!(motion.vertical_velocity, PLAYER_JUMP_SPEED);
     }
 
     #[test]
@@ -597,7 +630,7 @@ mod tests {
         let floor = lower_floor();
         let collision_world = collision_world(&[floor], &[]);
         let pos = Position { x: 0.0, y: 1.0, z: 0.0 };
-        let mut motion = PlayerMotion::default();
+        let mut motion = PlayerVerticalMotion::default();
 
         assert!(!try_start_player_jump(
             &mut motion,
@@ -606,7 +639,7 @@ mod tests {
             pos.x,
             pos.z
         ));
-        assert_eq!(motion.velocity.y, 0.0);
+        assert_eq!(motion.vertical_velocity, 0.0);
     }
 
     #[test]
@@ -614,13 +647,13 @@ mod tests {
         let floor = lower_floor();
         let collision_world = collision_world(&[floor], &[]);
         let pos = Position { x: 0.0, y: 0.0, z: 0.0 };
-        let mut motion = PlayerMotion::default();
+        let mut motion = PlayerVerticalMotion::default();
         assert!(try_start_player_jump(&mut motion, &collision_world, &pos, pos.x, pos.z));
 
-        let step = step_player_motion(&pos, &motion, &collision_world, false, pos.x, pos.z, 0.1);
+        let step = step_player_movement(&pos, &motion, &collision_world, false, pos.x, pos.z, 0.1);
 
         assert!(step.position.y > pos.y);
-        assert!(step.vy > 0.0);
+        assert!(step.vertical_velocity > 0.0);
     }
 
     #[test]
@@ -628,13 +661,13 @@ mod tests {
         let floor = upper_floor();
         let collision_world = collision_world(&[floor], &[]);
         let pos = Position { x: 0.0, y: 1.8, z: 0.0 };
-        let motion = PlayerMotion {
-            velocity: Vec3::new(0.0, PLAYER_JUMP_SPEED, 0.0),
+        let motion = PlayerVerticalMotion {
+            vertical_velocity: PLAYER_JUMP_SPEED,
         };
 
-        let step = step_player_motion(&pos, &motion, &collision_world, false, pos.x, pos.z, 0.1);
+        let step = step_player_movement(&pos, &motion, &collision_world, false, pos.x, pos.z, 0.1);
 
-        assert_eq!(step.vy, 0.0);
+        assert_eq!(step.vertical_velocity, 0.0);
         assert!(step.position.y <= floor.y - floor.thickness);
     }
 
@@ -644,14 +677,14 @@ mod tests {
         let ceiling = low_overhead_floor();
         let collision_world = collision_world(&[floor, ceiling], &[]);
         let pos = Position { x: 0.0, y: 0.0, z: 0.0 };
-        let motion = PlayerMotion::default();
+        let motion = PlayerVerticalMotion::default();
 
-        let step = step_player_motion(&pos, &motion, &collision_world, false, 0.5, pos.z, 0.1);
+        let step = step_player_movement(&pos, &motion, &collision_world, false, 0.5, pos.z, 0.1);
 
         assert!(!step.blocked);
         assert!(step.position.x > pos.x);
         assert!((step.position.y - floor.y).abs() < 0.001);
-        assert_eq!(step.vy, 0.0);
+        assert_eq!(step.vertical_velocity, 0.0);
     }
 
     #[test]
@@ -659,13 +692,13 @@ mod tests {
         let floor = upper_floor();
         let collision_world = collision_world(&[floor], &[]);
         let pos = Position { x: 5.0, y: 1.8, z: 0.0 };
-        let motion = PlayerMotion {
-            velocity: Vec3::new(0.0, PLAYER_JUMP_SPEED, 0.0),
+        let motion = PlayerVerticalMotion {
+            vertical_velocity: PLAYER_JUMP_SPEED,
         };
 
-        let step = step_player_motion(&pos, &motion, &collision_world, false, pos.x, pos.z, 0.1);
+        let step = step_player_movement(&pos, &motion, &collision_world, false, pos.x, pos.z, 0.1);
 
-        assert!(step.vy > 0.0);
+        assert!(step.vertical_velocity > 0.0);
         assert!(step.position.y > pos.y);
     }
 
@@ -678,14 +711,14 @@ mod tests {
             y: 2.3,
             z: 0.0,
         };
-        let motion = PlayerMotion {
-            velocity: Vec3::new(0.0, PLAYER_JUMP_SPEED, 0.0),
+        let motion = PlayerVerticalMotion {
+            vertical_velocity: PLAYER_JUMP_SPEED,
         };
 
-        let step = step_player_motion(&pos, &motion, &collision_world, false, -4.25, pos.z, 0.1);
+        let step = step_player_movement(&pos, &motion, &collision_world, false, -4.25, pos.z, 0.1);
 
         assert!(step.blocked);
-        assert!(step.vy > 0.0);
+        assert!(step.vertical_velocity > 0.0);
         assert!(step.position.x > pos.x);
     }
 
@@ -698,9 +731,9 @@ mod tests {
             y: floor.y,
             z: 0.0,
         };
-        let motion = PlayerMotion::default();
+        let motion = PlayerVerticalMotion::default();
 
-        let step = step_player_motion(&pos, &motion, &collision_world, false, -3.75, pos.z, 0.1);
+        let step = step_player_movement(&pos, &motion, &collision_world, false, -3.75, pos.z, 0.1);
 
         assert!(!step.blocked);
         assert!(step.position.x > pos.x);
@@ -719,9 +752,9 @@ mod tests {
             y: ramp_surface_at(&ramp, 2.0, 4.0),
             z: 4.0,
         };
-        let motion = PlayerMotion::default();
+        let motion = PlayerVerticalMotion::default();
 
-        let step = step_player_motion(&pos, &motion, &collision_world, false, -1.0, pos.z, 0.1);
+        let step = step_player_movement(&pos, &motion, &collision_world, false, -1.0, pos.z, 0.1);
 
         assert!(!step.blocked);
         assert!(step.position.x < pos.x);
@@ -736,9 +769,9 @@ mod tests {
             y: 0.0,
             z: 4.0,
         };
-        let motion = PlayerMotion::default();
+        let motion = PlayerVerticalMotion::default();
 
-        let step = step_player_motion(&pos, &motion, &collision_world, false, 1.0, pos.z, 0.1);
+        let step = step_player_movement(&pos, &motion, &collision_world, false, 1.0, pos.z, 0.1);
 
         assert!(step.blocked);
         assert!(step.position.x < 0.0);
@@ -753,9 +786,9 @@ mod tests {
             y: 0.0,
             z: -0.25,
         };
-        let motion = PlayerMotion::default();
+        let motion = PlayerVerticalMotion::default();
 
-        let step = step_player_motion(&pos, &motion, &collision_world, false, pos.x, 0.25, 0.1);
+        let step = step_player_movement(&pos, &motion, &collision_world, false, pos.x, 0.25, 0.1);
 
         assert!(!step.blocked);
         assert!(step.position.z > pos.z);
@@ -770,9 +803,9 @@ mod tests {
             y: LEVEL_HEIGHT,
             z: 8.25,
         };
-        let motion = PlayerMotion::default();
+        let motion = PlayerVerticalMotion::default();
 
-        let step = step_player_motion(&pos, &motion, &collision_world, false, pos.x, 7.75, 0.1);
+        let step = step_player_movement(&pos, &motion, &collision_world, false, pos.x, 7.75, 0.1);
 
         assert!(!step.blocked);
         assert!(step.position.z < pos.z);
@@ -785,9 +818,9 @@ mod tests {
         let collision_world = collision_world(&[floor], &[ramp]);
         let y = ramp_surface_at(&ramp, 2.0, 7.0);
         let pos = Position { x: 2.0, y, z: 7.0 };
-        let motion = PlayerMotion::default();
+        let motion = PlayerVerticalMotion::default();
 
-        let step = step_player_motion(&pos, &motion, &collision_world, false, -1.0, pos.z, 0.1);
+        let step = step_player_movement(&pos, &motion, &collision_world, false, -1.0, pos.z, 0.1);
 
         assert!(step.blocked);
         assert!(step.position.x < pos.x);

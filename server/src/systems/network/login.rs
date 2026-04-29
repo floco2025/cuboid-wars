@@ -7,7 +7,7 @@ use crate::{
 };
 use common::{
     markers::{ItemMarker, PlayerMarker},
-    physics::{CollisionWorld, PlayerMotion},
+    physics::{CollisionWorld, PlayerVerticalMotion},
     protocol::{MapLayout, *},
 };
 
@@ -29,7 +29,7 @@ pub fn handle_login_message(
     map_config: &Res<MapConfig>,
     items: &Res<ItemMap>,
     player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
-    motions: &Query<&PlayerMotion, With<PlayerMarker>>,
+    motions: &Query<&PlayerVerticalMotion, With<PlayerMarker>>,
     item_positions: &Query<&Position, With<ItemMarker>>,
 ) {
     match msg {
@@ -103,10 +103,13 @@ pub fn handle_login_message(
             });
             channel.send(ServerToClient::Send(update_msg)).ok();
 
-            // Now update entity: add Position + MoveInput + FaceDirection + PlayerMotion
-            commands
-                .entity(entity)
-                .insert((pos, move_input, FaceDirection(face_dir), PlayerMotion::default()));
+            // Now update entity: add Position + MoveInput + FaceDirection + PlayerVerticalMotion
+            commands.entity(entity).insert((
+                pos,
+                move_input,
+                FaceDirection(face_dir),
+                PlayerVerticalMotion::default(),
+            ));
 
             // Broadcast Login to all other logged-in players
             let login_msg = SLogin { id, player };
