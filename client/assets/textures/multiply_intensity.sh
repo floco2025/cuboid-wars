@@ -1,50 +1,67 @@
 #!/bin/bash
+set -euo pipefail
 
 # Adjust metallic-roughness texture intensity
 # For ROUGHNESS (green channel): Higher values = rougher/less shiny
 # For METALLIC (blue channel): Higher values = more metallic
 # 
-# Usage: ./multiply_intensity.sh [roughness_adjust] [metallic_multiply]
+# Usage:
+#   ./multiply_intensity.sh <metallic-roughness.png> [roughness_adjust] [metallic_multiply] [output.png]
+#
 # roughness_adjust: value to ADD to roughness (e.g., 0.3 to make 30% rougher)
 # metallic_multiply: multiplier for metallic (e.g., 0.5 to reduce metallic by half)
+# output.png: optional; defaults to overwriting the input file after creating a
+#             .original.png backup next to it
 # 
-# Example: ./multiply_intensity.sh 0.3 0.5
+# Example:
+#   ./multiply_intensity.sh path/to/texture_metallic-roughness.png 0.3 0.5
 #   - Makes surfaces 30% rougher (less shiny/shimmer)
 #   - Reduces metallic effect by half
 
-ROUGHNESS_ADD=${1:-0.3}
-METALLIC_MULT=${2:-1.0}
+if [ "$#" -lt 1 ] || [ "$#" -gt 4 ]; then
+    echo "Usage: $0 <metallic-roughness.png> [roughness_adjust] [metallic_multiply] [output.png]" >&2
+    exit 2
+fi
+
+input=$1
+roughness_add=${2:-0.3}
+metallic_mult=${3:-1.0}
+output=${4:-$input}
+
+if [ ! -f "$input" ]; then
+    echo "Missing metallic-roughness texture: $input" >&2
+    exit 1
+fi
+
+source=$input
+if [ "$output" = "$input" ]; then
+    backup="${input%.png}.original.png"
+    if [ ! -f "$backup" ]; then
+        cp "$input" "$backup"
+        echo "Created backup: $backup"
+    fi
+    source=$backup
+fi
 
 echo "Adjusting metallic-roughness textures..."
-echo "  Roughness: +${ROUGHNESS_ADD} (higher = less shiny)"
-echo "  Metallic: ×${METALLIC_MULT}"
+echo "  Input:     $input"
+echo "  Source:    $source"
+echo "  Output:    $output"
+echo "  Roughness: +${roughness_add} (higher = less shiny)"
+echo "  Metallic:  ×${metallic_mult}"
 
-for dir in cookie item wall roof ground; do
-    if [ -f "$dir/metallic-roughness.png" ]; then
-        echo "Processing $dir/metallic-roughness.png..."
-        
-        # Create backup
-        if [ ! -f "$dir/metallic-roughness.original.png" ]; then
-            cp "$dir/metallic-roughness.png" "$dir/metallic-roughness.original.png"
-            echo "  Created backup: $dir/metallic-roughness.original.png"
-        fi
-        
-        # Extract channels, adjust separately, then recombine
-        # Red channel: unused (keep as-is)
-        # Green channel: roughness - ADD value to make rougher
-        # Blue channel: metallic - MULTIPLY to reduce/increase
-        magick "$dir/metallic-roughness.original.png" \
-            \( -clone 0 -channel R -separate \) \
-            \( -clone 0 -channel G -separate -evaluate add ${ROUGHNESS_ADD} \) \
-            \( -clone 0 -channel B -separate -evaluate multiply ${METALLIC_MULT} \) \
-            -delete 0 -channel RGB -combine \
-            "$dir/metallic-roughness.png"
-        
-        echo "  Adjusted (roughness +${ROUGHNESS_ADD}, metallic ×${METALLIC_MULT})"
-    else
-        echo "  Skipping $dir (no metallic-roughness.png)"
-    fi
-done
+# Extract channels, adjust separately, then recombine:
+# - Red channel: unused, kept as-is
+# - Green channel: roughness, add value to make rougher
+# - Blue channel: metallic, multiply to reduce/increase
+magick "$source" \
+    \( -clone 0 -channel R -separate \) \
+    \( -clone 0 -channel G -separate -evaluate add "${roughness_add}" \) \
+    \( -clone 0 -channel B -separate -evaluate multiply "${metallic_mult}" \) \
+    -delete 0 -channel RGB -combine \
+    "$output"
 
 echo "Done!"
-echo "To restore originals: cp */metallic-roughness.original.png */metallic-roughness.png"
+if [ "$output" = "$input" ]; then
+    echo "To restore original: cp \"$backup\" \"$input\""
+fi

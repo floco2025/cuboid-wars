@@ -1,24 +1,59 @@
 #!/bin/bash
+set -euo pipefail
 
 # Combine metallic and roughness textures for Bevy's PBR workflow
 # Creates metallic-roughness.png where:
 # - Red channel: unused (set to 0)
 # - Green channel: roughness
 # - Blue channel: metallic
+#
+# Usage:
+#   ./combine_metallic_roughness.sh <roughness.png> <metallic.png> [output.png]
+#
+# output.png: optional; defaults to replacing "roughness.png" in the roughness
+#             filename with "metallic-roughness.png"
+#
+# Example:
+#   ./combine_metallic_roughness.sh \
+#     path/to/texture_roughness.png \
+#     path/to/texture_metallic.png
+
+if [ "$#" -lt 2 ] || [ "$#" -gt 3 ]; then
+    echo "Usage: $0 <roughness.png> <metallic.png> [output.png]" >&2
+    exit 2
+fi
+
+roughness=$1
+metallic=$2
+output=${3:-}
+
+if [ ! -f "$roughness" ]; then
+    echo "Missing roughness texture: $roughness" >&2
+    exit 1
+fi
+
+if [ ! -f "$metallic" ]; then
+    echo "Missing metallic texture: $metallic" >&2
+    exit 1
+fi
+
+if [ -z "$output" ]; then
+    output=${roughness%roughness.png}metallic-roughness.png
+    if [ "$output" = "$roughness" ]; then
+        echo "Could not derive output path from roughness filename: $roughness" >&2
+        echo "Pass output.png explicitly, or use a roughness filename ending in roughness.png." >&2
+        exit 2
+    fi
+fi
 
 echo "Combining metallic and roughness textures..."
+echo "  Roughness: $roughness"
+echo "  Metallic:  $metallic"
+echo "  Output:    $output"
 
-for dir in cookie item wall roof ground; do
-    if [ -d "$dir" ] && [ -f "$dir/roughness.png" ] && [ -f "$dir/metallic.png" ]; then
-        echo "Processing $dir..."
-        magick "$dir/roughness.png" "$dir/metallic.png" \
-            \( +clone -evaluate set 0 \) +swap \
-            -channel RGB -combine \
-            "$dir/metallic-roughness.png"
-        echo "  Created $dir/metallic-roughness.png"
-    else
-        echo "  Skipping $dir (missing files or directory)"
-    fi
-done
+magick "$roughness" "$metallic" \
+    \( +clone -evaluate set 0 \) +swap \
+    -channel RGB -combine \
+    "$output"
 
 echo "Done!"
