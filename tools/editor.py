@@ -41,8 +41,20 @@ MODE_WALL = "Wall"
 MODE_RAMP_UP = "Ramp (Up)"
 MODE_RAMP_DOWN = "Ramp (Down)"
 MODE_ERASE = "Erase"
+MODE_ERASE_KEEP_FLOORS = "Erase (Keep Floors)"
 RAMP_MODES = (MODE_RAMP_UP, MODE_RAMP_DOWN)
-MODES = [MODE_FLOOR, MODE_INACCESSIBLE_FLOOR, MODE_PLAYER_SPAWN, MODE_WALL, MODE_RAMP_UP, MODE_RAMP_DOWN, MODE_ERASE]
+ERASE_MODES = (MODE_ERASE, MODE_ERASE_KEEP_FLOORS)
+FLOOR_HIT_KINDS = ("Floor", "Inaccessible Floor")
+MODES = [
+    MODE_FLOOR,
+    MODE_INACCESSIBLE_FLOOR,
+    MODE_PLAYER_SPAWN,
+    MODE_WALL,
+    MODE_RAMP_UP,
+    MODE_RAMP_DOWN,
+    MODE_ERASE,
+    MODE_ERASE_KEEP_FLOORS,
+]
 
 MIN_CELL = 12.0
 EDITOR_CELL = 36
@@ -485,7 +497,7 @@ class Canvas(QWidget):
             self.drag_start_cell
             and self.drag_current_cell
             and (
-                self.window.mode in (MODE_FLOOR, MODE_ERASE)
+                self.window.mode in (MODE_FLOOR, *ERASE_MODES)
                 or self.window.mode == MODE_INACCESSIBLE_FLOOR
                 or self.window.mode == MODE_PLAYER_SPAWN
             )
@@ -493,6 +505,8 @@ class Canvas(QWidget):
             c0, r0, c1, r1 = rect_from_cells(self.drag_start_cell, self.drag_current_cell)
             if self.window.mode == MODE_ERASE:
                 color = QColor(248, 113, 113, 120)
+            elif self.window.mode == MODE_ERASE_KEEP_FLOORS:
+                color = QColor(251, 146, 60, 120)
             elif self.window.mode == MODE_FLOOR:
                 color = QColor(111, 180, 255, 120)
             elif self.window.mode == MODE_INACCESSIBLE_FLOOR:
@@ -612,19 +626,21 @@ class Canvas(QWidget):
             self.window.add_wall_line(self.drag_start_point, snapped_wall_end(self.drag_start_point, self.drag_current_point))
         elif self.window.mode in RAMP_MODES and self.drag_start_cell and self.drag_current_cell:
             self.window.add_ramp(self.drag_start_cell, self.drag_current_cell, self.window.mode)
-        elif self.window.mode == MODE_ERASE:
+        elif self.window.mode in ERASE_MODES:
+            preserve_floors = self.window.mode == MODE_ERASE_KEEP_FLOORS
             if self.drag_start_cell and self.drag_current_cell and self.drag_start_cell != self.drag_current_cell:
-                self.window.erase_cell_rect(self.drag_start_cell, self.drag_current_cell)
+                self.window.erase_cell_rect(self.drag_start_cell, self.drag_current_cell, preserve_floors)
             else:
-                self.window.erase_at(event.position(), self.cell_size())
+                self.window.erase_at(event.position(), self.cell_size(), preserve_floors)
         self.clear_drag()
         self.update()
 
     def contextMenuEvent(self, event) -> None:
         hit = self.window.hit_at(event.pos(), self.cell_size())
         menu = QMenu(self)
-        if hit:
-            menu.addAction(f"Erase {hit[0]}", lambda: self.window.erase_hit(hit))
+        preserve_floors = self.window.mode == MODE_ERASE_KEEP_FLOORS
+        if hit and not (preserve_floors and hit[0] in FLOOR_HIT_KINDS):
+            menu.addAction(f"Erase {hit[0]}", lambda: self.window.erase_hit(hit, preserve_floors))
         else:
             disabled = menu.addAction("Nothing to erase")
             disabled.setEnabled(False)
@@ -935,25 +951,26 @@ class EditorWindow(QMainWindow):
         after["ramps"].append(new_ramp)
         self.apply_change(f"Place {mode}", after)
 
-    def erase_at(self, pos, cell_size: float) -> None:
+    def erase_at(self, pos, cell_size: float, preserve_floors: bool) -> None:
         hit = self.hit_at(pos, cell_size)
-        if hit:
-            self.erase_hit(hit)
+        if hit and not (preserve_floors and hit[0] in FLOOR_HIT_KINDS):
+            self.erase_hit(hit, preserve_floors)
 
-    def erase_cell_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
+    def erase_cell_rect(self, start: tuple[int, int], end: tuple[int, int], preserve_floors: bool) -> None:
         c0, r0, c1, r1 = rect_from_cells(start, end)
         after = copy.deepcopy(self.map_data)
         level = after["levels"][self.current_level]
-        level["floors"] = [
-            floor
-            for floor in level["floors"]
-            if not (c0 <= floor[0] < c1 and r0 <= floor[1] < r1)
-        ]
-        level["inaccessible_floors"] = [
-            floor
-            for floor in level["inaccessible_floors"]
-            if not (c0 <= floor[0] < c1 and r0 <= floor[1] < r1)
-        ]
+        if not preserve_floors:
+            level["floors"] = [
+                floor
+                for floor in level["floors"]
+                if not (c0 <= floor[0] < c1 and r0 <= floor[1] < r1)
+            ]
+            level["inaccessible_floors"] = [
+                floor
+                for floor in level["inaccessible_floors"]
+                if not (c0 <= floor[0] < c1 and r0 <= floor[1] < r1)
+            ]
         level["walls"] = [
             wall
             for wall in level["walls"]
@@ -970,7 +987,8 @@ class EditorWindow(QMainWindow):
             if self.current_level not in (ramp["lower_level"], ramp["lower_level"] + 1)
             or not rects_overlap((c0, r0, c1, r1), ramp_rect(ramp))
         ]
-        self.apply_change("Erase Area", after)
+        label = "Erase Non-Floor Area" if preserve_floors else "Erase Area"
+        self.apply_change(label, after)
 
     def hit_at(self, pos, cell_size: float):
         col = int(pos.x() // cell_size)
@@ -997,8 +1015,10 @@ class EditorWindow(QMainWindow):
             return ("Inaccessible Floor", (col, row))
         return None
 
-    def erase_hit(self, hit) -> None:
+    def erase_hit(self, hit, preserve_floors: bool = False) -> None:
         kind, value = hit
+        if preserve_floors and kind in FLOOR_HIT_KINDS:
+            return
         after = copy.deepcopy(self.map_data)
         level = after["levels"][self.current_level]
         if kind == "Floor":
@@ -1096,7 +1116,8 @@ class EditorWindow(QMainWindow):
             "Wall: drag along grid lines to place atomic wall edges.\n"
             "Ramp (Up): drag from this level toward the upper level.\n"
             "Ramp (Down): drag from this level toward the lower level.\n"
-            "Erase: click an item, drag cells to erase an area, or right-click for the context menu.",
+            "Erase: click an item, drag cells to erase an area, or right-click for the context menu.\n"
+            "Erase (Keep Floors): erase walls, ramps, and spawn fields while preserving floor and inaccessible floor cells.",
         )
 
     def closeEvent(self, event) -> None:
