@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use super::{components::AssetManagers, login::handle_init_message, messages::dispatch_message};
 use crate::{
+    config::AssetSet,
     constants::ECHO_INTERVAL,
     markers::MainCameraMarker,
     net::{ClientToServer, ServerToClient},
@@ -32,6 +33,7 @@ pub fn network_server_message_system(
     collision_world: Option<Res<CollisionWorld>>,
     time: Res<Time>,
     asset_server: Res<AssetServer>,
+    asset_set: Res<AssetSet>,
 ) {
     // Process all messages from the server
     while let Ok(msg) = from_server.try_recv() {
@@ -55,6 +57,7 @@ pub fn network_server_message_system(
                         &cameras,
                         &time,
                         &asset_server,
+                        &asset_set,
                         collision_world.as_deref(),
                     );
                 } else {

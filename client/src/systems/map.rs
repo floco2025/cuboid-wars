@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 use crate::{
+    config::AssetSet,
     constants::*,
     markers::*,
     resources::{DebugColors, LevelFocusEnabled},
@@ -41,6 +42,7 @@ pub fn map_spawn_walls_system(
     asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_set: Res<AssetSet>,
     debug_colors: Res<DebugColors>,
     mut spawned: Local<bool>,
 ) {
@@ -66,13 +68,14 @@ pub fn map_spawn_walls_system(
             &mut meshes,
             &mut materials,
             &asset_server,
+            &asset_set,
             wall,
             debug_colors.0,
         );
     }
 
     for light in &map_layout.wall_lights {
-        spawn_wall_light_from_layout(&mut commands, &asset_server, light);
+        spawn_wall_light_from_layout(&mut commands, &asset_server, &asset_set, light);
     }
 
     for floor in &map_layout.floors {
@@ -81,13 +84,21 @@ pub fn map_spawn_walls_system(
             &mut meshes,
             &mut materials,
             &asset_server,
+            &asset_set,
             floor,
             debug_colors.0,
         );
     }
 
     for ramp in &map_layout.ramps {
-        spawn_ramp(&mut commands, &mut meshes, &mut materials, &asset_server, ramp);
+        spawn_ramp(
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &asset_server,
+            &asset_set,
+            ramp,
+        );
     }
 
     *spawned = true;

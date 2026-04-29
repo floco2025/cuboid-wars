@@ -1,4 +1,3 @@
-use crate::constants::*;
 use bevy::{
     asset::{AssetPath, RenderAssetUsages},
     image::{ImageAddressMode, ImageFilterMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor},
@@ -131,7 +130,16 @@ pub fn tiled_cuboid(size_x: f32, size_y: f32, size_z: f32, tile_size: f32) -> Me
 
 // Build ramp meshes split into top (uses floor texture) and sides (use wall texture).
 #[must_use]
-pub fn build_ramp_meshes(x1: f32, z1: f32, x2: f32, z2: f32, y_low: f32, y_high: f32) -> (Mesh, Mesh) {
+pub fn build_ramp_meshes(
+    x1: f32,
+    z1: f32,
+    x2: f32,
+    z2: f32,
+    y_low: f32,
+    y_high: f32,
+    tile_top: f32,
+    tile_side: f32,
+) -> (Mesh, Mesh) {
     // Protocol: (x1, z1, y_low) is low corner, (x2, z2, y_high) is high corner
     let min_x = x1.min(x2);
     let max_x = x1.max(x2);
@@ -144,9 +152,6 @@ pub fn build_ramp_meshes(x1: f32, z1: f32, x2: f32, z2: f32, y_low: f32, y_high:
     } else {
         (y_high, y_low)
     };
-    let tile_top = TEXTURE_FLOOR_TILE_SIZE;
-    let tile_side = TEXTURE_WALL_TILE_SIZE;
-
     // Determine direction: does the ramp go in positive or negative direction?
     let x_direction_positive = x2 > x1; // true if ramp rises in +X direction
     let z_direction_positive = z2 > z1; // true if ramp rises in +Z direction

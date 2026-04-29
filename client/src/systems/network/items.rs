@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use std::collections::HashSet;
 
 use crate::{
+    config::AssetSet,
     resources::{ItemInfo, ItemMap},
     spawning::spawn_item,
 };
@@ -12,10 +13,15 @@ use common::protocol::*;
 // ============================================================================
 
 // Handle item collected message - play sound effect.
-pub fn handle_item_collected_message(commands: &mut Commands, _msg: SCookieCollected, asset_server: &AssetServer) {
+pub fn handle_item_collected_message(
+    commands: &mut Commands,
+    _msg: SCookieCollected,
+    asset_server: &AssetServer,
+    asset_set: &AssetSet,
+) {
     // Play sound - this message is only sent to the player who collected it
     commands.spawn((
-        AudioPlayer::new(asset_server.load("sounds/player_cookie.ogg")),
+        AudioPlayer::new(asset_server.load(asset_set.sound("player_cookie").to_owned())),
         PlaybackSettings::DESPAWN,
     ));
 }
@@ -31,6 +37,7 @@ pub fn sync_items(
     materials: &mut ResMut<Assets<StandardMaterial>>,
     items: &mut ResMut<ItemMap>,
     asset_server: &Res<AssetServer>,
+    asset_set: &AssetSet,
     server_items: &[(ItemId, Item)],
 ) {
     let server_item_ids: HashSet<ItemId> = server_items.iter().map(|(id, _)| *id).collect();
@@ -45,6 +52,7 @@ pub fn sync_items(
             meshes,
             materials,
             asset_server,
+            asset_set,
             *item_id,
             item.item_type,
             &item.pos,

@@ -14,6 +14,7 @@ use crate::{
     resources::{CellGrid, EdgeGrid, LevelGrid, MapConfig, PlayerSpawnField},
 };
 use common::{
+    assets::AssetRules,
     constants::*,
     protocol::{Floor, MapLayout, Wall},
 };
@@ -343,7 +344,7 @@ fn normalized_wall(wall: [i32; 4]) -> [i32; 4] {
 // ============================================================================
 
 #[must_use]
-pub fn compile_map(map_def: &MapDef) -> (MapLayout, MapConfig) {
+pub fn compile_map(map_def: &MapDef, assets: &AssetRules) -> (MapLayout, MapConfig) {
     let cols = map_def.grid_cols;
     let rows = map_def.grid_rows;
 
@@ -410,7 +411,7 @@ pub fn compile_map(map_def: &MapDef) -> (MapLayout, MapConfig) {
     for (level_idx, level_grid) in level_grids.iter().enumerate() {
         let level_u8 = u8::try_from(level_idx).unwrap_or(u8::MAX);
         let mut tier = walls::generate_walls(&level_grid.edges, cols, rows, level_u8);
-        tier = walls::merge_walls(tier);
+        tier = walls::merge_walls(tier, assets);
         all_walls.extend(tier);
     }
 
@@ -431,7 +432,7 @@ pub fn compile_map(map_def: &MapDef) -> (MapLayout, MapConfig) {
             ));
         }
         if !FLOOR_OVERLAP {
-            tier = floors::merge_floors(tier);
+            tier = floors::merge_floors(tier, assets);
         }
         all_floors.extend(tier);
     }
@@ -506,6 +507,10 @@ mod tests {
         PlayerSpawnDef { level, col, row }
     }
 
+    fn assets() -> AssetRules {
+        AssetRules::load_default().expect("default asset rules should load")
+    }
+
     #[test]
     fn validation_rejects_spawn_field_without_floor_on_its_level() {
         let map_def = MapDef {
@@ -557,7 +562,7 @@ mod tests {
             ramps: Vec::new(),
         };
 
-        let (layout, config) = compile_map(&map_def);
+        let (layout, config) = compile_map(&map_def, &assets());
         let inaccessible_cell = config.levels[0].cells.rows[0][2];
         assert!(!inaccessible_cell.has_floor);
         assert!(inaccessible_cell.has_floor_slab);

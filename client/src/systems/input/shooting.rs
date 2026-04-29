@@ -5,6 +5,7 @@ use bevy::{
 };
 
 use crate::{
+    config::AssetSet,
     markers::{LocalPlayerMarker, MainCameraMarker},
     net::ClientToServer,
     resources::{CameraViewMode, ClientToServerChannel, LocalPlayerInfo, MyPlayerId, PlayerMap},
@@ -28,6 +29,7 @@ pub fn input_shooting_system(
     camera_query: Query<&Transform, (With<Camera3d>, With<MainCameraMarker>)>,
     to_server: Res<ClientToServerChannel>,
     asset_server: Res<AssetServer>,
+    asset_set: Res<AssetSet>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     my_player_id: Option<Res<MyPlayerId>>,
@@ -58,7 +60,7 @@ pub fn input_shooting_system(
         // Client-side cooldown guard (server still authoritative)
         if now - local_player_info.last_shot_time < PROJECTILE_COOLDOWN_TIME {
             commands.spawn((
-                AudioPlayer::new(asset_server.load("sounds/player_dry_click.ogg")),
+                AudioPlayer::new(asset_server.load(asset_set.sound("player_dry_click").to_owned())),
                 PlaybackSettings::DESPAWN,
             ));
             return;
@@ -96,12 +98,12 @@ pub fn input_shooting_system(
             ) > 0
             {
                 commands.spawn((
-                    AudioPlayer::new(asset_server.load("sounds/player_fires.ogg")),
+                    AudioPlayer::new(asset_server.load(asset_set.sound("player_fire").to_owned())),
                     PlaybackSettings::DESPAWN,
                 ));
             } else {
                 commands.spawn((
-                    AudioPlayer::new(asset_server.load("sounds/player_dry_click.ogg")),
+                    AudioPlayer::new(asset_server.load(asset_set.sound("player_dry_click").to_owned())),
                     PlaybackSettings::DESPAWN,
                 ));
             }

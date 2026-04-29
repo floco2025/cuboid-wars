@@ -11,6 +11,7 @@ use super::{
     systems::handle_echo_message,
 };
 use crate::{
+    config::AssetSet,
     markers::MainCameraMarker,
     resources::{ItemMap, LastUpdateSeq, PlayerMap, RoundTripTime},
 };
@@ -34,6 +35,7 @@ pub fn dispatch_message(
     cameras: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     time: &Res<Time>,
     asset_server: &Res<AssetServer>,
+    asset_set: &AssetSet,
     collision_world: Option<&CollisionWorld>,
 ) {
     match msg {
@@ -48,6 +50,7 @@ pub fn dispatch_message(
             &mut assets.graphs,
             players,
             asset_server,
+            asset_set,
             login,
         ),
         ServerMessage::Logoff(logoff) => handle_player_logoff_message(commands, players, logoff),
@@ -83,16 +86,24 @@ pub fn dispatch_message(
             cameras,
             my_player_id,
             asset_server,
+            asset_set,
             update_msg,
         ),
         ServerMessage::Hit(hit_msg) => handle_player_hit_message(commands, players, cameras, my_player_id, hit_msg),
         ServerMessage::Death(death_msg) => handle_player_death_message(commands, players, my_player_id, death_msg),
         ServerMessage::PlayerStatus(player_status_msg) => {
-            handle_player_status_message(commands, players, player_status_msg, my_player_id, asset_server);
+            handle_player_status_message(
+                commands,
+                players,
+                player_status_msg,
+                my_player_id,
+                asset_server,
+                asset_set,
+            );
         }
         ServerMessage::Echo(echo_msg) => handle_echo_message(time, rtt, echo_msg),
         ServerMessage::CookieCollected(cookie_msg) => {
-            handle_item_collected_message(commands, cookie_msg, asset_server);
+            handle_item_collected_message(commands, cookie_msg, asset_server, asset_set);
         }
     }
 }
@@ -116,6 +127,7 @@ pub fn handle_update_message(
     camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     my_player_id: PlayerId,
     asset_server: &Res<AssetServer>,
+    asset_set: &AssetSet,
     msg: SUpdate,
 ) {
     // Ignore outdated updates
@@ -142,7 +154,8 @@ pub fn handle_update_message(
         camera_query,
         my_player_id,
         asset_server,
+        asset_set,
         &msg.players,
     );
-    super::items::sync_items(commands, meshes, materials, items, asset_server, &msg.items);
+    super::items::sync_items(commands, meshes, materials, items, asset_server, asset_set, &msg.items);
 }

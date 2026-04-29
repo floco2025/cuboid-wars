@@ -17,3 +17,5 @@ anyhow = "1"
 rapier3d = "0.32"
 rustls = { version = "0.23", default-features = false }
 rustls-pemfile = "2"
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"

@@ -8,6 +8,7 @@ use bevy::{
 };
 
 use crate::{
+    config::AssetSet,
     constants::*,
     markers::*,
     systems::{AnimationToPlay, BumpFlashState, players_animation_system},
@@ -42,6 +43,7 @@ pub fn spawn_player(
     materials: &mut ResMut<Assets<StandardMaterial>>,
     images: &mut ResMut<Assets<Image>>,
     graphs: &mut ResMut<Assets<AnimationGraph>>,
+    asset_set: &AssetSet,
     player_id: u32,
     player_name: &str,
     position: &Position,
@@ -49,11 +51,17 @@ pub fn spawn_player(
     face_dir: f32,
     is_local: bool,
 ) -> Entity {
+    let player_model = asset_set.player_model();
     // Create animation graph for this player
-    let (graph, index) =
-        AnimationGraph::from_clip(asset_server.load(GltfAssetLabel::Animation(0).from_asset(PLAYER_MODEL)));
+    let (graph, index) = AnimationGraph::from_clip(
+        asset_server.load(GltfAssetLabel::Animation(0).from_asset(player_model.scene.clone())),
+    );
     let graph_handle = graphs.add(graph);
-    let animation_to_play = AnimationToPlay { graph_handle, index };
+    let animation_to_play = AnimationToPlay {
+        graph_handle,
+        index,
+        speed: player_model.animation_speed.unwrap_or(1.0),
+    };
 
     let entity = commands
         .spawn((
@@ -97,11 +105,11 @@ pub fn spawn_player(
     }
 
     // Add the GLB player model with animation observer
-    let base_y = PLAYER_MODEL_HEIGHT_OFFSET - PLAYER_HEIGHT / 2.0;
+    let base_y = player_model.height_offset - PLAYER_HEIGHT / 2.0;
     let model = commands
         .spawn((
-            SceneRoot(asset_server.load(PLAYER_MODEL)),
-            Transform::from_scale(Vec3::splat(PLAYER_MODEL_SCALE)).with_translation(Vec3::new(0.0, base_y, 0.0)),
+            SceneRoot(asset_server.load(player_model.scene.clone())),
+            Transform::from_scale(Vec3::splat(player_model.scale)).with_translation(Vec3::new(0.0, base_y, 0.0)),
             animation_to_play,
             PlayerModelMarker,
         ))

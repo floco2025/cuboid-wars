@@ -3,6 +3,7 @@ use std::collections::HashSet;
 
 use super::components::ServerReconciliation;
 use crate::{
+    config::AssetSet,
     markers::MainCameraMarker,
     resources::{PlayerInfo, PlayerMap, RoundTripTime},
     spawning::{spawn_player, spawn_projectiles},
@@ -175,6 +176,7 @@ pub fn handle_player_status_message(
     msg: SPlayerStatus,
     my_player_id: PlayerId,
     asset_server: &AssetServer,
+    asset_set: &AssetSet,
 ) {
     if let Some(player_info) = players.0.get_mut(&msg.id) {
         // Play power-up sound effect only for the local player
@@ -188,7 +190,7 @@ pub fn handle_player_status_message(
 
                 if !lost_power_up {
                     commands.spawn((
-                        AudioPlayer::new(asset_server.load("sounds/player_powerup.wav")),
+                        AudioPlayer::new(asset_server.load(asset_set.sound("player_power_up").to_owned())),
                         PlaybackSettings::DESPAWN,
                     ));
                 }
@@ -219,6 +221,7 @@ pub fn sync_players(
     camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     my_player_id: PlayerId,
     asset_server: &Res<AssetServer>,
+    asset_set: &AssetSet,
     server_players: &[(PlayerId, Player)],
 ) {
     // Track which players the server knows about in this snapshot
@@ -239,6 +242,7 @@ pub fn sync_players(
             materials,
             images,
             graphs,
+            asset_set,
             id.0,
             &player.name,
             &player.pos,

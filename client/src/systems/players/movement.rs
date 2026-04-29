@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use super::components::BumpFlashState;
-use crate::{markers::*, resources::PlayerMap, systems::network::ServerReconciliation};
+use crate::{config::AssetSet, markers::*, resources::PlayerMap, systems::network::ServerReconciliation};
 use common::{
     constants::{ALWAYS_PHASING, PHYSICS_EPSILON, PLAYER_SPEED, UPDATE_BROADCAST_INTERVAL},
     physics::{CollisionWorld, PlannedMove, PlayerMotion, overlaps_other_player, step_player_motion},
@@ -38,6 +38,7 @@ fn decay_flash_timer(
 fn trigger_collision_feedback(
     commands: &mut Commands,
     asset_server: &AssetServer,
+    asset_set: &AssetSet,
     bump_flash_ui: &mut Query<(&mut BackgroundColor, &mut Visibility), With<BumpFlashUIMarker>>,
     state: &mut Mut<BumpFlashState>,
     collided_with_wall: bool,
@@ -49,13 +50,13 @@ fn trigger_collision_feedback(
         }
 
         let sound_path = if collided_with_wall {
-            "sounds/player_bumps_wall.ogg"
+            asset_set.sound("player_bumps_wall")
         } else {
-            "sounds/player_bumps_player.ogg"
+            asset_set.sound("player_bumps_player")
         };
 
         commands.spawn((
-            AudioPlayer::new(asset_server.load(sound_path)),
+            AudioPlayer::new(asset_server.load(sound_path.to_owned())),
             PlaybackSettings::DESPAWN,
         ));
 
@@ -100,6 +101,7 @@ pub fn players_movement_system(
     mut commands: Commands,
     time: Res<Time>,
     asset_server: Res<AssetServer>,
+    asset_set: Res<AssetSet>,
     collision_world: Option<Res<CollisionWorld>>,
     players: Res<PlayerMap>,
     mut query: MovementQuery,
@@ -219,7 +221,14 @@ pub fn players_movement_system(
             motion.velocity.y = planned_move.target_vy;
 
             if is_local && let Some(state) = flash_state.as_mut() {
-                trigger_collision_feedback(&mut commands, &asset_server, &mut bump_flash_ui, state, false);
+                trigger_collision_feedback(
+                    &mut commands,
+                    &asset_server,
+                    &asset_set,
+                    &mut bump_flash_ui,
+                    state,
+                    false,
+                );
             }
         } else {
             *client_pos = planned_move.target;
@@ -228,7 +237,14 @@ pub fn players_movement_system(
             if let Some(state) = flash_state.as_mut() {
                 if planned_move.blocked {
                     if is_local {
-                        trigger_collision_feedback(&mut commands, &asset_server, &mut bump_flash_ui, state, true);
+                        trigger_collision_feedback(
+                            &mut commands,
+                            &asset_server,
+                            &asset_set,
+                            &mut bump_flash_ui,
+                            state,
+                            true,
+                        );
                     }
                 } else {
                     release_collision_feedback_after_clear_frames(state, delta);

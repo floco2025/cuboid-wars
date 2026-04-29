@@ -1,7 +1,8 @@
 use bevy::prelude::*;
 
-use super::helpers::{build_ramp_meshes, load_repeating_texture, load_repeating_texture_linear};
-use crate::{constants::*, markers::*};
+use super::helpers::build_ramp_meshes;
+use crate::config::AssetSet;
+use crate::markers::*;
 use common::{constants::LEVEL_HEIGHT, protocol::*};
 
 #[derive(Bundle)]
@@ -19,46 +20,31 @@ pub fn spawn_ramp(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
     asset_server: &Res<AssetServer>,
+    asset_set: &AssetSet,
     ramp: &Ramp,
 ) {
+    let top_material_def = asset_set.material_for_ramp_top(ramp);
+    let side_material_def = asset_set.material_for_ramp_side(ramp);
+
     // Build meshes split by material usage
-    let (mesh_top, mesh_side) = build_ramp_meshes(ramp.x1, ramp.z1, ramp.x2, ramp.z2, ramp.y1, ramp.y2);
+    let (mesh_top, mesh_side) = build_ramp_meshes(
+        ramp.x1,
+        ramp.z1,
+        ramp.x2,
+        ramp.z2,
+        ramp.y1,
+        ramp.y2,
+        top_material_def.tile_size(),
+        side_material_def.tile_size(),
+    );
 
     // Floor material for the ramp top
-    let mut top_material = StandardMaterial {
-        base_color_texture: Some(load_repeating_texture(asset_server, "textures/ground/albedo.png")),
-        normal_map_texture: Some(load_repeating_texture_linear(
-            asset_server,
-            "textures/ground/normal-dx.png",
-        )),
-        occlusion_texture: Some(load_repeating_texture_linear(asset_server, "textures/ground/ao.png")),
-        metallic_roughness_texture: Some(load_repeating_texture_linear(
-            asset_server,
-            "textures/ground/metallic-roughness.png",
-        )),
-        perceptual_roughness: TEXTURE_FLOOR_ROUGHNESS,
-        metallic: TEXTURE_FLOOR_METALLIC,
-        ..default()
-    };
+    let mut top_material = top_material_def.standard_material(asset_server);
     top_material.alpha_mode = AlphaMode::Opaque;
     top_material.base_color.set_alpha(1.0);
 
     // Wall material for the ramp sides
-    let mut side_material = StandardMaterial {
-        base_color_texture: Some(load_repeating_texture(asset_server, "textures/wall/albedo.png")),
-        normal_map_texture: Some(load_repeating_texture_linear(
-            asset_server,
-            "textures/wall/normal-dx.png",
-        )),
-        occlusion_texture: Some(load_repeating_texture_linear(asset_server, "textures/wall/ao.png")),
-        metallic_roughness_texture: Some(load_repeating_texture_linear(
-            asset_server,
-            "textures/wall/metallic-roughness.png",
-        )),
-        perceptual_roughness: TEXTURE_WALL_ROUGHNESS,
-        metallic: TEXTURE_WALL_METALLIC,
-        ..default()
-    };
+    let mut side_material = side_material_def.standard_material(asset_server);
     side_material.alpha_mode = AlphaMode::Opaque;
     side_material.base_color.set_alpha(1.0);
 

@@ -1,7 +1,5 @@
 use bevy::{prelude::*, scene::SceneInstanceReady};
 
-use crate::constants::*;
-
 // ============================================================================
 // Components
 // ============================================================================
@@ -11,6 +9,7 @@ use crate::constants::*;
 pub struct AnimationToPlay {
     pub graph_handle: Handle<AnimationGraph>,
     pub index: AnimationNodeIndex,
+    pub speed: f32,
 }
 
 // ============================================================================
@@ -39,7 +38,7 @@ pub fn players_animation_system(
                 player
                     .play(animation_to_play.index)
                     .repeat()
-                    .set_speed(PLAYER_MODEL_ANIMATION_SPEED);
+                    .set_speed(animation_to_play.speed);
 
                 // Add the animation graph. This only needs to be done once to
                 // connect the animation player to the mesh.

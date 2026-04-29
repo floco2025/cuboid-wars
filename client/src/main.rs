@@ -8,7 +8,12 @@ use clap::Parser;
 use quinn::Endpoint;
 use tokio::{runtime::Runtime, time::Duration};
 
-use client::{config::configure_client, net::network_io_task, resources::*, systems::*};
+use client::{
+    config::{AssetSet, configure_client},
+    net::network_io_task,
+    resources::*,
+    systems::*,
+};
 use common::{net::MessageStream, protocol::*};
 
 // ============================================================================
@@ -61,6 +66,7 @@ struct Args {
 
 fn main() -> Result<()> {
     let args = Args::parse();
+    let asset_set = AssetSet::load_default()?;
 
     let player_name = args.name.clone().unwrap_or_else(|| {
         let full_name = whoami::realname().unwrap_or_default();
@@ -104,6 +110,7 @@ fn main() -> Result<()> {
     .insert_resource(InputSettings {
         invert_pitch: args.invert_pitch,
     })
+    .insert_resource(asset_set)
     .insert_resource(DebugColors(args.debug_colors))
     .insert_resource(LastBounceSoundTime::default())
     .add_systems(

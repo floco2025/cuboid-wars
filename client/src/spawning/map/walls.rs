@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 use rand::{RngExt, rng};
 
-use super::helpers::{load_repeating_texture, load_repeating_texture_linear, tiled_cuboid};
-use crate::{constants::*, markers::*};
+use super::helpers::tiled_cuboid;
+use crate::{config::AssetSet, markers::*};
 use common::{constants::*, protocol::*};
 
 #[derive(Bundle)]
@@ -20,10 +20,10 @@ pub fn spawn_wall(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
     asset_server: &Res<AssetServer>,
+    asset_set: &AssetSet,
     wall: &Wall,
     debug_colors: bool,
 ) {
-    // Calculate wall center and dimensions from corners
     let center_x = f32::midpoint(wall.x1, wall.x2);
     let center_z = f32::midpoint(wall.z1, wall.z2);
 
@@ -36,36 +36,14 @@ pub fn spawn_wall(
     let mesh_size_z = wall.width;
     let rotation = Quat::from_rotation_y(dz.atan2(dx));
 
-    // Create material based on whether debug colors are enabled
+    let material_def = asset_set.material_for_wall(wall);
     let wall_material = if debug_colors {
-        let mut rng = rng();
-        StandardMaterial {
-            base_color: Color::srgb(
-                rng.random_range(0.2..1.0),
-                rng.random_range(0.2..1.0),
-                rng.random_range(0.2..1.0),
-            ),
-            ..default()
-        }
+        random_debug_material()
     } else {
-        StandardMaterial {
-            base_color_texture: Some(load_repeating_texture(asset_server, "textures/wall/albedo.png")),
-            normal_map_texture: Some(load_repeating_texture_linear(
-                asset_server,
-                "textures/wall/normal-dx.png",
-            )),
-            occlusion_texture: Some(load_repeating_texture_linear(asset_server, "textures/wall/ao.png")),
-            metallic_roughness_texture: Some(load_repeating_texture_linear(
-                asset_server,
-                "textures/wall/metallic-roughness.png",
-            )),
-            perceptual_roughness: TEXTURE_WALL_ROUGHNESS,
-            metallic: TEXTURE_WALL_METALLIC,
-            ..default()
-        }
+        material_def.standard_material(asset_server)
     };
 
-    let mut mesh = tiled_cuboid(mesh_size_x, WALL_HEIGHT, mesh_size_z, TEXTURE_WALL_TILE_SIZE);
+    let mut mesh = tiled_cuboid(mesh_size_x, WALL_HEIGHT, mesh_size_z, material_def.tile_size());
     let _ = mesh.generate_tangents();
 
     let level_y = f32::from(wall.level) * LEVEL_HEIGHT;
@@ -79,4 +57,16 @@ pub fn spawn_wall(
         },
         MapLevel(wall.level),
     ));
+}
+
+fn random_debug_material() -> StandardMaterial {
+    let mut rng = rng();
+    StandardMaterial {
+        base_color: Color::srgb(
+            rng.random_range(0.2..1.0),
+            rng.random_range(0.2..1.0),
+            rng.random_range(0.2..1.0),
+        ),
+        ..default()
+    }
 }

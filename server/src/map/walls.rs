@@ -8,7 +8,7 @@ use super::{
     segments::{horizontal_wall_segment, vertical_wall_segment},
 };
 use crate::resources::EdgeGrid;
-use common::{constants::*, protocol::Wall};
+use common::{assets::AssetRules, constants::*, protocol::Wall};
 
 // Epsilon for merging adjacent walls.
 const MERGE_EPS: f32 = 0.01;
@@ -81,13 +81,16 @@ fn normalize_wall(mut w: Wall) -> Wall {
 }
 
 // Merge collinear walls that are adjacent or overlapping.
-fn merge_walls_line(list: Vec<Wall>, is_horizontal: bool, out: &mut Vec<Wall>) {
+fn merge_walls_line(list: Vec<Wall>, is_horizontal: bool, assets: &AssetRules, out: &mut Vec<Wall>) {
     let mut iter = list.into_iter();
     if let Some(mut cur) = iter.next() {
+        let mut cur_material = assets.material_for_wall(&cur);
         for w in iter {
+            let material = assets.material_for_wall(&w);
             if is_horizontal {
                 if (cur.z1 - w.z1).abs() < MERGE_EPS
                     && (cur.width - w.width).abs() < MERGE_EPS
+                    && cur_material == material
                     && w.x1 <= cur.x2 + MERGE_EPS
                 {
                     cur.x2 = cur.x2.max(w.x2);
@@ -95,6 +98,7 @@ fn merge_walls_line(list: Vec<Wall>, is_horizontal: bool, out: &mut Vec<Wall>) {
                 }
             } else if (cur.x1 - w.x1).abs() < MERGE_EPS
                 && (cur.width - w.width).abs() < MERGE_EPS
+                && cur_material == material
                 && w.z1 <= cur.z2 + MERGE_EPS
             {
                 cur.z2 = cur.z2.max(w.z2);
@@ -102,13 +106,14 @@ fn merge_walls_line(list: Vec<Wall>, is_horizontal: bool, out: &mut Vec<Wall>) {
             }
             out.push(cur);
             cur = w;
+            cur_material = material;
         }
         out.push(cur);
     }
 }
 
 // Merge adjacent collinear walls into longer segments
-pub fn merge_walls(walls: Vec<Wall>) -> Vec<Wall> {
+pub fn merge_walls(walls: Vec<Wall>, assets: &AssetRules) -> Vec<Wall> {
     let mut horizontals = Vec::new();
     let mut verticals = Vec::new();
     let mut others = Vec::new();
@@ -136,8 +141,8 @@ pub fn merge_walls(walls: Vec<Wall>) -> Vec<Wall> {
     });
 
     let mut merged = Vec::new();
-    merge_walls_line(horizontals, true, &mut merged);
-    merge_walls_line(verticals, false, &mut merged);
+    merge_walls_line(horizontals, true, assets, &mut merged);
+    merge_walls_line(verticals, false, assets, &mut merged);
     merged.extend(others);
     merged
 }

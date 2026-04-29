@@ -8,6 +8,8 @@ A fast-paced multiplayer arena shooter built with Rust, Bevy, Rapier, and QUIC n
 
 Cuboid Wars is a networked 3D game where players navigate a procedurally-generated multi-level maze, collect items, gather power-ups, and avoid sentries. The game uses shared Rapier-backed physics for player movement and projectiles, a client-server architecture with authoritative server logic, client-side prediction for smooth gameplay, and a small map editor for creating and refining arenas.
 
+Client visuals are configured through the hand-edited TOML asset set at `client/assets/default.toml`, including material rules that use editor coordinates for floors and walls.
+
 ## Technical Stack
 
 - **Engine**: Bevy 0.18 (ECS game engine)

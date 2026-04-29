@@ -4,6 +4,7 @@ use bevy::{
 };
 
 use crate::{
+    config::AssetSet,
     constants::{PROJECTILE_MAX_BOUNCE_SOUNDS_PER_SECOND, PROJECTILE_MIN_BOUNCE_SOUND_SPEED},
     markers::LocalPlayerMarker,
     resources::LastBounceSoundTime,
@@ -21,6 +22,7 @@ use common::{
 fn handle_player_collisions(
     commands: &mut Commands,
     asset_server: &AssetServer,
+    asset_set: &AssetSet,
     proj_entity: Entity,
     proj_motion: &ProjectileMotion,
     proj_pos: &Position,
@@ -32,7 +34,7 @@ fn handle_player_collisions(
             play_sound(
                 commands,
                 asset_server,
-                "sounds/projectile_hits_player.ogg",
+                asset_set.sound("projectile_hits_player"),
                 PlaybackSettings::DESPAWN,
             );
 
@@ -40,7 +42,7 @@ fn handle_player_collisions(
                 play_sound(
                     commands,
                     asset_server,
-                    "sounds/player_gets_hit.ogg",
+                    asset_set.sound("player_hit"),
                     PlaybackSettings::DESPAWN,
                 );
             }
@@ -53,13 +55,8 @@ fn handle_player_collisions(
     false
 }
 
-fn play_sound(
-    commands: &mut Commands,
-    asset_server: &AssetServer,
-    asset_path: &'static str,
-    settings: PlaybackSettings,
-) {
-    commands.spawn((AudioPlayer::new(asset_server.load(asset_path)), settings));
+fn play_sound(commands: &mut Commands, asset_server: &AssetServer, asset_path: &str, settings: PlaybackSettings) {
+    commands.spawn((AudioPlayer::new(asset_server.load(asset_path.to_owned())), settings));
 }
 
 // ============================================================================
@@ -70,6 +67,7 @@ pub fn projectiles_movement_system(
     mut commands: Commands,
     time: Res<Time>,
     asset_server: Res<AssetServer>,
+    asset_set: Res<AssetSet>,
     mut projectile_query: Query<(Entity, &mut Transform, &mut ProjectileMotion, &PlayerId), With<ProjectileMarker>>,
     player_query: Query<(Entity, &Position, &FaceDirection, Has<LocalPlayerMarker>), With<PlayerMarker>>,
     collision_world: Option<Res<CollisionWorld>>,
@@ -97,6 +95,7 @@ pub fn projectiles_movement_system(
         let new_pos = if let Some(pos_after_bounce) = handle_wall_collisions(
             &mut commands,
             asset_server.as_ref(),
+            &asset_set,
             &mut projectile,
             &projectile_pos,
             delta,
@@ -110,6 +109,7 @@ pub fn projectiles_movement_system(
             if handle_player_collisions(
                 &mut commands,
                 asset_server.as_ref(),
+                &asset_set,
                 projectile_entity,
                 &projectile,
                 &projectile_pos,
@@ -136,6 +136,7 @@ pub fn projectiles_movement_system(
 fn handle_wall_collisions(
     commands: &mut Commands,
     asset_server: &AssetServer,
+    asset_set: &AssetSet,
     proj_motion: &mut ProjectileMotion,
     proj_pos: &Position,
     delta: f32,
@@ -156,7 +157,7 @@ fn handle_wall_collisions(
         play_sound(
             commands,
             asset_server,
-            "sounds/projectile_hits_wall.ogg",
+            asset_set.sound("projectile_hits_wall"),
             PlaybackSettings {
                 mode: PlaybackMode::Despawn,
                 volume: Volume::Linear(0.2),
