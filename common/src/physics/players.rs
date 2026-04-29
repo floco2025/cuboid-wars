@@ -12,8 +12,8 @@ use rapier3d::{
 use super::world::{CollisionWorld, ShapeCastHit};
 use crate::{
     constants::{
-        PHYSICS_EPSILON, PLAYER_DEPTH, PLAYER_FOOT_CLEARANCE, PLAYER_GRAVITY, PLAYER_GROUND_SNAP_DISTANCE,
-        PLAYER_HEIGHT, PLAYER_JUMP_SPEED, PLAYER_STEP_HEIGHT, PLAYER_STEP_MIN_WIDTH, PLAYER_SUPPORT_PROBE_DEPTH,
+        PHYSICS_EPSILON, PLAYER_DEPTH, PLAYER_GRAVITY, PLAYER_GROUND_SNAP_DISTANCE, PLAYER_HEIGHT, PLAYER_JUMP_SPEED,
+        PLAYER_LOW_OBSTACLE_CLEARANCE, PLAYER_STEP_HEIGHT, PLAYER_STEP_MIN_WIDTH, PLAYER_SUPPORT_PROBE_DEPTH,
         PLAYER_SUPPORT_PROBE_WIDTH, PLAYER_TERMINAL_VELOCITY, PLAYER_WIDTH,
     },
     protocol::Position,
@@ -163,7 +163,7 @@ pub fn step_player_movement(
         None
     };
     if let Some(ground) = resolved_ground {
-        resolved.y -= ground.t - PLAYER_FOOT_CLEARANCE;
+        resolved.y -= ground.t - PLAYER_LOW_OBSTACLE_CLEARANCE;
     }
     let mut vertical_velocity = next_motion.vertical_velocity;
     // Rapier reports a side contact while auto-stepping over slab/trim edges.
@@ -215,7 +215,7 @@ fn player_ground_hit(
     collision_world.ground_hit(
         shape,
         &pose,
-        PLAYER_GROUND_SNAP_DISTANCE + PLAYER_FOOT_CLEARANCE,
+        PLAYER_GROUND_SNAP_DISTANCE + PLAYER_LOW_OBSTACLE_CLEARANCE,
         0.0,
         has_phasing,
     )
@@ -244,9 +244,9 @@ fn player_shape() -> Cuboid {
 }
 
 fn player_collision_height() -> f32 {
-    // The logical foot position remains at `Position.y`; the collider starts a
-    // little above it so floor-side faces at sole height don't block movement.
-    PLAYER_HEIGHT - PLAYER_FOOT_CLEARANCE
+    // The logical foot position remains at `Position.y`; the collider starts
+    // above it so low obstacle contacts do not block movement.
+    PLAYER_HEIGHT - PLAYER_LOW_OBSTACLE_CLEARANCE
 }
 
 fn player_support_probe_shape() -> Cuboid {
@@ -275,7 +275,7 @@ fn project_input_move_onto_support(input_move: Vector, support_normal: Vec3) -> 
 fn player_pose(pos: &Position) -> Pose {
     Pose::translation(
         pos.x,
-        pos.y + PLAYER_FOOT_CLEARANCE + player_collision_height() / 2.0,
+        pos.y + PLAYER_LOW_OBSTACLE_CLEARANCE + player_collision_height() / 2.0,
         pos.z,
     )
 }
@@ -327,7 +327,7 @@ pub fn overlap_player_vs_item(player_pos: &Position, item_pos: &Position, collec
 mod tests {
     use super::*;
     use crate::{
-        constants::{FLOOR_THICKNESS, LEVEL_HEIGHT},
+        constants::{FLOOR_THICKNESS, LEVEL_HEIGHT, PLAYER_SPEED, WALL_THICKNESS},
         map::ramp_surface_at,
         protocol::{Floor, MapLayout, Ramp, Wall},
     };
@@ -558,7 +558,7 @@ mod tests {
             z1: -100.0,
             x2: 0.0,
             z2: 100.0,
-            width: 0.2,
+            width: WALL_THICKNESS,
             level: 0,
         };
         let floor = lower_floor();
@@ -569,9 +569,19 @@ mod tests {
             z: 0.0,
         };
         let motion = PlayerVerticalMotion::default();
+        let delta = 1.0 / 60.0;
+        let velocity = Vec3::new(1.0, 0.0, 0.25).normalize() * PLAYER_SPEED;
 
-        for _ in 0..20 {
-            let step = step_player_movement(&pos, &motion, &collision_world, false, 1.0, pos.z + 0.25, 0.1);
+        for _ in 0..120 {
+            let step = step_player_movement(
+                &pos,
+                &motion,
+                &collision_world,
+                false,
+                velocity.x.mul_add(delta, pos.x),
+                velocity.z.mul_add(delta, pos.z),
+                delta,
+            );
             pos = step.position;
         }
 
@@ -718,7 +728,6 @@ mod tests {
         let step = step_player_movement(&pos, &motion, &collision_world, false, -4.25, pos.z, 0.1);
 
         assert!(step.blocked);
-        assert!(step.vertical_velocity > 0.0);
         assert!(step.position.x > pos.x);
     }
 
@@ -812,7 +821,7 @@ mod tests {
     }
 
     #[test]
-    fn floor_slab_side_blocks_movement_off_ramp_when_support_probe_leaves_ramp() {
+    fn low_obstacle_clearance_allows_movement_off_ramp_side() {
         let ramp = test_ramp();
         let floor = upper_floor_west_of_ramp();
         let collision_world = collision_world(&[floor], &[ramp]);
@@ -822,7 +831,7 @@ mod tests {
 
         let step = step_player_movement(&pos, &motion, &collision_world, false, -1.0, pos.z, 0.1);
 
-        assert!(step.blocked);
+        assert!(!step.blocked);
         assert!(step.position.x < pos.x);
     }
 

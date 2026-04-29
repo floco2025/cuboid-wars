@@ -44,10 +44,10 @@ pub const PHYSICS_EPSILON: f32 = 1e-6;
 pub const PLAYER_HEIGHT: f32 = 1.8; // up/down
 pub const PLAYER_WIDTH: f32 = 1.0; // side to side
 pub const PLAYER_DEPTH: f32 = 0.6; // front to back
-// Non-colliding sole height. This lets the character body clear tiny slab and
-// trim edges at foot level while keeping the logical/player-rendered position
-// on the support surface.
-pub const PLAYER_FOOT_CLEARANCE: f32 = 0.05;
+// Height below the player body that does not collide with world geometry. This
+// lets movement ignore low curbs, slab seams, and trim while keeping the
+// logical/player-rendered position on the support surface.
+pub const PLAYER_LOW_OBSTACLE_CLEARANCE: f32 = 0.5;
 // Footprint used only for support probing. It is intentionally smaller than the
 // collision body so brushing a wall/floor edge cannot keep the player grounded.
 pub const PLAYER_SUPPORT_PROBE_WIDTH: f32 = 0.2;
