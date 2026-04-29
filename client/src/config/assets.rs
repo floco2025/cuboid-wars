@@ -36,12 +36,24 @@ impl AssetSet {
         self.material(self.rules.material_for_floor(floor))
     }
 
+    pub fn material_id_for_floor(&self, floor: &Floor) -> &str {
+        self.rules.material_for_floor(floor)
+    }
+
     pub fn material_for_ramp_top(&self, ramp: &Ramp) -> &MaterialDef {
         self.material(self.rules.material_for_ramp_top(ramp))
     }
 
+    pub fn material_id_for_ramp_top(&self, ramp: &Ramp) -> &str {
+        self.rules.material_for_ramp_top(ramp)
+    }
+
     pub fn material_for_ramp_side(&self, ramp: &Ramp) -> &MaterialDef {
         self.material(self.rules.material_for_ramp_side(ramp))
+    }
+
+    pub fn material_id_for_ramp_side(&self, ramp: &Ramp) -> &str {
+        self.rules.material_for_ramp_side(ramp)
     }
 
     pub fn material_for_item(&self, item_type: ItemType) -> &MaterialDef {
@@ -50,6 +62,14 @@ impl AssetSet {
 
     pub fn material_for_wall(&self, wall: &Wall) -> &MaterialDef {
         self.material(self.rules.material_for_wall(wall))
+    }
+
+    pub fn material_id_for_wall(&self, wall: &Wall) -> &str {
+        self.rules.material_for_wall(wall)
+    }
+
+    pub fn material_by_id(&self, id: &str) -> &MaterialDef {
+        self.material(id)
     }
 
     pub fn player_model(&self) -> &ModelDef {

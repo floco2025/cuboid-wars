@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use rand::{RngExt, rng};
 
-use super::helpers::tiled_cuboid;
+use super::{helpers::tiled_cuboid, materials::MapMaterialCache};
 use crate::{config::AssetSet, markers::*};
 use common::{constants::*, protocol::*};
 
@@ -19,6 +19,7 @@ pub fn spawn_wall(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
+    material_cache: &mut MapMaterialCache,
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
     wall: &Wall,
@@ -36,11 +37,12 @@ pub fn spawn_wall(
     let mesh_size_z = wall.width;
     let rotation = Quat::from_rotation_y(dz.atan2(dx));
 
-    let material_def = asset_set.material_for_wall(wall);
+    let material_id = asset_set.material_id_for_wall(wall);
+    let material_def = asset_set.material_by_id(material_id);
     let wall_material = if debug_colors {
-        random_debug_material()
+        materials.add(random_debug_material())
     } else {
-        material_def.standard_material(asset_server)
+        material_cache.standard(material_id, material_def, asset_server, materials)
     };
 
     let mut mesh = tiled_cuboid(mesh_size_x, WALL_HEIGHT, mesh_size_z, material_def.tile_size());
@@ -50,7 +52,7 @@ pub fn spawn_wall(
     commands.spawn((
         WallBundle {
             mesh: Mesh3d(meshes.add(mesh)),
-            material: MeshMaterial3d(materials.add(wall_material)),
+            material: MeshMaterial3d(wall_material),
             transform: Transform::from_xyz(center_x, level_y + WALL_HEIGHT / 2.0, center_z).with_rotation(rotation),
             visibility: Visibility::default(),
             marker: WallMarker,

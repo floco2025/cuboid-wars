@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use rand::{RngExt, rng};
 
-use super::helpers::tiled_cuboid;
+use super::{helpers::tiled_cuboid, materials::MapMaterialCache};
 use crate::{config::AssetSet, markers::*};
 use common::protocol::*;
 
@@ -14,6 +14,7 @@ pub fn spawn_floor(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
+    material_cache: &mut MapMaterialCache,
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
     floor: &Floor,
@@ -21,11 +22,12 @@ pub fn spawn_floor(
 ) {
     let center_x = f32::midpoint(floor.x1, floor.x2);
     let center_z = f32::midpoint(floor.z1, floor.z2);
-    let material_def = asset_set.material_for_floor(floor);
+    let material_id = asset_set.material_id_for_floor(floor);
+    let material_def = asset_set.material_by_id(material_id);
     let material = if debug_colors {
-        random_debug_material()
+        materials.add(random_debug_material())
     } else {
-        material_def.standard_material(asset_server)
+        material_cache.standard(material_id, material_def, asset_server, materials)
     };
 
     let mut mesh = tiled_cuboid(
@@ -40,7 +42,7 @@ pub fn spawn_floor(
     if floor.level == 0 {
         commands.spawn((
             Mesh3d(meshes.add(mesh)),
-            MeshMaterial3d(materials.add(material)),
+            MeshMaterial3d(material),
             transform,
             Visibility::Visible,
             GroundMarker,
@@ -49,7 +51,7 @@ pub fn spawn_floor(
     } else {
         commands.spawn((
             Mesh3d(meshes.add(mesh)),
-            MeshMaterial3d(materials.add(material)),
+            MeshMaterial3d(material),
             transform,
             Visibility::Visible,
             RoofMarker,

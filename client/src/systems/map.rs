@@ -5,7 +5,7 @@ use crate::{
     constants::*,
     markers::*,
     resources::{DebugColors, LevelFocusEnabled},
-    spawning::{spawn_floor, spawn_ramp, spawn_wall, spawn_wall_light_from_layout},
+    spawning::{MapMaterialCache, spawn_floor, spawn_ramp, spawn_wall, spawn_wall_light_from_layout},
     systems::visual_focus_level,
 };
 use common::{markers::ItemMarker, protocol::MapLayout};
@@ -45,6 +45,7 @@ pub fn map_spawn_walls_system(
     asset_set: Res<AssetSet>,
     debug_colors: Res<DebugColors>,
     mut spawned: Local<bool>,
+    mut material_cache: Local<MapMaterialCache>,
 ) {
     // Spawn exactly once after the server shares its wall configuration
     let Some(map_layout) = map_layout else {
@@ -67,6 +68,7 @@ pub fn map_spawn_walls_system(
             &mut commands,
             &mut meshes,
             &mut materials,
+            &mut material_cache,
             &asset_server,
             &asset_set,
             wall,
@@ -83,6 +85,7 @@ pub fn map_spawn_walls_system(
             &mut commands,
             &mut meshes,
             &mut materials,
+            &mut material_cache,
             &asset_server,
             &asset_set,
             floor,
@@ -95,6 +98,7 @@ pub fn map_spawn_walls_system(
             &mut commands,
             &mut meshes,
             &mut materials,
+            &mut material_cache,
             &asset_server,
             &asset_set,
             ramp,
