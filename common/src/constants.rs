@@ -1,4 +1,29 @@
 // ============================================================================
+// Map Geometry
+// ============================================================================
+
+// Grid
+pub const GRID_CELL_SIZE: f32 = 4.0; // Each grid cell size in meters
+pub const GRID_COLS: i32 = 20; // Number of grid columns (X axis)
+pub const GRID_ROWS: i32 = 20; // Number of grid rows (Z axis)
+pub const MAP_WIDTH: f32 = GRID_COLS as f32 * GRID_CELL_SIZE; // Total map width (80m)
+pub const MAP_DEPTH: f32 = GRID_ROWS as f32 * GRID_CELL_SIZE; // Total map depth (80m)
+
+// Walls
+pub const WALL_THICKNESS: f32 = 0.3;
+pub const WALL_HEIGHT: f32 = 4.0;
+
+// Floors
+pub const FLOOR_THICKNESS: f32 = 0.4;
+
+// Levels
+pub const LEVEL_HEIGHT: f32 = WALL_HEIGHT + FLOOR_THICKNESS;
+
+// Y tolerance for mapping a world position to a discrete map level. This keeps
+// brief jumps and small vertical prediction differences from changing render/filter level.
+pub const LEVEL_CLASSIFICATION_TOLERANCE: f32 = 0.5;
+
+// ============================================================================
 // Networking
 // ============================================================================
 
@@ -10,16 +35,6 @@ pub const UPDATE_BROADCAST_INTERVAL: f32 = 0.25; // seconds
 
 // Small value for floating-point comparisons (near-zero checks, division guards).
 pub const PHYSICS_EPSILON: f32 = 1e-6;
-
-// ============================================================================
-// Grid & Field
-// ============================================================================
-
-pub const GRID_SIZE: f32 = 4.0; // Each grid cell size in meters
-pub const GRID_COLS: i32 = 20; // Number of grid columns (X axis)
-pub const GRID_ROWS: i32 = 20; // Number of grid rows (Z axis)
-pub const FIELD_WIDTH: f32 = GRID_COLS as f32 * GRID_SIZE; // Total field width (80m)
-pub const FIELD_DEPTH: f32 = GRID_ROWS as f32 * GRID_SIZE; // Total field depth (80m)
 
 // ============================================================================
 // Player
@@ -43,9 +58,9 @@ pub const PLAYER_JUMP_SPEED: f32 = 12.0; // m/s initial upward velocity
 // velocities from very tall drops.
 pub const PLAYER_TERMINAL_VELOCITY: f32 = 50.0; // m/s
 
-// Vertical slop for floor-support detection: a player whose feet are within this
-// distance of a floor's surface is considered supported by it.
-pub const PLAYER_LANDING_EPSILON: f32 = 0.5;
+// How far the Rapier character controller may snap downward to stay attached to
+// valid ground while walking over seams, ramps, and small frame-step gaps.
+pub const PLAYER_GROUND_SNAP_DISTANCE: f32 = 0.5;
 
 // Players whose Y falls below this die and respawn.
 pub const PLAYER_DEATH_Y: f32 = -100.0;
@@ -62,19 +77,6 @@ pub const PROJECTILE_COOLDOWN_TIME: f32 = 0.1; // Minimum time between shots
 pub const PROJECTILE_GRAVITY: f32 = 9.81; // m/s² (real-world for nice arcs)
 pub const PROJECTILE_DRAG_FACTOR: f32 = 0.01; // Air resistance coefficient applied per frame
 pub const PROJECTILE_BOUNCE_RETENTION: f32 = 0.9; // fraction of speed retained after bounce (0.0-1.0)
-
-// ============================================================================
-// Map Geometry
-// ============================================================================
-
-// Walls
-pub const WALL_THICKNESS: f32 = 0.3;
-pub const WALL_HEIGHT: f32 = 4.0;
-
-// Floors
-pub const FLOOR_THICKNESS: f32 = 0.4;
-// Vertical spacing per level. The standing surface of level k is at `LEVEL_HEIGHT * k`.
-pub const LEVEL_HEIGHT: f32 = WALL_HEIGHT + FLOOR_THICKNESS;
 
 // ============================================================================
 // Power-Ups

@@ -36,10 +36,10 @@ impl RampSpec {
         let y_low = self.lower_level as f32 * LEVEL_HEIGHT;
         let y_high = (self.lower_level + 1) as f32 * LEVEL_HEIGHT;
 
-        let x1 = (self.low[0] as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-        let z1 = (self.low[1] as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
-        let x2 = (self.high[0] as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-        let z2 = (self.high[1] as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+        let x1 = (self.low[0] as f32).mul_add(GRID_CELL_SIZE, -(MAP_WIDTH / 2.0));
+        let z1 = (self.low[1] as f32).mul_add(GRID_CELL_SIZE, -(MAP_DEPTH / 2.0));
+        let x2 = (self.high[0] as f32).mul_add(GRID_CELL_SIZE, -(MAP_WIDTH / 2.0));
+        let z2 = (self.high[1] as f32).mul_add(GRID_CELL_SIZE, -(MAP_DEPTH / 2.0));
 
         Ramp {
             x1,

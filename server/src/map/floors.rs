@@ -289,10 +289,10 @@ mod tests {
         let floors = emit_stacked_wall_trim(&lower_edges, &upper_edges, &upper_mask, 1, 1, 1, LEVEL_HEIGHT);
 
         assert_eq!(floors.len(), 1);
-        assert_eq!(floors[0].x1, -(FIELD_WIDTH / 2.0) - WALL_THICKNESS / 2.0);
-        assert_eq!(floors[0].x2, -(FIELD_WIDTH / 2.0) + GRID_SIZE + WALL_THICKNESS / 2.0);
-        assert_eq!(floors[0].z1, -(FIELD_DEPTH / 2.0) + GRID_SIZE - WALL_THICKNESS / 2.0);
-        assert_eq!(floors[0].z2, -(FIELD_DEPTH / 2.0) + GRID_SIZE + WALL_THICKNESS / 2.0);
+        assert_eq!(floors[0].x1, -(MAP_WIDTH / 2.0) - WALL_THICKNESS / 2.0);
+        assert_eq!(floors[0].x2, -(MAP_WIDTH / 2.0) + GRID_CELL_SIZE + WALL_THICKNESS / 2.0);
+        assert_eq!(floors[0].z1, -(MAP_DEPTH / 2.0) + GRID_CELL_SIZE - WALL_THICKNESS / 2.0);
+        assert_eq!(floors[0].z2, -(MAP_DEPTH / 2.0) + GRID_CELL_SIZE + WALL_THICKNESS / 2.0);
         assert_eq!(floors[0].y, LEVEL_HEIGHT);
         assert_eq!(floors[0].thickness, FLOOR_THICKNESS);
         assert_eq!(floors[0].level, 1);
@@ -309,10 +309,10 @@ mod tests {
         let floors = emit_stacked_wall_trim(&lower_edges, &upper_edges, &upper_mask, 1, 1, 1, LEVEL_HEIGHT);
 
         assert_eq!(floors.len(), 1);
-        assert_eq!(floors[0].x1, -(FIELD_WIDTH / 2.0) + GRID_SIZE - WALL_THICKNESS / 2.0);
-        assert_eq!(floors[0].x2, -(FIELD_WIDTH / 2.0) + GRID_SIZE + WALL_THICKNESS / 2.0);
-        assert_eq!(floors[0].z1, -(FIELD_DEPTH / 2.0) - WALL_THICKNESS / 2.0);
-        assert_eq!(floors[0].z2, -(FIELD_DEPTH / 2.0) + GRID_SIZE + WALL_THICKNESS / 2.0);
+        assert_eq!(floors[0].x1, -(MAP_WIDTH / 2.0) + GRID_CELL_SIZE - WALL_THICKNESS / 2.0);
+        assert_eq!(floors[0].x2, -(MAP_WIDTH / 2.0) + GRID_CELL_SIZE + WALL_THICKNESS / 2.0);
+        assert_eq!(floors[0].z1, -(MAP_DEPTH / 2.0) - WALL_THICKNESS / 2.0);
+        assert_eq!(floors[0].z2, -(MAP_DEPTH / 2.0) + GRID_CELL_SIZE + WALL_THICKNESS / 2.0);
         assert_eq!(floors[0].y, LEVEL_HEIGHT);
         assert_eq!(floors[0].thickness, FLOOR_THICKNESS);
         assert_eq!(floors[0].level, 1);
@@ -358,7 +358,7 @@ mod tests {
         let floors = emit_stacked_wall_trim(&lower_edges, &upper_edges, &upper_mask, 1, 2, 1, LEVEL_HEIGHT);
 
         assert_eq!(floors.len(), 1);
-        assert_eq!(floors[0].x1, -(FIELD_WIDTH / 2.0) + WALL_THICKNESS / 2.0);
-        assert_eq!(floors[0].x2, -(FIELD_WIDTH / 2.0) + GRID_SIZE + WALL_THICKNESS / 2.0);
+        assert_eq!(floors[0].x1, -(MAP_WIDTH / 2.0) + WALL_THICKNESS / 2.0);
+        assert_eq!(floors[0].x2, -(MAP_WIDTH / 2.0) + GRID_CELL_SIZE + WALL_THICKNESS / 2.0);
     }
 }

@@ -64,12 +64,12 @@ impl VerticalSegment {
 
 #[must_use]
 pub(super) fn grid_x(col: i32) -> f32 {
-    (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0))
+    (col as f32).mul_add(GRID_CELL_SIZE, -(MAP_WIDTH / 2.0))
 }
 
 #[must_use]
 pub(super) fn grid_z(row: i32) -> f32 {
-    (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0))
+    (row as f32).mul_add(GRID_CELL_SIZE, -(MAP_DEPTH / 2.0))
 }
 
 #[must_use]

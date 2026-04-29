@@ -1,5 +1,5 @@
 use crate::{
-    constants::{LEVEL_HEIGHT, PHYSICS_EPSILON, PLAYER_LANDING_EPSILON},
+    constants::{LEVEL_CLASSIFICATION_TOLERANCE, LEVEL_HEIGHT, PHYSICS_EPSILON},
     protocol::{Floor, Ramp},
 };
 
@@ -61,15 +61,15 @@ pub fn is_on_ramp(ramps: &[Ramp], x: f32, z: f32) -> bool {
 
 // Determine which level a player is on from their Y position. The level
 // surface for level k is at `k * LEVEL_HEIGHT`; a player counts as "on level k"
-// from `k*LEVEL_HEIGHT - PLAYER_LANDING_EPSILON` up to just below the next
+// from `k*LEVEL_HEIGHT - LEVEL_CLASSIFICATION_TOLERANCE` up to just below the next
 // level's surface, so brief jumps don't change levels. Negative `y` (e.g.
 // mid-fall through a ground hole) clamps to level 0.
 #[must_use]
 pub fn compute_player_level(y: f32) -> u8 {
-    if y < -PLAYER_LANDING_EPSILON {
+    if y < -LEVEL_CLASSIFICATION_TOLERANCE {
         return 0;
     }
-    let raw = ((y + PLAYER_LANDING_EPSILON) / LEVEL_HEIGHT).floor();
+    let raw = ((y + LEVEL_CLASSIFICATION_TOLERANCE) / LEVEL_HEIGHT).floor();
     if raw < 0.0 {
         0
     } else {
@@ -77,7 +77,7 @@ pub fn compute_player_level(y: f32) -> u8 {
     }
 }
 
-// Find the highest supporting surface (ramp or floor) within `±PLAYER_LANDING_EPSILON`
+// Find the highest supporting surface (ramp or floor) within `±LEVEL_CLASSIFICATION_TOLERANCE`
 // of the player's feet at (x, z). Returns `None` when the player is in the air with
 // no surface within landing range.
 //
@@ -87,8 +87,8 @@ pub fn compute_player_level(y: f32) -> u8 {
 // counts.
 #[must_use]
 pub fn find_support_floor(floors: &[Floor], ramps: &[Ramp], x: f32, z: f32, y: f32) -> Option<f32> {
-    let lo = y - PLAYER_LANDING_EPSILON;
-    let hi = y + PLAYER_LANDING_EPSILON;
+    let lo = y - LEVEL_CLASSIFICATION_TOLERANCE;
+    let hi = y + LEVEL_CLASSIFICATION_TOLERANCE;
     let mut best: Option<f32> = None;
 
     for ramp in ramps {

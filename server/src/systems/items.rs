@@ -10,7 +10,7 @@ use crate::{
     resources::{ItemInfo, ItemMap, ItemSpawner, MapConfig, PlayerMap},
 };
 use common::{
-    constants::{FIELD_DEPTH, FIELD_WIDTH, GRID_SIZE, LEVEL_HEIGHT},
+    constants::{GRID_CELL_SIZE, LEVEL_HEIGHT, MAP_DEPTH, MAP_WIDTH},
     map::compute_player_level,
     markers::{ItemMarker, PlayerMarker},
     physics::overlap_player_vs_item,
@@ -44,9 +44,9 @@ struct ItemSpawnCell {
 impl ItemSpawnCell {
     fn position(self) -> Position {
         Position {
-            x: (self.col as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)),
+            x: (self.col as f32 + 0.5).mul_add(GRID_CELL_SIZE, -(MAP_WIDTH / 2.0)),
             y: f32::from(self.level) * LEVEL_HEIGHT,
-            z: (self.row as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0)),
+            z: (self.row as f32 + 0.5).mul_add(GRID_CELL_SIZE, -(MAP_DEPTH / 2.0)),
         }
     }
 }

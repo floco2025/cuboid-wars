@@ -6,7 +6,7 @@ use crate::{
     resources::{CellGrid, EdgeGrid, LevelGrid},
 };
 use common::{
-    constants::{FIELD_DEPTH, FIELD_WIDTH, GRID_SIZE, LEVEL_HEIGHT, WALL_THICKNESS},
+    constants::{GRID_CELL_SIZE, LEVEL_HEIGHT, MAP_DEPTH, MAP_WIDTH, WALL_THICKNESS},
     protocol::{Position, WallLight},
 };
 
@@ -40,9 +40,9 @@ fn generate_wall_lights_from_parts(levels: &[LevelGrid], level_idx: usize) -> Ve
                 continue;
             }
 
-            let cell_center_x = (col as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-            let cell_center_z = (row as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
-            let half = GRID_SIZE / 2.0;
+            let cell_center_x = (col as f32 + 0.5).mul_add(GRID_CELL_SIZE, -(MAP_WIDTH / 2.0));
+            let cell_center_z = (row as f32 + 0.5).mul_add(GRID_CELL_SIZE, -(MAP_DEPTH / 2.0));
+            let half = GRID_CELL_SIZE / 2.0;
 
             if has_edge_on_cell_side(edges, row, col, CellSide::North) {
                 lights.push(WallLight {

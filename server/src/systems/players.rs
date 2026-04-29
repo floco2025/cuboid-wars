@@ -5,7 +5,7 @@ use super::network::broadcast_to_all;
 use crate::resources::{MapConfig, PlayerInfo, PlayerMap};
 use common::{
     constants::{
-        FIELD_DEPTH, FIELD_WIDTH, GRID_SIZE, LEVEL_HEIGHT, PHYSICS_EPSILON, PLAYER_DEATH_Y, PLAYER_DEPTH,
+        GRID_CELL_SIZE, LEVEL_HEIGHT, MAP_DEPTH, MAP_WIDTH, PHYSICS_EPSILON, PLAYER_DEATH_Y, PLAYER_DEPTH,
         PLAYER_HEIGHT, PLAYER_WIDTH,
     },
     markers::PlayerMarker,
@@ -207,10 +207,10 @@ pub fn generate_player_spawn_position(
 }
 
 fn random_position_in_spawn_cell(rng: &mut ThreadRng, level: u8, row: i32, col: i32) -> Position {
-    let cell_min_x = (col as f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-    let cell_max_x = cell_min_x + GRID_SIZE;
-    let cell_min_z = (row as f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
-    let cell_max_z = cell_min_z + GRID_SIZE;
+    let cell_min_x = (col as f32).mul_add(GRID_CELL_SIZE, -(MAP_WIDTH / 2.0));
+    let cell_max_x = cell_min_x + GRID_CELL_SIZE;
+    let cell_min_z = (row as f32).mul_add(GRID_CELL_SIZE, -(MAP_DEPTH / 2.0));
+    let cell_max_z = cell_min_z + GRID_CELL_SIZE;
 
     Position {
         x: rng.random_range((cell_min_x + PLAYER_WIDTH / 2.0)..=(cell_max_x - PLAYER_WIDTH / 2.0)),

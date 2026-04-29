@@ -9,17 +9,17 @@ use common::{constants::*, protocol::Position};
 #[must_use]
 pub fn cell_center(grid_x: i32, grid_z: i32) -> Position {
     Position {
-        x: (grid_x as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0)),
+        x: (grid_x as f32 + 0.5).mul_add(GRID_CELL_SIZE, -(MAP_WIDTH / 2.0)),
         y: 0.0,
-        z: (grid_z as f32 + 0.5).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0)),
+        z: (grid_z as f32 + 0.5).mul_add(GRID_CELL_SIZE, -(MAP_DEPTH / 2.0)),
     }
 }
 
 // Convert a world position to grid coordinates
 #[must_use]
 pub fn grid_coords_from_position(pos: &Position) -> (i32, i32) {
-    let grid_x = ((pos.x + FIELD_WIDTH / 2.0) / GRID_SIZE).floor() as i32;
-    let grid_z = ((pos.z + FIELD_DEPTH / 2.0) / GRID_SIZE).floor() as i32;
+    let grid_x = ((pos.x + MAP_WIDTH / 2.0) / GRID_CELL_SIZE).floor() as i32;
+    let grid_z = ((pos.z + MAP_DEPTH / 2.0) / GRID_CELL_SIZE).floor() as i32;
     (grid_x, grid_z)
 }
 

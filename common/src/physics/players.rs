@@ -10,7 +10,7 @@ use rapier3d::{
 use super::world::CollisionWorld;
 use crate::{
     constants::{
-        PHYSICS_EPSILON, PLAYER_DEPTH, PLAYER_GRAVITY, PLAYER_HEIGHT, PLAYER_JUMP_SPEED, PLAYER_LANDING_EPSILON,
+        PHYSICS_EPSILON, PLAYER_DEPTH, PLAYER_GRAVITY, PLAYER_GROUND_SNAP_DISTANCE, PLAYER_HEIGHT, PLAYER_JUMP_SPEED,
         PLAYER_TERMINAL_VELOCITY, PLAYER_WIDTH,
     },
     protocol::Position,
@@ -179,7 +179,7 @@ fn player_controller() -> KinematicCharacterController {
     KinematicCharacterController {
         offset: CharacterLength::Absolute(PLAYER_CONTACT_OFFSET),
         min_slope_slide_angle: std::f32::consts::PI,
-        snap_to_ground: Some(CharacterLength::Absolute(PLAYER_LANDING_EPSILON)),
+        snap_to_ground: Some(CharacterLength::Absolute(PLAYER_GROUND_SNAP_DISTANCE)),
         ..KinematicCharacterController::default()
     }
 }

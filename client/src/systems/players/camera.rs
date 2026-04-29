@@ -8,7 +8,7 @@ use crate::{
     systems::visual_focus_level,
 };
 use common::{
-    constants::{FIELD_DEPTH, FIELD_WIDTH, LEVEL_HEIGHT, PLAYER_EYE_HEIGHT_RATIO, PLAYER_HEIGHT},
+    constants::{LEVEL_HEIGHT, MAP_DEPTH, MAP_WIDTH, PLAYER_EYE_HEIGHT_RATIO, PLAYER_HEIGHT},
     protocol::{Floor, MapLayout, Position},
 };
 
@@ -23,10 +23,10 @@ struct FloorBounds {
 impl FloorBounds {
     const fn fallback() -> Self {
         Self {
-            min_x: -FIELD_WIDTH / 2.0,
-            max_x: FIELD_WIDTH / 2.0,
-            min_z: -FIELD_DEPTH / 2.0,
-            max_z: FIELD_DEPTH / 2.0,
+            min_x: -MAP_WIDTH / 2.0,
+            max_x: MAP_WIDTH / 2.0,
+            min_z: -MAP_DEPTH / 2.0,
+            max_z: MAP_DEPTH / 2.0,
         }
     }
 

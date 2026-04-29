@@ -562,8 +562,8 @@ mod tests {
         assert!(!inaccessible_cell.has_floor);
         assert!(inaccessible_cell.has_floor_slab);
 
-        let x = (2.5_f32).mul_add(GRID_SIZE, -(FIELD_WIDTH / 2.0));
-        let z = (0.5_f32).mul_add(GRID_SIZE, -(FIELD_DEPTH / 2.0));
+        let x = (2.5_f32).mul_add(GRID_CELL_SIZE, -(MAP_WIDTH / 2.0));
+        let z = (0.5_f32).mul_add(GRID_CELL_SIZE, -(MAP_DEPTH / 2.0));
         assert!(layout.floors.iter().any(|floor| {
             let (min_x, max_x, min_z, max_z) = floor.bounds_xz();
             min_x <= x && x <= max_x && min_z <= z && z <= max_z
