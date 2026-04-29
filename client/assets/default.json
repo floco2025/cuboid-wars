@@ -86,17 +86,22 @@
       { "material": "cookie", "type": "Cookie" },
       { "material": "power_up" }
     ]
-  },
-  "models": {
-    "player": {
-      "scene": "models/player.glb#Scene0",
-      "scale": 0.53,
-      "height_offset": 0.0,
-      "animation_speed": 2.0
+    },
+    "models": {
+        "player": {
+            "scene": "models/futuristic_flying_animated_robot_low_poly.glb#Scene0",
+            "scale": 0.53,
+            "height_offset": 0.0,
+            "animation_speed": 2.0
     },
     "wall_light": {
-      "scene": "models/wall_light.glb",
-      "scale": 1.5
+      "scene": "models/lamp_22.glb",
+      "scale": 1.5,
+      "inward_offset": 0.2,
+      "brightness": 100000.0,
+      "range": 10.0,
+      "radius": 0.1,
+      "emissive_luminance": 2.0
     }
   },
   "sounds": {
