@@ -51,9 +51,10 @@ echo "  Roughness: $roughness"
 echo "  Metallic:  $metallic"
 echo "  Output:    $output"
 
-magick "$roughness" "$metallic" \
-    \( +clone -evaluate set 0 \) +swap \
+dimensions=$(magick identify -format '%wx%h' "$roughness")
+
+magick -size "$dimensions" xc:black "$roughness" "$metallic" \
     -channel RGB -combine \
-    "$output"
+    -strip PNG24:"$output"
 
 echo "Done!"

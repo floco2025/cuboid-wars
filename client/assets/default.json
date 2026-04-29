@@ -1,7 +1,7 @@
 {
   "version": 1,
   "materials": {
-    "ground": {
+    "smooth-temple-blocks": {
       "tile_size": 8.0,
       "metallic": 0.5,
       "roughness": 0.5,
@@ -14,20 +14,85 @@
         "metallic_roughness": "textures/smooth-temple-blocks-ue/smooth-temple-blocks_metallic-roughness.png"
       }
     },
-    "roof": {
+    "art-deco-scales-wallpaper": {
+      "tile_size": 3.0,
+      "metallic": 0.5,
+      "roughness": 0.5,
+      "repeat": true,
+      "data_textures_linear": true,
+      "textures": {
+        "base_color": "textures/art-deco-scales-wallpaper-ue/art-deco-scales-wallpaper_albedo.png",
+        "normal": "textures/art-deco-scales-wallpaper-ue/art-deco-scales-wallpaper_normal-dx.png",
+        "occlusion": "textures/art-deco-scales-wallpaper-ue/art-deco-scales-wallpaper_ao.png",
+        "metallic_roughness": "textures/art-deco-scales-wallpaper-ue/art-deco-scales-wallpaper_metallic-roughness.png"
+      }
+    },
+    "modern-brick1": {
+      "tile_size": 3.0,
+      "metallic": 0.5,
+      "roughness": 0.5,
+      "repeat": true,
+      "data_textures_linear": true,
+      "textures": {
+        "base_color": "textures/modern-brick1_ue/modern-brick1_albedo.png",
+        "normal": "textures/modern-brick1_ue/modern-brick1_normal-dx.png",
+        "occlusion": "textures/modern-brick1_ue/modern-brick1_ao.png",
+        "metallic_roughness": "textures/modern-brick1_ue/modern-brick1_metallic-roughness.png"
+      }
+    },
+    "rectangle-polished-tile": {
+      "tile_size": 8.0,
+      "metallic": 0.5,
+      "roughness": 0.5,
+      "repeat": true,
+      "data_textures_linear": true,
+      "textures": {
+        "base_color": "textures/rectangle-polished-tile-ue/rectangle-polished-tile_albedo.png",
+        "normal": "textures/rectangle-polished-tile-ue/rectangle-polished-tile_normal-dx.png",
+        "occlusion": "textures/rectangle-polished-tile-ue/rectangle-polished-tile_ao.png",
+        "metallic_roughness": "textures/rectangle-polished-tile-ue/rectangle-polished-tile_metallic-roughness.png"
+      }
+    },
+    "steelplate1": {
       "tile_size": 6.0,
       "metallic": 0.5,
       "roughness": 0.5,
       "repeat": true,
       "data_textures_linear": true,
       "textures": {
-        "base_color": "textures/painted-damaged-concrete-ue/painted-damaged-concrete_albedo.png",
-        "normal": "textures/painted-damaged-concrete-ue/painted-damaged-concrete_normal-dx.png",
-        "occlusion": "textures/painted-damaged-concrete-ue/painted-damaged-concrete_ao.png",
-        "metallic_roughness": "textures/painted-damaged-concrete-ue/painted-damaged-concrete_metallic-roughness.png"
+        "base_color": "textures/steelplate1-ue/steelplate1_albedo.png",
+        "normal": "textures/steelplate1-ue/steelplate1_normal-dx.png",
+        "occlusion": "textures/steelplate1-ue/steelplate1_ao.png",
+        "metallic_roughness": "textures/steelplate1-ue/steelplate1_metallic-roughness.png"
       }
     },
-    "wall": {
+    "beige-carpet-worn1": {
+      "tile_size": 3.0,
+      "metallic": 0.0,
+      "roughness": 0.5,
+      "repeat": true,
+      "data_textures_linear": true,
+      "textures": {
+        "base_color": "textures/beige-carpet-worn1-ue/beige-carpet-worn1-albedo.png",
+        "normal": "textures/beige-carpet-worn1-ue/beige-carpet-worn1-Normal-dx.png",
+        "occlusion": "textures/beige-carpet-worn1-ue/beige-carpet-worn1-ao.png",
+        "metallic_roughness": "textures/beige-carpet-worn1-ue/beige-carpet-worn1-metallic-roughness.png"
+      }
+    },
+    "cheap_old_linoleum1": {
+      "tile_size": 6.0,
+      "metallic": 0.5,
+      "roughness": 0.5,
+      "repeat": true,
+      "data_textures_linear": true,
+      "textures": {
+        "base_color": "textures/cheap-old-linoleum-ue/cheap_old_linoleum1_albedo.png",
+        "normal": "textures/cheap-old-linoleum-ue/cheap_old_linoleum1_Normal-dx.png",
+        "occlusion": "textures/cheap-old-linoleum-ue/cheap_old_linoleum1_ao.png",
+        "metallic_roughness": "textures/cheap-old-linoleum-ue/cheap_old_linoleum1_metallic-roughness.png"
+      }
+    },
+    "bricks-mortar": {
       "tile_size": 6.0,
       "metallic": 0.5,
       "roughness": 0.5,
@@ -40,7 +105,46 @@
         "metallic_roughness": "textures/bricks-mortar-ue/bricks-mortar-metallic-roughness.png"
       }
     },
-    "cookie": {
+    "damp-block-wall": {
+      "tile_size": 6.0,
+      "metallic": 0.5,
+      "roughness": 0.5,
+      "repeat": true,
+      "data_textures_linear": true,
+      "textures": {
+        "base_color": "textures/damp-block-wall-ue/damp-block-wall_albedo.png",
+        "normal": "textures/damp-block-wall-ue/damp-block-wall_normal-dx.png",
+        "occlusion": "textures/damp-block-wall-ue/damp-block-wall_ao.png",
+        "metallic_roughness": "textures/damp-block-wall-ue/damp-block-wall_metallic-roughness.png"
+      }
+    },
+    "stucco1": {
+      "tile_size": 6.0,
+      "metallic": 0.5,
+      "roughness": 0.5,
+      "repeat": true,
+      "data_textures_linear": true,
+      "textures": {
+        "base_color": "textures/stucco1_ue/stucco1_albedo.png",
+        "normal": "textures/stucco1_ue/stucco1_Normal-dx.png",
+        "occlusion": "textures/stucco1_ue/stucco1_ao.png",
+        "metallic_roughness": "textures/stucco1_ue/stucco1_metallic-roughness.png"
+      }
+    },
+    "forest-wallpaper": {
+      "tile_size": 3.0,
+      "metallic": 0.5,
+      "roughness": 0.5,
+      "repeat": true,
+      "data_textures_linear": true,
+      "textures": {
+        "base_color": "textures/forest-wallpaper-ue/forest-wallpaper_albedo.png",
+        "normal": "textures/forest-wallpaper-ue/forest-wallpaper_normal-dx.png",
+        "occlusion": "textures/forest-wallpaper-ue/forest-wallpaper_ao.png",
+        "metallic_roughness": "textures/forest-wallpaper-ue/forest-wallpaper_metallic-roughness.png"
+      }
+    },
+    "hammered-gold": {
       "metallic": 1.0,
       "roughness": 1.0,
       "repeat": false,
@@ -52,7 +156,7 @@
         "metallic_roughness": "textures/hammered-gold-ue/hammered-gold_metallic-roughness.png"
       }
     },
-    "power_up": {
+    "space-cruiser-panels2": {
       "base_color": "item_type_color",
       "emissive": "item_type_color",
       "emissive_strength": 0.1,
@@ -70,21 +174,43 @@
   },
   "material_rules": {
     "floors": [
-      { "material": "ground", "level": 0 },
-      { "material": "roof" }
+      { "material": "smooth-temple-blocks", "level": 0 },
+      { "material": "cheap_old_linoleum1", "level": 1 },
+      { "material": "rectangle-polished-tile", "level": 1, "cols": [7, 12], "rows": [7, 12] },
+      { "material": "rectangle-polished-tile", "levels": [2, 3], "rows": [0, 0] },
+      { "material": "rectangle-polished-tile", "levels": [2, 3], "rows": [19, 19] },
+      { "material": "rectangle-polished-tile", "levels": [2, 3], "cols": [0, 0] },
+      { "material": "rectangle-polished-tile", "levels": [2, 3], "cols": [19, 19] },
+      { "material": "beige-carpet-worn1", "levels": [2, 3], "cols": [1, 18], "rows": [1, 18] },
+      { "material": "rectangle-polished-tile", "level": 4 },
+      { "material": "steelplate1", "level": 5 },
+      { "material": "modern-brick1" }
     ],
     "walls": [
-      { "material": "wall" }
-    ],
-    "ramp_tops": [
-      { "material": "ground" }
-    ],
-    "ramp_sides": [
-      { "material": "wall" }
+      { "material": "damp-block-wall", "level": 0, "rows": [0, 0] },
+      { "material": "damp-block-wall", "level": 0, "rows": [20, 20] },
+      { "material": "damp-block-wall", "level": 0, "cols": [0, 0] },
+      { "material": "damp-block-wall", "level": 0, "cols": [20, 20] },
+      { "material": "modern-brick1", "level": 1, "rows": [0, 0] },
+      { "material": "modern-brick1", "level": 1, "rows": [20, 20] },
+      { "material": "modern-brick1", "level": 1, "cols": [0, 0] },
+      { "material": "modern-brick1", "level": 1, "cols": [20, 20] },
+      { "material": "modern-brick1", "level": 1, "rows": [7, 7], "cols": [7, 13] },
+      { "material": "modern-brick1", "level": 1, "rows": [13, 13], "cols": [7, 13] },
+      { "material": "modern-brick1", "level": 1, "cols": [7, 7], "rows": [7, 13] },
+      { "material": "modern-brick1", "level": 1, "cols": [13, 13], "rows": [7, 13] },
+      { "material": "modern-brick1", "levels": [2, 3], "rows": [1, 1] },
+      { "material": "modern-brick1", "levels": [2, 3], "rows": [19, 19] },
+      { "material": "modern-brick1", "levels": [2, 3], "cols": [1, 1] },
+      { "material": "modern-brick1", "levels": [2, 3], "cols": [19, 19] },
+      { "material": "art-deco-scales-wallpaper", "level": 1 },
+      { "material": "forest-wallpaper", "levels": [2, 3] },
+      { "material": "stucco1", "levels": [4, 5] },
+      { "material": "bricks-mortar" }
     ],
     "items": [
-      { "material": "cookie", "type": "Cookie" },
-      { "material": "power_up" }
+      { "material": "hammered-gold", "type": "Cookie" },
+      { "material": "space-cruiser-panels2" }
     ]
     },
   "models": {

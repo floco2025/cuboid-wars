@@ -82,13 +82,29 @@ impl AssetRules {
     #[must_use]
     pub fn material_for_ramp_top(&self, ramp: &Ramp) -> &str {
         let lower_level = ramp_lower_level(ramp);
-        resolve_material(&self.material_rules.ramp_tops, |rule| rule.matches_level(lower_level))
+        let mut material = None;
+        for (col, row) in ramp_cells(ramp) {
+            let next = self.material_for_floor_cell(lower_level, col, row);
+            if let Some(current) = material {
+                assert_eq!(
+                    current, next,
+                    "ramp top at lower level {lower_level} spans multiple floor materials: {current:?} and {next:?}"
+                );
+            }
+            material = Some(next);
+        }
+
+        material.unwrap_or_else(|| {
+            let col = world_x_to_cell_col(f32::midpoint(ramp.x1, ramp.x2));
+            let row = world_z_to_cell_row(f32::midpoint(ramp.z1, ramp.z2));
+            self.material_for_floor_cell(lower_level, col, row)
+        })
     }
 
     #[must_use]
     pub fn material_for_ramp_side(&self, ramp: &Ramp) -> &str {
         let lower_level = ramp_lower_level(ramp);
-        resolve_material(&self.material_rules.ramp_sides, |rule| rule.matches_level(lower_level))
+        self.material_for_interior_wall(lower_level)
     }
 
     #[must_use]
@@ -107,6 +123,13 @@ impl AssetRules {
             rule.matches_level(level) && rule.matches_cell(col, row)
         })
     }
+
+    #[must_use]
+    fn material_for_interior_wall(&self, level: u8) -> &str {
+        resolve_material(&self.material_rules.walls, |rule| {
+            rule.matches_level(level) && !rule.has_edge_scope()
+        })
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -115,10 +138,6 @@ pub struct MaterialRules {
     floors: Vec<MaterialRule>,
     #[serde(default)]
     walls: Vec<MaterialRule>,
-    #[serde(default)]
-    ramp_tops: Vec<MaterialRule>,
-    #[serde(default)]
-    ramp_sides: Vec<MaterialRule>,
     #[serde(default)]
     items: Vec<MaterialRule>,
 }
@@ -154,6 +173,10 @@ impl MaterialRule {
     }
 
     fn matches_edge(&self, from: [i32; 2], to: [i32; 2]) -> bool {
+        if !self.matches_edge_range(from, to) {
+            return false;
+        }
+
         match (self.from, self.to) {
             (Some(rule_from), Some(rule_to)) => same_edge(rule_from, rule_to, from, to),
             (None, None) => true,
@@ -167,6 +190,23 @@ impl MaterialRule {
             + u8::from(self.rows.is_some())
             + u8::from(self.from.is_some() && self.to.is_some()) * 2
             + u8::from(self.item_type.is_some())
+    }
+
+    fn matches_edge_range(&self, from: [i32; 2], to: [i32; 2]) -> bool {
+        let min_col = from[0].min(to[0]);
+        let max_col = from[0].max(to[0]);
+        let min_row = from[1].min(to[1]);
+        let max_row = from[1].max(to[1]);
+
+        self.cols
+            .is_none_or(|[rule_min, rule_max]| rule_min <= min_col && max_col <= rule_max)
+            && self
+                .rows
+                .is_none_or(|[rule_min, rule_max]| rule_min <= min_row && max_row <= rule_max)
+    }
+
+    fn has_edge_scope(&self) -> bool {
+        self.cols.is_some() || self.rows.is_some() || self.from.is_some() || self.to.is_some()
     }
 }
 
@@ -200,6 +240,29 @@ fn floor_cells(floor: &Floor) -> Vec<(i32, i32)> {
     let max_x = floor.x1.max(floor.x2);
     let min_z = floor.z1.min(floor.z2);
     let max_z = floor.z1.max(floor.z2);
+
+    let min_col = first_cell_center_at_or_after(min_x, MAP_WIDTH, GRID_COLS);
+    let max_col = last_cell_center_at_or_before(max_x, MAP_WIDTH, GRID_COLS);
+    let min_row = first_cell_center_at_or_after(min_z, MAP_DEPTH, GRID_ROWS);
+    let max_row = last_cell_center_at_or_before(max_z, MAP_DEPTH, GRID_ROWS);
+
+    let mut cells = Vec::new();
+    if min_col > max_col || min_row > max_row {
+        return cells;
+    }
+    for col in min_col..=max_col {
+        for row in min_row..=max_row {
+            cells.push((col, row));
+        }
+    }
+    cells
+}
+
+fn ramp_cells(ramp: &Ramp) -> Vec<(i32, i32)> {
+    let min_x = ramp.x1.min(ramp.x2);
+    let max_x = ramp.x1.max(ramp.x2);
+    let min_z = ramp.z1.min(ramp.z2);
+    let max_z = ramp.z1.max(ramp.z2);
 
     let min_col = first_cell_center_at_or_after(min_x, MAP_WIDTH, GRID_COLS);
     let max_col = last_cell_center_at_or_before(max_x, MAP_WIDTH, GRID_COLS);
