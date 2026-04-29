@@ -168,9 +168,12 @@ pub fn map_level_focus_visibility_system(
 
 // System to make wall light glass materials emissive after they load
 pub fn map_make_wall_lights_emissive_system(
+    asset_set: Res<AssetSet>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut processed: Local<std::collections::HashSet<AssetId<StandardMaterial>>>,
 ) {
+    let emissive_luminance = asset_set.wall_light_model().emissive_luminance;
+
     // Check all materials for ones that look like wall light glass
     for (id, material) in materials.iter_mut() {
         // Skip if already processed
@@ -184,9 +187,9 @@ pub fn map_make_wall_lights_emissive_system(
             // Make it emissive using configurable fixture settings
             let warm_tint = (1.0, 0.95, 0.85);
             material.emissive = LinearRgba::rgb(
-                warm_tint.0 * WALL_LIGHT_EMISSIVE_LUMINANCE,
-                warm_tint.1 * WALL_LIGHT_EMISSIVE_LUMINANCE,
-                warm_tint.2 * WALL_LIGHT_EMISSIVE_LUMINANCE,
+                warm_tint.0 * emissive_luminance,
+                warm_tint.1 * emissive_luminance,
+                warm_tint.2 * emissive_luminance,
             );
             material.base_color = Color::srgba(warm_tint.0, warm_tint.1, warm_tint.2, material.base_color.alpha());
             processed.insert(id);

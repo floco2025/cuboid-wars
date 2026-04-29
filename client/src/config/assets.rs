@@ -66,7 +66,7 @@ impl AssetSet {
         &self.models.player
     }
 
-    pub fn wall_light_model(&self) -> &ModelDef {
+    pub fn wall_light_model(&self) -> &WallLightModelDef {
         &self.models.wall_light
     }
 
@@ -175,9 +175,20 @@ pub struct ModelDef {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct WallLightModelDef {
+    pub scene: String,
+    pub scale: f32,
+    pub inward_offset: f32,
+    pub brightness: f32,
+    pub range: f32,
+    pub radius: f32,
+    pub emissive_luminance: f32,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 struct Models {
     player: ModelDef,
-    wall_light: ModelDef,
+    wall_light: WallLightModelDef,
 }
 
 fn load_texture(asset_server: &AssetServer, path: &str, repeat: bool, linear: bool) -> Handle<Image> {

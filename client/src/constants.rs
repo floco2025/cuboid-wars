@@ -19,35 +19,21 @@ pub const REARVIEW_MARGIN: f32 = 0.02; // Margin from edge as ratio of screen si
 pub const REARVIEW_FOV_DEGREES: f32 = 90.0;
 
 // ============================================================================
+// Debug Visualization
+// ============================================================================
+
+pub const PLAYER_BOUNDING_BOX: bool = false;
+
+// ============================================================================
 // Input
 // ============================================================================
 
 pub const MOUSE_SENSITIVITY: f32 = 0.002; // radians per pixel
 
 // ============================================================================
-// Player Model
-// ============================================================================
-
-pub const PLAYER_MODEL: &str = "models/player.glb#Scene0";
-pub const PLAYER_MODEL_SCALE: f32 = 0.53;
-pub const PLAYER_MODEL_HEIGHT_OFFSET: f32 = 0.0;
-pub const PLAYER_MODEL_ANIMATION_SPEED: f32 = 2.0;
-pub const PLAYER_BOUNDING_BOX: bool = false; // Debug visualization
-
-// ============================================================================
 // Lighting
 // ============================================================================
 
-// Wall lights
-pub const WALL_LIGHT_MODEL: &str = "models/wall_light.glb";
-pub const WALL_LIGHT_SCALE: f32 = 1.5;
-pub const WALL_LIGHT_BRIGHTNESS: f32 = 100_000.0;
-pub const WALL_LIGHT_RANGE: f32 = 10.0; // meters
-pub const WALL_LIGHT_INWARD_OFFSET: f32 = 0.2; // meters
-pub const WALL_LIGHT_RADIUS: f32 = 0.1; // Larger radius = softer specular highlights, less shimmer
-pub const WALL_LIGHT_EMISSIVE_LUMINANCE: f32 = 2.0;
-
-// Scene lighting
 pub const LIGHT_AMBIENT_BRIGHTNESS: f32 = 100.0;
 pub const LIGHT_DIRECTIONAL_BRIGHTNESS: f32 = 8000.0;
 

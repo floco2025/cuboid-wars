@@ -117,9 +117,9 @@ pub fn spawn_wall_light_from_layout(
     let model_yaw = Quat::from_rotation_y(light.yaw);
     let (sin_yaw, cos_yaw) = light.yaw.sin_cos();
     let light_pos = Vec3::new(
-        WALL_LIGHT_INWARD_OFFSET.mul_add(sin_yaw, light.pos.x),
+        wall_light.inward_offset.mul_add(sin_yaw, light.pos.x),
         light.pos.y,
-        WALL_LIGHT_INWARD_OFFSET.mul_add(cos_yaw, light.pos.z),
+        wall_light.inward_offset.mul_add(cos_yaw, light.pos.z),
     );
 
     commands.spawn((
@@ -139,9 +139,9 @@ pub fn spawn_wall_light_from_layout(
         WallLightMarker,
         level,
         PointLight {
-            intensity: WALL_LIGHT_BRIGHTNESS,
-            range: WALL_LIGHT_RANGE,
-            radius: WALL_LIGHT_RADIUS,
+            intensity: wall_light.brightness,
+            range: wall_light.range,
+            radius: wall_light.radius,
             shadows_enabled: false,
             color: Color::srgb(1.0, 0.95, 0.85),
             ..default()
