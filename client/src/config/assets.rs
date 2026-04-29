@@ -18,6 +18,7 @@ pub struct AssetSet {
     #[serde(flatten)]
     rules: AssetRules,
     models: Models,
+    skybox: SkyboxDef,
     sounds: HashMap<String, String>,
 }
 
@@ -68,6 +69,10 @@ impl AssetSet {
 
     pub fn wall_light_model(&self) -> &WallLightModelDef {
         &self.models.wall_light
+    }
+
+    pub fn skybox(&self) -> &SkyboxDef {
+        &self.skybox
     }
 
     pub fn sound(&self, id: &str) -> &str {
@@ -183,6 +188,12 @@ pub struct WallLightModelDef {
     pub range: f32,
     pub radius: f32,
     pub emissive_luminance: f32,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SkyboxDef {
+    pub cross_image: String,
+    pub brightness: f32,
 }
 
 #[derive(Debug, Clone, Deserialize)]

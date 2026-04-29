@@ -5,12 +5,19 @@ use bevy::{
     render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureViewDescriptor, TextureViewDimension},
 };
 
-pub fn setup_skybox_from_cross(mut commands: Commands, asset_server: Res<AssetServer>) {
+use crate::config::AssetSet;
+
+pub fn setup_skybox_from_cross(mut commands: Commands, asset_server: Res<AssetServer>, asset_set: Res<AssetSet>) {
+    let skybox = asset_set.skybox();
+
     // Load the cross-layout skybox image
-    let cross_image_handle: Handle<Image> = asset_server.load("skybox.png");
+    let cross_image_handle: Handle<Image> = asset_server.load(skybox.cross_image.clone());
 
     // Store the handle in a resource so we can use it once loaded
     commands.insert_resource(SkyboxCrossImage(cross_image_handle));
+    commands.insert_resource(SkyboxSettings {
+        brightness: skybox.brightness,
+    });
 }
 
 #[derive(Resource)]
@@ -18,6 +25,11 @@ pub struct SkyboxCrossImage(Handle<Image>);
 
 #[derive(Resource)]
 pub struct SkyboxCubemap(pub Handle<Image>);
+
+#[derive(Resource)]
+pub struct SkyboxSettings {
+    brightness: f32,
+}
 
 pub fn skybox_convert_cross_to_cubemap_system(
     mut commands: Commands,
@@ -114,6 +126,7 @@ fn create_cubemap_from_cross(cross_image: &Image) -> Image {
 // Add skybox to cameras once the cubemap is ready
 pub fn skybox_update_camera_system(
     cubemap: Option<Res<SkyboxCubemap>>,
+    settings: Res<SkyboxSettings>,
     mut cameras: Query<Entity, (With<Camera3d>, Without<Skybox>)>,
     mut commands: Commands,
 ) {
@@ -128,7 +141,7 @@ pub fn skybox_update_camera_system(
     for entity in &mut cameras {
         commands.entity(entity).insert(Skybox {
             image: cubemap.0.clone(),
-            brightness: 1000.0,
+            brightness: settings.brightness,
             rotation: Quat::IDENTITY,
         });
     }

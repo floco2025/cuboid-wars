@@ -87,12 +87,12 @@
       { "material": "power_up" }
     ]
     },
-    "models": {
-        "player": {
-            "scene": "models/futuristic_flying_animated_robot_low_poly.glb#Scene0",
-            "scale": 0.53,
-            "height_offset": 0.0,
-            "animation_speed": 2.0
+  "models": {
+    "player": {
+      "scene": "models/futuristic_flying_animated_robot_low_poly.glb#Scene0",
+      "scale": 0.53,
+      "height_offset": 0.0,
+      "animation_speed": 2.0
     },
     "wall_light": {
       "scene": "models/lamp_22.glb",
@@ -103,6 +103,10 @@
       "radius": 0.1,
       "emissive_luminance": 2.0
     }
+  },
+  "skybox": {
+    "cross_image": "Skybox_CoudySky_Day_3.png",
+    "brightness": 1000.0
   },
   "sounds": {
     "player_fire": "sounds/impactGeneric_light_001.ogg",
