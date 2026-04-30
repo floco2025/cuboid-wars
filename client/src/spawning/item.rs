@@ -69,9 +69,11 @@ pub fn spawn_item(
                     item_marker: ItemMarker,
                     position: *position,
                     mesh: Mesh3d(meshes.add(Sphere::new(COOKIE_SIZE))),
-                    material: MeshMaterial3d(
-                        materials.add(material_def.standard_material(asset_server, render_settings.texture_anisotropy)),
-                    ),
+                    material: MeshMaterial3d(materials.add(material_def.standard_material(
+                        asset_server,
+                        render_settings.texture_anisotropy,
+                        render_settings.texture_mipmaps_enabled,
+                    ))),
                     transform: Transform::from_xyz(position.x, position.y + COOKIE_HEIGHT, position.z),
                     visibility: Visibility::Visible,
                 },
@@ -94,6 +96,7 @@ pub fn spawn_item(
                     asset_server,
                     item_type_color(item_type),
                     render_settings.texture_anisotropy,
+                    render_settings.texture_mipmaps_enabled,
                 ))),
                 transform: Transform::from_xyz(
                     position.x,

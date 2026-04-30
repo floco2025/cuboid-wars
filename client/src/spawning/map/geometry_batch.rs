@@ -94,6 +94,7 @@ impl MapGeometryBatch {
                     asset_server,
                     materials,
                     render_settings.texture_anisotropy,
+                    render_settings.texture_mipmaps_enabled,
                 )
             };
             let mut mesh = batch.into_mesh();

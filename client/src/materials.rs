@@ -9,7 +9,12 @@ use crate::config::MaterialDef;
 
 impl MaterialDef {
     #[must_use]
-    pub fn standard_material(&self, asset_server: &AssetServer, anisotropy: u16) -> StandardMaterial {
+    pub fn standard_material(
+        &self,
+        asset_server: &AssetServer,
+        anisotropy: u16,
+        mipmaps_enabled: bool,
+    ) -> StandardMaterial {
         StandardMaterial {
             base_color_texture: Some(load_texture(
                 asset_server,
@@ -17,6 +22,7 @@ impl MaterialDef {
                 self.repeat,
                 false,
                 anisotropy,
+                mipmaps_enabled,
             )),
             normal_map_texture: Some(load_texture(
                 asset_server,
@@ -24,6 +30,7 @@ impl MaterialDef {
                 self.repeat,
                 self.data_textures_linear,
                 anisotropy,
+                mipmaps_enabled,
             )),
             occlusion_texture: Some(load_texture(
                 asset_server,
@@ -31,6 +38,7 @@ impl MaterialDef {
                 self.repeat,
                 self.data_textures_linear,
                 anisotropy,
+                mipmaps_enabled,
             )),
             metallic_roughness_texture: Some(load_texture(
                 asset_server,
@@ -38,6 +46,7 @@ impl MaterialDef {
                 self.repeat,
                 self.data_textures_linear,
                 anisotropy,
+                mipmaps_enabled,
             )),
             metallic: self.metallic,
             perceptual_roughness: self.perceptual_roughness,
@@ -51,8 +60,9 @@ impl MaterialDef {
         asset_server: &AssetServer,
         item_color: Color,
         anisotropy: u16,
+        mipmaps_enabled: bool,
     ) -> StandardMaterial {
-        let mut material = self.standard_material(asset_server, anisotropy);
+        let mut material = self.standard_material(asset_server, anisotropy, mipmaps_enabled);
         if self.base_color.as_deref() == Some("item_type_color") {
             material.base_color = item_color;
         }
@@ -76,15 +86,23 @@ impl MaterialHandleCache {
         asset_server: &AssetServer,
         materials: &mut Assets<StandardMaterial>,
         anisotropy: u16,
+        mipmaps_enabled: bool,
     ) -> Handle<StandardMaterial> {
         self.standard
             .entry(id.to_owned())
-            .or_insert_with(|| materials.add(material_def.standard_material(asset_server, anisotropy)))
+            .or_insert_with(|| materials.add(material_def.standard_material(asset_server, anisotropy, mipmaps_enabled)))
             .clone()
     }
 }
 
-fn load_texture(asset_server: &AssetServer, path: &str, repeat: bool, linear: bool, anisotropy: u16) -> Handle<Image> {
+fn load_texture(
+    asset_server: &AssetServer,
+    path: &str,
+    repeat: bool,
+    linear: bool,
+    anisotropy: u16,
+    mipmaps_enabled: bool,
+) -> Handle<Image> {
     if !repeat && !linear {
         return asset_server.load(path.to_owned());
     }
@@ -98,8 +116,12 @@ fn load_texture(asset_server: &AssetServer, path: &str, repeat: bool, linear: bo
                 address_mode_w: ImageAddressMode::Repeat,
                 mag_filter: ImageFilterMode::Linear,
                 min_filter: ImageFilterMode::Linear,
-                mipmap_filter: ImageFilterMode::Linear,
-                anisotropy_clamp: anisotropy,
+                mipmap_filter: if mipmaps_enabled {
+                    ImageFilterMode::Linear
+                } else {
+                    ImageFilterMode::Nearest
+                },
+                anisotropy_clamp: if mipmaps_enabled { anisotropy } else { 1 },
                 ..default()
             });
         }
