@@ -5,7 +5,7 @@ use crate::{
     constants::*,
     markers::*,
     resources::{DebugColors, LevelFocusEnabled},
-    spawning::{MapMaterialCache, spawn_floor, spawn_ramp, spawn_wall, spawn_wall_light_from_layout},
+    spawning::{MapMaterialCache, MapMeshBatcher, spawn_floor, spawn_ramp, spawn_wall, spawn_wall_light_from_layout},
     systems::visual_focus_level,
 };
 use common::{markers::ItemMarker, protocol::MapLayout};
@@ -63,17 +63,10 @@ pub fn map_spawn_walls_system(
         map_layout.ramps.len(),
     );
 
+    let mut batcher = MapMeshBatcher::default();
+
     for wall in &map_layout.walls {
-        spawn_wall(
-            &mut commands,
-            &mut meshes,
-            &mut materials,
-            &mut material_cache,
-            &asset_server,
-            &asset_set,
-            wall,
-            debug_colors.0,
-        );
+        spawn_wall(&mut batcher, &asset_set, wall);
     }
 
     for light in &map_layout.wall_lights {
@@ -81,29 +74,28 @@ pub fn map_spawn_walls_system(
     }
 
     for floor in &map_layout.floors {
-        spawn_floor(
-            &mut commands,
-            &mut meshes,
-            &mut materials,
-            &mut material_cache,
-            &asset_server,
-            &asset_set,
-            floor,
-            debug_colors.0,
-        );
+        spawn_floor(&mut batcher, &asset_set, floor);
     }
 
     for ramp in &map_layout.ramps {
-        spawn_ramp(
-            &mut commands,
-            &mut meshes,
-            &mut materials,
-            &mut material_cache,
-            &asset_server,
-            &asset_set,
-            ramp,
-        );
+        spawn_ramp(&mut batcher, &asset_set, ramp);
     }
+
+    info!(
+        "batched map into {} mesh entities, {} triangles",
+        batcher.batch_count(),
+        batcher.triangle_count(),
+    );
+
+    batcher.flush(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        &mut material_cache,
+        &asset_server,
+        &asset_set,
+        debug_colors.0,
+    );
 
     *spawned = true;
 }

@@ -1,21 +1,11 @@
 use bevy::prelude::*;
-use rand::{RngExt, rng};
 
 use super::{
+    batching::{MapMeshBatcher, MapMeshKind},
     helpers::{tiled_cuboid, tiled_wall_surface_meshes},
-    materials::MapMaterialCache,
 };
-use crate::{config::AssetSet, markers::*};
+use crate::config::AssetSet;
 use common::{assets::DirectionalMaterials, constants::*, protocol::*};
-
-#[derive(Bundle)]
-struct WallBundle {
-    mesh: Mesh3d,
-    material: MeshMaterial3d<StandardMaterial>,
-    transform: Transform,
-    visibility: Visibility,
-    marker: WallMarker,
-}
 
 #[derive(Clone, Copy)]
 enum CardinalDirection {
@@ -46,16 +36,7 @@ impl CardinalDirection {
 }
 
 // Spawn a wall segment entity based on a shared `Wall` config.
-pub fn spawn_wall(
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    material_cache: &mut MapMaterialCache,
-    asset_server: &Res<AssetServer>,
-    asset_set: &AssetSet,
-    wall: &Wall,
-    debug_colors: bool,
-) {
+pub fn spawn_wall(batcher: &mut MapMeshBatcher, asset_set: &AssetSet, wall: &Wall) {
     let center_x = f32::midpoint(wall.x1, wall.x2);
     let center_z = f32::midpoint(wall.z1, wall.z2);
 
@@ -72,17 +53,10 @@ pub fn spawn_wall(
     let transform = Transform::from_xyz(center_x, level_y + WALL_HEIGHT / 2.0, center_z).with_rotation(rotation);
     let material_ids = asset_set.material_ids_for_wall(wall);
 
-    if debug_colors || material_ids.is_uniform() {
+    if material_ids.is_uniform() {
         let material_def = asset_set.material_by_id(material_ids.first());
-        let wall_material = if debug_colors {
-            materials.add(random_debug_material())
-        } else {
-            material_cache.standard(material_ids.first(), material_def, asset_server, materials)
-        };
-
-        let mut mesh = tiled_cuboid(mesh_size_x, WALL_HEIGHT, mesh_size_z, material_def.tile_size());
-        let _ = mesh.generate_tangents();
-        spawn_wall_mesh(commands, meshes, wall_material, mesh, transform, wall.level);
+        let mesh = tiled_cuboid(mesh_size_x, WALL_HEIGHT, mesh_size_z, material_def.tile_size());
+        batcher.add_mesh(MapMeshKind::Wall, wall.level, material_ids.first(), &mesh, transform);
         return;
     }
 
@@ -112,57 +86,47 @@ pub fn spawn_wall(
         bottom_material_def.tile_size(),
     );
 
-    let positive_x_material =
-        material_cache.standard(positive_x_material_id, positive_x_material_def, asset_server, materials);
-    let negative_x_material =
-        material_cache.standard(negative_x_material_id, negative_x_material_def, asset_server, materials);
-    let positive_z_material =
-        material_cache.standard(positive_z_material_id, positive_z_material_def, asset_server, materials);
-    let negative_z_material =
-        material_cache.standard(negative_z_material_id, negative_z_material_def, asset_server, materials);
-    let top_material = material_cache.standard(&material_ids.top, top_material_def, asset_server, materials);
-    let bottom_material = material_cache.standard(&material_ids.bottom, bottom_material_def, asset_server, materials);
-
-    spawn_wall_mesh(
-        commands,
-        meshes,
-        positive_x_material,
-        surface_meshes.local_positive_x,
-        transform,
+    batcher.add_mesh(
+        MapMeshKind::Wall,
         wall.level,
+        positive_x_material_id,
+        &surface_meshes.local_positive_x,
+        transform,
     );
-    spawn_wall_mesh(
-        commands,
-        meshes,
-        negative_x_material,
-        surface_meshes.local_negative_x,
-        transform,
+    batcher.add_mesh(
+        MapMeshKind::Wall,
         wall.level,
+        negative_x_material_id,
+        &surface_meshes.local_negative_x,
+        transform,
     );
-    spawn_wall_mesh(
-        commands,
-        meshes,
-        positive_z_material,
-        surface_meshes.local_positive_z,
-        transform,
+    batcher.add_mesh(
+        MapMeshKind::Wall,
         wall.level,
+        positive_z_material_id,
+        &surface_meshes.local_positive_z,
+        transform,
     );
-    spawn_wall_mesh(
-        commands,
-        meshes,
-        negative_z_material,
-        surface_meshes.local_negative_z,
-        transform,
+    batcher.add_mesh(
+        MapMeshKind::Wall,
         wall.level,
+        negative_z_material_id,
+        &surface_meshes.local_negative_z,
+        transform,
     );
-    spawn_wall_mesh(commands, meshes, top_material, surface_meshes.up, transform, wall.level);
-    spawn_wall_mesh(
-        commands,
-        meshes,
-        bottom_material,
-        surface_meshes.down,
-        transform,
+    batcher.add_mesh(
+        MapMeshKind::Wall,
         wall.level,
+        &material_ids.top,
+        &surface_meshes.up,
+        transform,
+    );
+    batcher.add_mesh(
+        MapMeshKind::Wall,
+        wall.level,
+        &material_ids.bottom,
+        &surface_meshes.down,
+        transform,
     );
 }
 
@@ -177,38 +141,5 @@ fn cardinal_direction(direction: Vec3) -> CardinalDirection {
         CardinalDirection::South
     } else {
         CardinalDirection::North
-    }
-}
-
-fn spawn_wall_mesh(
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    material: Handle<StandardMaterial>,
-    mut mesh: Mesh,
-    transform: Transform,
-    level: u8,
-) {
-    let _ = mesh.generate_tangents();
-    commands.spawn((
-        WallBundle {
-            mesh: Mesh3d(meshes.add(mesh)),
-            material: MeshMaterial3d(material),
-            transform,
-            visibility: Visibility::default(),
-            marker: WallMarker,
-        },
-        MapLevel(level),
-    ));
-}
-
-fn random_debug_material() -> StandardMaterial {
-    let mut rng = rng();
-    StandardMaterial {
-        base_color: Color::srgb(
-            rng.random_range(0.2..1.0),
-            rng.random_range(0.2..1.0),
-            rng.random_range(0.2..1.0),
-        ),
-        ..default()
     }
 }

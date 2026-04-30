@@ -1,29 +1,14 @@
 use bevy::prelude::*;
 
-use super::{helpers::build_ramp_meshes, materials::MapMaterialCache};
+use super::{
+    batching::{MapMeshBatcher, MapMeshKind},
+    helpers::build_ramp_meshes,
+};
 use crate::config::AssetSet;
-use crate::markers::*;
 use common::{constants::LEVEL_HEIGHT, protocol::*};
 
-#[derive(Bundle)]
-struct RampBundle {
-    mesh: Mesh3d,
-    material: MeshMaterial3d<StandardMaterial>,
-    transform: Transform,
-    visibility: Visibility,
-    marker: RampMarker,
-}
-
 // Spawn a ramp entity based on shared `Ramp` config.
-pub fn spawn_ramp(
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    material_cache: &mut MapMaterialCache,
-    asset_server: &Res<AssetServer>,
-    asset_set: &AssetSet,
-    ramp: &Ramp,
-) {
+pub fn spawn_ramp(batcher: &mut MapMeshBatcher, asset_set: &AssetSet, ramp: &Ramp) {
     let top_material_id = asset_set.material_ids_for_ramp_top(ramp).top;
     let side_material_ids = asset_set.material_ids_for_ramp_side(ramp);
     let side_material_id = side_material_ids.first().to_owned();
@@ -42,34 +27,22 @@ pub fn spawn_ramp(
         side_material_def.tile_size(),
     );
 
-    let top_material = material_cache.standard(&top_material_id, top_material_def, asset_server, materials);
-    let side_material = material_cache.standard(&side_material_id, side_material_def, asset_server, materials);
-
     // Lower of the two levels this ramp connects (derived from the lower y).
     let y_low = ramp.y1.min(ramp.y2);
     let lower_level = (y_low / LEVEL_HEIGHT).round().clamp(0.0, f32::from(u8::MAX)) as u8;
 
-    // Top entity (floor texture)
-    commands.spawn((
-        RampBundle {
-            mesh: Mesh3d(meshes.add(mesh_top)),
-            material: MeshMaterial3d(top_material),
-            transform: Transform::default(),
-            visibility: Visibility::Visible,
-            marker: RampMarker,
-        },
-        MapLevel(lower_level),
-    ));
-
-    // Side entity (wall texture)
-    commands.spawn((
-        RampBundle {
-            mesh: Mesh3d(meshes.add(mesh_side)),
-            material: MeshMaterial3d(side_material),
-            transform: Transform::default(),
-            visibility: Visibility::Visible,
-            marker: RampMarker,
-        },
-        MapLevel(lower_level),
-    ));
+    batcher.add_mesh(
+        MapMeshKind::Ramp,
+        lower_level,
+        top_material_id,
+        &mesh_top,
+        Transform::default(),
+    );
+    batcher.add_mesh(
+        MapMeshKind::Ramp,
+        lower_level,
+        side_material_id,
+        &mesh_side,
+        Transform::default(),
+    );
 }
