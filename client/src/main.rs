@@ -9,10 +9,10 @@ use quinn::Endpoint;
 use tokio::{runtime::Runtime, time::Duration};
 
 use client::{
-    config::{AssetSet, configure_client},
+    config::{AssetSet, RenderSettings, configure_client},
     net::network_io_task,
     resources::*,
-    spawning::ProjectileAssets,
+    spawning::{ProjectileAssets, player_shadow_settings_system},
     systems::*,
 };
 use common::{net::MessageStream, protocol::*};
@@ -68,6 +68,8 @@ struct Args {
 fn main() -> Result<()> {
     let args = Args::parse();
     let asset_set = AssetSet::load_default()?;
+    let render_settings = RenderSettings::load_default()?;
+    let debug_colors = args.debug_colors || render_settings.map_debug_colors;
 
     let player_name = args.name.clone().unwrap_or_else(|| {
         let full_name = whoami::realname().unwrap_or_default();
@@ -112,7 +114,8 @@ fn main() -> Result<()> {
         invert_pitch: args.invert_pitch,
     })
     .insert_resource(asset_set)
-    .insert_resource(DebugColors(args.debug_colors))
+    .insert_resource(render_settings)
+    .insert_resource(DebugColors(debug_colors))
     .insert_resource(LastBounceSoundTime::default())
     .init_resource::<ProjectileAssets>()
     .add_systems(
@@ -159,6 +162,7 @@ fn main() -> Result<()> {
         ),
     )
     .add_systems(Update, projectiles_movement_system)
+    .add_systems(Update, player_shadow_settings_system)
     .add_systems(Update, items_animation_system)
     .add_systems(
         Update,

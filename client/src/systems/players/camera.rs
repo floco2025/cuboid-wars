@@ -2,6 +2,7 @@ use bevy::{camera::Viewport, prelude::*};
 
 use super::components::CameraShake;
 use crate::{
+    config::RenderSettings,
     constants::*,
     markers::*,
     resources::{CameraViewMode, TopDownCameraYaw},
@@ -180,6 +181,7 @@ pub fn local_player_camera_sync_system(
     >,
     view_mode: Res<CameraViewMode>,
     top_down_camera_yaw: Res<TopDownCameraYaw>,
+    render_settings: Res<RenderSettings>,
 ) {
     let Some(player_pos) = local_player_query.iter().next() else {
         return;
@@ -195,11 +197,11 @@ pub fn local_player_camera_sync_system(
 
     match *view_mode {
         CameraViewMode::FirstPerson => {
-            persp.fov = FPV_CAMERA_FOV_DEGREES.to_radians();
+            persp.fov = render_settings.fov_first_person_degrees.to_radians();
             sync_first_person_camera(&mut camera_transform, player_pos, maybe_shake);
         }
         CameraViewMode::TopDown => {
-            persp.fov = TOPDOWN_CAMERA_FOV_DEGREES.to_radians();
+            persp.fov = render_settings.fov_top_down_degrees.to_radians();
             *camera_transform = topdown_camera_transform(
                 player_pos,
                 map_layout.as_deref(),
@@ -235,8 +237,9 @@ pub fn local_player_rearview_sync_system(
     main_camera_query: Query<&Transform, (With<Camera3d>, With<MainCameraMarker>, Without<RearviewCameraMarker>)>,
     mut rearview_query: Query<&mut Transform, (With<RearviewCameraMarker>, Without<MainCameraMarker>)>,
     view_mode: Res<CameraViewMode>,
+    render_settings: Res<RenderSettings>,
 ) {
-    if !view_mode.is_first_person() {
+    if !render_settings.rearview_enabled || !view_mode.is_first_person() {
         return;
     }
 
@@ -265,6 +268,7 @@ pub fn local_player_rearview_system(
     windows: Query<&Window>,
     mut rearview_query: Query<&mut Camera, With<RearviewCameraMarker>>,
     view_mode: Res<CameraViewMode>,
+    render_settings: Res<RenderSettings>,
 ) {
     let Ok(window) = windows.single() else {
         return;
@@ -275,7 +279,7 @@ pub fn local_player_rearview_system(
     };
 
     // Only show rearview in first-person mode
-    let is_active = view_mode.is_first_person();
+    let is_active = render_settings.rearview_enabled && view_mode.is_first_person();
     camera.is_active = is_active;
 
     if !is_active {

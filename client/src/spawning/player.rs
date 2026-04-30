@@ -1,8 +1,15 @@
-use bevy::{gltf::GltfAssetLabel, prelude::*, scene::SceneRoot};
+use std::collections::HashSet;
+
+use bevy::{
+    gltf::GltfAssetLabel,
+    light::NotShadowCaster,
+    prelude::*,
+    scene::{SceneInstance, SceneRoot, SceneSpawner},
+};
 
 use super::player_label::{setup_player_id_text_rendering, spawn_player_id_display};
 use crate::{
-    config::AssetSet,
+    config::{AssetSet, RenderSettings},
     constants::*,
     markers::*,
     systems::{AnimationToPlay, BumpFlashState, players_animation_system},
@@ -120,6 +127,29 @@ pub fn spawn_player(
     commands.entity(entity).add_children(&children);
 
     entity
+}
+
+pub fn player_shadow_settings_system(
+    mut commands: Commands,
+    render_settings: Res<RenderSettings>,
+    scene_spawner: Res<SceneSpawner>,
+    player_models: Query<(Entity, &SceneInstance), With<PlayerModelMarker>>,
+    mut processed: Local<HashSet<Entity>>,
+) {
+    if render_settings.shadows_player_enabled {
+        return;
+    }
+
+    for (model_entity, scene_instance) in &player_models {
+        if processed.contains(&model_entity) || !scene_spawner.instance_is_ready(**scene_instance) {
+            continue;
+        }
+
+        for entity in scene_spawner.iter_instance_entities(**scene_instance) {
+            commands.entity(entity).insert(NotShadowCaster);
+        }
+        processed.insert(model_entity);
+    }
 }
 
 const fn player_visibility(is_local: bool) -> Visibility {

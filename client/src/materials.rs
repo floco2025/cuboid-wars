@@ -5,35 +5,39 @@ use bevy::{
     prelude::*,
 };
 
-use crate::{config::MaterialDef, constants::TEXTURE_ANISOTROPY};
+use crate::config::MaterialDef;
 
 impl MaterialDef {
     #[must_use]
-    pub fn standard_material(&self, asset_server: &AssetServer) -> StandardMaterial {
+    pub fn standard_material(&self, asset_server: &AssetServer, anisotropy: u16) -> StandardMaterial {
         StandardMaterial {
             base_color_texture: Some(load_texture(
                 asset_server,
                 &self.textures.base_color,
                 self.repeat,
                 false,
+                anisotropy,
             )),
             normal_map_texture: Some(load_texture(
                 asset_server,
                 &self.textures.normal,
                 self.repeat,
                 self.data_textures_linear,
+                anisotropy,
             )),
             occlusion_texture: Some(load_texture(
                 asset_server,
                 &self.textures.occlusion,
                 self.repeat,
                 self.data_textures_linear,
+                anisotropy,
             )),
             metallic_roughness_texture: Some(load_texture(
                 asset_server,
                 &self.textures.metallic_roughness,
                 self.repeat,
                 self.data_textures_linear,
+                anisotropy,
             )),
             metallic: self.metallic,
             perceptual_roughness: self.perceptual_roughness,
@@ -42,8 +46,13 @@ impl MaterialDef {
     }
 
     #[must_use]
-    pub fn standard_item_material(&self, asset_server: &AssetServer, item_color: Color) -> StandardMaterial {
-        let mut material = self.standard_material(asset_server);
+    pub fn standard_item_material(
+        &self,
+        asset_server: &AssetServer,
+        item_color: Color,
+        anisotropy: u16,
+    ) -> StandardMaterial {
+        let mut material = self.standard_material(asset_server, anisotropy);
         if self.base_color.as_deref() == Some("item_type_color") {
             material.base_color = item_color;
         }
@@ -66,15 +75,16 @@ impl MaterialHandleCache {
         material_def: &MaterialDef,
         asset_server: &AssetServer,
         materials: &mut Assets<StandardMaterial>,
+        anisotropy: u16,
     ) -> Handle<StandardMaterial> {
         self.standard
             .entry(id.to_owned())
-            .or_insert_with(|| materials.add(material_def.standard_material(asset_server)))
+            .or_insert_with(|| materials.add(material_def.standard_material(asset_server, anisotropy)))
             .clone()
     }
 }
 
-fn load_texture(asset_server: &AssetServer, path: &str, repeat: bool, linear: bool) -> Handle<Image> {
+fn load_texture(asset_server: &AssetServer, path: &str, repeat: bool, linear: bool, anisotropy: u16) -> Handle<Image> {
     if !repeat && !linear {
         return asset_server.load(path.to_owned());
     }
@@ -89,7 +99,7 @@ fn load_texture(asset_server: &AssetServer, path: &str, repeat: bool, linear: bo
                 mag_filter: ImageFilterMode::Linear,
                 min_filter: ImageFilterMode::Linear,
                 mipmap_filter: ImageFilterMode::Linear,
-                anisotropy_clamp: TEXTURE_ANISOTROPY,
+                anisotropy_clamp: anisotropy,
                 ..default()
             });
         }

@@ -1,7 +1,11 @@
 use bevy::prelude::*;
 use rand::random;
 
-use crate::{config::AssetSet, constants::*, markers::MapLevel};
+use crate::{
+    config::{AssetSet, RenderSettings},
+    constants::*,
+    markers::MapLevel,
+};
 use common::{map::compute_player_level, markers::ItemMarker, protocol::*};
 
 // ============================================================================
@@ -48,6 +52,7 @@ pub fn spawn_item(
     materials: &mut ResMut<Assets<StandardMaterial>>,
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
+    render_settings: &RenderSettings,
     item_id: ItemId,
     item_type: ItemType,
     position: &Position,
@@ -64,7 +69,9 @@ pub fn spawn_item(
                     item_marker: ItemMarker,
                     position: *position,
                     mesh: Mesh3d(meshes.add(Sphere::new(COOKIE_SIZE))),
-                    material: MeshMaterial3d(materials.add(material_def.standard_material(asset_server))),
+                    material: MeshMaterial3d(
+                        materials.add(material_def.standard_material(asset_server, render_settings.texture_anisotropy)),
+                    ),
                     transform: Transform::from_xyz(position.x, position.y + COOKIE_HEIGHT, position.z),
                     visibility: Visibility::Visible,
                 },
@@ -83,9 +90,11 @@ pub fn spawn_item(
                 item_marker: ItemMarker,
                 position: *position,
                 mesh: Mesh3d(meshes.add(Cuboid::new(ITEM_SIZE, ITEM_SIZE, ITEM_SIZE))),
-                material: MeshMaterial3d(
-                    materials.add(material_def.standard_item_material(asset_server, item_type_color(item_type))),
-                ),
+                material: MeshMaterial3d(materials.add(material_def.standard_item_material(
+                    asset_server,
+                    item_type_color(item_type),
+                    render_settings.texture_anisotropy,
+                ))),
                 transform: Transform::from_xyz(
                     position.x,
                     position.y + ITEM_HEIGHT_ABOVE_FLOOR + ITEM_SIZE / 2.0,

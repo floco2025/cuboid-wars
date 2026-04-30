@@ -8,7 +8,11 @@ use bevy::{
 };
 use rand::{RngExt, rng};
 
-use crate::{config::AssetSet, markers::*, materials::MaterialHandleCache};
+use crate::{
+    config::{AssetSet, RenderSettings},
+    markers::*,
+    materials::MaterialHandleCache,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum MapGeometryKind {
@@ -72,6 +76,7 @@ impl MapGeometryBatch {
         material_cache: &mut MaterialHandleCache,
         asset_server: &AssetServer,
         asset_set: &AssetSet,
+        render_settings: &RenderSettings,
         debug_colors: bool,
     ) {
         for (key, batch) in self.batches {
@@ -83,7 +88,13 @@ impl MapGeometryBatch {
                 materials.add(random_debug_material())
             } else {
                 let material_def = asset_set.material_by_id(&key.material_id);
-                material_cache.standard(&key.material_id, material_def, asset_server, materials)
+                material_cache.standard(
+                    &key.material_id,
+                    material_def,
+                    asset_server,
+                    materials,
+                    render_settings.texture_anisotropy,
+                )
             };
             let mut mesh = batch.into_mesh();
             let _ = mesh.generate_tangents();

@@ -1,17 +1,20 @@
 use bevy::{camera::Viewport, prelude::*};
 
-use crate::{constants::*, markers::*};
+use crate::{config::RenderSettings, markers::*};
 use common::constants::{PLAYER_EYE_HEIGHT_RATIO, PLAYER_HEIGHT};
 
 // ============================================================================
 // Camera Setup System
 // ============================================================================
 
-pub fn setup_cameras_system(mut commands: Commands) {
+pub fn setup_cameras_system(mut commands: Commands, render_settings: Res<RenderSettings>) {
+    let msaa = Msaa::from_samples(render_settings.msaa_samples);
+
     // Add main camera (initial position will be immediately overridden by sync system)
     commands.spawn((
         IsDefaultUiCamera, // Mark this as the UI camera
         MainCameraMarker,
+        msaa,
         Camera3d::default(),
         Camera {
             // Render first to full window
@@ -19,7 +22,7 @@ pub fn setup_cameras_system(mut commands: Commands) {
             ..default()
         },
         Projection::from(PerspectiveProjection {
-            fov: FPV_CAMERA_FOV_DEGREES.to_radians(),
+            fov: render_settings.fov_first_person_degrees.to_radians(),
             ..default()
         }),
         Transform::from_xyz(0.0, PLAYER_HEIGHT * PLAYER_EYE_HEIGHT_RATIO, 0.0)
@@ -29,6 +32,7 @@ pub fn setup_cameras_system(mut commands: Commands) {
     // Add rearview mirror camera (renders to lower-right viewport)
     commands.spawn((
         RearviewCameraMarker,
+        msaa,
         Camera3d::default(),
         Camera {
             // Render after main camera to its viewport only
@@ -41,10 +45,11 @@ pub fn setup_cameras_system(mut commands: Commands) {
             }),
             // Don't clear the viewport - render on top
             clear_color: bevy::camera::ClearColorConfig::None,
+            is_active: render_settings.rearview_enabled,
             ..default()
         },
         Projection::from(PerspectiveProjection {
-            fov: REARVIEW_FOV_DEGREES.to_radians(),
+            fov: render_settings.fov_rearview_degrees.to_radians(),
             ..default()
         }),
         Transform::from_xyz(0.0, PLAYER_HEIGHT * PLAYER_EYE_HEIGHT_RATIO, 0.0)

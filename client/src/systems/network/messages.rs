@@ -11,7 +11,7 @@ use super::{
     systems::handle_echo_message,
 };
 use crate::{
-    config::AssetSet,
+    config::{AssetSet, RenderSettings},
     markers::MainCameraMarker,
     resources::{ItemMap, LastUpdateSeq, PlayerMap, RoundTripTime},
     spawning::ProjectileAssets,
@@ -37,6 +37,7 @@ pub fn dispatch_message(
     time: &Res<Time>,
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
+    render_settings: &RenderSettings,
     projectile_assets: &ProjectileAssets,
     collision_world: Option<&CollisionWorld>,
 ) {
@@ -88,6 +89,7 @@ pub fn dispatch_message(
             my_player_id,
             asset_server,
             asset_set,
+            render_settings,
             update_msg,
         ),
         ServerMessage::Hit(hit_msg) => handle_player_hit_message(commands, players, cameras, my_player_id, hit_msg),
@@ -129,6 +131,7 @@ pub fn handle_update_message(
     my_player_id: PlayerId,
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
+    render_settings: &RenderSettings,
     msg: SUpdate,
 ) {
     // Ignore outdated updates
@@ -158,5 +161,14 @@ pub fn handle_update_message(
         asset_set,
         &msg.players,
     );
-    super::items::sync_items(commands, meshes, materials, items, asset_server, asset_set, &msg.items);
+    super::items::sync_items(
+        commands,
+        meshes,
+        materials,
+        items,
+        asset_server,
+        asset_set,
+        render_settings,
+        &msg.items,
+    );
 }

@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::{
-    config::AssetSet,
+    config::{AssetSet, RenderSettings},
     constants::*,
     markers::*,
     materials::MaterialHandleCache,
@@ -15,11 +15,11 @@ use common::{markers::ItemMarker, protocol::MapLayout};
 // World Geometry Setup System
 // ============================================================================
 
-pub fn setup_world_geometry_system(mut commands: Commands) {
+pub fn setup_world_geometry_system(mut commands: Commands, render_settings: Res<RenderSettings>) {
     commands.spawn((
         DirectionalLight {
             illuminance: LIGHT_DIRECTIONAL_BRIGHTNESS,
-            shadows_enabled: true,
+            shadows_enabled: render_settings.shadows_directional_enabled,
             ..default()
         },
         Transform::from_xyz(5.0, 15.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
@@ -44,6 +44,7 @@ pub fn map_spawn_geometry_system(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     asset_set: Res<AssetSet>,
+    render_settings: Res<RenderSettings>,
     debug_colors: Res<DebugColors>,
     mut spawned: Local<bool>,
     mut material_cache: Local<MaterialHandleCache>,
@@ -95,6 +96,7 @@ pub fn map_spawn_geometry_system(
         &mut material_cache,
         &asset_server,
         &asset_set,
+        &render_settings,
         debug_colors.0,
     );
 

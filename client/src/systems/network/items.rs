@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use std::collections::HashSet;
 
 use crate::{
-    config::AssetSet,
+    config::{AssetSet, RenderSettings},
     resources::{ItemInfo, ItemMap},
     spawning::spawn_item,
 };
@@ -38,6 +38,7 @@ pub fn sync_items(
     items: &mut ResMut<ItemMap>,
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
+    render_settings: &RenderSettings,
     server_items: &[(ItemId, Item)],
 ) {
     let server_item_ids: HashSet<ItemId> = server_items.iter().map(|(id, _)| *id).collect();
@@ -53,6 +54,7 @@ pub fn sync_items(
             materials,
             asset_server,
             asset_set,
+            render_settings,
             *item_id,
             item.item_type,
             &item.pos,

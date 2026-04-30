@@ -1,16 +1,18 @@
 use bevy::prelude::*;
 use std::time::Duration;
 
-use super::{components::AssetManagers, login::handle_init_message, messages::dispatch_message};
+use super::{
+    components::{AssetManagers, ClientAssets},
+    login::handle_init_message,
+    messages::dispatch_message,
+};
 use crate::{
-    config::AssetSet,
     constants::ECHO_INTERVAL,
     markers::MainCameraMarker,
     net::{ClientToServer, ServerToClient},
     resources::{
         ClientToServerChannel, ItemMap, LastUpdateSeq, MyPlayerId, PlayerMap, RoundTripTime, ServerToClientChannel,
     },
-    spawning::ProjectileAssets,
 };
 use common::{markers::PlayerMarker, physics::CollisionWorld, protocol::*};
 
@@ -33,9 +35,7 @@ pub fn network_server_message_system(
     my_player_id: Option<Res<MyPlayerId>>,
     collision_world: Option<Res<CollisionWorld>>,
     time: Res<Time>,
-    asset_server: Res<AssetServer>,
-    asset_set: Res<AssetSet>,
-    projectile_assets: Res<ProjectileAssets>,
+    client_assets: ClientAssets,
 ) {
     // Process all messages from the server
     while let Ok(msg) = from_server.try_recv() {
@@ -58,9 +58,10 @@ pub fn network_server_message_system(
                         &player_data,
                         &cameras,
                         &time,
-                        &asset_server,
-                        &asset_set,
-                        &projectile_assets,
+                        &client_assets.asset_server,
+                        &client_assets.asset_set,
+                        &client_assets.render_settings,
+                        &client_assets.projectile_assets,
                         collision_world.as_deref(),
                     );
                 } else {

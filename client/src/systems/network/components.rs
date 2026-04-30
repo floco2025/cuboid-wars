@@ -1,6 +1,11 @@
 use bevy::{ecs::system::SystemParam, prelude::*};
 use common::protocol::Position;
 
+use crate::{
+    config::{AssetSet, RenderSettings},
+    spawning::ProjectileAssets,
+};
+
 // ============================================================================
 // Components
 // ============================================================================
@@ -26,4 +31,12 @@ pub struct AssetManagers<'w> {
     pub materials: ResMut<'w, Assets<StandardMaterial>>,
     pub images: ResMut<'w, Assets<Image>>,
     pub graphs: ResMut<'w, Assets<AnimationGraph>>,
+}
+
+#[derive(SystemParam)]
+pub struct ClientAssets<'w> {
+    pub asset_server: Res<'w, AssetServer>,
+    pub asset_set: Res<'w, AssetSet>,
+    pub render_settings: Res<'w, RenderSettings>,
+    pub projectile_assets: Res<'w, ProjectileAssets>,
 }
