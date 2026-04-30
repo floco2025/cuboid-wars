@@ -119,7 +119,7 @@
       }
     },
     "stucco1": {
-      "tile_size": 6.0,
+      "tile_size": 4.0,
       "metallic": 0.5,
       "roughness": 0.5,
       "repeat": true,
