@@ -5,7 +5,7 @@ use bevy::{
     prelude::*,
 };
 
-use crate::config::MaterialDef;
+use crate::{config::MaterialDef, constants::TEXTURE_ANISOTROPY};
 
 impl MaterialDef {
     #[must_use]
@@ -89,7 +89,7 @@ fn load_texture(asset_server: &AssetServer, path: &str, repeat: bool, linear: bo
                 mag_filter: ImageFilterMode::Linear,
                 min_filter: ImageFilterMode::Linear,
                 mipmap_filter: ImageFilterMode::Linear,
-                anisotropy_clamp: 8,
+                anisotropy_clamp: TEXTURE_ANISOTROPY,
                 ..default()
             });
         }

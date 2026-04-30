@@ -88,6 +88,8 @@ pub const COOKIE_HEIGHT: f32 = 0.16; // meters above floor
 // Textures & Materials
 // ============================================================================
 
+pub const TEXTURE_ANISOTROPY: u16 = 8;
+
 // Tile sizes
 pub const TEXTURE_WALL_TILE_SIZE: f32 = 6.0;
 pub const TEXTURE_ROOF_TILE_SIZE: f32 = 6.0;
