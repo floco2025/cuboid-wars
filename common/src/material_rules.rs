@@ -9,12 +9,12 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct AssetRules {
-    pub material_rules: MaterialRules,
+pub struct MaterialRules {
+    pub material_rules: MaterialRuleSet,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DirectionalMaterials {
+pub struct FaceMaterials {
     pub north: String,
     pub south: String,
     pub east: String,
@@ -23,7 +23,7 @@ pub struct DirectionalMaterials {
     pub bottom: String,
 }
 
-impl DirectionalMaterials {
+impl FaceMaterials {
     #[must_use]
     pub fn uniform(material: impl Into<String>) -> Self {
         let material = material.into();
@@ -52,7 +52,7 @@ impl DirectionalMaterials {
     }
 }
 
-impl AssetRules {
+impl MaterialRules {
     pub fn load_default() -> Result<Self> {
         Self::load_from_path(Path::new(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -66,7 +66,7 @@ impl AssetRules {
     }
 
     #[must_use]
-    pub fn materials_for_floor(&self, floor: &Floor) -> DirectionalMaterials {
+    pub fn materials_for_floor(&self, floor: &Floor) -> FaceMaterials {
         let mut material = None;
         for (col, row) in floor_cells(floor) {
             let next = self.materials_for_floor_cell(floor.level, col, row);
@@ -88,12 +88,7 @@ impl AssetRules {
     }
 
     #[must_use]
-    pub fn material_for_floor(&self, floor: &Floor) -> String {
-        self.materials_for_floor(floor).top
-    }
-
-    #[must_use]
-    pub fn materials_for_wall(&self, wall: &Wall) -> DirectionalMaterials {
+    pub fn materials_for_wall(&self, wall: &Wall) -> FaceMaterials {
         let mut material = None;
         for (from, to) in wall_edges(wall) {
             let next = self.materials_for_wall_edge(wall.level, from, to);
@@ -117,24 +112,14 @@ impl AssetRules {
     }
 
     #[must_use]
-    pub fn material_for_wall(&self, wall: &Wall) -> String {
-        self.materials_for_wall(wall).first().to_owned()
-    }
-
-    #[must_use]
-    pub fn materials_for_wall_edge(&self, level: u8, from: [i32; 2], to: [i32; 2]) -> DirectionalMaterials {
+    pub fn materials_for_wall_edge(&self, level: u8, from: [i32; 2], to: [i32; 2]) -> FaceMaterials {
         resolve_directional_materials(&self.material_rules.walls, |rule| {
             rule.matches_level(level) && rule.matches_edge(from, to)
         })
     }
 
     #[must_use]
-    pub fn material_for_wall_edge(&self, level: u8, from: [i32; 2], to: [i32; 2]) -> String {
-        self.materials_for_wall_edge(level, from, to).first().to_owned()
-    }
-
-    #[must_use]
-    pub fn materials_for_ramp_top(&self, ramp: &Ramp) -> DirectionalMaterials {
+    pub fn materials_for_ramp_top(&self, ramp: &Ramp) -> FaceMaterials {
         let lower_level = ramp_lower_level(ramp);
         let mut material = None;
         for (col, row) in ramp_cells(ramp) {
@@ -156,19 +141,9 @@ impl AssetRules {
     }
 
     #[must_use]
-    pub fn material_for_ramp_top(&self, ramp: &Ramp) -> String {
-        self.materials_for_ramp_top(ramp).top
-    }
-
-    #[must_use]
-    pub fn materials_for_ramp_side(&self, ramp: &Ramp) -> DirectionalMaterials {
+    pub fn materials_for_ramp_side(&self, ramp: &Ramp) -> FaceMaterials {
         let lower_level = ramp_lower_level(ramp);
         self.materials_for_interior_wall(lower_level)
-    }
-
-    #[must_use]
-    pub fn material_for_ramp_side(&self, ramp: &Ramp) -> String {
-        self.materials_for_ramp_side(ramp).first().to_owned()
     }
 
     #[must_use]
@@ -182,14 +157,14 @@ impl AssetRules {
     }
 
     #[must_use]
-    fn materials_for_floor_cell(&self, level: u8, col: i32, row: i32) -> DirectionalMaterials {
+    fn materials_for_floor_cell(&self, level: u8, col: i32, row: i32) -> FaceMaterials {
         resolve_directional_materials(&self.material_rules.floors, |rule| {
             rule.matches_level(level) && rule.matches_cell(col, row)
         })
     }
 
     #[must_use]
-    fn materials_for_interior_wall(&self, level: u8) -> DirectionalMaterials {
+    fn materials_for_interior_wall(&self, level: u8) -> FaceMaterials {
         resolve_directional_materials(&self.material_rules.walls, |rule| {
             rule.matches_level(level) && !rule.has_edge_scope()
         })
@@ -197,13 +172,13 @@ impl AssetRules {
 }
 
 #[derive(Debug, Clone)]
-pub struct MaterialRules {
+pub struct MaterialRuleSet {
     floors: Vec<MaterialRule>,
     walls: Vec<MaterialRule>,
     items: Vec<MaterialRule>,
 }
 
-impl<'de> Deserialize<'de> for MaterialRules {
+impl<'de> Deserialize<'de> for MaterialRuleSet {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -450,7 +425,7 @@ impl MaterialRule {
         self.cols.is_some() || self.rows.is_some() || self.from.is_some() || self.to.is_some()
     }
 
-    fn directional_materials(&self) -> DirectionalMaterials {
+    fn directional_materials(&self) -> FaceMaterials {
         let surfaces = self.materials.as_ref();
         let fallback = self
             .material
@@ -464,7 +439,7 @@ impl MaterialRule {
             .or_else(|| surfaces.and_then(|materials| materials.bottom.as_deref()))
             .expect("asset material rule must define `material` or at least one material surface");
 
-        DirectionalMaterials {
+        FaceMaterials {
             north: surfaces
                 .and_then(|materials| materials.north.as_deref())
                 .unwrap_or(fallback)
@@ -504,10 +479,7 @@ fn range_specificity([min, max]: [i32; 2], full_len: i32) -> u16 {
     100 + u16::try_from(full_len - len).expect("grid range length should fit in u16")
 }
 
-fn resolve_directional_materials(
-    rules: &[MaterialRule],
-    matches: impl Fn(&MaterialRule) -> bool,
-) -> DirectionalMaterials {
+fn resolve_directional_materials(rules: &[MaterialRule], matches: impl Fn(&MaterialRule) -> bool) -> FaceMaterials {
     let mut best: Option<(&MaterialRule, u16)> = None;
     for rule in rules.iter().filter(|rule| matches(rule)) {
         let specificity = rule.specificity();

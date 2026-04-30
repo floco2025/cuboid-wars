@@ -8,7 +8,7 @@ use super::{
     segments::{horizontal_wall_segment, vertical_wall_segment},
 };
 use crate::resources::EdgeGrid;
-use common::{assets::AssetRules, constants::*, protocol::Wall};
+use common::{constants::*, material_rules::MaterialRules, protocol::Wall};
 
 // Epsilon for merging adjacent walls.
 const MERGE_EPS: f32 = 0.01;
@@ -81,7 +81,7 @@ fn normalize_wall(mut w: Wall) -> Wall {
 }
 
 // Merge collinear walls that are adjacent or overlapping.
-fn merge_walls_line(list: Vec<Wall>, is_horizontal: bool, assets: &AssetRules, out: &mut Vec<Wall>) {
+fn merge_walls_line(list: Vec<Wall>, is_horizontal: bool, assets: &MaterialRules, out: &mut Vec<Wall>) {
     let mut iter = list.into_iter();
     if let Some(mut cur) = iter.next() {
         let mut cur_material = assets.materials_for_wall(&cur);
@@ -113,7 +113,7 @@ fn merge_walls_line(list: Vec<Wall>, is_horizontal: bool, assets: &AssetRules, o
 }
 
 // Merge adjacent collinear walls into longer segments
-pub fn merge_walls(walls: Vec<Wall>, assets: &AssetRules) -> Vec<Wall> {
+pub fn merge_walls(walls: Vec<Wall>, assets: &MaterialRules) -> Vec<Wall> {
     let mut horizontals = Vec::new();
     let mut verticals = Vec::new();
     let mut others = Vec::new();

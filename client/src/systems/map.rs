@@ -4,8 +4,9 @@ use crate::{
     config::AssetSet,
     constants::*,
     markers::*,
+    materials::MaterialHandleCache,
     resources::{DebugColors, LevelFocusEnabled},
-    spawning::{MapGeometryBatch, MapMaterialCache, batch_floor, batch_ramp, batch_wall, spawn_wall_light_from_layout},
+    spawning::{MapGeometryBatch, batch_floor, batch_ramp, batch_wall, spawn_wall_light_from_layout},
     systems::visual_focus_level,
 };
 use common::{markers::ItemMarker, protocol::MapLayout};
@@ -45,7 +46,7 @@ pub fn map_spawn_geometry_system(
     asset_set: Res<AssetSet>,
     debug_colors: Res<DebugColors>,
     mut spawned: Local<bool>,
-    mut material_cache: Local<MapMaterialCache>,
+    mut material_cache: Local<MaterialHandleCache>,
 ) {
     // Spawn exactly once after the server shares its wall configuration
     let Some(map_layout) = map_layout else {

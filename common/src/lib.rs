@@ -1,8 +1,8 @@
-pub mod assets;
 pub mod config;
 pub mod constants;
 pub mod map;
 pub mod markers;
+pub mod material_rules;
 pub mod net;
 pub mod physics;
 pub mod protocol;

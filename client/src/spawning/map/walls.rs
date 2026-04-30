@@ -5,7 +5,7 @@ use super::{
     geometry_batch::{MapGeometryBatch, MapGeometryKind},
 };
 use crate::config::AssetSet;
-use common::{assets::DirectionalMaterials, constants::*, protocol::*};
+use common::{constants::*, material_rules::FaceMaterials, protocol::*};
 
 #[derive(Clone, Copy)]
 enum CardinalDirection {
@@ -25,7 +25,7 @@ impl CardinalDirection {
         }
     }
 
-    fn material_id(self, materials: &DirectionalMaterials) -> &str {
+    fn material_id(self, materials: &FaceMaterials) -> &str {
         match self {
             Self::North => &materials.north,
             Self::South => &materials.south,

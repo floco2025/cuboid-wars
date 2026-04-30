@@ -1,12 +1,9 @@
 use std::{collections::HashMap, fs, path::Path};
 
 use anyhow::{Context, Result};
-use bevy::{
-    image::{ImageAddressMode, ImageFilterMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor},
-    prelude::*,
-};
+use bevy::prelude::Resource;
 use common::{
-    assets::{AssetRules, DirectionalMaterials},
+    material_rules::{FaceMaterials, MaterialRules},
     protocol::{Floor, ItemType, Ramp, Wall},
 };
 use serde::Deserialize;
@@ -16,7 +13,7 @@ pub struct AssetSet {
     pub version: u32,
     materials: HashMap<String, MaterialDef>,
     #[serde(flatten)]
-    rules: AssetRules,
+    rules: MaterialRules,
     models: Models,
     skybox: SkyboxDef,
     sounds: HashMap<String, String>,
@@ -32,27 +29,15 @@ impl AssetSet {
         serde_json::from_str(&text).with_context(|| format!("failed to parse {}", path.display()))
     }
 
-    pub fn material_for_floor(&self, floor: &Floor) -> &MaterialDef {
-        self.material(&self.rules.material_for_floor(floor))
-    }
-
-    pub fn material_ids_for_floor(&self, floor: &Floor) -> DirectionalMaterials {
+    pub fn material_ids_for_floor(&self, floor: &Floor) -> FaceMaterials {
         self.rules.materials_for_floor(floor)
     }
 
-    pub fn material_for_ramp_top(&self, ramp: &Ramp) -> &MaterialDef {
-        self.material(&self.rules.material_for_ramp_top(ramp))
-    }
-
-    pub fn material_ids_for_ramp_top(&self, ramp: &Ramp) -> DirectionalMaterials {
+    pub fn material_ids_for_ramp_top(&self, ramp: &Ramp) -> FaceMaterials {
         self.rules.materials_for_ramp_top(ramp)
     }
 
-    pub fn material_for_ramp_side(&self, ramp: &Ramp) -> &MaterialDef {
-        self.material(&self.rules.material_for_ramp_side(ramp))
-    }
-
-    pub fn material_ids_for_ramp_side(&self, ramp: &Ramp) -> DirectionalMaterials {
+    pub fn material_ids_for_ramp_side(&self, ramp: &Ramp) -> FaceMaterials {
         self.rules.materials_for_ramp_side(ramp)
     }
 
@@ -60,11 +45,7 @@ impl AssetSet {
         self.material(self.rules.material_for_item(item_type))
     }
 
-    pub fn material_for_wall(&self, wall: &Wall) -> &MaterialDef {
-        self.material(&self.rules.material_for_wall(wall))
-    }
-
-    pub fn material_ids_for_wall(&self, wall: &Wall) -> DirectionalMaterials {
+    pub fn material_ids_for_wall(&self, wall: &Wall) -> FaceMaterials {
         self.rules.materials_for_wall(wall)
     }
 
@@ -100,70 +81,25 @@ impl AssetSet {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct MaterialDef {
-    textures: TextureDef,
+    pub(crate) textures: TextureDef,
     #[serde(default)]
     pub tile_size: Option<f32>,
     pub metallic: f32,
     #[serde(rename = "roughness")]
     pub perceptual_roughness: f32,
     #[serde(default)]
-    repeat: bool,
+    pub(crate) repeat: bool,
     #[serde(default)]
-    data_textures_linear: bool,
+    pub(crate) data_textures_linear: bool,
     #[serde(default)]
-    base_color: Option<String>,
+    pub(crate) base_color: Option<String>,
     #[serde(default)]
-    emissive: Option<String>,
+    pub(crate) emissive: Option<String>,
     #[serde(default)]
-    emissive_strength: Option<f32>,
+    pub(crate) emissive_strength: Option<f32>,
 }
 
 impl MaterialDef {
-    #[must_use]
-    pub fn standard_material(&self, asset_server: &AssetServer) -> StandardMaterial {
-        StandardMaterial {
-            base_color_texture: Some(load_texture(
-                asset_server,
-                &self.textures.base_color,
-                self.repeat,
-                false,
-            )),
-            normal_map_texture: Some(load_texture(
-                asset_server,
-                &self.textures.normal,
-                self.repeat,
-                self.data_textures_linear,
-            )),
-            occlusion_texture: Some(load_texture(
-                asset_server,
-                &self.textures.occlusion,
-                self.repeat,
-                self.data_textures_linear,
-            )),
-            metallic_roughness_texture: Some(load_texture(
-                asset_server,
-                &self.textures.metallic_roughness,
-                self.repeat,
-                self.data_textures_linear,
-            )),
-            metallic: self.metallic,
-            perceptual_roughness: self.perceptual_roughness,
-            ..default()
-        }
-    }
-
-    #[must_use]
-    pub fn standard_item_material(&self, asset_server: &AssetServer, item_color: Color) -> StandardMaterial {
-        let mut material = self.standard_material(asset_server);
-        if self.base_color.as_deref() == Some("item_type_color") {
-            material.base_color = item_color;
-        }
-        if self.emissive.as_deref() == Some("item_type_color") {
-            material.emissive = LinearRgba::from(item_color) * self.emissive_strength.unwrap_or(1.0);
-        }
-        material
-    }
-
     #[must_use]
     pub fn tile_size(&self) -> f32 {
         self.tile_size.unwrap_or(1.0)
@@ -171,11 +107,11 @@ impl MaterialDef {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-struct TextureDef {
-    base_color: String,
-    normal: String,
-    occlusion: String,
-    metallic_roughness: String,
+pub(crate) struct TextureDef {
+    pub(crate) base_color: String,
+    pub(crate) normal: String,
+    pub(crate) occlusion: String,
+    pub(crate) metallic_roughness: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -209,26 +145,4 @@ pub struct SkyboxDef {
 struct Models {
     player: ModelDef,
     wall_light: WallLightModelDef,
-}
-
-fn load_texture(asset_server: &AssetServer, path: &str, repeat: bool, linear: bool) -> Handle<Image> {
-    if !repeat && !linear {
-        return asset_server.load(path.to_owned());
-    }
-
-    asset_server.load_with_settings(path.to_owned(), move |settings: &mut ImageLoaderSettings| {
-        settings.is_srgb = !linear;
-        if repeat {
-            settings.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
-                address_mode_u: ImageAddressMode::Repeat,
-                address_mode_v: ImageAddressMode::Repeat,
-                address_mode_w: ImageAddressMode::Repeat,
-                mag_filter: ImageFilterMode::Linear,
-                min_filter: ImageFilterMode::Linear,
-                mipmap_filter: ImageFilterMode::Linear,
-                anisotropy_clamp: 8,
-                ..default()
-            });
-        }
-    })
 }

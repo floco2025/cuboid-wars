@@ -14,8 +14,8 @@ use crate::{
     resources::{CellGrid, EdgeGrid, LevelGrid, MapConfig, PlayerSpawnField},
 };
 use common::{
-    assets::AssetRules,
     constants::*,
+    material_rules::MaterialRules,
     protocol::{Floor, MapLayout, Wall},
 };
 
@@ -344,7 +344,7 @@ fn normalized_wall(wall: [i32; 4]) -> [i32; 4] {
 // ============================================================================
 
 #[must_use]
-pub fn compile_map(map_def: &MapDef, assets: &AssetRules) -> (MapLayout, MapConfig) {
+pub fn compile_map(map_def: &MapDef, assets: &MaterialRules) -> (MapLayout, MapConfig) {
     let cols = map_def.grid_cols;
     let rows = map_def.grid_rows;
 
@@ -507,8 +507,8 @@ mod tests {
         PlayerSpawnDef { level, col, row }
     }
 
-    fn assets() -> AssetRules {
-        AssetRules::load_default().expect("default asset rules should load")
+    fn assets() -> MaterialRules {
+        MaterialRules::load_default().expect("default asset rules should load")
     }
 
     #[test]

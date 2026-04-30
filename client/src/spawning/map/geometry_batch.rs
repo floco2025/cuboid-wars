@@ -8,8 +8,7 @@ use bevy::{
 };
 use rand::{RngExt, rng};
 
-use super::materials::MapMaterialCache;
-use crate::{config::AssetSet, markers::*};
+use crate::{config::AssetSet, markers::*, materials::MaterialHandleCache};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum MapGeometryKind {
@@ -70,7 +69,7 @@ impl MapGeometryBatch {
         commands: &mut Commands,
         meshes: &mut Assets<Mesh>,
         materials: &mut Assets<StandardMaterial>,
-        material_cache: &mut MapMaterialCache,
+        material_cache: &mut MaterialHandleCache,
         asset_server: &AssetServer,
         asset_set: &AssetSet,
         debug_colors: bool,

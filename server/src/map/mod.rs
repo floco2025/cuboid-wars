@@ -12,7 +12,7 @@ mod walls;
 use std::path::PathBuf;
 
 use crate::resources::MapConfig;
-use common::{assets::AssetRules, protocol::MapLayout};
+use common::{material_rules::MaterialRules, protocol::MapLayout};
 
 pub use helpers::{cell_center, find_unoccupied_cell, find_unoccupied_cell_not_ramp, grid_coords_from_position};
 
@@ -25,7 +25,7 @@ pub fn generate_map() -> (MapLayout, MapConfig) {
     let map_def =
         definition::load_map(&path).unwrap_or_else(|err| panic!("failed to load map at {}: {err:?}", path.display()));
     let assets =
-        AssetRules::load_default().unwrap_or_else(|err| panic!("failed to load asset material rules: {err:?}"));
+        MaterialRules::load_default().unwrap_or_else(|err| panic!("failed to load asset material rules: {err:?}"));
     definition::compile_map(&map_def, &assets)
 }
 

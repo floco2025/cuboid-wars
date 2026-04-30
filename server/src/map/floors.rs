@@ -4,7 +4,7 @@ use super::{
 };
 use crate::constants::FLOOR_OVERLAP;
 use crate::resources::EdgeGrid;
-use common::{assets::AssetRules, constants::*, protocol::Floor};
+use common::{constants::*, material_rules::MaterialRules, protocol::Floor};
 
 const MERGE_EPS: f32 = 0.01;
 const CORNER_EPS: f32 = 0.01;
@@ -206,7 +206,7 @@ pub fn emit_stacked_wall_trim(
 }
 
 // Merge adjacent floors at the same level into larger segments.
-pub fn merge_floors(mut floors: Vec<Floor>, assets: &AssetRules) -> Vec<Floor> {
+pub fn merge_floors(mut floors: Vec<Floor>, assets: &MaterialRules) -> Vec<Floor> {
     for r in &mut floors {
         if r.x1 > r.x2 {
             std::mem::swap(&mut r.x1, &mut r.x2);
