@@ -1,6 +1,8 @@
 mod grid;
 mod resolve;
 mod rules;
+#[cfg(test)]
+mod tests;
 
 use std::{fs, path::Path};
 
@@ -15,7 +17,7 @@ use self::{
         world_z_to_cell_row, world_z_to_grid_row,
     },
     resolve::{resolve_face_materials, resolve_item_material},
-    rules::MaterialRuleSet,
+    rules::RuleSet,
 };
 
 pub use grid::{grid_col_to_world_x, grid_row_to_world_z};
@@ -23,7 +25,7 @@ pub use grid::{grid_col_to_world_x, grid_row_to_world_z};
 #[derive(Debug, Clone, Deserialize)]
 pub struct MaterialRules {
     #[serde(rename = "material_rules")]
-    rules: MaterialRuleSet,
+    rules: RuleSet,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -190,86 +192,5 @@ fn item_type_name(item_type: ItemType) -> &'static str {
         ItemType::MultiShotPowerUp => "MultiShotPowerUp",
         ItemType::PhasingPowerUp => "PhasingPowerUp",
         ItemType::Cookie => "Cookie",
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn parse_rules(json: &str) -> MaterialRules {
-        serde_json::from_str(json).expect("material rules should parse")
-    }
-
-    #[test]
-    fn specific_wall_rule_wins_over_level_default() {
-        let rules = parse_rules(
-            r#"
-            {
-              "material_rules": [
-                { "walls": { "all": "fallback" } },
-                { "level": 2, "walls": { "all": "level-wall" } },
-                { "level": 2, "from": [4, 5], "to": [5, 5], "walls": { "all": "single-edge" } }
-              ]
-            }
-            "#,
-        );
-
-        assert_eq!(
-            rules.materials_for_wall_edge(2, [4, 5], [5, 5]).primary(),
-            "single-edge"
-        );
-        assert_eq!(rules.materials_for_wall_edge(2, [5, 5], [6, 5]).primary(), "level-wall");
-        assert_eq!(rules.materials_for_wall_edge(1, [4, 5], [5, 5]).primary(), "fallback");
-    }
-
-    #[test]
-    fn touching_wall_rule_matches_edges_that_touch_the_scope() {
-        let rules = parse_rules(
-            r#"
-            {
-              "material_rules": [
-                { "walls": { "all": "fallback" } },
-                {
-                  "level": 2,
-                  "cols": [5, 5],
-                  "rows": [5, 8],
-                  "touching_walls": {
-                    "all": "touch-default",
-                    "east": "touch-east"
-                  }
-                }
-              ]
-            }
-            "#,
-        );
-
-        let materials = rules.materials_for_wall_edge(2, [4, 6], [5, 6]);
-        assert_eq!(materials.east, "touch-east");
-        assert_eq!(materials.west, "touch-default");
-
-        assert_eq!(
-            rules.materials_for_wall_edge(2, [5, 6], [6, 6]).primary(),
-            "touch-default"
-        );
-        assert_eq!(rules.materials_for_wall_edge(2, [6, 6], [7, 6]).primary(), "fallback");
-    }
-
-    #[test]
-    fn same_specificity_conflicts_panic() {
-        let rules = parse_rules(
-            r#"
-            {
-              "material_rules": [
-                { "walls": { "all": "fallback" } },
-                { "level": 2, "cols": [5, 5], "walls": { "all": "a" } },
-                { "level": 2, "cols": [5, 5], "walls": { "all": "b" } }
-              ]
-            }
-            "#,
-        );
-
-        let result = std::panic::catch_unwind(|| rules.materials_for_wall_edge(2, [5, 4], [5, 5]));
-        assert!(result.is_err());
     }
 }

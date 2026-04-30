@@ -9,43 +9,43 @@ use super::{
 use crate::constants::{GRID_COLS, GRID_ROWS};
 
 #[derive(Debug, Clone)]
-pub struct MaterialRuleSet {
+pub struct RuleSet {
     pub(super) floors: Vec<MaterialRule>,
     pub(super) walls: Vec<MaterialRule>,
     pub(super) items: Vec<MaterialRule>,
 }
 
-impl<'de> Deserialize<'de> for MaterialRuleSet {
+impl<'de> Deserialize<'de> for RuleSet {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         #[derive(Deserialize)]
         #[serde(untagged)]
-        enum MaterialRulesDef {
-            Flat(Vec<FlatMaterialRule>),
-            Legacy(LegacyMaterialRules),
+        enum RuleSetDef {
+            Flat(Vec<RuleDef>),
+            Legacy(LegacyRuleSet),
         }
 
-        match MaterialRulesDef::deserialize(deserializer)? {
-            MaterialRulesDef::Legacy(rules) => Ok(Self {
+        match RuleSetDef::deserialize(deserializer)? {
+            RuleSetDef::Legacy(rules) => Ok(Self {
                 floors: rules.floors,
                 walls: rules.walls,
                 items: rules.items,
             }),
-            MaterialRulesDef::Flat(rules) => {
+            RuleSetDef::Flat(rules) => {
                 let mut floors = Vec::new();
                 let mut walls = Vec::new();
                 let mut items = Vec::new();
                 for rule in rules {
                     if let Some(materials) = rule.floors.clone() {
-                        floors.push(rule.material_rule(materials, WallRuleRelation::On));
+                        floors.push(rule.surface_rule(materials, WallRuleRelation::On));
                     }
                     if let Some(materials) = rule.walls.clone() {
-                        walls.push(rule.material_rule(materials, WallRuleRelation::On));
+                        walls.push(rule.surface_rule(materials, WallRuleRelation::On));
                     }
                     if let Some(materials) = rule.touching_walls.clone() {
-                        walls.push(rule.material_rule(materials, WallRuleRelation::Touching));
+                        walls.push(rule.surface_rule(materials, WallRuleRelation::Touching));
                     }
                     if let Some(item_materials) = rule.items.clone() {
                         for (item_type, material) in item_materials {
@@ -60,7 +60,7 @@ impl<'de> Deserialize<'de> for MaterialRuleSet {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-struct LegacyMaterialRules {
+struct LegacyRuleSet {
     #[serde(default)]
     floors: Vec<MaterialRule>,
     #[serde(default)]
@@ -70,13 +70,13 @@ struct LegacyMaterialRules {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-struct FlatMaterialRule {
+struct RuleDef {
     #[serde(default)]
-    floors: Option<FaceMaterialRule>,
+    floors: Option<FaceMaterialDef>,
     #[serde(default)]
-    walls: Option<FaceMaterialRule>,
+    walls: Option<FaceMaterialDef>,
     #[serde(default)]
-    touching_walls: Option<FaceMaterialRule>,
+    touching_walls: Option<FaceMaterialDef>,
     #[serde(default)]
     items: Option<BTreeMap<String, String>>,
     #[serde(default)]
@@ -93,8 +93,8 @@ struct FlatMaterialRule {
     to: Option<[i32; 2]>,
 }
 
-impl FlatMaterialRule {
-    fn material_rule(&self, materials: FaceMaterialRule, wall_relation: WallRuleRelation) -> MaterialRule {
+impl RuleDef {
+    fn surface_rule(&self, materials: FaceMaterialDef, wall_relation: WallRuleRelation) -> MaterialRule {
         MaterialRule {
             material: materials.all.clone(),
             materials: Some(materials),
@@ -130,7 +130,7 @@ pub(super) struct MaterialRule {
     #[serde(default)]
     material: Option<String>,
     #[serde(default)]
-    materials: Option<FaceMaterialRule>,
+    materials: Option<FaceMaterialDef>,
     #[serde(default)]
     level: Option<u8>,
     #[serde(default)]
@@ -157,7 +157,7 @@ enum WallRuleRelation {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-struct FaceMaterialRule {
+struct FaceMaterialDef {
     #[serde(default)]
     all: Option<String>,
     #[serde(default)]
