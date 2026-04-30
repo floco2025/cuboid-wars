@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use super::{
-    batching::{MapMeshBatcher, MapMeshKind},
+    geometry_batch::{MapGeometryBatch, MapGeometryKind},
     helpers::{tiled_cuboid, tiled_wall_surface_meshes},
 };
 use crate::config::AssetSet;
@@ -36,7 +36,7 @@ impl CardinalDirection {
 }
 
 // Spawn a wall segment entity based on a shared `Wall` config.
-pub fn spawn_wall(batcher: &mut MapMeshBatcher, asset_set: &AssetSet, wall: &Wall) {
+pub fn batch_wall(batcher: &mut MapGeometryBatch, asset_set: &AssetSet, wall: &Wall) {
     let center_x = f32::midpoint(wall.x1, wall.x2);
     let center_z = f32::midpoint(wall.z1, wall.z2);
 
@@ -56,7 +56,13 @@ pub fn spawn_wall(batcher: &mut MapMeshBatcher, asset_set: &AssetSet, wall: &Wal
     if material_ids.is_uniform() {
         let material_def = asset_set.material_by_id(material_ids.first());
         let mesh = tiled_cuboid(mesh_size_x, WALL_HEIGHT, mesh_size_z, material_def.tile_size());
-        batcher.add_mesh(MapMeshKind::Wall, wall.level, material_ids.first(), &mesh, transform);
+        batcher.add_mesh(
+            MapGeometryKind::Wall,
+            wall.level,
+            material_ids.first(),
+            &mesh,
+            transform,
+        );
         return;
     }
 
@@ -87,42 +93,42 @@ pub fn spawn_wall(batcher: &mut MapMeshBatcher, asset_set: &AssetSet, wall: &Wal
     );
 
     batcher.add_mesh(
-        MapMeshKind::Wall,
+        MapGeometryKind::Wall,
         wall.level,
         positive_x_material_id,
         &surface_meshes.local_positive_x,
         transform,
     );
     batcher.add_mesh(
-        MapMeshKind::Wall,
+        MapGeometryKind::Wall,
         wall.level,
         negative_x_material_id,
         &surface_meshes.local_negative_x,
         transform,
     );
     batcher.add_mesh(
-        MapMeshKind::Wall,
+        MapGeometryKind::Wall,
         wall.level,
         positive_z_material_id,
         &surface_meshes.local_positive_z,
         transform,
     );
     batcher.add_mesh(
-        MapMeshKind::Wall,
+        MapGeometryKind::Wall,
         wall.level,
         negative_z_material_id,
         &surface_meshes.local_negative_z,
         transform,
     );
     batcher.add_mesh(
-        MapMeshKind::Wall,
+        MapGeometryKind::Wall,
         wall.level,
         &material_ids.top,
         &surface_meshes.up,
         transform,
     );
     batcher.add_mesh(
-        MapMeshKind::Wall,
+        MapGeometryKind::Wall,
         wall.level,
         &material_ids.bottom,
         &surface_meshes.down,

@@ -12,7 +12,7 @@ use super::materials::MapMaterialCache;
 use crate::{config::AssetSet, markers::*};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum MapMeshKind {
+pub(super) enum MapGeometryKind {
     Ground,
     Roof,
     Wall,
@@ -21,7 +21,7 @@ pub enum MapMeshKind {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct BatchKey {
-    kind: MapMeshKind,
+    kind: MapGeometryKind,
     level: u8,
     material_id: String,
 }
@@ -34,11 +34,11 @@ struct MeshBatch {
 }
 
 #[derive(Default)]
-pub struct MapMeshBatcher {
+pub struct MapGeometryBatch {
     batches: BTreeMap<BatchKey, MeshBatch>,
 }
 
-impl MapMeshBatcher {
+impl MapGeometryBatch {
     #[must_use]
     pub fn batch_count(&self) -> usize {
         self.batches.len()
@@ -49,9 +49,9 @@ impl MapMeshBatcher {
         self.batches.values().map(|batch| batch.positions.len() / 3).sum()
     }
 
-    pub fn add_mesh(
+    pub(super) fn add_mesh(
         &mut self,
-        kind: MapMeshKind,
+        kind: MapGeometryKind,
         level: u8,
         material_id: impl Into<String>,
         mesh: &Mesh,
@@ -138,7 +138,7 @@ fn spawn_batch(
     commands: &mut Commands,
     mesh: Handle<Mesh>,
     material: Handle<StandardMaterial>,
-    kind: MapMeshKind,
+    kind: MapGeometryKind,
     level: u8,
 ) {
     let entity = (
@@ -150,16 +150,16 @@ fn spawn_batch(
     );
 
     match kind {
-        MapMeshKind::Ground => {
+        MapGeometryKind::Ground => {
             commands.spawn((entity, GroundMarker));
         }
-        MapMeshKind::Roof => {
+        MapGeometryKind::Roof => {
             commands.spawn((entity, RoofMarker));
         }
-        MapMeshKind::Wall => {
+        MapGeometryKind::Wall => {
             commands.spawn((entity, WallMarker));
         }
-        MapMeshKind::Ramp => {
+        MapGeometryKind::Ramp => {
             commands.spawn((entity, RampMarker));
         }
     }

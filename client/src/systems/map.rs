@@ -5,7 +5,7 @@ use crate::{
     constants::*,
     markers::*,
     resources::{DebugColors, LevelFocusEnabled},
-    spawning::{MapMaterialCache, MapMeshBatcher, spawn_floor, spawn_ramp, spawn_wall, spawn_wall_light_from_layout},
+    spawning::{MapGeometryBatch, MapMaterialCache, batch_floor, batch_ramp, batch_wall, spawn_wall_light_from_layout},
     systems::visual_focus_level,
 };
 use common::{markers::ItemMarker, protocol::MapLayout};
@@ -32,11 +32,11 @@ pub fn setup_world_geometry_system(mut commands: Commands) {
 }
 
 // ============================================================================
-// Wall Spawning System
+// Map Geometry Spawning System
 // ============================================================================
 
-// System to spawn walls and roofs when GridConfig is available
-pub fn map_spawn_walls_system(
+// System to spawn static map geometry once the server shares its map layout.
+pub fn map_spawn_geometry_system(
     mut commands: Commands,
     map_layout: Option<Res<MapLayout>>,
     asset_server: Res<AssetServer>,
@@ -63,10 +63,10 @@ pub fn map_spawn_walls_system(
         map_layout.ramps.len(),
     );
 
-    let mut batcher = MapMeshBatcher::default();
+    let mut geometry = MapGeometryBatch::default();
 
     for wall in &map_layout.walls {
-        spawn_wall(&mut batcher, &asset_set, wall);
+        batch_wall(&mut geometry, &asset_set, wall);
     }
 
     for light in &map_layout.wall_lights {
@@ -74,20 +74,20 @@ pub fn map_spawn_walls_system(
     }
 
     for floor in &map_layout.floors {
-        spawn_floor(&mut batcher, &asset_set, floor);
+        batch_floor(&mut geometry, &asset_set, floor);
     }
 
     for ramp in &map_layout.ramps {
-        spawn_ramp(&mut batcher, &asset_set, ramp);
+        batch_ramp(&mut geometry, &asset_set, ramp);
     }
 
     info!(
         "batched map into {} mesh entities, {} triangles",
-        batcher.batch_count(),
-        batcher.triangle_count(),
+        geometry.batch_count(),
+        geometry.triangle_count(),
     );
 
-    batcher.flush(
+    geometry.flush(
         &mut commands,
         &mut meshes,
         &mut materials,

@@ -161,7 +161,7 @@ fn main() -> Result<()> {
     .add_systems(
         Update,
         (
-            map_spawn_walls_system,
+            map_spawn_geometry_system,
             map_level_focus_visibility_system,
             map_make_wall_lights_emissive_system,
         ),

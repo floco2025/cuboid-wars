@@ -24,7 +24,7 @@ pub use input::{
 };
 pub use items::items_animation_system;
 pub use map::{
-    map_level_focus_visibility_system, map_make_wall_lights_emissive_system, map_spawn_walls_system,
+    map_level_focus_visibility_system, map_make_wall_lights_emissive_system, map_spawn_geometry_system,
     setup_world_geometry_system,
 };
 pub use network::{AssetManagers, ServerReconciliation, network_echo_system, network_server_message_system};

@@ -1,13 +1,13 @@
-mod batching;
 mod floors;
+mod geometry_batch;
 mod helpers;
 mod materials;
 mod ramps;
 mod walls;
 
-pub use batching::{MapMeshBatcher, MapMeshKind};
-pub use floors::spawn_floor;
+pub use floors::batch_floor;
+pub use geometry_batch::MapGeometryBatch;
 pub use helpers::{load_repeating_texture, load_repeating_texture_linear};
 pub use materials::MapMaterialCache;
-pub use ramps::spawn_ramp;
-pub use walls::spawn_wall;
+pub use ramps::batch_ramp;
+pub use walls::batch_wall;

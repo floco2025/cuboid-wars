@@ -1,14 +1,14 @@
 use bevy::prelude::*;
 
 use super::{
-    batching::{MapMeshBatcher, MapMeshKind},
+    geometry_batch::{MapGeometryBatch, MapGeometryKind},
     helpers::build_ramp_meshes,
 };
 use crate::config::AssetSet;
 use common::{constants::LEVEL_HEIGHT, protocol::*};
 
 // Spawn a ramp entity based on shared `Ramp` config.
-pub fn spawn_ramp(batcher: &mut MapMeshBatcher, asset_set: &AssetSet, ramp: &Ramp) {
+pub fn batch_ramp(batcher: &mut MapGeometryBatch, asset_set: &AssetSet, ramp: &Ramp) {
     let top_material_id = asset_set.material_ids_for_ramp_top(ramp).top;
     let side_material_ids = asset_set.material_ids_for_ramp_side(ramp);
     let side_material_id = side_material_ids.first().to_owned();
@@ -32,14 +32,14 @@ pub fn spawn_ramp(batcher: &mut MapMeshBatcher, asset_set: &AssetSet, ramp: &Ram
     let lower_level = (y_low / LEVEL_HEIGHT).round().clamp(0.0, f32::from(u8::MAX)) as u8;
 
     batcher.add_mesh(
-        MapMeshKind::Ramp,
+        MapGeometryKind::Ramp,
         lower_level,
         top_material_id,
         &mesh_top,
         Transform::default(),
     );
     batcher.add_mesh(
-        MapMeshKind::Ramp,
+        MapGeometryKind::Ramp,
         lower_level,
         side_material_id,
         &mesh_side,
