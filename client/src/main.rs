@@ -12,6 +12,7 @@ use client::{
     config::{AssetSet, configure_client},
     net::network_io_task,
     resources::*,
+    spawning::ProjectileAssets,
     systems::*,
 };
 use common::{net::MessageStream, protocol::*};
@@ -113,6 +114,7 @@ fn main() -> Result<()> {
     .insert_resource(asset_set)
     .insert_resource(DebugColors(args.debug_colors))
     .insert_resource(LastBounceSoundTime::default())
+    .init_resource::<ProjectileAssets>()
     .add_systems(
         Startup,
         (

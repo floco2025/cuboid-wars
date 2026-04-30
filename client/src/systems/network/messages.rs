@@ -14,6 +14,7 @@ use crate::{
     config::AssetSet,
     markers::MainCameraMarker,
     resources::{ItemMap, LastUpdateSeq, PlayerMap, RoundTripTime},
+    spawning::ProjectileAssets,
 };
 use common::{markers::PlayerMarker, physics::CollisionWorld, protocol::*};
 
@@ -36,6 +37,7 @@ pub fn dispatch_message(
     time: &Res<Time>,
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
+    projectile_assets: &ProjectileAssets,
     collision_world: Option<&CollisionWorld>,
 ) {
     match msg {
@@ -64,8 +66,7 @@ pub fn dispatch_message(
         ServerMessage::Shot(shot_msg) => {
             handle_player_shot_message(
                 commands,
-                &mut assets.meshes,
-                &mut assets.materials,
+                projectile_assets,
                 players,
                 player_data,
                 shot_msg,

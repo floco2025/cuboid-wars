@@ -9,7 +9,7 @@ use crate::{
     markers::{LocalPlayerMarker, MainCameraMarker},
     net::ClientToServer,
     resources::{CameraViewMode, ClientToServerChannel, LocalPlayerInfo, MyPlayerId, PlayerMap},
-    spawning::spawn_projectiles,
+    spawning::{ProjectileAssets, spawn_projectiles},
 };
 use common::{
     constants::{ALWAYS_MULTI_SHOT, PROJECTILE_COOLDOWN_TIME},
@@ -30,8 +30,7 @@ pub fn input_shooting_system(
     to_server: Res<ClientToServerChannel>,
     asset_server: Res<AssetServer>,
     asset_set: Res<AssetSet>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    projectile_assets: Res<ProjectileAssets>,
     my_player_id: Option<Res<MyPlayerId>>,
     players: Res<PlayerMap>,
     collision_world: Option<Res<CollisionWorld>>,
@@ -87,8 +86,7 @@ pub fn input_shooting_system(
         {
             if spawn_projectiles(
                 &mut commands,
-                &mut meshes,
-                &mut materials,
+                &projectile_assets,
                 pos,
                 face_dir.0,
                 pitch,

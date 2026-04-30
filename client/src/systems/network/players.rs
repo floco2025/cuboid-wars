@@ -6,7 +6,7 @@ use crate::{
     config::AssetSet,
     markers::MainCameraMarker,
     resources::{PlayerInfo, PlayerMap, RoundTripTime},
-    spawning::{spawn_player, spawn_projectiles},
+    spawning::{ProjectileAssets, spawn_player, spawn_projectiles},
     systems::{CameraShake, CuboidShake},
 };
 use common::{
@@ -93,8 +93,7 @@ pub fn handle_player_face_message(commands: &mut Commands, players: &ResMut<Play
 // Handle player shooting - spawn projectile(s) on client.
 pub fn handle_player_shot_message(
     commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
+    projectile_assets: &ProjectileAssets,
     players: &ResMut<PlayerMap>,
     player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
     msg: SShot,
@@ -110,8 +109,7 @@ pub fn handle_player_shot_message(
         {
             spawn_projectiles(
                 commands,
-                meshes,
-                materials,
+                projectile_assets,
                 position,
                 msg.face_dir,
                 msg.face_pitch,

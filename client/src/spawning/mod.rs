@@ -12,5 +12,4 @@ pub use map::{
     load_repeating_texture_linear,
 };
 pub use player::spawn_player;
-pub use player_label::spawn_player_id_display;
-pub use projectile::{spawn_projectile_for_player, spawn_projectiles};
+pub use projectile::{ProjectileAssets, spawn_projectiles};

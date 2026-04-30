@@ -10,6 +10,7 @@ use crate::{
     resources::{
         ClientToServerChannel, ItemMap, LastUpdateSeq, MyPlayerId, PlayerMap, RoundTripTime, ServerToClientChannel,
     },
+    spawning::ProjectileAssets,
 };
 use common::{markers::PlayerMarker, physics::CollisionWorld, protocol::*};
 
@@ -34,6 +35,7 @@ pub fn network_server_message_system(
     time: Res<Time>,
     asset_server: Res<AssetServer>,
     asset_set: Res<AssetSet>,
+    projectile_assets: Res<ProjectileAssets>,
 ) {
     // Process all messages from the server
     while let Ok(msg) = from_server.try_recv() {
@@ -58,6 +60,7 @@ pub fn network_server_message_system(
                         &time,
                         &asset_server,
                         &asset_set,
+                        &projectile_assets,
                         collision_world.as_deref(),
                     );
                 } else {
