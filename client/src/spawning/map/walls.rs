@@ -54,12 +54,12 @@ pub fn batch_wall(batcher: &mut MapGeometryBatch, asset_set: &AssetSet, wall: &W
     let material_ids = asset_set.material_ids_for_wall(wall);
 
     if material_ids.is_uniform() {
-        let material_def = asset_set.material_by_id(material_ids.first());
+        let material_def = asset_set.material_by_id(material_ids.primary());
         let mesh = tiled_cuboid(mesh_size_x, WALL_HEIGHT, mesh_size_z, material_def.tile_size());
         batcher.add_mesh(
             MapGeometryKind::Wall,
             wall.level,
-            material_ids.first(),
+            material_ids.primary(),
             &mesh,
             transform,
         );

@@ -26,9 +26,9 @@ pub fn batch_floor(batcher: &mut MapGeometryBatch, asset_set: &AssetSet, floor: 
     };
 
     if material_ids.is_uniform() {
-        let material_def = asset_set.material_by_id(material_ids.first());
+        let material_def = asset_set.material_by_id(material_ids.primary());
         let mesh = tiled_cuboid(size_x, floor.thickness, size_z, material_def.tile_size());
-        batcher.add_mesh(kind, floor.level, material_ids.first(), &mesh, transform);
+        batcher.add_mesh(kind, floor.level, material_ids.primary(), &mesh, transform);
         return;
     }
 

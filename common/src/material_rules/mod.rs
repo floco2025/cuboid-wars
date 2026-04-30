@@ -14,7 +14,7 @@ use self::{
         floor_cells, ramp_cells, ramp_lower_level, wall_edges, world_x_to_cell_col, world_x_to_grid_col,
         world_z_to_cell_row, world_z_to_grid_row,
     },
-    resolve::{resolve_directional_materials, resolve_item_material},
+    resolve::{resolve_face_materials, resolve_item_material},
     rules::MaterialRuleSet,
 };
 
@@ -22,7 +22,8 @@ pub use grid::{grid_col_to_world_x, grid_row_to_world_z};
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct MaterialRules {
-    pub material_rules: MaterialRuleSet,
+    #[serde(rename = "material_rules")]
+    rules: MaterialRuleSet,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,7 +60,7 @@ impl FaceMaterials {
     }
 
     #[must_use]
-    pub fn first(&self) -> &str {
+    pub fn primary(&self) -> &str {
         &self.top
     }
 }
@@ -125,7 +126,7 @@ impl MaterialRules {
 
     #[must_use]
     pub fn materials_for_wall_edge(&self, level: u8, from: [i32; 2], to: [i32; 2]) -> FaceMaterials {
-        resolve_directional_materials(&self.material_rules.walls, |rule| {
+        resolve_face_materials(&self.rules.walls, |rule| {
             rule.matches_level(level) && rule.matches_edge(from, to)
         })
     }
@@ -161,7 +162,7 @@ impl MaterialRules {
     #[must_use]
     pub fn material_for_item(&self, item_type: ItemType) -> &str {
         let item_type_name = item_type_name(item_type);
-        resolve_item_material(&self.material_rules.items, |rule| {
+        resolve_item_material(&self.rules.items, |rule| {
             rule.item_type
                 .as_deref()
                 .is_none_or(|rule_type| rule_type == item_type_name)
@@ -170,14 +171,14 @@ impl MaterialRules {
 
     #[must_use]
     fn materials_for_floor_cell(&self, level: u8, col: i32, row: i32) -> FaceMaterials {
-        resolve_directional_materials(&self.material_rules.floors, |rule| {
+        resolve_face_materials(&self.rules.floors, |rule| {
             rule.matches_level(level) && rule.matches_cell(col, row)
         })
     }
 
     #[must_use]
     fn materials_for_interior_wall(&self, level: u8) -> FaceMaterials {
-        resolve_directional_materials(&self.material_rules.walls, |rule| {
+        resolve_face_materials(&self.rules.walls, |rule| {
             rule.matches_level(level) && !rule.has_edge_scope()
         })
     }
@@ -214,9 +215,12 @@ mod tests {
             "#,
         );
 
-        assert_eq!(rules.materials_for_wall_edge(2, [4, 5], [5, 5]).first(), "single-edge");
-        assert_eq!(rules.materials_for_wall_edge(2, [5, 5], [6, 5]).first(), "level-wall");
-        assert_eq!(rules.materials_for_wall_edge(1, [4, 5], [5, 5]).first(), "fallback");
+        assert_eq!(
+            rules.materials_for_wall_edge(2, [4, 5], [5, 5]).primary(),
+            "single-edge"
+        );
+        assert_eq!(rules.materials_for_wall_edge(2, [5, 5], [6, 5]).primary(), "level-wall");
+        assert_eq!(rules.materials_for_wall_edge(1, [4, 5], [5, 5]).primary(), "fallback");
     }
 
     #[test]
@@ -245,10 +249,10 @@ mod tests {
         assert_eq!(materials.west, "touch-default");
 
         assert_eq!(
-            rules.materials_for_wall_edge(2, [5, 6], [6, 6]).first(),
+            rules.materials_for_wall_edge(2, [5, 6], [6, 6]).primary(),
             "touch-default"
         );
-        assert_eq!(rules.materials_for_wall_edge(2, [6, 6], [7, 6]).first(), "fallback");
+        assert_eq!(rules.materials_for_wall_edge(2, [6, 6], [7, 6]).primary(), "fallback");
     }
 
     #[test]

@@ -11,7 +11,7 @@ use common::{constants::LEVEL_HEIGHT, protocol::*};
 pub fn batch_ramp(batcher: &mut MapGeometryBatch, asset_set: &AssetSet, ramp: &Ramp) {
     let top_material_id = asset_set.material_ids_for_ramp_top(ramp).top;
     let side_material_ids = asset_set.material_ids_for_ramp_side(ramp);
-    let side_material_id = side_material_ids.first().to_owned();
+    let side_material_id = side_material_ids.primary().to_owned();
     let top_material_def = asset_set.material_by_id(&top_material_id);
     let side_material_def = asset_set.material_by_id(&side_material_id);
 

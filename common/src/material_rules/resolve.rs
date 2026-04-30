@@ -1,9 +1,6 @@
 use super::{FaceMaterials, rules::MaterialRule};
 
-pub(super) fn resolve_directional_materials(
-    rules: &[MaterialRule],
-    matches: impl Fn(&MaterialRule) -> bool,
-) -> FaceMaterials {
+pub(super) fn resolve_face_materials(rules: &[MaterialRule], matches: impl Fn(&MaterialRule) -> bool) -> FaceMaterials {
     let mut best: Option<(&MaterialRule, u16)> = None;
     for rule in rules.iter().filter(|rule| matches(rule)) {
         let specificity = rule.specificity();
@@ -13,8 +10,8 @@ pub(super) fn resolve_directional_materials(
                 best = Some((rule, specificity));
             }
             Some((best_rule, best_specificity)) if specificity == best_specificity => {
-                let best_materials = best_rule.directional_materials();
-                let rule_materials = rule.directional_materials();
+                let best_materials = best_rule.face_materials();
+                let rule_materials = rule.face_materials();
                 if best_materials == rule_materials {
                     continue;
                 }
@@ -27,7 +24,7 @@ pub(super) fn resolve_directional_materials(
         }
     }
 
-    best.map(|(rule, _)| rule.directional_materials())
+    best.map(|(rule, _)| rule.face_materials())
         .expect("asset material rule list must have a fallback rule")
 }
 

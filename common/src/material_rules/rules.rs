@@ -72,11 +72,11 @@ struct LegacyMaterialRules {
 #[derive(Debug, Clone, Deserialize)]
 struct FlatMaterialRule {
     #[serde(default)]
-    floors: Option<DirectionalMaterialRule>,
+    floors: Option<FaceMaterialRule>,
     #[serde(default)]
-    walls: Option<DirectionalMaterialRule>,
+    walls: Option<FaceMaterialRule>,
     #[serde(default)]
-    touching_walls: Option<DirectionalMaterialRule>,
+    touching_walls: Option<FaceMaterialRule>,
     #[serde(default)]
     items: Option<BTreeMap<String, String>>,
     #[serde(default)]
@@ -94,7 +94,7 @@ struct FlatMaterialRule {
 }
 
 impl FlatMaterialRule {
-    fn material_rule(&self, materials: DirectionalMaterialRule, wall_relation: WallRuleRelation) -> MaterialRule {
+    fn material_rule(&self, materials: FaceMaterialRule, wall_relation: WallRuleRelation) -> MaterialRule {
         MaterialRule {
             material: materials.all.clone(),
             materials: Some(materials),
@@ -130,7 +130,7 @@ pub(super) struct MaterialRule {
     #[serde(default)]
     material: Option<String>,
     #[serde(default)]
-    materials: Option<DirectionalMaterialRule>,
+    materials: Option<FaceMaterialRule>,
     #[serde(default)]
     level: Option<u8>,
     #[serde(default)]
@@ -157,7 +157,7 @@ enum WallRuleRelation {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-struct DirectionalMaterialRule {
+struct FaceMaterialRule {
     #[serde(default)]
     all: Option<String>,
     #[serde(default)]
@@ -262,7 +262,7 @@ impl MaterialRule {
         self.cols.is_some() || self.rows.is_some() || self.from.is_some() || self.to.is_some()
     }
 
-    pub(super) fn directional_materials(&self) -> FaceMaterials {
+    pub(super) fn face_materials(&self) -> FaceMaterials {
         let surfaces = self.materials.as_ref();
         let fallback = self
             .material
