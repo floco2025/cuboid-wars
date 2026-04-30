@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 
 use super::{
+    cuboid_mesh::{tiled_cuboid, tiled_floor_surface_meshes},
     geometry_batch::{MapGeometryBatch, MapGeometryKind},
-    helpers::{tiled_cuboid, tiled_floor_surface_meshes},
 };
 use crate::config::AssetSet;
 use common::protocol::*;

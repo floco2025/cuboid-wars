@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use super::{
     geometry_batch::{MapGeometryBatch, MapGeometryKind},
-    helpers::build_ramp_meshes,
+    ramp_mesh::build_ramp_meshes,
 };
 use crate::config::AssetSet;
 use common::{constants::LEVEL_HEIGHT, protocol::*};
