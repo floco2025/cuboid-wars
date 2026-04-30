@@ -227,10 +227,13 @@ impl<'de> Deserialize<'de> for MaterialRules {
                 let mut items = Vec::new();
                 for rule in rules {
                     if let Some(materials) = rule.floors.clone() {
-                        floors.push(rule.material_rule(materials));
+                        floors.push(rule.material_rule(materials, WallRuleRelation::On));
                     }
                     if let Some(materials) = rule.walls.clone() {
-                        walls.push(rule.material_rule(materials));
+                        walls.push(rule.material_rule(materials, WallRuleRelation::On));
+                    }
+                    if let Some(materials) = rule.touching_walls.clone() {
+                        walls.push(rule.material_rule(materials, WallRuleRelation::Touching));
                     }
                     if let Some(item_materials) = rule.items.clone() {
                         for (item_type, material) in item_materials {
@@ -261,6 +264,8 @@ struct FlatMaterialRule {
     #[serde(default)]
     walls: Option<DirectionalMaterialRule>,
     #[serde(default)]
+    touching_walls: Option<DirectionalMaterialRule>,
+    #[serde(default)]
     items: Option<BTreeMap<String, String>>,
     #[serde(default)]
     level: Option<u8>,
@@ -277,7 +282,7 @@ struct FlatMaterialRule {
 }
 
 impl FlatMaterialRule {
-    fn material_rule(&self, materials: DirectionalMaterialRule) -> MaterialRule {
+    fn material_rule(&self, materials: DirectionalMaterialRule, wall_relation: WallRuleRelation) -> MaterialRule {
         MaterialRule {
             material: materials.all.clone(),
             materials: Some(materials),
@@ -288,6 +293,7 @@ impl FlatMaterialRule {
             from: self.from,
             to: self.to,
             item_type: None,
+            wall_relation,
         }
     }
 
@@ -302,6 +308,7 @@ impl FlatMaterialRule {
             from: self.from,
             to: self.to,
             item_type: (item_type != "all").then_some(item_type),
+            wall_relation: WallRuleRelation::On,
         }
     }
 }
@@ -326,6 +333,15 @@ struct MaterialRule {
     to: Option<[i32; 2]>,
     #[serde(default, rename = "type")]
     item_type: Option<String>,
+    #[serde(skip)]
+    wall_relation: WallRuleRelation,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+enum WallRuleRelation {
+    #[default]
+    On,
+    Touching,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -358,6 +374,10 @@ impl MaterialRule {
     }
 
     fn matches_edge(&self, from: [i32; 2], to: [i32; 2]) -> bool {
+        if self.wall_relation == WallRuleRelation::Touching {
+            return self.matches_touching_edge(from, to);
+        }
+
         if !self.matches_edge_range(from, to) {
             return false;
         }
@@ -388,6 +408,9 @@ impl MaterialRule {
         if self.item_type.is_some() {
             score += 1_000;
         }
+        if self.wall_relation == WallRuleRelation::Touching {
+            score = score.saturating_sub(1);
+        }
         score
     }
 
@@ -402,6 +425,25 @@ impl MaterialRule {
             && self
                 .rows
                 .is_none_or(|[rule_min, rule_max]| rule_min <= min_row && max_row <= rule_max)
+    }
+
+    fn matches_touching_edge(&self, from: [i32; 2], to: [i32; 2]) -> bool {
+        match (self.cols, self.rows) {
+            (Some([col_min, col_max]), Some([row_min, row_max])) if col_min == col_max => {
+                touches_vertical_line(from, to, col_min, [row_min, row_max])
+            }
+            (Some([col_min, col_max]), Some([row_min, row_max])) if row_min == row_max => {
+                touches_horizontal_line(from, to, row_min, [col_min, col_max])
+            }
+            (Some(cols), Some(rows)) => touches_rectangle(from, to, cols, rows),
+            (Some([col_min, col_max]), None) if col_min == col_max => {
+                touches_vertical_line(from, to, col_min, [i32::MIN, i32::MAX])
+            }
+            (None, Some([row_min, row_max])) if row_min == row_max => {
+                touches_horizontal_line(from, to, row_min, [i32::MIN, i32::MAX])
+            }
+            _ => false,
+        }
     }
 
     fn has_edge_scope(&self) -> bool {
@@ -651,4 +693,41 @@ fn item_type_name(item_type: ItemType) -> &'static str {
 
 fn same_edge(rule_from: [i32; 2], rule_to: [i32; 2], from: [i32; 2], to: [i32; 2]) -> bool {
     (rule_from == from && rule_to == to) || (rule_from == to && rule_to == from)
+}
+
+fn touches_vertical_line(from: [i32; 2], to: [i32; 2], col: i32, [row_min, row_max]: [i32; 2]) -> bool {
+    let is_horizontal_edge = from[1] == to[1] && from[0] != to[0];
+    let row = from[1];
+    is_horizontal_edge
+        && (row_min..=row_max).contains(&row)
+        && (from[0] == col || to[0] == col)
+        && !(from[0] == col && to[0] == col)
+}
+
+fn touches_horizontal_line(from: [i32; 2], to: [i32; 2], row: i32, [col_min, col_max]: [i32; 2]) -> bool {
+    let is_vertical_edge = from[0] == to[0] && from[1] != to[1];
+    let col = from[0];
+    is_vertical_edge
+        && (col_min..=col_max).contains(&col)
+        && (from[1] == row || to[1] == row)
+        && !(from[1] == row && to[1] == row)
+}
+
+fn touches_rectangle(from: [i32; 2], to: [i32; 2], [col_min, col_max]: [i32; 2], [row_min, row_max]: [i32; 2]) -> bool {
+    let min_col = from[0].min(to[0]);
+    let max_col = from[0].max(to[0]);
+    let min_row = from[1].min(to[1]);
+    let max_row = from[1].max(to[1]);
+
+    if from[1] == to[1] {
+        let row = from[1];
+        return (row_min..=row_max).contains(&row) && (max_col == col_min || min_col == col_max);
+    }
+
+    if from[0] == to[0] {
+        let col = from[0];
+        return (col_min..=col_max).contains(&col) && (max_row == row_min || min_row == row_max);
+    }
+
+    false
 }
