@@ -1,12 +1,11 @@
 use bevy::prelude::*;
-use std::collections::HashSet;
 
 use super::components::ServerReconciliation;
 use crate::{
     config::AssetSet,
     markers::MainCameraMarker,
-    resources::{PlayerInfo, PlayerMap, RoundTripTime},
-    spawning::{ProjectileAssets, spawn_player, spawn_projectiles},
+    resources::{PlayerMap, RoundTripTime},
+    spawning::{ProjectileAssets, spawn_projectiles},
     systems::{CameraShake, CuboidShake},
 };
 use common::{
@@ -15,11 +14,15 @@ use common::{
     protocol::*,
 };
 
+mod sync;
+
+pub use sync::sync_players;
+
 // ============================================================================
 // Player Message Handlers
 // ============================================================================
 
-fn movement_velocity(movement: PlayerMovementState, has_speed_power_up: bool) -> Vec3 {
+pub(super) fn movement_velocity(movement: PlayerMovementState, has_speed_power_up: bool) -> Vec3 {
     let mut velocity = movement.move_input.to_velocity_for_player(has_speed_power_up);
     velocity.y = movement.vertical_velocity;
     velocity
@@ -206,122 +209,5 @@ pub fn handle_player_status_message(
         player_info.multi_shot_power_up = msg.multi_shot_power_up;
         player_info.phasing_power_up = msg.phasing_power_up;
         player_info.stunned = msg.stunned;
-    }
-}
-
-// ============================================================================
-// Player Synchronization Helper
-// ============================================================================
-
-// Synchronize players from bulk Update message - spawn/despawn/reconcile.
-pub fn sync_players(
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    images: &mut ResMut<Assets<Image>>,
-    graphs: &mut ResMut<Assets<AnimationGraph>>,
-    players: &mut ResMut<PlayerMap>,
-    rtt: &ResMut<RoundTripTime>,
-    player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
-    camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
-    my_player_id: PlayerId,
-    asset_server: &Res<AssetServer>,
-    asset_set: &AssetSet,
-    server_players: &[(PlayerId, Player)],
-) {
-    // Track which players the server knows about in this snapshot
-    let update_ids: HashSet<PlayerId> = server_players.iter().map(|(id, _)| *id).collect();
-
-    // Spawn any players that appear in the update but are missing locally
-    for (id, player) in server_players {
-        if players.0.contains_key(id) {
-            continue;
-        }
-
-        let is_local = *id == my_player_id;
-        debug!("spawning player {:?} from Update (is_local: {})", id, is_local);
-        let entity = spawn_player(
-            commands,
-            asset_server,
-            meshes,
-            materials,
-            images,
-            graphs,
-            asset_set,
-            id.0,
-            &player.name,
-            &player.movement.pos,
-            player.movement.move_input,
-            player.face_dir,
-            is_local,
-        );
-        commands.entity(entity).insert(PlayerVerticalMotion {
-            vertical_velocity: player.movement.vertical_velocity,
-        });
-
-        if is_local && let Ok(camera_entity) = camera_query.single() {
-            let camera_rotation = player.face_dir + std::f32::consts::PI;
-            commands.entity(camera_entity).insert(
-                Transform::from_xyz(player.movement.pos.x, 2.5, player.movement.pos.z + 3.0)
-                    .with_rotation(Quat::from_rotation_y(camera_rotation)),
-            );
-        }
-
-        players.0.insert(
-            *id,
-            PlayerInfo {
-                entity,
-                hits: player.hits,
-                name: player.name.clone(),
-                speed_power_up: player.speed_power_up,
-                multi_shot_power_up: player.multi_shot_power_up,
-                phasing_power_up: player.phasing_power_up,
-                stunned: player.stunned,
-            },
-        );
-    }
-
-    // Despawn players no longer present in the authoritative snapshot
-    players.0.retain(|id, player| {
-        if update_ids.contains(id) {
-            true
-        } else {
-            commands.entity(player.entity).despawn();
-            false
-        }
-    });
-
-    // Update existing players with server state
-    for (id, server_player) in server_players {
-        if let Some(client_player) = players.0.get_mut(id) {
-            if let Ok((client_pos, _, _)) = player_data.get(client_player.entity) {
-                let server_velocity = movement_velocity(server_player.movement, server_player.speed_power_up);
-
-                // The local player's input is always authoritative locally; don't overwrite
-                // it from server updates.
-                if *id != my_player_id {
-                    commands
-                        .entity(client_player.entity)
-                        .insert(server_player.movement.move_input);
-                }
-                commands.entity(client_player.entity).insert(ServerReconciliation {
-                    client_pos: *client_pos,
-                    server_pos: server_player.movement.pos,
-                    server_velocity,
-                    timer: 0.0,
-                    rtt: rtt.rtt.as_secs_f32(),
-                });
-                if *id != my_player_id {
-                    commands.entity(client_player.entity).insert(PlayerVerticalMotion {
-                        vertical_velocity: server_player.movement.vertical_velocity,
-                    });
-                }
-            }
-
-            client_player.hits = server_player.hits;
-            client_player.speed_power_up = server_player.speed_power_up;
-            client_player.multi_shot_power_up = server_player.multi_shot_power_up;
-            client_player.phasing_power_up = server_player.phasing_power_up;
-        }
     }
 }
