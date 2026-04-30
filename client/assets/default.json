@@ -243,7 +243,7 @@
       "scale": 1.5,
       "inward_offset": 0.2,
       "brightness": 100000.0,
-      "range": 10.0,
+      "range": 6.0,
       "radius": 0.1,
       "emissive_luminance": 2.0
     }

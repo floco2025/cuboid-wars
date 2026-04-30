@@ -9,6 +9,8 @@ pub struct RenderSettings {
     pub fov_first_person_degrees: f32,
     pub fov_top_down_degrees: f32,
     pub fov_rearview_degrees: f32,
+    pub light_ambient_brightness: f32,
+    pub light_directional_brightness: f32,
     pub texture_anisotropy: u16,
     pub rearview_enabled: bool,
     pub shadows_directional_enabled: bool,
@@ -36,12 +38,22 @@ impl RenderSettings {
         validate_fov(self.fov_first_person_degrees, "fov_first_person_degrees")?;
         validate_fov(self.fov_top_down_degrees, "fov_top_down_degrees")?;
         validate_fov(self.fov_rearview_degrees, "fov_rearview_degrees")?;
+        validate_non_negative_finite(self.light_ambient_brightness, "light_ambient_brightness")?;
+        validate_non_negative_finite(self.light_directional_brightness, "light_directional_brightness")?;
         anyhow::ensure!(
             matches!(self.msaa_samples, 1 | 2 | 4 | 8),
             "msaa_samples must be one of 1, 2, 4, or 8"
         );
         Ok(())
     }
+}
+
+fn validate_non_negative_finite(value: f32, name: &str) -> Result<()> {
+    anyhow::ensure!(
+        value.is_finite() && value >= 0.0,
+        "{name} must be finite and non-negative"
+    );
+    Ok(())
 }
 
 fn validate_fov(fov_degrees: f32, name: &str) -> Result<()> {

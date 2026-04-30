@@ -2,7 +2,6 @@ use bevy::prelude::*;
 
 use crate::{
     config::{AssetSet, RenderSettings},
-    constants::*,
     markers::*,
     materials::MaterialHandleCache,
     resources::{DebugColors, LevelFocusEnabled},
@@ -18,7 +17,7 @@ use common::{markers::ItemMarker, protocol::MapLayout};
 pub fn setup_world_geometry_system(mut commands: Commands, render_settings: Res<RenderSettings>) {
     commands.spawn((
         DirectionalLight {
-            illuminance: LIGHT_DIRECTIONAL_BRIGHTNESS,
+            illuminance: render_settings.light_directional_brightness,
             shadows_enabled: render_settings.shadows_directional_enabled,
             ..default()
         },
@@ -27,7 +26,7 @@ pub fn setup_world_geometry_system(mut commands: Commands, render_settings: Res<
 
     commands.insert_resource(GlobalAmbientLight {
         color: Color::WHITE,
-        brightness: LIGHT_AMBIENT_BRIGHTNESS,
+        brightness: render_settings.light_ambient_brightness,
         affects_lightmapped_meshes: false,
     });
 }

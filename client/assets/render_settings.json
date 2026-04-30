@@ -2,6 +2,8 @@
   "fov_first_person_degrees": 90.0,
   "fov_top_down_degrees": 45.0,
   "fov_rearview_degrees": 90.0,
+  "light_ambient_brightness": 70.0,
+  "light_directional_brightness": 8000.0,
   "rearview_enabled": true,
   "shadows_directional_enabled": true,
   "shadows_player_enabled": true,

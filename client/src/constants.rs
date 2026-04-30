@@ -26,13 +26,6 @@ pub const PLAYER_BOUNDING_BOX: bool = false;
 pub const MOUSE_SENSITIVITY: f32 = 0.002; // radians per pixel
 
 // ============================================================================
-// Lighting
-// ============================================================================
-
-pub const LIGHT_AMBIENT_BRIGHTNESS: f32 = 100.0;
-pub const LIGHT_DIRECTIONAL_BRIGHTNESS: f32 = 8000.0;
-
-// ============================================================================
 // Network Throttling
 // ============================================================================
 
