@@ -5,6 +5,7 @@
   "light_ambient_brightness": 70.0,
   "light_directional_brightness": 8000.0,
   "rearview_enabled": true,
+  "opaque_renderer": "auto",
   "shadows_directional_enabled": true,
   "shadows_player_enabled": true,
   "map_debug_colors": false,

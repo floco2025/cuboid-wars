@@ -1,4 +1,8 @@
-use bevy::{camera::Viewport, prelude::*};
+use bevy::{
+    camera::Viewport,
+    core_pipeline::prepass::{DeferredPrepass, DepthPrepass},
+    prelude::*,
+};
 
 use crate::{config::RenderSettings, markers::*};
 use common::constants::{PLAYER_EYE_HEIGHT_RATIO, PLAYER_HEIGHT};
@@ -8,10 +12,15 @@ use common::constants::{PLAYER_EYE_HEIGHT_RATIO, PLAYER_HEIGHT};
 // ============================================================================
 
 pub fn setup_cameras_system(mut commands: Commands, render_settings: Res<RenderSettings>) {
-    let msaa = Msaa::from_samples(render_settings.msaa_samples);
+    let deferred_rendering_enabled = render_settings.opaque_renderer.is_deferred();
+    let msaa = if deferred_rendering_enabled {
+        Msaa::Off
+    } else {
+        Msaa::from_samples(render_settings.msaa_samples)
+    };
 
     // Add main camera (initial position will be immediately overridden by sync system)
-    commands.spawn((
+    let mut main_camera = commands.spawn((
         IsDefaultUiCamera, // Mark this as the UI camera
         MainCameraMarker,
         msaa,
@@ -28,9 +37,12 @@ pub fn setup_cameras_system(mut commands: Commands, render_settings: Res<RenderS
         Transform::from_xyz(0.0, PLAYER_HEIGHT * PLAYER_EYE_HEIGHT_RATIO, 0.0)
             .looking_at(Vec3::new(0.0, 0.0, -1.0), Vec3::Y),
     ));
+    if deferred_rendering_enabled {
+        main_camera.insert((DepthPrepass, DeferredPrepass));
+    }
 
     // Add rearview mirror camera (renders to lower-right viewport)
-    commands.spawn((
+    let mut rearview_camera = commands.spawn((
         RearviewCameraMarker,
         msaa,
         Camera3d::default(),
@@ -55,4 +67,7 @@ pub fn setup_cameras_system(mut commands: Commands, render_settings: Res<RenderS
         Transform::from_xyz(0.0, PLAYER_HEIGHT * PLAYER_EYE_HEIGHT_RATIO, 0.0)
             .looking_at(Vec3::new(0.0, 0.0, 1.0), Vec3::Y), // Looking backwards (positive Z)
     ));
+    if deferred_rendering_enabled {
+        rearview_camera.insert((DepthPrepass, DeferredPrepass));
+    }
 }

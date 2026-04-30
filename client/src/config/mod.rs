@@ -4,4 +4,4 @@ mod render;
 
 pub use assets::{AssetSet, MaterialDef, ModelDef};
 pub use network::configure_client;
-pub use render::RenderSettings;
+pub use render::{OpaqueRenderer, RenderSettings};

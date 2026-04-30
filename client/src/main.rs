@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use bevy::{
+    pbr::DefaultOpaqueRendererMethod,
     prelude::*,
     window::{CursorGrabMode, CursorOptions, WindowPlugin, WindowPosition},
 };
@@ -9,7 +10,7 @@ use quinn::Endpoint;
 use tokio::{runtime::Runtime, time::Duration};
 
 use client::{
-    config::{AssetSet, RenderSettings, configure_client},
+    config::{AssetSet, OpaqueRenderer, RenderSettings, configure_client},
     net::network_io_task,
     resources::*,
     spawning::{ProjectileAssets, player_shadow_settings_system},
@@ -102,6 +103,11 @@ fn main() -> Result<()> {
     if texture_mipmaps_enabled {
         app.add_plugins(MipmapGeneratorPlugin);
     }
+    app.insert_resource(match render_settings.opaque_renderer {
+        OpaqueRenderer::Auto => DefaultOpaqueRendererMethod::default(),
+        OpaqueRenderer::Forward => DefaultOpaqueRendererMethod::forward(),
+        OpaqueRenderer::Deferred => DefaultOpaqueRendererMethod::deferred(),
+    });
 
     app.insert_resource(ClientToServerChannel::new(to_server))
         .insert_resource(ServerToClientChannel::new(from_server))

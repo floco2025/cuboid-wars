@@ -4,6 +4,21 @@ use anyhow::{Context, Result};
 use bevy::prelude::Resource;
 use serde::Deserialize;
 
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum OpaqueRenderer {
+    Auto,
+    Forward,
+    Deferred,
+}
+
+impl OpaqueRenderer {
+    #[must_use]
+    pub const fn is_deferred(self) -> bool {
+        matches!(self, Self::Deferred)
+    }
+}
+
 #[derive(Resource, Debug, Clone, Deserialize)]
 pub struct RenderSettings {
     pub fov_first_person_degrees: f32,
@@ -13,6 +28,7 @@ pub struct RenderSettings {
     pub light_directional_brightness: f32,
     pub texture_anisotropy: u16,
     pub rearview_enabled: bool,
+    pub opaque_renderer: OpaqueRenderer,
     pub shadows_directional_enabled: bool,
     pub shadows_player_enabled: bool,
     pub map_debug_colors: bool,
