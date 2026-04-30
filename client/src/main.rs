@@ -4,13 +4,13 @@ use bevy::{
     prelude::*,
     window::{CursorGrabMode, CursorOptions, WindowPlugin, WindowPosition},
 };
-use bevy_mod_mipmap_generator::{MipmapGeneratorPlugin, generate_mipmaps};
 use clap::Parser;
 use quinn::Endpoint;
 use tokio::{runtime::Runtime, time::Duration};
 
 use client::{
     config::{AssetSet, OpaqueRenderer, RenderSettings, configure_client},
+    materials::generate_material_mipmaps_system,
     net::network_io_task,
     resources::*,
     spawning::{ProjectileAssets, player_shadow_settings_system},
@@ -100,9 +100,6 @@ fn main() -> Result<()> {
             .set(asset_plugin())
             .set(window_plugin(&args, window_position)),
     );
-    if texture_mipmaps_enabled {
-        app.add_plugins(MipmapGeneratorPlugin);
-    }
     app.insert_resource(match render_settings.opaque_renderer {
         OpaqueRenderer::Auto => DefaultOpaqueRendererMethod::default(),
         OpaqueRenderer::Forward => DefaultOpaqueRendererMethod::forward(),
@@ -201,7 +198,11 @@ fn main() -> Result<()> {
         );
 
     if texture_mipmaps_enabled {
-        app.add_systems(Update, generate_mipmaps::<StandardMaterial>);
+        // Do not use bevy_mod_mipmap_generator::generate_mipmaps directly here.
+        // It reacts to material events only once, while our materials often point
+        // at image assets that are still loading. Our system retries until the
+        // images exist, then calls the crate's mip generation function.
+        app.add_systems(Update, generate_material_mipmaps_system);
     }
 
     app.run();
