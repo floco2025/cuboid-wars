@@ -240,7 +240,7 @@ pub fn merge_floors(mut floors: Vec<Floor>, assets: &AssetRules) -> Vec<Floor> {
                     let same_thickness = (acc.thickness - b.thickness).abs() < MERGE_EPS;
                     let same_level = acc.level == b.level;
                     let same_y = (acc.y - b.y).abs() < MERGE_EPS;
-                    let same_material = assets.material_for_floor(&acc) == assets.material_for_floor(&b);
+                    let same_material = assets.materials_for_floor(&acc) == assets.materials_for_floor(&b);
                     if !same_thickness || !same_level || !same_y || !same_material {
                         continue;
                     }

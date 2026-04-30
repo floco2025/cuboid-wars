@@ -6,7 +6,7 @@ use bevy::{
     prelude::*,
 };
 use common::{
-    assets::AssetRules,
+    assets::{AssetRules, DirectionalMaterials},
     protocol::{Floor, ItemType, Ramp, Wall},
 };
 use serde::Deserialize;
@@ -33,27 +33,27 @@ impl AssetSet {
     }
 
     pub fn material_for_floor(&self, floor: &Floor) -> &MaterialDef {
-        self.material(self.rules.material_for_floor(floor))
+        self.material(&self.rules.material_for_floor(floor))
     }
 
-    pub fn material_id_for_floor(&self, floor: &Floor) -> &str {
-        self.rules.material_for_floor(floor)
+    pub fn material_ids_for_floor(&self, floor: &Floor) -> DirectionalMaterials {
+        self.rules.materials_for_floor(floor)
     }
 
     pub fn material_for_ramp_top(&self, ramp: &Ramp) -> &MaterialDef {
-        self.material(self.rules.material_for_ramp_top(ramp))
+        self.material(&self.rules.material_for_ramp_top(ramp))
     }
 
-    pub fn material_id_for_ramp_top(&self, ramp: &Ramp) -> &str {
-        self.rules.material_for_ramp_top(ramp)
+    pub fn material_ids_for_ramp_top(&self, ramp: &Ramp) -> DirectionalMaterials {
+        self.rules.materials_for_ramp_top(ramp)
     }
 
     pub fn material_for_ramp_side(&self, ramp: &Ramp) -> &MaterialDef {
-        self.material(self.rules.material_for_ramp_side(ramp))
+        self.material(&self.rules.material_for_ramp_side(ramp))
     }
 
-    pub fn material_id_for_ramp_side(&self, ramp: &Ramp) -> &str {
-        self.rules.material_for_ramp_side(ramp)
+    pub fn material_ids_for_ramp_side(&self, ramp: &Ramp) -> DirectionalMaterials {
+        self.rules.materials_for_ramp_side(ramp)
     }
 
     pub fn material_for_item(&self, item_type: ItemType) -> &MaterialDef {
@@ -61,11 +61,11 @@ impl AssetSet {
     }
 
     pub fn material_for_wall(&self, wall: &Wall) -> &MaterialDef {
-        self.material(self.rules.material_for_wall(wall))
+        self.material(&self.rules.material_for_wall(wall))
     }
 
-    pub fn material_id_for_wall(&self, wall: &Wall) -> &str {
-        self.rules.material_for_wall(wall)
+    pub fn material_ids_for_wall(&self, wall: &Wall) -> DirectionalMaterials {
+        self.rules.materials_for_wall(wall)
     }
 
     pub fn material_by_id(&self, id: &str) -> &MaterialDef {

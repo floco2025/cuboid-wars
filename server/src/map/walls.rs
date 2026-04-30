@@ -84,9 +84,9 @@ fn normalize_wall(mut w: Wall) -> Wall {
 fn merge_walls_line(list: Vec<Wall>, is_horizontal: bool, assets: &AssetRules, out: &mut Vec<Wall>) {
     let mut iter = list.into_iter();
     if let Some(mut cur) = iter.next() {
-        let mut cur_material = assets.material_for_wall(&cur);
+        let mut cur_material = assets.materials_for_wall(&cur);
         for w in iter {
-            let material = assets.material_for_wall(&w);
+            let material = assets.materials_for_wall(&w);
             if is_horizontal {
                 if (cur.z1 - w.z1).abs() < MERGE_EPS
                     && (cur.width - w.width).abs() < MERGE_EPS

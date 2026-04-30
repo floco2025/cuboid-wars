@@ -1,4 +1,4 @@
-use std::{fs, path::Path};
+use std::{collections::BTreeMap, fs, path::Path};
 
 use anyhow::{Context, Result};
 use serde::Deserialize;
@@ -11,6 +11,45 @@ use crate::{
 #[derive(Debug, Clone, Deserialize)]
 pub struct AssetRules {
     pub material_rules: MaterialRules,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DirectionalMaterials {
+    pub north: String,
+    pub south: String,
+    pub east: String,
+    pub west: String,
+    pub top: String,
+    pub bottom: String,
+}
+
+impl DirectionalMaterials {
+    #[must_use]
+    pub fn uniform(material: impl Into<String>) -> Self {
+        let material = material.into();
+        Self {
+            north: material.clone(),
+            south: material.clone(),
+            east: material.clone(),
+            west: material.clone(),
+            top: material.clone(),
+            bottom: material,
+        }
+    }
+
+    #[must_use]
+    pub fn is_uniform(&self) -> bool {
+        self.north == self.south
+            && self.north == self.east
+            && self.north == self.west
+            && self.north == self.top
+            && self.north == self.bottom
+    }
+
+    #[must_use]
+    pub fn first(&self) -> &str {
+        &self.top
+    }
 }
 
 impl AssetRules {
@@ -27,13 +66,13 @@ impl AssetRules {
     }
 
     #[must_use]
-    pub fn material_for_floor(&self, floor: &Floor) -> &str {
+    pub fn materials_for_floor(&self, floor: &Floor) -> DirectionalMaterials {
         let mut material = None;
         for (col, row) in floor_cells(floor) {
-            let next = self.material_for_floor_cell(floor.level, col, row);
-            if let Some(current) = material {
+            let next = self.materials_for_floor_cell(floor.level, col, row);
+            if let Some(current) = &material {
                 assert_eq!(
-                    current, next,
+                    *current, next,
                     "floor segment at level {} spans multiple materials: {current:?} and {next:?}",
                     floor.level
                 );
@@ -44,18 +83,23 @@ impl AssetRules {
         material.unwrap_or_else(|| {
             let col = world_x_to_cell_col(f32::midpoint(floor.x1, floor.x2));
             let row = world_z_to_cell_row(f32::midpoint(floor.z1, floor.z2));
-            self.material_for_floor_cell(floor.level, col, row)
+            self.materials_for_floor_cell(floor.level, col, row)
         })
     }
 
     #[must_use]
-    pub fn material_for_wall(&self, wall: &Wall) -> &str {
+    pub fn material_for_floor(&self, floor: &Floor) -> String {
+        self.materials_for_floor(floor).top
+    }
+
+    #[must_use]
+    pub fn materials_for_wall(&self, wall: &Wall) -> DirectionalMaterials {
         let mut material = None;
         for (from, to) in wall_edges(wall) {
-            let next = self.material_for_wall_edge(wall.level, from, to);
-            if let Some(current) = material {
+            let next = self.materials_for_wall_edge(wall.level, from, to);
+            if let Some(current) = &material {
                 assert_eq!(
-                    current, next,
+                    *current, next,
                     "wall segment at level {} spans multiple materials: {current:?} and {next:?}",
                     wall.level
                 );
@@ -64,7 +108,7 @@ impl AssetRules {
         }
 
         material.unwrap_or_else(|| {
-            self.material_for_wall_edge(
+            self.materials_for_wall_edge(
                 wall.level,
                 [world_x_to_grid_col(wall.x1), world_z_to_grid_row(wall.z1)],
                 [world_x_to_grid_col(wall.x2), world_z_to_grid_row(wall.z2)],
@@ -73,21 +117,31 @@ impl AssetRules {
     }
 
     #[must_use]
-    pub fn material_for_wall_edge(&self, level: u8, from: [i32; 2], to: [i32; 2]) -> &str {
-        resolve_material(&self.material_rules.walls, |rule| {
+    pub fn material_for_wall(&self, wall: &Wall) -> String {
+        self.materials_for_wall(wall).first().to_owned()
+    }
+
+    #[must_use]
+    pub fn materials_for_wall_edge(&self, level: u8, from: [i32; 2], to: [i32; 2]) -> DirectionalMaterials {
+        resolve_directional_materials(&self.material_rules.walls, |rule| {
             rule.matches_level(level) && rule.matches_edge(from, to)
         })
     }
 
     #[must_use]
-    pub fn material_for_ramp_top(&self, ramp: &Ramp) -> &str {
+    pub fn material_for_wall_edge(&self, level: u8, from: [i32; 2], to: [i32; 2]) -> String {
+        self.materials_for_wall_edge(level, from, to).first().to_owned()
+    }
+
+    #[must_use]
+    pub fn materials_for_ramp_top(&self, ramp: &Ramp) -> DirectionalMaterials {
         let lower_level = ramp_lower_level(ramp);
         let mut material = None;
         for (col, row) in ramp_cells(ramp) {
-            let next = self.material_for_floor_cell(lower_level, col, row);
-            if let Some(current) = material {
+            let next = self.materials_for_floor_cell(lower_level, col, row);
+            if let Some(current) = &material {
                 assert_eq!(
-                    current, next,
+                    *current, next,
                     "ramp top at lower level {lower_level} spans multiple floor materials: {current:?} and {next:?}"
                 );
             }
@@ -97,20 +151,30 @@ impl AssetRules {
         material.unwrap_or_else(|| {
             let col = world_x_to_cell_col(f32::midpoint(ramp.x1, ramp.x2));
             let row = world_z_to_cell_row(f32::midpoint(ramp.z1, ramp.z2));
-            self.material_for_floor_cell(lower_level, col, row)
+            self.materials_for_floor_cell(lower_level, col, row)
         })
     }
 
     #[must_use]
-    pub fn material_for_ramp_side(&self, ramp: &Ramp) -> &str {
+    pub fn material_for_ramp_top(&self, ramp: &Ramp) -> String {
+        self.materials_for_ramp_top(ramp).top
+    }
+
+    #[must_use]
+    pub fn materials_for_ramp_side(&self, ramp: &Ramp) -> DirectionalMaterials {
         let lower_level = ramp_lower_level(ramp);
-        self.material_for_interior_wall(lower_level)
+        self.materials_for_interior_wall(lower_level)
+    }
+
+    #[must_use]
+    pub fn material_for_ramp_side(&self, ramp: &Ramp) -> String {
+        self.materials_for_ramp_side(ramp).first().to_owned()
     }
 
     #[must_use]
     pub fn material_for_item(&self, item_type: ItemType) -> &str {
         let item_type_name = item_type_name(item_type);
-        resolve_material(&self.material_rules.items, |rule| {
+        resolve_item_material(&self.material_rules.items, |rule| {
             rule.item_type
                 .as_deref()
                 .is_none_or(|rule_type| rule_type == item_type_name)
@@ -118,22 +182,70 @@ impl AssetRules {
     }
 
     #[must_use]
-    fn material_for_floor_cell(&self, level: u8, col: i32, row: i32) -> &str {
-        resolve_material(&self.material_rules.floors, |rule| {
+    fn materials_for_floor_cell(&self, level: u8, col: i32, row: i32) -> DirectionalMaterials {
+        resolve_directional_materials(&self.material_rules.floors, |rule| {
             rule.matches_level(level) && rule.matches_cell(col, row)
         })
     }
 
     #[must_use]
-    fn material_for_interior_wall(&self, level: u8) -> &str {
-        resolve_material(&self.material_rules.walls, |rule| {
+    fn materials_for_interior_wall(&self, level: u8) -> DirectionalMaterials {
+        resolve_directional_materials(&self.material_rules.walls, |rule| {
             rule.matches_level(level) && !rule.has_edge_scope()
         })
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct MaterialRules {
+    floors: Vec<MaterialRule>,
+    walls: Vec<MaterialRule>,
+    items: Vec<MaterialRule>,
+}
+
+impl<'de> Deserialize<'de> for MaterialRules {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum MaterialRulesDef {
+            Flat(Vec<FlatMaterialRule>),
+            Legacy(LegacyMaterialRules),
+        }
+
+        match MaterialRulesDef::deserialize(deserializer)? {
+            MaterialRulesDef::Legacy(rules) => Ok(Self {
+                floors: rules.floors,
+                walls: rules.walls,
+                items: rules.items,
+            }),
+            MaterialRulesDef::Flat(rules) => {
+                let mut floors = Vec::new();
+                let mut walls = Vec::new();
+                let mut items = Vec::new();
+                for rule in rules {
+                    if let Some(materials) = rule.floors.clone() {
+                        floors.push(rule.material_rule(materials));
+                    }
+                    if let Some(materials) = rule.walls.clone() {
+                        walls.push(rule.material_rule(materials));
+                    }
+                    if let Some(item_materials) = rule.items.clone() {
+                        for (item_type, material) in item_materials {
+                            items.push(rule.item_rule(item_type, material));
+                        }
+                    }
+                }
+                Ok(Self { floors, walls, items })
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct LegacyMaterialRules {
     #[serde(default)]
     floors: Vec<MaterialRule>,
     #[serde(default)]
@@ -143,8 +255,63 @@ pub struct MaterialRules {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+struct FlatMaterialRule {
+    #[serde(default)]
+    floors: Option<DirectionalMaterialRule>,
+    #[serde(default)]
+    walls: Option<DirectionalMaterialRule>,
+    #[serde(default)]
+    items: Option<BTreeMap<String, String>>,
+    #[serde(default)]
+    level: Option<u8>,
+    #[serde(default)]
+    levels: Option<Vec<u8>>,
+    #[serde(default)]
+    cols: Option<[i32; 2]>,
+    #[serde(default)]
+    rows: Option<[i32; 2]>,
+    #[serde(default)]
+    from: Option<[i32; 2]>,
+    #[serde(default)]
+    to: Option<[i32; 2]>,
+}
+
+impl FlatMaterialRule {
+    fn material_rule(&self, materials: DirectionalMaterialRule) -> MaterialRule {
+        MaterialRule {
+            material: materials.all.clone(),
+            materials: Some(materials),
+            level: self.level,
+            levels: self.levels.clone(),
+            cols: self.cols,
+            rows: self.rows,
+            from: self.from,
+            to: self.to,
+            item_type: None,
+        }
+    }
+
+    fn item_rule(&self, item_type: String, material: String) -> MaterialRule {
+        MaterialRule {
+            material: Some(material),
+            materials: None,
+            level: self.level,
+            levels: self.levels.clone(),
+            cols: self.cols,
+            rows: self.rows,
+            from: self.from,
+            to: self.to,
+            item_type: (item_type != "all").then_some(item_type),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
 struct MaterialRule {
-    material: String,
+    #[serde(default)]
+    material: Option<String>,
+    #[serde(default)]
+    materials: Option<DirectionalMaterialRule>,
     #[serde(default)]
     level: Option<u8>,
     #[serde(default)]
@@ -159,6 +326,24 @@ struct MaterialRule {
     to: Option<[i32; 2]>,
     #[serde(default, rename = "type")]
     item_type: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct DirectionalMaterialRule {
+    #[serde(default)]
+    all: Option<String>,
+    #[serde(default)]
+    north: Option<String>,
+    #[serde(default)]
+    south: Option<String>,
+    #[serde(default)]
+    east: Option<String>,
+    #[serde(default)]
+    west: Option<String>,
+    #[serde(default, alias = "up")]
+    top: Option<String>,
+    #[serde(default, alias = "down")]
+    bottom: Option<String>,
 }
 
 impl MaterialRule {
@@ -184,12 +369,26 @@ impl MaterialRule {
         }
     }
 
-    fn specificity(&self) -> u8 {
-        u8::from(self.level.is_some() || self.levels.is_some())
-            + u8::from(self.cols.is_some())
-            + u8::from(self.rows.is_some())
-            + u8::from(self.from.is_some() && self.to.is_some()) * 2
-            + u8::from(self.item_type.is_some())
+    fn specificity(&self) -> u16 {
+        let mut score = 0;
+        if self.level.is_some() {
+            score += 1_000;
+        } else if let Some(levels) = &self.levels {
+            score += 900_u16.saturating_sub(u16::try_from(levels.len()).unwrap_or(u16::MAX));
+        }
+        if let Some(range) = self.cols {
+            score += range_specificity(range, GRID_COLS);
+        }
+        if let Some(range) = self.rows {
+            score += range_specificity(range, GRID_ROWS);
+        }
+        if self.from.is_some() && self.to.is_some() {
+            score += 1_000;
+        }
+        if self.item_type.is_some() {
+            score += 1_000;
+        }
+        score
     }
 
     fn matches_edge_range(&self, from: [i32; 2], to: [i32; 2]) -> bool {
@@ -208,10 +407,94 @@ impl MaterialRule {
     fn has_edge_scope(&self) -> bool {
         self.cols.is_some() || self.rows.is_some() || self.from.is_some() || self.to.is_some()
     }
+
+    fn directional_materials(&self) -> DirectionalMaterials {
+        let surfaces = self.materials.as_ref();
+        let fallback = self
+            .material
+            .as_deref()
+            .or_else(|| surfaces.and_then(|materials| materials.all.as_deref()))
+            .or_else(|| surfaces.and_then(|materials| materials.north.as_deref()))
+            .or_else(|| surfaces.and_then(|materials| materials.south.as_deref()))
+            .or_else(|| surfaces.and_then(|materials| materials.east.as_deref()))
+            .or_else(|| surfaces.and_then(|materials| materials.west.as_deref()))
+            .or_else(|| surfaces.and_then(|materials| materials.top.as_deref()))
+            .or_else(|| surfaces.and_then(|materials| materials.bottom.as_deref()))
+            .expect("asset material rule must define `material` or at least one material surface");
+
+        DirectionalMaterials {
+            north: surfaces
+                .and_then(|materials| materials.north.as_deref())
+                .unwrap_or(fallback)
+                .to_owned(),
+            south: surfaces
+                .and_then(|materials| materials.south.as_deref())
+                .unwrap_or(fallback)
+                .to_owned(),
+            east: surfaces
+                .and_then(|materials| materials.east.as_deref())
+                .unwrap_or(fallback)
+                .to_owned(),
+            west: surfaces
+                .and_then(|materials| materials.west.as_deref())
+                .unwrap_or(fallback)
+                .to_owned(),
+            top: surfaces
+                .and_then(|materials| materials.top.as_deref())
+                .unwrap_or(fallback)
+                .to_owned(),
+            bottom: surfaces
+                .and_then(|materials| materials.bottom.as_deref())
+                .unwrap_or(fallback)
+                .to_owned(),
+        }
+    }
+
+    fn item_material(&self) -> &str {
+        self.material
+            .as_deref()
+            .expect("asset item material rule must define `material`")
+    }
 }
 
-fn resolve_material(rules: &[MaterialRule], matches: impl Fn(&MaterialRule) -> bool) -> &str {
-    let mut best: Option<(&MaterialRule, u8)> = None;
+fn range_specificity([min, max]: [i32; 2], full_len: i32) -> u16 {
+    let len = (max - min + 1).clamp(1, full_len);
+    100 + u16::try_from(full_len - len).expect("grid range length should fit in u16")
+}
+
+fn resolve_directional_materials(
+    rules: &[MaterialRule],
+    matches: impl Fn(&MaterialRule) -> bool,
+) -> DirectionalMaterials {
+    let mut best: Option<(&MaterialRule, u16)> = None;
+    for rule in rules.iter().filter(|rule| matches(rule)) {
+        let specificity = rule.specificity();
+        match best {
+            None => best = Some((rule, specificity)),
+            Some((_, best_specificity)) if specificity > best_specificity => {
+                best = Some((rule, specificity));
+            }
+            Some((best_rule, best_specificity)) if specificity == best_specificity => {
+                let best_materials = best_rule.directional_materials();
+                let rule_materials = rule.directional_materials();
+                if best_materials == rule_materials {
+                    continue;
+                }
+                panic!(
+                    "conflicting asset material rules with same specificity: {:?} and {:?}",
+                    best_materials, rule_materials
+                );
+            }
+            Some(_) => {}
+        }
+    }
+
+    best.map(|(rule, _)| rule.directional_materials())
+        .expect("asset material rule list must have a fallback rule")
+}
+
+fn resolve_item_material(rules: &[MaterialRule], matches: impl Fn(&MaterialRule) -> bool) -> &str {
+    let mut best: Option<(&MaterialRule, u16)> = None;
     for rule in rules.iter().filter(|rule| matches(rule)) {
         let specificity = rule.specificity();
         match best {
@@ -220,19 +503,20 @@ fn resolve_material(rules: &[MaterialRule], matches: impl Fn(&MaterialRule) -> b
                 best = Some((rule, specificity));
             }
             Some((best_rule, best_specificity))
-                if specificity == best_specificity && rule.material != best_rule.material =>
+                if specificity == best_specificity && rule.item_material() != best_rule.item_material() =>
             {
                 panic!(
-                    "conflicting asset material rules with same specificity: {:?} and {:?}",
-                    best_rule.material, rule.material
+                    "conflicting asset item material rules with same specificity: {:?} and {:?}",
+                    best_rule.item_material(),
+                    rule.item_material()
                 );
             }
             Some(_) => {}
         }
     }
 
-    best.map(|(rule, _)| rule.material.as_str())
-        .expect("asset material rule list must have a fallback rule")
+    best.map(|(rule, _)| rule.item_material())
+        .expect("asset item material rule list must have a fallback rule")
 }
 
 fn floor_cells(floor: &Floor) -> Vec<(i32, i32)> {

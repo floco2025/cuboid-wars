@@ -24,10 +24,11 @@ pub fn spawn_ramp(
     asset_set: &AssetSet,
     ramp: &Ramp,
 ) {
-    let top_material_id = asset_set.material_id_for_ramp_top(ramp);
-    let side_material_id = asset_set.material_id_for_ramp_side(ramp);
-    let top_material_def = asset_set.material_by_id(top_material_id);
-    let side_material_def = asset_set.material_by_id(side_material_id);
+    let top_material_id = asset_set.material_ids_for_ramp_top(ramp).top;
+    let side_material_ids = asset_set.material_ids_for_ramp_side(ramp);
+    let side_material_id = side_material_ids.first().to_owned();
+    let top_material_def = asset_set.material_by_id(&top_material_id);
+    let side_material_def = asset_set.material_by_id(&side_material_id);
 
     // Build meshes split by material usage
     let (mesh_top, mesh_side) = build_ramp_meshes(
@@ -41,8 +42,8 @@ pub fn spawn_ramp(
         side_material_def.tile_size(),
     );
 
-    let top_material = material_cache.standard(top_material_id, top_material_def, asset_server, materials);
-    let side_material = material_cache.standard(side_material_id, side_material_def, asset_server, materials);
+    let top_material = material_cache.standard(&top_material_id, top_material_def, asset_server, materials);
+    let side_material = material_cache.standard(&side_material_id, side_material_def, asset_server, materials);
 
     // Lower of the two levels this ramp connects (derived from the lower y).
     let y_low = ramp.y1.min(ramp.y2);
