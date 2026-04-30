@@ -139,7 +139,6 @@ pub fn step_player_movement(
         &character_pos,
         requested_move,
         has_phasing,
-        true,
         |collision| {
             let normal = vec3(collision.hit.normal1);
             let is_side_contact = normal.y.abs() <= 0.5;

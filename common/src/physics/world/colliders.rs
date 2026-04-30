@@ -18,15 +18,11 @@ pub(super) fn world_collision_groups() -> Group {
     WALL_COLLISION_GROUP | FLOOR_COLLISION_GROUP | RAMP_COLLISION_GROUP
 }
 
-pub(super) fn character_collision_groups(has_phasing: bool, include_floors: bool) -> Group {
+pub(super) fn character_collision_groups(has_phasing: bool) -> Group {
     let mut groups = world_collision_groups();
 
     if has_phasing {
         groups.remove(WALL_COLLISION_GROUP);
-    }
-
-    if !include_floors {
-        groups.remove(FLOOR_COLLISION_GROUP);
     }
 
     groups

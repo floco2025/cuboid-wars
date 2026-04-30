@@ -102,14 +102,13 @@ impl CollisionWorld {
         character_pos: &Pose,
         desired_translation: Vector,
         has_phasing: bool,
-        include_floors: bool,
         events: impl FnMut(CharacterCollision),
     ) -> EffectiveCharacterMovement {
         let query_pipeline = self.broad_phase.as_query_pipeline(
             self.narrow_phase.query_dispatcher(),
             &self.bodies,
             &self.colliders,
-            query_filter(character_collision_groups(has_phasing, include_floors)),
+            query_filter(character_collision_groups(has_phasing)),
         );
         controller.move_shape(
             dt,
@@ -163,7 +162,7 @@ impl CollisionWorld {
             self.narrow_phase.query_dispatcher(),
             &self.bodies,
             &self.colliders,
-            query_filter(character_collision_groups(has_phasing, true)),
+            query_filter(character_collision_groups(has_phasing)),
         );
         let options = ShapeCastOptions {
             max_time_of_impact: max_distance,
