@@ -10,8 +10,8 @@ use crate::{
     resources::LastBounceSoundTime,
 };
 use common::{
-    markers::{PlayerMarker, ProjectileMarker},
-    physics::{CollisionWorld, ProjectileMotion, projectile_hits_player},
+    markers::{ActorMarker, PlayerMarker, ProjectileMarker},
+    physics::{CollisionWorld, ProjectileMotion, projectile_hits_character},
     protocol::{FaceDirection, PlayerId, Position},
 };
 
@@ -19,7 +19,7 @@ use common::{
 // Helper Functions
 // ============================================================================
 
-fn handle_player_collisions(
+fn handle_character_collisions(
     commands: &mut Commands,
     asset_server: &AssetServer,
     asset_set: &AssetSet,
@@ -28,9 +28,10 @@ fn handle_player_collisions(
     proj_pos: &Position,
     delta: f32,
     player_query: &Query<(Entity, &Position, &FaceDirection, Has<LocalPlayerMarker>), With<PlayerMarker>>,
+    actor_query: &Query<(&Position, &FaceDirection), With<ActorMarker>>,
 ) -> bool {
     for (_player_entity, player_pos, face_dir, is_local_player) in player_query.iter() {
-        if projectile_hits_player(proj_pos, proj_motion, delta, player_pos, face_dir.0).is_some() {
+        if projectile_hits_character(proj_pos, proj_motion, delta, player_pos, face_dir.0).is_some() {
             play_sound(
                 commands,
                 asset_server,
@@ -46,6 +47,20 @@ fn handle_player_collisions(
                     PlaybackSettings::DESPAWN,
                 );
             }
+
+            commands.entity(proj_entity).despawn();
+            return true;
+        }
+    }
+
+    for (actor_pos, face_dir) in actor_query.iter() {
+        if projectile_hits_character(proj_pos, proj_motion, delta, actor_pos, face_dir.0).is_some() {
+            play_sound(
+                commands,
+                asset_server,
+                asset_set.sound("projectile_hits_player"),
+                PlaybackSettings::DESPAWN,
+            );
 
             commands.entity(proj_entity).despawn();
             return true;
@@ -70,6 +85,7 @@ pub fn projectiles_movement_system(
     asset_set: Res<AssetSet>,
     mut projectile_query: Query<(Entity, &mut Transform, &mut ProjectileMotion, &PlayerId), With<ProjectileMarker>>,
     player_query: Query<(Entity, &Position, &FaceDirection, Has<LocalPlayerMarker>), With<PlayerMarker>>,
+    actor_query: Query<(&Position, &FaceDirection), With<ActorMarker>>,
     collision_world: Option<Res<CollisionWorld>>,
     mut last_bounce_sound: ResMut<LastBounceSoundTime>,
 ) {
@@ -105,8 +121,8 @@ pub fn projectiles_movement_system(
         ) {
             pos_after_bounce
         } else {
-            // Check player collisions
-            if handle_player_collisions(
+            // Check character collisions
+            if handle_character_collisions(
                 &mut commands,
                 asset_server.as_ref(),
                 &asset_set,
@@ -115,8 +131,9 @@ pub fn projectiles_movement_system(
                 &projectile_pos,
                 delta,
                 &player_query,
+                &actor_query,
             ) {
-                // Hit a player, projectile was despawned
+                // Hit a character, projectile was despawned
                 continue;
             }
 

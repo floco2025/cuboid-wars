@@ -3,8 +3,8 @@ use bevy::prelude::*;
 use super::network::broadcast_to_all;
 use crate::resources::PlayerMap;
 use common::{
-    markers::{PlayerMarker, ProjectileMarker},
-    physics::{CollisionWorld, ProjectileMotion, projectile_hits_player},
+    markers::{ActorMarker, PlayerMarker, ProjectileMarker},
+    physics::{CollisionWorld, ProjectileMotion, projectile_hits_character},
     protocol::*,
 };
 
@@ -17,6 +17,7 @@ pub fn projectiles_movement_system(
     time: Res<Time>,
     mut projectile_query: Query<(Entity, &mut Position, &mut ProjectileMotion, &PlayerId), With<ProjectileMarker>>,
     player_query: Query<(&Position, &FaceDirection, &PlayerId), (With<PlayerMarker>, Without<ProjectileMarker>)>,
+    actor_query: Query<(&Position, &FaceDirection, &ActorId), (With<ActorMarker>, Without<ProjectileMarker>)>,
     collision_world: Res<CollisionWorld>,
     mut players: ResMut<PlayerMap>,
 ) {
@@ -48,10 +49,10 @@ pub fn projectiles_movement_system(
 
         let mut hit_something = false;
 
-        // Check player collisions
+        // Check player collisions.
         for (position, face_direction, player_id) in player_query.iter() {
-            // Use common hit detection logic
-            if let Some(hit_dir) = projectile_hits_player(&proj_pos, &projectile, delta, position, face_direction.0) {
+            if let Some(hit_dir) = projectile_hits_character(&proj_pos, &projectile, delta, position, face_direction.0)
+            {
                 // Self-hit: despawn without scoring to match client expectations
                 if shooter_id == player_id {
                     commands.entity(proj_entity).despawn();
@@ -87,7 +88,21 @@ pub fn projectiles_movement_system(
                 commands.entity(proj_entity).despawn();
 
                 hit_something = true;
-                break; // Projectile can only hit one player
+                break; // Projectile can only hit one character
+            }
+        }
+
+        if !hit_something {
+            for (position, face_direction, actor_id) in actor_query.iter() {
+                if projectile_hits_character(&proj_pos, &projectile, delta, position, face_direction.0).is_some() {
+                    info!("{:?} hits {:?}", shooter_id, actor_id);
+                    if let Some(shooter_info) = players.0.get_mut(shooter_id) {
+                        shooter_info.hits += 1;
+                    }
+                    commands.entity(proj_entity).despawn();
+                    hit_something = true;
+                    break; // Projectile can only hit one character
+                }
             }
         }
 

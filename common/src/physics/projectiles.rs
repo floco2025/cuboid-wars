@@ -153,22 +153,22 @@ impl ProjectileMotion {
 }
 
 #[must_use]
-pub fn projectile_hits_player(
+pub fn projectile_hits_character(
     proj_pos: &Position,
     proj_motion: &ProjectileMotion,
     delta: f32,
-    player_pos: &Position,
-    player_face_dir: f32,
+    character_pos: &Position,
+    character_face_dir: f32,
 ) -> Option<HitDirection> {
     let projectile_shape = Ball::new(PROJECTILE_RADIUS);
-    let player_shape = Cuboid::new(Vector::new(PLAYER_WIDTH / 2.0, PLAYER_HEIGHT / 2.0, PLAYER_DEPTH / 2.0));
+    let character_shape = Cuboid::new(Vector::new(PLAYER_WIDTH / 2.0, PLAYER_HEIGHT / 2.0, PLAYER_DEPTH / 2.0));
     let projectile_pose = Pose::translation(proj_pos.x, proj_pos.y, proj_pos.z);
     let projectile_velocity = Vector::new(
         proj_motion.velocity.x * delta,
         proj_motion.velocity.y * delta,
         proj_motion.velocity.z * delta,
     );
-    let player_pose = oriented_player_pose(player_pos, player_face_dir);
+    let character_pose = oriented_character_pose(character_pos, character_face_dir);
     let options = ShapeCastOptions {
         max_time_of_impact: 1.0,
         ..ShapeCastOptions::default()
@@ -178,9 +178,9 @@ pub fn projectile_hits_player(
         &projectile_pose,
         projectile_velocity,
         &projectile_shape,
-        &player_pose,
+        &character_pose,
         Vector::ZERO,
-        &player_shape,
+        &character_shape,
         options,
     )
     .ok()
@@ -196,7 +196,7 @@ pub fn projectile_hits_player(
     Some(HitDirection { x, z })
 }
 
-fn oriented_player_pose(pos: &Position, face_dir: f32) -> Pose {
+fn oriented_character_pose(pos: &Position, face_dir: f32) -> Pose {
     Pose::from_parts(
         Vector::new(pos.x, pos.y + PLAYER_HEIGHT / 2.0, pos.z),
         Quat::from_rotation_y(face_dir),
