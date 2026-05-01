@@ -8,8 +8,7 @@ use common::{
     constants::{ACTOR_SPEED, PLAYER_DEATH_Y},
     markers::{ActorMarker, PlayerMarker},
     physics::{
-        CharacterVerticalMotion, CollisionWorld, PlannedCharacterMove, overlaps_other_character,
-        step_character_movement,
+        CharacterVerticalMotion, CollisionWorld, PlannedCharacterMove, overlapping_character, step_character_movement,
     },
     protocol::{
         ActorId, ActorKind, CharacterMoveIntent, CharacterMovementState, FaceDirection, Position, SActorMoveIntent,
@@ -146,15 +145,20 @@ pub fn actor_movement_system(
             continue;
         };
 
-        if overlaps_other_character(planned_move, &planned_moves) {
+        let overlapping_move = overlapping_character(planned_move, &planned_moves);
+        if overlapping_move.is_some() {
             pos.y = planned_move.target.y;
         } else {
             *pos = planned_move.target;
         }
         motion.vertical_velocity = planned_move.target_vertical_velocity;
 
-        if planned_move.blocked {
-            let direction = rng.random_range(0.0..std::f32::consts::TAU);
+        if planned_move.blocked || overlapping_move.is_some() {
+            let direction = if let Some(other) = overlapping_move {
+                separation_direction(&planned_move.start, &other.start, &mut rng)
+            } else {
+                rng.random_range(0.0..std::f32::consts::TAU)
+            };
             *move_intent = CharacterMoveIntent::Moving { direction };
             face_dir.0 = direction;
             broadcast_actor_move_intent(&players, *id, *pos, *move_intent, motion.vertical_velocity);
@@ -198,6 +202,16 @@ pub fn actor_respawn_system(
         }
 
         info!("{:?} fell and respawned at {:?}", id, respawn_pos);
+    }
+}
+
+fn separation_direction(pos: &Position, other_pos: &Position, rng: &mut ThreadRng) -> f32 {
+    let dx = pos.x - other_pos.x;
+    let dz = pos.z - other_pos.z;
+    if dx.hypot(dz) <= f32::EPSILON {
+        rng.random_range(0.0..std::f32::consts::TAU)
+    } else {
+        dx.atan2(dz)
     }
 }
 
