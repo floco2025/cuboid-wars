@@ -2,16 +2,16 @@ use bevy::prelude::*;
 
 use crate::{
     net::ServerToClient,
-    resources::{ItemMap, MapConfig, PlayerMap},
+    resources::{ActorMap, ItemMap, MapConfig, PlayerMap},
     systems::generate_player_spawn_position,
 };
 use common::{
-    markers::{ItemMarker, PlayerMarker},
-    physics::{CollisionWorld, PlayerVerticalMotion},
+    markers::{ActorMarker, ItemMarker, PlayerMarker},
+    physics::{CharacterVerticalMotion, CollisionWorld},
     protocol::{MapLayout, *},
 };
 
-use super::broadcast::{broadcast_to_others, collect_items, snapshot_logged_in_players};
+use super::broadcast::{broadcast_to_others, collect_items, snapshot_actors, snapshot_logged_in_players};
 
 // ============================================================================
 // Login Flow
@@ -28,8 +28,11 @@ pub fn handle_login_message(
     collision_world: &Res<CollisionWorld>,
     map_config: &Res<MapConfig>,
     items: &Res<ItemMap>,
-    player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
-    motions: &Query<&PlayerVerticalMotion, With<PlayerMarker>>,
+    actors: &Res<ActorMap>,
+    player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
+    motions: &Query<&CharacterVerticalMotion, With<PlayerMarker>>,
+    actor_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<ActorMarker>>,
+    actor_motions: &Query<&CharacterVerticalMotion, With<ActorMarker>>,
     item_positions: &Query<&Position, With<ItemMarker>>,
 ) {
     match msg {
@@ -79,10 +82,10 @@ pub fn handle_login_message(
             let face_dir = (-pos.x).atan2(-pos.z);
 
             // Initial move-input intent for the new player (idle)
-            let move_input = MoveInput::Idle;
+            let move_intent = CharacterMoveIntent::Idle;
 
             // Construct player data
-            let player = Player::new(name, pos, move_input, face_dir, hits);
+            let player = Player::new(name, pos, move_intent, face_dir, hits);
 
             // Construct the initial Update for the new player
             let mut all_players = snapshot_logged_in_players(players, player_data, motions)
@@ -94,21 +97,23 @@ pub fn handle_login_message(
 
             // Collect all items for the initial update
             let all_items = collect_items(items, item_positions);
+            let all_actors = snapshot_actors(actors, actor_data, actor_motions);
 
             // Send the initial Update to the new player
             let update_msg = ServerMessage::Update(SUpdate {
                 seq: 0,
                 players: all_players,
+                actors: all_actors,
                 items: all_items,
             });
             channel.send(ServerToClient::Send(update_msg)).ok();
 
-            // Now update entity: add Position + MoveInput + FaceDirection + PlayerVerticalMotion
+            // Now update entity with the authoritative spawn movement state.
             commands.entity(entity).insert((
                 pos,
-                move_input,
+                move_intent,
                 FaceDirection(face_dir),
-                PlayerVerticalMotion::default(),
+                CharacterVerticalMotion::default(),
             ));
 
             // Broadcast Login to all other logged-in players

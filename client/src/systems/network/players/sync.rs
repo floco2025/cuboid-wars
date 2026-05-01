@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use std::collections::HashSet;
 
-use super::movement_velocity;
+use super::player_movement_velocity;
 use crate::{
     config::AssetSet,
     markers::MainCameraMarker,
@@ -11,8 +11,8 @@ use crate::{
 };
 use common::{
     markers::PlayerMarker,
-    physics::PlayerVerticalMotion,
-    protocol::{FaceDirection, MoveInput, Player, PlayerId, Position},
+    physics::CharacterVerticalMotion,
+    protocol::{CharacterMoveIntent, FaceDirection, Player, PlayerId, Position},
 };
 
 pub fn sync_players(
@@ -23,7 +23,7 @@ pub fn sync_players(
     graphs: &mut ResMut<Assets<AnimationGraph>>,
     players: &mut ResMut<PlayerMap>,
     rtt: &ResMut<RoundTripTime>,
-    player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
     camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     my_player_id: PlayerId,
     asset_server: &Res<AssetServer>,
@@ -98,11 +98,11 @@ fn spawn_snapshot_player(
         id.0,
         &player.name,
         &player.movement.pos,
-        player.movement.move_input,
+        player.movement.move_intent,
         player.face_dir,
         is_local,
     );
-    commands.entity(entity).insert(PlayerVerticalMotion {
+    commands.entity(entity).insert(CharacterVerticalMotion {
         vertical_velocity: player.movement.vertical_velocity,
     });
 
@@ -132,19 +132,19 @@ fn update_snapshot_player(
     commands: &mut Commands,
     players: &mut ResMut<PlayerMap>,
     rtt: &ResMut<RoundTripTime>,
-    player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
     my_player_id: PlayerId,
     id: PlayerId,
     server_player: &Player,
 ) {
     if let Some(client_player) = players.0.get_mut(&id) {
         if let Ok((client_pos, _, _)) = player_data.get(client_player.entity) {
-            let server_velocity = movement_velocity(server_player.movement, server_player.speed_power_up);
+            let server_velocity = player_movement_velocity(server_player.movement, server_player.speed_power_up);
 
             if id != my_player_id {
                 commands
                     .entity(client_player.entity)
-                    .insert(server_player.movement.move_input);
+                    .insert(server_player.movement.move_intent);
             }
             commands.entity(client_player.entity).insert(ServerReconciliation {
                 client_pos: *client_pos,
@@ -154,7 +154,7 @@ fn update_snapshot_player(
                 rtt: rtt.rtt.as_secs_f32(),
             });
             if id != my_player_id {
-                commands.entity(client_player.entity).insert(PlayerVerticalMotion {
+                commands.entity(client_player.entity).insert(CharacterVerticalMotion {
                     vertical_velocity: server_player.movement.vertical_velocity,
                 });
             }

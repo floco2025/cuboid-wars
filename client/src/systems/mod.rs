@@ -1,3 +1,4 @@
+mod actors;
 mod animations;
 mod cameras;
 mod input;
@@ -16,6 +17,7 @@ pub(crate) fn visual_focus_level(y: f32) -> u8 {
     (y / common::constants::LEVEL_HEIGHT).round().min(f32::from(u8::MAX)) as u8
 }
 
+pub use actors::{actors_movement_system, actors_transform_sync_system};
 pub use animations::{AnimationToPlay, players_animation_system};
 pub use cameras::setup_cameras_system;
 pub use input::{

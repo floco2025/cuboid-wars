@@ -11,10 +11,15 @@ use crate::{
     markers::MainCameraMarker,
     net::{ClientToServer, ServerToClient},
     resources::{
-        ClientToServerChannel, ItemMap, LastUpdateSeq, MyPlayerId, PlayerMap, RoundTripTime, ServerToClientChannel,
+        ActorMap, ClientToServerChannel, ItemMap, LastUpdateSeq, MyPlayerId, PlayerMap, RoundTripTime,
+        ServerToClientChannel,
     },
 };
-use common::{markers::PlayerMarker, physics::CollisionWorld, protocol::*};
+use common::{
+    markers::{ActorMarker, PlayerMarker},
+    physics::CollisionWorld,
+    protocol::*,
+};
 
 // ============================================================================
 // Network Message Processing System
@@ -26,11 +31,13 @@ pub fn network_server_message_system(
     mut from_server: ResMut<ServerToClientChannel>,
     mut exit: MessageWriter<AppExit>,
     mut players: ResMut<PlayerMap>,
+    mut actors: ResMut<ActorMap>,
     mut items: ResMut<ItemMap>,
     mut rtt: ResMut<RoundTripTime>,
     mut last_update_seq: ResMut<LastUpdateSeq>,
     mut assets: AssetManagers,
-    player_data: Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
+    player_data: Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
+    actor_data: Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<ActorMarker>>,
     cameras: Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     my_player_id: Option<Res<MyPlayerId>>,
     collision_world: Option<Res<CollisionWorld>>,
@@ -51,11 +58,13 @@ pub fn network_server_message_system(
                         my_id.0,
                         &mut commands,
                         &mut players,
+                        &mut actors,
                         &mut items,
                         &mut rtt,
                         &mut last_update_seq,
                         &mut assets,
                         &player_data,
+                        &actor_data,
                         &cameras,
                         &time,
                         &client_assets.asset_server,

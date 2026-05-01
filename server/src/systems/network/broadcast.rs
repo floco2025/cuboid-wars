@@ -2,11 +2,11 @@ use bevy::prelude::*;
 
 use crate::{
     net::ServerToClient,
-    resources::{ItemMap, PlayerMap},
+    resources::{ActorMap, ItemMap, PlayerMap},
 };
 use common::{
-    markers::{ItemMarker, PlayerMarker},
-    physics::PlayerVerticalMotion,
+    markers::{ActorMarker, ItemMarker, PlayerMarker},
+    physics::CharacterVerticalMotion,
     protocol::*,
 };
 
@@ -40,8 +40,8 @@ pub fn broadcast_to_all(players: &PlayerMap, message: ServerMessage) {
 #[must_use]
 pub fn snapshot_logged_in_players(
     players: &PlayerMap,
-    player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
-    motions: &Query<&PlayerVerticalMotion, With<PlayerMarker>>,
+    player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
+    motions: &Query<&CharacterVerticalMotion, With<PlayerMarker>>,
 ) -> Vec<(PlayerId, Player)> {
     players
         .0
@@ -50,19 +50,44 @@ pub fn snapshot_logged_in_players(
             if !info.logged_in {
                 return None;
             }
-            let (pos, move_input, face_dir) = player_data.get(info.entity).ok()?;
+            let (pos, move_intent, face_dir) = player_data.get(info.entity).ok()?;
             let vertical_velocity = motions.get(info.entity).map_or(0.0, |m| m.vertical_velocity);
             Some((
                 *player_id,
                 Player {
                     name: info.name.clone(),
-                    movement: PlayerMovementState::new(*pos, *move_input, vertical_velocity),
+                    movement: CharacterMovementState::new(*pos, *move_intent, vertical_velocity),
                     face_dir: face_dir.0,
                     hits: info.hits,
                     speed_power_up: info.has_speed(),
                     multi_shot_power_up: info.has_multi_shot(),
                     phasing_power_up: info.has_phasing(),
                     stunned: info.stun_timer > 0.0,
+                },
+            ))
+        })
+        .collect()
+}
+
+// Collect all server-controlled actors for network updates.
+#[must_use]
+pub fn snapshot_actors(
+    actors: &ActorMap,
+    actor_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<ActorMarker>>,
+    motions: &Query<&CharacterVerticalMotion, With<ActorMarker>>,
+) -> Vec<(ActorId, Actor)> {
+    actors
+        .0
+        .iter()
+        .filter_map(|(actor_id, info)| {
+            let (pos, move_intent, face_dir) = actor_data.get(info.entity).ok()?;
+            let vertical_velocity = motions.get(info.entity).map_or(0.0, |m| m.vertical_velocity);
+            Some((
+                *actor_id,
+                Actor {
+                    kind: info.kind,
+                    movement: CharacterMovementState::new(*pos, *move_intent, vertical_velocity),
+                    face_dir: face_dir.0,
                 },
             ))
         })

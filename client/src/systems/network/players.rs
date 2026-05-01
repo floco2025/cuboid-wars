@@ -10,7 +10,7 @@ use crate::{
 };
 use common::{
     markers::PlayerMarker,
-    physics::{CollisionWorld, PlayerVerticalMotion},
+    physics::{CharacterVerticalMotion, CollisionWorld},
     protocol::*,
 };
 
@@ -22,28 +22,28 @@ pub use sync::sync_players;
 // Player Message Handlers
 // ============================================================================
 
-pub(super) fn movement_velocity(movement: PlayerMovementState, has_speed_power_up: bool) -> Vec3 {
-    let mut velocity = movement.move_input.to_velocity_for_player(has_speed_power_up);
+pub(super) fn player_movement_velocity(movement: CharacterMovementState, has_speed_power_up: bool) -> Vec3 {
+    let mut velocity = movement.move_intent.to_player_horizontal_velocity(has_speed_power_up);
     velocity.y = movement.vertical_velocity;
     velocity
 }
 
 // Handle player move-input update with server reconciliation.
-pub fn handle_player_move_input_message(
+pub fn handle_player_move_intent_message(
     commands: &mut Commands,
     players: &ResMut<PlayerMap>,
-    player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
     rtt: &ResMut<RoundTripTime>,
-    msg: SMoveInput,
+    msg: SPlayerMoveIntent,
 ) {
-    trace!("{:?} move input: {:?}", msg.id, msg);
+    trace!("{:?} move intent: {:?}", msg.id, msg);
     if let Some(player) = players.0.get(&msg.id) {
-        let server_velocity = movement_velocity(msg.movement, player.speed_power_up);
+        let server_velocity = player_movement_velocity(msg.movement, player.speed_power_up);
 
         // Add server reconciliation if we have client position
         if let Ok((client_pos, _, _)) = player_data.get(player.entity) {
             commands.entity(player.entity).insert((
-                msg.movement.move_input, // Never the local player, so we can always overwrite intent
+                msg.movement.move_intent, // Never the local player, so we can always overwrite intent
                 ServerReconciliation {
                     client_pos: *client_pos,
                     server_pos: msg.movement.pos,
@@ -53,7 +53,7 @@ pub fn handle_player_move_input_message(
                 },
             ));
         } else {
-            commands.entity(player.entity).insert(msg.movement.move_input);
+            commands.entity(player.entity).insert(msg.movement.move_intent);
         }
     }
 }
@@ -61,17 +61,17 @@ pub fn handle_player_move_input_message(
 pub fn handle_player_jump_message(
     commands: &mut Commands,
     players: &ResMut<PlayerMap>,
-    player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
     rtt: &ResMut<RoundTripTime>,
     msg: SJump,
 ) {
     if let Some(player) = players.0.get(&msg.id)
         && let Ok((client_pos, _, _)) = player_data.get(player.entity)
     {
-        let server_velocity = movement_velocity(msg.movement, player.speed_power_up);
+        let server_velocity = player_movement_velocity(msg.movement, player.speed_power_up);
         commands.entity(player.entity).insert((
-            msg.movement.move_input,
-            PlayerVerticalMotion {
+            msg.movement.move_intent,
+            CharacterVerticalMotion {
                 vertical_velocity: msg.movement.vertical_velocity,
             },
             ServerReconciliation {
@@ -98,7 +98,7 @@ pub fn handle_player_shot_message(
     commands: &mut Commands,
     projectile_assets: &ProjectileAssets,
     players: &ResMut<PlayerMap>,
-    player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
     msg: SShot,
     collision_world: Option<&CollisionWorld>,
 ) {
@@ -173,7 +173,7 @@ pub fn handle_player_death_message(
     if let Some(player) = players.0.get(&msg.id) {
         commands
             .entity(player.entity)
-            .insert((msg.respawn_pos, PlayerVerticalMotion::default()));
+            .insert((msg.respawn_pos, CharacterVerticalMotion::default()));
     }
 }
 

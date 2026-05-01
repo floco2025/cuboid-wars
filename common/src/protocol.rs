@@ -17,10 +17,10 @@ pub struct CLogin {
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct CLogoff {}
 
-// Client to Server: Movement-input update.
+// Client to Server: Local player's character movement intent update.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct CMoveInput {
-    pub move_input: MoveInput,
+pub struct CPlayerMoveIntent {
+    pub move_intent: CharacterMoveIntent,
 }
 
 // Client to Server: One-shot jump request.
@@ -71,18 +71,25 @@ pub struct SLogoff {
     pub graceful: bool,
 }
 
-// Server to Client: Movement state update for reconciliation after input changes.
+// Server to Client: Player movement state update for reconciliation after intent changes.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct SMoveInput {
+pub struct SPlayerMoveIntent {
     pub id: PlayerId,
-    pub movement: PlayerMovementState,
+    pub movement: CharacterMovementState,
+}
+
+// Server to Client: Server-controlled actor movement state update after intent changes.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SActorMoveIntent {
+    pub id: ActorId,
+    pub movement: CharacterMovementState,
 }
 
 // Server to Client: Player started a jump with authoritative movement state.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SJump {
     pub id: PlayerId,
-    pub movement: PlayerMovementState,
+    pub movement: CharacterMovementState,
 }
 
 // Server to Client: Player facing direction update.
@@ -105,6 +112,7 @@ pub struct SShot {
 pub struct SUpdate {
     pub seq: u32,
     pub players: Vec<(PlayerId, Player)>,
+    pub actors: Vec<(ActorId, Actor)>,
     pub items: Vec<(ItemId, Item)>,
 }
 
@@ -152,7 +160,7 @@ pub struct SCookieCollected {}
 pub enum ClientMessage {
     Login(CLogin),
     Logoff(CLogoff),
-    MoveInput(CMoveInput),
+    PlayerMoveIntent(CPlayerMoveIntent),
     Jump(CJump),
     Face(CFace),
     Shot(CShot),
@@ -165,7 +173,8 @@ pub enum ServerMessage {
     Init(SInit),
     Login(SLogin),
     Logoff(SLogoff),
-    MoveInput(SMoveInput),
+    PlayerMoveIntent(SPlayerMoveIntent),
+    ActorMoveIntent(SActorMoveIntent),
     Jump(SJump),
     Face(SFace),
     Shot(SShot),

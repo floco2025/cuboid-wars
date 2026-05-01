@@ -14,7 +14,7 @@ use crate::{
     markers::*,
     systems::{AnimationToPlay, BumpFlashState, players_animation_system},
 };
-use common::{constants::*, markers::PlayerMarker, physics::PlayerVerticalMotion, protocol::*};
+use common::{constants::*, markers::PlayerMarker, physics::CharacterVerticalMotion, protocol::*};
 
 // ============================================================================
 // Bundles
@@ -25,8 +25,8 @@ struct PlayerBundle {
     player_id: PlayerId,
     player_marker: PlayerMarker,
     position: Position,
-    move_input: MoveInput,
-    motion: PlayerVerticalMotion,
+    move_intent: CharacterMoveIntent,
+    motion: CharacterVerticalMotion,
     face_direction: FaceDirection,
     transform: Transform,
     visibility: Visibility,
@@ -48,7 +48,7 @@ pub fn spawn_player(
     player_id: u32,
     player_name: &str,
     position: &Position,
-    move_input: MoveInput,
+    move_intent: CharacterMoveIntent,
     face_dir: f32,
     is_local: bool,
 ) -> Entity {
@@ -70,8 +70,8 @@ pub fn spawn_player(
                 player_id: PlayerId(player_id),
                 player_marker: PlayerMarker,
                 position: *position,
-                move_input,
-                motion: PlayerVerticalMotion::default(),
+                move_intent,
+                motion: CharacterVerticalMotion::default(),
                 face_direction: FaceDirection(face_dir),
                 transform: Transform::from_xyz(position.x, position.y + PLAYER_HEIGHT / 2.0, position.z)
                     .with_rotation(Quat::from_rotation_y(face_dir)),

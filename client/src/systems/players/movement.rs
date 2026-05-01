@@ -6,8 +6,11 @@ use common::{
     constants::{
         ALWAYS_PHASING, PHYSICS_EPSILON, PLAYER_GROUND_SNAP_DISTANCE, PLAYER_SPEED, UPDATE_BROADCAST_INTERVAL,
     },
-    physics::{CollisionWorld, PlannedMove, PlayerVerticalMotion, overlaps_other_player, step_player_movement},
-    protocol::{MoveInput, PlayerId, Position},
+    physics::{
+        CharacterVerticalMotion, CollisionWorld, PlannedCharacterMove, overlaps_other_character,
+        step_character_movement,
+    },
+    protocol::{CharacterMoveIntent, PlayerId, Position},
 };
 
 // ============================================================================
@@ -18,7 +21,7 @@ const BUMP_FLASH_DURATION: f32 = 0.08;
 const BUMP_COLLISION_RELEASE_DELAY: f32 = 0.25;
 
 fn reconcile_vertical_motion_if_needed(
-    motion: &mut PlayerVerticalMotion,
+    motion: &mut CharacterVerticalMotion,
     recon: &ServerReconciliation,
     total_delta: Vec3,
     is_local: bool,
@@ -104,8 +107,8 @@ type MovementQuery<'w, 's> = Query<
         Entity,
         &'static PlayerId,
         &'static mut Position,
-        &'static MoveInput,
-        &'static mut PlayerVerticalMotion,
+        &'static CharacterMoveIntent,
+        &'static mut CharacterVerticalMotion,
         Option<&'static mut BumpFlashState>,
         Option<&'static mut ServerReconciliation>,
         Has<LocalPlayerMarker>,
@@ -125,9 +128,9 @@ pub fn players_movement_system(
     let delta = time.delta_secs();
 
     // Pass 1: For each player, calculate intended position, then apply static-world collision.
-    let mut planned_moves: Vec<PlannedMove> = Vec::new();
+    let mut planned_moves: Vec<PlannedCharacterMove> = Vec::new();
 
-    for (entity, player_id, mut client_pos, move_input, mut motion, mut flash_state, mut recon_option, is_local) in
+    for (entity, player_id, mut client_pos, move_intent, mut motion, mut flash_state, mut recon_option, is_local) in
         &mut query
     {
         if let Some(state) = flash_state.as_mut() {
@@ -136,7 +139,7 @@ pub fn players_movement_system(
 
         // Derive horizontal velocity from input intent + speed power-up.
         let has_speed_power_up = players.0.get(player_id).is_some_and(|info| info.speed_power_up);
-        let h_vel = move_input.to_velocity_for_player(has_speed_power_up);
+        let h_vel = move_intent.to_player_horizontal_velocity(has_speed_power_up);
         let is_standing_still = h_vel.x.hypot(h_vel.z) < PHYSICS_EPSILON;
 
         // Calculate intended position from velocity (with server reconciliation if needed)
@@ -194,7 +197,7 @@ pub fn players_movement_system(
         if let Some(collision_world) = collision_world.as_ref() {
             let has_phasing = ALWAYS_PHASING || players.0.get(player_id).is_some_and(|info| info.phasing_power_up);
 
-            let step = step_player_movement(
+            let step = step_character_movement(
                 &client_pos,
                 &motion,
                 collision_world,
@@ -204,7 +207,7 @@ pub fn players_movement_system(
                 delta,
             );
             target_pos = step.position;
-            planned_moves.push(PlannedMove {
+            planned_moves.push(PlannedCharacterMove {
                 entity,
                 start: *client_pos,
                 target: target_pos,
@@ -212,7 +215,7 @@ pub fn players_movement_system(
                 blocked: step.blocked,
             });
         } else {
-            planned_moves.push(PlannedMove {
+            planned_moves.push(PlannedCharacterMove {
                 entity,
                 start: *client_pos,
                 target: target_pos,
@@ -230,7 +233,7 @@ pub fn players_movement_system(
             continue;
         };
 
-        let hits_player = overlaps_other_player(planned_move, &planned_moves);
+        let hits_player = overlaps_other_character(planned_move, &planned_moves);
 
         // Apply final position and feedback
         if hits_player {

@@ -166,6 +166,17 @@ fn tick_timer(timer: &mut f32, delta: f32) {
 #[derive(Resource, Default)]
 pub struct PlayerMap(pub HashMap<PlayerId, PlayerInfo>);
 
+// Actor information (server-side)
+pub struct ActorInfo {
+    pub entity: Entity,
+    pub kind: ActorKind,
+    pub direction_timer: f32,
+}
+
+// Map of all server-controlled actors.
+#[derive(Resource, Default)]
+pub struct ActorMap(pub HashMap<ActorId, ActorInfo>);
+
 // Item information (server-side)
 pub struct ItemInfo {
     pub entity: Entity,

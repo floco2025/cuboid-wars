@@ -1,3 +1,4 @@
+mod actors;
 mod components;
 mod items;
 mod login;

@@ -5,7 +5,7 @@ use crate::{net::ServerToClient, resources::PlayerMap};
 use common::{
     constants::{ALWAYS_MULTI_SHOT, PROJECTILE_COOLDOWN_TIME},
     markers::{PlayerMarker, ProjectileMarker},
-    physics::{CollisionWorld, PlayerVerticalMotion, ProjectileMotion, try_start_player_jump},
+    physics::{CharacterVerticalMotion, CollisionWorld, ProjectileMotion, try_start_player_jump},
     protocol::*,
     spawning::calculate_projectile_spawns,
 };
@@ -22,8 +22,8 @@ pub fn dispatch_message(
     msg: ClientMessage,
     players: &mut PlayerMap,
     time: &Res<Time>,
-    player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
-    motions: &Query<&PlayerVerticalMotion, With<PlayerMarker>>,
+    player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
+    motions: &Query<&CharacterVerticalMotion, With<PlayerMarker>>,
     collision_world: &CollisionWorld,
 ) {
     match msg {
@@ -37,9 +37,9 @@ pub fn dispatch_message(
         ClientMessage::Logoff(msg) => {
             handle_logoff_message(commands, entity, id, msg, players);
         }
-        ClientMessage::MoveInput(msg) => {
-            trace!("{:?} move input: {:?}", id, msg);
-            handle_move_input_message(commands, entity, id, msg, &*players, player_data, motions);
+        ClientMessage::PlayerMoveIntent(msg) => {
+            trace!("{:?} move intent: {:?}", id, msg);
+            handle_move_intent_message(commands, entity, id, msg, &*players, player_data, motions);
         }
         ClientMessage::Jump(msg) => {
             trace!("{:?} jump: {:?}", id, msg);
@@ -73,17 +73,17 @@ fn handle_logoff_message(commands: &mut Commands, entity: Entity, id: PlayerId, 
 }
 
 // Handle move-input message.
-fn handle_move_input_message(
+fn handle_move_intent_message(
     commands: &mut Commands,
     entity: Entity,
     id: PlayerId,
-    msg: CMoveInput,
+    msg: CPlayerMoveIntent,
     players: &PlayerMap,
-    player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
-    motions: &Query<&PlayerVerticalMotion, With<PlayerMarker>>,
+    player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
+    motions: &Query<&CharacterVerticalMotion, With<PlayerMarker>>,
 ) {
     // Update the player's input intent
-    commands.entity(entity).insert(msg.move_input);
+    commands.entity(entity).insert(msg.move_intent);
 
     // Get current movement state for reconciliation.
     if let (Ok((pos, _, _)), Ok(motion)) = (player_data.get(entity), motions.get(entity)) {
@@ -91,9 +91,9 @@ fn handle_move_input_message(
         broadcast_to_others(
             players,
             id,
-            ServerMessage::MoveInput(SMoveInput {
+            ServerMessage::PlayerMoveIntent(SPlayerMoveIntent {
                 id,
-                movement: PlayerMovementState::new(*pos, msg.move_input, motion.vertical_velocity),
+                movement: CharacterMovementState::new(*pos, msg.move_intent, motion.vertical_velocity),
             }),
         );
     }
@@ -104,29 +104,29 @@ fn handle_jump_message(
     entity: Entity,
     id: PlayerId,
     players: &PlayerMap,
-    player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
-    motions: &Query<&PlayerVerticalMotion, With<PlayerMarker>>,
+    player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
+    motions: &Query<&CharacterVerticalMotion, With<PlayerMarker>>,
     collision_world: &CollisionWorld,
 ) {
     if players.0.get(&id).is_some_and(|info| info.stun_timer > 0.0) {
         return;
     }
 
-    let Ok((pos, move_input, _)) = player_data.get(entity) else {
+    let Ok((pos, move_intent, _)) = player_data.get(entity) else {
         return;
     };
     let Ok(motion) = motions.get(entity) else {
         return;
     };
 
-    let mut next_motion = PlayerVerticalMotion {
+    let mut next_motion = CharacterVerticalMotion {
         vertical_velocity: motion.vertical_velocity,
     };
     if !try_start_player_jump(&mut next_motion, collision_world, pos, pos.x, pos.z) {
         return;
     }
 
-    commands.entity(entity).insert(PlayerVerticalMotion {
+    commands.entity(entity).insert(CharacterVerticalMotion {
         vertical_velocity: next_motion.vertical_velocity,
     });
     broadcast_to_others(
@@ -134,7 +134,7 @@ fn handle_jump_message(
         id,
         ServerMessage::Jump(SJump {
             id,
-            movement: PlayerMovementState::new(*pos, *move_input, next_motion.vertical_velocity),
+            movement: CharacterMovementState::new(*pos, *move_intent, next_motion.vertical_velocity),
         }),
     );
 }
@@ -155,7 +155,7 @@ fn handle_shot_message(
     msg: CShot,
     players: &mut PlayerMap,
     time: &Res<Time>,
-    player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
     collision_world: &CollisionWorld,
 ) {
     let now = time.elapsed_secs();

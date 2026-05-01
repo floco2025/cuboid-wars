@@ -67,6 +67,7 @@ async fn main() -> Result<()> {
         .insert_resource(collision_world)
         .insert_resource(map_config)
         .insert_resource(PlayerMap::default())
+        .insert_resource(ActorMap::default())
         .insert_resource(ItemMap::default())
         .insert_resource(ItemSpawner::default())
         .insert_resource(FromAcceptChannel::new(from_accept))
@@ -93,6 +94,10 @@ async fn main() -> Result<()> {
                 players_timer_system,
                 // Death detection must run after movement updates positions.
                 players_death_system.after(players_movement_system),
+                actor_initial_spawn_system,
+                actor_ai_system,
+                actor_movement_system.after(actor_ai_system),
+                actor_respawn_system.after(actor_movement_system),
                 projectiles_movement_system,
                 item_initial_spawn_system,
                 item_spawn_system,

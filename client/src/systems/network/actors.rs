@@ -1,0 +1,132 @@
+use bevy::prelude::*;
+use std::collections::HashSet;
+
+use super::components::ServerReconciliation;
+use crate::{
+    config::AssetSet,
+    resources::{ActorInfo, ActorMap, RoundTripTime},
+    spawning::spawn_actor,
+};
+use common::{
+    constants::ACTOR_SPEED,
+    markers::ActorMarker,
+    physics::CharacterVerticalMotion,
+    protocol::{
+        Actor, ActorId, CharacterMoveIntent, CharacterMovementState, FaceDirection, Position, SActorMoveIntent,
+    },
+};
+
+pub fn sync_actors(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    images: &mut ResMut<Assets<Image>>,
+    graphs: &mut ResMut<Assets<AnimationGraph>>,
+    actors: &mut ResMut<ActorMap>,
+    rtt: &ResMut<RoundTripTime>,
+    actor_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<ActorMarker>>,
+    asset_server: &Res<AssetServer>,
+    asset_set: &AssetSet,
+    server_actors: &[(ActorId, Actor)],
+) {
+    let update_ids: HashSet<ActorId> = server_actors.iter().map(|(id, _)| *id).collect();
+
+    for (id, actor) in server_actors {
+        if actors.0.contains_key(id) {
+            continue;
+        }
+
+        let entity = spawn_actor(
+            commands,
+            asset_server,
+            meshes,
+            materials,
+            images,
+            graphs,
+            asset_set,
+            *id,
+            actor,
+        );
+        actors.0.insert(*id, ActorInfo { entity });
+    }
+
+    actors.0.retain(|id, actor| {
+        if update_ids.contains(id) {
+            true
+        } else {
+            commands.entity(actor.entity).despawn();
+            false
+        }
+    });
+
+    for (id, server_actor) in server_actors {
+        apply_actor_movement_state(
+            commands,
+            actors,
+            rtt,
+            actor_data,
+            *id,
+            server_actor.movement,
+            Some(server_actor.face_dir),
+        );
+    }
+}
+
+pub fn handle_actor_move_intent_message(
+    commands: &mut Commands,
+    actors: &ResMut<ActorMap>,
+    rtt: &ResMut<RoundTripTime>,
+    actor_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<ActorMarker>>,
+    msg: SActorMoveIntent,
+) {
+    apply_actor_movement_state(
+        commands,
+        actors,
+        rtt,
+        actor_data,
+        msg.id,
+        msg.movement,
+        msg.movement.move_intent.direction(),
+    );
+}
+
+fn apply_actor_movement_state(
+    commands: &mut Commands,
+    actors: &ResMut<ActorMap>,
+    rtt: &ResMut<RoundTripTime>,
+    actor_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<ActorMarker>>,
+    id: ActorId,
+    movement: CharacterMovementState,
+    face_dir: Option<f32>,
+) {
+    let Some(client_actor) = actors.0.get(&id) else {
+        return;
+    };
+
+    let server_velocity = actor_movement_velocity(movement);
+    commands.entity(client_actor.entity).insert((
+        movement.move_intent,
+        CharacterVerticalMotion {
+            vertical_velocity: movement.vertical_velocity,
+        },
+    ));
+    if let Some(face_dir) = face_dir {
+        commands.entity(client_actor.entity).insert(FaceDirection(face_dir));
+    }
+
+    if let Ok((client_pos, _, _)) = actor_data.get(client_actor.entity) {
+        commands.entity(client_actor.entity).insert(ServerReconciliation {
+            client_pos: *client_pos,
+            server_pos: movement.pos,
+            server_velocity,
+            timer: 0.0,
+            rtt: rtt.rtt.as_secs_f32(),
+        });
+    }
+}
+
+fn actor_movement_velocity(movement: CharacterMovementState) -> Vec3 {
+    let mut velocity = movement.move_intent.to_horizontal_velocity(ACTOR_SPEED);
+    velocity.y = movement.vertical_velocity;
+    velocity
+}

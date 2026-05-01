@@ -39,11 +39,11 @@ impl AddAssign<Vec3> for Position {
     }
 }
 
-// MoveInput component - the player's movement intent. `Idle` while standing still,
-// `Moving { direction }` while moving (radians, world-space). The horizontal
-// velocity is derived each tick from this plus the speed power-up multiplier.
+// CharacterMoveIntent component - desired character movement. `Idle` while
+// standing still, `Moving { direction }` while moving (radians, world-space).
+// The horizontal velocity is derived each tick from this plus character rules.
 #[derive(Debug, Clone, Encode, Decode, Copy, Component, Default, PartialEq)]
-pub enum MoveInput {
+pub enum CharacterMoveIntent {
     #[default]
     Idle,
     Moving {
@@ -51,7 +51,7 @@ pub enum MoveInput {
     },
 }
 
-impl MoveInput {
+impl CharacterMoveIntent {
     // Movement direction (radians) if active, else `None`.
     #[must_use]
     pub const fn direction(&self) -> Option<f32> {
@@ -63,28 +63,32 @@ impl MoveInput {
 
     // Convert intent to a horizontal world-space velocity at the given magnitude.
     #[must_use]
-    pub fn to_velocity(&self, magnitude: f32) -> Vec3 {
+    pub fn to_horizontal_velocity(&self, magnitude: f32) -> Vec3 {
         match self {
             Self::Idle => Vec3::ZERO,
             Self::Moving { direction } => Vec3::new(direction.sin() * magnitude, 0.0, direction.cos() * magnitude),
         }
     }
 
-    // Velocity for a player with the speed power-up multiplier applied.
+    // Horizontal velocity for a player with the speed power-up multiplier applied.
     #[must_use]
-    pub fn to_velocity_for_player(&self, has_speed_power_up: bool) -> Vec3 {
+    pub fn to_player_horizontal_velocity(&self, has_speed_power_up: bool) -> Vec3 {
         let mag = if has_speed_power_up {
             PLAYER_SPEED * crate::constants::POWER_UP_SPEED_MULTIPLIER
         } else {
             PLAYER_SPEED
         };
-        self.to_velocity(mag)
+        self.to_horizontal_velocity(mag)
     }
 }
 
 // Player ID component - identifies which player an entity represents.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Component, Encode, Decode)]
 pub struct PlayerId(pub u32);
+
+// Actor ID component - identifies a server-controlled non-player character.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Component, Encode, Decode)]
+pub struct ActorId(pub u32);
 
 // Item ID component - identifies which item an entity represents.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Component, Encode, Decode)]
@@ -203,22 +207,48 @@ pub enum ItemType {
     Cookie,
 }
 
-// Player movement state needed to continue client-side prediction from an
+// Character movement state needed to continue client-side prediction from an
 // authoritative server point.
 #[derive(Debug, Clone, Copy, Encode, Decode)]
-pub struct PlayerMovementState {
+pub struct CharacterMovementState {
     pub pos: Position,
-    pub move_input: MoveInput,
+    pub move_intent: CharacterMoveIntent,
     pub vertical_velocity: f32, // m/s, negative = falling
 }
 
-impl PlayerMovementState {
+impl CharacterMovementState {
     #[must_use]
-    pub const fn new(pos: Position, move_input: MoveInput, vertical_velocity: f32) -> Self {
+    pub const fn new(pos: Position, move_intent: CharacterMoveIntent, vertical_velocity: f32) -> Self {
         Self {
             pos,
-            move_input,
+            move_intent,
             vertical_velocity,
+        }
+    }
+}
+
+// Server-controlled actor category. Starts narrow, but keeps snapshots ready
+// for different actor models and behavior later.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
+pub enum ActorKind {
+    Automaton,
+}
+
+// Actor - complete server-controlled actor snapshot sent across the network.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct Actor {
+    pub kind: ActorKind,
+    pub movement: CharacterMovementState,
+    pub face_dir: f32,
+}
+
+impl Actor {
+    #[must_use]
+    pub const fn new(kind: ActorKind, pos: Position, move_intent: CharacterMoveIntent, face_dir: f32) -> Self {
+        Self {
+            kind,
+            movement: CharacterMovementState::new(pos, move_intent, 0.0),
+            face_dir,
         }
     }
 }
@@ -227,7 +257,7 @@ impl PlayerMovementState {
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct Player {
     pub name: String,
-    pub movement: PlayerMovementState,
+    pub movement: CharacterMovementState,
     pub face_dir: f32,
     pub hits: i32,
     pub speed_power_up: bool,
@@ -239,10 +269,10 @@ pub struct Player {
 impl Player {
     // Creates a new player with the given core fields and all status flags set to `false`.
     #[must_use]
-    pub const fn new(name: String, pos: Position, move_input: MoveInput, face_dir: f32, hits: i32) -> Self {
+    pub const fn new(name: String, pos: Position, move_intent: CharacterMoveIntent, face_dir: f32, hits: i32) -> Self {
         Self {
             name,
-            movement: PlayerMovementState::new(pos, move_input, 0.0),
+            movement: CharacterMovementState::new(pos, move_intent, 0.0),
             face_dir,
             hits,
             speed_power_up: false,

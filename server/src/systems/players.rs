@@ -10,10 +10,10 @@ use common::{
     },
     markers::PlayerMarker,
     physics::{
-        CollisionWorld, PlannedMove, PlayerVerticalMotion, overlaps_other_player, player_paths_intersect,
-        step_player_movement,
+        CharacterVerticalMotion, CollisionWorld, PlannedCharacterMove, character_paths_intersect,
+        overlaps_other_character, step_character_movement,
     },
-    protocol::{MoveInput, PlayerId, Position, SDeath, ServerMessage},
+    protocol::{CharacterMoveIntent, PlayerId, Position, SDeath, ServerMessage},
 };
 
 // ============================================================================
@@ -24,21 +24,30 @@ pub fn players_movement_system(
     time: Res<Time>,
     collision_world: Res<CollisionWorld>,
     players: Res<PlayerMap>,
-    mut query: Query<(Entity, &mut Position, &mut PlayerVerticalMotion, &MoveInput, &PlayerId), With<PlayerMarker>>,
+    mut query: Query<
+        (
+            Entity,
+            &mut Position,
+            &mut CharacterVerticalMotion,
+            &CharacterMoveIntent,
+            &PlayerId,
+        ),
+        With<PlayerMarker>,
+    >,
 ) {
     let delta = time.delta_secs();
 
     // Pass 1: For each player, calculate intended position and vertical velocity,
     // then apply static-world collision.
-    let mut planned_moves: Vec<PlannedMove> = Vec::new();
+    let mut planned_moves: Vec<PlannedCharacterMove> = Vec::new();
 
-    for (entity, pos, motion, move_input, player_id) in query.iter() {
+    for (entity, pos, motion, move_intent, player_id) in query.iter() {
         // Check if player is stunned
         let is_stunned = players.0.get(player_id).is_some_and(|info| info.stun_timer > 0.0);
 
         // Compute horizontal velocity from input intent + speed power-up.
         let has_speed_power_up = players.0.get(player_id).is_some_and(PlayerInfo::has_speed);
-        let velocity = move_input.to_velocity_for_player(has_speed_power_up);
+        let velocity = move_intent.to_player_horizontal_velocity(has_speed_power_up);
         let velocity_sq = velocity.x.mul_add(velocity.x, velocity.z * velocity.z);
         let is_standing_still = velocity_sq < PHYSICS_EPSILON * PHYSICS_EPSILON;
         let suppress_horizontal = is_stunned || is_standing_still;
@@ -55,7 +64,7 @@ pub fn players_movement_system(
 
         let has_phasing = players.0.get(player_id).is_some_and(PlayerInfo::has_phasing);
 
-        let step = step_player_movement(
+        let step = step_character_movement(
             pos,
             motion,
             &collision_world,
@@ -65,7 +74,7 @@ pub fn players_movement_system(
             delta,
         );
 
-        planned_moves.push(PlannedMove {
+        planned_moves.push(PlannedCharacterMove {
             entity,
             start: *pos,
             target: step.position,
@@ -77,7 +86,7 @@ pub fn players_movement_system(
     // Pass 2: Check player-player collisions and apply final positions
     for planned_move in &planned_moves {
         if let Ok((_, mut pos, mut motion, _, _)) = query.get_mut(planned_move.entity) {
-            if overlaps_other_player(planned_move, &planned_moves) {
+            if overlaps_other_character(planned_move, &planned_moves) {
                 pos.y = planned_move.target.y;
             } else {
                 *pos = planned_move.target;
@@ -126,7 +135,7 @@ pub fn players_death_system(
     players: Res<PlayerMap>,
     map_config: Res<MapConfig>,
     collision_world: Res<CollisionWorld>,
-    mut player_query: Query<(Entity, &PlayerId, &mut Position, &mut PlayerVerticalMotion), With<PlayerMarker>>,
+    mut player_query: Query<(Entity, &PlayerId, &mut Position, &mut CharacterVerticalMotion), With<PlayerMarker>>,
 ) {
     let dead: Vec<(Entity, PlayerId)> = player_query
         .iter()
@@ -236,7 +245,7 @@ fn player_spawn_position_is_clear(
 }
 
 fn player_position_intersects_player(pos: &Position, other: &Position) -> bool {
-    player_paths_intersect(pos, pos, other, other)
+    character_paths_intersect(pos, pos, other, other)
 }
 
 #[cfg(test)]

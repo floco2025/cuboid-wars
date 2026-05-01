@@ -1,8 +1,10 @@
+mod actors;
 mod items;
 mod network;
 mod players;
 mod projectiles;
 
+pub use actors::{actor_ai_system, actor_initial_spawn_system, actor_movement_system, actor_respawn_system};
 pub use items::{
     item_collection_system, item_despawn_system, item_initial_spawn_system, item_respawn_system, item_spawn_system,
 };

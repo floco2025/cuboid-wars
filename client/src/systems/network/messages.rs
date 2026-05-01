@@ -1,22 +1,27 @@
 use bevy::prelude::*;
 
 use super::{
+    actors::{handle_actor_move_intent_message, sync_actors},
     components::AssetManagers,
-    items::handle_item_collected_message,
+    items::{handle_item_collected_message, sync_items},
     login::{handle_player_login_message, handle_player_logoff_message},
     players::{
         handle_player_death_message, handle_player_face_message, handle_player_hit_message, handle_player_jump_message,
-        handle_player_move_input_message, handle_player_shot_message, handle_player_status_message,
+        handle_player_move_intent_message, handle_player_shot_message, handle_player_status_message, sync_players,
     },
     systems::handle_echo_message,
 };
 use crate::{
     config::{AssetSet, RenderSettings},
     markers::MainCameraMarker,
-    resources::{ItemMap, LastUpdateSeq, PlayerMap, RoundTripTime},
+    resources::{ActorMap, ItemMap, LastUpdateSeq, PlayerMap, RoundTripTime},
     spawning::ProjectileAssets,
 };
-use common::{markers::PlayerMarker, physics::CollisionWorld, protocol::*};
+use common::{
+    markers::{ActorMarker, PlayerMarker},
+    physics::CollisionWorld,
+    protocol::*,
+};
 
 // ============================================================================
 // Message Dispatcher
@@ -28,11 +33,13 @@ pub fn dispatch_message(
     my_player_id: PlayerId,
     commands: &mut Commands,
     players: &mut ResMut<PlayerMap>,
+    actors: &mut ResMut<ActorMap>,
     items: &mut ResMut<ItemMap>,
     rtt: &mut ResMut<RoundTripTime>,
     last_update_seq: &mut ResMut<LastUpdateSeq>,
     assets: &mut AssetManagers,
-    player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
+    actor_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<ActorMarker>>,
     cameras: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     time: &Res<Time>,
     asset_server: &Res<AssetServer>,
@@ -57,8 +64,11 @@ pub fn dispatch_message(
             login,
         ),
         ServerMessage::Logoff(logoff) => handle_player_logoff_message(commands, players, logoff),
-        ServerMessage::MoveInput(move_input_msg) => {
-            handle_player_move_input_message(commands, players, player_data, rtt, move_input_msg);
+        ServerMessage::PlayerMoveIntent(move_intent_msg) => {
+            handle_player_move_intent_message(commands, players, player_data, rtt, move_intent_msg);
+        }
+        ServerMessage::ActorMoveIntent(move_intent_msg) => {
+            handle_actor_move_intent_message(commands, actors, rtt, actor_data, move_intent_msg);
         }
         ServerMessage::Jump(jump_msg) => {
             handle_player_jump_message(commands, players, player_data, rtt, jump_msg);
@@ -81,10 +91,12 @@ pub fn dispatch_message(
             &mut assets.images,
             &mut assets.graphs,
             players,
+            actors,
             items,
             rtt,
             last_update_seq,
             player_data,
+            actor_data,
             cameras,
             my_player_id,
             asset_server,
@@ -123,10 +135,12 @@ pub fn handle_update_message(
     images: &mut ResMut<Assets<Image>>,
     graphs: &mut ResMut<Assets<AnimationGraph>>,
     players: &mut ResMut<PlayerMap>,
+    actors: &mut ResMut<ActorMap>,
     items: &mut ResMut<ItemMap>,
     rtt: &ResMut<RoundTripTime>,
     last_update_seq: &mut ResMut<LastUpdateSeq>,
-    player_data: &Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
+    actor_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<ActorMarker>>,
     camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     my_player_id: PlayerId,
     asset_server: &Res<AssetServer>,
@@ -146,7 +160,7 @@ pub fn handle_update_message(
     // Update the last received sequence number
     last_update_seq.0 = msg.seq;
 
-    super::players::sync_players(
+    sync_players(
         commands,
         meshes,
         materials,
@@ -161,7 +175,20 @@ pub fn handle_update_message(
         asset_set,
         &msg.players,
     );
-    super::items::sync_items(
+    sync_actors(
+        commands,
+        meshes,
+        materials,
+        images,
+        graphs,
+        actors,
+        rtt,
+        actor_data,
+        asset_server,
+        asset_set,
+        &msg.actors,
+    );
+    sync_items(
         commands,
         meshes,
         materials,

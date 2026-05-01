@@ -109,6 +109,7 @@ fn main() -> Result<()> {
     app.insert_resource(ClientToServerChannel::new(to_server))
         .insert_resource(ServerToClientChannel::new(from_server))
         .insert_resource(PlayerMap::default())
+        .insert_resource(ActorMap::default())
         .insert_resource(ItemMap::default())
         .insert_resource(LocalPlayerInfo::default())
         .insert_resource(RoundTripTime::default())
@@ -155,6 +156,7 @@ fn main() -> Result<()> {
                 players_billboard_system,
             ),
         )
+        .add_systems(Update, (actors_movement_system, actors_transform_sync_system))
         .add_systems(
             Update,
             (

@@ -6,7 +6,7 @@ use crate::{
     spawning::spawn_player,
 };
 use common::{
-    physics::{CollisionWorld, PlayerVerticalMotion},
+    physics::{CharacterVerticalMotion, CollisionWorld},
     protocol::*,
 };
 
@@ -61,11 +61,11 @@ pub fn handle_player_login_message(
         msg.id.0,
         &msg.player.name,
         &msg.player.movement.pos,
-        msg.player.movement.move_input,
+        msg.player.movement.move_intent,
         msg.player.face_dir,
         false,
     );
-    commands.entity(entity).insert(PlayerVerticalMotion {
+    commands.entity(entity).insert(CharacterVerticalMotion {
         vertical_velocity: msg.player.movement.vertical_velocity,
     });
     players.0.insert(

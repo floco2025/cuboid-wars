@@ -23,15 +23,15 @@ const PLAYER_CONTACT_OFFSET: f32 = 0.01;
 const PLAYER_BLOCKED_MOVEMENT_EPSILON: f32 = 0.01;
 const PLAYER_AUTOSTEP_EPSILON: f32 = 0.01;
 
-// Component attached to player entities tracking persistent gravity-axis motion.
-// Player-controlled X/Z movement is derived from input each tick. Running on a
-// ramp can add Y displacement for that frame, but it is not stored as velocity.
+// Component attached to character entities tracking persistent gravity-axis
+// motion. X/Z movement is derived from intent each tick. Running on a ramp can
+// add Y displacement for that frame, but it is not stored as velocity.
 #[derive(Component, Default)]
-pub struct PlayerVerticalMotion {
+pub struct CharacterVerticalMotion {
     pub vertical_velocity: f32,
 }
 
-impl PlayerVerticalMotion {
+impl CharacterVerticalMotion {
     pub fn apply_gravity(&mut self, delta: f32) {
         self.vertical_velocity -= PLAYER_GRAVITY * delta;
     }
@@ -44,7 +44,7 @@ impl PlayerVerticalMotion {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct PlayerMovementResult {
+pub struct CharacterMovementResult {
     pub position: Position,
     pub vertical_velocity: f32,
     // True when static-world collision materially blocked requested movement.
@@ -52,10 +52,10 @@ pub struct PlayerMovementResult {
     pub blocked: bool,
 }
 
-// Represents a player's intended movement after static-world collision but before
-// player-player collision.
+// Represents a character's intended movement after static-world collision but
+// before character-character collision.
 #[derive(Copy, Clone)]
-pub struct PlannedMove {
+pub struct PlannedCharacterMove {
     pub entity: Entity,
     pub start: Position,
     pub target: Position,
@@ -63,18 +63,18 @@ pub struct PlannedMove {
     pub blocked: bool,
 }
 
-// Check if a planned move would overlap with any other player's planned position.
+// Check if a planned move would overlap with any other character's planned position.
 #[must_use]
-pub fn overlaps_other_player(candidate: &PlannedMove, planned_moves: &[PlannedMove]) -> bool {
+pub fn overlaps_other_character(candidate: &PlannedCharacterMove, planned_moves: &[PlannedCharacterMove]) -> bool {
     planned_moves.iter().any(|other| {
         other.entity != candidate.entity
-            && player_paths_intersect(&candidate.start, &candidate.target, &other.start, &other.target)
+            && character_paths_intersect(&candidate.start, &candidate.target, &other.start, &other.target)
     })
 }
 
 #[must_use]
 pub fn try_start_player_jump(
-    motion: &mut PlayerVerticalMotion,
+    motion: &mut CharacterVerticalMotion,
     collision_world: &CollisionWorld,
     pos: &Position,
     x: f32,
@@ -90,15 +90,15 @@ pub fn try_start_player_jump(
 }
 
 #[must_use]
-pub fn step_player_movement(
+pub fn step_character_movement(
     pos: &Position,
-    motion: &PlayerVerticalMotion,
+    motion: &CharacterVerticalMotion,
     collision_world: &CollisionWorld,
     has_phasing: bool,
     x: f32,
     z: f32,
     delta: f32,
-) -> PlayerMovementResult {
+) -> CharacterMovementResult {
     let character_shape = player_shape();
     let character_pos = player_pose(pos);
     let support_shape = player_support_probe_shape();
@@ -107,7 +107,7 @@ pub fn step_player_movement(
     } else {
         None
     };
-    let mut next_motion = PlayerVerticalMotion {
+    let mut next_motion = CharacterVerticalMotion {
         vertical_velocity: motion.vertical_velocity,
     };
     let can_follow_ground = next_motion.vertical_velocity <= 0.0;
@@ -179,7 +179,7 @@ pub fn step_player_movement(
         vertical_velocity = 0.0;
     }
 
-    PlayerMovementResult {
+    CharacterMovementResult {
         position: resolved,
         vertical_velocity,
         blocked,
@@ -288,7 +288,7 @@ fn vec3(v: Vector) -> Vec3 {
 }
 
 #[must_use]
-pub fn player_paths_intersect(start1: &Position, end1: &Position, start2: &Position, end2: &Position) -> bool {
+pub fn character_paths_intersect(start1: &Position, end1: &Position, start2: &Position, end2: &Position) -> bool {
     let shape = player_shape();
     let velocity1 = Vector::new(end1.x - start1.x, end1.y - start1.y, end1.z - start1.z);
     let velocity2 = Vector::new(end2.x - start2.x, end2.y - start2.y, end2.z - start2.z);

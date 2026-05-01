@@ -1,18 +1,18 @@
 use bevy::prelude::*;
 
 use super::{
-    broadcast::{broadcast_to_all, broadcast_to_others, collect_items, snapshot_logged_in_players},
+    broadcast::{broadcast_to_all, broadcast_to_others, collect_items, snapshot_actors, snapshot_logged_in_players},
     login::handle_login_message,
     messages::dispatch_message,
 };
 use crate::{
     net::ClientToServer,
-    resources::{FromClientsChannel, ItemMap, MapConfig, PlayerMap},
+    resources::{ActorMap, FromClientsChannel, ItemMap, MapConfig, PlayerMap},
 };
 use common::{
     constants::UPDATE_BROADCAST_INTERVAL,
-    markers::{ItemMarker, PlayerMarker},
-    physics::{CollisionWorld, PlayerVerticalMotion},
+    markers::{ActorMarker, ItemMarker, PlayerMarker},
+    physics::{CharacterVerticalMotion, CollisionWorld},
     protocol::{MapLayout, *},
 };
 
@@ -32,9 +32,12 @@ pub fn network_client_message_system(
     collision_world: Res<CollisionWorld>,
     map_config: Res<MapConfig>,
     items: Res<ItemMap>,
-    player_data: Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
-    motions: Query<&PlayerVerticalMotion, With<PlayerMarker>>,
-    item_positions: Query<&Position, With<ItemMarker>>,
+    actors: Res<ActorMap>,
+    player_data: Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
+    player_motions: Query<&CharacterVerticalMotion, With<PlayerMarker>>,
+    actor_data: Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<ActorMarker>>,
+    actor_motions: Query<&CharacterVerticalMotion, With<ActorMarker>>,
+    item_data: Query<&Position, With<ItemMarker>>,
 ) {
     while let Ok((id, event)) = from_clients.try_recv() {
         let Some(player_info) = players.0.get(&id) else {
@@ -67,7 +70,7 @@ pub fn network_client_message_system(
                         &mut players,
                         &time,
                         &player_data,
-                        &motions,
+                        &player_motions,
                         &collision_world,
                     );
                 } else {
@@ -81,9 +84,12 @@ pub fn network_client_message_system(
                         &collision_world,
                         &map_config,
                         &items,
+                        &actors,
                         &player_data,
-                        &motions,
-                        &item_positions,
+                        &player_motions,
+                        &actor_data,
+                        &actor_motions,
+                        &item_data,
                     );
                 }
             }
@@ -101,9 +107,12 @@ pub fn network_broadcast_state_system(
     mut timer: Local<f32>,
     mut seq: Local<u32>,
     players: Res<PlayerMap>,
+    actors: Res<ActorMap>,
     items: Res<ItemMap>,
-    player_data: Query<(&Position, &MoveInput, &FaceDirection), With<PlayerMarker>>,
-    motions: Query<&PlayerVerticalMotion, With<PlayerMarker>>,
+    player_data: Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
+    motions: Query<&CharacterVerticalMotion, With<PlayerMarker>>,
+    actor_data: Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<ActorMarker>>,
+    actor_motions: Query<&CharacterVerticalMotion, With<ActorMarker>>,
     item_positions: Query<&Position, With<ItemMarker>>,
 ) {
     *timer += time.delta_secs();
@@ -122,6 +131,8 @@ pub fn network_broadcast_state_system(
     // Collect all logged-in players
     let all_players = snapshot_logged_in_players(&players, &player_data, &motions);
 
+    let all_actors = snapshot_actors(&actors, &actor_data, &actor_motions);
+
     // Collect all items
     let all_items = collect_items(&items, &item_positions);
 
@@ -129,6 +140,7 @@ pub fn network_broadcast_state_system(
     let msg = ServerMessage::Update(SUpdate {
         seq: *seq,
         players: all_players,
+        actors: all_actors,
         items: all_items,
     });
     //trace!("broadcasting update: {:?}", msg);

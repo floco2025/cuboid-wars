@@ -13,7 +13,7 @@ use crate::{
         CameraViewMode, ClientToServerChannel, InputSettings, LocalPlayerInfo, MyPlayerId, PlayerMap, TopDownCameraYaw,
     },
 };
-use common::physics::{CollisionWorld, PlayerVerticalMotion, try_start_player_jump};
+use common::physics::{CharacterVerticalMotion, CollisionWorld, try_start_player_jump};
 use common::protocol::*;
 
 const MAX_PITCH: f32 = std::f32::consts::FRAC_PI_2 - 0.05;
@@ -31,7 +31,12 @@ pub fn input_movement_system(
     mut local_player_info: ResMut<LocalPlayerInfo>,
     mut top_down_camera_yaw: ResMut<TopDownCameraYaw>,
     mut local_player_query: Query<
-        (&Position, &mut MoveInput, &mut FaceDirection, &mut PlayerVerticalMotion),
+        (
+            &Position,
+            &mut CharacterMoveIntent,
+            &mut FaceDirection,
+            &mut CharacterVerticalMotion,
+        ),
         With<LocalPlayerMarker>,
     >,
     mut camera_query: Query<&mut Transform, (With<Camera3d>, With<MainCameraMarker>)>,
@@ -68,11 +73,11 @@ pub fn input_movement_system(
     );
     let face_yaw = current_yaw + std::f32::consts::PI;
     let stunned = local_player_stunned(my_player_id.as_ref(), &players);
-    let move_input = calculate_move_input(&keyboard, face_yaw, stunned);
+    let move_intent = calculate_move_intent(&keyboard, face_yaw, stunned);
     let jump_requested = !stunned && keyboard.just_pressed(KeyCode::Space);
 
     update_player_input_face_and_jump(
-        move_input,
+        move_intent,
         face_yaw,
         jump_requested,
         collision_world.as_deref(),
@@ -80,7 +85,7 @@ pub fn input_movement_system(
     );
 
     send_throttled_updates(
-        move_input,
+        move_intent,
         face_yaw,
         jump_requested,
         &time,
@@ -100,21 +105,26 @@ fn handle_unlocked_cursor(
     to_server: &Res<ClientToServerChannel>,
     local_player_info: &mut LocalPlayerInfo,
     local_player_query: &mut Query<
-        (&Position, &mut MoveInput, &mut FaceDirection, &mut PlayerVerticalMotion),
+        (
+            &Position,
+            &mut CharacterMoveIntent,
+            &mut FaceDirection,
+            &mut CharacterVerticalMotion,
+        ),
         With<LocalPlayerMarker>,
     >,
 ) {
     // Drain pending mouse events and ensure player stops moving
     for _ in mouse_motion.read() {}
 
-    if local_player_info.last_sent_input.direction().is_some() {
-        let idle = MoveInput::Idle;
+    if local_player_info.last_sent_move_intent.direction().is_some() {
+        let idle = CharacterMoveIntent::Idle;
         for (_, mut input, _, _) in local_player_query.iter_mut() {
             *input = idle;
         }
-        let msg = ClientMessage::MoveInput(CMoveInput { move_input: idle });
+        let msg = ClientMessage::PlayerMoveIntent(CPlayerMoveIntent { move_intent: idle });
         let _ = to_server.send(ClientToServer::Send(msg));
-        local_player_info.last_sent_input = idle;
+        local_player_info.last_sent_move_intent = idle;
         local_player_info.last_send_input_time = 0.0;
     }
 }
@@ -168,10 +178,10 @@ fn calculate_current_orientation(
     (current_yaw, current_pitch)
 }
 
-fn calculate_move_input(keyboard: &Res<ButtonInput<KeyCode>>, face_yaw: f32, stunned: bool) -> MoveInput {
+fn calculate_move_intent(keyboard: &Res<ButtonInput<KeyCode>>, face_yaw: f32, stunned: bool) -> CharacterMoveIntent {
     // Stunned players cannot move
     if stunned {
-        return MoveInput::Idle;
+        return CharacterMoveIntent::Idle;
     }
 
     // Build movement input vector (forward=z, right=x)
@@ -192,11 +202,11 @@ fn calculate_move_input(keyboard: &Res<ButtonInput<KeyCode>>, face_yaw: f32, stu
     if keyboard_vec.length_squared() > 0.0 {
         let normalized_input = keyboard_vec.normalize();
         let angle_offset = normalized_input.x.atan2(normalized_input.y);
-        MoveInput::Moving {
+        CharacterMoveIntent::Moving {
             direction: face_yaw + angle_offset,
         }
     } else {
-        MoveInput::Idle
+        CharacterMoveIntent::Idle
     }
 }
 
@@ -207,17 +217,22 @@ fn local_player_stunned(my_player_id: Option<&Res<MyPlayerId>>, players: &Res<Pl
 }
 
 fn update_player_input_face_and_jump(
-    move_input: MoveInput,
+    move_intent: CharacterMoveIntent,
     face_yaw: f32,
     jump_requested: bool,
     collision_world: Option<&CollisionWorld>,
     local_player_query: &mut Query<
-        (&Position, &mut MoveInput, &mut FaceDirection, &mut PlayerVerticalMotion),
+        (
+            &Position,
+            &mut CharacterMoveIntent,
+            &mut FaceDirection,
+            &mut CharacterVerticalMotion,
+        ),
         With<LocalPlayerMarker>,
     >,
 ) {
     for (pos, mut input, mut face_direction, mut motion) in local_player_query.iter_mut() {
-        *input = move_input;
+        *input = move_intent;
         face_direction.0 = face_yaw;
         if jump_requested && let Some(collision_world) = collision_world {
             let _ = try_start_player_jump(&mut motion, collision_world, pos, pos.x, pos.z);
@@ -226,7 +241,7 @@ fn update_player_input_face_and_jump(
 }
 
 fn send_throttled_updates(
-    move_input: MoveInput,
+    move_intent: CharacterMoveIntent,
     face_yaw: f32,
     jump_requested: bool,
     time: &Res<Time>,
@@ -238,17 +253,17 @@ fn send_throttled_updates(
     local_player_info.last_send_input_time += delta;
     local_player_info.last_send_face_time += delta;
 
-    let last_dir = local_player_info.last_sent_input.direction();
-    let new_dir = move_input.direction();
+    let last_dir = local_player_info.last_sent_move_intent.direction();
+    let new_dir = move_intent.direction();
     let active_changed = last_dir.is_some() != new_dir.is_some();
     let direction_changed = match (new_dir, last_dir) {
         (Some(new_d), Some(old_d)) => (new_d - old_d).abs() > MOVE_INPUT_DIR_CHANGE_THRESHOLD.to_radians(),
         _ => false,
     };
     if active_changed || (direction_changed && local_player_info.last_send_input_time >= MOVE_INPUT_MAX_SEND_INTERVAL) {
-        let msg = ClientMessage::MoveInput(CMoveInput { move_input });
+        let msg = ClientMessage::PlayerMoveIntent(CPlayerMoveIntent { move_intent });
         let _ = to_server.send(ClientToServer::Send(msg));
-        local_player_info.last_sent_input = move_input;
+        local_player_info.last_sent_move_intent = move_intent;
         local_player_info.last_send_input_time = 0.0;
     }
 
