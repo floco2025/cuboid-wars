@@ -5,14 +5,12 @@ use super::network::broadcast_to_all;
 use super::players::generate_player_spawn_position;
 use crate::resources::{ActorInfo, ActorMap, MapConfig, PlayerMap};
 use common::{
-    constants::{ACTOR_SPEED, PLAYER_DEATH_Y},
+    constants::CHARACTER_FALL_TELEPORT_Y,
     markers::{ActorMarker, PlayerMarker},
-    physics::{
-        CharacterVerticalMotion, CollisionWorld, PlannedCharacterMove, overlapping_character, step_character_movement,
-    },
+    physics::{CharacterVerticalMotion, CollisionWorld},
     protocol::{
         ActorId, ActorKind, CharacterMoveIntent, CharacterMovementState, FaceDirection, Position, SActorMoveIntent,
-        ServerMessage,
+        SActorTeleport, ServerMessage,
     },
 };
 
@@ -76,7 +74,7 @@ pub fn actor_ai_system(
             &mut CharacterMoveIntent,
             &mut FaceDirection,
         ),
-        With<ActorMarker>,
+        (With<ActorMarker>, Without<PlayerMarker>),
     >,
 ) {
     let delta = time.delta_secs();
@@ -105,68 +103,7 @@ pub fn actor_ai_system(
     }
 }
 
-pub fn actor_movement_system(
-    time: Res<Time>,
-    collision_world: Res<CollisionWorld>,
-    players: Res<PlayerMap>,
-    mut query: Query<
-        (
-            Entity,
-            &ActorId,
-            &mut Position,
-            &mut CharacterVerticalMotion,
-            &mut CharacterMoveIntent,
-            &mut FaceDirection,
-        ),
-        With<ActorMarker>,
-    >,
-) {
-    let delta = time.delta_secs();
-    let mut planned_moves = Vec::new();
-
-    for (entity, _, pos, motion, move_intent, _) in query.iter() {
-        let velocity = move_intent.to_horizontal_velocity(ACTOR_SPEED);
-        let target_x = velocity.x.mul_add(delta, pos.x);
-        let target_z = velocity.z.mul_add(delta, pos.z);
-        let step = step_character_movement(pos, motion, &collision_world, false, target_x, target_z, delta);
-
-        planned_moves.push(PlannedCharacterMove {
-            entity,
-            start: *pos,
-            target: step.position,
-            target_vertical_velocity: step.vertical_velocity,
-            blocked: step.blocked,
-        });
-    }
-
-    let mut rng = rng();
-    for planned_move in &planned_moves {
-        let Ok((_, id, mut pos, mut motion, mut move_intent, mut face_dir)) = query.get_mut(planned_move.entity) else {
-            continue;
-        };
-
-        let overlapping_move = overlapping_character(planned_move, &planned_moves);
-        if overlapping_move.is_some() {
-            pos.y = planned_move.target.y;
-        } else {
-            *pos = planned_move.target;
-        }
-        motion.vertical_velocity = planned_move.target_vertical_velocity;
-
-        if planned_move.blocked || overlapping_move.is_some() {
-            let direction = if let Some(other) = overlapping_move {
-                separation_direction(&planned_move.start, &other.start, &mut rng)
-            } else {
-                rng.random_range(0.0..std::f32::consts::TAU)
-            };
-            *move_intent = CharacterMoveIntent::Moving { direction };
-            face_dir.0 = direction;
-            broadcast_actor_move_intent(&players, *id, *pos, *move_intent, motion.vertical_velocity);
-        }
-    }
-}
-
-pub fn actor_respawn_system(
+pub fn actor_fall_recovery_system(
     players: Res<PlayerMap>,
     map_config: Res<MapConfig>,
     collision_world: Res<CollisionWorld>,
@@ -183,7 +120,7 @@ pub fn actor_respawn_system(
 ) {
     let fallen: Vec<(Entity, ActorId)> = query
         .iter()
-        .filter_map(|(entity, id, pos, _, _)| (pos.y < PLAYER_DEATH_Y).then_some((entity, *id)))
+        .filter_map(|(entity, id, pos, _, _)| (pos.y < CHARACTER_FALL_TELEPORT_Y).then_some((entity, *id)))
         .collect();
 
     if fallen.is_empty() {
@@ -193,25 +130,21 @@ pub fn actor_respawn_system(
     let occupied_positions: Vec<Position> = query.iter().map(|(_, _, pos, _, _)| *pos).collect();
 
     for (entity, id) in fallen {
-        let respawn_pos = generate_player_spawn_position(&map_config, &collision_world, &occupied_positions);
+        let teleport_pos = generate_player_spawn_position(&map_config, &collision_world, &occupied_positions);
 
         if let Ok((_, _, mut pos, mut motion, move_intent)) = query.get_mut(entity) {
-            *pos = respawn_pos;
+            *pos = teleport_pos;
             motion.vertical_velocity = 0.0;
-            broadcast_actor_move_intent(&players, id, respawn_pos, *move_intent, 0.0);
+            broadcast_to_all(
+                &players,
+                ServerMessage::ActorTeleport(SActorTeleport {
+                    id,
+                    movement: CharacterMovementState::new(teleport_pos, *move_intent, 0.0),
+                }),
+            );
         }
 
-        info!("{:?} fell and respawned at {:?}", id, respawn_pos);
-    }
-}
-
-fn separation_direction(pos: &Position, other_pos: &Position, rng: &mut ThreadRng) -> f32 {
-    let dx = pos.x - other_pos.x;
-    let dz = pos.z - other_pos.z;
-    if dx.hypot(dz) <= f32::EPSILON {
-        rng.random_range(0.0..std::f32::consts::TAU)
-    } else {
-        dx.atan2(dz)
+        info!("{:?} fell and teleported to {:?}", id, teleport_pos);
     }
 }
 

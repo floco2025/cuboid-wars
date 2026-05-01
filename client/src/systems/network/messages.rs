@@ -1,13 +1,14 @@
 use bevy::prelude::*;
 
 use super::{
-    actors::{handle_actor_move_intent_message, sync_actors},
+    actors::{handle_actor_move_intent_message, handle_actor_teleport_message, sync_actors},
     components::AssetManagers,
     items::{handle_item_collected_message, sync_items},
     login::{handle_player_login_message, handle_player_logoff_message},
     players::{
-        handle_player_death_message, handle_player_face_message, handle_player_hit_message, handle_player_jump_message,
-        handle_player_move_intent_message, handle_player_shot_message, handle_player_status_message, sync_players,
+        handle_player_face_message, handle_player_hit_message, handle_player_jump_message,
+        handle_player_move_intent_message, handle_player_shot_message, handle_player_status_message,
+        handle_player_teleport_message, sync_players,
     },
     systems::handle_echo_message,
 };
@@ -70,6 +71,12 @@ pub fn dispatch_message(
         ServerMessage::ActorMoveIntent(move_intent_msg) => {
             handle_actor_move_intent_message(commands, actors, rtt, actor_data, move_intent_msg);
         }
+        ServerMessage::PlayerTeleport(teleport_msg) => {
+            handle_player_teleport_message(commands, players, my_player_id, teleport_msg);
+        }
+        ServerMessage::ActorTeleport(teleport_msg) => {
+            handle_actor_teleport_message(commands, actors, teleport_msg);
+        }
         ServerMessage::Jump(jump_msg) => {
             handle_player_jump_message(commands, players, player_data, rtt, jump_msg);
         }
@@ -105,7 +112,6 @@ pub fn dispatch_message(
             update_msg,
         ),
         ServerMessage::Hit(hit_msg) => handle_player_hit_message(commands, players, cameras, my_player_id, hit_msg),
-        ServerMessage::Death(death_msg) => handle_player_death_message(commands, players, my_player_id, death_msg),
         ServerMessage::PlayerStatus(player_status_msg) => {
             handle_player_status_message(
                 commands,

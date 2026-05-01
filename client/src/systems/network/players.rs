@@ -157,23 +157,28 @@ pub fn handle_player_hit_message(
     }
 }
 
-// Handle a player's death + respawn: teleport their entity to the new position
-// and zero out vertical velocity so they don't immediately resume falling.
-pub fn handle_player_death_message(
+// Handle an authoritative player teleport. This is not reconciliation; discard
+// any pending correction and apply the movement state immediately.
+pub fn handle_player_teleport_message(
     commands: &mut Commands,
     players: &ResMut<PlayerMap>,
     my_player_id: PlayerId,
-    msg: SDeath,
+    msg: SPlayerTeleport,
 ) {
     if msg.id == my_player_id {
-        info!("you died, respawning at {:?}", msg.respawn_pos);
+        info!("you were teleported to {:?}", msg.movement.pos);
     } else {
-        debug!("{:?} died, respawning at {:?}", msg.id, msg.respawn_pos);
+        debug!("{:?} teleported to {:?}", msg.id, msg.movement.pos);
     }
     if let Some(player) = players.0.get(&msg.id) {
-        commands
-            .entity(player.entity)
-            .insert((msg.respawn_pos, CharacterVerticalMotion::default()));
+        commands.entity(player.entity).insert((
+            msg.movement.pos,
+            msg.movement.move_intent,
+            CharacterVerticalMotion {
+                vertical_velocity: msg.movement.vertical_velocity,
+            },
+        ));
+        commands.entity(player.entity).remove::<ServerReconciliation>();
     }
 }
 

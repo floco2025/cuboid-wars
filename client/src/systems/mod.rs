@@ -1,6 +1,7 @@
 mod actors;
 mod animations;
 mod cameras;
+mod characters;
 mod input;
 mod items;
 mod map;
@@ -17,9 +18,10 @@ pub(crate) fn visual_focus_level(y: f32) -> u8 {
     (y / common::constants::LEVEL_HEIGHT).round().min(f32::from(u8::MAX)) as u8
 }
 
-pub use actors::{actors_movement_system, actors_transform_sync_system};
+pub use actors::actors_transform_sync_system;
 pub use animations::{AnimationToPlay, players_animation_system};
 pub use cameras::setup_cameras_system;
+pub use characters::characters_movement_system;
 pub use input::{
     input_camera_view_toggle_system, input_cursor_toggle_system, input_fullscreen_toggle_system,
     input_level_focus_toggle_system, input_movement_system, input_shooting_system,
@@ -34,7 +36,7 @@ pub use players::{
     BumpFlashState, CameraShake, CuboidShake, local_player_camera_shake_system, local_player_camera_sync_system,
     local_player_cuboid_shake_system, local_player_rearview_sync_system, local_player_rearview_system,
     local_player_visibility_sync_system, players_billboard_system, players_face_to_transform_system,
-    players_movement_system, players_transform_sync_system,
+    players_transform_sync_system,
 };
 pub use projectiles::projectiles_movement_system;
 pub use skybox::{

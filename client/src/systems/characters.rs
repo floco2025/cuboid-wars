@@ -1,16 +1,18 @@
 use bevy::prelude::*;
 
-use super::components::BumpFlashState;
+use super::players::BumpFlashState;
 use crate::{config::AssetSet, markers::*, resources::PlayerMap, systems::network::ServerReconciliation};
 use common::{
     constants::{
-        ALWAYS_PHASING, PHYSICS_EPSILON, PLAYER_GROUND_SNAP_DISTANCE, PLAYER_SPEED, UPDATE_BROADCAST_INTERVAL,
+        ACTOR_SPEED, ALWAYS_PHASING, PHYSICS_EPSILON, PLAYER_GROUND_SNAP_DISTANCE, PLAYER_SPEED,
+        UPDATE_BROADCAST_INTERVAL,
     },
+    markers::{ActorMarker, PlayerMarker},
     physics::{
         CharacterVerticalMotion, CollisionWorld, PlannedCharacterMove, overlaps_other_character,
         step_character_movement,
     },
-    protocol::{CharacterMoveIntent, PlayerId, Position},
+    protocol::{ActorId, CharacterMoveIntent, PlayerId, Position},
 };
 
 // ============================================================================
@@ -19,6 +21,7 @@ use common::{
 
 const BUMP_FLASH_DURATION: f32 = 0.08;
 const BUMP_COLLISION_RELEASE_DELAY: f32 = 0.25;
+const VERTICAL_HARD_SNAP_DISTANCE: f32 = 2.0;
 
 fn reconcile_vertical_motion_if_needed(
     motion: &mut CharacterVerticalMotion,
@@ -97,10 +100,10 @@ fn release_collision_feedback_after_clear_frames(state: &mut Mut<BumpFlashState>
 }
 
 // ============================================================================
-// Players Movement System
+// Characters Movement System
 // ============================================================================
 
-type MovementQuery<'w, 's> = Query<
+type PlayerMovementQuery<'w, 's> = Query<
     'w,
     's,
     (
@@ -113,28 +116,79 @@ type MovementQuery<'w, 's> = Query<
         Option<&'static mut ServerReconciliation>,
         Has<LocalPlayerMarker>,
     ),
+    (With<PlayerMarker>, Without<ActorMarker>),
 >;
 
-pub fn players_movement_system(
+type ActorMovementQuery<'w, 's> = Query<
+    'w,
+    's,
+    (
+        Entity,
+        &'static ActorId,
+        &'static mut Position,
+        &'static CharacterMoveIntent,
+        &'static mut CharacterVerticalMotion,
+        Option<&'static mut ServerReconciliation>,
+    ),
+    (With<ActorMarker>, Without<PlayerMarker>),
+>;
+
+pub fn characters_movement_system(
     mut commands: Commands,
     time: Res<Time>,
     asset_server: Res<AssetServer>,
     asset_set: Res<AssetSet>,
     collision_world: Option<Res<CollisionWorld>>,
     players: Res<PlayerMap>,
-    mut query: MovementQuery,
+    mut players_query: PlayerMovementQuery,
+    mut actors_query: ActorMovementQuery,
     mut bump_flash_ui: Query<(&mut BackgroundColor, &mut Visibility), With<BumpFlashUIMarker>>,
 ) {
     let delta = time.delta_secs();
-
-    // Pass 1: For each player, calculate intended position, then apply static-world collision.
     let mut planned_moves: Vec<PlannedCharacterMove> = Vec::new();
 
+    plan_player_moves(
+        &mut commands,
+        delta,
+        collision_world.as_deref(),
+        &players,
+        &mut players_query,
+        &mut bump_flash_ui,
+        &mut planned_moves,
+    );
+    plan_actor_moves(
+        &mut commands,
+        delta,
+        collision_world.as_deref(),
+        &mut actors_query,
+        &mut planned_moves,
+    );
+    apply_player_moves(
+        &mut commands,
+        delta,
+        &asset_server,
+        &asset_set,
+        &mut players_query,
+        &mut bump_flash_ui,
+        &planned_moves,
+    );
+    apply_actor_moves(&mut actors_query, &planned_moves);
+}
+
+fn plan_player_moves(
+    commands: &mut Commands,
+    delta: f32,
+    collision_world: Option<&CollisionWorld>,
+    players: &PlayerMap,
+    query: &mut PlayerMovementQuery,
+    bump_flash_ui: &mut Query<(&mut BackgroundColor, &mut Visibility), With<BumpFlashUIMarker>>,
+    planned_moves: &mut Vec<PlannedCharacterMove>,
+) {
     for (entity, player_id, mut client_pos, move_intent, mut motion, mut flash_state, mut recon_option, is_local) in
-        &mut query
+        query
     {
         if let Some(state) = flash_state.as_mut() {
-            decay_flash_timer(state, delta, is_local, &mut bump_flash_ui);
+            decay_flash_timer(state, delta, is_local, bump_flash_ui);
         }
 
         // Derive horizontal velocity from input intent + speed power-up.
@@ -163,17 +217,27 @@ pub fn players_movement_system(
             // If the player got totally out of sync, we jump to the server position
             let out_of_sync_distance = if is_standing_still { 3.0 } else { 5.0 };
             if total_delta.x.abs() >= out_of_sync_distance
-                || total_delta.y.abs() >= 1.0
+                || total_delta.y.abs() >= VERTICAL_HARD_SNAP_DISTANCE
                 || total_delta.z.abs() >= out_of_sync_distance
             {
                 let player_name = players
                     .0
                     .get(player_id)
                     .map_or_else(|| format!("{player_id:?}"), |info| info.name.clone());
-                warn!("{player_name} out of sync, jumping to server position");
+                warn!(
+                    "{player_name} out of sync by x={:.2}, y={:.2}, z={:.2}; jumping to server position",
+                    total_delta.x, total_delta.y, total_delta.z
+                );
                 *client_pos = recon.server_pos;
                 motion.vertical_velocity = recon.server_velocity.y;
                 commands.entity(entity).remove::<ServerReconciliation>();
+                planned_moves.push(PlannedCharacterMove {
+                    entity,
+                    start: *client_pos,
+                    target: *client_pos,
+                    target_vertical_velocity: motion.vertical_velocity,
+                    blocked: false,
+                });
                 continue;
             }
 
@@ -198,7 +262,7 @@ pub fn players_movement_system(
             }
         };
 
-        if let Some(collision_world) = collision_world.as_ref() {
+        if let Some(collision_world) = collision_world {
             let has_phasing = ALWAYS_PHASING || players.0.get(player_id).is_some_and(|info| info.phasing_power_up);
 
             let step = step_character_movement(
@@ -228,31 +292,113 @@ pub fn players_movement_system(
             });
         }
     }
+}
 
-    // Pass 2: Check player-player collisions and apply final positions
-    for planned_move in &planned_moves {
+fn plan_actor_moves(
+    commands: &mut Commands,
+    delta: f32,
+    collision_world: Option<&CollisionWorld>,
+    query: &mut ActorMovementQuery,
+    planned_moves: &mut Vec<PlannedCharacterMove>,
+) {
+    for (entity, actor_id, mut pos, move_intent, mut motion, mut recon_option) in query {
+        let h_vel = move_intent.to_horizontal_velocity(ACTOR_SPEED);
+        let mut target_pos = if let Some(recon) = recon_option.as_mut() {
+            let correction_time = (recon.rtt * 3.0).max(UPDATE_BROADCAST_INTERVAL);
+            let correction_factor = (UPDATE_BROADCAST_INTERVAL / correction_time).clamp(0.0, 1.0);
+
+            recon.timer += delta * correction_factor;
+            if recon.timer >= UPDATE_BROADCAST_INTERVAL {
+                commands.entity(entity).remove::<ServerReconciliation>();
+            }
+
+            let server_pos = Vec3::from(recon.server_pos) + recon.server_velocity * recon.rtt / 2.0;
+            let total_delta = server_pos - Vec3::from(recon.client_pos);
+
+            if total_delta.x.abs() >= 5.0
+                || total_delta.y.abs() >= VERTICAL_HARD_SNAP_DISTANCE
+                || total_delta.z.abs() >= 5.0
+            {
+                warn!(
+                    "{:?} out of sync by x={:.2}, y={:.2}, z={:.2}; jumping to server position",
+                    actor_id, total_delta.x, total_delta.y, total_delta.z
+                );
+                *pos = recon.server_pos;
+                motion.vertical_velocity = recon.server_velocity.y;
+                commands.entity(entity).remove::<ServerReconciliation>();
+                planned_moves.push(PlannedCharacterMove {
+                    entity,
+                    start: *pos,
+                    target: *pos,
+                    target_vertical_velocity: motion.vertical_velocity,
+                    blocked: false,
+                });
+                continue;
+            }
+
+            Position {
+                x: h_vel.x.mul_add(delta, pos.x)
+                    + total_delta.x * delta * correction_factor / UPDATE_BROADCAST_INTERVAL,
+                y: pos.y,
+                z: h_vel.z.mul_add(delta, pos.z)
+                    + total_delta.z * delta * correction_factor / UPDATE_BROADCAST_INTERVAL,
+            }
+        } else {
+            Position {
+                x: h_vel.x.mul_add(delta, pos.x),
+                y: pos.y,
+                z: h_vel.z.mul_add(delta, pos.z),
+            }
+        };
+
+        if let Some(collision_world) = collision_world {
+            let step =
+                step_character_movement(&pos, &motion, collision_world, false, target_pos.x, target_pos.z, delta);
+            target_pos = step.position;
+            planned_moves.push(PlannedCharacterMove {
+                entity,
+                start: *pos,
+                target: target_pos,
+                target_vertical_velocity: step.vertical_velocity,
+                blocked: step.blocked,
+            });
+        } else {
+            planned_moves.push(PlannedCharacterMove {
+                entity,
+                start: *pos,
+                target: target_pos,
+                target_vertical_velocity: motion.vertical_velocity,
+                blocked: false,
+            });
+        }
+    }
+}
+
+fn apply_player_moves(
+    commands: &mut Commands,
+    delta: f32,
+    asset_server: &AssetServer,
+    asset_set: &AssetSet,
+    query: &mut PlayerMovementQuery,
+    bump_flash_ui: &mut Query<(&mut BackgroundColor, &mut Visibility), With<BumpFlashUIMarker>>,
+    planned_moves: &[PlannedCharacterMove],
+) {
+    for planned_move in planned_moves {
         let Ok((_, _, mut client_pos, _, mut motion, mut flash_state, _, is_local)) =
             query.get_mut(planned_move.entity)
         else {
             continue;
         };
 
-        let hits_player = overlaps_other_character(planned_move, &planned_moves);
+        let hits_character = overlaps_other_character(planned_move, planned_moves);
 
         // Apply final position and feedback
-        if hits_player {
+        if hits_character {
             client_pos.y = planned_move.target.y;
             motion.vertical_velocity = planned_move.target_vertical_velocity;
 
             if is_local && let Some(state) = flash_state.as_mut() {
-                trigger_collision_feedback(
-                    &mut commands,
-                    &asset_server,
-                    &asset_set,
-                    &mut bump_flash_ui,
-                    state,
-                    false,
-                );
+                trigger_collision_feedback(commands, asset_server, asset_set, bump_flash_ui, state, false);
             }
         } else {
             *client_pos = planned_move.target;
@@ -261,19 +407,27 @@ pub fn players_movement_system(
             if let Some(state) = flash_state.as_mut() {
                 if planned_move.blocked {
                     if is_local {
-                        trigger_collision_feedback(
-                            &mut commands,
-                            &asset_server,
-                            &asset_set,
-                            &mut bump_flash_ui,
-                            state,
-                            true,
-                        );
+                        trigger_collision_feedback(commands, asset_server, asset_set, bump_flash_ui, state, true);
                     }
                 } else {
                     release_collision_feedback_after_clear_frames(state, delta);
                 }
             }
         }
+    }
+}
+
+fn apply_actor_moves(query: &mut ActorMovementQuery, planned_moves: &[PlannedCharacterMove]) {
+    for planned_move in planned_moves {
+        let Ok((_, _, mut pos, _, mut motion, _)) = query.get_mut(planned_move.entity) else {
+            continue;
+        };
+
+        if overlaps_other_character(planned_move, planned_moves) {
+            pos.y = planned_move.target.y;
+        } else {
+            *pos = planned_move.target;
+        }
+        motion.vertical_velocity = planned_move.target_vertical_velocity;
     }
 }

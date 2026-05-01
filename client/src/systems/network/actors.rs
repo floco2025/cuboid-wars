@@ -13,6 +13,7 @@ use common::{
     physics::CharacterVerticalMotion,
     protocol::{
         Actor, ActorId, CharacterMoveIntent, CharacterMovementState, FaceDirection, Position, SActorMoveIntent,
+        SActorTeleport,
     },
 };
 
@@ -88,6 +89,21 @@ pub fn handle_actor_move_intent_message(
         msg.movement,
         msg.movement.move_intent.direction(),
     );
+}
+
+pub fn handle_actor_teleport_message(commands: &mut Commands, actors: &ResMut<ActorMap>, msg: SActorTeleport) {
+    let Some(client_actor) = actors.0.get(&msg.id) else {
+        return;
+    };
+
+    commands.entity(client_actor.entity).insert((
+        msg.movement.pos,
+        msg.movement.move_intent,
+        CharacterVerticalMotion {
+            vertical_velocity: msg.movement.vertical_velocity,
+        },
+    ));
+    commands.entity(client_actor.entity).remove::<ServerReconciliation>();
 }
 
 fn apply_actor_movement_state(

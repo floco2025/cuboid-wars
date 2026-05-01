@@ -4,6 +4,7 @@ use crate::{
     map::ramp_surface_at,
     protocol::{Floor, MapLayout, Ramp, Wall},
 };
+use bevy_ecs::prelude::Entity;
 
 fn test_ramp() -> Ramp {
     Ramp {
@@ -108,6 +109,60 @@ fn collision_world_with(walls: &[Wall], floors: &[Floor], ramps: &[Ramp]) -> Col
         floors: floors.to_vec(),
         wall_lights: vec![],
     })
+}
+
+fn test_entity(index: u32) -> Entity {
+    Entity::from_raw_u32(index).expect("test entity index should be valid")
+}
+
+fn planned_move(entity: Entity, start: Position, target: Position) -> PlannedCharacterMove {
+    PlannedCharacterMove {
+        entity,
+        start,
+        target,
+        target_vertical_velocity: 0.0,
+        blocked: false,
+    }
+}
+
+#[test]
+fn overlapping_planned_characters_can_separate() {
+    let first = planned_move(
+        test_entity(1),
+        Position { x: 0.0, y: 0.0, z: 0.0 },
+        Position {
+            x: -0.2,
+            y: 0.0,
+            z: 0.0,
+        },
+    );
+    let second = planned_move(
+        test_entity(2),
+        Position { x: 0.8, y: 0.0, z: 0.0 },
+        Position { x: 1.0, y: 0.0, z: 0.0 },
+    );
+    let planned_moves = [first, second];
+
+    assert!(!overlaps_other_character(&first, &planned_moves));
+    assert!(!overlaps_other_character(&second, &planned_moves));
+}
+
+#[test]
+fn overlapping_planned_characters_cannot_move_deeper_together() {
+    let first = planned_move(
+        test_entity(1),
+        Position { x: 0.0, y: 0.0, z: 0.0 },
+        Position { x: 0.2, y: 0.0, z: 0.0 },
+    );
+    let second = planned_move(
+        test_entity(2),
+        Position { x: 0.8, y: 0.0, z: 0.0 },
+        Position { x: 0.6, y: 0.0, z: 0.0 },
+    );
+    let planned_moves = [first, second];
+
+    assert!(overlaps_other_character(&first, &planned_moves));
+    assert!(overlaps_other_character(&second, &planned_moves));
 }
 
 #[test]

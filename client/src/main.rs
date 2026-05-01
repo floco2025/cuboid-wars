@@ -150,13 +150,13 @@ fn main() -> Result<()> {
         .add_systems(
             Update,
             (
-                players_movement_system,
-                players_transform_sync_system,
+                characters_movement_system,
+                players_transform_sync_system.after(characters_movement_system),
                 players_face_to_transform_system,
                 players_billboard_system,
+                actors_transform_sync_system.after(characters_movement_system),
             ),
         )
-        .add_systems(Update, (actors_movement_system, actors_transform_sync_system))
         .add_systems(
             Update,
             (

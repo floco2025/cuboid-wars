@@ -37,6 +37,13 @@ pub const UPDATE_BROADCAST_INTERVAL: f32 = 0.25; // seconds
 pub const PHYSICS_EPSILON: f32 = 1e-6;
 
 // ============================================================================
+// Characters
+// ============================================================================
+
+// Characters whose Y falls below this are teleported back to a spawn position.
+pub const CHARACTER_FALL_TELEPORT_Y: f32 = -100.0;
+
+// ============================================================================
 // Player
 // ============================================================================
 
@@ -75,9 +82,6 @@ pub const PLAYER_STEP_HEIGHT: f32 = 0.2;
 // large enough to carry the character past thin slab/trim edges, not just onto
 // the edge contact itself.
 pub const PLAYER_STEP_MIN_WIDTH: f32 = 0.2;
-
-// Players whose Y falls below this die and respawn.
-pub const PLAYER_DEATH_Y: f32 = -100.0;
 
 // ============================================================================
 // Actors

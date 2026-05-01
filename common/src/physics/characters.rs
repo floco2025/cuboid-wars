@@ -74,10 +74,30 @@ pub fn overlapping_character<'a>(
     candidate: &PlannedCharacterMove,
     planned_moves: &'a [PlannedCharacterMove],
 ) -> Option<&'a PlannedCharacterMove> {
-    planned_moves.iter().find(|other| {
-        other.entity != candidate.entity
-            && character_paths_intersect(&candidate.start, &candidate.target, &other.start, &other.target)
-    })
+    planned_moves
+        .iter()
+        .find(|other| other.entity != candidate.entity && planned_character_moves_intersect(candidate, other))
+}
+
+fn planned_character_moves_intersect(candidate: &PlannedCharacterMove, other: &PlannedCharacterMove) -> bool {
+    if character_positions_intersect(&candidate.start, &other.start) {
+        return !planned_character_moves_separate(candidate, other);
+    }
+
+    character_paths_intersect(&candidate.start, &candidate.target, &other.start, &other.target)
+}
+
+fn planned_character_moves_separate(candidate: &PlannedCharacterMove, other: &PlannedCharacterMove) -> bool {
+    let start_distance_sq = position_distance_sq(&candidate.start, &other.start);
+    let target_distance_sq = position_distance_sq(&candidate.target, &other.target);
+    target_distance_sq > start_distance_sq + PHYSICS_EPSILON * PHYSICS_EPSILON
+}
+
+fn position_distance_sq(a: &Position, b: &Position) -> f32 {
+    let dx = a.x - b.x;
+    let dy = a.y - b.y;
+    let dz = a.z - b.z;
+    dx.mul_add(dx, dy.mul_add(dy, dz * dz))
 }
 
 #[must_use]
@@ -300,7 +320,7 @@ pub fn character_paths_intersect(start1: &Position, end1: &Position, start2: &Po
     let shape = player_shape();
     let velocity1 = Vector::new(end1.x - start1.x, end1.y - start1.y, end1.z - start1.z);
     let velocity2 = Vector::new(end2.x - start2.x, end2.y - start2.y, end2.z - start2.z);
-    if intersection_test(&player_pose(start1), &shape, &player_pose(start2), &shape).is_ok_and(|overlaps| overlaps) {
+    if character_positions_intersect(start1, start2) {
         return true;
     }
 
@@ -319,6 +339,11 @@ pub fn character_paths_intersect(start1: &Position, end1: &Position, start2: &Po
         options,
     )
     .is_ok_and(|hit| hit.is_some())
+}
+
+fn character_positions_intersect(pos1: &Position, pos2: &Position) -> bool {
+    let shape = player_shape();
+    intersection_test(&player_pose(pos1), &shape, &player_pose(pos2), &shape).is_ok_and(|overlaps| overlaps)
 }
 
 #[must_use]

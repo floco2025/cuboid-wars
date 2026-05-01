@@ -85,6 +85,22 @@ pub struct SActorMoveIntent {
     pub movement: CharacterMovementState,
 }
 
+// Server to Client: Authoritative player teleport. This is not reconciliation;
+// the client should apply the movement state immediately.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SPlayerTeleport {
+    pub id: PlayerId,
+    pub movement: CharacterMovementState,
+}
+
+// Server to Client: Authoritative actor teleport. This is not reconciliation;
+// the client should apply the movement state immediately.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SActorTeleport {
+    pub id: ActorId,
+    pub movement: CharacterMovementState,
+}
+
 // Server to Client: Player started a jump with authoritative movement state.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SJump {
@@ -122,13 +138,6 @@ pub struct SHit {
     pub id: PlayerId,   // Player who was hit
     pub hit_dir_x: f32, // Direction of hit (normalized)
     pub hit_dir_z: f32, // Direction of hit (normalized)
-}
-
-// Server to Client: Player died (fell below the death threshold) and is respawning.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct SDeath {
-    pub id: PlayerId,
-    pub respawn_pos: Position,
 }
 
 // Server to Client: Player status effects changed.
@@ -175,12 +184,13 @@ pub enum ServerMessage {
     Logoff(SLogoff),
     PlayerMoveIntent(SPlayerMoveIntent),
     ActorMoveIntent(SActorMoveIntent),
+    PlayerTeleport(SPlayerTeleport),
+    ActorTeleport(SActorTeleport),
     Jump(SJump),
     Face(SFace),
     Shot(SShot),
     Update(SUpdate),
     Hit(SHit),
-    Death(SDeath),
     PlayerStatus(SPlayerStatus),
     Echo(SEcho),
     CookieCollected(SCookieCollected),

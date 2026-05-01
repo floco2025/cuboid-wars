@@ -2,99 +2,16 @@ use bevy::prelude::*;
 use rand::{RngExt, rng, rngs::ThreadRng, seq::IndexedRandom};
 
 use super::network::broadcast_to_all;
-use crate::resources::{MapConfig, PlayerInfo, PlayerMap};
+use crate::resources::{MapConfig, PlayerMap};
 use common::{
     constants::{
-        GRID_CELL_SIZE, LEVEL_HEIGHT, MAP_DEPTH, MAP_WIDTH, PHYSICS_EPSILON, PLAYER_DEATH_Y, PLAYER_DEPTH,
-        PLAYER_HEIGHT, PLAYER_WIDTH,
+        CHARACTER_FALL_TELEPORT_Y, GRID_CELL_SIZE, LEVEL_HEIGHT, MAP_DEPTH, MAP_WIDTH, PLAYER_DEPTH, PLAYER_HEIGHT,
+        PLAYER_WIDTH,
     },
     markers::PlayerMarker,
-    physics::{
-        CharacterVerticalMotion, CollisionWorld, PlannedCharacterMove, character_paths_intersect,
-        overlaps_other_character, step_character_movement,
-    },
-    protocol::{CharacterMoveIntent, PlayerId, Position, SDeath, ServerMessage},
+    physics::{CharacterVerticalMotion, CollisionWorld, character_paths_intersect},
+    protocol::{CharacterMoveIntent, CharacterMovementState, PlayerId, Position, SPlayerTeleport, ServerMessage},
 };
-
-// ============================================================================
-// Players Movement System
-// ============================================================================
-
-pub fn players_movement_system(
-    time: Res<Time>,
-    collision_world: Res<CollisionWorld>,
-    players: Res<PlayerMap>,
-    mut query: Query<
-        (
-            Entity,
-            &mut Position,
-            &mut CharacterVerticalMotion,
-            &CharacterMoveIntent,
-            &PlayerId,
-        ),
-        With<PlayerMarker>,
-    >,
-) {
-    let delta = time.delta_secs();
-
-    // Pass 1: For each player, calculate intended position and vertical velocity,
-    // then apply static-world collision.
-    let mut planned_moves: Vec<PlannedCharacterMove> = Vec::new();
-
-    for (entity, pos, motion, move_intent, player_id) in query.iter() {
-        // Check if player is stunned
-        let is_stunned = players.0.get(player_id).is_some_and(|info| info.stun_timer > 0.0);
-
-        // Compute horizontal velocity from input intent + speed power-up.
-        let has_speed_power_up = players.0.get(player_id).is_some_and(PlayerInfo::has_speed);
-        let velocity = move_intent.to_player_horizontal_velocity(has_speed_power_up);
-        let velocity_sq = velocity.x.mul_add(velocity.x, velocity.z * velocity.z);
-        let is_standing_still = velocity_sq < PHYSICS_EPSILON * PHYSICS_EPSILON;
-        let suppress_horizontal = is_stunned || is_standing_still;
-
-        let target_xz = if suppress_horizontal {
-            *pos
-        } else {
-            Position {
-                x: velocity.x.mul_add(delta, pos.x),
-                y: pos.y, // Keep current Y for collision detection
-                z: velocity.z.mul_add(delta, pos.z),
-            }
-        };
-
-        let has_phasing = players.0.get(player_id).is_some_and(PlayerInfo::has_phasing);
-
-        let step = step_character_movement(
-            pos,
-            motion,
-            &collision_world,
-            has_phasing,
-            target_xz.x,
-            target_xz.z,
-            delta,
-        );
-
-        planned_moves.push(PlannedCharacterMove {
-            entity,
-            start: *pos,
-            target: step.position,
-            target_vertical_velocity: step.vertical_velocity,
-            blocked: step.blocked,
-        });
-    }
-
-    // Pass 2: Check player-player collisions and apply final positions
-    for planned_move in &planned_moves {
-        if let Ok((_, mut pos, mut motion, _, _)) = query.get_mut(planned_move.entity) {
-            if overlaps_other_character(planned_move, &planned_moves) {
-                pos.y = planned_move.target.y;
-            } else {
-                *pos = planned_move.target;
-            }
-            motion.vertical_velocity = planned_move.target_vertical_velocity;
-        }
-    }
-}
 
 // ============================================================================
 // Players Timer System
@@ -125,21 +42,30 @@ pub fn players_timer_system(time: Res<Time>, mut players: ResMut<PlayerMap>) {
 }
 
 // ============================================================================
-// Players Death System
+// Players Fall Recovery System
 // ============================================================================
 
-// Detect players that have fallen below the death threshold and respawn them.
-// Broadcasts an `SDeath` message so clients can teleport the entity immediately
+// Detect players that have fallen below the death threshold and move them back
+// to a spawn position. Broadcasts a teleport so clients apply it immediately
 // rather than waiting for the next `SUpdate`.
-pub fn players_death_system(
+pub fn players_fall_recovery_system(
     players: Res<PlayerMap>,
     map_config: Res<MapConfig>,
     collision_world: Res<CollisionWorld>,
-    mut player_query: Query<(Entity, &PlayerId, &mut Position, &mut CharacterVerticalMotion), With<PlayerMarker>>,
+    mut player_query: Query<
+        (
+            Entity,
+            &PlayerId,
+            &mut Position,
+            &mut CharacterVerticalMotion,
+            &CharacterMoveIntent,
+        ),
+        With<PlayerMarker>,
+    >,
 ) {
     let dead: Vec<(Entity, PlayerId)> = player_query
         .iter()
-        .filter_map(|(entity, id, pos, _)| (pos.y < PLAYER_DEATH_Y).then_some((entity, *id)))
+        .filter_map(|(entity, id, pos, _, _)| (pos.y < CHARACTER_FALL_TELEPORT_Y).then_some((entity, *id)))
         .collect();
 
     if dead.is_empty() {
@@ -147,18 +73,24 @@ pub fn players_death_system(
     }
 
     // Snapshot all current positions so spawn-distance checks see a consistent view.
-    let occupied_positions: Vec<Position> = player_query.iter().map(|(_, _, pos, _)| *pos).collect();
+    let occupied_positions: Vec<Position> = player_query.iter().map(|(_, _, pos, _, _)| *pos).collect();
 
     for (entity, id) in dead {
-        let respawn_pos = generate_player_spawn_position(&map_config, &collision_world, &occupied_positions);
+        let teleport_pos = generate_player_spawn_position(&map_config, &collision_world, &occupied_positions);
 
-        if let Ok((_, _, mut pos, mut motion)) = player_query.get_mut(entity) {
-            *pos = respawn_pos;
+        if let Ok((_, _, mut pos, mut motion, move_intent)) = player_query.get_mut(entity) {
+            *pos = teleport_pos;
             motion.vertical_velocity = 0.0;
+            broadcast_to_all(
+                &players,
+                ServerMessage::PlayerTeleport(SPlayerTeleport {
+                    id,
+                    movement: CharacterMovementState::new(teleport_pos, *move_intent, 0.0),
+                }),
+            );
         }
 
-        info!("{:?} died and respawned at {:?}", id, respawn_pos);
-        broadcast_to_all(&players, ServerMessage::Death(SDeath { id, respawn_pos }));
+        info!("{:?} fell and teleported to {:?}", id, teleport_pos);
     }
 }
 
