@@ -15,23 +15,32 @@ pub struct RuleSet {
     pub(super) items: Vec<MaterialRule>,
 }
 
-impl<'de> Deserialize<'de> for RuleSet {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        #[serde(untagged)]
-        enum RuleSetDef {
-            Flat(Vec<RuleDef>),
-            Legacy(LegacyRuleSet),
-        }
+pub(super) type LayerNames = BTreeMap<String, u8>;
 
-        match RuleSetDef::deserialize(deserializer)? {
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub(super) enum RuleSetDef {
+    Flat(Vec<RuleDef>),
+    Legacy(LegacyRuleSetDef),
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub(super) struct LegacyRuleSetDef {
+    #[serde(default)]
+    floors: Vec<MaterialRuleDef>,
+    #[serde(default)]
+    walls: Vec<MaterialRuleDef>,
+    #[serde(default)]
+    items: Vec<MaterialRuleDef>,
+}
+
+impl RuleSet {
+    pub(super) fn from_def(def: RuleSetDef, layer_names: &LayerNames) -> Result<Self, String> {
+        match def {
             RuleSetDef::Legacy(rules) => Ok(Self {
-                floors: rules.floors,
-                walls: rules.walls,
-                items: rules.items,
+                floors: resolve_material_rules(rules.floors, layer_names, WallRuleRelation::On)?,
+                walls: resolve_material_rules(rules.walls, layer_names, WallRuleRelation::On)?,
+                items: resolve_material_rules(rules.items, layer_names, WallRuleRelation::On)?,
             }),
             RuleSetDef::Flat(rules) => {
                 let mut floors = Vec::new();
@@ -39,17 +48,17 @@ impl<'de> Deserialize<'de> for RuleSet {
                 let mut items = Vec::new();
                 for rule in rules {
                     if let Some(materials) = rule.floors.clone() {
-                        floors.push(rule.surface_rule(materials, WallRuleRelation::On));
+                        floors.push(rule.surface_rule(materials, layer_names, WallRuleRelation::On)?);
                     }
                     if let Some(materials) = rule.walls.clone() {
-                        walls.push(rule.surface_rule(materials, WallRuleRelation::On));
+                        walls.push(rule.surface_rule(materials, layer_names, WallRuleRelation::On)?);
                     }
                     if let Some(materials) = rule.touching_walls.clone() {
-                        walls.push(rule.surface_rule(materials, WallRuleRelation::Touching));
+                        walls.push(rule.surface_rule(materials, layer_names, WallRuleRelation::Touching)?);
                     }
-                    if let Some(item_materials) = rule.items.clone() {
+                    if let Some(item_materials) = &rule.items {
                         for (item_type, material) in item_materials {
-                            items.push(rule.item_rule(item_type, material));
+                            items.push(rule.item_rule(item_type.clone(), material.clone(), layer_names)?);
                         }
                     }
                 }
@@ -60,17 +69,7 @@ impl<'de> Deserialize<'de> for RuleSet {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-struct LegacyRuleSet {
-    #[serde(default)]
-    floors: Vec<MaterialRule>,
-    #[serde(default)]
-    walls: Vec<MaterialRule>,
-    #[serde(default)]
-    items: Vec<MaterialRule>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-struct RuleDef {
+pub(super) struct RuleDef {
     #[serde(default)]
     floors: Option<FaceMaterialDef>,
     #[serde(default)]
@@ -79,10 +78,10 @@ struct RuleDef {
     touching_walls: Option<FaceMaterialDef>,
     #[serde(default)]
     items: Option<BTreeMap<String, String>>,
-    #[serde(default)]
-    level: Option<u8>,
-    #[serde(default)]
-    levels: Option<Vec<u8>>,
+    #[serde(default, alias = "layer")]
+    level: Option<LayerRef>,
+    #[serde(default, alias = "layers")]
+    levels: Option<Vec<LayerRef>>,
     #[serde(default)]
     cols: Option<[i32; 2]>,
     #[serde(default)]
@@ -94,47 +93,54 @@ struct RuleDef {
 }
 
 impl RuleDef {
-    fn surface_rule(&self, materials: FaceMaterialDef, wall_relation: WallRuleRelation) -> MaterialRule {
-        MaterialRule {
+    fn surface_rule(
+        &self,
+        materials: FaceMaterialDef,
+        layer_names: &LayerNames,
+        wall_relation: WallRuleRelation,
+    ) -> Result<MaterialRule, String> {
+        let (level, levels) = resolve_level_scope(self.level.as_ref(), self.levels.as_ref(), layer_names)?;
+        Ok(MaterialRule {
             material: materials.all.clone(),
             materials: Some(materials),
-            level: self.level,
-            levels: self.levels.clone(),
+            level,
+            levels,
             cols: self.cols,
             rows: self.rows,
             from: self.from,
             to: self.to,
             item_type: None,
             wall_relation,
-        }
+        })
     }
 
-    fn item_rule(&self, item_type: String, material: String) -> MaterialRule {
-        MaterialRule {
+    fn item_rule(&self, item_type: String, material: String, layer_names: &LayerNames) -> Result<MaterialRule, String> {
+        let (level, levels) = resolve_level_scope(self.level.as_ref(), self.levels.as_ref(), layer_names)?;
+        Ok(MaterialRule {
             material: Some(material),
             materials: None,
-            level: self.level,
-            levels: self.levels.clone(),
+            level,
+            levels,
             cols: self.cols,
             rows: self.rows,
             from: self.from,
             to: self.to,
             item_type: (item_type != "all").then_some(item_type),
             wall_relation: WallRuleRelation::On,
-        }
+        })
     }
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub(super) struct MaterialRule {
+struct MaterialRuleDef {
     #[serde(default)]
     material: Option<String>,
     #[serde(default)]
     materials: Option<FaceMaterialDef>,
-    #[serde(default)]
-    level: Option<u8>,
-    #[serde(default)]
-    levels: Option<Vec<u8>>,
+    #[serde(default, alias = "layer")]
+    level: Option<LayerRef>,
+    #[serde(default, alias = "layers")]
+    levels: Option<Vec<LayerRef>>,
     #[serde(default)]
     cols: Option<[i32; 2]>,
     #[serde(default)]
@@ -144,8 +150,85 @@ pub(super) struct MaterialRule {
     #[serde(default)]
     to: Option<[i32; 2]>,
     #[serde(default, rename = "type")]
+    item_type: Option<String>,
+}
+
+impl MaterialRuleDef {
+    fn into_rule(self, layer_names: &LayerNames, wall_relation: WallRuleRelation) -> Result<MaterialRule, String> {
+        let (level, levels) = resolve_level_scope(self.level.as_ref(), self.levels.as_ref(), layer_names)?;
+        Ok(MaterialRule {
+            material: self.material,
+            materials: self.materials,
+            level,
+            levels,
+            cols: self.cols,
+            rows: self.rows,
+            from: self.from,
+            to: self.to,
+            item_type: self.item_type,
+            wall_relation,
+        })
+    }
+}
+
+fn resolve_material_rules(
+    rules: Vec<MaterialRuleDef>,
+    layer_names: &LayerNames,
+    wall_relation: WallRuleRelation,
+) -> Result<Vec<MaterialRule>, String> {
+    rules
+        .into_iter()
+        .map(|rule| rule.into_rule(layer_names, wall_relation))
+        .collect()
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+enum LayerRef {
+    Number(u8),
+    Name(String),
+}
+
+impl LayerRef {
+    fn resolve(&self, layer_names: &LayerNames) -> Result<u8, String> {
+        match self {
+            Self::Number(level) => Ok(*level),
+            Self::Name(name) => layer_names
+                .get(name)
+                .copied()
+                .ok_or_else(|| format!("unknown material layer {name:?}")),
+        }
+    }
+}
+
+fn resolve_level_scope(
+    level: Option<&LayerRef>,
+    levels: Option<&Vec<LayerRef>>,
+    layer_names: &LayerNames,
+) -> Result<(Option<u8>, Option<Vec<u8>>), String> {
+    let level = level.map(|level| level.resolve(layer_names)).transpose()?;
+    let levels = levels
+        .map(|levels| {
+            levels
+                .iter()
+                .map(|level| level.resolve(layer_names))
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .transpose()?;
+    Ok((level, levels))
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct MaterialRule {
+    material: Option<String>,
+    materials: Option<FaceMaterialDef>,
+    level: Option<u8>,
+    levels: Option<Vec<u8>>,
+    cols: Option<[i32; 2]>,
+    rows: Option<[i32; 2]>,
+    from: Option<[i32; 2]>,
+    to: Option<[i32; 2]>,
     pub(super) item_type: Option<String>,
-    #[serde(skip)]
     wall_relation: WallRuleRelation,
 }
 

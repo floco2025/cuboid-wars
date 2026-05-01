@@ -59,6 +59,48 @@ fn touching_wall_rule_matches_edges_that_touch_the_scope() {
 }
 
 #[test]
+fn rules_can_reference_layers_by_name() {
+    let rules = parse_rules(
+        r#"
+        {
+          "layers": ["basement", "lobby", "rooms-low", "rooms-high"],
+          "material_rules": [
+            { "walls": { "all": "fallback" } },
+            { "level": "lobby", "walls": { "all": "lobby-wall" } },
+            { "levels": ["rooms-low", "rooms-high"], "walls": { "all": "rooms-wall" } }
+          ]
+        }
+        "#,
+    );
+
+    assert_eq!(rules.materials_for_wall_edge(1, [4, 5], [5, 5]).primary(), "lobby-wall");
+    assert_eq!(rules.materials_for_wall_edge(2, [4, 5], [5, 5]).primary(), "rooms-wall");
+    assert_eq!(rules.materials_for_wall_edge(0, [4, 5], [5, 5]).primary(), "fallback");
+}
+
+#[test]
+fn unknown_layer_name_fails_to_parse() {
+    let err = serde_json::from_str::<MaterialRules>(
+        r#"
+        {
+          "layers": ["basement"],
+          "material_rules": [
+            { "level": "lobby", "walls": { "all": "missing" } }
+          ]
+        }
+        "#,
+    )
+    .expect_err("unknown layer names should be rejected");
+
+    assert!(err.to_string().contains("unknown material layer"));
+}
+
+#[test]
+fn default_material_rules_parse() {
+    MaterialRules::load_default().expect("default material rules should parse");
+}
+
+#[test]
 fn same_specificity_conflicts_panic() {
     let rules = parse_rules(
         r#"

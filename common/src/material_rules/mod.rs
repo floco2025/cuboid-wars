@@ -4,10 +4,10 @@ mod rules;
 #[cfg(test)]
 mod tests;
 
-use std::{fs, path::Path};
+use std::{collections::BTreeMap, fs, path::Path};
 
 use anyhow::{Context, Result};
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer, de};
 
 use crate::protocol::{Floor, ItemType, Ramp, Wall};
 
@@ -17,15 +17,68 @@ use self::{
         world_z_to_cell_row, world_z_to_grid_row,
     },
     resolve::{resolve_face_materials, resolve_item_material},
-    rules::RuleSet,
+    rules::{LayerNames, RuleSet, RuleSetDef},
 };
 
 pub use grid::{grid_col_to_world_x, grid_row_to_world_z};
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct MaterialRules {
-    #[serde(rename = "material_rules")]
     rules: RuleSet,
+}
+
+impl<'de> Deserialize<'de> for MaterialRules {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct MaterialRulesDef {
+            #[serde(default, alias = "layer_names")]
+            layers: LayerNamesDef,
+            #[serde(rename = "material_rules")]
+            rules: RuleSetDef,
+        }
+
+        let def = MaterialRulesDef::deserialize(deserializer)?;
+        let rules = RuleSet::from_def(def.rules, &def.layers.0).map_err(de::Error::custom)?;
+        Ok(Self { rules })
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+struct LayerNamesDef(LayerNames);
+
+impl<'de> Deserialize<'de> for LayerNamesDef {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Def {
+            Ordered(Vec<String>),
+            Named(BTreeMap<String, u8>),
+        }
+
+        let layers = match Def::deserialize(deserializer)? {
+            Def::Ordered(names) => ordered_layer_names(names).map_err(de::Error::custom)?,
+            Def::Named(names) => names,
+        };
+        Ok(Self(layers))
+    }
+}
+
+fn ordered_layer_names(names: Vec<String>) -> std::result::Result<LayerNames, String> {
+    let mut layers = LayerNames::new();
+    for (idx, name) in names.into_iter().enumerate() {
+        let level =
+            u8::try_from(idx).map_err(|_| "material layer list cannot contain more than 256 layers".to_owned())?;
+        if layers.insert(name.clone(), level).is_some() {
+            return Err(format!("duplicate material layer name {name:?}"));
+        }
+    }
+    Ok(layers)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
