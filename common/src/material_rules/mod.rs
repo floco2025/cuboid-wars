@@ -34,7 +34,7 @@ impl<'de> Deserialize<'de> for MaterialRules {
     {
         #[derive(Deserialize)]
         struct MaterialRulesDef {
-            #[serde(default, alias = "layer_names")]
+            #[serde(default, alias = "layer_names", alias = "level_names")]
             layers: LayerNamesDef,
             #[serde(rename = "material_rules")]
             rules: RuleSetDef,

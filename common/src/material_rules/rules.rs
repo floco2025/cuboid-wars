@@ -38,9 +38,9 @@ impl RuleSet {
     pub(super) fn from_def(def: RuleSetDef, layer_names: &LayerNames) -> Result<Self, String> {
         match def {
             RuleSetDef::Legacy(rules) => Ok(Self {
-                floors: resolve_material_rules(rules.floors, layer_names, WallRuleRelation::On)?,
-                walls: resolve_material_rules(rules.walls, layer_names, WallRuleRelation::On)?,
-                items: resolve_material_rules(rules.items, layer_names, WallRuleRelation::On)?,
+                floors: resolve_material_rules(rules.floors, layer_names, SurfaceScope::Cell)?,
+                walls: resolve_material_rules(rules.walls, layer_names, SurfaceScope::Edge(WallRuleRelation::On))?,
+                items: resolve_material_rules(rules.items, layer_names, SurfaceScope::Cell)?,
             }),
             RuleSetDef::Flat(rules) => {
                 let mut floors = Vec::new();
@@ -48,13 +48,21 @@ impl RuleSet {
                 let mut items = Vec::new();
                 for rule in rules {
                     if let Some(materials) = rule.floors.clone() {
-                        floors.push(rule.surface_rule(materials, layer_names, WallRuleRelation::On)?);
+                        floors.push(rule.surface_rule(materials, layer_names, SurfaceScope::Cell)?);
                     }
                     if let Some(materials) = rule.walls.clone() {
-                        walls.push(rule.surface_rule(materials, layer_names, WallRuleRelation::On)?);
+                        walls.push(rule.surface_rule(
+                            materials,
+                            layer_names,
+                            SurfaceScope::Edge(WallRuleRelation::On),
+                        )?);
                     }
                     if let Some(materials) = rule.touching_walls.clone() {
-                        walls.push(rule.surface_rule(materials, layer_names, WallRuleRelation::Touching)?);
+                        walls.push(rule.surface_rule(
+                            materials,
+                            layer_names,
+                            SurfaceScope::Edge(WallRuleRelation::Touching),
+                        )?);
                     }
                     if let Some(item_materials) = &rule.items {
                         for (item_type, material) in item_materials {
@@ -78,14 +86,10 @@ pub(super) struct RuleDef {
     touching_walls: Option<FaceMaterialDef>,
     #[serde(default)]
     items: Option<BTreeMap<String, String>>,
-    #[serde(default, alias = "layer")]
-    level: Option<LayerRef>,
-    #[serde(default, alias = "layers")]
-    levels: Option<Vec<LayerRef>>,
-    #[serde(default)]
-    cols: Option<[i32; 2]>,
-    #[serde(default)]
-    rows: Option<[i32; 2]>,
+    #[serde(default, alias = "level", alias = "layer", alias = "layers")]
+    levels: Option<LayerRefs>,
+    #[serde(flatten)]
+    scope: CoordinateScopeDef,
     #[serde(default)]
     from: Option<[i32; 2]>,
     #[serde(default)]
@@ -97,16 +101,18 @@ impl RuleDef {
         &self,
         materials: FaceMaterialDef,
         layer_names: &LayerNames,
-        wall_relation: WallRuleRelation,
+        scope: SurfaceScope,
     ) -> Result<MaterialRule, String> {
-        let (level, levels) = resolve_level_scope(self.level.as_ref(), self.levels.as_ref(), layer_names)?;
+        let (cols, rows, wall_relation) = match scope {
+            SurfaceScope::Cell => (self.scope.cell_cols(), self.scope.cell_rows(), WallRuleRelation::On),
+            SurfaceScope::Edge(wall_relation) => (self.scope.edge_cols(), self.scope.edge_rows(), wall_relation),
+        };
         Ok(MaterialRule {
             material: materials.all.clone(),
             materials: Some(materials),
-            level,
-            levels,
-            cols: self.cols,
-            rows: self.rows,
+            levels: resolve_level_scope(self.levels.as_ref(), layer_names)?,
+            cols,
+            rows,
             from: self.from,
             to: self.to,
             item_type: None,
@@ -115,14 +121,12 @@ impl RuleDef {
     }
 
     fn item_rule(&self, item_type: String, material: String, layer_names: &LayerNames) -> Result<MaterialRule, String> {
-        let (level, levels) = resolve_level_scope(self.level.as_ref(), self.levels.as_ref(), layer_names)?;
         Ok(MaterialRule {
             material: Some(material),
             materials: None,
-            level,
-            levels,
-            cols: self.cols,
-            rows: self.rows,
+            levels: resolve_level_scope(self.levels.as_ref(), layer_names)?,
+            cols: self.scope.cell_cols(),
+            rows: self.scope.cell_rows(),
             from: self.from,
             to: self.to,
             item_type: (item_type != "all").then_some(item_type),
@@ -137,14 +141,10 @@ struct MaterialRuleDef {
     material: Option<String>,
     #[serde(default)]
     materials: Option<FaceMaterialDef>,
-    #[serde(default, alias = "layer")]
-    level: Option<LayerRef>,
-    #[serde(default, alias = "layers")]
-    levels: Option<Vec<LayerRef>>,
-    #[serde(default)]
-    cols: Option<[i32; 2]>,
-    #[serde(default)]
-    rows: Option<[i32; 2]>,
+    #[serde(default, alias = "level", alias = "layer", alias = "layers")]
+    levels: Option<LayerRefs>,
+    #[serde(flatten)]
+    scope: CoordinateScopeDef,
     #[serde(default)]
     from: Option<[i32; 2]>,
     #[serde(default)]
@@ -154,15 +154,17 @@ struct MaterialRuleDef {
 }
 
 impl MaterialRuleDef {
-    fn into_rule(self, layer_names: &LayerNames, wall_relation: WallRuleRelation) -> Result<MaterialRule, String> {
-        let (level, levels) = resolve_level_scope(self.level.as_ref(), self.levels.as_ref(), layer_names)?;
+    fn into_rule(self, layer_names: &LayerNames, scope: SurfaceScope) -> Result<MaterialRule, String> {
+        let (cols, rows, wall_relation) = match scope {
+            SurfaceScope::Cell => (self.scope.cell_cols(), self.scope.cell_rows(), WallRuleRelation::On),
+            SurfaceScope::Edge(wall_relation) => (self.scope.edge_cols(), self.scope.edge_rows(), wall_relation),
+        };
         Ok(MaterialRule {
             material: self.material,
             materials: self.materials,
-            level,
-            levels,
-            cols: self.cols,
-            rows: self.rows,
+            levels: resolve_level_scope(self.levels.as_ref(), layer_names)?,
+            cols,
+            rows,
             from: self.from,
             to: self.to,
             item_type: self.item_type,
@@ -174,11 +176,11 @@ impl MaterialRuleDef {
 fn resolve_material_rules(
     rules: Vec<MaterialRuleDef>,
     layer_names: &LayerNames,
-    wall_relation: WallRuleRelation,
+    scope: SurfaceScope,
 ) -> Result<Vec<MaterialRule>, String> {
     rules
         .into_iter()
-        .map(|rule| rule.into_rule(layer_names, wall_relation))
+        .map(|rule| rule.into_rule(layer_names, scope))
         .collect()
 }
 
@@ -201,28 +203,67 @@ impl LayerRef {
     }
 }
 
-fn resolve_level_scope(
-    level: Option<&LayerRef>,
-    levels: Option<&Vec<LayerRef>>,
-    layer_names: &LayerNames,
-) -> Result<(Option<u8>, Option<Vec<u8>>), String> {
-    let level = level.map(|level| level.resolve(layer_names)).transpose()?;
-    let levels = levels
-        .map(|levels| {
-            levels
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+enum LayerRefs {
+    One(LayerRef),
+    Many(Vec<LayerRef>),
+}
+
+impl LayerRefs {
+    fn resolve(&self, layer_names: &LayerNames) -> Result<Vec<u8>, String> {
+        match self {
+            Self::One(level) => Ok(vec![level.resolve(layer_names)?]),
+            Self::Many(levels) => levels
                 .iter()
                 .map(|level| level.resolve(layer_names))
-                .collect::<Result<Vec<_>, _>>()
-        })
-        .transpose()?;
-    Ok((level, levels))
+                .collect::<Result<Vec<_>, _>>(),
+        }
+    }
+}
+
+fn resolve_level_scope(levels: Option<&LayerRefs>, layer_names: &LayerNames) -> Result<Option<Vec<u8>>, String> {
+    levels.map(|levels| levels.resolve(layer_names)).transpose()
+}
+
+#[derive(Debug, Clone, Copy, Default, Deserialize)]
+struct CoordinateScopeDef {
+    #[serde(default)]
+    cols: Option<[i32; 2]>,
+    #[serde(default)]
+    rows: Option<[i32; 2]>,
+    #[serde(default)]
+    cell_cols: Option<[i32; 2]>,
+    #[serde(default)]
+    cell_rows: Option<[i32; 2]>,
+    #[serde(default)]
+    edge_cols: Option<[i32; 2]>,
+    #[serde(default)]
+    edge_rows: Option<[i32; 2]>,
+}
+
+impl CoordinateScopeDef {
+    fn cell_cols(self) -> Option<[i32; 2]> {
+        self.cell_cols.or(self.cols)
+    }
+
+    fn cell_rows(self) -> Option<[i32; 2]> {
+        self.cell_rows.or(self.rows)
+    }
+
+    fn edge_cols(self) -> Option<[i32; 2]> {
+        self.edge_cols.or(self.cols)
+    }
+
+    fn edge_rows(self) -> Option<[i32; 2]> {
+        self.edge_rows.or(self.rows)
+    }
 }
 
 #[derive(Debug, Clone)]
 pub(super) struct MaterialRule {
     material: Option<String>,
     materials: Option<FaceMaterialDef>,
-    level: Option<u8>,
     levels: Option<Vec<u8>>,
     cols: Option<[i32; 2]>,
     rows: Option<[i32; 2]>,
@@ -237,6 +278,12 @@ enum WallRuleRelation {
     #[default]
     On,
     Touching,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum SurfaceScope {
+    Cell,
+    Edge(WallRuleRelation),
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -259,8 +306,7 @@ struct FaceMaterialDef {
 
 impl MaterialRule {
     pub(super) fn matches_level(&self, level: u8) -> bool {
-        self.level.is_none_or(|rule_level| rule_level == level)
-            && self.levels.as_ref().is_none_or(|levels| levels.contains(&level))
+        self.levels.as_ref().is_none_or(|levels| levels.contains(&level))
     }
 
     pub(super) fn matches_cell(&self, col: i32, row: i32) -> bool {
@@ -286,10 +332,12 @@ impl MaterialRule {
 
     pub(super) fn specificity(&self) -> u16 {
         let mut score = 0;
-        if self.level.is_some() {
-            score += 1_000;
-        } else if let Some(levels) = &self.levels {
-            score += 900_u16.saturating_sub(u16::try_from(levels.len()).unwrap_or(u16::MAX));
+        if let Some(levels) = &self.levels {
+            score += if levels.len() == 1 {
+                1_000
+            } else {
+                900_u16.saturating_sub(u16::try_from(levels.len()).unwrap_or(u16::MAX))
+            };
         }
         if let Some(range) = self.cols {
             score += range_specificity(range, GRID_COLS);

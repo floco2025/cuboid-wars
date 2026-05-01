@@ -11,8 +11,8 @@ fn specific_wall_rule_wins_over_level_default() {
         {
           "material_rules": [
             { "walls": { "all": "fallback" } },
-            { "level": 2, "walls": { "all": "level-wall" } },
-            { "level": 2, "from": [4, 5], "to": [5, 5], "walls": { "all": "single-edge" } }
+            { "levels": 2, "walls": { "all": "level-wall" } },
+            { "levels": 2, "from": [4, 5], "to": [5, 5], "walls": { "all": "single-edge" } }
           ]
         }
         "#,
@@ -34,9 +34,9 @@ fn touching_wall_rule_matches_edges_that_touch_the_scope() {
           "material_rules": [
             { "walls": { "all": "fallback" } },
             {
-              "level": 2,
-              "cols": [5, 5],
-              "rows": [5, 8],
+              "levels": 2,
+              "edge_cols": [5, 5],
+              "edge_rows": [5, 8],
               "touching_walls": {
                 "all": "touch-default",
                 "east": "touch-east"
@@ -63,10 +63,15 @@ fn rules_can_reference_layers_by_name() {
     let rules = parse_rules(
         r#"
         {
-          "layers": ["basement", "lobby", "rooms-low", "rooms-high"],
+          "level_names": {
+            "basement": 0,
+            "lobby": 1,
+            "rooms-low": 2,
+            "rooms-high": 3
+          },
           "material_rules": [
             { "walls": { "all": "fallback" } },
-            { "level": "lobby", "walls": { "all": "lobby-wall" } },
+            { "levels": "lobby", "walls": { "all": "lobby-wall" } },
             { "levels": ["rooms-low", "rooms-high"], "walls": { "all": "rooms-wall" } }
           ]
         }
@@ -83,9 +88,9 @@ fn unknown_layer_name_fails_to_parse() {
     let err = serde_json::from_str::<MaterialRules>(
         r#"
         {
-          "layers": ["basement"],
+          "level_names": { "basement": 0 },
           "material_rules": [
-            { "level": "lobby", "walls": { "all": "missing" } }
+            { "levels": "lobby", "walls": { "all": "missing" } }
           ]
         }
         "#,
@@ -107,8 +112,8 @@ fn same_specificity_conflicts_panic() {
         {
           "material_rules": [
             { "walls": { "all": "fallback" } },
-            { "level": 2, "cols": [5, 5], "walls": { "all": "a" } },
-            { "level": 2, "cols": [5, 5], "walls": { "all": "b" } }
+            { "levels": 2, "edge_cols": [5, 5], "walls": { "all": "a" } },
+            { "levels": 2, "edge_cols": [5, 5], "walls": { "all": "b" } }
           ]
         }
         "#,
