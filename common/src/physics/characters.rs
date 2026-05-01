@@ -66,7 +66,15 @@ pub struct PlannedCharacterMove {
 // Check if a planned move would overlap with any other character's planned position.
 #[must_use]
 pub fn overlaps_other_character(candidate: &PlannedCharacterMove, planned_moves: &[PlannedCharacterMove]) -> bool {
-    planned_moves.iter().any(|other| {
+    overlapping_character(candidate, planned_moves).is_some()
+}
+
+#[must_use]
+pub fn overlapping_character<'a>(
+    candidate: &PlannedCharacterMove,
+    planned_moves: &'a [PlannedCharacterMove],
+) -> Option<&'a PlannedCharacterMove> {
+    planned_moves.iter().find(|other| {
         other.entity != candidate.entity
             && character_paths_intersect(&candidate.start, &candidate.target, &other.start, &other.target)
     })
