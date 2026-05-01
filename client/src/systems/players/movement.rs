@@ -166,7 +166,11 @@ pub fn players_movement_system(
                 || total_delta.y.abs() >= 1.0
                 || total_delta.z.abs() >= out_of_sync_distance
             {
-                warn!("player out of sync, jumping to server position");
+                let player_name = players
+                    .0
+                    .get(player_id)
+                    .map_or_else(|| format!("{player_id:?}"), |info| info.name.clone());
+                warn!("{player_name} out of sync, jumping to server position");
                 *client_pos = recon.server_pos;
                 motion.vertical_velocity = recon.server_velocity.y;
                 commands.entity(entity).remove::<ServerReconciliation>();

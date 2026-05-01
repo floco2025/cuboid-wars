@@ -5,7 +5,7 @@ use common::{
     constants::{ACTOR_SPEED, PLAYER_HEIGHT, UPDATE_BROADCAST_INTERVAL},
     markers::ActorMarker,
     physics::{CharacterVerticalMotion, CollisionWorld, step_character_movement},
-    protocol::{CharacterMoveIntent, Position},
+    protocol::{ActorId, CharacterMoveIntent, Position},
 };
 
 type ActorMovementQuery<'w, 's> = Query<
@@ -13,6 +13,7 @@ type ActorMovementQuery<'w, 's> = Query<
     's,
     (
         Entity,
+        &'static ActorId,
         &'static mut Position,
         &'static CharacterMoveIntent,
         &'static mut CharacterVerticalMotion,
@@ -29,7 +30,7 @@ pub fn actors_movement_system(
 ) {
     let delta = time.delta_secs();
 
-    for (entity, mut pos, move_intent, mut motion, mut recon_option) in &mut query {
+    for (entity, actor_id, mut pos, move_intent, mut motion, mut recon_option) in &mut query {
         let h_vel = move_intent.to_horizontal_velocity(ACTOR_SPEED);
         let mut target_pos = if let Some(recon) = recon_option.as_mut() {
             let correction_time = (recon.rtt * 3.0).max(UPDATE_BROADCAST_INTERVAL);
@@ -44,6 +45,7 @@ pub fn actors_movement_system(
             let total_delta = server_pos - Vec3::from(recon.client_pos);
 
             if total_delta.x.abs() >= 5.0 || total_delta.y.abs() >= 1.0 || total_delta.z.abs() >= 5.0 {
+                warn!("{:?} out of sync, jumping to server position", actor_id);
                 *pos = recon.server_pos;
                 motion.vertical_velocity = recon.server_velocity.y;
                 commands.entity(entity).remove::<ServerReconciliation>();
