@@ -29,7 +29,6 @@ pub fn actor_behavior_system(
             continue;
         };
 
-        info.avoidance_timer = (info.avoidance_timer - delta).max(0.0);
         if let Some(target_pos) =
             visible_player_position(pos, &players, &player_query, &collision_world, &gameplay_config)
         {

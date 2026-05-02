@@ -61,8 +61,7 @@ pub fn actor_initial_spawn_system(
                 direction_timer: random_direction_time(&mut rng),
                 patrol_intent: move_intent,
                 go_to_position: None,
-                avoidance_side: random_avoidance_side(&mut rng),
-                avoidance_timer: 0.0,
+                wall_avoidance_direction: None,
                 last_broadcast_move_intent: move_intent,
                 move_intent_send_timer: ACTOR_MOVE_INTENT_SEND_COOLDOWN,
             },
@@ -72,8 +71,4 @@ pub fn actor_initial_spawn_system(
 
 fn random_direction_time(rng: &mut ThreadRng) -> f32 {
     rng.random_range(ACTOR_MIN_DIRECTION_TIME..=ACTOR_MAX_DIRECTION_TIME)
-}
-
-fn random_avoidance_side(rng: &mut ThreadRng) -> f32 {
-    if rng.random_bool(0.5) { 1.0 } else { -1.0 }
 }

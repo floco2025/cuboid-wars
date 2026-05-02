@@ -173,8 +173,7 @@ pub struct ActorInfo {
     pub direction_timer: f32,
     pub patrol_intent: CharacterMoveIntent,
     pub go_to_position: Option<Position>,
-    pub avoidance_side: f32,
-    pub avoidance_timer: f32,
+    pub wall_avoidance_direction: Option<f32>,
     pub last_broadcast_move_intent: CharacterMoveIntent,
     pub move_intent_send_timer: f32,
 }

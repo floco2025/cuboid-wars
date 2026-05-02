@@ -6,11 +6,11 @@ mod spawning;
 pub use spawning::generate_character_spawn_position;
 
 use crate::{
-    constants::{ACTOR_AVOIDANCE_TIME, ACTOR_GO_TO_REACHED_DISTANCE},
+    constants::{ACTOR_DIRECT_PATH_PROBE_TIME, ACTOR_GO_TO_REACHED_DISTANCE},
     resources::{ActorInfo, ActorMap, PlayerInfo, PlayerMap},
     systems::actors::{
         maybe_broadcast_actor_move_intent,
-        steering::{actor_desired_intent, random_avoidance_side, separation_direction, steering_directions},
+        steering::{actor_desired_intent, random_avoidance_side, steering_directions},
     },
 };
 use common::{
@@ -177,12 +177,16 @@ fn plan_actor_moves(
         };
         info.move_intent_send_timer += delta;
         let desired_intent = actor_desired_intent(&mut info.go_to_position, &pos, ACTOR_GO_TO_REACHED_DISTANCE)
-            .unwrap_or(info.patrol_intent);
-        let (selected_intent, step, used_avoidance) = select_actor_move(
+            .unwrap_or_else(|| {
+                info.wall_avoidance_direction = None;
+                info.patrol_intent
+            });
+        let (selected_intent, step) = select_actor_move(
             entity,
             &pos,
             motion.0,
             desired_intent,
+            info.go_to_position,
             info,
             actor_config.speed,
             actor_physics,
@@ -193,9 +197,6 @@ fn plan_actor_moves(
             &mut rng,
         );
 
-        if used_avoidance {
-            info.avoidance_timer = ACTOR_AVOIDANCE_TIME;
-        }
         *move_intent = selected_intent;
         if let Some(direction) = selected_intent.direction() {
             face_dir.0 = direction;
@@ -222,6 +223,7 @@ fn select_actor_move(
     pos: &Position,
     vertical_velocity: f32,
     desired_intent: CharacterMoveIntent,
+    go_to_position: Option<Position>,
     info: &mut ActorInfo,
     actor_speed: f32,
     actor_physics: CharacterPhysicsConfig,
@@ -230,7 +232,7 @@ fn select_actor_move(
     planned_moves: &[CharacterMovePlan],
     actor_starts: &[(Entity, Position)],
     rng: &mut ThreadRng,
-) -> (CharacterMoveIntent, common::physics::CharacterMovementResult, bool) {
+) -> (CharacterMoveIntent, common::physics::CharacterMovementResult) {
     let Some(direction) = desired_intent.direction() else {
         let selected_intent = CharacterMoveIntent::Idle;
         let step = step_actor_move(
@@ -242,21 +244,63 @@ fn select_actor_move(
             delta,
             collision_world,
         );
-        return (selected_intent, step, false);
+        info.wall_avoidance_direction = None;
+        return (selected_intent, step);
     };
 
-    if info.avoidance_timer <= 0.0 {
-        info.avoidance_side = random_avoidance_side(rng);
+    if let Some(avoidance_direction) = info.wall_avoidance_direction {
+        if direct_path_is_clear_enough(
+            pos,
+            vertical_velocity,
+            direction,
+            go_to_position,
+            actor_speed,
+            actor_physics,
+            collision_world,
+        ) {
+            info.wall_avoidance_direction = None;
+        } else {
+            let avoidance_intent = CharacterMoveIntent::Moving {
+                direction: avoidance_direction,
+            };
+            match try_actor_candidate_move(
+                entity,
+                pos,
+                vertical_velocity,
+                avoidance_intent,
+                actor_speed,
+                actor_physics,
+                delta,
+                collision_world,
+                planned_moves,
+                actor_starts,
+            ) {
+                CandidateMove::Accepted { intent, step } => return (intent, step),
+                CandidateMove::BlockedByCharacter => {
+                    return idle_actor_move(
+                        pos,
+                        vertical_velocity,
+                        actor_speed,
+                        actor_physics,
+                        delta,
+                        collision_world,
+                    );
+                }
+                CandidateMove::BlockedByWorld => {
+                    info.wall_avoidance_direction = None;
+                }
+            }
+        }
     }
 
-    for (index, candidate_direction) in steering_directions(direction, info.avoidance_side)
-        .into_iter()
-        .enumerate()
-    {
+    let mut was_blocked_by_character = false;
+    let avoidance_side = random_avoidance_side(rng);
+    for (index, candidate_direction) in steering_directions(direction, avoidance_side).into_iter().enumerate() {
         let candidate_intent = CharacterMoveIntent::Moving {
             direction: candidate_direction,
         };
-        let step = step_actor_move(
+        match try_actor_candidate_move(
+            entity,
             pos,
             vertical_velocity,
             candidate_intent,
@@ -264,48 +308,104 @@ fn select_actor_move(
             actor_physics,
             delta,
             collision_world,
-        );
-        let planned_move = CharacterMovePlan {
-            entity,
-            start: *pos,
-            target: step.position,
-            target_vertical_velocity: step.vertical_velocity,
-            physics: actor_physics,
-            blocked: step.blocked,
-        };
-        let blocked = step.blocked || character_move_plan_is_blocked(&planned_move, planned_moves, actor_starts);
-        if !blocked {
-            return (candidate_intent, step, index != 0);
+            planned_moves,
+            actor_starts,
+        ) {
+            CandidateMove::Accepted { intent, step } => {
+                if index != 0 {
+                    info.wall_avoidance_direction = Some(candidate_direction);
+                }
+                return (intent, step);
+            }
+            CandidateMove::BlockedByCharacter => {
+                was_blocked_by_character = true;
+            }
+            CandidateMove::BlockedByWorld => {}
         }
     }
 
-    if let Some(actor_pos) = nearest_actor_position(pos, entity, actor_starts) {
-        let selected_intent = CharacterMoveIntent::Moving {
-            direction: separation_direction(pos, actor_pos, rng),
-        };
-        let step = step_actor_move(
+    if was_blocked_by_character {
+        return idle_actor_move(
             pos,
             vertical_velocity,
-            selected_intent,
             actor_speed,
             actor_physics,
             delta,
             collision_world,
         );
-        let planned_move = CharacterMovePlan {
-            entity,
-            start: *pos,
-            target: step.position,
-            target_vertical_velocity: step.vertical_velocity,
-            physics: actor_physics,
-            blocked: step.blocked,
-        };
-        let blocked = step.blocked || character_move_plan_is_blocked(&planned_move, planned_moves, actor_starts);
-        if !blocked {
-            return (selected_intent, step, true);
-        }
     }
 
+    idle_actor_move(
+        pos,
+        vertical_velocity,
+        actor_speed,
+        actor_physics,
+        delta,
+        collision_world,
+    )
+}
+
+enum CandidateMove {
+    Accepted {
+        intent: CharacterMoveIntent,
+        step: common::physics::CharacterMovementResult,
+    },
+    BlockedByCharacter,
+    BlockedByWorld,
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Candidate testing needs the same movement context as normal actor planning"
+)]
+fn try_actor_candidate_move(
+    entity: Entity,
+    pos: &Position,
+    vertical_velocity: f32,
+    intent: CharacterMoveIntent,
+    actor_speed: f32,
+    actor_physics: CharacterPhysicsConfig,
+    delta: f32,
+    collision_world: &CollisionWorld,
+    planned_moves: &[CharacterMovePlan],
+    actor_starts: &[(Entity, Position)],
+) -> CandidateMove {
+    let step = step_actor_move(
+        pos,
+        vertical_velocity,
+        intent,
+        actor_speed,
+        actor_physics,
+        delta,
+        collision_world,
+    );
+    let planned_move = CharacterMovePlan {
+        entity,
+        start: *pos,
+        target: step.position,
+        target_vertical_velocity: step.vertical_velocity,
+        physics: actor_physics,
+        blocked: step.blocked,
+    };
+
+    if character_move_plan_is_blocked(&planned_move, planned_moves, actor_starts) {
+        return CandidateMove::BlockedByCharacter;
+    }
+    if step.blocked {
+        return CandidateMove::BlockedByWorld;
+    }
+
+    CandidateMove::Accepted { intent, step }
+}
+
+fn idle_actor_move(
+    pos: &Position,
+    vertical_velocity: f32,
+    actor_speed: f32,
+    actor_physics: CharacterPhysicsConfig,
+    delta: f32,
+    collision_world: &CollisionWorld,
+) -> (CharacterMoveIntent, common::physics::CharacterMovementResult) {
     let selected_intent = CharacterMoveIntent::Idle;
     let step = step_actor_move(
         pos,
@@ -316,19 +416,34 @@ fn select_actor_move(
         delta,
         collision_world,
     );
-    (selected_intent, step, true)
+    (selected_intent, step)
 }
 
-fn nearest_actor_position<'a>(
+fn direct_path_is_clear_enough(
     pos: &Position,
-    entity: Entity,
-    actor_starts: &'a [(Entity, Position)],
-) -> Option<&'a Position> {
-    actor_starts
-        .iter()
-        .filter(|(other_entity, _)| *other_entity != entity)
-        .min_by(|(_, a), (_, b)| horizontal_distance_sq(pos, a).total_cmp(&horizontal_distance_sq(pos, b)))
-        .map(|(_, actor_pos)| actor_pos)
+    vertical_velocity: f32,
+    direction: f32,
+    go_to_position: Option<Position>,
+    actor_speed: f32,
+    actor_physics: CharacterPhysicsConfig,
+    collision_world: &CollisionWorld,
+) -> bool {
+    let direct_intent = CharacterMoveIntent::Moving { direction };
+    let step = step_actor_move(
+        pos,
+        vertical_velocity,
+        direct_intent,
+        actor_speed,
+        actor_physics,
+        ACTOR_DIRECT_PATH_PROBE_TIME,
+        collision_world,
+    );
+    if step.blocked {
+        return false;
+    }
+
+    go_to_position
+        .is_none_or(|target| horizontal_distance_sq(&step.position, &target) < horizontal_distance_sq(pos, &target))
 }
 
 fn step_actor_move(

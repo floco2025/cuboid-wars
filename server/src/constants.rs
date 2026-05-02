@@ -37,14 +37,14 @@ pub const EXTERIOR_LIGHT_STEP_RETENTION: f32 = 0.75;
 // ============================================================================
 
 // Actor behavior combines random patrol with last-seen-position pursuit. These values
-// tune how often actors wander, how far they can see, how long they commit to
-// avoidance steering, and how often movement-intent changes are broadcast.
+// tune how often actors wander, how far they can see, and how often movement-intent
+// changes are broadcast.
 pub const ACTOR_INITIAL_COUNT: u32 = 6;
 pub const ACTOR_MIN_DIRECTION_TIME: f32 = 1.0;
 pub const ACTOR_MAX_DIRECTION_TIME: f32 = 3.5;
 pub const ACTOR_IDLE_CHANCE: f32 = 0.15;
 pub const ACTOR_VISION_RANGE: f32 = 18.0;
-pub const ACTOR_AVOIDANCE_TIME: f32 = 0.6;
+pub const ACTOR_DIRECT_PATH_PROBE_TIME: f32 = 0.4; // seconds
 pub const ACTOR_MOVE_INTENT_SEND_COOLDOWN: f32 = 0.1;
 pub const ACTOR_MOVE_INTENT_DIR_CHANGE_THRESHOLD: f32 = 2.0; // degrees
 pub const ACTOR_GO_TO_REACHED_DISTANCE: f32 = 0.5;

@@ -30,16 +30,6 @@ pub fn steering_directions(direction: f32, side: f32) -> [f32; 7] {
     ]
 }
 
-pub fn separation_direction(pos: &Position, other_pos: &Position, rng: &mut ThreadRng) -> f32 {
-    let dx = pos.x - other_pos.x;
-    let dz = pos.z - other_pos.z;
-    if dx.hypot(dz) <= f32::EPSILON {
-        rng.random_range(0.0..std::f32::consts::TAU)
-    } else {
-        dx.atan2(dz)
-    }
-}
-
 pub fn random_avoidance_side(rng: &mut ThreadRng) -> f32 {
     if rng.random_bool(0.5) { 1.0 } else { -1.0 }
 }
