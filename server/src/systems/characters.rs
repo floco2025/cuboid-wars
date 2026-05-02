@@ -14,8 +14,8 @@ use common::{
     constants::PHYSICS_EPSILON,
     markers::{ActorMarker, PlayerMarker},
     physics::{
-        CharacterVerticalMotion, CollisionWorld, PlannedCharacterMove, overlapping_character,
-        planned_character_moves_intersect, step_character_movement,
+        CharacterMovePlan, CharacterVerticalMotion, CollisionWorld, blocking_character_move_plan,
+        character_move_plan_is_blocked, overlapping_character, step_character_movement,
     },
     protocol::{ActorId, CharacterMoveIntent, FaceDirection, PlayerId, Position},
 };
@@ -91,7 +91,7 @@ fn plan_player_moves(
     gameplay_config: &GameplayConfig,
     players: &PlayerMap,
     query: &PlayerMovementQuery,
-    planned_moves: &mut Vec<PlannedCharacterMove>,
+    planned_moves: &mut Vec<CharacterMovePlan>,
 ) {
     let player_config = &gameplay_config.characters.player;
     let player_physics = player_config.physics();
@@ -125,7 +125,7 @@ fn plan_player_moves(
             delta,
         );
 
-        planned_moves.push(PlannedCharacterMove {
+        planned_moves.push(CharacterMovePlan {
             entity,
             start: *pos,
             target: step.position,
@@ -144,7 +144,7 @@ fn plan_actor_moves(
     actors: &mut ActorMap,
     actor_starts: &[(Entity, Position)],
     query: &mut ActorMovementQuery,
-    planned_moves: &mut Vec<PlannedCharacterMove>,
+    planned_moves: &mut Vec<CharacterMovePlan>,
 ) {
     let actor_config = &gameplay_config.characters.actor;
     let actor_physics = actor_config.physics();
@@ -180,7 +180,7 @@ fn plan_actor_moves(
         }
         maybe_broadcast_actor_move_intent(players, *id, *pos, selected_intent, motion.0, info);
 
-        planned_moves.push(PlannedCharacterMove {
+        planned_moves.push(CharacterMovePlan {
             entity,
             start: *pos,
             target: step.position,
@@ -205,7 +205,7 @@ fn select_actor_move(
     actor_physics: CharacterPhysicsConfig,
     delta: f32,
     collision_world: &CollisionWorld,
-    planned_moves: &[PlannedCharacterMove],
+    planned_moves: &[CharacterMovePlan],
     actor_starts: &[(Entity, Position)],
     rng: &mut ThreadRng,
 ) -> (CharacterMoveIntent, common::physics::CharacterMovementResult, bool) {
@@ -243,7 +243,7 @@ fn select_actor_move(
             delta,
             collision_world,
         );
-        let planned_move = PlannedCharacterMove {
+        let planned_move = CharacterMovePlan {
             entity,
             start: *pos,
             target: step.position,
@@ -251,7 +251,7 @@ fn select_actor_move(
             physics: actor_physics,
             blocked: step.blocked,
         };
-        let blocked = step.blocked || planned_move_overlaps_character(&planned_move, planned_moves, actor_starts);
+        let blocked = step.blocked || character_move_plan_is_blocked(&planned_move, planned_moves, actor_starts);
         if !blocked {
             return (candidate_intent, step, index != 0);
         }
@@ -270,7 +270,7 @@ fn select_actor_move(
             delta,
             collision_world,
         );
-        let planned_move = PlannedCharacterMove {
+        let planned_move = CharacterMovePlan {
             entity,
             start: *pos,
             target: step.position,
@@ -278,7 +278,7 @@ fn select_actor_move(
             physics: actor_physics,
             blocked: step.blocked,
         };
-        let blocked = step.blocked || planned_move_overlaps_character(&planned_move, planned_moves, actor_starts);
+        let blocked = step.blocked || character_move_plan_is_blocked(&planned_move, planned_moves, actor_starts);
         if !blocked {
             return (selected_intent, step, true);
         }
@@ -333,38 +333,13 @@ fn step_actor_move(
     )
 }
 
-fn planned_move_overlaps_character(
-    candidate: &PlannedCharacterMove,
-    planned_moves: &[PlannedCharacterMove],
-    actor_starts: &[(Entity, Position)],
-) -> bool {
-    if overlapping_character(candidate, planned_moves).is_some() {
-        return true;
-    }
-
-    actor_starts.iter().any(|(entity, pos)| {
-        if *entity == candidate.entity {
-            return false;
-        }
-        let stationary_actor = PlannedCharacterMove {
-            entity: *entity,
-            start: *pos,
-            target: *pos,
-            target_vertical_velocity: 0.0,
-            physics: candidate.physics,
-            blocked: false,
-        };
-        planned_character_moves_intersect(candidate, &stationary_actor)
-    })
-}
-
 fn horizontal_distance_sq(a: &Position, b: &Position) -> f32 {
     let dx = a.x - b.x;
     let dz = a.z - b.z;
     dx.mul_add(dx, dz * dz)
 }
 
-fn apply_player_moves(query: &mut PlayerMovementQuery, planned_moves: &[PlannedCharacterMove]) {
+fn apply_player_moves(query: &mut PlayerMovementQuery, planned_moves: &[CharacterMovePlan]) {
     for planned_move in planned_moves {
         let Ok((_, mut pos, mut motion, _, _)) = query.get_mut(planned_move.entity) else {
             continue;
@@ -383,7 +358,7 @@ fn apply_actor_moves(
     players: &PlayerMap,
     actors: &mut ActorMap,
     query: &mut ActorMovementQuery,
-    planned_moves: &[PlannedCharacterMove],
+    planned_moves: &[CharacterMovePlan],
 ) {
     let mut rng = rng();
     for planned_move in planned_moves {
@@ -394,7 +369,7 @@ fn apply_actor_moves(
             continue;
         };
 
-        let overlapping_move = overlapping_character(planned_move, planned_moves);
+        let overlapping_move = blocking_character_move_plan(planned_move, planned_moves);
         if overlapping_move.is_some() {
             pos.y = planned_move.target.y;
         } else {

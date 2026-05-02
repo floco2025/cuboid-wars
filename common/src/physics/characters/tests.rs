@@ -3,9 +3,11 @@ use crate::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     constants::{FLOOR_THICKNESS, LEVEL_HEIGHT, PLAYER_JUMP_SPEED, PLAYER_TERMINAL_VELOCITY, WALL_THICKNESS},
     map::ramp_surface_at,
-    protocol::{Floor, MapLayout, Ramp, Wall},
+    physics::{CollisionWorld, overlap_player_vs_item},
+    protocol::{Floor, MapLayout, Position, Ramp, Wall},
 };
 use bevy_ecs::prelude::Entity;
+use bevy_math::Vec3;
 
 fn test_ramp() -> Ramp {
     Ramp {
@@ -133,8 +135,8 @@ fn player_speed() -> f32 {
         .speed
 }
 
-fn planned_move(entity: Entity, start: Position, target: Position) -> PlannedCharacterMove {
-    PlannedCharacterMove {
+fn planned_move(entity: Entity, start: Position, target: Position) -> CharacterMovePlan {
+    CharacterMovePlan {
         entity,
         start,
         target,

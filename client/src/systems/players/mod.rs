@@ -1,6 +1,7 @@
 mod camera;
 mod components;
 mod effects;
+mod movement;
 mod rendering;
 
 pub use camera::{
@@ -9,4 +10,5 @@ pub use camera::{
 };
 pub use components::{BumpFlashState, CameraShake, CuboidShake};
 pub use effects::{local_player_camera_shake_system, local_player_cuboid_shake_system};
+pub(crate) use movement::{PlayerMovementQuery, apply_player_moves, plan_player_moves};
 pub use rendering::{players_billboard_system, players_transform_sync_system};
