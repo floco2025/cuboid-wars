@@ -35,6 +35,14 @@ pub const FACE_CHANGE_THRESHOLD: f32 = 2.0; // degrees
 pub const ECHO_INTERVAL: f32 = 10.0;
 
 // ============================================================================
+// Character Visuals
+// ============================================================================
+
+pub const CHARACTER_VISUAL_TURN_MIN_DURATION: f32 = 0.05; // Seconds for tiny visual turns.
+pub const CHARACTER_VISUAL_TURN_MAX_DURATION: f32 = 0.15; // Seconds for large visual turns.
+pub const CHARACTER_VISUAL_TURN_MAX_ANGLE: f32 = 180.0; // degrees
+
+// ============================================================================
 // Player Labels
 // ============================================================================
 

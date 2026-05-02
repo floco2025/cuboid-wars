@@ -143,7 +143,9 @@ fn main() -> Result<()> {
             (
                 characters_movement_system,
                 players_transform_sync_system.after(characters_movement_system),
-                players_face_to_transform_system,
+                characters_face_to_transform_system
+                    .after(players_transform_sync_system)
+                    .after(actors_transform_sync_system),
                 players_billboard_system,
                 actors_transform_sync_system.after(characters_movement_system),
             ),
