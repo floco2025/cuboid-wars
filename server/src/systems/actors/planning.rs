@@ -461,10 +461,7 @@ fn try_new_wall_avoidance_direction(
         entity,
         pos,
         vertical_velocity,
-        [
-            direction + side * std::f32::consts::FRAC_PI_2,
-            direction - side * std::f32::consts::FRAC_PI_2,
-        ],
+        wall_avoidance_directions(direction, side),
         actor_speed,
         actor_physics,
         delta,
@@ -494,7 +491,7 @@ fn try_opposite_wall_avoidance_direction(
         entity,
         pos,
         vertical_velocity,
-        [current_direction + std::f32::consts::PI],
+        [opposite_wall_avoidance_direction(current_direction)],
         actor_speed,
         actor_physics,
         delta,
@@ -502,6 +499,17 @@ fn try_opposite_wall_avoidance_direction(
         planned_moves,
         actor_starts,
     )
+}
+
+fn wall_avoidance_directions(direction: f32, side: f32) -> [f32; 2] {
+    [
+        direction + side * std::f32::consts::FRAC_PI_2,
+        direction - side * std::f32::consts::FRAC_PI_2,
+    ]
+}
+
+fn opposite_wall_avoidance_direction(current_direction: f32) -> f32 {
+    current_direction + std::f32::consts::PI
 }
 
 #[expect(
@@ -520,6 +528,9 @@ fn try_wall_avoidance_directions<const N: usize>(
     planned_moves: &[CharacterMovePlan],
     actor_starts: &[(Entity, Position)],
 ) -> Option<(CharacterMoveIntent, common::physics::CharacterMovementResult)> {
+    // Wall avoidance is allowed to keep a blocked side-contact result only
+    // when Rapier still moved the actor meaningfully. That lets actors slide
+    // around geometry edges without accepting contact jitter as progress.
     for direction in directions {
         let intent = CharacterMoveIntent::Moving { direction };
         match try_actor_candidate_move(
@@ -634,6 +645,13 @@ fn horizontal_distance_sq(a: &Position, b: &Position) -> f32 {
 mod tests {
     use super::*;
 
+    fn assert_near(actual: f32, expected: f32) {
+        assert!(
+            (actual - expected).abs() < 0.0001,
+            "expected {actual} to be near {expected}"
+        );
+    }
+
     fn order(entity_bits: u64, target_distance_sq: f32, id: u32) -> ActorPlanOrder {
         ActorPlanOrder {
             entity: Entity::from_bits(entity_bits),
@@ -682,5 +700,44 @@ mod tests {
 
         assert!(actor_target_distance_sq(&pos, Some(&targeted)).is_finite());
         assert_eq!(actor_target_distance_sq(&pos, None), f32::INFINITY);
+    }
+
+    #[test]
+    fn wall_avoidance_directions_try_one_side_then_the_other() {
+        let directions = wall_avoidance_directions(1.0, 1.0);
+
+        assert_near(directions[0], 1.0 + std::f32::consts::FRAC_PI_2);
+        assert_near(directions[1], 1.0 - std::f32::consts::FRAC_PI_2);
+    }
+
+    #[test]
+    fn wall_avoidance_directions_respect_randomized_side_order() {
+        let directions = wall_avoidance_directions(1.0, -1.0);
+
+        assert_near(directions[0], 1.0 - std::f32::consts::FRAC_PI_2);
+        assert_near(directions[1], 1.0 + std::f32::consts::FRAC_PI_2);
+    }
+
+    #[test]
+    fn opposite_wall_avoidance_direction_turns_around() {
+        assert_near(opposite_wall_avoidance_direction(1.0), 1.0 + std::f32::consts::PI);
+    }
+
+    #[test]
+    fn blocked_step_needs_meaningful_progress() {
+        let start = Position::default();
+        let too_short = Position {
+            x: 0.24,
+            y: 0.0,
+            z: 0.0,
+        };
+        let useful = Position {
+            x: 0.26,
+            y: 0.0,
+            z: 0.0,
+        };
+
+        assert!(!blocked_step_made_useful_progress(&start, &too_short, 5.0, 0.1));
+        assert!(blocked_step_made_useful_progress(&start, &useful, 5.0, 0.1));
     }
 }
