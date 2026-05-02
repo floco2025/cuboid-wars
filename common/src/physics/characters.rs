@@ -117,6 +117,14 @@ pub fn try_start_player_jump(
     true
 }
 
+// Steps one character from `pos` toward the requested horizontal target `x`/`z`.
+//
+// `pos` is the character position at the start of the frame. The caller supplies
+// only the desired horizontal target because X/Z movement comes from intent. Y
+// movement is calculated here from `CharacterVerticalMotion`, gravity, support
+// following, and floor/ceiling collision. Static-world collision may block,
+// slide, step, or otherwise adjust the requested movement before the final
+// position is returned.
 #[must_use]
 pub fn step_character_movement(
     pos: &Position,
