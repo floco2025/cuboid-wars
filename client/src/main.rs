@@ -52,14 +52,6 @@ struct Args {
     // Window height
     #[arg(long, default_value = "800")]
     window_height: u32,
-
-    // Invert mouse pitch (up/down)
-    #[arg(short, long, default_value_t = false)]
-    invert_pitch: bool,
-
-    // Render walls and floors with random colors for debugging
-    #[arg(long, default_value_t = false)]
-    debug_colors: bool,
 }
 
 // ============================================================================
@@ -70,7 +62,7 @@ fn main() -> Result<()> {
     let args = Args::parse();
     let asset_set = AssetSet::load_default()?;
     let render_settings = RenderSettings::load_default()?;
-    let debug_colors = args.debug_colors || render_settings.debug_map_colors;
+    let debug_colors = render_settings.debug_map_colors;
     let texture_mipmaps_enabled = render_settings.texture_mipmaps_enabled;
 
     let player_name = args.name.clone().unwrap_or_else(|| {
@@ -118,9 +110,6 @@ fn main() -> Result<()> {
         .insert_resource(CameraViewMode::default())
         .insert_resource(TopDownCameraYaw::default())
         .insert_resource(LevelFocusEnabled::default())
-        .insert_resource(InputSettings {
-            invert_pitch: args.invert_pitch,
-        })
         .insert_resource(asset_set)
         .insert_resource(render_settings)
         .insert_resource(DebugColors(debug_colors))

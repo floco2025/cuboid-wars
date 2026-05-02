@@ -136,12 +136,6 @@ pub struct TopDownCameraYaw(pub f32);
 #[derive(Resource, PartialEq, Eq, Clone, Copy, Debug, Default)]
 pub struct LevelFocusEnabled(pub bool);
 
-// Input settings
-#[derive(Resource, Clone, Copy, Debug)]
-pub struct InputSettings {
-    pub invert_pitch: bool,
-}
-
 // Debug colors mode (renders walls/floors with random colors)
 #[derive(Resource, Clone, Copy, Debug, Default)]
 pub struct DebugColors(pub bool);

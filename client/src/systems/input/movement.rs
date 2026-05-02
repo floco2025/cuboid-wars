@@ -9,9 +9,7 @@ use crate::{
     constants::*,
     markers::{LocalPlayerMarker, MainCameraMarker},
     net::ClientToServer,
-    resources::{
-        CameraViewMode, ClientToServerChannel, InputSettings, LocalPlayerInfo, MyPlayerId, PlayerMap, TopDownCameraYaw,
-    },
+    resources::{CameraViewMode, ClientToServerChannel, LocalPlayerInfo, MyPlayerId, PlayerMap, TopDownCameraYaw},
 };
 use common::physics::{CharacterVerticalMotion, CollisionWorld, try_start_player_jump};
 use common::protocol::*;
@@ -27,7 +25,6 @@ pub fn input_movement_system(
     time: Res<Time>,
     my_player_id: Option<Res<MyPlayerId>>,
     players: Res<PlayerMap>,
-    input_settings: Res<InputSettings>,
     mut local_player_info: ResMut<LocalPlayerInfo>,
     mut top_down_camera_yaw: ResMut<TopDownCameraYaw>,
     mut local_player_query: Query<
@@ -69,7 +66,6 @@ pub fn input_movement_system(
         &view_mode,
         &mut local_player_info,
         &mut top_down_camera_yaw,
-        input_settings.invert_pitch,
     );
     let face_yaw = current_yaw + std::f32::consts::PI;
     let stunned = local_player_stunned(my_player_id.as_ref(), &players);
@@ -135,13 +131,7 @@ fn calculate_current_orientation(
     view_mode: &Res<CameraViewMode>,
     local_player_info: &mut LocalPlayerInfo,
     top_down_camera_yaw: &mut TopDownCameraYaw,
-    invert_pitch: bool,
 ) -> (f32, f32) {
-    let pitch_sign = if invert_pitch {
-        MOUSE_SENSITIVITY
-    } else {
-        -MOUSE_SENSITIVITY
-    };
     // Determine the yaw/pitch baseline (camera vs stored value depending on view mode)
     let (mut current_yaw, mut current_pitch) = if view_mode.is_first_person() {
         if !view_mode.is_changed()
@@ -160,7 +150,7 @@ fn calculate_current_orientation(
     for motion in mouse_motion.read() {
         if view_mode.is_first_person() {
             current_yaw = motion.delta.x.mul_add(-MOUSE_SENSITIVITY, current_yaw);
-            current_pitch = motion.delta.y.mul_add(pitch_sign, current_pitch);
+            current_pitch = motion.delta.y.mul_add(-MOUSE_SENSITIVITY, current_pitch);
         } else {
             top_down_camera_yaw.0 = motion.delta.x.mul_add(-MOUSE_SENSITIVITY, top_down_camera_yaw.0);
             current_yaw = top_down_camera_yaw.0;
