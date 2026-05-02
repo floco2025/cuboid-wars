@@ -14,6 +14,11 @@ The game's source code is licensed under MIT OR Apache-2.0, but this license doe
 
 Asset paths are relative to `client/assets`.
 
+For character models, `visual_y_offset` is relative to the gameplay collider
+bottom. `0.0` means the model bottom sits on the collider bottom; negative
+values place the model below the collider bottom, and positive values place it
+above.
+
 The most specific matching material rule wins. For example, a floor rule with `level` + `cols` + `rows` beats a floor rule with only `level`, and an exact wall edge beats a level-wide wall rule. A rule without selector fields is the fallback for that rule list. Two matching rules with the same specificity but different materials are an error.
 
 Material assignment is part of map segmentation. The server must not merge floors or walls across different resolved material ids. The client should render each received floor/wall as one mesh with one material; if one segment spans multiple material rules, that is a map/merge error rather than a reason for the client to split the segment.

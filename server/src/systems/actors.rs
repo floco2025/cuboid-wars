@@ -101,13 +101,9 @@ pub fn actor_ai_system(
 
         info.avoidance_timer = (info.avoidance_timer - delta).max(0.0);
         info.intent_change_cooldown = (info.intent_change_cooldown - delta).max(0.0);
-        if let Some(target_pos) = visible_player_position(
-            pos,
-            &players,
-            &player_query,
-            &collision_world,
-            gameplay_config.characters.player.eye_height(),
-        ) {
+        if let Some(target_pos) =
+            visible_player_position(pos, &players, &player_query, &collision_world, &gameplay_config)
+        {
             info.go_to_position = Some(target_pos);
             continue;
         }
@@ -138,13 +134,23 @@ fn visible_player_position(
     players: &PlayerMap,
     player_query: &Query<(&PlayerId, &Position), With<PlayerMarker>>,
     collision_world: &CollisionWorld,
-    sight_height: f32,
+    gameplay_config: &GameplayConfig,
 ) -> Option<Position> {
+    let actor_sight_origin = Vec3::new(
+        actor_pos.x,
+        actor_pos.y + gameplay_config.characters.actor.eye_height(),
+        actor_pos.z,
+    );
+    let player_physics = gameplay_config.characters.player.physics();
+
     player_query
         .iter()
         .filter(|(id, _)| players.0.get(id).is_some_and(|info| info.logged_in))
         .filter(|(_, pos)| horizontal_distance_sq(actor_pos, pos) <= ACTOR_VISION_RANGE * ACTOR_VISION_RANGE)
-        .filter(|(_, pos)| collision_world.character_line_of_sight_clear(actor_pos, pos, sight_height))
+        .filter(|(_, pos)| {
+            let player_collider_center = Vec3::new(pos.x, player_physics.collider_center_y(pos.y), pos.z);
+            collision_world.line_of_sight_clear(actor_sight_origin, player_collider_center)
+        })
         .min_by(|(_, a), (_, b)| horizontal_distance_sq(actor_pos, a).total_cmp(&horizontal_distance_sq(actor_pos, b)))
         .map(|(_, pos)| *pos)
 }

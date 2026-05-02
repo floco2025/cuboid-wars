@@ -197,7 +197,7 @@ pub fn step_character_movement(
         None
     };
     if let Some(ground) = resolved_ground {
-        resolved.y -= ground.t - physics.low_obstacle_clearance;
+        resolved.y -= ground.t - physics.collider.bottom_y_offset();
     }
     let mut vertical_velocity = next_vertical_velocity;
     // Rapier reports a side contact while auto-stepping over slab/trim edges.
@@ -251,7 +251,7 @@ fn player_ground_hit(
     collision_world.ground_hit(
         shape,
         &pose,
-        PLAYER_GROUND_SNAP_DISTANCE + physics.low_obstacle_clearance,
+        PLAYER_GROUND_SNAP_DISTANCE + physics.collider.bottom_y_offset(),
         0.0,
         has_phasing,
     )
@@ -274,21 +274,15 @@ fn player_controller() -> KinematicCharacterController {
 fn character_shape(physics: CharacterPhysicsConfig) -> Cuboid {
     Cuboid::new(Vector::new(
         physics.collider.width / 2.0,
-        character_collision_height(physics) / 2.0,
+        physics.collision_height() / 2.0,
         physics.collider.depth / 2.0,
     ))
-}
-
-fn character_collision_height(physics: CharacterPhysicsConfig) -> f32 {
-    // The logical foot position remains at `Position.y`; the collider starts
-    // above it so low obstacle contacts do not block movement.
-    physics.collider.height - physics.low_obstacle_clearance
 }
 
 fn character_support_probe_shape(physics: CharacterPhysicsConfig) -> Cuboid {
     Cuboid::new(Vector::new(
         physics.support_probe.width / 2.0,
-        character_collision_height(physics) / 2.0,
+        physics.collision_height() / 2.0,
         physics.support_probe.depth / 2.0,
     ))
 }
@@ -309,11 +303,7 @@ fn project_input_move_onto_support(input_move: Vector, support_normal: Vec3) -> 
 }
 
 fn character_pose(pos: &Position, physics: CharacterPhysicsConfig) -> Pose {
-    Pose::translation(
-        pos.x,
-        pos.y + physics.low_obstacle_clearance + character_collision_height(physics) / 2.0,
-        pos.z,
-    )
+    Pose::translation(pos.x, physics.collider_center_y(pos.y), pos.z)
 }
 
 fn character_support_probe_pose(pos: &Position, physics: CharacterPhysicsConfig) -> Pose {

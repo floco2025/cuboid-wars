@@ -39,7 +39,7 @@ fn handle_character_collisions(
             delta,
             player_pos,
             face_dir.0,
-            gameplay_config.characters.player.collider,
+            gameplay_config.characters.player.physics(),
         )
         .is_some()
         {
@@ -71,7 +71,7 @@ fn handle_character_collisions(
             delta,
             actor_pos,
             face_dir.0,
-            gameplay_config.characters.actor.collider,
+            gameplay_config.characters.actor.physics(),
         )
         .is_some()
         {

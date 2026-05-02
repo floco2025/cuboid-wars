@@ -1,6 +1,6 @@
 use bevy::{gltf::GltfAssetLabel, prelude::*, scene::SceneRoot};
 
-use super::player::spawn_collider_debug_box;
+use super::player::spawn_collider_box;
 use crate::{
     config::{AssetSet, RenderSettings},
     markers::PlayerModelMarker,
@@ -27,7 +27,7 @@ pub fn spawn_actor(
     actor: &Actor,
 ) -> Entity {
     let actor_model = asset_set.actor_model();
-    let actor_collider = gameplay_config.characters.actor.collider;
+    let actor_physics = gameplay_config.characters.actor.physics();
     let entity = commands
         .spawn((
             actor_id,
@@ -38,7 +38,7 @@ pub fn spawn_actor(
             CharacterVerticalMotion(actor.movement.vertical_velocity),
             Transform::from_xyz(
                 actor.movement.pos.x,
-                actor.movement.pos.y + actor_collider.height / 2.0,
+                actor_physics.collider_center_y(actor.movement.pos.y),
                 actor.movement.pos.z,
             )
             .with_rotation(Quat::from_rotation_y(actor.face_dir)),
@@ -47,11 +47,11 @@ pub fn spawn_actor(
         .id();
 
     let mut children = vec![];
-    if render_settings.debug_bounding_boxes {
-        children.push(spawn_collider_debug_box(commands, meshes, materials, actor_collider));
+    if render_settings.debug_collider_boxes {
+        children.push(spawn_collider_box(commands, meshes, materials, actor_physics));
     }
 
-    let base_y = actor_model.visual_y_offset - actor_collider.height / 2.0;
+    let base_y = actor_physics.visual_y_offset_from_center(actor_model.visual_y_offset);
     let mut model_commands = commands.spawn((
         SceneRoot(asset_server.load(actor_model.scene.clone())),
         Transform::from_scale(Vec3::splat(actor_model.scale)).with_translation(Vec3::new(0.0, base_y, 0.0)),

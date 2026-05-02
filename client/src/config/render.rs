@@ -32,7 +32,7 @@ pub struct RenderSettings {
     pub shadows_directional_enabled: bool,
     pub shadows_player_enabled: bool,
     pub debug_map_colors: bool,
-    pub debug_bounding_boxes: bool,
+    pub debug_collider_boxes: bool,
     pub texture_mipmaps_enabled: bool,
     pub msaa_samples: u32,
 }

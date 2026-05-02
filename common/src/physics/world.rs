@@ -11,7 +11,7 @@ use rapier3d::{
     },
 };
 
-use crate::protocol::{MapLayout, Position};
+use crate::protocol::MapLayout;
 
 use self::colliders::{
     FLOOR_COLLISION_GROUP, WALL_COLLISION_GROUP, character_collision_groups, insert_floor_collider,
@@ -150,11 +150,9 @@ impl CollisionWorld {
     }
 
     #[must_use]
-    pub fn character_line_of_sight_clear(&self, from: &Position, to: &Position, sight_height: f32) -> bool {
+    pub fn line_of_sight_clear(&self, from: Vec3, to: Vec3) -> bool {
         const SIGHT_RADIUS: f32 = 0.08;
 
-        let from = Vec3::new(from.x, from.y + sight_height, from.z);
-        let to = Vec3::new(to.x, to.y + sight_height, to.z);
         self.cast_moving_ball(from, to - from, SIGHT_RADIUS).is_none()
     }
 

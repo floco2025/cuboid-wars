@@ -59,7 +59,7 @@ pub fn projectiles_movement_system(
                 delta,
                 position,
                 face_direction.0,
-                gameplay_config.characters.player.collider,
+                gameplay_config.characters.player.physics(),
             ) {
                 // Self-hit: despawn without scoring to match client expectations
                 if shooter_id == player_id {
@@ -108,7 +108,7 @@ pub fn projectiles_movement_system(
                     delta,
                     position,
                     face_direction.0,
-                    gameplay_config.characters.actor.collider,
+                    gameplay_config.characters.actor.physics(),
                 )
                 .is_some()
                 {

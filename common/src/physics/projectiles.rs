@@ -11,7 +11,7 @@ use rapier3d::{
 
 use super::world::CollisionWorld;
 use crate::{
-    config::CharacterColliderConfig,
+    config::CharacterPhysicsConfig,
     constants::{
         PHYSICS_EPSILON, PROJECTILE_BOUNCE_RETENTION, PROJECTILE_DRAG_FACTOR, PROJECTILE_GRAVITY, PROJECTILE_LIFETIME,
         PROJECTILE_RADIUS, PROJECTILE_SPEED,
@@ -160,13 +160,13 @@ pub fn projectile_hits_character(
     delta: f32,
     character_pos: &Position,
     character_face_dir: f32,
-    character_collider: CharacterColliderConfig,
+    character_physics: CharacterPhysicsConfig,
 ) -> Option<HitDirection> {
     let projectile_shape = Ball::new(PROJECTILE_RADIUS);
     let character_shape = Cuboid::new(Vector::new(
-        character_collider.width / 2.0,
-        character_collider.height / 2.0,
-        character_collider.depth / 2.0,
+        character_physics.collider.width / 2.0,
+        character_physics.collision_height() / 2.0,
+        character_physics.collider.depth / 2.0,
     ));
     let projectile_pose = Pose::translation(proj_pos.x, proj_pos.y, proj_pos.z);
     let projectile_velocity = Vector::new(
@@ -174,7 +174,7 @@ pub fn projectile_hits_character(
         proj_motion.velocity.y * delta,
         proj_motion.velocity.z * delta,
     );
-    let character_pose = oriented_character_pose(character_pos, character_face_dir, character_collider);
+    let character_pose = oriented_character_pose(character_pos, character_face_dir, character_physics);
     let options = ShapeCastOptions {
         max_time_of_impact: 1.0,
         ..ShapeCastOptions::default()
@@ -202,9 +202,9 @@ pub fn projectile_hits_character(
     Some(HitDirection { x, z })
 }
 
-fn oriented_character_pose(pos: &Position, face_dir: f32, collider: CharacterColliderConfig) -> Pose {
+fn oriented_character_pose(pos: &Position, face_dir: f32, physics: CharacterPhysicsConfig) -> Pose {
     Pose::from_parts(
-        Vector::new(pos.x, pos.y + collider.height / 2.0, pos.z),
+        Vector::new(pos.x, physics.collider_center_y(pos.y), pos.z),
         Quat::from_rotation_y(face_dir),
     )
 }

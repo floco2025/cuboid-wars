@@ -243,13 +243,13 @@
     "player": {
       "scene": "models/futuristic_flying_animated_robot_low_poly.glb#Scene0",
       "scale": 0.53,
-      "visual_y_offset": 0.0,
+      "visual_y_offset": -0.5,
       "animation_speed": 2.0
     },
     "actor": {
       "scene": "models/SciFiDrone.glb#Scene0",
       "scale": 1.0,
-      "visual_y_offset": 1.0
+      "visual_y_offset": -0.05
     },
     "wall_light": {
       "scene": "models/lamp_22.glb",

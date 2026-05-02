@@ -122,6 +122,7 @@ pub(crate) struct TextureDef {
 pub struct ModelDef {
     pub scene: String,
     pub scale: f32,
+    // Model bottom offset relative to the gameplay collider bottom.
     #[serde(default)]
     pub visual_y_offset: f32,
     #[serde(default)]

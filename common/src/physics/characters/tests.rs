@@ -55,12 +55,13 @@ fn upper_floor() -> Floor {
 }
 
 fn low_overhead_floor() -> Floor {
+    let player_physics = player_physics();
     Floor {
         x1: -4.0,
         z1: -4.0,
         x2: 4.0,
         z2: 4.0,
-        y: player_physics().collider.height - 0.05,
+        y: player_physics.collider.top_y_offset() - 0.05,
         thickness: FLOOR_THICKNESS,
         level: 1,
     }
@@ -658,7 +659,7 @@ fn upper_floor_player_can_enter_wedge_high_end() {
 }
 
 #[test]
-fn low_obstacle_clearance_allows_movement_off_ramp_side() {
+fn collider_y_offset_allows_movement_off_ramp_side() {
     let ramp = test_ramp();
     let floor = upper_floor_west_of_ramp();
     let collision_world = collision_world(&[floor], &[ramp]);

@@ -17,11 +17,11 @@ pub fn players_transform_sync_system(
     gameplay_config: Res<GameplayConfig>,
     mut player_query: Query<(&Position, &mut Transform, Option<&CuboidShake>), With<PlayerMarker>>,
 ) {
-    let player_height = gameplay_config.characters.player.collider.height;
+    let player_physics = gameplay_config.characters.player.physics();
     for (pos, mut transform, maybe_shake) in &mut player_query {
         // Base position
         transform.translation.x = pos.x;
-        transform.translation.y = pos.y + player_height / 2.0; // Center the collider
+        transform.translation.y = player_physics.collider_center_y(pos.y);
         transform.translation.z = pos.z;
 
         // Apply shake offset if active

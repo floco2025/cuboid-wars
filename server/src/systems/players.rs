@@ -185,10 +185,10 @@ fn character_spawn_position_is_clear(
     occupied_positions: &[Position],
     character_physics: CharacterPhysicsConfig,
 ) -> bool {
-    let character_center = Vec3::new(pos.x, pos.y + character_physics.collider.height / 2.0, pos.z);
+    let character_center = Vec3::new(pos.x, character_physics.collider_center_y(pos.y), pos.z);
     let character_half_extents = Vec3::new(
         character_physics.collider.width / 2.0,
-        character_physics.collider.height / 2.0,
+        character_physics.collision_height() / 2.0,
         character_physics.collider.depth / 2.0,
     );
 

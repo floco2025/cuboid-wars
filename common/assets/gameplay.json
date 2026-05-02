@@ -2,16 +2,15 @@
   "version": 1,
   "characters": {
     "player": {
-      "collider": { "width": 1.0, "height": 1.8, "depth": 0.6 },
-      "low_obstacle_clearance": 0.5,
+      "collider": { "width": 1.0, "height": 1.3, "depth": 0.6, "y_offset": 0.5, "y_offset_anchor": "bottom" },
       "support_probe": { "width": 0.2, "depth": 0.2 },
-      "eye_height_ratio": 0.9,
+      "eye_height": 1.62,
       "speed": 9.0
     },
     "actor": {
-      "collider": { "width": 2.0, "height": 1.0, "depth": 2.0 },
-      "low_obstacle_clearance": 0.0,
+      "collider": { "width": 1.0, "height": 1.0, "depth": 1.0, "y_offset": 1.1, "y_offset_anchor": "center" },
       "support_probe": { "width": 0.2, "depth": 0.2 },
+      "eye_height": 1.6,
       "speed": 5.0
     }
   }

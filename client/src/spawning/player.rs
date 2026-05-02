@@ -14,7 +14,7 @@ use crate::{
     systems::{AnimationToPlay, BumpFlashState, players_animation_system},
 };
 use common::{
-    config::{CharacterColliderConfig, GameplayConfig},
+    config::{CharacterPhysicsConfig, GameplayConfig},
     markers::PlayerMarker,
     physics::CharacterVerticalMotion,
     protocol::*,
@@ -59,7 +59,7 @@ pub fn spawn_player(
     is_local: bool,
 ) -> Entity {
     let player_model = asset_set.player_model();
-    let player_collider = gameplay_config.characters.player.collider;
+    let player_physics = gameplay_config.characters.player.physics();
     // Create animation graph for this player
     let (graph, index) = AnimationGraph::from_clip(
         asset_server.load(GltfAssetLabel::Animation(0).from_asset(player_model.scene.clone())),
@@ -80,7 +80,7 @@ pub fn spawn_player(
                 move_intent,
                 motion: CharacterVerticalMotion::default(),
                 face_direction: FaceDirection(face_dir),
-                transform: Transform::from_xyz(position.x, position.y + player_collider.height / 2.0, position.z)
+                transform: Transform::from_xyz(position.x, player_physics.collider_center_y(position.y), position.z)
                     .with_rotation(Quat::from_rotation_y(face_dir)),
                 visibility: player_visibility(is_local),
             },
@@ -96,13 +96,13 @@ pub fn spawn_player(
 
     let mut children = vec![];
 
-    // Add transparent cuboid debug visualization if enabled
-    if render_settings.debug_bounding_boxes {
-        children.push(spawn_collider_debug_box(commands, meshes, materials, player_collider));
+    // Add transparent collider visualization if enabled.
+    if render_settings.debug_collider_boxes {
+        children.push(spawn_collider_box(commands, meshes, materials, player_physics));
     }
 
     // Add the GLB player model with animation observer
-    let base_y = player_model.visual_y_offset - player_collider.height / 2.0;
+    let base_y = player_physics.visual_y_offset_from_center(player_model.visual_y_offset);
     let model = commands
         .spawn((
             SceneRoot(asset_server.load(player_model.scene.clone())),
@@ -123,7 +123,7 @@ pub fn spawn_player(
         player_name,
         image_handle,
         text_camera,
-        player_collider.height,
+        player_physics.collision_height(),
     );
     children.push(mesh_entity);
 
@@ -132,17 +132,21 @@ pub fn spawn_player(
     entity
 }
 
-pub fn spawn_collider_debug_box(
+pub fn spawn_collider_box(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
-    collider: CharacterColliderConfig,
+    physics: CharacterPhysicsConfig,
 ) -> Entity {
     commands
         .spawn((
-            Mesh3d(meshes.add(Cuboid::new(collider.width, collider.height, collider.depth))),
+            Mesh3d(meshes.add(Cuboid::new(
+                physics.collider.width,
+                physics.collision_height(),
+                physics.collider.depth,
+            ))),
             MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgba(0.5, 0.5, 0.5, 0.15),
+                base_color: Color::srgba(0.8, 0.2, 0.2, 0.5),
                 alpha_mode: AlphaMode::Blend,
                 ..default()
             })),

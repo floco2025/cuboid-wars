@@ -28,10 +28,6 @@ impl GameplayConfig {
         }
         self.characters.player.validate("characters.player")?;
         self.characters.actor.validate("characters.actor")?;
-        validate_positive_finite(
-            self.characters.player.eye_height_ratio,
-            "characters.player.eye_height_ratio",
-        )?;
         Ok(())
     }
 }
@@ -45,9 +41,8 @@ pub struct CharacterGameplayConfig {
 #[derive(Debug, Clone, Deserialize)]
 pub struct PlayerGameplayConfig {
     pub collider: CharacterColliderConfig,
-    pub low_obstacle_clearance: f32,
     pub support_probe: CharacterSupportProbeConfig,
-    pub eye_height_ratio: f32,
+    pub eye_height: f32,
     pub speed: f32,
 }
 
@@ -56,20 +51,19 @@ impl PlayerGameplayConfig {
     pub const fn physics(&self) -> CharacterPhysicsConfig {
         CharacterPhysicsConfig {
             collider: self.collider,
-            low_obstacle_clearance: self.low_obstacle_clearance,
             support_probe: self.support_probe,
         }
     }
 
     #[must_use]
-    pub fn eye_height(&self) -> f32 {
-        self.collider.height * self.eye_height_ratio
+    pub const fn eye_height(&self) -> f32 {
+        self.eye_height
     }
 
     fn validate(&self, path: &str) -> Result<()> {
         self.collider.validate(&format!("{path}.collider"))?;
         self.support_probe.validate(&format!("{path}.support_probe"))?;
-        validate_non_negative_finite(self.low_obstacle_clearance, &format!("{path}.low_obstacle_clearance"))?;
+        validate_positive_finite(self.eye_height, &format!("{path}.eye_height"))?;
         validate_positive_finite(self.speed, &format!("{path}.speed"))
     }
 }
@@ -77,8 +71,8 @@ impl PlayerGameplayConfig {
 #[derive(Debug, Clone, Deserialize)]
 pub struct ActorGameplayConfig {
     pub collider: CharacterColliderConfig,
-    pub low_obstacle_clearance: f32,
     pub support_probe: CharacterSupportProbeConfig,
+    pub eye_height: f32,
     pub speed: f32,
 }
 
@@ -87,15 +81,19 @@ impl ActorGameplayConfig {
     pub const fn physics(&self) -> CharacterPhysicsConfig {
         CharacterPhysicsConfig {
             collider: self.collider,
-            low_obstacle_clearance: self.low_obstacle_clearance,
             support_probe: self.support_probe,
         }
+    }
+
+    #[must_use]
+    pub const fn eye_height(&self) -> f32 {
+        self.eye_height
     }
 
     fn validate(&self, path: &str) -> Result<()> {
         self.collider.validate(&format!("{path}.collider"))?;
         self.support_probe.validate(&format!("{path}.support_probe"))?;
-        validate_non_negative_finite(self.low_obstacle_clearance, &format!("{path}.low_obstacle_clearance"))?;
+        validate_positive_finite(self.eye_height, &format!("{path}.eye_height"))?;
         validate_positive_finite(self.speed, &format!("{path}.speed"))
     }
 }
@@ -105,14 +103,48 @@ pub struct CharacterColliderConfig {
     pub width: f32,
     pub height: f32,
     pub depth: f32,
+    pub y_offset: f32,
+    #[serde(default)]
+    pub y_offset_anchor: CharacterColliderAnchor,
 }
 
 impl CharacterColliderConfig {
     fn validate(&self, path: &str) -> Result<()> {
         validate_positive_finite(self.width, &format!("{path}.width"))?;
         validate_positive_finite(self.height, &format!("{path}.height"))?;
-        validate_positive_finite(self.depth, &format!("{path}.depth"))
+        validate_positive_finite(self.depth, &format!("{path}.depth"))?;
+        validate_non_negative_finite(self.y_offset, &format!("{path}.y_offset"))?;
+        validate_non_negative_finite(self.bottom_y_offset(), &format!("{path}.bottom_y_offset"))
     }
+
+    #[must_use]
+    pub fn center_y_offset(self) -> f32 {
+        match self.y_offset_anchor {
+            CharacterColliderAnchor::Bottom => self.y_offset + self.height / 2.0,
+            CharacterColliderAnchor::Center => self.y_offset,
+        }
+    }
+
+    #[must_use]
+    pub fn bottom_y_offset(self) -> f32 {
+        match self.y_offset_anchor {
+            CharacterColliderAnchor::Bottom => self.y_offset,
+            CharacterColliderAnchor::Center => self.y_offset - self.height / 2.0,
+        }
+    }
+
+    #[must_use]
+    pub fn top_y_offset(self) -> f32 {
+        self.bottom_y_offset() + self.height
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum CharacterColliderAnchor {
+    #[default]
+    Bottom,
+    Center,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -131,8 +163,24 @@ impl CharacterSupportProbeConfig {
 #[derive(Debug, Clone, Copy)]
 pub struct CharacterPhysicsConfig {
     pub collider: CharacterColliderConfig,
-    pub low_obstacle_clearance: f32,
     pub support_probe: CharacterSupportProbeConfig,
+}
+
+impl CharacterPhysicsConfig {
+    #[must_use]
+    pub fn collision_height(self) -> f32 {
+        self.collider.height
+    }
+
+    #[must_use]
+    pub fn collider_center_y(self, pos_y: f32) -> f32 {
+        pos_y + self.collider.center_y_offset()
+    }
+
+    #[must_use]
+    pub fn visual_y_offset_from_center(self, visual_y_offset: f32) -> f32 {
+        visual_y_offset - self.collider.height / 2.0
+    }
 }
 
 fn validate_positive_finite(value: f32, path: &str) -> Result<()> {
