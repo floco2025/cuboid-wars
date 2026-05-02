@@ -6,15 +6,14 @@ pub use spawning::generate_character_spawn_position;
 
 use crate::{
     resources::{ActorMap, PlayerInfo, PlayerMap},
-    systems::actors::{ActorMovementQuery, plan_actor_moves},
+    systems::actors::{ActorMovementQuery, apply_actor_moves, plan_actor_moves},
 };
 use common::{
     config::GameplayConfig,
     constants::PHYSICS_EPSILON,
     markers::{ActorMarker, PlayerMarker},
     physics::{
-        CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, blocking_character_move_plan,
-        overlapping_character, step_character_movement,
+        CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, overlapping_character, step_character_movement,
     },
     protocol::{CharacterMoveIntent, PlayerId, Position},
 };
@@ -128,22 +127,6 @@ fn apply_player_moves(query: &mut PlayerMovementQuery, planned_moves: &[Characte
         };
 
         if overlapping_character(planned_move, planned_moves).is_some() {
-            pos.y = planned_move.target.y;
-        } else {
-            *pos = planned_move.target;
-        }
-        motion.0 = planned_move.target_vertical_velocity;
-    }
-}
-
-fn apply_actor_moves(query: &mut ActorMovementQuery, planned_moves: &[CharacterMovePlan]) {
-    for planned_move in planned_moves {
-        let Ok((_, _, mut pos, mut motion, _, _)) = query.get_mut(planned_move.entity) else {
-            continue;
-        };
-
-        let overlapping_move = blocking_character_move_plan(planned_move, planned_moves);
-        if overlapping_move.is_some() {
             pos.y = planned_move.target.y;
         } else {
             *pos = planned_move.target;

@@ -13,8 +13,8 @@ use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     markers::{ActorMarker, PlayerMarker},
     physics::{
-        CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, character_move_plan_is_blocked,
-        step_character_movement,
+        CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, blocking_character_move_plan,
+        character_move_plan_is_blocked, step_character_movement,
     },
     protocol::{ActorId, CharacterMoveIntent, FaceDirection, Position},
 };
@@ -95,6 +95,22 @@ pub(crate) fn plan_actor_moves(
             physics: actor_physics,
             blocked: step.blocked,
         });
+    }
+}
+
+pub(crate) fn apply_actor_moves(query: &mut ActorMovementQuery, planned_moves: &[CharacterMovePlan]) {
+    for planned_move in planned_moves {
+        let Ok((_, _, mut pos, mut motion, _, _)) = query.get_mut(planned_move.entity) else {
+            continue;
+        };
+
+        let overlapping_move = blocking_character_move_plan(planned_move, planned_moves);
+        if overlapping_move.is_some() {
+            pos.y = planned_move.target.y;
+        } else {
+            *pos = planned_move.target;
+        }
+        motion.0 = planned_move.target_vertical_velocity;
     }
 }
 
