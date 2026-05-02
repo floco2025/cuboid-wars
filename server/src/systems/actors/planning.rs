@@ -19,6 +19,10 @@ use common::{
     protocol::{ActorId, CharacterMoveIntent, FaceDirection, Position},
 };
 
+// Actor behavior decides what an actor wants: patrol or a remembered go-to position.
+// This module turns that behavior target into a concrete movement intent for this
+// frame, including committed wall avoidance and yielding to other characters.
+
 pub(crate) type ActorMovementQuery<'w, 's> = Query<
     'w,
     's,
@@ -46,22 +50,9 @@ pub(crate) fn plan_actor_moves(
     let actor_config = &gameplay_config.characters.actor;
     let actor_physics = actor_config.physics();
     let mut rng = rng();
-    let mut actor_order: Vec<(Entity, f32, ActorId)> = query
-        .iter()
-        .map(|(entity, id, pos, _, _, _)| {
-            let target_distance = actors
-                .0
-                .get(id)
-                .and_then(|info| info.go_to_position)
-                .map_or(f32::INFINITY, |target| horizontal_distance_sq(pos, &target));
-            (entity, target_distance, *id)
-        })
-        .collect();
-    actor_order.sort_by(|(_, a_distance, a_id), (_, b_distance, b_id)| {
-        a_distance.total_cmp(b_distance).then_with(|| a_id.0.cmp(&b_id.0))
-    });
+    let actor_order = sorted_actor_plan_order(query, actors);
 
-    for (entity, _, _) in actor_order {
+    for ActorPlanOrder { entity, .. } in actor_order {
         let Ok((_, id, pos, motion, mut move_intent, mut face_dir)) = query.get_mut(entity) else {
             continue;
         };
@@ -105,6 +96,39 @@ pub(crate) fn plan_actor_moves(
             blocked: step.blocked,
         });
     }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+struct ActorPlanOrder {
+    entity: Entity,
+    target_distance_sq: f32,
+    id: ActorId,
+}
+
+fn sorted_actor_plan_order(query: &ActorMovementQuery, actors: &ActorMap) -> Vec<ActorPlanOrder> {
+    let mut order: Vec<ActorPlanOrder> = query
+        .iter()
+        .map(|(entity, id, pos, _, _, _)| ActorPlanOrder {
+            entity,
+            target_distance_sq: actor_target_distance_sq(pos, actors.0.get(id)),
+            id: *id,
+        })
+        .collect();
+    sort_actor_plan_order(&mut order);
+    order
+}
+
+fn sort_actor_plan_order(order: &mut [ActorPlanOrder]) {
+    order.sort_by(|a, b| {
+        a.target_distance_sq
+            .total_cmp(&b.target_distance_sq)
+            .then_with(|| a.id.0.cmp(&b.id.0))
+    });
+}
+
+fn actor_target_distance_sq(pos: &Position, info: Option<&ActorInfo>) -> f32 {
+    info.and_then(|info| info.go_to_position)
+        .map_or(f32::INFINITY, |target| horizontal_distance_sq(pos, &target))
 }
 
 #[expect(
@@ -604,4 +628,59 @@ fn horizontal_distance_sq(a: &Position, b: &Position) -> f32 {
     let dx = a.x - b.x;
     let dz = a.z - b.z;
     dx.mul_add(dx, dz * dz)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn order(entity_bits: u64, target_distance_sq: f32, id: u32) -> ActorPlanOrder {
+        ActorPlanOrder {
+            entity: Entity::from_bits(entity_bits),
+            target_distance_sq,
+            id: ActorId(id),
+        }
+    }
+
+    #[test]
+    fn actor_plan_order_prioritizes_closer_go_to_target() {
+        let mut order = vec![order(1, 9.0, 1), order(2, 1.0, 2), order(3, 4.0, 3)];
+
+        sort_actor_plan_order(&mut order);
+
+        assert_eq!(
+            order.iter().map(|entry| entry.id).collect::<Vec<_>>(),
+            vec![ActorId(2), ActorId(3), ActorId(1),]
+        );
+    }
+
+    #[test]
+    fn actor_plan_order_uses_actor_id_as_tie_breaker() {
+        let mut order = vec![order(1, 4.0, 3), order(2, 4.0, 1), order(3, 4.0, 2)];
+
+        sort_actor_plan_order(&mut order);
+
+        assert_eq!(
+            order.iter().map(|entry| entry.id).collect::<Vec<_>>(),
+            vec![ActorId(1), ActorId(2), ActorId(3),]
+        );
+    }
+
+    #[test]
+    fn actor_without_go_to_position_plans_after_targeted_actor() {
+        let pos = Position::default();
+        let targeted = ActorInfo {
+            entity: Entity::from_bits(1),
+            kind: common::protocol::ActorKind::Automaton,
+            direction_timer: 0.0,
+            patrol_intent: CharacterMoveIntent::Idle,
+            go_to_position: Some(Position { x: 1.0, y: 0.0, z: 0.0 }),
+            wall_avoidance_direction: None,
+            last_broadcast_move_intent: CharacterMoveIntent::Idle,
+            move_intent_send_timer: 0.0,
+        };
+
+        assert!(actor_target_distance_sq(&pos, Some(&targeted)).is_finite());
+        assert_eq!(actor_target_distance_sq(&pos, None), f32::INFINITY);
+    }
 }
