@@ -45,15 +45,22 @@ pub fn actor_behavior_system(
         }
 
         info.direction_timer = random_direction_time(&mut rng);
-        if rng.random_range(0.0..1.0) < ACTOR_IDLE_CHANCE {
-            info.patrol_intent = ActorMoveIntent::Idle;
-        } else {
-            let direction = rng.random_range(0.0..std::f32::consts::TAU);
-            info.patrol_intent = ActorMoveIntent::Moving {
-                direction,
-                speed: gameplay_config.characters.actor.patrol_speed,
-            };
-        }
+        info.patrol_intent = random_patrol_intent(&mut rng, gameplay_config.characters.actor.patrol_speed);
+    }
+}
+
+pub(crate) fn random_patrol_intent(rng: &mut ThreadRng, patrol_speed: f32) -> ActorMoveIntent {
+    if rng.random_range(0.0..1.0) < ACTOR_IDLE_CHANCE {
+        ActorMoveIntent::Idle
+    } else {
+        random_patrol_move_intent(rng, patrol_speed)
+    }
+}
+
+pub(crate) fn random_patrol_move_intent(rng: &mut ThreadRng, patrol_speed: f32) -> ActorMoveIntent {
+    ActorMoveIntent::Moving {
+        direction: rng.random_range(0.0..std::f32::consts::TAU),
+        speed: patrol_speed,
     }
 }
 

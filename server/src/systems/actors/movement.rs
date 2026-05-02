@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use rand::{rng, rngs::ThreadRng};
 
 use super::{
+    behavior::random_patrol_move_intent,
     network::maybe_broadcast_actor_move_intent,
     steering::{actor_desired_intent, random_avoidance_side, steering_directions},
 };
@@ -19,9 +20,9 @@ use common::{
     protocol::{ActorId, ActorMoveIntent, FaceDirection, Position},
 };
 
-// Actor behavior decides what an actor wants: patrol or a remembered go-to position.
-// This module turns that behavior target into a concrete movement intent for this
-// frame, including committed wall avoidance and yielding to other characters.
+// Actor behavior decides what an actor wants: simple patrol or a remembered go-to
+// position. Patrol just rerolls when blocked; go-to movement uses the steering,
+// wall-avoidance, and crowding logic needed to keep pursuing a real target.
 
 pub(crate) type ActorMovementQuery<'w, 's> = Query<
     'w,
@@ -61,16 +62,12 @@ pub(crate) fn plan_actor_moves(
         };
         let current_pos = *pos;
         info.move_intent_send_timer += delta;
-        let desired_intent = actor_desired_intent(
+        let go_to_intent = actor_desired_intent(
             &mut info.go_to_position,
             &current_pos,
             ACTOR_GO_TO_REACHED_DISTANCE,
             actor_config.chase_speed,
-        )
-        .unwrap_or_else(|| {
-            info.wall_avoidance_direction = None;
-            info.patrol_intent
-        });
+        );
         let move_context = ActorMoveContext {
             entity,
             pos: &current_pos,
@@ -81,7 +78,11 @@ pub(crate) fn plan_actor_moves(
             planned_moves,
             actor_starts,
         };
-        let selected_move = select_actor_move(&move_context, desired_intent, info.go_to_position, info, &mut rng);
+        let selected_move = if let Some(go_to_intent) = go_to_intent {
+            select_go_to_actor_move(&move_context, go_to_intent, info.go_to_position, info, &mut rng)
+        } else {
+            select_patrol_actor_move(&move_context, info, actor_config.patrol_speed, &mut rng)
+        };
 
         *move_intent = selected_move.intent;
         if let Some(direction) = selected_move.intent.direction() {
@@ -216,7 +217,34 @@ fn actor_target_distance_sq(pos: &Position, info: Option<&ActorInfo>) -> f32 {
         .map_or(f32::INFINITY, |target| horizontal_distance_sq(pos, &target))
 }
 
-fn select_actor_move(
+fn select_patrol_actor_move(
+    context: &ActorMoveContext,
+    info: &mut ActorInfo,
+    patrol_speed: f32,
+    rng: &mut ThreadRng,
+) -> SelectedActorMove {
+    info.wall_avoidance_direction = None;
+    let patrol_intent = info.patrol_intent;
+    if patrol_intent.direction().is_none() {
+        return context.idle_move();
+    }
+
+    match context.evaluate_candidate(patrol_intent) {
+        MoveCandidateResult::Accepted { selected } => selected,
+        MoveCandidateResult::BlockedByCharacter | MoveCandidateResult::BlockedByWorld { .. } => {
+            let next_patrol_intent = random_patrol_move_intent(rng, patrol_speed);
+            info.patrol_intent = next_patrol_intent;
+            match context.evaluate_candidate(next_patrol_intent) {
+                MoveCandidateResult::Accepted { selected } => selected,
+                MoveCandidateResult::BlockedByCharacter | MoveCandidateResult::BlockedByWorld { .. } => {
+                    context.idle_move()
+                }
+            }
+        }
+    }
+}
+
+fn select_go_to_actor_move(
     context: &ActorMoveContext,
     desired_intent: ActorMoveIntent,
     go_to_position: Option<Position>,
@@ -632,7 +660,7 @@ mod tests {
         let context = context(test_entity(1), &pos, &collision_world, &planned_moves, &actor_starts);
         let intent = ActorMoveIntent::Moving {
             direction: std::f32::consts::FRAC_PI_2,
-            speed: actor_speed(),
+            speed: 20.0,
         };
 
         match context.evaluate_candidate(intent) {
@@ -699,7 +727,7 @@ mod tests {
         let mut info = actor_info();
         let mut rng = rng();
 
-        let selected = select_actor_move(
+        let selected = select_go_to_actor_move(
             &context,
             ActorMoveIntent::Moving {
                 direction: base_direction,
