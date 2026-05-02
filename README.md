@@ -1,14 +1,14 @@
 # Cuboid Wars
 
-A fast-paced multi-player game built with Rust, Bevy, Rapier, and QUIC.
+A fast-paced multiplayer game built with Rust, Bevy, Rapier, and QUIC.
 
 ![Cuboid Wars Screenshot](client/assets/screenshot1.png)
 
 ## Overview
 
-Cuboid Wars is a networked 3D game where players navigate a procedurally-generated multi-level maze, collect items, gather power-ups, and avoid sentries. The game uses shared Rapier-backed physics for player movement and projectiles, a client-server architecture with authoritative server logic, client-side prediction for smooth gameplay, and a small map editor for creating and refining arenas.
+Cuboid Wars is a networked 3D arena game where players move through compact multi-level maps, collect power-ups, and fire projectiles at each other. Matches mix fast movement, vertical layout, item control, and simple environmental hazards into short, readable multiplayer encounters.
 
-Client visuals are configured through the hand-edited JSON asset set at `client/assets/assets.json`, including material rules that use editor coordinates for floors and walls.
+The game is built around an authoritative server with client-side prediction, so multiplayer movement stays responsive while the server remains the source of truth for collisions, items, projectiles, actors, and scoring.
 
 ## Technical Stack
 
