@@ -24,13 +24,14 @@ pub use sync::sync_players;
 // ============================================================================
 
 pub(super) fn player_movement_velocity(
-    movement: CharacterMovementState,
-    player_speed: f32,
+    movement: PlayerMovementState,
+    walk_speed: f32,
+    run_speed: f32,
     has_speed_power_up: bool,
 ) -> Vec3 {
     let mut velocity = movement
         .move_intent
-        .to_player_horizontal_velocity(player_speed, has_speed_power_up);
+        .to_horizontal_velocity(walk_speed, run_speed, has_speed_power_up);
     velocity.y = movement.vertical_velocity;
     velocity
 }
@@ -39,7 +40,7 @@ pub(super) fn player_movement_velocity(
 pub fn handle_player_move_intent_message(
     commands: &mut Commands,
     players: &ResMut<PlayerMap>,
-    player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
     rtt: &ResMut<RoundTripTime>,
     gameplay_config: &GameplayConfig,
     msg: SPlayerMoveIntent,
@@ -48,7 +49,8 @@ pub fn handle_player_move_intent_message(
     if let Some(player) = players.0.get(&msg.id) {
         let server_velocity = player_movement_velocity(
             msg.movement,
-            gameplay_config.characters.player.speed,
+            gameplay_config.characters.player.walk_speed,
+            gameplay_config.characters.player.run_speed,
             player.speed_power_up,
         );
 
@@ -73,7 +75,7 @@ pub fn handle_player_move_intent_message(
 pub fn handle_player_jump_message(
     commands: &mut Commands,
     players: &ResMut<PlayerMap>,
-    player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
     rtt: &ResMut<RoundTripTime>,
     gameplay_config: &GameplayConfig,
     msg: SJump,
@@ -83,7 +85,8 @@ pub fn handle_player_jump_message(
     {
         let server_velocity = player_movement_velocity(
             msg.movement,
-            gameplay_config.characters.player.speed,
+            gameplay_config.characters.player.walk_speed,
+            gameplay_config.characters.player.run_speed,
             player.speed_power_up,
         );
         commands.entity(player.entity).insert((
@@ -113,7 +116,7 @@ pub fn handle_player_shot_message(
     commands: &mut Commands,
     projectile_assets: &ProjectileAssets,
     players: &ResMut<PlayerMap>,
-    player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
     msg: SShot,
     collision_world: Option<&CollisionWorld>,
     gameplay_config: &GameplayConfig,

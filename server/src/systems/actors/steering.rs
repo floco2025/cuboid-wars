@@ -1,20 +1,22 @@
 use rand::{RngExt, rngs::ThreadRng};
 
-use common::protocol::{CharacterMoveIntent, Position};
+use common::protocol::{ActorMoveIntent, Position};
 
 pub fn actor_desired_intent(
     go_to_position: &mut Option<Position>,
     pos: &Position,
     reached_distance: f32,
-) -> Option<CharacterMoveIntent> {
+    speed: f32,
+) -> Option<ActorMoveIntent> {
     let target_pos = *go_to_position.as_ref()?;
     if horizontal_distance_sq(pos, &target_pos) <= reached_distance * reached_distance {
         *go_to_position = None;
         return None;
     }
 
-    Some(CharacterMoveIntent::Moving {
+    Some(ActorMoveIntent::Moving {
         direction: direction_toward(pos, &target_pos),
+        speed,
     })
 }
 

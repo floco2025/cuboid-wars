@@ -9,7 +9,7 @@ use common::{
     config::GameplayConfig,
     markers::{ActorMarker, PlayerMarker},
     physics::CollisionWorld,
-    protocol::{ActorId, CharacterMoveIntent, PlayerId, Position},
+    protocol::{ActorId, ActorMoveIntent, PlayerId, Position},
 };
 
 pub fn actor_behavior_system(
@@ -46,10 +46,13 @@ pub fn actor_behavior_system(
 
         info.direction_timer = random_direction_time(&mut rng);
         if rng.random_range(0.0..1.0) < ACTOR_IDLE_CHANCE {
-            info.patrol_intent = CharacterMoveIntent::Idle;
+            info.patrol_intent = ActorMoveIntent::Idle;
         } else {
             let direction = rng.random_range(0.0..std::f32::consts::TAU);
-            info.patrol_intent = CharacterMoveIntent::Moving { direction };
+            info.patrol_intent = ActorMoveIntent::Moving {
+                direction,
+                speed: gameplay_config.characters.actor.patrol_speed,
+            };
         }
     }
 }

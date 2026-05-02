@@ -12,7 +12,7 @@ use common::{
     config::GameplayConfig,
     markers::{ActorMarker, PlayerMarker},
     physics::{CharacterVerticalVelocity, CollisionWorld},
-    protocol::{ActorId, ActorKind, CharacterMoveIntent, FaceDirection, Position},
+    protocol::{ActorId, ActorKind, ActorMoveIntent, FaceDirection, Position},
 };
 
 pub fn actor_initial_spawn_system(
@@ -41,7 +41,10 @@ pub fn actor_initial_spawn_system(
         occupied_positions.push(pos);
 
         let direction = rng.random_range(0.0..std::f32::consts::TAU);
-        let move_intent = CharacterMoveIntent::Moving { direction };
+        let move_intent = ActorMoveIntent::Moving {
+            direction,
+            speed: gameplay_config.characters.actor.patrol_speed,
+        };
         let entity = commands
             .spawn((
                 ActorMarker,

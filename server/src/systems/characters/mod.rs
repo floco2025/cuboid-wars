@@ -15,7 +15,7 @@ use common::{
     physics::{
         CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, overlapping_character, step_character_movement,
     },
-    protocol::{CharacterMoveIntent, PlayerId, Position},
+    protocol::{PlayerId, PlayerMoveIntent, Position},
 };
 
 type PlayerMovementQuery<'w, 's> = Query<
@@ -25,7 +25,7 @@ type PlayerMovementQuery<'w, 's> = Query<
         Entity,
         &'static mut Position,
         &'static mut CharacterVerticalVelocity,
-        &'static CharacterMoveIntent,
+        &'static PlayerMoveIntent,
         &'static PlayerId,
     ),
     (With<PlayerMarker>, Without<ActorMarker>),
@@ -82,7 +82,8 @@ fn plan_player_moves(
     for (entity, pos, motion, move_intent, player_id) in query.iter() {
         let is_stunned = players.0.get(player_id).is_some_and(|info| info.stun_timer > 0.0);
         let has_speed_power_up = players.0.get(player_id).is_some_and(PlayerInfo::has_speed);
-        let velocity = move_intent.to_player_horizontal_velocity(player_config.speed, has_speed_power_up);
+        let velocity =
+            move_intent.to_horizontal_velocity(player_config.walk_speed, player_config.run_speed, has_speed_power_up);
         let velocity_sq = velocity.x.mul_add(velocity.x, velocity.z * velocity.z);
         let is_standing_still = velocity_sq < PHYSICS_EPSILON * PHYSICS_EPSILON;
         let suppress_horizontal = is_stunned || is_standing_still;

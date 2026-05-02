@@ -32,7 +32,7 @@ pub fn input_movement_system(
     mut local_player_query: Query<
         (
             &Position,
-            &mut CharacterMoveIntent,
+            &mut PlayerMoveIntent,
             &mut FaceDirection,
             &mut CharacterVerticalVelocity,
         ),
@@ -107,7 +107,7 @@ fn handle_unlocked_cursor(
     local_player_query: &mut Query<
         (
             &Position,
-            &mut CharacterMoveIntent,
+            &mut PlayerMoveIntent,
             &mut FaceDirection,
             &mut CharacterVerticalVelocity,
         ),
@@ -118,7 +118,7 @@ fn handle_unlocked_cursor(
     for _ in mouse_motion.read() {}
 
     if local_player_info.last_sent_move_intent.direction().is_some() {
-        let idle = CharacterMoveIntent::Idle;
+        let idle = PlayerMoveIntent::Idle;
         for (_, mut input, _, _) in local_player_query.iter_mut() {
             *input = idle;
         }
@@ -172,10 +172,10 @@ fn calculate_current_orientation(
     (current_yaw, current_pitch)
 }
 
-fn calculate_move_intent(keyboard: &Res<ButtonInput<KeyCode>>, face_yaw: f32, stunned: bool) -> CharacterMoveIntent {
+fn calculate_move_intent(keyboard: &Res<ButtonInput<KeyCode>>, face_yaw: f32, stunned: bool) -> PlayerMoveIntent {
     // Stunned players cannot move
     if stunned {
-        return CharacterMoveIntent::Idle;
+        return PlayerMoveIntent::Idle;
     }
 
     // Build movement input vector (forward=z, right=x)
@@ -196,11 +196,14 @@ fn calculate_move_intent(keyboard: &Res<ButtonInput<KeyCode>>, face_yaw: f32, st
     if keyboard_vec.length_squared() > 0.0 {
         let normalized_input = keyboard_vec.normalize();
         let angle_offset = normalized_input.x.atan2(normalized_input.y);
-        CharacterMoveIntent::Moving {
-            direction: face_yaw + angle_offset,
+        let direction = face_yaw + angle_offset;
+        if keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight) {
+            PlayerMoveIntent::Running { direction }
+        } else {
+            PlayerMoveIntent::Walking { direction }
         }
     } else {
-        CharacterMoveIntent::Idle
+        PlayerMoveIntent::Idle
     }
 }
 
@@ -211,7 +214,7 @@ fn local_player_stunned(my_player_id: Option<&Res<MyPlayerId>>, players: &Res<Pl
 }
 
 fn update_player_input_face_and_jump(
-    move_intent: CharacterMoveIntent,
+    move_intent: PlayerMoveIntent,
     face_yaw: f32,
     jump_requested: bool,
     collision_world: Option<&CollisionWorld>,
@@ -219,7 +222,7 @@ fn update_player_input_face_and_jump(
     local_player_query: &mut Query<
         (
             &Position,
-            &mut CharacterMoveIntent,
+            &mut PlayerMoveIntent,
             &mut FaceDirection,
             &mut CharacterVerticalVelocity,
         ),
@@ -243,7 +246,7 @@ fn update_player_input_face_and_jump(
 }
 
 fn send_throttled_updates(
-    move_intent: CharacterMoveIntent,
+    move_intent: PlayerMoveIntent,
     face_yaw: f32,
     jump_requested: bool,
     time: &Res<Time>,
@@ -258,13 +261,17 @@ fn send_throttled_updates(
     let last_dir = local_player_info.last_sent_move_intent.direction();
     let new_dir = move_intent.direction();
     let active_changed = last_dir.is_some() != new_dir.is_some();
+    let mode_changed = move_intent.is_running() != local_player_info.last_sent_move_intent.is_running();
     let direction_changed = match (new_dir, last_dir) {
         (Some(new_d), Some(old_d)) => {
             angle_delta_radians(new_d, old_d).abs() > MOVE_INPUT_DIR_CHANGE_THRESHOLD.to_radians()
         }
         _ => false,
     };
-    if active_changed || (direction_changed && local_player_info.last_send_input_time >= MOVE_INPUT_SEND_COOLDOWN) {
+    if active_changed
+        || mode_changed
+        || (direction_changed && local_player_info.last_send_input_time >= MOVE_INPUT_SEND_COOLDOWN)
+    {
         let msg = ClientMessage::PlayerMoveIntent(CPlayerMoveIntent { move_intent });
         let _ = to_server.send(ClientToServer::Send(msg));
         local_player_info.last_sent_move_intent = move_intent;

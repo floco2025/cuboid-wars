@@ -12,8 +12,7 @@ use common::{
     markers::ActorMarker,
     physics::CharacterVerticalVelocity,
     protocol::{
-        Actor, ActorId, CharacterMoveIntent, CharacterMovementState, FaceDirection, Position, SActorMoveIntent,
-        SActorTeleport,
+        Actor, ActorId, ActorMoveIntent, ActorMovementState, FaceDirection, Position, SActorMoveIntent, SActorTeleport,
     },
 };
 
@@ -25,7 +24,7 @@ pub fn sync_actors(
     graphs: &mut ResMut<Assets<AnimationGraph>>,
     actors: &mut ResMut<ActorMap>,
     rtt: &ResMut<RoundTripTime>,
-    actor_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<ActorMarker>>,
+    actor_data: &Query<(&Position, &ActorMoveIntent, &FaceDirection), With<ActorMarker>>,
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
     render_settings: &RenderSettings,
@@ -73,7 +72,6 @@ pub fn sync_actors(
             *id,
             server_actor.movement,
             Some(server_actor.face_dir),
-            gameplay_config.characters.actor.speed,
         );
     }
 }
@@ -82,8 +80,7 @@ pub fn handle_actor_move_intent_message(
     commands: &mut Commands,
     actors: &ResMut<ActorMap>,
     rtt: &ResMut<RoundTripTime>,
-    actor_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<ActorMarker>>,
-    gameplay_config: &GameplayConfig,
+    actor_data: &Query<(&Position, &ActorMoveIntent, &FaceDirection), With<ActorMarker>>,
     msg: SActorMoveIntent,
 ) {
     apply_actor_movement_state(
@@ -94,7 +91,6 @@ pub fn handle_actor_move_intent_message(
         msg.id,
         msg.movement,
         msg.movement.move_intent.direction(),
-        gameplay_config.characters.actor.speed,
     );
 }
 
@@ -115,17 +111,16 @@ fn apply_actor_movement_state(
     commands: &mut Commands,
     actors: &ResMut<ActorMap>,
     rtt: &ResMut<RoundTripTime>,
-    actor_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<ActorMarker>>,
+    actor_data: &Query<(&Position, &ActorMoveIntent, &FaceDirection), With<ActorMarker>>,
     id: ActorId,
-    movement: CharacterMovementState,
+    movement: ActorMovementState,
     face_dir: Option<f32>,
-    actor_speed: f32,
 ) {
     let Some(client_actor) = actors.0.get(&id) else {
         return;
     };
 
-    let server_velocity = actor_movement_velocity(movement, actor_speed);
+    let server_velocity = actor_movement_velocity(movement);
     commands.entity(client_actor.entity).insert((
         movement.move_intent,
         CharacterVerticalVelocity(movement.vertical_velocity),
@@ -145,8 +140,8 @@ fn apply_actor_movement_state(
     }
 }
 
-fn actor_movement_velocity(movement: CharacterMovementState, actor_speed: f32) -> Vec3 {
-    let mut velocity = movement.move_intent.to_horizontal_velocity(actor_speed);
+fn actor_movement_velocity(movement: ActorMovementState) -> Vec3 {
+    let mut velocity = movement.move_intent.to_horizontal_velocity();
     velocity.y = movement.vertical_velocity;
     velocity
 }

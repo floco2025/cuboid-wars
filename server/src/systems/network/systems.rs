@@ -35,9 +35,9 @@ pub fn network_client_message_system(
     map_config: Res<MapConfig>,
     items: Res<ItemMap>,
     actors: Res<ActorMap>,
-    player_data: Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
+    player_data: Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
     player_motions: Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
-    actor_data: Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<ActorMarker>>,
+    actor_data: Query<(&Position, &ActorMoveIntent, &FaceDirection), With<ActorMarker>>,
     actor_motions: Query<&CharacterVerticalVelocity, With<ActorMarker>>,
     item_data: Query<&Position, With<ItemMarker>>,
 ) {
@@ -113,9 +113,9 @@ pub fn network_broadcast_state_system(
     players: Res<PlayerMap>,
     actors: Res<ActorMap>,
     items: Res<ItemMap>,
-    player_data: Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
+    player_data: Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
     motions: Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
-    actor_data: Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<ActorMarker>>,
+    actor_data: Query<(&Position, &ActorMoveIntent, &FaceDirection), With<ActorMarker>>,
     actor_motions: Query<&CharacterVerticalVelocity, With<ActorMarker>>,
     item_positions: Query<&Position, With<ItemMarker>>,
 ) {

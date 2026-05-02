@@ -8,7 +8,7 @@ use common::{
     constants::CHARACTER_FALL_TELEPORT_Y,
     markers::PlayerMarker,
     physics::{CharacterVerticalVelocity, CollisionWorld},
-    protocol::{CharacterMoveIntent, CharacterMovementState, PlayerId, Position, SPlayerTeleport, ServerMessage},
+    protocol::{PlayerId, PlayerMoveIntent, PlayerMovementState, Position, SPlayerTeleport, ServerMessage},
 };
 
 // ============================================================================
@@ -57,7 +57,7 @@ pub fn players_fall_recovery_system(
             &PlayerId,
             &mut Position,
             &mut CharacterVerticalVelocity,
-            &CharacterMoveIntent,
+            &PlayerMoveIntent,
         ),
         With<PlayerMarker>,
     >,
@@ -89,7 +89,7 @@ pub fn players_fall_recovery_system(
                 &players,
                 ServerMessage::PlayerTeleport(SPlayerTeleport {
                     id,
-                    movement: CharacterMovementState::new(teleport_pos, *move_intent, 0.0),
+                    movement: PlayerMovementState::new(teleport_pos, *move_intent, 0.0),
                 }),
             );
         }

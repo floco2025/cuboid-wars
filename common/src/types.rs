@@ -37,46 +37,98 @@ impl AddAssign<Vec3> for Position {
     }
 }
 
-// CharacterMoveIntent component - desired character movement. `Idle` while
-// standing still, `Moving { direction }` while moving (radians, world-space).
-// The horizontal velocity is derived each tick from this plus character rules.
+// Player movement intent from local input. The selected mode controls which
+// configured player speed is used for prediction.
 #[derive(Debug, Clone, Encode, Decode, Copy, Component, Default, PartialEq)]
-pub enum CharacterMoveIntent {
+pub enum PlayerMoveIntent {
     #[default]
     Idle,
-    Moving {
+    Walking {
+        direction: f32,
+    },
+    Running {
         direction: f32,
     },
 }
 
-impl CharacterMoveIntent {
+impl PlayerMoveIntent {
     // Movement direction (radians) if active, else `None`.
     #[must_use]
     pub const fn direction(&self) -> Option<f32> {
         match self {
             Self::Idle => None,
-            Self::Moving { direction } => Some(*direction),
+            Self::Walking { direction } | Self::Running { direction } => Some(*direction),
         }
     }
 
-    // Convert intent to a horizontal world-space velocity at the given magnitude.
+    // Convert intent to a horizontal world-space velocity using configured
+    // walk/run speeds.
     #[must_use]
-    pub fn to_horizontal_velocity(&self, magnitude: f32) -> Vec3 {
+    pub fn to_horizontal_velocity(&self, walk_speed: f32, run_speed: f32, has_speed_power_up: bool) -> Vec3 {
         match self {
             Self::Idle => Vec3::ZERO,
-            Self::Moving { direction } => Vec3::new(direction.sin() * magnitude, 0.0, direction.cos() * magnitude),
+            Self::Walking { direction } => {
+                let speed = player_speed_with_power_up(walk_speed, has_speed_power_up);
+                Vec3::new(direction.sin() * speed, 0.0, direction.cos() * speed)
+            }
+            Self::Running { direction } => {
+                let speed = player_speed_with_power_up(run_speed, has_speed_power_up);
+                Vec3::new(direction.sin() * speed, 0.0, direction.cos() * speed)
+            }
         }
     }
 
-    // Horizontal velocity for a player with the speed power-up multiplier applied.
     #[must_use]
-    pub fn to_player_horizontal_velocity(&self, base_speed: f32, has_speed_power_up: bool) -> Vec3 {
-        let mag = if has_speed_power_up {
-            base_speed * crate::constants::POWER_UP_SPEED_MULTIPLIER
-        } else {
-            base_speed
-        };
-        self.to_horizontal_velocity(mag)
+    pub const fn is_running(&self) -> bool {
+        matches!(self, Self::Running { .. })
+    }
+}
+
+fn player_speed_with_power_up(speed: f32, has_speed_power_up: bool) -> f32 {
+    if has_speed_power_up {
+        speed * crate::constants::POWER_UP_SPEED_MULTIPLIER
+    } else {
+        speed
+    }
+}
+
+// Server-authored actor movement intent. Actors use concrete speed values so
+// the client can predict server behavior exactly.
+#[derive(Debug, Clone, Encode, Decode, Copy, Component, Default, PartialEq)]
+pub enum ActorMoveIntent {
+    #[default]
+    Idle,
+    Moving {
+        direction: f32,
+        speed: f32,
+    },
+}
+
+impl ActorMoveIntent {
+    // Movement direction (radians) if active, else `None`.
+    #[must_use]
+    pub const fn direction(&self) -> Option<f32> {
+        match self {
+            Self::Idle => None,
+            Self::Moving { direction, .. } => Some(*direction),
+        }
+    }
+
+    #[must_use]
+    pub const fn speed(&self) -> Option<f32> {
+        match self {
+            Self::Idle => None,
+            Self::Moving { speed, .. } => Some(*speed),
+        }
+    }
+
+    // Convert intent to a horizontal world-space velocity.
+    #[must_use]
+    pub fn to_horizontal_velocity(&self) -> Vec3 {
+        match self {
+            Self::Idle => Vec3::ZERO,
+            Self::Moving { direction, speed } => Vec3::new(direction.sin() * speed, 0.0, direction.cos() * speed),
+        }
     }
 }
 
@@ -205,18 +257,38 @@ pub enum ItemType {
     Cookie,
 }
 
-// Character movement state needed to continue client-side prediction from an
+// Player movement state needed to continue client-side prediction from an
 // authoritative server point.
 #[derive(Debug, Clone, Copy, Encode, Decode)]
-pub struct CharacterMovementState {
+pub struct PlayerMovementState {
     pub pos: Position,
-    pub move_intent: CharacterMoveIntent,
+    pub move_intent: PlayerMoveIntent,
     pub vertical_velocity: f32, // m/s, negative = falling
 }
 
-impl CharacterMovementState {
+impl PlayerMovementState {
     #[must_use]
-    pub const fn new(pos: Position, move_intent: CharacterMoveIntent, vertical_velocity: f32) -> Self {
+    pub const fn new(pos: Position, move_intent: PlayerMoveIntent, vertical_velocity: f32) -> Self {
+        Self {
+            pos,
+            move_intent,
+            vertical_velocity,
+        }
+    }
+}
+
+// Actor movement state needed to continue client-side prediction from an
+// authoritative server point.
+#[derive(Debug, Clone, Copy, Encode, Decode)]
+pub struct ActorMovementState {
+    pub pos: Position,
+    pub move_intent: ActorMoveIntent,
+    pub vertical_velocity: f32, // m/s, negative = falling
+}
+
+impl ActorMovementState {
+    #[must_use]
+    pub const fn new(pos: Position, move_intent: ActorMoveIntent, vertical_velocity: f32) -> Self {
         Self {
             pos,
             move_intent,
@@ -236,16 +308,16 @@ pub enum ActorKind {
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct Actor {
     pub kind: ActorKind,
-    pub movement: CharacterMovementState,
+    pub movement: ActorMovementState,
     pub face_dir: f32,
 }
 
 impl Actor {
     #[must_use]
-    pub const fn new(kind: ActorKind, pos: Position, move_intent: CharacterMoveIntent, face_dir: f32) -> Self {
+    pub const fn new(kind: ActorKind, pos: Position, move_intent: ActorMoveIntent, face_dir: f32) -> Self {
         Self {
             kind,
-            movement: CharacterMovementState::new(pos, move_intent, 0.0),
+            movement: ActorMovementState::new(pos, move_intent, 0.0),
             face_dir,
         }
     }
@@ -255,7 +327,7 @@ impl Actor {
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct Player {
     pub name: String,
-    pub movement: CharacterMovementState,
+    pub movement: PlayerMovementState,
     pub face_dir: f32,
     pub hits: i32,
     pub speed_power_up: bool,
@@ -267,10 +339,10 @@ pub struct Player {
 impl Player {
     // Creates a new player with the given core fields and all status flags set to `false`.
     #[must_use]
-    pub const fn new(name: String, pos: Position, move_intent: CharacterMoveIntent, face_dir: f32, hits: i32) -> Self {
+    pub const fn new(name: String, pos: Position, move_intent: PlayerMoveIntent, face_dir: f32, hits: i32) -> Self {
         Self {
             name,
-            movement: CharacterMovementState::new(pos, move_intent, 0.0),
+            movement: PlayerMovementState::new(pos, move_intent, 0.0),
             face_dir,
             hits,
             speed_power_up: false,

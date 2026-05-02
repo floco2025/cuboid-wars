@@ -31,9 +31,9 @@ pub fn handle_login_message(
     map_config: &Res<MapConfig>,
     items: &Res<ItemMap>,
     actors: &Res<ActorMap>,
-    player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
     motions: &Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
-    actor_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<ActorMarker>>,
+    actor_data: &Query<(&Position, &ActorMoveIntent, &FaceDirection), With<ActorMarker>>,
     actor_motions: &Query<&CharacterVerticalVelocity, With<ActorMarker>>,
     item_positions: &Query<&Position, With<ItemMarker>>,
 ) {
@@ -89,7 +89,7 @@ pub fn handle_login_message(
             let face_dir = (-pos.x).atan2(-pos.z);
 
             // Initial move-input intent for the new player (idle)
-            let move_intent = CharacterMoveIntent::Idle;
+            let move_intent = PlayerMoveIntent::Idle;
 
             // Construct player data
             let player = Player::new(name, pos, move_intent, face_dir, hits);

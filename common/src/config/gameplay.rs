@@ -37,13 +37,28 @@ pub struct CharacterGameplayConfig {
     pub collider: CharacterColliderConfig,
     pub support_probe: CharacterSupportProbeConfig,
     pub eye_height: f32,
-    pub speed: f32,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct PlayerGameplayConfig {
+    #[serde(flatten)]
+    pub character: CharacterGameplayConfig,
+    pub walk_speed: f32,
+    pub run_speed: f32,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ActorGameplayConfig {
+    #[serde(flatten)]
+    pub character: CharacterGameplayConfig,
+    pub patrol_speed: f32,
+    pub chase_speed: f32,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct CharactersGameplayConfig {
-    pub player: CharacterGameplayConfig,
-    pub actor: CharacterGameplayConfig,
+    pub player: PlayerGameplayConfig,
+    pub actor: ActorGameplayConfig,
 }
 
 impl CharacterGameplayConfig {
@@ -63,8 +78,43 @@ impl CharacterGameplayConfig {
     fn validate(&self, path: &str) -> Result<()> {
         self.collider.validate(&format!("{path}.collider"))?;
         self.support_probe.validate(&format!("{path}.support_probe"))?;
-        validate_positive_finite(self.eye_height, &format!("{path}.eye_height"))?;
-        validate_positive_finite(self.speed, &format!("{path}.speed"))
+        validate_positive_finite(self.eye_height, &format!("{path}.eye_height"))
+    }
+}
+
+impl PlayerGameplayConfig {
+    #[must_use]
+    pub const fn physics(&self) -> CharacterPhysicsConfig {
+        self.character.physics()
+    }
+
+    #[must_use]
+    pub const fn eye_height(&self) -> f32 {
+        self.character.eye_height()
+    }
+
+    fn validate(&self, path: &str) -> Result<()> {
+        self.character.validate(path)?;
+        validate_positive_finite(self.walk_speed, &format!("{path}.walk_speed"))?;
+        validate_positive_finite(self.run_speed, &format!("{path}.run_speed"))
+    }
+}
+
+impl ActorGameplayConfig {
+    #[must_use]
+    pub const fn physics(&self) -> CharacterPhysicsConfig {
+        self.character.physics()
+    }
+
+    #[must_use]
+    pub const fn eye_height(&self) -> f32 {
+        self.character.eye_height()
+    }
+
+    fn validate(&self, path: &str) -> Result<()> {
+        self.character.validate(path)?;
+        validate_positive_finite(self.patrol_speed, &format!("{path}.patrol_speed"))?;
+        validate_positive_finite(self.chase_speed, &format!("{path}.chase_speed"))
     }
 }
 

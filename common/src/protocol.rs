@@ -20,7 +20,7 @@ pub struct CLogoff {}
 // Client to Server: Local player's character movement intent update.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct CPlayerMoveIntent {
-    pub move_intent: CharacterMoveIntent,
+    pub move_intent: PlayerMoveIntent,
 }
 
 // Client to Server: One-shot jump request.
@@ -75,14 +75,14 @@ pub struct SLogoff {
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SPlayerMoveIntent {
     pub id: PlayerId,
-    pub movement: CharacterMovementState,
+    pub movement: PlayerMovementState,
 }
 
 // Server to Client: Server-controlled actor movement state update after intent changes.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SActorMoveIntent {
     pub id: ActorId,
-    pub movement: CharacterMovementState,
+    pub movement: ActorMovementState,
 }
 
 // Server to Client: Authoritative player teleport. This is not reconciliation;
@@ -90,7 +90,7 @@ pub struct SActorMoveIntent {
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SPlayerTeleport {
     pub id: PlayerId,
-    pub movement: CharacterMovementState,
+    pub movement: PlayerMovementState,
 }
 
 // Server to Client: Authoritative actor teleport. This is not reconciliation;
@@ -98,14 +98,14 @@ pub struct SPlayerTeleport {
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SActorTeleport {
     pub id: ActorId,
-    pub movement: CharacterMovementState,
+    pub movement: ActorMovementState,
 }
 
 // Server to Client: Player started a jump with authoritative movement state.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SJump {
     pub id: PlayerId,
-    pub movement: CharacterMovementState,
+    pub movement: PlayerMovementState,
 }
 
 // Server to Client: Player facing direction update.

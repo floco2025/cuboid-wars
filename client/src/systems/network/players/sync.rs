@@ -13,7 +13,7 @@ use common::{
     config::GameplayConfig,
     markers::PlayerMarker,
     physics::CharacterVerticalVelocity,
-    protocol::{CharacterMoveIntent, FaceDirection, Player, PlayerId, Position},
+    protocol::{FaceDirection, Player, PlayerId, PlayerMoveIntent, Position},
 };
 
 pub fn sync_players(
@@ -24,7 +24,7 @@ pub fn sync_players(
     graphs: &mut ResMut<Assets<AnimationGraph>>,
     players: &mut ResMut<PlayerMap>,
     rtt: &ResMut<RoundTripTime>,
-    player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
     camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     my_player_id: PlayerId,
     asset_server: &Res<AssetServer>,
@@ -150,7 +150,7 @@ fn update_snapshot_player(
     commands: &mut Commands,
     players: &mut ResMut<PlayerMap>,
     rtt: &ResMut<RoundTripTime>,
-    player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
     my_player_id: PlayerId,
     gameplay_config: &GameplayConfig,
     id: PlayerId,
@@ -160,7 +160,8 @@ fn update_snapshot_player(
         if let Ok((client_pos, _, _)) = player_data.get(client_player.entity) {
             let server_velocity = player_movement_velocity(
                 server_player.movement,
-                gameplay_config.characters.player.speed,
+                gameplay_config.characters.player.walk_speed,
+                gameplay_config.characters.player.run_speed,
                 server_player.speed_power_up,
             );
 

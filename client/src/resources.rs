@@ -9,7 +9,7 @@ use tokio::sync::mpsc::{
 };
 
 use crate::net::{ClientToServer, ServerToClient};
-use common::protocol::{ActorId, CharacterMoveIntent, ItemId, PlayerId};
+use common::protocol::{ActorId, ItemId, PlayerId, PlayerMoveIntent};
 
 // ============================================================================
 // Bevy Resources
@@ -60,7 +60,7 @@ pub struct LastUpdateSeq(pub u32);
 #[derive(Resource)]
 pub struct LocalPlayerInfo {
     pub last_shot_time: f32,
-    pub last_sent_move_intent: CharacterMoveIntent,
+    pub last_sent_move_intent: PlayerMoveIntent,
     pub last_sent_face: f32,
     pub last_send_input_time: f32,
     pub last_send_face_time: f32,
@@ -72,7 +72,7 @@ impl Default for LocalPlayerInfo {
     fn default() -> Self {
         Self {
             last_shot_time: f32::NEG_INFINITY,
-            last_sent_move_intent: CharacterMoveIntent::default(),
+            last_sent_move_intent: PlayerMoveIntent::default(),
             last_sent_face: 0.0,
             last_send_input_time: 0.0,
             last_send_face_time: 0.0,

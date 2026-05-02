@@ -23,7 +23,7 @@ pub fn dispatch_message(
     msg: ClientMessage,
     players: &mut PlayerMap,
     time: &Res<Time>,
-    player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
     motions: &Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
     collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
@@ -100,7 +100,7 @@ fn handle_move_intent_message(
     id: PlayerId,
     msg: CPlayerMoveIntent,
     players: &PlayerMap,
-    player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
     motions: &Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
 ) {
     // Update the player's input intent
@@ -114,7 +114,7 @@ fn handle_move_intent_message(
             id,
             ServerMessage::PlayerMoveIntent(SPlayerMoveIntent {
                 id,
-                movement: CharacterMovementState::new(*pos, msg.move_intent, motion.0),
+                movement: PlayerMovementState::new(*pos, msg.move_intent, motion.0),
             }),
         );
     }
@@ -125,7 +125,7 @@ fn handle_jump_message(
     entity: Entity,
     id: PlayerId,
     players: &PlayerMap,
-    player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
     motions: &Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
     collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
@@ -161,7 +161,7 @@ fn handle_jump_message(
         id,
         ServerMessage::Jump(SJump {
             id,
-            movement: CharacterMovementState::new(*pos, *move_intent, next_vertical_velocity),
+            movement: PlayerMovementState::new(*pos, *move_intent, next_vertical_velocity),
         }),
     );
 }
@@ -182,7 +182,7 @@ fn handle_shot_message(
     msg: CShot,
     players: &mut PlayerMap,
     time: &Res<Time>,
-    player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
     collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
 ) {

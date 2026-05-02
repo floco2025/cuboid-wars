@@ -40,7 +40,7 @@ pub fn broadcast_to_all(players: &PlayerMap, message: ServerMessage) {
 #[must_use]
 pub fn snapshot_logged_in_players(
     players: &PlayerMap,
-    player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
     motions: &Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
 ) -> Vec<(PlayerId, Player)> {
     players
@@ -56,7 +56,7 @@ pub fn snapshot_logged_in_players(
                 *player_id,
                 Player {
                     name: info.name.clone(),
-                    movement: CharacterMovementState::new(*pos, *move_intent, vertical_velocity),
+                    movement: PlayerMovementState::new(*pos, *move_intent, vertical_velocity),
                     face_dir: face_dir.0,
                     hits: info.hits,
                     speed_power_up: info.has_speed(),
@@ -73,7 +73,7 @@ pub fn snapshot_logged_in_players(
 #[must_use]
 pub fn snapshot_actors(
     actors: &ActorMap,
-    actor_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<ActorMarker>>,
+    actor_data: &Query<(&Position, &ActorMoveIntent, &FaceDirection), With<ActorMarker>>,
     motions: &Query<&CharacterVerticalVelocity, With<ActorMarker>>,
 ) -> Vec<(ActorId, Actor)> {
     actors
@@ -86,7 +86,7 @@ pub fn snapshot_actors(
                 *actor_id,
                 Actor {
                     kind: info.kind,
-                    movement: CharacterMovementState::new(*pos, *move_intent, vertical_velocity),
+                    movement: ActorMovementState::new(*pos, *move_intent, vertical_velocity),
                     face_dir: face_dir.0,
                 },
             ))

@@ -10,7 +10,7 @@ use common::{
     constants::CHARACTER_FALL_TELEPORT_Y,
     markers::ActorMarker,
     physics::{CharacterVerticalVelocity, CollisionWorld},
-    protocol::{ActorId, CharacterMoveIntent, Position},
+    protocol::{ActorId, ActorMoveIntent, Position},
 };
 
 pub fn actor_fall_recovery_system(
@@ -24,7 +24,7 @@ pub fn actor_fall_recovery_system(
             &ActorId,
             &mut Position,
             &mut CharacterVerticalVelocity,
-            &CharacterMoveIntent,
+            &ActorMoveIntent,
         ),
         With<ActorMarker>,
     >,

@@ -40,8 +40,8 @@ pub fn dispatch_message(
     rtt: &mut ResMut<RoundTripTime>,
     last_update_seq: &mut ResMut<LastUpdateSeq>,
     assets: &mut AssetManagers,
-    player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
-    actor_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<ActorMarker>>,
+    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
+    actor_data: &Query<(&Position, &ActorMoveIntent, &FaceDirection), With<ActorMarker>>,
     cameras: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     time: &Res<Time>,
     asset_server: &Res<AssetServer>,
@@ -73,7 +73,7 @@ pub fn dispatch_message(
             handle_player_move_intent_message(commands, players, player_data, rtt, gameplay_config, move_intent_msg);
         }
         ServerMessage::ActorMoveIntent(move_intent_msg) => {
-            handle_actor_move_intent_message(commands, actors, rtt, actor_data, gameplay_config, move_intent_msg);
+            handle_actor_move_intent_message(commands, actors, rtt, actor_data, move_intent_msg);
         }
         ServerMessage::PlayerTeleport(teleport_msg) => {
             handle_player_teleport_message(commands, players, my_player_id, teleport_msg);
@@ -151,8 +151,8 @@ pub fn handle_update_message(
     items: &mut ResMut<ItemMap>,
     rtt: &ResMut<RoundTripTime>,
     last_update_seq: &mut ResMut<LastUpdateSeq>,
-    player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
-    actor_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<ActorMarker>>,
+    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
+    actor_data: &Query<(&Position, &ActorMoveIntent, &FaceDirection), With<ActorMarker>>,
     camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     my_player_id: PlayerId,
     asset_server: &Res<AssetServer>,

@@ -132,7 +132,7 @@ fn player_speed() -> f32 {
         .expect("default gameplay config should load")
         .characters
         .player
-        .speed
+        .run_speed
 }
 
 fn planned_move(entity: Entity, start: Position, target: Position) -> CharacterMovePlan {

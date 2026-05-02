@@ -16,7 +16,7 @@ use common::{
         CharacterMovePlan, CharacterMovementResult, CharacterVerticalVelocity, CollisionWorld,
         blocking_character_move_plan, character_move_plan_is_blocked, step_character_movement,
     },
-    protocol::{ActorId, CharacterMoveIntent, FaceDirection, Position},
+    protocol::{ActorId, ActorMoveIntent, FaceDirection, Position},
 };
 
 // Actor behavior decides what an actor wants: patrol or a remembered go-to position.
@@ -31,7 +31,7 @@ pub(crate) type ActorMovementQuery<'w, 's> = Query<
         &'static ActorId,
         &'static mut Position,
         &'static mut CharacterVerticalVelocity,
-        &'static mut CharacterMoveIntent,
+        &'static mut ActorMoveIntent,
         &'static mut FaceDirection,
     ),
     (With<ActorMarker>, Without<PlayerMarker>),
@@ -59,17 +59,22 @@ pub(crate) fn plan_actor_moves(
         let Some(info) = actors.0.get_mut(id) else {
             continue;
         };
+        let current_pos = *pos;
         info.move_intent_send_timer += delta;
-        let desired_intent = actor_desired_intent(&mut info.go_to_position, &pos, ACTOR_GO_TO_REACHED_DISTANCE)
-            .unwrap_or_else(|| {
-                info.wall_avoidance_direction = None;
-                info.patrol_intent
-            });
+        let desired_intent = actor_desired_intent(
+            &mut info.go_to_position,
+            &current_pos,
+            ACTOR_GO_TO_REACHED_DISTANCE,
+            actor_config.chase_speed,
+        )
+        .unwrap_or_else(|| {
+            info.wall_avoidance_direction = None;
+            info.patrol_intent
+        });
         let move_context = ActorMoveContext {
             entity,
-            pos: &pos,
+            pos: &current_pos,
             vertical_velocity: motion.0,
-            actor_speed: actor_config.speed,
             actor_physics,
             delta,
             collision_world,
@@ -82,11 +87,11 @@ pub(crate) fn plan_actor_moves(
         if let Some(direction) = selected_move.intent.direction() {
             face_dir.0 = direction;
         }
-        maybe_broadcast_actor_move_intent(players, *id, *pos, selected_move.intent, motion.0, info);
+        maybe_broadcast_actor_move_intent(players, *id, current_pos, selected_move.intent, motion.0, info);
 
         planned_moves.push(CharacterMovePlan {
             entity,
-            start: *pos,
+            start: current_pos,
             target: selected_move.step.position,
             target_vertical_velocity: selected_move.step.vertical_velocity,
             physics: actor_physics,
@@ -97,7 +102,7 @@ pub(crate) fn plan_actor_moves(
 
 #[derive(Copy, Clone)]
 struct SelectedActorMove {
-    intent: CharacterMoveIntent,
+    intent: ActorMoveIntent,
     step: CharacterMovementResult,
 }
 
@@ -105,7 +110,6 @@ struct ActorMoveContext<'a> {
     entity: Entity,
     pos: &'a Position,
     vertical_velocity: f32,
-    actor_speed: f32,
     actor_physics: CharacterPhysicsConfig,
     delta: f32,
     collision_world: &'a CollisionWorld,
@@ -115,15 +119,15 @@ struct ActorMoveContext<'a> {
 
 impl ActorMoveContext<'_> {
     fn idle_move(&self) -> SelectedActorMove {
-        let intent = CharacterMoveIntent::Idle;
+        let intent = ActorMoveIntent::Idle;
         SelectedActorMove {
             intent,
             step: self.step_actor_move(intent, self.delta),
         }
     }
 
-    fn step_actor_move(&self, move_intent: CharacterMoveIntent, delta: f32) -> CharacterMovementResult {
-        let velocity = move_intent.to_horizontal_velocity(self.actor_speed);
+    fn step_actor_move(&self, move_intent: ActorMoveIntent, delta: f32) -> CharacterMovementResult {
+        let velocity = move_intent.to_horizontal_velocity();
         let target_x = velocity.x.mul_add(delta, self.pos.x);
         let target_z = velocity.z.mul_add(delta, self.pos.z);
         step_character_movement(
@@ -138,7 +142,7 @@ impl ActorMoveContext<'_> {
         )
     }
 
-    fn evaluate_candidate(&self, intent: CharacterMoveIntent) -> MoveCandidateResult {
+    fn evaluate_candidate(&self, intent: ActorMoveIntent) -> MoveCandidateResult {
         let selected = SelectedActorMove {
             intent,
             step: self.step_actor_move(intent, self.delta),
@@ -214,7 +218,7 @@ fn actor_target_distance_sq(pos: &Position, info: Option<&ActorInfo>) -> f32 {
 
 fn select_actor_move(
     context: &ActorMoveContext,
-    desired_intent: CharacterMoveIntent,
+    desired_intent: ActorMoveIntent,
     go_to_position: Option<Position>,
     info: &mut ActorInfo,
     rng: &mut ThreadRng,
@@ -223,12 +227,15 @@ fn select_actor_move(
         info.wall_avoidance_direction = None;
         return context.idle_move();
     };
+    let speed = desired_intent
+        .speed()
+        .expect("moving actor intent should include speed");
 
-    if let Some(selected_move) = continue_wall_avoidance_if_needed(context, direction, go_to_position, info) {
+    if let Some(selected_move) = continue_wall_avoidance_if_needed(context, direction, speed, go_to_position, info) {
         return selected_move;
     }
 
-    match choose_steering_move(context, direction, rng) {
+    match choose_steering_move(context, direction, speed, rng) {
         SteeringMoveChoice::Accepted {
             selected,
             wall_avoidance_direction,
@@ -242,7 +249,7 @@ fn select_actor_move(
         SteeringMoveChoice::BlockedByWorld => {}
     }
 
-    if let Some(selected_move) = choose_new_wall_avoidance_move(context, direction, rng) {
+    if let Some(selected_move) = choose_new_wall_avoidance_move(context, direction, speed, rng) {
         info.wall_avoidance_direction = selected_move.intent.direction();
         return selected_move;
     }
@@ -253,23 +260,25 @@ fn select_actor_move(
 fn continue_wall_avoidance_if_needed(
     context: &ActorMoveContext,
     direction: f32,
+    speed: f32,
     go_to_position: Option<Position>,
     info: &mut ActorInfo,
 ) -> Option<SelectedActorMove> {
     let avoidance_direction = info.wall_avoidance_direction?;
-    if direct_path_is_clear_enough(context, direction, go_to_position) {
+    if direct_path_is_clear_enough(context, direction, speed, go_to_position) {
         info.wall_avoidance_direction = None;
         return None;
     }
 
-    let avoidance_intent = CharacterMoveIntent::Moving {
+    let avoidance_intent = ActorMoveIntent::Moving {
         direction: avoidance_direction,
+        speed,
     };
     match context.evaluate_candidate(avoidance_intent) {
         MoveCandidateResult::Accepted { selected } => Some(selected),
         MoveCandidateResult::BlockedByCharacter => Some(context.idle_move()),
         MoveCandidateResult::BlockedByWorld { .. } => {
-            let next_move = choose_opposite_wall_avoidance_move(context, avoidance_direction);
+            let next_move = choose_opposite_wall_avoidance_move(context, avoidance_direction, speed);
             if let Some(selected_move) = &next_move {
                 info.wall_avoidance_direction = selected_move.intent.direction();
             }
@@ -290,12 +299,18 @@ enum SteeringMoveChoice {
     BlockedByWorld,
 }
 
-fn choose_steering_move(context: &ActorMoveContext, direction: f32, rng: &mut ThreadRng) -> SteeringMoveChoice {
+fn choose_steering_move(
+    context: &ActorMoveContext,
+    direction: f32,
+    speed: f32,
+    rng: &mut ThreadRng,
+) -> SteeringMoveChoice {
     let mut was_blocked_by_character = false;
     let avoidance_side = random_avoidance_side(rng);
     for (index, candidate_direction) in steering_directions(direction, avoidance_side).into_iter().enumerate() {
-        let candidate_intent = CharacterMoveIntent::Moving {
+        let candidate_intent = ActorMoveIntent::Moving {
             direction: candidate_direction,
+            speed,
         };
         match context.evaluate_candidate(candidate_intent) {
             MoveCandidateResult::Accepted { selected } => {
@@ -327,17 +342,19 @@ enum MoveCandidateResult {
 fn choose_new_wall_avoidance_move(
     context: &ActorMoveContext,
     direction: f32,
+    speed: f32,
     rng: &mut ThreadRng,
 ) -> Option<SelectedActorMove> {
     let side = random_avoidance_side(rng);
-    choose_wall_avoidance_move(context, wall_avoidance_directions(direction, side))
+    choose_wall_avoidance_move(context, wall_avoidance_directions(direction, side), speed)
 }
 
 fn choose_opposite_wall_avoidance_move(
     context: &ActorMoveContext,
     current_direction: f32,
+    speed: f32,
 ) -> Option<SelectedActorMove> {
-    choose_wall_avoidance_move(context, [opposite_wall_avoidance_direction(current_direction)])
+    choose_wall_avoidance_move(context, [opposite_wall_avoidance_direction(current_direction)], speed)
 }
 
 fn wall_avoidance_directions(direction: f32, side: f32) -> [f32; 2] {
@@ -354,21 +371,17 @@ fn opposite_wall_avoidance_direction(current_direction: f32) -> f32 {
 fn choose_wall_avoidance_move<const N: usize>(
     context: &ActorMoveContext,
     directions: [f32; N],
+    speed: f32,
 ) -> Option<SelectedActorMove> {
     // Wall avoidance is allowed to keep a blocked side-contact result only
     // when Rapier still moved the actor meaningfully. That lets actors slide
     // around geometry edges without accepting contact jitter as progress.
     for direction in directions {
-        let intent = CharacterMoveIntent::Moving { direction };
+        let intent = ActorMoveIntent::Moving { direction, speed };
         match context.evaluate_candidate(intent) {
             MoveCandidateResult::Accepted { selected } => return Some(selected),
             MoveCandidateResult::BlockedByWorld { selected }
-                if blocked_step_made_useful_progress(
-                    context.pos,
-                    &selected.step.position,
-                    context.actor_speed,
-                    context.delta,
-                ) =>
+                if blocked_step_made_useful_progress(context.pos, &selected.step.position, speed, context.delta) =>
             {
                 return Some(selected);
             }
@@ -384,8 +397,13 @@ fn blocked_step_made_useful_progress(start: &Position, target: &Position, actor_
     horizontal_distance_sq(start, target) > useful_distance * useful_distance
 }
 
-fn direct_path_is_clear_enough(context: &ActorMoveContext, direction: f32, go_to_position: Option<Position>) -> bool {
-    let direct_intent = CharacterMoveIntent::Moving { direction };
+fn direct_path_is_clear_enough(
+    context: &ActorMoveContext,
+    direction: f32,
+    speed: f32,
+    go_to_position: Option<Position>,
+) -> bool {
+    let direct_intent = ActorMoveIntent::Moving { direction, speed };
     let step = context.step_actor_move(direct_intent, ACTOR_DIRECT_PATH_PROBE_TIME);
     if step.blocked {
         return false;
@@ -430,10 +448,10 @@ mod tests {
             entity: test_entity(1),
             kind: ActorKind::Automaton,
             direction_timer: 0.0,
-            patrol_intent: CharacterMoveIntent::Idle,
+            patrol_intent: ActorMoveIntent::Idle,
             go_to_position: None,
             wall_avoidance_direction: None,
-            last_broadcast_move_intent: CharacterMoveIntent::Idle,
+            last_broadcast_move_intent: ActorMoveIntent::Idle,
             move_intent_send_timer: 0.0,
         }
     }
@@ -451,7 +469,7 @@ mod tests {
             .expect("default gameplay config should load")
             .characters
             .actor
-            .speed
+            .patrol_speed
     }
 
     fn test_entity(index: u64) -> Entity {
@@ -501,7 +519,6 @@ mod tests {
             entity,
             pos,
             vertical_velocity: 0.0,
-            actor_speed: actor_speed(),
             actor_physics: actor_physics(),
             delta: 0.1,
             collision_world,
@@ -552,10 +569,10 @@ mod tests {
             entity: Entity::from_bits(1),
             kind: common::protocol::ActorKind::Automaton,
             direction_timer: 0.0,
-            patrol_intent: CharacterMoveIntent::Idle,
+            patrol_intent: ActorMoveIntent::Idle,
             go_to_position: Some(Position { x: 1.0, y: 0.0, z: 0.0 }),
             wall_avoidance_direction: None,
-            last_broadcast_move_intent: CharacterMoveIntent::Idle,
+            last_broadcast_move_intent: ActorMoveIntent::Idle,
             move_intent_send_timer: 0.0,
         };
 
@@ -613,8 +630,9 @@ mod tests {
         let planned_moves = [];
         let actor_starts = [];
         let context = context(test_entity(1), &pos, &collision_world, &planned_moves, &actor_starts);
-        let intent = CharacterMoveIntent::Moving {
+        let intent = ActorMoveIntent::Moving {
             direction: std::f32::consts::FRAC_PI_2,
+            speed: actor_speed(),
         };
 
         match context.evaluate_candidate(intent) {
@@ -635,8 +653,9 @@ mod tests {
         let planned_moves = [];
         let actor_starts = [(test_entity(2), Position { x: 0.6, y: 0.0, z: 0.0 })];
         let context = context(test_entity(1), &pos, &collision_world, &planned_moves, &actor_starts);
-        let intent = CharacterMoveIntent::Moving {
+        let intent = ActorMoveIntent::Moving {
             direction: std::f32::consts::FRAC_PI_2,
+            speed: actor_speed(),
         };
 
         match context.evaluate_candidate(intent) {
@@ -682,15 +701,16 @@ mod tests {
 
         let selected = select_actor_move(
             &context,
-            CharacterMoveIntent::Moving {
+            ActorMoveIntent::Moving {
                 direction: base_direction,
+                speed: actor_speed(),
             },
             None,
             &mut info,
             &mut rng,
         );
 
-        assert_eq!(selected.intent, CharacterMoveIntent::Idle);
+        assert_eq!(selected.intent, ActorMoveIntent::Idle);
         assert_eq!(info.wall_avoidance_direction, None);
     }
 
@@ -704,8 +724,13 @@ mod tests {
         let mut info = actor_info();
         info.wall_avoidance_direction = Some(std::f32::consts::FRAC_PI_2);
 
-        let selected =
-            continue_wall_avoidance_if_needed(&context, 0.0, Some(Position { x: 0.0, y: 0.0, z: 5.0 }), &mut info);
+        let selected = continue_wall_avoidance_if_needed(
+            &context,
+            0.0,
+            actor_speed(),
+            Some(Position { x: 0.0, y: 0.0, z: 5.0 }),
+            &mut info,
+        );
 
         assert!(selected.is_none());
         assert_eq!(info.wall_avoidance_direction, None);
@@ -735,12 +760,13 @@ mod tests {
         let selected = continue_wall_avoidance_if_needed(
             &context,
             std::f32::consts::FRAC_PI_2,
+            actor_speed(),
             Some(Position { x: 5.0, y: 0.0, z: 0.0 }),
             &mut info,
         )
         .expect("wall avoidance should yield with an idle move");
 
-        assert_eq!(selected.intent, CharacterMoveIntent::Idle);
+        assert_eq!(selected.intent, ActorMoveIntent::Idle);
         assert_eq!(info.wall_avoidance_direction, Some(0.0));
     }
 
@@ -756,8 +782,9 @@ mod tests {
         )];
         let actor_starts = [(test_entity(2), front_start)];
         let context = context(test_entity(1), &pos, &collision_world, &planned_moves, &actor_starts);
-        let intent = CharacterMoveIntent::Moving {
+        let intent = ActorMoveIntent::Moving {
             direction: std::f32::consts::FRAC_PI_2,
+            speed: actor_speed(),
         };
 
         match context.evaluate_candidate(intent) {

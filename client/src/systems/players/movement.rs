@@ -9,7 +9,7 @@ use common::{
     physics::{
         CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, overlaps_other_character, step_character_movement,
     },
-    protocol::{CharacterMoveIntent, PlayerId, Position},
+    protocol::{PlayerId, PlayerMoveIntent, Position},
 };
 
 const BUMP_FLASH_DURATION: f32 = 0.08;
@@ -22,7 +22,7 @@ pub(crate) type PlayerMovementQuery<'w, 's> = Query<
         Entity,
         &'static PlayerId,
         &'static mut Position,
-        &'static CharacterMoveIntent,
+        &'static PlayerMoveIntent,
         &'static mut CharacterVerticalVelocity,
         Option<&'static mut BumpFlashState>,
         Option<&'static mut ServerReconciliation>,
@@ -52,7 +52,8 @@ pub(crate) fn plan_player_moves(
 
         // Derive horizontal velocity from input intent + speed power-up.
         let has_speed_power_up = players.0.get(player_id).is_some_and(|info| info.speed_power_up);
-        let h_vel = move_intent.to_player_horizontal_velocity(player_config.speed, has_speed_power_up);
+        let h_vel =
+            move_intent.to_horizontal_velocity(player_config.walk_speed, player_config.run_speed, has_speed_power_up);
         let is_standing_still = h_vel.x.hypot(h_vel.z) < PHYSICS_EPSILON;
 
         // Calculate intended position from velocity (with server reconciliation if needed)
@@ -63,7 +64,7 @@ pub(crate) fn plan_player_moves(
             const IDLE_RECONCILIATION_TIME: f32 = 10.0;
             let run_correction_time: f32 = recon.rtt * 5.0; // Benchmark: RTT = 100ms equals 0.5s correction time
 
-            let speed_ratio = (h_vel.x.hypot(h_vel.z) / player_config.speed).clamp(0.0, 1.0); // Ignore speed power-ups
+            let speed_ratio = (h_vel.x.hypot(h_vel.z) / player_config.run_speed).clamp(0.0, 1.0); // Ignore speed power-ups
             let correction_time_interval = IDLE_RECONCILIATION_TIME.lerp(run_correction_time, speed_ratio);
             let correction_factor = (UPDATE_BROADCAST_INTERVAL / correction_time_interval).clamp(0.0, 1.0);
 

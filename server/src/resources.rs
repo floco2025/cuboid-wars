@@ -171,10 +171,10 @@ pub struct ActorInfo {
     pub entity: Entity,
     pub kind: ActorKind,
     pub direction_timer: f32,
-    pub patrol_intent: CharacterMoveIntent,
+    pub patrol_intent: ActorMoveIntent,
     pub go_to_position: Option<Position>,
     pub wall_avoidance_direction: Option<f32>,
-    pub last_broadcast_move_intent: CharacterMoveIntent,
+    pub last_broadcast_move_intent: ActorMoveIntent,
     pub move_intent_send_timer: f32,
 }
 

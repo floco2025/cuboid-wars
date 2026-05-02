@@ -9,7 +9,7 @@ use common::{
         CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, blocking_character_move_plan,
         character_move_plan_is_blocked, step_character_movement,
     },
-    protocol::{ActorId, CharacterMoveIntent, Position},
+    protocol::{ActorId, ActorMoveIntent, Position},
 };
 
 pub(crate) type ActorMovementQuery<'w, 's> = Query<
@@ -19,7 +19,7 @@ pub(crate) type ActorMovementQuery<'w, 's> = Query<
         Entity,
         &'static ActorId,
         &'static mut Position,
-        &'static CharacterMoveIntent,
+        &'static ActorMoveIntent,
         &'static mut CharacterVerticalVelocity,
         Option<&'static mut ServerReconciliation>,
     ),
@@ -39,10 +39,9 @@ pub(crate) fn plan_actor_moves(
     query: &mut ActorMovementQuery,
     planned_moves: &mut Vec<CharacterMovePlan>,
 ) {
-    let actor_config = &gameplay_config.characters.actor;
-    let actor_physics = actor_config.physics();
+    let actor_physics = gameplay_config.characters.actor.physics();
     for (entity, actor_id, mut pos, move_intent, mut motion, mut recon_option) in query {
-        let h_vel = move_intent.to_horizontal_velocity(actor_config.speed);
+        let h_vel = move_intent.to_horizontal_velocity();
         let mut target_pos = if let Some(recon) = recon_option.as_mut() {
             let correction_time = recon.rtt * 5.0;
             let correction_factor = (UPDATE_BROADCAST_INTERVAL / correction_time).clamp(0.0, 1.0);

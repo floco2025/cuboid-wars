@@ -18,7 +18,7 @@ struct PlayerBundle {
     player_id: PlayerId,
     player_marker: PlayerMarker,
     position: Position,
-    move_intent: CharacterMoveIntent,
+    move_intent: PlayerMoveIntent,
     motion: CharacterVerticalVelocity,
     face_direction: FaceDirection,
     transform: Transform,
@@ -43,7 +43,7 @@ pub fn spawn_player(
     player_id: u32,
     player_name: &str,
     position: &Position,
-    move_intent: CharacterMoveIntent,
+    move_intent: PlayerMoveIntent,
     face_dir: f32,
     is_local: bool,
 ) -> Entity {
