@@ -13,7 +13,7 @@ use common::{
     constants::{GRID_CELL_SIZE, LEVEL_HEIGHT, MAP_DEPTH, MAP_WIDTH},
     map::compute_player_level,
     markers::{ItemMarker, PlayerMarker},
-    physics::overlap_player_vs_item,
+    physics::character_overlaps_item,
     protocol::{ItemId, ItemType, PlayerId, Position, SCookieCollected, ServerMessage},
 };
 
@@ -224,7 +224,7 @@ pub fn item_collection_system(
     mut commands: Commands,
     mut players: ResMut<PlayerMap>,
     mut items: ResMut<ItemMap>,
-    player_positions: Query<&Position, With<PlayerMarker>>,
+    character_positions: Query<&Position, With<PlayerMarker>>,
     item_positions: Query<&Position, With<ItemMarker>>,
 ) {
     // Check each item against each player
@@ -241,13 +241,13 @@ pub fn item_collection_system(
 
             // Check against all players
             for (player_id, player_info) in &players.0 {
-                if let Ok(player_pos) = player_positions.get(player_info.entity) {
+                if let Ok(character_pos) = character_positions.get(player_info.entity) {
                     // Only allow pickup when the player is on the item's floor level.
-                    if (player_pos.y - item_pos.y).abs() > ITEM_PICKUP_FLOOR_EPSILON {
+                    if (character_pos.y - item_pos.y).abs() > ITEM_PICKUP_FLOOR_EPSILON {
                         continue;
                     }
 
-                    if overlap_player_vs_item(player_pos, item_pos, ITEM_COLLECTION_RADIUS) {
+                    if character_overlaps_item(character_pos, item_pos, ITEM_COLLECTION_RADIUS) {
                         return Some((*player_id, *item_id, item_info.item_type));
                     }
                 }

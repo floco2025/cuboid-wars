@@ -4,10 +4,10 @@ use super::components::BumpFlashState;
 use crate::{config::AssetSet, markers::*, resources::PlayerMap, systems::network::ServerReconciliation};
 use common::{
     config::GameplayConfig,
-    constants::{ALWAYS_PHASING, PHYSICS_EPSILON, PLAYER_GROUND_SNAP_DISTANCE, UPDATE_BROADCAST_INTERVAL},
+    constants::{ALWAYS_PHASING, CHARACTER_GROUND_SNAP_DISTANCE, PHYSICS_EPSILON, UPDATE_BROADCAST_INTERVAL},
     markers::{ActorMarker, PlayerMarker},
     physics::{
-        CharacterMovePlan, CharacterVerticalMotion, CollisionWorld, overlaps_other_character, step_character_movement,
+        CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, overlaps_other_character, step_character_movement,
     },
     protocol::{CharacterMoveIntent, PlayerId, Position},
 };
@@ -23,7 +23,7 @@ pub(crate) type PlayerMovementQuery<'w, 's> = Query<
         &'static PlayerId,
         &'static mut Position,
         &'static CharacterMoveIntent,
-        &'static mut CharacterVerticalMotion,
+        &'static mut CharacterVerticalVelocity,
         Option<&'static mut BumpFlashState>,
         Option<&'static mut ServerReconciliation>,
         Has<LocalPlayerMarker>,
@@ -81,7 +81,7 @@ pub(crate) fn plan_player_moves(
             // player has drifted vertically beyond normal ground snap tolerance, trust
             // the server velocity instead of applying a separate smooth vertical
             // position offset outside physics.
-            const VERTICAL_VELOCITY_RECONCILE_DISTANCE: f32 = PLAYER_GROUND_SNAP_DISTANCE;
+            const VERTICAL_VELOCITY_RECONCILE_DISTANCE: f32 = CHARACTER_GROUND_SNAP_DISTANCE;
             if is_local && total_delta.y.abs() >= VERTICAL_VELOCITY_RECONCILE_DISTANCE {
                 motion.0 = recon.server_velocity.y;
             }

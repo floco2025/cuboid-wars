@@ -7,7 +7,7 @@ use crate::{
     markers::*,
     systems::{AnimationToPlay, BumpFlashState, character_animation_system},
 };
-use common::{config::GameplayConfig, markers::PlayerMarker, physics::CharacterVerticalMotion, protocol::*};
+use common::{config::GameplayConfig, markers::PlayerMarker, physics::CharacterVerticalVelocity, protocol::*};
 
 // ============================================================================
 // Bundles
@@ -19,7 +19,7 @@ struct PlayerBundle {
     player_marker: PlayerMarker,
     position: Position,
     move_intent: CharacterMoveIntent,
-    motion: CharacterVerticalMotion,
+    motion: CharacterVerticalVelocity,
     face_direction: FaceDirection,
     transform: Transform,
     visibility: Visibility,
@@ -67,7 +67,7 @@ pub fn spawn_player(
                 player_marker: PlayerMarker,
                 position: *position,
                 move_intent,
-                motion: CharacterVerticalMotion::default(),
+                motion: CharacterVerticalVelocity::default(),
                 face_direction: FaceDirection(face_dir),
                 transform: Transform::from_xyz(position.x, player_physics.collider_center_y(position.y), position.z)
                     .with_rotation(Quat::from_rotation_y(face_dir)),

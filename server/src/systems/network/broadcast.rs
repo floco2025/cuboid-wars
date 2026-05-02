@@ -6,7 +6,7 @@ use crate::{
 };
 use common::{
     markers::{ActorMarker, ItemMarker, PlayerMarker},
-    physics::CharacterVerticalMotion,
+    physics::CharacterVerticalVelocity,
     protocol::*,
 };
 
@@ -41,7 +41,7 @@ pub fn broadcast_to_all(players: &PlayerMap, message: ServerMessage) {
 pub fn snapshot_logged_in_players(
     players: &PlayerMap,
     player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
-    motions: &Query<&CharacterVerticalMotion, With<PlayerMarker>>,
+    motions: &Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
 ) -> Vec<(PlayerId, Player)> {
     players
         .0
@@ -74,7 +74,7 @@ pub fn snapshot_logged_in_players(
 pub fn snapshot_actors(
     actors: &ActorMap,
     actor_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<ActorMarker>>,
-    motions: &Query<&CharacterVerticalMotion, With<ActorMarker>>,
+    motions: &Query<&CharacterVerticalVelocity, With<ActorMarker>>,
 ) -> Vec<(ActorId, Actor)> {
     actors
         .0

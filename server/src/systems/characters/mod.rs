@@ -1,6 +1,10 @@
 use bevy::prelude::*;
 use rand::{RngExt, rng, rngs::ThreadRng};
 
+mod spawning;
+
+pub use spawning::generate_character_spawn_position;
+
 use crate::{
     constants::{ACTOR_AVOIDANCE_TIME, ACTOR_GO_TO_REACHED_DISTANCE},
     resources::{ActorInfo, ActorMap, PlayerInfo, PlayerMap},
@@ -14,7 +18,7 @@ use common::{
     constants::PHYSICS_EPSILON,
     markers::{ActorMarker, PlayerMarker},
     physics::{
-        CharacterMovePlan, CharacterVerticalMotion, CollisionWorld, blocking_character_move_plan,
+        CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, blocking_character_move_plan,
         character_move_plan_is_blocked, overlapping_character, step_character_movement,
     },
     protocol::{ActorId, CharacterMoveIntent, FaceDirection, PlayerId, Position},
@@ -26,7 +30,7 @@ type PlayerMovementQuery<'w, 's> = Query<
     (
         Entity,
         &'static mut Position,
-        &'static mut CharacterVerticalMotion,
+        &'static mut CharacterVerticalVelocity,
         &'static CharacterMoveIntent,
         &'static PlayerId,
     ),
@@ -40,7 +44,7 @@ type ActorMovementQuery<'w, 's> = Query<
         Entity,
         &'static ActorId,
         &'static mut Position,
-        &'static mut CharacterVerticalMotion,
+        &'static mut CharacterVerticalVelocity,
         &'static mut CharacterMoveIntent,
         &'static mut FaceDirection,
     ),

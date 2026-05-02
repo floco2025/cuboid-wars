@@ -12,8 +12,8 @@ use super::{
 use crate::{
     config::CharacterPhysicsConfig,
     constants::{
-        PHYSICS_EPSILON, PLAYER_GRAVITY, PLAYER_GROUND_SNAP_DISTANCE, PLAYER_JUMP_SPEED, PLAYER_STEP_HEIGHT,
-        PLAYER_STEP_MIN_WIDTH, PLAYER_TERMINAL_VELOCITY,
+        CHARACTER_GRAVITY, CHARACTER_GROUND_SNAP_DISTANCE, CHARACTER_STEP_HEIGHT, CHARACTER_STEP_MIN_WIDTH,
+        CHARACTER_TERMINAL_VELOCITY, PHYSICS_EPSILON, PLAYER_JUMP_SPEED,
     },
     physics::world::{CollisionWorld, ShapeCastHit},
     protocol::Position,
@@ -76,8 +76,8 @@ pub fn step_character_movement(
     } else {
         // Apply gravity for this frame, but cap falling speed so large falls
         // remain stable and predictable.
-        next_vertical_velocity -= PLAYER_GRAVITY * delta;
-        next_vertical_velocity = next_vertical_velocity.max(-PLAYER_TERMINAL_VELOCITY);
+        next_vertical_velocity -= CHARACTER_GRAVITY * delta;
+        next_vertical_velocity = next_vertical_velocity.max(-CHARACTER_TERMINAL_VELOCITY);
     }
     let controller = character_controller();
 
@@ -179,7 +179,7 @@ fn character_ground_hit(
     collision_world.ground_hit(
         shape,
         &pose,
-        PLAYER_GROUND_SNAP_DISTANCE + physics.collider.bottom_y_offset(),
+        CHARACTER_GROUND_SNAP_DISTANCE + physics.collider.bottom_y_offset(),
         0.0,
         has_phasing,
     )
@@ -189,8 +189,8 @@ fn character_controller() -> KinematicCharacterController {
     KinematicCharacterController {
         offset: CharacterLength::Absolute(CHARACTER_CONTACT_OFFSET),
         autostep: Some(CharacterAutostep {
-            max_height: CharacterLength::Absolute(PLAYER_STEP_HEIGHT),
-            min_width: CharacterLength::Absolute(PLAYER_STEP_MIN_WIDTH),
+            max_height: CharacterLength::Absolute(CHARACTER_STEP_HEIGHT),
+            min_width: CharacterLength::Absolute(CHARACTER_STEP_MIN_WIDTH),
             include_dynamic_bodies: false,
         }),
         min_slope_slide_angle: std::f32::consts::FRAC_PI_3,

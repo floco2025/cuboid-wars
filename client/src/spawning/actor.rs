@@ -9,7 +9,7 @@ use crate::{
 use common::{
     config::GameplayConfig,
     markers::ActorMarker,
-    physics::CharacterVerticalMotion,
+    physics::CharacterVerticalVelocity,
     protocol::{Actor, ActorId, FaceDirection},
 };
 
@@ -35,7 +35,7 @@ pub fn spawn_actor(
             actor.movement.pos,
             actor.movement.move_intent,
             FaceDirection(actor.face_dir),
-            CharacterVerticalMotion(actor.movement.vertical_velocity),
+            CharacterVerticalVelocity(actor.movement.vertical_velocity),
             Transform::from_xyz(
                 actor.movement.pos.x,
                 actor_physics.collider_center_y(actor.movement.pos.y),

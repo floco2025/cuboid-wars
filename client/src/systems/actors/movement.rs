@@ -6,7 +6,7 @@ use common::{
     constants::UPDATE_BROADCAST_INTERVAL,
     markers::{ActorMarker, PlayerMarker},
     physics::{
-        CharacterMovePlan, CharacterVerticalMotion, CollisionWorld, blocking_character_move_plan,
+        CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, blocking_character_move_plan,
         character_move_plan_is_blocked, step_character_movement,
     },
     protocol::{ActorId, CharacterMoveIntent, Position},
@@ -20,7 +20,7 @@ pub(crate) type ActorMovementQuery<'w, 's> = Query<
         &'static ActorId,
         &'static mut Position,
         &'static CharacterMoveIntent,
-        &'static mut CharacterVerticalMotion,
+        &'static mut CharacterVerticalVelocity,
         Option<&'static mut ServerReconciliation>,
     ),
     (With<ActorMarker>, Without<PlayerMarker>),

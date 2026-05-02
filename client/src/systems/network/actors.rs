@@ -10,7 +10,7 @@ use crate::{
 use common::{
     config::GameplayConfig,
     markers::ActorMarker,
-    physics::CharacterVerticalMotion,
+    physics::CharacterVerticalVelocity,
     protocol::{
         Actor, ActorId, CharacterMoveIntent, CharacterMovementState, FaceDirection, Position, SActorMoveIntent,
         SActorTeleport,
@@ -106,7 +106,7 @@ pub fn handle_actor_teleport_message(commands: &mut Commands, actors: &ResMut<Ac
     commands.entity(client_actor.entity).insert((
         msg.movement.pos,
         msg.movement.move_intent,
-        CharacterVerticalMotion(msg.movement.vertical_velocity),
+        CharacterVerticalVelocity(msg.movement.vertical_velocity),
     ));
     commands.entity(client_actor.entity).remove::<ServerReconciliation>();
 }
@@ -128,7 +128,7 @@ fn apply_actor_movement_state(
     let server_velocity = actor_movement_velocity(movement, actor_speed);
     commands.entity(client_actor.entity).insert((
         movement.move_intent,
-        CharacterVerticalMotion(movement.vertical_velocity),
+        CharacterVerticalVelocity(movement.vertical_velocity),
     ));
     if let Some(face_dir) = face_dir {
         commands.entity(client_actor.entity).insert(FaceDirection(face_dir));

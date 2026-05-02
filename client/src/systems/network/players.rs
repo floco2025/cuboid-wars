@@ -11,7 +11,7 @@ use crate::{
 use common::{
     config::GameplayConfig,
     markers::PlayerMarker,
-    physics::{CharacterVerticalMotion, CollisionWorld},
+    physics::{CharacterVerticalVelocity, CollisionWorld},
     protocol::*,
 };
 
@@ -88,7 +88,7 @@ pub fn handle_player_jump_message(
         );
         commands.entity(player.entity).insert((
             msg.movement.move_intent,
-            CharacterVerticalMotion(msg.movement.vertical_velocity),
+            CharacterVerticalVelocity(msg.movement.vertical_velocity),
             ServerReconciliation {
                 client_pos: *client_pos,
                 server_pos: msg.movement.pos,
@@ -191,7 +191,7 @@ pub fn handle_player_teleport_message(
         commands.entity(player.entity).insert((
             msg.movement.pos,
             msg.movement.move_intent,
-            CharacterVerticalMotion(msg.movement.vertical_velocity),
+            CharacterVerticalVelocity(msg.movement.vertical_velocity),
         ));
         commands.entity(player.entity).remove::<ServerReconciliation>();
     }

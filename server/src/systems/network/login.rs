@@ -8,7 +8,7 @@ use crate::{
 use common::{
     config::GameplayConfig,
     markers::{ActorMarker, ItemMarker, PlayerMarker},
-    physics::{CharacterVerticalMotion, CollisionWorld},
+    physics::{CharacterVerticalVelocity, CollisionWorld},
     protocol::{MapLayout, *},
 };
 
@@ -32,9 +32,9 @@ pub fn handle_login_message(
     items: &Res<ItemMap>,
     actors: &Res<ActorMap>,
     player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
-    motions: &Query<&CharacterVerticalMotion, With<PlayerMarker>>,
+    motions: &Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
     actor_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<ActorMarker>>,
-    actor_motions: &Query<&CharacterVerticalMotion, With<ActorMarker>>,
+    actor_motions: &Query<&CharacterVerticalVelocity, With<ActorMarker>>,
     item_positions: &Query<&Position, With<ItemMarker>>,
 ) {
     match msg {
@@ -120,7 +120,7 @@ pub fn handle_login_message(
                 pos,
                 move_intent,
                 FaceDirection(face_dir),
-                CharacterVerticalMotion::default(),
+                CharacterVerticalVelocity::default(),
             ));
 
             // Broadcast Login to all other logged-in players

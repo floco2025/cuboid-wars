@@ -1,9 +1,9 @@
 use super::*;
 use crate::{
     config::{CharacterPhysicsConfig, GameplayConfig},
-    constants::{FLOOR_THICKNESS, LEVEL_HEIGHT, PLAYER_JUMP_SPEED, PLAYER_TERMINAL_VELOCITY, WALL_THICKNESS},
+    constants::{CHARACTER_TERMINAL_VELOCITY, FLOOR_THICKNESS, LEVEL_HEIGHT, PLAYER_JUMP_SPEED, WALL_THICKNESS},
     map::ramp_surface_at,
-    physics::{CollisionWorld, overlap_player_vs_item},
+    physics::{CollisionWorld, character_overlaps_item},
     protocol::{Floor, MapLayout, Position, Ramp, Wall},
 };
 use bevy_ecs::prelude::Entity;
@@ -271,7 +271,7 @@ fn falling_player_pushing_into_wall_keeps_falling() {
         y: 7.973_196,
         z: 31.539_902,
     };
-    let motion = -PLAYER_TERMINAL_VELOCITY;
+    let motion = -CHARACTER_TERMINAL_VELOCITY;
 
     let step = step_character_movement(
         &pos,
@@ -693,7 +693,7 @@ fn item_overlap_uses_vertical_distance() {
     };
     let item = Position { x: 0.0, y: 0.0, z: 0.0 };
 
-    assert!(!overlap_player_vs_item(&player, &item, 1.0));
+    assert!(!character_overlaps_item(&player, &item, 1.0));
 }
 
 #[test]
@@ -705,5 +705,5 @@ fn item_overlap_allows_same_level_collection() {
     };
     let item = Position { x: 0.0, y: 0.0, z: 0.0 };
 
-    assert!(overlap_player_vs_item(&player, &item, 1.0));
+    assert!(character_overlaps_item(&player, &item, 1.0));
 }

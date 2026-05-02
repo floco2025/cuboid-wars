@@ -3,13 +3,13 @@ use bevy::prelude::*;
 use super::network::broadcast_actor_teleport;
 use crate::{
     resources::{MapConfig, PlayerMap},
-    systems::players::generate_character_spawn_position,
+    systems::characters::generate_character_spawn_position,
 };
 use common::{
     config::GameplayConfig,
     constants::CHARACTER_FALL_TELEPORT_Y,
     markers::ActorMarker,
-    physics::{CharacterVerticalMotion, CollisionWorld},
+    physics::{CharacterVerticalVelocity, CollisionWorld},
     protocol::{ActorId, CharacterMoveIntent, Position},
 };
 
@@ -23,7 +23,7 @@ pub fn actor_fall_recovery_system(
             Entity,
             &ActorId,
             &mut Position,
-            &mut CharacterVerticalMotion,
+            &mut CharacterVerticalVelocity,
             &CharacterMoveIntent,
         ),
         With<ActorMarker>,

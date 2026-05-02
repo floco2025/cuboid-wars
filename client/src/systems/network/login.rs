@@ -7,7 +7,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    physics::{CharacterVerticalMotion, CollisionWorld},
+    physics::{CharacterVerticalVelocity, CollisionWorld},
     protocol::*,
 };
 
@@ -72,7 +72,7 @@ pub fn handle_player_login_message(
     );
     commands
         .entity(entity)
-        .insert(CharacterVerticalMotion(msg.player.movement.vertical_velocity));
+        .insert(CharacterVerticalVelocity(msg.player.movement.vertical_velocity));
     players.0.insert(
         msg.id,
         PlayerInfo {

@@ -6,12 +6,12 @@ use crate::{
         ACTOR_INITIAL_COUNT, ACTOR_MAX_DIRECTION_TIME, ACTOR_MIN_DIRECTION_TIME, ACTOR_MOVE_INTENT_SEND_COOLDOWN,
     },
     resources::{ActorInfo, ActorMap, MapConfig},
-    systems::players::generate_character_spawn_position,
+    systems::characters::generate_character_spawn_position,
 };
 use common::{
     config::GameplayConfig,
     markers::{ActorMarker, PlayerMarker},
-    physics::{CharacterVerticalMotion, CollisionWorld},
+    physics::{CharacterVerticalVelocity, CollisionWorld},
     protocol::{ActorId, ActorKind, CharacterMoveIntent, FaceDirection, Position},
 };
 
@@ -49,7 +49,7 @@ pub fn actor_initial_spawn_system(
                 pos,
                 move_intent,
                 FaceDirection(direction),
-                CharacterVerticalMotion::default(),
+                CharacterVerticalVelocity::default(),
             ))
             .id();
 

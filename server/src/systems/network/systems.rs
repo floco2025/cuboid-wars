@@ -13,7 +13,7 @@ use common::{
     config::GameplayConfig,
     constants::UPDATE_BROADCAST_INTERVAL,
     markers::{ActorMarker, ItemMarker, PlayerMarker},
-    physics::{CharacterVerticalMotion, CollisionWorld},
+    physics::{CharacterVerticalVelocity, CollisionWorld},
     protocol::{MapLayout, *},
 };
 
@@ -36,9 +36,9 @@ pub fn network_client_message_system(
     items: Res<ItemMap>,
     actors: Res<ActorMap>,
     player_data: Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
-    player_motions: Query<&CharacterVerticalMotion, With<PlayerMarker>>,
+    player_motions: Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
     actor_data: Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<ActorMarker>>,
-    actor_motions: Query<&CharacterVerticalMotion, With<ActorMarker>>,
+    actor_motions: Query<&CharacterVerticalVelocity, With<ActorMarker>>,
     item_data: Query<&Position, With<ItemMarker>>,
 ) {
     while let Ok((id, event)) = from_clients.try_recv() {
@@ -114,9 +114,9 @@ pub fn network_broadcast_state_system(
     actors: Res<ActorMap>,
     items: Res<ItemMap>,
     player_data: Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
-    motions: Query<&CharacterVerticalMotion, With<PlayerMarker>>,
+    motions: Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
     actor_data: Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<ActorMarker>>,
-    actor_motions: Query<&CharacterVerticalMotion, With<ActorMarker>>,
+    actor_motions: Query<&CharacterVerticalVelocity, With<ActorMarker>>,
     item_positions: Query<&Position, With<ItemMarker>>,
 ) {
     *timer += time.delta_secs();

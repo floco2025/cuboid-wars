@@ -6,7 +6,7 @@ use common::{
     config::GameplayConfig,
     constants::{ALWAYS_MULTI_SHOT, PROJECTILE_COOLDOWN_TIME},
     markers::{PlayerMarker, ProjectileMarker},
-    physics::{CharacterVerticalMotion, CollisionWorld, ProjectileMotion, try_start_player_jump},
+    physics::{CharacterVerticalVelocity, CollisionWorld, ProjectileMotion, try_start_player_jump},
     protocol::*,
     spawning::calculate_projectile_spawns,
 };
@@ -24,7 +24,7 @@ pub fn dispatch_message(
     players: &mut PlayerMap,
     time: &Res<Time>,
     player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
-    motions: &Query<&CharacterVerticalMotion, With<PlayerMarker>>,
+    motions: &Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
     collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
 ) {
@@ -101,7 +101,7 @@ fn handle_move_intent_message(
     msg: CPlayerMoveIntent,
     players: &PlayerMap,
     player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
-    motions: &Query<&CharacterVerticalMotion, With<PlayerMarker>>,
+    motions: &Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
 ) {
     // Update the player's input intent
     commands.entity(entity).insert(msg.move_intent);
@@ -126,7 +126,7 @@ fn handle_jump_message(
     id: PlayerId,
     players: &PlayerMap,
     player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
-    motions: &Query<&CharacterVerticalMotion, With<PlayerMarker>>,
+    motions: &Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
     collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
 ) {
@@ -155,7 +155,7 @@ fn handle_jump_message(
 
     commands
         .entity(entity)
-        .insert(CharacterVerticalMotion(next_vertical_velocity));
+        .insert(CharacterVerticalVelocity(next_vertical_velocity));
     broadcast_to_others(
         players,
         id,

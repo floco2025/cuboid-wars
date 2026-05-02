@@ -13,7 +13,7 @@ use crate::{
 };
 use common::config::GameplayConfig;
 use common::math::angle_delta_radians;
-use common::physics::{CharacterVerticalMotion, CollisionWorld, try_start_player_jump};
+use common::physics::{CharacterVerticalVelocity, CollisionWorld, try_start_player_jump};
 use common::protocol::*;
 
 const MAX_PITCH: f32 = std::f32::consts::FRAC_PI_2 - 0.05;
@@ -34,7 +34,7 @@ pub fn input_movement_system(
             &Position,
             &mut CharacterMoveIntent,
             &mut FaceDirection,
-            &mut CharacterVerticalMotion,
+            &mut CharacterVerticalVelocity,
         ),
         With<LocalPlayerMarker>,
     >,
@@ -109,7 +109,7 @@ fn handle_unlocked_cursor(
             &Position,
             &mut CharacterMoveIntent,
             &mut FaceDirection,
-            &mut CharacterVerticalMotion,
+            &mut CharacterVerticalVelocity,
         ),
         With<LocalPlayerMarker>,
     >,
@@ -221,7 +221,7 @@ fn update_player_input_face_and_jump(
             &Position,
             &mut CharacterMoveIntent,
             &mut FaceDirection,
-            &mut CharacterVerticalMotion,
+            &mut CharacterVerticalVelocity,
         ),
         With<LocalPlayerMarker>,
     >,
