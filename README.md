@@ -1,6 +1,6 @@
 # Cuboid Wars
 
-A fast-paced game built with Rust, Bevy, Rapier, and QUIC.
+A fast-paced multi-player game built with Rust, Bevy, Rapier, and QUIC.
 
 ![Cuboid Wars Screenshot](client/assets/screenshot1.png)
 
