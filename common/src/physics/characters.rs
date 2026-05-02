@@ -65,7 +65,8 @@ pub fn overlapping_character<'a>(
         .find(|other| other.entity != candidate.entity && planned_character_moves_intersect(candidate, other))
 }
 
-fn planned_character_moves_intersect(candidate: &PlannedCharacterMove, other: &PlannedCharacterMove) -> bool {
+#[must_use]
+pub fn planned_character_moves_intersect(candidate: &PlannedCharacterMove, other: &PlannedCharacterMove) -> bool {
     if character_positions_intersect(&candidate.start, &other.start) {
         return !planned_character_moves_separate(candidate, other);
     }

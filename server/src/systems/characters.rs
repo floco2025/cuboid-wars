@@ -2,18 +2,23 @@ use bevy::prelude::*;
 use rand::{RngExt, rng, rngs::ThreadRng};
 
 use super::network::broadcast_to_all;
-use crate::resources::{PlayerInfo, PlayerMap};
+use crate::resources::{ActorInfo, ActorMap, PlayerInfo, PlayerMap};
 use common::{
     constants::{ACTOR_SPEED, PHYSICS_EPSILON},
     markers::{ActorMarker, PlayerMarker},
     physics::{
-        CharacterVerticalMotion, CollisionWorld, PlannedCharacterMove, overlapping_character, step_character_movement,
+        CharacterVerticalMotion, CollisionWorld, PlannedCharacterMove, overlapping_character,
+        planned_character_moves_intersect, step_character_movement,
     },
     protocol::{
         ActorId, CharacterMoveIntent, CharacterMovementState, FaceDirection, PlayerId, Position, SActorMoveIntent,
         ServerMessage,
     },
 };
+
+const ACTOR_AVOIDANCE_TIME: f32 = 0.6;
+const ACTOR_INTENT_CHANGE_COOLDOWN: f32 = 0.2;
+const ACTOR_DIRECTION_UPDATE_EPSILON: f32 = 0.05;
 
 type PlayerMovementQuery<'w, 's> = Query<
     'w,
@@ -46,14 +51,32 @@ pub fn characters_movement_system(
     time: Res<Time>,
     collision_world: Res<CollisionWorld>,
     players: Res<PlayerMap>,
+    mut actors: ResMut<ActorMap>,
     mut player_query: PlayerMovementQuery,
     mut actor_query: ActorMovementQuery,
 ) {
     let delta = time.delta_secs();
     let mut planned_moves = Vec::new();
+    let player_positions: Vec<(PlayerId, Position)> = player_query
+        .iter()
+        .map(|(_, pos, _, _, player_id)| (*player_id, *pos))
+        .collect();
+    let actor_starts: Vec<(Entity, Position)> = actor_query
+        .iter()
+        .map(|(entity, _, pos, _, _, _)| (entity, *pos))
+        .collect();
 
     plan_player_moves(delta, &collision_world, &players, &player_query, &mut planned_moves);
-    plan_actor_moves(delta, &collision_world, &actor_query, &mut planned_moves);
+    plan_actor_moves(
+        delta,
+        &collision_world,
+        &players,
+        &mut actors,
+        &player_positions,
+        &actor_starts,
+        &mut actor_query,
+        &mut planned_moves,
+    );
     apply_player_moves(&mut player_query, &planned_moves);
     apply_actor_moves(&players, &mut actor_query, &planned_moves);
 }
@@ -107,14 +130,52 @@ fn plan_player_moves(
 fn plan_actor_moves(
     delta: f32,
     collision_world: &CollisionWorld,
-    query: &ActorMovementQuery,
+    players: &PlayerMap,
+    actors: &mut ActorMap,
+    player_positions: &[(PlayerId, Position)],
+    actor_starts: &[(Entity, Position)],
+    query: &mut ActorMovementQuery,
     planned_moves: &mut Vec<PlannedCharacterMove>,
 ) {
-    for (entity, _, pos, motion, move_intent, _) in query.iter() {
-        let velocity = move_intent.to_horizontal_velocity(ACTOR_SPEED);
-        let target_x = velocity.x.mul_add(delta, pos.x);
-        let target_z = velocity.z.mul_add(delta, pos.z);
-        let step = step_character_movement(pos, motion.0, collision_world, false, target_x, target_z, delta);
+    let mut rng = rng();
+    for (entity, id, pos, motion, mut move_intent, mut face_dir) in query.iter_mut() {
+        let Some(info) = actors.0.get_mut(id) else {
+            continue;
+        };
+        let current_intent = *move_intent;
+        let (selected_intent, step, used_avoidance) = if info.intent_change_cooldown > 0.0 {
+            let step = step_actor_move(&pos, motion.0, current_intent, delta, collision_world);
+            (current_intent, step, false)
+        } else {
+            let desired_intent = stable_actor_intent(
+                current_intent,
+                actor_desired_intent(info, &pos, player_positions).unwrap_or(current_intent),
+            );
+            select_actor_move(
+                entity,
+                &pos,
+                motion.0,
+                desired_intent,
+                info,
+                delta,
+                collision_world,
+                planned_moves,
+                actor_starts,
+                &mut rng,
+            )
+        };
+
+        if used_avoidance {
+            info.avoidance_timer = ACTOR_AVOIDANCE_TIME;
+        }
+        if actor_intent_changed(current_intent, selected_intent) {
+            *move_intent = selected_intent;
+            if let Some(direction) = selected_intent.direction() {
+                face_dir.0 = direction;
+            }
+            info.intent_change_cooldown = ACTOR_INTENT_CHANGE_COOLDOWN;
+            broadcast_actor_move_intent(players, *id, *pos, selected_intent, motion.0);
+        }
 
         planned_moves.push(PlannedCharacterMove {
             entity,
@@ -124,6 +185,160 @@ fn plan_actor_moves(
             blocked: step.blocked,
         });
     }
+}
+
+fn actor_desired_intent(
+    info: &ActorInfo,
+    pos: &Position,
+    player_positions: &[(PlayerId, Position)],
+) -> Option<CharacterMoveIntent> {
+    let target = info.chase_target?;
+    let (_, target_pos) = player_positions.iter().find(|(id, _)| *id == target)?;
+    Some(CharacterMoveIntent::Moving {
+        direction: direction_toward(pos, target_pos),
+    })
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Candidate testing needs the same movement context as normal actor planning"
+)]
+fn select_actor_move(
+    entity: Entity,
+    pos: &Position,
+    vertical_velocity: f32,
+    desired_intent: CharacterMoveIntent,
+    info: &mut ActorInfo,
+    delta: f32,
+    collision_world: &CollisionWorld,
+    planned_moves: &[PlannedCharacterMove],
+    actor_starts: &[(Entity, Position)],
+    rng: &mut ThreadRng,
+) -> (CharacterMoveIntent, common::physics::CharacterMovementResult, bool) {
+    let Some(direction) = desired_intent.direction() else {
+        let step = step_actor_move(pos, vertical_velocity, desired_intent, delta, collision_world);
+        return (desired_intent, step, false);
+    };
+
+    if info.avoidance_timer <= 0.0 {
+        info.avoidance_side = random_avoidance_side(rng);
+    }
+
+    let mut fallback = None;
+    for (index, candidate_direction) in steering_directions(direction, info.avoidance_side)
+        .into_iter()
+        .enumerate()
+    {
+        let candidate_intent = CharacterMoveIntent::Moving {
+            direction: candidate_direction,
+        };
+        let step = step_actor_move(pos, vertical_velocity, candidate_intent, delta, collision_world);
+        let planned_move = PlannedCharacterMove {
+            entity,
+            start: *pos,
+            target: step.position,
+            target_vertical_velocity: step.vertical_velocity,
+            blocked: step.blocked,
+        };
+        let blocked = step.blocked || planned_move_overlaps_character(&planned_move, planned_moves, actor_starts);
+        if index == 0 {
+            fallback = Some((candidate_intent, step));
+        }
+        if !blocked {
+            return (candidate_intent, step, index != 0);
+        }
+    }
+
+    let (intent, step) = fallback.expect("steering directions always include direct movement");
+    (intent, step, false)
+}
+
+fn step_actor_move(
+    pos: &Position,
+    vertical_velocity: f32,
+    move_intent: CharacterMoveIntent,
+    delta: f32,
+    collision_world: &CollisionWorld,
+) -> common::physics::CharacterMovementResult {
+    let velocity = move_intent.to_horizontal_velocity(ACTOR_SPEED);
+    let target_x = velocity.x.mul_add(delta, pos.x);
+    let target_z = velocity.z.mul_add(delta, pos.z);
+    step_character_movement(
+        pos,
+        vertical_velocity,
+        collision_world,
+        false,
+        target_x,
+        target_z,
+        delta,
+    )
+}
+
+fn planned_move_overlaps_character(
+    candidate: &PlannedCharacterMove,
+    planned_moves: &[PlannedCharacterMove],
+    actor_starts: &[(Entity, Position)],
+) -> bool {
+    if overlapping_character(candidate, planned_moves).is_some() {
+        return true;
+    }
+
+    actor_starts.iter().any(|(entity, pos)| {
+        if *entity == candidate.entity {
+            return false;
+        }
+        let stationary_actor = PlannedCharacterMove {
+            entity: *entity,
+            start: *pos,
+            target: *pos,
+            target_vertical_velocity: 0.0,
+            blocked: false,
+        };
+        planned_character_moves_intersect(candidate, &stationary_actor)
+    })
+}
+
+fn steering_directions(direction: f32, side: f32) -> [f32; 7] {
+    [
+        direction,
+        direction + side * 20.0_f32.to_radians(),
+        direction + side * 45.0_f32.to_radians(),
+        direction + side * 90.0_f32.to_radians(),
+        direction - side * 20.0_f32.to_radians(),
+        direction - side * 45.0_f32.to_radians(),
+        direction - side * 90.0_f32.to_radians(),
+    ]
+}
+
+fn stable_actor_intent(current: CharacterMoveIntent, desired: CharacterMoveIntent) -> CharacterMoveIntent {
+    match (current, desired) {
+        (CharacterMoveIntent::Moving { direction: current }, CharacterMoveIntent::Moving { direction: desired })
+            if angle_delta(current, desired).abs() < ACTOR_DIRECTION_UPDATE_EPSILON =>
+        {
+            CharacterMoveIntent::Moving { direction: current }
+        }
+        _ => desired,
+    }
+}
+
+fn actor_intent_changed(current: CharacterMoveIntent, next: CharacterMoveIntent) -> bool {
+    match (current, next) {
+        (CharacterMoveIntent::Idle, CharacterMoveIntent::Idle) => false,
+        (CharacterMoveIntent::Moving { direction: current }, CharacterMoveIntent::Moving { direction: next }) => {
+            angle_delta(current, next).abs() >= ACTOR_DIRECTION_UPDATE_EPSILON
+        }
+        _ => true,
+    }
+}
+
+fn angle_delta(a: f32, b: f32) -> f32 {
+    (a - b + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI
+}
+
+fn direction_toward(pos: &Position, target: &Position) -> f32 {
+    let dx = target.x - pos.x;
+    let dz = target.z - pos.z;
+    dx.atan2(dz)
 }
 
 fn apply_player_moves(query: &mut PlayerMovementQuery, planned_moves: &[PlannedCharacterMove]) {
@@ -177,6 +392,10 @@ fn separation_direction(pos: &Position, other_pos: &Position, rng: &mut ThreadRn
     } else {
         dx.atan2(dz)
     }
+}
+
+fn random_avoidance_side(rng: &mut ThreadRng) -> f32 {
+    if rng.random_bool(0.5) { 1.0 } else { -1.0 }
 }
 
 fn broadcast_actor_move_intent(

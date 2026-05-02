@@ -9,8 +9,8 @@ use common::{
     markers::{ActorMarker, PlayerMarker},
     physics::{CharacterVerticalMotion, CollisionWorld},
     protocol::{
-        ActorId, ActorKind, CharacterMoveIntent, CharacterMovementState, FaceDirection, Position, SActorMoveIntent,
-        SActorTeleport, ServerMessage,
+        ActorId, ActorKind, CharacterMoveIntent, CharacterMovementState, FaceDirection, PlayerId, Position,
+        SActorMoveIntent, SActorTeleport, ServerMessage,
     },
 };
 
@@ -18,6 +18,7 @@ const INITIAL_ACTOR_COUNT: u32 = 6;
 const ACTOR_MIN_DIRECTION_TIME: f32 = 1.0;
 const ACTOR_MAX_DIRECTION_TIME: f32 = 3.5;
 const ACTOR_IDLE_CHANCE: f32 = 0.15;
+const ACTOR_VISION_RANGE: f32 = 18.0;
 
 pub fn actor_initial_spawn_system(
     mut commands: Commands,
@@ -57,6 +58,10 @@ pub fn actor_initial_spawn_system(
                 entity,
                 kind: ActorKind::Automaton,
                 direction_timer: random_direction_time(&mut rng),
+                chase_target: None,
+                avoidance_side: random_avoidance_side(&mut rng),
+                avoidance_timer: 0.0,
+                intent_change_cooldown: 0.0,
             },
         );
     }
@@ -65,7 +70,9 @@ pub fn actor_initial_spawn_system(
 pub fn actor_ai_system(
     time: Res<Time>,
     players: Res<PlayerMap>,
+    collision_world: Res<CollisionWorld>,
     mut actors: ResMut<ActorMap>,
+    player_query: Query<(&PlayerId, &Position), With<PlayerMarker>>,
     mut query: Query<
         (
             &ActorId,
@@ -85,6 +92,17 @@ pub fn actor_ai_system(
             continue;
         };
 
+        info.avoidance_timer = (info.avoidance_timer - delta).max(0.0);
+        info.intent_change_cooldown = (info.intent_change_cooldown - delta).max(0.0);
+        if let Some(target) = visible_player(pos, &players, &player_query, &collision_world) {
+            info.chase_target = Some(target);
+            continue;
+        }
+
+        if info.chase_target.take().is_some() {
+            info.direction_timer = 0.0;
+        }
+
         info.direction_timer -= delta;
         if info.direction_timer > 0.0 {
             continue;
@@ -101,6 +119,27 @@ pub fn actor_ai_system(
 
         broadcast_actor_move_intent(&players, *id, *pos, *move_intent, motion.0);
     }
+}
+
+fn visible_player(
+    actor_pos: &Position,
+    players: &PlayerMap,
+    player_query: &Query<(&PlayerId, &Position), With<PlayerMarker>>,
+    collision_world: &CollisionWorld,
+) -> Option<PlayerId> {
+    player_query
+        .iter()
+        .filter(|(id, _)| players.0.get(id).is_some_and(|info| info.logged_in))
+        .filter(|(_, pos)| horizontal_distance_sq(actor_pos, pos) <= ACTOR_VISION_RANGE * ACTOR_VISION_RANGE)
+        .filter(|(_, pos)| collision_world.character_line_of_sight_clear(actor_pos, pos))
+        .min_by(|(_, a), (_, b)| horizontal_distance_sq(actor_pos, a).total_cmp(&horizontal_distance_sq(actor_pos, b)))
+        .map(|(id, _)| *id)
+}
+
+fn horizontal_distance_sq(a: &Position, b: &Position) -> f32 {
+    let dx = a.x - b.x;
+    let dz = a.z - b.z;
+    dx.mul_add(dx, dz * dz)
 }
 
 pub fn actor_fall_recovery_system(
@@ -166,4 +205,8 @@ fn broadcast_actor_move_intent(
 
 fn random_direction_time(rng: &mut ThreadRng) -> f32 {
     rng.random_range(ACTOR_MIN_DIRECTION_TIME..=ACTOR_MAX_DIRECTION_TIME)
+}
+
+fn random_avoidance_side(rng: &mut ThreadRng) -> f32 {
+    if rng.random_bool(0.5) { 1.0 } else { -1.0 }
 }
