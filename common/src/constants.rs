@@ -43,10 +43,6 @@ pub const PHYSICS_EPSILON: f32 = 1e-6;
 // Characters whose Y falls below this are teleported back to a spawn position.
 pub const CHARACTER_FALL_TELEPORT_Y: f32 = -100.0;
 
-// ============================================================================
-// Characters
-// ============================================================================
-
 // Gravity acting on falling characters. Higher than real-world (9.81) for snappier
 // game feel.
 pub const CHARACTER_GRAVITY: f32 = 25.0; // m/s²
@@ -58,8 +54,10 @@ pub const CHARACTER_TERMINAL_VELOCITY: f32 = 50.0; // m/s
 // How far the Rapier character controller may snap downward to stay attached to
 // valid ground while walking over seams, ramps, and small frame-step gaps.
 pub const CHARACTER_GROUND_SNAP_DISTANCE: f32 = 0.5;
+
 // Maximum low ledge height the Rapier character controller may auto-step over.
 pub const CHARACTER_STEP_HEIGHT: f32 = 0.2;
+
 // Minimum forward clearance Rapier requires after an auto-step. This must be
 // large enough to carry the character past thin slab/trim edges, not just onto
 // the edge contact itself.
