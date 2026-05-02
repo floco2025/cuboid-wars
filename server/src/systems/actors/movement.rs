@@ -13,8 +13,8 @@ use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     markers::{ActorMarker, PlayerMarker},
     physics::{
-        CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, blocking_character_move_plan,
-        character_move_plan_is_blocked, step_character_movement,
+        CharacterMovePlan, CharacterMovementResult, CharacterVerticalVelocity, CollisionWorld,
+        blocking_character_move_plan, character_move_plan_is_blocked, step_character_movement,
     },
     protocol::{ActorId, CharacterMoveIntent, FaceDirection, Position},
 };
@@ -65,36 +65,101 @@ pub(crate) fn plan_actor_moves(
                 info.wall_avoidance_direction = None;
                 info.patrol_intent
             });
-        let (selected_intent, step) = select_actor_move(
+        let move_context = ActorMoveContext {
             entity,
-            &pos,
-            motion.0,
-            desired_intent,
-            info.go_to_position,
-            info,
-            actor_config.speed,
+            pos: &pos,
+            vertical_velocity: motion.0,
+            actor_speed: actor_config.speed,
             actor_physics,
             delta,
             collision_world,
             planned_moves,
             actor_starts,
-            &mut rng,
-        );
+        };
+        let selected_move = select_actor_move(&move_context, desired_intent, info.go_to_position, info, &mut rng);
 
-        *move_intent = selected_intent;
-        if let Some(direction) = selected_intent.direction() {
+        *move_intent = selected_move.intent;
+        if let Some(direction) = selected_move.intent.direction() {
             face_dir.0 = direction;
         }
-        maybe_broadcast_actor_move_intent(players, *id, *pos, selected_intent, motion.0, info);
+        maybe_broadcast_actor_move_intent(players, *id, *pos, selected_move.intent, motion.0, info);
 
         planned_moves.push(CharacterMovePlan {
             entity,
             start: *pos,
-            target: step.position,
-            target_vertical_velocity: step.vertical_velocity,
+            target: selected_move.step.position,
+            target_vertical_velocity: selected_move.step.vertical_velocity,
             physics: actor_physics,
-            blocked: step.blocked,
+            blocked: selected_move.step.blocked,
         });
+    }
+}
+
+#[derive(Copy, Clone)]
+struct SelectedActorMove {
+    intent: CharacterMoveIntent,
+    step: CharacterMovementResult,
+}
+
+struct ActorMoveContext<'a> {
+    entity: Entity,
+    pos: &'a Position,
+    vertical_velocity: f32,
+    actor_speed: f32,
+    actor_physics: CharacterPhysicsConfig,
+    delta: f32,
+    collision_world: &'a CollisionWorld,
+    planned_moves: &'a [CharacterMovePlan],
+    actor_starts: &'a [(Entity, Position)],
+}
+
+impl ActorMoveContext<'_> {
+    fn idle_move(&self) -> SelectedActorMove {
+        let intent = CharacterMoveIntent::Idle;
+        SelectedActorMove {
+            intent,
+            step: self.step_actor_move(intent, self.delta),
+        }
+    }
+
+    fn step_actor_move(&self, move_intent: CharacterMoveIntent, delta: f32) -> CharacterMovementResult {
+        let velocity = move_intent.to_horizontal_velocity(self.actor_speed);
+        let target_x = velocity.x.mul_add(delta, self.pos.x);
+        let target_z = velocity.z.mul_add(delta, self.pos.z);
+        step_character_movement(
+            self.pos,
+            self.vertical_velocity,
+            self.collision_world,
+            false,
+            self.actor_physics,
+            target_x,
+            target_z,
+            delta,
+        )
+    }
+
+    fn evaluate_candidate(&self, intent: CharacterMoveIntent) -> MoveCandidateResult {
+        let selected = SelectedActorMove {
+            intent,
+            step: self.step_actor_move(intent, self.delta),
+        };
+        let planned_move = CharacterMovePlan {
+            entity: self.entity,
+            start: *self.pos,
+            target: selected.step.position,
+            target_vertical_velocity: selected.step.vertical_velocity,
+            physics: self.actor_physics,
+            blocked: selected.step.blocked,
+        };
+
+        if character_move_plan_is_blocked(&planned_move, self.planned_moves, self.actor_starts) {
+            return MoveCandidateResult::BlockedByCharacter;
+        }
+        if selected.step.blocked {
+            return MoveCandidateResult::BlockedByWorld { selected };
+        }
+
+        MoveCandidateResult::Accepted { selected }
     }
 }
 
@@ -147,143 +212,52 @@ fn actor_target_distance_sq(pos: &Position, info: Option<&ActorInfo>) -> f32 {
         .map_or(f32::INFINITY, |target| horizontal_distance_sq(pos, &target))
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "Candidate testing needs the same movement context as normal actor planning"
-)]
 fn select_actor_move(
-    entity: Entity,
-    pos: &Position,
-    vertical_velocity: f32,
+    context: &ActorMoveContext,
     desired_intent: CharacterMoveIntent,
     go_to_position: Option<Position>,
     info: &mut ActorInfo,
-    actor_speed: f32,
-    actor_physics: CharacterPhysicsConfig,
-    delta: f32,
-    collision_world: &CollisionWorld,
-    planned_moves: &[CharacterMovePlan],
-    actor_starts: &[(Entity, Position)],
     rng: &mut ThreadRng,
-) -> (CharacterMoveIntent, common::physics::CharacterMovementResult) {
+) -> SelectedActorMove {
     let Some(direction) = desired_intent.direction() else {
         info.wall_avoidance_direction = None;
-        return idle_actor_move(
-            pos,
-            vertical_velocity,
-            actor_speed,
-            actor_physics,
-            delta,
-            collision_world,
-        );
+        return context.idle_move();
     };
 
-    if let Some((intent, step)) = continue_wall_avoidance_if_needed(
-        entity,
-        pos,
-        vertical_velocity,
-        direction,
-        go_to_position,
-        info,
-        actor_speed,
-        actor_physics,
-        delta,
-        collision_world,
-        planned_moves,
-        actor_starts,
-    ) {
-        return (intent, step);
+    if let Some(selected_move) = continue_wall_avoidance_if_needed(context, direction, go_to_position, info) {
+        return selected_move;
     }
 
-    match try_normal_steering_candidates(
-        entity,
-        pos,
-        vertical_velocity,
-        direction,
-        actor_speed,
-        actor_physics,
-        delta,
-        collision_world,
-        planned_moves,
-        actor_starts,
-        rng,
-    ) {
-        CandidateSearch::Accepted {
-            intent,
-            step,
+    match choose_steering_move(context, direction, rng) {
+        SteeringMoveChoice::Accepted {
+            selected,
             wall_avoidance_direction,
         } => {
             info.wall_avoidance_direction = wall_avoidance_direction;
-            return (intent, step);
+            return selected;
         }
-        CandidateSearch::BlockedByCharacter => {
-            return idle_actor_move(
-                pos,
-                vertical_velocity,
-                actor_speed,
-                actor_physics,
-                delta,
-                collision_world,
-            );
+        SteeringMoveChoice::BlockedByCharacter => {
+            return context.idle_move();
         }
-        CandidateSearch::BlockedByWorld => {}
+        SteeringMoveChoice::BlockedByWorld => {}
     }
 
-    if let Some((intent, step)) = try_new_wall_avoidance_direction(
-        entity,
-        pos,
-        vertical_velocity,
-        direction,
-        actor_speed,
-        actor_physics,
-        delta,
-        collision_world,
-        planned_moves,
-        actor_starts,
-        rng,
-    ) {
-        info.wall_avoidance_direction = intent.direction();
-        return (intent, step);
+    if let Some(selected_move) = choose_new_wall_avoidance_move(context, direction, rng) {
+        info.wall_avoidance_direction = selected_move.intent.direction();
+        return selected_move;
     }
 
-    idle_actor_move(
-        pos,
-        vertical_velocity,
-        actor_speed,
-        actor_physics,
-        delta,
-        collision_world,
-    )
+    context.idle_move()
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "Candidate testing needs the same movement context as normal actor planning"
-)]
 fn continue_wall_avoidance_if_needed(
-    entity: Entity,
-    pos: &Position,
-    vertical_velocity: f32,
+    context: &ActorMoveContext,
     direction: f32,
     go_to_position: Option<Position>,
     info: &mut ActorInfo,
-    actor_speed: f32,
-    actor_physics: CharacterPhysicsConfig,
-    delta: f32,
-    collision_world: &CollisionWorld,
-    planned_moves: &[CharacterMovePlan],
-    actor_starts: &[(Entity, Position)],
-) -> Option<(CharacterMoveIntent, common::physics::CharacterMovementResult)> {
+) -> Option<SelectedActorMove> {
     let avoidance_direction = info.wall_avoidance_direction?;
-    if direct_path_is_clear_enough(
-        pos,
-        vertical_velocity,
-        direction,
-        go_to_position,
-        actor_speed,
-        actor_physics,
-        collision_world,
-    ) {
+    if direct_path_is_clear_enough(context, direction, go_to_position) {
         info.wall_avoidance_direction = None;
         return None;
     }
@@ -291,230 +265,79 @@ fn continue_wall_avoidance_if_needed(
     let avoidance_intent = CharacterMoveIntent::Moving {
         direction: avoidance_direction,
     };
-    match try_actor_candidate_move(
-        entity,
-        pos,
-        vertical_velocity,
-        avoidance_intent,
-        actor_speed,
-        actor_physics,
-        delta,
-        collision_world,
-        planned_moves,
-        actor_starts,
-    ) {
-        CandidateMove::Accepted { intent, step } => Some((intent, step)),
-        CandidateMove::BlockedByCharacter => Some(idle_actor_move(
-            pos,
-            vertical_velocity,
-            actor_speed,
-            actor_physics,
-            delta,
-            collision_world,
-        )),
-        CandidateMove::BlockedByWorld { .. } => {
-            let next_move = try_opposite_wall_avoidance_direction(
-                entity,
-                pos,
-                vertical_velocity,
-                avoidance_direction,
-                actor_speed,
-                actor_physics,
-                delta,
-                collision_world,
-                planned_moves,
-                actor_starts,
-            );
-            if let Some((intent, _)) = &next_move {
-                info.wall_avoidance_direction = intent.direction();
+    match context.evaluate_candidate(avoidance_intent) {
+        MoveCandidateResult::Accepted { selected } => Some(selected),
+        MoveCandidateResult::BlockedByCharacter => Some(context.idle_move()),
+        MoveCandidateResult::BlockedByWorld { .. } => {
+            let next_move = choose_opposite_wall_avoidance_move(context, avoidance_direction);
+            if let Some(selected_move) = &next_move {
+                info.wall_avoidance_direction = selected_move.intent.direction();
             }
             next_move
         }
     }
 }
 
-enum CandidateSearch {
+// Static-world blocking and character blocking deliberately lead to different
+// behavior: static walls can start wall avoidance, while other characters make
+// this actor yield for the frame.
+enum SteeringMoveChoice {
     Accepted {
-        intent: CharacterMoveIntent,
-        step: common::physics::CharacterMovementResult,
+        selected: SelectedActorMove,
         wall_avoidance_direction: Option<f32>,
     },
     BlockedByCharacter,
     BlockedByWorld,
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "Candidate testing needs the same movement context as normal actor planning"
-)]
-fn try_normal_steering_candidates(
-    entity: Entity,
-    pos: &Position,
-    vertical_velocity: f32,
-    direction: f32,
-    actor_speed: f32,
-    actor_physics: CharacterPhysicsConfig,
-    delta: f32,
-    collision_world: &CollisionWorld,
-    planned_moves: &[CharacterMovePlan],
-    actor_starts: &[(Entity, Position)],
-    rng: &mut ThreadRng,
-) -> CandidateSearch {
+fn choose_steering_move(context: &ActorMoveContext, direction: f32, rng: &mut ThreadRng) -> SteeringMoveChoice {
     let mut was_blocked_by_character = false;
     let avoidance_side = random_avoidance_side(rng);
     for (index, candidate_direction) in steering_directions(direction, avoidance_side).into_iter().enumerate() {
         let candidate_intent = CharacterMoveIntent::Moving {
             direction: candidate_direction,
         };
-        match try_actor_candidate_move(
-            entity,
-            pos,
-            vertical_velocity,
-            candidate_intent,
-            actor_speed,
-            actor_physics,
-            delta,
-            collision_world,
-            planned_moves,
-            actor_starts,
-        ) {
-            CandidateMove::Accepted { intent, step } => {
-                return CandidateSearch::Accepted {
-                    intent,
-                    step,
+        match context.evaluate_candidate(candidate_intent) {
+            MoveCandidateResult::Accepted { selected } => {
+                return SteeringMoveChoice::Accepted {
+                    selected,
                     wall_avoidance_direction: (index != 0).then_some(candidate_direction),
                 };
             }
-            CandidateMove::BlockedByCharacter => {
+            MoveCandidateResult::BlockedByCharacter => {
                 was_blocked_by_character = true;
             }
-            CandidateMove::BlockedByWorld { .. } => {}
+            MoveCandidateResult::BlockedByWorld { .. } => {}
         }
     }
 
     if was_blocked_by_character {
-        CandidateSearch::BlockedByCharacter
+        SteeringMoveChoice::BlockedByCharacter
     } else {
-        CandidateSearch::BlockedByWorld
+        SteeringMoveChoice::BlockedByWorld
     }
 }
 
-enum CandidateMove {
-    Accepted {
-        intent: CharacterMoveIntent,
-        step: common::physics::CharacterMovementResult,
-    },
+enum MoveCandidateResult {
+    Accepted { selected: SelectedActorMove },
     BlockedByCharacter,
-    BlockedByWorld {
-        intent: CharacterMoveIntent,
-        step: common::physics::CharacterMovementResult,
-    },
+    BlockedByWorld { selected: SelectedActorMove },
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "Candidate testing needs the same movement context as normal actor planning"
-)]
-fn try_actor_candidate_move(
-    entity: Entity,
-    pos: &Position,
-    vertical_velocity: f32,
-    intent: CharacterMoveIntent,
-    actor_speed: f32,
-    actor_physics: CharacterPhysicsConfig,
-    delta: f32,
-    collision_world: &CollisionWorld,
-    planned_moves: &[CharacterMovePlan],
-    actor_starts: &[(Entity, Position)],
-) -> CandidateMove {
-    let step = step_actor_move(
-        pos,
-        vertical_velocity,
-        intent,
-        actor_speed,
-        actor_physics,
-        delta,
-        collision_world,
-    );
-    let planned_move = CharacterMovePlan {
-        entity,
-        start: *pos,
-        target: step.position,
-        target_vertical_velocity: step.vertical_velocity,
-        physics: actor_physics,
-        blocked: step.blocked,
-    };
-
-    if character_move_plan_is_blocked(&planned_move, planned_moves, actor_starts) {
-        return CandidateMove::BlockedByCharacter;
-    }
-    if step.blocked {
-        return CandidateMove::BlockedByWorld { intent, step };
-    }
-
-    CandidateMove::Accepted { intent, step }
-}
-
-#[expect(
-    clippy::too_many_arguments,
-    reason = "Candidate testing needs the same movement context as normal actor planning"
-)]
-fn try_new_wall_avoidance_direction(
-    entity: Entity,
-    pos: &Position,
-    vertical_velocity: f32,
+fn choose_new_wall_avoidance_move(
+    context: &ActorMoveContext,
     direction: f32,
-    actor_speed: f32,
-    actor_physics: CharacterPhysicsConfig,
-    delta: f32,
-    collision_world: &CollisionWorld,
-    planned_moves: &[CharacterMovePlan],
-    actor_starts: &[(Entity, Position)],
     rng: &mut ThreadRng,
-) -> Option<(CharacterMoveIntent, common::physics::CharacterMovementResult)> {
+) -> Option<SelectedActorMove> {
     let side = random_avoidance_side(rng);
-    try_wall_avoidance_directions(
-        entity,
-        pos,
-        vertical_velocity,
-        wall_avoidance_directions(direction, side),
-        actor_speed,
-        actor_physics,
-        delta,
-        collision_world,
-        planned_moves,
-        actor_starts,
-    )
+    choose_wall_avoidance_move(context, wall_avoidance_directions(direction, side))
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "Candidate testing needs the same movement context as normal actor planning"
-)]
-fn try_opposite_wall_avoidance_direction(
-    entity: Entity,
-    pos: &Position,
-    vertical_velocity: f32,
+fn choose_opposite_wall_avoidance_move(
+    context: &ActorMoveContext,
     current_direction: f32,
-    actor_speed: f32,
-    actor_physics: CharacterPhysicsConfig,
-    delta: f32,
-    collision_world: &CollisionWorld,
-    planned_moves: &[CharacterMovePlan],
-    actor_starts: &[(Entity, Position)],
-) -> Option<(CharacterMoveIntent, common::physics::CharacterMovementResult)> {
-    try_wall_avoidance_directions(
-        entity,
-        pos,
-        vertical_velocity,
-        [opposite_wall_avoidance_direction(current_direction)],
-        actor_speed,
-        actor_physics,
-        delta,
-        collision_world,
-        planned_moves,
-        actor_starts,
-    )
+) -> Option<SelectedActorMove> {
+    choose_wall_avoidance_move(context, [opposite_wall_avoidance_direction(current_direction)])
 }
 
 fn wall_avoidance_directions(direction: f32, side: f32) -> [f32; 2] {
@@ -528,46 +351,28 @@ fn opposite_wall_avoidance_direction(current_direction: f32) -> f32 {
     current_direction + std::f32::consts::PI
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "Candidate testing needs the same movement context as normal actor planning"
-)]
-fn try_wall_avoidance_directions<const N: usize>(
-    entity: Entity,
-    pos: &Position,
-    vertical_velocity: f32,
+fn choose_wall_avoidance_move<const N: usize>(
+    context: &ActorMoveContext,
     directions: [f32; N],
-    actor_speed: f32,
-    actor_physics: CharacterPhysicsConfig,
-    delta: f32,
-    collision_world: &CollisionWorld,
-    planned_moves: &[CharacterMovePlan],
-    actor_starts: &[(Entity, Position)],
-) -> Option<(CharacterMoveIntent, common::physics::CharacterMovementResult)> {
+) -> Option<SelectedActorMove> {
     // Wall avoidance is allowed to keep a blocked side-contact result only
     // when Rapier still moved the actor meaningfully. That lets actors slide
     // around geometry edges without accepting contact jitter as progress.
     for direction in directions {
         let intent = CharacterMoveIntent::Moving { direction };
-        match try_actor_candidate_move(
-            entity,
-            pos,
-            vertical_velocity,
-            intent,
-            actor_speed,
-            actor_physics,
-            delta,
-            collision_world,
-            planned_moves,
-            actor_starts,
-        ) {
-            CandidateMove::Accepted { intent, step } => return Some((intent, step)),
-            CandidateMove::BlockedByWorld { intent, step }
-                if blocked_step_made_useful_progress(pos, &step.position, actor_speed, delta) =>
+        match context.evaluate_candidate(intent) {
+            MoveCandidateResult::Accepted { selected } => return Some(selected),
+            MoveCandidateResult::BlockedByWorld { selected }
+                if blocked_step_made_useful_progress(
+                    context.pos,
+                    &selected.step.position,
+                    context.actor_speed,
+                    context.delta,
+                ) =>
             {
-                return Some((intent, step));
+                return Some(selected);
             }
-            CandidateMove::BlockedByCharacter | CandidateMove::BlockedByWorld { .. } => {}
+            MoveCandidateResult::BlockedByCharacter | MoveCandidateResult::BlockedByWorld { .. } => {}
         }
     }
     None
@@ -579,76 +384,16 @@ fn blocked_step_made_useful_progress(start: &Position, target: &Position, actor_
     horizontal_distance_sq(start, target) > useful_distance * useful_distance
 }
 
-fn idle_actor_move(
-    pos: &Position,
-    vertical_velocity: f32,
-    actor_speed: f32,
-    actor_physics: CharacterPhysicsConfig,
-    delta: f32,
-    collision_world: &CollisionWorld,
-) -> (CharacterMoveIntent, common::physics::CharacterMovementResult) {
-    let selected_intent = CharacterMoveIntent::Idle;
-    let step = step_actor_move(
-        pos,
-        vertical_velocity,
-        selected_intent,
-        actor_speed,
-        actor_physics,
-        delta,
-        collision_world,
-    );
-    (selected_intent, step)
-}
-
-fn direct_path_is_clear_enough(
-    pos: &Position,
-    vertical_velocity: f32,
-    direction: f32,
-    go_to_position: Option<Position>,
-    actor_speed: f32,
-    actor_physics: CharacterPhysicsConfig,
-    collision_world: &CollisionWorld,
-) -> bool {
+fn direct_path_is_clear_enough(context: &ActorMoveContext, direction: f32, go_to_position: Option<Position>) -> bool {
     let direct_intent = CharacterMoveIntent::Moving { direction };
-    let step = step_actor_move(
-        pos,
-        vertical_velocity,
-        direct_intent,
-        actor_speed,
-        actor_physics,
-        ACTOR_DIRECT_PATH_PROBE_TIME,
-        collision_world,
-    );
+    let step = context.step_actor_move(direct_intent, ACTOR_DIRECT_PATH_PROBE_TIME);
     if step.blocked {
         return false;
     }
 
-    go_to_position
-        .is_none_or(|target| horizontal_distance_sq(&step.position, &target) < horizontal_distance_sq(pos, &target))
-}
-
-fn step_actor_move(
-    pos: &Position,
-    vertical_velocity: f32,
-    move_intent: CharacterMoveIntent,
-    actor_speed: f32,
-    actor_physics: CharacterPhysicsConfig,
-    delta: f32,
-    collision_world: &CollisionWorld,
-) -> common::physics::CharacterMovementResult {
-    let velocity = move_intent.to_horizontal_velocity(actor_speed);
-    let target_x = velocity.x.mul_add(delta, pos.x);
-    let target_z = velocity.z.mul_add(delta, pos.z);
-    step_character_movement(
-        pos,
-        vertical_velocity,
-        collision_world,
-        false,
-        actor_physics,
-        target_x,
-        target_z,
-        delta,
-    )
+    go_to_position.is_none_or(|target| {
+        horizontal_distance_sq(&step.position, &target) < horizontal_distance_sq(context.pos, &target)
+    })
 }
 
 fn horizontal_distance_sq(a: &Position, b: &Position) -> f32 {
