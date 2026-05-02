@@ -4,8 +4,8 @@ use rand::{RngExt, rng, rngs::ThreadRng};
 use super::network::broadcast_to_all;
 use crate::{
     constants::{
-        ACTOR_AVOIDANCE_TIME, ACTOR_DIRECTION_UPDATE_EPSILON, ACTOR_GO_TO_REACHED_DISTANCE,
-        ACTOR_INTENT_CHANGE_COOLDOWN,
+        ACTOR_AVOIDANCE_TIME, ACTOR_GO_TO_REACHED_DISTANCE, ACTOR_MOVE_INTENT_DIR_CHANGE_THRESHOLD,
+        ACTOR_MOVE_INTENT_SEND_COOLDOWN, ACTOR_TURN_SPEED,
     },
     resources::{ActorInfo, ActorMap, PlayerInfo, PlayerMap},
 };
@@ -85,7 +85,7 @@ pub fn characters_movement_system(
         &mut planned_moves,
     );
     apply_player_moves(&mut player_query, &planned_moves);
-    apply_actor_moves(&players, &mut actor_query, &planned_moves);
+    apply_actor_moves(delta, &players, &mut actors, &mut actor_query, &planned_moves);
 }
 
 fn plan_player_moves(
@@ -156,50 +156,34 @@ fn plan_actor_moves(
         let Some(info) = actors.0.get_mut(id) else {
             continue;
         };
+        info.move_intent_send_timer += delta;
         let current_intent = *move_intent;
-        let (selected_intent, step, used_avoidance) = if info.intent_change_cooldown > 0.0 {
-            let step = step_actor_move(
-                &pos,
-                motion.0,
-                current_intent,
-                actor_config.speed,
-                actor_physics,
-                delta,
-                collision_world,
-            );
-            (current_intent, step, false)
-        } else {
-            let desired_intent = stable_actor_intent(
-                current_intent,
-                actor_desired_intent(info, &pos).unwrap_or(current_intent),
-            );
-            select_actor_move(
-                entity,
-                &pos,
-                motion.0,
-                desired_intent,
-                info,
-                actor_config.speed,
-                actor_physics,
-                delta,
-                collision_world,
-                planned_moves,
-                actor_starts,
-                &mut rng,
-            )
-        };
+        let desired_intent = actor_desired_intent(info, &pos).unwrap_or(info.patrol_intent);
+        let (selected_intent, step, used_avoidance) = select_actor_move(
+            entity,
+            &pos,
+            motion.0,
+            current_intent,
+            face_dir.0,
+            desired_intent,
+            info,
+            actor_config.speed,
+            actor_physics,
+            delta,
+            collision_world,
+            planned_moves,
+            actor_starts,
+            &mut rng,
+        );
 
         if used_avoidance {
             info.avoidance_timer = ACTOR_AVOIDANCE_TIME;
         }
-        if actor_intent_changed(current_intent, selected_intent) {
-            *move_intent = selected_intent;
-            if let Some(direction) = selected_intent.direction() {
-                face_dir.0 = direction;
-            }
-            info.intent_change_cooldown = ACTOR_INTENT_CHANGE_COOLDOWN;
-            broadcast_actor_move_intent(players, *id, *pos, selected_intent, motion.0);
+        *move_intent = selected_intent;
+        if let Some(direction) = selected_intent.direction() {
+            face_dir.0 = direction;
         }
+        maybe_broadcast_actor_move_intent(players, *id, *pos, selected_intent, motion.0, info);
 
         planned_moves.push(PlannedCharacterMove {
             entity,
@@ -232,6 +216,8 @@ fn select_actor_move(
     entity: Entity,
     pos: &Position,
     vertical_velocity: f32,
+    current_intent: CharacterMoveIntent,
+    face_direction: f32,
     desired_intent: CharacterMoveIntent,
     info: &mut ActorInfo,
     actor_speed: f32,
@@ -243,16 +229,17 @@ fn select_actor_move(
     rng: &mut ThreadRng,
 ) -> (CharacterMoveIntent, common::physics::CharacterMovementResult, bool) {
     let Some(direction) = desired_intent.direction() else {
+        let selected_intent = CharacterMoveIntent::Idle;
         let step = step_actor_move(
             pos,
             vertical_velocity,
-            desired_intent,
+            selected_intent,
             actor_speed,
             actor_physics,
             delta,
             collision_world,
         );
-        return (desired_intent, step, false);
+        return (selected_intent, step, false);
     };
 
     if info.avoidance_timer <= 0.0 {
@@ -267,10 +254,11 @@ fn select_actor_move(
         let candidate_intent = CharacterMoveIntent::Moving {
             direction: candidate_direction,
         };
+        let selected_intent = turn_limited_actor_intent(current_intent, face_direction, candidate_intent, delta);
         let step = step_actor_move(
             pos,
             vertical_velocity,
-            candidate_intent,
+            selected_intent,
             actor_speed,
             actor_physics,
             delta,
@@ -286,10 +274,10 @@ fn select_actor_move(
         };
         let blocked = step.blocked || planned_move_overlaps_character(&planned_move, planned_moves, actor_starts);
         if index == 0 {
-            fallback = Some((candidate_intent, step));
+            fallback = Some((selected_intent, step));
         }
         if !blocked {
-            return (candidate_intent, step, index != 0);
+            return (selected_intent, step, index != 0);
         }
     }
 
@@ -358,24 +346,24 @@ fn steering_directions(direction: f32, side: f32) -> [f32; 7] {
     ]
 }
 
-fn stable_actor_intent(current: CharacterMoveIntent, desired: CharacterMoveIntent) -> CharacterMoveIntent {
-    match (current, desired) {
-        (CharacterMoveIntent::Moving { direction: current }, CharacterMoveIntent::Moving { direction: desired })
-            if angle_delta(current, desired).abs() < ACTOR_DIRECTION_UPDATE_EPSILON =>
-        {
-            CharacterMoveIntent::Moving { direction: current }
-        }
-        _ => desired,
-    }
-}
+fn turn_limited_actor_intent(
+    current: CharacterMoveIntent,
+    face_direction: f32,
+    desired: CharacterMoveIntent,
+    delta: f32,
+) -> CharacterMoveIntent {
+    let CharacterMoveIntent::Moving {
+        direction: desired_direction,
+    } = desired
+    else {
+        return desired;
+    };
 
-fn actor_intent_changed(current: CharacterMoveIntent, next: CharacterMoveIntent) -> bool {
-    match (current, next) {
-        (CharacterMoveIntent::Idle, CharacterMoveIntent::Idle) => false,
-        (CharacterMoveIntent::Moving { direction: current }, CharacterMoveIntent::Moving { direction: next }) => {
-            angle_delta(current, next).abs() >= ACTOR_DIRECTION_UPDATE_EPSILON
-        }
-        _ => true,
+    let current_direction = current.direction().unwrap_or(face_direction);
+    let max_turn = ACTOR_TURN_SPEED.to_radians() * delta;
+    let turn = angle_delta(desired_direction, current_direction).clamp(-max_turn, max_turn);
+    CharacterMoveIntent::Moving {
+        direction: current_direction + turn,
     }
 }
 
@@ -410,10 +398,19 @@ fn apply_player_moves(query: &mut PlayerMovementQuery, planned_moves: &[PlannedC
     }
 }
 
-fn apply_actor_moves(players: &PlayerMap, query: &mut ActorMovementQuery, planned_moves: &[PlannedCharacterMove]) {
+fn apply_actor_moves(
+    delta: f32,
+    players: &PlayerMap,
+    actors: &mut ActorMap,
+    query: &mut ActorMovementQuery,
+    planned_moves: &[PlannedCharacterMove],
+) {
     let mut rng = rng();
     for planned_move in planned_moves {
         let Ok((_, id, mut pos, mut motion, mut move_intent, mut face_dir)) = query.get_mut(planned_move.entity) else {
+            continue;
+        };
+        let Some(info) = actors.0.get_mut(id) else {
             continue;
         };
 
@@ -431,9 +428,14 @@ fn apply_actor_moves(players: &PlayerMap, query: &mut ActorMovementQuery, planne
             } else {
                 rng.random_range(0.0..std::f32::consts::TAU)
             };
-            *move_intent = CharacterMoveIntent::Moving { direction };
-            face_dir.0 = direction;
-            broadcast_actor_move_intent(players, *id, *pos, *move_intent, motion.0);
+            let desired_intent = CharacterMoveIntent::Moving { direction };
+            let selected_intent = turn_limited_actor_intent(*move_intent, face_dir.0, desired_intent, delta);
+            *move_intent = selected_intent;
+            if let Some(direction) = selected_intent.direction() {
+                face_dir.0 = direction;
+            }
+            info.avoidance_timer = ACTOR_AVOIDANCE_TIME;
+            maybe_broadcast_actor_move_intent(players, *id, *pos, selected_intent, motion.0, info);
         }
     }
 }
@@ -450,6 +452,47 @@ fn separation_direction(pos: &Position, other_pos: &Position, rng: &mut ThreadRn
 
 fn random_avoidance_side(rng: &mut ThreadRng) -> f32 {
     if rng.random_bool(0.5) { 1.0 } else { -1.0 }
+}
+
+fn maybe_broadcast_actor_move_intent(
+    players: &PlayerMap,
+    id: ActorId,
+    pos: Position,
+    move_intent: CharacterMoveIntent,
+    vertical_velocity: f32,
+    info: &mut ActorInfo,
+) {
+    if !actor_move_intent_should_broadcast(
+        info.last_broadcast_move_intent,
+        move_intent,
+        info.move_intent_send_timer,
+    ) {
+        return;
+    }
+
+    broadcast_actor_move_intent(players, id, pos, move_intent, vertical_velocity);
+    info.last_broadcast_move_intent = move_intent;
+    info.move_intent_send_timer = 0.0;
+}
+
+fn actor_move_intent_should_broadcast(
+    last_broadcast: CharacterMoveIntent,
+    current: CharacterMoveIntent,
+    send_timer: f32,
+) -> bool {
+    let last_dir = last_broadcast.direction();
+    let current_dir = current.direction();
+    if last_dir.is_some() != current_dir.is_some() {
+        return true;
+    }
+
+    match (current_dir, last_dir) {
+        (Some(current), Some(last)) => {
+            send_timer >= ACTOR_MOVE_INTENT_SEND_COOLDOWN
+                && angle_delta(current, last).abs() >= ACTOR_MOVE_INTENT_DIR_CHANGE_THRESHOLD.to_radians()
+        }
+        _ => false,
+    }
 }
 
 fn broadcast_actor_move_intent(

@@ -3,11 +3,11 @@
 // ============================================================================
 
 // Grid
-pub const GRID_CELL_SIZE: f32 = 4.0; // Each grid cell size in meters
+pub const GRID_CELL_SIZE: f32 = 4.0;
 pub const GRID_COLS: i32 = 20; // Number of grid columns (X axis)
 pub const GRID_ROWS: i32 = 20; // Number of grid rows (Z axis)
-pub const MAP_WIDTH: f32 = GRID_COLS as f32 * GRID_CELL_SIZE; // Total map width (80m)
-pub const MAP_DEPTH: f32 = GRID_ROWS as f32 * GRID_CELL_SIZE; // Total map depth (80m)
+pub const MAP_WIDTH: f32 = GRID_COLS as f32 * GRID_CELL_SIZE;
+pub const MAP_DEPTH: f32 = GRID_ROWS as f32 * GRID_CELL_SIZE;
 
 // Walls
 pub const WALL_THICKNESS: f32 = 0.3;
@@ -27,7 +27,7 @@ pub const LEVEL_CLASSIFICATION_TOLERANCE: f32 = 0.5;
 // Networking
 // ============================================================================
 
-pub const UPDATE_BROADCAST_INTERVAL: f32 = 0.25; // seconds
+pub const UPDATE_BROADCAST_INTERVAL: f32 = 0.25;
 
 // ============================================================================
 // Physics
@@ -70,10 +70,10 @@ pub const PLAYER_STEP_MIN_WIDTH: f32 = 0.2;
 // Projectiles
 // ============================================================================
 
-pub const PROJECTILE_SPEED: f32 = 70.0; // meters per second
-pub const PROJECTILE_LIFETIME: f32 = 8.0; // seconds
-pub const PROJECTILE_SPAWN_OFFSET: f32 = 1.0; // meters in front of thrower
-pub const PROJECTILE_RADIUS: f32 = 0.11; // meters
+pub const PROJECTILE_SPEED: f32 = 70.0;
+pub const PROJECTILE_LIFETIME: f32 = 8.0;
+pub const PROJECTILE_SPAWN_OFFSET: f32 = 1.0; // in front of thrower
+pub const PROJECTILE_RADIUS: f32 = 0.11;
 pub const PROJECTILE_COOLDOWN_TIME: f32 = 0.1; // Minimum time between shots
 pub const PROJECTILE_GRAVITY: f32 = 9.81; // m/s² (real-world for nice arcs)
 pub const PROJECTILE_DRAG_FACTOR: f32 = 0.01; // Air resistance coefficient applied per frame

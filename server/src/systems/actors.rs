@@ -4,7 +4,8 @@ use rand::{RngExt, rng, rngs::ThreadRng};
 use super::network::broadcast_to_all;
 use crate::{
     constants::{
-        ACTOR_IDLE_CHANCE, ACTOR_INITIAL_COUNT, ACTOR_MAX_DIRECTION_TIME, ACTOR_MIN_DIRECTION_TIME, ACTOR_VISION_RANGE,
+        ACTOR_IDLE_CHANCE, ACTOR_INITIAL_COUNT, ACTOR_MAX_DIRECTION_TIME, ACTOR_MIN_DIRECTION_TIME,
+        ACTOR_MOVE_INTENT_SEND_COOLDOWN, ACTOR_VISION_RANGE,
     },
     resources::{ActorInfo, ActorMap, MapConfig, PlayerMap},
     systems::players::generate_character_spawn_position,
@@ -16,7 +17,7 @@ use common::{
     physics::{CharacterVerticalMotion, CollisionWorld},
     protocol::{
         ActorId, ActorKind, CharacterMoveIntent, CharacterMovementState, FaceDirection, PlayerId, Position,
-        SActorMoveIntent, SActorTeleport, ServerMessage,
+        SActorTeleport, ServerMessage,
     },
 };
 
@@ -64,10 +65,12 @@ pub fn actor_initial_spawn_system(
                 entity,
                 kind: ActorKind::Automaton,
                 direction_timer: random_direction_time(&mut rng),
+                patrol_intent: move_intent,
                 go_to_position: None,
                 avoidance_side: random_avoidance_side(&mut rng),
                 avoidance_timer: 0.0,
-                intent_change_cooldown: 0.0,
+                last_broadcast_move_intent: move_intent,
+                move_intent_send_timer: ACTOR_MOVE_INTENT_SEND_COOLDOWN,
             },
         );
     }
@@ -80,27 +83,17 @@ pub fn actor_ai_system(
     gameplay_config: Res<GameplayConfig>,
     mut actors: ResMut<ActorMap>,
     player_query: Query<(&PlayerId, &Position), With<PlayerMarker>>,
-    mut query: Query<
-        (
-            &ActorId,
-            &Position,
-            &CharacterVerticalMotion,
-            &mut CharacterMoveIntent,
-            &mut FaceDirection,
-        ),
-        (With<ActorMarker>, Without<PlayerMarker>),
-    >,
+    query: Query<(&ActorId, &Position), (With<ActorMarker>, Without<PlayerMarker>)>,
 ) {
     let delta = time.delta_secs();
     let mut rng = rng();
 
-    for (id, pos, motion, mut move_intent, mut face_dir) in &mut query {
+    for (id, pos) in &query {
         let Some(info) = actors.0.get_mut(id) else {
             continue;
         };
 
         info.avoidance_timer = (info.avoidance_timer - delta).max(0.0);
-        info.intent_change_cooldown = (info.intent_change_cooldown - delta).max(0.0);
         if let Some(target_pos) =
             visible_player_position(pos, &players, &player_query, &collision_world, &gameplay_config)
         {
@@ -118,14 +111,11 @@ pub fn actor_ai_system(
 
         info.direction_timer = random_direction_time(&mut rng);
         if rng.random_range(0.0..1.0) < ACTOR_IDLE_CHANCE {
-            *move_intent = CharacterMoveIntent::Idle;
+            info.patrol_intent = CharacterMoveIntent::Idle;
         } else {
             let direction = rng.random_range(0.0..std::f32::consts::TAU);
-            *move_intent = CharacterMoveIntent::Moving { direction };
-            face_dir.0 = direction;
+            info.patrol_intent = CharacterMoveIntent::Moving { direction };
         }
-
-        broadcast_actor_move_intent(&players, *id, *pos, *move_intent, motion.0);
     }
 }
 
@@ -210,22 +200,6 @@ pub fn actor_fall_recovery_system(
 
         info!("{:?} fell and teleported to {:?}", id, teleport_pos);
     }
-}
-
-fn broadcast_actor_move_intent(
-    players: &PlayerMap,
-    id: ActorId,
-    pos: Position,
-    move_intent: CharacterMoveIntent,
-    vertical_velocity: f32,
-) {
-    broadcast_to_all(
-        players,
-        ServerMessage::ActorMoveIntent(SActorMoveIntent {
-            id,
-            movement: CharacterMovementState::new(pos, move_intent, vertical_velocity),
-        }),
-    );
 }
 
 fn random_direction_time(rng: &mut ThreadRng) -> f32 {

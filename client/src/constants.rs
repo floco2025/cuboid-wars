@@ -24,27 +24,27 @@ pub const MOUSE_SENSITIVITY: f32 = 0.002; // radians per pixel
 // ============================================================================
 
 // Move-input updates
-pub const MOVE_INPUT_MAX_SEND_INTERVAL: f32 = 0.05; // seconds
+pub const MOVE_INPUT_SEND_COOLDOWN: f32 = 0.05;
 pub const MOVE_INPUT_DIR_CHANGE_THRESHOLD: f32 = 1.0; // degrees
 
 // Face direction updates
-pub const FACE_MAX_SEND_INTERVAL: f32 = 0.1; // seconds
+pub const FACE_SEND_COOLDOWN: f32 = 0.1;
 pub const FACE_CHANGE_THRESHOLD: f32 = 2.0; // degrees
 
 // Round-trip time
-pub const ECHO_INTERVAL: f32 = 10.0; // seconds
+pub const ECHO_INTERVAL: f32 = 10.0;
 
 // ============================================================================
 // Player Labels
 // ============================================================================
 
-pub const LABEL_HEIGHT_ABOVE_PLAYER: f32 = 0.5; // meters
-pub const LABEL_WIDTH: f32 = 1.0; // world units
-pub const LABEL_TEXTURE_WIDTH: u32 = 256; // pixels
-pub const LABEL_TEXTURE_HEIGHT: u32 = 64; // pixels
+pub const LABEL_HEIGHT_ABOVE_PLAYER: f32 = 0.5;
+pub const LABEL_WIDTH: f32 = 1.0;
+pub const LABEL_TEXTURE_WIDTH: u32 = 256;
+pub const LABEL_TEXTURE_HEIGHT: u32 = 64;
 pub const LABEL_TEXT_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 1.0);
 pub const LABEL_BACKGROUND_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.2);
-pub const LABEL_FONT_SIZE: f32 = 40.0; // pixels
+pub const LABEL_FONT_SIZE: f32 = 40.0;
 
 // ============================================================================
 // Power-Up Items
@@ -64,7 +64,7 @@ pub const ITEM_PHASING_COLOR: Color = Color::srgb(0.2, 1.0, 0.2); // Green
 // ============================================================================
 
 pub const COOKIE_SIZE: f32 = 0.15; // sphere radius
-pub const COOKIE_HEIGHT: f32 = 0.16; // meters above floor
+pub const COOKIE_HEIGHT: f32 = 0.16; // above floor
 
 // ============================================================================
 // Projectiles

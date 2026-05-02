@@ -38,15 +38,17 @@ pub const EXTERIOR_LIGHT_STEP_RETENTION: f32 = 0.75;
 
 // Actor AI combines random patrol with last-seen-position pursuit. These values
 // tune how often actors wander, how far they can see, how long they commit to
-// avoidance steering, and how aggressively movement-intent updates are throttled.
+// avoidance steering, how quickly they can turn, and how often movement-intent
+// changes are broadcast.
 pub const ACTOR_INITIAL_COUNT: u32 = 6;
 pub const ACTOR_MIN_DIRECTION_TIME: f32 = 1.0;
 pub const ACTOR_MAX_DIRECTION_TIME: f32 = 3.5;
 pub const ACTOR_IDLE_CHANCE: f32 = 0.15;
 pub const ACTOR_VISION_RANGE: f32 = 18.0;
 pub const ACTOR_AVOIDANCE_TIME: f32 = 0.6;
-pub const ACTOR_INTENT_CHANGE_COOLDOWN: f32 = 0.2;
-pub const ACTOR_DIRECTION_UPDATE_EPSILON: f32 = 0.05;
+pub const ACTOR_TURN_SPEED: f32 = 180.0; // degrees per second
+pub const ACTOR_MOVE_INTENT_SEND_COOLDOWN: f32 = 0.1;
+pub const ACTOR_MOVE_INTENT_DIR_CHANGE_THRESHOLD: f32 = 2.0; // degrees
 pub const ACTOR_GO_TO_REACHED_DISTANCE: f32 = 0.5;
 
 // ============================================================================
@@ -54,15 +56,15 @@ pub const ACTOR_GO_TO_REACHED_DISTANCE: f32 = 0.5;
 // ============================================================================
 
 pub const COOKIE_SPAWNING_ENABLED: bool = false;
-pub const COOKIE_RESPAWN_TIME: f32 = 30.0; // seconds
+pub const COOKIE_RESPAWN_TIME: f32 = 30.0;
 pub const COOKIE_POINTS: i32 = 1; // points per cookie
 
 // ============================================================================
 // Items
 // ============================================================================
 
-pub const ITEM_LIFETIME: f32 = 60.0; // seconds
-pub const ITEM_COLLECTION_RADIUS: f32 = 1.0; // meters
+pub const ITEM_LIFETIME: f32 = 60.0;
+pub const ITEM_COLLECTION_RADIUS: f32 = 1.0;
 pub const ITEM_CELLS_PER_ACTIVE: usize = 60;
 pub const ITEM_MIN_ACTIVE: usize = 2;
 pub const ITEM_MAX_ACTIVE: usize = 20;
@@ -71,6 +73,6 @@ pub const ITEM_MAX_ACTIVE: usize = 20;
 // Power-Ups
 // ============================================================================
 
-pub const POWER_UP_SPEED_DURATION: f32 = 20.0; // seconds
-pub const POWER_UP_MULTI_SHOT_DURATION: f32 = 20.0; // seconds
-pub const POWER_UP_PHASING_DURATION: f32 = 15.0; // seconds
+pub const POWER_UP_SPEED_DURATION: f32 = 20.0;
+pub const POWER_UP_MULTI_SHOT_DURATION: f32 = 20.0;
+pub const POWER_UP_PHASING_DURATION: f32 = 15.0;
