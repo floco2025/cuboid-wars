@@ -36,7 +36,7 @@ pub const EXTERIOR_LIGHT_STEP_RETENTION: f32 = 0.75;
 // Actors
 // ============================================================================
 
-// Actor AI combines random patrol with last-seen-position pursuit. These values
+// Actor behavior combines random patrol with last-seen-position pursuit. These values
 // tune how often actors wander, how far they can see, how long they commit to
 // avoidance steering, and how often movement-intent changes are broadcast.
 pub const ACTOR_INITIAL_COUNT: u32 = 6;

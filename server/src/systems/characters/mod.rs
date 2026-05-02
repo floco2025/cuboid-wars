@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use rand::{RngExt, rng, rngs::ThreadRng};
+use rand::{rng, rngs::ThreadRng};
 
 mod spawning;
 
@@ -86,7 +86,7 @@ pub fn characters_movement_system(
         &mut planned_moves,
     );
     apply_player_moves(&mut player_query, &planned_moves);
-    apply_actor_moves(&players, &mut actors, &mut actor_query, &planned_moves);
+    apply_actor_moves(&mut actor_query, &planned_moves);
 }
 
 fn plan_player_moves(
@@ -153,7 +153,25 @@ fn plan_actor_moves(
     let actor_config = &gameplay_config.characters.actor;
     let actor_physics = actor_config.physics();
     let mut rng = rng();
-    for (entity, id, pos, motion, mut move_intent, mut face_dir) in query.iter_mut() {
+    let mut actor_order: Vec<(Entity, f32, ActorId)> = query
+        .iter()
+        .map(|(entity, id, pos, _, _, _)| {
+            let target_distance = actors
+                .0
+                .get(id)
+                .and_then(|info| info.go_to_position)
+                .map_or(f32::INFINITY, |target| horizontal_distance_sq(pos, &target));
+            (entity, target_distance, *id)
+        })
+        .collect();
+    actor_order.sort_by(|(_, a_distance, a_id), (_, b_distance, b_id)| {
+        a_distance.total_cmp(b_distance).then_with(|| a_id.0.cmp(&b_id.0))
+    });
+
+    for (entity, _, _) in actor_order {
+        let Ok((_, id, pos, motion, mut move_intent, mut face_dir)) = query.get_mut(entity) else {
+            continue;
+        };
         let Some(info) = actors.0.get_mut(id) else {
             continue;
         };
@@ -358,18 +376,9 @@ fn apply_player_moves(query: &mut PlayerMovementQuery, planned_moves: &[Characte
     }
 }
 
-fn apply_actor_moves(
-    players: &PlayerMap,
-    actors: &mut ActorMap,
-    query: &mut ActorMovementQuery,
-    planned_moves: &[CharacterMovePlan],
-) {
-    let mut rng = rng();
+fn apply_actor_moves(query: &mut ActorMovementQuery, planned_moves: &[CharacterMovePlan]) {
     for planned_move in planned_moves {
-        let Ok((_, id, mut pos, mut motion, mut move_intent, mut face_dir)) = query.get_mut(planned_move.entity) else {
-            continue;
-        };
-        let Some(info) = actors.0.get_mut(id) else {
+        let Ok((_, _, mut pos, mut motion, _, _)) = query.get_mut(planned_move.entity) else {
             continue;
         };
 
@@ -380,24 +389,5 @@ fn apply_actor_moves(
             *pos = planned_move.target;
         }
         motion.0 = planned_move.target_vertical_velocity;
-
-        if planned_move.blocked || overlapping_move.is_some() {
-            let direction = if let Some(other) = overlapping_move {
-                separation_direction(&planned_move.start, &other.start, &mut rng)
-            } else {
-                rng.random_range(0.0..std::f32::consts::TAU)
-            };
-            let desired_intent = CharacterMoveIntent::Moving { direction };
-            *move_intent = desired_intent;
-            if let Some(direction) = desired_intent.direction() {
-                face_dir.0 = direction;
-            }
-            if planned_move.blocked && overlapping_move.is_none() {
-                info.go_to_position = None;
-                info.patrol_intent = desired_intent;
-            }
-            info.avoidance_timer = ACTOR_AVOIDANCE_TIME;
-            maybe_broadcast_actor_move_intent(players, *id, *pos, desired_intent, motion.0, info);
-        }
     }
 }

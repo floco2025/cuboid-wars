@@ -92,12 +92,12 @@ async fn main() -> Result<()> {
                 )
                     .chain(),
                 // Game logic systems can run in parallel
-                characters_movement_system.after(actor_ai_system),
+                characters_movement_system.after(actor_behavior_system),
                 players_timer_system,
                 // Fall recovery must run after movement updates positions.
                 players_fall_recovery_system.after(characters_movement_system),
                 actor_initial_spawn_system,
-                actor_ai_system,
+                actor_behavior_system,
                 actor_fall_recovery_system.after(characters_movement_system),
                 projectiles_movement_system,
                 item_initial_spawn_system,

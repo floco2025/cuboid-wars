@@ -12,7 +12,7 @@ use common::{
     protocol::{ActorId, CharacterMoveIntent, PlayerId, Position},
 };
 
-pub fn actor_ai_system(
+pub fn actor_behavior_system(
     time: Res<Time>,
     players: Res<PlayerMap>,
     collision_world: Res<CollisionWorld>,
