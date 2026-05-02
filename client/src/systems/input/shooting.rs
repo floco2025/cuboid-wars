@@ -12,6 +12,7 @@ use crate::{
     spawning::{ProjectileAssets, spawn_projectiles},
 };
 use common::{
+    config::GameplayConfig,
     constants::{ALWAYS_MULTI_SHOT, PROJECTILE_COOLDOWN_TIME},
     physics::CollisionWorld,
     protocol::*,
@@ -34,6 +35,7 @@ pub fn input_shooting_system(
     my_player_id: Option<Res<MyPlayerId>>,
     players: Res<PlayerMap>,
     collision_world: Option<Res<CollisionWorld>>,
+    gameplay_config: Res<GameplayConfig>,
     view_mode: Res<CameraViewMode>,
     time: Res<Time>,
     mut local_player_info: ResMut<LocalPlayerInfo>,
@@ -91,6 +93,7 @@ pub fn input_shooting_system(
                 face_dir.0,
                 pitch,
                 has_multi_shot,
+                gameplay_config.characters.player.eye_height(),
                 collision_world,
                 my_id.0,
             ) > 0

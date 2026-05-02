@@ -6,7 +6,6 @@ use bevy::{
 };
 
 use crate::{constants::*, markers::*};
-use common::constants::PLAYER_HEIGHT;
 
 pub(super) fn setup_player_id_text_rendering(
     commands: &mut Commands,
@@ -58,6 +57,7 @@ pub fn spawn_player_id_display(
     player_name: &str,
     image_handle: Handle<Image>,
     text_camera: Entity,
+    player_height: f32,
 ) -> (Entity, Entity) {
     const LABEL_HEIGHT: f32 = LABEL_WIDTH * (LABEL_TEXTURE_HEIGHT as f32 / LABEL_TEXTURE_WIDTH as f32);
 
@@ -99,7 +99,7 @@ pub fn spawn_player_id_display(
             })),
             Transform::from_xyz(
                 0.0,
-                PLAYER_HEIGHT / 2.0 + LABEL_HEIGHT_ABOVE_PLAYER + LABEL_HEIGHT / 2.0,
+                player_height / 2.0 + LABEL_HEIGHT_ABOVE_PLAYER + LABEL_HEIGHT / 2.0,
                 0.0,
             ),
         ))

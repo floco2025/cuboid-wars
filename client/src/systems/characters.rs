@@ -3,10 +3,8 @@ use bevy::prelude::*;
 use super::players::BumpFlashState;
 use crate::{config::AssetSet, markers::*, resources::PlayerMap, systems::network::ServerReconciliation};
 use common::{
-    constants::{
-        ACTOR_SPEED, ALWAYS_PHASING, PHYSICS_EPSILON, PLAYER_GROUND_SNAP_DISTANCE, PLAYER_SPEED,
-        UPDATE_BROADCAST_INTERVAL,
-    },
+    config::GameplayConfig,
+    constants::{ALWAYS_PHASING, PHYSICS_EPSILON, PLAYER_GROUND_SNAP_DISTANCE, UPDATE_BROADCAST_INTERVAL},
     markers::{ActorMarker, PlayerMarker},
     physics::{
         CharacterVerticalMotion, CollisionWorld, PlannedCharacterMove, overlaps_other_character,
@@ -124,6 +122,7 @@ pub fn characters_movement_system(
     time: Res<Time>,
     asset_server: Res<AssetServer>,
     asset_set: Res<AssetSet>,
+    gameplay_config: Res<GameplayConfig>,
     collision_world: Option<Res<CollisionWorld>>,
     players: Res<PlayerMap>,
     mut players_query: PlayerMovementQuery,
@@ -137,6 +136,7 @@ pub fn characters_movement_system(
         &mut commands,
         delta,
         collision_world.as_deref(),
+        &gameplay_config,
         &players,
         &mut players_query,
         &mut bump_flash_ui,
@@ -146,6 +146,7 @@ pub fn characters_movement_system(
         &mut commands,
         delta,
         collision_world.as_deref(),
+        &gameplay_config,
         &mut actors_query,
         &mut planned_moves,
     );
@@ -165,11 +166,14 @@ fn plan_player_moves(
     commands: &mut Commands,
     delta: f32,
     collision_world: Option<&CollisionWorld>,
+    gameplay_config: &GameplayConfig,
     players: &PlayerMap,
     query: &mut PlayerMovementQuery,
     bump_flash_ui: &mut Query<(&mut BackgroundColor, &mut Visibility), With<BumpFlashUIMarker>>,
     planned_moves: &mut Vec<PlannedCharacterMove>,
 ) {
+    let player_config = &gameplay_config.characters.player;
+    let player_physics = player_config.physics();
     for (entity, player_id, mut client_pos, move_intent, mut motion, mut flash_state, mut recon_option, is_local) in
         query
     {
@@ -179,7 +183,7 @@ fn plan_player_moves(
 
         // Derive horizontal velocity from input intent + speed power-up.
         let has_speed_power_up = players.0.get(player_id).is_some_and(|info| info.speed_power_up);
-        let h_vel = move_intent.to_player_horizontal_velocity(has_speed_power_up);
+        let h_vel = move_intent.to_player_horizontal_velocity(player_config.speed, has_speed_power_up);
         let is_standing_still = h_vel.x.hypot(h_vel.z) < PHYSICS_EPSILON;
 
         // Calculate intended position from velocity (with server reconciliation if needed)
@@ -190,7 +194,7 @@ fn plan_player_moves(
             const IDLE_RECONCILIATION_TIME: f32 = 10.0;
             let run_correction_time: f32 = recon.rtt * 5.0; // Benchmark: RTT = 100ms equals 0.5s correction time
 
-            let speed_ratio = (h_vel.x.hypot(h_vel.z) / PLAYER_SPEED).clamp(0.0, 1.0); // Ignore speed power-ups
+            let speed_ratio = (h_vel.x.hypot(h_vel.z) / player_config.speed).clamp(0.0, 1.0); // Ignore speed power-ups
             let correction_time_interval = IDLE_RECONCILIATION_TIME.lerp(run_correction_time, speed_ratio);
             let correction_factor = (UPDATE_BROADCAST_INTERVAL / correction_time_interval).clamp(0.0, 1.0);
 
@@ -235,6 +239,7 @@ fn plan_player_moves(
                     start: *client_pos,
                     target: *client_pos,
                     target_vertical_velocity: motion.0,
+                    physics: player_physics,
                     blocked: false,
                 });
                 continue;
@@ -269,6 +274,7 @@ fn plan_player_moves(
                 motion.0,
                 collision_world,
                 has_phasing,
+                player_physics,
                 target_pos.x,
                 target_pos.z,
                 delta,
@@ -279,6 +285,7 @@ fn plan_player_moves(
                 start: *client_pos,
                 target: target_pos,
                 target_vertical_velocity: step.vertical_velocity,
+                physics: player_physics,
                 blocked: step.blocked,
             });
         } else {
@@ -287,6 +294,7 @@ fn plan_player_moves(
                 start: *client_pos,
                 target: target_pos,
                 target_vertical_velocity: motion.0,
+                physics: player_physics,
                 blocked: false,
             });
         }
@@ -297,11 +305,14 @@ fn plan_actor_moves(
     commands: &mut Commands,
     delta: f32,
     collision_world: Option<&CollisionWorld>,
+    gameplay_config: &GameplayConfig,
     query: &mut ActorMovementQuery,
     planned_moves: &mut Vec<PlannedCharacterMove>,
 ) {
+    let actor_config = &gameplay_config.characters.actor;
+    let actor_physics = actor_config.physics();
     for (entity, actor_id, mut pos, move_intent, mut motion, mut recon_option) in query {
-        let h_vel = move_intent.to_horizontal_velocity(ACTOR_SPEED);
+        let h_vel = move_intent.to_horizontal_velocity(actor_config.speed);
         let mut target_pos = if let Some(recon) = recon_option.as_mut() {
             let correction_time = recon.rtt * 5.0;
             let correction_factor = (UPDATE_BROADCAST_INTERVAL / correction_time).clamp(0.0, 1.0);
@@ -327,6 +338,7 @@ fn plan_actor_moves(
                     start: *pos,
                     target: *pos,
                     target_vertical_velocity: motion.0,
+                    physics: actor_physics,
                     blocked: false,
                 });
                 continue;
@@ -353,6 +365,7 @@ fn plan_actor_moves(
                 motion.0,
                 collision_world,
                 false,
+                actor_physics,
                 target_pos.x,
                 target_pos.z,
                 delta,
@@ -363,6 +376,7 @@ fn plan_actor_moves(
                 start: *pos,
                 target: target_pos,
                 target_vertical_velocity: step.vertical_velocity,
+                physics: actor_physics,
                 blocked: step.blocked,
             });
         } else {
@@ -371,6 +385,7 @@ fn plan_actor_moves(
                 start: *pos,
                 target: target_pos,
                 target_vertical_velocity: motion.0,
+                physics: actor_physics,
                 blocked: false,
             });
         }

@@ -9,7 +9,8 @@ use crate::{
     systems::visual_focus_level,
 };
 use common::{
-    constants::{LEVEL_HEIGHT, MAP_DEPTH, MAP_WIDTH, PLAYER_EYE_HEIGHT_RATIO, PLAYER_HEIGHT},
+    config::GameplayConfig,
+    constants::{LEVEL_HEIGHT, MAP_DEPTH, MAP_WIDTH},
     protocol::{Floor, MapLayout, Position},
 };
 
@@ -153,11 +154,12 @@ fn topdown_camera_transform(
 fn sync_first_person_camera(
     camera_transform: &mut Transform,
     player_pos: &Position,
+    player_eye_height: f32,
     maybe_shake: Option<&CameraShake>,
 ) {
     camera_transform.translation.x = player_pos.x;
     camera_transform.translation.z = player_pos.z;
-    camera_transform.translation.y = PLAYER_HEIGHT.mul_add(PLAYER_EYE_HEIGHT_RATIO, player_pos.y);
+    camera_transform.translation.y = player_pos.y + player_eye_height;
 
     if let Some(shake) = maybe_shake {
         camera_transform.translation.x += shake.offset_x;
@@ -182,6 +184,7 @@ pub fn local_player_camera_sync_system(
     view_mode: Res<CameraViewMode>,
     top_down_camera_yaw: Res<TopDownCameraYaw>,
     render_settings: Res<RenderSettings>,
+    gameplay_config: Res<GameplayConfig>,
 ) {
     let Some(player_pos) = local_player_query.iter().next() else {
         return;
@@ -198,7 +201,12 @@ pub fn local_player_camera_sync_system(
     match *view_mode {
         CameraViewMode::FirstPerson => {
             persp.fov = render_settings.fov_first_person_degrees.to_radians();
-            sync_first_person_camera(&mut camera_transform, player_pos, maybe_shake);
+            sync_first_person_camera(
+                &mut camera_transform,
+                player_pos,
+                gameplay_config.characters.player.eye_height(),
+                maybe_shake,
+            );
         }
         CameraViewMode::TopDown => {
             persp.fov = render_settings.fov_top_down_degrees.to_radians();
@@ -238,6 +246,7 @@ pub fn local_player_rearview_sync_system(
     mut rearview_query: Query<&mut Transform, (With<RearviewCameraMarker>, Without<MainCameraMarker>)>,
     view_mode: Res<CameraViewMode>,
     render_settings: Res<RenderSettings>,
+    gameplay_config: Res<GameplayConfig>,
 ) {
     if !render_settings.rearview_enabled || !view_mode.is_first_person() {
         return;
@@ -253,7 +262,7 @@ pub fn local_player_rearview_sync_system(
 
     rearview_transform.translation.x = player_pos.x;
     rearview_transform.translation.z = player_pos.z;
-    rearview_transform.translation.y = PLAYER_HEIGHT.mul_add(PLAYER_EYE_HEIGHT_RATIO, player_pos.y);
+    rearview_transform.translation.y = player_pos.y + gameplay_config.characters.player.eye_height();
 
     // Get the main camera's rotation and rotate 180 degrees.
     if let Ok(main_transform) = main_camera_query.single() {

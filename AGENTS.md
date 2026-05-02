@@ -14,7 +14,7 @@ Rust workspace with three crates:
 - **`server/`** — authoritative headless server (Bevy `MinimalPlugins`).
   - `systems/` — players, projectiles, items, network broadcast.
   - `map/` — converts map definitions into runtime layout: cells/edges, floors, walls, ramps, lights, masks, and segments.
-  - `assets/default.json` — default map source JSON.
+  - `assets/map.json` — default map source JSON.
   - Runs at 30 Hz via a manual `app.update()` loop.
 - **`client/`** — Bevy renderer, input, UI.
   - `systems/network/` — consumes `ServerMessage`, spawns/updates entities.
@@ -23,10 +23,12 @@ Rust workspace with three crates:
   - `spawning/` — entity construction for players, projectiles, items, and map geometry.
 
 Other notable paths:
-- `tools/editor.py` — PySide6 map editor for `server/assets/default.json`.
+- `tools/editor.py` — PySide6 map editor for `server/assets/map.json`.
 - `tools/preview.py` — ASCII map preview/validation helper.
 - `client/assets/` — 3D models, textures, audio.
-- `client/assets/default.json` — hand-edited JSON asset set for materials, material rules, models, and sounds.
+- `client/assets/assets.json` — hand-edited JSON asset set for materials, material rules, models, and sounds.
+- `client/assets/render.json` — client-only render/debug settings.
+- `common/assets/gameplay.json` — shared simulation tuning loaded by client and server.
 - `cert.pem` / `key.pem` — local-dev TLS for QUIC.
 - `launch_clients.sh` — spawns multiple windowed clients for local multiplayer testing.
 - `bacon.toml` — `bacon` job definitions (`check`, `clippy`, `build`, `test`).
@@ -40,7 +42,7 @@ cargo run --bin server                            # default bind 127.0.0.1:8080
 cargo run --bin server -- --bind 0.0.0.0:8080
 cargo run --bin client                            # default connects to 127.0.0.1:8080
 cargo run --bin client -- --server 192.168.1.100:8080 --name "PlayerName"
-python3 tools/editor.py                           # edit server/assets/default.json
+python3 tools/editor.py                           # edit server/assets/map.json
 python3 tools/preview.py                          # print ASCII map preview
 cargo clippy                                      # pedantic + nursery + cargo lint groups
 cargo fmt
@@ -60,7 +62,7 @@ cargo fmt
 - Tokio mpsc channels bridge async QUIC I/O with Bevy's sync systems.
 - Coordinates: Bevy Y-up `(x, y, z)`, units in meters.
 - Wire format: `bincode` 2 (binary).
-- The default map source is `server/assets/default.json`; the server turns it into `MapLayout`, sends that to clients, and both sides build shared collision/rendering state from it.
+- The default map source is `server/assets/map.json`; the server turns it into `MapLayout`, sends that to clients, and both sides build shared collision/rendering state from it.
 - Keep gameplay concepts (`Wall`, `Floor`, `Ramp`, items, player spawn fields) in map/protocol types; keep reusable movement/collision behavior in `common::physics`.
 
 ## Coding Style

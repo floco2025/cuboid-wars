@@ -39,10 +39,7 @@ pub struct RenderSettings {
 
 impl RenderSettings {
     pub fn load_default() -> Result<Self> {
-        let settings = Self::load_from_path(Path::new(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/assets/render_settings.json"
-        )))?;
+        let settings = Self::load_from_path(Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/render.json")))?;
         settings.validate()?;
         Ok(settings)
     }

@@ -19,6 +19,7 @@ use crate::{
     spawning::ProjectileAssets,
 };
 use common::{
+    config::GameplayConfig,
     markers::{ActorMarker, PlayerMarker},
     physics::CollisionWorld,
     protocol::*,
@@ -47,6 +48,7 @@ pub fn dispatch_message(
     asset_set: &AssetSet,
     render_settings: &RenderSettings,
     projectile_assets: &ProjectileAssets,
+    gameplay_config: &GameplayConfig,
     collision_world: Option<&CollisionWorld>,
 ) {
     match msg {
@@ -63,14 +65,15 @@ pub fn dispatch_message(
             asset_server,
             asset_set,
             render_settings,
+            gameplay_config,
             login,
         ),
         ServerMessage::Logoff(logoff) => handle_player_logoff_message(commands, players, logoff),
         ServerMessage::PlayerMoveIntent(move_intent_msg) => {
-            handle_player_move_intent_message(commands, players, player_data, rtt, move_intent_msg);
+            handle_player_move_intent_message(commands, players, player_data, rtt, gameplay_config, move_intent_msg);
         }
         ServerMessage::ActorMoveIntent(move_intent_msg) => {
-            handle_actor_move_intent_message(commands, actors, rtt, actor_data, move_intent_msg);
+            handle_actor_move_intent_message(commands, actors, rtt, actor_data, gameplay_config, move_intent_msg);
         }
         ServerMessage::PlayerTeleport(teleport_msg) => {
             handle_player_teleport_message(commands, players, my_player_id, teleport_msg);
@@ -79,7 +82,7 @@ pub fn dispatch_message(
             handle_actor_teleport_message(commands, actors, teleport_msg);
         }
         ServerMessage::Jump(jump_msg) => {
-            handle_player_jump_message(commands, players, player_data, rtt, jump_msg);
+            handle_player_jump_message(commands, players, player_data, rtt, gameplay_config, jump_msg);
         }
         ServerMessage::Face(face_msg) => handle_player_face_message(commands, players, face_msg),
         ServerMessage::Shot(shot_msg) => {
@@ -90,6 +93,7 @@ pub fn dispatch_message(
                 player_data,
                 shot_msg,
                 collision_world,
+                gameplay_config,
             );
         }
         ServerMessage::Update(update_msg) => handle_update_message(
@@ -110,6 +114,7 @@ pub fn dispatch_message(
             asset_server,
             asset_set,
             render_settings,
+            gameplay_config,
             update_msg,
         ),
         ServerMessage::Hit(hit_msg) => handle_player_hit_message(commands, players, cameras, my_player_id, hit_msg),
@@ -153,6 +158,7 @@ pub fn handle_update_message(
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
     render_settings: &RenderSettings,
+    gameplay_config: &GameplayConfig,
     msg: SUpdate,
 ) {
     // Ignore outdated updates
@@ -181,6 +187,7 @@ pub fn handle_update_message(
         asset_server,
         asset_set,
         render_settings,
+        gameplay_config,
         &msg.players,
     );
     sync_actors(
@@ -195,6 +202,7 @@ pub fn handle_update_message(
         asset_server,
         asset_set,
         render_settings,
+        gameplay_config,
         &msg.actors,
     );
     sync_items(

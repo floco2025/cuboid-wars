@@ -31,7 +31,7 @@ from PySide6.QtWidgets import (
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_MAP = REPO_ROOT / "server" / "assets" / "default.json"
+DEFAULT_MAP = REPO_ROOT / "server" / "assets" / "map.json"
 SUPPORTED_VERSION = 1
 
 MODE_FLOOR = "Floor"

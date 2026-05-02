@@ -10,7 +10,8 @@ use crate::{
     resources::{ActorInfo, ActorMap, PlayerInfo, PlayerMap},
 };
 use common::{
-    constants::{ACTOR_SPEED, PHYSICS_EPSILON},
+    config::{CharacterPhysicsConfig, GameplayConfig},
+    constants::PHYSICS_EPSILON,
     markers::{ActorMarker, PlayerMarker},
     physics::{
         CharacterVerticalMotion, CollisionWorld, PlannedCharacterMove, overlapping_character,
@@ -52,6 +53,7 @@ type ActorMovementQuery<'w, 's> = Query<
 pub fn characters_movement_system(
     time: Res<Time>,
     collision_world: Res<CollisionWorld>,
+    gameplay_config: Res<GameplayConfig>,
     players: Res<PlayerMap>,
     mut actors: ResMut<ActorMap>,
     mut player_query: PlayerMovementQuery,
@@ -64,10 +66,18 @@ pub fn characters_movement_system(
         .map(|(entity, _, pos, _, _, _)| (entity, *pos))
         .collect();
 
-    plan_player_moves(delta, &collision_world, &players, &player_query, &mut planned_moves);
+    plan_player_moves(
+        delta,
+        &collision_world,
+        &gameplay_config,
+        &players,
+        &player_query,
+        &mut planned_moves,
+    );
     plan_actor_moves(
         delta,
         &collision_world,
+        &gameplay_config,
         &players,
         &mut actors,
         &actor_starts,
@@ -81,14 +91,17 @@ pub fn characters_movement_system(
 fn plan_player_moves(
     delta: f32,
     collision_world: &CollisionWorld,
+    gameplay_config: &GameplayConfig,
     players: &PlayerMap,
     query: &PlayerMovementQuery,
     planned_moves: &mut Vec<PlannedCharacterMove>,
 ) {
+    let player_config = &gameplay_config.characters.player;
+    let player_physics = player_config.physics();
     for (entity, pos, motion, move_intent, player_id) in query.iter() {
         let is_stunned = players.0.get(player_id).is_some_and(|info| info.stun_timer > 0.0);
         let has_speed_power_up = players.0.get(player_id).is_some_and(PlayerInfo::has_speed);
-        let velocity = move_intent.to_player_horizontal_velocity(has_speed_power_up);
+        let velocity = move_intent.to_player_horizontal_velocity(player_config.speed, has_speed_power_up);
         let velocity_sq = velocity.x.mul_add(velocity.x, velocity.z * velocity.z);
         let is_standing_still = velocity_sq < PHYSICS_EPSILON * PHYSICS_EPSILON;
         let suppress_horizontal = is_stunned || is_standing_still;
@@ -109,6 +122,7 @@ fn plan_player_moves(
             motion.0,
             collision_world,
             has_phasing,
+            player_physics,
             target_xz.x,
             target_xz.z,
             delta,
@@ -119,6 +133,7 @@ fn plan_player_moves(
             start: *pos,
             target: step.position,
             target_vertical_velocity: step.vertical_velocity,
+            physics: player_physics,
             blocked: step.blocked,
         });
     }
@@ -127,12 +142,15 @@ fn plan_player_moves(
 fn plan_actor_moves(
     delta: f32,
     collision_world: &CollisionWorld,
+    gameplay_config: &GameplayConfig,
     players: &PlayerMap,
     actors: &mut ActorMap,
     actor_starts: &[(Entity, Position)],
     query: &mut ActorMovementQuery,
     planned_moves: &mut Vec<PlannedCharacterMove>,
 ) {
+    let actor_config = &gameplay_config.characters.actor;
+    let actor_physics = actor_config.physics();
     let mut rng = rng();
     for (entity, id, pos, motion, mut move_intent, mut face_dir) in query.iter_mut() {
         let Some(info) = actors.0.get_mut(id) else {
@@ -140,7 +158,15 @@ fn plan_actor_moves(
         };
         let current_intent = *move_intent;
         let (selected_intent, step, used_avoidance) = if info.intent_change_cooldown > 0.0 {
-            let step = step_actor_move(&pos, motion.0, current_intent, delta, collision_world);
+            let step = step_actor_move(
+                &pos,
+                motion.0,
+                current_intent,
+                actor_config.speed,
+                actor_physics,
+                delta,
+                collision_world,
+            );
             (current_intent, step, false)
         } else {
             let desired_intent = stable_actor_intent(
@@ -153,6 +179,8 @@ fn plan_actor_moves(
                 motion.0,
                 desired_intent,
                 info,
+                actor_config.speed,
+                actor_physics,
                 delta,
                 collision_world,
                 planned_moves,
@@ -178,6 +206,7 @@ fn plan_actor_moves(
             start: *pos,
             target: step.position,
             target_vertical_velocity: step.vertical_velocity,
+            physics: actor_physics,
             blocked: step.blocked,
         });
     }
@@ -205,6 +234,8 @@ fn select_actor_move(
     vertical_velocity: f32,
     desired_intent: CharacterMoveIntent,
     info: &mut ActorInfo,
+    actor_speed: f32,
+    actor_physics: CharacterPhysicsConfig,
     delta: f32,
     collision_world: &CollisionWorld,
     planned_moves: &[PlannedCharacterMove],
@@ -212,7 +243,15 @@ fn select_actor_move(
     rng: &mut ThreadRng,
 ) -> (CharacterMoveIntent, common::physics::CharacterMovementResult, bool) {
     let Some(direction) = desired_intent.direction() else {
-        let step = step_actor_move(pos, vertical_velocity, desired_intent, delta, collision_world);
+        let step = step_actor_move(
+            pos,
+            vertical_velocity,
+            desired_intent,
+            actor_speed,
+            actor_physics,
+            delta,
+            collision_world,
+        );
         return (desired_intent, step, false);
     };
 
@@ -228,12 +267,21 @@ fn select_actor_move(
         let candidate_intent = CharacterMoveIntent::Moving {
             direction: candidate_direction,
         };
-        let step = step_actor_move(pos, vertical_velocity, candidate_intent, delta, collision_world);
+        let step = step_actor_move(
+            pos,
+            vertical_velocity,
+            candidate_intent,
+            actor_speed,
+            actor_physics,
+            delta,
+            collision_world,
+        );
         let planned_move = PlannedCharacterMove {
             entity,
             start: *pos,
             target: step.position,
             target_vertical_velocity: step.vertical_velocity,
+            physics: actor_physics,
             blocked: step.blocked,
         };
         let blocked = step.blocked || planned_move_overlaps_character(&planned_move, planned_moves, actor_starts);
@@ -253,10 +301,12 @@ fn step_actor_move(
     pos: &Position,
     vertical_velocity: f32,
     move_intent: CharacterMoveIntent,
+    actor_speed: f32,
+    actor_physics: CharacterPhysicsConfig,
     delta: f32,
     collision_world: &CollisionWorld,
 ) -> common::physics::CharacterMovementResult {
-    let velocity = move_intent.to_horizontal_velocity(ACTOR_SPEED);
+    let velocity = move_intent.to_horizontal_velocity(actor_speed);
     let target_x = velocity.x.mul_add(delta, pos.x);
     let target_z = velocity.z.mul_add(delta, pos.z);
     step_character_movement(
@@ -264,6 +314,7 @@ fn step_actor_move(
         vertical_velocity,
         collision_world,
         false,
+        actor_physics,
         target_x,
         target_z,
         delta,
@@ -288,6 +339,7 @@ fn planned_move_overlaps_character(
             start: *pos,
             target: *pos,
             target_vertical_velocity: 0.0,
+            physics: candidate.physics,
             blocked: false,
         };
         planned_character_moves_intersect(candidate, &stationary_actor)

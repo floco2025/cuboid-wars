@@ -10,6 +10,7 @@ use crate::{
     resources::LastBounceSoundTime,
 };
 use common::{
+    config::GameplayConfig,
     markers::{ActorMarker, PlayerMarker, ProjectileMarker},
     physics::{CollisionWorld, ProjectileMotion, projectile_hits_character},
     protocol::{FaceDirection, PlayerId, Position},
@@ -29,9 +30,19 @@ fn handle_character_collisions(
     delta: f32,
     player_query: &Query<(Entity, &Position, &FaceDirection, Has<LocalPlayerMarker>), With<PlayerMarker>>,
     actor_query: &Query<(&Position, &FaceDirection), With<ActorMarker>>,
+    gameplay_config: &GameplayConfig,
 ) -> bool {
     for (_player_entity, player_pos, face_dir, is_local_player) in player_query.iter() {
-        if projectile_hits_character(proj_pos, proj_motion, delta, player_pos, face_dir.0).is_some() {
+        if projectile_hits_character(
+            proj_pos,
+            proj_motion,
+            delta,
+            player_pos,
+            face_dir.0,
+            gameplay_config.characters.player.collider,
+        )
+        .is_some()
+        {
             play_sound(
                 commands,
                 asset_server,
@@ -54,7 +65,16 @@ fn handle_character_collisions(
     }
 
     for (actor_pos, face_dir) in actor_query.iter() {
-        if projectile_hits_character(proj_pos, proj_motion, delta, actor_pos, face_dir.0).is_some() {
+        if projectile_hits_character(
+            proj_pos,
+            proj_motion,
+            delta,
+            actor_pos,
+            face_dir.0,
+            gameplay_config.characters.actor.collider,
+        )
+        .is_some()
+        {
             play_sound(
                 commands,
                 asset_server,
@@ -87,6 +107,7 @@ pub fn projectiles_movement_system(
     player_query: Query<(Entity, &Position, &FaceDirection, Has<LocalPlayerMarker>), With<PlayerMarker>>,
     actor_query: Query<(&Position, &FaceDirection), With<ActorMarker>>,
     collision_world: Option<Res<CollisionWorld>>,
+    gameplay_config: Res<GameplayConfig>,
     mut last_bounce_sound: ResMut<LastBounceSoundTime>,
 ) {
     let delta = time.delta_secs();
@@ -132,6 +153,7 @@ pub fn projectiles_movement_system(
                 delta,
                 &player_query,
                 &actor_query,
+                &gameplay_config,
             ) {
                 // Hit a character, projectile was despawned
                 continue;

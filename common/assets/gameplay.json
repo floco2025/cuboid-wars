@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "characters": {
+    "player": {
+      "collider": { "width": 1.0, "height": 1.8, "depth": 0.6 },
+      "low_obstacle_clearance": 0.5,
+      "support_probe": { "width": 0.2, "depth": 0.2 },
+      "eye_height_ratio": 0.9,
+      "speed": 9.0
+    },
+    "actor": {
+      "collider": { "width": 2.0, "height": 1.0, "depth": 2.0 },
+      "low_obstacle_clearance": 0.0,
+      "support_probe": { "width": 0.2, "depth": 0.2 },
+      "speed": 5.0
+    }
+  }
+}

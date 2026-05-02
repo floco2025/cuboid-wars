@@ -8,7 +8,7 @@ use crate::{
     spawning::spawn_actor,
 };
 use common::{
-    constants::ACTOR_SPEED,
+    config::GameplayConfig,
     markers::ActorMarker,
     physics::CharacterVerticalMotion,
     protocol::{
@@ -29,6 +29,7 @@ pub fn sync_actors(
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
     render_settings: &RenderSettings,
+    gameplay_config: &GameplayConfig,
     server_actors: &[(ActorId, Actor)],
 ) {
     let update_ids: HashSet<ActorId> = server_actors.iter().map(|(id, _)| *id).collect();
@@ -47,6 +48,7 @@ pub fn sync_actors(
             graphs,
             asset_set,
             render_settings,
+            gameplay_config,
             *id,
             actor,
         );
@@ -71,6 +73,7 @@ pub fn sync_actors(
             *id,
             server_actor.movement,
             Some(server_actor.face_dir),
+            gameplay_config.characters.actor.speed,
         );
     }
 }
@@ -80,6 +83,7 @@ pub fn handle_actor_move_intent_message(
     actors: &ResMut<ActorMap>,
     rtt: &ResMut<RoundTripTime>,
     actor_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<ActorMarker>>,
+    gameplay_config: &GameplayConfig,
     msg: SActorMoveIntent,
 ) {
     apply_actor_movement_state(
@@ -90,6 +94,7 @@ pub fn handle_actor_move_intent_message(
         msg.id,
         msg.movement,
         msg.movement.move_intent.direction(),
+        gameplay_config.characters.actor.speed,
     );
 }
 
@@ -114,12 +119,13 @@ fn apply_actor_movement_state(
     id: ActorId,
     movement: CharacterMovementState,
     face_dir: Option<f32>,
+    actor_speed: f32,
 ) {
     let Some(client_actor) = actors.0.get(&id) else {
         return;
     };
 
-    let server_velocity = actor_movement_velocity(movement);
+    let server_velocity = actor_movement_velocity(movement, actor_speed);
     commands.entity(client_actor.entity).insert((
         movement.move_intent,
         CharacterVerticalMotion(movement.vertical_velocity),
@@ -139,8 +145,8 @@ fn apply_actor_movement_state(
     }
 }
 
-fn actor_movement_velocity(movement: CharacterMovementState) -> Vec3 {
-    let mut velocity = movement.move_intent.to_horizontal_velocity(ACTOR_SPEED);
+fn actor_movement_velocity(movement: CharacterMovementState, actor_speed: f32) -> Vec3 {
+    let mut velocity = movement.move_intent.to_horizontal_velocity(actor_speed);
     velocity.y = movement.vertical_velocity;
     velocity
 }

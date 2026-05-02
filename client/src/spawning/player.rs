@@ -9,11 +9,16 @@ use bevy::{
 
 use super::player_label::{setup_player_id_text_rendering, spawn_player_id_display};
 use crate::{
-    config::{AssetSet, ModelDef, RenderSettings},
+    config::{AssetSet, RenderSettings},
     markers::*,
     systems::{AnimationToPlay, BumpFlashState, players_animation_system},
 };
-use common::{constants::*, markers::PlayerMarker, physics::CharacterVerticalMotion, protocol::*};
+use common::{
+    config::{CharacterColliderConfig, GameplayConfig},
+    markers::PlayerMarker,
+    physics::CharacterVerticalMotion,
+    protocol::*,
+};
 
 // ============================================================================
 // Bundles
@@ -45,6 +50,7 @@ pub fn spawn_player(
     graphs: &mut ResMut<Assets<AnimationGraph>>,
     asset_set: &AssetSet,
     render_settings: &RenderSettings,
+    gameplay_config: &GameplayConfig,
     player_id: u32,
     player_name: &str,
     position: &Position,
@@ -53,6 +59,7 @@ pub fn spawn_player(
     is_local: bool,
 ) -> Entity {
     let player_model = asset_set.player_model();
+    let player_collider = gameplay_config.characters.player.collider;
     // Create animation graph for this player
     let (graph, index) = AnimationGraph::from_clip(
         asset_server.load(GltfAssetLabel::Animation(0).from_asset(player_model.scene.clone())),
@@ -73,7 +80,7 @@ pub fn spawn_player(
                 move_intent,
                 motion: CharacterVerticalMotion::default(),
                 face_direction: FaceDirection(face_dir),
-                transform: Transform::from_xyz(position.x, position.y + PLAYER_HEIGHT / 2.0, position.z)
+                transform: Transform::from_xyz(position.x, position.y + player_collider.height / 2.0, position.z)
                     .with_rotation(Quat::from_rotation_y(face_dir)),
                 visibility: player_visibility(is_local),
             },
@@ -91,11 +98,11 @@ pub fn spawn_player(
 
     // Add transparent cuboid debug visualization if enabled
     if render_settings.debug_bounding_boxes {
-        children.push(spawn_model_bounding_box(commands, meshes, materials, player_model));
+        children.push(spawn_collider_debug_box(commands, meshes, materials, player_collider));
     }
 
     // Add the GLB player model with animation observer
-    let base_y = player_model.height_offset - PLAYER_HEIGHT / 2.0;
+    let base_y = player_model.visual_y_offset - player_collider.height / 2.0;
     let model = commands
         .spawn((
             SceneRoot(asset_server.load(player_model.scene.clone())),
@@ -109,8 +116,15 @@ pub fn spawn_player(
 
     // Create individual texture and camera for this player's ID text
     let (image_handle, text_camera) = setup_player_id_text_rendering(commands, images);
-    let (_text_entity, mesh_entity) =
-        spawn_player_id_display(commands, meshes, materials, player_name, image_handle, text_camera);
+    let (_text_entity, mesh_entity) = spawn_player_id_display(
+        commands,
+        meshes,
+        materials,
+        player_name,
+        image_handle,
+        text_camera,
+        player_collider.height,
+    );
     children.push(mesh_entity);
 
     commands.entity(entity).add_children(&children);
@@ -118,19 +132,15 @@ pub fn spawn_player(
     entity
 }
 
-pub fn spawn_model_bounding_box(
+pub fn spawn_collider_debug_box(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
-    model: &ModelDef,
+    collider: CharacterColliderConfig,
 ) -> Entity {
     commands
         .spawn((
-            Mesh3d(meshes.add(Cuboid::new(
-                model.bounding_box.width,
-                model.bounding_box.height,
-                model.bounding_box.depth,
-            ))),
+            Mesh3d(meshes.add(Cuboid::new(collider.width, collider.height, collider.depth))),
             MeshMaterial3d(materials.add(StandardMaterial {
                 base_color: Color::srgba(0.5, 0.5, 0.5, 0.15),
                 alpha_mode: AlphaMode::Blend,

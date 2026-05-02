@@ -82,10 +82,18 @@ pub fn spawn_projectiles(
     face_dir: f32,
     face_pitch: f32,
     has_multi_shot: bool,
+    shooter_eye_height: f32,
     collision_world: &CollisionWorld,
     shooter_id: PlayerId,
 ) -> usize {
-    let spawns = calculate_projectile_spawns(pos, face_dir, face_pitch, has_multi_shot, collision_world);
+    let spawns = calculate_projectile_spawns(
+        pos,
+        face_dir,
+        face_pitch,
+        has_multi_shot,
+        shooter_eye_height,
+        collision_world,
+    );
 
     for spawn_info in &spawns {
         spawn_single_projectile(commands, projectile_assets, spawn_info, shooter_id);

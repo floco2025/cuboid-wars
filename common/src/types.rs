@@ -4,8 +4,6 @@ use bevy_ecs::prelude::*;
 use bevy_math::Vec3;
 use bincode::{Decode, Encode};
 
-use crate::constants::PLAYER_SPEED;
-
 // ============================================================================
 // Components
 // ============================================================================
@@ -72,11 +70,11 @@ impl CharacterMoveIntent {
 
     // Horizontal velocity for a player with the speed power-up multiplier applied.
     #[must_use]
-    pub fn to_player_horizontal_velocity(&self, has_speed_power_up: bool) -> Vec3 {
+    pub fn to_player_horizontal_velocity(&self, base_speed: f32, has_speed_power_up: bool) -> Vec3 {
         let mag = if has_speed_power_up {
-            PLAYER_SPEED * crate::constants::POWER_UP_SPEED_MULTIPLIER
+            base_speed * crate::constants::POWER_UP_SPEED_MULTIPLIER
         } else {
-            PLAYER_SPEED
+            base_speed
         };
         self.to_horizontal_velocity(mag)
     }

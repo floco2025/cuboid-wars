@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use super::broadcast::broadcast_to_others;
 use crate::{net::ServerToClient, resources::PlayerMap};
 use common::{
+    config::GameplayConfig,
     constants::{ALWAYS_MULTI_SHOT, PROJECTILE_COOLDOWN_TIME},
     markers::{PlayerMarker, ProjectileMarker},
     physics::{CharacterVerticalMotion, CollisionWorld, ProjectileMotion, try_start_player_jump},
@@ -25,6 +26,7 @@ pub fn dispatch_message(
     player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
     motions: &Query<&CharacterVerticalMotion, With<PlayerMarker>>,
     collision_world: &CollisionWorld,
+    gameplay_config: &GameplayConfig,
 ) {
     match msg {
         ClientMessage::Login(_) => {
@@ -43,7 +45,16 @@ pub fn dispatch_message(
         }
         ClientMessage::Jump(msg) => {
             trace!("{:?} jump: {:?}", id, msg);
-            handle_jump_message(commands, entity, id, &*players, player_data, motions, collision_world);
+            handle_jump_message(
+                commands,
+                entity,
+                id,
+                &*players,
+                player_data,
+                motions,
+                collision_world,
+                gameplay_config,
+            );
         }
         ClientMessage::Face(msg) => {
             trace!("{:?} face direction: {}", id, msg.dir);
@@ -51,7 +62,17 @@ pub fn dispatch_message(
         }
         ClientMessage::Shot(msg) => {
             debug!("{id:?} shot");
-            handle_shot_message(commands, entity, id, msg, players, time, player_data, collision_world);
+            handle_shot_message(
+                commands,
+                entity,
+                id,
+                msg,
+                players,
+                time,
+                player_data,
+                collision_world,
+                gameplay_config,
+            );
         }
         ClientMessage::Echo(msg) => {
             handle_echo_message(id, msg, players);
@@ -107,6 +128,7 @@ fn handle_jump_message(
     player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
     motions: &Query<&CharacterVerticalMotion, With<PlayerMarker>>,
     collision_world: &CollisionWorld,
+    gameplay_config: &GameplayConfig,
 ) {
     if players.0.get(&id).is_some_and(|info| info.stun_timer > 0.0) {
         return;
@@ -120,7 +142,14 @@ fn handle_jump_message(
     };
 
     let mut next_vertical_velocity = motion.0;
-    if !try_start_player_jump(&mut next_vertical_velocity, collision_world, pos, pos.x, pos.z) {
+    if !try_start_player_jump(
+        &mut next_vertical_velocity,
+        collision_world,
+        gameplay_config.characters.player.physics(),
+        pos,
+        pos.x,
+        pos.z,
+    ) {
         return;
     }
 
@@ -155,6 +184,7 @@ fn handle_shot_message(
     time: &Res<Time>,
     player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
     collision_world: &CollisionWorld,
+    gameplay_config: &GameplayConfig,
 ) {
     let now = time.elapsed_secs();
 
@@ -177,7 +207,14 @@ fn handle_shot_message(
 
     // Spawn projectile(s) on server for hit detection
     if let Ok((pos, _, _)) = player_data.get(entity) {
-        let spawns = calculate_projectile_spawns(pos, msg.face_dir, msg.face_pitch, has_multi_shot, collision_world);
+        let spawns = calculate_projectile_spawns(
+            pos,
+            msg.face_dir,
+            msg.face_pitch,
+            has_multi_shot,
+            gameplay_config.characters.player.eye_height(),
+            collision_world,
+        );
 
         // Spawn each projectile
         for spawn_info in spawns {

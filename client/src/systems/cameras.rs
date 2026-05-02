@@ -5,14 +5,19 @@ use bevy::{
 };
 
 use crate::{config::RenderSettings, markers::*};
-use common::constants::{PLAYER_EYE_HEIGHT_RATIO, PLAYER_HEIGHT};
+use common::config::GameplayConfig;
 
 // ============================================================================
 // Camera Setup System
 // ============================================================================
 
-pub fn setup_cameras_system(mut commands: Commands, render_settings: Res<RenderSettings>) {
+pub fn setup_cameras_system(
+    mut commands: Commands,
+    render_settings: Res<RenderSettings>,
+    gameplay_config: Res<GameplayConfig>,
+) {
     let deferred_rendering_enabled = render_settings.opaque_renderer.is_deferred();
+    let player_eye_height = gameplay_config.characters.player.eye_height();
     let msaa = if deferred_rendering_enabled {
         Msaa::Off
     } else {
@@ -34,8 +39,7 @@ pub fn setup_cameras_system(mut commands: Commands, render_settings: Res<RenderS
             fov: render_settings.fov_first_person_degrees.to_radians(),
             ..default()
         }),
-        Transform::from_xyz(0.0, PLAYER_HEIGHT * PLAYER_EYE_HEIGHT_RATIO, 0.0)
-            .looking_at(Vec3::new(0.0, 0.0, -1.0), Vec3::Y),
+        Transform::from_xyz(0.0, player_eye_height, 0.0).looking_at(Vec3::new(0.0, 0.0, -1.0), Vec3::Y),
     ));
     if deferred_rendering_enabled {
         main_camera.insert((DepthPrepass, DeferredPrepass));
@@ -64,8 +68,7 @@ pub fn setup_cameras_system(mut commands: Commands, render_settings: Res<RenderS
             fov: render_settings.fov_rearview_degrees.to_radians(),
             ..default()
         }),
-        Transform::from_xyz(0.0, PLAYER_HEIGHT * PLAYER_EYE_HEIGHT_RATIO, 0.0)
-            .looking_at(Vec3::new(0.0, 0.0, 1.0), Vec3::Y), // Looking backwards (positive Z)
+        Transform::from_xyz(0.0, player_eye_height, 0.0).looking_at(Vec3::new(0.0, 0.0, 1.0), Vec3::Y), // Looking backwards (positive Z)
     ));
     if deferred_rendering_enabled {
         rearview_camera.insert((DepthPrepass, DeferredPrepass));

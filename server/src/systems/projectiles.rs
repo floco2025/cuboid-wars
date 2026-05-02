@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use super::network::broadcast_to_all;
 use crate::resources::PlayerMap;
 use common::{
+    config::GameplayConfig,
     markers::{ActorMarker, PlayerMarker, ProjectileMarker},
     physics::{CollisionWorld, ProjectileMotion, projectile_hits_character},
     protocol::*,
@@ -19,6 +20,7 @@ pub fn projectiles_movement_system(
     player_query: Query<(&Position, &FaceDirection, &PlayerId), (With<PlayerMarker>, Without<ProjectileMarker>)>,
     actor_query: Query<(&Position, &FaceDirection, &ActorId), (With<ActorMarker>, Without<ProjectileMarker>)>,
     collision_world: Res<CollisionWorld>,
+    gameplay_config: Res<GameplayConfig>,
     mut players: ResMut<PlayerMap>,
 ) {
     let delta = time.delta_secs();
@@ -51,8 +53,14 @@ pub fn projectiles_movement_system(
 
         // Check player collisions.
         for (position, face_direction, player_id) in player_query.iter() {
-            if let Some(hit_dir) = projectile_hits_character(&proj_pos, &projectile, delta, position, face_direction.0)
-            {
+            if let Some(hit_dir) = projectile_hits_character(
+                &proj_pos,
+                &projectile,
+                delta,
+                position,
+                face_direction.0,
+                gameplay_config.characters.player.collider,
+            ) {
                 // Self-hit: despawn without scoring to match client expectations
                 if shooter_id == player_id {
                     commands.entity(proj_entity).despawn();
@@ -94,7 +102,16 @@ pub fn projectiles_movement_system(
 
         if !hit_something {
             for (position, face_direction, actor_id) in actor_query.iter() {
-                if projectile_hits_character(&proj_pos, &projectile, delta, position, face_direction.0).is_some() {
+                if projectile_hits_character(
+                    &proj_pos,
+                    &projectile,
+                    delta,
+                    position,
+                    face_direction.0,
+                    gameplay_config.characters.actor.collider,
+                )
+                .is_some()
+                {
                     info!("{:?} hits {:?}", shooter_id, actor_id);
                     if let Some(shooter_info) = players.0.get_mut(shooter_id) {
                         shooter_info.hits += 1;

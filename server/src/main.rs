@@ -8,7 +8,7 @@ use tokio::{
     time::{self, Duration, Instant, MissedTickBehavior},
 };
 
-use common::physics::CollisionWorld;
+use common::{config::GameplayConfig, physics::CollisionWorld};
 use server::{config::configure_server, map::generate_map, net::accept_connections_task, resources::*, systems::*};
 
 const SERVER_LOOP_FREQUENCY: u64 = 30;
@@ -36,6 +36,7 @@ async fn main() -> Result<()> {
 
     let addr: SocketAddr = args.bind.parse()?;
     let server_config = configure_server()?;
+    let gameplay_config = GameplayConfig::load_default()?;
     let endpoint = Endpoint::server(server_config, addr)?;
     println!("quic server listening on {addr}");
 
@@ -66,6 +67,7 @@ async fn main() -> Result<()> {
     app.insert_resource(map_layout)
         .insert_resource(collision_world)
         .insert_resource(map_config)
+        .insert_resource(gameplay_config)
         .insert_resource(PlayerMap::default())
         .insert_resource(ActorMap::default())
         .insert_resource(ItemMap::default())

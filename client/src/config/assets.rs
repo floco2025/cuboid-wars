@@ -21,7 +21,7 @@ pub struct AssetSet {
 
 impl AssetSet {
     pub fn load_default() -> Result<Self> {
-        Self::load_from_path(Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/default.json")))
+        Self::load_from_path(Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/assets.json")))
     }
 
     fn load_from_path(path: &Path) -> Result<Self> {
@@ -122,18 +122,10 @@ pub(crate) struct TextureDef {
 pub struct ModelDef {
     pub scene: String,
     pub scale: f32,
-    pub bounding_box: ModelBoundingBoxDef,
     #[serde(default)]
-    pub height_offset: f32,
+    pub visual_y_offset: f32,
     #[serde(default)]
     pub animation_speed: Option<f32>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct ModelBoundingBoxDef {
-    pub width: f32,
-    pub height: f32,
-    pub depth: f32,
 }
 
 #[derive(Debug, Clone, Deserialize)]

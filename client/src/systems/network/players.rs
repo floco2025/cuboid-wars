@@ -9,6 +9,7 @@ use crate::{
     systems::{CameraShake, CuboidShake},
 };
 use common::{
+    config::GameplayConfig,
     markers::PlayerMarker,
     physics::{CharacterVerticalMotion, CollisionWorld},
     protocol::*,
@@ -22,8 +23,14 @@ pub use sync::sync_players;
 // Player Message Handlers
 // ============================================================================
 
-pub(super) fn player_movement_velocity(movement: CharacterMovementState, has_speed_power_up: bool) -> Vec3 {
-    let mut velocity = movement.move_intent.to_player_horizontal_velocity(has_speed_power_up);
+pub(super) fn player_movement_velocity(
+    movement: CharacterMovementState,
+    player_speed: f32,
+    has_speed_power_up: bool,
+) -> Vec3 {
+    let mut velocity = movement
+        .move_intent
+        .to_player_horizontal_velocity(player_speed, has_speed_power_up);
     velocity.y = movement.vertical_velocity;
     velocity
 }
@@ -34,11 +41,16 @@ pub fn handle_player_move_intent_message(
     players: &ResMut<PlayerMap>,
     player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
     rtt: &ResMut<RoundTripTime>,
+    gameplay_config: &GameplayConfig,
     msg: SPlayerMoveIntent,
 ) {
     trace!("{:?} move intent: {:?}", msg.id, msg);
     if let Some(player) = players.0.get(&msg.id) {
-        let server_velocity = player_movement_velocity(msg.movement, player.speed_power_up);
+        let server_velocity = player_movement_velocity(
+            msg.movement,
+            gameplay_config.characters.player.speed,
+            player.speed_power_up,
+        );
 
         // Add server reconciliation if we have client position
         if let Ok((client_pos, _, _)) = player_data.get(player.entity) {
@@ -63,12 +75,17 @@ pub fn handle_player_jump_message(
     players: &ResMut<PlayerMap>,
     player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
     rtt: &ResMut<RoundTripTime>,
+    gameplay_config: &GameplayConfig,
     msg: SJump,
 ) {
     if let Some(player) = players.0.get(&msg.id)
         && let Ok((client_pos, _, _)) = player_data.get(player.entity)
     {
-        let server_velocity = player_movement_velocity(msg.movement, player.speed_power_up);
+        let server_velocity = player_movement_velocity(
+            msg.movement,
+            gameplay_config.characters.player.speed,
+            player.speed_power_up,
+        );
         commands.entity(player.entity).insert((
             msg.movement.move_intent,
             CharacterVerticalMotion(msg.movement.vertical_velocity),
@@ -99,6 +116,7 @@ pub fn handle_player_shot_message(
     player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
     msg: SShot,
     collision_world: Option<&CollisionWorld>,
+    gameplay_config: &GameplayConfig,
 ) {
     trace!("{:?} shot: {:?}", msg.id, msg);
     if let Some(player) = players.0.get(&msg.id) {
@@ -115,6 +133,7 @@ pub fn handle_player_shot_message(
                 msg.face_dir,
                 msg.face_pitch,
                 player.multi_shot_power_up,
+                gameplay_config.characters.player.eye_height(),
                 collision_world,
                 msg.id,
             );

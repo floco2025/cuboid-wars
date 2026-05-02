@@ -71,6 +71,7 @@ pub fn network_server_message_system(
                         &client_assets.asset_set,
                         &client_assets.render_settings,
                         &client_assets.projectile_assets,
+                        &client_assets.gameplay_config,
                         collision_world.as_deref(),
                     );
                 } else {

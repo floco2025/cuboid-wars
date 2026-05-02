@@ -10,7 +10,7 @@ The game's source code is licensed under MIT OR Apache-2.0, but this license doe
 
 ## Asset Set
 
-`default.json` is the shared asset set. The client uses the full file for render/audio assets. The server reads the same file for `material_rules` and ignores client-only sections it does not need, such as `materials`, `models`, `sounds`, and texture file paths.
+`assets.json` is the client asset set. The client uses the full file for render/audio assets. The server reads the same file for `material_rules` and ignores client-only sections it does not need, such as `materials`, `models`, `sounds`, and texture file paths.
 
 Asset paths are relative to `client/assets`.
 

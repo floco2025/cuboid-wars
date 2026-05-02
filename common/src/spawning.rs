@@ -23,6 +23,7 @@ pub fn calculate_projectile_spawns(
     face_dir: f32,
     face_pitch: f32,
     has_multi_shot: bool,
+    shooter_eye_height: f32,
     collision_world: &CollisionWorld,
 ) -> Vec<ProjectileSpawnInfo> {
     let mut spawns = Vec::new();
@@ -51,11 +52,7 @@ pub fn calculate_projectile_spawns(
         let dir_z = shot_yaw.cos() * pitch_cos;
 
         // Camera origin at eye height (match FPV) and push forward along aim direction
-        let camera_origin = Vec3::new(
-            shooter_pos.x,
-            PLAYER_HEIGHT.mul_add(PLAYER_EYE_HEIGHT_RATIO, shooter_pos.y),
-            shooter_pos.z,
-        );
+        let camera_origin = Vec3::new(shooter_pos.x, shooter_pos.y + shooter_eye_height, shooter_pos.z);
         let spawn_pos = camera_origin + Vec3::new(dir_x, dir_y, dir_z) * PROJECTILE_SPAWN_OFFSET;
 
         // Check if the path from player to spawn position crosses through a wall
@@ -89,6 +86,7 @@ fn projectile_spawn_is_blocked(start: &Position, end: &Position, collision_world
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::GameplayConfig;
     use crate::protocol::{Floor, MapLayout, Ramp, Wall};
 
     fn test_wall(level: u8) -> Wall {
@@ -135,16 +133,24 @@ mod tests {
         })
     }
 
+    fn player_eye_height() -> f32 {
+        GameplayConfig::load_default()
+            .expect("default gameplay config should load")
+            .characters
+            .player
+            .eye_height()
+    }
+
     #[test]
     fn spawn_path_ignores_wall_on_different_level() {
         let start = Position {
             x: 0.0,
-            y: PLAYER_HEIGHT * PLAYER_EYE_HEIGHT_RATIO,
+            y: player_eye_height(),
             z: 0.0,
         };
         let end = Position {
             x: 0.0,
-            y: PLAYER_HEIGHT * PLAYER_EYE_HEIGHT_RATIO,
+            y: player_eye_height(),
             z: 2.0,
         };
 
@@ -162,7 +168,7 @@ mod tests {
 
     #[test]
     fn spawn_path_blocks_wall_on_same_upper_level() {
-        let y = LEVEL_HEIGHT + PLAYER_HEIGHT * PLAYER_EYE_HEIGHT_RATIO;
+        let y = LEVEL_HEIGHT + player_eye_height();
         let start = Position { x: 0.0, y, z: 0.0 };
         let end = Position { x: 0.0, y, z: 2.0 };
 
@@ -182,12 +188,12 @@ mod tests {
     fn spawn_path_blocks_when_starting_inside_wall() {
         let start = Position {
             x: 0.0,
-            y: PLAYER_HEIGHT * PLAYER_EYE_HEIGHT_RATIO,
+            y: player_eye_height(),
             z: 1.0,
         };
         let end = Position {
             x: 0.0,
-            y: PLAYER_HEIGHT * PLAYER_EYE_HEIGHT_RATIO,
+            y: player_eye_height(),
             z: 2.0,
         };
 

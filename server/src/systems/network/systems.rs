@@ -10,6 +10,7 @@ use crate::{
     resources::{ActorMap, FromClientsChannel, ItemMap, MapConfig, PlayerMap},
 };
 use common::{
+    config::GameplayConfig,
     constants::UPDATE_BROADCAST_INTERVAL,
     markers::{ActorMarker, ItemMarker, PlayerMarker},
     physics::{CharacterVerticalMotion, CollisionWorld},
@@ -30,6 +31,7 @@ pub fn network_client_message_system(
     time: Res<Time>,
     map_layout: Res<MapLayout>,
     collision_world: Res<CollisionWorld>,
+    gameplay_config: Res<GameplayConfig>,
     map_config: Res<MapConfig>,
     items: Res<ItemMap>,
     actors: Res<ActorMap>,
@@ -72,6 +74,7 @@ pub fn network_client_message_system(
                         &player_data,
                         &player_motions,
                         &collision_world,
+                        &gameplay_config,
                     );
                 } else {
                     handle_login_message(
@@ -82,6 +85,7 @@ pub fn network_client_message_system(
                         &mut players,
                         &map_layout,
                         &collision_world,
+                        &gameplay_config,
                         &map_config,
                         &items,
                         &actors,

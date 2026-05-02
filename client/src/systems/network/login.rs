@@ -6,6 +6,7 @@ use crate::{
     spawning::spawn_player,
 };
 use common::{
+    config::GameplayConfig,
     physics::{CharacterVerticalMotion, CollisionWorld},
     protocol::*,
 };
@@ -44,6 +45,7 @@ pub fn handle_player_login_message(
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
     render_settings: &RenderSettings,
+    gameplay_config: &GameplayConfig,
     msg: SLogin,
 ) {
     debug!("{:?} logged in", msg.id);
@@ -60,6 +62,7 @@ pub fn handle_player_login_message(
         graphs,
         asset_set,
         render_settings,
+        gameplay_config,
         msg.id.0,
         &msg.player.name,
         &msg.player.movement.pos,

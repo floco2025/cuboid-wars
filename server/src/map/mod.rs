@@ -35,5 +35,5 @@ fn map_path() -> PathBuf {
     // directory.
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("assets")
-        .join("default.json")
+        .join("map.json")
 }

@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use super::components::CuboidShake;
 use crate::markers::*;
 use common::{
-    constants::PLAYER_HEIGHT,
+    config::GameplayConfig,
     markers::PlayerMarker,
     protocol::{FaceDirection, Position},
 };
@@ -14,12 +14,14 @@ use common::{
 
 // Update player Transform from Position component for rendering
 pub fn players_transform_sync_system(
+    gameplay_config: Res<GameplayConfig>,
     mut player_query: Query<(&Position, &mut Transform, Option<&CuboidShake>), With<PlayerMarker>>,
 ) {
+    let player_height = gameplay_config.characters.player.collider.height;
     for (pos, mut transform, maybe_shake) in &mut player_query {
         // Base position
         transform.translation.x = pos.x;
-        transform.translation.y = pos.y + PLAYER_HEIGHT / 2.0; // Center the cuboid
+        transform.translation.y = pos.y + player_height / 2.0; // Center the collider
         transform.translation.z = pos.z;
 
         // Apply shake offset if active

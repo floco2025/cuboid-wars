@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_MAP = REPO_ROOT / "server" / "assets" / "default.json"
+DEFAULT_MAP = REPO_ROOT / "server" / "assets" / "map.json"
 
 FLOOR = "·"
 NO_FLOOR = "█"

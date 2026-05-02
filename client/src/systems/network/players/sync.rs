@@ -10,6 +10,7 @@ use crate::{
     systems::ServerReconciliation,
 };
 use common::{
+    config::GameplayConfig,
     markers::PlayerMarker,
     physics::CharacterVerticalMotion,
     protocol::{CharacterMoveIntent, FaceDirection, Player, PlayerId, Position},
@@ -29,6 +30,7 @@ pub fn sync_players(
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
     render_settings: &RenderSettings,
+    gameplay_config: &GameplayConfig,
     server_players: &[(PlayerId, Player)],
 ) {
     let update_ids: HashSet<PlayerId> = server_players.iter().map(|(id, _)| *id).collect();
@@ -50,6 +52,7 @@ pub fn sync_players(
             asset_server,
             asset_set,
             render_settings,
+            gameplay_config,
             *id,
             player,
         );
@@ -65,7 +68,16 @@ pub fn sync_players(
     });
 
     for (id, server_player) in server_players {
-        update_snapshot_player(commands, players, rtt, player_data, my_player_id, *id, server_player);
+        update_snapshot_player(
+            commands,
+            players,
+            rtt,
+            player_data,
+            my_player_id,
+            gameplay_config,
+            *id,
+            server_player,
+        );
     }
 }
 
@@ -85,6 +97,7 @@ fn spawn_snapshot_player(
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
     render_settings: &RenderSettings,
+    gameplay_config: &GameplayConfig,
     id: PlayerId,
     player: &Player,
 ) {
@@ -99,6 +112,7 @@ fn spawn_snapshot_player(
         graphs,
         asset_set,
         render_settings,
+        gameplay_config,
         id.0,
         &player.name,
         &player.movement.pos,
@@ -138,12 +152,17 @@ fn update_snapshot_player(
     rtt: &ResMut<RoundTripTime>,
     player_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<PlayerMarker>>,
     my_player_id: PlayerId,
+    gameplay_config: &GameplayConfig,
     id: PlayerId,
     server_player: &Player,
 ) {
     if let Some(client_player) = players.0.get_mut(&id) {
         if let Ok((client_pos, _, _)) = player_data.get(client_player.entity) {
-            let server_velocity = player_movement_velocity(server_player.movement, server_player.speed_power_up);
+            let server_velocity = player_movement_velocity(
+                server_player.movement,
+                gameplay_config.characters.player.speed,
+                server_player.speed_power_up,
+            );
 
             if id != my_player_id {
                 commands

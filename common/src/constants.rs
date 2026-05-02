@@ -47,23 +47,6 @@ pub const CHARACTER_FALL_TELEPORT_Y: f32 = -100.0;
 // Player
 // ============================================================================
 
-// Dimensions (meters)
-pub const PLAYER_HEIGHT: f32 = 1.8; // up/down
-pub const PLAYER_WIDTH: f32 = 1.0; // side to side
-pub const PLAYER_DEPTH: f32 = 0.6; // front to back
-// Height below the player body that does not collide with world geometry. This
-// lets movement ignore low curbs, slab seams, and trim while keeping the
-// logical/player-rendered position on the support surface.
-pub const PLAYER_LOW_OBSTACLE_CLEARANCE: f32 = 0.5;
-// Footprint used only for support probing. It is intentionally smaller than the
-// collision body so brushing a wall/floor edge cannot keep the player grounded.
-pub const PLAYER_SUPPORT_PROBE_WIDTH: f32 = 0.2;
-pub const PLAYER_SUPPORT_PROBE_DEPTH: f32 = 0.2;
-pub const PLAYER_EYE_HEIGHT_RATIO: f32 = 0.9; // Eye/camera height as ratio of player height
-
-// Speed (meters per second)
-pub const PLAYER_SPEED: f32 = 9.0;
-
 // Gravity acting on falling players. Higher than real-world (9.81) for snappier
 // game feel.
 pub const PLAYER_GRAVITY: f32 = 25.0; // m/s²
@@ -82,13 +65,6 @@ pub const PLAYER_STEP_HEIGHT: f32 = 0.2;
 // large enough to carry the character past thin slab/trim edges, not just onto
 // the edge contact itself.
 pub const PLAYER_STEP_MIN_WIDTH: f32 = 0.2;
-
-// ============================================================================
-// Actors
-// ============================================================================
-
-// Speed (meters per second)
-pub const ACTOR_SPEED: f32 = 5.0;
 
 // ============================================================================
 // Projectiles

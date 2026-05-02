@@ -11,6 +11,7 @@ use crate::{
     net::ClientToServer,
     resources::{CameraViewMode, ClientToServerChannel, LocalPlayerInfo, MyPlayerId, PlayerMap, TopDownCameraYaw},
 };
+use common::config::GameplayConfig;
 use common::physics::{CharacterVerticalMotion, CollisionWorld, try_start_player_jump};
 use common::protocol::*;
 
@@ -39,6 +40,7 @@ pub fn input_movement_system(
     mut camera_query: Query<&mut Transform, (With<Camera3d>, With<MainCameraMarker>)>,
     view_mode: Res<CameraViewMode>,
     collision_world: Option<Res<CollisionWorld>>,
+    gameplay_config: Res<GameplayConfig>,
 ) {
     // Wait for the local player entity to exist before sampling input or sending updates.
     // Otherwise we'd compute a face direction from the default camera transform and
@@ -77,6 +79,7 @@ pub fn input_movement_system(
         face_yaw,
         jump_requested,
         collision_world.as_deref(),
+        &gameplay_config,
         &mut local_player_query,
     );
 
@@ -211,6 +214,7 @@ fn update_player_input_face_and_jump(
     face_yaw: f32,
     jump_requested: bool,
     collision_world: Option<&CollisionWorld>,
+    gameplay_config: &GameplayConfig,
     local_player_query: &mut Query<
         (
             &Position,
@@ -225,7 +229,14 @@ fn update_player_input_face_and_jump(
         *input = move_intent;
         face_direction.0 = face_yaw;
         if jump_requested && let Some(collision_world) = collision_world {
-            let _ = try_start_player_jump(&mut motion.0, collision_world, pos, pos.x, pos.z);
+            let _ = try_start_player_jump(
+                &mut motion.0,
+                collision_world,
+                gameplay_config.characters.player.physics(),
+                pos,
+                pos.x,
+                pos.z,
+            );
         }
     }
 }

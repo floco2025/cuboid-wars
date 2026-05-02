@@ -4,10 +4,8 @@ use rand::{RngExt, rng, rngs::ThreadRng, seq::IndexedRandom};
 use super::network::broadcast_to_all;
 use crate::resources::{MapConfig, PlayerMap};
 use common::{
-    constants::{
-        CHARACTER_FALL_TELEPORT_Y, GRID_CELL_SIZE, LEVEL_HEIGHT, MAP_DEPTH, MAP_WIDTH, PLAYER_DEPTH, PLAYER_HEIGHT,
-        PLAYER_WIDTH,
-    },
+    config::{CharacterPhysicsConfig, GameplayConfig},
+    constants::{CHARACTER_FALL_TELEPORT_Y, GRID_CELL_SIZE, LEVEL_HEIGHT, MAP_DEPTH, MAP_WIDTH},
     markers::PlayerMarker,
     physics::{CharacterVerticalMotion, CollisionWorld, character_paths_intersect},
     protocol::{CharacterMoveIntent, CharacterMovementState, PlayerId, Position, SPlayerTeleport, ServerMessage},
@@ -52,6 +50,7 @@ pub fn players_fall_recovery_system(
     players: Res<PlayerMap>,
     map_config: Res<MapConfig>,
     collision_world: Res<CollisionWorld>,
+    gameplay_config: Res<GameplayConfig>,
     mut player_query: Query<
         (
             Entity,
@@ -76,7 +75,12 @@ pub fn players_fall_recovery_system(
     let occupied_positions: Vec<Position> = player_query.iter().map(|(_, _, pos, _, _)| *pos).collect();
 
     for (entity, id) in dead {
-        let teleport_pos = generate_player_spawn_position(&map_config, &collision_world, &occupied_positions);
+        let teleport_pos = generate_character_spawn_position(
+            &map_config,
+            &collision_world,
+            &occupied_positions,
+            gameplay_config.characters.player.physics(),
+        );
 
         if let Ok((_, _, mut pos, mut motion, move_intent)) = player_query.get_mut(entity) {
             *pos = teleport_pos;
@@ -100,13 +104,14 @@ pub fn players_fall_recovery_system(
 
 const SPAWN_MAX_ATTEMPTS: usize = 100;
 
-// Pick a random clear position on the configured player spawn fields.
+// Pick a random clear position on the configured spawn fields.
 // Returns the world origin if no valid placement is found in time.
 #[must_use]
-pub fn generate_player_spawn_position(
+pub fn generate_character_spawn_position(
     map_config: &MapConfig,
     collision_world: &CollisionWorld,
     occupied_positions: &[Position],
+    character_physics: CharacterPhysicsConfig,
 ) -> Position {
     let mut rng = rng();
 
@@ -129,15 +134,15 @@ pub fn generate_player_spawn_position(
     }
 
     if valid_cells.is_empty() {
-        warn!("no valid player spawn fields (floor without a ramp), spawning at center");
+        warn!("no valid spawn fields (floor without a ramp), spawning at center");
         return Position::default();
     }
 
     for _ in 0..SPAWN_MAX_ATTEMPTS {
         let &(level, row, col) = valid_cells.choose(&mut rng).expect("valid_cells should not be empty");
-        let pos = random_position_in_spawn_cell(&mut rng, level, row, col);
+        let pos = random_position_in_spawn_cell(&mut rng, level, row, col, character_physics);
 
-        if player_spawn_position_is_clear(&pos, collision_world, occupied_positions) {
+        if character_spawn_position_is_clear(&pos, collision_world, occupied_positions, character_physics) {
             return pos;
         }
     }
@@ -149,35 +154,56 @@ pub fn generate_player_spawn_position(
     Position::default()
 }
 
-fn random_position_in_spawn_cell(rng: &mut ThreadRng, level: u8, row: i32, col: i32) -> Position {
+fn random_position_in_spawn_cell(
+    rng: &mut ThreadRng,
+    level: u8,
+    row: i32,
+    col: i32,
+    character_physics: CharacterPhysicsConfig,
+) -> Position {
     let cell_min_x = (col as f32).mul_add(GRID_CELL_SIZE, -(MAP_WIDTH / 2.0));
     let cell_max_x = cell_min_x + GRID_CELL_SIZE;
     let cell_min_z = (row as f32).mul_add(GRID_CELL_SIZE, -(MAP_DEPTH / 2.0));
     let cell_max_z = cell_min_z + GRID_CELL_SIZE;
 
     Position {
-        x: rng.random_range((cell_min_x + PLAYER_WIDTH / 2.0)..=(cell_max_x - PLAYER_WIDTH / 2.0)),
+        x: rng.random_range(
+            (cell_min_x + character_physics.collider.width / 2.0)
+                ..=(cell_max_x - character_physics.collider.width / 2.0),
+        ),
         y: f32::from(level) * LEVEL_HEIGHT,
-        z: rng.random_range((cell_min_z + PLAYER_DEPTH / 2.0)..=(cell_max_z - PLAYER_DEPTH / 2.0)),
+        z: rng.random_range(
+            (cell_min_z + character_physics.collider.depth / 2.0)
+                ..=(cell_max_z - character_physics.collider.depth / 2.0),
+        ),
     }
 }
 
-fn player_spawn_position_is_clear(
+fn character_spawn_position_is_clear(
     pos: &Position,
     collision_world: &CollisionWorld,
     occupied_positions: &[Position],
+    character_physics: CharacterPhysicsConfig,
 ) -> bool {
-    let player_center = Vec3::new(pos.x, pos.y + PLAYER_HEIGHT / 2.0, pos.z);
-    let player_half_extents = Vec3::new(PLAYER_WIDTH / 2.0, PLAYER_HEIGHT / 2.0, PLAYER_DEPTH / 2.0);
+    let character_center = Vec3::new(pos.x, pos.y + character_physics.collider.height / 2.0, pos.z);
+    let character_half_extents = Vec3::new(
+        character_physics.collider.width / 2.0,
+        character_physics.collider.height / 2.0,
+        character_physics.collider.depth / 2.0,
+    );
 
     !occupied_positions
         .iter()
-        .any(|other| player_position_intersects_player(pos, other))
-        && !collision_world.cuboid_overlaps_wall(player_center, player_half_extents)
+        .any(|other| character_position_intersects_character(pos, other, character_physics))
+        && !collision_world.cuboid_overlaps_wall(character_center, character_half_extents)
 }
 
-fn player_position_intersects_player(pos: &Position, other: &Position) -> bool {
-    character_paths_intersect(pos, pos, other, other)
+fn character_position_intersects_character(
+    pos: &Position,
+    other: &Position,
+    character_physics: CharacterPhysicsConfig,
+) -> bool {
+    character_paths_intersect(pos, pos, character_physics, other, other, character_physics)
 }
 
 #[cfg(test)]
@@ -185,6 +211,7 @@ mod tests {
     use super::*;
     use crate::resources::{CellGrid, EdgeGrid, LevelGrid, MapConfig, PlayerSpawnField};
     use common::{
+        config::GameplayConfig,
         constants::WALL_THICKNESS,
         protocol::{MapLayout, Wall},
     };
@@ -200,6 +227,14 @@ mod tests {
 
     fn collision_world(layout: &MapLayout) -> CollisionWorld {
         CollisionWorld::from_map_layout(layout)
+    }
+
+    fn character_physics() -> CharacterPhysicsConfig {
+        GameplayConfig::load_default()
+            .expect("default gameplay config should load")
+            .characters
+            .player
+            .physics()
     }
 
     fn map_config_with_spawn(level: u8, col: i32, row: i32) -> MapConfig {
@@ -222,7 +257,12 @@ mod tests {
         let collision_world = collision_world(&layout);
         let pos = Position::default();
 
-        assert!(!player_spawn_position_is_clear(&pos, &collision_world, &[pos]));
+        assert!(!character_spawn_position_is_clear(
+            &pos,
+            &collision_world,
+            &[pos],
+            character_physics()
+        ));
     }
 
     #[test]
@@ -238,10 +278,11 @@ mod tests {
         });
         let collision_world = collision_world(&layout);
 
-        assert!(!player_spawn_position_is_clear(
+        assert!(!character_spawn_position_is_clear(
             &Position::default(),
             &collision_world,
-            &[]
+            &[],
+            character_physics()
         ));
     }
 
@@ -258,10 +299,11 @@ mod tests {
         });
         let collision_world = collision_world(&layout);
 
-        assert!(player_spawn_position_is_clear(
+        assert!(character_spawn_position_is_clear(
             &Position::default(),
             &collision_world,
-            &[]
+            &[],
+            character_physics()
         ));
     }
 
@@ -271,7 +313,7 @@ mod tests {
         let collision_world = collision_world(&layout);
         let map_config = map_config_with_spawn(1, 0, 0);
 
-        let pos = generate_player_spawn_position(&map_config, &collision_world, &[]);
+        let pos = generate_character_spawn_position(&map_config, &collision_world, &[], character_physics());
 
         assert_eq!(pos.y, LEVEL_HEIGHT);
     }

@@ -16,7 +16,7 @@ use client::{
     spawning::{ProjectileAssets, player_shadow_settings_system},
     systems::*,
 };
-use common::{net::MessageStream, protocol::*};
+use common::{config::GameplayConfig, net::MessageStream, protocol::*};
 
 // ============================================================================
 // CLI Arguments
@@ -62,6 +62,7 @@ fn main() -> Result<()> {
     let args = Args::parse();
     let asset_set = AssetSet::load_default()?;
     let render_settings = RenderSettings::load_default()?;
+    let gameplay_config = GameplayConfig::load_default()?;
     let debug_colors = render_settings.debug_map_colors;
     let texture_mipmaps_enabled = render_settings.texture_mipmaps_enabled;
 
@@ -110,6 +111,7 @@ fn main() -> Result<()> {
         .insert_resource(CameraViewMode::default())
         .insert_resource(TopDownCameraYaw::default())
         .insert_resource(LevelFocusEnabled::default())
+        .insert_resource(gameplay_config)
         .insert_resource(asset_set)
         .insert_resource(render_settings)
         .insert_resource(DebugColors(debug_colors))
