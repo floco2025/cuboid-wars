@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::{
-    config::AssetSet,
+    config::{AssetSet, RenderSettings},
     resources::{MyPlayerId, PlayerInfo, PlayerMap},
     spawning::spawn_player,
 };
@@ -43,6 +43,7 @@ pub fn handle_player_login_message(
     players: &mut ResMut<PlayerMap>,
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
+    render_settings: &RenderSettings,
     msg: SLogin,
 ) {
     debug!("{:?} logged in", msg.id);
@@ -58,6 +59,7 @@ pub fn handle_player_login_message(
         images,
         graphs,
         asset_set,
+        render_settings,
         msg.id.0,
         &msg.player.name,
         &msg.player.movement.pos,

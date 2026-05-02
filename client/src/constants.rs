@@ -14,12 +14,6 @@ pub const REARVIEW_HEIGHT_RATIO: f32 = 0.25; // Height as ratio of screen height
 pub const REARVIEW_MARGIN: f32 = 0.02; // Margin from edge as ratio of screen size
 
 // ============================================================================
-// Debug Visualization
-// ============================================================================
-
-pub const PLAYER_BOUNDING_BOX: bool = false;
-
-// ============================================================================
 // Input
 // ============================================================================
 

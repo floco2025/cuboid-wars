@@ -3,7 +3,7 @@ use std::collections::HashSet;
 
 use super::components::ServerReconciliation;
 use crate::{
-    config::AssetSet,
+    config::{AssetSet, RenderSettings},
     resources::{ActorInfo, ActorMap, RoundTripTime},
     spawning::spawn_actor,
 };
@@ -28,6 +28,7 @@ pub fn sync_actors(
     actor_data: &Query<(&Position, &CharacterMoveIntent, &FaceDirection), With<ActorMarker>>,
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
+    render_settings: &RenderSettings,
     server_actors: &[(ActorId, Actor)],
 ) {
     let update_ids: HashSet<ActorId> = server_actors.iter().map(|(id, _)| *id).collect();
@@ -45,6 +46,7 @@ pub fn sync_actors(
             images,
             graphs,
             asset_set,
+            render_settings,
             *id,
             actor,
         );

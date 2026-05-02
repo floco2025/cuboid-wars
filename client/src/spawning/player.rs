@@ -9,8 +9,7 @@ use bevy::{
 
 use super::player_label::{setup_player_id_text_rendering, spawn_player_id_display};
 use crate::{
-    config::{AssetSet, RenderSettings},
-    constants::*,
+    config::{AssetSet, ModelDef, RenderSettings},
     markers::*,
     systems::{AnimationToPlay, BumpFlashState, players_animation_system},
 };
@@ -45,6 +44,7 @@ pub fn spawn_player(
     images: &mut ResMut<Assets<Image>>,
     graphs: &mut ResMut<Assets<AnimationGraph>>,
     asset_set: &AssetSet,
+    render_settings: &RenderSettings,
     player_id: u32,
     player_name: &str,
     position: &Position,
@@ -90,19 +90,8 @@ pub fn spawn_player(
     let mut children = vec![];
 
     // Add transparent cuboid debug visualization if enabled
-    if PLAYER_BOUNDING_BOX {
-        let debug_box = commands
-            .spawn((
-                Mesh3d(meshes.add(Cuboid::new(PLAYER_WIDTH, PLAYER_HEIGHT, PLAYER_DEPTH))),
-                MeshMaterial3d(materials.add(StandardMaterial {
-                    base_color: Color::srgba(0.5, 0.5, 0.5, 0.15),
-                    alpha_mode: AlphaMode::Blend,
-                    ..default()
-                })),
-                Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
-            ))
-            .id();
-        children.push(debug_box);
+    if render_settings.debug_bounding_boxes {
+        children.push(spawn_model_bounding_box(commands, meshes, materials, player_model));
     }
 
     // Add the GLB player model with animation observer
@@ -127,6 +116,29 @@ pub fn spawn_player(
     commands.entity(entity).add_children(&children);
 
     entity
+}
+
+pub fn spawn_model_bounding_box(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    model: &ModelDef,
+) -> Entity {
+    commands
+        .spawn((
+            Mesh3d(meshes.add(Cuboid::new(
+                model.bounding_box.width,
+                model.bounding_box.height,
+                model.bounding_box.depth,
+            ))),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: Color::srgba(0.5, 0.5, 0.5, 0.15),
+                alpha_mode: AlphaMode::Blend,
+                ..default()
+            })),
+            Transform::from_translation(Vec3::ZERO),
+        ))
+        .id()
 }
 
 pub fn player_shadow_settings_system(

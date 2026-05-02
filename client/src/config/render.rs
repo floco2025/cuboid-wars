@@ -31,7 +31,8 @@ pub struct RenderSettings {
     pub opaque_renderer: OpaqueRenderer,
     pub shadows_directional_enabled: bool,
     pub shadows_player_enabled: bool,
-    pub map_debug_colors: bool,
+    pub debug_map_colors: bool,
+    pub debug_bounding_boxes: bool,
     pub texture_mipmaps_enabled: bool,
     pub msaa_samples: u32,
 }

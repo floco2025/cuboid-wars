@@ -3,7 +3,7 @@ use std::collections::HashSet;
 
 use super::player_movement_velocity;
 use crate::{
-    config::AssetSet,
+    config::{AssetSet, RenderSettings},
     markers::MainCameraMarker,
     resources::{PlayerInfo, PlayerMap, RoundTripTime},
     spawning::spawn_player,
@@ -28,6 +28,7 @@ pub fn sync_players(
     my_player_id: PlayerId,
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
+    render_settings: &RenderSettings,
     server_players: &[(PlayerId, Player)],
 ) {
     let update_ids: HashSet<PlayerId> = server_players.iter().map(|(id, _)| *id).collect();
@@ -48,6 +49,7 @@ pub fn sync_players(
             my_player_id,
             asset_server,
             asset_set,
+            render_settings,
             *id,
             player,
         );
@@ -82,6 +84,7 @@ fn spawn_snapshot_player(
     my_player_id: PlayerId,
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
+    render_settings: &RenderSettings,
     id: PlayerId,
     player: &Player,
 ) {
@@ -95,6 +98,7 @@ fn spawn_snapshot_player(
         images,
         graphs,
         asset_set,
+        render_settings,
         id.0,
         &player.name,
         &player.movement.pos,

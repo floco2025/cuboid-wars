@@ -57,6 +57,10 @@ impl AssetSet {
         &self.models.player
     }
 
+    pub fn actor_model(&self) -> &ModelDef {
+        &self.models.actor
+    }
+
     pub fn wall_light_model(&self) -> &WallLightModelDef {
         &self.models.wall_light
     }
@@ -118,10 +122,18 @@ pub(crate) struct TextureDef {
 pub struct ModelDef {
     pub scene: String,
     pub scale: f32,
+    pub bounding_box: ModelBoundingBoxDef,
     #[serde(default)]
     pub height_offset: f32,
     #[serde(default)]
     pub animation_speed: Option<f32>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ModelBoundingBoxDef {
+    pub width: f32,
+    pub height: f32,
+    pub depth: f32,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -144,5 +156,6 @@ pub struct SkyboxDef {
 #[derive(Debug, Clone, Deserialize)]
 struct Models {
     player: ModelDef,
+    actor: ModelDef,
     wall_light: WallLightModelDef,
 }

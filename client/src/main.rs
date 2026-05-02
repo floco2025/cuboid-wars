@@ -70,7 +70,7 @@ fn main() -> Result<()> {
     let args = Args::parse();
     let asset_set = AssetSet::load_default()?;
     let render_settings = RenderSettings::load_default()?;
-    let debug_colors = args.debug_colors || render_settings.map_debug_colors;
+    let debug_colors = args.debug_colors || render_settings.debug_map_colors;
     let texture_mipmaps_enabled = render_settings.texture_mipmaps_enabled;
 
     let player_name = args.name.clone().unwrap_or_else(|| {

@@ -62,6 +62,7 @@ pub fn dispatch_message(
             players,
             asset_server,
             asset_set,
+            render_settings,
             login,
         ),
         ServerMessage::Logoff(logoff) => handle_player_logoff_message(commands, players, logoff),
@@ -179,6 +180,7 @@ pub fn handle_update_message(
         my_player_id,
         asset_server,
         asset_set,
+        render_settings,
         &msg.players,
     );
     sync_actors(
@@ -192,6 +194,7 @@ pub fn handle_update_message(
         actor_data,
         asset_server,
         asset_set,
+        render_settings,
         &msg.actors,
     );
     sync_items(
