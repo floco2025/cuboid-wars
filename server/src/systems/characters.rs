@@ -2,7 +2,13 @@ use bevy::prelude::*;
 use rand::{RngExt, rng, rngs::ThreadRng};
 
 use super::network::broadcast_to_all;
-use crate::resources::{ActorInfo, ActorMap, PlayerInfo, PlayerMap};
+use crate::{
+    constants::{
+        ACTOR_AVOIDANCE_TIME, ACTOR_DIRECTION_UPDATE_EPSILON, ACTOR_GO_TO_REACHED_DISTANCE,
+        ACTOR_INTENT_CHANGE_COOLDOWN,
+    },
+    resources::{ActorInfo, ActorMap, PlayerInfo, PlayerMap},
+};
 use common::{
     constants::{ACTOR_SPEED, PHYSICS_EPSILON},
     markers::{ActorMarker, PlayerMarker},
@@ -15,10 +21,6 @@ use common::{
         ServerMessage,
     },
 };
-
-const ACTOR_AVOIDANCE_TIME: f32 = 0.6;
-const ACTOR_INTENT_CHANGE_COOLDOWN: f32 = 0.2;
-const ACTOR_DIRECTION_UPDATE_EPSILON: f32 = 0.05;
 
 type PlayerMovementQuery<'w, 's> = Query<
     'w,
@@ -57,10 +59,6 @@ pub fn characters_movement_system(
 ) {
     let delta = time.delta_secs();
     let mut planned_moves = Vec::new();
-    let player_positions: Vec<(PlayerId, Position)> = player_query
-        .iter()
-        .map(|(_, pos, _, _, player_id)| (*player_id, *pos))
-        .collect();
     let actor_starts: Vec<(Entity, Position)> = actor_query
         .iter()
         .map(|(entity, _, pos, _, _, _)| (entity, *pos))
@@ -72,7 +70,6 @@ pub fn characters_movement_system(
         &collision_world,
         &players,
         &mut actors,
-        &player_positions,
         &actor_starts,
         &mut actor_query,
         &mut planned_moves,
@@ -132,7 +129,6 @@ fn plan_actor_moves(
     collision_world: &CollisionWorld,
     players: &PlayerMap,
     actors: &mut ActorMap,
-    player_positions: &[(PlayerId, Position)],
     actor_starts: &[(Entity, Position)],
     query: &mut ActorMovementQuery,
     planned_moves: &mut Vec<PlannedCharacterMove>,
@@ -149,7 +145,7 @@ fn plan_actor_moves(
         } else {
             let desired_intent = stable_actor_intent(
                 current_intent,
-                actor_desired_intent(info, &pos, player_positions).unwrap_or(current_intent),
+                actor_desired_intent(info, &pos).unwrap_or(current_intent),
             );
             select_actor_move(
                 entity,
@@ -187,15 +183,15 @@ fn plan_actor_moves(
     }
 }
 
-fn actor_desired_intent(
-    info: &ActorInfo,
-    pos: &Position,
-    player_positions: &[(PlayerId, Position)],
-) -> Option<CharacterMoveIntent> {
-    let target = info.chase_target?;
-    let (_, target_pos) = player_positions.iter().find(|(id, _)| *id == target)?;
+fn actor_desired_intent(info: &mut ActorInfo, pos: &Position) -> Option<CharacterMoveIntent> {
+    let target_pos = info.go_to_position?;
+    if horizontal_distance_sq(pos, &target_pos) <= ACTOR_GO_TO_REACHED_DISTANCE * ACTOR_GO_TO_REACHED_DISTANCE {
+        info.go_to_position = None;
+        return None;
+    }
+
     Some(CharacterMoveIntent::Moving {
-        direction: direction_toward(pos, target_pos),
+        direction: direction_toward(pos, &target_pos),
     })
 }
 
@@ -339,6 +335,12 @@ fn direction_toward(pos: &Position, target: &Position) -> f32 {
     let dx = target.x - pos.x;
     let dz = target.z - pos.z;
     dx.atan2(dz)
+}
+
+fn horizontal_distance_sq(a: &Position, b: &Position) -> f32 {
+    let dx = a.x - b.x;
+    let dz = a.z - b.z;
+    dx.mul_add(dx, dz * dz)
 }
 
 fn apply_player_moves(query: &mut PlayerMovementQuery, planned_moves: &[PlannedCharacterMove]) {

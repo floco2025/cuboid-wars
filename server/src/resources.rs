@@ -171,7 +171,7 @@ pub struct ActorInfo {
     pub entity: Entity,
     pub kind: ActorKind,
     pub direction_timer: f32,
-    pub chase_target: Option<PlayerId>,
+    pub go_to_position: Option<Position>,
     pub avoidance_side: f32,
     pub avoidance_timer: f32,
     pub intent_change_cooldown: f32,

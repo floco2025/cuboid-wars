@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 
 use super::edges::{CellSide, has_edge_on_cell_side};
 use crate::{
-    constants::{EXTERIOR_LIGHT_SEED, EXTERIOR_LIGHT_STEP_RETENTION, WALL_LIGHT_EXPOSURE_THRESHOLD, WALL_LIGHT_HEIGHT},
+    constants::{EXTERIOR_LIGHT_STEP_RETENTION, WALL_LIGHT_EXPOSURE_THRESHOLD, WALL_LIGHT_HEIGHT},
     resources::{CellGrid, EdgeGrid, LevelGrid},
 };
 use common::{
@@ -11,6 +11,7 @@ use common::{
 };
 
 const MODEL_INSET: f32 = WALL_THICKNESS / 2.0 + 0.02;
+const FULL_EXTERIOR_EXPOSURE: f32 = 1.0;
 const EXPOSURE_EPSILON: f32 = 0.001;
 const CARDINAL_DIRECTIONS: [(CellSide, i32, i32); 4] = [
     (CellSide::North, -1, 0),
@@ -135,7 +136,7 @@ fn seed_top_sky(levels: &[LevelGrid], exposure: &mut [Vec<Vec<f32>>], queue: &mu
 
     for row in 0..grid_rows(&top_level.cells) {
         for col in 0..grid_cols(&top_level.cells) {
-            update_exposure(exposure, queue, top_level_idx, row, col, EXTERIOR_LIGHT_SEED);
+            update_exposure(exposure, queue, top_level_idx, row, col, FULL_EXTERIOR_EXPOSURE);
         }
     }
 }
@@ -149,7 +150,7 @@ fn seed_boundary_openings(
         for row in 0..grid_rows(&level_grid.cells) {
             for col in 0..grid_cols(&level_grid.cells) {
                 if cell_has_boundary_opening(&level_grid.cells, &level_grid.edges, row, col) {
-                    update_exposure(exposure, queue, level_idx, row, col, EXTERIOR_LIGHT_SEED);
+                    update_exposure(exposure, queue, level_idx, row, col, FULL_EXTERIOR_EXPOSURE);
                 }
             }
         }
@@ -373,10 +374,8 @@ mod tests {
         let one_level_exposure = compute_exterior_light_exposure(&one_open_level)[0][0][0];
         let two_level_exposure = compute_exterior_light_exposure(&two_open_levels)[0][0][0];
 
-        assert!((one_level_exposure - EXTERIOR_LIGHT_SEED * EXTERIOR_LIGHT_STEP_RETENTION).abs() < EXPOSURE_EPSILON);
-        assert!(
-            (two_level_exposure - EXTERIOR_LIGHT_SEED * EXTERIOR_LIGHT_STEP_RETENTION.powi(2)).abs() < EXPOSURE_EPSILON
-        );
+        assert!((one_level_exposure - EXTERIOR_LIGHT_STEP_RETENTION).abs() < EXPOSURE_EPSILON);
+        assert!((two_level_exposure - EXTERIOR_LIGHT_STEP_RETENTION.powi(2)).abs() < EXPOSURE_EPSILON);
         assert!(two_level_exposure < one_level_exposure);
     }
 
@@ -393,7 +392,7 @@ mod tests {
 
         let exposure = compute_exterior_light_exposure(&levels);
 
-        assert_eq!(exposure[0][0][0], EXTERIOR_LIGHT_SEED);
+        assert_eq!(exposure[0][0][0], FULL_EXTERIOR_EXPOSURE);
         assert_eq!(exposure[0][0][1], 0.0);
     }
 

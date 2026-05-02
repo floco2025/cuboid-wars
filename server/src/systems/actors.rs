@@ -2,8 +2,13 @@ use bevy::prelude::*;
 use rand::{RngExt, rng, rngs::ThreadRng};
 
 use super::network::broadcast_to_all;
-use super::players::generate_player_spawn_position;
-use crate::resources::{ActorInfo, ActorMap, MapConfig, PlayerMap};
+use crate::{
+    constants::{
+        ACTOR_IDLE_CHANCE, ACTOR_INITIAL_COUNT, ACTOR_MAX_DIRECTION_TIME, ACTOR_MIN_DIRECTION_TIME, ACTOR_VISION_RANGE,
+    },
+    resources::{ActorInfo, ActorMap, MapConfig, PlayerMap},
+    systems::players::generate_player_spawn_position,
+};
 use common::{
     constants::CHARACTER_FALL_TELEPORT_Y,
     markers::{ActorMarker, PlayerMarker},
@@ -13,12 +18,6 @@ use common::{
         SActorMoveIntent, SActorTeleport, ServerMessage,
     },
 };
-
-const INITIAL_ACTOR_COUNT: u32 = 6;
-const ACTOR_MIN_DIRECTION_TIME: f32 = 1.0;
-const ACTOR_MAX_DIRECTION_TIME: f32 = 3.5;
-const ACTOR_IDLE_CHANCE: f32 = 0.15;
-const ACTOR_VISION_RANGE: f32 = 18.0;
 
 pub fn actor_initial_spawn_system(
     mut commands: Commands,
@@ -34,7 +33,7 @@ pub fn actor_initial_spawn_system(
     let mut occupied_positions: Vec<Position> = players.iter().copied().collect();
     let mut rng = rng();
 
-    for id in 0..INITIAL_ACTOR_COUNT {
+    for id in 0..ACTOR_INITIAL_COUNT {
         let actor_id = ActorId(id);
         let pos = generate_player_spawn_position(&map_config, &collision_world, &occupied_positions);
         occupied_positions.push(pos);
@@ -58,7 +57,7 @@ pub fn actor_initial_spawn_system(
                 entity,
                 kind: ActorKind::Automaton,
                 direction_timer: random_direction_time(&mut rng),
-                chase_target: None,
+                go_to_position: None,
                 avoidance_side: random_avoidance_side(&mut rng),
                 avoidance_timer: 0.0,
                 intent_change_cooldown: 0.0,
@@ -94,15 +93,14 @@ pub fn actor_ai_system(
 
         info.avoidance_timer = (info.avoidance_timer - delta).max(0.0);
         info.intent_change_cooldown = (info.intent_change_cooldown - delta).max(0.0);
-        if let Some(target) = visible_player(pos, &players, &player_query, &collision_world) {
-            info.chase_target = Some(target);
+        if let Some(target_pos) = visible_player_position(pos, &players, &player_query, &collision_world) {
+            info.go_to_position = Some(target_pos);
             continue;
         }
 
-        if info.chase_target.take().is_some() {
-            info.direction_timer = 0.0;
+        if info.go_to_position.is_some() {
+            continue;
         }
-
         info.direction_timer -= delta;
         if info.direction_timer > 0.0 {
             continue;
@@ -121,19 +119,19 @@ pub fn actor_ai_system(
     }
 }
 
-fn visible_player(
+fn visible_player_position(
     actor_pos: &Position,
     players: &PlayerMap,
     player_query: &Query<(&PlayerId, &Position), With<PlayerMarker>>,
     collision_world: &CollisionWorld,
-) -> Option<PlayerId> {
+) -> Option<Position> {
     player_query
         .iter()
         .filter(|(id, _)| players.0.get(id).is_some_and(|info| info.logged_in))
         .filter(|(_, pos)| horizontal_distance_sq(actor_pos, pos) <= ACTOR_VISION_RANGE * ACTOR_VISION_RANGE)
         .filter(|(_, pos)| collision_world.character_line_of_sight_clear(actor_pos, pos))
         .min_by(|(_, a), (_, b)| horizontal_distance_sq(actor_pos, a).total_cmp(&horizontal_distance_sq(actor_pos, b)))
-        .map(|(id, _)| *id)
+        .map(|(_, pos)| *pos)
 }
 
 fn horizontal_distance_sq(a: &Position, b: &Position) -> f32 {
