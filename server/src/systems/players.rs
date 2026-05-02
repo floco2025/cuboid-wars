@@ -72,7 +72,7 @@ pub fn players_fall_recovery_system(
     }
 
     // Snapshot all current positions so spawn-distance checks see a consistent view.
-    let occupied_positions: Vec<Position> = player_query.iter().map(|(_, _, pos, _, _)| *pos).collect();
+    let mut occupied_positions: Vec<Position> = player_query.iter().map(|(_, _, pos, _, _)| *pos).collect();
 
     for (entity, id) in dead {
         let teleport_pos = generate_character_spawn_position(
@@ -94,6 +94,7 @@ pub fn players_fall_recovery_system(
             );
         }
 
+        occupied_positions.push(teleport_pos);
         info!("{:?} fell and teleported to {:?}", id, teleport_pos);
     }
 }

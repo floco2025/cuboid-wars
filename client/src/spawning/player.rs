@@ -1,24 +1,13 @@
-use std::collections::HashSet;
-
-use bevy::{
-    gltf::GltfAssetLabel,
-    light::NotShadowCaster,
-    prelude::*,
-    scene::{SceneInstance, SceneRoot, SceneSpawner},
-};
+use bevy::{gltf::GltfAssetLabel, prelude::*, scene::SceneRoot};
 
 use super::player_label::{setup_player_id_text_rendering, spawn_player_id_display};
+use super::spawn_collider_box;
 use crate::{
     config::{AssetSet, RenderSettings},
     markers::*,
-    systems::{AnimationToPlay, BumpFlashState, players_animation_system},
+    systems::{AnimationToPlay, BumpFlashState, character_animation_system},
 };
-use common::{
-    config::{CharacterPhysicsConfig, GameplayConfig},
-    markers::PlayerMarker,
-    physics::CharacterVerticalMotion,
-    protocol::*,
-};
+use common::{config::GameplayConfig, markers::PlayerMarker, physics::CharacterVerticalMotion, protocol::*};
 
 // ============================================================================
 // Bundles
@@ -102,15 +91,15 @@ pub fn spawn_player(
     }
 
     // Add the GLB player model with animation observer
-    let base_y = player_physics.visual_y_offset_from_center(player_model.visual_y_offset);
+    let base_y = player_physics.model_y_offset_from_entity_center(player_model.model_y_offset);
     let model = commands
         .spawn((
             SceneRoot(asset_server.load(player_model.scene.clone())),
             Transform::from_scale(Vec3::splat(player_model.scale)).with_translation(Vec3::new(0.0, base_y, 0.0)),
             animation_to_play,
-            PlayerModelMarker,
+            CharacterModelMarker,
         ))
-        .observe(players_animation_system)
+        .observe(character_animation_system)
         .id();
     children.push(model);
 
@@ -130,52 +119,6 @@ pub fn spawn_player(
     commands.entity(entity).add_children(&children);
 
     entity
-}
-
-pub fn spawn_collider_box(
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    physics: CharacterPhysicsConfig,
-) -> Entity {
-    commands
-        .spawn((
-            Mesh3d(meshes.add(Cuboid::new(
-                physics.collider.width,
-                physics.collision_height(),
-                physics.collider.depth,
-            ))),
-            MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgba(0.8, 0.2, 0.2, 0.5),
-                alpha_mode: AlphaMode::Blend,
-                ..default()
-            })),
-            Transform::from_translation(Vec3::ZERO),
-        ))
-        .id()
-}
-
-pub fn player_shadow_settings_system(
-    mut commands: Commands,
-    render_settings: Res<RenderSettings>,
-    scene_spawner: Res<SceneSpawner>,
-    player_models: Query<(Entity, &SceneInstance), With<PlayerModelMarker>>,
-    mut processed: Local<HashSet<Entity>>,
-) {
-    if render_settings.shadows_player_enabled {
-        return;
-    }
-
-    for (model_entity, scene_instance) in &player_models {
-        if processed.contains(&model_entity) || !scene_spawner.instance_is_ready(**scene_instance) {
-            continue;
-        }
-
-        for entity in scene_spawner.iter_instance_entities(**scene_instance) {
-            commands.entity(entity).insert(NotShadowCaster);
-        }
-        processed.insert(model_entity);
-    }
 }
 
 const fn player_visibility(is_local: bool) -> Visibility {

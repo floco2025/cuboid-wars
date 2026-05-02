@@ -19,9 +19,9 @@ pub(crate) fn visual_focus_level(y: f32) -> u8 {
 }
 
 pub use actors::actors_transform_sync_system;
-pub use animations::{AnimationToPlay, players_animation_system};
+pub use animations::{AnimationToPlay, character_animation_system};
 pub use cameras::setup_cameras_system;
-pub use characters::characters_movement_system;
+pub use characters::{CharacterVisualTurnState, characters_movement_system, characters_visual_turn_system};
 pub use input::{
     input_camera_view_toggle_system, input_cursor_toggle_system, input_fullscreen_toggle_system,
     input_level_focus_toggle_system, input_movement_system, input_shooting_system,
@@ -33,10 +33,9 @@ pub use map::{
 };
 pub use network::{AssetManagers, ServerReconciliation, network_echo_system, network_server_message_system};
 pub use players::{
-    BumpFlashState, CameraShake, CharacterVisualTurn, CuboidShake, characters_face_to_transform_system,
-    local_player_camera_shake_system, local_player_camera_sync_system, local_player_cuboid_shake_system,
-    local_player_rearview_sync_system, local_player_rearview_system, local_player_visibility_sync_system,
-    players_billboard_system, players_transform_sync_system,
+    BumpFlashState, CameraShake, CuboidShake, local_player_camera_shake_system, local_player_camera_sync_system,
+    local_player_cuboid_shake_system, local_player_rearview_sync_system, local_player_rearview_system,
+    local_player_visibility_sync_system, players_billboard_system, players_transform_sync_system,
 };
 pub use projectiles::projectiles_movement_system;
 pub use skybox::{

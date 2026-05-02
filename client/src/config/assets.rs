@@ -124,7 +124,7 @@ pub struct ModelDef {
     pub scale: f32,
     // Model bottom offset relative to the gameplay collider bottom.
     #[serde(default)]
-    pub visual_y_offset: f32,
+    pub model_y_offset: f32,
     #[serde(default)]
     pub animation_speed: Option<f32>,
 }

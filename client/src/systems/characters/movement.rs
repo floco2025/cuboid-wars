@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use super::players::BumpFlashState;
+use crate::systems::players::BumpFlashState;
 use crate::{config::AssetSet, markers::*, resources::PlayerMap, systems::network::ServerReconciliation};
 use common::{
     config::GameplayConfig,
@@ -8,7 +8,7 @@ use common::{
     markers::{ActorMarker, PlayerMarker},
     physics::{
         CharacterVerticalMotion, CollisionWorld, PlannedCharacterMove, overlaps_other_character,
-        step_character_movement,
+        planned_character_moves_intersect, step_character_movement,
     },
     protocol::{ActorId, CharacterMoveIntent, PlayerId, Position},
 };
@@ -131,6 +131,10 @@ pub fn characters_movement_system(
 ) {
     let delta = time.delta_secs();
     let mut planned_moves: Vec<PlannedCharacterMove> = Vec::new();
+    let actor_starts: Vec<(Entity, Position)> = actors_query
+        .iter()
+        .map(|(entity, _, pos, _, _, _)| (entity, *pos))
+        .collect();
 
     plan_player_moves(
         &mut commands,
@@ -147,6 +151,7 @@ pub fn characters_movement_system(
         delta,
         collision_world.as_deref(),
         &gameplay_config,
+        &actor_starts,
         &mut actors_query,
         &mut planned_moves,
     );
@@ -306,6 +311,7 @@ fn plan_actor_moves(
     delta: f32,
     collision_world: Option<&CollisionWorld>,
     gameplay_config: &GameplayConfig,
+    actor_starts: &[(Entity, Position)],
     query: &mut ActorMovementQuery,
     planned_moves: &mut Vec<PlannedCharacterMove>,
 ) {
@@ -333,14 +339,18 @@ fn plan_actor_moves(
                 *pos = recon.server_pos;
                 motion.0 = recon.server_velocity.y;
                 commands.entity(entity).remove::<ServerReconciliation>();
-                planned_moves.push(PlannedCharacterMove {
-                    entity,
-                    start: *pos,
-                    target: *pos,
-                    target_vertical_velocity: motion.0,
-                    physics: actor_physics,
-                    blocked: false,
-                });
+                push_actor_planned_move(
+                    planned_moves,
+                    actor_starts,
+                    PlannedCharacterMove {
+                        entity,
+                        start: *pos,
+                        target: *pos,
+                        target_vertical_velocity: motion.0,
+                        physics: actor_physics,
+                        blocked: false,
+                    },
+                );
                 continue;
             }
 
@@ -371,25 +381,62 @@ fn plan_actor_moves(
                 delta,
             );
             target_pos = step.position;
-            planned_moves.push(PlannedCharacterMove {
-                entity,
-                start: *pos,
-                target: target_pos,
-                target_vertical_velocity: step.vertical_velocity,
-                physics: actor_physics,
-                blocked: step.blocked,
-            });
+            push_actor_planned_move(
+                planned_moves,
+                actor_starts,
+                PlannedCharacterMove {
+                    entity,
+                    start: *pos,
+                    target: target_pos,
+                    target_vertical_velocity: step.vertical_velocity,
+                    physics: actor_physics,
+                    blocked: step.blocked,
+                },
+            );
         } else {
-            planned_moves.push(PlannedCharacterMove {
-                entity,
-                start: *pos,
-                target: target_pos,
-                target_vertical_velocity: motion.0,
-                physics: actor_physics,
-                blocked: false,
-            });
+            push_actor_planned_move(
+                planned_moves,
+                actor_starts,
+                PlannedCharacterMove {
+                    entity,
+                    start: *pos,
+                    target: target_pos,
+                    target_vertical_velocity: motion.0,
+                    physics: actor_physics,
+                    blocked: false,
+                },
+            );
         }
     }
+}
+
+fn push_actor_planned_move(
+    planned_moves: &mut Vec<PlannedCharacterMove>,
+    actor_starts: &[(Entity, Position)],
+    mut planned_move: PlannedCharacterMove,
+) {
+    if planned_move_overlaps_actor_start(&planned_move, actor_starts) {
+        planned_move.target.x = planned_move.start.x;
+        planned_move.target.z = planned_move.start.z;
+    }
+    planned_moves.push(planned_move);
+}
+
+fn planned_move_overlaps_actor_start(candidate: &PlannedCharacterMove, actor_starts: &[(Entity, Position)]) -> bool {
+    actor_starts.iter().any(|(entity, pos)| {
+        if *entity == candidate.entity {
+            return false;
+        }
+        let stationary_actor = PlannedCharacterMove {
+            entity: *entity,
+            start: *pos,
+            target: *pos,
+            target_vertical_velocity: 0.0,
+            physics: candidate.physics,
+            blocked: false,
+        };
+        planned_character_moves_intersect(candidate, &stationary_actor)
+    })
 }
 
 fn apply_player_moves(

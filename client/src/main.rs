@@ -13,7 +13,7 @@ use client::{
     materials::generate_material_mipmaps_system,
     net::network_io_task,
     resources::*,
-    spawning::{ProjectileAssets, player_shadow_settings_system},
+    spawning::{ProjectileAssets, character_shadow_settings_system},
     systems::*,
 };
 use common::{config::GameplayConfig, net::MessageStream, protocol::*};
@@ -143,7 +143,7 @@ fn main() -> Result<()> {
             (
                 characters_movement_system,
                 players_transform_sync_system.after(characters_movement_system),
-                characters_face_to_transform_system
+                characters_visual_turn_system
                     .after(players_transform_sync_system)
                     .after(actors_transform_sync_system),
                 players_billboard_system,
@@ -164,7 +164,7 @@ fn main() -> Result<()> {
             ),
         )
         .add_systems(Update, projectiles_movement_system)
-        .add_systems(Update, player_shadow_settings_system)
+        .add_systems(Update, character_shadow_settings_system)
         .add_systems(Update, items_animation_system)
         .add_systems(
             Update,

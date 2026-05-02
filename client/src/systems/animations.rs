@@ -16,8 +16,8 @@ pub struct AnimationToPlay {
 // Animation System
 // ============================================================================
 
-// System that plays animations when the player scene is loaded
-pub fn players_animation_system(
+// System that plays animations when a character scene is loaded
+pub fn character_animation_system(
     scene_ready: On<SceneInstanceReady>,
     mut commands: Commands,
     children: Query<&Children>,

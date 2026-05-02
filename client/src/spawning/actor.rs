@@ -1,10 +1,10 @@
 use bevy::{gltf::GltfAssetLabel, prelude::*, scene::SceneRoot};
 
-use super::player::spawn_collider_box;
+use super::spawn_collider_box;
 use crate::{
     config::{AssetSet, RenderSettings},
-    markers::PlayerModelMarker,
-    systems::{AnimationToPlay, players_animation_system},
+    markers::CharacterModelMarker,
+    systems::{AnimationToPlay, character_animation_system},
 };
 use common::{
     config::GameplayConfig,
@@ -51,11 +51,11 @@ pub fn spawn_actor(
         children.push(spawn_collider_box(commands, meshes, materials, actor_physics));
     }
 
-    let base_y = actor_physics.visual_y_offset_from_center(actor_model.visual_y_offset);
+    let base_y = actor_physics.model_y_offset_from_entity_center(actor_model.model_y_offset);
     let mut model_commands = commands.spawn((
         SceneRoot(asset_server.load(actor_model.scene.clone())),
         Transform::from_scale(Vec3::splat(actor_model.scale)).with_translation(Vec3::new(0.0, base_y, 0.0)),
-        PlayerModelMarker,
+        CharacterModelMarker,
     ));
 
     if let Some(animation_speed) = actor_model.animation_speed {
@@ -68,7 +68,7 @@ pub fn spawn_actor(
                 index,
                 speed: animation_speed,
             })
-            .observe(players_animation_system);
+            .observe(character_animation_system);
     }
 
     children.push(model_commands.id());

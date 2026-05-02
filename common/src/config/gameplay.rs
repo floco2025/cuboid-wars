@@ -7,7 +7,7 @@ use serde::Deserialize;
 #[derive(Resource, Debug, Clone, Deserialize)]
 pub struct GameplayConfig {
     pub version: u32,
-    pub characters: CharacterGameplayConfig,
+    pub characters: CharactersGameplayConfig,
 }
 
 impl GameplayConfig {
@@ -34,49 +34,19 @@ impl GameplayConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct CharacterGameplayConfig {
-    pub player: PlayerGameplayConfig,
-    pub actor: ActorGameplayConfig,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct PlayerGameplayConfig {
     pub collider: CharacterColliderConfig,
     pub support_probe: CharacterSupportProbeConfig,
     pub eye_height: f32,
     pub speed: f32,
 }
 
-impl PlayerGameplayConfig {
-    #[must_use]
-    pub const fn physics(&self) -> CharacterPhysicsConfig {
-        CharacterPhysicsConfig {
-            collider: self.collider,
-            support_probe: self.support_probe,
-        }
-    }
-
-    #[must_use]
-    pub const fn eye_height(&self) -> f32 {
-        self.eye_height
-    }
-
-    fn validate(&self, path: &str) -> Result<()> {
-        self.collider.validate(&format!("{path}.collider"))?;
-        self.support_probe.validate(&format!("{path}.support_probe"))?;
-        validate_positive_finite(self.eye_height, &format!("{path}.eye_height"))?;
-        validate_positive_finite(self.speed, &format!("{path}.speed"))
-    }
-}
-
 #[derive(Debug, Clone, Deserialize)]
-pub struct ActorGameplayConfig {
-    pub collider: CharacterColliderConfig,
-    pub support_probe: CharacterSupportProbeConfig,
-    pub eye_height: f32,
-    pub speed: f32,
+pub struct CharactersGameplayConfig {
+    pub player: CharacterGameplayConfig,
+    pub actor: CharacterGameplayConfig,
 }
 
-impl ActorGameplayConfig {
+impl CharacterGameplayConfig {
     #[must_use]
     pub const fn physics(&self) -> CharacterPhysicsConfig {
         CharacterPhysicsConfig {
@@ -178,8 +148,8 @@ impl CharacterPhysicsConfig {
     }
 
     #[must_use]
-    pub fn visual_y_offset_from_center(self, visual_y_offset: f32) -> f32 {
-        visual_y_offset - self.collider.height / 2.0
+    pub fn model_y_offset_from_entity_center(self, model_y_offset: f32) -> f32 {
+        model_y_offset - self.collider.height / 2.0
     }
 }
 

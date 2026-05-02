@@ -12,6 +12,7 @@ use crate::{
     resources::{CameraViewMode, ClientToServerChannel, LocalPlayerInfo, MyPlayerId, PlayerMap, TopDownCameraYaw},
 };
 use common::config::GameplayConfig;
+use common::math::angle_delta_radians;
 use common::physics::{CharacterVerticalMotion, CollisionWorld, try_start_player_jump};
 use common::protocol::*;
 
@@ -258,7 +259,9 @@ fn send_throttled_updates(
     let new_dir = move_intent.direction();
     let active_changed = last_dir.is_some() != new_dir.is_some();
     let direction_changed = match (new_dir, last_dir) {
-        (Some(new_d), Some(old_d)) => angle_delta(new_d, old_d).abs() > MOVE_INPUT_DIR_CHANGE_THRESHOLD.to_radians(),
+        (Some(new_d), Some(old_d)) => {
+            angle_delta_radians(new_d, old_d).abs() > MOVE_INPUT_DIR_CHANGE_THRESHOLD.to_radians()
+        }
         _ => false,
     };
     if active_changed || (direction_changed && local_player_info.last_send_input_time >= MOVE_INPUT_SEND_COOLDOWN) {
@@ -269,7 +272,7 @@ fn send_throttled_updates(
     }
 
     let face_changed =
-        angle_delta(face_yaw, local_player_info.last_sent_face).abs() > FACE_CHANGE_THRESHOLD.to_radians();
+        angle_delta_radians(face_yaw, local_player_info.last_sent_face).abs() > FACE_CHANGE_THRESHOLD.to_radians();
     if face_changed && local_player_info.last_send_face_time >= FACE_SEND_COOLDOWN {
         let msg = ClientMessage::Face(CFace { dir: face_yaw });
         let _ = to_server.send(ClientToServer::Send(msg));
@@ -281,8 +284,4 @@ fn send_throttled_updates(
         let msg = ClientMessage::Jump(CJump {});
         let _ = to_server.send(ClientToServer::Send(msg));
     }
-}
-
-fn angle_delta(a: f32, b: f32) -> f32 {
-    (a - b + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI
 }

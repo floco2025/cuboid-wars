@@ -8,9 +8,9 @@ use bevy::prelude::*;
 #[derive(Component)]
 pub struct LocalPlayerMarker;
 
-// Marker component for player model entities (for animation)
+// Marker component for character model entities (for animation/render settings)
 #[derive(Component)]
-pub struct PlayerModelMarker;
+pub struct CharacterModelMarker;
 
 // ============================================================================
 // Camera Markers
