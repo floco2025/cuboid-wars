@@ -86,7 +86,7 @@ fn plan_player_moves(
         let has_phasing = players.0.get(player_id).is_some_and(PlayerInfo::has_phasing);
         let step = step_character_movement(
             pos,
-            motion,
+            motion.0,
             collision_world,
             has_phasing,
             target_xz.x,
@@ -114,7 +114,7 @@ fn plan_actor_moves(
         let velocity = move_intent.to_horizontal_velocity(ACTOR_SPEED);
         let target_x = velocity.x.mul_add(delta, pos.x);
         let target_z = velocity.z.mul_add(delta, pos.z);
-        let step = step_character_movement(pos, motion, collision_world, false, target_x, target_z, delta);
+        let step = step_character_movement(pos, motion.0, collision_world, false, target_x, target_z, delta);
 
         planned_moves.push(PlannedCharacterMove {
             entity,
@@ -137,7 +137,7 @@ fn apply_player_moves(query: &mut PlayerMovementQuery, planned_moves: &[PlannedC
         } else {
             *pos = planned_move.target;
         }
-        motion.vertical_velocity = planned_move.target_vertical_velocity;
+        motion.0 = planned_move.target_vertical_velocity;
     }
 }
 
@@ -154,7 +154,7 @@ fn apply_actor_moves(players: &PlayerMap, query: &mut ActorMovementQuery, planne
         } else {
             *pos = planned_move.target;
         }
-        motion.vertical_velocity = planned_move.target_vertical_velocity;
+        motion.0 = planned_move.target_vertical_velocity;
 
         if planned_move.blocked || overlapping_move.is_some() {
             let direction = if let Some(other) = overlapping_move {
@@ -164,7 +164,7 @@ fn apply_actor_moves(players: &PlayerMap, query: &mut ActorMovementQuery, planne
             };
             *move_intent = CharacterMoveIntent::Moving { direction };
             face_dir.0 = direction;
-            broadcast_actor_move_intent(players, *id, *pos, *move_intent, motion.vertical_velocity);
+            broadcast_actor_move_intent(players, *id, *pos, *move_intent, motion.0);
         }
     }
 }

@@ -51,7 +51,7 @@ pub fn snapshot_logged_in_players(
                 return None;
             }
             let (pos, move_intent, face_dir) = player_data.get(info.entity).ok()?;
-            let vertical_velocity = motions.get(info.entity).map_or(0.0, |m| m.vertical_velocity);
+            let vertical_velocity = motions.get(info.entity).map_or(0.0, |m| m.0);
             Some((
                 *player_id,
                 Player {
@@ -81,7 +81,7 @@ pub fn snapshot_actors(
         .iter()
         .filter_map(|(actor_id, info)| {
             let (pos, move_intent, face_dir) = actor_data.get(info.entity).ok()?;
-            let vertical_velocity = motions.get(info.entity).map_or(0.0, |m| m.vertical_velocity);
+            let vertical_velocity = motions.get(info.entity).map_or(0.0, |m| m.0);
             Some((
                 *actor_id,
                 Actor {

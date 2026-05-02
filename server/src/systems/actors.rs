@@ -99,7 +99,7 @@ pub fn actor_ai_system(
             face_dir.0 = direction;
         }
 
-        broadcast_actor_move_intent(&players, *id, *pos, *move_intent, motion.vertical_velocity);
+        broadcast_actor_move_intent(&players, *id, *pos, *move_intent, motion.0);
     }
 }
 
@@ -134,7 +134,7 @@ pub fn actor_fall_recovery_system(
 
         if let Ok((_, _, mut pos, mut motion, move_intent)) = query.get_mut(entity) {
             *pos = teleport_pos;
-            motion.vertical_velocity = 0.0;
+            motion.0 = 0.0;
             broadcast_to_all(
                 &players,
                 ServerMessage::ActorTeleport(SActorTeleport {

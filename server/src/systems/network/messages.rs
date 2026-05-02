@@ -93,7 +93,7 @@ fn handle_move_intent_message(
             id,
             ServerMessage::PlayerMoveIntent(SPlayerMoveIntent {
                 id,
-                movement: CharacterMovementState::new(*pos, msg.move_intent, motion.vertical_velocity),
+                movement: CharacterMovementState::new(*pos, msg.move_intent, motion.0),
             }),
         );
     }
@@ -119,22 +119,20 @@ fn handle_jump_message(
         return;
     };
 
-    let mut next_motion = CharacterVerticalMotion {
-        vertical_velocity: motion.vertical_velocity,
-    };
-    if !try_start_player_jump(&mut next_motion, collision_world, pos, pos.x, pos.z) {
+    let mut next_vertical_velocity = motion.0;
+    if !try_start_player_jump(&mut next_vertical_velocity, collision_world, pos, pos.x, pos.z) {
         return;
     }
 
-    commands.entity(entity).insert(CharacterVerticalMotion {
-        vertical_velocity: next_motion.vertical_velocity,
-    });
+    commands
+        .entity(entity)
+        .insert(CharacterVerticalMotion(next_vertical_velocity));
     broadcast_to_others(
         players,
         id,
         ServerMessage::Jump(SJump {
             id,
-            movement: CharacterMovementState::new(*pos, *move_intent, next_motion.vertical_velocity),
+            movement: CharacterMovementState::new(*pos, *move_intent, next_vertical_velocity),
         }),
     );
 }

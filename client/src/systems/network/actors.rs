@@ -99,9 +99,7 @@ pub fn handle_actor_teleport_message(commands: &mut Commands, actors: &ResMut<Ac
     commands.entity(client_actor.entity).insert((
         msg.movement.pos,
         msg.movement.move_intent,
-        CharacterVerticalMotion {
-            vertical_velocity: msg.movement.vertical_velocity,
-        },
+        CharacterVerticalMotion(msg.movement.vertical_velocity),
     ));
     commands.entity(client_actor.entity).remove::<ServerReconciliation>();
 }
@@ -122,9 +120,7 @@ fn apply_actor_movement_state(
     let server_velocity = actor_movement_velocity(movement);
     commands.entity(client_actor.entity).insert((
         movement.move_intent,
-        CharacterVerticalMotion {
-            vertical_velocity: movement.vertical_velocity,
-        },
+        CharacterVerticalMotion(movement.vertical_velocity),
     ));
     if let Some(face_dir) = face_dir {
         commands.entity(client_actor.entity).insert(FaceDirection(face_dir));

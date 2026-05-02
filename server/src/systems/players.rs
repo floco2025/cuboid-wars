@@ -80,7 +80,7 @@ pub fn players_fall_recovery_system(
 
         if let Ok((_, _, mut pos, mut motion, move_intent)) = player_query.get_mut(entity) {
             *pos = teleport_pos;
-            motion.vertical_velocity = 0.0;
+            motion.0 = 0.0;
             broadcast_to_all(
                 &players,
                 ServerMessage::PlayerTeleport(SPlayerTeleport {

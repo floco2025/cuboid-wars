@@ -42,9 +42,7 @@ pub fn spawn_actor(
         .insert((
             actor_id,
             ActorMarker,
-            CharacterVerticalMotion {
-                vertical_velocity: actor.movement.vertical_velocity,
-            },
+            CharacterVerticalMotion(actor.movement.vertical_velocity),
         ));
 
     entity

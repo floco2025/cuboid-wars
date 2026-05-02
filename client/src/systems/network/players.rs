@@ -71,9 +71,7 @@ pub fn handle_player_jump_message(
         let server_velocity = player_movement_velocity(msg.movement, player.speed_power_up);
         commands.entity(player.entity).insert((
             msg.movement.move_intent,
-            CharacterVerticalMotion {
-                vertical_velocity: msg.movement.vertical_velocity,
-            },
+            CharacterVerticalMotion(msg.movement.vertical_velocity),
             ServerReconciliation {
                 client_pos: *client_pos,
                 server_pos: msg.movement.pos,
@@ -174,9 +172,7 @@ pub fn handle_player_teleport_message(
         commands.entity(player.entity).insert((
             msg.movement.pos,
             msg.movement.move_intent,
-            CharacterVerticalMotion {
-                vertical_velocity: msg.movement.vertical_velocity,
-            },
+            CharacterVerticalMotion(msg.movement.vertical_velocity),
         ));
         commands.entity(player.entity).remove::<ServerReconciliation>();
     }

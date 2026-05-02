@@ -65,9 +65,9 @@ pub fn handle_player_login_message(
         msg.player.face_dir,
         false,
     );
-    commands.entity(entity).insert(CharacterVerticalMotion {
-        vertical_velocity: msg.player.movement.vertical_velocity,
-    });
+    commands
+        .entity(entity)
+        .insert(CharacterVerticalMotion(msg.player.movement.vertical_velocity));
     players.0.insert(
         msg.id,
         PlayerInfo {

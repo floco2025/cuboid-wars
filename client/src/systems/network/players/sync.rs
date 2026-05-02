@@ -102,9 +102,9 @@ fn spawn_snapshot_player(
         player.face_dir,
         is_local,
     );
-    commands.entity(entity).insert(CharacterVerticalMotion {
-        vertical_velocity: player.movement.vertical_velocity,
-    });
+    commands
+        .entity(entity)
+        .insert(CharacterVerticalMotion(player.movement.vertical_velocity));
 
     if is_local && let Ok(camera_entity) = camera_query.single() {
         let camera_rotation = player.face_dir + std::f32::consts::PI;
@@ -154,9 +154,9 @@ fn update_snapshot_player(
                 rtt: rtt.rtt.as_secs_f32(),
             });
             if id != my_player_id {
-                commands.entity(client_player.entity).insert(CharacterVerticalMotion {
-                    vertical_velocity: server_player.movement.vertical_velocity,
-                });
+                commands
+                    .entity(client_player.entity)
+                    .insert(CharacterVerticalMotion(server_player.movement.vertical_velocity));
             }
         }
 

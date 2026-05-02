@@ -25,23 +25,9 @@ const PLAYER_AUTOSTEP_EPSILON: f32 = 0.01;
 
 // Component attached to character entities tracking persistent gravity-axis
 // motion. X/Z movement is derived from intent each tick. Running on a ramp can
-// add Y displacement for that frame, but it is not stored as velocity.
+// add vertical displacement for that frame, but it is not stored as velocity.
 #[derive(Component, Default)]
-pub struct CharacterVerticalMotion {
-    pub vertical_velocity: f32,
-}
-
-impl CharacterVerticalMotion {
-    pub fn apply_gravity(&mut self, delta: f32) {
-        self.vertical_velocity -= PLAYER_GRAVITY * delta;
-    }
-
-    pub fn apply_terminal_velocity(&mut self) {
-        if self.vertical_velocity < -PLAYER_TERMINAL_VELOCITY {
-            self.vertical_velocity = -PLAYER_TERMINAL_VELOCITY;
-        }
-    }
-}
+pub struct CharacterVerticalMotion(pub f32);
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CharacterMovementResult {
@@ -102,70 +88,72 @@ fn position_distance_sq(a: &Position, b: &Position) -> f32 {
 
 #[must_use]
 pub fn try_start_player_jump(
-    motion: &mut CharacterVerticalMotion,
+    vertical_velocity: &mut f32,
     collision_world: &CollisionWorld,
     pos: &Position,
     x: f32,
     z: f32,
 ) -> bool {
     let ground_probe_pos = Position { x, y: pos.y, z };
-    if motion.vertical_velocity > 0.0 || !is_player_grounded(collision_world, &ground_probe_pos) {
+    if *vertical_velocity > 0.0 || !is_player_grounded(collision_world, &ground_probe_pos) {
         return false;
     }
 
-    motion.vertical_velocity = PLAYER_JUMP_SPEED;
+    *vertical_velocity = PLAYER_JUMP_SPEED;
     true
 }
 
-// Steps one character from `pos` toward the requested horizontal target `x`/`z`.
+// Steps one character from `start_pos` toward the requested horizontal target
+// `target_x`/`target_z`.
 //
-// `pos` is the character position at the start of the frame. The caller supplies
-// only the desired horizontal target because X/Z movement comes from intent. Y
-// movement is calculated here from `CharacterVerticalMotion`, gravity, support
-// following, and floor/ceiling collision. Static-world collision may block,
-// slide, step, or otherwise adjust the requested movement before the final
-// position is returned.
+// `start_pos` is the character position at the start of the frame. The caller
+// supplies only the desired horizontal target because X/Z movement comes from
+// intent. Vertical movement is calculated here from `start_vertical_velocity`,
+// gravity, support following, and floor/ceiling collision. Static-world
+// collision may block, slide, step, or otherwise adjust the requested movement
+// before the final position is returned.
 #[must_use]
 pub fn step_character_movement(
-    pos: &Position,
-    motion: &CharacterVerticalMotion,
+    start_pos: &Position,
+    start_vertical_velocity: f32,
     collision_world: &CollisionWorld,
     has_phasing: bool,
-    x: f32,
-    z: f32,
+    target_x: f32,
+    target_z: f32,
     delta: f32,
 ) -> CharacterMovementResult {
     let character_shape = player_shape();
-    let character_pos = player_pose(pos);
+    let character_pos = player_pose(start_pos);
     let support_shape = player_support_probe_shape();
-    let current_ground = if motion.vertical_velocity <= 0.0 {
-        player_ground_hit(collision_world, &support_shape, pos, has_phasing)
+    let current_ground = if start_vertical_velocity <= 0.0 {
+        player_ground_hit(collision_world, &support_shape, start_pos, has_phasing)
     } else {
         None
     };
-    let mut next_motion = CharacterVerticalMotion {
-        vertical_velocity: motion.vertical_velocity,
-    };
-    let can_follow_ground = next_motion.vertical_velocity <= 0.0;
+    let mut next_vertical_velocity = start_vertical_velocity;
+    let can_follow_ground = next_vertical_velocity <= 0.0;
     if current_ground.is_some() && can_follow_ground {
-        next_motion.vertical_velocity = 0.0;
+        next_vertical_velocity = 0.0;
     } else {
-        next_motion.apply_gravity(delta);
-        next_motion.apply_terminal_velocity();
+        // Apply gravity for this frame, but cap falling speed so large falls
+        // remain stable and predictable.
+        next_vertical_velocity -= PLAYER_GRAVITY * delta;
+        next_vertical_velocity = next_vertical_velocity.max(-PLAYER_TERMINAL_VELOCITY);
     }
     let controller = player_controller();
 
-    let target = Position {
-        x,
-        y: next_motion.vertical_velocity.mul_add(delta, pos.y),
-        z,
+    let requested_target = Position {
+        x: target_x,
+        y: next_vertical_velocity.mul_add(delta, start_pos.y),
+        z: target_z,
     };
-    let input_move = Vector::new(target.x - pos.x, 0.0, target.z - pos.z);
-    let gravity_axis_move = Vector::new(0.0, target.y - pos.y, 0.0);
-    let supported_input_move = current_ground.map_or(input_move, |ground| {
-        project_input_move_onto_support(input_move, ground.normal)
+    let requested_horizontal_move =
+        Vector::new(requested_target.x - start_pos.x, 0.0, requested_target.z - start_pos.z);
+    let requested_vertical_move = Vector::new(0.0, requested_target.y - start_pos.y, 0.0);
+    let supported_horizontal_move = current_ground.map_or(requested_horizontal_move, |ground| {
+        project_input_move_onto_support(requested_horizontal_move, ground.normal)
     });
-    let requested_move = supported_input_move + gravity_axis_move;
+    let requested_move = supported_horizontal_move + requested_vertical_move;
     let mut saw_side_contact = false;
     let mut hit_ceiling = false;
     let movement = collision_world.move_character(
@@ -178,7 +166,7 @@ pub fn step_character_movement(
         |collision| {
             let normal = vec3(collision.hit.normal1);
             let is_side_contact = normal.y.abs() <= 0.5;
-            let is_ceiling = normal.y < -0.5 && gravity_axis_move.y > 0.0;
+            let is_ceiling = normal.y < -0.5 && requested_vertical_move.y > 0.0;
             if is_side_contact {
                 saw_side_contact = true;
             }
@@ -188,9 +176,9 @@ pub fn step_character_movement(
         },
     );
     let mut resolved = Position {
-        x: pos.x + movement.translation.x,
-        y: pos.y + movement.translation.y,
-        z: pos.z + movement.translation.z,
+        x: start_pos.x + movement.translation.x,
+        y: start_pos.y + movement.translation.y,
+        z: start_pos.z + movement.translation.z,
     };
     let resolved_ground = if can_follow_ground {
         player_ground_hit(collision_world, &support_shape, &resolved, has_phasing)
@@ -200,17 +188,18 @@ pub fn step_character_movement(
     if let Some(ground) = resolved_ground {
         resolved.y -= ground.t - PLAYER_LOW_OBSTACLE_CLEARANCE;
     }
-    let mut vertical_velocity = next_motion.vertical_velocity;
+    let mut vertical_velocity = next_vertical_velocity;
     // Rapier reports a side contact while auto-stepping over slab/trim edges.
     // That is normal movement, not a wall hit, so don't expose it as blocked.
     let stepped_up = movement.grounded && movement.translation.y > requested_move.y + PLAYER_AUTOSTEP_EPSILON;
-    let blocked =
-        saw_side_contact && !stepped_up && movement_progress_was_blocked(supported_input_move, movement.translation);
+    let blocked = saw_side_contact
+        && !stepped_up
+        && movement_progress_was_blocked(supported_horizontal_move, movement.translation);
 
     let grounded = resolved_ground.is_some();
     if grounded && vertical_velocity < 0.0
         || hit_ceiling && vertical_velocity > 0.0
-        || gravity_axis_move.y > 0.0 && movement.translation.y < requested_move.y - PHYSICS_EPSILON
+        || requested_vertical_move.y > 0.0 && movement.translation.y < requested_move.y - PHYSICS_EPSILON
     {
         vertical_velocity = 0.0;
     }

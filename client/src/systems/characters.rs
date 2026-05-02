@@ -202,15 +202,15 @@ fn plan_player_moves(
             let server_pos = Vec3::from(recon.server_pos) + recon.server_velocity * recon.rtt / 2.0;
             let total_delta = server_pos - Vec3::from(recon.client_pos);
 
-            // X/Z reconciliation below nudges the input-derived target position. Y is
-            // different: `step_character_movement` owns vertical integration from
-            // `CharacterVerticalMotion`, gravity, and ground/ceiling collision. If the
-            // local player's Y has drifted beyond normal ground snap tolerance, correct
-            // the vertical integrator by trusting the server velocity instead of applying
-            // a separate smooth Y position offset outside physics.
+            // X/Z reconciliation below nudges the input-derived target position.
+            // Vertical movement is calculated inside `step_character_movement` from
+            // vertical velocity, gravity, and ground/ceiling collision. If the local
+            // player has drifted vertically beyond normal ground snap tolerance, trust
+            // the server velocity instead of applying a separate smooth vertical
+            // position offset outside physics.
             const VERTICAL_VELOCITY_RECONCILE_DISTANCE: f32 = PLAYER_GROUND_SNAP_DISTANCE;
             if is_local && total_delta.y.abs() >= VERTICAL_VELOCITY_RECONCILE_DISTANCE {
-                motion.vertical_velocity = recon.server_velocity.y;
+                motion.0 = recon.server_velocity.y;
             }
 
             // If the player got totally out of sync, we jump to the server position
@@ -228,13 +228,13 @@ fn plan_player_moves(
                     total_delta.x, total_delta.y, total_delta.z
                 );
                 *client_pos = recon.server_pos;
-                motion.vertical_velocity = recon.server_velocity.y;
+                motion.0 = recon.server_velocity.y;
                 commands.entity(entity).remove::<ServerReconciliation>();
                 planned_moves.push(PlannedCharacterMove {
                     entity,
                     start: *client_pos,
                     target: *client_pos,
-                    target_vertical_velocity: motion.vertical_velocity,
+                    target_vertical_velocity: motion.0,
                     blocked: false,
                 });
                 continue;
@@ -248,7 +248,7 @@ fn plan_player_moves(
 
             Position {
                 x: new_x,
-                y: client_pos.y, // Keep current Y for collision detection
+                y: client_pos.y, // Keep current vertical position for collision detection
                 z: new_z,
             }
         } else {
@@ -256,7 +256,7 @@ fn plan_player_moves(
             let new_z = h_vel.z.mul_add(delta, client_pos.z);
             Position {
                 x: new_x,
-                y: client_pos.y, // Keep current Y for collision detection
+                y: client_pos.y, // Keep current vertical position for collision detection
                 z: new_z,
             }
         };
@@ -266,7 +266,7 @@ fn plan_player_moves(
 
             let step = step_character_movement(
                 &client_pos,
-                &motion,
+                motion.0,
                 collision_world,
                 has_phasing,
                 target_pos.x,
@@ -286,7 +286,7 @@ fn plan_player_moves(
                 entity,
                 start: *client_pos,
                 target: target_pos,
-                target_vertical_velocity: motion.vertical_velocity,
+                target_vertical_velocity: motion.0,
                 blocked: false,
             });
         }
@@ -320,13 +320,13 @@ fn plan_actor_moves(
                     actor_id, total_delta.x, total_delta.y, total_delta.z
                 );
                 *pos = recon.server_pos;
-                motion.vertical_velocity = recon.server_velocity.y;
+                motion.0 = recon.server_velocity.y;
                 commands.entity(entity).remove::<ServerReconciliation>();
                 planned_moves.push(PlannedCharacterMove {
                     entity,
                     start: *pos,
                     target: *pos,
-                    target_vertical_velocity: motion.vertical_velocity,
+                    target_vertical_velocity: motion.0,
                     blocked: false,
                 });
                 continue;
@@ -348,8 +348,15 @@ fn plan_actor_moves(
         };
 
         if let Some(collision_world) = collision_world {
-            let step =
-                step_character_movement(&pos, &motion, collision_world, false, target_pos.x, target_pos.z, delta);
+            let step = step_character_movement(
+                &pos,
+                motion.0,
+                collision_world,
+                false,
+                target_pos.x,
+                target_pos.z,
+                delta,
+            );
             target_pos = step.position;
             planned_moves.push(PlannedCharacterMove {
                 entity,
@@ -363,7 +370,7 @@ fn plan_actor_moves(
                 entity,
                 start: *pos,
                 target: target_pos,
-                target_vertical_velocity: motion.vertical_velocity,
+                target_vertical_velocity: motion.0,
                 blocked: false,
             });
         }
@@ -391,14 +398,14 @@ fn apply_player_moves(
         // Apply final position and feedback
         if hits_character {
             client_pos.y = planned_move.target.y;
-            motion.vertical_velocity = planned_move.target_vertical_velocity;
+            motion.0 = planned_move.target_vertical_velocity;
 
             if is_local && let Some(state) = flash_state.as_mut() {
                 trigger_collision_feedback(commands, asset_server, asset_set, bump_flash_ui, state, false);
             }
         } else {
             *client_pos = planned_move.target;
-            motion.vertical_velocity = planned_move.target_vertical_velocity;
+            motion.0 = planned_move.target_vertical_velocity;
 
             if let Some(state) = flash_state.as_mut() {
                 if planned_move.blocked {
@@ -424,6 +431,6 @@ fn apply_actor_moves(query: &mut ActorMovementQuery, planned_moves: &[PlannedCha
         } else {
             *pos = planned_move.target;
         }
-        motion.vertical_velocity = planned_move.target_vertical_velocity;
+        motion.0 = planned_move.target_vertical_velocity;
     }
 }

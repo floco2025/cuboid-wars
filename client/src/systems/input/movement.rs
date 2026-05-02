@@ -235,7 +235,7 @@ fn update_player_input_face_and_jump(
         *input = move_intent;
         face_direction.0 = face_yaw;
         if jump_requested && let Some(collision_world) = collision_world {
-            let _ = try_start_player_jump(&mut motion, collision_world, pos, pos.x, pos.z);
+            let _ = try_start_player_jump(&mut motion.0, collision_world, pos, pos.x, pos.z);
         }
     }
 }
