@@ -127,111 +127,7 @@ fn select_actor_move(
     rng: &mut ThreadRng,
 ) -> (CharacterMoveIntent, common::physics::CharacterMovementResult) {
     let Some(direction) = desired_intent.direction() else {
-        let selected_intent = CharacterMoveIntent::Idle;
-        let step = step_actor_move(
-            pos,
-            vertical_velocity,
-            selected_intent,
-            actor_speed,
-            actor_physics,
-            delta,
-            collision_world,
-        );
         info.wall_avoidance_direction = None;
-        return (selected_intent, step);
-    };
-
-    if let Some(avoidance_direction) = info.wall_avoidance_direction {
-        if direct_path_is_clear_enough(
-            pos,
-            vertical_velocity,
-            direction,
-            go_to_position,
-            actor_speed,
-            actor_physics,
-            collision_world,
-        ) {
-            info.wall_avoidance_direction = None;
-        } else {
-            let avoidance_intent = CharacterMoveIntent::Moving {
-                direction: avoidance_direction,
-            };
-            match try_actor_candidate_move(
-                entity,
-                pos,
-                vertical_velocity,
-                avoidance_intent,
-                actor_speed,
-                actor_physics,
-                delta,
-                collision_world,
-                planned_moves,
-                actor_starts,
-            ) {
-                CandidateMove::Accepted { intent, step } => return (intent, step),
-                CandidateMove::BlockedByCharacter => {
-                    return idle_actor_move(
-                        pos,
-                        vertical_velocity,
-                        actor_speed,
-                        actor_physics,
-                        delta,
-                        collision_world,
-                    );
-                }
-                CandidateMove::BlockedByWorld { .. } => {
-                    if let Some((intent, step)) = try_opposite_wall_avoidance_direction(
-                        entity,
-                        pos,
-                        vertical_velocity,
-                        avoidance_direction,
-                        actor_speed,
-                        actor_physics,
-                        delta,
-                        collision_world,
-                        planned_moves,
-                        actor_starts,
-                    ) {
-                        info.wall_avoidance_direction = intent.direction();
-                        return (intent, step);
-                    }
-                }
-            }
-        }
-    }
-
-    let mut was_blocked_by_character = false;
-    let avoidance_side = random_avoidance_side(rng);
-    for (index, candidate_direction) in steering_directions(direction, avoidance_side).into_iter().enumerate() {
-        let candidate_intent = CharacterMoveIntent::Moving {
-            direction: candidate_direction,
-        };
-        match try_actor_candidate_move(
-            entity,
-            pos,
-            vertical_velocity,
-            candidate_intent,
-            actor_speed,
-            actor_physics,
-            delta,
-            collision_world,
-            planned_moves,
-            actor_starts,
-        ) {
-            CandidateMove::Accepted { intent, step } => {
-                if index != 0 {
-                    info.wall_avoidance_direction = Some(candidate_direction);
-                }
-                return (intent, step);
-            }
-            CandidateMove::BlockedByCharacter => {
-                was_blocked_by_character = true;
-            }
-            CandidateMove::BlockedByWorld { .. } => {}
-        }
-    }
-
-    if was_blocked_by_character {
         return idle_actor_move(
             pos,
             vertical_velocity,
@@ -240,6 +136,57 @@ fn select_actor_move(
             delta,
             collision_world,
         );
+    };
+
+    if let Some((intent, step)) = continue_wall_avoidance_if_needed(
+        entity,
+        pos,
+        vertical_velocity,
+        direction,
+        go_to_position,
+        info,
+        actor_speed,
+        actor_physics,
+        delta,
+        collision_world,
+        planned_moves,
+        actor_starts,
+    ) {
+        return (intent, step);
+    }
+
+    match try_normal_steering_candidates(
+        entity,
+        pos,
+        vertical_velocity,
+        direction,
+        actor_speed,
+        actor_physics,
+        delta,
+        collision_world,
+        planned_moves,
+        actor_starts,
+        rng,
+    ) {
+        CandidateSearch::Accepted {
+            intent,
+            step,
+            wall_avoidance_direction,
+        } => {
+            info.wall_avoidance_direction = wall_avoidance_direction;
+            return (intent, step);
+        }
+        CandidateSearch::BlockedByCharacter => {
+            return idle_actor_move(
+                pos,
+                vertical_velocity,
+                actor_speed,
+                actor_physics,
+                delta,
+                collision_world,
+            );
+        }
+        CandidateSearch::BlockedByWorld => {}
     }
 
     if let Some((intent, step)) = try_new_wall_avoidance_direction(
@@ -267,6 +214,149 @@ fn select_actor_move(
         delta,
         collision_world,
     )
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Candidate testing needs the same movement context as normal actor planning"
+)]
+fn continue_wall_avoidance_if_needed(
+    entity: Entity,
+    pos: &Position,
+    vertical_velocity: f32,
+    direction: f32,
+    go_to_position: Option<Position>,
+    info: &mut ActorInfo,
+    actor_speed: f32,
+    actor_physics: CharacterPhysicsConfig,
+    delta: f32,
+    collision_world: &CollisionWorld,
+    planned_moves: &[CharacterMovePlan],
+    actor_starts: &[(Entity, Position)],
+) -> Option<(CharacterMoveIntent, common::physics::CharacterMovementResult)> {
+    let avoidance_direction = info.wall_avoidance_direction?;
+    if direct_path_is_clear_enough(
+        pos,
+        vertical_velocity,
+        direction,
+        go_to_position,
+        actor_speed,
+        actor_physics,
+        collision_world,
+    ) {
+        info.wall_avoidance_direction = None;
+        return None;
+    }
+
+    let avoidance_intent = CharacterMoveIntent::Moving {
+        direction: avoidance_direction,
+    };
+    match try_actor_candidate_move(
+        entity,
+        pos,
+        vertical_velocity,
+        avoidance_intent,
+        actor_speed,
+        actor_physics,
+        delta,
+        collision_world,
+        planned_moves,
+        actor_starts,
+    ) {
+        CandidateMove::Accepted { intent, step } => Some((intent, step)),
+        CandidateMove::BlockedByCharacter => Some(idle_actor_move(
+            pos,
+            vertical_velocity,
+            actor_speed,
+            actor_physics,
+            delta,
+            collision_world,
+        )),
+        CandidateMove::BlockedByWorld { .. } => {
+            let next_move = try_opposite_wall_avoidance_direction(
+                entity,
+                pos,
+                vertical_velocity,
+                avoidance_direction,
+                actor_speed,
+                actor_physics,
+                delta,
+                collision_world,
+                planned_moves,
+                actor_starts,
+            );
+            if let Some((intent, _)) = &next_move {
+                info.wall_avoidance_direction = intent.direction();
+            }
+            next_move
+        }
+    }
+}
+
+enum CandidateSearch {
+    Accepted {
+        intent: CharacterMoveIntent,
+        step: common::physics::CharacterMovementResult,
+        wall_avoidance_direction: Option<f32>,
+    },
+    BlockedByCharacter,
+    BlockedByWorld,
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Candidate testing needs the same movement context as normal actor planning"
+)]
+fn try_normal_steering_candidates(
+    entity: Entity,
+    pos: &Position,
+    vertical_velocity: f32,
+    direction: f32,
+    actor_speed: f32,
+    actor_physics: CharacterPhysicsConfig,
+    delta: f32,
+    collision_world: &CollisionWorld,
+    planned_moves: &[CharacterMovePlan],
+    actor_starts: &[(Entity, Position)],
+    rng: &mut ThreadRng,
+) -> CandidateSearch {
+    let mut was_blocked_by_character = false;
+    let avoidance_side = random_avoidance_side(rng);
+    for (index, candidate_direction) in steering_directions(direction, avoidance_side).into_iter().enumerate() {
+        let candidate_intent = CharacterMoveIntent::Moving {
+            direction: candidate_direction,
+        };
+        match try_actor_candidate_move(
+            entity,
+            pos,
+            vertical_velocity,
+            candidate_intent,
+            actor_speed,
+            actor_physics,
+            delta,
+            collision_world,
+            planned_moves,
+            actor_starts,
+        ) {
+            CandidateMove::Accepted { intent, step } => {
+                return CandidateSearch::Accepted {
+                    intent,
+                    step,
+                    wall_avoidance_direction: (index != 0).then_some(candidate_direction),
+                };
+            }
+            CandidateMove::BlockedByCharacter => {
+                was_blocked_by_character = true;
+            }
+            CandidateMove::BlockedByWorld { .. } => {}
+        }
+    }
+
+    if was_blocked_by_character {
+        CandidateSearch::BlockedByCharacter
+    } else {
+        CandidateSearch::BlockedByWorld
+    }
 }
 
 enum CandidateMove {
