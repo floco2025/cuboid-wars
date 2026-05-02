@@ -21,20 +21,6 @@ use common::{
 
 const BUMP_FLASH_DURATION: f32 = 0.08;
 const BUMP_COLLISION_RELEASE_DELAY: f32 = 0.25;
-const VERTICAL_HARD_SNAP_DISTANCE: f32 = 2.0;
-
-fn reconcile_vertical_motion_if_needed(
-    motion: &mut CharacterVerticalMotion,
-    recon: &ServerReconciliation,
-    total_delta: Vec3,
-    is_local: bool,
-) {
-    if !is_local || total_delta.y.abs() < PLAYER_GROUND_SNAP_DISTANCE {
-        return;
-    }
-
-    motion.vertical_velocity = recon.server_velocity.y;
-}
 
 fn decay_flash_timer(
     state: &mut Mut<BumpFlashState>,
@@ -198,11 +184,14 @@ fn plan_player_moves(
 
         // Calculate intended position from velocity (with server reconciliation if needed)
         let mut target_pos = if let Some(recon) = recon_option.as_mut() {
-            const IDLE_CORRECTION_TIME: f32 = 10.0; // Standing still: slow, smooth correction
+            // Slow idle correction reduces visible sliding when standing
+            // players receive snapshot corrections. Moving characters hide
+            // correction better.
+            const IDLE_RECONCILIATION_TIME: f32 = 10.0;
             let run_correction_time: f32 = recon.rtt * 5.0; // Benchmark: RTT = 100ms equals 0.5s correction time
 
             let speed_ratio = (h_vel.x.hypot(h_vel.z) / PLAYER_SPEED).clamp(0.0, 1.0); // Ignore speed power-ups
-            let correction_time_interval = IDLE_CORRECTION_TIME.lerp(run_correction_time, speed_ratio);
+            let correction_time_interval = IDLE_RECONCILIATION_TIME.lerp(run_correction_time, speed_ratio);
             let correction_factor = (UPDATE_BROADCAST_INTERVAL / correction_time_interval).clamp(0.0, 1.0);
 
             recon.timer += delta * correction_factor;
@@ -212,12 +201,22 @@ fn plan_player_moves(
 
             let server_pos = Vec3::from(recon.server_pos) + recon.server_velocity * recon.rtt / 2.0;
             let total_delta = server_pos - Vec3::from(recon.client_pos);
-            reconcile_vertical_motion_if_needed(&mut motion, recon, total_delta, is_local);
+
+            // X/Z reconciliation below nudges the input-derived target position. Y is
+            // different: `step_character_movement` owns vertical integration from
+            // `CharacterVerticalMotion`, gravity, and ground/ceiling collision. If the
+            // local player's Y has drifted beyond normal ground snap tolerance, correct
+            // the vertical integrator by trusting the server velocity instead of applying
+            // a separate smooth Y position offset outside physics.
+            const VERTICAL_VELOCITY_RECONCILE_DISTANCE: f32 = PLAYER_GROUND_SNAP_DISTANCE;
+            if is_local && total_delta.y.abs() >= VERTICAL_VELOCITY_RECONCILE_DISTANCE {
+                motion.vertical_velocity = recon.server_velocity.y;
+            }
 
             // If the player got totally out of sync, we jump to the server position
-            let out_of_sync_distance = if is_standing_still { 3.0 } else { 5.0 };
+            let out_of_sync_distance = if is_standing_still { 1.0 } else { 5.0 };
             if total_delta.x.abs() >= out_of_sync_distance
-                || total_delta.y.abs() >= VERTICAL_HARD_SNAP_DISTANCE
+                || total_delta.y.abs() >= out_of_sync_distance
                 || total_delta.z.abs() >= out_of_sync_distance
             {
                 let player_name = players
@@ -304,7 +303,7 @@ fn plan_actor_moves(
     for (entity, actor_id, mut pos, move_intent, mut motion, mut recon_option) in query {
         let h_vel = move_intent.to_horizontal_velocity(ACTOR_SPEED);
         let mut target_pos = if let Some(recon) = recon_option.as_mut() {
-            let correction_time = (recon.rtt * 3.0).max(UPDATE_BROADCAST_INTERVAL);
+            let correction_time = recon.rtt * 5.0;
             let correction_factor = (UPDATE_BROADCAST_INTERVAL / correction_time).clamp(0.0, 1.0);
 
             recon.timer += delta * correction_factor;
@@ -315,10 +314,7 @@ fn plan_actor_moves(
             let server_pos = Vec3::from(recon.server_pos) + recon.server_velocity * recon.rtt / 2.0;
             let total_delta = server_pos - Vec3::from(recon.client_pos);
 
-            if total_delta.x.abs() >= 5.0
-                || total_delta.y.abs() >= VERTICAL_HARD_SNAP_DISTANCE
-                || total_delta.z.abs() >= 5.0
-            {
+            if total_delta.x.abs() >= 3.0 || total_delta.y.abs() >= 3.0 || total_delta.z.abs() >= 3.0 {
                 warn!(
                     "{:?} out of sync by x={:.2}, y={:.2}, z={:.2}; jumping to server position",
                     actor_id, total_delta.x, total_delta.y, total_delta.z
