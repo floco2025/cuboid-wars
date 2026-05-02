@@ -274,6 +274,7 @@
     "player_bumps_wall": "sounds/impactGlass_heavy_001.ogg",
     "player_bumps_player": "sounds/impactTin_medium_004.ogg",
     "projectile_hits_wall": "sounds/impactGlass_light_000.ogg",
-    "projectile_hits_player": "sounds/impactGeneric_light_001.ogg"
+    "projectile_hits_player": "sounds/impactGeneric_light_001.ogg",
+    "projectile_hits_actor": "sounds/impactMetal_medium_003.ogg"
   }
 }

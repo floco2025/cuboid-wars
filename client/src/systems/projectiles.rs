@@ -78,7 +78,7 @@ fn handle_character_collisions(
             play_sound(
                 commands,
                 asset_server,
-                asset_set.sound("projectile_hits_player"),
+                asset_set.sound("projectile_hits_actor"),
                 PlaybackSettings::DESPAWN,
             );
 
