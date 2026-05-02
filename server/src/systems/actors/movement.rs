@@ -405,6 +405,10 @@ fn horizontal_distance_sq(a: &Position, b: &Position) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use common::{
+        constants::{FLOOR_THICKNESS, WALL_THICKNESS},
+        protocol::{ActorKind, Floor, MapLayout, Wall},
+    };
 
     fn assert_near(actual: f32, expected: f32) {
         assert!(
@@ -418,6 +422,102 @@ mod tests {
             entity: Entity::from_bits(entity_bits),
             target_distance_sq,
             id: ActorId(id),
+        }
+    }
+
+    fn actor_info() -> ActorInfo {
+        ActorInfo {
+            entity: test_entity(1),
+            kind: ActorKind::Automaton,
+            direction_timer: 0.0,
+            patrol_intent: CharacterMoveIntent::Idle,
+            go_to_position: None,
+            wall_avoidance_direction: None,
+            last_broadcast_move_intent: CharacterMoveIntent::Idle,
+            move_intent_send_timer: 0.0,
+        }
+    }
+
+    fn actor_physics() -> CharacterPhysicsConfig {
+        GameplayConfig::load_default()
+            .expect("default gameplay config should load")
+            .characters
+            .actor
+            .physics()
+    }
+
+    fn actor_speed() -> f32 {
+        GameplayConfig::load_default()
+            .expect("default gameplay config should load")
+            .characters
+            .actor
+            .speed
+    }
+
+    fn test_entity(index: u64) -> Entity {
+        Entity::from_bits(index)
+    }
+
+    fn floor() -> Floor {
+        Floor {
+            x1: -4.0,
+            z1: -4.0,
+            x2: 4.0,
+            z2: 4.0,
+            y: 0.0,
+            thickness: FLOOR_THICKNESS,
+            level: 0,
+        }
+    }
+
+    fn wall() -> Wall {
+        Wall {
+            x1: 0.0,
+            z1: -2.0,
+            x2: 0.0,
+            z2: 2.0,
+            width: WALL_THICKNESS,
+            level: 0,
+        }
+    }
+
+    fn collision_world(walls: &[Wall]) -> CollisionWorld {
+        CollisionWorld::from_map_layout(&MapLayout {
+            walls: walls.to_vec(),
+            ramps: vec![],
+            floors: vec![floor()],
+            wall_lights: vec![],
+        })
+    }
+
+    fn context<'a>(
+        entity: Entity,
+        pos: &'a Position,
+        collision_world: &'a CollisionWorld,
+        planned_moves: &'a [CharacterMovePlan],
+        actor_starts: &'a [(Entity, Position)],
+    ) -> ActorMoveContext<'a> {
+        ActorMoveContext {
+            entity,
+            pos,
+            vertical_velocity: 0.0,
+            actor_speed: actor_speed(),
+            actor_physics: actor_physics(),
+            delta: 0.1,
+            collision_world,
+            planned_moves,
+            actor_starts,
+        }
+    }
+
+    fn planned_move(entity: Entity, start: Position, target: Position) -> CharacterMovePlan {
+        CharacterMovePlan {
+            entity,
+            start,
+            target,
+            target_vertical_velocity: 0.0,
+            physics: actor_physics(),
+            blocked: false,
         }
     }
 
@@ -500,5 +600,171 @@ mod tests {
 
         assert!(!blocked_step_made_useful_progress(&start, &too_short, 5.0, 0.1));
         assert!(blocked_step_made_useful_progress(&start, &useful, 5.0, 0.1));
+    }
+
+    #[test]
+    fn candidate_blocked_by_static_world_is_not_character_blocked() {
+        let pos = Position {
+            x: -1.0,
+            y: 0.0,
+            z: 0.0,
+        };
+        let collision_world = collision_world(&[wall()]);
+        let planned_moves = [];
+        let actor_starts = [];
+        let context = context(test_entity(1), &pos, &collision_world, &planned_moves, &actor_starts);
+        let intent = CharacterMoveIntent::Moving {
+            direction: std::f32::consts::FRAC_PI_2,
+        };
+
+        match context.evaluate_candidate(intent) {
+            MoveCandidateResult::BlockedByWorld { selected } => {
+                assert!(selected.step.blocked);
+                assert_eq!(selected.intent, intent);
+            }
+            MoveCandidateResult::Accepted { .. } | MoveCandidateResult::BlockedByCharacter => {
+                panic!("expected static-world block")
+            }
+        }
+    }
+
+    #[test]
+    fn candidate_blocked_by_other_character_yields_before_wall_avoidance() {
+        let pos = Position::default();
+        let collision_world = collision_world(&[]);
+        let planned_moves = [];
+        let actor_starts = [(test_entity(2), Position { x: 0.6, y: 0.0, z: 0.0 })];
+        let context = context(test_entity(1), &pos, &collision_world, &planned_moves, &actor_starts);
+        let intent = CharacterMoveIntent::Moving {
+            direction: std::f32::consts::FRAC_PI_2,
+        };
+
+        match context.evaluate_candidate(intent) {
+            MoveCandidateResult::BlockedByCharacter => {}
+            MoveCandidateResult::Accepted { .. } | MoveCandidateResult::BlockedByWorld { .. } => {
+                panic!("expected character block")
+            }
+        }
+    }
+
+    #[test]
+    fn character_blocked_steering_selects_idle_when_all_steering_options_are_blocked() {
+        let pos = Position::default();
+        let collision_world = collision_world(&[]);
+        let planned_moves = [];
+        let base_direction = std::f32::consts::FRAC_PI_2;
+        let blocked_positions = [
+            base_direction,
+            base_direction + 20.0_f32.to_radians(),
+            base_direction + 45.0_f32.to_radians(),
+            base_direction + 90.0_f32.to_radians(),
+            base_direction - 20.0_f32.to_radians(),
+            base_direction - 45.0_f32.to_radians(),
+            base_direction - 90.0_f32.to_radians(),
+        ];
+        let actor_starts: Vec<_> = blocked_positions
+            .into_iter()
+            .enumerate()
+            .map(|(index, direction)| {
+                (
+                    test_entity(index as u64 + 2),
+                    Position {
+                        x: direction.sin() * 0.6,
+                        y: 0.0,
+                        z: direction.cos() * 0.6,
+                    },
+                )
+            })
+            .collect();
+        let context = context(test_entity(1), &pos, &collision_world, &planned_moves, &actor_starts);
+        let mut info = actor_info();
+        let mut rng = rng();
+
+        let selected = select_actor_move(
+            &context,
+            CharacterMoveIntent::Moving {
+                direction: base_direction,
+            },
+            None,
+            &mut info,
+            &mut rng,
+        );
+
+        assert_eq!(selected.intent, CharacterMoveIntent::Idle);
+        assert_eq!(info.wall_avoidance_direction, None);
+    }
+
+    #[test]
+    fn wall_avoidance_clears_when_direct_path_is_clear_again() {
+        let pos = Position::default();
+        let collision_world = collision_world(&[]);
+        let planned_moves = [];
+        let actor_starts = [];
+        let context = context(test_entity(1), &pos, &collision_world, &planned_moves, &actor_starts);
+        let mut info = actor_info();
+        info.wall_avoidance_direction = Some(std::f32::consts::FRAC_PI_2);
+
+        let selected =
+            continue_wall_avoidance_if_needed(&context, 0.0, Some(Position { x: 0.0, y: 0.0, z: 5.0 }), &mut info);
+
+        assert!(selected.is_none());
+        assert_eq!(info.wall_avoidance_direction, None);
+    }
+
+    #[test]
+    fn committed_wall_avoidance_yields_when_blocked_by_character() {
+        let pos = Position {
+            x: -1.0,
+            y: 0.0,
+            z: 0.0,
+        };
+        let collision_world = collision_world(&[wall()]);
+        let planned_moves = [];
+        let actor_starts = [(
+            test_entity(2),
+            Position {
+                x: -1.0,
+                y: 0.0,
+                z: 0.6,
+            },
+        )];
+        let context = context(test_entity(1), &pos, &collision_world, &planned_moves, &actor_starts);
+        let mut info = actor_info();
+        info.wall_avoidance_direction = Some(0.0);
+
+        let selected = continue_wall_avoidance_if_needed(
+            &context,
+            std::f32::consts::FRAC_PI_2,
+            Some(Position { x: 5.0, y: 0.0, z: 0.0 }),
+            &mut info,
+        )
+        .expect("wall avoidance should yield with an idle move");
+
+        assert_eq!(selected.intent, CharacterMoveIntent::Idle);
+        assert_eq!(info.wall_avoidance_direction, Some(0.0));
+    }
+
+    #[test]
+    fn following_front_actor_is_not_blocked_when_final_positions_do_not_overlap() {
+        let pos = Position::default();
+        let collision_world = collision_world(&[]);
+        let front_start = Position { x: 1.2, y: 0.0, z: 0.0 };
+        let planned_moves = [planned_move(
+            test_entity(2),
+            front_start,
+            Position { x: 2.0, y: 0.0, z: 0.0 },
+        )];
+        let actor_starts = [(test_entity(2), front_start)];
+        let context = context(test_entity(1), &pos, &collision_world, &planned_moves, &actor_starts);
+        let intent = CharacterMoveIntent::Moving {
+            direction: std::f32::consts::FRAC_PI_2,
+        };
+
+        match context.evaluate_candidate(intent) {
+            MoveCandidateResult::Accepted { .. } => {}
+            MoveCandidateResult::BlockedByCharacter | MoveCandidateResult::BlockedByWorld { .. } => {
+                panic!("expected following move to be accepted")
+            }
+        }
     }
 }
