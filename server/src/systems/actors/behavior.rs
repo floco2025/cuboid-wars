@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use rand::{RngExt, rng, rngs::ThreadRng};
 
 use crate::{
-    constants::{ACTOR_IDLE_CHANCE, ACTOR_MAX_DIRECTION_TIME, ACTOR_MIN_DIRECTION_TIME, ACTOR_VISION_RANGE},
+    config::ServerGameplayConfig,
     resources::{ActorMap, PlayerMap},
 };
 use common::{
@@ -17,6 +17,7 @@ pub fn actor_behavior_system(
     players: Res<PlayerMap>,
     collision_world: Res<CollisionWorld>,
     gameplay_config: Res<GameplayConfig>,
+    server_gameplay_config: Res<ServerGameplayConfig>,
     mut actors: ResMut<ActorMap>,
     player_query: Query<(&PlayerId, &Position), With<PlayerMarker>>,
     query: Query<(&ActorId, &Position), (With<ActorMarker>, Without<PlayerMarker>)>,
@@ -29,9 +30,14 @@ pub fn actor_behavior_system(
             continue;
         };
 
-        if let Some(target_pos) =
-            visible_player_position(pos, &players, &player_query, &collision_world, &gameplay_config)
-        {
+        if let Some(target_pos) = visible_player_position(
+            pos,
+            &players,
+            &player_query,
+            &collision_world,
+            &gameplay_config,
+            &server_gameplay_config,
+        ) {
             info.go_to_position = Some(target_pos);
             continue;
         }
@@ -44,13 +50,17 @@ pub fn actor_behavior_system(
             continue;
         }
 
-        info.direction_timer = random_direction_time(&mut rng);
-        info.patrol_intent = random_patrol_intent(&mut rng, gameplay_config.characters.actor.patrol_speed);
+        info.direction_timer = random_direction_time(&mut rng, &server_gameplay_config);
+        info.patrol_intent = random_patrol_intent(
+            &mut rng,
+            gameplay_config.characters.actor.patrol_speed,
+            server_gameplay_config.actors.idle_chance,
+        );
     }
 }
 
-pub(crate) fn random_patrol_intent(rng: &mut ThreadRng, patrol_speed: f32) -> ActorMoveIntent {
-    if rng.random_range(0.0..1.0) < ACTOR_IDLE_CHANCE {
+pub(crate) fn random_patrol_intent(rng: &mut ThreadRng, patrol_speed: f32, idle_chance: f32) -> ActorMoveIntent {
+    if rng.random_range(0.0..1.0) < idle_chance {
         ActorMoveIntent::Idle
     } else {
         random_patrol_move_intent(rng, patrol_speed)
@@ -70,6 +80,7 @@ fn visible_player_position(
     player_query: &Query<(&PlayerId, &Position), With<PlayerMarker>>,
     collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
+    server_gameplay_config: &ServerGameplayConfig,
 ) -> Option<Position> {
     let actor_sight_origin = Vec3::new(
         actor_pos.x,
@@ -81,7 +92,10 @@ fn visible_player_position(
     player_query
         .iter()
         .filter(|(id, _)| players.0.get(id).is_some_and(|info| info.logged_in))
-        .filter(|(_, pos)| horizontal_distance_sq(actor_pos, pos) <= ACTOR_VISION_RANGE * ACTOR_VISION_RANGE)
+        .filter(|(_, pos)| {
+            horizontal_distance_sq(actor_pos, pos)
+                <= server_gameplay_config.actors.vision_range * server_gameplay_config.actors.vision_range
+        })
         .filter(|(_, pos)| {
             let player_collider_center = Vec3::new(pos.x, player_physics.collider_center_y(pos.y), pos.z);
             collision_world.line_of_sight_clear(actor_sight_origin, player_collider_center)
@@ -96,6 +110,8 @@ fn horizontal_distance_sq(a: &Position, b: &Position) -> f32 {
     dx.mul_add(dx, dz * dz)
 }
 
-fn random_direction_time(rng: &mut ThreadRng) -> f32 {
-    rng.random_range(ACTOR_MIN_DIRECTION_TIME..=ACTOR_MAX_DIRECTION_TIME)
+fn random_direction_time(rng: &mut ThreadRng, server_gameplay_config: &ServerGameplayConfig) -> f32 {
+    rng.random_range(
+        server_gameplay_config.actors.min_direction_time..=server_gameplay_config.actors.max_direction_time,
+    )
 }

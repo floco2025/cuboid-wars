@@ -12,7 +12,10 @@ pub struct GameplayConfig {
 
 impl GameplayConfig {
     pub fn load_default() -> Result<Self> {
-        let config = Self::load_from_path(Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/gameplay.json")))?;
+        let config = Self::load_from_path(Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../config/common/gameplay.json"
+        )))?;
         config.validate()?;
         Ok(config)
     }

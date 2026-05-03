@@ -7,7 +7,7 @@ use super::{
     steering::{actor_desired_intent, random_avoidance_side, steering_directions},
 };
 use crate::{
-    constants::{ACTOR_DIRECT_PATH_PROBE_TIME, ACTOR_GO_TO_REACHED_DISTANCE},
+    config::ServerGameplayConfig,
     resources::{ActorInfo, ActorMap, PlayerMap},
 };
 use common::{
@@ -42,6 +42,7 @@ pub(crate) fn plan_actor_moves(
     delta: f32,
     collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
+    server_gameplay_config: &ServerGameplayConfig,
     players: &PlayerMap,
     actors: &mut ActorMap,
     actor_starts: &[(Entity, Position)],
@@ -65,7 +66,7 @@ pub(crate) fn plan_actor_moves(
         let go_to_intent = actor_desired_intent(
             &mut info.go_to_position,
             &current_pos,
-            ACTOR_GO_TO_REACHED_DISTANCE,
+            server_gameplay_config.actors.go_to_reached_distance,
             actor_config.chase_speed,
         );
         let move_context = ActorMoveContext {
@@ -77,6 +78,7 @@ pub(crate) fn plan_actor_moves(
             collision_world,
             planned_moves,
             actor_starts,
+            direct_path_probe_time: server_gameplay_config.actors.direct_path_probe_time,
         };
         let selected_move = if let Some(go_to_intent) = go_to_intent {
             select_go_to_actor_move(&move_context, go_to_intent, info.go_to_position, info, &mut rng)
@@ -116,6 +118,7 @@ struct ActorMoveContext<'a> {
     collision_world: &'a CollisionWorld,
     planned_moves: &'a [CharacterMovePlan],
     actor_starts: &'a [(Entity, Position)],
+    direct_path_probe_time: f32,
 }
 
 impl ActorMoveContext<'_> {
@@ -432,7 +435,7 @@ fn direct_path_is_clear_enough(
     go_to_position: Option<Position>,
 ) -> bool {
     let direct_intent = ActorMoveIntent::Moving { direction, speed };
-    let step = context.step_actor_move(direct_intent, ACTOR_DIRECT_PATH_PROBE_TIME);
+    let step = context.step_actor_move(direct_intent, context.direct_path_probe_time);
     if step.blocked {
         return false;
     }
@@ -552,6 +555,7 @@ mod tests {
             collision_world,
             planned_moves,
             actor_starts,
+            direct_path_probe_time: 0.4,
         }
     }
 

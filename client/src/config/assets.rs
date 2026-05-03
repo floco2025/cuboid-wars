@@ -21,7 +21,10 @@ pub struct AssetSet {
 
 impl AssetSet {
     pub fn load_default() -> Result<Self> {
-        Self::load_from_path(Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/assets.json")))
+        Self::load_from_path(Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../config/client/assets.json"
+        )))
     }
 
     fn load_from_path(path: &Path) -> Result<Self> {

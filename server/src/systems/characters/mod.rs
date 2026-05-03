@@ -5,6 +5,7 @@ mod spawning;
 pub use spawning::generate_character_spawn_position;
 
 use crate::{
+    config::ServerGameplayConfig,
     resources::{ActorMap, PlayerInfo, PlayerMap},
     systems::actors::{ActorMovementQuery, apply_actor_moves, plan_actor_moves},
 };
@@ -35,6 +36,7 @@ pub fn characters_movement_system(
     time: Res<Time>,
     collision_world: Res<CollisionWorld>,
     gameplay_config: Res<GameplayConfig>,
+    server_gameplay_config: Res<ServerGameplayConfig>,
     players: Res<PlayerMap>,
     mut actors: ResMut<ActorMap>,
     mut player_query: PlayerMovementQuery,
@@ -59,6 +61,7 @@ pub fn characters_movement_system(
         delta,
         &collision_world,
         &gameplay_config,
+        &server_gameplay_config,
         &players,
         &mut actors,
         &actor_starts,

@@ -124,7 +124,7 @@ impl MaterialRules {
     pub fn load_default() -> Result<Self> {
         Self::load_from_path(Path::new(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../client/assets/assets.json"
+            "/../config/client/assets.json"
         )))
     }
 

@@ -34,6 +34,6 @@ fn map_path() -> PathBuf {
     // works whether the binary is run via `cargo run` or from the target
     // directory.
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("assets")
+        .join("../config/server")
         .join("map.json")
 }

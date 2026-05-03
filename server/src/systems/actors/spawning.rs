@@ -2,9 +2,8 @@ use bevy::prelude::*;
 use rand::{RngExt, rng, rngs::ThreadRng};
 
 use crate::{
-    constants::{
-        ACTOR_INITIAL_COUNT, ACTOR_MAX_DIRECTION_TIME, ACTOR_MIN_DIRECTION_TIME, ACTOR_MOVE_INTENT_SEND_COOLDOWN,
-    },
+    config::ServerGameplayConfig,
+    constants::ACTOR_MOVE_INTENT_SEND_COOLDOWN,
     resources::{ActorInfo, ActorMap, MapConfig},
     systems::characters::generate_character_spawn_position,
 };
@@ -21,6 +20,7 @@ pub fn actor_initial_spawn_system(
     map_config: Res<MapConfig>,
     collision_world: Res<CollisionWorld>,
     gameplay_config: Res<GameplayConfig>,
+    server_gameplay_config: Res<ServerGameplayConfig>,
     players: Query<&Position, With<PlayerMarker>>,
 ) {
     if !actors.0.is_empty() {
@@ -30,7 +30,7 @@ pub fn actor_initial_spawn_system(
     let mut occupied_positions: Vec<Position> = players.iter().copied().collect();
     let mut rng = rng();
 
-    for id in 0..ACTOR_INITIAL_COUNT {
+    for id in 0..server_gameplay_config.actors.initial_count {
         let actor_id = ActorId(id);
         let pos = generate_character_spawn_position(
             &map_config,
@@ -61,7 +61,7 @@ pub fn actor_initial_spawn_system(
             ActorInfo {
                 entity,
                 kind: ActorKind::Automaton,
-                direction_timer: random_direction_time(&mut rng),
+                direction_timer: random_direction_time(&mut rng, &server_gameplay_config),
                 patrol_intent: move_intent,
                 go_to_position: None,
                 wall_avoidance_direction: None,
@@ -72,6 +72,8 @@ pub fn actor_initial_spawn_system(
     }
 }
 
-fn random_direction_time(rng: &mut ThreadRng) -> f32 {
-    rng.random_range(ACTOR_MIN_DIRECTION_TIME..=ACTOR_MAX_DIRECTION_TIME)
+fn random_direction_time(rng: &mut ThreadRng, server_gameplay_config: &ServerGameplayConfig) -> f32 {
+    rng.random_range(
+        server_gameplay_config.actors.min_direction_time..=server_gameplay_config.actors.max_direction_time,
+    )
 }

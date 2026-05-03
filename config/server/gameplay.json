@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "actors": {
+    "initial_count": 6,
+    "min_direction_time": 1.0,
+    "max_direction_time": 3.5,
+    "idle_chance": 0.0,
+    "vision_range": 18.0,
+    "direct_path_probe_time": 0.4,
+    "go_to_reached_distance": 0.5
+  }
+}
