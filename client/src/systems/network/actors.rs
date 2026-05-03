@@ -130,6 +130,10 @@ pub fn handle_actor_destroyed_message(
         gameplay_config,
         msg.pos,
     );
+    commands.spawn((
+        AudioPlayer::new(asset_server.load(asset_set.sound("actor_explodes").to_owned())),
+        PlaybackSettings::DESPAWN,
+    ));
     if let Some(client_actor) = actors.0.get(&msg.id) {
         commands
             .entity(client_actor.entity)
