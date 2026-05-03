@@ -478,6 +478,8 @@ mod tests {
         ActorInfo {
             entity: test_entity(1),
             kind: ActorKind::Automaton,
+            spawn_zone_index: 0,
+            spawn_kind: "actor".into(),
             direction_timer: 0.0,
             patrol_intent: ActorMoveIntent::Idle,
             go_to_position: None,
@@ -600,6 +602,8 @@ mod tests {
         let targeted = ActorInfo {
             entity: Entity::from_bits(1),
             kind: common::protocol::ActorKind::Automaton,
+            spawn_zone_index: 0,
+            spawn_kind: "actor".into(),
             direction_timer: 0.0,
             patrol_intent: ActorMoveIntent::Idle,
             go_to_position: Some(Position { x: 1.0, y: 0.0, z: 0.0 }),

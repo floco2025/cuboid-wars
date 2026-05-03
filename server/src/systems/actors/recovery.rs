@@ -1,119 +1,92 @@
 use bevy::prelude::*;
 
-use super::network::{broadcast_actor_destroyed, broadcast_actor_teleport};
+use super::network::broadcast_actor_destroyed;
 use crate::{
     config::{ActorExplosionDamageConfig, ServerGameplayConfig},
-    resources::{MapConfig, PlayerMap},
-    systems::characters::generate_character_spawn_position,
+    resources::{ActorMap, PlayerMap},
 };
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     constants::CHARACTER_FALL_TELEPORT_Y,
     health::apply_damage,
     markers::{ActorMarker, PlayerMarker},
-    physics::{CharacterVerticalVelocity, CollisionWorld},
+    physics::CharacterVerticalVelocity,
     protocol::{ActorId, ActorMoveIntent, Health, Position},
 };
 
-pub fn actor_fall_recovery_system(
+// Despawn actors that have either fallen below the death threshold or had
+// their health reduced to zero. Health-zero death also applies blast damage
+// to nearby characters and broadcasts the explosion VFX. Falls are silent —
+// they were teleports before, so the asymmetry is preserved.
+//
+// Actor entities are despawned outright; the `actor_spawn_quota_system` will
+// pick the missing slots up next tick and create replacements.
+pub fn actor_death_system(
+    mut commands: Commands,
+    mut actors: ResMut<ActorMap>,
     players: Res<PlayerMap>,
-    map_config: Res<MapConfig>,
-    collision_world: Res<CollisionWorld>,
-    gameplay_config: Res<GameplayConfig>,
-    mut query: Query<
-        (
-            Entity,
-            &ActorId,
-            &mut Position,
-            &mut CharacterVerticalVelocity,
-            &ActorMoveIntent,
-        ),
-        With<ActorMarker>,
-    >,
-) {
-    let fallen: Vec<(Entity, ActorId)> = query
-        .iter()
-        .filter_map(|(entity, id, pos, _, _)| (pos.y < CHARACTER_FALL_TELEPORT_Y).then_some((entity, *id)))
-        .collect();
-
-    if fallen.is_empty() {
-        return;
-    }
-
-    let mut occupied_positions: Vec<Position> = query.iter().map(|(_, _, pos, _, _)| *pos).collect();
-
-    for (entity, id) in fallen {
-        let teleport_pos = generate_character_spawn_position(
-            &map_config,
-            &collision_world,
-            &occupied_positions,
-            gameplay_config.characters.actor.physics(),
-        );
-
-        if let Ok((_, _, mut pos, mut motion, move_intent)) = query.get_mut(entity) {
-            *pos = teleport_pos;
-            motion.0 = 0.0;
-            broadcast_actor_teleport(&players, id, teleport_pos, *move_intent);
-        }
-
-        occupied_positions.push(teleport_pos);
-        info!("{:?} fell and teleported to {:?}", id, teleport_pos);
-    }
-}
-
-pub fn actor_health_recovery_system(
-    players: Res<PlayerMap>,
-    map_config: Res<MapConfig>,
-    collision_world: Res<CollisionWorld>,
-    gameplay_config: Res<GameplayConfig>,
     server_gameplay_config: Res<ServerGameplayConfig>,
+    gameplay_config: Res<GameplayConfig>,
     mut player_query: Query<(&Position, &mut Health), (With<PlayerMarker>, Without<ActorMarker>)>,
-    mut query: ActorHealthRecoveryQuery,
+    mut query: ActorDeathQuery,
 ) {
-    let destroyed: Vec<(Entity, ActorId, Position)> = query
-        .iter()
-        .filter_map(|(entity, id, pos, _, _, health)| (health.0 <= 0.0).then_some((entity, *id, *pos)))
-        .collect();
+    let mut deaths: Vec<ActorDeath> = Vec::new();
+    for (entity, id, pos, _, _, health) in query.iter() {
+        if pos.y < CHARACTER_FALL_TELEPORT_Y {
+            deaths.push(ActorDeath {
+                entity,
+                id: *id,
+                pos: *pos,
+                cause: DeathCause::Fall,
+            });
+        } else if health.0 <= 0.0 {
+            deaths.push(ActorDeath {
+                entity,
+                id: *id,
+                pos: *pos,
+                cause: DeathCause::Killed,
+            });
+        }
+    }
 
-    if destroyed.is_empty() {
+    if deaths.is_empty() {
         return;
     }
 
-    let mut occupied_positions: Vec<Position> = query.iter().map(|(_, _, pos, _, _, _)| *pos).collect();
-    let max_health = gameplay_config.characters.actor.health().max;
-
-    for (entity, id, destroyed_pos) in destroyed {
-        apply_actor_explosion_damage(
-            destroyed_pos,
-            entity,
-            &server_gameplay_config.damage.actor_explosion,
-            &gameplay_config,
-            &mut player_query,
-            &mut query,
-        );
-
-        let respawn_pos = generate_character_spawn_position(
-            &map_config,
-            &collision_world,
-            &occupied_positions,
-            gameplay_config.characters.actor.physics(),
-        );
-
-        if let Ok((_, _, mut pos, mut motion, move_intent, mut health)) = query.get_mut(entity) {
-            broadcast_actor_destroyed(&players, id, destroyed_pos);
-
-            *pos = respawn_pos;
-            motion.0 = 0.0;
-            health.0 = max_health;
-            broadcast_actor_teleport(&players, id, respawn_pos, *move_intent);
+    for death in deaths {
+        if matches!(death.cause, DeathCause::Killed) {
+            apply_actor_explosion_damage(
+                death.pos,
+                death.entity,
+                &server_gameplay_config.damage.actor_explosion,
+                &gameplay_config,
+                &mut player_query,
+                &mut query,
+            );
+            broadcast_actor_destroyed(&players, death.id, death.pos);
+            info!("{:?} was destroyed at {:?}", death.id, death.pos);
+        } else {
+            info!("{:?} fell and despawned at {:?}", death.id, death.pos);
         }
-
-        occupied_positions.push(respawn_pos);
-        info!("{:?} was destroyed and respawned at {:?}", id, respawn_pos);
+        commands.entity(death.entity).despawn();
+        actors.0.remove(&death.id);
     }
 }
 
-type ActorHealthRecoveryQuery<'w, 's> = Query<
+#[derive(Copy, Clone)]
+enum DeathCause {
+    Fall,
+    Killed,
+}
+
+struct ActorDeath {
+    entity: Entity,
+    id: ActorId,
+    pos: Position,
+    cause: DeathCause,
+}
+
+type ActorDeathQuery<'w, 's> = Query<
     'w,
     's,
     (
@@ -133,7 +106,7 @@ fn apply_actor_explosion_damage(
     damage_config: &ActorExplosionDamageConfig,
     gameplay_config: &GameplayConfig,
     player_query: &mut Query<(&Position, &mut Health), (With<PlayerMarker>, Without<ActorMarker>)>,
-    actor_query: &mut ActorHealthRecoveryQuery,
+    actor_query: &mut ActorDeathQuery,
 ) {
     let actor_physics = gameplay_config.characters.actor.physics();
     let explosion_center = character_center(destroyed_pos, actor_physics);

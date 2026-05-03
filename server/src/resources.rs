@@ -32,6 +32,26 @@ pub struct Cell {
     pub ramp_top_east: bool,
 }
 
+impl Cell {
+    // Spawn zones may target any cell that is not an obstruction and not an
+    // inaccessible-floor slab. Empty cells (no floor at all) are fine — kinds
+    // like flying actors don't need a floor underfoot. As new obstruction
+    // flags are added (e.g. holes, hazards), gate them in here so the rule
+    // stays in one place.
+    #[must_use]
+    pub fn is_spawnable(&self) -> bool {
+        if self.has_ramp {
+            return false;
+        }
+        // Inaccessible-floor: a slab exists but it's not a regular walkable
+        // floor. Treat as forbidden.
+        if self.has_floor_slab && !self.has_floor {
+            return false;
+        }
+        true
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct CellGrid {
     pub rows: Vec<Vec<Cell>>,
@@ -77,18 +97,63 @@ pub struct LevelGrid {
     pub edges: EdgeGrid,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct PlayerSpawnField {
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SpawnEntry {
+    pub kind: String,
+    pub count: u32,
+}
+
+// Where actor entities are spawned. Each zone holds an entry list keyed by
+// actor kind; the quota system keeps `count` of each kind alive in the zone.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ActorSpawnZone {
     pub level: u8,
-    pub col: i32,
-    pub row: i32,
+    // Half-open ranges: cols=[start, end), rows=[start, end). Always end > start.
+    pub cols: [i32; 2],
+    pub rows: [i32; 2],
+    pub spawns: Vec<SpawnEntry>,
+}
+
+impl ActorSpawnZone {
+    pub fn entry_for(&self, kind: &str) -> Option<&SpawnEntry> {
+        self.spawns.iter().find(|e| e.kind == kind)
+    }
+
+    pub fn covers(&self, kind: &str) -> bool {
+        self.entry_for(kind).is_some()
+    }
+
+    pub fn cells(&self) -> impl Iterator<Item = (i32, i32)> + '_ {
+        let cols = self.cols[0]..self.cols[1];
+        let rows = self.rows[0]..self.rows[1];
+        rows.flat_map(move |r| cols.clone().map(move |c| (c, r)))
+    }
+}
+
+// Where players spawn (login + fall recovery). No quota, no kind list — the
+// picker just chooses any spawnable cell from any player zone uniformly at
+// random.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PlayerSpawnZone {
+    pub level: u8,
+    pub cols: [i32; 2],
+    pub rows: [i32; 2],
+}
+
+impl PlayerSpawnZone {
+    pub fn cells(&self) -> impl Iterator<Item = (i32, i32)> + '_ {
+        let cols = self.cols[0]..self.cols[1];
+        let rows = self.rows[0]..self.rows[1];
+        rows.flat_map(move |r| cols.clone().map(move |c| (c, r)))
+    }
 }
 
 // Map configuration
 #[derive(Resource, Clone)]
 pub struct MapConfig {
     pub levels: Vec<LevelGrid>,
-    pub player_spawn_fields: Vec<PlayerSpawnField>,
+    pub actor_spawn_zones: Vec<ActorSpawnZone>,
+    pub player_spawn_zones: Vec<PlayerSpawnZone>,
 }
 
 // Player information (server-side)
@@ -170,6 +235,8 @@ pub struct PlayerMap(pub HashMap<PlayerId, PlayerInfo>);
 pub struct ActorInfo {
     pub entity: Entity,
     pub kind: ActorKind,
+    pub spawn_zone_index: usize,
+    pub spawn_kind: String,
     pub direction_timer: f32,
     pub patrol_intent: ActorMoveIntent,
     pub go_to_position: Option<Position>,
@@ -234,5 +301,19 @@ pub struct ItemSpawner {
 impl Default for ItemSpawner {
     fn default() -> Self {
         Self { timer: 0.0, next_id: 0 }
+    }
+}
+
+// Actor spawner: allocates monotonically increasing actor ids.
+#[derive(Resource, Default)]
+pub struct ActorSpawner {
+    pub next_id: u32,
+}
+
+impl ActorSpawner {
+    pub fn allocate(&mut self) -> ActorId {
+        let id = ActorId(self.next_id);
+        self.next_id = self.next_id.wrapping_add(1);
+        id
     }
 }

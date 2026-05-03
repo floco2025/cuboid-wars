@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use crate::{
     net::ServerToClient,
     resources::{ActorMap, ItemMap, MapConfig, PlayerMap},
-    systems::generate_character_spawn_position,
+    systems::generate_player_spawn_position,
 };
 use common::{
     config::GameplayConfig,
@@ -78,7 +78,7 @@ pub fn handle_login_message(
                 .filter_map(|p| player_data.get(p.entity).ok())
                 .map(|(pos, _, _, _)| *pos)
                 .collect();
-            let pos = generate_character_spawn_position(
+            let pos = generate_player_spawn_position(
                 map_config,
                 collision_world,
                 &occupied_positions,

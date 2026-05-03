@@ -1,7 +1,7 @@
 use std::{fs, path::Path};
 
 use anyhow::{Context, Result};
-use serde::{Deserialize, Deserializer, de};
+use serde::Deserialize;
 
 use super::{
     floors,
@@ -11,7 +11,7 @@ use super::{
 };
 use crate::{
     constants::FLOOR_OVERLAP,
-    resources::{CellGrid, EdgeGrid, LevelGrid, MapConfig, PlayerSpawnField},
+    resources::{ActorSpawnZone, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlayerSpawnZone, SpawnEntry},
 };
 use common::{
     constants::*,
@@ -43,7 +43,9 @@ pub struct MapDef {
     pub grid_cols: i32,
     pub grid_rows: i32,
     #[serde(default)]
-    pub player_spawn_fields: Vec<PlayerSpawnDef>,
+    pub actor_spawn_zones: Vec<ActorSpawnZoneDef>,
+    #[serde(default)]
+    pub player_spawn_zones: Vec<PlayerSpawnZoneDef>,
     pub levels: Vec<LevelDef>,
     #[serde(default)]
     pub ramps: Vec<RampDef>,
@@ -68,40 +70,25 @@ pub struct RampDef {
     pub lower_level: u32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PlayerSpawnDef {
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+pub struct SpawnEntryDef {
+    pub kind: String,
+    pub count: u32,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+pub struct ActorSpawnZoneDef {
     pub level: u32,
-    pub col: i32,
-    pub row: i32,
+    pub cols: [i32; 2],
+    pub rows: [i32; 2],
+    pub spawns: Vec<SpawnEntryDef>,
 }
 
-impl PlayerSpawnDef {
-    const fn legacy(col: i32, row: i32) -> Self {
-        Self { level: 0, col, row }
-    }
-
-    const fn point(self) -> [i32; 2] {
-        [self.col, self.row]
-    }
-}
-
-impl<'de> Deserialize<'de> for PlayerSpawnDef {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let values = Vec::<i32>::deserialize(deserializer)?;
-        match values.as_slice() {
-            [col, row] => Ok(Self::legacy(*col, *row)),
-            [level, col, row] if *level >= 0 => Ok(Self {
-                level: u32::try_from(*level).expect("nonnegative i32 should fit in u32"),
-                col: *col,
-                row: *row,
-            }),
-            [level, ..] if *level < 0 => Err(de::Error::custom("spawn field level must be nonnegative")),
-            _ => Err(de::Error::custom("spawn field must be [col, row] or [level, col, row]")),
-        }
-    }
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+pub struct PlayerSpawnZoneDef {
+    pub level: u32,
+    pub cols: [i32; 2],
+    pub rows: [i32; 2],
 }
 
 // ============================================================================
@@ -226,7 +213,8 @@ pub fn compile_map(map_def: &MapDef, assets: &MaterialRules) -> (MapLayout, MapC
         map_layout,
         MapConfig {
             levels: level_grids,
-            player_spawn_fields: player_spawn_fields(map_def),
+            actor_spawn_zones: actor_spawn_zones(map_def),
+            player_spawn_zones: player_spawn_zones(map_def),
         },
     )
 }
@@ -243,14 +231,34 @@ fn empty_mask(grid_cols: i32, grid_rows: i32) -> Mask {
     vec![vec![false; grid_cols as usize]; grid_rows as usize]
 }
 
-fn player_spawn_fields(map_def: &MapDef) -> Vec<PlayerSpawnField> {
+fn actor_spawn_zones(map_def: &MapDef) -> Vec<ActorSpawnZone> {
     map_def
-        .player_spawn_fields
+        .actor_spawn_zones
         .iter()
-        .map(|field| PlayerSpawnField {
-            level: u8::try_from(field.level).unwrap_or(u8::MAX),
-            col: field.col,
-            row: field.row,
+        .map(|zone| ActorSpawnZone {
+            level: u8::try_from(zone.level).unwrap_or(u8::MAX),
+            cols: zone.cols,
+            rows: zone.rows,
+            spawns: zone
+                .spawns
+                .iter()
+                .map(|entry| SpawnEntry {
+                    kind: entry.kind.clone(),
+                    count: entry.count,
+                })
+                .collect(),
+        })
+        .collect()
+}
+
+fn player_spawn_zones(map_def: &MapDef) -> Vec<PlayerSpawnZone> {
+    map_def
+        .player_spawn_zones
+        .iter()
+        .map(|zone| PlayerSpawnZone {
+            level: u8::try_from(zone.level).unwrap_or(u8::MAX),
+            cols: zone.cols,
+            rows: zone.rows,
         })
         .collect()
 }

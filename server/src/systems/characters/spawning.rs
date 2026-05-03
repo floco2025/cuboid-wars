@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use rand::{RngExt, rng, rngs::ThreadRng, seq::IndexedRandom};
 
-use crate::resources::MapConfig;
+use crate::resources::{ActorSpawnZone, MapConfig, PlayerSpawnZone};
 use common::{
     config::CharacterPhysicsConfig,
     constants::{GRID_CELL_SIZE, LEVEL_HEIGHT, MAP_DEPTH, MAP_WIDTH},
@@ -11,40 +11,102 @@ use common::{
 
 const SPAWN_MAX_ATTEMPTS: usize = 100;
 
-// Pick a random clear position on the configured spawn fields.
-// Returns the world origin if no valid placement is found in time.
+// Pick a random clear position from any player spawn zone. All cells across
+// all player zones are pooled and one is picked uniformly at random; no per-
+// zone capacity tracking, no fallback. Used by login and player fall recovery.
+//
+// Returns the world origin if no player zone has any spawnable cells.
 #[must_use]
-pub fn generate_character_spawn_position(
+pub fn generate_player_spawn_position(
     map_config: &MapConfig,
     collision_world: &CollisionWorld,
     occupied_positions: &[Position],
     character_physics: CharacterPhysicsConfig,
 ) -> Position {
-    let mut rng = rng();
-
     let mut valid_cells = Vec::new();
-    for field in &map_config.player_spawn_fields {
-        let Some(level_grid) = map_config.levels.get(field.level as usize) else {
+    for zone in &map_config.player_spawn_zones {
+        valid_cells.extend(valid_cells_in_player_zone(map_config, zone));
+    }
+    pick_clear_position(
+        &valid_cells,
+        collision_world,
+        occupied_positions,
+        character_physics,
+        "player",
+    )
+}
+
+// Pick a random clear position from a single actor spawn zone. Used by the
+// actor quota spawner — when topping a specific zone up, we never want to
+// spill into other zones.
+#[must_use]
+pub fn generate_actor_spawn_position_in_zone(
+    map_config: &MapConfig,
+    zone_index: usize,
+    collision_world: &CollisionWorld,
+    occupied_positions: &[Position],
+    character_physics: CharacterPhysicsConfig,
+) -> Position {
+    let Some(zone) = map_config.actor_spawn_zones.get(zone_index) else {
+        warn!("actor spawn zone index {zone_index} out of range; spawning at center");
+        return Position::default();
+    };
+    let valid_cells = valid_cells_in_actor_zone(map_config, zone);
+    pick_clear_position(
+        &valid_cells,
+        collision_world,
+        occupied_positions,
+        character_physics,
+        "actor",
+    )
+}
+
+fn valid_cells_in_actor_zone(map_config: &MapConfig, zone: &ActorSpawnZone) -> Vec<(u8, i32, i32)> {
+    collect_valid_cells(map_config, zone.level, zone.cells())
+}
+
+fn valid_cells_in_player_zone(map_config: &MapConfig, zone: &PlayerSpawnZone) -> Vec<(u8, i32, i32)> {
+    collect_valid_cells(map_config, zone.level, zone.cells())
+}
+
+fn collect_valid_cells(
+    map_config: &MapConfig,
+    level: u8,
+    cells: impl Iterator<Item = (i32, i32)>,
+) -> Vec<(u8, i32, i32)> {
+    let Some(level_grid) = map_config.levels.get(level as usize) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    let grid_cells = &level_grid.cells.rows;
+    for (col, row) in cells {
+        if row < 0 || row >= grid_cells.len() as i32 {
             continue;
-        };
-        let cells = &level_grid.cells.rows;
-        if field.row >= 0
-            && field.row < cells.len() as i32
-            && field.col >= 0
-            && field.col < cells[field.row as usize].len() as i32
-        {
-            let cell = &cells[field.row as usize][field.col as usize];
-            if cell.has_floor && !cell.has_ramp {
-                valid_cells.push((field.level, field.row, field.col));
-            }
+        }
+        if col < 0 || col >= grid_cells[row as usize].len() as i32 {
+            continue;
+        }
+        let cell = &grid_cells[row as usize][col as usize];
+        if cell.is_spawnable() {
+            out.push((level, row, col));
         }
     }
+    out
+}
 
+fn pick_clear_position(
+    valid_cells: &[(u8, i32, i32)],
+    collision_world: &CollisionWorld,
+    occupied_positions: &[Position],
+    character_physics: CharacterPhysicsConfig,
+    label: &str,
+) -> Position {
     if valid_cells.is_empty() {
-        warn!("no valid spawn fields (floor without a ramp), spawning at center");
+        warn!("no valid spawn cells for {label:?} (all obstructions or empty), spawning at center");
         return Position::default();
     }
 
+    let mut rng = rng();
     for _ in 0..SPAWN_MAX_ATTEMPTS {
         let &(level, row, col) = valid_cells.choose(&mut rng).expect("valid_cells should not be empty");
         let pos = random_position_in_spawn_cell(&mut rng, level, row, col, character_physics);
@@ -55,7 +117,7 @@ pub fn generate_character_spawn_position(
     }
 
     warn!(
-        "could not generate spawn position after {} attempts, spawning at center",
+        "could not generate spawn position for {label:?} after {} attempts, spawning at center",
         SPAWN_MAX_ATTEMPTS
     );
     Position::default()
@@ -116,7 +178,7 @@ fn character_position_intersects_character(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::resources::{CellGrid, EdgeGrid, LevelGrid, MapConfig, PlayerSpawnField};
+    use crate::resources::{CellGrid, EdgeGrid, LevelGrid, MapConfig, PlayerSpawnZone};
     use common::{
         config::GameplayConfig,
         constants::WALL_THICKNESS,
@@ -144,7 +206,7 @@ mod tests {
             .physics()
     }
 
-    fn map_config_with_spawn(level: u8, col: i32, row: i32) -> MapConfig {
+    fn map_config_with_player_spawn(level: u8, col: i32, row: i32) -> MapConfig {
         let mut levels = (0..=level)
             .map(|_| LevelGrid {
                 cells: CellGrid::new(2, 2),
@@ -154,7 +216,12 @@ mod tests {
         levels[usize::from(level)].cells.rows[row as usize][col as usize].has_floor = true;
         MapConfig {
             levels,
-            player_spawn_fields: vec![PlayerSpawnField { level, col, row }],
+            actor_spawn_zones: Vec::new(),
+            player_spawn_zones: vec![PlayerSpawnZone {
+                level,
+                cols: [col, col + 1],
+                rows: [row, row + 1],
+            }],
         }
     }
 
@@ -215,12 +282,12 @@ mod tests {
     }
 
     #[test]
-    fn spawn_position_uses_configured_spawn_level() {
+    fn player_spawn_position_uses_configured_spawn_level() {
         let layout = empty_layout();
         let collision_world = collision_world(&layout);
-        let map_config = map_config_with_spawn(1, 0, 0);
+        let map_config = map_config_with_player_spawn(1, 0, 0);
 
-        let pos = generate_character_spawn_position(&map_config, &collision_world, &[], character_physics());
+        let pos = generate_player_spawn_position(&map_config, &collision_world, &[], character_physics());
 
         assert_eq!(pos.y, LEVEL_HEIGHT);
     }

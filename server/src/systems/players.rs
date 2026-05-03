@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use super::characters::generate_character_spawn_position;
+use super::characters::generate_player_spawn_position;
 use super::network::broadcast_to_all;
 use crate::resources::{MapConfig, PlayerMap};
 use common::{
@@ -75,7 +75,7 @@ pub fn players_fall_recovery_system(
     let mut occupied_positions: Vec<Position> = player_query.iter().map(|(_, _, pos, _, _)| *pos).collect();
 
     for (entity, id) in dead {
-        let teleport_pos = generate_character_spawn_position(
+        let teleport_pos = generate_player_spawn_position(
             &map_config,
             &collision_world,
             &occupied_positions,

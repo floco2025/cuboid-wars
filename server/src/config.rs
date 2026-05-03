@@ -62,7 +62,6 @@ impl ServerGameplayConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ActorBehaviorConfig {
-    pub initial_count: u32,
     pub min_direction_time: f32,
     pub max_direction_time: f32,
     pub idle_chance: f32,
@@ -74,9 +73,6 @@ pub struct ActorBehaviorConfig {
 
 impl ActorBehaviorConfig {
     fn validate(&self, path: &str) -> Result<()> {
-        if self.initial_count == 0 {
-            bail!("{path}.initial_count must be greater than zero");
-        }
         validate_positive_finite(self.min_direction_time, &format!("{path}.min_direction_time"))?;
         validate_positive_finite(self.max_direction_time, &format!("{path}.max_direction_time"))?;
         if self.min_direction_time > self.max_direction_time {

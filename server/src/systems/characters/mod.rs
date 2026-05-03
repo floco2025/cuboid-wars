@@ -4,7 +4,7 @@ mod health;
 mod spawning;
 
 pub use health::characters_health_regeneration_system;
-pub use spawning::generate_character_spawn_position;
+pub use spawning::{generate_actor_spawn_position_in_zone, generate_player_spawn_position};
 
 use crate::{
     config::ServerGameplayConfig,

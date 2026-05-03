@@ -21,12 +21,14 @@ RAMP_NORTH_DOWN = "△"
 RAMP_SOUTH_DOWN = "▽"
 RAMP_EAST_DOWN = "▷"
 RAMP_WEST_DOWN = "◁"
-PLAYER_SPAWN = "S"
+SPAWN_GLYPH = "S"
 
 WRAPPER_KEYS = {"version", "map"}
-MAP_KEYS = {"grid_cols", "grid_rows", "player_spawn_fields", "levels", "ramps"}
+MAP_KEYS = {"grid_cols", "grid_rows", "actor_spawn_zones", "player_spawn_zones", "levels", "ramps"}
 LEVEL_KEYS = {"name", "floors", "inaccessible_floors", "walls"}
 RAMP_KEYS = {"lower_level", "low", "high"}
+ACTOR_SPAWN_ZONE_KEYS = {"level", "cols", "rows", "spawns"}
+PLAYER_SPAWN_ZONE_KEYS = {"level", "cols", "rows"}
 
 RAMP_UP = {
     "north": RAMP_NORTH_UP,
@@ -83,6 +85,10 @@ def load_map(path: Path) -> dict:
         warn_unknown_keys(f"map.levels[{idx}]", level, LEVEL_KEYS)
     for idx, ramp in enumerate(map_data.get("ramps", [])):
         warn_unknown_keys(f"map.ramps[{idx}]", ramp, RAMP_KEYS)
+    for idx, zone in enumerate(map_data.get("actor_spawn_zones", [])):
+        warn_unknown_keys(f"map.actor_spawn_zones[{idx}]", zone, ACTOR_SPAWN_ZONE_KEYS)
+    for idx, zone in enumerate(map_data.get("player_spawn_zones", [])):
+        warn_unknown_keys(f"map.player_spawn_zones[{idx}]", zone, PLAYER_SPAWN_ZONE_KEYS)
     return map_data
 
 
@@ -144,7 +150,7 @@ def render_level(map_data: dict, level_idx: int) -> list[list[str]]:
         for col in range(cols):
             grid[2 * row + 1][2 * col + 1] = FLOOR if (col, row) in floors else NO_FLOOR
 
-    paint_player_spawn_fields(grid, map_data, level_idx)
+    paint_spawn_zones(grid, map_data, level_idx)
 
     for ramp_idx, ramp in enumerate(map_data.get("ramps", [])):
         if not ramp_is_previewable(ramp, ramp_idx, len(map_data["levels"])):
@@ -184,21 +190,28 @@ def paint_rect(grid: list[list[str]], c0: int, r0: int, c1: int, r1: int, ch: st
             grid[2 * row + 1][2 * col + 1] = ch
 
 
-def paint_player_spawn_fields(grid: list[list[str]], map_data: dict, level_idx: int) -> None:
+def paint_spawn_zones(grid: list[list[str]], map_data: dict, level_idx: int) -> None:
+    paint_zone_list(grid, map_data, level_idx, "actor_spawn_zones")
+    paint_zone_list(grid, map_data, level_idx, "player_spawn_zones")
+
+
+def paint_zone_list(grid: list[list[str]], map_data: dict, level_idx: int, key: str) -> None:
     cols = map_data["grid_cols"]
     rows = map_data["grid_rows"]
-    for idx, field in enumerate(map_data.get("player_spawn_fields", [])):
-        parsed = parse_spawn_field(field)
+    for idx, zone in enumerate(map_data.get(key, [])):
+        parsed = parse_spawn_zone(zone)
         if parsed is None:
-            warn(f"map.player_spawn_fields[{idx}] must be [col, row] or [level, col, row]: {field!r}")
+            warn(f"map.{key}[{idx}] is malformed: {zone!r}")
             continue
-        level, col, row = parsed
+        level, c0, c1, r0, r1 = parsed
         if level != level_idx:
             continue
-        if not (0 <= col < cols and 0 <= row < rows):
-            warn(f"map.player_spawn_fields[{idx}] is outside the grid: {field!r}")
+        if not (0 <= c0 and c1 <= cols and 0 <= r0 and r1 <= rows and c1 > c0 and r1 > r0):
+            warn(f"map.{key}[{idx}] is outside the grid: {zone!r}")
             continue
-        grid[2 * row + 1][2 * col + 1] = PLAYER_SPAWN
+        for row in range(r0, r1):
+            for col in range(c0, c1):
+                grid[2 * row + 1][2 * col + 1] = SPAWN_GLYPH
 
 
 def wall_is_previewable(wall: object, level_idx: int, wall_idx: int) -> bool:
@@ -242,16 +255,19 @@ def is_int_point(value: object) -> bool:
     return isinstance(value, list) and len(value) == 2 and all(isinstance(v, int) for v in value)
 
 
-def parse_spawn_field(value: object) -> tuple[int, int, int] | None:
-    if not isinstance(value, list) or not all(isinstance(v, int) for v in value):
+def parse_spawn_zone(value: object) -> tuple[int, int, int, int, int] | None:
+    if not isinstance(value, dict):
         return None
-    if len(value) == 2:
-        col, row = value
-        return 0, col, row
-    if len(value) == 3:
-        level, col, row = value
-        return level, col, row
-    return None
+    level = value.get("level")
+    cols = value.get("cols")
+    rows = value.get("rows")
+    if not isinstance(level, int):
+        return None
+    if not (isinstance(cols, list) and len(cols) == 2 and all(isinstance(v, int) for v in cols)):
+        return None
+    if not (isinstance(rows, list) and len(rows) == 2 and all(isinstance(v, int) for v in rows)):
+        return None
+    return level, cols[0], cols[1], rows[0], rows[1]
 
 
 def fill_ramp_ends(grid: list[list[str]], c0: int, r0: int, c1: int, r1: int, ch: str, direction: str) -> None:
@@ -339,7 +355,7 @@ def format_even_column(ch: str) -> str:
 
 def render_map(map_data: dict, level_filter: int | None = None) -> str:
     out = [
-        "Legend: S = player spawn; filled ramp arrows go up; hollow ramp arrows go down.",
+        "Legend: S = spawn zone; filled ramp arrows go up; hollow ramp arrows go down.",
         "",
     ]
     for idx, level in enumerate(map_data["levels"]):

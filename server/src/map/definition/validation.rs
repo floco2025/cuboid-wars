@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use anyhow::{Context, Result, anyhow, ensure};
 
-use super::{LevelDef, MapDef, MapFile, PlayerSpawnDef, RampDef, SUPPORTED_VERSION};
+use super::{ActorSpawnZoneDef, LevelDef, MapDef, MapFile, PlayerSpawnZoneDef, RampDef, SUPPORTED_VERSION};
 
 pub(super) fn validate_file(file: &MapFile) -> Result<()> {
     ensure!(
@@ -21,35 +21,111 @@ pub(super) fn validate_map(map_def: &MapDef) -> Result<()> {
     if map_def.levels.is_empty() {
         return Err(anyhow!("at least one level is required"));
     }
-    if map_def.player_spawn_fields.is_empty() {
-        return Err(anyhow!("at least one player_spawn_fields entry is required"));
+    if map_def.player_spawn_zones.is_empty() {
+        return Err(anyhow!("at least one player_spawn_zones entry is required"));
     }
 
-    let spawn_fields = validate_spawn_fields(map_def)?;
+    validate_actor_spawn_zones(map_def)?;
+    validate_player_spawn_zones(map_def)?;
     validate_levels(map_def)?;
-    validate_spawn_fields_have_floors(map_def, &spawn_fields)?;
-    validate_ramps(map_def, &spawn_fields)?;
+    validate_ramps(map_def)?;
+    validate_spawn_zones_clear_of_obstructions(map_def)?;
 
     Ok(())
 }
 
-fn validate_spawn_fields(map_def: &MapDef) -> Result<BTreeSet<PlayerSpawnDef>> {
-    let mut spawn_fields = BTreeSet::new();
-    for (spawn_idx, field) in map_def.player_spawn_fields.iter().enumerate() {
-        if field.level as usize >= map_def.levels.len() {
-            return Err(anyhow!(
-                "player_spawn_fields[{spawn_idx}] level {} out of range (level count = {})",
-                field.level,
-                map_def.levels.len()
-            ));
+// Common rect-shaped accessors that both actor and player zones share.
+// Used by the level-bounds, range, and obstruction checks below.
+trait ZoneRect {
+    fn level(&self) -> u32;
+    fn cols(&self) -> [i32; 2];
+    fn rows(&self) -> [i32; 2];
+}
+
+impl ZoneRect for ActorSpawnZoneDef {
+    fn level(&self) -> u32 {
+        self.level
+    }
+    fn cols(&self) -> [i32; 2] {
+        self.cols
+    }
+    fn rows(&self) -> [i32; 2] {
+        self.rows
+    }
+}
+
+impl ZoneRect for PlayerSpawnZoneDef {
+    fn level(&self) -> u32 {
+        self.level
+    }
+    fn cols(&self) -> [i32; 2] {
+        self.cols
+    }
+    fn rows(&self) -> [i32; 2] {
+        self.rows
+    }
+}
+
+fn validate_actor_spawn_zones(map_def: &MapDef) -> Result<()> {
+    for (zone_idx, zone) in map_def.actor_spawn_zones.iter().enumerate() {
+        let label = format!("actor_spawn_zones[{zone_idx}]");
+        validate_zone_placement(zone, &label, map_def)?;
+        if zone.spawns.is_empty() {
+            return Err(anyhow!("{label} has empty `spawns` list"));
         }
-        validate_floor(field.point(), map_def.grid_cols, map_def.grid_rows)
-            .with_context(|| format!("player_spawn_fields[{spawn_idx}]"))?;
-        if !spawn_fields.insert(*field) {
-            return Err(anyhow!("duplicate player_spawn_fields {:?}", field));
+        let mut kinds_seen = BTreeSet::new();
+        for entry in &zone.spawns {
+            if entry.kind.is_empty() {
+                return Err(anyhow!("{label} has an entry with empty `kind`"));
+            }
+            if !kinds_seen.insert(entry.kind.clone()) {
+                return Err(anyhow!(
+                    "{label} has duplicate `spawns` entry for kind {:?}",
+                    entry.kind
+                ));
+            }
         }
     }
-    Ok(spawn_fields)
+    Ok(())
+}
+
+fn validate_player_spawn_zones(map_def: &MapDef) -> Result<()> {
+    for (zone_idx, zone) in map_def.player_spawn_zones.iter().enumerate() {
+        let label = format!("player_spawn_zones[{zone_idx}]");
+        validate_zone_placement(zone, &label, map_def)?;
+    }
+    Ok(())
+}
+
+fn validate_zone_placement<Z: ZoneRect>(zone: &Z, label: &str, map_def: &MapDef) -> Result<()> {
+    if zone.level() as usize >= map_def.levels.len() {
+        return Err(anyhow!(
+            "{label} level {} out of range (level count = {})",
+            zone.level(),
+            map_def.levels.len()
+        ));
+    }
+    validate_zone_range(zone, map_def.grid_cols, map_def.grid_rows).with_context(|| label.to_string())
+}
+
+fn validate_zone_range<Z: ZoneRect>(zone: &Z, grid_cols: i32, grid_rows: i32) -> Result<()> {
+    let [c0, c1] = zone.cols();
+    let [r0, r1] = zone.rows();
+    if c1 <= c0 || r1 <= r0 {
+        return Err(anyhow!(
+            "zone range must be non-empty (cols={:?}, rows={:?})",
+            zone.cols(),
+            zone.rows()
+        ));
+    }
+    if c0 < 0 || c1 > grid_cols || r0 < 0 || r1 > grid_rows {
+        return Err(anyhow!(
+            "zone range out of grid bounds {grid_cols}x{grid_rows} (cols={:?}, rows={:?})",
+            zone.cols(),
+            zone.rows()
+        ));
+    }
+    Ok(())
 }
 
 fn validate_levels(map_def: &MapDef) -> Result<()> {
@@ -115,25 +191,70 @@ fn validate_walls(level: &LevelDef, label: &str, grid_cols: i32, grid_rows: i32)
     Ok(())
 }
 
-fn validate_spawn_fields_have_floors(map_def: &MapDef, spawn_fields: &BTreeSet<PlayerSpawnDef>) -> Result<()> {
-    let floor_sets: Vec<BTreeSet<[i32; 2]>> = map_def
-        .levels
-        .iter()
-        .map(|level| level.floors.iter().copied().collect())
-        .collect();
-    for field in spawn_fields {
-        if !floor_sets[field.level as usize].contains(&field.point()) {
+// Spawn zones may overlap any cell that is not an obstruction. Today
+// obstructions are: ramp footprints, and inaccessible-floor cells (which
+// have a slab but no walkable floor). Empty cells (no floor at all) are
+// fine — flying actors don't need a floor underfoot.
+//
+// As new obstruction kinds appear (hazards, holes, etc.), add them to the
+// set built here; one check covers all of them.
+fn validate_spawn_zones_clear_of_obstructions(map_def: &MapDef) -> Result<()> {
+    let obstructions = collect_obstruction_cells(map_def);
+    for (zone_idx, zone) in map_def.actor_spawn_zones.iter().enumerate() {
+        check_zone_clear_of_obstructions(zone, &format!("actor_spawn_zones[{zone_idx}]"), &obstructions)?;
+    }
+    for (zone_idx, zone) in map_def.player_spawn_zones.iter().enumerate() {
+        check_zone_clear_of_obstructions(zone, &format!("player_spawn_zones[{zone_idx}]"), &obstructions)?;
+    }
+    Ok(())
+}
+
+fn check_zone_clear_of_obstructions<Z: ZoneRect>(
+    zone: &Z,
+    label: &str,
+    obstructions: &[std::collections::BTreeMap<[i32; 2], &'static str>],
+) -> Result<()> {
+    let level_obstructions = &obstructions[zone.level() as usize];
+    for (col, row) in zone_cells(zone) {
+        if let Some(reason) = level_obstructions.get(&[col, row]) {
             return Err(anyhow!(
-                "player_spawn_fields {:?} is not a floor on level {}",
-                field.point(),
-                field.level
+                "{label} cell [{col}, {row}] overlaps a {reason} on level {}",
+                zone.level(),
             ));
         }
     }
     Ok(())
 }
 
-fn validate_ramps(map_def: &MapDef, spawn_fields: &BTreeSet<PlayerSpawnDef>) -> Result<()> {
+// Per-level map from grid cell to the kind of obstruction at that cell.
+// String reason makes the validation error self-explanatory.
+fn collect_obstruction_cells(map_def: &MapDef) -> Vec<std::collections::BTreeMap<[i32; 2], &'static str>> {
+    use std::collections::BTreeMap;
+    let mut per_level: Vec<BTreeMap<[i32; 2], &'static str>> = vec![BTreeMap::new(); map_def.levels.len()];
+
+    // Inaccessible-floor cells: a slab, but not a regular floor.
+    for (level_idx, level) in map_def.levels.iter().enumerate() {
+        for cell in &level.inaccessible_floors {
+            per_level[level_idx].insert(*cell, "inaccessible floor");
+        }
+    }
+
+    // Ramp footprints: forbidden on both the lower level and the level above
+    // (the ramp surface rises into both).
+    for ramp in &map_def.ramps {
+        for cell in ramp_footprint_cells(ramp) {
+            for level in [ramp.lower_level, ramp.lower_level + 1] {
+                if let Some(slot) = per_level.get_mut(level as usize) {
+                    slot.insert(cell, "ramp");
+                }
+            }
+        }
+    }
+
+    per_level
+}
+
+fn validate_ramps(map_def: &MapDef) -> Result<()> {
     let mut ramps_seen = BTreeSet::new();
     for (idx, ramp) in map_def.ramps.iter().enumerate() {
         validate_ramp(ramp, map_def.grid_cols, map_def.grid_rows, map_def.levels.len())
@@ -141,26 +262,6 @@ fn validate_ramps(map_def: &MapDef, spawn_fields: &BTreeSet<PlayerSpawnDef>) -> 
         let key = (ramp.lower_level, ramp.low, ramp.high);
         if !ramps_seen.insert(key) {
             return Err(anyhow!("duplicate ramp {:?}", key));
-        }
-        validate_ramp_spawn_overlap(ramp, spawn_fields)?;
-    }
-    Ok(())
-}
-
-fn validate_ramp_spawn_overlap(ramp: &RampDef, spawn_fields: &BTreeSet<PlayerSpawnDef>) -> Result<()> {
-    for cell in ramp_footprint_cells(ramp) {
-        for level in [ramp.lower_level, ramp.lower_level + 1] {
-            if spawn_fields.contains(&PlayerSpawnDef {
-                level,
-                col: cell[0],
-                row: cell[1],
-            }) {
-                return Err(anyhow!(
-                    "player_spawn_fields {:?} overlaps a ramp on level {}",
-                    cell,
-                    level
-                ));
-            }
         }
     }
     Ok(())
@@ -248,11 +349,28 @@ fn ramp_footprint_cells(ramp: &RampDef) -> Vec<[i32; 2]> {
     cells
 }
 
+fn zone_cells<Z: ZoneRect>(zone: &Z) -> impl Iterator<Item = (i32, i32)> + '_ {
+    let cols = zone.cols()[0]..zone.cols()[1];
+    let rows = zone.rows()[0]..zone.rows()[1];
+    rows.flat_map(move |r| cols.clone().map(move |c| (c, r)))
+}
+
 pub(super) fn canonicalize(map_def: &mut MapDef) {
+    for zone in &mut map_def.actor_spawn_zones {
+        zone.spawns.sort_by(|a, b| a.kind.cmp(&b.kind));
+    }
+    map_def.actor_spawn_zones.sort_by(|a, b| {
+        let a_kinds: Vec<_> = a.spawns.iter().map(|e| (&e.kind, e.count)).collect();
+        let b_kinds: Vec<_> = b.spawns.iter().map(|e| (&e.kind, e.count)).collect();
+        (a.level, a.rows[0], a.cols[0], a.rows[1], a.cols[1], a_kinds)
+            .cmp(&(b.level, b.rows[0], b.cols[0], b.rows[1], b.cols[1], b_kinds))
+    });
+    map_def.actor_spawn_zones.dedup();
+
     map_def
-        .player_spawn_fields
-        .sort_by_key(|field| (field.level, field.row, field.col));
-    map_def.player_spawn_fields.dedup();
+        .player_spawn_zones
+        .sort_by_key(|z| (z.level, z.rows[0], z.cols[0], z.rows[1], z.cols[1]));
+    map_def.player_spawn_zones.dedup();
 
     for level in &mut map_def.levels {
         level.floors.sort_by_key(|[col, row]| (*row, *col));

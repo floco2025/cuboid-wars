@@ -12,8 +12,8 @@ use common::{
     markers::ActorMarker,
     physics::CharacterVerticalVelocity,
     protocol::{
-        Actor, ActorId, ActorMoveIntent, ActorMovementState, FaceDirection, Health, Position, SActorDestroyed,
-        SActorHit, SActorMoveIntent, SActorTeleport,
+        Actor, ActorId, ActorMoveIntent, ActorMovementState, FaceDirection, Position, SActorDestroyed, SActorHit,
+        SActorMoveIntent, SActorTeleport,
     },
 };
 
@@ -134,11 +134,10 @@ pub fn handle_actor_destroyed_message(
         AudioPlayer::new(asset_server.load(asset_set.sound("actor_explodes").to_owned())),
         PlaybackSettings::DESPAWN,
     ));
-    if let Some(client_actor) = actors.0.get(&msg.id) {
-        commands
-            .entity(client_actor.entity)
-            .insert(Health(gameplay_config.characters.actor.health().max));
-    }
+    // Server despawns the entity; client cleanup happens when the next snapshot
+    // arrives without this actor (sync_actors removes any actor not in the
+    // update). No need to mutate the entity here — just play the VFX.
+    let _ = (actors, gameplay_config);
 }
 
 pub fn handle_actor_hit_message(

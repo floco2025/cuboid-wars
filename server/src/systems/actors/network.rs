@@ -6,8 +6,7 @@ use crate::{
 use common::{
     math::angle_delta_radians,
     protocol::{
-        ActorId, ActorMoveIntent, ActorMovementState, Position, SActorDestroyed, SActorMoveIntent, SActorTeleport,
-        ServerMessage,
+        ActorId, ActorMoveIntent, ActorMovementState, Position, SActorDestroyed, SActorMoveIntent, ServerMessage,
     },
 };
 
@@ -44,16 +43,6 @@ pub fn broadcast_actor_move_intent(
         ServerMessage::ActorMoveIntent(SActorMoveIntent {
             id,
             movement: ActorMovementState::new(pos, move_intent, vertical_velocity),
-        }),
-    );
-}
-
-pub fn broadcast_actor_teleport(players: &PlayerMap, id: ActorId, pos: Position, move_intent: ActorMoveIntent) {
-    broadcast_to_all(
-        players,
-        ServerMessage::ActorTeleport(SActorTeleport {
-            id,
-            movement: ActorMovementState::new(pos, move_intent, 0.0),
         }),
     );
 }

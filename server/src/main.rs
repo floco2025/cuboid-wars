@@ -80,6 +80,7 @@ async fn main() -> Result<()> {
         .insert_resource(ActorMap::default())
         .insert_resource(ItemMap::default())
         .insert_resource(ItemSpawner::default())
+        .insert_resource(ActorSpawner::default())
         .insert_resource(FromAcceptChannel::new(from_accept))
         .insert_resource(FromClientsChannel::new(from_clients))
         .add_systems(
@@ -104,10 +105,9 @@ async fn main() -> Result<()> {
                 players_timer_system,
                 // Fall recovery must run after movement updates positions.
                 players_fall_recovery_system.after(characters_movement_system),
-                actor_initial_spawn_system,
+                actor_spawn_quota_system,
                 actor_behavior_system,
-                actor_fall_recovery_system.after(characters_movement_system),
-                actor_health_recovery_system
+                actor_death_system
                     .after(characters_movement_system)
                     .after(projectiles_movement_system)
                     .before(characters_health_regeneration_system),

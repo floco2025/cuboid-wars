@@ -13,8 +13,41 @@ fn level_with_inaccessible(floors: Vec<[i32; 2]>, inaccessible_floors: Vec<[i32;
     }
 }
 
-const fn spawn(level: u32, col: i32, row: i32) -> PlayerSpawnDef {
-    PlayerSpawnDef { level, col, row }
+fn actor_zone(level: u32, col: i32, row: i32) -> ActorSpawnZoneDef {
+    ActorSpawnZoneDef {
+        level,
+        cols: [col, col + 1],
+        rows: [row, row + 1],
+        spawns: vec![SpawnEntryDef {
+            kind: "actor".into(),
+            count: 1,
+        }],
+    }
+}
+
+fn player_zone(level: u32, col: i32, row: i32) -> PlayerSpawnZoneDef {
+    PlayerSpawnZoneDef {
+        level,
+        cols: [col, col + 1],
+        rows: [row, row + 1],
+    }
+}
+
+fn map_with_zones(
+    grid: i32,
+    levels: Vec<LevelDef>,
+    actor_spawn_zones: Vec<ActorSpawnZoneDef>,
+    player_spawn_zones: Vec<PlayerSpawnZoneDef>,
+    ramps: Vec<RampDef>,
+) -> MapDef {
+    MapDef {
+        grid_cols: grid,
+        grid_rows: grid,
+        actor_spawn_zones,
+        player_spawn_zones,
+        levels,
+        ramps,
+    }
 }
 
 fn assets() -> MaterialRules {
@@ -22,55 +55,74 @@ fn assets() -> MaterialRules {
 }
 
 #[test]
-fn validation_rejects_spawn_field_without_floor_on_its_level() {
-    let map_def = MapDef {
-        grid_cols: 4,
-        grid_rows: 4,
-        player_spawn_fields: vec![spawn(1, 0, 0)],
-        levels: vec![level(vec![[0, 0]]), level(vec![[1, 0]])],
-        ramps: Vec::new(),
-    };
+fn validation_accepts_actor_zone_without_floor() {
+    // Empty cells (no floor at all) are allowed: kinds like flying actors
+    // don't need a floor underfoot. Forbidden cells are obstructions.
+    let map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]]), level(vec![[1, 0]])],
+        vec![actor_zone(1, 0, 0)],
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
 
-    let err = validate_map(&map_def).expect_err("spawn field must be a floor on its level");
-    assert!(err.to_string().contains("not a floor on level 1"));
+    validate_map(&map_def).expect("a zone over an empty cell should load");
 }
 
 #[test]
-fn validation_accepts_spawn_field_on_higher_level_floor() {
-    let map_def = MapDef {
-        grid_cols: 4,
-        grid_rows: 4,
-        player_spawn_fields: vec![spawn(1, 0, 0)],
-        levels: vec![level(vec![[1, 0]]), level(vec![[0, 0]])],
-        ramps: Vec::new(),
-    };
+fn validation_accepts_actor_zone_on_higher_level_floor() {
+    let map_def = map_with_zones(
+        4,
+        vec![level(vec![[1, 0]]), level(vec![[0, 0]])],
+        vec![actor_zone(1, 0, 0)],
+        vec![player_zone(0, 1, 0)],
+        Vec::new(),
+    );
 
-    validate_map(&map_def).expect("spawn field should be allowed on any level floor");
+    validate_map(&map_def).expect("zones should be allowed on any level floor");
 }
 
 #[test]
-fn validation_rejects_spawn_field_on_inaccessible_floor() {
-    let map_def = MapDef {
-        grid_cols: 4,
-        grid_rows: 4,
-        player_spawn_fields: vec![spawn(0, 1, 0)],
-        levels: vec![level_with_inaccessible(vec![[0, 0]], vec![[1, 0]])],
-        ramps: Vec::new(),
-    };
+fn validation_rejects_actor_zone_on_inaccessible_floor() {
+    let map_def = map_with_zones(
+        4,
+        vec![level_with_inaccessible(vec![[0, 0]], vec![[1, 0]])],
+        vec![actor_zone(0, 1, 0)],
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
 
-    let err = validate_map(&map_def).expect_err("spawn field must require a regular floor");
-    assert!(err.to_string().contains("not a floor on level 0"));
+    let err = validate_map(&map_def).expect_err("actor zone must not be on inaccessible floor");
+    let msg = err.to_string();
+    assert!(msg.contains("inaccessible floor"), "got: {msg}");
+    assert!(msg.contains("actor_spawn_zones"), "got: {msg}");
+}
+
+#[test]
+fn validation_rejects_player_zone_on_inaccessible_floor() {
+    let map_def = map_with_zones(
+        4,
+        vec![level_with_inaccessible(vec![[0, 0]], vec![[1, 0]])],
+        Vec::new(),
+        vec![player_zone(0, 1, 0)],
+        Vec::new(),
+    );
+
+    let err = validate_map(&map_def).expect_err("player zone must not be on inaccessible floor");
+    let msg = err.to_string();
+    assert!(msg.contains("inaccessible floor"), "got: {msg}");
+    assert!(msg.contains("player_spawn_zones"), "got: {msg}");
 }
 
 #[test]
 fn inaccessible_floor_emits_physical_slab_but_not_regular_floor() {
-    let map_def = MapDef {
-        grid_cols: 4,
-        grid_rows: 4,
-        player_spawn_fields: vec![spawn(0, 0, 0)],
-        levels: vec![level_with_inaccessible(vec![[0, 0]], vec![[2, 0]])],
-        ramps: Vec::new(),
-    };
+    let map_def = map_with_zones(
+        4,
+        vec![level_with_inaccessible(vec![[0, 0]], vec![[2, 0]])],
+        vec![actor_zone(0, 0, 0)],
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
 
     let (layout, config) = compile_map(&map_def, &assets());
     let inaccessible_cell = config.levels[0].cells.rows[0][2];
@@ -86,19 +138,145 @@ fn inaccessible_floor_emits_physical_slab_but_not_regular_floor() {
 }
 
 #[test]
-fn validation_rejects_spawn_field_on_same_level_ramp() {
-    let map_def = MapDef {
-        grid_cols: 4,
-        grid_rows: 4,
-        player_spawn_fields: vec![spawn(1, 0, 0)],
-        levels: vec![level(vec![[3, 3]]), level(vec![[0, 0]]), level(vec![[3, 3]])],
-        ramps: vec![RampDef {
+fn validation_rejects_actor_zone_on_same_level_ramp() {
+    let map_def = map_with_zones(
+        4,
+        vec![level(vec![[3, 3]]), level(vec![[0, 0]]), level(vec![[3, 3]])],
+        vec![actor_zone(1, 0, 0)],
+        vec![player_zone(0, 3, 3)],
+        vec![RampDef {
             low: [0, 0],
             high: [1, 2],
             lower_level: 1,
         }],
-    };
+    );
 
-    let err = validate_map(&map_def).expect_err("spawn field must not overlap ramp footprint");
-    assert!(err.to_string().contains("overlaps a ramp on level 1"));
+    let err = validate_map(&map_def).expect_err("actor zone must not overlap ramp footprint");
+    let msg = err.to_string();
+    assert!(msg.contains("overlaps a ramp on level 1"), "got: {msg}");
+    assert!(msg.contains("actor_spawn_zones"), "got: {msg}");
+}
+
+#[test]
+fn validation_rejects_player_zone_on_same_level_ramp() {
+    let map_def = map_with_zones(
+        4,
+        vec![level(vec![[3, 3]]), level(vec![[0, 0]]), level(vec![[3, 3]])],
+        vec![],
+        vec![player_zone(1, 0, 0)],
+        vec![RampDef {
+            low: [0, 0],
+            high: [1, 2],
+            lower_level: 1,
+        }],
+    );
+
+    let err = validate_map(&map_def).expect_err("player zone must not overlap ramp footprint");
+    let msg = err.to_string();
+    assert!(msg.contains("overlaps a ramp on level 1"), "got: {msg}");
+    assert!(msg.contains("player_spawn_zones"), "got: {msg}");
+}
+
+#[test]
+fn validation_rejects_actor_zone_with_empty_spawns_list() {
+    let map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]])],
+        vec![ActorSpawnZoneDef {
+            level: 0,
+            cols: [0, 1],
+            rows: [0, 1],
+            spawns: Vec::new(),
+        }],
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+
+    let err = validate_map(&map_def).expect_err("must reject empty `spawns`");
+    assert!(err.to_string().contains("empty `spawns`"));
+}
+
+#[test]
+fn validation_accepts_unknown_kind_strings() {
+    // The map loader knows nothing about specific kinds; whether a kind is
+    // useful is the spawn picker's call. So unfamiliar strings must load fine.
+    let map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]])],
+        vec![ActorSpawnZoneDef {
+            level: 0,
+            cols: [0, 1],
+            rows: [0, 1],
+            spawns: vec![
+                SpawnEntryDef {
+                    kind: "plyer".into(),
+                    count: 1,
+                },
+                SpawnEntryDef {
+                    kind: "boss".into(),
+                    count: 1,
+                },
+            ],
+        }],
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+
+    validate_map(&map_def).expect("any non-empty string list of kinds should load");
+}
+
+#[test]
+fn validation_rejects_actor_zone_with_duplicate_kind() {
+    let map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]])],
+        vec![ActorSpawnZoneDef {
+            level: 0,
+            cols: [0, 1],
+            rows: [0, 1],
+            spawns: vec![
+                SpawnEntryDef {
+                    kind: "actor".into(),
+                    count: 1,
+                },
+                SpawnEntryDef {
+                    kind: "actor".into(),
+                    count: 2,
+                },
+            ],
+        }],
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+
+    let err = validate_map(&map_def).expect_err("duplicate kind must reject");
+    assert!(err.to_string().contains("duplicate"));
+}
+
+#[test]
+fn validation_rejects_missing_player_spawn_zones() {
+    let map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]])],
+        vec![actor_zone(0, 0, 0)],
+        Vec::new(),
+        Vec::new(),
+    );
+
+    let err = validate_map(&map_def).expect_err("must require at least one player zone");
+    assert!(err.to_string().contains("player_spawn_zones"));
+}
+
+#[test]
+fn validation_accepts_empty_actor_spawn_zones() {
+    // A map with no enemies is valid.
+    let map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]])],
+        Vec::new(),
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+
+    validate_map(&map_def).expect("empty actor zones should be allowed");
 }

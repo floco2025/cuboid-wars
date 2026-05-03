@@ -342,7 +342,8 @@ mod tests {
     fn map_config(levels: Vec<LevelGrid>) -> MapConfig {
         MapConfig {
             levels,
-            player_spawn_fields: Vec::new(),
+            actor_spawn_zones: Vec::new(),
+            player_spawn_zones: Vec::new(),
         }
     }
 
