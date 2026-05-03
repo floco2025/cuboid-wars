@@ -2,6 +2,7 @@ use bevy::{ecs::query::QueryFilter, prelude::*};
 
 use common::{
     config::GameplayConfig,
+    health::regenerate_health,
     markers::{ActorMarker, PlayerMarker},
     protocol::Health,
 };
@@ -12,13 +13,13 @@ pub fn characters_health_regeneration_system(
     mut players: Query<&mut Health, (With<PlayerMarker>, Without<ActorMarker>)>,
     mut actors: Query<&mut Health, (With<ActorMarker>, Without<PlayerMarker>)>,
 ) {
-    regenerate_health(
+    regenerate_health_query(
         &mut players,
         gameplay_config.characters.player.health().max,
         gameplay_config.characters.player.health().regeneration_per_second,
         time.delta_secs(),
     );
-    regenerate_health(
+    regenerate_health_query(
         &mut actors,
         gameplay_config.characters.actor.health().max,
         gameplay_config.characters.actor.health().regeneration_per_second,
@@ -26,7 +27,7 @@ pub fn characters_health_regeneration_system(
     );
 }
 
-fn regenerate_health<F: QueryFilter>(
+fn regenerate_health_query<F: QueryFilter>(
     query: &mut Query<&mut Health, F>,
     max_health: f32,
     regeneration_per_second: f32,
@@ -38,6 +39,6 @@ fn regenerate_health<F: QueryFilter>(
 
     let gain = regeneration_per_second * delta;
     for mut health in query {
-        health.0 = (health.0 + gain).min(max_health);
+        regenerate_health(&mut health, max_health, gain);
     }
 }

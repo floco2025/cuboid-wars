@@ -14,6 +14,7 @@ use crate::{
 use common::{
     config::GameplayConfig,
     constants::PHYSICS_EPSILON,
+    health::apply_damage,
     markers::{ActorMarker, PlayerMarker},
     physics::{
         CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, character_move_plans_intersect,
@@ -160,7 +161,7 @@ fn apply_player_moves(
             })
             && let Ok(mut health) = health_query.get_mut(planned_move.entity)
         {
-            health.0 = (health.0 - actor_contact_damage).max(0.0);
+            apply_damage(&mut health, actor_contact_damage);
         }
     }
 }

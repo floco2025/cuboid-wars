@@ -4,6 +4,7 @@ use crate::{
     constants::{HEALTH_BAR_FILL_COLOR, HEALTH_BAR_TRACK_COLOR},
     markers::HealthBarFillMarker,
 };
+use common::{health::health_ratio, protocol::Health};
 
 pub fn spawn_health_bar(
     parent: &mut ChildSpawnerCommands,
@@ -30,7 +31,7 @@ pub fn spawn_health_bar(
                     max_health,
                 },
                 Node {
-                    width: Val::Percent(health_ratio(current_health, max_health) * 100.0),
+                    width: Val::Percent(health_ratio(Health(current_health), max_health) * 100.0),
                     height: Val::Percent(100.0),
                     ..default()
                 },
@@ -38,11 +39,4 @@ pub fn spawn_health_bar(
             ));
         })
         .id()
-}
-
-pub fn health_ratio(health: f32, max_health: f32) -> f32 {
-    if max_health <= 0.0 {
-        return 0.0;
-    }
-    (health / max_health).clamp(0.0, 1.0)
 }

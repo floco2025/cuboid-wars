@@ -4,6 +4,7 @@ use super::network::broadcast_to_all;
 use crate::{config::ServerGameplayConfig, resources::PlayerMap};
 use common::{
     config::GameplayConfig,
+    health::apply_damage,
     markers::{ActorMarker, PlayerMarker, ProjectileMarker},
     physics::{CollisionWorld, ProjectileMotion, projectile_hits_character},
     protocol::*,
@@ -76,7 +77,7 @@ pub fn projectiles_movement_system(
                 }
 
                 info!("{:?} hits {:?}", shooter_id, player_id);
-                health.0 = (health.0 - server_gameplay_config.damage.player_projectile_to_player).max(0.0);
+                apply_damage(&mut health, server_gameplay_config.damage.player_projectile_to_player);
 
                 // Update hit counters in separate scopes to avoid borrow conflicts
                 {
@@ -121,7 +122,7 @@ pub fn projectiles_movement_system(
                 .is_some()
                 {
                     info!("{:?} hits {:?}", shooter_id, actor_id);
-                    health.0 = (health.0 - server_gameplay_config.damage.player_projectile_to_actor).max(0.0);
+                    apply_damage(&mut health, server_gameplay_config.damage.player_projectile_to_actor);
                     if let Some(shooter_info) = players.0.get_mut(shooter_id) {
                         shooter_info.hits += 1;
                     }
