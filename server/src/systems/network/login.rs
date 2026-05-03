@@ -82,7 +82,7 @@ pub fn handle_login_message(
                 map_config,
                 collision_world,
                 &occupied_positions,
-                gameplay_config.characters.player.physics(),
+                gameplay_config.player.physics(),
             );
 
             // Calculate initial facing direction toward center
@@ -98,7 +98,7 @@ pub fn handle_login_message(
                 move_intent,
                 face_dir,
                 hits,
-                Health(gameplay_config.characters.player.health().max),
+                Health(gameplay_config.player.health().max),
             );
 
             // Construct the initial Update for the new player

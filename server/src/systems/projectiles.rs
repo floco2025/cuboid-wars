@@ -1,7 +1,10 @@
 use bevy::prelude::*;
 
 use super::network::broadcast_to_all;
-use crate::{config::ServerGameplayConfig, resources::PlayerMap};
+use crate::{
+    config::ServerGameplayConfig,
+    resources::{ActorMap, PlayerMap},
+};
 use common::{
     config::GameplayConfig,
     health::apply_damage,
@@ -29,6 +32,7 @@ pub fn projectiles_movement_system(
     collision_world: Res<CollisionWorld>,
     gameplay_config: Res<GameplayConfig>,
     server_gameplay_config: Res<ServerGameplayConfig>,
+    actors: Res<ActorMap>,
     mut players: ResMut<PlayerMap>,
 ) {
     let delta = time.delta_secs();
@@ -70,7 +74,7 @@ pub fn projectiles_movement_system(
                 delta,
                 position,
                 face_direction.0,
-                gameplay_config.characters.player.physics(),
+                gameplay_config.player.physics(),
             ) {
                 closest_hit = Some(closer_hit(
                     closest_hit,
@@ -80,14 +84,16 @@ pub fn projectiles_movement_system(
         }
 
         for (position, face_direction, actor_id, _) in &mut actor_query {
-            if let Some(hit) = projectile_character_hit(
-                &proj_pos,
-                &projectile,
-                delta,
-                position,
-                face_direction.0,
-                gameplay_config.characters.actor.physics(),
-            ) {
+            // Look up the actor's kind to use its configured physics. The
+            // server cross-validates kinds at startup, so unwraps are safe.
+            let info = actors.0.get(actor_id).expect("actor in query missing from ActorMap");
+            let actor_physics = gameplay_config
+                .actor(&info.spawn_kind)
+                .expect("actor kind validated at startup")
+                .physics();
+            if let Some(hit) =
+                projectile_character_hit(&proj_pos, &projectile, delta, position, face_direction.0, actor_physics)
+            {
                 closest_hit = Some(closer_hit(
                     closest_hit,
                     ProjectileTargetHit::Actor { id: *actor_id, hit },
@@ -101,7 +107,7 @@ pub fn projectiles_movement_system(
                     && let Ok((_, _, _, mut health)) = player_query.get_mut(target_entity)
                 {
                     info!("{:?} hits {:?}", shooter_id, player_id);
-                    apply_damage(&mut health, server_gameplay_config.damage.player_projectile_to_player);
+                    apply_damage(&mut health, server_gameplay_config.player.projectile_damage_to_player);
 
                     if let Some(shooter_info) = players.0.get_mut(shooter_id) {
                         shooter_info.hits += 1;
@@ -127,8 +133,13 @@ pub fn projectiles_movement_system(
                         continue;
                     }
 
+                    let info = actors.0.get(id).expect("actor in query missing from ActorMap");
+                    let damage = server_gameplay_config
+                        .actor(&info.spawn_kind)
+                        .expect("actor kind validated at startup")
+                        .damage_from_player_projectile;
                     info!("{:?} hits {:?}", shooter_id, actor_id);
-                    apply_damage(&mut health, server_gameplay_config.damage.player_projectile_to_actor);
+                    apply_damage(&mut health, damage);
                     if let Some(shooter_info) = players.0.get_mut(shooter_id) {
                         shooter_info.hits += 1;
                     }

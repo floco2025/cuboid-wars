@@ -11,10 +11,8 @@ use common::{
     config::GameplayConfig,
     markers::{ActorMarker, PlayerMarker},
     physics::{CharacterVerticalVelocity, CollisionWorld},
-    protocol::{ActorKind, ActorMoveIntent, FaceDirection, Health, Position},
+    protocol::{ActorMoveIntent, FaceDirection, Health, Position},
 };
-
-const ACTOR_SPAWN_KIND: &str = "actor";
 
 // What to do for a single (zone, kind) slot on a given tick.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -41,12 +39,13 @@ fn decide_spawn(live: u32, count: u32, throttle: f32) -> SpawnDecision {
 //   - Skip if at quota (do not touch the throttle).
 //   - Tick the throttle down by `dt` if the slot is short and the throttle
 //     hasn't expired yet.
-//   - Otherwise spawn one actor and reset the throttle to `respawn_delay`.
+//   - Otherwise spawn one actor and reset the throttle to the kind's
+//     `spawn_throttle_seconds`.
 //
 // The first time a slot is seen the throttle entry doesn't exist yet; it's
 // inserted as 0.0, which means "go now." That's how boot starts spawning
 // immediately: the very first tick picks Spawn for every slot, then sets
-// the throttle to `respawn_delay` so subsequent spawns are rate-limited.
+// the throttle so subsequent spawns are rate-limited.
 pub fn actor_spawn_quota_system(
     mut commands: Commands,
     mut actors: ResMut<ActorMap>,
@@ -59,8 +58,6 @@ pub fn actor_spawn_quota_system(
     server_gameplay_config: Res<ServerGameplayConfig>,
     players: Query<&Position, With<PlayerMarker>>,
 ) {
-    let actor_physics = gameplay_config.characters.actor.physics();
-    let throttle_seconds = server_gameplay_config.actors.spawn_throttle_seconds;
     let dt = time.delta_secs();
     // Avoid spawning on top of players. Existing actors aren't in this list —
     // we don't have a Position query for them here, and physics will resolve
@@ -69,12 +66,17 @@ pub fn actor_spawn_quota_system(
     let mut rng = rng();
 
     for (zone_idx, zone) in map_config.actor_spawn_zones.iter().enumerate() {
-        // Skip zones whose kind isn't one this server knows how to spawn.
-        // Today there's only one kind ("actor"); future kinds would be
-        // added by replacing this check with a kind-dispatch.
-        if zone.kind != ACTOR_SPAWN_KIND {
-            continue;
-        }
+        // Configs are cross-validated against the map at startup, so any
+        // zone kind here is guaranteed to resolve in both configs.
+        let actor_config = gameplay_config
+            .actor(&zone.kind)
+            .expect("zone kind validated at startup");
+        let kind_server_config = server_gameplay_config
+            .actor(&zone.kind)
+            .expect("zone kind validated at startup");
+        let actor_physics = actor_config.physics();
+        let throttle_seconds = kind_server_config.spawn_throttle_seconds;
+
         let live = live_actor_count(&actors, zone_idx);
         let throttle = throttles.0.entry(zone_idx).or_insert(0.0);
 
@@ -92,10 +94,11 @@ pub fn actor_spawn_quota_system(
                     &mut rng,
                     &map_config,
                     &collision_world,
-                    &gameplay_config,
-                    &server_gameplay_config,
+                    actor_config,
+                    kind_server_config,
                     actor_physics,
                     zone_idx,
+                    &zone.kind,
                 );
                 *throttle = throttle_seconds;
             }
@@ -107,7 +110,7 @@ fn live_actor_count(actors: &ActorMap, zone_idx: usize) -> u32 {
     actors
         .0
         .values()
-        .filter(|info| info.spawn_zone_index == zone_idx && info.spawn_kind == ACTOR_SPAWN_KIND)
+        .filter(|info| info.spawn_zone_index == zone_idx)
         .count() as u32
 }
 
@@ -120,10 +123,11 @@ fn spawn_actor_in_zone(
     rng: &mut ThreadRng,
     map_config: &MapConfig,
     collision_world: &CollisionWorld,
-    gameplay_config: &GameplayConfig,
-    server_gameplay_config: &ServerGameplayConfig,
+    actor_config: &common::config::ActorGameplayConfig,
+    kind_server_config: &crate::config::ActorKindServerConfig,
     actor_physics: common::config::CharacterPhysicsConfig,
     zone_idx: usize,
+    spawn_kind: &str,
 ) {
     let pos =
         generate_actor_spawn_position_in_zone(map_config, zone_idx, collision_world, occupied_positions, actor_physics);
@@ -132,7 +136,7 @@ fn spawn_actor_in_zone(
     let direction = rng.random_range(0.0..std::f32::consts::TAU);
     let move_intent = ActorMoveIntent::Moving {
         direction,
-        speed: gameplay_config.characters.actor.patrol_speed,
+        speed: actor_config.patrol_speed,
     };
     let actor_id = spawner.allocate();
     let entity = commands
@@ -143,7 +147,7 @@ fn spawn_actor_in_zone(
             move_intent,
             FaceDirection(direction),
             CharacterVerticalVelocity::default(),
-            Health(gameplay_config.characters.actor.health().max),
+            Health(actor_config.health().max),
         ))
         .id();
 
@@ -151,10 +155,9 @@ fn spawn_actor_in_zone(
         actor_id,
         ActorInfo {
             entity,
-            kind: ActorKind::Automaton,
             spawn_zone_index: zone_idx,
-            spawn_kind: ACTOR_SPAWN_KIND.to_string(),
-            direction_timer: random_direction_time(rng, server_gameplay_config),
+            spawn_kind: spawn_kind.to_string(),
+            direction_timer: random_direction_time(rng, kind_server_config),
             patrol_intent: move_intent,
             go_to_position: None,
             wall_avoidance_direction: None,
@@ -164,10 +167,8 @@ fn spawn_actor_in_zone(
     );
 }
 
-fn random_direction_time(rng: &mut ThreadRng, server_gameplay_config: &ServerGameplayConfig) -> f32 {
-    rng.random_range(
-        server_gameplay_config.actors.min_direction_time..=server_gameplay_config.actors.max_direction_time,
-    )
+fn random_direction_time(rng: &mut ThreadRng, kind_server_config: &crate::config::ActorKindServerConfig) -> f32 {
+    rng.random_range(kind_server_config.min_direction_time..=kind_server_config.max_direction_time)
 }
 
 #[cfg(test)]

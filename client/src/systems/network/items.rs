@@ -21,7 +21,7 @@ pub fn handle_item_collected_message(
 ) {
     // Play sound - this message is only sent to the player who collected it
     commands.spawn((
-        AudioPlayer::new(asset_server.load(asset_set.sound("player_cookie").to_owned())),
+        AudioPlayer::new(asset_server.load(asset_set.player_sound("collect_cookie").to_owned())),
         PlaybackSettings::DESPAWN,
     ));
 }

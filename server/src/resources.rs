@@ -224,8 +224,11 @@ pub struct PlayerMap(pub HashMap<PlayerId, PlayerInfo>);
 // Actor information (server-side)
 pub struct ActorInfo {
     pub entity: Entity,
-    pub kind: ActorKind,
     pub spawn_zone_index: usize,
+    // Configuration key for this actor: indexes into both
+    // `GameplayConfig.actors` (common) and `ServerGameplayConfig.actors`
+    // (server). Also broadcast as `Actor.kind` on the wire so the client
+    // knows which model/sounds to use.
     pub spawn_kind: String,
     pub direction_timer: f32,
     pub patrol_intent: ActorMoveIntent,

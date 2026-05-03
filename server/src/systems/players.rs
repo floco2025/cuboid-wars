@@ -79,7 +79,7 @@ pub fn players_fall_recovery_system(
             &map_config,
             &collision_world,
             &occupied_positions,
-            gameplay_config.characters.player.physics(),
+            gameplay_config.player.physics(),
         );
 
         if let Ok((_, _, mut pos, mut motion, move_intent)) = player_query.get_mut(entity) {

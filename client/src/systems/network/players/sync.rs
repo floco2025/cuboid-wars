@@ -161,8 +161,8 @@ fn update_snapshot_player(
         if let Ok((client_pos, _, _)) = player_data.get(client_player.entity) {
             let server_velocity = player_movement_velocity(
                 server_player.movement,
-                gameplay_config.characters.player.walk_speed,
-                gameplay_config.characters.player.run_speed,
+                gameplay_config.player.walk_speed,
+                gameplay_config.player.run_speed,
                 server_player.speed_power_up,
             );
 

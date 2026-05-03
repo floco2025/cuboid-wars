@@ -16,10 +16,10 @@ pub struct AssetSet {
     materials: HashMap<String, MaterialDef>,
     #[serde(flatten)]
     rules: MaterialRules,
-    models: Models,
-    effects: Effects,
+    player: PlayerAssets,
+    actors: HashMap<String, ActorAssets>,
+    models: GenericModels,
     skybox: SkyboxDef,
-    sounds: HashMap<String, String>,
 }
 
 impl AssetSet {
@@ -72,30 +72,45 @@ impl AssetSet {
     }
 
     pub fn player_model(&self) -> &ModelDef {
-        &self.models.player
+        &self.player.model
     }
 
-    pub fn actor_model(&self) -> &ModelDef {
-        &self.models.actor
+    pub fn actor_model(&self, kind: &str) -> &ModelDef {
+        &self.actor(kind).model
     }
 
     pub fn wall_light_model(&self) -> &WallLightModelDef {
         &self.models.wall_light
     }
 
-    pub fn actor_explosion_effect(&self) -> &EffectDef {
-        &self.effects.actor_explosion
+    pub fn actor_explosion_effect(&self, kind: &str) -> &EffectDef {
+        &self.actor(kind).explosion_effect
     }
 
     pub fn skybox(&self) -> &SkyboxDef {
         &self.skybox
     }
 
-    pub fn sound(&self, id: &str) -> &str {
-        self.sounds
-            .get(id)
+    pub fn player_sound(&self, name: &str) -> &str {
+        self.player
+            .sounds
+            .get(name)
             .map(String::as_str)
-            .unwrap_or_else(|| panic!("asset set is missing sound {id:?}"))
+            .unwrap_or_else(|| panic!("asset set is missing player sound {name:?}"))
+    }
+
+    pub fn actor_sound(&self, kind: &str, name: &str) -> &str {
+        self.actor(kind)
+            .sounds
+            .get(name)
+            .map(String::as_str)
+            .unwrap_or_else(|| panic!("asset set is missing actor sound {kind:?}.{name:?}"))
+    }
+
+    fn actor(&self, kind: &str) -> &ActorAssets {
+        self.actors
+            .get(kind)
+            .unwrap_or_else(|| panic!("asset set is missing actor kind {kind:?}"))
     }
 
     fn material(&self, id: &str) -> &MaterialDef {
@@ -186,13 +201,19 @@ pub struct SkyboxDef {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-struct Models {
-    player: ModelDef,
-    actor: ModelDef,
-    wall_light: WallLightModelDef,
+struct PlayerAssets {
+    model: ModelDef,
+    sounds: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
-struct Effects {
-    actor_explosion: EffectDef,
+struct ActorAssets {
+    model: ModelDef,
+    sounds: HashMap<String, String>,
+    explosion_effect: EffectDef,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct GenericModels {
+    wall_light: WallLightModelDef,
 }

@@ -300,17 +300,12 @@ impl ActorMovementState {
     }
 }
 
-// Server-controlled actor category. Starts narrow, but keeps snapshots ready
-// for different actor models and behavior later.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
-pub enum ActorKind {
-    Automaton,
-}
-
 // Actor - complete server-controlled actor snapshot sent across the network.
+// `kind` is a free-form string matching a key in the gameplay/asset configs;
+// new kinds can be added in config without bumping the wire protocol.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct Actor {
-    pub kind: ActorKind,
+    pub kind: String,
     pub movement: ActorMovementState,
     pub face_dir: f32,
     pub health: Health,
@@ -318,13 +313,7 @@ pub struct Actor {
 
 impl Actor {
     #[must_use]
-    pub const fn new(
-        kind: ActorKind,
-        pos: Position,
-        move_intent: ActorMoveIntent,
-        face_dir: f32,
-        health: Health,
-    ) -> Self {
+    pub const fn new(kind: String, pos: Position, move_intent: ActorMoveIntent, face_dir: f32, health: Health) -> Self {
         Self {
             kind,
             movement: ActorMovementState::new(pos, move_intent, 0.0),

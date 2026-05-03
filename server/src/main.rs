@@ -1,8 +1,8 @@
-use anyhow::Result;
+use anyhow::{Result, bail};
 use bevy::prelude::*;
 use clap::Parser;
 use quinn::Endpoint;
-use std::net::SocketAddr;
+use std::{collections::HashSet, net::SocketAddr};
 use tokio::{
     sync::mpsc::unbounded_channel,
     time::{self, Duration, Instant, MissedTickBehavior},
@@ -47,6 +47,10 @@ async fn main() -> Result<()> {
     let endpoint = Endpoint::server(server_config, addr)?;
     println!("quic server listening on {addr}");
 
+    let (map_layout, map_config) = generate_map();
+    let collision_world = CollisionWorld::from_map_layout(&map_layout);
+    validate_actor_kinds_consistent(&gameplay_config, &server_gameplay_config, &map_config)?;
+
     // Channel for sending from the accept connections task to the server
     let (to_server_from_accept, from_accept) = unbounded_channel();
     // Channel for sending from all per client network IO tasks to the server
@@ -54,9 +58,6 @@ async fn main() -> Result<()> {
 
     tokio::spawn(accept_connections_task(endpoint, to_server_from_accept, to_server));
     let mut app = App::new();
-
-    let (map_layout, map_config) = generate_map();
-    let collision_world = CollisionWorld::from_map_layout(&map_layout);
 
     app.add_plugins(MinimalPlugins).add_plugins(bevy::log::LogPlugin {
         level: bevy::log::Level::INFO,
@@ -150,4 +151,35 @@ async fn main() -> Result<()> {
 
         frame += 1;
     }
+}
+
+// Cross-file consistency check: every actor kind referenced by the map must
+// be defined in both the common and server gameplay configs, and the two
+// config files must define the same set of kinds. The map validator does not
+// know about gameplay configs, so this check lives at startup where all
+// three are paired together.
+fn validate_actor_kinds_consistent(
+    gameplay_config: &GameplayConfig,
+    server_gameplay_config: &ServerGameplayConfig,
+    map_config: &MapConfig,
+) -> Result<()> {
+    let common_kinds: HashSet<&str> = gameplay_config.actors.keys().map(String::as_str).collect();
+    let server_kinds: HashSet<&str> = server_gameplay_config.actors.keys().map(String::as_str).collect();
+    if common_kinds != server_kinds {
+        let only_common: Vec<&str> = common_kinds.difference(&server_kinds).copied().collect();
+        let only_server: Vec<&str> = server_kinds.difference(&common_kinds).copied().collect();
+        bail!(
+            "actor kinds disagree between common and server gameplay configs (only in common: {only_common:?}, only in server: {only_server:?})"
+        );
+    }
+    for (zone_idx, zone) in map_config.actor_spawn_zones.iter().enumerate() {
+        if !common_kinds.contains(zone.kind.as_str()) {
+            bail!(
+                "map actor spawn zone {zone_idx} references unknown actor kind {:?} (known kinds: {:?})",
+                zone.kind,
+                common_kinds
+            );
+        }
+    }
+    Ok(())
 }

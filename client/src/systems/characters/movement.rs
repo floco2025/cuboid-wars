@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use crate::{
     config::AssetSet,
     markers::BumpFlashUIMarker,
-    resources::PlayerMap,
+    resources::{ActorMap, PlayerMap},
     systems::{
         actors::{ActorMovementQuery, actor_start_positions, apply_actor_moves, plan_actor_moves},
         players::{PlayerMovementQuery, apply_player_moves, plan_player_moves},
@@ -19,6 +19,7 @@ pub fn characters_movement_system(
     gameplay_config: Res<GameplayConfig>,
     collision_world: Option<Res<CollisionWorld>>,
     players: Res<PlayerMap>,
+    actors: Res<ActorMap>,
     mut players_query: PlayerMovementQuery,
     mut actors_query: ActorMovementQuery,
     mut bump_flash_ui: Query<(&mut BackgroundColor, &mut Visibility), With<BumpFlashUIMarker>>,
@@ -42,6 +43,7 @@ pub fn characters_movement_system(
         delta,
         collision_world.as_deref(),
         &gameplay_config,
+        &actors,
         &actor_starts,
         &mut actors_query,
         &mut planned_moves,

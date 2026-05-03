@@ -1,21 +1,29 @@
 {
   "version": 1,
-  "characters": {
-    "player": {
-      "collider": { "width": 1.0, "height": 1.3, "depth": 0.6, "y_offset": 0.5, "y_offset_anchor": "bottom" },
-      "support_probe": { "width": 0.2, "depth": 0.2 },
-      "eye_height": 1.62,
-      "health": { "max": 100.0, "regeneration_per_second": 2.0 },
-      "walk_speed": 5.0,
-      "run_speed": 9.0
-    },
-    "actor": {
-      "collider": { "width": 1.0, "height": 1.0, "depth": 1.0, "y_offset": 1.1, "y_offset_anchor": "center" },
+  "player": {
+    "collider": { "width": 1.0, "height": 1.3, "depth": 0.6, "y_offset": 0.5, "y_offset_anchor": "bottom" },
+    "support_probe": { "width": 0.2, "depth": 0.2 },
+    "eye_height": 1.62,
+    "health": { "max": 100.0, "regeneration_per_second": 2.0 },
+    "walk_speed": 5.0,
+    "run_speed": 9.0
+  },
+  "actors": {
+    "mine_1": {
+      "collider": { "width": 0.3, "height": 0.3, "depth": 0.3, "y_offset": 1.45, "y_offset_anchor": "center" },
       "support_probe": { "width": 0.2, "depth": 0.2 },
       "eye_height": 1.6,
       "health": { "max": 100.0, "regeneration_per_second": 1.0 },
       "patrol_speed": 3.0,
       "chase_speed": 8.0
+    },
+    "mine_2": {
+      "collider": { "width": 1.0, "height": 1.0, "depth": 1.0, "y_offset": 1.1, "y_offset_anchor": "center" },
+      "support_probe": { "width": 0.2, "depth": 0.2 },
+      "eye_height": 1.6,
+      "health": { "max": 100.0, "regeneration_per_second": 1.0 },
+      "patrol_speed": 5.0,
+      "chase_speed": 10.0
     }
   }
 }

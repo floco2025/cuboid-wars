@@ -1,4 +1,4 @@
-use std::{fs, path::Path};
+use std::{collections::HashMap, fs, path::Path};
 
 use anyhow::{Context, Result, bail};
 use bevy::prelude::Resource;
@@ -29,8 +29,8 @@ pub fn configure_server() -> Result<ServerConfig> {
 #[derive(Resource, Debug, Clone, Deserialize)]
 pub struct ServerGameplayConfig {
     pub version: u32,
-    pub actors: ActorBehaviorConfig,
-    pub damage: DamageConfig,
+    pub player: PlayerServerConfig,
+    pub actors: HashMap<String, ActorKindServerConfig>,
 }
 
 impl ServerGameplayConfig {
@@ -55,13 +55,51 @@ impl ServerGameplayConfig {
             self.version,
             SUPPORTED_VERSION
         );
-        self.actors.validate("actors")?;
-        self.damage.validate("damage")
+        self.player.validate("player")?;
+        if self.actors.is_empty() {
+            bail!("actors must define at least one kind");
+        }
+        for (kind, actor) in &self.actors {
+            if kind.is_empty() {
+                bail!("actor kind must not be empty");
+            }
+            actor.validate(&format!("actors.{kind}"))?;
+        }
+        Ok(())
+    }
+
+    #[must_use]
+    pub fn actor(&self, kind: &str) -> Option<&ActorKindServerConfig> {
+        self.actors.get(kind)
     }
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct ActorBehaviorConfig {
+pub struct PlayerServerConfig {
+    pub projectile_damage_to_player: f32,
+}
+
+impl PlayerServerConfig {
+    fn validate(&self, path: &str) -> Result<()> {
+        validate_non_negative_finite(
+            self.projectile_damage_to_player,
+            &format!("{path}.projectile_damage_to_player"),
+        )
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ActorKindServerConfig {
+    // Damage this actor takes from a player projectile hit. Per-kind so a
+    // tougher actor can be configured to need more shots without changing
+    // the projectile.
+    pub damage_from_player_projectile: f32,
+    // Minimum seconds between successive spawns into the same zone, applied
+    // by the spawn quota system. Throttles boot-time fill, not just respawns:
+    // a fresh zone spawns one actor per `spawn_throttle_seconds` until its
+    // quota is met. The throttle freezes when the zone fills, so the next
+    // death pays a full wait. 0.0 = no throttle (legacy behavior).
+    pub spawn_throttle_seconds: f32,
     pub min_direction_time: f32,
     pub max_direction_time: f32,
     pub idle_chance: f32,
@@ -69,16 +107,16 @@ pub struct ActorBehaviorConfig {
     pub direct_path_probe_time: f32,
     pub go_to_reached_distance: f32,
     pub contact_explosion_distance: f32,
-    // Minimum seconds between successive spawns into the same zone, applied
-    // by the spawn quota system. Throttles boot-time fill, not just respawns:
-    // a fresh zone spawns one actor per `spawn_throttle_seconds` until its
-    // quota is met. The throttle freezes when the zone fills, so the next
-    // death pays a full wait. 0.0 = no throttle (legacy behavior).
-    pub spawn_throttle_seconds: f32,
+    pub explosion: ActorExplosionDamageConfig,
 }
 
-impl ActorBehaviorConfig {
+impl ActorKindServerConfig {
     fn validate(&self, path: &str) -> Result<()> {
+        validate_non_negative_finite(
+            self.damage_from_player_projectile,
+            &format!("{path}.damage_from_player_projectile"),
+        )?;
+        validate_non_negative_finite(self.spawn_throttle_seconds, &format!("{path}.spawn_throttle_seconds"))?;
         validate_positive_finite(self.min_direction_time, &format!("{path}.min_direction_time"))?;
         validate_positive_finite(self.max_direction_time, &format!("{path}.max_direction_time"))?;
         if self.min_direction_time > self.max_direction_time {
@@ -92,28 +130,7 @@ impl ActorBehaviorConfig {
             self.contact_explosion_distance,
             &format!("{path}.contact_explosion_distance"),
         )?;
-        validate_non_negative_finite(self.spawn_throttle_seconds, &format!("{path}.spawn_throttle_seconds"))
-    }
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct DamageConfig {
-    pub player_projectile_to_player: f32,
-    pub player_projectile_to_actor: f32,
-    pub actor_explosion: ActorExplosionDamageConfig,
-}
-
-impl DamageConfig {
-    fn validate(&self, path: &str) -> Result<()> {
-        validate_non_negative_finite(
-            self.player_projectile_to_player,
-            &format!("{path}.player_projectile_to_player"),
-        )?;
-        validate_non_negative_finite(
-            self.player_projectile_to_actor,
-            &format!("{path}.player_projectile_to_actor"),
-        )?;
-        self.actor_explosion.validate(&format!("{path}.actor_explosion"))
+        self.explosion.validate(&format!("{path}.explosion"))
     }
 }
 

@@ -1,44 +1,44 @@
-use bevy::{ecs::query::QueryFilter, prelude::*};
+use bevy::prelude::*;
 
+use crate::resources::ActorMap;
 use common::{
     config::GameplayConfig,
     health::regenerate_health,
     markers::{ActorMarker, PlayerMarker},
-    protocol::Health,
+    protocol::{ActorId, Health},
 };
 
 pub fn characters_health_regeneration_system(
     time: Res<Time>,
     gameplay_config: Res<GameplayConfig>,
+    actors_map: Res<ActorMap>,
     mut players: Query<&mut Health, (With<PlayerMarker>, Without<ActorMarker>)>,
-    mut actors: Query<&mut Health, (With<ActorMarker>, Without<PlayerMarker>)>,
+    mut actors: Query<(&ActorId, &mut Health), (With<ActorMarker>, Without<PlayerMarker>)>,
 ) {
-    regenerate_health_query(
-        &mut players,
-        gameplay_config.characters.player.health().max,
-        gameplay_config.characters.player.health().regeneration_per_second,
-        time.delta_secs(),
-    );
-    regenerate_health_query(
-        &mut actors,
-        gameplay_config.characters.actor.health().max,
-        gameplay_config.characters.actor.health().regeneration_per_second,
-        time.delta_secs(),
-    );
-}
+    let dt = time.delta_secs();
 
-fn regenerate_health_query<F: QueryFilter>(
-    query: &mut Query<&mut Health, F>,
-    max_health: f32,
-    regeneration_per_second: f32,
-    delta: f32,
-) {
-    if regeneration_per_second <= 0.0 {
-        return;
+    // Players use the single shared player config.
+    let player_health = gameplay_config.player.health();
+    if player_health.regeneration_per_second > 0.0 {
+        let gain = player_health.regeneration_per_second * dt;
+        for mut health in &mut players {
+            regenerate_health(&mut health, player_health.max, gain);
+        }
     }
 
-    let gain = regeneration_per_second * delta;
-    for mut health in query {
-        regenerate_health(&mut health, max_health, gain);
+    // Actors regenerate per kind.
+    for (id, mut health) in &mut actors {
+        let Some(info) = actors_map.0.get(id) else {
+            continue;
+        };
+        let actor_health = gameplay_config
+            .actor(&info.spawn_kind)
+            .expect("actor kind validated at startup")
+            .health();
+        if actor_health.regeneration_per_second <= 0.0 {
+            continue;
+        }
+        let gain = actor_health.regeneration_per_second * dt;
+        regenerate_health(&mut health, actor_health.max, gain);
     }
 }

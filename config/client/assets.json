@@ -239,18 +239,65 @@
     { "walls": { "all": "bricks-mortar" } },
     { "items": { "Cookie": "hammered-gold", "all": "space-cruiser-panels2" } }
   ],
-  "models": {
-    "player": {
+  "player": {
+    "model": {
       "scene": "models/futuristic_flying_animated_robot_low_poly.glb#Scene0",
       "scale": 0.53,
       "model_y_offset": -0.5,
       "animation_speed": 2.0
     },
-    "actor": {
-      "scene": "models/SciFiDrone.glb#Scene0",
-      "scale": 1.0,
-      "model_y_offset": -0.05
+    "sounds": {
+      "fire": "sounds/impactGeneric_light_001.ogg",
+      "dry_fire": "sounds/metalLatch.ogg",
+      "take_hit": "sounds/impactPunch_heavy_001.ogg",
+      "collect_power_up": "sounds/Retro PowerUP StereoUP 05.wav",
+      "collect_cookie": "sounds/metalClick.ogg",
+      "bump_wall": "sounds/impactGlass_heavy_001.ogg",
+      "bump_player": "sounds/impactTin_medium_004.ogg",
+      "projectile_hits_wall": "sounds/impactGlass_light_000.ogg",
+      "projectile_hits_player": "sounds/impactGeneric_light_001.ogg",
+      "projectile_hits_actor": "sounds/impactMetal_medium_003.ogg"
+    }
+  },
+  "actors": {
+    "mine_1": {
+      "model": {
+        "scene": "models/SciFiDrone.glb#Scene0",
+        "scale": 0.3,
+        "model_y_offset": -0.03
+      },
+      "sounds": {
+        "explodes": "sounds/Retro Explosion Short 15.wav"
+      },
+      "explosion_effect": {
+        "image": "vfx/Explosion_10_8x8-64.png",
+        "columns": 8,
+        "rows": 8,
+        "first_frame": "upper_left",
+        "scale": 1.8,
+        "lifetime": 0.6
+      }
     },
+    "mine_2": {
+      "model": {
+        "scene": "models/SciFiDrone.glb#Scene0",
+        "scale": 1.0,
+        "model_y_offset": -0.05
+      },
+      "sounds": {
+        "explodes": "sounds/Retro Explosion Short 15.wav"
+      },
+      "explosion_effect": {
+        "image": "vfx/Explosion_10_8x8-64.png",
+        "columns": 8,
+        "rows": 8,
+        "first_frame": "upper_left",
+        "scale": 6.0,
+        "lifetime": 0.6
+      }
+    }
+  },
+  "models": {
     "wall_light": {
       "scene": "models/lamp_22.glb",
       "scale": 1.5,
@@ -261,31 +308,8 @@
       "emissive_luminance": 2.0
     }
   },
-  "effects": {
-    "actor_explosion": {
-      "image": "vfx/Explosion_10_8x8-64.png",
-      "columns": 8,
-      "rows": 8,
-      "first_frame": "upper_left",
-      "scale": 6.0,
-      "lifetime": 0.6
-    }
-  },
   "skybox": {
     "cross_image": "Skybox_CoudySky_Day_3.png",
     "brightness": 1000.0
-  },
-  "sounds": {
-    "player_fire": "sounds/impactGeneric_light_001.ogg",
-    "player_dry_click": "sounds/metalLatch.ogg",
-    "player_hit": "sounds/impactPunch_heavy_001.ogg",
-    "player_power_up": "sounds/Retro PowerUP StereoUP 05.wav",
-    "player_cookie": "sounds/metalClick.ogg",
-    "player_bumps_wall": "sounds/impactGlass_heavy_001.ogg",
-    "player_bumps_player": "sounds/impactTin_medium_004.ogg",
-    "projectile_hits_wall": "sounds/impactGlass_light_000.ogg",
-    "projectile_hits_player": "sounds/impactGeneric_light_001.ogg",
-    "projectile_hits_actor": "sounds/impactMetal_medium_003.ogg",
-    "actor_explodes": "sounds/Retro Explosion Short 15.wav"
   }
 }

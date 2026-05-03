@@ -52,7 +52,13 @@ pub fn sync_actors(
             *id,
             actor,
         );
-        actors.0.insert(*id, ActorInfo { entity });
+        actors.0.insert(
+            *id,
+            ActorInfo {
+                entity,
+                kind: actor.kind.clone(),
+            },
+        );
     }
 
     actors.0.retain(|id, actor| {
@@ -114,15 +120,22 @@ pub fn handle_actor_teleport_message(commands: &mut Commands, actors: &ResMut<Ac
 // Server despawns the entity; client cleanup happens when the next snapshot
 // arrives without this actor (sync_actors removes any actor not in the
 // update). No need to mutate the entity here — just play the VFX.
+//
+// Kind isn't on the wire `SActorDestroyed`; we recover it from the local
+// `ActorMap` where the kind was recorded when this actor was first seen.
 pub fn handle_actor_destroyed_message(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
+    actors: &ActorMap,
     gameplay_config: &GameplayConfig,
     msg: SActorDestroyed,
 ) {
+    let Some(info) = actors.0.get(&msg.id) else {
+        return;
+    };
     spawn_actor_explosion(
         commands,
         asset_server,
@@ -130,10 +143,11 @@ pub fn handle_actor_destroyed_message(
         materials,
         asset_set,
         gameplay_config,
+        &info.kind,
         msg.pos,
     );
     commands.spawn((
-        AudioPlayer::new(asset_server.load(asset_set.sound("actor_explodes").to_owned())),
+        AudioPlayer::new(asset_server.load(asset_set.actor_sound(&info.kind, "explodes").to_owned())),
         PlaybackSettings::DESPAWN,
     ));
 }
@@ -146,7 +160,7 @@ pub fn handle_actor_hit_message(
 ) {
     trace!("{:?} was hit", msg.id);
     commands.spawn((
-        AudioPlayer::new(asset_server.load(asset_set.sound("projectile_hits_actor").to_owned())),
+        AudioPlayer::new(asset_server.load(asset_set.player_sound("projectile_hits_actor").to_owned())),
         PlaybackSettings::DESPAWN,
     ));
 }

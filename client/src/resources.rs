@@ -37,6 +37,9 @@ pub struct PlayerMap(pub HashMap<PlayerId, PlayerInfo>);
 // Actor information (client-side)
 pub struct ActorInfo {
     pub entity: Entity,
+    // Kind string from the wire `Actor.kind`. Used to look up per-kind
+    // model, sounds, and effects when this actor is destroyed.
+    pub kind: String,
 }
 
 // Map of all server-controlled actors.

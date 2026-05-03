@@ -22,10 +22,14 @@ pub fn spawn_actor_explosion(
     materials: &mut ResMut<Assets<StandardMaterial>>,
     asset_set: &AssetSet,
     gameplay_config: &GameplayConfig,
+    actor_kind: &str,
     pos: Position,
 ) -> Entity {
-    let effect = asset_set.actor_explosion_effect();
-    let actor_physics = gameplay_config.characters.actor.physics();
+    let effect = asset_set.actor_explosion_effect(actor_kind);
+    let actor_physics = gameplay_config
+        .actor(actor_kind)
+        .expect("actor kind sent by server is in gameplay config")
+        .physics();
     let frames = (effect.columns * effect.rows) as usize;
     let current_frame = initial_frame(frames, effect.first_frame);
     let mesh = meshes.add(explosion_mesh(effect.scale, effect.columns, effect.rows, current_frame));

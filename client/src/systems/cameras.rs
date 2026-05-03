@@ -17,7 +17,7 @@ pub fn setup_cameras_system(
     gameplay_config: Res<GameplayConfig>,
 ) {
     let deferred_rendering_enabled = render_settings.opaque_renderer.is_deferred();
-    let player_eye_height = gameplay_config.characters.player.eye_height();
+    let player_eye_height = gameplay_config.player.eye_height();
     let msaa = if deferred_rendering_enabled {
         Msaa::Off
     } else {

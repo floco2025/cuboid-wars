@@ -122,7 +122,6 @@ fn test_entity(index: u32) -> Entity {
 fn player_physics() -> CharacterPhysicsConfig {
     GameplayConfig::load_default()
         .expect("default gameplay config should load")
-        .characters
         .player
         .physics()
 }
@@ -130,7 +129,6 @@ fn player_physics() -> CharacterPhysicsConfig {
 fn player_speed() -> f32 {
     GameplayConfig::load_default()
         .expect("default gameplay config should load")
-        .characters
         .player
         .run_speed
 }

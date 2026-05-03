@@ -32,11 +32,16 @@ pub fn actor_death_system(
 ) {
     let mut deaths: Vec<ActorDeath> = Vec::new();
     for (entity, id, pos, _, _, health) in query.iter() {
+        let Some(info) = actors.0.get(id) else {
+            continue;
+        };
+        let spawn_kind = info.spawn_kind.clone();
         if pos.y < CHARACTER_FALL_TELEPORT_Y {
             deaths.push(ActorDeath {
                 entity,
                 id: *id,
                 pos: *pos,
+                spawn_kind,
                 cause: DeathCause::Fall,
             });
         } else if health.0 <= 0.0 {
@@ -44,6 +49,7 @@ pub fn actor_death_system(
                 entity,
                 id: *id,
                 pos: *pos,
+                spawn_kind,
                 cause: DeathCause::Killed,
             });
         }
@@ -55,10 +61,15 @@ pub fn actor_death_system(
 
     for death in deaths {
         if matches!(death.cause, DeathCause::Killed) {
+            // Per-kind config: cross-validated at startup, so unwrap is safe.
+            let kind_server_config = server_gameplay_config
+                .actor(&death.spawn_kind)
+                .expect("actor kind validated at startup");
             apply_actor_explosion_damage(
                 death.pos,
                 death.entity,
-                &server_gameplay_config.damage.actor_explosion,
+                &death.spawn_kind,
+                &kind_server_config.explosion,
                 &gameplay_config,
                 &mut player_query,
                 &mut query,
@@ -87,6 +98,7 @@ struct ActorDeath {
     entity: Entity,
     id: ActorId,
     pos: Position,
+    spawn_kind: String,
     cause: DeathCause,
 }
 
@@ -107,18 +119,22 @@ type ActorDeathQuery<'w, 's> = Query<
 fn apply_actor_explosion_damage(
     destroyed_pos: Position,
     destroyed_entity: Entity,
+    destroyed_spawn_kind: &str,
     damage_config: &ActorExplosionDamageConfig,
     gameplay_config: &GameplayConfig,
     player_query: &mut Query<(&Position, &mut Health), (With<PlayerMarker>, Without<ActorMarker>)>,
     actor_query: &mut ActorDeathQuery,
 ) {
-    let actor_physics = gameplay_config.characters.actor.physics();
+    let actor_physics = gameplay_config
+        .actor(destroyed_spawn_kind)
+        .expect("actor kind validated at startup")
+        .physics();
     let explosion_center = character_center(destroyed_pos, actor_physics);
 
     for (pos, mut health) in player_query.iter_mut() {
         let damage = blast_damage(
             explosion_center,
-            character_center(*pos, gameplay_config.characters.player.physics()),
+            character_center(*pos, gameplay_config.player.physics()),
             damage_config.radius,
             damage_config.player_max_damage,
         );

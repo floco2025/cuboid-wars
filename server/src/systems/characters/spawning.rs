@@ -202,7 +202,6 @@ mod tests {
     fn character_physics() -> CharacterPhysicsConfig {
         GameplayConfig::load_default()
             .expect("default gameplay config should load")
-            .characters
             .player
             .physics()
     }

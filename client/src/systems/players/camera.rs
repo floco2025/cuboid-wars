@@ -204,7 +204,7 @@ pub fn local_player_camera_sync_system(
             sync_first_person_camera(
                 &mut camera_transform,
                 player_pos,
-                gameplay_config.characters.player.eye_height(),
+                gameplay_config.player.eye_height(),
                 maybe_shake,
             );
         }
@@ -262,7 +262,7 @@ pub fn local_player_rearview_sync_system(
 
     rearview_transform.translation.x = player_pos.x;
     rearview_transform.translation.z = player_pos.z;
-    rearview_transform.translation.y = player_pos.y + gameplay_config.characters.player.eye_height();
+    rearview_transform.translation.y = player_pos.y + gameplay_config.player.eye_height();
 
     // Get the main camera's rotation and rotate 180 degrees.
     if let Ok(main_transform) = main_camera_query.single() {

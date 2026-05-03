@@ -85,7 +85,6 @@ ACTOR_ZONE_LIST = "actor_spawn_zones"
 PLAYER_ZONE_LIST = "player_spawn_zones"
 SPAWN_ZONE_LISTS = (ACTOR_ZONE_LIST, PLAYER_ZONE_LIST)
 
-DEFAULT_ACTOR_KIND = "actor"
 DEFAULT_ACTOR_COUNT = 1
 SPAWN_ZONE_HANDLE_PIXELS = 8.0
 
@@ -162,18 +161,12 @@ DEFAULT_GRID_ROWS = 20
 
 
 def empty_map() -> dict:
+    # No seeded actor zone: there's no default kind to give it. Users paint
+    # actor zones explicitly and pick a kind in the dialog.
     return {
         "grid_cols": DEFAULT_GRID_COLS,
         "grid_rows": DEFAULT_GRID_ROWS,
-        "actor_spawn_zones": [
-            {
-                "level": 0,
-                "cols": [0, 2],
-                "rows": [0, 2],
-                "kind": DEFAULT_ACTOR_KIND,
-                "count": DEFAULT_ACTOR_COUNT,
-            },
-        ],
+        "actor_spawn_zones": [],
         "player_spawn_zones": [
             {"level": 0, "cols": [0, 2], "rows": [0, 2]},
         ],
@@ -1043,7 +1036,9 @@ class EditorWindow(QMainWindow):
         self.dirty = False
         self.undo_stack = QUndoStack(self)
         self.shortcuts = []
-        self.recent_actor_spawn_kind: str = DEFAULT_ACTOR_KIND
+        # No default kind: the dialog opens with Kind blank on the first paint
+        # of a session and remembers the last value across subsequent paints.
+        self.recent_actor_spawn_kind: str = ""
         self.recent_actor_spawn_count: int = DEFAULT_ACTOR_COUNT
         self.selected_spawn_zone_ref: ZoneRef | None = None
         self.spawn_zone_drag: SpawnZoneDrag | None = None

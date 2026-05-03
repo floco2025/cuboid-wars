@@ -7,13 +7,13 @@ use crate::{
     config::AssetSet,
     constants::{PROJECTILE_MAX_BOUNCE_SOUNDS_PER_SECOND, PROJECTILE_MIN_BOUNCE_SOUND_SPEED},
     markers::LocalPlayerMarker,
-    resources::LastBounceSoundTime,
+    resources::{ActorMap, LastBounceSoundTime},
 };
 use common::{
     config::GameplayConfig,
     markers::{ActorMarker, PlayerMarker, ProjectileMarker},
     physics::{CollisionWorld, ProjectileCharacterHit, ProjectileMotion, projectile_character_hit},
-    protocol::{FaceDirection, PlayerId, Position},
+    protocol::{ActorId, FaceDirection, PlayerId, Position},
 };
 
 // ============================================================================
@@ -30,7 +30,8 @@ fn handle_character_collisions(
     delta: f32,
     shooter_id: PlayerId,
     player_query: &Query<(Entity, &Position, &FaceDirection, &PlayerId, Has<LocalPlayerMarker>), With<PlayerMarker>>,
-    actor_query: &Query<(&Position, &FaceDirection), With<ActorMarker>>,
+    actor_query: &Query<(&ActorId, &Position, &FaceDirection), With<ActorMarker>>,
+    actors: &ActorMap,
     gameplay_config: &GameplayConfig,
 ) -> bool {
     let mut closest_hit = None;
@@ -46,7 +47,7 @@ fn handle_character_collisions(
             delta,
             player_pos,
             face_dir.0,
-            gameplay_config.characters.player.physics(),
+            gameplay_config.player.physics(),
         ) {
             closest_hit = Some(closer_hit(
                 closest_hit,
@@ -55,15 +56,16 @@ fn handle_character_collisions(
         }
     }
 
-    for (actor_pos, face_dir) in actor_query.iter() {
-        if let Some(hit) = projectile_character_hit(
-            proj_pos,
-            proj_motion,
-            delta,
-            actor_pos,
-            face_dir.0,
-            gameplay_config.characters.actor.physics(),
-        ) {
+    for (actor_id, actor_pos, face_dir) in actor_query.iter() {
+        let Some(info) = actors.0.get(actor_id) else {
+            continue;
+        };
+        let actor_physics = gameplay_config
+            .actor(&info.kind)
+            .expect("actor kind sent by server is in gameplay config")
+            .physics();
+        if let Some(hit) = projectile_character_hit(proj_pos, proj_motion, delta, actor_pos, face_dir.0, actor_physics)
+        {
             closest_hit = Some(closer_hit(closest_hit, ProjectileTargetHit::Actor { hit }));
         }
     }
@@ -73,7 +75,7 @@ fn handle_character_collisions(
             play_sound(
                 commands,
                 asset_server,
-                asset_set.sound("projectile_hits_player"),
+                asset_set.player_sound("projectile_hits_player"),
                 PlaybackSettings::DESPAWN,
             );
 
@@ -81,7 +83,7 @@ fn handle_character_collisions(
                 play_sound(
                     commands,
                     asset_server,
-                    asset_set.sound("player_hit"),
+                    asset_set.player_sound("take_hit"),
                     PlaybackSettings::DESPAWN,
                 );
             }
@@ -112,7 +114,8 @@ pub fn projectiles_movement_system(
     asset_set: Res<AssetSet>,
     mut projectile_query: Query<(Entity, &mut Transform, &mut ProjectileMotion, &PlayerId), With<ProjectileMarker>>,
     player_query: Query<(Entity, &Position, &FaceDirection, &PlayerId, Has<LocalPlayerMarker>), With<PlayerMarker>>,
-    actor_query: Query<(&Position, &FaceDirection), With<ActorMarker>>,
+    actor_query: Query<(&ActorId, &Position, &FaceDirection), With<ActorMarker>>,
+    actors: Res<ActorMap>,
     collision_world: Option<Res<CollisionWorld>>,
     gameplay_config: Res<GameplayConfig>,
     mut last_bounce_sound: ResMut<LastBounceSoundTime>,
@@ -161,6 +164,7 @@ pub fn projectiles_movement_system(
                 *shooter_id,
                 &player_query,
                 &actor_query,
+                &actors,
                 &gameplay_config,
             ) {
                 // Hit a character, projectile was despawned
@@ -204,7 +208,7 @@ fn handle_wall_collisions(
         play_sound(
             commands,
             asset_server,
-            asset_set.sound("projectile_hits_wall"),
+            asset_set.player_sound("projectile_hits_wall"),
             PlaybackSettings {
                 mode: PlaybackMode::Despawn,
                 volume: Volume::Linear(0.2),

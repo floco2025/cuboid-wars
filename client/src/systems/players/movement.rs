@@ -41,7 +41,7 @@ pub(crate) fn plan_player_moves(
     bump_flash_ui: &mut Query<(&mut BackgroundColor, &mut Visibility), With<BumpFlashUIMarker>>,
     planned_moves: &mut Vec<CharacterMovePlan>,
 ) {
-    let player_config = &gameplay_config.characters.player;
+    let player_config = &gameplay_config.player;
     let player_physics = player_config.physics();
     for (entity, player_id, mut client_pos, move_intent, mut motion, mut flash_state, mut recon_option, is_local) in
         query
@@ -248,9 +248,9 @@ fn trigger_collision_feedback(
         }
 
         let sound_path = if collided_with_wall {
-            asset_set.sound("player_bumps_wall")
+            asset_set.player_sound("bump_wall")
         } else {
-            asset_set.sound("player_bumps_player")
+            asset_set.player_sound("bump_player")
         };
 
         commands.spawn((

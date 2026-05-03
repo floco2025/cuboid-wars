@@ -26,8 +26,11 @@ pub fn spawn_actor(
     actor_id: ActorId,
     actor: &Actor,
 ) -> Entity {
-    let actor_model = asset_set.actor_model();
-    let actor_physics = gameplay_config.characters.actor.physics();
+    let actor_model = asset_set.actor_model(&actor.kind);
+    let actor_config = gameplay_config
+        .actor(&actor.kind)
+        .expect("actor kind sent by server is in gameplay config");
+    let actor_physics = actor_config.physics();
     let entity = commands
         .spawn((
             actor_id,
@@ -83,7 +86,7 @@ pub fn spawn_actor(
         image_handle,
         text_camera,
         actor_physics.collision_height(),
-        gameplay_config.characters.actor.health().max,
+        actor_config.health().max,
         actor.health.0,
     );
     children.push(mesh_entity);

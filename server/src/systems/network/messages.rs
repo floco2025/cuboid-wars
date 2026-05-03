@@ -145,7 +145,7 @@ fn handle_jump_message(
     if !try_start_player_jump(
         &mut next_vertical_velocity,
         collision_world,
-        gameplay_config.characters.player.physics(),
+        gameplay_config.player.physics(),
         pos,
         pos.x,
         pos.z,
@@ -212,7 +212,7 @@ fn handle_shot_message(
             msg.face_dir,
             msg.face_pitch,
             has_multi_shot,
-            gameplay_config.characters.player.eye_height(),
+            gameplay_config.player.eye_height(),
             collision_world,
         );
 

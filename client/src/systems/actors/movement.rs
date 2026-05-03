@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::systems::network::ServerReconciliation;
+use crate::{resources::ActorMap, systems::network::ServerReconciliation};
 use common::{
     config::GameplayConfig,
     constants::UPDATE_BROADCAST_INTERVAL,
@@ -35,12 +35,19 @@ pub(crate) fn plan_actor_moves(
     delta: f32,
     collision_world: Option<&CollisionWorld>,
     gameplay_config: &GameplayConfig,
+    actors: &ActorMap,
     actor_starts: &[(Entity, Position)],
     query: &mut ActorMovementQuery,
     planned_moves: &mut Vec<CharacterMovePlan>,
 ) {
-    let actor_physics = gameplay_config.characters.actor.physics();
     for (entity, actor_id, mut pos, move_intent, mut motion, mut recon_option) in query {
+        let Some(info) = actors.0.get(actor_id) else {
+            continue;
+        };
+        let actor_physics = gameplay_config
+            .actor(&info.kind)
+            .expect("actor kind sent by server is in gameplay config")
+            .physics();
         let h_vel = move_intent.to_horizontal_velocity();
         let mut target_pos = if let Some(recon) = recon_option.as_mut() {
             let correction_time = recon.rtt * 5.0;

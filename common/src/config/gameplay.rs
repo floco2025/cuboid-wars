@@ -1,4 +1,4 @@
-use std::{fs, path::Path};
+use std::{collections::HashMap, fs, path::Path};
 
 use anyhow::{Context, Result, bail};
 use bevy_ecs::prelude::Resource;
@@ -9,7 +9,8 @@ const SUPPORTED_VERSION: u32 = 1;
 #[derive(Resource, Debug, Clone, Deserialize)]
 pub struct GameplayConfig {
     pub version: u32,
-    pub characters: CharactersGameplayConfig,
+    pub player: PlayerGameplayConfig,
+    pub actors: HashMap<String, ActorGameplayConfig>,
 }
 
 impl GameplayConfig {
@@ -34,9 +35,22 @@ impl GameplayConfig {
             self.version,
             SUPPORTED_VERSION
         );
-        self.characters.player.validate("characters.player")?;
-        self.characters.actor.validate("characters.actor")?;
+        self.player.validate("player")?;
+        if self.actors.is_empty() {
+            bail!("actors must define at least one kind");
+        }
+        for (kind, actor) in &self.actors {
+            if kind.is_empty() {
+                bail!("actor kind must not be empty");
+            }
+            actor.validate(&format!("actors.{kind}"))?;
+        }
         Ok(())
+    }
+
+    #[must_use]
+    pub fn actor(&self, kind: &str) -> Option<&ActorGameplayConfig> {
+        self.actors.get(kind)
     }
 }
 
@@ -62,12 +76,6 @@ pub struct ActorGameplayConfig {
     pub character: CharacterGameplayConfig,
     pub patrol_speed: f32,
     pub chase_speed: f32,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct CharactersGameplayConfig {
-    pub player: PlayerGameplayConfig,
-    pub actor: ActorGameplayConfig,
 }
 
 impl CharacterGameplayConfig {

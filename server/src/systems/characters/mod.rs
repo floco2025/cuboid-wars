@@ -72,12 +72,7 @@ pub fn characters_movement_system(
         &mut planned_moves,
     );
     apply_player_moves(&mut player_query, &planned_moves);
-    detonate_actors_touching_players(
-        &mut actor_health,
-        &actors,
-        &planned_moves,
-        server_gameplay_config.actors.contact_explosion_distance,
-    );
+    detonate_actors_touching_players(&mut actor_health, &actors, &planned_moves, &server_gameplay_config);
     apply_actor_moves(&mut actor_query, &planned_moves);
 }
 
@@ -89,7 +84,7 @@ fn plan_player_moves(
     query: &PlayerMovementQuery,
     planned_moves: &mut Vec<CharacterMovePlan>,
 ) {
-    let player_config = &gameplay_config.characters.player;
+    let player_config = &gameplay_config.player;
     let player_physics = player_config.physics();
     for (entity, pos, motion, move_intent, player_id) in query.iter() {
         let is_stunned = players.0.get(player_id).is_some_and(|info| info.stun_timer > 0.0);
@@ -152,7 +147,7 @@ fn detonate_actors_touching_players(
     actor_health: &mut Query<&mut Health, With<ActorMarker>>,
     actors: &ActorMap,
     planned_moves: &[CharacterMovePlan],
-    contact_explosion_distance: f32,
+    server_gameplay_config: &ServerGameplayConfig,
 ) {
     for planned_move in planned_moves {
         if actors.0.values().any(|actor| actor.entity == planned_move.entity) {
@@ -162,8 +157,14 @@ fn detonate_actors_touching_players(
         for actor_entity in planned_moves
             .iter()
             .filter(|other| {
-                actors.0.values().any(|actor| actor.entity == other.entity)
-                    && character_move_plans_touch(planned_move, other, contact_explosion_distance)
+                let Some(actor_info) = actors.0.values().find(|actor| actor.entity == other.entity) else {
+                    return false;
+                };
+                let contact_explosion_distance = server_gameplay_config
+                    .actor(&actor_info.spawn_kind)
+                    .expect("actor kind validated at startup")
+                    .contact_explosion_distance;
+                character_move_plans_touch(planned_move, other, contact_explosion_distance)
             })
             .map(|actor_move| actor_move.entity)
         {

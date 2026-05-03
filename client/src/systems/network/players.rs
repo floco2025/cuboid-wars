@@ -49,8 +49,8 @@ pub fn handle_player_move_intent_message(
     if let Some(player) = players.0.get(&msg.id) {
         let server_velocity = player_movement_velocity(
             msg.movement,
-            gameplay_config.characters.player.walk_speed,
-            gameplay_config.characters.player.run_speed,
+            gameplay_config.player.walk_speed,
+            gameplay_config.player.run_speed,
             player.speed_power_up,
         );
 
@@ -85,8 +85,8 @@ pub fn handle_player_jump_message(
     {
         let server_velocity = player_movement_velocity(
             msg.movement,
-            gameplay_config.characters.player.walk_speed,
-            gameplay_config.characters.player.run_speed,
+            gameplay_config.player.walk_speed,
+            gameplay_config.player.run_speed,
             player.speed_power_up,
         );
         commands.entity(player.entity).insert((
@@ -136,7 +136,7 @@ pub fn handle_player_shot_message(
                 msg.face_dir,
                 msg.face_pitch,
                 player.multi_shot_power_up,
-                gameplay_config.characters.player.eye_height(),
+                gameplay_config.player.eye_height(),
                 collision_world,
                 msg.id,
             );
@@ -221,7 +221,7 @@ pub fn handle_player_status_message(
 
                 if !lost_power_up {
                     commands.spawn((
-                        AudioPlayer::new(asset_server.load(asset_set.sound("player_power_up").to_owned())),
+                        AudioPlayer::new(asset_server.load(asset_set.player_sound("collect_power_up").to_owned())),
                         PlaybackSettings::DESPAWN,
                     ));
                 }

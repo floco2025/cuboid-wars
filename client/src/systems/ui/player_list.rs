@@ -57,7 +57,7 @@ fn rebuild_player_list(
     sorted_players.sort_by_key(|(player_id, _)| player_id.0);
 
     let mut ordered_children = Vec::with_capacity(sorted_players.len());
-    let max_health = gameplay_config.characters.player.health().max;
+    let max_health = gameplay_config.player.health().max;
     for (player_id, player_info) in sorted_players {
         let current_health = player_health(player_info, health_query, max_health);
         let entity = spawn_player_entry(

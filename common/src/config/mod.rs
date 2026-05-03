@@ -3,8 +3,7 @@ pub mod network;
 
 pub use gameplay::{
     ActorGameplayConfig, CharacterColliderAnchor, CharacterColliderConfig, CharacterGameplayConfig,
-    CharacterHealthConfig, CharacterPhysicsConfig, CharacterSupportProbeConfig, CharactersGameplayConfig,
-    GameplayConfig, PlayerGameplayConfig,
+    CharacterHealthConfig, CharacterPhysicsConfig, CharacterSupportProbeConfig, GameplayConfig, PlayerGameplayConfig,
 };
 pub use network::{
     create_quinn_client_config, create_quinn_server_config, create_transport_config, load_certs, load_private_key,

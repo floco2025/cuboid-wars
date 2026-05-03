@@ -91,6 +91,7 @@ pub fn dispatch_message(
                 &mut assets.materials,
                 asset_server,
                 asset_set,
+                actors,
                 gameplay_config,
                 destroyed_msg,
             );

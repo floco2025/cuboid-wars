@@ -49,8 +49,6 @@ pub(crate) fn plan_actor_moves(
     query: &mut ActorMovementQuery,
     planned_moves: &mut Vec<CharacterMovePlan>,
 ) {
-    let actor_config = &gameplay_config.characters.actor;
-    let actor_physics = actor_config.physics();
     let mut rng = rng();
     let actor_order = sorted_actor_plan_order(query, actors);
 
@@ -61,12 +59,20 @@ pub(crate) fn plan_actor_moves(
         let Some(info) = actors.0.get_mut(id) else {
             continue;
         };
+        // Per-kind config: cross-validated against the map at startup, so unwraps are safe.
+        let actor_config = gameplay_config
+            .actor(&info.spawn_kind)
+            .expect("actor kind validated at startup");
+        let kind_server_config = server_gameplay_config
+            .actor(&info.spawn_kind)
+            .expect("actor kind validated at startup");
+        let actor_physics = actor_config.physics();
         let current_pos = *pos;
         info.move_intent_send_timer += delta;
         let go_to_intent = actor_desired_intent(
             &mut info.go_to_position,
             &current_pos,
-            server_gameplay_config.actors.go_to_reached_distance,
+            kind_server_config.go_to_reached_distance,
             actor_config.chase_speed,
         );
         let move_context = ActorMoveContext {
@@ -78,7 +84,7 @@ pub(crate) fn plan_actor_moves(
             collision_world,
             planned_moves,
             actor_starts,
-            direct_path_probe_time: server_gameplay_config.actors.direct_path_probe_time,
+            direct_path_probe_time: kind_server_config.direct_path_probe_time,
         };
         let selected_move = if let Some(go_to_intent) = go_to_intent {
             select_go_to_actor_move(&move_context, go_to_intent, info.go_to_position, info, &mut rng)
@@ -456,8 +462,10 @@ mod tests {
     use super::*;
     use common::{
         constants::{FLOOR_THICKNESS, WALL_THICKNESS},
-        protocol::{ActorKind, Floor, MapLayout, Wall},
+        protocol::{Floor, MapLayout, Wall},
     };
+
+    const TEST_KIND: &str = "mine_1";
 
     fn assert_near(actual: f32, expected: f32) {
         assert!(
@@ -477,9 +485,8 @@ mod tests {
     fn actor_info() -> ActorInfo {
         ActorInfo {
             entity: test_entity(1),
-            kind: ActorKind::Automaton,
             spawn_zone_index: 0,
-            spawn_kind: "actor".into(),
+            spawn_kind: TEST_KIND.into(),
             direction_timer: 0.0,
             patrol_intent: ActorMoveIntent::Idle,
             go_to_position: None,
@@ -492,16 +499,16 @@ mod tests {
     fn actor_physics() -> CharacterPhysicsConfig {
         GameplayConfig::load_default()
             .expect("default gameplay config should load")
-            .characters
-            .actor
+            .actor(TEST_KIND)
+            .expect("test kind in default gameplay config")
             .physics()
     }
 
     fn actor_speed() -> f32 {
         GameplayConfig::load_default()
             .expect("default gameplay config should load")
-            .characters
-            .actor
+            .actor(TEST_KIND)
+            .expect("test kind in default gameplay config")
             .patrol_speed
     }
 
@@ -601,9 +608,8 @@ mod tests {
         let pos = Position::default();
         let targeted = ActorInfo {
             entity: Entity::from_bits(1),
-            kind: common::protocol::ActorKind::Automaton,
             spawn_zone_index: 0,
-            spawn_kind: "actor".into(),
+            spawn_kind: TEST_KIND.into(),
             direction_timer: 0.0,
             patrol_intent: ActorMoveIntent::Idle,
             go_to_position: Some(Position { x: 1.0, y: 0.0, z: 0.0 }),

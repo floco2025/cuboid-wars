@@ -12,7 +12,7 @@ pub fn players_transform_sync_system(
     gameplay_config: Res<GameplayConfig>,
     mut player_query: Query<(&Position, &mut Transform, Option<&CuboidShake>), With<PlayerMarker>>,
 ) {
-    let player_physics = gameplay_config.characters.player.physics();
+    let player_physics = gameplay_config.player.physics();
     for (pos, mut transform, maybe_shake) in &mut player_query {
         // Base position
         transform.translation.x = pos.x;

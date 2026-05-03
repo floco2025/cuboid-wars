@@ -61,7 +61,7 @@ pub fn input_shooting_system(
         // Client-side cooldown guard (server still authoritative)
         if now - local_player_info.last_shot_time < PROJECTILE_COOLDOWN_TIME {
             commands.spawn((
-                AudioPlayer::new(asset_server.load(asset_set.sound("player_dry_click").to_owned())),
+                AudioPlayer::new(asset_server.load(asset_set.player_sound("dry_fire").to_owned())),
                 PlaybackSettings::DESPAWN,
             ));
             return;
@@ -93,18 +93,18 @@ pub fn input_shooting_system(
                 face_dir.0,
                 pitch,
                 has_multi_shot,
-                gameplay_config.characters.player.eye_height(),
+                gameplay_config.player.eye_height(),
                 collision_world,
                 my_id.0,
             ) > 0
             {
                 commands.spawn((
-                    AudioPlayer::new(asset_server.load(asset_set.sound("player_fire").to_owned())),
+                    AudioPlayer::new(asset_server.load(asset_set.player_sound("fire").to_owned())),
                     PlaybackSettings::DESPAWN,
                 ));
             } else {
                 commands.spawn((
-                    AudioPlayer::new(asset_server.load(asset_set.sound("player_dry_click").to_owned())),
+                    AudioPlayer::new(asset_server.load(asset_set.player_sound("dry_fire").to_owned())),
                     PlaybackSettings::DESPAWN,
                 ));
             }

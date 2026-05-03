@@ -136,7 +136,6 @@ mod tests {
     fn player_eye_height() -> f32 {
         GameplayConfig::load_default()
             .expect("default gameplay config should load")
-            .characters
             .player
             .eye_height()
     }

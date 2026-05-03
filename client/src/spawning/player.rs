@@ -49,7 +49,7 @@ pub fn spawn_player(
     is_local: bool,
 ) -> Entity {
     let player_model = asset_set.player_model();
-    let player_physics = gameplay_config.characters.player.physics();
+    let player_physics = gameplay_config.player.physics();
     // Create animation graph for this player
     let (graph, index) = AnimationGraph::from_clip(
         asset_server.load(GltfAssetLabel::Animation(0).from_asset(player_model.scene.clone())),
@@ -116,7 +116,7 @@ pub fn spawn_player(
         image_handle,
         text_camera,
         player_physics.collision_height(),
-        gameplay_config.characters.player.health().max,
+        gameplay_config.player.health().max,
         health.0,
     );
     children.push(mesh_entity);

@@ -236,7 +236,7 @@ fn update_player_input_face_and_jump(
             let _ = try_start_player_jump(
                 &mut motion.0,
                 collision_world,
-                gameplay_config.characters.player.physics(),
+                gameplay_config.player.physics(),
                 pos,
                 pos.x,
                 pos.z,

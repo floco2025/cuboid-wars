@@ -86,7 +86,7 @@ pub fn snapshot_actors(
             Some((
                 *actor_id,
                 Actor {
-                    kind: info.kind,
+                    kind: info.spawn_kind.clone(),
                     movement: ActorMovementState::new(*pos, *move_intent, vertical_velocity),
                     face_dir: face_dir.0,
                     health: *health,
