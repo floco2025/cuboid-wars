@@ -1,10 +1,10 @@
 mod actor;
 mod character;
+mod character_label;
 mod item;
 mod light;
 mod map;
 mod player;
-mod player_label;
 mod projectile;
 
 pub use actor::spawn_actor;

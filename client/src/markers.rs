@@ -83,10 +83,21 @@ pub struct BumpFlashUIMarker;
 #[derive(Component)]
 pub struct PlayerEntryMarker;
 
-// Marker component for player ID text in UI
+// Marker component for character label text in UI render targets.
 #[derive(Component)]
-pub struct PlayerIdTextMarker;
+pub struct CharacterLabelTextMarker;
 
-// Marker component for player ID text mesh in world
+// Marker component for character label meshes in the world.
 #[derive(Component)]
-pub struct PlayerIdTextMeshMarker;
+pub struct CharacterLabelMeshMarker;
+
+#[derive(Component)]
+pub struct CharacterHealthBarFillMarker {
+    pub character: Entity,
+    pub max_health: f32,
+}
+
+#[derive(Component)]
+pub struct PlayerHealthBarFillUIMarker {
+    pub player: Entity,
+}

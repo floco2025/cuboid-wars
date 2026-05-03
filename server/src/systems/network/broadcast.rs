@@ -40,7 +40,7 @@ pub fn broadcast_to_all(players: &PlayerMap, message: ServerMessage) {
 #[must_use]
 pub fn snapshot_logged_in_players(
     players: &PlayerMap,
-    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection, &Health), With<PlayerMarker>>,
     motions: &Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
 ) -> Vec<(PlayerId, Player)> {
     players
@@ -50,7 +50,7 @@ pub fn snapshot_logged_in_players(
             if !info.logged_in {
                 return None;
             }
-            let (pos, move_intent, face_dir) = player_data.get(info.entity).ok()?;
+            let (pos, move_intent, face_dir, health) = player_data.get(info.entity).ok()?;
             let vertical_velocity = motions.get(info.entity).map_or(0.0, |m| m.0);
             Some((
                 *player_id,
@@ -58,6 +58,7 @@ pub fn snapshot_logged_in_players(
                     name: info.name.clone(),
                     movement: PlayerMovementState::new(*pos, *move_intent, vertical_velocity),
                     face_dir: face_dir.0,
+                    health: *health,
                     hits: info.hits,
                     speed_power_up: info.has_speed(),
                     multi_shot_power_up: info.has_multi_shot(),
@@ -73,14 +74,14 @@ pub fn snapshot_logged_in_players(
 #[must_use]
 pub fn snapshot_actors(
     actors: &ActorMap,
-    actor_data: &Query<(&Position, &ActorMoveIntent, &FaceDirection), With<ActorMarker>>,
+    actor_data: &Query<(&Position, &ActorMoveIntent, &FaceDirection, &Health), With<ActorMarker>>,
     motions: &Query<&CharacterVerticalVelocity, With<ActorMarker>>,
 ) -> Vec<(ActorId, Actor)> {
     actors
         .0
         .iter()
         .filter_map(|(actor_id, info)| {
-            let (pos, move_intent, face_dir) = actor_data.get(info.entity).ok()?;
+            let (pos, move_intent, face_dir, health) = actor_data.get(info.entity).ok()?;
             let vertical_velocity = motions.get(info.entity).map_or(0.0, |m| m.0);
             Some((
                 *actor_id,
@@ -88,6 +89,7 @@ pub fn snapshot_actors(
                     kind: info.kind,
                     movement: ActorMovementState::new(*pos, *move_intent, vertical_velocity),
                     face_dir: face_dir.0,
+                    health: *health,
                 },
             ))
         })

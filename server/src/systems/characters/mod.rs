@@ -1,7 +1,9 @@
 use bevy::prelude::*;
 
+mod health;
 mod spawning;
 
+pub use health::characters_health_regeneration_system;
 pub use spawning::generate_character_spawn_position;
 
 use crate::{
@@ -14,9 +16,10 @@ use common::{
     constants::PHYSICS_EPSILON,
     markers::{ActorMarker, PlayerMarker},
     physics::{
-        CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, overlapping_character, step_character_movement,
+        CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, character_move_plans_intersect,
+        overlapping_character, step_character_movement,
     },
-    protocol::{PlayerId, PlayerMoveIntent, Position},
+    protocol::{Health, PlayerId, PlayerMoveIntent, Position},
 };
 
 type PlayerMovementQuery<'w, 's> = Query<
@@ -40,6 +43,7 @@ pub fn characters_movement_system(
     players: Res<PlayerMap>,
     mut actors: ResMut<ActorMap>,
     mut player_query: PlayerMovementQuery,
+    mut player_health: Query<&mut Health, With<PlayerMarker>>,
     mut actor_query: ActorMovementQuery,
 ) {
     let delta = time.delta_secs();
@@ -68,7 +72,13 @@ pub fn characters_movement_system(
         &mut actor_query,
         &mut planned_moves,
     );
-    apply_player_moves(&mut player_query, &planned_moves);
+    apply_player_moves(
+        &mut player_query,
+        &mut player_health,
+        &actors,
+        &planned_moves,
+        server_gameplay_config.damage.actor_contact_to_player_per_second * delta,
+    );
     apply_actor_moves(&mut actor_query, &planned_moves);
 }
 
@@ -124,7 +134,13 @@ fn plan_player_moves(
     }
 }
 
-fn apply_player_moves(query: &mut PlayerMovementQuery, planned_moves: &[CharacterMovePlan]) {
+fn apply_player_moves(
+    query: &mut PlayerMovementQuery,
+    health_query: &mut Query<&mut Health, With<PlayerMarker>>,
+    actors: &ActorMap,
+    planned_moves: &[CharacterMovePlan],
+    actor_contact_damage: f32,
+) {
     for planned_move in planned_moves {
         let Ok((_, mut pos, mut motion, _, _)) = query.get_mut(planned_move.entity) else {
             continue;
@@ -136,5 +152,15 @@ fn apply_player_moves(query: &mut PlayerMovementQuery, planned_moves: &[Characte
             *pos = planned_move.target;
         }
         motion.0 = planned_move.target_vertical_velocity;
+
+        if actor_contact_damage > 0.0
+            && planned_moves.iter().any(|other| {
+                actors.0.values().any(|actor| actor.entity == other.entity)
+                    && character_move_plans_intersect(planned_move, other)
+            })
+            && let Ok(mut health) = health_query.get_mut(planned_move.entity)
+        {
+            health.0 = (health.0 - actor_contact_damage).max(0.0);
+        }
     }
 }

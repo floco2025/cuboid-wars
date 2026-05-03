@@ -67,6 +67,7 @@ pub fn handle_player_login_message(
         &msg.player.name,
         &msg.player.movement.pos,
         msg.player.movement.move_intent,
+        msg.player.health,
         msg.player.face_dir,
         false,
     );

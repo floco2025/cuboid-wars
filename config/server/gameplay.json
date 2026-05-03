@@ -8,5 +8,10 @@
     "vision_range": 18.0,
     "direct_path_probe_time": 0.4,
     "go_to_reached_distance": 0.5
+  },
+  "damage": {
+    "player_projectile_to_player": 25.0,
+    "player_projectile_to_actor": 25.0,
+    "actor_contact_to_player_per_second": 10.0
   }
 }

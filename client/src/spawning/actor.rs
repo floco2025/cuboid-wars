@@ -1,6 +1,9 @@
 use bevy::{gltf::GltfAssetLabel, prelude::*, scene::SceneRoot};
 
-use super::spawn_collider_box;
+use super::{
+    character_label::{setup_character_label_text_rendering, spawn_character_health_display},
+    spawn_collider_box,
+};
 use crate::{
     config::{AssetSet, RenderSettings},
     markers::CharacterModelMarker,
@@ -18,7 +21,7 @@ pub fn spawn_actor(
     asset_server: &Res<AssetServer>,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
-    _images: &mut ResMut<Assets<Image>>,
+    images: &mut ResMut<Assets<Image>>,
     graphs: &mut ResMut<Assets<AnimationGraph>>,
     asset_set: &AssetSet,
     render_settings: &RenderSettings,
@@ -34,6 +37,7 @@ pub fn spawn_actor(
             ActorMarker,
             actor.movement.pos,
             actor.movement.move_intent,
+            actor.health,
             FaceDirection(actor.face_dir),
             CharacterVerticalVelocity(actor.movement.vertical_velocity),
             Transform::from_xyz(
@@ -72,6 +76,20 @@ pub fn spawn_actor(
     }
 
     children.push(model_commands.id());
+
+    let (image_handle, text_camera) = setup_character_label_text_rendering(commands, images);
+    let (_ui_entity, mesh_entity) = spawn_character_health_display(
+        commands,
+        meshes,
+        materials,
+        entity,
+        image_handle,
+        text_camera,
+        actor_physics.collision_height(),
+        gameplay_config.characters.actor.health().max,
+    );
+    children.push(mesh_entity);
+
     commands.entity(entity).add_children(&children);
 
     entity

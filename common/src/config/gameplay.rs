@@ -45,6 +45,7 @@ pub struct CharacterGameplayConfig {
     pub collider: CharacterColliderConfig,
     pub support_probe: CharacterSupportProbeConfig,
     pub eye_height: f32,
+    pub health: CharacterHealthConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -86,7 +87,8 @@ impl CharacterGameplayConfig {
     fn validate(&self, path: &str) -> Result<()> {
         self.collider.validate(&format!("{path}.collider"))?;
         self.support_probe.validate(&format!("{path}.support_probe"))?;
-        validate_positive_finite(self.eye_height, &format!("{path}.eye_height"))
+        validate_positive_finite(self.eye_height, &format!("{path}.eye_height"))?;
+        self.health.validate(&format!("{path}.health"))
     }
 }
 
@@ -99,6 +101,11 @@ impl PlayerGameplayConfig {
     #[must_use]
     pub const fn eye_height(&self) -> f32 {
         self.character.eye_height()
+    }
+
+    #[must_use]
+    pub const fn health(&self) -> CharacterHealthConfig {
+        self.character.health
     }
 
     fn validate(&self, path: &str) -> Result<()> {
@@ -117,6 +124,11 @@ impl ActorGameplayConfig {
     #[must_use]
     pub const fn eye_height(&self) -> f32 {
         self.character.eye_height()
+    }
+
+    #[must_use]
+    pub const fn health(&self) -> CharacterHealthConfig {
+        self.character.health
     }
 
     fn validate(&self, path: &str) -> Result<()> {
@@ -185,6 +197,19 @@ impl CharacterSupportProbeConfig {
     fn validate(&self, path: &str) -> Result<()> {
         validate_positive_finite(self.width, &format!("{path}.width"))?;
         validate_positive_finite(self.depth, &format!("{path}.depth"))
+    }
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct CharacterHealthConfig {
+    pub max: f32,
+    pub regeneration_per_second: f32,
+}
+
+impl CharacterHealthConfig {
+    fn validate(&self, path: &str) -> Result<()> {
+        validate_positive_finite(self.max, &format!("{path}.max"))?;
+        validate_non_negative_finite(self.regeneration_per_second, &format!("{path}.regeneration_per_second"))
     }
 }
 

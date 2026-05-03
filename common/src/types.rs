@@ -148,6 +148,9 @@ pub struct ItemId(pub u32);
 #[derive(Component, Default)]
 pub struct FaceDirection(pub f32); // radians
 
+#[derive(Debug, Clone, Copy, Encode, Decode, Component, PartialEq)]
+pub struct Health(pub f32);
+
 // ============================================================================
 // Geometry
 // ============================================================================
@@ -310,15 +313,23 @@ pub struct Actor {
     pub kind: ActorKind,
     pub movement: ActorMovementState,
     pub face_dir: f32,
+    pub health: Health,
 }
 
 impl Actor {
     #[must_use]
-    pub const fn new(kind: ActorKind, pos: Position, move_intent: ActorMoveIntent, face_dir: f32) -> Self {
+    pub const fn new(
+        kind: ActorKind,
+        pos: Position,
+        move_intent: ActorMoveIntent,
+        face_dir: f32,
+        health: Health,
+    ) -> Self {
         Self {
             kind,
             movement: ActorMovementState::new(pos, move_intent, 0.0),
             face_dir,
+            health,
         }
     }
 }
@@ -329,6 +340,7 @@ pub struct Player {
     pub name: String,
     pub movement: PlayerMovementState,
     pub face_dir: f32,
+    pub health: Health,
     pub hits: i32,
     pub speed_power_up: bool,
     pub multi_shot_power_up: bool,
@@ -339,11 +351,19 @@ pub struct Player {
 impl Player {
     // Creates a new player with the given core fields and all status flags set to `false`.
     #[must_use]
-    pub const fn new(name: String, pos: Position, move_intent: PlayerMoveIntent, face_dir: f32, hits: i32) -> Self {
+    pub const fn new(
+        name: String,
+        pos: Position,
+        move_intent: PlayerMoveIntent,
+        face_dir: f32,
+        hits: i32,
+        health: Health,
+    ) -> Self {
         Self {
             name,
             movement: PlayerMovementState::new(pos, move_intent, 0.0),
             face_dir,
+            health,
             hits,
             speed_power_up: false,
             multi_shot_power_up: false,

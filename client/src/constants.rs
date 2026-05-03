@@ -55,6 +55,20 @@ pub const LABEL_BACKGROUND_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.2);
 pub const LABEL_FONT_SIZE: f32 = 40.0;
 
 // ============================================================================
+// Health Bars
+// ============================================================================
+
+pub const HEALTH_BAR_FLOATING_PLAYER_WIDTH: f32 = 180.0;
+pub const HEALTH_BAR_FLOATING_PLAYER_HEIGHT: f32 = 10.0;
+pub const HEALTH_BAR_FLOATING_ACTOR_WIDTH: f32 = 170.0;
+pub const HEALTH_BAR_FLOATING_ACTOR_HEIGHT: f32 = 22.0;
+pub const HEALTH_BAR_FLOATING_ACTOR_MESH_WIDTH: f32 = 0.85;
+pub const HEALTH_BAR_PLAYER_LIST_WIDTH: f32 = 160.0;
+pub const HEALTH_BAR_PLAYER_LIST_HEIGHT: f32 = 8.0;
+pub const HEALTH_BAR_TRACK_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.65);
+pub const HEALTH_BAR_FILL_COLOR: Color = Color::srgb(0.0, 0.85, 0.2);
+
+// ============================================================================
 // Power-Up Items
 // ============================================================================
 

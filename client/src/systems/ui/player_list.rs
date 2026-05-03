@@ -1,18 +1,25 @@
 use bevy::prelude::*;
 
 use crate::{
-    markers::{PlayerEntryMarker, PlayerListUIMarker},
+    constants::{
+        HEALTH_BAR_FILL_COLOR, HEALTH_BAR_PLAYER_LIST_HEIGHT, HEALTH_BAR_PLAYER_LIST_WIDTH, HEALTH_BAR_TRACK_COLOR,
+    },
+    markers::{PlayerEntryMarker, PlayerHealthBarFillUIMarker, PlayerListUIMarker},
     resources::{MyPlayerId, PlayerInfo, PlayerMap},
     spawning::item_type_color,
 };
-use common::protocol::{ItemType, PlayerId};
+use common::{
+    config::GameplayConfig,
+    protocol::{Health, ItemType, PlayerId},
+};
 
 const LOCAL_PLAYER_BG_COLOR: Color = Color::srgba(0.8, 0.8, 0.0, 0.3);
-
 pub fn ui_player_list_system(
     mut commands: Commands,
     players: Res<PlayerMap>,
     my_player_id: Option<Res<MyPlayerId>>,
+    gameplay_config: Res<GameplayConfig>,
+    health_query: Query<&Health>,
     player_list_ui: Single<Entity, With<PlayerListUIMarker>>,
     children_query: Query<&Children>,
 ) {
@@ -27,6 +34,8 @@ pub fn ui_player_list_system(
         *player_list_ui,
         &players,
         local_player_id,
+        &gameplay_config,
+        &health_query,
         &children_query,
     );
 }
@@ -36,6 +45,8 @@ fn rebuild_player_list(
     player_list_entity: Entity,
     players: &PlayerMap,
     local_player_id: Option<PlayerId>,
+    gameplay_config: &GameplayConfig,
+    health_query: &Query<&Health>,
     children_query: &Query<&Children>,
 ) {
     if let Ok(children) = children_query.get(player_list_entity) {
@@ -49,7 +60,18 @@ fn rebuild_player_list(
 
     let mut ordered_children = Vec::with_capacity(sorted_players.len());
     for (player_id, player_info) in sorted_players {
-        let entity = spawn_player_entry(commands, player_info, *player_id, local_player_id == Some(*player_id));
+        let health_ratio = player_health_ratio(
+            player_info,
+            health_query,
+            gameplay_config.characters.player.health().max,
+        );
+        let entity = spawn_player_entry(
+            commands,
+            player_info,
+            *player_id,
+            local_player_id == Some(*player_id),
+            health_ratio,
+        );
         ordered_children.push(entity);
     }
 
@@ -61,6 +83,7 @@ fn spawn_player_entry(
     player_info: &PlayerInfo,
     player_id: PlayerId,
     is_local: bool,
+    health_ratio: f32,
 ) -> Entity {
     let background_color = if is_local {
         BackgroundColor(LOCAL_PLAYER_BG_COLOR)
@@ -73,67 +96,120 @@ fn spawn_player_entry(
             PlayerEntryMarker,
             player_id,
             Node {
-                flex_direction: FlexDirection::Row,
-                column_gap: Val::Px(10.0),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(4.0),
                 padding: UiRect::all(Val::Px(5.0)),
                 ..default()
             },
             background_color,
         ))
-        .with_children(|row| {
-            row.spawn((
-                Text::new(&player_info.name),
-                TextFont {
-                    font_size: 20.0,
+        .with_children(|entry| {
+            entry
+                .spawn((Node {
+                    flex_direction: FlexDirection::Row,
+                    column_gap: Val::Px(10.0),
                     ..default()
-                },
-                TextColor(Color::WHITE),
-            ));
+                },))
+                .with_children(|row| {
+                    row.spawn((
+                        Text::new(&player_info.name),
+                        TextFont {
+                            font_size: 20.0,
+                            ..default()
+                        },
+                        TextColor(Color::WHITE),
+                    ));
 
-            row.spawn((
-                Text::new(format_signed_hits(player_info.hits)),
-                TextFont {
-                    font_size: 20.0,
-                    ..default()
-                },
-                TextColor(hit_value_color(player_info.hits)),
-            ));
+                    row.spawn((
+                        Text::new(format_signed_hits(player_info.hits)),
+                        TextFont {
+                            font_size: 20.0,
+                            ..default()
+                        },
+                        TextColor(hit_value_color(player_info.hits)),
+                    ));
 
-            if player_info.speed_power_up {
-                row.spawn((
+                    if player_info.speed_power_up {
+                        row.spawn((
+                            Node {
+                                width: Val::Px(12.0),
+                                height: Val::Px(12.0),
+                                align_self: AlignSelf::Center,
+                                ..default()
+                            },
+                            BackgroundColor(item_type_color(ItemType::SpeedPowerUp)),
+                        ));
+                    }
+                    if player_info.multi_shot_power_up {
+                        row.spawn((
+                            Node {
+                                width: Val::Px(12.0),
+                                height: Val::Px(12.0),
+                                align_self: AlignSelf::Center,
+                                ..default()
+                            },
+                            BackgroundColor(item_type_color(ItemType::MultiShotPowerUp)),
+                        ));
+                    }
+                    if player_info.phasing_power_up {
+                        row.spawn((
+                            Node {
+                                width: Val::Px(12.0),
+                                height: Val::Px(12.0),
+                                align_self: AlignSelf::Center,
+                                ..default()
+                            },
+                            BackgroundColor(item_type_color(ItemType::PhasingPowerUp)),
+                        ));
+                    }
+                });
+
+            entry
+                .spawn((
                     Node {
-                        width: Val::Px(12.0),
-                        height: Val::Px(12.0),
-                        align_self: AlignSelf::Center,
+                        width: Val::Px(HEALTH_BAR_PLAYER_LIST_WIDTH),
+                        height: Val::Px(HEALTH_BAR_PLAYER_LIST_HEIGHT),
+                        justify_content: JustifyContent::FlexStart,
                         ..default()
                     },
-                    BackgroundColor(item_type_color(ItemType::SpeedPowerUp)),
-                ));
-            }
-            if player_info.multi_shot_power_up {
-                row.spawn((
-                    Node {
-                        width: Val::Px(12.0),
-                        height: Val::Px(12.0),
-                        align_self: AlignSelf::Center,
-                        ..default()
-                    },
-                    BackgroundColor(item_type_color(ItemType::MultiShotPowerUp)),
-                ));
-            }
-            if player_info.phasing_power_up {
-                row.spawn((
-                    Node {
-                        width: Val::Px(12.0),
-                        height: Val::Px(12.0),
-                        align_self: AlignSelf::Center,
-                        ..default()
-                    },
-                    BackgroundColor(item_type_color(ItemType::PhasingPowerUp)),
-                ));
-            }
+                    BackgroundColor(HEALTH_BAR_TRACK_COLOR),
+                ))
+                .with_children(|bar| {
+                    bar.spawn((
+                        PlayerHealthBarFillUIMarker {
+                            player: player_info.entity,
+                        },
+                        Node {
+                            width: Val::Percent(health_ratio * 100.0),
+                            height: Val::Percent(100.0),
+                            ..default()
+                        },
+                        BackgroundColor(HEALTH_BAR_FILL_COLOR),
+                    ));
+                });
         })
         .id()
+}
+
+fn player_health_ratio(player_info: &PlayerInfo, health_query: &Query<&Health>, max_health: f32) -> f32 {
+    let Ok(health) = health_query.get(player_info.entity) else {
+        return 1.0;
+    };
+    (health.0 / max_health).clamp(0.0, 1.0)
+}
+
+pub fn ui_player_health_bars_system(
+    gameplay_config: Res<GameplayConfig>,
+    health_query: Query<&Health>,
+    mut bar_query: Query<(&PlayerHealthBarFillUIMarker, &mut Node)>,
+) {
+    let max_health = gameplay_config.characters.player.health().max;
+    for (bar, mut node) in &mut bar_query {
+        let Ok(health) = health_query.get(bar.player) else {
+            continue;
+        };
+        node.width = Val::Percent((health.0 / max_health).clamp(0.0, 1.0) * 100.0);
+    }
 }
 
 fn format_signed_hits(hits: i32) -> String {

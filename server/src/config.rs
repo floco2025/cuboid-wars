@@ -30,6 +30,7 @@ pub fn configure_server() -> Result<ServerConfig> {
 pub struct ServerGameplayConfig {
     pub version: u32,
     pub actors: ActorBehaviorConfig,
+    pub damage: DamageConfig,
 }
 
 impl ServerGameplayConfig {
@@ -54,7 +55,8 @@ impl ServerGameplayConfig {
             self.version,
             SUPPORTED_VERSION
         );
-        self.actors.validate("actors")
+        self.actors.validate("actors")?;
+        self.damage.validate("damage")
     }
 }
 
@@ -86,11 +88,42 @@ impl ActorBehaviorConfig {
     }
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct DamageConfig {
+    pub player_projectile_to_player: f32,
+    pub player_projectile_to_actor: f32,
+    pub actor_contact_to_player_per_second: f32,
+}
+
+impl DamageConfig {
+    fn validate(&self, path: &str) -> Result<()> {
+        validate_non_negative_finite(
+            self.player_projectile_to_player,
+            &format!("{path}.player_projectile_to_player"),
+        )?;
+        validate_non_negative_finite(
+            self.player_projectile_to_actor,
+            &format!("{path}.player_projectile_to_actor"),
+        )?;
+        validate_non_negative_finite(
+            self.actor_contact_to_player_per_second,
+            &format!("{path}.actor_contact_to_player_per_second"),
+        )
+    }
+}
+
 fn validate_positive_finite(value: f32, path: &str) -> Result<()> {
     if value.is_finite() && value > 0.0 {
         return Ok(());
     }
     bail!("{path} must be positive and finite, got {value}");
+}
+
+fn validate_non_negative_finite(value: f32, path: &str) -> Result<()> {
+    if value.is_finite() && value >= 0.0 {
+        return Ok(());
+    }
+    bail!("{path} must be non-negative and finite, got {value}");
 }
 
 fn validate_probability(value: f32, path: &str) -> Result<()> {

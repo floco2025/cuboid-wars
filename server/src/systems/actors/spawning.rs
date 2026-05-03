@@ -11,7 +11,7 @@ use common::{
     config::GameplayConfig,
     markers::{ActorMarker, PlayerMarker},
     physics::{CharacterVerticalVelocity, CollisionWorld},
-    protocol::{ActorId, ActorKind, ActorMoveIntent, FaceDirection, Position},
+    protocol::{ActorId, ActorKind, ActorMoveIntent, FaceDirection, Health, Position},
 };
 
 pub fn actor_initial_spawn_system(
@@ -53,6 +53,7 @@ pub fn actor_initial_spawn_system(
                 move_intent,
                 FaceDirection(direction),
                 CharacterVerticalVelocity::default(),
+                Health(gameplay_config.characters.actor.health().max),
             ))
             .id();
 

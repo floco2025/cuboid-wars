@@ -146,6 +146,7 @@ fn main() -> Result<()> {
                 characters_visual_turn_system
                     .after(players_transform_sync_system)
                     .after(actors_transform_sync_system),
+                character_health_bar_system,
                 players_billboard_system,
                 actors_transform_sync_system.after(characters_movement_system),
             ),
@@ -179,6 +180,7 @@ fn main() -> Result<()> {
             (
                 ui_toggle_crosshair_system,
                 ui_player_list_system,
+                ui_player_health_bars_system.after(ui_player_list_system),
                 ui_stunned_blink_system,
                 ui_rtt_system,
                 ui_fps_system,

@@ -21,7 +21,9 @@ pub(crate) fn visual_focus_level(y: f32) -> u8 {
 pub use actors::actors_transform_sync_system;
 pub use animations::{AnimationToPlay, character_animation_system};
 pub use cameras::setup_cameras_system;
-pub use characters::{CharacterVisualTurnState, characters_movement_system, characters_visual_turn_system};
+pub use characters::{
+    CharacterVisualTurnState, character_health_bar_system, characters_movement_system, characters_visual_turn_system,
+};
 pub use input::{
     input_camera_view_toggle_system, input_cursor_toggle_system, input_fullscreen_toggle_system,
     input_level_focus_toggle_system, input_movement_system, input_shooting_system,
@@ -43,6 +45,6 @@ pub use skybox::{
     skybox_update_camera_system,
 };
 pub use ui::{
-    setup_ui_system, ui_fps_system, ui_player_list_system, ui_rtt_system, ui_stunned_blink_system,
-    ui_toggle_crosshair_system,
+    setup_ui_system, ui_fps_system, ui_player_health_bars_system, ui_player_list_system, ui_rtt_system,
+    ui_stunned_blink_system, ui_toggle_crosshair_system,
 };

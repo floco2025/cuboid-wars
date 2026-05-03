@@ -32,10 +32,10 @@ pub fn players_transform_sync_system(
 // Billboard System
 // ============================================================================
 
-// Make player ID text meshes billboard (always face camera)
+// Make character label meshes billboard (always face camera)
 pub fn players_billboard_system(
     camera_query: Query<&GlobalTransform, (With<Camera3d>, Without<RearviewCameraMarker>)>,
-    mut text_mesh_query: Query<(&GlobalTransform, &mut Transform), With<PlayerIdTextMeshMarker>>,
+    mut text_mesh_query: Query<(&GlobalTransform, &mut Transform), With<CharacterLabelMeshMarker>>,
 ) {
     let Ok(camera_transform) = camera_query.single() else {
         return;

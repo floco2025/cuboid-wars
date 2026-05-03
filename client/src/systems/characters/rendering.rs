@@ -2,12 +2,15 @@ use bevy::prelude::*;
 use common::{
     markers::{ActorMarker, PlayerMarker},
     math::angle_delta_radians,
-    protocol::FaceDirection,
+    protocol::{FaceDirection, Health},
 };
 
 use super::components::CharacterVisualTurnState;
-use crate::constants::{
-    CHARACTER_VISUAL_TURN_MAX_ANGLE, CHARACTER_VISUAL_TURN_MAX_DURATION, CHARACTER_VISUAL_TURN_MIN_DURATION,
+use crate::{
+    constants::{
+        CHARACTER_VISUAL_TURN_MAX_ANGLE, CHARACTER_VISUAL_TURN_MAX_DURATION, CHARACTER_VISUAL_TURN_MIN_DURATION,
+    },
+    markers::CharacterHealthBarFillMarker,
 };
 
 const VISUAL_TURN_RETARGET_THRESHOLD: f32 = 0.001; // radians
@@ -61,4 +64,24 @@ pub fn characters_visual_turn_system(
 fn visual_turn_duration(angle_radians: f32) -> f32 {
     let t = (angle_radians / CHARACTER_VISUAL_TURN_MAX_ANGLE.to_radians()).clamp(0.0, 1.0);
     CHARACTER_VISUAL_TURN_MIN_DURATION.lerp(CHARACTER_VISUAL_TURN_MAX_DURATION, t)
+}
+
+pub fn character_health_bar_system(
+    health_query: Query<&Health>,
+    mut bar_query: Query<(&CharacterHealthBarFillMarker, &mut Node)>,
+) {
+    for (bar, mut node) in &mut bar_query {
+        let Ok(health) = health_query.get(bar.character) else {
+            continue;
+        };
+        let ratio = health_ratio(health.0, bar.max_health);
+        node.width = Val::Percent(ratio * 100.0);
+    }
+}
+
+fn health_ratio(health: f32, max_health: f32) -> f32 {
+    if max_health <= 0.0 {
+        return 0.0;
+    }
+    (health / max_health).clamp(0.0, 1.0)
 }

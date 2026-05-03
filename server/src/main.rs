@@ -108,6 +108,9 @@ async fn main() -> Result<()> {
                 actor_behavior_system,
                 actor_fall_recovery_system.after(characters_movement_system),
                 projectiles_movement_system,
+                characters_health_regeneration_system
+                    .after(characters_movement_system)
+                    .after(projectiles_movement_system),
                 item_initial_spawn_system,
                 item_spawn_system,
                 item_despawn_system,

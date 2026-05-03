@@ -117,6 +117,7 @@ fn spawn_snapshot_player(
         &player.name,
         &player.movement.pos,
         player.movement.move_intent,
+        player.health,
         player.face_dir,
         is_local,
     );
@@ -188,5 +189,6 @@ fn update_snapshot_player(
         client_player.speed_power_up = server_player.speed_power_up;
         client_player.multi_shot_power_up = server_player.multi_shot_power_up;
         client_player.phasing_power_up = server_player.phasing_power_up;
+        commands.entity(client_player.entity).insert(server_player.health);
     }
 }

@@ -64,6 +64,9 @@ pub fn sync_actors(
     });
 
     for (id, server_actor) in server_actors {
+        if let Some(client_actor) = actors.0.get(id) {
+            commands.entity(client_actor.entity).insert(server_actor.health);
+        }
         apply_actor_movement_state(
             commands,
             actors,

@@ -31,9 +31,9 @@ pub fn handle_login_message(
     map_config: &Res<MapConfig>,
     items: &Res<ItemMap>,
     actors: &Res<ActorMap>,
-    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection, &Health), With<PlayerMarker>>,
     motions: &Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
-    actor_data: &Query<(&Position, &ActorMoveIntent, &FaceDirection), With<ActorMarker>>,
+    actor_data: &Query<(&Position, &ActorMoveIntent, &FaceDirection, &Health), With<ActorMarker>>,
     actor_motions: &Query<&CharacterVerticalVelocity, With<ActorMarker>>,
     item_positions: &Query<&Position, With<ItemMarker>>,
 ) {
@@ -76,7 +76,7 @@ pub fn handle_login_message(
                 .values()
                 .filter(|p| p.logged_in && p.entity != entity)
                 .filter_map(|p| player_data.get(p.entity).ok())
-                .map(|(pos, _, _)| *pos)
+                .map(|(pos, _, _, _)| *pos)
                 .collect();
             let pos = generate_character_spawn_position(
                 map_config,
@@ -92,7 +92,14 @@ pub fn handle_login_message(
             let move_intent = PlayerMoveIntent::Idle;
 
             // Construct player data
-            let player = Player::new(name, pos, move_intent, face_dir, hits);
+            let player = Player::new(
+                name,
+                pos,
+                move_intent,
+                face_dir,
+                hits,
+                Health(gameplay_config.characters.player.health().max),
+            );
 
             // Construct the initial Update for the new player
             let mut all_players = snapshot_logged_in_players(players, player_data, motions)
@@ -121,6 +128,7 @@ pub fn handle_login_message(
                 move_intent,
                 FaceDirection(face_dir),
                 CharacterVerticalVelocity::default(),
+                player.health,
             ));
 
             // Broadcast Login to all other logged-in players

@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use super::network::broadcast_to_all;
-use crate::resources::PlayerMap;
+use crate::{config::ServerGameplayConfig, resources::PlayerMap};
 use common::{
     config::GameplayConfig,
     markers::{ActorMarker, PlayerMarker, ProjectileMarker},
@@ -17,10 +17,17 @@ pub fn projectiles_movement_system(
     mut commands: Commands,
     time: Res<Time>,
     mut projectile_query: Query<(Entity, &mut Position, &mut ProjectileMotion, &PlayerId), With<ProjectileMarker>>,
-    player_query: Query<(&Position, &FaceDirection, &PlayerId), (With<PlayerMarker>, Without<ProjectileMarker>)>,
-    actor_query: Query<(&Position, &FaceDirection, &ActorId), (With<ActorMarker>, Without<ProjectileMarker>)>,
+    mut player_query: Query<
+        (&Position, &FaceDirection, &PlayerId, &mut Health),
+        (With<PlayerMarker>, Without<ActorMarker>, Without<ProjectileMarker>),
+    >,
+    mut actor_query: Query<
+        (&Position, &FaceDirection, &ActorId, &mut Health),
+        (With<ActorMarker>, Without<PlayerMarker>, Without<ProjectileMarker>),
+    >,
     collision_world: Res<CollisionWorld>,
     gameplay_config: Res<GameplayConfig>,
+    server_gameplay_config: Res<ServerGameplayConfig>,
     mut players: ResMut<PlayerMap>,
 ) {
     let delta = time.delta_secs();
@@ -52,7 +59,7 @@ pub fn projectiles_movement_system(
         let mut hit_something = false;
 
         // Check player collisions.
-        for (position, face_direction, player_id) in player_query.iter() {
+        for (position, face_direction, player_id, mut health) in &mut player_query {
             if let Some(hit_dir) = projectile_hits_character(
                 &proj_pos,
                 &projectile,
@@ -69,6 +76,7 @@ pub fn projectiles_movement_system(
                 }
 
                 info!("{:?} hits {:?}", shooter_id, player_id);
+                health.0 = (health.0 - server_gameplay_config.damage.player_projectile_to_player).max(0.0);
 
                 // Update hit counters in separate scopes to avoid borrow conflicts
                 {
@@ -101,7 +109,7 @@ pub fn projectiles_movement_system(
         }
 
         if !hit_something {
-            for (position, face_direction, actor_id) in actor_query.iter() {
+            for (position, face_direction, actor_id, mut health) in &mut actor_query {
                 if projectile_hits_character(
                     &proj_pos,
                     &projectile,
@@ -113,6 +121,7 @@ pub fn projectiles_movement_system(
                 .is_some()
                 {
                     info!("{:?} hits {:?}", shooter_id, actor_id);
+                    health.0 = (health.0 - server_gameplay_config.damage.player_projectile_to_actor).max(0.0);
                     if let Some(shooter_info) = players.0.get_mut(shooter_id) {
                         shooter_info.hits += 1;
                     }

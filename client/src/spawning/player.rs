@@ -1,6 +1,6 @@
 use bevy::{gltf::GltfAssetLabel, prelude::*, scene::SceneRoot};
 
-use super::player_label::{setup_player_id_text_rendering, spawn_player_id_display};
+use super::character_label::{setup_character_label_text_rendering, spawn_character_label_display};
 use super::spawn_collider_box;
 use crate::{
     config::{AssetSet, RenderSettings},
@@ -20,6 +20,7 @@ struct PlayerBundle {
     position: Position,
     move_intent: PlayerMoveIntent,
     motion: CharacterVerticalVelocity,
+    health: Health,
     face_direction: FaceDirection,
     transform: Transform,
     visibility: Visibility,
@@ -44,6 +45,7 @@ pub fn spawn_player(
     player_name: &str,
     position: &Position,
     move_intent: PlayerMoveIntent,
+    health: Health,
     face_dir: f32,
     is_local: bool,
 ) -> Entity {
@@ -68,6 +70,7 @@ pub fn spawn_player(
                 position: *position,
                 move_intent,
                 motion: CharacterVerticalVelocity::default(),
+                health,
                 face_direction: FaceDirection(face_dir),
                 transform: Transform::from_xyz(position.x, player_physics.collider_center_y(position.y), position.z)
                     .with_rotation(Quat::from_rotation_y(face_dir)),
@@ -104,15 +107,17 @@ pub fn spawn_player(
     children.push(model);
 
     // Create individual texture and camera for this player's ID text
-    let (image_handle, text_camera) = setup_player_id_text_rendering(commands, images);
-    let (_text_entity, mesh_entity) = spawn_player_id_display(
+    let (image_handle, text_camera) = setup_character_label_text_rendering(commands, images);
+    let (_text_entity, mesh_entity) = spawn_character_label_display(
         commands,
         meshes,
         materials,
+        entity,
         player_name,
         image_handle,
         text_camera,
         player_physics.collision_height(),
+        gameplay_config.characters.player.health().max,
     );
     children.push(mesh_entity);
 

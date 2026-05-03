@@ -23,7 +23,7 @@ pub fn dispatch_message(
     msg: ClientMessage,
     players: &mut PlayerMap,
     time: &Res<Time>,
-    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection, &Health), With<PlayerMarker>>,
     motions: &Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
     collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
@@ -100,14 +100,14 @@ fn handle_move_intent_message(
     id: PlayerId,
     msg: CPlayerMoveIntent,
     players: &PlayerMap,
-    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection, &Health), With<PlayerMarker>>,
     motions: &Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
 ) {
     // Update the player's input intent
     commands.entity(entity).insert(msg.move_intent);
 
     // Get current movement state for reconciliation.
-    if let (Ok((pos, _, _)), Ok(motion)) = (player_data.get(entity), motions.get(entity)) {
+    if let (Ok((pos, _, _, _)), Ok(motion)) = (player_data.get(entity), motions.get(entity)) {
         // Broadcast move-input update with position to all other logged-in players
         broadcast_to_others(
             players,
@@ -125,7 +125,7 @@ fn handle_jump_message(
     entity: Entity,
     id: PlayerId,
     players: &PlayerMap,
-    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection, &Health), With<PlayerMarker>>,
     motions: &Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
     collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
@@ -134,7 +134,7 @@ fn handle_jump_message(
         return;
     }
 
-    let Ok((pos, move_intent, _)) = player_data.get(entity) else {
+    let Ok((pos, move_intent, _, _)) = player_data.get(entity) else {
         return;
     };
     let Ok(motion) = motions.get(entity) else {
@@ -182,7 +182,7 @@ fn handle_shot_message(
     msg: CShot,
     players: &mut PlayerMap,
     time: &Res<Time>,
-    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection, &Health), With<PlayerMarker>>,
     collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
 ) {
@@ -206,7 +206,7 @@ fn handle_shot_message(
     commands.entity(entity).insert(FaceDirection(msg.face_dir));
 
     // Spawn projectile(s) on server for hit detection
-    if let Ok((pos, _, _)) = player_data.get(entity) {
+    if let Ok((pos, _, _, _)) = player_data.get(entity) {
         let spawns = calculate_projectile_spawns(
             pos,
             msg.face_dir,
