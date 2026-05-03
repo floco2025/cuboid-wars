@@ -14,6 +14,7 @@ import tempfile
 from pathlib import Path
 
 import hashlib
+from dataclasses import dataclass
 
 from PySide6.QtCore import QPoint, QPointF, QRectF, QSize, Qt, QTimer
 from PySide6.QtGui import (
@@ -80,6 +81,25 @@ SPAWN_ZONE_LISTS = (ACTOR_ZONE_LIST, PLAYER_ZONE_LIST)
 
 DEFAULT_ACTOR_SPAWN_ENTRIES = [{"kind": "actor", "count": 1}]
 SPAWN_ZONE_HANDLE_PIXELS = 8.0
+
+
+@dataclass
+class ZoneRef:
+    """Identifies a spawn zone by which list it belongs to and its index."""
+
+    list_name: str
+    index: int
+
+
+@dataclass
+class SpawnZoneDrag:
+    """In-flight spawn-zone resize/move state used by Spawn Zone (Edit) mode."""
+
+    list_name: str
+    index: int
+    handle: str  # "move" or one of "n"/"s"/"e"/"w"/"nw"/"ne"/"sw"/"se"
+    origin: tuple[float, float]  # cursor position when drag started, in cell coords
+    original_zone: dict  # snapshot of the zone before the drag
 
 MIN_CELL = 12.0
 EDITOR_CELL = 36
@@ -168,41 +188,43 @@ def format_ramp(ramp: dict, indent: int) -> str:
     )
 
 
+def _zone_rect_fragment(zone: dict) -> str:
+    return (
+        f'"level": {zone["level"]}, '
+        f'"cols": [{zone["cols"][0]}, {zone["cols"][1]}], '
+        f'"rows": [{zone["rows"][0]}, {zone["rows"][1]}]'
+    )
+
+
 def format_actor_spawn_zones(zones: list[dict], indent: int) -> list[str]:
-    pad = " " * indent
-    inner = " " * (indent + 2)
-    if not zones:
-        return [f'{pad}"actor_spawn_zones": []']
-    lines = [f'{pad}"actor_spawn_zones": [']
-    for idx, zone in enumerate(zones):
-        comma = "," if idx + 1 < len(zones) else ""
+    def render(zone: dict) -> str:
         spawns = ", ".join(
             f'{{"kind": {json.dumps(entry["kind"])}, "count": {entry["count"]}}}'
             for entry in zone["spawns"]
         )
-        lines.append(
-            f'{inner}{{"level": {zone["level"]}, '
-            f'"cols": [{zone["cols"][0]}, {zone["cols"][1]}], '
-            f'"rows": [{zone["rows"][0]}, {zone["rows"][1]}], '
-            f'"spawns": [{spawns}]}}{comma}'
-        )
-    lines.append(f"{pad}]")
-    return lines
+        return f"{{{_zone_rect_fragment(zone)}, \"spawns\": [{spawns}]}}"
+
+    return _format_zone_list("actor_spawn_zones", zones, indent, render)
 
 
 def format_player_spawn_zones(zones: list[dict], indent: int) -> list[str]:
+    return _format_zone_list(
+        "player_spawn_zones",
+        zones,
+        indent,
+        lambda zone: f"{{{_zone_rect_fragment(zone)}}}",
+    )
+
+
+def _format_zone_list(name: str, zones: list[dict], indent: int, render_zone) -> list[str]:
     pad = " " * indent
     inner = " " * (indent + 2)
     if not zones:
-        return [f'{pad}"player_spawn_zones": []']
-    lines = [f'{pad}"player_spawn_zones": [']
+        return [f'{pad}"{name}": []']
+    lines = [f'{pad}"{name}": [']
     for idx, zone in enumerate(zones):
         comma = "," if idx + 1 < len(zones) else ""
-        lines.append(
-            f'{inner}{{"level": {zone["level"]}, '
-            f'"cols": [{zone["cols"][0]}, {zone["cols"][1]}], '
-            f'"rows": [{zone["rows"][0]}, {zone["rows"][1]}]}}{comma}'
-        )
+        lines.append(f"{inner}{render_zone(zone)}{comma}")
     lines.append(f"{pad}]")
     return lines
 
@@ -287,9 +309,17 @@ def normalize_map(map_data: dict) -> dict:
     }
 
 
-def normalize_actor_spawn_zone(zone: dict) -> dict:
+def _normalize_zone_rect(zone: dict) -> dict:
     cols = zone.get("cols") or [0, 0]
     rows = zone.get("rows") or [0, 0]
+    return {
+        "level": int(zone.get("level", 0)),
+        "cols": [int(cols[0]), int(cols[1])],
+        "rows": [int(rows[0]), int(rows[1])],
+    }
+
+
+def normalize_actor_spawn_zone(zone: dict) -> dict:
     raw_spawns = zone.get("spawns") or []
     spawns = []
     for entry in raw_spawns:
@@ -303,22 +333,11 @@ def normalize_actor_spawn_zone(zone: dict) -> dict:
         if not kind:
             continue
         spawns.append({"kind": kind, "count": max(0, count)})
-    return {
-        "level": int(zone.get("level", 0)),
-        "cols": [int(cols[0]), int(cols[1])],
-        "rows": [int(rows[0]), int(rows[1])],
-        "spawns": spawns,
-    }
+    return {**_normalize_zone_rect(zone), "spawns": spawns}
 
 
 def normalize_player_spawn_zone(zone: dict) -> dict:
-    cols = zone.get("cols") or [0, 0]
-    rows = zone.get("rows") or [0, 0]
-    return {
-        "level": int(zone.get("level", 0)),
-        "cols": [int(cols[0]), int(cols[1])],
-        "rows": [int(rows[0]), int(rows[1])],
-    }
+    return _normalize_zone_rect(zone)
 
 
 def actor_zone_key(zone: dict) -> tuple:
@@ -477,9 +496,6 @@ def validate_map(map_data: dict) -> list[str]:
             if abs(c1 - c0) + abs(r1 - r0) != 1:
                 errors.append(f"{prefix}: wall {wall} is not one grid edge")
 
-    floors_by_level = [
-        {tuple(floor) for floor in level["floors"]} for level in map_data["levels"]
-    ]
     ramp_cells_by_level: list[set[tuple[int, int]]] = [set() for _ in map_data["levels"]]
     for ramp in map_data["ramps"]:
         lower = ramp["lower_level"]
@@ -498,8 +514,6 @@ def validate_map(map_data: dict) -> list[str]:
         _check_zone_clear_of_obstructions(
             zone, f"player_spawn_zones[{idx}]", ramp_cells_by_level, inaccessible_by_level, errors
         )
-    # `floors_by_level` is no longer used but kept above for callers expecting it.
-    _ = floors_by_level
 
     for ramp in map_data["ramps"]:
         msg = ramp_error(ramp["low"], ramp["high"], ramp["lower_level"], cols, rows, len(map_data["levels"]))
@@ -1006,7 +1020,7 @@ class Canvas(QWidget):
             else:
                 self.window.set_selected_spawn_zone(picked)
                 self.update()
-                list_name, _ = picked
+                list_name = picked.list_name
                 if list_name == ACTOR_ZONE_LIST:
                     menu.addAction("Edit Spawns...", lambda: self.window.edit_selected_spawn_zone_spawns())
                 menu.addAction("Delete Spawn Zone", lambda: self.window.delete_selected_spawn_zone())
@@ -1039,10 +1053,8 @@ class EditorWindow(QMainWindow):
         self.undo_stack = QUndoStack(self)
         self.shortcuts = []
         self.recent_actor_spawn_entries: list[dict] = [dict(entry) for entry in DEFAULT_ACTOR_SPAWN_ENTRIES]
-        # Selected zone is identified by (list_name, index). None = nothing selected.
-        self.selected_spawn_zone_ref: tuple[str, int] | None = None
-        # Drag state: (list_name, index, mode, origin_xy_in_cells, original_zone)
-        self.spawn_zone_drag: tuple[str, int, str, tuple[float, float], dict] | None = None
+        self.selected_spawn_zone_ref: ZoneRef | None = None
+        self.spawn_zone_drag: SpawnZoneDrag | None = None
 
         self.canvas = Canvas(self)
         self.setCentralWidget(self.canvas)
@@ -1117,15 +1129,14 @@ class EditorWindow(QMainWindow):
     def set_map(self, map_data: dict, mark_dirty: bool) -> None:
         prior_selection: tuple[str, dict] | None = None
         if self.selected_spawn_zone_ref is not None:
-            list_name, idx = self.selected_spawn_zone_ref
-            if 0 <= idx < len(self.map_data[list_name]):
-                prior_selection = (list_name, copy.deepcopy(self.map_data[list_name][idx]))
+            ref = self.selected_spawn_zone_ref
+            if 0 <= ref.index < len(self.map_data[ref.list_name]):
+                prior_selection = (ref.list_name, copy.deepcopy(self.map_data[ref.list_name][ref.index]))
         self.map_data = canonicalize_map(map_data)
         self.current_level = max(0, min(self.current_level, len(self.map_data["levels"]) - 1))
         if prior_selection is not None:
             list_name, snapshot = prior_selection
-            new_idx = self._find_zone_index(list_name, snapshot)
-            self.selected_spawn_zone_ref = (list_name, new_idx) if new_idx is not None else None
+            self.selected_spawn_zone_ref = self._zone_ref_after_change(list_name, snapshot)
         else:
             self.selected_spawn_zone_ref = None
         if mark_dirty:
@@ -1299,8 +1310,7 @@ class EditorWindow(QMainWindow):
         after[ACTOR_ZONE_LIST].append(new_zone)
         self.apply_change("Paint Actor Spawn Zone", after)
         self.recent_actor_spawn_entries = [dict(entry) for entry in spawns]
-        new_idx = self._find_zone_index(ACTOR_ZONE_LIST, new_zone)
-        self.selected_spawn_zone_ref = (ACTOR_ZONE_LIST, new_idx) if new_idx is not None else None
+        self.selected_spawn_zone_ref = self._zone_ref_after_change(ACTOR_ZONE_LIST, new_zone)
 
     def add_player_spawn_zone_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         c0, r0, c1, r1 = rect_from_cells(start, end)
@@ -1312,8 +1322,7 @@ class EditorWindow(QMainWindow):
         }
         after[PLAYER_ZONE_LIST].append(new_zone)
         self.apply_change("Paint Player Spawn Zone", after)
-        new_idx = self._find_zone_index(PLAYER_ZONE_LIST, new_zone)
-        self.selected_spawn_zone_ref = (PLAYER_ZONE_LIST, new_idx) if new_idx is not None else None
+        self.selected_spawn_zone_ref = self._zone_ref_after_change(PLAYER_ZONE_LIST, new_zone)
 
     def prompt_for_actor_spawn_entries(self, current: list[dict] | None = None) -> list[dict] | None:
         suggestion = format_spawn_entries(
@@ -1468,7 +1477,7 @@ class EditorWindow(QMainWindow):
             list_name, target_idx = value
             if 0 <= target_idx < len(after[list_name]):
                 del after[list_name][target_idx]
-                if self.selected_spawn_zone_ref == (list_name, target_idx):
+                if self.selected_spawn_zone_ref == ZoneRef(list_name, target_idx):
                     self.selected_spawn_zone_ref = None
         elif kind == "Wall":
             level["walls"] = [wall for wall in level["walls"] if tuple(normalized_wall(wall)) != value]
@@ -1570,20 +1579,17 @@ class EditorWindow(QMainWindow):
         ref = self.selected_spawn_zone_ref
         if ref is None:
             return None
-        list_name, idx = ref
-        if not (0 <= idx < len(self.map_data[list_name])):
+        if not (0 <= ref.index < len(self.map_data[ref.list_name])):
             return None
-        return self.map_data[list_name][idx]
+        return self.map_data[ref.list_name][ref.index]
 
-    def set_selected_spawn_zone(self, ref: tuple[str, int] | None) -> None:
+    def set_selected_spawn_zone(self, ref: ZoneRef | None) -> None:
         if ref is None:
             self.selected_spawn_zone_ref = None
+        elif ref.list_name in SPAWN_ZONE_LISTS and 0 <= ref.index < len(self.map_data[ref.list_name]):
+            self.selected_spawn_zone_ref = ref
         else:
-            list_name, idx = ref
-            if list_name in SPAWN_ZONE_LISTS and 0 <= idx < len(self.map_data[list_name]):
-                self.selected_spawn_zone_ref = (list_name, idx)
-            else:
-                self.selected_spawn_zone_ref = None
+            self.selected_spawn_zone_ref = None
         self.canvas.update()
 
     def _find_zone_index(self, list_name: str, target: dict) -> int | None:
@@ -1593,7 +1599,11 @@ class EditorWindow(QMainWindow):
                 return idx
         return None
 
-    def spawn_zone_at(self, pos, cell_size: float) -> tuple[str, int] | None:
+    def _zone_ref_after_change(self, list_name: str, target: dict) -> ZoneRef | None:
+        new_idx = self._find_zone_index(list_name, target)
+        return ZoneRef(list_name, new_idx) if new_idx is not None else None
+
+    def spawn_zone_at(self, pos, cell_size: float) -> ZoneRef | None:
         col = int(pos.x() // cell_size)
         row = int(pos.y() // cell_size)
         # Iterate in reverse so the most-recently-painted wins. Actor zones
@@ -1603,7 +1613,7 @@ class EditorWindow(QMainWindow):
             for idx in range(len(self.map_data[list_name]) - 1, -1, -1):
                 zone = self.map_data[list_name][idx]
                 if zone["level"] == self.current_level and zone_contains_cell(zone, col, row):
-                    return (list_name, idx)
+                    return ZoneRef(list_name, idx)
         return None
 
     def begin_spawn_zone_edit_press(self, pos, cell_size: float) -> None:
@@ -1613,13 +1623,13 @@ class EditorWindow(QMainWindow):
             handle = self._handle_at_pos(zone, pos, cell_size)
             if handle is not None:
                 assert self.selected_spawn_zone_ref is not None
-                list_name, idx = self.selected_spawn_zone_ref
-                self.spawn_zone_drag = (
-                    list_name,
-                    idx,
-                    handle,
-                    (pos.x() / cell_size, pos.y() / cell_size),
-                    copy.deepcopy(zone),
+                ref = self.selected_spawn_zone_ref
+                self.spawn_zone_drag = SpawnZoneDrag(
+                    list_name=ref.list_name,
+                    index=ref.index,
+                    handle=handle,
+                    origin=(pos.x() / cell_size, pos.y() / cell_size),
+                    original_zone=copy.deepcopy(zone),
                 )
                 return
         # Otherwise pick the zone under the cursor.
@@ -1629,13 +1639,12 @@ class EditorWindow(QMainWindow):
             self.spawn_zone_drag = None
             return
         self.set_selected_spawn_zone(ref)
-        list_name, idx = ref
-        self.spawn_zone_drag = (
-            list_name,
-            idx,
-            "move",
-            (pos.x() / cell_size, pos.y() / cell_size),
-            copy.deepcopy(self.map_data[list_name][idx]),
+        self.spawn_zone_drag = SpawnZoneDrag(
+            list_name=ref.list_name,
+            index=ref.index,
+            handle="move",
+            origin=(pos.x() / cell_size, pos.y() / cell_size),
+            original_zone=copy.deepcopy(self.map_data[ref.list_name][ref.index]),
         )
 
     def _handle_at_pos(self, zone: dict, pos, cell_size: float) -> str | None:
@@ -1653,82 +1662,79 @@ class EditorWindow(QMainWindow):
         self._drag_current_cell_pos = (pos.x() / cell_size, pos.y() / cell_size)
 
     def spawn_zone_candidate_rect(self) -> tuple[int, int, int, int] | None:
-        if self.spawn_zone_drag is None or not hasattr(self, "_drag_current_cell_pos"):
+        drag = self.spawn_zone_drag
+        if drag is None or not hasattr(self, "_drag_current_cell_pos"):
             return None
-        _, _, mode, origin, original = self.spawn_zone_drag
-        ox, oy = origin
+        ox, oy = drag.origin
         cx, cy = self._drag_current_cell_pos
         dx_cells = round(cx - ox)
         dy_cells = round(cy - oy)
-        c0, r0, c1, r1 = zone_rect(original)
+        c0, r0, c1, r1 = zone_rect(drag.original_zone)
         cols_max = self.map_data["grid_cols"]
         rows_max = self.map_data["grid_rows"]
-        if mode == "move":
+        if drag.handle == "move":
             new_c0 = max(0, min(cols_max - (c1 - c0), c0 + dx_cells))
             new_r0 = max(0, min(rows_max - (r1 - r0), r0 + dy_cells))
             return (new_c0, new_r0, new_c0 + (c1 - c0), new_r0 + (r1 - r0))
         new_c0, new_r0, new_c1, new_r1 = c0, r0, c1, r1
-        if "n" in mode:
+        if "n" in drag.handle:
             new_r0 = max(0, min(r1 - 1, r0 + dy_cells))
-        if "s" in mode:
+        if "s" in drag.handle:
             new_r1 = max(r0 + 1, min(rows_max, r1 + dy_cells))
-        if "w" in mode:
+        if "w" in drag.handle:
             new_c0 = max(0, min(c1 - 1, c0 + dx_cells))
-        if "e" in mode:
+        if "e" in drag.handle:
             new_c1 = max(c0 + 1, min(cols_max, c1 + dx_cells))
         return (new_c0, new_r0, new_c1, new_r1)
 
     def commit_spawn_zone_edit_drag(self) -> None:
-        if self.spawn_zone_drag is None:
+        drag = self.spawn_zone_drag
+        if drag is None:
             return
         candidate = self.spawn_zone_candidate_rect()
-        list_name, zone_idx, _mode, _origin, original = self.spawn_zone_drag
         self.spawn_zone_drag = None
         if hasattr(self, "_drag_current_cell_pos"):
             del self._drag_current_cell_pos
         if candidate is None:
             return
         c0, r0, c1, r1 = candidate
-        if (c0, r0, c1, r1) == zone_rect(original):
+        if (c0, r0, c1, r1) == zone_rect(drag.original_zone):
             return
-        if not (0 <= zone_idx < len(self.map_data[list_name])):
+        if not (0 <= drag.index < len(self.map_data[drag.list_name])):
             return
         after = copy.deepcopy(self.map_data)
-        zone = after[list_name][zone_idx]
+        zone = after[drag.list_name][drag.index]
         zone["cols"] = [c0, c1]
         zone["rows"] = [r0, r1]
         self.apply_change("Edit Spawn Zone", after)
-        new_idx = self._find_zone_index(list_name, zone)
-        self.selected_spawn_zone_ref = (list_name, new_idx) if new_idx is not None else None
+        self.selected_spawn_zone_ref = self._zone_ref_after_change(drag.list_name, zone)
 
     def edit_selected_spawn_zone_spawns(self) -> None:
         zone = self.selected_spawn_zone()
-        if zone is None or self.selected_spawn_zone_ref is None:
+        ref = self.selected_spawn_zone_ref
+        if zone is None or ref is None:
             return
-        list_name, zone_idx = self.selected_spawn_zone_ref
-        if list_name != ACTOR_ZONE_LIST:
+        if ref.list_name != ACTOR_ZONE_LIST:
             return  # Player zones have no spawns list.
         spawns = self.prompt_for_actor_spawn_entries(zone["spawns"])
         if spawns is None:
             return
         after = copy.deepcopy(self.map_data)
-        if not (0 <= zone_idx < len(after[list_name])):
+        if not (0 <= ref.index < len(after[ref.list_name])):
             return
-        after[list_name][zone_idx]["spawns"] = spawns
+        after[ref.list_name][ref.index]["spawns"] = spawns
         self.apply_change("Edit Spawn Zone Entries", after)
         self.recent_actor_spawn_entries = [dict(entry) for entry in spawns]
-        new_idx = self._find_zone_index(list_name, after[list_name][zone_idx])
-        self.selected_spawn_zone_ref = (list_name, new_idx) if new_idx is not None else None
+        self.selected_spawn_zone_ref = self._zone_ref_after_change(ref.list_name, after[ref.list_name][ref.index])
 
     def delete_selected_spawn_zone(self) -> None:
         ref = self.selected_spawn_zone_ref
         if ref is None:
             return
-        list_name, zone_idx = ref
-        if not (0 <= zone_idx < len(self.map_data[list_name])):
+        if not (0 <= ref.index < len(self.map_data[ref.list_name])):
             return
         after = copy.deepcopy(self.map_data)
-        del after[list_name][zone_idx]
+        del after[ref.list_name][ref.index]
         self.selected_spawn_zone_ref = None
         self.apply_change("Delete Spawn Zone", after)
 

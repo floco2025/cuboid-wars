@@ -61,19 +61,20 @@ pub fn generate_actor_spawn_position_in_zone(
     )
 }
 
-fn valid_cells_in_actor_zone(map_config: &MapConfig, zone: &ActorSpawnZone) -> Vec<(u8, i32, i32)> {
+fn valid_cells_in_actor_zone(map_config: &MapConfig, zone: &ActorSpawnZone) -> Vec<SpawnCell> {
     collect_valid_cells(map_config, zone.level, zone.cells())
 }
 
-fn valid_cells_in_player_zone(map_config: &MapConfig, zone: &PlayerSpawnZone) -> Vec<(u8, i32, i32)> {
+fn valid_cells_in_player_zone(map_config: &MapConfig, zone: &PlayerSpawnZone) -> Vec<SpawnCell> {
     collect_valid_cells(map_config, zone.level, zone.cells())
 }
 
-fn collect_valid_cells(
-    map_config: &MapConfig,
-    level: u8,
-    cells: impl Iterator<Item = (i32, i32)>,
-) -> Vec<(u8, i32, i32)> {
+// (level, col, row) — same axis order as the file format's `cols`/`rows`
+// arrays and the editor's drag tool. Internally the cell grid is indexed
+// `[row][col]`, but that's local to the bounds checks below.
+type SpawnCell = (u8, i32, i32);
+
+fn collect_valid_cells(map_config: &MapConfig, level: u8, cells: impl Iterator<Item = (i32, i32)>) -> Vec<SpawnCell> {
     let Some(level_grid) = map_config.levels.get(level as usize) else {
         return Vec::new();
     };
@@ -88,14 +89,14 @@ fn collect_valid_cells(
         }
         let cell = &grid_cells[row as usize][col as usize];
         if cell.is_spawnable() {
-            out.push((level, row, col));
+            out.push((level, col, row));
         }
     }
     out
 }
 
 fn pick_clear_position(
-    valid_cells: &[(u8, i32, i32)],
+    valid_cells: &[SpawnCell],
     collision_world: &CollisionWorld,
     occupied_positions: &[Position],
     character_physics: CharacterPhysicsConfig,
@@ -108,8 +109,8 @@ fn pick_clear_position(
 
     let mut rng = rng();
     for _ in 0..SPAWN_MAX_ATTEMPTS {
-        let &(level, row, col) = valid_cells.choose(&mut rng).expect("valid_cells should not be empty");
-        let pos = random_position_in_spawn_cell(&mut rng, level, row, col, character_physics);
+        let &(level, col, row) = valid_cells.choose(&mut rng).expect("valid_cells should not be empty");
+        let pos = random_position_in_spawn_cell(&mut rng, level, col, row, character_physics);
 
         if character_spawn_position_is_clear(&pos, collision_world, occupied_positions, character_physics) {
             return pos;
@@ -126,8 +127,8 @@ fn pick_clear_position(
 fn random_position_in_spawn_cell(
     rng: &mut ThreadRng,
     level: u8,
-    row: i32,
     col: i32,
+    row: i32,
     character_physics: CharacterPhysicsConfig,
 ) -> Position {
     let cell_min_x = (col as f32).mul_add(GRID_CELL_SIZE, -(MAP_WIDTH / 2.0));

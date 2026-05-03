@@ -111,11 +111,13 @@ pub fn handle_actor_teleport_message(commands: &mut Commands, actors: &ResMut<Ac
     commands.entity(client_actor.entity).remove::<ServerReconciliation>();
 }
 
+// Server despawns the entity; client cleanup happens when the next snapshot
+// arrives without this actor (sync_actors removes any actor not in the
+// update). No need to mutate the entity here — just play the VFX.
 pub fn handle_actor_destroyed_message(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
-    actors: &ResMut<ActorMap>,
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
     gameplay_config: &GameplayConfig,
@@ -134,10 +136,6 @@ pub fn handle_actor_destroyed_message(
         AudioPlayer::new(asset_server.load(asset_set.sound("actor_explodes").to_owned())),
         PlaybackSettings::DESPAWN,
     ));
-    // Server despawns the entity; client cleanup happens when the next snapshot
-    // arrives without this actor (sync_actors removes any actor not in the
-    // update). No need to mutate the entity here — just play the VFX.
-    let _ = (actors, gameplay_config);
 }
 
 pub fn handle_actor_hit_message(

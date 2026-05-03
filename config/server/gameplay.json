@@ -1,14 +1,14 @@
 {
   "version": 1,
   "actors": {
-    "respawn_delay_seconds": 2.0,
     "min_direction_time": 1.0,
     "max_direction_time": 3.5,
     "idle_chance": 0.0,
     "vision_range": 24.0,
     "direct_path_probe_time": 0.4,
     "go_to_reached_distance": 0.5,
-    "contact_explosion_distance": 0.2
+    "contact_explosion_distance": 0.2,
+    "spawn_throttle_seconds": 2.0
   },
   "damage": {
     "player_projectile_to_player": 10.0,

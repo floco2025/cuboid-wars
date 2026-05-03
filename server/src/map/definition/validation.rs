@@ -40,6 +40,12 @@ trait ZoneRect {
     fn level(&self) -> u32;
     fn cols(&self) -> [i32; 2];
     fn rows(&self) -> [i32; 2];
+
+    fn cells(&self) -> Box<dyn Iterator<Item = (i32, i32)> + '_> {
+        let [c0, c1] = self.cols();
+        let [r0, r1] = self.rows();
+        Box::new((r0..r1).flat_map(move |r| (c0..c1).map(move |c| (c, r))))
+    }
 }
 
 impl ZoneRect for ActorSpawnZoneDef {
@@ -215,7 +221,7 @@ fn check_zone_clear_of_obstructions<Z: ZoneRect>(
     obstructions: &[std::collections::BTreeMap<[i32; 2], &'static str>],
 ) -> Result<()> {
     let level_obstructions = &obstructions[zone.level() as usize];
-    for (col, row) in zone_cells(zone) {
+    for (col, row) in zone.cells() {
         if let Some(reason) = level_obstructions.get(&[col, row]) {
             return Err(anyhow!(
                 "{label} cell [{col}, {row}] overlaps a {reason} on level {}",
@@ -347,12 +353,6 @@ fn ramp_footprint_cells(ramp: &RampDef) -> Vec<[i32; 2]> {
         }
     }
     cells
-}
-
-fn zone_cells<Z: ZoneRect>(zone: &Z) -> impl Iterator<Item = (i32, i32)> + '_ {
-    let cols = zone.cols()[0]..zone.cols()[1];
-    let rows = zone.rows()[0]..zone.rows()[1];
-    rows.flat_map(move |r| cols.clone().map(move |c| (c, r)))
 }
 
 pub(super) fn canonicalize(map_def: &mut MapDef) {

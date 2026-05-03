@@ -89,7 +89,6 @@ pub fn dispatch_message(
                 commands,
                 &mut assets.meshes,
                 &mut assets.materials,
-                actors,
                 asset_server,
                 asset_set,
                 gameplay_config,

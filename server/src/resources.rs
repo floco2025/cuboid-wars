@@ -310,16 +310,20 @@ pub struct ActorSpawner {
     pub next_id: u32,
 }
 
-// Per-(zone_idx, kind) spawn throttle in seconds. The value is the time
-// remaining until the next spawn into that slot is permitted. The throttle
-// only ticks down while the slot is short of its quota (live < count); when
-// the slot fills, the throttle freezes at whatever value it has (typically
-// `respawn_delay_seconds` from the most recent spawn). Slots that have
-// never spawned have no entry, which is treated as "go ahead immediately"
-// — the boot path inserts 0.0 on the first tick so the throttle then runs
-// for subsequent spawns.
+// Per-zone spawn throttle in seconds. Keyed by zone index. The value is the
+// time remaining until the next spawn into that zone is permitted. The
+// throttle only ticks down while the zone is short of its quota
+// (live < count); when the zone fills, the throttle freezes at whatever
+// value it has (typically `spawn_throttle_seconds` from the most recent
+// spawn). Zones that have never spawned have no entry, which is treated
+// as "go ahead immediately" — the spawner inserts 0.0 on the first tick
+// so the throttle then runs for subsequent spawns.
+//
+// Note: today there's only one actor kind per zone. When multiple kinds
+// per zone arrive, key on `(usize, ActorKind)` (or similar) instead of
+// just zone index so each kind has its own throttle slot.
 #[derive(Resource, Default)]
-pub struct ActorSpawnThrottles(pub HashMap<(usize, String), f32>);
+pub struct ActorSpawnThrottles(pub HashMap<usize, f32>);
 
 impl ActorSpawner {
     pub fn allocate(&mut self) -> ActorId {
