@@ -81,6 +81,7 @@ async fn main() -> Result<()> {
         .insert_resource(ItemMap::default())
         .insert_resource(ItemSpawner::default())
         .insert_resource(ActorSpawner::default())
+        .insert_resource(ActorSpawnThrottles::default())
         .insert_resource(FromAcceptChannel::new(from_accept))
         .insert_resource(FromClientsChannel::new(from_clients))
         .add_systems(

@@ -310,6 +310,17 @@ pub struct ActorSpawner {
     pub next_id: u32,
 }
 
+// Per-(zone_idx, kind) spawn throttle in seconds. The value is the time
+// remaining until the next spawn into that slot is permitted. The throttle
+// only ticks down while the slot is short of its quota (live < count); when
+// the slot fills, the throttle freezes at whatever value it has (typically
+// `respawn_delay_seconds` from the most recent spawn). Slots that have
+// never spawned have no entry, which is treated as "go ahead immediately"
+// — the boot path inserts 0.0 on the first tick so the throttle then runs
+// for subsequent spawns.
+#[derive(Resource, Default)]
+pub struct ActorSpawnThrottles(pub HashMap<(usize, String), f32>);
+
 impl ActorSpawner {
     pub fn allocate(&mut self) -> ActorId {
         let id = ActorId(self.next_id);

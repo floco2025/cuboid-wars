@@ -1,6 +1,7 @@
 {
   "version": 1,
   "actors": {
+    "respawn_delay_seconds": 2.0,
     "min_direction_time": 1.0,
     "max_direction_time": 3.5,
     "idle_chance": 0.0,

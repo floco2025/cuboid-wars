@@ -69,6 +69,9 @@ pub struct ActorBehaviorConfig {
     pub direct_path_probe_time: f32,
     pub go_to_reached_distance: f32,
     pub contact_explosion_distance: f32,
+    // Seconds to wait after an actor's death before its (zone, kind) slot is
+    // refilled by the spawn quota system. 0.0 = next tick (legacy behavior).
+    pub respawn_delay_seconds: f32,
 }
 
 impl ActorBehaviorConfig {
@@ -85,7 +88,8 @@ impl ActorBehaviorConfig {
         validate_non_negative_finite(
             self.contact_explosion_distance,
             &format!("{path}.contact_explosion_distance"),
-        )
+        )?;
+        validate_non_negative_finite(self.respawn_delay_seconds, &format!("{path}.respawn_delay_seconds"))
     }
 }
 

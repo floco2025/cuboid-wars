@@ -68,6 +68,10 @@ pub fn actor_death_system(
         } else {
             info!("{:?} fell and despawned at {:?}", death.id, death.pos);
         }
+        // Death is unconditional despawn. The throttle in
+        // `actor_spawn_quota_system` ticks down only while the slot is short
+        // of its quota, so dropping a live actor here is what causes the
+        // next replacement to be scheduled — no separate signal needed.
         commands.entity(death.entity).despawn();
         actors.0.remove(&death.id);
     }
