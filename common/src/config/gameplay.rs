@@ -4,6 +4,8 @@ use anyhow::{Context, Result, bail};
 use bevy_ecs::prelude::Resource;
 use serde::Deserialize;
 
+const SUPPORTED_VERSION: u32 = 1;
+
 #[derive(Resource, Debug, Clone, Deserialize)]
 pub struct GameplayConfig {
     pub version: u32,
@@ -26,9 +28,12 @@ impl GameplayConfig {
     }
 
     fn validate(&self) -> Result<()> {
-        if self.version != 1 {
-            bail!("unsupported gameplay config version {}", self.version);
-        }
+        anyhow::ensure!(
+            self.version == SUPPORTED_VERSION,
+            "unsupported gameplay config version {} (expected {})",
+            self.version,
+            SUPPORTED_VERSION
+        );
         self.characters.player.validate("characters.player")?;
         self.characters.actor.validate("characters.actor")?;
         Ok(())

@@ -22,9 +22,18 @@ use self::{
 
 pub use grid::{grid_col_to_world_x, grid_row_to_world_z};
 
+const SUPPORTED_ASSET_VERSION: u32 = 1;
+
 #[derive(Debug, Clone)]
 pub struct MaterialRules {
     rules: RuleSet,
+}
+
+#[derive(Deserialize)]
+struct MaterialRulesFile {
+    version: u32,
+    #[serde(flatten)]
+    rules: MaterialRules,
 }
 
 impl<'de> Deserialize<'de> for MaterialRules {
@@ -130,7 +139,15 @@ impl MaterialRules {
 
     fn load_from_path(path: &Path) -> Result<Self> {
         let text = fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
-        serde_json::from_str(&text).with_context(|| format!("failed to parse {}", path.display()))
+        let file: MaterialRulesFile =
+            serde_json::from_str(&text).with_context(|| format!("failed to parse {}", path.display()))?;
+        anyhow::ensure!(
+            file.version == SUPPORTED_ASSET_VERSION,
+            "unsupported asset config version {} (expected {})",
+            file.version,
+            SUPPORTED_ASSET_VERSION
+        );
+        Ok(file.rules)
     }
 
     #[must_use]

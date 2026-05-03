@@ -4,6 +4,8 @@ use anyhow::{Context, Result};
 use bevy::prelude::Resource;
 use serde::Deserialize;
 
+const SUPPORTED_VERSION: u32 = 1;
+
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum OpaqueRenderer {
@@ -21,6 +23,7 @@ impl OpaqueRenderer {
 
 #[derive(Resource, Debug, Clone, Deserialize)]
 pub struct RenderSettings {
+    pub version: u32,
     pub fov_first_person_degrees: f32,
     pub fov_top_down_degrees: f32,
     pub fov_rearview_degrees: f32,
@@ -53,6 +56,12 @@ impl RenderSettings {
     }
 
     fn validate(&self) -> Result<()> {
+        anyhow::ensure!(
+            self.version == SUPPORTED_VERSION,
+            "unsupported render config version {} (expected {})",
+            self.version,
+            SUPPORTED_VERSION
+        );
         validate_fov(self.fov_first_person_degrees, "fov_first_person_degrees")?;
         validate_fov(self.fov_top_down_degrees, "fov_top_down_degrees")?;
         validate_fov(self.fov_rearview_degrees, "fov_rearview_degrees")?;

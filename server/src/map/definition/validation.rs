@@ -1,17 +1,16 @@
 use std::collections::BTreeSet;
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, anyhow, ensure};
 
 use super::{LevelDef, MapDef, MapFile, PlayerSpawnDef, RampDef, SUPPORTED_VERSION};
 
 pub(super) fn validate_file(file: &MapFile) -> Result<()> {
-    if file.version != SUPPORTED_VERSION {
-        return Err(anyhow!(
-            "unsupported map file version {} (expected {})",
-            file.version,
-            SUPPORTED_VERSION
-        ));
-    }
+    ensure!(
+        file.version == SUPPORTED_VERSION,
+        "unsupported map config version {} (expected {})",
+        file.version,
+        SUPPORTED_VERSION
+    );
     validate_map(&file.map)
 }
 

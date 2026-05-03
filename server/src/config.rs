@@ -7,6 +7,8 @@ use serde::Deserialize;
 
 use common::config::{create_quinn_server_config, load_certs, load_private_key};
 
+const SUPPORTED_VERSION: u32 = 1;
+
 // ============================================================================
 // Connection Configuration
 // ============================================================================
@@ -46,9 +48,12 @@ impl ServerGameplayConfig {
     }
 
     fn validate(&self) -> Result<()> {
-        if self.version != 1 {
-            bail!("unsupported server gameplay config version {}", self.version);
-        }
+        anyhow::ensure!(
+            self.version == SUPPORTED_VERSION,
+            "unsupported server gameplay config version {} (expected {})",
+            self.version,
+            SUPPORTED_VERSION
+        );
         self.actors.validate("actors")
     }
 }

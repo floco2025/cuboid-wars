@@ -1,4 +1,5 @@
 {
+  "version": 1,
   "fov_first_person_degrees": 90.0,
   "fov_top_down_degrees": 45.0,
   "fov_rearview_degrees": 90.0,

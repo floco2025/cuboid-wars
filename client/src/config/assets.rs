@@ -8,6 +8,8 @@ use common::{
 };
 use serde::Deserialize;
 
+const SUPPORTED_VERSION: u32 = 1;
+
 #[derive(Resource, Debug, Clone, Deserialize)]
 pub struct AssetSet {
     pub version: u32,
@@ -21,15 +23,27 @@ pub struct AssetSet {
 
 impl AssetSet {
     pub fn load_default() -> Result<Self> {
-        Self::load_from_path(Path::new(concat!(
+        let assets = Self::load_from_path(Path::new(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../config/client/assets.json"
-        )))
+        )))?;
+        assets.validate()?;
+        Ok(assets)
     }
 
     fn load_from_path(path: &Path) -> Result<Self> {
         let text = fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
         serde_json::from_str(&text).with_context(|| format!("failed to parse {}", path.display()))
+    }
+
+    fn validate(&self) -> Result<()> {
+        anyhow::ensure!(
+            self.version == SUPPORTED_VERSION,
+            "unsupported asset config version {} (expected {})",
+            self.version,
+            SUPPORTED_VERSION
+        );
+        Ok(())
     }
 
     pub fn material_ids_for_floor(&self, floor: &Floor) -> FaceMaterials {
