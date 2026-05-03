@@ -69,13 +69,16 @@ pub fn actor_spawn_quota_system(
     let mut rng = rng();
 
     for (zone_idx, zone) in map_config.actor_spawn_zones.iter().enumerate() {
-        let Some(entry) = zone.entry_for(ACTOR_SPAWN_KIND) else {
+        // Skip zones whose kind isn't one this server knows how to spawn.
+        // Today there's only one kind ("actor"); future kinds would be
+        // added by replacing this check with a kind-dispatch.
+        if zone.kind != ACTOR_SPAWN_KIND {
             continue;
-        };
+        }
         let live = live_actor_count(&actors, zone_idx);
         let throttle = throttles.0.entry(zone_idx).or_insert(0.0);
 
-        match decide_spawn(live, entry.count, *throttle) {
+        match decide_spawn(live, zone.count, *throttle) {
             // Frozen — leave the throttle as-is so the next death pays a
             // full throttle wait.
             SpawnDecision::Skip => {}

@@ -18,10 +18,8 @@ fn actor_zone(level: u32, col: i32, row: i32) -> ActorSpawnZoneDef {
         level,
         cols: [col, col + 1],
         rows: [row, row + 1],
-        spawns: vec![SpawnEntryDef {
-            kind: "actor".into(),
-            count: 1,
-        }],
+        kind: "actor".into(),
+        count: 1,
     }
 }
 
@@ -178,7 +176,7 @@ fn validation_rejects_player_zone_on_same_level_ramp() {
 }
 
 #[test]
-fn validation_rejects_actor_zone_with_empty_spawns_list() {
+fn validation_rejects_actor_zone_with_empty_kind() {
     let map_def = map_with_zones(
         4,
         vec![level(vec![[0, 0]])],
@@ -186,14 +184,15 @@ fn validation_rejects_actor_zone_with_empty_spawns_list() {
             level: 0,
             cols: [0, 1],
             rows: [0, 1],
-            spawns: Vec::new(),
+            kind: String::new(),
+            count: 1,
         }],
         vec![player_zone(0, 0, 0)],
         Vec::new(),
     );
 
-    let err = validate_map(&map_def).expect_err("must reject empty `spawns`");
-    assert!(err.to_string().contains("empty `spawns`"));
+    let err = validate_map(&map_def).expect_err("must reject empty `kind`");
+    assert!(err.to_string().contains("empty `kind`"));
 }
 
 #[test]
@@ -207,50 +206,14 @@ fn validation_accepts_unknown_kind_strings() {
             level: 0,
             cols: [0, 1],
             rows: [0, 1],
-            spawns: vec![
-                SpawnEntryDef {
-                    kind: "plyer".into(),
-                    count: 1,
-                },
-                SpawnEntryDef {
-                    kind: "boss".into(),
-                    count: 1,
-                },
-            ],
+            kind: "boss".into(),
+            count: 1,
         }],
         vec![player_zone(0, 0, 0)],
         Vec::new(),
     );
 
-    validate_map(&map_def).expect("any non-empty string list of kinds should load");
-}
-
-#[test]
-fn validation_rejects_actor_zone_with_duplicate_kind() {
-    let map_def = map_with_zones(
-        4,
-        vec![level(vec![[0, 0]])],
-        vec![ActorSpawnZoneDef {
-            level: 0,
-            cols: [0, 1],
-            rows: [0, 1],
-            spawns: vec![
-                SpawnEntryDef {
-                    kind: "actor".into(),
-                    count: 1,
-                },
-                SpawnEntryDef {
-                    kind: "actor".into(),
-                    count: 2,
-                },
-            ],
-        }],
-        vec![player_zone(0, 0, 0)],
-        Vec::new(),
-    );
-
-    let err = validate_map(&map_def).expect_err("duplicate kind must reject");
-    assert!(err.to_string().contains("duplicate"));
+    validate_map(&map_def).expect("any non-empty kind string should load");
 }
 
 #[test]

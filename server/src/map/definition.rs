@@ -11,7 +11,7 @@ use super::{
 };
 use crate::{
     constants::FLOOR_OVERLAP,
-    resources::{ActorSpawnZone, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlayerSpawnZone, SpawnEntry},
+    resources::{ActorSpawnZone, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlayerSpawnZone},
 };
 use common::{
     constants::*,
@@ -71,17 +71,12 @@ pub struct RampDef {
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
-pub struct SpawnEntryDef {
-    pub kind: String,
-    pub count: u32,
-}
-
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 pub struct ActorSpawnZoneDef {
     pub level: u32,
     pub cols: [i32; 2],
     pub rows: [i32; 2],
-    pub spawns: Vec<SpawnEntryDef>,
+    pub kind: String,
+    pub count: u32,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
@@ -239,14 +234,8 @@ fn actor_spawn_zones(map_def: &MapDef) -> Vec<ActorSpawnZone> {
             level: u8::try_from(zone.level).unwrap_or(u8::MAX),
             cols: zone.cols,
             rows: zone.rows,
-            spawns: zone
-                .spawns
-                .iter()
-                .map(|entry| SpawnEntry {
-                    kind: entry.kind.clone(),
-                    count: entry.count,
-                })
-                .collect(),
+            kind: zone.kind.clone(),
+            count: zone.count,
         })
         .collect()
 }

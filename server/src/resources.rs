@@ -97,32 +97,22 @@ pub struct LevelGrid {
     pub edges: EdgeGrid,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SpawnEntry {
-    pub kind: String,
-    pub count: u32,
-}
-
-// Where actor entities are spawned. Each zone holds an entry list keyed by
-// actor kind; the quota system keeps `count` of each kind alive in the zone.
+// Where actor entities are spawned. Each zone declares one actor kind and a
+// quota count; the spawn quota system keeps `count` of `kind` alive in the
+// zone. Authors who want multiple kinds in the same area paint multiple
+// zones over the same rectangle — the quota system iterates each zone
+// independently and overlap is fine.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ActorSpawnZone {
     pub level: u8,
     // Half-open ranges: cols=[start, end), rows=[start, end). Always end > start.
     pub cols: [i32; 2],
     pub rows: [i32; 2],
-    pub spawns: Vec<SpawnEntry>,
+    pub kind: String,
+    pub count: u32,
 }
 
 impl ActorSpawnZone {
-    pub fn entry_for(&self, kind: &str) -> Option<&SpawnEntry> {
-        self.spawns.iter().find(|e| e.kind == kind)
-    }
-
-    pub fn covers(&self, kind: &str) -> bool {
-        self.entry_for(kind).is_some()
-    }
-
     pub fn cells(&self) -> impl Iterator<Item = (i32, i32)> + '_ {
         let cols = self.cols[0]..self.cols[1];
         let rows = self.rows[0]..self.rows[1];
@@ -310,18 +300,15 @@ pub struct ActorSpawner {
     pub next_id: u32,
 }
 
-// Per-zone spawn throttle in seconds. Keyed by zone index. The value is the
-// time remaining until the next spawn into that zone is permitted. The
-// throttle only ticks down while the zone is short of its quota
-// (live < count); when the zone fills, the throttle freezes at whatever
-// value it has (typically `spawn_throttle_seconds` from the most recent
-// spawn). Zones that have never spawned have no entry, which is treated
-// as "go ahead immediately" — the spawner inserts 0.0 on the first tick
-// so the throttle then runs for subsequent spawns.
-//
-// Note: today there's only one actor kind per zone. When multiple kinds
-// per zone arrive, key on `(usize, ActorKind)` (or similar) instead of
-// just zone index so each kind has its own throttle slot.
+// Per-zone spawn throttle in seconds. Keyed by zone index — each actor
+// spawn zone has exactly one kind, so per-zone is the right granularity.
+// The value is the time remaining until the next spawn into that zone is
+// permitted. The throttle only ticks down while the zone is short of its
+// quota (live < count); when the zone fills, the throttle freezes at
+// whatever value it has (typically `spawn_throttle_seconds` from the most
+// recent spawn). Zones that have never spawned have no entry, which is
+// treated as "go ahead immediately" — the spawner inserts 0.0 on the
+// first tick so the throttle then runs for subsequent spawns.
 #[derive(Resource, Default)]
 pub struct ActorSpawnThrottles(pub HashMap<usize, f32>);
 

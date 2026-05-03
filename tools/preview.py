@@ -27,7 +27,7 @@ WRAPPER_KEYS = {"version", "map"}
 MAP_KEYS = {"grid_cols", "grid_rows", "actor_spawn_zones", "player_spawn_zones", "levels", "ramps"}
 LEVEL_KEYS = {"name", "floors", "inaccessible_floors", "walls"}
 RAMP_KEYS = {"lower_level", "low", "high"}
-ACTOR_SPAWN_ZONE_KEYS = {"level", "cols", "rows", "spawns"}
+ACTOR_SPAWN_ZONE_KEYS = {"level", "cols", "rows", "kind", "count"}
 PLAYER_SPAWN_ZONE_KEYS = {"level", "cols", "rows"}
 
 RAMP_UP = {

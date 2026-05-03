@@ -76,20 +76,8 @@ fn validate_actor_spawn_zones(map_def: &MapDef) -> Result<()> {
     for (zone_idx, zone) in map_def.actor_spawn_zones.iter().enumerate() {
         let label = format!("actor_spawn_zones[{zone_idx}]");
         validate_zone_placement(zone, &label, map_def)?;
-        if zone.spawns.is_empty() {
-            return Err(anyhow!("{label} has empty `spawns` list"));
-        }
-        let mut kinds_seen = BTreeSet::new();
-        for entry in &zone.spawns {
-            if entry.kind.is_empty() {
-                return Err(anyhow!("{label} has an entry with empty `kind`"));
-            }
-            if !kinds_seen.insert(entry.kind.clone()) {
-                return Err(anyhow!(
-                    "{label} has duplicate `spawns` entry for kind {:?}",
-                    entry.kind
-                ));
-            }
+        if zone.kind.is_empty() {
+            return Err(anyhow!("{label} has empty `kind`"));
         }
     }
     Ok(())
@@ -356,14 +344,9 @@ fn ramp_footprint_cells(ramp: &RampDef) -> Vec<[i32; 2]> {
 }
 
 pub(super) fn canonicalize(map_def: &mut MapDef) {
-    for zone in &mut map_def.actor_spawn_zones {
-        zone.spawns.sort_by(|a, b| a.kind.cmp(&b.kind));
-    }
     map_def.actor_spawn_zones.sort_by(|a, b| {
-        let a_kinds: Vec<_> = a.spawns.iter().map(|e| (&e.kind, e.count)).collect();
-        let b_kinds: Vec<_> = b.spawns.iter().map(|e| (&e.kind, e.count)).collect();
-        (a.level, a.rows[0], a.cols[0], a.rows[1], a.cols[1], a_kinds)
-            .cmp(&(b.level, b.rows[0], b.cols[0], b.rows[1], b.cols[1], b_kinds))
+        (a.level, a.rows[0], a.cols[0], a.rows[1], a.cols[1], &a.kind, a.count)
+            .cmp(&(b.level, b.rows[0], b.cols[0], b.rows[1], b.cols[1], &b.kind, b.count))
     });
     map_def.actor_spawn_zones.dedup();
 

@@ -31,14 +31,20 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
+    QDialog,
+    QDialogButtonBox,
     QFileDialog,
+    QFormLayout,
     QInputDialog,
     QLabel,
+    QLineEdit,
     QMainWindow,
     QMenu,
     QMessageBox,
     QSizePolicy,
+    QSpinBox,
     QToolBar,
+    QVBoxLayout,
     QWidget,
 )
 
@@ -79,7 +85,8 @@ ACTOR_ZONE_LIST = "actor_spawn_zones"
 PLAYER_ZONE_LIST = "player_spawn_zones"
 SPAWN_ZONE_LISTS = (ACTOR_ZONE_LIST, PLAYER_ZONE_LIST)
 
-DEFAULT_ACTOR_SPAWN_ENTRIES = [{"kind": "actor", "count": 1}]
+DEFAULT_ACTOR_KIND = "actor"
+DEFAULT_ACTOR_COUNT = 1
 SPAWN_ZONE_HANDLE_PIXELS = 8.0
 
 
@@ -101,6 +108,53 @@ class SpawnZoneDrag:
     origin: tuple[float, float]  # cursor position when drag started, in cell coords
     original_zone: dict  # snapshot of the zone before the drag
 
+
+class ActorSpawnFieldsDialog(QDialog):
+    """Modal dialog with labeled Kind (text) + Count (integer spinbox) fields.
+
+    Used both when painting a new actor zone and when editing an existing
+    one. Returns (kind, count) on accept; None on cancel.
+    """
+
+    MAX_COUNT = 9999
+
+    def __init__(self, parent, kind: str, count: int):
+        super().__init__(parent)
+        self.setWindowTitle("Actor Spawn Zone")
+
+        self._kind_edit = QLineEdit(kind)
+        self._count_spin = QSpinBox()
+        self._count_spin.setRange(0, self.MAX_COUNT)
+        self._count_spin.setValue(count)
+
+        form = QFormLayout()
+        form.addRow("Kind:", self._kind_edit)
+        form.addRow("Count:", self._count_spin)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+
+        layout = QVBoxLayout(self)
+        layout.addLayout(form)
+        layout.addWidget(buttons)
+
+    def values(self) -> tuple[str, int]:
+        return self._kind_edit.text().strip(), self._count_spin.value()
+
+    @classmethod
+    def prompt(cls, parent, kind: str, count: int) -> tuple[str, int] | None:
+        dialog = cls(parent, kind, count)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return None
+        new_kind, new_count = dialog.values()
+        if not new_kind:
+            QMessageBox.warning(parent, "Actor Spawn Zone", "Kind is required.")
+            return None
+        return new_kind, new_count
+
 MIN_CELL = 12.0
 EDITOR_CELL = 36
 DEFAULT_GRID_COLS = 20
@@ -116,7 +170,8 @@ def empty_map() -> dict:
                 "level": 0,
                 "cols": [0, 2],
                 "rows": [0, 2],
-                "spawns": [dict(entry) for entry in DEFAULT_ACTOR_SPAWN_ENTRIES],
+                "kind": DEFAULT_ACTOR_KIND,
+                "count": DEFAULT_ACTOR_COUNT,
             },
         ],
         "player_spawn_zones": [
@@ -198,11 +253,11 @@ def _zone_rect_fragment(zone: dict) -> str:
 
 def format_actor_spawn_zones(zones: list[dict], indent: int) -> list[str]:
     def render(zone: dict) -> str:
-        spawns = ", ".join(
-            f'{{"kind": {json.dumps(entry["kind"])}, "count": {entry["count"]}}}'
-            for entry in zone["spawns"]
+        return (
+            f"{{{_zone_rect_fragment(zone)}, "
+            f'"kind": {json.dumps(zone["kind"])}, '
+            f'"count": {zone["count"]}}}'
         )
-        return f"{{{_zone_rect_fragment(zone)}, \"spawns\": [{spawns}]}}"
 
     return _format_zone_list("actor_spawn_zones", zones, indent, render)
 
@@ -320,20 +375,12 @@ def _normalize_zone_rect(zone: dict) -> dict:
 
 
 def normalize_actor_spawn_zone(zone: dict) -> dict:
-    raw_spawns = zone.get("spawns") or []
-    spawns = []
-    for entry in raw_spawns:
-        if not isinstance(entry, dict):
-            continue
-        kind = str(entry.get("kind", ""))
-        try:
-            count = int(entry.get("count", 0))
-        except (TypeError, ValueError):
-            count = 0
-        if not kind:
-            continue
-        spawns.append({"kind": kind, "count": max(0, count)})
-    return {**_normalize_zone_rect(zone), "spawns": spawns}
+    kind = str(zone.get("kind", ""))
+    try:
+        count = int(zone.get("count", 0))
+    except (TypeError, ValueError):
+        count = 0
+    return {**_normalize_zone_rect(zone), "kind": kind, "count": max(0, count)}
 
 
 def normalize_player_spawn_zone(zone: dict) -> dict:
@@ -347,7 +394,8 @@ def actor_zone_key(zone: dict) -> tuple:
         zone["cols"][0],
         zone["rows"][1],
         zone["cols"][1],
-        tuple((entry["kind"], entry["count"]) for entry in zone["spawns"]),
+        zone["kind"],
+        zone["count"],
     )
 
 
@@ -382,15 +430,6 @@ def _dedupe_sorted(zones: list[dict], key_fn) -> list[dict]:
 def canonicalize_map(map_data: dict) -> dict:
     b = normalize_map(copy.deepcopy(map_data))
     enforce_ramp_floor_rules(b)
-    for zone in b["actor_spawn_zones"]:
-        # dedupe entries by kind, keeping the last value
-        by_kind: dict[str, int] = {}
-        for entry in zone["spawns"]:
-            by_kind[entry["kind"]] = entry["count"]
-        zone["spawns"] = [
-            {"kind": kind, "count": count}
-            for kind, count in sorted(by_kind.items())
-        ]
     b["actor_spawn_zones"] = _dedupe_sorted(b["actor_spawn_zones"], actor_zone_key)
     b["player_spawn_zones"] = _dedupe_sorted(b["player_spawn_zones"], player_zone_key)
     for level in b["levels"]:
@@ -459,17 +498,10 @@ def validate_map(map_data: dict) -> list[str]:
 
     for idx, zone in enumerate(map_data["actor_spawn_zones"]):
         _validate_zone_rect(zone, f"actor_spawn_zones[{idx}]", map_data, errors)
-        if not zone["spawns"]:
-            errors.append(f"actor_spawn_zones[{idx}] has empty `spawns` list")
-        kinds_seen = set()
-        for entry in zone["spawns"]:
-            if not entry["kind"]:
-                errors.append(f"actor_spawn_zones[{idx}] has an entry with empty kind")
-            if entry["kind"] in kinds_seen:
-                errors.append(f"actor_spawn_zones[{idx}] has duplicate kind {entry['kind']!r}")
-            kinds_seen.add(entry["kind"])
-            if entry["count"] < 0:
-                errors.append(f"actor_spawn_zones[{idx}] kind {entry['kind']!r} has negative count")
+        if not zone["kind"]:
+            errors.append(f"actor_spawn_zones[{idx}] has empty `kind`")
+        if zone["count"] < 0:
+            errors.append(f"actor_spawn_zones[{idx}] has negative count")
 
     for idx, zone in enumerate(map_data["player_spawn_zones"]):
         _validate_zone_rect(zone, f"player_spawn_zones[{idx}]", map_data, errors)
@@ -573,17 +605,10 @@ def zone_contains_cell(zone: dict, col: int, row: int) -> bool:
     return c0 <= col < c1 and r0 <= row < r1
 
 
-def zone_color(spawns: list[dict]) -> QColor:
-    if not spawns:
+def zone_color(kind: str) -> QColor:
+    if not kind:
         return QColor(34, 197, 94)
-    rgb = [0.0, 0.0, 0.0]
-    for entry in spawns:
-        c = tag_color(entry["kind"])
-        rgb[0] += c.redF()
-        rgb[1] += c.greenF()
-        rgb[2] += c.blueF()
-    n = len(spawns)
-    return QColor.fromRgbF(rgb[0] / n, rgb[1] / n, rgb[2] / n)
+    return tag_color(kind)
 
 
 def tag_color(tag: str) -> QColor:
@@ -592,40 +617,6 @@ def tag_color(tag: str) -> QColor:
     color = QColor()
     color.setHsv(hue, 165, 220)
     return color
-
-
-# Parse free-form text like "actor:3, player:16" or "actor 3; player 16"
-# into a list of {"kind", "count"} entries. The default count is 1 if the
-# user only types the kind name. Used by the paint and edit prompts.
-def parse_spawn_entries_input(text: str) -> list[dict]:
-    seen = set()
-    entries = []
-    for raw in text.replace(";", ",").replace("\n", ",").split(","):
-        token = raw.strip()
-        if not token:
-            continue
-        # Allow either "kind:count" or "kind count" or just "kind".
-        if ":" in token:
-            kind, _, count_str = token.partition(":")
-        elif " " in token:
-            kind, _, count_str = token.partition(" ")
-        else:
-            kind, count_str = token, "1"
-        kind = kind.strip()
-        count_str = count_str.strip() or "1"
-        if not kind or kind in seen:
-            continue
-        try:
-            count = max(0, int(count_str))
-        except ValueError:
-            continue
-        seen.add(kind)
-        entries.append({"kind": kind, "count": count})
-    return entries
-
-
-def format_spawn_entries(spawns: list[dict]) -> str:
-    return ", ".join(f"{entry['kind']}:{entry['count']}" for entry in spawns)
 
 
 def level_label(level: dict, index: int) -> str:
@@ -841,14 +832,14 @@ class Canvas(QWidget):
     def paint_actor_spawn_zone(self, painter: QPainter, zone: dict, cell: float) -> None:
         c0, r0, c1, r1 = zone_rect(zone)
         rect = QRectF(c0 * cell + 2, r0 * cell + 2, (c1 - c0) * cell - 4, (r1 - r0) * cell - 4)
-        outline_color = zone_color(zone["spawns"])
+        outline_color = zone_color(zone["kind"])
         fill_color = QColor(outline_color)
         fill_color.setAlpha(70)
         painter.setBrush(QBrush(fill_color))
         painter.setPen(QPen(outline_color, 2))
         painter.drawRect(rect)
         painter.setPen(QColor("#f8fafc"))
-        label = format_spawn_entries(zone["spawns"]) if zone["spawns"] else "(empty)"
+        label = f"{zone['kind']}:{zone['count']}" if zone["kind"] else "(empty)"
         painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, label)
 
     def paint_player_spawn_zone(self, painter: QPainter, zone: dict, cell: float) -> None:
@@ -1022,7 +1013,7 @@ class Canvas(QWidget):
                 self.update()
                 list_name = picked.list_name
                 if list_name == ACTOR_ZONE_LIST:
-                    menu.addAction("Edit Spawns...", lambda: self.window.edit_selected_spawn_zone_spawns())
+                    menu.addAction("Edit Fields...", lambda: self.window.edit_selected_spawn_zone_fields())
                 menu.addAction("Delete Spawn Zone", lambda: self.window.delete_selected_spawn_zone())
             menu.exec(event.globalPos())
             return
@@ -1052,7 +1043,8 @@ class EditorWindow(QMainWindow):
         self.dirty = False
         self.undo_stack = QUndoStack(self)
         self.shortcuts = []
-        self.recent_actor_spawn_entries: list[dict] = [dict(entry) for entry in DEFAULT_ACTOR_SPAWN_ENTRIES]
+        self.recent_actor_spawn_kind: str = DEFAULT_ACTOR_KIND
+        self.recent_actor_spawn_count: int = DEFAULT_ACTOR_COUNT
         self.selected_spawn_zone_ref: ZoneRef | None = None
         self.spawn_zone_drag: SpawnZoneDrag | None = None
 
@@ -1297,19 +1289,22 @@ class EditorWindow(QMainWindow):
 
     def add_actor_spawn_zone_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         c0, r0, c1, r1 = rect_from_cells(start, end)
-        spawns = self.prompt_for_actor_spawn_entries()
-        if spawns is None:
+        result = self.prompt_for_actor_spawn_fields()
+        if result is None:
             return
+        kind, count = result
         after = copy.deepcopy(self.map_data)
         new_zone = {
             "level": self.current_level,
             "cols": [c0, c1],
             "rows": [r0, r1],
-            "spawns": spawns,
+            "kind": kind,
+            "count": count,
         }
         after[ACTOR_ZONE_LIST].append(new_zone)
         self.apply_change("Paint Actor Spawn Zone", after)
-        self.recent_actor_spawn_entries = [dict(entry) for entry in spawns]
+        self.recent_actor_spawn_kind = kind
+        self.recent_actor_spawn_count = count
         self.selected_spawn_zone_ref = self._zone_ref_after_change(ACTOR_ZONE_LIST, new_zone)
 
     def add_player_spawn_zone_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
@@ -1324,23 +1319,12 @@ class EditorWindow(QMainWindow):
         self.apply_change("Paint Player Spawn Zone", after)
         self.selected_spawn_zone_ref = self._zone_ref_after_change(PLAYER_ZONE_LIST, new_zone)
 
-    def prompt_for_actor_spawn_entries(self, current: list[dict] | None = None) -> list[dict] | None:
-        suggestion = format_spawn_entries(
-            current if current is not None else self.recent_actor_spawn_entries
-        )
-        text, ok = QInputDialog.getText(
+    def prompt_for_actor_spawn_fields(self, kind: str | None = None, count: int | None = None) -> tuple[str, int] | None:
+        return ActorSpawnFieldsDialog.prompt(
             self,
-            "Actor Spawn Zone Entries",
-            "Comma-separated entries as `kind:count` (e.g. actor:3, sniper:1):",
-            text=suggestion,
+            kind if kind is not None else self.recent_actor_spawn_kind,
+            count if count is not None else self.recent_actor_spawn_count,
         )
-        if not ok:
-            return None
-        spawns = parse_spawn_entries_input(text)
-        if not spawns:
-            QMessageBox.warning(self, "Actor Spawn Zone Entries", "At least one entry is required.")
-            return None
-        return spawns
 
     def add_wall_line(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         edges = wall_segments_between(start, end)
@@ -1561,9 +1545,9 @@ class EditorWindow(QMainWindow):
             "Tool Reference",
             "Floor: drag cells to add floor.\n"
             "Inaccessible Floor: drag cells to add floor slabs that never spawn items, players, or lights.\n"
-            "Actor Spawn Zone (Paint): drag a rectangle, then enter `kind:count` entries (e.g. actor:3).\n"
+            "Actor Spawn Zone (Paint): drag a rectangle, then enter Kind and Count.\n"
             "Player Spawn Zone (Paint): drag a rectangle. No prompt — players spawn anywhere in any player zone.\n"
-            "Spawn Zone (Edit): click a zone to select; drag the body to move, drag a corner/edge handle to resize. Right-click to edit entries (actor zones only) or delete.\n"
+            "Spawn Zone (Edit): click a zone to select; drag the body to move, drag a corner/edge handle to resize. Right-click to edit fields (actor zones only) or delete.\n"
             "Wall: drag along grid lines to place atomic wall edges.\n"
             "Ramp (Up): drag from this level toward the upper level.\n"
             "Ramp (Down): drag from this level toward the lower level.\n"
@@ -1709,22 +1693,25 @@ class EditorWindow(QMainWindow):
         self.apply_change("Edit Spawn Zone", after)
         self.selected_spawn_zone_ref = self._zone_ref_after_change(drag.list_name, zone)
 
-    def edit_selected_spawn_zone_spawns(self) -> None:
+    def edit_selected_spawn_zone_fields(self) -> None:
         zone = self.selected_spawn_zone()
         ref = self.selected_spawn_zone_ref
         if zone is None or ref is None:
             return
         if ref.list_name != ACTOR_ZONE_LIST:
-            return  # Player zones have no spawns list.
-        spawns = self.prompt_for_actor_spawn_entries(zone["spawns"])
-        if spawns is None:
+            return  # Player zones have no editable fields.
+        result = self.prompt_for_actor_spawn_fields(zone["kind"], zone["count"])
+        if result is None:
             return
+        kind, count = result
         after = copy.deepcopy(self.map_data)
         if not (0 <= ref.index < len(after[ref.list_name])):
             return
-        after[ref.list_name][ref.index]["spawns"] = spawns
-        self.apply_change("Edit Spawn Zone Entries", after)
-        self.recent_actor_spawn_entries = [dict(entry) for entry in spawns]
+        after[ref.list_name][ref.index]["kind"] = kind
+        after[ref.list_name][ref.index]["count"] = count
+        self.apply_change("Edit Actor Spawn Zone", after)
+        self.recent_actor_spawn_kind = kind
+        self.recent_actor_spawn_count = count
         self.selected_spawn_zone_ref = self._zone_ref_after_change(ref.list_name, after[ref.list_name][ref.index])
 
     def delete_selected_spawn_zone(self) -> None:
