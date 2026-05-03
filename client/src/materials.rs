@@ -4,6 +4,7 @@ use bevy::{
     asset::AssetId,
     image::{ImageAddressMode, ImageFilterMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor},
     prelude::*,
+    render::render_resource::TextureUsages,
     tasks::{AsyncComputeTaskPool, Task, block_on, poll_once},
 };
 use bevy_mod_mipmap_generator::{MipmapGeneratorSettings, check_image_compatible, generate_mips_texture};
@@ -171,6 +172,18 @@ pub fn generate_material_mipmaps_system(
             let Some(image) = images.get_mut(image_handle) else {
                 continue;
             };
+
+            // Runtime render targets, such as floating label textures, are not
+            // source texture assets and can use formats the mipmap generator
+            // does not support. They render correctly without generated mips.
+            if image
+                .texture_descriptor
+                .usage
+                .contains(TextureUsages::RENDER_ATTACHMENT)
+            {
+                state.processed.insert(image_id);
+                continue;
+            }
 
             configure_mipmap_sampler(image, render_settings.texture_anisotropy);
 
