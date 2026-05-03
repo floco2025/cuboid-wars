@@ -90,13 +90,6 @@ fn handle_character_collisions(
             true
         }
         Some(ProjectileTargetHit::Actor { .. }) => {
-            play_sound(
-                commands,
-                asset_server,
-                asset_set.sound("projectile_hits_actor"),
-                PlaybackSettings::DESPAWN,
-            );
-
             commands.entity(proj_entity).despawn();
             true
         }

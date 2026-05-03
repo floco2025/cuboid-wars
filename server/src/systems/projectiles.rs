@@ -132,6 +132,7 @@ pub fn projectiles_movement_system(
                     if let Some(shooter_info) = players.0.get_mut(shooter_id) {
                         shooter_info.hits += 1;
                     }
+                    broadcast_to_all(&players, ServerMessage::ActorHit(SActorHit { id: actor_id }));
                     break;
                 }
                 commands.entity(proj_entity).despawn();

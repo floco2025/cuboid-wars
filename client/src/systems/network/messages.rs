@@ -2,7 +2,8 @@ use bevy::prelude::*;
 
 use super::{
     actors::{
-        handle_actor_destroyed_message, handle_actor_move_intent_message, handle_actor_teleport_message, sync_actors,
+        handle_actor_destroyed_message, handle_actor_hit_message, handle_actor_move_intent_message,
+        handle_actor_teleport_message, sync_actors,
     },
     components::AssetManagers,
     items::{handle_item_collected_message, sync_items},
@@ -132,6 +133,7 @@ pub fn dispatch_message(
             update_msg,
         ),
         ServerMessage::Hit(hit_msg) => handle_player_hit_message(commands, players, cameras, my_player_id, hit_msg),
+        ServerMessage::ActorHit(hit_msg) => handle_actor_hit_message(commands, asset_server, asset_set, hit_msg),
         ServerMessage::PlayerStatus(player_status_msg) => {
             handle_player_status_message(
                 commands,

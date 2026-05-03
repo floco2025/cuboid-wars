@@ -69,6 +69,7 @@ pub struct ActorBehaviorConfig {
     pub vision_range: f32,
     pub direct_path_probe_time: f32,
     pub go_to_reached_distance: f32,
+    pub contact_explosion_distance: f32,
 }
 
 impl ActorBehaviorConfig {
@@ -84,7 +85,11 @@ impl ActorBehaviorConfig {
         validate_probability(self.idle_chance, &format!("{path}.idle_chance"))?;
         validate_positive_finite(self.vision_range, &format!("{path}.vision_range"))?;
         validate_positive_finite(self.direct_path_probe_time, &format!("{path}.direct_path_probe_time"))?;
-        validate_positive_finite(self.go_to_reached_distance, &format!("{path}.go_to_reached_distance"))
+        validate_positive_finite(self.go_to_reached_distance, &format!("{path}.go_to_reached_distance"))?;
+        validate_non_negative_finite(
+            self.contact_explosion_distance,
+            &format!("{path}.contact_explosion_distance"),
+        )
     }
 }
 
@@ -92,7 +97,7 @@ impl ActorBehaviorConfig {
 pub struct DamageConfig {
     pub player_projectile_to_player: f32,
     pub player_projectile_to_actor: f32,
-    pub actor_contact_to_player_per_second: f32,
+    pub actor_explosion: ActorExplosionDamageConfig,
 }
 
 impl DamageConfig {
@@ -105,10 +110,22 @@ impl DamageConfig {
             self.player_projectile_to_actor,
             &format!("{path}.player_projectile_to_actor"),
         )?;
-        validate_non_negative_finite(
-            self.actor_contact_to_player_per_second,
-            &format!("{path}.actor_contact_to_player_per_second"),
-        )
+        self.actor_explosion.validate(&format!("{path}.actor_explosion"))
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ActorExplosionDamageConfig {
+    pub radius: f32,
+    pub player_max_damage: f32,
+    pub actor_max_damage: f32,
+}
+
+impl ActorExplosionDamageConfig {
+    fn validate(&self, path: &str) -> Result<()> {
+        validate_positive_finite(self.radius, &format!("{path}.radius"))?;
+        validate_non_negative_finite(self.player_max_damage, &format!("{path}.player_max_damage"))?;
+        validate_non_negative_finite(self.actor_max_damage, &format!("{path}.actor_max_damage"))
     }
 }
 

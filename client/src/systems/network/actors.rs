@@ -13,7 +13,7 @@ use common::{
     physics::CharacterVerticalVelocity,
     protocol::{
         Actor, ActorId, ActorMoveIntent, ActorMovementState, FaceDirection, Health, Position, SActorDestroyed,
-        SActorMoveIntent, SActorTeleport,
+        SActorHit, SActorMoveIntent, SActorTeleport,
     },
 };
 
@@ -135,6 +135,19 @@ pub fn handle_actor_destroyed_message(
             .entity(client_actor.entity)
             .insert(Health(gameplay_config.characters.actor.health().max));
     }
+}
+
+pub fn handle_actor_hit_message(
+    commands: &mut Commands,
+    asset_server: &Res<AssetServer>,
+    asset_set: &AssetSet,
+    msg: SActorHit,
+) {
+    trace!("{:?} was hit", msg.id);
+    commands.spawn((
+        AudioPlayer::new(asset_server.load(asset_set.sound("projectile_hits_actor").to_owned())),
+        PlaybackSettings::DESPAWN,
+    ));
 }
 
 fn apply_actor_movement_state(

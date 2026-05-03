@@ -12,13 +12,11 @@ use crate::{
     systems::actors::{ActorMovementQuery, apply_actor_moves, plan_actor_moves},
 };
 use common::{
-    config::GameplayConfig,
+    config::{CharacterPhysicsConfig, GameplayConfig},
     constants::PHYSICS_EPSILON,
-    health::apply_damage,
     markers::{ActorMarker, PlayerMarker},
     physics::{
-        CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, character_move_plans_intersect,
-        overlapping_character, step_character_movement,
+        CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, overlapping_character, step_character_movement,
     },
     protocol::{Health, PlayerId, PlayerMoveIntent, Position},
 };
@@ -44,7 +42,7 @@ pub fn characters_movement_system(
     players: Res<PlayerMap>,
     mut actors: ResMut<ActorMap>,
     mut player_query: PlayerMovementQuery,
-    mut player_health: Query<&mut Health, With<PlayerMarker>>,
+    mut actor_health: Query<&mut Health, With<ActorMarker>>,
     mut actor_query: ActorMovementQuery,
 ) {
     let delta = time.delta_secs();
@@ -73,12 +71,12 @@ pub fn characters_movement_system(
         &mut actor_query,
         &mut planned_moves,
     );
-    apply_player_moves(
-        &mut player_query,
-        &mut player_health,
+    apply_player_moves(&mut player_query, &planned_moves);
+    detonate_actors_touching_players(
+        &mut actor_health,
         &actors,
         &planned_moves,
-        server_gameplay_config.damage.actor_contact_to_player_per_second * delta,
+        server_gameplay_config.actors.contact_explosion_distance,
     );
     apply_actor_moves(&mut actor_query, &planned_moves);
 }
@@ -135,13 +133,7 @@ fn plan_player_moves(
     }
 }
 
-fn apply_player_moves(
-    query: &mut PlayerMovementQuery,
-    health_query: &mut Query<&mut Health, With<PlayerMarker>>,
-    actors: &ActorMap,
-    planned_moves: &[CharacterMovePlan],
-    actor_contact_damage: f32,
-) {
+fn apply_player_moves(query: &mut PlayerMovementQuery, planned_moves: &[CharacterMovePlan]) {
     for planned_move in planned_moves {
         let Ok((_, mut pos, mut motion, _, _)) = query.get_mut(planned_move.entity) else {
             continue;
@@ -153,15 +145,66 @@ fn apply_player_moves(
             *pos = planned_move.target;
         }
         motion.0 = planned_move.target_vertical_velocity;
+    }
+}
 
-        if actor_contact_damage > 0.0
-            && planned_moves.iter().any(|other| {
+fn detonate_actors_touching_players(
+    actor_health: &mut Query<&mut Health, With<ActorMarker>>,
+    actors: &ActorMap,
+    planned_moves: &[CharacterMovePlan],
+    contact_explosion_distance: f32,
+) {
+    for planned_move in planned_moves {
+        if actors.0.values().any(|actor| actor.entity == planned_move.entity) {
+            continue;
+        }
+
+        for actor_entity in planned_moves
+            .iter()
+            .filter(|other| {
                 actors.0.values().any(|actor| actor.entity == other.entity)
-                    && character_move_plans_intersect(planned_move, other)
+                    && character_move_plans_touch(planned_move, other, contact_explosion_distance)
             })
-            && let Ok(mut health) = health_query.get_mut(planned_move.entity)
+            .map(|actor_move| actor_move.entity)
         {
-            apply_damage(&mut health, actor_contact_damage);
+            if let Ok(mut health) = actor_health.get_mut(actor_entity) {
+                health.0 = 0.0;
+            }
         }
     }
+}
+
+fn character_move_plans_touch(a: &CharacterMovePlan, b: &CharacterMovePlan, contact_explosion_distance: f32) -> bool {
+    // Character movement blocks before colliders overlap, so contact uses a
+    // configurable surface tolerance instead of requiring actual intersection.
+    vertical_ranges_overlap(a.target, a.physics, b.target, b.physics)
+        && horizontal_distance_sq(&a.target, &b.target)
+            <= contact_distance(a.physics, b.physics, contact_explosion_distance).powi(2)
+}
+
+fn contact_distance(a: CharacterPhysicsConfig, b: CharacterPhysicsConfig, contact_explosion_distance: f32) -> f32 {
+    horizontal_collider_radius(a) + horizontal_collider_radius(b) + contact_explosion_distance
+}
+
+fn horizontal_collider_radius(physics: CharacterPhysicsConfig) -> f32 {
+    physics.collider.width.max(physics.collider.depth) / 2.0
+}
+
+fn vertical_ranges_overlap(
+    a_pos: Position,
+    a_physics: CharacterPhysicsConfig,
+    b_pos: Position,
+    b_physics: CharacterPhysicsConfig,
+) -> bool {
+    let a_bottom = a_pos.y + a_physics.collider.bottom_y_offset();
+    let a_top = a_pos.y + a_physics.collider.top_y_offset();
+    let b_bottom = b_pos.y + b_physics.collider.bottom_y_offset();
+    let b_top = b_pos.y + b_physics.collider.top_y_offset();
+    a_bottom <= b_top && b_bottom <= a_top
+}
+
+fn horizontal_distance_sq(a: &Position, b: &Position) -> f32 {
+    let dx = a.x - b.x;
+    let dz = a.z - b.z;
+    dx.mul_add(dx, dz * dz)
 }

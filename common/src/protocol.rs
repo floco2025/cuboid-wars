@@ -147,6 +147,12 @@ pub struct SHit {
     pub hit_dir_z: f32, // Direction of hit (normalized)
 }
 
+// Server to Client: Actor was hit by a projectile.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SActorHit {
+    pub id: ActorId,
+}
+
 // Server to Client: Player status effects changed.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct SPlayerStatus {
@@ -199,6 +205,7 @@ pub enum ServerMessage {
     Shot(SShot),
     Update(SUpdate),
     Hit(SHit),
+    ActorHit(SActorHit),
     PlayerStatus(SPlayerStatus),
     Echo(SEcho),
     CookieCollected(SCookieCollected),
