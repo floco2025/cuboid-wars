@@ -4,6 +4,8 @@ use anyhow::{Context, Result, bail};
 use bevy_ecs::prelude::Resource;
 use serde::Deserialize;
 
+use super::inheritance::resolve_actor_inheritance;
+
 const SUPPORTED_VERSION: u32 = 1;
 
 #[derive(Resource, Debug, Clone, Deserialize)]
@@ -25,7 +27,11 @@ impl GameplayConfig {
 
     fn load_from_path(path: &Path) -> Result<Self> {
         let text = fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
-        serde_json::from_str(&text).with_context(|| format!("failed to parse {}", path.display()))
+        let mut value: serde_json::Value =
+            serde_json::from_str(&text).with_context(|| format!("failed to parse {}", path.display()))?;
+        resolve_actor_inheritance(&mut value, "actors")
+            .with_context(|| format!("resolving actor inheritance in {}", path.display()))?;
+        serde_json::from_value(value).with_context(|| format!("failed to deserialize {}", path.display()))
     }
 
     fn validate(&self) -> Result<()> {
