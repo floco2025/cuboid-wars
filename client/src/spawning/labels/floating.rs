@@ -1,56 +1,8 @@
-use bevy::{
-    asset::RenderAssetUsages,
-    camera::{ClearColorConfig, RenderTarget},
-    prelude::*,
-    render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages},
-};
+use bevy::prelude::*;
 
-use crate::{constants::*, markers::*};
+use crate::{constants::*, markers::*, spawning::spawn_health_bar};
 
-pub(super) fn setup_character_label_text_rendering(
-    commands: &mut Commands,
-    images: &mut ResMut<Assets<Image>>,
-) -> (Handle<Image>, Entity) {
-    let size = Extent3d {
-        width: LABEL_TEXTURE_WIDTH,
-        height: LABEL_TEXTURE_HEIGHT,
-        ..default()
-    };
-
-    let bg = Color::NONE.to_srgba();
-    let mut image = Image::new_fill(
-        size,
-        TextureDimension::D2,
-        &[
-            (bg.blue * 255.0) as u8,
-            (bg.green * 255.0) as u8,
-            (bg.red * 255.0) as u8,
-            (bg.alpha * 255.0) as u8,
-        ],
-        TextureFormat::Bgra8UnormSrgb,
-        RenderAssetUsages::default(),
-    );
-    image.texture_descriptor.usage =
-        TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST | TextureUsages::RENDER_ATTACHMENT;
-
-    let image_handle = images.add(image);
-
-    let text_camera = commands
-        .spawn((
-            Camera2d,
-            Camera {
-                order: -1,
-                clear_color: ClearColorConfig::Custom(Color::NONE),
-                ..default()
-            },
-            RenderTarget::Image(image_handle.clone().into()),
-        ))
-        .id();
-
-    (image_handle, text_camera)
-}
-
-pub fn spawn_character_label_display(
+pub fn spawn_floating_player_label(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
@@ -60,6 +12,7 @@ pub fn spawn_character_label_display(
     text_camera: Entity,
     character_height: f32,
     max_health: f32,
+    current_health: f32,
 ) -> (Entity, Entity) {
     const LABEL_HEIGHT: f32 = LABEL_WIDTH * (LABEL_TEXTURE_HEIGHT as f32 / LABEL_TEXTURE_WIDTH as f32);
 
@@ -97,27 +50,15 @@ pub fn spawn_character_label_display(
                         CharacterLabelTextMarker,
                     ));
                 });
-            parent
-                .spawn((
-                    Node {
-                        width: Val::Px(HEALTH_BAR_FLOATING_PLAYER_WIDTH),
-                        height: Val::Px(HEALTH_BAR_FLOATING_PLAYER_HEIGHT),
-                        justify_content: JustifyContent::FlexStart,
-                        ..default()
-                    },
-                    BackgroundColor(HEALTH_BAR_TRACK_COLOR),
-                ))
-                .with_children(|bar| {
-                    bar.spawn((
-                        CharacterHealthBarFillMarker { character, max_health },
-                        Node {
-                            width: Val::Percent(100.0),
-                            height: Val::Percent(100.0),
-                            ..default()
-                        },
-                        BackgroundColor(HEALTH_BAR_FILL_COLOR),
-                    ));
-                });
+
+            spawn_health_bar(
+                parent,
+                character,
+                max_health,
+                current_health,
+                HEALTH_BAR_FLOATING_PLAYER_WIDTH,
+                HEALTH_BAR_FLOATING_PLAYER_HEIGHT,
+            );
         })
         .id();
 
@@ -133,7 +74,7 @@ pub fn spawn_character_label_display(
             })),
             Transform::from_xyz(
                 0.0,
-                character_height / 2.0 + LABEL_HEIGHT_ABOVE_PLAYER + LABEL_HEIGHT / 2.0,
+                character_height / 2.0 + LABEL_HEIGHT_ABOVE_CHARACTER + LABEL_HEIGHT / 2.0,
                 0.0,
             ),
         ))
@@ -142,7 +83,7 @@ pub fn spawn_character_label_display(
     (text_entity, mesh_entity)
 }
 
-pub fn spawn_character_health_display(
+pub fn spawn_floating_actor_health_bar(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
@@ -151,6 +92,7 @@ pub fn spawn_character_health_display(
     text_camera: Entity,
     character_height: f32,
     max_health: f32,
+    current_health: f32,
 ) -> (Entity, Entity) {
     const BAR_TEXTURE_WIDTH: f32 = HEALTH_BAR_FLOATING_ACTOR_WIDTH;
     const BAR_TEXTURE_HEIGHT: f32 = HEALTH_BAR_FLOATING_ACTOR_HEIGHT + 10.0;
@@ -169,27 +111,14 @@ pub fn spawn_character_health_display(
             UiTargetCamera(text_camera),
         ))
         .with_children(|parent| {
-            parent
-                .spawn((
-                    Node {
-                        width: Val::Px(HEALTH_BAR_FLOATING_ACTOR_WIDTH),
-                        height: Val::Px(HEALTH_BAR_FLOATING_ACTOR_HEIGHT),
-                        justify_content: JustifyContent::FlexStart,
-                        ..default()
-                    },
-                    BackgroundColor(HEALTH_BAR_TRACK_COLOR),
-                ))
-                .with_children(|bar| {
-                    bar.spawn((
-                        CharacterHealthBarFillMarker { character, max_health },
-                        Node {
-                            width: Val::Percent(100.0),
-                            height: Val::Percent(100.0),
-                            ..default()
-                        },
-                        BackgroundColor(HEALTH_BAR_FILL_COLOR),
-                    ));
-                });
+            spawn_health_bar(
+                parent,
+                character,
+                max_health,
+                current_health,
+                HEALTH_BAR_FLOATING_ACTOR_WIDTH,
+                HEALTH_BAR_FLOATING_ACTOR_HEIGHT,
+            );
         })
         .id();
 
@@ -205,7 +134,7 @@ pub fn spawn_character_health_display(
             })),
             Transform::from_xyz(
                 0.0,
-                character_height / 2.0 + LABEL_HEIGHT_ABOVE_PLAYER + BAR_MESH_HEIGHT / 2.0,
+                character_height / 2.0 + LABEL_HEIGHT_ABOVE_CHARACTER + BAR_MESH_HEIGHT / 2.0,
                 0.0,
             ),
         ))

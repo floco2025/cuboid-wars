@@ -1,9 +1,6 @@
 use bevy::{gltf::GltfAssetLabel, prelude::*, scene::SceneRoot};
 
-use super::{
-    character_label::{setup_character_label_text_rendering, spawn_character_health_display},
-    spawn_collider_box,
-};
+use super::{setup_label_texture, spawn_collider_box, spawn_floating_actor_health_bar};
 use crate::{
     config::{AssetSet, RenderSettings},
     markers::CharacterModelMarker,
@@ -77,8 +74,8 @@ pub fn spawn_actor(
 
     children.push(model_commands.id());
 
-    let (image_handle, text_camera) = setup_character_label_text_rendering(commands, images);
-    let (_ui_entity, mesh_entity) = spawn_character_health_display(
+    let (image_handle, text_camera) = setup_label_texture(commands, images);
+    let (_ui_entity, mesh_entity) = spawn_floating_actor_health_bar(
         commands,
         meshes,
         materials,
@@ -87,6 +84,7 @@ pub fn spawn_actor(
         text_camera,
         actor_physics.collision_height(),
         gameplay_config.characters.actor.health().max,
+        actor.health.0,
     );
     children.push(mesh_entity);
 

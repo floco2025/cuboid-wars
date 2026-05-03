@@ -1,7 +1,6 @@
 use bevy::{gltf::GltfAssetLabel, prelude::*, scene::SceneRoot};
 
-use super::character_label::{setup_character_label_text_rendering, spawn_character_label_display};
-use super::spawn_collider_box;
+use super::{setup_label_texture, spawn_collider_box, spawn_floating_player_label};
 use crate::{
     config::{AssetSet, RenderSettings},
     markers::*,
@@ -107,8 +106,8 @@ pub fn spawn_player(
     children.push(model);
 
     // Create individual texture and camera for this player's ID text
-    let (image_handle, text_camera) = setup_character_label_text_rendering(commands, images);
-    let (_text_entity, mesh_entity) = spawn_character_label_display(
+    let (image_handle, text_camera) = setup_label_texture(commands, images);
+    let (_text_entity, mesh_entity) = spawn_floating_player_label(
         commands,
         meshes,
         materials,
@@ -118,6 +117,7 @@ pub fn spawn_player(
         text_camera,
         player_physics.collision_height(),
         gameplay_config.characters.player.health().max,
+        health.0,
     );
     children.push(mesh_entity);
 

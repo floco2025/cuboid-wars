@@ -1,7 +1,6 @@
 use bevy::prelude::*;
 
 use super::components::CuboidShake;
-use crate::markers::*;
 use common::{config::GameplayConfig, markers::PlayerMarker, protocol::Position};
 
 // ============================================================================
@@ -24,46 +23,6 @@ pub fn players_transform_sync_system(
         if let Some(shake) = maybe_shake {
             transform.translation.x += shake.offset_x;
             transform.translation.z += shake.offset_z;
-        }
-    }
-}
-
-// ============================================================================
-// Billboard System
-// ============================================================================
-
-// Make character label meshes billboard (always face camera)
-pub fn players_billboard_system(
-    camera_query: Query<&GlobalTransform, (With<Camera3d>, Without<RearviewCameraMarker>)>,
-    mut text_mesh_query: Query<(&GlobalTransform, &mut Transform), With<CharacterLabelMeshMarker>>,
-) {
-    let Ok(camera_transform) = camera_query.single() else {
-        return;
-    };
-
-    let camera_pos = camera_transform.translation();
-
-    for (global_transform, mut transform) in &mut text_mesh_query {
-        let text_pos = global_transform.translation();
-        // Calculate direction to camera on XZ plane only (keep Y upright)
-        let direction = Vec3::new(camera_pos.x - text_pos.x, 0.0, camera_pos.z - text_pos.z);
-        if direction.length_squared() > 0.0001 {
-            // Calculate world rotation needed to face camera
-            let world_rotation = Quat::from_rotation_y(direction.x.atan2(direction.z));
-
-            // Get the combined parent rotation from global transform
-            let global_rotation = global_transform.to_scale_rotation_translation().1;
-            // Extract just the Y rotation from global
-            let global_y_angle = global_rotation.to_euler(EulerRot::YXZ).0;
-            // Calculate what the local Y rotation is currently
-            let local_y_angle = transform.rotation.to_euler(EulerRot::YXZ).0;
-            // Parent Y rotation is the difference
-            let parent_y_angle = global_y_angle - local_y_angle;
-
-            // Calculate new local rotation that compensates for parent
-            let world_y_angle = world_rotation.to_euler(EulerRot::YXZ).0;
-            let new_local_y_angle = world_y_angle - parent_y_angle;
-            transform.rotation = Quat::from_rotation_y(new_local_y_angle);
         }
     }
 }

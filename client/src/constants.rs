@@ -43,10 +43,10 @@ pub const CHARACTER_VISUAL_TURN_MAX_DURATION: f32 = 0.25; // Seconds for large v
 pub const CHARACTER_VISUAL_TURN_MAX_ANGLE: f32 = 180.0; // degrees
 
 // ============================================================================
-// Player Labels
+// Floating Labels
 // ============================================================================
 
-pub const LABEL_HEIGHT_ABOVE_PLAYER: f32 = 0.5;
+pub const LABEL_HEIGHT_ABOVE_CHARACTER: f32 = 0.5;
 pub const LABEL_WIDTH: f32 = 1.0;
 pub const LABEL_TEXTURE_WIDTH: u32 = 256;
 pub const LABEL_TEXTURE_HEIGHT: u32 = 64;

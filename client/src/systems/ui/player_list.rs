@@ -1,12 +1,10 @@
 use bevy::prelude::*;
 
 use crate::{
-    constants::{
-        HEALTH_BAR_FILL_COLOR, HEALTH_BAR_PLAYER_LIST_HEIGHT, HEALTH_BAR_PLAYER_LIST_WIDTH, HEALTH_BAR_TRACK_COLOR,
-    },
-    markers::{PlayerEntryMarker, PlayerHealthBarFillUIMarker, PlayerListUIMarker},
+    constants::{HEALTH_BAR_PLAYER_LIST_HEIGHT, HEALTH_BAR_PLAYER_LIST_WIDTH},
+    markers::{PlayerEntryMarker, PlayerListUIMarker},
     resources::{MyPlayerId, PlayerInfo, PlayerMap},
-    spawning::item_type_color,
+    spawning::{item_type_color, spawn_health_bar},
 };
 use common::{
     config::GameplayConfig,
@@ -59,18 +57,16 @@ fn rebuild_player_list(
     sorted_players.sort_by_key(|(player_id, _)| player_id.0);
 
     let mut ordered_children = Vec::with_capacity(sorted_players.len());
+    let max_health = gameplay_config.characters.player.health().max;
     for (player_id, player_info) in sorted_players {
-        let health_ratio = player_health_ratio(
-            player_info,
-            health_query,
-            gameplay_config.characters.player.health().max,
-        );
+        let current_health = player_health(player_info, health_query, max_health);
         let entity = spawn_player_entry(
             commands,
             player_info,
             *player_id,
             local_player_id == Some(*player_id),
-            health_ratio,
+            max_health,
+            current_health,
         );
         ordered_children.push(entity);
     }
@@ -83,7 +79,8 @@ fn spawn_player_entry(
     player_info: &PlayerInfo,
     player_id: PlayerId,
     is_local: bool,
-    health_ratio: f32,
+    max_health: f32,
+    current_health: f32,
 ) -> Entity {
     let background_color = if is_local {
         BackgroundColor(LOCAL_PLAYER_BG_COLOR)
@@ -164,52 +161,23 @@ fn spawn_player_entry(
                     }
                 });
 
-            entry
-                .spawn((
-                    Node {
-                        width: Val::Px(HEALTH_BAR_PLAYER_LIST_WIDTH),
-                        height: Val::Px(HEALTH_BAR_PLAYER_LIST_HEIGHT),
-                        justify_content: JustifyContent::FlexStart,
-                        ..default()
-                    },
-                    BackgroundColor(HEALTH_BAR_TRACK_COLOR),
-                ))
-                .with_children(|bar| {
-                    bar.spawn((
-                        PlayerHealthBarFillUIMarker {
-                            player: player_info.entity,
-                        },
-                        Node {
-                            width: Val::Percent(health_ratio * 100.0),
-                            height: Val::Percent(100.0),
-                            ..default()
-                        },
-                        BackgroundColor(HEALTH_BAR_FILL_COLOR),
-                    ));
-                });
+            spawn_health_bar(
+                entry,
+                player_info.entity,
+                max_health,
+                current_health,
+                HEALTH_BAR_PLAYER_LIST_WIDTH,
+                HEALTH_BAR_PLAYER_LIST_HEIGHT,
+            );
         })
         .id()
 }
 
-fn player_health_ratio(player_info: &PlayerInfo, health_query: &Query<&Health>, max_health: f32) -> f32 {
+fn player_health(player_info: &PlayerInfo, health_query: &Query<&Health>, max_health: f32) -> f32 {
     let Ok(health) = health_query.get(player_info.entity) else {
-        return 1.0;
+        return max_health;
     };
-    (health.0 / max_health).clamp(0.0, 1.0)
-}
-
-pub fn ui_player_health_bars_system(
-    gameplay_config: Res<GameplayConfig>,
-    health_query: Query<&Health>,
-    mut bar_query: Query<(&PlayerHealthBarFillUIMarker, &mut Node)>,
-) {
-    let max_health = gameplay_config.characters.player.health().max;
-    for (bar, mut node) in &mut bar_query {
-        let Ok(health) = health_query.get(bar.player) else {
-            continue;
-        };
-        node.width = Val::Percent((health.0 / max_health).clamp(0.0, 1.0) * 100.0);
-    }
+    health.0
 }
 
 fn format_signed_hits(hits: i32) -> String {

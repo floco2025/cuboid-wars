@@ -22,7 +22,8 @@ pub use actors::actors_transform_sync_system;
 pub use animations::{AnimationToPlay, character_animation_system};
 pub use cameras::setup_cameras_system;
 pub use characters::{
-    CharacterVisualTurnState, character_health_bar_system, characters_movement_system, characters_visual_turn_system,
+    CharacterVisualTurnState, character_label_billboard_system, characters_movement_system,
+    characters_visual_turn_system,
 };
 pub use input::{
     input_camera_view_toggle_system, input_cursor_toggle_system, input_fullscreen_toggle_system,
@@ -37,7 +38,7 @@ pub use network::{AssetManagers, ServerReconciliation, network_echo_system, netw
 pub use players::{
     BumpFlashState, CameraShake, CuboidShake, local_player_camera_shake_system, local_player_camera_sync_system,
     local_player_cuboid_shake_system, local_player_rearview_sync_system, local_player_rearview_system,
-    local_player_visibility_sync_system, players_billboard_system, players_transform_sync_system,
+    local_player_visibility_sync_system, players_transform_sync_system,
 };
 pub use projectiles::projectiles_movement_system;
 pub use skybox::{
@@ -45,6 +46,6 @@ pub use skybox::{
     skybox_update_camera_system,
 };
 pub use ui::{
-    setup_ui_system, ui_fps_system, ui_player_health_bars_system, ui_player_list_system, ui_rtt_system,
+    setup_ui_system, ui_fps_system, ui_health_bars_system, ui_player_list_system, ui_rtt_system,
     ui_stunned_blink_system, ui_toggle_crosshair_system,
 };

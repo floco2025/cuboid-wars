@@ -92,12 +92,7 @@ pub struct CharacterLabelTextMarker;
 pub struct CharacterLabelMeshMarker;
 
 #[derive(Component)]
-pub struct CharacterHealthBarFillMarker {
-    pub character: Entity,
+pub struct HealthBarFillMarker {
+    pub tracked_entity: Entity,
     pub max_health: f32,
-}
-
-#[derive(Component)]
-pub struct PlayerHealthBarFillUIMarker {
-    pub player: Entity,
 }
