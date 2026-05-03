@@ -5,14 +5,15 @@ use super::components::ServerReconciliation;
 use crate::{
     config::{AssetSet, RenderSettings},
     resources::{ActorInfo, ActorMap, RoundTripTime},
-    spawning::spawn_actor,
+    spawning::{spawn_actor, spawn_actor_explosion},
 };
 use common::{
     config::GameplayConfig,
     markers::ActorMarker,
     physics::CharacterVerticalVelocity,
     protocol::{
-        Actor, ActorId, ActorMoveIntent, ActorMovementState, FaceDirection, Position, SActorMoveIntent, SActorTeleport,
+        Actor, ActorId, ActorMoveIntent, ActorMovementState, FaceDirection, Health, Position, SActorDestroyed,
+        SActorMoveIntent, SActorTeleport,
     },
 };
 
@@ -108,6 +109,32 @@ pub fn handle_actor_teleport_message(commands: &mut Commands, actors: &ResMut<Ac
         CharacterVerticalVelocity(msg.movement.vertical_velocity),
     ));
     commands.entity(client_actor.entity).remove::<ServerReconciliation>();
+}
+
+pub fn handle_actor_destroyed_message(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    actors: &ResMut<ActorMap>,
+    asset_server: &Res<AssetServer>,
+    asset_set: &AssetSet,
+    gameplay_config: &GameplayConfig,
+    msg: SActorDestroyed,
+) {
+    spawn_actor_explosion(
+        commands,
+        asset_server,
+        meshes,
+        materials,
+        asset_set,
+        gameplay_config,
+        msg.pos,
+    );
+    if let Some(client_actor) = actors.0.get(&msg.id) {
+        commands
+            .entity(client_actor.entity)
+            .insert(Health(gameplay_config.characters.actor.health().max));
+    }
 }
 
 fn apply_actor_movement_state(

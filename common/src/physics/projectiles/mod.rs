@@ -26,6 +26,12 @@ pub struct HitDirection {
     pub z: f32,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct ProjectileCharacterHit {
+    pub time_of_impact: f32,
+    pub direction: HitDirection,
+}
+
 const MAX_SURFACE_BOUNCES: usize = 3;
 
 // Component attached to projectile entities to track velocity, lifetime, and bounce behavior
@@ -162,6 +168,26 @@ pub fn projectile_hits_character(
     character_face_dir: f32,
     character_physics: CharacterPhysicsConfig,
 ) -> Option<HitDirection> {
+    projectile_character_hit(
+        proj_pos,
+        proj_motion,
+        delta,
+        character_pos,
+        character_face_dir,
+        character_physics,
+    )
+    .map(|hit| hit.direction)
+}
+
+#[must_use]
+pub fn projectile_character_hit(
+    proj_pos: &Position,
+    proj_motion: &ProjectileMotion,
+    delta: f32,
+    character_pos: &Position,
+    character_face_dir: f32,
+    character_physics: CharacterPhysicsConfig,
+) -> Option<ProjectileCharacterHit> {
     let projectile_shape = Ball::new(PROJECTILE_RADIUS);
     let character_shape = Cuboid::new(Vector::new(
         character_physics.collider.width / 2.0,
@@ -180,7 +206,7 @@ pub fn projectile_hits_character(
         ..ShapeCastOptions::default()
     };
 
-    cast_shapes(
+    let hit = cast_shapes(
         &projectile_pose,
         projectile_velocity,
         &projectile_shape,
@@ -199,7 +225,10 @@ pub fn projectile_hits_character(
         (0.0, 0.0)
     };
 
-    Some(HitDirection { x, z })
+    Some(ProjectileCharacterHit {
+        time_of_impact: hit.time_of_impact,
+        direction: HitDirection { x, z },
+    })
 }
 
 fn oriented_character_pose(pos: &Position, face_dir: f32, physics: CharacterPhysicsConfig) -> Pose {

@@ -9,5 +9,7 @@ pub use characters::{
     overlaps_other_character, step_character_movement, try_start_player_jump,
 };
 pub use items::character_overlaps_item;
-pub use projectiles::{ProjectileMotion, projectile_hits_character};
+pub use projectiles::{
+    HitDirection, ProjectileCharacterHit, ProjectileMotion, projectile_character_hit, projectile_hits_character,
+};
 pub use world::CollisionWorld;

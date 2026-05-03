@@ -10,6 +10,7 @@ mod players;
 mod projectiles;
 mod skybox;
 mod ui;
+mod vfx;
 
 pub(crate) fn visual_focus_level(y: f32) -> u8 {
     if y <= 0.0 {
@@ -49,3 +50,4 @@ pub use ui::{
     setup_ui_system, ui_fps_system, ui_health_bars_system, ui_player_list_system, ui_rtt_system,
     ui_stunned_blink_system, ui_toggle_crosshair_system,
 };
+pub use vfx::explosion_effect_system;

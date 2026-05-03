@@ -164,6 +164,7 @@ fn main() -> Result<()> {
             ),
         )
         .add_systems(Update, projectiles_movement_system)
+        .add_systems(Update, explosion_effect_system)
         .add_systems(Update, character_shadow_settings_system)
         .add_systems(Update, items_animation_system)
         .add_systems(

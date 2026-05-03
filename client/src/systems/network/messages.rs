@@ -1,7 +1,9 @@
 use bevy::prelude::*;
 
 use super::{
-    actors::{handle_actor_move_intent_message, handle_actor_teleport_message, sync_actors},
+    actors::{
+        handle_actor_destroyed_message, handle_actor_move_intent_message, handle_actor_teleport_message, sync_actors,
+    },
     components::AssetManagers,
     items::{handle_item_collected_message, sync_items},
     login::{handle_player_login_message, handle_player_logoff_message},
@@ -80,6 +82,18 @@ pub fn dispatch_message(
         }
         ServerMessage::ActorTeleport(teleport_msg) => {
             handle_actor_teleport_message(commands, actors, teleport_msg);
+        }
+        ServerMessage::ActorDestroyed(destroyed_msg) => {
+            handle_actor_destroyed_message(
+                commands,
+                &mut assets.meshes,
+                &mut assets.materials,
+                actors,
+                asset_server,
+                asset_set,
+                gameplay_config,
+                destroyed_msg,
+            );
         }
         ServerMessage::Jump(jump_msg) => {
             handle_player_jump_message(commands, players, player_data, rtt, gameplay_config, jump_msg);

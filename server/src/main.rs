@@ -107,6 +107,9 @@ async fn main() -> Result<()> {
                 actor_initial_spawn_system,
                 actor_behavior_system,
                 actor_fall_recovery_system.after(characters_movement_system),
+                actor_health_recovery_system
+                    .after(projectiles_movement_system)
+                    .before(characters_health_regeneration_system),
                 projectiles_movement_system,
                 characters_health_regeneration_system
                     .after(characters_movement_system)

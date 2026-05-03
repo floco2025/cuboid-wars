@@ -101,6 +101,13 @@ pub struct SActorTeleport {
     pub movement: ActorMovementState,
 }
 
+// Server to Client: Actor was destroyed at this position before respawning.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SActorDestroyed {
+    pub id: ActorId,
+    pub pos: Position,
+}
+
 // Server to Client: Player started a jump with authoritative movement state.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SJump {
@@ -186,6 +193,7 @@ pub enum ServerMessage {
     ActorMoveIntent(SActorMoveIntent),
     PlayerTeleport(SPlayerTeleport),
     ActorTeleport(SActorTeleport),
+    ActorDestroyed(SActorDestroyed),
     Jump(SJump),
     Face(SFace),
     Shot(SShot),

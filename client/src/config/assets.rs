@@ -17,6 +17,7 @@ pub struct AssetSet {
     #[serde(flatten)]
     rules: MaterialRules,
     models: Models,
+    effects: Effects,
     skybox: SkyboxDef,
     sounds: HashMap<String, String>,
 }
@@ -80,6 +81,10 @@ impl AssetSet {
 
     pub fn wall_light_model(&self) -> &WallLightModelDef {
         &self.models.wall_light
+    }
+
+    pub fn actor_explosion_effect(&self) -> &EffectDef {
+        &self.effects.actor_explosion
     }
 
     pub fn skybox(&self) -> &SkyboxDef {
@@ -158,6 +163,23 @@ pub struct WallLightModelDef {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct EffectDef {
+    pub image: String,
+    pub columns: u32,
+    pub rows: u32,
+    pub first_frame: SpriteSheetFirstFrame,
+    pub scale: f32,
+    pub lifetime: f32,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SpriteSheetFirstFrame {
+    UpperLeft,
+    LowerRight,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct SkyboxDef {
     pub cross_image: String,
     pub brightness: f32,
@@ -168,4 +190,9 @@ struct Models {
     player: ModelDef,
     actor: ModelDef,
     wall_light: WallLightModelDef,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct Effects {
+    actor_explosion: EffectDef,
 }

@@ -12,7 +12,7 @@ use crate::{
 use common::{
     config::GameplayConfig,
     markers::{ActorMarker, PlayerMarker, ProjectileMarker},
-    physics::{CollisionWorld, ProjectileMotion, projectile_hits_character},
+    physics::{CollisionWorld, ProjectileCharacterHit, ProjectileMotion, projectile_character_hit},
     protocol::{FaceDirection, PlayerId, Position},
 };
 
@@ -28,21 +28,48 @@ fn handle_character_collisions(
     proj_motion: &ProjectileMotion,
     proj_pos: &Position,
     delta: f32,
-    player_query: &Query<(Entity, &Position, &FaceDirection, Has<LocalPlayerMarker>), With<PlayerMarker>>,
+    shooter_id: PlayerId,
+    player_query: &Query<(Entity, &Position, &FaceDirection, &PlayerId, Has<LocalPlayerMarker>), With<PlayerMarker>>,
     actor_query: &Query<(&Position, &FaceDirection), With<ActorMarker>>,
     gameplay_config: &GameplayConfig,
 ) -> bool {
-    for (_player_entity, player_pos, face_dir, is_local_player) in player_query.iter() {
-        if projectile_hits_character(
+    let mut closest_hit = None;
+
+    for (_player_entity, player_pos, face_dir, player_id, is_local_player) in player_query.iter() {
+        if shooter_id == *player_id {
+            continue;
+        }
+
+        if let Some(hit) = projectile_character_hit(
             proj_pos,
             proj_motion,
             delta,
             player_pos,
             face_dir.0,
             gameplay_config.characters.player.physics(),
-        )
-        .is_some()
-        {
+        ) {
+            closest_hit = Some(closer_hit(
+                closest_hit,
+                ProjectileTargetHit::Player { is_local_player, hit },
+            ));
+        }
+    }
+
+    for (actor_pos, face_dir) in actor_query.iter() {
+        if let Some(hit) = projectile_character_hit(
+            proj_pos,
+            proj_motion,
+            delta,
+            actor_pos,
+            face_dir.0,
+            gameplay_config.characters.actor.physics(),
+        ) {
+            closest_hit = Some(closer_hit(closest_hit, ProjectileTargetHit::Actor { hit }));
+        }
+    }
+
+    match closest_hit {
+        Some(ProjectileTargetHit::Player { is_local_player, .. }) => {
             play_sound(
                 commands,
                 asset_server,
@@ -60,21 +87,9 @@ fn handle_character_collisions(
             }
 
             commands.entity(proj_entity).despawn();
-            return true;
+            true
         }
-    }
-
-    for (actor_pos, face_dir) in actor_query.iter() {
-        if projectile_hits_character(
-            proj_pos,
-            proj_motion,
-            delta,
-            actor_pos,
-            face_dir.0,
-            gameplay_config.characters.actor.physics(),
-        )
-        .is_some()
-        {
+        Some(ProjectileTargetHit::Actor { .. }) => {
             play_sound(
                 commands,
                 asset_server,
@@ -83,11 +98,10 @@ fn handle_character_collisions(
             );
 
             commands.entity(proj_entity).despawn();
-            return true;
+            true
         }
+        None => false,
     }
-
-    false
 }
 
 fn play_sound(commands: &mut Commands, asset_server: &AssetServer, asset_path: &str, settings: PlaybackSettings) {
@@ -104,7 +118,7 @@ pub fn projectiles_movement_system(
     asset_server: Res<AssetServer>,
     asset_set: Res<AssetSet>,
     mut projectile_query: Query<(Entity, &mut Transform, &mut ProjectileMotion, &PlayerId), With<ProjectileMarker>>,
-    player_query: Query<(Entity, &Position, &FaceDirection, Has<LocalPlayerMarker>), With<PlayerMarker>>,
+    player_query: Query<(Entity, &Position, &FaceDirection, &PlayerId, Has<LocalPlayerMarker>), With<PlayerMarker>>,
     actor_query: Query<(&Position, &FaceDirection), With<ActorMarker>>,
     collision_world: Option<Res<CollisionWorld>>,
     gameplay_config: Res<GameplayConfig>,
@@ -114,7 +128,7 @@ pub fn projectiles_movement_system(
     let current_time = time.elapsed_secs();
     let collision_world = collision_world.as_deref();
 
-    for (projectile_entity, mut projectile_transform, mut projectile, _shooter_id) in &mut projectile_query {
+    for (projectile_entity, mut projectile_transform, mut projectile, shooter_id) in &mut projectile_query {
         // Check lifetime and despawn if expired
         projectile.lifetime.tick(time.delta());
         if projectile.lifetime.is_finished() {
@@ -151,6 +165,7 @@ pub fn projectiles_movement_system(
                 &projectile,
                 &projectile_pos,
                 delta,
+                *shooter_id,
                 &player_query,
                 &actor_query,
                 &gameplay_config,
@@ -207,4 +222,30 @@ fn handle_wall_collisions(
     }
 
     Some(new_pos)
+}
+
+#[derive(Clone, Copy)]
+enum ProjectileTargetHit {
+    Player {
+        is_local_player: bool,
+        hit: ProjectileCharacterHit,
+    },
+    Actor {
+        hit: ProjectileCharacterHit,
+    },
+}
+
+impl ProjectileTargetHit {
+    const fn hit(self) -> ProjectileCharacterHit {
+        match self {
+            Self::Player { hit, .. } | Self::Actor { hit, .. } => hit,
+        }
+    }
+}
+
+fn closer_hit(current: Option<ProjectileTargetHit>, candidate: ProjectileTargetHit) -> ProjectileTargetHit {
+    match current {
+        Some(current) if current.hit().time_of_impact <= candidate.hit().time_of_impact => current,
+        _ => candidate,
+    }
 }

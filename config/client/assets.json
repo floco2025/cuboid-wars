@@ -261,6 +261,16 @@
       "emissive_luminance": 2.0
     }
   },
+  "effects": {
+    "actor_explosion": {
+      "image": "vfx/Explosion_10_8x8-64.png",
+      "columns": 8,
+      "rows": 8,
+      "first_frame": "upper_left",
+      "scale": 6.0,
+      "lifetime": 0.6
+    }
+  },
   "skybox": {
     "cross_image": "Skybox_CoudySky_Day_3.png",
     "brightness": 1000.0
