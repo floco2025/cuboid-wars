@@ -13,9 +13,9 @@ use common::{
 use super::{broadcast::broadcast_to_others, login::handle_login_message, messages::dispatch_message};
 
 // Process incoming messages from clients.
-// NOTE: Must run after `accept_connections_system` with `apply_deferred` in
+// NOTE: Must run after `network_accept_connections_system` with `apply_deferred` in
 // between, otherwise entities for the messages might not be spawned yet.
-pub fn network_client_message_system(
+pub fn network_process_client_messages_system(
     mut commands: Commands,
     mut from_clients: ResMut<FromClientsChannel>,
     mut players: ResMut<PlayerMap>,

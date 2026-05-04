@@ -48,7 +48,7 @@ pub fn spawn_health_bar(
         .id()
 }
 
-pub fn ui_health_bars_system(health_query: Query<&Health>, mut bar_query: Query<(&HealthBarFill, &mut Node)>) {
+pub fn ui_health_bar_fill_system(health_query: Query<&Health>, mut bar_query: Query<(&HealthBarFill, &mut Node)>) {
     for (bar, mut node) in &mut bar_query {
         let Ok(health) = health_query.get(bar.tracked_entity) else {
             continue;

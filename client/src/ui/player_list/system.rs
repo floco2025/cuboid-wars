@@ -10,7 +10,7 @@ use super::{
 };
 use crate::players::{MyPlayerId, PlayerMap};
 
-pub fn ui_player_list_system(
+pub fn ui_player_list_rebuild_system(
     mut commands: Commands,
     players: Res<PlayerMap>,
     my_player_id: Option<Res<MyPlayerId>>,

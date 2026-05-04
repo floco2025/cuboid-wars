@@ -22,13 +22,13 @@ use client::{
     },
     items::{ItemMap, items_animation_system},
     map::{
-        DebugColors, LevelFocusEnabled, map_level_focus_visibility_system, map_make_wall_lights_emissive_system,
-        map_spawn_geometry_system, setup_world_geometry_system,
+        DebugColors, LevelFocusEnabled, map_level_focus_visibility_system, map_spawn_geometry_system,
+        map_wall_light_emissive_system, setup_world_geometry_system,
     },
     materials::generate_material_mipmaps_system,
     network::{
         ClientToServerChannel, LastUpdateSeq, RoundTripTime, ServerToClientChannel, network_echo_system,
-        network_io_task, network_server_message_system,
+        network_io_task, network_process_server_messages_system,
     },
     players::{
         LocalPlayerInfo, PlayerMap, local_player_camera_shake_system, local_player_camera_sync_system,
@@ -36,12 +36,12 @@ use client::{
         local_player_visibility_sync_system, players_transform_sync_system,
     },
     projectiles::{LastBounceSoundTime, ProjectileAssets, projectiles_movement_system},
-    skybox::{setup_skybox_from_cross, skybox_convert_cross_to_cubemap_system, skybox_update_camera_system},
+    skybox::{setup_skybox_from_cross_system, skybox_convert_cross_to_cubemap_system, skybox_update_camera_system},
     ui::{
-        FpsMeasurement, setup_ui_system, ui_fps_system, ui_health_bars_system, ui_player_list_system, ui_rtt_system,
-        ui_stunned_blink_system, ui_toggle_crosshair_system,
+        FpsMeasurement, setup_ui_system, ui_crosshair_visibility_system, ui_fps_system, ui_health_bar_fill_system,
+        ui_player_list_rebuild_system, ui_rtt_system, ui_stunned_blink_system,
     },
-    vfx::explosion_effect_system,
+    vfx::explosion_effects_system,
 };
 use common::{config::GameplayConfig, net::MessageStream, protocol::*};
 
@@ -150,7 +150,7 @@ fn main() -> Result<()> {
                 setup_world_geometry_system,
                 setup_cameras_system,
                 setup_ui_system,
-                setup_skybox_from_cross.after(setup_world_geometry_system),
+                setup_skybox_from_cross_system.after(setup_world_geometry_system),
             ),
         )
         .add_systems(
@@ -164,7 +164,7 @@ fn main() -> Result<()> {
                 input_fullscreen_toggle_system,
             ),
         )
-        .add_systems(Update, (network_echo_system, network_server_message_system))
+        .add_systems(Update, (network_echo_system, network_process_server_messages_system))
         .add_systems(
             Update,
             (
@@ -193,22 +193,22 @@ fn main() -> Result<()> {
             ),
         )
         .add_systems(Update, projectiles_movement_system)
-        .add_systems(Update, explosion_effect_system)
+        .add_systems(Update, explosion_effects_system)
         .add_systems(Update, items_animation_system)
         .add_systems(
             Update,
             (
                 map_spawn_geometry_system,
                 map_level_focus_visibility_system,
-                map_make_wall_lights_emissive_system,
+                map_wall_light_emissive_system,
             ),
         )
         .add_systems(
             Update,
             (
-                ui_toggle_crosshair_system,
-                ui_player_list_system,
-                ui_health_bars_system.after(ui_player_list_system),
+                ui_crosshair_visibility_system,
+                ui_player_list_rebuild_system,
+                ui_health_bar_fill_system.after(ui_player_list_rebuild_system),
                 ui_stunned_blink_system,
                 ui_rtt_system,
                 ui_fps_system,

@@ -23,7 +23,7 @@ use common::{physics::CollisionWorld, protocol::*};
 // ============================================================================
 
 // Main system to process all incoming messages from the server.
-pub fn network_server_message_system(
+pub fn network_process_server_messages_system(
     mut commands: Commands,
     mut from_server: ResMut<ServerToClientChannel>,
     mut exit: MessageWriter<AppExit>,

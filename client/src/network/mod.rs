@@ -10,6 +10,6 @@ mod transport;
 mod update;
 
 pub use components::{AssetManagers, ServerReconciliation};
-pub use io::{network_echo_system, network_server_message_system};
+pub use io::{network_echo_system, network_process_server_messages_system};
 pub use resources::{ClientToServerChannel, LastUpdateSeq, RoundTripTime, ServerToClientChannel};
 pub use transport::{ClientToServer, ServerToClient, network_io_task};

@@ -48,7 +48,7 @@ pub fn ui_fps_system(time: Res<Time>, mut fps: ResMut<FpsMeasurement>, mut query
     }
 }
 
-pub fn ui_toggle_crosshair_system(
+pub fn ui_crosshair_visibility_system(
     view_mode: Res<CameraViewMode>,
     mut query: Query<&mut Visibility, With<CrosshairMarker>>,
 ) {

@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::vfx::{ExplosionEffect, animation_frame, set_mesh_uvs};
 
-pub fn explosion_effect_system(
+pub fn explosion_effects_system(
     mut commands: Commands,
     time: Res<Time>,
     camera_query: Query<&GlobalTransform, (With<Camera3d>, Without<crate::cameras::RearviewCameraMarker>)>,

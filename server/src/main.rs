@@ -10,7 +10,7 @@ use tokio::{
 
 use common::{config::GameplayConfig, physics::CollisionWorld};
 use server::{
-    actors::{actor_behavior_system, actor_death_system, actor_initial_spawn_system, actor_respawn_system},
+    actors::{actor_behavior_system, actor_initial_spawn_system, actor_removal_system, actor_respawn_system},
     characters::{characters_health_regeneration_system, characters_movement_system},
     config::{ServerGameplayConfig, configure_server},
     items::{
@@ -18,8 +18,10 @@ use server::{
     },
     map::generate_map,
     net::accept_connections_task,
-    network::{network_accept_connections_system, network_broadcast_state_system, network_client_message_system},
-    players::{players_fall_recovery_system, players_timer_system},
+    network::{
+        network_accept_connections_system, network_broadcast_snapshot_system, network_process_client_messages_system,
+    },
+    players::{players_fall_recovery_system, players_status_timers_system},
     projectiles::projectiles_movement_system,
     resources::*,
 };
@@ -105,19 +107,19 @@ async fn main() -> Result<()> {
                 (
                     network_accept_connections_system,
                     ApplyDeferred,
-                    network_client_message_system,
+                    network_process_client_messages_system,
                     ApplyDeferred,
-                    network_broadcast_state_system,
+                    network_broadcast_snapshot_system,
                 )
                     .chain(),
                 // Game logic systems can run in parallel.
                 characters_movement_system.after(actor_behavior_system),
-                players_timer_system,
+                players_status_timers_system,
                 // Fall recovery must run after movement updates positions.
                 players_fall_recovery_system.after(characters_movement_system),
                 actor_respawn_system,
                 actor_behavior_system,
-                actor_death_system
+                actor_removal_system
                     .after(characters_movement_system)
                     .after(projectiles_movement_system)
                     .before(characters_health_regeneration_system),

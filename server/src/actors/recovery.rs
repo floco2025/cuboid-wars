@@ -19,7 +19,7 @@ use common::{
 //
 // Actor entities are despawned outright; the `actor_respawn_system` will
 // pick the missing slots up next tick and create replacements.
-pub fn actor_death_system(
+pub fn actor_removal_system(
     mut commands: Commands,
     mut actors: ResMut<ActorMap>,
     players: Res<PlayerMap>,

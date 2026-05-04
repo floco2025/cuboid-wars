@@ -7,7 +7,11 @@ use bevy::{
 
 use crate::config::AssetSet;
 
-pub fn setup_skybox_from_cross(mut commands: Commands, asset_server: Res<AssetServer>, asset_set: Res<AssetSet>) {
+pub fn setup_skybox_from_cross_system(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    asset_set: Res<AssetSet>,
+) {
     let skybox = asset_set.skybox();
 
     // Load the cross-layout skybox image

@@ -9,7 +9,7 @@ use common::{
 
 use super::broadcast::{broadcast_to_all, collect_items, snapshot_actors, snapshot_logged_in_players};
 
-pub fn network_broadcast_state_system(
+pub fn network_broadcast_snapshot_system(
     time: Res<Time>,
     mut timer: Local<f32>,
     mut seq: Local<u32>,

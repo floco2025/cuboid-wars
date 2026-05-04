@@ -167,7 +167,7 @@ pub fn map_level_focus_visibility_system(
 // ============================================================================
 
 // System to make wall light glass materials emissive after they load
-pub fn map_make_wall_lights_emissive_system(
+pub fn map_wall_light_emissive_system(
     asset_set: Res<AssetSet>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut processed: Local<std::collections::HashSet<AssetId<StandardMaterial>>>,

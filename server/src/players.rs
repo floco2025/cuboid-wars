@@ -13,11 +13,11 @@ use common::{
 };
 
 // ============================================================================
-// Players Timer System
+// Players Status Timers System
 // ============================================================================
 
 // System to count down player power-up and stun timers
-pub fn players_timer_system(time: Res<Time>, mut players: ResMut<PlayerMap>) {
+pub fn players_status_timers_system(time: Res<Time>, mut players: ResMut<PlayerMap>) {
     let delta = time.delta_secs();
 
     let mut status_messages = Vec::new();
