@@ -144,6 +144,8 @@ fn main() -> Result<()> {
         .insert_resource(DebugColors(debug_colors))
         .insert_resource(LastBounceSoundTime::default())
         .init_resource::<ProjectileAssets>()
+        // Startup creates persistent scene infrastructure before any server
+        // map data arrives.
         .add_systems(
             Startup,
             (
@@ -153,6 +155,7 @@ fn main() -> Result<()> {
                 setup_skybox_from_cross_system.after(setup_world_geometry_system),
             ),
         )
+        // Input writes local intent and view/debug state.
         .add_systems(
             Update,
             (
@@ -164,7 +167,10 @@ fn main() -> Result<()> {
                 input_fullscreen_toggle_system,
             ),
         )
+        // Network consumes server messages and sends periodic echo requests.
         .add_systems(Update, (network_echo_system, network_process_server_messages_system))
+        // Character prediction updates local component state. Transform sync
+        // then turns that state into rendered positions and smoothed rotation.
         .add_systems(
             Update,
             (
@@ -179,6 +185,8 @@ fn main() -> Result<()> {
                 character_shadow_settings_system,
             ),
         )
+        // Cameras follow the local player after input/prediction has had a
+        // chance to update the player state.
         .add_systems(
             Update,
             (
@@ -192,9 +200,17 @@ fn main() -> Result<()> {
                 local_player_visibility_sync_system.after(input_camera_view_toggle_system),
             ),
         )
-        .add_systems(Update, projectiles_movement_system)
-        .add_systems(Update, explosion_effects_system)
-        .add_systems(Update, items_animation_system)
+        // Client-side presentation systems that animate non-character entities.
+        .add_systems(
+            Update,
+            (
+                projectiles_movement_system,
+                explosion_effects_system,
+                items_animation_system,
+            ),
+        )
+        // Map rendering systems are mostly one-shot or visibility/material
+        // maintenance driven by loaded assets and level focus.
         .add_systems(
             Update,
             (
@@ -203,6 +219,7 @@ fn main() -> Result<()> {
                 map_wall_light_emissive_system,
             ),
         )
+        // HUD and screen-space UI.
         .add_systems(
             Update,
             (
@@ -214,6 +231,7 @@ fn main() -> Result<()> {
                 ui_fps_system,
             ),
         )
+        // Skybox asset conversion and camera following.
         .add_systems(
             Update,
             (

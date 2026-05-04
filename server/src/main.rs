@@ -112,21 +112,22 @@ async fn main() -> Result<()> {
                     network_broadcast_snapshot_system,
                 )
                     .chain(),
-                // Game logic systems can run in parallel.
-                characters_movement_system.after(actor_behavior_system),
-                players_status_timers_system,
-                // Fall recovery must run after movement updates positions.
-                players_fall_recovery_system.after(characters_movement_system),
-                actor_respawn_system,
+                // Actor decisions are written before movement consumes them.
                 actor_behavior_system,
+                characters_movement_system.after(actor_behavior_system),
+                projectiles_movement_system,
+                // Actor removal handles health-zero explosions and fall cleanup.
                 actor_removal_system
                     .after(characters_movement_system)
                     .after(projectiles_movement_system)
                     .before(characters_health_regeneration_system),
-                projectiles_movement_system,
                 characters_health_regeneration_system
                     .after(characters_movement_system)
                     .after(projectiles_movement_system),
+                // Fall recovery must run after movement updates positions.
+                players_fall_recovery_system.after(characters_movement_system),
+                actor_respawn_system,
+                players_status_timers_system,
                 item_initial_spawn_system,
                 item_spawn_system,
                 item_despawn_system,
