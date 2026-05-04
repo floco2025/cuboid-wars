@@ -5,7 +5,7 @@
     "support_probe": { "width": 0.2, "depth": 0.2 },
     "eye_height": 1.62,
     "health": { "max": 100.0, "regeneration_per_second": 2.0 },
-    "walk_speed": 5.0,
+    "walk_speed": 6.0,
     "run_speed": 9.0
   },
   "actors": {
@@ -15,13 +15,11 @@
       "eye_height": 1.6,
       "health": { "max": 100.0, "regeneration_per_second": 1.0 },
       "patrol_speed": 3.0,
-      "chase_speed": 8.0
+      "chase_speed": 5.0
     },
     "mine_2": {
       "inherit_from": "mine_1",
-      "collider": { "width": 1.0, "height": 1.0, "depth": 1.0, "y_offset": 1.1 },
-      "patrol_speed": 5.0,
-      "chase_speed": 10.0
+      "collider": { "width": 1.0, "height": 1.0, "depth": 1.0, "y_offset": 1.1 }
     }
   }
 }
