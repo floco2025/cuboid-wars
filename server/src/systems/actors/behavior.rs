@@ -59,12 +59,13 @@ pub fn actor_behavior_system(
         }
 
         info.direction_timer = random_direction_time(&mut rng, kind_server_config);
-        info.patrol_intent = random_patrol_intent(&mut rng, actor_config.patrol_speed, kind_server_config.idle_chance);
+        info.patrol_intent =
+            random_patrol_intent(&mut rng, actor_config.patrol_speed, kind_server_config.idle_probability);
     }
 }
 
-pub(crate) fn random_patrol_intent(rng: &mut ThreadRng, patrol_speed: f32, idle_chance: f32) -> ActorMoveIntent {
-    if rng.random_range(0.0..1.0) < idle_chance {
+pub(crate) fn random_patrol_intent(rng: &mut ThreadRng, patrol_speed: f32, idle_probability: f32) -> ActorMoveIntent {
+    if rng.random_range(0.0..1.0) < idle_probability {
         ActorMoveIntent::Idle
     } else {
         random_patrol_move_intent(rng, patrol_speed)

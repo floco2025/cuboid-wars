@@ -136,7 +136,7 @@ pub struct MaterialDef {
     #[serde(default)]
     pub(crate) repeat: bool,
     #[serde(default)]
-    pub(crate) data_textures_linear: bool,
+    pub(crate) linear_data_textures: bool,
     #[serde(default)]
     pub(crate) base_color: Option<String>,
     #[serde(default)]
@@ -166,7 +166,7 @@ pub struct ModelDef {
     pub scale: f32,
     // Model bottom offset relative to the gameplay collider bottom.
     #[serde(default)]
-    pub model_y_offset: f32,
+    pub y_offset: f32,
     #[serde(default)]
     pub animation_speed: Option<f32>,
 }
@@ -175,7 +175,7 @@ pub struct ModelDef {
 pub struct WallLightModelDef {
     pub scene: String,
     pub scale: f32,
-    pub inward_offset: f32,
+    pub offset_from_wall: f32,
     pub brightness: f32,
     pub range: f32,
     pub radius: f32,
@@ -201,7 +201,8 @@ pub enum SpriteSheetFirstFrame {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct SkyboxDef {
-    pub cross_image: String,
+    // Path to a cube-cross layout image used to derive the cubemap faces.
+    pub image: String,
     pub brightness: f32,
 }
 

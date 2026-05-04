@@ -20,9 +20,9 @@ pub fn spawn_wall_light_from_layout(
     let model_yaw = Quat::from_rotation_y(light.yaw);
     let (sin_yaw, cos_yaw) = light.yaw.sin_cos();
     let light_pos = Vec3::new(
-        wall_light.inward_offset.mul_add(sin_yaw, light.pos.x),
+        wall_light.offset_from_wall.mul_add(sin_yaw, light.pos.x),
         light.pos.y,
-        wall_light.inward_offset.mul_add(cos_yaw, light.pos.z),
+        wall_light.offset_from_wall.mul_add(cos_yaw, light.pos.z),
     );
 
     commands.spawn((

@@ -160,7 +160,7 @@ pub fn handle_actor_hit_message(
 ) {
     trace!("{:?} was hit", msg.id);
     commands.spawn((
-        AudioPlayer::new(asset_server.load(asset_set.player_sound("projectile_hits_actor").to_owned())),
+        AudioPlayer::new(asset_server.load(asset_set.player_sound("hit_actor").to_owned())),
         PlaybackSettings::DESPAWN,
     ));
 }

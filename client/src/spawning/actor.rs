@@ -55,7 +55,7 @@ pub fn spawn_actor(
         children.push(spawn_collider_box(commands, meshes, materials, actor_physics));
     }
 
-    let base_y = actor_physics.model_y_offset_from_entity_center(actor_model.model_y_offset);
+    let base_y = actor_physics.model_y_offset_from_entity_center(actor_model.y_offset);
     let mut model_commands = commands.spawn((
         SceneRoot(asset_server.load(actor_model.scene.clone())),
         Transform::from_scale(Vec3::splat(actor_model.scale)).with_translation(Vec3::new(0.0, base_y, 0.0)),

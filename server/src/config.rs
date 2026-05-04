@@ -97,18 +97,18 @@ pub struct ActorKindServerConfig {
     // Damage this actor takes from a player projectile hit. Per-kind so a
     // tougher actor can be configured to need more shots without changing
     // the projectile.
-    pub damage_from_player_projectile: f32,
+    pub projectile_damage_from_player: f32,
     // Minimum seconds between successive spawns into the same zone, applied
     // by the spawn quota system. Throttles boot-time fill, not just respawns:
-    // a fresh zone spawns one actor per `spawn_throttle_seconds` until its
+    // a fresh zone spawns one actor per `spawn_throttle_time` until its
     // quota is met. The throttle freezes when the zone fills, so the next
     // death pays a full wait. 0.0 = no throttle (legacy behavior).
-    pub spawn_throttle_seconds: f32,
+    pub spawn_throttle_time: f32,
     pub min_direction_time: f32,
     pub max_direction_time: f32,
-    pub idle_chance: f32,
+    pub idle_probability: f32,
     pub vision_range: f32,
-    pub direct_path_probe_time: f32,
+    pub path_clear_lookahead_time: f32,
     pub go_to_reached_distance: f32,
     pub contact_explosion_distance: f32,
     pub explosion: ActorExplosionDamageConfig,
@@ -117,18 +117,21 @@ pub struct ActorKindServerConfig {
 impl ActorKindServerConfig {
     fn validate(&self, path: &str) -> Result<()> {
         validate_non_negative_finite(
-            self.damage_from_player_projectile,
-            &format!("{path}.damage_from_player_projectile"),
+            self.projectile_damage_from_player,
+            &format!("{path}.projectile_damage_from_player"),
         )?;
-        validate_non_negative_finite(self.spawn_throttle_seconds, &format!("{path}.spawn_throttle_seconds"))?;
+        validate_non_negative_finite(self.spawn_throttle_time, &format!("{path}.spawn_throttle_time"))?;
         validate_positive_finite(self.min_direction_time, &format!("{path}.min_direction_time"))?;
         validate_positive_finite(self.max_direction_time, &format!("{path}.max_direction_time"))?;
         if self.min_direction_time > self.max_direction_time {
             bail!("{path}.min_direction_time must be <= {path}.max_direction_time");
         }
-        validate_probability(self.idle_chance, &format!("{path}.idle_chance"))?;
+        validate_probability(self.idle_probability, &format!("{path}.idle_probability"))?;
         validate_positive_finite(self.vision_range, &format!("{path}.vision_range"))?;
-        validate_positive_finite(self.direct_path_probe_time, &format!("{path}.direct_path_probe_time"))?;
+        validate_positive_finite(
+            self.path_clear_lookahead_time,
+            &format!("{path}.path_clear_lookahead_time"),
+        )?;
         validate_positive_finite(self.go_to_reached_distance, &format!("{path}.go_to_reached_distance"))?;
         validate_non_negative_finite(
             self.contact_explosion_distance,

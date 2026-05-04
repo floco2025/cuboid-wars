@@ -308,7 +308,7 @@ pub struct ActorSpawner {
 // The value is the time remaining until the next spawn into that zone is
 // permitted. The throttle only ticks down while the zone is short of its
 // quota (live < count); when the zone fills, the throttle freezes at
-// whatever value it has (typically `spawn_throttle_seconds` from the most
+// whatever value it has (typically `spawn_throttle_time` from the most
 // recent spawn). Zones that have never spawned have no entry, which is
 // treated as "go ahead immediately" — the spawner inserts 0.0 on the
 // first tick so the throttle then runs for subsequent spawns.

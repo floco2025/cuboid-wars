@@ -75,7 +75,7 @@ fn handle_character_collisions(
             play_sound(
                 commands,
                 asset_server,
-                asset_set.player_sound("projectile_hits_player"),
+                asset_set.player_sound("hit_player"),
                 PlaybackSettings::DESPAWN,
             );
 
@@ -208,7 +208,7 @@ fn handle_wall_collisions(
         play_sound(
             commands,
             asset_server,
-            asset_set.player_sound("projectile_hits_wall"),
+            asset_set.player_sound("hit_wall"),
             PlaybackSettings {
                 mode: PlaybackMode::Despawn,
                 volume: Volume::Linear(0.2),

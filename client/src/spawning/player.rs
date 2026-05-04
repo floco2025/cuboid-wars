@@ -93,7 +93,7 @@ pub fn spawn_player(
     }
 
     // Add the GLB player model with animation observer
-    let base_y = player_physics.model_y_offset_from_entity_center(player_model.model_y_offset);
+    let base_y = player_physics.model_y_offset_from_entity_center(player_model.y_offset);
     let model = commands
         .spawn((
             SceneRoot(asset_server.load(player_model.scene.clone())),

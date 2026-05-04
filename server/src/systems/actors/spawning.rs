@@ -40,7 +40,7 @@ fn decide_spawn(live: u32, count: u32, throttle: f32) -> SpawnDecision {
 //   - Tick the throttle down by `dt` if the slot is short and the throttle
 //     hasn't expired yet.
 //   - Otherwise spawn one actor and reset the throttle to the kind's
-//     `spawn_throttle_seconds`.
+//     `spawn_throttle_time`.
 //
 // The first time a slot is seen the throttle entry doesn't exist yet; it's
 // inserted as 0.0, which means "go now." That's how boot starts spawning
@@ -75,7 +75,7 @@ pub fn actor_spawn_quota_system(
             .actor(&zone.kind)
             .expect("zone kind validated at startup");
         let actor_physics = actor_config.physics();
-        let throttle_seconds = kind_server_config.spawn_throttle_seconds;
+        let throttle_time = kind_server_config.spawn_throttle_time;
 
         let live = live_actor_count(&actors, zone_idx);
         let throttle = throttles.0.entry(zone_idx).or_insert(0.0);
@@ -100,7 +100,7 @@ pub fn actor_spawn_quota_system(
                     zone_idx,
                     &zone.kind,
                 );
-                *throttle = throttle_seconds;
+                *throttle = throttle_time;
             }
         }
     }

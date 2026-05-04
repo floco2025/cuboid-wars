@@ -137,7 +137,7 @@ pub fn projectiles_movement_system(
                     let damage = server_gameplay_config
                         .actor(&info.spawn_kind)
                         .expect("actor kind validated at startup")
-                        .damage_from_player_projectile;
+                        .projectile_damage_from_player;
                     info!("{:?} hits {:?}", shooter_id, actor_id);
                     apply_damage(&mut health, damage);
                     if let Some(shooter_info) = players.0.get_mut(shooter_id) {

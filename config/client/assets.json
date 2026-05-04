@@ -14,7 +14,7 @@
       "metallic": 0.5,
       "roughness": 0.5,
       "repeat": true,
-      "data_textures_linear": true,
+      "linear_data_textures": true,
       "textures": {
         "base_color": "textures/smooth-temple-blocks-ue/smooth-temple-blocks_albedo.png",
         "normal": "textures/smooth-temple-blocks-ue/smooth-temple-blocks_normal-dx.png",
@@ -27,7 +27,7 @@
       "metallic": 0.5,
       "roughness": 0.5,
       "repeat": true,
-      "data_textures_linear": true,
+      "linear_data_textures": true,
       "textures": {
         "base_color": "textures/art-deco-scales-wallpaper-ue/art-deco-scales-wallpaper_albedo.png",
         "normal": "textures/art-deco-scales-wallpaper-ue/art-deco-scales-wallpaper_normal-dx.png",
@@ -40,7 +40,7 @@
       "metallic": 0.5,
       "roughness": 0.5,
       "repeat": true,
-      "data_textures_linear": true,
+      "linear_data_textures": true,
       "textures": {
         "base_color": "textures/modern-brick1_ue/modern-brick1_albedo.png",
         "normal": "textures/modern-brick1_ue/modern-brick1_normal-dx.png",
@@ -53,7 +53,7 @@
       "metallic": 0.5,
       "roughness": 0.5,
       "repeat": true,
-      "data_textures_linear": true,
+      "linear_data_textures": true,
       "textures": {
         "base_color": "textures/rectangle-polished-tile-ue/rectangle-polished-tile_albedo.png",
         "normal": "textures/rectangle-polished-tile-ue/rectangle-polished-tile_normal-dx.png",
@@ -66,7 +66,7 @@
       "metallic": 0.5,
       "roughness": 0.5,
       "repeat": true,
-      "data_textures_linear": true,
+      "linear_data_textures": true,
       "textures": {
         "base_color": "textures/steelplate1-ue/steelplate1_albedo.png",
         "normal": "textures/steelplate1-ue/steelplate1_normal-dx.png",
@@ -79,7 +79,7 @@
       "metallic": 0.0,
       "roughness": 0.5,
       "repeat": true,
-      "data_textures_linear": true,
+      "linear_data_textures": true,
       "textures": {
         "base_color": "textures/beige-carpet-worn1-ue/beige-carpet-worn1-albedo.png",
         "normal": "textures/beige-carpet-worn1-ue/beige-carpet-worn1-Normal-dx.png",
@@ -92,7 +92,7 @@
       "metallic": 0.5,
       "roughness": 0.5,
       "repeat": true,
-      "data_textures_linear": true,
+      "linear_data_textures": true,
       "textures": {
         "base_color": "textures/cheap-old-linoleum-ue/cheap_old_linoleum1_albedo.png",
         "normal": "textures/cheap-old-linoleum-ue/cheap_old_linoleum1_Normal-dx.png",
@@ -105,7 +105,7 @@
       "metallic": 0.5,
       "roughness": 0.5,
       "repeat": true,
-      "data_textures_linear": true,
+      "linear_data_textures": true,
       "textures": {
         "base_color": "textures/bricks-mortar-ue/bricks-mortar-albedo.png",
         "normal": "textures/bricks-mortar-ue/bricks-mortar-normal-dx.png",
@@ -118,7 +118,7 @@
       "metallic": 0.5,
       "roughness": 0.5,
       "repeat": true,
-      "data_textures_linear": true,
+      "linear_data_textures": true,
       "textures": {
         "base_color": "textures/damp-block-wall-ue/damp-block-wall_albedo.png",
         "normal": "textures/damp-block-wall-ue/damp-block-wall_normal-dx.png",
@@ -131,7 +131,7 @@
       "metallic": 0.5,
       "roughness": 0.5,
       "repeat": true,
-      "data_textures_linear": true,
+      "linear_data_textures": true,
       "textures": {
         "base_color": "textures/stucco1_ue/stucco1_albedo.png",
         "normal": "textures/stucco1_ue/stucco1_Normal-dx.png",
@@ -144,7 +144,7 @@
       "metallic": 0.5,
       "roughness": 0.5,
       "repeat": true,
-      "data_textures_linear": true,
+      "linear_data_textures": true,
       "textures": {
         "base_color": "textures/forest-wallpaper-ue/forest-wallpaper_albedo.png",
         "normal": "textures/forest-wallpaper-ue/forest-wallpaper_normal-dx.png",
@@ -157,7 +157,7 @@
       "metallic": 0.5,
       "roughness": 0.5,
       "repeat": true,
-      "data_textures_linear": true,
+      "linear_data_textures": true,
       "textures": {
         "base_color": "textures/fiberous-plaster1-ue/fiberous_plaster_albedo.png",
         "normal": "textures/fiberous-plaster1-ue/fiberous_plaster_Normal-dx.png",
@@ -169,7 +169,7 @@
       "metallic": 1.0,
       "roughness": 1.0,
       "repeat": false,
-      "data_textures_linear": false,
+      "linear_data_textures": false,
       "textures": {
         "base_color": "textures/hammered-gold-ue/hammered-gold_albedo.png",
         "normal": "textures/hammered-gold-ue/hammered-gold_normal-dx.png",
@@ -184,7 +184,7 @@
       "metallic": 1.0,
       "roughness": 1.0,
       "repeat": false,
-      "data_textures_linear": false,
+      "linear_data_textures": false,
       "textures": {
         "base_color": "textures/space-cruiser-panels2-ue/space-cruiser-panels2_albedo.png",
         "normal": "textures/space-cruiser-panels2-ue/space-cruiser-panels2_normal-dx.png",
@@ -243,7 +243,7 @@
     "model": {
       "scene": "models/futuristic_flying_animated_robot_low_poly.glb#Scene0",
       "scale": 0.53,
-      "model_y_offset": -0.5,
+      "y_offset": -0.5,
       "animation_speed": 2.0
     },
     "sounds": {
@@ -254,9 +254,9 @@
       "collect_cookie": "sounds/metalClick.ogg",
       "bump_wall": "sounds/impactGlass_heavy_001.ogg",
       "bump_player": "sounds/impactTin_medium_004.ogg",
-      "projectile_hits_wall": "sounds/impactGlass_light_000.ogg",
-      "projectile_hits_player": "sounds/impactGeneric_light_001.ogg",
-      "projectile_hits_actor": "sounds/impactMetal_medium_003.ogg"
+      "hit_wall": "sounds/impactGlass_light_000.ogg",
+      "hit_player": "sounds/impactGeneric_light_001.ogg",
+      "hit_actor": "sounds/impactMetal_medium_003.ogg"
     }
   },
   "actors": {
@@ -264,7 +264,7 @@
       "model": {
         "scene": "models/SciFiDrone.glb#Scene0",
         "scale": 0.3,
-        "model_y_offset": -0.03
+        "y_offset": -0.03
       },
       "sounds": {
         "explodes": "sounds/Retro Explosion Short 15.wav"
@@ -282,7 +282,7 @@
       "inherit_from": "mine_1",
       "model": {
         "scale": 1.0,
-        "model_y_offset": -0.05
+        "y_offset": -0.05
       },
       "explosion_effect": {
         "scale": 6.0
@@ -293,7 +293,7 @@
     "wall_light": {
       "scene": "models/lamp_22.glb",
       "scale": 1.5,
-      "inward_offset": 0.2,
+      "offset_from_wall": 0.2,
       "brightness": 100000.0,
       "range": 6.0,
       "radius": 0.1,
@@ -301,7 +301,7 @@
     }
   },
   "skybox": {
-    "cross_image": "Skybox_CoudySky_Day_3.png",
+    "image": "Skybox_CoudySky_Day_3.png",
     "brightness": 1000.0
   }
 }

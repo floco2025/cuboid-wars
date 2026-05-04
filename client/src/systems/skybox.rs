@@ -11,7 +11,7 @@ pub fn setup_skybox_from_cross(mut commands: Commands, asset_server: Res<AssetSe
     let skybox = asset_set.skybox();
 
     // Load the cross-layout skybox image
-    let cross_image_handle: Handle<Image> = asset_server.load(skybox.cross_image.clone());
+    let cross_image_handle: Handle<Image> = asset_server.load(skybox.image.clone());
 
     // Store the handle in a resource so we can use it once loaded
     commands.insert_resource(SkyboxCrossImage(cross_image_handle));

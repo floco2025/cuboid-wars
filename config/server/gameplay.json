@@ -5,13 +5,13 @@
   },
   "actors": {
     "mine_1": {
-      "damage_from_player_projectile": 25.0,
-      "spawn_throttle_seconds": 5.0,
+      "projectile_damage_from_player": 25.0,
+      "spawn_throttle_time": 5.0,
       "min_direction_time": 1.0,
       "max_direction_time": 3.5,
-      "idle_chance": 0.0,
+      "idle_probability": 0.0,
       "vision_range": 24.0,
-      "direct_path_probe_time": 0.4,
+      "path_clear_lookahead_time": 0.4,
       "go_to_reached_distance": 0.5,
       "contact_explosion_distance": 0.2,
       "explosion": {
@@ -22,7 +22,7 @@
     },
     "mine_2": {
       "inherit_from": "mine_1",
-      "damage_from_player_projectile": 15.0,
+      "projectile_damage_from_player": 15.0,
       "explosion": {
         "player_max_damage": 40.0
       }
