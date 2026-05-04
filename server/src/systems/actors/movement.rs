@@ -15,7 +15,8 @@ use common::{
     markers::{ActorMarker, PlayerMarker},
     physics::{
         CharacterMovePlan, CharacterMovementResult, CharacterVerticalVelocity, CollisionWorld,
-        blocking_character_move_plan, character_move_plan_is_blocked, step_character_movement,
+        blocking_character_move_plan, character_move_plan_is_blocked, position_has_floor_support,
+        step_character_movement,
     },
     protocol::{ActorId, ActorMoveIntent, FaceDirection, Position},
 };
@@ -175,6 +176,41 @@ impl ActorMoveContext<'_> {
 
         MoveCandidateResult::Accepted { selected }
     }
+
+    // Patrol-only wrapper around `evaluate_candidate` that additionally treats
+    // ledges as blocking. If the candidate is otherwise accepted but the
+    // `path_clear_lookahead_time`-second projection of this intent lands on a
+    // position with no floor underneath, demote it to `BlockedByWorld` so the
+    // patrol selection rerolls a different direction. Chase intentionally does
+    // not use this — chasers may follow a player off ledges.
+    fn evaluate_patrol_candidate(&self, intent: ActorMoveIntent) -> MoveCandidateResult {
+        match self.evaluate_candidate(intent) {
+            MoveCandidateResult::Accepted { selected } => {
+                if self.patrol_step_lands_on_floor(intent) {
+                    MoveCandidateResult::Accepted { selected }
+                } else {
+                    MoveCandidateResult::BlockedByWorld { selected }
+                }
+            }
+            other => other,
+        }
+    }
+
+    // Project the candidate intent forward by `path_clear_lookahead_time`,
+    // keeping y constant, and ask whether that projected (x, z) still has
+    // floor support. Y is preserved because the question is "would the ground
+    // still be there if I stepped sideways," not "where would I land after
+    // falling."
+    fn patrol_step_lands_on_floor(&self, intent: ActorMoveIntent) -> bool {
+        let velocity = intent.to_horizontal_velocity();
+        let lookahead = self.path_clear_lookahead_time;
+        let projected = Position {
+            x: velocity.x.mul_add(lookahead, self.pos.x),
+            y: self.pos.y,
+            z: velocity.z.mul_add(lookahead, self.pos.z),
+        };
+        position_has_floor_support(self.collision_world, &projected, self.actor_physics)
+    }
 }
 
 pub(crate) fn apply_actor_moves(query: &mut ActorMovementQuery, planned_moves: &[CharacterMovePlan]) {
@@ -238,12 +274,12 @@ fn select_patrol_actor_move(
         return context.idle_move();
     }
 
-    match context.evaluate_candidate(patrol_intent) {
+    match context.evaluate_patrol_candidate(patrol_intent) {
         MoveCandidateResult::Accepted { selected } => selected,
         MoveCandidateResult::BlockedByCharacter | MoveCandidateResult::BlockedByWorld { .. } => {
             let next_patrol_intent = random_patrol_move_intent(rng, patrol_speed);
             info.patrol_intent = next_patrol_intent;
-            match context.evaluate_candidate(next_patrol_intent) {
+            match context.evaluate_patrol_candidate(next_patrol_intent) {
                 MoveCandidateResult::Accepted { selected } => selected,
                 MoveCandidateResult::BlockedByCharacter | MoveCandidateResult::BlockedByWorld { .. } => {
                     context.idle_move()
@@ -833,6 +869,54 @@ mod tests {
             MoveCandidateResult::Accepted { .. } => {}
             MoveCandidateResult::BlockedByCharacter | MoveCandidateResult::BlockedByWorld { .. } => {
                 panic!("expected following move to be accepted")
+            }
+        }
+    }
+
+    // The shared `floor()` helper above is an 8m square centered at the
+    // origin (x ∈ [-4, 4], z ∈ [-4, 4]) at y=0. With actor patrol speed and
+    // the default lookahead time, a step from x=3.5 moving east projects
+    // past x=4 (off the floor); the same step moving west projects to x=2.3
+    // (still on the floor). evaluate_candidate's single-tick step (delta=0.1)
+    // only moves the actor 0.3m, so it stays on the floor for that step —
+    // the lookahead probe is what catches the impending fall.
+
+    #[test]
+    fn patrol_candidate_rejected_when_lookahead_lands_off_floor() {
+        let pos = Position { x: 3.5, y: 0.0, z: 0.0 };
+        let collision_world = collision_world(&[]);
+        let planned_moves = [];
+        let actor_starts = [];
+        let context = context(test_entity(1), &pos, &collision_world, &planned_moves, &actor_starts);
+        let intent = ActorMoveIntent::Moving {
+            direction: std::f32::consts::FRAC_PI_2, // east, off the floor
+            speed: actor_speed(),
+        };
+
+        match context.evaluate_patrol_candidate(intent) {
+            MoveCandidateResult::BlockedByWorld { .. } => {}
+            MoveCandidateResult::Accepted { .. } | MoveCandidateResult::BlockedByCharacter => {
+                panic!("expected patrol candidate to be blocked by ledge ahead")
+            }
+        }
+    }
+
+    #[test]
+    fn patrol_candidate_accepted_when_lookahead_stays_on_floor() {
+        let pos = Position { x: 3.5, y: 0.0, z: 0.0 };
+        let collision_world = collision_world(&[]);
+        let planned_moves = [];
+        let actor_starts = [];
+        let context = context(test_entity(1), &pos, &collision_world, &planned_moves, &actor_starts);
+        let intent = ActorMoveIntent::Moving {
+            direction: -std::f32::consts::FRAC_PI_2, // west, deeper into the floor
+            speed: actor_speed(),
+        };
+
+        match context.evaluate_patrol_candidate(intent) {
+            MoveCandidateResult::Accepted { .. } => {}
+            MoveCandidateResult::BlockedByCharacter | MoveCandidateResult::BlockedByWorld { .. } => {
+                panic!("expected patrol candidate moving inward to be accepted")
             }
         }
     }

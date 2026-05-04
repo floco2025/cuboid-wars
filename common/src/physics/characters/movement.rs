@@ -164,6 +164,19 @@ fn movement_progress_was_blocked(desired: Vector, actual: Vector) -> bool {
 }
 
 fn is_character_grounded(collision_world: &CollisionWorld, pos: &Position, physics: CharacterPhysicsConfig) -> bool {
+    position_has_floor_support(collision_world, pos, physics)
+}
+
+// Public predicate for "is there floor under `pos` within the character's
+// normal support reach." Same probe `is_character_grounded` uses internally;
+// exposed so callers (e.g. actor patrol ledge avoidance) can ask the
+// question for a hypothetical position without reimplementing the probe.
+#[must_use]
+pub fn position_has_floor_support(
+    collision_world: &CollisionWorld,
+    pos: &Position,
+    physics: CharacterPhysicsConfig,
+) -> bool {
     let shape = character_support_probe_shape(physics);
     character_ground_hit(collision_world, &shape, pos, false, physics).is_some()
 }
