@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::resources::{FromAcceptChannel, PlayerInfo, PlayerMap};
-use common::markers::PlayerMarker;
+use common::protocol::PlayerMarker;
 
 // ============================================================================
 // Accept Connections System

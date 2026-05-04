@@ -12,13 +12,12 @@ use crate::{
 };
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
-    markers::{ActorMarker, PlayerMarker},
     physics::{
         CharacterMovePlan, CharacterMovementResult, CharacterVerticalVelocity, CollisionWorld,
         blocking_character_move_plan, character_move_plan_is_blocked, position_has_floor_support,
         step_character_movement,
     },
-    protocol::{ActorId, ActorMoveIntent, FaceDirection, Position},
+    protocol::{ActorId, ActorMarker, ActorMoveIntent, FaceDirection, PlayerMarker, Position},
 };
 
 // Actor behavior decides what an actor wants: simple patrol or a remembered go-to

@@ -9,9 +9,8 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    markers::{ActorMarker, PlayerMarker},
     physics::{CharacterVerticalVelocity, CollisionWorld},
-    protocol::{ActorMoveIntent, FaceDirection, Health, Position},
+    protocol::{ActorMarker, ActorMoveIntent, FaceDirection, Health, PlayerMarker, Position},
 };
 
 // Per-tick decision for one zone: spawn now, tick the cooldown down, or skip.

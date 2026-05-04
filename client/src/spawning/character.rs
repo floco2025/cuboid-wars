@@ -7,7 +7,13 @@ use bevy::{
 };
 use common::config::CharacterPhysicsConfig;
 
-use crate::{config::RenderSettings, markers::CharacterModelMarker};
+use crate::config::RenderSettings;
+
+// Marks the inner SceneRoot entity of a spawned character (the GLB model).
+// Used by `character_shadow_settings_system` to find spawned scene instances
+// and tweak their shadow casters.
+#[derive(Component)]
+pub struct CharacterModelMarker;
 
 pub fn spawn_collider_box(
     commands: &mut Commands,

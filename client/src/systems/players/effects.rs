@@ -2,8 +2,8 @@ use bevy::prelude::*;
 use std::time::Duration;
 
 use super::components::{CameraShake, CuboidShake};
-use crate::markers::MainCameraMarker;
-use common::markers::PlayerMarker;
+use crate::systems::MainCameraMarker;
+use common::protocol::PlayerMarker;
 
 // ============================================================================
 // Visual Effects Systems

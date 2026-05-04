@@ -1,9 +1,10 @@
 use bevy::{gltf::GltfAssetLabel, prelude::*, scene::SceneRoot};
 
-use crate::{
-    config::AssetSet,
-    markers::{MapLevel, WallLightMarker},
-};
+use crate::{config::AssetSet, spawning::map::MapLevel};
+
+// Marker for the lamp scene root and its emitting `PointLight` child entities.
+#[derive(Component)]
+pub struct WallLightMarker;
 use common::{map::compute_player_level, protocol::WallLight};
 
 // Spawn a wall light from precomputed layout data (world-space position and yaw).

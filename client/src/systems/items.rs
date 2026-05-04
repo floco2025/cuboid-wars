@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::{constants::*, spawning::ItemAnimTimer};
-use common::{markers::ItemMarker, protocol::Position};
+use common::protocol::{ItemMarker, Position};
 
 // ============================================================================
 // Items Animation System

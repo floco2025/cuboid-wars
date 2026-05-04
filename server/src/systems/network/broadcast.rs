@@ -4,11 +4,7 @@ use crate::{
     net::ServerToClient,
     resources::{ActorMap, ItemMap, PlayerMap},
 };
-use common::{
-    markers::{ActorMarker, ItemMarker, PlayerMarker},
-    physics::CharacterVerticalVelocity,
-    protocol::*,
-};
+use common::{physics::CharacterVerticalVelocity, protocol::*};
 
 // ============================================================================
 // Broadcasting Helpers

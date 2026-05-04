@@ -7,9 +7,8 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    markers::{ActorMarker, PlayerMarker},
     physics::CollisionWorld,
-    protocol::{ActorId, ActorMoveIntent, PlayerId, Position},
+    protocol::{ActorId, ActorMarker, ActorMoveIntent, PlayerId, PlayerMarker, Position},
 };
 
 pub fn actor_behavior_system(

@@ -5,6 +5,21 @@ use bevy_math::Vec3;
 use bincode::{Decode, Encode};
 
 // ============================================================================
+// Entity Markers
+// ============================================================================
+
+// Marker components disambiguating entity archetypes across server and client.
+// Each tags an entity with the role its data describes (Player, Actor, Item).
+#[derive(Component, Debug, Default)]
+pub struct PlayerMarker;
+
+#[derive(Component, Debug, Default)]
+pub struct ActorMarker;
+
+#[derive(Component, Debug, Default)]
+pub struct ItemMarker;
+
+// ============================================================================
 // Components
 // ============================================================================
 

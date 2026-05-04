@@ -5,7 +5,7 @@ use crate::spawning::{ExplosionEffect, animation_frame, set_mesh_uvs};
 pub fn explosion_effect_system(
     mut commands: Commands,
     time: Res<Time>,
-    camera_query: Query<&GlobalTransform, (With<Camera3d>, Without<crate::markers::RearviewCameraMarker>)>,
+    camera_query: Query<&GlobalTransform, (With<Camera3d>, Without<crate::systems::RearviewCameraMarker>)>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut query: Query<(
         Entity,

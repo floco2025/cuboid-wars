@@ -8,8 +8,7 @@ use crate::{
 use common::{
     config::GameplayConfig,
     health::apply_damage,
-    markers::{ActorMarker, PlayerMarker, ProjectileMarker},
-    physics::{CollisionWorld, ProjectileCharacterHit, ProjectileMotion, projectile_character_hit},
+    physics::{CollisionWorld, ProjectileCharacterHit, ProjectileMarker, ProjectileMotion, projectile_character_hit},
     protocol::*,
 };
 

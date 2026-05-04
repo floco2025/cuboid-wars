@@ -1,10 +1,17 @@
 use bevy::{ecs::hierarchy::ChildSpawnerCommands, prelude::*};
 
-use crate::{
-    constants::{HEALTH_BAR_FILL_COLOR, HEALTH_BAR_TRACK_COLOR},
-    markers::HealthBarFill,
-};
+use crate::constants::{HEALTH_BAR_FILL_COLOR, HEALTH_BAR_TRACK_COLOR};
 use common::{health::health_ratio, protocol::Health};
+
+// Lives on the inner fill node of a health bar UI tree. Tracks the entity
+// whose `Health` drives the fill width plus the maximum health (constant
+// per-character, captured at spawn so the update system doesn't need to
+// look it up every frame).
+#[derive(Component)]
+pub struct HealthBarFill {
+    pub tracked_entity: Entity,
+    pub max_health: f32,
+}
 
 pub fn spawn_health_bar(
     parent: &mut ChildSpawnerCommands,

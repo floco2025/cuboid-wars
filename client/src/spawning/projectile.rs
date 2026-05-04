@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use common::{
     constants::*,
-    markers::ProjectileMarker,
+    physics::ProjectileMarker,
     physics::{CollisionWorld, ProjectileMotion},
     protocol::*,
     spawning::{ProjectileSpawnInfo, calculate_projectile_spawns},

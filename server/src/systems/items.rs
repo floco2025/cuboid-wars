@@ -12,9 +12,8 @@ use crate::{
 use common::{
     constants::{GRID_CELL_SIZE, LEVEL_HEIGHT, MAP_DEPTH, MAP_WIDTH},
     map::compute_player_level,
-    markers::{ItemMarker, PlayerMarker},
     physics::character_overlaps_item,
-    protocol::{ItemId, ItemType, PlayerId, Position, SCookieCollected, ServerMessage},
+    protocol::{ItemId, ItemMarker, ItemType, PlayerId, PlayerMarker, Position, SCookieCollected, ServerMessage},
 };
 
 // ============================================================================

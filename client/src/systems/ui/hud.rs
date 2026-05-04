@@ -1,10 +1,19 @@
 use bevy::prelude::*;
 use std::time::Duration;
 
-use crate::{
-    markers::{CrosshairMarker, FpsMarker, RttMarker},
-    resources::{CameraViewMode, FpsMeasurement, RoundTripTime},
-};
+use crate::resources::{CameraViewMode, FpsMeasurement, RoundTripTime};
+
+// Marker for the crosshair UI node (visible in first-person view only).
+#[derive(Component)]
+pub struct CrosshairMarker;
+
+// Marker for the RTT (round-trip time) text node in the HUD.
+#[derive(Component)]
+pub struct RttMarker;
+
+// Marker for the FPS counter text node in the HUD.
+#[derive(Component)]
+pub struct FpsMarker;
 
 pub fn ui_rtt_system(rtt: Res<RoundTripTime>, mut query: Single<&mut Text, With<RttMarker>>) {
     if !rtt.is_changed() {

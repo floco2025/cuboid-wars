@@ -12,9 +12,8 @@ use crate::{
 use common::{
     config::GameplayConfig,
     constants::UPDATE_BROADCAST_INTERVAL,
-    markers::{ActorMarker, ItemMarker, PlayerMarker},
     physics::{CharacterVerticalVelocity, CollisionWorld},
-    protocol::{MapLayout, *},
+    protocol::{ActorMarker, ItemMarker, MapLayout, PlayerMarker, *},
 };
 
 // ============================================================================

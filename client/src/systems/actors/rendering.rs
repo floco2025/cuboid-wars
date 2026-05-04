@@ -3,8 +3,7 @@ use bevy::prelude::*;
 use crate::resources::ActorMap;
 use common::{
     config::GameplayConfig,
-    markers::ActorMarker,
-    protocol::{ActorId, Position},
+    protocol::{ActorId, ActorMarker, Position},
 };
 
 pub fn actors_transform_sync_system(

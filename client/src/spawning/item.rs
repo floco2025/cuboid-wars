@@ -4,9 +4,9 @@ use rand::random;
 use crate::{
     config::{AssetSet, RenderSettings},
     constants::*,
-    markers::MapLevel,
+    spawning::map::MapLevel,
 };
-use common::{map::compute_player_level, markers::ItemMarker, protocol::*};
+use common::{map::compute_player_level, protocol::*};
 
 // ============================================================================
 // Components

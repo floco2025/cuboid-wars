@@ -4,9 +4,9 @@ use super::components::CameraShake;
 use crate::{
     config::RenderSettings,
     constants::*,
-    markers::*,
     resources::{CameraViewMode, TopDownCameraYaw},
-    systems::visual_focus_level,
+    spawning::LocalPlayerMarker,
+    systems::{MainCameraMarker, RearviewCameraMarker, visual_focus_level},
 };
 use common::{
     config::GameplayConfig,

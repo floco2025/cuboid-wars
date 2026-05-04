@@ -1,6 +1,13 @@
 use bevy::prelude::*;
 
-use crate::markers::*;
+use super::{
+    hud::{CrosshairMarker, FpsMarker, RttMarker},
+    player_list::PlayerListMarker,
+};
+
+// Marker for the bump-flash overlay that briefly tints the screen on collisions.
+#[derive(Component)]
+pub struct BumpFlashMarker;
 
 pub fn setup_ui_system(mut commands: Commands) {
     commands.spawn((

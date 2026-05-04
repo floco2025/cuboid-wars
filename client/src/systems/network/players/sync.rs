@@ -4,16 +4,15 @@ use std::collections::HashSet;
 use super::player_movement_velocity;
 use crate::{
     config::{AssetSet, RenderSettings},
-    markers::MainCameraMarker,
     resources::{PlayerInfo, PlayerMap, RoundTripTime},
     spawning::spawn_player,
+    systems::MainCameraMarker,
     systems::ServerReconciliation,
 };
 use common::{
     config::GameplayConfig,
-    markers::PlayerMarker,
     physics::CharacterVerticalVelocity,
-    protocol::{FaceDirection, Player, PlayerId, PlayerMoveIntent, Position},
+    protocol::{FaceDirection, Player, PlayerId, PlayerMarker, PlayerMoveIntent, Position},
 };
 
 pub fn sync_players(

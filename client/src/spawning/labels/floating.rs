@@ -1,6 +1,23 @@
 use bevy::prelude::*;
 
-use crate::{constants::*, markers::*, spawning::spawn_health_bar};
+use crate::{constants::*, spawning::spawn_health_bar};
+
+// Marker for the text node inside a floating label's UI render target.
+// Used today only for the player name; the actor bar has no text.
+#[derive(Component)]
+pub struct CharacterLabelTextMarker;
+
+// Marker for the floating-label 3D quad in world space (the textured rectangle
+// above a character). Queried by `character_label_billboard_system` to rotate
+// the quad to face the main camera each frame.
+#[derive(Component)]
+pub struct CharacterLabelMeshMarker;
+
+// Lives on the character entity (player or actor). Stores the Entity id of
+// its dedicated label-texture camera so the visibility system can toggle the
+// camera's `is_active` flag based on distance + Health change.
+#[derive(Component)]
+pub struct LabelCamera(pub Entity);
 
 pub fn spawn_floating_player_label(
     commands: &mut Commands,

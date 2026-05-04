@@ -10,6 +10,11 @@ use rapier3d::{
 };
 
 use super::world::CollisionWorld;
+
+// Marker for projectile entities. Tagged on every projectile spawn so
+// movement and collision systems can query them in isolation.
+#[derive(Component, Debug, Default)]
+pub struct ProjectileMarker;
 use crate::{
     config::CharacterPhysicsConfig,
     constants::{

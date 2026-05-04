@@ -6,9 +6,10 @@ use crate::resources::{MapConfig, PlayerMap};
 use common::{
     config::GameplayConfig,
     constants::CHARACTER_FALL_TELEPORT_Y,
-    markers::PlayerMarker,
     physics::{CharacterVerticalVelocity, CollisionWorld},
-    protocol::{PlayerId, PlayerMoveIntent, PlayerMovementState, Position, SPlayerTeleport, ServerMessage},
+    protocol::{
+        PlayerId, PlayerMarker, PlayerMoveIntent, PlayerMovementState, Position, SPlayerTeleport, ServerMessage,
+    },
 };
 
 // ============================================================================

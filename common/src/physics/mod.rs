@@ -10,6 +10,7 @@ pub use characters::{
 };
 pub use items::character_overlaps_item;
 pub use projectiles::{
-    HitDirection, ProjectileCharacterHit, ProjectileMotion, projectile_character_hit, projectile_hits_character,
+    HitDirection, ProjectileCharacterHit, ProjectileMarker, ProjectileMotion, projectile_character_hit,
+    projectile_hits_character,
 };
 pub use world::CollisionWorld;

@@ -1,13 +1,18 @@
 use bevy::{gltf::GltfAssetLabel, prelude::*, scene::SceneRoot};
 
-use super::{setup_label_texture, spawn_collider_box, spawn_floating_player_label};
+use super::{CharacterModelMarker, LabelCamera, setup_label_texture, spawn_collider_box, spawn_floating_player_label};
 use crate::{
     config::{AssetSet, RenderSettings},
     constants::{LABEL_PLAYER_TEXTURE_HEIGHT, LABEL_PLAYER_TEXTURE_WIDTH},
-    markers::*,
     systems::{AnimationToPlay, BumpFlashState, character_animation_system},
 };
-use common::{config::GameplayConfig, markers::PlayerMarker, physics::CharacterVerticalVelocity, protocol::*};
+use common::{config::GameplayConfig, physics::CharacterVerticalVelocity, protocol::*};
+
+// Marks the local-player entity (the player you control). Spawned by
+// `spawn_player` when `is_local` is true; queried by input, camera, UI,
+// and effect systems that should only act on the local player.
+#[derive(Component)]
+pub struct LocalPlayerMarker;
 
 // ============================================================================
 // Bundles

@@ -2,7 +2,6 @@ pub mod config;
 pub mod constants;
 pub mod health;
 pub mod map;
-pub mod markers;
 pub mod material_rules;
 pub mod math;
 pub mod net;

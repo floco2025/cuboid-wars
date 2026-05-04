@@ -6,14 +6,13 @@ use bevy::{
 use crate::{
     config::AssetSet,
     constants::{PROJECTILE_MAX_BOUNCE_SOUNDS_PER_SECOND, PROJECTILE_MIN_BOUNCE_SOUND_SPEED},
-    markers::LocalPlayerMarker,
     resources::{ActorMap, LastBounceSoundTime},
+    spawning::LocalPlayerMarker,
 };
 use common::{
     config::GameplayConfig,
-    markers::{ActorMarker, PlayerMarker, ProjectileMarker},
-    physics::{CollisionWorld, ProjectileCharacterHit, ProjectileMotion, projectile_character_hit},
-    protocol::{ActorId, FaceDirection, PlayerId, Position},
+    physics::{CollisionWorld, ProjectileCharacterHit, ProjectileMarker, ProjectileMotion, projectile_character_hit},
+    protocol::{ActorId, ActorMarker, FaceDirection, PlayerId, PlayerMarker, Position},
 };
 
 // ============================================================================

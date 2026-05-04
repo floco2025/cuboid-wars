@@ -5,8 +5,7 @@ use crate::{net::ServerToClient, resources::PlayerMap};
 use common::{
     config::GameplayConfig,
     constants::{ALWAYS_MULTI_SHOT, PROJECTILE_COOLDOWN_TIME},
-    markers::{PlayerMarker, ProjectileMarker},
-    physics::{CharacterVerticalVelocity, CollisionWorld, ProjectileMotion, try_start_player_jump},
+    physics::{CharacterVerticalVelocity, CollisionWorld, ProjectileMarker, ProjectileMotion, try_start_player_jump},
     protocol::*,
     spawning::calculate_projectile_spawns,
 };

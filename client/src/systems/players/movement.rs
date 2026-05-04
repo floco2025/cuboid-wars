@@ -1,15 +1,19 @@
 use bevy::prelude::*;
 
 use super::components::BumpFlashState;
-use crate::{config::AssetSet, markers::*, resources::PlayerMap, systems::network::ServerReconciliation};
+use crate::{
+    config::AssetSet,
+    resources::PlayerMap,
+    spawning::LocalPlayerMarker,
+    systems::{BumpFlashMarker, network::ServerReconciliation},
+};
 use common::{
     config::GameplayConfig,
     constants::{ALWAYS_PHASING, CHARACTER_GROUND_SNAP_DISTANCE, PHYSICS_EPSILON, UPDATE_BROADCAST_INTERVAL},
-    markers::{ActorMarker, PlayerMarker},
     physics::{
         CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, overlaps_other_character, step_character_movement,
     },
-    protocol::{PlayerId, PlayerMoveIntent, Position},
+    protocol::{ActorMarker, PlayerId, PlayerMarker, PlayerMoveIntent, Position},
 };
 
 const BUMP_FLASH_DURATION: f32 = 0.08;

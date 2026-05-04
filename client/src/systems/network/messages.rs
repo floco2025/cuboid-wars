@@ -17,16 +17,11 @@ use super::{
 };
 use crate::{
     config::{AssetSet, RenderSettings},
-    markers::MainCameraMarker,
     resources::{ActorMap, ItemMap, LastUpdateSeq, PlayerMap, RoundTripTime},
     spawning::ProjectileAssets,
+    systems::MainCameraMarker,
 };
-use common::{
-    config::GameplayConfig,
-    markers::{ActorMarker, PlayerMarker},
-    physics::CollisionWorld,
-    protocol::*,
-};
+use common::{config::GameplayConfig, physics::CollisionWorld, protocol::*};
 
 // ============================================================================
 // Message Dispatcher

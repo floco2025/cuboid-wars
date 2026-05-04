@@ -2,9 +2,9 @@ use bevy::prelude::*;
 
 use crate::{
     config::AssetSet,
-    markers::BumpFlashMarker,
     resources::{ActorMap, PlayerMap},
     systems::{
+        BumpFlashMarker,
         actors::{ActorMovementQuery, actor_start_positions, apply_actor_moves, plan_actor_moves},
         players::{PlayerMovementQuery, apply_player_moves, plan_player_moves},
     },

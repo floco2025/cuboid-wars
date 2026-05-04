@@ -7,9 +7,10 @@ use bevy::{
 
 use crate::{
     constants::*,
-    markers::{LocalPlayerMarker, MainCameraMarker},
     net::ClientToServer,
     resources::{CameraViewMode, ClientToServerChannel, LocalPlayerInfo, MyPlayerId, PlayerMap, TopDownCameraYaw},
+    spawning::LocalPlayerMarker,
+    systems::MainCameraMarker,
 };
 use common::config::GameplayConfig;
 use common::math::angle_delta_radians;

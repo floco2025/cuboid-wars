@@ -7,9 +7,8 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    markers::{ActorMarker, ItemMarker, PlayerMarker},
     physics::{CharacterVerticalVelocity, CollisionWorld},
-    protocol::{MapLayout, *},
+    protocol::{ActorMarker, ItemMarker, MapLayout, PlayerMarker, *},
 };
 
 use super::broadcast::{broadcast_to_others, collect_items, snapshot_actors, snapshot_logged_in_players};

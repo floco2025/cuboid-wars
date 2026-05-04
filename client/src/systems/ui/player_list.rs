@@ -2,10 +2,17 @@ use bevy::prelude::*;
 
 use crate::{
     constants::{HEALTH_BAR_PLAYER_LIST_HEIGHT, HEALTH_BAR_PLAYER_LIST_WIDTH},
-    markers::{PlayerEntryMarker, PlayerListMarker},
     resources::{MyPlayerId, PlayerInfo, PlayerMap},
     spawning::{item_type_color, spawn_health_bar},
 };
+
+// Marker for the root node of the on-screen player list panel.
+#[derive(Component)]
+pub struct PlayerListMarker;
+
+// Marker for individual player entry rows inside the player list panel.
+#[derive(Component)]
+pub struct PlayerEntryMarker;
 use common::{
     config::GameplayConfig,
     protocol::{Health, ItemType, PlayerId},

@@ -21,7 +21,7 @@ pub(crate) fn visual_focus_level(y: f32) -> u8 {
 
 pub use actors::actors_transform_sync_system;
 pub use animations::{AnimationToPlay, character_animation_system};
-pub use cameras::setup_cameras_system;
+pub use cameras::{MainCameraMarker, RearviewCameraMarker, setup_cameras_system};
 pub use characters::{
     CharacterVisualTurnState, character_label_billboard_system, characters_movement_system,
     characters_visual_turn_system, label_camera_visibility_system,
@@ -47,7 +47,8 @@ pub use skybox::{
     skybox_update_camera_system,
 };
 pub use ui::{
-    setup_ui_system, ui_fps_system, ui_health_bars_system, ui_player_list_system, ui_rtt_system,
-    ui_stunned_blink_system, ui_toggle_crosshair_system,
+    BumpFlashMarker, CrosshairMarker, FpsMarker, PlayerEntryMarker, PlayerListMarker, RttMarker, setup_ui_system,
+    ui_fps_system, ui_health_bars_system, ui_player_list_system, ui_rtt_system, ui_stunned_blink_system,
+    ui_toggle_crosshair_system,
 };
 pub use vfx::explosion_effect_system;

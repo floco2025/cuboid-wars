@@ -9,9 +9,8 @@ use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     constants::CHARACTER_FALL_TELEPORT_Y,
     health::apply_damage,
-    markers::{ActorMarker, PlayerMarker},
     physics::CharacterVerticalVelocity,
-    protocol::{ActorId, ActorMoveIntent, Health, Position},
+    protocol::{ActorId, ActorMarker, ActorMoveIntent, Health, PlayerMarker, Position},
 };
 
 // Despawn actors that have either fallen below the death threshold or had

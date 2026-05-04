@@ -6,10 +6,10 @@ use bevy::{
 
 use crate::{
     config::AssetSet,
-    markers::{LocalPlayerMarker, MainCameraMarker},
     net::ClientToServer,
     resources::{CameraViewMode, ClientToServerChannel, LocalPlayerInfo, MyPlayerId, PlayerMap},
-    spawning::{ProjectileAssets, spawn_projectiles},
+    spawning::{LocalPlayerMarker, ProjectileAssets, spawn_projectiles},
+    systems::MainCameraMarker,
 };
 use common::{
     config::GameplayConfig,

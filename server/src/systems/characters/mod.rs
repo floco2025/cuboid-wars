@@ -14,11 +14,10 @@ use crate::{
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     constants::PHYSICS_EPSILON,
-    markers::{ActorMarker, PlayerMarker},
     physics::{
         CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, overlapping_character, step_character_movement,
     },
-    protocol::{Health, PlayerId, PlayerMoveIntent, Position},
+    protocol::{ActorMarker, Health, PlayerId, PlayerMarker, PlayerMoveIntent, Position},
 };
 
 type PlayerMovementQuery<'w, 's> = Query<

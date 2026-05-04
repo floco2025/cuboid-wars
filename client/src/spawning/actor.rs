@@ -1,17 +1,17 @@
 use bevy::{gltf::GltfAssetLabel, prelude::*, scene::SceneRoot};
 
-use super::{setup_label_texture, spawn_collider_box, spawn_floating_actor_health_bar};
+use super::{
+    CharacterModelMarker, LabelCamera, setup_label_texture, spawn_collider_box, spawn_floating_actor_health_bar,
+};
 use crate::{
     config::{AssetSet, RenderSettings},
     constants::{LABEL_ACTOR_TEXTURE_HEIGHT, LABEL_ACTOR_TEXTURE_WIDTH},
-    markers::{CharacterModelMarker, LabelCamera},
     systems::{AnimationToPlay, character_animation_system},
 };
 use common::{
     config::GameplayConfig,
-    markers::ActorMarker,
     physics::CharacterVerticalVelocity,
-    protocol::{Actor, ActorId, FaceDirection},
+    protocol::{Actor, ActorId, ActorMarker, FaceDirection},
 };
 
 pub fn spawn_actor(

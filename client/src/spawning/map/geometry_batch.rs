@@ -10,8 +10,8 @@ use rand::{RngExt, rng};
 
 use crate::{
     config::{AssetSet, RenderSettings},
-    markers::*,
     materials::MaterialHandleCache,
+    spawning::map::{GroundMarker, MapLevel, RampMarker, RoofMarker, WallMarker},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

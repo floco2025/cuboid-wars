@@ -9,11 +9,10 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    markers::ActorMarker,
     physics::CharacterVerticalVelocity,
     protocol::{
-        Actor, ActorId, ActorMoveIntent, ActorMovementState, FaceDirection, Position, SActorDestroyed, SActorHit,
-        SActorMoveIntent, SActorTeleport,
+        Actor, ActorId, ActorMarker, ActorMoveIntent, ActorMovementState, FaceDirection, Position, SActorDestroyed,
+        SActorHit, SActorMoveIntent, SActorTeleport,
     },
 };
 

@@ -2,13 +2,15 @@ use bevy::prelude::*;
 
 use crate::{
     config::{AssetSet, RenderSettings},
-    markers::*,
     materials::MaterialHandleCache,
     resources::{DebugColors, LevelFocusEnabled},
-    spawning::{MapGeometryBatch, batch_floor, batch_ramp, batch_wall, spawn_wall_light_from_layout},
+    spawning::{
+        GroundMarker, LocalPlayerMarker, MapGeometryBatch, MapLevel, RampMarker, RoofMarker, WallLightMarker,
+        WallMarker, batch_floor, batch_ramp, batch_wall, spawn_wall_light_from_layout,
+    },
     systems::visual_focus_level,
 };
-use common::{markers::ItemMarker, protocol::MapLayout};
+use common::protocol::{ItemMarker, MapLayout};
 
 // ============================================================================
 // World Geometry Setup System

@@ -4,12 +4,11 @@ use crate::{resources::ActorMap, systems::network::ServerReconciliation};
 use common::{
     config::GameplayConfig,
     constants::UPDATE_BROADCAST_INTERVAL,
-    markers::{ActorMarker, PlayerMarker},
     physics::{
         CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, blocking_character_move_plan,
         character_move_plan_is_blocked, step_character_movement,
     },
-    protocol::{ActorId, ActorMoveIntent, Position},
+    protocol::{ActorId, ActorMarker, ActorMoveIntent, PlayerMarker, Position},
 };
 
 pub(crate) type ActorMovementQuery<'w, 's> = Query<

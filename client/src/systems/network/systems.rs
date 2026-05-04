@@ -8,18 +8,14 @@ use super::{
 };
 use crate::{
     constants::ECHO_INTERVAL,
-    markers::MainCameraMarker,
     net::{ClientToServer, ServerToClient},
     resources::{
         ActorMap, ClientToServerChannel, ItemMap, LastUpdateSeq, MyPlayerId, PlayerMap, RoundTripTime,
         ServerToClientChannel,
     },
+    systems::MainCameraMarker,
 };
-use common::{
-    markers::{ActorMarker, PlayerMarker},
-    physics::CollisionWorld,
-    protocol::*,
-};
+use common::{physics::CollisionWorld, protocol::*};
 
 // ============================================================================
 // Network Message Processing System

@@ -4,8 +4,7 @@ use crate::resources::ActorMap;
 use common::{
     config::GameplayConfig,
     health::regenerate_health,
-    markers::{ActorMarker, PlayerMarker},
-    protocol::{ActorId, Health},
+    protocol::{ActorId, ActorMarker, Health, PlayerMarker},
 };
 
 pub fn characters_health_regeneration_system(

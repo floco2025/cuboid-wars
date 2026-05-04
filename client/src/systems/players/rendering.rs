@@ -1,7 +1,10 @@
 use bevy::prelude::*;
 
 use super::components::CuboidShake;
-use common::{config::GameplayConfig, markers::PlayerMarker, protocol::Position};
+use common::{
+    config::GameplayConfig,
+    protocol::{PlayerMarker, Position},
+};
 
 // ============================================================================
 // Transform Sync Systems
