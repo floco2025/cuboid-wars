@@ -2,7 +2,9 @@ use std::collections::BTreeSet;
 
 use anyhow::{Context, Result, anyhow, ensure};
 
-use super::{ActorSpawnZoneDef, LevelDef, MapDef, MapFile, PlayerSpawnZoneDef, RampDef, SUPPORTED_VERSION};
+use super::schema::{ActorSpawnZoneDef, LevelDef, MapDef, MapFile, PlayerSpawnZoneDef, RampDef};
+
+const SUPPORTED_VERSION: u32 = 1;
 
 pub(super) fn validate_file(file: &MapFile) -> Result<()> {
     ensure!(

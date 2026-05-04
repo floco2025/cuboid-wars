@@ -3,7 +3,7 @@ use std::{fs, path::Path};
 use anyhow::{Context, Result};
 
 use super::{
-    MapDef, MapFile,
+    schema::{MapDef, MapFile},
     validation::{canonicalize, validate_file},
 };
 

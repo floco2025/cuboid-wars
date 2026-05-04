@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use rand::{RngExt, rng, rngs::ThreadRng};
 
 use crate::{
+    actors::behavior::random_direction_time,
     characters::generate_actor_spawn_position_in_zone,
     config::ServerGameplayConfig,
     constants::ACTOR_MOVE_INTENT_SEND_COOLDOWN,
@@ -196,10 +197,6 @@ fn spawn_actor_in_zone(
             move_intent_send_timer: ACTOR_MOVE_INTENT_SEND_COOLDOWN,
         },
     );
-}
-
-fn random_direction_time(rng: &mut ThreadRng, kind_server_config: &crate::config::ActorKindServerConfig) -> f32 {
-    rng.random_range(kind_server_config.min_direction_time..=kind_server_config.max_direction_time)
 }
 
 #[cfg(test)]

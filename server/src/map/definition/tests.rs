@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    compile_map,
+    schema::{ActorSpawnZoneDef, LevelDef, MapDef, PlayerSpawnZoneDef, RampDef},
+    validation::validate_map,
+};
 use common::{
     constants::{GRID_CELL_SIZE, MAP_DEPTH, MAP_WIDTH},
     material_rules::MaterialRules,

@@ -1,4 +1,4 @@
-use super::{MapDef, RampDef};
+use super::schema::{MapDef, RampDef};
 use crate::{
     constants::FLOOR_OVERLAP,
     map::{

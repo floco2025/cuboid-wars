@@ -8,11 +8,30 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    physics::{CollisionWorld, ProjectileMarker, ProjectileMotion, projectile_character_hit},
+    physics::{CollisionWorld, ProjectileCharacterHit, ProjectileMarker, ProjectileMotion, projectile_character_hit},
     protocol::*,
 };
 
-use super::hits::{ProjectileTargetHit, closer_hit};
+#[derive(Clone, Copy)]
+enum ProjectileTargetHit {
+    Player { id: PlayerId, hit: ProjectileCharacterHit },
+    Actor { id: ActorId, hit: ProjectileCharacterHit },
+}
+
+impl ProjectileTargetHit {
+    const fn hit(self) -> ProjectileCharacterHit {
+        match self {
+            Self::Player { hit, .. } | Self::Actor { hit, .. } => hit,
+        }
+    }
+}
+
+fn closer_hit(current: Option<ProjectileTargetHit>, candidate: ProjectileTargetHit) -> ProjectileTargetHit {
+    match current {
+        Some(current) if current.hit().time_of_impact <= candidate.hit().time_of_impact => current,
+        _ => candidate,
+    }
+}
 
 type ProjectileQuery<'w, 's> = Query<
     'w,
