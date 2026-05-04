@@ -14,7 +14,7 @@ use common::{
     protocol::{ActorMoveIntent, FaceDirection, Health, Position},
 };
 
-// What to do for a single (zone, kind) slot on a given tick.
+// Per-tick decision for one zone: spawn now, tick the cooldown down, or skip.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum SpawnDecision {
     // Slot is at quota — do not tick the throttle, do not spawn.
@@ -35,18 +35,60 @@ fn decide_spawn(live: u32, count: u32, throttle: f32) -> SpawnDecision {
     }
 }
 
-// Walk every actor spawn zone and apply the throttle algorithm per slot:
-//   - Skip if at quota (do not touch the throttle).
-//   - Tick the throttle down by `dt` if the slot is short and the throttle
-//     hasn't expired yet.
-//   - Otherwise spawn one actor and reset the throttle to the kind's
-//     `spawn_throttle_time`.
+// Startup-only: fill every spawn zone to its `count`. Runs once when the
+// world boots, irrespective of `respawns` — initial fill is universal.
+pub fn actor_initial_spawn_system(
+    mut commands: Commands,
+    mut actors: ResMut<ActorMap>,
+    mut spawner: ResMut<ActorSpawner>,
+    map_config: Res<MapConfig>,
+    collision_world: Res<CollisionWorld>,
+    gameplay_config: Res<GameplayConfig>,
+    server_gameplay_config: Res<ServerGameplayConfig>,
+    players: Query<&Position, With<PlayerMarker>>,
+) {
+    // Avoid spawning on top of any players that may already exist (none, in
+    // practice, at Startup — but cheap and consistent with the respawn path).
+    let mut occupied_positions: Vec<Position> = players.iter().copied().collect();
+    let mut rng = rng();
+
+    for (zone_idx, zone) in map_config.actor_spawn_zones.iter().enumerate() {
+        // Configs are cross-validated against the map at startup, so any
+        // zone kind here is guaranteed to resolve in both configs.
+        let actor_config = gameplay_config
+            .actor(&zone.kind)
+            .expect("zone kind validated at startup");
+        let kind_server_config = server_gameplay_config
+            .actor(&zone.kind)
+            .expect("zone kind validated at startup");
+        let actor_physics = actor_config.physics();
+        for _ in 0..zone.count {
+            spawn_actor_in_zone(
+                &mut commands,
+                &mut actors,
+                &mut spawner,
+                &mut occupied_positions,
+                &mut rng,
+                &map_config,
+                &collision_world,
+                actor_config,
+                kind_server_config,
+                actor_physics,
+                zone_idx,
+                &zone.kind,
+            );
+        }
+    }
+}
+
+// Per-tick: refill zones whose kind opted into respawning. Non-respawning
+// kinds are skipped; their `ActorSpawnThrottles` entries are never inserted.
 //
-// The first time a slot is seen the throttle entry doesn't exist yet; it's
-// inserted as 0.0, which means "go now." That's how boot starts spawning
-// immediately: the very first tick picks Spawn for every slot, then sets
-// the throttle so subsequent spawns are rate-limited.
-pub fn actor_spawn_quota_system(
+// For respawning kinds, the throttle clock is the existing model: it sits at
+// 0 while the slot is full; on a death the throttle clock starts ticking
+// (via `Tick`) and only reaches 0 — at which point a `Spawn` fires and the
+// throttle is reset to the kind's `spawn_throttle_time`.
+pub fn actor_respawn_system(
     mut commands: Commands,
     mut actors: ResMut<ActorMap>,
     mut spawner: ResMut<ActorSpawner>,
@@ -66,12 +108,14 @@ pub fn actor_spawn_quota_system(
     let mut rng = rng();
 
     for (zone_idx, zone) in map_config.actor_spawn_zones.iter().enumerate() {
-        // Configs are cross-validated against the map at startup, so any
-        // zone kind here is guaranteed to resolve in both configs.
-        let actor_config = gameplay_config
+        let kind_server_config = server_gameplay_config
             .actor(&zone.kind)
             .expect("zone kind validated at startup");
-        let kind_server_config = server_gameplay_config
+        if !kind_server_config.respawns {
+            // One-shot kind: no replacement after deaths, ever.
+            continue;
+        }
+        let actor_config = gameplay_config
             .actor(&zone.kind)
             .expect("zone kind validated at startup");
         let actor_physics = actor_config.physics();
@@ -193,36 +237,6 @@ mod tests {
     fn decide_spawn_when_throttle_zero_or_negative() {
         assert_eq!(decide_spawn(0, 3, 0.0), SpawnDecision::Spawn);
         assert_eq!(decide_spawn(2, 3, -0.5), SpawnDecision::Spawn);
-    }
-
-    // Simulate the per-slot loop without any Bevy world: walk a sequence of
-    // ticks and apply decide_spawn's verdict to (live, throttle).
-    fn simulate(initial_live: u32, count: u32, delay: f32, dt: f32, ticks: usize) -> Vec<u32> {
-        let mut live = initial_live;
-        let mut throttle = 0.0_f32;
-        let mut history = Vec::with_capacity(ticks);
-        for _ in 0..ticks {
-            match decide_spawn(live, count, throttle) {
-                SpawnDecision::Skip => {}
-                SpawnDecision::Tick => throttle -= dt,
-                SpawnDecision::Spawn => {
-                    live += 1;
-                    throttle = delay;
-                }
-            }
-            history.push(live);
-        }
-        history
-    }
-
-    #[test]
-    fn boot_sequence_spawns_at_throttle_intervals() {
-        // count=3, delay=2.0s, dt=1.0s. Tick 1 spawns (throttle 0 → spawn,
-        // throttle = 2). Tick 2 ticks (throttle 2 → 1). Tick 3 ticks
-        // (throttle 1 → 0). Tick 4 spawns again (throttle 0 → spawn,
-        // throttle = 2). Etc. Slot fills at tick 7.
-        let history = simulate(0, 3, 2.0, 1.0, 8);
-        assert_eq!(history, vec![1, 1, 1, 2, 2, 2, 3, 3]);
     }
 
     #[test]

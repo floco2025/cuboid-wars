@@ -98,12 +98,19 @@ pub struct ActorKindServerConfig {
     // tougher actor can be configured to need more shots without changing
     // the projectile.
     pub projectile_damage_from_player: f32,
-    // Minimum seconds between successive spawns into the same zone, applied
-    // by the spawn quota system. Throttles boot-time fill, not just respawns:
-    // a fresh zone spawns one actor per `spawn_throttle_time` until its
-    // quota is met. The throttle freezes when the zone fills, so the next
-    // death pays a full wait. 0.0 = no throttle (legacy behavior).
+    // Cooldown between an actor's death and its replacement appearing.
+    // Only applies when `respawns` is true. 0.0 means immediate respawn.
+    #[serde(default)]
     pub spawn_throttle_time: f32,
+    // When false, the zone fills `count` actors at startup and is never
+    // refilled. When true (default), deaths trigger a respawn after the
+    // `spawn_throttle_time` cooldown.
+    #[serde(default = "default_respawns")]
+    pub respawns: bool,
+    // Maximum xz-distance (meters) from the spawn zone's nearest edge before
+    // the actor is considered out of bounds and walks home. Inside the zone
+    // counts as 0.
+    pub max_wander_distance: f32,
     pub min_direction_time: f32,
     pub max_direction_time: f32,
     pub idle_probability: f32,
@@ -114,6 +121,10 @@ pub struct ActorKindServerConfig {
     pub explosion: ActorExplosionDamageConfig,
 }
 
+const fn default_respawns() -> bool {
+    true
+}
+
 impl ActorKindServerConfig {
     fn validate(&self, path: &str) -> Result<()> {
         validate_non_negative_finite(
@@ -121,6 +132,7 @@ impl ActorKindServerConfig {
             &format!("{path}.projectile_damage_from_player"),
         )?;
         validate_non_negative_finite(self.spawn_throttle_time, &format!("{path}.spawn_throttle_time"))?;
+        validate_positive_finite(self.max_wander_distance, &format!("{path}.max_wander_distance"))?;
         validate_positive_finite(self.min_direction_time, &format!("{path}.min_direction_time"))?;
         validate_positive_finite(self.max_direction_time, &format!("{path}.max_direction_time"))?;
         if self.min_direction_time > self.max_direction_time {

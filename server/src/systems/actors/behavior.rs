@@ -3,7 +3,7 @@ use rand::{RngExt, rng, rngs::ThreadRng};
 
 use crate::{
     config::{ActorKindServerConfig, ServerGameplayConfig},
-    resources::{ActorMap, PlayerMap},
+    resources::{ActorMap, MapConfig, PlayerMap},
 };
 use common::{
     config::GameplayConfig,
@@ -18,6 +18,7 @@ pub fn actor_behavior_system(
     collision_world: Res<CollisionWorld>,
     gameplay_config: Res<GameplayConfig>,
     server_gameplay_config: Res<ServerGameplayConfig>,
+    map_config: Res<MapConfig>,
     mut actors: ResMut<ActorMap>,
     player_query: Query<(&PlayerId, &Position), With<PlayerMarker>>,
     query: Query<(&ActorId, &Position), (With<ActorMarker>, Without<PlayerMarker>)>,
@@ -36,6 +37,17 @@ pub fn actor_behavior_system(
         let kind_server_config = server_gameplay_config
             .actor(&info.spawn_kind)
             .expect("actor kind validated at startup");
+
+        // Wander limit: if the actor has strayed past `max_wander_distance`
+        // from the nearest edge of its spawn zone, override everything else
+        // and walk it back. This naturally cancels chases that carry the
+        // actor too far — the next tick rewrites `go_to_position` from the
+        // player's location to a point inside the zone.
+        let zone_bounds = map_config.actor_spawn_zones[info.spawn_zone_index].xz_bounds();
+        if xz_distance_from_rect(pos, zone_bounds) > kind_server_config.max_wander_distance {
+            info.go_to_position = Some(closest_point_in_rect(pos, zone_bounds));
+            continue;
+        }
 
         if let Some(target_pos) = visible_player_position(
             pos,
@@ -61,6 +73,26 @@ pub fn actor_behavior_system(
         info.direction_timer = random_direction_time(&mut rng, kind_server_config);
         info.patrol_intent =
             random_patrol_intent(&mut rng, actor_config.patrol_speed, kind_server_config.idle_probability);
+    }
+}
+
+// Euclidean xz-distance from `pos` to the nearest edge of the
+// `(min_x, min_z, max_x, max_z)` rectangle. Inside the rectangle returns 0.
+fn xz_distance_from_rect(pos: &Position, bounds: (f32, f32, f32, f32)) -> f32 {
+    let (min_x, min_z, max_x, max_z) = bounds;
+    let dx = (min_x - pos.x).max(0.0).max(pos.x - max_x);
+    let dz = (min_z - pos.z).max(0.0).max(pos.z - max_z);
+    dx.hypot(dz)
+}
+
+// Closest point on the rectangle (in xz) to `pos`. y is preserved so the
+// actor doesn't try to climb to a different floor.
+fn closest_point_in_rect(pos: &Position, bounds: (f32, f32, f32, f32)) -> Position {
+    let (min_x, min_z, max_x, max_z) = bounds;
+    Position {
+        x: pos.x.clamp(min_x, max_x),
+        y: pos.y,
+        z: pos.z.clamp(min_z, max_z),
     }
 }
 
@@ -111,4 +143,103 @@ fn horizontal_distance_sq(a: &Position, b: &Position) -> f32 {
 
 fn random_direction_time(rng: &mut ThreadRng, kind_server_config: &ActorKindServerConfig) -> f32 {
     rng.random_range(kind_server_config.min_direction_time..=kind_server_config.max_direction_time)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn pos(x: f32, z: f32) -> Position {
+        Position { x, y: 0.0, z }
+    }
+
+    fn assert_near(actual: f32, expected: f32) {
+        assert!(
+            (actual - expected).abs() < 1e-4,
+            "expected {actual} to be near {expected}"
+        );
+    }
+
+    #[test]
+    fn xz_distance_from_rect_zero_inside() {
+        let bounds = (-2.0, -2.0, 2.0, 2.0);
+        assert_eq!(xz_distance_from_rect(&pos(0.0, 0.0), bounds), 0.0);
+        assert_eq!(xz_distance_from_rect(&pos(-2.0, -2.0), bounds), 0.0);
+        assert_eq!(xz_distance_from_rect(&pos(2.0, 2.0), bounds), 0.0);
+        assert_eq!(xz_distance_from_rect(&pos(1.5, -1.5), bounds), 0.0);
+    }
+
+    #[test]
+    fn xz_distance_from_rect_axis_aligned_outside() {
+        let bounds = (-2.0, -2.0, 2.0, 2.0);
+        assert_near(xz_distance_from_rect(&pos(5.0, 0.0), bounds), 3.0); // east
+        assert_near(xz_distance_from_rect(&pos(-5.0, 0.0), bounds), 3.0); // west
+        assert_near(xz_distance_from_rect(&pos(0.0, 5.0), bounds), 3.0); // south
+        assert_near(xz_distance_from_rect(&pos(0.0, -5.0), bounds), 3.0); // north
+    }
+
+    #[test]
+    fn xz_distance_from_rect_corner() {
+        let bounds = (-2.0, -2.0, 2.0, 2.0);
+        // Point at (5, 6) — nearest corner is (2, 2). dx=3, dz=4 → 5.
+        assert_near(xz_distance_from_rect(&pos(5.0, 6.0), bounds), 5.0);
+    }
+
+    #[test]
+    fn closest_point_in_rect_inside_returns_unchanged() {
+        let bounds = (-2.0, -2.0, 2.0, 2.0);
+        let p = Position {
+            x: 1.0,
+            y: 7.5,
+            z: -0.5,
+        };
+        let clamped = closest_point_in_rect(&p, bounds);
+        assert_eq!(
+            clamped,
+            Position {
+                x: 1.0,
+                y: 7.5,
+                z: -0.5
+            }
+        );
+    }
+
+    #[test]
+    fn closest_point_in_rect_clamps_to_edge() {
+        let bounds = (-2.0, -2.0, 2.0, 2.0);
+        let p = Position { x: 5.0, y: 7.5, z: 0.0 };
+        let clamped = closest_point_in_rect(&p, bounds);
+        assert_eq!(clamped, Position { x: 2.0, y: 7.5, z: 0.0 });
+    }
+
+    #[test]
+    fn closest_point_in_rect_clamps_to_corner() {
+        let bounds = (-2.0, -2.0, 2.0, 2.0);
+        let p = Position {
+            x: 5.0,
+            y: 7.5,
+            z: -10.0,
+        };
+        let clamped = closest_point_in_rect(&p, bounds);
+        assert_eq!(
+            clamped,
+            Position {
+                x: 2.0,
+                y: 7.5,
+                z: -2.0
+            }
+        );
+    }
+
+    #[test]
+    fn closest_point_in_rect_preserves_y() {
+        let bounds = (-2.0, -2.0, 2.0, 2.0);
+        let p = Position {
+            x: 100.0,
+            y: 42.0,
+            z: 100.0,
+        };
+        let clamped = closest_point_in_rect(&p, bounds);
+        assert_eq!(clamped.y, 42.0);
+    }
 }

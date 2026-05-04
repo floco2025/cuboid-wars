@@ -5,7 +5,7 @@ mod network;
 mod players;
 mod projectiles;
 
-pub use actors::{actor_behavior_system, actor_death_system, actor_spawn_quota_system};
+pub use actors::{actor_behavior_system, actor_death_system, actor_initial_spawn_system, actor_respawn_system};
 pub use characters::{characters_health_regeneration_system, characters_movement_system};
 // generate_player_spawn_position is re-exported here for the network
 // login.rs which goes through `systems::*`. The actor variant is reached

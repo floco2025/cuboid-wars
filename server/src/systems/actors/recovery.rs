@@ -19,7 +19,7 @@ use common::{
 // to nearby characters and broadcasts the explosion VFX. Falls are silent —
 // they were teleports before, so the asymmetry is preserved.
 //
-// Actor entities are despawned outright; the `actor_spawn_quota_system` will
+// Actor entities are despawned outright; the `actor_respawn_system` will
 // pick the missing slots up next tick and create replacements.
 pub fn actor_death_system(
     mut commands: Commands,
@@ -79,10 +79,11 @@ pub fn actor_death_system(
         } else {
             info!("{:?} fell and despawned at {:?}", death.id, death.pos);
         }
-        // Death is unconditional despawn. The throttle in
-        // `actor_spawn_quota_system` ticks down only while the slot is short
+        // Death is unconditional despawn. For respawning kinds, the throttle
+        // in `actor_respawn_system` ticks down only while the slot is short
         // of its quota, so dropping a live actor here is what causes the
-        // next replacement to be scheduled — no separate signal needed.
+        // next replacement to be scheduled. For non-respawning kinds, the
+        // respawn system skips the zone entirely — no replacement happens.
         commands.entity(death.entity).despawn();
         actors.0.remove(&death.id);
     }

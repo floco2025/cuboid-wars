@@ -85,6 +85,7 @@ async fn main() -> Result<()> {
         .insert_resource(ActorSpawnThrottles::default())
         .insert_resource(FromAcceptChannel::new(from_accept))
         .insert_resource(FromClientsChannel::new(from_clients))
+        .add_systems(Startup, actor_initial_spawn_system)
         .add_systems(
             Update,
             (
@@ -107,7 +108,7 @@ async fn main() -> Result<()> {
                 players_timer_system,
                 // Fall recovery must run after movement updates positions.
                 players_fall_recovery_system.after(characters_movement_system),
-                actor_spawn_quota_system,
+                actor_respawn_system,
                 actor_behavior_system,
                 actor_death_system
                     .after(characters_movement_system)
