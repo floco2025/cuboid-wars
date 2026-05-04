@@ -9,12 +9,20 @@ use quinn::Endpoint;
 use tokio::{runtime::Runtime, time::Duration};
 
 use client::{
+    actors::*,
+    cameras::*,
+    characters::*,
     config::{AssetSet, OpaqueRenderer, RenderSettings, configure_client},
+    input::*,
+    items::*,
+    map::*,
     materials::generate_material_mipmaps_system,
-    net::network_io_task,
-    resources::*,
-    spawning::{ProjectileAssets, character_shadow_settings_system},
-    systems::*,
+    network::*,
+    players::*,
+    projectiles::*,
+    skybox::*,
+    ui::*,
+    vfx::*,
 };
 use common::{config::GameplayConfig, net::MessageStream, protocol::*};
 
