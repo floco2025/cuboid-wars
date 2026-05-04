@@ -1,4 +1,8 @@
 use super::*;
+use common::{
+    constants::{GRID_CELL_SIZE, MAP_DEPTH, MAP_WIDTH},
+    material_rules::MaterialRules,
+};
 
 fn level(floors: Vec<[i32; 2]>) -> LevelDef {
     level_with_inaccessible(floors, Vec::new())

@@ -10,11 +10,18 @@ use tokio::{
 
 use common::{config::GameplayConfig, physics::CollisionWorld};
 use server::{
+    actors::{actor_behavior_system, actor_death_system, actor_initial_spawn_system, actor_respawn_system},
+    characters::{characters_health_regeneration_system, characters_movement_system},
     config::{ServerGameplayConfig, configure_server},
+    items::{
+        item_collection_system, item_despawn_system, item_initial_spawn_system, item_respawn_system, item_spawn_system,
+    },
     map::generate_map,
     net::accept_connections_task,
+    network::{network_accept_connections_system, network_broadcast_state_system, network_client_message_system},
+    players::{players_fall_recovery_system, players_timer_system},
+    projectiles::projectiles_movement_system,
     resources::*,
-    systems::*,
 };
 
 const SERVER_LOOP_FREQUENCY: u64 = 30;

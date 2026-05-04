@@ -1,0 +1,96 @@
+use bevy::prelude::*;
+
+use crate::{
+    constants::{
+        COOKIE_POINTS, COOKIE_RESPAWN_TIME, ITEM_COLLECTION_RADIUS, POWER_UP_MULTI_SHOT_DURATION,
+        POWER_UP_PHASING_DURATION, POWER_UP_SPEED_DURATION,
+    },
+    net::ServerToClient,
+    network::broadcast_to_all,
+    resources::{ItemMap, PlayerMap},
+};
+use common::{
+    physics::character_overlaps_item,
+    protocol::{ItemId, ItemMarker, ItemType, PlayerId, PlayerMarker, Position, SCookieCollected, ServerMessage},
+};
+
+const ITEM_PICKUP_FLOOR_EPSILON: f32 = 0.1;
+
+pub fn item_collection_system(
+    mut commands: Commands,
+    mut players: ResMut<PlayerMap>,
+    mut items: ResMut<ItemMap>,
+    character_positions: Query<&Position, With<PlayerMarker>>,
+    item_positions: Query<&Position, With<ItemMarker>>,
+) {
+    let items_to_collect: Vec<(PlayerId, ItemId, ItemType)> = items
+        .0
+        .iter()
+        .filter_map(|(item_id, item_info)| {
+            if item_info.item_type == ItemType::Cookie && item_info.spawn_time > 0.0 {
+                return None;
+            }
+
+            let item_pos = item_positions.get(item_info.entity).ok()?;
+
+            for (player_id, player_info) in &players.0 {
+                if let Ok(character_pos) = character_positions.get(player_info.entity) {
+                    if (character_pos.y - item_pos.y).abs() > ITEM_PICKUP_FLOOR_EPSILON {
+                        continue;
+                    }
+
+                    if character_overlaps_item(character_pos, item_pos, ITEM_COLLECTION_RADIUS) {
+                        return Some((*player_id, *item_id, item_info.item_type));
+                    }
+                }
+            }
+            None
+        })
+        .collect();
+
+    let mut power_up_messages = Vec::new();
+
+    for (player_id, item_id, item_type) in items_to_collect {
+        if item_type == ItemType::Cookie {
+            if let Some(player_info) = players.0.get_mut(&player_id) {
+                player_info.hits += COOKIE_POINTS;
+
+                if let Some(item_info) = items.0.get_mut(&item_id) {
+                    item_info.spawn_time = COOKIE_RESPAWN_TIME;
+                }
+
+                let _ = player_info
+                    .channel
+                    .send(ServerToClient::Send(ServerMessage::CookieCollected(
+                        SCookieCollected {},
+                    )));
+            }
+            continue;
+        }
+
+        if let Some(item_info) = items.0.remove(&item_id) {
+            commands.entity(item_info.entity).despawn();
+        }
+
+        if let Some(player_info) = players.0.get_mut(&player_id) {
+            match item_type {
+                ItemType::SpeedPowerUp => {
+                    player_info.speed_power_up_timer = POWER_UP_SPEED_DURATION;
+                }
+                ItemType::MultiShotPowerUp => {
+                    player_info.multi_shot_power_up_timer = POWER_UP_MULTI_SHOT_DURATION;
+                }
+                ItemType::PhasingPowerUp => {
+                    player_info.phasing_power_up_timer = POWER_UP_PHASING_DURATION;
+                }
+                ItemType::Cookie => unreachable!(),
+            }
+
+            power_up_messages.push(player_info.status(player_id));
+        }
+    }
+
+    for msg in power_up_messages {
+        broadcast_to_all(&players, ServerMessage::PlayerStatus(msg));
+    }
+}

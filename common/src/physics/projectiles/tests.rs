@@ -1,6 +1,10 @@
-use super::*;
-use crate::constants::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_THICKNESS};
-use crate::protocol::{Floor, MapLayout, Ramp, Wall};
+use bevy_math::Vec3;
+use bevy_time::{Timer, TimerMode};
+
+use super::ProjectileMotion;
+use crate::constants::{FLOOR_THICKNESS, LEVEL_HEIGHT, PROJECTILE_LIFETIME, PROJECTILE_RADIUS, WALL_THICKNESS};
+use crate::physics::CollisionWorld;
+use crate::protocol::{Floor, MapLayout, Position, Ramp, Wall};
 
 fn test_projectile_motion(velocity: Vec3) -> ProjectileMotion {
     ProjectileMotion {

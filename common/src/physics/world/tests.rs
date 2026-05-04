@@ -1,6 +1,7 @@
-use super::*;
 use crate::constants::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS};
-use crate::protocol::{Floor, Ramp, Wall};
+use crate::protocol::{Floor, MapLayout, Ramp, Wall};
+
+use super::{CollisionWorld, colliders::ColliderKind};
 
 fn test_map_layout() -> MapLayout {
     MapLayout {

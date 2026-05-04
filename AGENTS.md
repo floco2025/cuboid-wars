@@ -7,19 +7,22 @@ This file is loaded by Claude Code, Codex, Cursor, and similar coding agents.
 Rust workspace with three crates:
 
 - **`common/`** — shared between client and server.
-  - `protocol.rs` — all `ClientMessage` / `ServerMessage` variants and wire structs (`Position`, `Speed`, `Player`, `MapLayout`, etc.).
+  - `protocol.rs` — all `ClientMessage` / `ServerMessage` variants and wire structs.
   - `net.rs` — `MessageStream` abstraction over QUIC.
   - `physics/` — shared player/projectile movement, collision world, and spawn validation helpers.
-  - `map.rs`, `types.rs`, `constants.rs` — shared map helpers, IDs, and gameplay constants.
+  - `types/` — shared markers, IDs, positions, movement states, map layout types, and snapshots.
+  - `map.rs`, `constants.rs` — shared map helpers and gameplay constants.
 - **`server/`** — authoritative headless server (Bevy `MinimalPlugins`).
-  - `systems/` — players, projectiles, items, network broadcast.
+  - `actors/`, `characters/`, `items/`, `players/`, `projectiles/` — server-side domain systems.
+  - `network/` — accepts connections, handles client messages, and broadcasts snapshots.
+  - `resources/` — Bevy resources split by domain.
   - `map/` — converts map definitions into runtime layout: cells/edges, floors, walls, ramps, lights, masks, and segments.
   - Runs at 30 Hz via a manual `app.update()` loop.
 - **`client/`** — Bevy renderer, input, UI.
-  - `systems/network/` — consumes `ServerMessage`, spawns/updates entities.
-  - `systems/players/` — local prediction, camera, rendering, movement feedback, and effects.
-  - `systems/input/` — movement, shooting, and view/debug toggles.
-  - `spawning/` — entity construction for players, projectiles, items, and map geometry.
+  - `network/` — consumes `ServerMessage`, spawns/updates entities, and runs transport I/O.
+  - `players/`, `actors/`, `characters/`, `items/`, `projectiles/` — client-side domain systems.
+  - `input/`, `cameras/`, `ui/`, `vfx/`, `animations/` — client-only interaction, rendering support, and presentation.
+  - `map/` — client map rendering and geometry spawning.
 
 Other notable paths:
 - `tools/editor.py` — PySide6 map editor for `config/server/map.json`.
