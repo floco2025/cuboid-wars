@@ -3,17 +3,18 @@ use bevy::prelude::*;
 use super::{
     actors::{
         handle_actor_destroyed_message, handle_actor_hit_message, handle_actor_move_intent_message,
-        handle_actor_teleport_message, sync_actors,
+        handle_actor_teleport_message,
     },
     components::AssetManagers,
     io::handle_echo_message,
-    items::{handle_item_collected_message, sync_items},
+    items::handle_item_collected_message,
     login::{handle_player_login_message, handle_player_logoff_message},
     players::{
         handle_player_face_message, handle_player_hit_message, handle_player_jump_message,
         handle_player_move_intent_message, handle_player_shot_message, handle_player_status_message,
-        handle_player_teleport_message, sync_players,
+        handle_player_teleport_message,
     },
+    update::handle_update_message,
 };
 use crate::{
     actors::ActorMap,
@@ -147,86 +148,4 @@ pub fn dispatch_message(
             handle_item_collected_message(commands, cookie_msg, asset_server, asset_set);
         }
     }
-}
-
-// ============================================================================
-// Update Message Handler
-// ============================================================================
-
-// Handle bulk state synchronization from Update message.
-pub fn handle_update_message(
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    images: &mut ResMut<Assets<Image>>,
-    graphs: &mut ResMut<Assets<AnimationGraph>>,
-    players: &mut ResMut<PlayerMap>,
-    actors: &mut ResMut<ActorMap>,
-    items: &mut ResMut<ItemMap>,
-    rtt: &ResMut<RoundTripTime>,
-    last_update_seq: &mut ResMut<LastUpdateSeq>,
-    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
-    actor_data: &Query<(&Position, &ActorMoveIntent, &FaceDirection), With<ActorMarker>>,
-    camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
-    my_player_id: PlayerId,
-    asset_server: &Res<AssetServer>,
-    asset_set: &AssetSet,
-    render_settings: &RenderSettings,
-    gameplay_config: &GameplayConfig,
-    msg: SUpdate,
-) {
-    // Ignore outdated updates
-    if msg.seq <= last_update_seq.0 {
-        warn!(
-            "Ignoring outdated SUpdate (seq: {}, last: {})",
-            msg.seq, last_update_seq.0
-        );
-        return;
-    }
-
-    // Update the last received sequence number
-    last_update_seq.0 = msg.seq;
-
-    sync_players(
-        commands,
-        meshes,
-        materials,
-        images,
-        graphs,
-        players,
-        rtt,
-        player_data,
-        camera_query,
-        my_player_id,
-        asset_server,
-        asset_set,
-        render_settings,
-        gameplay_config,
-        &msg.players,
-    );
-    sync_actors(
-        commands,
-        meshes,
-        materials,
-        images,
-        graphs,
-        actors,
-        rtt,
-        actor_data,
-        asset_server,
-        asset_set,
-        render_settings,
-        gameplay_config,
-        &msg.actors,
-    );
-    sync_items(
-        commands,
-        meshes,
-        materials,
-        items,
-        asset_server,
-        asset_set,
-        render_settings,
-        &msg.items,
-    );
 }
