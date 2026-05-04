@@ -12,7 +12,7 @@ use common::{physics::CharacterVerticalVelocity, protocol::*};
 
 // Broadcast `message` to every logged-in player except `skip`.
 pub fn broadcast_to_others(players: &PlayerMap, skip: PlayerId, message: ServerMessage) {
-    for (other_id, other_info) in &players.0 {
+    for (other_id, other_info) in players.iter() {
         if *other_id != skip && other_info.logged_in {
             let _ = other_info.channel.send(ServerToClient::Send(message.clone()));
         }
@@ -21,7 +21,7 @@ pub fn broadcast_to_others(players: &PlayerMap, skip: PlayerId, message: ServerM
 
 // Broadcast `message` to every logged-in player.
 pub fn broadcast_to_all(players: &PlayerMap, message: ServerMessage) {
-    for player_info in players.0.values() {
+    for player_info in players.values() {
         if player_info.logged_in {
             let _ = player_info.channel.send(ServerToClient::Send(message.clone()));
         }
@@ -40,7 +40,6 @@ pub fn snapshot_logged_in_players(
     motions: &Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
 ) -> Vec<(PlayerId, Player)> {
     players
-        .0
         .iter()
         .filter_map(|(player_id, info)| {
             if !info.logged_in {
@@ -74,7 +73,6 @@ pub fn snapshot_actors(
     motions: &Query<&CharacterVerticalVelocity, With<ActorMarker>>,
 ) -> Vec<(ActorId, Actor)> {
     actors
-        .0
         .iter()
         .filter_map(|(actor_id, info)| {
             let (pos, move_intent, face_dir, health) = actor_data.get(info.entity).ok()?;
@@ -96,7 +94,6 @@ pub fn snapshot_actors(
 #[must_use]
 pub fn collect_items(items: &ItemMap, item_positions: &Query<&Position, With<ItemMarker>>) -> Vec<(ItemId, Item)> {
     items
-        .0
         .iter()
         .filter(|(_, info)| {
             // Filter out cookies that are currently respawning (spawn_time > 0)

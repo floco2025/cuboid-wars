@@ -1,5 +1,7 @@
 pub mod actors;
+pub mod app;
 pub mod characters;
+pub mod combat;
 pub mod config;
 pub mod constants;
 pub mod items;

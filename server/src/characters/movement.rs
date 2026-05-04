@@ -82,8 +82,8 @@ fn plan_player_moves(
     let player_config = &gameplay_config.player;
     let player_physics = player_config.physics();
     for (entity, pos, motion, move_intent, player_id) in query.iter() {
-        let is_stunned = players.0.get(player_id).is_some_and(|info| info.stun_timer > 0.0);
-        let has_speed_power_up = players.0.get(player_id).is_some_and(PlayerInfo::has_speed);
+        let is_stunned = players.get(player_id).is_some_and(|info| info.stun_timer > 0.0);
+        let has_speed_power_up = players.get(player_id).is_some_and(PlayerInfo::has_speed);
         let velocity =
             move_intent.to_horizontal_velocity(player_config.walk_speed, player_config.run_speed, has_speed_power_up);
         let velocity_sq = velocity.x.mul_add(velocity.x, velocity.z * velocity.z);
@@ -100,7 +100,7 @@ fn plan_player_moves(
             }
         };
 
-        let has_phasing = players.0.get(player_id).is_some_and(PlayerInfo::has_phasing);
+        let has_phasing = players.get(player_id).is_some_and(PlayerInfo::has_phasing);
         let step = step_character_movement(
             pos,
             motion.0,
@@ -112,14 +112,12 @@ fn plan_player_moves(
             delta,
         );
 
-        planned_moves.push(CharacterMovePlan {
+        planned_moves.push(CharacterMovePlan::from_movement_result(
             entity,
-            start: *pos,
-            target: step.position,
-            target_vertical_velocity: step.vertical_velocity,
-            physics: player_physics,
-            blocked: step.blocked,
-        });
+            *pos,
+            step,
+            player_physics,
+        ));
     }
 }
 

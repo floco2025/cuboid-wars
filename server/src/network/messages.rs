@@ -30,7 +30,7 @@ pub fn dispatch_message(
     match msg {
         ClientMessage::Login(_) => {
             warn!("{:?} sent login after already authenticated", id);
-            if let Some(player) = players.0.get(&id) {
+            if let Some(player) = players.get(&id) {
                 // Terminate the connection to enforce a single-login flow
                 let _ = player.channel.send(ServerToClient::Close);
             }
@@ -129,7 +129,7 @@ fn handle_jump_message(
     collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
 ) {
-    if players.0.get(&id).is_some_and(|info| info.stun_timer > 0.0) {
+    if players.get(&id).is_some_and(|info| info.stun_timer > 0.0) {
         return;
     }
 
@@ -188,7 +188,7 @@ fn handle_shot_message(
     let now = time.elapsed_secs();
 
     let has_multi_shot = {
-        let Some(player_info) = players.0.get_mut(&id) else {
+        let Some(player_info) = players.get_mut(&id) else {
             return;
         };
 
@@ -243,7 +243,7 @@ fn handle_shot_message(
 // Handle echo message.
 fn handle_echo_message(id: PlayerId, msg: CEcho, players: &PlayerMap) {
     trace!("{:?} echo: {:?}", id, msg);
-    if let Some(player_info) = players.0.get(&id) {
+    if let Some(player_info) = players.get(&id) {
         let echo_msg = ServerMessage::Echo(SEcho {
             timestamp_nanos: msg.timestamp_nanos,
         });

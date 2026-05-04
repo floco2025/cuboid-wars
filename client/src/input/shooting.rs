@@ -80,7 +80,7 @@ pub fn input_shooting_system(
         let has_multi_shot = ALWAYS_MULTI_SHOT
             || my_player_id
                 .as_ref()
-                .and_then(|id| players.0.get(&id.0))
+                .and_then(|id| players.get(&id.0))
                 .is_some_and(|info| info.multi_shot_power_up);
 
         if let Some(my_id) = my_player_id.as_ref()

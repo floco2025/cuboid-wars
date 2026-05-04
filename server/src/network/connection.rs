@@ -16,6 +16,6 @@ pub fn network_accept_connections_system(
     while let Ok((id, to_client)) = from_accept.try_recv() {
         debug!("{:?} connected", id);
         let entity = commands.spawn((PlayerMarker, id)).id();
-        players.0.insert(id, PlayerInfo::new(entity, to_client));
+        players.insert(id, PlayerInfo::new(entity, to_client));
     }
 }

@@ -40,7 +40,7 @@ pub(crate) fn plan_actor_moves(
     planned_moves: &mut Vec<CharacterMovePlan>,
 ) {
     for (entity, actor_id, mut pos, move_intent, mut motion, mut recon_option) in query {
-        let Some(info) = actors.0.get(actor_id) else {
+        let Some(info) = actors.get(actor_id) else {
             continue;
         };
         let actor_physics = gameplay_config
@@ -48,7 +48,7 @@ pub(crate) fn plan_actor_moves(
             .expect("actor kind sent by server is in gameplay config")
             .physics();
         let h_vel = move_intent.to_horizontal_velocity();
-        let mut target_pos = if let Some(recon) = recon_option.as_mut() {
+        let target_pos = if let Some(recon) = recon_option.as_mut() {
             let correction_time = recon.rtt * 5.0;
             let correction_factor = (UPDATE_BROADCAST_INTERVAL / correction_time).clamp(0.0, 1.0);
 
@@ -71,14 +71,7 @@ pub(crate) fn plan_actor_moves(
                 push_actor_planned_move(
                     planned_moves,
                     actor_starts,
-                    CharacterMovePlan {
-                        entity,
-                        start: *pos,
-                        target: *pos,
-                        target_vertical_velocity: motion.0,
-                        physics: actor_physics,
-                        blocked: false,
-                    },
+                    CharacterMovePlan::stationary(entity, *pos, motion.0, actor_physics),
                 );
                 continue;
             }
@@ -109,31 +102,16 @@ pub(crate) fn plan_actor_moves(
                 target_pos.z,
                 delta,
             );
-            target_pos = step.position;
             push_actor_planned_move(
                 planned_moves,
                 actor_starts,
-                CharacterMovePlan {
-                    entity,
-                    start: *pos,
-                    target: target_pos,
-                    target_vertical_velocity: step.vertical_velocity,
-                    physics: actor_physics,
-                    blocked: step.blocked,
-                },
+                CharacterMovePlan::from_movement_result(entity, *pos, step, actor_physics),
             );
         } else {
             push_actor_planned_move(
                 planned_moves,
                 actor_starts,
-                CharacterMovePlan {
-                    entity,
-                    start: *pos,
-                    target: target_pos,
-                    target_vertical_velocity: motion.0,
-                    physics: actor_physics,
-                    blocked: false,
-                },
+                CharacterMovePlan::from_target(entity, *pos, target_pos, motion.0, actor_physics, false),
             );
         }
     }
@@ -160,8 +138,7 @@ fn push_actor_planned_move(
     mut planned_move: CharacterMovePlan,
 ) {
     if character_move_plan_is_blocked(&planned_move, planned_moves, actor_starts) {
-        planned_move.target.x = planned_move.start.x;
-        planned_move.target.z = planned_move.start.z;
+        planned_move = planned_move.with_blocked_xz();
     }
     planned_moves.push(planned_move);
 }

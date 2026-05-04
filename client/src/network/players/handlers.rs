@@ -41,7 +41,7 @@ pub fn handle_player_move_intent_message(
     msg: SPlayerMoveIntent,
 ) {
     trace!("{:?} move intent: {:?}", msg.id, msg);
-    if let Some(player) = players.0.get(&msg.id) {
+    if let Some(player) = players.get(&msg.id) {
         let server_velocity = player_movement_velocity(
             msg.movement,
             gameplay_config.player.walk_speed,
@@ -75,7 +75,7 @@ pub fn handle_player_jump_message(
     gameplay_config: &GameplayConfig,
     msg: SJump,
 ) {
-    if let Some(player) = players.0.get(&msg.id)
+    if let Some(player) = players.get(&msg.id)
         && let Ok((client_pos, _, _)) = player_data.get(player.entity)
     {
         let server_velocity = player_movement_velocity(
@@ -101,7 +101,7 @@ pub fn handle_player_jump_message(
 // Handle player face direction update.
 pub fn handle_player_face_message(commands: &mut Commands, players: &ResMut<PlayerMap>, msg: SFace) {
     trace!("{:?} face direction: {}", msg.id, msg.dir);
-    if let Some(player) = players.0.get(&msg.id) {
+    if let Some(player) = players.get(&msg.id) {
         commands.entity(player.entity).insert(FaceDirection(msg.dir));
     }
 }
@@ -117,7 +117,7 @@ pub fn handle_player_shot_message(
     gameplay_config: &GameplayConfig,
 ) {
     trace!("{:?} shot: {:?}", msg.id, msg);
-    if let Some(player) = players.0.get(&msg.id) {
+    if let Some(player) = players.get(&msg.id) {
         commands.entity(player.entity).insert(FaceDirection(msg.face_dir));
 
         // Spawn projectile(s) based on player's multi-shot power-up status
@@ -160,7 +160,7 @@ pub fn handle_player_hit_message(
                 offset_z: 0.0,
             });
         }
-    } else if let Some(player) = players.0.get(&msg.id) {
+    } else if let Some(player) = players.get(&msg.id) {
         commands.entity(player.entity).insert(CuboidShake {
             timer: Timer::from_seconds(0.3, TimerMode::Once),
             intensity: 0.3,
@@ -185,7 +185,7 @@ pub fn handle_player_teleport_message(
     } else {
         debug!("{:?} teleported to {:?}", msg.id, msg.movement.pos);
     }
-    if let Some(player) = players.0.get(&msg.id) {
+    if let Some(player) = players.get(&msg.id) {
         commands.entity(player.entity).insert((
             msg.movement.pos,
             msg.movement.move_intent,
@@ -204,7 +204,7 @@ pub fn handle_player_status_message(
     asset_server: &AssetServer,
     asset_set: &AssetSet,
 ) {
-    if let Some(player_info) = players.0.get_mut(&msg.id) {
+    if let Some(player_info) = players.get_mut(&msg.id) {
         // Play power-up sound effect only for the local player
         if msg.id == my_player_id {
             // Don't play power-up sound effect if this message is due to a stun change

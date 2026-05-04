@@ -28,3 +28,58 @@ pub struct CharacterMovePlan {
     pub physics: CharacterPhysicsConfig,
     pub blocked: bool,
 }
+
+impl CharacterMovePlan {
+    #[must_use]
+    pub const fn from_movement_result(
+        entity: Entity,
+        start: Position,
+        step: CharacterMovementResult,
+        physics: CharacterPhysicsConfig,
+    ) -> Self {
+        Self {
+            entity,
+            start,
+            target: step.position,
+            target_vertical_velocity: step.vertical_velocity,
+            physics,
+            blocked: step.blocked,
+        }
+    }
+
+    #[must_use]
+    pub const fn from_target(
+        entity: Entity,
+        start: Position,
+        target: Position,
+        target_vertical_velocity: f32,
+        physics: CharacterPhysicsConfig,
+        blocked: bool,
+    ) -> Self {
+        Self {
+            entity,
+            start,
+            target,
+            target_vertical_velocity,
+            physics,
+            blocked,
+        }
+    }
+
+    #[must_use]
+    pub const fn stationary(
+        entity: Entity,
+        position: Position,
+        target_vertical_velocity: f32,
+        physics: CharacterPhysicsConfig,
+    ) -> Self {
+        Self::from_target(entity, position, position, target_vertical_velocity, physics, false)
+    }
+
+    #[must_use]
+    pub const fn with_blocked_xz(mut self) -> Self {
+        self.target.x = self.start.x;
+        self.target.z = self.start.z;
+        self
+    }
+}

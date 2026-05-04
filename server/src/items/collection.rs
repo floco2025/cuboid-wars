@@ -24,7 +24,6 @@ pub fn item_collection_system(
     item_positions: Query<&Position, With<ItemMarker>>,
 ) {
     let items_to_collect: Vec<(PlayerId, ItemId, ItemType)> = items
-        .0
         .iter()
         .filter_map(|(item_id, item_info)| {
             if item_info.item_type == ItemType::Cookie && item_info.spawn_time > 0.0 {
@@ -33,7 +32,7 @@ pub fn item_collection_system(
 
             let item_pos = item_positions.get(item_info.entity).ok()?;
 
-            for (player_id, player_info) in &players.0 {
+            for (player_id, player_info) in players.iter() {
                 if let Ok(character_pos) = character_positions.get(player_info.entity) {
                     if (character_pos.y - item_pos.y).abs() > ITEM_PICKUP_FLOOR_EPSILON {
                         continue;
@@ -52,10 +51,10 @@ pub fn item_collection_system(
 
     for (player_id, item_id, item_type) in items_to_collect {
         if item_type == ItemType::Cookie {
-            if let Some(player_info) = players.0.get_mut(&player_id) {
+            if let Some(player_info) = players.get_mut(&player_id) {
                 player_info.hits += COOKIE_POINTS;
 
-                if let Some(item_info) = items.0.get_mut(&item_id) {
+                if let Some(item_info) = items.get_mut(&item_id) {
                     item_info.spawn_time = COOKIE_RESPAWN_TIME;
                 }
 
@@ -68,11 +67,11 @@ pub fn item_collection_system(
             continue;
         }
 
-        if let Some(item_info) = items.0.remove(&item_id) {
+        if let Some(item_info) = items.remove(&item_id) {
             commands.entity(item_info.entity).despawn();
         }
 
-        if let Some(player_info) = players.0.get_mut(&player_id) {
+        if let Some(player_info) = players.get_mut(&player_id) {
             match item_type {
                 ItemType::SpeedPowerUp => {
                     player_info.speed_power_up_timer = POWER_UP_SPEED_DURATION;

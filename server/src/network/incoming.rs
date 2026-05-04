@@ -33,7 +33,7 @@ pub fn network_client_message_system(
     item_data: Query<&Position, With<ItemMarker>>,
 ) {
     while let Ok((id, event)) = from_clients.try_recv() {
-        let Some(player_info) = players.0.get(&id) else {
+        let Some(player_info) = players.get(&id) else {
             error!("received event for unknown {:?}", id);
             continue;
         };
@@ -42,7 +42,7 @@ pub fn network_client_message_system(
             ClientToServer::Disconnected => {
                 let was_logged_in = player_info.logged_in;
                 let entity = player_info.entity;
-                players.0.remove(&id);
+                players.remove(&id);
                 commands.entity(entity).despawn();
 
                 debug!("{:?} disconnected (logged_in: {})", id, was_logged_in);

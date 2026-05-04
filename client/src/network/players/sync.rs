@@ -34,7 +34,7 @@ pub fn sync_players(
     let update_ids: HashSet<PlayerId> = server_players.iter().map(|(id, _)| *id).collect();
 
     for (id, player) in server_players {
-        if players.0.contains_key(id) {
+        if players.contains_key(id) {
             continue;
         }
 
@@ -56,7 +56,7 @@ pub fn sync_players(
         );
     }
 
-    players.0.retain(|id, player| {
+    players.retain(|id, player| {
         if update_ids.contains(id) {
             true
         } else {
@@ -131,7 +131,7 @@ fn spawn_snapshot_player(
         );
     }
 
-    players.0.insert(
+    players.insert(
         id,
         PlayerInfo {
             entity,
@@ -155,7 +155,7 @@ fn update_snapshot_player(
     id: PlayerId,
     server_player: &Player,
 ) {
-    if let Some(client_player) = players.0.get_mut(&id) {
+    if let Some(client_player) = players.get_mut(&id) {
         if let Ok((client_pos, _, _)) = player_data.get(client_player.entity) {
             let server_velocity = player_movement_velocity(
                 server_player.movement,

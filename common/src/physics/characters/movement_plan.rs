@@ -55,14 +55,7 @@ pub fn character_move_plan_is_blocked(
         if position_is_behind_move_plan(candidate, pos) {
             return false;
         }
-        let stationary_character = CharacterMovePlan {
-            entity: *entity,
-            start: *pos,
-            target: *pos,
-            target_vertical_velocity: 0.0,
-            physics: candidate.physics,
-            blocked: false,
-        };
+        let stationary_character = CharacterMovePlan::stationary(*entity, *pos, 0.0, candidate.physics);
         character_move_plans_intersect(candidate, &stationary_character)
     })
 }

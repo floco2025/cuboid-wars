@@ -28,7 +28,7 @@ pub(crate) fn plan_player_moves(
             decay_flash_timer(state, delta, is_local, bump_flash_ui);
         }
 
-        let has_speed_power_up = players.0.get(player_id).is_some_and(|info| info.speed_power_up);
+        let has_speed_power_up = players.get(player_id).is_some_and(|info| info.speed_power_up);
         let h_vel =
             move_intent.to_horizontal_velocity(player_config.walk_speed, player_config.run_speed, has_speed_power_up);
         let is_standing_still = h_vel.x.hypot(h_vel.z) < PHYSICS_EPSILON;
@@ -45,7 +45,6 @@ pub(crate) fn plan_player_moves(
                 is_standing_still,
                 delta,
                 players
-                    .0
                     .get(player_id)
                     .map_or_else(|| format!("{player_id:?}"), |info| info.name.clone()),
                 planned_moves,
@@ -68,7 +67,7 @@ pub(crate) fn plan_player_moves(
             .expect("target_pos is present after out-of-sync shortcut");
 
         if let Some(collision_world) = collision_world {
-            let has_phasing = ALWAYS_PHASING || players.0.get(player_id).is_some_and(|info| info.phasing_power_up);
+            let has_phasing = ALWAYS_PHASING || players.get(player_id).is_some_and(|info| info.phasing_power_up);
 
             let step = step_character_movement(
                 &client_pos,
@@ -80,23 +79,21 @@ pub(crate) fn plan_player_moves(
                 target.z,
                 delta,
             );
-            planned_moves.push(CharacterMovePlan {
+            planned_moves.push(CharacterMovePlan::from_movement_result(
                 entity,
-                start: *client_pos,
-                target: step.position,
-                target_vertical_velocity: step.vertical_velocity,
-                physics: player_physics,
-                blocked: step.blocked,
-            });
+                *client_pos,
+                step,
+                player_physics,
+            ));
         } else {
-            planned_moves.push(CharacterMovePlan {
+            planned_moves.push(CharacterMovePlan::from_target(
                 entity,
-                start: *client_pos,
+                *client_pos,
                 target,
-                target_vertical_velocity: motion.0,
-                physics: player_physics,
-                blocked: false,
-            });
+                motion.0,
+                player_physics,
+                false,
+            ));
         }
     }
 }
@@ -150,14 +147,12 @@ fn reconciled_target_position(
         *client_pos = recon.server_pos;
         *vertical_velocity = recon.server_velocity.y;
         commands.entity(entity).remove::<ServerReconciliation>();
-        planned_moves.push(CharacterMovePlan {
+        planned_moves.push(CharacterMovePlan::stationary(
             entity,
-            start: *client_pos,
-            target: *client_pos,
-            target_vertical_velocity: *vertical_velocity,
-            physics: player_physics,
-            blocked: false,
-        });
+            *client_pos,
+            *vertical_velocity,
+            player_physics,
+        ));
         return None;
     }
 

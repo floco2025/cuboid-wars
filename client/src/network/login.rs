@@ -48,7 +48,7 @@ pub fn handle_player_login_message(
     msg: SLogin,
 ) {
     debug!("{:?} logged in", msg.id);
-    if players.0.contains_key(&msg.id) {
+    if players.contains_key(&msg.id) {
         return;
     }
 
@@ -73,7 +73,7 @@ pub fn handle_player_login_message(
     commands
         .entity(entity)
         .insert(CharacterVerticalVelocity(msg.player.movement.vertical_velocity));
-    players.0.insert(
+    players.insert(
         msg.id,
         PlayerInfo {
             entity,
@@ -90,7 +90,7 @@ pub fn handle_player_login_message(
 // Handle player logging off - despawn their entity.
 pub fn handle_player_logoff_message(commands: &mut Commands, players: &mut ResMut<PlayerMap>, msg: SLogoff) {
     debug!("{:?} logged off (graceful: {})", msg.id, msg.graceful);
-    if let Some(player) = players.0.remove(&msg.id) {
+    if let Some(player) = players.remove(&msg.id) {
         commands.entity(player.entity).despawn();
     }
 }

@@ -27,7 +27,7 @@ pub fn item_initial_spawn_system(
 
     let has_cookies = query
         .iter()
-        .any(|id| items.0.get(id).is_some_and(|info| info.item_type == ItemType::Cookie));
+        .any(|id| items.get(id).is_some_and(|info| info.item_type == ItemType::Cookie));
 
     if has_cookies {
         return;
@@ -40,7 +40,7 @@ pub fn item_initial_spawn_system(
 
         let entity = commands.spawn((ItemMarker, item_id, position)).id();
 
-        items.0.insert(
+        items.insert(
             item_id,
             ItemInfo {
                 entity,
@@ -71,7 +71,6 @@ pub fn item_spawn_system(
         spawner.timer = 0.0;
 
         let occupied_cells: HashSet<ItemSpawnCell> = items
-            .0
             .values()
             .filter(|info| info.item_type != ItemType::Cookie)
             .filter_map(|info| positions.get(info.entity).ok().map(item_spawn_cell_from_position))
@@ -95,7 +94,7 @@ pub fn item_spawn_system(
 
             let entity = commands.spawn((ItemMarker, item_id, position)).id();
 
-            items.0.insert(
+            items.insert(
                 item_id,
                 ItemInfo {
                     entity,

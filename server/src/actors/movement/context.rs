@@ -56,14 +56,8 @@ impl ActorMoveContext<'_> {
             intent,
             step: self.step_actor_move(intent, self.delta),
         };
-        let planned_move = CharacterMovePlan {
-            entity: self.entity,
-            start: *self.pos,
-            target: selected.step.position,
-            target_vertical_velocity: selected.step.vertical_velocity,
-            physics: self.actor_physics,
-            blocked: selected.step.blocked,
-        };
+        let planned_move =
+            CharacterMovePlan::from_movement_result(self.entity, *self.pos, selected.step, self.actor_physics);
 
         if character_move_plan_is_blocked(&planned_move, self.planned_moves, self.actor_starts) {
             return MoveCandidateResult::BlockedByCharacter;

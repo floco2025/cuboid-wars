@@ -13,4 +13,24 @@ pub struct ActorInfo {
 
 // Map of all server-controlled actors.
 #[derive(Resource, Default)]
-pub struct ActorMap(pub HashMap<ActorId, ActorInfo>);
+pub struct ActorMap(HashMap<ActorId, ActorInfo>);
+
+impl ActorMap {
+    pub fn insert(&mut self, id: ActorId, info: ActorInfo) -> Option<ActorInfo> {
+        self.0.insert(id, info)
+    }
+
+    #[must_use]
+    pub fn contains_key(&self, id: &ActorId) -> bool {
+        self.0.contains_key(id)
+    }
+
+    #[must_use]
+    pub fn get(&self, id: &ActorId) -> Option<&ActorInfo> {
+        self.0.get(id)
+    }
+
+    pub fn retain(&mut self, f: impl FnMut(&ActorId, &mut ActorInfo) -> bool) {
+        self.0.retain(f);
+    }
+}

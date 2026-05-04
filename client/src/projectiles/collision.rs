@@ -45,7 +45,7 @@ pub(super) fn handle_character_collisions(
     }
 
     for (actor_id, actor_pos, face_dir) in actor_query.iter() {
-        let Some(info) = actors.0.get(actor_id) else {
+        let Some(info) = actors.get(actor_id) else {
             continue;
         };
         let actor_physics = gameplay_config

@@ -17,7 +17,7 @@ pub(super) fn sorted_actor_plan_order(query: &ActorMovementQuery, actors: &Actor
         .iter()
         .map(|(entity, id, pos, _, _, _)| ActorPlanOrder {
             entity,
-            target_distance_sq: actor_target_distance_sq(pos, actors.0.get(id)),
+            target_distance_sq: actor_target_distance_sq(pos, actors.get(id)),
             id: *id,
         })
         .collect();

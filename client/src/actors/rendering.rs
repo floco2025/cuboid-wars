@@ -12,7 +12,7 @@ pub fn actors_transform_sync_system(
     mut query: Query<(&ActorId, &Position, &mut Transform), With<ActorMarker>>,
 ) {
     for (id, pos, mut transform) in &mut query {
-        let Some(info) = actors.0.get(id) else {
+        let Some(info) = actors.get(id) else {
             continue;
         };
         let actor_physics = gameplay_config

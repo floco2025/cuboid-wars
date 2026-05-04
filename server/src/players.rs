@@ -22,7 +22,7 @@ pub fn players_timer_system(time: Res<Time>, mut players: ResMut<PlayerMap>) {
 
     let mut status_messages = Vec::new();
 
-    for (player_id, player_info) in &mut players.0 {
+    for (player_id, player_info) in players.iter_mut() {
         let old_status = player_info.status(*player_id);
 
         player_info.tick_timers(delta);

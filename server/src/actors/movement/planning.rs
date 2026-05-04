@@ -42,16 +42,12 @@ pub(crate) fn plan_actor_moves(
         let Ok((entity, id, pos, motion, mut move_intent, mut face_dir)) = query.get_mut(actor_order.entity) else {
             continue;
         };
-        let Some(info) = actors.0.get_mut(id) else {
+        let Some(info) = actors.get_mut(id) else {
             continue;
         };
         // Per-kind config: cross-validated against the map at startup, so unwraps are safe.
-        let actor_config = gameplay_config
-            .actor(&info.spawn_kind)
-            .expect("actor kind validated at startup");
-        let kind_server_config = server_gameplay_config
-            .actor(&info.spawn_kind)
-            .expect("actor kind validated at startup");
+        let actor_config = gameplay_config.validated_actor(&info.spawn_kind);
+        let kind_server_config = server_gameplay_config.validated_actor(&info.spawn_kind);
         let actor_physics = actor_config.physics();
         let current_pos = *pos;
         info.move_intent_send_timer += delta;
@@ -84,14 +80,12 @@ pub(crate) fn plan_actor_moves(
         }
         maybe_broadcast_actor_move_intent(players, *id, current_pos, selected_move.intent, motion.0, info);
 
-        planned_moves.push(CharacterMovePlan {
+        planned_moves.push(CharacterMovePlan::from_movement_result(
             entity,
-            start: current_pos,
-            target: selected_move.step.position,
-            target_vertical_velocity: selected_move.step.vertical_velocity,
-            physics: actor_physics,
-            blocked: selected_move.step.blocked,
-        });
+            current_pos,
+            selected_move.step,
+            actor_physics,
+        ));
     }
 }
 

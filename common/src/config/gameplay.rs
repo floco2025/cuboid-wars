@@ -58,6 +58,11 @@ impl GameplayConfig {
     pub fn actor(&self, kind: &str) -> Option<&ActorGameplayConfig> {
         self.actors.get(kind)
     }
+
+    #[must_use]
+    pub fn validated_actor(&self, kind: &str) -> &ActorGameplayConfig {
+        self.actor(kind).expect("actor kind validated at startup")
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]

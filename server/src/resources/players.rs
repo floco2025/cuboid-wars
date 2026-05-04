@@ -78,4 +78,40 @@ fn tick_timer(timer: &mut f32, delta: f32) {
 }
 
 #[derive(Resource, Default)]
-pub struct PlayerMap(pub HashMap<PlayerId, PlayerInfo>);
+pub struct PlayerMap(HashMap<PlayerId, PlayerInfo>);
+
+impl PlayerMap {
+    pub fn insert(&mut self, id: PlayerId, info: PlayerInfo) -> Option<PlayerInfo> {
+        self.0.insert(id, info)
+    }
+
+    pub fn remove(&mut self, id: &PlayerId) -> Option<PlayerInfo> {
+        self.0.remove(id)
+    }
+
+    #[must_use]
+    pub fn get(&self, id: &PlayerId) -> Option<&PlayerInfo> {
+        self.0.get(id)
+    }
+
+    pub fn get_mut(&mut self, id: &PlayerId) -> Option<&mut PlayerInfo> {
+        self.0.get_mut(id)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&PlayerId, &PlayerInfo)> {
+        self.0.iter()
+    }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (&PlayerId, &mut PlayerInfo)> {
+        self.0.iter_mut()
+    }
+
+    pub fn values(&self) -> impl Iterator<Item = &PlayerInfo> {
+        self.0.values()
+    }
+
+    #[must_use]
+    pub fn all_logged_out(&self) -> bool {
+        self.0.values().all(|info| !info.logged_in)
+    }
+}

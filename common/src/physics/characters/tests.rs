@@ -134,14 +134,7 @@ fn player_speed() -> f32 {
 }
 
 fn planned_move(entity: Entity, start: Position, target: Position) -> CharacterMovePlan {
-    CharacterMovePlan {
-        entity,
-        start,
-        target,
-        target_vertical_velocity: 0.0,
-        physics: player_physics(),
-        blocked: false,
-    }
+    CharacterMovePlan::from_target(entity, start, target, 0.0, player_physics(), false)
 }
 
 #[test]

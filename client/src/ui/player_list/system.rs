@@ -51,7 +51,7 @@ fn rebuild_player_list(
         }
     }
 
-    let mut sorted_players: Vec<_> = players.0.iter().collect();
+    let mut sorted_players: Vec<_> = players.iter().collect();
     sorted_players.sort_by_key(|(player_id, _)| player_id.0);
 
     let mut ordered_children = Vec::with_capacity(sorted_players.len());

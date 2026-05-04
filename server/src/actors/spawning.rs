@@ -54,12 +54,8 @@ pub fn actor_initial_spawn_system(
     for (zone_idx, zone) in map_config.actor_spawn_zones.iter().enumerate() {
         // Configs are cross-validated against the map at startup, so any
         // zone kind here is guaranteed to resolve in both configs.
-        let actor_config = gameplay_config
-            .actor(&zone.kind)
-            .expect("zone kind validated at startup");
-        let kind_server_config = server_gameplay_config
-            .actor(&zone.kind)
-            .expect("zone kind validated at startup");
+        let actor_config = gameplay_config.validated_actor(&zone.kind);
+        let kind_server_config = server_gameplay_config.validated_actor(&zone.kind);
         let actor_physics = actor_config.physics();
         for _ in 0..zone.count {
             spawn_actor_in_zone(
@@ -107,16 +103,12 @@ pub fn actor_respawn_system(
     let mut rng = rng();
 
     for (zone_idx, zone) in map_config.actor_spawn_zones.iter().enumerate() {
-        let kind_server_config = server_gameplay_config
-            .actor(&zone.kind)
-            .expect("zone kind validated at startup");
+        let kind_server_config = server_gameplay_config.validated_actor(&zone.kind);
         if !kind_server_config.respawns {
             // One-shot kind: no replacement after deaths, ever.
             continue;
         }
-        let actor_config = gameplay_config
-            .actor(&zone.kind)
-            .expect("zone kind validated at startup");
+        let actor_config = gameplay_config.validated_actor(&zone.kind);
         let actor_physics = actor_config.physics();
         let throttle_time = kind_server_config.spawn_throttle_time;
 
@@ -150,11 +142,7 @@ pub fn actor_respawn_system(
 }
 
 fn live_actor_count(actors: &ActorMap, zone_idx: usize) -> u32 {
-    actors
-        .0
-        .values()
-        .filter(|info| info.spawn_zone_index == zone_idx)
-        .count() as u32
+    actors.values().filter(|info| info.spawn_zone_index == zone_idx).count() as u32
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -194,7 +182,7 @@ fn spawn_actor_in_zone(
         ))
         .id();
 
-    actors.0.insert(
+    actors.insert(
         actor_id,
         ActorInfo {
             entity,

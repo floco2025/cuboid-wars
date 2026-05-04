@@ -42,6 +42,6 @@ pub(super) fn calculate_move_intent(
 
 pub(super) fn local_player_stunned(my_player_id: Option<&Res<MyPlayerId>>, players: &Res<PlayerMap>) -> bool {
     my_player_id
-        .and_then(|my_id| players.0.get(&my_id.0))
+        .and_then(|my_id| players.get(&my_id.0))
         .is_some_and(|player_info| player_info.stunned)
 }

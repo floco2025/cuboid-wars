@@ -17,7 +17,44 @@ pub struct ActorInfo {
 }
 
 #[derive(Resource, Default)]
-pub struct ActorMap(pub HashMap<ActorId, ActorInfo>);
+pub struct ActorMap(HashMap<ActorId, ActorInfo>);
+
+impl ActorMap {
+    pub fn insert(&mut self, id: ActorId, info: ActorInfo) -> Option<ActorInfo> {
+        self.0.insert(id, info)
+    }
+
+    pub fn remove(&mut self, id: &ActorId) -> Option<ActorInfo> {
+        self.0.remove(id)
+    }
+
+    #[must_use]
+    pub fn get(&self, id: &ActorId) -> Option<&ActorInfo> {
+        self.0.get(id)
+    }
+
+    pub fn get_mut(&mut self, id: &ActorId) -> Option<&mut ActorInfo> {
+        self.0.get_mut(id)
+    }
+
+    pub fn values(&self) -> impl Iterator<Item = &ActorInfo> {
+        self.0.values()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&ActorId, &ActorInfo)> {
+        self.0.iter()
+    }
+
+    #[must_use]
+    pub fn entity_is_actor(&self, entity: Entity) -> bool {
+        self.0.values().any(|actor| actor.entity == entity)
+    }
+
+    #[must_use]
+    pub fn info_for_entity(&self, entity: Entity) -> Option<&ActorInfo> {
+        self.0.values().find(|actor| actor.entity == entity)
+    }
+}
 
 #[derive(Resource, Default)]
 pub struct ActorSpawner {

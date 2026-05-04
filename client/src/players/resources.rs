@@ -20,7 +20,39 @@ pub struct PlayerInfo {
 
 // Map of all players (client-side source of truth).
 #[derive(Resource, Default)]
-pub struct PlayerMap(pub HashMap<PlayerId, PlayerInfo>);
+pub struct PlayerMap(HashMap<PlayerId, PlayerInfo>);
+
+impl PlayerMap {
+    pub fn insert(&mut self, id: PlayerId, info: PlayerInfo) -> Option<PlayerInfo> {
+        self.0.insert(id, info)
+    }
+
+    pub fn remove(&mut self, id: &PlayerId) -> Option<PlayerInfo> {
+        self.0.remove(id)
+    }
+
+    #[must_use]
+    pub fn contains_key(&self, id: &PlayerId) -> bool {
+        self.0.contains_key(id)
+    }
+
+    #[must_use]
+    pub fn get(&self, id: &PlayerId) -> Option<&PlayerInfo> {
+        self.0.get(id)
+    }
+
+    pub fn get_mut(&mut self, id: &PlayerId) -> Option<&mut PlayerInfo> {
+        self.0.get_mut(id)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&PlayerId, &PlayerInfo)> {
+        self.0.iter()
+    }
+
+    pub fn retain(&mut self, f: impl FnMut(&PlayerId, &mut PlayerInfo) -> bool) {
+        self.0.retain(f);
+    }
+}
 
 // Client-only local player state (not synced).
 #[derive(Resource)]

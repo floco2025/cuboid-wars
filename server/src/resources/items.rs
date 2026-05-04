@@ -11,7 +11,38 @@ pub struct ItemInfo {
 }
 
 #[derive(Resource, Default)]
-pub struct ItemMap(pub HashMap<ItemId, ItemInfo>);
+pub struct ItemMap(HashMap<ItemId, ItemInfo>);
+
+impl ItemMap {
+    pub fn insert(&mut self, id: ItemId, info: ItemInfo) -> Option<ItemInfo> {
+        self.0.insert(id, info)
+    }
+
+    pub fn remove(&mut self, id: &ItemId) -> Option<ItemInfo> {
+        self.0.remove(id)
+    }
+
+    #[must_use]
+    pub fn get(&self, id: &ItemId) -> Option<&ItemInfo> {
+        self.0.get(id)
+    }
+
+    pub fn get_mut(&mut self, id: &ItemId) -> Option<&mut ItemInfo> {
+        self.0.get_mut(id)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&ItemId, &ItemInfo)> {
+        self.0.iter()
+    }
+
+    pub fn values(&self) -> impl Iterator<Item = &ItemInfo> {
+        self.0.values()
+    }
+
+    pub fn values_mut(&mut self) -> impl Iterator<Item = &mut ItemInfo> {
+        self.0.values_mut()
+    }
+}
 
 #[derive(Resource)]
 pub struct ItemSpawner {

@@ -18,7 +18,7 @@ pub fn ui_stunned_blink_system(
     );
 
     for (entry_id, mut bg_color) in &mut query {
-        if let Some(player_info) = players.0.get(entry_id) {
+        if let Some(player_info) = players.get(entry_id) {
             let is_local = local_player_id == Some(*entry_id);
             let base_color = if is_local { LOCAL_PLAYER_BG_COLOR } else { Color::NONE };
 

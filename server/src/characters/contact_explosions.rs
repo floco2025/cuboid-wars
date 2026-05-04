@@ -14,19 +14,18 @@ pub(super) fn detonate_actors_touching_players(
     server_gameplay_config: &ServerGameplayConfig,
 ) {
     for planned_move in planned_moves {
-        if actors.0.values().any(|actor| actor.entity == planned_move.entity) {
+        if actors.values().any(|actor| actor.entity == planned_move.entity) {
             continue;
         }
 
         for actor_entity in planned_moves
             .iter()
             .filter(|other| {
-                let Some(actor_info) = actors.0.values().find(|actor| actor.entity == other.entity) else {
+                let Some(actor_info) = actors.values().find(|actor| actor.entity == other.entity) else {
                     return false;
                 };
                 let contact_explosion_distance = server_gameplay_config
-                    .actor(&actor_info.spawn_kind)
-                    .expect("actor kind validated at startup")
+                    .validated_actor(&actor_info.spawn_kind)
                     .contact_explosion_distance;
                 character_move_plans_touch(planned_move, other, contact_explosion_distance)
             })

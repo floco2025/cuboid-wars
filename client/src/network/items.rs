@@ -44,7 +44,7 @@ pub fn sync_items(
 
     // Spawn any items that appear in the update but are missing locally
     for (item_id, item) in server_items {
-        if items.0.contains_key(item_id) {
+        if items.contains_key(item_id) {
             continue;
         }
         let entity = spawn_item(
@@ -58,11 +58,11 @@ pub fn sync_items(
             item.item_type,
             &item.pos,
         );
-        items.0.insert(*item_id, ItemInfo { entity });
+        items.insert(*item_id, ItemInfo { entity });
     }
 
     // Despawn items no longer present in the authoritative snapshot
-    items.0.retain(|id, item_info| {
+    items.retain(|id, item_info| {
         if server_item_ids.contains(id) {
             true
         } else {

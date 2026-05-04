@@ -35,7 +35,7 @@ pub fn sync_actors(
     let update_ids: HashSet<ActorId> = server_actors.iter().map(|(id, _)| *id).collect();
 
     for (id, actor) in server_actors {
-        if actors.0.contains_key(id) {
+        if actors.contains_key(id) {
             continue;
         }
 
@@ -52,7 +52,7 @@ pub fn sync_actors(
             *id,
             actor,
         );
-        actors.0.insert(
+        actors.insert(
             *id,
             ActorInfo {
                 entity,
@@ -61,7 +61,7 @@ pub fn sync_actors(
         );
     }
 
-    actors.0.retain(|id, actor| {
+    actors.retain(|id, actor| {
         if update_ids.contains(id) {
             true
         } else {
@@ -71,7 +71,7 @@ pub fn sync_actors(
     });
 
     for (id, server_actor) in server_actors {
-        if let Some(client_actor) = actors.0.get(id) {
+        if let Some(client_actor) = actors.get(id) {
             commands.entity(client_actor.entity).insert(server_actor.health);
         }
         apply_actor_movement_state(
@@ -105,7 +105,7 @@ pub fn handle_actor_move_intent_message(
 }
 
 pub fn handle_actor_teleport_message(commands: &mut Commands, actors: &ResMut<ActorMap>, msg: SActorTeleport) {
-    let Some(client_actor) = actors.0.get(&msg.id) else {
+    let Some(client_actor) = actors.get(&msg.id) else {
         return;
     };
 
@@ -133,7 +133,7 @@ pub fn handle_actor_destroyed_message(
     gameplay_config: &GameplayConfig,
     msg: SActorDestroyed,
 ) {
-    let Some(info) = actors.0.get(&msg.id) else {
+    let Some(info) = actors.get(&msg.id) else {
         return;
     };
     spawn_actor_explosion(
@@ -174,7 +174,7 @@ fn apply_actor_movement_state(
     movement: ActorMovementState,
     face_dir: Option<f32>,
 ) {
-    let Some(client_actor) = actors.0.get(&id) else {
+    let Some(client_actor) = actors.get(&id) else {
         return;
     };
 

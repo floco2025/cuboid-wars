@@ -30,7 +30,7 @@ pub fn network_broadcast_state_system(
 
     *seq = seq.wrapping_add(1);
 
-    if players.0.values().all(|info| !info.logged_in) {
+    if players.values().all(|info| !info.logged_in) {
         return;
     }
 

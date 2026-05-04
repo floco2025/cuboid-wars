@@ -76,6 +76,11 @@ impl ServerGameplayConfig {
     pub fn actor(&self, kind: &str) -> Option<&ActorKindServerConfig> {
         self.actors.get(kind)
     }
+
+    #[must_use]
+    pub fn validated_actor(&self, kind: &str) -> &ActorKindServerConfig {
+        self.actor(kind).expect("actor kind validated at startup")
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]

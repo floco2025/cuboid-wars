@@ -9,20 +9,16 @@ use quinn::Endpoint;
 use tokio::{runtime::Runtime, time::Duration};
 
 use client::{
-    actors::*,
-    cameras::*,
-    characters::*,
+    actors::ActorMap,
+    app::ClientGamePlugin,
+    cameras::{CameraViewMode, TopDownCameraYaw},
     config::{AssetSet, OpaqueRenderer, RenderSettings, configure_client},
-    input::*,
-    items::*,
-    map::*,
-    materials::generate_material_mipmaps_system,
-    network::*,
-    players::*,
-    projectiles::*,
-    skybox::*,
-    ui::*,
-    vfx::*,
+    items::ItemMap,
+    map::{DebugColors, LevelFocusEnabled},
+    network::{ClientToServerChannel, LastUpdateSeq, RoundTripTime, ServerToClientChannel, network_io_task},
+    players::{LocalPlayerInfo, PlayerMap},
+    projectiles::LastBounceSoundTime,
+    ui::FpsMeasurement,
 };
 use common::{config::GameplayConfig, net::MessageStream, protocol::*};
 
@@ -124,92 +120,9 @@ fn main() -> Result<()> {
         .insert_resource(render_settings)
         .insert_resource(DebugColors(debug_colors))
         .insert_resource(LastBounceSoundTime::default())
-        .init_resource::<ProjectileAssets>()
-        .add_systems(
-            Startup,
-            (
-                setup_world_geometry_system,
-                setup_cameras_system,
-                setup_ui_system,
-                setup_skybox_from_cross.after(setup_world_geometry_system),
-            ),
-        )
-        .add_systems(
-            Update,
-            (
-                input_movement_system.after(input_camera_view_toggle_system),
-                input_shooting_system.after(input_movement_system),
-                input_cursor_toggle_system,
-                input_camera_view_toggle_system,
-                input_level_focus_toggle_system,
-                input_fullscreen_toggle_system,
-            ),
-        )
-        .add_systems(Update, (network_echo_system, network_server_message_system))
-        .add_systems(
-            Update,
-            (
-                characters_movement_system,
-                players_transform_sync_system.after(characters_movement_system),
-                actors_transform_sync_system.after(characters_movement_system),
-                characters_visual_turn_system
-                    .after(players_transform_sync_system)
-                    .after(actors_transform_sync_system),
-                character_label_billboard_system,
-                label_camera_visibility_system,
-                character_shadow_settings_system,
-            ),
-        )
-        .add_systems(
-            Update,
-            (
-                local_player_camera_shake_system,
-                local_player_cuboid_shake_system,
-                local_player_camera_sync_system
-                    .after(input_movement_system)
-                    .after(local_player_camera_shake_system),
-                local_player_rearview_sync_system.after(local_player_camera_sync_system),
-                local_player_rearview_system.after(local_player_rearview_sync_system),
-                local_player_visibility_sync_system.after(input_camera_view_toggle_system),
-            ),
-        )
-        .add_systems(Update, projectiles_movement_system)
-        .add_systems(Update, explosion_effect_system)
-        .add_systems(Update, items_animation_system)
-        .add_systems(
-            Update,
-            (
-                map_spawn_geometry_system,
-                map_level_focus_visibility_system,
-                map_make_wall_lights_emissive_system,
-            ),
-        )
-        .add_systems(
-            Update,
-            (
-                ui_toggle_crosshair_system,
-                ui_player_list_system,
-                ui_health_bars_system.after(ui_player_list_system),
-                ui_stunned_blink_system,
-                ui_rtt_system,
-                ui_fps_system,
-            ),
-        )
-        .add_systems(
-            Update,
-            (
-                skybox_convert_cross_to_cubemap_system.run_if(resource_exists::<SkyboxCrossImage>),
-                skybox_update_camera_system.run_if(resource_exists::<SkyboxCubemap>),
-            ),
-        );
-
-    if texture_mipmaps_enabled {
-        // Do not use bevy_mod_mipmap_generator::generate_mipmaps directly here.
-        // It reacts to material events only once, while our materials often point
-        // at image assets that are still loading. Our system retries until the
-        // images exist, then calls the crate's mip generation function.
-        app.add_systems(Update, generate_material_mipmaps_system);
-    }
+        .add_plugins(ClientGamePlugin {
+            texture_mipmaps_enabled,
+        });
 
     app.run();
 

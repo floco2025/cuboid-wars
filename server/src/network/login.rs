@@ -42,7 +42,6 @@ pub fn handle_login_message(
 
             let (channel, hits, name) = {
                 let player_info = players
-                    .0
                     .get_mut(&id)
                     .expect("handle_login_message called for unknown player");
                 let channel = player_info.channel.clone();
@@ -71,7 +70,6 @@ pub fn handle_login_message(
             // Generate random initial position for the new player.
             // Avoid spawning on top of any other logged-in player.
             let occupied_positions: Vec<Position> = players
-                .0
                 .values()
                 .filter(|p| p.logged_in && p.entity != entity)
                 .filter_map(|p| player_data.get(p.entity).ok())
