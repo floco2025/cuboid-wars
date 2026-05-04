@@ -11,10 +11,7 @@ use tokio::{runtime::Runtime, time::Duration};
 use client::{
     actors::{ActorMap, actors_transform_sync_system},
     cameras::{CameraViewMode, TopDownCameraYaw, setup_cameras_system},
-    characters::{
-        character_label_billboard_system, character_shadow_settings_system, characters_movement_system,
-        characters_visual_turn_system, label_camera_visibility_system,
-    },
+    characters::{characters_movement_system, characters_visual_turn_system},
     config::{AssetSet, OpaqueRenderer, RenderSettings, configure_client},
     input::{
         input_camera_view_toggle_system, input_cursor_toggle_system, input_fullscreen_toggle_system,
@@ -23,7 +20,7 @@ use client::{
     items::{ItemMap, items_animation_system},
     map::{
         DebugColors, LevelFocusEnabled, map_level_focus_visibility_system, map_spawn_geometry_system,
-        map_wall_light_emissive_system, setup_world_geometry_system,
+        map_wall_light_emissive_system, setup_scene_lighting_system,
     },
     materials::generate_material_mipmaps_system,
     network::{
@@ -32,13 +29,15 @@ use client::{
     },
     players::{
         LocalPlayerInfo, PlayerMap, local_player_camera_shake_system, local_player_camera_sync_system,
-        local_player_cuboid_shake_system, local_player_rearview_sync_system, local_player_rearview_system,
+        local_player_cuboid_shake_system, local_player_rearview_sync_system, local_player_rearview_viewport_system,
         local_player_visibility_sync_system, players_transform_sync_system,
     },
     projectiles::{LastBounceSoundTime, ProjectileAssets, projectiles_movement_system},
     skybox::{setup_skybox_from_cross_system, skybox_convert_cross_to_cubemap_system, skybox_update_camera_system},
     ui::{
-        FpsMeasurement, setup_ui_system, ui_crosshair_visibility_system, ui_fps_system, ui_health_bar_fill_system,
+        FpsMeasurement,
+        floating_labels::{floating_label_camera_visibility_system, floating_labels_billboard_system},
+        setup_ui_system, ui_crosshair_visibility_system, ui_fps_system, ui_health_bar_fill_system,
         ui_player_list_rebuild_system, ui_rtt_system, ui_stunned_blink_system,
     },
     vfx::explosion_effects_system,
@@ -149,10 +148,10 @@ fn main() -> Result<()> {
         .add_systems(
             Startup,
             (
-                setup_world_geometry_system,
+                setup_scene_lighting_system,
                 setup_cameras_system,
                 setup_ui_system,
-                setup_skybox_from_cross_system.after(setup_world_geometry_system),
+                setup_skybox_from_cross_system.after(setup_scene_lighting_system),
             ),
         )
         // Input writes local intent and view/debug state.
@@ -180,9 +179,8 @@ fn main() -> Result<()> {
                 characters_visual_turn_system
                     .after(players_transform_sync_system)
                     .after(actors_transform_sync_system),
-                character_label_billboard_system,
-                label_camera_visibility_system,
-                character_shadow_settings_system,
+                floating_labels_billboard_system,
+                floating_label_camera_visibility_system,
             ),
         )
         // Cameras follow the local player after input/prediction has had a
@@ -196,7 +194,7 @@ fn main() -> Result<()> {
                     .after(input_movement_system)
                     .after(local_player_camera_shake_system),
                 local_player_rearview_sync_system.after(local_player_camera_sync_system),
-                local_player_rearview_system.after(local_player_rearview_sync_system),
+                local_player_rearview_viewport_system.after(local_player_rearview_sync_system),
                 local_player_visibility_sync_system.after(input_camera_view_toggle_system),
             ),
         )

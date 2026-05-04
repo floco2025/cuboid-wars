@@ -8,7 +8,7 @@ use crate::{constants::*, ui::spawn_health_bar};
 pub struct CharacterLabelTextMarker;
 
 // Marker for the floating-label 3D quad in world space (the textured rectangle
-// above a character). Queried by `character_label_billboard_system` to rotate
+// above a character). Queried by `floating_labels_billboard_system` to rotate
 // the quad to face the main camera each frame.
 #[derive(Component)]
 pub struct CharacterLabelMeshMarker;

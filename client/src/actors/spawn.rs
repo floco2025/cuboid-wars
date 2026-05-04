@@ -2,7 +2,7 @@ use bevy::{gltf::GltfAssetLabel, prelude::*, scene::SceneRoot};
 
 use crate::{
     animations::{AnimationToPlay, character_animation_system},
-    characters::{CharacterModelMarker, spawn_collider_box},
+    characters::spawn_collider_box,
     config::{AssetSet, RenderSettings},
     constants::{LABEL_ACTOR_TEXTURE_HEIGHT, LABEL_ACTOR_TEXTURE_WIDTH},
     ui::floating_labels::{LabelCamera, setup_label_texture, spawn_floating_actor_health_bar},
@@ -59,7 +59,6 @@ pub fn spawn_actor(
     let mut model_commands = commands.spawn((
         SceneRoot(asset_server.load(actor_model.scene.clone())),
         Transform::from_scale(Vec3::splat(actor_model.scale)).with_translation(Vec3::new(0.0, base_y, 0.0)),
-        CharacterModelMarker,
     ));
 
     if let Some(animation_speed) = actor_model.animation_speed {

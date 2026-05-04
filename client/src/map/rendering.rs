@@ -13,10 +13,10 @@ use crate::{
 use common::protocol::{ItemMarker, MapLayout};
 
 // ============================================================================
-// World Geometry Setup System
+// Scene Lighting Setup System
 // ============================================================================
 
-pub fn setup_world_geometry_system(mut commands: Commands, render_settings: Res<RenderSettings>) {
+pub fn setup_scene_lighting_system(mut commands: Commands, render_settings: Res<RenderSettings>) {
     commands.spawn((
         DirectionalLight {
             illuminance: render_settings.light_directional_brightness,

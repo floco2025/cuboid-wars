@@ -1,19 +1,5 @@
-use std::collections::HashSet;
-
-use bevy::{
-    light::NotShadowCaster,
-    prelude::*,
-    scene::{SceneInstance, SceneSpawner},
-};
+use bevy::prelude::*;
 use common::config::CharacterPhysicsConfig;
-
-use crate::config::RenderSettings;
-
-// Marks the inner SceneRoot entity of a spawned character (the GLB model).
-// Used by `character_shadow_settings_system` to find spawned scene instances
-// and tweak their shadow casters.
-#[derive(Component)]
-pub struct CharacterModelMarker;
 
 pub fn spawn_collider_box(
     commands: &mut Commands,
@@ -36,27 +22,4 @@ pub fn spawn_collider_box(
             Transform::from_translation(Vec3::ZERO),
         ))
         .id()
-}
-
-pub fn character_shadow_settings_system(
-    mut commands: Commands,
-    render_settings: Res<RenderSettings>,
-    scene_spawner: Res<SceneSpawner>,
-    character_models: Query<(Entity, &SceneInstance), With<CharacterModelMarker>>,
-    mut processed: Local<HashSet<Entity>>,
-) {
-    if render_settings.shadows_player_enabled {
-        return;
-    }
-
-    for (model_entity, scene_instance) in &character_models {
-        if processed.contains(&model_entity) || !scene_spawner.instance_is_ready(**scene_instance) {
-            continue;
-        }
-
-        for entity in scene_spawner.iter_instance_entities(**scene_instance) {
-            commands.entity(entity).insert(NotShadowCaster);
-        }
-        processed.insert(model_entity);
-    }
 }

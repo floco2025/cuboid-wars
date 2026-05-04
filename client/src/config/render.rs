@@ -33,7 +33,6 @@ pub struct RenderSettings {
     pub rearview_enabled: bool,
     pub opaque_renderer: OpaqueRenderer,
     pub shadows_directional_enabled: bool,
-    pub shadows_player_enabled: bool,
     pub debug_map_colors: bool,
     pub debug_collider_boxes: bool,
     pub texture_mipmaps_enabled: bool,

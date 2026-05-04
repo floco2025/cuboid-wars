@@ -3,7 +3,7 @@ use bevy::{gltf::GltfAssetLabel, prelude::*, scene::SceneRoot};
 use super::BumpFlashState;
 use crate::{
     animations::{AnimationToPlay, character_animation_system},
-    characters::{CharacterModelMarker, spawn_collider_box},
+    characters::spawn_collider_box,
     config::{AssetSet, RenderSettings},
     constants::{LABEL_PLAYER_TEXTURE_HEIGHT, LABEL_PLAYER_TEXTURE_WIDTH},
     ui::floating_labels::{LabelCamera, setup_label_texture, spawn_floating_player_label},
@@ -107,7 +107,6 @@ pub fn spawn_player(
             SceneRoot(asset_server.load(player_model.scene.clone())),
             Transform::from_scale(Vec3::splat(player_model.scale)).with_translation(Vec3::new(0.0, base_y, 0.0)),
             animation_to_play,
-            CharacterModelMarker,
         ))
         .observe(character_animation_system)
         .id();

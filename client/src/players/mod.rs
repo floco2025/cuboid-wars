@@ -7,7 +7,7 @@ mod resources;
 mod spawn;
 
 pub use camera::{
-    local_player_camera_sync_system, local_player_rearview_sync_system, local_player_rearview_system,
+    local_player_camera_sync_system, local_player_rearview_sync_system, local_player_rearview_viewport_system,
     local_player_visibility_sync_system,
 };
 pub use components::{BumpFlashState, CameraShake, CuboidShake};

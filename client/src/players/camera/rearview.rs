@@ -42,7 +42,7 @@ pub fn local_player_rearview_sync_system(
 }
 
 // Update rearview camera viewport based on window size.
-pub fn local_player_rearview_system(
+pub fn local_player_rearview_viewport_system(
     windows: Query<&Window>,
     mut rearview_query: Query<&mut Camera, With<RearviewCameraMarker>>,
     view_mode: Res<CameraViewMode>,

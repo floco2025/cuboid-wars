@@ -8,7 +8,6 @@
   "rearview_enabled": true,
   "opaque_renderer": "auto",
   "shadows_directional_enabled": true,
-  "shadows_player_enabled": true,
   "debug_map_colors": false,
   "debug_collider_boxes": false,
   "texture_mipmaps_enabled": true,
