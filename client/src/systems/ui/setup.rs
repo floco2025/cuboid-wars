@@ -4,7 +4,7 @@ use crate::markers::*;
 
 pub fn setup_ui_system(mut commands: Commands) {
     commands.spawn((
-        PlayerListUIMarker,
+        PlayerListMarker,
         Node {
             position_type: PositionType::Absolute,
             left: Val::Px(10.0),
@@ -21,7 +21,7 @@ pub fn setup_ui_system(mut commands: Commands) {
 
     commands
         .spawn((
-            CrosshairUIMarker,
+            CrosshairMarker,
             Node {
                 position_type: PositionType::Absolute,
                 left: Val::Percent(50.0),
@@ -59,7 +59,7 @@ pub fn setup_ui_system(mut commands: Commands) {
         });
 
     commands.spawn((
-        RttUIMarker,
+        RttMarker,
         Text::new("RTT: --ms"),
         TextFont {
             font_size: 20.0,
@@ -75,7 +75,7 @@ pub fn setup_ui_system(mut commands: Commands) {
     ));
 
     commands.spawn((
-        FpsUIMarker,
+        FpsMarker,
         Text::new("FPS: --"),
         TextFont {
             font_size: 20.0,
@@ -91,7 +91,7 @@ pub fn setup_ui_system(mut commands: Commands) {
     ));
 
     commands.spawn((
-        BumpFlashUIMarker,
+        BumpFlashMarker,
         Node {
             position_type: PositionType::Absolute,
             left: Val::Px(0.0),

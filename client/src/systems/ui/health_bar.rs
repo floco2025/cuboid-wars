@@ -1,9 +1,9 @@
 use bevy::prelude::*;
 use common::{health::health_ratio, protocol::Health};
 
-use crate::markers::HealthBarFillMarker;
+use crate::markers::HealthBarFill;
 
-pub fn ui_health_bars_system(health_query: Query<&Health>, mut bar_query: Query<(&HealthBarFillMarker, &mut Node)>) {
+pub fn ui_health_bars_system(health_query: Query<&Health>, mut bar_query: Query<(&HealthBarFill, &mut Node)>) {
     for (bar, mut node) in &mut bar_query {
         let Ok(health) = health_query.get(bar.tracked_entity) else {
             continue;

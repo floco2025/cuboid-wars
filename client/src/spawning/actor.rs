@@ -3,7 +3,7 @@ use bevy::{gltf::GltfAssetLabel, prelude::*, scene::SceneRoot};
 use super::{setup_label_texture, spawn_collider_box, spawn_floating_actor_health_bar};
 use crate::{
     config::{AssetSet, RenderSettings},
-    constants::{ACTOR_HEALTH_BAR_TEXTURE_HEIGHT, ACTOR_HEALTH_BAR_TEXTURE_WIDTH},
+    constants::{LABEL_ACTOR_TEXTURE_HEIGHT, LABEL_ACTOR_TEXTURE_WIDTH},
     markers::{CharacterModelMarker, LabelCamera},
     systems::{AnimationToPlay, character_animation_system},
 };
@@ -78,12 +78,8 @@ pub fn spawn_actor(
 
     children.push(model_commands.id());
 
-    let (image_handle, text_camera) = setup_label_texture(
-        commands,
-        images,
-        ACTOR_HEALTH_BAR_TEXTURE_WIDTH,
-        ACTOR_HEALTH_BAR_TEXTURE_HEIGHT,
-    );
+    let (image_handle, text_camera) =
+        setup_label_texture(commands, images, LABEL_ACTOR_TEXTURE_WIDTH, LABEL_ACTOR_TEXTURE_HEIGHT);
     let (_ui_entity, mesh_entity) = spawn_floating_actor_health_bar(
         commands,
         meshes,

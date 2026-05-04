@@ -38,7 +38,7 @@ pub(crate) fn plan_player_moves(
     gameplay_config: &GameplayConfig,
     players: &PlayerMap,
     query: &mut PlayerMovementQuery,
-    bump_flash_ui: &mut Query<(&mut BackgroundColor, &mut Visibility), With<BumpFlashUIMarker>>,
+    bump_flash_ui: &mut Query<(&mut BackgroundColor, &mut Visibility), With<BumpFlashMarker>>,
     planned_moves: &mut Vec<CharacterMovePlan>,
 ) {
     let player_config = &gameplay_config.player;
@@ -177,7 +177,7 @@ pub(crate) fn apply_player_moves(
     asset_server: &AssetServer,
     asset_set: &AssetSet,
     query: &mut PlayerMovementQuery,
-    bump_flash_ui: &mut Query<(&mut BackgroundColor, &mut Visibility), With<BumpFlashUIMarker>>,
+    bump_flash_ui: &mut Query<(&mut BackgroundColor, &mut Visibility), With<BumpFlashMarker>>,
     planned_moves: &[CharacterMovePlan],
 ) {
     for planned_move in planned_moves {
@@ -217,7 +217,7 @@ fn decay_flash_timer(
     state: &mut Mut<BumpFlashState>,
     delta: f32,
     is_local: bool,
-    bump_flash_ui: &mut Query<(&mut BackgroundColor, &mut Visibility), With<BumpFlashUIMarker>>,
+    bump_flash_ui: &mut Query<(&mut BackgroundColor, &mut Visibility), With<BumpFlashMarker>>,
 ) {
     if state.flash_timer <= 0.0 {
         return;
@@ -237,7 +237,7 @@ fn trigger_collision_feedback(
     commands: &mut Commands,
     asset_server: &AssetServer,
     asset_set: &AssetSet,
-    bump_flash_ui: &mut Query<(&mut BackgroundColor, &mut Visibility), With<BumpFlashUIMarker>>,
+    bump_flash_ui: &mut Query<(&mut BackgroundColor, &mut Visibility), With<BumpFlashMarker>>,
     state: &mut Mut<BumpFlashState>,
     collided_with_wall: bool,
 ) {

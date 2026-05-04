@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::{
     config::AssetSet,
-    markers::BumpFlashUIMarker,
+    markers::BumpFlashMarker,
     resources::{ActorMap, PlayerMap},
     systems::{
         actors::{ActorMovementQuery, actor_start_positions, apply_actor_moves, plan_actor_moves},
@@ -22,7 +22,7 @@ pub fn characters_movement_system(
     actors: Res<ActorMap>,
     mut players_query: PlayerMovementQuery,
     mut actors_query: ActorMovementQuery,
-    mut bump_flash_ui: Query<(&mut BackgroundColor, &mut Visibility), With<BumpFlashUIMarker>>,
+    mut bump_flash_ui: Query<(&mut BackgroundColor, &mut Visibility), With<BumpFlashMarker>>,
 ) {
     let delta = time.delta_secs();
     let mut planned_moves = Vec::new();

@@ -61,23 +61,23 @@ pub struct MapLevel(pub u8);
 
 // Marker component for the player list UI
 #[derive(Component)]
-pub struct PlayerListUIMarker;
+pub struct PlayerListMarker;
 
 // Marker component for the crosshair UI
 #[derive(Component)]
-pub struct CrosshairUIMarker;
+pub struct CrosshairMarker;
 
 // Marker component for the RTT display
 #[derive(Component)]
-pub struct RttUIMarker;
+pub struct RttMarker;
 
 // Marker component for the FPS display
 #[derive(Component)]
-pub struct FpsUIMarker;
+pub struct FpsMarker;
 
 // Marker component for the bump flash overlay
 #[derive(Component)]
-pub struct BumpFlashUIMarker;
+pub struct BumpFlashMarker;
 
 // Marker component for player entry rows
 #[derive(Component)]
@@ -98,7 +98,7 @@ pub struct CharacterLabelMeshMarker;
 pub struct LabelCamera(pub Entity);
 
 #[derive(Component)]
-pub struct HealthBarFillMarker {
+pub struct HealthBarFill {
     pub tracked_entity: Entity,
     pub max_health: f32,
 }

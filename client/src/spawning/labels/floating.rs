@@ -14,7 +14,8 @@ pub fn spawn_floating_player_label(
     max_health: f32,
     current_health: f32,
 ) -> (Entity, Entity) {
-    const LABEL_HEIGHT: f32 = LABEL_WIDTH * (PLAYER_LABEL_TEXTURE_HEIGHT as f32 / PLAYER_LABEL_TEXTURE_WIDTH as f32);
+    const LABEL_HEIGHT: f32 =
+        LABEL_PLAYER_MESH_WIDTH * (LABEL_PLAYER_TEXTURE_HEIGHT as f32 / LABEL_PLAYER_TEXTURE_WIDTH as f32);
 
     let text_entity = commands
         .spawn((
@@ -65,7 +66,7 @@ pub fn spawn_floating_player_label(
     let mesh_entity = commands
         .spawn((
             CharacterLabelMeshMarker,
-            Mesh3d(meshes.add(Rectangle::new(LABEL_WIDTH, LABEL_HEIGHT))),
+            Mesh3d(meshes.add(Rectangle::new(LABEL_PLAYER_MESH_WIDTH, LABEL_HEIGHT))),
             MeshMaterial3d(materials.add(StandardMaterial {
                 base_color_texture: Some(image_handle),
                 alpha_mode: AlphaMode::Blend,
@@ -95,10 +96,10 @@ pub fn spawn_floating_actor_health_bar(
     current_health: f32,
 ) -> (Entity, Entity) {
     // Texture dimensions match the visible bar exactly (no padding); see
-    // ACTOR_HEALTH_BAR_TEXTURE_*. The mesh aspect mirrors the texture, so
-    // every texel maps near-1:1 to a fragment on the mesh.
-    const BAR_MESH_WIDTH: f32 = HEALTH_BAR_FLOATING_ACTOR_MESH_WIDTH;
-    const BAR_MESH_HEIGHT: f32 = BAR_MESH_WIDTH * (HEALTH_BAR_FLOATING_ACTOR_HEIGHT / HEALTH_BAR_FLOATING_ACTOR_WIDTH);
+    // LABEL_ACTOR_TEXTURE_*. The mesh aspect mirrors the texture, so every
+    // texel maps near-1:1 to a fragment on the mesh.
+    const BAR_MESH_HEIGHT: f32 =
+        LABEL_ACTOR_MESH_WIDTH * (HEALTH_BAR_FLOATING_ACTOR_HEIGHT / HEALTH_BAR_FLOATING_ACTOR_WIDTH);
 
     // No wrapper Node — the bar fills the texture exactly, so we render the
     // health bar directly at the camera root.
@@ -126,7 +127,7 @@ pub fn spawn_floating_actor_health_bar(
     let mesh_entity = commands
         .spawn((
             CharacterLabelMeshMarker,
-            Mesh3d(meshes.add(Rectangle::new(BAR_MESH_WIDTH, BAR_MESH_HEIGHT))),
+            Mesh3d(meshes.add(Rectangle::new(LABEL_ACTOR_MESH_WIDTH, BAR_MESH_HEIGHT))),
             MeshMaterial3d(materials.add(StandardMaterial {
                 base_color_texture: Some(image_handle),
                 alpha_mode: AlphaMode::Blend,

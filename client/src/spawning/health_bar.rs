@@ -2,7 +2,7 @@ use bevy::{ecs::hierarchy::ChildSpawnerCommands, prelude::*};
 
 use crate::{
     constants::{HEALTH_BAR_FILL_COLOR, HEALTH_BAR_TRACK_COLOR},
-    markers::HealthBarFillMarker,
+    markers::HealthBarFill,
 };
 use common::{health::health_ratio, protocol::Health};
 
@@ -26,7 +26,7 @@ pub fn spawn_health_bar(
         ))
         .with_children(|bar| {
             bar.spawn((
-                HealthBarFillMarker {
+                HealthBarFill {
                     tracked_entity,
                     max_health,
                 },

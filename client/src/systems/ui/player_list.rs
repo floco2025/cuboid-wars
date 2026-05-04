@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::{
     constants::{HEALTH_BAR_PLAYER_LIST_HEIGHT, HEALTH_BAR_PLAYER_LIST_WIDTH},
-    markers::{PlayerEntryMarker, PlayerListUIMarker},
+    markers::{PlayerEntryMarker, PlayerListMarker},
     resources::{MyPlayerId, PlayerInfo, PlayerMap},
     spawning::{item_type_color, spawn_health_bar},
 };
@@ -18,7 +18,7 @@ pub fn ui_player_list_system(
     my_player_id: Option<Res<MyPlayerId>>,
     gameplay_config: Res<GameplayConfig>,
     health_query: Query<&Health>,
-    player_list_ui: Single<Entity, With<PlayerListUIMarker>>,
+    player_list_ui: Single<Entity, With<PlayerListMarker>>,
     children_query: Query<&Children>,
 ) {
     if !players.is_changed() {

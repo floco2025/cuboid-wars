@@ -77,13 +77,13 @@ fn floor_bounds_for_level(map_layout: &MapLayout, level: u8) -> FloorBounds {
 }
 
 fn topdown_camera_offset_to_fit(bounds: FloorBounds, aspect_ratio: f32, fov: f32, view_direction: Vec3) -> Vec3 {
-    let tilt = TOPDOWN_CAMERA_TILT_DEGREES.to_radians();
+    let tilt = TOPDOWN_TILT_DEGREES.to_radians();
     let half_vertical_fov_tan = (fov / 2.0).tan();
     let half_horizontal_fov_tan = half_vertical_fov_tan * aspect_ratio.max(0.1);
     let view_extent = floor_extent_along_view(bounds, view_direction);
     let cross_extent = floor_extent_across_view(bounds, view_direction);
-    let cross_distance = cross_extent * TOPDOWN_CAMERA_MARGIN / (2.0 * half_horizontal_fov_tan);
-    let view_distance = view_extent * tilt.cos() * TOPDOWN_CAMERA_MARGIN / (2.0 * half_vertical_fov_tan);
+    let cross_distance = cross_extent * TOPDOWN_MARGIN / (2.0 * half_horizontal_fov_tan);
+    let view_distance = view_extent * tilt.cos() * TOPDOWN_MARGIN / (2.0 * half_vertical_fov_tan);
     let view_distance = cross_distance.max(view_distance).max(LEVEL_HEIGHT);
 
     Vec3::Y * (view_distance * tilt.cos()) + view_direction * (view_distance * tilt.sin())

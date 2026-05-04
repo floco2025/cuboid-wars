@@ -143,12 +143,13 @@ fn main() -> Result<()> {
             (
                 characters_movement_system,
                 players_transform_sync_system.after(characters_movement_system),
+                actors_transform_sync_system.after(characters_movement_system),
                 characters_visual_turn_system
                     .after(players_transform_sync_system)
                     .after(actors_transform_sync_system),
                 character_label_billboard_system,
                 label_camera_visibility_system,
-                actors_transform_sync_system.after(characters_movement_system),
+                character_shadow_settings_system,
             ),
         )
         .add_systems(
@@ -166,7 +167,6 @@ fn main() -> Result<()> {
         )
         .add_systems(Update, projectiles_movement_system)
         .add_systems(Update, explosion_effect_system)
-        .add_systems(Update, character_shadow_settings_system)
         .add_systems(Update, items_animation_system)
         .add_systems(
             Update,

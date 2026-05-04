@@ -3,7 +3,7 @@ use bevy::{gltf::GltfAssetLabel, prelude::*, scene::SceneRoot};
 use super::{setup_label_texture, spawn_collider_box, spawn_floating_player_label};
 use crate::{
     config::{AssetSet, RenderSettings},
-    constants::{PLAYER_LABEL_TEXTURE_HEIGHT, PLAYER_LABEL_TEXTURE_WIDTH},
+    constants::{LABEL_PLAYER_TEXTURE_HEIGHT, LABEL_PLAYER_TEXTURE_WIDTH},
     markers::*,
     systems::{AnimationToPlay, BumpFlashState, character_animation_system},
 };
@@ -110,8 +110,8 @@ pub fn spawn_player(
     let (image_handle, text_camera) = setup_label_texture(
         commands,
         images,
-        PLAYER_LABEL_TEXTURE_WIDTH,
-        PLAYER_LABEL_TEXTURE_HEIGHT,
+        LABEL_PLAYER_TEXTURE_WIDTH,
+        LABEL_PLAYER_TEXTURE_HEIGHT,
     );
     let (_text_entity, mesh_entity) = spawn_floating_player_label(
         commands,

@@ -2,11 +2,11 @@ use bevy::prelude::*;
 use std::time::Duration;
 
 use crate::{
-    markers::{CrosshairUIMarker, FpsUIMarker, RttUIMarker},
+    markers::{CrosshairMarker, FpsMarker, RttMarker},
     resources::{CameraViewMode, FpsMeasurement, RoundTripTime},
 };
 
-pub fn ui_rtt_system(rtt: Res<RoundTripTime>, mut query: Single<&mut Text, With<RttUIMarker>>) {
+pub fn ui_rtt_system(rtt: Res<RoundTripTime>, mut query: Single<&mut Text, With<RttMarker>>) {
     if !rtt.is_changed() {
         return;
     }
@@ -18,11 +18,7 @@ pub fn ui_rtt_system(rtt: Res<RoundTripTime>, mut query: Single<&mut Text, With<
     }
 }
 
-pub fn ui_fps_system(
-    time: Res<Time>,
-    mut fps: ResMut<FpsMeasurement>,
-    mut query: Single<&mut Text, With<FpsUIMarker>>,
-) {
+pub fn ui_fps_system(time: Res<Time>, mut fps: ResMut<FpsMeasurement>, mut query: Single<&mut Text, With<FpsMarker>>) {
     fps.frame_count += 1;
     fps.fps_timer += time.delta_secs();
 
@@ -37,7 +33,7 @@ pub fn ui_fps_system(
 
 pub fn ui_toggle_crosshair_system(
     view_mode: Res<CameraViewMode>,
-    mut query: Query<&mut Visibility, With<CrosshairUIMarker>>,
+    mut query: Query<&mut Visibility, With<CrosshairMarker>>,
 ) {
     if !view_mode.is_changed() {
         return;
