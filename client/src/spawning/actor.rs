@@ -3,7 +3,8 @@ use bevy::{gltf::GltfAssetLabel, prelude::*, scene::SceneRoot};
 use super::{setup_label_texture, spawn_collider_box, spawn_floating_actor_health_bar};
 use crate::{
     config::{AssetSet, RenderSettings},
-    markers::CharacterModelMarker,
+    constants::{ACTOR_HEALTH_BAR_TEXTURE_HEIGHT, ACTOR_HEALTH_BAR_TEXTURE_WIDTH},
+    markers::{CharacterModelMarker, LabelCamera},
     systems::{AnimationToPlay, character_animation_system},
 };
 use common::{
@@ -77,7 +78,12 @@ pub fn spawn_actor(
 
     children.push(model_commands.id());
 
-    let (image_handle, text_camera) = setup_label_texture(commands, images);
+    let (image_handle, text_camera) = setup_label_texture(
+        commands,
+        images,
+        ACTOR_HEALTH_BAR_TEXTURE_WIDTH,
+        ACTOR_HEALTH_BAR_TEXTURE_HEIGHT,
+    );
     let (_ui_entity, mesh_entity) = spawn_floating_actor_health_bar(
         commands,
         meshes,
@@ -91,6 +97,9 @@ pub fn spawn_actor(
     );
     children.push(mesh_entity);
 
+    // The visibility system reads this to find the actor's label camera and
+    // toggle it on/off based on distance to the main camera and health changes.
+    commands.entity(entity).insert(LabelCamera(text_camera));
     commands.entity(entity).add_children(&children);
 
     entity

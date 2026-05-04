@@ -91,6 +91,12 @@ pub struct CharacterLabelTextMarker;
 #[derive(Component)]
 pub struct CharacterLabelMeshMarker;
 
+// Lives on the character entity (player or actor). Stores the Entity id of
+// its dedicated label-texture camera so the shared visibility system can
+// toggle the camera's `is_active` flag based on distance + Health change.
+#[derive(Component)]
+pub struct LabelCamera(pub Entity);
+
 #[derive(Component)]
 pub struct HealthBarFillMarker {
     pub tracked_entity: Entity,

@@ -14,7 +14,7 @@ pub fn spawn_floating_player_label(
     max_health: f32,
     current_health: f32,
 ) -> (Entity, Entity) {
-    const LABEL_HEIGHT: f32 = LABEL_WIDTH * (LABEL_TEXTURE_HEIGHT as f32 / LABEL_TEXTURE_WIDTH as f32);
+    const LABEL_HEIGHT: f32 = LABEL_WIDTH * (PLAYER_LABEL_TEXTURE_HEIGHT as f32 / PLAYER_LABEL_TEXTURE_WIDTH as f32);
 
     let text_entity = commands
         .spawn((
@@ -94,18 +94,19 @@ pub fn spawn_floating_actor_health_bar(
     max_health: f32,
     current_health: f32,
 ) -> (Entity, Entity) {
-    const BAR_TEXTURE_WIDTH: f32 = HEALTH_BAR_FLOATING_ACTOR_WIDTH;
-    const BAR_TEXTURE_HEIGHT: f32 = HEALTH_BAR_FLOATING_ACTOR_HEIGHT + 10.0;
+    // Texture dimensions match the visible bar exactly (no padding); see
+    // ACTOR_HEALTH_BAR_TEXTURE_*. The mesh aspect mirrors the texture, so
+    // every texel maps near-1:1 to a fragment on the mesh.
     const BAR_MESH_WIDTH: f32 = HEALTH_BAR_FLOATING_ACTOR_MESH_WIDTH;
-    const BAR_MESH_HEIGHT: f32 = BAR_MESH_WIDTH * (BAR_TEXTURE_HEIGHT / BAR_TEXTURE_WIDTH);
+    const BAR_MESH_HEIGHT: f32 = BAR_MESH_WIDTH * (HEALTH_BAR_FLOATING_ACTOR_HEIGHT / HEALTH_BAR_FLOATING_ACTOR_WIDTH);
 
+    // No wrapper Node — the bar fills the texture exactly, so we render the
+    // health bar directly at the camera root.
     let ui_entity = commands
         .spawn((
             Node {
                 width: Val::Percent(100.0),
                 height: Val::Percent(100.0),
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
                 ..default()
             },
             UiTargetCamera(text_camera),

@@ -3,6 +3,7 @@ use bevy::{gltf::GltfAssetLabel, prelude::*, scene::SceneRoot};
 use super::{setup_label_texture, spawn_collider_box, spawn_floating_player_label};
 use crate::{
     config::{AssetSet, RenderSettings},
+    constants::{PLAYER_LABEL_TEXTURE_HEIGHT, PLAYER_LABEL_TEXTURE_WIDTH},
     markers::*,
     systems::{AnimationToPlay, BumpFlashState, character_animation_system},
 };
@@ -106,7 +107,12 @@ pub fn spawn_player(
     children.push(model);
 
     // Create individual texture and camera for this player's ID text
-    let (image_handle, text_camera) = setup_label_texture(commands, images);
+    let (image_handle, text_camera) = setup_label_texture(
+        commands,
+        images,
+        PLAYER_LABEL_TEXTURE_WIDTH,
+        PLAYER_LABEL_TEXTURE_HEIGHT,
+    );
     let (_text_entity, mesh_entity) = spawn_floating_player_label(
         commands,
         meshes,
@@ -121,6 +127,9 @@ pub fn spawn_player(
     );
     children.push(mesh_entity);
 
+    // The visibility system reads this to find the player's label camera and
+    // toggle it on/off based on distance to the main camera and health changes.
+    commands.entity(entity).insert(LabelCamera(text_camera));
     commands.entity(entity).add_children(&children);
 
     entity

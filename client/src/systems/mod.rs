@@ -24,7 +24,7 @@ pub use animations::{AnimationToPlay, character_animation_system};
 pub use cameras::setup_cameras_system;
 pub use characters::{
     CharacterVisualTurnState, character_label_billboard_system, characters_movement_system,
-    characters_visual_turn_system,
+    characters_visual_turn_system, label_camera_visibility_system,
 };
 pub use input::{
     input_camera_view_toggle_system, input_cursor_toggle_system, input_fullscreen_toggle_system,

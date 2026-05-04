@@ -5,12 +5,15 @@ use bevy::{
     render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages},
 };
 
-use crate::constants::{LABEL_TEXTURE_HEIGHT, LABEL_TEXTURE_WIDTH};
-
-pub fn setup_label_texture(commands: &mut Commands, images: &mut ResMut<Assets<Image>>) -> (Handle<Image>, Entity) {
+pub fn setup_label_texture(
+    commands: &mut Commands,
+    images: &mut ResMut<Assets<Image>>,
+    width: u32,
+    height: u32,
+) -> (Handle<Image>, Entity) {
     let size = Extent3d {
-        width: LABEL_TEXTURE_WIDTH,
-        height: LABEL_TEXTURE_HEIGHT,
+        width,
+        height,
         ..default()
     };
 

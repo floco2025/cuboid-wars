@@ -48,8 +48,18 @@ pub const CHARACTER_VISUAL_TURN_MAX_ANGLE: f32 = 180.0; // degrees
 
 pub const LABEL_HEIGHT_ABOVE_CHARACTER: f32 = 0.5;
 pub const LABEL_WIDTH: f32 = 1.0;
-pub const LABEL_TEXTURE_WIDTH: u32 = 256;
-pub const LABEL_TEXTURE_HEIGHT: u32 = 64;
+// Player floating label: name text above a health bar; needs the larger
+// texture for legible text.
+pub const PLAYER_LABEL_TEXTURE_WIDTH: u32 = 256;
+pub const PLAYER_LABEL_TEXTURE_HEIGHT: u32 = 64;
+// Actor floating label: just the health bar, no text. Texture matches the
+// visible bar 1:1 (no padding).
+pub const ACTOR_HEALTH_BAR_TEXTURE_WIDTH: u32 = HEALTH_BAR_FLOATING_ACTOR_WIDTH as u32;
+pub const ACTOR_HEALTH_BAR_TEXTURE_HEIGHT: u32 = HEALTH_BAR_FLOATING_ACTOR_HEIGHT as u32;
+// Beyond this distance from the main camera, character labels (player and
+// actor) stop rendering. Combined with `Changed<Health>` gating, this is
+// the second axis of the per-frame render-pass cost reduction for labels.
+pub const LABEL_CULL_DISTANCE: f32 = 30.0; // meters
 pub const LABEL_TEXT_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 1.0);
 pub const LABEL_BACKGROUND_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.2);
 pub const LABEL_FONT_SIZE: f32 = 40.0;

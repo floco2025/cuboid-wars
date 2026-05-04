@@ -147,6 +147,7 @@ fn main() -> Result<()> {
                     .after(players_transform_sync_system)
                     .after(actors_transform_sync_system),
                 character_label_billboard_system,
+                label_camera_visibility_system,
                 actors_transform_sync_system.after(characters_movement_system),
             ),
         )
