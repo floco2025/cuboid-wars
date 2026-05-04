@@ -7,7 +7,7 @@
     "mine_1": {
       "projectile_damage_from_player": 25.0,
       "spawn_throttle_time": 5.0,
-      "max_wander_distance": 5.0,
+      "max_wander_distance": 25.0,
       "min_direction_time": 1.0,
       "max_direction_time": 3.5,
       "idle_probability": 0.0,
