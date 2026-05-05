@@ -281,8 +281,10 @@
     "mine_2": {
       "inherit_from": "mine_1",
       "model": {
-        "scale": 1.0,
-        "y_offset": -0.05
+        "scene": "models/2nd_robotmine_asset_for_a_vr_game.glb#Scene0",
+        "scale": 1.5,
+        "y_offset": 0.6,
+        "z_offset": 0.3
       },
       "explosion_effect": {
         "scale": 6.0

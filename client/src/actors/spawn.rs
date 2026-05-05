@@ -58,7 +58,11 @@ pub fn spawn_actor(
     let base_y = actor_physics.model_y_offset_from_entity_center(actor_model.y_offset);
     let mut model_commands = commands.spawn((
         SceneRoot(asset_server.load(actor_model.scene.clone())),
-        Transform::from_scale(Vec3::splat(actor_model.scale)).with_translation(Vec3::new(0.0, base_y, 0.0)),
+        Transform::from_scale(Vec3::splat(actor_model.scale)).with_translation(Vec3::new(
+            actor_model.x_offset,
+            base_y,
+            actor_model.z_offset,
+        )),
     ));
 
     if let Some(animation_speed) = actor_model.animation_speed {

@@ -105,7 +105,11 @@ pub fn spawn_player(
     let model = commands
         .spawn((
             SceneRoot(asset_server.load(player_model.scene.clone())),
-            Transform::from_scale(Vec3::splat(player_model.scale)).with_translation(Vec3::new(0.0, base_y, 0.0)),
+            Transform::from_scale(Vec3::splat(player_model.scale)).with_translation(Vec3::new(
+                player_model.x_offset,
+                base_y,
+                player_model.z_offset,
+            )),
             animation_to_play,
         ))
         .observe(character_animation_system)

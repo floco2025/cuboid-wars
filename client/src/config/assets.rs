@@ -164,9 +164,15 @@ pub(crate) struct TextureDef {
 pub struct ModelDef {
     pub scene: String,
     pub scale: f32,
+    // Horizontal model offset relative to the gameplay collider center.
+    #[serde(default)]
+    pub x_offset: f32,
     // Model bottom offset relative to the gameplay collider bottom.
     #[serde(default)]
     pub y_offset: f32,
+    // Horizontal model offset relative to the gameplay collider center.
+    #[serde(default)]
+    pub z_offset: f32,
     #[serde(default)]
     pub animation_speed: Option<f32>,
 }
