@@ -2,23 +2,13 @@
 // Map Generation
 // ============================================================================
 
-// Walls
-pub const WALL_NUM_SEGMENTS: usize = 35;
-pub const WALL_2ND_PROBABILITY_RATIO: f64 = 5.0; // Probability of 2nd wall relative to 1st
-pub const WALL_3RD_PROBABILITY_RATIO: f64 = 0.2; // Probability of 3rd wall relative to 1st
-pub const WALL_OVERLAP: bool = false; // Non-overlapping mode by default
-pub const WALL_MERGE_SEGMENTS: bool = true; // Reduce draw calls
+// Wall meshes overlap at corners when true; non-overlapping mode adjusts
+// segment ends so neighbours abut cleanly.
+pub const WALL_OVERLAP: bool = false;
 
-// Map shape helpers
-pub const MAP_FOOTPRINT_CELLS: i32 = 20; // Map fills the whole grid; field is the map
-pub const ROOFTOP_FOOTPRINT_CELLS: i32 = 16; // Setback at the top (still wide enough to include both stair shafts)
-pub const ATRIUM_CELLS: i32 = 5; // Side length of the central atrium void (5x5 cells = 20m x 20m)
-pub const RAMP_LENGTH_CELLS: i32 = 2;
-pub const RAMP_WIDTH_CELLS: i32 = 1;
-
-// Floor mesh
-pub const FLOOR_OVERLAP: bool = false; // Non-overlapping mode (uses edge fillers)
-pub const FLOOR_MERGE_SEGMENTS: bool = true; // Reduce draw calls
+// Floor meshes overlap at cell boundaries when true; non-overlapping mode
+// uses thin edge fillers to bridge corners.
+pub const FLOOR_OVERLAP: bool = false;
 
 // ============================================================================
 // Lighting
