@@ -30,11 +30,14 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QApplication,
+    QButtonGroup,
     QComboBox,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
     QFormLayout,
+    QGridLayout,
+    QGroupBox,
     QInputDialog,
     QLabel,
     QLineEdit,
@@ -44,6 +47,7 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QSpinBox,
     QToolBar,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -153,6 +157,81 @@ class ActorSpawnFieldsDialog(QDialog):
             QMessageBox.warning(parent, "Actor Spawn Zone", "Kind is required.")
             return None
         return new_kind, new_count
+
+
+class ResizeMapDialog(QDialog):
+    """Modal dialog to resize the map.
+
+    Lets the user pick new column/row counts and an anchor — a 3x3 grid of
+    radio buttons indicating where the existing content stays in the new
+    canvas (top-left, center, etc.). Returns (new_cols, new_rows, anchor_x,
+    anchor_y) on accept; None on cancel.
+    """
+
+    MIN_DIM = 1
+    MAX_DIM = 256
+
+    def __init__(self, parent, current_cols: int, current_rows: int):
+        super().__init__(parent)
+        self.setWindowTitle("Resize Map")
+
+        self._cols_spin = QSpinBox()
+        self._cols_spin.setRange(self.MIN_DIM, self.MAX_DIM)
+        self._cols_spin.setValue(current_cols)
+        self._rows_spin = QSpinBox()
+        self._rows_spin.setRange(self.MIN_DIM, self.MAX_DIM)
+        self._rows_spin.setValue(current_rows)
+
+        form = QFormLayout()
+        form.addRow("Current size:", QLabel(f"{current_cols} × {current_rows}"))
+        form.addRow("New columns:", self._cols_spin)
+        form.addRow("New rows:", self._rows_spin)
+
+        anchor_box = QGroupBox("Anchor (where existing content stays)")
+        anchor_grid = QGridLayout(anchor_box)
+        anchor_grid.setSpacing(2)
+        self._anchor_group = QButtonGroup(self)
+        self._anchor_group.setExclusive(True)
+        labels = [
+            ["↖", "↑", "↗"],
+            ["←", "•", "→"],
+            ["↙", "↓", "↘"],
+        ]
+        for ay in range(3):
+            for ax in range(3):
+                button = QToolButton()
+                button.setCheckable(True)
+                button.setText(labels[ay][ax])
+                button.setFixedSize(32, 32)
+                anchor_id = ay * 3 + ax
+                self._anchor_group.addButton(button, anchor_id)
+                anchor_grid.addWidget(button, ay, ax)
+        self._anchor_group.button(1 * 3 + 1).setChecked(True)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+
+        layout = QVBoxLayout(self)
+        layout.addLayout(form)
+        layout.addWidget(anchor_box)
+        layout.addWidget(buttons)
+
+    def values(self) -> tuple[int, int, int, int]:
+        anchor_id = self._anchor_group.checkedId()
+        anchor_x = anchor_id % 3
+        anchor_y = anchor_id // 3
+        return self._cols_spin.value(), self._rows_spin.value(), anchor_x, anchor_y
+
+    @classmethod
+    def prompt(cls, parent, current_cols: int, current_rows: int) -> tuple[int, int, int, int] | None:
+        dialog = cls(parent, current_cols, current_rows)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return None
+        return dialog.values()
+
 
 MIN_CELL = 12.0
 EDITOR_CELL = 36
@@ -445,6 +524,79 @@ def canonicalize_map(map_data: dict) -> dict:
         for lower, low, high in sorted(ramp_keys)
     ]
     return b
+
+
+def resize_map_data(
+    map_data: dict, new_cols: int, new_rows: int, anchor_x: int, anchor_y: int
+) -> dict:
+    """Translate and clip every coordinate in a map to fit a new grid size.
+
+    `anchor_x` and `anchor_y` are each one of {0, 1, 2} indicating where the
+    old grid sits inside the new grid (0=left/top, 1=center, 2=right/bottom).
+    Cells, wall endpoints, and ramp endpoints are translated by the resulting
+    offset; anything that falls outside the new bounds is dropped.
+    """
+    old_cols = map_data["grid_cols"]
+    old_rows = map_data["grid_rows"]
+    dc = (new_cols - old_cols) * anchor_x // 2
+    dr = (new_rows - old_rows) * anchor_y // 2
+
+    out = copy.deepcopy(map_data)
+    out["grid_cols"] = new_cols
+    out["grid_rows"] = new_rows
+
+    def cell_in_bounds(c: int, r: int) -> bool:
+        return 0 <= c < new_cols and 0 <= r < new_rows
+
+    def line_in_bounds(c: int, r: int) -> bool:
+        return 0 <= c <= new_cols and 0 <= r <= new_rows
+
+    for level in out["levels"]:
+        level["floors"] = [
+            [c + dc, r + dr] for c, r in level["floors"] if cell_in_bounds(c + dc, r + dr)
+        ]
+        level["inaccessible_floors"] = [
+            [c + dc, r + dr]
+            for c, r in level["inaccessible_floors"]
+            if cell_in_bounds(c + dc, r + dr)
+        ]
+        level["walls"] = [
+            [c0 + dc, r0 + dr, c1 + dc, r1 + dr]
+            for c0, r0, c1, r1 in level["walls"]
+            if line_in_bounds(c0 + dc, r0 + dr) and line_in_bounds(c1 + dc, r1 + dr)
+        ]
+
+    def clip_zone(zone: dict) -> dict | None:
+        c0, c1 = zone["cols"]
+        r0, r1 = zone["rows"]
+        nc0 = max(0, c0 + dc)
+        nc1 = min(new_cols, c1 + dc)
+        nr0 = max(0, r0 + dr)
+        nr1 = min(new_rows, r1 + dr)
+        if nc1 <= nc0 or nr1 <= nr0:
+            return None
+        zone["cols"] = [nc0, nc1]
+        zone["rows"] = [nr0, nr1]
+        return zone
+
+    out["actor_spawn_zones"] = [
+        z for z in (clip_zone(z) for z in out["actor_spawn_zones"]) if z is not None
+    ]
+    out["player_spawn_zones"] = [
+        z for z in (clip_zone(z) for z in out["player_spawn_zones"]) if z is not None
+    ]
+
+    kept_ramps = []
+    for ramp in out["ramps"]:
+        low_c, low_r = ramp["low"][0] + dc, ramp["low"][1] + dr
+        high_c, high_r = ramp["high"][0] + dc, ramp["high"][1] + dr
+        if line_in_bounds(low_c, low_r) and line_in_bounds(high_c, high_r):
+            ramp["low"] = [low_c, low_r]
+            ramp["high"] = [high_c, high_r]
+            kept_ramps.append(ramp)
+    out["ramps"] = kept_ramps
+
+    return out
 
 
 def enforce_ramp_floor_rules(map_data: dict) -> None:
@@ -1081,6 +1233,9 @@ class EditorWindow(QMainWindow):
         self.add_menu_action(level_menu, "&Rename Level...", None, self.rename_level)
         self.add_menu_action(level_menu, "&Remove Level", None, self.remove_level)
 
+        map_menu = self.menuBar().addMenu("&Map")
+        self.add_menu_action(map_menu, "&Resize Map...", None, self.resize_map)
+
         help_menu = self.menuBar().addMenu("&Help")
         self.add_menu_action(help_menu, "Tool &Reference", None, self.show_tool_reference)
 
@@ -1468,6 +1623,57 @@ class EditorWindow(QMainWindow):
                 if (ramp["lower_level"], tuple(ramp["low"]), tuple(ramp["high"])) != (lower, low, high)
             ]
         self.apply_change(f"Erase {kind}", after)
+
+    def resize_map(self) -> None:
+        result = ResizeMapDialog.prompt(
+            self, self.map_data["grid_cols"], self.map_data["grid_rows"]
+        )
+        if result is None:
+            return
+        new_cols, new_rows, anchor_x, anchor_y = result
+        if new_cols == self.map_data["grid_cols"] and new_rows == self.map_data["grid_rows"]:
+            return
+        after = resize_map_data(self.map_data, new_cols, new_rows, anchor_x, anchor_y)
+
+        before_floors = sum(len(l["floors"]) for l in self.map_data["levels"])
+        before_inacc = sum(len(l["inaccessible_floors"]) for l in self.map_data["levels"])
+        before_walls = sum(len(l["walls"]) for l in self.map_data["levels"])
+        before_zones = len(self.map_data["actor_spawn_zones"]) + len(self.map_data["player_spawn_zones"])
+        before_ramps = len(self.map_data["ramps"])
+        after_floors = sum(len(l["floors"]) for l in after["levels"])
+        after_inacc = sum(len(l["inaccessible_floors"]) for l in after["levels"])
+        after_walls = sum(len(l["walls"]) for l in after["levels"])
+        after_zones = len(after["actor_spawn_zones"]) + len(after["player_spawn_zones"])
+        after_ramps = len(after["ramps"])
+        dropped_floors = before_floors - after_floors
+        dropped_inacc = before_inacc - after_inacc
+        dropped_walls = before_walls - after_walls
+        dropped_zones = before_zones - after_zones
+        dropped_ramps = before_ramps - after_ramps
+        if any(n > 0 for n in (dropped_floors, dropped_inacc, dropped_walls, dropped_zones, dropped_ramps)):
+            parts = []
+            if dropped_floors:
+                parts.append(f"{dropped_floors} floor cell(s)")
+            if dropped_inacc:
+                parts.append(f"{dropped_inacc} inaccessible-floor cell(s)")
+            if dropped_walls:
+                parts.append(f"{dropped_walls} wall(s)")
+            if dropped_zones:
+                parts.append(f"{dropped_zones} spawn zone(s)")
+            if dropped_ramps:
+                parts.append(f"{dropped_ramps} ramp(s)")
+            response = QMessageBox.question(
+                self,
+                "Resize Map",
+                "Resizing will drop:\n  - " + "\n  - ".join(parts) + "\n\nContinue?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Cancel,
+            )
+            if response != QMessageBox.StandardButton.Yes:
+                return
+
+        self.apply_change("Resize Map", after)
+        self.resize_to_map()
 
     def add_level(self) -> None:
         after = copy.deepcopy(self.map_data)
