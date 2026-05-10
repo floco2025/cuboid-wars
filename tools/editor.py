@@ -891,6 +891,80 @@ def tag_color(tag: str) -> QColor:
     return color
 
 
+def resolve_floor_material(map_data: dict, level_idx: int, col: int, row: int) -> str | None:
+    """Pick the top-face material name for a floor cell by the same specificity
+    rules as the Rust `MaterialRules` resolver. Returns None when no rule with
+    a `floors` block matches."""
+    rules = map_data.get("material_rules", [])
+    grid_cols = map_data["grid_cols"]
+    grid_rows = map_data["grid_rows"]
+    name_to_idx = {lvl["name"]: i for i, lvl in enumerate(map_data["levels"]) if lvl.get("name")}
+
+    best_score = -1
+    best_material: str | None = None
+    for rule in rules:
+        if "floors" not in rule:
+            continue
+        if not _rule_matches_level(rule, level_idx, name_to_idx):
+            continue
+        if not _rule_matches_cell(rule, col, row):
+            continue
+        score = _rule_floor_specificity(rule, grid_cols, grid_rows)
+        if score > best_score:
+            material = _rule_top_face(rule)
+            if material is not None:
+                best_score = score
+                best_material = material
+    return best_material
+
+
+def _rule_matches_level(rule: dict, level_idx: int, name_to_idx: dict[str, int]) -> bool:
+    levels = rule.get("levels")
+    if levels is None:
+        return True
+    refs = levels if isinstance(levels, list) else [levels]
+    for ref in refs:
+        if isinstance(ref, int) and ref == level_idx:
+            return True
+        if isinstance(ref, str) and name_to_idx.get(ref) == level_idx:
+            return True
+    return False
+
+
+def _rule_matches_cell(rule: dict, col: int, row: int) -> bool:
+    cols = rule.get("cell_cols")
+    if cols is not None and not (cols[0] <= col <= cols[1]):
+        return False
+    rows = rule.get("cell_rows")
+    if rows is not None and not (rows[0] <= row <= rows[1]):
+        return False
+    return True
+
+
+def _rule_floor_specificity(rule: dict, grid_cols: int, grid_rows: int) -> int:
+    score = 0
+    levels = rule.get("levels")
+    if levels is not None:
+        refs = levels if isinstance(levels, list) else [levels]
+        score += 1000 if len(refs) == 1 else max(0, 900 - len(refs))
+    if (rng := rule.get("cell_cols")) is not None:
+        score += _range_specificity(rng, grid_cols)
+    if (rng := rule.get("cell_rows")) is not None:
+        score += _range_specificity(rng, grid_rows)
+    return score
+
+
+def _range_specificity(rng: list[int], full_len: int) -> int:
+    a, b = rng
+    length = max(1, min(full_len, b - a + 1))
+    return 100 + (full_len - length)
+
+
+def _rule_top_face(rule: dict) -> str | None:
+    floors = rule.get("floors", {})
+    return floors.get("top") or floors.get("all")
+
+
 def level_label(level: dict, index: int) -> str:
     name = level.get("name")
     return f"Level {index}" if not name else f"Level {index} ({name})"
@@ -1019,10 +1093,17 @@ class Canvas(QWidget):
         painter.fillRect(QRectF(0, 0, cols * cell, rows * cell), QColor("#111418"))
 
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor("#454f5b"))
+        overlay = self.window.show_material_overlay
+        default_floor = QColor("#454f5b")
         for col, row in level["floors"]:
+            color = default_floor
+            if overlay:
+                material = resolve_floor_material(self.window.map_data, level_idx, col, row)
+                if material is not None:
+                    color = tag_color(material)
+            painter.setBrush(color)
             painter.drawRect(QRectF(col * cell + 1, row * cell + 1, cell - 2, cell - 2))
-        painter.setBrush(QColor("#454f5b"))
+        painter.setBrush(default_floor)
         for col, row in level["inaccessible_floors"]:
             rect = QRectF(col * cell + 1, row * cell + 1, cell - 2, cell - 2)
             painter.drawRect(rect)
@@ -1321,6 +1402,7 @@ class EditorWindow(QMainWindow):
         self.recent_actor_spawn_count: int = DEFAULT_ACTOR_COUNT
         self.selected_spawn_zone_ref: ZoneRef | None = None
         self.spawn_zone_drag: SpawnZoneDrag | None = None
+        self.show_material_overlay = False
 
         self.canvas = Canvas(self)
         self.setCentralWidget(self.canvas)
@@ -1362,6 +1444,12 @@ class EditorWindow(QMainWindow):
 
         map_menu = self.menuBar().addMenu("&Map")
         self.add_menu_action(map_menu, "&Resize Map...", None, self.resize_map)
+        map_menu.addSeparator()
+        self.material_overlay_action = QAction("Show &Material Overlay", self)
+        self.material_overlay_action.setCheckable(True)
+        self.material_overlay_action.setShortcut(QKeySequence("M"))
+        self.material_overlay_action.toggled.connect(self.set_material_overlay)
+        map_menu.addAction(self.material_overlay_action)
 
         help_menu = self.menuBar().addMenu("&Help")
         self.add_menu_action(help_menu, "Tool &Reference", None, self.show_tool_reference)
@@ -1451,6 +1539,10 @@ class EditorWindow(QMainWindow):
 
     def set_mode(self, mode: str) -> None:
         self.mode = mode
+
+    def set_material_overlay(self, enabled: bool) -> None:
+        self.show_material_overlay = enabled
+        self.canvas.update()
 
     def previous_level(self) -> None:
         self.set_level_index(self.current_level - 1)
