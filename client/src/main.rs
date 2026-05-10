@@ -14,8 +14,8 @@ use client::{
     characters::{characters_movement_system, characters_visual_turn_system},
     config::{AssetSet, OpaqueRenderer, RenderSettings, configure_client},
     input::{
-        input_camera_view_toggle_system, input_cursor_toggle_system, input_fullscreen_toggle_system,
-        input_level_focus_toggle_system, input_movement_system, input_shooting_system,
+        input_camera_view_toggle_system, input_cursor_toggle_system, input_debug_colors_cycle_system,
+        input_fullscreen_toggle_system, input_level_focus_toggle_system, input_movement_system, input_shooting_system,
     },
     items::{ItemMap, items_animation_system},
     map::{
@@ -89,7 +89,6 @@ fn main() -> Result<()> {
     let asset_set = AssetSet::load_default()?;
     let render_settings = RenderSettings::load_default()?;
     let gameplay_config = GameplayConfig::load_default()?;
-    let debug_colors = render_settings.debug_map_colors;
     let texture_mipmaps_enabled = render_settings.texture_mipmaps_enabled;
 
     let player_name = args.name.clone().unwrap_or_else(|| {
@@ -140,7 +139,7 @@ fn main() -> Result<()> {
         .insert_resource(gameplay_config)
         .insert_resource(asset_set)
         .insert_resource(render_settings)
-        .insert_resource(DebugColors(debug_colors))
+        .insert_resource(DebugColors::default())
         .insert_resource(LastBounceSoundTime::default())
         .init_resource::<ProjectileAssets>()
         // Startup creates persistent scene infrastructure before any server
@@ -164,6 +163,7 @@ fn main() -> Result<()> {
                 input_camera_view_toggle_system,
                 input_level_focus_toggle_system,
                 input_fullscreen_toggle_system,
+                input_debug_colors_cycle_system,
             ),
         )
         // Network consumes server messages and sends periodic echo requests.

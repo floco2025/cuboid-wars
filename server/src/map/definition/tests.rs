@@ -1,9 +1,15 @@
+use std::collections::BTreeMap;
+
 use super::{
     compile_map,
-    schema::{ActorSpawnZoneDef, LevelDef, MapDef, PlayerSpawnZoneDef, RampDef},
+    schema::{ActorSpawnZoneDef, FloorDef, LevelDef, MapDef, PlayerSpawnZoneDef, RampDef},
     validation::validate_map,
 };
 use common::{constants::GRID_CELL_SIZE, material_rules::MaterialRules};
+
+fn floor_def(col: i32, row: i32) -> FloorDef {
+    FloorDef { col, row }
+}
 
 fn level(floors: Vec<[i32; 2]>) -> LevelDef {
     level_with_inaccessible(floors, Vec::new())
@@ -12,8 +18,8 @@ fn level(floors: Vec<[i32; 2]>) -> LevelDef {
 fn level_with_inaccessible(floors: Vec<[i32; 2]>, inaccessible_floors: Vec<[i32; 2]>) -> LevelDef {
     LevelDef {
         name: None,
-        floors,
-        inaccessible_floors,
+        floors: floors.into_iter().map(|[c, r]| floor_def(c, r)).collect(),
+        inaccessible_floors: inaccessible_floors.into_iter().map(|[c, r]| floor_def(c, r)).collect(),
         walls: Vec::new(),
     }
 }
@@ -36,6 +42,14 @@ fn player_zone(level: u32, col: i32, row: i32) -> PlayerSpawnZoneDef {
     }
 }
 
+fn ramp(low: [i32; 2], high: [i32; 2], lower_level: u32) -> RampDef {
+    RampDef {
+        low,
+        high,
+        lower_level,
+    }
+}
+
 fn map_with_zones(
     grid: i32,
     levels: Vec<LevelDef>,
@@ -50,6 +64,7 @@ fn map_with_zones(
         player_spawn_zones,
         levels,
         ramps,
+        _item_materials: BTreeMap::new(),
     }
 }
 
@@ -147,11 +162,7 @@ fn validation_rejects_actor_zone_on_same_level_ramp() {
         vec![level(vec![[3, 3]]), level(vec![[0, 0]]), level(vec![[3, 3]])],
         vec![actor_zone(1, 0, 0)],
         vec![player_zone(0, 3, 3)],
-        vec![RampDef {
-            low: [0, 0],
-            high: [1, 2],
-            lower_level: 1,
-        }],
+        vec![ramp([0, 0], [1, 2], 1)],
     );
 
     let err = validate_map(&map_def).expect_err("actor zone must not overlap ramp footprint");
@@ -167,11 +178,7 @@ fn validation_rejects_player_zone_on_same_level_ramp() {
         vec![level(vec![[3, 3]]), level(vec![[0, 0]]), level(vec![[3, 3]])],
         vec![],
         vec![player_zone(1, 0, 0)],
-        vec![RampDef {
-            low: [0, 0],
-            high: [1, 2],
-            lower_level: 1,
-        }],
+        vec![ramp([0, 0], [1, 2], 1)],
     );
 
     let err = validate_map(&map_def).expect_err("player zone must not overlap ramp footprint");

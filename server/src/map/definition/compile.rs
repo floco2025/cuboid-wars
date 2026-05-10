@@ -29,8 +29,8 @@ pub(crate) fn compile_map(map_def: &MapDef, assets: &MaterialRules) -> (MapLayou
         .iter()
         .map(|level| {
             let mut m = empty_mask(cols, rows);
-            for [col, row] in &level.floors {
-                m[*row as usize][*col as usize] = true;
+            for floor in &level.floors {
+                m[floor.row as usize][floor.col as usize] = true;
             }
             m
         })
@@ -40,8 +40,8 @@ pub(crate) fn compile_map(map_def: &MapDef, assets: &MaterialRules) -> (MapLayou
         .iter()
         .map(|level| {
             let mut m = empty_mask(cols, rows);
-            for [col, row] in level.floors.iter().chain(level.inaccessible_floors.iter()) {
-                m[*row as usize][*col as usize] = true;
+            for floor in level.floors.iter().chain(level.inaccessible_floors.iter()) {
+                m[floor.row as usize][floor.col as usize] = true;
             }
             m
         })
@@ -57,7 +57,7 @@ pub(crate) fn compile_map(map_def: &MapDef, assets: &MaterialRules) -> (MapLayou
             mark_has_floor(&mut cell_grid, &regular_floor_masks[level_idx]);
             mark_has_floor_slab(&mut cell_grid, &slab_masks[level_idx]);
             for wall in &level.walls {
-                set_wall_edge(&mut edge_grid, *wall);
+                set_wall_edge(&mut edge_grid, [wall.c0, wall.r0, wall.c1, wall.r1]);
             }
             LevelGrid {
                 cells: cell_grid,

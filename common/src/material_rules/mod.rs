@@ -1,11 +1,7 @@
 mod face_materials;
 mod grid;
-mod layers;
 mod loading;
 mod query;
-mod resolve;
-mod rules;
-mod scope;
 #[cfg(test)]
 mod tests;
 

@@ -21,6 +21,33 @@ impl OpaqueRenderer {
     }
 }
 
+// Three-way map debug-color mode. Cycled at runtime via the C key.
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum DebugColorMode {
+    // Real materials (textures from `assets.json`).
+    #[default]
+    Off,
+    // One color per material name (deterministic hash → HSV). Same material
+    // shows the same color across the whole map; lets you visually identify
+    // which surfaces share a material.
+    ByMaterial,
+    // One color per record sent in `MapLayout` (random per batch). Matches
+    // exactly what the server emitted — useful for verifying merge behavior.
+    BySegment,
+}
+
+impl DebugColorMode {
+    #[must_use]
+    pub const fn next(self) -> Self {
+        match self {
+            Self::Off => Self::ByMaterial,
+            Self::ByMaterial => Self::BySegment,
+            Self::BySegment => Self::Off,
+        }
+    }
+}
+
 #[derive(Resource, Debug, Clone, Deserialize)]
 pub struct RenderSettings {
     pub version: u32,
@@ -33,7 +60,6 @@ pub struct RenderSettings {
     pub rearview_enabled: bool,
     pub opaque_renderer: OpaqueRenderer,
     pub shadows_directional_enabled: bool,
-    pub debug_map_colors: bool,
     pub debug_collider_boxes: bool,
     pub texture_mipmaps_enabled: bool,
     pub msaa_samples: u32,

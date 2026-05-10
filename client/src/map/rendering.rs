@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::{
-    config::{AssetSet, RenderSettings},
+    config::{AssetSet, DebugColorMode, RenderSettings},
     map::{
         DebugColors, GroundMarker, LevelFocusEnabled, MapGeometryBatch, MapLevel, RampMarker, RoofMarker,
         WallLightMarker, WallMarker, batch_floor, batch_ramp, batch_wall, spawn_wall_light_from_layout,
@@ -38,6 +38,7 @@ pub fn setup_scene_lighting_system(mut commands: Commands, render_settings: Res<
 // ============================================================================
 
 // System to spawn static map geometry once the server shares its map layout.
+// Re-runs when `DebugColors` changes so the user can cycle modes at runtime.
 pub fn map_spawn_geometry_system(
     mut commands: Commands,
     map_layout: Option<Res<MapLayout>>,
@@ -47,26 +48,41 @@ pub fn map_spawn_geometry_system(
     asset_set: Res<AssetSet>,
     render_settings: Res<RenderSettings>,
     debug_colors: Res<DebugColors>,
-    mut spawned: Local<bool>,
+    map_entities: Query<
+        Entity,
+        Or<(
+            With<WallMarker>,
+            With<GroundMarker>,
+            With<RoofMarker>,
+            With<RampMarker>,
+            With<WallLightMarker>,
+        )>,
+    >,
+    mut last_spawn: Local<Option<DebugColorMode>>,
     mut material_cache: Local<MaterialHandleCache>,
 ) {
-    // Spawn exactly once after the server shares its wall configuration
     let Some(map_layout) = map_layout else {
         return;
     };
-
-    if *spawned {
+    if last_spawn.as_ref() == Some(&debug_colors.0) {
         return;
     }
 
+    // Despawn any geometry from a previous spawn so a re-spawn doesn't double up.
+    for entity in &map_entities {
+        commands.entity(entity).despawn();
+    }
+    *material_cache = MaterialHandleCache::default();
+
     info!(
-        "spawning {} walls, {} floors, {} ramps",
+        "spawning {} walls, {} floors, {} ramps (debug colors: {:?})",
         map_layout.walls.len(),
         map_layout.floors.len(),
         map_layout.ramps.len(),
+        debug_colors.0,
     );
 
-    let mut geometry = MapGeometryBatch::default();
+    let mut geometry = MapGeometryBatch::new(debug_colors.0);
 
     for wall in &map_layout.walls {
         batch_wall(&mut geometry, &asset_set, wall);
@@ -98,10 +114,9 @@ pub fn map_spawn_geometry_system(
         &asset_server,
         &asset_set,
         &render_settings,
-        debug_colors.0,
     );
 
-    *spawned = true;
+    *last_spawn = Some(debug_colors.0);
 }
 
 // ============================================================================

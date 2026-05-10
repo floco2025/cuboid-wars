@@ -13,6 +13,7 @@ use common::protocol::*;
 // `floor.thickness` deep, centered just below `floor.y` so the standing
 // surface is at `floor.y`.
 pub fn batch_floor(batcher: &mut MapGeometryBatch, asset_set: &AssetSet, floor: &Floor) {
+    batcher.begin_segment();
     let center_x = f32::midpoint(floor.x1, floor.x2);
     let center_z = f32::midpoint(floor.z1, floor.z2);
     let size_x = (floor.x2 - floor.x1).abs();

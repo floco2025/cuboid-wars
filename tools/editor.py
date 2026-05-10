@@ -34,6 +34,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
+    QDockWidget,
     QFileDialog,
     QFormLayout,
     QGridLayout,
@@ -41,6 +42,8 @@ from PySide6.QtWidgets import (
     QInputDialog,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QMainWindow,
     QMenu,
     QMessageBox,
@@ -308,10 +311,16 @@ def with_trailing_comma(lines: list[str]) -> list[str]:
 
 def format_ramp(ramp: dict, indent: int) -> str:
     pad = " " * indent
+    materials = compact_face_materials(ramp)
+    materials_part = ""
+    if materials:
+        materials_part = ", " + ", ".join(
+            f'"{key}": {json.dumps(value)}' for key, value in materials.items()
+        )
     return (
         f'{pad}{{"lower_level": {ramp["lower_level"]}, '
         f'"low": {format_point(ramp["low"])}, '
-        f'"high": {format_point(ramp["high"])}}}'
+        f'"high": {format_point(ramp["high"])}{materials_part}}}'
     )
 
 
@@ -374,16 +383,17 @@ def format_map_file(wrapper: dict) -> str:
             [
                 "      {",
                 f'        "name": {json_scalar(level["name"])},',
-                *with_trailing_comma(format_point_array("floors", level["floors"], 8)),
-                *with_trailing_comma(format_point_array("inaccessible_floors", level["inaccessible_floors"], 8)),
-                *format_point_array("walls", level["walls"], 8),
+                *with_trailing_comma(format_floor_array("floors", level["floors"], 8)),
+                *with_trailing_comma(format_floor_array("inaccessible_floors", level["inaccessible_floors"], 8)),
+                *format_wall_array("walls", level["walls"], 8),
                 "      }" + ("," if level_idx + 1 < len(map_data["levels"]) else ""),
             ]
         )
 
     lines.append("    ],")
-    rules = map_data.get("material_rules", [])
-    ramp_trailing_comma = "," if rules else ""
+    item_materials = map_data.get("item_materials") or {}
+    has_items = bool(item_materials)
+    ramp_trailing_comma = "," if has_items else ""
     if map_data["ramps"]:
         lines.append('    "ramps": [')
         for idx, ramp in enumerate(map_data["ramps"]):
@@ -392,15 +402,42 @@ def format_map_file(wrapper: dict) -> str:
         lines.append(f"    ]{ramp_trailing_comma}")
     else:
         lines.append(f'    "ramps": []{ramp_trailing_comma}')
-    if rules:
-        lines.append('    "material_rules": [')
-        for idx, rule in enumerate(rules):
-            comma = "," if idx + 1 < len(rules) else ""
-            lines.append("      " + json.dumps(rule, separators=(", ", ": ")) + comma)
-        lines.append("    ]")
+    if has_items:
+        lines.append('    "item_materials": ' + json.dumps(item_materials, separators=(", ", ": "), sort_keys=True))
     lines.append("  }")
     lines.append("}")
     return "\n".join(lines)
+
+
+def format_floor_array(name: str, floors: list[dict], indent: int) -> list[str]:
+    pad = " " * indent
+    inner = " " * (indent + 2)
+    if not floors:
+        return [f'{pad}"{name}": []']
+    lines = [f'{pad}"{name}": [']
+    for idx, floor in enumerate(floors):
+        comma = "," if idx + 1 < len(floors) else ""
+        body = {"col": floor["col"], "row": floor["row"], **compact_face_materials(floor)}
+        lines.append(inner + json.dumps(body, separators=(", ", ": ")) + comma)
+    lines.append(f"{pad}]")
+    return lines
+
+
+def format_wall_array(name: str, walls: list[dict], indent: int) -> list[str]:
+    pad = " " * indent
+    inner = " " * (indent + 2)
+    if not walls:
+        return [f'{pad}"{name}": []']
+    lines = [f'{pad}"{name}": [']
+    for idx, wall in enumerate(walls):
+        comma = "," if idx + 1 < len(walls) else ""
+        body = {
+            "c0": wall["c0"], "r0": wall["r0"], "c1": wall["c1"], "r1": wall["r1"],
+            **compact_face_materials(wall),
+        }
+        lines.append(inner + json.dumps(body, separators=(", ", ": ")) + comma)
+    lines.append(f"{pad}]")
+    return lines
 
 
 def normalize_map(map_data: dict) -> dict:
@@ -413,28 +450,18 @@ def normalize_map(map_data: dict) -> dict:
         levels.append(
             {
                 "name": str(level.get("name") or f"Level {idx}"),
-                "floors": [[int(c), int(r)] for c, r in level.get("floors", [])],
-                "inaccessible_floors": [
-                    [int(c), int(r)] for c, r in level.get("inaccessible_floors", [])
-                ],
-                "walls": [[int(c0), int(r0), int(c1), int(r1)] for c0, r0, c1, r1 in level.get("walls", [])],
+                "floors": [normalize_floor(f) for f in level.get("floors", [])],
+                "inaccessible_floors": [normalize_floor(f) for f in level.get("inaccessible_floors", [])],
+                "walls": [normalize_wall(w) for w in level.get("walls", [])],
             }
         )
     if not levels:
         levels = [{"name": "Level 0", "floors": [], "inaccessible_floors": [], "walls": []}]
 
-    ramps = []
-    for ramp in map_data.get("ramps", []):
-        low = ramp["low"]
-        high = ramp["high"]
-        ramps.append(
-            {
-                "low": [int(low[0]), int(low[1])],
-                "high": [int(high[0]), int(high[1])],
-                "lower_level": int(ramp["lower_level"]),
-            }
-        )
-    material_rules = [normalize_material_rule(rule) for rule in map_data.get("material_rules", [])]
+    ramps = [normalize_ramp(r) for r in map_data.get("ramps", [])]
+    item_materials = {
+        str(k): str(v) for k, v in map_data.get("item_materials", {}).items()
+    }
     return {
         "grid_cols": cols,
         "grid_rows": rows,
@@ -442,29 +469,45 @@ def normalize_map(map_data: dict) -> dict:
         "player_spawn_zones": player_spawn_zones,
         "levels": levels,
         "ramps": ramps,
-        "material_rules": material_rules,
+        "item_materials": item_materials,
     }
 
 
-# Coordinate-bearing keys in a material rule. Used by normalization, validation,
-# and resize. `cell_*` apply to floor rules; `edge_*` apply to wall rules. Both
-# scope a rule to a rectangular range of grid cells/edges, inclusive on both
-# ends. `from`/`to` together pin a rule to one specific edge.
-_RULE_RANGE_KEYS = ("cell_cols", "cell_rows", "edge_cols", "edge_rows")
-_RULE_POINT_KEYS = ("from", "to")
+def normalize_floor(floor: dict | list) -> dict:
+    # Accept legacy [col, row] arrays so older maps can still be read once.
+    if isinstance(floor, list):
+        col, row = floor
+        return {"col": int(col), "row": int(row), **{face: "fiberous-plaster1-ue" for face in FACES}}
+    return {
+        "col": int(floor["col"]),
+        "row": int(floor["row"]),
+        **expand_face_materials(floor),
+    }
 
 
-def normalize_material_rule(rule: dict) -> dict:
-    out = copy.deepcopy(rule)
-    for key in _RULE_RANGE_KEYS:
-        if key in out and out[key] is not None:
-            a, b = out[key]
-            out[key] = [int(a), int(b)]
-    for key in _RULE_POINT_KEYS:
-        if key in out and out[key] is not None:
-            a, b = out[key]
-            out[key] = [int(a), int(b)]
-    return out
+def normalize_wall(wall: dict | list) -> dict:
+    if isinstance(wall, list):
+        c0, r0, c1, r1 = wall
+        return {
+            "c0": int(c0), "r0": int(r0), "c1": int(c1), "r1": int(r1),
+            **{face: "modern-brick1" for face in FACES},
+        }
+    return {
+        "c0": int(wall["c0"]),
+        "r0": int(wall["r0"]),
+        "c1": int(wall["c1"]),
+        "r1": int(wall["r1"]),
+        **expand_face_materials(wall),
+    }
+
+
+def normalize_ramp(ramp: dict) -> dict:
+    return {
+        "low": [int(ramp["low"][0]), int(ramp["low"][1])],
+        "high": [int(ramp["high"][0]), int(ramp["high"][1])],
+        "lower_level": int(ramp["lower_level"]),
+        **expand_face_materials(ramp),
+    }
 
 
 def _normalize_zone_rect(zone: dict) -> dict:
@@ -536,25 +579,38 @@ def canonicalize_map(map_data: dict) -> dict:
     b["actor_spawn_zones"] = _dedupe_sorted(b["actor_spawn_zones"], actor_zone_key)
     b["player_spawn_zones"] = _dedupe_sorted(b["player_spawn_zones"], player_zone_key)
     for level in b["levels"]:
-        floors = {(c, r) for c, r in level["floors"]}
-        inaccessible_floors = {(c, r) for c, r in level["inaccessible_floors"]} - floors
-        level["floors"] = [[c, r] for c, r in sorted(floors, key=lambda p: (p[1], p[0]))]
+        # Dedupe by (col, row); later entries win when the same position is
+        # painted twice, so the user's most recent paint stays.
+        level["floors"] = _dedupe_floors(level["floors"])
+        floor_keys = {(f["col"], f["row"]) for f in level["floors"]}
         level["inaccessible_floors"] = [
-            [c, r] for c, r in sorted(inaccessible_floors, key=lambda p: (p[1], p[0]))
+            f for f in _dedupe_floors(level["inaccessible_floors"])
+            if (f["col"], f["row"]) not in floor_keys
         ]
+        level["walls"] = _dedupe_walls(level["walls"])
 
-        walls = {tuple(normalized_wall(wall)) for wall in level["walls"]}
-        level["walls"] = [list(wall) for wall in sorted(walls)]
-
-    ramp_keys = {
-        (ramp["lower_level"], tuple(ramp["low"]), tuple(ramp["high"]))
-        for ramp in b["ramps"]
-    }
-    b["ramps"] = [
-        {"lower_level": lower, "low": list(low), "high": list(high)}
-        for lower, low, high in sorted(ramp_keys)
-    ]
+    b["ramps"] = sorted(
+        b["ramps"],
+        key=lambda r: (r["lower_level"], tuple(r["low"]), tuple(r["high"])),
+    )
     return b
+
+
+def _dedupe_floors(floors: list[dict]) -> list[dict]:
+    by_pos: dict[tuple[int, int], dict] = {}
+    for floor in floors:
+        by_pos[(floor["col"], floor["row"])] = floor
+    return [by_pos[k] for k in sorted(by_pos.keys(), key=lambda p: (p[1], p[0]))]
+
+
+def _dedupe_walls(walls: list[dict]) -> list[dict]:
+    by_edge: dict[tuple[int, int, int, int], dict] = {}
+    for wall in walls:
+        c0, r0, c1, r1 = wall["c0"], wall["r0"], wall["c1"], wall["r1"]
+        if (c1, r1) < (c0, r0):
+            wall = {**wall, "c0": c1, "r0": r1, "c1": c0, "r1": r0}
+        by_edge[(wall["c0"], wall["r0"], wall["c1"], wall["r1"])] = wall
+    return [by_edge[k] for k in sorted(by_edge.keys())]
 
 
 def resize_map_data(
@@ -565,7 +621,8 @@ def resize_map_data(
     `anchor_x` and `anchor_y` are each one of {0, 1, 2} indicating where the
     old grid sits inside the new grid (0=left/top, 1=center, 2=right/bottom).
     Cells, wall endpoints, and ramp endpoints are translated by the resulting
-    offset; anything that falls outside the new bounds is dropped.
+    offset; anything that falls outside the new bounds is dropped. Materials
+    ride along with each segment.
     """
     old_cols = map_data["grid_cols"]
     old_rows = map_data["grid_rows"]
@@ -582,20 +639,25 @@ def resize_map_data(
     def line_in_bounds(c: int, r: int) -> bool:
         return 0 <= c <= new_cols and 0 <= r <= new_rows
 
+    def shift_floor(f: dict) -> dict | None:
+        nc, nr = f["col"] + dc, f["row"] + dr
+        if not cell_in_bounds(nc, nr):
+            return None
+        return {**f, "col": nc, "row": nr}
+
+    def shift_wall(w: dict) -> dict | None:
+        nc0, nr0 = w["c0"] + dc, w["r0"] + dr
+        nc1, nr1 = w["c1"] + dc, w["r1"] + dr
+        if not (line_in_bounds(nc0, nr0) and line_in_bounds(nc1, nr1)):
+            return None
+        return {**w, "c0": nc0, "r0": nr0, "c1": nc1, "r1": nr1}
+
     for level in out["levels"]:
-        level["floors"] = [
-            [c + dc, r + dr] for c, r in level["floors"] if cell_in_bounds(c + dc, r + dr)
-        ]
+        level["floors"] = [f for f in (shift_floor(f) for f in level["floors"]) if f is not None]
         level["inaccessible_floors"] = [
-            [c + dc, r + dr]
-            for c, r in level["inaccessible_floors"]
-            if cell_in_bounds(c + dc, r + dr)
+            f for f in (shift_floor(f) for f in level["inaccessible_floors"]) if f is not None
         ]
-        level["walls"] = [
-            [c0 + dc, r0 + dr, c1 + dc, r1 + dr]
-            for c0, r0, c1, r1 in level["walls"]
-            if line_in_bounds(c0 + dc, r0 + dr) and line_in_bounds(c1 + dc, r1 + dr)
-        ]
+        level["walls"] = [w for w in (shift_wall(w) for w in level["walls"]) if w is not None]
 
     def clip_zone(zone: dict) -> dict | None:
         c0, c1 = zone["cols"]
@@ -627,53 +689,6 @@ def resize_map_data(
             kept_ramps.append(ramp)
     out["ramps"] = kept_ramps
 
-    out["material_rules"] = [
-        rule
-        for rule in (
-            _resize_material_rule(rule, dc, dr, new_cols, new_rows)
-            for rule in out.get("material_rules", [])
-        )
-        if rule is not None
-    ]
-
-    return out
-
-
-def _resize_material_rule(rule: dict, dc: int, dr: int, new_cols: int, new_rows: int) -> dict | None:
-    """Translate and clip a rule's coordinate fields. Returns None if any
-    coordinate range collapses to empty after clipping (rule no longer
-    matches anything inside the new grid)."""
-    out = copy.deepcopy(rule)
-    # cell_* ranges target floor cells: valid range is [0, grid - 1] inclusive.
-    for key, max_val in (("cell_cols", new_cols), ("cell_rows", new_rows)):
-        if key not in out or out[key] is None:
-            continue
-        a, b = out[key]
-        delta = dc if "col" in key else dr
-        na = max(0, a + delta)
-        nb = min(max_val - 1, b + delta)
-        if nb < na:
-            return None
-        out[key] = [na, nb]
-    # edge_* ranges and from/to target grid lines: valid range is [0, grid].
-    for key, max_val in (("edge_cols", new_cols), ("edge_rows", new_rows)):
-        if key not in out or out[key] is None:
-            continue
-        a, b = out[key]
-        delta = dc if "col" in key else dr
-        na = max(0, a + delta)
-        nb = min(max_val, b + delta)
-        if nb < na:
-            return None
-        out[key] = [na, nb]
-    for key in ("from", "to"):
-        if key not in out or out[key] is None:
-            continue
-        c, r = out[key]
-        nc, nr = c + dc, r + dr
-        if not (0 <= nc <= new_cols and 0 <= nr <= new_rows):
-            return None
-        out[key] = [nc, nr]
     return out
 
 
@@ -687,18 +702,28 @@ def enforce_ramp_floor_rules(map_data: dict) -> None:
         if not cells:
             continue
 
-        lower_floors = {tuple(floor) for floor in map_data["levels"][lower]["floors"]}
-        upper_floors = {tuple(floor) for floor in map_data["levels"][upper]["floors"]}
-        lower_inaccessible_floors = {tuple(floor) for floor in map_data["levels"][lower]["inaccessible_floors"]}
-        upper_inaccessible_floors = {tuple(floor) for floor in map_data["levels"][upper]["inaccessible_floors"]}
-        lower_floors.update(cells)
-        upper_floors.difference_update(cells)
-        lower_inaccessible_floors.difference_update(cells)
-        upper_inaccessible_floors.difference_update(cells)
-        map_data["levels"][lower]["floors"] = [[c, r] for c, r in lower_floors]
-        map_data["levels"][upper]["floors"] = [[c, r] for c, r in upper_floors]
-        map_data["levels"][lower]["inaccessible_floors"] = [[c, r] for c, r in lower_inaccessible_floors]
-        map_data["levels"][upper]["inaccessible_floors"] = [[c, r] for c, r in upper_inaccessible_floors]
+        # Ensure the ramp's footprint cells exist as regular floors on the
+        # lower level (auto-painted with placeholder materials when missing),
+        # and are removed from the upper level. Inaccessible-floor entries
+        # at those cells are also dropped.
+        ramp_faces = {face: ramp.get(face, "fiberous-plaster1-ue") for face in FACES}
+        lower_existing = {(f["col"], f["row"]): f for f in map_data["levels"][lower]["floors"]}
+        for col, row in cells:
+            if (col, row) not in lower_existing:
+                lower_existing[(col, row)] = {"col": col, "row": row, **ramp_faces}
+        map_data["levels"][lower]["floors"] = list(lower_existing.values())
+        map_data["levels"][lower]["inaccessible_floors"] = [
+            f for f in map_data["levels"][lower]["inaccessible_floors"]
+            if (f["col"], f["row"]) not in cells
+        ]
+        map_data["levels"][upper]["floors"] = [
+            f for f in map_data["levels"][upper]["floors"]
+            if (f["col"], f["row"]) not in cells
+        ]
+        map_data["levels"][upper]["inaccessible_floors"] = [
+            f for f in map_data["levels"][upper]["inaccessible_floors"]
+            if (f["col"], f["row"]) not in cells
+        ]
 
 
 def normalized_wall(wall: list[int]) -> list[int]:
@@ -733,23 +758,23 @@ def validate_map(map_data: dict) -> list[str]:
         prefix = level_label(level, level_idx)
         if not level["floors"]:
             errors.append(f"{prefix}: at least one floor is required by the Rust loader")
-        floor_set = {tuple(floor) for floor in level["floors"]}
+        floor_set = {(f["col"], f["row"]) for f in level["floors"]}
         for floor in level["floors"]:
-            c, r = floor
+            c, r = floor["col"], floor["row"]
             if not (0 <= c < cols and 0 <= r < rows):
-                errors.append(f"{prefix}: floor {floor} is outside the grid")
+                errors.append(f"{prefix}: floor [{c}, {r}] is outside the grid")
         for floor in level["inaccessible_floors"]:
-            c, r = floor
+            c, r = floor["col"], floor["row"]
             if not (0 <= c < cols and 0 <= r < rows):
-                errors.append(f"{prefix}: inaccessible floor {floor} is outside the grid")
-            if tuple(floor) in floor_set:
-                errors.append(f"{prefix}: inaccessible floor {floor} overlaps a floor")
+                errors.append(f"{prefix}: inaccessible floor [{c}, {r}] is outside the grid")
+            if (c, r) in floor_set:
+                errors.append(f"{prefix}: inaccessible floor [{c}, {r}] overlaps a floor")
         for wall in level["walls"]:
-            c0, r0, c1, r1 = wall
+            c0, r0, c1, r1 = wall["c0"], wall["r0"], wall["c1"], wall["r1"]
             if not (grid_point_in_bounds(c0, r0, cols, rows) and grid_point_in_bounds(c1, r1, cols, rows)):
-                errors.append(f"{prefix}: wall {wall} is outside the grid-line bounds")
+                errors.append(f"{prefix}: wall [{c0}, {r0}, {c1}, {r1}] is outside the grid-line bounds")
             if abs(c1 - c0) + abs(r1 - r0) != 1:
-                errors.append(f"{prefix}: wall {wall} is not one grid edge")
+                errors.append(f"{prefix}: wall [{c0}, {r0}, {c1}, {r1}] is not one grid edge")
 
     ramp_cells_by_level: list[set[tuple[int, int]]] = [set() for _ in map_data["levels"]]
     for ramp in map_data["ramps"]:
@@ -759,7 +784,7 @@ def validate_map(map_data: dict) -> list[str]:
                 if 0 <= level < len(ramp_cells_by_level):
                     ramp_cells_by_level[level].add(cell)
     inaccessible_by_level = [
-        {tuple(floor) for floor in level["inaccessible_floors"]} for level in map_data["levels"]
+        {(f["col"], f["row"]) for f in level["inaccessible_floors"]} for level in map_data["levels"]
     ]
     for idx, zone in enumerate(map_data["actor_spawn_zones"]):
         _check_zone_clear_of_obstructions(
@@ -774,56 +799,7 @@ def validate_map(map_data: dict) -> list[str]:
         msg = ramp_error(ramp["low"], ramp["high"], ramp["lower_level"], cols, rows, len(map_data["levels"]))
         if msg:
             errors.append(f"ramp {ramp}: {msg}")
-
-    level_names = {level["name"] for level in map_data["levels"] if level.get("name")}
-    for idx, rule in enumerate(map_data.get("material_rules", [])):
-        _validate_material_rule(rule, idx, cols, rows, level_names, len(map_data["levels"]), errors)
     return errors
-
-
-def _validate_material_rule(
-    rule: dict,
-    idx: int,
-    cols: int,
-    rows: int,
-    level_names: set[str],
-    level_count: int,
-    errors: list[str],
-) -> None:
-    label = f"material_rules[{idx}]"
-    levels = rule.get("levels")
-    if levels is not None:
-        names = levels if isinstance(levels, list) else [levels]
-        for name in names:
-            if isinstance(name, str):
-                if name not in level_names:
-                    errors.append(f"{label}: unknown level name {name!r}")
-            elif isinstance(name, int):
-                if not (0 <= name < level_count):
-                    errors.append(f"{label}: level index {name} out of range")
-            else:
-                errors.append(f"{label}: level reference must be a name or index, got {name!r}")
-    for key, max_val in (("cell_cols", cols - 1), ("cell_rows", rows - 1)):
-        rng = rule.get(key)
-        if rng is None:
-            continue
-        a, b = rng
-        if a < 0 or b > max_val or a > b:
-            errors.append(f"{label}: {key} {rng} is outside [0, {max_val}]")
-    for key, max_val in (("edge_cols", cols), ("edge_rows", rows)):
-        rng = rule.get(key)
-        if rng is None:
-            continue
-        a, b = rng
-        if a < 0 or b > max_val or a > b:
-            errors.append(f"{label}: {key} {rng} is outside [0, {max_val}]")
-    for key in ("from", "to"):
-        pt = rule.get(key)
-        if pt is None:
-            continue
-        c, r = pt
-        if not grid_point_in_bounds(c, r, cols, rows):
-            errors.append(f"{label}: {key} {pt} is outside grid-line bounds")
 
 
 def _validate_zone_rect(zone: dict, label: str, map_data: dict, errors: list[str]) -> None:
@@ -891,78 +867,52 @@ def tag_color(tag: str) -> QColor:
     return color
 
 
+FACES = ("top", "bottom", "north", "south", "east", "west")
+
+
+def expand_face_materials(obj: dict) -> dict[str, str]:
+    """Expand `all` shorthand into six explicit face materials. Faces not
+    explicitly set fall back to `all` (or to any other face value if `all` is
+    absent). Used when reading per-segment material data from JSON."""
+    fallback = obj.get("all")
+    if fallback is None:
+        fallback = next((obj[face] for face in FACES if face in obj), None)
+    if fallback is None:
+        # No materials at all on this segment — fall back to a sentinel so the
+        # editor can still display something. Real maps shouldn't hit this.
+        fallback = "fiberous-plaster1-ue"
+    return {face: obj.get(face, fallback) for face in FACES}
+
+
+def compact_face_materials(faces: dict[str, str]) -> dict:
+    """Pack six face materials into the on-disk `all` + overrides shape.
+    Picks the most-common face value as `all`; ties broken alphabetically for
+    deterministic output."""
+    counts: dict[str, int] = {}
+    for face in FACES:
+        if face in faces:
+            counts[faces[face]] = counts.get(faces[face], 0) + 1
+    if not counts:
+        return {}
+    best_count = max(counts.values())
+    most_common = sorted(name for name, count in counts.items() if count == best_count)[0]
+    if best_count <= 1:
+        return {face: faces[face] for face in FACES if face in faces}
+    out = {"all": most_common}
+    for face in FACES:
+        if face in faces and faces[face] != most_common:
+            out[face] = faces[face]
+    return out
+
+
 def resolve_floor_material(map_data: dict, level_idx: int, col: int, row: int) -> str | None:
-    """Pick the top-face material name for a floor cell by the same specificity
-    rules as the Rust `MaterialRules` resolver. Returns None when no rule with
-    a `floors` block matches."""
-    rules = map_data.get("material_rules", [])
-    grid_cols = map_data["grid_cols"]
-    grid_rows = map_data["grid_rows"]
-    name_to_idx = {lvl["name"]: i for i, lvl in enumerate(map_data["levels"]) if lvl.get("name")}
-
-    best_score = -1
-    best_material: str | None = None
-    for rule in rules:
-        if "floors" not in rule:
-            continue
-        if not _rule_matches_level(rule, level_idx, name_to_idx):
-            continue
-        if not _rule_matches_cell(rule, col, row):
-            continue
-        score = _rule_floor_specificity(rule, grid_cols, grid_rows)
-        if score > best_score:
-            material = _rule_top_face(rule)
-            if material is not None:
-                best_score = score
-                best_material = material
-    return best_material
-
-
-def _rule_matches_level(rule: dict, level_idx: int, name_to_idx: dict[str, int]) -> bool:
-    levels = rule.get("levels")
-    if levels is None:
-        return True
-    refs = levels if isinstance(levels, list) else [levels]
-    for ref in refs:
-        if isinstance(ref, int) and ref == level_idx:
-            return True
-        if isinstance(ref, str) and name_to_idx.get(ref) == level_idx:
-            return True
-    return False
-
-
-def _rule_matches_cell(rule: dict, col: int, row: int) -> bool:
-    cols = rule.get("cell_cols")
-    if cols is not None and not (cols[0] <= col <= cols[1]):
-        return False
-    rows = rule.get("cell_rows")
-    if rows is not None and not (rows[0] <= row <= rows[1]):
-        return False
-    return True
-
-
-def _rule_floor_specificity(rule: dict, grid_cols: int, grid_rows: int) -> int:
-    score = 0
-    levels = rule.get("levels")
-    if levels is not None:
-        refs = levels if isinstance(levels, list) else [levels]
-        score += 1000 if len(refs) == 1 else max(0, 900 - len(refs))
-    if (rng := rule.get("cell_cols")) is not None:
-        score += _range_specificity(rng, grid_cols)
-    if (rng := rule.get("cell_rows")) is not None:
-        score += _range_specificity(rng, grid_rows)
-    return score
-
-
-def _range_specificity(rng: list[int], full_len: int) -> int:
-    a, b = rng
-    length = max(1, min(full_len, b - a + 1))
-    return 100 + (full_len - length)
-
-
-def _rule_top_face(rule: dict) -> str | None:
-    floors = rule.get("floors", {})
-    return floors.get("top") or floors.get("all")
+    """Top-face material at a floor cell. Direct per-segment lookup."""
+    if not (0 <= level_idx < len(map_data["levels"])):
+        return None
+    for floor in map_data["levels"][level_idx]["floors"]:
+        if floor["col"] == col and floor["row"] == row:
+            return floor.get("top")
+    return None
 
 
 def level_label(level: dict, index: int) -> str:
@@ -1095,16 +1045,18 @@ class Canvas(QWidget):
         painter.setPen(Qt.PenStyle.NoPen)
         overlay = self.window.show_material_overlay
         default_floor = QColor("#454f5b")
-        for col, row in level["floors"]:
+        for floor in level["floors"]:
+            col, row = floor["col"], floor["row"]
             color = default_floor
             if overlay:
-                material = resolve_floor_material(self.window.map_data, level_idx, col, row)
+                material = floor.get("top")
                 if material is not None:
                     color = tag_color(material)
             painter.setBrush(color)
             painter.drawRect(QRectF(col * cell + 1, row * cell + 1, cell - 2, cell - 2))
         painter.setBrush(default_floor)
-        for col, row in level["inaccessible_floors"]:
+        for floor in level["inaccessible_floors"]:
+            col, row = floor["col"], floor["row"]
             rect = QRectF(col * cell + 1, row * cell + 1, cell - 2, cell - 2)
             painter.drawRect(rect)
             painter.setPen(QPen(QColor("#94a3b8"), 1))
@@ -1170,8 +1122,11 @@ class Canvas(QWidget):
             painter.drawLine(0, y, cols * cell, y)
 
         painter.setPen(QPen(QColor("#f1f5f9"), 4, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
-        for c0, r0, c1, r1 in level["walls"]:
-            painter.drawLine(c0 * cell, r0 * cell, c1 * cell, r1 * cell)
+        for wall in level["walls"]:
+            painter.drawLine(
+                wall["c0"] * cell, wall["r0"] * cell,
+                wall["c1"] * cell, wall["r1"] * cell,
+            )
 
     def paint_spawn_zones(self, painter: QPainter, cell: float, level_idx: int) -> None:
         # Player zones first so actor zones (which carry kind labels) sit on top.
@@ -1403,6 +1358,9 @@ class EditorWindow(QMainWindow):
         self.selected_spawn_zone_ref: ZoneRef | None = None
         self.spawn_zone_drag: SpawnZoneDrag | None = None
         self.show_material_overlay = False
+        # Material used as the default for newly painted floors / walls / ramps.
+        # The user picks a different one from the materials palette.
+        self.current_material: str = "fiberous-plaster1-ue"
 
         self.canvas = Canvas(self)
         self.setCentralWidget(self.canvas)
@@ -1621,32 +1579,43 @@ class EditorWindow(QMainWindow):
         )
         return result == QMessageBox.StandardButton.Discard
 
+    def _face_materials_for_current(self) -> dict[str, str]:
+        return {face: self.current_material for face in FACES}
+
+    def _new_floor(self, col: int, row: int) -> dict:
+        return {"col": col, "row": row, **self._face_materials_for_current()}
+
+    def _new_wall(self, c0: int, r0: int, c1: int, r1: int) -> dict:
+        return {"c0": c0, "r0": r0, "c1": c1, "r1": r1, **self._face_materials_for_current()}
+
     def add_floor_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         c0, r0, c1, r1 = rect_from_cells(start, end)
         after = copy.deepcopy(self.map_data)
         level = after["levels"][self.current_level]
-        floors = {tuple(f) for f in level["floors"]}
-        inaccessible_floors = {tuple(f) for f in level["inaccessible_floors"]}
+        existing_floors = {(f["col"], f["row"]): f for f in level["floors"]}
+        existing_inacc = {(f["col"], f["row"]): f for f in level["inaccessible_floors"]}
         for row in range(r0, r1):
             for col in range(c0, c1):
-                floors.add((col, row))
-                inaccessible_floors.discard((col, row))
-        level["floors"] = [[c, r] for c, r in floors]
-        level["inaccessible_floors"] = [[c, r] for c, r in inaccessible_floors]
+                if (col, row) not in existing_floors:
+                    existing_floors[(col, row)] = self._new_floor(col, row)
+                existing_inacc.pop((col, row), None)
+        level["floors"] = list(existing_floors.values())
+        level["inaccessible_floors"] = list(existing_inacc.values())
         self.apply_change("Paint Floor", after)
 
     def add_inaccessible_floor_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         c0, r0, c1, r1 = rect_from_cells(start, end)
         after = copy.deepcopy(self.map_data)
         level = after["levels"][self.current_level]
-        floors = {tuple(f) for f in level["floors"]}
-        inaccessible_floors = {tuple(f) for f in level["inaccessible_floors"]}
+        existing_floors = {(f["col"], f["row"]): f for f in level["floors"]}
+        existing_inacc = {(f["col"], f["row"]): f for f in level["inaccessible_floors"]}
         for row in range(r0, r1):
             for col in range(c0, c1):
-                floors.discard((col, row))
-                inaccessible_floors.add((col, row))
-        level["floors"] = [[c, r] for c, r in floors]
-        level["inaccessible_floors"] = [[c, r] for c, r in inaccessible_floors]
+                existing_floors.pop((col, row), None)
+                if (col, row) not in existing_inacc:
+                    existing_inacc[(col, row)] = self._new_floor(col, row)
+        level["floors"] = list(existing_floors.values())
+        level["inaccessible_floors"] = list(existing_inacc.values())
         # Drop any spawn zone whose rect intersects the new inaccessible-floor rect on this level.
         for list_name in SPAWN_ZONE_LISTS:
             after[list_name] = [
@@ -1700,9 +1669,16 @@ class EditorWindow(QMainWindow):
         if not edges:
             return
         after = copy.deepcopy(self.map_data)
-        walls = {tuple(normalized_wall(w)) for w in after["levels"][self.current_level]["walls"]}
-        walls.update(tuple(w) for w in edges)
-        after["levels"][self.current_level]["walls"] = [list(w) for w in walls]
+        existing = {
+            tuple(normalized_wall([w["c0"], w["r0"], w["c1"], w["r1"]])): w
+            for w in after["levels"][self.current_level]["walls"]
+        }
+        for edge in edges:
+            key = tuple(normalized_wall(edge))
+            if key not in existing:
+                c0, r0, c1, r1 = key
+                existing[key] = self._new_wall(c0, r0, c1, r1)
+        after["levels"][self.current_level]["walls"] = list(existing.values())
         self.apply_change("Place Wall", after)
 
     def add_ramp(self, start_cell: tuple[int, int], end_cell: tuple[int, int], mode: str) -> None:
@@ -1733,7 +1709,7 @@ class EditorWindow(QMainWindow):
         if msg:
             self.statusBar().showMessage(f"Ramp not placed: {msg}", 4000)
             return
-        new_ramp = {"low": low, "high": high, "lower_level": lower_level}
+        new_ramp = {"low": low, "high": high, "lower_level": lower_level, **self._face_materials_for_current()}
         new_rect = ramp_rect(new_ramp)
         after = copy.deepcopy(self.map_data)
         after["ramps"] = [
@@ -1758,17 +1734,17 @@ class EditorWindow(QMainWindow):
             level["floors"] = [
                 floor
                 for floor in level["floors"]
-                if not (c0 <= floor[0] < c1 and r0 <= floor[1] < r1)
+                if not (c0 <= floor["col"] < c1 and r0 <= floor["row"] < r1)
             ]
             level["inaccessible_floors"] = [
                 floor
                 for floor in level["inaccessible_floors"]
-                if not (c0 <= floor[0] < c1 and r0 <= floor[1] < r1)
+                if not (c0 <= floor["col"] < c1 and r0 <= floor["row"] < r1)
             ]
         level["walls"] = [
             wall
             for wall in level["walls"]
-            if not wall_overlaps_rect(wall, (c0, r0, c1, r1))
+            if not wall_overlaps_rect([wall["c0"], wall["r0"], wall["c1"], wall["r1"]], (c0, r0, c1, r1))
         ]
         for list_name in SPAWN_ZONE_LISTS:
             after[list_name] = [
@@ -1793,8 +1769,9 @@ class EditorWindow(QMainWindow):
         py = pos.y() / cell_size
 
         for wall in level["walls"]:
-            if point_near_wall(px, py, wall):
-                return ("Wall", tuple(wall))
+            wall_arr = [wall["c0"], wall["r0"], wall["c1"], wall["r1"]]
+            if point_near_wall(px, py, wall_arr):
+                return ("Wall", tuple(wall_arr))
         # Search both lists in reverse so the most-recently-painted (visually
         # on top) wins. Actor first, then player — when both cover the same
         # cell, prefer the actor zone since its label needs editing more often.
@@ -1810,9 +1787,9 @@ class EditorWindow(QMainWindow):
             c0, r0, c1, r1 = ramp_rect(ramp)
             if c0 <= col < c1 and r0 <= row < r1:
                 return ("Ramp", (lower, tuple(ramp["low"]), tuple(ramp["high"])))
-        if [col, row] in level["floors"]:
+        if any(f["col"] == col and f["row"] == row for f in level["floors"]):
             return ("Floor", (col, row))
-        if [col, row] in level["inaccessible_floors"]:
+        if any(f["col"] == col and f["row"] == row for f in level["inaccessible_floors"]):
             return ("Inaccessible Floor", (col, row))
         return None
 
@@ -1823,9 +1800,14 @@ class EditorWindow(QMainWindow):
         after = copy.deepcopy(self.map_data)
         level = after["levels"][self.current_level]
         if kind == "Floor":
-            level["floors"] = [floor for floor in level["floors"] if tuple(floor) != value]
+            level["floors"] = [
+                floor for floor in level["floors"] if (floor["col"], floor["row"]) != value
+            ]
         elif kind == "Inaccessible Floor":
-            level["inaccessible_floors"] = [floor for floor in level["inaccessible_floors"] if tuple(floor) != value]
+            level["inaccessible_floors"] = [
+                floor for floor in level["inaccessible_floors"]
+                if (floor["col"], floor["row"]) != value
+            ]
         elif kind == "Spawn Zone":
             list_name, target_idx = value
             if 0 <= target_idx < len(after[list_name]):
@@ -1833,7 +1815,10 @@ class EditorWindow(QMainWindow):
                 if self.selected_spawn_zone_ref == ZoneRef(list_name, target_idx):
                     self.selected_spawn_zone_ref = None
         elif kind == "Wall":
-            level["walls"] = [wall for wall in level["walls"] if tuple(normalized_wall(wall)) != value]
+            level["walls"] = [
+                wall for wall in level["walls"]
+                if tuple(normalized_wall([wall["c0"], wall["r0"], wall["c1"], wall["r1"]])) != value
+            ]
         elif kind == "Ramp":
             lower, low, high = value
             after["ramps"] = [

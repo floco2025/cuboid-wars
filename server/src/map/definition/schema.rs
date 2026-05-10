@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -17,6 +19,11 @@ pub(crate) struct MapDef {
     pub(crate) levels: Vec<LevelDef>,
     #[serde(default)]
     pub(crate) ramps: Vec<RampDef>,
+    // Items aren't part of the geometry primitives the server consumes; their
+    // materials are loaded separately by `MaterialRules`. Accept the field so
+    // serde doesn't reject it; we don't read it here.
+    #[serde(default, rename = "item_materials")]
+    pub(crate) _item_materials: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -24,11 +31,29 @@ pub(crate) struct LevelDef {
     #[serde(default)]
     pub(crate) name: Option<String>,
     #[serde(default)]
-    pub(crate) floors: Vec<[i32; 2]>,
+    pub(crate) floors: Vec<FloorDef>,
     #[serde(default)]
-    pub(crate) inaccessible_floors: Vec<[i32; 2]>,
+    pub(crate) inaccessible_floors: Vec<FloorDef>,
     #[serde(default)]
-    pub(crate) walls: Vec<[i32; 4]>,
+    pub(crate) walls: Vec<WallDef>,
+}
+
+// Per-face materials live on each segment in JSON but are loaded by the
+// `MaterialRules` pipeline, not the server-side mesh generator. Serde's
+// default behavior silently ignores the extra material keys, so we don't
+// declare them here.
+#[derive(Debug, Deserialize)]
+pub(crate) struct FloorDef {
+    pub(crate) col: i32,
+    pub(crate) row: i32,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct WallDef {
+    pub(crate) c0: i32,
+    pub(crate) r0: i32,
+    pub(crate) c1: i32,
+    pub(crate) r1: i32,
 }
 
 #[derive(Debug, Deserialize)]

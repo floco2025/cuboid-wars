@@ -1,75 +1,12 @@
-use std::{collections::BTreeMap, fs, path::Path};
+use std::{collections::HashMap, fs, path::Path};
 
 use anyhow::{Context, Result};
-use serde::{Deserialize, Deserializer, de};
+use serde::Deserialize;
 
-use super::{
-    MaterialRules,
-    layers::LayerNames,
-    rules::{RuleSet, RuleSetDef},
-};
+use super::{MaterialRules, face_materials::FaceMaterials, query::SegmentMaterials};
 use crate::map_geometry::MapGeometry;
 
 const SUPPORTED_MAP_VERSION: u32 = 1;
-
-impl<'de> Deserialize<'de> for MaterialRules {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        struct MaterialRulesDef {
-            #[serde(default)]
-            grid_cols: Option<i32>,
-            #[serde(default)]
-            grid_rows: Option<i32>,
-            #[serde(default, alias = "layer_names", alias = "level_names")]
-            layers: LayerNamesDef,
-            #[serde(rename = "material_rules")]
-            rules: RuleSetDef,
-        }
-
-        let def = MaterialRulesDef::deserialize(deserializer)?;
-        let rules = RuleSet::from_def(def.rules, &def.layers.0).map_err(de::Error::custom)?;
-        let geometry = MapGeometry::new(def.grid_cols.unwrap_or(0), def.grid_rows.unwrap_or(0));
-        Ok(Self { geometry, rules })
-    }
-}
-
-#[derive(Debug, Clone, Default)]
-struct LayerNamesDef(LayerNames);
-
-impl<'de> Deserialize<'de> for LayerNamesDef {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        #[serde(untagged)]
-        enum Def {
-            Ordered(Vec<String>),
-            Named(BTreeMap<String, u8>),
-        }
-
-        let layers = match Def::deserialize(deserializer)? {
-            Def::Ordered(names) => ordered_layer_names(names).map_err(de::Error::custom)?,
-            Def::Named(names) => names,
-        };
-        Ok(Self(layers))
-    }
-}
-
-fn ordered_layer_names(names: Vec<String>) -> std::result::Result<LayerNames, String> {
-    let mut layers = LayerNames::new();
-    for (idx, name) in names.into_iter().enumerate() {
-        let level =
-            u8::try_from(idx).map_err(|_| "material layer list cannot contain more than 256 layers".to_owned())?;
-        if layers.insert(name.clone(), level).is_some() {
-            return Err(format!("duplicate material layer name {name:?}"));
-        }
-    }
-    Ok(layers)
-}
 
 #[derive(Deserialize)]
 struct MapFile {
@@ -84,13 +21,46 @@ struct MapBody {
     #[serde(default)]
     levels: Vec<MapLevel>,
     #[serde(default)]
-    material_rules: Option<RuleSetDef>,
+    ramps: Vec<MapRamp>,
+    #[serde(default)]
+    item_materials: HashMap<String, String>,
 }
 
 #[derive(Deserialize)]
 struct MapLevel {
     #[serde(default)]
-    name: Option<String>,
+    floors: Vec<MapFloor>,
+    #[serde(default)]
+    inaccessible_floors: Vec<MapFloor>,
+    #[serde(default)]
+    walls: Vec<MapWall>,
+}
+
+#[derive(Deserialize)]
+struct MapFloor {
+    col: i32,
+    row: i32,
+    #[serde(flatten)]
+    materials: FaceMaterials,
+}
+
+#[derive(Deserialize)]
+struct MapWall {
+    c0: i32,
+    r0: i32,
+    c1: i32,
+    r1: i32,
+    #[serde(flatten)]
+    materials: FaceMaterials,
+}
+
+#[derive(Deserialize)]
+struct MapRamp {
+    low: [i32; 2],
+    high: [i32; 2],
+    lower_level: u32,
+    #[serde(flatten)]
+    materials: FaceMaterials,
 }
 
 impl MaterialRules {
@@ -111,22 +81,47 @@ impl MaterialRules {
             file.version,
             SUPPORTED_MAP_VERSION
         );
-        let layers = layer_names_from_levels(&file.map.levels)?;
-        let rules_def = file.map.material_rules.unwrap_or(RuleSetDef::Flat(Vec::new()));
-        let rules = RuleSet::from_def(rules_def, &layers).map_err(anyhow::Error::msg)?;
+
         let geometry = MapGeometry::new(file.map.grid_cols, file.map.grid_rows);
-        Ok(Self { geometry, rules })
+        let mut floor_materials: HashMap<(u8, i32, i32), FaceMaterials> = HashMap::new();
+        let mut wall_materials: HashMap<(u8, [i32; 2], [i32; 2]), FaceMaterials> = HashMap::new();
+        for (level_idx, level) in file.map.levels.iter().enumerate() {
+            let level_u8 = u8::try_from(level_idx).expect("more than 256 levels not supported");
+            for floor in level.floors.iter().chain(level.inaccessible_floors.iter()) {
+                floor_materials.insert((level_u8, floor.col, floor.row), floor.materials.clone());
+            }
+            for wall in &level.walls {
+                let key = wall_edge_key([wall.c0, wall.r0], [wall.c1, wall.r1]);
+                wall_materials.insert((level_u8, key.0, key.1), wall.materials.clone());
+            }
+        }
+        let mut ramp_materials: HashMap<(u8, i32, i32), FaceMaterials> = HashMap::new();
+        for ramp in &file.map.ramps {
+            let lower_level = u8::try_from(ramp.lower_level).expect("ramp lower_level out of u8 range");
+            let col_min = ramp.low[0].min(ramp.high[0]);
+            let col_max = ramp.low[0].max(ramp.high[0]);
+            let row_min = ramp.low[1].min(ramp.high[1]);
+            let row_max = ramp.low[1].max(ramp.high[1]);
+            for col in col_min..col_max {
+                for row in row_min..row_max {
+                    ramp_materials.insert((lower_level, col, row), ramp.materials.clone());
+                }
+            }
+        }
+
+        Ok(Self {
+            geometry,
+            segments: SegmentMaterials {
+                floors: floor_materials,
+                walls: wall_materials,
+                ramps: ramp_materials,
+            },
+            item_materials: file.map.item_materials,
+        })
     }
 }
 
-fn layer_names_from_levels(levels: &[MapLevel]) -> Result<LayerNames> {
-    let mut layers = LayerNames::new();
-    for (idx, level) in levels.iter().enumerate() {
-        let Some(name) = &level.name else { continue };
-        let layer = u8::try_from(idx).map_err(|_| anyhow::anyhow!("map cannot contain more than 256 levels"))?;
-        if layers.insert(name.clone(), layer).is_some() {
-            anyhow::bail!("duplicate level name {name:?}");
-        }
-    }
-    Ok(layers)
+// Wall edges are stored normalized so lookup is order-independent.
+pub(super) fn wall_edge_key(from: [i32; 2], to: [i32; 2]) -> ([i32; 2], [i32; 2]) {
+    if (from[0], from[1]) <= (to[0], to[1]) { (from, to) } else { (to, from) }
 }

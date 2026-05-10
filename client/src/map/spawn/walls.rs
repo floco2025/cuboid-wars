@@ -37,6 +37,7 @@ impl CardinalDirection {
 
 // Spawn a wall segment entity based on a shared `Wall` config.
 pub fn batch_wall(batcher: &mut MapGeometryBatch, asset_set: &AssetSet, wall: &Wall) {
+    batcher.begin_segment();
     let center_x = f32::midpoint(wall.x1, wall.x2);
     let center_z = f32::midpoint(wall.z1, wall.z2);
 

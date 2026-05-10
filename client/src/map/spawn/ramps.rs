@@ -9,6 +9,7 @@ use common::{constants::LEVEL_HEIGHT, protocol::*};
 
 // Spawn a ramp entity based on shared `Ramp` config.
 pub fn batch_ramp(batcher: &mut MapGeometryBatch, asset_set: &AssetSet, ramp: &Ramp) {
+    batcher.begin_segment();
     let top_material_id = asset_set.material_ids_for_ramp_top(ramp).top;
     let side_material_ids = asset_set.material_ids_for_ramp_side(ramp);
     let side_material_id = side_material_ids.primary().to_owned();

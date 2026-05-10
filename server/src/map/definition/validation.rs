@@ -146,9 +146,10 @@ fn validate_regular_floors(
 ) -> Result<BTreeSet<[i32; 2]>> {
     let mut floors = BTreeSet::new();
     for (floor_idx, floor) in level.floors.iter().enumerate() {
-        validate_floor(*floor, grid_cols, grid_rows).with_context(|| format!("{label}: floors[{floor_idx}]"))?;
-        if !floors.insert(*floor) {
-            return Err(anyhow!("{label}: duplicate floor {:?}", floor));
+        let key = [floor.col, floor.row];
+        validate_floor(key, grid_cols, grid_rows).with_context(|| format!("{label}: floors[{floor_idx}]"))?;
+        if !floors.insert(key) {
+            return Err(anyhow!("{label}: duplicate floor {:?}", key));
         }
     }
     Ok(floors)
@@ -163,13 +164,14 @@ fn validate_inaccessible_floors(
 ) -> Result<()> {
     let mut inaccessible_floors = BTreeSet::new();
     for (floor_idx, floor) in level.inaccessible_floors.iter().enumerate() {
-        validate_floor(*floor, grid_cols, grid_rows)
+        let key = [floor.col, floor.row];
+        validate_floor(key, grid_cols, grid_rows)
             .with_context(|| format!("{label}: inaccessible_floors[{floor_idx}]"))?;
-        if !inaccessible_floors.insert(*floor) {
-            return Err(anyhow!("{label}: duplicate inaccessible_floor {:?}", floor));
+        if !inaccessible_floors.insert(key) {
+            return Err(anyhow!("{label}: duplicate inaccessible_floor {:?}", key));
         }
-        if floors.contains(floor) {
-            return Err(anyhow!("{label}: inaccessible_floor {:?} overlaps a floor", floor));
+        if floors.contains(&key) {
+            return Err(anyhow!("{label}: inaccessible_floor {:?} overlaps a floor", key));
         }
     }
     Ok(())
@@ -178,10 +180,11 @@ fn validate_inaccessible_floors(
 fn validate_walls(level: &LevelDef, label: &str, grid_cols: i32, grid_rows: i32) -> Result<()> {
     let mut walls_seen = BTreeSet::new();
     for (wall_idx, wall) in level.walls.iter().enumerate() {
-        validate_wall(*wall, grid_cols, grid_rows).with_context(|| format!("{label}: walls[{wall_idx}]"))?;
-        let wall = normalized_wall(*wall);
-        if !walls_seen.insert(wall) {
-            return Err(anyhow!("{label}: duplicate wall {:?}", wall));
+        let key = [wall.c0, wall.r0, wall.c1, wall.r1];
+        validate_wall(key, grid_cols, grid_rows).with_context(|| format!("{label}: walls[{wall_idx}]"))?;
+        let normalized = normalized_wall(key);
+        if !walls_seen.insert(normalized) {
+            return Err(anyhow!("{label}: duplicate wall {:?}", normalized));
         }
     }
     Ok(())
@@ -230,8 +233,8 @@ fn collect_obstruction_cells(map_def: &MapDef) -> Vec<std::collections::BTreeMap
 
     // Inaccessible-floor cells: a slab, but not a regular floor.
     for (level_idx, level) in map_def.levels.iter().enumerate() {
-        for cell in &level.inaccessible_floors {
-            per_level[level_idx].insert(*cell, "inaccessible floor");
+        for floor in &level.inaccessible_floors {
+            per_level[level_idx].insert([floor.col, floor.row], "inaccessible floor");
         }
     }
 
@@ -358,16 +361,20 @@ pub(super) fn canonicalize(map_def: &mut MapDef) {
     map_def.player_spawn_zones.dedup();
 
     for level in &mut map_def.levels {
-        level.floors.sort_by_key(|[col, row]| (*row, *col));
-        level.floors.dedup();
-        level.inaccessible_floors.sort_by_key(|[col, row]| (*row, *col));
-        level.inaccessible_floors.dedup();
+        level.floors.sort_by_key(|f| (f.row, f.col));
+        level.floors.dedup_by_key(|f| (f.row, f.col));
+        level.inaccessible_floors.sort_by_key(|f| (f.row, f.col));
+        level.inaccessible_floors.dedup_by_key(|f| (f.row, f.col));
 
         for wall in &mut level.walls {
-            *wall = normalized_wall(*wall);
+            let [c0, r0, c1, r1] = normalized_wall([wall.c0, wall.r0, wall.c1, wall.r1]);
+            wall.c0 = c0;
+            wall.r0 = r0;
+            wall.c1 = c1;
+            wall.r1 = r1;
         }
-        level.walls.sort();
-        level.walls.dedup();
+        level.walls.sort_by_key(|w| (w.c0, w.r0, w.c1, w.r1));
+        level.walls.dedup_by_key(|w| (w.c0, w.r0, w.c1, w.r1));
     }
 
     map_def.ramps.sort_by_key(|r| (r.lower_level, r.low, r.high));
