@@ -6,12 +6,12 @@ use crate::{
     resources::{CellGrid, EdgeGrid, LevelGrid},
 };
 use common::{
-    constants::{GRID_CELL_SIZE, LEVEL_HEIGHT, WALL_THICKNESS},
+    constants::{GRID_CELL_SIZE, WALL_HALF_THICKNESS, LEVEL_HEIGHT},
     map_geometry::MapGeometry,
     protocol::{Position, WallLight},
 };
 
-const MODEL_INSET: f32 = WALL_THICKNESS / 2.0 + 0.02;
+const MODEL_INSET: f32 = WALL_HALF_THICKNESS + 0.02;
 const FULL_EXTERIOR_EXPOSURE: f32 = 1.0;
 const EXPOSURE_EPSILON: f32 = 0.001;
 const CARDINAL_DIRECTIONS: [(CellSide, i32, i32); 4] = [

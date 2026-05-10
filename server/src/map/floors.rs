@@ -3,37 +3,48 @@ use std::collections::HashSet;
 use super::{
     mask::Mask,
     material_rules::MaterialRules,
-    segments::{grid_x, grid_z, horizontal_wall_segment, vertical_wall_segment},
+    segments::{grid_x, grid_z},
 };
-use crate::resources::EdgeGrid;
 use common::{constants::*, face_materials::FaceMaterials, map_geometry::MapGeometry, protocol::Floor};
 
 const MERGE_EPS: f32 = 0.01;
 const CORNER_EPS: f32 = 0.01;
 
-// Emit `Floor` segments for every cell in `mask` at level `level` (Y = `y`).
-// Cells with a 4-connected neighbor on a side don't extend on that side
-// (their slabs meet along the grid line). Cells without a 4-connected
-// neighbor are extended outward by `WALL_THICKNESS / 2` so the slab covers
-// where a perimeter wall would sit.
+// One floor cell's 8 neighbours within the level's slab mask.
+struct Neighbors {
+    n: bool,
+    s: bool,
+    e: bool,
+    w: bool,
+    nw: bool,
+    ne: bool,
+    sw: bool,
+    se: bool,
+}
+
+// Emit a `Floor` cuboid for every cell in `mask` at level `level` (Y = `y`).
 //
-// When a diagonal neighbor exists on the N/S side without a 4-connected
-// neighbor, the N/S extension is suppressed (it would overlap and z-fight
-// with the diagonal cell's W/E extension). The remaining corner gap is
-// patched by a thin `edge_filler` strip inset from the corner so it doesn't
-// overlap either of the adjacent extended slabs.
+// Slab + extensions: each cell starts at its grid bounds. Sides without a
+// 4-connected neighbour extend outward by `HALF_WALL_THICKNESS` so the slab
+// covers where a perimeter wall would sit; sides with a neighbour stop at
+// the grid line (their slabs meet there). N/S extensions are additionally
+// suppressed when a diagonal cell sits on that side, since the diagonal's
+// W/E extension would already overlap the N/S extension.
 //
-// All levels use the same `FLOOR_THICKNESS` so a hole in any tier looks like
-// a real slab edge.
-// `skip_corner_filler_edges` lists horizontal wall edges where the corner-
-// filler branch below should not emit. Corner fillers exist only in the N/S
-// direction (the E/W extension logic has no diagonal-suppression case to
-// recover from), so only horizontal edges matter; an E/W counterpart isn't
-// needed.
+// Corner fillers: when a diagonal suppresses the N/S extension, the cell is
+// left L-shaped with a small gap at the corner opposite the diagonal. A
+// thin strip patches that gap, inset by `pad` from the diagonal cell's W/E
+// extension so it doesn't overlap. Fillers exist only in the N/S direction
+// (E/W extensions don't have a diagonal-suppression case).
 //
-// The set is populated from the high end of each z-axis ramp arriving at
-// this level: a corner-filler strip there would hover redundantly above
-// where the slope already meets the upper floor.
+// All tiers use the same `FLOOR_THICKNESS` so a hole in any level reads as
+// a real slab edge from below.
+//
+// `skip_corner_filler_edges`: horizontal wall edges (`EdgeGrid.horizontal`
+// index space) where the corner-filler branch must not emit. Populated from
+// the high end of each z-axis ramp arriving at this level — a filler there
+// would hover redundantly above where the slope already meets the upper
+// floor. Only horizontal edges are tracked; no E/W counterpart is needed.
 #[must_use]
 pub fn emit_floor_tier(
     mask: &Mask,
@@ -60,158 +71,62 @@ pub fn emit_floor_tier(
             let z1_orig = grid_z(geometry, row);
             let z2_orig = grid_z(geometry, row + 1);
 
-            let mut x1 = x1_orig;
-            let mut x2 = x2_orig;
-            let mut z1 = z1_orig;
-            let mut z2 = z2_orig;
+            let n = Neighbors {
+                w: in_mask(row, col - 1),
+                e: in_mask(row, col + 1),
+                n: in_mask(row - 1, col),
+                s: in_mask(row + 1, col),
+                nw: in_mask(row - 1, col - 1),
+                ne: in_mask(row - 1, col + 1),
+                sw: in_mask(row + 1, col - 1),
+                se: in_mask(row + 1, col + 1),
+            };
 
-            let neighbor_w = in_mask(row, col - 1);
-            let neighbor_e = in_mask(row, col + 1);
-            let neighbor_n = in_mask(row - 1, col);
-            let neighbor_s = in_mask(row + 1, col);
-
-            let neighbor_nw = in_mask(row - 1, col - 1);
-            let neighbor_ne = in_mask(row - 1, col + 1);
-            let neighbor_sw = in_mask(row + 1, col - 1);
-            let neighbor_se = in_mask(row + 1, col + 1);
-
-            let extend_w = !neighbor_w;
-            let extend_e = !neighbor_e;
+            let extend_w = !n.w;
+            let extend_e = !n.e;
             // Diagonal suppression: skip the N/S extension when a diagonal
             // cell sits on that side. Otherwise the N/S extension would
             // overlap the diagonal cell's W/E extension.
-            let extend_n = !neighbor_n && !neighbor_nw && !neighbor_ne;
-            let extend_s = !neighbor_s && !neighbor_sw && !neighbor_se;
+            let extend_n = !n.n && !n.nw && !n.ne;
+            let extend_s = !n.s && !n.sw && !n.se;
 
-            if extend_w {
-                x1 -= WALL_THICKNESS / 2.0;
-            }
-            if extend_e {
-                x2 += WALL_THICKNESS / 2.0;
-            }
-            if extend_n {
-                z1 -= WALL_THICKNESS / 2.0;
-            }
-            if extend_s {
-                z2 += WALL_THICKNESS / 2.0;
-            }
+            let x1 = if extend_w { x1_orig - WALL_HALF_THICKNESS } else { x1_orig };
+            let x2 = if extend_e { x2_orig + WALL_HALF_THICKNESS } else { x2_orig };
+            let z1 = if extend_n { z1_orig - WALL_HALF_THICKNESS } else { z1_orig };
+            let z2 = if extend_s { z2_orig + WALL_HALF_THICKNESS } else { z2_orig };
 
-            floors.push(Floor {
-                x1,
-                z1,
-                x2,
-                z2,
-                y,
-                thickness,
-                level,
-            });
+            floors.push(Floor { x1, z1, x2, z2, y, thickness, level });
 
-            // Corner-filler strips. When a diagonal neighbor suppressed the
-            // N/S extension, the resulting L-shape leaves a gap on the side
-            // of the cell opposite the diagonal. Add a thin strip there. The
-            // inset must use the *unextended* grid-line (`x1_orig`/`x2_orig`)
-            // plus `pad`, because the diagonal cell's W/E extension reaches
-            // `pad` past the grid line — insetting from the cell's own
-            // extended `x1`/`x2` would still overlap the diagonal cell.
-            let pad = (WALL_THICKNESS / 2.0) - CORNER_EPS;
-            if pad > 0.0 {
-                // The N filler would land at horizontal[row][col]; the S
-                // filler at horizontal[row+1][col]. Skip emission if the
-                // landing edge is one we're told to leave alone.
-                if !extend_n
-                    && !neighbor_n
-                    && (neighbor_nw || neighbor_ne)
-                    && !skip_corner_filler_edges.contains(&(row, col))
-                {
-                    let fx1 = if neighbor_nw { x1_orig + pad } else { x1 };
-                    let fx2 = if neighbor_ne { x2_orig - pad } else { x2 };
-                    if fx2 > fx1 {
-                        floors.push(Floor {
-                            x1: fx1,
-                            z1: z1_orig - pad,
-                            x2: fx2,
-                            z2: z1_orig,
-                            y,
-                            thickness,
-                            level,
-                        });
-                    }
-                }
-                if !extend_s
-                    && !neighbor_s
-                    && (neighbor_sw || neighbor_se)
-                    && !skip_corner_filler_edges.contains(&(row + 1, col))
-                {
-                    let fx1 = if neighbor_sw { x1_orig + pad } else { x1 };
-                    let fx2 = if neighbor_se { x2_orig - pad } else { x2 };
-                    if fx2 > fx1 {
-                        floors.push(Floor {
-                            x1: fx1,
-                            z1: z2_orig,
-                            x2: fx2,
-                            z2: z2_orig + pad,
-                            y,
-                            thickness,
-                            level,
-                        });
-                    }
+            // Corner fillers. Inset uses the *unextended* grid line
+            // (`x1_orig`/`x2_orig`) plus `pad`, because the diagonal cell's
+            // W/E extension reaches `pad` past the grid line — insetting
+            // from this cell's own `x1`/`x2` would still overlap the
+            // diagonal cell. The N filler lands at horizontal[row][col];
+            // the S filler at horizontal[row+1][col]. Skip emission if that
+            // edge is in the skip set (a ramp's high-end edge).
+            let pad = WALL_HALF_THICKNESS - CORNER_EPS;
+            if pad <= 0.0 {
+                continue;
+            }
+            if !extend_n && !n.n && (n.nw || n.ne) && !skip_corner_filler_edges.contains(&(row, col)) {
+                let fx1 = if n.nw { x1_orig + pad } else { x1 };
+                let fx2 = if n.ne { x2_orig - pad } else { x2 };
+                if fx2 > fx1 {
+                    floors.push(Floor {
+                        x1: fx1, z1: z1_orig - pad, x2: fx2, z2: z1_orig,
+                        y, thickness, level,
+                    });
                 }
             }
-        }
-    }
-
-    floors
-}
-
-// Emit the thin trim strips that fill the gap between a stacked wall's top
-// and the upper-level floor. A trim emits when both lower and upper levels
-// have a wall on the same edge AND neither adjacent cell is in `upper_mask`
-// (i.e. neither is an upper-level floor slab).
-#[must_use]
-pub fn emit_stacked_wall_trim(
-    lower_edges: &EdgeGrid,
-    upper_edges: &EdgeGrid,
-    upper_mask: &Mask,
-    geometry: &MapGeometry,
-    level: u8,
-    y: f32,
-) -> Vec<Floor> {
-    let grid_cols = geometry.grid_cols;
-    let grid_rows = geometry.grid_rows;
-    let mut floors = Vec::new();
-    let in_upper_mask =
-        |r: i32, c: i32| r >= 0 && r < grid_rows && c >= 0 && c < grid_cols && upper_mask[r as usize][c as usize];
-
-    for row in 0..=grid_rows {
-        for col in 0..grid_cols {
-            if !lower_edges.horizontal[row as usize][col as usize]
-                || !upper_edges.horizontal[row as usize][col as usize]
-            {
-                continue;
-            }
-            if in_upper_mask(row - 1, col) || in_upper_mask(row, col) {
-                continue;
-            }
-            let lower_segment = horizontal_wall_segment(lower_edges, row, col, geometry);
-            let upper_segment = horizontal_wall_segment(upper_edges, row, col, geometry);
-            if let Some(segment) = lower_segment.overlap(upper_segment) {
-                floors.push(segment.floor_strip(y, FLOOR_THICKNESS, level));
-            }
-        }
-    }
-
-    for row in 0..grid_rows {
-        for col in 0..=grid_cols {
-            if !lower_edges.vertical[row as usize][col as usize] || !upper_edges.vertical[row as usize][col as usize] {
-                continue;
-            }
-            if in_upper_mask(row, col - 1) || in_upper_mask(row, col) {
-                continue;
-            }
-            let lower_segment = vertical_wall_segment(lower_edges, row, col, geometry);
-            let upper_segment = vertical_wall_segment(upper_edges, row, col, geometry);
-            if let Some(segment) = lower_segment.overlap(upper_segment) {
-                floors.push(segment.floor_strip(y, FLOOR_THICKNESS, level));
+            if !extend_s && !n.s && (n.sw || n.se) && !skip_corner_filler_edges.contains(&(row + 1, col)) {
+                let fx1 = if n.sw { x1_orig + pad } else { x1 };
+                let fx2 = if n.se { x2_orig - pad } else { x2 };
+                if fx2 > fx1 {
+                    floors.push(Floor {
+                        x1: fx1, z1: z2_orig, x2: fx2, z2: z2_orig + pad,
+                        y, thickness, level,
+                    });
+                }
             }
         }
     }
@@ -282,33 +197,9 @@ fn merge_floors_with_materials(paired: Vec<(Floor, FaceMaterials)>) -> (Vec<Floo
                         continue;
                     }
 
-                    let same_z_span = (acc.z1 - b.z1).abs() < MERGE_EPS && (acc.z2 - b.z2).abs() < MERGE_EPS;
-                    let adjacent_x = (acc.x2 - b.x1).abs() < MERGE_EPS || (b.x2 - acc.x1).abs() < MERGE_EPS;
-                    let same_x_span = (acc.x1 - b.x1).abs() < MERGE_EPS && (acc.x2 - b.x2).abs() < MERGE_EPS;
-                    let adjacent_z = (acc.z2 - b.z1).abs() < MERGE_EPS || (b.z2 - acc.z1).abs() < MERGE_EPS;
-
-                    if same_z_span && adjacent_x && x_merge_visible_match(&acc_materials, b_materials) {
-                        if b.x1 < acc.x1 {
-                            // b is west of acc — its west face becomes the merged west cap.
-                            acc.x1 = b.x1;
-                            acc_materials.west = b_materials.west.clone();
-                        }
-                        if b.x2 > acc.x2 {
-                            acc.x2 = b.x2;
-                            acc_materials.east = b_materials.east.clone();
-                        }
-                        used[j] = true;
-                        merged_this_round = true;
-                        changed = true;
-                    } else if same_x_span && adjacent_z && z_merge_visible_match(&acc_materials, b_materials) {
-                        if b.z1 < acc.z1 {
-                            acc.z1 = b.z1;
-                            acc_materials.north = b_materials.north.clone();
-                        }
-                        if b.z2 > acc.z2 {
-                            acc.z2 = b.z2;
-                            acc_materials.south = b_materials.south.clone();
-                        }
+                    if try_merge_x(&mut acc, &mut acc_materials, b, b_materials)
+                        || try_merge_z(&mut acc, &mut acc_materials, b, b_materials)
+                    {
                         used[j] = true;
                         merged_this_round = true;
                         changed = true;
@@ -330,117 +221,52 @@ fn merge_floors_with_materials(paired: Vec<(Floor, FaceMaterials)>) -> (Vec<Floo
     (floors_out, materials_out)
 }
 
-// Visible faces when merging in the x direction (rectangles abut on east/west).
-fn x_merge_visible_match(a: &FaceMaterials, b: &FaceMaterials) -> bool {
-    a.top == b.top && a.bottom == b.bottom && a.north == b.north && a.south == b.south
+// Attempt to grow `acc` along the x axis by absorbing `b`. `b` qualifies when
+// the two rectangles share their z span exactly and abut (or overlap) along
+// x, and their visible faces in the x-merge direction (top/bottom/north/south)
+// match. On success, `acc`'s x extent grows and its outer east/west caps
+// follow `b`'s east/west when `b` extends past the current span.
+fn try_merge_x(acc: &mut Floor, acc_m: &mut FaceMaterials, b: &Floor, b_m: &FaceMaterials) -> bool {
+    let same_z_span = (acc.z1 - b.z1).abs() < MERGE_EPS && (acc.z2 - b.z2).abs() < MERGE_EPS;
+    let adjacent_x = (acc.x2 - b.x1).abs() < MERGE_EPS || (b.x2 - acc.x1).abs() < MERGE_EPS;
+    let faces_match = acc_m.top == b_m.top && acc_m.bottom == b_m.bottom && acc_m.north == b_m.north && acc_m.south == b_m.south;
+    if !(same_z_span && adjacent_x && faces_match) {
+        return false;
+    }
+    if b.x1 < acc.x1 {
+        acc.x1 = b.x1;
+        acc_m.west = b_m.west.clone();
+    }
+    if b.x2 > acc.x2 {
+        acc.x2 = b.x2;
+        acc_m.east = b_m.east.clone();
+    }
+    true
 }
 
-// Visible faces when merging in the z direction (rectangles abut on north/south).
-fn z_merge_visible_match(a: &FaceMaterials, b: &FaceMaterials) -> bool {
-    a.top == b.top && a.bottom == b.bottom && a.east == b.east && a.west == b.west
+// z-axis counterpart to `try_merge_x`. Same shape, with x and z swapped and
+// east/west replaced by south/north as the visible long faces.
+fn try_merge_z(acc: &mut Floor, acc_m: &mut FaceMaterials, b: &Floor, b_m: &FaceMaterials) -> bool {
+    let same_x_span = (acc.x1 - b.x1).abs() < MERGE_EPS && (acc.x2 - b.x2).abs() < MERGE_EPS;
+    let adjacent_z = (acc.z2 - b.z1).abs() < MERGE_EPS || (b.z2 - acc.z1).abs() < MERGE_EPS;
+    let faces_match = acc_m.top == b_m.top && acc_m.bottom == b_m.bottom && acc_m.east == b_m.east && acc_m.west == b_m.west;
+    if !(same_x_span && adjacent_z && faces_match) {
+        return false;
+    }
+    if b.z1 < acc.z1 {
+        acc.z1 = b.z1;
+        acc_m.north = b_m.north.clone();
+    }
+    if b.z2 > acc.z2 {
+        acc.z2 = b.z2;
+        acc_m.south = b_m.south.clone();
+    }
+    true
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn empty_mask(cols: usize, rows: usize) -> Mask {
-        vec![vec![false; cols]; rows]
-    }
-
-    #[test]
-    fn stacked_horizontal_wall_emits_physical_trim_strip() {
-        let mut lower_edges = EdgeGrid::new(1, 1);
-        let mut upper_edges = EdgeGrid::new(1, 1);
-        let upper_mask = empty_mask(1, 1);
-        lower_edges.horizontal[1][0] = true;
-        upper_edges.horizontal[1][0] = true;
-
-        let geometry = MapGeometry::new(1, 1);
-        let floors = emit_stacked_wall_trim(&lower_edges, &upper_edges, &upper_mask, &geometry, 1, LEVEL_HEIGHT);
-
-        let half_w = geometry.width() / 2.0;
-        let half_d = geometry.depth() / 2.0;
-        assert_eq!(floors.len(), 1);
-        assert_eq!(floors[0].x1, -half_w - WALL_THICKNESS / 2.0);
-        assert_eq!(floors[0].x2, -half_w + GRID_CELL_SIZE + WALL_THICKNESS / 2.0);
-        assert_eq!(floors[0].z1, -half_d + GRID_CELL_SIZE - WALL_THICKNESS / 2.0);
-        assert_eq!(floors[0].z2, -half_d + GRID_CELL_SIZE + WALL_THICKNESS / 2.0);
-        assert_eq!(floors[0].y, LEVEL_HEIGHT);
-        assert_eq!(floors[0].thickness, FLOOR_THICKNESS);
-        assert_eq!(floors[0].level, 1);
-    }
-
-    #[test]
-    fn stacked_vertical_wall_emits_physical_trim_strip() {
-        let mut lower_edges = EdgeGrid::new(1, 1);
-        let mut upper_edges = EdgeGrid::new(1, 1);
-        let upper_mask = empty_mask(1, 1);
-        lower_edges.vertical[0][1] = true;
-        upper_edges.vertical[0][1] = true;
-
-        let geometry = MapGeometry::new(1, 1);
-        let floors = emit_stacked_wall_trim(&lower_edges, &upper_edges, &upper_mask, &geometry, 1, LEVEL_HEIGHT);
-
-        let half_w = geometry.width() / 2.0;
-        let half_d = geometry.depth() / 2.0;
-        assert_eq!(floors.len(), 1);
-        assert_eq!(floors[0].x1, -half_w + GRID_CELL_SIZE - WALL_THICKNESS / 2.0);
-        assert_eq!(floors[0].x2, -half_w + GRID_CELL_SIZE + WALL_THICKNESS / 2.0);
-        assert_eq!(floors[0].z1, -half_d - WALL_THICKNESS / 2.0);
-        assert_eq!(floors[0].z2, -half_d + GRID_CELL_SIZE + WALL_THICKNESS / 2.0);
-        assert_eq!(floors[0].y, LEVEL_HEIGHT);
-        assert_eq!(floors[0].thickness, FLOOR_THICKNESS);
-        assert_eq!(floors[0].level, 1);
-    }
-
-    #[test]
-    fn unstacked_wall_does_not_emit_trim_strip() {
-        let mut lower_edges = EdgeGrid::new(1, 1);
-        let upper_edges = EdgeGrid::new(1, 1);
-        let upper_mask = empty_mask(1, 1);
-        lower_edges.horizontal[1][0] = true;
-
-        let geometry = MapGeometry::new(1, 1);
-        let floors = emit_stacked_wall_trim(&lower_edges, &upper_edges, &upper_mask, &geometry, 1, LEVEL_HEIGHT);
-
-        assert!(floors.is_empty());
-    }
-
-    #[test]
-    fn stacked_wall_next_to_upper_floor_does_not_duplicate_trim() {
-        let mut lower_edges = EdgeGrid::new(1, 1);
-        let mut upper_edges = EdgeGrid::new(1, 1);
-        let upper_mask = vec![vec![true]];
-        lower_edges.horizontal[1][0] = true;
-        upper_edges.horizontal[1][0] = true;
-        lower_edges.vertical[0][1] = true;
-        upper_edges.vertical[0][1] = true;
-
-        let geometry = MapGeometry::new(1, 1);
-        let floors = emit_stacked_wall_trim(&lower_edges, &upper_edges, &upper_mask, &geometry, 1, LEVEL_HEIGHT);
-
-        assert!(floors.is_empty());
-    }
-
-    #[test]
-    fn stacked_trim_uses_overlapping_wall_endpoint_rules() {
-        let mut lower_edges = EdgeGrid::new(1, 2);
-        let mut upper_edges = EdgeGrid::new(1, 2);
-        let upper_mask = empty_mask(1, 2);
-        lower_edges.horizontal[1][0] = true;
-        upper_edges.horizontal[1][0] = true;
-        upper_edges.vertical[0][0] = true;
-        upper_edges.vertical[1][0] = true;
-
-        let geometry = MapGeometry::new(1, 2);
-        let floors = emit_stacked_wall_trim(&lower_edges, &upper_edges, &upper_mask, &geometry, 1, LEVEL_HEIGHT);
-
-        let half_w = geometry.width() / 2.0;
-        assert_eq!(floors.len(), 1);
-        assert_eq!(floors[0].x1, -half_w + WALL_THICKNESS / 2.0);
-        assert_eq!(floors[0].x2, -half_w + GRID_CELL_SIZE + WALL_THICKNESS / 2.0);
-    }
 
     fn rect(x1: f32, x2: f32, z1: f32, z2: f32) -> Floor {
         Floor {

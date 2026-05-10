@@ -9,6 +9,7 @@ mod mask;
 pub(crate) mod material_rules;
 mod ramps;
 mod segments;
+mod trim;
 mod walls;
 
 pub use generation::generate_map;

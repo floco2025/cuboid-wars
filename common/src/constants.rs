@@ -7,6 +7,7 @@ pub const GRID_CELL_SIZE: f32 = 4.0;
 
 // Walls
 pub const WALL_THICKNESS: f32 = 0.3;
+pub const WALL_HALF_THICKNESS: f32 = WALL_THICKNESS / 2.0;
 pub const WALL_HEIGHT: f32 = 4.0;
 
 // Floors

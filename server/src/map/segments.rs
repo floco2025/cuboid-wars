@@ -19,12 +19,11 @@ impl HorizontalSegment {
 
     #[must_use]
     pub fn floor_strip(self, y: f32, thickness: f32, level: u8) -> Floor {
-        let half_width = WALL_THICKNESS / 2.0;
         Floor {
             x1: self.x1,
-            z1: self.z - half_width,
+            z1: self.z - WALL_HALF_THICKNESS,
             x2: self.x2,
-            z2: self.z + half_width,
+            z2: self.z + WALL_HALF_THICKNESS,
             y,
             thickness,
             level,
@@ -49,11 +48,10 @@ impl VerticalSegment {
 
     #[must_use]
     pub fn floor_strip(self, y: f32, thickness: f32, level: u8) -> Floor {
-        let half_width = WALL_THICKNESS / 2.0;
         Floor {
-            x1: self.x - half_width,
+            x1: self.x - WALL_HALF_THICKNESS,
             z1: self.z1,
-            x2: self.x + half_width,
+            x2: self.x + WALL_HALF_THICKNESS,
             z2: self.z2,
             y,
             thickness,
@@ -94,17 +92,17 @@ pub(super) fn horizontal_wall_segment(
 
     let x1 = grid_x(geometry, col)
         + if left_vert_through && !has_left {
-            WALL_THICKNESS / 2.0
+            WALL_HALF_THICKNESS
         } else if !has_left {
-            -WALL_THICKNESS / 2.0
+            -WALL_HALF_THICKNESS
         } else {
             0.0
         };
     let x2 = grid_x(geometry, col + 1)
         + if right_vert_through && !has_right {
-            -WALL_THICKNESS / 2.0
+            -WALL_HALF_THICKNESS
         } else if !has_right {
-            WALL_THICKNESS / 2.0
+            WALL_HALF_THICKNESS
         } else {
             0.0
         };
@@ -131,17 +129,17 @@ pub(super) fn vertical_wall_segment(
 
     let z1 = grid_z(geometry, row)
         + if has_perp_top && !has_top {
-            WALL_THICKNESS / 2.0
+            WALL_HALF_THICKNESS
         } else if !has_top && !has_perp_top {
-            -WALL_THICKNESS / 2.0
+            -WALL_HALF_THICKNESS
         } else {
             0.0
         };
     let z2 = grid_z(geometry, row + 1)
         + if has_perp_bottom && !has_bottom {
-            -WALL_THICKNESS / 2.0
+            -WALL_HALF_THICKNESS
         } else if !has_bottom && !has_perp_bottom {
-            WALL_THICKNESS / 2.0
+            WALL_HALF_THICKNESS
         } else {
             0.0
         };
