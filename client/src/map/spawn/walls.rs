@@ -51,11 +51,19 @@ pub fn batch_wall(batcher: &mut MapGeometryBatch, asset_set: &AssetSet, wall: &W
     let rotation = Quat::from_rotation_y(dz.atan2(dx));
 
     let level_y = f32::from(wall.level) * LEVEL_HEIGHT;
-    let transform = Transform::from_xyz(center_x, level_y + WALL_HEIGHT / 2.0, center_z).with_rotation(rotation);
+    let world_center = Vec3::new(center_x, level_y + WALL_HEIGHT / 2.0, center_z);
+    let transform = Transform::from_translation(world_center).with_rotation(rotation);
 
     if material_ids.is_uniform() {
         let material_def = asset_set.material_by_id(material_ids.primary());
-        let mesh = tiled_cuboid(mesh_size_x, WALL_HEIGHT, mesh_size_z, material_def.tile_size());
+        let mesh = tiled_cuboid(
+            mesh_size_x,
+            WALL_HEIGHT,
+            mesh_size_z,
+            material_def.tile_size(),
+            world_center,
+            rotation,
+        );
         batcher.add_mesh(
             MapGeometryKind::Wall,
             wall.level,
@@ -84,6 +92,8 @@ pub fn batch_wall(batcher: &mut MapGeometryBatch, asset_set: &AssetSet, wall: &W
         mesh_size_x,
         WALL_HEIGHT,
         mesh_size_z,
+        world_center,
+        rotation,
         positive_x_material_def.tile_size(),
         negative_x_material_def.tile_size(),
         positive_z_material_def.tile_size(),

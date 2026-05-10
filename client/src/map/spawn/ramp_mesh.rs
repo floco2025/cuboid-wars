@@ -68,9 +68,12 @@ pub fn build_ramp_meshes(
         uvs_side.extend_from_slice(&[uv0, uv1, uv2]);
     };
 
-    let uv_top = |p: [f32; 3]| -> [f32; 2] { [(p[0] - min_x) / tile_top, (p[2] - min_z) / tile_top] };
-    let uv_vert_x = |p: [f32; 3]| -> [f32; 2] { [(p[2] - min_z) / tile_side, (p[1] - y_lo) / tile_side] };
-    let uv_vert_z = |p: [f32; 3]| -> [f32; 2] { [(p[0] - min_x) / tile_side, (p[1] - y_lo) / tile_side] };
+    // World-space UVs: each component of the vertex world position divided by
+    // the tile size. This keeps the texture continuous with adjacent floors
+    // and walls — no seam at the ramp's footprint border.
+    let uv_top = |p: [f32; 3]| -> [f32; 2] { [p[0] / tile_top, p[2] / tile_top] };
+    let uv_vert_x = |p: [f32; 3]| -> [f32; 2] { [p[2] / tile_side, p[1] / tile_side] };
+    let uv_vert_z = |p: [f32; 3]| -> [f32; 2] { [p[0] / tile_side, p[1] / tile_side] };
 
     if slope_axis_x {
         if x_direction_positive {

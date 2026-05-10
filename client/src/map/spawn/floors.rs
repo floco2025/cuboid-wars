@@ -16,9 +16,11 @@ pub fn batch_floor(batcher: &mut MapGeometryBatch, asset_set: &AssetSet, floor: 
     batcher.begin_segment();
     let center_x = f32::midpoint(floor.x1, floor.x2);
     let center_z = f32::midpoint(floor.z1, floor.z2);
+    let center_y = floor.y - floor.thickness / 2.0;
     let size_x = (floor.x2 - floor.x1).abs();
     let size_z = (floor.z2 - floor.z1).abs();
-    let transform = Transform::from_xyz(center_x, floor.y - floor.thickness / 2.0, center_z);
+    let world_center = Vec3::new(center_x, center_y, center_z);
+    let transform = Transform::from_translation(world_center);
     let kind = if floor.level == 0 {
         MapGeometryKind::Ground
     } else {
@@ -27,7 +29,14 @@ pub fn batch_floor(batcher: &mut MapGeometryBatch, asset_set: &AssetSet, floor: 
 
     if material_ids.is_uniform() {
         let material_def = asset_set.material_by_id(material_ids.primary());
-        let mesh = tiled_cuboid(size_x, floor.thickness, size_z, material_def.tile_size());
+        let mesh = tiled_cuboid(
+            size_x,
+            floor.thickness,
+            size_z,
+            material_def.tile_size(),
+            world_center,
+            Quat::IDENTITY,
+        );
         batcher.add_mesh(kind, floor.level, material_ids.primary(), &mesh, transform);
         return;
     }
@@ -42,6 +51,7 @@ pub fn batch_floor(batcher: &mut MapGeometryBatch, asset_set: &AssetSet, floor: 
         size_x,
         floor.thickness,
         size_z,
+        world_center,
         north_material_def.tile_size(),
         south_material_def.tile_size(),
         east_material_def.tile_size(),
