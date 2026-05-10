@@ -3,7 +3,6 @@ use super::{
     material_rules::MaterialRules,
     segments::{grid_x, grid_z, horizontal_wall_segment, vertical_wall_segment},
 };
-use crate::constants::FLOOR_OVERLAP;
 use crate::resources::EdgeGrid;
 use common::{constants::*, face_materials::FaceMaterials, map_geometry::MapGeometry, protocol::Floor};
 
@@ -39,118 +38,97 @@ pub fn emit_floor_tier(mask: &Mask, geometry: &MapGeometry, level: u8, y: f32) -
                 continue;
             }
 
-            let (world_x1, world_x2, world_z1, world_z2, edge_fillers) = if FLOOR_OVERLAP {
-                let x1 = grid_x(geometry, col) - WALL_THICKNESS / 2.0;
-                let x2 = grid_x(geometry, col + 1) + WALL_THICKNESS / 2.0;
-                let z1 = grid_z(geometry, row) - WALL_THICKNESS / 2.0;
-                let z2 = grid_z(geometry, row + 1) + WALL_THICKNESS / 2.0;
-                (x1, x2, z1, z2, Vec::new())
-            } else {
-                let x1_orig = grid_x(geometry, col);
-                let x2_orig = grid_x(geometry, col + 1);
-                let z1_orig = grid_z(geometry, row);
-                let z2_orig = grid_z(geometry, row + 1);
+            let x1_orig = grid_x(geometry, col);
+            let x2_orig = grid_x(geometry, col + 1);
+            let z1_orig = grid_z(geometry, row);
+            let z2_orig = grid_z(geometry, row + 1);
 
-                let mut x1 = x1_orig;
-                let mut x2 = x2_orig;
-                let mut z1 = z1_orig;
-                let mut z2 = z2_orig;
-                let mut edge_fillers: Vec<Floor> = Vec::new();
+            let mut x1 = x1_orig;
+            let mut x2 = x2_orig;
+            let mut z1 = z1_orig;
+            let mut z2 = z2_orig;
 
-                let neighbor_w = in_mask(row, col - 1);
-                let neighbor_e = in_mask(row, col + 1);
-                let neighbor_n = in_mask(row - 1, col);
-                let neighbor_s = in_mask(row + 1, col);
+            let neighbor_w = in_mask(row, col - 1);
+            let neighbor_e = in_mask(row, col + 1);
+            let neighbor_n = in_mask(row - 1, col);
+            let neighbor_s = in_mask(row + 1, col);
 
-                let neighbor_nw = in_mask(row - 1, col - 1);
-                let neighbor_ne = in_mask(row - 1, col + 1);
-                let neighbor_sw = in_mask(row + 1, col - 1);
-                let neighbor_se = in_mask(row + 1, col + 1);
+            let neighbor_nw = in_mask(row - 1, col - 1);
+            let neighbor_ne = in_mask(row - 1, col + 1);
+            let neighbor_sw = in_mask(row + 1, col - 1);
+            let neighbor_se = in_mask(row + 1, col + 1);
 
-                let extend_w = !neighbor_w;
-                let extend_e = !neighbor_e;
-                let mut extend_n = !neighbor_n;
-                let mut extend_s = !neighbor_s;
+            let extend_w = !neighbor_w;
+            let extend_e = !neighbor_e;
+            // Diagonal suppression: skip the N/S extension when a diagonal
+            // cell sits on that side. Otherwise the N/S extension would
+            // overlap the diagonal cell's W/E extension.
+            let extend_n = !neighbor_n && !neighbor_nw && !neighbor_ne;
+            let extend_s = !neighbor_s && !neighbor_sw && !neighbor_se;
 
-                // Diagonal suppression: skip the N/S extension when a
-                // diagonal cell sits on that side. Otherwise the N/S
-                // extension would overlap the diagonal cell's W/E extension.
-                if neighbor_nw || neighbor_ne {
-                    extend_n = false;
-                }
-                if neighbor_sw || neighbor_se {
-                    extend_s = false;
-                }
-
-                if extend_w {
-                    x1 -= WALL_THICKNESS / 2.0;
-                }
-                if extend_e {
-                    x2 += WALL_THICKNESS / 2.0;
-                }
-                if extend_n {
-                    z1 -= WALL_THICKNESS / 2.0;
-                }
-                if extend_s {
-                    z2 += WALL_THICKNESS / 2.0;
-                }
-
-                // Corner-filler strips. When a diagonal neighbor suppressed
-                // the N/S extension, the resulting L-shape leaves a gap on
-                // the side of the cell opposite the diagonal. Add a thin
-                // strip there. The inset must use the *unextended* grid-line
-                // (`x1_orig`/`x2_orig`) plus `pad`, because the diagonal
-                // cell's W/E extension reaches `pad` past the grid line —
-                // insetting from the cell's own extended `x1`/`x2` would
-                // still overlap the diagonal cell.
-                let pad = (WALL_THICKNESS / 2.0) - CORNER_EPS;
-                if pad > 0.0 {
-                    if !extend_n && !neighbor_n && (neighbor_nw || neighbor_ne) {
-                        let fx1 = if neighbor_nw { x1_orig + pad } else { x1 };
-                        let fx2 = if neighbor_ne { x2_orig - pad } else { x2 };
-                        if fx2 > fx1 {
-                            edge_fillers.push(Floor {
-                                x1: fx1,
-                                z1: z1_orig - pad,
-                                x2: fx2,
-                                z2: z1_orig,
-                                y,
-                                thickness,
-                                level,
-                            });
-                        }
-                    }
-                    if !extend_s && !neighbor_s && (neighbor_sw || neighbor_se) {
-                        let fx1 = if neighbor_sw { x1_orig + pad } else { x1 };
-                        let fx2 = if neighbor_se { x2_orig - pad } else { x2 };
-                        if fx2 > fx1 {
-                            edge_fillers.push(Floor {
-                                x1: fx1,
-                                z1: z2_orig,
-                                x2: fx2,
-                                z2: z2_orig + pad,
-                                y,
-                                thickness,
-                                level,
-                            });
-                        }
-                    }
-                }
-
-                (x1, x2, z1, z2, edge_fillers)
-            };
+            if extend_w {
+                x1 -= WALL_THICKNESS / 2.0;
+            }
+            if extend_e {
+                x2 += WALL_THICKNESS / 2.0;
+            }
+            if extend_n {
+                z1 -= WALL_THICKNESS / 2.0;
+            }
+            if extend_s {
+                z2 += WALL_THICKNESS / 2.0;
+            }
 
             floors.push(Floor {
-                x1: world_x1,
-                z1: world_z1,
-                x2: world_x2,
-                z2: world_z2,
+                x1,
+                z1,
+                x2,
+                z2,
                 y,
                 thickness,
                 level,
             });
 
-            floors.extend(edge_fillers);
+            // Corner-filler strips. When a diagonal neighbor suppressed the
+            // N/S extension, the resulting L-shape leaves a gap on the side
+            // of the cell opposite the diagonal. Add a thin strip there. The
+            // inset must use the *unextended* grid-line (`x1_orig`/`x2_orig`)
+            // plus `pad`, because the diagonal cell's W/E extension reaches
+            // `pad` past the grid line — insetting from the cell's own
+            // extended `x1`/`x2` would still overlap the diagonal cell.
+            let pad = (WALL_THICKNESS / 2.0) - CORNER_EPS;
+            if pad > 0.0 {
+                if !extend_n && !neighbor_n && (neighbor_nw || neighbor_ne) {
+                    let fx1 = if neighbor_nw { x1_orig + pad } else { x1 };
+                    let fx2 = if neighbor_ne { x2_orig - pad } else { x2 };
+                    if fx2 > fx1 {
+                        floors.push(Floor {
+                            x1: fx1,
+                            z1: z1_orig - pad,
+                            x2: fx2,
+                            z2: z1_orig,
+                            y,
+                            thickness,
+                            level,
+                        });
+                    }
+                }
+                if !extend_s && !neighbor_s && (neighbor_sw || neighbor_se) {
+                    let fx1 = if neighbor_sw { x1_orig + pad } else { x1 };
+                    let fx2 = if neighbor_se { x2_orig - pad } else { x2 };
+                    if fx2 > fx1 {
+                        floors.push(Floor {
+                            x1: fx1,
+                            z1: z2_orig,
+                            x2: fx2,
+                            z2: z2_orig + pad,
+                            y,
+                            thickness,
+                            level,
+                        });
+                    }
+                }
+            }
         }
     }
 

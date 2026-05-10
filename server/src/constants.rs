@@ -1,16 +1,4 @@
 // ============================================================================
-// Map Generation
-// ============================================================================
-
-// Wall meshes overlap at corners when true; non-overlapping mode adjusts
-// segment ends so neighbours abut cleanly.
-pub const WALL_OVERLAP: bool = false;
-
-// Floor meshes overlap at cell boundaries when true; non-overlapping mode
-// uses thin edge fillers to bridge corners.
-pub const FLOOR_OVERLAP: bool = false;
-
-// ============================================================================
 // Lighting
 // ============================================================================
 

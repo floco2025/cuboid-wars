@@ -1,5 +1,5 @@
 use super::edges::{has_horizontal_edge, has_vertical_edge};
-use crate::{constants::WALL_OVERLAP, resources::EdgeGrid};
+use crate::resources::EdgeGrid;
 use common::{constants::*, map_geometry::MapGeometry, protocol::Floor};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -93,9 +93,7 @@ pub(super) fn horizontal_wall_segment(
     let right_vert_through = right_vert_top && right_vert_bottom;
 
     let x1 = grid_x(geometry, col)
-        + if WALL_OVERLAP {
-            -WALL_THICKNESS / 2.0
-        } else if left_vert_through && !has_left {
+        + if left_vert_through && !has_left {
             WALL_THICKNESS / 2.0
         } else if !has_left {
             -WALL_THICKNESS / 2.0
@@ -103,9 +101,7 @@ pub(super) fn horizontal_wall_segment(
             0.0
         };
     let x2 = grid_x(geometry, col + 1)
-        + if WALL_OVERLAP {
-            WALL_THICKNESS / 2.0
-        } else if right_vert_through && !has_right {
+        + if right_vert_through && !has_right {
             -WALL_THICKNESS / 2.0
         } else if !has_right {
             WALL_THICKNESS / 2.0

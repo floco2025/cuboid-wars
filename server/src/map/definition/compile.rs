@@ -1,6 +1,5 @@
 use super::schema::{MapDef, RampDef};
 use crate::{
-    constants::FLOOR_OVERLAP,
     map::{
         floors,
         lights::generate_wall_lights,
@@ -106,15 +105,9 @@ pub(crate) fn compile_map(map_def: &MapDef, assets: &MaterialRules) -> (MapLayou
                 y,
             ));
         }
-        if FLOOR_OVERLAP {
-            let materials: Vec<FaceMaterials> = tier.iter().map(|f| assets.materials_for_floor(f)).collect();
-            all_floors.extend(tier);
-            all_floor_materials.extend(materials);
-        } else {
-            let (merged_floors, merged_materials) = floors::merge_floors(tier, assets);
-            all_floors.extend(merged_floors);
-            all_floor_materials.extend(merged_materials);
-        }
+        let (merged_floors, merged_materials) = floors::merge_floors(tier, assets);
+        all_floors.extend(merged_floors);
+        all_floor_materials.extend(merged_materials);
     }
 
     let ramps_out = ramps::specs_to_ramps(&geometry, &ramp_specs);
