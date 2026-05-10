@@ -34,7 +34,6 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
-    QDockWidget,
     QFileDialog,
     QFormLayout,
     QGridLayout,
@@ -42,8 +41,6 @@ from PySide6.QtWidgets import (
     QInputDialog,
     QLabel,
     QLineEdit,
-    QListWidget,
-    QListWidgetItem,
     QMainWindow,
     QMenu,
     QMessageBox,
@@ -113,6 +110,11 @@ class SpawnZoneDrag:
     handle: str  # "move" or one of "n"/"s"/"e"/"w"/"nw"/"ne"/"sw"/"se"
     origin: tuple[float, float]  # cursor position when drag started, in cell coords
     original_zone: dict  # snapshot of the zone before the drag
+
+
+# ============================================================================
+# Modal dialogs
+# ============================================================================
 
 
 class ActorSpawnFieldsDialog(QDialog):
@@ -240,6 +242,19 @@ MIN_CELL = 12.0
 EDITOR_CELL = 36
 DEFAULT_GRID_COLS = 20
 DEFAULT_GRID_ROWS = 20
+
+
+# ============================================================================
+# Map schema
+#
+# The on-disk schema lives in `config/server/map.json`. In memory, every
+# floor / wall / ramp record is a dict carrying its grid coordinates and
+# six face materials (top / bottom / north / south / east / west).
+#
+# Reading flow:        read_map -> normalize_map -> canonicalize_map
+# Writing flow:        write_map -> canonicalize_map -> format_map_file
+# Editing transforms:  resize_map_data, validate_map, resolve_floor_material
+# ============================================================================
 
 
 def empty_map() -> dict:
@@ -473,11 +488,7 @@ def normalize_map(map_data: dict) -> dict:
     }
 
 
-def normalize_floor(floor: dict | list) -> dict:
-    # Accept legacy [col, row] arrays so older maps can still be read once.
-    if isinstance(floor, list):
-        col, row = floor
-        return {"col": int(col), "row": int(row), **{face: "fiberous-plaster1-ue" for face in FACES}}
+def normalize_floor(floor: dict) -> dict:
     return {
         "col": int(floor["col"]),
         "row": int(floor["row"]),
@@ -485,13 +496,7 @@ def normalize_floor(floor: dict | list) -> dict:
     }
 
 
-def normalize_wall(wall: dict | list) -> dict:
-    if isinstance(wall, list):
-        c0, r0, c1, r1 = wall
-        return {
-            "c0": int(c0), "r0": int(r0), "c1": int(c1), "r1": int(r1),
-            **{face: "modern-brick1" for face in FACES},
-        }
+def normalize_wall(wall: dict) -> dict:
     return {
         "c0": int(wall["c0"]),
         "r0": int(wall["r0"]),
@@ -606,10 +611,8 @@ def _dedupe_floors(floors: list[dict]) -> list[dict]:
 def _dedupe_walls(walls: list[dict]) -> list[dict]:
     by_edge: dict[tuple[int, int, int, int], dict] = {}
     for wall in walls:
-        c0, r0, c1, r1 = wall["c0"], wall["r0"], wall["c1"], wall["r1"]
-        if (c1, r1) < (c0, r0):
-            wall = {**wall, "c0": c1, "r0": r1, "c1": c0, "r1": r0}
-        by_edge[(wall["c0"], wall["r0"], wall["c1"], wall["r1"])] = wall
+        c0, r0, c1, r1 = normalized_wall([wall["c0"], wall["r0"], wall["c1"], wall["r1"]])
+        by_edge[(c0, r0, c1, r1)] = {**wall, "c0": c0, "r0": r0, "c1": c1, "r1": r1}
     return [by_edge[k] for k in sorted(by_edge.keys())]
 
 
@@ -693,6 +696,8 @@ def resize_map_data(
 
 
 def enforce_ramp_floor_rules(map_data: dict) -> None:
+    # Mutates `map_data` in place. Only called from `canonicalize_map` after a
+    # `deepcopy`, so the mutation is safe.
     for ramp in map_data["ramps"]:
         lower = ramp["lower_level"]
         upper = lower + 1
@@ -970,6 +975,117 @@ def opposite_direction(direction: str) -> str:
     }[direction]
 
 
+# ============================================================================
+# Drag / paint geometry helpers (cell rects, wall edges, ramp shapes)
+# ============================================================================
+
+
+def rect_from_cells(a: tuple[int, int], b: tuple[int, int]) -> tuple[int, int, int, int]:
+    c0 = min(a[0], b[0])
+    r0 = min(a[1], b[1])
+    c1 = max(a[0], b[0]) + 1
+    r1 = max(a[1], b[1]) + 1
+    return c0, r0, c1, r1
+
+
+def ramp_points_from_cells(start: tuple[int, int], end: tuple[int, int]) -> tuple[list[int], list[int]]:
+    c0, r0, c1, r1 = rect_from_cells(start, end)
+    dx = end[0] - start[0]
+    dy = end[1] - start[1]
+    if abs(dx) >= abs(dy):
+        if dx >= 0:
+            return [c0, r0], [c1, r1]
+        return [c1, r0], [c0, r1]
+    if dy >= 0:
+        return [c0, r0], [c1, r1]
+    return [c0, r1], [c1, r0]
+
+
+def rects_overlap(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> bool:
+    return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
+
+
+def wall_overlaps_rect(wall: list[int], rect: tuple[int, int, int, int]) -> bool:
+    c0, r0, c1, r1 = rect
+    wc0, wr0, wc1, wr1 = wall
+    if wr0 == wr1:
+        left = min(wc0, wc1)
+        right = max(wc0, wc1)
+        return r0 <= wr0 <= r1 and left < c1 and c0 < right
+    top = min(wr0, wr1)
+    bottom = max(wr0, wr1)
+    return c0 <= wc0 <= c1 and top < r1 and r0 < bottom
+
+
+def snapped_wall_end(start: tuple[int, int], current: tuple[int, int]) -> tuple[int, int]:
+    dx = current[0] - start[0]
+    dy = current[1] - start[1]
+    if abs(dx) >= abs(dy):
+        return current[0], start[1]
+    return start[0], current[1]
+
+
+def draw_direction(start: tuple[int, int], end: tuple[int, int]) -> str:
+    dx = end[0] - start[0]
+    dy = end[1] - start[1]
+    if abs(dx) > abs(dy):
+        return "east" if dx > 0 else "west"
+    return "south" if dy > 0 else "north"
+
+
+def orthogonal_arrow_points(
+    c0: int,
+    r0: int,
+    c1: int,
+    r1: int,
+    direction: str,
+    cell: float,
+) -> tuple[tuple[float, float], tuple[float, float]]:
+    pad = min(cell * 0.35, 14.0)
+    left = c0 * cell + pad
+    right = c1 * cell - pad
+    top = r0 * cell + pad
+    bottom = r1 * cell - pad
+    mid_x = (c0 + c1) * cell / 2.0
+    mid_y = (r0 + r1) * cell / 2.0
+    if direction == "east":
+        return (left, mid_y), (right, mid_y)
+    if direction == "west":
+        return (right, mid_y), (left, mid_y)
+    if direction == "south":
+        return (mid_x, top), (mid_x, bottom)
+    return (mid_x, bottom), (mid_x, top)
+
+
+def wall_segments_between(start: tuple[int, int], end: tuple[int, int]) -> list[list[int]]:
+    if start == end:
+        return []
+    c0, r0 = start
+    c1, r1 = end
+    edges = []
+    if r0 == r1:
+        step = 1 if c1 > c0 else -1
+        for col in range(c0, c1, step):
+            edges.append(normalized_wall([col, r0, col + step, r0]))
+    elif c0 == c1:
+        step = 1 if r1 > r0 else -1
+        for row in range(r0, r1, step):
+            edges.append(normalized_wall([c0, row, c0, row + step]))
+    return edges
+
+
+def point_near_wall(px: float, py: float, wall: list[int], tolerance: float = 0.16) -> bool:
+    c0, r0, c1, r1 = wall
+    if r0 == r1:
+        return min(c0, c1) - tolerance <= px <= max(c0, c1) + tolerance and abs(py - r0) <= tolerance
+    return min(r0, r1) - tolerance <= py <= max(r0, r1) + tolerance and abs(px - c0) <= tolerance
+
+
+# ============================================================================
+# Undo / Redo
+# ============================================================================
+
+
 class SetMapCommand(QUndoCommand):
     def __init__(self, window: "EditorWindow", text: str, before: dict, after: dict):
         super().__init__(text)
@@ -982,6 +1098,11 @@ class SetMapCommand(QUndoCommand):
 
     def redo(self) -> None:
         self.window.set_map(self.after, mark_dirty=True)
+
+
+# ============================================================================
+# Canvas widget
+# ============================================================================
 
 
 class Canvas(QWidget):
@@ -1341,6 +1462,11 @@ class Canvas(QWidget):
         self.drag_current_point = None
 
 
+# ============================================================================
+# Editor window
+# ============================================================================
+
+
 class EditorWindow(QMainWindow):
     def __init__(self, path: Path):
         super().__init__()
@@ -1588,6 +1714,14 @@ class EditorWindow(QMainWindow):
     def _new_wall(self, c0: int, r0: int, c1: int, r1: int) -> dict:
         return {"c0": c0, "r0": r0, "c1": c1, "r1": r1, **self._face_materials_for_current()}
 
+    def _new_ramp(self, low: list[int], high: list[int], lower_level: int) -> dict:
+        return {
+            "low": low,
+            "high": high,
+            "lower_level": lower_level,
+            **self._face_materials_for_current(),
+        }
+
     def add_floor_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         c0, r0, c1, r1 = rect_from_cells(start, end)
         after = copy.deepcopy(self.map_data)
@@ -1709,7 +1843,7 @@ class EditorWindow(QMainWindow):
         if msg:
             self.statusBar().showMessage(f"Ramp not placed: {msg}", 4000)
             return
-        new_ramp = {"low": low, "high": high, "lower_level": lower_level, **self._face_materials_for_current()}
+        new_ramp = self._new_ramp(low, high, lower_level)
         new_rect = ramp_rect(new_ramp)
         after = copy.deepcopy(self.map_data)
         after["ramps"] = [
@@ -2137,105 +2271,9 @@ class EditorWindow(QMainWindow):
             event.ignore()
 
 
-def rect_from_cells(a: tuple[int, int], b: tuple[int, int]) -> tuple[int, int, int, int]:
-    c0 = min(a[0], b[0])
-    r0 = min(a[1], b[1])
-    c1 = max(a[0], b[0]) + 1
-    r1 = max(a[1], b[1]) + 1
-    return c0, r0, c1, r1
-
-
-def ramp_points_from_cells(start: tuple[int, int], end: tuple[int, int]) -> tuple[list[int], list[int]]:
-    c0, r0, c1, r1 = rect_from_cells(start, end)
-    dx = end[0] - start[0]
-    dy = end[1] - start[1]
-    if abs(dx) >= abs(dy):
-        if dx >= 0:
-            return [c0, r0], [c1, r1]
-        return [c1, r0], [c0, r1]
-    if dy >= 0:
-        return [c0, r0], [c1, r1]
-    return [c0, r1], [c1, r0]
-
-
-def rects_overlap(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> bool:
-    return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
-
-
-def wall_overlaps_rect(wall: list[int], rect: tuple[int, int, int, int]) -> bool:
-    c0, r0, c1, r1 = rect
-    wc0, wr0, wc1, wr1 = wall
-    if wr0 == wr1:
-        left = min(wc0, wc1)
-        right = max(wc0, wc1)
-        return r0 <= wr0 <= r1 and left < c1 and c0 < right
-    top = min(wr0, wr1)
-    bottom = max(wr0, wr1)
-    return c0 <= wc0 <= c1 and top < r1 and r0 < bottom
-
-
-def snapped_wall_end(start: tuple[int, int], current: tuple[int, int]) -> tuple[int, int]:
-    dx = current[0] - start[0]
-    dy = current[1] - start[1]
-    if abs(dx) >= abs(dy):
-        return current[0], start[1]
-    return start[0], current[1]
-
-
-def draw_direction(start: tuple[int, int], end: tuple[int, int]) -> str:
-    dx = end[0] - start[0]
-    dy = end[1] - start[1]
-    if abs(dx) > abs(dy):
-        return "east" if dx > 0 else "west"
-    return "south" if dy > 0 else "north"
-
-
-def orthogonal_arrow_points(
-    c0: int,
-    r0: int,
-    c1: int,
-    r1: int,
-    direction: str,
-    cell: float,
-) -> tuple[tuple[float, float], tuple[float, float]]:
-    pad = min(cell * 0.35, 14.0)
-    left = c0 * cell + pad
-    right = c1 * cell - pad
-    top = r0 * cell + pad
-    bottom = r1 * cell - pad
-    mid_x = (c0 + c1) * cell / 2.0
-    mid_y = (r0 + r1) * cell / 2.0
-    if direction == "east":
-        return (left, mid_y), (right, mid_y)
-    if direction == "west":
-        return (right, mid_y), (left, mid_y)
-    if direction == "south":
-        return (mid_x, top), (mid_x, bottom)
-    return (mid_x, bottom), (mid_x, top)
-
-
-def wall_segments_between(start: tuple[int, int], end: tuple[int, int]) -> list[list[int]]:
-    if start == end:
-        return []
-    c0, r0 = start
-    c1, r1 = end
-    edges = []
-    if r0 == r1:
-        step = 1 if c1 > c0 else -1
-        for col in range(c0, c1, step):
-            edges.append(normalized_wall([col, r0, col + step, r0]))
-    elif c0 == c1:
-        step = 1 if r1 > r0 else -1
-        for row in range(r0, r1, step):
-            edges.append(normalized_wall([c0, row, c0, row + step]))
-    return edges
-
-
-def point_near_wall(px: float, py: float, wall: list[int], tolerance: float = 0.16) -> bool:
-    c0, r0, c1, r1 = wall
-    if r0 == r1:
-        return min(c0, c1) - tolerance <= px <= max(c0, c1) + tolerance and abs(py - r0) <= tolerance
-    return min(r0, r1) - tolerance <= py <= max(r0, r1) + tolerance and abs(px - c0) <= tolerance
+# ============================================================================
+# Entry point
+# ============================================================================
 
 
 def main() -> int:

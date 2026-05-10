@@ -125,3 +125,13 @@ impl MaterialRules {
 pub(super) fn wall_edge_key(from: [i32; 2], to: [i32; 2]) -> ([i32; 2], [i32; 2]) {
     if (from[0], from[1]) <= (to[0], to[1]) { (from, to) } else { (to, from) }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::MaterialRules;
+
+    #[test]
+    fn default_material_rules_load() {
+        MaterialRules::load_default().expect("default per-segment materials should load");
+    }
+}

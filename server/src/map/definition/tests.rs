@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use super::{
     compile_map,
     schema::{ActorSpawnZoneDef, FloorDef, LevelDef, MapDef, PlayerSpawnZoneDef, RampDef},
@@ -64,7 +62,6 @@ fn map_with_zones(
         player_spawn_zones,
         levels,
         ramps,
-        _item_materials: BTreeMap::new(),
     }
 }
 

@@ -1,6 +1,10 @@
-use std::collections::BTreeMap;
-
 use serde::Deserialize;
+
+// Serde silently ignores unknown JSON fields by default, so anything the
+// server doesn't care about (e.g., per-segment `top`/`bottom`/.../`all`
+// material strings, the `item_materials` block) is dropped here without
+// listing it explicitly. The data is loaded by other modules
+// (`common::material_rules::MaterialRules`).
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct MapFile {
@@ -19,11 +23,6 @@ pub(crate) struct MapDef {
     pub(crate) levels: Vec<LevelDef>,
     #[serde(default)]
     pub(crate) ramps: Vec<RampDef>,
-    // Items aren't part of the geometry primitives the server consumes; their
-    // materials are loaded separately by `MaterialRules`. Accept the field so
-    // serde doesn't reject it; we don't read it here.
-    #[serde(default, rename = "item_materials")]
-    pub(crate) _item_materials: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Deserialize)]
