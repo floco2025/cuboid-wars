@@ -957,6 +957,23 @@ def tag_color(tag: str) -> QColor:
 
 FACES = ("top", "bottom", "north", "south", "east", "west")
 
+WALL_PEN_WIDTH = 6
+WALL_HIGHLIGHT_WIDTH = WALL_PEN_WIDTH + 4
+
+
+def face_color(seg: dict) -> QColor:
+    """Color derived from the segment's full six-face material composition.
+    Two segments (floor / wall / ramp) sharing the same six face values get
+    the same color; differing on any face produces a different one. Saturation
+    is pinned to max so hue differences read clearly; value also varies a bit
+    so close hues remain distinguishable."""
+    digest = hashlib.md5("|".join(seg.get(face, "") for face in FACES).encode("utf-8")).digest()
+    hue = int.from_bytes(digest[:2], "big") % 360
+    value = 200 + (digest[2] % 56)  # 200-255
+    color = QColor()
+    color.setHsv(hue, 255, value)
+    return color
+
 
 def expand_face_materials(obj: dict) -> dict[str, str]:
     """Expand `all` shorthand into six explicit face materials. Faces not
@@ -1264,11 +1281,7 @@ class Canvas(QWidget):
         default_floor = QColor("#454f5b")
         for floor in level["floors"]:
             col, row = floor["col"], floor["row"]
-            color = default_floor
-            if overlay:
-                material = floor.get("top")
-                if material is not None:
-                    color = tag_color(material)
+            color = face_color(floor) if overlay else default_floor
             painter.setBrush(color)
             painter.drawRect(QRectF(col * cell + 1, row * cell + 1, cell - 2, cell - 2))
         painter.setBrush(default_floor)
@@ -1340,8 +1353,10 @@ class Canvas(QWidget):
             y = row * cell
             painter.drawLine(0, y, cols * cell, y)
 
-        painter.setPen(QPen(QColor("#f1f5f9"), 4, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        default_wall_color = QColor("#f1f5f9")
         for wall in level["walls"]:
+            color = face_color(wall) if overlay else default_wall_color
+            painter.setPen(QPen(color, WALL_PEN_WIDTH, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
             painter.drawLine(
                 wall["c0"] * cell, wall["r0"] * cell,
                 wall["c1"] * cell, wall["r1"] * cell,
@@ -1362,7 +1377,7 @@ class Canvas(QWidget):
             r0_pt, r1_pt = sorted((sr, er))
             highlight = QColor(236, 72, 153, 230)
             if c0_pt == c1_pt or r0_pt == r1_pt:
-                painter.setPen(QPen(highlight, 8, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+                painter.setPen(QPen(highlight, WALL_HIGHLIGHT_WIDTH, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
                 painter.drawLine(c0_pt * cell, r0_pt * cell, c1_pt * cell, r1_pt * cell)
                 painter.setPen(Qt.PenStyle.NoPen)
             else:
@@ -1393,7 +1408,7 @@ class Canvas(QWidget):
                 painter.drawRect(QRectF(col * cell + 1, row * cell + 1, cell - 2, cell - 2))
         elif self.hover_kind == "wall":
             wall = self.hover_target
-            painter.setPen(QPen(highlight, 8, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+            painter.setPen(QPen(highlight, WALL_HIGHLIGHT_WIDTH, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
             painter.drawLine(
                 wall["c0"] * cell, wall["r0"] * cell,
                 wall["c1"] * cell, wall["r1"] * cell,
@@ -1482,7 +1497,10 @@ class Canvas(QWidget):
     def paint_ramp(self, painter: QPainter, ramp: dict, cell: float, is_lower_level: bool) -> None:
         c0, r0, c1, r1 = ramp_rect(ramp)
         painter.setPen(QPen(QColor("#111827"), 1))
-        painter.setBrush(QColor("#d97706") if is_lower_level else QColor("#8b5cf6"))
+        if self.window.show_material_overlay:
+            painter.setBrush(face_color(ramp))
+        else:
+            painter.setBrush(QColor("#d97706") if is_lower_level else QColor("#8b5cf6"))
         painter.drawRect(QRectF(c0 * cell + 3, r0 * cell + 3, (c1 - c0) * cell - 6, (r1 - r0) * cell - 6))
 
         if is_lower_level:
