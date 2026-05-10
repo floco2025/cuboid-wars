@@ -16,7 +16,7 @@ from pathlib import Path
 import hashlib
 from dataclasses import dataclass
 
-from PySide6.QtCore import QPoint, QPointF, QRectF, QSize, Qt, QTimer
+from PySide6.QtCore import QPoint, QRectF, QSize, Qt, QTimer
 from PySide6.QtGui import (
     QAction,
     QBrush,
@@ -327,7 +327,7 @@ DEFAULT_GRID_ROWS = 20
 #
 # Reading flow:        read_map -> normalize_map -> canonicalize_map
 # Writing flow:        write_map -> canonicalize_map -> format_map_file
-# Editing transforms:  resize_map_data, validate_map, resolve_floor_material
+# Editing transforms:  resize_map_data, validate_map
 # ============================================================================
 
 
@@ -399,19 +399,6 @@ def json_scalar(value) -> str:
 
 def format_point(point: list[int]) -> str:
     return "[" + ", ".join(str(v) for v in point) + "]"
-
-
-def format_point_array(name: str, points: list[list[int]], indent: int) -> list[str]:
-    pad = " " * indent
-    inner = " " * (indent + 2)
-    if not points:
-        return [f'{pad}"{name}": []']
-    lines = [f'{pad}"{name}": [']
-    for idx, point in enumerate(points):
-        comma = "," if idx + 1 < len(points) else ""
-        lines.append(f"{inner}{format_point(point)}{comma}")
-    lines.append(f"{pad}]")
-    return lines
 
 
 def with_trailing_comma(lines: list[str]) -> list[str]:
@@ -985,13 +972,6 @@ def expand_face_materials(obj: dict) -> dict[str, str]:
     return {face: obj.get(face, fallback) for face in FACES}
 
 
-def materials_summary(seg: dict) -> str:
-    """One-line summary of a segment's six face materials, using the same
-    `all`/overrides compaction as the on-disk shape."""
-    compact = compact_face_materials(seg)
-    return ", ".join(f"{k}={v}" for k, v in compact.items())
-
-
 def compact_face_materials(faces: dict[str, str]) -> dict:
     """Pack six face materials into the on-disk `all` + overrides shape.
     Picks the most-common face value as `all`; ties broken alphabetically for
@@ -1013,14 +993,11 @@ def compact_face_materials(faces: dict[str, str]) -> dict:
     return out
 
 
-def resolve_floor_material(map_data: dict, level_idx: int, col: int, row: int) -> str | None:
-    """Top-face material at a floor cell. Direct per-segment lookup."""
-    if not (0 <= level_idx < len(map_data["levels"])):
-        return None
-    for floor in map_data["levels"][level_idx]["floors"]:
-        if floor["col"] == col and floor["row"] == row:
-            return floor.get("top")
-    return None
+def materials_summary(seg: dict) -> str:
+    """One-line summary of a segment's six face materials, using the same
+    `all`/overrides compaction as the on-disk shape."""
+    compact = compact_face_materials(seg)
+    return ", ".join(f"{k}={v}" for k, v in compact.items())
 
 
 def level_label(level: dict, index: int) -> str:
@@ -1570,7 +1547,7 @@ class Canvas(QWidget):
     def mouseMoveEvent(self, event) -> None:
         if not (event.buttons() & Qt.MouseButton.LeftButton):
             if self.window.mode in (MODE_FLOOR_MATERIAL, MODE_WALL_MATERIAL):
-                self._update_material_hover(event.position(), event.globalPosition().toPoint())
+                self._update_material_hover(event.position())
             return
         if self.window.mode == MODE_SPAWN_ZONE_EDIT:
             self.window.update_spawn_zone_edit_drag(event.position(), self.cell_size())
@@ -1590,7 +1567,7 @@ class Canvas(QWidget):
             self.update()
         self._hover_label.hide()
 
-    def _update_material_hover(self, pos, _global_pos) -> None:
+    def _update_material_hover(self, pos) -> None:
         cell_size = self.cell_size()
         level_idx = self.window.current_level
         level = self.window.map_data["levels"][level_idx]
