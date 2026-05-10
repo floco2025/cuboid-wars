@@ -7,7 +7,10 @@ use crate::{
     constants::COOKIE_SPAWNING_ENABLED,
     resources::{ItemInfo, ItemMap, ItemSpawner, MapConfig},
 };
-use common::protocol::{ItemId, ItemMarker, ItemType, Position};
+use common::{
+    map_geometry::MapGeometry,
+    protocol::{ItemId, ItemMarker, ItemType, Position},
+};
 
 use super::spawn_cells::{
     ItemSpawnCell, choose_item_type, eligible_item_spawn_cells, item_spawn_cell_from_position, power_up_spawn_interval,
@@ -20,6 +23,7 @@ pub fn item_initial_spawn_system(
     mut items: ResMut<ItemMap>,
     query: Query<&ItemId, With<ItemMarker>>,
     map_config: Res<MapConfig>,
+    map_geometry: Res<MapGeometry>,
 ) {
     if !COOKIE_SPAWNING_ENABLED {
         return;
@@ -36,7 +40,7 @@ pub fn item_initial_spawn_system(
     for spawn_cell in eligible_item_spawn_cells(&map_config) {
         let item_id = ItemId(spawner.next_id);
         spawner.next_id += 1;
-        let position = spawn_cell.position();
+        let position = spawn_cell.position(&map_geometry);
 
         let entity = commands.spawn((ItemMarker, item_id, position)).id();
 
@@ -58,6 +62,7 @@ pub fn item_spawn_system(
     mut items: ResMut<ItemMap>,
     positions: Query<&Position, With<ItemMarker>>,
     map_config: Res<MapConfig>,
+    map_geometry: Res<MapGeometry>,
 ) {
     let delta = time.delta_secs();
     spawner.timer += delta;
@@ -73,7 +78,12 @@ pub fn item_spawn_system(
         let occupied_cells: HashSet<ItemSpawnCell> = items
             .values()
             .filter(|info| info.item_type != ItemType::Cookie)
-            .filter_map(|info| positions.get(info.entity).ok().map(item_spawn_cell_from_position))
+            .filter_map(|info| {
+                positions
+                    .get(info.entity)
+                    .ok()
+                    .map(|pos| item_spawn_cell_from_position(&map_geometry, pos))
+            })
             .collect();
         let target_active = target_active_power_ups(eligible_cells.len());
         if occupied_cells.len() >= target_active {
@@ -89,7 +99,7 @@ pub fn item_spawn_system(
             let spawn_cell = available_cells[rng.random_range(0..available_cells.len())];
             let item_id = ItemId(spawner.next_id);
             spawner.next_id += 1;
-            let position = spawn_cell.position();
+            let position = spawn_cell.position(&map_geometry);
             let item_type = choose_item_type(&mut rng);
 
             let entity = commands.spawn((ItemMarker, item_id, position)).id();

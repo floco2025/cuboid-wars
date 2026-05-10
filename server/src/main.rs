@@ -56,7 +56,7 @@ async fn main() -> Result<()> {
     let endpoint = Endpoint::server(server_config, addr)?;
     println!("quic server listening on {addr}");
 
-    let (map_layout, map_config) = generate_map();
+    let (map_layout, map_config, map_geometry) = generate_map();
     let collision_world = CollisionWorld::from_map_layout(&map_layout);
     validate_actor_kinds_consistent(&gameplay_config, &server_gameplay_config, &map_config)?;
 
@@ -84,6 +84,7 @@ async fn main() -> Result<()> {
     app.insert_resource(map_layout)
         .insert_resource(collision_world)
         .insert_resource(map_config)
+        .insert_resource(map_geometry)
         .insert_resource(gameplay_config)
         .insert_resource(server_gameplay_config)
         .insert_resource(PlayerMap::default())

@@ -7,6 +7,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
+    map_geometry::MapGeometry,
     physics::{CharacterVerticalVelocity, CollisionWorld},
     protocol::{ActorMarker, ItemMarker, MapLayout, PlayerMarker, *},
 };
@@ -25,6 +26,7 @@ pub fn handle_login_message(
     msg: ClientMessage,
     players: &mut ResMut<PlayerMap>,
     map_layout: &Res<MapLayout>,
+    map_geometry: &Res<MapGeometry>,
     collision_world: &Res<CollisionWorld>,
     gameplay_config: &Res<GameplayConfig>,
     map_config: &Res<MapConfig>,
@@ -77,6 +79,7 @@ pub fn handle_login_message(
                 .collect();
             let pos = generate_player_spawn_position(
                 map_config,
+                map_geometry,
                 collision_world,
                 &occupied_positions,
                 gameplay_config.player.physics(),

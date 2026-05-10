@@ -4,7 +4,7 @@ use super::{
 };
 use crate::constants::FLOOR_OVERLAP;
 use crate::resources::EdgeGrid;
-use common::{constants::*, material_rules::MaterialRules, protocol::Floor};
+use common::{constants::*, map_geometry::MapGeometry, material_rules::MaterialRules, protocol::Floor};
 
 const MERGE_EPS: f32 = 0.01;
 const CORNER_EPS: f32 = 0.01;
@@ -24,7 +24,9 @@ const CORNER_EPS: f32 = 0.01;
 // All levels use the same `FLOOR_THICKNESS` so a hole in any tier looks like
 // a real slab edge.
 #[must_use]
-pub fn emit_floor_tier(mask: &Mask, grid_cols: i32, grid_rows: i32, level: u8, y: f32) -> Vec<Floor> {
+pub fn emit_floor_tier(mask: &Mask, geometry: &MapGeometry, level: u8, y: f32) -> Vec<Floor> {
+    let grid_cols = geometry.grid_cols;
+    let grid_rows = geometry.grid_rows;
     let thickness = FLOOR_THICKNESS;
     let mut floors = Vec::new();
 
@@ -37,16 +39,16 @@ pub fn emit_floor_tier(mask: &Mask, grid_cols: i32, grid_rows: i32, level: u8, y
             }
 
             let (world_x1, world_x2, world_z1, world_z2, edge_fillers) = if FLOOR_OVERLAP {
-                let x1 = grid_x(col) - WALL_THICKNESS / 2.0;
-                let x2 = grid_x(col + 1) + WALL_THICKNESS / 2.0;
-                let z1 = grid_z(row) - WALL_THICKNESS / 2.0;
-                let z2 = grid_z(row + 1) + WALL_THICKNESS / 2.0;
+                let x1 = grid_x(geometry, col) - WALL_THICKNESS / 2.0;
+                let x2 = grid_x(geometry, col + 1) + WALL_THICKNESS / 2.0;
+                let z1 = grid_z(geometry, row) - WALL_THICKNESS / 2.0;
+                let z2 = grid_z(geometry, row + 1) + WALL_THICKNESS / 2.0;
                 (x1, x2, z1, z2, Vec::new())
             } else {
-                let x1_orig = grid_x(col);
-                let x2_orig = grid_x(col + 1);
-                let z1_orig = grid_z(row);
-                let z2_orig = grid_z(row + 1);
+                let x1_orig = grid_x(geometry, col);
+                let x2_orig = grid_x(geometry, col + 1);
+                let z1_orig = grid_z(geometry, row);
+                let z2_orig = grid_z(geometry, row + 1);
 
                 let mut x1 = x1_orig;
                 let mut x2 = x2_orig;
@@ -159,11 +161,12 @@ pub fn emit_stacked_wall_trim(
     lower_edges: &EdgeGrid,
     upper_edges: &EdgeGrid,
     upper_mask: &Mask,
-    grid_cols: i32,
-    grid_rows: i32,
+    geometry: &MapGeometry,
     level: u8,
     y: f32,
 ) -> Vec<Floor> {
+    let grid_cols = geometry.grid_cols;
+    let grid_rows = geometry.grid_rows;
     let mut floors = Vec::new();
     let in_upper_mask =
         |r: i32, c: i32| r >= 0 && r < grid_rows && c >= 0 && c < grid_cols && upper_mask[r as usize][c as usize];
@@ -178,8 +181,8 @@ pub fn emit_stacked_wall_trim(
             if in_upper_mask(row - 1, col) || in_upper_mask(row, col) {
                 continue;
             }
-            let lower_segment = horizontal_wall_segment(lower_edges, row, col, grid_cols, grid_rows);
-            let upper_segment = horizontal_wall_segment(upper_edges, row, col, grid_cols, grid_rows);
+            let lower_segment = horizontal_wall_segment(lower_edges, row, col, geometry);
+            let upper_segment = horizontal_wall_segment(upper_edges, row, col, geometry);
             if let Some(segment) = lower_segment.overlap(upper_segment) {
                 floors.push(segment.floor_strip(y, FLOOR_THICKNESS, level));
             }
@@ -194,8 +197,8 @@ pub fn emit_stacked_wall_trim(
             if in_upper_mask(row, col - 1) || in_upper_mask(row, col) {
                 continue;
             }
-            let lower_segment = vertical_wall_segment(lower_edges, row, col, grid_cols, grid_rows);
-            let upper_segment = vertical_wall_segment(upper_edges, row, col, grid_cols, grid_rows);
+            let lower_segment = vertical_wall_segment(lower_edges, row, col, geometry);
+            let upper_segment = vertical_wall_segment(upper_edges, row, col, geometry);
             if let Some(segment) = lower_segment.overlap(upper_segment) {
                 floors.push(segment.floor_strip(y, FLOOR_THICKNESS, level));
             }
@@ -287,13 +290,16 @@ mod tests {
         lower_edges.horizontal[1][0] = true;
         upper_edges.horizontal[1][0] = true;
 
-        let floors = emit_stacked_wall_trim(&lower_edges, &upper_edges, &upper_mask, 1, 1, 1, LEVEL_HEIGHT);
+        let geometry = MapGeometry::new(1, 1);
+        let floors = emit_stacked_wall_trim(&lower_edges, &upper_edges, &upper_mask, &geometry, 1, LEVEL_HEIGHT);
 
+        let half_w = geometry.width() / 2.0;
+        let half_d = geometry.depth() / 2.0;
         assert_eq!(floors.len(), 1);
-        assert_eq!(floors[0].x1, -(MAP_WIDTH / 2.0) - WALL_THICKNESS / 2.0);
-        assert_eq!(floors[0].x2, -(MAP_WIDTH / 2.0) + GRID_CELL_SIZE + WALL_THICKNESS / 2.0);
-        assert_eq!(floors[0].z1, -(MAP_DEPTH / 2.0) + GRID_CELL_SIZE - WALL_THICKNESS / 2.0);
-        assert_eq!(floors[0].z2, -(MAP_DEPTH / 2.0) + GRID_CELL_SIZE + WALL_THICKNESS / 2.0);
+        assert_eq!(floors[0].x1, -half_w - WALL_THICKNESS / 2.0);
+        assert_eq!(floors[0].x2, -half_w + GRID_CELL_SIZE + WALL_THICKNESS / 2.0);
+        assert_eq!(floors[0].z1, -half_d + GRID_CELL_SIZE - WALL_THICKNESS / 2.0);
+        assert_eq!(floors[0].z2, -half_d + GRID_CELL_SIZE + WALL_THICKNESS / 2.0);
         assert_eq!(floors[0].y, LEVEL_HEIGHT);
         assert_eq!(floors[0].thickness, FLOOR_THICKNESS);
         assert_eq!(floors[0].level, 1);
@@ -307,13 +313,16 @@ mod tests {
         lower_edges.vertical[0][1] = true;
         upper_edges.vertical[0][1] = true;
 
-        let floors = emit_stacked_wall_trim(&lower_edges, &upper_edges, &upper_mask, 1, 1, 1, LEVEL_HEIGHT);
+        let geometry = MapGeometry::new(1, 1);
+        let floors = emit_stacked_wall_trim(&lower_edges, &upper_edges, &upper_mask, &geometry, 1, LEVEL_HEIGHT);
 
+        let half_w = geometry.width() / 2.0;
+        let half_d = geometry.depth() / 2.0;
         assert_eq!(floors.len(), 1);
-        assert_eq!(floors[0].x1, -(MAP_WIDTH / 2.0) + GRID_CELL_SIZE - WALL_THICKNESS / 2.0);
-        assert_eq!(floors[0].x2, -(MAP_WIDTH / 2.0) + GRID_CELL_SIZE + WALL_THICKNESS / 2.0);
-        assert_eq!(floors[0].z1, -(MAP_DEPTH / 2.0) - WALL_THICKNESS / 2.0);
-        assert_eq!(floors[0].z2, -(MAP_DEPTH / 2.0) + GRID_CELL_SIZE + WALL_THICKNESS / 2.0);
+        assert_eq!(floors[0].x1, -half_w + GRID_CELL_SIZE - WALL_THICKNESS / 2.0);
+        assert_eq!(floors[0].x2, -half_w + GRID_CELL_SIZE + WALL_THICKNESS / 2.0);
+        assert_eq!(floors[0].z1, -half_d - WALL_THICKNESS / 2.0);
+        assert_eq!(floors[0].z2, -half_d + GRID_CELL_SIZE + WALL_THICKNESS / 2.0);
         assert_eq!(floors[0].y, LEVEL_HEIGHT);
         assert_eq!(floors[0].thickness, FLOOR_THICKNESS);
         assert_eq!(floors[0].level, 1);
@@ -326,7 +335,8 @@ mod tests {
         let upper_mask = empty_mask(1, 1);
         lower_edges.horizontal[1][0] = true;
 
-        let floors = emit_stacked_wall_trim(&lower_edges, &upper_edges, &upper_mask, 1, 1, 1, LEVEL_HEIGHT);
+        let geometry = MapGeometry::new(1, 1);
+        let floors = emit_stacked_wall_trim(&lower_edges, &upper_edges, &upper_mask, &geometry, 1, LEVEL_HEIGHT);
 
         assert!(floors.is_empty());
     }
@@ -341,7 +351,8 @@ mod tests {
         lower_edges.vertical[0][1] = true;
         upper_edges.vertical[0][1] = true;
 
-        let floors = emit_stacked_wall_trim(&lower_edges, &upper_edges, &upper_mask, 1, 1, 1, LEVEL_HEIGHT);
+        let geometry = MapGeometry::new(1, 1);
+        let floors = emit_stacked_wall_trim(&lower_edges, &upper_edges, &upper_mask, &geometry, 1, LEVEL_HEIGHT);
 
         assert!(floors.is_empty());
     }
@@ -356,10 +367,12 @@ mod tests {
         upper_edges.vertical[0][0] = true;
         upper_edges.vertical[1][0] = true;
 
-        let floors = emit_stacked_wall_trim(&lower_edges, &upper_edges, &upper_mask, 1, 2, 1, LEVEL_HEIGHT);
+        let geometry = MapGeometry::new(1, 2);
+        let floors = emit_stacked_wall_trim(&lower_edges, &upper_edges, &upper_mask, &geometry, 1, LEVEL_HEIGHT);
 
+        let half_w = geometry.width() / 2.0;
         assert_eq!(floors.len(), 1);
-        assert_eq!(floors[0].x1, -(MAP_WIDTH / 2.0) + WALL_THICKNESS / 2.0);
-        assert_eq!(floors[0].x2, -(MAP_WIDTH / 2.0) + GRID_CELL_SIZE + WALL_THICKNESS / 2.0);
+        assert_eq!(floors[0].x1, -half_w + WALL_THICKNESS / 2.0);
+        assert_eq!(floors[0].x2, -half_w + GRID_CELL_SIZE + WALL_THICKNESS / 2.0);
     }
 }

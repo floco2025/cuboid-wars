@@ -4,7 +4,8 @@ use rand::{RngExt, rng, rngs::ThreadRng, seq::IndexedRandom};
 use crate::resources::{ActorSpawnZone, MapConfig, PlayerSpawnZone};
 use common::{
     config::CharacterPhysicsConfig,
-    constants::{GRID_CELL_SIZE, LEVEL_HEIGHT, MAP_DEPTH, MAP_WIDTH},
+    constants::{GRID_CELL_SIZE, LEVEL_HEIGHT},
+    map_geometry::MapGeometry,
     physics::{CollisionWorld, character_paths_intersect},
     protocol::Position,
 };
@@ -19,6 +20,7 @@ const SPAWN_MAX_ATTEMPTS: usize = 100;
 #[must_use]
 pub fn generate_player_spawn_position(
     map_config: &MapConfig,
+    map_geometry: &MapGeometry,
     collision_world: &CollisionWorld,
     occupied_positions: &[Position],
     character_physics: CharacterPhysicsConfig,
@@ -29,6 +31,7 @@ pub fn generate_player_spawn_position(
     }
     pick_clear_position(
         &valid_cells,
+        map_geometry,
         collision_world,
         occupied_positions,
         character_physics,
@@ -42,6 +45,7 @@ pub fn generate_player_spawn_position(
 #[must_use]
 pub fn generate_actor_spawn_position_in_zone(
     map_config: &MapConfig,
+    map_geometry: &MapGeometry,
     zone_index: usize,
     collision_world: &CollisionWorld,
     occupied_positions: &[Position],
@@ -54,6 +58,7 @@ pub fn generate_actor_spawn_position_in_zone(
     let valid_cells = valid_cells_in_actor_zone(map_config, zone);
     pick_clear_position(
         &valid_cells,
+        map_geometry,
         collision_world,
         occupied_positions,
         character_physics,
@@ -97,6 +102,7 @@ fn collect_valid_cells(map_config: &MapConfig, level: u8, cells: impl Iterator<I
 
 fn pick_clear_position(
     valid_cells: &[SpawnCell],
+    map_geometry: &MapGeometry,
     collision_world: &CollisionWorld,
     occupied_positions: &[Position],
     character_physics: CharacterPhysicsConfig,
@@ -110,7 +116,7 @@ fn pick_clear_position(
     let mut rng = rng();
     for _ in 0..SPAWN_MAX_ATTEMPTS {
         let &(level, col, row) = valid_cells.choose(&mut rng).expect("valid_cells should not be empty");
-        let pos = random_position_in_spawn_cell(&mut rng, level, col, row, character_physics);
+        let pos = random_position_in_spawn_cell(&mut rng, map_geometry, level, col, row, character_physics);
 
         if character_spawn_position_is_clear(&pos, collision_world, occupied_positions, character_physics) {
             return pos;
@@ -126,14 +132,15 @@ fn pick_clear_position(
 
 fn random_position_in_spawn_cell(
     rng: &mut ThreadRng,
+    geometry: &MapGeometry,
     level: u8,
     col: i32,
     row: i32,
     character_physics: CharacterPhysicsConfig,
 ) -> Position {
-    let cell_min_x = (col as f32).mul_add(GRID_CELL_SIZE, -(MAP_WIDTH / 2.0));
+    let cell_min_x = geometry.cell_to_world_x(col);
     let cell_max_x = cell_min_x + GRID_CELL_SIZE;
-    let cell_min_z = (row as f32).mul_add(GRID_CELL_SIZE, -(MAP_DEPTH / 2.0));
+    let cell_min_z = geometry.cell_to_world_z(row);
     let cell_max_z = cell_min_z + GRID_CELL_SIZE;
 
     Position {
@@ -286,8 +293,9 @@ mod tests {
         let layout = empty_layout();
         let collision_world = collision_world(&layout);
         let map_config = map_config_with_player_spawn(1, 0, 0);
+        let geometry = MapGeometry::new(1, 1);
 
-        let pos = generate_player_spawn_position(&map_config, &collision_world, &[], character_physics());
+        let pos = generate_player_spawn_position(&map_config, &geometry, &collision_world, &[], character_physics());
 
         assert_eq!(pos.y, LEVEL_HEIGHT);
     }

@@ -1,6 +1,6 @@
 use bevy::prelude::Resource;
 
-use common::constants::{GRID_CELL_SIZE, MAP_DEPTH, MAP_WIDTH};
+use common::map_geometry::MapGeometry;
 
 // Cell flags.
 #[derive(Copy, Clone, Debug, Default)]
@@ -98,11 +98,11 @@ impl ActorSpawnZone {
     }
 
     #[must_use]
-    pub fn xz_bounds(&self) -> (f32, f32, f32, f32) {
-        let min_x = (self.cols[0] as f32).mul_add(GRID_CELL_SIZE, -(MAP_WIDTH / 2.0));
-        let max_x = (self.cols[1] as f32).mul_add(GRID_CELL_SIZE, -(MAP_WIDTH / 2.0));
-        let min_z = (self.rows[0] as f32).mul_add(GRID_CELL_SIZE, -(MAP_DEPTH / 2.0));
-        let max_z = (self.rows[1] as f32).mul_add(GRID_CELL_SIZE, -(MAP_DEPTH / 2.0));
+    pub fn xz_bounds(&self, geometry: &MapGeometry) -> (f32, f32, f32, f32) {
+        let min_x = geometry.cell_to_world_x(self.cols[0]);
+        let max_x = geometry.cell_to_world_x(self.cols[1]);
+        let min_z = geometry.cell_to_world_z(self.rows[0]);
+        let max_z = geometry.cell_to_world_z(self.rows[1]);
         (min_x, min_z, max_x, max_z)
     }
 }

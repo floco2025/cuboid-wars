@@ -4,10 +4,6 @@
 
 // Grid
 pub const GRID_CELL_SIZE: f32 = 4.0;
-pub const GRID_COLS: i32 = 20; // Number of grid columns (X axis)
-pub const GRID_ROWS: i32 = 20; // Number of grid rows (Z axis)
-pub const MAP_WIDTH: f32 = GRID_COLS as f32 * GRID_CELL_SIZE;
-pub const MAP_DEPTH: f32 = GRID_ROWS as f32 * GRID_CELL_SIZE;
 
 // Walls
 pub const WALL_THICKNESS: f32 = 0.3;

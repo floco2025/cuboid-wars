@@ -6,8 +6,9 @@ use crate::{
     resources::MapConfig,
 };
 use common::{
-    constants::{GRID_CELL_SIZE, LEVEL_HEIGHT, MAP_DEPTH, MAP_WIDTH},
+    constants::{GRID_CELL_SIZE, LEVEL_HEIGHT},
     map::compute_player_level,
+    map_geometry::MapGeometry,
     protocol::{ItemType, Position},
 };
 
@@ -30,17 +31,17 @@ pub(super) struct ItemSpawnCell {
 }
 
 impl ItemSpawnCell {
-    pub(super) fn position(self) -> Position {
+    pub(super) fn position(self, geometry: &MapGeometry) -> Position {
         Position {
-            x: (self.col as f32 + 0.5).mul_add(GRID_CELL_SIZE, -(MAP_WIDTH / 2.0)),
+            x: geometry.cell_to_world_x(self.col) + GRID_CELL_SIZE / 2.0,
             y: f32::from(self.level) * LEVEL_HEIGHT,
-            z: (self.row as f32 + 0.5).mul_add(GRID_CELL_SIZE, -(MAP_DEPTH / 2.0)),
+            z: geometry.cell_to_world_z(self.row) + GRID_CELL_SIZE / 2.0,
         }
     }
 }
 
-pub(super) fn item_spawn_cell_from_position(pos: &Position) -> ItemSpawnCell {
-    let (col, row) = grid_coords_from_position(pos);
+pub(super) fn item_spawn_cell_from_position(geometry: &MapGeometry, pos: &Position) -> ItemSpawnCell {
+    let (col, row) = grid_coords_from_position(geometry, pos);
     ItemSpawnCell {
         level: compute_player_level(pos.y),
         col,

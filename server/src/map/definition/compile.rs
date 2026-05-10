@@ -11,14 +11,16 @@ use crate::{
 };
 use common::{
     constants::*,
+    map_geometry::MapGeometry,
     material_rules::MaterialRules,
     protocol::{Floor, MapLayout, Wall},
 };
 
 #[must_use]
-pub(crate) fn compile_map(map_def: &MapDef, assets: &MaterialRules) -> (MapLayout, MapConfig) {
+pub(crate) fn compile_map(map_def: &MapDef, assets: &MaterialRules) -> (MapLayout, MapConfig, MapGeometry) {
     let cols = map_def.grid_cols;
     let rows = map_def.grid_rows;
+    let geometry = MapGeometry::new(cols, rows);
 
     let ramp_specs: Vec<ramps::RampSpec> = map_def.ramps.iter().map(ramp_spec_from_def).collect();
 
@@ -74,13 +76,13 @@ pub(crate) fn compile_map(map_def: &MapDef, assets: &MaterialRules) -> (MapLayou
 
     let mut wall_lights = Vec::new();
     for level_idx in 0..level_grids.len() {
-        wall_lights.extend(generate_wall_lights(&level_grids, level_idx));
+        wall_lights.extend(generate_wall_lights(&geometry, &level_grids, level_idx));
     }
 
     let mut all_walls: Vec<Wall> = Vec::new();
     for (level_idx, level_grid) in level_grids.iter().enumerate() {
         let level_u8 = u8::try_from(level_idx).unwrap_or(u8::MAX);
-        let mut tier = walls::generate_walls(&level_grid.edges, cols, rows, level_u8);
+        let mut tier = walls::generate_walls(&level_grid.edges, &geometry, level_u8);
         tier = walls::merge_walls(tier, assets);
         all_walls.extend(tier);
     }
@@ -89,14 +91,13 @@ pub(crate) fn compile_map(map_def: &MapDef, assets: &MaterialRules) -> (MapLayou
     for (level_idx, m) in slab_masks.iter().enumerate() {
         let level_u8 = u8::try_from(level_idx).unwrap_or(u8::MAX);
         let y = f32::from(level_u8) * LEVEL_HEIGHT;
-        let mut tier = floors::emit_floor_tier(m, cols, rows, level_u8, y);
+        let mut tier = floors::emit_floor_tier(m, &geometry, level_u8, y);
         if level_idx > 0 {
             tier.extend(floors::emit_stacked_wall_trim(
                 &level_grids[level_idx - 1].edges,
                 &level_grids[level_idx].edges,
                 m,
-                cols,
-                rows,
+                &geometry,
                 level_u8,
                 y,
             ));
@@ -109,7 +110,7 @@ pub(crate) fn compile_map(map_def: &MapDef, assets: &MaterialRules) -> (MapLayou
 
     let map_layout = MapLayout {
         walls: all_walls,
-        ramps: ramps::specs_to_ramps(&ramp_specs),
+        ramps: ramps::specs_to_ramps(&geometry, &ramp_specs),
         wall_lights,
         floors: all_floors,
     };
@@ -121,6 +122,7 @@ pub(crate) fn compile_map(map_def: &MapDef, assets: &MaterialRules) -> (MapLayou
             actor_spawn_zones: actor_spawn_zones(map_def),
             player_spawn_zones: player_spawn_zones(map_def),
         },
+        geometry,
     )
 }
 

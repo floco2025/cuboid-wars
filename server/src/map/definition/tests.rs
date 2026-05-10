@@ -3,10 +3,7 @@ use super::{
     schema::{ActorSpawnZoneDef, LevelDef, MapDef, PlayerSpawnZoneDef, RampDef},
     validation::validate_map,
 };
-use common::{
-    constants::{GRID_CELL_SIZE, MAP_DEPTH, MAP_WIDTH},
-    material_rules::MaterialRules,
-};
+use common::{constants::GRID_CELL_SIZE, material_rules::MaterialRules};
 
 fn level(floors: Vec<[i32; 2]>) -> LevelDef {
     level_with_inaccessible(floors, Vec::new())
@@ -130,13 +127,13 @@ fn inaccessible_floor_emits_physical_slab_but_not_regular_floor() {
         Vec::new(),
     );
 
-    let (layout, config) = compile_map(&map_def, &assets());
+    let (layout, config, geometry) = compile_map(&map_def, &assets());
     let inaccessible_cell = config.levels[0].cells.rows[0][2];
     assert!(!inaccessible_cell.has_floor);
     assert!(inaccessible_cell.has_floor_slab);
 
-    let x = (2.5_f32).mul_add(GRID_CELL_SIZE, -(MAP_WIDTH / 2.0));
-    let z = (0.5_f32).mul_add(GRID_CELL_SIZE, -(MAP_DEPTH / 2.0));
+    let x = geometry.cell_to_world_x(2) + GRID_CELL_SIZE / 2.0;
+    let z = geometry.cell_to_world_z(0) + GRID_CELL_SIZE / 2.0;
     assert!(layout.floors.iter().any(|floor| {
         let (min_x, max_x, min_z, max_z) = floor.bounds_xz();
         min_x <= x && x <= max_x && min_z <= z && z <= max_z

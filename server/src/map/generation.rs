@@ -1,15 +1,15 @@
 use std::path::PathBuf;
 
 use crate::resources::MapConfig;
-use common::{material_rules::MaterialRules, protocol::MapLayout};
+use common::{map_geometry::MapGeometry, material_rules::MaterialRules, protocol::MapLayout};
 
 use super::definition;
 
 // Load the map definition from disk and compile it to a `MapLayout` +
-// `MapConfig`. Hard-fails the server on any parse or validation error so the
-// map file stays canonical.
+// `MapConfig` + `MapGeometry`. Hard-fails the server on any parse or
+// validation error so the map file stays canonical.
 #[must_use]
-pub fn generate_map() -> (MapLayout, MapConfig) {
+pub fn generate_map() -> (MapLayout, MapConfig, MapGeometry) {
     let path = map_path();
     let map_def =
         definition::load_map(&path).unwrap_or_else(|err| panic!("failed to load map at {}: {err:?}", path.display()));

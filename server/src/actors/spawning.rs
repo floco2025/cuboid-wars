@@ -10,6 +10,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
+    map_geometry::MapGeometry,
     physics::{CharacterVerticalVelocity, CollisionWorld},
     protocol::{ActorMarker, ActorMoveIntent, FaceDirection, Health, PlayerMarker, Position},
 };
@@ -42,6 +43,7 @@ pub fn actor_initial_spawn_system(
     mut actors: ResMut<ActorMap>,
     mut spawner: ResMut<ActorSpawner>,
     map_config: Res<MapConfig>,
+    map_geometry: Res<MapGeometry>,
     collision_world: Res<CollisionWorld>,
     gameplay_config: Res<GameplayConfig>,
     server_gameplay_config: Res<ServerGameplayConfig>,
@@ -66,6 +68,7 @@ pub fn actor_initial_spawn_system(
                 &mut occupied_positions,
                 &mut rng,
                 &map_config,
+                &map_geometry,
                 &collision_world,
                 actor_config,
                 kind_server_config,
@@ -91,6 +94,7 @@ pub fn actor_respawn_system(
     mut throttles: ResMut<ActorSpawnThrottles>,
     time: Res<Time>,
     map_config: Res<MapConfig>,
+    map_geometry: Res<MapGeometry>,
     collision_world: Res<CollisionWorld>,
     gameplay_config: Res<GameplayConfig>,
     server_gameplay_config: Res<ServerGameplayConfig>,
@@ -129,6 +133,7 @@ pub fn actor_respawn_system(
                     &mut occupied_positions,
                     &mut rng,
                     &map_config,
+                    &map_geometry,
                     &collision_world,
                     actor_config,
                     kind_server_config,
@@ -154,6 +159,7 @@ fn spawn_actor_in_zone(
     occupied_positions: &mut Vec<Position>,
     rng: &mut ThreadRng,
     map_config: &MapConfig,
+    map_geometry: &MapGeometry,
     collision_world: &CollisionWorld,
     actor_config: &common::config::ActorGameplayConfig,
     kind_server_config: &crate::config::ActorKindServerConfig,
@@ -161,8 +167,14 @@ fn spawn_actor_in_zone(
     zone_idx: usize,
     spawn_kind: &str,
 ) {
-    let pos =
-        generate_actor_spawn_position_in_zone(map_config, zone_idx, collision_world, occupied_positions, actor_physics);
+    let pos = generate_actor_spawn_position_in_zone(
+        map_config,
+        map_geometry,
+        zone_idx,
+        collision_world,
+        occupied_positions,
+        actor_physics,
+    );
     occupied_positions.push(pos);
 
     let direction = rng.random_range(0.0..std::f32::consts::TAU);

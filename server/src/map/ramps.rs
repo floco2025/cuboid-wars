@@ -1,5 +1,5 @@
 use crate::resources::CellGrid;
-use common::{constants::*, protocol::Ramp};
+use common::{constants::*, map_geometry::MapGeometry, protocol::Ramp};
 
 // Internal representation of a placed ramp. Downstream code converts it to
 // `Ramp` for the wire protocol and applies its flags to the matching lower-level
@@ -32,22 +32,17 @@ impl RampSpec {
         ]
     }
 
-    fn to_ramp(&self) -> Ramp {
+    fn to_ramp(&self, geometry: &MapGeometry) -> Ramp {
         let y_low = self.lower_level as f32 * LEVEL_HEIGHT;
         let y_high = (self.lower_level + 1) as f32 * LEVEL_HEIGHT;
 
-        let x1 = (self.low[0] as f32).mul_add(GRID_CELL_SIZE, -(MAP_WIDTH / 2.0));
-        let z1 = (self.low[1] as f32).mul_add(GRID_CELL_SIZE, -(MAP_DEPTH / 2.0));
-        let x2 = (self.high[0] as f32).mul_add(GRID_CELL_SIZE, -(MAP_WIDTH / 2.0));
-        let z2 = (self.high[1] as f32).mul_add(GRID_CELL_SIZE, -(MAP_DEPTH / 2.0));
-
         Ramp {
-            x1,
+            x1: geometry.cell_to_world_x(self.low[0]),
             y1: y_low,
-            z1,
-            x2,
+            z1: geometry.cell_to_world_z(self.low[1]),
+            x2: geometry.cell_to_world_x(self.high[0]),
             y2: y_high,
-            z2,
+            z2: geometry.cell_to_world_z(self.high[1]),
         }
     }
 }
@@ -93,6 +88,6 @@ pub fn apply_to_level_cells(cells: &mut CellGrid, ramps: &[RampSpec], level: u32
     }
 }
 
-pub fn specs_to_ramps(specs: &[RampSpec]) -> Vec<Ramp> {
-    specs.iter().map(RampSpec::to_ramp).collect()
+pub fn specs_to_ramps(geometry: &MapGeometry, specs: &[RampSpec]) -> Vec<Ramp> {
+    specs.iter().map(|spec| spec.to_ramp(geometry)).collect()
 }

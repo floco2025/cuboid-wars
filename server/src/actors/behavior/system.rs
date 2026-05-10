@@ -7,6 +7,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
+    map_geometry::MapGeometry,
     physics::CollisionWorld,
     protocol::{ActorId, ActorMarker, PlayerId, PlayerMarker, Position},
 };
@@ -24,6 +25,7 @@ pub fn actor_behavior_system(
     gameplay_config: Res<GameplayConfig>,
     server_gameplay_config: Res<ServerGameplayConfig>,
     map_config: Res<MapConfig>,
+    map_geometry: Res<MapGeometry>,
     mut actors: ResMut<ActorMap>,
     player_query: Query<(&PlayerId, &Position), With<PlayerMarker>>,
     query: Query<(&ActorId, &Position), (With<ActorMarker>, Without<PlayerMarker>)>,
@@ -44,7 +46,7 @@ pub fn actor_behavior_system(
         // and walk it back. This naturally cancels chases that carry the
         // actor too far — the next tick rewrites `go_to_position` from the
         // player's location to a point inside the zone.
-        let zone_bounds = map_config.actor_spawn_zones[info.spawn_zone_index].xz_bounds();
+        let zone_bounds = map_config.actor_spawn_zones[info.spawn_zone_index].xz_bounds(&map_geometry);
         if xz_distance_from_rect(pos, zone_bounds) > kind_server_config.max_wander_distance {
             info.go_to_position = Some(closest_point_in_rect(pos, zone_bounds));
             continue;

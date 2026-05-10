@@ -11,12 +11,21 @@ use serde::Deserialize;
 
 const SUPPORTED_VERSION: u32 = 1;
 
-#[derive(Resource, Debug, Clone, Deserialize)]
+#[derive(Resource, Debug, Clone)]
 pub struct AssetSet {
     pub version: u32,
     materials: HashMap<String, MaterialDef>,
-    #[serde(flatten)]
     rules: MaterialRules,
+    player: PlayerAssets,
+    actors: HashMap<String, ActorAssets>,
+    models: GenericModels,
+    skybox: SkyboxDef,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct AssetSetFile {
+    version: u32,
+    materials: HashMap<String, MaterialDef>,
     player: PlayerAssets,
     actors: HashMap<String, ActorAssets>,
     models: GenericModels,
@@ -39,7 +48,18 @@ impl AssetSet {
             serde_json::from_str(&text).with_context(|| format!("failed to parse {}", path.display()))?;
         resolve_actor_inheritance(&mut value, "actors")
             .with_context(|| format!("resolving actor inheritance in {}", path.display()))?;
-        serde_json::from_value(value).with_context(|| format!("failed to deserialize {}", path.display()))
+        let file: AssetSetFile = serde_json::from_value(value)
+            .with_context(|| format!("failed to deserialize {}", path.display()))?;
+        let rules = MaterialRules::load_default()?;
+        Ok(Self {
+            version: file.version,
+            materials: file.materials,
+            rules,
+            player: file.player,
+            actors: file.actors,
+            models: file.models,
+            skybox: file.skybox,
+        })
     }
 
     fn validate(&self) -> Result<()> {

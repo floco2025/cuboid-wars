@@ -1,6 +1,6 @@
 use super::edges::{has_horizontal_edge, has_vertical_edge};
 use crate::{constants::WALL_OVERLAP, resources::EdgeGrid};
-use common::{constants::*, protocol::Floor};
+use common::{constants::*, map_geometry::MapGeometry, protocol::Floor};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub(super) struct HorizontalSegment {
@@ -63,13 +63,13 @@ impl VerticalSegment {
 }
 
 #[must_use]
-pub(super) fn grid_x(col: i32) -> f32 {
-    (col as f32).mul_add(GRID_CELL_SIZE, -(MAP_WIDTH / 2.0))
+pub(super) fn grid_x(geometry: &MapGeometry, col: i32) -> f32 {
+    geometry.cell_to_world_x(col)
 }
 
 #[must_use]
-pub(super) fn grid_z(row: i32) -> f32 {
-    (row as f32).mul_add(GRID_CELL_SIZE, -(MAP_DEPTH / 2.0))
+pub(super) fn grid_z(geometry: &MapGeometry, row: i32) -> f32 {
+    geometry.cell_to_world_z(row)
 }
 
 #[must_use]
@@ -77,9 +77,10 @@ pub(super) fn horizontal_wall_segment(
     edge_grid: &EdgeGrid,
     row: i32,
     col: i32,
-    grid_cols: i32,
-    grid_rows: i32,
+    geometry: &MapGeometry,
 ) -> HorizontalSegment {
+    let grid_cols = geometry.grid_cols;
+    let grid_rows = geometry.grid_rows;
     let has_left = col > 0 && has_horizontal_edge(edge_grid, row, col - 1);
     let has_right = col < grid_cols - 1 && has_horizontal_edge(edge_grid, row, col + 1);
 
@@ -91,7 +92,7 @@ pub(super) fn horizontal_wall_segment(
     let right_vert_bottom = row < grid_rows && has_vertical_edge(edge_grid, row, col + 1);
     let right_vert_through = right_vert_top && right_vert_bottom;
 
-    let x1 = grid_x(col)
+    let x1 = grid_x(geometry, col)
         + if WALL_OVERLAP {
             -WALL_THICKNESS / 2.0
         } else if left_vert_through && !has_left {
@@ -101,7 +102,7 @@ pub(super) fn horizontal_wall_segment(
         } else {
             0.0
         };
-    let x2 = grid_x(col + 1)
+    let x2 = grid_x(geometry, col + 1)
         + if WALL_OVERLAP {
             WALL_THICKNESS / 2.0
         } else if right_vert_through && !has_right {
@@ -112,7 +113,11 @@ pub(super) fn horizontal_wall_segment(
             0.0
         };
 
-    HorizontalSegment { x1, x2, z: grid_z(row) }
+    HorizontalSegment {
+        x1,
+        x2,
+        z: grid_z(geometry, row),
+    }
 }
 
 #[must_use]
@@ -120,14 +125,15 @@ pub(super) fn vertical_wall_segment(
     edge_grid: &EdgeGrid,
     row: i32,
     col: i32,
-    grid_cols: i32,
-    grid_rows: i32,
+    geometry: &MapGeometry,
 ) -> VerticalSegment {
+    let grid_cols = geometry.grid_cols;
+    let grid_rows = geometry.grid_rows;
     let has_top = row > 0 && has_vertical_edge(edge_grid, row - 1, col);
     let has_bottom = row < grid_rows - 1 && has_vertical_edge(edge_grid, row + 1, col);
     let (has_perp_top, has_perp_bottom) = has_perpendicular_horizontal_walls(edge_grid, row, col, grid_cols, grid_rows);
 
-    let z1 = grid_z(row)
+    let z1 = grid_z(geometry, row)
         + if has_perp_top && !has_top {
             WALL_THICKNESS / 2.0
         } else if !has_top && !has_perp_top {
@@ -135,7 +141,7 @@ pub(super) fn vertical_wall_segment(
         } else {
             0.0
         };
-    let z2 = grid_z(row + 1)
+    let z2 = grid_z(geometry, row + 1)
         + if has_perp_bottom && !has_bottom {
             -WALL_THICKNESS / 2.0
         } else if !has_bottom && !has_perp_bottom {
@@ -144,7 +150,11 @@ pub(super) fn vertical_wall_segment(
             0.0
         };
 
-    VerticalSegment { x: grid_x(col), z1, z2 }
+    VerticalSegment {
+        x: grid_x(geometry, col),
+        z1,
+        z2,
+    }
 }
 
 #[inline]

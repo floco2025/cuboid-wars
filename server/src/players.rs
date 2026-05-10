@@ -6,6 +6,7 @@ use crate::resources::{MapConfig, PlayerMap};
 use common::{
     config::GameplayConfig,
     constants::CHARACTER_FALL_TELEPORT_Y,
+    map_geometry::MapGeometry,
     physics::{CharacterVerticalVelocity, CollisionWorld},
     protocol::{
         PlayerId, PlayerMarker, PlayerMoveIntent, PlayerMovementState, Position, SPlayerTeleport, ServerMessage,
@@ -50,6 +51,7 @@ pub fn players_status_timers_system(time: Res<Time>, mut players: ResMut<PlayerM
 pub fn players_fall_recovery_system(
     players: Res<PlayerMap>,
     map_config: Res<MapConfig>,
+    map_geometry: Res<MapGeometry>,
     collision_world: Res<CollisionWorld>,
     gameplay_config: Res<GameplayConfig>,
     mut player_query: Query<
@@ -78,6 +80,7 @@ pub fn players_fall_recovery_system(
     for (entity, id) in dead {
         let teleport_pos = generate_player_spawn_position(
             &map_config,
+            &map_geometry,
             &collision_world,
             &occupied_positions,
             gameplay_config.player.physics(),

@@ -382,14 +382,22 @@ def format_map_file(wrapper: dict) -> str:
         )
 
     lines.append("    ],")
+    rules = map_data.get("material_rules", [])
+    ramp_trailing_comma = "," if rules else ""
     if map_data["ramps"]:
         lines.append('    "ramps": [')
         for idx, ramp in enumerate(map_data["ramps"]):
             comma = "," if idx + 1 < len(map_data["ramps"]) else ""
             lines.append(format_ramp(ramp, 6) + comma)
-        lines.append("    ]")
+        lines.append(f"    ]{ramp_trailing_comma}")
     else:
-        lines.append('    "ramps": []')
+        lines.append(f'    "ramps": []{ramp_trailing_comma}')
+    if rules:
+        lines.append('    "material_rules": [')
+        for idx, rule in enumerate(rules):
+            comma = "," if idx + 1 < len(rules) else ""
+            lines.append("      " + json.dumps(rule, separators=(", ", ": ")) + comma)
+        lines.append("    ]")
     lines.append("  }")
     lines.append("}")
     return "\n".join(lines)
@@ -426,6 +434,7 @@ def normalize_map(map_data: dict) -> dict:
                 "lower_level": int(ramp["lower_level"]),
             }
         )
+    material_rules = [normalize_material_rule(rule) for rule in map_data.get("material_rules", [])]
     return {
         "grid_cols": cols,
         "grid_rows": rows,
@@ -433,7 +442,29 @@ def normalize_map(map_data: dict) -> dict:
         "player_spawn_zones": player_spawn_zones,
         "levels": levels,
         "ramps": ramps,
+        "material_rules": material_rules,
     }
+
+
+# Coordinate-bearing keys in a material rule. Used by normalization, validation,
+# and resize. `cell_*` apply to floor rules; `edge_*` apply to wall rules. Both
+# scope a rule to a rectangular range of grid cells/edges, inclusive on both
+# ends. `from`/`to` together pin a rule to one specific edge.
+_RULE_RANGE_KEYS = ("cell_cols", "cell_rows", "edge_cols", "edge_rows")
+_RULE_POINT_KEYS = ("from", "to")
+
+
+def normalize_material_rule(rule: dict) -> dict:
+    out = copy.deepcopy(rule)
+    for key in _RULE_RANGE_KEYS:
+        if key in out and out[key] is not None:
+            a, b = out[key]
+            out[key] = [int(a), int(b)]
+    for key in _RULE_POINT_KEYS:
+        if key in out and out[key] is not None:
+            a, b = out[key]
+            out[key] = [int(a), int(b)]
+    return out
 
 
 def _normalize_zone_rect(zone: dict) -> dict:
@@ -596,6 +627,53 @@ def resize_map_data(
             kept_ramps.append(ramp)
     out["ramps"] = kept_ramps
 
+    out["material_rules"] = [
+        rule
+        for rule in (
+            _resize_material_rule(rule, dc, dr, new_cols, new_rows)
+            for rule in out.get("material_rules", [])
+        )
+        if rule is not None
+    ]
+
+    return out
+
+
+def _resize_material_rule(rule: dict, dc: int, dr: int, new_cols: int, new_rows: int) -> dict | None:
+    """Translate and clip a rule's coordinate fields. Returns None if any
+    coordinate range collapses to empty after clipping (rule no longer
+    matches anything inside the new grid)."""
+    out = copy.deepcopy(rule)
+    # cell_* ranges target floor cells: valid range is [0, grid - 1] inclusive.
+    for key, max_val in (("cell_cols", new_cols), ("cell_rows", new_rows)):
+        if key not in out or out[key] is None:
+            continue
+        a, b = out[key]
+        delta = dc if "col" in key else dr
+        na = max(0, a + delta)
+        nb = min(max_val - 1, b + delta)
+        if nb < na:
+            return None
+        out[key] = [na, nb]
+    # edge_* ranges and from/to target grid lines: valid range is [0, grid].
+    for key, max_val in (("edge_cols", new_cols), ("edge_rows", new_rows)):
+        if key not in out or out[key] is None:
+            continue
+        a, b = out[key]
+        delta = dc if "col" in key else dr
+        na = max(0, a + delta)
+        nb = min(max_val, b + delta)
+        if nb < na:
+            return None
+        out[key] = [na, nb]
+    for key in ("from", "to"):
+        if key not in out or out[key] is None:
+            continue
+        c, r = out[key]
+        nc, nr = c + dc, r + dr
+        if not (0 <= nc <= new_cols and 0 <= nr <= new_rows):
+            return None
+        out[key] = [nc, nr]
     return out
 
 
@@ -696,7 +774,56 @@ def validate_map(map_data: dict) -> list[str]:
         msg = ramp_error(ramp["low"], ramp["high"], ramp["lower_level"], cols, rows, len(map_data["levels"]))
         if msg:
             errors.append(f"ramp {ramp}: {msg}")
+
+    level_names = {level["name"] for level in map_data["levels"] if level.get("name")}
+    for idx, rule in enumerate(map_data.get("material_rules", [])):
+        _validate_material_rule(rule, idx, cols, rows, level_names, len(map_data["levels"]), errors)
     return errors
+
+
+def _validate_material_rule(
+    rule: dict,
+    idx: int,
+    cols: int,
+    rows: int,
+    level_names: set[str],
+    level_count: int,
+    errors: list[str],
+) -> None:
+    label = f"material_rules[{idx}]"
+    levels = rule.get("levels")
+    if levels is not None:
+        names = levels if isinstance(levels, list) else [levels]
+        for name in names:
+            if isinstance(name, str):
+                if name not in level_names:
+                    errors.append(f"{label}: unknown level name {name!r}")
+            elif isinstance(name, int):
+                if not (0 <= name < level_count):
+                    errors.append(f"{label}: level index {name} out of range")
+            else:
+                errors.append(f"{label}: level reference must be a name or index, got {name!r}")
+    for key, max_val in (("cell_cols", cols - 1), ("cell_rows", rows - 1)):
+        rng = rule.get(key)
+        if rng is None:
+            continue
+        a, b = rng
+        if a < 0 or b > max_val or a > b:
+            errors.append(f"{label}: {key} {rng} is outside [0, {max_val}]")
+    for key, max_val in (("edge_cols", cols), ("edge_rows", rows)):
+        rng = rule.get(key)
+        if rng is None:
+            continue
+        a, b = rng
+        if a < 0 or b > max_val or a > b:
+            errors.append(f"{label}: {key} {rng} is outside [0, {max_val}]")
+    for key in ("from", "to"):
+        pt = rule.get(key)
+        if pt is None:
+            continue
+        c, r = pt
+        if not grid_point_in_bounds(c, r, cols, rows):
+            errors.append(f"{label}: {key} {pt} is outside grid-line bounds")
 
 
 def _validate_zone_rect(zone: dict, label: str, map_data: dict, errors: list[str]) -> None:

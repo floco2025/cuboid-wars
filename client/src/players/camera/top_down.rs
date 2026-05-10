@@ -2,9 +2,13 @@ use bevy::prelude::*;
 
 use crate::{constants::*, map::visual_focus_level};
 use common::{
-    constants::{LEVEL_HEIGHT, MAP_DEPTH, MAP_WIDTH},
+    constants::LEVEL_HEIGHT,
     protocol::{Floor, MapLayout, Position},
 };
+
+// Fallback half-extent used before the server-supplied `MapLayout` arrives.
+// Once it does, we use the actual floor footprint instead.
+const FALLBACK_HALF_EXTENT: f32 = 40.0;
 
 #[derive(Copy, Clone)]
 struct FloorBounds {
@@ -17,10 +21,10 @@ struct FloorBounds {
 impl FloorBounds {
     const fn fallback() -> Self {
         Self {
-            min_x: -MAP_WIDTH / 2.0,
-            max_x: MAP_WIDTH / 2.0,
-            min_z: -MAP_DEPTH / 2.0,
-            max_z: MAP_DEPTH / 2.0,
+            min_x: -FALLBACK_HALF_EXTENT,
+            max_x: FALLBACK_HALF_EXTENT,
+            min_z: -FALLBACK_HALF_EXTENT,
+            max_z: FALLBACK_HALF_EXTENT,
         }
     }
 

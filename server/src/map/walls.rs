@@ -8,7 +8,7 @@ use super::{
     segments::{horizontal_wall_segment, vertical_wall_segment},
 };
 use crate::resources::EdgeGrid;
-use common::{constants::*, material_rules::MaterialRules, protocol::Wall};
+use common::{constants::*, map_geometry::MapGeometry, material_rules::MaterialRules, protocol::Wall};
 
 // Epsilon for merging adjacent walls.
 const MERGE_EPS: f32 = 0.01;
@@ -16,7 +16,9 @@ const MERGE_EPS: f32 = 0.01;
 // Generate individual wall segments (no merging) with gap-filling extensions,
 // tagging each wall with `level`.
 #[must_use]
-pub fn generate_walls(edge_grid: &EdgeGrid, grid_cols: i32, grid_rows: i32, level: u8) -> Vec<Wall> {
+pub fn generate_walls(edge_grid: &EdgeGrid, geometry: &MapGeometry, level: u8) -> Vec<Wall> {
+    let grid_cols = geometry.grid_cols;
+    let grid_rows = geometry.grid_rows;
     let mut walls = Vec::new();
 
     // Process horizontal walls (north/south edges)
@@ -26,7 +28,7 @@ pub fn generate_walls(edge_grid: &EdgeGrid, grid_cols: i32, grid_rows: i32, leve
                 continue;
             }
 
-            let segment = horizontal_wall_segment(edge_grid, row, col, grid_cols, grid_rows);
+            let segment = horizontal_wall_segment(edge_grid, row, col, geometry);
             walls.push(Wall {
                 x1: segment.x1,
                 z1: segment.z,
@@ -45,7 +47,7 @@ pub fn generate_walls(edge_grid: &EdgeGrid, grid_cols: i32, grid_rows: i32, leve
                 continue;
             }
 
-            let segment = vertical_wall_segment(edge_grid, row, col, grid_cols, grid_rows);
+            let segment = vertical_wall_segment(edge_grid, row, col, geometry);
             walls.push(Wall {
                 x1: segment.x,
                 z1: segment.z1,

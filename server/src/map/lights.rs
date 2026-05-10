@@ -6,7 +6,8 @@ use crate::{
     resources::{CellGrid, EdgeGrid, LevelGrid},
 };
 use common::{
-    constants::{GRID_CELL_SIZE, LEVEL_HEIGHT, MAP_DEPTH, MAP_WIDTH, WALL_THICKNESS},
+    constants::{GRID_CELL_SIZE, LEVEL_HEIGHT, WALL_THICKNESS},
+    map_geometry::MapGeometry,
     protocol::{Position, WallLight},
 };
 
@@ -21,11 +22,11 @@ const CARDINAL_DIRECTIONS: [(CellSide, i32, i32); 4] = [
 ];
 
 #[must_use]
-pub fn generate_wall_lights(levels: &[LevelGrid], level_idx: usize) -> Vec<WallLight> {
-    generate_wall_lights_from_parts(levels, level_idx)
+pub fn generate_wall_lights(geometry: &MapGeometry, levels: &[LevelGrid], level_idx: usize) -> Vec<WallLight> {
+    generate_wall_lights_from_parts(geometry, levels, level_idx)
 }
 
-fn generate_wall_lights_from_parts(levels: &[LevelGrid], level_idx: usize) -> Vec<WallLight> {
+fn generate_wall_lights_from_parts(geometry: &MapGeometry, levels: &[LevelGrid], level_idx: usize) -> Vec<WallLight> {
     let level_grid = &levels[level_idx];
     let cells = &level_grid.cells;
     let edges = &level_grid.edges;
@@ -41,8 +42,8 @@ fn generate_wall_lights_from_parts(levels: &[LevelGrid], level_idx: usize) -> Ve
                 continue;
             }
 
-            let cell_center_x = (col as f32 + 0.5).mul_add(GRID_CELL_SIZE, -(MAP_WIDTH / 2.0));
-            let cell_center_z = (row as f32 + 0.5).mul_add(GRID_CELL_SIZE, -(MAP_DEPTH / 2.0));
+            let cell_center_x = geometry.cell_to_world_x(col) + GRID_CELL_SIZE / 2.0;
+            let cell_center_z = geometry.cell_to_world_z(row) + GRID_CELL_SIZE / 2.0;
             let half = GRID_CELL_SIZE / 2.0;
 
             if has_edge_on_cell_side(edges, row, col, CellSide::North) {
@@ -264,7 +265,7 @@ mod tests {
             level_grid(ceiling, EdgeGrid::new(1, 1)),
         ];
 
-        let lights = generate_wall_lights_from_parts(&levels, 2);
+        let lights = generate_wall_lights_from_parts(&MapGeometry::new(1, 1), &levels, 2);
 
         assert_eq!(lights.len(), 4);
         assert!(
@@ -278,7 +279,7 @@ mod tests {
     fn wall_lights_require_floor() {
         let levels = vec![level_grid(CellGrid::new(1, 1), enclosed_edges(1, 1))];
 
-        let lights = generate_wall_lights_from_parts(&levels, 0);
+        let lights = generate_wall_lights_from_parts(&MapGeometry::new(1, 1), &levels, 0);
 
         assert!(lights.is_empty());
     }
@@ -289,7 +290,7 @@ mod tests {
         mark_floor_rect(&mut cells, 0, 0, 1, 1);
         let levels = vec![level_grid(cells, enclosed_edges(1, 1))];
 
-        let lights = generate_wall_lights_from_parts(&levels, 0);
+        let lights = generate_wall_lights_from_parts(&MapGeometry::new(1, 1), &levels, 0);
 
         assert!(lights.is_empty());
     }
@@ -305,7 +306,7 @@ mod tests {
             level_grid(ceiling, EdgeGrid::new(1, 1)),
         ];
 
-        let lights = generate_wall_lights_from_parts(&levels, 0);
+        let lights = generate_wall_lights_from_parts(&MapGeometry::new(1, 1), &levels, 0);
 
         assert_eq!(lights.len(), 4);
     }
@@ -321,7 +322,7 @@ mod tests {
             level_grid(ceiling, EdgeGrid::new(1, 1)),
         ];
 
-        let lights = generate_wall_lights_from_parts(&levels, 0);
+        let lights = generate_wall_lights_from_parts(&MapGeometry::new(1, 1), &levels, 0);
 
         assert!(lights.is_empty());
     }
@@ -337,7 +338,7 @@ mod tests {
             level_grid(ceiling, EdgeGrid::new(1, 1)),
         ];
 
-        let lights = generate_wall_lights_from_parts(&levels, 0);
+        let lights = generate_wall_lights_from_parts(&MapGeometry::new(1, 1), &levels, 0);
 
         assert_eq!(lights.len(), 4);
     }
@@ -352,7 +353,7 @@ mod tests {
         mark_floor_rect(&mut ceiling, 0, 0, 1, 1);
         let levels = vec![level_grid(cells, edges), level_grid(ceiling, EdgeGrid::new(1, 1))];
 
-        let lights = generate_wall_lights_from_parts(&levels, 0);
+        let lights = generate_wall_lights_from_parts(&MapGeometry::new(1, 1), &levels, 0);
 
         assert!(lights.is_empty());
     }
@@ -406,7 +407,7 @@ mod tests {
         mark_floor_rect(&mut ceiling, 0, 0, 2, 1);
         let levels = vec![level_grid(cells, edges), level_grid(ceiling, EdgeGrid::new(2, 1))];
 
-        let lights = generate_wall_lights_from_parts(&levels, 0);
+        let lights = generate_wall_lights_from_parts(&MapGeometry::new(1, 1), &levels, 0);
 
         assert_eq!(lights.len(), 8);
         assert!(lights.iter().any(|light| light.yaw == std::f32::consts::FRAC_PI_2));

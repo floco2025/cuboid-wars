@@ -8,7 +8,6 @@ use super::{
     layers::{LayerNames, LayerRefs, resolve_level_scope},
     scope::{CoordinateScopeDef, SurfaceScope, WallRuleRelation},
 };
-use crate::constants::{GRID_COLS, GRID_ROWS};
 
 #[derive(Debug, Clone)]
 pub struct RuleSet {
@@ -241,7 +240,7 @@ impl MaterialRule {
         }
     }
 
-    pub(super) fn specificity(&self) -> u16 {
+    pub(super) fn specificity(&self, grid_cols: i32, grid_rows: i32) -> u16 {
         let mut score = 0;
         if let Some(levels) = &self.levels {
             score += if levels.len() == 1 {
@@ -251,10 +250,10 @@ impl MaterialRule {
             };
         }
         if let Some(range) = self.cols {
-            score += range_specificity(range, GRID_COLS);
+            score += range_specificity(range, grid_cols.max(1));
         }
         if let Some(range) = self.rows {
-            score += range_specificity(range, GRID_ROWS);
+            score += range_specificity(range, grid_rows.max(1));
         }
         if self.from.is_some() && self.to.is_some() {
             score += 1_000;

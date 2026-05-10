@@ -6,6 +6,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
+    map_geometry::MapGeometry,
     physics::{CharacterVerticalVelocity, CollisionWorld},
     protocol::{ActorMarker, ItemMarker, MapLayout, PlayerMarker, *},
 };
@@ -21,6 +22,7 @@ pub fn network_process_client_messages_system(
     mut players: ResMut<PlayerMap>,
     time: Res<Time>,
     map_layout: Res<MapLayout>,
+    map_geometry: Res<MapGeometry>,
     collision_world: Res<CollisionWorld>,
     gameplay_config: Res<GameplayConfig>,
     map_config: Res<MapConfig>,
@@ -74,6 +76,7 @@ pub fn network_process_client_messages_system(
                         message,
                         &mut players,
                         &map_layout,
+                        &map_geometry,
                         &collision_world,
                         &gameplay_config,
                         &map_config,
