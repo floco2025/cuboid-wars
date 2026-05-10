@@ -23,6 +23,22 @@ impl RampSpec {
         cells
     }
 
+    // Horizontal wall edges at the ramp's high end (where the slope reaches
+    // the upper level), in `EdgeGrid.horizontal` index space. Returned only
+    // for z-axis ramps — x-axis ramps' high end is a *vertical* edge, and
+    // the corner-filler logic in `emit_floor_tier` only fires on N/S
+    // suppressed extensions, so vertical edges are not relevant.
+    pub(super) fn high_end_horizontal_edges(&self) -> Vec<(i32, i32)> {
+        let [col0, row0, col_end, row_end] = self.rect();
+        let width = (self.high[0] - self.low[0]).abs();
+        let height = (self.high[1] - self.low[1]).abs();
+        if width > height {
+            return Vec::new();
+        }
+        let edge_row = if self.high[1] > self.low[1] { row_end } else { row0 };
+        (col0..col_end).map(|col| (edge_row, col)).collect()
+    }
+
     fn rect(&self) -> [i32; 4] {
         [
             self.low[0].min(self.high[0]),

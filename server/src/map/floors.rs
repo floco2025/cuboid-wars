@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use super::{
     mask::Mask,
     material_rules::MaterialRules,
@@ -23,8 +25,23 @@ const CORNER_EPS: f32 = 0.01;
 //
 // All levels use the same `FLOOR_THICKNESS` so a hole in any tier looks like
 // a real slab edge.
+// `skip_corner_filler_edges` lists horizontal wall edges where the corner-
+// filler branch below should not emit. Corner fillers exist only in the N/S
+// direction (the E/W extension logic has no diagonal-suppression case to
+// recover from), so only horizontal edges matter; an E/W counterpart isn't
+// needed.
+//
+// The set is populated from the high end of each z-axis ramp arriving at
+// this level: a corner-filler strip there would hover redundantly above
+// where the slope already meets the upper floor.
 #[must_use]
-pub fn emit_floor_tier(mask: &Mask, geometry: &MapGeometry, level: u8, y: f32) -> Vec<Floor> {
+pub fn emit_floor_tier(
+    mask: &Mask,
+    skip_corner_filler_edges: &HashSet<(i32, i32)>,
+    geometry: &MapGeometry,
+    level: u8,
+    y: f32,
+) -> Vec<Floor> {
     let grid_cols = geometry.grid_cols;
     let grid_rows = geometry.grid_rows;
     let thickness = FLOOR_THICKNESS;
@@ -98,7 +115,14 @@ pub fn emit_floor_tier(mask: &Mask, geometry: &MapGeometry, level: u8, y: f32) -
             // extended `x1`/`x2` would still overlap the diagonal cell.
             let pad = (WALL_THICKNESS / 2.0) - CORNER_EPS;
             if pad > 0.0 {
-                if !extend_n && !neighbor_n && (neighbor_nw || neighbor_ne) {
+                // The N filler would land at horizontal[row][col]; the S
+                // filler at horizontal[row+1][col]. Skip emission if the
+                // landing edge is one we're told to leave alone.
+                if !extend_n
+                    && !neighbor_n
+                    && (neighbor_nw || neighbor_ne)
+                    && !skip_corner_filler_edges.contains(&(row, col))
+                {
                     let fx1 = if neighbor_nw { x1_orig + pad } else { x1 };
                     let fx2 = if neighbor_ne { x2_orig - pad } else { x2 };
                     if fx2 > fx1 {
@@ -113,7 +137,11 @@ pub fn emit_floor_tier(mask: &Mask, geometry: &MapGeometry, level: u8, y: f32) -
                         });
                     }
                 }
-                if !extend_s && !neighbor_s && (neighbor_sw || neighbor_se) {
+                if !extend_s
+                    && !neighbor_s
+                    && (neighbor_sw || neighbor_se)
+                    && !skip_corner_filler_edges.contains(&(row + 1, col))
+                {
                     let fx1 = if neighbor_sw { x1_orig + pad } else { x1 };
                     let fx2 = if neighbor_se { x2_orig - pad } else { x2 };
                     if fx2 > fx1 {
@@ -135,6 +163,10 @@ pub fn emit_floor_tier(mask: &Mask, geometry: &MapGeometry, level: u8, y: f32) -
     floors
 }
 
+// Emit the thin trim strips that fill the gap between a stacked wall's top
+// and the upper-level floor. A trim emits when both lower and upper levels
+// have a wall on the same edge AND neither adjacent cell is in `upper_mask`
+// (i.e. neither is an upper-level floor slab).
 #[must_use]
 pub fn emit_stacked_wall_trim(
     lower_edges: &EdgeGrid,

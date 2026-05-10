@@ -3251,8 +3251,8 @@
       {"lower_level": 2, "low": [24, 21], "high": [23, 23], "all": "slab", "top": "balcony-floor"},
       {"lower_level": 3, "low": [8, 7], "high": [7, 9], "all": "slab", "top": "upper-floors"},
       {"lower_level": 3, "low": [23, 23], "high": [22, 21], "all": "slab", "top": "upper-floors"},
-      {"lower_level": 4, "low": [11, 13], "high": [12, 11], "all": "balcony-floor", "bottom": "slab"},
-      {"lower_level": 4, "low": [18, 17], "high": [19, 19], "all": "balcony-floor", "bottom": "slab"}
+      {"lower_level": 4, "low": [11, 13], "high": [12, 11], "all": "balcony-wall", "top": "balcony-floor"},
+      {"lower_level": 4, "low": [18, 17], "high": [19, 19], "all": "balcony-wall", "top": "balcony-floor"}
     ]
   }
 }
