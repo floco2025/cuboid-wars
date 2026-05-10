@@ -99,7 +99,7 @@ fn compute_exterior_light_exposure(levels: &[LevelGrid]) -> Vec<Vec<Vec<f32>>> {
         .collect::<Vec<_>>();
     let mut queue = VecDeque::new();
 
-    seed_top_sky(levels, &mut exposure, &mut queue);
+    seed_sky_exposed(levels, &mut exposure, &mut queue);
     seed_boundary_openings(levels, &mut exposure, &mut queue);
 
     while let Some((level_idx, row, col)) = queue.pop_front() {
@@ -130,16 +130,27 @@ fn compute_exterior_light_exposure(levels: &[LevelGrid]) -> Vec<Vec<Vec<f32>>> {
     exposure
 }
 
-fn seed_top_sky(levels: &[LevelGrid], exposure: &mut [Vec<Vec<f32>>], queue: &mut VecDeque<(usize, i32, i32)>) {
-    let Some((top_level_idx, top_level)) = levels.len().checked_sub(1).map(|idx| (idx, &levels[idx])) else {
-        return;
-    };
-
-    for row in 0..grid_rows(&top_level.cells) {
-        for col in 0..grid_cols(&top_level.cells) {
-            update_exposure(exposure, queue, top_level_idx, row, col, FULL_EXTERIOR_EXPOSURE);
+// Seed full exposure at every cell whose column is open all the way to the
+// sky — i.e. no floor slab at any level above this cell's `(row, col)`. The
+// top level is just the trivial case (nothing above it); cells deeper down
+// with a clear column are equally sky-exposed in reality, and seeding them
+// directly avoids the BFS-decay underestimate (each downward step costs
+// 20%, so by level 5 of an open column the propagated value drops below the
+// wall-light threshold even though the cell is physically outdoors).
+fn seed_sky_exposed(levels: &[LevelGrid], exposure: &mut [Vec<Vec<f32>>], queue: &mut VecDeque<(usize, i32, i32)>) {
+    for (level_idx, level_grid) in levels.iter().enumerate() {
+        for row in 0..grid_rows(&level_grid.cells) {
+            for col in 0..grid_cols(&level_grid.cells) {
+                if column_is_open_above(levels, level_idx, row, col) {
+                    update_exposure(exposure, queue, level_idx, row, col, FULL_EXTERIOR_EXPOSURE);
+                }
+            }
         }
     }
+}
+
+fn column_is_open_above(levels: &[LevelGrid], level_idx: usize, row: i32, col: i32) -> bool {
+    ((level_idx + 1)..levels.len()).all(|upper| !cell_has_floor_slab(&levels[upper].cells, row, col))
 }
 
 fn seed_boundary_openings(
@@ -359,7 +370,7 @@ mod tests {
     }
 
     #[test]
-    fn vertical_opening_exposure_falls_with_level_distance() {
+    fn open_column_to_sky_gets_full_exposure_regardless_of_depth() {
         let mut cells = CellGrid::new(1, 1);
         mark_floor_rect(&mut cells, 0, 0, 1, 1);
         let one_open_level = vec![
@@ -375,9 +386,11 @@ mod tests {
         let one_level_exposure = compute_exterior_light_exposure(&one_open_level)[0][0][0];
         let two_level_exposure = compute_exterior_light_exposure(&two_open_levels)[0][0][0];
 
-        assert!((one_level_exposure - EXTERIOR_LIGHT_STEP_RETENTION).abs() < EXPOSURE_EPSILON);
-        assert!((two_level_exposure - EXTERIOR_LIGHT_STEP_RETENTION.powi(2)).abs() < EXPOSURE_EPSILON);
-        assert!(two_level_exposure < one_level_exposure);
+        // No slab anywhere above the cell at level 0 in either layout, so it
+        // is directly sky-exposed in both. The number of empty levels above
+        // doesn't matter.
+        assert!((one_level_exposure - FULL_EXTERIOR_EXPOSURE).abs() < EXPOSURE_EPSILON);
+        assert!((two_level_exposure - FULL_EXTERIOR_EXPOSURE).abs() < EXPOSURE_EPSILON);
     }
 
     #[test]

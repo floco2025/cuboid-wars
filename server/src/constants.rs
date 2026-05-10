@@ -7,8 +7,8 @@
 // by `EXTERIOR_LIGHT_STEP_RETENTION` for each open grid step; cells below
 // `WALL_LIGHT_EXPOSURE_THRESHOLD` are considered dark enough for wall lights.
 pub const WALL_LIGHT_HEIGHT: f32 = 2.5; // meters above ground
-pub const WALL_LIGHT_EXPOSURE_THRESHOLD: f32 = 0.25;
-pub const EXTERIOR_LIGHT_STEP_RETENTION: f32 = 0.8;
+pub const WALL_LIGHT_EXPOSURE_THRESHOLD: f32 = 0.4;
+pub const EXTERIOR_LIGHT_STEP_RETENTION: f32 = 0.7;
 
 // ============================================================================
 // Actors
