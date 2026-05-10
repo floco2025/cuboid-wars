@@ -2,7 +2,9 @@ use std::collections::VecDeque;
 
 use super::edges::{CellSide, has_edge_on_cell_side};
 use crate::{
-    constants::{EXTERIOR_LIGHT_STEP_RETENTION, WALL_LIGHT_EXPOSURE_THRESHOLD, WALL_LIGHT_HEIGHT},
+    constants::{
+        ALTERNATE_WALL_LIGHTS, EXTERIOR_LIGHT_STEP_RETENTION, WALL_LIGHT_EXPOSURE_THRESHOLD, WALL_LIGHT_HEIGHT,
+    },
     resources::{CellGrid, EdgeGrid, LevelGrid},
 };
 use common::{
@@ -23,10 +25,15 @@ const CARDINAL_DIRECTIONS: [(CellSide, i32, i32); 4] = [
 
 #[must_use]
 pub fn generate_wall_lights(geometry: &MapGeometry, levels: &[LevelGrid], level_idx: usize) -> Vec<WallLight> {
-    generate_wall_lights_from_parts(geometry, levels, level_idx)
+    generate_wall_lights_from_parts(geometry, levels, level_idx, ALTERNATE_WALL_LIGHTS)
 }
 
-fn generate_wall_lights_from_parts(geometry: &MapGeometry, levels: &[LevelGrid], level_idx: usize) -> Vec<WallLight> {
+fn generate_wall_lights_from_parts(
+    geometry: &MapGeometry,
+    levels: &[LevelGrid],
+    level_idx: usize,
+    alternate: bool,
+) -> Vec<WallLight> {
     let level_grid = &levels[level_idx];
     let cells = &level_grid.cells;
     let edges = &level_grid.edges;
@@ -46,7 +53,34 @@ fn generate_wall_lights_from_parts(geometry: &MapGeometry, levels: &[LevelGrid],
             let cell_center_z = geometry.cell_to_world_z(row) + GRID_CELL_SIZE / 2.0;
             let half = GRID_CELL_SIZE / 2.0;
 
-            if has_edge_on_cell_side(edges, row, col, CellSide::North) {
+            // When ALTERNATE_WALL_LIGHTS is on, place each direction's light
+            // on every other cell — but only if at least one neighbour cell
+            // along the wall direction also has a wall on the same side.
+            // An isolated wall (no continuous neighbour) always gets its
+            // light, so single-edge walls aren't accidentally skipped.
+            //
+            // N/S walls run along col, so their "neighbours" are at col±1
+            // (same row); E/W walls run along row, neighbours at row±1.
+            let neighbour_has_wall = |r: i32, c: i32, side: CellSide| -> bool {
+                cell_in_bounds(cells, r, c) && has_edge_on_cell_side(edges, r, c, side)
+            };
+            let alt_partner_exists = |r1: i32, c1: i32, r2: i32, c2: i32, side: CellSide| -> bool {
+                neighbour_has_wall(r1, c1, side) || neighbour_has_wall(r2, c2, side)
+            };
+            let place_north = !alternate
+                || col.rem_euclid(2) == 0
+                || !alt_partner_exists(row, col - 1, row, col + 1, CellSide::North);
+            let place_south = !alternate
+                || col.rem_euclid(2) == 1
+                || !alt_partner_exists(row, col - 1, row, col + 1, CellSide::South);
+            let place_west = !alternate
+                || row.rem_euclid(2) == 0
+                || !alt_partner_exists(row - 1, col, row + 1, col, CellSide::West);
+            let place_east = !alternate
+                || row.rem_euclid(2) == 1
+                || !alt_partner_exists(row - 1, col, row + 1, col, CellSide::East);
+
+            if place_north && has_edge_on_cell_side(edges, row, col, CellSide::North) {
                 lights.push(WallLight {
                     pos: Position {
                         x: cell_center_x,
@@ -56,7 +90,7 @@ fn generate_wall_lights_from_parts(geometry: &MapGeometry, levels: &[LevelGrid],
                     yaw: 0.0,
                 });
             }
-            if has_edge_on_cell_side(edges, row, col, CellSide::South) {
+            if place_south && has_edge_on_cell_side(edges, row, col, CellSide::South) {
                 lights.push(WallLight {
                     pos: Position {
                         x: cell_center_x,
@@ -66,7 +100,7 @@ fn generate_wall_lights_from_parts(geometry: &MapGeometry, levels: &[LevelGrid],
                     yaw: std::f32::consts::PI,
                 });
             }
-            if has_edge_on_cell_side(edges, row, col, CellSide::West) {
+            if place_west && has_edge_on_cell_side(edges, row, col, CellSide::West) {
                 lights.push(WallLight {
                     pos: Position {
                         x: cell_center_x - half + MODEL_INSET,
@@ -76,7 +110,7 @@ fn generate_wall_lights_from_parts(geometry: &MapGeometry, levels: &[LevelGrid],
                     yaw: std::f32::consts::FRAC_PI_2,
                 });
             }
-            if has_edge_on_cell_side(edges, row, col, CellSide::East) {
+            if place_east && has_edge_on_cell_side(edges, row, col, CellSide::East) {
                 lights.push(WallLight {
                     pos: Position {
                         x: cell_center_x + half - MODEL_INSET,
@@ -276,7 +310,7 @@ mod tests {
             level_grid(ceiling, EdgeGrid::new(1, 1)),
         ];
 
-        let lights = generate_wall_lights_from_parts(&MapGeometry::new(1, 1), &levels, 2);
+        let lights = generate_wall_lights_from_parts(&MapGeometry::new(1, 1), &levels, 2, false);
 
         assert_eq!(lights.len(), 4);
         assert!(
@@ -290,7 +324,7 @@ mod tests {
     fn wall_lights_require_floor() {
         let levels = vec![level_grid(CellGrid::new(1, 1), enclosed_edges(1, 1))];
 
-        let lights = generate_wall_lights_from_parts(&MapGeometry::new(1, 1), &levels, 0);
+        let lights = generate_wall_lights_from_parts(&MapGeometry::new(1, 1), &levels, 0, false);
 
         assert!(lights.is_empty());
     }
@@ -301,7 +335,7 @@ mod tests {
         mark_floor_rect(&mut cells, 0, 0, 1, 1);
         let levels = vec![level_grid(cells, enclosed_edges(1, 1))];
 
-        let lights = generate_wall_lights_from_parts(&MapGeometry::new(1, 1), &levels, 0);
+        let lights = generate_wall_lights_from_parts(&MapGeometry::new(1, 1), &levels, 0, false);
 
         assert!(lights.is_empty());
     }
@@ -317,7 +351,7 @@ mod tests {
             level_grid(ceiling, EdgeGrid::new(1, 1)),
         ];
 
-        let lights = generate_wall_lights_from_parts(&MapGeometry::new(1, 1), &levels, 0);
+        let lights = generate_wall_lights_from_parts(&MapGeometry::new(1, 1), &levels, 0, false);
 
         assert_eq!(lights.len(), 4);
     }
@@ -333,7 +367,7 @@ mod tests {
             level_grid(ceiling, EdgeGrid::new(1, 1)),
         ];
 
-        let lights = generate_wall_lights_from_parts(&MapGeometry::new(1, 1), &levels, 0);
+        let lights = generate_wall_lights_from_parts(&MapGeometry::new(1, 1), &levels, 0, false);
 
         assert!(lights.is_empty());
     }
@@ -349,7 +383,7 @@ mod tests {
             level_grid(ceiling, EdgeGrid::new(1, 1)),
         ];
 
-        let lights = generate_wall_lights_from_parts(&MapGeometry::new(1, 1), &levels, 0);
+        let lights = generate_wall_lights_from_parts(&MapGeometry::new(1, 1), &levels, 0, false);
 
         assert_eq!(lights.len(), 4);
     }
@@ -364,7 +398,7 @@ mod tests {
         mark_floor_rect(&mut ceiling, 0, 0, 1, 1);
         let levels = vec![level_grid(cells, edges), level_grid(ceiling, EdgeGrid::new(1, 1))];
 
-        let lights = generate_wall_lights_from_parts(&MapGeometry::new(1, 1), &levels, 0);
+        let lights = generate_wall_lights_from_parts(&MapGeometry::new(1, 1), &levels, 0, false);
 
         assert!(lights.is_empty());
     }
@@ -420,7 +454,7 @@ mod tests {
         mark_floor_rect(&mut ceiling, 0, 0, 2, 1);
         let levels = vec![level_grid(cells, edges), level_grid(ceiling, EdgeGrid::new(2, 1))];
 
-        let lights = generate_wall_lights_from_parts(&MapGeometry::new(1, 1), &levels, 0);
+        let lights = generate_wall_lights_from_parts(&MapGeometry::new(1, 1), &levels, 0, false);
 
         assert_eq!(lights.len(), 8);
         assert!(lights.iter().any(|light| light.yaw == std::f32::consts::FRAC_PI_2));

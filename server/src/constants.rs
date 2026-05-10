@@ -10,6 +10,10 @@ pub const WALL_LIGHT_HEIGHT: f32 = 2.5; // meters above ground
 pub const WALL_LIGHT_EXPOSURE_THRESHOLD: f32 = 0.4;
 pub const EXTERIOR_LIGHT_STEP_RETENTION: f32 = 0.7;
 
+// When true, wall lights are placed on alternating cells along each wall
+// instead of every cell. Halves the on-wall light count.
+pub const ALTERNATE_WALL_LIGHTS: bool = false;
+
 // ============================================================================
 // Actors
 // ============================================================================

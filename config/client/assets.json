@@ -277,7 +277,7 @@
       "scale": 1.5,
       "offset_from_wall": 0.2,
       "brightness": 100000.0,
-      "range": 6.0,
+      "range": 3.0,
       "radius": 0.1,
       "emissive_luminance": 2.0
     }
