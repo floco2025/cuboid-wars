@@ -73,7 +73,12 @@ impl AssetSet {
     }
 
     pub fn material_for_item(&self, item_type: ItemType) -> &MaterialDef {
-        let name = item_type_name(item_type);
+        let name = match item_type {
+            ItemType::SpeedPowerUp => "SpeedPowerUp",
+            ItemType::MultiShotPowerUp => "MultiShotPowerUp",
+            ItemType::PhasingPowerUp => "PhasingPowerUp",
+            ItemType::Cookie => "Cookie",
+        };
         let id = self
             .item_materials
             .get(name)
@@ -238,13 +243,4 @@ struct ActorAssets {
 #[derive(Debug, Clone, Deserialize)]
 struct GenericModels {
     wall_light: WallLightModelDef,
-}
-
-fn item_type_name(item_type: ItemType) -> &'static str {
-    match item_type {
-        ItemType::SpeedPowerUp => "SpeedPowerUp",
-        ItemType::MultiShotPowerUp => "MultiShotPowerUp",
-        ItemType::PhasingPowerUp => "PhasingPowerUp",
-        ItemType::Cookie => "Cookie",
-    }
 }

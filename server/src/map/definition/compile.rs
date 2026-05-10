@@ -129,6 +129,11 @@ pub(crate) fn compile_map(map_def: &MapDef, assets: &MaterialRules) -> (MapLayou
         floors: all_floors,
         floor_materials: all_floor_materials,
     };
+    // The renderer indexes the material vectors by segment position, so any
+    // length divergence is a bug here, not in the client.
+    assert_eq!(map_layout.walls.len(), map_layout.wall_materials.len());
+    assert_eq!(map_layout.floors.len(), map_layout.floor_materials.len());
+    assert_eq!(map_layout.ramps.len(), map_layout.ramp_materials.len());
 
     (
         map_layout,

@@ -1,10 +1,10 @@
 use serde::Deserialize;
 
-// Serde silently ignores unknown JSON fields by default, so anything the
-// server doesn't care about (e.g., per-segment `top`/`bottom`/.../`all`
-// material strings, the `item_materials` block) is dropped here without
-// listing it explicitly. The data is loaded by other modules
-// (`common::material_rules::MaterialRules`).
+// Serde silently ignores unknown JSON fields by default, so the per-segment
+// material strings (`top`/`bottom`/.../`all`) on each floor / wall / ramp
+// record are dropped here without being listed. They're parsed separately by
+// `crate::map::material_rules` and threaded through compile to populate
+// `MapLayout`'s parallel `*_materials` vectors.
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct MapFile {
@@ -38,7 +38,7 @@ pub(crate) struct LevelDef {
 }
 
 // Per-face materials live on each segment in JSON but are loaded by the
-// `MaterialRules` pipeline, not the server-side mesh generator. Serde's
+// `material_rules` pipeline, not the server-side mesh generator. Serde's
 // default behavior silently ignores the extra material keys, so we don't
 // declare them here.
 #[derive(Debug, Deserialize)]

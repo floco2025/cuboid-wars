@@ -230,7 +230,7 @@ pub fn merge_floors(floors: Vec<Floor>, assets: &MaterialRules) -> (Vec<Floor>, 
 
 // Inner merge driver — operates on `(Floor, FaceMaterials)` pairs so tests can
 // supply face materials directly without needing a full `MaterialRules`.
-pub fn merge_floors_with_materials(paired: Vec<(Floor, FaceMaterials)>) -> (Vec<Floor>, Vec<FaceMaterials>) {
+fn merge_floors_with_materials(paired: Vec<(Floor, FaceMaterials)>) -> (Vec<Floor>, Vec<FaceMaterials>) {
     let mut paired: Vec<(Floor, FaceMaterials)> = paired
         .into_iter()
         .map(|(mut f, m)| {
@@ -432,17 +432,6 @@ mod tests {
         assert_eq!(floors[0].x2, -half_w + GRID_CELL_SIZE + WALL_THICKNESS / 2.0);
     }
 
-    fn faces(top: &str, bottom: &str, north: &str, south: &str, east: &str, west: &str) -> FaceMaterials {
-        FaceMaterials {
-            top: top.into(),
-            bottom: bottom.into(),
-            north: north.into(),
-            south: south.into(),
-            east: east.into(),
-            west: west.into(),
-        }
-    }
-
     fn rect(x1: f32, x2: f32, z1: f32, z2: f32) -> Floor {
         Floor {
             x1,
@@ -457,8 +446,8 @@ mod tests {
 
     #[test]
     fn floors_merge_across_x_when_only_hidden_caps_differ() {
-        let left = (rect(0.0, 1.0, 0.0, 1.0), faces("t", "b", "n", "s", "INNER", "outer_W"));
-        let right = (rect(1.0, 2.0, 0.0, 1.0), faces("t", "b", "n", "s", "outer_E", "INNER"));
+        let left = (rect(0.0, 1.0, 0.0, 1.0), FaceMaterials::from_six("t", "b", "n", "s", "INNER", "outer_W"));
+        let right = (rect(1.0, 2.0, 0.0, 1.0), FaceMaterials::from_six("t", "b", "n", "s", "outer_E", "INNER"));
 
         let (floors, materials) = merge_floors_with_materials(vec![left, right]);
 
@@ -471,9 +460,9 @@ mod tests {
 
     #[test]
     fn floors_do_not_merge_across_x_when_visible_face_differs() {
-        let left = (rect(0.0, 1.0, 0.0, 1.0), faces("t", "b", "n", "s", "e", "w"));
+        let left = (rect(0.0, 1.0, 0.0, 1.0), FaceMaterials::from_six("t", "b", "n", "s", "e", "w"));
         // North is a visible long face when merging in x.
-        let right = (rect(1.0, 2.0, 0.0, 1.0), faces("t", "b", "DIFFERENT", "s", "e", "w"));
+        let right = (rect(1.0, 2.0, 0.0, 1.0), FaceMaterials::from_six("t", "b", "DIFFERENT", "s", "e", "w"));
 
         let (floors, _) = merge_floors_with_materials(vec![left, right]);
 
@@ -482,8 +471,8 @@ mod tests {
 
     #[test]
     fn floors_merge_across_z_when_only_hidden_caps_differ() {
-        let north_rect = (rect(0.0, 1.0, 0.0, 1.0), faces("t", "b", "outer_N", "INNER", "e", "w"));
-        let south_rect = (rect(0.0, 1.0, 1.0, 2.0), faces("t", "b", "INNER", "outer_S", "e", "w"));
+        let north_rect = (rect(0.0, 1.0, 0.0, 1.0), FaceMaterials::from_six("t", "b", "outer_N", "INNER", "e", "w"));
+        let south_rect = (rect(0.0, 1.0, 1.0, 2.0), FaceMaterials::from_six("t", "b", "INNER", "outer_S", "e", "w"));
 
         let (floors, materials) = merge_floors_with_materials(vec![north_rect, south_rect]);
 
@@ -500,10 +489,10 @@ mod tests {
         // Each cell has distinct east/west AND distinct north/south, but the
         // north of A == north of B (visible during x merge), and the
         // east/west of (AB) need to match east/west of (CD) for the z merge.
-        let a = (rect(0.0, 1.0, 0.0, 1.0), faces("t", "b", "n_top", "s_inner", "e_inner", "outer_W"));
-        let b = (rect(1.0, 2.0, 0.0, 1.0), faces("t", "b", "n_top", "s_inner", "outer_E", "e_inner"));
-        let c = (rect(0.0, 1.0, 1.0, 2.0), faces("t", "b", "n_inner", "s_bot", "e_inner", "outer_W"));
-        let d = (rect(1.0, 2.0, 1.0, 2.0), faces("t", "b", "n_inner", "s_bot", "outer_E", "e_inner"));
+        let a = (rect(0.0, 1.0, 0.0, 1.0), FaceMaterials::from_six("t", "b", "n_top", "s_inner", "e_inner", "outer_W"));
+        let b = (rect(1.0, 2.0, 0.0, 1.0), FaceMaterials::from_six("t", "b", "n_top", "s_inner", "outer_E", "e_inner"));
+        let c = (rect(0.0, 1.0, 1.0, 2.0), FaceMaterials::from_six("t", "b", "n_inner", "s_bot", "e_inner", "outer_W"));
+        let d = (rect(1.0, 2.0, 1.0, 2.0), FaceMaterials::from_six("t", "b", "n_inner", "s_bot", "outer_E", "e_inner"));
 
         let (floors, materials) = merge_floors_with_materials(vec![a, b, c, d]);
 

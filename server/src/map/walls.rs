@@ -153,7 +153,7 @@ pub fn merge_walls(walls: Vec<Wall>, assets: &MaterialRules) -> (Vec<Wall>, Vec<
 
 // Inner merge driver — operates on `(Wall, FaceMaterials)` pairs so tests can
 // supply face materials directly without needing a full `MaterialRules`.
-pub fn merge_walls_with_materials(walls: Vec<(Wall, FaceMaterials)>) -> (Vec<Wall>, Vec<FaceMaterials>) {
+fn merge_walls_with_materials(walls: Vec<(Wall, FaceMaterials)>) -> (Vec<Wall>, Vec<FaceMaterials>) {
     let mut horizontals = Vec::new();
     let mut verticals = Vec::new();
     let mut others = Vec::new();
@@ -198,17 +198,6 @@ pub fn merge_walls_with_materials(walls: Vec<(Wall, FaceMaterials)>) -> (Vec<Wal
 mod tests {
     use super::*;
 
-    fn faces(top: &str, bottom: &str, north: &str, south: &str, east: &str, west: &str) -> FaceMaterials {
-        FaceMaterials {
-            top: top.into(),
-            bottom: bottom.into(),
-            north: north.into(),
-            south: south.into(),
-            east: east.into(),
-            west: west.into(),
-        }
-    }
-
     fn h_wall(x1: f32, x2: f32, z: f32) -> Wall {
         Wall {
             x1,
@@ -236,8 +225,8 @@ mod tests {
         // Two adjacent horizontal wall edges. Long faces and top/bottom match;
         // their abutting east/west caps differ — those become interior on
         // merge and shouldn't block it.
-        let left = (h_wall(0.0, 1.0, 0.0), faces("t", "b", "n", "s", "INNER_E", "outer_W"));
-        let right = (h_wall(1.0, 2.0, 0.0), faces("t", "b", "n", "s", "outer_E", "INNER_W"));
+        let left = (h_wall(0.0, 1.0, 0.0), FaceMaterials::from_six("t", "b", "n", "s", "INNER_E", "outer_W"));
+        let right = (h_wall(1.0, 2.0, 0.0), FaceMaterials::from_six("t", "b", "n", "s", "outer_E", "INNER_W"));
 
         let (walls, materials) = merge_walls_with_materials(vec![left, right]);
 
@@ -250,9 +239,9 @@ mod tests {
 
     #[test]
     fn horizontal_walls_do_not_merge_when_visible_face_differs() {
-        let left = (h_wall(0.0, 1.0, 0.0), faces("t", "b", "n", "s", "e", "w"));
+        let left = (h_wall(0.0, 1.0, 0.0), FaceMaterials::from_six("t", "b", "n", "s", "e", "w"));
         // North face differs — it's a long visible face for a horizontal wall.
-        let right = (h_wall(1.0, 2.0, 0.0), faces("t", "b", "DIFFERENT", "s", "e", "w"));
+        let right = (h_wall(1.0, 2.0, 0.0), FaceMaterials::from_six("t", "b", "DIFFERENT", "s", "e", "w"));
 
         let (walls, _) = merge_walls_with_materials(vec![left, right]);
 
@@ -261,8 +250,8 @@ mod tests {
 
     #[test]
     fn vertical_walls_merge_when_only_hidden_caps_differ() {
-        let north = (v_wall(0.0, 0.0, 1.0), faces("t", "b", "outer_N", "INNER_S", "e", "w"));
-        let south = (v_wall(0.0, 1.0, 2.0), faces("t", "b", "INNER_N", "outer_S", "e", "w"));
+        let north = (v_wall(0.0, 0.0, 1.0), FaceMaterials::from_six("t", "b", "outer_N", "INNER_S", "e", "w"));
+        let south = (v_wall(0.0, 1.0, 2.0), FaceMaterials::from_six("t", "b", "INNER_N", "outer_S", "e", "w"));
 
         let (walls, materials) = merge_walls_with_materials(vec![north, south]);
 
@@ -275,9 +264,9 @@ mod tests {
 
     #[test]
     fn vertical_walls_do_not_merge_when_visible_face_differs() {
-        let north = (v_wall(0.0, 0.0, 1.0), faces("t", "b", "n", "s", "e", "w"));
+        let north = (v_wall(0.0, 0.0, 1.0), FaceMaterials::from_six("t", "b", "n", "s", "e", "w"));
         // East face differs — it's a long visible face for a vertical wall.
-        let south = (v_wall(0.0, 1.0, 2.0), faces("t", "b", "n", "s", "DIFFERENT", "w"));
+        let south = (v_wall(0.0, 1.0, 2.0), FaceMaterials::from_six("t", "b", "n", "s", "DIFFERENT", "w"));
 
         let (walls, _) = merge_walls_with_materials(vec![north, south]);
 
@@ -286,9 +275,9 @@ mod tests {
 
     #[test]
     fn three_horizontal_walls_chain_with_outer_caps() {
-        let a = (h_wall(0.0, 1.0, 0.0), faces("t", "b", "n", "s", "ae", "leftmost_W"));
-        let b = (h_wall(1.0, 2.0, 0.0), faces("t", "b", "n", "s", "be", "bw"));
-        let c = (h_wall(2.0, 3.0, 0.0), faces("t", "b", "n", "s", "rightmost_E", "cw"));
+        let a = (h_wall(0.0, 1.0, 0.0), FaceMaterials::from_six("t", "b", "n", "s", "ae", "leftmost_W"));
+        let b = (h_wall(1.0, 2.0, 0.0), FaceMaterials::from_six("t", "b", "n", "s", "be", "bw"));
+        let c = (h_wall(2.0, 3.0, 0.0), FaceMaterials::from_six("t", "b", "n", "s", "rightmost_E", "cw"));
 
         let (walls, materials) = merge_walls_with_materials(vec![a, b, c]);
 
