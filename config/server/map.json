@@ -3243,8 +3243,8 @@
       }
     ],
     "ramps": [
-      {"lower_level": 0, "low": [6, 25], "high": [8, 24], "all": "slab", "top": "basement-floor"},
-      {"lower_level": 0, "low": [24, 6], "high": [22, 5], "all": "slab", "top": "basement-floor"},
+      {"lower_level": 0, "low": [6, 25], "high": [8, 24], "all": "basement-support-wall", "top": "basement-floor"},
+      {"lower_level": 0, "low": [24, 6], "high": [22, 5], "all": "basement-support-wall", "top": "basement-floor"},
       {"lower_level": 1, "low": [8, 7], "high": [7, 9], "all": "slab", "top": "ground-floor"},
       {"lower_level": 1, "low": [23, 23], "high": [22, 21], "all": "slab", "top": "ground-floor"},
       {"lower_level": 2, "low": [7, 9], "high": [6, 7], "all": "slab", "top": "upper-floors"},

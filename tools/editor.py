@@ -69,9 +69,11 @@ MODE_ERASE = "Erase"
 MODE_ERASE_KEEP_FLOORS = "Erase (Keep Floors)"
 MODE_FLOOR_MATERIAL = "Floor Material"
 MODE_WALL_MATERIAL = "Wall Material"
+MODE_RAMP_MATERIAL = "Ramp Material"
 RAMP_MODES = (MODE_RAMP_UP, MODE_RAMP_DOWN)
 ERASE_MODES = (MODE_ERASE, MODE_ERASE_KEEP_FLOORS)
 SPAWN_PAINT_MODES = (MODE_ACTOR_SPAWN_PAINT, MODE_PLAYER_SPAWN_PAINT)
+MATERIAL_MODES = (MODE_FLOOR_MATERIAL, MODE_WALL_MATERIAL, MODE_RAMP_MATERIAL)
 FLOOR_HIT_KINDS = ("Floor", "Inaccessible Floor")
 MODES = [
     MODE_FLOOR,
@@ -86,6 +88,7 @@ MODES = [
     MODE_ERASE_KEEP_FLOORS,
     MODE_FLOOR_MATERIAL,
     MODE_WALL_MATERIAL,
+    MODE_RAMP_MATERIAL,
 ]
 
 # Two named lists in map_data so the editor can refer to them generically.
@@ -1306,7 +1309,7 @@ class Canvas(QWidget):
             self.drag_start_cell
             and self.drag_current_cell
             and (
-                self.window.mode in (MODE_FLOOR, MODE_FLOOR_MATERIAL, *ERASE_MODES)
+                self.window.mode in (MODE_FLOOR, MODE_FLOOR_MATERIAL, MODE_RAMP_MATERIAL, *ERASE_MODES)
                 or self.window.mode == MODE_INACCESSIBLE_FLOOR
                 or self.window.mode in SPAWN_PAINT_MODES
             )
@@ -1324,6 +1327,8 @@ class Canvas(QWidget):
                 color = QColor(99, 102, 241, 120)
             elif self.window.mode == MODE_FLOOR_MATERIAL:
                 color = QColor(236, 72, 153, 120)
+            elif self.window.mode == MODE_RAMP_MATERIAL:
+                color = QColor(168, 85, 247, 120)  # purple to distinguish from floor mode pink
             else:
                 color = QColor(34, 197, 94, 120)
             painter.setBrush(color)
@@ -1561,7 +1566,7 @@ class Canvas(QWidget):
 
     def mouseMoveEvent(self, event) -> None:
         if not (event.buttons() & Qt.MouseButton.LeftButton):
-            if self.window.mode in (MODE_FLOOR_MATERIAL, MODE_WALL_MATERIAL):
+            if self.window.mode in MATERIAL_MODES:
                 self._update_material_hover(event.position())
             return
         if self.window.mode == MODE_SPAWN_ZONE_EDIT:
@@ -1595,29 +1600,18 @@ class Canvas(QWidget):
             cell = self.point_to_cell(pos)
             if cell is not None:
                 col, row = cell
-                # Prefer ramp when one covers the hovered cell, since the
-                # ramp visually replaces the floor underneath.
-                ramp_hit: dict | None = None
-                for ramp in self.window.map_data["ramps"]:
-                    if ramp["lower_level"] == level_idx and (col, row) in ramp_cells(ramp):
-                        ramp_hit = ramp
+                for f in level["floors"]:
+                    if f["col"] == col and f["row"] == row:
+                        kind, target = "floor", f
+                        tooltip = f"Floor\n{materials_summary(f)}"
                         break
-                if ramp_hit is not None:
-                    kind, target = "ramp", ramp_hit
-                    tooltip = f"Ramp\n{materials_summary(ramp_hit)}"
                 else:
-                    for f in level["floors"]:
+                    for f in level["inaccessible_floors"]:
                         if f["col"] == col and f["row"] == row:
-                            kind, target = "floor", f
-                            tooltip = f"Floor\n{materials_summary(f)}"
+                            kind, target = "inaccessible", f
+                            tooltip = f"Inaccessible floor\n{materials_summary(f)}"
                             break
-                    else:
-                        for f in level["inaccessible_floors"]:
-                            if f["col"] == col and f["row"] == row:
-                                kind, target = "inaccessible", f
-                                tooltip = f"Inaccessible floor\n{materials_summary(f)}"
-                                break
-        else:  # MODE_WALL_MATERIAL
+        elif self.window.mode == MODE_WALL_MATERIAL:
             px = pos.x() / cell_size
             py = pos.y() / cell_size
             for wall in level["walls"]:
@@ -1626,6 +1620,15 @@ class Canvas(QWidget):
                     kind, target = "wall", wall
                     tooltip = f"Wall\n{materials_summary(wall)}"
                     break
+        else:  # MODE_RAMP_MATERIAL
+            cell = self.point_to_cell(pos)
+            if cell is not None:
+                col, row = cell
+                for ramp in self.window.map_data["ramps"]:
+                    if ramp["lower_level"] == level_idx and (col, row) in ramp_cells(ramp):
+                        kind, target = "ramp", ramp
+                        tooltip = f"Ramp\n{materials_summary(ramp)}"
+                        break
 
         changed = (kind, id(target)) != (self.hover_kind, id(self.hover_target))
         self.hover_kind = kind
@@ -1668,6 +1671,8 @@ class Canvas(QWidget):
             self.window.assign_floor_materials_rect(self.drag_start_cell, self.drag_current_cell)
         elif self.window.mode == MODE_WALL_MATERIAL and self.drag_start_point and self.drag_current_point:
             self.window.assign_wall_materials_rect(self.drag_start_point, self.drag_current_point)
+        elif self.window.mode == MODE_RAMP_MATERIAL and self.drag_start_cell and self.drag_current_cell:
+            self.window.assign_ramp_materials_rect(self.drag_start_cell, self.drag_current_cell)
         elif self.window.mode in ERASE_MODES:
             preserve_floors = self.window.mode == MODE_ERASE_KEEP_FLOORS
             if self.drag_start_cell and self.drag_current_cell and self.drag_start_cell != self.drag_current_cell:
@@ -2111,22 +2116,16 @@ class EditorWindow(QMainWindow):
         def floor_in_rect(f: dict) -> bool:
             return c0 <= f["col"] < c1 and r0 <= f["row"] < r1
 
-        def ramp_in_rect(ramp: dict) -> bool:
-            return level_idx == ramp["lower_level"] and rects_overlap(
-                (c0, r0, c1, r1), ramp_rect(ramp)
-            )
-
         affected_floors = [f for f in level["floors"] if floor_in_rect(f)] + [
             f for f in level["inaccessible_floors"] if floor_in_rect(f)
         ]
-        affected_ramps = [r for r in self.map_data["ramps"] if ramp_in_rect(r)]
-        if not affected_floors and not affected_ramps:
+        if not affected_floors:
             self.statusBar().showMessage("No floor segments in selection.", 4000)
             return
-        seed = (affected_floors or affected_ramps)[0]
+        seed = affected_floors[0]
         result = MaterialAssignmentDialog.prompt(
             self, "Floor Materials",
-            f"{len(affected_floors)} floor cell(s), {len(affected_ramps)} ramp(s) in selection",
+            f"{len(affected_floors)} floor cell(s) in selection",
             self.materials_catalog,
             {face: seed.get(face, self.current_material) for face in FACES},
         )
@@ -2139,12 +2138,6 @@ class EditorWindow(QMainWindow):
         for floor in after["levels"][level_idx]["inaccessible_floors"]:
             if floor_in_rect(floor):
                 floor.update(result)
-        # Update top/bottom faces only on overlapping ramps; their N/S/E/W
-        # faces are owned by the wall-material edit mode.
-        for ramp in after["ramps"]:
-            if ramp_in_rect(ramp):
-                ramp["top"] = result["top"]
-                ramp["bottom"] = result["bottom"]
         self.apply_change("Assign Floor Materials", after)
 
     def assign_wall_materials_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
@@ -2166,26 +2159,14 @@ class EditorWindow(QMainWindow):
                 and r0 <= wall["r1"] <= r1
             )
 
-        # Ramps live in cells — only count the ones whose footprint intersects
-        # the *cell* rect implied by this grid-point selection. A flat
-        # (single-line) wall selection has an empty cell rect and so doesn't
-        # touch any ramps.
-        cell_rect = (c0, r0, c1, r1)
-
-        def ramp_in_rect(ramp: dict) -> bool:
-            return level_idx == ramp["lower_level"] and rects_overlap(
-                cell_rect, ramp_rect(ramp)
-            )
-
         affected_walls = [w for w in level["walls"] if edge_inside(w)]
-        affected_ramps = [r for r in self.map_data["ramps"] if ramp_in_rect(r)]
-        if not affected_walls and not affected_ramps:
+        if not affected_walls:
             self.statusBar().showMessage("No wall edges in selection.", 4000)
             return
-        seed = (affected_walls or affected_ramps)[0]
+        seed = affected_walls[0]
         result = MaterialAssignmentDialog.prompt(
             self, "Wall Materials",
-            f"{len(affected_walls)} wall edge(s), {len(affected_ramps)} ramp(s) in selection",
+            f"{len(affected_walls)} wall edge(s) in selection",
             self.materials_catalog,
             {face: seed.get(face, self.current_material) for face in FACES},
         )
@@ -2195,13 +2176,38 @@ class EditorWindow(QMainWindow):
         for wall in after["levels"][level_idx]["walls"]:
             if edge_inside(wall):
                 wall.update(result)
-        # Update N/S/E/W faces only on overlapping ramps; their top/bottom
-        # faces are owned by the floor-material edit mode.
+        self.apply_change("Assign Wall Materials", after)
+
+    def assign_ramp_materials_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
+        # Selection is a cell rect; any ramp whose footprint overlaps the rect
+        # is in. Ramps live on the lower of the two levels they connect; only
+        # those at the current level qualify.
+        c0, r0, c1, r1 = rect_from_cells(start, end)
+        level_idx = self.current_level
+
+        def ramp_in_rect(ramp: dict) -> bool:
+            return level_idx == ramp["lower_level"] and rects_overlap(
+                (c0, r0, c1, r1), ramp_rect(ramp)
+            )
+
+        affected_ramps = [r for r in self.map_data["ramps"] if ramp_in_rect(r)]
+        if not affected_ramps:
+            self.statusBar().showMessage("No ramps in selection.", 4000)
+            return
+        seed = affected_ramps[0]
+        result = MaterialAssignmentDialog.prompt(
+            self, "Ramp Materials",
+            f"{len(affected_ramps)} ramp(s) in selection",
+            self.materials_catalog,
+            {face: seed.get(face, self.current_material) for face in FACES},
+        )
+        if result is None:
+            return
+        after = copy.deepcopy(self.map_data)
         for ramp in after["ramps"]:
             if ramp_in_rect(ramp):
-                for face in ("north", "south", "east", "west"):
-                    ramp[face] = result[face]
-        self.apply_change("Assign Wall Materials", after)
+                ramp.update(result)
+        self.apply_change("Assign Ramp Materials", after)
 
     def erase_at(self, pos, cell_size: float, preserve_floors: bool) -> None:
         hit = self.hit_at(pos, cell_size)
