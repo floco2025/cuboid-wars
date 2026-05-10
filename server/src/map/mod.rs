@@ -6,6 +6,7 @@ mod grid;
 mod helpers;
 mod lights;
 mod mask;
+pub(crate) mod material_rules;
 mod ramps;
 mod segments;
 mod walls;

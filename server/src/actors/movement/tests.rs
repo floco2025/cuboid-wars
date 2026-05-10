@@ -95,9 +95,8 @@ fn wall() -> Wall {
 fn collision_world(walls: &[Wall]) -> CollisionWorld {
     CollisionWorld::from_map_layout(&MapLayout {
         walls: walls.to_vec(),
-        ramps: vec![],
         floors: vec![floor()],
-        wall_lights: vec![],
+        ..Default::default()
     })
 }
 

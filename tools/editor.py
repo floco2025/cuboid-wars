@@ -489,19 +489,14 @@ def format_map_file(wrapper: dict) -> str:
         )
 
     lines.append("    ],")
-    item_materials = map_data.get("item_materials") or {}
-    has_items = bool(item_materials)
-    ramp_trailing_comma = "," if has_items else ""
     if map_data["ramps"]:
         lines.append('    "ramps": [')
         for idx, ramp in enumerate(map_data["ramps"]):
             comma = "," if idx + 1 < len(map_data["ramps"]) else ""
             lines.append(format_ramp(ramp, 6) + comma)
-        lines.append(f"    ]{ramp_trailing_comma}")
+        lines.append("    ]")
     else:
-        lines.append(f'    "ramps": []{ramp_trailing_comma}')
-    if has_items:
-        lines.append('    "item_materials": ' + json.dumps(item_materials, separators=(", ", ": "), sort_keys=True))
+        lines.append('    "ramps": []')
     lines.append("  }")
     lines.append("}")
     return "\n".join(lines)
@@ -557,9 +552,6 @@ def normalize_map(map_data: dict) -> dict:
         levels = [{"name": "Level 0", "floors": [], "inaccessible_floors": [], "walls": []}]
 
     ramps = [normalize_ramp(r) for r in map_data.get("ramps", [])]
-    item_materials = {
-        str(k): str(v) for k, v in map_data.get("item_materials", {}).items()
-    }
     return {
         "grid_cols": cols,
         "grid_rows": rows,
@@ -567,7 +559,6 @@ def normalize_map(map_data: dict) -> dict:
         "player_spawn_zones": player_spawn_zones,
         "levels": levels,
         "ramps": ramps,
-        "item_materials": item_materials,
     }
 
 

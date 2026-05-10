@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 
 use crate::resources::MapConfig;
-use common::{map_geometry::MapGeometry, material_rules::MaterialRules, protocol::MapLayout};
+use common::{map_geometry::MapGeometry, protocol::MapLayout};
 
-use super::definition;
+use super::{definition, material_rules::MaterialRules};
 
 // Load the map definition from disk and compile it to a `MapLayout` +
 // `MapConfig` + `MapGeometry`. Hard-fails the server on any parse or

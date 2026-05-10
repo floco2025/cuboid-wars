@@ -3241,7 +3241,6 @@
       {"lower_level": 3, "low": [23, 23], "high": [22, 21], "all": "fiberous-plaster1-ue", "top": "beige-carpet-worn1"},
       {"lower_level": 4, "low": [11, 13], "high": [12, 11], "all": "rectangle-polished-tile", "bottom": "fiberous-plaster1-ue"},
       {"lower_level": 4, "low": [18, 17], "high": [19, 19], "all": "rectangle-polished-tile", "bottom": "fiberous-plaster1-ue"}
-    ],
-    "item_materials": {"Cookie": "hammered-gold", "default": "space-cruiser-panels2"}
+    ]
   }
 }

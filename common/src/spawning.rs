@@ -129,7 +129,7 @@ mod tests {
             walls: walls.to_vec(),
             ramps: ramps.to_vec(),
             floors: floors.to_vec(),
-            wall_lights: vec![],
+            ..Default::default()
         })
     }
 

@@ -5,21 +5,20 @@ use super::{
     geometry_batch::{MapGeometryBatch, MapGeometryKind},
 };
 use crate::config::AssetSet;
-use common::protocol::*;
+use common::{face_materials::FaceMaterials, protocol::*};
 
 // Spawn a visual cuboid slab for a `Floor`. Level-0 floors get the ground
 // texture and a `GroundMarker`; higher levels get the roof texture and a
 // `RoofMarker` so the R key / top-down view can hide them. The slab is
 // `floor.thickness` deep, centered just below `floor.y` so the standing
 // surface is at `floor.y`.
-pub fn batch_floor(batcher: &mut MapGeometryBatch, asset_set: &AssetSet, floor: &Floor) {
+pub fn batch_floor(batcher: &mut MapGeometryBatch, asset_set: &AssetSet, floor: &Floor, material_ids: &FaceMaterials) {
     batcher.begin_segment();
     let center_x = f32::midpoint(floor.x1, floor.x2);
     let center_z = f32::midpoint(floor.z1, floor.z2);
     let size_x = (floor.x2 - floor.x1).abs();
     let size_z = (floor.z2 - floor.z1).abs();
     let transform = Transform::from_xyz(center_x, floor.y - floor.thickness / 2.0, center_z);
-    let material_ids = asset_set.material_ids_for_floor(floor);
     let kind = if floor.level == 0 {
         MapGeometryKind::Ground
     } else {

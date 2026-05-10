@@ -1,10 +1,11 @@
 use super::{
     mask::Mask,
+    material_rules::MaterialRules,
     segments::{grid_x, grid_z, horizontal_wall_segment, vertical_wall_segment},
 };
 use crate::constants::FLOOR_OVERLAP;
 use crate::resources::EdgeGrid;
-use common::{constants::*, map_geometry::MapGeometry, material_rules::MaterialRules, protocol::Floor};
+use common::{constants::*, face_materials::FaceMaterials, map_geometry::MapGeometry, protocol::Floor};
 
 const MERGE_EPS: f32 = 0.01;
 const CORNER_EPS: f32 = 0.01;
@@ -208,70 +209,125 @@ pub fn emit_stacked_wall_trim(
     floors
 }
 
-// Merge adjacent floors at the same level into larger segments.
-pub fn merge_floors(mut floors: Vec<Floor>, assets: &MaterialRules) -> Vec<Floor> {
-    for r in &mut floors {
-        if r.x1 > r.x2 {
-            std::mem::swap(&mut r.x1, &mut r.x2);
-        }
-        if r.z1 > r.z2 {
-            std::mem::swap(&mut r.z1, &mut r.z2);
-        }
-    }
+// Merge adjacent floors at the same level into larger rectangles. Compares
+// only the faces that remain visible after merging: when joining along x,
+// top/bottom/north/south must match (east/west become end caps); when joining
+// along z, top/bottom/east/west must match (north/south become end caps).
+//
+// The merged rectangle inherits its long-side / top-bottom materials from
+// the matched set, and takes its outer end caps from the source rectangles
+// at each extremity.
+pub fn merge_floors(floors: Vec<Floor>, assets: &MaterialRules) -> (Vec<Floor>, Vec<FaceMaterials>) {
+    let paired: Vec<(Floor, FaceMaterials)> = floors
+        .into_iter()
+        .map(|f| {
+            let m = assets.materials_for_floor(&f);
+            (f, m)
+        })
+        .collect();
+    merge_floors_with_materials(paired)
+}
+
+// Inner merge driver — operates on `(Floor, FaceMaterials)` pairs so tests can
+// supply face materials directly without needing a full `MaterialRules`.
+pub fn merge_floors_with_materials(paired: Vec<(Floor, FaceMaterials)>) -> (Vec<Floor>, Vec<FaceMaterials>) {
+    let mut paired: Vec<(Floor, FaceMaterials)> = paired
+        .into_iter()
+        .map(|(mut f, m)| {
+            if f.x1 > f.x2 {
+                std::mem::swap(&mut f.x1, &mut f.x2);
+            }
+            if f.z1 > f.z2 {
+                std::mem::swap(&mut f.z1, &mut f.z2);
+            }
+            (f, m)
+        })
+        .collect();
 
     let mut changed = true;
     while changed {
         changed = false;
-        let mut used = vec![false; floors.len()];
-        let mut out: Vec<Floor> = Vec::new();
+        let mut used = vec![false; paired.len()];
+        let mut out: Vec<(Floor, FaceMaterials)> = Vec::new();
 
-        for i in 0..floors.len() {
+        for i in 0..paired.len() {
             if used[i] {
                 continue;
             }
-            let mut acc = floors[i];
+            let (mut acc, mut acc_materials) = paired[i].clone();
             used[i] = true;
 
             let mut merged_this_round = true;
             while merged_this_round {
                 merged_this_round = false;
-                for j in 0..floors.len() {
+                for j in 0..paired.len() {
                     if used[j] {
                         continue;
                     }
-                    let b = floors[j];
-                    let same_thickness = (acc.thickness - b.thickness).abs() < MERGE_EPS;
-                    let same_level = acc.level == b.level;
-                    let same_y = (acc.y - b.y).abs() < MERGE_EPS;
-                    let same_material = assets.materials_for_floor(&acc) == assets.materials_for_floor(&b);
-                    if !same_thickness || !same_level || !same_y || !same_material {
+                    let (b, b_materials) = &paired[j];
+                    if (acc.thickness - b.thickness).abs() >= MERGE_EPS
+                        || acc.level != b.level
+                        || (acc.y - b.y).abs() >= MERGE_EPS
+                    {
                         continue;
                     }
 
                     let same_z_span = (acc.z1 - b.z1).abs() < MERGE_EPS && (acc.z2 - b.z2).abs() < MERGE_EPS;
                     let adjacent_x = (acc.x2 - b.x1).abs() < MERGE_EPS || (b.x2 - acc.x1).abs() < MERGE_EPS;
-
                     let same_x_span = (acc.x1 - b.x1).abs() < MERGE_EPS && (acc.x2 - b.x2).abs() < MERGE_EPS;
                     let adjacent_z = (acc.z2 - b.z1).abs() < MERGE_EPS || (b.z2 - acc.z1).abs() < MERGE_EPS;
 
-                    if (same_z_span && adjacent_x) || (same_x_span && adjacent_z) {
-                        acc.x1 = acc.x1.min(b.x1);
-                        acc.x2 = acc.x2.max(b.x2);
-                        acc.z1 = acc.z1.min(b.z1);
-                        acc.z2 = acc.z2.max(b.z2);
+                    if same_z_span && adjacent_x && x_merge_visible_match(&acc_materials, b_materials) {
+                        if b.x1 < acc.x1 {
+                            // b is west of acc — its west face becomes the merged west cap.
+                            acc.x1 = b.x1;
+                            acc_materials.west = b_materials.west.clone();
+                        }
+                        if b.x2 > acc.x2 {
+                            acc.x2 = b.x2;
+                            acc_materials.east = b_materials.east.clone();
+                        }
+                        used[j] = true;
+                        merged_this_round = true;
+                        changed = true;
+                    } else if same_x_span && adjacent_z && z_merge_visible_match(&acc_materials, b_materials) {
+                        if b.z1 < acc.z1 {
+                            acc.z1 = b.z1;
+                            acc_materials.north = b_materials.north.clone();
+                        }
+                        if b.z2 > acc.z2 {
+                            acc.z2 = b.z2;
+                            acc_materials.south = b_materials.south.clone();
+                        }
                         used[j] = true;
                         merged_this_round = true;
                         changed = true;
                     }
                 }
             }
-            out.push(acc);
+            out.push((acc, acc_materials));
         }
 
-        floors = out;
+        paired = out;
     }
 
-    floors
+    let mut floors_out = Vec::with_capacity(paired.len());
+    let mut materials_out = Vec::with_capacity(paired.len());
+    for (f, m) in paired {
+        floors_out.push(f);
+        materials_out.push(m);
+    }
+    (floors_out, materials_out)
+}
+
+// Visible faces when merging in the x direction (rectangles abut on east/west).
+fn x_merge_visible_match(a: &FaceMaterials, b: &FaceMaterials) -> bool {
+    a.top == b.top && a.bottom == b.bottom && a.north == b.north && a.south == b.south
+}
+
+// Visible faces when merging in the z direction (rectangles abut on north/south).
+fn z_merge_visible_match(a: &FaceMaterials, b: &FaceMaterials) -> bool {
+    a.top == b.top && a.bottom == b.bottom && a.east == b.east && a.west == b.west
 }
 
 #[cfg(test)]
@@ -374,5 +430,91 @@ mod tests {
         assert_eq!(floors.len(), 1);
         assert_eq!(floors[0].x1, -half_w + WALL_THICKNESS / 2.0);
         assert_eq!(floors[0].x2, -half_w + GRID_CELL_SIZE + WALL_THICKNESS / 2.0);
+    }
+
+    fn faces(top: &str, bottom: &str, north: &str, south: &str, east: &str, west: &str) -> FaceMaterials {
+        FaceMaterials {
+            top: top.into(),
+            bottom: bottom.into(),
+            north: north.into(),
+            south: south.into(),
+            east: east.into(),
+            west: west.into(),
+        }
+    }
+
+    fn rect(x1: f32, x2: f32, z1: f32, z2: f32) -> Floor {
+        Floor {
+            x1,
+            x2,
+            z1,
+            z2,
+            y: 0.0,
+            thickness: FLOOR_THICKNESS,
+            level: 0,
+        }
+    }
+
+    #[test]
+    fn floors_merge_across_x_when_only_hidden_caps_differ() {
+        let left = (rect(0.0, 1.0, 0.0, 1.0), faces("t", "b", "n", "s", "INNER", "outer_W"));
+        let right = (rect(1.0, 2.0, 0.0, 1.0), faces("t", "b", "n", "s", "outer_E", "INNER"));
+
+        let (floors, materials) = merge_floors_with_materials(vec![left, right]);
+
+        assert_eq!(floors.len(), 1);
+        assert!((floors[0].x1 - 0.0).abs() < MERGE_EPS);
+        assert!((floors[0].x2 - 2.0).abs() < MERGE_EPS);
+        assert_eq!(materials[0].west, "outer_W");
+        assert_eq!(materials[0].east, "outer_E");
+    }
+
+    #[test]
+    fn floors_do_not_merge_across_x_when_visible_face_differs() {
+        let left = (rect(0.0, 1.0, 0.0, 1.0), faces("t", "b", "n", "s", "e", "w"));
+        // North is a visible long face when merging in x.
+        let right = (rect(1.0, 2.0, 0.0, 1.0), faces("t", "b", "DIFFERENT", "s", "e", "w"));
+
+        let (floors, _) = merge_floors_with_materials(vec![left, right]);
+
+        assert_eq!(floors.len(), 2);
+    }
+
+    #[test]
+    fn floors_merge_across_z_when_only_hidden_caps_differ() {
+        let north_rect = (rect(0.0, 1.0, 0.0, 1.0), faces("t", "b", "outer_N", "INNER", "e", "w"));
+        let south_rect = (rect(0.0, 1.0, 1.0, 2.0), faces("t", "b", "INNER", "outer_S", "e", "w"));
+
+        let (floors, materials) = merge_floors_with_materials(vec![north_rect, south_rect]);
+
+        assert_eq!(floors.len(), 1);
+        assert!((floors[0].z1 - 0.0).abs() < MERGE_EPS);
+        assert!((floors[0].z2 - 2.0).abs() < MERGE_EPS);
+        assert_eq!(materials[0].north, "outer_N");
+        assert_eq!(materials[0].south, "outer_S");
+    }
+
+    #[test]
+    fn floors_chain_x_then_z_with_correct_outer_caps() {
+        // A,B abut along x; AB then abuts the row below (C,D) along z.
+        // Each cell has distinct east/west AND distinct north/south, but the
+        // north of A == north of B (visible during x merge), and the
+        // east/west of (AB) need to match east/west of (CD) for the z merge.
+        let a = (rect(0.0, 1.0, 0.0, 1.0), faces("t", "b", "n_top", "s_inner", "e_inner", "outer_W"));
+        let b = (rect(1.0, 2.0, 0.0, 1.0), faces("t", "b", "n_top", "s_inner", "outer_E", "e_inner"));
+        let c = (rect(0.0, 1.0, 1.0, 2.0), faces("t", "b", "n_inner", "s_bot", "e_inner", "outer_W"));
+        let d = (rect(1.0, 2.0, 1.0, 2.0), faces("t", "b", "n_inner", "s_bot", "outer_E", "e_inner"));
+
+        let (floors, materials) = merge_floors_with_materials(vec![a, b, c, d]);
+
+        assert_eq!(floors.len(), 1);
+        assert!((floors[0].x1 - 0.0).abs() < MERGE_EPS);
+        assert!((floors[0].x2 - 2.0).abs() < MERGE_EPS);
+        assert!((floors[0].z1 - 0.0).abs() < MERGE_EPS);
+        assert!((floors[0].z2 - 2.0).abs() < MERGE_EPS);
+        assert_eq!(materials[0].west, "outer_W");
+        assert_eq!(materials[0].east, "outer_E");
+        assert_eq!(materials[0].north, "n_top");
+        assert_eq!(materials[0].south, "s_bot");
     }
 }

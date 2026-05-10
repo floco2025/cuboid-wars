@@ -3,7 +3,8 @@ use super::{
     schema::{ActorSpawnZoneDef, FloorDef, LevelDef, MapDef, PlayerSpawnZoneDef, RampDef},
     validation::validate_map,
 };
-use common::{constants::GRID_CELL_SIZE, material_rules::MaterialRules};
+use crate::map::material_rules::MaterialRules;
+use common::constants::GRID_CELL_SIZE;
 
 fn floor_def(col: i32, row: i32) -> FloorDef {
     FloorDef { col, row }

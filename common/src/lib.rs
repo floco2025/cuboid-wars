@@ -1,9 +1,9 @@
 pub mod config;
 pub mod constants;
+pub mod face_materials;
 pub mod health;
 pub mod map;
 pub mod map_geometry;
-pub mod material_rules;
 pub mod math;
 pub mod net;
 pub mod physics;

@@ -30,7 +30,7 @@ fn test_map_layout() -> MapLayout {
             y2: LEVEL_HEIGHT,
             z2: 8.0,
         }],
-        wall_lights: vec![],
+        ..Default::default()
     }
 }
 

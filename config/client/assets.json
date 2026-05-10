@@ -198,6 +198,10 @@
       }
     }
   },
+  "item_materials": {
+    "Cookie": "hammered-gold",
+    "default": "space-cruiser-panels2"
+  },
   "player": {
     "model": {
       "scene": "models/futuristic_flying_animated_robot_low_poly.glb#Scene0",

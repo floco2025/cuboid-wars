@@ -194,12 +194,7 @@ mod tests {
     };
 
     fn empty_layout() -> MapLayout {
-        MapLayout {
-            walls: Vec::new(),
-            ramps: Vec::new(),
-            floors: Vec::new(),
-            wall_lights: Vec::new(),
-        }
+        MapLayout::default()
     }
 
     fn collision_world(layout: &MapLayout) -> CollisionWorld {

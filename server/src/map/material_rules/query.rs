@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
-use crate::{
+use common::{
+    face_materials::FaceMaterials,
     map_geometry::MapGeometry,
-    protocol::{Floor, ItemType, Ramp, Wall},
+    protocol::{Floor, Ramp, Wall},
 };
 
 use super::{
-    FaceMaterials,
     grid::{floor_cells, ramp_cells, ramp_lower_level, wall_edges},
     loading::wall_edge_key,
 };
@@ -25,15 +25,9 @@ pub(super) struct SegmentMaterials {
 pub struct MaterialRules {
     pub(super) geometry: MapGeometry,
     pub(super) segments: SegmentMaterials,
-    pub(super) item_materials: HashMap<String, String>,
 }
 
 impl MaterialRules {
-    #[must_use]
-    pub fn geometry(&self) -> &MapGeometry {
-        &self.geometry
-    }
-
     #[must_use]
     pub fn materials_for_floor(&self, floor: &Floor) -> FaceMaterials {
         for (col, row) in floor_cells(&self.geometry, floor) {
@@ -113,16 +107,6 @@ impl MaterialRules {
     }
 
     #[must_use]
-    pub fn materials_for_wall_edge(&self, level: u8, from: [i32; 2], to: [i32; 2]) -> FaceMaterials {
-        let (a, b) = wall_edge_key(from, to);
-        if let Some(materials) = self.segments.walls.get(&(level, a, b)) {
-            return materials.clone();
-        }
-        self.first_wall_material_on_level(level)
-            .unwrap_or_else(missing_materials)
-    }
-
-    #[must_use]
     pub fn materials_for_ramp_top(&self, ramp: &Ramp) -> FaceMaterials {
         let lower_level = ramp_lower_level(ramp);
         for (col, row) in ramp_cells(&self.geometry, ramp) {
@@ -137,31 +121,6 @@ impl MaterialRules {
         missing_materials()
     }
 
-    #[must_use]
-    pub fn materials_for_ramp_side(&self, ramp: &Ramp) -> FaceMaterials {
-        // Ramp sides reuse the ramp's own face materials when present, else
-        // fall back to floor materials at the ramp's footprint cell.
-        self.materials_for_ramp_top(ramp)
-    }
-
-    #[must_use]
-    pub fn material_for_item(&self, item_type: ItemType) -> &str {
-        let name = item_type_name(item_type);
-        self.item_materials
-            .get(name)
-            .or_else(|| self.item_materials.get("default"))
-            .map(String::as_str)
-            .expect("item_materials must define `default`")
-    }
-}
-
-fn item_type_name(item_type: ItemType) -> &'static str {
-    match item_type {
-        ItemType::SpeedPowerUp => "SpeedPowerUp",
-        ItemType::MultiShotPowerUp => "MultiShotPowerUp",
-        ItemType::PhasingPowerUp => "PhasingPowerUp",
-        ItemType::Cookie => "Cookie",
-    }
 }
 
 fn missing_materials() -> FaceMaterials {

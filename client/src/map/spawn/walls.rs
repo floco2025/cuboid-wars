@@ -5,7 +5,7 @@ use super::{
     geometry_batch::{MapGeometryBatch, MapGeometryKind},
 };
 use crate::config::AssetSet;
-use common::{constants::*, material_rules::FaceMaterials, protocol::*};
+use common::{constants::*, face_materials::FaceMaterials, protocol::*};
 
 #[derive(Clone, Copy)]
 enum CardinalDirection {
@@ -36,7 +36,7 @@ impl CardinalDirection {
 }
 
 // Spawn a wall segment entity based on a shared `Wall` config.
-pub fn batch_wall(batcher: &mut MapGeometryBatch, asset_set: &AssetSet, wall: &Wall) {
+pub fn batch_wall(batcher: &mut MapGeometryBatch, asset_set: &AssetSet, wall: &Wall, material_ids: &FaceMaterials) {
     batcher.begin_segment();
     let center_x = f32::midpoint(wall.x1, wall.x2);
     let center_z = f32::midpoint(wall.z1, wall.z2);
@@ -52,7 +52,6 @@ pub fn batch_wall(batcher: &mut MapGeometryBatch, asset_set: &AssetSet, wall: &W
 
     let level_y = f32::from(wall.level) * LEVEL_HEIGHT;
     let transform = Transform::from_xyz(center_x, level_y + WALL_HEIGHT / 2.0, center_z).with_rotation(rotation);
-    let material_ids = asset_set.material_ids_for_wall(wall);
 
     if material_ids.is_uniform() {
         let material_def = asset_set.material_by_id(material_ids.primary());
@@ -71,10 +70,10 @@ pub fn batch_wall(batcher: &mut MapGeometryBatch, asset_set: &AssetSet, wall: &W
     let negative_z_direction = positive_z_direction.opposite();
     let positive_x_direction = cardinal_direction(rotation * Vec3::X);
     let negative_x_direction = positive_x_direction.opposite();
-    let positive_x_material_id = positive_x_direction.material_id(&material_ids);
-    let negative_x_material_id = negative_x_direction.material_id(&material_ids);
-    let positive_z_material_id = positive_z_direction.material_id(&material_ids);
-    let negative_z_material_id = negative_z_direction.material_id(&material_ids);
+    let positive_x_material_id = positive_x_direction.material_id(material_ids);
+    let negative_x_material_id = negative_x_direction.material_id(material_ids);
+    let positive_z_material_id = positive_z_direction.material_id(material_ids);
+    let negative_z_material_id = negative_z_direction.material_id(material_ids);
     let positive_x_material_def = asset_set.material_by_id(positive_x_material_id);
     let negative_x_material_def = asset_set.material_by_id(negative_x_material_id);
     let positive_z_material_def = asset_set.material_by_id(positive_z_material_id);

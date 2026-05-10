@@ -5,14 +5,15 @@ use crate::{
         floors,
         lights::generate_wall_lights,
         mask::{Mask, mark_has_floor, mark_has_floor_above, mark_has_floor_slab},
+        material_rules::MaterialRules,
         ramps, walls,
     },
     resources::{ActorSpawnZone, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlayerSpawnZone},
 };
 use common::{
     constants::*,
+    face_materials::FaceMaterials,
     map_geometry::MapGeometry,
-    material_rules::MaterialRules,
     protocol::{Floor, MapLayout, Wall},
 };
 
@@ -80,14 +81,17 @@ pub(crate) fn compile_map(map_def: &MapDef, assets: &MaterialRules) -> (MapLayou
     }
 
     let mut all_walls: Vec<Wall> = Vec::new();
+    let mut all_wall_materials: Vec<FaceMaterials> = Vec::new();
     for (level_idx, level_grid) in level_grids.iter().enumerate() {
         let level_u8 = u8::try_from(level_idx).unwrap_or(u8::MAX);
-        let mut tier = walls::generate_walls(&level_grid.edges, &geometry, level_u8);
-        tier = walls::merge_walls(tier, assets);
-        all_walls.extend(tier);
+        let tier = walls::generate_walls(&level_grid.edges, &geometry, level_u8);
+        let (merged_walls, merged_materials) = walls::merge_walls(tier, assets);
+        all_walls.extend(merged_walls);
+        all_wall_materials.extend(merged_materials);
     }
 
     let mut all_floors: Vec<Floor> = Vec::new();
+    let mut all_floor_materials: Vec<FaceMaterials> = Vec::new();
     for (level_idx, m) in slab_masks.iter().enumerate() {
         let level_u8 = u8::try_from(level_idx).unwrap_or(u8::MAX);
         let y = f32::from(level_u8) * LEVEL_HEIGHT;
@@ -102,17 +106,28 @@ pub(crate) fn compile_map(map_def: &MapDef, assets: &MaterialRules) -> (MapLayou
                 y,
             ));
         }
-        if !FLOOR_OVERLAP {
-            tier = floors::merge_floors(tier, assets);
+        if FLOOR_OVERLAP {
+            let materials: Vec<FaceMaterials> = tier.iter().map(|f| assets.materials_for_floor(f)).collect();
+            all_floors.extend(tier);
+            all_floor_materials.extend(materials);
+        } else {
+            let (merged_floors, merged_materials) = floors::merge_floors(tier, assets);
+            all_floors.extend(merged_floors);
+            all_floor_materials.extend(merged_materials);
         }
-        all_floors.extend(tier);
     }
+
+    let ramps_out = ramps::specs_to_ramps(&geometry, &ramp_specs);
+    let ramp_materials: Vec<FaceMaterials> = ramps_out.iter().map(|r| assets.materials_for_ramp_top(r)).collect();
 
     let map_layout = MapLayout {
         walls: all_walls,
-        ramps: ramps::specs_to_ramps(&geometry, &ramp_specs),
+        wall_materials: all_wall_materials,
+        ramps: ramps_out,
+        ramp_materials,
         wall_lights,
         floors: all_floors,
+        floor_materials: all_floor_materials,
     };
 
     (

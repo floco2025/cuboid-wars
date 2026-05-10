@@ -1,4 +1,4 @@
-use crate::{
+use common::{
     constants::{GRID_CELL_SIZE, LEVEL_HEIGHT},
     map_geometry::MapGeometry,
     protocol::{Floor, Ramp, Wall},

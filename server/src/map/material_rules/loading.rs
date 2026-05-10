@@ -1,10 +1,10 @@
 use std::{collections::HashMap, fs, path::Path};
 
 use anyhow::{Context, Result};
+use common::{face_materials::FaceMaterials, map_geometry::MapGeometry};
 use serde::Deserialize;
 
-use super::{MaterialRules, face_materials::FaceMaterials, query::SegmentMaterials};
-use crate::map_geometry::MapGeometry;
+use super::{MaterialRules, query::SegmentMaterials};
 
 const SUPPORTED_MAP_VERSION: u32 = 1;
 
@@ -22,8 +22,6 @@ struct MapBody {
     levels: Vec<MapLevel>,
     #[serde(default)]
     ramps: Vec<MapRamp>,
-    #[serde(default)]
-    item_materials: HashMap<String, String>,
 }
 
 #[derive(Deserialize)]
@@ -116,7 +114,6 @@ impl MaterialRules {
                 walls: wall_materials,
                 ramps: ramp_materials,
             },
-            item_materials: file.map.item_materials,
         })
     }
 }

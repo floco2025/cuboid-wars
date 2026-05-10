@@ -41,7 +41,7 @@ fn collision_world(walls: &[Wall], floors: &[Floor], ramps: &[Ramp]) -> Collisio
         walls: walls.to_vec(),
         floors: floors.to_vec(),
         ramps: ramps.to_vec(),
-        wall_lights: vec![],
+        ..Default::default()
     })
 }
 

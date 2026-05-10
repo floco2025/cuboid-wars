@@ -2,11 +2,7 @@ use std::{collections::HashMap, fs, path::Path};
 
 use anyhow::{Context, Result};
 use bevy::prelude::Resource;
-use common::{
-    config::resolve_actor_inheritance,
-    material_rules::{FaceMaterials, MaterialRules},
-    protocol::{Floor, ItemType, Ramp, Wall},
-};
+use common::{config::resolve_actor_inheritance, protocol::ItemType};
 use serde::Deserialize;
 
 const SUPPORTED_VERSION: u32 = 1;
@@ -15,7 +11,7 @@ const SUPPORTED_VERSION: u32 = 1;
 pub struct AssetSet {
     pub version: u32,
     materials: HashMap<String, MaterialDef>,
-    rules: MaterialRules,
+    item_materials: HashMap<String, String>,
     player: PlayerAssets,
     actors: HashMap<String, ActorAssets>,
     models: GenericModels,
@@ -26,6 +22,7 @@ pub struct AssetSet {
 struct AssetSetFile {
     version: u32,
     materials: HashMap<String, MaterialDef>,
+    item_materials: HashMap<String, String>,
     player: PlayerAssets,
     actors: HashMap<String, ActorAssets>,
     models: GenericModels,
@@ -50,11 +47,10 @@ impl AssetSet {
             .with_context(|| format!("resolving actor inheritance in {}", path.display()))?;
         let file: AssetSetFile = serde_json::from_value(value)
             .with_context(|| format!("failed to deserialize {}", path.display()))?;
-        let rules = MaterialRules::load_default()?;
         Ok(Self {
             version: file.version,
             materials: file.materials,
-            rules,
+            item_materials: file.item_materials,
             player: file.player,
             actors: file.actors,
             models: file.models,
@@ -69,27 +65,21 @@ impl AssetSet {
             self.version,
             SUPPORTED_VERSION
         );
+        anyhow::ensure!(
+            self.item_materials.contains_key("default"),
+            "asset config must define `item_materials.default`"
+        );
         Ok(())
     }
 
-    pub fn material_ids_for_floor(&self, floor: &Floor) -> FaceMaterials {
-        self.rules.materials_for_floor(floor)
-    }
-
-    pub fn material_ids_for_ramp_top(&self, ramp: &Ramp) -> FaceMaterials {
-        self.rules.materials_for_ramp_top(ramp)
-    }
-
-    pub fn material_ids_for_ramp_side(&self, ramp: &Ramp) -> FaceMaterials {
-        self.rules.materials_for_ramp_side(ramp)
-    }
-
     pub fn material_for_item(&self, item_type: ItemType) -> &MaterialDef {
-        self.material(self.rules.material_for_item(item_type))
-    }
-
-    pub fn material_ids_for_wall(&self, wall: &Wall) -> FaceMaterials {
-        self.rules.materials_for_wall(wall)
+        let name = item_type_name(item_type);
+        let id = self
+            .item_materials
+            .get(name)
+            .or_else(|| self.item_materials.get("default"))
+            .expect("item_materials must define `default`");
+        self.material(id)
     }
 
     pub fn material_by_id(&self, id: &str) -> &MaterialDef {
@@ -248,4 +238,13 @@ struct ActorAssets {
 #[derive(Debug, Clone, Deserialize)]
 struct GenericModels {
     wall_light: WallLightModelDef,
+}
+
+fn item_type_name(item_type: ItemType) -> &'static str {
+    match item_type {
+        ItemType::SpeedPowerUp => "SpeedPowerUp",
+        ItemType::MultiShotPowerUp => "MultiShotPowerUp",
+        ItemType::PhasingPowerUp => "PhasingPowerUp",
+        ItemType::Cookie => "Cookie",
+    }
 }

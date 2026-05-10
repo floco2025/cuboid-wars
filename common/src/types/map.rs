@@ -2,6 +2,7 @@ use bevy_ecs::prelude::Resource;
 use bincode::{Decode, Encode};
 
 use super::Position;
+use crate::face_materials::FaceMaterials;
 
 #[derive(Debug, Clone, Encode, Decode, Copy)]
 pub struct Wall {
@@ -89,10 +90,17 @@ pub enum ItemType {
     Cookie,
 }
 
-#[derive(Debug, Clone, Encode, Decode, Resource)]
+// Visual materials for each segment in the layout. The vectors run parallel
+// to `walls` / `ramps` / `floors`: the segment at index `i` renders with the
+// `FaceMaterials` at index `i` of the corresponding `*_materials` vector.
+// Physics ignores the material vectors.
+#[derive(Debug, Clone, Encode, Decode, Resource, Default)]
 pub struct MapLayout {
     pub walls: Vec<Wall>,
+    pub wall_materials: Vec<FaceMaterials>,
     pub ramps: Vec<Ramp>,
+    pub ramp_materials: Vec<FaceMaterials>,
     pub floors: Vec<Floor>,
+    pub floor_materials: Vec<FaceMaterials>,
     pub wall_lights: Vec<WallLight>,
 }
