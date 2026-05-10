@@ -35,20 +35,53 @@ impl MaterialRules {
                 return materials.clone();
             }
         }
-        // Fallback: use the segment at the world midpoint.
+        // Stacked wall trim strips and edge fillers sit on (or just outside)
+        // a wall edge and don't span a full floor cell. The lookups below
+        // cover them, in order of preference:
+        //   1. Floor at the segment's world midpoint.
+        //   2. Any neighbouring floor cell at this level — the trim visually
+        //      adjoins that floor (e.g. trim at the top of a ramp where the
+        //      ramp meets the upper floor).
+        //   3. Any ramp whose top surface reaches this level on a neighbour
+        //      cell (`ramp.lower_level == floor.level - 1`).
+        //   4. Adjacent wall on this level — the trim is sandwiched between
+        //      two solid stacked walls with nothing else nearby.
         let mid_col = self.geometry.world_x_to_cell_col(f32::midpoint(floor.x1, floor.x2));
         let mid_row = self.geometry.world_z_to_cell_row(f32::midpoint(floor.z1, floor.z2));
         if let Some(materials) = self.segments.floors.get(&(floor.level, mid_col, mid_row)) {
             return materials.clone();
         }
-        // Stacked wall trim strips sit on wall edges and don't correspond to a
-        // floor cell. Use the adjacent wall's materials so the trim visually
-        // matches the wall it's filling.
+        if let Some(materials) = self.adjacent_floor_materials(floor.level, mid_col, mid_row) {
+            return materials;
+        }
+        if floor.level > 0
+            && let Some(materials) = self.adjacent_ramp_materials(floor.level - 1, mid_col, mid_row)
+        {
+            return materials;
+        }
         if let Some(materials) = self.adjacent_wall_materials(floor.level, mid_col, mid_row) {
             return materials;
         }
         self.first_floor_material_on_level(floor.level)
             .unwrap_or_else(missing_materials)
+    }
+
+    fn adjacent_floor_materials(&self, level: u8, col: i32, row: i32) -> Option<FaceMaterials> {
+        for (c, r) in [(col - 1, row), (col + 1, row), (col, row - 1), (col, row + 1)] {
+            if let Some(m) = self.segments.floors.get(&(level, c, r)) {
+                return Some(m.clone());
+            }
+        }
+        None
+    }
+
+    fn adjacent_ramp_materials(&self, lower_level: u8, col: i32, row: i32) -> Option<FaceMaterials> {
+        for (c, r) in [(col, row), (col - 1, row), (col + 1, row), (col, row - 1), (col, row + 1)] {
+            if let Some(m) = self.segments.ramps.get(&(lower_level, c, r)) {
+                return Some(m.clone());
+            }
+        }
+        None
     }
 
     fn adjacent_wall_materials(&self, level: u8, col: i32, row: i32) -> Option<FaceMaterials> {
