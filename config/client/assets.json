@@ -198,9 +198,26 @@
       }
     }
   },
+  "aliases": {
+    "natural-ground": "tidal-pool2",
+    "slab": "fiberous-plaster1-ue",
+    "basement-floor": "smooth-temple-blocks",
+    "ground-floor": "cheap_old_linoleum1",
+    "upper-floors": "beige-carpet-worn1",
+    "balcony-floor": "rectangle-polished-tile",
+    "skybridge": "steelplate1",
+    "basement-support-wall": "bricks-mortar",
+    "basement-perimeter-wall": "damp-block-wall",
+    "ground-interior-wall": "art-deco-scales-wallpaper",
+    "exterior-walls": "modern-brick1",
+    "upper-interior-walls": "forest-wallpaper",
+    "balcony-wall": "stucco1",
+    "cookie": "hammered-gold",
+    "powerup": "space-cruiser-panels2"
+  },
   "item_materials": {
-    "Cookie": "hammered-gold",
-    "default": "space-cruiser-panels2"
+    "Cookie": "cookie",
+    "default": "powerup"
   },
   "player": {
     "model": {

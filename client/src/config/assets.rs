@@ -11,6 +11,7 @@ const SUPPORTED_VERSION: u32 = 1;
 pub struct AssetSet {
     pub version: u32,
     materials: HashMap<String, MaterialDef>,
+    aliases: HashMap<String, String>,
     item_materials: HashMap<String, String>,
     player: PlayerAssets,
     actors: HashMap<String, ActorAssets>,
@@ -22,6 +23,8 @@ pub struct AssetSet {
 struct AssetSetFile {
     version: u32,
     materials: HashMap<String, MaterialDef>,
+    #[serde(default)]
+    aliases: HashMap<String, String>,
     item_materials: HashMap<String, String>,
     player: PlayerAssets,
     actors: HashMap<String, ActorAssets>,
@@ -50,6 +53,7 @@ impl AssetSet {
         Ok(Self {
             version: file.version,
             materials: file.materials,
+            aliases: file.aliases,
             item_materials: file.item_materials,
             player: file.player,
             actors: file.actors,
@@ -69,6 +73,14 @@ impl AssetSet {
             self.item_materials.contains_key("default"),
             "asset config must define `item_materials.default`"
         );
+        // Every alias must resolve to a real material so a typo can't go
+        // unnoticed until something tries to render at runtime.
+        for (alias, target) in &self.aliases {
+            anyhow::ensure!(
+                self.materials.contains_key(target),
+                "alias `{alias}` points to unknown material `{target}`"
+            );
+        }
         Ok(())
     }
 
@@ -133,10 +145,14 @@ impl AssetSet {
             .unwrap_or_else(|| panic!("asset set is missing actor kind {kind:?}"))
     }
 
+    // Aliases let `map.json` reference textures by role (e.g. `natural-ground`)
+    // instead of by the underlying material ID. Lookup falls through to the
+    // input name when no alias is defined, so raw material IDs keep working.
     fn material(&self, id: &str) -> &MaterialDef {
+        let resolved = self.aliases.get(id).map(String::as_str).unwrap_or(id);
         self.materials
-            .get(id)
-            .unwrap_or_else(|| panic!("asset set is missing material {id:?}"))
+            .get(resolved)
+            .unwrap_or_else(|| panic!("asset set is missing material {id:?} (resolved to {resolved:?})"))
     }
 }
 
