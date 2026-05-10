@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use common::{
+    constants::GRID_CELL_SIZE,
     face_materials::FaceMaterials,
     map_geometry::MapGeometry,
     protocol::{Floor, Ramp, Wall},
@@ -10,6 +11,11 @@ use super::{
     grid::{floor_cells, ramp_cells, ramp_lower_level, wall_edges},
     loading::wall_edge_key,
 };
+
+// How close a coordinate must be to a grid line to count as "on" it. Smaller
+// than the corner-filler offset (`HALF_WALL_THICKNESS - CORNER_EPS ≈ 0.14`)
+// so the two sides of a thin strip are always distinguishable.
+const GRID_LINE_EPS: f32 = 0.05;
 
 #[derive(Debug, Clone, Default)]
 pub(super) struct SegmentMaterials {
@@ -35,19 +41,22 @@ impl MaterialRules {
                 return materials.clone();
             }
         }
-        // Stacked wall trim strips and edge-filler corner pieces sit on (or
-        // just outside) a wall edge and don't span a full floor cell. Lookup
-        // order:
+        // Stacked-wall trims and corner-filler strips don't span a full floor
+        // cell, so the loop above misses them. Lookup order:
         //   1. Floor at the segment's world midpoint.
-        //   2. Any neighbouring floor cell at this level — edge fillers in
-        //      particular sit at the corner of a real floor cell and want
-        //      that cell's material rather than an unrelated adjacent wall.
-        //   3. Adjacent wall on this level — for trim sandwiched between two
-        //      solid stacked walls with no floor anywhere nearby.
+        //   2. Corner filler: a thin strip hanging off one edge of a real
+        //      floor cell. Detect it by shape and use *that* cell directly,
+        //      so the strip inherits its long-side neighbour's material
+        //      rather than a diagonal cell's.
+        //   3. Any cardinal neighbour of the midpoint that has a floor.
+        //   4. Adjacent wall on this level.
         let mid_col = self.geometry.world_x_to_cell_col(f32::midpoint(floor.x1, floor.x2));
         let mid_row = self.geometry.world_z_to_cell_row(f32::midpoint(floor.z1, floor.z2));
         if let Some(materials) = self.segments.floors.get(&(floor.level, mid_col, mid_row)) {
             return materials.clone();
+        }
+        if let Some(materials) = self.corner_filler_originating_cell_materials(floor) {
+            return materials;
         }
         if let Some(materials) = self.adjacent_floor_materials(floor.level, mid_col, mid_row) {
             return materials;
@@ -57,6 +66,58 @@ impl MaterialRules {
         }
         self.first_floor_material_on_level(floor.level)
             .unwrap_or_else(missing_materials)
+    }
+
+    // A corner-filler strip from `emit_floor_tier` is thin in one axis
+    // (~HALF_WALL_THICKNESS) and has one boundary exactly on a grid line
+    // (the side attached to the originating cell) and the opposite boundary
+    // offset by `pad` (the side hanging into the cell beyond). Detect that
+    // shape and return the originating cell's material, so the filler reads
+    // visually as an extension of its long-side neighbour rather than of an
+    // unrelated diagonal cell.
+    fn corner_filler_originating_cell_materials(&self, floor: &Floor) -> Option<FaceMaterials> {
+        let z_extent = (floor.z2 - floor.z1).abs();
+        let x_extent = (floor.x2 - floor.x1).abs();
+        if z_extent >= GRID_CELL_SIZE / 2.0 && x_extent >= GRID_CELL_SIZE / 2.0 {
+            return None;
+        }
+        let mid_col = self.geometry.world_x_to_cell_col(f32::midpoint(floor.x1, floor.x2));
+        let mid_row = self.geometry.world_z_to_cell_row(f32::midpoint(floor.z1, floor.z2));
+        // Thin in z: originating cell sits on whichever z side is on a grid
+        // line. Same logic mirrored for x (no x-thin fillers exist today,
+        // but the symmetry is cheap to keep).
+        let (origin_col, origin_row) = if z_extent < x_extent {
+            let max_z = floor.z1.max(floor.z2);
+            let min_z = floor.z1.min(floor.z2);
+            if self.is_on_grid_z(max_z) && !self.is_on_grid_z(min_z) {
+                (mid_col, self.geometry.world_z_to_cell_row(max_z + GRID_LINE_EPS))
+            } else if self.is_on_grid_z(min_z) && !self.is_on_grid_z(max_z) {
+                (mid_col, self.geometry.world_z_to_cell_row(min_z - GRID_LINE_EPS))
+            } else {
+                return None;
+            }
+        } else {
+            let max_x = floor.x1.max(floor.x2);
+            let min_x = floor.x1.min(floor.x2);
+            if self.is_on_grid_x(max_x) && !self.is_on_grid_x(min_x) {
+                (self.geometry.world_x_to_cell_col(max_x + GRID_LINE_EPS), mid_row)
+            } else if self.is_on_grid_x(min_x) && !self.is_on_grid_x(max_x) {
+                (self.geometry.world_x_to_cell_col(min_x - GRID_LINE_EPS), mid_row)
+            } else {
+                return None;
+            }
+        };
+        self.segments.floors.get(&(floor.level, origin_col, origin_row)).cloned()
+    }
+
+    fn is_on_grid_z(&self, z: f32) -> bool {
+        let nearest = self.geometry.world_z_to_grid_row(z);
+        (z - self.geometry.cell_to_world_z(nearest)).abs() < GRID_LINE_EPS
+    }
+
+    fn is_on_grid_x(&self, x: f32) -> bool {
+        let nearest = self.geometry.world_x_to_grid_col(x);
+        (x - self.geometry.cell_to_world_x(nearest)).abs() < GRID_LINE_EPS
     }
 
     fn adjacent_floor_materials(&self, level: u8, col: i32, row: i32) -> Option<FaceMaterials> {
