@@ -183,6 +183,19 @@
         "occlusion": "textures/space-cruiser-panels2-ue/space-cruiser-panels2_ao.png",
         "metallic_roughness": "textures/space-cruiser-panels2-ue/space-cruiser-panels2_metallic-roughness.png"
       }
+    },
+    "tidal-pool2": {
+      "tile_size": 4.0,
+      "metallic": 0.5,
+      "roughness": 0.5,
+      "repeat": true,
+      "linear_data_textures": true,
+      "textures": {
+        "base_color": "textures/tidal-pool2-ue/tidalpool2_albedo.png",
+        "normal": "textures/tidal-pool2-ue/tidalpool2_normal-dx.png",
+        "occlusion": "textures/tidal-pool2-ue/tidalpool2_ao.png",
+        "metallic_roughness": "textures/tidal-pool2-ue/tidalpool2_metallic-roughness.png"
+      }
     }
   },
   "player": {

@@ -67,6 +67,8 @@ MODE_RAMP_UP = "Ramp (Up)"
 MODE_RAMP_DOWN = "Ramp (Down)"
 MODE_ERASE = "Erase"
 MODE_ERASE_KEEP_FLOORS = "Erase (Keep Floors)"
+MODE_FLOOR_MATERIAL = "Floor Material"
+MODE_WALL_MATERIAL = "Wall Material"
 RAMP_MODES = (MODE_RAMP_UP, MODE_RAMP_DOWN)
 ERASE_MODES = (MODE_ERASE, MODE_ERASE_KEEP_FLOORS)
 SPAWN_PAINT_MODES = (MODE_ACTOR_SPAWN_PAINT, MODE_PLAYER_SPAWN_PAINT)
@@ -82,6 +84,8 @@ MODES = [
     MODE_RAMP_DOWN,
     MODE_ERASE,
     MODE_ERASE_KEEP_FLOORS,
+    MODE_FLOOR_MATERIAL,
+    MODE_WALL_MATERIAL,
 ]
 
 # Two named lists in map_data so the editor can refer to them generically.
@@ -238,6 +242,76 @@ class ResizeMapDialog(QDialog):
         return dialog.values()
 
 
+class MaterialAssignmentDialog(QDialog):
+    """Modal dialog with one dropdown per face (top/bottom/N/S/E/W).
+
+    `catalog` is the list of material names to choose from, sourced from
+    `assets.json`. `initial` provides the starting selection per face;
+    typically the materials of the first selected segment, so opening on a
+    uniform region pre-fills with current values.
+
+    `Apply to all` copies the Top dropdown's value into the other five.
+    """
+
+    FACE_LABELS = (("top", "Top"), ("bottom", "Bottom"), ("north", "North"), ("south", "South"), ("east", "East"), ("west", "West"))
+
+    def __init__(self, parent, title: str, scope_summary: str, catalog: list[str], initial: dict[str, str]):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+
+        self._dropdowns: dict[str, QComboBox] = {}
+        form = QFormLayout()
+        form.addRow("Selection:", QLabel(scope_summary))
+        for face, label in self.FACE_LABELS:
+            combo = QComboBox()
+            combo.addItems(catalog)
+            current = initial.get(face)
+            if current is not None and current in catalog:
+                combo.setCurrentText(current)
+            self._dropdowns[face] = combo
+            form.addRow(label + ":", combo)
+
+        apply_all_button = QToolButton()
+        apply_all_button.setText("Apply Top to all faces")
+        apply_all_button.clicked.connect(self._apply_top_to_all)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+
+        layout = QVBoxLayout(self)
+        layout.addLayout(form)
+        layout.addWidget(apply_all_button)
+        layout.addWidget(buttons)
+
+    def _apply_top_to_all(self) -> None:
+        top_value = self._dropdowns["top"].currentText()
+        for face in ("bottom", "north", "south", "east", "west"):
+            self._dropdowns[face].setCurrentText(top_value)
+
+    def values(self) -> dict[str, str]:
+        return {face: self._dropdowns[face].currentText() for face, _ in self.FACE_LABELS}
+
+    @classmethod
+    def prompt(
+        cls,
+        parent,
+        title: str,
+        scope_summary: str,
+        catalog: list[str],
+        initial: dict[str, str],
+    ) -> dict[str, str] | None:
+        if not catalog:
+            QMessageBox.warning(parent, title, "No materials catalog loaded (assets.json missing or empty).")
+            return None
+        dialog = cls(parent, title, scope_summary, catalog, initial)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return None
+        return dialog.values()
+
+
 MIN_CELL = 12.0
 EDITOR_CELL = 36
 DEFAULT_GRID_COLS = 20
@@ -278,6 +352,28 @@ def read_map(path: Path) -> dict:
     if data.get("version") != SUPPORTED_VERSION:
         raise ValueError(f"unsupported map file version {data.get('version')!r}")
     return canonicalize_map(normalize_map(data["map"]))
+
+
+def load_materials_catalog(map_path: Path | None) -> list[str]:
+    """Return the sorted list of material names defined in the project's
+    `assets.json`. Returns an empty list if the file can't be located —
+    callers handle that gracefully."""
+    candidates: list[Path] = []
+    if map_path is not None:
+        # config/server/map.json -> config/client/assets.json
+        candidates.append(map_path.parent.parent / "client" / "assets.json")
+    # Fallback: relative to the editor's repo layout.
+    candidates.append(Path(__file__).resolve().parent.parent / "config" / "client" / "assets.json")
+    for candidate in candidates:
+        if candidate.exists():
+            try:
+                with candidate.open("r", encoding="utf-8") as handle:
+                    assets = json.load(handle)
+                materials = assets.get("materials") or {}
+                return sorted(materials.keys())
+            except (OSError, json.JSONDecodeError):
+                continue
+    return []
 
 
 def write_map(path: Path, map_data: dict) -> None:
@@ -889,6 +985,13 @@ def expand_face_materials(obj: dict) -> dict[str, str]:
     return {face: obj.get(face, fallback) for face in FACES}
 
 
+def materials_summary(seg: dict) -> str:
+    """One-line summary of a segment's six face materials, using the same
+    `all`/overrides compaction as the on-disk shape."""
+    compact = compact_face_materials(seg)
+    return ", ".join(f"{k}={v}" for k, v in compact.items())
+
+
 def compact_face_materials(faces: dict[str, str]) -> dict:
     """Pack six face materials into the on-disk `all` + overrides shape.
     Picks the most-common face value as `all`; ties broken alphabetically for
@@ -1113,6 +1216,22 @@ class Canvas(QWidget):
         self.drag_start_point: tuple[int, int] | None = None
         self.drag_current_cell: tuple[int, int] | None = None
         self.drag_current_point: tuple[int, int] | None = None
+        # `hover_kind` is one of "floor", "inaccessible", "ramp", "wall", or
+        # None. `hover_target` is the segment dict being hovered. Set by
+        # mouseMoveEvent in material modes; consumed by paintEvent to draw an
+        # outline highlight, and by `_hover_label` for the popup near the
+        # cursor.
+        self.hover_kind: str | None = None
+        self.hover_target: dict | None = None
+        self._hover_label = QLabel(self)
+        self._hover_label.setStyleSheet(
+            "background-color: rgba(15, 23, 42, 230);"
+            "color: #f1f5f9;"
+            "border: 1px solid #475569;"
+            "border-radius: 4px;"
+            "padding: 4px 8px;"
+        )
+        self._hover_label.hide()
         self.setMouseTracking(True)
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.DefaultContextMenu)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -1200,7 +1319,7 @@ class Canvas(QWidget):
             self.drag_start_cell
             and self.drag_current_cell
             and (
-                self.window.mode in (MODE_FLOOR, *ERASE_MODES)
+                self.window.mode in (MODE_FLOOR, MODE_FLOOR_MATERIAL, *ERASE_MODES)
                 or self.window.mode == MODE_INACCESSIBLE_FLOOR
                 or self.window.mode in SPAWN_PAINT_MODES
             )
@@ -1216,6 +1335,8 @@ class Canvas(QWidget):
                 color = QColor(148, 163, 184, 120)
             elif self.window.mode == MODE_PLAYER_SPAWN_PAINT:
                 color = QColor(99, 102, 241, 120)
+            elif self.window.mode == MODE_FLOOR_MATERIAL:
+                color = QColor(236, 72, 153, 120)
             else:
                 color = QColor(34, 197, 94, 120)
             painter.setBrush(color)
@@ -1248,6 +1369,59 @@ class Canvas(QWidget):
                 wall["c0"] * cell, wall["r0"] * cell,
                 wall["c1"] * cell, wall["r1"] * cell,
             )
+
+        # Wall-material drag preview is grid-point based: a 2D rectangle when
+        # the drag spans both axes, or a thick line when it stays on a single
+        # row or column (so single-line selections are visible). Painted after
+        # walls so it sits on top of them.
+        if (
+            self.window.mode == MODE_WALL_MATERIAL
+            and self.drag_start_point
+            and self.drag_current_point
+        ):
+            sc, sr = self.drag_start_point
+            ec, er = self.drag_current_point
+            c0_pt, c1_pt = sorted((sc, ec))
+            r0_pt, r1_pt = sorted((sr, er))
+            highlight = QColor(236, 72, 153, 230)
+            if c0_pt == c1_pt or r0_pt == r1_pt:
+                painter.setPen(QPen(highlight, 8, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+                painter.drawLine(c0_pt * cell, r0_pt * cell, c1_pt * cell, r1_pt * cell)
+                painter.setPen(Qt.PenStyle.NoPen)
+            else:
+                painter.setBrush(QColor(236, 72, 153, 110))
+                painter.setPen(QPen(highlight, 2))
+                painter.drawRect(QRectF(c0_pt * cell, r0_pt * cell, (c1_pt - c0_pt) * cell, (r1_pt - r0_pt) * cell))
+                painter.setPen(Qt.PenStyle.NoPen)
+
+        # Hover highlight for material modes — drawn last so it sits on top.
+        self.paint_hover_highlight(painter, cell, level_idx)
+
+    def paint_hover_highlight(self, painter: QPainter, cell: float, level_idx: int) -> None:
+        if self.hover_target is None:
+            return
+        highlight = QColor(236, 72, 153, 230)  # magenta, opaque-ish
+        if self.hover_kind in ("floor", "inaccessible"):
+            col, row = self.hover_target["col"], self.hover_target["row"]
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.setPen(QPen(highlight, 3))
+            painter.drawRect(QRectF(col * cell + 1, row * cell + 1, cell - 2, cell - 2))
+        elif self.hover_kind == "ramp":
+            ramp = self.hover_target
+            if level_idx not in (ramp["lower_level"], ramp["lower_level"] + 1):
+                return
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.setPen(QPen(highlight, 3))
+            for col, row in ramp_cells(ramp):
+                painter.drawRect(QRectF(col * cell + 1, row * cell + 1, cell - 2, cell - 2))
+        elif self.hover_kind == "wall":
+            wall = self.hover_target
+            painter.setPen(QPen(highlight, 8, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+            painter.drawLine(
+                wall["c0"] * cell, wall["r0"] * cell,
+                wall["c1"] * cell, wall["r1"] * cell,
+            )
+        painter.setPen(Qt.PenStyle.NoPen)
 
     def paint_spawn_zones(self, painter: QPainter, cell: float, level_idx: int) -> None:
         # Player zones first so actor zones (which carry kind labels) sit on top.
@@ -1395,6 +1569,8 @@ class Canvas(QWidget):
 
     def mouseMoveEvent(self, event) -> None:
         if not (event.buttons() & Qt.MouseButton.LeftButton):
+            if self.window.mode in (MODE_FLOOR_MATERIAL, MODE_WALL_MATERIAL):
+                self._update_material_hover(event.position(), event.globalPosition().toPoint())
             return
         if self.window.mode == MODE_SPAWN_ZONE_EDIT:
             self.window.update_spawn_zone_edit_drag(event.position(), self.cell_size())
@@ -1403,6 +1579,81 @@ class Canvas(QWidget):
         self.drag_current_cell = self.point_to_cell(event.position()) or self.drag_current_cell
         self.drag_current_point = self.point_to_grid_point(event.position())
         self.update()
+
+    def leaveEvent(self, _event) -> None:
+        self._clear_hover()
+
+    def _clear_hover(self) -> None:
+        if self.hover_target is not None:
+            self.hover_kind = None
+            self.hover_target = None
+            self.update()
+        self._hover_label.hide()
+
+    def _update_material_hover(self, pos, _global_pos) -> None:
+        cell_size = self.cell_size()
+        level_idx = self.window.current_level
+        level = self.window.map_data["levels"][level_idx]
+
+        kind: str | None = None
+        target: dict | None = None
+        tooltip: str | None = None
+
+        if self.window.mode == MODE_FLOOR_MATERIAL:
+            cell = self.point_to_cell(pos)
+            if cell is not None:
+                col, row = cell
+                # Prefer ramp when one covers the hovered cell, since the
+                # ramp visually replaces the floor underneath.
+                ramp_hit: dict | None = None
+                for ramp in self.window.map_data["ramps"]:
+                    if ramp["lower_level"] == level_idx and (col, row) in ramp_cells(ramp):
+                        ramp_hit = ramp
+                        break
+                if ramp_hit is not None:
+                    kind, target = "ramp", ramp_hit
+                    tooltip = f"Ramp\n{materials_summary(ramp_hit)}"
+                else:
+                    for f in level["floors"]:
+                        if f["col"] == col and f["row"] == row:
+                            kind, target = "floor", f
+                            tooltip = f"Floor\n{materials_summary(f)}"
+                            break
+                    else:
+                        for f in level["inaccessible_floors"]:
+                            if f["col"] == col and f["row"] == row:
+                                kind, target = "inaccessible", f
+                                tooltip = f"Inaccessible floor\n{materials_summary(f)}"
+                                break
+        else:  # MODE_WALL_MATERIAL
+            px = pos.x() / cell_size
+            py = pos.y() / cell_size
+            for wall in level["walls"]:
+                wall_arr = [wall["c0"], wall["r0"], wall["c1"], wall["r1"]]
+                if point_near_wall(px, py, wall_arr, tolerance=0.2):
+                    kind, target = "wall", wall
+                    tooltip = f"Wall\n{materials_summary(wall)}"
+                    break
+
+        changed = (kind, id(target)) != (self.hover_kind, id(self.hover_target))
+        self.hover_kind = kind
+        self.hover_target = target
+        if changed:
+            self.update()
+        if tooltip is not None:
+            self._hover_label.setText(tooltip)
+            self._hover_label.adjustSize()
+            # Offset slightly so the popup doesn't sit directly under the
+            # cursor; clamp inside the canvas so it never gets clipped.
+            x = int(pos.x()) + 16
+            y = int(pos.y()) + 16
+            x = max(0, min(x, self.width() - self._hover_label.width() - 4))
+            y = max(0, min(y, self.height() - self._hover_label.height() - 4))
+            self._hover_label.move(x, y)
+            self._hover_label.show()
+            self._hover_label.raise_()
+        else:
+            self._hover_label.hide()
 
     def mouseReleaseEvent(self, event) -> None:
         if event.button() != Qt.MouseButton.LeftButton:
@@ -1421,6 +1672,10 @@ class Canvas(QWidget):
             self.window.add_wall_line(self.drag_start_point, snapped_wall_end(self.drag_start_point, self.drag_current_point))
         elif self.window.mode in RAMP_MODES and self.drag_start_cell and self.drag_current_cell:
             self.window.add_ramp(self.drag_start_cell, self.drag_current_cell, self.window.mode)
+        elif self.window.mode == MODE_FLOOR_MATERIAL and self.drag_start_cell and self.drag_current_cell:
+            self.window.assign_floor_materials_rect(self.drag_start_cell, self.drag_current_cell)
+        elif self.window.mode == MODE_WALL_MATERIAL and self.drag_start_point and self.drag_current_point:
+            self.window.assign_wall_materials_rect(self.drag_start_point, self.drag_current_point)
         elif self.window.mode in ERASE_MODES:
             preserve_floors = self.window.mode == MODE_ERASE_KEEP_FLOORS
             if self.drag_start_cell and self.drag_current_cell and self.drag_start_cell != self.drag_current_cell:
@@ -1487,6 +1742,7 @@ class EditorWindow(QMainWindow):
         # Material used as the default for newly painted floors / walls / ramps.
         # The user picks a different one from the materials palette.
         self.current_material: str = "fiberous-plaster1-ue"
+        self.materials_catalog: list[str] = load_materials_catalog(self.path)
 
         self.canvas = Canvas(self)
         self.setCentralWidget(self.canvas)
@@ -1854,6 +2110,106 @@ class EditorWindow(QMainWindow):
         ]
         after["ramps"].append(new_ramp)
         self.apply_change(f"Place {mode}", after)
+
+    def assign_floor_materials_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
+        c0, r0, c1, r1 = rect_from_cells(start, end)
+        level_idx = self.current_level
+        level = self.map_data["levels"][level_idx]
+
+        def floor_in_rect(f: dict) -> bool:
+            return c0 <= f["col"] < c1 and r0 <= f["row"] < r1
+
+        def ramp_in_rect(ramp: dict) -> bool:
+            return level_idx == ramp["lower_level"] and rects_overlap(
+                (c0, r0, c1, r1), ramp_rect(ramp)
+            )
+
+        affected_floors = [f for f in level["floors"] if floor_in_rect(f)] + [
+            f for f in level["inaccessible_floors"] if floor_in_rect(f)
+        ]
+        affected_ramps = [r for r in self.map_data["ramps"] if ramp_in_rect(r)]
+        if not affected_floors and not affected_ramps:
+            self.statusBar().showMessage("No floor segments in selection.", 4000)
+            return
+        seed = (affected_floors or affected_ramps)[0]
+        result = MaterialAssignmentDialog.prompt(
+            self, "Floor Materials",
+            f"{len(affected_floors)} floor cell(s), {len(affected_ramps)} ramp(s) in selection",
+            self.materials_catalog,
+            {face: seed.get(face, self.current_material) for face in FACES},
+        )
+        if result is None:
+            return
+        after = copy.deepcopy(self.map_data)
+        for floor in after["levels"][level_idx]["floors"]:
+            if floor_in_rect(floor):
+                floor.update(result)
+        for floor in after["levels"][level_idx]["inaccessible_floors"]:
+            if floor_in_rect(floor):
+                floor.update(result)
+        # Update top/bottom faces only on overlapping ramps; their N/S/E/W
+        # faces are owned by the wall-material edit mode.
+        for ramp in after["ramps"]:
+            if ramp_in_rect(ramp):
+                ramp["top"] = result["top"]
+                ramp["bottom"] = result["bottom"]
+        self.apply_change("Assign Floor Materials", after)
+
+    def assign_wall_materials_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
+        # Selection is a 2D rectangle defined by two grid points. A wall is
+        # "in" the selection iff both endpoints lie inside the rect (so walls
+        # only touching at a corner are not affected). A flat selection
+        # (start and end share a row or column) collapses to a single grid
+        # line — exactly the walls along that row/column.
+        c0, c1 = sorted([start[0], end[0]])
+        r0, r1 = sorted([start[1], end[1]])
+        level_idx = self.current_level
+        level = self.map_data["levels"][level_idx]
+
+        def edge_inside(wall: dict) -> bool:
+            return (
+                c0 <= wall["c0"] <= c1
+                and c0 <= wall["c1"] <= c1
+                and r0 <= wall["r0"] <= r1
+                and r0 <= wall["r1"] <= r1
+            )
+
+        # Ramps live in cells — only count the ones whose footprint intersects
+        # the *cell* rect implied by this grid-point selection. A flat
+        # (single-line) wall selection has an empty cell rect and so doesn't
+        # touch any ramps.
+        cell_rect = (c0, r0, c1, r1)
+
+        def ramp_in_rect(ramp: dict) -> bool:
+            return level_idx == ramp["lower_level"] and rects_overlap(
+                cell_rect, ramp_rect(ramp)
+            )
+
+        affected_walls = [w for w in level["walls"] if edge_inside(w)]
+        affected_ramps = [r for r in self.map_data["ramps"] if ramp_in_rect(r)]
+        if not affected_walls and not affected_ramps:
+            self.statusBar().showMessage("No wall edges in selection.", 4000)
+            return
+        seed = (affected_walls or affected_ramps)[0]
+        result = MaterialAssignmentDialog.prompt(
+            self, "Wall Materials",
+            f"{len(affected_walls)} wall edge(s), {len(affected_ramps)} ramp(s) in selection",
+            self.materials_catalog,
+            {face: seed.get(face, self.current_material) for face in FACES},
+        )
+        if result is None:
+            return
+        after = copy.deepcopy(self.map_data)
+        for wall in after["levels"][level_idx]["walls"]:
+            if edge_inside(wall):
+                wall.update(result)
+        # Update N/S/E/W faces only on overlapping ramps; their top/bottom
+        # faces are owned by the floor-material edit mode.
+        for ramp in after["ramps"]:
+            if ramp_in_rect(ramp):
+                for face in ("north", "south", "east", "west"):
+                    ramp[face] = result[face]
+        self.apply_change("Assign Wall Materials", after)
 
     def erase_at(self, pos, cell_size: float, preserve_floors: bool) -> None:
         hit = self.hit_at(pos, cell_size)
