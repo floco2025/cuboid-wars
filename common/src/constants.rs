@@ -3,7 +3,7 @@
 // ============================================================================
 
 // Grid
-pub const GRID_CELL_SIZE: f32 = 4.0;
+pub const GRID_CELL_SIZE: f32 = 3.4;
 
 // Walls
 pub const WALL_THICKNESS: f32 = 0.3;
