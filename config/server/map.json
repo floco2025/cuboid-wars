@@ -22,10 +22,10 @@
       {"level": 3, "cols": [13, 17], "rows": [20, 23], "kind": "mine_1", "count": 1}
     ],
     "player_spawn_zones": [
-      {"level": 4, "cols": [13, 17], "rows": [7, 11]},
+      {"level": 4, "cols": [7, 10], "rows": [13, 14]},
       {"level": 4, "cols": [19, 23], "rows": [13, 16]},
       {"level": 4, "cols": [7, 11], "rows": [14, 17]},
-      {"level": 4, "cols": [13, 17], "rows": [19, 23]}
+      {"level": 4, "cols": [20, 23], "rows": [16, 17]}
     ],
     "levels": [
       {
