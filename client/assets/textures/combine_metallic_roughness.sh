@@ -38,12 +38,21 @@ if [ ! -f "$metallic" ]; then
 fi
 
 if [ -z "$output" ]; then
-    output=${roughness%roughness.png}metallic-roughness.png
-    if [ "$output" = "$roughness" ]; then
-        echo "Could not derive output path from roughness filename: $roughness" >&2
-        echo "Pass output.png explicitly, or use a roughness filename ending in roughness.png." >&2
-        exit 2
-    fi
+    # Strip a trailing `roughness.png` (case-insensitive) and replace with
+    # `metallic-roughness.png`. `${var%pat}` is case-sensitive in bash, so we
+    # match the suffix manually with a case statement and then strip a fixed
+    # number of trailing characters.
+    case "$roughness" in
+        *[rR][oO][uU][gG][hH][nN][eE][sS][sS].png)
+            stem=${roughness%?????????????}  # 13 chars: "roughness.png"
+            output="${stem}metallic-roughness.png"
+            ;;
+        *)
+            echo "Could not derive output path from roughness filename: $roughness" >&2
+            echo "Pass output.png explicitly, or use a roughness filename ending in roughness.png." >&2
+            exit 2
+            ;;
+    esac
 fi
 
 echo "Combining metallic and roughness textures..."

@@ -184,22 +184,22 @@
         "metallic_roughness": "textures/space-cruiser-panels2-ue/space-cruiser-panels2_metallic-roughness.png"
       }
     },
-    "tidal-pool2": {
+    "mud-with-vegetation": {
       "tile_size": 4.0,
       "metallic": 0.5,
       "roughness": 0.5,
       "repeat": true,
       "linear_data_textures": true,
       "textures": {
-        "base_color": "textures/tidal-pool2-ue/tidalpool2_albedo.png",
-        "normal": "textures/tidal-pool2-ue/tidalpool2_normal-dx.png",
-        "occlusion": "textures/tidal-pool2-ue/tidalpool2_ao.png",
-        "metallic_roughness": "textures/tidal-pool2-ue/tidalpool2_metallic-roughness.png"
+        "base_color": "textures/mud-with-vegetation-ue/mud_with_vegetation_albedo.png",
+        "normal": "textures/mud-with-vegetation-ue/mud_with_vegetation_normal-dx.png",
+        "occlusion": "textures/mud-with-vegetation-ue/mud_with_vegetation_ao.png",
+        "metallic_roughness": "textures/mud-with-vegetation-ue/mud_with_vegetation_metallic-roughness.png"
       }
     }
   },
   "aliases": {
-    "natural-ground": "tidal-pool2",
+    "natural-ground": "mud-with-vegetation",
     "slab": "fiberous-plaster1-ue",
     "basement-floor": "smooth-temple-blocks",
     "ground-floor": "cheap_old_linoleum1",
