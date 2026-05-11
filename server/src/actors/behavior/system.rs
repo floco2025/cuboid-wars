@@ -3,6 +3,7 @@ use rand::rng;
 
 use crate::{
     config::ServerGameplayConfig,
+    nav::NavGraph,
     resources::{ActorMap, MapConfig, PlayerMap},
 };
 use common::{
@@ -26,6 +27,7 @@ pub fn actor_behavior_system(
     server_gameplay_config: Res<ServerGameplayConfig>,
     map_config: Res<MapConfig>,
     map_geometry: Res<MapGeometry>,
+    nav_graph: Res<NavGraph>,
     mut actors: ResMut<ActorMap>,
     player_query: Query<(&PlayerId, &Position), With<PlayerMarker>>,
     query: Query<(&ActorId, &Position), (With<ActorMarker>, Without<PlayerMarker>)>,
@@ -48,7 +50,13 @@ pub fn actor_behavior_system(
         let zone_bounds = map_config.actor_spawn_zones[info.spawn_zone_index].xz_bounds(&map_geometry);
         if xz_distance_from_rect(pos, zone_bounds) > kind_server_config.max_wander_distance {
             start_chase_reacquire_cooldown_if_chasing(info, kind_server_config.chase_reacquire_cooldown);
-            info.go_to_position = Some(closest_point_in_rect(pos, zone_bounds));
+            set_return_path_to_spawn_zone(
+                info,
+                pos,
+                &map_config.actor_spawn_zones[info.spawn_zone_index],
+                &nav_graph,
+                zone_bounds,
+            );
             info.go_to_position_is_chase = false;
             continue;
         }
@@ -65,6 +73,7 @@ pub fn actor_behavior_system(
                 &gameplay_config,
             )
         {
+            info.return_path.clear();
             info.go_to_position = Some(target_pos);
             info.go_to_position_is_chase = true;
             continue;
@@ -98,6 +107,20 @@ fn start_chase_reacquire_cooldown_if_chasing(info: &mut crate::resources::ActorI
     }
 }
 
+fn set_return_path_to_spawn_zone(
+    info: &mut crate::resources::ActorInfo,
+    pos: &Position,
+    zone: &crate::resources::ActorSpawnZone,
+    nav_graph: &NavGraph,
+    zone_bounds: (f32, f32, f32, f32),
+) {
+    info.return_path = nav_graph.path_to_spawn_zone(pos, zone).unwrap_or_default();
+    info.go_to_position = info
+        .return_path
+        .pop_front()
+        .or_else(|| Some(closest_point_in_rect(pos, zone_bounds)));
+}
+
 #[cfg(test)]
 mod tests {
     use bevy::prelude::Entity;
@@ -115,6 +138,7 @@ mod tests {
             patrol_intent: ActorMoveIntent::Idle,
             go_to_position: None,
             go_to_position_is_chase: false,
+            return_path: Default::default(),
             chase_reacquire_timer,
             wall_avoidance_direction: None,
             last_broadcast_move_intent: ActorMoveIntent::Idle,

@@ -94,6 +94,11 @@ pub(super) fn update_reached_go_to_state(info: &mut ActorInfo) {
     if info.go_to_position.is_some() {
         return;
     }
+    if let Some(next_waypoint) = info.return_path.pop_front() {
+        info.go_to_position = Some(next_waypoint);
+        info.go_to_position_is_chase = false;
+        return;
+    }
     info.go_to_position_is_chase = false;
 }
 
@@ -152,6 +157,10 @@ pub(super) fn select_go_to_actor_move(
             return selected;
         }
         SteeringMoveChoice::BlockedByCharacter => {
+            if let Some(selected_move) = choose_character_avoidance_move(context, direction, speed, rng) {
+                info.wall_avoidance_direction = selected_move.intent.direction();
+                return selected_move;
+            }
             return context.idle_move();
         }
         SteeringMoveChoice::BlockedByWorld => {}
@@ -251,6 +260,16 @@ fn choose_new_wall_avoidance_move(
     choose_wall_avoidance_move(context, wall_avoidance_directions(direction, side), speed)
 }
 
+fn choose_character_avoidance_move(
+    context: &ActorMoveContext,
+    direction: f32,
+    speed: f32,
+    rng: &mut ThreadRng,
+) -> Option<SelectedActorMove> {
+    let side = random_avoidance_side(rng);
+    choose_wall_avoidance_move(context, character_avoidance_directions(direction, side), speed)
+}
+
 fn choose_opposite_wall_avoidance_move(
     context: &ActorMoveContext,
     current_direction: f32,
@@ -263,6 +282,17 @@ pub(super) fn wall_avoidance_directions(direction: f32, side: f32) -> [f32; 2] {
     [
         direction + side * std::f32::consts::FRAC_PI_2,
         direction - side * std::f32::consts::FRAC_PI_2,
+    ]
+}
+
+fn character_avoidance_directions(direction: f32, side: f32) -> [f32; 6] {
+    [
+        direction + side * std::f32::consts::FRAC_PI_2,
+        direction - side * std::f32::consts::FRAC_PI_2,
+        direction + side * 3.0 * std::f32::consts::FRAC_PI_4,
+        direction - side * 3.0 * std::f32::consts::FRAC_PI_4,
+        direction + side * std::f32::consts::FRAC_PI_4,
+        direction - side * std::f32::consts::FRAC_PI_4,
     ]
 }
 

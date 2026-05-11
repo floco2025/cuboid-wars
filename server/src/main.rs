@@ -17,6 +17,7 @@ use server::{
         item_collection_system, item_despawn_system, item_initial_spawn_system, item_respawn_system, item_spawn_system,
     },
     map::generate_map,
+    nav::NavGraph,
     net::accept_connections_task,
     network::{
         network_accept_connections_system, network_broadcast_snapshot_system, network_process_client_messages_system,
@@ -58,6 +59,7 @@ async fn main() -> Result<()> {
 
     let (map_layout, map_config, map_geometry) = generate_map();
     let collision_world = CollisionWorld::from_map_layout(&map_layout);
+    let nav_graph = NavGraph::new(map_config.clone(), map_geometry);
     validate_actor_kinds_consistent(&gameplay_config, &server_gameplay_config, &map_config)?;
 
     // Channel for sending from the accept connections task to the server
@@ -85,6 +87,7 @@ async fn main() -> Result<()> {
         .insert_resource(collision_world)
         .insert_resource(map_config)
         .insert_resource(map_geometry)
+        .insert_resource(nav_graph)
         .insert_resource(gameplay_config)
         .insert_resource(server_gameplay_config)
         .insert_resource(PlayerMap::default())

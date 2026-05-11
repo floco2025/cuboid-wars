@@ -11,7 +11,7 @@
       "max_direction_time": 3.5,
       "idle_probability": 0.0,
       "vision_range": 24.0,
-      "chase_reacquire_cooldown": 5.0,
+      "chase_reacquire_cooldown": 10.0,
       "path_clear_lookahead_time": 0.4,
       "go_to_reached_distance": 0.5,
       "contact_explosion_distance": 0.2,

@@ -205,6 +205,7 @@ fn spawn_actor_in_zone(
             patrol_intent: move_intent,
             go_to_position: None,
             go_to_position_is_chase: false,
+            return_path: Default::default(),
             chase_reacquire_timer: 0.0,
             wall_avoidance_direction: None,
             last_broadcast_move_intent: move_intent,

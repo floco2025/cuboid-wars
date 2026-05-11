@@ -44,6 +44,7 @@ fn actor_info() -> ActorInfo {
         patrol_intent: ActorMoveIntent::Idle,
         go_to_position: None,
         go_to_position_is_chase: false,
+        return_path: Default::default(),
         chase_reacquire_timer: 0.0,
         wall_avoidance_direction: None,
         last_broadcast_move_intent: ActorMoveIntent::Idle,
@@ -161,6 +162,7 @@ fn actor_without_go_to_position_plans_after_targeted_actor() {
         patrol_intent: ActorMoveIntent::Idle,
         go_to_position: Some(Position { x: 1.0, y: 0.0, z: 0.0 }),
         go_to_position_is_chase: true,
+        return_path: Default::default(),
         chase_reacquire_timer: 0.0,
         wall_avoidance_direction: None,
         last_broadcast_move_intent: ActorMoveIntent::Idle,
@@ -190,6 +192,17 @@ fn reached_non_chase_target_does_not_start_reacquire_cooldown() {
 
     assert!(!info.go_to_position_is_chase);
     assert_eq!(info.chase_reacquire_timer, 0.0);
+}
+
+#[test]
+fn reached_return_waypoint_advances_to_next_waypoint() {
+    let mut info = actor_info();
+    info.return_path.push_back(Position { x: 2.0, y: 0.0, z: 2.0 });
+
+    update_reached_go_to_state(&mut info);
+
+    assert_eq!(info.go_to_position, Some(Position { x: 2.0, y: 0.0, z: 2.0 }));
+    assert!(!info.go_to_position_is_chase);
 }
 
 #[test]
@@ -289,9 +302,11 @@ fn character_blocked_steering_selects_idle_when_all_steering_options_are_blocked
         base_direction + 20.0_f32.to_radians(),
         base_direction + 45.0_f32.to_radians(),
         base_direction + 90.0_f32.to_radians(),
+        base_direction + 135.0_f32.to_radians(),
         base_direction - 20.0_f32.to_radians(),
         base_direction - 45.0_f32.to_radians(),
         base_direction - 90.0_f32.to_radians(),
+        base_direction - 135.0_f32.to_radians(),
     ];
     let actor_starts: Vec<_> = blocked_positions
         .into_iter()
@@ -324,6 +339,31 @@ fn character_blocked_steering_selects_idle_when_all_steering_options_are_blocked
 
     assert_eq!(selected.intent, ActorMoveIntent::Idle);
     assert_eq!(info.wall_avoidance_direction, None);
+}
+
+#[test]
+fn character_blocked_steering_tries_sidestep_before_idling() {
+    let pos = Position::default();
+    let collision_world = collision_world(&[]);
+    let planned_moves = [];
+    let actor_starts = [(test_entity(2), Position { x: 0.6, y: 0.0, z: 0.0 })];
+    let context = context(test_entity(1), &pos, &collision_world, &planned_moves, &actor_starts);
+    let mut info = actor_info();
+    let mut rng = rng();
+
+    let selected = select_go_to_actor_move(
+        &context,
+        ActorMoveIntent::Moving {
+            direction: std::f32::consts::FRAC_PI_2,
+            speed: actor_speed(),
+        },
+        None,
+        &mut info,
+        &mut rng,
+    );
+
+    assert_ne!(selected.intent, ActorMoveIntent::Idle);
+    assert!(info.wall_avoidance_direction.is_some());
 }
 
 #[test]

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 use bevy::prelude::*;
 
@@ -12,6 +12,7 @@ pub struct ActorInfo {
     pub patrol_intent: ActorMoveIntent,
     pub go_to_position: Option<Position>,
     pub go_to_position_is_chase: bool,
+    pub return_path: VecDeque<Position>,
     pub chase_reacquire_timer: f32,
     pub wall_avoidance_direction: Option<f32>,
     pub last_broadcast_move_intent: ActorMoveIntent,
