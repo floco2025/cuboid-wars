@@ -103,6 +103,24 @@ SPAWN_ZONE_LISTS = (ACTOR_ZONE_LIST, PLAYER_ZONE_LIST)
 
 DEFAULT_ACTOR_COUNT = 1
 SPAWN_ZONE_HANDLE_PIXELS = 8.0
+STATUS_TIMEOUT_MS = 4000
+
+# Body for the Help → Tool Reference dialog. Add a new entry as `(tool name,
+# one-line description)`; rendered as "tool name: description" lines.
+TOOL_REFERENCE_ENTRIES: list[tuple[str, str]] = [
+    ("Floor", "drag cells to add floor."),
+    ("Inaccessible Floor", "drag cells to add floor slabs that never spawn items, players, or lights."),
+    ("Actor Spawn Zone (Paint)", "drag a rectangle, then enter Kind and Count."),
+    ("Player Spawn Zone (Paint)", "drag a rectangle. No prompt — players spawn anywhere in any player zone."),
+    ("Spawn Zone (Edit)", "click a zone to select; drag the body to move, drag a corner/edge handle to resize. Right-click to edit fields (actor zones only) or delete."),
+    ("Wall", "drag along grid lines to place atomic wall edges."),
+    ("Ramp (Up)", "drag from this level toward the upper level."),
+    ("Ramp (Down)", "drag from this level toward the lower level."),
+    ("Erase", "click an item, drag cells to erase an area, or right-click for the context menu."),
+    ("Erase (Keep Floors)", "erase walls, ramps, and spawn zones while preserving floor and inaccessible floor cells."),
+    ("Light", "click a cell near a wall to add a wall light on that side; click an existing light marker to remove it. Use Edit → Auto-Place Lights to fill the current level on a stride; Edit → Clear Lights On Level to start over."),
+    ("Erase Lights", "drag a rectangle to remove every light inside it on the current level."),
+]
 
 
 @dataclass
@@ -479,13 +497,15 @@ def format_point(point: list[int]) -> str:
 
 
 def with_trailing_comma(lines: list[str]) -> list[str]:
-    if lines:
-        lines[-1] += ","
-    return lines
+    # Pure: return a new list with a trailing comma on the final entry.
+    # The caller almost always splat-spreads the result, so the extra list
+    # is short-lived.
+    if not lines:
+        return []
+    return [*lines[:-1], lines[-1] + ","]
 
 
-def format_ramp(ramp: dict, indent: int) -> str:
-    pad = " " * indent
+def _ramp_body(ramp: dict) -> str:
     materials = compact_face_materials(ramp)
     materials_part = ""
     if materials:
@@ -493,9 +513,9 @@ def format_ramp(ramp: dict, indent: int) -> str:
             f'"{key}": {json.dumps(value)}' for key, value in materials.items()
         )
     return (
-        f'{pad}{{"lower_level": {ramp["lower_level"]}, '
+        f'"lower_level": {ramp["lower_level"]}, '
         f'"low": {format_point(ramp["low"])}, '
-        f'"high": {format_point(ramp["high"])}{materials_part}}}'
+        f'"high": {format_point(ramp["high"])}{materials_part}'
     )
 
 
@@ -558,71 +578,62 @@ def format_map_file(wrapper: dict) -> str:
             [
                 "      {",
                 f'        "name": {json_scalar(level["name"])},',
-                *with_trailing_comma(format_floor_array("floors", level["floors"], 8)),
-                *with_trailing_comma(format_floor_array("inaccessible_floors", level["inaccessible_floors"], 8)),
-                *with_trailing_comma(format_wall_array("walls", level["walls"], 8)),
-                *format_light_array("lights", level.get("lights", []), 8),
+                *with_trailing_comma(format_object_array("floors", level["floors"], _floor_body, 8)),
+                *with_trailing_comma(format_object_array("inaccessible_floors", level["inaccessible_floors"], _floor_body, 8)),
+                *with_trailing_comma(format_object_array("walls", level["walls"], _wall_body, 8)),
+                *format_object_array("lights", level.get("lights", []), _light_body, 8),
                 "      }" + ("," if level_idx + 1 < len(map_data["levels"]) else ""),
             ]
         )
 
     lines.append("    ],")
-    if map_data["ramps"]:
-        lines.append('    "ramps": [')
-        for idx, ramp in enumerate(map_data["ramps"]):
-            comma = "," if idx + 1 < len(map_data["ramps"]) else ""
-            lines.append(format_ramp(ramp, 6) + comma)
-        lines.append("    ]")
-    else:
-        lines.append('    "ramps": []')
+    lines.extend(format_object_array("ramps", map_data["ramps"], _ramp_body, 4))
     lines.append("  }")
     lines.append("}")
     return "\n".join(lines)
 
 
-def format_floor_array(name: str, floors: list[dict], indent: int) -> list[str]:
+def format_object_array(name: str, items: list, render_body, indent: int) -> list[str]:
+    """Render a JSON array of one-line objects under a given key.
+
+    `render_body(item)` returns the inline content between the braces — e.g.
+    `'"col": 5, "row": 3'`. Empty arrays render as `"name": []` on one line.
+    """
     pad = " " * indent
     inner = " " * (indent + 2)
-    if not floors:
+    if not items:
         return [f'{pad}"{name}": []']
     lines = [f'{pad}"{name}": [']
-    for idx, floor in enumerate(floors):
-        comma = "," if idx + 1 < len(floors) else ""
-        body = {"col": floor["col"], "row": floor["row"], **compact_face_materials(floor)}
-        lines.append(inner + json.dumps(body, separators=(", ", ": ")) + comma)
+    last = len(items) - 1
+    for idx, item in enumerate(items):
+        comma = "," if idx < last else ""
+        lines.append(f"{inner}{{{render_body(item)}}}{comma}")
     lines.append(f"{pad}]")
     return lines
 
 
-def format_light_array(name: str, lights: list[dict], indent: int) -> list[str]:
-    pad = " " * indent
-    inner = " " * (indent + 2)
-    if not lights:
-        return [f'{pad}"{name}": []']
-    lines = [f'{pad}"{name}": [']
-    for idx, light in enumerate(lights):
-        comma = "," if idx + 1 < len(lights) else ""
-        body = {"col": light["col"], "row": light["row"], "side": light["side"]}
-        lines.append(inner + json.dumps(body, separators=(", ", ": ")) + comma)
-    lines.append(f"{pad}]")
-    return lines
+def _floor_body(floor: dict) -> str:
+    body = {"col": floor["col"], "row": floor["row"], **compact_face_materials(floor)}
+    return _inline_object_body(body)
 
 
-def format_wall_array(name: str, walls: list[dict], indent: int) -> list[str]:
-    pad = " " * indent
-    inner = " " * (indent + 2)
-    if not walls:
-        return [f'{pad}"{name}": []']
-    lines = [f'{pad}"{name}": [']
-    for idx, wall in enumerate(walls):
-        comma = "," if idx + 1 < len(walls) else ""
-        body = {
-            "c0": wall["c0"], "r0": wall["r0"], "c1": wall["c1"], "r1": wall["r1"],
-            **compact_face_materials(wall),
-        }
-        lines.append(inner + json.dumps(body, separators=(", ", ": ")) + comma)
-    lines.append(f"{pad}]")
-    return lines
+def _wall_body(wall: dict) -> str:
+    body = {
+        "c0": wall["c0"], "r0": wall["r0"], "c1": wall["c1"], "r1": wall["r1"],
+        **compact_face_materials(wall),
+    }
+    return _inline_object_body(body)
+
+
+def _light_body(light: dict) -> str:
+    body = {"col": light["col"], "row": light["row"], "side": light["side"]}
+    return _inline_object_body(body)
+
+
+def _inline_object_body(body: dict) -> str:
+    # `json.dumps` brackets the whole object; strip the outer braces so the
+    # caller can wrap with its own punctuation/comma.
+    return json.dumps(body, separators=(", ", ": "))[1:-1]
 
 
 def normalize_map(map_data: dict) -> dict:
@@ -1137,6 +1148,21 @@ FACES = ("top", "bottom", "north", "south", "east", "west")
 WALL_PEN_WIDTH = 6
 WALL_HIGHLIGHT_WIDTH = WALL_PEN_WIDTH + 4
 
+# Translucent rectangle preview drawn while dragging in modes that operate on
+# a cell rectangle. Lookup falls back to a neutral green for any mode that
+# uses the rect-preview UI but isn't listed here (e.g. actor spawn paint).
+DRAG_PREVIEW_FALLBACK = QColor(34, 197, 94, 120)
+DRAG_PREVIEW_COLORS: dict[str, QColor] = {
+    MODE_FLOOR: QColor(111, 180, 255, 120),
+    MODE_INACCESSIBLE_FLOOR: QColor(148, 163, 184, 120),
+    MODE_PLAYER_SPAWN_PAINT: QColor(99, 102, 241, 120),
+    MODE_FLOOR_MATERIAL: QColor(236, 72, 153, 120),
+    MODE_RAMP_MATERIAL: QColor(168, 85, 247, 120),  # purple to distinguish from floor mode pink
+    MODE_ERASE: QColor(248, 113, 113, 120),
+    MODE_ERASE_KEEP_FLOORS: QColor(251, 146, 60, 120),
+    MODE_ERASE_LIGHTS: QColor(250, 204, 21, 120),   # amber — distinct from red erase tools
+}
+
 
 def face_color(seg: dict) -> QColor:
     """Color derived from the segment's full six-face material composition.
@@ -1348,40 +1374,27 @@ def wall_segments_between(start: tuple[int, int], end: tuple[int, int]) -> list[
     return edges
 
 
+_LIGHT_MARKER_BASE = 0.08   # cells: distance from the wall to the marker's base
+_LIGHT_MARKER_TIP = 0.30    # cells: distance from the wall to the marker's tip
+_LIGHT_MARKER_HALF_W = 0.12 # cells: half-width of the marker's base
+
+
 def light_marker_polygon(light: dict, cell: float) -> list[QPoint]:
-    """Triangle marker drawn inside the cell, tip pointing inward from the
-    wall the light is attached to."""
+    """Filled triangle marker, anchored at the wall midpoint, pointing into
+    the room from the cell side the light sits on."""
     col, row, side = light["col"], light["row"], light["side"]
-    # Anchored at the wall midpoint, tip 0.30 of a cell into the room.
-    base_offset = 0.08
-    tip_offset = 0.30
-    half_width = 0.12
+    base = _LIGHT_MARKER_BASE
+    tip = _LIGHT_MARKER_TIP
+    half = _LIGHT_MARKER_HALF_W
     if side == "N":
-        base_mid = (col + 0.5, row + base_offset)
-        tip = (col + 0.5, row + tip_offset)
-        b1 = (col + 0.5 - half_width, row + base_offset)
-        b2 = (col + 0.5 + half_width, row + base_offset)
+        pts = [(0.5, tip), (0.5 - half, base), (0.5 + half, base)]
     elif side == "S":
-        base_mid = (col + 0.5, row + 1 - base_offset)
-        tip = (col + 0.5, row + 1 - tip_offset)
-        b1 = (col + 0.5 - half_width, row + 1 - base_offset)
-        b2 = (col + 0.5 + half_width, row + 1 - base_offset)
+        pts = [(0.5, 1 - tip), (0.5 - half, 1 - base), (0.5 + half, 1 - base)]
     elif side == "W":
-        base_mid = (col + base_offset, row + 0.5)
-        tip = (col + tip_offset, row + 0.5)
-        b1 = (col + base_offset, row + 0.5 - half_width)
-        b2 = (col + base_offset, row + 0.5 + half_width)
+        pts = [(tip, 0.5), (base, 0.5 - half), (base, 0.5 + half)]
     else:  # "E"
-        base_mid = (col + 1 - base_offset, row + 0.5)
-        tip = (col + 1 - tip_offset, row + 0.5)
-        b1 = (col + 1 - base_offset, row + 0.5 - half_width)
-        b2 = (col + 1 - base_offset, row + 0.5 + half_width)
-    _ = base_mid  # kept for clarity in case we want a label anchor later
-    return [
-        QPoint(round(tip[0] * cell), round(tip[1] * cell)),
-        QPoint(round(b1[0] * cell), round(b1[1] * cell)),
-        QPoint(round(b2[0] * cell), round(b2[1] * cell)),
-    ]
+        pts = [(1 - tip, 0.5), (1 - base, 0.5 - half), (1 - base, 0.5 + half)]
+    return [QPoint(round((col + dx) * cell), round((row + dy) * cell)) for dx, dy in pts]
 
 
 def point_near_wall(px: float, py: float, wall: list[int], tolerance: float = 0.16) -> bool:
@@ -1487,15 +1500,33 @@ class Canvas(QWidget):
         level_idx = self.window.current_level
         level = self.window.map_data["levels"][level_idx]
 
+        # Painting is layered: each pass draws on top of the previous one.
+        # The order here is load-bearing — moving a pass changes occlusion.
         painter.fillRect(QRectF(0, 0, cols * cell, rows * cell), QColor("#111418"))
+        self._paint_floors(painter, level, cell)
+        self._paint_ramps(painter, cell, level_idx)
+        self.paint_spawn_zones(painter, cell, level_idx)
+        if self.window.mode == MODE_SPAWN_ZONE_EDIT:
+            self.paint_spawn_zone_selection(painter, cell, level_idx)
+        self._paint_drag_preview_rect(painter, cell)
+        if self.window.mode == MODE_SPAWN_ZONE_EDIT and self.window.spawn_zone_drag is not None:
+            self.paint_spawn_zone_drag_preview(painter, cell)
+        self._paint_wall_and_ramp_drag_previews(painter, cell)
+        self._paint_grid_lines(painter, cell, cols, rows)
+        self._paint_walls(painter, level, cell)
+        self._paint_wall_material_drag(painter, cell)
+        # Lights sit on top of wall lines so the markers stay visible.
+        self.paint_lights(painter, level, cell)
+        # Hover highlight is drawn last so it sits on top of everything.
+        self.paint_hover_highlight(painter, cell, level_idx)
 
+    def _paint_floors(self, painter: QPainter, level: dict, cell: float) -> None:
         painter.setPen(Qt.PenStyle.NoPen)
         overlay = self.window.show_material_overlay
         default_floor = QColor("#454f5b")
         for floor in level["floors"]:
             col, row = floor["col"], floor["row"]
-            color = face_color(floor) if overlay else default_floor
-            painter.setBrush(color)
+            painter.setBrush(face_color(floor) if overlay else default_floor)
             painter.drawRect(QRectF(col * cell + 1, row * cell + 1, cell - 2, cell - 2))
         painter.setBrush(default_floor)
         for floor in level["inaccessible_floors"]:
@@ -1507,62 +1538,31 @@ class Canvas(QWidget):
             painter.drawLine(rect.bottomLeft(), rect.topRight())
             painter.setPen(Qt.PenStyle.NoPen)
 
+    def _paint_ramps(self, painter: QPainter, cell: float, level_idx: int) -> None:
         for ramp in self.window.map_data["ramps"]:
             lower = ramp["lower_level"]
-            if level_idx not in (lower, lower + 1):
-                continue
-            self.paint_ramp(painter, ramp, cell, lower == level_idx)
+            if level_idx in (lower, lower + 1):
+                self.paint_ramp(painter, ramp, cell, lower == level_idx)
 
-        self.paint_spawn_zones(painter, cell, level_idx)
+    def _paint_drag_preview_rect(self, painter: QPainter, cell: float) -> None:
+        if not (self.drag_start_cell and self.drag_current_cell):
+            return
+        if self.window.mode not in DRAG_PREVIEW_COLORS and self.window.mode not in SPAWN_PAINT_MODES:
+            return
+        c0, r0, c1, r1 = rect_from_cells(self.drag_start_cell, self.drag_current_cell)
+        color = DRAG_PREVIEW_COLORS.get(self.window.mode, DRAG_PREVIEW_FALLBACK)
+        painter.setBrush(color)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawRect(QRectF(c0 * cell, r0 * cell, (c1 - c0) * cell, (r1 - r0) * cell))
 
-        if self.window.mode == MODE_SPAWN_ZONE_EDIT:
-            self.paint_spawn_zone_selection(painter, cell, level_idx)
-
-        if (
-            self.drag_start_cell
-            and self.drag_current_cell
-            and (
-                self.window.mode in (MODE_FLOOR, MODE_FLOOR_MATERIAL, MODE_RAMP_MATERIAL, *ERASE_MODES)
-                or self.window.mode == MODE_INACCESSIBLE_FLOOR
-                or self.window.mode == MODE_ERASE_LIGHTS
-                or self.window.mode in SPAWN_PAINT_MODES
-            )
-        ):
-            c0, r0, c1, r1 = rect_from_cells(self.drag_start_cell, self.drag_current_cell)
-            if self.window.mode == MODE_ERASE:
-                color = QColor(248, 113, 113, 120)
-            elif self.window.mode == MODE_ERASE_KEEP_FLOORS:
-                color = QColor(251, 146, 60, 120)
-            elif self.window.mode == MODE_ERASE_LIGHTS:
-                color = QColor(250, 204, 21, 120)  # amber — distinct from red erase tools
-            elif self.window.mode == MODE_FLOOR:
-                color = QColor(111, 180, 255, 120)
-            elif self.window.mode == MODE_INACCESSIBLE_FLOOR:
-                color = QColor(148, 163, 184, 120)
-            elif self.window.mode == MODE_PLAYER_SPAWN_PAINT:
-                color = QColor(99, 102, 241, 120)
-            elif self.window.mode == MODE_FLOOR_MATERIAL:
-                color = QColor(236, 72, 153, 120)
-            elif self.window.mode == MODE_RAMP_MATERIAL:
-                color = QColor(168, 85, 247, 120)  # purple to distinguish from floor mode pink
-            else:
-                color = QColor(34, 197, 94, 120)
-            painter.setBrush(color)
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawRect(QRectF(c0 * cell, r0 * cell, (c1 - c0) * cell, (r1 - r0) * cell))
-
-        if (
-            self.window.mode == MODE_SPAWN_ZONE_EDIT
-            and self.window.spawn_zone_drag is not None
-        ):
-            self.paint_spawn_zone_drag_preview(painter, cell)
-
+    def _paint_wall_and_ramp_drag_previews(self, painter: QPainter, cell: float) -> None:
         if self.drag_start_point and self.drag_current_point and self.window.mode == MODE_WALL:
             end = snapped_wall_end(self.drag_start_point, self.drag_current_point)
             self.paint_wall_preview(painter, self.drag_start_point, end, cell)
         elif self.drag_start_cell and self.drag_current_cell and self.window.mode in RAMP_MODES:
             self.paint_ramp_preview(painter, self.drag_start_cell, self.drag_current_cell, cell)
 
+    def _paint_grid_lines(self, painter: QPainter, cell: float, cols: int, rows: int) -> None:
         painter.setPen(QPen(QColor("#2e343b"), 1))
         for col in range(cols + 1):
             x = col * cell
@@ -1571,44 +1571,37 @@ class Canvas(QWidget):
             y = row * cell
             painter.drawLine(0, y, cols * cell, y)
 
+    def _paint_walls(self, painter: QPainter, level: dict, cell: float) -> None:
+        overlay = self.window.show_material_overlay
         default_wall_color = QColor("#f1f5f9")
         for wall in level["walls"]:
             color = face_color(wall) if overlay else default_wall_color
             painter.setPen(QPen(color, WALL_PEN_WIDTH, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
-            painter.drawLine(
-                wall["c0"] * cell, wall["r0"] * cell,
-                wall["c1"] * cell, wall["r1"] * cell,
-            )
+            painter.drawLine(wall["c0"] * cell, wall["r0"] * cell, wall["c1"] * cell, wall["r1"] * cell)
 
-        # Wall-material drag preview is grid-point based: a 2D rectangle when
-        # the drag spans both axes, or a thick line when it stays on a single
-        # row or column (so single-line selections are visible). Painted after
-        # walls so it sits on top of them.
-        if (
+    def _paint_wall_material_drag(self, painter: QPainter, cell: float) -> None:
+        # Grid-point based: 2D rectangle when the drag spans both axes, or a
+        # thick line when it collapses onto a single row or column. Painted
+        # after walls so it sits on top of them.
+        if not (
             self.window.mode == MODE_WALL_MATERIAL
             and self.drag_start_point
             and self.drag_current_point
         ):
-            sc, sr = self.drag_start_point
-            ec, er = self.drag_current_point
-            c0_pt, c1_pt = sorted((sc, ec))
-            r0_pt, r1_pt = sorted((sr, er))
-            highlight = QColor(236, 72, 153, 230)
-            if c0_pt == c1_pt or r0_pt == r1_pt:
-                painter.setPen(QPen(highlight, WALL_HIGHLIGHT_WIDTH, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
-                painter.drawLine(c0_pt * cell, r0_pt * cell, c1_pt * cell, r1_pt * cell)
-                painter.setPen(Qt.PenStyle.NoPen)
-            else:
-                painter.setBrush(QColor(236, 72, 153, 110))
-                painter.setPen(QPen(highlight, 2))
-                painter.drawRect(QRectF(c0_pt * cell, r0_pt * cell, (c1_pt - c0_pt) * cell, (r1_pt - r0_pt) * cell))
-                painter.setPen(Qt.PenStyle.NoPen)
-
-        # Lights — drawn after walls so the markers sit on top of the wall lines.
-        self.paint_lights(painter, level, cell)
-
-        # Hover highlight for material modes — drawn last so it sits on top.
-        self.paint_hover_highlight(painter, cell, level_idx)
+            return
+        sc, sr = self.drag_start_point
+        ec, er = self.drag_current_point
+        c0_pt, c1_pt = sorted((sc, ec))
+        r0_pt, r1_pt = sorted((sr, er))
+        highlight = QColor(236, 72, 153, 230)
+        if c0_pt == c1_pt or r0_pt == r1_pt:
+            painter.setPen(QPen(highlight, WALL_HIGHLIGHT_WIDTH, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+            painter.drawLine(c0_pt * cell, r0_pt * cell, c1_pt * cell, r1_pt * cell)
+        else:
+            painter.setBrush(QColor(236, 72, 153, 110))
+            painter.setPen(QPen(highlight, 2))
+            painter.drawRect(QRectF(c0_pt * cell, r0_pt * cell, (c1_pt - c0_pt) * cell, (r1_pt - r0_pt) * cell))
+        painter.setPen(Qt.PenStyle.NoPen)
 
     def paint_lights(self, painter: QPainter, level: dict, cell: float) -> None:
         lights = level.get("lights", [])
@@ -1995,6 +1988,8 @@ class EditorWindow(QMainWindow):
         self.refresh_ui()
         self.resize_to_map()
 
+    # === Menus & toolbar ===
+
     def build_menus(self) -> None:
         file_menu = self.menuBar().addMenu("&File")
         self.add_menu_action(file_menu, "&Open...", QKeySequence.StandardKey.Open, self.open_file)
@@ -2059,6 +2054,8 @@ class EditorWindow(QMainWindow):
         toolbar.addWidget(self.mode_combo)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
 
+    # === State updates & UI refresh ===
+
     def set_map(self, map_data: dict, mark_dirty: bool) -> None:
         prior_selection: tuple[str, dict] | None = None
         if self.selected_spawn_zone_ref is not None:
@@ -2108,6 +2105,13 @@ class EditorWindow(QMainWindow):
             self.status_label.setText("Structurally valid")
             self.status_label.setToolTip("")
 
+    def _flash_status(self, message: str) -> None:
+        # Short-lived message in the bottom status bar — used for soft
+        # rejections ("no walls in selection") and confirmations.
+        self.statusBar().showMessage(message, STATUS_TIMEOUT_MS)
+
+    # === Navigation (level / tool selection) ===
+
     def select_level(self, index: int) -> None:
         if 0 <= index < len(self.map_data["levels"]):
             self.current_level = index
@@ -2144,6 +2148,8 @@ class EditorWindow(QMainWindow):
         if count == 0:
             return
         self.mode_combo.setCurrentIndex(index % count)
+
+    # === File I/O ===
 
     def open_file(self) -> None:
         if not self.confirm_discard_changes():
@@ -2196,6 +2202,8 @@ class EditorWindow(QMainWindow):
             QMessageBox.StandardButton.Cancel,
         )
         return result == QMessageBox.StandardButton.Discard
+
+    # === Placement (paint / draw new segments) ===
 
     def _face_materials_for_current(self) -> dict[str, str]:
         return {face: self.current_material for face in FACES}
@@ -2311,14 +2319,14 @@ class EditorWindow(QMainWindow):
         start_point, end_point = ramp_points_from_cells(start_cell, end_cell)
         if mode == MODE_RAMP_UP:
             if self.current_level + 1 >= len(self.map_data["levels"]):
-                self.statusBar().showMessage("Ramp not placed: Ramp (Up) needs an upper level", 4000)
+                self._flash_status("Ramp not placed: Ramp (Up) needs an upper level")
                 return
             lower_level = self.current_level
             low = start_point
             high = end_point
         else:
             if self.current_level == 0:
-                self.statusBar().showMessage("Ramp not placed: Ramp (Down) needs a lower level", 4000)
+                self._flash_status("Ramp not placed: Ramp (Down) needs a lower level")
                 return
             lower_level = self.current_level - 1
             low = end_point
@@ -2333,7 +2341,7 @@ class EditorWindow(QMainWindow):
             len(self.map_data["levels"]),
         )
         if msg:
-            self.statusBar().showMessage(f"Ramp not placed: {msg}", 4000)
+            self._flash_status(f"Ramp not placed: {msg}")
             return
         new_ramp = self._new_ramp(low, high, lower_level)
         new_rect = ramp_rect(new_ramp)
@@ -2347,6 +2355,8 @@ class EditorWindow(QMainWindow):
         after["ramps"].append(new_ramp)
         self.apply_change(f"Place {mode}", after)
 
+    # === Material assignment ===
+
     def assign_floor_materials_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         c0, r0, c1, r1 = rect_from_cells(start, end)
         level_idx = self.current_level
@@ -2359,7 +2369,7 @@ class EditorWindow(QMainWindow):
             f for f in level["inaccessible_floors"] if floor_in_rect(f)
         ]
         if not affected_floors:
-            self.statusBar().showMessage("No floor segments in selection.", 4000)
+            self._flash_status("No floor segments in selection.")
             return
         seed = affected_floors[0]
         result = MaterialAssignmentDialog.prompt(
@@ -2400,7 +2410,7 @@ class EditorWindow(QMainWindow):
 
         affected_walls = [w for w in level["walls"] if edge_inside(w)]
         if not affected_walls:
-            self.statusBar().showMessage("No wall edges in selection.", 4000)
+            self._flash_status("No wall edges in selection.")
             return
         seed = affected_walls[0]
         result = MaterialAssignmentDialog.prompt(
@@ -2417,6 +2427,52 @@ class EditorWindow(QMainWindow):
                 wall.update(result)
         self.apply_change("Assign Wall Materials", after)
 
+    def assign_ramp_materials_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
+        # Selection is a cell rect; any ramp whose footprint overlaps the rect
+        # is in. Ramps live on the lower of the two levels they connect; only
+        # those at the current level qualify.
+        c0, r0, c1, r1 = rect_from_cells(start, end)
+        level_idx = self.current_level
+
+        def ramp_in_rect(ramp: dict) -> bool:
+            return level_idx == ramp["lower_level"] and rects_overlap(
+                (c0, r0, c1, r1), ramp_rect(ramp)
+            )
+
+        affected_ramps = [r for r in self.map_data["ramps"] if ramp_in_rect(r)]
+        if not affected_ramps:
+            self._flash_status("No ramps in selection.")
+            return
+        seed = affected_ramps[0]
+        result = MaterialAssignmentDialog.prompt(
+            self, "Ramp Materials",
+            f"{len(affected_ramps)} ramp(s) in selection",
+            self.materials_catalog,
+            {face: seed.get(face, self.current_material) for face in FACES},
+        )
+        if result is None:
+            return
+        after = copy.deepcopy(self.map_data)
+        for ramp in after["ramps"]:
+            if ramp_in_rect(ramp):
+                ramp.update(result)
+        self.apply_change("Assign Ramp Materials", after)
+
+    # === Lights ===
+
+    def _ramp_cells_for_level(self, level_idx: int) -> set[tuple[int, int]]:
+        cells: set[tuple[int, int]] = set()
+        for ramp in self.map_data["ramps"]:
+            if level_idx in (ramp["lower_level"], ramp["lower_level"] + 1):
+                cells.update(ramp_cells(ramp))
+        return cells
+
+    def _wall_endpoints_for_level(self, level_idx: int) -> set[tuple[int, int, int, int]]:
+        return {
+            tuple(normalized_wall([w["c0"], w["r0"], w["c1"], w["r1"]]))
+            for w in self.map_data["levels"][level_idx]["walls"]
+        }
+
     def toggle_light_at(self, pos, cell_size: float) -> None:
         px = pos.x() / cell_size
         py = pos.y() / cell_size
@@ -2429,27 +2485,17 @@ class EditorWindow(QMainWindow):
         side = cell_side_from_click(col, row, px, py)
         level_idx = self.current_level
         endpoints = wall_endpoints_for_cell_side(col, row, side)
-        wall_endpoints_set = {
-            tuple(normalized_wall([w["c0"], w["r0"], w["c1"], w["r1"]]))
-            for w in self.map_data["levels"][level_idx]["walls"]
-        }
-        if endpoints not in wall_endpoints_set:
-            self.statusBar().showMessage(
-                f"No wall on the {side} side of cell [{col}, {row}].", 4000
-            )
+        if endpoints not in self._wall_endpoints_for_level(level_idx):
+            self._flash_status(f"No wall on the {side} side of cell [{col}, {row}].")
             return
         if (col, row) in self._ramp_cells_for_level(level_idx):
-            self.statusBar().showMessage(
-                f"Cannot place a light inside a ramp footprint ([{col}, {row}]).", 4000
-            )
+            self._flash_status(f"Cannot place a light inside a ramp footprint ([{col}, {row}]).")
             return
         after = copy.deepcopy(self.map_data)
         lights = after["levels"][level_idx]["lights"]
         new_light = {"col": col, "row": row, "side": side}
         key = light_key(new_light)
-        existing_idx = next(
-            (i for i, l in enumerate(lights) if light_key(l) == key), None
-        )
+        existing_idx = next((i for i, l in enumerate(lights) if light_key(l) == key), None)
         if existing_idx is not None:
             del lights[existing_idx]
             label = "Remove Light"
@@ -2457,13 +2503,6 @@ class EditorWindow(QMainWindow):
             lights.append(new_light)
             label = "Add Light"
         self.apply_change(label, after)
-
-    def _ramp_cells_for_level(self, level_idx: int) -> set[tuple[int, int]]:
-        cells: set[tuple[int, int]] = set()
-        for ramp in self.map_data["ramps"]:
-            if level_idx in (ramp["lower_level"], ramp["lower_level"] + 1):
-                cells.update(ramp_cells(ramp))
-        return cells
 
     def auto_place_lights_on_current_level(self, row_spacing: int, row_offset: int, col_spacing: int, col_offset: int) -> None:
         self.recent_auto_place_lights = (row_spacing, row_offset, col_spacing, col_offset)
@@ -2473,19 +2512,14 @@ class EditorWindow(QMainWindow):
         level = self.map_data["levels"][level_idx]
         floors_on_level = {(f["col"], f["row"]) for f in level["floors"]}
         ramp_cells_on_level = self._ramp_cells_for_level(level_idx)
-        wall_set = {
-            tuple(normalized_wall([w["c0"], w["r0"], w["c1"], w["r1"]]))
-            for w in level["walls"]
-        }
+        wall_set = self._wall_endpoints_for_level(level_idx)
         # Column spacing controls placement *along* a horizontal wall (i.e.,
         # which X-positions get N/S lights). Row spacing controls placement
         # along a vertical wall (which Z-positions get E/W lights). The
         # python step is `spacing + 1`: spacing=0 → every cell, spacing=1 →
         # every other, spacing=2 → every third, etc.
-        col_step = col_spacing + 1
-        row_step = row_spacing + 1
-        selected_cols = set(range(col_offset, cols, col_step))
-        selected_rows = set(range(row_offset, rows, row_step))
+        selected_cols = set(range(col_offset, cols, col_spacing + 1))
+        selected_rows = set(range(row_offset, rows, row_spacing + 1))
 
         candidates: list[dict] = []
         for (c, r) in floors_on_level:
@@ -2501,7 +2535,7 @@ class EditorWindow(QMainWindow):
                         candidates.append({"col": c, "row": r, "side": side})
 
         if not candidates:
-            self.statusBar().showMessage("Auto-Place Lights: no walls matched the stride.", 4000)
+            self._flash_status("Auto-Place Lights: no walls matched the stride.")
             return
 
         after = copy.deepcopy(self.map_data)
@@ -2515,10 +2549,10 @@ class EditorWindow(QMainWindow):
             existing_keys.add(light_key(candidate))
             added += 1
         if added == 0:
-            self.statusBar().showMessage("Auto-Place Lights: nothing new to add.", 4000)
+            self._flash_status("Auto-Place Lights: nothing new to add.")
             return
         self.apply_change("Auto-Place Lights", after)
-        self.statusBar().showMessage(f"Auto-Place Lights: added {added} light(s).", 4000)
+        self._flash_status(f"Auto-Place Lights: added {added} light(s).")
 
     def open_auto_place_lights_dialog(self) -> None:
         result = AutoPlaceLightsDialog.prompt(
@@ -2535,7 +2569,7 @@ class EditorWindow(QMainWindow):
     def clear_lights_on_current_level(self) -> None:
         level_idx = self.current_level
         if not self.map_data["levels"][level_idx]["lights"]:
-            self.statusBar().showMessage("Clear Lights: this level has no lights.", 4000)
+            self._flash_status("Clear Lights: this level has no lights.")
             return
         after = copy.deepcopy(self.map_data)
         after["levels"][level_idx]["lights"] = []
@@ -2544,47 +2578,16 @@ class EditorWindow(QMainWindow):
     def erase_lights_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         c0, r0, c1, r1 = rect_from_cells(start, end)
         level_idx = self.current_level
-        kept = [
-            l for l in self.map_data["levels"][level_idx]["lights"]
-            if not (c0 <= l["col"] < c1 and r0 <= l["row"] < r1)
-        ]
-        if len(kept) == len(self.map_data["levels"][level_idx]["lights"]):
-            self.statusBar().showMessage("Erase Lights: no lights in selection.", 4000)
+        lights = self.map_data["levels"][level_idx]["lights"]
+        kept = [l for l in lights if not (c0 <= l["col"] < c1 and r0 <= l["row"] < r1)]
+        if len(kept) == len(lights):
+            self._flash_status("Erase Lights: no lights in selection.")
             return
         after = copy.deepcopy(self.map_data)
         after["levels"][level_idx]["lights"] = kept
         self.apply_change("Erase Lights", after)
 
-    def assign_ramp_materials_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
-        # Selection is a cell rect; any ramp whose footprint overlaps the rect
-        # is in. Ramps live on the lower of the two levels they connect; only
-        # those at the current level qualify.
-        c0, r0, c1, r1 = rect_from_cells(start, end)
-        level_idx = self.current_level
-
-        def ramp_in_rect(ramp: dict) -> bool:
-            return level_idx == ramp["lower_level"] and rects_overlap(
-                (c0, r0, c1, r1), ramp_rect(ramp)
-            )
-
-        affected_ramps = [r for r in self.map_data["ramps"] if ramp_in_rect(r)]
-        if not affected_ramps:
-            self.statusBar().showMessage("No ramps in selection.", 4000)
-            return
-        seed = affected_ramps[0]
-        result = MaterialAssignmentDialog.prompt(
-            self, "Ramp Materials",
-            f"{len(affected_ramps)} ramp(s) in selection",
-            self.materials_catalog,
-            {face: seed.get(face, self.current_material) for face in FACES},
-        )
-        if result is None:
-            return
-        after = copy.deepcopy(self.map_data)
-        for ramp in after["ramps"]:
-            if ramp_in_rect(ramp):
-                ramp.update(result)
-        self.apply_change("Assign Ramp Materials", after)
+    # === Erase / hit-testing ===
 
     def erase_at(self, pos, cell_size: float, preserve_floors: bool) -> None:
         hit = self.hit_at(pos, cell_size)
@@ -2692,6 +2695,8 @@ class EditorWindow(QMainWindow):
                 if (ramp["lower_level"], tuple(ramp["low"]), tuple(ramp["high"])) != (lower, low, high)
             ]
         self.apply_change(f"Erase {kind}", after)
+
+    # === Map structure (resize / levels / help) ===
 
     def resize_map(self) -> None:
         result = ResizeMapDialog.prompt(
@@ -2810,27 +2815,10 @@ class EditorWindow(QMainWindow):
         self.apply_change("Remove Level", after)
 
     def show_tool_reference(self) -> None:
-        QMessageBox.information(
-            self,
-            "Tool Reference",
-            "Floor: drag cells to add floor.\n"
-            "Inaccessible Floor: drag cells to add floor slabs that never spawn items, players, or lights.\n"
-            "Actor Spawn Zone (Paint): drag a rectangle, then enter Kind and Count.\n"
-            "Player Spawn Zone (Paint): drag a rectangle. No prompt — players spawn anywhere in any player zone.\n"
-            "Spawn Zone (Edit): click a zone to select; drag the body to move, drag a corner/edge handle to resize. Right-click to edit fields (actor zones only) or delete.\n"
-            "Wall: drag along grid lines to place atomic wall edges.\n"
-            "Ramp (Up): drag from this level toward the upper level.\n"
-            "Ramp (Down): drag from this level toward the lower level.\n"
-            "Erase: click an item, drag cells to erase an area, or right-click for the context menu.\n"
-            "Erase (Keep Floors): erase walls, ramps, and spawn zones while preserving floor and inaccessible floor cells.\n"
-            "Light: click a cell near a wall to add a wall light on that side; click an existing light marker to remove it. "
-            "Use Edit → Auto-Place Lights to fill the current level on a stride; Edit → Clear Lights On Level to start over.\n"
-            "Erase Lights: drag a rectangle to remove every light inside it on the current level.",
-        )
+        body = "\n".join(f"{tool}: {desc}" for tool, desc in TOOL_REFERENCE_ENTRIES)
+        QMessageBox.information(self, "Tool Reference", body)
 
-    # ============================================================================
-    # Spawn zone edit-mode helpers
-    # ============================================================================
+    # === Spawn-zone edit mode ===
 
     def selected_spawn_zone(self) -> dict | None:
         ref = self.selected_spawn_zone_ref
@@ -2997,6 +2985,8 @@ class EditorWindow(QMainWindow):
         del after[ref.list_name][ref.index]
         self.selected_spawn_zone_ref = None
         self.apply_change("Delete Spawn Zone", after)
+
+    # === Close handler ===
 
     def closeEvent(self, event) -> None:
         if self.confirm_discard_changes():
