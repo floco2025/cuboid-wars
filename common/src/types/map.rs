@@ -87,6 +87,7 @@ pub enum ItemType {
     SpeedPowerUp,
     MultiShotPowerUp,
     PhasingPowerUp,
+    AntiGravityPowerUp,
     Cookie,
 }
 

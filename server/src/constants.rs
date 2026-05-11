@@ -29,9 +29,9 @@ pub const COOKIE_POINTS: i32 = 1; // points per cookie
 
 pub const ITEM_LIFETIME: f32 = 60.0;
 pub const ITEM_COLLECTION_RADIUS: f32 = 1.0;
-pub const ITEM_CELLS_PER_ACTIVE: usize = 60;
-pub const ITEM_MIN_ACTIVE: usize = 2;
-pub const ITEM_MAX_ACTIVE: usize = 20;
+pub const ITEM_CELLS_PER_ACTIVE: usize = 30;
+pub const ITEM_MIN_ACTIVE: usize = 10;
+pub const ITEM_MAX_ACTIVE: usize = 50;
 
 // ============================================================================
 // Power-Ups
@@ -40,3 +40,4 @@ pub const ITEM_MAX_ACTIVE: usize = 20;
 pub const POWER_UP_SPEED_DURATION: f32 = 20.0;
 pub const POWER_UP_MULTI_SHOT_DURATION: f32 = 20.0;
 pub const POWER_UP_PHASING_DURATION: f32 = 15.0;
+pub const POWER_UP_ANTI_GRAVITY_DURATION: f32 = 20.0;

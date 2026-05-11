@@ -32,6 +32,7 @@ pub struct Player {
     pub speed_power_up: bool,
     pub multi_shot_power_up: bool,
     pub phasing_power_up: bool,
+    pub anti_gravity_power_up: bool,
     pub stunned: bool,
 }
 
@@ -54,6 +55,7 @@ impl Player {
             speed_power_up: false,
             multi_shot_power_up: false,
             phasing_power_up: false,
+            anti_gravity_power_up: false,
             stunned: false,
         }
     }

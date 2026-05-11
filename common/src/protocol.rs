@@ -160,6 +160,7 @@ pub struct SPlayerStatus {
     pub speed_power_up: bool,
     pub multi_shot_power_up: bool,
     pub phasing_power_up: bool,
+    pub anti_gravity_power_up: bool,
     pub stunned: bool,
 }
 

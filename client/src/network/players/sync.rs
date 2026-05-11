@@ -140,6 +140,7 @@ fn spawn_snapshot_player(
             speed_power_up: player.speed_power_up,
             multi_shot_power_up: player.multi_shot_power_up,
             phasing_power_up: player.phasing_power_up,
+            anti_gravity_power_up: player.anti_gravity_power_up,
             stunned: player.stunned,
         },
     );

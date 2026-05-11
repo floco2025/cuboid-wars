@@ -97,6 +97,7 @@ pub(crate) fn plan_actor_moves(
                 motion.0,
                 collision_world,
                 false,
+                false, // actors never have anti-gravity
                 actor_physics,
                 target_pos.x,
                 target_pos.z,

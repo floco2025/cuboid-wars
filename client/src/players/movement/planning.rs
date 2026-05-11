@@ -1,7 +1,9 @@
 use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
-    constants::{ALWAYS_PHASING, CHARACTER_GROUND_SNAP_DISTANCE, PHYSICS_EPSILON, UPDATE_BROADCAST_INTERVAL},
+    constants::{
+        ALWAYS_ANTI_GRAVITY, ALWAYS_PHASING, CHARACTER_GROUND_SNAP_DISTANCE, PHYSICS_EPSILON, UPDATE_BROADCAST_INTERVAL,
+    },
     physics::{CharacterMovePlan, CollisionWorld, step_character_movement},
     protocol::Position,
 };
@@ -68,12 +70,15 @@ pub(crate) fn plan_player_moves(
 
         if let Some(collision_world) = collision_world {
             let has_phasing = ALWAYS_PHASING || players.get(player_id).is_some_and(|info| info.phasing_power_up);
+            let has_anti_gravity =
+                ALWAYS_ANTI_GRAVITY || players.get(player_id).is_some_and(|info| info.anti_gravity_power_up);
 
             let step = step_character_movement(
                 &client_pos,
                 motion.0,
                 collision_world,
                 has_phasing,
+                has_anti_gravity,
                 player_physics,
                 target.x,
                 target.z,

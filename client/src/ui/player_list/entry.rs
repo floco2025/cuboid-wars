@@ -64,6 +64,7 @@ pub(super) fn spawn_player_entry(
                     spawn_power_up_icon(row, player_info.speed_power_up, ItemType::SpeedPowerUp);
                     spawn_power_up_icon(row, player_info.multi_shot_power_up, ItemType::MultiShotPowerUp);
                     spawn_power_up_icon(row, player_info.phasing_power_up, ItemType::PhasingPowerUp);
+                    spawn_power_up_icon(row, player_info.anti_gravity_power_up, ItemType::AntiGravityPowerUp);
                 });
 
             spawn_health_bar(

@@ -101,11 +101,13 @@ fn plan_player_moves(
         };
 
         let has_phasing = players.get(player_id).is_some_and(PlayerInfo::has_phasing);
+        let has_anti_gravity = players.get(player_id).is_some_and(PlayerInfo::has_anti_gravity);
         let step = step_character_movement(
             pos,
             motion.0,
             collision_world,
             has_phasing,
+            has_anti_gravity,
             player_physics,
             target_xz.x,
             target_xz.z,

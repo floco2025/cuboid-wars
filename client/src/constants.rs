@@ -90,6 +90,7 @@ pub const ITEM_EMISSIVE_STRENGTH: f32 = 0.1; // Multiplier for emissive glow
 pub const ITEM_SPEED_COLOR: Color = Color::srgb(0.2, 0.7, 1.0); // Light blue
 pub const ITEM_MULTISHOT_COLOR: Color = Color::srgb(1.0, 0.2, 0.2); // Red
 pub const ITEM_PHASING_COLOR: Color = Color::srgb(0.2, 1.0, 0.2); // Green
+pub const ITEM_ANTI_GRAVITY_COLOR: Color = Color::srgb(0.7, 0.3, 1.0); // Purple
 
 // ============================================================================
 // Cookies

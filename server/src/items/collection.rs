@@ -2,8 +2,8 @@ use bevy::prelude::*;
 
 use crate::{
     constants::{
-        COOKIE_POINTS, COOKIE_RESPAWN_TIME, ITEM_COLLECTION_RADIUS, POWER_UP_MULTI_SHOT_DURATION,
-        POWER_UP_PHASING_DURATION, POWER_UP_SPEED_DURATION,
+        COOKIE_POINTS, COOKIE_RESPAWN_TIME, ITEM_COLLECTION_RADIUS, POWER_UP_ANTI_GRAVITY_DURATION,
+        POWER_UP_MULTI_SHOT_DURATION, POWER_UP_PHASING_DURATION, POWER_UP_SPEED_DURATION,
     },
     net::ServerToClient,
     network::broadcast_to_all,
@@ -81,6 +81,9 @@ pub fn item_collection_system(
                 }
                 ItemType::PhasingPowerUp => {
                     player_info.phasing_power_up_timer = POWER_UP_PHASING_DURATION;
+                }
+                ItemType::AntiGravityPowerUp => {
+                    player_info.anti_gravity_power_up_timer = POWER_UP_ANTI_GRAVITY_DURATION;
                 }
                 ItemType::Cookie => unreachable!(),
             }

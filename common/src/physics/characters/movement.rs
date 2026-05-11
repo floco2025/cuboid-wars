@@ -12,8 +12,8 @@ use super::{
 use crate::{
     config::CharacterPhysicsConfig,
     constants::{
-        CHARACTER_GRAVITY, CHARACTER_GROUND_SNAP_DISTANCE, CHARACTER_STEP_HEIGHT, CHARACTER_STEP_MIN_WIDTH,
-        CHARACTER_TERMINAL_VELOCITY, PHYSICS_EPSILON, PLAYER_JUMP_SPEED,
+        POWER_UP_ANTI_GRAVITY_MULTIPLIER, CHARACTER_GRAVITY, CHARACTER_GROUND_SNAP_DISTANCE, CHARACTER_STEP_HEIGHT,
+        CHARACTER_STEP_MIN_WIDTH, CHARACTER_TERMINAL_VELOCITY, PHYSICS_EPSILON, PLAYER_JUMP_SPEED,
     },
     physics::world::{CollisionWorld, ShapeCastHit},
     protocol::Position,
@@ -56,6 +56,7 @@ pub fn step_character_movement(
     start_vertical_velocity: f32,
     collision_world: &CollisionWorld,
     has_phasing: bool,
+    has_anti_gravity: bool,
     physics: CharacterPhysicsConfig,
     target_x: f32,
     target_z: f32,
@@ -75,8 +76,15 @@ pub fn step_character_movement(
         next_vertical_velocity = 0.0;
     } else {
         // Apply gravity for this frame, but cap falling speed so large falls
-        // remain stable and predictable.
-        next_vertical_velocity -= CHARACTER_GRAVITY * delta;
+        // remain stable and predictable. The anti-gravity power-up scales the
+        // gravity acceleration down (terminal velocity is unchanged — it's a
+        // velocity cap, not an acceleration cap).
+        let gravity = if has_anti_gravity {
+            CHARACTER_GRAVITY * POWER_UP_ANTI_GRAVITY_MULTIPLIER
+        } else {
+            CHARACTER_GRAVITY
+        };
+        next_vertical_velocity -= gravity * delta;
         next_vertical_velocity = next_vertical_velocity.max(-CHARACTER_TERMINAL_VELOCITY);
     }
     let controller = character_controller();

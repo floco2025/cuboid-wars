@@ -86,6 +86,7 @@ pub const PROJECTILE_BOUNCE_RETENTION: f32 = 0.9; // fraction of speed retained 
 pub const POWER_UP_SPEED_MULTIPLIER: f32 = 1.8;
 pub const POWER_UP_MULTI_SHOT_MULTIPLIER: i32 = 5;
 pub const POWER_UP_MULTI_SHOT_ANGLE: f32 = 2.0;
+pub const POWER_UP_ANTI_GRAVITY_MULTIPLIER: f32 = 0.2;
 
 // ============================================================================
 // Debug Flags
@@ -94,3 +95,4 @@ pub const POWER_UP_MULTI_SHOT_ANGLE: f32 = 2.0;
 pub const ALWAYS_SPEED: bool = false;
 pub const ALWAYS_MULTI_SHOT: bool = false;
 pub const ALWAYS_PHASING: bool = false;
+pub const ALWAYS_ANTI_GRAVITY: bool = false;

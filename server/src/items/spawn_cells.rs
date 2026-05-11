@@ -13,13 +13,17 @@ use common::{
 };
 
 pub(super) fn choose_item_type(rng: &mut ThreadRng) -> ItemType {
+    // Uniform 1/4 over the four power-up variants. `Cookie` is spawned
+    // separately and isn't in this pool.
     let rand_val = rng.random::<f64>();
-    if rand_val < 1.0 / 3.0 {
+    if rand_val < 1.0 / 4.0 {
         ItemType::SpeedPowerUp
-    } else if rand_val < 2.0 / 3.0 {
+    } else if rand_val < 2.0 / 4.0 {
         ItemType::MultiShotPowerUp
-    } else {
+    } else if rand_val < 3.0 / 4.0 {
         ItemType::PhasingPowerUp
+    } else {
+        ItemType::AntiGravityPowerUp
     }
 }
 

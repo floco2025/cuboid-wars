@@ -44,6 +44,7 @@ impl ActorMoveContext<'_> {
             self.vertical_velocity,
             self.collision_world,
             false,
+            false, // actors never have anti-gravity
             self.actor_physics,
             target_x,
             target_z,

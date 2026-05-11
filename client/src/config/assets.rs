@@ -89,6 +89,7 @@ impl AssetSet {
             ItemType::SpeedPowerUp => "SpeedPowerUp",
             ItemType::MultiShotPowerUp => "MultiShotPowerUp",
             ItemType::PhasingPowerUp => "PhasingPowerUp",
+            ItemType::AntiGravityPowerUp => "AntiGravityPowerUp",
             ItemType::Cookie => "Cookie",
         };
         let id = self

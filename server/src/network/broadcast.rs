@@ -58,6 +58,7 @@ pub fn snapshot_logged_in_players(
                     speed_power_up: info.has_speed(),
                     multi_shot_power_up: info.has_multi_shot(),
                     phasing_power_up: info.has_phasing(),
+                    anti_gravity_power_up: info.has_anti_gravity(),
                     stunned: info.stun_timer > 0.0,
                 },
             ))

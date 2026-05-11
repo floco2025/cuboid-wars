@@ -82,6 +82,7 @@ pub fn handle_player_login_message(
             speed_power_up: msg.player.speed_power_up,
             multi_shot_power_up: msg.player.multi_shot_power_up,
             phasing_power_up: msg.player.phasing_power_up,
+            anti_gravity_power_up: msg.player.anti_gravity_power_up,
             stunned: msg.player.stunned,
         },
     );

@@ -212,7 +212,8 @@ pub fn handle_player_status_message(
                 // Only play power-up sound effect if it wasn't a downgrade
                 let lost_power_up = player_info.speed_power_up && !msg.speed_power_up
                     || player_info.multi_shot_power_up && !msg.multi_shot_power_up
-                    || player_info.phasing_power_up && !msg.phasing_power_up;
+                    || player_info.phasing_power_up && !msg.phasing_power_up
+                    || player_info.anti_gravity_power_up && !msg.anti_gravity_power_up;
 
                 if !lost_power_up {
                     commands.spawn((
@@ -226,6 +227,7 @@ pub fn handle_player_status_message(
         player_info.speed_power_up = msg.speed_power_up;
         player_info.multi_shot_power_up = msg.multi_shot_power_up;
         player_info.phasing_power_up = msg.phasing_power_up;
+        player_info.anti_gravity_power_up = msg.anti_gravity_power_up;
         player_info.stunned = msg.stunned;
     }
 }
