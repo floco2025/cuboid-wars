@@ -185,9 +185,9 @@
       }
     },
     "mud-with-vegetation": {
-      "tile_size": 4.0,
+      "tile_size": 6.0,
       "metallic": 0.5,
-      "roughness": 0.5,
+      "roughness": 1.0,
       "repeat": true,
       "linear_data_textures": true,
       "textures": {
