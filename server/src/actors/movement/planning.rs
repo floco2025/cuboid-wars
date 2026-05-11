@@ -7,7 +7,7 @@ use crate::{
         steering::{actor_desired_intent, random_avoidance_side, steering_directions},
     },
     config::ServerGameplayConfig,
-    resources::{ActorInfo, ActorMap, PlayerMap},
+    resources::{ActorAvoidanceState, ActorInfo, ActorMap, PlayerMap},
 };
 use common::{
     config::GameplayConfig,
@@ -100,6 +100,7 @@ pub(super) fn update_reached_go_to_state(info: &mut ActorInfo) {
         return;
     }
     info.go_to_position_is_chase = false;
+    info.is_returning_to_spawn = false;
 }
 
 fn select_patrol_actor_move(
@@ -108,7 +109,7 @@ fn select_patrol_actor_move(
     patrol_speed: f32,
     rng: &mut ThreadRng,
 ) -> SelectedActorMove {
-    info.wall_avoidance_direction = None;
+    info.avoidance_state = ActorAvoidanceState::None;
     let patrol_intent = info.patrol_intent;
     if patrol_intent.direction().is_none() {
         return context.idle_move();
@@ -137,7 +138,7 @@ pub(super) fn select_go_to_actor_move(
     rng: &mut ThreadRng,
 ) -> SelectedActorMove {
     let Some(direction) = desired_intent.direction() else {
-        info.wall_avoidance_direction = None;
+        info.avoidance_state = ActorAvoidanceState::None;
         return context.idle_move();
     };
     let speed = desired_intent
@@ -151,14 +152,19 @@ pub(super) fn select_go_to_actor_move(
     match choose_steering_move(context, direction, speed, rng) {
         SteeringMoveChoice::Accepted {
             selected,
-            wall_avoidance_direction,
+            avoidance_state,
         } => {
-            info.wall_avoidance_direction = wall_avoidance_direction;
+            info.avoidance_state = avoidance_state;
             return selected;
         }
         SteeringMoveChoice::BlockedByCharacter => {
             if let Some(selected_move) = choose_character_avoidance_move(context, direction, speed, rng) {
-                info.wall_avoidance_direction = selected_move.intent.direction();
+                info.avoidance_state = selected_move
+                    .intent
+                    .direction()
+                    .map_or(ActorAvoidanceState::None, |direction| ActorAvoidanceState::Character {
+                        direction,
+                    });
                 return selected_move;
             }
             return context.idle_move();
@@ -167,7 +173,12 @@ pub(super) fn select_go_to_actor_move(
     }
 
     if let Some(selected_move) = choose_new_wall_avoidance_move(context, direction, speed, rng) {
-        info.wall_avoidance_direction = selected_move.intent.direction();
+        info.avoidance_state = selected_move
+            .intent
+            .direction()
+            .map_or(ActorAvoidanceState::None, |direction| ActorAvoidanceState::Wall {
+                direction,
+            });
         return selected_move;
     }
 
@@ -181,9 +192,15 @@ pub(super) fn continue_wall_avoidance_if_needed(
     go_to_position: Option<Position>,
     info: &mut ActorInfo,
 ) -> Option<SelectedActorMove> {
-    let avoidance_direction = info.wall_avoidance_direction?;
+    let avoidance_direction = match info.avoidance_state {
+        ActorAvoidanceState::Wall { direction } => direction,
+        ActorAvoidanceState::None | ActorAvoidanceState::Character { .. } => {
+            info.avoidance_state = ActorAvoidanceState::None;
+            return None;
+        }
+    };
     if direct_path_is_clear_enough(context, direction, speed, go_to_position) {
-        info.wall_avoidance_direction = None;
+        info.avoidance_state = ActorAvoidanceState::None;
         return None;
     }
 
@@ -197,7 +214,12 @@ pub(super) fn continue_wall_avoidance_if_needed(
         MoveCandidateResult::BlockedByWorld { .. } => {
             let next_move = choose_opposite_wall_avoidance_move(context, avoidance_direction, speed);
             if let Some(selected_move) = &next_move {
-                info.wall_avoidance_direction = selected_move.intent.direction();
+                info.avoidance_state = selected_move
+                    .intent
+                    .direction()
+                    .map_or(ActorAvoidanceState::None, |direction| ActorAvoidanceState::Wall {
+                        direction,
+                    });
             }
             next_move
         }
@@ -205,12 +227,12 @@ pub(super) fn continue_wall_avoidance_if_needed(
 }
 
 // Static-world blocking and character blocking deliberately lead to different
-// behavior: static walls can start wall avoidance, while other characters make
-// this actor yield for the frame.
+// behavior: static walls can start persistent wall-following, while character
+// sidesteps stay local to the current frame.
 enum SteeringMoveChoice {
     Accepted {
         selected: SelectedActorMove,
-        wall_avoidance_direction: Option<f32>,
+        avoidance_state: ActorAvoidanceState,
     },
     BlockedByCharacter,
     BlockedByWorld,
@@ -223,6 +245,7 @@ fn choose_steering_move(
     rng: &mut ThreadRng,
 ) -> SteeringMoveChoice {
     let mut was_blocked_by_character = false;
+    let mut was_blocked_by_world = false;
     let avoidance_side = random_avoidance_side(rng);
     for (index, candidate_direction) in steering_directions(direction, avoidance_side).into_iter().enumerate() {
         let candidate_intent = ActorMoveIntent::Moving {
@@ -231,19 +254,34 @@ fn choose_steering_move(
         };
         match context.evaluate_candidate(candidate_intent) {
             MoveCandidateResult::Accepted { selected } => {
+                let avoidance_state = if index == 0 {
+                    ActorAvoidanceState::None
+                } else if was_blocked_by_world {
+                    ActorAvoidanceState::Wall {
+                        direction: candidate_direction,
+                    }
+                } else if was_blocked_by_character {
+                    ActorAvoidanceState::Character {
+                        direction: candidate_direction,
+                    }
+                } else {
+                    ActorAvoidanceState::None
+                };
                 return SteeringMoveChoice::Accepted {
                     selected,
-                    wall_avoidance_direction: (index != 0).then_some(candidate_direction),
+                    avoidance_state,
                 };
             }
             MoveCandidateResult::BlockedByCharacter => {
                 was_blocked_by_character = true;
             }
-            MoveCandidateResult::BlockedByWorld { .. } => {}
+            MoveCandidateResult::BlockedByWorld { .. } => {
+                was_blocked_by_world = true;
+            }
         }
     }
 
-    if was_blocked_by_character {
+    if was_blocked_by_character && !was_blocked_by_world {
         SteeringMoveChoice::BlockedByCharacter
     } else {
         SteeringMoveChoice::BlockedByWorld

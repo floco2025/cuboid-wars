@@ -7,7 +7,7 @@ use common::{
 };
 use rand::rng;
 
-use crate::resources::ActorInfo;
+use crate::resources::{ActorAvoidanceState, ActorInfo};
 
 use super::{
     context::{ActorMoveContext, MoveCandidateResult},
@@ -44,9 +44,10 @@ fn actor_info() -> ActorInfo {
         patrol_intent: ActorMoveIntent::Idle,
         go_to_position: None,
         go_to_position_is_chase: false,
+        is_returning_to_spawn: false,
         return_path: Default::default(),
         chase_reacquire_timer: 0.0,
-        wall_avoidance_direction: None,
+        avoidance_state: ActorAvoidanceState::None,
         last_broadcast_move_intent: ActorMoveIntent::Idle,
         move_intent_send_timer: 0.0,
     }
@@ -162,9 +163,10 @@ fn actor_without_go_to_position_plans_after_targeted_actor() {
         patrol_intent: ActorMoveIntent::Idle,
         go_to_position: Some(Position { x: 1.0, y: 0.0, z: 0.0 }),
         go_to_position_is_chase: true,
+        is_returning_to_spawn: false,
         return_path: Default::default(),
         chase_reacquire_timer: 0.0,
-        wall_avoidance_direction: None,
+        avoidance_state: ActorAvoidanceState::None,
         last_broadcast_move_intent: ActorMoveIntent::Idle,
         move_intent_send_timer: 0.0,
     };
@@ -197,12 +199,25 @@ fn reached_non_chase_target_does_not_start_reacquire_cooldown() {
 #[test]
 fn reached_return_waypoint_advances_to_next_waypoint() {
     let mut info = actor_info();
+    info.is_returning_to_spawn = true;
     info.return_path.push_back(Position { x: 2.0, y: 0.0, z: 2.0 });
 
     update_reached_go_to_state(&mut info);
 
     assert_eq!(info.go_to_position, Some(Position { x: 2.0, y: 0.0, z: 2.0 }));
     assert!(!info.go_to_position_is_chase);
+    assert!(info.is_returning_to_spawn);
+}
+
+#[test]
+fn reached_final_return_waypoint_clears_return_state() {
+    let mut info = actor_info();
+    info.is_returning_to_spawn = true;
+
+    update_reached_go_to_state(&mut info);
+
+    assert!(!info.go_to_position_is_chase);
+    assert!(!info.is_returning_to_spawn);
 }
 
 #[test]
@@ -338,7 +353,7 @@ fn character_blocked_steering_selects_idle_when_all_steering_options_are_blocked
     );
 
     assert_eq!(selected.intent, ActorMoveIntent::Idle);
-    assert_eq!(info.wall_avoidance_direction, None);
+    assert_eq!(info.avoidance_state, ActorAvoidanceState::None);
 }
 
 #[test]
@@ -363,7 +378,7 @@ fn character_blocked_steering_tries_sidestep_before_idling() {
     );
 
     assert_ne!(selected.intent, ActorMoveIntent::Idle);
-    assert!(info.wall_avoidance_direction.is_some());
+    assert!(matches!(info.avoidance_state, ActorAvoidanceState::Character { .. }));
 }
 
 #[test]
@@ -374,7 +389,9 @@ fn wall_avoidance_clears_when_direct_path_is_clear_again() {
     let actor_starts = [];
     let context = context(test_entity(1), &pos, &collision_world, &planned_moves, &actor_starts);
     let mut info = actor_info();
-    info.wall_avoidance_direction = Some(std::f32::consts::FRAC_PI_2);
+    info.avoidance_state = ActorAvoidanceState::Wall {
+        direction: std::f32::consts::FRAC_PI_2,
+    };
 
     let selected = continue_wall_avoidance_if_needed(
         &context,
@@ -385,7 +402,29 @@ fn wall_avoidance_clears_when_direct_path_is_clear_again() {
     );
 
     assert!(selected.is_none());
-    assert_eq!(info.wall_avoidance_direction, None);
+    assert_eq!(info.avoidance_state, ActorAvoidanceState::None);
+}
+
+#[test]
+fn character_avoidance_does_not_continue_as_wall_avoidance() {
+    let pos = Position::default();
+    let collision_world = collision_world(&[]);
+    let planned_moves = [];
+    let actor_starts = [];
+    let context = context(test_entity(1), &pos, &collision_world, &planned_moves, &actor_starts);
+    let mut info = actor_info();
+    info.avoidance_state = ActorAvoidanceState::Character { direction: 0.0 };
+
+    let selected = continue_wall_avoidance_if_needed(
+        &context,
+        std::f32::consts::FRAC_PI_2,
+        actor_speed(),
+        Some(Position { x: 5.0, y: 0.0, z: 0.0 }),
+        &mut info,
+    );
+
+    assert!(selected.is_none());
+    assert_eq!(info.avoidance_state, ActorAvoidanceState::None);
 }
 
 #[test]
@@ -407,7 +446,7 @@ fn committed_wall_avoidance_yields_when_blocked_by_character() {
     )];
     let context = context(test_entity(1), &pos, &collision_world, &planned_moves, &actor_starts);
     let mut info = actor_info();
-    info.wall_avoidance_direction = Some(0.0);
+    info.avoidance_state = ActorAvoidanceState::Wall { direction: 0.0 };
 
     let selected = continue_wall_avoidance_if_needed(
         &context,
@@ -419,7 +458,7 @@ fn committed_wall_avoidance_yields_when_blocked_by_character() {
     .expect("wall avoidance should yield with an idle move");
 
     assert_eq!(selected.intent, ActorMoveIntent::Idle);
-    assert_eq!(info.wall_avoidance_direction, Some(0.0));
+    assert_eq!(info.avoidance_state, ActorAvoidanceState::Wall { direction: 0.0 });
 }
 
 #[test]

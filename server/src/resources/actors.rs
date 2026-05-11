@@ -4,6 +4,18 @@ use bevy::prelude::*;
 
 use common::protocol::{ActorId, ActorMoveIntent, Position};
 
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub enum ActorAvoidanceState {
+    #[default]
+    None,
+    Wall {
+        direction: f32,
+    },
+    Character {
+        direction: f32,
+    },
+}
+
 pub struct ActorInfo {
     pub entity: Entity,
     pub spawn_zone_index: usize,
@@ -12,9 +24,10 @@ pub struct ActorInfo {
     pub patrol_intent: ActorMoveIntent,
     pub go_to_position: Option<Position>,
     pub go_to_position_is_chase: bool,
+    pub is_returning_to_spawn: bool,
     pub return_path: VecDeque<Position>,
     pub chase_reacquire_timer: f32,
-    pub wall_avoidance_direction: Option<f32>,
+    pub avoidance_state: ActorAvoidanceState,
     pub last_broadcast_move_intent: ActorMoveIntent,
     pub move_intent_send_timer: f32,
 }

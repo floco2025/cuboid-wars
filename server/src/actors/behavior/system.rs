@@ -49,14 +49,16 @@ pub fn actor_behavior_system(
         // start the chase reacquire cooldown when applicable, and walk it back.
         let zone_bounds = map_config.actor_spawn_zones[info.spawn_zone_index].xz_bounds(&map_geometry);
         if xz_distance_from_rect(pos, zone_bounds) > kind_server_config.max_wander_distance {
-            start_chase_reacquire_cooldown_if_chasing(info, kind_server_config.chase_reacquire_cooldown);
-            set_return_path_to_spawn_zone(
-                info,
-                pos,
-                &map_config.actor_spawn_zones[info.spawn_zone_index],
-                &nav_graph,
-                zone_bounds,
-            );
+            if !info.is_returning_to_spawn {
+                start_chase_reacquire_cooldown_if_chasing(info, kind_server_config.chase_reacquire_cooldown);
+                set_return_path_to_spawn_zone(
+                    info,
+                    pos,
+                    &map_config.actor_spawn_zones[info.spawn_zone_index],
+                    &nav_graph,
+                    zone_bounds,
+                );
+            }
             info.go_to_position_is_chase = false;
             continue;
         }
@@ -74,6 +76,7 @@ pub fn actor_behavior_system(
             )
         {
             info.return_path.clear();
+            info.is_returning_to_spawn = false;
             info.go_to_position = Some(target_pos);
             info.go_to_position_is_chase = true;
             continue;
@@ -119,6 +122,7 @@ fn set_return_path_to_spawn_zone(
         .return_path
         .pop_front()
         .or_else(|| Some(closest_point_in_rect(pos, zone_bounds)));
+    info.is_returning_to_spawn = true;
 }
 
 #[cfg(test)]
@@ -127,7 +131,7 @@ mod tests {
     use common::protocol::ActorMoveIntent;
 
     use super::*;
-    use crate::resources::ActorInfo;
+    use crate::resources::{ActorAvoidanceState, ActorInfo};
 
     fn actor_info(chase_reacquire_timer: f32) -> ActorInfo {
         ActorInfo {
@@ -138,9 +142,10 @@ mod tests {
             patrol_intent: ActorMoveIntent::Idle,
             go_to_position: None,
             go_to_position_is_chase: false,
+            is_returning_to_spawn: false,
             return_path: Default::default(),
             chase_reacquire_timer,
-            wall_avoidance_direction: None,
+            avoidance_state: ActorAvoidanceState::None,
             last_broadcast_move_intent: ActorMoveIntent::Idle,
             move_intent_send_timer: 0.0,
         }
@@ -175,5 +180,39 @@ mod tests {
         start_chase_reacquire_cooldown_if_chasing(&mut info, 5.0);
 
         assert_eq!(info.chase_reacquire_timer, 0.0);
+    }
+
+    #[test]
+    fn setting_return_path_marks_actor_as_returning() {
+        let mut cells = crate::resources::CellGrid::new(1, 1);
+        cells.rows[0][0].has_floor = true;
+        let map_config = MapConfig {
+            levels: vec![crate::resources::LevelGrid {
+                cells,
+                edges: crate::resources::EdgeGrid::new(1, 1),
+            }],
+            actor_spawn_zones: Vec::new(),
+            player_spawn_zones: Vec::new(),
+        };
+        let nav_graph = NavGraph::new(map_config, MapGeometry::new(1, 1));
+        let zone = crate::resources::ActorSpawnZone {
+            level: 0,
+            cols: [0, 1],
+            rows: [0, 1],
+            kind: "mine_1".into(),
+            count: 1,
+        };
+        let mut info = actor_info(0.0);
+
+        set_return_path_to_spawn_zone(
+            &mut info,
+            &Position { x: 0.0, y: 0.0, z: 0.0 },
+            &zone,
+            &nav_graph,
+            (-2.0, -2.0, 2.0, 2.0),
+        );
+
+        assert!(info.is_returning_to_spawn);
+        assert!(info.go_to_position.is_some());
     }
 }
