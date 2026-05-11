@@ -19,7 +19,7 @@ pub const ACTOR_MOVE_INTENT_DIR_CHANGE_THRESHOLD: f32 = 2.0; // degrees
 // Cookies
 // ============================================================================
 
-pub const COOKIE_SPAWNING_ENABLED: bool = false;
+pub const COOKIE_SPAWNING_ENABLED: bool = true;
 pub const COOKIE_RESPAWN_TIME: f32 = 30.0;
 pub const COOKIE_POINTS: i32 = 1; // points per cookie
 

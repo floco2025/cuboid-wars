@@ -58,6 +58,7 @@ fn map_with_zones(
         grid_rows: grid,
         actor_spawn_zones,
         player_spawn_zones,
+        cookie_spawn_zones: Vec::new(),
         levels,
         ramps,
     }
@@ -96,7 +97,10 @@ fn validation_accepts_actor_zone_on_higher_level_floor() {
 }
 
 #[test]
-fn validation_rejects_actor_zone_on_inaccessible_floor() {
+fn validation_accepts_actor_zone_overlapping_inaccessible_floor() {
+    // Spawn zones may freely cover any cell, including inaccessible-floor slabs.
+    // The runtime spawn picker filters non-spawnable cells out at pick time
+    // (see `Cell::is_spawnable`), so authoring a zone that brushes one is fine.
     let map_def = map_with_zones(
         4,
         vec![level_with_inaccessible(vec![[0, 0]], vec![[1, 0]])],
@@ -105,14 +109,11 @@ fn validation_rejects_actor_zone_on_inaccessible_floor() {
         Vec::new(),
     );
 
-    let err = validate_map(&map_def).expect_err("actor zone must not be on inaccessible floor");
-    let msg = err.to_string();
-    assert!(msg.contains("inaccessible floor"), "got: {msg}");
-    assert!(msg.contains("actor_spawn_zones"), "got: {msg}");
+    validate_map(&map_def).expect("actor zone overlapping inaccessible floor should load");
 }
 
 #[test]
-fn validation_rejects_player_zone_on_inaccessible_floor() {
+fn validation_accepts_player_zone_overlapping_inaccessible_floor() {
     let map_def = map_with_zones(
         4,
         vec![level_with_inaccessible(vec![[0, 0]], vec![[1, 0]])],
@@ -121,10 +122,7 @@ fn validation_rejects_player_zone_on_inaccessible_floor() {
         Vec::new(),
     );
 
-    let err = validate_map(&map_def).expect_err("player zone must not be on inaccessible floor");
-    let msg = err.to_string();
-    assert!(msg.contains("inaccessible floor"), "got: {msg}");
-    assert!(msg.contains("player_spawn_zones"), "got: {msg}");
+    validate_map(&map_def).expect("player zone overlapping inaccessible floor should load");
 }
 
 #[test]
@@ -151,7 +149,9 @@ fn inaccessible_floor_emits_physical_slab_but_not_regular_floor() {
 }
 
 #[test]
-fn validation_rejects_actor_zone_on_same_level_ramp() {
+fn validation_accepts_actor_zone_overlapping_ramp_footprint() {
+    // Ramp footprints are not spawnable, but a zone is free to brush one;
+    // the spawn picker skips ramp cells (see `Cell::is_spawnable`).
     let map_def = map_with_zones(
         4,
         vec![level(vec![[3, 3]]), level(vec![[0, 0]]), level(vec![[3, 3]])],
@@ -160,14 +160,11 @@ fn validation_rejects_actor_zone_on_same_level_ramp() {
         vec![ramp([0, 0], [1, 2], 1)],
     );
 
-    let err = validate_map(&map_def).expect_err("actor zone must not overlap ramp footprint");
-    let msg = err.to_string();
-    assert!(msg.contains("overlaps a ramp on level 1"), "got: {msg}");
-    assert!(msg.contains("actor_spawn_zones"), "got: {msg}");
+    validate_map(&map_def).expect("actor zone overlapping ramp footprint should load");
 }
 
 #[test]
-fn validation_rejects_player_zone_on_same_level_ramp() {
+fn validation_accepts_player_zone_overlapping_ramp_footprint() {
     let map_def = map_with_zones(
         4,
         vec![level(vec![[3, 3]]), level(vec![[0, 0]]), level(vec![[3, 3]])],
@@ -176,10 +173,7 @@ fn validation_rejects_player_zone_on_same_level_ramp() {
         vec![ramp([0, 0], [1, 2], 1)],
     );
 
-    let err = validate_map(&map_def).expect_err("player zone must not overlap ramp footprint");
-    let msg = err.to_string();
-    assert!(msg.contains("overlaps a ramp on level 1"), "got: {msg}");
-    assert!(msg.contains("player_spawn_zones"), "got: {msg}");
+    validate_map(&map_def).expect("player zone overlapping ramp footprint should load");
 }
 
 #[test]

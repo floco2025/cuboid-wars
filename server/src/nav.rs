@@ -275,6 +275,7 @@ mod tests {
                 levels: vec![level(cells, edges)],
                 actor_spawn_zones: Vec::new(),
                 player_spawn_zones: Vec::new(),
+            cookie_spawn_zones: Vec::new(),
             },
             MapGeometry::new(2, 2),
         );
@@ -315,6 +316,7 @@ mod tests {
                 ],
                 actor_spawn_zones: Vec::new(),
                 player_spawn_zones: Vec::new(),
+            cookie_spawn_zones: Vec::new(),
             },
             MapGeometry::new(1, 2),
         );

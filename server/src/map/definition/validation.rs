@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use anyhow::{Context, Result, anyhow, ensure};
 
-use super::schema::{ActorSpawnZoneDef, LevelDef, MapDef, MapFile, PlayerSpawnZoneDef, RampDef};
+use super::schema::{ActorSpawnZoneDef, CookieSpawnZoneDef, LevelDef, MapDef, MapFile, PlayerSpawnZoneDef, RampDef};
 
 const SUPPORTED_VERSION: u32 = 1;
 
@@ -29,25 +29,19 @@ pub(super) fn validate_map(map_def: &MapDef) -> Result<()> {
 
     validate_actor_spawn_zones(map_def)?;
     validate_player_spawn_zones(map_def)?;
+    validate_cookie_spawn_zones(map_def)?;
     validate_levels(map_def)?;
     validate_ramps(map_def)?;
-    validate_spawn_zones_clear_of_obstructions(map_def)?;
 
     Ok(())
 }
 
 // Common rect-shaped accessors that both actor and player zones share.
-// Used by the level-bounds, range, and obstruction checks below.
+// Used by the level-bounds and range checks below.
 trait ZoneRect {
     fn level(&self) -> u32;
     fn cols(&self) -> [i32; 2];
     fn rows(&self) -> [i32; 2];
-
-    fn cells(&self) -> Box<dyn Iterator<Item = (i32, i32)> + '_> {
-        let [c0, c1] = self.cols();
-        let [r0, r1] = self.rows();
-        Box::new((r0..r1).flat_map(move |r| (c0..c1).map(move |c| (c, r))))
-    }
 }
 
 impl ZoneRect for ActorSpawnZoneDef {
@@ -74,6 +68,18 @@ impl ZoneRect for PlayerSpawnZoneDef {
     }
 }
 
+impl ZoneRect for CookieSpawnZoneDef {
+    fn level(&self) -> u32 {
+        self.level
+    }
+    fn cols(&self) -> [i32; 2] {
+        self.cols
+    }
+    fn rows(&self) -> [i32; 2] {
+        self.rows
+    }
+}
+
 fn validate_actor_spawn_zones(map_def: &MapDef) -> Result<()> {
     for (zone_idx, zone) in map_def.actor_spawn_zones.iter().enumerate() {
         let label = format!("actor_spawn_zones[{zone_idx}]");
@@ -88,6 +94,14 @@ fn validate_actor_spawn_zones(map_def: &MapDef) -> Result<()> {
 fn validate_player_spawn_zones(map_def: &MapDef) -> Result<()> {
     for (zone_idx, zone) in map_def.player_spawn_zones.iter().enumerate() {
         let label = format!("player_spawn_zones[{zone_idx}]");
+        validate_zone_placement(zone, &label, map_def)?;
+    }
+    Ok(())
+}
+
+fn validate_cookie_spawn_zones(map_def: &MapDef) -> Result<()> {
+    for (zone_idx, zone) in map_def.cookie_spawn_zones.iter().enumerate() {
+        let label = format!("cookie_spawn_zones[{zone_idx}]");
         validate_zone_placement(zone, &label, map_def)?;
     }
     Ok(())
@@ -190,69 +204,6 @@ fn validate_walls(level: &LevelDef, label: &str, grid_cols: i32, grid_rows: i32)
     Ok(())
 }
 
-// Spawn zones may overlap any cell that is not an obstruction. Today
-// obstructions are: ramp footprints, and inaccessible-floor cells (which
-// have a slab but no walkable floor). Empty cells (no floor at all) are
-// fine — flying actors don't need a floor underfoot.
-//
-// As new obstruction kinds appear (hazards, holes, etc.), add them to the
-// set built here; one check covers all of them.
-fn validate_spawn_zones_clear_of_obstructions(map_def: &MapDef) -> Result<()> {
-    let obstructions = collect_obstruction_cells(map_def);
-    for (zone_idx, zone) in map_def.actor_spawn_zones.iter().enumerate() {
-        check_zone_clear_of_obstructions(zone, &format!("actor_spawn_zones[{zone_idx}]"), &obstructions)?;
-    }
-    for (zone_idx, zone) in map_def.player_spawn_zones.iter().enumerate() {
-        check_zone_clear_of_obstructions(zone, &format!("player_spawn_zones[{zone_idx}]"), &obstructions)?;
-    }
-    Ok(())
-}
-
-fn check_zone_clear_of_obstructions<Z: ZoneRect>(
-    zone: &Z,
-    label: &str,
-    obstructions: &[std::collections::BTreeMap<[i32; 2], &'static str>],
-) -> Result<()> {
-    let level_obstructions = &obstructions[zone.level() as usize];
-    for (col, row) in zone.cells() {
-        if let Some(reason) = level_obstructions.get(&[col, row]) {
-            return Err(anyhow!(
-                "{label} cell [{col}, {row}] overlaps a {reason} on level {}",
-                zone.level(),
-            ));
-        }
-    }
-    Ok(())
-}
-
-// Per-level map from grid cell to the kind of obstruction at that cell.
-// String reason makes the validation error self-explanatory.
-fn collect_obstruction_cells(map_def: &MapDef) -> Vec<std::collections::BTreeMap<[i32; 2], &'static str>> {
-    use std::collections::BTreeMap;
-    let mut per_level: Vec<BTreeMap<[i32; 2], &'static str>> = vec![BTreeMap::new(); map_def.levels.len()];
-
-    // Inaccessible-floor cells: a slab, but not a regular floor.
-    for (level_idx, level) in map_def.levels.iter().enumerate() {
-        for floor in &level.inaccessible_floors {
-            per_level[level_idx].insert([floor.col, floor.row], "inaccessible floor");
-        }
-    }
-
-    // Ramp footprints: forbidden on both the lower level and the level above
-    // (the ramp surface rises into both).
-    for ramp in &map_def.ramps {
-        for cell in ramp_footprint_cells(ramp) {
-            for level in [ramp.lower_level, ramp.lower_level + 1] {
-                if let Some(slot) = per_level.get_mut(level as usize) {
-                    slot.insert(cell, "ramp");
-                }
-            }
-        }
-    }
-
-    per_level
-}
-
 fn validate_ramps(map_def: &MapDef) -> Result<()> {
     let mut ramps_seen = BTreeSet::new();
     for (idx, ramp) in map_def.ramps.iter().enumerate() {
@@ -333,20 +284,6 @@ fn validate_ramp(ramp: &RampDef, grid_cols: i32, grid_rows: i32, level_count: us
     Ok(())
 }
 
-fn ramp_footprint_cells(ramp: &RampDef) -> Vec<[i32; 2]> {
-    let col_min = ramp.low[0].min(ramp.high[0]);
-    let col_max = ramp.low[0].max(ramp.high[0]);
-    let row_min = ramp.low[1].min(ramp.high[1]);
-    let row_max = ramp.low[1].max(ramp.high[1]);
-
-    let mut cells = Vec::new();
-    for row in row_min..row_max {
-        for col in col_min..col_max {
-            cells.push([col, row]);
-        }
-    }
-    cells
-}
 
 pub(super) fn canonicalize(map_def: &mut MapDef) {
     map_def.actor_spawn_zones.sort_by(|a, b| {
@@ -359,6 +296,11 @@ pub(super) fn canonicalize(map_def: &mut MapDef) {
         .player_spawn_zones
         .sort_by_key(|z| (z.level, z.rows[0], z.cols[0], z.rows[1], z.cols[1]));
     map_def.player_spawn_zones.dedup();
+
+    map_def
+        .cookie_spawn_zones
+        .sort_by_key(|z| (z.level, z.rows[0], z.cols[0], z.rows[1], z.cols[1]));
+    map_def.cookie_spawn_zones.dedup();
 
     for level in &mut map_def.levels {
         level.floors.sort_by_key(|f| (f.row, f.col));

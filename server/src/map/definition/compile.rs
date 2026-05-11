@@ -7,7 +7,7 @@ use crate::{
         material_rules::MaterialRules,
         ramps, trim, walls,
     },
-    resources::{ActorSpawnZone, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlayerSpawnZone},
+    resources::{ActorSpawnZone, CellGrid, CookieSpawnZone, EdgeGrid, LevelGrid, MapConfig, PlayerSpawnZone},
 };
 use common::{
     constants::*,
@@ -148,6 +148,7 @@ pub(crate) fn compile_map(map_def: &MapDef, assets: &MaterialRules) -> (MapLayou
             levels: level_grids,
             actor_spawn_zones: actor_spawn_zones(map_def),
             player_spawn_zones: player_spawn_zones(map_def),
+            cookie_spawn_zones: cookie_spawn_zones(map_def),
         },
         geometry,
     )
@@ -184,6 +185,18 @@ fn player_spawn_zones(map_def: &MapDef) -> Vec<PlayerSpawnZone> {
         .player_spawn_zones
         .iter()
         .map(|zone| PlayerSpawnZone {
+            level: u8::try_from(zone.level).unwrap_or(u8::MAX),
+            cols: zone.cols,
+            rows: zone.rows,
+        })
+        .collect()
+}
+
+fn cookie_spawn_zones(map_def: &MapDef) -> Vec<CookieSpawnZone> {
+    map_def
+        .cookie_spawn_zones
+        .iter()
+        .map(|zone| CookieSpawnZone {
             level: u8::try_from(zone.level).unwrap_or(u8::MAX),
             cols: zone.cols,
             rows: zone.rows,

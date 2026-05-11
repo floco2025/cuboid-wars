@@ -37,7 +37,18 @@ pub fn item_initial_spawn_system(
         return;
     }
 
+    // Cookies only spawn in cells inside an editor-authored cookie spawn zone.
+    // Outside those zones, the floor stays cookie-free.
+    let zone_cells: HashSet<(u8, i32, i32)> = map_config
+        .cookie_spawn_zones
+        .iter()
+        .flat_map(|zone| zone.cells().map(move |(c, r)| (zone.level, c, r)))
+        .collect();
+
     for spawn_cell in eligible_item_spawn_cells(&map_config) {
+        if !zone_cells.contains(&(spawn_cell.level, spawn_cell.col, spawn_cell.row)) {
+            continue;
+        }
         let item_id = ItemId(spawner.next_id);
         spawner.next_id += 1;
         let position = spawn_cell.position(&map_geometry);

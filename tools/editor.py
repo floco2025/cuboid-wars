@@ -61,6 +61,7 @@ MODE_FLOOR = "Floor"
 MODE_INACCESSIBLE_FLOOR = "Inaccessible Floor"
 MODE_ACTOR_SPAWN_PAINT = "Actor Spawn Zone (Paint)"
 MODE_PLAYER_SPAWN_PAINT = "Player Spawn Zone (Paint)"
+MODE_COOKIE_SPAWN_PAINT = "Cookie Spawn Zone (Paint)"
 MODE_SPAWN_ZONE_EDIT = "Spawn Zone (Edit)"
 MODE_WALL = "Wall"
 MODE_RAMP_UP = "Ramp (Up)"
@@ -74,7 +75,7 @@ MODE_LIGHT = "Light"
 MODE_ERASE_LIGHTS = "Erase Lights"
 RAMP_MODES = (MODE_RAMP_UP, MODE_RAMP_DOWN)
 ERASE_MODES = (MODE_ERASE, MODE_ERASE_KEEP_FLOORS)
-SPAWN_PAINT_MODES = (MODE_ACTOR_SPAWN_PAINT, MODE_PLAYER_SPAWN_PAINT)
+SPAWN_PAINT_MODES = (MODE_ACTOR_SPAWN_PAINT, MODE_PLAYER_SPAWN_PAINT, MODE_COOKIE_SPAWN_PAINT)
 MATERIAL_MODES = (MODE_FLOOR_MATERIAL, MODE_WALL_MATERIAL, MODE_RAMP_MATERIAL)
 FLOOR_HIT_KINDS = ("Floor", "Inaccessible Floor")
 LIGHT_SIDES = ("N", "S", "E", "W")
@@ -83,6 +84,7 @@ MODES = [
     MODE_INACCESSIBLE_FLOOR,
     MODE_ACTOR_SPAWN_PAINT,
     MODE_PLAYER_SPAWN_PAINT,
+    MODE_COOKIE_SPAWN_PAINT,
     MODE_SPAWN_ZONE_EDIT,
     MODE_WALL,
     MODE_RAMP_UP,
@@ -99,7 +101,8 @@ MODES = [
 # Two named lists in map_data so the editor can refer to them generically.
 ACTOR_ZONE_LIST = "actor_spawn_zones"
 PLAYER_ZONE_LIST = "player_spawn_zones"
-SPAWN_ZONE_LISTS = (ACTOR_ZONE_LIST, PLAYER_ZONE_LIST)
+COOKIE_ZONE_LIST = "cookie_spawn_zones"
+SPAWN_ZONE_LISTS = (ACTOR_ZONE_LIST, PLAYER_ZONE_LIST, COOKIE_ZONE_LIST)
 
 DEFAULT_ACTOR_COUNT = 1
 SPAWN_ZONE_HANDLE_PIXELS = 8.0
@@ -112,6 +115,7 @@ TOOL_REFERENCE_ENTRIES: list[tuple[str, str]] = [
     ("Inaccessible Floor", "drag cells to add floor slabs that never spawn items, players, or lights."),
     ("Actor Spawn Zone (Paint)", "drag a rectangle, then enter Kind and Count."),
     ("Player Spawn Zone (Paint)", "drag a rectangle. No prompt — players spawn anywhere in any player zone."),
+    ("Cookie Spawn Zone (Paint)", "drag a rectangle. Cookies only spawn on walkable floors inside one of these zones."),
     ("Spawn Zone (Edit)", "click a zone to select; drag the body to move, drag a corner/edge handle to resize. Right-click to edit fields (actor zones only) or delete."),
     ("Wall", "drag along grid lines to place atomic wall edges."),
     ("Ramp (Up)", "drag from this level toward the upper level."),
@@ -430,6 +434,7 @@ def empty_map() -> dict:
         "player_spawn_zones": [
             {"level": 0, "cols": [0, 2], "rows": [0, 2]},
         ],
+        "cookie_spawn_zones": [],
         "levels": [{"name": "Level 0", "floors": [], "inaccessible_floors": [], "walls": [], "lights": []}],
         "ramps": [],
     }
@@ -538,6 +543,15 @@ def format_actor_spawn_zones(zones: list[dict], indent: int) -> list[str]:
     return _format_zone_list("actor_spawn_zones", zones, indent, render)
 
 
+def format_cookie_spawn_zones(zones: list[dict], indent: int) -> list[str]:
+    return _format_zone_list(
+        "cookie_spawn_zones",
+        zones,
+        indent,
+        lambda zone: f"{{{_zone_rect_fragment(zone)}}}",
+    )
+
+
 def format_player_spawn_zones(zones: list[dict], indent: int) -> list[str]:
     return _format_zone_list(
         "player_spawn_zones",
@@ -570,6 +584,7 @@ def format_map_file(wrapper: dict) -> str:
         f'    "grid_rows": {map_data["grid_rows"]},',
         *with_trailing_comma(format_actor_spawn_zones(map_data["actor_spawn_zones"], 4)),
         *with_trailing_comma(format_player_spawn_zones(map_data["player_spawn_zones"], 4)),
+        *with_trailing_comma(format_cookie_spawn_zones(map_data["cookie_spawn_zones"], 4)),
         '    "levels": [',
     ]
 
@@ -641,6 +656,7 @@ def normalize_map(map_data: dict) -> dict:
     rows = int(map_data.get("grid_rows", DEFAULT_GRID_ROWS))
     actor_spawn_zones = [normalize_actor_spawn_zone(z) for z in map_data.get("actor_spawn_zones", [])]
     player_spawn_zones = [normalize_player_spawn_zone(z) for z in map_data.get("player_spawn_zones", [])]
+    cookie_spawn_zones = [normalize_cookie_spawn_zone(z) for z in map_data.get("cookie_spawn_zones", [])]
     levels = []
     for idx, level in enumerate(map_data.get("levels", [])):
         levels.append(
@@ -661,6 +677,7 @@ def normalize_map(map_data: dict) -> dict:
         "grid_rows": rows,
         "actor_spawn_zones": actor_spawn_zones,
         "player_spawn_zones": player_spawn_zones,
+        "cookie_spawn_zones": cookie_spawn_zones,
         "levels": levels,
         "ramps": ramps,
     }
@@ -756,6 +773,10 @@ def normalize_player_spawn_zone(zone: dict) -> dict:
     return _normalize_zone_rect(zone)
 
 
+def normalize_cookie_spawn_zone(zone: dict) -> dict:
+    return _normalize_zone_rect(zone)
+
+
 def actor_zone_key(zone: dict) -> tuple:
     return (
         zone["level"],
@@ -778,9 +799,21 @@ def player_zone_key(zone: dict) -> tuple:
     )
 
 
+def cookie_zone_key(zone: dict) -> tuple:
+    return (
+        zone["level"],
+        zone["rows"][0],
+        zone["cols"][0],
+        zone["rows"][1],
+        zone["cols"][1],
+    )
+
+
 def zone_key(list_name: str, zone: dict) -> tuple:
     if list_name == ACTOR_ZONE_LIST:
         return actor_zone_key(zone)
+    if list_name == COOKIE_ZONE_LIST:
+        return cookie_zone_key(zone)
     return player_zone_key(zone)
 
 
@@ -801,6 +834,7 @@ def canonicalize_map(map_data: dict) -> dict:
     enforce_ramp_floor_rules(b)
     b["actor_spawn_zones"] = _dedupe_sorted(b["actor_spawn_zones"], actor_zone_key)
     b["player_spawn_zones"] = _dedupe_sorted(b["player_spawn_zones"], player_zone_key)
+    b["cookie_spawn_zones"] = _dedupe_sorted(b["cookie_spawn_zones"], cookie_zone_key)
     # Ramp footprints occupy cells on both the lower and upper level of each
     # ramp. Lights are not allowed inside any of those cells.
     ramp_cells_by_level: list[set[tuple[int, int]]] = [set() for _ in b["levels"]]
@@ -937,6 +971,9 @@ def resize_map_data(
     out["player_spawn_zones"] = [
         z for z in (clip_zone(z) for z in out["player_spawn_zones"]) if z is not None
     ]
+    out["cookie_spawn_zones"] = [
+        z for z in (clip_zone(z) for z in out["cookie_spawn_zones"]) if z is not None
+    ]
 
     kept_ramps = []
     for ramp in out["ramps"]:
@@ -1015,6 +1052,9 @@ def validate_map(map_data: dict) -> list[str]:
     for idx, zone in enumerate(map_data["player_spawn_zones"]):
         _validate_zone_rect(zone, f"player_spawn_zones[{idx}]", map_data, errors)
 
+    for idx, zone in enumerate(map_data["cookie_spawn_zones"]):
+        _validate_zone_rect(zone, f"cookie_spawn_zones[{idx}]", map_data, errors)
+
     for level_idx, level in enumerate(map_data["levels"]):
         prefix = level_label(level, level_idx)
         if not level["floors"]:
@@ -1052,25 +1092,6 @@ def validate_map(map_data: dict) -> list[str]:
             if wall_endpoints_for_cell_side(c, r, side) not in wall_endpoints_set:
                 errors.append(f"{prefix}: light [{c}, {r}, {side}] has no wall on that side")
 
-    ramp_cells_by_level: list[set[tuple[int, int]]] = [set() for _ in map_data["levels"]]
-    for ramp in map_data["ramps"]:
-        lower = ramp["lower_level"]
-        for cell in ramp_cells(ramp):
-            for level in (lower, lower + 1):
-                if 0 <= level < len(ramp_cells_by_level):
-                    ramp_cells_by_level[level].add(cell)
-    inaccessible_by_level = [
-        {(f["col"], f["row"]) for f in level["inaccessible_floors"]} for level in map_data["levels"]
-    ]
-    for idx, zone in enumerate(map_data["actor_spawn_zones"]):
-        _check_zone_clear_of_obstructions(
-            zone, f"actor_spawn_zones[{idx}]", ramp_cells_by_level, inaccessible_by_level, errors
-        )
-    for idx, zone in enumerate(map_data["player_spawn_zones"]):
-        _check_zone_clear_of_obstructions(
-            zone, f"player_spawn_zones[{idx}]", ramp_cells_by_level, inaccessible_by_level, errors
-        )
-
     for ramp in map_data["ramps"]:
         msg = ramp_error(ramp["low"], ramp["high"], ramp["lower_level"], cols, rows, len(map_data["levels"]))
         if msg:
@@ -1089,25 +1110,6 @@ def _validate_zone_rect(zone: dict, label: str, map_data: dict, errors: list[str
         errors.append(f"{label} has an empty range cols={zone['cols']} rows={zone['rows']}")
     if not (0 <= c0 and c1 <= cols and 0 <= r0 and r1 <= rows):
         errors.append(f"{label} is outside the grid: cols={zone['cols']} rows={zone['rows']}")
-
-
-def _check_zone_clear_of_obstructions(
-    zone: dict,
-    label: str,
-    ramp_cells_by_level: list[set[tuple[int, int]]],
-    inaccessible_by_level: list[set[tuple[int, int]]],
-    errors: list[str],
-) -> None:
-    level = zone["level"]
-    if not (0 <= level < len(ramp_cells_by_level)):
-        return
-    ramps_set = ramp_cells_by_level[level]
-    inaccessible_set = inaccessible_by_level[level]
-    for col, row in zone_cells(zone):
-        if (col, row) in ramps_set:
-            errors.append(f"{label} cell [{col}, {row}] overlaps a ramp on level {level}")
-        if (col, row) in inaccessible_set:
-            errors.append(f"{label} cell [{col}, {row}] overlaps an inaccessible floor on level {level}")
 
 
 def zone_cells(zone: dict) -> list[tuple[int, int]]:
@@ -1156,6 +1158,7 @@ DRAG_PREVIEW_COLORS: dict[str, QColor] = {
     MODE_FLOOR: QColor(111, 180, 255, 120),
     MODE_INACCESSIBLE_FLOOR: QColor(148, 163, 184, 120),
     MODE_PLAYER_SPAWN_PAINT: QColor(99, 102, 241, 120),
+    MODE_COOKIE_SPAWN_PAINT: QColor(250, 204, 21, 120),  # gold — matches cookie material
     MODE_FLOOR_MATERIAL: QColor(236, 72, 153, 120),
     MODE_RAMP_MATERIAL: QColor(168, 85, 247, 120),  # purple to distinguish from floor mode pink
     MODE_ERASE: QColor(248, 113, 113, 120),
@@ -1639,7 +1642,11 @@ class Canvas(QWidget):
         painter.setPen(Qt.PenStyle.NoPen)
 
     def paint_spawn_zones(self, painter: QPainter, cell: float, level_idx: int) -> None:
-        # Player zones first so actor zones (which carry kind labels) sit on top.
+        # Cookie zones first (background), then player, then actor (top — has
+        # the kind label).
+        for zone in self.window.map_data["cookie_spawn_zones"]:
+            if zone["level"] == level_idx:
+                self.paint_cookie_spawn_zone(painter, zone, cell)
         for zone in self.window.map_data["player_spawn_zones"]:
             if zone["level"] == level_idx:
                 self.paint_player_spawn_zone(painter, zone, cell)
@@ -1671,6 +1678,17 @@ class Canvas(QWidget):
         painter.drawRect(rect)
         painter.setPen(QColor("#f8fafc"))
         painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, "player")
+
+    def paint_cookie_spawn_zone(self, painter: QPainter, zone: dict, cell: float) -> None:
+        c0, r0, c1, r1 = zone_rect(zone)
+        rect = QRectF(c0 * cell + 2, r0 * cell + 2, (c1 - c0) * cell - 4, (r1 - r0) * cell - 4)
+        outline_color = QColor(202, 138, 4)  # darker gold for outline
+        fill_color = QColor(250, 204, 21, 70)  # translucent gold fill
+        painter.setBrush(QBrush(fill_color))
+        painter.setPen(QPen(outline_color, 2, Qt.PenStyle.DotLine))
+        painter.drawRect(rect)
+        painter.setPen(QColor("#f8fafc"))
+        painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, "cookie")
 
     def paint_spawn_zone_selection(self, painter: QPainter, cell: float, level_idx: int) -> None:
         zone = self.window.selected_spawn_zone()
@@ -1882,6 +1900,8 @@ class Canvas(QWidget):
             self.window.add_actor_spawn_zone_rect(self.drag_start_cell, self.drag_current_cell)
         elif self.window.mode == MODE_PLAYER_SPAWN_PAINT and self.drag_start_cell and self.drag_current_cell:
             self.window.add_player_spawn_zone_rect(self.drag_start_cell, self.drag_current_cell)
+        elif self.window.mode == MODE_COOKIE_SPAWN_PAINT and self.drag_start_cell and self.drag_current_cell:
+            self.window.add_cookie_spawn_zone_rect(self.drag_start_cell, self.drag_current_cell)
         elif self.window.mode == MODE_SPAWN_ZONE_EDIT:
             self.window.commit_spawn_zone_edit_drag()
         elif self.window.mode == MODE_WALL and self.drag_start_point and self.drag_current_point:
@@ -2291,6 +2311,18 @@ class EditorWindow(QMainWindow):
         self.apply_change("Paint Player Spawn Zone", after)
         self.selected_spawn_zone_ref = self._zone_ref_after_change(PLAYER_ZONE_LIST, new_zone)
 
+    def add_cookie_spawn_zone_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
+        c0, r0, c1, r1 = rect_from_cells(start, end)
+        after = copy.deepcopy(self.map_data)
+        new_zone = {
+            "level": self.current_level,
+            "cols": [c0, c1],
+            "rows": [r0, r1],
+        }
+        after[COOKIE_ZONE_LIST].append(new_zone)
+        self.apply_change("Paint Cookie Spawn Zone", after)
+        self.selected_spawn_zone_ref = self._zone_ref_after_change(COOKIE_ZONE_LIST, new_zone)
+
     def prompt_for_actor_spawn_fields(self, kind: str | None = None, count: int | None = None) -> tuple[str, int] | None:
         return ActorSpawnFieldsDialog.prompt(
             self,
@@ -2640,10 +2672,11 @@ class EditorWindow(QMainWindow):
             wall_arr = [wall["c0"], wall["r0"], wall["c1"], wall["r1"]]
             if point_near_wall(px, py, wall_arr):
                 return ("Wall", tuple(wall_arr))
-        # Search both lists in reverse so the most-recently-painted (visually
-        # on top) wins. Actor first, then player — when both cover the same
-        # cell, prefer the actor zone since its label needs editing more often.
-        for list_name in (ACTOR_ZONE_LIST, PLAYER_ZONE_LIST):
+        # Search every zone list (actor, player, cookie) in reverse so the
+        # most-recently-painted entry on top wins. Actor first so when an
+        # actor zone shares a cell with a player or cookie zone, the actor
+        # zone is preferred (its label is the one users edit most often).
+        for list_name in SPAWN_ZONE_LISTS:
             for idx in range(len(self.map_data[list_name]) - 1, -1, -1):
                 zone = self.map_data[list_name][idx]
                 if zone["level"] == self.current_level and zone_contains_cell(zone, col, row):

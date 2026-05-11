@@ -224,6 +224,7 @@ mod tests {
                 cols: [col, col + 1],
                 rows: [row, row + 1],
             }],
+            cookie_spawn_zones: Vec::new(),
         }
     }
 

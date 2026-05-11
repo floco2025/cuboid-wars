@@ -10,6 +10,7 @@ fn map_config(levels: Vec<LevelGrid>) -> MapConfig {
         levels,
         actor_spawn_zones: Vec::new(),
         player_spawn_zones: Vec::new(),
+        cookie_spawn_zones: Vec::new(),
     }
 }
 

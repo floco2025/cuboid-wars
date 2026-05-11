@@ -20,6 +20,8 @@ pub(crate) struct MapDef {
     pub(crate) actor_spawn_zones: Vec<ActorSpawnZoneDef>,
     #[serde(default)]
     pub(crate) player_spawn_zones: Vec<PlayerSpawnZoneDef>,
+    #[serde(default)]
+    pub(crate) cookie_spawn_zones: Vec<CookieSpawnZoneDef>,
     pub(crate) levels: Vec<LevelDef>,
     #[serde(default)]
     pub(crate) ramps: Vec<RampDef>,
@@ -96,6 +98,15 @@ pub(crate) struct ActorSpawnZoneDef {
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 pub(crate) struct PlayerSpawnZoneDef {
+    pub(crate) level: u32,
+    pub(crate) cols: [i32; 2],
+    pub(crate) rows: [i32; 2],
+}
+
+// Cells where cookies are eligible to spawn. Cookies only appear inside one
+// of these zones; outside, the floor is cookie-free.
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+pub(crate) struct CookieSpawnZoneDef {
     pub(crate) level: u32,
     pub(crate) cols: [i32; 2],
     pub(crate) rows: [i32; 2],
