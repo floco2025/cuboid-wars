@@ -1,7 +1,7 @@
 use rand::{RngExt, rngs::ThreadRng};
 
 use crate::{
-    constants::{ITEM_CELLS_PER_ACTIVE, ITEM_LIFETIME, ITEM_MAX_ACTIVE, ITEM_MIN_ACTIVE},
+    constants::{ITEM_LIFETIME, ITEM_TARGET_ACTIVE},
     map::grid_coords_from_position,
     resources::MapConfig,
 };
@@ -73,14 +73,10 @@ pub(super) fn eligible_item_spawn_cells(map_config: &MapConfig) -> Vec<ItemSpawn
 }
 
 pub(super) fn target_active_power_ups(eligible_cell_count: usize) -> usize {
-    if eligible_cell_count == 0 {
-        return 0;
-    }
-    eligible_cell_count
-        .div_ceil(ITEM_CELLS_PER_ACTIVE)
-        .clamp(ITEM_MIN_ACTIVE, ITEM_MAX_ACTIVE)
-        .min(eligible_cell_count)
-        .max(1)
+    // Constant target regardless of map size, capped at what the map can
+    // actually hold so tiny test maps don't try to spawn more items than
+    // there are floor cells.
+    ITEM_TARGET_ACTIVE.min(eligible_cell_count)
 }
 
 pub(super) fn power_up_spawn_interval(eligible_cell_count: usize) -> Option<f32> {
