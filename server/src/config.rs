@@ -120,6 +120,10 @@ pub struct ActorKindServerConfig {
     pub max_direction_time: f32,
     pub idle_probability: f32,
     pub vision_range: f32,
+    // Delay after an actor reaches the last known player position before it
+    // may acquire a visible player as a fresh chase target again.
+    #[serde(default)]
+    pub chase_reacquire_cooldown: f32,
     pub path_clear_lookahead_time: f32,
     pub go_to_reached_distance: f32,
     pub contact_explosion_distance: f32,
@@ -145,6 +149,10 @@ impl ActorKindServerConfig {
         }
         validate_probability(self.idle_probability, &format!("{path}.idle_probability"))?;
         validate_positive_finite(self.vision_range, &format!("{path}.vision_range"))?;
+        validate_non_negative_finite(
+            self.chase_reacquire_cooldown,
+            &format!("{path}.chase_reacquire_cooldown"),
+        )?;
         validate_positive_finite(
             self.path_clear_lookahead_time,
             &format!("{path}.path_clear_lookahead_time"),

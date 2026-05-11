@@ -120,7 +120,11 @@ impl MaterialRules {
 
 // Wall edges are stored normalized so lookup is order-independent.
 pub(super) fn wall_edge_key(from: [i32; 2], to: [i32; 2]) -> ([i32; 2], [i32; 2]) {
-    if (from[0], from[1]) <= (to[0], to[1]) { (from, to) } else { (to, from) }
+    if (from[0], from[1]) <= (to[0], to[1]) {
+        (from, to)
+    } else {
+        (to, from)
+    }
 }
 
 #[cfg(test)]

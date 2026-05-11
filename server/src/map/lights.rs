@@ -54,19 +54,35 @@ fn wall_light_for(geometry: &MapGeometry, light_y: f32, row: i32, col: i32, side
     let half = GRID_CELL_SIZE / 2.0;
     match side {
         CellSide::North => WallLight {
-            pos: Position { x: cell_center_x, y: light_y, z: cell_center_z - half + MODEL_INSET },
+            pos: Position {
+                x: cell_center_x,
+                y: light_y,
+                z: cell_center_z - half + MODEL_INSET,
+            },
             yaw: 0.0,
         },
         CellSide::South => WallLight {
-            pos: Position { x: cell_center_x, y: light_y, z: cell_center_z + half - MODEL_INSET },
+            pos: Position {
+                x: cell_center_x,
+                y: light_y,
+                z: cell_center_z + half - MODEL_INSET,
+            },
             yaw: std::f32::consts::PI,
         },
         CellSide::West => WallLight {
-            pos: Position { x: cell_center_x - half + MODEL_INSET, y: light_y, z: cell_center_z },
+            pos: Position {
+                x: cell_center_x - half + MODEL_INSET,
+                y: light_y,
+                z: cell_center_z,
+            },
             yaw: std::f32::consts::FRAC_PI_2,
         },
         CellSide::East => WallLight {
-            pos: Position { x: cell_center_x + half - MODEL_INSET, y: light_y, z: cell_center_z },
+            pos: Position {
+                x: cell_center_x + half - MODEL_INSET,
+                y: light_y,
+                z: cell_center_z,
+            },
             yaw: -std::f32::consts::FRAC_PI_2,
         },
     }
@@ -109,10 +125,26 @@ mod tests {
     fn places_one_light_per_def_with_correct_yaw() {
         let level = level_with_walls(1, 1);
         let defs = vec![
-            WallLightDef { col: 0, row: 0, side: WallSide::North },
-            WallLightDef { col: 0, row: 0, side: WallSide::South },
-            WallLightDef { col: 0, row: 0, side: WallSide::East },
-            WallLightDef { col: 0, row: 0, side: WallSide::West },
+            WallLightDef {
+                col: 0,
+                row: 0,
+                side: WallSide::North,
+            },
+            WallLightDef {
+                col: 0,
+                row: 0,
+                side: WallSide::South,
+            },
+            WallLightDef {
+                col: 0,
+                row: 0,
+                side: WallSide::East,
+            },
+            WallLightDef {
+                col: 0,
+                row: 0,
+                side: WallSide::West,
+            },
         ];
 
         let lights = generate_wall_lights(&MapGeometry::new(1, 1), &level, 0, &defs);
@@ -128,7 +160,11 @@ mod tests {
     #[test]
     fn light_y_uses_level_offset() {
         let level = level_with_walls(1, 1);
-        let defs = vec![WallLightDef { col: 0, row: 0, side: WallSide::North }];
+        let defs = vec![WallLightDef {
+            col: 0,
+            row: 0,
+            side: WallSide::North,
+        }];
 
         let lights = generate_wall_lights(&MapGeometry::new(1, 1), &level, 2, &defs);
 
@@ -141,8 +177,16 @@ mod tests {
         let mut level = level_with_walls(1, 1);
         level.edges.horizontal[0][0] = false; // remove north wall
         let defs = vec![
-            WallLightDef { col: 0, row: 0, side: WallSide::North },
-            WallLightDef { col: 0, row: 0, side: WallSide::South },
+            WallLightDef {
+                col: 0,
+                row: 0,
+                side: WallSide::North,
+            },
+            WallLightDef {
+                col: 0,
+                row: 0,
+                side: WallSide::South,
+            },
         ];
 
         let lights = generate_wall_lights(&MapGeometry::new(1, 1), &level, 0, &defs);
@@ -154,7 +198,11 @@ mod tests {
     #[test]
     fn drops_def_with_out_of_bounds_cell() {
         let level = level_with_walls(1, 1);
-        let defs = vec![WallLightDef { col: 5, row: 5, side: WallSide::North }];
+        let defs = vec![WallLightDef {
+            col: 5,
+            row: 5,
+            side: WallSide::North,
+        }];
 
         let lights = generate_wall_lights(&MapGeometry::new(1, 1), &level, 0, &defs);
 

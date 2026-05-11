@@ -204,6 +204,8 @@ fn spawn_actor_in_zone(
             direction_timer: random_direction_time(rng, kind_server_config),
             patrol_intent: move_intent,
             go_to_position: None,
+            go_to_position_is_chase: false,
+            chase_reacquire_timer: 0.0,
             wall_avoidance_direction: None,
             last_broadcast_move_intent: move_intent,
             move_intent_send_timer: ACTOR_MOVE_INTENT_SEND_COOLDOWN,

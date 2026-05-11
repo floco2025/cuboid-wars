@@ -107,7 +107,10 @@ impl MaterialRules {
                 return None;
             }
         };
-        self.segments.floors.get(&(floor.level, origin_col, origin_row)).cloned()
+        self.segments
+            .floors
+            .get(&(floor.level, origin_col, origin_row))
+            .cloned()
     }
 
     fn is_on_grid_z(&self, z: f32) -> bool {
@@ -198,7 +201,6 @@ impl MaterialRules {
         }
         missing_materials()
     }
-
 }
 
 fn missing_materials() -> FaceMaterials {

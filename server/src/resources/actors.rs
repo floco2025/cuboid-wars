@@ -11,6 +11,8 @@ pub struct ActorInfo {
     pub direction_timer: f32,
     pub patrol_intent: ActorMoveIntent,
     pub go_to_position: Option<Position>,
+    pub go_to_position_is_chase: bool,
+    pub chase_reacquire_timer: f32,
     pub wall_avoidance_direction: Option<f32>,
     pub last_broadcast_move_intent: ActorMoveIntent,
     pub move_intent_send_timer: f32,

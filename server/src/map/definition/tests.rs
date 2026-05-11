@@ -43,11 +43,7 @@ fn player_zone(level: u32, col: i32, row: i32) -> PlayerSpawnZoneDef {
 }
 
 fn ramp(low: [i32; 2], high: [i32; 2], lower_level: u32) -> RampDef {
-    RampDef {
-        low,
-        high,
-        lower_level,
-    }
+    RampDef { low, high, lower_level }
 }
 
 fn map_with_zones(

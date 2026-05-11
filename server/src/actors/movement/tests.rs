@@ -14,7 +14,7 @@ use super::{
     ordering::{ActorPlanOrder, actor_target_distance_sq, sort_actor_plan_order},
     planning::{
         blocked_step_made_useful_progress, continue_wall_avoidance_if_needed, opposite_wall_avoidance_direction,
-        select_go_to_actor_move, wall_avoidance_directions,
+        select_go_to_actor_move, update_reached_go_to_state, wall_avoidance_directions,
     },
 };
 
@@ -43,6 +43,8 @@ fn actor_info() -> ActorInfo {
         direction_timer: 0.0,
         patrol_intent: ActorMoveIntent::Idle,
         go_to_position: None,
+        go_to_position_is_chase: false,
+        chase_reacquire_timer: 0.0,
         wall_avoidance_direction: None,
         last_broadcast_move_intent: ActorMoveIntent::Idle,
         move_intent_send_timer: 0.0,
@@ -158,6 +160,8 @@ fn actor_without_go_to_position_plans_after_targeted_actor() {
         direction_timer: 0.0,
         patrol_intent: ActorMoveIntent::Idle,
         go_to_position: Some(Position { x: 1.0, y: 0.0, z: 0.0 }),
+        go_to_position_is_chase: true,
+        chase_reacquire_timer: 0.0,
         wall_avoidance_direction: None,
         last_broadcast_move_intent: ActorMoveIntent::Idle,
         move_intent_send_timer: 0.0,
@@ -165,6 +169,29 @@ fn actor_without_go_to_position_plans_after_targeted_actor() {
 
     assert!(actor_target_distance_sq(&pos, Some(&targeted)).is_finite());
     assert_eq!(actor_target_distance_sq(&pos, None), f32::INFINITY);
+}
+
+#[test]
+fn reached_chase_target_starts_reacquire_cooldown() {
+    let mut info = actor_info();
+    info.go_to_position_is_chase = true;
+    let was_chasing_player = true;
+
+    update_reached_go_to_state(&mut info, was_chasing_player, 2.0);
+
+    assert!(!info.go_to_position_is_chase);
+    assert_eq!(info.chase_reacquire_timer, 2.0);
+}
+
+#[test]
+fn reached_non_chase_target_does_not_start_reacquire_cooldown() {
+    let mut info = actor_info();
+    let was_chasing_player = false;
+
+    update_reached_go_to_state(&mut info, was_chasing_player, 2.0);
+
+    assert!(!info.go_to_position_is_chase);
+    assert_eq!(info.chase_reacquire_timer, 0.0);
 }
 
 #[test]

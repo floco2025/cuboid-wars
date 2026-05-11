@@ -35,25 +35,36 @@ struct FaceUvAxes {
     v: Vec3,
 }
 
-const POS_X_FACE: FaceUvAxes = FaceUvAxes { u: Vec3::new(0.0, 0.0, -1.0), v: Vec3::new(0.0, 1.0, 0.0) };
-const NEG_X_FACE: FaceUvAxes = FaceUvAxes { u: Vec3::new(0.0, 0.0, 1.0), v: Vec3::new(0.0, 1.0, 0.0) };
-const POS_Y_FACE: FaceUvAxes = FaceUvAxes { u: Vec3::new(0.0, 0.0, 1.0), v: Vec3::new(1.0, 0.0, 0.0) };
-const NEG_Y_FACE: FaceUvAxes = FaceUvAxes { u: Vec3::new(0.0, 0.0, -1.0), v: Vec3::new(1.0, 0.0, 0.0) };
-const POS_Z_FACE: FaceUvAxes = FaceUvAxes { u: Vec3::new(1.0, 0.0, 0.0), v: Vec3::new(0.0, 1.0, 0.0) };
-const NEG_Z_FACE: FaceUvAxes = FaceUvAxes { u: Vec3::new(-1.0, 0.0, 0.0), v: Vec3::new(0.0, 1.0, 0.0) };
+const POS_X_FACE: FaceUvAxes = FaceUvAxes {
+    u: Vec3::new(0.0, 0.0, -1.0),
+    v: Vec3::new(0.0, 1.0, 0.0),
+};
+const NEG_X_FACE: FaceUvAxes = FaceUvAxes {
+    u: Vec3::new(0.0, 0.0, 1.0),
+    v: Vec3::new(0.0, 1.0, 0.0),
+};
+const POS_Y_FACE: FaceUvAxes = FaceUvAxes {
+    u: Vec3::new(0.0, 0.0, 1.0),
+    v: Vec3::new(1.0, 0.0, 0.0),
+};
+const NEG_Y_FACE: FaceUvAxes = FaceUvAxes {
+    u: Vec3::new(0.0, 0.0, -1.0),
+    v: Vec3::new(1.0, 0.0, 0.0),
+};
+const POS_Z_FACE: FaceUvAxes = FaceUvAxes {
+    u: Vec3::new(1.0, 0.0, 0.0),
+    v: Vec3::new(0.0, 1.0, 0.0),
+};
+const NEG_Z_FACE: FaceUvAxes = FaceUvAxes {
+    u: Vec3::new(-1.0, 0.0, 0.0),
+    v: Vec3::new(0.0, 1.0, 0.0),
+};
 
 // Build a cuboid mesh with world-aligned UV tiling. `world_center` and
 // `rotation` describe where the mesh will be placed (must match the caller's
 // `Transform`); UVs use that to compute world positions for each vertex.
 #[must_use]
-pub fn tiled_cuboid(
-    size_x: f32,
-    size_y: f32,
-    size_z: f32,
-    tile_size: f32,
-    world_center: Vec3,
-    rotation: Quat,
-) -> Mesh {
+pub fn tiled_cuboid(size_x: f32, size_y: f32, size_z: f32, tile_size: f32, world_center: Vec3, rotation: Quat) -> Mesh {
     let hx = size_x / 2.0;
     let hy = size_y / 2.0;
     let hz = size_z / 2.0;
@@ -62,45 +73,59 @@ pub fn tiled_cuboid(
     let mut normals = Vec::with_capacity(36);
     let mut uvs = Vec::with_capacity(36);
 
-    let mut push_face = |p0: [f32; 3],
-                         p1: [f32; 3],
-                         p2: [f32; 3],
-                         p3: [f32; 3],
-                         normal: [f32; 3],
-                         axes: &FaceUvAxes| {
-        let uv = |p: [f32; 3]| face_uv(p, world_center, rotation, axes.u, axes.v, tile_size);
-        positions.extend_from_slice(&[p0, p1, p2, p0, p2, p3]);
-        normals.extend_from_slice(&[normal; 6]);
-        uvs.extend_from_slice(&[uv(p0), uv(p1), uv(p2), uv(p0), uv(p2), uv(p3)]);
-    };
+    let mut push_face =
+        |p0: [f32; 3], p1: [f32; 3], p2: [f32; 3], p3: [f32; 3], normal: [f32; 3], axes: &FaceUvAxes| {
+            let uv = |p: [f32; 3]| face_uv(p, world_center, rotation, axes.u, axes.v, tile_size);
+            positions.extend_from_slice(&[p0, p1, p2, p0, p2, p3]);
+            normals.extend_from_slice(&[normal; 6]);
+            uvs.extend_from_slice(&[uv(p0), uv(p1), uv(p2), uv(p0), uv(p2), uv(p3)]);
+        };
 
     push_face(
-        [hx, -hy, -hz], [hx, hy, -hz], [hx, hy, hz], [hx, -hy, hz],
+        [hx, -hy, -hz],
+        [hx, hy, -hz],
+        [hx, hy, hz],
+        [hx, -hy, hz],
         [1.0, 0.0, 0.0],
         &POS_X_FACE,
     );
     push_face(
-        [-hx, -hy, hz], [-hx, hy, hz], [-hx, hy, -hz], [-hx, -hy, -hz],
+        [-hx, -hy, hz],
+        [-hx, hy, hz],
+        [-hx, hy, -hz],
+        [-hx, -hy, -hz],
         [-1.0, 0.0, 0.0],
         &NEG_X_FACE,
     );
     push_face(
-        [-hx, hy, -hz], [-hx, hy, hz], [hx, hy, hz], [hx, hy, -hz],
+        [-hx, hy, -hz],
+        [-hx, hy, hz],
+        [hx, hy, hz],
+        [hx, hy, -hz],
         [0.0, 1.0, 0.0],
         &POS_Y_FACE,
     );
     push_face(
-        [-hx, -hy, hz], [-hx, -hy, -hz], [hx, -hy, -hz], [hx, -hy, hz],
+        [-hx, -hy, hz],
+        [-hx, -hy, -hz],
+        [hx, -hy, -hz],
+        [hx, -hy, hz],
         [0.0, -1.0, 0.0],
         &NEG_Y_FACE,
     );
     push_face(
-        [-hx, -hy, hz], [hx, -hy, hz], [hx, hy, hz], [-hx, hy, hz],
+        [-hx, -hy, hz],
+        [hx, -hy, hz],
+        [hx, hy, hz],
+        [-hx, hy, hz],
         [0.0, 0.0, 1.0],
         &POS_Z_FACE,
     );
     push_face(
-        [hx, -hy, -hz], [-hx, -hy, -hz], [-hx, hy, -hz], [hx, hy, -hz],
+        [hx, -hy, -hz],
+        [-hx, -hy, -hz],
+        [-hx, hy, -hz],
+        [hx, hy, -hz],
         [0.0, 0.0, -1.0],
         &NEG_Z_FACE,
     );
@@ -156,34 +181,70 @@ pub fn tiled_floor_surface_meshes(
     let mut down = SurfaceMeshData::default();
 
     east.push_face_world(
-        [hx, -hy, -hz], [hx, hy, -hz], [hx, hy, hz], [hx, -hy, hz],
+        [hx, -hy, -hz],
+        [hx, hy, -hz],
+        [hx, hy, hz],
+        [hx, -hy, hz],
         [1.0, 0.0, 0.0],
-        &POS_X_FACE, world_center, rotation, east_tile_size,
+        &POS_X_FACE,
+        world_center,
+        rotation,
+        east_tile_size,
     );
     west.push_face_world(
-        [-hx, -hy, hz], [-hx, hy, hz], [-hx, hy, -hz], [-hx, -hy, -hz],
+        [-hx, -hy, hz],
+        [-hx, hy, hz],
+        [-hx, hy, -hz],
+        [-hx, -hy, -hz],
         [-1.0, 0.0, 0.0],
-        &NEG_X_FACE, world_center, rotation, west_tile_size,
+        &NEG_X_FACE,
+        world_center,
+        rotation,
+        west_tile_size,
     );
     up.push_face_world(
-        [-hx, hy, -hz], [-hx, hy, hz], [hx, hy, hz], [hx, hy, -hz],
+        [-hx, hy, -hz],
+        [-hx, hy, hz],
+        [hx, hy, hz],
+        [hx, hy, -hz],
         [0.0, 1.0, 0.0],
-        &POS_Y_FACE, world_center, rotation, up_tile_size,
+        &POS_Y_FACE,
+        world_center,
+        rotation,
+        up_tile_size,
     );
     down.push_face_world(
-        [-hx, -hy, hz], [-hx, -hy, -hz], [hx, -hy, -hz], [hx, -hy, hz],
+        [-hx, -hy, hz],
+        [-hx, -hy, -hz],
+        [hx, -hy, -hz],
+        [hx, -hy, hz],
         [0.0, -1.0, 0.0],
-        &NEG_Y_FACE, world_center, rotation, down_tile_size,
+        &NEG_Y_FACE,
+        world_center,
+        rotation,
+        down_tile_size,
     );
     south.push_face_world(
-        [-hx, -hy, hz], [hx, -hy, hz], [hx, hy, hz], [-hx, hy, hz],
+        [-hx, -hy, hz],
+        [hx, -hy, hz],
+        [hx, hy, hz],
+        [-hx, hy, hz],
         [0.0, 0.0, 1.0],
-        &POS_Z_FACE, world_center, rotation, south_tile_size,
+        &POS_Z_FACE,
+        world_center,
+        rotation,
+        south_tile_size,
     );
     north.push_face_world(
-        [hx, -hy, -hz], [-hx, -hy, -hz], [-hx, hy, -hz], [hx, hy, -hz],
+        [hx, -hy, -hz],
+        [-hx, -hy, -hz],
+        [-hx, hy, -hz],
+        [hx, hy, -hz],
         [0.0, 0.0, -1.0],
-        &NEG_Z_FACE, world_center, rotation, north_tile_size,
+        &NEG_Z_FACE,
+        world_center,
+        rotation,
+        north_tile_size,
     );
 
     TiledFloorSurfaceMeshes {
@@ -222,34 +283,70 @@ pub fn tiled_wall_surface_meshes(
     let mut down = SurfaceMeshData::default();
 
     local_positive_x.push_face_world(
-        [hx, -hy, -hz], [hx, hy, -hz], [hx, hy, hz], [hx, -hy, hz],
+        [hx, -hy, -hz],
+        [hx, hy, -hz],
+        [hx, hy, hz],
+        [hx, -hy, hz],
         [1.0, 0.0, 0.0],
-        &POS_X_FACE, world_center, rotation, positive_x_tile_size,
+        &POS_X_FACE,
+        world_center,
+        rotation,
+        positive_x_tile_size,
     );
     local_negative_x.push_face_world(
-        [-hx, -hy, hz], [-hx, hy, hz], [-hx, hy, -hz], [-hx, -hy, -hz],
+        [-hx, -hy, hz],
+        [-hx, hy, hz],
+        [-hx, hy, -hz],
+        [-hx, -hy, -hz],
         [-1.0, 0.0, 0.0],
-        &NEG_X_FACE, world_center, rotation, negative_x_tile_size,
+        &NEG_X_FACE,
+        world_center,
+        rotation,
+        negative_x_tile_size,
     );
     local_positive_z.push_face_world(
-        [-hx, -hy, hz], [hx, -hy, hz], [hx, hy, hz], [-hx, hy, hz],
+        [-hx, -hy, hz],
+        [hx, -hy, hz],
+        [hx, hy, hz],
+        [-hx, hy, hz],
         [0.0, 0.0, 1.0],
-        &POS_Z_FACE, world_center, rotation, positive_z_tile_size,
+        &POS_Z_FACE,
+        world_center,
+        rotation,
+        positive_z_tile_size,
     );
     local_negative_z.push_face_world(
-        [hx, -hy, -hz], [-hx, -hy, -hz], [-hx, hy, -hz], [hx, hy, -hz],
+        [hx, -hy, -hz],
+        [-hx, -hy, -hz],
+        [-hx, hy, -hz],
+        [hx, hy, -hz],
         [0.0, 0.0, -1.0],
-        &NEG_Z_FACE, world_center, rotation, negative_z_tile_size,
+        &NEG_Z_FACE,
+        world_center,
+        rotation,
+        negative_z_tile_size,
     );
     up.push_face_world(
-        [-hx, hy, -hz], [-hx, hy, hz], [hx, hy, hz], [hx, hy, -hz],
+        [-hx, hy, -hz],
+        [-hx, hy, hz],
+        [hx, hy, hz],
+        [hx, hy, -hz],
         [0.0, 1.0, 0.0],
-        &POS_Y_FACE, world_center, rotation, up_tile_size,
+        &POS_Y_FACE,
+        world_center,
+        rotation,
+        up_tile_size,
     );
     down.push_face_world(
-        [-hx, -hy, hz], [-hx, -hy, -hz], [hx, -hy, -hz], [hx, -hy, hz],
+        [-hx, -hy, hz],
+        [-hx, -hy, -hz],
+        [hx, -hy, -hz],
+        [hx, -hy, hz],
         [0.0, -1.0, 0.0],
-        &NEG_Y_FACE, world_center, rotation, down_tile_size,
+        &NEG_Y_FACE,
+        world_center,
+        rotation,
+        down_tile_size,
     );
 
     TiledWallSurfaceMeshes {
@@ -286,7 +383,8 @@ impl SurfaceMeshData {
         let uv = |p: [f32; 3]| face_uv(p, world_center, rotation, axes.u, axes.v, tile_size);
         self.positions.extend_from_slice(&[p0, p1, p2, p0, p2, p3]);
         self.normals.extend_from_slice(&[normal; 6]);
-        self.uvs.extend_from_slice(&[uv(p0), uv(p1), uv(p2), uv(p0), uv(p2), uv(p3)]);
+        self.uvs
+            .extend_from_slice(&[uv(p0), uv(p1), uv(p2), uv(p0), uv(p2), uv(p3)]);
     }
 
     fn into_mesh(self) -> Mesh {

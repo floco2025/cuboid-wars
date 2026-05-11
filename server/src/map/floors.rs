@@ -88,12 +88,36 @@ pub fn emit_floor_tier(
             let extend_n = !n.n && !n.nw && !n.ne;
             let extend_s = !n.s && !n.sw && !n.se;
 
-            let x1 = if extend_w { x1_orig - WALL_HALF_THICKNESS } else { x1_orig };
-            let x2 = if extend_e { x2_orig + WALL_HALF_THICKNESS } else { x2_orig };
-            let z1 = if extend_n { z1_orig - WALL_HALF_THICKNESS } else { z1_orig };
-            let z2 = if extend_s { z2_orig + WALL_HALF_THICKNESS } else { z2_orig };
+            let x1 = if extend_w {
+                x1_orig - WALL_HALF_THICKNESS
+            } else {
+                x1_orig
+            };
+            let x2 = if extend_e {
+                x2_orig + WALL_HALF_THICKNESS
+            } else {
+                x2_orig
+            };
+            let z1 = if extend_n {
+                z1_orig - WALL_HALF_THICKNESS
+            } else {
+                z1_orig
+            };
+            let z2 = if extend_s {
+                z2_orig + WALL_HALF_THICKNESS
+            } else {
+                z2_orig
+            };
 
-            floors.push(Floor { x1, z1, x2, z2, y, thickness, level });
+            floors.push(Floor {
+                x1,
+                z1,
+                x2,
+                z2,
+                y,
+                thickness,
+                level,
+            });
 
             // Corner fillers. Use the *unextended* grid line
             // (`x1_orig`/`x2_orig`) plus `pad`, because the diagonal cell's
@@ -110,8 +134,13 @@ pub fn emit_floor_tier(
                 let fx2 = if n.ne { x2_orig - pad } else { x2 };
                 if fx2 > fx1 {
                     floors.push(Floor {
-                        x1: fx1, z1: z1_orig - pad, x2: fx2, z2: z1_orig,
-                        y, thickness, level,
+                        x1: fx1,
+                        z1: z1_orig - pad,
+                        x2: fx2,
+                        z2: z1_orig,
+                        y,
+                        thickness,
+                        level,
                     });
                 }
             }
@@ -120,8 +149,13 @@ pub fn emit_floor_tier(
                 let fx2 = if n.se { x2_orig - pad } else { x2 };
                 if fx2 > fx1 {
                     floors.push(Floor {
-                        x1: fx1, z1: z2_orig, x2: fx2, z2: z2_orig + pad,
-                        y, thickness, level,
+                        x1: fx1,
+                        z1: z2_orig,
+                        x2: fx2,
+                        z2: z2_orig + pad,
+                        y,
+                        thickness,
+                        level,
                     });
                 }
             }
@@ -226,7 +260,8 @@ fn merge_floors_with_materials(paired: Vec<(Floor, FaceMaterials)>) -> (Vec<Floo
 fn try_merge_x(acc: &mut Floor, acc_m: &mut FaceMaterials, b: &Floor, b_m: &FaceMaterials) -> bool {
     let same_z_span = (acc.z1 - b.z1).abs() < MERGE_EPS && (acc.z2 - b.z2).abs() < MERGE_EPS;
     let adjacent_x = (acc.x2 - b.x1).abs() < MERGE_EPS || (b.x2 - acc.x1).abs() < MERGE_EPS;
-    let faces_match = acc_m.top == b_m.top && acc_m.bottom == b_m.bottom && acc_m.north == b_m.north && acc_m.south == b_m.south;
+    let faces_match =
+        acc_m.top == b_m.top && acc_m.bottom == b_m.bottom && acc_m.north == b_m.north && acc_m.south == b_m.south;
     if !(same_z_span && adjacent_x && faces_match) {
         return false;
     }
@@ -246,7 +281,8 @@ fn try_merge_x(acc: &mut Floor, acc_m: &mut FaceMaterials, b: &Floor, b_m: &Face
 fn try_merge_z(acc: &mut Floor, acc_m: &mut FaceMaterials, b: &Floor, b_m: &FaceMaterials) -> bool {
     let same_x_span = (acc.x1 - b.x1).abs() < MERGE_EPS && (acc.x2 - b.x2).abs() < MERGE_EPS;
     let adjacent_z = (acc.z2 - b.z1).abs() < MERGE_EPS || (b.z2 - acc.z1).abs() < MERGE_EPS;
-    let faces_match = acc_m.top == b_m.top && acc_m.bottom == b_m.bottom && acc_m.east == b_m.east && acc_m.west == b_m.west;
+    let faces_match =
+        acc_m.top == b_m.top && acc_m.bottom == b_m.bottom && acc_m.east == b_m.east && acc_m.west == b_m.west;
     if !(same_x_span && adjacent_z && faces_match) {
         return false;
     }
@@ -279,8 +315,14 @@ mod tests {
 
     #[test]
     fn floors_merge_across_x_when_only_hidden_caps_differ() {
-        let left = (rect(0.0, 1.0, 0.0, 1.0), FaceMaterials::from_six("t", "b", "n", "s", "INNER", "outer_W"));
-        let right = (rect(1.0, 2.0, 0.0, 1.0), FaceMaterials::from_six("t", "b", "n", "s", "outer_E", "INNER"));
+        let left = (
+            rect(0.0, 1.0, 0.0, 1.0),
+            FaceMaterials::from_six("t", "b", "n", "s", "INNER", "outer_W"),
+        );
+        let right = (
+            rect(1.0, 2.0, 0.0, 1.0),
+            FaceMaterials::from_six("t", "b", "n", "s", "outer_E", "INNER"),
+        );
 
         let (floors, materials) = merge_floors_with_materials(vec![left, right]);
 
@@ -293,9 +335,15 @@ mod tests {
 
     #[test]
     fn floors_do_not_merge_across_x_when_visible_face_differs() {
-        let left = (rect(0.0, 1.0, 0.0, 1.0), FaceMaterials::from_six("t", "b", "n", "s", "e", "w"));
+        let left = (
+            rect(0.0, 1.0, 0.0, 1.0),
+            FaceMaterials::from_six("t", "b", "n", "s", "e", "w"),
+        );
         // North is a visible long face when merging in x.
-        let right = (rect(1.0, 2.0, 0.0, 1.0), FaceMaterials::from_six("t", "b", "DIFFERENT", "s", "e", "w"));
+        let right = (
+            rect(1.0, 2.0, 0.0, 1.0),
+            FaceMaterials::from_six("t", "b", "DIFFERENT", "s", "e", "w"),
+        );
 
         let (floors, _) = merge_floors_with_materials(vec![left, right]);
 
@@ -304,8 +352,14 @@ mod tests {
 
     #[test]
     fn floors_merge_across_z_when_only_hidden_caps_differ() {
-        let north_rect = (rect(0.0, 1.0, 0.0, 1.0), FaceMaterials::from_six("t", "b", "outer_N", "INNER", "e", "w"));
-        let south_rect = (rect(0.0, 1.0, 1.0, 2.0), FaceMaterials::from_six("t", "b", "INNER", "outer_S", "e", "w"));
+        let north_rect = (
+            rect(0.0, 1.0, 0.0, 1.0),
+            FaceMaterials::from_six("t", "b", "outer_N", "INNER", "e", "w"),
+        );
+        let south_rect = (
+            rect(0.0, 1.0, 1.0, 2.0),
+            FaceMaterials::from_six("t", "b", "INNER", "outer_S", "e", "w"),
+        );
 
         let (floors, materials) = merge_floors_with_materials(vec![north_rect, south_rect]);
 
@@ -322,10 +376,22 @@ mod tests {
         // Each cell has distinct east/west AND distinct north/south, but the
         // north of A == north of B (visible during x merge), and the
         // east/west of (AB) need to match east/west of (CD) for the z merge.
-        let a = (rect(0.0, 1.0, 0.0, 1.0), FaceMaterials::from_six("t", "b", "n_top", "s_inner", "e_inner", "outer_W"));
-        let b = (rect(1.0, 2.0, 0.0, 1.0), FaceMaterials::from_six("t", "b", "n_top", "s_inner", "outer_E", "e_inner"));
-        let c = (rect(0.0, 1.0, 1.0, 2.0), FaceMaterials::from_six("t", "b", "n_inner", "s_bot", "e_inner", "outer_W"));
-        let d = (rect(1.0, 2.0, 1.0, 2.0), FaceMaterials::from_six("t", "b", "n_inner", "s_bot", "outer_E", "e_inner"));
+        let a = (
+            rect(0.0, 1.0, 0.0, 1.0),
+            FaceMaterials::from_six("t", "b", "n_top", "s_inner", "e_inner", "outer_W"),
+        );
+        let b = (
+            rect(1.0, 2.0, 0.0, 1.0),
+            FaceMaterials::from_six("t", "b", "n_top", "s_inner", "outer_E", "e_inner"),
+        );
+        let c = (
+            rect(0.0, 1.0, 1.0, 2.0),
+            FaceMaterials::from_six("t", "b", "n_inner", "s_bot", "e_inner", "outer_W"),
+        );
+        let d = (
+            rect(1.0, 2.0, 1.0, 2.0),
+            FaceMaterials::from_six("t", "b", "n_inner", "s_bot", "outer_E", "e_inner"),
+        );
 
         let (floors, materials) = merge_floors_with_materials(vec![a, b, c, d]);
 

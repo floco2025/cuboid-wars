@@ -48,8 +48,8 @@ impl AssetSet {
             serde_json::from_str(&text).with_context(|| format!("failed to parse {}", path.display()))?;
         resolve_actor_inheritance(&mut value, "actors")
             .with_context(|| format!("resolving actor inheritance in {}", path.display()))?;
-        let file: AssetSetFile = serde_json::from_value(value)
-            .with_context(|| format!("failed to deserialize {}", path.display()))?;
+        let file: AssetSetFile =
+            serde_json::from_value(value).with_context(|| format!("failed to deserialize {}", path.display()))?;
         Ok(Self {
             version: file.version,
             materials: file.materials,

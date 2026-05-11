@@ -47,10 +47,7 @@ pub fn input_level_focus_toggle_system(keyboard: Res<ButtonInput<KeyCode>>, mut 
 
 // Cycle the map's debug-color mode with C key: Off → ByMaterial → BySegment → Off.
 // The map geometry respawns automatically (see `map_spawn_geometry_system`).
-pub fn input_debug_colors_cycle_system(
-    keyboard: Res<ButtonInput<KeyCode>>,
-    mut debug_colors: ResMut<DebugColors>,
-) {
+pub fn input_debug_colors_cycle_system(keyboard: Res<ButtonInput<KeyCode>>, mut debug_colors: ResMut<DebugColors>) {
     if keyboard.just_pressed(KeyCode::KeyC) {
         debug_colors.0 = debug_colors.0.next();
     }

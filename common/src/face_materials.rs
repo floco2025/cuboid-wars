@@ -92,4 +92,3 @@ impl<'de> Deserialize<'de> for FaceMaterials {
         })
     }
 }
-

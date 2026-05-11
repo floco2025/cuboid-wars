@@ -102,8 +102,7 @@ pub(crate) fn compile_map(map_def: &MapDef, assets: &MaterialRules) -> (MapLayou
         // Tell floor emission to skip its corner-filler strip at the high
         // end of each z-axis ramp arriving at this level — a strip there
         // would hover above where the slope already meets the upper floor.
-        let mut skip_corner_filler_edges: std::collections::HashSet<(i32, i32)> =
-            std::collections::HashSet::new();
+        let mut skip_corner_filler_edges: std::collections::HashSet<(i32, i32)> = std::collections::HashSet::new();
         for ramp in &ramp_specs {
             if ramp.lower_level + 1 == level_idx as u32 {
                 skip_corner_filler_edges.extend(ramp.high_end_horizontal_edges());
