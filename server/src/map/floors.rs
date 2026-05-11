@@ -8,7 +8,6 @@ use super::{
 use common::{constants::*, face_materials::FaceMaterials, map_geometry::MapGeometry, protocol::Floor};
 
 const MERGE_EPS: f32 = 0.01;
-const CORNER_EPS: f32 = 0.01;
 
 // One floor cell's 8 neighbours within the level's slab mask.
 struct Neighbors {
@@ -33,9 +32,8 @@ struct Neighbors {
 //
 // Corner fillers: when a diagonal suppresses the N/S extension, the cell is
 // left L-shaped with a small gap at the corner opposite the diagonal. A
-// thin strip patches that gap, inset by `pad` from the diagonal cell's W/E
-// extension so it doesn't overlap. Fillers exist only in the N/S direction
-// (E/W extensions don't have a diagonal-suppression case).
+// thin strip patches that gap out to the wall face. Fillers exist only in the
+// N/S direction (E/W extensions don't have a diagonal-suppression case).
 //
 // All tiers use the same `FLOOR_THICKNESS` so a hole in any level reads as
 // a real slab edge from below.
@@ -97,14 +95,13 @@ pub fn emit_floor_tier(
 
             floors.push(Floor { x1, z1, x2, z2, y, thickness, level });
 
-            // Corner fillers. Inset uses the *unextended* grid line
+            // Corner fillers. Use the *unextended* grid line
             // (`x1_orig`/`x2_orig`) plus `pad`, because the diagonal cell's
-            // W/E extension reaches `pad` past the grid line — insetting
-            // from this cell's own `x1`/`x2` would still overlap the
-            // diagonal cell. The N filler lands at horizontal[row][col];
-            // the S filler at horizontal[row+1][col]. Skip emission if that
-            // edge is in the skip set (a ramp's high-end edge).
-            let pad = WALL_HALF_THICKNESS - CORNER_EPS;
+            // W/E extension also reaches `pad` past the grid line. The N
+            // filler lands at horizontal[row][col]; the S filler at
+            // horizontal[row+1][col]. Skip emission if that edge is in the
+            // skip set (a ramp's high-end edge).
+            let pad = WALL_HALF_THICKNESS;
             if pad <= 0.0 {
                 continue;
             }

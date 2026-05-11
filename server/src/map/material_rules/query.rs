@@ -13,8 +13,8 @@ use super::{
 };
 
 // How close a coordinate must be to a grid line to count as "on" it. Smaller
-// than the corner-filler offset (`HALF_WALL_THICKNESS - CORNER_EPS ≈ 0.14`)
-// so the two sides of a thin strip are always distinguishable.
+// than the corner-filler offset (`WALL_HALF_THICKNESS`) so the two sides of a
+// thin strip are always distinguishable.
 const GRID_LINE_EPS: f32 = 0.05;
 
 #[derive(Debug, Clone, Default)]
