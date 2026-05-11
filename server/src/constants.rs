@@ -2,17 +2,10 @@
 // Lighting
 // ============================================================================
 
-// Generated interior lights are skipped in cells that are naturally lit by the
-// exterior. Exposure starts at sky-open cells and boundary openings, then fades
-// by `EXTERIOR_LIGHT_STEP_RETENTION` for each open grid step; cells below
-// `WALL_LIGHT_EXPOSURE_THRESHOLD` are considered dark enough for wall lights.
-pub const WALL_LIGHT_HEIGHT: f32 = 2.5; // meters above ground
-pub const WALL_LIGHT_EXPOSURE_THRESHOLD: f32 = 0.4;
-pub const EXTERIOR_LIGHT_STEP_RETENTION: f32 = 0.7;
-
-// When true, wall lights are placed on alternating cells along each wall
-// instead of every cell. Halves the on-wall light count.
-pub const ALTERNATE_WALL_LIGHTS: bool = false;
+// Vertical position of every wall lamp, measured from the floor it sits on.
+// Lamps are placed manually in the editor (per-level `lights` arrays in
+// `map.json`); this constant sets their height above the level floor.
+pub const WALL_LIGHT_HEIGHT: f32 = 2.5;
 
 // ============================================================================
 // Actors

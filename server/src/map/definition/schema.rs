@@ -35,6 +35,29 @@ pub(crate) struct LevelDef {
     pub(crate) inaccessible_floors: Vec<FloorDef>,
     #[serde(default)]
     pub(crate) walls: Vec<WallDef>,
+    #[serde(default)]
+    pub(crate) lights: Vec<WallLightDef>,
+}
+
+// Editor-authored wall light. Identifies a `(cell, side)` pair on this level;
+// the runtime turns each one into a `WallLight { pos, yaw }`.
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+pub(crate) struct WallLightDef {
+    pub(crate) col: i32,
+    pub(crate) row: i32,
+    pub(crate) side: WallSide,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+pub(crate) enum WallSide {
+    #[serde(rename = "N")]
+    North,
+    #[serde(rename = "S")]
+    South,
+    #[serde(rename = "E")]
+    East,
+    #[serde(rename = "W")]
+    West,
 }
 
 // Per-face materials live on each segment in JSON but are loaded by the

@@ -70,11 +70,14 @@ MODE_ERASE_KEEP_FLOORS = "Erase (Keep Floors)"
 MODE_FLOOR_MATERIAL = "Floor Material"
 MODE_WALL_MATERIAL = "Wall Material"
 MODE_RAMP_MATERIAL = "Ramp Material"
+MODE_LIGHT = "Light"
+MODE_ERASE_LIGHTS = "Erase Lights"
 RAMP_MODES = (MODE_RAMP_UP, MODE_RAMP_DOWN)
 ERASE_MODES = (MODE_ERASE, MODE_ERASE_KEEP_FLOORS)
 SPAWN_PAINT_MODES = (MODE_ACTOR_SPAWN_PAINT, MODE_PLAYER_SPAWN_PAINT)
 MATERIAL_MODES = (MODE_FLOOR_MATERIAL, MODE_WALL_MATERIAL, MODE_RAMP_MATERIAL)
 FLOOR_HIT_KINDS = ("Floor", "Inaccessible Floor")
+LIGHT_SIDES = ("N", "S", "E", "W")
 MODES = [
     MODE_FLOOR,
     MODE_INACCESSIBLE_FLOOR,
@@ -89,6 +92,8 @@ MODES = [
     MODE_FLOOR_MATERIAL,
     MODE_WALL_MATERIAL,
     MODE_RAMP_MATERIAL,
+    MODE_LIGHT,
+    MODE_ERASE_LIGHTS,
 ]
 
 # Two named lists in map_data so the editor can refer to them generically.
@@ -315,6 +320,69 @@ class MaterialAssignmentDialog(QDialog):
         return dialog.values()
 
 
+class AutoPlaceLightsDialog(QDialog):
+    """Modal dialog for the Map → Auto-Place Lights action. Captures four
+    spinboxes (row stride/offset, column stride/offset) and returns them as a
+    tuple. Lights are placed by the caller; this class only collects input."""
+
+    def __init__(self, parent: QWidget, grid_cols: int, grid_rows: int,
+                 initial: tuple[int, int, int, int] = (0, 0, 0, 0)):
+        super().__init__(parent)
+        self.setWindowTitle("Auto-Place Lights")
+
+        init_row_spacing, init_row_offset, init_col_spacing, init_col_offset = initial
+        self.row_spacing = QSpinBox()
+        self.row_spacing.setRange(0, max(0, grid_rows))
+        self.row_spacing.setValue(max(0, min(init_row_spacing, max(0, grid_rows))))
+        self.row_offset = QSpinBox()
+        self.row_offset.setRange(0, max(0, grid_rows))
+        self.row_offset.setValue(max(0, min(init_row_offset, max(0, grid_rows))))
+        self.col_spacing = QSpinBox()
+        self.col_spacing.setRange(0, max(0, grid_cols))
+        self.col_spacing.setValue(max(0, min(init_col_spacing, max(0, grid_cols))))
+        self.col_offset = QSpinBox()
+        self.col_offset.setRange(0, max(0, grid_cols))
+        self.col_offset.setValue(max(0, min(init_col_offset, max(0, grid_cols))))
+
+        form = QFormLayout()
+        form.addRow("Row spacing (cells skipped between lights)", self.row_spacing)
+        form.addRow("Row offset (starting row)", self.row_offset)
+        form.addRow("Column spacing (cells skipped between lights)", self.col_spacing)
+        form.addRow("Column offset (starting column)", self.col_offset)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+
+        layout = QVBoxLayout(self)
+        hint = QLabel(
+            "Adds a light on every wall hit by the stride that has a floor on at "
+            "least one side. Existing lights are kept (deduplicated)."
+        )
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
+        layout.addLayout(form)
+        layout.addWidget(buttons)
+
+    def values(self) -> tuple[int, int, int, int]:
+        return (
+            self.row_spacing.value(),
+            self.row_offset.value(),
+            self.col_spacing.value(),
+            self.col_offset.value(),
+        )
+
+    @classmethod
+    def prompt(cls, parent: QWidget, grid_cols: int, grid_rows: int,
+               initial: tuple[int, int, int, int] = (0, 0, 0, 0)) -> tuple[int, int, int, int] | None:
+        dialog = cls(parent, grid_cols, grid_rows, initial)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return None
+        return dialog.values()
+
+
 MIN_CELL = 12.0
 EDITOR_CELL = 36
 DEFAULT_GRID_COLS = 20
@@ -344,7 +412,7 @@ def empty_map() -> dict:
         "player_spawn_zones": [
             {"level": 0, "cols": [0, 2], "rows": [0, 2]},
         ],
-        "levels": [{"name": "Level 0", "floors": [], "inaccessible_floors": [], "walls": []}],
+        "levels": [{"name": "Level 0", "floors": [], "inaccessible_floors": [], "walls": [], "lights": []}],
         "ramps": [],
     }
 
@@ -492,7 +560,8 @@ def format_map_file(wrapper: dict) -> str:
                 f'        "name": {json_scalar(level["name"])},',
                 *with_trailing_comma(format_floor_array("floors", level["floors"], 8)),
                 *with_trailing_comma(format_floor_array("inaccessible_floors", level["inaccessible_floors"], 8)),
-                *format_wall_array("walls", level["walls"], 8),
+                *with_trailing_comma(format_wall_array("walls", level["walls"], 8)),
+                *format_light_array("lights", level.get("lights", []), 8),
                 "      }" + ("," if level_idx + 1 < len(map_data["levels"]) else ""),
             ]
         )
@@ -520,6 +589,20 @@ def format_floor_array(name: str, floors: list[dict], indent: int) -> list[str]:
     for idx, floor in enumerate(floors):
         comma = "," if idx + 1 < len(floors) else ""
         body = {"col": floor["col"], "row": floor["row"], **compact_face_materials(floor)}
+        lines.append(inner + json.dumps(body, separators=(", ", ": ")) + comma)
+    lines.append(f"{pad}]")
+    return lines
+
+
+def format_light_array(name: str, lights: list[dict], indent: int) -> list[str]:
+    pad = " " * indent
+    inner = " " * (indent + 2)
+    if not lights:
+        return [f'{pad}"{name}": []']
+    lines = [f'{pad}"{name}": [']
+    for idx, light in enumerate(lights):
+        comma = "," if idx + 1 < len(lights) else ""
+        body = {"col": light["col"], "row": light["row"], "side": light["side"]}
         lines.append(inner + json.dumps(body, separators=(", ", ": ")) + comma)
     lines.append(f"{pad}]")
     return lines
@@ -555,10 +638,11 @@ def normalize_map(map_data: dict) -> dict:
                 "floors": [normalize_floor(f) for f in level.get("floors", [])],
                 "inaccessible_floors": [normalize_floor(f) for f in level.get("inaccessible_floors", [])],
                 "walls": [normalize_wall(w) for w in level.get("walls", [])],
+                "lights": [normalize_light(l) for l in level.get("lights", [])],
             }
         )
     if not levels:
-        levels = [{"name": "Level 0", "floors": [], "inaccessible_floors": [], "walls": []}]
+        levels = [{"name": "Level 0", "floors": [], "inaccessible_floors": [], "walls": [], "lights": []}]
 
     ramps = [normalize_ramp(r) for r in map_data.get("ramps", [])]
     return {
@@ -596,6 +680,46 @@ def normalize_ramp(ramp: dict) -> dict:
         "lower_level": int(ramp["lower_level"]),
         **expand_face_materials(ramp),
     }
+
+
+def normalize_light(light: dict) -> dict:
+    side = str(light.get("side", "")).upper()
+    return {
+        "col": int(light["col"]),
+        "row": int(light["row"]),
+        "side": side if side in LIGHT_SIDES else "N",
+    }
+
+
+def light_key(light: dict) -> tuple:
+    return (light["row"], light["col"], light["side"])
+
+
+def wall_endpoints_for_cell_side(col: int, row: int, side: str) -> tuple[int, int, int, int]:
+    """Return the canonical (c0, r0, c1, r1) of the wall on a cell's side."""
+    if side == "N":
+        c0, r0, c1, r1 = col, row, col + 1, row
+    elif side == "S":
+        c0, r0, c1, r1 = col, row + 1, col + 1, row + 1
+    elif side == "W":
+        c0, r0, c1, r1 = col, row, col, row + 1
+    elif side == "E":
+        c0, r0, c1, r1 = col + 1, row, col + 1, row + 1
+    else:
+        raise ValueError(f"unknown side {side!r}")
+    return tuple(normalized_wall([c0, r0, c1, r1]))
+
+
+def cell_side_from_click(col: int, row: int, px: float, py: float) -> str:
+    """Return the cardinal side of cell (col, row) that the click (px, py) is
+    closest to, in cell-unit coordinates."""
+    distances = {
+        "N": py - row,
+        "S": (row + 1) - py,
+        "W": px - col,
+        "E": (col + 1) - px,
+    }
+    return min(distances, key=distances.get)
 
 
 def _normalize_zone_rect(zone: dict) -> dict:
@@ -666,7 +790,15 @@ def canonicalize_map(map_data: dict) -> dict:
     enforce_ramp_floor_rules(b)
     b["actor_spawn_zones"] = _dedupe_sorted(b["actor_spawn_zones"], actor_zone_key)
     b["player_spawn_zones"] = _dedupe_sorted(b["player_spawn_zones"], player_zone_key)
-    for level in b["levels"]:
+    # Ramp footprints occupy cells on both the lower and upper level of each
+    # ramp. Lights are not allowed inside any of those cells.
+    ramp_cells_by_level: list[set[tuple[int, int]]] = [set() for _ in b["levels"]]
+    for ramp in b["ramps"]:
+        for cell in ramp_cells(ramp):
+            for level in (ramp["lower_level"], ramp["lower_level"] + 1):
+                if 0 <= level < len(ramp_cells_by_level):
+                    ramp_cells_by_level[level].add(cell)
+    for level_idx, level in enumerate(b["levels"]):
         # Dedupe by (col, row); later entries win when the same position is
         # painted twice, so the user's most recent paint stays.
         level["floors"] = _dedupe_floors(level["floors"])
@@ -676,6 +808,20 @@ def canonicalize_map(map_data: dict) -> dict:
             if (f["col"], f["row"]) not in floor_keys
         ]
         level["walls"] = _dedupe_walls(level["walls"])
+        wall_endpoints_set = {
+            tuple(normalized_wall([w["c0"], w["r0"], w["c1"], w["r1"]]))
+            for w in level["walls"]
+        }
+        cols, rows = b["grid_cols"], b["grid_rows"]
+        ramp_set = ramp_cells_by_level[level_idx]
+        in_bounds_lights = [
+            l for l in level.get("lights", [])
+            if 0 <= l["col"] < cols and 0 <= l["row"] < rows
+            and l["side"] in LIGHT_SIDES
+            and wall_endpoints_for_cell_side(l["col"], l["row"], l["side"]) in wall_endpoints_set
+            and (l["col"], l["row"]) not in ramp_set
+        ]
+        level["lights"] = _dedupe_lights(in_bounds_lights)
 
     b["ramps"] = sorted(
         b["ramps"],
@@ -697,6 +843,13 @@ def _dedupe_walls(walls: list[dict]) -> list[dict]:
         c0, r0, c1, r1 = normalized_wall([wall["c0"], wall["r0"], wall["c1"], wall["r1"]])
         by_edge[(c0, r0, c1, r1)] = {**wall, "c0": c0, "r0": r0, "c1": c1, "r1": r1}
     return [by_edge[k] for k in sorted(by_edge.keys())]
+
+
+def _dedupe_lights(lights: list[dict]) -> list[dict]:
+    by_key: dict[tuple, dict] = {}
+    for light in lights:
+        by_key[light_key(light)] = light
+    return [by_key[k] for k in sorted(by_key.keys())]
 
 
 def resize_map_data(
@@ -738,12 +891,21 @@ def resize_map_data(
             return None
         return {**w, "c0": nc0, "r0": nr0, "c1": nc1, "r1": nr1}
 
+    def shift_light(light: dict) -> dict | None:
+        nc, nr = light["col"] + dc, light["row"] + dr
+        if not cell_in_bounds(nc, nr):
+            return None
+        return {**light, "col": nc, "row": nr}
+
     for level in out["levels"]:
         level["floors"] = [f for f in (shift_floor(f) for f in level["floors"]) if f is not None]
         level["inaccessible_floors"] = [
             f for f in (shift_floor(f) for f in level["inaccessible_floors"]) if f is not None
         ]
         level["walls"] = [w for w in (shift_wall(w) for w in level["walls"]) if w is not None]
+        level["lights"] = [
+            l for l in (shift_light(l) for l in level.get("lights", [])) if l is not None
+        ]
 
     def clip_zone(zone: dict) -> dict | None:
         c0, c1 = zone["cols"]
@@ -863,6 +1025,21 @@ def validate_map(map_data: dict) -> list[str]:
                 errors.append(f"{prefix}: wall [{c0}, {r0}, {c1}, {r1}] is outside the grid-line bounds")
             if abs(c1 - c0) + abs(r1 - r0) != 1:
                 errors.append(f"{prefix}: wall [{c0}, {r0}, {c1}, {r1}] is not one grid edge")
+
+        wall_endpoints_set = {
+            tuple(normalized_wall([w["c0"], w["r0"], w["c1"], w["r1"]]))
+            for w in level["walls"]
+        }
+        for light in level.get("lights", []):
+            c, r, side = light["col"], light["row"], light["side"]
+            if not (0 <= c < cols and 0 <= r < rows):
+                errors.append(f"{prefix}: light [{c}, {r}, {side}] is outside the grid")
+                continue
+            if side not in LIGHT_SIDES:
+                errors.append(f"{prefix}: light [{c}, {r}, {side}] has invalid side")
+                continue
+            if wall_endpoints_for_cell_side(c, r, side) not in wall_endpoints_set:
+                errors.append(f"{prefix}: light [{c}, {r}, {side}] has no wall on that side")
 
     ramp_cells_by_level: list[set[tuple[int, int]]] = [set() for _ in map_data["levels"]]
     for ramp in map_data["ramps"]:
@@ -1171,6 +1348,42 @@ def wall_segments_between(start: tuple[int, int], end: tuple[int, int]) -> list[
     return edges
 
 
+def light_marker_polygon(light: dict, cell: float) -> list[QPoint]:
+    """Triangle marker drawn inside the cell, tip pointing inward from the
+    wall the light is attached to."""
+    col, row, side = light["col"], light["row"], light["side"]
+    # Anchored at the wall midpoint, tip 0.30 of a cell into the room.
+    base_offset = 0.08
+    tip_offset = 0.30
+    half_width = 0.12
+    if side == "N":
+        base_mid = (col + 0.5, row + base_offset)
+        tip = (col + 0.5, row + tip_offset)
+        b1 = (col + 0.5 - half_width, row + base_offset)
+        b2 = (col + 0.5 + half_width, row + base_offset)
+    elif side == "S":
+        base_mid = (col + 0.5, row + 1 - base_offset)
+        tip = (col + 0.5, row + 1 - tip_offset)
+        b1 = (col + 0.5 - half_width, row + 1 - base_offset)
+        b2 = (col + 0.5 + half_width, row + 1 - base_offset)
+    elif side == "W":
+        base_mid = (col + base_offset, row + 0.5)
+        tip = (col + tip_offset, row + 0.5)
+        b1 = (col + base_offset, row + 0.5 - half_width)
+        b2 = (col + base_offset, row + 0.5 + half_width)
+    else:  # "E"
+        base_mid = (col + 1 - base_offset, row + 0.5)
+        tip = (col + 1 - tip_offset, row + 0.5)
+        b1 = (col + 1 - base_offset, row + 0.5 - half_width)
+        b2 = (col + 1 - base_offset, row + 0.5 + half_width)
+    _ = base_mid  # kept for clarity in case we want a label anchor later
+    return [
+        QPoint(round(tip[0] * cell), round(tip[1] * cell)),
+        QPoint(round(b1[0] * cell), round(b1[1] * cell)),
+        QPoint(round(b2[0] * cell), round(b2[1] * cell)),
+    ]
+
+
 def point_near_wall(px: float, py: float, wall: list[int], tolerance: float = 0.16) -> bool:
     c0, r0, c1, r1 = wall
     if r0 == r1:
@@ -1311,6 +1524,7 @@ class Canvas(QWidget):
             and (
                 self.window.mode in (MODE_FLOOR, MODE_FLOOR_MATERIAL, MODE_RAMP_MATERIAL, *ERASE_MODES)
                 or self.window.mode == MODE_INACCESSIBLE_FLOOR
+                or self.window.mode == MODE_ERASE_LIGHTS
                 or self.window.mode in SPAWN_PAINT_MODES
             )
         ):
@@ -1319,6 +1533,8 @@ class Canvas(QWidget):
                 color = QColor(248, 113, 113, 120)
             elif self.window.mode == MODE_ERASE_KEEP_FLOORS:
                 color = QColor(251, 146, 60, 120)
+            elif self.window.mode == MODE_ERASE_LIGHTS:
+                color = QColor(250, 204, 21, 120)  # amber — distinct from red erase tools
             elif self.window.mode == MODE_FLOOR:
                 color = QColor(111, 180, 255, 120)
             elif self.window.mode == MODE_INACCESSIBLE_FLOOR:
@@ -1388,8 +1604,20 @@ class Canvas(QWidget):
                 painter.drawRect(QRectF(c0_pt * cell, r0_pt * cell, (c1_pt - c0_pt) * cell, (r1_pt - r0_pt) * cell))
                 painter.setPen(Qt.PenStyle.NoPen)
 
+        # Lights — drawn after walls so the markers sit on top of the wall lines.
+        self.paint_lights(painter, level, cell)
+
         # Hover highlight for material modes — drawn last so it sits on top.
         self.paint_hover_highlight(painter, cell, level_idx)
+
+    def paint_lights(self, painter: QPainter, level: dict, cell: float) -> None:
+        lights = level.get("lights", [])
+        if not lights:
+            return
+        painter.setBrush(QColor(250, 204, 21, 220))
+        painter.setPen(QPen(QColor(202, 138, 4, 255), 1))
+        for light in lights:
+            painter.drawPolygon(light_marker_polygon(light, cell))
 
     def paint_hover_highlight(self, painter: QPainter, cell: float, level_idx: int) -> None:
         if self.hover_target is None:
@@ -1673,6 +1901,10 @@ class Canvas(QWidget):
             self.window.assign_wall_materials_rect(self.drag_start_point, self.drag_current_point)
         elif self.window.mode == MODE_RAMP_MATERIAL and self.drag_start_cell and self.drag_current_cell:
             self.window.assign_ramp_materials_rect(self.drag_start_cell, self.drag_current_cell)
+        elif self.window.mode == MODE_LIGHT and self.drag_start_cell:
+            self.window.toggle_light_at(event.position(), self.cell_size())
+        elif self.window.mode == MODE_ERASE_LIGHTS and self.drag_start_cell and self.drag_current_cell:
+            self.window.erase_lights_rect(self.drag_start_cell, self.drag_current_cell)
         elif self.window.mode in ERASE_MODES:
             preserve_floors = self.window.mode == MODE_ERASE_KEEP_FLOORS
             if self.drag_start_cell and self.drag_current_cell and self.drag_start_cell != self.drag_current_cell:
@@ -1733,6 +1965,11 @@ class EditorWindow(QMainWindow):
         # of a session and remembers the last value across subsequent paints.
         self.recent_actor_spawn_kind: str = ""
         self.recent_actor_spawn_count: int = DEFAULT_ACTOR_COUNT
+        # (row_spacing, row_offset, col_spacing, col_offset) — remembered
+        # across opens of the Auto-Place Lights dialog. Spacing is "cells
+        # skipped between lights": 0 = every cell, 1 = every other, 2 = every
+        # third.
+        self.recent_auto_place_lights: tuple[int, int, int, int] = (0, 0, 0, 0)
         self.selected_spawn_zone_ref: ZoneRef | None = None
         self.spawn_zone_drag: SpawnZoneDrag | None = None
         self.show_material_overlay = False
@@ -1773,20 +2010,22 @@ class EditorWindow(QMainWindow):
         redo_action = self.undo_stack.createRedoAction(self, "&Redo")
         redo_action.setShortcuts(QKeySequence.StandardKey.Redo)
         edit_menu.addAction(redo_action)
+        edit_menu.addSeparator()
+        self.add_menu_action(edit_menu, "Resi&ze Map...", None, self.resize_map)
+        edit_menu.addSeparator()
+        self.add_menu_action(edit_menu, "&Add Level", None, self.add_level)
+        self.add_menu_action(edit_menu, "Re&name Level...", None, self.rename_level)
+        self.add_menu_action(edit_menu, "Re&move Level", None, self.remove_level)
+        edit_menu.addSeparator()
+        self.add_menu_action(edit_menu, "Auto-Place &Lights...", None, self.open_auto_place_lights_dialog)
+        self.add_menu_action(edit_menu, "&Clear Lights On Level", None, self.clear_lights_on_current_level)
 
-        level_menu = self.menuBar().addMenu("&Level")
-        self.add_menu_action(level_menu, "&Add Level", None, self.add_level)
-        self.add_menu_action(level_menu, "&Rename Level...", None, self.rename_level)
-        self.add_menu_action(level_menu, "&Remove Level", None, self.remove_level)
-
-        map_menu = self.menuBar().addMenu("&Map")
-        self.add_menu_action(map_menu, "&Resize Map...", None, self.resize_map)
-        map_menu.addSeparator()
+        view_menu = self.menuBar().addMenu("&View")
         self.material_overlay_action = QAction("Show &Material Overlay", self)
         self.material_overlay_action.setCheckable(True)
         self.material_overlay_action.setShortcut(QKeySequence("M"))
         self.material_overlay_action.toggled.connect(self.set_material_overlay)
-        map_menu.addAction(self.material_overlay_action)
+        view_menu.addAction(self.material_overlay_action)
 
         help_menu = self.menuBar().addMenu("&Help")
         self.add_menu_action(help_menu, "Tool &Reference", None, self.show_tool_reference)
@@ -2178,6 +2417,144 @@ class EditorWindow(QMainWindow):
                 wall.update(result)
         self.apply_change("Assign Wall Materials", after)
 
+    def toggle_light_at(self, pos, cell_size: float) -> None:
+        px = pos.x() / cell_size
+        py = pos.y() / cell_size
+        cols = self.map_data["grid_cols"]
+        rows = self.map_data["grid_rows"]
+        col = int(px)
+        row = int(py)
+        if not (0 <= col < cols and 0 <= row < rows):
+            return
+        side = cell_side_from_click(col, row, px, py)
+        level_idx = self.current_level
+        endpoints = wall_endpoints_for_cell_side(col, row, side)
+        wall_endpoints_set = {
+            tuple(normalized_wall([w["c0"], w["r0"], w["c1"], w["r1"]]))
+            for w in self.map_data["levels"][level_idx]["walls"]
+        }
+        if endpoints not in wall_endpoints_set:
+            self.statusBar().showMessage(
+                f"No wall on the {side} side of cell [{col}, {row}].", 4000
+            )
+            return
+        if (col, row) in self._ramp_cells_for_level(level_idx):
+            self.statusBar().showMessage(
+                f"Cannot place a light inside a ramp footprint ([{col}, {row}]).", 4000
+            )
+            return
+        after = copy.deepcopy(self.map_data)
+        lights = after["levels"][level_idx]["lights"]
+        new_light = {"col": col, "row": row, "side": side}
+        key = light_key(new_light)
+        existing_idx = next(
+            (i for i, l in enumerate(lights) if light_key(l) == key), None
+        )
+        if existing_idx is not None:
+            del lights[existing_idx]
+            label = "Remove Light"
+        else:
+            lights.append(new_light)
+            label = "Add Light"
+        self.apply_change(label, after)
+
+    def _ramp_cells_for_level(self, level_idx: int) -> set[tuple[int, int]]:
+        cells: set[tuple[int, int]] = set()
+        for ramp in self.map_data["ramps"]:
+            if level_idx in (ramp["lower_level"], ramp["lower_level"] + 1):
+                cells.update(ramp_cells(ramp))
+        return cells
+
+    def auto_place_lights_on_current_level(self, row_spacing: int, row_offset: int, col_spacing: int, col_offset: int) -> None:
+        self.recent_auto_place_lights = (row_spacing, row_offset, col_spacing, col_offset)
+        cols = self.map_data["grid_cols"]
+        rows = self.map_data["grid_rows"]
+        level_idx = self.current_level
+        level = self.map_data["levels"][level_idx]
+        floors_on_level = {(f["col"], f["row"]) for f in level["floors"]}
+        ramp_cells_on_level = self._ramp_cells_for_level(level_idx)
+        wall_set = {
+            tuple(normalized_wall([w["c0"], w["r0"], w["c1"], w["r1"]]))
+            for w in level["walls"]
+        }
+        # Column spacing controls placement *along* a horizontal wall (i.e.,
+        # which X-positions get N/S lights). Row spacing controls placement
+        # along a vertical wall (which Z-positions get E/W lights). The
+        # python step is `spacing + 1`: spacing=0 → every cell, spacing=1 →
+        # every other, spacing=2 → every third, etc.
+        col_step = col_spacing + 1
+        row_step = row_spacing + 1
+        selected_cols = set(range(col_offset, cols, col_step))
+        selected_rows = set(range(row_offset, rows, row_step))
+
+        candidates: list[dict] = []
+        for (c, r) in floors_on_level:
+            if (c, r) in ramp_cells_on_level:
+                continue
+            if c in selected_cols:
+                for side in ("N", "S"):
+                    if wall_endpoints_for_cell_side(c, r, side) in wall_set:
+                        candidates.append({"col": c, "row": r, "side": side})
+            if r in selected_rows:
+                for side in ("E", "W"):
+                    if wall_endpoints_for_cell_side(c, r, side) in wall_set:
+                        candidates.append({"col": c, "row": r, "side": side})
+
+        if not candidates:
+            self.statusBar().showMessage("Auto-Place Lights: no walls matched the stride.", 4000)
+            return
+
+        after = copy.deepcopy(self.map_data)
+        existing = after["levels"][level_idx]["lights"]
+        existing_keys = {light_key(l) for l in existing}
+        added = 0
+        for candidate in candidates:
+            if light_key(candidate) in existing_keys:
+                continue
+            existing.append(candidate)
+            existing_keys.add(light_key(candidate))
+            added += 1
+        if added == 0:
+            self.statusBar().showMessage("Auto-Place Lights: nothing new to add.", 4000)
+            return
+        self.apply_change("Auto-Place Lights", after)
+        self.statusBar().showMessage(f"Auto-Place Lights: added {added} light(s).", 4000)
+
+    def open_auto_place_lights_dialog(self) -> None:
+        result = AutoPlaceLightsDialog.prompt(
+            self,
+            self.map_data["grid_cols"],
+            self.map_data["grid_rows"],
+            initial=self.recent_auto_place_lights,
+        )
+        if result is None:
+            return
+        row_spacing, row_offset, col_spacing, col_offset = result
+        self.auto_place_lights_on_current_level(row_spacing, row_offset, col_spacing, col_offset)
+
+    def clear_lights_on_current_level(self) -> None:
+        level_idx = self.current_level
+        if not self.map_data["levels"][level_idx]["lights"]:
+            self.statusBar().showMessage("Clear Lights: this level has no lights.", 4000)
+            return
+        after = copy.deepcopy(self.map_data)
+        after["levels"][level_idx]["lights"] = []
+        self.apply_change("Clear Lights", after)
+
+    def erase_lights_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
+        c0, r0, c1, r1 = rect_from_cells(start, end)
+        level_idx = self.current_level
+        kept = [
+            l for l in self.map_data["levels"][level_idx]["lights"]
+            if not (c0 <= l["col"] < c1 and r0 <= l["row"] < r1)
+        ]
+        if len(kept) == len(self.map_data["levels"][level_idx]["lights"]):
+            self.statusBar().showMessage("Erase Lights: no lights in selection.", 4000)
+            return
+        after = copy.deepcopy(self.map_data)
+        after["levels"][level_idx]["lights"] = kept
+        self.apply_change("Erase Lights", after)
+
     def assign_ramp_materials_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         # Selection is a cell rect; any ramp whose footprint overlaps the rect
         # is in. Ramps live on the lower of the two levels they connect; only
@@ -2372,7 +2749,7 @@ class EditorWindow(QMainWindow):
         insert_at = self.current_level + 1
         after["levels"].insert(
             insert_at,
-            {"name": f"Level {insert_at}", "floors": [], "inaccessible_floors": [], "walls": []},
+            {"name": f"Level {insert_at}", "floors": [], "inaccessible_floors": [], "walls": [], "lights": []},
         )
         for list_name in SPAWN_ZONE_LISTS:
             for zone in after[list_name]:
@@ -2445,7 +2822,10 @@ class EditorWindow(QMainWindow):
             "Ramp (Up): drag from this level toward the upper level.\n"
             "Ramp (Down): drag from this level toward the lower level.\n"
             "Erase: click an item, drag cells to erase an area, or right-click for the context menu.\n"
-            "Erase (Keep Floors): erase walls, ramps, and spawn zones while preserving floor and inaccessible floor cells.",
+            "Erase (Keep Floors): erase walls, ramps, and spawn zones while preserving floor and inaccessible floor cells.\n"
+            "Light: click a cell near a wall to add a wall light on that side; click an existing light marker to remove it. "
+            "Use Edit → Auto-Place Lights to fill the current level on a stride; Edit → Clear Lights On Level to start over.\n"
+            "Erase Lights: drag a rectangle to remove every light inside it on the current level.",
         )
 
     # ============================================================================

@@ -75,8 +75,13 @@ pub(crate) fn compile_map(map_def: &MapDef, assets: &MaterialRules) -> (MapLayou
     }
 
     let mut wall_lights = Vec::new();
-    for level_idx in 0..level_grids.len() {
-        wall_lights.extend(generate_wall_lights(&geometry, &level_grids, level_idx));
+    for (level_idx, level_grid) in level_grids.iter().enumerate() {
+        wall_lights.extend(generate_wall_lights(
+            &geometry,
+            level_grid,
+            level_idx,
+            &map_def.levels[level_idx].lights,
+        ));
     }
 
     let mut all_walls: Vec<Wall> = Vec::new();

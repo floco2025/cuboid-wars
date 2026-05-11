@@ -20,6 +20,7 @@ fn level_with_inaccessible(floors: Vec<[i32; 2]>, inaccessible_floors: Vec<[i32;
         floors: floors.into_iter().map(|[c, r]| floor_def(c, r)).collect(),
         inaccessible_floors: inaccessible_floors.into_iter().map(|[c, r]| floor_def(c, r)).collect(),
         walls: Vec::new(),
+        lights: Vec::new(),
     }
 }
 
