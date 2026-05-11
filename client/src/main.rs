@@ -17,7 +17,7 @@ use client::{
         input_camera_view_toggle_system, input_cursor_toggle_system, input_debug_colors_cycle_system,
         input_fullscreen_toggle_system, input_level_focus_toggle_system, input_movement_system, input_shooting_system,
     },
-    items::{ItemMap, items_animation_system},
+    items::{ItemMap, items_animation_system, setup_item_assets},
     map::{
         DebugColors, LevelFocusEnabled, map_level_focus_visibility_system, map_spawn_geometry_system,
         map_wall_light_emissive_system, setup_scene_lighting_system,
@@ -151,6 +151,7 @@ fn main() -> Result<()> {
                 setup_cameras_system,
                 setup_ui_system,
                 setup_skybox_from_cross_system.after(setup_scene_lighting_system),
+                setup_item_assets,
             ),
         )
         // Input writes local intent and view/debug state.

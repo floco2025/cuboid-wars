@@ -3,6 +3,7 @@ use common::{config::GameplayConfig, protocol::Position};
 
 use crate::{
     config::{AssetSet, RenderSettings},
+    items::ItemAssets,
     projectiles::ProjectileAssets,
 };
 
@@ -39,5 +40,6 @@ pub struct ClientAssets<'w> {
     pub asset_set: Res<'w, AssetSet>,
     pub render_settings: Res<'w, RenderSettings>,
     pub projectile_assets: Res<'w, ProjectileAssets>,
+    pub item_assets: Res<'w, ItemAssets>,
     pub gameplay_config: Res<'w, GameplayConfig>,
 }

@@ -6,7 +6,7 @@ use crate::{
     actors::ActorMap,
     cameras::MainCameraMarker,
     config::{AssetSet, RenderSettings},
-    items::ItemMap,
+    items::{ItemAssets, ItemMap},
     network::{LastUpdateSeq, RoundTripTime},
     players::PlayerMap,
 };
@@ -30,6 +30,7 @@ pub(super) fn handle_update_message(
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
     render_settings: &RenderSettings,
+    item_assets: &ItemAssets,
     gameplay_config: &GameplayConfig,
     msg: SUpdate,
 ) {
@@ -75,14 +76,5 @@ pub(super) fn handle_update_message(
         gameplay_config,
         &msg.actors,
     );
-    sync_items(
-        commands,
-        meshes,
-        materials,
-        items,
-        asset_server,
-        asset_set,
-        render_settings,
-        &msg.items,
-    );
+    sync_items(commands, item_assets, items, &msg.items);
 }

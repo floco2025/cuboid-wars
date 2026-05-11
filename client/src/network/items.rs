@@ -2,8 +2,8 @@ use bevy::prelude::*;
 use std::collections::HashSet;
 
 use crate::{
-    config::{AssetSet, RenderSettings},
-    items::{ItemInfo, ItemMap, spawn_item},
+    config::AssetSet,
+    items::{ItemAssets, ItemInfo, ItemMap, spawn_item},
 };
 use common::protocol::*;
 
@@ -32,12 +32,8 @@ pub fn handle_item_collected_message(
 // Synchronize items from bulk Update message - spawn/despawn.
 pub fn sync_items(
     commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
+    item_assets: &ItemAssets,
     items: &mut ResMut<ItemMap>,
-    asset_server: &Res<AssetServer>,
-    asset_set: &AssetSet,
-    render_settings: &RenderSettings,
     server_items: &[(ItemId, Item)],
 ) {
     let server_item_ids: HashSet<ItemId> = server_items.iter().map(|(id, _)| *id).collect();
@@ -47,17 +43,7 @@ pub fn sync_items(
         if items.contains_key(item_id) {
             continue;
         }
-        let entity = spawn_item(
-            commands,
-            meshes,
-            materials,
-            asset_server,
-            asset_set,
-            render_settings,
-            *item_id,
-            item.item_type,
-            &item.pos,
-        );
+        let entity = spawn_item(commands, item_assets, *item_id, item.item_type, &item.pos);
         items.insert(*item_id, ItemInfo { entity });
     }
 
