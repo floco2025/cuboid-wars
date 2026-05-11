@@ -25,7 +25,7 @@ Rust workspace with three crates:
   - `map/` — client map rendering and geometry spawning.
 
 Other notable paths:
-- `tools/editor.py` — PySide6 map editor for `config/server/map.json`.
+- `tools/editor.py` — PySide6 map editor for `config/server/map.json`. The canvas is the UI; do not add col/row/coordinate readouts to the status bar or overlays.
 - `tools/preview.py` — ASCII map preview/validation helper.
 - `client/assets/` — 3D models, textures, audio.
 - `config/client/assets.json` — hand-edited asset set for materials, material rules, models, and sounds.
@@ -38,6 +38,8 @@ Other notable paths:
 - `bacon.toml` — `bacon` job definitions (`check`, `clippy`, `build`, `test`).
 
 ## Build, Run, Lint, Format
+
+All cargo invocations in this repo default to `--release` — `cargo build --release`, `cargo check --release`, `cargo test --release`. Debug builds pull in a lot and we don't run them.
 
 ```bash
 cargo build                                       # workspace, debug
@@ -68,12 +70,14 @@ cargo fmt
 - Wire format: `bincode` 2 (binary).
 - The default map source is `config/server/map.json`; the server turns it into `MapLayout`, sends that to clients, and both sides build shared collision/rendering state from it.
 - Keep gameplay concepts (`Wall`, `Floor`, `Ramp`, items, player spawn fields) in map/protocol types; keep reusable movement/collision behavior in `common::physics`.
+- Mesh UVs are computed from world position, not local position. The floor/wall/ramp mesh builders in `client/src/map/spawn/` take `world_center` (and `rotation` for walls) so each vertex's UV is `(world_center + rotation * local_pos) · uv_axis / tile_size`. This makes textures tile seamlessly across adjacent segments. New mesh builders should follow the same pattern — don't anchor UVs to local mesh coordinates even if the mesh itself is placed via a `Transform`.
 
 ## Coding Style
 
 - Rust edition 2024. Format with `cargo fmt` (see `rustfmt.toml`).
 - Workspace lints (root `Cargo.toml`): `unsafe_code = "forbid"`; `pedantic` + `nursery` + `cargo` lint groups enabled; `unwrap_used = "warn"` — prefer `expect()` with a message, or proper error handling.
 - Naming: `snake_case` functions/modules, `CamelCase` types, `SCREAMING_SNAKE_CASE` constants.
+- Use `assert!` / `assert_eq!` / `assert_ne!` for invariants — never `debug_assert!`. Only release builds run, so `debug_assert!` is effectively a no-op.
 
 ## Testing
 
