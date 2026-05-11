@@ -260,3 +260,86 @@ struct ActorAssets {
 struct GenericModels {
     wall_light: WallLightModelDef,
 }
+
+impl AssetSet {
+    // Every disk path (`.png`, `.glb`, `.ogg`, …) referenced from `assets.json`.
+    // GLTF subscene specifiers (`foo.glb#Scene0`) are split so callers only get
+    // the file path — what the case-existence audit cares about on disk.
+    #[cfg(test)]
+    fn referenced_asset_paths(&self) -> Vec<String> {
+        fn push(out: &mut Vec<String>, raw: &str) {
+            let path = raw.split('#').next().unwrap_or(raw);
+            if !path.is_empty() {
+                out.push(path.to_string());
+            }
+        }
+
+        let mut out: Vec<String> = Vec::new();
+        for material in self.materials.values() {
+            push(&mut out, &material.textures.base_color);
+            push(&mut out, &material.textures.normal);
+            push(&mut out, &material.textures.occlusion);
+            push(&mut out, &material.textures.metallic_roughness);
+        }
+        push(&mut out, &self.skybox.image);
+        push(&mut out, &self.models.wall_light.scene);
+        push(&mut out, &self.player.model.scene);
+        for sound in self.player.sounds.values() {
+            push(&mut out, sound);
+        }
+        for actor in self.actors.values() {
+            push(&mut out, &actor.model.scene);
+            push(&mut out, &actor.explosion_effect.image);
+            for sound in actor.sounds.values() {
+                push(&mut out, sound);
+            }
+        }
+        out
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    // Bevy's `AssetServer.load` ends in `std::fs::File::open`, which is
+    // case-sensitive on Linux but case-insensitive on macOS APFS (default)
+    // and Windows NTFS. A casing typo in `assets.json` slips past Mac dev
+    // testing and 404s on a Linux client. Walk each referenced path's parent
+    // directory and assert the exact filename is present — `Path::exists`
+    // would be fooled by macOS's case-insensitive layer.
+    #[test]
+    fn referenced_assets_exist_case_exactly() {
+        let assets = AssetSet::load_default().expect("load assets");
+        let assets_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("assets");
+
+        let mut errors: Vec<String> = Vec::new();
+        for path in assets.referenced_asset_paths() {
+            let full = assets_root.join(&path);
+            let parent = full.parent().expect("path has parent");
+            let want = full.file_name().expect("path has filename");
+            let entries: HashSet<_> = match fs::read_dir(parent) {
+                Ok(rd) => rd.filter_map(|e| e.ok().map(|e| e.file_name())).collect(),
+                Err(_) => HashSet::new(),
+            };
+            if entries.contains(want) {
+                continue;
+            }
+            let ci_match = entries
+                .iter()
+                .find(|n| n.to_string_lossy().eq_ignore_ascii_case(&want.to_string_lossy()))
+                .map(|n| n.to_string_lossy().into_owned());
+            match ci_match {
+                Some(other) => errors.push(format!(
+                    "`{path}` referenced in assets.json — disk has `{}/{}` (case mismatch)",
+                    parent.file_name().unwrap_or_default().to_string_lossy(),
+                    other,
+                )),
+                None => errors.push(format!("`{path}` referenced in assets.json — not found on disk")),
+            }
+        }
+
+        assert!(errors.is_empty(), "asset path mismatches:\n  {}", errors.join("\n  "));
+    }
+}
