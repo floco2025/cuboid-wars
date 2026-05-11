@@ -192,7 +192,7 @@
       "linear_data_textures": true,
       "textures": {
         "base_color": "textures/mud-with-vegetation-ue/mud_with_vegetation_albedo.png",
-        "normal": "textures/mud-with-vegetation-ue/mud_with_vegetation_normal-dx.png",
+        "normal": "textures/mud-with-vegetation-ue/mud_with_vegetation_Normal-dx.png",
         "occlusion": "textures/mud-with-vegetation-ue/mud_with_vegetation_ao.png",
         "metallic_roughness": "textures/mud-with-vegetation-ue/mud_with_vegetation_metallic-roughness.png"
       }
