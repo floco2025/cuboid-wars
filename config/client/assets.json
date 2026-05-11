@@ -196,6 +196,19 @@
         "occlusion": "textures/mud-with-vegetation-ue/mud_with_vegetation_ao.png",
         "metallic_roughness": "textures/mud-with-vegetation-ue/mud_with_vegetation_metallic-roughness.png"
       }
+    },
+    "patched-brickwork": {
+      "tile_size": 3.0,
+      "metallic": 0.5,
+      "roughness": 1.0,
+      "repeat": true,
+      "linear_data_textures": true,
+      "textures": {
+        "base_color": "textures/patched-brickwork-ue/patched-brickwork_albedo.png",
+        "normal": "textures/patched-brickwork-ue/patched-brickwork_normal-dx.png",
+        "occlusion": "textures/patched-brickwork-ue/patched-brickwork_ao.png",
+        "metallic_roughness": "textures/patched-brickwork-ue/patched-brickwork_metallic-roughness.png"
+      }
     }
   },
   "aliases": {
@@ -212,6 +225,7 @@
     "exterior-walls": "modern-brick1",
     "upper-interior-walls": "forest-wallpaper",
     "rooftop-wall": "stucco1",
+    "perimeter-wall": "patched-brickwork",
     "cookie": "hammered-gold",
     "powerup": "space-cruiser-panels2"
   },
