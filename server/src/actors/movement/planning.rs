@@ -51,14 +51,13 @@ pub(crate) fn plan_actor_moves(
         let actor_physics = actor_config.physics();
         let current_pos = *pos;
         info.move_intent_send_timer += delta;
-        let was_chasing_player = info.go_to_position.is_some() && info.go_to_position_is_chase;
         let go_to_intent = actor_desired_intent(
             &mut info.go_to_position,
             &current_pos,
             kind_server_config.go_to_reached_distance,
             actor_config.chase_speed,
         );
-        update_reached_go_to_state(info, was_chasing_player, kind_server_config.chase_reacquire_cooldown);
+        update_reached_go_to_state(info);
         let move_context = ActorMoveContext {
             entity,
             pos: &current_pos,
@@ -91,16 +90,9 @@ pub(crate) fn plan_actor_moves(
     }
 }
 
-pub(super) fn update_reached_go_to_state(
-    info: &mut ActorInfo,
-    was_chasing_player: bool,
-    chase_reacquire_cooldown: f32,
-) {
+pub(super) fn update_reached_go_to_state(info: &mut ActorInfo) {
     if info.go_to_position.is_some() {
         return;
-    }
-    if was_chasing_player {
-        info.chase_reacquire_timer = chase_reacquire_cooldown;
     }
     info.go_to_position_is_chase = false;
 }

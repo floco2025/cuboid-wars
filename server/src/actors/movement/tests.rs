@@ -172,23 +172,21 @@ fn actor_without_go_to_position_plans_after_targeted_actor() {
 }
 
 #[test]
-fn reached_chase_target_starts_reacquire_cooldown() {
+fn reached_chase_target_clears_chase_without_reacquire_cooldown() {
     let mut info = actor_info();
     info.go_to_position_is_chase = true;
-    let was_chasing_player = true;
 
-    update_reached_go_to_state(&mut info, was_chasing_player, 2.0);
+    update_reached_go_to_state(&mut info);
 
     assert!(!info.go_to_position_is_chase);
-    assert_eq!(info.chase_reacquire_timer, 2.0);
+    assert_eq!(info.chase_reacquire_timer, 0.0);
 }
 
 #[test]
 fn reached_non_chase_target_does_not_start_reacquire_cooldown() {
     let mut info = actor_info();
-    let was_chasing_player = false;
 
-    update_reached_go_to_state(&mut info, was_chasing_player, 2.0);
+    update_reached_go_to_state(&mut info);
 
     assert!(!info.go_to_position_is_chase);
     assert_eq!(info.chase_reacquire_timer, 0.0);

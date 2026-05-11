@@ -43,18 +43,18 @@ pub fn actor_behavior_system(
         let chase_reacquire_blocked = tick_chase_reacquire_timer(info, delta);
 
         // Wander limit: if the actor has strayed past `max_wander_distance`
-        // from the nearest edge of its spawn zone, override everything else
-        // and walk it back. This naturally cancels chases that carry the
-        // actor too far — the next tick rewrites `go_to_position` from the
-        // player's location to a point inside the zone.
+        // from the nearest edge of its spawn zone, override everything else,
+        // start the chase reacquire cooldown when applicable, and walk it back.
         let zone_bounds = map_config.actor_spawn_zones[info.spawn_zone_index].xz_bounds(&map_geometry);
         if xz_distance_from_rect(pos, zone_bounds) > kind_server_config.max_wander_distance {
+            start_chase_reacquire_cooldown_if_chasing(info, kind_server_config.chase_reacquire_cooldown);
             info.go_to_position = Some(closest_point_in_rect(pos, zone_bounds));
             info.go_to_position_is_chase = false;
             continue;
         }
 
         if !chase_reacquire_blocked
+            && (info.go_to_position.is_none() || info.go_to_position_is_chase)
             && let Some(target_pos) = visible_player_position(
                 pos,
                 actor_config.eye_height(),
@@ -92,6 +92,12 @@ fn tick_chase_reacquire_timer(info: &mut crate::resources::ActorInfo, delta: f32
     info.chase_reacquire_timer > 0.0
 }
 
+fn start_chase_reacquire_cooldown_if_chasing(info: &mut crate::resources::ActorInfo, chase_reacquire_cooldown: f32) {
+    if info.go_to_position_is_chase {
+        info.chase_reacquire_timer = chase_reacquire_cooldown;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use bevy::prelude::Entity;
@@ -123,6 +129,27 @@ mod tests {
         assert!(tick_chase_reacquire_timer(&mut info, 0.25));
         assert_eq!(info.chase_reacquire_timer, 0.75);
         assert!(!tick_chase_reacquire_timer(&mut info, 0.75));
+        assert_eq!(info.chase_reacquire_timer, 0.0);
+    }
+
+    #[test]
+    fn interrupted_chase_starts_reacquire_cooldown() {
+        let mut info = actor_info(0.0);
+        info.go_to_position = Some(Position { x: 1.0, y: 0.0, z: 1.0 });
+        info.go_to_position_is_chase = true;
+
+        start_chase_reacquire_cooldown_if_chasing(&mut info, 5.0);
+
+        assert_eq!(info.chase_reacquire_timer, 5.0);
+    }
+
+    #[test]
+    fn non_chase_go_to_does_not_start_reacquire_cooldown() {
+        let mut info = actor_info(0.0);
+        info.go_to_position = Some(Position { x: 1.0, y: 0.0, z: 1.0 });
+
+        start_chase_reacquire_cooldown_if_chasing(&mut info, 5.0);
+
         assert_eq!(info.chase_reacquire_timer, 0.0);
     }
 }
