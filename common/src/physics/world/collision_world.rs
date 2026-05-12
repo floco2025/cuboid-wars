@@ -192,17 +192,14 @@ impl CollisionWorld {
             })
     }
 
-    // Line of sight is blocked by walls/floors/ramps AND by barriers (an
-    // actor can't see — and therefore can't path-find — through a barrier
-    // it can't pass through).
+    // Line of sight is blocked by walls/floors/ramps only. Barriers don't
+    // block sight — actors see through and pursue; the kinematic controller
+    // stops them at the barrier surface, where normal wall-avoidance kicks in.
     #[must_use]
     pub fn line_of_sight_clear(&self, from: Vec3, to: Vec3) -> bool {
         const SIGHT_RADIUS: f32 = 0.08;
         let translation = to - from;
         self.cast_moving_ball(from, translation, SIGHT_RADIUS).is_none()
-            && self
-                .cast_moving_ball_against_barriers(from, translation, SIGHT_RADIUS)
-                .is_none()
     }
 
     #[must_use]
