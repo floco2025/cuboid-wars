@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use super::network::broadcast_actor_destroyed;
+use super::network::broadcast_actor_death;
 use crate::{
     combat::{ActorDeathQuery, apply_actor_explosion_damage, kill_player},
     config::ServerGameplayConfig,
@@ -75,11 +75,11 @@ pub fn actor_removal_system(
                 &mut player_query,
                 &mut query,
             );
-            broadcast_actor_destroyed(&players, death.id, death.pos);
+            broadcast_actor_death(&players, death.id, death.pos);
             info!("{:?} was destroyed at {:?}", death.id, death.pos);
-            for (player_id, entity) in dead_players {
+            for (player_id, entity, pos) in dead_players {
                 info!("{:?} killed by {:?} explosion", player_id, death.id);
-                kill_player(&mut commands, &mut players, player_id, entity, respawn_delay_secs);
+                kill_player(&mut commands, &mut players, player_id, entity, pos, respawn_delay_secs);
             }
         } else {
             info!("{:?} fell and despawned at {:?}", death.id, death.pos);

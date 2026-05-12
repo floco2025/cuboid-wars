@@ -2,13 +2,16 @@ use bevy::prelude::*;
 
 use crate::{
     config::{ActorExplosionDamageConfig, ServerGameplayConfig},
+    network::broadcast_to_all,
     resources::PlayerMap,
 };
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     health::apply_damage,
     physics::CharacterVerticalVelocity,
-    protocol::{ActorId, ActorMarker, ActorMoveIntent, Health, PlayerId, PlayerMarker, Position},
+    protocol::{
+        ActorId, ActorMarker, ActorMoveIntent, Health, PlayerId, PlayerMarker, Position, SPlayerDeath, ServerMessage,
+    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -18,13 +21,16 @@ pub enum PlayerHitOutcome {
 }
 
 // Common death sequence: clear per-life state, arm the respawn timer,
-// despawn the entity. Called from every code path that takes a player to
-// zero health (projectile hits, actor explosions, falls).
+// despawn the entity, and broadcast `SPlayerDeath` so clients run their
+// death-side effects on the impact tick (instead of waiting one snapshot).
+// Called from every code path that takes a player to zero health
+// (projectile hits, actor explosions, falls).
 pub fn kill_player(
     commands: &mut Commands,
     players: &mut PlayerMap,
     id: PlayerId,
     entity: Entity,
+    pos: Position,
     respawn_delay_secs: f32,
 ) {
     if let Some(info) = players.get_mut(&id) {
@@ -32,6 +38,7 @@ pub fn kill_player(
         info.death_timer = Some(respawn_delay_secs);
     }
     commands.entity(entity).despawn();
+    broadcast_to_all(players, ServerMessage::PlayerDeath(SPlayerDeath { id, pos }));
 }
 
 // Apply one projectile hit to a player. Returns `Died` when this hit drops
@@ -118,7 +125,7 @@ pub fn apply_actor_explosion_damage(
         (With<PlayerMarker>, Without<ActorMarker>),
     >,
     actor_query: &mut ActorDeathQuery,
-) -> Vec<(PlayerId, Entity)> {
+) -> Vec<(PlayerId, Entity, Position)> {
     let actor_physics = gameplay_config.validated_actor(destroyed_spawn_kind).physics();
     let explosion_center = character_center(destroyed_pos, actor_physics);
     let mut newly_dead = Vec::new();
@@ -138,7 +145,7 @@ pub fn apply_actor_explosion_damage(
         }
         apply_damage(&mut health, damage);
         if health.0 <= 0.0 {
-            newly_dead.push((*id, entity));
+            newly_dead.push((*id, entity, *pos));
         }
     }
 
@@ -260,6 +267,44 @@ mod tests {
     }
 
     #[test]
+    fn kill_player_broadcasts_player_death() {
+        use tokio::sync::mpsc::unbounded_channel;
+
+        let mut app = App::new();
+        let mut players = PlayerMap::default();
+
+        // Receiver with a logged-in shooter so the broadcast can reach them.
+        let (shooter_tx, mut shooter_rx) = unbounded_channel();
+        let mut shooter = PlayerInfo::new(Entity::PLACEHOLDER, shooter_tx);
+        shooter.logged_in = true;
+        players.insert(PlayerId(1), shooter);
+
+        // The dying player; also logged_in so the broadcast targets them too.
+        let mut target = make_player_info();
+        target.logged_in = true;
+        let target_entity = target.entity;
+        players.insert(PlayerId(2), target);
+
+        let pos = Position { x: 4.0, y: 5.0, z: 6.0 };
+        let world = app.world_mut();
+        let mut commands_queue = bevy::ecs::world::CommandQueue::default();
+        {
+            let mut commands = bevy::ecs::system::Commands::new(&mut commands_queue, world);
+            kill_player(&mut commands, &mut players, PlayerId(2), target_entity, pos, 2.0);
+        }
+        commands_queue.apply(world);
+
+        let envelope = shooter_rx.try_recv().expect("shooter should have received PlayerDeath");
+        match envelope {
+            crate::net::ServerToClient::Send(ServerMessage::PlayerDeath(death)) => {
+                assert_eq!(death.id, PlayerId(2));
+                assert_eq!(death.pos, pos);
+            }
+            other => panic!("unexpected message: {other:?}"),
+        }
+    }
+
+    #[test]
     fn kill_player_clears_state_and_arms_timer() {
         let mut app = App::new();
         let mut players = PlayerMap::default();
@@ -274,7 +319,14 @@ mod tests {
         let mut commands_queue = bevy::ecs::world::CommandQueue::default();
         {
             let mut commands = bevy::ecs::system::Commands::new(&mut commands_queue, world);
-            kill_player(&mut commands, &mut players, PlayerId(7), entity, 2.0);
+            kill_player(
+                &mut commands,
+                &mut players,
+                PlayerId(7),
+                entity,
+                Position { x: 1.0, y: 2.0, z: 3.0 },
+                2.0,
+            );
         }
         commands_queue.apply(world);
 

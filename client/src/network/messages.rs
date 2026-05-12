@@ -1,12 +1,12 @@
 use bevy::prelude::*;
 
 use super::{
-    actors::{handle_actor_destroyed_message, handle_actor_hit_message, handle_actor_move_intent_message},
+    actors::{handle_actor_death_message, handle_actor_hit_message, handle_actor_move_intent_message},
     components::AssetManagers,
     io::handle_pong_message,
     items::handle_item_collected_message,
     players::{
-        handle_player_face_message, handle_player_hit_message, handle_player_jump_message,
+        handle_player_death_message, handle_player_face_message, handle_player_hit_message, handle_player_jump_message,
         handle_player_move_intent_message, handle_player_shot_message, handle_player_status_message,
     },
     update::handle_update_message,
@@ -62,8 +62,8 @@ pub fn dispatch_message(
         ServerMessage::ActorMoveIntent(move_intent_msg) => {
             handle_actor_move_intent_message(commands, actors, rtt, actor_data, move_intent_msg);
         }
-        ServerMessage::ActorDestroyed(destroyed_msg) => {
-            handle_actor_destroyed_message(
+        ServerMessage::ActorDeath(death_msg) => {
+            handle_actor_death_message(
                 commands,
                 &mut assets.meshes,
                 &mut assets.materials,
@@ -71,8 +71,11 @@ pub fn dispatch_message(
                 asset_set,
                 actors,
                 gameplay_config,
-                destroyed_msg,
+                death_msg,
             );
+        }
+        ServerMessage::PlayerDeath(death_msg) => {
+            handle_player_death_message(commands, players, local_player_info, my_player_id, death_msg);
         }
         ServerMessage::Jump(jump_msg) => {
             handle_player_jump_message(commands, players, player_data, rtt, gameplay_config, jump_msg);

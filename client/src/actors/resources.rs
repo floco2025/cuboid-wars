@@ -20,6 +20,10 @@ impl ActorMap {
         self.0.insert(id, info)
     }
 
+    pub fn remove(&mut self, id: &ActorId) -> Option<ActorInfo> {
+        self.0.remove(id)
+    }
+
     #[must_use]
     pub fn contains_key(&self, id: &ActorId) -> bool {
         self.0.contains_key(id)

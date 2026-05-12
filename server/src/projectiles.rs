@@ -153,8 +153,9 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
         match closest_hit {
             Some(ProjectileTargetHit::Player { id: player_id, hit }) => {
                 if let Some(target_entity) = params.players.get(&player_id).map(|info| info.entity)
-                    && let Ok((_, _, _, mut health)) = params.player_query.get_mut(target_entity)
+                    && let Ok((target_pos, _, _, mut health)) = params.player_query.get_mut(target_entity)
                 {
+                    let target_pos = *target_pos;
                     info!("{:?} hits {:?}", shooter_id, player_id);
                     let outcome = apply_player_projectile_hit(
                         &mut params.players,
@@ -180,6 +181,7 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                             &mut params.players,
                             player_id,
                             target_entity,
+                            target_pos,
                             params.gameplay_config.player.respawn_delay_secs,
                         );
                     }

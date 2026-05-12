@@ -6,7 +6,7 @@ use crate::{
 use common::{
     math::angle_delta_radians,
     protocol::{
-        ActorId, ActorMoveIntent, ActorMovementState, Position, SActorDestroyed, SActorMoveIntent, ServerMessage,
+        ActorId, ActorMoveIntent, ActorMovementState, Position, SActorDeath, SActorMoveIntent, ServerMessage,
     },
 };
 
@@ -47,8 +47,8 @@ pub fn broadcast_actor_move_intent(
     );
 }
 
-pub fn broadcast_actor_destroyed(players: &PlayerMap, id: ActorId, pos: Position) {
-    broadcast_to_all(players, ServerMessage::ActorDestroyed(SActorDestroyed { id, pos }));
+pub fn broadcast_actor_death(players: &PlayerMap, id: ActorId, pos: Position) {
+    broadcast_to_all(players, ServerMessage::ActorDeath(SActorDeath { id, pos }));
 }
 
 fn actor_move_intent_should_broadcast(

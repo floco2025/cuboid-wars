@@ -28,9 +28,11 @@
 //        the transition; the snapshot keeps the HUD icon correct if the
 //        event was dropped.
 //      * The cue carries information the snapshot doesn't. `SPlayerHit`
-//        ships hit direction for directional camera shake; `SActorDestroyed`
-//        triggers the explosion VFX (without it, the actor would silently
-//        vanish from the snapshot).
+//        ships hit direction for directional camera shake; `SActorDeath` /
+//        `SPlayerDeath` trigger immediate death-side work (VFX, overlay,
+//        entity teardown) one tick before the snapshot would catch up.
+//        Without them, the actor or player would silently disappear and the
+//        cues would lag by a tick.
 //
 // `CPing` / `SPong` are a separate diagnostic channel for RTT measurement.
 
@@ -108,10 +110,21 @@ pub struct SActorMoveIntent {
     pub movement: ActorMovementState,
 }
 
-// Server to Client: Actor was destroyed at this position before respawning.
+// Server to Client: Actor died at this position. Triggers the explosion VFX
+// + sound and the local entity teardown. `SUpdate`'s next snapshot is the
+// fallback if this event is dropped.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct SActorDestroyed {
+pub struct SActorDeath {
     pub id: ActorId,
+    pub pos: Position,
+}
+
+// Server to Client: Player died at this position. Drives the immediate
+// client-side death-state transition (overlay + freeze for the dying player,
+// entity teardown for others). `SUpdate`'s next snapshot is the fallback.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SPlayerDeath {
+    pub id: PlayerId,
     pub pos: Position,
 }
 
@@ -208,7 +221,8 @@ pub enum ServerMessage {
     Init(SInit),
     PlayerMoveIntent(SPlayerMoveIntent),
     ActorMoveIntent(SActorMoveIntent),
-    ActorDestroyed(SActorDestroyed),
+    ActorDeath(SActorDeath),
+    PlayerDeath(SPlayerDeath),
     Jump(SJump),
     Face(SFace),
     Shot(SShot),

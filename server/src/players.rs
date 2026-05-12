@@ -69,6 +69,7 @@ pub fn players_fall_death_system(
             &mut players,
             *id,
             entity,
+            *pos,
             gameplay_config.player.respawn_delay_secs,
         );
     }

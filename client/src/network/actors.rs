@@ -12,7 +12,7 @@ use common::{
     config::GameplayConfig,
     physics::CharacterVerticalVelocity,
     protocol::{
-        Actor, ActorId, ActorMarker, ActorMoveIntent, ActorMovementState, FaceDirection, Position, SActorDestroyed,
+        Actor, ActorId, ActorMarker, ActorMoveIntent, ActorMovementState, FaceDirection, Position, SActorDeath,
         SActorHit, SActorMoveIntent,
     },
 };
@@ -104,23 +104,24 @@ pub fn handle_actor_move_intent_message(
     );
 }
 
-// Server despawns the entity; client cleanup happens when the next snapshot
-// arrives without this actor (sync_actors removes any actor not in the
-// update). No need to mutate the entity here — just play the VFX.
+// Drives the immediate death of an actor on this client: explosion VFX +
+// sound, then despawn the entity and drop the `ActorMap` entry. The
+// snapshot diff is the fallback if this event was dropped.
 //
-// Kind isn't on the wire `SActorDestroyed`; we recover it from the local
+// Kind isn't on the wire `SActorDeath`; we recover it from the local
 // `ActorMap` where the kind was recorded when this actor was first seen.
-pub fn handle_actor_destroyed_message(
+pub fn handle_actor_death_message(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
-    actors: &ActorMap,
+    actors: &mut ResMut<ActorMap>,
     gameplay_config: &GameplayConfig,
-    msg: SActorDestroyed,
+    msg: SActorDeath,
 ) {
-    let Some(info) = actors.get(&msg.id) else {
+    let Some(info) = actors.remove(&msg.id) else {
+        // Already torn down (e.g. via the snapshot diff). Stay idempotent.
         return;
     };
     spawn_actor_explosion(
@@ -137,6 +138,7 @@ pub fn handle_actor_destroyed_message(
         AudioPlayer::new(asset_server.load(asset_set.actor_sound(&info.kind, "explodes").to_owned())),
         PlaybackSettings::DESPAWN,
     ));
+    commands.entity(info.entity).despawn();
 }
 
 pub fn handle_actor_hit_message(

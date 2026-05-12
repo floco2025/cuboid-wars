@@ -4,8 +4,7 @@ use crate::{
     cameras::MainCameraMarker,
     config::AssetSet,
     network::{RoundTripTime, ServerReconciliation},
-    players::PlayerMap,
-    players::{CameraShake, CuboidShake},
+    players::{CameraShake, CuboidShake, LocalPlayerInfo, PlayerMap},
     projectiles::{ProjectileAssets, spawn_projectiles},
 };
 use common::{
@@ -169,6 +168,27 @@ pub fn handle_player_hit_message(
             offset_x: 0.0,
             offset_z: 0.0,
         });
+    }
+}
+
+// Handle player death — the primary trigger for client-side death effects.
+// For the local player: keep the entity (camera/look need it), hide it, set
+// `is_dead`. For other players: despawn + drop `PlayerInfo`. The snapshot
+// diff in `sync_players` is the idempotent fallback if this event was lost.
+pub fn handle_player_death_message(
+    commands: &mut Commands,
+    players: &mut ResMut<PlayerMap>,
+    local_player_info: &mut LocalPlayerInfo,
+    my_player_id: PlayerId,
+    msg: SPlayerDeath,
+) {
+    if msg.id == my_player_id {
+        if let Some(info) = players.get(&msg.id) {
+            commands.entity(info.entity).insert(Visibility::Hidden);
+        }
+        local_player_info.is_dead = true;
+    } else if let Some(info) = players.remove(&msg.id) {
+        commands.entity(info.entity).despawn();
     }
 }
 
