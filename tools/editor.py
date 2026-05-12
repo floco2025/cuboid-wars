@@ -59,48 +59,36 @@ SUPPORTED_VERSION = 1
 
 
 # ============================================================================
-# Barrier kind table (loaded from shared configs)
+# Shared configs (loaded once at startup)
 # ============================================================================
 #
-# Identity (ordered id list) comes from `config/common/gameplay.json`;
-# visuals (per-id hex color) come from `config/client/assets.json`. The same
-# pattern the server and game client use. Order in the gameplay.json list
-# defines the stable index that appears on the wire.
+# Pulls everything the editor needs from `config/common/gameplay.json` and
+# `config/client/assets.json` in a single helper so each file is opened
+# exactly once. Order in `gameplay.barrier_kinds` defines the stable wire
+# index; `assets.barrier_kind_colors` provides visuals; `assets.aliases`
+# is the set of legal face-value names in `map.json`.
 
-def _load_barrier_kinds() -> tuple[list[str], dict[str, str]]:
+def _load_shared_configs() -> tuple[list[str], dict[str, str], set[str]]:
     here = os.path.dirname(os.path.abspath(__file__))
-    gameplay_path = os.path.join(here, "..", "config", "common", "gameplay.json")
-    assets_path = os.path.join(here, "..", "config", "client", "assets.json")
-    with open(gameplay_path, "r", encoding="utf-8") as f:
+    with open(os.path.join(here, "..", "config", "common", "gameplay.json"), "r", encoding="utf-8") as f:
         gameplay = json.load(f)
-    with open(assets_path, "r", encoding="utf-8") as f:
+    with open(os.path.join(here, "..", "config", "client", "assets.json"), "r", encoding="utf-8") as f:
         assets = json.load(f)
     ids: list[str] = list(gameplay.get("barrier_kinds", []))
     colors: dict[str, str] = dict(assets.get("barrier_kind_colors", {}))
-    # Hard-fail if any id lacks a color — silent fallbacks would make authoring
-    # errors mysterious (same rule the Rust client enforces).
+    aliases: set[str] = set(assets.get("aliases", {}).keys())
+    # Hard-fail if any kind id lacks a color — silent fallbacks would make
+    # authoring errors mysterious (same rule the Rust client enforces).
     for id_ in ids:
         if id_ not in colors:
             raise RuntimeError(
                 f"barrier kind {id_!r} has no color in assets.json `barrier_kind_colors`; "
                 "add an entry or remove the id from gameplay.json"
             )
-    return ids, colors
+    return ids, colors, aliases
 
 
-BARRIER_KIND_TABLE, BARRIER_KIND_COLORS = _load_barrier_kinds()
-
-
-def _load_aliases_set() -> set[str]:
-    """The set of alias names from `assets.json::aliases`. Face values in
-    `map.json` must come from this set; raw material ids are rejected."""
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "config", "client", "assets.json")
-    with open(path, "r", encoding="utf-8") as f:
-        assets = json.load(f)
-    return set(assets.get("aliases", {}).keys())
-
-
-MATERIAL_ALIASES: set[str] = _load_aliases_set()
+BARRIER_KIND_TABLE, BARRIER_KIND_COLORS, MATERIAL_ALIASES = _load_shared_configs()
 
 MODE_FLOOR = "Floor"
 MODE_INACCESSIBLE_FLOOR = "Inaccessible Floor"

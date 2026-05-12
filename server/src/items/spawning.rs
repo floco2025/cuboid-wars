@@ -61,7 +61,6 @@ pub fn item_initial_spawn_system(
                 entity,
                 item_type: ItemType::Cookie,
                 spawn_time: 0.0,
-                key_zone_idx: None,
             },
         );
     }
@@ -69,8 +68,7 @@ pub fn item_initial_spawn_system(
 
 // Spawn one world key per `KeySpawnZone` on startup. Each zone's first
 // eligible (`has_floor && !has_ramp`) cell becomes the key's home; the
-// `key_zone_idx` lets the respawn tick reset position to the same cell
-// after collection.
+// entity stays at that cell forever (respawn just hides/shows it).
 pub fn key_initial_spawn_system(
     mut commands: Commands,
     mut spawner: ResMut<ItemSpawner>,
@@ -115,7 +113,6 @@ pub fn key_initial_spawn_system(
                 entity,
                 item_type: ItemType::Key(zone.kind),
                 spawn_time: 0.0,
-                key_zone_idx: Some(zone_idx),
             },
         );
     }
@@ -177,7 +174,6 @@ pub fn item_spawn_system(
                     entity,
                     item_type,
                     spawn_time: time.elapsed_secs(),
-                    key_zone_idx: None,
                 },
             );
         }

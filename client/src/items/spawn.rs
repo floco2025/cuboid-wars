@@ -5,6 +5,7 @@ use crate::{
     barriers::BarrierAssets,
     config::{AssetSet, RenderSettings},
     constants::*,
+    items::key_rotate::{KeyMarker, KeyRotationTimer},
     map::MapLevel,
 };
 use common::{map::compute_player_level, protocol::*};
@@ -15,15 +16,6 @@ use common::{map::compute_player_level, protocol::*};
 
 #[derive(Component)]
 pub struct ItemAnimTimer(pub f32);
-
-// Marker for client-spawned key entities. The rotation system queries this.
-#[derive(Component)]
-pub struct KeyMarker;
-
-// Per-key elapsed time for the slow Y-axis spin. Independent phase per entity
-// (set at spawn) so multiple keys near each other don't rotate in lockstep.
-#[derive(Component)]
-pub struct KeyRotationTimer(pub f32);
 
 // ============================================================================
 // Bundles
@@ -48,6 +40,8 @@ struct ItemBundle {
 // into every spawned item. Sharing handles lets Bevy's automatic batching
 // collapse N item draws into a handful of instanced calls — without this,
 // hundreds of cookies each force their own draw call.
+// Cookies + power-ups. Keys live entirely on `BarrierAssets` because they
+// share materials + a thematic family with barriers.
 #[derive(Resource)]
 pub struct ItemAssets {
     cookie_mesh: Handle<Mesh>,
@@ -57,10 +51,6 @@ pub struct ItemAssets {
     multishot_material: Handle<StandardMaterial>,
     phasing_material: Handle<StandardMaterial>,
     anti_gravity_material: Handle<StandardMaterial>,
-    // Keys share one mesh across all colors; their materials are not stored
-    // here — they reuse the existing `BarrierAssets` per-color handles so the
-    // pulsation is in sync with the matching barriers.
-    key_mesh: Handle<Mesh>,
 }
 
 impl ItemAssets {
@@ -71,12 +61,8 @@ impl ItemAssets {
             ItemType::PhasingPowerUp => &self.phasing_material,
             ItemType::AntiGravityPowerUp => &self.anti_gravity_material,
             ItemType::Cookie => unreachable!("cookies use cookie_material"),
-            ItemType::Key(_) => unreachable!("keys use BarrierAssets materials"),
+            ItemType::Key(_) => unreachable!("keys use BarrierAssets"),
         }
-    }
-
-    pub fn key_mesh(&self) -> &Handle<Mesh> {
-        &self.key_mesh
     }
 }
 
@@ -117,7 +103,6 @@ pub fn setup_item_assets(
         multishot_material,
         phasing_material,
         anti_gravity_material,
-        key_mesh: meshes.add(Cuboid::new(KEY_WIDTH, KEY_HEIGHT, KEY_DEPTH)),
     });
 }
 
@@ -150,54 +135,81 @@ pub fn spawn_item(
     position: &Position,
 ) -> Entity {
     let level = MapLevel(compute_player_level(position.y));
-
-    // Cookies are rendered differently - small spheres on the floor with textures
-    if item_type == ItemType::Cookie {
-        return commands
-            .spawn((
-                ItemBundle {
-                    item_id,
-                    item_marker: ItemMarker,
-                    position: *position,
-                    mesh: Mesh3d(item_assets.cookie_mesh.clone()),
-                    material: MeshMaterial3d(item_assets.cookie_material.clone()),
-                    transform: Transform::from_xyz(position.x, position.y + COOKIE_HEIGHT, position.z),
-                    visibility: Visibility::Visible,
-                },
-                level,
-            ))
-            .id();
+    match item_type {
+        ItemType::Cookie => spawn_cookie(commands, item_assets, item_id, position, level),
+        ItemType::Key(kind) => spawn_key(commands, barrier_assets, item_id, position, level, kind),
+        ItemType::SpeedPowerUp
+        | ItemType::MultiShotPowerUp
+        | ItemType::PhasingPowerUp
+        | ItemType::AntiGravityPowerUp => spawn_power_up(commands, item_assets, item_id, item_type, position, level),
     }
+}
 
-    // Keys: a small rotating cuboid that reuses the matching barrier
-    // material — the glow + pulsation come for free.
-    if let ItemType::Key(kind) = item_type {
-        let random_phase = random::<f32>() * std::f32::consts::TAU;
-        return commands
-            .spawn((
-                ItemBundle {
-                    item_id,
-                    item_marker: ItemMarker,
-                    position: *position,
-                    mesh: Mesh3d(item_assets.key_mesh.clone()),
-                    material: MeshMaterial3d(barrier_assets.material_for(kind).clone()),
-                    transform: Transform::from_xyz(
-                        position.x,
-                        position.y + KEY_HEIGHT_ABOVE_FLOOR,
-                        position.z,
-                    ),
-                    visibility: Visibility::Visible,
-                },
-                level,
-                KeyMarker,
-                KeyRotationTimer(random_phase),
-            ))
-            .id();
-    }
+fn spawn_cookie(
+    commands: &mut Commands,
+    item_assets: &ItemAssets,
+    item_id: ItemId,
+    position: &Position,
+    level: MapLevel,
+) -> Entity {
+    // Cookies are small textured spheres on the floor; no animation.
+    commands
+        .spawn((
+            ItemBundle {
+                item_id,
+                item_marker: ItemMarker,
+                position: *position,
+                mesh: Mesh3d(item_assets.cookie_mesh.clone()),
+                material: MeshMaterial3d(item_assets.cookie_material.clone()),
+                transform: Transform::from_xyz(position.x, position.y + COOKIE_HEIGHT, position.z),
+                visibility: Visibility::Visible,
+            },
+            level,
+        ))
+        .id()
+}
 
-    // Power-ups are cubes that bounce with textured materials
+fn spawn_key(
+    commands: &mut Commands,
+    barrier_assets: &BarrierAssets,
+    item_id: ItemId,
+    position: &Position,
+    level: MapLevel,
+    kind: common::protocol::BarrierKindId,
+) -> Entity {
+    // Keys are a small rotating cuboid that reuses the matching barrier
+    // material, so the pulse stays in sync. Per-instance random phase keeps
+    // multiple nearby keys from rotating in lockstep.
     let random_phase = random::<f32>() * std::f32::consts::TAU;
+    commands
+        .spawn((
+            ItemBundle {
+                item_id,
+                item_marker: ItemMarker,
+                position: *position,
+                mesh: Mesh3d(barrier_assets.key_mesh().clone()),
+                material: MeshMaterial3d(barrier_assets.material_for(kind).clone()),
+                transform: Transform::from_xyz(position.x, position.y + KEY_HEIGHT_ABOVE_FLOOR, position.z),
+                visibility: Visibility::Visible,
+            },
+            level,
+            KeyMarker,
+            KeyRotationTimer(random_phase),
+        ))
+        .id()
+}
 
+fn spawn_power_up(
+    commands: &mut Commands,
+    item_assets: &ItemAssets,
+    item_id: ItemId,
+    item_type: ItemType,
+    position: &Position,
+    level: MapLevel,
+) -> Entity {
+    // Power-ups are textured cubes that bob up and down (animation timer
+    // carries a random phase).
+    let random_phase = random::<f32>() * std::f32::consts::TAU;
     commands
         .spawn((
             ItemBundle {

@@ -148,3 +148,47 @@ impl PlayerMap {
         self.0.values().all(|info| !info.logged_in)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bincode::config::standard;
+    use tokio::sync::mpsc::unbounded_channel;
+
+    fn dummy_info() -> PlayerInfo {
+        // Real channel + real Entity; we only exercise the held_keys path.
+        let (tx, _rx) = unbounded_channel();
+        PlayerInfo::new(Entity::PLACEHOLDER, tx)
+    }
+
+    #[test]
+    fn add_key_is_idempotent_and_keeps_sorted() {
+        let mut info = dummy_info();
+        assert!(info.add_key(BarrierKindId(2)));
+        assert!(info.add_key(BarrierKindId(0)));
+        assert!(info.add_key(BarrierKindId(1)));
+        // Re-adding any already-held kind returns false (no state change).
+        assert!(!info.add_key(BarrierKindId(0)));
+        assert!(!info.add_key(BarrierKindId(1)));
+        assert!(!info.add_key(BarrierKindId(2)));
+        assert_eq!(
+            info.held_keys,
+            vec![BarrierKindId(0), BarrierKindId(1), BarrierKindId(2)]
+        );
+        assert!(info.has_key(BarrierKindId(1)));
+        assert!(!info.has_key(BarrierKindId(3)));
+    }
+
+    #[test]
+    fn held_keys_round_trip_via_sp_player_status() {
+        let mut info = dummy_info();
+        info.add_key(BarrierKindId(1));
+        info.add_key(BarrierKindId(3));
+        let status = info.status(PlayerId(7));
+        let encoded = bincode::encode_to_vec(&status, standard()).expect("encode");
+        let (decoded, _): (SPlayerStatus, _) =
+            bincode::decode_from_slice(&encoded, standard()).expect("decode");
+        assert_eq!(decoded.held_keys, vec![BarrierKindId(1), BarrierKindId(3)]);
+        assert_eq!(decoded.id, PlayerId(7));
+    }
+}

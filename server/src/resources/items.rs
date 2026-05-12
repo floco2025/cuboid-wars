@@ -8,10 +8,6 @@ pub struct ItemInfo {
     pub entity: Entity,
     pub item_type: ItemType,
     pub spawn_time: f32,
-    // For keys: which `KeySpawnZone` this world key belongs to. `None` for
-    // every other item type. Used by the respawn tick so a collected key
-    // reappears in its own zone, not somewhere else.
-    pub key_zone_idx: Option<usize>,
 }
 
 #[derive(Resource, Default)]

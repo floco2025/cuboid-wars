@@ -6,6 +6,14 @@ use common::{
     protocol::{BarrierKindId, BarrierKindTable},
 };
 
+// Mesh + materials for both barriers (full-size, scaled per-instance to
+// match the segment length) and keys (a small rotating cuboid that reuses
+// the matching barrier material, so the pulse is in sync).
+//
+// Keys share `key_mesh` across all kinds; their material comes from
+// `materials[kind]` — same as the matching barrier. One material handle per
+// kind = automatic batching for both barriers and keys of that kind.
+
 // Per-kind shared mesh + material handles. One mesh covers every barrier
 // regardless of kind (variable length is handled by per-instance
 // Transform.scale in `spawn.rs`). One material per kind, indexed by
@@ -18,6 +26,7 @@ use common::{
 #[derive(Resource)]
 pub struct BarrierAssets {
     pub(super) mesh: Handle<Mesh>,
+    pub(super) key_mesh: Handle<Mesh>,
     pub(super) materials: Vec<Handle<StandardMaterial>>,
     // Mirror of the table at construction time, so the pulsate system can
     // re-derive the base color without re-reading the config every frame.
@@ -38,6 +47,10 @@ impl BarrierAssets {
     pub fn base_color(&self, kind: BarrierKindId) -> Color {
         self.base_colors[kind.0 as usize]
     }
+
+    pub fn key_mesh(&self) -> &Handle<Mesh> {
+        &self.key_mesh
+    }
 }
 
 pub fn setup_barrier_assets(
@@ -47,10 +60,12 @@ pub fn setup_barrier_assets(
     kind_table: Res<BarrierKindTable>,
     asset_set: Res<AssetSet>,
 ) {
-    // Unit X and Y so per-instance `Transform.scale` can encode the merged
-    // segment's length and barrier height. Thickness stays baked in the mesh
-    // — no instance ever wants a different thickness.
+    // Barrier mesh: unit X and Y so per-instance `Transform.scale` can
+    // encode the merged segment's length and barrier height. Thickness
+    // stays baked in the mesh — no instance ever wants a different thickness.
     let mesh = meshes.add(Cuboid::new(1.0, 1.0, BARRIER_THICKNESS));
+    // Key mesh: a small fixed-size cuboid, no per-instance scaling.
+    let key_mesh = meshes.add(Cuboid::new(KEY_WIDTH, KEY_HEIGHT, KEY_DEPTH));
 
     let mut handles = Vec::with_capacity(kind_table.len());
     let mut base_colors = Vec::with_capacity(kind_table.len());
@@ -64,6 +79,7 @@ pub fn setup_barrier_assets(
     }
 
     commands.insert_resource(BarrierAssets {
+        key_mesh,
         mesh,
         materials: handles,
         base_colors,

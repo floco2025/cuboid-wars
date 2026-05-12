@@ -58,67 +58,78 @@ pub fn item_collection_system(
         })
         .collect();
 
-    let mut power_up_messages = Vec::new();
+    let mut status_broadcasts = Vec::new();
 
     for (player_id, item_id, item_type) in items_to_collect {
-        if item_type == ItemType::Cookie {
-            if let Some(player_info) = players.get_mut(&player_id) {
-                player_info.hits += COOKIE_POINTS;
-
-                if let Some(item_info) = items.get_mut(&item_id) {
-                    item_info.spawn_time = COOKIE_RESPAWN_TIME;
-                }
-
-                let _ = player_info
-                    .channel
-                    .send(ServerToClient::Send(ServerMessage::CookieCollected(
-                        SCookieCollected {},
-                    )));
+        match item_type {
+            ItemType::Cookie => collect_cookie(&mut players, &mut items, player_id, item_id),
+            ItemType::Key(kind) => collect_key(&mut players, &mut items, player_id, item_id, kind, &mut status_broadcasts),
+            ItemType::SpeedPowerUp
+            | ItemType::MultiShotPowerUp
+            | ItemType::PhasingPowerUp
+            | ItemType::AntiGravityPowerUp => {
+                collect_power_up(&mut commands, &mut players, &mut items, player_id, item_id, item_type, &mut status_broadcasts)
             }
-            continue;
-        }
-
-        if let ItemType::Key(kind) = item_type {
-            if let Some(item_info) = items.get_mut(&item_id) {
-                item_info.spawn_time = KEY_RESPAWN_TIME;
-            }
-            if let Some(player_info) = players.get_mut(&player_id) {
-                // `add_key` returns true only on a state change — that's the
-                // gate for re-broadcasting `SPlayerStatus`. Picking up a key
-                // you already hold is a no-op, no broadcast.
-                if player_info.add_key(kind) {
-                    power_up_messages.push(player_info.status(player_id));
-                }
-            }
-            continue;
-        }
-
-        if let Some(item_info) = items.remove(&item_id) {
-            commands.entity(item_info.entity).despawn();
-        }
-
-        if let Some(player_info) = players.get_mut(&player_id) {
-            match item_type {
-                ItemType::SpeedPowerUp => {
-                    player_info.speed_power_up_timer = POWER_UP_SPEED_DURATION;
-                }
-                ItemType::MultiShotPowerUp => {
-                    player_info.multi_shot_power_up_timer = POWER_UP_MULTI_SHOT_DURATION;
-                }
-                ItemType::PhasingPowerUp => {
-                    player_info.phasing_power_up_timer = POWER_UP_PHASING_DURATION;
-                }
-                ItemType::AntiGravityPowerUp => {
-                    player_info.anti_gravity_power_up_timer = POWER_UP_ANTI_GRAVITY_DURATION;
-                }
-                ItemType::Cookie | ItemType::Key(_) => unreachable!("handled above"),
-            }
-
-            power_up_messages.push(player_info.status(player_id));
         }
     }
 
-    for msg in power_up_messages {
+    for msg in status_broadcasts {
         broadcast_to_all(&players, ServerMessage::PlayerStatus(msg));
     }
+}
+
+fn collect_cookie(players: &mut PlayerMap, items: &mut ItemMap, player_id: PlayerId, item_id: ItemId) {
+    let Some(player_info) = players.get_mut(&player_id) else { return };
+    player_info.hits += COOKIE_POINTS;
+    if let Some(item_info) = items.get_mut(&item_id) {
+        item_info.spawn_time = COOKIE_RESPAWN_TIME;
+    }
+    let _ = player_info
+        .channel
+        .send(ServerToClient::Send(ServerMessage::CookieCollected(
+            SCookieCollected {},
+        )));
+}
+
+fn collect_key(
+    players: &mut PlayerMap,
+    items: &mut ItemMap,
+    player_id: PlayerId,
+    item_id: ItemId,
+    kind: common::protocol::BarrierKindId,
+    status_broadcasts: &mut Vec<common::protocol::SPlayerStatus>,
+) {
+    if let Some(item_info) = items.get_mut(&item_id) {
+        item_info.spawn_time = KEY_RESPAWN_TIME;
+    }
+    let Some(player_info) = players.get_mut(&player_id) else { return };
+    // `add_key` returns true only on a state change — that's the gate for
+    // re-broadcasting `SPlayerStatus`. Already-held kinds are filtered out
+    // by the overlap pass before we get here, but be defensive.
+    if player_info.add_key(kind) {
+        status_broadcasts.push(player_info.status(player_id));
+    }
+}
+
+fn collect_power_up(
+    commands: &mut Commands,
+    players: &mut PlayerMap,
+    items: &mut ItemMap,
+    player_id: PlayerId,
+    item_id: ItemId,
+    item_type: ItemType,
+    status_broadcasts: &mut Vec<common::protocol::SPlayerStatus>,
+) {
+    if let Some(item_info) = items.remove(&item_id) {
+        commands.entity(item_info.entity).despawn();
+    }
+    let Some(player_info) = players.get_mut(&player_id) else { return };
+    match item_type {
+        ItemType::SpeedPowerUp => player_info.speed_power_up_timer = POWER_UP_SPEED_DURATION,
+        ItemType::MultiShotPowerUp => player_info.multi_shot_power_up_timer = POWER_UP_MULTI_SHOT_DURATION,
+        ItemType::PhasingPowerUp => player_info.phasing_power_up_timer = POWER_UP_PHASING_DURATION,
+        ItemType::AntiGravityPowerUp => player_info.anti_gravity_power_up_timer = POWER_UP_ANTI_GRAVITY_DURATION,
+        ItemType::Cookie | ItemType::Key(_) => unreachable!("dispatch routes these elsewhere"),
+    }
+    status_broadcasts.push(player_info.status(player_id));
 }
