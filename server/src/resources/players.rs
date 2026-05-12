@@ -186,8 +186,7 @@ mod tests {
         info.add_key(BarrierKindId(3));
         let status = info.status(PlayerId(7));
         let encoded = bincode::encode_to_vec(&status, standard()).expect("encode");
-        let (decoded, _): (SPlayerStatus, _) =
-            bincode::decode_from_slice(&encoded, standard()).expect("decode");
+        let (decoded, _): (SPlayerStatus, _) = bincode::decode_from_slice(&encoded, standard()).expect("decode");
         assert_eq!(decoded.held_keys, vec![BarrierKindId(1), BarrierKindId(3)]);
         assert_eq!(decoded.id, PlayerId(7));
     }

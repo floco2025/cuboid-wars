@@ -45,7 +45,14 @@ pub fn sync_items(
         if items.contains_key(item_id) {
             continue;
         }
-        let entity = spawn_item(commands, item_assets, barrier_assets, *item_id, item.item_type, &item.pos);
+        let entity = spawn_item(
+            commands,
+            item_assets,
+            barrier_assets,
+            *item_id,
+            item.item_type,
+            &item.pos,
+        );
         items.insert(*item_id, ItemInfo { entity });
     }
 

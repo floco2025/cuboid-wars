@@ -26,9 +26,10 @@ impl BarrierKindTable {
             if id.is_empty() {
                 bail!("barrier_kinds[{idx}] is empty");
             }
-            let kind = BarrierKindId(u16::try_from(idx).map_err(|_| {
-                anyhow::anyhow!("barrier_kinds exceeds {} entries (u16 index overflow)", u16::MAX)
-            })?);
+            let kind = BarrierKindId(
+                u16::try_from(idx)
+                    .map_err(|_| anyhow::anyhow!("barrier_kinds exceeds {} entries (u16 index overflow)", u16::MAX))?,
+            );
             if index_by_id.insert(id.clone(), kind).is_some() {
                 bail!("barrier_kinds contains duplicate id {id:?}");
             }

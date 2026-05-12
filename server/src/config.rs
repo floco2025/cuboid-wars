@@ -91,10 +91,7 @@ pub struct PlayerServerConfig {
 
 impl PlayerServerConfig {
     fn validate(&self, path: &str) -> Result<()> {
-        validate_non_negative_finite(
-            self.projectile_damage_taken,
-            &format!("{path}.projectile_damage_taken"),
-        )
+        validate_non_negative_finite(self.projectile_damage_taken, &format!("{path}.projectile_damage_taken"))
     }
 }
 
@@ -155,10 +152,7 @@ pub struct ActorCombatConfig {
 
 impl ActorCombatConfig {
     fn validate(&self, path: &str) -> Result<()> {
-        validate_non_negative_finite(
-            self.projectile_damage_taken,
-            &format!("{path}.projectile_damage_taken"),
-        )?;
+        validate_non_negative_finite(self.projectile_damage_taken, &format!("{path}.projectile_damage_taken"))?;
         validate_non_negative_finite(
             self.contact_explosion_distance,
             &format!("{path}.contact_explosion_distance"),

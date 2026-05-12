@@ -91,8 +91,11 @@ pub fn actor_behavior_system(
         }
 
         info.direction_timer = random_direction_time(&mut rng, kind_server_config);
-        info.patrol_intent =
-            random_patrol_intent(&mut rng, actor_config.patrol_speed, kind_server_config.wander.idle_probability);
+        info.patrol_intent = random_patrol_intent(
+            &mut rng,
+            actor_config.patrol_speed,
+            kind_server_config.wander.idle_probability,
+        );
     }
 }
 

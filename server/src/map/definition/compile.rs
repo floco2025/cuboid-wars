@@ -106,9 +106,10 @@ pub(crate) fn compile_map(
     for (level_idx, level) in map_def.levels.iter().enumerate() {
         let level_u8 = u8::try_from(level_idx).unwrap_or(u8::MAX);
         for (barrier_idx, b) in level.barriers.iter().enumerate() {
-            all_barriers.push(barrier_from_def(b, &geometry, level_u8, kind_table).with_context(|| {
-                format!("level {level_idx} barriers[{barrier_idx}]")
-            })?);
+            all_barriers.push(
+                barrier_from_def(b, &geometry, level_u8, kind_table)
+                    .with_context(|| format!("level {level_idx} barriers[{barrier_idx}]"))?,
+            );
         }
     }
     let all_barriers = merge_barriers(all_barriers);

@@ -63,13 +63,26 @@ pub fn item_collection_system(
     for (player_id, item_id, item_type) in items_to_collect {
         match item_type {
             ItemType::Cookie => collect_cookie(&mut players, &mut items, player_id, item_id),
-            ItemType::Key(kind) => collect_key(&mut players, &mut items, player_id, item_id, kind, &mut status_broadcasts),
+            ItemType::Key(kind) => collect_key(
+                &mut players,
+                &mut items,
+                player_id,
+                item_id,
+                kind,
+                &mut status_broadcasts,
+            ),
             ItemType::SpeedPowerUp
             | ItemType::MultiShotPowerUp
             | ItemType::PhasingPowerUp
-            | ItemType::AntiGravityPowerUp => {
-                collect_power_up(&mut commands, &mut players, &mut items, player_id, item_id, item_type, &mut status_broadcasts)
-            }
+            | ItemType::AntiGravityPowerUp => collect_power_up(
+                &mut commands,
+                &mut players,
+                &mut items,
+                player_id,
+                item_id,
+                item_type,
+                &mut status_broadcasts,
+            ),
         }
     }
 
@@ -79,7 +92,9 @@ pub fn item_collection_system(
 }
 
 fn collect_cookie(players: &mut PlayerMap, items: &mut ItemMap, player_id: PlayerId, item_id: ItemId) {
-    let Some(player_info) = players.get_mut(&player_id) else { return };
+    let Some(player_info) = players.get_mut(&player_id) else {
+        return;
+    };
     player_info.hits += COOKIE_POINTS;
     if let Some(item_info) = items.get_mut(&item_id) {
         item_info.spawn_time = COOKIE_RESPAWN_TIME;
@@ -102,7 +117,9 @@ fn collect_key(
     if let Some(item_info) = items.get_mut(&item_id) {
         item_info.spawn_time = KEY_RESPAWN_TIME;
     }
-    let Some(player_info) = players.get_mut(&player_id) else { return };
+    let Some(player_info) = players.get_mut(&player_id) else {
+        return;
+    };
     // `add_key` returns true only on a state change — that's the gate for
     // re-broadcasting `SPlayerStatus`. Already-held kinds are filtered out
     // by the overlap pass before we get here, but be defensive.
@@ -123,7 +140,9 @@ fn collect_power_up(
     if let Some(item_info) = items.remove(&item_id) {
         commands.entity(item_info.entity).despawn();
     }
-    let Some(player_info) = players.get_mut(&player_id) else { return };
+    let Some(player_info) = players.get_mut(&player_id) else {
+        return;
+    };
     match item_type {
         ItemType::SpeedPowerUp => player_info.speed_power_up_timer = POWER_UP_SPEED_DURATION,
         ItemType::MultiShotPowerUp => player_info.multi_shot_power_up_timer = POWER_UP_MULTI_SHOT_DURATION,

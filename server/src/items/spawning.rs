@@ -77,9 +77,11 @@ pub fn key_initial_spawn_system(
     map_config: Res<MapConfig>,
     map_geometry: Res<MapGeometry>,
 ) {
-    let has_keys = query
-        .iter()
-        .any(|id| items.get(id).is_some_and(|info| matches!(info.item_type, ItemType::Key(_))));
+    let has_keys = query.iter().any(|id| {
+        items
+            .get(id)
+            .is_some_and(|info| matches!(info.item_type, ItemType::Key(_)))
+    });
     if has_keys {
         return;
     }
