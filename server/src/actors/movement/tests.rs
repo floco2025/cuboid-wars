@@ -97,11 +97,14 @@ fn wall() -> Wall {
 }
 
 fn collision_world(walls: &[Wall]) -> CollisionWorld {
-    CollisionWorld::from_map_layout(&MapLayout {
-        walls: walls.to_vec(),
-        floors: vec![floor()],
-        ..Default::default()
-    })
+    CollisionWorld::from_map_layout(
+        &MapLayout {
+            walls: walls.to_vec(),
+            floors: vec![floor()],
+            ..Default::default()
+        },
+        &common::protocol::BarrierKindTable::default(),
+    )
 }
 
 fn context<'a>(

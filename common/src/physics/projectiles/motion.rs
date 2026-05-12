@@ -83,6 +83,26 @@ impl ProjectileMotion {
         (collision_pos.into(), remaining_time)
     }
 
+    // Barriers terminate projectiles (no bounce). Cast against barrier
+    // colliders only; if the projectile's straight-line trajectory hits one
+    // this frame, return the impact position so the caller can despawn.
+    #[must_use]
+    pub fn terminate_at_barrier(
+        &self,
+        projectile_pos: &Position,
+        delta: f32,
+        collision_world: &CollisionWorld,
+    ) -> Option<Position> {
+        let translation = self.velocity * delta;
+        let hit = collision_world.cast_moving_ball_against_barriers(
+            Vec3::from(*projectile_pos),
+            translation,
+            PROJECTILE_RADIUS,
+        )?;
+        let collision_pos = Vec3::from(*projectile_pos) + translation * hit.t;
+        Some(collision_pos.into())
+    }
+
     #[must_use]
     pub fn resolve_world_bounces(
         &mut self,

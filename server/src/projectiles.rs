@@ -94,6 +94,14 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
         projectile.apply_gravity(delta);
         projectile.apply_drag(delta);
 
+        if projectile
+            .terminate_at_barrier(&proj_pos, delta, &params.collision_world)
+            .is_some()
+        {
+            commands.entity(proj_entity).despawn();
+            continue;
+        }
+
         let mut bounced = false;
         if let Some(new_pos) = projectile.resolve_world_bounces(&proj_pos, delta, &params.collision_world) {
             *proj_pos = new_pos;

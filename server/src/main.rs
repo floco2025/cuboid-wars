@@ -61,7 +61,7 @@ async fn main() -> Result<()> {
     let barrier_kind_table = common::protocol::BarrierKindTable::from_ids(gameplay_config.barrier_kinds.clone())
         .with_context(|| "failed to build BarrierKindTable from gameplay.json barrier_kinds")?;
     let (map_layout, map_config, map_geometry) = generate_map(&barrier_kind_table);
-    let collision_world = CollisionWorld::from_map_layout(&map_layout);
+    let collision_world = CollisionWorld::from_map_layout(&map_layout, &barrier_kind_table);
     let nav_graph = NavGraph::new(map_config.clone(), map_geometry);
     validate_actor_kinds_consistent(&gameplay_config, &server_gameplay_config, &map_config)?;
 

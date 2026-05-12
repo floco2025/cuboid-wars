@@ -45,6 +45,7 @@ impl ActorMoveContext<'_> {
             self.collision_world,
             false,
             false, // actors never have anti-gravity
+            &[],   // actors never hold barrier keys
             self.actor_physics,
             target_x,
             target_z,

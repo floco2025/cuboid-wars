@@ -1,5 +1,8 @@
 use bevy::{ecs::system::SystemParam, prelude::*};
-use common::{config::GameplayConfig, protocol::Position};
+use common::{
+    config::GameplayConfig,
+    protocol::{BarrierKindTable, Position},
+};
 
 use crate::{
     barriers::BarrierAssets,
@@ -44,4 +47,5 @@ pub struct ClientAssets<'w> {
     pub item_assets: Res<'w, ItemAssets>,
     pub barrier_assets: Res<'w, BarrierAssets>,
     pub gameplay_config: Res<'w, GameplayConfig>,
+    pub barrier_kind_table: Res<'w, BarrierKindTable>,
 }

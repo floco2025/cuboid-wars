@@ -37,12 +37,15 @@ fn test_floor(level: u8) -> Floor {
 }
 
 fn collision_world(walls: &[Wall], floors: &[Floor], ramps: &[Ramp]) -> CollisionWorld {
-    CollisionWorld::from_map_layout(&MapLayout {
-        walls: walls.to_vec(),
-        floors: floors.to_vec(),
-        ramps: ramps.to_vec(),
-        ..Default::default()
-    })
+    CollisionWorld::from_map_layout(
+        &MapLayout {
+            walls: walls.to_vec(),
+            floors: floors.to_vec(),
+            ramps: ramps.to_vec(),
+            ..Default::default()
+        },
+        &crate::protocol::BarrierKindTable::default(),
+    )
 }
 
 #[test]

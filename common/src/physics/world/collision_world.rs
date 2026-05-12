@@ -11,11 +11,12 @@ use rapier3d::{
     },
 };
 
-use crate::protocol::MapLayout;
+use crate::protocol::{BarrierKindId, BarrierKindTable, MapLayout};
 
 use super::colliders::{
-    FLOOR_COLLISION_GROUP, WALL_COLLISION_GROUP, character_collision_groups, insert_floor_collider,
-    insert_ramp_collider, insert_wall_collider, query_filter, world_collision_groups,
+    FLOOR_COLLISION_GROUP, WALL_COLLISION_GROUP, barrier_collision_group, character_collision_groups,
+    insert_barrier_collider, insert_floor_collider, insert_ramp_collider, insert_wall_collider, query_filter,
+    world_collision_groups,
 };
 
 #[cfg(test)]
@@ -29,11 +30,16 @@ pub struct CollisionWorld {
     pub(super) colliders: ColliderSet,
     broad_phase: BroadPhaseBvh,
     narrow_phase: NarrowPhase,
+    // Cached union of every configured barrier kind's collision group.
+    // Recomputed at construction (depends on `BarrierKindTable.len()`); used
+    // by character filters and barrier-only shape casts so we don't loop
+    // the table per query.
+    all_barrier_groups: Group,
 }
 
 impl CollisionWorld {
     #[must_use]
-    pub fn from_map_layout(map_layout: &MapLayout) -> Self {
+    pub fn from_map_layout(map_layout: &MapLayout, kind_table: &BarrierKindTable) -> Self {
         let bodies = RigidBodySet::new();
         let mut colliders = ColliderSet::new();
         let mut collider_handles = Vec::new();
@@ -52,6 +58,10 @@ impl CollisionWorld {
             }
         }
 
+        for barrier in &map_layout.barriers {
+            collider_handles.push(insert_barrier_collider(&mut colliders, barrier));
+        }
+
         let mut broad_phase = BroadPhaseBvh::new();
         let narrow_phase = NarrowPhase::new();
         let mut events = Vec::new();
@@ -64,11 +74,17 @@ impl CollisionWorld {
             &mut events,
         );
 
+        let mut all_barrier_groups = Group::empty();
+        for idx in 0..kind_table.len() {
+            all_barrier_groups |= barrier_collision_group(BarrierKindId(idx as u16));
+        }
+
         Self {
             bodies,
             colliders,
             broad_phase,
             narrow_phase,
+            all_barrier_groups,
         }
     }
 
@@ -96,13 +112,18 @@ impl CollisionWorld {
         character_pos: &Pose,
         desired_translation: Vector,
         has_phasing: bool,
+        held_keys: &[BarrierKindId],
         events: impl FnMut(CharacterCollision),
     ) -> EffectiveCharacterMovement {
         let query_pipeline = self.broad_phase.as_query_pipeline(
             self.narrow_phase.query_dispatcher(),
             &self.bodies,
             &self.colliders,
-            query_filter(character_collision_groups(has_phasing)),
+            query_filter(character_collision_groups(
+                has_phasing,
+                held_keys,
+                self.all_barrier_groups,
+            )),
         );
         controller.move_shape(
             dt,
@@ -114,8 +135,36 @@ impl CollisionWorld {
         )
     }
 
+    // Cast a moving ball against walls/floors/ramps (the "bouncy" world).
+    // Barriers terminate projectiles via `cast_moving_ball_against_barriers`
+    // instead, so they're filtered out here.
     #[must_use]
     pub(crate) fn cast_moving_ball(&self, position: Vec3, translation: Vec3, radius: f32) -> Option<ShapeCastHit> {
+        self.cast_moving_ball_with_filter(position, translation, radius, world_collision_groups())
+    }
+
+    // Cast a moving ball against barrier colliders only. Used by projectiles
+    // to detect termination on a barrier.
+    #[must_use]
+    pub(crate) fn cast_moving_ball_against_barriers(
+        &self,
+        position: Vec3,
+        translation: Vec3,
+        radius: f32,
+    ) -> Option<ShapeCastHit> {
+        if self.all_barrier_groups.is_empty() {
+            return None;
+        }
+        self.cast_moving_ball_with_filter(position, translation, radius, self.all_barrier_groups)
+    }
+
+    fn cast_moving_ball_with_filter(
+        &self,
+        position: Vec3,
+        translation: Vec3,
+        radius: f32,
+        groups: Group,
+    ) -> Option<ShapeCastHit> {
         if translation.length_squared() == 0.0 {
             return None;
         }
@@ -124,7 +173,7 @@ impl CollisionWorld {
             self.narrow_phase.query_dispatcher(),
             &self.bodies,
             &self.colliders,
-            query_filter(world_collision_groups()),
+            query_filter(groups),
         );
         let shape = Ball::new(radius);
         let pose = Pose::translation(position.x, position.y, position.z);
@@ -143,11 +192,17 @@ impl CollisionWorld {
             })
     }
 
+    // Line of sight is blocked by walls/floors/ramps AND by barriers (an
+    // actor can't see — and therefore can't path-find — through a barrier
+    // it can't pass through).
     #[must_use]
     pub fn line_of_sight_clear(&self, from: Vec3, to: Vec3) -> bool {
         const SIGHT_RADIUS: f32 = 0.08;
-
-        self.cast_moving_ball(from, to - from, SIGHT_RADIUS).is_none()
+        let translation = to - from;
+        self.cast_moving_ball(from, translation, SIGHT_RADIUS).is_none()
+            && self
+                .cast_moving_ball_against_barriers(from, translation, SIGHT_RADIUS)
+                .is_none()
     }
 
     #[must_use]
@@ -158,12 +213,17 @@ impl CollisionWorld {
         max_distance: f32,
         target_distance: f32,
         has_phasing: bool,
+        held_keys: &[BarrierKindId],
     ) -> Option<ShapeCastHit> {
         let query_pipeline = self.broad_phase.as_query_pipeline(
             self.narrow_phase.query_dispatcher(),
             &self.bodies,
             &self.colliders,
-            query_filter(character_collision_groups(has_phasing)),
+            query_filter(character_collision_groups(
+                has_phasing,
+                held_keys,
+                self.all_barrier_groups,
+            )),
         );
         let options = ShapeCastOptions {
             max_time_of_impact: max_distance,

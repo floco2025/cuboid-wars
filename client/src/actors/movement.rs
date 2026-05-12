@@ -98,6 +98,7 @@ pub(crate) fn plan_actor_moves(
                 collision_world,
                 false,
                 false, // actors never have anti-gravity
+                &[],   // actors never hold barrier keys
                 actor_physics,
                 target_pos.x,
                 target_pos.z,

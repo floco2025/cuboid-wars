@@ -57,6 +57,7 @@ pub fn step_character_movement(
     collision_world: &CollisionWorld,
     has_phasing: bool,
     has_anti_gravity: bool,
+    held_keys: &[crate::protocol::BarrierKindId],
     physics: CharacterPhysicsConfig,
     target_x: f32,
     target_z: f32,
@@ -66,7 +67,14 @@ pub fn step_character_movement(
     let character_pos = character_pose(start_pos, physics);
     let support_shape = character_support_probe_shape(physics);
     let current_ground = if start_vertical_velocity <= 0.0 {
-        character_ground_hit(collision_world, &support_shape, start_pos, has_phasing, physics)
+        character_ground_hit(
+            collision_world,
+            &support_shape,
+            start_pos,
+            has_phasing,
+            held_keys,
+            physics,
+        )
     } else {
         None
     };
@@ -110,6 +118,7 @@ pub fn step_character_movement(
         &character_pos,
         requested_move,
         has_phasing,
+        held_keys,
         |collision| {
             let normal = vec3(collision.hit.normal1);
             let is_side_contact = normal.y.abs() <= 0.5;
@@ -128,7 +137,14 @@ pub fn step_character_movement(
         z: start_pos.z + movement.translation.z,
     };
     let resolved_ground = if can_follow_ground {
-        character_ground_hit(collision_world, &support_shape, &resolved, has_phasing, physics)
+        character_ground_hit(
+            collision_world,
+            &support_shape,
+            &resolved,
+            has_phasing,
+            held_keys,
+            physics,
+        )
     } else {
         None
     };
@@ -186,7 +202,7 @@ pub fn position_has_floor_support(
     physics: CharacterPhysicsConfig,
 ) -> bool {
     let shape = character_support_probe_shape(physics);
-    character_ground_hit(collision_world, &shape, pos, false, physics).is_some()
+    character_ground_hit(collision_world, &shape, pos, false, &[], physics).is_some()
 }
 
 fn character_ground_hit(
@@ -194,6 +210,7 @@ fn character_ground_hit(
     shape: &Cuboid,
     pos: &Position,
     has_phasing: bool,
+    held_keys: &[crate::protocol::BarrierKindId],
     physics: CharacterPhysicsConfig,
 ) -> Option<ShapeCastHit> {
     let pose = character_support_probe_pose(pos, physics);
@@ -203,6 +220,7 @@ fn character_ground_hit(
         CHARACTER_GROUND_SNAP_DISTANCE + physics.collider.bottom_y_offset(),
         0.0,
         has_phasing,
+        held_keys,
     )
 }
 

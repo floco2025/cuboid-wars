@@ -4,6 +4,11 @@ use anyhow::{Result, bail};
 use bevy_ecs::prelude::Resource;
 use bincode::{Decode, Encode};
 
+// Rapier supports 32 collision groups via a u32 bitmask. Walls/floors/ramps
+// reserve groups 1/2/3 (bits 0/1/2). The remaining 29 are available for
+// barrier kinds — more than enough for any reasonable game.
+pub const BARRIER_KIND_MAX: usize = 29;
+
 // Stable on-wire index into the configured barrier-kind table. The table is
 // shared by client and server (both loading `config/common/gameplay.json`).
 // Order in the config defines indices.
@@ -21,6 +26,13 @@ pub struct BarrierKindTable {
 
 impl BarrierKindTable {
     pub fn from_ids(ids: Vec<String>) -> Result<Self> {
+        if ids.len() > BARRIER_KIND_MAX {
+            bail!(
+                "barrier_kinds has {} entries; max is {} (limited by available Rapier collision groups)",
+                ids.len(),
+                BARRIER_KIND_MAX
+            );
+        }
         let mut index_by_id = HashMap::with_capacity(ids.len());
         for (idx, id) in ids.iter().enumerate() {
             if id.is_empty() {
@@ -77,19 +89,33 @@ mod tests {
 
     #[test]
     fn rejects_duplicate_ids() {
-        let err = BarrierKindTable::from_ids(vec!["a".into(), "a".into()]).unwrap_err();
+        let err = BarrierKindTable::from_ids(vec!["a".into(), "a".into()]).expect_err("duplicate ids should fail");
         assert!(err.to_string().contains("duplicate"));
     }
 
     #[test]
     fn rejects_empty_id() {
-        let err = BarrierKindTable::from_ids(vec!["a".into(), "".into()]).unwrap_err();
+        let err = BarrierKindTable::from_ids(vec!["a".into(), "".into()]).expect_err("empty id should fail");
         assert!(err.to_string().contains("empty"));
     }
 
     #[test]
+    fn rejects_more_than_max_kinds() {
+        let too_many: Vec<String> = (0..BARRIER_KIND_MAX + 1).map(|i| format!("k{i}")).collect();
+        let err = BarrierKindTable::from_ids(too_many).expect_err("over-max kinds should fail");
+        assert!(err.to_string().contains("max is"));
+    }
+
+    #[test]
+    fn accepts_exactly_max_kinds() {
+        let exact: Vec<String> = (0..BARRIER_KIND_MAX).map(|i| format!("k{i}")).collect();
+        BarrierKindTable::from_ids(exact).expect("BARRIER_KIND_MAX kinds should load");
+    }
+
+    #[test]
     fn round_trip_index_and_id() {
-        let table = BarrierKindTable::from_ids(vec!["basement".into(), "boss_room".into()]).unwrap();
+        let table = BarrierKindTable::from_ids(vec!["basement".into(), "boss_room".into()])
+            .expect("two-kind table should load");
         assert_eq!(table.index_of("basement"), Some(BarrierKindId(0)));
         assert_eq!(table.index_of("boss_room"), Some(BarrierKindId(1)));
         assert_eq!(table.index_of("unknown"), None);

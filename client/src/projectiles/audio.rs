@@ -21,6 +21,15 @@ pub(super) fn play_sound(
     commands.spawn((AudioPlayer::new(asset_server.load(asset_path.to_owned())), settings));
 }
 
+pub(super) fn play_barrier_impact_sound(commands: &mut Commands, asset_server: &AssetServer, asset_set: &AssetSet) {
+    play_sound(
+        commands,
+        asset_server,
+        asset_set.player_sound("barrier_impact"),
+        PlaybackSettings::DESPAWN,
+    );
+}
+
 pub(super) fn play_wall_bounce_sound(
     commands: &mut Commands,
     asset_server: &AssetServer,

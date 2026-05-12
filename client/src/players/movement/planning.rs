@@ -73,12 +73,15 @@ pub(crate) fn plan_player_moves(
             let has_anti_gravity =
                 ALWAYS_ANTI_GRAVITY || players.get(player_id).is_some_and(|info| info.anti_gravity_power_up);
 
+            let held_keys: &[common::protocol::BarrierKindId] =
+                players.get(player_id).map_or(&[], |info| info.held_keys.as_slice());
             let step = step_character_movement(
                 &client_pos,
                 motion.0,
                 collision_world,
                 has_phasing,
                 has_anti_gravity,
+                held_keys,
                 player_physics,
                 target.x,
                 target.z,

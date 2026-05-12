@@ -102,12 +102,15 @@ fn plan_player_moves(
 
         let has_phasing = players.get(player_id).is_some_and(PlayerInfo::has_phasing);
         let has_anti_gravity = players.get(player_id).is_some_and(PlayerInfo::has_anti_gravity);
+        let held_keys: &[common::protocol::BarrierKindId] =
+            players.get(player_id).map_or(&[], |info| info.held_keys.as_slice());
         let step = step_character_movement(
             pos,
             motion.0,
             collision_world,
             has_phasing,
             has_anti_gravity,
+            held_keys,
             player_physics,
             target_xz.x,
             target_xz.z,

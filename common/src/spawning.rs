@@ -125,12 +125,15 @@ mod tests {
     }
 
     fn collision_world(walls: &[Wall], ramps: &[Ramp], floors: &[Floor]) -> CollisionWorld {
-        CollisionWorld::from_map_layout(&MapLayout {
-            walls: walls.to_vec(),
-            ramps: ramps.to_vec(),
-            floors: floors.to_vec(),
-            ..Default::default()
-        })
+        CollisionWorld::from_map_layout(
+            &MapLayout {
+                walls: walls.to_vec(),
+                ramps: ramps.to_vec(),
+                floors: floors.to_vec(),
+                ..Default::default()
+            },
+            &crate::protocol::BarrierKindTable::default(),
+        )
     }
 
     fn player_eye_height() -> f32 {

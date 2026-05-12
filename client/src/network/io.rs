@@ -74,7 +74,7 @@ pub fn network_process_server_messages_system(
                         collision_world.as_deref(),
                     );
                 } else {
-                    handle_init_message(message, &mut commands);
+                    handle_init_message(message, &mut commands, &client_assets.barrier_kind_table);
                 }
             }
         }

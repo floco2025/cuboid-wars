@@ -5,7 +5,7 @@ use common::{
     protocol::{ActorId, ActorMarker, FaceDirection, PlayerId, PlayerMarker, Position},
 };
 
-use super::audio::{LastBounceSoundTime, play_sound, play_wall_bounce_sound};
+use super::audio::{LastBounceSoundTime, play_barrier_impact_sound, play_sound, play_wall_bounce_sound};
 use crate::{actors::ActorMap, config::AssetSet, players::LocalPlayerMarker};
 
 pub(super) fn handle_character_collisions(
@@ -85,6 +85,33 @@ pub(super) fn handle_character_collisions(
         }
         None => false,
     }
+}
+
+// Barriers terminate the projectile (no bounce). Returns `true` if the
+// projectile hit a barrier this frame — caller despawns and skips the rest of
+// the per-projectile pipeline.
+pub(super) fn handle_barrier_collisions(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    asset_set: &AssetSet,
+    proj_entity: Entity,
+    proj_motion: &ProjectileMotion,
+    proj_pos: &Position,
+    delta: f32,
+    collision_world: Option<&CollisionWorld>,
+) -> bool {
+    let Some(collision_world) = collision_world else {
+        return false;
+    };
+    if proj_motion
+        .terminate_at_barrier(proj_pos, delta, collision_world)
+        .is_none()
+    {
+        return false;
+    }
+    play_barrier_impact_sound(commands, asset_server, asset_set);
+    commands.entity(proj_entity).despawn();
+    true
 }
 
 pub(super) fn handle_wall_collisions(

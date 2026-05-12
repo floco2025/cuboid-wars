@@ -7,7 +7,7 @@ use common::{
 
 use super::{
     audio::LastBounceSoundTime,
-    collision::{handle_character_collisions, handle_wall_collisions},
+    collision::{handle_barrier_collisions, handle_character_collisions, handle_wall_collisions},
 };
 use crate::{actors::ActorMap, config::AssetSet, players::LocalPlayerMarker};
 
@@ -39,6 +39,19 @@ pub fn projectiles_movement_system(
         projectile.apply_drag(delta);
 
         let projectile_pos: Position = projectile_transform.translation.into();
+
+        if handle_barrier_collisions(
+            &mut commands,
+            asset_server.as_ref(),
+            &asset_set,
+            projectile_entity,
+            &projectile,
+            &projectile_pos,
+            delta,
+            collision_world,
+        ) {
+            continue;
+        }
 
         let new_pos = if let Some(pos_after_bounce) = handle_wall_collisions(
             &mut commands,

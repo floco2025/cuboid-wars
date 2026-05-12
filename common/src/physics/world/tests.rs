@@ -36,7 +36,7 @@ fn test_map_layout() -> MapLayout {
 
 #[test]
 fn collision_world_contains_solids_for_walls_floors_and_ramps() {
-    let world = CollisionWorld::from_map_layout(&test_map_layout());
+    let world = CollisionWorld::from_map_layout(&test_map_layout(), &crate::protocol::BarrierKindTable::default());
 
     assert_eq!(world.solid_count(), 3);
     assert_eq!(
@@ -47,7 +47,7 @@ fn collision_world_contains_solids_for_walls_floors_and_ramps() {
 
 #[test]
 fn wall_solid_uses_wall_level_height() {
-    let world = CollisionWorld::from_map_layout(&test_map_layout());
+    let world = CollisionWorld::from_map_layout(&test_map_layout(), &crate::protocol::BarrierKindTable::default());
     let (_, wall_collider) = world
         .colliders
         .iter()
@@ -60,7 +60,7 @@ fn wall_solid_uses_wall_level_height() {
 
 #[test]
 fn ramp_converts_to_collider() {
-    let world = CollisionWorld::from_map_layout(&test_map_layout());
+    let world = CollisionWorld::from_map_layout(&test_map_layout(), &crate::protocol::BarrierKindTable::default());
 
     assert!(world.solid_kinds().contains(&ColliderKind::Ramp));
 }

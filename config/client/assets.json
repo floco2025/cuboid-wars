@@ -250,7 +250,8 @@
       "bump_player": "sounds/impactTin_medium_004.ogg",
       "hit_wall": "sounds/impactGlass_light_000.ogg",
       "hit_player": "sounds/impactGeneric_light_001.ogg",
-      "hit_actor": "sounds/impactMetal_medium_003.ogg"
+      "hit_actor": "sounds/impactMetal_medium_003.ogg",
+      "barrier_impact": "sounds/impactPlank_medium_001.ogg"
     }
   },
   "actors": {

@@ -198,7 +198,7 @@ mod tests {
     }
 
     fn collision_world(layout: &MapLayout) -> CollisionWorld {
-        CollisionWorld::from_map_layout(layout)
+        CollisionWorld::from_map_layout(layout, &common::protocol::BarrierKindTable::default())
     }
 
     fn character_physics() -> CharacterPhysicsConfig {
