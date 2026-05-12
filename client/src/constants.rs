@@ -105,3 +105,18 @@ pub const COOKIE_HEIGHT: f32 = 0.16; // above floor
 
 pub const PROJECTILE_MIN_BOUNCE_SOUND_SPEED: f32 = 10.0; // minimum speed to play bounce sound
 pub const PROJECTILE_MAX_BOUNCE_SOUNDS_PER_SECOND: f32 = 30.0; // rate limit for bounce sounds
+
+// ============================================================================
+// Barriers (translucent pulsating force-fields, visual only for now)
+// ============================================================================
+
+pub const BARRIER_RED_COLOR: Color = Color::srgb(1.0, 0.2, 0.2);
+pub const BARRIER_BLUE_COLOR: Color = Color::srgb(0.2, 0.5, 1.0);
+pub const BARRIER_GREEN_COLOR: Color = Color::srgb(0.2, 1.0, 0.4);
+pub const BARRIER_YELLOW_COLOR: Color = Color::srgb(1.0, 0.9, 0.2);
+pub const BARRIER_BASE_ALPHA: f32 = 0.35;
+// Emissive intensity oscillates between MIN and MAX. The HDR values rely on
+// the default Bevy tone mapping — there is no bloom pass.
+pub const BARRIER_EMISSIVE_MIN: f32 = 1.5;
+pub const BARRIER_EMISSIVE_MAX: f32 = 6.0;
+pub const BARRIER_PULSE_HZ: f32 = 0.8;

@@ -1,6 +1,9 @@
 use super::{
     compile_map,
-    schema::{ActorSpawnZoneDef, FloorDef, LevelDef, MapDef, PlayerSpawnZoneDef, RampDef},
+    schema::{
+        ActorSpawnZoneDef, BarrierColorDef, BarrierDef, FloorDef, LevelDef, MapDef, PlayerSpawnZoneDef, RampDef,
+        WallDef,
+    },
     validation::validate_map,
 };
 use crate::map::material_rules::MaterialRules;
@@ -20,6 +23,7 @@ fn level_with_inaccessible(floors: Vec<[i32; 2]>, inaccessible_floors: Vec<[i32;
         floors: floors.into_iter().map(|[c, r]| floor_def(c, r)).collect(),
         inaccessible_floors: inaccessible_floors.into_iter().map(|[c, r]| floor_def(c, r)).collect(),
         walls: Vec::new(),
+        barriers: Vec::new(),
         lights: Vec::new(),
     }
 }
@@ -243,4 +247,77 @@ fn validation_accepts_empty_actor_spawn_zones() {
     );
 
     validate_map(&map_def).expect("empty actor zones should be allowed");
+}
+
+#[test]
+fn validation_accepts_barrier_on_empty_edge() {
+    let mut map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]])],
+        Vec::new(),
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    map_def.levels[0].barriers.push(BarrierDef {
+        c0: 0,
+        r0: 0,
+        c1: 1,
+        r1: 0,
+        color: BarrierColorDef::Red,
+    });
+    validate_map(&map_def).expect("barrier on an empty grid edge should load");
+}
+
+#[test]
+fn validation_rejects_barrier_overlapping_wall() {
+    let mut map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]])],
+        Vec::new(),
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    map_def.levels[0].walls.push(WallDef {
+        c0: 0,
+        r0: 0,
+        c1: 1,
+        r1: 0,
+    });
+    map_def.levels[0].barriers.push(BarrierDef {
+        c0: 1,
+        r0: 0,
+        c1: 0,
+        r1: 0,
+        color: BarrierColorDef::Blue,
+    });
+    let err = validate_map(&map_def).expect_err("barrier on a wall edge must be rejected");
+    let msg = err.to_string();
+    assert!(msg.contains("overlaps a wall"), "got: {msg}");
+}
+
+#[test]
+fn validation_rejects_duplicate_barrier() {
+    let mut map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]])],
+        Vec::new(),
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    map_def.levels[0].barriers.push(BarrierDef {
+        c0: 0,
+        r0: 0,
+        c1: 1,
+        r1: 0,
+        color: BarrierColorDef::Red,
+    });
+    map_def.levels[0].barriers.push(BarrierDef {
+        c0: 1,
+        r0: 0,
+        c1: 0,
+        r1: 0,
+        color: BarrierColorDef::Green,
+    });
+    let err = validate_map(&map_def).expect_err("duplicate barrier edge must be rejected");
+    assert!(err.to_string().contains("duplicate barrier"));
 }

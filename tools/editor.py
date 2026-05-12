@@ -64,6 +64,10 @@ MODE_PLAYER_SPAWN_PAINT = "Player Spawn Zone (Paint)"
 MODE_COOKIE_SPAWN_PAINT = "Cookie Spawn Zone (Paint)"
 MODE_SPAWN_ZONE_EDIT = "Spawn Zone (Edit)"
 MODE_WALL = "Wall"
+MODE_BARRIER_RED = "Barrier (Red)"
+MODE_BARRIER_BLUE = "Barrier (Blue)"
+MODE_BARRIER_GREEN = "Barrier (Green)"
+MODE_BARRIER_YELLOW = "Barrier (Yellow)"
 MODE_RAMP_UP = "Ramp (Up)"
 MODE_RAMP_DOWN = "Ramp (Down)"
 MODE_ERASE = "Erase"
@@ -79,6 +83,22 @@ SPAWN_PAINT_MODES = (MODE_ACTOR_SPAWN_PAINT, MODE_PLAYER_SPAWN_PAINT, MODE_COOKI
 MATERIAL_MODES = (MODE_FLOOR_MATERIAL, MODE_WALL_MATERIAL, MODE_RAMP_MATERIAL)
 FLOOR_HIT_KINDS = ("Floor", "Inaccessible Floor")
 LIGHT_SIDES = ("N", "S", "E", "W")
+BARRIER_COLORS = ("red", "blue", "green", "yellow")
+BARRIER_MODES = (MODE_BARRIER_RED, MODE_BARRIER_BLUE, MODE_BARRIER_GREEN, MODE_BARRIER_YELLOW)
+BARRIER_MODE_TO_COLOR = {
+    MODE_BARRIER_RED: "red",
+    MODE_BARRIER_BLUE: "blue",
+    MODE_BARRIER_GREEN: "green",
+    MODE_BARRIER_YELLOW: "yellow",
+}
+# Display colors for editor canvas (hex strings). Slightly brighter than the
+# in-game colors so they're legible on a slate background.
+BARRIER_DISPLAY_COLORS = {
+    "red": "#ff5050",
+    "blue": "#5090ff",
+    "green": "#50d870",
+    "yellow": "#f0c020",
+}
 MODES = [
     MODE_FLOOR,
     MODE_INACCESSIBLE_FLOOR,
@@ -87,6 +107,10 @@ MODES = [
     MODE_COOKIE_SPAWN_PAINT,
     MODE_SPAWN_ZONE_EDIT,
     MODE_WALL,
+    MODE_BARRIER_RED,
+    MODE_BARRIER_BLUE,
+    MODE_BARRIER_GREEN,
+    MODE_BARRIER_YELLOW,
     MODE_RAMP_UP,
     MODE_RAMP_DOWN,
     MODE_ERASE,
@@ -118,6 +142,7 @@ TOOL_REFERENCE_ENTRIES: list[tuple[str, str]] = [
     ("Cookie Spawn Zone (Paint)", "drag a rectangle. Cookies only spawn on walkable floors inside one of these zones."),
     ("Spawn Zone (Edit)", "click a zone to select; drag the body to move, drag a corner/edge handle to resize. Right-click to edit fields (actor zones only) or delete."),
     ("Wall", "drag along grid lines to place atomic wall edges."),
+    ("Barrier (Red/Blue/Green/Yellow)", "drag along grid lines to place a translucent pulsating force-field. Players pass through (collision and color-coded keys come later)."),
     ("Ramp (Up)", "drag from this level toward the upper level."),
     ("Ramp (Down)", "drag from this level toward the lower level."),
     ("Erase", "click an item, drag cells to erase an area, or right-click for the context menu."),
@@ -435,7 +460,7 @@ def empty_map() -> dict:
             {"level": 0, "cols": [0, 2], "rows": [0, 2]},
         ],
         "cookie_spawn_zones": [],
-        "levels": [{"name": "Level 0", "floors": [], "inaccessible_floors": [], "walls": [], "lights": []}],
+        "levels": [{"name": "Level 0", "floors": [], "inaccessible_floors": [], "walls": [], "barriers": [], "lights": []}],
         "ramps": [],
     }
 
@@ -596,6 +621,7 @@ def format_map_file(wrapper: dict) -> str:
                 *with_trailing_comma(format_object_array("floors", level["floors"], _floor_body, 8)),
                 *with_trailing_comma(format_object_array("inaccessible_floors", level["inaccessible_floors"], _floor_body, 8)),
                 *with_trailing_comma(format_object_array("walls", level["walls"], _wall_body, 8)),
+                *with_trailing_comma(format_object_array("barriers", level.get("barriers", []), _barrier_body, 8)),
                 *format_object_array("lights", level.get("lights", []), _light_body, 8),
                 "      }" + ("," if level_idx + 1 < len(map_data["levels"]) else ""),
             ]
@@ -645,6 +671,14 @@ def _light_body(light: dict) -> str:
     return _inline_object_body(body)
 
 
+def _barrier_body(barrier: dict) -> str:
+    body = {
+        "c0": barrier["c0"], "r0": barrier["r0"], "c1": barrier["c1"], "r1": barrier["r1"],
+        "color": barrier["color"],
+    }
+    return _inline_object_body(body)
+
+
 def _inline_object_body(body: dict) -> str:
     # `json.dumps` brackets the whole object; strip the outer braces so the
     # caller can wrap with its own punctuation/comma.
@@ -665,11 +699,12 @@ def normalize_map(map_data: dict) -> dict:
                 "floors": [normalize_floor(f) for f in level.get("floors", [])],
                 "inaccessible_floors": [normalize_floor(f) for f in level.get("inaccessible_floors", [])],
                 "walls": [normalize_wall(w) for w in level.get("walls", [])],
+                "barriers": [normalize_barrier(b) for b in level.get("barriers", [])],
                 "lights": [normalize_light(l) for l in level.get("lights", [])],
             }
         )
     if not levels:
-        levels = [{"name": "Level 0", "floors": [], "inaccessible_floors": [], "walls": [], "lights": []}]
+        levels = [{"name": "Level 0", "floors": [], "inaccessible_floors": [], "walls": [], "barriers": [], "lights": []}]
 
     ramps = [normalize_ramp(r) for r in map_data.get("ramps", [])]
     return {
@@ -698,6 +733,19 @@ def normalize_wall(wall: dict) -> dict:
         "c1": int(wall["c1"]),
         "r1": int(wall["r1"]),
         **expand_face_materials(wall),
+    }
+
+
+def normalize_barrier(barrier: dict) -> dict:
+    color = str(barrier.get("color", "red")).lower()
+    if color not in BARRIER_COLORS:
+        color = "red"
+    return {
+        "c0": int(barrier["c0"]),
+        "r0": int(barrier["r0"]),
+        "c1": int(barrier["c1"]),
+        "r1": int(barrier["r1"]),
+        "color": color,
     }
 
 
@@ -857,6 +905,12 @@ def canonicalize_map(map_data: dict) -> dict:
             tuple(normalized_wall([w["c0"], w["r0"], w["c1"], w["r1"]]))
             for w in level["walls"]
         }
+        # Drop barriers that share an edge with a wall on the same level so
+        # canonical files satisfy the Rust loader's conflict rule.
+        level["barriers"] = [
+            b for b in _dedupe_barriers(level.get("barriers", []))
+            if tuple(normalized_wall([b["c0"], b["r0"], b["c1"], b["r1"]])) not in wall_endpoints_set
+        ]
         cols, rows = b["grid_cols"], b["grid_rows"]
         ramp_set = ramp_cells_by_level[level_idx]
         in_bounds_lights = [
@@ -887,6 +941,14 @@ def _dedupe_walls(walls: list[dict]) -> list[dict]:
     for wall in walls:
         c0, r0, c1, r1 = normalized_wall([wall["c0"], wall["r0"], wall["c1"], wall["r1"]])
         by_edge[(c0, r0, c1, r1)] = {**wall, "c0": c0, "r0": r0, "c1": c1, "r1": r1}
+    return [by_edge[k] for k in sorted(by_edge.keys())]
+
+
+def _dedupe_barriers(barriers: list[dict]) -> list[dict]:
+    by_edge: dict[tuple[int, int, int, int], dict] = {}
+    for barrier in barriers:
+        c0, r0, c1, r1 = normalized_wall([barrier["c0"], barrier["r0"], barrier["c1"], barrier["r1"]])
+        by_edge[(c0, r0, c1, r1)] = {**barrier, "c0": c0, "r0": r0, "c1": c1, "r1": r1}
     return [by_edge[k] for k in sorted(by_edge.keys())]
 
 
@@ -948,6 +1010,9 @@ def resize_map_data(
             f for f in (shift_floor(f) for f in level["inaccessible_floors"]) if f is not None
         ]
         level["walls"] = [w for w in (shift_wall(w) for w in level["walls"]) if w is not None]
+        level["barriers"] = [
+            b for b in (shift_wall(b) for b in level.get("barriers", [])) if b is not None
+        ]
         level["lights"] = [
             l for l in (shift_light(l) for l in level.get("lights", [])) if l is not None
         ]
@@ -1081,6 +1146,23 @@ def validate_map(map_data: dict) -> list[str]:
             tuple(normalized_wall([w["c0"], w["r0"], w["c1"], w["r1"]]))
             for w in level["walls"]
         }
+        barrier_seen: set[tuple[int, int, int, int]] = set()
+        for idx, barrier in enumerate(level.get("barriers", [])):
+            c0, r0, c1, r1 = barrier["c0"], barrier["r0"], barrier["c1"], barrier["r1"]
+            color = barrier.get("color")
+            if not (grid_point_in_bounds(c0, r0, cols, rows) and grid_point_in_bounds(c1, r1, cols, rows)):
+                errors.append(f"{prefix}: barrier[{idx}] [{c0}, {r0}, {c1}, {r1}] is outside the grid-line bounds")
+            if abs(c1 - c0) + abs(r1 - r0) != 1:
+                errors.append(f"{prefix}: barrier[{idx}] [{c0}, {r0}, {c1}, {r1}] is not one grid edge")
+            if color not in BARRIER_COLORS:
+                errors.append(f"{prefix}: barrier[{idx}] has invalid color {color!r}")
+            key = tuple(normalized_wall([c0, r0, c1, r1]))
+            if key in wall_endpoints_set:
+                errors.append(f"{prefix}: barrier[{idx}] {list(key)} overlaps a wall")
+            if key in barrier_seen:
+                errors.append(f"{prefix}: barrier[{idx}] {list(key)} duplicates another barrier")
+            barrier_seen.add(key)
+
         for light in level.get("lights", []):
             c, r, side = light["col"], light["row"], light["side"]
             if not (0 <= c < cols and 0 <= r < rows):
@@ -1517,6 +1599,7 @@ class Canvas(QWidget):
         self._paint_wall_and_ramp_drag_previews(painter, cell)
         self._paint_grid_lines(painter, cell, cols, rows)
         self._paint_walls(painter, level, cell)
+        self._paint_barriers(painter, level, cell)
         self._paint_wall_material_drag(painter, cell)
         # Lights sit on top of wall lines so the markers stay visible.
         self.paint_lights(painter, level, cell)
@@ -1562,6 +1645,10 @@ class Canvas(QWidget):
         if self.drag_start_point and self.drag_current_point and self.window.mode == MODE_WALL:
             end = snapped_wall_end(self.drag_start_point, self.drag_current_point)
             self.paint_wall_preview(painter, self.drag_start_point, end, cell)
+        elif self.drag_start_point and self.drag_current_point and self.window.mode in BARRIER_MODES:
+            end = snapped_wall_end(self.drag_start_point, self.drag_current_point)
+            color = QColor(BARRIER_DISPLAY_COLORS[BARRIER_MODE_TO_COLOR[self.window.mode]])
+            self.paint_wall_preview(painter, self.drag_start_point, end, cell, color=color)
         elif self.drag_start_cell and self.drag_current_cell and self.window.mode in RAMP_MODES:
             self.paint_ramp_preview(painter, self.drag_start_cell, self.drag_current_cell, cell)
 
@@ -1581,6 +1668,22 @@ class Canvas(QWidget):
             color = face_color(wall) if overlay else default_wall_color
             painter.setPen(QPen(color, WALL_PEN_WIDTH, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
             painter.drawLine(wall["c0"] * cell, wall["r0"] * cell, wall["c1"] * cell, wall["r1"] * cell)
+
+    def _paint_barriers(self, painter: QPainter, level: dict, cell: float) -> None:
+        # Solid stroke at the same width and centering as walls so barriers
+        # align pixel-perfectly with the grid edge. (A dashed stroke ends
+        # mid-gap on a one-cell segment, which makes the line look shifted
+        # toward its start.) The color already distinguishes barriers from
+        # the white wall stroke.
+        for barrier in level.get("barriers", []):
+            display = BARRIER_DISPLAY_COLORS.get(barrier.get("color", "red"), "#ff5050")
+            painter.setPen(QPen(QColor(display), WALL_PEN_WIDTH, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+            painter.drawLine(
+                barrier["c0"] * cell,
+                barrier["r0"] * cell,
+                barrier["c1"] * cell,
+                barrier["r1"] * cell,
+            )
 
     def _paint_wall_material_drag(self, painter: QPainter, cell: float) -> None:
         # Grid-point based: 2D rectangle when the drag spans both axes, or a
@@ -1767,8 +1870,16 @@ class Canvas(QWidget):
         start, end = orthogonal_arrow_points(c0, r0, c1, r1, direction, cell)
         self.draw_arrow(painter, start, end, QColor("#fbbf24"))
 
-    def paint_wall_preview(self, painter: QPainter, start: tuple[int, int], end: tuple[int, int], cell: float) -> None:
-        painter.setPen(QPen(QColor("#38bdf8"), 3, Qt.PenStyle.DashLine, Qt.PenCapStyle.RoundCap))
+    def paint_wall_preview(
+        self,
+        painter: QPainter,
+        start: tuple[int, int],
+        end: tuple[int, int],
+        cell: float,
+        color: QColor | None = None,
+    ) -> None:
+        pen_color = color if color is not None else QColor("#38bdf8")
+        painter.setPen(QPen(pen_color, 3, Qt.PenStyle.DashLine, Qt.PenCapStyle.RoundCap))
         painter.drawLine(start[0] * cell, start[1] * cell, end[0] * cell, end[1] * cell)
 
     def draw_arrow(self, painter: QPainter, start: tuple[float, float], end: tuple[float, float], color: QColor) -> None:
@@ -1906,6 +2017,12 @@ class Canvas(QWidget):
             self.window.commit_spawn_zone_edit_drag()
         elif self.window.mode == MODE_WALL and self.drag_start_point and self.drag_current_point:
             self.window.add_wall_line(self.drag_start_point, snapped_wall_end(self.drag_start_point, self.drag_current_point))
+        elif self.window.mode in BARRIER_MODES and self.drag_start_point and self.drag_current_point:
+            self.window.add_barrier_line(
+                self.drag_start_point,
+                snapped_wall_end(self.drag_start_point, self.drag_current_point),
+                BARRIER_MODE_TO_COLOR[self.window.mode],
+            )
         elif self.window.mode in RAMP_MODES and self.drag_start_cell and self.drag_current_cell:
             self.window.add_ramp(self.drag_start_cell, self.drag_current_cell, self.window.mode)
         elif self.window.mode == MODE_FLOOR_MATERIAL and self.drag_start_cell and self.drag_current_cell:
@@ -2345,7 +2462,39 @@ class EditorWindow(QMainWindow):
                 c0, r0, c1, r1 = key
                 existing[key] = self._new_wall(c0, r0, c1, r1)
         after["levels"][self.current_level]["walls"] = list(existing.values())
+        # Painting a wall on an edge displaces any barrier on the same edge
+        # (the loader rejects co-located walls + barriers).
+        new_wall_keys = {key for key in existing.keys()}
+        after["levels"][self.current_level]["barriers"] = [
+            b for b in after["levels"][self.current_level].get("barriers", [])
+            if tuple(normalized_wall([b["c0"], b["r0"], b["c1"], b["r1"]])) not in new_wall_keys
+        ]
         self.apply_change("Place Wall", after)
+
+    def add_barrier_line(self, start: tuple[int, int], end: tuple[int, int], color: str) -> None:
+        edges = wall_segments_between(start, end)
+        if not edges:
+            return
+        if color not in BARRIER_COLORS:
+            return
+        after = copy.deepcopy(self.map_data)
+        level = after["levels"][self.current_level]
+        wall_keys = {
+            tuple(normalized_wall([w["c0"], w["r0"], w["c1"], w["r1"]]))
+            for w in level["walls"]
+        }
+        existing = {
+            tuple(normalized_wall([b["c0"], b["r0"], b["c1"], b["r1"]])): b
+            for b in level.get("barriers", [])
+        }
+        for edge in edges:
+            key = tuple(normalized_wall(edge))
+            if key in wall_keys:
+                continue
+            c0, r0, c1, r1 = key
+            existing[key] = {"c0": c0, "r0": r0, "c1": c1, "r1": r1, "color": color}
+        level["barriers"] = list(existing.values())
+        self.apply_change(f"Place Barrier ({color.title()})", after)
 
     def add_ramp(self, start_cell: tuple[int, int], end_cell: tuple[int, int], mode: str) -> None:
         start_point, end_point = ramp_points_from_cells(start_cell, end_cell)
@@ -2646,6 +2795,11 @@ class EditorWindow(QMainWindow):
             for wall in level["walls"]
             if not wall_overlaps_rect([wall["c0"], wall["r0"], wall["c1"], wall["r1"]], (c0, r0, c1, r1))
         ]
+        level["barriers"] = [
+            barrier
+            for barrier in level.get("barriers", [])
+            if not wall_overlaps_rect([barrier["c0"], barrier["r0"], barrier["c1"], barrier["r1"]], (c0, r0, c1, r1))
+        ]
         for list_name in SPAWN_ZONE_LISTS:
             after[list_name] = [
                 zone
@@ -2672,6 +2826,10 @@ class EditorWindow(QMainWindow):
             wall_arr = [wall["c0"], wall["r0"], wall["c1"], wall["r1"]]
             if point_near_wall(px, py, wall_arr):
                 return ("Wall", tuple(wall_arr))
+        for barrier in level.get("barriers", []):
+            arr = [barrier["c0"], barrier["r0"], barrier["c1"], barrier["r1"]]
+            if point_near_wall(px, py, arr):
+                return ("Barrier", tuple(arr))
         # Search every zone list (actor, player, cookie) in reverse so the
         # most-recently-painted entry on top wins. Actor first so when an
         # actor zone shares a cell with a player or cookie zone, the actor
@@ -2719,6 +2877,11 @@ class EditorWindow(QMainWindow):
             level["walls"] = [
                 wall for wall in level["walls"]
                 if tuple(normalized_wall([wall["c0"], wall["r0"], wall["c1"], wall["r1"]])) != value
+            ]
+        elif kind == "Barrier":
+            level["barriers"] = [
+                barrier for barrier in level.get("barriers", [])
+                if tuple(normalized_wall([barrier["c0"], barrier["r0"], barrier["c1"], barrier["r1"]])) != value
             ]
         elif kind == "Ramp":
             lower, low, high = value
@@ -2787,7 +2950,7 @@ class EditorWindow(QMainWindow):
         insert_at = self.current_level + 1
         after["levels"].insert(
             insert_at,
-            {"name": f"Level {insert_at}", "floors": [], "inaccessible_floors": [], "walls": [], "lights": []},
+            {"name": f"Level {insert_at}", "floors": [], "inaccessible_floors": [], "walls": [], "barriers": [], "lights": []},
         )
         for list_name in SPAWN_ZONE_LISTS:
             for zone in after[list_name]:

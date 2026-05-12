@@ -10,6 +10,17 @@ pub const WALL_THICKNESS: f32 = 0.3;
 pub const WALL_HALF_THICKNESS: f32 = WALL_THICKNESS / 2.0;
 pub const WALL_HEIGHT: f32 = 4.0;
 
+// Barriers. Force-field segments authored on grid edges; same shape as walls
+// for now but rendered as translucent pulsating geometry on the client.
+// Currently no collision — players walk through them. A future "key" item
+// will gate pass-through per color.
+pub const BARRIER_THICKNESS: f32 = WALL_THICKNESS / 6.0;
+pub const BARRIER_HEIGHT: f32 = WALL_HEIGHT;
+// Visual overlap into adjacent floors and walls to win the depth test where
+// surfaces would otherwise be coplanar. The barrier mesh grows by this amount
+// at each end (along the segment) and at top/bottom (in Y).
+pub const BARRIER_OVERLAP_EPS: f32 = 0.01;
+
 // Floors
 pub const FLOOR_THICKNESS: f32 = 0.4;
 
@@ -87,6 +98,15 @@ pub const POWER_UP_SPEED_MULTIPLIER: f32 = 1.8;
 pub const POWER_UP_MULTI_SHOT_MULTIPLIER: i32 = 5;
 pub const POWER_UP_MULTI_SHOT_ANGLE: f32 = 2.0;
 pub const POWER_UP_ANTI_GRAVITY_MULTIPLIER: f32 = 0.2;
+
+// Spawn gates. Set any flag to `false` to keep that power-up off the spawn
+// pool — the type's collection / status / movement code stays in place, so a
+// player still benefits if they somehow obtain one (e.g., via the `ALWAYS_*`
+// debug flags below). With every flag `false`, only cookies spawn.
+pub const POWER_UP_SPEED_ENABLED: bool = true;
+pub const POWER_UP_MULTI_SHOT_ENABLED: bool = true;
+pub const POWER_UP_PHASING_ENABLED: bool = false;
+pub const POWER_UP_ANTI_GRAVITY_ENABLED: bool = true;
 
 // ============================================================================
 // Debug Flags

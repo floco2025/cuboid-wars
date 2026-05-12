@@ -106,12 +106,13 @@ pub fn item_spawn_system(
             .into_iter()
             .filter(|cell| !occupied_cells.contains(cell))
             .collect::<Vec<_>>();
-        if !available_cells.is_empty() {
+        if !available_cells.is_empty()
+            && let Some(item_type) = choose_item_type(&mut rng)
+        {
             let spawn_cell = available_cells[rng.random_range(0..available_cells.len())];
             let item_id = ItemId(spawner.next_id);
             spawner.next_id += 1;
             let position = spawn_cell.position(&map_geometry);
-            let item_type = choose_item_type(&mut rng);
 
             let entity = commands.spawn((ItemMarker, item_id, position)).id();
 

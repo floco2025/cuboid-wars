@@ -6,25 +6,31 @@ use crate::{
     resources::MapConfig,
 };
 use common::{
-    constants::{GRID_CELL_SIZE, LEVEL_HEIGHT},
+    constants::{
+        GRID_CELL_SIZE, LEVEL_HEIGHT, POWER_UP_ANTI_GRAVITY_ENABLED, POWER_UP_MULTI_SHOT_ENABLED,
+        POWER_UP_PHASING_ENABLED, POWER_UP_SPEED_ENABLED,
+    },
     map::compute_player_level,
     map_geometry::MapGeometry,
     protocol::{ItemType, Position},
 };
 
-pub(super) fn choose_item_type(rng: &mut ThreadRng) -> ItemType {
-    // Uniform 1/4 over the four power-up variants. `Cookie` is spawned
-    // separately and isn't in this pool.
-    let rand_val = rng.random::<f64>();
-    if rand_val < 1.0 / 4.0 {
-        ItemType::SpeedPowerUp
-    } else if rand_val < 2.0 / 4.0 {
-        ItemType::MultiShotPowerUp
-    } else if rand_val < 3.0 / 4.0 {
-        ItemType::PhasingPowerUp
-    } else {
-        ItemType::AntiGravityPowerUp
+// Uniform pick over the variants enabled by the `POWER_UP_*_ENABLED` flags
+// in `common::constants`. `Cookie` is spawned separately and isn't in this
+// pool. Returns `None` when every power-up is disabled — the caller skips
+// the spawn entirely so disabling everything leaves a cookie-only map.
+pub(super) fn choose_item_type(rng: &mut ThreadRng) -> Option<ItemType> {
+    let pool: [(bool, ItemType); 4] = [
+        (POWER_UP_SPEED_ENABLED, ItemType::SpeedPowerUp),
+        (POWER_UP_MULTI_SHOT_ENABLED, ItemType::MultiShotPowerUp),
+        (POWER_UP_PHASING_ENABLED, ItemType::PhasingPowerUp),
+        (POWER_UP_ANTI_GRAVITY_ENABLED, ItemType::AntiGravityPowerUp),
+    ];
+    let enabled: Vec<ItemType> = pool.into_iter().filter_map(|(e, t)| e.then_some(t)).collect();
+    if enabled.is_empty() {
+        return None;
     }
+    Some(enabled[rng.random_range(0..enabled.len())])
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]

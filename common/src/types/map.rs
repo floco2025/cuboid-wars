@@ -91,6 +91,25 @@ pub enum ItemType {
     Cookie,
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Encode, Decode)]
+pub enum BarrierColor {
+    Red,
+    Blue,
+    Green,
+    Yellow,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Copy)]
+pub struct Barrier {
+    pub x1: f32,
+    pub z1: f32,
+    pub x2: f32,
+    pub z2: f32,
+    pub width: f32,
+    pub level: u8,
+    pub color: BarrierColor,
+}
+
 // Visual materials for each segment in the layout. The vectors run parallel
 // to `walls` / `ramps` / `floors`: the segment at index `i` renders with the
 // `FaceMaterials` at index `i` of the corresponding `*_materials` vector.
@@ -104,4 +123,5 @@ pub struct MapLayout {
     pub floors: Vec<Floor>,
     pub floor_materials: Vec<FaceMaterials>,
     pub wall_lights: Vec<WallLight>,
+    pub barriers: Vec<Barrier>,
 }

@@ -1,5 +1,6 @@
 pub mod actors;
 pub mod animations;
+pub mod barriers;
 pub mod cameras;
 pub mod characters;
 pub mod config;

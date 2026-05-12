@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 use crate::{
+    barriers::{BarrierAssets, BarrierMarker},
     config::{AssetSet, DebugColorMode, RenderSettings},
     map::{
         DebugColors, GroundMarker, LevelFocusEnabled, MapGeometryBatch, MapLevel, RampMarker, RoofMarker,
@@ -139,6 +140,7 @@ pub fn map_level_focus_visibility_system(
                 With<GroundMarker>,
                 With<WallLightMarker>,
                 With<ItemMarker>,
+                With<BarrierMarker>,
             )>,
             Without<RampMarker>,
         ),
@@ -184,9 +186,18 @@ pub fn map_level_focus_visibility_system(
 // System to make wall light glass materials emissive after they load
 pub fn map_wall_light_emissive_system(
     asset_set: Res<AssetSet>,
+    barrier_assets: Option<Res<BarrierAssets>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut processed: Local<std::collections::HashSet<AssetId<StandardMaterial>>>,
 ) {
+    // Barrier materials match the "non-opaque" heuristic below but are
+    // managed by their own pulsation system — keep this pass off them.
+    if let Some(ba) = barrier_assets.as_ref() {
+        for handle in ba.material_handles() {
+            processed.insert(handle.id());
+        }
+    }
+
     let emissive_luminance = asset_set.wall_light_model().emissive_luminance;
 
     // Check all materials for ones that look like wall light glass

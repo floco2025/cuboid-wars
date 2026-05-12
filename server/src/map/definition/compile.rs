@@ -1,6 +1,7 @@
-use super::schema::{MapDef, RampDef};
+use super::schema::{BarrierDef, MapDef, RampDef};
 use crate::{
     map::{
+        barriers::merge_barriers,
         floors,
         lights::generate_wall_lights,
         mask::{Mask, mark_has_floor, mark_has_floor_above, mark_has_floor_slab},
@@ -13,7 +14,7 @@ use common::{
     constants::*,
     face_materials::FaceMaterials,
     map_geometry::MapGeometry,
-    protocol::{Floor, MapLayout, Wall},
+    protocol::{Barrier, Floor, MapLayout, Wall},
 };
 
 #[must_use]
@@ -94,6 +95,15 @@ pub(crate) fn compile_map(map_def: &MapDef, assets: &MaterialRules) -> (MapLayou
         all_wall_materials.extend(merged_materials);
     }
 
+    let mut all_barriers: Vec<Barrier> = Vec::new();
+    for (level_idx, level) in map_def.levels.iter().enumerate() {
+        let level_u8 = u8::try_from(level_idx).unwrap_or(u8::MAX);
+        for b in &level.barriers {
+            all_barriers.push(barrier_from_def(b, &geometry, level_u8));
+        }
+    }
+    let all_barriers = merge_barriers(all_barriers);
+
     let mut all_floors: Vec<Floor> = Vec::new();
     let mut all_floor_materials: Vec<FaceMaterials> = Vec::new();
     for (level_idx, m) in slab_masks.iter().enumerate() {
@@ -135,6 +145,7 @@ pub(crate) fn compile_map(map_def: &MapDef, assets: &MaterialRules) -> (MapLayou
         wall_lights,
         floors: all_floors,
         floor_materials: all_floor_materials,
+        barriers: all_barriers,
     };
     // The renderer indexes the material vectors by segment position, so any
     // length divergence is a bug here, not in the client.
@@ -210,5 +221,24 @@ fn set_wall_edge(edges: &mut EdgeGrid, wall: [i32; 4]) {
         edges.horizontal[r0 as usize][c0.min(c1) as usize] = true;
     } else {
         edges.vertical[r0.min(r1) as usize][c0 as usize] = true;
+    }
+}
+
+// Convert an editor-authored one-edge barrier into a world-space `Barrier`
+// segment. Mirrors the wall world-space math (cell-corner → world-corner via
+// `MapGeometry`) so a barrier visually occupies the same edge as a wall would.
+fn barrier_from_def(def: &BarrierDef, geometry: &MapGeometry, level: u8) -> Barrier {
+    let x1 = geometry.cell_to_world_x(def.c0);
+    let z1 = geometry.cell_to_world_z(def.r0);
+    let x2 = geometry.cell_to_world_x(def.c1);
+    let z2 = geometry.cell_to_world_z(def.r1);
+    Barrier {
+        x1,
+        z1,
+        x2,
+        z2,
+        width: BARRIER_THICKNESS,
+        level,
+        color: def.color.to_protocol(),
     }
 }

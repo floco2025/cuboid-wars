@@ -10,6 +10,7 @@ use tokio::{runtime::Runtime, time::Duration};
 
 use client::{
     actors::{ActorMap, actors_transform_sync_system},
+    barriers::{barriers_pulsate_system, barriers_spawn_system, setup_barrier_assets},
     cameras::{CameraViewMode, TopDownCameraYaw, setup_cameras_system},
     characters::{characters_movement_system, characters_visual_turn_system},
     config::{AssetSet, OpaqueRenderer, RenderSettings, configure_client},
@@ -152,6 +153,7 @@ fn main() -> Result<()> {
                 setup_ui_system,
                 setup_skybox_from_cross_system.after(setup_scene_lighting_system),
                 setup_item_assets,
+                setup_barrier_assets,
             ),
         )
         // Input writes local intent and view/debug state.
@@ -216,6 +218,8 @@ fn main() -> Result<()> {
                 map_spawn_geometry_system,
                 map_level_focus_visibility_system,
                 map_wall_light_emissive_system,
+                barriers_spawn_system,
+                barriers_pulsate_system,
             ),
         )
         // HUD and screen-space UI.

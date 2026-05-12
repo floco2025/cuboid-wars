@@ -147,7 +147,8 @@ fn validate_levels(map_def: &MapDef) -> Result<()> {
 
         let floors = validate_regular_floors(level, &label, map_def.grid_cols, map_def.grid_rows)?;
         validate_inaccessible_floors(level, &label, map_def.grid_cols, map_def.grid_rows, &floors)?;
-        validate_walls(level, &label, map_def.grid_cols, map_def.grid_rows)?;
+        let walls = validate_walls(level, &label, map_def.grid_cols, map_def.grid_rows)?;
+        validate_barriers(level, &label, map_def.grid_cols, map_def.grid_rows, &walls)?;
     }
     Ok(())
 }
@@ -191,7 +192,12 @@ fn validate_inaccessible_floors(
     Ok(())
 }
 
-fn validate_walls(level: &LevelDef, label: &str, grid_cols: i32, grid_rows: i32) -> Result<()> {
+fn validate_walls(
+    level: &LevelDef,
+    label: &str,
+    grid_cols: i32,
+    grid_rows: i32,
+) -> Result<BTreeSet<[i32; 4]>> {
     let mut walls_seen = BTreeSet::new();
     for (wall_idx, wall) in level.walls.iter().enumerate() {
         let key = [wall.c0, wall.r0, wall.c1, wall.r1];
@@ -199,6 +205,34 @@ fn validate_walls(level: &LevelDef, label: &str, grid_cols: i32, grid_rows: i32)
         let normalized = normalized_wall(key);
         if !walls_seen.insert(normalized) {
             return Err(anyhow!("{label}: duplicate wall {:?}", normalized));
+        }
+    }
+    Ok(walls_seen)
+}
+
+// Barriers share the wall edge geometry but must not coexist with a wall on
+// the same edge (visual z-fight + ambiguous semantics).
+fn validate_barriers(
+    level: &LevelDef,
+    label: &str,
+    grid_cols: i32,
+    grid_rows: i32,
+    walls: &BTreeSet<[i32; 4]>,
+) -> Result<()> {
+    let mut barriers_seen = BTreeSet::new();
+    for (barrier_idx, barrier) in level.barriers.iter().enumerate() {
+        let key = [barrier.c0, barrier.r0, barrier.c1, barrier.r1];
+        validate_wall(key, grid_cols, grid_rows)
+            .with_context(|| format!("{label}: barriers[{barrier_idx}]"))?;
+        let normalized = normalized_wall(key);
+        if walls.contains(&normalized) {
+            return Err(anyhow!(
+                "{label}: barriers[{barrier_idx}] {:?} overlaps a wall on the same edge",
+                normalized
+            ));
+        }
+        if !barriers_seen.insert(normalized) {
+            return Err(anyhow!("{label}: duplicate barrier {:?}", normalized));
         }
     }
     Ok(())

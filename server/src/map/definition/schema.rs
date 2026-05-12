@@ -38,6 +38,8 @@ pub(crate) struct LevelDef {
     #[serde(default)]
     pub(crate) walls: Vec<WallDef>,
     #[serde(default)]
+    pub(crate) barriers: Vec<BarrierDef>,
+    #[serde(default)]
     pub(crate) lights: Vec<WallLightDef>,
 }
 
@@ -78,6 +80,38 @@ pub(crate) struct WallDef {
     pub(crate) r0: i32,
     pub(crate) c1: i32,
     pub(crate) r1: i32,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct BarrierDef {
+    pub(crate) c0: i32,
+    pub(crate) r0: i32,
+    pub(crate) c1: i32,
+    pub(crate) r1: i32,
+    pub(crate) color: BarrierColorDef,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+pub(crate) enum BarrierColorDef {
+    #[serde(rename = "red")]
+    Red,
+    #[serde(rename = "blue")]
+    Blue,
+    #[serde(rename = "green")]
+    Green,
+    #[serde(rename = "yellow")]
+    Yellow,
+}
+
+impl BarrierColorDef {
+    pub(crate) fn to_protocol(self) -> common::protocol::BarrierColor {
+        match self {
+            Self::Red => common::protocol::BarrierColor::Red,
+            Self::Blue => common::protocol::BarrierColor::Blue,
+            Self::Green => common::protocol::BarrierColor::Green,
+            Self::Yellow => common::protocol::BarrierColor::Yellow,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]

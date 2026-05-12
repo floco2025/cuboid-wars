@@ -1,3 +1,4 @@
+mod barriers;
 mod definition;
 mod edges;
 mod floors;
