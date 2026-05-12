@@ -1378,6 +1378,9 @@ FACES = ("top", "bottom", "north", "south", "east", "west")
 
 WALL_PEN_WIDTH = 6
 WALL_HIGHLIGHT_WIDTH = WALL_PEN_WIDTH + 4
+# Barriers render slightly thinner than walls so the two read as distinct
+# even when their colors happen to be close.
+BARRIER_PEN_WIDTH = 4
 
 # Translucent rectangle preview drawn while dragging in modes that operate on
 # a cell rectangle. Lookup falls back to a neutral green for any mode that
@@ -1824,15 +1827,13 @@ class Canvas(QWidget):
             painter.drawLine(wall["c0"] * cell, wall["r0"] * cell, wall["c1"] * cell, wall["r1"] * cell)
 
     def _paint_barriers(self, painter: QPainter, level: dict, cell: float) -> None:
-        # Solid stroke at the same width and centering as walls so barriers
-        # align pixel-perfectly with the grid edge. (A dashed stroke ends
-        # mid-gap on a one-cell segment, which makes the line look shifted
-        # toward its start.) The color already distinguishes barriers from
-        # the white wall stroke.
+        # Solid stroke, thinner than walls so the two read as distinct on
+        # the grid. (A dashed stroke ends mid-gap on a one-cell segment,
+        # which makes the line look shifted toward its start.)
         for barrier in level.get("barriers", []):
             kind = barrier.get("kind", "")
             display = BARRIER_KIND_COLORS.get(kind, "#ff5050")
-            painter.setPen(QPen(QColor(display), WALL_PEN_WIDTH, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+            painter.setPen(QPen(QColor(display), BARRIER_PEN_WIDTH, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
             painter.drawLine(
                 barrier["c0"] * cell,
                 barrier["r0"] * cell,
@@ -2134,14 +2135,10 @@ class Canvas(QWidget):
                             tooltip = f"Inaccessible floor\n{materials_summary(f)}"
                             break
         elif self.window.mode == MODE_WALL_MATERIAL:
-            px = pos.x() / cell_size
-            py = pos.y() / cell_size
-            for wall in level["walls"]:
-                wall_arr = [wall["c0"], wall["r0"], wall["c1"], wall["r1"]]
-                if point_near_wall(px, py, wall_arr, tolerance=0.2):
-                    kind, target = "wall", wall
-                    tooltip = f"Wall\n{materials_summary(wall)}"
-                    break
+            wall = self._wall_near_position(pos)
+            if wall is not None:
+                kind, target = "wall", wall
+                tooltip = f"Wall\n{materials_summary(wall)}"
         else:  # MODE_RAMP_MATERIAL
             cell = self.point_to_cell(pos)
             if cell is not None:
@@ -2172,6 +2169,17 @@ class Canvas(QWidget):
         else:
             self._hover_label.hide()
 
+    def _wall_near_position(self, pos) -> dict | None:
+        cell_size = self.cell_size()
+        px = pos.x() / cell_size
+        py = pos.y() / cell_size
+        level = self.window.map_data["levels"][self.window.current_level]
+        for wall in level["walls"]:
+            wall_arr = [wall["c0"], wall["r0"], wall["c1"], wall["r1"]]
+            if point_near_wall(px, py, wall_arr, tolerance=0.2):
+                return wall
+        return None
+
     def mouseReleaseEvent(self, event) -> None:
         if event.button() != Qt.MouseButton.LeftButton:
             return
@@ -2201,7 +2209,17 @@ class Canvas(QWidget):
         elif self.window.mode == MODE_FLOOR_MATERIAL and self.drag_start_cell and self.drag_current_cell:
             self.window.assign_floor_materials_rect(self.drag_start_cell, self.drag_current_cell)
         elif self.window.mode == MODE_WALL_MATERIAL and self.drag_start_point and self.drag_current_point:
-            self.window.assign_wall_materials_rect(self.drag_start_point, self.drag_current_point)
+            start, end = self.drag_start_point, self.drag_current_point
+            if start == end:
+                # Pure click (no drag): grab the wall under the cursor and use
+                # its endpoints as the rectangle so the rect path applies to
+                # that single wall.
+                wall = self._wall_near_position(event.position())
+                if wall is not None:
+                    start = (wall["c0"], wall["r0"])
+                    end = (wall["c1"], wall["r1"])
+            if start != end:
+                self.window.assign_wall_materials_rect(start, end)
         elif self.window.mode == MODE_RAMP_MATERIAL and self.drag_start_cell and self.drag_current_cell:
             self.window.assign_ramp_materials_rect(self.drag_start_cell, self.drag_current_cell)
         elif self.window.mode == MODE_LIGHT and self.drag_start_cell:
