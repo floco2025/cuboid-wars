@@ -1,7 +1,7 @@
 use bevy::{ecs::system::SystemParam, prelude::*};
 
 use crate::{
-    combat::{PlayerHitOutcome, apply_actor_projectile_hit, apply_player_projectile_hit, kill_player},
+    combat::{apply_actor_projectile_hit, apply_player_projectile_hit, kill_player},
     config::ServerGameplayConfig,
     network::broadcast_to_all,
     resources::{ActorMap, PlayerMap},
@@ -157,7 +157,7 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                 {
                     let target_pos = *target_pos;
                     info!("{:?} hits {:?}", shooter_id, player_id);
-                    let outcome = apply_player_projectile_hit(
+                    let was_lethal = apply_player_projectile_hit(
                         &mut params.players,
                         shooter_id,
                         player_id,
@@ -174,7 +174,7 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                         }),
                     );
 
-                    if outcome == PlayerHitOutcome::Died {
+                    if was_lethal {
                         info!("{:?} died", player_id);
                         kill_player(
                             &mut commands,

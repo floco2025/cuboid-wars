@@ -88,69 +88,24 @@ pub struct CPing {
 // ============================================================================
 // Server Messages
 // ============================================================================
+//
+// Ordered by role: bootstrap → snapshot → real-time intent → one-shot cues
+// → diagnostic. Matches the protocol-model doc comment at the top of this
+// file.
 
-// Server to Client: Initial connection acknowledgment with assigned player ID.
+// --- Bootstrap ---
+
+// Initial connection acknowledgment with assigned player ID + map layout.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SInit {
     pub id: PlayerId,
     pub map_layout: MapLayout,
 }
 
-// Server to Client: Player movement state update for reconciliation after intent changes.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct SPlayerMoveIntent {
-    pub id: PlayerId,
-    pub movement: PlayerMovementState,
-}
+// --- Snapshot ---
 
-// Server to Client: Server-controlled actor movement state update after intent changes.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct SActorMoveIntent {
-    pub id: ActorId,
-    pub movement: ActorMovementState,
-}
-
-// Server to Client: Actor died at this position. Triggers the explosion VFX
-// + sound and the local entity teardown. `SUpdate`'s next snapshot is the
-// fallback if this event is dropped.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct SActorDeath {
-    pub id: ActorId,
-    pub pos: Position,
-}
-
-// Server to Client: Player died at this position. Drives the immediate
-// client-side death-state transition (overlay + freeze for the dying player,
-// entity teardown for others). `SUpdate`'s next snapshot is the fallback.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct SPlayerDeath {
-    pub id: PlayerId,
-    pub pos: Position,
-}
-
-// Server to Client: Player started a jump with authoritative movement state.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct SJump {
-    pub id: PlayerId,
-    pub movement: PlayerMovementState,
-}
-
-// Server to Client: Player facing direction update.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct SFace {
-    pub id: PlayerId,
-    pub dir: f32, // radians - direction player is facing
-}
-
-// Server to Client: Player shot fired.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct SShot {
-    pub id: PlayerId,
-    pub face_dir: f32,   // radians - yaw direction player is facing when shooting
-    pub face_pitch: f32, // radians - pitch (up/down) when shooting
-}
-
-// Server to Client: Periodic game state update for all players.
+// Periodic full-world snapshot. Sole source of truth for player/actor/item
+// presence; one-shot cues are paired against it for sub-tick latency.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SUpdate {
     pub seq: u32,
@@ -159,21 +114,83 @@ pub struct SUpdate {
     pub items: Vec<(ItemId, Item)>,
 }
 
-// Server to Client: Player was hit by a projectile.
+// --- Real-time intent (sub-tick latency for prediction) ---
+
+// Player movement intent change for client-side prediction of remote players.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct SPlayerHit {
-    pub id: PlayerId,   // Player who was hit
-    pub hit_dir_x: f32, // Direction of hit (normalized)
-    pub hit_dir_z: f32, // Direction of hit (normalized)
+pub struct SPlayerMoveIntent {
+    pub id: PlayerId,
+    pub movement: PlayerMovementState,
 }
 
-// Server to Client: Actor was hit by a projectile.
+// Actor movement intent change.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SActorMoveIntent {
+    pub id: ActorId,
+    pub movement: ActorMovementState,
+}
+
+// Player started a jump with authoritative vertical velocity.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SJump {
+    pub id: PlayerId,
+    pub movement: PlayerMovementState,
+}
+
+// Player facing direction update (yaw, radians).
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SFace {
+    pub id: PlayerId,
+    pub dir: f32,
+}
+
+// Player fired a shot. Lets other clients spawn the projectile immediately
+// instead of waiting for it to appear in `SUpdate`.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SShot {
+    pub id: PlayerId,
+    pub face_dir: f32,
+    pub face_pitch: f32,
+}
+
+// --- One-shot cues (edge-triggered FX/state changes) ---
+
+// Player died at this position. Drives the immediate client-side death-state
+// transition (overlay + freeze for the dying player, entity teardown for
+// others). `SUpdate`'s next snapshot is the fallback.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SPlayerDeath {
+    pub id: PlayerId,
+    pub pos: Position,
+}
+
+// Actor died at this position. Triggers the explosion VFX + sound and the
+// local entity teardown. `SUpdate`'s next snapshot is the fallback.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SActorDeath {
+    pub id: ActorId,
+    pub pos: Position,
+}
+
+// Player was hit by a projectile. Carries hit direction so the victim's
+// camera shake reads directionally; snapshot can't carry this.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SPlayerHit {
+    pub id: PlayerId,
+    pub hit_dir_x: f32,
+    pub hit_dir_z: f32,
+}
+
+// Actor was hit by a projectile (drives the `hit_actor` sound on the
+// shooter's client).
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SActorHit {
     pub id: ActorId,
 }
 
-// Server to Client: Player status effects changed.
+// Player status flags changed (power-up gained/lost, stun toggle). The same
+// flags are also in `SUpdate`, but this event is the edge trigger that fires
+// the associated sounds exactly once at the transition.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct SPlayerStatus {
     pub id: PlayerId,
@@ -188,16 +205,19 @@ pub struct SPlayerStatus {
     pub held_keys: Vec<BarrierKindId>,
 }
 
-// Server to Client: Pong response — server echoes the `CPing` timestamp back
-// unchanged so the client can compute RTT from the round trip.
+// Player collected a cookie. Sent only to the collecting player; drives the
+// pickup sound.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SCookieCollected {}
+
+// --- Diagnostic ---
+
+// Pong response — server echoes the `CPing` timestamp back unchanged so the
+// client can compute RTT from the round trip.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SPong {
     pub timestamp_nanos: u64,
 }
-
-// Server to Client: Player collected a cookie.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct SCookieCollected {}
 
 // ============================================================================
 // Message Envelopes
@@ -215,21 +235,30 @@ pub enum ClientMessage {
     Ping(CPing),
 }
 
-// All server to client messages
+// All server to client messages. Variants are grouped by role to match the
+// struct ordering above; new messages should land in the appropriate group.
+// Note: bincode encodes the discriminant by position, so reordering touches
+// the wire format — fine for an in-dev workspace where server and client
+// always build from the same source.
 #[derive(Debug, Clone, Message, Encode, Decode)]
 pub enum ServerMessage {
+    // Bootstrap
     Init(SInit),
+    // Snapshot
+    Update(SUpdate),
+    // Real-time intent
     PlayerMoveIntent(SPlayerMoveIntent),
     ActorMoveIntent(SActorMoveIntent),
-    ActorDeath(SActorDeath),
-    PlayerDeath(SPlayerDeath),
     Jump(SJump),
     Face(SFace),
     Shot(SShot),
-    Update(SUpdate),
+    // One-shot cues
+    PlayerDeath(SPlayerDeath),
+    ActorDeath(SActorDeath),
     PlayerHit(SPlayerHit),
     ActorHit(SActorHit),
     PlayerStatus(SPlayerStatus),
-    Pong(SPong),
     CookieCollected(SCookieCollected),
+    // Diagnostic
+    Pong(SPong),
 }

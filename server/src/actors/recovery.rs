@@ -1,15 +1,15 @@
 use bevy::prelude::*;
 
-use super::network::broadcast_actor_death;
 use crate::{
     combat::{ActorDeathQuery, apply_actor_explosion_damage, kill_player},
     config::ServerGameplayConfig,
+    network::broadcast_to_all,
     resources::{ActorMap, PlayerMap},
 };
 use common::{
     config::GameplayConfig,
     constants::CHARACTER_FALL_DEATH_Y,
-    protocol::{ActorId, ActorMarker, Health, PlayerId, PlayerMarker, Position},
+    protocol::{ActorId, ActorMarker, Health, PlayerId, PlayerMarker, Position, SActorDeath, ServerMessage},
 };
 
 // Despawn actors that have either fallen below the death threshold or had
@@ -75,7 +75,13 @@ pub fn actor_removal_system(
                 &mut player_query,
                 &mut query,
             );
-            broadcast_actor_death(&players, death.id, death.pos);
+            broadcast_to_all(
+                &players,
+                ServerMessage::ActorDeath(SActorDeath {
+                    id: death.id,
+                    pos: death.pos,
+                }),
+            );
             info!("{:?} was destroyed at {:?}", death.id, death.pos);
             for (player_id, entity, pos) in dead_players {
                 info!("{:?} killed by {:?} explosion", player_id, death.id);

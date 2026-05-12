@@ -58,8 +58,7 @@ impl PlayerInfo {
     }
 
     // Clear per-life state that should not persist across a death: power-ups,
-    // stun, and held keys. Called at death (not respawn — once cleared, the
-    // player respawns with no power-ups regardless of when respawn fires).
+    // stun, keys, and shot cooldown. Score is intentionally preserved.
     pub fn clear_per_life_state(&mut self) {
         self.speed_power_up_timer = 0.0;
         self.multi_shot_power_up_timer = 0.0;
@@ -67,6 +66,9 @@ impl PlayerInfo {
         self.anti_gravity_power_up_timer = 0.0;
         self.stun_timer = 0.0;
         self.held_keys.clear();
+        // Otherwise a player killed with a hot cooldown respawns and can
+        // fire before their cooldown would otherwise have ticked down.
+        self.last_shot_time = f32::NEG_INFINITY;
     }
 
     #[must_use]

@@ -14,17 +14,11 @@ use common::{
     },
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PlayerHitOutcome {
-    Survived,
-    Died,
-}
-
-// Common death sequence: clear per-life state, arm the respawn timer,
-// despawn the entity, and broadcast `SPlayerDeath` so clients run their
-// death-side effects on the impact tick (instead of waiting one snapshot).
-// Called from every code path that takes a player to zero health
-// (projectile hits, actor explosions, falls).
+// Run the death sequence for one player: clear per-life state, arm the
+// respawn timer, despawn the entity, and broadcast `SPlayerDeath` so clients
+// run death-side effects on the impact tick instead of waiting a snapshot.
+// Called from every code path that takes a player to zero health (projectile
+// hits, actor explosions, falls).
 pub fn kill_player(
     commands: &mut Commands,
     players: &mut PlayerMap,
@@ -41,21 +35,20 @@ pub fn kill_player(
     broadcast_to_all(players, ServerMessage::PlayerDeath(SPlayerDeath { id, pos }));
 }
 
-// Apply one projectile hit to a player. Returns `Died` when this hit drops
-// the target's health to zero (and the target wasn't already dead). The
-// caller is responsible for despawning the target's entity and arming the
-// respawn timer.
+// Apply one projectile hit to a player. Returns `true` when this hit drops
+// the target's health to zero (and the target wasn't already dead) — the
+// caller is responsible for running `kill_player`.
 pub fn apply_player_projectile_hit(
     players: &mut PlayerMap,
     shooter_id: &PlayerId,
     target_id: PlayerId,
     target_health: &mut Health,
     server_gameplay_config: &ServerGameplayConfig,
-) -> PlayerHitOutcome {
-    // Defensive: a dead player has no entity, so the projectile system
-    // shouldn't find them — but guard anyway so a stray hit can't redeath them.
+) -> bool {
+    // The projectile system shouldn't find a dead player (entity is gone),
+    // but guard so a stray hit on a queued-for-despawn entity can't redeath.
     if players.get(&target_id).is_some_and(|info| info.is_dead()) {
-        return PlayerHitOutcome::Survived;
+        return false;
     }
 
     apply_damage(target_health, server_gameplay_config.player.projectile_damage_taken);
@@ -67,11 +60,7 @@ pub fn apply_player_projectile_hit(
         target_info.score -= 1;
     }
 
-    if target_health.0 <= 0.0 {
-        PlayerHitOutcome::Died
-    } else {
-        PlayerHitOutcome::Survived
-    }
+    target_health.0 <= 0.0
 }
 
 pub fn apply_actor_projectile_hit(
@@ -215,7 +204,7 @@ mod tests {
         let mut players = make_player_map_with(PlayerId(1), PlayerId(2));
         let mut health = Health(100.0);
 
-        let outcome = apply_player_projectile_hit(
+        let was_lethal = apply_player_projectile_hit(
             &mut players,
             &PlayerId(1),
             PlayerId(2),
@@ -223,18 +212,18 @@ mod tests {
             &server_gameplay_config(),
         );
 
-        assert_eq!(outcome, PlayerHitOutcome::Survived);
+        assert!(!was_lethal);
         assert_eq!(health.0, 75.0);
         assert_eq!(players.get(&PlayerId(1)).expect("shooter").score, 1);
         assert_eq!(players.get(&PlayerId(2)).expect("target").score, -1);
     }
 
     #[test]
-    fn lethal_hit_returns_died() {
+    fn lethal_hit_returns_true() {
         let mut players = make_player_map_with(PlayerId(1), PlayerId(2));
         let mut health = Health(10.0);
 
-        let outcome = apply_player_projectile_hit(
+        let was_lethal = apply_player_projectile_hit(
             &mut players,
             &PlayerId(1),
             PlayerId(2),
@@ -242,7 +231,7 @@ mod tests {
             &server_gameplay_config(),
         );
 
-        assert_eq!(outcome, PlayerHitOutcome::Died);
+        assert!(was_lethal);
         assert_eq!(health.0, 0.0);
     }
 
@@ -252,7 +241,7 @@ mod tests {
         players.get_mut(&PlayerId(2)).expect("target").death_timer = Some(2.0);
         let mut health = Health(0.0);
 
-        let outcome = apply_player_projectile_hit(
+        let was_lethal = apply_player_projectile_hit(
             &mut players,
             &PlayerId(1),
             PlayerId(2),
@@ -260,7 +249,7 @@ mod tests {
             &server_gameplay_config(),
         );
 
-        assert_eq!(outcome, PlayerHitOutcome::Survived);
+        assert!(!was_lethal);
         // Score must not move on a no-op hit.
         assert_eq!(players.get(&PlayerId(1)).expect("shooter").score, 0);
         assert_eq!(players.get(&PlayerId(2)).expect("target").score, 0);
@@ -338,13 +327,14 @@ mod tests {
     }
 
     #[test]
-    fn clear_per_life_state_zeros_powerups_and_keys() {
+    fn clear_per_life_state_zeros_powerups_keys_and_cooldown() {
         let mut info = make_player_info();
         info.speed_power_up_timer = 1.0;
         info.multi_shot_power_up_timer = 1.0;
         info.phasing_power_up_timer = 1.0;
         info.anti_gravity_power_up_timer = 1.0;
         info.stun_timer = 1.0;
+        info.last_shot_time = 99.0;
         info.add_key(common::protocol::BarrierKindId(0));
 
         info.clear_per_life_state();
@@ -354,6 +344,7 @@ mod tests {
         assert_eq!(info.phasing_power_up_timer, 0.0);
         assert_eq!(info.anti_gravity_power_up_timer, 0.0);
         assert_eq!(info.stun_timer, 0.0);
+        assert_eq!(info.last_shot_time, f32::NEG_INFINITY);
         assert!(info.held_keys.is_empty());
     }
 }

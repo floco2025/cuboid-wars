@@ -27,11 +27,16 @@ pub fn dispatch_message(
     collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
 ) {
-    // Drop input from dead players: their entity has been despawned, so
-    // queueing entity-targeted commands against the stale `entity` would
-    // panic at apply time. Messages that don't touch the entity (Logoff,
-    // Ping) still run normally.
-    let is_dead = players.get(&id).is_some_and(|info| info.is_dead());
+    // Dead players have a despawned entity; queueing entity-targeted
+    // commands against the stale `entity` would panic when Bevy applies the
+    // command buffer. Drop their in-flight gameplay messages but keep the
+    // ones that don't touch the entity (Logoff so disconnects still tear
+    // down cleanly, Ping so RTT measurement keeps working).
+    if players.get(&id).is_some_and(|info| info.is_dead())
+        && !matches!(msg, ClientMessage::Logoff(_) | ClientMessage::Ping(_))
+    {
+        return;
+    }
 
     match msg {
         ClientMessage::Login(_) => {
@@ -45,16 +50,10 @@ pub fn dispatch_message(
             handle_logoff_message(commands, entity, id, msg, players);
         }
         ClientMessage::PlayerMoveIntent(msg) => {
-            if is_dead {
-                return;
-            }
             trace!("{:?} move intent: {:?}", id, msg);
             handle_move_intent_message(commands, entity, id, msg, &*players, player_data, motions);
         }
         ClientMessage::Jump(msg) => {
-            if is_dead {
-                return;
-            }
             trace!("{:?} jump: {:?}", id, msg);
             handle_jump_message(
                 commands,
@@ -68,16 +67,10 @@ pub fn dispatch_message(
             );
         }
         ClientMessage::Face(msg) => {
-            if is_dead {
-                return;
-            }
             trace!("{:?} face direction: {}", id, msg.dir);
             handle_face_message(commands, entity, id, msg, &*players);
         }
         ClientMessage::Shot(msg) => {
-            if is_dead {
-                return;
-            }
             debug!("{id:?} shot");
             handle_shot_message(
                 commands,

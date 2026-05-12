@@ -175,6 +175,9 @@ pub fn handle_player_hit_message(
 // For the local player: keep the entity (camera/look need it), hide it, set
 // `is_dead`. For other players: despawn + drop `PlayerInfo`. The snapshot
 // diff in `sync_players` is the idempotent fallback if this event was lost.
+//
+// Respawn is *not* handled here — `sync_players` clears `is_dead` and
+// teleports the local entity when the player reappears in the next snapshot.
 pub fn handle_player_death_message(
     commands: &mut Commands,
     players: &mut ResMut<PlayerMap>,
