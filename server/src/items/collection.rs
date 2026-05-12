@@ -42,6 +42,14 @@ pub fn item_collection_system(
                     }
 
                     if character_overlaps_item(character_pos, item_pos, ITEM_COLLECTION_RADIUS) {
+                        // A player who already holds this kind walks over the
+                        // world key without effect. The key stays in place so
+                        // another player can still collect it.
+                        if let ItemType::Key(kind) = item_info.item_type
+                            && player_info.has_key(kind)
+                        {
+                            continue;
+                        }
                         return Some((*player_id, *item_id, item_info.item_type));
                     }
                 }

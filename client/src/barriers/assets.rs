@@ -73,8 +73,7 @@ pub fn setup_barrier_assets(
 fn barrier_material(color: Color) -> StandardMaterial {
     let linear = color.to_linear();
     StandardMaterial {
-        base_color: Color::srgba(linear.red, linear.green, linear.blue, BARRIER_BASE_ALPHA),
-        emissive: linear * BARRIER_EMISSIVE_MIN,
+        base_color: Color::srgba(linear.red, linear.green, linear.blue, BARRIER_ALPHA_MAX),
         alpha_mode: AlphaMode::Blend,
         unlit: true,
         double_sided: true,

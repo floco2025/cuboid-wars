@@ -105,9 +105,9 @@ pub const COOKIE_HEIGHT: f32 = 0.16; // above floor
 
 // Visual: a small rotating cuboid that reuses the matching barrier material
 // (translucent, pulsating). Width = height = ~face plate; depth = thin slab.
-pub const KEY_WIDTH: f32 = 0.4;
-pub const KEY_HEIGHT: f32 = 0.4;
-pub const KEY_DEPTH: f32 = 0.05;
+pub const KEY_WIDTH: f32 = 0.8;
+pub const KEY_HEIGHT: f32 = 0.8;
+pub const KEY_DEPTH: f32 = 0.1;
 pub const KEY_HEIGHT_ABOVE_FLOOR: f32 = 0.6;
 pub const KEY_ROTATION_HZ: f32 = 0.4; // slow coin-spin around Y
 
@@ -131,9 +131,14 @@ pub const PROJECTILE_MAX_BOUNCE_SOUNDS_PER_SECOND: f32 = 30.0; // rate limit for
 // by the ids in `config/common/gameplay.json::barrier_kinds`).
 // ============================================================================
 
-pub const BARRIER_BASE_ALPHA: f32 = 0.35;
-// Emissive intensity oscillates between MIN and MAX. The HDR values rely on
-// the default Bevy tone mapping — there is no bloom pass.
-pub const BARRIER_EMISSIVE_MIN: f32 = 1.5;
-pub const BARRIER_EMISSIVE_MAX: f32 = 6.0;
-pub const BARRIER_PULSE_HZ: f32 = 0.8;
+// Translucency pulse — alpha swings between these on each cycle. Below 0.1
+// the barrier almost disappears (good "off-phase" look); above 0.7 it reads
+// as nearly solid. Wide swing = unmistakable pulse. The material is built
+// at MAX so the first frame (before the pulsate system ticks) shows the
+// barrier at peak instead of a darker mid-value.
+//
+// (We don't animate `emissive` — Bevy's StandardMaterial shader skips the
+// emissive contribution entirely when `unlit: true`, which our barriers are.)
+pub const BARRIER_ALPHA_MIN: f32 = 0.15;
+pub const BARRIER_ALPHA_MAX: f32 = 0.35;
+pub const BARRIER_PULSE_HZ: f32 = 0.5;
