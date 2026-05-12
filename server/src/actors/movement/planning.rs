@@ -54,7 +54,7 @@ pub(crate) fn plan_actor_moves(
         let go_to_intent = actor_desired_intent(
             &mut info.go_to_position,
             &current_pos,
-            kind_server_config.go_to_reached_distance,
+            kind_server_config.navigation.go_to_reached_distance,
             actor_config.chase_speed,
         );
         update_reached_go_to_state(info);
@@ -67,7 +67,7 @@ pub(crate) fn plan_actor_moves(
             collision_world,
             planned_moves,
             actor_starts,
-            path_clear_lookahead_time: kind_server_config.path_clear_lookahead_time,
+            path_clear_lookahead_time: kind_server_config.navigation.path_clear_lookahead_time,
         };
         let selected_move = if let Some(go_to_intent) = go_to_intent {
             select_go_to_actor_move(&move_context, go_to_intent, info.go_to_position, info, &mut rng)

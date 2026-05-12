@@ -69,6 +69,7 @@ pub fn network_process_server_messages_system(
                         &client_assets.render_settings,
                         &client_assets.projectile_assets,
                         &client_assets.item_assets,
+                        &client_assets.barrier_assets,
                         &client_assets.gameplay_config,
                         collision_world.as_deref(),
                     );

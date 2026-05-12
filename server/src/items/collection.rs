@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::{
     constants::{
-        COOKIE_POINTS, COOKIE_RESPAWN_TIME, ITEM_COLLECTION_RADIUS, POWER_UP_ANTI_GRAVITY_DURATION,
+        COOKIE_POINTS, COOKIE_RESPAWN_TIME, ITEM_COLLECTION_RADIUS, KEY_RESPAWN_TIME, POWER_UP_ANTI_GRAVITY_DURATION,
         POWER_UP_MULTI_SHOT_DURATION, POWER_UP_PHASING_DURATION, POWER_UP_SPEED_DURATION,
     },
     net::ServerToClient,
@@ -26,7 +26,10 @@ pub fn item_collection_system(
     let items_to_collect: Vec<(PlayerId, ItemId, ItemType)> = items
         .iter()
         .filter_map(|(item_id, item_info)| {
-            if item_info.item_type == ItemType::Cookie && item_info.spawn_time > 0.0 {
+            // Cookies and keys both use the `spawn_time` countdown as a
+            // "currently respawning, invisible" flag. Don't allow collection
+            // until the timer has elapsed.
+            if matches!(item_info.item_type, ItemType::Cookie | ItemType::Key(_)) && item_info.spawn_time > 0.0 {
                 return None;
             }
 
@@ -67,6 +70,21 @@ pub fn item_collection_system(
             continue;
         }
 
+        if let ItemType::Key(kind) = item_type {
+            if let Some(item_info) = items.get_mut(&item_id) {
+                item_info.spawn_time = KEY_RESPAWN_TIME;
+            }
+            if let Some(player_info) = players.get_mut(&player_id) {
+                // `add_key` returns true only on a state change — that's the
+                // gate for re-broadcasting `SPlayerStatus`. Picking up a key
+                // you already hold is a no-op, no broadcast.
+                if player_info.add_key(kind) {
+                    power_up_messages.push(player_info.status(player_id));
+                }
+            }
+            continue;
+        }
+
         if let Some(item_info) = items.remove(&item_id) {
             commands.entity(item_info.entity).despawn();
         }
@@ -85,7 +103,7 @@ pub fn item_collection_system(
                 ItemType::AntiGravityPowerUp => {
                     player_info.anti_gravity_power_up_timer = POWER_UP_ANTI_GRAVITY_DURATION;
                 }
-                ItemType::Cookie => unreachable!(),
+                ItemType::Cookie | ItemType::Key(_) => unreachable!("handled above"),
             }
 
             power_up_messages.push(player_info.status(player_id));

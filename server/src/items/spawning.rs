@@ -61,6 +61,61 @@ pub fn item_initial_spawn_system(
                 entity,
                 item_type: ItemType::Cookie,
                 spawn_time: 0.0,
+                key_zone_idx: None,
+            },
+        );
+    }
+}
+
+// Spawn one world key per `KeySpawnZone` on startup. Each zone's first
+// eligible (`has_floor && !has_ramp`) cell becomes the key's home; the
+// `key_zone_idx` lets the respawn tick reset position to the same cell
+// after collection.
+pub fn key_initial_spawn_system(
+    mut commands: Commands,
+    mut spawner: ResMut<ItemSpawner>,
+    mut items: ResMut<ItemMap>,
+    query: Query<&ItemId, With<ItemMarker>>,
+    map_config: Res<MapConfig>,
+    map_geometry: Res<MapGeometry>,
+) {
+    let has_keys = query
+        .iter()
+        .any(|id| items.get(id).is_some_and(|info| matches!(info.item_type, ItemType::Key(_))));
+    if has_keys {
+        return;
+    }
+
+    let eligible = eligible_item_spawn_cells(&map_config);
+
+    for (zone_idx, zone) in map_config.key_spawn_zones.iter().enumerate() {
+        let zone_cell = eligible.iter().find(|c| {
+            c.level == zone.level
+                && c.col >= zone.cols[0]
+                && c.col < zone.cols[1]
+                && c.row >= zone.rows[0]
+                && c.row < zone.rows[1]
+        });
+
+        let Some(cell) = zone_cell else {
+            warn!(
+                "key spawn zone {} (kind {:?}) has no eligible cells; skipping",
+                zone_idx, zone.kind
+            );
+            continue;
+        };
+
+        let item_id = ItemId(spawner.next_id);
+        spawner.next_id += 1;
+        let position = cell.position(&map_geometry);
+        let entity = commands.spawn((ItemMarker, item_id, position)).id();
+        items.insert(
+            item_id,
+            ItemInfo {
+                entity,
+                item_type: ItemType::Key(zone.kind),
+                spawn_time: 0.0,
+                key_zone_idx: Some(zone_idx),
             },
         );
     }
@@ -122,6 +177,7 @@ pub fn item_spawn_system(
                     entity,
                     item_type,
                     spawn_time: time.elapsed_secs(),
+                    key_zone_idx: None,
                 },
             );
         }

@@ -30,6 +30,20 @@
     "cookie_spawn_zones": [
       {"level": 0, "cols": [12, 18], "rows": [12, 18]}
     ],
+    "key_spawn_zones": [
+      {"level": 1, "cols": [5, 7], "rows": [12, 15], "kind": "gravity"},
+      {"level": 1, "cols": [23, 25], "rows": [14, 17], "kind": "gravity"},
+      {"level": 2, "cols": [13, 14], "rows": [7, 10], "kind": "basement"},
+      {"level": 2, "cols": [16, 17], "rows": [7, 10], "kind": "basement"},
+      {"level": 2, "cols": [20, 23], "rows": [11, 12], "kind": "basement"},
+      {"level": 2, "cols": [20, 23], "rows": [14, 15], "kind": "basement"},
+      {"level": 2, "cols": [7, 10], "rows": [15, 16], "kind": "basement"},
+      {"level": 2, "cols": [7, 10], "rows": [18, 19], "kind": "basement"},
+      {"level": 2, "cols": [13, 14], "rows": [20, 23], "kind": "basement"},
+      {"level": 2, "cols": [16, 17], "rows": [20, 23], "kind": "basement"},
+      {"level": 3, "cols": [22, 23], "rows": [7, 8], "kind": "treasure"},
+      {"level": 3, "cols": [7, 8], "rows": [22, 23], "kind": "treasure"}
+    ],
     "levels": [
       {
         "name": "basement",
@@ -704,32 +718,32 @@
           {"c0": 30, "r0": 16, "c1": 30, "r1": 17, "all": "basement-perimeter-wall"}
         ],
         "barriers": [
-          {"c0": 3, "r0": 15, "c1": 3, "r1": 16, "color": "yellow"},
-          {"c0": 11, "r0": 11, "c1": 11, "r1": 12, "color": "red"},
-          {"c0": 11, "r0": 11, "c1": 12, "r1": 11, "color": "red"},
-          {"c0": 11, "r0": 12, "c1": 11, "r1": 13, "color": "red"},
-          {"c0": 11, "r0": 14, "c1": 11, "r1": 15, "color": "red"},
-          {"c0": 11, "r0": 15, "c1": 11, "r1": 16, "color": "red"},
-          {"c0": 11, "r0": 17, "c1": 11, "r1": 18, "color": "red"},
-          {"c0": 11, "r0": 18, "c1": 11, "r1": 19, "color": "red"},
-          {"c0": 11, "r0": 19, "c1": 12, "r1": 19, "color": "red"},
-          {"c0": 12, "r0": 11, "c1": 13, "r1": 11, "color": "red"},
-          {"c0": 12, "r0": 19, "c1": 13, "r1": 19, "color": "red"},
-          {"c0": 14, "r0": 11, "c1": 15, "r1": 11, "color": "red"},
-          {"c0": 14, "r0": 19, "c1": 15, "r1": 19, "color": "red"},
-          {"c0": 15, "r0": 11, "c1": 16, "r1": 11, "color": "red"},
-          {"c0": 15, "r0": 19, "c1": 16, "r1": 19, "color": "red"},
-          {"c0": 17, "r0": 11, "c1": 18, "r1": 11, "color": "red"},
-          {"c0": 17, "r0": 19, "c1": 18, "r1": 19, "color": "red"},
-          {"c0": 18, "r0": 11, "c1": 19, "r1": 11, "color": "red"},
-          {"c0": 18, "r0": 19, "c1": 19, "r1": 19, "color": "red"},
-          {"c0": 19, "r0": 11, "c1": 19, "r1": 12, "color": "red"},
-          {"c0": 19, "r0": 12, "c1": 19, "r1": 13, "color": "red"},
-          {"c0": 19, "r0": 14, "c1": 19, "r1": 15, "color": "red"},
-          {"c0": 19, "r0": 15, "c1": 19, "r1": 16, "color": "red"},
-          {"c0": 19, "r0": 17, "c1": 19, "r1": 18, "color": "red"},
-          {"c0": 19, "r0": 18, "c1": 19, "r1": 19, "color": "red"},
-          {"c0": 27, "r0": 14, "c1": 27, "r1": 15, "color": "yellow"}
+          {"c0": 3, "r0": 15, "c1": 3, "r1": 16, "kind": "basement"},
+          {"c0": 11, "r0": 11, "c1": 11, "r1": 12, "kind": "treasure"},
+          {"c0": 11, "r0": 11, "c1": 12, "r1": 11, "kind": "treasure"},
+          {"c0": 11, "r0": 12, "c1": 11, "r1": 13, "kind": "treasure"},
+          {"c0": 11, "r0": 14, "c1": 11, "r1": 15, "kind": "treasure"},
+          {"c0": 11, "r0": 15, "c1": 11, "r1": 16, "kind": "treasure"},
+          {"c0": 11, "r0": 17, "c1": 11, "r1": 18, "kind": "treasure"},
+          {"c0": 11, "r0": 18, "c1": 11, "r1": 19, "kind": "treasure"},
+          {"c0": 11, "r0": 19, "c1": 12, "r1": 19, "kind": "treasure"},
+          {"c0": 12, "r0": 11, "c1": 13, "r1": 11, "kind": "treasure"},
+          {"c0": 12, "r0": 19, "c1": 13, "r1": 19, "kind": "treasure"},
+          {"c0": 14, "r0": 11, "c1": 15, "r1": 11, "kind": "treasure"},
+          {"c0": 14, "r0": 19, "c1": 15, "r1": 19, "kind": "treasure"},
+          {"c0": 15, "r0": 11, "c1": 16, "r1": 11, "kind": "treasure"},
+          {"c0": 15, "r0": 19, "c1": 16, "r1": 19, "kind": "treasure"},
+          {"c0": 17, "r0": 11, "c1": 18, "r1": 11, "kind": "treasure"},
+          {"c0": 17, "r0": 19, "c1": 18, "r1": 19, "kind": "treasure"},
+          {"c0": 18, "r0": 11, "c1": 19, "r1": 11, "kind": "treasure"},
+          {"c0": 18, "r0": 19, "c1": 19, "r1": 19, "kind": "treasure"},
+          {"c0": 19, "r0": 11, "c1": 19, "r1": 12, "kind": "treasure"},
+          {"c0": 19, "r0": 12, "c1": 19, "r1": 13, "kind": "treasure"},
+          {"c0": 19, "r0": 14, "c1": 19, "r1": 15, "kind": "treasure"},
+          {"c0": 19, "r0": 15, "c1": 19, "r1": 16, "kind": "treasure"},
+          {"c0": 19, "r0": 17, "c1": 19, "r1": 18, "kind": "treasure"},
+          {"c0": 19, "r0": 18, "c1": 19, "r1": 19, "kind": "treasure"},
+          {"c0": 27, "r0": 14, "c1": 27, "r1": 15, "kind": "basement"}
         ],
         "lights": [
           {"col": 7, "row": 5, "side": "N"},
@@ -2173,8 +2187,8 @@
           {"c0": 30, "r0": 29, "c1": 30, "r1": 30, "all": "perimeter-wall"}
         ],
         "barriers": [
-          {"c0": 7, "r0": 21, "c1": 8, "r1": 21, "color": "yellow"},
-          {"c0": 20, "r0": 8, "c1": 21, "r1": 8, "color": "yellow"}
+          {"c0": 7, "r0": 21, "c1": 8, "r1": 21, "kind": "basement"},
+          {"c0": 20, "r0": 8, "c1": 21, "r1": 8, "kind": "basement"}
         ],
         "lights": [
           {"col": 5, "row": 5, "side": "N"},
@@ -3391,11 +3405,11 @@
           {"c0": 5, "r0": 22, "c1": 6, "r1": 22, "all": "exterior-walls"},
           {"c0": 5, "r0": 24, "c1": 5, "r1": 25, "all": "exterior-walls"},
           {"c0": 5, "r0": 25, "c1": 6, "r1": 25, "all": "exterior-walls"},
-          {"c0": 6, "r0": 6, "c1": 6, "r1": 7, "all": "fiberous-plaster1-ue"},
+          {"c0": 6, "r0": 6, "c1": 6, "r1": 7, "all": "exterior-walls", "east": "upper-interior-walls"},
           {"c0": 6, "r0": 6, "c1": 7, "r1": 6, "all": "exterior-walls", "south": "upper-interior-walls"},
-          {"c0": 6, "r0": 7, "c1": 6, "r1": 8, "all": "fiberous-plaster1-ue"},
-          {"c0": 6, "r0": 8, "c1": 6, "r1": 9, "all": "fiberous-plaster1-ue"},
-          {"c0": 6, "r0": 9, "c1": 6, "r1": 10, "all": "fiberous-plaster1-ue"},
+          {"c0": 6, "r0": 7, "c1": 6, "r1": 8, "all": "exterior-walls", "east": "upper-interior-walls"},
+          {"c0": 6, "r0": 8, "c1": 6, "r1": 9, "all": "exterior-walls", "east": "upper-interior-walls"},
+          {"c0": 6, "r0": 9, "c1": 6, "r1": 10, "all": "exterior-walls", "east": "upper-interior-walls"},
           {"c0": 6, "r0": 9, "c1": 7, "r1": 9, "all": "upper-interior-walls"},
           {"c0": 6, "r0": 10, "c1": 6, "r1": 11, "all": "exterior-walls", "east": "upper-interior-walls"},
           {"c0": 6, "r0": 11, "c1": 6, "r1": 12, "all": "exterior-walls", "east": "upper-interior-walls"},
@@ -3531,14 +3545,10 @@
           {"c0": 25, "r0": 7, "c1": 25, "r1": 8, "all": "exterior-walls"}
         ],
         "barriers": [
-          {"c0": 7, "r0": 22, "c1": 7, "r1": 23, "color": "blue"},
-          {"c0": 7, "r0": 23, "c1": 8, "r1": 23, "color": "blue"},
-          {"c0": 8, "r0": 19, "c1": 9, "r1": 19, "color": "green"},
-          {"c0": 11, "r0": 21, "c1": 11, "r1": 22, "color": "green"},
-          {"c0": 19, "r0": 8, "c1": 19, "r1": 9, "color": "green"},
-          {"c0": 21, "r0": 11, "c1": 22, "r1": 11, "color": "green"},
-          {"c0": 22, "r0": 7, "c1": 23, "r1": 7, "color": "blue"},
-          {"c0": 23, "r0": 7, "c1": 23, "r1": 8, "color": "blue"}
+          {"c0": 7, "r0": 22, "c1": 7, "r1": 23, "kind": "gravity"},
+          {"c0": 7, "r0": 23, "c1": 8, "r1": 23, "kind": "gravity"},
+          {"c0": 22, "r0": 7, "c1": 23, "r1": 7, "kind": "gravity"},
+          {"c0": 23, "r0": 7, "c1": 23, "r1": 8, "kind": "gravity"}
         ],
         "lights": [
           {"col": 7, "row": 6, "side": "N"},

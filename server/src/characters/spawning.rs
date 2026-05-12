@@ -225,6 +225,7 @@ mod tests {
                 rows: [row, row + 1],
             }],
             cookie_spawn_zones: Vec::new(),
+            key_spawn_zones: Vec::new(),
         }
     }
 

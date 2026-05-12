@@ -109,13 +109,13 @@ pub fn actor_respawn_system(
 
     for (zone_idx, zone) in map_config.actor_spawn_zones.iter().enumerate() {
         let kind_server_config = server_gameplay_config.validated_actor(&zone.kind);
-        if !kind_server_config.respawns {
+        if !kind_server_config.respawn.enabled {
             // One-shot kind: no replacement after deaths, ever.
             continue;
         }
         let actor_config = gameplay_config.validated_actor(&zone.kind);
         let actor_physics = actor_config.physics();
-        let throttle_time = kind_server_config.spawn_throttle_time;
+        let throttle_time = kind_server_config.respawn.delay_seconds;
 
         let live = live_actor_count(&actors, zone_idx);
         let throttle = throttles.0.entry(zone_idx).or_insert(0.0);

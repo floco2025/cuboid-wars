@@ -24,6 +24,15 @@ pub const COOKIE_RESPAWN_TIME: f32 = 30.0;
 pub const COOKIE_POINTS: i32 = 1; // points per cookie
 
 // ============================================================================
+// Keys
+// ============================================================================
+
+// Time before a collected world-key reappears in the same cell. Mirrors the
+// cookie respawn mechanism (server tick decrements `spawn_time`; broadcast
+// hides the entity while it's > 0).
+pub const KEY_RESPAWN_TIME: f32 = 8.0;
+
+// ============================================================================
 // Items
 // ============================================================================
 

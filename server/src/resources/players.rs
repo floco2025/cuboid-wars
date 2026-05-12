@@ -6,7 +6,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::net::ServerToClient;
 use common::{
     constants::{ALWAYS_ANTI_GRAVITY, ALWAYS_MULTI_SHOT, ALWAYS_PHASING, ALWAYS_SPEED},
-    protocol::{PlayerId, SPlayerStatus},
+    protocol::{BarrierKindId, PlayerId, SPlayerStatus},
 };
 
 pub struct PlayerInfo {
@@ -21,6 +21,10 @@ pub struct PlayerInfo {
     pub anti_gravity_power_up_timer: f32,
     pub stun_timer: f32,
     pub last_shot_time: f32,
+    // Permanent inventory: a key, once collected, stays held. Kept sorted
+    // ascending so the encoded `SPlayerStatus` bytes are deterministic and
+    // the client can change-detect via a single equality check.
+    pub held_keys: Vec<BarrierKindId>,
 }
 
 impl PlayerInfo {
@@ -38,6 +42,25 @@ impl PlayerInfo {
             anti_gravity_power_up_timer: 0.0,
             stun_timer: 0.0,
             last_shot_time: f32::NEG_INFINITY,
+            held_keys: Vec::new(),
+        }
+    }
+
+    #[must_use]
+    pub fn has_key(&self, kind: BarrierKindId) -> bool {
+        self.held_keys.binary_search(&kind).is_ok()
+    }
+
+    // Insert the kind into `held_keys`, keeping it sorted; returns `true` if
+    // the kind was newly added (so the caller can decide whether to broadcast
+    // an `SPlayerStatus` change), `false` if it was already held.
+    pub fn add_key(&mut self, kind: BarrierKindId) -> bool {
+        match self.held_keys.binary_search(&kind) {
+            Ok(_) => false,
+            Err(pos) => {
+                self.held_keys.insert(pos, kind);
+                true
+            }
         }
     }
 
@@ -70,6 +93,7 @@ impl PlayerInfo {
             phasing_power_up: self.has_phasing(),
             anti_gravity_power_up: self.has_anti_gravity(),
             stunned: self.stun_timer > 0.0,
+            held_keys: self.held_keys.clone(),
         }
     }
 

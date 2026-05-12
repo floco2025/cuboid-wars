@@ -1,4 +1,4 @@
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 use bevy::prelude::*;
 use clap::Parser;
 use quinn::Endpoint;
@@ -15,6 +15,7 @@ use server::{
     config::{ServerGameplayConfig, configure_server},
     items::{
         item_collection_system, item_despawn_system, item_initial_spawn_system, item_respawn_system, item_spawn_system,
+        key_initial_spawn_system,
     },
     map::generate_map,
     nav::NavGraph,
@@ -57,7 +58,9 @@ async fn main() -> Result<()> {
     let endpoint = Endpoint::server(server_config, addr)?;
     println!("quic server listening on {addr}");
 
-    let (map_layout, map_config, map_geometry) = generate_map();
+    let barrier_kind_table = common::protocol::BarrierKindTable::from_ids(gameplay_config.barrier_kinds.clone())
+        .with_context(|| "failed to build BarrierKindTable from gameplay.json barrier_kinds")?;
+    let (map_layout, map_config, map_geometry) = generate_map(&barrier_kind_table);
     let collision_world = CollisionWorld::from_map_layout(&map_layout);
     let nav_graph = NavGraph::new(map_config.clone(), map_geometry);
     validate_actor_kinds_consistent(&gameplay_config, &server_gameplay_config, &map_config)?;
@@ -88,6 +91,7 @@ async fn main() -> Result<()> {
         .insert_resource(map_config)
         .insert_resource(map_geometry)
         .insert_resource(nav_graph)
+        .insert_resource(barrier_kind_table)
         .insert_resource(gameplay_config)
         .insert_resource(server_gameplay_config)
         .insert_resource(PlayerMap::default())
@@ -133,6 +137,7 @@ async fn main() -> Result<()> {
                 actor_respawn_system,
                 players_status_timers_system,
                 item_initial_spawn_system,
+                key_initial_spawn_system,
                 item_spawn_system,
                 item_despawn_system,
                 item_collection_system,

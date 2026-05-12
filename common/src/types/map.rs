@@ -1,7 +1,7 @@
 use bevy_ecs::prelude::Resource;
 use bincode::{Decode, Encode};
 
-use super::Position;
+use super::{BarrierKindId, Position};
 use crate::face_materials::FaceMaterials;
 
 #[derive(Debug, Clone, Encode, Decode, Copy)]
@@ -89,14 +89,10 @@ pub enum ItemType {
     PhasingPowerUp,
     AntiGravityPowerUp,
     Cookie,
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Encode, Decode)]
-pub enum BarrierColor {
-    Red,
-    Blue,
-    Green,
-    Yellow,
+    // Key, parameterized by the barrier kind it eventually unlocks. World-
+    // spawned via `KeySpawnZone`s; once collected, the kind enters the
+    // player's permanent inventory.
+    Key(BarrierKindId),
 }
 
 #[derive(Debug, Clone, Encode, Decode, Copy)]
@@ -107,7 +103,7 @@ pub struct Barrier {
     pub z2: f32,
     pub width: f32,
     pub level: u8,
-    pub color: BarrierColor,
+    pub kind: BarrierKindId,
 }
 
 // Visual materials for each segment in the layout. The vectors run parallel

@@ -13,6 +13,7 @@ pub struct AssetSet {
     materials: HashMap<String, MaterialDef>,
     aliases: HashMap<String, String>,
     item_materials: HashMap<String, String>,
+    barrier_kind_colors: HashMap<String, String>,
     player: PlayerAssets,
     actors: HashMap<String, ActorAssets>,
     models: GenericModels,
@@ -26,6 +27,9 @@ struct AssetSetFile {
     #[serde(default)]
     aliases: HashMap<String, String>,
     item_materials: HashMap<String, String>,
+    // Per-barrier-kind hex colors keyed by the kind id from gameplay.json.
+    #[serde(default)]
+    barrier_kind_colors: HashMap<String, String>,
     player: PlayerAssets,
     actors: HashMap<String, ActorAssets>,
     models: GenericModels,
@@ -55,6 +59,7 @@ impl AssetSet {
             materials: file.materials,
             aliases: file.aliases,
             item_materials: file.item_materials,
+            barrier_kind_colors: file.barrier_kind_colors,
             player: file.player,
             actors: file.actors,
             models: file.models,
@@ -91,6 +96,9 @@ impl AssetSet {
             ItemType::PhasingPowerUp => "PhasingPowerUp",
             ItemType::AntiGravityPowerUp => "AntiGravityPowerUp",
             ItemType::Cookie => "Cookie",
+            // Keys reuse the per-color barrier materials directly; no entry
+            // in the `item_materials` table is expected.
+            ItemType::Key(_) => unreachable!("keys do not use AssetSet::material_for_item"),
         };
         let id = self
             .item_materials
@@ -102,6 +110,13 @@ impl AssetSet {
 
     pub fn material_by_id(&self, id: &str) -> &MaterialDef {
         self.material(id)
+    }
+
+    // Hex color string (e.g. "#5090ff") configured for the given barrier kind
+    // id. `None` if the kind has no color entry — the caller (BarrierKindColors
+    // builder) should treat this as a hard error.
+    pub fn barrier_kind_color_hex(&self, id: &str) -> Option<&str> {
+        self.barrier_kind_colors.get(id).map(String::as_str)
     }
 
     pub fn player_model(&self) -> &ModelDef {
@@ -146,14 +161,20 @@ impl AssetSet {
             .unwrap_or_else(|| panic!("asset set is missing actor kind {kind:?}"))
     }
 
-    // Aliases let `map.json` reference textures by role (e.g. `natural-ground`)
-    // instead of by the underlying material ID. Lookup falls through to the
-    // input name when no alias is defined, so raw material IDs keep working.
+    // Aliases are the only legal way `map.json` references textures: a face
+    // value must be an alias key (assets.json::aliases). Raw material ids are
+    // rejected so the alias system can't drift silently. The editor enforces
+    // the same rule in `validate_map`; this is the runtime backstop.
     fn material(&self, id: &str) -> &MaterialDef {
-        let resolved = self.aliases.get(id).map(String::as_str).unwrap_or(id);
+        let resolved = self.aliases.get(id).map(String::as_str).unwrap_or_else(|| {
+            panic!(
+                "material {id:?} is not an alias; only `aliases` entries are legal in map.json. \
+                 Add an alias for it in assets.json or pick an existing alias."
+            )
+        });
         self.materials
             .get(resolved)
-            .unwrap_or_else(|| panic!("asset set is missing material {id:?} (resolved to {resolved:?})"))
+            .unwrap_or_else(|| panic!("alias {id:?} points to unknown material {resolved:?}"))
     }
 }
 

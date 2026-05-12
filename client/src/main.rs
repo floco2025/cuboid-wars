@@ -18,7 +18,7 @@ use client::{
         input_camera_view_toggle_system, input_cursor_toggle_system, input_debug_colors_cycle_system,
         input_fullscreen_toggle_system, input_level_focus_toggle_system, input_movement_system, input_shooting_system,
     },
-    items::{ItemMap, items_animation_system, setup_item_assets},
+    items::{ItemMap, items_animation_system, keys_rotate_system, setup_item_assets},
     map::{
         DebugColors, LevelFocusEnabled, map_level_focus_visibility_system, map_spawn_geometry_system,
         map_wall_light_emissive_system, setup_scene_lighting_system,
@@ -90,6 +90,17 @@ fn main() -> Result<()> {
     let asset_set = AssetSet::load_default()?;
     let render_settings = RenderSettings::load_default()?;
     let gameplay_config = GameplayConfig::load_default()?;
+    let barrier_kind_table = common::protocol::BarrierKindTable::from_ids(gameplay_config.barrier_kinds.clone())
+        .context("failed to build BarrierKindTable from gameplay.json barrier_kinds")?;
+    // Hard-fail if any kind lacks a color in assets.json — silent fallbacks
+    // would make authoring errors mysterious.
+    for id in barrier_kind_table.ids() {
+        if asset_set.barrier_kind_color_hex(id).is_none() {
+            anyhow::bail!(
+                "barrier kind {id:?} has no color in assets.json `barrier_kind_colors`; add an entry or remove the id from gameplay.json"
+            );
+        }
+    }
     let texture_mipmaps_enabled = render_settings.texture_mipmaps_enabled;
 
     let player_name = args.name.clone().unwrap_or_else(|| {
@@ -138,6 +149,7 @@ fn main() -> Result<()> {
         .insert_resource(TopDownCameraYaw::default())
         .insert_resource(LevelFocusEnabled::default())
         .insert_resource(gameplay_config)
+        .insert_resource(barrier_kind_table)
         .insert_resource(asset_set)
         .insert_resource(render_settings)
         .insert_resource(DebugColors::default())
@@ -208,6 +220,7 @@ fn main() -> Result<()> {
                 projectiles_movement_system,
                 explosion_effects_system,
                 items_animation_system,
+                keys_rotate_system,
             ),
         )
         // Map rendering systems are mostly one-shot or visibility/material

@@ -162,6 +162,10 @@ pub struct SPlayerStatus {
     pub phasing_power_up: bool,
     pub anti_gravity_power_up: bool,
     pub stunned: bool,
+    // Held key inventory. Kept sorted ascending on the server so the encoded
+    // bytes are deterministic and the client can change-detect via a single
+    // equality test.
+    pub held_keys: Vec<BarrierKindId>,
 }
 
 // Server to Client: Echo response.

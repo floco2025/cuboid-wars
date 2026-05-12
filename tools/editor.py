@@ -57,17 +57,60 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_MAP = REPO_ROOT / "config" / "server" / "map.json"
 SUPPORTED_VERSION = 1
 
+
+# ============================================================================
+# Barrier kind table (loaded from shared configs)
+# ============================================================================
+#
+# Identity (ordered id list) comes from `config/common/gameplay.json`;
+# visuals (per-id hex color) come from `config/client/assets.json`. The same
+# pattern the server and game client use. Order in the gameplay.json list
+# defines the stable index that appears on the wire.
+
+def _load_barrier_kinds() -> tuple[list[str], dict[str, str]]:
+    here = os.path.dirname(os.path.abspath(__file__))
+    gameplay_path = os.path.join(here, "..", "config", "common", "gameplay.json")
+    assets_path = os.path.join(here, "..", "config", "client", "assets.json")
+    with open(gameplay_path, "r", encoding="utf-8") as f:
+        gameplay = json.load(f)
+    with open(assets_path, "r", encoding="utf-8") as f:
+        assets = json.load(f)
+    ids: list[str] = list(gameplay.get("barrier_kinds", []))
+    colors: dict[str, str] = dict(assets.get("barrier_kind_colors", {}))
+    # Hard-fail if any id lacks a color — silent fallbacks would make authoring
+    # errors mysterious (same rule the Rust client enforces).
+    for id_ in ids:
+        if id_ not in colors:
+            raise RuntimeError(
+                f"barrier kind {id_!r} has no color in assets.json `barrier_kind_colors`; "
+                "add an entry or remove the id from gameplay.json"
+            )
+    return ids, colors
+
+
+BARRIER_KIND_TABLE, BARRIER_KIND_COLORS = _load_barrier_kinds()
+
+
+def _load_aliases_set() -> set[str]:
+    """The set of alias names from `assets.json::aliases`. Face values in
+    `map.json` must come from this set; raw material ids are rejected."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "config", "client", "assets.json")
+    with open(path, "r", encoding="utf-8") as f:
+        assets = json.load(f)
+    return set(assets.get("aliases", {}).keys())
+
+
+MATERIAL_ALIASES: set[str] = _load_aliases_set()
+
 MODE_FLOOR = "Floor"
 MODE_INACCESSIBLE_FLOOR = "Inaccessible Floor"
 MODE_ACTOR_SPAWN_PAINT = "Actor Spawn Zone (Paint)"
 MODE_PLAYER_SPAWN_PAINT = "Player Spawn Zone (Paint)"
 MODE_COOKIE_SPAWN_PAINT = "Cookie Spawn Zone (Paint)"
+MODE_KEY_SPAWN_PAINT = "Key Spawn Zone (Paint)"
 MODE_SPAWN_ZONE_EDIT = "Spawn Zone (Edit)"
 MODE_WALL = "Wall"
-MODE_BARRIER_RED = "Barrier (Red)"
-MODE_BARRIER_BLUE = "Barrier (Blue)"
-MODE_BARRIER_GREEN = "Barrier (Green)"
-MODE_BARRIER_YELLOW = "Barrier (Yellow)"
+MODE_BARRIER = "Barrier"
 MODE_RAMP_UP = "Ramp (Up)"
 MODE_RAMP_DOWN = "Ramp (Down)"
 MODE_ERASE = "Erase"
@@ -79,38 +122,20 @@ MODE_LIGHT = "Light"
 MODE_ERASE_LIGHTS = "Erase Lights"
 RAMP_MODES = (MODE_RAMP_UP, MODE_RAMP_DOWN)
 ERASE_MODES = (MODE_ERASE, MODE_ERASE_KEEP_FLOORS)
-SPAWN_PAINT_MODES = (MODE_ACTOR_SPAWN_PAINT, MODE_PLAYER_SPAWN_PAINT, MODE_COOKIE_SPAWN_PAINT)
+SPAWN_PAINT_MODES = (MODE_ACTOR_SPAWN_PAINT, MODE_PLAYER_SPAWN_PAINT, MODE_COOKIE_SPAWN_PAINT, MODE_KEY_SPAWN_PAINT)
 MATERIAL_MODES = (MODE_FLOOR_MATERIAL, MODE_WALL_MATERIAL, MODE_RAMP_MATERIAL)
 FLOOR_HIT_KINDS = ("Floor", "Inaccessible Floor")
 LIGHT_SIDES = ("N", "S", "E", "W")
-BARRIER_COLORS = ("red", "blue", "green", "yellow")
-BARRIER_MODES = (MODE_BARRIER_RED, MODE_BARRIER_BLUE, MODE_BARRIER_GREEN, MODE_BARRIER_YELLOW)
-BARRIER_MODE_TO_COLOR = {
-    MODE_BARRIER_RED: "red",
-    MODE_BARRIER_BLUE: "blue",
-    MODE_BARRIER_GREEN: "green",
-    MODE_BARRIER_YELLOW: "yellow",
-}
-# Display colors for editor canvas (hex strings). Slightly brighter than the
-# in-game colors so they're legible on a slate background.
-BARRIER_DISPLAY_COLORS = {
-    "red": "#ff5050",
-    "blue": "#5090ff",
-    "green": "#50d870",
-    "yellow": "#f0c020",
-}
 MODES = [
     MODE_FLOOR,
     MODE_INACCESSIBLE_FLOOR,
     MODE_ACTOR_SPAWN_PAINT,
     MODE_PLAYER_SPAWN_PAINT,
     MODE_COOKIE_SPAWN_PAINT,
+    MODE_KEY_SPAWN_PAINT,
     MODE_SPAWN_ZONE_EDIT,
     MODE_WALL,
-    MODE_BARRIER_RED,
-    MODE_BARRIER_BLUE,
-    MODE_BARRIER_GREEN,
-    MODE_BARRIER_YELLOW,
+    MODE_BARRIER,
     MODE_RAMP_UP,
     MODE_RAMP_DOWN,
     MODE_ERASE,
@@ -126,7 +151,8 @@ MODES = [
 ACTOR_ZONE_LIST = "actor_spawn_zones"
 PLAYER_ZONE_LIST = "player_spawn_zones"
 COOKIE_ZONE_LIST = "cookie_spawn_zones"
-SPAWN_ZONE_LISTS = (ACTOR_ZONE_LIST, PLAYER_ZONE_LIST, COOKIE_ZONE_LIST)
+KEY_ZONE_LIST = "key_spawn_zones"
+SPAWN_ZONE_LISTS = (ACTOR_ZONE_LIST, PLAYER_ZONE_LIST, COOKIE_ZONE_LIST, KEY_ZONE_LIST)
 
 DEFAULT_ACTOR_COUNT = 1
 SPAWN_ZONE_HANDLE_PIXELS = 8.0
@@ -140,9 +166,10 @@ TOOL_REFERENCE_ENTRIES: list[tuple[str, str]] = [
     ("Actor Spawn Zone (Paint)", "drag a rectangle, then enter Kind and Count."),
     ("Player Spawn Zone (Paint)", "drag a rectangle. No prompt — players spawn anywhere in any player zone."),
     ("Cookie Spawn Zone (Paint)", "drag a rectangle. Cookies only spawn on walkable floors inside one of these zones."),
+    ("Key Spawn Zone (Paint)", "drag a rectangle, then pick a kind from the dialog. One key of that kind spawns at the first eligible cell of the zone and respawns after collection."),
     ("Spawn Zone (Edit)", "click a zone to select; drag the body to move, drag a corner/edge handle to resize. Right-click to edit fields (actor zones only) or delete."),
     ("Wall", "drag along grid lines to place atomic wall edges."),
-    ("Barrier (Red/Blue/Green/Yellow)", "drag along grid lines to place a translucent pulsating force-field. Players pass through (collision and color-coded keys come later)."),
+    ("Barrier", "drag along grid lines to place a translucent pulsating force-field; a dialog asks which kind to use. Kinds and colors are defined in `config/common/gameplay.json::barrier_kinds` + `config/client/assets.json::barrier_kind_colors`."),
     ("Ramp (Up)", "drag from this level toward the upper level."),
     ("Ramp (Down)", "drag from this level toward the lower level."),
     ("Erase", "click an item, drag cells to erase an area, or right-click for the context menu."),
@@ -221,6 +248,54 @@ class ActorSpawnFieldsDialog(QDialog):
             QMessageBox.warning(parent, "Actor Spawn Zone", "Kind is required.")
             return None
         return new_kind, new_count
+
+
+class BarrierKindDialog(QDialog):
+    """Modal dialog asking which barrier kind to paint.
+
+    Used both after dragging a new barrier and (later) when right-clicking an
+    existing barrier to change its kind. The list of kinds comes from the
+    config-loaded `BARRIER_KIND_TABLE`. Returns the chosen id string on
+    accept; None on cancel.
+    """
+
+    def __init__(self, parent, title: str, current: str | None):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+
+        self._combo = QComboBox()
+        for id_ in BARRIER_KIND_TABLE:
+            self._combo.addItem(id_)
+        if current and current in BARRIER_KIND_TABLE:
+            self._combo.setCurrentIndex(BARRIER_KIND_TABLE.index(current))
+
+        form = QFormLayout()
+        form.addRow("Kind:", self._combo)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+
+        layout = QVBoxLayout(self)
+        layout.addLayout(form)
+        layout.addWidget(buttons)
+
+    def value(self) -> str:
+        return self._combo.currentText()
+
+    @classmethod
+    def prompt(cls, parent, title: str, current: str | None) -> str | None:
+        if not BARRIER_KIND_TABLE:
+            QMessageBox.warning(
+                parent,
+                title,
+                "No barrier kinds are configured in `config/common/gameplay.json::barrier_kinds`.",
+            )
+            return None
+        dialog = cls(parent, title, current)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return None
+        return dialog.value()
 
 
 class ResizeMapDialog(QDialog):
@@ -460,6 +535,7 @@ def empty_map() -> dict:
             {"level": 0, "cols": [0, 2], "rows": [0, 2]},
         ],
         "cookie_spawn_zones": [],
+        "key_spawn_zones": [],
         "levels": [{"name": "Level 0", "floors": [], "inaccessible_floors": [], "walls": [], "barriers": [], "lights": []}],
         "ramps": [],
     }
@@ -577,6 +653,15 @@ def format_cookie_spawn_zones(zones: list[dict], indent: int) -> list[str]:
     )
 
 
+def format_key_spawn_zones(zones: list[dict], indent: int) -> list[str]:
+    return _format_zone_list(
+        "key_spawn_zones",
+        zones,
+        indent,
+        lambda zone: f'{{{_zone_rect_fragment(zone)}, "kind": {json.dumps(zone["kind"])}}}',
+    )
+
+
 def format_player_spawn_zones(zones: list[dict], indent: int) -> list[str]:
     return _format_zone_list(
         "player_spawn_zones",
@@ -610,6 +695,7 @@ def format_map_file(wrapper: dict) -> str:
         *with_trailing_comma(format_actor_spawn_zones(map_data["actor_spawn_zones"], 4)),
         *with_trailing_comma(format_player_spawn_zones(map_data["player_spawn_zones"], 4)),
         *with_trailing_comma(format_cookie_spawn_zones(map_data["cookie_spawn_zones"], 4)),
+        *with_trailing_comma(format_key_spawn_zones(map_data["key_spawn_zones"], 4)),
         '    "levels": [',
     ]
 
@@ -674,7 +760,7 @@ def _light_body(light: dict) -> str:
 def _barrier_body(barrier: dict) -> str:
     body = {
         "c0": barrier["c0"], "r0": barrier["r0"], "c1": barrier["c1"], "r1": barrier["r1"],
-        "color": barrier["color"],
+        "kind": barrier["kind"],
     }
     return _inline_object_body(body)
 
@@ -691,6 +777,7 @@ def normalize_map(map_data: dict) -> dict:
     actor_spawn_zones = [normalize_actor_spawn_zone(z) for z in map_data.get("actor_spawn_zones", [])]
     player_spawn_zones = [normalize_player_spawn_zone(z) for z in map_data.get("player_spawn_zones", [])]
     cookie_spawn_zones = [normalize_cookie_spawn_zone(z) for z in map_data.get("cookie_spawn_zones", [])]
+    key_spawn_zones = [normalize_key_spawn_zone(z) for z in map_data.get("key_spawn_zones", [])]
     levels = []
     for idx, level in enumerate(map_data.get("levels", [])):
         levels.append(
@@ -713,6 +800,7 @@ def normalize_map(map_data: dict) -> dict:
         "actor_spawn_zones": actor_spawn_zones,
         "player_spawn_zones": player_spawn_zones,
         "cookie_spawn_zones": cookie_spawn_zones,
+        "key_spawn_zones": key_spawn_zones,
         "levels": levels,
         "ramps": ramps,
     }
@@ -737,15 +825,20 @@ def normalize_wall(wall: dict) -> dict:
 
 
 def normalize_barrier(barrier: dict) -> dict:
-    color = str(barrier.get("color", "red")).lower()
-    if color not in BARRIER_COLORS:
-        color = "red"
+    # Migration: maps from before the kind-table refactor used `color`. Accept
+    # either field name on read; serialize as `kind` going forward.
+    raw = barrier.get("kind", barrier.get("color", ""))
+    kind = str(raw)
+    if BARRIER_KIND_TABLE and kind not in BARRIER_KIND_TABLE:
+        # Unknown id stays as-is so `validate_map` can surface it; falling
+        # back silently would hide authoring errors.
+        kind = kind
     return {
         "c0": int(barrier["c0"]),
         "r0": int(barrier["r0"]),
         "c1": int(barrier["c1"]),
         "r1": int(barrier["r1"]),
-        "color": color,
+        "kind": kind,
     }
 
 
@@ -825,6 +918,10 @@ def normalize_cookie_spawn_zone(zone: dict) -> dict:
     return _normalize_zone_rect(zone)
 
 
+def normalize_key_spawn_zone(zone: dict) -> dict:
+    return {**_normalize_zone_rect(zone), "kind": str(zone.get("kind", ""))}
+
+
 def actor_zone_key(zone: dict) -> tuple:
     return (
         zone["level"],
@@ -857,11 +954,24 @@ def cookie_zone_key(zone: dict) -> tuple:
     )
 
 
+def key_zone_key(zone: dict) -> tuple:
+    return (
+        zone["level"],
+        zone["rows"][0],
+        zone["cols"][0],
+        zone["rows"][1],
+        zone["cols"][1],
+        zone["kind"],
+    )
+
+
 def zone_key(list_name: str, zone: dict) -> tuple:
     if list_name == ACTOR_ZONE_LIST:
         return actor_zone_key(zone)
     if list_name == COOKIE_ZONE_LIST:
         return cookie_zone_key(zone)
+    if list_name == KEY_ZONE_LIST:
+        return key_zone_key(zone)
     return player_zone_key(zone)
 
 
@@ -883,6 +993,7 @@ def canonicalize_map(map_data: dict) -> dict:
     b["actor_spawn_zones"] = _dedupe_sorted(b["actor_spawn_zones"], actor_zone_key)
     b["player_spawn_zones"] = _dedupe_sorted(b["player_spawn_zones"], player_zone_key)
     b["cookie_spawn_zones"] = _dedupe_sorted(b["cookie_spawn_zones"], cookie_zone_key)
+    b["key_spawn_zones"] = _dedupe_sorted(b["key_spawn_zones"], key_zone_key)
     # Ramp footprints occupy cells on both the lower and upper level of each
     # ramp. Lights are not allowed inside any of those cells.
     ramp_cells_by_level: list[set[tuple[int, int]]] = [set() for _ in b["levels"]]
@@ -1039,6 +1150,9 @@ def resize_map_data(
     out["cookie_spawn_zones"] = [
         z for z in (clip_zone(z) for z in out["cookie_spawn_zones"]) if z is not None
     ]
+    out["key_spawn_zones"] = [
+        z for z in (clip_zone(z) for z in out["key_spawn_zones"]) if z is not None
+    ]
 
     kept_ramps = []
     for ramp in out["ramps"]:
@@ -1069,7 +1183,9 @@ def enforce_ramp_floor_rules(map_data: dict) -> None:
         # lower level (auto-painted with placeholder materials when missing),
         # and are removed from the upper level. Inaccessible-floor entries
         # at those cells are also dropped.
-        ramp_faces = {face: ramp.get(face, "fiberous-plaster1-ue") for face in FACES}
+        # Placeholder is an alias (face values must be aliases — see
+        # `validate_map`); the user can re-paint with the right material later.
+        ramp_faces = {face: ramp.get(face, "slab") for face in FACES}
         lower_existing = {(f["col"], f["row"]): f for f in map_data["levels"][lower]["floors"]}
         for col, row in cells:
             if (col, row) not in lower_existing:
@@ -1120,6 +1236,13 @@ def validate_map(map_data: dict) -> list[str]:
     for idx, zone in enumerate(map_data["cookie_spawn_zones"]):
         _validate_zone_rect(zone, f"cookie_spawn_zones[{idx}]", map_data, errors)
 
+    for idx, zone in enumerate(map_data["key_spawn_zones"]):
+        _validate_zone_rect(zone, f"key_spawn_zones[{idx}]", map_data, errors)
+        kind = zone.get("kind")
+        if kind not in BARRIER_KIND_TABLE:
+            known = ", ".join(BARRIER_KIND_TABLE) or "(none configured)"
+            errors.append(f"key_spawn_zones[{idx}] has unknown kind {kind!r}; known: [{known}]")
+
     for level_idx, level in enumerate(map_data["levels"]):
         prefix = level_label(level, level_idx)
         if not level["floors"]:
@@ -1149,13 +1272,14 @@ def validate_map(map_data: dict) -> list[str]:
         barrier_seen: set[tuple[int, int, int, int]] = set()
         for idx, barrier in enumerate(level.get("barriers", [])):
             c0, r0, c1, r1 = barrier["c0"], barrier["r0"], barrier["c1"], barrier["r1"]
-            color = barrier.get("color")
+            kind = barrier.get("kind")
             if not (grid_point_in_bounds(c0, r0, cols, rows) and grid_point_in_bounds(c1, r1, cols, rows)):
                 errors.append(f"{prefix}: barrier[{idx}] [{c0}, {r0}, {c1}, {r1}] is outside the grid-line bounds")
             if abs(c1 - c0) + abs(r1 - r0) != 1:
                 errors.append(f"{prefix}: barrier[{idx}] [{c0}, {r0}, {c1}, {r1}] is not one grid edge")
-            if color not in BARRIER_COLORS:
-                errors.append(f"{prefix}: barrier[{idx}] has invalid color {color!r}")
+            if kind not in BARRIER_KIND_TABLE:
+                known = ", ".join(BARRIER_KIND_TABLE) or "(none configured)"
+                errors.append(f"{prefix}: barrier[{idx}] has unknown kind {kind!r}; known: [{known}]")
             key = tuple(normalized_wall([c0, r0, c1, r1]))
             if key in wall_endpoints_set:
                 errors.append(f"{prefix}: barrier[{idx}] {list(key)} overlaps a wall")
@@ -1178,7 +1302,42 @@ def validate_map(map_data: dict) -> list[str]:
         msg = ramp_error(ramp["low"], ramp["high"], ramp["lower_level"], cols, rows, len(map_data["levels"]))
         if msg:
             errors.append(f"ramp {ramp}: {msg}")
+
+    # Face values on walls, floors, ramps must be aliases (assets.json::aliases).
+    # Raw material ids are rejected — the alias system is the canonical way to
+    # name a material role; raw ids in map.json would let the catalog drift
+    # silently. The renderer enforces the same rule.
+    _validate_face_aliases(map_data, errors)
+
     return errors
+
+
+def _validate_face_aliases(map_data: dict, errors: list[str]) -> None:
+    if not MATERIAL_ALIASES:
+        return  # no catalog loaded — skip rather than block all maps
+    for level_idx, level in enumerate(map_data["levels"]):
+        prefix = level_label(level, level_idx)
+        for floor in level["floors"]:
+            _check_face_aliases(floor, f"{prefix}: floor [{floor['col']}, {floor['row']}]", errors)
+        for floor in level["inaccessible_floors"]:
+            _check_face_aliases(floor, f"{prefix}: inaccessible_floor [{floor['col']}, {floor['row']}]", errors)
+        for wall in level["walls"]:
+            label = f"{prefix}: wall [{wall['c0']}, {wall['r0']}, {wall['c1']}, {wall['r1']}]"
+            _check_face_aliases(wall, label, errors)
+    for ramp in map_data["ramps"]:
+        label = f"ramp {ramp['low']}->{ramp['high']} (level {ramp['lower_level']})"
+        _check_face_aliases(ramp, label, errors)
+
+
+def _check_face_aliases(seg: dict, label: str, errors: list[str]) -> None:
+    for face in FACES:
+        value = seg.get(face)
+        if value is None or value in MATERIAL_ALIASES:
+            continue
+        errors.append(
+            f"{label}: face {face!r} value {value!r} is not an alias; "
+            f"add an alias for it in assets.json or use one of the existing aliases"
+        )
 
 
 def _validate_zone_rect(zone: dict, label: str, map_data: dict, errors: list[str]) -> None:
@@ -1241,6 +1400,9 @@ DRAG_PREVIEW_COLORS: dict[str, QColor] = {
     MODE_INACCESSIBLE_FLOOR: QColor(148, 163, 184, 120),
     MODE_PLAYER_SPAWN_PAINT: QColor(99, 102, 241, 120),
     MODE_COOKIE_SPAWN_PAINT: QColor(250, 204, 21, 120),  # gold — matches cookie material
+    # Kind is picked *after* the drag, so the preview color is a neutral
+    # off-white. The placed rect is then color-coded by its kind.
+    MODE_KEY_SPAWN_PAINT: QColor(220, 220, 220, 110),
     MODE_FLOOR_MATERIAL: QColor(236, 72, 153, 120),
     MODE_RAMP_MATERIAL: QColor(168, 85, 247, 120),  # purple to distinguish from floor mode pink
     MODE_ERASE: QColor(248, 113, 113, 120),
@@ -1645,10 +1807,14 @@ class Canvas(QWidget):
         if self.drag_start_point and self.drag_current_point and self.window.mode == MODE_WALL:
             end = snapped_wall_end(self.drag_start_point, self.drag_current_point)
             self.paint_wall_preview(painter, self.drag_start_point, end, cell)
-        elif self.drag_start_point and self.drag_current_point and self.window.mode in BARRIER_MODES:
+        elif self.drag_start_point and self.drag_current_point and self.window.mode == MODE_BARRIER:
             end = snapped_wall_end(self.drag_start_point, self.drag_current_point)
-            color = QColor(BARRIER_DISPLAY_COLORS[BARRIER_MODE_TO_COLOR[self.window.mode]])
-            self.paint_wall_preview(painter, self.drag_start_point, end, cell, color=color)
+            # The kind is asked *after* the drag, so the live preview can't
+            # know it yet. Use the recently-chosen kind's color, or fall back
+            # to a neutral cyan if nothing's been picked yet.
+            recent = self.window.recent_barrier_kind
+            hex_color = BARRIER_KIND_COLORS.get(recent, "#38bdf8")
+            self.paint_wall_preview(painter, self.drag_start_point, end, cell, color=QColor(hex_color))
         elif self.drag_start_cell and self.drag_current_cell and self.window.mode in RAMP_MODES:
             self.paint_ramp_preview(painter, self.drag_start_cell, self.drag_current_cell, cell)
 
@@ -1676,7 +1842,8 @@ class Canvas(QWidget):
         # toward its start.) The color already distinguishes barriers from
         # the white wall stroke.
         for barrier in level.get("barriers", []):
-            display = BARRIER_DISPLAY_COLORS.get(barrier.get("color", "red"), "#ff5050")
+            kind = barrier.get("kind", "")
+            display = BARRIER_KIND_COLORS.get(kind, "#ff5050")
             painter.setPen(QPen(QColor(display), WALL_PEN_WIDTH, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
             painter.drawLine(
                 barrier["c0"] * cell,
@@ -1745,11 +1912,14 @@ class Canvas(QWidget):
         painter.setPen(Qt.PenStyle.NoPen)
 
     def paint_spawn_zones(self, painter: QPainter, cell: float, level_idx: int) -> None:
-        # Cookie zones first (background), then player, then actor (top — has
-        # the kind label).
+        # Cookie zones first (background), then keys, then player, then actor
+        # (top — has the kind label).
         for zone in self.window.map_data["cookie_spawn_zones"]:
             if zone["level"] == level_idx:
                 self.paint_cookie_spawn_zone(painter, zone, cell)
+        for zone in self.window.map_data["key_spawn_zones"]:
+            if zone["level"] == level_idx:
+                self.paint_key_spawn_zone(painter, zone, cell)
         for zone in self.window.map_data["player_spawn_zones"]:
             if zone["level"] == level_idx:
                 self.paint_player_spawn_zone(painter, zone, cell)
@@ -1792,6 +1962,20 @@ class Canvas(QWidget):
         painter.drawRect(rect)
         painter.setPen(QColor("#f8fafc"))
         painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, "cookie")
+
+    def paint_key_spawn_zone(self, painter: QPainter, zone: dict, cell: float) -> None:
+        c0, r0, c1, r1 = zone_rect(zone)
+        rect = QRectF(c0 * cell + 2, r0 * cell + 2, (c1 - c0) * cell - 4, (r1 - r0) * cell - 4)
+        kind = zone.get("kind", "")
+        hex_color = BARRIER_KIND_COLORS.get(kind, "#cccccc")
+        outline_color = QColor(hex_color)
+        fill_color = QColor(hex_color)
+        fill_color.setAlpha(80)
+        painter.setBrush(QBrush(fill_color))
+        painter.setPen(QPen(outline_color, 2, Qt.PenStyle.DashDotLine))
+        painter.drawRect(rect)
+        painter.setPen(QColor("#f8fafc"))
+        painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, f"key {kind}")
 
     def paint_spawn_zone_selection(self, painter: QPainter, cell: float, level_idx: int) -> None:
         zone = self.window.selected_spawn_zone()
@@ -2013,15 +2197,16 @@ class Canvas(QWidget):
             self.window.add_player_spawn_zone_rect(self.drag_start_cell, self.drag_current_cell)
         elif self.window.mode == MODE_COOKIE_SPAWN_PAINT and self.drag_start_cell and self.drag_current_cell:
             self.window.add_cookie_spawn_zone_rect(self.drag_start_cell, self.drag_current_cell)
+        elif self.window.mode == MODE_KEY_SPAWN_PAINT and self.drag_start_cell and self.drag_current_cell:
+            self.window.prompt_and_add_key_spawn_zone_rect(self.drag_start_cell, self.drag_current_cell)
         elif self.window.mode == MODE_SPAWN_ZONE_EDIT:
             self.window.commit_spawn_zone_edit_drag()
         elif self.window.mode == MODE_WALL and self.drag_start_point and self.drag_current_point:
             self.window.add_wall_line(self.drag_start_point, snapped_wall_end(self.drag_start_point, self.drag_current_point))
-        elif self.window.mode in BARRIER_MODES and self.drag_start_point and self.drag_current_point:
-            self.window.add_barrier_line(
+        elif self.window.mode == MODE_BARRIER and self.drag_start_point and self.drag_current_point:
+            self.window.prompt_and_add_barrier_line(
                 self.drag_start_point,
                 snapped_wall_end(self.drag_start_point, self.drag_current_point),
-                BARRIER_MODE_TO_COLOR[self.window.mode],
             )
         elif self.window.mode in RAMP_MODES and self.drag_start_cell and self.drag_current_cell:
             self.window.add_ramp(self.drag_start_cell, self.drag_current_cell, self.window.mode)
@@ -2095,6 +2280,10 @@ class EditorWindow(QMainWindow):
         # of a session and remembers the last value across subsequent paints.
         self.recent_actor_spawn_kind: str = ""
         self.recent_actor_spawn_count: int = DEFAULT_ACTOR_COUNT
+        # Last-used barrier kind, seeded from the first configured kind so the
+        # picker dialog has a sensible default on the first paint.
+        self.recent_barrier_kind: str | None = BARRIER_KIND_TABLE[0] if BARRIER_KIND_TABLE else None
+        self.recent_key_kind: str | None = BARRIER_KIND_TABLE[0] if BARRIER_KIND_TABLE else None
         # (row_spacing, row_offset, col_spacing, col_offset) — remembered
         # across opens of the Auto-Place Lights dialog. Spacing is "cells
         # skipped between lights": 0 = every cell, 1 = every other, 2 = every
@@ -2440,6 +2629,29 @@ class EditorWindow(QMainWindow):
         self.apply_change("Paint Cookie Spawn Zone", after)
         self.selected_spawn_zone_ref = self._zone_ref_after_change(COOKIE_ZONE_LIST, new_zone)
 
+    def prompt_and_add_key_spawn_zone_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
+        kind = BarrierKindDialog.prompt(self, "Place Key Spawn Zone", self.recent_key_kind)
+        if kind is None:
+            return
+        self.recent_key_kind = kind
+        self.add_key_spawn_zone_rect(start, end, kind)
+
+    def add_key_spawn_zone_rect(self, start: tuple[int, int], end: tuple[int, int], kind: str) -> None:
+        if kind not in BARRIER_KIND_TABLE:
+            self._flash_status(f"Unknown key kind {kind!r}")
+            return
+        c0, r0, c1, r1 = rect_from_cells(start, end)
+        after = copy.deepcopy(self.map_data)
+        new_zone = {
+            "level": self.current_level,
+            "cols": [c0, c1],
+            "rows": [r0, r1],
+            "kind": kind,
+        }
+        after[KEY_ZONE_LIST].append(new_zone)
+        self.apply_change(f"Paint Key Spawn Zone ({kind})", after)
+        self.selected_spawn_zone_ref = self._zone_ref_after_change(KEY_ZONE_LIST, new_zone)
+
     def prompt_for_actor_spawn_fields(self, kind: str | None = None, count: int | None = None) -> tuple[str, int] | None:
         return ActorSpawnFieldsDialog.prompt(
             self,
@@ -2471,11 +2683,20 @@ class EditorWindow(QMainWindow):
         ]
         self.apply_change("Place Wall", after)
 
-    def add_barrier_line(self, start: tuple[int, int], end: tuple[int, int], color: str) -> None:
+    def prompt_and_add_barrier_line(self, start: tuple[int, int], end: tuple[int, int]) -> None:
+        """Prompt for kind via dialog (defaults to last-used), then place."""
+        kind = BarrierKindDialog.prompt(self, "Place Barrier", self.recent_barrier_kind)
+        if kind is None:
+            return
+        self.recent_barrier_kind = kind
+        self.add_barrier_line(start, end, kind)
+
+    def add_barrier_line(self, start: tuple[int, int], end: tuple[int, int], kind: str) -> None:
         edges = wall_segments_between(start, end)
         if not edges:
             return
-        if color not in BARRIER_COLORS:
+        if kind not in BARRIER_KIND_TABLE:
+            self._flash_status(f"Unknown barrier kind {kind!r}")
             return
         after = copy.deepcopy(self.map_data)
         level = after["levels"][self.current_level]
@@ -2492,9 +2713,9 @@ class EditorWindow(QMainWindow):
             if key in wall_keys:
                 continue
             c0, r0, c1, r1 = key
-            existing[key] = {"c0": c0, "r0": r0, "c1": c1, "r1": r1, "color": color}
+            existing[key] = {"c0": c0, "r0": r0, "c1": c1, "r1": r1, "kind": kind}
         level["barriers"] = list(existing.values())
-        self.apply_change(f"Place Barrier ({color.title()})", after)
+        self.apply_change(f"Place Barrier ({kind})", after)
 
     def add_ramp(self, start_cell: tuple[int, int], end_cell: tuple[int, int], mode: str) -> None:
         start_point, end_point = ramp_points_from_cells(start_cell, end_cell)

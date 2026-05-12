@@ -1,3 +1,5 @@
+use anyhow::Context;
+
 use super::schema::{BarrierDef, MapDef, RampDef};
 use crate::{
     map::{
@@ -8,17 +10,22 @@ use crate::{
         material_rules::MaterialRules,
         ramps, trim, walls,
     },
-    resources::{ActorSpawnZone, CellGrid, CookieSpawnZone, EdgeGrid, LevelGrid, MapConfig, PlayerSpawnZone},
+    resources::{
+        ActorSpawnZone, CellGrid, CookieSpawnZone, EdgeGrid, KeySpawnZone, LevelGrid, MapConfig, PlayerSpawnZone,
+    },
 };
 use common::{
     constants::*,
     face_materials::FaceMaterials,
     map_geometry::MapGeometry,
-    protocol::{Barrier, Floor, MapLayout, Wall},
+    protocol::{Barrier, BarrierKindTable, Floor, MapLayout, Wall},
 };
 
-#[must_use]
-pub(crate) fn compile_map(map_def: &MapDef, assets: &MaterialRules) -> (MapLayout, MapConfig, MapGeometry) {
+pub(crate) fn compile_map(
+    map_def: &MapDef,
+    assets: &MaterialRules,
+    kind_table: &BarrierKindTable,
+) -> anyhow::Result<(MapLayout, MapConfig, MapGeometry)> {
     let cols = map_def.grid_cols;
     let rows = map_def.grid_rows;
     let geometry = MapGeometry::new(cols, rows);
@@ -98,8 +105,10 @@ pub(crate) fn compile_map(map_def: &MapDef, assets: &MaterialRules) -> (MapLayou
     let mut all_barriers: Vec<Barrier> = Vec::new();
     for (level_idx, level) in map_def.levels.iter().enumerate() {
         let level_u8 = u8::try_from(level_idx).unwrap_or(u8::MAX);
-        for b in &level.barriers {
-            all_barriers.push(barrier_from_def(b, &geometry, level_u8));
+        for (barrier_idx, b) in level.barriers.iter().enumerate() {
+            all_barriers.push(barrier_from_def(b, &geometry, level_u8, kind_table).with_context(|| {
+                format!("level {level_idx} barriers[{barrier_idx}]")
+            })?);
         }
     }
     let all_barriers = merge_barriers(all_barriers);
@@ -153,16 +162,17 @@ pub(crate) fn compile_map(map_def: &MapDef, assets: &MaterialRules) -> (MapLayou
     assert_eq!(map_layout.floors.len(), map_layout.floor_materials.len());
     assert_eq!(map_layout.ramps.len(), map_layout.ramp_materials.len());
 
-    (
+    Ok((
         map_layout,
         MapConfig {
             levels: level_grids,
             actor_spawn_zones: actor_spawn_zones(map_def),
             player_spawn_zones: player_spawn_zones(map_def),
             cookie_spawn_zones: cookie_spawn_zones(map_def),
+            key_spawn_zones: key_spawn_zones(map_def, kind_table)?,
         },
         geometry,
-    )
+    ))
 }
 
 fn ramp_spec_from_def(r: &RampDef) -> ramps::RampSpec {
@@ -215,6 +225,25 @@ fn cookie_spawn_zones(map_def: &MapDef) -> Vec<CookieSpawnZone> {
         .collect()
 }
 
+fn key_spawn_zones(map_def: &MapDef, kind_table: &BarrierKindTable) -> anyhow::Result<Vec<KeySpawnZone>> {
+    map_def
+        .key_spawn_zones
+        .iter()
+        .enumerate()
+        .map(|(idx, zone)| {
+            let kind = kind_table
+                .resolve(&zone.kind)
+                .with_context(|| format!("key_spawn_zones[{idx}]"))?;
+            Ok(KeySpawnZone {
+                level: u8::try_from(zone.level).unwrap_or(u8::MAX),
+                cols: zone.cols,
+                rows: zone.rows,
+                kind,
+            })
+        })
+        .collect()
+}
+
 fn set_wall_edge(edges: &mut EdgeGrid, wall: [i32; 4]) {
     let [c0, r0, c1, r1] = wall;
     if r0 == r1 {
@@ -227,18 +256,24 @@ fn set_wall_edge(edges: &mut EdgeGrid, wall: [i32; 4]) {
 // Convert an editor-authored one-edge barrier into a world-space `Barrier`
 // segment. Mirrors the wall world-space math (cell-corner → world-corner via
 // `MapGeometry`) so a barrier visually occupies the same edge as a wall would.
-fn barrier_from_def(def: &BarrierDef, geometry: &MapGeometry, level: u8) -> Barrier {
+fn barrier_from_def(
+    def: &BarrierDef,
+    geometry: &MapGeometry,
+    level: u8,
+    kind_table: &BarrierKindTable,
+) -> anyhow::Result<Barrier> {
     let x1 = geometry.cell_to_world_x(def.c0);
     let z1 = geometry.cell_to_world_z(def.r0);
     let x2 = geometry.cell_to_world_x(def.c1);
     let z2 = geometry.cell_to_world_z(def.r1);
-    Barrier {
+    let kind = kind_table.resolve(&def.kind)?;
+    Ok(Barrier {
         x1,
         z1,
         x2,
         z2,
         width: BARRIER_THICKNESS,
         level,
-        color: def.color.to_protocol(),
-    }
+        kind,
+    })
 }

@@ -1,36 +1,42 @@
 use bevy::prelude::*;
 
-use crate::constants::*;
-use common::{constants::BARRIER_THICKNESS, protocol::BarrierColor};
+use crate::{config::AssetSet, constants::*};
+use common::{
+    constants::BARRIER_THICKNESS,
+    protocol::{BarrierKindId, BarrierKindTable},
+};
 
-// One mesh + one material per `BarrierColor`, built at startup and cloned
-// into every spawned barrier so Bevy's automatic batching collapses many
-// barriers into a small number of draw calls (mirrors `ItemAssets`).
-// Animation is driven by mutating the shared materials each frame; all
-// barriers of the same color pulse together.
+// Per-kind shared mesh + material handles. One mesh covers every barrier
+// regardless of kind (variable length is handled by per-instance
+// Transform.scale in `spawn.rs`). One material per kind, indexed by
+// `BarrierKindId.0`, so all barriers of the same kind share a single handle
+// and Bevy's automatic batching collapses N draws into one.
+//
+// All materials of the same kind also share the pulsation: the pulsate
+// system mutates each material once per frame, propagating to every
+// barrier (and matching-color key) of that kind.
 #[derive(Resource)]
 pub struct BarrierAssets {
     pub(super) mesh: Handle<Mesh>,
-    pub(super) red: Handle<StandardMaterial>,
-    pub(super) blue: Handle<StandardMaterial>,
-    pub(super) green: Handle<StandardMaterial>,
-    pub(super) yellow: Handle<StandardMaterial>,
+    pub(super) materials: Vec<Handle<StandardMaterial>>,
+    // Mirror of the table at construction time, so the pulsate system can
+    // re-derive the base color without re-reading the config every frame.
+    pub(super) base_colors: Vec<Color>,
 }
 
 impl BarrierAssets {
-    pub(super) fn material(&self, color: BarrierColor) -> &Handle<StandardMaterial> {
-        match color {
-            BarrierColor::Red => &self.red,
-            BarrierColor::Blue => &self.blue,
-            BarrierColor::Green => &self.green,
-            BarrierColor::Yellow => &self.yellow,
-        }
+    pub fn material_for(&self, kind: BarrierKindId) -> &Handle<StandardMaterial> {
+        &self.materials[kind.0 as usize]
     }
 
-    // Used by foreign systems (e.g., the wall-light emissive pass) that want
-    // to skip barrier materials.
-    pub fn material_handles(&self) -> [&Handle<StandardMaterial>; 4] {
-        [&self.red, &self.blue, &self.green, &self.yellow]
+    pub fn material_handles(&self) -> &[Handle<StandardMaterial>] {
+        &self.materials
+    }
+
+    // sRGB base color for the kind, useful for HUD icons that aren't 3D
+    // materials (e.g., a flat-shaded square).
+    pub fn base_color(&self, kind: BarrierKindId) -> Color {
+        self.base_colors[kind.0 as usize]
     }
 }
 
@@ -38,22 +44,29 @@ pub fn setup_barrier_assets(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    kind_table: Res<BarrierKindTable>,
+    asset_set: Res<AssetSet>,
 ) {
     // Unit X and Y so per-instance `Transform.scale` can encode the merged
     // segment's length and barrier height. Thickness stays baked in the mesh
     // — no instance ever wants a different thickness.
     let mesh = meshes.add(Cuboid::new(1.0, 1.0, BARRIER_THICKNESS));
-    let red = materials.add(barrier_material(BARRIER_RED_COLOR));
-    let blue = materials.add(barrier_material(BARRIER_BLUE_COLOR));
-    let green = materials.add(barrier_material(BARRIER_GREEN_COLOR));
-    let yellow = materials.add(barrier_material(BARRIER_YELLOW_COLOR));
+
+    let mut handles = Vec::with_capacity(kind_table.len());
+    let mut base_colors = Vec::with_capacity(kind_table.len());
+    for id in kind_table.ids() {
+        let hex = asset_set
+            .barrier_kind_color_hex(id)
+            .expect("color presence checked at app startup");
+        let color = parse_hex_color(hex).unwrap_or_else(|err| panic!("invalid color {hex:?} for kind {id:?}: {err}"));
+        handles.push(materials.add(barrier_material(color)));
+        base_colors.push(color);
+    }
 
     commands.insert_resource(BarrierAssets {
         mesh,
-        red,
-        blue,
-        green,
-        yellow,
+        materials: handles,
+        base_colors,
     });
 }
 
@@ -68,4 +81,17 @@ fn barrier_material(color: Color) -> StandardMaterial {
         cull_mode: None,
         ..default()
     }
+}
+
+// Parse "#rrggbb" or "rrggbb" into a Color in sRGB space.
+fn parse_hex_color(hex: &str) -> Result<Color, String> {
+    let h = hex.strip_prefix('#').unwrap_or(hex);
+    if h.len() != 6 {
+        return Err(format!("expected 6 hex digits, got {}", h.len()));
+    }
+    let parse_byte = |s: &str| u8::from_str_radix(s, 16).map_err(|e| e.to_string());
+    let r = parse_byte(&h[0..2])? as f32 / 255.0;
+    let g = parse_byte(&h[2..4])? as f32 / 255.0;
+    let b = parse_byte(&h[4..6])? as f32 / 255.0;
+    Ok(Color::srgb(r, g, b))
 }

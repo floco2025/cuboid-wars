@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use std::collections::HashSet;
 
 use crate::{
+    barriers::BarrierAssets,
     config::AssetSet,
     items::{ItemAssets, ItemInfo, ItemMap, spawn_item},
 };
@@ -33,6 +34,7 @@ pub fn handle_item_collected_message(
 pub fn sync_items(
     commands: &mut Commands,
     item_assets: &ItemAssets,
+    barrier_assets: &BarrierAssets,
     items: &mut ResMut<ItemMap>,
     server_items: &[(ItemId, Item)],
 ) {
@@ -43,7 +45,7 @@ pub fn sync_items(
         if items.contains_key(item_id) {
             continue;
         }
-        let entity = spawn_item(commands, item_assets, *item_id, item.item_type, &item.pos);
+        let entity = spawn_item(commands, item_assets, barrier_assets, *item_id, item.item_type, &item.pos);
         items.insert(*item_id, ItemInfo { entity });
     }
 

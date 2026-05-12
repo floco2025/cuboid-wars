@@ -1,13 +1,22 @@
 use super::{
     compile_map,
-    schema::{
-        ActorSpawnZoneDef, BarrierColorDef, BarrierDef, FloorDef, LevelDef, MapDef, PlayerSpawnZoneDef, RampDef,
-        WallDef,
-    },
+    schema::{ActorSpawnZoneDef, BarrierDef, FloorDef, LevelDef, MapDef, PlayerSpawnZoneDef, RampDef, WallDef},
     validation::validate_map,
 };
 use crate::map::material_rules::MaterialRules;
-use common::constants::GRID_CELL_SIZE;
+use common::{constants::GRID_CELL_SIZE, protocol::BarrierKindTable};
+
+fn empty_kind_table() -> BarrierKindTable {
+    BarrierKindTable::default()
+}
+
+fn red_only_kind_table() -> BarrierKindTable {
+    BarrierKindTable::from_ids(vec!["red".into()]).expect("known-good")
+}
+
+fn three_kind_table() -> BarrierKindTable {
+    BarrierKindTable::from_ids(vec!["red".into(), "blue".into(), "green".into()]).expect("known-good")
+}
 
 fn floor_def(col: i32, row: i32) -> FloorDef {
     FloorDef { col, row }
@@ -63,6 +72,7 @@ fn map_with_zones(
         actor_spawn_zones,
         player_spawn_zones,
         cookie_spawn_zones: Vec::new(),
+        key_spawn_zones: Vec::new(),
         levels,
         ramps,
     }
@@ -139,7 +149,7 @@ fn inaccessible_floor_emits_physical_slab_but_not_regular_floor() {
         Vec::new(),
     );
 
-    let (layout, config, geometry) = compile_map(&map_def, &assets());
+    let (layout, config, geometry) = compile_map(&map_def, &assets(), &empty_kind_table()).expect("compile");
     let inaccessible_cell = config.levels[0].cells.rows[0][2];
     assert!(!inaccessible_cell.has_floor);
     assert!(inaccessible_cell.has_floor_slab);
@@ -263,7 +273,7 @@ fn validation_accepts_barrier_on_empty_edge() {
         r0: 0,
         c1: 1,
         r1: 0,
-        color: BarrierColorDef::Red,
+        kind: "red".into(),
     });
     validate_map(&map_def).expect("barrier on an empty grid edge should load");
 }
@@ -288,11 +298,95 @@ fn validation_rejects_barrier_overlapping_wall() {
         r0: 0,
         c1: 0,
         r1: 0,
-        color: BarrierColorDef::Blue,
+        kind: "blue".into(),
     });
     let err = validate_map(&map_def).expect_err("barrier on a wall edge must be rejected");
     let msg = err.to_string();
     assert!(msg.contains("overlaps a wall"), "got: {msg}");
+}
+
+#[test]
+fn compile_resolves_known_barrier_kind() {
+    let mut map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]])],
+        Vec::new(),
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    map_def.levels[0].barriers.push(BarrierDef {
+        c0: 0,
+        r0: 0,
+        c1: 1,
+        r1: 0,
+        kind: "red".into(),
+    });
+    let (layout, _, _) = compile_map(&map_def, &assets(), &red_only_kind_table()).expect("compile");
+    assert_eq!(layout.barriers.len(), 1);
+    assert_eq!(layout.barriers[0].kind, common::protocol::BarrierKindId(0));
+}
+
+#[test]
+fn compile_rejects_unknown_barrier_kind() {
+    let mut map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]])],
+        Vec::new(),
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    map_def.levels[0].barriers.push(BarrierDef {
+        c0: 0,
+        r0: 0,
+        c1: 1,
+        r1: 0,
+        kind: "magenta".into(),
+    });
+    let err = compile_map(&map_def, &assets(), &red_only_kind_table())
+        .err()
+        .expect("unknown kind must fail");
+    let chain: String = err.chain().map(|e| e.to_string()).collect::<Vec<_>>().join(" | ");
+    assert!(
+        chain.to_lowercase().contains("magenta") || chain.to_lowercase().contains("unknown barrier kind"),
+        "expected 'magenta' or 'unknown barrier kind' somewhere in chain; got: {chain}"
+    );
+}
+
+#[test]
+fn compile_resolves_three_distinct_kinds() {
+    let mut map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]])],
+        Vec::new(),
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    map_def.levels[0].barriers.push(BarrierDef {
+        c0: 0,
+        r0: 0,
+        c1: 1,
+        r1: 0,
+        kind: "red".into(),
+    });
+    map_def.levels[0].barriers.push(BarrierDef {
+        c0: 1,
+        r0: 0,
+        c1: 2,
+        r1: 0,
+        kind: "blue".into(),
+    });
+    map_def.levels[0].barriers.push(BarrierDef {
+        c0: 2,
+        r0: 0,
+        c1: 3,
+        r1: 0,
+        kind: "green".into(),
+    });
+    let (layout, _, _) = compile_map(&map_def, &assets(), &three_kind_table()).expect("compile");
+    assert_eq!(layout.barriers.len(), 3);
+    let kinds: Vec<u16> = layout.barriers.iter().map(|b| b.kind.0).collect();
+    // The merger sorts by (level, kind, axis-coords), so kind ascending.
+    assert_eq!(kinds, vec![0, 1, 2]);
 }
 
 #[test]
@@ -309,14 +403,14 @@ fn validation_rejects_duplicate_barrier() {
         r0: 0,
         c1: 1,
         r1: 0,
-        color: BarrierColorDef::Red,
+        kind: "red".into(),
     });
     map_def.levels[0].barriers.push(BarrierDef {
         c0: 1,
         r0: 0,
         c1: 0,
         r1: 0,
-        color: BarrierColorDef::Green,
+        kind: "green".into(),
     });
     let err = validate_map(&map_def).expect_err("duplicate barrier edge must be rejected");
     assert!(err.to_string().contains("duplicate barrier"));

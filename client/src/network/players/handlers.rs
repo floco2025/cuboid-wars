@@ -229,5 +229,6 @@ pub fn handle_player_status_message(
         player_info.phasing_power_up = msg.phasing_power_up;
         player_info.anti_gravity_power_up = msg.anti_gravity_power_up;
         player_info.stunned = msg.stunned;
+        player_info.held_keys = msg.held_keys.clone();
     }
 }

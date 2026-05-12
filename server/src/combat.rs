@@ -18,7 +18,7 @@ pub fn apply_player_projectile_hit(
     target_health: &mut Health,
     server_gameplay_config: &ServerGameplayConfig,
 ) {
-    apply_damage(target_health, server_gameplay_config.player.projectile_damage_to_player);
+    apply_damage(target_health, server_gameplay_config.player.projectile_damage_taken);
 
     if let Some(shooter_info) = players.get_mut(shooter_id) {
         shooter_info.hits += 1;
@@ -37,7 +37,8 @@ pub fn apply_actor_projectile_hit(
 ) {
     let damage = server_gameplay_config
         .validated_actor(actor_kind)
-        .projectile_damage_from_player;
+        .combat
+        .projectile_damage_taken;
     apply_damage(target_health, damage);
 
     if let Some(shooter_info) = players.get_mut(shooter_id) {

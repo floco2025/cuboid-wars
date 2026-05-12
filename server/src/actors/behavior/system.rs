@@ -48,9 +48,9 @@ pub fn actor_behavior_system(
         // from the nearest edge of its spawn zone, override everything else,
         // start the chase reacquire cooldown when applicable, and walk it back.
         let zone_bounds = map_config.actor_spawn_zones[info.spawn_zone_index].xz_bounds(&map_geometry);
-        if xz_distance_from_rect(pos, zone_bounds) > kind_server_config.max_wander_distance {
+        if xz_distance_from_rect(pos, zone_bounds) > kind_server_config.wander.max_distance {
             if !info.is_returning_to_spawn {
-                start_chase_reacquire_cooldown_if_chasing(info, kind_server_config.chase_reacquire_cooldown);
+                start_chase_reacquire_cooldown_if_chasing(info, kind_server_config.senses.chase_reacquire_cooldown);
                 set_return_path_to_spawn_zone(
                     info,
                     pos,
@@ -68,7 +68,7 @@ pub fn actor_behavior_system(
             && let Some(target_pos) = visible_player_position(
                 pos,
                 actor_config.eye_height(),
-                kind_server_config.vision_range,
+                kind_server_config.senses.vision_range,
                 &players,
                 &player_query,
                 &collision_world,
@@ -92,7 +92,7 @@ pub fn actor_behavior_system(
 
         info.direction_timer = random_direction_time(&mut rng, kind_server_config);
         info.patrol_intent =
-            random_patrol_intent(&mut rng, actor_config.patrol_speed, kind_server_config.idle_probability);
+            random_patrol_intent(&mut rng, actor_config.patrol_speed, kind_server_config.wander.idle_probability);
     }
 }
 
@@ -194,6 +194,7 @@ mod tests {
             actor_spawn_zones: Vec::new(),
             player_spawn_zones: Vec::new(),
             cookie_spawn_zones: Vec::new(),
+            key_spawn_zones: Vec::new(),
         };
         let nav_graph = NavGraph::new(map_config, MapGeometry::new(1, 1));
         let zone = crate::resources::ActorSpawnZone {

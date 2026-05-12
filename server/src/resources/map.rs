@@ -137,10 +137,27 @@ impl CookieSpawnZone {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct KeySpawnZone {
+    pub level: u8,
+    pub cols: [i32; 2],
+    pub rows: [i32; 2],
+    pub kind: common::protocol::BarrierKindId,
+}
+
+impl KeySpawnZone {
+    pub fn cells(&self) -> impl Iterator<Item = (i32, i32)> + '_ {
+        let cols = self.cols[0]..self.cols[1];
+        let rows = self.rows[0]..self.rows[1];
+        rows.flat_map(move |r| cols.clone().map(move |c| (c, r)))
+    }
+}
+
 #[derive(Resource, Clone)]
 pub struct MapConfig {
     pub levels: Vec<LevelGrid>,
     pub actor_spawn_zones: Vec<ActorSpawnZone>,
     pub player_spawn_zones: Vec<PlayerSpawnZone>,
     pub cookie_spawn_zones: Vec<CookieSpawnZone>,
+    pub key_spawn_zones: Vec<KeySpawnZone>,
 }

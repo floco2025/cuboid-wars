@@ -18,6 +18,7 @@ use super::{
 };
 use crate::{
     actors::ActorMap,
+    barriers::BarrierAssets,
     cameras::MainCameraMarker,
     config::{AssetSet, RenderSettings},
     items::{ItemAssets, ItemMap},
@@ -51,6 +52,7 @@ pub fn dispatch_message(
     render_settings: &RenderSettings,
     projectile_assets: &ProjectileAssets,
     item_assets: &ItemAssets,
+    barrier_assets: &BarrierAssets,
     gameplay_config: &GameplayConfig,
     collision_world: Option<&CollisionWorld>,
 ) {
@@ -130,6 +132,7 @@ pub fn dispatch_message(
             asset_set,
             render_settings,
             item_assets,
+            barrier_assets,
             gameplay_config,
             update_msg,
         ),

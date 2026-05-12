@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use std::collections::HashMap;
 
-use common::protocol::{PlayerId, PlayerMoveIntent};
+use common::protocol::{BarrierKindId, PlayerId, PlayerMoveIntent};
 
 // My player ID assigned by the server.
 #[derive(Resource)]
@@ -17,6 +17,10 @@ pub struct PlayerInfo {
     pub phasing_power_up: bool,
     pub anti_gravity_power_up: bool,
     pub stunned: bool,
+    // Permanent key inventory mirrored from `SPlayerStatus`; never expires.
+    // Sorted ascending so HUD icon order is stable and the change-detection
+    // diff is a single equality test.
+    pub held_keys: Vec<BarrierKindId>,
 }
 
 // Map of all players (client-side source of truth).

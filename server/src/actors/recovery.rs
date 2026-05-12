@@ -65,7 +65,7 @@ pub fn actor_removal_system(
                 death.pos,
                 death.entity,
                 &death.spawn_kind,
-                &kind_server_config.explosion,
+                &kind_server_config.combat.explosion,
                 &gameplay_config,
                 &mut player_query,
                 &mut query,

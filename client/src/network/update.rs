@@ -4,6 +4,7 @@ use common::{config::GameplayConfig, protocol::*};
 use super::{actors::sync_actors, items::sync_items, players::sync_players};
 use crate::{
     actors::ActorMap,
+    barriers::BarrierAssets,
     cameras::MainCameraMarker,
     config::{AssetSet, RenderSettings},
     items::{ItemAssets, ItemMap},
@@ -31,6 +32,7 @@ pub(super) fn handle_update_message(
     asset_set: &AssetSet,
     render_settings: &RenderSettings,
     item_assets: &ItemAssets,
+    barrier_assets: &BarrierAssets,
     gameplay_config: &GameplayConfig,
     msg: SUpdate,
 ) {
@@ -76,5 +78,5 @@ pub(super) fn handle_update_message(
         gameplay_config,
         &msg.actors,
     );
-    sync_items(commands, item_assets, items, &msg.items);
+    sync_items(commands, item_assets, barrier_assets, items, &msg.items);
 }

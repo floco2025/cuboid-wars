@@ -3,10 +3,11 @@ use bevy::prelude::*;
 use super::BarrierAssets;
 use crate::constants::*;
 
-// Drive each color's shared emissive intensity by a sine wave. Per-color
-// phase offsets keep the four colors visually out of lockstep. Because the
-// material handle is shared across every barrier of that color, one write
-// here updates every barrier instance.
+// Drive each kind's shared emissive intensity by a sine wave. Per-kind phase
+// offsets (derived from the kind index) keep adjacent colors visually out of
+// lockstep. Because each material handle is shared across every barrier of
+// that kind (plus every same-kind key), one write here updates every visible
+// instance — O(num_kinds) work per frame regardless of map size.
 pub fn barriers_pulsate_system(
     time: Res<Time>,
     barrier_assets: Option<Res<BarrierAssets>>,
@@ -14,18 +15,12 @@ pub fn barriers_pulsate_system(
 ) {
     let Some(assets) = barrier_assets else { return };
     let t = time.elapsed_secs();
-    let entries: [(&Handle<StandardMaterial>, Color, f32); 4] = [
-        (&assets.red, BARRIER_RED_COLOR, 0.0),
-        (&assets.blue, BARRIER_BLUE_COLOR, 0.5),
-        (&assets.green, BARRIER_GREEN_COLOR, 1.0),
-        (&assets.yellow, BARRIER_YELLOW_COLOR, 1.5),
-    ];
-    for (handle, color, phase) in entries {
-        let Some(mat) = materials.get_mut(handle) else {
-            continue;
-        };
+    for (idx, handle) in assets.material_handles().iter().enumerate() {
+        let Some(mat) = materials.get_mut(handle) else { continue };
+        let phase = idx as f32 * 0.5;
         let s = (t * BARRIER_PULSE_HZ * std::f32::consts::TAU + phase).sin() * 0.5 + 0.5;
         let intensity = BARRIER_EMISSIVE_MIN + (BARRIER_EMISSIVE_MAX - BARRIER_EMISSIVE_MIN) * s;
-        mat.emissive = color.to_linear() * intensity;
+        let base = assets.base_colors[idx];
+        mat.emissive = base.to_linear() * intensity;
     }
 }

@@ -2,7 +2,9 @@ use std::collections::BTreeSet;
 
 use anyhow::{Context, Result, anyhow, ensure};
 
-use super::schema::{ActorSpawnZoneDef, CookieSpawnZoneDef, LevelDef, MapDef, MapFile, PlayerSpawnZoneDef, RampDef};
+use super::schema::{
+    ActorSpawnZoneDef, CookieSpawnZoneDef, KeySpawnZoneDef, LevelDef, MapDef, MapFile, PlayerSpawnZoneDef, RampDef,
+};
 
 const SUPPORTED_VERSION: u32 = 1;
 
@@ -30,6 +32,7 @@ pub(super) fn validate_map(map_def: &MapDef) -> Result<()> {
     validate_actor_spawn_zones(map_def)?;
     validate_player_spawn_zones(map_def)?;
     validate_cookie_spawn_zones(map_def)?;
+    validate_key_spawn_zones(map_def)?;
     validate_levels(map_def)?;
     validate_ramps(map_def)?;
 
@@ -80,6 +83,18 @@ impl ZoneRect for CookieSpawnZoneDef {
     }
 }
 
+impl ZoneRect for KeySpawnZoneDef {
+    fn level(&self) -> u32 {
+        self.level
+    }
+    fn cols(&self) -> [i32; 2] {
+        self.cols
+    }
+    fn rows(&self) -> [i32; 2] {
+        self.rows
+    }
+}
+
 fn validate_actor_spawn_zones(map_def: &MapDef) -> Result<()> {
     for (zone_idx, zone) in map_def.actor_spawn_zones.iter().enumerate() {
         let label = format!("actor_spawn_zones[{zone_idx}]");
@@ -102,6 +117,14 @@ fn validate_player_spawn_zones(map_def: &MapDef) -> Result<()> {
 fn validate_cookie_spawn_zones(map_def: &MapDef) -> Result<()> {
     for (zone_idx, zone) in map_def.cookie_spawn_zones.iter().enumerate() {
         let label = format!("cookie_spawn_zones[{zone_idx}]");
+        validate_zone_placement(zone, &label, map_def)?;
+    }
+    Ok(())
+}
+
+fn validate_key_spawn_zones(map_def: &MapDef) -> Result<()> {
+    for (zone_idx, zone) in map_def.key_spawn_zones.iter().enumerate() {
+        let label = format!("key_spawn_zones[{zone_idx}]");
         validate_zone_placement(zone, &label, map_def)?;
     }
     Ok(())
@@ -192,12 +215,7 @@ fn validate_inaccessible_floors(
     Ok(())
 }
 
-fn validate_walls(
-    level: &LevelDef,
-    label: &str,
-    grid_cols: i32,
-    grid_rows: i32,
-) -> Result<BTreeSet<[i32; 4]>> {
+fn validate_walls(level: &LevelDef, label: &str, grid_cols: i32, grid_rows: i32) -> Result<BTreeSet<[i32; 4]>> {
     let mut walls_seen = BTreeSet::new();
     for (wall_idx, wall) in level.walls.iter().enumerate() {
         let key = [wall.c0, wall.r0, wall.c1, wall.r1];
@@ -222,8 +240,7 @@ fn validate_barriers(
     let mut barriers_seen = BTreeSet::new();
     for (barrier_idx, barrier) in level.barriers.iter().enumerate() {
         let key = [barrier.c0, barrier.r0, barrier.c1, barrier.r1];
-        validate_wall(key, grid_cols, grid_rows)
-            .with_context(|| format!("{label}: barriers[{barrier_idx}]"))?;
+        validate_wall(key, grid_cols, grid_rows).with_context(|| format!("{label}: barriers[{barrier_idx}]"))?;
         let normalized = normalized_wall(key);
         if walls.contains(&normalized) {
             return Err(anyhow!(
@@ -317,7 +334,6 @@ fn validate_ramp(ramp: &RampDef, grid_cols: i32, grid_rows: i32, level_count: us
     }
     Ok(())
 }
-
 
 pub(super) fn canonicalize(map_def: &mut MapDef) {
     map_def.actor_spawn_zones.sort_by(|a, b| {

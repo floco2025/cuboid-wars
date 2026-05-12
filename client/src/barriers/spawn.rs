@@ -55,7 +55,7 @@ fn spawn_barrier(commands: &mut Commands, assets: &BarrierAssets, barrier: &Barr
         BarrierMarker,
         MapLevel(barrier.level),
         Mesh3d(assets.mesh.clone()),
-        MeshMaterial3d(assets.material(barrier.color).clone()),
+        MeshMaterial3d(assets.material_for(barrier.kind).clone()),
         Transform {
             translation: Vec3::new(center_x, center_y, center_z),
             rotation,

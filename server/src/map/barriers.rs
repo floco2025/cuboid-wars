@@ -1,14 +1,14 @@
 // Merge collinear adjacent barriers (mirror of `walls::merge_walls` with
-// `BarrierColor` as the grouping key in place of `FaceMaterials`). The
+// `BarrierKindId` as the grouping key in place of `FaceMaterials`). The
 // `BarrierDef` → world-space `Barrier` conversion lives in `definition::compile`
 // — by the time we get here every barrier is already a world-space segment.
 
-use common::protocol::{Barrier, BarrierColor};
+use common::protocol::Barrier;
 
 const MERGE_EPS: f32 = 0.01;
 
 // Merge collinear adjacent barriers. Two barriers merge when they share:
-//   - level, axis (horizontal/vertical), color, and perpendicular coordinate;
+//   - level, axis (horizontal/vertical), kind, and perpendicular coordinate;
 //   - and the second's near end touches (within epsilon) the first's far end.
 //
 // Output preserves original entries that don't fit either axis (degenerate /
@@ -32,14 +32,14 @@ pub(crate) fn merge_barriers(barriers: Vec<Barrier>) -> Vec<Barrier> {
     }
 
     horizontals.sort_by(|a, b| {
-        (a.level, color_key(a.color))
-            .cmp(&(b.level, color_key(b.color)))
+        (a.level, a.kind.0)
+            .cmp(&(b.level, b.kind.0))
             .then_with(|| a.z1.partial_cmp(&b.z1).unwrap_or(std::cmp::Ordering::Equal))
             .then_with(|| a.x1.partial_cmp(&b.x1).unwrap_or(std::cmp::Ordering::Equal))
     });
     verticals.sort_by(|a, b| {
-        (a.level, color_key(a.color))
-            .cmp(&(b.level, color_key(b.color)))
+        (a.level, a.kind.0)
+            .cmp(&(b.level, b.kind.0))
             .then_with(|| a.x1.partial_cmp(&b.x1).unwrap_or(std::cmp::Ordering::Equal))
             .then_with(|| a.z1.partial_cmp(&b.z1).unwrap_or(std::cmp::Ordering::Equal))
     });
@@ -74,15 +74,11 @@ fn merge_line(list: Vec<Barrier>, axis: Axis, out: &mut Vec<Barrier>) {
         return;
     };
     for b in iter {
-        let same_group = b.level == cur.level && b.color == cur.color;
+        let same_group = b.level == cur.level && b.kind == cur.kind;
         let extends = same_group
             && match axis {
-                Axis::Horizontal => {
-                    (cur.z1 - b.z1).abs() < MERGE_EPS && b.x1 <= cur.x2 + MERGE_EPS
-                }
-                Axis::Vertical => {
-                    (cur.x1 - b.x1).abs() < MERGE_EPS && b.z1 <= cur.z2 + MERGE_EPS
-                }
+                Axis::Horizontal => (cur.z1 - b.z1).abs() < MERGE_EPS && b.x1 <= cur.x2 + MERGE_EPS,
+                Axis::Vertical => (cur.x1 - b.x1).abs() < MERGE_EPS && b.z1 <= cur.z2 + MERGE_EPS,
             };
         if extends {
             match axis {
@@ -105,21 +101,16 @@ fn merge_line(list: Vec<Barrier>, axis: Axis, out: &mut Vec<Barrier>) {
     out.push(cur);
 }
 
-const fn color_key(color: BarrierColor) -> u8 {
-    match color {
-        BarrierColor::Red => 0,
-        BarrierColor::Blue => 1,
-        BarrierColor::Green => 2,
-        BarrierColor::Yellow => 3,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use common::constants::BARRIER_THICKNESS;
+    use common::{constants::BARRIER_THICKNESS, protocol::BarrierKindId};
 
-    fn h(x1: f32, x2: f32, z: f32, color: BarrierColor) -> Barrier {
+    const RED: BarrierKindId = BarrierKindId(0);
+    const BLUE: BarrierKindId = BarrierKindId(1);
+    const GREEN: BarrierKindId = BarrierKindId(2);
+
+    fn h(x1: f32, x2: f32, z: f32, kind: BarrierKindId) -> Barrier {
         Barrier {
             x1,
             x2,
@@ -127,11 +118,11 @@ mod tests {
             z2: z,
             width: BARRIER_THICKNESS,
             level: 0,
-            color,
+            kind,
         }
     }
 
-    fn v(x: f32, z1: f32, z2: f32, color: BarrierColor) -> Barrier {
+    fn v(x: f32, z1: f32, z2: f32, kind: BarrierKindId) -> Barrier {
         Barrier {
             x1: x,
             x2: x,
@@ -139,16 +130,16 @@ mod tests {
             z2,
             width: BARRIER_THICKNESS,
             level: 0,
-            color,
+            kind,
         }
     }
 
     #[test]
-    fn merges_adjacent_same_color_horizontals() {
+    fn merges_adjacent_same_kind_horizontals() {
         let merged = merge_barriers(vec![
-            h(0.0, 1.0, 0.0, BarrierColor::Red),
-            h(1.0, 2.0, 0.0, BarrierColor::Red),
-            h(2.0, 3.0, 0.0, BarrierColor::Red),
+            h(0.0, 1.0, 0.0, RED),
+            h(1.0, 2.0, 0.0, RED),
+            h(2.0, 3.0, 0.0, RED),
         ]);
         assert_eq!(merged.len(), 1);
         assert!((merged[0].x1 - 0.0).abs() < MERGE_EPS);
@@ -156,40 +147,31 @@ mod tests {
     }
 
     #[test]
-    fn does_not_merge_across_color_change() {
+    fn does_not_merge_across_kind_change() {
         let merged = merge_barriers(vec![
-            h(0.0, 1.0, 0.0, BarrierColor::Red),
-            h(1.0, 2.0, 0.0, BarrierColor::Red),
-            h(2.0, 3.0, 0.0, BarrierColor::Blue),
-            h(3.0, 4.0, 0.0, BarrierColor::Red),
+            h(0.0, 1.0, 0.0, RED),
+            h(1.0, 2.0, 0.0, RED),
+            h(2.0, 3.0, 0.0, BLUE),
+            h(3.0, 4.0, 0.0, RED),
         ]);
         assert_eq!(merged.len(), 3);
     }
 
     #[test]
     fn does_not_merge_across_row_change() {
-        let merged = merge_barriers(vec![
-            h(0.0, 1.0, 0.0, BarrierColor::Red),
-            h(0.0, 1.0, 1.0, BarrierColor::Red),
-        ]);
+        let merged = merge_barriers(vec![h(0.0, 1.0, 0.0, RED), h(0.0, 1.0, 1.0, RED)]);
         assert_eq!(merged.len(), 2);
     }
 
     #[test]
     fn does_not_merge_with_gap() {
-        let merged = merge_barriers(vec![
-            h(0.0, 1.0, 0.0, BarrierColor::Red),
-            h(2.0, 3.0, 0.0, BarrierColor::Red),
-        ]);
+        let merged = merge_barriers(vec![h(0.0, 1.0, 0.0, RED), h(2.0, 3.0, 0.0, RED)]);
         assert_eq!(merged.len(), 2);
     }
 
     #[test]
     fn merges_verticals() {
-        let merged = merge_barriers(vec![
-            v(0.0, 0.0, 1.0, BarrierColor::Green),
-            v(0.0, 1.0, 2.0, BarrierColor::Green),
-        ]);
+        let merged = merge_barriers(vec![v(0.0, 0.0, 1.0, GREEN), v(0.0, 1.0, 2.0, GREEN)]);
         assert_eq!(merged.len(), 1);
         assert!((merged[0].z1 - 0.0).abs() < MERGE_EPS);
         assert!((merged[0].z2 - 2.0).abs() < MERGE_EPS);
@@ -197,17 +179,14 @@ mod tests {
 
     #[test]
     fn does_not_merge_across_axis() {
-        let merged = merge_barriers(vec![
-            h(0.0, 1.0, 0.0, BarrierColor::Red),
-            v(0.0, 0.0, 1.0, BarrierColor::Red),
-        ]);
+        let merged = merge_barriers(vec![h(0.0, 1.0, 0.0, RED), v(0.0, 0.0, 1.0, RED)]);
         assert_eq!(merged.len(), 2);
     }
 
     #[test]
     fn does_not_merge_across_level() {
-        let mut b0 = h(0.0, 1.0, 0.0, BarrierColor::Red);
-        let mut b1 = h(1.0, 2.0, 0.0, BarrierColor::Red);
+        let mut b0 = h(0.0, 1.0, 0.0, RED);
+        let mut b1 = h(1.0, 2.0, 0.0, RED);
         b0.level = 0;
         b1.level = 1;
         let merged = merge_barriers(vec![b0, b1]);

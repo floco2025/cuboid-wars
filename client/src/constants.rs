@@ -100,6 +100,25 @@ pub const COOKIE_SIZE: f32 = 0.15; // sphere radius
 pub const COOKIE_HEIGHT: f32 = 0.16; // above floor
 
 // ============================================================================
+// Keys
+// ============================================================================
+
+// Visual: a small rotating cuboid that reuses the matching barrier material
+// (translucent, pulsating). Width = height = ~face plate; depth = thin slab.
+pub const KEY_WIDTH: f32 = 0.4;
+pub const KEY_HEIGHT: f32 = 0.4;
+pub const KEY_DEPTH: f32 = 0.05;
+pub const KEY_HEIGHT_ABOVE_FLOOR: f32 = 0.6;
+pub const KEY_ROTATION_HZ: f32 = 0.4; // slow coin-spin around Y
+
+// HUD: thin vertical bars next to the player name, after the power-up icons.
+// Shape (narrow vertical) is intentionally different from the 12×12 power-up
+// squares so the two categories read as different.
+pub const HUD_KEY_ICON_WIDTH_PX: f32 = 4.0;
+pub const HUD_KEY_ICON_HEIGHT_PX: f32 = 12.0;
+pub const HUD_KEY_GAP_PX: f32 = 8.0;
+
+// ============================================================================
 // Projectiles
 // ============================================================================
 
@@ -107,13 +126,11 @@ pub const PROJECTILE_MIN_BOUNCE_SOUND_SPEED: f32 = 10.0; // minimum speed to pla
 pub const PROJECTILE_MAX_BOUNCE_SOUNDS_PER_SECOND: f32 = 30.0; // rate limit for bounce sounds
 
 // ============================================================================
-// Barriers (translucent pulsating force-fields, visual only for now)
+// Barriers (translucent pulsating force-fields; per-kind colors are
+// configured in `config/client/assets.json::barrier_kind_colors` and indexed
+// by the ids in `config/common/gameplay.json::barrier_kinds`).
 // ============================================================================
 
-pub const BARRIER_RED_COLOR: Color = Color::srgb(1.0, 0.2, 0.2);
-pub const BARRIER_BLUE_COLOR: Color = Color::srgb(0.2, 0.5, 1.0);
-pub const BARRIER_GREEN_COLOR: Color = Color::srgb(0.2, 1.0, 0.4);
-pub const BARRIER_YELLOW_COLOR: Color = Color::srgb(1.0, 0.9, 0.2);
 pub const BARRIER_BASE_ALPHA: f32 = 0.35;
 // Emissive intensity oscillates between MIN and MAX. The HDR values rely on
 // the default Bevy tone mapping — there is no bloom pass.

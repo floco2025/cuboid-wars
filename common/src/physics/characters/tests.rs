@@ -189,7 +189,17 @@ fn player_hits_wall_collider_from_collision_world() {
     };
     let motion = 0.0;
 
-    let step = step_character_movement(&pos, motion, &collision_world, false, false, player_physics(), 1.0, pos.z, 0.1);
+    let step = step_character_movement(
+        &pos,
+        motion,
+        &collision_world,
+        false,
+        false,
+        player_physics(),
+        1.0,
+        pos.z,
+        0.1,
+    );
 
     assert!(step.blocked);
     assert!(step.position.x < 0.0);
@@ -207,12 +217,23 @@ fn repeated_wall_pressure_does_not_leak_through_wall() {
     };
     let motion = 0.0;
 
-    let first = step_character_movement(&pos, motion, &collision_world, false, false, player_physics(), 1.0, pos.z, 0.1);
+    let first = step_character_movement(
+        &pos,
+        motion,
+        &collision_world,
+        false,
+        false,
+        player_physics(),
+        1.0,
+        pos.z,
+        0.1,
+    );
     let second = step_character_movement(
         &first.position,
         motion,
         &collision_world,
-        false, false,
+        false,
+        false,
         player_physics(),
         1.0,
         first.position.z,
@@ -236,12 +257,23 @@ fn player_slides_along_wall_under_pressure() {
     };
     let motion = 0.0;
 
-    let first = step_character_movement(&pos, motion, &collision_world, false, false, player_physics(), 1.0, pos.z, 0.1);
+    let first = step_character_movement(
+        &pos,
+        motion,
+        &collision_world,
+        false,
+        false,
+        player_physics(),
+        1.0,
+        pos.z,
+        0.1,
+    );
     let second = step_character_movement(
         &first.position,
         motion,
         &collision_world,
-        false, false,
+        false,
+        false,
         player_physics(),
         1.0,
         first.position.z + 1.0,
@@ -268,7 +300,8 @@ fn falling_player_pushing_into_wall_keeps_falling() {
         &pos,
         motion,
         &collision_world,
-        false, false,
+        false,
+        false,
         player_physics(),
         30.394,
         31.699,
@@ -293,7 +326,17 @@ fn diagonal_wall_hit_slides_in_same_step() {
     };
     let motion = 0.0;
 
-    let step = step_character_movement(&pos, motion, &collision_world, false, false, player_physics(), 1.0, 1.0, 0.1);
+    let step = step_character_movement(
+        &pos,
+        motion,
+        &collision_world,
+        false,
+        false,
+        player_physics(),
+        1.0,
+        1.0,
+        0.1,
+    );
 
     assert!(step.blocked);
     assert!(step.position.x < 0.0);
@@ -326,7 +369,8 @@ fn repeated_diagonal_wall_pressure_keeps_sliding() {
             &pos,
             motion,
             &collision_world,
-            false, false,
+            false,
+            false,
             player_physics(),
             velocity.x.mul_add(delta, pos.x),
             velocity.z.mul_add(delta, pos.z),
@@ -350,7 +394,17 @@ fn diagonal_wall_end_hit_slides_along_wall() {
     };
     let motion = 0.0;
 
-    let step = step_character_movement(&pos, motion, &collision_world, false, false, player_physics(), 1.0, 1.0, 0.1);
+    let step = step_character_movement(
+        &pos,
+        motion,
+        &collision_world,
+        false,
+        false,
+        player_physics(),
+        1.0,
+        1.0,
+        0.1,
+    );
 
     assert!(step.blocked);
     assert!(step.position.x > pos.x);
@@ -368,7 +422,17 @@ fn phasing_player_ignores_wall_collider_from_collision_world() {
     };
     let motion = 0.0;
 
-    let step = step_character_movement(&pos, motion, &collision_world, true, false, player_physics(), 1.0, pos.z, 0.1);
+    let step = step_character_movement(
+        &pos,
+        motion,
+        &collision_world,
+        true,
+        false,
+        player_physics(),
+        1.0,
+        pos.z,
+        0.1,
+    );
 
     assert!(!step.blocked);
     assert_eq!(step.position.x, 1.0);
@@ -429,7 +493,8 @@ fn upward_jump_velocity_moves_player_above_support() {
         &pos,
         motion,
         &collision_world,
-        false, false,
+        false,
+        false,
         player_physics(),
         pos.x,
         pos.z,
@@ -451,7 +516,8 @@ fn upward_motion_hits_floor_underside() {
         &pos,
         motion,
         &collision_world,
-        false, false,
+        false,
+        false,
         player_physics(),
         pos.x,
         pos.z,
@@ -470,7 +536,17 @@ fn initial_ceiling_contact_does_not_cancel_horizontal_movement() {
     let pos = Position { x: 0.0, y: 0.0, z: 0.0 };
     let motion = 0.0;
 
-    let step = step_character_movement(&pos, motion, &collision_world, false, false, player_physics(), 0.5, pos.z, 0.1);
+    let step = step_character_movement(
+        &pos,
+        motion,
+        &collision_world,
+        false,
+        false,
+        player_physics(),
+        0.5,
+        pos.z,
+        0.1,
+    );
 
     assert!(!step.blocked);
     assert!(step.position.x > pos.x);
@@ -489,7 +565,8 @@ fn upward_motion_ignores_floor_underside_outside_footprint() {
         &pos,
         motion,
         &collision_world,
-        false, false,
+        false,
+        false,
         player_physics(),
         pos.x,
         pos.z,
@@ -515,7 +592,8 @@ fn upward_motion_under_floor_edge_hits_floor_side() {
         &pos,
         motion,
         &collision_world,
-        false, false,
+        false,
+        false,
         player_physics(),
         -4.25,
         pos.z,
@@ -541,7 +619,8 @@ fn player_on_floor_top_can_move_over_adjacent_floor_slab_edge() {
         &pos,
         motion,
         &collision_world,
-        false, false,
+        false,
+        false,
         player_physics(),
         -3.75,
         pos.z,
@@ -571,7 +650,8 @@ fn player_walking_off_ramp_side_is_not_blocked_by_ramp_side() {
         &pos,
         motion,
         &collision_world,
-        false, false,
+        false,
+        false,
         player_physics(),
         -1.0,
         pos.z,
@@ -593,7 +673,17 @@ fn lower_floor_player_hits_wedge_side_from_collision_world() {
     };
     let motion = 0.0;
 
-    let step = step_character_movement(&pos, motion, &collision_world, false, false, player_physics(), 1.0, pos.z, 0.1);
+    let step = step_character_movement(
+        &pos,
+        motion,
+        &collision_world,
+        false,
+        false,
+        player_physics(),
+        1.0,
+        pos.z,
+        0.1,
+    );
 
     assert!(step.blocked);
     assert!(step.position.x < 0.0);
@@ -614,7 +704,8 @@ fn lower_floor_player_can_enter_wedge_low_end() {
         &pos,
         motion,
         &collision_world,
-        false, false,
+        false,
+        false,
         player_physics(),
         pos.x,
         0.25,
@@ -640,7 +731,8 @@ fn upper_floor_player_can_enter_wedge_high_end() {
         &pos,
         motion,
         &collision_world,
-        false, false,
+        false,
+        false,
         player_physics(),
         pos.x,
         7.75,
@@ -664,7 +756,8 @@ fn collider_y_offset_allows_movement_off_ramp_side() {
         &pos,
         motion,
         &collision_world,
-        false, false,
+        false,
+        false,
         player_physics(),
         -1.0,
         pos.z,

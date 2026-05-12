@@ -22,6 +22,8 @@ pub(crate) struct MapDef {
     pub(crate) player_spawn_zones: Vec<PlayerSpawnZoneDef>,
     #[serde(default)]
     pub(crate) cookie_spawn_zones: Vec<CookieSpawnZoneDef>,
+    #[serde(default)]
+    pub(crate) key_spawn_zones: Vec<KeySpawnZoneDef>,
     pub(crate) levels: Vec<LevelDef>,
     #[serde(default)]
     pub(crate) ramps: Vec<RampDef>,
@@ -88,30 +90,8 @@ pub(crate) struct BarrierDef {
     pub(crate) r0: i32,
     pub(crate) c1: i32,
     pub(crate) r1: i32,
-    pub(crate) color: BarrierColorDef,
-}
-
-#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
-pub(crate) enum BarrierColorDef {
-    #[serde(rename = "red")]
-    Red,
-    #[serde(rename = "blue")]
-    Blue,
-    #[serde(rename = "green")]
-    Green,
-    #[serde(rename = "yellow")]
-    Yellow,
-}
-
-impl BarrierColorDef {
-    pub(crate) fn to_protocol(self) -> common::protocol::BarrierColor {
-        match self {
-            Self::Red => common::protocol::BarrierColor::Red,
-            Self::Blue => common::protocol::BarrierColor::Blue,
-            Self::Green => common::protocol::BarrierColor::Green,
-            Self::Yellow => common::protocol::BarrierColor::Yellow,
-        }
-    }
+    // String id, looked up in the loaded `BarrierKindTable` at compile time.
+    pub(crate) kind: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -144,4 +124,15 @@ pub(crate) struct CookieSpawnZoneDef {
     pub(crate) level: u32,
     pub(crate) cols: [i32; 2],
     pub(crate) rows: [i32; 2],
+}
+
+// Where a single key of a given kind spawns. One zone produces one world
+// key; after collection it respawns at an eligible cell in the same zone
+// after `KEY_RESPAWN_TIME`. Kind references `BarrierKindTable` by id.
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+pub(crate) struct KeySpawnZoneDef {
+    pub(crate) level: u32,
+    pub(crate) cols: [i32; 2],
+    pub(crate) rows: [i32; 2],
+    pub(crate) kind: String,
 }

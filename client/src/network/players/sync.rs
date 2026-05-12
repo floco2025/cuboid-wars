@@ -142,6 +142,7 @@ fn spawn_snapshot_player(
             phasing_power_up: player.phasing_power_up,
             anti_gravity_power_up: player.anti_gravity_power_up,
             stunned: player.stunned,
+            held_keys: Vec::new(),
         },
     );
 }

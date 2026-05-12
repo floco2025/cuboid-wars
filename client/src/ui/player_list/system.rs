@@ -1,20 +1,25 @@
 use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
-    protocol::{Health, PlayerId},
+    protocol::{BarrierKindTable, Health, PlayerId},
 };
 
 use super::{
     components::PlayerListMarker,
     entry::{player_health, spawn_player_entry},
 };
-use crate::players::{MyPlayerId, PlayerMap};
+use crate::{
+    barriers::BarrierAssets,
+    players::{MyPlayerId, PlayerMap},
+};
 
 pub fn ui_player_list_rebuild_system(
     mut commands: Commands,
     players: Res<PlayerMap>,
     my_player_id: Option<Res<MyPlayerId>>,
     gameplay_config: Res<GameplayConfig>,
+    kind_table: Res<BarrierKindTable>,
+    barrier_assets: Option<Res<BarrierAssets>>,
     health_query: Query<&Health>,
     player_list_ui: Single<Entity, With<PlayerListMarker>>,
     children_query: Query<&Children>,
@@ -31,17 +36,22 @@ pub fn ui_player_list_rebuild_system(
         &players,
         local_player_id,
         &gameplay_config,
+        &kind_table,
+        barrier_assets.as_deref(),
         &health_query,
         &children_query,
     );
 }
 
+#[allow(clippy::too_many_arguments)]
 fn rebuild_player_list(
     commands: &mut Commands,
     player_list_entity: Entity,
     players: &PlayerMap,
     local_player_id: Option<PlayerId>,
     gameplay_config: &GameplayConfig,
+    kind_table: &BarrierKindTable,
+    barrier_assets: Option<&BarrierAssets>,
     health_query: &Query<&Health>,
     children_query: &Query<&Children>,
 ) {
@@ -65,6 +75,8 @@ fn rebuild_player_list(
             local_player_id == Some(*player_id),
             max_health,
             current_health,
+            kind_table,
+            barrier_assets,
         );
         ordered_children.push(entity);
     }

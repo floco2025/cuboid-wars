@@ -299,5 +299,10 @@
   "skybox": {
     "image": "Skybox_CoudySky_Day_3.png",
     "brightness": 1000.0
+  },
+  "barrier_kind_colors": {
+    "treasure": "#ff3333",
+    "basement": "#f0c020",
+    "gravity":  "#5090ff"
   }
 }

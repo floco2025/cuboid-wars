@@ -13,6 +13,11 @@ pub struct GameplayConfig {
     pub version: u32,
     pub player: PlayerGameplayConfig,
     pub actors: HashMap<String, ActorGameplayConfig>,
+    // Ordered list of barrier / key kind ids. Order is the stable
+    // `BarrierKindId` index used on the wire. Visuals (colors) live in
+    // `config/client/assets.json` so the server stays presentation-free.
+    #[serde(default)]
+    pub barrier_kinds: Vec<String>,
 }
 
 impl GameplayConfig {

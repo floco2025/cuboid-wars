@@ -21,5 +21,6 @@
       "inherit_from": "mine_1",
       "collider": { "width": 1.0, "height": 1.0, "depth": 1.0, "y_offset": 1.1 }
     }
-  }
+  },
+  "barrier_kinds": ["treasure", "basement", "gravity"]
 }

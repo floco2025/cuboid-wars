@@ -26,6 +26,7 @@ pub(super) fn detonate_actors_touching_players(
                 };
                 let contact_explosion_distance = server_gameplay_config
                     .validated_actor(&actor_info.spawn_kind)
+                    .combat
                     .contact_explosion_distance;
                 character_move_plans_touch(planned_move, other, contact_explosion_distance)
             })

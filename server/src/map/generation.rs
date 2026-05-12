@@ -1,7 +1,10 @@
 use std::path::PathBuf;
 
 use crate::resources::MapConfig;
-use common::{map_geometry::MapGeometry, protocol::MapLayout};
+use common::{
+    map_geometry::MapGeometry,
+    protocol::{BarrierKindTable, MapLayout},
+};
 
 use super::{definition, material_rules::MaterialRules};
 
@@ -9,13 +12,14 @@ use super::{definition, material_rules::MaterialRules};
 // `MapConfig` + `MapGeometry`. Hard-fails the server on any parse or
 // validation error so the map file stays canonical.
 #[must_use]
-pub fn generate_map() -> (MapLayout, MapConfig, MapGeometry) {
+pub fn generate_map(kind_table: &BarrierKindTable) -> (MapLayout, MapConfig, MapGeometry) {
     let path = map_path();
     let map_def =
         definition::load_map(&path).unwrap_or_else(|err| panic!("failed to load map at {}: {err:?}", path.display()));
     let assets =
         MaterialRules::load_default().unwrap_or_else(|err| panic!("failed to load asset material rules: {err:?}"));
-    definition::compile_map(&map_def, &assets)
+    definition::compile_map(&map_def, &assets, kind_table)
+        .unwrap_or_else(|err| panic!("failed to compile map: {err:?}"))
 }
 
 fn map_path() -> PathBuf {

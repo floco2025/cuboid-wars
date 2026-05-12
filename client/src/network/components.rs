@@ -2,6 +2,7 @@ use bevy::{ecs::system::SystemParam, prelude::*};
 use common::{config::GameplayConfig, protocol::Position};
 
 use crate::{
+    barriers::BarrierAssets,
     config::{AssetSet, RenderSettings},
     items::ItemAssets,
     projectiles::ProjectileAssets,
@@ -41,5 +42,6 @@ pub struct ClientAssets<'w> {
     pub render_settings: Res<'w, RenderSettings>,
     pub projectile_assets: Res<'w, ProjectileAssets>,
     pub item_assets: Res<'w, ItemAssets>,
+    pub barrier_assets: Res<'w, BarrierAssets>,
     pub gameplay_config: Res<'w, GameplayConfig>,
 }
