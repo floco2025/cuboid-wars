@@ -9,7 +9,15 @@ use common::{
 };
 
 use super::{feedback::decay_flash_timer, types::PlayerMovementQuery};
-use crate::{network::ServerReconciliation, players::PlayerMap, ui::BumpFlashMarker};
+use crate::{
+    constants::{
+        RECON_PLAYER_IDLE_TIME, RECON_PLAYER_OUT_OF_SYNC_DISTANCE_IDLE, RECON_PLAYER_OUT_OF_SYNC_DISTANCE_MOVING,
+        RECON_RTT_MULTIPLIER,
+    },
+    network::ServerReconciliation,
+    players::PlayerMap,
+    ui::BumpFlashMarker,
+};
 
 pub(crate) fn plan_player_moves(
     commands: &mut Commands,
@@ -124,11 +132,9 @@ fn reconciled_target_position(
 ) -> Option<Position> {
     // Slow idle correction reduces visible sliding when standing players receive
     // snapshot corrections. Moving characters hide correction better.
-    const IDLE_RECONCILIATION_TIME: f32 = 10.0;
-    let run_correction_time: f32 = recon.rtt * 5.0; // Benchmark: RTT = 100ms equals 0.5s correction time
-
+    let run_correction_time = recon.rtt * RECON_RTT_MULTIPLIER;
     let speed_ratio = (h_vel.x.hypot(h_vel.z) / run_speed).clamp(0.0, 1.0);
-    let correction_time_interval = IDLE_RECONCILIATION_TIME.lerp(run_correction_time, speed_ratio);
+    let correction_time_interval = RECON_PLAYER_IDLE_TIME.lerp(run_correction_time, speed_ratio);
     let correction_factor = (UPDATE_BROADCAST_INTERVAL / correction_time_interval).clamp(0.0, 1.0);
 
     recon.timer += delta * correction_factor;
@@ -143,7 +149,11 @@ fn reconciled_target_position(
         *vertical_velocity = recon.server_velocity.y;
     }
 
-    let out_of_sync_distance = if is_standing_still { 1.0 } else { 5.0 };
+    let out_of_sync_distance = if is_standing_still {
+        RECON_PLAYER_OUT_OF_SYNC_DISTANCE_IDLE
+    } else {
+        RECON_PLAYER_OUT_OF_SYNC_DISTANCE_MOVING
+    };
     if total_delta.x.abs() >= out_of_sync_distance
         || total_delta.y.abs() >= out_of_sync_distance
         || total_delta.z.abs() >= out_of_sync_distance

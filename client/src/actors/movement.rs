@@ -1,6 +1,10 @@
 use bevy::prelude::*;
 
-use crate::{actors::ActorMap, network::ServerReconciliation};
+use crate::{
+    actors::ActorMap,
+    constants::{RECON_ACTOR_OUT_OF_SYNC_DISTANCE, RECON_RTT_MULTIPLIER},
+    network::ServerReconciliation,
+};
 use common::{
     config::GameplayConfig,
     constants::UPDATE_BROADCAST_INTERVAL,
@@ -49,7 +53,7 @@ pub(crate) fn plan_actor_moves(
             .physics();
         let h_vel = move_intent.to_horizontal_velocity();
         let target_pos = if let Some(recon) = recon_option.as_mut() {
-            let correction_time = recon.rtt * 5.0;
+            let correction_time = recon.rtt * RECON_RTT_MULTIPLIER;
             let correction_factor = (UPDATE_BROADCAST_INTERVAL / correction_time).clamp(0.0, 1.0);
 
             recon.timer += delta * correction_factor;
@@ -60,7 +64,10 @@ pub(crate) fn plan_actor_moves(
             let server_pos = Vec3::from(recon.server_pos) + recon.server_velocity * recon.rtt / 2.0;
             let total_delta = server_pos - Vec3::from(recon.client_pos);
 
-            if total_delta.x.abs() >= 3.0 || total_delta.y.abs() >= 3.0 || total_delta.z.abs() >= 3.0 {
+            if total_delta.x.abs() >= RECON_ACTOR_OUT_OF_SYNC_DISTANCE
+                || total_delta.y.abs() >= RECON_ACTOR_OUT_OF_SYNC_DISTANCE
+                || total_delta.z.abs() >= RECON_ACTOR_OUT_OF_SYNC_DISTANCE
+            {
                 warn!(
                     "{:?} out of sync by x={:.2}, y={:.2}, z={:.2}; jumping to server position",
                     actor_id, total_delta.x, total_delta.y, total_delta.z
