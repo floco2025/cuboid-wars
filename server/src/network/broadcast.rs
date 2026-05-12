@@ -54,7 +54,7 @@ pub fn snapshot_logged_in_players(
                     movement: PlayerMovementState::new(*pos, *move_intent, vertical_velocity),
                     face_dir: face_dir.0,
                     health: *health,
-                    hits: info.hits,
+                    score: info.score,
                     speed_power_up: info.has_speed(),
                     multi_shot_power_up: info.has_multi_shot(),
                     phasing_power_up: info.has_phasing(),

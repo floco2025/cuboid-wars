@@ -12,7 +12,7 @@ use common::{
     protocol::{ActorMarker, ItemMarker, MapLayout, PlayerMarker, *},
 };
 
-use super::broadcast::{broadcast_to_others, collect_items, snapshot_actors, snapshot_logged_in_players};
+use super::broadcast::{collect_items, snapshot_actors, snapshot_logged_in_players};
 
 // ============================================================================
 // Login Flow
@@ -42,7 +42,7 @@ pub fn handle_login_message(
         ClientMessage::Login(login) => {
             debug!("{:?} logged in", id);
 
-            let (channel, hits, name) = {
+            let (channel, score, name) = {
                 let player_info = players
                     .get_mut(&id)
                     .expect("handle_login_message called for unknown player");
@@ -56,7 +56,7 @@ pub fn handle_login_message(
                     login.name
                 };
 
-                (channel, player_info.hits, player_info.name.clone())
+                (channel, player_info.score, player_info.name.clone())
             };
 
             // Send Init to the connecting player (their ID and map config)
@@ -97,7 +97,7 @@ pub fn handle_login_message(
                 pos,
                 move_intent,
                 face_dir,
-                hits,
+                score,
                 Health(gameplay_config.player.health().max),
             );
 
@@ -123,6 +123,8 @@ pub fn handle_login_message(
             channel.send(ServerToClient::Send(update_msg)).ok();
 
             // Now update entity with the authoritative spawn movement state.
+            // Other clients learn about this player via the next `SUpdate`
+            // snapshot — no explicit "login" event is broadcast.
             commands.entity(entity).insert((
                 pos,
                 move_intent,
@@ -130,10 +132,6 @@ pub fn handle_login_message(
                 CharacterVerticalVelocity::default(),
                 player.health,
             ));
-
-            // Broadcast Login to all other logged-in players
-            let login_msg = SLogin { id, player };
-            broadcast_to_others(players, id, ServerMessage::Login(login_msg));
         }
         _ => {
             warn!(

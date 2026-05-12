@@ -9,6 +9,11 @@ use super::{
 #[derive(Component)]
 pub struct BumpFlashMarker;
 
+// Marker for the death overlay — a red translucent full-screen panel shown
+// while the local player is dead.
+#[derive(Component)]
+pub struct DeathOverlayMarker;
+
 pub fn setup_ui_system(mut commands: Commands) {
     commands.spawn((
         PlayerListMarker,
@@ -108,6 +113,20 @@ pub fn setup_ui_system(mut commands: Commands) {
             ..default()
         },
         BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.0)),
+        Visibility::Hidden,
+    ));
+
+    commands.spawn((
+        DeathOverlayMarker,
+        Node {
+            position_type: PositionType::Absolute,
+            left: Val::Px(0.0),
+            top: Val::Px(0.0),
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            ..default()
+        },
+        BackgroundColor(Color::srgba(1.0, 0.0, 0.0, 0.0)),
         Visibility::Hidden,
     ));
 }

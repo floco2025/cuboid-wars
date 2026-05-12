@@ -2,14 +2,14 @@ use bevy::prelude::*;
 
 use super::network::broadcast_actor_destroyed;
 use crate::{
-    combat::{ActorDeathQuery, apply_actor_explosion_damage},
+    combat::{ActorDeathQuery, apply_actor_explosion_damage, kill_player},
     config::ServerGameplayConfig,
     resources::{ActorMap, PlayerMap},
 };
 use common::{
     config::GameplayConfig,
-    constants::CHARACTER_FALL_TELEPORT_Y,
-    protocol::{ActorId, ActorMarker, Health, PlayerMarker, Position},
+    constants::CHARACTER_FALL_DEATH_Y,
+    protocol::{ActorId, ActorMarker, Health, PlayerId, PlayerMarker, Position},
 };
 
 // Despawn actors that have either fallen below the death threshold or had
@@ -22,10 +22,13 @@ use common::{
 pub fn actor_removal_system(
     mut commands: Commands,
     mut actors: ResMut<ActorMap>,
-    players: Res<PlayerMap>,
+    mut players: ResMut<PlayerMap>,
     server_gameplay_config: Res<ServerGameplayConfig>,
     gameplay_config: Res<GameplayConfig>,
-    mut player_query: Query<(&Position, &mut Health), (With<PlayerMarker>, Without<ActorMarker>)>,
+    mut player_query: Query<
+        (Entity, &PlayerId, &Position, &mut Health),
+        (With<PlayerMarker>, Without<ActorMarker>),
+    >,
     mut query: ActorDeathQuery,
 ) {
     let mut deaths: Vec<ActorDeath> = Vec::new();
@@ -34,7 +37,7 @@ pub fn actor_removal_system(
             continue;
         };
         let spawn_kind = info.spawn_kind.clone();
-        if pos.y < CHARACTER_FALL_TELEPORT_Y {
+        if pos.y < CHARACTER_FALL_DEATH_Y {
             deaths.push(ActorDeath {
                 entity,
                 id: *id,
@@ -57,21 +60,27 @@ pub fn actor_removal_system(
         return;
     }
 
+    let respawn_delay_secs = gameplay_config.player.respawn_delay_secs;
     for death in deaths {
         if matches!(death.cause, DeathCause::Killed) {
             // Per-kind config: cross-validated at startup, so unwrap is safe.
             let kind_server_config = server_gameplay_config.validated_actor(&death.spawn_kind);
-            apply_actor_explosion_damage(
+            let dead_players = apply_actor_explosion_damage(
                 death.pos,
                 death.entity,
                 &death.spawn_kind,
                 &kind_server_config.combat.explosion,
                 &gameplay_config,
+                &players,
                 &mut player_query,
                 &mut query,
             );
             broadcast_actor_destroyed(&players, death.id, death.pos);
             info!("{:?} was destroyed at {:?}", death.id, death.pos);
+            for (player_id, entity) in dead_players {
+                info!("{:?} killed by {:?} explosion", player_id, death.id);
+                kill_player(&mut commands, &mut players, player_id, entity, respawn_delay_secs);
+            }
         } else {
             info!("{:?} fell and despawned at {:?}", death.id, death.pos);
         }

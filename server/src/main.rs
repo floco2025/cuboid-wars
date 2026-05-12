@@ -23,7 +23,7 @@ use server::{
     network::{
         network_accept_connections_system, network_broadcast_snapshot_system, network_process_client_messages_system,
     },
-    players::{players_fall_recovery_system, players_status_timers_system},
+    players::{players_fall_death_system, players_respawn_system, players_status_timers_system},
     projectiles::projectiles_movement_system,
     resources::*,
 };
@@ -133,8 +133,9 @@ async fn main() -> Result<()> {
                     .after(characters_movement_system)
                     .after(projectiles_movement_system),
                 // Fall recovery must run after movement updates positions.
-                players_fall_recovery_system.after(characters_movement_system),
+                players_fall_death_system.after(characters_movement_system),
                 actor_respawn_system,
+                players_respawn_system,
                 players_status_timers_system,
                 item_initial_spawn_system,
                 key_initial_spawn_system,

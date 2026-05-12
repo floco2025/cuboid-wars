@@ -9,7 +9,7 @@ use super::{
 use crate::{
     actors::ActorMap,
     cameras::MainCameraMarker,
-    constants::ECHO_INTERVAL,
+    constants::PING_INTERVAL,
     items::ItemMap,
     network::{
         ClientToServer, ClientToServerChannel, LastUpdateSeq, RoundTripTime, ServerToClient, ServerToClientChannel,
@@ -39,7 +39,7 @@ pub fn network_process_server_messages_system(
     my_player_id: Option<Res<MyPlayerId>>,
     collision_world: Option<Res<CollisionWorld>>,
     time: Res<Time>,
-    client_assets: ClientAssets,
+    mut client_assets: ClientAssets,
 ) {
     // Process all messages from the server
     while let Ok(msg) = from_server.try_recv() {
@@ -72,6 +72,7 @@ pub fn network_process_server_messages_system(
                         &client_assets.barrier_assets,
                         &client_assets.gameplay_config,
                         collision_world.as_deref(),
+                        &mut client_assets.local_player_info,
                     );
                 } else {
                     handle_init_message(message, &mut commands, &client_assets.barrier_kind_table);
@@ -82,39 +83,39 @@ pub fn network_process_server_messages_system(
 }
 
 // ============================================================================
-// Echo/Ping System
+// Ping System
 // ============================================================================
 
-// System to send echo requests every `ECHO_INTERVAL` seconds.
-pub fn network_echo_system(
+// System to send ping requests every `PING_INTERVAL` seconds.
+pub fn network_ping_system(
     time: Res<Time>,
     mut rtt: ResMut<RoundTripTime>,
     to_server: Res<ClientToServerChannel>,
     mut timer: Local<f32>,
     mut initialized: Local<bool>,
 ) {
-    // Initialize timer to send first echo after 1 second
+    // Initialize timer to send first ping after 1 second
     if !*initialized {
-        *timer = ECHO_INTERVAL - 1.0;
+        *timer = PING_INTERVAL - 1.0;
         *initialized = true;
     }
 
     let delta = time.delta_secs();
     *timer += delta;
 
-    // Send echo request every ECHO_INTERVAL seconds
-    if *timer >= ECHO_INTERVAL {
+    // Send ping request every PING_INTERVAL seconds
+    if *timer >= PING_INTERVAL {
         *timer = 0.0;
         let now = time.elapsed();
         rtt.pending_sent_at = now;
-        let _ = to_server.send(ClientToServer::Send(ClientMessage::Echo(CEcho {
+        let _ = to_server.send(ClientToServer::Send(ClientMessage::Ping(CPing {
             timestamp_nanos: now.as_nanos() as u64,
         })));
     }
 }
 
-// Handle echo response from server to calculate RTT.
-pub fn handle_echo_message(time: &Res<Time>, rtt: &mut ResMut<RoundTripTime>, msg: SEcho) {
+// Handle pong response from server to calculate RTT.
+pub fn handle_pong_message(time: &Res<Time>, rtt: &mut ResMut<RoundTripTime>, msg: SPong) {
     if rtt.pending_sent_at == Duration::ZERO {
         return;
     }

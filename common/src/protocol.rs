@@ -1,3 +1,39 @@
+// Wire protocol between client and server.
+//
+// Server→client messages fall into three roles. When adding a new message,
+// pick the smallest role that fits — most "X changed" things belong in the
+// snapshot, not a new event.
+//
+// 1. Bootstrap (`SInit`) — sent once at connect with session-level state
+//    (`PlayerId`, static `MapLayout`).
+//
+// 2. State snapshot (`SUpdate`) — the authoritative current state of every
+//    player, actor, and item, broadcast every server tick. Sole vehicle for
+//    presence: a player appears the tick they first show up in `SUpdate` and
+//    disappears the tick they're absent. Self-healing — a dropped tick is
+//    forgiven by the next one.
+//
+// 3. One-shot cues — short messages that fire at the moment of a discrete
+//    state change. They exist only when the snapshot can't carry the cue,
+//    which is one of:
+//      * Sub-tick latency matters. Movement prediction needs intent changes
+//        (`SPlayerMoveIntent`, `SJump`, `SFace`, `SShot`) faster than tick
+//        cadence; camera shake from `SPlayerHit` needs to land on the impact
+//        frame, not 1–2 ticks later.
+//      * Edge-triggered, not level-triggered. "You just picked up a power-up"
+//        is a transition with an associated sound (`SPlayerStatus`,
+//        `SCookieCollected`). The snapshot also carries `speed_power_up:
+//        true`, but a level-triggered handler would play the sound every
+//        tick the flag was set. The event fires the sound exactly once at
+//        the transition; the snapshot keeps the HUD icon correct if the
+//        event was dropped.
+//      * The cue carries information the snapshot doesn't. `SPlayerHit`
+//        ships hit direction for directional camera shake; `SActorDestroyed`
+//        triggers the explosion VFX (without it, the actor would silently
+//        vanish from the snapshot).
+//
+// `CPing` / `SPong` are a separate diagnostic channel for RTT measurement.
+
 use bevy_ecs::prelude::*;
 use bincode::{Decode, Encode};
 
@@ -40,9 +76,10 @@ pub struct CShot {
     pub face_pitch: f32, // radians - pitch (up/down) when shooting
 }
 
-// Client to Server: Echo request with timestamp (Duration since app start, serialized as nanoseconds).
+// Client to Server: Ping request with timestamp (Duration since app start, serialized as nanoseconds).
+// Echoed back by the server as `SPong` so the client can measure RTT.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct CEcho {
+pub struct CPing {
     pub timestamp_nanos: u64,
 }
 
@@ -57,20 +94,6 @@ pub struct SInit {
     pub map_layout: MapLayout,
 }
 
-// Server to Client: Another player connected.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct SLogin {
-    pub id: PlayerId,
-    pub player: Player,
-}
-
-// Server to Client: A player disconnected.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct SLogoff {
-    pub id: PlayerId,
-    pub graceful: bool,
-}
-
 // Server to Client: Player movement state update for reconciliation after intent changes.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SPlayerMoveIntent {
@@ -81,22 +104,6 @@ pub struct SPlayerMoveIntent {
 // Server to Client: Server-controlled actor movement state update after intent changes.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SActorMoveIntent {
-    pub id: ActorId,
-    pub movement: ActorMovementState,
-}
-
-// Server to Client: Authoritative player teleport. This is not reconciliation;
-// the client should apply the movement state immediately.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct SPlayerTeleport {
-    pub id: PlayerId,
-    pub movement: PlayerMovementState,
-}
-
-// Server to Client: Authoritative actor teleport. This is not reconciliation;
-// the client should apply the movement state immediately.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct SActorTeleport {
     pub id: ActorId,
     pub movement: ActorMovementState,
 }
@@ -141,7 +148,7 @@ pub struct SUpdate {
 
 // Server to Client: Player was hit by a projectile.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct SHit {
+pub struct SPlayerHit {
     pub id: PlayerId,   // Player who was hit
     pub hit_dir_x: f32, // Direction of hit (normalized)
     pub hit_dir_z: f32, // Direction of hit (normalized)
@@ -168,9 +175,10 @@ pub struct SPlayerStatus {
     pub held_keys: Vec<BarrierKindId>,
 }
 
-// Server to Client: Echo response.
+// Server to Client: Pong response — server echoes the `CPing` timestamp back
+// unchanged so the client can compute RTT from the round trip.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct SEcho {
+pub struct SPong {
     pub timestamp_nanos: u64,
 }
 
@@ -191,27 +199,23 @@ pub enum ClientMessage {
     Jump(CJump),
     Face(CFace),
     Shot(CShot),
-    Echo(CEcho),
+    Ping(CPing),
 }
 
 // All server to client messages
 #[derive(Debug, Clone, Message, Encode, Decode)]
 pub enum ServerMessage {
     Init(SInit),
-    Login(SLogin),
-    Logoff(SLogoff),
     PlayerMoveIntent(SPlayerMoveIntent),
     ActorMoveIntent(SActorMoveIntent),
-    PlayerTeleport(SPlayerTeleport),
-    ActorTeleport(SActorTeleport),
     ActorDestroyed(SActorDestroyed),
     Jump(SJump),
     Face(SFace),
     Shot(SShot),
     Update(SUpdate),
-    Hit(SHit),
+    PlayerHit(SPlayerHit),
     ActorHit(SActorHit),
     PlayerStatus(SPlayerStatus),
-    Echo(SEcho),
+    Pong(SPong),
     CookieCollected(SCookieCollected),
 }

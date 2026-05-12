@@ -1,18 +1,13 @@
 use bevy::prelude::*;
 
 use super::{
-    actors::{
-        handle_actor_destroyed_message, handle_actor_hit_message, handle_actor_move_intent_message,
-        handle_actor_teleport_message,
-    },
+    actors::{handle_actor_destroyed_message, handle_actor_hit_message, handle_actor_move_intent_message},
     components::AssetManagers,
-    io::handle_echo_message,
+    io::handle_pong_message,
     items::handle_item_collected_message,
-    login::{handle_player_login_message, handle_player_logoff_message},
     players::{
         handle_player_face_message, handle_player_hit_message, handle_player_jump_message,
         handle_player_move_intent_message, handle_player_shot_message, handle_player_status_message,
-        handle_player_teleport_message,
     },
     update::handle_update_message,
 };
@@ -55,36 +50,17 @@ pub fn dispatch_message(
     barrier_assets: &BarrierAssets,
     gameplay_config: &GameplayConfig,
     collision_world: Option<&CollisionWorld>,
+    local_player_info: &mut crate::players::LocalPlayerInfo,
 ) {
     match msg {
         ServerMessage::Init(_) => {
             error!("received Init more than once");
         }
-        ServerMessage::Login(login) => handle_player_login_message(
-            commands,
-            &mut assets.meshes,
-            &mut assets.materials,
-            &mut assets.images,
-            &mut assets.graphs,
-            players,
-            asset_server,
-            asset_set,
-            render_settings,
-            gameplay_config,
-            login,
-        ),
-        ServerMessage::Logoff(logoff) => handle_player_logoff_message(commands, players, logoff),
         ServerMessage::PlayerMoveIntent(move_intent_msg) => {
             handle_player_move_intent_message(commands, players, player_data, rtt, gameplay_config, move_intent_msg);
         }
         ServerMessage::ActorMoveIntent(move_intent_msg) => {
             handle_actor_move_intent_message(commands, actors, rtt, actor_data, move_intent_msg);
-        }
-        ServerMessage::PlayerTeleport(teleport_msg) => {
-            handle_player_teleport_message(commands, players, my_player_id, teleport_msg);
-        }
-        ServerMessage::ActorTeleport(teleport_msg) => {
-            handle_actor_teleport_message(commands, actors, teleport_msg);
         }
         ServerMessage::ActorDestroyed(destroyed_msg) => {
             handle_actor_destroyed_message(
@@ -124,6 +100,7 @@ pub fn dispatch_message(
             items,
             rtt,
             last_update_seq,
+            local_player_info,
             player_data,
             actor_data,
             cameras,
@@ -136,7 +113,9 @@ pub fn dispatch_message(
             gameplay_config,
             update_msg,
         ),
-        ServerMessage::Hit(hit_msg) => handle_player_hit_message(commands, players, cameras, my_player_id, hit_msg),
+        ServerMessage::PlayerHit(hit_msg) => {
+            handle_player_hit_message(commands, players, cameras, my_player_id, hit_msg);
+        }
         ServerMessage::ActorHit(hit_msg) => handle_actor_hit_message(commands, asset_server, asset_set, hit_msg),
         ServerMessage::PlayerStatus(player_status_msg) => {
             handle_player_status_message(
@@ -148,7 +127,7 @@ pub fn dispatch_message(
                 asset_set,
             );
         }
-        ServerMessage::Echo(echo_msg) => handle_echo_message(time, rtt, echo_msg),
+        ServerMessage::Pong(pong_msg) => handle_pong_message(time, rtt, pong_msg),
         ServerMessage::CookieCollected(cookie_msg) => {
             handle_item_collected_message(commands, cookie_msg, asset_server, asset_set);
         }

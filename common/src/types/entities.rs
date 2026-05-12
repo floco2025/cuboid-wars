@@ -28,7 +28,7 @@ pub struct Player {
     pub movement: PlayerMovementState,
     pub face_dir: f32,
     pub health: Health,
-    pub hits: i32,
+    pub score: i32,
     pub speed_power_up: bool,
     pub multi_shot_power_up: bool,
     pub phasing_power_up: bool,
@@ -43,7 +43,7 @@ impl Player {
         pos: Position,
         move_intent: PlayerMoveIntent,
         face_dir: f32,
-        hits: i32,
+        score: i32,
         health: Health,
     ) -> Self {
         Self {
@@ -51,7 +51,7 @@ impl Player {
             movement: PlayerMovementState::new(pos, move_intent, 0.0),
             face_dir,
             health,
-            hits,
+            score,
             speed_power_up: false,
             multi_shot_power_up: false,
             phasing_power_up: false,

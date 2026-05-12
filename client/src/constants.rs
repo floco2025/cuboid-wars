@@ -31,8 +31,8 @@ pub const MOVE_INPUT_DIR_CHANGE_THRESHOLD: f32 = 1.0; // degrees
 pub const FACE_SEND_COOLDOWN: f32 = 0.1;
 pub const FACE_CHANGE_THRESHOLD: f32 = 2.0; // degrees
 
-// Round-trip time
-pub const ECHO_INTERVAL: f32 = 10.0;
+// Round-trip time — interval between ping requests sent to the server.
+pub const PING_INTERVAL: f32 = 10.0;
 
 // ============================================================================
 // Character Visuals

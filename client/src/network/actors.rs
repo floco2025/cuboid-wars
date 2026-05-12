@@ -13,7 +13,7 @@ use common::{
     physics::CharacterVerticalVelocity,
     protocol::{
         Actor, ActorId, ActorMarker, ActorMoveIntent, ActorMovementState, FaceDirection, Position, SActorDestroyed,
-        SActorHit, SActorMoveIntent, SActorTeleport,
+        SActorHit, SActorMoveIntent,
     },
 };
 
@@ -102,19 +102,6 @@ pub fn handle_actor_move_intent_message(
         msg.movement,
         msg.movement.move_intent.direction(),
     );
-}
-
-pub fn handle_actor_teleport_message(commands: &mut Commands, actors: &ResMut<ActorMap>, msg: SActorTeleport) {
-    let Some(client_actor) = actors.get(&msg.id) else {
-        return;
-    };
-
-    commands.entity(client_actor.entity).insert((
-        msg.movement.pos,
-        msg.movement.move_intent,
-        CharacterVerticalVelocity(msg.movement.vertical_velocity),
-    ));
-    commands.entity(client_actor.entity).remove::<ServerReconciliation>();
 }
 
 // Server despawns the entity; client cleanup happens when the next snapshot

@@ -95,7 +95,7 @@ fn collect_cookie(players: &mut PlayerMap, items: &mut ItemMap, player_id: Playe
     let Some(player_info) = players.get_mut(&player_id) else {
         return;
     };
-    player_info.hits += COOKIE_POINTS;
+    player_info.score += COOKIE_POINTS;
     if let Some(item_info) = items.get_mut(&item_id) {
         item_info.spawn_time = COOKIE_RESPAWN_TIME;
     }

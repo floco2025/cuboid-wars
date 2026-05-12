@@ -145,7 +145,7 @@ pub fn handle_player_hit_message(
     players: &ResMut<PlayerMap>,
     camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     my_player_id: PlayerId,
-    msg: SHit,
+    msg: SPlayerHit,
 ) {
     debug!("player {:?} was hit", msg.id);
     if msg.id == my_player_id {
@@ -169,29 +169,6 @@ pub fn handle_player_hit_message(
             offset_x: 0.0,
             offset_z: 0.0,
         });
-    }
-}
-
-// Handle an authoritative player teleport. This is not reconciliation; discard
-// any pending correction and apply the movement state immediately.
-pub fn handle_player_teleport_message(
-    commands: &mut Commands,
-    players: &ResMut<PlayerMap>,
-    my_player_id: PlayerId,
-    msg: SPlayerTeleport,
-) {
-    if msg.id == my_player_id {
-        info!("you were teleported to {:?}", msg.movement.pos);
-    } else {
-        debug!("{:?} teleported to {:?}", msg.id, msg.movement.pos);
-    }
-    if let Some(player) = players.get(&msg.id) {
-        commands.entity(player.entity).insert((
-            msg.movement.pos,
-            msg.movement.move_intent,
-            CharacterVerticalVelocity(msg.movement.vertical_velocity),
-        ));
-        commands.entity(player.entity).remove::<ServerReconciliation>();
     }
 }
 

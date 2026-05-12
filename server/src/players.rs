@@ -1,16 +1,15 @@
 use bevy::prelude::*;
 
 use super::characters::generate_player_spawn_position;
+use super::combat::kill_player;
 use super::network::broadcast_to_all;
 use crate::resources::{MapConfig, PlayerMap};
 use common::{
     config::GameplayConfig,
-    constants::CHARACTER_FALL_TELEPORT_Y,
+    constants::CHARACTER_FALL_DEATH_Y,
     map_geometry::MapGeometry,
     physics::{CharacterVerticalVelocity, CollisionWorld},
-    protocol::{
-        PlayerId, PlayerMarker, PlayerMoveIntent, PlayerMovementState, Position, SPlayerTeleport, ServerMessage,
-    },
+    protocol::{FaceDirection, Health, PlayerId, PlayerMarker, PlayerMoveIntent, Position, ServerMessage},
 };
 
 // ============================================================================
@@ -42,63 +41,103 @@ pub fn players_status_timers_system(time: Res<Time>, mut players: ResMut<PlayerM
 }
 
 // ============================================================================
-// Players Fall Recovery System
+// Players Fall Death System
 // ============================================================================
 
-// Detect players that have fallen below the death threshold and move them back
-// to a spawn position. Broadcasts a teleport so clients apply it immediately
-// rather than waiting for the next `SUpdate`.
-pub fn players_fall_recovery_system(
-    players: Res<PlayerMap>,
+// Detect players that have fallen below the death threshold and kill them
+// using the same flow as any other death (clear per-life state, arm respawn
+// timer, despawn entity). The respawn system brings them back at a fresh
+// spawn-zone cell after `respawn_delay_secs`.
+pub fn players_fall_death_system(
+    mut commands: Commands,
+    mut players: ResMut<PlayerMap>,
+    gameplay_config: Res<GameplayConfig>,
+    player_query: Query<(Entity, &PlayerId, &Position), With<PlayerMarker>>,
+) {
+    for (entity, id, pos) in player_query.iter() {
+        if pos.y >= CHARACTER_FALL_DEATH_Y {
+            continue;
+        }
+        // Skip players already dead this tick (e.g. killed by a projectile
+        // before falling out of the world).
+        if players.get(id).is_some_and(|info| info.is_dead()) {
+            continue;
+        }
+        info!("{:?} fell and died at {:?}", id, pos);
+        kill_player(
+            &mut commands,
+            &mut players,
+            *id,
+            entity,
+            gameplay_config.player.respawn_delay_secs,
+        );
+    }
+}
+
+// ============================================================================
+// Players Respawn System
+// ============================================================================
+
+// Tick each dead player's respawn timer. When it elapses, spawn a fresh entity
+// at a new spawn-zone cell with full health. Per-life state (power-ups, keys,
+// stun) was already cleared at death; score is preserved.
+//
+// The new entity replaces the (already despawned) old one; the next `SUpdate`
+// will carry the player at their new position and the client's snapshot diff
+// resurrects their visual.
+pub fn players_respawn_system(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut players: ResMut<PlayerMap>,
     map_config: Res<MapConfig>,
     map_geometry: Res<MapGeometry>,
     collision_world: Res<CollisionWorld>,
     gameplay_config: Res<GameplayConfig>,
-    mut player_query: Query<
-        (
-            Entity,
-            &PlayerId,
-            &mut Position,
-            &mut CharacterVerticalVelocity,
-            &PlayerMoveIntent,
-        ),
-        With<PlayerMarker>,
-    >,
+    player_query: Query<&Position, With<PlayerMarker>>,
 ) {
-    let dead: Vec<(Entity, PlayerId)> = player_query
-        .iter()
-        .filter_map(|(entity, id, pos, _, _)| (pos.y < CHARACTER_FALL_TELEPORT_Y).then_some((entity, *id)))
-        .collect();
+    let delta = time.delta_secs();
 
-    if dead.is_empty() {
-        return;
+    let mut occupied_positions: Vec<Position> = player_query.iter().copied().collect();
+    let mut to_respawn: Vec<PlayerId> = Vec::new();
+
+    for (id, info) in players.iter_mut() {
+        let Some(timer) = info.death_timer.as_mut() else {
+            continue;
+        };
+        *timer -= delta;
+        if *timer <= 0.0 {
+            to_respawn.push(*id);
+        }
     }
 
-    // Snapshot all current positions so spawn-distance checks see a consistent view.
-    let mut occupied_positions: Vec<Position> = player_query.iter().map(|(_, _, pos, _, _)| *pos).collect();
-
-    for (entity, id) in dead {
-        let teleport_pos = generate_player_spawn_position(
+    for id in to_respawn {
+        let pos = generate_player_spawn_position(
             &map_config,
             &map_geometry,
             &collision_world,
             &occupied_positions,
             gameplay_config.player.physics(),
         );
+        let face_dir = (-pos.x).atan2(-pos.z);
+        let move_intent = PlayerMoveIntent::Idle;
+        let entity = commands
+            .spawn((
+                PlayerMarker,
+                id,
+                pos,
+                move_intent,
+                FaceDirection(face_dir),
+                CharacterVerticalVelocity::default(),
+                Health(gameplay_config.player.health().max),
+            ))
+            .id();
 
-        if let Ok((_, _, mut pos, mut motion, move_intent)) = player_query.get_mut(entity) {
-            *pos = teleport_pos;
-            motion.0 = 0.0;
-            broadcast_to_all(
-                &players,
-                ServerMessage::PlayerTeleport(SPlayerTeleport {
-                    id,
-                    movement: PlayerMovementState::new(teleport_pos, *move_intent, 0.0),
-                }),
-            );
+        if let Some(info) = players.get_mut(&id) {
+            info.entity = entity;
+            info.death_timer = None;
         }
 
-        occupied_positions.push(teleport_pos);
-        info!("{:?} fell and teleported to {:?}", id, teleport_pos);
+        occupied_positions.push(pos);
+        info!("{:?} respawned at {:?}", id, pos);
     }
 }

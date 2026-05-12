@@ -59,12 +59,12 @@ pub(super) fn spawn_player_entry(
                     ));
 
                     row.spawn((
-                        Text::new(format_signed_hits(player_info.hits)),
+                        Text::new(format_signed_score(player_info.score)),
                         TextFont {
                             font_size: 20.0,
                             ..default()
                         },
-                        TextColor(hit_value_color(player_info.hits)),
+                        TextColor(score_value_color(player_info.score)),
                     ));
 
                     spawn_power_up_icon(row, player_info.speed_power_up, ItemType::SpeedPowerUp);
@@ -142,18 +142,18 @@ fn spawn_key_icon(row: &mut ChildSpawnerCommands, color: Color) {
     ));
 }
 
-fn format_signed_hits(hits: i32) -> String {
-    if hits >= 0 {
-        format!("+{hits}")
+fn format_signed_score(score: i32) -> String {
+    if score >= 0 {
+        format!("+{score}")
     } else {
-        hits.to_string()
+        score.to_string()
     }
 }
 
-const fn hit_value_color(hits: i32) -> Color {
-    if hits > 0 {
+const fn score_value_color(score: i32) -> Color {
+    if score > 0 {
         Color::srgb(0.3, 0.6, 1.0)
-    } else if hits < 0 {
+    } else if score < 0 {
         Color::srgb(1.0, 0.3, 0.3)
     } else {
         Color::srgb(0.8, 0.8, 0.8)

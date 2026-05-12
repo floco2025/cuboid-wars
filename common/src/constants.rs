@@ -48,8 +48,9 @@ pub const PHYSICS_EPSILON: f32 = 1e-6;
 // Characters
 // ============================================================================
 
-// Characters whose Y falls below this are teleported back to a spawn position.
-pub const CHARACTER_FALL_TELEPORT_Y: f32 = -100.0;
+// Characters whose Y falls below this are killed (players run through the
+// normal death/respawn flow; actors are despawned outright).
+pub const CHARACTER_FALL_DEATH_Y: f32 = -100.0;
 
 // Gravity acting on falling characters. Higher than real-world (9.81) for snappier
 // game feel.

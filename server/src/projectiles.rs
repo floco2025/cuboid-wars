@@ -1,7 +1,7 @@
 use bevy::{ecs::system::SystemParam, prelude::*};
 
 use crate::{
-    combat::{apply_actor_projectile_hit, apply_player_projectile_hit},
+    combat::{PlayerHitOutcome, apply_actor_projectile_hit, apply_player_projectile_hit, kill_player},
     config::ServerGameplayConfig,
     network::broadcast_to_all,
     resources::{ActorMap, PlayerMap},
@@ -156,7 +156,7 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                     && let Ok((_, _, _, mut health)) = params.player_query.get_mut(target_entity)
                 {
                     info!("{:?} hits {:?}", shooter_id, player_id);
-                    apply_player_projectile_hit(
+                    let outcome = apply_player_projectile_hit(
                         &mut params.players,
                         shooter_id,
                         player_id,
@@ -166,12 +166,23 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
 
                     broadcast_to_all(
                         &params.players,
-                        ServerMessage::Hit(SHit {
+                        ServerMessage::PlayerHit(SPlayerHit {
                             id: player_id,
                             hit_dir_x: hit.direction.x,
                             hit_dir_z: hit.direction.z,
                         }),
                     );
+
+                    if outcome == PlayerHitOutcome::Died {
+                        info!("{:?} died", player_id);
+                        kill_player(
+                            &mut commands,
+                            &mut params.players,
+                            player_id,
+                            target_entity,
+                            params.gameplay_config.player.respawn_delay_secs,
+                        );
+                    }
                 }
                 commands.entity(proj_entity).despawn();
             }

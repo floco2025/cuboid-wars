@@ -40,6 +40,10 @@ pub fn input_shooting_system(
     time: Res<Time>,
     mut local_player_info: ResMut<LocalPlayerInfo>,
 ) {
+    // Dead players can't shoot.
+    if local_player_info.is_dead {
+        return;
+    }
     // Only allow shooting when cursor is locked
     let cursor_locked = cursor_options.grab_mode != CursorGrabMode::None;
 

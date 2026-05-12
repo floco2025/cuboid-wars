@@ -6,7 +6,7 @@ use crate::{
     cameras::MainCameraMarker,
     config::{AssetSet, RenderSettings},
     network::{RoundTripTime, ServerReconciliation},
-    players::{PlayerInfo, PlayerMap, spawn_player},
+    players::{LocalPlayerInfo, PlayerInfo, PlayerMap, spawn_player},
 };
 use common::{
     config::GameplayConfig,
@@ -14,6 +14,10 @@ use common::{
     protocol::{FaceDirection, Player, PlayerId, PlayerMarker, PlayerMoveIntent, Position},
 };
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "snapshot reconciliation needs the asset stack at this entry point"
+)]
 pub fn sync_players(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
@@ -22,6 +26,7 @@ pub fn sync_players(
     graphs: &mut ResMut<Assets<AnimationGraph>>,
     players: &mut ResMut<PlayerMap>,
     rtt: &ResMut<RoundTripTime>,
+    local_player_info: &mut LocalPlayerInfo,
     player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
     camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     my_player_id: PlayerId,
@@ -33,6 +38,9 @@ pub fn sync_players(
 ) {
     let update_ids: HashSet<PlayerId> = server_players.iter().map(|(id, _)| *id).collect();
 
+    // Spawn newly-appeared players. Skip the local player if it's already in
+    // the map (e.g., we kept its entity through death — see respawn handling
+    // further down).
     for (id, player) in server_players {
         if players.contains_key(id) {
             continue;
@@ -56,14 +64,47 @@ pub fn sync_players(
         );
     }
 
+    // Handle players no longer in the snapshot:
+    //   * remote players → despawn entity, drop PlayerInfo (logoff / death of
+    //     another player both look identical from this side).
+    //   * the local player → keep entity (camera/mouse-look need it), hide
+    //     visibility, keep PlayerInfo (preserves score), insert
+    //     LocalPlayerDead. The next snapshot that re-includes our id will
+    //     teleport us to the respawn position.
+    let mut local_just_died = false;
     players.retain(|id, player| {
         if update_ids.contains(id) {
+            return true;
+        }
+        if *id == my_player_id {
+            commands.entity(player.entity).insert(Visibility::Hidden);
+            local_just_died = true;
             true
         } else {
             commands.entity(player.entity).despawn();
             false
         }
     });
+    if local_just_died {
+        local_player_info.is_dead = true;
+    }
+
+    // Handle local-player respawn: if we were dead and our id reappeared in
+    // this snapshot, hard-teleport our existing entity to the new spawn
+    // position, restore visibility, and clear the death state.
+    if local_player_info.is_dead
+        && let Some((_, server_player)) = server_players.iter().find(|(id, _)| *id == my_player_id)
+        && let Some(info) = players.get(&my_player_id)
+    {
+        commands.entity(info.entity).insert((
+            server_player.movement.pos,
+            FaceDirection(server_player.face_dir),
+            CharacterVerticalVelocity(server_player.movement.vertical_velocity),
+            server_player.health,
+            Visibility::Visible,
+        ));
+        local_player_info.is_dead = false;
+    }
 
     for (id, server_player) in server_players {
         update_snapshot_player(
@@ -135,7 +176,7 @@ fn spawn_snapshot_player(
         id,
         PlayerInfo {
             entity,
-            hits: player.hits,
+            score: player.score,
             name: player.name.clone(),
             speed_power_up: player.speed_power_up,
             multi_shot_power_up: player.multi_shot_power_up,
@@ -185,7 +226,7 @@ fn update_snapshot_player(
             }
         }
 
-        client_player.hits = server_player.hits;
+        client_player.score = server_player.score;
         client_player.speed_power_up = server_player.speed_power_up;
         client_player.multi_shot_power_up = server_player.multi_shot_power_up;
         client_player.phasing_power_up = server_player.phasing_power_up;

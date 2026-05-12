@@ -8,6 +8,7 @@ use crate::{
     barriers::BarrierAssets,
     config::{AssetSet, RenderSettings},
     items::ItemAssets,
+    players::LocalPlayerInfo,
     projectiles::ProjectileAssets,
 };
 
@@ -48,4 +49,5 @@ pub struct ClientAssets<'w> {
     pub barrier_assets: Res<'w, BarrierAssets>,
     pub gameplay_config: Res<'w, GameplayConfig>,
     pub barrier_kind_table: Res<'w, BarrierKindTable>,
+    pub local_player_info: ResMut<'w, LocalPlayerInfo>,
 }

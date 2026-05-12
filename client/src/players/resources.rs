@@ -10,7 +10,7 @@ pub struct MyPlayerId(pub PlayerId);
 // Player information (client-side).
 pub struct PlayerInfo {
     pub entity: Entity,
-    pub hits: i32,
+    pub score: i32,
     pub name: String,
     pub speed_power_up: bool,
     pub multi_shot_power_up: bool,
@@ -69,6 +69,10 @@ pub struct LocalPlayerInfo {
     pub last_send_face_time: f32,
     pub stored_yaw: f32,
     pub stored_pitch: f32,
+    // True from the moment the local player vanishes from `SUpdate` until
+    // they reappear (death → respawn). Input systems gate on this; the death
+    // overlay reads it to show/hide the red tint.
+    pub is_dead: bool,
 }
 
 impl Default for LocalPlayerInfo {
@@ -81,6 +85,7 @@ impl Default for LocalPlayerInfo {
             last_send_face_time: 0.0,
             stored_yaw: 0.0,
             stored_pitch: 0.0,
+            is_dead: false,
         }
     }
 }

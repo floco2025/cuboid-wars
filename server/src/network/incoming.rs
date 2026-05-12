@@ -11,7 +11,7 @@ use common::{
     protocol::{ActorMarker, ItemMarker, MapLayout, PlayerMarker, *},
 };
 
-use super::{broadcast::broadcast_to_others, login::handle_login_message, messages::dispatch_message};
+use super::{login::handle_login_message, messages::dispatch_message};
 
 // Process incoming messages from clients.
 // NOTE: Must run after `network_accept_connections_system` with `apply_deferred` in
@@ -44,14 +44,17 @@ pub fn network_process_client_messages_system(
             ClientToServer::Disconnected => {
                 let was_logged_in = player_info.logged_in;
                 let entity = player_info.entity;
+                let was_dead = player_info.is_dead();
                 players.remove(&id);
-                commands.entity(entity).despawn();
+                // If the player was mid-death their entity is already
+                // despawned; skip the redundant despawn so we don't panic on
+                // a stale handle.
+                if !was_dead {
+                    commands.entity(entity).despawn();
+                }
 
                 debug!("{:?} disconnected (logged_in: {})", id, was_logged_in);
-
-                if was_logged_in {
-                    broadcast_to_others(&players, id, ServerMessage::Logoff(SLogoff { id, graceful: false }));
-                }
+                // Other clients notice the absence on the next `SUpdate`.
             }
             ClientToServer::Message(message) => {
                 let is_logged_in = player_info.logged_in;

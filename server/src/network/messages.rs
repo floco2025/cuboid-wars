@@ -27,6 +27,12 @@ pub fn dispatch_message(
     collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
 ) {
+    // Drop input from dead players: their entity has been despawned, so
+    // queueing entity-targeted commands against the stale `entity` would
+    // panic at apply time. Messages that don't touch the entity (Logoff,
+    // Ping) still run normally.
+    let is_dead = players.get(&id).is_some_and(|info| info.is_dead());
+
     match msg {
         ClientMessage::Login(_) => {
             warn!("{:?} sent login after already authenticated", id);
@@ -39,10 +45,16 @@ pub fn dispatch_message(
             handle_logoff_message(commands, entity, id, msg, players);
         }
         ClientMessage::PlayerMoveIntent(msg) => {
+            if is_dead {
+                return;
+            }
             trace!("{:?} move intent: {:?}", id, msg);
             handle_move_intent_message(commands, entity, id, msg, &*players, player_data, motions);
         }
         ClientMessage::Jump(msg) => {
+            if is_dead {
+                return;
+            }
             trace!("{:?} jump: {:?}", id, msg);
             handle_jump_message(
                 commands,
@@ -56,10 +68,16 @@ pub fn dispatch_message(
             );
         }
         ClientMessage::Face(msg) => {
+            if is_dead {
+                return;
+            }
             trace!("{:?} face direction: {}", id, msg.dir);
             handle_face_message(commands, entity, id, msg, &*players);
         }
         ClientMessage::Shot(msg) => {
+            if is_dead {
+                return;
+            }
             debug!("{id:?} shot");
             handle_shot_message(
                 commands,
@@ -73,8 +91,8 @@ pub fn dispatch_message(
                 gameplay_config,
             );
         }
-        ClientMessage::Echo(msg) => {
-            handle_echo_message(id, msg, players);
+        ClientMessage::Ping(msg) => {
+            handle_ping_message(id, msg, players);
         }
     }
 }
@@ -83,13 +101,15 @@ pub fn dispatch_message(
 // Message Handlers
 // ============================================================================
 
-// Handle logoff message.
+// Handle logoff message. Other clients notice the absence on the next
+// `SUpdate` snapshot — no explicit logoff event is broadcast.
 fn handle_logoff_message(commands: &mut Commands, entity: Entity, id: PlayerId, _msg: CLogoff, players: &PlayerMap) {
     debug!("{:?} logged off", id);
-    commands.entity(entity).despawn();
-
-    // Broadcast graceful logoff to all other players
-    broadcast_to_others(players, id, ServerMessage::Logoff(SLogoff { id, graceful: true }));
+    // The entity is already despawned if the player was mid-death; avoid the
+    // redundant despawn that would panic on a stale handle.
+    if !players.get(&id).is_some_and(|info| info.is_dead()) {
+        commands.entity(entity).despawn();
+    }
 }
 
 // Handle move-input message.
@@ -240,13 +260,13 @@ fn handle_shot_message(
     );
 }
 
-// Handle echo message.
-fn handle_echo_message(id: PlayerId, msg: CEcho, players: &PlayerMap) {
-    trace!("{:?} echo: {:?}", id, msg);
+// Handle ping message — echo the timestamp back as a pong.
+fn handle_ping_message(id: PlayerId, msg: CPing, players: &PlayerMap) {
+    trace!("{:?} ping: {:?}", id, msg);
     if let Some(player_info) = players.get(&id) {
-        let echo_msg = ServerMessage::Echo(SEcho {
+        let pong_msg = ServerMessage::Pong(SPong {
             timestamp_nanos: msg.timestamp_nanos,
         });
-        let _ = player_info.channel.send(ServerToClient::Send(echo_msg));
+        let _ = player_info.channel.send(ServerToClient::Send(pong_msg));
     }
 }

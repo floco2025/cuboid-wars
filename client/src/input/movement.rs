@@ -79,9 +79,10 @@ pub fn input_movement_system(
         &mut top_down_camera_yaw,
     );
     let face_yaw = current_yaw + std::f32::consts::PI;
-    let stunned = local_player_stunned(my_player_id.as_ref(), &players);
-    let move_intent = calculate_move_intent(&keyboard, face_yaw, stunned);
-    let jump_requested = !stunned && keyboard.just_pressed(KeyCode::Space);
+    // Death disables movement and jump just like stunned (and overrides it).
+    let movement_disabled = local_player_info.is_dead || local_player_stunned(my_player_id.as_ref(), &players);
+    let move_intent = calculate_move_intent(&keyboard, face_yaw, movement_disabled);
+    let jump_requested = !movement_disabled && keyboard.just_pressed(KeyCode::Space);
 
     update_player_input_face_and_jump(
         move_intent,

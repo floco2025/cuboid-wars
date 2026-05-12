@@ -84,6 +84,9 @@ pub struct PlayerGameplayConfig {
     pub character: CharacterGameplayConfig,
     pub walk_speed: f32,
     pub run_speed: f32,
+    // How long a player stays "dead" (entity despawned, red overlay on the
+    // local client) before being respawned at a fresh spawn-zone cell.
+    pub respawn_delay_secs: f32,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -135,7 +138,8 @@ impl PlayerGameplayConfig {
     fn validate(&self, path: &str) -> Result<()> {
         self.character.validate(path)?;
         validate_positive_finite(self.walk_speed, &format!("{path}.walk_speed"))?;
-        validate_positive_finite(self.run_speed, &format!("{path}.run_speed"))
+        validate_positive_finite(self.run_speed, &format!("{path}.run_speed"))?;
+        validate_positive_finite(self.respawn_delay_secs, &format!("{path}.respawn_delay_secs"))
     }
 }
 

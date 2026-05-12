@@ -13,7 +13,7 @@ pub struct PlayerInfo {
     pub entity: Entity,
     pub logged_in: bool,
     pub channel: UnboundedSender<ServerToClient>,
-    pub hits: i32,
+    pub score: i32,
     pub name: String,
     pub speed_power_up_timer: f32,
     pub multi_shot_power_up_timer: f32,
@@ -25,6 +25,11 @@ pub struct PlayerInfo {
     // ascending so the encoded `SPlayerStatus` bytes are deterministic and
     // the client can change-detect via a single equality check.
     pub held_keys: Vec<BarrierKindId>,
+    // `Some(remaining_secs)` from the moment a player's health drops to zero
+    // until the respawn system spawns a new entity. While dead, the player
+    // has no entity and is absent from `SUpdate` — the local client sees
+    // this as "I disappeared from the snapshot" and shows the death overlay.
+    pub death_timer: Option<f32>,
 }
 
 impl PlayerInfo {
@@ -34,7 +39,7 @@ impl PlayerInfo {
             entity,
             logged_in: false,
             channel,
-            hits: 0,
+            score: 0,
             name: String::new(),
             speed_power_up_timer: 0.0,
             multi_shot_power_up_timer: 0.0,
@@ -43,7 +48,25 @@ impl PlayerInfo {
             stun_timer: 0.0,
             last_shot_time: f32::NEG_INFINITY,
             held_keys: Vec::new(),
+            death_timer: None,
         }
+    }
+
+    #[must_use]
+    pub fn is_dead(&self) -> bool {
+        self.death_timer.is_some()
+    }
+
+    // Clear per-life state that should not persist across a death: power-ups,
+    // stun, and held keys. Called at death (not respawn — once cleared, the
+    // player respawns with no power-ups regardless of when respawn fires).
+    pub fn clear_per_life_state(&mut self) {
+        self.speed_power_up_timer = 0.0;
+        self.multi_shot_power_up_timer = 0.0;
+        self.phasing_power_up_timer = 0.0;
+        self.anti_gravity_power_up_timer = 0.0;
+        self.stun_timer = 0.0;
+        self.held_keys.clear();
     }
 
     #[must_use]

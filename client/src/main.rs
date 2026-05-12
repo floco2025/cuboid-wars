@@ -25,13 +25,13 @@ use client::{
     },
     materials::generate_material_mipmaps_system,
     network::{
-        ClientToServerChannel, LastUpdateSeq, RoundTripTime, ServerToClientChannel, network_echo_system,
+        ClientToServerChannel, LastUpdateSeq, RoundTripTime, ServerToClientChannel, network_ping_system,
         network_io_task, network_process_server_messages_system,
     },
     players::{
-        LocalPlayerInfo, PlayerMap, local_player_camera_shake_system, local_player_camera_sync_system,
-        local_player_cuboid_shake_system, local_player_rearview_sync_system, local_player_rearview_viewport_system,
-        local_player_visibility_sync_system, players_transform_sync_system,
+        LocalPlayerInfo, PlayerMap, death_overlay_visibility_system, local_player_camera_shake_system,
+        local_player_camera_sync_system, local_player_cuboid_shake_system, local_player_rearview_sync_system,
+        local_player_rearview_viewport_system, local_player_visibility_sync_system, players_transform_sync_system,
     },
     projectiles::{LastBounceSoundTime, ProjectileAssets, projectiles_movement_system},
     skybox::{setup_skybox_from_cross_system, skybox_convert_cross_to_cubemap_system, skybox_update_camera_system},
@@ -181,8 +181,8 @@ fn main() -> Result<()> {
                 input_debug_colors_cycle_system,
             ),
         )
-        // Network consumes server messages and sends periodic echo requests.
-        .add_systems(Update, (network_echo_system, network_process_server_messages_system))
+        // Network consumes server messages and sends periodic ping requests.
+        .add_systems(Update, (network_ping_system, network_process_server_messages_system))
         // Character prediction updates local component state. Transform sync
         // then turns that state into rendered positions and smoothed rotation.
         .add_systems(
@@ -245,6 +245,7 @@ fn main() -> Result<()> {
                 ui_stunned_blink_system,
                 ui_rtt_system,
                 ui_fps_system,
+                death_overlay_visibility_system,
             ),
         )
         // Skybox asset conversion and camera following.
