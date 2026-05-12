@@ -25,8 +25,8 @@ use client::{
     },
     materials::generate_material_mipmaps_system,
     network::{
-        ClientToServerChannel, LastUpdateSeq, RoundTripTime, ServerToClientChannel, network_ping_system,
-        network_io_task, network_process_server_messages_system,
+        ClientToServerChannel, LastUpdateSeq, RoundTripTime, ServerToClientChannel, network_io_task,
+        network_ping_system, network_process_server_messages_system,
     },
     players::{
         LocalPlayerInfo, PlayerMap, death_overlay_visibility_system, local_player_camera_shake_system,

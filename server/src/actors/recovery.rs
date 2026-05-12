@@ -25,10 +25,7 @@ pub fn actor_removal_system(
     mut players: ResMut<PlayerMap>,
     server_gameplay_config: Res<ServerGameplayConfig>,
     gameplay_config: Res<GameplayConfig>,
-    mut player_query: Query<
-        (Entity, &PlayerId, &Position, &mut Health),
-        (With<PlayerMarker>, Without<ActorMarker>),
-    >,
+    mut player_query: Query<(Entity, &PlayerId, &Position, &mut Health), (With<PlayerMarker>, Without<ActorMarker>)>,
     mut query: ActorDeathQuery,
 ) {
     let mut deaths: Vec<ActorDeath> = Vec::new();

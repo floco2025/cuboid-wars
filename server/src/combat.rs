@@ -109,10 +109,7 @@ pub fn apply_actor_explosion_damage(
     damage_config: &ActorExplosionDamageConfig,
     gameplay_config: &GameplayConfig,
     players: &PlayerMap,
-    player_query: &mut Query<
-        (Entity, &PlayerId, &Position, &mut Health),
-        (With<PlayerMarker>, Without<ActorMarker>),
-    >,
+    player_query: &mut Query<(Entity, &PlayerId, &Position, &mut Health), (With<PlayerMarker>, Without<ActorMarker>)>,
     actor_query: &mut ActorDeathQuery,
 ) -> Vec<(PlayerId, Entity, Position)> {
     let actor_physics = gameplay_config.validated_actor(destroyed_spawn_kind).physics();
