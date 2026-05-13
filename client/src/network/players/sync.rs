@@ -220,7 +220,7 @@ fn spawn_snapshot_player(
             phasing_power_up: player.phasing_power_up,
             anti_gravity_power_up: player.anti_gravity_power_up,
             stunned: player.stunned,
-            held_keys: Vec::new(),
+            held_keys: player.held_keys.clone(),
         },
     );
 }
@@ -267,6 +267,9 @@ fn update_snapshot_player(
         client_player.speed_power_up = server_player.speed_power_up;
         client_player.multi_shot_power_up = server_player.multi_shot_power_up;
         client_player.phasing_power_up = server_player.phasing_power_up;
+        client_player.anti_gravity_power_up = server_player.anti_gravity_power_up;
+        client_player.stunned = server_player.stunned;
+        client_player.held_keys = server_player.held_keys.clone();
         commands.entity(client_player.entity).insert(server_player.health);
     }
 }

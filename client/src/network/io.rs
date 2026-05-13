@@ -77,6 +77,11 @@ pub fn network_process_server_messages_system(
                         &mut client_assets.seen_player_ids,
                     );
                 } else {
+                    // Pre-bootstrap messages can occasionally arrive before
+                    // `SInit` because each protocol message uses a separate
+                    // QUIC stream. They are safe to drop here: snapshots are
+                    // periodic full-state, and one-shot cues are paired with
+                    // snapshot fallback/idempotent handlers.
                     handle_init_message(message, &mut commands, &client_assets.barrier_kind_table);
                 }
             }

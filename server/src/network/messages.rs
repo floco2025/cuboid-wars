@@ -29,12 +29,9 @@ pub fn dispatch_message(
 ) {
     // Dead players have a despawned entity; queueing entity-targeted
     // commands against the stale `entity` would panic when Bevy applies the
-    // command buffer. Drop their in-flight gameplay messages but keep the
-    // ones that don't touch the entity (Logoff so disconnects still tear
-    // down cleanly, Ping so RTT measurement keeps working).
-    if players.get(&id).is_some_and(|info| info.is_dead())
-        && !matches!(msg, ClientMessage::Logoff(_) | ClientMessage::Ping(_))
-    {
+    // command buffer. Drop their in-flight gameplay messages but keep pings
+    // so RTT measurement keeps working through the respawn window.
+    if players.get(&id).is_some_and(|info| info.is_dead()) && !matches!(msg, ClientMessage::Ping(_)) {
         return;
     }
 
@@ -45,9 +42,6 @@ pub fn dispatch_message(
                 // Terminate the connection to enforce a single-login flow
                 let _ = player.channel.send(ServerToClient::Close);
             }
-        }
-        ClientMessage::Logoff(msg) => {
-            handle_logoff_message(commands, entity, id, msg, players);
         }
         ClientMessage::PlayerMoveIntent(msg) => {
             trace!("{:?} move intent: {:?}", id, msg);
@@ -93,17 +87,6 @@ pub fn dispatch_message(
 // ============================================================================
 // Message Handlers
 // ============================================================================
-
-// Handle logoff message. Other clients notice the absence on the next
-// `SSnapshot` snapshot — no explicit logoff event is broadcast.
-fn handle_logoff_message(commands: &mut Commands, entity: Entity, id: PlayerId, _msg: CLogoff, players: &PlayerMap) {
-    debug!("{:?} logged off", id);
-    // The entity is already despawned if the player was mid-death; avoid the
-    // redundant despawn that would panic on a stale handle.
-    if !players.get(&id).is_some_and(|info| info.is_dead()) {
-        commands.entity(entity).despawn();
-    }
-}
 
 // Handle move-input message.
 fn handle_move_intent_message(

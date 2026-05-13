@@ -19,6 +19,7 @@ use super::{
 };
 
 const TEST_KIND: &str = "mine_1";
+const TEST_DELTA: f32 = 0.1;
 
 fn assert_near(actual: f32, expected: f32) {
     assert!(
@@ -66,6 +67,11 @@ fn actor_speed() -> f32 {
         .actor(TEST_KIND)
         .expect("test kind in default gameplay config")
         .patrol_speed
+}
+
+fn actor_blocker_distance() -> f32 {
+    let physics = actor_physics();
+    physics.collider.width.max(physics.collider.depth) + actor_speed() * TEST_DELTA * 0.75
 }
 
 fn test_entity(index: u64) -> Entity {
@@ -118,7 +124,7 @@ fn context<'a>(
         pos,
         vertical_velocity: 0.0,
         actor_physics: actor_physics(),
-        delta: 0.1,
+        delta: TEST_DELTA,
         collision_world,
         planned_moves,
         actor_starts,
@@ -292,7 +298,14 @@ fn candidate_blocked_by_other_character_yields_before_wall_avoidance() {
     let pos = Position::default();
     let collision_world = collision_world(&[]);
     let planned_moves = [];
-    let actor_starts = [(test_entity(2), Position { x: 0.6, y: 0.0, z: 0.0 })];
+    let actor_starts = [(
+        test_entity(2),
+        Position {
+            x: actor_blocker_distance(),
+            y: 0.0,
+            z: 0.0,
+        },
+    )];
     let context = context(test_entity(1), &pos, &collision_world, &planned_moves, &actor_starts);
     let intent = ActorMoveIntent::Moving {
         direction: std::f32::consts::FRAC_PI_2,
@@ -331,9 +344,9 @@ fn character_blocked_steering_selects_idle_when_all_steering_options_are_blocked
             (
                 test_entity(index as u64 + 2),
                 Position {
-                    x: direction.sin() * 0.6,
+                    x: direction.sin() * actor_blocker_distance(),
                     y: 0.0,
-                    z: direction.cos() * 0.6,
+                    z: direction.cos() * actor_blocker_distance(),
                 },
             )
         })
@@ -362,7 +375,14 @@ fn character_blocked_steering_tries_sidestep_before_idling() {
     let pos = Position::default();
     let collision_world = collision_world(&[]);
     let planned_moves = [];
-    let actor_starts = [(test_entity(2), Position { x: 0.6, y: 0.0, z: 0.0 })];
+    let actor_starts = [(
+        test_entity(2),
+        Position {
+            x: actor_blocker_distance(),
+            y: 0.0,
+            z: 0.0,
+        },
+    )];
     let context = context(test_entity(1), &pos, &collision_world, &planned_moves, &actor_starts);
     let mut info = actor_info();
     let mut rng = rng();
@@ -442,7 +462,7 @@ fn committed_wall_avoidance_yields_when_blocked_by_character() {
         Position {
             x: -1.0,
             y: 0.0,
-            z: 0.6,
+            z: actor_blocker_distance(),
         },
     )];
     let context = context(test_entity(1), &pos, &collision_world, &planned_moves, &actor_starts);

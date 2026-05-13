@@ -5,6 +5,12 @@ use quinn::Connection;
 // ============================================================================
 // Message Stream Abstraction
 // ============================================================================
+//
+// Each message is sent on its own QUIC unidirectional stream. QUIC preserves
+// ordering within one stream, not across streams, so the application protocol
+// intentionally tolerates occasional cross-message reordering: snapshots are
+// full-state with sequence guards, and edge-triggered cues are paired with
+// snapshot fallback/idempotent handlers.
 
 pub struct MessageStream<'a> {
     connection: &'a Connection,

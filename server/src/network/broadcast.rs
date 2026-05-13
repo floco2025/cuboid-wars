@@ -60,6 +60,7 @@ pub fn snapshot_logged_in_players(
                     phasing_power_up: info.has_phasing(),
                     anti_gravity_power_up: info.has_anti_gravity(),
                     stunned: info.stun_timer > 0.0,
+                    held_keys: info.held_keys.clone(),
                 },
             ))
         })

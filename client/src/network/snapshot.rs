@@ -40,15 +40,18 @@ pub(super) fn handle_snapshot_message(
     gameplay_config: &GameplayConfig,
     msg: SSnapshot,
 ) {
-    if msg.seq <= last_snapshot_seq.0 {
+    if !last_snapshot_seq.should_accept(msg.seq) {
         warn!(
             "Ignoring outdated SSnapshot (seq: {}, last: {})",
-            msg.seq, last_snapshot_seq.0
+            msg.seq,
+            last_snapshot_seq
+                .last_raw()
+                .map_or_else(|| "none".to_string(), |seq| seq.to_string())
         );
         return;
     }
 
-    last_snapshot_seq.0 = msg.seq;
+    last_snapshot_seq.record(msg.seq);
 
     sync_players(
         commands,

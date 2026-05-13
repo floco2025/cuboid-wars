@@ -51,10 +51,6 @@ pub struct CLogin {
     pub name: String,
 }
 
-// Client to Server: Graceful disconnect notification.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct CLogoff {}
-
 // Client to Server: Local player's character movement intent update.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct CPlayerMoveIntent {
@@ -237,7 +233,6 @@ pub struct SPong {
 #[derive(Debug, Clone, Encode, Decode)]
 pub enum ClientMessage {
     Login(CLogin),
-    Logoff(CLogoff),
     PlayerMoveIntent(CPlayerMoveIntent),
     Jump(CJump),
     Face(CFace),

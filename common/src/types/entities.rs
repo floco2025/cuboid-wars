@@ -1,6 +1,9 @@
 use bincode::{Decode, Encode};
 
-use super::{ActorMoveIntent, ActorMovementState, Health, ItemType, PlayerMoveIntent, PlayerMovementState, Position};
+use super::{
+    ActorMoveIntent, ActorMovementState, BarrierKindId, Health, ItemType, PlayerMoveIntent, PlayerMovementState,
+    Position,
+};
 
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct Actor {
@@ -34,6 +37,7 @@ pub struct Player {
     pub phasing_power_up: bool,
     pub anti_gravity_power_up: bool,
     pub stunned: bool,
+    pub held_keys: Vec<BarrierKindId>,
 }
 
 impl Player {
@@ -57,6 +61,7 @@ impl Player {
             phasing_power_up: false,
             anti_gravity_power_up: false,
             stunned: false,
+            held_keys: Vec::new(),
         }
     }
 }
