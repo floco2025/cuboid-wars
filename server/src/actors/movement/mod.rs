@@ -3,6 +3,7 @@ mod context;
 mod ordering;
 mod planning;
 mod query;
+mod steering;
 
 #[cfg(test)]
 mod tests;

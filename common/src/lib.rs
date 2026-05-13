@@ -8,5 +8,4 @@ pub mod math;
 pub mod net;
 pub mod physics;
 pub mod protocol;
-pub mod spawning;
 pub mod types;

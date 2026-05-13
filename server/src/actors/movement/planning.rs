@@ -1,24 +1,22 @@
 use rand::{rng, rngs::ThreadRng};
 
 use crate::{
-    actors::{
-        behavior::random_patrol_move_intent,
-        network::broadcast_actor_move_intent,
-        steering::{actor_desired_intent, random_avoidance_side, steering_directions},
-    },
+    actors::behavior::random_patrol_move_intent,
     config::ServerGameplayConfig,
+    network::broadcast_to_all,
     resources::{ActorAvoidanceState, ActorInfo, ActorMap, PlayerMap},
 };
 use common::{
     config::GameplayConfig,
     physics::{CharacterMovePlan, CollisionWorld},
-    protocol::{ActorMoveIntent, Position},
+    protocol::{ActorId, ActorMoveIntent, ActorMovementState, Position, SActorMoveIntent, ServerMessage},
 };
 
 use super::{
     context::{ActorMoveContext, MoveCandidateResult, SelectedActorMove, horizontal_distance_sq},
     ordering::sorted_actor_plan_order,
     query::ActorMovementQuery,
+    steering::{actor_desired_intent, random_avoidance_side, steering_directions},
 };
 
 // Actor behavior decides what an actor wants: simple patrol or a remembered go-to
@@ -93,6 +91,22 @@ pub(crate) fn plan_actor_moves(
             actor_physics,
         ));
     }
+}
+
+fn broadcast_actor_move_intent(
+    players: &PlayerMap,
+    id: ActorId,
+    pos: Position,
+    move_intent: ActorMoveIntent,
+    vertical_velocity: f32,
+) {
+    broadcast_to_all(
+        players,
+        ServerMessage::ActorMoveIntent(SActorMoveIntent {
+            id,
+            movement: ActorMovementState::new(pos, move_intent, vertical_velocity),
+        }),
+    );
 }
 
 pub(super) fn update_reached_go_to_state(info: &mut ActorInfo) {

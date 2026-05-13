@@ -2,10 +2,8 @@ use bevy::prelude::*;
 
 use common::{
     constants::*,
-    physics::ProjectileMarker,
-    physics::{CollisionWorld, ProjectileMotion},
+    physics::{CollisionWorld, ProjectileMarker, ProjectileMotion, ProjectileSpawnInfo, calculate_projectile_spawns},
     protocol::*,
-    spawning::{ProjectileSpawnInfo, calculate_projectile_spawns},
 };
 
 // ============================================================================

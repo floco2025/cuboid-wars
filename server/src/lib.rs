@@ -5,7 +5,6 @@ pub mod config;
 pub mod constants;
 pub mod items;
 pub mod map;
-pub mod nav;
 pub mod net;
 pub mod network;
 pub mod players;

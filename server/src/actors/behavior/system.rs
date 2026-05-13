@@ -2,8 +2,8 @@ use bevy::prelude::*;
 use rand::rng;
 
 use crate::{
+    actors::navigation::NavGraph,
     config::ServerGameplayConfig,
-    nav::NavGraph,
     resources::{ActorMap, MapConfig, PlayerMap},
 };
 use common::{

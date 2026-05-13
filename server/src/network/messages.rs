@@ -7,9 +7,11 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    physics::{CharacterVerticalVelocity, CollisionWorld, ProjectileMarker, ProjectileMotion, try_start_player_jump},
+    physics::{
+        CharacterVerticalVelocity, CollisionWorld, ProjectileMarker, ProjectileMotion, calculate_projectile_spawns,
+        try_start_player_jump,
+    },
     protocol::*,
-    spawning::calculate_projectile_spawns,
 };
 
 // ============================================================================

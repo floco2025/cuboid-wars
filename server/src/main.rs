@@ -10,7 +10,10 @@ use tokio::{
 
 use common::{config::GameplayConfig, constants::TICK_HZ, physics::CollisionWorld};
 use server::{
-    actors::{actor_behavior_system, actor_initial_spawn_system, actor_removal_system, actor_respawn_system},
+    actors::{
+        actor_behavior_system, actor_initial_spawn_system, actor_removal_system, actor_respawn_system,
+        navigation::NavGraph,
+    },
     characters::{characters_health_regeneration_system, characters_movement_system},
     config::{ServerGameplayConfig, configure_server},
     items::{
@@ -18,7 +21,6 @@ use server::{
         key_initial_spawn_system,
     },
     map::generate_map,
-    nav::NavGraph,
     net::accept_connections_task,
     network::{
         network_accept_connections_system, network_broadcast_snapshot_system, network_process_client_messages_system,

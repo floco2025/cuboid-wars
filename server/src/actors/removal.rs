@@ -87,7 +87,15 @@ pub fn actor_removal_system(
                 info!("{:?} killed by {:?} explosion", player_id, death.id);
                 // Chain-explosion player kills aren't attributed to the
                 // actor's last damager — the explosion is environmental.
-                kill_player(&mut commands, &mut players, player_id, entity, pos, respawn_delay_secs, None);
+                kill_player(
+                    &mut commands,
+                    &mut players,
+                    player_id,
+                    entity,
+                    pos,
+                    respawn_delay_secs,
+                    None,
+                );
             }
         } else {
             info!("{:?} fell and despawned at {:?}", death.id, death.pos);
