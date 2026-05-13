@@ -110,6 +110,7 @@ pub fn sync_players(
     // Handle local-player respawn: if we were dead and our id reappeared in
     // this snapshot, hard-teleport our existing entity to the new spawn
     // position, restore visibility, and clear the death state.
+    let mut local_just_respawned = false;
     if local_player_info.is_dead
         && let Some((_, server_player)) = server_players.iter().find(|(id, _)| *id == my_player_id)
         && let Some(info) = players.get(&my_player_id)
@@ -124,10 +125,25 @@ pub fn sync_players(
             server_player.health,
             Visibility::Visible,
         ));
+        // Clear any stale `ServerReconciliation` that survived the death
+        // window — the next-snapshot `update_snapshot_player` call below is
+        // skipped for the local player this frame (see below), so without
+        // this remove() the recon component would linger pointing at the
+        // pre-death position.
+        commands.entity(info.entity).remove::<ServerReconciliation>();
         local_player_info.is_dead = false;
+        local_just_respawned = true;
     }
 
     for (id, server_player) in server_players {
+        // On the respawn frame the local player was just hard-teleported by
+        // the block above; the Query still sees the pre-respawn position,
+        // so handing it to `update_snapshot_player` would produce a huge
+        // bogus reconciliation delta. Skip them this snapshot — score and
+        // other fields update via the next snapshot.
+        if local_just_respawned && *id == my_player_id {
+            continue;
+        }
         update_snapshot_player(
             commands,
             players,
