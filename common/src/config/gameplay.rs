@@ -5,6 +5,7 @@ use bevy_ecs::prelude::Resource;
 use serde::Deserialize;
 
 use super::inheritance::resolve_actor_inheritance;
+use crate::constants::PHYSICS_EPSILON;
 
 const SUPPORTED_VERSION: u32 = 1;
 
@@ -182,7 +183,19 @@ impl CharacterColliderConfig {
         validate_positive_finite(self.height, &format!("{path}.height"))?;
         validate_positive_finite(self.depth, &format!("{path}.depth"))?;
         validate_non_negative_finite(self.y_offset, &format!("{path}.y_offset"))?;
-        validate_non_negative_finite(self.bottom_y_offset(), &format!("{path}.bottom_y_offset"))
+        // The collider's bottom must sit strictly above the entity origin
+        // (the floor at the character's feet). A bottom of zero leaves the
+        // bottom face coincident with the floor, which Rapier's ground-hit
+        // probe + autostep treat as a wall contact — the character cannot
+        // move at all. Resolve `y_offset` (the JSON field the author edits)
+        // upward in the error message.
+        let bottom = self.bottom_y_offset();
+        if !(bottom.is_finite() && bottom >= PHYSICS_EPSILON) {
+            bail!(
+                "{path}.y_offset puts the collider bottom at {bottom} — must be at least {PHYSICS_EPSILON} above the entity origin so it doesn't intersect the floor (raise `y_offset`, or switch `y_offset_anchor` to `center` with a larger offset)"
+            );
+        }
+        Ok(())
     }
 
     #[must_use]
