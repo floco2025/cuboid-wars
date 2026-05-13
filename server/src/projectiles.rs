@@ -156,7 +156,6 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                     && let Ok((target_pos, _, _, mut health)) = params.player_query.get_mut(target_entity)
                 {
                     let target_pos = *target_pos;
-                    info!("{:?} hits {:?}", shooter_id, player_id);
                     let was_lethal = apply_player_projectile_hit(
                         &mut params.players,
                         shooter_id,
@@ -195,7 +194,6 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                     }
 
                     let info = params.actors.get(id).expect("actor in query missing from ActorMap");
-                    info!("{:?} hits {:?}", shooter_id, actor_id);
                     apply_actor_projectile_hit(
                         &mut params.players,
                         shooter_id,

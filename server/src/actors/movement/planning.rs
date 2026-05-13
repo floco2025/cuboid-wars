@@ -3,7 +3,7 @@ use rand::{rng, rngs::ThreadRng};
 use crate::{
     actors::{
         behavior::random_patrol_move_intent,
-        network::maybe_broadcast_actor_move_intent,
+        network::broadcast_actor_move_intent,
         steering::{actor_desired_intent, random_avoidance_side, steering_directions},
     },
     config::ServerGameplayConfig,
@@ -50,7 +50,6 @@ pub(crate) fn plan_actor_moves(
         let kind_server_config = server_gameplay_config.validated_actor(&info.spawn_kind);
         let actor_physics = actor_config.physics();
         let current_pos = *pos;
-        info.move_intent_send_timer += delta;
         let go_to_intent = actor_desired_intent(
             &mut info.go_to_position,
             &current_pos,
@@ -75,11 +74,17 @@ pub(crate) fn plan_actor_moves(
             select_patrol_actor_move(&move_context, info, actor_config.patrol_speed, &mut rng)
         };
 
+        // The ECS `move_intent` holds the last-committed (last-broadcast)
+        // value. Any change of any size is a real motion change (AI is
+        // deterministic, no sensor noise) so broadcast on every difference.
+        let committed_this_tick = *move_intent != selected_move.intent;
         *move_intent = selected_move.intent;
         if let Some(direction) = selected_move.intent.direction() {
             face_dir.0 = direction;
         }
-        maybe_broadcast_actor_move_intent(players, *id, current_pos, selected_move.intent, motion.0, info);
+        if committed_this_tick {
+            broadcast_actor_move_intent(players, *id, current_pos, selected_move.intent, motion.0);
+        }
 
         planned_moves.push(CharacterMovePlan::from_movement_result(
             entity,

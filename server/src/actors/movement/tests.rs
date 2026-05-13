@@ -48,8 +48,6 @@ fn actor_info() -> ActorInfo {
         return_path: Default::default(),
         chase_reacquire_timer: 0.0,
         avoidance_state: ActorAvoidanceState::None,
-        last_broadcast_move_intent: ActorMoveIntent::Idle,
-        move_intent_send_timer: 0.0,
     }
 }
 
@@ -170,8 +168,6 @@ fn actor_without_go_to_position_plans_after_targeted_actor() {
         return_path: Default::default(),
         chase_reacquire_timer: 0.0,
         avoidance_state: ActorAvoidanceState::None,
-        last_broadcast_move_intent: ActorMoveIntent::Idle,
-        move_intent_send_timer: 0.0,
     };
 
     assert!(actor_target_distance_sq(&pos, Some(&targeted)).is_finite());

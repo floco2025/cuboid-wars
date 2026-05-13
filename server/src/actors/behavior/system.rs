@@ -149,8 +149,6 @@ mod tests {
             return_path: Default::default(),
             chase_reacquire_timer,
             avoidance_state: ActorAvoidanceState::None,
-            last_broadcast_move_intent: ActorMoveIntent::Idle,
-            move_intent_send_timer: 0.0,
         }
     }
 

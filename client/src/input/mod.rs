@@ -1,7 +1,9 @@
+mod commit;
 mod movement;
 mod shooting;
 mod toggles;
 
+pub use commit::commit_player_input_system;
 pub use movement::input_movement_system;
 pub use shooting::input_shooting_system;
 pub use toggles::{

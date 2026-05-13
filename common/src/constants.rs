@@ -38,6 +38,17 @@ pub const LEVEL_CLASSIFICATION_TOLERANCE: f32 = 0.5;
 pub const UPDATE_BROADCAST_INTERVAL: f32 = 0.25;
 
 // ============================================================================
+// Game Tick
+// ============================================================================
+
+// Shared game tick rate. Drives the server simulation loop, the client's
+// physics-prediction `FixedUpdate`, server actor-AI decisions, and client
+// player-input commits. Lower = less CPU and bandwidth, higher = more
+// responsive AI and input.
+pub const TICK_HZ: u32 = 30;
+pub const TICK_PERIOD_SECS: f32 = 1.0 / TICK_HZ as f32;
+
+// ============================================================================
 // Physics
 // ============================================================================
 

@@ -65,8 +65,6 @@ pub struct LocalPlayerInfo {
     pub last_shot_time: f32,
     pub last_sent_move_intent: PlayerMoveIntent,
     pub last_sent_face: f32,
-    pub last_send_input_time: f32,
-    pub last_send_face_time: f32,
     pub stored_yaw: f32,
     pub stored_pitch: f32,
     // True from the moment the local player vanishes from `SUpdate` until
@@ -81,8 +79,6 @@ impl Default for LocalPlayerInfo {
             last_shot_time: f32::NEG_INFINITY,
             last_sent_move_intent: PlayerMoveIntent::default(),
             last_sent_face: 0.0,
-            last_send_input_time: 0.0,
-            last_send_face_time: 0.0,
             stored_yaw: 0.0,
             stored_pitch: 0.0,
             is_dead: false,

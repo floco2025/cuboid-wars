@@ -8,7 +8,7 @@ use tokio::{
     time::{self, Duration, Instant, MissedTickBehavior},
 };
 
-use common::{config::GameplayConfig, physics::CollisionWorld};
+use common::{config::GameplayConfig, constants::TICK_HZ, physics::CollisionWorld};
 use server::{
     actors::{actor_behavior_system, actor_initial_spawn_system, actor_removal_system, actor_respawn_system},
     characters::{characters_health_regeneration_system, characters_movement_system},
@@ -28,7 +28,6 @@ use server::{
     resources::*,
 };
 
-const SERVER_LOOP_FREQUENCY: u64 = 30;
 const LOG_FILTER: &str = "wgpu=error,naga=warn";
 
 // ============================================================================
@@ -149,7 +148,7 @@ async fn main() -> Result<()> {
     info!("starting ECS server loop...");
 
     // Run the app in a loop manually at LOOP_FREQUENCY Hz
-    let tick_duration = Duration::from_nanos(1_000_000_000 / SERVER_LOOP_FREQUENCY);
+    let tick_duration = Duration::from_nanos(1_000_000_000 / u64::from(TICK_HZ));
     let mut interval = time::interval(tick_duration);
     interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
 

@@ -28,8 +28,6 @@ pub struct ActorInfo {
     pub return_path: VecDeque<Position>,
     pub chase_reacquire_timer: f32,
     pub avoidance_state: ActorAvoidanceState,
-    pub last_broadcast_move_intent: ActorMoveIntent,
-    pub move_intent_send_timer: f32,
 }
 
 #[derive(Resource, Default)]

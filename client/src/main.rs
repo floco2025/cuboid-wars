@@ -15,8 +15,9 @@ use client::{
     characters::{capture_previous_tick_position_system, characters_movement_system, characters_visual_turn_system},
     config::{AssetSet, OpaqueRenderer, RenderSettings, configure_client},
     input::{
-        input_camera_view_toggle_system, input_cursor_toggle_system, input_debug_colors_cycle_system,
-        input_fullscreen_toggle_system, input_level_focus_toggle_system, input_movement_system, input_shooting_system,
+        commit_player_input_system, input_camera_view_toggle_system, input_cursor_toggle_system,
+        input_debug_colors_cycle_system, input_fullscreen_toggle_system, input_level_focus_toggle_system,
+        input_movement_system, input_shooting_system,
     },
     items::{ItemMap, items_animation_system, keys_rotate_system, setup_item_assets},
     map::{
@@ -43,7 +44,7 @@ use client::{
     },
     vfx::explosion_effects_system,
 };
-use common::{config::GameplayConfig, net::MessageStream, protocol::*};
+use common::{config::GameplayConfig, constants::TICK_HZ, net::MessageStream, protocol::*};
 
 // ============================================================================
 // CLI Arguments
@@ -136,9 +137,10 @@ fn main() -> Result<()> {
         OpaqueRenderer::Deferred => DefaultOpaqueRendererMethod::deferred(),
     });
 
-    // Run client physics at the server's fixed 30 Hz tick. Render-time
-    // interpolation in the transform-sync systems hides the step rate.
-    app.insert_resource(Time::<Fixed>::from_hz(30.0));
+    // Run client physics at the shared `TICK_HZ` tick (matches the server).
+    // Render-time interpolation in the transform-sync systems hides the step
+    // rate.
+    app.insert_resource(Time::<Fixed>::from_hz(f64::from(TICK_HZ)));
 
     app.insert_resource(ClientToServerChannel::new(to_server))
         .insert_resource(ServerToClientChannel::new(from_server))
@@ -187,12 +189,19 @@ fn main() -> Result<()> {
         )
         // Network consumes server messages and sends periodic ping requests.
         .add_systems(Update, (network_ping_system, network_process_server_messages_system))
-        // Character prediction runs at a fixed 30 Hz tick to match the
-        // server. The capture system stamps `PreviousTickPosition` before
-        // movement so the render-rate transform sync can interpolate.
+        // Character prediction runs at the shared `TICK_HZ` tick. The
+        // commit system sends the player's input to the server before
+        // physics consumes it (so what physics simulates is what was sent).
+        // The capture system stamps `PreviousTickPosition` before movement
+        // so the render-rate transform sync can interpolate.
         .add_systems(
             FixedUpdate,
-            (capture_previous_tick_position_system, characters_movement_system).chain(),
+            (
+                commit_player_input_system,
+                capture_previous_tick_position_system,
+                characters_movement_system,
+            )
+                .chain(),
         )
         // Transform sync runs every render frame and lerps between the last
         // two ticks' positions so motion looks smooth above 30 Hz.

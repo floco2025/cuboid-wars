@@ -20,16 +20,18 @@ pub const REARVIEW_MARGIN: f32 = 0.02; // Margin from edge as ratio of screen si
 pub const MOUSE_SENSITIVITY: f32 = 0.002; // radians per pixel
 
 // ============================================================================
-// Network Throttling
+// Input Commit
 // ============================================================================
-
-// Move-input updates
-pub const MOVE_INPUT_SEND_COOLDOWN: f32 = 0.05;
-pub const MOVE_INPUT_DIR_CHANGE_THRESHOLD: f32 = 1.0; // degrees
-
-// Face direction updates
-pub const FACE_SEND_COOLDOWN: f32 = 0.1;
-pub const FACE_CHANGE_THRESHOLD: f32 = 2.0; // degrees
+//
+// Player input is sampled at render rate (smooth camera) and committed once
+// per game tick (`common::constants::TICK_HZ`) in `commit_player_input_system`.
+// The tick rate alone gates send frequency; this threshold filters mouse-
+// sensor / hand jitter below a meaningful direction change.
+//
+// 1° at 10 m is ~17 cm of visual offset — well below human aim resolution.
+// State transitions (idle ↔ moving, walk ↔ run, jump) bypass the threshold
+// and always commit.
+pub const ANGLE_COMMIT_THRESHOLD_DEGREES: f32 = 1.0;
 
 // Round-trip time — interval between ping requests sent to the server.
 pub const PING_INTERVAL: f32 = 10.0;

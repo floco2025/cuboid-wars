@@ -6,17 +6,13 @@ use bevy::{
 };
 use common::{
     config::GameplayConfig,
-    math::angle_delta_radians,
     physics::{CharacterVerticalVelocity, CollisionWorld, try_start_player_jump},
-    protocol::{CFace, CJump, CPlayerMoveIntent, ClientMessage, FaceDirection, PlayerMoveIntent, Position},
+    protocol::{CJump, ClientMessage, FaceDirection, PlayerMoveIntent, Position},
 };
 
 use crate::{
     cameras::{CameraViewMode, MainCameraMarker, TopDownCameraYaw},
-    constants::{
-        FACE_CHANGE_THRESHOLD, FACE_SEND_COOLDOWN, MOUSE_SENSITIVITY, MOVE_INPUT_DIR_CHANGE_THRESHOLD,
-        MOVE_INPUT_SEND_COOLDOWN,
-    },
+    constants::MOUSE_SENSITIVITY,
     network::{ClientToServer, ClientToServerChannel},
     players::{LocalPlayerInfo, LocalPlayerMarker, MyPlayerId, PlayerMap},
 };
@@ -35,13 +31,17 @@ type LocalPlayerInputQuery<'w, 's> = Query<
     With<LocalPlayerMarker>,
 >;
 
-// Handle WASD movement and mouse rotation.
+// Handle WASD movement and mouse rotation at render rate. Writes
+// `PlayerMoveIntent` and `FaceDirection` to the local-player ECS components
+// continuously so the camera and local prediction stay smooth; the network
+// commit happens once per game tick in `commit_player_input_system`. Jumps
+// are sent immediately on key-press — discrete events feel best with no
+// commit-tick latency.
 pub fn input_movement_system(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut mouse_motion: MessageReader<MouseMotion>,
     cursor_options: Single<&CursorOptions>,
     to_server: Res<ClientToServerChannel>,
-    time: Res<Time>,
     my_player_id: Option<Res<MyPlayerId>>,
     players: Res<PlayerMap>,
     mut local_player_info: ResMut<LocalPlayerInfo>,
@@ -52,9 +52,10 @@ pub fn input_movement_system(
     collision_world: Option<Res<CollisionWorld>>,
     gameplay_config: Res<GameplayConfig>,
 ) {
-    // Wait for the local player entity to exist before sampling input or sending updates.
-    // Otherwise we'd compute a face direction from the default camera transform and
-    // broadcast it to the server, overwriting the authoritative spawn-time facing.
+    // Wait for the local player entity to exist before sampling input.
+    // Otherwise we'd compute a face direction from the default camera
+    // transform and write it to ECS, overwriting the authoritative spawn-time
+    // facing.
     if local_player_query.is_empty() {
         for _ in mouse_motion.read() {}
         return;
@@ -62,12 +63,12 @@ pub fn input_movement_system(
 
     let cursor_locked = cursor_options.grab_mode != CursorGrabMode::None;
     if !cursor_locked {
-        handle_unlocked_cursor(
-            &mut mouse_motion,
-            &to_server,
-            &mut local_player_info,
-            &mut local_player_query,
-        );
+        // Drain mouse events and force idle intent locally; the commit
+        // system will pick it up at the next tick boundary.
+        for _ in mouse_motion.read() {}
+        for (_, mut input, _, _) in local_player_query.iter_mut() {
+            *input = PlayerMoveIntent::Idle;
+        }
         return;
     }
 
@@ -93,39 +94,16 @@ pub fn input_movement_system(
         &mut local_player_query,
     );
 
-    send_throttled_updates(
-        move_intent,
-        face_yaw,
-        jump_requested,
-        &time,
-        &to_server,
-        &mut local_player_info,
-    );
+    // Jump is event-shaped, sent immediately. Move-intent and face are state,
+    // sent by the per-tick commit system.
+    if jump_requested {
+        let _ = to_server.send(ClientToServer::Send(ClientMessage::Jump(CJump {})));
+    }
 
     if view_mode.is_first_person() {
         for mut transform in &mut camera_query {
             transform.rotation = Quat::from_euler(EulerRot::YXZ, current_yaw, current_pitch, 0.0);
         }
-    }
-}
-
-fn handle_unlocked_cursor(
-    mouse_motion: &mut MessageReader<MouseMotion>,
-    to_server: &Res<ClientToServerChannel>,
-    local_player_info: &mut LocalPlayerInfo,
-    local_player_query: &mut LocalPlayerInputQuery,
-) {
-    for _ in mouse_motion.read() {}
-
-    if local_player_info.last_sent_move_intent.direction().is_some() {
-        let idle = PlayerMoveIntent::Idle;
-        for (_, mut input, _, _) in local_player_query.iter_mut() {
-            *input = idle;
-        }
-        let msg = ClientMessage::PlayerMoveIntent(CPlayerMoveIntent { move_intent: idle });
-        let _ = to_server.send(ClientToServer::Send(msg));
-        local_player_info.last_sent_move_intent = idle;
-        local_player_info.last_send_input_time = 0.0;
     }
 }
 
@@ -233,49 +211,3 @@ fn update_player_input_face_and_jump(
     }
 }
 
-fn send_throttled_updates(
-    move_intent: PlayerMoveIntent,
-    face_yaw: f32,
-    jump_requested: bool,
-    time: &Res<Time>,
-    to_server: &Res<ClientToServerChannel>,
-    local_player_info: &mut LocalPlayerInfo,
-) {
-    let delta = time.delta_secs();
-    local_player_info.last_send_input_time += delta;
-    local_player_info.last_send_face_time += delta;
-
-    let last_dir = local_player_info.last_sent_move_intent.direction();
-    let new_dir = move_intent.direction();
-    let active_changed = last_dir.is_some() != new_dir.is_some();
-    let mode_changed = move_intent.is_running() != local_player_info.last_sent_move_intent.is_running();
-    let direction_changed = match (new_dir, last_dir) {
-        (Some(new_d), Some(old_d)) => {
-            angle_delta_radians(new_d, old_d).abs() > MOVE_INPUT_DIR_CHANGE_THRESHOLD.to_radians()
-        }
-        _ => false,
-    };
-    if active_changed
-        || mode_changed
-        || (direction_changed && local_player_info.last_send_input_time >= MOVE_INPUT_SEND_COOLDOWN)
-    {
-        let msg = ClientMessage::PlayerMoveIntent(CPlayerMoveIntent { move_intent });
-        let _ = to_server.send(ClientToServer::Send(msg));
-        local_player_info.last_sent_move_intent = move_intent;
-        local_player_info.last_send_input_time = 0.0;
-    }
-
-    let face_changed =
-        angle_delta_radians(face_yaw, local_player_info.last_sent_face).abs() > FACE_CHANGE_THRESHOLD.to_radians();
-    if face_changed && local_player_info.last_send_face_time >= FACE_SEND_COOLDOWN {
-        let msg = ClientMessage::Face(CFace { dir: face_yaw });
-        let _ = to_server.send(ClientToServer::Send(msg));
-        local_player_info.last_sent_face = face_yaw;
-        local_player_info.last_send_face_time = 0.0;
-    }
-
-    if jump_requested {
-        let msg = ClientMessage::Jump(CJump {});
-        let _ = to_server.send(ClientToServer::Send(msg));
-    }
-}

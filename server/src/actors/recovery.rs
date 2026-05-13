@@ -79,7 +79,6 @@ pub fn actor_removal_system(
                     pos: death.pos,
                 }),
             );
-            info!("{:?} was destroyed at {:?}", death.id, death.pos);
             for (player_id, entity, pos) in dead_players {
                 info!("{:?} killed by {:?} explosion", player_id, death.id);
                 kill_player(&mut commands, &mut players, player_id, entity, pos, respawn_delay_secs);

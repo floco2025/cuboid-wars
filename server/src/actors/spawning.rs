@@ -5,7 +5,6 @@ use crate::{
     actors::behavior::random_direction_time,
     characters::generate_actor_spawn_position_in_zone,
     config::ServerGameplayConfig,
-    constants::ACTOR_MOVE_INTENT_SEND_COOLDOWN,
     resources::{ActorAvoidanceState, ActorInfo, ActorMap, ActorSpawnThrottles, ActorSpawner, MapConfig},
 };
 use common::{
@@ -209,8 +208,6 @@ fn spawn_actor_in_zone(
             return_path: Default::default(),
             chase_reacquire_timer: 0.0,
             avoidance_state: ActorAvoidanceState::None,
-            last_broadcast_move_intent: move_intent,
-            move_intent_send_timer: ACTOR_MOVE_INTENT_SEND_COOLDOWN,
         },
     );
 }
