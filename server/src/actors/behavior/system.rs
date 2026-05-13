@@ -44,11 +44,18 @@ pub fn actor_behavior_system(
         let kind_server_config = server_gameplay_config.validated_actor(&info.spawn_kind);
         let chase_reacquire_blocked = tick_chase_reacquire_timer(info, delta);
 
-        // Wander limit: if the actor has strayed past `max_wander_distance`
+        // Leash: if the actor has strayed past the configured leash distance
         // from the nearest edge of its spawn zone, override everything else,
-        // start the chase reacquire cooldown when applicable, and walk it back.
+        // start the chase reacquire cooldown when applicable, and walk it
+        // back. The patrol and chase leashes are independent so a predator
+        // can pursue a fleeing player past its normal roam.
         let zone_bounds = map_config.actor_spawn_zones[info.spawn_zone_index].xz_bounds(&map_geometry);
-        if xz_distance_from_rect(pos, zone_bounds) > kind_server_config.wander.max_distance {
+        let leash = if info.go_to_position_is_chase {
+            kind_server_config.chase.leash
+        } else {
+            kind_server_config.patrol.leash
+        };
+        if xz_distance_from_rect(pos, zone_bounds) > leash {
             if !info.is_returning_to_spawn {
                 start_chase_reacquire_cooldown_if_chasing(info, kind_server_config.senses.chase_reacquire_cooldown);
                 set_return_path_to_spawn_zone(
@@ -94,7 +101,7 @@ pub fn actor_behavior_system(
         info.patrol_intent = random_patrol_intent(
             &mut rng,
             actor_config.patrol_speed,
-            kind_server_config.wander.idle_probability,
+            kind_server_config.patrol.idle_probability,
         );
     }
 }

@@ -97,13 +97,15 @@ impl PlayerServerConfig {
 
 // Server-side per-actor-kind tuning. Fields are grouped by concern so the
 // JSON reads as a self-documenting outline; cross-cutting numbers (combat,
-// senses, navigation, wander, respawn) don't get jumbled into one flat list.
+// senses, navigation, patrol, chase, respawn) don't get jumbled into one
+// flat list.
 #[derive(Debug, Clone, Deserialize)]
 pub struct ActorKindServerConfig {
     pub respawn: ActorRespawnConfig,
     pub combat: ActorCombatConfig,
     pub senses: ActorSensesConfig,
-    pub wander: ActorWanderConfig,
+    pub patrol: ActorPatrolConfig,
+    pub chase: ActorChaseConfig,
     pub navigation: ActorNavigationConfig,
 }
 
@@ -112,7 +114,8 @@ impl ActorKindServerConfig {
         self.respawn.validate(&format!("{path}.respawn"))?;
         self.combat.validate(&format!("{path}.combat"))?;
         self.senses.validate(&format!("{path}.senses"))?;
-        self.wander.validate(&format!("{path}.wander"))?;
+        self.patrol.validate(&format!("{path}.patrol"))?;
+        self.chase.validate(&format!("{path}.chase"))?;
         self.navigation.validate(&format!("{path}.navigation"))
     }
 }
@@ -181,25 +184,41 @@ impl ActorSensesConfig {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct ActorWanderConfig {
-    // Maximum xz-distance (meters) from the spawn zone's nearest edge before
-    // the actor is considered out of bounds and walks home. Inside the zone
-    // counts as 0.
-    pub max_distance: f32,
+pub struct ActorPatrolConfig {
+    // Maximum xz-distance (meters) from the spawn zone's nearest edge a
+    // patrolling actor may stray before it breaks off and walks home.
+    // Inside the zone counts as 0.
+    pub leash: f32,
     pub min_direction_time: f32,
     pub max_direction_time: f32,
     pub idle_probability: f32,
 }
 
-impl ActorWanderConfig {
+impl ActorPatrolConfig {
     fn validate(&self, path: &str) -> Result<()> {
-        validate_positive_finite(self.max_distance, &format!("{path}.max_distance"))?;
+        validate_positive_finite(self.leash, &format!("{path}.leash"))?;
         validate_positive_finite(self.min_direction_time, &format!("{path}.min_direction_time"))?;
         validate_positive_finite(self.max_direction_time, &format!("{path}.max_direction_time"))?;
         if self.min_direction_time > self.max_direction_time {
             bail!("{path}.min_direction_time must be <= {path}.max_direction_time");
         }
         validate_probability(self.idle_probability, &format!("{path}.idle_probability"))
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ActorChaseConfig {
+    // Maximum xz-distance (meters) from the spawn zone's nearest edge a
+    // chasing actor may stray before it breaks off the chase (triggering
+    // `senses.chase_reacquire_cooldown`) and walks home. Typically larger
+    // than `patrol.leash` so a predator can pursue a fleeing player past
+    // its normal roam.
+    pub leash: f32,
+}
+
+impl ActorChaseConfig {
+    fn validate(&self, path: &str) -> Result<()> {
+        validate_positive_finite(self.leash, &format!("{path}.leash"))
     }
 }
 
