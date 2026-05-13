@@ -2,10 +2,7 @@ use bevy::prelude::*;
 
 use crate::{
     config::ServerGameplayConfig,
-    constants::{
-        COOKIE_RESPAWN_TIME, ITEM_COLLECTION_RADIUS, KEY_RESPAWN_TIME, POWER_UP_ANTI_GRAVITY_DURATION,
-        POWER_UP_MULTI_SHOT_DURATION, POWER_UP_PHASING_DURATION, POWER_UP_SPEED_DURATION,
-    },
+    constants::{COOKIE_RESPAWN_TIME, ITEM_COLLECTION_RADIUS, KEY_RESPAWN_TIME},
     net::ServerToClient,
     network::broadcast_to_all,
     resources::{ItemMap, PlayerMap},
@@ -151,12 +148,6 @@ fn collect_power_up(
     let Some(player_info) = players.get_mut(&player_id) else {
         return;
     };
-    match item_type {
-        ItemType::SpeedPowerUp => player_info.speed_power_up_timer = POWER_UP_SPEED_DURATION,
-        ItemType::MultiShotPowerUp => player_info.multi_shot_power_up_timer = POWER_UP_MULTI_SHOT_DURATION,
-        ItemType::PhasingPowerUp => player_info.phasing_power_up_timer = POWER_UP_PHASING_DURATION,
-        ItemType::AntiGravityPowerUp => player_info.anti_gravity_power_up_timer = POWER_UP_ANTI_GRAVITY_DURATION,
-        ItemType::Cookie | ItemType::Key(_) => unreachable!("dispatch routes these elsewhere"),
-    }
+    player_info.grant_power_up(item_type);
     status_broadcasts.push(player_info.status(player_id));
 }

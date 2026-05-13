@@ -1,10 +1,12 @@
 use bevy::prelude::*;
 
 use super::broadcast::broadcast_to_others;
-use crate::{net::ServerToClient, resources::PlayerMap};
+use crate::{
+    net::ServerToClient,
+    resources::{PlayerInfo, PlayerMap},
+};
 use common::{
     config::GameplayConfig,
-    constants::{ALWAYS_MULTI_SHOT, PROJECTILE_COOLDOWN_TIME},
     physics::{CharacterVerticalVelocity, CollisionWorld, ProjectileMarker, ProjectileMotion, try_start_player_jump},
     protocol::*,
     spawning::calculate_projectile_spawns,
@@ -125,7 +127,7 @@ fn handle_jump_message(
     collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
 ) {
-    if players.get(&id).is_some_and(|info| info.stun_timer > 0.0) {
+    if players.get(&id).is_some_and(PlayerInfo::is_stunned) {
         return;
     }
 
@@ -183,18 +185,8 @@ fn handle_shot_message(
 ) {
     let now = time.elapsed_secs();
 
-    let has_multi_shot = {
-        let Some(player_info) = players.get_mut(&id) else {
-            return;
-        };
-
-        if now - player_info.last_shot_time < PROJECTILE_COOLDOWN_TIME {
-            return; // Throttled: ignore
-        }
-
-        player_info.last_shot_time = now;
-
-        ALWAYS_MULTI_SHOT || player_info.multi_shot_power_up_timer > 0.0
+    let Some(has_multi_shot) = players.get_mut(&id).and_then(|info| info.try_start_shot(now)) else {
+        return;
     };
 
     // Update the shooter's face direction to exact facing direction

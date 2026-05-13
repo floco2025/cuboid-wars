@@ -5,7 +5,7 @@ use common::{
     physics::{
         CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, overlapping_character, step_character_movement,
     },
-    protocol::{ActorMarker, PlayerId, PlayerMarker, PlayerMoveIntent, Position},
+    protocol::{ActorMarker, BarrierKindId, PlayerId, PlayerMarker, PlayerMoveIntent, Position},
 };
 
 use crate::{
@@ -82,7 +82,7 @@ fn plan_player_moves(
     let player_config = &gameplay_config.player;
     let player_physics = player_config.physics();
     for (entity, pos, motion, move_intent, player_id) in query.iter() {
-        let is_stunned = players.get(player_id).is_some_and(|info| info.stun_timer > 0.0);
+        let is_stunned = players.get(player_id).is_some_and(PlayerInfo::is_stunned);
         let has_speed_power_up = players.get(player_id).is_some_and(PlayerInfo::has_speed);
         let velocity =
             move_intent.to_horizontal_velocity(player_config.walk_speed, player_config.run_speed, has_speed_power_up);
@@ -102,8 +102,7 @@ fn plan_player_moves(
 
         let has_phasing = players.get(player_id).is_some_and(PlayerInfo::has_phasing);
         let has_anti_gravity = players.get(player_id).is_some_and(PlayerInfo::has_anti_gravity);
-        let held_keys: &[common::protocol::BarrierKindId] =
-            players.get(player_id).map_or(&[], |info| info.held_keys.as_slice());
+        let held_keys: &[BarrierKindId] = players.get(player_id).map_or(&[], PlayerInfo::held_keys);
         let step = step_character_movement(
             pos,
             motion.0,

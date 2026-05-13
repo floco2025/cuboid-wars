@@ -3,11 +3,18 @@ use std::collections::HashMap;
 use bevy::prelude::*;
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::net::ServerToClient;
+use crate::{
+    constants::{
+        POWER_UP_ANTI_GRAVITY_DURATION, POWER_UP_MULTI_SHOT_DURATION, POWER_UP_PHASING_DURATION,
+        POWER_UP_SPEED_DURATION,
+    },
+    net::ServerToClient,
+};
 use common::{
-    constants::{ALWAYS_ANTI_GRAVITY, ALWAYS_MULTI_SHOT, ALWAYS_PHASING, ALWAYS_SPEED},
+    constants::{ALWAYS_ANTI_GRAVITY, ALWAYS_MULTI_SHOT, ALWAYS_PHASING, ALWAYS_SPEED, PROJECTILE_COOLDOWN_TIME},
     protocol::{
-        BarrierKindId, Health, Player, PlayerId, PlayerMoveIntent, PlayerMovementState, Position, SPlayerStatus,
+        BarrierKindId, Health, ItemType, Player, PlayerId, PlayerMoveIntent, PlayerMovementState, Position,
+        SPlayerStatus,
     },
 };
 
@@ -59,6 +66,11 @@ impl PlayerInfo {
         self.death_timer.is_some()
     }
 
+    #[must_use]
+    pub fn is_stunned(&self) -> bool {
+        self.stun_timer > 0.0
+    }
+
     // Clear per-life state that should not persist across a death: power-ups,
     // stun, keys, and shot cooldown. Score is intentionally preserved.
     pub fn clear_per_life_state(&mut self) {
@@ -76,6 +88,11 @@ impl PlayerInfo {
     #[must_use]
     pub fn has_key(&self, kind: BarrierKindId) -> bool {
         self.held_keys.binary_search(&kind).is_ok()
+    }
+
+    #[must_use]
+    pub fn held_keys(&self) -> &[BarrierKindId] {
+        &self.held_keys
     }
 
     // Insert the kind into `held_keys`, keeping it sorted; returns `true` if
@@ -111,6 +128,24 @@ impl PlayerInfo {
         ALWAYS_ANTI_GRAVITY || self.anti_gravity_power_up_timer > 0.0
     }
 
+    pub fn grant_power_up(&mut self, item_type: ItemType) {
+        match item_type {
+            ItemType::SpeedPowerUp => self.speed_power_up_timer = POWER_UP_SPEED_DURATION,
+            ItemType::MultiShotPowerUp => self.multi_shot_power_up_timer = POWER_UP_MULTI_SHOT_DURATION,
+            ItemType::PhasingPowerUp => self.phasing_power_up_timer = POWER_UP_PHASING_DURATION,
+            ItemType::AntiGravityPowerUp => self.anti_gravity_power_up_timer = POWER_UP_ANTI_GRAVITY_DURATION,
+            ItemType::Cookie | ItemType::Key(_) => unreachable!("only power-up items grant power-up timers"),
+        }
+    }
+
+    pub fn try_start_shot(&mut self, now: f32) -> Option<bool> {
+        if now - self.last_shot_time < PROJECTILE_COOLDOWN_TIME {
+            return None;
+        }
+        self.last_shot_time = now;
+        Some(self.has_multi_shot())
+    }
+
     #[must_use]
     pub fn status(&self, id: PlayerId) -> SPlayerStatus {
         SPlayerStatus {
@@ -119,7 +154,7 @@ impl PlayerInfo {
             multi_shot_power_up: self.has_multi_shot(),
             phasing_power_up: self.has_phasing(),
             anti_gravity_power_up: self.has_anti_gravity(),
-            stunned: self.stun_timer > 0.0,
+            stunned: self.is_stunned(),
             held_keys: self.held_keys.clone(),
         }
     }
@@ -143,7 +178,7 @@ impl PlayerInfo {
             multi_shot_power_up: self.has_multi_shot(),
             phasing_power_up: self.has_phasing(),
             anti_gravity_power_up: self.has_anti_gravity(),
-            stunned: self.stun_timer > 0.0,
+            stunned: self.is_stunned(),
             held_keys: self.held_keys.clone(),
         }
     }
@@ -240,6 +275,37 @@ mod tests {
         let (decoded, _): (SPlayerStatus, _) = bincode::decode_from_slice(&encoded, standard()).expect("decode");
         assert_eq!(decoded.held_keys, vec![BarrierKindId(1), BarrierKindId(3)]);
         assert_eq!(decoded.id, PlayerId(7));
+    }
+
+    #[test]
+    fn grant_power_up_sets_matching_status_flag() {
+        let mut info = dummy_info();
+
+        info.grant_power_up(ItemType::SpeedPowerUp);
+        info.grant_power_up(ItemType::MultiShotPowerUp);
+        info.grant_power_up(ItemType::PhasingPowerUp);
+        info.grant_power_up(ItemType::AntiGravityPowerUp);
+
+        let status = info.status(PlayerId(7));
+        assert!(status.speed_power_up);
+        assert!(status.multi_shot_power_up);
+        assert!(status.phasing_power_up);
+        assert!(status.anti_gravity_power_up);
+    }
+
+    #[test]
+    fn try_start_shot_tracks_cooldown_and_multi_shot_state() {
+        let mut info = dummy_info();
+        let start = 10.0;
+
+        assert_eq!(info.try_start_shot(start), Some(false));
+        assert_eq!(info.try_start_shot(start + PROJECTILE_COOLDOWN_TIME * 0.5), None);
+
+        info.grant_power_up(ItemType::MultiShotPowerUp);
+        assert_eq!(
+            info.try_start_shot(start + PROJECTILE_COOLDOWN_TIME + f32::EPSILON),
+            Some(true)
+        );
     }
 
     #[test]
