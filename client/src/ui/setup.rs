@@ -5,6 +5,7 @@ use super::{
     message_feed::spawn_message_feed_root,
     player_list::PlayerListMarker,
 };
+use crate::config::RenderSettings;
 
 // Marker for the bump-flash overlay that briefly tints the screen on collisions.
 #[derive(Component)]
@@ -15,7 +16,8 @@ pub struct BumpFlashMarker;
 #[derive(Component)]
 pub struct DeathOverlayMarker;
 
-pub fn setup_ui_system(mut commands: Commands) {
+pub fn setup_ui_system(mut commands: Commands, render_settings: Res<RenderSettings>) {
+    let hud_font_size = render_settings.font_sizes.hud;
     commands.spawn((
         PlayerListMarker,
         Node {
@@ -75,7 +77,7 @@ pub fn setup_ui_system(mut commands: Commands) {
         RttMarker,
         Text::new("RTT: --ms"),
         TextFont {
-            font_size: 20.0,
+            font_size: hud_font_size,
             ..default()
         },
         TextColor(Color::WHITE),
@@ -91,7 +93,7 @@ pub fn setup_ui_system(mut commands: Commands) {
         FpsMarker,
         Text::new("FPS: --"),
         TextFont {
-            font_size: 20.0,
+            font_size: hud_font_size,
             ..default()
         },
         TextColor(Color::WHITE),

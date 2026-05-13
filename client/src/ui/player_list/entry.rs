@@ -22,6 +22,7 @@ pub(super) fn spawn_player_entry(
     current_health: f32,
     kind_table: &BarrierKindTable,
     barrier_assets: Option<&BarrierAssets>,
+    font_size: f32,
 ) -> Entity {
     let background_color = if is_local {
         BackgroundColor(LOCAL_PLAYER_BG_COLOR)
@@ -52,7 +53,7 @@ pub(super) fn spawn_player_entry(
                     row.spawn((
                         Text::new(&player_info.name),
                         TextFont {
-                            font_size: 20.0,
+                            font_size,
                             ..default()
                         },
                         TextColor(Color::WHITE),
@@ -61,7 +62,7 @@ pub(super) fn spawn_player_entry(
                     row.spawn((
                         Text::new(format_signed_score(player_info.score)),
                         TextFont {
-                            font_size: 20.0,
+                            font_size,
                             ..default()
                         },
                         TextColor(score_value_color(player_info.score)),

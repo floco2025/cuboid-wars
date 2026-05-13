@@ -61,7 +61,6 @@ pub struct MessageFeedEntry {
 
 const DEFAULT_TEXT_COLOR: Color = Color::srgba(0.85, 0.85, 0.85, 1.0);
 const DIM_TEXT_COLOR: Color = Color::srgba(0.6, 0.6, 0.6, 1.0);
-const ENTRY_FONT_SIZE: f32 = 18.0;
 const ENTRY_ROW_GAP: f32 = 4.0;
 
 // One styled run of text within a feed line; multiple runs are laid out in
@@ -106,6 +105,7 @@ pub fn render_pending_messages_system(
     let pending: Vec<_> = feed.pending.drain(..).collect();
     let mut live: Vec<Entity> = children.map(|c| c.iter().collect()).unwrap_or_default();
     let duration = render_settings.message_feed_entry_duration_secs;
+    let font_size = render_settings.font_sizes.message_feed;
 
     for msg in pending {
         let runs = build_runs(&msg, barrier_assets.as_deref());
@@ -124,7 +124,7 @@ pub fn render_pending_messages_system(
                     line.spawn((
                         Text::new(run.text.clone()),
                         TextFont {
-                            font_size: ENTRY_FONT_SIZE,
+                            font_size,
                             ..default()
                         },
                         TextColor(run.color),

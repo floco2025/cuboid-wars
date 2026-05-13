@@ -48,6 +48,21 @@ impl DebugColorMode {
     }
 }
 
+// Per-purpose font sizes. Grouped together so the JSON keeps related knobs
+// adjacent, and so callers can resolve a size via `font_sizes.<purpose>`
+// without juggling three top-level fields.
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct FontSizesConfig {
+    // HUD overlay text (player list rows, RTT/FPS readouts).
+    pub hud: f32,
+    // Bottom-right game-message feed lines.
+    pub message_feed: f32,
+    // Name text inside the 3D floating label above a character. Rendered
+    // to a small texture and scaled, so this is typically larger than the
+    // HUD size — it has to fill a 256×64 texture before being scaled down.
+    pub floating_label: f32,
+}
+
 #[derive(Resource, Debug, Clone, Deserialize)]
 pub struct RenderSettings {
     pub version: u32,
@@ -67,6 +82,7 @@ pub struct RenderSettings {
     // visible before fading out. Player-tunable so spectators can keep
     // entries up longer than active players want.
     pub message_feed_entry_duration_secs: f32,
+    pub font_sizes: FontSizesConfig,
 }
 
 impl RenderSettings {
@@ -104,8 +120,16 @@ impl RenderSettings {
             self.message_feed_entry_duration_secs,
             "message_feed_entry_duration_secs",
         )?;
+        validate_positive_finite(self.font_sizes.hud, "font_sizes.hud")?;
+        validate_positive_finite(self.font_sizes.message_feed, "font_sizes.message_feed")?;
+        validate_positive_finite(self.font_sizes.floating_label, "font_sizes.floating_label")?;
         Ok(())
     }
+}
+
+fn validate_positive_finite(value: f32, name: &str) -> Result<()> {
+    anyhow::ensure!(value.is_finite() && value > 0.0, "{name} must be positive and finite");
+    Ok(())
 }
 
 fn validate_non_negative_finite(value: f32, name: &str) -> Result<()> {

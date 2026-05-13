@@ -95,7 +95,6 @@ pub const LABEL_ACTOR_TEXTURE_HEIGHT: u32 = HEALTH_BAR_FLOATING_ACTOR_HEIGHT as 
 pub const LABEL_CULL_DISTANCE: f32 = 30.0; // meters
 pub const LABEL_TEXT_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 1.0);
 pub const LABEL_BACKGROUND_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.2);
-pub const LABEL_FONT_SIZE: f32 = 40.0;
 
 // ============================================================================
 // Message Feed (bottom-right "game messages" log)

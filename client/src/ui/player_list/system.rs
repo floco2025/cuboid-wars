@@ -10,6 +10,7 @@ use super::{
 };
 use crate::{
     barriers::BarrierAssets,
+    config::RenderSettings,
     players::{MyPlayerId, PlayerMap},
 };
 
@@ -18,6 +19,7 @@ pub fn ui_player_list_rebuild_system(
     players: Res<PlayerMap>,
     my_player_id: Option<Res<MyPlayerId>>,
     gameplay_config: Res<GameplayConfig>,
+    render_settings: Res<RenderSettings>,
     kind_table: Res<BarrierKindTable>,
     barrier_assets: Option<Res<BarrierAssets>>,
     health_query: Query<&Health>,
@@ -36,6 +38,7 @@ pub fn ui_player_list_rebuild_system(
         &players,
         local_player_id,
         &gameplay_config,
+        render_settings.font_sizes.hud,
         &kind_table,
         barrier_assets.as_deref(),
         &health_query,
@@ -50,6 +53,7 @@ fn rebuild_player_list(
     players: &PlayerMap,
     local_player_id: Option<PlayerId>,
     gameplay_config: &GameplayConfig,
+    hud_font_size: f32,
     kind_table: &BarrierKindTable,
     barrier_assets: Option<&BarrierAssets>,
     health_query: &Query<&Health>,
@@ -77,6 +81,7 @@ fn rebuild_player_list(
             current_health,
             kind_table,
             barrier_assets,
+            hud_font_size,
         );
         ordered_children.push(entity);
     }

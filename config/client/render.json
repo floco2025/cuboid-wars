@@ -12,5 +12,10 @@
   "texture_mipmaps_enabled": true,
   "texture_anisotropy": 8,
   "msaa_samples": 4,
-  "message_feed_entry_duration_secs": 10.0
+  "message_feed_entry_duration_secs": 10.0,
+  "font_sizes": {
+    "hud": 20.0,
+    "message_feed": 18.0,
+    "floating_label": 40.0
+  }
 }

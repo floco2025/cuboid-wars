@@ -30,6 +30,7 @@ pub fn spawn_floating_player_label(
     character_height: f32,
     max_health: f32,
     current_health: f32,
+    font_size: f32,
 ) -> (Entity, Entity) {
     const LABEL_HEIGHT: f32 =
         LABEL_PLAYER_MESH_WIDTH * (LABEL_PLAYER_TEXTURE_HEIGHT as f32 / LABEL_PLAYER_TEXTURE_WIDTH as f32);
@@ -60,7 +61,7 @@ pub fn spawn_floating_player_label(
                     label_background.spawn((
                         Text::new(label),
                         TextFont {
-                            font_size: LABEL_FONT_SIZE,
+                            font_size,
                             ..default()
                         },
                         TextColor(LABEL_TEXT_COLOR),

@@ -133,6 +133,7 @@ pub fn spawn_player(
         player_physics.collision_height(),
         gameplay_config.player.health().max,
         health.0,
+        render_settings.font_sizes.floating_label,
     );
     children.push(mesh_entity);
 
