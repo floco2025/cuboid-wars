@@ -147,6 +147,9 @@ pub fn handle_player_hit_message(
     msg: SPlayerHit,
 ) {
     debug!("player {:?} was hit", msg.id);
+    if let Some(player) = players.get(&msg.id) {
+        commands.entity(player.entity).insert(msg.health);
+    }
     if msg.id == my_player_id {
         if let Ok(camera_entity) = camera_query.single() {
             commands.entity(camera_entity).insert(CameraShake {

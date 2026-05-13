@@ -173,12 +173,15 @@ pub struct SActorDeath {
 }
 
 // Player was hit by a projectile. Carries hit direction so the victim's
-// camera shake reads directionally; snapshot can't carry this.
+// camera shake reads directionally; snapshot can't carry this. Also
+// carries the post-damage health so the HUD health bar updates on the
+// impact frame instead of waiting for the next snapshot.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SPlayerHit {
     pub id: PlayerId,
     pub hit_dir_x: f32,
     pub hit_dir_z: f32,
+    pub health: Health,
 }
 
 // Actor was hit by a projectile (drives the `hit_actor` sound on the

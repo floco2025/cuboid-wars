@@ -170,6 +170,7 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                             id: player_id,
                             hit_dir_x: hit.direction.x,
                             hit_dir_z: hit.direction.z,
+                            health: *health,
                         }),
                     );
 
