@@ -17,7 +17,9 @@ use common::{
 // Per-tick decision for one zone: spawn now, tick the cooldown down, or skip.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum SpawnDecision {
-    // Slot is at quota — do not tick the throttle, do not spawn.
+    // Slot is at quota — prime the throttle so the next death pays a full
+    // cooldown wait. (Leaving the throttle at 0 here would let the very
+    // first death respawn instantly.)
     Skip,
     // Slot is short but the throttle is still running — tick it down.
     Tick,
@@ -120,9 +122,11 @@ pub fn actor_respawn_system(
         let throttle = throttles.0.entry(zone_idx).or_insert(0.0);
 
         match decide_spawn(live, zone.count, *throttle) {
-            // Frozen — leave the throttle as-is so the next death pays a
-            // full throttle wait.
-            SpawnDecision::Skip => {}
+            // Slot is full: keep the throttle primed at `throttle_time` so
+            // the next death starts the countdown from full. Lazily-inserted
+            // entries start at 0.0, which without this would let the first
+            // death after startup respawn instantly.
+            SpawnDecision::Skip => *throttle = throttle_time,
             SpawnDecision::Tick => *throttle -= dt,
             SpawnDecision::Spawn => {
                 spawn_actor_in_zone(
@@ -303,5 +307,49 @@ mod tests {
             spawns >= 3,
             "expected spawns to keep arriving under continuous kills, got {spawns}"
         );
+    }
+
+    // Regression: the throttle map is lazily inserted at 0.0 on first
+    // access, which without the `Skip => prime` arm would let the very
+    // first death after startup respawn instantly while subsequent deaths
+    // paid the full delay.
+    #[test]
+    fn first_death_after_startup_pays_full_delay() {
+        let count = 1;
+        let delay = 2.0_f32;
+        let dt = 0.5;
+
+        // Simulate the production loop's body for one zone, including the
+        // lazy-insert at 0.0 and the Skip-prime fix.
+        let mut live = count; // initial spawn filled the slot
+        let mut throttle = 0.0_f32; // lazy-insert default
+
+        // A few ticks while full: each Skip should prime the throttle so a
+        // subsequent death starts from `delay`, not from 0.
+        for _ in 0..5 {
+            match decide_spawn(live, count, throttle) {
+                SpawnDecision::Skip => throttle = delay,
+                SpawnDecision::Tick => throttle -= dt,
+                SpawnDecision::Spawn => {
+                    live += 1;
+                    throttle = delay;
+                }
+            }
+        }
+        assert_eq!(throttle, delay, "Skip should keep the throttle primed");
+
+        // Now kill — the throttle must Tick down for `delay` seconds before
+        // the next Spawn is decided.
+        live -= 1;
+        let ticks_to_zero = (delay / dt).ceil() as u32;
+        for _ in 0..ticks_to_zero {
+            assert_eq!(
+                decide_spawn(live, count, throttle),
+                SpawnDecision::Tick,
+                "first death after startup must wait the full delay"
+            );
+            throttle -= dt;
+        }
+        assert_eq!(decide_spawn(live, count, throttle), SpawnDecision::Spawn);
     }
 }
