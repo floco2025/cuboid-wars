@@ -9,7 +9,7 @@ mod resources;
 mod snapshot;
 mod transport;
 
-pub use components::{AssetManagers, ServerReconciliation};
+pub use components::{AssetManagers, ServerReconciliation, worst_axis_excess};
 pub use io::{network_ping_system, network_process_server_messages_system};
 pub use resources::{ClientToServerChannel, LastSnapshotSeq, RoundTripTime, ServerToClientChannel};
 pub use transport::{ClientToServer, ServerToClient, network_io_task};

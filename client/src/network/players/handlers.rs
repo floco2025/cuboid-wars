@@ -57,7 +57,7 @@ pub fn handle_player_move_intent_message(
                     client_pos: *client_pos,
                     server_pos: msg.movement.pos,
                     server_velocity,
-                    timer: 0.0,
+                    correction_progress: 0.0,
                     rtt: rtt.rtt.as_secs_f32(),
                 },
             ));
@@ -91,7 +91,7 @@ pub fn handle_player_jump_message(
                 client_pos: *client_pos,
                 server_pos: msg.movement.pos,
                 server_velocity,
-                timer: 0.0,
+                correction_progress: 0.0,
                 rtt: rtt.rtt.as_secs_f32(),
             },
         ));

@@ -1,9 +1,7 @@
 use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
-    constants::{
-        ALWAYS_ANTI_GRAVITY, ALWAYS_PHASING, CHARACTER_GROUND_SNAP_DISTANCE, PHYSICS_EPSILON, SNAPSHOT_PERIOD_SECS,
-    },
+    constants::{ALWAYS_ANTI_GRAVITY, ALWAYS_PHASING, CHARACTER_GROUND_SNAP_DISTANCE, SNAPSHOT_PERIOD_SECS},
     physics::{CharacterMovePlan, CollisionWorld, step_character_movement},
     protocol::Position,
 };
@@ -12,10 +10,10 @@ use super::{feedback::decay_flash_timer, types::PlayerMovementQuery};
 use crate::{
     characters::PreviousTickPosition,
     constants::{
-        RECON_PLAYER_IDLE_TIME, RECON_PLAYER_OUT_OF_SYNC_DISTANCE_IDLE, RECON_PLAYER_OUT_OF_SYNC_DISTANCE_MOVING,
-        RECON_RTT_MULTIPLIER,
+        RECON_PLAYER_IDLE_CORRECTION_TIME, RECON_PLAYER_SNAP_THRESHOLD_IDLE, RECON_PLAYER_SNAP_THRESHOLD_RUNNING,
+        RECON_CORRECTION_TIME_RTT_MULTIPLIER,
     },
-    network::ServerReconciliation,
+    network::{ServerReconciliation, worst_axis_excess},
     players::PlayerMap,
     ui::BumpFlashMarker,
 };
@@ -42,7 +40,6 @@ pub(crate) fn plan_player_moves(
         let has_speed_power_up = players.get(player_id).is_some_and(|info| info.speed_power_up);
         let h_vel =
             move_intent.to_horizontal_velocity(player_config.walk_speed, player_config.run_speed, has_speed_power_up);
-        let is_standing_still = h_vel.x.hypot(h_vel.z) < PHYSICS_EPSILON;
 
         let mut target_pos = if let Some(recon) = recon_option.as_mut() {
             reconciled_target_position(
@@ -53,7 +50,6 @@ pub(crate) fn plan_player_moves(
                 recon,
                 h_vel,
                 is_local,
-                is_standing_still,
                 delta,
                 players
                     .get(player_id)
@@ -124,7 +120,6 @@ fn reconciled_target_position(
     recon: &mut ServerReconciliation,
     h_vel: Vec3,
     is_local: bool,
-    is_standing_still: bool,
     delta: f32,
     player_name: String,
     planned_moves: &mut Vec<CharacterMovePlan>,
@@ -133,41 +128,48 @@ fn reconciled_target_position(
 ) -> Option<Position> {
     // Slow idle correction reduces visible sliding when standing players receive
     // snapshot corrections. Moving characters hide correction better.
-    let run_correction_time = recon.rtt * RECON_RTT_MULTIPLIER;
-    let speed_ratio = (h_vel.x.hypot(h_vel.z) / run_speed).clamp(0.0, 1.0);
-    let correction_time_interval = RECON_PLAYER_IDLE_TIME.lerp(run_correction_time, speed_ratio);
-    let correction_factor = (SNAPSHOT_PERIOD_SECS / correction_time_interval).clamp(0.0, 1.0);
+    let run_correction_time = recon.rtt * RECON_CORRECTION_TIME_RTT_MULTIPLIER;
+    // Correction duration follows current input (not server_velocity)
+    // so the duration lengthens the instant the player stops, keeping
+    // any residual correction below the visible-distraction threshold.
+    let input_speed_factor = (h_vel.x.hypot(h_vel.z) / run_speed).clamp(0.0, 1.0);
+    let correction_duration = RECON_PLAYER_IDLE_CORRECTION_TIME.lerp(run_correction_time, input_speed_factor);
+    let correction_factor = (SNAPSHOT_PERIOD_SECS / correction_duration).clamp(0.0, 1.0);
 
-    recon.timer += delta * correction_factor;
-    if recon.timer >= SNAPSHOT_PERIOD_SECS {
+    recon.correction_progress += delta * correction_factor;
+    if recon.correction_progress >= SNAPSHOT_PERIOD_SECS {
         commands.entity(entity).remove::<ServerReconciliation>();
     }
 
-    let server_pos = Vec3::from(recon.server_pos) + recon.server_velocity * recon.rtt / 2.0;
-    let total_delta = server_pos - Vec3::from(recon.client_pos);
+    let extrapolated_server_pos = Vec3::from(recon.server_pos) + recon.server_velocity * recon.rtt / 2.0;
+    let correction_delta = extrapolated_server_pos - Vec3::from(recon.client_pos);
 
-    if is_local && total_delta.y.abs() >= CHARACTER_GROUND_SNAP_DISTANCE {
+    if is_local && correction_delta.y.abs() >= CHARACTER_GROUND_SNAP_DISTANCE {
         *vertical_velocity = recon.server_velocity.y;
     }
 
-    let out_of_sync_distance = if is_standing_still {
-        RECON_PLAYER_OUT_OF_SYNC_DISTANCE_IDLE
-    } else {
-        RECON_PLAYER_OUT_OF_SYNC_DISTANCE_MOVING
-    };
-    if total_delta.x.abs() >= out_of_sync_distance
-        || total_delta.y.abs() >= out_of_sync_distance
-        || total_delta.z.abs() >= out_of_sync_distance
-    {
+    // For the snap *threshold*, use the recon's own captured velocity, not
+    // the current input. The recon's stored delta was accumulated under
+    // whatever motion state the server saw at the snapshot moment, and that
+    // velocity is frozen for the recon's lifetime (~SNAPSHOT_PERIOD_SECS).
+    // So a drift captured while running stays evaluated against the running
+    // threshold until the recon expires — releasing the run key on the next
+    // tick can't tighten the threshold mid-correction.
+    let server_speed = recon.server_velocity.xz().length();
+    let threshold_speed_factor = (server_speed / run_speed).clamp(0.0, 1.0);
+    let snap_threshold = RECON_PLAYER_SNAP_THRESHOLD_IDLE
+        .lerp(RECON_PLAYER_SNAP_THRESHOLD_RUNNING, threshold_speed_factor);
+    let (worst_axis, worst_magnitude) = worst_axis_excess(correction_delta);
+    if worst_magnitude >= snap_threshold {
         warn!(
-            "{player_name} out of sync by x={:.2}, y={:.2}, z={:.2}; jumping to server position",
-            total_delta.x, total_delta.y, total_delta.z
+            "{player_name} out of sync: |{worst_axis}|={worst_magnitude:.2} > {snap_threshold:.2} (Δ x={:.2}, y={:.2}, z={:.2}); snapping to server position",
+            correction_delta.x, correction_delta.y, correction_delta.z
         );
         *client_pos = recon.server_pos;
         *vertical_velocity = recon.server_velocity.y;
         commands.entity(entity).remove::<ServerReconciliation>();
         // Reset the prev-tick anchor so the next render frame doesn't lerp
-        // through the warp.
+        // through the snap.
         commands.entity(entity).insert(PreviousTickPosition(*client_pos));
         planned_moves.push(CharacterMovePlan::stationary(
             entity,
@@ -178,8 +180,8 @@ fn reconciled_target_position(
         return None;
     }
 
-    let dx = total_delta.x * delta * correction_factor / SNAPSHOT_PERIOD_SECS;
-    let dz = total_delta.z * delta * correction_factor / SNAPSHOT_PERIOD_SECS;
+    let dx = correction_delta.x * delta * correction_factor / SNAPSHOT_PERIOD_SECS;
+    let dz = correction_delta.z * delta * correction_factor / SNAPSHOT_PERIOD_SECS;
 
     Some(Position {
         x: h_vel.x.mul_add(delta, client_pos.x) + dx,

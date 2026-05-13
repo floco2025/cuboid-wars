@@ -181,7 +181,7 @@ fn apply_actor_movement_state(
             client_pos: *client_pos,
             server_pos: movement.pos,
             server_velocity,
-            timer: 0.0,
+            correction_progress: 0.0,
             rtt: rtt.rtt.as_secs_f32(),
         });
     }

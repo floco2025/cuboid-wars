@@ -26,30 +26,31 @@ pub const PING_INTERVAL: f32 = 10.0;
 // ============================================================================
 //
 // Client predicts movement locally; the server's authoritative snapshot is
-// blended in over `RECON_*_TIME`. If the predicted position drifts past the
-// `RECON_*_OUT_OF_SYNC_DISTANCE`, the client hard-snaps to the server pos
-// instead of trying to smooth — large divergence usually means a teleport
-// or a desync that won't close from gradual correction.
+// blended in over a correction window (`RECON_PLAYER_IDLE_CORRECTION_TIME`
+// for idle players, `rtt * RECON_CORRECTION_TIME_RTT_MULTIPLIER` for
+// moving characters). If the predicted position drifts past the
+// `RECON_*_SNAP_THRESHOLD`, the client snaps to the server pos instead of
+// trying to smooth — large divergence usually means a teleport or a desync
+// that won't close from gradual correction.
 
 // Distance (meters, any axis) at which the client gives up and snaps to the
 // server position instead of blending. Two thresholds for the player: a
 // tight one while standing still (visible sliding is obvious when idle) and
-// a looser one while moving (correction is hidden by motion).
-pub const RECON_PLAYER_OUT_OF_SYNC_DISTANCE_IDLE: f32 = 1.0;
-pub const RECON_PLAYER_OUT_OF_SYNC_DISTANCE_MOVING: f32 = 5.0;
-pub const RECON_ACTOR_OUT_OF_SYNC_DISTANCE: f32 = 3.0;
+// a looser one while running (correction is hidden by motion). The actual
+// threshold lerps between them by the snapshot-captured server speed.
+pub const RECON_PLAYER_SNAP_THRESHOLD_IDLE: f32 = 1.0;
+pub const RECON_PLAYER_SNAP_THRESHOLD_RUNNING: f32 = 5.0;
+pub const RECON_ACTOR_SNAP_THRESHOLD: f32 = 3.0;
 
-// How long a moving character takes to absorb a correction, as a multiple of
-// the current RTT. Higher = smoother but more sluggish (predictions visibly
-// stale longer). Benchmark: 5.0 × RTT means a 100 ms ping gives 0.5 s
-// correction time. Applies to both players (while moving) and actors.
-pub const RECON_RTT_MULTIPLIER: f32 = 5.0;
+// Correction window — duration of the smooth blend to server position.
+// Actors use the running value (multiplier × rtt). Players lerp between
+// idle and running by horizontal speed.
 
-// Players-only: when standing still, correction is stretched to this many
-// seconds so idle teleport-style snap-back doesn't read as sliding. The
-// blend lerps from the idle endpoint to the RTT-based endpoint by horizontal
-// speed.
-pub const RECON_PLAYER_IDLE_TIME: f32 = 10.0;
+// Scales with RTT so smoothing stays proportional to typical drift size.
+pub const RECON_CORRECTION_TIME_RTT_MULTIPLIER: f32 = 5.0;
+
+// Long so corrections under a stationary player are less perceptual.
+pub const RECON_PLAYER_IDLE_CORRECTION_TIME: f32 = 10.0;
 
 // ============================================================================
 // Character Visuals

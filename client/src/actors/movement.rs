@@ -3,8 +3,8 @@ use bevy::prelude::*;
 use crate::{
     actors::ActorMap,
     characters::PreviousTickPosition,
-    constants::{RECON_ACTOR_OUT_OF_SYNC_DISTANCE, RECON_RTT_MULTIPLIER},
-    network::ServerReconciliation,
+    constants::{RECON_ACTOR_SNAP_THRESHOLD, RECON_CORRECTION_TIME_RTT_MULTIPLIER},
+    network::{ServerReconciliation, worst_axis_excess},
 };
 use common::{
     config::GameplayConfig,
@@ -54,30 +54,28 @@ pub(crate) fn plan_actor_moves(
             .physics();
         let h_vel = move_intent.to_horizontal_velocity();
         let target_pos = if let Some(recon) = recon_option.as_mut() {
-            let correction_time = recon.rtt * RECON_RTT_MULTIPLIER;
+            let correction_time = recon.rtt * RECON_CORRECTION_TIME_RTT_MULTIPLIER;
             let correction_factor = (SNAPSHOT_PERIOD_SECS / correction_time).clamp(0.0, 1.0);
 
-            recon.timer += delta * correction_factor;
-            if recon.timer >= SNAPSHOT_PERIOD_SECS {
+            recon.correction_progress += delta * correction_factor;
+            if recon.correction_progress >= SNAPSHOT_PERIOD_SECS {
                 commands.entity(entity).remove::<ServerReconciliation>();
             }
 
-            let server_pos = Vec3::from(recon.server_pos) + recon.server_velocity * recon.rtt / 2.0;
-            let total_delta = server_pos - Vec3::from(recon.client_pos);
+            let extrapolated_server_pos = Vec3::from(recon.server_pos) + recon.server_velocity * recon.rtt / 2.0;
+            let correction_delta = extrapolated_server_pos - Vec3::from(recon.client_pos);
 
-            if total_delta.x.abs() >= RECON_ACTOR_OUT_OF_SYNC_DISTANCE
-                || total_delta.y.abs() >= RECON_ACTOR_OUT_OF_SYNC_DISTANCE
-                || total_delta.z.abs() >= RECON_ACTOR_OUT_OF_SYNC_DISTANCE
-            {
+            let (worst_axis, worst_magnitude) = worst_axis_excess(correction_delta);
+            if worst_magnitude >= RECON_ACTOR_SNAP_THRESHOLD {
                 warn!(
-                    "{:?} out of sync by x={:.2}, y={:.2}, z={:.2}; jumping to server position",
-                    actor_id, total_delta.x, total_delta.y, total_delta.z
+                    "{:?} out of sync: |{worst_axis}|={worst_magnitude:.2} > {:.2} (Δ x={:.2}, y={:.2}, z={:.2}); snapping to server position",
+                    actor_id, RECON_ACTOR_SNAP_THRESHOLD, correction_delta.x, correction_delta.y, correction_delta.z
                 );
                 *pos = recon.server_pos;
                 motion.0 = recon.server_velocity.y;
                 commands.entity(entity).remove::<ServerReconciliation>();
                 // Anchor render interpolation at the snapped position so the
-                // warp doesn't smear across one render frame.
+                // snap doesn't smear across one render frame.
                 commands.entity(entity).insert(PreviousTickPosition(*pos));
                 push_actor_planned_move(
                     planned_moves,
@@ -89,10 +87,10 @@ pub(crate) fn plan_actor_moves(
 
             Position {
                 x: h_vel.x.mul_add(delta, pos.x)
-                    + total_delta.x * delta * correction_factor / SNAPSHOT_PERIOD_SECS,
+                    + correction_delta.x * delta * correction_factor / SNAPSHOT_PERIOD_SECS,
                 y: pos.y,
                 z: h_vel.z.mul_add(delta, pos.z)
-                    + total_delta.z * delta * correction_factor / SNAPSHOT_PERIOD_SECS,
+                    + correction_delta.z * delta * correction_factor / SNAPSHOT_PERIOD_SECS,
             }
         } else {
             Position {

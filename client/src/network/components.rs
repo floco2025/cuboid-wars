@@ -23,8 +23,24 @@ pub struct ServerReconciliation {
     pub client_pos: Position,
     pub server_pos: Position,
     pub server_velocity: Vec3,
-    pub timer: f32,
+    pub correction_progress: f32,
     pub rtt: f32,
+}
+
+// Pick the axis with the largest |value| from a 3-component delta. Used
+// in snap-warning logs so the reader sees which axis tripped the
+// per-axis snap threshold.
+pub fn worst_axis_excess(delta: Vec3) -> (&'static str, f32) {
+    let xa = delta.x.abs();
+    let ya = delta.y.abs();
+    let za = delta.z.abs();
+    if xa >= ya && xa >= za {
+        ("x", xa)
+    } else if ya >= za {
+        ("y", ya)
+    } else {
+        ("z", za)
+    }
 }
 
 // ============================================================================

@@ -253,7 +253,7 @@ fn update_snapshot_player(
                 client_pos: *client_pos,
                 server_pos: server_player.movement.pos,
                 server_velocity,
-                timer: 0.0,
+                correction_progress: 0.0,
                 rtt: rtt.rtt.as_secs_f32(),
             });
             if id != my_player_id {
