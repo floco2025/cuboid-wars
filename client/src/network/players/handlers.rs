@@ -198,8 +198,13 @@ pub fn handle_player_death_message(
 
     if let Some(victim_name) = victim_name {
         match killer_name {
-            Some(killer_name) => feed.push(GameMessage::Kill { killer_name, victim_name }),
-            None => feed.push(GameMessage::SoloDeath { player_name: victim_name }),
+            Some(killer_name) => feed.push(GameMessage::Kill {
+                killer_name,
+                victim_name,
+            }),
+            None => feed.push(GameMessage::SoloDeath {
+                player_name: victim_name,
+            }),
         }
     }
 

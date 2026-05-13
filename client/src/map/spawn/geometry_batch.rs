@@ -9,7 +9,7 @@ use bevy::{
 use rand::{RngExt, rng};
 
 use crate::{
-    config::{AssetSet, DebugColorMode, ClientSettings},
+    config::{AssetSet, ClientSettings, DebugColorMode},
     map::{GroundMarker, MapLevel, RampMarker, RoofMarker, WallMarker},
     materials::MaterialHandleCache,
 };

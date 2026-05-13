@@ -64,9 +64,10 @@ pub fn spawn_actor(
     ));
 
     if let Some(animation_speed) = actor_model.animation_speed {
-        let (graph, index) = AnimationGraph::from_clip(asset_server.load(
-            GltfAssetLabel::Animation(actor_model.animation_index).from_asset(actor_model.scene.clone()),
-        ));
+        let (graph, index) = AnimationGraph::from_clip(
+            asset_server
+                .load(GltfAssetLabel::Animation(actor_model.animation_index).from_asset(actor_model.scene.clone())),
+        );
         model_commands
             .insert(AnimationToPlay {
                 graph_handle: graphs.add(graph),

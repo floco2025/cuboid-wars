@@ -53,10 +53,7 @@ pub(super) fn spawn_player_entry(
                 .with_children(|row| {
                     row.spawn((
                         Text::new(&player_info.name),
-                        TextFont {
-                            font_size,
-                            ..default()
-                        },
+                        TextFont { font_size, ..default() },
                         TextColor(Color::WHITE),
                     ));
 

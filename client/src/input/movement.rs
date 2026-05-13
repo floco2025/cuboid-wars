@@ -214,4 +214,3 @@ fn update_player_input_face_and_jump(
         }
     }
 }
-

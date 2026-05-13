@@ -75,7 +75,8 @@ pub(super) fn topdown_camera_transform(
     });
     let mut target = floor_bounds.center();
     target.y = f32::from(player_level) * LEVEL_HEIGHT;
-    let camera_offset = topdown_camera_offset_to_fit(floor_bounds, aspect_ratio, fov, view_direction, margin, tilt_degrees);
+    let camera_offset =
+        topdown_camera_offset_to_fit(floor_bounds, aspect_ratio, fov, view_direction, margin, tilt_degrees);
     let center_shift = projected_center_shift(floor_bounds, camera_offset, view_direction);
     target += view_direction * center_shift;
 

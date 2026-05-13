@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::{
     barriers::{BarrierAssets, BarrierMarker},
-    config::{AssetSet, DebugColorMode, ClientSettings},
+    config::{AssetSet, ClientSettings, DebugColorMode},
     map::{
         DebugColors, GroundMarker, LevelFocusEnabled, MapGeometryBatch, MapLevel, RampMarker, RoofMarker,
         WallLightMarker, WallMarker, batch_floor, batch_ramp, batch_wall, spawn_wall_light_from_layout,

@@ -10,8 +10,8 @@ use super::{feedback::decay_flash_timer, types::PlayerMovementQuery};
 use crate::{
     characters::PreviousTickPosition,
     constants::{
-        RECON_PLAYER_IDLE_CORRECTION_TIME, RECON_PLAYER_SNAP_THRESHOLD_IDLE, RECON_PLAYER_SNAP_THRESHOLD_RUNNING,
-        RECON_CORRECTION_TIME_RTT_MULTIPLIER,
+        RECON_CORRECTION_TIME_RTT_MULTIPLIER, RECON_PLAYER_IDLE_CORRECTION_TIME, RECON_PLAYER_SNAP_THRESHOLD_IDLE,
+        RECON_PLAYER_SNAP_THRESHOLD_RUNNING,
     },
     network::{ServerReconciliation, worst_axis_excess},
     players::PlayerMap,
@@ -165,8 +165,8 @@ fn reconciled_target_position(
     // the next tick can't tighten the threshold mid-correction.
     let server_speed = recon.server_velocity.xz().length();
     let threshold_speed_factor = (server_speed / run_speed).clamp(0.0, 1.0);
-    let snap_threshold = RECON_PLAYER_SNAP_THRESHOLD_IDLE
-        .lerp(RECON_PLAYER_SNAP_THRESHOLD_RUNNING, threshold_speed_factor);
+    let snap_threshold =
+        RECON_PLAYER_SNAP_THRESHOLD_IDLE.lerp(RECON_PLAYER_SNAP_THRESHOLD_RUNNING, threshold_speed_factor);
     let (worst_axis, worst_magnitude) = worst_axis_excess(correction_delta);
     if worst_magnitude >= snap_threshold {
         warn!(

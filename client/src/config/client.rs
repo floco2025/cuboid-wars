@@ -262,15 +262,27 @@ impl HudConfig {
             self.floating_labels.height_above_character,
             "hud.floating_labels.height_above_character",
         )?;
-        validate_positive_finite(self.health_bars.floating_player_width, "hud.health_bars.floating_player_width")?;
+        validate_positive_finite(
+            self.health_bars.floating_player_width,
+            "hud.health_bars.floating_player_width",
+        )?;
         validate_positive_finite(
             self.health_bars.floating_player_height,
             "hud.health_bars.floating_player_height",
         )?;
-        validate_positive_finite(self.health_bars.floating_actor_width, "hud.health_bars.floating_actor_width")?;
-        validate_positive_finite(self.health_bars.floating_actor_height, "hud.health_bars.floating_actor_height")?;
+        validate_positive_finite(
+            self.health_bars.floating_actor_width,
+            "hud.health_bars.floating_actor_width",
+        )?;
+        validate_positive_finite(
+            self.health_bars.floating_actor_height,
+            "hud.health_bars.floating_actor_height",
+        )?;
         validate_positive_finite(self.health_bars.player_list_width, "hud.health_bars.player_list_width")?;
-        validate_positive_finite(self.health_bars.player_list_height, "hud.health_bars.player_list_height")?;
+        validate_positive_finite(
+            self.health_bars.player_list_height,
+            "hud.health_bars.player_list_height",
+        )?;
         Ok(())
     }
 }

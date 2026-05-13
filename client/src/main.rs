@@ -13,7 +13,7 @@ use client::{
     barriers::{barriers_pulsate_system, barriers_spawn_system, setup_barrier_assets},
     cameras::{CameraViewMode, TopDownCameraYaw, setup_cameras_system},
     characters::{capture_previous_tick_position_system, characters_movement_system, characters_visual_turn_system},
-    config::{AssetSet, OpaqueRenderer, ClientSettings, configure_client},
+    config::{AssetSet, ClientSettings, OpaqueRenderer, configure_client},
     input::{
         commit_player_input_system, input_camera_view_toggle_system, input_cursor_toggle_system,
         input_debug_colors_cycle_system, input_fullscreen_toggle_system, input_level_focus_toggle_system,
@@ -37,11 +37,11 @@ use client::{
     projectiles::{LastBounceSoundTime, ProjectileAssets, projectiles_movement_system},
     skybox::{setup_skybox_from_cross_system, skybox_convert_cross_to_cubemap_system, skybox_update_camera_system},
     ui::{
-        FpsMeasurement,
+        FpsMeasurement, GameMessageFeed, SeenPlayerIds,
         floating_labels::{floating_label_camera_visibility_system, floating_labels_billboard_system},
-        GameMessageFeed, SeenPlayerIds, render_pending_messages_system, setup_ui_system,
-        ui_crosshair_visibility_system, ui_fps_system, ui_health_bar_fill_system, ui_player_list_rebuild_system,
-        ui_rtt_system, ui_stunned_blink_system, update_message_feed_system,
+        render_pending_messages_system, setup_ui_system, ui_crosshair_visibility_system, ui_fps_system,
+        ui_health_bar_fill_system, ui_player_list_rebuild_system, ui_rtt_system, ui_stunned_blink_system,
+        update_message_feed_system,
     },
     vfx::explosion_effects_system,
 };

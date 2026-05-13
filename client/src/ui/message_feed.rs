@@ -118,10 +118,7 @@ pub fn render_pending_messages_system(
                 for run in &runs {
                     line.spawn((
                         Text::new(run.text.clone()),
-                        TextFont {
-                            font_size,
-                            ..default()
-                        },
+                        TextFont { font_size, ..default() },
                         TextColor(run.color),
                     ));
                 }
@@ -153,7 +150,10 @@ pub fn update_message_feed_system(
 
 fn build_runs(msg: &GameMessage, barrier_assets: Option<&BarrierAssets>) -> Vec<TextRun> {
     match msg {
-        GameMessage::Kill { killer_name, victim_name } => vec![TextRun {
+        GameMessage::Kill {
+            killer_name,
+            victim_name,
+        } => vec![TextRun {
             text: format!("{killer_name} killed {victim_name}"),
             color: DEFAULT_TEXT_COLOR,
         }],

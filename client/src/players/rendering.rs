@@ -18,7 +18,10 @@ use common::{
 pub fn players_transform_sync_system(
     gameplay_config: Res<GameplayConfig>,
     fixed_time: Res<Time<Fixed>>,
-    mut player_query: Query<(&Position, &PreviousTickPosition, &mut Transform, Option<&CuboidShake>), With<PlayerMarker>>,
+    mut player_query: Query<
+        (&Position, &PreviousTickPosition, &mut Transform, Option<&CuboidShake>),
+        With<PlayerMarker>,
+    >,
 ) {
     let player_physics = gameplay_config.player.physics();
     let alpha = fixed_time.overstep_fraction();

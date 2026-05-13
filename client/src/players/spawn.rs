@@ -59,9 +59,10 @@ pub fn spawn_player(
     let player_model = asset_set.player_model();
     let player_physics = gameplay_config.player.physics();
     // Create animation graph for this player
-    let (graph, index) = AnimationGraph::from_clip(asset_server.load(
-        GltfAssetLabel::Animation(player_model.animation_index).from_asset(player_model.scene.clone()),
-    ));
+    let (graph, index) = AnimationGraph::from_clip(
+        asset_server
+            .load(GltfAssetLabel::Animation(player_model.animation_index).from_asset(player_model.scene.clone())),
+    );
     let graph_handle = graphs.add(graph);
     let animation_to_play = AnimationToPlay {
         graph_handle,
