@@ -6,7 +6,9 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::net::ServerToClient;
 use common::{
     constants::{ALWAYS_ANTI_GRAVITY, ALWAYS_MULTI_SHOT, ALWAYS_PHASING, ALWAYS_SPEED},
-    protocol::{BarrierKindId, PlayerId, SPlayerStatus},
+    protocol::{
+        BarrierKindId, Health, Player, PlayerId, PlayerMoveIntent, PlayerMovementState, Position, SPlayerStatus,
+    },
 };
 
 pub struct PlayerInfo {
@@ -122,6 +124,30 @@ impl PlayerInfo {
         }
     }
 
+    #[must_use]
+    pub fn snapshot_player(
+        &self,
+        pos: Position,
+        move_intent: PlayerMoveIntent,
+        face_dir: f32,
+        health: Health,
+        vertical_velocity: f32,
+    ) -> Player {
+        Player {
+            name: self.name.clone(),
+            movement: PlayerMovementState::new(pos, move_intent, vertical_velocity),
+            face_dir,
+            health,
+            score: self.score,
+            speed_power_up: self.has_speed(),
+            multi_shot_power_up: self.has_multi_shot(),
+            phasing_power_up: self.has_phasing(),
+            anti_gravity_power_up: self.has_anti_gravity(),
+            stunned: self.stun_timer > 0.0,
+            held_keys: self.held_keys.clone(),
+        }
+    }
+
     pub fn tick_timers(&mut self, delta: f32) {
         tick_timer(&mut self.speed_power_up_timer, delta);
         tick_timer(&mut self.multi_shot_power_up_timer, delta);
@@ -214,5 +240,40 @@ mod tests {
         let (decoded, _): (SPlayerStatus, _) = bincode::decode_from_slice(&encoded, standard()).expect("decode");
         assert_eq!(decoded.held_keys, vec![BarrierKindId(1), BarrierKindId(3)]);
         assert_eq!(decoded.id, PlayerId(7));
+    }
+
+    #[test]
+    fn snapshot_player_uses_same_status_fields_as_status_message() {
+        let mut info = dummy_info();
+        info.name = "Alice".to_owned();
+        info.score = 5;
+        info.speed_power_up_timer = 1.0;
+        info.anti_gravity_power_up_timer = 2.0;
+        info.stun_timer = 0.5;
+        info.add_key(BarrierKindId(1));
+        info.add_key(BarrierKindId(3));
+        let id = PlayerId(7);
+        let pos = Position { x: 1.0, y: 2.0, z: 3.0 };
+        let move_intent = PlayerMoveIntent::Running { direction: 0.25 };
+        let face_dir = 1.5;
+        let health = Health(42.0);
+        let vertical_velocity = -3.0;
+
+        let status = info.status(id);
+        let player = info.snapshot_player(pos, move_intent, face_dir, health, vertical_velocity);
+
+        assert_eq!(player.name, info.name);
+        assert_eq!(player.score, info.score);
+        assert_eq!(player.movement.pos, pos);
+        assert_eq!(player.movement.move_intent, move_intent);
+        assert_eq!(player.movement.vertical_velocity, vertical_velocity);
+        assert_eq!(player.face_dir, face_dir);
+        assert_eq!(player.health, health);
+        assert_eq!(player.speed_power_up, status.speed_power_up);
+        assert_eq!(player.multi_shot_power_up, status.multi_shot_power_up);
+        assert_eq!(player.phasing_power_up, status.phasing_power_up);
+        assert_eq!(player.anti_gravity_power_up, status.anti_gravity_power_up);
+        assert_eq!(player.stunned, status.stunned);
+        assert_eq!(player.held_keys, status.held_keys);
     }
 }

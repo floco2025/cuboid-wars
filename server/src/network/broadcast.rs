@@ -49,19 +49,7 @@ pub fn snapshot_logged_in_players(
             let vertical_velocity = motions.get(info.entity).map_or(0.0, |m| m.0);
             Some((
                 *player_id,
-                Player {
-                    name: info.name.clone(),
-                    movement: PlayerMovementState::new(*pos, *move_intent, vertical_velocity),
-                    face_dir: face_dir.0,
-                    health: *health,
-                    score: info.score,
-                    speed_power_up: info.has_speed(),
-                    multi_shot_power_up: info.has_multi_shot(),
-                    phasing_power_up: info.has_phasing(),
-                    anti_gravity_power_up: info.has_anti_gravity(),
-                    stunned: info.stun_timer > 0.0,
-                    held_keys: info.held_keys.clone(),
-                },
+                info.snapshot_player(*pos, *move_intent, face_dir.0, *health, vertical_velocity),
             ))
         })
         .collect()

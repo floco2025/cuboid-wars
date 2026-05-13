@@ -42,7 +42,7 @@ pub fn handle_login_message(
         ClientMessage::Login(login) => {
             debug!("{:?} logged in", id);
 
-            let (channel, score, name) = {
+            let channel = {
                 let player_info = players
                     .get_mut(&id)
                     .expect("handle_login_message called for unknown player");
@@ -56,7 +56,7 @@ pub fn handle_login_message(
                     login.name
                 };
 
-                (channel, player_info.score, player_info.name.clone())
+                channel
             };
 
             // Send Init to the connecting player (their ID and map config)
@@ -92,14 +92,16 @@ pub fn handle_login_message(
             let move_intent = PlayerMoveIntent::Idle;
 
             // Construct player data
-            let player = Player::new(
-                name,
-                pos,
-                move_intent,
-                face_dir,
-                score,
-                Health(gameplay_config.player.health().max),
-            );
+            let player = players
+                .get(&id)
+                .expect("handle_login_message called for unknown player")
+                .snapshot_player(
+                    pos,
+                    move_intent,
+                    face_dir,
+                    Health(gameplay_config.player.health().max),
+                    0.0,
+                );
 
             // Construct the initial snapshot for the new player
             let mut all_players = snapshot_logged_in_players(players, player_data, motions)
