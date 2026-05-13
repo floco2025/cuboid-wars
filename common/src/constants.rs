@@ -38,7 +38,7 @@ pub const LEVEL_CLASSIFICATION_TOLERANCE: f32 = 0.5;
 // Rate at which the server broadcasts the full-state `SSnapshot` snapshot to
 // all clients. The snapshot is the authoritative source of presence and
 // state for entities that aren't carried by one-shot cues.
-pub const SNAPSHOT_HZ: u32 = 3;
+pub const SNAPSHOT_HZ: u32 = 4;
 pub const SNAPSHOT_PERIOD_SECS: f32 = 1.0 / SNAPSHOT_HZ as f32;
 
 // ============================================================================
