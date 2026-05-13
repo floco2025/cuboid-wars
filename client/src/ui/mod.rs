@@ -10,8 +10,7 @@ pub use hud::{
     CrosshairMarker, FpsMarker, FpsMeasurement, RttMarker, ui_crosshair_visibility_system, ui_fps_system, ui_rtt_system,
 };
 pub use message_feed::{
-    GameMessage, GameMessageFeed, KillVictim, SeenPlayerIds, render_pending_messages_system,
-    update_message_feed_system,
+    GameMessage, GameMessageFeed, SeenPlayerIds, render_pending_messages_system, update_message_feed_system,
 };
 pub use player_list::{PlayerEntryMarker, PlayerListMarker, ui_player_list_rebuild_system, ui_stunned_blink_system};
 pub use setup::{BumpFlashMarker, DeathOverlayMarker, setup_ui_system};

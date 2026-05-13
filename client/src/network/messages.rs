@@ -73,8 +73,6 @@ pub fn dispatch_message(
                 asset_server,
                 asset_set,
                 actors,
-                players,
-                feed,
                 gameplay_config,
                 death_msg,
             );

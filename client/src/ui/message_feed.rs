@@ -11,17 +11,11 @@ use crate::{barriers::BarrierAssets, config::ClientSettings};
 // already gone by render time).
 #[derive(Debug, Clone)]
 pub enum GameMessage {
-    Kill { killer_name: String, victim: KillVictim },
+    Kill { killer_name: String, victim_name: String },
     SoloDeath { player_name: String },
     KeyFound { player_name: String, kind: BarrierKindId },
     PlayerJoined { name: String },
     PlayerLeft { name: String },
-}
-
-#[derive(Debug, Clone)]
-pub enum KillVictim {
-    Player(String),
-    Actor(String),
 }
 
 // Pending messages produced by gameplay handlers, drained each frame by
@@ -159,15 +153,10 @@ pub fn update_message_feed_system(
 
 fn build_runs(msg: &GameMessage, barrier_assets: Option<&BarrierAssets>) -> Vec<TextRun> {
     match msg {
-        GameMessage::Kill { killer_name, victim } => {
-            let victim_label = match victim {
-                KillVictim::Player(name) | KillVictim::Actor(name) => name.as_str(),
-            };
-            vec![TextRun {
-                text: format!("{killer_name} killed {victim_label}"),
-                color: DEFAULT_TEXT_COLOR,
-            }]
-        }
+        GameMessage::Kill { killer_name, victim_name } => vec![TextRun {
+            text: format!("{killer_name} killed {victim_name}"),
+            color: DEFAULT_TEXT_COLOR,
+        }],
         GameMessage::SoloDeath { player_name } => vec![TextRun {
             text: format!("{player_name} died"),
             color: DIM_TEXT_COLOR,
