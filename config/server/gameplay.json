@@ -37,13 +37,13 @@
     "sentry": {
       "inherit_from": "mine_1",
       "combat": {
-        "projectile_damage_taken": 20.0,
-        "explosion": { "player_max_damage": 45.0 },
+        "projectile_damage_taken": 5.0,
+        "explosion": { "player_max_damage": 60.0 },
         "score_reward_on_kill": 100
       },
-      "senses": { "vision_range": 50.0 },
+      "senses": { "vision_range": 60.0 },
       "patrol": { "leash": 30.0 },
-      "chase": { "leash": 70.0 }
+      "chase": { "leash": 80.0 }
     }
   }
 }
