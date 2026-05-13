@@ -34,12 +34,14 @@ pub fn actor_removal_system(
             continue;
         };
         let spawn_kind = info.spawn_kind.clone();
+        let killer = info.last_damager;
         if pos.y < CHARACTER_FALL_DEATH_Y {
             deaths.push(ActorDeath {
                 entity,
                 id: *id,
                 pos: *pos,
                 spawn_kind,
+                killer: None,
                 cause: DeathCause::Fall,
             });
         } else if health.0 <= 0.0 {
@@ -48,6 +50,7 @@ pub fn actor_removal_system(
                 id: *id,
                 pos: *pos,
                 spawn_kind,
+                killer,
                 cause: DeathCause::Killed,
             });
         }
@@ -77,11 +80,14 @@ pub fn actor_removal_system(
                 ServerMessage::ActorDeath(SActorDeath {
                     id: death.id,
                     pos: death.pos,
+                    killer: death.killer,
                 }),
             );
             for (player_id, entity, pos) in dead_players {
                 info!("{:?} killed by {:?} explosion", player_id, death.id);
-                kill_player(&mut commands, &mut players, player_id, entity, pos, respawn_delay_secs);
+                // Chain-explosion player kills aren't attributed to the
+                // actor's last damager — the explosion is environmental.
+                kill_player(&mut commands, &mut players, player_id, entity, pos, respawn_delay_secs, None);
             }
         } else {
             info!("{:?} fell and despawned at {:?}", death.id, death.pos);
@@ -107,5 +113,6 @@ struct ActorDeath {
     id: ActorId,
     pos: Position,
     spawn_kind: String,
+    killer: Option<PlayerId>,
     cause: DeathCause,
 }

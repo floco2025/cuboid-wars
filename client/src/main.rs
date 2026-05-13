@@ -39,8 +39,9 @@ use client::{
     ui::{
         FpsMeasurement,
         floating_labels::{floating_label_camera_visibility_system, floating_labels_billboard_system},
-        setup_ui_system, ui_crosshair_visibility_system, ui_fps_system, ui_health_bar_fill_system,
-        ui_player_list_rebuild_system, ui_rtt_system, ui_stunned_blink_system,
+        GameMessageFeed, SeenPlayerIds, render_pending_messages_system, setup_ui_system,
+        ui_crosshair_visibility_system, ui_fps_system, ui_health_bar_fill_system, ui_player_list_rebuild_system,
+        ui_rtt_system, ui_stunned_blink_system, update_message_feed_system,
     },
     vfx::explosion_effects_system,
 };
@@ -160,6 +161,8 @@ fn main() -> Result<()> {
         .insert_resource(render_settings)
         .insert_resource(DebugColors::default())
         .insert_resource(LastBounceSoundTime::default())
+        .insert_resource(GameMessageFeed::default())
+        .insert_resource(SeenPlayerIds::default())
         .init_resource::<ProjectileAssets>()
         // Startup creates persistent scene infrastructure before any server
         // map data arrives.
@@ -265,6 +268,8 @@ fn main() -> Result<()> {
                 ui_rtt_system,
                 ui_fps_system,
                 death_overlay_visibility_system,
+                render_pending_messages_system,
+                update_message_feed_system,
             ),
         )
         // Skybox asset conversion and camera following.

@@ -71,6 +71,7 @@ pub fn players_fall_death_system(
             entity,
             *pos,
             gameplay_config.player.respawn_delay_secs,
+            None,
         );
     }
 }

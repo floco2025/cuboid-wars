@@ -6,6 +6,7 @@ use crate::{
     network::{RoundTripTime, ServerReconciliation},
     players::{CameraShake, CuboidShake, LocalPlayerInfo, PlayerMap},
     projectiles::{ProjectileAssets, spawn_projectiles},
+    ui::{GameMessage, GameMessageFeed, KillVictim},
 };
 use common::{
     config::GameplayConfig,
@@ -185,9 +186,26 @@ pub fn handle_player_death_message(
     commands: &mut Commands,
     players: &mut ResMut<PlayerMap>,
     local_player_info: &mut LocalPlayerInfo,
+    feed: &mut GameMessageFeed,
     my_player_id: PlayerId,
     msg: SPlayerDeath,
 ) {
+    let victim_name = players.get(&msg.id).map(|info| info.name.clone());
+    let killer_name = msg
+        .killer
+        .and_then(|killer_id| players.get(&killer_id))
+        .map(|info| info.name.clone());
+
+    if let Some(victim_name) = victim_name {
+        match killer_name {
+            Some(killer_name) => feed.push(GameMessage::Kill {
+                killer_name,
+                victim: KillVictim::Player(victim_name),
+            }),
+            None => feed.push(GameMessage::SoloDeath { player_name: victim_name }),
+        }
+    }
+
     if msg.id == my_player_id {
         if let Some(info) = players.get(&msg.id) {
             commands.entity(info.entity).insert(Visibility::Hidden);
@@ -202,12 +220,25 @@ pub fn handle_player_death_message(
 pub fn handle_player_status_message(
     commands: &mut Commands,
     players: &mut ResMut<PlayerMap>,
+    feed: &mut GameMessageFeed,
     msg: SPlayerStatus,
     my_player_id: PlayerId,
     asset_server: &AssetServer,
     asset_set: &AssetSet,
 ) {
     if let Some(player_info) = players.get_mut(&msg.id) {
+        // Emit a feed entry for each key the player just gained. New keys
+        // are those in the message but not in the locally-mirrored set.
+        // The kind id itself is internal — the renderer just uses it to
+        // pick a color for the word "key"; no internal name shown.
+        for new_kind in &msg.held_keys {
+            if !player_info.held_keys.contains(new_kind) {
+                feed.push(GameMessage::KeyFound {
+                    player_name: player_info.name.clone(),
+                    kind: *new_kind,
+                });
+            }
+        }
         // Play power-up sound effect only for the local player
         if msg.id == my_player_id {
             // Don't play power-up sound effect if this message is due to a stun change

@@ -20,6 +20,7 @@ use crate::{
     network::{LastSnapshotSeq, RoundTripTime},
     players::PlayerMap,
     projectiles::ProjectileAssets,
+    ui::{GameMessageFeed, SeenPlayerIds},
 };
 use common::{config::GameplayConfig, physics::CollisionWorld, protocol::*};
 
@@ -51,6 +52,8 @@ pub fn dispatch_message(
     gameplay_config: &GameplayConfig,
     collision_world: Option<&CollisionWorld>,
     local_player_info: &mut crate::players::LocalPlayerInfo,
+    feed: &mut GameMessageFeed,
+    seen_player_ids: &mut SeenPlayerIds,
 ) {
     match msg {
         ServerMessage::Init(_) => {
@@ -70,12 +73,14 @@ pub fn dispatch_message(
                 asset_server,
                 asset_set,
                 actors,
+                players,
+                feed,
                 gameplay_config,
                 death_msg,
             );
         }
         ServerMessage::PlayerDeath(death_msg) => {
-            handle_player_death_message(commands, players, local_player_info, my_player_id, death_msg);
+            handle_player_death_message(commands, players, local_player_info, feed, my_player_id, death_msg);
         }
         ServerMessage::Jump(jump_msg) => {
             handle_player_jump_message(commands, players, player_data, rtt, gameplay_config, jump_msg);
@@ -104,6 +109,8 @@ pub fn dispatch_message(
             rtt,
             last_snapshot_seq,
             local_player_info,
+            feed,
+            seen_player_ids,
             player_data,
             actor_data,
             cameras,
@@ -124,6 +131,7 @@ pub fn dispatch_message(
             handle_player_status_message(
                 commands,
                 players,
+                feed,
                 player_status_msg,
                 my_player_id,
                 asset_server,

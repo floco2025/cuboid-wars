@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 use super::{
     hud::{CrosshairMarker, FpsMarker, RttMarker},
+    message_feed::spawn_message_feed_root,
     player_list::PlayerListMarker,
 };
 
@@ -129,4 +130,6 @@ pub fn setup_ui_system(mut commands: Commands) {
         BackgroundColor(Color::srgba(1.0, 0.0, 0.0, 0.0)),
         Visibility::Hidden,
     ));
+
+    spawn_message_feed_root(&mut commands);
 }

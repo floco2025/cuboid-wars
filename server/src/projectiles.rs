@@ -77,7 +77,7 @@ pub struct ProjectileMovementParams<'w, 's> {
     collision_world: Res<'w, CollisionWorld>,
     gameplay_config: Res<'w, GameplayConfig>,
     server_gameplay_config: Res<'w, ServerGameplayConfig>,
-    actors: Res<'w, ActorMap>,
+    actors: ResMut<'w, ActorMap>,
     players: ResMut<'w, PlayerMap>,
 }
 
@@ -183,6 +183,7 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                             target_entity,
                             target_pos,
                             params.gameplay_config.player.respawn_delay_secs,
+                            Some(*shooter_id),
                         );
                     }
                 }
@@ -194,22 +195,32 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                         continue;
                     }
 
-                    let info = params.actors.get(id).expect("actor in query missing from ActorMap");
+                    let spawn_kind = params
+                        .actors
+                        .get(id)
+                        .expect("actor in query missing from ActorMap")
+                        .spawn_kind
+                        .clone();
                     let was_lethal = apply_actor_projectile_hit(
                         &mut params.players,
                         shooter_id,
                         &mut health,
-                        &info.spawn_kind,
+                        &spawn_kind,
                         &params.server_gameplay_config,
                     );
                     if was_lethal {
                         let bonus = params
                             .server_gameplay_config
-                            .validated_actor(&info.spawn_kind)
+                            .validated_actor(&spawn_kind)
                             .combat
                             .score_reward_on_kill;
                         if let Some(shooter) = params.players.get_mut(shooter_id) {
                             shooter.score += bonus;
+                        }
+                        // Stash the killer so `actor_removal_system`'s
+                        // `SActorDeath` broadcast can attribute the kill.
+                        if let Some(info) = params.actors.get_mut(id) {
+                            info.last_damager = Some(*shooter_id);
                         }
                     }
                     broadcast_to_all(&params.players, ServerMessage::ActorHit(SActorHit { id: actor_id }));

@@ -6,6 +6,8 @@ use crate::{
     actors::{ActorInfo, ActorMap, spawn_actor},
     config::{AssetSet, RenderSettings},
     network::RoundTripTime,
+    players::PlayerMap,
+    ui::{GameMessage, GameMessageFeed, KillVictim},
     vfx::spawn_actor_explosion,
 };
 use common::{
@@ -117,6 +119,8 @@ pub fn handle_actor_death_message(
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
     actors: &mut ResMut<ActorMap>,
+    players: &PlayerMap,
+    feed: &mut GameMessageFeed,
     gameplay_config: &GameplayConfig,
     msg: SActorDeath,
 ) {
@@ -124,6 +128,14 @@ pub fn handle_actor_death_message(
         // Already torn down (e.g. via the snapshot diff). Stay idempotent.
         return;
     };
+    if let Some(killer_id) = msg.killer
+        && let Some(killer) = players.get(&killer_id)
+    {
+        feed.push(GameMessage::Kill {
+            killer_name: killer.name.clone(),
+            victim: KillVictim::Actor(info.kind.clone()),
+        });
+    }
     spawn_actor_explosion(
         commands,
         asset_server,

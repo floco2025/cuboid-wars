@@ -8,6 +8,7 @@ use crate::{
     config::{AssetSet, RenderSettings},
     network::{RoundTripTime, ServerReconciliation},
     players::{LocalPlayerInfo, PlayerInfo, PlayerMap, spawn_player},
+    ui::{GameMessage, GameMessageFeed, SeenPlayerIds},
 };
 use common::{
     config::GameplayConfig,
@@ -28,6 +29,8 @@ pub fn sync_players(
     players: &mut ResMut<PlayerMap>,
     rtt: &ResMut<RoundTripTime>,
     local_player_info: &mut LocalPlayerInfo,
+    feed: &mut GameMessageFeed,
+    seen_player_ids: &mut SeenPlayerIds,
     player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
     camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     my_player_id: PlayerId,
@@ -63,6 +66,17 @@ pub fn sync_players(
             *id,
             player,
         );
+
+        // Skip the local player's own "joined" line — they know they
+        // joined. Also suppress duplicate "joined" lines on respawn —
+        // a respawning player looks identical to a fresh join from the
+        // snapshot diff's perspective, so we gate on first-ever-seen.
+        let is_first_seen = seen_player_ids.insert_if_new(*id);
+        if *id != my_player_id && is_first_seen {
+            feed.push(GameMessage::PlayerJoined {
+                name: player.name.clone(),
+            });
+        }
     }
 
     // Handle players no longer in the snapshot:
@@ -83,6 +97,9 @@ pub fn sync_players(
             true
         } else {
             commands.entity(player.entity).despawn();
+            feed.push(GameMessage::PlayerLeft {
+                name: player.name.clone(),
+            });
             false
         }
     });

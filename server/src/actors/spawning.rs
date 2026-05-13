@@ -208,6 +208,7 @@ fn spawn_actor_in_zone(
             return_path: Default::default(),
             chase_reacquire_timer: 0.0,
             avoidance_state: ActorAvoidanceState::None,
+            last_damager: None,
         },
     );
 }

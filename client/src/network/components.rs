@@ -10,6 +10,7 @@ use crate::{
     items::ItemAssets,
     players::LocalPlayerInfo,
     projectiles::ProjectileAssets,
+    ui::{GameMessageFeed, SeenPlayerIds},
 };
 
 // ============================================================================
@@ -50,4 +51,6 @@ pub struct ClientAssets<'w> {
     pub gameplay_config: Res<'w, GameplayConfig>,
     pub barrier_kind_table: Res<'w, BarrierKindTable>,
     pub local_player_info: ResMut<'w, LocalPlayerInfo>,
+    pub game_message_feed: ResMut<'w, GameMessageFeed>,
+    pub seen_player_ids: ResMut<'w, SeenPlayerIds>,
 }

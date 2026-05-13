@@ -63,6 +63,10 @@ pub struct RenderSettings {
     pub debug_collider_boxes: bool,
     pub texture_mipmaps_enabled: bool,
     pub msaa_samples: u32,
+    // Seconds a single message-feed line (kill, key, join, etc.) stays
+    // visible before fading out. Player-tunable so spectators can keep
+    // entries up longer than active players want.
+    pub message_feed_entry_duration_secs: f32,
 }
 
 impl RenderSettings {
@@ -96,6 +100,10 @@ impl RenderSettings {
             matches!(self.msaa_samples, 1 | 2 | 4 | 8),
             "msaa_samples must be one of 1, 2, 4, or 8"
         );
+        validate_non_negative_finite(
+            self.message_feed_entry_duration_secs,
+            "message_feed_entry_duration_secs",
+        )?;
         Ok(())
     }
 }

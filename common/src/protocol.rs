@@ -162,6 +162,10 @@ pub struct SShot {
 pub struct SPlayerDeath {
     pub id: PlayerId,
     pub pos: Position,
+    // Player who landed the killing blow; `None` for non-player causes
+    // (fall, actor explosion, future environmental). Drives the
+    // client-side message feed's "A → B" entry vs "A died" entry.
+    pub killer: Option<PlayerId>,
 }
 
 // Actor died at this position. Triggers the explosion VFX + sound and the
@@ -170,6 +174,9 @@ pub struct SPlayerDeath {
 pub struct SActorDeath {
     pub id: ActorId,
     pub pos: Position,
+    // Player who landed the killing blow; `None` if the actor died from
+    // chain-explosion damage or other non-player causes.
+    pub killer: Option<PlayerId>,
 }
 
 // Player was hit by a projectile. Carries hit direction so the victim's

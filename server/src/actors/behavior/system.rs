@@ -156,6 +156,7 @@ mod tests {
             return_path: Default::default(),
             chase_reacquire_timer,
             avoidance_state: ActorAvoidanceState::None,
+            last_damager: None,
         }
     }
 

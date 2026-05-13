@@ -73,6 +73,8 @@ pub fn network_process_server_messages_system(
                         &client_assets.gameplay_config,
                         collision_world.as_deref(),
                         &mut client_assets.local_player_info,
+                        &mut client_assets.game_message_feed,
+                        &mut client_assets.seen_player_ids,
                     );
                 } else {
                     handle_init_message(message, &mut commands, &client_assets.barrier_kind_table);

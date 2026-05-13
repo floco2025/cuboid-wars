@@ -98,6 +98,16 @@ pub const LABEL_BACKGROUND_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.2);
 pub const LABEL_FONT_SIZE: f32 = 40.0;
 
 // ============================================================================
+// Message Feed (bottom-right "game messages" log)
+// ============================================================================
+
+// Max number of feed lines visible at once; older lines despawn when a new
+// one arrives at the cap. Entry duration is in `RenderSettings`
+// (`config/client/render.json::message_feed_entry_duration_secs`) so
+// players can tune it.
+pub const MESSAGE_FEED_MAX_ENTRIES: usize = 5;
+
+// ============================================================================
 // Health Bars
 // ============================================================================
 

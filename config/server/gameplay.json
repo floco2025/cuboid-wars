@@ -1,10 +1,10 @@
 {
   "version": 1,
   "scoring": {
-    "player_kill": 1,
-    "player_death": -1,
-    "cookie": 1,
-    "actor_hit": 1
+    "player_kill": 200,
+    "player_death": -200,
+    "cookie": 1000,
+    "actor_hit": 5
   },
   "player": {
     "projectile_damage_taken": 10.0
@@ -16,7 +16,7 @@
         "projectile_damage_taken": 50.0,
         "contact_explosion_distance": 0.2,
         "explosion": { "radius": 6.0, "player_max_damage": 15.0, "actor_max_damage": 50.0 },
-        "score_reward_on_kill": 2
+        "score_reward_on_kill": 20
       },
       "senses": { "vision_range": 20.0, "chase_reacquire_cooldown": 10.0 },
       "patrol": { "leash": 10.0, "min_direction_time": 1.0, "max_direction_time": 3.5, "idle_probability": 0.0 },
@@ -28,7 +28,7 @@
       "combat": {
         "projectile_damage_taken": 35.0,
         "explosion": { "player_max_damage": 30.0 },
-        "score_reward_on_kill": 5
+        "score_reward_on_kill": 50
       },
       "senses": { "vision_range": 30.0 },
       "patrol": { "leash": 15.0 },
@@ -39,7 +39,7 @@
       "combat": {
         "projectile_damage_taken": 20.0,
         "explosion": { "player_max_damage": 45.0 },
-        "score_reward_on_kill": 10
+        "score_reward_on_kill": 100
       },
       "senses": { "vision_range": 50.0 },
       "patrol": { "leash": 30.0 },

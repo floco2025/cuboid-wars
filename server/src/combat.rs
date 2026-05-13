@@ -26,13 +26,17 @@ pub fn kill_player(
     entity: Entity,
     pos: Position,
     respawn_delay_secs: f32,
+    killer: Option<PlayerId>,
 ) {
     if let Some(info) = players.get_mut(&id) {
         info.clear_per_life_state();
         info.death_timer = Some(respawn_delay_secs);
     }
     commands.entity(entity).despawn();
-    broadcast_to_all(players, ServerMessage::PlayerDeath(SPlayerDeath { id, pos }));
+    broadcast_to_all(
+        players,
+        ServerMessage::PlayerDeath(SPlayerDeath { id, pos, killer }),
+    );
 }
 
 // Apply one projectile hit to a player. Returns `true` when this hit drops
@@ -288,7 +292,7 @@ mod tests {
         let mut commands_queue = bevy::ecs::world::CommandQueue::default();
         {
             let mut commands = bevy::ecs::system::Commands::new(&mut commands_queue, world);
-            kill_player(&mut commands, &mut players, PlayerId(2), target_entity, pos, 2.0);
+            kill_player(&mut commands, &mut players, PlayerId(2), target_entity, pos, 2.0, Some(PlayerId(1)));
         }
         commands_queue.apply(world);
 
@@ -324,6 +328,7 @@ mod tests {
                 entity,
                 Position { x: 1.0, y: 2.0, z: 3.0 },
                 2.0,
+                None,
             );
         }
         commands_queue.apply(world);

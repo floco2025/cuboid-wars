@@ -2,7 +2,7 @@ use std::collections::{HashMap, VecDeque};
 
 use bevy::prelude::*;
 
-use common::protocol::{ActorId, ActorMoveIntent, Position};
+use common::protocol::{ActorId, ActorMoveIntent, PlayerId, Position};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum ActorAvoidanceState {
@@ -28,6 +28,11 @@ pub struct ActorInfo {
     pub return_path: VecDeque<Position>,
     pub chase_reacquire_timer: f32,
     pub avoidance_state: ActorAvoidanceState,
+    // Player who landed the last projectile damage. Read by
+    // `actor_removal_system` when the actor's health hits zero, so the
+    // `SActorDeath` broadcast can attribute the kill. Chain-explosion
+    // damage doesn't touch this field — those deaths read `None`.
+    pub last_damager: Option<PlayerId>,
 }
 
 #[derive(Resource, Default)]

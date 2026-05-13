@@ -10,6 +10,7 @@ use crate::{
     items::{ItemAssets, ItemMap},
     network::{LastSnapshotSeq, RoundTripTime},
     players::PlayerMap,
+    ui::{GameMessageFeed, SeenPlayerIds},
 };
 
 // Handle bulk state synchronization from the `SSnapshot` message.
@@ -25,6 +26,8 @@ pub(super) fn handle_snapshot_message(
     rtt: &ResMut<RoundTripTime>,
     last_snapshot_seq: &mut ResMut<LastSnapshotSeq>,
     local_player_info: &mut crate::players::LocalPlayerInfo,
+    feed: &mut GameMessageFeed,
+    seen_player_ids: &mut SeenPlayerIds,
     player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
     actor_data: &Query<(&Position, &ActorMoveIntent, &FaceDirection), With<ActorMarker>>,
     camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
@@ -56,6 +59,8 @@ pub(super) fn handle_snapshot_message(
         players,
         rtt,
         local_player_info,
+        feed,
+        seen_player_ids,
         player_data,
         camera_query,
         my_player_id,
