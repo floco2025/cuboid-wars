@@ -64,10 +64,10 @@ python3 tools/editor.py                                     # edits config/serve
 Server→client messages have three roles, documented at the top of `common/src/protocol.rs`:
 
 1. **Bootstrap** (`SInit`) — once per connection.
-2. **Snapshot** (`SUpdate`) — periodic full state, every tick. **Sole vehicle for player/actor presence**: a player appears the tick they show up in `SUpdate` and disappears the tick they don't. No `SLogin`/`SLogoff` — login, logout, death, and respawn all surface here. Self-healing if a packet drops.
-3. **One-shot cues** — short messages for things the snapshot can't carry (sub-tick latency or edge-triggered side-effects). Examples: `SPlayerHit` (direction-bearing camera shake), `SPlayerDeath`/`SActorDeath` (immediate VFX + entity teardown), `SPlayerStatus` (power-up sound at the transition).
+2. **Snapshot** (`SSnapshot`) — periodic full durable state, every tick. **Sole vehicle for player/actor/item presence**: a player appears the tick they show up in `SSnapshot` and disappears the tick they don't. No `SLogin`/`SLogoff` — login, logout, death, and respawn all surface here. Self-healing if a packet drops. Projectiles are the deliberate exception: because they are fast, short-lived, and numerous, they are replicated as shot intents (`SShot`) rather than snapshot entities. Clients simulate them for presentation only; authoritative hit/death logic comes from the server.
+3. **One-shot cues** — short messages for things the snapshot can't carry (sub-tick latency or edge-triggered side-effects). Examples: `SShot` (projectile presentation), `SPlayerHit` (direction-bearing camera shake), `SPlayerDeath`/`SActorDeath` (immediate VFX + entity teardown), `SPlayerStatus` (power-up sound at the transition).
 
-When adding a new server→client message: pick the smallest role that fits. Most "X changed" belongs in `SUpdate`. Only add a one-shot if (a) sub-tick latency matters, (b) the cue is edge-triggered with a one-time side effect, or (c) it carries information the snapshot can't.
+When adding a new server→client message: pick the smallest role that fits. Most "X changed" belongs in `SSnapshot`. Only add a one-shot if (a) sub-tick latency matters, (b) the cue is edge-triggered with a one-time side effect, or (c) it carries information the snapshot can't.
 
 ### Gameplay systems
 

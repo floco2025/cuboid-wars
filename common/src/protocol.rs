@@ -13,6 +13,11 @@
 //    disappears in the first they're absent from. Self-healing — a dropped
 //    snapshot is forgiven by the next one.
 //
+//    Projectiles are the deliberate exception. They are short-lived, fast,
+//    and numerous, so they are replicated as shot intents (`SShot`) rather
+//    than snapshot entities. Clients simulate them only for presentation;
+//    authoritative hit/death outcomes still come from the server.
+//
 // 3. One-shot cues — short messages that fire at the moment of a discrete
 //    state change. They exist only when the snapshot can't carry the cue,
 //    which is one of:
@@ -140,8 +145,9 @@ pub struct SFace {
     pub dir: f32,
 }
 
-// Player fired a shot. Lets other clients spawn the projectile immediately
-// instead of waiting for it to appear in `SSnapshot`.
+// Player fired a shot. Projectile entities are intentionally not carried in
+// `SSnapshot`: clients spawn and simulate them for presentation, while the
+// server runs its own projectile simulation for authoritative hit logic.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SShot {
     pub id: PlayerId,
