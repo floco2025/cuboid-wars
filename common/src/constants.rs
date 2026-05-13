@@ -112,7 +112,7 @@ pub const PROJECTILE_BOUNCE_RETENTION: f32 = 0.9; // fraction of speed retained 
 
 pub const POWER_UP_SPEED_MULTIPLIER: f32 = 1.8;
 pub const POWER_UP_MULTI_SHOT_MULTIPLIER: i32 = 5;
-pub const POWER_UP_MULTI_SHOT_ANGLE: f32 = 2.0;
+pub const POWER_UP_MULTI_SHOT_ANGLE: f32 = 1.5;
 pub const POWER_UP_ANTI_GRAVITY_MULTIPLIER: f32 = 0.2;
 
 // Spawn gates. Set any flag to `false` to keep that power-up off the spawn
