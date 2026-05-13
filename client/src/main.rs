@@ -12,7 +12,7 @@ use client::{
     actors::{ActorMap, actors_transform_sync_system},
     barriers::{barriers_pulsate_system, barriers_spawn_system, setup_barrier_assets},
     cameras::{CameraViewMode, TopDownCameraYaw, setup_cameras_system},
-    characters::{characters_movement_system, characters_visual_turn_system},
+    characters::{capture_previous_tick_position_system, characters_movement_system, characters_visual_turn_system},
     config::{AssetSet, OpaqueRenderer, RenderSettings, configure_client},
     input::{
         input_camera_view_toggle_system, input_cursor_toggle_system, input_debug_colors_cycle_system,
@@ -136,6 +136,10 @@ fn main() -> Result<()> {
         OpaqueRenderer::Deferred => DefaultOpaqueRendererMethod::deferred(),
     });
 
+    // Run client physics at the server's fixed 30 Hz tick. Render-time
+    // interpolation in the transform-sync systems hides the step rate.
+    app.insert_resource(Time::<Fixed>::from_hz(30.0));
+
     app.insert_resource(ClientToServerChannel::new(to_server))
         .insert_resource(ServerToClientChannel::new(from_server))
         .insert_resource(PlayerMap::default())
@@ -183,14 +187,20 @@ fn main() -> Result<()> {
         )
         // Network consumes server messages and sends periodic ping requests.
         .add_systems(Update, (network_ping_system, network_process_server_messages_system))
-        // Character prediction updates local component state. Transform sync
-        // then turns that state into rendered positions and smoothed rotation.
+        // Character prediction runs at a fixed 30 Hz tick to match the
+        // server. The capture system stamps `PreviousTickPosition` before
+        // movement so the render-rate transform sync can interpolate.
+        .add_systems(
+            FixedUpdate,
+            (capture_previous_tick_position_system, characters_movement_system).chain(),
+        )
+        // Transform sync runs every render frame and lerps between the last
+        // two ticks' positions so motion looks smooth above 30 Hz.
         .add_systems(
             Update,
             (
-                characters_movement_system,
-                players_transform_sync_system.after(characters_movement_system),
-                actors_transform_sync_system.after(characters_movement_system),
+                players_transform_sync_system,
+                actors_transform_sync_system,
                 characters_visual_turn_system
                     .after(players_transform_sync_system)
                     .after(actors_transform_sync_system),

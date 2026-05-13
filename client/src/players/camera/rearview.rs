@@ -2,18 +2,21 @@ use bevy::{camera::Viewport, prelude::*};
 
 use crate::{
     cameras::{CameraViewMode, MainCameraMarker, RearviewCameraMarker},
+    characters::PreviousTickPosition,
     config::RenderSettings,
     constants::{REARVIEW_HEIGHT_RATIO, REARVIEW_MARGIN, REARVIEW_WIDTH_RATIO},
     players::LocalPlayerMarker,
 };
 use common::{config::GameplayConfig, protocol::Position};
 
-// Update rearview camera to look backwards from local player.
+// Update rearview camera to look backwards from local player. Interpolates
+// between the last and current fixed-tick positions like the main camera.
 pub fn local_player_rearview_sync_system(
-    local_player_query: Query<&Position, With<LocalPlayerMarker>>,
+    local_player_query: Query<(&Position, &PreviousTickPosition), With<LocalPlayerMarker>>,
     main_camera_query: Query<&Transform, (With<Camera3d>, With<MainCameraMarker>, Without<RearviewCameraMarker>)>,
     mut rearview_query: Query<&mut Transform, (With<RearviewCameraMarker>, Without<MainCameraMarker>)>,
     view_mode: Res<CameraViewMode>,
+    fixed_time: Res<Time<Fixed>>,
     render_settings: Res<RenderSettings>,
     gameplay_config: Res<GameplayConfig>,
 ) {
@@ -21,7 +24,7 @@ pub fn local_player_rearview_sync_system(
         return;
     }
 
-    let Some(player_pos) = local_player_query.iter().next() else {
+    let Some((current_pos, prev_pos)) = local_player_query.iter().next() else {
         return;
     };
 
@@ -29,9 +32,10 @@ pub fn local_player_rearview_sync_system(
         return;
     };
 
-    rearview_transform.translation.x = player_pos.x;
-    rearview_transform.translation.z = player_pos.z;
-    rearview_transform.translation.y = player_pos.y + gameplay_config.player.eye_height();
+    let interp = prev_pos.lerp_to(*current_pos, fixed_time.overstep_fraction());
+    rearview_transform.translation.x = interp.x;
+    rearview_transform.translation.z = interp.z;
+    rearview_transform.translation.y = interp.y + gameplay_config.player.eye_height();
 
     // Get the main camera's rotation and rotate 180 degrees.
     if let Ok(main_transform) = main_camera_query.single() {

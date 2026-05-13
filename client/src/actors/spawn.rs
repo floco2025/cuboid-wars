@@ -2,7 +2,7 @@ use bevy::{gltf::GltfAssetLabel, prelude::*, scene::SceneRoot};
 
 use crate::{
     animations::{AnimationToPlay, character_animation_system},
-    characters::spawn_collider_box,
+    characters::{PreviousTickPosition, spawn_collider_box},
     config::{AssetSet, RenderSettings},
     constants::{LABEL_ACTOR_TEXTURE_HEIGHT, LABEL_ACTOR_TEXTURE_WIDTH},
     ui::floating_labels::{LabelCamera, setup_label_texture, spawn_floating_actor_health_bar},
@@ -36,6 +36,7 @@ pub fn spawn_actor(
             actor_id,
             ActorMarker,
             actor.movement.pos,
+            PreviousTickPosition(actor.movement.pos),
             actor.movement.move_intent,
             actor.health,
             FaceDirection(actor.face_dir),

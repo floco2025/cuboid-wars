@@ -4,6 +4,7 @@ use std::collections::HashSet;
 use super::handlers::player_movement_velocity;
 use crate::{
     cameras::MainCameraMarker,
+    characters::PreviousTickPosition,
     config::{AssetSet, RenderSettings},
     network::{RoundTripTime, ServerReconciliation},
     players::{LocalPlayerInfo, PlayerInfo, PlayerMap, spawn_player},
@@ -98,6 +99,9 @@ pub fn sync_players(
     {
         commands.entity(info.entity).insert((
             server_player.movement.pos,
+            // Reset the previous-tick anchor so render interpolation doesn't
+            // smear the respawn teleport across one render frame.
+            PreviousTickPosition(server_player.movement.pos),
             FaceDirection(server_player.face_dir),
             CharacterVerticalVelocity(server_player.movement.vertical_velocity),
             server_player.health,

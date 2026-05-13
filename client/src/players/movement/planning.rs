@@ -10,6 +10,7 @@ use common::{
 
 use super::{feedback::decay_flash_timer, types::PlayerMovementQuery};
 use crate::{
+    characters::PreviousTickPosition,
     constants::{
         RECON_PLAYER_IDLE_TIME, RECON_PLAYER_OUT_OF_SYNC_DISTANCE_IDLE, RECON_PLAYER_OUT_OF_SYNC_DISTANCE_MOVING,
         RECON_RTT_MULTIPLIER,
@@ -165,6 +166,9 @@ fn reconciled_target_position(
         *client_pos = recon.server_pos;
         *vertical_velocity = recon.server_velocity.y;
         commands.entity(entity).remove::<ServerReconciliation>();
+        // Reset the prev-tick anchor so the next render frame doesn't lerp
+        // through the warp.
+        commands.entity(entity).insert(PreviousTickPosition(*client_pos));
         planned_moves.push(CharacterMovePlan::stationary(
             entity,
             *client_pos,

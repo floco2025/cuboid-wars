@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use super::top_down::{topdown_camera_transform, window_aspect_ratio};
 use crate::{
     cameras::{CameraViewMode, MainCameraMarker, TopDownCameraYaw},
+    characters::PreviousTickPosition,
     config::RenderSettings,
     players::{CameraShake, LocalPlayerMarker},
 };
@@ -11,11 +12,14 @@ use common::{
     protocol::{MapLayout, Position},
 };
 
-// Update camera position to follow local player.
+// Update camera position to follow local player. Physics ticks at 30 Hz;
+// interpolate between last-tick and current-tick positions so the camera
+// stays smooth at the render rate.
 pub fn local_player_camera_sync_system(
-    local_player_query: Query<&Position, With<LocalPlayerMarker>>,
+    local_player_query: Query<(&Position, &PreviousTickPosition), With<LocalPlayerMarker>>,
     map_layout: Option<Res<MapLayout>>,
     windows: Query<&Window>,
+    fixed_time: Res<Time<Fixed>>,
     mut camera_query: Query<
         (&mut Transform, &mut Projection, Option<&CameraShake>),
         (With<Camera3d>, With<MainCameraMarker>),
@@ -25,9 +29,16 @@ pub fn local_player_camera_sync_system(
     render_settings: Res<RenderSettings>,
     gameplay_config: Res<GameplayConfig>,
 ) {
-    let Some(player_pos) = local_player_query.iter().next() else {
+    let Some((current_pos, prev_pos)) = local_player_query.iter().next() else {
         return;
     };
+    let interp = prev_pos.lerp_to(*current_pos, fixed_time.overstep_fraction());
+    let interpolated = Position {
+        x: interp.x,
+        y: interp.y,
+        z: interp.z,
+    };
+    let player_pos = &interpolated;
 
     let Ok((mut camera_transform, mut projection, maybe_shake)) = camera_query.single_mut() else {
         return;

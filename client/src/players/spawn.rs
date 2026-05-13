@@ -3,7 +3,7 @@ use bevy::{gltf::GltfAssetLabel, prelude::*, scene::SceneRoot};
 use super::BumpFlashState;
 use crate::{
     animations::{AnimationToPlay, character_animation_system},
-    characters::spawn_collider_box,
+    characters::{PreviousTickPosition, spawn_collider_box},
     config::{AssetSet, RenderSettings},
     constants::{LABEL_PLAYER_TEXTURE_HEIGHT, LABEL_PLAYER_TEXTURE_WIDTH},
     ui::floating_labels::{LabelCamera, setup_label_texture, spawn_floating_player_label},
@@ -83,6 +83,7 @@ pub fn spawn_player(
                     .with_rotation(Quat::from_rotation_y(face_dir)),
                 visibility: player_visibility(is_local),
             },
+            PreviousTickPosition(*position),
             animation_to_play.clone(),
         ))
         .id();

@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 use crate::{
     actors::ActorMap,
+    characters::PreviousTickPosition,
     constants::{RECON_ACTOR_OUT_OF_SYNC_DISTANCE, RECON_RTT_MULTIPLIER},
     network::ServerReconciliation,
 };
@@ -75,6 +76,9 @@ pub(crate) fn plan_actor_moves(
                 *pos = recon.server_pos;
                 motion.0 = recon.server_velocity.y;
                 commands.entity(entity).remove::<ServerReconciliation>();
+                // Anchor render interpolation at the snapped position so the
+                // warp doesn't smear across one render frame.
+                commands.entity(entity).insert(PreviousTickPosition(*pos));
                 push_actor_planned_move(
                     planned_moves,
                     actor_starts,
