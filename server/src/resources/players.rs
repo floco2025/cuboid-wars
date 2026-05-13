@@ -27,7 +27,7 @@ pub struct PlayerInfo {
     pub held_keys: Vec<BarrierKindId>,
     // `Some(remaining_secs)` from the moment a player's health drops to zero
     // until the respawn system spawns a new entity. While dead, the player
-    // has no entity and is absent from `SUpdate` — the local client sees
+    // has no entity and is absent from `SSnapshot` — the local client sees
     // this as "I disappeared from the snapshot" and shows the death overlay.
     pub death_timer: Option<f32>,
 }

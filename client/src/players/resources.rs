@@ -67,7 +67,7 @@ pub struct LocalPlayerInfo {
     pub last_sent_face: f32,
     pub stored_yaw: f32,
     pub stored_pitch: f32,
-    // True from the moment the local player vanishes from `SUpdate` until
+    // True from the moment the local player vanishes from `SSnapshot` until
     // they reappear (death → respawn). Input systems gate on this; the death
     // overlay reads it to show/hide the red tint.
     pub is_dead: bool,

@@ -9,7 +9,7 @@ use super::{
         handle_player_death_message, handle_player_face_message, handle_player_hit_message, handle_player_jump_message,
         handle_player_move_intent_message, handle_player_shot_message, handle_player_status_message,
     },
-    update::handle_update_message,
+    snapshot::handle_snapshot_message,
 };
 use crate::{
     actors::ActorMap,
@@ -17,7 +17,7 @@ use crate::{
     cameras::MainCameraMarker,
     config::{AssetSet, RenderSettings},
     items::{ItemAssets, ItemMap},
-    network::{LastUpdateSeq, RoundTripTime},
+    network::{LastSnapshotSeq, RoundTripTime},
     players::PlayerMap,
     projectiles::ProjectileAssets,
 };
@@ -36,7 +36,7 @@ pub fn dispatch_message(
     actors: &mut ResMut<ActorMap>,
     items: &mut ResMut<ItemMap>,
     rtt: &mut ResMut<RoundTripTime>,
-    last_update_seq: &mut ResMut<LastUpdateSeq>,
+    last_snapshot_seq: &mut ResMut<LastSnapshotSeq>,
     assets: &mut AssetManagers,
     player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
     actor_data: &Query<(&Position, &ActorMoveIntent, &FaceDirection), With<ActorMarker>>,
@@ -92,7 +92,7 @@ pub fn dispatch_message(
                 gameplay_config,
             );
         }
-        ServerMessage::Update(update_msg) => handle_update_message(
+        ServerMessage::Snapshot(snapshot_msg) => handle_snapshot_message(
             commands,
             &mut assets.meshes,
             &mut assets.materials,
@@ -102,7 +102,7 @@ pub fn dispatch_message(
             actors,
             items,
             rtt,
-            last_update_seq,
+            last_snapshot_seq,
             local_player_info,
             player_data,
             actor_data,
@@ -114,7 +114,7 @@ pub fn dispatch_message(
             item_assets,
             barrier_assets,
             gameplay_config,
-            update_msg,
+            snapshot_msg,
         ),
         ServerMessage::PlayerHit(hit_msg) => {
             handle_player_hit_message(commands, players, cameras, my_player_id, hit_msg);

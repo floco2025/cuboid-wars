@@ -54,7 +54,7 @@ pub fn network_process_client_messages_system(
                 }
 
                 debug!("{:?} disconnected (logged_in: {})", id, was_logged_in);
-                // Other clients notice the absence on the next `SUpdate`.
+                // Other clients notice the absence on the next `SSnapshot`.
             }
             ClientToServer::Message(message) => {
                 let is_logged_in = player_info.logged_in;

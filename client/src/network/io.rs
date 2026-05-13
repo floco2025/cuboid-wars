@@ -12,7 +12,7 @@ use crate::{
     constants::PING_INTERVAL,
     items::ItemMap,
     network::{
-        ClientToServer, ClientToServerChannel, LastUpdateSeq, RoundTripTime, ServerToClient, ServerToClientChannel,
+        ClientToServer, ClientToServerChannel, LastSnapshotSeq, RoundTripTime, ServerToClient, ServerToClientChannel,
     },
     players::{MyPlayerId, PlayerMap},
 };
@@ -31,7 +31,7 @@ pub fn network_process_server_messages_system(
     mut actors: ResMut<ActorMap>,
     mut items: ResMut<ItemMap>,
     mut rtt: ResMut<RoundTripTime>,
-    mut last_update_seq: ResMut<LastUpdateSeq>,
+    mut last_snapshot_seq: ResMut<LastSnapshotSeq>,
     mut assets: AssetManagers,
     player_data: Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
     actor_data: Query<(&Position, &ActorMoveIntent, &FaceDirection), With<ActorMarker>>,
@@ -58,7 +58,7 @@ pub fn network_process_server_messages_system(
                         &mut actors,
                         &mut items,
                         &mut rtt,
-                        &mut last_update_seq,
+                        &mut last_snapshot_seq,
                         &mut assets,
                         &player_data,
                         &actor_data,

@@ -8,7 +8,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    constants::UPDATE_BROADCAST_INTERVAL,
+    constants::SNAPSHOT_PERIOD_SECS,
     physics::{
         CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, blocking_character_move_plan,
         character_move_plan_is_blocked, step_character_movement,
@@ -55,10 +55,10 @@ pub(crate) fn plan_actor_moves(
         let h_vel = move_intent.to_horizontal_velocity();
         let target_pos = if let Some(recon) = recon_option.as_mut() {
             let correction_time = recon.rtt * RECON_RTT_MULTIPLIER;
-            let correction_factor = (UPDATE_BROADCAST_INTERVAL / correction_time).clamp(0.0, 1.0);
+            let correction_factor = (SNAPSHOT_PERIOD_SECS / correction_time).clamp(0.0, 1.0);
 
             recon.timer += delta * correction_factor;
-            if recon.timer >= UPDATE_BROADCAST_INTERVAL {
+            if recon.timer >= SNAPSHOT_PERIOD_SECS {
                 commands.entity(entity).remove::<ServerReconciliation>();
             }
 
@@ -89,10 +89,10 @@ pub(crate) fn plan_actor_moves(
 
             Position {
                 x: h_vel.x.mul_add(delta, pos.x)
-                    + total_delta.x * delta * correction_factor / UPDATE_BROADCAST_INTERVAL,
+                    + total_delta.x * delta * correction_factor / SNAPSHOT_PERIOD_SECS,
                 y: pos.y,
                 z: h_vel.z.mul_add(delta, pos.z)
-                    + total_delta.z * delta * correction_factor / UPDATE_BROADCAST_INTERVAL,
+                    + total_delta.z * delta * correction_factor / SNAPSHOT_PERIOD_SECS,
             }
         } else {
             Position {

@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
     constants::{
-        ALWAYS_ANTI_GRAVITY, ALWAYS_PHASING, CHARACTER_GROUND_SNAP_DISTANCE, PHYSICS_EPSILON, UPDATE_BROADCAST_INTERVAL,
+        ALWAYS_ANTI_GRAVITY, ALWAYS_PHASING, CHARACTER_GROUND_SNAP_DISTANCE, PHYSICS_EPSILON, SNAPSHOT_PERIOD_SECS,
     },
     physics::{CharacterMovePlan, CollisionWorld, step_character_movement},
     protocol::Position,
@@ -136,10 +136,10 @@ fn reconciled_target_position(
     let run_correction_time = recon.rtt * RECON_RTT_MULTIPLIER;
     let speed_ratio = (h_vel.x.hypot(h_vel.z) / run_speed).clamp(0.0, 1.0);
     let correction_time_interval = RECON_PLAYER_IDLE_TIME.lerp(run_correction_time, speed_ratio);
-    let correction_factor = (UPDATE_BROADCAST_INTERVAL / correction_time_interval).clamp(0.0, 1.0);
+    let correction_factor = (SNAPSHOT_PERIOD_SECS / correction_time_interval).clamp(0.0, 1.0);
 
     recon.timer += delta * correction_factor;
-    if recon.timer >= UPDATE_BROADCAST_INTERVAL {
+    if recon.timer >= SNAPSHOT_PERIOD_SECS {
         commands.entity(entity).remove::<ServerReconciliation>();
     }
 
@@ -178,8 +178,8 @@ fn reconciled_target_position(
         return None;
     }
 
-    let dx = total_delta.x * delta * correction_factor / UPDATE_BROADCAST_INTERVAL;
-    let dz = total_delta.z * delta * correction_factor / UPDATE_BROADCAST_INTERVAL;
+    let dx = total_delta.x * delta * correction_factor / SNAPSHOT_PERIOD_SECS;
+    let dz = total_delta.z * delta * correction_factor / SNAPSHOT_PERIOD_SECS;
 
     Some(Position {
         x: h_vel.x.mul_add(delta, client_pos.x) + dx,

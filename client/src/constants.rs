@@ -19,10 +19,6 @@ pub const REARVIEW_MARGIN: f32 = 0.02; // Margin from edge as ratio of screen si
 
 pub const MOUSE_SENSITIVITY: f32 = 0.002; // radians per pixel
 
-// ============================================================================
-// Input Commit
-// ============================================================================
-//
 // Player input is sampled at render rate (smooth camera) and committed once
 // per game tick (`common::constants::TICK_HZ`) in `commit_player_input_system`.
 // The tick rate alone gates send frequency; this threshold filters mouse-
@@ -32,6 +28,10 @@ pub const MOUSE_SENSITIVITY: f32 = 0.002; // radians per pixel
 // State transitions (idle ↔ moving, walk ↔ run, jump) bypass the threshold
 // and always commit.
 pub const ANGLE_COMMIT_THRESHOLD_DEGREES: f32 = 1.0;
+
+// ============================================================================
+// RTT measurement
+// ============================================================================
 
 // Round-trip time — interval between ping requests sent to the server.
 pub const PING_INTERVAL: f32 = 10.0;

@@ -113,17 +113,17 @@ pub fn handle_login_message(
             let all_items = collect_items(items, item_positions);
             let all_actors = snapshot_actors(actors, actor_data, actor_motions);
 
-            // Send the initial Update to the new player
-            let update_msg = ServerMessage::Update(SUpdate {
+            // Send the initial snapshot to the new player
+            let snapshot_msg = ServerMessage::Snapshot(SSnapshot {
                 seq: 0,
                 players: all_players,
                 actors: all_actors,
                 items: all_items,
             });
-            channel.send(ServerToClient::Send(update_msg)).ok();
+            channel.send(ServerToClient::Send(snapshot_msg)).ok();
 
             // Now update entity with the authoritative spawn movement state.
-            // Other clients learn about this player via the next `SUpdate`
+            // Other clients learn about this player via the next `SSnapshot`
             // snapshot — no explicit "login" event is broadcast.
             commands.entity(entity).insert((
                 pos,

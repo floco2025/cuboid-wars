@@ -7,9 +7,9 @@ use tokio::sync::mpsc::{
 
 use super::transport::{ClientToServer, ServerToClient};
 
-// Last received SUpdate sequence number.
+// Last received SSnapshot sequence number.
 #[derive(Resource, Default)]
-pub struct LastUpdateSeq(pub u32);
+pub struct LastSnapshotSeq(pub u32);
 
 // Round-trip time to server.
 #[derive(Resource, Default)]

@@ -95,7 +95,7 @@ pub fn dispatch_message(
 // ============================================================================
 
 // Handle logoff message. Other clients notice the absence on the next
-// `SUpdate` snapshot — no explicit logoff event is broadcast.
+// `SSnapshot` snapshot — no explicit logoff event is broadcast.
 fn handle_logoff_message(commands: &mut Commands, entity: Entity, id: PlayerId, _msg: CLogoff, players: &PlayerMap) {
     debug!("{:?} logged off", id);
     // The entity is already despawned if the player was mid-death; avoid the

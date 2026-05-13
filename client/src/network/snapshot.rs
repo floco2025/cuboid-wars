@@ -8,12 +8,12 @@ use crate::{
     cameras::MainCameraMarker,
     config::{AssetSet, RenderSettings},
     items::{ItemAssets, ItemMap},
-    network::{LastUpdateSeq, RoundTripTime},
+    network::{LastSnapshotSeq, RoundTripTime},
     players::PlayerMap,
 };
 
-// Handle bulk state synchronization from Update message.
-pub(super) fn handle_update_message(
+// Handle bulk state synchronization from the `SSnapshot` message.
+pub(super) fn handle_snapshot_message(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
@@ -23,7 +23,7 @@ pub(super) fn handle_update_message(
     actors: &mut ResMut<ActorMap>,
     items: &mut ResMut<ItemMap>,
     rtt: &ResMut<RoundTripTime>,
-    last_update_seq: &mut ResMut<LastUpdateSeq>,
+    last_snapshot_seq: &mut ResMut<LastSnapshotSeq>,
     local_player_info: &mut crate::players::LocalPlayerInfo,
     player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
     actor_data: &Query<(&Position, &ActorMoveIntent, &FaceDirection), With<ActorMarker>>,
@@ -35,17 +35,17 @@ pub(super) fn handle_update_message(
     item_assets: &ItemAssets,
     barrier_assets: &BarrierAssets,
     gameplay_config: &GameplayConfig,
-    msg: SUpdate,
+    msg: SSnapshot,
 ) {
-    if msg.seq <= last_update_seq.0 {
+    if msg.seq <= last_snapshot_seq.0 {
         warn!(
-            "Ignoring outdated SUpdate (seq: {}, last: {})",
-            msg.seq, last_update_seq.0
+            "Ignoring outdated SSnapshot (seq: {}, last: {})",
+            msg.seq, last_snapshot_seq.0
         );
         return;
     }
 
-    last_update_seq.0 = msg.seq;
+    last_snapshot_seq.0 = msg.seq;
 
     sync_players(
         commands,

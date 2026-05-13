@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::resources::{ActorMap, ItemMap, PlayerMap};
 use common::{
-    constants::UPDATE_BROADCAST_INTERVAL,
+    constants::SNAPSHOT_PERIOD_SECS,
     physics::CharacterVerticalVelocity,
     protocol::{ActorMarker, ItemMarker, PlayerMarker, *},
 };
@@ -23,7 +23,7 @@ pub fn network_broadcast_snapshot_system(
     item_positions: Query<&Position, With<ItemMarker>>,
 ) {
     *timer += time.delta_secs();
-    if *timer < UPDATE_BROADCAST_INTERVAL {
+    if *timer < SNAPSHOT_PERIOD_SECS {
         return;
     }
     *timer = 0.0;
@@ -38,7 +38,7 @@ pub fn network_broadcast_snapshot_system(
     let all_actors = snapshot_actors(&actors, &actor_data, &actor_motions);
     let all_items = collect_items(&items, &item_positions);
 
-    let msg = ServerMessage::Update(SUpdate {
+    let msg = ServerMessage::Snapshot(SSnapshot {
         seq: *seq,
         players: all_players,
         actors: all_actors,

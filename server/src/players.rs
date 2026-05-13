@@ -83,7 +83,7 @@ pub fn players_fall_death_system(
 // at a new spawn-zone cell with full health. Per-life state (power-ups, keys,
 // stun) was already cleared at death; score is preserved.
 //
-// The new entity replaces the (already despawned) old one; the next `SUpdate`
+// The new entity replaces the (already despawned) old one; the next `SSnapshot`
 // will carry the player at their new position and the client's snapshot diff
 // resurrects their visual.
 pub fn players_respawn_system(

@@ -7,9 +7,9 @@
 // 1. Bootstrap (`SInit`) — sent once at connect with session-level state
 //    (`PlayerId`, static `MapLayout`).
 //
-// 2. State snapshot (`SUpdate`) — the authoritative current state of every
+// 2. State snapshot (`SSnapshot`) — the authoritative current state of every
 //    player, actor, and item, broadcast every server tick. Sole vehicle for
-//    presence: a player appears the tick they first show up in `SUpdate` and
+//    presence: a player appears the tick they first show up in `SSnapshot` and
 //    disappears the tick they're absent. Self-healing — a dropped tick is
 //    forgiven by the next one.
 //
@@ -107,7 +107,7 @@ pub struct SInit {
 // Periodic full-world snapshot. Sole source of truth for player/actor/item
 // presence; one-shot cues are paired against it for sub-tick latency.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct SUpdate {
+pub struct SSnapshot {
     pub seq: u32,
     pub players: Vec<(PlayerId, Player)>,
     pub actors: Vec<(ActorId, Actor)>,
@@ -145,7 +145,7 @@ pub struct SFace {
 }
 
 // Player fired a shot. Lets other clients spawn the projectile immediately
-// instead of waiting for it to appear in `SUpdate`.
+// instead of waiting for it to appear in `SSnapshot`.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SShot {
     pub id: PlayerId,
@@ -157,7 +157,7 @@ pub struct SShot {
 
 // Player died at this position. Drives the immediate client-side death-state
 // transition (overlay + freeze for the dying player, entity teardown for
-// others). `SUpdate`'s next snapshot is the fallback.
+// others). `SSnapshot`'s next snapshot is the fallback.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SPlayerDeath {
     pub id: PlayerId,
@@ -165,7 +165,7 @@ pub struct SPlayerDeath {
 }
 
 // Actor died at this position. Triggers the explosion VFX + sound and the
-// local entity teardown. `SUpdate`'s next snapshot is the fallback.
+// local entity teardown. `SSnapshot`'s next snapshot is the fallback.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SActorDeath {
     pub id: ActorId,
@@ -189,7 +189,7 @@ pub struct SActorHit {
 }
 
 // Player status flags changed (power-up gained/lost, stun toggle). The same
-// flags are also in `SUpdate`, but this event is the edge trigger that fires
+// flags are also in `SSnapshot`, but this event is the edge trigger that fires
 // the associated sounds exactly once at the transition.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct SPlayerStatus {
@@ -245,7 +245,7 @@ pub enum ServerMessage {
     // Bootstrap
     Init(SInit),
     // Snapshot
-    Update(SUpdate),
+    Snapshot(SSnapshot),
     // Real-time intent
     PlayerMoveIntent(SPlayerMoveIntent),
     ActorMoveIntent(SActorMoveIntent),

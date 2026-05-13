@@ -26,7 +26,7 @@ use client::{
     },
     materials::generate_material_mipmaps_system,
     network::{
-        ClientToServerChannel, LastUpdateSeq, RoundTripTime, ServerToClientChannel, network_io_task,
+        ClientToServerChannel, LastSnapshotSeq, RoundTripTime, ServerToClientChannel, network_io_task,
         network_ping_system, network_process_server_messages_system,
     },
     players::{
@@ -150,7 +150,7 @@ fn main() -> Result<()> {
         .insert_resource(LocalPlayerInfo::default())
         .insert_resource(RoundTripTime::default())
         .insert_resource(FpsMeasurement::default())
-        .insert_resource(LastUpdateSeq::default())
+        .insert_resource(LastSnapshotSeq::default())
         .insert_resource(CameraViewMode::default())
         .insert_resource(TopDownCameraYaw::default())
         .insert_resource(LevelFocusEnabled::default())
