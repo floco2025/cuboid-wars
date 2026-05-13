@@ -113,8 +113,9 @@ pub fn sync_players(
     let mut local_just_respawned = false;
     if local_player_info.is_dead
         && let Some((_, server_player)) = server_players.iter().find(|(id, _)| *id == my_player_id)
-        && let Some(info) = players.get(&my_player_id)
+        && let Some(info) = players.get_mut(&my_player_id)
     {
+        let entity = info.entity;
         commands.entity(info.entity).insert((
             server_player.movement.pos,
             // Reset the previous-tick anchor so render interpolation doesn't
@@ -130,7 +131,8 @@ pub fn sync_players(
         // skipped for the local player this frame (see below), so without
         // this remove() the recon component would linger pointing at the
         // pre-death position.
-        commands.entity(info.entity).remove::<ServerReconciliation>();
+        commands.entity(entity).remove::<ServerReconciliation>();
+        info.apply_snapshot(server_player);
         local_player_info.is_dead = false;
         local_just_respawned = true;
     }
@@ -139,8 +141,7 @@ pub fn sync_players(
         // On the respawn frame the local player was just hard-teleported by
         // the block above; the Query still sees the pre-respawn position,
         // so handing it to `update_snapshot_player` would produce a huge
-        // bogus reconciliation delta. Skip them this snapshot — score and
-        // other fields update via the next snapshot.
+        // bogus reconciliation delta. Their `PlayerInfo` was already synced.
         if local_just_respawned && *id == my_player_id {
             continue;
         }
@@ -209,20 +210,7 @@ fn spawn_snapshot_player(
         );
     }
 
-    players.insert(
-        id,
-        PlayerInfo {
-            entity,
-            score: player.score,
-            name: player.name.clone(),
-            speed_power_up: player.speed_power_up,
-            multi_shot_power_up: player.multi_shot_power_up,
-            phasing_power_up: player.phasing_power_up,
-            anti_gravity_power_up: player.anti_gravity_power_up,
-            stunned: player.stunned,
-            held_keys: player.held_keys.clone(),
-        },
-    );
+    players.insert(id, PlayerInfo::from_snapshot(entity, player));
 }
 
 fn update_snapshot_player(
@@ -263,13 +251,7 @@ fn update_snapshot_player(
             }
         }
 
-        client_player.score = server_player.score;
-        client_player.speed_power_up = server_player.speed_power_up;
-        client_player.multi_shot_power_up = server_player.multi_shot_power_up;
-        client_player.phasing_power_up = server_player.phasing_power_up;
-        client_player.anti_gravity_power_up = server_player.anti_gravity_power_up;
-        client_player.stunned = server_player.stunned;
-        client_player.held_keys = server_player.held_keys.clone();
+        client_player.apply_snapshot(server_player);
         commands.entity(client_player.entity).insert(server_player.health);
     }
 }
