@@ -13,7 +13,6 @@ pub const WALL_LIGHT_HEIGHT: f32 = 2.5;
 
 pub const COOKIE_SPAWNING_ENABLED: bool = true;
 pub const COOKIE_RESPAWN_TIME: f32 = 60.0;
-pub const COOKIE_POINTS: i32 = 1; // points per cookie
 
 // ============================================================================
 // Keys

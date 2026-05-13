@@ -1,8 +1,9 @@
 use bevy::prelude::*;
 
 use crate::{
+    config::ServerGameplayConfig,
     constants::{
-        COOKIE_POINTS, COOKIE_RESPAWN_TIME, ITEM_COLLECTION_RADIUS, KEY_RESPAWN_TIME, POWER_UP_ANTI_GRAVITY_DURATION,
+        COOKIE_RESPAWN_TIME, ITEM_COLLECTION_RADIUS, KEY_RESPAWN_TIME, POWER_UP_ANTI_GRAVITY_DURATION,
         POWER_UP_MULTI_SHOT_DURATION, POWER_UP_PHASING_DURATION, POWER_UP_SPEED_DURATION,
     },
     net::ServerToClient,
@@ -22,6 +23,7 @@ pub fn item_collection_system(
     mut items: ResMut<ItemMap>,
     character_positions: Query<&Position, With<PlayerMarker>>,
     item_positions: Query<&Position, With<ItemMarker>>,
+    server_gameplay_config: Res<ServerGameplayConfig>,
 ) {
     let items_to_collect: Vec<(PlayerId, ItemId, ItemType)> = items
         .iter()
@@ -62,7 +64,7 @@ pub fn item_collection_system(
 
     for (player_id, item_id, item_type) in items_to_collect {
         match item_type {
-            ItemType::Cookie => collect_cookie(&mut players, &mut items, player_id, item_id),
+            ItemType::Cookie => collect_cookie(&mut players, &mut items, player_id, item_id, &server_gameplay_config),
             ItemType::Key(kind) => collect_key(
                 &mut players,
                 &mut items,
@@ -91,11 +93,17 @@ pub fn item_collection_system(
     }
 }
 
-fn collect_cookie(players: &mut PlayerMap, items: &mut ItemMap, player_id: PlayerId, item_id: ItemId) {
+fn collect_cookie(
+    players: &mut PlayerMap,
+    items: &mut ItemMap,
+    player_id: PlayerId,
+    item_id: ItemId,
+    server_gameplay_config: &ServerGameplayConfig,
+) {
     let Some(player_info) = players.get_mut(&player_id) else {
         return;
     };
-    player_info.score += COOKIE_POINTS;
+    player_info.score += server_gameplay_config.scoring.cookie;
     if let Some(item_info) = items.get_mut(&item_id) {
         item_info.spawn_time = COOKIE_RESPAWN_TIME;
     }

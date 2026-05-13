@@ -53,23 +53,27 @@ pub fn apply_player_projectile_hit(
 
     apply_damage(target_health, server_gameplay_config.player.projectile_damage_taken);
 
+    let scoring = &server_gameplay_config.scoring;
     if let Some(shooter_info) = players.get_mut(shooter_id) {
-        shooter_info.score += 1;
+        shooter_info.score += scoring.player_kill;
     }
     if let Some(target_info) = players.get_mut(&target_id) {
-        target_info.score -= 1;
+        target_info.score += scoring.player_death;
     }
 
     target_health.0 <= 0.0
 }
 
+// Apply one projectile hit to an actor. Returns `true` when this hit drops
+// the target's health to zero — the caller awards the per-kind kill bonus
+// (`combat.score_reward_on_kill`).
 pub fn apply_actor_projectile_hit(
     players: &mut PlayerMap,
     shooter_id: &PlayerId,
     target_health: &mut Health,
     actor_kind: &str,
     server_gameplay_config: &ServerGameplayConfig,
-) {
+) -> bool {
     let damage = server_gameplay_config
         .validated_actor(actor_kind)
         .combat
@@ -77,8 +81,10 @@ pub fn apply_actor_projectile_hit(
     apply_damage(target_health, damage);
 
     if let Some(shooter_info) = players.get_mut(shooter_id) {
-        shooter_info.score += 1;
+        shooter_info.score += server_gameplay_config.scoring.actor_hit;
     }
+
+    target_health.0 <= 0.0
 }
 
 pub type ActorDeathQuery<'w, 's> = Query<
@@ -170,13 +176,19 @@ mod tests {
     use std::collections::HashMap;
 
     use super::*;
-    use crate::config::PlayerServerConfig;
+    use crate::config::{PlayerServerConfig, ScoringConfig};
     use crate::resources::PlayerInfo;
     use tokio::sync::mpsc::unbounded_channel;
 
     fn server_gameplay_config() -> ServerGameplayConfig {
         ServerGameplayConfig {
             version: 1,
+            scoring: ScoringConfig {
+                player_kill: 1,
+                player_death: -1,
+                cookie: 1,
+                actor_hit: 1,
+            },
             player: PlayerServerConfig {
                 projectile_damage_taken: 25.0,
             },

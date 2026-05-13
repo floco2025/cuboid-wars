@@ -195,13 +195,23 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                     }
 
                     let info = params.actors.get(id).expect("actor in query missing from ActorMap");
-                    apply_actor_projectile_hit(
+                    let was_lethal = apply_actor_projectile_hit(
                         &mut params.players,
                         shooter_id,
                         &mut health,
                         &info.spawn_kind,
                         &params.server_gameplay_config,
                     );
+                    if was_lethal {
+                        let bonus = params
+                            .server_gameplay_config
+                            .validated_actor(&info.spawn_kind)
+                            .combat
+                            .score_reward_on_kill;
+                        if let Some(shooter) = params.players.get_mut(shooter_id) {
+                            shooter.score += bonus;
+                        }
+                    }
                     broadcast_to_all(&params.players, ServerMessage::ActorHit(SActorHit { id: actor_id }));
                     break;
                 }

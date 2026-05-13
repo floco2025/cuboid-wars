@@ -29,6 +29,7 @@ pub fn configure_server() -> Result<ServerConfig> {
 #[derive(Resource, Debug, Clone, Deserialize)]
 pub struct ServerGameplayConfig {
     pub version: u32,
+    pub scoring: ScoringConfig,
     pub player: PlayerServerConfig,
     pub actors: HashMap<String, ActorKindServerConfig>,
 }
@@ -60,6 +61,10 @@ impl ServerGameplayConfig {
             SUPPORTED_VERSION
         );
         self.player.validate("player")?;
+        // No range check on scoring values — negative deltas are legal
+        // (e.g., `player_death: -1` penalty), and so is zero. Just ensure
+        // the section deserialized.
+        let _ = &self.scoring;
         if self.actors.is_empty() {
             bail!("actors must define at least one kind");
         }
@@ -81,6 +86,17 @@ impl ServerGameplayConfig {
     pub fn validated_actor(&self, kind: &str) -> &ActorKindServerConfig {
         self.actor(kind).expect("actor kind validated at startup")
     }
+}
+
+// Global scoring deltas. Negative values are legal (e.g., a death penalty)
+// and the entire block is server-only state — clients read the resulting
+// `score` field via `SSnapshot` and never need the per-event point values.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ScoringConfig {
+    pub player_kill: i32,
+    pub player_death: i32,
+    pub cookie: i32,
+    pub actor_hit: i32,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -151,6 +167,11 @@ pub struct ActorCombatConfig {
     // Distance at which contact with a player triggers the actor's explosion.
     pub contact_explosion_distance: f32,
     pub explosion: ActorExplosionDamageConfig,
+    // Bonus added to the killer's score on the lethal hit, on top of
+    // `scoring.actor_hit` which fires per hit. Tougher actors should be
+    // worth more — set higher for sentry, lower for mine_1.
+    #[serde(default)]
+    pub score_reward_on_kill: i32,
 }
 
 impl ActorCombatConfig {
