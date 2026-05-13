@@ -284,6 +284,21 @@
       "explosion_effect": {
         "scale": 6.0
       }
+    },
+    "sentry": {
+      "inherit_from": "mine_1",
+      "model": {
+        "scene": "models/robot_5.glb#Scene0",
+        "scale": 0.00612,
+        "y_offset": 0.0,
+        "z_offset": 0.051,
+        "x_rotation_degrees": 180.0,
+        "animation_index": 20,
+        "animation_speed": 1.0
+      },
+      "explosion_effect": {
+        "scale": 6.0
+      }
     }
   },
   "models": {
@@ -304,6 +319,6 @@
   "barrier_kind_colors": {
     "treasure": "#ff3333",
     "basement": "#f0c020",
-    "gravity":  "#5090ff"
+    "gravity": "#5090ff"
   }
 }

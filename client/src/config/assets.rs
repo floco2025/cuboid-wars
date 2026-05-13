@@ -226,6 +226,15 @@ pub struct ModelDef {
     // Horizontal model offset relative to the gameplay collider center.
     #[serde(default)]
     pub z_offset: f32,
+    // Rotation applied to the model around the X axis at spawn. Use 180 for
+    // GLBs authored head-down (common with FBX-via-Sketchfab pipelines).
+    #[serde(default)]
+    pub x_rotation_degrees: f32,
+    // Which clip in the GLB to play. Most models put their main loop at 0,
+    // but multi-clip exports (e.g. Sketchfab character sets) need an explicit
+    // index — robot_5's Walk is at 20.
+    #[serde(default)]
+    pub animation_index: usize,
     #[serde(default)]
     pub animation_speed: Option<f32>,
 }

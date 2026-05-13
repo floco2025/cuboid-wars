@@ -59,9 +59,9 @@ pub fn spawn_player(
     let player_model = asset_set.player_model();
     let player_physics = gameplay_config.player.physics();
     // Create animation graph for this player
-    let (graph, index) = AnimationGraph::from_clip(
-        asset_server.load(GltfAssetLabel::Animation(0).from_asset(player_model.scene.clone())),
-    );
+    let (graph, index) = AnimationGraph::from_clip(asset_server.load(
+        GltfAssetLabel::Animation(player_model.animation_index).from_asset(player_model.scene.clone()),
+    ));
     let graph_handle = graphs.add(graph);
     let animation_to_play = AnimationToPlay {
         graph_handle,
@@ -106,11 +106,9 @@ pub fn spawn_player(
     let model = commands
         .spawn((
             SceneRoot(asset_server.load(player_model.scene.clone())),
-            Transform::from_scale(Vec3::splat(player_model.scale)).with_translation(Vec3::new(
-                player_model.x_offset,
-                base_y,
-                player_model.z_offset,
-            )),
+            Transform::from_scale(Vec3::splat(player_model.scale))
+                .with_rotation(Quat::from_rotation_x(player_model.x_rotation_degrees.to_radians()))
+                .with_translation(Vec3::new(player_model.x_offset, base_y, player_model.z_offset)),
             animation_to_play,
         ))
         .observe(character_animation_system)
