@@ -3,7 +3,7 @@ use common::protocol::Health;
 
 use crate::{
     cameras::{MainCameraMarker, RearviewCameraMarker},
-    constants::LABEL_CULL_DISTANCE,
+    config::ClientSettings,
     ui::floating_labels::{CharacterLabelMeshMarker, LabelCamera},
 };
 
@@ -37,7 +37,8 @@ pub fn floating_labels_billboard_system(
 }
 
 // Toggle each character's label-render camera on or off based on:
-//   1. Distance to the main camera (cull beyond LABEL_CULL_DISTANCE).
+//   1. Distance to the main camera (cull beyond
+//      `hud.floating_labels.cull_distance`).
 //   2. Whether the character's `Health` was written this frame.
 //
 // Combined: a label camera renders only on frames where the character is
@@ -51,6 +52,7 @@ pub fn floating_labels_billboard_system(
 // component, so the camera renders again then gets disabled the frame after
 // if no further changes - two renders at spawn, fine.
 pub fn floating_label_camera_visibility_system(
+    client_settings: Res<ClientSettings>,
     main_camera: Query<&GlobalTransform, With<MainCameraMarker>>,
     characters: Query<(&GlobalTransform, &LabelCamera, Ref<Health>)>,
     mut cameras: Query<&mut Camera>,
@@ -59,7 +61,8 @@ pub fn floating_label_camera_visibility_system(
         return;
     };
     let main_pos = main_xf.translation();
-    let cull_sq = LABEL_CULL_DISTANCE * LABEL_CULL_DISTANCE;
+    let cull_distance = client_settings.hud.floating_labels.cull_distance;
+    let cull_sq = cull_distance * cull_distance;
 
     for (char_xf, label_cam, health) in &characters {
         let in_range = char_xf.translation().distance_squared(main_pos) <= cull_sq;

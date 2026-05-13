@@ -6,7 +6,7 @@ use bevy::{
 use common::config::GameplayConfig;
 
 use super::{MainCameraMarker, RearviewCameraMarker};
-use crate::config::RenderSettings;
+use crate::config::ClientSettings;
 
 // ============================================================================
 // Camera Setup System
@@ -14,15 +14,15 @@ use crate::config::RenderSettings;
 
 pub fn setup_cameras_system(
     mut commands: Commands,
-    render_settings: Res<RenderSettings>,
+    client_settings: Res<ClientSettings>,
     gameplay_config: Res<GameplayConfig>,
 ) {
-    let deferred_rendering_enabled = render_settings.opaque_renderer.is_deferred();
+    let deferred_rendering_enabled = client_settings.rendering.opaque_renderer.is_deferred();
     let player_eye_height = gameplay_config.player.eye_height();
     let msaa = if deferred_rendering_enabled {
         Msaa::Off
     } else {
-        Msaa::from_samples(render_settings.msaa_samples)
+        Msaa::from_samples(client_settings.rendering.msaa_samples)
     };
 
     // Add main camera (initial position will be immediately overridden by sync system)
@@ -37,7 +37,7 @@ pub fn setup_cameras_system(
             ..default()
         },
         Projection::from(PerspectiveProjection {
-            fov: render_settings.fov_first_person_degrees.to_radians(),
+            fov: client_settings.camera.fov_first_person_degrees.to_radians(),
             ..default()
         }),
         Transform::from_xyz(0.0, player_eye_height, 0.0).looking_at(Vec3::new(0.0, 0.0, -1.0), Vec3::Y),
@@ -62,11 +62,11 @@ pub fn setup_cameras_system(
             }),
             // Don't clear the viewport - render on top
             clear_color: bevy::camera::ClearColorConfig::None,
-            is_active: render_settings.rearview_enabled,
+            is_active: client_settings.camera.rearview.enabled,
             ..default()
         },
         Projection::from(PerspectiveProjection {
-            fov: render_settings.fov_rearview_degrees.to_radians(),
+            fov: client_settings.camera.rearview.fov_degrees.to_radians(),
             ..default()
         }),
         Transform::from_xyz(0.0, player_eye_height, 0.0).looking_at(Vec3::new(0.0, 0.0, 1.0), Vec3::Y), // Looking backwards (positive Z)

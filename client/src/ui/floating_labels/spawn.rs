@@ -1,6 +1,20 @@
 use bevy::prelude::*;
 
-use crate::{constants::*, ui::spawn_health_bar};
+use crate::{
+    constants::{LABEL_ACTOR_MESH_WIDTH, LABEL_BACKGROUND_COLOR, LABEL_PLAYER_MESH_WIDTH, LABEL_TEXT_COLOR},
+    ui::spawn_health_bar,
+};
+
+// Floating-label dimensions resolved from config at spawn time. Bundled so
+// the spawn signatures stay short and any future label-dim knob lands as a
+// new field here instead of yet another loose `f32` parameter.
+#[derive(Clone, Copy)]
+pub struct FloatingLabelDims {
+    pub height_above_character: f32,
+    pub health_bar_width: f32,
+    pub health_bar_height: f32,
+    pub font_size: f32,
+}
 
 // Marker for the text node inside a floating label's UI render target.
 // Used today only for the player name; the actor bar has no text.
@@ -30,8 +44,9 @@ pub fn spawn_floating_player_label(
     character_height: f32,
     max_health: f32,
     current_health: f32,
-    font_size: f32,
+    dims: FloatingLabelDims,
 ) -> (Entity, Entity) {
+    use crate::constants::{LABEL_PLAYER_TEXTURE_HEIGHT, LABEL_PLAYER_TEXTURE_WIDTH};
     const LABEL_HEIGHT: f32 =
         LABEL_PLAYER_MESH_WIDTH * (LABEL_PLAYER_TEXTURE_HEIGHT as f32 / LABEL_PLAYER_TEXTURE_WIDTH as f32);
 
@@ -61,7 +76,7 @@ pub fn spawn_floating_player_label(
                     label_background.spawn((
                         Text::new(label),
                         TextFont {
-                            font_size,
+                            font_size: dims.font_size,
                             ..default()
                         },
                         TextColor(LABEL_TEXT_COLOR),
@@ -75,8 +90,8 @@ pub fn spawn_floating_player_label(
                 character,
                 max_health,
                 current_health,
-                HEALTH_BAR_FLOATING_PLAYER_WIDTH,
-                HEALTH_BAR_FLOATING_PLAYER_HEIGHT,
+                dims.health_bar_width,
+                dims.health_bar_height,
             );
         })
         .id();
@@ -93,7 +108,7 @@ pub fn spawn_floating_player_label(
             })),
             Transform::from_xyz(
                 0.0,
-                character_height / 2.0 + LABEL_HEIGHT_ABOVE_CHARACTER + LABEL_HEIGHT / 2.0,
+                character_height / 2.0 + dims.height_above_character + LABEL_HEIGHT / 2.0,
                 0.0,
             ),
         ))
@@ -112,12 +127,11 @@ pub fn spawn_floating_actor_health_bar(
     character_height: f32,
     max_health: f32,
     current_health: f32,
+    dims: FloatingLabelDims,
 ) -> (Entity, Entity) {
-    // Texture dimensions match the visible bar exactly (no padding); see
-    // LABEL_ACTOR_TEXTURE_*. The mesh aspect mirrors the texture, so every
-    // texel maps near-1:1 to a fragment on the mesh.
-    const BAR_MESH_HEIGHT: f32 =
-        LABEL_ACTOR_MESH_WIDTH * (HEALTH_BAR_FLOATING_ACTOR_HEIGHT / HEALTH_BAR_FLOATING_ACTOR_WIDTH);
+    // Texture dimensions match the visible bar exactly (no padding). The
+    // mesh aspect mirrors the texture so every texel maps near-1:1.
+    let bar_mesh_height = LABEL_ACTOR_MESH_WIDTH * (dims.health_bar_height / dims.health_bar_width);
 
     // No wrapper Node — the bar fills the texture exactly, so we render the
     // health bar directly at the camera root.
@@ -136,8 +150,8 @@ pub fn spawn_floating_actor_health_bar(
                 character,
                 max_health,
                 current_health,
-                HEALTH_BAR_FLOATING_ACTOR_WIDTH,
-                HEALTH_BAR_FLOATING_ACTOR_HEIGHT,
+                dims.health_bar_width,
+                dims.health_bar_height,
             );
         })
         .id();
@@ -145,7 +159,7 @@ pub fn spawn_floating_actor_health_bar(
     let mesh_entity = commands
         .spawn((
             CharacterLabelMeshMarker,
-            Mesh3d(meshes.add(Rectangle::new(LABEL_ACTOR_MESH_WIDTH, BAR_MESH_HEIGHT))),
+            Mesh3d(meshes.add(Rectangle::new(LABEL_ACTOR_MESH_WIDTH, bar_mesh_height))),
             MeshMaterial3d(materials.add(StandardMaterial {
                 base_color_texture: Some(image_handle),
                 alpha_mode: AlphaMode::Blend,
@@ -154,7 +168,7 @@ pub fn spawn_floating_actor_health_bar(
             })),
             Transform::from_xyz(
                 0.0,
-                character_height / 2.0 + LABEL_HEIGHT_ABOVE_CHARACTER + BAR_MESH_HEIGHT / 2.0,
+                character_height / 2.0 + dims.height_above_character + bar_mesh_height / 2.0,
                 0.0,
             ),
         ))

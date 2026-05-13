@@ -13,7 +13,7 @@ use client::{
     barriers::{barriers_pulsate_system, barriers_spawn_system, setup_barrier_assets},
     cameras::{CameraViewMode, TopDownCameraYaw, setup_cameras_system},
     characters::{capture_previous_tick_position_system, characters_movement_system, characters_visual_turn_system},
-    config::{AssetSet, OpaqueRenderer, RenderSettings, configure_client},
+    config::{AssetSet, OpaqueRenderer, ClientSettings, configure_client},
     input::{
         commit_player_input_system, input_camera_view_toggle_system, input_cursor_toggle_system,
         input_debug_colors_cycle_system, input_fullscreen_toggle_system, input_level_focus_toggle_system,
@@ -90,7 +90,7 @@ struct Args {
 fn main() -> Result<()> {
     let args = Args::parse();
     let asset_set = AssetSet::load_default()?;
-    let render_settings = RenderSettings::load_default()?;
+    let client_settings = ClientSettings::load_default()?;
     let gameplay_config = GameplayConfig::load_default()?;
     let barrier_kind_table = common::protocol::BarrierKindTable::from_ids(gameplay_config.barrier_kinds.clone())
         .context("failed to build BarrierKindTable from gameplay.json barrier_kinds")?;
@@ -103,7 +103,7 @@ fn main() -> Result<()> {
             );
         }
     }
-    let texture_mipmaps_enabled = render_settings.texture_mipmaps_enabled;
+    let texture_mipmaps_enabled = client_settings.rendering.texture_mipmaps_enabled;
 
     let player_name = args.name.clone().unwrap_or_else(|| {
         let full_name = whoami::realname().unwrap_or_default();
@@ -132,7 +132,7 @@ fn main() -> Result<()> {
             .set(asset_plugin())
             .set(window_plugin(&args, window_position)),
     );
-    app.insert_resource(match render_settings.opaque_renderer {
+    app.insert_resource(match client_settings.rendering.opaque_renderer {
         OpaqueRenderer::Auto => DefaultOpaqueRendererMethod::default(),
         OpaqueRenderer::Forward => DefaultOpaqueRendererMethod::forward(),
         OpaqueRenderer::Deferred => DefaultOpaqueRendererMethod::deferred(),
@@ -158,7 +158,7 @@ fn main() -> Result<()> {
         .insert_resource(gameplay_config)
         .insert_resource(barrier_kind_table)
         .insert_resource(asset_set)
-        .insert_resource(render_settings)
+        .insert_resource(client_settings)
         .insert_resource(DebugColors::default())
         .insert_resource(LastBounceSoundTime::default())
         .insert_resource(GameMessageFeed::default())

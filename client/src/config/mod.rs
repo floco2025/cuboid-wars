@@ -1,7 +1,7 @@
 pub mod assets;
+mod client;
 mod network;
-mod render;
 
 pub use assets::{AssetSet, MaterialDef, ModelDef, SpriteSheetFirstFrame};
+pub use client::{ClientSettings, DebugColorMode, OpaqueRenderer};
 pub use network::configure_client;
-pub use render::{DebugColorMode, OpaqueRenderer, RenderSettings};

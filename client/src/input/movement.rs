@@ -12,7 +12,7 @@ use common::{
 
 use crate::{
     cameras::{CameraViewMode, MainCameraMarker, TopDownCameraYaw},
-    constants::MOUSE_SENSITIVITY,
+    config::ClientSettings,
     network::{ClientToServer, ClientToServerChannel},
     players::{LocalPlayerInfo, LocalPlayerMarker, MyPlayerId, PlayerMap},
 };
@@ -51,7 +51,9 @@ pub fn input_movement_system(
     view_mode: Res<CameraViewMode>,
     collision_world: Option<Res<CollisionWorld>>,
     gameplay_config: Res<GameplayConfig>,
+    client_settings: Res<ClientSettings>,
 ) {
+    let mouse_sensitivity = client_settings.input.mouse_sensitivity;
     // Wait for the local player entity to exist before sampling input.
     // Otherwise we'd compute a face direction from the default camera
     // transform and write it to ECS, overwriting the authoritative spawn-time
@@ -78,6 +80,7 @@ pub fn input_movement_system(
         &view_mode,
         &mut local_player_info,
         &mut top_down_camera_yaw,
+        mouse_sensitivity,
     );
     let face_yaw = current_yaw + std::f32::consts::PI;
     // Death disables movement and jump just like stunned (and overrides it).
@@ -113,6 +116,7 @@ fn calculate_current_orientation(
     view_mode: &Res<CameraViewMode>,
     local_player_info: &mut LocalPlayerInfo,
     top_down_camera_yaw: &mut TopDownCameraYaw,
+    mouse_sensitivity: f32,
 ) -> (f32, f32) {
     let (mut current_yaw, mut current_pitch) = if view_mode.is_first_person() {
         if !view_mode.is_changed()
@@ -129,10 +133,10 @@ fn calculate_current_orientation(
 
     for motion in mouse_motion.read() {
         if view_mode.is_first_person() {
-            current_yaw = motion.delta.x.mul_add(-MOUSE_SENSITIVITY, current_yaw);
-            current_pitch = motion.delta.y.mul_add(-MOUSE_SENSITIVITY, current_pitch);
+            current_yaw = motion.delta.x.mul_add(-mouse_sensitivity, current_yaw);
+            current_pitch = motion.delta.y.mul_add(-mouse_sensitivity, current_pitch);
         } else {
-            top_down_camera_yaw.0 = motion.delta.x.mul_add(-MOUSE_SENSITIVITY, top_down_camera_yaw.0);
+            top_down_camera_yaw.0 = motion.delta.x.mul_add(-mouse_sensitivity, top_down_camera_yaw.0);
             current_yaw = top_down_camera_yaw.0;
         }
     }

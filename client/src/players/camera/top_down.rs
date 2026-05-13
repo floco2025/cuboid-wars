@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::{constants::*, map::visual_focus_level};
+use crate::map::visual_focus_level;
 use common::{
     constants::LEVEL_HEIGHT,
     protocol::{Floor, MapLayout, Position},
@@ -65,6 +65,8 @@ pub(super) fn topdown_camera_transform(
     aspect_ratio: f32,
     fov: f32,
     yaw: f32,
+    margin: f32,
+    tilt_degrees: f32,
 ) -> Transform {
     let view_direction = topdown_view_direction(yaw);
     let player_level = visual_focus_level(player_pos.y);
@@ -73,7 +75,7 @@ pub(super) fn topdown_camera_transform(
     });
     let mut target = floor_bounds.center();
     target.y = f32::from(player_level) * LEVEL_HEIGHT;
-    let camera_offset = topdown_camera_offset_to_fit(floor_bounds, aspect_ratio, fov, view_direction);
+    let camera_offset = topdown_camera_offset_to_fit(floor_bounds, aspect_ratio, fov, view_direction, margin, tilt_degrees);
     let center_shift = projected_center_shift(floor_bounds, camera_offset, view_direction);
     target += view_direction * center_shift;
 
@@ -99,14 +101,21 @@ fn floor_bounds_for_level(map_layout: &MapLayout, level: u8) -> FloorBounds {
     }
 }
 
-fn topdown_camera_offset_to_fit(bounds: FloorBounds, aspect_ratio: f32, fov: f32, view_direction: Vec3) -> Vec3 {
-    let tilt = TOPDOWN_TILT_DEGREES.to_radians();
+fn topdown_camera_offset_to_fit(
+    bounds: FloorBounds,
+    aspect_ratio: f32,
+    fov: f32,
+    view_direction: Vec3,
+    margin: f32,
+    tilt_degrees: f32,
+) -> Vec3 {
+    let tilt = tilt_degrees.to_radians();
     let half_vertical_fov_tan = (fov / 2.0).tan();
     let half_horizontal_fov_tan = half_vertical_fov_tan * aspect_ratio.max(0.1);
     let view_extent = floor_extent_along_view(bounds, view_direction);
     let cross_extent = floor_extent_across_view(bounds, view_direction);
-    let cross_distance = cross_extent * TOPDOWN_MARGIN / (2.0 * half_horizontal_fov_tan);
-    let view_distance = view_extent * tilt.cos() * TOPDOWN_MARGIN / (2.0 * half_vertical_fov_tan);
+    let cross_distance = cross_extent * margin / (2.0 * half_horizontal_fov_tan);
+    let view_distance = view_extent * tilt.cos() * margin / (2.0 * half_vertical_fov_tan);
     let view_distance = cross_distance.max(view_distance).max(LEVEL_HEIGHT);
 
     Vec3::Y * (view_distance * tilt.cos()) + view_direction * (view_distance * tilt.sin())

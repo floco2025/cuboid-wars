@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "rendering": {
+    "opaque_renderer": "auto",
+    "shadows_directional_enabled": true,
+    "texture_mipmaps_enabled": true,
+    "texture_anisotropy": 8,
+    "msaa_samples": 4
+  },
+  "lighting": {
+    "ambient_brightness": 70.0,
+    "directional_brightness": 8000.0
+  },
+  "camera": {
+    "fov_first_person_degrees": 90.0,
+    "fov_top_down_degrees": 45.0,
+    "topdown_margin": 1.15,
+    "topdown_tilt_degrees": 35.0,
+    "rearview": {
+      "enabled": true,
+      "fov_degrees": 90.0,
+      "width_ratio": 0.20,
+      "height_ratio": 0.20,
+      "margin_ratio": 0.02
+    }
+  },
+  "input": {
+    "mouse_sensitivity": 0.002
+  },
+  "hud": {
+    "font_sizes": {
+      "player_list": 18.0,
+      "score": 16.0,
+      "message_feed": 18.0,
+      "floating_label": 40.0
+    },
+    "message_feed": {
+      "entry_duration_secs": 10.0,
+      "max_entries": 5
+    },
+    "floating_labels": {
+      "cull_distance": 30.0,
+      "height_above_character": 0.5
+    },
+    "health_bars": {
+      "floating_player_width": 180.0,
+      "floating_player_height": 10.0,
+      "floating_actor_width": 170.0,
+      "floating_actor_height": 22.0,
+      "player_list_width": 160.0,
+      "player_list_height": 8.0
+    }
+  },
+  "barriers": {
+    "alpha_min": 0.15,
+    "alpha_max": 0.35,
+    "pulse_hz": 0.5
+  },
+  "debug": {
+    "collider_boxes": false
+  }
+}

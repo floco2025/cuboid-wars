@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::{
     barriers::{BarrierAssets, BarrierMarker},
-    config::{AssetSet, DebugColorMode, RenderSettings},
+    config::{AssetSet, DebugColorMode, ClientSettings},
     map::{
         DebugColors, GroundMarker, LevelFocusEnabled, MapGeometryBatch, MapLevel, RampMarker, RoofMarker,
         WallLightMarker, WallMarker, batch_floor, batch_ramp, batch_wall, spawn_wall_light_from_layout,
@@ -17,11 +17,11 @@ use common::protocol::{ItemMarker, MapLayout};
 // Scene Lighting Setup System
 // ============================================================================
 
-pub fn setup_scene_lighting_system(mut commands: Commands, render_settings: Res<RenderSettings>) {
+pub fn setup_scene_lighting_system(mut commands: Commands, client_settings: Res<ClientSettings>) {
     commands.spawn((
         DirectionalLight {
-            illuminance: render_settings.light_directional_brightness,
-            shadows_enabled: render_settings.shadows_directional_enabled,
+            illuminance: client_settings.lighting.directional_brightness,
+            shadows_enabled: client_settings.rendering.shadows_directional_enabled,
             ..default()
         },
         Transform::from_xyz(5.0, 15.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
@@ -29,7 +29,7 @@ pub fn setup_scene_lighting_system(mut commands: Commands, render_settings: Res<
 
     commands.insert_resource(GlobalAmbientLight {
         color: Color::WHITE,
-        brightness: render_settings.light_ambient_brightness,
+        brightness: client_settings.lighting.ambient_brightness,
         affects_lightmapped_meshes: false,
     });
 }
@@ -47,7 +47,7 @@ pub fn map_spawn_geometry_system(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     asset_set: Res<AssetSet>,
-    render_settings: Res<RenderSettings>,
+    client_settings: Res<ClientSettings>,
     debug_colors: Res<DebugColors>,
     map_entities: Query<
         Entity,
@@ -114,7 +114,7 @@ pub fn map_spawn_geometry_system(
         &mut material_cache,
         &asset_server,
         &asset_set,
-        &render_settings,
+        &client_settings,
     );
 
     *last_spawn = Some(debug_colors.0);

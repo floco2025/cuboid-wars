@@ -6,7 +6,7 @@ use common::{
 
 use crate::{
     barriers::BarrierAssets,
-    config::{AssetSet, RenderSettings},
+    config::{AssetSet, ClientSettings},
     items::ItemAssets,
     players::LocalPlayerInfo,
     projectiles::ProjectileAssets,
@@ -44,7 +44,7 @@ pub struct AssetManagers<'w> {
 pub struct ClientAssets<'w> {
     pub asset_server: Res<'w, AssetServer>,
     pub asset_set: Res<'w, AssetSet>,
-    pub render_settings: Res<'w, RenderSettings>,
+    pub client_settings: Res<'w, ClientSettings>,
     pub projectile_assets: Res<'w, ProjectileAssets>,
     pub item_assets: Res<'w, ItemAssets>,
     pub barrier_assets: Res<'w, BarrierAssets>,

@@ -66,7 +66,7 @@ pub fn network_process_server_messages_system(
                         &time,
                         &client_assets.asset_server,
                         &client_assets.asset_set,
-                        &client_assets.render_settings,
+                        &client_assets.client_settings,
                         &client_assets.projectile_assets,
                         &client_assets.item_assets,
                         &client_assets.barrier_assets,

@@ -4,10 +4,7 @@ use common::protocol::{BarrierKindTable, Health, ItemType, PlayerId};
 use super::components::{LOCAL_PLAYER_BG_COLOR, PlayerEntryMarker};
 use crate::{
     barriers::BarrierAssets,
-    constants::{
-        HEALTH_BAR_PLAYER_LIST_HEIGHT, HEALTH_BAR_PLAYER_LIST_WIDTH, HUD_KEY_GAP_PX, HUD_KEY_ICON_HEIGHT_PX,
-        HUD_KEY_ICON_WIDTH_PX,
-    },
+    constants::{HUD_KEY_GAP_PX, HUD_KEY_ICON_HEIGHT_PX, HUD_KEY_ICON_WIDTH_PX},
     items::item_type_color,
     players::PlayerInfo,
     ui::spawn_health_bar,
@@ -23,6 +20,9 @@ pub(super) fn spawn_player_entry(
     kind_table: &BarrierKindTable,
     barrier_assets: Option<&BarrierAssets>,
     font_size: f32,
+    score_font_size: f32,
+    health_bar_width: f32,
+    health_bar_height: f32,
 ) -> Entity {
     let background_color = if is_local {
         BackgroundColor(LOCAL_PLAYER_BG_COLOR)
@@ -46,6 +46,7 @@ pub(super) fn spawn_player_entry(
             entry
                 .spawn((Node {
                     flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::Center,
                     column_gap: Val::Px(10.0),
                     ..default()
                 },))
@@ -60,9 +61,11 @@ pub(super) fn spawn_player_entry(
                     ));
 
                     row.spawn((
-                        Text::new(format_signed_score(player_info.score)),
+                        // Score is rendered as an unsigned magnitude; sign is
+                        // conveyed by the text color (`score_value_color`).
+                        Text::new(player_info.score.unsigned_abs().to_string()),
                         TextFont {
-                            font_size,
+                            font_size: score_font_size,
                             ..default()
                         },
                         TextColor(score_value_color(player_info.score)),
@@ -98,8 +101,8 @@ pub(super) fn spawn_player_entry(
                 player_info.entity,
                 max_health,
                 current_health,
-                HEALTH_BAR_PLAYER_LIST_WIDTH,
-                HEALTH_BAR_PLAYER_LIST_HEIGHT,
+                health_bar_width,
+                health_bar_height,
             );
         })
         .id()
@@ -141,14 +144,6 @@ fn spawn_key_icon(row: &mut ChildSpawnerCommands, color: Color) {
         },
         BackgroundColor(color),
     ));
-}
-
-fn format_signed_score(score: i32) -> String {
-    if score >= 0 {
-        format!("+{score}")
-    } else {
-        score.to_string()
-    }
 }
 
 const fn score_value_color(score: i32) -> Color {

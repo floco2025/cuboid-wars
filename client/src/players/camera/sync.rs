@@ -4,7 +4,7 @@ use super::top_down::{topdown_camera_transform, window_aspect_ratio};
 use crate::{
     cameras::{CameraViewMode, MainCameraMarker, TopDownCameraYaw},
     characters::PreviousTickPosition,
-    config::RenderSettings,
+    config::ClientSettings,
     players::{CameraShake, LocalPlayerMarker},
 };
 use common::{
@@ -26,7 +26,7 @@ pub fn local_player_camera_sync_system(
     >,
     view_mode: Res<CameraViewMode>,
     top_down_camera_yaw: Res<TopDownCameraYaw>,
-    render_settings: Res<RenderSettings>,
+    client_settings: Res<ClientSettings>,
     gameplay_config: Res<GameplayConfig>,
 ) {
     let Some((current_pos, prev_pos)) = local_player_query.iter().next() else {
@@ -50,7 +50,7 @@ pub fn local_player_camera_sync_system(
 
     match *view_mode {
         CameraViewMode::FirstPerson => {
-            persp.fov = render_settings.fov_first_person_degrees.to_radians();
+            persp.fov = client_settings.camera.fov_first_person_degrees.to_radians();
             sync_first_person_camera(
                 &mut camera_transform,
                 player_pos,
@@ -59,13 +59,15 @@ pub fn local_player_camera_sync_system(
             );
         }
         CameraViewMode::TopDown => {
-            persp.fov = render_settings.fov_top_down_degrees.to_radians();
+            persp.fov = client_settings.camera.fov_top_down_degrees.to_radians();
             *camera_transform = topdown_camera_transform(
                 player_pos,
                 map_layout.as_deref(),
                 window_aspect_ratio(&windows),
                 persp.fov,
                 top_down_camera_yaw.0,
+                client_settings.camera.topdown_margin,
+                client_settings.camera.topdown_tilt_degrees,
             );
         }
     }

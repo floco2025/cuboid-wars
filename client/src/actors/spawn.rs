@@ -3,9 +3,8 @@ use bevy::{gltf::GltfAssetLabel, prelude::*, scene::SceneRoot};
 use crate::{
     animations::{AnimationToPlay, character_animation_system},
     characters::{PreviousTickPosition, spawn_collider_box},
-    config::{AssetSet, RenderSettings},
-    constants::{LABEL_ACTOR_TEXTURE_HEIGHT, LABEL_ACTOR_TEXTURE_WIDTH},
-    ui::floating_labels::{LabelCamera, setup_label_texture, spawn_floating_actor_health_bar},
+    config::{AssetSet, ClientSettings},
+    ui::floating_labels::{FloatingLabelDims, LabelCamera, setup_label_texture, spawn_floating_actor_health_bar},
 };
 use common::{
     config::GameplayConfig,
@@ -21,7 +20,7 @@ pub fn spawn_actor(
     images: &mut ResMut<Assets<Image>>,
     graphs: &mut ResMut<Assets<AnimationGraph>>,
     asset_set: &AssetSet,
-    render_settings: &RenderSettings,
+    client_settings: &ClientSettings,
     gameplay_config: &GameplayConfig,
     actor_id: ActorId,
     actor: &Actor,
@@ -52,7 +51,7 @@ pub fn spawn_actor(
         .id();
 
     let mut children = vec![];
-    if render_settings.debug_collider_boxes {
+    if client_settings.debug.collider_boxes {
         children.push(spawn_collider_box(commands, meshes, materials, actor_physics));
     }
 
@@ -79,8 +78,15 @@ pub fn spawn_actor(
 
     children.push(model_commands.id());
 
-    let (image_handle, text_camera) =
-        setup_label_texture(commands, images, LABEL_ACTOR_TEXTURE_WIDTH, LABEL_ACTOR_TEXTURE_HEIGHT);
+    // The actor's floating-label texture matches the health bar 1:1 (no
+    // padding), so the texture dimensions track `health_bars.floating_actor_*`.
+    let health_bars = client_settings.hud.health_bars;
+    let (image_handle, text_camera) = setup_label_texture(
+        commands,
+        images,
+        health_bars.floating_actor_width as u32,
+        health_bars.floating_actor_height as u32,
+    );
     let (_ui_entity, mesh_entity) = spawn_floating_actor_health_bar(
         commands,
         meshes,
@@ -91,6 +97,12 @@ pub fn spawn_actor(
         actor_physics.collision_height(),
         actor_config.health().max,
         actor.health.0,
+        FloatingLabelDims {
+            height_above_character: client_settings.hud.floating_labels.height_above_character,
+            health_bar_width: health_bars.floating_actor_width,
+            health_bar_height: health_bars.floating_actor_height,
+            font_size: client_settings.hud.font_sizes.floating_label,
+        },
     );
     children.push(mesh_entity);
 

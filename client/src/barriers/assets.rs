@@ -1,6 +1,9 @@
 use bevy::prelude::*;
 
-use crate::{config::AssetSet, constants::*};
+use crate::{
+    config::{AssetSet, ClientSettings},
+    constants::*,
+};
 use common::{
     constants::BARRIER_THICKNESS,
     protocol::{BarrierKindId, BarrierKindTable},
@@ -59,7 +62,9 @@ pub fn setup_barrier_assets(
     mut materials: ResMut<Assets<StandardMaterial>>,
     kind_table: Res<BarrierKindTable>,
     asset_set: Res<AssetSet>,
+    client_settings: Res<ClientSettings>,
 ) {
+    let alpha_max = client_settings.barriers.alpha_max;
     // Barrier mesh: unit X and Y so per-instance `Transform.scale` can
     // encode the merged segment's length and barrier height. Thickness
     // stays baked in the mesh — no instance ever wants a different thickness.
@@ -74,7 +79,7 @@ pub fn setup_barrier_assets(
             .barrier_kind_color_hex(id)
             .expect("color presence checked at app startup");
         let color = parse_hex_color(hex).unwrap_or_else(|err| panic!("invalid color {hex:?} for kind {id:?}: {err}"));
-        handles.push(materials.add(barrier_material(color)));
+        handles.push(materials.add(barrier_material(color, alpha_max)));
         base_colors.push(color);
     }
 
@@ -86,10 +91,10 @@ pub fn setup_barrier_assets(
     });
 }
 
-fn barrier_material(color: Color) -> StandardMaterial {
+fn barrier_material(color: Color, alpha_max: f32) -> StandardMaterial {
     let linear = color.to_linear();
     StandardMaterial {
-        base_color: Color::srgba(linear.red, linear.green, linear.blue, BARRIER_ALPHA_MAX),
+        base_color: Color::srgba(linear.red, linear.green, linear.blue, alpha_max),
         alpha_mode: AlphaMode::Blend,
         unlit: true,
         double_sided: true,

@@ -9,7 +9,7 @@ use bevy::{
 use rand::{RngExt, rng};
 
 use crate::{
-    config::{AssetSet, DebugColorMode, RenderSettings},
+    config::{AssetSet, DebugColorMode, ClientSettings},
     map::{GroundMarker, MapLevel, RampMarker, RoofMarker, WallMarker},
     materials::MaterialHandleCache,
 };
@@ -122,7 +122,7 @@ impl MapGeometryBatch {
         material_cache: &mut MaterialHandleCache,
         asset_server: &AssetServer,
         asset_set: &AssetSet,
-        render_settings: &RenderSettings,
+        client_settings: &ClientSettings,
     ) {
         let mode = self.mode;
         for (key, batch) in self.batches {
@@ -138,8 +138,8 @@ impl MapGeometryBatch {
                         material_def,
                         asset_server,
                         materials,
-                        render_settings.texture_anisotropy,
-                        render_settings.texture_mipmaps_enabled,
+                        client_settings.rendering.texture_anisotropy,
+                        client_settings.rendering.texture_mipmaps_enabled,
                     )
                 }
                 DebugColorMode::ByMaterial => materials.add(material_color_for(&batch.material_id)),

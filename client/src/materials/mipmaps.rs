@@ -9,7 +9,7 @@ use bevy::{
 };
 use bevy_mod_mipmap_generator::{MipmapGeneratorSettings, check_image_compatible, generate_mips_texture};
 
-use crate::config::RenderSettings;
+use crate::config::ClientSettings;
 
 const MAX_PENDING_MIPMAP_TASKS: usize = 2;
 
@@ -23,7 +23,7 @@ pub fn generate_material_mipmaps_system(
     mut state: Local<MaterialMipmapState>,
     materials: Res<Assets<StandardMaterial>>,
     mut images: ResMut<Assets<Image>>,
-    render_settings: Res<RenderSettings>,
+    client_settings: Res<ClientSettings>,
 ) {
     // The upstream plugin's event-driven system can miss our textures because a
     // StandardMaterial may be added before its Image assets have loaded. Scanning
@@ -32,7 +32,7 @@ pub fn generate_material_mipmaps_system(
     finish_mipmap_tasks(&mut state, &mut images);
 
     let settings = MipmapGeneratorSettings {
-        anisotropic_filtering: render_settings.texture_anisotropy,
+        anisotropic_filtering: client_settings.rendering.texture_anisotropy,
         ..default()
     };
 
@@ -64,7 +64,7 @@ pub fn generate_material_mipmaps_system(
                 continue;
             }
 
-            configure_mipmap_sampler(image, render_settings.texture_anisotropy);
+            configure_mipmap_sampler(image, client_settings.rendering.texture_anisotropy);
 
             if image.texture_descriptor.mip_level_count > 1 {
                 state.processed.insert(image_id);

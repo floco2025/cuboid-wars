@@ -3,7 +3,7 @@ use std::collections::{HashSet, VecDeque};
 use bevy::prelude::*;
 use common::protocol::{BarrierKindId, PlayerId};
 
-use crate::{barriers::BarrierAssets, config::RenderSettings, constants::MESSAGE_FEED_MAX_ENTRIES};
+use crate::{barriers::BarrierAssets, config::ClientSettings};
 
 // One entry in the bottom-right game-message feed. Names and kind ids are
 // captured at emit time so the formatter doesn't depend on the live
@@ -91,7 +91,7 @@ pub fn spawn_message_feed_root(commands: &mut Commands) {
 pub fn render_pending_messages_system(
     mut commands: Commands,
     mut feed: ResMut<GameMessageFeed>,
-    render_settings: Res<RenderSettings>,
+    client_settings: Res<ClientSettings>,
     barrier_assets: Option<Res<BarrierAssets>>,
     root_query: Query<(Entity, Option<&Children>), With<MessageFeedRoot>>,
 ) {
@@ -104,8 +104,9 @@ pub fn render_pending_messages_system(
 
     let pending: Vec<_> = feed.pending.drain(..).collect();
     let mut live: Vec<Entity> = children.map(|c| c.iter().collect()).unwrap_or_default();
-    let duration = render_settings.message_feed_entry_duration_secs;
-    let font_size = render_settings.font_sizes.message_feed;
+    let duration = client_settings.hud.message_feed.entry_duration_secs;
+    let font_size = client_settings.hud.font_sizes.message_feed;
+    let max_entries = client_settings.hud.message_feed.max_entries;
 
     for msg in pending {
         let runs = build_runs(&msg, barrier_assets.as_deref());
@@ -136,7 +137,7 @@ pub fn render_pending_messages_system(
         live.push(entry);
 
         // Cap visible entries; the oldest (head) gets despawned first.
-        while live.len() > MESSAGE_FEED_MAX_ENTRIES {
+        while live.len() > max_entries {
             let oldest = live.remove(0);
             commands.entity(oldest).despawn();
         }

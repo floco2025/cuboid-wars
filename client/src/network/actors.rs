@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use super::components::ServerReconciliation;
 use crate::{
     actors::{ActorInfo, ActorMap, spawn_actor},
-    config::{AssetSet, RenderSettings},
+    config::{AssetSet, ClientSettings},
     network::RoundTripTime,
     players::PlayerMap,
     ui::{GameMessage, GameMessageFeed, KillVictim},
@@ -30,7 +30,7 @@ pub fn sync_actors(
     actor_data: &Query<(&Position, &ActorMoveIntent, &FaceDirection), With<ActorMarker>>,
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
-    render_settings: &RenderSettings,
+    client_settings: &ClientSettings,
     gameplay_config: &GameplayConfig,
     server_actors: &[(ActorId, Actor)],
 ) {
@@ -49,7 +49,7 @@ pub fn sync_actors(
             images,
             graphs,
             asset_set,
-            render_settings,
+            client_settings,
             gameplay_config,
             *id,
             actor,

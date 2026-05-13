@@ -4,9 +4,9 @@ use super::BumpFlashState;
 use crate::{
     animations::{AnimationToPlay, character_animation_system},
     characters::{PreviousTickPosition, spawn_collider_box},
-    config::{AssetSet, RenderSettings},
+    config::{AssetSet, ClientSettings},
     constants::{LABEL_PLAYER_TEXTURE_HEIGHT, LABEL_PLAYER_TEXTURE_WIDTH},
-    ui::floating_labels::{LabelCamera, setup_label_texture, spawn_floating_player_label},
+    ui::floating_labels::{FloatingLabelDims, LabelCamera, setup_label_texture, spawn_floating_player_label},
 };
 use common::{config::GameplayConfig, physics::CharacterVerticalVelocity, protocol::*};
 
@@ -46,7 +46,7 @@ pub fn spawn_player(
     images: &mut ResMut<Assets<Image>>,
     graphs: &mut ResMut<Assets<AnimationGraph>>,
     asset_set: &AssetSet,
-    render_settings: &RenderSettings,
+    client_settings: &ClientSettings,
     gameplay_config: &GameplayConfig,
     player_id: u32,
     player_name: &str,
@@ -97,7 +97,7 @@ pub fn spawn_player(
     let mut children = vec![];
 
     // Add transparent collider visualization if enabled.
-    if render_settings.debug_collider_boxes {
+    if client_settings.debug.collider_boxes {
         children.push(spawn_collider_box(commands, meshes, materials, player_physics));
     }
 
@@ -133,7 +133,12 @@ pub fn spawn_player(
         player_physics.collision_height(),
         gameplay_config.player.health().max,
         health.0,
-        render_settings.font_sizes.floating_label,
+        FloatingLabelDims {
+            height_above_character: client_settings.hud.floating_labels.height_above_character,
+            health_bar_width: client_settings.hud.health_bars.floating_player_width,
+            health_bar_height: client_settings.hud.health_bars.floating_player_height,
+            font_size: client_settings.hud.font_sizes.floating_label,
+        },
     );
     children.push(mesh_entity);
 

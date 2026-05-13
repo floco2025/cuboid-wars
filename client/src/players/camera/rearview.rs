@@ -3,8 +3,7 @@ use bevy::{camera::Viewport, prelude::*};
 use crate::{
     cameras::{CameraViewMode, MainCameraMarker, RearviewCameraMarker},
     characters::PreviousTickPosition,
-    config::RenderSettings,
-    constants::{REARVIEW_HEIGHT_RATIO, REARVIEW_MARGIN, REARVIEW_WIDTH_RATIO},
+    config::ClientSettings,
     players::LocalPlayerMarker,
 };
 use common::{config::GameplayConfig, protocol::Position};
@@ -17,10 +16,10 @@ pub fn local_player_rearview_sync_system(
     mut rearview_query: Query<&mut Transform, (With<RearviewCameraMarker>, Without<MainCameraMarker>)>,
     view_mode: Res<CameraViewMode>,
     fixed_time: Res<Time<Fixed>>,
-    render_settings: Res<RenderSettings>,
+    client_settings: Res<ClientSettings>,
     gameplay_config: Res<GameplayConfig>,
 ) {
-    if !render_settings.rearview_enabled || !view_mode.is_first_person() {
+    if !client_settings.camera.rearview.enabled || !view_mode.is_first_person() {
         return;
     }
 
@@ -50,7 +49,7 @@ pub fn local_player_rearview_viewport_system(
     windows: Query<&Window>,
     mut rearview_query: Query<&mut Camera, With<RearviewCameraMarker>>,
     view_mode: Res<CameraViewMode>,
-    render_settings: Res<RenderSettings>,
+    client_settings: Res<ClientSettings>,
 ) {
     let Ok(window) = windows.single() else {
         return;
@@ -60,7 +59,7 @@ pub fn local_player_rearview_viewport_system(
         return;
     };
 
-    let is_active = render_settings.rearview_enabled && view_mode.is_first_person();
+    let is_active = client_settings.camera.rearview.enabled && view_mode.is_first_person();
     camera.is_active = is_active;
 
     if !is_active {
@@ -70,11 +69,12 @@ pub fn local_player_rearview_viewport_system(
     let window_width = window.physical_width();
     let window_height = window.physical_height();
 
-    let viewport_width = (window_width as f32 * REARVIEW_WIDTH_RATIO) as u32;
-    let viewport_height = (window_height as f32 * REARVIEW_HEIGHT_RATIO) as u32;
+    let rearview = client_settings.camera.rearview;
+    let viewport_width = (window_width as f32 * rearview.width_ratio) as u32;
+    let viewport_height = (window_height as f32 * rearview.height_ratio) as u32;
 
-    let margin_x = (window_width as f32 * REARVIEW_MARGIN) as u32;
-    let margin_y = (window_height as f32 * REARVIEW_MARGIN) as u32;
+    let margin_x = (window_width as f32 * rearview.margin_ratio) as u32;
+    let margin_y = (window_height as f32 * rearview.margin_ratio) as u32;
 
     let x = window_width.saturating_sub(viewport_width + margin_x);
     let y = margin_y;

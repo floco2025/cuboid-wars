@@ -3,7 +3,7 @@ use rand::random;
 
 use crate::{
     barriers::BarrierAssets,
-    config::{AssetSet, RenderSettings},
+    config::{AssetSet, ClientSettings},
     constants::*,
     items::key_rotate::{KeyMarker, KeyRotationTimer},
     map::MapLevel,
@@ -72,13 +72,13 @@ pub fn setup_item_assets(
     mut materials: ResMut<Assets<StandardMaterial>>,
     asset_server: Res<AssetServer>,
     asset_set: Res<AssetSet>,
-    render_settings: Res<RenderSettings>,
+    client_settings: Res<ClientSettings>,
 ) {
     let cookie_def = asset_set.material_for_item(ItemType::Cookie);
     let cookie_material = materials.add(cookie_def.standard_material(
         &asset_server,
-        render_settings.texture_anisotropy,
-        render_settings.texture_mipmaps_enabled,
+        client_settings.rendering.texture_anisotropy,
+        client_settings.rendering.texture_mipmaps_enabled,
     ));
 
     let mut build_power_up = |item_type: ItemType| -> Handle<StandardMaterial> {
@@ -86,8 +86,8 @@ pub fn setup_item_assets(
         materials.add(def.standard_item_material(
             &asset_server,
             item_type_color(item_type),
-            render_settings.texture_anisotropy,
-            render_settings.texture_mipmaps_enabled,
+            client_settings.rendering.texture_anisotropy,
+            client_settings.rendering.texture_mipmaps_enabled,
         ))
     };
     let speed_material = build_power_up(ItemType::SpeedPowerUp);
