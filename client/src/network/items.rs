@@ -30,7 +30,7 @@ pub fn handle_item_collected_message(
 // Item Synchronization Helper
 // ============================================================================
 
-// Synchronize items from bulk Update message - spawn/despawn.
+// Synchronize items from a snapshot — spawn/despawn.
 pub fn sync_items(
     commands: &mut Commands,
     item_assets: &ItemAssets,
@@ -40,7 +40,7 @@ pub fn sync_items(
 ) {
     let server_item_ids: HashSet<ItemId> = server_items.iter().map(|(id, _)| *id).collect();
 
-    // Spawn any items that appear in the update but are missing locally
+    // Spawn any items that appear in the snapshot but are missing locally
     for (item_id, item) in server_items {
         if items.contains_key(item_id) {
             continue;

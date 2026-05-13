@@ -145,7 +145,7 @@ fn spawn_snapshot_player(
     player: &Player,
 ) {
     let is_local = id == my_player_id;
-    debug!("spawning player {:?} from Update (is_local: {})", id, is_local);
+    debug!("spawning player {:?} from Snapshot (is_local: {})", id, is_local);
     let entity = spawn_player(
         commands,
         asset_server,

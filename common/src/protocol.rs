@@ -8,10 +8,10 @@
 //    (`PlayerId`, static `MapLayout`).
 //
 // 2. State snapshot (`SSnapshot`) — the authoritative current state of every
-//    player, actor, and item, broadcast every server tick. Sole vehicle for
-//    presence: a player appears the tick they first show up in `SSnapshot` and
-//    disappears the tick they're absent. Self-healing — a dropped tick is
-//    forgiven by the next one.
+//    player, actor, and item, broadcast at `SNAPSHOT_HZ`. Sole vehicle for
+//    presence: a player appears in the first `SSnapshot` they show up in and
+//    disappears in the first they're absent from. Self-healing — a dropped
+//    snapshot is forgiven by the next one.
 //
 // 3. One-shot cues — short messages that fire at the moment of a discrete
 //    state change. They exist only when the snapshot can't carry the cue,

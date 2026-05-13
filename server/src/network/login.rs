@@ -101,7 +101,7 @@ pub fn handle_login_message(
                 Health(gameplay_config.player.health().max),
             );
 
-            // Construct the initial Update for the new player
+            // Construct the initial snapshot for the new player
             let mut all_players = snapshot_logged_in_players(players, player_data, motions)
                 .into_iter()
                 .filter(|(player_id, _)| *player_id != id)
@@ -109,7 +109,7 @@ pub fn handle_login_message(
             // Add the new player manually with their freshly generated values
             all_players.push((id, player.clone()));
 
-            // Collect all items for the initial update
+            // Collect all items for the initial snapshot
             let all_items = collect_items(items, item_positions);
             let all_actors = snapshot_actors(actors, actor_data, actor_motions);
 
