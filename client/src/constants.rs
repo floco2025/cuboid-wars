@@ -33,11 +33,10 @@ pub const PING_INTERVAL: f32 = 10.0;
 // trying to smooth — large divergence usually means a teleport or a desync
 // that won't close from gradual correction.
 
-// Distance (meters, any axis) at which the client gives up and snaps to the
-// server position instead of blending. Two thresholds for the player: a
-// tight one while standing still (visible sliding is obvious when idle) and
-// a looser one while running (correction is hidden by motion). The actual
-// threshold lerps between them by the snapshot-captured server speed.
+// Per-axis snap distance. Player has two endpoints lerped by snapshot-
+// captured server speed (corrections under a stationary view draw the
+// eye; motion masks them). Actor uses a fixed intermediate value — actor
+// speeds are simple enough that lerping doesn't earn the complexity.
 pub const RECON_PLAYER_SNAP_THRESHOLD_IDLE: f32 = 1.0;
 pub const RECON_PLAYER_SNAP_THRESHOLD_RUNNING: f32 = 5.0;
 pub const RECON_ACTOR_SNAP_THRESHOLD: f32 = 3.0;

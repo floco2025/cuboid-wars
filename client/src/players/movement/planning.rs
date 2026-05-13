@@ -126,8 +126,6 @@ fn reconciled_target_position(
     player_physics: common::config::CharacterPhysicsConfig,
     run_speed: f32,
 ) -> Option<Position> {
-    // Slow idle correction reduces visible sliding when standing players receive
-    // snapshot corrections. Moving characters hide correction better.
     let run_correction_time = recon.rtt * RECON_CORRECTION_TIME_RTT_MULTIPLIER;
     // Correction duration follows current input (not server_velocity)
     // so the duration lengthens the instant the player stops, keeping
@@ -136,25 +134,35 @@ fn reconciled_target_position(
     let correction_duration = RECON_PLAYER_IDLE_CORRECTION_TIME.lerp(run_correction_time, input_speed_factor);
     let correction_factor = (SNAPSHOT_PERIOD_SECS / correction_duration).clamp(0.0, 1.0);
 
+    // Accumulator reaches `SNAPSHOT_PERIOD_SECS` after exactly
+    // `correction_duration` real seconds. The next snapshot normally
+    // overwrites this component before then; the accumulator is the
+    // fallback when snapshots are dropped.
     recon.correction_progress += delta * correction_factor;
     if recon.correction_progress >= SNAPSHOT_PERIOD_SECS {
         commands.entity(entity).remove::<ServerReconciliation>();
     }
 
+    // Project the snapshot's server pos forward by half-RTT so we compare
+    // against where the server is *now*, not where it was when the
+    // snapshot was sent.
     let extrapolated_server_pos = Vec3::from(recon.server_pos) + recon.server_velocity * recon.rtt / 2.0;
     let correction_delta = extrapolated_server_pos - Vec3::from(recon.client_pos);
 
+    // Local player's vertical velocity is authoritative from the server
+    // (jumps + gravity); adopt it eagerly when the recon disagrees by
+    // more than the ground-snap tolerance. Remote players derive vy from
+    // their own predicted physics, so the gradual horizontal correction
+    // below is enough.
     if is_local && correction_delta.y.abs() >= CHARACTER_GROUND_SNAP_DISTANCE {
         *vertical_velocity = recon.server_velocity.y;
     }
 
-    // For the snap *threshold*, use the recon's own captured velocity, not
-    // the current input. The recon's stored delta was accumulated under
-    // whatever motion state the server saw at the snapshot moment, and that
-    // velocity is frozen for the recon's lifetime (~SNAPSHOT_PERIOD_SECS).
-    // So a drift captured while running stays evaluated against the running
-    // threshold until the recon expires — releasing the run key on the next
-    // tick can't tighten the threshold mid-correction.
+    // Threshold uses the snapshot-captured server velocity, not current
+    // input. `recon.server_velocity` stays put until the next snapshot
+    // overwrites it, so a drift captured while running keeps the running
+    // threshold for that ~one-snapshot window — releasing the run key on
+    // the next tick can't tighten the threshold mid-correction.
     let server_speed = recon.server_velocity.xz().length();
     let threshold_speed_factor = (server_speed / run_speed).clamp(0.0, 1.0);
     let snap_threshold = RECON_PLAYER_SNAP_THRESHOLD_IDLE
@@ -162,7 +170,7 @@ fn reconciled_target_position(
     let (worst_axis, worst_magnitude) = worst_axis_excess(correction_delta);
     if worst_magnitude >= snap_threshold {
         warn!(
-            "{player_name} out of sync: |{worst_axis}|={worst_magnitude:.2} > {snap_threshold:.2} (Δ x={:.2}, y={:.2}, z={:.2}); snapping to server position",
+            "{player_name} out of sync: |{worst_axis}|={worst_magnitude:.2} >= {snap_threshold:.2} (Δ x={:.2}, y={:.2}, z={:.2}); snapping to server position",
             correction_delta.x, correction_delta.y, correction_delta.z
         );
         *client_pos = recon.server_pos;

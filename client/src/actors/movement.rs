@@ -57,21 +57,30 @@ pub(crate) fn plan_actor_moves(
             let correction_time = recon.rtt * RECON_CORRECTION_TIME_RTT_MULTIPLIER;
             let correction_factor = (SNAPSHOT_PERIOD_SECS / correction_time).clamp(0.0, 1.0);
 
+            // Accumulator reaches `SNAPSHOT_PERIOD_SECS` after exactly
+            // `correction_time` real seconds. The next snapshot normally
+            // overwrites this component first; the accumulator is the
+            // fallback when snapshots are dropped.
             recon.correction_progress += delta * correction_factor;
             if recon.correction_progress >= SNAPSHOT_PERIOD_SECS {
                 commands.entity(entity).remove::<ServerReconciliation>();
             }
 
+            // Project the snapshot's server pos forward by half-RTT so we
+            // compare against where the server is *now*, not where it was
+            // when the snapshot was sent.
             let extrapolated_server_pos = Vec3::from(recon.server_pos) + recon.server_velocity * recon.rtt / 2.0;
             let correction_delta = extrapolated_server_pos - Vec3::from(recon.client_pos);
 
             let (worst_axis, worst_magnitude) = worst_axis_excess(correction_delta);
             if worst_magnitude >= RECON_ACTOR_SNAP_THRESHOLD {
                 warn!(
-                    "{:?} out of sync: |{worst_axis}|={worst_magnitude:.2} > {:.2} (Δ x={:.2}, y={:.2}, z={:.2}); snapping to server position",
+                    "{:?} out of sync: |{worst_axis}|={worst_magnitude:.2} >= {:.2} (Δ x={:.2}, y={:.2}, z={:.2}); snapping to server position",
                     actor_id, RECON_ACTOR_SNAP_THRESHOLD, correction_delta.x, correction_delta.y, correction_delta.z
                 );
                 *pos = recon.server_pos;
+                // Adopt server's vy only — horizontal motion comes from
+                // `move_intent`, which is already inserted by `sync_actors`.
                 motion.0 = recon.server_velocity.y;
                 commands.entity(entity).remove::<ServerReconciliation>();
                 // Anchor render interpolation at the snapped position so the
