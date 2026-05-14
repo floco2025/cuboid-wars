@@ -15,8 +15,6 @@ The game runs an authoritative server with client-side prediction, so movement
 stays responsive while the server remains the source of truth for collisions,
 items, projectiles, actor behaviour, and scoring.
 
-> Hobby project — not currently accepting external contributions.
-
 ## Gameplay
 
 - **Power-ups** — speed, multi-shot, phasing (passes through walls only), anti-gravity.
