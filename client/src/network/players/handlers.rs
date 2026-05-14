@@ -184,7 +184,7 @@ pub fn handle_player_hit_message(
 // teleports the local entity when the player reappears in the next snapshot.
 pub fn handle_player_death_message(
     commands: &mut Commands,
-    players: &mut ResMut<PlayerMap>,
+    players: &mut PlayerMap,
     local_player_info: &mut LocalPlayerInfo,
     feed: &mut GameMessageFeed,
     my_player_id: PlayerId,
@@ -206,6 +206,10 @@ pub fn handle_player_death_message(
                 player_name: victim_name,
             }),
         }
+    }
+
+    if let Some(info) = players.get(&msg.id) {
+        commands.entity(info.entity).insert(Health(0.0));
     }
 
     if msg.id == my_player_id {
@@ -261,5 +265,58 @@ pub fn handle_player_status_message(
         }
 
         player_info.apply_status(&msg);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::players::PlayerInfo;
+
+    fn player_info(entity: Entity, name: &str) -> PlayerInfo {
+        PlayerInfo {
+            entity,
+            score: 0,
+            name: name.to_owned(),
+            speed_power_up: false,
+            multi_shot_power_up: false,
+            phasing_power_up: false,
+            anti_gravity_power_up: false,
+            stunned: false,
+            held_keys: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn local_player_death_sets_health_to_zero() {
+        let my_id = PlayerId(7);
+        let mut world = World::new();
+        let entity = world.spawn((Health(42.0), Visibility::Visible)).id();
+        let mut players = PlayerMap::default();
+        players.insert(my_id, player_info(entity, "Alice"));
+        let mut local_player_info = LocalPlayerInfo::default();
+        let mut feed = GameMessageFeed::default();
+        let mut commands_queue = bevy::ecs::world::CommandQueue::default();
+
+        {
+            let mut commands = bevy::ecs::system::Commands::new(&mut commands_queue, &world);
+            handle_player_death_message(
+                &mut commands,
+                &mut players,
+                &mut local_player_info,
+                &mut feed,
+                my_id,
+                SPlayerDeath {
+                    id: my_id,
+                    pos: Position::default(),
+                    killer: None,
+                },
+            );
+        }
+        commands_queue.apply(&mut world);
+
+        assert_eq!(world.entity(entity).get::<Health>(), Some(&Health(0.0)));
+        assert_eq!(world.entity(entity).get::<Visibility>(), Some(&Visibility::Hidden));
+        assert!(local_player_info.is_dead);
     }
 }
