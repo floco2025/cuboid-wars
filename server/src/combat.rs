@@ -177,7 +177,7 @@ mod tests {
     use std::collections::HashMap;
 
     use super::*;
-    use crate::config::{PlayerServerConfig, ScoringConfig};
+    use crate::config::{CookiesConfig, KeysConfig, PlayerServerConfig, PowerUpsConfig, ScoringConfig};
     use crate::resources::PlayerInfo;
     use tokio::sync::mpsc::unbounded_channel;
 
@@ -193,6 +193,19 @@ mod tests {
             player: PlayerServerConfig {
                 projectile_damage_taken: 25.0,
             },
+            power_ups: PowerUpsConfig {
+                max_number: 0,
+                despawn_secs: 60.0,
+                speed_duration_secs: 1.0,
+                multi_shot_duration_secs: 1.0,
+                phasing_duration_secs: 1.0,
+                anti_gravity_duration_secs: 1.0,
+            },
+            cookies: CookiesConfig {
+                spawning_enabled: false,
+                respawn_secs: 60.0,
+            },
+            keys: KeysConfig { respawn_secs: 30.0 },
             actors: HashMap::new(),
         }
     }

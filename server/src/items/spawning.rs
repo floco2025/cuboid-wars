@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use rand::{RngExt, rng};
 
 use crate::{
-    constants::COOKIE_SPAWNING_ENABLED,
+    config::ServerGameplayConfig,
     resources::{ItemInfo, ItemMap, ItemSpawner, MapConfig},
 };
 use common::{
@@ -24,8 +24,9 @@ pub fn item_initial_spawn_system(
     query: Query<&ItemId, With<ItemMarker>>,
     map_config: Res<MapConfig>,
     map_geometry: Res<MapGeometry>,
+    server_gameplay_config: Res<ServerGameplayConfig>,
 ) {
-    if !COOKIE_SPAWNING_ENABLED {
+    if !server_gameplay_config.cookies.spawning_enabled {
         return;
     }
 
@@ -128,12 +129,15 @@ pub fn item_spawn_system(
     positions: Query<&Position, With<ItemMarker>>,
     map_config: Res<MapConfig>,
     map_geometry: Res<MapGeometry>,
+    server_gameplay_config: Res<ServerGameplayConfig>,
 ) {
     let delta = time.delta_secs();
     spawner.timer += delta;
 
+    let power_ups = &server_gameplay_config.power_ups;
     let eligible_cells = eligible_item_spawn_cells(&map_config);
-    let Some(spawn_interval) = power_up_spawn_interval(eligible_cells.len()) else {
+    let target_active = target_active_power_ups(eligible_cells.len(), power_ups.max_number);
+    let Some(spawn_interval) = power_up_spawn_interval(power_ups.despawn_secs, target_active) else {
         return;
     };
 
@@ -150,7 +154,6 @@ pub fn item_spawn_system(
                     .map(|pos| item_spawn_cell_from_position(&map_geometry, pos))
             })
             .collect();
-        let target_active = target_active_power_ups(eligible_cells.len());
         if occupied_cells.len() >= target_active {
             return;
         }

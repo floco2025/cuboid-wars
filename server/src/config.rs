@@ -31,6 +31,9 @@ pub struct ServerGameplayConfig {
     pub version: u32,
     pub scoring: ScoringConfig,
     pub player: PlayerServerConfig,
+    pub power_ups: PowerUpsConfig,
+    pub cookies: CookiesConfig,
+    pub keys: KeysConfig,
     pub actors: HashMap<String, ActorKindServerConfig>,
 }
 
@@ -65,6 +68,9 @@ impl ServerGameplayConfig {
         // (e.g., `player_death: -1` penalty), and so is zero. Just ensure
         // the section deserialized.
         let _ = &self.scoring;
+        self.power_ups.validate("power_ups")?;
+        self.cookies.validate("cookies")?;
+        self.keys.validate("keys")?;
         if self.actors.is_empty() {
             bail!("actors must define at least one kind");
         }
@@ -111,6 +117,58 @@ impl PlayerServerConfig {
     }
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct PowerUpsConfig {
+    // Target/cap for active power-ups in the world. The spawner paces
+    // spawns to maintain this many and refuses to exceed it. Capped at
+    // the number of eligible floor cells so tiny test maps degrade.
+    pub max_number: usize,
+    // How long an uncollected power-up sits in the world before being
+    // removed. Cookies and keys use `respawn_secs` instead — they're
+    // hidden after collection and re-shown, not despawned.
+    pub despawn_secs: f32,
+    pub speed_duration_secs: f32,
+    pub multi_shot_duration_secs: f32,
+    pub phasing_duration_secs: f32,
+    pub anti_gravity_duration_secs: f32,
+}
+
+impl PowerUpsConfig {
+    fn validate(&self, path: &str) -> Result<()> {
+        validate_positive_finite(self.despawn_secs, &format!("{path}.despawn_secs"))?;
+        validate_non_negative_finite(self.speed_duration_secs, &format!("{path}.speed_duration_secs"))?;
+        validate_non_negative_finite(self.multi_shot_duration_secs, &format!("{path}.multi_shot_duration_secs"))?;
+        validate_non_negative_finite(self.phasing_duration_secs, &format!("{path}.phasing_duration_secs"))?;
+        validate_non_negative_finite(
+            self.anti_gravity_duration_secs,
+            &format!("{path}.anti_gravity_duration_secs"),
+        )
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CookiesConfig {
+    pub spawning_enabled: bool,
+    pub respawn_secs: f32,
+}
+
+impl CookiesConfig {
+    fn validate(&self, path: &str) -> Result<()> {
+        validate_non_negative_finite(self.respawn_secs, &format!("{path}.respawn_secs"))
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct KeysConfig {
+    pub respawn_secs: f32,
+}
+
+impl KeysConfig {
+    fn validate(&self, path: &str) -> Result<()> {
+        validate_non_negative_finite(self.respawn_secs, &format!("{path}.respawn_secs"))
+    }
+}
+
 // Server-side per-actor-kind tuning. Fields are grouped by concern so the
 // JSON reads as a self-documenting outline; cross-cutting numbers (combat,
 // senses, navigation, patrol, chase, respawn) don't get jumbled into one
@@ -146,7 +204,7 @@ pub struct ActorRespawnConfig {
     // Delay between an actor's death and its replacement appearing. Only
     // applies when `enabled` is true. 0.0 means immediate respawn.
     #[serde(default)]
-    pub delay_seconds: f32,
+    pub delay_secs: f32,
 }
 
 const fn default_respawn_enabled() -> bool {
@@ -155,7 +213,7 @@ const fn default_respawn_enabled() -> bool {
 
 impl ActorRespawnConfig {
     fn validate(&self, path: &str) -> Result<()> {
-        validate_non_negative_finite(self.delay_seconds, &format!("{path}.delay_seconds"))
+        validate_non_negative_finite(self.delay_secs, &format!("{path}.delay_secs"))
     }
 }
 
@@ -191,15 +249,15 @@ pub struct ActorSensesConfig {
     // Delay after the actor reaches the last known player position before it
     // may acquire a visible player as a fresh chase target again.
     #[serde(default)]
-    pub chase_reacquire_cooldown: f32,
+    pub chase_reacquire_cooldown_secs: f32,
 }
 
 impl ActorSensesConfig {
     fn validate(&self, path: &str) -> Result<()> {
         validate_positive_finite(self.vision_range, &format!("{path}.vision_range"))?;
         validate_non_negative_finite(
-            self.chase_reacquire_cooldown,
-            &format!("{path}.chase_reacquire_cooldown"),
+            self.chase_reacquire_cooldown_secs,
+            &format!("{path}.chase_reacquire_cooldown_secs"),
         )
     }
 }
@@ -210,18 +268,18 @@ pub struct ActorPatrolConfig {
     // patrolling actor may stray before it breaks off and walks home.
     // Inside the zone counts as 0.
     pub leash: f32,
-    pub min_direction_time: f32,
-    pub max_direction_time: f32,
+    pub min_direction_secs: f32,
+    pub max_direction_secs: f32,
     pub idle_probability: f32,
 }
 
 impl ActorPatrolConfig {
     fn validate(&self, path: &str) -> Result<()> {
         validate_positive_finite(self.leash, &format!("{path}.leash"))?;
-        validate_positive_finite(self.min_direction_time, &format!("{path}.min_direction_time"))?;
-        validate_positive_finite(self.max_direction_time, &format!("{path}.max_direction_time"))?;
-        if self.min_direction_time > self.max_direction_time {
-            bail!("{path}.min_direction_time must be <= {path}.max_direction_time");
+        validate_positive_finite(self.min_direction_secs, &format!("{path}.min_direction_secs"))?;
+        validate_positive_finite(self.max_direction_secs, &format!("{path}.max_direction_secs"))?;
+        if self.min_direction_secs > self.max_direction_secs {
+            bail!("{path}.min_direction_secs must be <= {path}.max_direction_secs");
         }
         validate_probability(self.idle_probability, &format!("{path}.idle_probability"))
     }
@@ -231,7 +289,7 @@ impl ActorPatrolConfig {
 pub struct ActorChaseConfig {
     // Maximum xz-distance (meters) from the spawn zone's nearest edge a
     // chasing actor may stray before it breaks off the chase (triggering
-    // `senses.chase_reacquire_cooldown`) and walks home. Typically larger
+    // `senses.chase_reacquire_cooldown_secs`) and walks home. Typically larger
     // than `patrol.leash` so a predator can pursue a fleeing player past
     // its normal roam.
     pub leash: f32,
@@ -245,15 +303,15 @@ impl ActorChaseConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ActorNavigationConfig {
-    pub path_clear_lookahead_time: f32,
+    pub path_clear_lookahead_secs: f32,
     pub go_to_reached_distance: f32,
 }
 
 impl ActorNavigationConfig {
     fn validate(&self, path: &str) -> Result<()> {
         validate_positive_finite(
-            self.path_clear_lookahead_time,
-            &format!("{path}.path_clear_lookahead_time"),
+            self.path_clear_lookahead_secs,
+            &format!("{path}.path_clear_lookahead_secs"),
         )?;
         validate_positive_finite(self.go_to_reached_distance, &format!("{path}.go_to_reached_distance"))
     }

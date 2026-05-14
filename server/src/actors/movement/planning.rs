@@ -64,7 +64,7 @@ pub(crate) fn plan_actor_moves(
             collision_world,
             planned_moves,
             actor_starts,
-            path_clear_lookahead_time: kind_server_config.navigation.path_clear_lookahead_time,
+            path_clear_lookahead_secs: kind_server_config.navigation.path_clear_lookahead_secs,
         };
         let selected_move = if let Some(go_to_intent) = go_to_intent {
             select_go_to_actor_move(&move_context, go_to_intent, info.go_to_position, info, &mut rng)
@@ -398,7 +398,7 @@ fn direct_path_is_clear_enough(
     go_to_position: Option<Position>,
 ) -> bool {
     let direct_intent = ActorMoveIntent::Moving { direction, speed };
-    let step = context.step_actor_move(direct_intent, context.path_clear_lookahead_time);
+    let step = context.step_actor_move(direct_intent, context.path_clear_lookahead_secs);
     if step.blocked {
         return false;
     }

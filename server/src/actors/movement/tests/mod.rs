@@ -131,7 +131,7 @@ fn context<'a>(
         collision_world,
         planned_moves,
         actor_starts,
-        path_clear_lookahead_time: 0.4,
+        path_clear_lookahead_secs: 0.4,
     }
 }
 

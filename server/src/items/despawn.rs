@@ -1,10 +1,16 @@
 use bevy::prelude::*;
 
-use crate::{constants::ITEM_LIFETIME, resources::ItemMap};
+use crate::{config::ServerGameplayConfig, resources::ItemMap};
 use common::protocol::{ItemId, ItemType};
 
-pub fn item_despawn_system(mut commands: Commands, time: Res<Time>, mut items: ResMut<ItemMap>) {
+pub fn item_despawn_system(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut items: ResMut<ItemMap>,
+    server_gameplay_config: Res<ServerGameplayConfig>,
+) {
     let current_time = time.elapsed_secs();
+    let despawn_secs = server_gameplay_config.power_ups.despawn_secs;
 
     // Only power-ups expire from inactivity. Cookies and keys are persistent
     // world items managed by the respawn tick.
@@ -12,7 +18,7 @@ pub fn item_despawn_system(mut commands: Commands, time: Res<Time>, mut items: R
         .iter()
         .filter(|(_, info)| {
             !matches!(info.item_type, ItemType::Cookie | ItemType::Key(_))
-                && current_time - info.spawn_time >= ITEM_LIFETIME
+                && current_time - info.spawn_time >= despawn_secs
         })
         .map(|(id, _)| *id)
         .collect();

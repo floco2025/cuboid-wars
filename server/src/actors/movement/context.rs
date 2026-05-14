@@ -23,7 +23,7 @@ pub(super) struct ActorMoveContext<'a> {
     pub(super) collision_world: &'a CollisionWorld,
     pub(super) planned_moves: &'a [CharacterMovePlan],
     pub(super) actor_starts: &'a [(Entity, Position)],
-    pub(super) path_clear_lookahead_time: f32,
+    pub(super) path_clear_lookahead_secs: f32,
 }
 
 impl ActorMoveContext<'_> {
@@ -73,7 +73,7 @@ impl ActorMoveContext<'_> {
 
     // Patrol-only wrapper around `evaluate_candidate` that additionally treats
     // ledges as blocking. If the candidate is otherwise accepted but the
-    // `path_clear_lookahead_time`-second projection of this intent lands on a
+    // `path_clear_lookahead_secs`-second projection of this intent lands on a
     // position with no floor underneath, demote it to `BlockedByWorld` so the
     // patrol selection rerolls a different direction. Chase intentionally does
     // not use this — chasers may follow a player off ledges.
@@ -90,14 +90,14 @@ impl ActorMoveContext<'_> {
         }
     }
 
-    // Project the candidate intent forward by `path_clear_lookahead_time`,
+    // Project the candidate intent forward by `path_clear_lookahead_secs`,
     // keeping y constant, and ask whether that projected (x, z) still has
     // floor support. Y is preserved because the question is "would the ground
     // still be there if I stepped sideways," not "where would I land after
     // falling."
     fn patrol_step_lands_on_floor(&self, intent: ActorMoveIntent) -> bool {
         let velocity = intent.to_horizontal_velocity();
-        let lookahead = self.path_clear_lookahead_time;
+        let lookahead = self.path_clear_lookahead_secs;
         let projected = Position {
             x: velocity.x.mul_add(lookahead, self.pos.x),
             y: self.pos.y,

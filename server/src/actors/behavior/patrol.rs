@@ -19,5 +19,5 @@ pub(crate) fn random_patrol_move_intent(rng: &mut ThreadRng, patrol_speed: f32) 
 }
 
 pub(crate) fn random_direction_time(rng: &mut ThreadRng, kind_server_config: &ActorKindServerConfig) -> f32 {
-    rng.random_range(kind_server_config.patrol.min_direction_time..=kind_server_config.patrol.max_direction_time)
+    rng.random_range(kind_server_config.patrol.min_direction_secs..=kind_server_config.patrol.max_direction_secs)
 }

@@ -3,13 +3,7 @@ use std::collections::HashMap;
 use bevy::prelude::*;
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::{
-    constants::{
-        POWER_UP_ANTI_GRAVITY_DURATION, POWER_UP_MULTI_SHOT_DURATION, POWER_UP_PHASING_DURATION,
-        POWER_UP_SPEED_DURATION,
-    },
-    net::ServerToClient,
-};
+use crate::{config::PowerUpsConfig, net::ServerToClient};
 use common::{
     constants::{ALWAYS_ANTI_GRAVITY, ALWAYS_MULTI_SHOT, ALWAYS_PHASING, ALWAYS_SPEED, PROJECTILE_COOLDOWN_TIME},
     protocol::{
@@ -128,12 +122,12 @@ impl PlayerInfo {
         ALWAYS_ANTI_GRAVITY || self.anti_gravity_power_up_timer > 0.0
     }
 
-    pub fn grant_power_up(&mut self, item_type: ItemType) {
+    pub fn grant_power_up(&mut self, item_type: ItemType, durations: &PowerUpsConfig) {
         match item_type {
-            ItemType::SpeedPowerUp => self.speed_power_up_timer = POWER_UP_SPEED_DURATION,
-            ItemType::MultiShotPowerUp => self.multi_shot_power_up_timer = POWER_UP_MULTI_SHOT_DURATION,
-            ItemType::PhasingPowerUp => self.phasing_power_up_timer = POWER_UP_PHASING_DURATION,
-            ItemType::AntiGravityPowerUp => self.anti_gravity_power_up_timer = POWER_UP_ANTI_GRAVITY_DURATION,
+            ItemType::SpeedPowerUp => self.speed_power_up_timer = durations.speed_duration_secs,
+            ItemType::MultiShotPowerUp => self.multi_shot_power_up_timer = durations.multi_shot_duration_secs,
+            ItemType::PhasingPowerUp => self.phasing_power_up_timer = durations.phasing_duration_secs,
+            ItemType::AntiGravityPowerUp => self.anti_gravity_power_up_timer = durations.anti_gravity_duration_secs,
             ItemType::Cookie | ItemType::Key(_) => unreachable!("only power-up items grant power-up timers"),
         }
     }
@@ -247,6 +241,17 @@ mod tests {
         PlayerInfo::new(Entity::PLACEHOLDER, tx)
     }
 
+    fn test_power_ups_config() -> PowerUpsConfig {
+        PowerUpsConfig {
+            max_number: 0,
+            despawn_secs: 60.0,
+            speed_duration_secs: 1.0,
+            multi_shot_duration_secs: 1.0,
+            phasing_duration_secs: 1.0,
+            anti_gravity_duration_secs: 1.0,
+        }
+    }
+
     #[test]
     fn add_key_is_idempotent_and_keeps_sorted() {
         let mut info = dummy_info();
@@ -280,11 +285,12 @@ mod tests {
     #[test]
     fn grant_power_up_sets_matching_status_flag() {
         let mut info = dummy_info();
+        let durations = test_power_ups_config();
 
-        info.grant_power_up(ItemType::SpeedPowerUp);
-        info.grant_power_up(ItemType::MultiShotPowerUp);
-        info.grant_power_up(ItemType::PhasingPowerUp);
-        info.grant_power_up(ItemType::AntiGravityPowerUp);
+        info.grant_power_up(ItemType::SpeedPowerUp, &durations);
+        info.grant_power_up(ItemType::MultiShotPowerUp, &durations);
+        info.grant_power_up(ItemType::PhasingPowerUp, &durations);
+        info.grant_power_up(ItemType::AntiGravityPowerUp, &durations);
 
         let status = info.status(PlayerId(7));
         assert!(status.speed_power_up);
@@ -301,7 +307,7 @@ mod tests {
         assert_eq!(info.try_start_shot(start), Some(false));
         assert_eq!(info.try_start_shot(start + PROJECTILE_COOLDOWN_TIME * 0.5), None);
 
-        info.grant_power_up(ItemType::MultiShotPowerUp);
+        info.grant_power_up(ItemType::MultiShotPowerUp, &test_power_ups_config());
         assert_eq!(
             info.try_start_shot(start + PROJECTILE_COOLDOWN_TIME + f32::EPSILON),
             Some(true)

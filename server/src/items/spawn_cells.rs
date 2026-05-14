@@ -1,10 +1,6 @@
 use rand::{RngExt, rngs::ThreadRng};
 
-use crate::{
-    constants::{ITEM_LIFETIME, ITEM_TARGET_ACTIVE},
-    map::grid_coords_from_position,
-    resources::MapConfig,
-};
+use crate::{map::grid_coords_from_position, resources::MapConfig};
 use common::{
     constants::{
         GRID_CELL_SIZE, LEVEL_HEIGHT, POWER_UP_ANTI_GRAVITY_ENABLED, POWER_UP_MULTI_SHOT_ENABLED,
@@ -78,14 +74,14 @@ pub(super) fn eligible_item_spawn_cells(map_config: &MapConfig) -> Vec<ItemSpawn
     cells
 }
 
-pub(super) fn target_active_power_ups(eligible_cell_count: usize) -> usize {
-    // Constant target regardless of map size, capped at what the map can
-    // actually hold so tiny test maps don't try to spawn more items than
-    // there are floor cells.
-    ITEM_TARGET_ACTIVE.min(eligible_cell_count)
+// Configured target capped at what the map can actually hold so tiny test
+// maps don't try to spawn more items than there are floor cells.
+pub(super) fn target_active_power_ups(eligible_cell_count: usize, max_number: usize) -> usize {
+    max_number.min(eligible_cell_count)
 }
 
-pub(super) fn power_up_spawn_interval(eligible_cell_count: usize) -> Option<f32> {
-    let target_active = target_active_power_ups(eligible_cell_count);
-    (target_active > 0).then_some(ITEM_LIFETIME / target_active as f32)
+// `target_active` is the post-cap count from `target_active_power_ups`.
+// Returns `None` when zero is achievable (degenerate map with no floor).
+pub(super) fn power_up_spawn_interval(despawn_secs: f32, target_active: usize) -> Option<f32> {
+    (target_active > 0).then_some(despawn_secs / target_active as f32)
 }

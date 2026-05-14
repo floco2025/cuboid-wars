@@ -269,7 +269,7 @@
         "columns": 8,
         "rows": 8,
         "first_frame": "upper_left",
-        "scale": 1.8,
+        "scale": 3.0,
         "lifetime": 0.6
       }
     },
@@ -297,7 +297,7 @@
         "animation_speed": 1.0
       },
       "explosion_effect": {
-        "scale": 6.0
+        "scale": 10.0
       }
     }
   },

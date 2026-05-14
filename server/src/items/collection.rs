@@ -2,7 +2,6 @@ use bevy::prelude::*;
 
 use crate::{
     config::ServerGameplayConfig,
-    constants::{COOKIE_RESPAWN_TIME, ITEM_COLLECTION_RADIUS, KEY_RESPAWN_TIME},
     net::ServerToClient,
     network::broadcast_to_all,
     resources::{ItemMap, PlayerMap},
@@ -12,6 +11,7 @@ use common::{
     protocol::{ItemId, ItemMarker, ItemType, PlayerId, PlayerMarker, Position, SCookieCollected, ServerMessage},
 };
 
+const ITEM_COLLECTION_RADIUS: f32 = 1.0;
 const ITEM_PICKUP_FLOOR_EPSILON: f32 = 0.1;
 
 pub fn item_collection_system(
@@ -68,6 +68,7 @@ pub fn item_collection_system(
                 player_id,
                 item_id,
                 kind,
+                &server_gameplay_config,
                 &mut status_broadcasts,
             ),
             ItemType::SpeedPowerUp
@@ -80,6 +81,7 @@ pub fn item_collection_system(
                 player_id,
                 item_id,
                 item_type,
+                &server_gameplay_config,
                 &mut status_broadcasts,
             ),
         }
@@ -102,7 +104,7 @@ fn collect_cookie(
     };
     player_info.score += server_gameplay_config.scoring.cookie;
     if let Some(item_info) = items.get_mut(&item_id) {
-        item_info.spawn_time = COOKIE_RESPAWN_TIME;
+        item_info.spawn_time = server_gameplay_config.cookies.respawn_secs;
     }
     let _ = player_info
         .channel
@@ -117,10 +119,11 @@ fn collect_key(
     player_id: PlayerId,
     item_id: ItemId,
     kind: common::protocol::BarrierKindId,
+    server_gameplay_config: &ServerGameplayConfig,
     status_broadcasts: &mut Vec<common::protocol::SPlayerStatus>,
 ) {
     if let Some(item_info) = items.get_mut(&item_id) {
-        item_info.spawn_time = KEY_RESPAWN_TIME;
+        item_info.spawn_time = server_gameplay_config.keys.respawn_secs;
     }
     let Some(player_info) = players.get_mut(&player_id) else {
         return;
@@ -140,6 +143,7 @@ fn collect_power_up(
     player_id: PlayerId,
     item_id: ItemId,
     item_type: ItemType,
+    server_gameplay_config: &ServerGameplayConfig,
     status_broadcasts: &mut Vec<common::protocol::SPlayerStatus>,
 ) {
     if let Some(item_info) = items.remove(&item_id) {
@@ -148,6 +152,6 @@ fn collect_power_up(
     let Some(player_info) = players.get_mut(&player_id) else {
         return;
     };
-    player_info.grant_power_up(item_type);
+    player_info.grant_power_up(item_type, &server_gameplay_config.power_ups);
     status_broadcasts.push(player_info.status(player_id));
 }

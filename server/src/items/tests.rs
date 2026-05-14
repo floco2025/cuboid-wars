@@ -1,7 +1,4 @@
-use crate::{
-    constants::ITEM_TARGET_ACTIVE,
-    resources::{CellGrid, EdgeGrid, LevelGrid, MapConfig},
-};
+use crate::resources::{CellGrid, EdgeGrid, LevelGrid, MapConfig};
 
 use super::spawn_cells::{ItemSpawnCell, eligible_item_spawn_cells, target_active_power_ups};
 
@@ -44,12 +41,13 @@ fn item_spawn_cells_include_all_floor_levels_and_skip_ramps() {
 }
 
 #[test]
-fn power_up_target_uses_constant_capped_by_eligible_cells() {
+fn power_up_target_is_capped_by_eligible_cells() {
     // Empty / undersized maps degrade gracefully; once there's enough room
-    // the count is just `ITEM_TARGET_ACTIVE`.
-    assert_eq!(target_active_power_ups(0), 0);
-    assert_eq!(target_active_power_ups(1), 1);
-    assert_eq!(target_active_power_ups(ITEM_TARGET_ACTIVE - 1), ITEM_TARGET_ACTIVE - 1);
-    assert_eq!(target_active_power_ups(ITEM_TARGET_ACTIVE), ITEM_TARGET_ACTIVE);
-    assert_eq!(target_active_power_ups(ITEM_TARGET_ACTIVE + 1000), ITEM_TARGET_ACTIVE);
+    // the count is just the configured `max_number`.
+    let max_number = 50;
+    assert_eq!(target_active_power_ups(0, max_number), 0);
+    assert_eq!(target_active_power_ups(1, max_number), 1);
+    assert_eq!(target_active_power_ups(max_number - 1, max_number), max_number - 1);
+    assert_eq!(target_active_power_ups(max_number, max_number), max_number);
+    assert_eq!(target_active_power_ups(max_number + 1000, max_number), max_number);
 }

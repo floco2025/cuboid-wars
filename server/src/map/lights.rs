@@ -1,11 +1,16 @@
 use super::definition::{WallLightDef, WallSide};
 use super::edges::{CellSide, has_edge_on_cell_side};
-use crate::{constants::WALL_LIGHT_HEIGHT, resources::LevelGrid};
+use crate::resources::LevelGrid;
 use common::{
     constants::{GRID_CELL_SIZE, LEVEL_HEIGHT, WALL_HALF_THICKNESS},
     map_geometry::MapGeometry,
     protocol::{Position, WallLight},
 };
+
+// Vertical position of every wall lamp, measured from the floor it sits on.
+// Lamps are placed manually in the editor (per-level `lights` arrays in
+// `map.json`); this constant sets their height above the level floor.
+const WALL_LIGHT_HEIGHT: f32 = 2.5;
 
 // Lamps hang `MODEL_INSET` in front of the wall face so the lamp body sits
 // just inside the room, not flush with the wall texture.

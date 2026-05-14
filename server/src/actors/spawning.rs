@@ -116,7 +116,7 @@ pub fn actor_respawn_system(
         }
         let actor_config = gameplay_config.validated_actor(&zone.kind);
         let actor_physics = actor_config.physics();
-        let throttle_time = kind_server_config.respawn.delay_seconds;
+        let throttle_time = kind_server_config.respawn.delay_secs;
 
         let live = live_actor_count(&actors, zone_idx);
         let throttle = throttles.0.entry(zone_idx).or_insert(0.0);
