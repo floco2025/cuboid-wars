@@ -3,16 +3,17 @@ use bevy::prelude::*;
 use crate::{
     characters::generate_player_spawn_position,
     net::ServerToClient,
-    resources::{ActorMap, ItemMap, MapConfig, PlayerMap},
+    resources::{ActorMap, ItemMap, PlayerMap, QuestState},
 };
 use common::{
-    config::GameplayConfig,
-    map_geometry::MapGeometry,
-    physics::{CharacterVerticalVelocity, CollisionWorld},
-    protocol::{ActorMarker, ItemMarker, MapLayout, PlayerMarker, *},
+    physics::CharacterVerticalVelocity,
+    protocol::{ActorMarker, ItemMarker, PlayerMarker, *},
 };
 
-use super::broadcast::{collect_items, snapshot_actors, snapshot_logged_in_players};
+use super::{
+    broadcast::{collect_items, snapshot_actors, snapshot_logged_in_players},
+    incoming::LoginWorld,
+};
 
 // ============================================================================
 // Login Flow
@@ -25,11 +26,7 @@ pub fn handle_login_message(
     id: PlayerId,
     msg: ClientMessage,
     players: &mut ResMut<PlayerMap>,
-    map_layout: &Res<MapLayout>,
-    map_geometry: &Res<MapGeometry>,
-    collision_world: &Res<CollisionWorld>,
-    gameplay_config: &Res<GameplayConfig>,
-    map_config: &Res<MapConfig>,
+    world: &LoginWorld,
     items: &Res<ItemMap>,
     actors: &Res<ActorMap>,
     player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection, &Health), With<PlayerMarker>>,
@@ -62,11 +59,37 @@ pub fn handle_login_message(
             // Send Init to the connecting player (their ID and map config)
             let init_msg = ServerMessage::Init(SInit {
                 id,
-                map_layout: (*map_layout).clone(),
+                map_layout: (*world.map_layout).clone(),
             });
             if let Err(e) = channel.send(ServerToClient::Send(init_msg)) {
                 warn!("failed to send init to {:?}: {}", id, e);
                 return;
+            }
+
+            // Auto-assign every catalogued quest to the new player. V1 has
+            // exactly one quest; this loop is the extension point for a
+            // future quest-giver system. Quest state persists for the whole
+            // session (cleared neither by death nor by `clear_per_life_state`).
+            {
+                let player_info = players
+                    .get_mut(&id)
+                    .expect("handle_login_message called for unknown player");
+                for quest in &world.server_gameplay_config.quests {
+                    player_info.quest_states.insert(
+                        quest.id.clone(),
+                        QuestState {
+                            progress: 0,
+                            completed: false,
+                        },
+                    );
+                    let msg = ServerMessage::QuestNew(SQuestNew {
+                        id: quest.id.clone(),
+                        announcement_text: quest.announcement_text.clone(),
+                    });
+                    if let Err(e) = channel.send(ServerToClient::Send(msg)) {
+                        warn!("failed to send quest assignment to {:?}: {}", id, e);
+                    }
+                }
             }
 
             // Generate random initial position for the new player.
@@ -78,11 +101,11 @@ pub fn handle_login_message(
                 .map(|(pos, _, _, _)| *pos)
                 .collect();
             let pos = generate_player_spawn_position(
-                map_config,
-                map_geometry,
-                collision_world,
+                &world.map_config,
+                &world.map_geometry,
+                &world.collision_world,
                 &occupied_positions,
-                gameplay_config.player.physics(),
+                world.gameplay_config.player.physics(),
             );
 
             // Calculate initial facing direction toward center
@@ -99,7 +122,7 @@ pub fn handle_login_message(
                     pos,
                     move_intent,
                     face_dir,
-                    Health(gameplay_config.player.health().max),
+                    Health(world.gameplay_config.player.health().max),
                     0.0,
                 );
 

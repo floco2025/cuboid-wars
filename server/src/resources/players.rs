@@ -3,14 +3,25 @@ use std::collections::HashMap;
 use bevy::prelude::*;
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::{config::PowerUpsConfig, net::ServerToClient};
+use crate::{
+    config::{PowerUpsConfig, Quest, QuestKind},
+    net::ServerToClient,
+};
 use common::{
     constants::{ALWAYS_ANTI_GRAVITY, ALWAYS_MULTI_SHOT, ALWAYS_PHASING, ALWAYS_SPEED, PROJECTILE_COOLDOWN_TIME},
     protocol::{
-        BarrierKindId, Health, ItemType, Player, PlayerId, PlayerMoveIntent, PlayerMovementState, Position,
-        SPlayerStatus,
+        BarrierKindId, Health, ItemType, Player, PlayerId, PlayerMoveIntent, PlayerMovementState, Position, QuestId,
+        SPlayerStatus, SQuestAchieved,
     },
 };
+
+// Per-player progress against a single assigned quest. `completed` is
+// monotonic — once true it stays true for the rest of the session.
+#[derive(Debug, Clone)]
+pub struct QuestState {
+    pub progress: u32,
+    pub completed: bool,
+}
 
 pub struct PlayerInfo {
     pub entity: Entity,
@@ -33,6 +44,10 @@ pub struct PlayerInfo {
     // has no entity and is absent from `SSnapshot` — the local client sees
     // this as "I disappeared from the snapshot" and shows the death overlay.
     pub death_timer: Option<f32>,
+    // Per-quest progress, keyed by quest id. Populated at login from the
+    // server's quest catalog; persists for the whole session (not cleared
+    // by `clear_per_life_state`).
+    pub quest_states: HashMap<QuestId, QuestState>,
 }
 
 impl PlayerInfo {
@@ -52,6 +67,7 @@ impl PlayerInfo {
             last_shot_time: f32::NEG_INFINITY,
             held_keys: Vec::new(),
             death_timer: None,
+            quest_states: HashMap::new(),
         }
     }
 
@@ -66,7 +82,8 @@ impl PlayerInfo {
     }
 
     // Clear per-life state that should not persist across a death: power-ups,
-    // stun, keys, and shot cooldown. Score is intentionally preserved.
+    // stun, keys, and shot cooldown. Score and `quest_states` are
+    // intentionally preserved — quests are session-scoped, not per-life.
     pub fn clear_per_life_state(&mut self) {
         self.speed_power_up_timer = 0.0;
         self.multi_shot_power_up_timer = 0.0;
@@ -188,6 +205,35 @@ impl PlayerInfo {
 
 fn tick_timer(timer: &mut f32, delta: f32) {
     *timer = (*timer - delta).max(0.0);
+}
+
+// Apply a single cookie pickup to every cookie-kind quest the player has.
+// Returns one `SQuestAchieved` per quest that completed *on this call*
+// (i.e. the threshold crossing tick) — already-completed quests are
+// silently skipped so a player can't trigger the achievement twice by
+// collecting more cookies.
+pub fn record_cookie_for_quests(player_info: &mut PlayerInfo, quests: &[Quest]) -> Vec<SQuestAchieved> {
+    let mut achievements = Vec::new();
+    for quest in quests {
+        if !matches!(quest.kind, QuestKind::Cookies) {
+            continue;
+        }
+        let Some(state) = player_info.quest_states.get_mut(&quest.id) else {
+            continue;
+        };
+        if state.completed {
+            continue;
+        }
+        state.progress = state.progress.saturating_add(1);
+        if state.progress >= quest.threshold {
+            state.completed = true;
+            achievements.push(SQuestAchieved {
+                id: quest.id.clone(),
+                achieved_text: quest.achieved_text.clone(),
+            });
+        }
+    }
+    achievements
 }
 
 #[derive(Resource, Default)]
@@ -347,5 +393,97 @@ mod tests {
         assert_eq!(player.anti_gravity_power_up, status.anti_gravity_power_up);
         assert_eq!(player.stunned, status.stunned);
         assert_eq!(player.held_keys, status.held_keys);
+    }
+
+    fn cookies_quest(id: &str, threshold: u32) -> Quest {
+        Quest {
+            id: QuestId(id.to_owned()),
+            kind: QuestKind::Cookies,
+            threshold,
+            announcement_text: "go".to_owned(),
+            achieved_text: "done".to_owned(),
+        }
+    }
+
+    #[test]
+    fn record_cookie_for_quests_increments_progress() {
+        let quest = cookies_quest("collect_gold", 3);
+        let mut info = dummy_info();
+        info.quest_states.insert(
+            quest.id.clone(),
+            QuestState {
+                progress: 0,
+                completed: false,
+            },
+        );
+
+        let achieved = record_cookie_for_quests(&mut info, std::slice::from_ref(&quest));
+
+        assert!(achieved.is_empty(), "first cookie should not complete a 3-threshold quest");
+        assert_eq!(info.quest_states[&quest.id].progress, 1);
+        assert!(!info.quest_states[&quest.id].completed);
+    }
+
+    #[test]
+    fn record_cookie_for_quests_flips_completed_on_threshold() {
+        let quest = cookies_quest("collect_gold", 2);
+        let mut info = dummy_info();
+        info.quest_states.insert(
+            quest.id.clone(),
+            QuestState {
+                progress: 0,
+                completed: false,
+            },
+        );
+
+        // First cookie: progress=1, not yet complete.
+        let first = record_cookie_for_quests(&mut info, std::slice::from_ref(&quest));
+        assert!(first.is_empty());
+
+        // Second cookie: crosses threshold and emits one SQuestAchieved.
+        let second = record_cookie_for_quests(&mut info, std::slice::from_ref(&quest));
+        assert_eq!(second.len(), 1);
+        assert_eq!(second[0].id, quest.id);
+        assert_eq!(second[0].achieved_text, "done");
+        assert!(info.quest_states[&quest.id].completed);
+    }
+
+    #[test]
+    fn record_cookie_for_quests_is_noop_after_completion() {
+        let quest = cookies_quest("collect_gold", 1);
+        let mut info = dummy_info();
+        info.quest_states.insert(
+            quest.id.clone(),
+            QuestState {
+                progress: 1,
+                completed: true,
+            },
+        );
+
+        let achieved = record_cookie_for_quests(&mut info, std::slice::from_ref(&quest));
+
+        // No second-win firing, no progress drift past completion.
+        assert!(achieved.is_empty());
+        assert_eq!(info.quest_states[&quest.id].progress, 1);
+    }
+
+    #[test]
+    fn clear_per_life_state_preserves_quest_states() {
+        let quest = cookies_quest("collect_gold", 10);
+        let mut info = dummy_info();
+        info.quest_states.insert(
+            quest.id.clone(),
+            QuestState {
+                progress: 7,
+                completed: false,
+            },
+        );
+        info.speed_power_up_timer = 5.0;
+
+        info.clear_per_life_state();
+
+        assert_eq!(info.speed_power_up_timer, 0.0, "power-up timers reset by clear");
+        assert_eq!(info.quest_states[&quest.id].progress, 7, "quest progress survives death");
+        assert!(!info.quest_states[&quest.id].completed);
     }
 }

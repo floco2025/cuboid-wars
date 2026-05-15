@@ -24,6 +24,15 @@
   "keys": {
     "respawn_secs": 30.0
   },
+  "quests": [
+    {
+      "id": "collect_gold",
+      "kind": "cookies",
+      "threshold": 10,
+      "announcement_text": "Collect 10 Gold!",
+      "achieved_text": "You won!"
+    }
+  ],
   "actors": {
     "mine_1": {
       "respawn": { "enabled": true, "delay_secs": 30.0 },

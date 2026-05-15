@@ -110,6 +110,7 @@ pub struct HudConfig {
     pub message_feed: MessageFeedConfig,
     pub floating_labels: FloatingLabelsConfig,
     pub health_bars: HealthBarsConfig,
+    pub quest_overlay: QuestOverlayConfig,
 }
 
 // Per-purpose font sizes. Each surface has its own preferred size; the
@@ -150,6 +151,13 @@ pub struct HealthBarsConfig {
     pub floating_actor_height: f32,
     pub player_list_width: f32,
     pub player_list_height: f32,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct QuestOverlayConfig {
+    pub announcement_duration_secs: f32,
+    pub achieved_duration_secs: f32,
+    pub font_size: f32,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -283,6 +291,15 @@ impl HudConfig {
             self.health_bars.player_list_height,
             "hud.health_bars.player_list_height",
         )?;
+        validate_positive_finite(
+            self.quest_overlay.announcement_duration_secs,
+            "hud.quest_overlay.announcement_duration_secs",
+        )?;
+        validate_positive_finite(
+            self.quest_overlay.achieved_duration_secs,
+            "hud.quest_overlay.achieved_duration_secs",
+        )?;
+        validate_positive_finite(self.quest_overlay.font_size, "hud.quest_overlay.font_size")?;
         Ok(())
     }
 }

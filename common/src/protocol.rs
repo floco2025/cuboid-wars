@@ -1,8 +1,8 @@
 // Wire protocol between client and server.
 //
-// Server→client messages fall into three roles. When adding a new message,
-// pick the smallest role that fits — most "X changed" things belong in the
-// snapshot, not a new event.
+// Server→client messages fall into four roles. When adding a new message,
+// pick the smallest role that fits — most shared "X changed" things belong
+// in the snapshot, not a new event.
 //
 // 1. Bootstrap (`SInit`) — sent once at connect with session-level state
 //    (`PlayerId`, static `MapLayout`).
@@ -19,8 +19,9 @@
 //    authoritative hit/death outcomes still come from the server.
 //
 // 3. One-shot cues — short messages that fire at the moment of a discrete
-//    state change. They exist only when the snapshot can't carry the cue,
-//    which is one of:
+//    state change in the *shared* world. They sit alongside the snapshot,
+//    not replacing it, and exist only when the snapshot alone can't carry
+//    the cue, which is one of:
 //      * Sub-tick latency matters. Movement prediction needs intent changes
 //        (`SPlayerMoveIntent`, `SJump`, `SFace`, `SShot`) faster than tick
 //        cadence; camera shake from `SPlayerHit` needs to land on the impact
@@ -38,6 +39,18 @@
 //        entity teardown) one tick before the snapshot would catch up.
 //        Without them, the actor or player would silently disappear and the
 //        cues would lag by a tick.
+//    One-shot cues are *ephemeral*: a missed cue at most costs the
+//    associated side effect (a sound, a shake); the snapshot reconciles the
+//    durable state.
+//
+// 4. Per-client state events — durable per-player state that has no place in
+//    the world snapshot because other clients don't need it. Unicast to the
+//    affected player only. Unlike one-shot cues these install lasting client
+//    state (e.g. an active quest's announcement text); the client treats
+//    receipt as authoritative until a follow-up message updates it. There
+//    is no snapshot-side fallback — recovery from packet loss is QUIC's
+//    job, not the protocol's. Used today for: quest assignment / completion
+//    (`SQuestNew`, `SQuestAchieved`).
 //
 // `CPing` / `SPong` are a separate diagnostic channel for RTT measurement.
 
@@ -218,9 +231,33 @@ pub struct SPlayerStatus {
 }
 
 // Player collected a cookie. Sent only to the collecting player; drives the
-// pickup sound.
+// pickup sound. Unicast because no other client needs it, but still a
+// one-shot cue: the side effect is an ephemeral sound, not durable state.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SCookieCollected {}
+
+// --- Per-client state events (private, durable) ---
+
+// New quest assigned to a specific player. Unicast; carries the
+// announcement text inline so the client never needs a separate quest
+// catalog. Installs lasting client state — the announcement text is cached
+// and re-shown on each respawn until `SQuestAchieved` retires it. Display
+// duration is presentation-only and lives in `client.json`'s
+// `hud.quest_overlay`.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SQuestNew {
+    pub id: QuestId,
+    pub announcement_text: String,
+}
+
+// Quest just completed by a specific player. Unicast; retires the
+// corresponding `SQuestNew` entry on the client and fires the achieved
+// overlay.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SQuestAchieved {
+    pub id: QuestId,
+    pub achieved_text: String,
+}
 
 // --- Diagnostic ---
 
@@ -270,6 +307,9 @@ pub enum ServerMessage {
     ActorHit(SActorHit),
     PlayerStatus(SPlayerStatus),
     CookieCollected(SCookieCollected),
+    // Per-client state events
+    QuestNew(SQuestNew),
+    QuestAchieved(SQuestAchieved),
     // Diagnostic
     Pong(SPong),
 }

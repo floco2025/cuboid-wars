@@ -8,7 +8,7 @@ use crate::{
     config::{AssetSet, ClientSettings},
     network::{RoundTripTime, ServerReconciliation},
     players::{LocalPlayerInfo, PlayerInfo, PlayerMap, spawn_player},
-    ui::{GameMessage, GameMessageFeed, SeenPlayerIds},
+    ui::{ActiveQuests, GameMessage, GameMessageFeed, SeenPlayerIds, spawn_quest_overlay},
 };
 use common::{
     config::GameplayConfig,
@@ -31,6 +31,7 @@ pub fn sync_players(
     local_player_info: &mut LocalPlayerInfo,
     feed: &mut GameMessageFeed,
     seen_player_ids: &mut SeenPlayerIds,
+    active_quests: &ActiveQuests,
     player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
     camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     my_player_id: PlayerId,
@@ -135,6 +136,19 @@ pub fn sync_players(
         info.apply_snapshot(server_player);
         local_player_info.is_dead = false;
         local_just_respawned = true;
+
+        // Re-show the announcement for every still-active quest. Quests
+        // already retired by `SQuestAchieved` are gone from `pending`,
+        // so won players see no announcement after winning.
+        let overlay_cfg = client_settings.hud.quest_overlay;
+        for announcement_text in active_quests.pending.values() {
+            spawn_quest_overlay(
+                commands,
+                announcement_text,
+                overlay_cfg.announcement_duration_secs,
+                overlay_cfg.font_size,
+            );
+        }
     }
 
     for (id, server_player) in server_players {

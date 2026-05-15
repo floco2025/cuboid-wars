@@ -10,4 +10,4 @@ pub use map::{
     ActorSpawnZone, Cell, CellGrid, CookieSpawnZone, EdgeGrid, KeySpawnZone, LevelGrid, MapConfig, PlayerSpawnZone,
 };
 pub use network::{FromAcceptChannel, FromClientsChannel};
-pub use players::{PlayerInfo, PlayerMap};
+pub use players::{PlayerInfo, PlayerMap, QuestState, record_cookie_for_quests};

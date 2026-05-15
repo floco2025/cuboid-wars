@@ -1,43 +1,34 @@
 use bevy::prelude::*;
-use common::{config::GameplayConfig, protocol::*};
+use common::protocol::*;
 
-use super::{actors::sync_actors, items::sync_items, players::sync_players};
+use super::{
+    actors::sync_actors,
+    components::{AssetManagers, ClientAssets},
+    items::sync_items,
+    players::sync_players,
+};
 use crate::{
     actors::ActorMap,
-    barriers::BarrierAssets,
     cameras::MainCameraMarker,
-    config::{AssetSet, ClientSettings},
-    items::{ItemAssets, ItemMap},
+    items::ItemMap,
     network::{LastSnapshotSeq, RoundTripTime},
     players::PlayerMap,
-    ui::{GameMessageFeed, SeenPlayerIds},
 };
 
 // Handle bulk state synchronization from the `SSnapshot` message.
 pub(super) fn handle_snapshot_message(
     commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    images: &mut ResMut<Assets<Image>>,
-    graphs: &mut ResMut<Assets<AnimationGraph>>,
+    assets: &mut AssetManagers,
     players: &mut ResMut<PlayerMap>,
     actors: &mut ResMut<ActorMap>,
     items: &mut ResMut<ItemMap>,
     rtt: &ResMut<RoundTripTime>,
     last_snapshot_seq: &mut ResMut<LastSnapshotSeq>,
-    local_player_info: &mut crate::players::LocalPlayerInfo,
-    feed: &mut GameMessageFeed,
-    seen_player_ids: &mut SeenPlayerIds,
     player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
     actor_data: &Query<(&Position, &ActorMoveIntent, &FaceDirection), With<ActorMarker>>,
     camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     my_player_id: PlayerId,
-    asset_server: &Res<AssetServer>,
-    asset_set: &AssetSet,
-    client_settings: &ClientSettings,
-    item_assets: &ItemAssets,
-    barrier_assets: &BarrierAssets,
-    gameplay_config: &GameplayConfig,
+    client_assets: &mut ClientAssets,
     msg: SSnapshot,
 ) {
     if !last_snapshot_seq.should_accept(msg.seq) {
@@ -55,38 +46,45 @@ pub(super) fn handle_snapshot_message(
 
     sync_players(
         commands,
-        meshes,
-        materials,
-        images,
-        graphs,
+        &mut assets.meshes,
+        &mut assets.materials,
+        &mut assets.images,
+        &mut assets.graphs,
         players,
         rtt,
-        local_player_info,
-        feed,
-        seen_player_ids,
+        &mut client_assets.local_player_info,
+        &mut client_assets.game_message_feed,
+        &mut client_assets.seen_player_ids,
+        &client_assets.active_quests,
         player_data,
         camera_query,
         my_player_id,
-        asset_server,
-        asset_set,
-        client_settings,
-        gameplay_config,
+        &client_assets.asset_server,
+        &client_assets.asset_set,
+        &client_assets.client_settings,
+        &client_assets.gameplay_config,
         &msg.players,
     );
     sync_actors(
         commands,
-        meshes,
-        materials,
-        images,
-        graphs,
+        &mut assets.meshes,
+        &mut assets.materials,
+        &mut assets.images,
+        &mut assets.graphs,
         actors,
         rtt,
         actor_data,
-        asset_server,
-        asset_set,
-        client_settings,
-        gameplay_config,
+        &client_assets.asset_server,
+        &client_assets.asset_set,
+        &client_assets.client_settings,
+        &client_assets.gameplay_config,
         &msg.actors,
     );
-    sync_items(commands, item_assets, barrier_assets, items, &msg.items);
+    sync_items(
+        commands,
+        &client_assets.item_assets,
+        &client_assets.barrier_assets,
+        items,
+        &msg.items,
+    );
 }

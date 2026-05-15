@@ -4,7 +4,7 @@ use crate::{
     config::ServerGameplayConfig,
     net::ServerToClient,
     network::broadcast_to_all,
-    resources::{ItemMap, PlayerMap},
+    resources::{ItemMap, PlayerMap, record_cookie_for_quests},
 };
 use common::{
     physics::character_overlaps_item,
@@ -106,11 +106,15 @@ fn collect_cookie(
     if let Some(item_info) = items.get_mut(&item_id) {
         item_info.spawn_time = server_gameplay_config.cookies.respawn_secs;
     }
+    let achievements = record_cookie_for_quests(player_info, &server_gameplay_config.quests);
     let _ = player_info
         .channel
         .send(ServerToClient::Send(ServerMessage::CookieCollected(
             SCookieCollected {},
         )));
+    for msg in achievements {
+        let _ = player_info.channel.send(ServerToClient::Send(ServerMessage::QuestAchieved(msg)));
+    }
 }
 
 fn collect_key(

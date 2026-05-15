@@ -206,6 +206,7 @@ mod tests {
                 respawn_secs: 60.0,
             },
             keys: KeysConfig { respawn_secs: 30.0 },
+            quests: Vec::new(),
             actors: HashMap::new(),
         }
     }

@@ -2,11 +2,11 @@ use bevy::prelude::*;
 
 use crate::{
     cameras::MainCameraMarker,
-    config::AssetSet,
+    config::{AssetSet, ClientSettings},
     network::{RoundTripTime, ServerReconciliation},
     players::{CameraShake, CuboidShake, LocalPlayerInfo, PlayerMap},
     projectiles::{ProjectileAssets, spawn_projectiles},
-    ui::{GameMessage, GameMessageFeed},
+    ui::{ActiveQuests, GameMessage, GameMessageFeed, spawn_quest_overlay},
 };
 use common::{
     config::GameplayConfig,
@@ -266,6 +266,34 @@ pub fn handle_player_status_message(
 
         player_info.apply_status(&msg);
     }
+}
+
+// Server has assigned the local client a new quest. The player has just
+// spawned (this fires at login, right after `SInit`), so kick off the
+// announcement overlay immediately and remember the text so it can be
+// re-shown on every respawn until `SQuestAchieved` retires the entry.
+pub fn handle_quest_new_message(
+    commands: &mut Commands,
+    active_quests: &mut ActiveQuests,
+    client_settings: &ClientSettings,
+    msg: SQuestNew,
+) {
+    let cfg = client_settings.hud.quest_overlay;
+    active_quests.pending.insert(msg.id, msg.announcement_text.clone());
+    spawn_quest_overlay(commands, &msg.announcement_text, cfg.announcement_duration_secs, cfg.font_size);
+}
+
+// Server says the local client just completed a quest. Stop showing the
+// announcement on future respawns and fire the achieved overlay.
+pub fn handle_quest_achieved_message(
+    commands: &mut Commands,
+    active_quests: &mut ActiveQuests,
+    client_settings: &ClientSettings,
+    msg: SQuestAchieved,
+) {
+    let cfg = client_settings.hud.quest_overlay;
+    active_quests.pending.remove(&msg.id);
+    spawn_quest_overlay(commands, &msg.achieved_text, cfg.achieved_duration_secs, cfg.font_size);
 }
 
 #[cfg(test)]

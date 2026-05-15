@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use super::{
     components::{AssetManagers, ClientAssets},
-    login::handle_init_message,
+    login::handle_pre_bootstrap_message,
     messages::dispatch_message,
 };
 use crate::{
@@ -64,25 +64,15 @@ pub fn network_process_server_messages_system(
                         &actor_data,
                         &cameras,
                         &time,
-                        &client_assets.asset_server,
-                        &client_assets.asset_set,
-                        &client_assets.client_settings,
-                        &client_assets.projectile_assets,
-                        &client_assets.item_assets,
-                        &client_assets.barrier_assets,
-                        &client_assets.gameplay_config,
                         collision_world.as_deref(),
-                        &mut client_assets.local_player_info,
-                        &mut client_assets.game_message_feed,
-                        &mut client_assets.seen_player_ids,
+                        &mut client_assets,
                     );
                 } else {
-                    // Pre-bootstrap messages can occasionally arrive before
-                    // `SInit` because each protocol message uses a separate
-                    // QUIC stream. They are safe to drop here: snapshots are
-                    // periodic full-state, and one-shot cues are paired with
-                    // snapshot fallback/idempotent handlers.
-                    handle_init_message(message, &mut commands, &client_assets.barrier_kind_table);
+                    // Pre-bootstrap: per-client state events still need to
+                    // be processed here (no snapshot fallback), and `SInit`
+                    // itself lands here on the login tick. See
+                    // `handle_pre_bootstrap_message` for the full rationale.
+                    handle_pre_bootstrap_message(message, &mut commands, &mut client_assets);
                 }
             }
         }
