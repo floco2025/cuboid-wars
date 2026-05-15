@@ -236,7 +236,16 @@ impl CollisionWorld {
 
     #[must_use]
     pub(crate) fn projectile_spawn_overlaps_blocker(&self, position: Vec3, radius: f32) -> bool {
-        self.ball_overlaps_groups(position, radius, WALL_COLLISION_GROUP | FLOOR_COLLISION_GROUP)
+        // Walls + floors are always blockers. Barriers are blockers regardless
+        // of whether the *shooter* could pass them — projectiles always
+        // terminate on barriers (see `terminate_at_barrier`), so shots fired
+        // from inside a barrier (close enough that the muzzle clipped past)
+        // must be rejected at spawn time.
+        self.ball_overlaps_groups(
+            position,
+            radius,
+            WALL_COLLISION_GROUP | FLOOR_COLLISION_GROUP | self.all_barrier_groups,
+        )
     }
 
     #[must_use]

@@ -76,10 +76,18 @@ pub fn calculate_projectile_spawns(
 fn projectile_spawn_is_blocked(start: &Position, end: &Position, collision_world: &CollisionWorld) -> bool {
     let start_vec = Vec3::from(*start);
     let end_vec = Vec3::from(*end);
+    let translation = end_vec - start_vec;
 
+    // Walls/floors/ramps and barriers live in separate filter groups; check
+    // both along the muzzle→spawn segment. Without the barrier cast, a
+    // shooter pressed against a barrier could spawn the projectile on the
+    // far side of it.
     collision_world.projectile_spawn_overlaps_blocker(start_vec, PROJECTILE_RADIUS)
         || collision_world
-            .cast_moving_ball(start_vec, end_vec - start_vec, PROJECTILE_RADIUS)
+            .cast_moving_ball(start_vec, translation, PROJECTILE_RADIUS)
+            .is_some()
+        || collision_world
+            .cast_moving_ball_against_barriers(start_vec, translation, PROJECTILE_RADIUS)
             .is_some()
 }
 
