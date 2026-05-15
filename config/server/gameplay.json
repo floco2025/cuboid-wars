@@ -26,7 +26,7 @@
   },
   "actors": {
     "mine_1": {
-      "respawn": { "enabled": true, "delay_secs": 60.0 },
+      "respawn": { "enabled": true, "delay_secs": 30.0 },
       "combat": {
         "projectile_damage_taken": 50.0,
         "contact_explosion_distance": 0.2,
