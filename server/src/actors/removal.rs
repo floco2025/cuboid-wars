@@ -71,6 +71,7 @@ pub fn actor_removal_system(
                 &death.spawn_kind,
                 &kind_server_config.combat.explosion,
                 &gameplay_config,
+                server_gameplay_config.player.invincible,
                 &players,
                 &mut player_query,
                 &mut query,

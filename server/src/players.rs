@@ -52,8 +52,15 @@ pub fn players_fall_death_system(
     mut commands: Commands,
     mut players: ResMut<PlayerMap>,
     gameplay_config: Res<GameplayConfig>,
+    server_gameplay_config: Res<crate::config::ServerGameplayConfig>,
     player_query: Query<(Entity, &PlayerId, &Position), With<PlayerMarker>>,
 ) {
+    // Debug invincibility shorts the whole system — a player can keep
+    // falling indefinitely. That's the intended trade-off; the only
+    // alternative would be a teleport, which is beyond "no damage".
+    if server_gameplay_config.player.invincible {
+        return;
+    }
     for (entity, id, pos) in player_query.iter() {
         if pos.y >= CHARACTER_FALL_DEATH_Y {
             continue;

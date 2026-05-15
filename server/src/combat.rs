@@ -52,6 +52,13 @@ pub fn apply_player_projectile_hit(
         return false;
     }
 
+    // Debug invincibility: cosmetic `SPlayerHit` still fires (camera shake
+    // for the victim, hit sound for the shooter), but health and score are
+    // untouched and the hit cannot be lethal.
+    if server_gameplay_config.player.invincible {
+        return false;
+    }
+
     apply_damage(target_health, server_gameplay_config.player.projectile_damage_taken);
 
     let scoring = &server_gameplay_config.scoring;
@@ -115,6 +122,7 @@ pub fn apply_actor_explosion_damage(
     destroyed_spawn_kind: &str,
     damage_config: &ActorExplosionDamageConfig,
     gameplay_config: &GameplayConfig,
+    player_invincible: bool,
     players: &PlayerMap,
     player_query: &mut Query<(Entity, &PlayerId, &Position, &mut Health), (With<PlayerMarker>, Without<ActorMarker>)>,
     actor_query: &mut ActorDeathQuery,
@@ -125,6 +133,9 @@ pub fn apply_actor_explosion_damage(
 
     for (entity, id, pos, mut health) in player_query.iter_mut() {
         if players.get(id).is_some_and(|info| info.is_dead()) {
+            continue;
+        }
+        if player_invincible {
             continue;
         }
         let damage = blast_damage(
@@ -192,6 +203,7 @@ mod tests {
             },
             player: PlayerServerConfig {
                 projectile_damage_taken: 25.0,
+                invincible: false,
             },
             power_ups: PowerUpsConfig {
                 max_number: 0,

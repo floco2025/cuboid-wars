@@ -7,7 +7,8 @@
     "actor_hit": 5
   },
   "player": {
-    "projectile_damage_taken": 10.0
+    "projectile_damage_taken": 10.0,
+    "invincible": false
   },
   "power_ups": {
     "max_number": 20,

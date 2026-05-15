@@ -118,6 +118,11 @@ pub struct ScoringConfig {
 pub struct PlayerServerConfig {
     // Damage the player takes from a single incoming projectile.
     pub projectile_damage_taken: f32,
+    // Debug toggle: when true, no damage source can take a player to zero
+    // health. Projectile hits, actor explosions, and fall damage are all
+    // skipped. Leave `false` for normal play.
+    #[serde(default)]
+    pub invincible: bool,
 }
 
 impl PlayerServerConfig {
