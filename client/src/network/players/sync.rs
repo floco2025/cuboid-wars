@@ -8,7 +8,7 @@ use crate::{
     config::{AssetSet, ClientSettings},
     network::{RoundTripTime, ServerReconciliation},
     players::{LocalPlayerInfo, PlayerInfo, PlayerMap, spawn_player},
-    ui::{ActiveQuests, GameMessage, GameMessageFeed, SeenPlayerIds, spawn_quest_overlay},
+    ui::{ActiveQuests, GameMessage, GameMessageFeed, HudBannerMarker, SeenPlayerIds, spawn_hud_banner},
 };
 use common::{
     config::GameplayConfig,
@@ -32,6 +32,7 @@ pub fn sync_players(
     feed: &mut GameMessageFeed,
     seen_player_ids: &mut SeenPlayerIds,
     active_quests: &ActiveQuests,
+    existing_banners: &Query<Entity, With<HudBannerMarker>>,
     player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
     camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     my_player_id: PlayerId,
@@ -140,13 +141,14 @@ pub fn sync_players(
         // Re-show the announcement for every still-active quest. Quests
         // already retired by `SQuestAchieved` are gone from `pending`,
         // so won players see no announcement after winning.
-        let overlay_cfg = client_settings.hud.quest_overlay;
+        let banner_cfg = &client_settings.hud.banner;
         for announcement_text in active_quests.pending.values() {
-            spawn_quest_overlay(
+            spawn_hud_banner(
                 commands,
+                existing_banners,
                 announcement_text,
-                overlay_cfg.announcement_duration_secs,
-                overlay_cfg.font_size,
+                banner_cfg.announcement_duration_secs,
+                banner_cfg.font_size,
             );
         }
     }

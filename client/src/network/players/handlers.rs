@@ -6,7 +6,7 @@ use crate::{
     network::{RoundTripTime, ServerReconciliation},
     players::{CameraShake, CuboidShake, LocalPlayerInfo, PlayerMap},
     projectiles::{ProjectileAssets, spawn_projectiles},
-    ui::{ActiveQuests, GameMessage, GameMessageFeed, spawn_quest_overlay},
+    ui::{ActiveQuests, GameMessage, GameMessageFeed, HudBannerMarker, spawn_hud_banner},
 };
 use common::{
     config::GameplayConfig,
@@ -190,6 +190,8 @@ pub fn handle_player_death_message(
     players: &mut PlayerMap,
     local_player_info: &mut LocalPlayerInfo,
     feed: &mut GameMessageFeed,
+    client_settings: &ClientSettings,
+    existing_banners: &Query<Entity, With<HudBannerMarker>>,
     my_player_id: PlayerId,
     msg: SPlayerDeath,
 ) {
@@ -220,6 +222,17 @@ pub fn handle_player_death_message(
             commands.entity(info.entity).insert(Visibility::Hidden);
         }
         local_player_info.is_dead = true;
+        // Centered "You have died!" banner. The red full-screen
+        // `DeathOverlayMarker` tint and the message-feed `SoloDeath`
+        // entry are independent layers; the banner is the headline.
+        let banner = &client_settings.hud.banner;
+        spawn_hud_banner(
+            commands,
+            existing_banners,
+            &banner.death_text,
+            banner.death_duration_secs,
+            banner.font_size,
+        );
     } else if let Some(info) = players.remove(&msg.id) {
         commands.entity(info.entity).despawn();
     }
@@ -314,30 +327,44 @@ pub fn handle_fall_damage_message(
 
 // Server has assigned the local client a new quest. The player has just
 // spawned (this fires at login, right after `SInit`), so kick off the
-// announcement overlay immediately and remember the text so it can be
+// announcement banner immediately and remember the text so it can be
 // re-shown on every respawn until `SQuestAchieved` retires the entry.
 pub fn handle_quest_new_message(
     commands: &mut Commands,
     active_quests: &mut ActiveQuests,
     client_settings: &ClientSettings,
+    existing_banners: &Query<Entity, With<HudBannerMarker>>,
     msg: SQuestNew,
 ) {
-    let cfg = client_settings.hud.quest_overlay;
+    let banner = &client_settings.hud.banner;
     active_quests.pending.insert(msg.id, msg.announcement_text.clone());
-    spawn_quest_overlay(commands, &msg.announcement_text, cfg.announcement_duration_secs, cfg.font_size);
+    spawn_hud_banner(
+        commands,
+        existing_banners,
+        &msg.announcement_text,
+        banner.announcement_duration_secs,
+        banner.font_size,
+    );
 }
 
 // Server says the local client just completed a quest. Stop showing the
-// announcement on future respawns and fire the achieved overlay.
+// announcement on future respawns and fire the achieved banner.
 pub fn handle_quest_achieved_message(
     commands: &mut Commands,
     active_quests: &mut ActiveQuests,
     client_settings: &ClientSettings,
+    existing_banners: &Query<Entity, With<HudBannerMarker>>,
     msg: SQuestAchieved,
 ) {
-    let cfg = client_settings.hud.quest_overlay;
+    let banner = &client_settings.hud.banner;
     active_quests.pending.remove(&msg.id);
-    spawn_quest_overlay(commands, &msg.achieved_text, cfg.achieved_duration_secs, cfg.font_size);
+    spawn_hud_banner(
+        commands,
+        existing_banners,
+        &msg.achieved_text,
+        banner.achieved_duration_secs,
+        banner.font_size,
+    );
 }
 
 #[cfg(test)]
@@ -361,6 +388,8 @@ mod tests {
 
     #[test]
     fn local_player_death_sets_health_to_zero() {
+        use bevy::ecs::system::SystemState;
+
         let my_id = PlayerId(7);
         let mut world = World::new();
         let entity = world.spawn((Health(42.0), Visibility::Visible)).id();
@@ -368,6 +397,10 @@ mod tests {
         players.insert(my_id, player_info(entity, "Alice"));
         let mut local_player_info = LocalPlayerInfo::default();
         let mut feed = GameMessageFeed::default();
+        let client_settings = ClientSettings::load_default().expect("load default client settings");
+        let mut banner_state: SystemState<Query<Entity, With<crate::ui::HudBannerMarker>>> =
+            SystemState::new(&mut world);
+        let banners = banner_state.get(&world);
         let mut commands_queue = bevy::ecs::world::CommandQueue::default();
 
         {
@@ -377,6 +410,8 @@ mod tests {
                 &mut players,
                 &mut local_player_info,
                 &mut feed,
+                &client_settings,
+                &banners,
                 my_id,
                 SPlayerDeath {
                     id: my_id,

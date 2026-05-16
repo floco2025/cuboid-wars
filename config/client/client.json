@@ -50,9 +50,12 @@
       "player_list_width": 160.0,
       "player_list_height": 8.0
     },
-    "quest_overlay": {
+    "banner": {
       "announcement_duration_secs": 10.0,
       "achieved_duration_secs": 5.0,
+      "death_duration_secs": 3.0,
+      "death_text": "You died!",
+      "fade_duration_secs": 0.8,
       "font_size": 32.0
     }
   },

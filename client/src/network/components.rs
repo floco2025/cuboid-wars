@@ -10,7 +10,7 @@ use crate::{
     items::ItemAssets,
     players::LocalPlayerInfo,
     projectiles::ProjectileAssets,
-    ui::{ActiveQuests, GameMessageFeed, SeenPlayerIds},
+    ui::{ActiveQuests, GameMessageFeed, HudBannerMarker, SeenPlayerIds},
 };
 
 // ============================================================================
@@ -57,7 +57,7 @@ pub struct AssetManagers<'w> {
 }
 
 #[derive(SystemParam)]
-pub struct ClientAssets<'w> {
+pub struct ClientAssets<'w, 's> {
     pub asset_server: Res<'w, AssetServer>,
     pub asset_set: Res<'w, AssetSet>,
     pub client_settings: Res<'w, ClientSettings>,
@@ -70,4 +70,9 @@ pub struct ClientAssets<'w> {
     pub game_message_feed: ResMut<'w, GameMessageFeed>,
     pub seen_player_ids: ResMut<'w, SeenPlayerIds>,
     pub active_quests: ResMut<'w, ActiveQuests>,
+    // Live banner entities — used by `spawn_hud_banner` to enforce the
+    // single-banner invariant (despawn any existing before inserting the
+    // new one). Bundled here so `dispatch_message` stays under Bevy's
+    // 16-param system tuple limit.
+    pub banners: Query<'w, 's, Entity, With<HudBannerMarker>>,
 }

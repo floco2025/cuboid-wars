@@ -104,13 +104,13 @@ pub struct InputConfig {
     pub mouse_sensitivity: f32,
 }
 
-#[derive(Debug, Clone, Copy, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct HudConfig {
     pub font_sizes: FontSizesConfig,
     pub message_feed: MessageFeedConfig,
     pub floating_labels: FloatingLabelsConfig,
     pub health_bars: HealthBarsConfig,
-    pub quest_overlay: QuestOverlayConfig,
+    pub banner: BannerConfig,
 }
 
 // Per-purpose font sizes. Each surface has its own preferred size; the
@@ -153,10 +153,13 @@ pub struct HealthBarsConfig {
     pub player_list_height: f32,
 }
 
-#[derive(Debug, Clone, Copy, Deserialize)]
-pub struct QuestOverlayConfig {
+#[derive(Debug, Clone, Deserialize)]
+pub struct BannerConfig {
     pub announcement_duration_secs: f32,
     pub achieved_duration_secs: f32,
+    pub death_duration_secs: f32,
+    pub death_text: String,
+    pub fade_duration_secs: f32,
     pub font_size: f32,
 }
 
@@ -292,14 +295,19 @@ impl HudConfig {
             "hud.health_bars.player_list_height",
         )?;
         validate_positive_finite(
-            self.quest_overlay.announcement_duration_secs,
-            "hud.quest_overlay.announcement_duration_secs",
+            self.banner.announcement_duration_secs,
+            "hud.banner.announcement_duration_secs",
         )?;
         validate_positive_finite(
-            self.quest_overlay.achieved_duration_secs,
-            "hud.quest_overlay.achieved_duration_secs",
+            self.banner.achieved_duration_secs,
+            "hud.banner.achieved_duration_secs",
         )?;
-        validate_positive_finite(self.quest_overlay.font_size, "hud.quest_overlay.font_size")?;
+        validate_positive_finite(self.banner.death_duration_secs, "hud.banner.death_duration_secs")?;
+        if self.banner.death_text.is_empty() {
+            bail!("hud.banner.death_text must not be empty");
+        }
+        validate_positive_finite(self.banner.fade_duration_secs, "hud.banner.fade_duration_secs")?;
+        validate_positive_finite(self.banner.font_size, "hud.banner.font_size")?;
         Ok(())
     }
 }

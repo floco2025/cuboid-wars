@@ -39,7 +39,7 @@ use client::{
     ui::{
         ActiveQuests, FpsMeasurement, GameMessageFeed, SeenPlayerIds,
         floating_labels::{floating_label_camera_visibility_system, floating_labels_billboard_system},
-        render_pending_messages_system, setup_ui_system, tick_quest_overlay_system, ui_crosshair_visibility_system,
+        render_pending_messages_system, setup_ui_system, tick_hud_banner_system, ui_crosshair_visibility_system,
         ui_fps_system, ui_health_bar_fill_system, ui_player_list_rebuild_system, ui_rtt_system, ui_stunned_blink_system,
         update_message_feed_system,
     },
@@ -271,7 +271,7 @@ fn main() -> Result<()> {
                 death_overlay_visibility_system,
                 render_pending_messages_system,
                 update_message_feed_system,
-                tick_quest_overlay_system,
+                tick_hud_banner_system,
             ),
         )
         // Skybox asset conversion and camera following.

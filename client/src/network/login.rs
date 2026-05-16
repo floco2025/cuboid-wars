@@ -36,6 +36,7 @@ pub fn handle_pre_bootstrap_message(msg: ServerMessage, commands: &mut Commands,
                 commands,
                 &mut client_assets.active_quests,
                 &client_assets.client_settings,
+                &client_assets.banners,
                 quest_msg,
             );
         }
@@ -44,6 +45,7 @@ pub fn handle_pre_bootstrap_message(msg: ServerMessage, commands: &mut Commands,
                 commands,
                 &mut client_assets.active_quests,
                 &client_assets.client_settings,
+                &client_assets.banners,
                 quest_msg,
             );
         }
