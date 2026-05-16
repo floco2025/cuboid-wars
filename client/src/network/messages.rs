@@ -147,7 +147,15 @@ pub fn dispatch_message(
             handle_item_collected_message(commands, cookie_msg, &client_assets.asset_server, &client_assets.asset_set);
         }
         ServerMessage::FallDamage(fall_msg) => {
-            handle_fall_damage_message(commands, players, cameras, my_player_id, fall_msg);
+            handle_fall_damage_message(
+                commands,
+                players,
+                cameras,
+                my_player_id,
+                &client_assets.asset_server,
+                &client_assets.asset_set,
+                fall_msg,
+            );
         }
         ServerMessage::QuestNew(quest_msg) => {
             handle_quest_new_message(

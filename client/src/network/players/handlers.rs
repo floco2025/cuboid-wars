@@ -281,28 +281,34 @@ pub fn handle_fall_damage_message(
     players: &ResMut<PlayerMap>,
     camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     my_player_id: PlayerId,
+    asset_server: &AssetServer,
+    asset_set: &AssetSet,
     msg: SFallDamage,
 ) {
     if let Some(player) = players.get(&msg.id) {
         commands.entity(player.entity).insert(msg.health);
     }
-    if msg.id == my_player_id
-        && let Ok(camera_entity) = camera_query.single()
-    {
-        commands.entity(camera_entity).insert(CameraShake {
-            // Same duration/intensity envelope as a projectile hit, just
-            // re-aimed along the vertical axis. `dir_y` is tuned to feel
-            // more pronounced than the hit's vertical-companion `0.2` but
-            // not jarring — max amplitude ≈ 1.5 vs the hit's 0.6.
-            timer: Timer::from_seconds(0.3, TimerMode::Once),
-            intensity: 3.0,
-            dir_x: 0.0,
-            dir_y: 0.5,
-            dir_z: 0.0,
-            offset_x: 0.0,
-            offset_y: 0.0,
-            offset_z: 0.0,
-        });
+    if msg.id == my_player_id {
+        if let Ok(camera_entity) = camera_query.single() {
+            commands.entity(camera_entity).insert(CameraShake {
+                // Same duration/intensity envelope as a projectile hit, just
+                // re-aimed along the vertical axis. `dir_y` is tuned to feel
+                // more pronounced than the hit's vertical-companion `0.2` but
+                // not jarring — max amplitude ≈ 1.5 vs the hit's 0.6.
+                timer: Timer::from_seconds(0.3, TimerMode::Once),
+                intensity: 3.0,
+                dir_x: 0.0,
+                dir_y: 0.5,
+                dir_z: 0.0,
+                offset_x: 0.0,
+                offset_y: 0.0,
+                offset_z: 0.0,
+            });
+        }
+        commands.spawn((
+            AudioPlayer::new(asset_server.load(asset_set.player_sound("fall_damage").to_owned())),
+            PlaybackSettings::DESPAWN,
+        ));
     }
 }
 

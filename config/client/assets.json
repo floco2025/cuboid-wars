@@ -244,6 +244,7 @@
       "fire": "sounds/impactGeneric_light_001.ogg",
       "dry_fire": "sounds/metalLatch.ogg",
       "take_hit": "sounds/impactPunch_heavy_001.ogg",
+      "fall_damage": "sounds/Retro Impact Punch 07.wav",
       "collect_power_up": "sounds/Retro PowerUP StereoUP 05.wav",
       "collect_cookie": "sounds/metalClick.ogg",
       "bump_wall": "sounds/impactGlass_heavy_001.ogg",
