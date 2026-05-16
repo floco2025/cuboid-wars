@@ -49,7 +49,7 @@ pub const RECON_ACTOR_SNAP_THRESHOLD: f32 = 3.0;
 pub const RECON_CORRECTION_TIME_RTT_MULTIPLIER: f32 = 4.0;
 
 // Long so corrections under a stationary player are less perceptual.
-pub const RECON_PLAYER_IDLE_CORRECTION_TIME: f32 = 10.0;
+pub const RECON_PLAYER_IDLE_CORRECTION_TIME: f32 = 8.0;
 
 // ============================================================================
 // Character Visuals

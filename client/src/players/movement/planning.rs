@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
-    constants::{ALWAYS_ANTI_GRAVITY, ALWAYS_PHASING, CHARACTER_GROUND_SNAP_DISTANCE, SNAPSHOT_PERIOD_SECS},
+    constants::{ALWAYS_ANTI_GRAVITY, ALWAYS_PHASING, SNAPSHOT_PERIOD_SECS},
     physics::{CharacterMovePlan, CollisionWorld, step_character_movement},
     protocol::Position,
 };
@@ -49,7 +49,6 @@ pub(crate) fn plan_player_moves(
                 &mut motion.0,
                 recon,
                 h_vel,
-                is_local,
                 delta,
                 players
                     .get(player_id)
@@ -119,7 +118,6 @@ fn reconciled_target_position(
     vertical_velocity: &mut f32,
     recon: &mut ServerReconciliation,
     h_vel: Vec3,
-    is_local: bool,
     delta: f32,
     player_name: String,
     planned_moves: &mut Vec<CharacterMovePlan>,
@@ -127,11 +125,15 @@ fn reconciled_target_position(
     run_speed: f32,
 ) -> Option<Position> {
     let run_correction_time = recon.rtt * RECON_CORRECTION_TIME_RTT_MULTIPLIER;
-    // Correction duration follows current input (not server_velocity)
-    // so the duration lengthens the instant the player stops, keeping
-    // any residual correction below the visible-distraction threshold.
-    let input_speed_factor = (h_vel.x.hypot(h_vel.z) / run_speed).clamp(0.0, 1.0);
-    let correction_duration = RECON_PLAYER_IDLE_CORRECTION_TIME.lerp(run_correction_time, input_speed_factor);
+    // Correction duration follows current *motion* (not server_velocity)
+    // so the duration lengthens the instant the player goes still,
+    // keeping any residual correction below the visible-distraction
+    // threshold. Vertical velocity counts too: a jumping/falling player
+    // with no horizontal input is still in motion and should get the
+    // snappier in-motion correction, not the long stationary one.
+    let motion_speed = h_vel.x.hypot(h_vel.z).hypot(*vertical_velocity);
+    let motion_speed_factor = (motion_speed / run_speed).clamp(0.0, 1.0);
+    let correction_duration = RECON_PLAYER_IDLE_CORRECTION_TIME.lerp(run_correction_time, motion_speed_factor);
     let correction_factor = (SNAPSHOT_PERIOD_SECS / correction_duration).clamp(0.0, 1.0);
 
     // Accumulator reaches `SNAPSHOT_PERIOD_SECS` after exactly
@@ -149,14 +151,13 @@ fn reconciled_target_position(
     let extrapolated_server_pos = Vec3::from(recon.server_pos) + recon.server_velocity * recon.rtt / 2.0;
     let correction_delta = extrapolated_server_pos - Vec3::from(recon.client_pos);
 
-    // Local player's vertical velocity is authoritative from the server
-    // (jumps + gravity); adopt it eagerly when the recon disagrees by
-    // more than the ground-snap tolerance. Remote players derive vy from
-    // their own predicted physics, so the gradual horizontal correction
-    // below is enough.
-    if is_local && correction_delta.y.abs() >= CHARACTER_GROUND_SNAP_DISTANCE {
-        *vertical_velocity = recon.server_velocity.y;
-    }
+    // No proportional Y reconciliation. Jump responsiveness is more
+    // important than micro-accurate Y tracking: client owns jump intent
+    // and gravity, so vy is locally authoritative on the impact frame.
+    // The snap branch below still catches big disagreements — e.g.
+    // server says we landed on the floor below — via the per-axis
+    // `worst_axis_excess` check on `correction_delta`. Between snaps,
+    // Y is purely predicted.
 
     // Threshold uses the snapshot-captured server velocity, not current
     // input. `recon.server_velocity` stays put until the next snapshot
