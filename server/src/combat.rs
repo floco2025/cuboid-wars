@@ -188,7 +188,9 @@ mod tests {
     use std::collections::HashMap;
 
     use super::*;
-    use crate::config::{CookiesConfig, FallDamageConfig, KeysConfig, PlayerServerConfig, PowerUpsConfig, ScoringConfig};
+    use crate::config::{
+        CookiesConfig, FallDamageConfig, KeysConfig, PlayerServerConfig, PowerUpsConfig, ScoringConfig,
+    };
     use crate::resources::PlayerInfo;
     use tokio::sync::mpsc::unbounded_channel;
 

@@ -220,7 +220,12 @@ pub fn players_fall_damage_system(
             info.peak_fall_speed = 0.0;
 
             if fall_distance > fall.safe_fall_distance {
-                let damage = fall_damage_for_distance(fall_distance, fall.safe_fall_distance, fall.lethal_fall_distance, max_health);
+                let damage = fall_damage_for_distance(
+                    fall_distance,
+                    fall.safe_fall_distance,
+                    fall.lethal_fall_distance,
+                    max_health,
+                );
                 // Skip the entire emission path for negligible damage —
                 // the safe-threshold lerp produces near-zero damage just
                 // past `safe_fall_distance` from floating-point slack and
@@ -236,10 +241,12 @@ pub fn players_fall_damage_system(
                 // case additionally surfaces `SPlayerDeath` via
                 // `kill_player` below.
                 if let Some(info) = players.get(id) {
-                    let _ = info.channel.send(ServerToClient::Send(ServerMessage::FallDamage(SFallDamage {
-                        id: *id,
-                        health: *health,
-                    })));
+                    let _ = info
+                        .channel
+                        .send(ServerToClient::Send(ServerMessage::FallDamage(SFallDamage {
+                            id: *id,
+                            health: *health,
+                        })));
                 }
                 if health.0 <= 0.0 {
                     info!("{:?} died from fall (distance {:.1}m)", id, fall_distance);

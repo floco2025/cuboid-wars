@@ -127,12 +127,9 @@ pub fn dispatch_message(
         ServerMessage::PlayerHit(hit_msg) => {
             handle_player_hit_message(commands, players, cameras, my_player_id, hit_msg);
         }
-        ServerMessage::ActorHit(hit_msg) => handle_actor_hit_message(
-            commands,
-            &client_assets.asset_server,
-            &client_assets.asset_set,
-            hit_msg,
-        ),
+        ServerMessage::ActorHit(hit_msg) => {
+            handle_actor_hit_message(commands, &client_assets.asset_server, &client_assets.asset_set, hit_msg)
+        }
         ServerMessage::PlayerStatus(player_status_msg) => {
             handle_player_status_message(
                 commands,
@@ -146,7 +143,12 @@ pub fn dispatch_message(
         }
         ServerMessage::Pong(pong_msg) => handle_pong_message(time, rtt, pong_msg),
         ServerMessage::CookieCollected(cookie_msg) => {
-            handle_item_collected_message(commands, cookie_msg, &client_assets.asset_server, &client_assets.asset_set);
+            handle_item_collected_message(
+                commands,
+                cookie_msg,
+                &client_assets.asset_server,
+                &client_assets.asset_set,
+            );
         }
         ServerMessage::FallDamage(fall_msg) => {
             handle_fall_damage_message(

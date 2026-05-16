@@ -57,7 +57,10 @@ pub fn actor_behavior_system(
         };
         if xz_distance_from_rect(pos, zone_bounds) > leash {
             if !info.is_returning_to_spawn {
-                start_chase_reacquire_cooldown_if_chasing(info, kind_server_config.senses.chase_reacquire_cooldown_secs);
+                start_chase_reacquire_cooldown_if_chasing(
+                    info,
+                    kind_server_config.senses.chase_reacquire_cooldown_secs,
+                );
                 set_return_path_to_spawn_zone(
                     info,
                     pos,

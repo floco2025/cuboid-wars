@@ -113,7 +113,9 @@ fn collect_cookie(
             SCookieCollected {},
         )));
     for msg in achievements {
-        let _ = player_info.channel.send(ServerToClient::Send(ServerMessage::QuestAchieved(msg)));
+        let _ = player_info
+            .channel
+            .send(ServerToClient::Send(ServerMessage::QuestAchieved(msg)));
     }
 }
 

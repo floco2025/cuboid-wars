@@ -312,10 +312,7 @@ impl HudConfig {
             self.banner.announcement_duration_secs,
             "hud.banner.announcement_duration_secs",
         )?;
-        validate_positive_finite(
-            self.banner.achieved_duration_secs,
-            "hud.banner.achieved_duration_secs",
-        )?;
+        validate_positive_finite(self.banner.achieved_duration_secs, "hud.banner.achieved_duration_secs")?;
         validate_positive_finite(self.banner.death_duration_secs, "hud.banner.death_duration_secs")?;
         if self.banner.death_text.is_empty() {
             bail!("hud.banner.death_text must not be empty");

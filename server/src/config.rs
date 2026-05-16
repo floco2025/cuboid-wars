@@ -178,7 +178,10 @@ impl PowerUpsConfig {
     fn validate(&self, path: &str) -> Result<()> {
         validate_positive_finite(self.despawn_secs, &format!("{path}.despawn_secs"))?;
         validate_non_negative_finite(self.speed_duration_secs, &format!("{path}.speed_duration_secs"))?;
-        validate_non_negative_finite(self.multi_shot_duration_secs, &format!("{path}.multi_shot_duration_secs"))?;
+        validate_non_negative_finite(
+            self.multi_shot_duration_secs,
+            &format!("{path}.multi_shot_duration_secs"),
+        )?;
         validate_non_negative_finite(self.phasing_duration_secs, &format!("{path}.phasing_duration_secs"))?;
         validate_non_negative_finite(
             self.anti_gravity_duration_secs,

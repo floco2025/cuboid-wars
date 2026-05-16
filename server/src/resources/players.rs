@@ -427,7 +427,10 @@ mod tests {
 
         let achieved = record_cookie_for_quests(&mut info, std::slice::from_ref(&quest));
 
-        assert!(achieved.is_empty(), "first cookie should not complete a 3-threshold quest");
+        assert!(
+            achieved.is_empty(),
+            "first cookie should not complete a 3-threshold quest"
+        );
         assert_eq!(info.quest_states[&quest.id].progress, 1);
         assert!(!info.quest_states[&quest.id].completed);
     }
@@ -491,7 +494,10 @@ mod tests {
         info.clear_per_life_state();
 
         assert_eq!(info.speed_power_up_timer, 0.0, "power-up timers reset by clear");
-        assert_eq!(info.quest_states[&quest.id].progress, 7, "quest progress survives death");
+        assert_eq!(
+            info.quest_states[&quest.id].progress, 7,
+            "quest progress survives death"
+        );
         assert!(!info.quest_states[&quest.id].completed);
     }
 }
