@@ -6,22 +6,42 @@ A fast-paced multiplayer arena game built with Rust, Bevy, Rapier, and QUIC.
 
 ## Overview
 
-Cuboid Wars is a networked 3D arena game on compact, multi-level maps. Players
-move, jump, and shoot through corridors gated by color-coded barriers, fight
-hostile actors (patrolling mines and drones that explode on death), and pick
-up power-ups and cookies.
+Cuboid Wars is a networked 3D arena game on compact, multi-level maps.
+Players run, jump, and shoot through corridors gated by color-coded
+barriers, fight hostile mines and sentries that patrol and pursue, and
+chase cookies to complete quests.
 
-The game runs an authoritative server with client-side prediction, so movement
-stays responsive while the server remains the source of truth for collisions,
-items, projectiles, actor behaviour, and scoring.
+The game runs an authoritative server with client-side prediction, so
+movement stays responsive while the server remains the source of truth
+for collisions, items, projectiles, actor behaviour, scoring, and the
+death/respawn flow.
 
 ## Gameplay
 
-- **Power-ups** — speed, multi-shot, phasing (passes through walls only), anti-gravity.
-- **Barriers & keys** — coloured barriers block everyone; pick up a key of the
-  matching colour to walk through that colour for the rest of your life.
-- **Actors** — mines patrol and chase line-of-sight targets; killing them
-  triggers a blast that can damage nearby players and actors.
+- **Quests** — every player is auto-assigned a quest at login (v1: collect
+  10 cookies). Completing it triggers a HUD banner ("You won!") and is
+  remembered for the rest of the session.
+- **Cookies** — scattered around the map; collecting them counts toward
+  the quest and adds to your score. They respawn after a configurable
+  delay.
+- **Power-ups** — speed, multi-shot, phasing (pass through barriers
+  whose key you'd otherwise need), and anti-gravity. Each lasts a
+  configurable duration after pickup.
+- **Barriers & keys** — coloured barriers block everyone; pick up the
+  matching coloured key to walk through that colour for the rest of
+  your current life. Keys are dropped on death.
+- **Actors** — mines and sentries patrol their spawn zones and chase
+  line-of-sight targets. Killing them triggers a blast that damages
+  nearby players and other actors. Tougher actors are worth more score.
+- **Fall damage** — short drops are safe; longer falls scale damage
+  linearly to lethal at a configurable distance. Terminal velocity is
+  always fatal.
+- **Death & respawn** — players who hit zero health drop their keys and
+  per-life state, respawn at a fresh spawn zone after a brief delay.
+  A red full-screen tint and centered "You died!" banner mark the death
+  on the local client; a kill-feed entry surfaces it to the rest.
+- **Scoring** — per-event point deltas (kill, death, cookie, per actor
+  kind) live in `config/server/gameplay.json` and are fully tunable.
 
 ## Controls
 
