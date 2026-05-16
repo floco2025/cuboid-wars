@@ -123,6 +123,17 @@ fn main() -> Result<()> {
     let artificial_lag = (args.lag_ms > 0).then(|| Duration::from_millis(args.lag_ms));
     rt.spawn(network_io_task(connection, to_client, from_client, artificial_lag));
 
+    // SIGINT (Ctrl-C in the launching terminal) is unreliable while the
+    // macOS CFRunLoop / winit event loop is running — the signal can
+    // queue without ever waking the loop. Spawn a tokio task that
+    // services SIGINT and bypasses Bevy's shutdown entirely. Exit code
+    // 130 follows the conventional "SIGINT" exit.
+    rt.spawn(async {
+        if tokio::signal::ctrl_c().await.is_ok() {
+            std::process::exit(130);
+        }
+    });
+
     let window_position = window_position_from_args(&args);
 
     // Start Bevy app
@@ -293,7 +304,12 @@ fn main() -> Result<()> {
 
     app.run();
 
-    Ok(())
+    // `app.run()` returns once `AppExit` is written (e.g., server
+    // disconnect), but on macOS the tokio runtime drop + winit teardown
+    // don't always fully release the process — it lingers with no main
+    // loop running, immune to Ctrl-C. Force a clean process exit so the
+    // user never has to force-quit.
+    std::process::exit(0);
 }
 
 fn connect_to_server(rt: &Runtime, server_addr: &str) -> Result<quinn::Connection> {
