@@ -236,6 +236,16 @@ pub struct SPlayerStatus {
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SCookieCollected {}
 
+// Player took damage from a hard landing. Unicast to the victim. Pairs with
+// `SPlayerHit` but for falls — same role (post-damage health for HUD +
+// directional camera wiggle, but on the vertical axis). Lethal falls also
+// surface `SPlayerDeath` on the same tick.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SFallDamage {
+    pub id: PlayerId,
+    pub health: Health,
+}
+
 // --- Per-client state events (private, durable) ---
 
 // New quest assigned to a specific player. Unicast; carries the
@@ -307,6 +317,7 @@ pub enum ServerMessage {
     ActorHit(SActorHit),
     PlayerStatus(SPlayerStatus),
     CookieCollected(SCookieCollected),
+    FallDamage(SFallDamage),
     // Per-client state events
     QuestNew(SQuestNew),
     QuestAchieved(SQuestAchieved),

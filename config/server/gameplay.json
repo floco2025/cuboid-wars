@@ -10,12 +10,12 @@
     "projectile_damage_taken": 10.0,
     "invincible": false,
     "fall_damage": {
-      "safe_fall_distance": 4.5,
-      "lethal_fall_distance": 12.8
+      "safe_fall_distance": 8.0,
+      "lethal_fall_distance": 15.0
     }
   },
   "power_ups": {
-    "max_number": 20,
+    "max_number": 30,
     "despawn_secs": 60.0,
     "speed_duration_secs": 30.0,
     "multi_shot_duration_secs": 25.0,

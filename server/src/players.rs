@@ -12,8 +12,10 @@ use common::{
     health::apply_damage,
     map_geometry::MapGeometry,
     physics::{CharacterVerticalVelocity, CollisionWorld},
-    protocol::{FaceDirection, Health, PlayerId, PlayerMarker, PlayerMoveIntent, Position, ServerMessage},
+    protocol::{FaceDirection, Health, PlayerId, PlayerMarker, PlayerMoveIntent, Position, SFallDamage, ServerMessage},
 };
+
+use crate::net::ServerToClient;
 
 // ============================================================================
 // Players Status Timers System
@@ -158,6 +160,12 @@ pub fn players_respawn_system(
 // Players Fall Damage System
 // ============================================================================
 
+// Below this damage, skip the impact effect entirely. The lerp produces
+// near-zero damage just past `safe_fall_distance` due to float / tick
+// noise; without this gate the client would get a wiggle for every tiny
+// step off a curb.
+const FALL_DAMAGE_EMIT_THRESHOLD: f32 = 1.0;
+
 // Apply impact damage on landing from a fall. The peak |vy| during the
 // uninterrupted fall is tracked on `PlayerInfo.peak_fall_speed`; when the
 // player transitions to grounded (current vy clears the small negative
@@ -213,7 +221,26 @@ pub fn players_fall_damage_system(
 
             if fall_distance > fall.safe_fall_distance {
                 let damage = fall_damage_for_distance(fall_distance, fall.safe_fall_distance, fall.lethal_fall_distance, max_health);
+                // Skip the entire emission path for negligible damage —
+                // the safe-threshold lerp produces near-zero damage just
+                // past `safe_fall_distance` from floating-point slack and
+                // discrete-tick noise. No HUD update or camera wiggle for
+                // a fall the player barely registers.
+                if damage < FALL_DAMAGE_EMIT_THRESHOLD {
+                    continue;
+                }
                 apply_damage(&mut health, damage);
+                // Unicast `SFallDamage` to the victim so the HUD health bar
+                // and vertical camera wiggle land on the impact frame
+                // instead of waiting for the next snapshot. The fatal-fall
+                // case additionally surfaces `SPlayerDeath` via
+                // `kill_player` below.
+                if let Some(info) = players.get(id) {
+                    let _ = info.channel.send(ServerToClient::Send(ServerMessage::FallDamage(SFallDamage {
+                        id: *id,
+                        health: *health,
+                    })));
+                }
                 if health.0 <= 0.0 {
                     info!("{:?} died from fall (distance {:.1}m)", id, fall_distance);
                     kill_player(&mut commands, &mut players, *id, entity, *pos, respawn_delay_secs, None);

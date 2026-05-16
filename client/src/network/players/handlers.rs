@@ -157,6 +157,9 @@ pub fn handle_player_hit_message(
                 timer: Timer::from_seconds(0.3, TimerMode::Once),
                 intensity: 3.0,
                 dir_x: msg.hit_dir_x,
+                // Small vertical companion to the directional hit shake —
+                // preserves the prior hardcoded `0.2` vertical bob.
+                dir_y: 0.2,
                 dir_z: msg.hit_dir_z,
                 offset_x: 0.0,
                 offset_y: 0.0,
@@ -265,6 +268,41 @@ pub fn handle_player_status_message(
         }
 
         player_info.apply_status(&msg);
+    }
+}
+
+// Player took fall damage. Updates HUD health on the impact frame
+// (instead of waiting for the next snapshot) and applies a vertical
+// camera shake — same shape as `handle_player_hit_message` but on the
+// Y axis only. Unicast, so the message only ever targets the local
+// player; no other-player branch.
+pub fn handle_fall_damage_message(
+    commands: &mut Commands,
+    players: &ResMut<PlayerMap>,
+    camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
+    my_player_id: PlayerId,
+    msg: SFallDamage,
+) {
+    if let Some(player) = players.get(&msg.id) {
+        commands.entity(player.entity).insert(msg.health);
+    }
+    if msg.id == my_player_id
+        && let Ok(camera_entity) = camera_query.single()
+    {
+        commands.entity(camera_entity).insert(CameraShake {
+            // Same duration/intensity envelope as a projectile hit, just
+            // re-aimed along the vertical axis. `dir_y` is tuned to feel
+            // more pronounced than the hit's vertical-companion `0.2` but
+            // not jarring — max amplitude ≈ 1.5 vs the hit's 0.6.
+            timer: Timer::from_seconds(0.3, TimerMode::Once),
+            intensity: 3.0,
+            dir_x: 0.0,
+            dir_y: 0.5,
+            dir_z: 0.0,
+            offset_x: 0.0,
+            offset_y: 0.0,
+            offset_z: 0.0,
+        });
     }
 }
 

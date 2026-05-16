@@ -6,9 +6,9 @@ use super::{
     io::handle_pong_message,
     items::handle_item_collected_message,
     players::{
-        handle_player_death_message, handle_player_face_message, handle_player_hit_message, handle_player_jump_message,
-        handle_player_move_intent_message, handle_player_shot_message, handle_player_status_message,
-        handle_quest_achieved_message, handle_quest_new_message,
+        handle_fall_damage_message, handle_player_death_message, handle_player_face_message, handle_player_hit_message,
+        handle_player_jump_message, handle_player_move_intent_message, handle_player_shot_message,
+        handle_player_status_message, handle_quest_achieved_message, handle_quest_new_message,
     },
     snapshot::handle_snapshot_message,
 };
@@ -145,6 +145,9 @@ pub fn dispatch_message(
         ServerMessage::Pong(pong_msg) => handle_pong_message(time, rtt, pong_msg),
         ServerMessage::CookieCollected(cookie_msg) => {
             handle_item_collected_message(commands, cookie_msg, &client_assets.asset_server, &client_assets.asset_set);
+        }
+        ServerMessage::FallDamage(fall_msg) => {
+            handle_fall_damage_message(commands, players, cameras, my_player_id, fall_msg);
         }
         ServerMessage::QuestNew(quest_msg) => {
             handle_quest_new_message(

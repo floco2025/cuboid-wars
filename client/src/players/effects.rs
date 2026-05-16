@@ -43,8 +43,8 @@ fn update_camera_shake(commands: &mut Commands, entity: Entity, delta: Duration,
     let oscillation = (progress * 30.0).sin();
 
     shake.offset_x = shake.dir_x * amplitude * oscillation;
+    shake.offset_y = shake.dir_y * amplitude * oscillation;
     shake.offset_z = shake.dir_z * amplitude * oscillation;
-    shake.offset_y = amplitude * oscillation * 0.2;
 }
 
 fn update_cuboid_shake(commands: &mut Commands, entity: Entity, delta: Duration, shake: &mut CuboidShake) {
