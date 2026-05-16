@@ -231,7 +231,7 @@ pub fn handle_player_death_message(
             existing_banners,
             &banner.death_text,
             banner.death_duration_secs,
-            banner.font_size,
+            client_settings.hud.font_sizes.banner,
         );
     } else if let Some(info) = players.remove(&msg.id) {
         commands.entity(info.entity).despawn();
@@ -343,7 +343,7 @@ pub fn handle_quest_new_message(
         existing_banners,
         &msg.announcement_text,
         banner.announcement_duration_secs,
-        banner.font_size,
+        client_settings.hud.font_sizes.banner,
     );
 }
 
@@ -363,7 +363,7 @@ pub fn handle_quest_achieved_message(
         existing_banners,
         &msg.achieved_text,
         banner.achieved_duration_secs,
-        banner.font_size,
+        client_settings.hud.font_sizes.banner,
     );
 }
 

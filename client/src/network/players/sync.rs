@@ -148,7 +148,7 @@ pub fn sync_players(
                 existing_banners,
                 announcement_text,
                 banner_cfg.announcement_duration_secs,
-                banner_cfg.font_size,
+                client_settings.hud.font_sizes.banner,
             );
         }
     }

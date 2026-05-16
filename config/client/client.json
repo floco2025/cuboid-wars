@@ -32,7 +32,8 @@
       "player_list": 18.0,
       "score": 16.0,
       "message_feed": 18.0,
-      "floating_label": 40.0
+      "floating_label": 40.0,
+      "banner": 32.0
     },
     "message_feed": {
       "entry_duration_secs": 10.0,
@@ -55,8 +56,11 @@
       "achieved_duration_secs": 5.0,
       "death_duration_secs": 3.0,
       "death_text": "You died!",
-      "fade_duration_secs": 0.8,
-      "font_size": 32.0
+      "fade_duration_secs": 0.8
+    },
+    "death_overlay": {
+      "duration_secs": 3.0,
+      "fade_duration_secs": 0.8
     }
   },
   "barriers": {

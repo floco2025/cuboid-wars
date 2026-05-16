@@ -111,6 +111,7 @@ pub struct HudConfig {
     pub floating_labels: FloatingLabelsConfig,
     pub health_bars: HealthBarsConfig,
     pub banner: BannerConfig,
+    pub death_overlay: DeathOverlayConfig,
 }
 
 // Per-purpose font sizes. Each surface has its own preferred size; the
@@ -127,6 +128,8 @@ pub struct FontSizesConfig {
     pub message_feed: f32,
     // Name text inside the 3D floating label above a character.
     pub floating_label: f32,
+    // Centered HUD banner ("Collect 10 Gold!", "You died!", etc.).
+    pub banner: f32,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -160,7 +163,17 @@ pub struct BannerConfig {
     pub death_duration_secs: f32,
     pub death_text: String,
     pub fade_duration_secs: f32,
-    pub font_size: f32,
+}
+
+// Red full-screen death tint. Timer-driven (no fade in): snaps on at
+// peak alpha when the player dies, holds, and fades out over the final
+// `fade_duration_secs` before disappearing at `duration_secs`. Peak
+// alpha is currently a const (`DEATH_OVERLAY_MAX_ALPHA` in
+// `players/death.rs`); expose here if it ever needs tuning.
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct DeathOverlayConfig {
+    pub duration_secs: f32,
+    pub fade_duration_secs: f32,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -261,6 +274,7 @@ impl HudConfig {
         validate_positive_finite(self.font_sizes.score, "hud.font_sizes.score")?;
         validate_positive_finite(self.font_sizes.message_feed, "hud.font_sizes.message_feed")?;
         validate_positive_finite(self.font_sizes.floating_label, "hud.font_sizes.floating_label")?;
+        validate_positive_finite(self.font_sizes.banner, "hud.font_sizes.banner")?;
         validate_non_negative_finite(
             self.message_feed.entry_duration_secs,
             "hud.message_feed.entry_duration_secs",
@@ -307,7 +321,11 @@ impl HudConfig {
             bail!("hud.banner.death_text must not be empty");
         }
         validate_positive_finite(self.banner.fade_duration_secs, "hud.banner.fade_duration_secs")?;
-        validate_positive_finite(self.banner.font_size, "hud.banner.font_size")?;
+        validate_positive_finite(self.death_overlay.duration_secs, "hud.death_overlay.duration_secs")?;
+        validate_positive_finite(
+            self.death_overlay.fade_duration_secs,
+            "hud.death_overlay.fade_duration_secs",
+        )?;
         Ok(())
     }
 }
