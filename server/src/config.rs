@@ -123,11 +123,38 @@ pub struct PlayerServerConfig {
     // skipped. Leave `false` for normal play.
     #[serde(default)]
     pub invincible: bool,
+    pub fall_damage: FallDamageConfig,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct FallDamageConfig {
+    // Below this fall distance (meters), landing does no damage.
+    pub safe_fall_distance: f32,
+    // At this fall distance, landing deals `max_health` damage (lethal).
+    // Damage lerps linearly between the two endpoints and clamps past
+    // `lethal_fall_distance`.
+    pub lethal_fall_distance: f32,
 }
 
 impl PlayerServerConfig {
     fn validate(&self, path: &str) -> Result<()> {
-        validate_non_negative_finite(self.projectile_damage_taken, &format!("{path}.projectile_damage_taken"))
+        validate_non_negative_finite(self.projectile_damage_taken, &format!("{path}.projectile_damage_taken"))?;
+        self.fall_damage.validate(&format!("{path}.fall_damage"))
+    }
+}
+
+impl FallDamageConfig {
+    fn validate(&self, path: &str) -> Result<()> {
+        validate_non_negative_finite(self.safe_fall_distance, &format!("{path}.safe_fall_distance"))?;
+        validate_non_negative_finite(self.lethal_fall_distance, &format!("{path}.lethal_fall_distance"))?;
+        if self.safe_fall_distance >= self.lethal_fall_distance {
+            bail!(
+                "{path}.safe_fall_distance ({}) must be < lethal_fall_distance ({})",
+                self.safe_fall_distance,
+                self.lethal_fall_distance
+            );
+        }
+        Ok(())
     }
 }
 

@@ -6,7 +6,10 @@ use super::network::broadcast_to_all;
 use crate::resources::{MapConfig, PlayerMap};
 use common::{
     config::GameplayConfig,
-    constants::CHARACTER_FALL_DEATH_Y,
+    constants::{
+        CHARACTER_FALL_DEATH_Y, CHARACTER_GRAVITY, CHARACTER_GROUND_SNAP_DISTANCE, PHYSICS_EPSILON, TICK_PERIOD_SECS,
+    },
+    health::apply_damage,
     map_geometry::MapGeometry,
     physics::{CharacterVerticalVelocity, CollisionWorld},
     protocol::{FaceDirection, Health, PlayerId, PlayerMarker, PlayerMoveIntent, Position, ServerMessage},
@@ -148,5 +151,114 @@ pub fn players_respawn_system(
 
         occupied_positions.push(pos);
         info!("{:?} respawned at {:?}", id, pos);
+    }
+}
+
+// ============================================================================
+// Players Fall Damage System
+// ============================================================================
+
+// Apply impact damage on landing from a fall. The peak |vy| during the
+// uninterrupted fall is tracked on `PlayerInfo.peak_fall_speed`; when the
+// player transitions to grounded (current vy clears the small negative
+// threshold), the equivalent fall distance is `peak² / (2·gravity)` and
+// damage lerps from 0 at `safe_fall_distance` to `max_health` at
+// `lethal_fall_distance`, clamped past lethal.
+//
+// Runs after `characters_movement_system` so it observes the *post-step*
+// `CharacterVerticalVelocity` (i.e. 0 on the impact tick because the floor
+// resolved the contact). Skipped entirely under debug invincibility.
+pub fn players_fall_damage_system(
+    mut commands: Commands,
+    mut players: ResMut<PlayerMap>,
+    gameplay_config: Res<GameplayConfig>,
+    server_gameplay_config: Res<crate::config::ServerGameplayConfig>,
+    mut player_query: Query<
+        (Entity, &PlayerId, &Position, &CharacterVerticalVelocity, &mut Health),
+        With<PlayerMarker>,
+    >,
+) {
+    if server_gameplay_config.player.invincible {
+        return;
+    }
+    let fall = server_gameplay_config.player.fall_damage;
+    let max_health = gameplay_config.player.health().max;
+    let respawn_delay_secs = gameplay_config.player.respawn_delay_secs;
+
+    for (entity, id, pos, motion, mut health) in player_query.iter_mut() {
+        let Some(info) = players.get_mut(id) else { continue };
+        if info.is_dead() {
+            continue;
+        }
+
+        let current_vy = motion.0;
+        let is_grounded = current_vy > -PHYSICS_EPSILON;
+
+        if is_grounded && info.peak_fall_speed > 0.0 {
+            // Reconstruct effective fall distance from the captured peak
+            // speed, with two corrections so JSON values can stay semantic
+            // ("level heights"):
+            //   1. `+CHARACTER_GRAVITY * TICK_PERIOD_SECS` to the impact
+            //      speed — `peak_fall_speed` is captured at end-of-tick
+            //      *before* the impact tick, so it misses one gravity
+            //      application that the physics applies in the impact tick
+            //      itself before the floor zeroes vy.
+            //   2. `+CHARACTER_GROUND_SNAP_DISTANCE` to the distance — the
+            //      last ~0.5 m of every fall is "snapped" by the character
+            //      controller (vy → 0, no further gravity), so naive
+            //      `v²/2g` undercounts by exactly that snap distance.
+            let impact_speed = info.peak_fall_speed + CHARACTER_GRAVITY * TICK_PERIOD_SECS;
+            let fall_distance = impact_speed.powi(2) / (2.0 * CHARACTER_GRAVITY) + CHARACTER_GROUND_SNAP_DISTANCE;
+            info.peak_fall_speed = 0.0;
+
+            if fall_distance > fall.safe_fall_distance {
+                let damage = fall_damage_for_distance(fall_distance, fall.safe_fall_distance, fall.lethal_fall_distance, max_health);
+                apply_damage(&mut health, damage);
+                if health.0 <= 0.0 {
+                    info!("{:?} died from fall (distance {:.1}m)", id, fall_distance);
+                    kill_player(&mut commands, &mut players, *id, entity, *pos, respawn_delay_secs, None);
+                }
+            }
+        } else if !is_grounded {
+            // In the air (rising or falling). Track only downward speed.
+            let downward_speed = (-current_vy).max(0.0);
+            if downward_speed > info.peak_fall_speed {
+                info.peak_fall_speed = downward_speed;
+            }
+        }
+    }
+}
+
+// Lerp damage between `safe_fall_distance` (0 dmg) and `lethal_fall_distance`
+// (full health), clamping the falloff beyond the lethal endpoint.
+fn fall_damage_for_distance(distance: f32, safe: f32, lethal: f32, max_health: f32) -> f32 {
+    let t = ((distance - safe) / (lethal - safe)).clamp(0.0, 1.0);
+    t * max_health
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fall_damage_zero_at_safe_distance() {
+        assert_eq!(fall_damage_for_distance(4.0, 4.0, 12.0, 100.0), 0.0);
+        assert_eq!(fall_damage_for_distance(3.0, 4.0, 12.0, 100.0), 0.0);
+    }
+
+    #[test]
+    fn fall_damage_lethal_at_lethal_distance() {
+        assert_eq!(fall_damage_for_distance(12.0, 4.0, 12.0, 100.0), 100.0);
+    }
+
+    #[test]
+    fn fall_damage_lerps_midpoint() {
+        // (8 - 4) / (12 - 4) = 0.5 → 50 dmg
+        assert_eq!(fall_damage_for_distance(8.0, 4.0, 12.0, 100.0), 50.0);
+    }
+
+    #[test]
+    fn fall_damage_saturates_past_lethal() {
+        assert_eq!(fall_damage_for_distance(100.0, 4.0, 12.0, 100.0), 100.0);
     }
 }

@@ -8,7 +8,11 @@
   },
   "player": {
     "projectile_damage_taken": 10.0,
-    "invincible": false
+    "invincible": false,
+    "fall_damage": {
+      "safe_fall_distance": 4.5,
+      "lethal_fall_distance": 12.8
+    }
   },
   "power_ups": {
     "max_number": 20,

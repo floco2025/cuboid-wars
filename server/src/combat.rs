@@ -188,7 +188,7 @@ mod tests {
     use std::collections::HashMap;
 
     use super::*;
-    use crate::config::{CookiesConfig, KeysConfig, PlayerServerConfig, PowerUpsConfig, ScoringConfig};
+    use crate::config::{CookiesConfig, FallDamageConfig, KeysConfig, PlayerServerConfig, PowerUpsConfig, ScoringConfig};
     use crate::resources::PlayerInfo;
     use tokio::sync::mpsc::unbounded_channel;
 
@@ -204,6 +204,10 @@ mod tests {
             player: PlayerServerConfig {
                 projectile_damage_taken: 25.0,
                 invincible: false,
+                fall_damage: FallDamageConfig {
+                    safe_fall_distance: 4.0,
+                    lethal_fall_distance: 12.0,
+                },
             },
             power_ups: PowerUpsConfig {
                 max_number: 0,

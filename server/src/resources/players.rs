@@ -48,6 +48,10 @@ pub struct PlayerInfo {
     // server's quest catalog; persists for the whole session (not cleared
     // by `clear_per_life_state`).
     pub quest_states: HashMap<QuestId, QuestState>,
+    // Peak |downward velocity| observed during the current uninterrupted
+    // fall, in m/s. Reset to 0 on landing (after the impact damage check)
+    // and on respawn.
+    pub peak_fall_speed: f32,
 }
 
 impl PlayerInfo {
@@ -68,6 +72,7 @@ impl PlayerInfo {
             held_keys: Vec::new(),
             death_timer: None,
             quest_states: HashMap::new(),
+            peak_fall_speed: 0.0,
         }
     }
 
@@ -94,6 +99,9 @@ impl PlayerInfo {
         // Otherwise a player killed with a hot cooldown respawns and can
         // fire before their cooldown would otherwise have ticked down.
         self.last_shot_time = f32::NEG_INFINITY;
+        // A respawning player shouldn't inherit the dying player's fall
+        // momentum — they'd take damage on their first landing.
+        self.peak_fall_speed = 0.0;
     }
 
     #[must_use]
