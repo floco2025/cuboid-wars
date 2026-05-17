@@ -78,7 +78,8 @@ pub fn actor_behavior_system(
             && let Some(target_pos) = visible_player_position(
                 pos,
                 actor_config.eye_height(),
-                kind_server_config.senses.vision_range,
+                kind_server_config.senses.horizontal_vision_range,
+                kind_server_config.senses.vertical_vision_range,
                 &players,
                 &player_query,
                 &collision_world,

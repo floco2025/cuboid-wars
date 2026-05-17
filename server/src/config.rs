@@ -334,7 +334,11 @@ impl ActorCombatConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ActorSensesConfig {
-    pub vision_range: f32,
+    // Range gate is a box, not a sphere: a player passes when within
+    // `horizontal_vision_range` on the xz plane AND `vertical_vision_range`
+    // on y. LOS still has the final say.
+    pub horizontal_vision_range: f32,
+    pub vertical_vision_range: f32,
     // Delay after the actor reaches the last known player position before it
     // may acquire a visible player as a fresh chase target again.
     #[serde(default)]
@@ -343,7 +347,8 @@ pub struct ActorSensesConfig {
 
 impl ActorSensesConfig {
     fn validate(&self, path: &str) -> Result<()> {
-        validate_positive_finite(self.vision_range, &format!("{path}.vision_range"))?;
+        validate_positive_finite(self.horizontal_vision_range, &format!("{path}.horizontal_vision_range"))?;
+        validate_positive_finite(self.vertical_vision_range, &format!("{path}.vertical_vision_range"))?;
         validate_non_negative_finite(
             self.chase_reacquire_cooldown_secs,
             &format!("{path}.chase_reacquire_cooldown_secs"),

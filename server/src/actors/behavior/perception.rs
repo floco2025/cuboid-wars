@@ -10,7 +10,8 @@ use common::{
 pub(super) fn visible_player_position(
     actor_pos: &Position,
     actor_eye_height: f32,
-    vision_range: f32,
+    horizontal_vision_range: f32,
+    vertical_vision_range: f32,
     players: &PlayerMap,
     player_query: &Query<(&PlayerId, &Position), With<PlayerMarker>>,
     collision_world: &CollisionWorld,
@@ -18,11 +19,13 @@ pub(super) fn visible_player_position(
 ) -> Option<Position> {
     let actor_sight_origin = Vec3::new(actor_pos.x, actor_pos.y + actor_eye_height, actor_pos.z);
     let player_physics = gameplay_config.player.physics();
+    let horizontal_range_sq = horizontal_vision_range * horizontal_vision_range;
 
     player_query
         .iter()
         .filter(|(id, _)| players.get(id).is_some_and(|info| info.logged_in))
-        .filter(|(_, pos)| horizontal_distance_sq(actor_pos, pos) <= vision_range * vision_range)
+        .filter(|(_, pos)| horizontal_distance_sq(actor_pos, pos) <= horizontal_range_sq)
+        .filter(|(_, pos)| (actor_pos.y - pos.y).abs() <= vertical_vision_range)
         .filter(|(_, pos)| {
             let player_collider_center = Vec3::new(pos.x, player_physics.collider_center_y(pos.y), pos.z);
             collision_world.line_of_sight_clear(actor_sight_origin, player_collider_center)

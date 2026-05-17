@@ -47,7 +47,7 @@
         "explosion": { "radius": 6.0, "player_max_damage": 15.0, "actor_max_damage": 50.0 },
         "score_reward_on_kill": 20
       },
-      "senses": { "vision_range": 20.0, "chase_reacquire_cooldown_secs": 10.0 },
+      "senses": { "horizontal_vision_range": 20.0, "vertical_vision_range": 20.0, "chase_reacquire_cooldown_secs": 10.0 },
       "patrol": { "leash": 10.0, "min_direction_secs": 1.0, "max_direction_secs": 3.5, "idle_probability": 0.0 },
       "chase": { "leash": 20.0 },
       "navigation": { "path_clear_lookahead_secs": 0.4, "go_to_reached_distance": 0.5 }
@@ -60,7 +60,7 @@
         "explosion": { "radius": 10.0, "player_max_damage": 30.0, "actor_max_damage": 50.0 },
         "score_reward_on_kill": 50
       },
-      "senses": { "vision_range": 30.0 },
+      "senses": { "horizontal_vision_range": 30.0, "vertical_vision_range": 10.0 },
       "patrol": { "leash": 15.0 },
       "chase": { "leash": 30.0 }
     },
@@ -72,7 +72,7 @@
         "explosion": { "radius": 15.0, "player_max_damage": 60.0, "actor_max_damage": 50.0 },
         "score_reward_on_kill": 100
       },
-      "senses": { "vision_range": 60.0 },
+      "senses": { "horizontal_vision_range": 60.0, "vertical_vision_range": 5.0 },
       "patrol": { "leash": 30.0 },
       "chase": { "leash": 80.0 }
     }

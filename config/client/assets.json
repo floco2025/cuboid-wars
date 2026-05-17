@@ -291,7 +291,7 @@
       "model": {
         "scene": "models/robot_5.glb#Scene0",
         "scale": 0.00612,
-        "y_offset": 0.0,
+        "y_offset": -0.45,
         "z_offset": 0.051,
         "x_rotation_degrees": 180.0,
         "animation_index": 20,
