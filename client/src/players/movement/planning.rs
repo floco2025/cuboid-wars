@@ -3,10 +3,10 @@ use common::{
     config::GameplayConfig,
     constants::{ALWAYS_ANTI_GRAVITY, ALWAYS_PHASING, SNAPSHOT_PERIOD_SECS},
     physics::{CharacterMovePlan, CollisionWorld, step_character_movement},
-    protocol::Position,
+    protocol::{PlayerId, Position},
 };
 
-use super::{feedback::decay_flash_timer, types::PlayerMovementQuery};
+use super::types::PlayerMovementQuery;
 use crate::{
     characters::PreviousTickPosition,
     constants::{
@@ -15,7 +15,6 @@ use crate::{
     },
     network::{ServerReconciliation, worst_axis_excess},
     players::PlayerMap,
-    ui::BumpFlashMarker,
 };
 
 pub(crate) fn plan_player_moves(
@@ -25,18 +24,11 @@ pub(crate) fn plan_player_moves(
     gameplay_config: &GameplayConfig,
     players: &mut PlayerMap,
     query: &mut PlayerMovementQuery,
-    bump_flash_ui: &mut Query<(&mut BackgroundColor, &mut Visibility), With<BumpFlashMarker>>,
     planned_moves: &mut Vec<CharacterMovePlan>,
 ) {
     let player_config = &gameplay_config.player;
     let player_physics = player_config.physics();
-    for (entity, player_id, mut client_pos, move_intent, mut motion, mut flash_state, mut recon_option, is_local) in
-        query
-    {
-        if let Some(state) = flash_state.as_mut() {
-            decay_flash_timer(state, delta, is_local, bump_flash_ui);
-        }
-
+    for (entity, player_id, mut client_pos, move_intent, mut motion, _, mut recon_option, _) in query {
         // Decay snap_speed each tick; new snapshot speed wins if larger.
         // Persisted on `PlayerInfo`; see `RECON_PLAYER_SNAP_DECAY_SECS`
         // for the why.
@@ -56,7 +48,7 @@ pub(crate) fn plan_player_moves(
         let has_phasing = ALWAYS_PHASING || info.is_some_and(|i| i.phasing_power_up);
         let has_anti_gravity = ALWAYS_ANTI_GRAVITY || info.is_some_and(|i| i.anti_gravity_power_up);
         let held_keys: &[common::protocol::BarrierKindId] = info.map_or(&[], |i| i.held_keys.as_slice());
-        let player_name = info.map_or_else(|| format!("{player_id:?}"), |i| i.name.clone());
+        let player_name = info.map(|i| i.name.as_str());
 
         let h_vel =
             move_intent.to_horizontal_velocity(player_config.walk_speed, player_config.run_speed, has_speed_power_up);
@@ -65,12 +57,13 @@ pub(crate) fn plan_player_moves(
             reconciled_target_position(
                 commands,
                 entity,
+                player_id,
+                player_name,
                 &mut client_pos,
                 &mut motion.0,
                 recon,
                 h_vel,
                 delta,
-                player_name,
                 planned_moves,
                 player_physics,
                 player_config.run_speed,
@@ -127,12 +120,13 @@ pub(crate) fn plan_player_moves(
 fn reconciled_target_position(
     commands: &mut Commands,
     entity: Entity,
+    player_id: &PlayerId,
+    player_name: Option<&str>,
     client_pos: &mut Position,
     vertical_velocity: &mut f32,
     recon: &mut ServerReconciliation,
     h_vel: Vec3,
     delta: f32,
-    player_name: String,
     planned_moves: &mut Vec<CharacterMovePlan>,
     player_physics: common::config::CharacterPhysicsConfig,
     run_speed: f32,
@@ -171,8 +165,9 @@ fn reconciled_target_position(
         RECON_PLAYER_SNAP_DISTANCE_IDLE.lerp(RECON_PLAYER_SNAP_DISTANCE_RUNNING, threshold_speed_factor);
     let (worst_axis, worst_magnitude) = worst_axis_excess(correction_delta);
     if worst_magnitude >= snap_threshold {
+        let label = player_name.map_or_else(|| format!("{player_id:?}"), str::to_owned);
         warn!(
-            "{player_name} out of sync: |{worst_axis}|={worst_magnitude:.2} >= {snap_threshold:.2} (Δ x={:.2}, y={:.2}, z={:.2}); snapping to server position",
+            "{label} out of sync: |{worst_axis}|={worst_magnitude:.2} >= {snap_threshold:.2} (Δ x={:.2}, y={:.2}, z={:.2}); snapping to server position",
             correction_delta.x, correction_delta.y, correction_delta.z
         );
         *client_pos = recon.server_pos;

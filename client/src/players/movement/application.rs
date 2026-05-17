@@ -23,6 +23,19 @@ pub(crate) fn apply_player_moves(
             continue;
         };
 
+        if let Some(state) = flash_state.as_mut()
+            && state.flash_timer > 0.0
+        {
+            state.flash_timer -= delta;
+            if state.flash_timer <= 0.0
+                && is_local
+                && let Some((mut bg_color, mut visibility)) = bump_flash_ui.iter_mut().next()
+            {
+                *visibility = Visibility::Hidden;
+                bg_color.0 = Color::srgba(1.0, 1.0, 1.0, 0.0);
+            }
+        }
+
         let hits_character = overlaps_other_character(planned_move, planned_moves);
 
         if hits_character {

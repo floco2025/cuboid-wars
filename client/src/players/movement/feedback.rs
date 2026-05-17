@@ -5,26 +5,6 @@ use crate::{config::AssetSet, players::BumpFlashState, ui::BumpFlashMarker};
 const BUMP_FLASH_DURATION: f32 = 0.08;
 const BUMP_COLLISION_RELEASE_DELAY: f32 = 0.25;
 
-pub(super) fn decay_flash_timer(
-    state: &mut Mut<BumpFlashState>,
-    delta: f32,
-    is_local: bool,
-    bump_flash_ui: &mut Query<(&mut BackgroundColor, &mut Visibility), With<BumpFlashMarker>>,
-) {
-    if state.flash_timer <= 0.0 {
-        return;
-    }
-
-    state.flash_timer -= delta;
-    if state.flash_timer <= 0.0
-        && is_local
-        && let Some((mut bg_color, mut visibility)) = bump_flash_ui.iter_mut().next()
-    {
-        *visibility = Visibility::Hidden;
-        bg_color.0 = Color::srgba(1.0, 1.0, 1.0, 0.0);
-    }
-}
-
 pub(super) fn trigger_collision_feedback(
     commands: &mut Commands,
     asset_server: &AssetServer,

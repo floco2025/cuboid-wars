@@ -49,7 +49,6 @@ pub fn characters_movement_system(
         &gameplay_config,
         &mut players,
         &mut players_query,
-        &mut bump_flash_ui,
         &mut planned_moves,
     );
     plan_actor_moves(
