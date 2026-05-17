@@ -9,6 +9,8 @@
       {"level": 1, "cols": [9, 21], "rows": [8, 9], "kind": "mine_2", "count": 2},
       {"level": 1, "cols": [21, 22], "rows": [8, 20], "kind": "mine_2", "count": 2},
       {"level": 1, "cols": [9, 10], "rows": [9, 21], "kind": "mine_2", "count": 2},
+      {"level": 1, "cols": [1, 2], "rows": [12, 16], "kind": "mine_2", "count": 2},
+      {"level": 1, "cols": [28, 29], "rows": [14, 18], "kind": "mine_2", "count": 2},
       {"level": 1, "cols": [10, 22], "rows": [20, 21], "kind": "mine_2", "count": 2},
       {"level": 1, "cols": [1, 4], "rows": [26, 29], "kind": "sentry", "count": 1},
       {"level": 1, "cols": [26, 29], "rows": [26, 29], "kind": "sentry", "count": 1},

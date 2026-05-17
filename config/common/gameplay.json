@@ -26,7 +26,7 @@
     },
     "sentry": {
       "inherit_from": "mine_1",
-      "collider": { "width": 1.785, "height": 1.35, "depth": 1.428, "y_offset": 0.1, "y_offset_anchor": "bottom" },
+      "collider": { "width": 1.785, "height": 1.0, "depth": 1.428, "y_offset": 0.45, "y_offset_anchor": "bottom" },
       "patrol_speed": 6.0,
       "chase_speed": 9.0
     }
