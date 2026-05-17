@@ -3,7 +3,7 @@ use bevy::{ecs::system::SystemParam, prelude::*};
 use crate::{
     config::ServerGameplayConfig,
     net::ClientToServer,
-    resources::{ActorMap, FromClientsChannel, ItemMap, MapConfig, PlayerMap},
+    resources::{ActorMap, FromClientsChannel, ItemMap, MapConfig, PlayerInfo, PlayerMap},
 };
 use common::{
     config::GameplayConfig,
@@ -45,12 +45,20 @@ pub fn network_process_client_messages_system(
     item_data: Query<&Position, With<ItemMarker>>,
 ) {
     while let Ok((id, event)) = from_clients.try_recv() {
+        if let ClientToServer::Registration { to_client } = event {
+            debug!("{:?} registered", id);
+            let entity = commands.spawn((PlayerMarker, id)).id();
+            players.insert(id, PlayerInfo::new(entity, to_client));
+            continue;
+        }
+
         let Some(player_info) = players.get(&id) else {
             error!("received event for unknown {:?}", id);
             continue;
         };
 
         match event {
+            ClientToServer::Registration { .. } => unreachable!("handled above"),
             ClientToServer::Disconnected => {
                 let was_logged_in = player_info.logged_in;
                 let entity = player_info.entity;

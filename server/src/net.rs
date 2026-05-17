@@ -9,12 +9,15 @@ use common::{net::MessageStream, protocol::*};
 // Accept Connections Task
 // ============================================================================
 
-// Task to accept incoming connections and spawn per-client network I/O tasks
-pub async fn accept_connections_task(
-    endpoint: Endpoint,
-    to_server_from_accept: UnboundedSender<(PlayerId, UnboundedSender<ServerToClient>)>,
-    to_server: UnboundedSender<(PlayerId, ClientToServer)>,
-) {
+// Task to accept incoming connections and spawn per-client network I/O tasks.
+//
+// Registrations and client messages flow through the SAME channel
+// (`to_server`) so they're strictly ordered: a per-client task only starts
+// recv'ing after its `Registration` is enqueued, guaranteeing the main loop
+// sees the registration before any of that client's messages. A separate
+// channel here would race — see the long-standing "non-login message before
+// authenticating" bug.
+pub async fn accept_connections_task(endpoint: Endpoint, to_server: UnboundedSender<(PlayerId, ClientToServer)>) {
     let mut next_player_id = 1u32;
     while let Some(incoming) = endpoint.accept().await {
         let id = PlayerId(next_player_id);
@@ -22,24 +25,21 @@ pub async fn accept_connections_task(
             .checked_add(1)
             .expect("player ID overflow: 4 billion players connected!");
 
-        // Spawn per client network I/O task
-        let to_server_from_accept_clone = to_server_from_accept.clone();
         let to_server_clone = to_server.clone();
         tokio::spawn(async move {
             match incoming.await {
                 Ok(connection) => {
                     info!("player {:?} connection established", id);
-                    // New channel for sending from the server to the new client network IO task
                     let (to_client, from_server) = unbounded_channel();
 
-                    // Send the server the new channel for sending to the new client network IO
-                    // task, so that the server can send messages to the new client.
-                    if to_server_from_accept_clone.send((id, to_client)).is_err() {
-                        error!("failed to register channel for {:?}", id);
+                    if to_server_clone
+                        .send((id, ClientToServer::Registration { to_client }))
+                        .is_err()
+                    {
+                        error!("failed to register {:?}", id);
                         return;
                     }
 
-                    // Run per-client network I/O task for the new client
                     per_client_network_io_task(id, connection, to_server_clone, from_server).await;
                 }
                 Err(e) => {
@@ -54,9 +54,12 @@ pub async fn accept_connections_task(
 // Per Client Network I/O Task
 // ============================================================================
 
-// Message from per client network I/O task to server for existing clients
+// Message from per client network I/O task to server for existing clients.
+// `Registration` is sent once by `accept_connections_task` before any
+// `Message` from the same player; sharing the channel keeps that ordering.
 #[derive(Debug)]
 pub enum ClientToServer {
+    Registration { to_client: UnboundedSender<ServerToClient> },
     Message(ClientMessage),
     Disconnected,
 }

@@ -22,9 +22,7 @@ use server::{
     },
     map::generate_map,
     net::accept_connections_task,
-    network::{
-        network_accept_connections_system, network_broadcast_snapshot_system, network_process_client_messages_system,
-    },
+    network::{network_broadcast_snapshot_system, network_process_client_messages_system},
     players::{
         players_fall_damage_system, players_fall_death_system, players_respawn_system, players_status_timers_system,
     },
@@ -68,12 +66,12 @@ async fn main() -> Result<()> {
     let nav_graph = NavGraph::new(map_config.clone(), map_geometry);
     validate_actor_kinds_consistent(&gameplay_config, &server_gameplay_config, &map_config)?;
 
-    // Channel for sending from the accept connections task to the server
-    let (to_server_from_accept, from_accept) = unbounded_channel();
-    // Channel for sending from all per client network IO tasks to the server
+    // Single channel for registrations and per-client messages. Sharing the
+    // channel guarantees a player's `Registration` is observed before any of
+    // their subsequent messages, which a separate registration channel can't.
     let (to_server, from_clients) = unbounded_channel();
 
-    tokio::spawn(accept_connections_task(endpoint, to_server_from_accept, to_server));
+    tokio::spawn(accept_connections_task(endpoint, to_server));
     let mut app = App::new();
 
     app.add_plugins(MinimalPlugins).add_plugins(bevy::log::LogPlugin {
@@ -103,21 +101,16 @@ async fn main() -> Result<()> {
         .insert_resource(ItemSpawner::default())
         .insert_resource(ActorSpawner::default())
         .insert_resource(ActorSpawnThrottles::default())
-        .insert_resource(FromAcceptChannel::new(from_accept))
         .insert_resource(FromClientsChannel::new(from_clients))
         .add_systems(Startup, actor_initial_spawn_system)
         .add_systems(
             Update,
             (
                 // Network systems must run in order:
-                // 1. Accept new connections (spawns entities)
-                // 2. ApplyDeferred (makes entities queryable)
-                // 3. Process client messages (needs to query those entities)
-                // 4. ApplyDeferred (makes message-side component changes queryable)
-                // 5. Broadcast state to all clients
+                // 1. Process client events (registrations + messages, in arrival order)
+                // 2. ApplyDeferred (makes entities + message-side changes queryable)
+                // 3. Broadcast state to all clients
                 (
-                    network_accept_connections_system,
-                    ApplyDeferred,
                     network_process_client_messages_system,
                     ApplyDeferred,
                     network_broadcast_snapshot_system,
