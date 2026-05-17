@@ -19,7 +19,7 @@ pub const ANGLE_COMMIT_THRESHOLD_DEGREES: f32 = 1.0;
 // ============================================================================
 
 // Round-trip time — interval between ping requests sent to the server.
-pub const PING_INTERVAL: f32 = 10.0;
+pub const PING_INTERVAL: f32 = 1.0;
 
 // ============================================================================
 // Server Reconciliation
