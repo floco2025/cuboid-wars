@@ -382,6 +382,7 @@ mod tests {
             phasing_power_up: false,
             anti_gravity_power_up: false,
             stunned: false,
+            snap_speed: 0.0,
             held_keys: Vec::new(),
         }
     }

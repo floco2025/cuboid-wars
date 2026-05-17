@@ -25,31 +25,37 @@ pub const PING_INTERVAL: f32 = 10.0;
 // Server Reconciliation
 // ============================================================================
 //
-// Client predicts movement locally; the server's authoritative snapshot is
-// blended in over a correction window (`RECON_PLAYER_IDLE_CORRECTION_TIME`
-// for idle players, `rtt * RECON_CORRECTION_TIME_RTT_MULTIPLIER` for
-// moving characters). If the predicted position drifts past the
-// `RECON_*_SNAP_THRESHOLD`, the client snaps to the server pos instead of
-// trying to smooth — large divergence usually means a teleport or a desync
-// that won't close from gradual correction.
+// Server snapshots blend into the client's predicted position over a
+// per-tick correction window. If the gap is too big to smooth, the client
+// snaps to the server pos instead — large divergence usually means a
+// teleport or a desync that won't close from gradual correction.
 
-// Per-axis snap distance. Player has two endpoints lerped by snapshot-
-// captured server speed (corrections under a stationary view draw the
-// eye; motion masks them). Actor uses a fixed intermediate value — actor
-// speeds are simple enough that lerping doesn't earn the complexity.
-pub const RECON_PLAYER_SNAP_THRESHOLD_IDLE: f32 = 1.0;
-pub const RECON_PLAYER_SNAP_THRESHOLD_RUNNING: f32 = 5.0;
-pub const RECON_ACTOR_SNAP_THRESHOLD: f32 = 3.0;
+// --- Shared (players + actors) ---
 
-// Correction window — duration of the smooth blend to server position.
-// Actors use the running value (multiplier × rtt). Players lerp between
-// idle and running by horizontal speed.
-
-// Scales with RTT so smoothing stays proportional to typical drift size.
+// Correction-window length scales with RTT so smoothing stays proportional
+// to typical drift size.
 pub const RECON_CORRECTION_TIME_RTT_MULTIPLIER: f32 = 4.0;
 
-// Long so corrections under a stationary player are less perceptual.
-pub const RECON_PLAYER_IDLE_CORRECTION_TIME: f32 = 8.0;
+// --- Player only ---
+
+// Per-axis snap distance, lerped by a high-water-mark "recently running"
+// speed that decays over `RECON_PLAYER_SNAP_DECAY_SECS` after a stop. The
+// decay keeps the threshold from tightening abruptly on stop and tripping
+// the snap branch on drift that's still being smoothed out.
+pub const RECON_PLAYER_SNAP_DISTANCE_IDLE: f32 = 1.0;
+pub const RECON_PLAYER_SNAP_DISTANCE_RUNNING: f32 = 5.0;
+pub const RECON_PLAYER_SNAP_DECAY_SECS: f32 = 1.0;
+
+// Idle endpoint of the correction-window lerp (running endpoint is
+// `rtt * RECON_CORRECTION_TIME_RTT_MULTIPLIER`). Stationary players see
+// corrections more clearly than moving ones, so smooth them slowly.
+pub const RECON_PLAYER_IDLE_CORRECTION_SECS: f32 = 8.0;
+
+// --- Actor only ---
+
+// Per-axis snap distance. Fixed — actor speeds are simple enough that
+// lerping doesn't earn the complexity.
+pub const RECON_ACTOR_SNAP_DISTANCE: f32 = 3.0;
 
 // ============================================================================
 // Character Visuals

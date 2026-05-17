@@ -10,8 +10,8 @@ use super::{feedback::decay_flash_timer, types::PlayerMovementQuery};
 use crate::{
     characters::PreviousTickPosition,
     constants::{
-        RECON_CORRECTION_TIME_RTT_MULTIPLIER, RECON_PLAYER_IDLE_CORRECTION_TIME, RECON_PLAYER_SNAP_THRESHOLD_IDLE,
-        RECON_PLAYER_SNAP_THRESHOLD_RUNNING,
+        RECON_CORRECTION_TIME_RTT_MULTIPLIER, RECON_PLAYER_IDLE_CORRECTION_SECS, RECON_PLAYER_SNAP_DECAY_SECS,
+        RECON_PLAYER_SNAP_DISTANCE_IDLE, RECON_PLAYER_SNAP_DISTANCE_RUNNING,
     },
     network::{ServerReconciliation, worst_axis_excess},
     players::PlayerMap,
@@ -23,7 +23,7 @@ pub(crate) fn plan_player_moves(
     delta: f32,
     collision_world: Option<&CollisionWorld>,
     gameplay_config: &GameplayConfig,
-    players: &PlayerMap,
+    players: &mut PlayerMap,
     query: &mut PlayerMovementQuery,
     bump_flash_ui: &mut Query<(&mut BackgroundColor, &mut Visibility), With<BumpFlashMarker>>,
     planned_moves: &mut Vec<CharacterMovePlan>,
@@ -37,7 +37,27 @@ pub(crate) fn plan_player_moves(
             decay_flash_timer(state, delta, is_local, bump_flash_ui);
         }
 
-        let has_speed_power_up = players.get(player_id).is_some_and(|info| info.speed_power_up);
+        // Decay snap_speed each tick; new snapshot speed wins if larger.
+        // Persisted on `PlayerInfo`; see `RECON_PLAYER_SNAP_DECAY_SECS`
+        // for the why.
+        let current_server_speed = recon_option.as_ref().map_or(0.0, |r| r.server_velocity.xz().length());
+        let snap_speed = match players.get_mut(player_id) {
+            Some(info) => {
+                let decay_step = player_config.run_speed / RECON_PLAYER_SNAP_DECAY_SECS * delta;
+                info.snap_speed = (info.snap_speed - decay_step).max(current_server_speed);
+                info.snap_speed
+            }
+            None => current_server_speed,
+        };
+
+        // Immutable lookup for the read-only fields; the mut borrow above ended with the `match`.
+        let info = players.get(player_id);
+        let has_speed_power_up = info.is_some_and(|i| i.speed_power_up);
+        let has_phasing = ALWAYS_PHASING || info.is_some_and(|i| i.phasing_power_up);
+        let has_anti_gravity = ALWAYS_ANTI_GRAVITY || info.is_some_and(|i| i.anti_gravity_power_up);
+        let held_keys: &[common::protocol::BarrierKindId] = info.map_or(&[], |i| i.held_keys.as_slice());
+        let player_name = info.map_or_else(|| format!("{player_id:?}"), |i| i.name.clone());
+
         let h_vel =
             move_intent.to_horizontal_velocity(player_config.walk_speed, player_config.run_speed, has_speed_power_up);
 
@@ -50,12 +70,11 @@ pub(crate) fn plan_player_moves(
                 recon,
                 h_vel,
                 delta,
-                players
-                    .get(player_id)
-                    .map_or_else(|| format!("{player_id:?}"), |info| info.name.clone()),
+                player_name,
                 planned_moves,
                 player_physics,
                 player_config.run_speed,
+                snap_speed,
             )
         } else {
             Some(Position {
@@ -73,12 +92,6 @@ pub(crate) fn plan_player_moves(
             .expect("target_pos is present after out-of-sync shortcut");
 
         if let Some(collision_world) = collision_world {
-            let has_phasing = ALWAYS_PHASING || players.get(player_id).is_some_and(|info| info.phasing_power_up);
-            let has_anti_gravity =
-                ALWAYS_ANTI_GRAVITY || players.get(player_id).is_some_and(|info| info.anti_gravity_power_up);
-
-            let held_keys: &[common::protocol::BarrierKindId] =
-                players.get(player_id).map_or(&[], |info| info.held_keys.as_slice());
             let step = step_character_movement(
                 &client_pos,
                 motion.0,
@@ -123,51 +136,39 @@ fn reconciled_target_position(
     planned_moves: &mut Vec<CharacterMovePlan>,
     player_physics: common::config::CharacterPhysicsConfig,
     run_speed: f32,
+    snap_speed: f32,
 ) -> Option<Position> {
     let run_correction_time = recon.rtt * RECON_CORRECTION_TIME_RTT_MULTIPLIER;
-    // Correction duration follows current *motion* (not server_velocity)
-    // so the duration lengthens the instant the player goes still,
-    // keeping any residual correction below the visible-distraction
-    // threshold. Vertical velocity counts too: a jumping/falling player
-    // with no horizontal input is still in motion and should get the
-    // snappier in-motion correction, not the long stationary one.
+    // Motion-aware lerp between idle (long, gentle) and running (short)
+    // windows. Vertical velocity counts — a jumping or falling player
+    // with no horizontal input is still in motion.
     let motion_speed = h_vel.x.hypot(h_vel.z).hypot(*vertical_velocity);
     let motion_speed_factor = (motion_speed / run_speed).clamp(0.0, 1.0);
-    let correction_duration = RECON_PLAYER_IDLE_CORRECTION_TIME.lerp(run_correction_time, motion_speed_factor);
+    let correction_duration = RECON_PLAYER_IDLE_CORRECTION_SECS.lerp(run_correction_time, motion_speed_factor);
     let correction_factor = (SNAPSHOT_PERIOD_SECS / correction_duration).clamp(0.0, 1.0);
 
-    // Accumulator reaches `SNAPSHOT_PERIOD_SECS` after exactly
-    // `correction_duration` real seconds. The next snapshot normally
-    // overwrites this component before then; the accumulator is the
-    // fallback when snapshots are dropped.
+    // Accumulator hits `SNAPSHOT_PERIOD_SECS` after exactly
+    // `correction_duration` real seconds. Usually the next snapshot
+    // overwrites this component first; the accumulator is the
+    // dropped-snapshot fallback.
     recon.correction_progress += delta * correction_factor;
     if recon.correction_progress >= SNAPSHOT_PERIOD_SECS {
         commands.entity(entity).remove::<ServerReconciliation>();
     }
 
-    // Project the snapshot's server pos forward by half-RTT so we compare
-    // against where the server is *now*, not where it was when the
-    // snapshot was sent.
+    // Project the snapshot pos forward by half-RTT — compare against
+    // where the server is *now*, not where it was at snapshot time.
     let extrapolated_server_pos = Vec3::from(recon.server_pos) + recon.server_velocity * recon.rtt / 2.0;
     let correction_delta = extrapolated_server_pos - Vec3::from(recon.client_pos);
 
-    // No proportional Y reconciliation. Jump responsiveness is more
-    // important than micro-accurate Y tracking: client owns jump intent
-    // and gravity, so vy is locally authoritative on the impact frame.
-    // The snap branch below still catches big disagreements — e.g.
-    // server says we landed on the floor below — via the per-axis
-    // `worst_axis_excess` check on `correction_delta`. Between snaps,
-    // Y is purely predicted.
+    // Y is purely predicted: client owns jump intent and gravity, so
+    // vy is locally authoritative. The snap branch still catches big
+    // disagreements (e.g. landed-on-different-floor) via the per-axis
+    // `worst_axis_excess` check on `correction_delta`.
 
-    // Threshold uses the snapshot-captured server velocity, not current
-    // input. `recon.server_velocity` stays put until the next snapshot
-    // overwrites it, so a drift captured while running keeps the running
-    // threshold for that ~one-snapshot window — releasing the run key on
-    // the next tick can't tighten the threshold mid-correction.
-    let server_speed = recon.server_velocity.xz().length();
-    let threshold_speed_factor = (server_speed / run_speed).clamp(0.0, 1.0);
+    let threshold_speed_factor = (snap_speed / run_speed).clamp(0.0, 1.0);
     let snap_threshold =
-        RECON_PLAYER_SNAP_THRESHOLD_IDLE.lerp(RECON_PLAYER_SNAP_THRESHOLD_RUNNING, threshold_speed_factor);
+        RECON_PLAYER_SNAP_DISTANCE_IDLE.lerp(RECON_PLAYER_SNAP_DISTANCE_RUNNING, threshold_speed_factor);
     let (worst_axis, worst_magnitude) = worst_axis_excess(correction_delta);
     if worst_magnitude >= snap_threshold {
         warn!(

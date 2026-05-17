@@ -21,6 +21,9 @@ pub struct PlayerInfo {
     // Sorted ascending so HUD icon order is stable and the change-detection
     // diff is a single equality test.
     pub held_keys: Vec<BarrierKindId>,
+    // Recon snap-threshold high-water-mark; updated each tick in
+    // `plan_player_moves`. See `RECON_PLAYER_SNAP_DECAY_SECS`.
+    pub snap_speed: f32,
 }
 
 impl PlayerInfo {
@@ -36,6 +39,7 @@ impl PlayerInfo {
             anti_gravity_power_up: false,
             stunned: false,
             held_keys: Vec::new(),
+            snap_speed: 0.0,
         };
         info.apply_snapshot(player);
         info
