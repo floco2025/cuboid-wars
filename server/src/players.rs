@@ -7,7 +7,7 @@ use crate::resources::{MapConfig, PlayerMap};
 use common::{
     config::GameplayConfig,
     constants::{
-        CHARACTER_FALL_DEATH_Y, CHARACTER_GRAVITY, CHARACTER_GROUND_SNAP_DISTANCE, PHYSICS_EPSILON, TICK_PERIOD_SECS,
+        CHARACTER_FALL_DEATH_Y, CHARACTER_GRAVITY, CHARACTER_GROUND_SNAP_DISTANCE, PHYSICS_EPSILON, TICK_SECS,
     },
     health::apply_damage,
     map_geometry::MapGeometry,
@@ -215,7 +215,7 @@ pub fn players_fall_damage_system(
             //      last ~0.5 m of every fall is "snapped" by the character
             //      controller (vy → 0, no further gravity), so naive
             //      `v²/2g` undercounts by exactly that snap distance.
-            let impact_speed = info.peak_fall_speed + CHARACTER_GRAVITY * TICK_PERIOD_SECS;
+            let impact_speed = info.peak_fall_speed + CHARACTER_GRAVITY * TICK_SECS;
             let fall_distance = impact_speed.powi(2) / (2.0 * CHARACTER_GRAVITY) + CHARACTER_GROUND_SNAP_DISTANCE;
             info.peak_fall_speed = 0.0;
 

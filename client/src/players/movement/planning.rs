@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
-    constants::{ALWAYS_ANTI_GRAVITY, ALWAYS_PHASING, SNAPSHOT_PERIOD_SECS},
+    constants::{ALWAYS_ANTI_GRAVITY, ALWAYS_PHASING, SNAPSHOT_SECS},
     physics::{CharacterMovePlan, CollisionWorld, step_character_movement},
     protocol::{PlayerId, Position},
 };
@@ -139,14 +139,14 @@ fn reconciled_target_position(
     let motion_speed = h_vel.x.hypot(h_vel.z).hypot(*vertical_velocity);
     let motion_speed_factor = (motion_speed / run_speed).clamp(0.0, 1.0);
     let correction_duration = RECON_PLAYER_IDLE_CORRECTION_SECS.lerp(run_correction_time, motion_speed_factor);
-    let correction_factor = (SNAPSHOT_PERIOD_SECS / correction_duration).clamp(0.0, 1.0);
+    let correction_factor = (SNAPSHOT_SECS / correction_duration).clamp(0.0, 1.0);
 
     // Accumulator hits `SNAPSHOT_PERIOD_SECS` after exactly
     // `correction_duration` real seconds. Usually the next snapshot
     // overwrites this component first; the accumulator is the
     // dropped-snapshot fallback.
     recon.correction_progress += delta * correction_factor;
-    if recon.correction_progress >= SNAPSHOT_PERIOD_SECS {
+    if recon.correction_progress >= SNAPSHOT_SECS {
         commands.entity(entity).remove::<ServerReconciliation>();
     }
 
@@ -185,8 +185,8 @@ fn reconciled_target_position(
         return None;
     }
 
-    let dx = correction_delta.x * delta * correction_factor / SNAPSHOT_PERIOD_SECS;
-    let dz = correction_delta.z * delta * correction_factor / SNAPSHOT_PERIOD_SECS;
+    let dx = correction_delta.x * delta * correction_factor / SNAPSHOT_SECS;
+    let dz = correction_delta.z * delta * correction_factor / SNAPSHOT_SECS;
 
     Some(Position {
         x: h_vel.x.mul_add(delta, client_pos.x) + dx,

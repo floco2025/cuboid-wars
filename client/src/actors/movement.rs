@@ -8,7 +8,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    constants::SNAPSHOT_PERIOD_SECS,
+    constants::SNAPSHOT_SECS,
     physics::{
         CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, blocking_character_move_plan,
         character_move_plan_is_blocked, step_character_movement,
@@ -55,13 +55,13 @@ pub(crate) fn plan_actor_moves(
         let h_vel = move_intent.to_horizontal_velocity();
         let target_pos = if let Some(recon) = recon_option.as_mut() {
             let correction_time = recon.rtt * RECON_CORRECTION_TIME_RTT_MULTIPLIER;
-            let correction_factor = (SNAPSHOT_PERIOD_SECS / correction_time).clamp(0.0, 1.0);
+            let correction_factor = (SNAPSHOT_SECS / correction_time).clamp(0.0, 1.0);
 
             // Accumulator hits `SNAPSHOT_PERIOD_SECS` after exactly
             // `correction_time` real seconds; it's the dropped-snapshot
             // fallback (normally the next snapshot lands first).
             recon.correction_progress += delta * correction_factor;
-            if recon.correction_progress >= SNAPSHOT_PERIOD_SECS {
+            if recon.correction_progress >= SNAPSHOT_SECS {
                 commands.entity(entity).remove::<ServerReconciliation>();
             }
 
@@ -93,10 +93,10 @@ pub(crate) fn plan_actor_moves(
 
             Position {
                 x: h_vel.x.mul_add(delta, pos.x)
-                    + correction_delta.x * delta * correction_factor / SNAPSHOT_PERIOD_SECS,
+                    + correction_delta.x * delta * correction_factor / SNAPSHOT_SECS,
                 y: pos.y,
                 z: h_vel.z.mul_add(delta, pos.z)
-                    + correction_delta.z * delta * correction_factor / SNAPSHOT_PERIOD_SECS,
+                    + correction_delta.z * delta * correction_factor / SNAPSHOT_SECS,
             }
         } else {
             Position {

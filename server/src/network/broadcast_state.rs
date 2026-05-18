@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::resources::{ActorMap, ItemMap, PlayerMap};
 use common::{
-    constants::SNAPSHOT_PERIOD_SECS,
+    constants::SNAPSHOT_SECS,
     physics::CharacterVerticalVelocity,
     protocol::{ActorMarker, ItemMarker, PlayerMarker, *},
 };
@@ -23,7 +23,7 @@ pub fn network_broadcast_snapshot_system(
     item_positions: Query<&Position, With<ItemMarker>>,
 ) {
     *timer += time.delta_secs();
-    if *timer < SNAPSHOT_PERIOD_SECS {
+    if *timer < SNAPSHOT_SECS {
         return;
     }
     *timer = 0.0;

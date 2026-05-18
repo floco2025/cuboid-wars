@@ -39,7 +39,7 @@ pub const LEVEL_CLASSIFICATION_TOLERANCE: f32 = 0.5;
 // all clients. The snapshot is the authoritative source of presence and
 // state for entities that aren't carried by one-shot cues.
 pub const SNAPSHOT_HZ: u32 = 4;
-pub const SNAPSHOT_PERIOD_SECS: f32 = 1.0 / SNAPSHOT_HZ as f32;
+pub const SNAPSHOT_SECS: f32 = 1.0 / SNAPSHOT_HZ as f32;
 
 // ============================================================================
 // Game Tick
@@ -50,7 +50,7 @@ pub const SNAPSHOT_PERIOD_SECS: f32 = 1.0 / SNAPSHOT_HZ as f32;
 // player-input commits. Lower = less CPU and bandwidth, higher = more
 // responsive AI and input.
 pub const TICK_HZ: u32 = 30;
-pub const TICK_PERIOD_SECS: f32 = 1.0 / TICK_HZ as f32;
+pub const TICK_SECS: f32 = 1.0 / TICK_HZ as f32;
 
 // ============================================================================
 // Physics
