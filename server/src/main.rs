@@ -107,10 +107,17 @@ async fn main() -> Result<()> {
             Update,
             (
                 // Network systems must run in order:
-                // 1. Process client events (registrations + messages, in arrival order)
-                // 2. ApplyDeferred (makes entities + message-side changes queryable)
-                // 3. Broadcast state to all clients
+                // 1. ApplyDeferred (flushes pending spawns from other systems
+                //    on this tick — e.g. `item_spawn_system` queues a
+                //    `commands.spawn` + inserts into `ItemMap` in one shot,
+                //    so the entity is reserved but not yet queryable. Without
+                //    this barrier, a login-tick `collect_items` panics on the
+                //    fresh, unmaterialized item entity).
+                // 2. Process client events (registrations + messages, in arrival order)
+                // 3. ApplyDeferred (makes login-side spawns queryable)
+                // 4. Broadcast state to all clients
                 (
+                    ApplyDeferred,
                     network_process_client_messages_system,
                     ApplyDeferred,
                     network_broadcast_snapshot_system,
