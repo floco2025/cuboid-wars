@@ -92,11 +92,9 @@ pub(crate) fn plan_actor_moves(
             }
 
             Position {
-                x: h_vel.x.mul_add(delta, pos.x)
-                    + correction_delta.x * delta * correction_factor / SNAPSHOT_SECS,
+                x: h_vel.x.mul_add(delta, pos.x) + correction_delta.x * delta * correction_factor / SNAPSHOT_SECS,
                 y: pos.y,
-                z: h_vel.z.mul_add(delta, pos.z)
-                    + correction_delta.z * delta * correction_factor / SNAPSHOT_SECS,
+                z: h_vel.z.mul_add(delta, pos.z) + correction_delta.z * delta * correction_factor / SNAPSHOT_SECS,
             }
         } else {
             Position {

@@ -42,9 +42,18 @@ pub fn explosion_effects_system(
 
         if let Some(camera_pos) = camera_pos {
             let pos = global_transform.translation();
-            let direction = Vec3::new(camera_pos.x - pos.x, 0.0, camera_pos.z - pos.z);
-            if direction.length_squared() > 0.0001 {
-                transform.rotation = Quat::from_rotation_y(direction.x.atan2(direction.z));
+            let to_camera = camera_pos - pos;
+            if to_camera.length_squared() > 0.0001 {
+                // Mesh is `cull_mode: None`, so either face renders — just
+                // orient the plane perpendicular to the view direction.
+                // Swap `up` to avoid the degenerate `look_at` when the
+                // camera is nearly straight above/below.
+                let up = if to_camera.normalize().y.abs() > 0.999 {
+                    Vec3::Z
+                } else {
+                    Vec3::Y
+                };
+                transform.look_at(camera_pos, up);
             }
         }
     }
