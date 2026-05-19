@@ -172,6 +172,9 @@ pub struct PowerUpsConfig {
     pub multi_shot_duration_secs: f32,
     pub phasing_duration_secs: f32,
     pub anti_gravity_duration_secs: f32,
+    // Fraction of max health restored by a single Health Potion pickup.
+    // 0.0 < value <= 1.0 (1.0 = full heal). No duration — instant effect.
+    pub health_potion_heal_percent: f32,
 }
 
 impl PowerUpsConfig {
@@ -186,7 +189,14 @@ impl PowerUpsConfig {
         validate_non_negative_finite(
             self.anti_gravity_duration_secs,
             &format!("{path}.anti_gravity_duration_secs"),
-        )
+        )?;
+        if !(self.health_potion_heal_percent > 0.0 && self.health_potion_heal_percent <= 1.0) {
+            bail!(
+                "{path}.health_potion_heal_percent must be in (0.0, 1.0], got {}",
+                self.health_potion_heal_percent
+            );
+        }
+        Ok(())
     }
 }
 

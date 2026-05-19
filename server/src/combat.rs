@@ -218,6 +218,7 @@ mod tests {
                 multi_shot_duration_secs: 1.0,
                 phasing_duration_secs: 1.0,
                 anti_gravity_duration_secs: 1.0,
+                health_potion_heal_percent: 0.25,
             },
             cookies: CookiesConfig {
                 spawning_enabled: false,

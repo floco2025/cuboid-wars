@@ -12,7 +12,9 @@ use common::{
     health::apply_damage,
     map_geometry::MapGeometry,
     physics::{CharacterVerticalVelocity, CollisionWorld},
-    protocol::{FaceDirection, Health, PlayerId, PlayerMarker, PlayerMoveIntent, Position, SFallDamage, ServerMessage},
+    protocol::{
+        FaceDirection, Health, PlayerId, PlayerMarker, PlayerMoveIntent, Position, SPlayerFallDamage, ServerMessage,
+    },
 };
 
 use crate::net::ServerToClient;
@@ -241,12 +243,12 @@ pub fn players_fall_damage_system(
                 // case additionally surfaces `SPlayerDeath` via
                 // `kill_player` below.
                 if let Some(info) = players.get(id) {
-                    let _ = info
-                        .channel
-                        .send(ServerToClient::Send(ServerMessage::FallDamage(SFallDamage {
+                    let _ = info.channel.send(ServerToClient::Send(ServerMessage::PlayerFallDamage(
+                        SPlayerFallDamage {
                             id: *id,
                             health: *health,
-                        })));
+                        },
+                    )));
                 }
                 if health.0 <= 0.0 {
                     info!("{:?} died from fall (distance {:.1}m)", id, fall_distance);

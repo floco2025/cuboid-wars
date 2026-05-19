@@ -4,7 +4,7 @@ use super::{
     actors::{handle_actor_death_message, handle_actor_hit_message, handle_actor_move_intent_message},
     components::{AssetManagers, ClientAssets},
     io::handle_pong_message,
-    items::handle_item_collected_message,
+    items::{handle_health_potion_collected_message, handle_item_collected_message},
     players::{
         handle_fall_damage_message, handle_player_death_message, handle_player_face_message, handle_player_hit_message,
         handle_player_jump_message, handle_player_move_intent_message, handle_player_shot_message,
@@ -127,9 +127,13 @@ pub fn dispatch_message(
         ServerMessage::PlayerHit(hit_msg) => {
             handle_player_hit_message(commands, players, cameras, my_player_id, hit_msg);
         }
-        ServerMessage::ActorHit(hit_msg) => {
-            handle_actor_hit_message(commands, &client_assets.asset_server, &client_assets.asset_set, hit_msg)
-        }
+        ServerMessage::ActorHit(hit_msg) => handle_actor_hit_message(
+            commands,
+            actors,
+            &client_assets.asset_server,
+            &client_assets.asset_set,
+            hit_msg,
+        ),
         ServerMessage::PlayerStatus(player_status_msg) => {
             handle_player_status_message(
                 commands,
@@ -148,9 +152,21 @@ pub fn dispatch_message(
                 cookie_msg,
                 &client_assets.asset_server,
                 &client_assets.asset_set,
+                players,
+                my_player_id,
             );
         }
-        ServerMessage::FallDamage(fall_msg) => {
+        ServerMessage::HealthPotionCollected(potion_msg) => {
+            handle_health_potion_collected_message(
+                commands,
+                potion_msg,
+                &client_assets.asset_server,
+                &client_assets.asset_set,
+                players,
+                my_player_id,
+            );
+        }
+        ServerMessage::PlayerFallDamage(fall_msg) => {
             handle_fall_damage_message(
                 commands,
                 players,

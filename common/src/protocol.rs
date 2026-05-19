@@ -206,11 +206,25 @@ pub struct SPlayerHit {
     pub health: Health,
 }
 
-// Actor was hit by a projectile (drives the `hit_actor` sound on the
-// shooter's client).
+// Player took damage from a hard landing. Unicast to the victim. Pairs with
+// `SPlayerHit` but for falls — same role (post-damage health for HUD +
+// directional camera wiggle, but on the vertical axis). Lethal falls also
+// surface `SPlayerDeath` on the same tick.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SPlayerFallDamage {
+    pub id: PlayerId,
+    pub health: Health,
+}
+
+// Actor was hit by a projectile. Drives the `hit_actor` sound on the
+// shooter's client and carries the post-hit health so floating health
+// bars update on the impact tick instead of waiting for the next
+// snapshot. Snapshot remains the system of record; this is just a
+// latency cut.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SActorHit {
     pub id: ActorId,
+    pub health: Health,
 }
 
 // Player status flags changed (power-up gained/lost, stun toggle). The same
@@ -231,18 +245,21 @@ pub struct SPlayerStatus {
 }
 
 // Player collected a cookie. Sent only to the collecting player; drives the
-// pickup sound. Unicast because no other client needs it, but still a
-// one-shot cue: the side effect is an ephemeral sound, not durable state.
+// pickup sound AND carries the post-pickup score for snappier HUD reaction.
+// The snapshot remains the system of record — this is just an early-arriving
+// redundant copy; the next `SSnapshot` will agree.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct SCookieCollected {}
+pub struct SCookieCollected {
+    pub score: i32,
+}
 
-// Player took damage from a hard landing. Unicast to the victim. Pairs with
-// `SPlayerHit` but for falls — same role (post-damage health for HUD +
-// directional camera wiggle, but on the vertical axis). Lethal falls also
-// surface `SPlayerDeath` on the same tick.
+// Player collected a health potion. Unicast one-shot for the pickup sound +
+// the post-pickup health value, so the HUD updates immediately rather than
+// waiting up to a snapshot interval. Exists because `SPlayerStatus` only
+// carries durable booleans and the potion has none to flip; the snapshot's
+// `Player.health` is still the system of record.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct SFallDamage {
-    pub id: PlayerId,
+pub struct SHealthPotionCollected {
     pub health: Health,
 }
 
@@ -314,10 +331,11 @@ pub enum ServerMessage {
     PlayerDeath(SPlayerDeath),
     ActorDeath(SActorDeath),
     PlayerHit(SPlayerHit),
+    PlayerFallDamage(SPlayerFallDamage),
     ActorHit(SActorHit),
     PlayerStatus(SPlayerStatus),
     CookieCollected(SCookieCollected),
-    FallDamage(SFallDamage),
+    HealthPotionCollected(SHealthPotionCollected),
     // Per-client state events
     QuestNew(SQuestNew),
     QuestAchieved(SQuestAchieved),

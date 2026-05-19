@@ -123,6 +123,7 @@ pub const POWER_UP_SPEED_ENABLED: bool = true;
 pub const POWER_UP_MULTI_SHOT_ENABLED: bool = true;
 pub const POWER_UP_PHASING_ENABLED: bool = false;
 pub const POWER_UP_ANTI_GRAVITY_ENABLED: bool = true;
+pub const POWER_UP_HEALTH_POTION_ENABLED: bool = true;
 
 // ============================================================================
 // Debug Flags

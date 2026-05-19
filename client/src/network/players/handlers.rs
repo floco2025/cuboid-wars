@@ -296,7 +296,7 @@ pub fn handle_fall_damage_message(
     my_player_id: PlayerId,
     asset_server: &AssetServer,
     asset_set: &AssetSet,
-    msg: SFallDamage,
+    msg: SPlayerFallDamage,
 ) {
     if let Some(player) = players.get(&msg.id) {
         commands.entity(player.entity).insert(msg.health);

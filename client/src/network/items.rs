@@ -5,6 +5,7 @@ use crate::{
     barriers::BarrierAssets,
     config::AssetSet,
     items::{ItemAssets, ItemInfo, ItemMap, spawn_item},
+    players::PlayerMap,
 };
 use common::protocol::*;
 
@@ -12,16 +13,40 @@ use common::protocol::*;
 // Item Message Handlers
 // ============================================================================
 
-// Handle item collected message - play sound effect.
+// Cookie pickup: play sound + apply the early score for HUD reaction. The
+// snapshot will confirm `score` next tick; this is just the latency cut.
 pub fn handle_item_collected_message(
     commands: &mut Commands,
-    _msg: SCookieCollected,
+    msg: SCookieCollected,
     asset_server: &AssetServer,
     asset_set: &AssetSet,
+    players: &mut PlayerMap,
+    my_player_id: PlayerId,
 ) {
-    // Play sound - this message is only sent to the player who collected it
+    if let Some(info) = players.get_mut(&my_player_id) {
+        info.score = msg.score;
+    }
     commands.spawn((
         AudioPlayer::new(asset_server.load(asset_set.player_sound("collect_cookie").to_owned())),
+        PlaybackSettings::DESPAWN,
+    ));
+}
+
+// Health potion pickup: play sound + apply the early Health for the HUD bar.
+// The snapshot will confirm `Health` next tick; this is just the latency cut.
+pub fn handle_health_potion_collected_message(
+    commands: &mut Commands,
+    msg: SHealthPotionCollected,
+    asset_server: &AssetServer,
+    asset_set: &AssetSet,
+    players: &PlayerMap,
+    my_player_id: PlayerId,
+) {
+    if let Some(info) = players.get(&my_player_id) {
+        commands.entity(info.entity).insert(msg.health);
+    }
+    commands.spawn((
+        AudioPlayer::new(asset_server.load(asset_set.player_sound("collect_power_up").to_owned())),
         PlaybackSettings::DESPAWN,
     ));
 }

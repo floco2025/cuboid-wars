@@ -143,11 +143,17 @@ pub fn handle_actor_death_message(
 
 pub fn handle_actor_hit_message(
     commands: &mut Commands,
+    actors: &ActorMap,
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
     msg: SActorHit,
 ) {
     trace!("{:?} was hit", msg.id);
+    // Early-apply the post-hit health so the floating health bar drops on
+    // the impact tick instead of waiting for the next snapshot.
+    if let Some(info) = actors.get(&msg.id) {
+        commands.entity(info.entity).insert(msg.health);
+    }
     commands.spawn((
         AudioPlayer::new(asset_server.load(asset_set.player_sound("hit_actor").to_owned())),
         PlaybackSettings::DESPAWN,

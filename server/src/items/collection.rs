@@ -7,8 +7,13 @@ use crate::{
     resources::{ItemMap, PlayerMap, record_cookie_for_quests},
 };
 use common::{
+    config::GameplayConfig,
+    health::regenerate_health,
     physics::character_overlaps_item,
-    protocol::{ItemId, ItemMarker, ItemType, PlayerId, PlayerMarker, Position, SCookieCollected, ServerMessage},
+    protocol::{
+        Health, ItemId, ItemMarker, ItemType, PlayerId, PlayerMarker, Position, SCookieCollected,
+        SHealthPotionCollected, ServerMessage,
+    },
 };
 
 const ITEM_COLLECTION_RADIUS: f32 = 1.0;
@@ -19,8 +24,10 @@ pub fn item_collection_system(
     mut players: ResMut<PlayerMap>,
     mut items: ResMut<ItemMap>,
     character_positions: Query<&Position, With<PlayerMarker>>,
+    mut player_health: Query<&mut Health, With<PlayerMarker>>,
     item_positions: Query<&Position, With<ItemMarker>>,
     server_gameplay_config: Res<ServerGameplayConfig>,
+    gameplay_config: Res<GameplayConfig>,
 ) {
     let items_to_collect: Vec<(PlayerId, ItemId, ItemType)> = items
         .iter()
@@ -71,6 +78,16 @@ pub fn item_collection_system(
                 &server_gameplay_config,
                 &mut status_broadcasts,
             ),
+            ItemType::HealthPotion => collect_health_potion(
+                &mut commands,
+                &mut players,
+                &mut items,
+                &mut player_health,
+                player_id,
+                item_id,
+                &server_gameplay_config,
+                &gameplay_config,
+            ),
             ItemType::SpeedPowerUp
             | ItemType::MultiShotPowerUp
             | ItemType::PhasingPowerUp
@@ -109,9 +126,9 @@ fn collect_cookie(
     let achievements = record_cookie_for_quests(player_info, &server_gameplay_config.quests);
     let _ = player_info
         .channel
-        .send(ServerToClient::Send(ServerMessage::CookieCollected(
-            SCookieCollected {},
-        )));
+        .send(ServerToClient::Send(ServerMessage::CookieCollected(SCookieCollected {
+            score: player_info.score,
+        })));
     for msg in achievements {
         let _ = player_info
             .channel
@@ -140,6 +157,37 @@ fn collect_key(
     if player_info.add_key(kind) {
         status_broadcasts.push(player_info.status(player_id));
     }
+}
+
+fn collect_health_potion(
+    commands: &mut Commands,
+    players: &mut PlayerMap,
+    items: &mut ItemMap,
+    player_health: &mut Query<&mut Health, With<PlayerMarker>>,
+    player_id: PlayerId,
+    item_id: ItemId,
+    server_gameplay_config: &ServerGameplayConfig,
+    gameplay_config: &GameplayConfig,
+) {
+    if let Some(item_info) = items.remove(&item_id) {
+        commands.entity(item_info.entity).despawn();
+    }
+    let Some(player_info) = players.get(&player_id) else {
+        return;
+    };
+    let Ok(mut health) = player_health.get_mut(player_info.entity) else {
+        return;
+    };
+    let max = gameplay_config.player.health().max;
+    let heal = max * server_gameplay_config.power_ups.health_potion_heal_percent;
+    regenerate_health(&mut health, max, heal);
+    // Unicast pickup cue — carries the post-heal value so the HUD bumps on
+    // the pickup tick instead of waiting for the next snapshot.
+    let _ = player_info
+        .channel
+        .send(ServerToClient::Send(ServerMessage::HealthPotionCollected(
+            SHealthPotionCollected { health: *health },
+        )));
 }
 
 fn collect_power_up(

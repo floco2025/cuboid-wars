@@ -88,6 +88,10 @@ pub enum ItemType {
     MultiShotPowerUp,
     PhasingPowerUp,
     AntiGravityPowerUp,
+    // Instant heal on pickup; no durable state on `PlayerInfo` (unlike the
+    // other power-ups, which arm a timer). The heal amount comes from
+    // `PowerUpsConfig.health_potion_heal_percent`.
+    HealthPotion,
     Cookie,
     // Key, parameterized by the barrier kind it eventually unlocks. World-
     // spawned via `KeySpawnZone`s; once collected, the kind enters the

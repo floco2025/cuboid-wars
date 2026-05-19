@@ -20,7 +20,8 @@
     "speed_duration_secs": 30.0,
     "multi_shot_duration_secs": 25.0,
     "phasing_duration_secs": 15.0,
-    "anti_gravity_duration_secs": 20.0
+    "anti_gravity_duration_secs": 20.0,
+    "health_potion_heal_percent": 0.5
   },
   "cookies": {
     "spawning_enabled": true,

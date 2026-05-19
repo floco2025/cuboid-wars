@@ -19,7 +19,7 @@ use client::{
         input_debug_colors_cycle_system, input_fullscreen_toggle_system, input_level_focus_toggle_system,
         input_movement_system, input_shooting_system,
     },
-    items::{ItemMap, items_animation_system, keys_rotate_system, setup_item_assets},
+    items::{ItemMap, items_animation_system, setup_item_assets, y_spin_system},
     map::{
         DebugColors, LevelFocusEnabled, map_level_focus_visibility_system, map_spawn_geometry_system,
         map_wall_light_emissive_system, setup_scene_lighting_system,
@@ -254,7 +254,7 @@ fn main() -> Result<()> {
                 projectiles_movement_system,
                 explosion_effects_system,
                 items_animation_system,
-                keys_rotate_system,
+                y_spin_system,
             ),
         )
         // Map rendering systems are mostly one-shot or visibility/material

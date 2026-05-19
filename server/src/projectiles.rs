@@ -223,7 +223,13 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                             info.last_damager = Some(*shooter_id);
                         }
                     }
-                    broadcast_to_all(&params.players, ServerMessage::ActorHit(SActorHit { id: actor_id }));
+                    broadcast_to_all(
+                        &params.players,
+                        ServerMessage::ActorHit(SActorHit {
+                            id: actor_id,
+                            health: *health,
+                        }),
+                    );
                     break;
                 }
                 commands.entity(proj_entity).despawn();

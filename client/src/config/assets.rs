@@ -95,6 +95,7 @@ impl AssetSet {
             ItemType::MultiShotPowerUp => "MultiShotPowerUp",
             ItemType::PhasingPowerUp => "PhasingPowerUp",
             ItemType::AntiGravityPowerUp => "AntiGravityPowerUp",
+            ItemType::HealthPotion => "HealthPotion",
             ItemType::Cookie => "Cookie",
             // Keys reuse the per-color barrier materials directly; no entry
             // in the `item_materials` table is expected.

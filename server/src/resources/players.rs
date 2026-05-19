@@ -153,7 +153,11 @@ impl PlayerInfo {
             ItemType::MultiShotPowerUp => self.multi_shot_power_up_timer = durations.multi_shot_duration_secs,
             ItemType::PhasingPowerUp => self.phasing_power_up_timer = durations.phasing_duration_secs,
             ItemType::AntiGravityPowerUp => self.anti_gravity_power_up_timer = durations.anti_gravity_duration_secs,
-            ItemType::Cookie | ItemType::Key(_) => unreachable!("only power-up items grant power-up timers"),
+            ItemType::HealthPotion | ItemType::Cookie | ItemType::Key(_) => {
+                unreachable!(
+                    "only timer-based power-ups call grant_power_up; health potion is applied to Health directly"
+                )
+            }
         }
     }
 
@@ -303,6 +307,7 @@ mod tests {
             multi_shot_duration_secs: 1.0,
             phasing_duration_secs: 1.0,
             anti_gravity_duration_secs: 1.0,
+            health_potion_heal_percent: 0.25,
         }
     }
 
