@@ -103,69 +103,6 @@ DEFAULT_ACTOR_COUNT = 1
 SPAWN_ZONE_HANDLE_PIXELS = 8.0
 STATUS_TIMEOUT_MS = 4000
 
-# Body for the Help → Tool Reference dialog. Add a new entry as `(tool name,
-# one-line description)`; rendered as "tool name: description" lines.
-TOOL_REFERENCE_ENTRIES: list[tuple[str, str]] = [
-    ("Floor", "drag cells to add floor."),
-    (
-        "Blocked Floor",
-        "drag cells to add floor slabs that never spawn items, players, or lights.",
-    ),
-    ("Actor Spawn Zone (Paint)", "drag a rectangle, then enter Kind and Count."),
-    ("Player Spawn Zone (Paint)", "drag a rectangle. No prompt — players spawn anywhere in any player zone."),
-    ("Cookie Spawn Zone (Paint)", "drag a rectangle. Cookies only spawn on walkable floors inside one of these zones."),
-    (
-        "Key Spawn Zone (Paint)",
-        "drag a rectangle, then pick a kind from the dialog. One key of that kind "
-        "spawns at the first eligible cell of the zone and respawns after collection.",
-    ),
-    (
-        "Spawn Zone (Edit)",
-        "click any spawn zone (actor, player, cookie, or key) to select; drag the body to "
-        "move, drag a corner/edge handle to resize. Right-click to edit fields (actor and "
-        "key zones) or delete.",
-    ),
-    ("Wall", "drag along grid lines to place atomic wall edges."),
-    (
-        "Barrier",
-        "drag along grid lines to place a translucent pulsating force-field; a dialog "
-        "asks which kind to use. Kinds and colors are defined in "
-        "`config/common/gameplay.json::barrier_kinds` + "
-        "`config/client/assets.json::barrier_kind_colors`.",
-    ),
-    ("Ramp (Up)", "drag from this level toward the upper level."),
-    ("Ramp (Down)", "drag from this level toward the lower level."),
-    ("Erase", "click an item, drag cells to erase an area, or right-click for the context menu."),
-    ("Erase (Keep Floors)", "erase walls, ramps, and spawn zones while preserving floor and inaccessible floor cells."),
-    (
-        "Light",
-        "click a cell near a wall to add a wall light on that side; click an existing "
-        "light marker to remove it. Use Edit → Auto-Place Lights to fill the current "
-        "level on a stride; Edit → Clear Lights On Level to start over.",
-    ),
-    ("Erase Lights", "drag a rectangle to remove every light inside it on the current level."),
-    (
-        "Pressure Plate",
-        "left-click a cell to place a plate; a dialog asks which barrier kind. While enough "
-        "plates of a kind are pressed, every barrier of that kind opens globally. Right-click "
-        "a plate to remove it.",
-    ),
-    (
-        "Floor Material",
-        "click a single floor cell, or drag a rectangle to cover many; the dialog assigns "
-        "materials to every face.",
-    ),
-    (
-        "Wall Material",
-        "click a single wall to select it, or drag along grid lines to span many; the dialog "
-        "assigns materials to every face.",
-    ),
-    (
-        "Ramp Material",
-        "click any cell of a ramp, or drag a rectangle covering one or more ramps; the dialog "
-        "assigns materials to every face.",
-    ),
-]
 
 
 MIN_CELL = 12.0

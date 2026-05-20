@@ -6,8 +6,8 @@ import copy
 
 from PySide6.QtWidgets import QInputDialog, QMessageBox
 
-from .constants import SPAWN_ZONE_LISTS, TOOL_REFERENCE_ENTRIES
-from .dialogs import ResizeMapDialog
+from .constants import SPAWN_ZONE_LISTS
+from .dialogs import ResizeMapDialog, ToolReferenceDialog
 from .geometry import level_label, resize_map_data
 
 
@@ -171,20 +171,4 @@ class StructureMixin:
         self.apply_change("Remove Level", after)
 
     def show_tool_reference(self) -> None:
-        tools = "\n".join(f"{tool}: {desc}" for tool, desc in TOOL_REFERENCE_ENTRIES)
-        shortcuts = "\n".join(
-            f"  {key}  {action}"
-            for key, action in [
-                ("↑ / ↓", "next / previous level"),
-                ("← / →", "previous / next tool"),
-                ("M", "toggle Show Material Overlay"),
-                ("Ctrl/Cmd+Z / Ctrl/Cmd+Shift+Z", "undo / redo"),
-                ("Ctrl/Cmd+O", "open"),
-                ("Ctrl/Cmd+S", "save"),
-                ("Ctrl/Cmd+Shift+S", "save as"),
-                ("Ctrl/Cmd+N", "new map"),
-                ("Ctrl/Cmd+Q", "quit"),
-            ]
-        )
-        body = f"{tools}\n\nKeyboard shortcuts:\n{shortcuts}"
-        QMessageBox.information(self, "Tool Reference", body)
+        ToolReferenceDialog.open_for(self)
