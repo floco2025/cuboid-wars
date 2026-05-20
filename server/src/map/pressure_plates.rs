@@ -1,11 +1,14 @@
 use bevy::prelude::*;
 use std::collections::{HashMap, HashSet};
 
-use crate::resources::{MapConfig, PlayerMap, PressurePlate};
+use crate::{
+    network::broadcast_to_all,
+    resources::{MapConfig, PlayerMap, PressurePlate},
+};
 use common::{
     constants::{GRID_CELL_SIZE, LEVEL_HEIGHT},
     map_geometry::MapGeometry,
-    protocol::{BarrierKindId, PlayerMarker, Position},
+    protocol::{BarrierKindId, PlayerMarker, Position, SPressurePlatePressed, SPressurePlateReleased, ServerMessage},
 };
 
 // World-space test: is `pos` inside this plate's inner 25%-by-area square AND
@@ -49,11 +52,16 @@ pub fn compute_open_barrier_kinds_system(
     players: Res<PlayerMap>,
     positions: Query<&Position, With<PlayerMarker>>,
     mut open: ResMut<OpenBarrierKinds>,
+    // Plate indices held last tick. Used to fire `SPressurePlatePressed`
+    // only on the unpressed→pressed edge (step-on cue), not every tick a
+    // player keeps standing.
+    mut prev_held: Local<HashSet<usize>>,
 ) {
     if map_config.pressure_plates.is_empty() {
         if !open.0.is_empty() {
             open.0.clear();
         }
+        prev_held.clear();
         return;
     }
 
@@ -62,15 +70,15 @@ pub fn compute_open_barrier_kinds_system(
         .filter(|(_, info)| info.logged_in && !info.is_dead())
         .count();
 
-    // For each kind, count total plates and gather the indices of currently-
-    // held plates. We dedupe held plates per kind (multiple players on one
-    // plate still count once).
+    // Per-tick: which plate indices are held, grouped per kind for the
+    // open-set computation and flat for edge-trigger detection.
     let mut plates_per_kind: HashMap<BarrierKindId, usize> = HashMap::new();
     for plate in &map_config.pressure_plates {
         *plates_per_kind.entry(plate.kind).or_insert(0) += 1;
     }
 
     let mut held_per_kind: HashMap<BarrierKindId, HashSet<usize>> = HashMap::new();
+    let mut held_indices: HashSet<usize> = HashSet::new();
     for (idx, plate) in map_config.pressure_plates.iter().enumerate() {
         let mut held = false;
         for (_, info) in players.iter() {
@@ -87,8 +95,24 @@ pub fn compute_open_barrier_kinds_system(
         }
         if held {
             held_per_kind.entry(plate.kind).or_default().insert(idx);
+            held_indices.insert(idx);
         }
     }
+
+    // Edge-triggered cues: one broadcast per plate that flipped this tick.
+    // Step-on → `PressurePlatePressed`; step-off (last player leaves) →
+    // `PressurePlateReleased`. Persistent state lives in `OpenBarrierKinds`
+    // + snapshot — these are pure click/clunk side-effects.
+    for _ in held_indices.difference(&prev_held) {
+        broadcast_to_all(&players, ServerMessage::PressurePlatePressed(SPressurePlatePressed {}));
+    }
+    for _ in prev_held.difference(&held_indices) {
+        broadcast_to_all(
+            &players,
+            ServerMessage::PressurePlateReleased(SPressurePlateReleased {}),
+        );
+    }
+    *prev_held = held_indices;
 
     let mut next = Vec::new();
     for (kind, plates_for_kind) in &plates_per_kind {

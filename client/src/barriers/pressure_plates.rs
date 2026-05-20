@@ -51,7 +51,7 @@ pub fn pressure_plates_spawn_system(
             PressurePlateMarker,
             MapLevel(plate.level),
             Mesh3d(mesh.clone()),
-            MeshMaterial3d(assets.material_for(plate.kind).clone()),
+            MeshMaterial3d(assets.material_for_plate(plate.kind).clone()),
             Transform::from_translation(Vec3::new(plate.center_x, center_y, plate.center_z)),
             Visibility::Visible,
         ));

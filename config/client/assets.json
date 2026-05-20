@@ -254,7 +254,9 @@
       "hit_actor": "sounds/impactMetal_medium_003.ogg",
       "barrier_impact": "sounds/impactPlank_medium_001.ogg",
       "death": "sounds/Game Over.wav",
-      "quest_complete": "sounds/You Win.wav"
+      "quest_complete": "sounds/You Win.wav",
+      "plate_press": "sounds/doorOpen_1.ogg",
+      "plate_release": "sounds/doorClose_2.ogg"
     }
   },
   "actors": {

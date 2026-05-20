@@ -267,6 +267,18 @@ pub struct SHealthPotionCollected {
     pub health: Health,
 }
 
+// A pressure plate transitioned from "unpressed" to "pressed" this tick
+// (some alive player just stepped onto its inner-25% rect). Broadcast —
+// any client may hear the click. Edge-triggered side-effect; durable
+// state (which kinds are currently open) rides `SSnapshot`.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SPressurePlatePressed {}
+
+// Mirror of `SPressurePlatePressed`: a plate transitioned from "pressed"
+// to "unpressed" this tick (last alive player stepped off). Broadcast.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SPressurePlateReleased {}
+
 // --- Per-client state events (private, durable) ---
 
 // New quest assigned to a specific player. Unicast; carries the
@@ -340,6 +352,8 @@ pub enum ServerMessage {
     PlayerStatus(SPlayerStatus),
     CookieCollected(SCookieCollected),
     HealthPotionCollected(SHealthPotionCollected),
+    PressurePlatePressed(SPressurePlatePressed),
+    PressurePlateReleased(SPressurePlateReleased),
     // Per-client state events
     QuestNew(SQuestNew),
     QuestAchieved(SQuestAchieved),

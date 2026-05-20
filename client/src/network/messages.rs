@@ -199,5 +199,25 @@ pub fn dispatch_message(
                 quest_msg,
             );
         }
+        ServerMessage::PressurePlatePressed(_) => {
+            commands.spawn((
+                AudioPlayer::new(
+                    client_assets
+                        .asset_server
+                        .load(client_assets.asset_set.player_sound("plate_press").to_owned()),
+                ),
+                PlaybackSettings::DESPAWN,
+            ));
+        }
+        ServerMessage::PressurePlateReleased(_) => {
+            commands.spawn((
+                AudioPlayer::new(
+                    client_assets
+                        .asset_server
+                        .load(client_assets.asset_set.player_sound("plate_release").to_owned()),
+                ),
+                PlaybackSettings::DESPAWN,
+            ));
+        }
     }
 }
