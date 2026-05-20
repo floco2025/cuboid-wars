@@ -110,12 +110,8 @@ class EditorWindow(
         self.level_combo.currentIndexChanged.connect(self.select_level)
         self.mode_combo = self._build_mode_combo()
         self.mode_combo.currentTextChanged.connect(self.set_mode)
-        # Status bar:
-        #   - Left (stretch): persistent "last action" feedback.
-        #   - Right (compact, errors only): red structural-issue badge,
-        #     hidden when the map is valid. Help/hint text lives in the
-        #     Help → Tool Reference dialog only — inline hints were either
-        #     truncated or wider than the window, so they were removed.
+        # Status bar: left = persistent last-action message, right = red
+        # structural-issue badge (hidden when the map is valid).
         self.last_action_label = QLabel()
         self.status_label = QLabel()
         # Track the previous undo-stack index so transitions can be labelled
@@ -140,10 +136,8 @@ class EditorWindow(
     # === Menus & toolbar ===
 
     def _build_mode_combo(self) -> QComboBox:
-        # Grouped picker: each category contributes a disabled header row
-        # followed by its modes. No per-item tooltips — the help blurbs were
-        # too long for a tooltip and inconsistently capitalized. The Help →
-        # Tool Reference dialog is the canonical place for that text.
+        # Each category contributes a disabled header row followed by its
+        # modes. Tool descriptions live in Help → Tool Reference.
         combo = QComboBox()
         model = QStandardItemModel(combo)
         header_font = QFont()
@@ -434,17 +428,12 @@ class EditorWindow(
             self.ramp_direction_label.setText("")
 
     def _set_last_action(self, message: str) -> None:
-        # Persistent "last action" — supersedes the old 4-second flash. Every
-        # apply_change and every soft-rejection (`_flash_status`) routes
-        # through here so the user always knows what just happened.
         self.last_action_label.setText(message)
 
     def _flash_status(self, message: str) -> None:
-        # Kept name for compatibility with existing call sites; now writes to
-        # the persistent "last action" zone instead of the 4-second flash so
-        # rejection messages don't vanish before the user reads them.
+        # Soft-rejection feedback: pin the message to the last-action label
+        # and also raise a transient toast so it's noticed immediately.
         self._set_last_action(message)
-        # Also briefly highlight as a transient cue.
         self.statusBar().showMessage(message, STATUS_TIMEOUT_MS)
 
     def _on_undo_index_changed(self, new_index: int) -> None:

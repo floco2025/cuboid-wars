@@ -81,10 +81,9 @@ class EraseMixin:
             arr = [barrier["c0"], barrier["r0"], barrier["c1"], barrier["r1"]]
             if point_near_wall(px, py, arr):
                 return ("Barrier", tuple(arr))
-        # Search every zone list (actor, player, cookie) in reverse so the
-        # most-recently-painted entry on top wins. Actor first so when an
-        # actor zone shares a cell with a player or cookie zone, the actor
-        # zone is preferred (its label is the one users edit most often).
+        # Walk every zone list in reverse so the most-recently-painted entry
+        # wins. SPAWN_ZONE_LISTS is ordered actor → player → cookie → key, so
+        # when multiple zone types share a cell the actor zone is preferred.
         for list_name in SPAWN_ZONE_LISTS:
             for idx in range(len(self.map_data[list_name]) - 1, -1, -1):
                 zone = self.map_data[list_name][idx]

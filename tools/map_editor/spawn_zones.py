@@ -104,14 +104,14 @@ class SpawnZoneEditMixin:
     def update_spawn_zone_edit_drag(self, pos, cell_size: float) -> None:
         if self.spawn_zone_drag is None:
             return
-        self._drag_current_cell_pos = (pos.x() / cell_size, pos.y() / cell_size)
+        self.spawn_zone_drag.current = (pos.x() / cell_size, pos.y() / cell_size)
 
     def spawn_zone_candidate_rect(self) -> tuple[int, int, int, int] | None:
         drag = self.spawn_zone_drag
-        if drag is None or not hasattr(self, "_drag_current_cell_pos"):
+        if drag is None or drag.current is None:
             return None
         ox, oy = drag.origin
-        cx, cy = self._drag_current_cell_pos
+        cx, cy = drag.current
         dx_cells = round(cx - ox)
         dy_cells = round(cy - oy)
         c0, r0, c1, r1 = zone_rect(drag.original_zone)
@@ -138,8 +138,6 @@ class SpawnZoneEditMixin:
             return
         candidate = self.spawn_zone_candidate_rect()
         self.spawn_zone_drag = None
-        if hasattr(self, "_drag_current_cell_pos"):
-            del self._drag_current_cell_pos
         if candidate is None:
             return
         c0, r0, c1, r1 = candidate

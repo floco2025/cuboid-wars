@@ -22,3 +22,4 @@ class SpawnZoneDrag:
     handle: str  # "move" or one of "n"/"s"/"e"/"w"/"nw"/"ne"/"sw"/"se"
     origin: tuple[float, float]  # cursor position when drag started, in cell coords
     original_zone: dict  # snapshot of the zone before the drag
+    current: tuple[float, float] | None = None  # latest cursor position, set on each mouse-move

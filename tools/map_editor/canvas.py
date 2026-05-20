@@ -11,9 +11,11 @@ from PySide6.QtWidgets import QLabel, QMenu, QSizePolicy, QWidget
 from .constants import (
     ACTOR_ZONE_LIST,
     BARRIER_KIND_COLORS,
+    COOKIE_ZONE_LIST,
     EDITOR_CELL,
     ERASE_MODES,
     FLOOR_HIT_KINDS,
+    KEY_ZONE_LIST,
     MATERIAL_MODES,
     MIN_CELL,
     MODE_ACTOR_SPAWN_PAINT,
@@ -32,6 +34,7 @@ from .constants import (
     MODE_SPAWN_ZONE_EDIT,
     MODE_WALL,
     MODE_WALL_MATERIAL,
+    PLAYER_ZONE_LIST,
     RAMP_MODES,
     SPAWN_PAINT_MODES,
     SPAWN_ZONE_HANDLE_PIXELS,
@@ -164,12 +167,10 @@ class Canvas(QWidget):
         # Lights sit on top of wall lines so the markers stay visible.
         self.paint_lights(painter, level, cell)
         self._paint_pending_auto_lights(painter, cell, level_idx)
-        # Hover highlight is drawn last so it sits on top of everything.
+        # Hover passes draw last so they sit on top of everything else. The
+        # highlight + ghost paths fire on disjoint mode sets and don't
+        # overlap.
         self.paint_hover_highlight(painter, cell, level_idx)
-        # Per-mode hover ghost (shows what the click/drag would affect).
-        # Drawn after the hover highlight so material-mode tooltips still
-        # win; the two systems don't overlap because they fire on
-        # disjoint mode sets.
         self._paint_hover_ghost(painter, cell)
 
     def _paint_hover_ghost(self, painter: QPainter, cell: float) -> None:
@@ -403,16 +404,16 @@ class Canvas(QWidget):
     def paint_spawn_zones(self, painter: QPainter, cell: float, level_idx: int) -> None:
         # Cookie zones first (background), then keys, then player, then actor
         # (top — has the kind label).
-        for zone in self.window.map_data["cookie_spawn_zones"]:
+        for zone in self.window.map_data[COOKIE_ZONE_LIST]:
             if zone["level"] == level_idx:
                 self.paint_cookie_spawn_zone(painter, zone, cell)
-        for zone in self.window.map_data["key_spawn_zones"]:
+        for zone in self.window.map_data[KEY_ZONE_LIST]:
             if zone["level"] == level_idx:
                 self.paint_key_spawn_zone(painter, zone, cell)
-        for zone in self.window.map_data["player_spawn_zones"]:
+        for zone in self.window.map_data[PLAYER_ZONE_LIST]:
             if zone["level"] == level_idx:
                 self.paint_player_spawn_zone(painter, zone, cell)
-        for zone in self.window.map_data["actor_spawn_zones"]:
+        for zone in self.window.map_data[ACTOR_ZONE_LIST]:
             if zone["level"] == level_idx:
                 self.paint_actor_spawn_zone(painter, zone, cell)
 
@@ -783,9 +784,9 @@ class Canvas(QWidget):
         # without first switching to Edit mode.
         mode_to_zone_list = {
             MODE_ACTOR_SPAWN_PAINT: ACTOR_ZONE_LIST,
-            MODE_PLAYER_SPAWN_PAINT: "player_spawn_zones",
-            MODE_COOKIE_SPAWN_PAINT: "cookie_spawn_zones",
-            MODE_KEY_SPAWN_PAINT: "key_spawn_zones",
+            MODE_PLAYER_SPAWN_PAINT: PLAYER_ZONE_LIST,
+            MODE_COOKIE_SPAWN_PAINT: COOKIE_ZONE_LIST,
+            MODE_KEY_SPAWN_PAINT: KEY_ZONE_LIST,
         }
         if self.window.mode == MODE_SPAWN_ZONE_EDIT or self.window.mode in mode_to_zone_list:
             picked = self.window.spawn_zone_at(event.pos(), self.cell_size())

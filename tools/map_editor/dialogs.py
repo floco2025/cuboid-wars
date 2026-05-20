@@ -70,13 +70,9 @@ class ActorSpawnFieldsDialog(QDialog):
 
 
 class BarrierKindDialog(QDialog):
-    """Modal dialog asking which barrier kind to paint.
-
-    Used both after dragging a new barrier and (later) when right-clicking an
-    existing barrier to change its kind. The list of kinds comes from the
-    config-loaded `BARRIER_KIND_TABLE`. Returns the chosen id string on
-    accept; None on cancel.
-    """
+    """Modal dialog asking which barrier kind to use. The list of kinds comes
+    from the config-loaded `BARRIER_KIND_TABLE`. Returns the chosen id string
+    on accept, None on cancel."""
 
     def __init__(self, parent, title: str, current: str | None):
         super().__init__(parent)
