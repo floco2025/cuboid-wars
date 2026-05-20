@@ -252,7 +252,9 @@
       "hit_wall": "sounds/impactGlass_light_000.ogg",
       "hit_player": "sounds/impactGeneric_light_001.ogg",
       "hit_actor": "sounds/impactMetal_medium_003.ogg",
-      "barrier_impact": "sounds/impactPlank_medium_001.ogg"
+      "barrier_impact": "sounds/impactPlank_medium_001.ogg",
+      "death": "sounds/Game Over.wav",
+      "quest_complete": "sounds/You Win.wav"
     }
   },
   "actors": {

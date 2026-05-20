@@ -84,6 +84,8 @@ pub fn dispatch_message(
                 &client_assets.client_settings,
                 &client_assets.banners,
                 my_player_id,
+                &client_assets.asset_server,
+                &client_assets.asset_set,
                 death_msg,
             );
         }
@@ -192,6 +194,8 @@ pub fn dispatch_message(
                 &mut client_assets.active_quests,
                 &client_assets.client_settings,
                 &client_assets.banners,
+                &client_assets.asset_server,
+                &client_assets.asset_set,
                 quest_msg,
             );
         }

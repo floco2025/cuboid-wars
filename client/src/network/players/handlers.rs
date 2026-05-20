@@ -193,6 +193,8 @@ pub fn handle_player_death_message(
     client_settings: &ClientSettings,
     existing_banners: &Query<Entity, With<HudBannerMarker>>,
     my_player_id: PlayerId,
+    asset_server: &AssetServer,
+    asset_set: &AssetSet,
     msg: SPlayerDeath,
 ) {
     let victim_name = players.get(&msg.id).map(|info| info.name.clone());
@@ -233,6 +235,10 @@ pub fn handle_player_death_message(
             banner.death_duration_secs,
             client_settings.hud.font_sizes.banner,
         );
+        commands.spawn((
+            AudioPlayer::new(asset_server.load(asset_set.player_sound("death").to_owned())),
+            PlaybackSettings::DESPAWN,
+        ));
     } else if let Some(info) = players.remove(&msg.id) {
         commands.entity(info.entity).despawn();
     }
@@ -348,12 +354,14 @@ pub fn handle_quest_new_message(
 }
 
 // Server says the local client just completed a quest. Stop showing the
-// announcement on future respawns and fire the achieved banner.
+// announcement on future respawns and fire the achieved banner + sound.
 pub fn handle_quest_achieved_message(
     commands: &mut Commands,
     active_quests: &mut ActiveQuests,
     client_settings: &ClientSettings,
     existing_banners: &Query<Entity, With<HudBannerMarker>>,
+    asset_server: &AssetServer,
+    asset_set: &AssetSet,
     msg: SQuestAchieved,
 ) {
     let banner = &client_settings.hud.banner;
@@ -365,6 +373,10 @@ pub fn handle_quest_achieved_message(
         banner.achieved_duration_secs,
         client_settings.hud.font_sizes.banner,
     );
+    commands.spawn((
+        AudioPlayer::new(asset_server.load(asset_set.player_sound("quest_complete").to_owned())),
+        PlaybackSettings::DESPAWN,
+    ));
 }
 
 #[cfg(test)]
@@ -392,20 +404,28 @@ mod tests {
         use bevy::ecs::system::SystemState;
 
         let my_id = PlayerId(7);
-        let mut world = World::new();
-        let entity = world.spawn((Health(42.0), Visibility::Visible)).id();
+        // App-with-AssetPlugin so the handler's `asset_server.load(...)` for
+        // the death sound has a real `AssetServer` to call against — the
+        // load just queues, no actual sound playback happens in tests.
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_plugins(bevy::asset::AssetPlugin::default())
+            .init_asset::<bevy::audio::AudioSource>();
+        let entity = app.world_mut().spawn((Health(42.0), Visibility::Visible)).id();
+        let world = app.world_mut();
         let mut players = PlayerMap::default();
         players.insert(my_id, player_info(entity, "Alice"));
         let mut local_player_info = LocalPlayerInfo::default();
         let mut feed = GameMessageFeed::default();
         let client_settings = ClientSettings::load_default().expect("load default client settings");
-        let mut banner_state: SystemState<Query<Entity, With<crate::ui::HudBannerMarker>>> =
-            SystemState::new(&mut world);
-        let banners = banner_state.get(&world);
+        let asset_set = AssetSet::load_default().expect("load default asset set");
+        let asset_server = world.resource::<AssetServer>().clone();
+        let mut banner_state: SystemState<Query<Entity, With<crate::ui::HudBannerMarker>>> = SystemState::new(world);
+        let banners = banner_state.get(world);
         let mut commands_queue = bevy::ecs::world::CommandQueue::default();
 
         {
-            let mut commands = bevy::ecs::system::Commands::new(&mut commands_queue, &world);
+            let mut commands = bevy::ecs::system::Commands::new(&mut commands_queue, world);
             handle_player_death_message(
                 &mut commands,
                 &mut players,
@@ -414,6 +434,8 @@ mod tests {
                 &client_settings,
                 &banners,
                 my_id,
+                &asset_server,
+                &asset_set,
                 SPlayerDeath {
                     id: my_id,
                     pos: Position::default(),
@@ -421,7 +443,7 @@ mod tests {
                 },
             );
         }
-        commands_queue.apply(&mut world);
+        commands_queue.apply(world);
 
         assert_eq!(world.entity(entity).get::<Health>(), Some(&Health(0.0)));
         assert_eq!(world.entity(entity).get::<Visibility>(), Some(&Visibility::Hidden));
