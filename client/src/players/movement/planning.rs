@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
     constants::{ALWAYS_ANTI_GRAVITY, ALWAYS_PHASING, SNAPSHOT_SECS},
-    physics::{CharacterMovePlan, CollisionWorld, step_character_movement},
+    physics::{CharacterMovePlan, CollisionWorld, passable_barrier_kinds, step_character_movement},
     protocol::{PlayerId, Position},
 };
 
@@ -23,6 +23,7 @@ pub(crate) fn plan_player_moves(
     collision_world: Option<&CollisionWorld>,
     gameplay_config: &GameplayConfig,
     players: &mut PlayerMap,
+    open_barrier_kinds: &crate::barriers::OpenBarrierKinds,
     query: &mut PlayerMovementQuery,
     planned_moves: &mut Vec<CharacterMovePlan>,
 ) {
@@ -85,13 +86,17 @@ pub(crate) fn plan_player_moves(
             .expect("target_pos is present after out-of-sync shortcut");
 
         if let Some(collision_world) = collision_world {
+            // Same merge the server runs (`passable_barrier_kinds`) so
+            // client-side prediction agrees with server-authoritative
+            // movement about which barriers we pass through.
+            let passable_kinds = passable_barrier_kinds(held_keys, &open_barrier_kinds.0);
             let step = step_character_movement(
                 &client_pos,
                 motion.0,
                 collision_world,
                 has_phasing,
                 has_anti_gravity,
-                held_keys,
+                &passable_kinds,
                 player_physics,
                 target.x,
                 target.z,

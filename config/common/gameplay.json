@@ -31,5 +31,5 @@
       "chase_speed": 9.0
     }
   },
-  "barrier_kinds": [ "treasure", "basement", "gravity" ]
+  "barrier_kinds": [ "treasure", "basement", "gravity", "lobby" ]
 }

@@ -277,6 +277,7 @@ mod tests {
                 player_spawn_zones: Vec::new(),
                 cookie_spawn_zones: Vec::new(),
                 key_spawn_zones: Vec::new(),
+                pressure_plates: Vec::new(),
             },
             MapGeometry::new(2, 2),
         );
@@ -319,6 +320,7 @@ mod tests {
                 player_spawn_zones: Vec::new(),
                 cookie_spawn_zones: Vec::new(),
                 key_spawn_zones: Vec::new(),
+                pressure_plates: Vec::new(),
             },
             MapGeometry::new(1, 2),
         );

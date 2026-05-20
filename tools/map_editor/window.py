@@ -11,7 +11,7 @@ from PySide6.QtWidgets import QComboBox, QLabel, QMainWindow, QMenu, QToolBar
 
 from .canvas import Canvas
 from .commands import SetMapCommand
-from .constants import BARRIER_KIND_TABLE, DEFAULT_ACTOR_COUNT, MODE_FLOOR, MODES, STATUS_TIMEOUT_MS
+from .constants import BARRIER_KIND_TABLE, DEFAULT_ACTOR_COUNT, DEFAULT_ALIAS, MODE_FLOOR, MODES, STATUS_TIMEOUT_MS
 from .erase import EraseMixin
 from .file_actions import FileActionsMixin
 from .geometry import canonicalize_map, level_label
@@ -50,6 +50,7 @@ class EditorWindow(
         # picker dialog has a sensible default on the first paint.
         self.recent_barrier_kind: str | None = BARRIER_KIND_TABLE[0] if BARRIER_KIND_TABLE else None
         self.recent_key_kind: str | None = BARRIER_KIND_TABLE[0] if BARRIER_KIND_TABLE else None
+        self.recent_pressure_plate_kind: str | None = BARRIER_KIND_TABLE[0] if BARRIER_KIND_TABLE else None
         # (row_spacing, row_offset, col_spacing, col_offset) — remembered
         # across opens of the Auto-Place Lights dialog. Spacing is "cells
         # skipped between lights": 0 = every cell, 1 = every other, 2 = every
@@ -60,7 +61,10 @@ class EditorWindow(
         self.show_material_overlay = False
         # Material used as the default for newly painted floors / walls / ramps.
         # The user picks a different one from the materials palette.
-        self.current_material: str = "fiberous-plaster1-ue"
+        # Default for newly-painted segments. Must be an alias (face values
+        # are validated against `MATERIAL_ALIASES` on save) — see
+        # `DEFAULT_ALIAS` in constants.py for the selection rule.
+        self.current_material: str = DEFAULT_ALIAS
         self.materials_catalog: list[str] = load_materials_catalog(self.path)
 
         self.canvas = Canvas(self)

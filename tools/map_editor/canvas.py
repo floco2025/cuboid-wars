@@ -27,6 +27,7 @@ from .constants import (
     MODE_KEY_SPAWN_PAINT,
     MODE_LIGHT,
     MODE_PLAYER_SPAWN_PAINT,
+    MODE_PRESSURE_PLATE,
     MODE_RAMP_MATERIAL,
     MODE_SPAWN_ZONE_EDIT,
     MODE_WALL,
@@ -136,6 +137,7 @@ class Canvas(QWidget):
         # The order here is load-bearing — moving a pass changes occlusion.
         painter.fillRect(QRectF(0, 0, cols * cell, rows * cell), QColor("#111418"))
         self._paint_floors(painter, level, cell)
+        self._paint_pressure_plates(painter, cell, level_idx)
         self._paint_ramps(painter, cell, level_idx)
         self.paint_spawn_zones(painter, cell, level_idx)
         if self.window.mode == MODE_SPAWN_ZONE_EDIT:
@@ -170,6 +172,23 @@ class Canvas(QWidget):
             painter.drawLine(rect.topLeft(), rect.bottomRight())
             painter.drawLine(rect.bottomLeft(), rect.topRight())
             painter.setPen(Qt.PenStyle.NoPen)
+
+    def _paint_pressure_plates(self, painter: QPainter, cell: float, level_idx: int) -> None:
+        # Inner 50% of the cell (≈25% by area), colored by the plate's barrier
+        # kind. Matches the in-game footprint exactly.
+        plates = self.window.map_data.get("pressure_plates", [])
+        if not plates:
+            return
+        painter.setPen(Qt.PenStyle.NoPen)
+        for plate in plates:
+            if plate["level"] != level_idx:
+                continue
+            kind = plate.get("kind", "")
+            hex_color = BARRIER_KIND_COLORS.get(kind, "#38bdf8")
+            color = QColor(hex_color)
+            painter.setBrush(color)
+            inset = cell * 0.25
+            painter.drawRect(QRectF(plate["col"] * cell + inset, plate["row"] * cell + inset, cell * 0.5, cell * 0.5))
 
     def _paint_ramps(self, painter: QPainter, cell: float, level_idx: int) -> None:
         for ramp in self.window.map_data["ramps"]:
@@ -634,6 +653,13 @@ class Canvas(QWidget):
             self.window.assign_ramp_materials_rect(self.drag_start_cell, self.drag_current_cell)
         elif self.window.mode == MODE_LIGHT and self.drag_start_cell:
             self.window.toggle_light_at(event.position(), self.cell_size())
+        elif self.window.mode == MODE_PRESSURE_PLATE and self.drag_start_cell:
+            col, row = self.drag_start_cell
+            # If a plate is already here, treat the click as remove; otherwise
+            # prompt for kind and place. Right-click also removes (handled
+            # in contextMenuEvent below).
+            if not self.window.remove_pressure_plate_at(col, row):
+                self.window.prompt_and_add_pressure_plate(col, row)
         elif self.window.mode == MODE_ERASE_LIGHTS and self.drag_start_cell and self.drag_current_cell:
             self.window.erase_lights_rect(self.drag_start_cell, self.drag_current_cell)
         elif self.window.mode in ERASE_MODES:

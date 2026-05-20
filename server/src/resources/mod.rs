@@ -8,6 +8,7 @@ pub use actors::{ActorAvoidanceState, ActorInfo, ActorMap, ActorSpawnThrottles, 
 pub use items::{ItemInfo, ItemMap, ItemSpawner};
 pub use map::{
     ActorSpawnZone, Cell, CellGrid, CookieSpawnZone, EdgeGrid, KeySpawnZone, LevelGrid, MapConfig, PlayerSpawnZone,
+    PressurePlate,
 };
 pub use network::FromClientsChannel;
 pub use players::{PlayerInfo, PlayerMap, QuestState, record_cookie_for_quests};

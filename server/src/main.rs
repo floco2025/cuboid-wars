@@ -20,7 +20,7 @@ use server::{
         item_collection_system, item_despawn_system, item_initial_spawn_system, item_respawn_system, item_spawn_system,
         key_initial_spawn_system,
     },
-    map::generate_map,
+    map::{OpenBarrierKinds, compute_open_barrier_kinds_system, generate_map},
     net::accept_connections_task,
     network::{network_broadcast_snapshot_system, network_process_client_messages_system},
     players::{
@@ -102,6 +102,7 @@ async fn main() -> Result<()> {
         .insert_resource(ActorSpawner::default())
         .insert_resource(ActorSpawnThrottles::default())
         .insert_resource(FromClientsChannel::new(from_clients))
+        .insert_resource(OpenBarrierKinds::default())
         .add_systems(Startup, actor_initial_spawn_system)
         .add_systems(
             Update,
@@ -125,6 +126,9 @@ async fn main() -> Result<()> {
                     .chain(),
                 // Actor decisions are written before movement consumes them.
                 actor_behavior_system,
+                // Determine which barrier kinds are open this tick before
+                // movement reads the open set for its collision filter.
+                compute_open_barrier_kinds_system.before(characters_movement_system),
                 characters_movement_system.after(actor_behavior_system),
                 projectiles_movement_system,
                 // Actor removal handles health-zero explosions and fall cleanup.

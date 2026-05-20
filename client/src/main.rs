@@ -10,7 +10,10 @@ use tokio::{runtime::Runtime, time::Duration};
 
 use client::{
     actors::{ActorMap, actors_transform_sync_system},
-    barriers::{barriers_pulsate_system, barriers_spawn_system, setup_barrier_assets},
+    barriers::{
+        OpenBarrierKinds, barriers_pulsate_system, barriers_spawn_system, barriers_visibility_system,
+        pressure_plates_spawn_system, setup_barrier_assets,
+    },
     cameras::{CameraViewMode, TopDownCameraYaw, setup_cameras_system},
     characters::{capture_previous_tick_position_system, characters_movement_system, characters_visual_turn_system},
     config::{AssetSet, ClientSettings, OpaqueRenderer, configure_client},
@@ -163,6 +166,7 @@ fn main() -> Result<()> {
         .insert_resource(RoundTripTime::default())
         .insert_resource(FpsMeasurement::default())
         .insert_resource(LastSnapshotSeq::default())
+        .insert_resource(OpenBarrierKinds::default())
         .insert_resource(CameraViewMode::default())
         .insert_resource(TopDownCameraYaw::default())
         .insert_resource(LevelFocusEnabled::default())
@@ -267,6 +271,10 @@ fn main() -> Result<()> {
                 map_wall_light_emissive_system,
                 barriers_spawn_system,
                 barriers_pulsate_system,
+                // After `map_level_focus_visibility_system` so the open-kind
+                // override wins the per-frame race for barrier visibility.
+                barriers_visibility_system.after(map_level_focus_visibility_system),
+                pressure_plates_spawn_system,
             ),
         )
         // HUD and screen-space UI.

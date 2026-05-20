@@ -73,6 +73,7 @@ fn map_with_zones(
         player_spawn_zones,
         cookie_spawn_zones: Vec::new(),
         key_spawn_zones: Vec::new(),
+        pressure_plates: Vec::new(),
         levels,
         ramps,
     }

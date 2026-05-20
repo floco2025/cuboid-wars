@@ -24,6 +24,8 @@ pub(crate) struct MapDef {
     pub(crate) cookie_spawn_zones: Vec<CookieSpawnZoneDef>,
     #[serde(default)]
     pub(crate) key_spawn_zones: Vec<KeySpawnZoneDef>,
+    #[serde(default)]
+    pub(crate) pressure_plates: Vec<PressurePlateDef>,
     pub(crate) levels: Vec<LevelDef>,
     #[serde(default)]
     pub(crate) ramps: Vec<RampDef>,
@@ -124,6 +126,17 @@ pub(crate) struct CookieSpawnZoneDef {
     pub(crate) level: u32,
     pub(crate) cols: [i32; 2],
     pub(crate) rows: [i32; 2],
+}
+
+// A single-cell plate tagged with a barrier kind. While the per-kind plate
+// threshold is met (see `compute_open_barrier_kinds_system`), every barrier
+// of that kind opens globally. Kind references `BarrierKindTable` by id.
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+pub(crate) struct PressurePlateDef {
+    pub(crate) level: u32,
+    pub(crate) col: i32,
+    pub(crate) row: i32,
+    pub(crate) kind: String,
 }
 
 // Where a single key of a given kind spawns. One zone produces one world

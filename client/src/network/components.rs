@@ -70,6 +70,7 @@ pub struct ClientAssets<'w, 's> {
     pub game_message_feed: ResMut<'w, GameMessageFeed>,
     pub seen_player_ids: ResMut<'w, SeenPlayerIds>,
     pub active_quests: ResMut<'w, ActiveQuests>,
+    pub open_barrier_kinds: ResMut<'w, crate::barriers::OpenBarrierKinds>,
     // Live banner entities — used by `spawn_hud_banner` to enforce the
     // single-banner invariant (despawn any existing before inserting the
     // new one). Bundled here so `dispatch_message` stays under Bevy's

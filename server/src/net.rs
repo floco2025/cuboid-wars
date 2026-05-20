@@ -64,8 +64,13 @@ pub enum ClientToServer {
     Disconnected,
 }
 
-// Message from server to per client network I/O task
+// Message from server to per client network I/O task. `Send` carries the
+// full `ServerMessage` (large; `SSnapshot` dominates), but values live
+// briefly inside an mpsc queue and the `Close` padding is bounded by the
+// queue depth — boxing here would force `Box::new` at every send + a deref
+// at every recv with no real memory win.
 #[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
 pub enum ServerToClient {
     Send(ServerMessage),
     Close,

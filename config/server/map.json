@@ -50,6 +50,12 @@
       {"level": 3, "cols": [22, 23], "rows": [7, 8], "kind": "treasure"},
       {"level": 3, "cols": [7, 8], "rows": [22, 23], "kind": "treasure"}
     ],
+    "pressure_plates": [
+      {"level": 1, "col": 13, "row": 13, "kind": "lobby"},
+      {"level": 1, "col": 16, "row": 13, "kind": "lobby"},
+      {"level": 1, "col": 13, "row": 16, "kind": "lobby"},
+      {"level": 1, "col": 16, "row": 16, "kind": "lobby"}
+    ],
     "levels": [
       {
         "name": "basement",
@@ -2080,7 +2086,6 @@
           {"c0": 21, "r0": 10, "c1": 21, "r1": 11, "all": "ground-interior-wall"},
           {"c0": 21, "r0": 11, "c1": 21, "r1": 12, "all": "ground-interior-wall"},
           {"c0": 21, "r0": 12, "c1": 21, "r1": 13, "all": "ground-interior-wall"},
-          {"c0": 21, "r0": 13, "c1": 21, "r1": 14, "all": "ground-interior-wall"},
           {"c0": 21, "r0": 14, "c1": 21, "r1": 15, "all": "ground-interior-wall"},
           {"c0": 21, "r0": 15, "c1": 21, "r1": 16, "all": "ground-interior-wall"},
           {"c0": 21, "r0": 17, "c1": 21, "r1": 18, "all": "ground-interior-wall"},
@@ -2096,10 +2101,10 @@
           {"c0": 22, "r0": 10, "c1": 22, "r1": 11, "all": "ground-interior-wall"},
           {"c0": 22, "r0": 11, "c1": 22, "r1": 12, "all": "ground-interior-wall"},
           {"c0": 22, "r0": 11, "c1": 23, "r1": 11, "all": "ground-interior-wall"},
-          {"c0": 22, "r0": 13, "c1": 22, "r1": 14, "all": "ground-interior-wall"},
+          {"c0": 22, "r0": 12, "c1": 22, "r1": 13, "all": "ground-interior-wall"},
           {"c0": 22, "r0": 14, "c1": 22, "r1": 15, "all": "ground-interior-wall"},
           {"c0": 22, "r0": 14, "c1": 23, "r1": 14, "all": "ground-interior-wall"},
-          {"c0": 22, "r0": 16, "c1": 22, "r1": 17, "all": "ground-interior-wall"},
+          {"c0": 22, "r0": 15, "c1": 22, "r1": 16, "all": "ground-interior-wall"},
           {"c0": 22, "r0": 17, "c1": 22, "r1": 18, "all": "ground-interior-wall"},
           {"c0": 22, "r0": 17, "c1": 23, "r1": 17, "all": "ground-interior-wall"},
           {"c0": 22, "r0": 19, "c1": 22, "r1": 20, "all": "ground-interior-wall"},
@@ -2194,7 +2199,9 @@
         ],
         "barriers": [
           {"c0": 7, "r0": 21, "c1": 8, "r1": 21, "kind": "basement"},
-          {"c0": 20, "r0": 8, "c1": 21, "r1": 8, "kind": "basement"}
+          {"c0": 9, "r0": 13, "c1": 9, "r1": 14, "kind": "lobby"},
+          {"c0": 20, "r0": 8, "c1": 21, "r1": 8, "kind": "basement"},
+          {"c0": 22, "r0": 16, "c1": 22, "r1": 17, "kind": "lobby"}
         ],
         "lights": [
           {"col": 5, "row": 5, "side": "N"},
@@ -2291,10 +2298,6 @@
           {"col": 13, "row": 12, "side": "N"},
           {"col": 16, "row": 12, "side": "N"},
           {"col": 5, "row": 13, "side": "W"},
-          {"col": 20, "row": 13, "side": "E"},
-          {"col": 21, "row": 13, "side": "E"},
-          {"col": 21, "row": 13, "side": "W"},
-          {"col": 22, "row": 13, "side": "W"},
           {"col": 23, "row": 13, "side": "S"},
           {"col": 24, "row": 13, "side": "E"},
           {"col": 5, "row": 14, "side": "S"},
@@ -2316,7 +2319,9 @@
           {"col": 18, "row": 15, "side": "W"},
           {"col": 19, "row": 15, "side": "N"},
           {"col": 20, "row": 15, "side": "E"},
+          {"col": 21, "row": 15, "side": "E"},
           {"col": 21, "row": 15, "side": "W"},
+          {"col": 22, "row": 15, "side": "W"},
           {"col": 24, "row": 15, "side": "E"},
           {"col": 23, "row": 16, "side": "S"},
           {"col": 5, "row": 17, "side": "S"},

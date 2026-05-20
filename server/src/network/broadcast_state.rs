@@ -1,6 +1,9 @@
 use bevy::prelude::*;
 
-use crate::resources::{ActorMap, ItemMap, PlayerMap};
+use crate::{
+    map::OpenBarrierKinds,
+    resources::{ActorMap, ItemMap, PlayerMap},
+};
 use common::{
     constants::SNAPSHOT_SECS,
     physics::CharacterVerticalVelocity,
@@ -16,6 +19,7 @@ pub fn network_broadcast_snapshot_system(
     players: Res<PlayerMap>,
     actors: Res<ActorMap>,
     items: Res<ItemMap>,
+    open_barrier_kinds: Res<OpenBarrierKinds>,
     player_data: Query<(&Position, &PlayerMoveIntent, &FaceDirection, &Health), With<PlayerMarker>>,
     motions: Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
     actor_data: Query<(&Position, &ActorMoveIntent, &FaceDirection, &Health), With<ActorMarker>>,
@@ -43,6 +47,7 @@ pub fn network_broadcast_snapshot_system(
         players: all_players,
         actors: all_actors,
         items: all_items,
+        open_barrier_kinds: open_barrier_kinds.0.clone(),
     });
     broadcast_to_all(&players, msg);
 }

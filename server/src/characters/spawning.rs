@@ -226,6 +226,7 @@ mod tests {
             }],
             cookie_spawn_zones: Vec::new(),
             key_spawn_zones: Vec::new(),
+            pressure_plates: Vec::new(),
         }
     }
 

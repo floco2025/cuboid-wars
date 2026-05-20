@@ -12,6 +12,7 @@ from .constants import (
     ACTOR_ZONE_LIST,
     BARRIER_KIND_TABLE,
     COOKIE_ZONE_LIST,
+    DEFAULT_ALIAS,
     DEFAULT_GRID_COLS,
     DEFAULT_GRID_ROWS,
     FACES,
@@ -38,6 +39,7 @@ def normalize_map(map_data: dict) -> dict:
     player_spawn_zones = [normalize_player_spawn_zone(z) for z in map_data.get("player_spawn_zones", [])]
     cookie_spawn_zones = [normalize_cookie_spawn_zone(z) for z in map_data.get("cookie_spawn_zones", [])]
     key_spawn_zones = [normalize_key_spawn_zone(z) for z in map_data.get("key_spawn_zones", [])]
+    pressure_plates = [normalize_pressure_plate(p) for p in map_data.get("pressure_plates", [])]
     levels = []
     for idx, level in enumerate(map_data.get("levels", [])):
         levels.append(
@@ -70,6 +72,7 @@ def normalize_map(map_data: dict) -> dict:
         "player_spawn_zones": player_spawn_zones,
         "cookie_spawn_zones": cookie_spawn_zones,
         "key_spawn_zones": key_spawn_zones,
+        "pressure_plates": pressure_plates,
         "levels": levels,
         "ramps": ramps,
     }
@@ -191,6 +194,19 @@ def normalize_key_spawn_zone(zone: dict) -> dict:
     return {**_normalize_zone_rect(zone), "kind": str(zone.get("kind", ""))}
 
 
+def normalize_pressure_plate(plate: dict) -> dict:
+    return {
+        "level": int(plate.get("level", 0)),
+        "col": int(plate.get("col", 0)),
+        "row": int(plate.get("row", 0)),
+        "kind": str(plate.get("kind", "")),
+    }
+
+
+def pressure_plate_key(plate: dict) -> tuple:
+    return (plate["level"], plate["row"], plate["col"], plate["kind"])
+
+
 def actor_zone_key(zone: dict) -> tuple:
     return (
         zone["level"],
@@ -263,6 +279,7 @@ def canonicalize_map(map_data: dict) -> dict:
     b["player_spawn_zones"] = _dedupe_sorted(b["player_spawn_zones"], player_zone_key)
     b["cookie_spawn_zones"] = _dedupe_sorted(b["cookie_spawn_zones"], cookie_zone_key)
     b["key_spawn_zones"] = _dedupe_sorted(b["key_spawn_zones"], key_zone_key)
+    b["pressure_plates"] = _dedupe_sorted(b["pressure_plates"], pressure_plate_key)
     # Ramp footprints occupy cells on both the lower and upper level of each
     # ramp. Lights are not allowed inside any of those cells.
     ramp_cells_by_level: list[set[tuple[int, int]]] = [set() for _ in b["levels"]]
@@ -423,6 +440,19 @@ def resize_map_data(
         z for z in (clip_zone(z) for z in out["key_spawn_zones"]) if z is not None
     ]
 
+    def clip_plate(plate: dict) -> dict | None:
+        nc = plate["col"] + dc
+        nr = plate["row"] + dr
+        if not (0 <= nc < new_cols and 0 <= nr < new_rows):
+            return None
+        plate["col"] = nc
+        plate["row"] = nr
+        return plate
+
+    out["pressure_plates"] = [
+        p for p in (clip_plate(p) for p in out.get("pressure_plates", [])) if p is not None
+    ]
+
     kept_ramps = []
     for ramp in out["ramps"]:
         low_c, low_r = ramp["low"][0] + dc, ramp["low"][1] + dr
@@ -453,8 +483,10 @@ def enforce_ramp_floor_rules(map_data: dict) -> None:
         # and are removed from the upper level. Inaccessible-floor entries
         # at those cells are also dropped.
         # Placeholder is an alias (face values must be aliases — see
-        # `validate_map`); the user can re-paint with the right material later.
-        ramp_faces = {face: ramp.get(face, "slab") for face in FACES}
+        # `validate_map`); the user can re-paint with the right material
+        # later. Source from the loaded catalog rather than hard-coding so
+        # the value can't drift to a removed alias.
+        ramp_faces = {face: ramp.get(face, DEFAULT_ALIAS) for face in FACES}
         lower_existing = {(f["col"], f["row"]): f for f in map_data["levels"][lower]["floors"]}
         for col, row in cells:
             if (col, row) not in lower_existing:
@@ -563,9 +595,10 @@ def expand_face_materials(obj: dict) -> dict[str, str]:
     if fallback is None:
         fallback = next((obj[face] for face in FACES if face in obj), None)
     if fallback is None:
-        # No materials at all on this segment — fall back to a sentinel so the
-        # editor can still display something. Real maps shouldn't hit this.
-        fallback = "fiberous-plaster1-ue"
+        # Segment loaded without any material data — fall back to a *legal*
+        # value pulled from the loaded alias catalog (face values are
+        # validated against aliases on save).
+        fallback = DEFAULT_ALIAS
     return {face: obj.get(face, fallback) for face in FACES}
 
 

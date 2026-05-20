@@ -12,6 +12,7 @@ use crate::{
     },
     resources::{
         ActorSpawnZone, CellGrid, CookieSpawnZone, EdgeGrid, KeySpawnZone, LevelGrid, MapConfig, PlayerSpawnZone,
+        PressurePlate,
     },
 };
 use common::{
@@ -147,6 +148,7 @@ pub(crate) fn compile_map(
     let ramps_out = ramps::specs_to_ramps(&geometry, &ramp_specs);
     let ramp_materials: Vec<FaceMaterials> = ramps_out.iter().map(|r| assets.materials_for_ramp_top(r)).collect();
 
+    let pressure_plates = pressure_plates(map_def, kind_table)?;
     let map_layout = MapLayout {
         walls: all_walls,
         wall_materials: all_wall_materials,
@@ -156,6 +158,15 @@ pub(crate) fn compile_map(
         floors: all_floors,
         floor_materials: all_floor_materials,
         barriers: all_barriers,
+        pressure_plates: pressure_plates
+            .iter()
+            .map(|p| common::protocol::PressurePlate {
+                level: p.level,
+                center_x: geometry.cell_to_world_x(p.col) + GRID_CELL_SIZE / 2.0,
+                center_z: geometry.cell_to_world_z(p.row) + GRID_CELL_SIZE / 2.0,
+                kind: p.kind,
+            })
+            .collect(),
     };
     // The renderer indexes the material vectors by segment position, so any
     // length divergence is a bug here, not in the client.
@@ -171,6 +182,7 @@ pub(crate) fn compile_map(
             player_spawn_zones: player_spawn_zones(map_def),
             cookie_spawn_zones: cookie_spawn_zones(map_def),
             key_spawn_zones: key_spawn_zones(map_def, kind_table)?,
+            pressure_plates,
         },
         geometry,
     ))
@@ -222,6 +234,25 @@ fn cookie_spawn_zones(map_def: &MapDef) -> Vec<CookieSpawnZone> {
             level: u8::try_from(zone.level).unwrap_or(u8::MAX),
             cols: zone.cols,
             rows: zone.rows,
+        })
+        .collect()
+}
+
+fn pressure_plates(map_def: &MapDef, kind_table: &BarrierKindTable) -> anyhow::Result<Vec<PressurePlate>> {
+    map_def
+        .pressure_plates
+        .iter()
+        .enumerate()
+        .map(|(idx, p)| {
+            let kind = kind_table
+                .resolve(&p.kind)
+                .with_context(|| format!("pressure_plates[{idx}]"))?;
+            Ok(PressurePlate {
+                level: u8::try_from(p.level).unwrap_or(u8::MAX),
+                col: p.col,
+                row: p.row,
+                kind,
+            })
         })
         .collect()
 }

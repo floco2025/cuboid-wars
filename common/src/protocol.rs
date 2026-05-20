@@ -126,6 +126,10 @@ pub struct SSnapshot {
     pub players: Vec<(PlayerId, Player)>,
     pub actors: Vec<(ActorId, Actor)>,
     pub items: Vec<(ItemId, Item)>,
+    // Barrier kinds currently fully open (pressure-plate threshold met).
+    // Empty in v1 maps with no plates. Client hides matching barriers; server
+    // unions this with each player's `held_keys` for the collision filter.
+    pub open_barrier_kinds: Vec<BarrierKindId>,
 }
 
 // --- Real-time intent (sub-tick latency for prediction) ---

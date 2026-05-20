@@ -33,6 +33,7 @@ pub(super) fn validate_map(map_def: &MapDef) -> Result<()> {
     validate_player_spawn_zones(map_def)?;
     validate_cookie_spawn_zones(map_def)?;
     validate_key_spawn_zones(map_def)?;
+    validate_pressure_plates(map_def)?;
     validate_levels(map_def)?;
     validate_ramps(map_def)?;
 
@@ -126,6 +127,47 @@ fn validate_key_spawn_zones(map_def: &MapDef) -> Result<()> {
     for (zone_idx, zone) in map_def.key_spawn_zones.iter().enumerate() {
         let label = format!("key_spawn_zones[{zone_idx}]");
         validate_zone_placement(zone, &label, map_def)?;
+    }
+    Ok(())
+}
+
+fn validate_pressure_plates(map_def: &MapDef) -> Result<()> {
+    let mut seen = BTreeSet::new();
+    for (idx, plate) in map_def.pressure_plates.iter().enumerate() {
+        let label = format!("pressure_plates[{idx}]");
+        if plate.level as usize >= map_def.levels.len() {
+            return Err(anyhow!(
+                "{label} level {} out of range (level count = {})",
+                plate.level,
+                map_def.levels.len()
+            ));
+        }
+        if plate.col < 0 || plate.col >= map_def.grid_cols {
+            return Err(anyhow!(
+                "{label} col {} out of range [0, {})",
+                plate.col,
+                map_def.grid_cols
+            ));
+        }
+        if plate.row < 0 || plate.row >= map_def.grid_rows {
+            return Err(anyhow!(
+                "{label} row {} out of range [0, {})",
+                plate.row,
+                map_def.grid_rows
+            ));
+        }
+        // Per-kind uniqueness on (level, col, row). Different kinds may
+        // stack on the same cell — design choice; remove the kind tuple if
+        // we want to disallow that too.
+        if !seen.insert((plate.level, plate.col, plate.row, plate.kind.clone())) {
+            return Err(anyhow!(
+                "{label} duplicates kind {:?} at level {} col {} row {}",
+                plate.kind,
+                plate.level,
+                plate.col,
+                plate.row
+            ));
+        }
     }
     Ok(())
 }

@@ -24,6 +24,7 @@ def empty_map() -> dict:
         ],
         "cookie_spawn_zones": [],
         "key_spawn_zones": [],
+        "pressure_plates": [],
         "levels": [
             {
                 "name": "Level 0",

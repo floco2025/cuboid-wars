@@ -3,7 +3,8 @@ use common::{
     config::GameplayConfig,
     constants::PHYSICS_EPSILON,
     physics::{
-        CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, overlapping_character, step_character_movement,
+        CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, overlapping_character, passable_barrier_kinds,
+        step_character_movement,
     },
     protocol::{ActorMarker, BarrierKindId, PlayerId, PlayerMarker, PlayerMoveIntent, Position},
 };
@@ -11,6 +12,7 @@ use common::{
 use crate::{
     actors::{ActorMovementQuery, apply_actor_moves, plan_actor_moves},
     config::ServerGameplayConfig,
+    map::OpenBarrierKinds,
     resources::{ActorMap, PlayerInfo, PlayerMap},
 };
 
@@ -35,6 +37,7 @@ pub fn characters_movement_system(
     gameplay_config: Res<GameplayConfig>,
     server_gameplay_config: Res<ServerGameplayConfig>,
     players: Res<PlayerMap>,
+    open_barrier_kinds: Res<OpenBarrierKinds>,
     mut actors: ResMut<ActorMap>,
     mut player_query: PlayerMovementQuery,
     mut actor_health: Query<&mut common::protocol::Health, With<ActorMarker>>,
@@ -52,6 +55,7 @@ pub fn characters_movement_system(
         &collision_world,
         &gameplay_config,
         &players,
+        &open_barrier_kinds,
         &player_query,
         &mut planned_moves,
     );
@@ -76,6 +80,7 @@ fn plan_player_moves(
     collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
     players: &PlayerMap,
+    open_barrier_kinds: &OpenBarrierKinds,
     query: &PlayerMovementQuery,
     planned_moves: &mut Vec<CharacterMovePlan>,
 ) {
@@ -103,13 +108,17 @@ fn plan_player_moves(
         let has_phasing = players.get(player_id).is_some_and(PlayerInfo::has_phasing);
         let has_anti_gravity = players.get(player_id).is_some_and(PlayerInfo::has_anti_gravity);
         let held_keys: &[BarrierKindId] = players.get(player_id).map_or(&[], PlayerInfo::held_keys);
+        // Effective passable kinds = held keys ∪ globally-open kinds (plates).
+        // One shared helper between server-authoritative movement and
+        // client-side prediction so both decide passability identically.
+        let passable_kinds = passable_barrier_kinds(held_keys, &open_barrier_kinds.0);
         let step = step_character_movement(
             pos,
             motion.0,
             collision_world,
             has_phasing,
             has_anti_gravity,
-            held_keys,
+            &passable_kinds,
             player_physics,
             target_xz.x,
             target_xz.z,

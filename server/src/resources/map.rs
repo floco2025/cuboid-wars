@@ -153,6 +153,16 @@ impl KeySpawnZone {
     }
 }
 
+// Runtime mirror of `common::protocol::PressurePlate`. Server-side; the wire
+// version lives on `MapLayout` and ships in `SInit`. Identical shape.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PressurePlate {
+    pub level: u8,
+    pub col: i32,
+    pub row: i32,
+    pub kind: common::protocol::BarrierKindId,
+}
+
 #[derive(Resource, Clone)]
 pub struct MapConfig {
     pub levels: Vec<LevelGrid>,
@@ -160,4 +170,5 @@ pub struct MapConfig {
     pub player_spawn_zones: Vec<PlayerSpawnZone>,
     pub cookie_spawn_zones: Vec<CookieSpawnZone>,
     pub key_spawn_zones: Vec<KeySpawnZone>,
+    pub pressure_plates: Vec<PressurePlate>,
 }

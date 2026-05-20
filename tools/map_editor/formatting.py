@@ -75,6 +75,20 @@ def format_key_spawn_zones(zones: list[dict], indent: int) -> list[str]:
     )
 
 
+def format_pressure_plates(plates: list[dict], indent: int) -> list[str]:
+    return _format_zone_list(
+        "pressure_plates",
+        plates,
+        indent,
+        lambda plate: (
+            f'{{"level": {plate["level"]}, '
+            f'"col": {plate["col"]}, '
+            f'"row": {plate["row"]}, '
+            f'"kind": {json.dumps(plate["kind"])}}}'
+        ),
+    )
+
+
 def format_player_spawn_zones(zones: list[dict], indent: int) -> list[str]:
     return _format_zone_list(
         "player_spawn_zones",
@@ -109,6 +123,7 @@ def format_map_file(wrapper: dict) -> str:
         *with_trailing_comma(format_player_spawn_zones(map_data["player_spawn_zones"], 4)),
         *with_trailing_comma(format_cookie_spawn_zones(map_data["cookie_spawn_zones"], 4)),
         *with_trailing_comma(format_key_spawn_zones(map_data["key_spawn_zones"], 4)),
+        *with_trailing_comma(format_pressure_plates(map_data.get("pressure_plates", []), 4)),
         '    "levels": [',
     ]
 

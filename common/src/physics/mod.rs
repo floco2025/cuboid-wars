@@ -14,3 +14,24 @@ pub use projectiles::{
     calculate_projectile_spawns, projectile_character_hit, projectile_hits_character,
 };
 pub use world::CollisionWorld;
+
+use crate::protocol::BarrierKindId;
+
+// Merge per-player `held_keys` with the globally `open_kinds` (currently held
+// open by pressure plates) into the slice that `step_character_movement`
+// treats as "barriers I can pass through". One source of truth used by both
+// server-authoritative movement and client-side prediction — keeps the two
+// sides in agreement about what's passable.
+#[must_use]
+pub fn passable_barrier_kinds(held_keys: &[BarrierKindId], open_kinds: &[BarrierKindId]) -> Vec<BarrierKindId> {
+    if open_kinds.is_empty() {
+        return held_keys.to_vec();
+    }
+    let mut combined: Vec<BarrierKindId> = held_keys.to_vec();
+    for k in open_kinds {
+        if !combined.contains(k) {
+            combined.push(*k);
+        }
+    }
+    combined
+}

@@ -31,6 +31,14 @@ def _load_shared_configs() -> tuple[list[str], dict[str, str], set[str]]:
 
 BARRIER_KIND_TABLE, BARRIER_KIND_COLORS, MATERIAL_ALIASES = _load_shared_configs()
 
+# Stable fallback alias used when a segment has no material data, when a new
+# segment is created without an explicit choice, or when we need *some* legal
+# value to satisfy the alias validator. Derived from the loaded catalog so it
+# can't drift to a non-existent alias if `assets.json` changes — sorted-first
+# for determinism. Empty string when the catalog defines no aliases at all
+# (validator skips the check in that case, so an empty value is harmless).
+DEFAULT_ALIAS: str = next(iter(sorted(MATERIAL_ALIASES)), "")
+
 MODE_FLOOR = "Floor"
 MODE_INACCESSIBLE_FLOOR = "Inaccessible Floor"
 MODE_ACTOR_SPAWN_PAINT = "Actor Spawn Zone (Paint)"
@@ -49,6 +57,7 @@ MODE_WALL_MATERIAL = "Wall Material"
 MODE_RAMP_MATERIAL = "Ramp Material"
 MODE_LIGHT = "Light"
 MODE_ERASE_LIGHTS = "Erase Lights"
+MODE_PRESSURE_PLATE = "Pressure Plate"
 RAMP_MODES = (MODE_RAMP_UP, MODE_RAMP_DOWN)
 ERASE_MODES = (MODE_ERASE, MODE_ERASE_KEEP_FLOORS)
 SPAWN_PAINT_MODES = (MODE_ACTOR_SPAWN_PAINT, MODE_PLAYER_SPAWN_PAINT, MODE_COOKIE_SPAWN_PAINT, MODE_KEY_SPAWN_PAINT)
@@ -74,6 +83,7 @@ MODES = [
     MODE_RAMP_MATERIAL,
     MODE_LIGHT,
     MODE_ERASE_LIGHTS,
+    MODE_PRESSURE_PLATE,
 ]
 
 # Two named lists in map_data so the editor can refer to them generically.
@@ -127,6 +137,12 @@ TOOL_REFERENCE_ENTRIES: list[tuple[str, str]] = [
         "level on a stride; Edit → Clear Lights On Level to start over.",
     ),
     ("Erase Lights", "drag a rectangle to remove every light inside it on the current level."),
+    (
+        "Pressure Plate",
+        "left-click a cell to place a plate; a dialog asks which barrier kind. While enough "
+        "plates of a kind are pressed, every barrier of that kind opens globally. Right-click "
+        "a plate to remove it.",
+    ),
 ]
 
 

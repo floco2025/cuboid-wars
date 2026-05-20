@@ -194,6 +194,41 @@ class PlacementMixin:
         self.recent_barrier_kind = kind
         self.add_barrier_line(start, end, kind)
 
+    def prompt_and_add_pressure_plate(self, col: int, row: int) -> None:
+        """Place a pressure plate on (col, row) of the current level, after
+        prompting for the barrier kind it controls. Last-used kind defaults."""
+        kind = BarrierKindDialog.prompt(self, "Place Pressure Plate", self.recent_pressure_plate_kind)
+        if kind is None:
+            return
+        self.recent_pressure_plate_kind = kind
+        self.add_pressure_plate(col, row, kind)
+
+    def add_pressure_plate(self, col: int, row: int, kind: str) -> None:
+        if kind not in BARRIER_KIND_TABLE:
+            self._flash_status(f"Unknown plate kind {kind!r}")
+            return
+        after = copy.deepcopy(self.map_data)
+        plates = after.setdefault("pressure_plates", [])
+        # Dedup on (level, col, row, kind) — same kind on same cell is a no-op.
+        existing = {(p["level"], p["col"], p["row"], p["kind"]) for p in plates}
+        new_plate = {"level": self.current_level, "col": col, "row": row, "kind": kind}
+        if (new_plate["level"], new_plate["col"], new_plate["row"], new_plate["kind"]) in existing:
+            return
+        plates.append(new_plate)
+        self.apply_change(f"Place Pressure Plate ({kind})", after)
+
+    def remove_pressure_plate_at(self, col: int, row: int) -> bool:
+        """Remove any plate of any kind at (current_level, col, row). Returns
+        True if a plate was removed."""
+        after = copy.deepcopy(self.map_data)
+        plates = after.get("pressure_plates", [])
+        keep = [p for p in plates if not (p["level"] == self.current_level and p["col"] == col and p["row"] == row)]
+        if len(keep) == len(plates):
+            return False
+        after["pressure_plates"] = keep
+        self.apply_change("Remove Pressure Plate", after)
+        return True
+
     def add_barrier_line(self, start: tuple[int, int], end: tuple[int, int], kind: str) -> None:
         edges = wall_segments_between(start, end)
         if not edges:

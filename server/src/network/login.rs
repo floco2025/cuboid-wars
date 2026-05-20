@@ -144,6 +144,10 @@ pub fn handle_login_message(
                 players: all_players,
                 actors: all_actors,
                 items: all_items,
+                // Plate state is per-tick; this login-time snapshot defaults
+                // to "everything closed". The next broadcast tick will
+                // correct it.
+                open_barrier_kinds: Vec::new(),
             });
             channel.send(ServerToClient::Send(snapshot_msg)).ok();
 

@@ -114,6 +114,23 @@ pub struct Barrier {
 // to `walls` / `ramps` / `floors`: the segment at index `i` renders with the
 // `FaceMaterials` at index `i` of the corresponding `*_materials` vector.
 // Physics ignores the material vectors.
+// Coop puzzle primitive: a floor-cell-mounted plate tagged with a barrier
+// kind. While enough plates of a kind are held by players, every barrier of
+// that kind becomes fully passable + invisible globally. Distinct from keys
+// (per-player filter). Threshold lives on the server; clients just receive
+// the set of currently-open kinds via `SSnapshot`.
+//
+// World-space center is shipped here (not col/row) so the client never needs
+// `MapGeometry` to position the visual marker. The server keeps the original
+// (col, row) on its own runtime mirror for plate-occupancy tests.
+#[derive(Debug, Clone, Copy, Encode, Decode)]
+pub struct PressurePlate {
+    pub level: u8,
+    pub center_x: f32,
+    pub center_z: f32,
+    pub kind: BarrierKindId,
+}
+
 #[derive(Debug, Clone, Encode, Decode, Resource, Default)]
 pub struct MapLayout {
     pub walls: Vec<Wall>,
@@ -124,4 +141,5 @@ pub struct MapLayout {
     pub floor_materials: Vec<FaceMaterials>,
     pub wall_lights: Vec<WallLight>,
     pub barriers: Vec<Barrier>,
+    pub pressure_plates: Vec<PressurePlate>,
 }

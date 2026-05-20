@@ -8,7 +8,7 @@
   },
   "player": {
     "projectile_damage_taken": 10.0,
-    "invincible": false,
+    "invincible": true,
     "fall_damage": {
       "safe_fall_distance": 8.0,
       "lethal_fall_distance": 15.0

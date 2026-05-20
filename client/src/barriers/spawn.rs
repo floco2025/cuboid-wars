@@ -2,10 +2,24 @@ use bevy::prelude::*;
 
 use super::BarrierAssets;
 use crate::map::MapLevel;
-use common::protocol::{Barrier, MapLayout};
+use common::protocol::{Barrier, BarrierKindId, MapLayout};
 
 #[derive(Component)]
 pub struct BarrierMarker;
+
+// Tags the barrier entity with its kind so the visibility system can hide
+// matching entities when the server reports the kind currently open via
+// pressure plates.
+#[derive(Component)]
+pub struct BarrierKindMarker(pub BarrierKindId);
+
+// Mirror of the server-side `OpenBarrierKinds` resource, updated from each
+// `SSnapshot`. When a kind is in this list, every barrier of that kind is
+// hidden + fully passable. Vec (not HashSet) so the shape matches the wire
+// and the server runtime exactly — `passable_barrier_kinds` in
+// `common::physics` takes both sides' open-kind slice the same way.
+#[derive(Resource, Default)]
+pub struct OpenBarrierKinds(pub Vec<BarrierKindId>);
 
 // Spawn one entity per `Barrier` in the current `MapLayout`. Re-runs whenever
 // `MapLayout` is inserted or replaced (e.g., reconnect / map change).
@@ -53,6 +67,7 @@ fn spawn_barrier(commands: &mut Commands, assets: &BarrierAssets, barrier: &Barr
 
     commands.spawn((
         BarrierMarker,
+        BarrierKindMarker(barrier.kind),
         MapLevel(barrier.level),
         Mesh3d(assets.mesh.clone()),
         MeshMaterial3d(assets.material_for(barrier.kind).clone()),
@@ -63,4 +78,26 @@ fn spawn_barrier(commands: &mut Commands, assets: &BarrierAssets, barrier: &Barr
         },
         Visibility::Visible,
     ));
+}
+
+// Hide barriers whose kind is currently held open by pressure plates; restore
+// visibility otherwise. Change-detected: only iterates when the set flips.
+// Force barriers of open kinds to `Visibility::Hidden`. Must run **after**
+// `map_level_focus_visibility_system`, which also writes `Visibility` on
+// barriers (level focus toggles all map entities on the current level).
+// Without the ordering the two systems race per frame → flicker.
+//
+// Only writes the `Hidden` direction; for closed kinds we *leave* whatever
+// the level-focus pass set, so a barrier on a different level stays hidden
+// by level focus even if its kind is closed. The barrier set is small, so
+// iterating every tick is cheap.
+pub fn barriers_visibility_system(
+    open: Res<OpenBarrierKinds>,
+    mut barriers: Query<(&BarrierKindMarker, &mut Visibility), With<BarrierMarker>>,
+) {
+    for (kind, mut vis) in &mut barriers {
+        if open.0.contains(&kind.0) {
+            *vis = Visibility::Hidden;
+        }
+    }
 }

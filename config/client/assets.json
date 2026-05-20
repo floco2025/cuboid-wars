@@ -322,6 +322,7 @@
   "barrier_kind_colors": {
     "treasure": "#ff3333",
     "basement": "#f0c020",
-    "gravity": "#5090ff"
+    "gravity": "#5090ff",
+    "lobby": "#22cc33"
   }
 }

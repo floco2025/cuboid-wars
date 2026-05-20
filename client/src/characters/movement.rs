@@ -34,6 +34,7 @@ pub fn characters_movement_system(
     collision_world: Option<Res<CollisionWorld>>,
     mut players: ResMut<PlayerMap>,
     actors: Res<ActorMap>,
+    open_barrier_kinds: Res<crate::barriers::OpenBarrierKinds>,
     mut players_query: PlayerMovementQuery,
     mut actors_query: ActorMovementQuery,
     mut bump_flash_ui: Query<(&mut BackgroundColor, &mut Visibility), With<BumpFlashMarker>>,
@@ -48,6 +49,7 @@ pub fn characters_movement_system(
         collision_world.as_deref(),
         &gameplay_config,
         &mut players,
+        &open_barrier_kinds,
         &mut players_query,
         &mut planned_moves,
     );

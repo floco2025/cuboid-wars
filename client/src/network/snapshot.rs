@@ -88,4 +88,10 @@ pub(super) fn handle_snapshot_message(
         items,
         &msg.items,
     );
+
+    // Snapshot is the system of record for open-by-plate kinds. Server sends
+    // these sorted by id so direct Vec equality is stable across ticks.
+    if msg.open_barrier_kinds != client_assets.open_barrier_kinds.0 {
+        client_assets.open_barrier_kinds.0 = msg.open_barrier_kinds.clone();
+    }
 }

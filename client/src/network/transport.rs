@@ -8,8 +8,14 @@ use tokio::{
 
 use common::{net::MessageStream, protocol::*};
 
-// Message emitted by the network task toward the Bevy world.
+// Message emitted by the network task toward the Bevy world. The `Message`
+// variant carries the full `ServerMessage` (large; `SSnapshot` dominates),
+// but these enum values are short-lived inside an mpsc queue and the extra
+// padding on `Disconnected` is bounded by the queue depth — boxing here
+// would force `Box::new` at every send + a deref at every recv with no
+// real memory win.
 #[derive(Debug, Clone)]
+#[allow(clippy::large_enum_variant)]
 pub enum ServerToClient {
     Message(ServerMessage),
     Disconnected,
