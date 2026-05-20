@@ -112,7 +112,7 @@ impl CollisionWorld {
         character_pos: &Pose,
         desired_translation: Vector,
         has_phasing: bool,
-        held_keys: &[BarrierKindId],
+        passable_kinds: &[BarrierKindId],
         events: impl FnMut(CharacterCollision),
     ) -> EffectiveCharacterMovement {
         let query_pipeline = self.broad_phase.as_query_pipeline(
@@ -121,7 +121,7 @@ impl CollisionWorld {
             &self.colliders,
             query_filter(character_collision_groups(
                 has_phasing,
-                held_keys,
+                passable_kinds,
                 self.all_barrier_groups,
             )),
         );
@@ -210,7 +210,7 @@ impl CollisionWorld {
         max_distance: f32,
         target_distance: f32,
         has_phasing: bool,
-        held_keys: &[BarrierKindId],
+        passable_kinds: &[BarrierKindId],
     ) -> Option<ShapeCastHit> {
         let query_pipeline = self.broad_phase.as_query_pipeline(
             self.narrow_phase.query_dispatcher(),
@@ -218,7 +218,7 @@ impl CollisionWorld {
             &self.colliders,
             query_filter(character_collision_groups(
                 has_phasing,
-                held_keys,
+                passable_kinds,
                 self.all_barrier_groups,
             )),
         );

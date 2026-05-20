@@ -2,7 +2,7 @@ use bincode::{Decode, Encode};
 
 use super::{
     ActorMoveIntent, ActorMovementState, BarrierKindId, Health, ItemType, PlayerMoveIntent, PlayerMovementState,
-    Position,
+    Position, PowerUpKind,
 };
 
 #[derive(Debug, Clone, Encode, Decode)]
@@ -32,10 +32,8 @@ pub struct Player {
     pub face_dir: f32,
     pub health: Health,
     pub score: i32,
-    pub speed_power_up: bool,
-    pub multi_shot_power_up: bool,
-    pub phasing_power_up: bool,
-    pub anti_gravity_power_up: bool,
+    // One bool per `PowerUpKind`, indexed by `PowerUpKind::index()`.
+    pub power_ups: [bool; PowerUpKind::COUNT],
     pub stunned: bool,
     pub held_keys: Vec<BarrierKindId>,
 }
@@ -56,13 +54,15 @@ impl Player {
             face_dir,
             health,
             score,
-            speed_power_up: false,
-            multi_shot_power_up: false,
-            phasing_power_up: false,
-            anti_gravity_power_up: false,
+            power_ups: [false; PowerUpKind::COUNT],
             stunned: false,
             held_keys: Vec::new(),
         }
+    }
+
+    #[must_use]
+    pub const fn power_up(&self, kind: PowerUpKind) -> bool {
+        self.power_ups[kind.index()]
     }
 }
 

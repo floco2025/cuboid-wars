@@ -13,7 +13,7 @@ use crate::{
 use common::{
     config::GameplayConfig,
     physics::CharacterVerticalVelocity,
-    protocol::{FaceDirection, Player, PlayerId, PlayerMarker, PlayerMoveIntent, Position},
+    protocol::{FaceDirection, Player, PlayerId, PlayerMarker, PlayerMoveIntent, Position, PowerUpKind},
 };
 
 #[expect(
@@ -245,7 +245,7 @@ fn update_snapshot_player(
                 server_player.movement,
                 gameplay_config.player.walk_speed,
                 gameplay_config.player.run_speed,
-                server_player.speed_power_up,
+                server_player.power_up(PowerUpKind::Speed),
             );
 
             if id != my_player_id {

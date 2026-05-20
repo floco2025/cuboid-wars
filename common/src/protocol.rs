@@ -185,6 +185,13 @@ pub struct SPlayerDeath {
     // (fall, actor explosion, future environmental). Drives the
     // client-side message feed's "A → B" entry vs "A died" entry.
     pub killer: Option<PlayerId>,
+    // The victim's post-death score (death penalty already applied) so the
+    // HUD updates on the death tick rather than waiting for the next
+    // snapshot. Snapshot is still authoritative.
+    pub victim_score: i32,
+    // The killer's post-kill score (kill bonus already applied), if there
+    // is one. `None` for non-player causes.
+    pub killer_score: Option<i32>,
 }
 
 // Actor died at this position. Triggers the explosion VFX + sound and the
@@ -196,6 +203,10 @@ pub struct SActorDeath {
     // Player who landed the killing blow; `None` if the actor died from
     // chain-explosion damage or other non-player causes.
     pub killer: Option<PlayerId>,
+    // The killer's post-kill score (kill bonus already applied) so the HUD
+    // bumps on the kill tick rather than waiting for the next snapshot.
+    // `None` when killer is `None`.
+    pub killer_score: Option<i32>,
 }
 
 // Player was hit by a projectile. Carries hit direction so the victim's
@@ -237,15 +248,20 @@ pub struct SActorHit {
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct SPlayerStatus {
     pub id: PlayerId,
-    pub speed_power_up: bool,
-    pub multi_shot_power_up: bool,
-    pub phasing_power_up: bool,
-    pub anti_gravity_power_up: bool,
+    // One bool per `PowerUpKind`, indexed by `PowerUpKind::index()`.
+    pub power_ups: [bool; PowerUpKind::COUNT],
     pub stunned: bool,
     // Held key inventory. Kept sorted ascending on the server so the encoded
     // bytes are deterministic and the client can change-detect via a single
     // equality test.
     pub held_keys: Vec<BarrierKindId>,
+}
+
+impl SPlayerStatus {
+    #[must_use]
+    pub const fn power_up(&self, kind: PowerUpKind) -> bool {
+        self.power_ups[kind.index()]
+    }
 }
 
 // Player collected a cookie. Sent only to the collecting player; drives the

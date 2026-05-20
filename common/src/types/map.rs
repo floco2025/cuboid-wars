@@ -99,6 +99,29 @@ pub enum ItemType {
     Key(BarrierKindId),
 }
 
+impl ItemType {
+    // Items that arm a per-player timer on pickup (the classic four
+    // power-ups). `HealthPotion` is NOT one of these — its effect is
+    // instant; see `PowerUpKind`.
+    #[must_use]
+    pub const fn is_timer_power_up(self) -> bool {
+        matches!(
+            self,
+            Self::SpeedPowerUp | Self::MultiShotPowerUp | Self::PhasingPowerUp | Self::AntiGravityPowerUp
+        )
+    }
+
+    // Items that use the spawn-time countdown for re-show after collection
+    // (cookies + keys), versus items that despawn the world entity entirely
+    // on pickup (power-ups + health potion). The dispatch in
+    // `item_collection_system` reads this to gate "currently respawning"
+    // visibility.
+    #[must_use]
+    pub const fn respects_respawn_timer(self) -> bool {
+        matches!(self, Self::Cookie | Self::Key(_))
+    }
+}
+
 #[derive(Debug, Clone, Encode, Decode, Copy)]
 pub struct Barrier {
     pub x1: f32,

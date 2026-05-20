@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use std::collections::HashMap;
 
-use common::protocol::{BarrierKindId, Player, PlayerId, PlayerMoveIntent, SPlayerStatus};
+use common::protocol::{BarrierKindId, Player, PlayerId, PlayerMoveIntent, PowerUpKind, SPlayerStatus};
 
 // My player ID assigned by the server.
 #[derive(Resource)]
@@ -12,10 +12,8 @@ pub struct PlayerInfo {
     pub entity: Entity,
     pub score: i32,
     pub name: String,
-    pub speed_power_up: bool,
-    pub multi_shot_power_up: bool,
-    pub phasing_power_up: bool,
-    pub anti_gravity_power_up: bool,
+    // One bool per `PowerUpKind`, indexed by `PowerUpKind::index()`.
+    pub power_ups: [bool; PowerUpKind::COUNT],
     pub stunned: bool,
     // Snapshot-owned key inventory; `SPlayerStatus` updates it early for cues.
     // Sorted ascending so HUD icon order is stable and the change-detection
@@ -33,10 +31,7 @@ impl PlayerInfo {
             entity,
             score: 0,
             name: String::new(),
-            speed_power_up: false,
-            multi_shot_power_up: false,
-            phasing_power_up: false,
-            anti_gravity_power_up: false,
+            power_ups: [false; PowerUpKind::COUNT],
             stunned: false,
             held_keys: Vec::new(),
             snap_speed: 0.0,
@@ -48,21 +43,20 @@ impl PlayerInfo {
     pub fn apply_snapshot(&mut self, player: &Player) {
         self.score = player.score;
         self.name.clone_from(&player.name);
-        self.speed_power_up = player.speed_power_up;
-        self.multi_shot_power_up = player.multi_shot_power_up;
-        self.phasing_power_up = player.phasing_power_up;
-        self.anti_gravity_power_up = player.anti_gravity_power_up;
+        self.power_ups = player.power_ups;
         self.stunned = player.stunned;
         self.held_keys.clone_from(&player.held_keys);
     }
 
     pub fn apply_status(&mut self, status: &SPlayerStatus) {
-        self.speed_power_up = status.speed_power_up;
-        self.multi_shot_power_up = status.multi_shot_power_up;
-        self.phasing_power_up = status.phasing_power_up;
-        self.anti_gravity_power_up = status.anti_gravity_power_up;
+        self.power_ups = status.power_ups;
         self.stunned = status.stunned;
         self.held_keys.clone_from(&status.held_keys);
+    }
+
+    #[must_use]
+    pub const fn power_up(&self, kind: PowerUpKind) -> bool {
+        self.power_ups[kind.index()]
     }
 }
 
@@ -141,10 +135,7 @@ mod tests {
             face_dir: 0.0,
             health: Health(100.0),
             score: 7,
-            speed_power_up: true,
-            multi_shot_power_up: true,
-            phasing_power_up: false,
-            anti_gravity_power_up: true,
+            power_ups: [true, true, false, true],
             stunned: true,
             held_keys: vec![BarrierKindId(1), BarrierKindId(3)],
         }
@@ -159,10 +150,7 @@ mod tests {
         assert_eq!(info.entity, Entity::PLACEHOLDER);
         assert_eq!(info.score, player.score);
         assert_eq!(info.name, player.name);
-        assert_eq!(info.speed_power_up, player.speed_power_up);
-        assert_eq!(info.multi_shot_power_up, player.multi_shot_power_up);
-        assert_eq!(info.phasing_power_up, player.phasing_power_up);
-        assert_eq!(info.anti_gravity_power_up, player.anti_gravity_power_up);
+        assert_eq!(info.power_ups, player.power_ups);
         assert_eq!(info.stunned, player.stunned);
         assert_eq!(info.held_keys, player.held_keys);
     }
@@ -173,10 +161,7 @@ mod tests {
         let mut info = PlayerInfo::from_snapshot(Entity::PLACEHOLDER, &player);
         let status = SPlayerStatus {
             id: PlayerId(12),
-            speed_power_up: false,
-            multi_shot_power_up: false,
-            phasing_power_up: true,
-            anti_gravity_power_up: false,
+            power_ups: [false, false, true, false],
             stunned: false,
             held_keys: vec![BarrierKindId(2)],
         };
@@ -185,10 +170,7 @@ mod tests {
 
         assert_eq!(info.score, player.score);
         assert_eq!(info.name, player.name);
-        assert_eq!(info.speed_power_up, status.speed_power_up);
-        assert_eq!(info.multi_shot_power_up, status.multi_shot_power_up);
-        assert_eq!(info.phasing_power_up, status.phasing_power_up);
-        assert_eq!(info.anti_gravity_power_up, status.anti_gravity_power_up);
+        assert_eq!(info.power_ups, status.power_ups);
         assert_eq!(info.stunned, status.stunned);
         assert_eq!(info.held_keys, status.held_keys);
     }

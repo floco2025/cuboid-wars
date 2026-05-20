@@ -153,10 +153,13 @@ impl KeySpawnZone {
     }
 }
 
-// Runtime mirror of `common::protocol::PressurePlate`. Server-side; the wire
-// version lives on `MapLayout` and ships in `SInit`. Identical shape.
+// Server-side runtime form of a pressure plate. Keeps the original
+// (col, row) grid coords so `player_on_plate` can compute the inner-25%
+// rect each tick. The wire variant (`common::protocol::PressurePlate`)
+// carries world coords for the client renderer; this one stays in grid
+// space. Distinct names so grep / jump-to-def isn't ambiguous.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PressurePlate {
+pub struct PressurePlateRuntime {
     pub level: u8,
     pub col: i32,
     pub row: i32,
@@ -170,5 +173,5 @@ pub struct MapConfig {
     pub player_spawn_zones: Vec<PlayerSpawnZone>,
     pub cookie_spawn_zones: Vec<CookieSpawnZone>,
     pub key_spawn_zones: Vec<KeySpawnZone>,
-    pub pressure_plates: Vec<PressurePlate>,
+    pub pressure_plates: Vec<PressurePlateRuntime>,
 }

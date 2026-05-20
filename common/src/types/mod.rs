@@ -6,6 +6,7 @@ mod map;
 mod markers;
 mod movement;
 mod position;
+mod power_up;
 mod quest;
 
 pub use barrier_kind::{BarrierKindId, BarrierKindTable};
@@ -16,4 +17,5 @@ pub use map::{Barrier, Floor, ItemType, MapLayout, PressurePlate, Ramp, Wall, Wa
 pub use markers::{ActorMarker, ItemMarker, PlayerMarker};
 pub use movement::{ActorMoveIntent, ActorMovementState, FaceDirection, PlayerMoveIntent, PlayerMovementState};
 pub use position::Position;
+pub use power_up::PowerUpKind;
 pub use quest::QuestId;

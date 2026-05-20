@@ -10,8 +10,8 @@ use crate::{
 use common::{
     constants::{ALWAYS_ANTI_GRAVITY, ALWAYS_MULTI_SHOT, ALWAYS_PHASING, ALWAYS_SPEED, PROJECTILE_COOLDOWN_TIME},
     protocol::{
-        BarrierKindId, Health, ItemType, Player, PlayerId, PlayerMoveIntent, PlayerMovementState, Position, QuestId,
-        SPlayerStatus, SQuestAchieved,
+        BarrierKindId, Health, ItemType, Player, PlayerId, PlayerMoveIntent, PlayerMovementState, Position,
+        PowerUpKind, QuestId, SPlayerStatus, SQuestAchieved,
     },
 };
 
@@ -29,10 +29,9 @@ pub struct PlayerInfo {
     pub channel: UnboundedSender<ServerToClient>,
     pub score: i32,
     pub name: String,
-    pub speed_power_up_timer: f32,
-    pub multi_shot_power_up_timer: f32,
-    pub phasing_power_up_timer: f32,
-    pub anti_gravity_power_up_timer: f32,
+    // Per-kind countdown to power-up expiry. Indexed by `PowerUpKind::index()`.
+    // `> 0.0` means active; ticked down by `tick_timers`.
+    pub power_up_timers: [f32; PowerUpKind::COUNT],
     pub stun_timer: f32,
     pub last_shot_time: f32,
     // Permanent inventory: a key, once collected, stays held. Kept sorted
@@ -63,10 +62,7 @@ impl PlayerInfo {
             channel,
             score: 0,
             name: String::new(),
-            speed_power_up_timer: 0.0,
-            multi_shot_power_up_timer: 0.0,
-            phasing_power_up_timer: 0.0,
-            anti_gravity_power_up_timer: 0.0,
+            power_up_timers: [0.0; PowerUpKind::COUNT],
             stun_timer: 0.0,
             last_shot_time: f32::NEG_INFINITY,
             held_keys: Vec::new(),
@@ -90,10 +86,7 @@ impl PlayerInfo {
     // stun, keys, and shot cooldown. Score and `quest_states` are
     // intentionally preserved — quests are session-scoped, not per-life.
     pub fn clear_per_life_state(&mut self) {
-        self.speed_power_up_timer = 0.0;
-        self.multi_shot_power_up_timer = 0.0;
-        self.phasing_power_up_timer = 0.0;
-        self.anti_gravity_power_up_timer = 0.0;
+        self.power_up_timers = [0.0; PowerUpKind::COUNT];
         self.stun_timer = 0.0;
         self.held_keys.clear();
         // Otherwise a player killed with a hot cooldown respawns and can
@@ -128,37 +121,46 @@ impl PlayerInfo {
     }
 
     #[must_use]
+    pub fn has(&self, kind: PowerUpKind) -> bool {
+        always_on(kind) || self.power_up_timers[kind.index()] > 0.0
+    }
+
+    #[must_use]
     pub fn has_speed(&self) -> bool {
-        ALWAYS_SPEED || self.speed_power_up_timer > 0.0
+        self.has(PowerUpKind::Speed)
     }
 
     #[must_use]
     pub fn has_multi_shot(&self) -> bool {
-        ALWAYS_MULTI_SHOT || self.multi_shot_power_up_timer > 0.0
+        self.has(PowerUpKind::MultiShot)
     }
 
     #[must_use]
     pub fn has_phasing(&self) -> bool {
-        ALWAYS_PHASING || self.phasing_power_up_timer > 0.0
+        self.has(PowerUpKind::Phasing)
     }
 
     #[must_use]
     pub fn has_anti_gravity(&self) -> bool {
-        ALWAYS_ANTI_GRAVITY || self.anti_gravity_power_up_timer > 0.0
+        self.has(PowerUpKind::AntiGravity)
+    }
+
+    // Build the `[bool; N]` array each tick from per-kind `has()` predicates.
+    // Used by both `status()` (one-shot edge cue) and `snapshot_player()`
+    // (durable state).
+    fn active_power_ups(&self) -> [bool; PowerUpKind::COUNT] {
+        let mut out = [false; PowerUpKind::COUNT];
+        for kind in PowerUpKind::ALL {
+            out[kind.index()] = self.has(kind);
+        }
+        out
     }
 
     pub fn grant_power_up(&mut self, item_type: ItemType, durations: &PowerUpsConfig) {
-        match item_type {
-            ItemType::SpeedPowerUp => self.speed_power_up_timer = durations.speed_duration_secs,
-            ItemType::MultiShotPowerUp => self.multi_shot_power_up_timer = durations.multi_shot_duration_secs,
-            ItemType::PhasingPowerUp => self.phasing_power_up_timer = durations.phasing_duration_secs,
-            ItemType::AntiGravityPowerUp => self.anti_gravity_power_up_timer = durations.anti_gravity_duration_secs,
-            ItemType::HealthPotion | ItemType::Cookie | ItemType::Key(_) => {
-                unreachable!(
-                    "only timer-based power-ups call grant_power_up; health potion is applied to Health directly"
-                )
-            }
-        }
+        let Some(kind) = PowerUpKind::from_item_type(item_type) else {
+            unreachable!("only timer-based power-ups call grant_power_up; health potion is applied to Health directly");
+        };
+        self.power_up_timers[kind.index()] = durations.duration_secs(kind);
     }
 
     pub fn try_start_shot(&mut self, now: f32) -> Option<bool> {
@@ -173,10 +175,7 @@ impl PlayerInfo {
     pub fn status(&self, id: PlayerId) -> SPlayerStatus {
         SPlayerStatus {
             id,
-            speed_power_up: self.has_speed(),
-            multi_shot_power_up: self.has_multi_shot(),
-            phasing_power_up: self.has_phasing(),
-            anti_gravity_power_up: self.has_anti_gravity(),
+            power_ups: self.active_power_ups(),
             stunned: self.is_stunned(),
             held_keys: self.held_keys.clone(),
         }
@@ -197,21 +196,30 @@ impl PlayerInfo {
             face_dir,
             health,
             score: self.score,
-            speed_power_up: self.has_speed(),
-            multi_shot_power_up: self.has_multi_shot(),
-            phasing_power_up: self.has_phasing(),
-            anti_gravity_power_up: self.has_anti_gravity(),
+            power_ups: self.active_power_ups(),
             stunned: self.is_stunned(),
             held_keys: self.held_keys.clone(),
         }
     }
 
     pub fn tick_timers(&mut self, delta: f32) {
-        tick_timer(&mut self.speed_power_up_timer, delta);
-        tick_timer(&mut self.multi_shot_power_up_timer, delta);
-        tick_timer(&mut self.phasing_power_up_timer, delta);
-        tick_timer(&mut self.anti_gravity_power_up_timer, delta);
+        for t in &mut self.power_up_timers {
+            tick_timer(t, delta);
+        }
         tick_timer(&mut self.stun_timer, delta);
+    }
+}
+
+// Per-kind debug toggle: when true, the predicate is always on regardless
+// of the timer state. Used for quick-test-without-pickup. Wraps the
+// pre-existing `ALWAYS_*` constants for the new enum.
+#[must_use]
+fn always_on(kind: PowerUpKind) -> bool {
+    match kind {
+        PowerUpKind::Speed => ALWAYS_SPEED,
+        PowerUpKind::MultiShot => ALWAYS_MULTI_SHOT,
+        PowerUpKind::Phasing => ALWAYS_PHASING,
+        PowerUpKind::AntiGravity => ALWAYS_ANTI_GRAVITY,
     }
 }
 
@@ -352,10 +360,10 @@ mod tests {
         info.grant_power_up(ItemType::AntiGravityPowerUp, &durations);
 
         let status = info.status(PlayerId(7));
-        assert!(status.speed_power_up);
-        assert!(status.multi_shot_power_up);
-        assert!(status.phasing_power_up);
-        assert!(status.anti_gravity_power_up);
+        assert!(status.power_up(PowerUpKind::Speed));
+        assert!(status.power_up(PowerUpKind::MultiShot));
+        assert!(status.power_up(PowerUpKind::Phasing));
+        assert!(status.power_up(PowerUpKind::AntiGravity));
     }
 
     #[test]
@@ -378,8 +386,8 @@ mod tests {
         let mut info = dummy_info();
         info.name = "Alice".to_owned();
         info.score = 5;
-        info.speed_power_up_timer = 1.0;
-        info.anti_gravity_power_up_timer = 2.0;
+        info.power_up_timers[PowerUpKind::Speed.index()] = 1.0;
+        info.power_up_timers[PowerUpKind::AntiGravity.index()] = 2.0;
         info.stun_timer = 0.5;
         info.add_key(BarrierKindId(1));
         info.add_key(BarrierKindId(3));
@@ -400,10 +408,7 @@ mod tests {
         assert_eq!(player.movement.vertical_velocity, vertical_velocity);
         assert_eq!(player.face_dir, face_dir);
         assert_eq!(player.health, health);
-        assert_eq!(player.speed_power_up, status.speed_power_up);
-        assert_eq!(player.multi_shot_power_up, status.multi_shot_power_up);
-        assert_eq!(player.phasing_power_up, status.phasing_power_up);
-        assert_eq!(player.anti_gravity_power_up, status.anti_gravity_power_up);
+        assert_eq!(player.power_ups, status.power_ups);
         assert_eq!(player.stunned, status.stunned);
         assert_eq!(player.held_keys, status.held_keys);
     }
@@ -494,11 +499,15 @@ mod tests {
                 completed: false,
             },
         );
-        info.speed_power_up_timer = 5.0;
+        info.power_up_timers[PowerUpKind::Speed.index()] = 5.0;
 
         info.clear_per_life_state();
 
-        assert_eq!(info.speed_power_up_timer, 0.0, "power-up timers reset by clear");
+        assert_eq!(
+            info.power_up_timers[PowerUpKind::Speed.index()],
+            0.0,
+            "power-up timers reset by clear"
+        );
         assert_eq!(
             info.quest_states[&quest.id].progress, 7,
             "quest progress survives death"

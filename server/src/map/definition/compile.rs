@@ -12,7 +12,7 @@ use crate::{
     },
     resources::{
         ActorSpawnZone, CellGrid, CookieSpawnZone, EdgeGrid, KeySpawnZone, LevelGrid, MapConfig, PlayerSpawnZone,
-        PressurePlate,
+        PressurePlateRuntime,
     },
 };
 use common::{
@@ -238,7 +238,7 @@ fn cookie_spawn_zones(map_def: &MapDef) -> Vec<CookieSpawnZone> {
         .collect()
 }
 
-fn pressure_plates(map_def: &MapDef, kind_table: &BarrierKindTable) -> anyhow::Result<Vec<PressurePlate>> {
+fn pressure_plates(map_def: &MapDef, kind_table: &BarrierKindTable) -> anyhow::Result<Vec<PressurePlateRuntime>> {
     map_def
         .pressure_plates
         .iter()
@@ -247,7 +247,7 @@ fn pressure_plates(map_def: &MapDef, kind_table: &BarrierKindTable) -> anyhow::R
             let kind = kind_table
                 .resolve(&p.kind)
                 .with_context(|| format!("pressure_plates[{idx}]"))?;
-            Ok(PressurePlate {
+            Ok(PressurePlateRuntime {
                 level: u8::try_from(p.level).unwrap_or(u8::MAX),
                 col: p.col,
                 row: p.row,

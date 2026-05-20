@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use common::protocol::{BarrierKindTable, Health, ItemType, PlayerId};
+use common::protocol::{BarrierKindTable, Health, ItemType, PlayerId, PowerUpKind};
 
 use super::components::{LOCAL_PLAYER_BG_COLOR, PlayerEntryMarker};
 use crate::{
@@ -68,10 +68,9 @@ pub(super) fn spawn_player_entry(
                         TextColor(score_value_color(player_info.score)),
                     ));
 
-                    spawn_power_up_icon(row, player_info.speed_power_up, ItemType::SpeedPowerUp);
-                    spawn_power_up_icon(row, player_info.multi_shot_power_up, ItemType::MultiShotPowerUp);
-                    spawn_power_up_icon(row, player_info.phasing_power_up, ItemType::PhasingPowerUp);
-                    spawn_power_up_icon(row, player_info.anti_gravity_power_up, ItemType::AntiGravityPowerUp);
+                    for kind in PowerUpKind::ALL {
+                        spawn_power_up_icon(row, player_info.power_up(kind), kind.to_item_type());
+                    }
 
                     if !player_info.held_keys.is_empty()
                         && let Some(assets) = barrier_assets

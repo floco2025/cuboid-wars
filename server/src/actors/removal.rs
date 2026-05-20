@@ -76,18 +76,21 @@ pub fn actor_removal_system(
                 &mut player_query,
                 &mut query,
             );
+            let killer_score = death.killer.and_then(|kid| players.get(&kid)).map(|info| info.score);
             broadcast_to_all(
                 &players,
                 ServerMessage::ActorDeath(SActorDeath {
                     id: death.id,
                     pos: death.pos,
                     killer: death.killer,
+                    killer_score,
                 }),
             );
             for (player_id, entity, pos) in dead_players {
                 info!("{:?} killed by {:?} explosion", player_id, death.id);
-                // Chain-explosion player kills aren't attributed to the
-                // actor's last damager — the explosion is environmental.
+                // Attribute the kill to whoever last damaged the actor that
+                // exploded — the explosion is their kill chain. None if the
+                // actor died from environmental causes (fall, void).
                 kill_player(
                     &mut commands,
                     &mut players,
@@ -95,7 +98,7 @@ pub fn actor_removal_system(
                     entity,
                     pos,
                     respawn_delay_secs,
-                    None,
+                    death.killer,
                 );
             }
         } else {

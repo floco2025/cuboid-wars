@@ -3,11 +3,12 @@ use std::collections::{HashMap, HashSet};
 
 use crate::{
     network::broadcast_to_all,
-    resources::{MapConfig, PlayerMap, PressurePlate},
+    resources::{MapConfig, PlayerMap, PressurePlateRuntime},
 };
 use common::{
     constants::{GRID_CELL_SIZE, LEVEL_HEIGHT},
     map_geometry::MapGeometry,
+    physics::OpenBarrierKinds,
     protocol::{BarrierKindId, PlayerMarker, Position, SPressurePlatePressed, SPressurePlateReleased, ServerMessage},
 };
 
@@ -16,7 +17,7 @@ use common::{
 // LEVEL_HEIGHT / 2`, which keeps a player on the floor above from triggering
 // a plate one level down.
 #[must_use]
-pub fn player_on_plate(plate: &PressurePlate, pos: &Position, geometry: &MapGeometry) -> bool {
+pub fn player_on_plate(plate: &PressurePlateRuntime, pos: &Position, geometry: &MapGeometry) -> bool {
     let plate_y = f32::from(plate.level) * LEVEL_HEIGHT;
     if (pos.y - plate_y).abs() >= LEVEL_HEIGHT / 2.0 {
         return false;
@@ -29,13 +30,6 @@ pub fn player_on_plate(plate: &PressurePlate, pos: &Position, geometry: &MapGeom
     let max_z = cell_z + GRID_CELL_SIZE * 0.75;
     pos.x >= min_x && pos.x <= max_x && pos.z >= min_z && pos.z <= max_z
 }
-
-// Set of barrier kinds currently held open by pressure plates. Empty when no
-// kind's threshold is met. Lives as a resource so the movement system can
-// union it into each player's `held_keys` and the broadcast system can ship
-// it in `SSnapshot`.
-#[derive(Resource, Default, Clone)]
-pub struct OpenBarrierKinds(pub Vec<BarrierKindId>);
 
 // Per-tick: determine which barrier kinds are open right now.
 //
@@ -122,8 +116,115 @@ pub fn compute_open_barrier_kinds_system(
             next.push(*kind);
         }
     }
+    // Stable order for the equality diff below — without it, the HashMap
+    // iteration order varies tick-to-tick and we'd rewrite the resource
+    // every tick (defeating change detection on both server broadcast and
+    // client visibility).
     next.sort_by_key(|k| k.0);
     if next != open.0 {
         open.0 = next;
+    }
+}
+
+#[cfg(test)]
+mod player_on_plate_tests {
+    use super::*;
+    use common::constants::GRID_CELL_SIZE;
+
+    fn make_plate(level: u8, col: i32, row: i32) -> PressurePlateRuntime {
+        PressurePlateRuntime {
+            level,
+            col,
+            row,
+            kind: BarrierKindId(0),
+        }
+    }
+
+    // Grid 1x1 centers the world origin on the cell at (0, 0), so the plate
+    // covers world-x in [-GRID_CELL_SIZE/2, GRID_CELL_SIZE/2] and the inner-
+    // 50% rect is [-GRID_CELL_SIZE/4, GRID_CELL_SIZE/4] on each axis.
+    fn geom() -> MapGeometry {
+        MapGeometry::new(1, 1)
+    }
+
+    #[test]
+    fn dead_center_triggers() {
+        let plate = make_plate(0, 0, 0);
+        let pos = Position { x: 0.0, y: 0.0, z: 0.0 };
+        assert!(player_on_plate(&plate, &pos, &geom()));
+    }
+
+    #[test]
+    fn just_inside_inner_rect_triggers() {
+        let plate = make_plate(0, 0, 0);
+        // Inner rect goes from cell_x + 0.25*size to cell_x + 0.75*size.
+        // cell_x for col=0 on a 1x1 grid is -size/2. So inner-rect minimum x
+        // is -size/2 + 0.25*size = -0.25 * size. Sample just inside.
+        let just_inside = -0.25 * GRID_CELL_SIZE + 0.01;
+        let pos = Position {
+            x: just_inside,
+            y: 0.0,
+            z: just_inside,
+        };
+        assert!(player_on_plate(&plate, &pos, &geom()));
+    }
+
+    #[test]
+    fn just_outside_inner_rect_does_not_trigger() {
+        let plate = make_plate(0, 0, 0);
+        // Just outside the inner-50% rect on x; z still centered.
+        let outside_x = -0.25 * GRID_CELL_SIZE - 0.01;
+        let pos = Position {
+            x: outside_x,
+            y: 0.0,
+            z: 0.0,
+        };
+        assert!(!player_on_plate(&plate, &pos, &geom()));
+    }
+
+    #[test]
+    fn corner_of_cell_does_not_trigger() {
+        let plate = make_plate(0, 0, 0);
+        // Cell corner sits at +/- size/2 on both axes — well outside the
+        // inner-50% rect.
+        let pos = Position {
+            x: GRID_CELL_SIZE / 2.0,
+            y: 0.0,
+            z: GRID_CELL_SIZE / 2.0,
+        };
+        assert!(!player_on_plate(&plate, &pos, &geom()));
+    }
+
+    #[test]
+    fn level_above_does_not_trigger() {
+        let plate = make_plate(0, 0, 0);
+        let pos = Position {
+            x: 0.0,
+            y: LEVEL_HEIGHT,
+            z: 0.0,
+        };
+        assert!(!player_on_plate(&plate, &pos, &geom()));
+    }
+
+    #[test]
+    fn small_y_offset_within_level_still_triggers() {
+        let plate = make_plate(0, 0, 0);
+        let pos = Position {
+            x: 0.0,
+            y: LEVEL_HEIGHT / 2.0 - 0.01,
+            z: 0.0,
+        };
+        assert!(player_on_plate(&plate, &pos, &geom()));
+    }
+
+    #[test]
+    fn non_zero_level_plate_triggers_at_matching_y() {
+        let plate = make_plate(2, 0, 0);
+        let pos = Position {
+            x: 0.0,
+            y: 2.0 * LEVEL_HEIGHT,
+            z: 0.0,
+        };
+        assert!(player_on_plate(&plate, &pos, &geom()));
     }
 }

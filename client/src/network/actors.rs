@@ -117,9 +117,18 @@ pub fn handle_actor_death_message(
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
     actors: &mut ResMut<ActorMap>,
+    players: &mut crate::players::PlayerMap,
     gameplay_config: &GameplayConfig,
     msg: SActorDeath,
 ) {
+    // Early-apply the killer's post-bonus score so the HUD bumps on the kill
+    // tick. Snapshot still authoritative.
+    if let (Some(killer_id), Some(killer_score)) = (msg.killer, msg.killer_score)
+        && let Some(killer_info) = players.get_mut(&killer_id)
+    {
+        killer_info.score = killer_score;
+    }
+
     let Some(info) = actors.remove(&msg.id) else {
         // Already torn down (e.g. via the snapshot diff). Stay idempotent.
         return;

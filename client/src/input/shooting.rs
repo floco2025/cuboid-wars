@@ -85,7 +85,7 @@ pub fn input_shooting_system(
             || my_player_id
                 .as_ref()
                 .and_then(|id| players.get(&id.0))
-                .is_some_and(|info| info.multi_shot_power_up);
+                .is_some_and(|info| info.power_up(PowerUpKind::MultiShot));
 
         if let Some(my_id) = my_player_id.as_ref()
             && let Some(collision_world) = collision_world.as_ref()

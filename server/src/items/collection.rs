@@ -32,10 +32,11 @@ pub fn item_collection_system(
     let items_to_collect: Vec<(PlayerId, ItemId, ItemType)> = items
         .iter()
         .filter_map(|(item_id, item_info)| {
-            // Cookies and keys both use the `spawn_time` countdown as a
-            // "currently respawning, invisible" flag. Don't allow collection
-            // until the timer has elapsed.
-            if matches!(item_info.item_type, ItemType::Cookie | ItemType::Key(_)) && item_info.spawn_time > 0.0 {
+            // Items that use the `spawn_time` countdown as a "currently
+            // respawning, invisible" flag — cookies + keys. Skip until the
+            // timer has elapsed. Power-ups + potions despawn fully on
+            // pickup so they never hit this branch.
+            if item_info.item_type.respects_respawn_timer() && item_info.spawn_time > 0.0 {
                 return None;
             }
 
@@ -91,16 +92,21 @@ pub fn item_collection_system(
             ItemType::SpeedPowerUp
             | ItemType::MultiShotPowerUp
             | ItemType::PhasingPowerUp
-            | ItemType::AntiGravityPowerUp => collect_power_up(
-                &mut commands,
-                &mut players,
-                &mut items,
-                player_id,
-                item_id,
-                item_type,
-                &server_gameplay_config,
-                &mut status_broadcasts,
-            ),
+            | ItemType::AntiGravityPowerUp => {
+                // Guarded by the enum arm so an item type whose taxonomy
+                // changes won't silently fall through to a power-up handler.
+                assert!(item_type.is_timer_power_up());
+                collect_power_up(
+                    &mut commands,
+                    &mut players,
+                    &mut items,
+                    player_id,
+                    item_id,
+                    item_type,
+                    &server_gameplay_config,
+                    &mut status_broadcasts,
+                );
+            }
         }
     }
 

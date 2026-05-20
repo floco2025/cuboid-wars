@@ -3,7 +3,7 @@ use common::{
     config::GameplayConfig,
     constants::{ALWAYS_ANTI_GRAVITY, ALWAYS_PHASING, SNAPSHOT_SECS},
     physics::{CharacterMovePlan, CollisionWorld, passable_barrier_kinds, step_character_movement},
-    protocol::{PlayerId, Position},
+    protocol::{BarrierKindId, PlayerId, Position, PowerUpKind},
 };
 
 use super::types::PlayerMovementQuery;
@@ -45,10 +45,10 @@ pub(crate) fn plan_player_moves(
 
         // Immutable lookup for the read-only fields; the mut borrow above ended with the `match`.
         let info = players.get(player_id);
-        let has_speed_power_up = info.is_some_and(|i| i.speed_power_up);
-        let has_phasing = ALWAYS_PHASING || info.is_some_and(|i| i.phasing_power_up);
-        let has_anti_gravity = ALWAYS_ANTI_GRAVITY || info.is_some_and(|i| i.anti_gravity_power_up);
-        let held_keys: &[common::protocol::BarrierKindId] = info.map_or(&[], |i| i.held_keys.as_slice());
+        let has_speed_power_up = info.is_some_and(|i| i.power_up(PowerUpKind::Speed));
+        let has_phasing = ALWAYS_PHASING || info.is_some_and(|i| i.power_up(PowerUpKind::Phasing));
+        let has_anti_gravity = ALWAYS_ANTI_GRAVITY || info.is_some_and(|i| i.power_up(PowerUpKind::AntiGravity));
+        let held_keys: &[BarrierKindId] = info.map_or(&[], |i| i.held_keys.as_slice());
         let player_name = info.map(|i| i.name.as_str());
 
         let h_vel =

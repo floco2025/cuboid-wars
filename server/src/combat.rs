@@ -33,7 +33,20 @@ pub fn kill_player(
         info.death_timer = Some(respawn_delay_secs);
     }
     commands.entity(entity).despawn();
-    broadcast_to_all(players, ServerMessage::PlayerDeath(SPlayerDeath { id, pos, killer }));
+    // Snapshot the post-death scores so the cue carries the early-apply
+    // values (HUD bumps on impact tick rather than next snapshot).
+    let victim_score = players.get(&id).map_or(0, |info| info.score);
+    let killer_score = killer.and_then(|kid| players.get(&kid)).map(|info| info.score);
+    broadcast_to_all(
+        players,
+        ServerMessage::PlayerDeath(SPlayerDeath {
+            id,
+            pos,
+            killer,
+            victim_score,
+            killer_score,
+        }),
+    );
 }
 
 // Apply one projectile hit to a player. Returns `true` when this hit drops
@@ -351,7 +364,7 @@ mod tests {
         let info = make_player_info();
         let entity = info.entity;
         let mut info = info;
-        info.speed_power_up_timer = 1.5;
+        info.power_up_timers[common::protocol::PowerUpKind::Speed.index()] = 1.5;
         info.add_key(common::protocol::BarrierKindId(0));
         players.insert(PlayerId(7), info);
 
@@ -373,7 +386,7 @@ mod tests {
 
         let info = players.get(&PlayerId(7)).expect("player still tracked after death");
         assert_eq!(info.death_timer, Some(2.0));
-        assert_eq!(info.speed_power_up_timer, 0.0);
+        assert_eq!(info.power_up_timers, [0.0; common::protocol::PowerUpKind::COUNT]);
         assert!(info.held_keys.is_empty());
         assert!(info.is_dead());
     }
@@ -381,20 +394,14 @@ mod tests {
     #[test]
     fn clear_per_life_state_zeros_powerups_keys_and_cooldown() {
         let mut info = make_player_info();
-        info.speed_power_up_timer = 1.0;
-        info.multi_shot_power_up_timer = 1.0;
-        info.phasing_power_up_timer = 1.0;
-        info.anti_gravity_power_up_timer = 1.0;
+        info.power_up_timers = [1.0; common::protocol::PowerUpKind::COUNT];
         info.stun_timer = 1.0;
         info.last_shot_time = 99.0;
         info.add_key(common::protocol::BarrierKindId(0));
 
         info.clear_per_life_state();
 
-        assert_eq!(info.speed_power_up_timer, 0.0);
-        assert_eq!(info.multi_shot_power_up_timer, 0.0);
-        assert_eq!(info.phasing_power_up_timer, 0.0);
-        assert_eq!(info.anti_gravity_power_up_timer, 0.0);
+        assert_eq!(info.power_up_timers, [0.0; common::protocol::PowerUpKind::COUNT]);
         assert_eq!(info.stun_timer, 0.0);
         assert_eq!(info.last_shot_time, f32::NEG_INFINITY);
         assert!(info.held_keys.is_empty());

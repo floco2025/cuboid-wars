@@ -94,6 +94,12 @@ pub fn setup_barrier_assets(
         base_colors.push(color);
     }
 
+    // All three vectors are indexed by `BarrierKindId.0` — a length divergence
+    // would mean a future contributor split the loops apart. Catch that here
+    // instead of as an out-of-bounds panic at first lookup.
+    assert_eq!(handles.len(), plate_handles.len());
+    assert_eq!(handles.len(), base_colors.len());
+
     commands.insert_resource(BarrierAssets {
         key_mesh,
         mesh,

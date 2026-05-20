@@ -119,6 +119,12 @@ pub const POWER_UP_ANTI_GRAVITY_MULTIPLIER: f32 = 0.2;
 // pool — the type's collection / status / movement code stays in place, so a
 // player still benefits if they somehow obtain one (e.g., via the `ALWAYS_*`
 // debug flags below). With every flag `false`, only cookies spawn.
+//
+// These intentionally live in compile-time constants alongside `ALWAYS_*`,
+// not in `PowerUpsConfig` JSON. Cookies have a separate
+// `cookies.spawning_enabled` runtime toggle because cookies double as quest
+// progress and a designer might want them off per-map; power-ups are
+// session-global and the constant form matches the other tuning here.
 pub const POWER_UP_SPEED_ENABLED: bool = true;
 pub const POWER_UP_MULTI_SHOT_ENABLED: bool = true;
 pub const POWER_UP_PHASING_ENABLED: bool = false;

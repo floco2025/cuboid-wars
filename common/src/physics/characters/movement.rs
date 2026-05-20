@@ -57,7 +57,7 @@ pub fn step_character_movement(
     collision_world: &CollisionWorld,
     has_phasing: bool,
     has_anti_gravity: bool,
-    held_keys: &[crate::protocol::BarrierKindId],
+    passable_kinds: &[crate::protocol::BarrierKindId],
     physics: CharacterPhysicsConfig,
     target_x: f32,
     target_z: f32,
@@ -72,7 +72,7 @@ pub fn step_character_movement(
             &support_shape,
             start_pos,
             has_phasing,
-            held_keys,
+            passable_kinds,
             physics,
         )
     } else {
@@ -118,7 +118,7 @@ pub fn step_character_movement(
         &character_pos,
         requested_move,
         has_phasing,
-        held_keys,
+        passable_kinds,
         |collision| {
             let normal = vec3(collision.hit.normal1);
             let is_side_contact = normal.y.abs() <= 0.5;
@@ -142,7 +142,7 @@ pub fn step_character_movement(
             &support_shape,
             &resolved,
             has_phasing,
-            held_keys,
+            passable_kinds,
             physics,
         )
     } else {
@@ -210,7 +210,7 @@ fn character_ground_hit(
     shape: &Cuboid,
     pos: &Position,
     has_phasing: bool,
-    held_keys: &[crate::protocol::BarrierKindId],
+    passable_kinds: &[crate::protocol::BarrierKindId],
     physics: CharacterPhysicsConfig,
 ) -> Option<ShapeCastHit> {
     let pose = character_support_probe_pose(pos, physics);
@@ -220,7 +220,7 @@ fn character_ground_hit(
         CHARACTER_GROUND_SNAP_DISTANCE + physics.collider.bottom_y_offset(),
         0.0,
         has_phasing,
-        held_keys,
+        passable_kinds,
     )
 }
 

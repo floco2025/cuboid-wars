@@ -178,6 +178,20 @@ pub struct PowerUpsConfig {
 }
 
 impl PowerUpsConfig {
+    // Per-`PowerUpKind` duration, sourced from the named JSON fields. Lets
+    // the rest of the server look up durations by enum variant without
+    // each call site enumerating the four matches.
+    #[must_use]
+    pub const fn duration_secs(&self, kind: common::protocol::PowerUpKind) -> f32 {
+        use common::protocol::PowerUpKind as K;
+        match kind {
+            K::Speed => self.speed_duration_secs,
+            K::MultiShot => self.multi_shot_duration_secs,
+            K::Phasing => self.phasing_duration_secs,
+            K::AntiGravity => self.anti_gravity_duration_secs,
+        }
+    }
+
     fn validate(&self, path: &str) -> Result<()> {
         validate_positive_finite(self.despawn_secs, &format!("{path}.despawn_secs"))?;
         validate_non_negative_finite(self.speed_duration_secs, &format!("{path}.speed_duration_secs"))?;

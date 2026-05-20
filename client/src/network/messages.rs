@@ -71,6 +71,7 @@ pub fn dispatch_message(
                 &client_assets.asset_server,
                 &client_assets.asset_set,
                 actors,
+                players,
                 &client_assets.gameplay_config,
                 death_msg,
             );

@@ -46,7 +46,7 @@ pub fn handle_player_move_intent_message(
             msg.movement,
             gameplay_config.player.walk_speed,
             gameplay_config.player.run_speed,
-            player.speed_power_up,
+            player.power_up(PowerUpKind::Speed),
         );
 
         // Add server reconciliation if we have client position
@@ -82,7 +82,7 @@ pub fn handle_player_jump_message(
             msg.movement,
             gameplay_config.player.walk_speed,
             gameplay_config.player.run_speed,
-            player.speed_power_up,
+            player.power_up(PowerUpKind::Speed),
         );
         commands.entity(player.entity).insert((
             msg.movement.move_intent,
@@ -130,7 +130,7 @@ pub fn handle_player_shot_message(
                 position,
                 msg.face_dir,
                 msg.face_pitch,
-                player.multi_shot_power_up,
+                player.power_up(PowerUpKind::MultiShot),
                 gameplay_config.player.eye_height(),
                 collision_world,
                 msg.id,
@@ -215,6 +215,19 @@ pub fn handle_player_death_message(
         }
     }
 
+    // Early-apply the victim's post-death score so the HUD bumps on the
+    // death tick instead of waiting for the next snapshot. Same idea for
+    // the killer's bonus (when there is one). Snapshot remains the system
+    // of record; this just cuts the latency.
+    if let Some(info) = players.get_mut(&msg.id) {
+        info.score = msg.victim_score;
+    }
+    if let (Some(killer_id), Some(killer_score)) = (msg.killer, msg.killer_score)
+        && let Some(killer_info) = players.get_mut(&killer_id)
+    {
+        killer_info.score = killer_score;
+    }
+
     if let Some(info) = players.get(&msg.id) {
         commands.entity(info.entity).insert(Health(0.0));
     }
@@ -271,11 +284,11 @@ pub fn handle_player_status_message(
         if msg.id == my_player_id {
             // Don't play power-up sound effect if this message is due to a stun change
             if player_info.stunned == msg.stunned {
-                // Only play power-up sound effect if it wasn't a downgrade
-                let lost_power_up = player_info.speed_power_up && !msg.speed_power_up
-                    || player_info.multi_shot_power_up && !msg.multi_shot_power_up
-                    || player_info.phasing_power_up && !msg.phasing_power_up
-                    || player_info.anti_gravity_power_up && !msg.anti_gravity_power_up;
+                // Only play power-up sound effect if it wasn't a downgrade —
+                // i.e., no kind transitioned from active to inactive.
+                let lost_power_up = PowerUpKind::ALL
+                    .iter()
+                    .any(|kind| player_info.power_up(*kind) && !msg.power_up(*kind));
 
                 if !lost_power_up {
                     commands.spawn((
@@ -389,10 +402,7 @@ mod tests {
             entity,
             score: 0,
             name: name.to_owned(),
-            speed_power_up: false,
-            multi_shot_power_up: false,
-            phasing_power_up: false,
-            anti_gravity_power_up: false,
+            power_ups: [false; PowerUpKind::COUNT],
             stunned: false,
             snap_speed: 0.0,
             held_keys: Vec::new(),
@@ -440,6 +450,8 @@ mod tests {
                     id: my_id,
                     pos: Position::default(),
                     killer: None,
+                    victim_score: 0,
+                    killer_score: None,
                 },
             );
         }
