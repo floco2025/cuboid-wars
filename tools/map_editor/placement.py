@@ -85,11 +85,11 @@ class PlacementMixin:
         self.apply_change("Paint Inaccessible Floor", after)
 
     def add_actor_spawn_zone_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
-        c0, r0, c1, r1 = rect_from_cells(start, end)
         result = self.prompt_for_actor_spawn_fields()
         if result is None:
             return
         kind, count = result
+        c0, r0, c1, r1 = rect_from_cells(start, end)
         after = copy.deepcopy(self.map_data)
         new_zone = {
             "level": self.current_level,
@@ -187,7 +187,6 @@ class PlacementMixin:
         self.apply_change("Place Wall", after)
 
     def prompt_and_add_barrier_line(self, start: tuple[int, int], end: tuple[int, int]) -> None:
-        """Prompt for kind via dialog (defaults to last-used), then place."""
         kind = BarrierKindDialog.prompt(self, "Place Barrier", self.recent_barrier_kind)
         if kind is None:
             return
@@ -195,8 +194,6 @@ class PlacementMixin:
         self.add_barrier_line(start, end, kind)
 
     def prompt_and_add_pressure_plate(self, col: int, row: int) -> None:
-        """Place a pressure plate on (col, row) of the current level, after
-        prompting for the barrier kind it controls. Last-used kind defaults."""
         kind = BarrierKindDialog.prompt(self, "Place Pressure Plate", self.recent_pressure_plate_kind)
         if kind is None:
             return

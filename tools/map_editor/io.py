@@ -12,12 +12,14 @@ from .formatting import format_map_file
 from .geometry import canonicalize_map, normalize_map
 
 
-def empty_map() -> dict:
+def empty_map(grid_cols: int = DEFAULT_GRID_COLS, grid_rows: int = DEFAULT_GRID_ROWS) -> dict:
     # No seeded actor zone: there's no default kind to give it. Users paint
     # actor zones explicitly and pick a kind in the dialog.
+    # The player-spawn-zone seed in the top-left guarantees the map is
+    # save-valid out of the box (at least one player spawn zone is required).
     return {
-        "grid_cols": DEFAULT_GRID_COLS,
-        "grid_rows": DEFAULT_GRID_ROWS,
+        "grid_cols": grid_cols,
+        "grid_rows": grid_rows,
         "actor_spawn_zones": [],
         "player_spawn_zones": [
             {"level": 0, "cols": [0, 2], "rows": [0, 2]},

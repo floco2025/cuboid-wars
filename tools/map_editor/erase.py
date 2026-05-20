@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import copy
 
-from .constants import FLOOR_HIT_KINDS, SPAWN_ZONE_LISTS
+from .constants import FLOOR_HIT_KINDS, MODE_FLOOR, MODE_INACCESSIBLE_FLOOR, SPAWN_ZONE_LISTS
 from .geometry import (
     normalized_wall,
     point_near_wall,
@@ -98,9 +98,9 @@ class EraseMixin:
             if c0 <= col < c1 and r0 <= row < r1:
                 return ("Ramp", (lower, tuple(ramp["low"]), tuple(ramp["high"])))
         if any(f["col"] == col and f["row"] == row for f in level["floors"]):
-            return ("Floor", (col, row))
+            return (MODE_FLOOR, (col, row))
         if any(f["col"] == col and f["row"] == row for f in level["inaccessible_floors"]):
-            return ("Inaccessible Floor", (col, row))
+            return (MODE_INACCESSIBLE_FLOOR, (col, row))
         return None
 
     def erase_hit(self, hit, preserve_floors: bool = False) -> None:
@@ -109,11 +109,11 @@ class EraseMixin:
             return
         after = copy.deepcopy(self.map_data)
         level = after["levels"][self.current_level]
-        if kind == "Floor":
+        if kind == MODE_FLOOR:
             level["floors"] = [
                 floor for floor in level["floors"] if (floor["col"], floor["row"]) != value
             ]
-        elif kind == "Inaccessible Floor":
+        elif kind == MODE_INACCESSIBLE_FLOOR:
             level["inaccessible_floors"] = [
                 floor for floor in level["inaccessible_floors"]
                 if (floor["col"], floor["row"]) != value

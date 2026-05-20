@@ -40,7 +40,7 @@ BARRIER_KIND_TABLE, BARRIER_KIND_COLORS, MATERIAL_ALIASES = _load_shared_configs
 DEFAULT_ALIAS: str = next(iter(sorted(MATERIAL_ALIASES)), "")
 
 MODE_FLOOR = "Floor"
-MODE_INACCESSIBLE_FLOOR = "Inaccessible Floor"
+MODE_INACCESSIBLE_FLOOR = "Blocked Floor"
 MODE_ACTOR_SPAWN_PAINT = "Actor Spawn Zone (Paint)"
 MODE_PLAYER_SPAWN_PAINT = "Player Spawn Zone (Paint)"
 MODE_COOKIE_SPAWN_PAINT = "Cookie Spawn Zone (Paint)"
@@ -62,29 +62,35 @@ RAMP_MODES = (MODE_RAMP_UP, MODE_RAMP_DOWN)
 ERASE_MODES = (MODE_ERASE, MODE_ERASE_KEEP_FLOORS)
 SPAWN_PAINT_MODES = (MODE_ACTOR_SPAWN_PAINT, MODE_PLAYER_SPAWN_PAINT, MODE_COOKIE_SPAWN_PAINT, MODE_KEY_SPAWN_PAINT)
 MATERIAL_MODES = (MODE_FLOOR_MATERIAL, MODE_WALL_MATERIAL, MODE_RAMP_MATERIAL)
-FLOOR_HIT_KINDS = ("Floor", "Inaccessible Floor")
+FLOOR_HIT_KINDS = (MODE_FLOOR, MODE_INACCESSIBLE_FLOOR)
 LIGHT_SIDES = ("N", "S", "E", "W")
-MODES = [
-    MODE_FLOOR,
-    MODE_INACCESSIBLE_FLOOR,
-    MODE_ACTOR_SPAWN_PAINT,
-    MODE_PLAYER_SPAWN_PAINT,
-    MODE_COOKIE_SPAWN_PAINT,
-    MODE_KEY_SPAWN_PAINT,
-    MODE_SPAWN_ZONE_EDIT,
-    MODE_WALL,
-    MODE_BARRIER,
-    MODE_RAMP_UP,
-    MODE_RAMP_DOWN,
-    MODE_ERASE,
-    MODE_ERASE_KEEP_FLOORS,
-    MODE_FLOOR_MATERIAL,
-    MODE_WALL_MATERIAL,
-    MODE_RAMP_MATERIAL,
-    MODE_LIGHT,
-    MODE_ERASE_LIGHTS,
-    MODE_PRESSURE_PLATE,
+# Modes grouped by category for the mode picker. Each tuple is
+# `(category label, ordered list of modes)`. The label is shown as a
+# disabled separator row in the dropdown so the user sees the taxonomy
+# instead of a flat 19-entry list.
+MODE_CATEGORIES: list[tuple[str, list[str]]] = [
+    ("Floors", [MODE_FLOOR, MODE_INACCESSIBLE_FLOOR]),
+    (
+        "Spawn Zones",
+        [
+            MODE_ACTOR_SPAWN_PAINT,
+            MODE_PLAYER_SPAWN_PAINT,
+            MODE_COOKIE_SPAWN_PAINT,
+            MODE_KEY_SPAWN_PAINT,
+            MODE_SPAWN_ZONE_EDIT,
+        ],
+    ),
+    ("Walls + Barriers", [MODE_WALL, MODE_BARRIER]),
+    ("Ramps", [MODE_RAMP_UP, MODE_RAMP_DOWN]),
+    ("Materials", [MODE_FLOOR_MATERIAL, MODE_WALL_MATERIAL, MODE_RAMP_MATERIAL]),
+    ("Lights", [MODE_LIGHT, MODE_ERASE_LIGHTS]),
+    ("Pressure Plates", [MODE_PRESSURE_PLATE]),
+    ("Erase", [MODE_ERASE, MODE_ERASE_KEEP_FLOORS]),
 ]
+
+# Flat list of every mode in display order. Derived from `MODE_CATEGORIES`
+# so the two never drift apart; if you add a mode, add it to its category.
+MODES: list[str] = [mode for _, group in MODE_CATEGORIES for mode in group]
 
 # Two named lists in map_data so the editor can refer to them generically.
 ACTOR_ZONE_LIST = "actor_spawn_zones"
@@ -102,7 +108,7 @@ STATUS_TIMEOUT_MS = 4000
 TOOL_REFERENCE_ENTRIES: list[tuple[str, str]] = [
     ("Floor", "drag cells to add floor."),
     (
-        "Inaccessible Floor",
+        "Blocked Floor",
         "drag cells to add floor slabs that never spawn items, players, or lights.",
     ),
     ("Actor Spawn Zone (Paint)", "drag a rectangle, then enter Kind and Count."),
@@ -115,8 +121,9 @@ TOOL_REFERENCE_ENTRIES: list[tuple[str, str]] = [
     ),
     (
         "Spawn Zone (Edit)",
-        "click a zone to select; drag the body to move, drag a corner/edge handle to "
-        "resize. Right-click to edit fields (actor zones only) or delete.",
+        "click any spawn zone (actor, player, cookie, or key) to select; drag the body to "
+        "move, drag a corner/edge handle to resize. Right-click to edit fields (actor and "
+        "key zones) or delete.",
     ),
     ("Wall", "drag along grid lines to place atomic wall edges."),
     (
@@ -142,6 +149,21 @@ TOOL_REFERENCE_ENTRIES: list[tuple[str, str]] = [
         "left-click a cell to place a plate; a dialog asks which barrier kind. While enough "
         "plates of a kind are pressed, every barrier of that kind opens globally. Right-click "
         "a plate to remove it.",
+    ),
+    (
+        "Floor Material",
+        "click a single floor cell, or drag a rectangle to cover many; the dialog assigns "
+        "materials to every face.",
+    ),
+    (
+        "Wall Material",
+        "click a single wall to select it, or drag along grid lines to span many; the dialog "
+        "assigns materials to every face.",
+    ),
+    (
+        "Ramp Material",
+        "click any cell of a ramp, or drag a rectangle covering one or more ramps; the dialog "
+        "assigns materials to every face.",
     ),
 ]
 

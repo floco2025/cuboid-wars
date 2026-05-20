@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import copy
 
+from PySide6.QtWidgets import QMessageBox
+
 from .dialogs import AutoPlaceLightsDialog
 from .geometry import (
     cell_side_from_click,
+    level_label,
     light_key,
     normalized_wall,
     ramp_cells,
@@ -105,18 +108,35 @@ class LightsMixin:
         after = copy.deepcopy(self.map_data)
         existing = after["levels"][level_idx]["lights"]
         existing_keys = {light_key(l) for l in existing}
-        added = 0
-        for candidate in candidates:
-            if light_key(candidate) in existing_keys:
-                continue
-            existing.append(candidate)
-            existing_keys.add(light_key(candidate))
-            added += 1
-        if added == 0:
+        # Filter the candidate set down to "actually new" — the user's
+        # preview only shows lights that would be added, not duplicates of
+        # ones already on the level.
+        new_lights = [c for c in candidates if light_key(c) not in existing_keys]
+        if not new_lights:
             self._flash_status("Auto-Place Lights: nothing new to add.")
             return
+
+        # Ghost preview: stash the candidate list, repaint the canvas (so
+        # the user sees where the lights would land), then confirm. Cancel
+        # leaves the level untouched; accept commits one undoable batch.
+        self.pending_auto_lights = (level_idx, new_lights)
+        self.canvas.update()
+        response = QMessageBox.question(
+            self,
+            "Auto-Place Lights",
+            f"Add {len(new_lights)} light(s) to the highlighted positions?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Yes,
+        )
+        self.pending_auto_lights = None
+        self.canvas.update()
+        if response != QMessageBox.StandardButton.Yes:
+            self._flash_status("Auto-Place Lights: cancelled.")
+            return
+        for candidate in new_lights:
+            existing.append(candidate)
         self.apply_change("Auto-Place Lights", after)
-        self._flash_status(f"Auto-Place Lights: added {added} light(s).")
+        self._flash_status(f"Auto-Place Lights: added {len(new_lights)} light(s).")
 
     def open_auto_place_lights_dialog(self) -> None:
         result = AutoPlaceLightsDialog.prompt(
@@ -132,8 +152,22 @@ class LightsMixin:
 
     def clear_lights_on_current_level(self) -> None:
         level_idx = self.current_level
-        if not self.map_data["levels"][level_idx]["lights"]:
+        level = self.map_data["levels"][level_idx]
+        light_count = len(level["lights"])
+        if light_count == 0:
             self._flash_status("Clear Lights: this level has no lights.")
+            return
+        # Wiping every light on a level is one menu click away — sanity-prompt
+        # in line with Remove Level. Undo recovers but the modal makes the
+        # action's blast radius visible.
+        response = QMessageBox.question(
+            self,
+            "Clear Lights",
+            f"Remove all {light_count} light(s) from {level_label(level, level_idx)}?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
+        )
+        if response != QMessageBox.StandardButton.Yes:
             return
         after = copy.deepcopy(self.map_data)
         after["levels"][level_idx]["lights"] = []

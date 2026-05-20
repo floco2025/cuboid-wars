@@ -76,6 +76,12 @@ class Canvas(QWidget):
         # cursor.
         self.hover_kind: str | None = None
         self.hover_target: dict | None = None
+        # Cell under the cursor while not dragging — drives the
+        # `_paint_hover_ghost` overlay so paint/erase/spawn modes show what
+        # the click would affect. Independent of `hover_target` (used by
+        # material modes' hover-highlight pass).
+        self.hover_cell: tuple[int, int] | None = None
+        self.hover_grid_point: tuple[int, int] | None = None
         self._hover_label = QLabel(self)
         self._hover_label.setStyleSheet(
             "background-color: rgba(15, 23, 42, 230);"
@@ -136,6 +142,11 @@ class Canvas(QWidget):
         # Painting is layered: each pass draws on top of the previous one.
         # The order here is load-bearing — moving a pass changes occlusion.
         painter.fillRect(QRectF(0, 0, cols * cell, rows * cell), QColor("#111418"))
+        # Ghost the prev/next level under the current one so multi-level
+        # ramps are easier to align. Floors/walls/ramps only — including
+        # spawn zones and lights would clutter the view.
+        if self.window.show_adjacent_levels:
+            self._paint_adjacent_level_ghosts(painter, cell, level_idx)
         self._paint_floors(painter, level, cell)
         self._paint_pressure_plates(painter, cell, level_idx)
         self._paint_ramps(painter, cell, level_idx)
@@ -152,8 +163,43 @@ class Canvas(QWidget):
         self._paint_wall_material_drag(painter, cell)
         # Lights sit on top of wall lines so the markers stay visible.
         self.paint_lights(painter, level, cell)
+        self._paint_pending_auto_lights(painter, cell, level_idx)
         # Hover highlight is drawn last so it sits on top of everything.
         self.paint_hover_highlight(painter, cell, level_idx)
+        # Per-mode hover ghost (shows what the click/drag would affect).
+        # Drawn after the hover highlight so material-mode tooltips still
+        # win; the two systems don't overlap because they fire on
+        # disjoint mode sets.
+        self._paint_hover_ghost(painter, cell)
+
+    def _paint_hover_ghost(self, painter: QPainter, cell: float) -> None:
+        # Show a ghost of what the click/drag would affect at the cursor. The
+        # color comes from the same `DRAG_PREVIEW_COLORS` table the actual
+        # drag uses, so hover-feel matches drag-feel. Skip while a drag is
+        # active (the real preview is already on screen) and skip for modes
+        # whose own systems already paint a hover state.
+        if self.drag_start_cell is not None or self.drag_start_point is not None:
+            return
+        mode = self.window.mode
+        if mode == MODE_SPAWN_ZONE_EDIT or mode in MATERIAL_MODES:
+            return
+        # Edge-based modes (Wall, Barrier): no ghost yet — the drag preview
+        # is the discoverability path; a single-point ghost would only show
+        # a 1px dot. Skip until we add a single-segment preview later.
+        if mode in (MODE_WALL, MODE_BARRIER):
+            return
+        if self.hover_cell is None:
+            return
+        col, row = self.hover_cell
+        if not (0 <= col < self.window.map_data["grid_cols"] and 0 <= row < self.window.map_data["grid_rows"]):
+            return
+        color = DRAG_PREVIEW_COLORS.get(mode, DRAG_PREVIEW_FALLBACK)
+        # Slightly dimmer than the drag preview so a static hover doesn't
+        # compete with the in-progress drag visual.
+        ghost = QColor(color.red(), color.green(), color.blue(), max(40, color.alpha() // 2))
+        painter.setPen(QPen(QColor(color.red(), color.green(), color.blue(), 180), 2))
+        painter.setBrush(ghost)
+        painter.drawRect(QRectF(col * cell + 1, row * cell + 1, cell - 2, cell - 2))
 
     def _paint_floors(self, painter: QPainter, level: dict, cell: float) -> None:
         painter.setPen(Qt.PenStyle.NoPen)
@@ -163,14 +209,23 @@ class Canvas(QWidget):
             col, row = floor["col"], floor["row"]
             painter.setBrush(face_color(floor) if overlay else default_floor)
             painter.drawRect(QRectF(col * cell + 1, row * cell + 1, cell - 2, cell - 2))
-        painter.setBrush(default_floor)
+        # Blocked-floor fill is darker than walkable, with a denser cross-hatch
+        # in a brighter slate so the "you can't walk here" reads at a glance.
+        blocked_fill = QColor("#3a4250")
+        blocked_hatch = QColor("#b8c4d4")
         for floor in level["inaccessible_floors"]:
             col, row = floor["col"], floor["row"]
             rect = QRectF(col * cell + 1, row * cell + 1, cell - 2, cell - 2)
+            painter.setBrush(face_color(floor) if overlay else blocked_fill)
             painter.drawRect(rect)
-            painter.setPen(QPen(QColor("#94a3b8"), 1))
+            painter.setPen(QPen(blocked_hatch, 2))
             painter.drawLine(rect.topLeft(), rect.bottomRight())
             painter.drawLine(rect.bottomLeft(), rect.topRight())
+            # Mid-axis crosshatch for extra density.
+            mid_x = rect.center().x()
+            mid_y = rect.center().y()
+            painter.drawLine(rect.left(), mid_y, mid_x, rect.top())
+            painter.drawLine(mid_x, rect.bottom(), rect.right(), mid_y)
             painter.setPen(Qt.PenStyle.NoPen)
 
     def _paint_pressure_plates(self, painter: QPainter, cell: float, level_idx: int) -> None:
@@ -286,6 +341,38 @@ class Canvas(QWidget):
         painter.setPen(QPen(QColor(202, 138, 4, 255), 1))
         for light in lights:
             painter.drawPolygon(light_marker_polygon(light, cell))
+
+    def _paint_adjacent_level_ghosts(self, painter: QPainter, cell: float, level_idx: int) -> None:
+        # Lower the opacity for the whole ghost pass, then restore it. Each
+        # adjacent level renders with the same paint helpers as the current
+        # one — keeps style consistent, just dimmer.
+        painter.save()
+        painter.setOpacity(0.25)
+        levels = self.window.map_data["levels"]
+        for offset in (-1, 1):
+            target = level_idx + offset
+            if 0 <= target < len(levels):
+                neighbor = levels[target]
+                self._paint_floors(painter, neighbor, cell)
+                self._paint_ramps(painter, cell, target)
+                self._paint_walls(painter, neighbor, cell)
+                self._paint_barriers(painter, neighbor, cell)
+        painter.restore()
+
+    def _paint_pending_auto_lights(self, painter: QPainter, cell: float, level_idx: int) -> None:
+        # Ghost overlay for the Auto-Place Lights confirmation. Cyan instead
+        # of yellow so the user can tell pending-vs-committed at a glance.
+        pending = self.window.pending_auto_lights
+        if pending is None:
+            return
+        pending_level, pending_lights = pending
+        if pending_level != level_idx or not pending_lights:
+            return
+        painter.setBrush(QColor(34, 211, 238, 160))
+        painter.setPen(QPen(QColor(8, 145, 178, 255), 1, Qt.PenStyle.DashLine))
+        for light in pending_lights:
+            painter.drawPolygon(light_marker_polygon(light, cell))
+        painter.setPen(Qt.PenStyle.NoPen)
 
     def paint_hover_highlight(self, painter: QPainter, cell: float, level_idx: int) -> None:
         if self.hover_target is None:
@@ -517,6 +604,11 @@ class Canvas(QWidget):
         if not (event.buttons() & Qt.MouseButton.LeftButton):
             if self.window.mode in MATERIAL_MODES:
                 self._update_material_hover(event.position())
+            else:
+                # Hover ghost for non-material modes: track which cell (and
+                # grid point, for wall/barrier modes) the cursor is over so
+                # `_paint_hover_ghost` can show a per-mode preview.
+                self._update_cell_hover(event.position())
             return
         if self.window.mode == MODE_SPAWN_ZONE_EDIT:
             self.window.update_spawn_zone_edit_drag(event.position(), self.cell_size())
@@ -530,11 +622,23 @@ class Canvas(QWidget):
         self._clear_hover()
 
     def _clear_hover(self) -> None:
-        if self.hover_target is not None:
-            self.hover_kind = None
-            self.hover_target = None
+        changed = self.hover_target is not None or self.hover_cell is not None or self.hover_grid_point is not None
+        self.hover_kind = None
+        self.hover_target = None
+        self.hover_cell = None
+        self.hover_grid_point = None
+        if changed:
             self.update()
         self._hover_label.hide()
+
+    def _update_cell_hover(self, pos) -> None:
+        cell = self.point_to_cell(pos)
+        grid_point = self.point_to_grid_point(pos)
+        if cell == self.hover_cell and grid_point == self.hover_grid_point:
+            return
+        self.hover_cell = cell
+        self.hover_grid_point = grid_point
+        self.update()
 
     def _update_material_hover(self, pos) -> None:
         cell_size = self.cell_size()
@@ -673,24 +777,44 @@ class Canvas(QWidget):
 
     def contextMenuEvent(self, event) -> None:
         menu = QMenu(self)
-        if self.window.mode == MODE_SPAWN_ZONE_EDIT:
+        # Spawn-zone context menu fires in the dedicated Edit mode AND in
+        # the four paint modes when the click lands on a zone of the
+        # matching type. Lets users edit/delete what they just painted
+        # without first switching to Edit mode.
+        mode_to_zone_list = {
+            MODE_ACTOR_SPAWN_PAINT: ACTOR_ZONE_LIST,
+            MODE_PLAYER_SPAWN_PAINT: "player_spawn_zones",
+            MODE_COOKIE_SPAWN_PAINT: "cookie_spawn_zones",
+            MODE_KEY_SPAWN_PAINT: "key_spawn_zones",
+        }
+        if self.window.mode == MODE_SPAWN_ZONE_EDIT or self.window.mode in mode_to_zone_list:
             picked = self.window.spawn_zone_at(event.pos(), self.cell_size())
+            # In a paint mode, only react to zones of that paint's type so
+            # the menu doesn't surprise the user with unrelated zones.
+            if picked is not None and self.window.mode in mode_to_zone_list:
+                if picked.list_name != mode_to_zone_list[self.window.mode]:
+                    picked = None
             if picked is None:
                 disabled = menu.addAction("No spawn zone here")
                 disabled.setEnabled(False)
             else:
                 self.window.set_selected_spawn_zone(picked)
                 self.update()
-                list_name = picked.list_name
-                if list_name == ACTOR_ZONE_LIST:
+                if self.window.selected_spawn_zone_has_fields():
                     menu.addAction("Edit Fields...", lambda: self.window.edit_selected_spawn_zone_fields())
-                menu.addAction("Delete Spawn Zone", lambda: self.window.delete_selected_spawn_zone())
+                menu.addAction(
+                    "Delete Spawn Zone",
+                    lambda: self.window.delete_selected_spawn_zone(),
+                )
             menu.exec(event.globalPos())
             return
         hit = self.window.hit_at(event.pos(), self.cell_size())
         preserve_floors = self.window.mode == MODE_ERASE_KEEP_FLOORS
         if hit and not (preserve_floors and hit[0] in FLOOR_HIT_KINDS):
-            menu.addAction(f"Erase {hit[0]}", lambda: self.window.erase_hit(hit, preserve_floors))
+            menu.addAction(
+                f"Erase {hit[0]}",
+                lambda: self.window.erase_hit(hit, preserve_floors),
+            )
         else:
             disabled = menu.addAction("Nothing to erase")
             disabled.setEnabled(False)

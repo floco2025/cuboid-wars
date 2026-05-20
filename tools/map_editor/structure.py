@@ -103,16 +103,49 @@ class StructureMixin:
         if len(self.map_data["levels"]) == 1:
             QMessageBox.information(self, "Remove Level", "A map must have at least one level.")
             return
+        removed = self.current_level
+        # Enumerate everything that will be dropped so the user sees the
+        # blast radius before confirming. Mirrors the Resize Map dialog.
+        dropped_zones = 0
+        for list_name in SPAWN_ZONE_LISTS:
+            dropped_zones += sum(1 for zone in self.map_data[list_name] if zone["level"] == removed)
+        dropped_ramps = 0
+        for ramp in self.map_data["ramps"]:
+            lower = ramp["lower_level"]
+            if removed in (lower, lower + 1):
+                dropped_ramps += 1
+        level = self.map_data["levels"][removed]
+        floor_count = len(level["floors"]) + len(level["inaccessible_floors"])
+        wall_count = len(level["walls"])
+        light_count = len(level["lights"])
+        barrier_count = len(level.get("barriers", []))
+        parts = [f"all geometry on {level_label(level, removed)}"]
+        details = []
+        if floor_count:
+            details.append(f"{floor_count} floor cell(s)")
+        if wall_count:
+            details.append(f"{wall_count} wall(s)")
+        if light_count:
+            details.append(f"{light_count} light(s)")
+        if barrier_count:
+            details.append(f"{barrier_count} barrier(s)")
+        if dropped_zones:
+            parts.append(f"{dropped_zones} spawn zone(s) on this level")
+        if dropped_ramps:
+            parts.append(f"{dropped_ramps} ramp(s) that span this level")
+        body = f"Remove {level_label(level, removed)}?\n\nThis will drop:"
+        body += "\n  - " + "\n  - ".join(parts)
+        if details:
+            body += "\n\n(geometry: " + ", ".join(details) + ")"
         result = QMessageBox.question(
             self,
             "Remove Level",
-            f"Remove {level_label(self.map_data['levels'][self.current_level], self.current_level)}?",
+            body,
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
             QMessageBox.StandardButton.Cancel,
         )
         if result != QMessageBox.StandardButton.Yes:
             return
-        removed = self.current_level
         after = copy.deepcopy(self.map_data)
         after["levels"].pop(removed)
         for list_name in SPAWN_ZONE_LISTS:
@@ -138,5 +171,20 @@ class StructureMixin:
         self.apply_change("Remove Level", after)
 
     def show_tool_reference(self) -> None:
-        body = "\n".join(f"{tool}: {desc}" for tool, desc in TOOL_REFERENCE_ENTRIES)
+        tools = "\n".join(f"{tool}: {desc}" for tool, desc in TOOL_REFERENCE_ENTRIES)
+        shortcuts = "\n".join(
+            f"  {key}  {action}"
+            for key, action in [
+                ("↑ / ↓", "next / previous level"),
+                ("← / →", "previous / next tool"),
+                ("M", "toggle Show Material Overlay"),
+                ("Ctrl/Cmd+Z / Ctrl/Cmd+Shift+Z", "undo / redo"),
+                ("Ctrl/Cmd+O", "open"),
+                ("Ctrl/Cmd+S", "save"),
+                ("Ctrl/Cmd+Shift+S", "save as"),
+                ("Ctrl/Cmd+N", "new map"),
+                ("Ctrl/Cmd+Q", "quit"),
+            ]
+        )
+        body = f"{tools}\n\nKeyboard shortcuts:\n{shortcuts}"
         QMessageBox.information(self, "Tool Reference", body)
