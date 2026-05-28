@@ -1,7 +1,7 @@
 use bevy_ecs::prelude::Entity;
 
 use super::{
-    geometry::{character_paths_intersect_with_clearance, character_positions_intersect_with_clearance},
+    geometry::{character_paths_intersect, character_positions_intersect},
     types::CharacterMovePlan,
 };
 use crate::{constants::PHYSICS_EPSILON, protocol::Position};
@@ -86,7 +86,7 @@ fn character_move_plan_follows_front_move(candidate: &CharacterMovePlan, other: 
     let to_other_start_z = other.start.z - candidate.start.z;
     let other_starts_in_front = candidate_move_x.mul_add(to_other_start_x, candidate_move_z * to_other_start_z) > 0.0;
     let moving_same_way = candidate_move_x.mul_add(other_move_x, candidate_move_z * other_move_z) > 0.0;
-    let final_positions_overlap = character_paths_intersect_with_clearance(
+    let final_positions_overlap = character_paths_intersect(
         &candidate.target,
         &candidate.target,
         candidate.physics,
@@ -113,11 +113,11 @@ fn position_is_behind_move_plan(candidate: &CharacterMovePlan, other_pos: &Posit
 
 #[must_use]
 pub fn character_move_plans_intersect(candidate: &CharacterMovePlan, other: &CharacterMovePlan) -> bool {
-    if character_positions_intersect_with_clearance(&candidate.start, candidate.physics, &other.start, other.physics) {
+    if character_positions_intersect(&candidate.start, candidate.physics, &other.start, other.physics) {
         return !character_move_plans_separate(candidate, other);
     }
 
-    character_paths_intersect_with_clearance(
+    character_paths_intersect(
         &candidate.start,
         &candidate.target,
         candidate.physics,

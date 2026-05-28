@@ -58,7 +58,6 @@ pub fn spawn_player(
 ) -> Entity {
     let player_model = asset_set.player_model();
     let player_physics = gameplay_config.player.physics();
-    // Create animation graph for this player
     let (graph, index) = AnimationGraph::from_clip(
         asset_server
             .load(GltfAssetLabel::Animation(player_model.animation_index).from_asset(player_model.scene.clone())),
@@ -102,7 +101,6 @@ pub fn spawn_player(
         children.push(spawn_collider_box(commands, meshes, materials, player_physics));
     }
 
-    // Add the GLB player model with animation observer
     let base_y = player_physics.model_y_offset_from_entity_center(player_model.y_offset);
     let model = commands
         .spawn((

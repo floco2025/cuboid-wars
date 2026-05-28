@@ -90,7 +90,6 @@ pub fn input_shooting_system(
         });
         let _ = to_server.send(ClientToServer::Send(shot_msg));
 
-        // Check if player has multi-shot power-up
         let has_multi_shot = ALWAYS_MULTI_SHOT
             || shooter
                 .my_player_id

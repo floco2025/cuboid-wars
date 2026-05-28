@@ -63,7 +63,8 @@ pub fn actor_removal_system(
     let respawn_delay_secs = gameplay_config.player.respawn_delay_secs;
     for death in deaths {
         if matches!(death.cause, DeathCause::Killed) {
-            // Per-kind config: cross-validated at startup, so unwrap is safe.
+            // Per-kind config: actor kinds are cross-validated against the map
+            // at startup, so `validated_actor` cannot panic here.
             let kind_server_config = server_gameplay_config.validated_actor(&death.spawn_kind);
             let dead_players = apply_actor_explosion_damage(
                 death.pos,

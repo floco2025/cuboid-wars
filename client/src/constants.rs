@@ -95,7 +95,7 @@ pub const HEALTH_BAR_FILL_COLOR: Color = Color::srgb(0.0, 0.85, 0.2);
 
 pub const ITEM_SIZE: f32 = 0.3;
 pub const ITEM_HEIGHT_ABOVE_FLOOR: f32 = 1.1;
-pub const ITEM_ANIMATION_HEIGHT: f32 = 0.2;
+pub const ITEM_ANIMATION_HEIGHT: f32 = 0.2; // bob amplitude (m); peak-to-peak swing is 2×
 pub const ITEM_ANIMATION_SPEED: f32 = 0.8;
 pub const ITEM_SPIN_HZ: f32 = 0.4; // slow coin-spin around Y for keys + power-ups
 pub const ITEM_EMISSIVE_STRENGTH: f32 = 0.2; // Multiplier for emissive glow

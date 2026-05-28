@@ -41,22 +41,11 @@ pub fn character_paths_intersect(
     end2: &Position,
     physics2: CharacterPhysicsConfig,
 ) -> bool {
-    character_paths_intersect_with_clearance(start1, end1, physics1, start2, end2, physics2)
-}
-
-pub(super) fn character_paths_intersect_with_clearance(
-    start1: &Position,
-    end1: &Position,
-    physics1: CharacterPhysicsConfig,
-    start2: &Position,
-    end2: &Position,
-    physics2: CharacterPhysicsConfig,
-) -> bool {
     let shape1 = character_shape(physics1);
     let shape2 = character_shape(physics2);
     let velocity1 = Vector::new(end1.x - start1.x, end1.y - start1.y, end1.z - start1.z);
     let velocity2 = Vector::new(end2.x - start2.x, end2.y - start2.y, end2.z - start2.z);
-    if character_positions_intersect_with_clearance(start1, physics1, start2, physics2) {
+    if character_positions_intersect(start1, physics1, start2, physics2) {
         return true;
     }
 
@@ -77,7 +66,7 @@ pub(super) fn character_paths_intersect_with_clearance(
     .is_ok_and(|hit| hit.is_some())
 }
 
-pub(super) fn character_positions_intersect_with_clearance(
+pub(super) fn character_positions_intersect(
     pos1: &Position,
     physics1: CharacterPhysicsConfig,
     pos2: &Position,

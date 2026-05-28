@@ -45,7 +45,8 @@ pub(crate) fn plan_actor_moves(
         let Some(info) = actors.get_mut(id) else {
             continue;
         };
-        // Per-kind config: cross-validated against the map at startup, so unwraps are safe.
+        // Per-kind config: actor kinds are cross-validated against the map at
+        // startup, so `validated_actor` cannot panic here.
         let actor_config = gameplay_config.validated_actor(&info.spawn_kind);
         let kind_server_config = server_gameplay_config.validated_actor(&info.spawn_kind);
         let actor_physics = actor_config.physics();

@@ -33,7 +33,6 @@ pub fn calculate_projectile_spawns(
 ) -> Vec<ProjectileSpawnInfo> {
     let mut spawns = Vec::new();
 
-    // Determine number of shots
     let num_shots = if has_multi_shot {
         POWER_UP_MULTI_SHOT_MULTIPLIER
     } else {
@@ -60,7 +59,6 @@ pub fn calculate_projectile_spawns(
         let camera_origin = Vec3::new(shooter_pos.x, shooter_pos.y + shooter_eye_height, shooter_pos.z);
         let spawn_pos = camera_origin + Vec3::new(dir_x, dir_y, dir_z) * PROJECTILE_SPAWN_OFFSET;
 
-        // Check if the path from player to spawn position crosses through a wall
         let spawn_position: Position = spawn_pos.into();
         let camera_pos: Position = camera_origin.into();
 

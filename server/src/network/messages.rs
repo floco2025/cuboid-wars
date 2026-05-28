@@ -111,7 +111,6 @@ fn handle_move_intent_message(
         return;
     }
 
-    // Update the player's input intent
     commands.entity(entity).insert(msg.move_intent);
 
     // Get current movement state for reconciliation.
@@ -212,7 +211,6 @@ fn handle_shot_message(
         return;
     };
 
-    // Update the shooter's face direction to exact facing direction
     commands.entity(entity).insert(FaceDirection(msg.face_dir));
 
     // Spawn projectile(s) on server for hit detection
