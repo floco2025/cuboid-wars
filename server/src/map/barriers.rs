@@ -104,7 +104,7 @@ fn merge_line(list: Vec<Barrier>, axis: Axis, out: &mut Vec<Barrier>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use common::{constants::BARRIER_THICKNESS, protocol::BarrierKindId};
+    use common::protocol::BarrierKindId;
 
     const RED: BarrierKindId = BarrierKindId(0);
     const BLUE: BarrierKindId = BarrierKindId(1);
@@ -116,7 +116,6 @@ mod tests {
             x2,
             z1: z,
             z2: z,
-            width: BARRIER_THICKNESS,
             level: 0,
             kind,
         }
@@ -128,7 +127,6 @@ mod tests {
             x2: x,
             z1,
             z2,
-            width: BARRIER_THICKNESS,
             level: 0,
             kind,
         }

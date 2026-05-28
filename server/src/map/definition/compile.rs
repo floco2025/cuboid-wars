@@ -304,7 +304,6 @@ fn barrier_from_def(
         z1,
         x2,
         z2,
-        width: BARRIER_THICKNESS,
         level,
         kind,
     })

@@ -128,7 +128,6 @@ pub struct Barrier {
     pub z1: f32,
     pub x2: f32,
     pub z2: f32,
-    pub width: f32,
     pub level: u8,
     pub kind: BarrierKindId,
 }

@@ -174,13 +174,12 @@ pub struct SShot {
 
 // --- One-shot cues (edge-triggered FX/state changes) ---
 
-// Player died at this position. Drives the immediate client-side death-state
-// transition (overlay + freeze for the dying player, entity teardown for
-// others). `SSnapshot`'s next snapshot is the fallback.
+// A player died. Drives the immediate client-side death-state transition
+// (overlay + freeze for the dying player, entity teardown for others).
+// `SSnapshot`'s next snapshot is the fallback.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SPlayerDeath {
     pub id: PlayerId,
-    pub pos: Position,
     // Player who landed the killing blow; `None` for non-player causes
     // (fall, actor explosion, future environmental). Drives the
     // client-side message feed's "A → B" entry vs "A died" entry.

@@ -18,19 +18,6 @@ pub fn ramp_axis(ramp: &Ramp) -> RampAxis {
     }
 }
 
-#[must_use]
-pub fn ramp_slope(ramp: &Ramp) -> f32 {
-    let denom = match ramp_axis(ramp) {
-        RampAxis::X => ramp.x2 - ramp.x1,
-        RampAxis::Z => ramp.z2 - ramp.z1,
-    };
-    if denom.abs() < PHYSICS_EPSILON {
-        0.0
-    } else {
-        (ramp.y2 - ramp.y1) / denom
-    }
-}
-
 // Compute the surface Y of a single ramp at (x, z). Caller must have already
 // verified that (x, z) lies inside `ramp.bounds_xz()`.
 #[must_use]
@@ -133,7 +120,6 @@ mod tests {
         };
 
         assert_eq!(ramp_axis(&ramp), RampAxis::X);
-        assert!((ramp_slope(&ramp) - LEVEL_HEIGHT / 8.0).abs() < PHYSICS_EPSILON);
         assert!((ramp_surface_at(&ramp, 0.0, 0.0) - LEVEL_HEIGHT / 2.0).abs() < PHYSICS_EPSILON);
     }
 
@@ -149,7 +135,6 @@ mod tests {
         };
 
         assert_eq!(ramp_axis(&ramp), RampAxis::Z);
-        assert!((ramp_slope(&ramp) - LEVEL_HEIGHT / 8.0).abs() < PHYSICS_EPSILON);
         assert!((ramp_surface_at(&ramp, 0.0, 0.0) - LEVEL_HEIGHT / 2.0).abs() < PHYSICS_EPSILON);
     }
 }

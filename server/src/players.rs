@@ -83,7 +83,6 @@ pub fn players_fall_death_system(
             &mut players,
             *id,
             entity,
-            *pos,
             gameplay_config.player.respawn_delay_secs,
             None,
         );
@@ -183,10 +182,7 @@ pub fn players_fall_damage_system(
     mut players: ResMut<PlayerMap>,
     gameplay_config: Res<GameplayConfig>,
     server_gameplay_config: Res<crate::config::ServerGameplayConfig>,
-    mut player_query: Query<
-        (Entity, &PlayerId, &Position, &CharacterVerticalVelocity, &mut Health),
-        With<PlayerMarker>,
-    >,
+    mut player_query: Query<(Entity, &PlayerId, &CharacterVerticalVelocity, &mut Health), With<PlayerMarker>>,
 ) {
     if server_gameplay_config.player.invincible {
         return;
@@ -195,7 +191,7 @@ pub fn players_fall_damage_system(
     let max_health = gameplay_config.player.health().max;
     let respawn_delay_secs = gameplay_config.player.respawn_delay_secs;
 
-    for (entity, id, pos, motion, mut health) in player_query.iter_mut() {
+    for (entity, id, motion, mut health) in player_query.iter_mut() {
         let Some(info) = players.get_mut(id) else { continue };
         if info.is_dead() {
             continue;
@@ -252,7 +248,7 @@ pub fn players_fall_damage_system(
                 }
                 if health.0 <= 0.0 {
                     info!("{:?} died from fall (distance {:.1}m)", id, fall_distance);
-                    kill_player(&mut commands, &mut players, *id, entity, *pos, respawn_delay_secs, None);
+                    kill_player(&mut commands, &mut players, *id, entity, respawn_delay_secs, None);
                 }
             }
         } else if !is_grounded {

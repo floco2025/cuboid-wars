@@ -63,16 +63,6 @@ impl ActorMap {
     pub fn iter(&self) -> impl Iterator<Item = (&ActorId, &ActorInfo)> {
         self.0.iter()
     }
-
-    #[must_use]
-    pub fn entity_is_actor(&self, entity: Entity) -> bool {
-        self.0.values().any(|actor| actor.entity == entity)
-    }
-
-    #[must_use]
-    pub fn info_for_entity(&self, entity: Entity) -> Option<&ActorInfo> {
-        self.0.values().find(|actor| actor.entity == entity)
-    }
 }
 
 #[derive(Resource, Default)]

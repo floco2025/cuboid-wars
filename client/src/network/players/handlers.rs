@@ -429,7 +429,6 @@ mod tests {
                 my_id,
                 SPlayerDeath {
                     id: my_id,
-                    pos: Position::default(),
                     killer: None,
                     victim_score: 0,
                     killer_score: None,

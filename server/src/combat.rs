@@ -24,7 +24,6 @@ pub fn kill_player(
     players: &mut PlayerMap,
     id: PlayerId,
     entity: Entity,
-    pos: Position,
     respawn_delay_secs: f32,
     killer: Option<PlayerId>,
 ) {
@@ -41,7 +40,6 @@ pub fn kill_player(
         players,
         ServerMessage::PlayerDeath(SPlayerDeath {
             id,
-            pos,
             killer,
             victim_score,
             killer_score,
@@ -330,7 +328,6 @@ mod tests {
         let target_entity = target.entity;
         players.insert(PlayerId(2), target);
 
-        let pos = Position { x: 4.0, y: 5.0, z: 6.0 };
         let world = app.world_mut();
         let mut commands_queue = bevy::ecs::world::CommandQueue::default();
         {
@@ -340,7 +337,6 @@ mod tests {
                 &mut players,
                 PlayerId(2),
                 target_entity,
-                pos,
                 2.0,
                 Some(PlayerId(1)),
             );
@@ -351,7 +347,6 @@ mod tests {
         match envelope {
             crate::net::ServerToClient::Send(ServerMessage::PlayerDeath(death)) => {
                 assert_eq!(death.id, PlayerId(2));
-                assert_eq!(death.pos, pos);
             }
             other => panic!("unexpected message: {other:?}"),
         }
@@ -372,15 +367,7 @@ mod tests {
         let mut commands_queue = bevy::ecs::world::CommandQueue::default();
         {
             let mut commands = bevy::ecs::system::Commands::new(&mut commands_queue, world);
-            kill_player(
-                &mut commands,
-                &mut players,
-                PlayerId(7),
-                entity,
-                Position { x: 1.0, y: 2.0, z: 3.0 },
-                2.0,
-                None,
-            );
+            kill_player(&mut commands, &mut players, PlayerId(7), entity, 2.0, None);
         }
         commands_queue.apply(world);
 

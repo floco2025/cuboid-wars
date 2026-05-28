@@ -86,7 +86,7 @@ pub fn actor_removal_system(
                     killer_score,
                 }),
             );
-            for (player_id, entity, pos) in dead_players {
+            for (player_id, entity, _) in dead_players {
                 info!("{:?} killed by {:?} explosion", player_id, death.id);
                 // Attribute the kill to whoever last damaged the actor that
                 // exploded — the explosion is their kill chain. None if the
@@ -96,7 +96,6 @@ pub fn actor_removal_system(
                     &mut players,
                     player_id,
                     entity,
-                    pos,
                     respawn_delay_secs,
                     death.killer,
                 );
