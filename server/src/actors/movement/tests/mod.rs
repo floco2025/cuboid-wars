@@ -132,6 +132,7 @@ fn context<'a>(
         planned_moves,
         actor_starts,
         path_clear_lookahead_secs: 0.4,
+        open_barrier_kinds: &[],
     }
 }
 

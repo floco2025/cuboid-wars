@@ -108,6 +108,7 @@ pub fn dispatch_message(
                 shot_msg,
                 collision_world,
                 &client_assets.gameplay_config,
+                &client_assets.open_barrier_kinds,
             );
         }
         ServerMessage::Snapshot(snapshot_msg) => handle_snapshot_message(

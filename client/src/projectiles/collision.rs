@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
     physics::{CollisionWorld, ProjectileCharacterHit, ProjectileMotion, projectile_character_hit},
-    protocol::{ActorId, ActorMarker, FaceDirection, PlayerId, PlayerMarker, Position},
+    protocol::{ActorId, ActorMarker, BarrierKindId, FaceDirection, PlayerId, PlayerMarker, Position},
 };
 
 use super::audio::{LastBounceSoundTime, play_barrier_impact_sound, play_sound, play_wall_bounce_sound};
@@ -99,12 +99,13 @@ pub(super) fn handle_barrier_collisions(
     proj_pos: &Position,
     delta: f32,
     collision_world: Option<&CollisionWorld>,
+    open_kinds: &[BarrierKindId],
 ) -> bool {
     let Some(collision_world) = collision_world else {
         return false;
     };
     if proj_motion
-        .terminate_at_barrier(proj_pos, delta, collision_world)
+        .terminate_at_barrier(proj_pos, delta, collision_world, open_kinds)
         .is_none()
     {
         return false;

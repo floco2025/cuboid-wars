@@ -2,6 +2,7 @@ use bevy::{ecs::system::SystemParam, prelude::*};
 
 use crate::{
     config::ServerGameplayConfig,
+    map::OpenBarrierKinds,
     net::ClientToServer,
     resources::{ActorMap, FromClientsChannel, ItemMap, MapConfig, PlayerInfo, PlayerMap},
 };
@@ -43,6 +44,7 @@ pub fn network_process_client_messages_system(
     actor_data: Query<(&Position, &ActorMoveIntent, &FaceDirection, &Health), With<ActorMarker>>,
     actor_motions: Query<&CharacterVerticalVelocity, With<ActorMarker>>,
     item_data: Query<&Position, With<ItemMarker>>,
+    open_barrier_kinds: Res<OpenBarrierKinds>,
 ) {
     while let Ok((id, event)) = from_clients.try_recv() {
         if let ClientToServer::Registration { to_client } = event {
@@ -88,6 +90,7 @@ pub fn network_process_client_messages_system(
                         &player_motions,
                         &world.collision_world,
                         &world.gameplay_config,
+                        &open_barrier_kinds,
                     );
                 } else {
                     handle_login_message(

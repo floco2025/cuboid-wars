@@ -86,18 +86,22 @@ impl ProjectileMotion {
     // Barriers terminate projectiles (no bounce). Cast against barrier
     // colliders only; if the projectile's straight-line trajectory hits one
     // this frame, return the impact position so the caller can despawn.
+    // Kinds in `open_kinds` (pressure-plate-open) are skipped — those
+    // barriers are gone visually, so projectiles fly through them.
     #[must_use]
     pub fn terminate_at_barrier(
         &self,
         projectile_pos: &Position,
         delta: f32,
         collision_world: &CollisionWorld,
+        open_kinds: &[crate::protocol::BarrierKindId],
     ) -> Option<Position> {
         let translation = self.velocity * delta;
         let hit = collision_world.cast_moving_ball_against_barriers(
             Vec3::from(*projectile_pos),
             translation,
             PROJECTILE_RADIUS,
+            open_kinds,
         )?;
         let collision_pos = Vec3::from(*projectile_pos) + translation * hit.t;
         Some(collision_pos.into())

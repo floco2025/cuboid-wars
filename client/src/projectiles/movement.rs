@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
-    physics::{CollisionWorld, ProjectileMarker, ProjectileMotion},
+    physics::{CollisionWorld, OpenBarrierKinds, ProjectileMarker, ProjectileMotion},
     protocol::{ActorId, ActorMarker, FaceDirection, PlayerId, PlayerMarker, Position},
 };
 
@@ -22,6 +22,7 @@ pub fn projectiles_movement_system(
     actors: Res<ActorMap>,
     collision_world: Option<Res<CollisionWorld>>,
     gameplay_config: Res<GameplayConfig>,
+    open_barrier_kinds: Res<OpenBarrierKinds>,
     mut last_bounce_sound: ResMut<LastBounceSoundTime>,
 ) {
     let delta = time.delta_secs();
@@ -49,6 +50,7 @@ pub fn projectiles_movement_system(
             &projectile_pos,
             delta,
             collision_world,
+            &open_barrier_kinds.0,
         ) {
             continue;
         }

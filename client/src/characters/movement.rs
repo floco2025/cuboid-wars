@@ -59,6 +59,7 @@ pub fn characters_movement_system(
         collision_world.as_deref(),
         &gameplay_config,
         &actors,
+        &open_barrier_kinds,
         &actor_starts,
         &mut actors_query,
         &mut planned_moves,

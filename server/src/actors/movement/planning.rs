@@ -3,6 +3,7 @@ use rand::{rng, rngs::ThreadRng};
 use crate::{
     actors::behavior::random_patrol_move_intent,
     config::ServerGameplayConfig,
+    map::OpenBarrierKinds,
     network::broadcast_to_all,
     resources::{ActorAvoidanceState, ActorInfo, ActorMap, PlayerMap},
 };
@@ -28,6 +29,7 @@ pub(crate) fn plan_actor_moves(
     gameplay_config: &GameplayConfig,
     server_gameplay_config: &ServerGameplayConfig,
     players: &PlayerMap,
+    open_barrier_kinds: &OpenBarrierKinds,
     actors: &mut ActorMap,
     actor_starts: &[(bevy::prelude::Entity, Position)],
     query: &mut ActorMovementQuery,
@@ -65,6 +67,7 @@ pub(crate) fn plan_actor_moves(
             planned_moves,
             actor_starts,
             path_clear_lookahead_secs: kind_server_config.navigation.path_clear_lookahead_secs,
+            open_barrier_kinds: &open_barrier_kinds.0,
         };
         let selected_move = if let Some(go_to_intent) = go_to_intent {
             select_go_to_actor_move(&move_context, go_to_intent, info.go_to_position, info, &mut rng)

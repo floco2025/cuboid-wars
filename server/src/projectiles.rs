@@ -3,6 +3,7 @@ use bevy::{ecs::system::SystemParam, prelude::*};
 use crate::{
     combat::{apply_actor_projectile_hit, apply_player_projectile_hit, kill_player},
     config::ServerGameplayConfig,
+    map::OpenBarrierKinds,
     network::broadcast_to_all,
     resources::{ActorMap, PlayerMap},
 };
@@ -77,6 +78,7 @@ pub struct ProjectileMovementParams<'w, 's> {
     collision_world: Res<'w, CollisionWorld>,
     gameplay_config: Res<'w, GameplayConfig>,
     server_gameplay_config: Res<'w, ServerGameplayConfig>,
+    open_barrier_kinds: Res<'w, OpenBarrierKinds>,
     actors: ResMut<'w, ActorMap>,
     players: ResMut<'w, PlayerMap>,
 }
@@ -95,7 +97,7 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
         projectile.apply_drag(delta);
 
         if projectile
-            .terminate_at_barrier(&proj_pos, delta, &params.collision_world)
+            .terminate_at_barrier(&proj_pos, delta, &params.collision_world, &params.open_barrier_kinds.0)
             .is_some()
         {
             commands.entity(proj_entity).despawn();

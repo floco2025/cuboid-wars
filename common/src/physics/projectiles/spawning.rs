@@ -1,4 +1,8 @@
-use crate::{constants::*, physics::CollisionWorld, protocol::Position};
+use crate::{
+    constants::*,
+    physics::CollisionWorld,
+    protocol::{BarrierKindId, Position},
+};
 use bevy_math::Vec3;
 
 // ============================================================================
@@ -25,6 +29,7 @@ pub fn calculate_projectile_spawns(
     has_multi_shot: bool,
     shooter_eye_height: f32,
     collision_world: &CollisionWorld,
+    open_kinds: &[BarrierKindId],
 ) -> Vec<ProjectileSpawnInfo> {
     let mut spawns = Vec::new();
 
@@ -59,7 +64,7 @@ pub fn calculate_projectile_spawns(
         let spawn_position: Position = spawn_pos.into();
         let camera_pos: Position = camera_origin.into();
 
-        if projectile_spawn_is_blocked(&camera_pos, &spawn_position, collision_world) {
+        if projectile_spawn_is_blocked(&camera_pos, &spawn_position, collision_world, open_kinds) {
             continue;
         }
 
@@ -73,7 +78,12 @@ pub fn calculate_projectile_spawns(
     spawns
 }
 
-fn projectile_spawn_is_blocked(start: &Position, end: &Position, collision_world: &CollisionWorld) -> bool {
+fn projectile_spawn_is_blocked(
+    start: &Position,
+    end: &Position,
+    collision_world: &CollisionWorld,
+    open_kinds: &[BarrierKindId],
+) -> bool {
     let start_vec = Vec3::from(*start);
     let end_vec = Vec3::from(*end);
     let translation = end_vec - start_vec;
@@ -81,13 +91,14 @@ fn projectile_spawn_is_blocked(start: &Position, end: &Position, collision_world
     // Walls/floors/ramps and barriers live in separate filter groups; check
     // both along the muzzle→spawn segment. Without the barrier cast, a
     // shooter pressed against a barrier could spawn the projectile on the
-    // far side of it.
-    collision_world.projectile_spawn_overlaps_blocker(start_vec, PROJECTILE_RADIUS)
+    // far side of it. Open (plate-held) kinds are excluded from the barrier
+    // checks — they're gone visually, so shots pass cleanly through them.
+    collision_world.projectile_spawn_overlaps_blocker(start_vec, PROJECTILE_RADIUS, open_kinds)
         || collision_world
             .cast_moving_ball(start_vec, translation, PROJECTILE_RADIUS)
             .is_some()
         || collision_world
-            .cast_moving_ball_against_barriers(start_vec, translation, PROJECTILE_RADIUS)
+            .cast_moving_ball_against_barriers(start_vec, translation, PROJECTILE_RADIUS, open_kinds)
             .is_some()
 }
 
@@ -167,12 +178,14 @@ mod tests {
         assert!(projectile_spawn_is_blocked(
             &start,
             &end,
-            &collision_world(&[test_wall(0)], &[], &[])
+            &collision_world(&[test_wall(0)], &[], &[]),
+            &[]
         ));
         assert!(!projectile_spawn_is_blocked(
             &start,
             &end,
-            &collision_world(&[test_wall(1)], &[], &[])
+            &collision_world(&[test_wall(1)], &[], &[]),
+            &[]
         ));
     }
 
@@ -185,12 +198,14 @@ mod tests {
         assert!(projectile_spawn_is_blocked(
             &start,
             &end,
-            &collision_world(&[test_wall(1)], &[], &[])
+            &collision_world(&[test_wall(1)], &[], &[]),
+            &[]
         ));
         assert!(!projectile_spawn_is_blocked(
             &start,
             &end,
-            &collision_world(&[test_wall(0)], &[], &[])
+            &collision_world(&[test_wall(0)], &[], &[]),
+            &[]
         ));
     }
 
@@ -210,7 +225,8 @@ mod tests {
         assert!(projectile_spawn_is_blocked(
             &start,
             &end,
-            &collision_world(&[test_wall(0)], &[], &[])
+            &collision_world(&[test_wall(0)], &[], &[]),
+            &[]
         ));
     }
 
@@ -231,7 +247,8 @@ mod tests {
         assert!(projectile_spawn_is_blocked(
             &start,
             &end,
-            &collision_world(&[], &[], &[floor])
+            &collision_world(&[], &[], &[floor]),
+            &[]
         ));
     }
 
@@ -252,7 +269,8 @@ mod tests {
         assert!(projectile_spawn_is_blocked(
             &start,
             &end,
-            &collision_world(&[], &[], &[floor])
+            &collision_world(&[], &[], &[floor]),
+            &[]
         ));
     }
 
@@ -269,7 +287,8 @@ mod tests {
         assert!(!projectile_spawn_is_blocked(
             &start,
             &end,
-            &collision_world(&[], &[ramp], &[])
+            &collision_world(&[], &[ramp], &[]),
+            &[]
         ));
     }
 
@@ -282,7 +301,8 @@ mod tests {
         assert!(projectile_spawn_is_blocked(
             &start,
             &end,
-            &collision_world(&[], &[ramp], &[])
+            &collision_world(&[], &[ramp], &[]),
+            &[]
         ));
     }
 
@@ -299,7 +319,8 @@ mod tests {
         assert!(projectile_spawn_is_blocked(
             &start,
             &end,
-            &collision_world(&[], &[ramp], &[])
+            &collision_world(&[], &[ramp], &[]),
+            &[]
         ));
     }
 }

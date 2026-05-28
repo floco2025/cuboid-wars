@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 use super::broadcast::broadcast_to_others;
 use crate::{
+    map::OpenBarrierKinds,
     net::ServerToClient,
     resources::{PlayerInfo, PlayerMap},
 };
@@ -30,6 +31,7 @@ pub fn dispatch_message(
     motions: &Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
     collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
+    open_barrier_kinds: &OpenBarrierKinds,
 ) {
     // Dead players have a despawned entity; queueing entity-targeted
     // commands against the stale `entity` would panic when Bevy applies the
@@ -80,6 +82,7 @@ pub fn dispatch_message(
                 player_data,
                 collision_world,
                 gameplay_config,
+                open_barrier_kinds,
             );
         }
         ClientMessage::Ping(msg) => {
@@ -184,6 +187,7 @@ fn handle_shot_message(
     player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection, &Health), With<PlayerMarker>>,
     collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
+    open_barrier_kinds: &OpenBarrierKinds,
 ) {
     let now = time.elapsed_secs();
 
@@ -203,6 +207,7 @@ fn handle_shot_message(
             has_multi_shot,
             gameplay_config.player.eye_height(),
             collision_world,
+            &open_barrier_kinds.0,
         );
 
         // Spawn each projectile

@@ -82,6 +82,7 @@ pub fn spawn_projectiles(
     has_multi_shot: bool,
     shooter_eye_height: f32,
     collision_world: &CollisionWorld,
+    open_kinds: &[BarrierKindId],
     shooter_id: PlayerId,
 ) -> usize {
     let spawns = calculate_projectile_spawns(
@@ -91,6 +92,7 @@ pub fn spawn_projectiles(
         has_multi_shot,
         shooter_eye_height,
         collision_world,
+        open_kinds,
     );
 
     for spawn_info in &spawns {

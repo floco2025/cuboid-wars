@@ -10,7 +10,7 @@ use common::{
     config::GameplayConfig,
     constants::SNAPSHOT_SECS,
     physics::{
-        CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, blocking_character_move_plan,
+        CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, OpenBarrierKinds, blocking_character_move_plan,
         character_move_plan_is_blocked, step_character_movement,
     },
     protocol::{ActorId, ActorMarker, ActorMoveIntent, PlayerMarker, Position},
@@ -40,6 +40,7 @@ pub(crate) fn plan_actor_moves(
     collision_world: Option<&CollisionWorld>,
     gameplay_config: &GameplayConfig,
     actors: &ActorMap,
+    open_barrier_kinds: &OpenBarrierKinds,
     actor_starts: &[(Entity, Position)],
     query: &mut ActorMovementQuery,
     planned_moves: &mut Vec<CharacterMovePlan>,
@@ -111,7 +112,7 @@ pub(crate) fn plan_actor_moves(
                 collision_world,
                 false,
                 false, // actors never have anti-gravity
-                &[],   // actors never hold barrier keys
+                &open_barrier_kinds.0,
                 actor_physics,
                 target_pos.x,
                 target_pos.z,

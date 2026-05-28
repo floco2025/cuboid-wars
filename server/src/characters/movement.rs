@@ -65,6 +65,7 @@ pub fn characters_movement_system(
         &gameplay_config,
         &server_gameplay_config,
         &players,
+        &open_barrier_kinds,
         &mut actors,
         &actor_starts,
         &mut actor_query,

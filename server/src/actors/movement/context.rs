@@ -5,7 +5,7 @@ use common::{
         CharacterMovePlan, CharacterMovementResult, CollisionWorld, character_move_plan_is_blocked,
         position_has_floor_support, step_character_movement,
     },
-    protocol::{ActorMoveIntent, Position},
+    protocol::{ActorMoveIntent, BarrierKindId, Position},
 };
 
 #[derive(Copy, Clone)]
@@ -24,6 +24,8 @@ pub(super) struct ActorMoveContext<'a> {
     pub(super) planned_moves: &'a [CharacterMovePlan],
     pub(super) actor_starts: &'a [(Entity, Position)],
     pub(super) path_clear_lookahead_secs: f32,
+    // Pressure-plate-open barrier kinds — actors pass through these.
+    pub(super) open_barrier_kinds: &'a [BarrierKindId],
 }
 
 impl ActorMoveContext<'_> {
@@ -45,7 +47,7 @@ impl ActorMoveContext<'_> {
             self.collision_world,
             false,
             false, // actors never have anti-gravity
-            &[],   // actors never hold barrier keys
+            self.open_barrier_kinds,
             self.actor_physics,
             target_x,
             target_z,

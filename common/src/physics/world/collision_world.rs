@@ -144,18 +144,25 @@ impl CollisionWorld {
     }
 
     // Cast a moving ball against barrier colliders only. Used by projectiles
-    // to detect termination on a barrier.
+    // to detect termination on a barrier. Kinds in `open_kinds` (currently
+    // held open by pressure plates) are dropped from the filter, so shots
+    // fly through the gap a plate creates.
     #[must_use]
     pub(crate) fn cast_moving_ball_against_barriers(
         &self,
         position: Vec3,
         translation: Vec3,
         radius: f32,
+        open_kinds: &[BarrierKindId],
     ) -> Option<ShapeCastHit> {
-        if self.all_barrier_groups.is_empty() {
+        let mut groups = self.all_barrier_groups;
+        for kind in open_kinds {
+            groups.remove(barrier_collision_group(*kind));
+        }
+        if groups.is_empty() {
             return None;
         }
-        self.cast_moving_ball_with_filter(position, translation, radius, self.all_barrier_groups)
+        self.cast_moving_ball_with_filter(position, translation, radius, groups)
     }
 
     fn cast_moving_ball_with_filter(
@@ -235,16 +242,24 @@ impl CollisionWorld {
     }
 
     #[must_use]
-    pub(crate) fn projectile_spawn_overlaps_blocker(&self, position: Vec3, radius: f32) -> bool {
-        // Walls + floors are always blockers. Barriers are blockers regardless
-        // of whether the *shooter* could pass them — projectiles always
-        // terminate on barriers (see `terminate_at_barrier`), so shots fired
-        // from inside a barrier (close enough that the muzzle clipped past)
-        // must be rejected at spawn time.
+    pub(crate) fn projectile_spawn_overlaps_blocker(
+        &self,
+        position: Vec3,
+        radius: f32,
+        open_kinds: &[BarrierKindId],
+    ) -> bool {
+        // Walls + floors are always blockers. Barriers block the muzzle
+        // unless the kind is currently open (pressure-plate held) — those
+        // barriers are gone visually and shots pass through them, so the
+        // muzzle clipping them is fine.
+        let mut barrier_groups = self.all_barrier_groups;
+        for kind in open_kinds {
+            barrier_groups.remove(barrier_collision_group(*kind));
+        }
         self.ball_overlaps_groups(
             position,
             radius,
-            WALL_COLLISION_GROUP | FLOOR_COLLISION_GROUP | self.all_barrier_groups,
+            WALL_COLLISION_GROUP | FLOOR_COLLISION_GROUP | barrier_groups,
         )
     }
 

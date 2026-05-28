@@ -10,7 +10,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    physics::{CharacterVerticalVelocity, CollisionWorld},
+    physics::{CharacterVerticalVelocity, CollisionWorld, OpenBarrierKinds},
     protocol::*,
 };
 
@@ -115,6 +115,7 @@ pub fn handle_player_shot_message(
     msg: SShot,
     collision_world: Option<&CollisionWorld>,
     gameplay_config: &GameplayConfig,
+    open_barrier_kinds: &OpenBarrierKinds,
 ) {
     trace!("{:?} shot: {:?}", msg.id, msg);
     if let Some(player) = players.get(&msg.id) {
@@ -133,6 +134,7 @@ pub fn handle_player_shot_message(
                 player.power_up(PowerUpKind::MultiShot),
                 gameplay_config.player.eye_height(),
                 collision_world,
+                &open_barrier_kinds.0,
                 msg.id,
             );
         }

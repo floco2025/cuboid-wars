@@ -1,10 +1,12 @@
 use bevy::{
+    ecs::system::SystemParam,
     input::mouse::MouseButton,
     prelude::*,
     window::{CursorGrabMode, CursorOptions},
 };
 
 use crate::{
+    barriers::OpenBarrierKinds,
     cameras::{CameraViewMode, MainCameraMarker},
     config::AssetSet,
     network::{ClientToServer, ClientToServerChannel},
@@ -17,6 +19,15 @@ use common::{
     physics::CollisionWorld,
     protocol::*,
 };
+
+// Bundles the shooter-identity resources so `input_shooting_system` stays
+// under Bevy's 16-parameter system tuple limit.
+#[derive(SystemParam)]
+pub struct ShooterContext<'w> {
+    pub my_player_id: Option<Res<'w, MyPlayerId>>,
+    pub players: Res<'w, PlayerMap>,
+    pub open_barrier_kinds: Res<'w, OpenBarrierKinds>,
+}
 
 // ============================================================================
 // Input Shooting System
@@ -32,8 +43,7 @@ pub fn input_shooting_system(
     asset_server: Res<AssetServer>,
     asset_set: Res<AssetSet>,
     projectile_assets: Res<ProjectileAssets>,
-    my_player_id: Option<Res<MyPlayerId>>,
-    players: Res<PlayerMap>,
+    shooter: ShooterContext,
     collision_world: Option<Res<CollisionWorld>>,
     gameplay_config: Res<GameplayConfig>,
     view_mode: Res<CameraViewMode>,
@@ -82,12 +92,13 @@ pub fn input_shooting_system(
 
         // Check if player has multi-shot power-up
         let has_multi_shot = ALWAYS_MULTI_SHOT
-            || my_player_id
+            || shooter
+                .my_player_id
                 .as_ref()
-                .and_then(|id| players.get(&id.0))
+                .and_then(|id| shooter.players.get(&id.0))
                 .is_some_and(|info| info.power_up(PowerUpKind::MultiShot));
 
-        if let Some(my_id) = my_player_id.as_ref()
+        if let Some(my_id) = shooter.my_player_id.as_ref()
             && let Some(collision_world) = collision_world.as_ref()
         {
             if spawn_projectiles(
@@ -99,6 +110,7 @@ pub fn input_shooting_system(
                 has_multi_shot,
                 gameplay_config.player.eye_height(),
                 collision_world,
+                &shooter.open_barrier_kinds.0,
                 my_id.0,
             ) > 0
             {
