@@ -105,6 +105,12 @@ fn handle_move_intent_message(
     player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection, &Health), With<PlayerMarker>>,
     motions: &Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
 ) {
+    // Untrusted boundary: drop a move intent carrying a non-finite direction
+    // before it reaches movement trig and corrupts the authoritative position.
+    if !msg.move_intent.is_finite() {
+        return;
+    }
+
     // Update the player's input intent
     commands.entity(entity).insert(msg.move_intent);
 
@@ -170,6 +176,10 @@ fn handle_jump_message(
 
 // Handle face direction message.
 fn handle_face_message(commands: &mut Commands, entity: Entity, id: PlayerId, msg: CFace, players: &PlayerMap) {
+    if !msg.dir.is_finite() {
+        return;
+    }
+
     // Update the player's face direction
     commands.entity(entity).insert(FaceDirection(msg.dir));
 
@@ -189,6 +199,13 @@ fn handle_shot_message(
     gameplay_config: &GameplayConfig,
     open_barrier_kinds: &OpenBarrierKinds,
 ) {
+    // Reject non-finite aim before it reaches projectile trig / authoritative
+    // hit detection. Checked ahead of `try_start_shot` so a bad shot doesn't
+    // burn the fire cooldown.
+    if !(msg.face_dir.is_finite() && msg.face_pitch.is_finite()) {
+        return;
+    }
+
     let now = time.elapsed_secs();
 
     let Some(has_multi_shot) = players.get_mut(&id).and_then(|info| info.try_start_shot(now)) else {

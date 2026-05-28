@@ -44,6 +44,14 @@ impl PlayerMoveIntent {
     pub const fn is_running(&self) -> bool {
         matches!(self, Self::Running { .. })
     }
+
+    // Reject directions a malformed/malicious client could send: a NaN/inf
+    // direction would turn into a NaN velocity in `to_horizontal_velocity` and
+    // corrupt the authoritative position the server broadcasts to everyone.
+    #[must_use]
+    pub fn is_finite(&self) -> bool {
+        self.direction().is_none_or(f32::is_finite)
+    }
 }
 
 fn player_speed_with_power_up(speed: f32, has_speed_power_up: bool) -> f32 {
@@ -126,5 +134,38 @@ impl ActorMovementState {
             move_intent,
             vertical_velocity,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn idle_intent_is_finite() {
+        assert!(PlayerMoveIntent::Idle.is_finite());
+    }
+
+    #[test]
+    fn finite_directions_are_accepted() {
+        assert!(PlayerMoveIntent::Walking { direction: 0.0 }.is_finite());
+        assert!(PlayerMoveIntent::Running { direction: -2.5 }.is_finite());
+    }
+
+    #[test]
+    fn non_finite_directions_are_rejected() {
+        assert!(!PlayerMoveIntent::Walking { direction: f32::NAN }.is_finite());
+        assert!(
+            !PlayerMoveIntent::Running {
+                direction: f32::INFINITY
+            }
+            .is_finite()
+        );
+        assert!(
+            !PlayerMoveIntent::Walking {
+                direction: f32::NEG_INFINITY
+            }
+            .is_finite()
+        );
     }
 }

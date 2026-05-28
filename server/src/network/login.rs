@@ -19,6 +19,21 @@ use super::{
 // Login Flow
 // ============================================================================
 
+// Player names are echoed in every snapshot, so an unbounded/control-laden
+// name from a malformed client is a broadcast-amplified cost. Cap the
+// displayable length and strip control characters; fall back to a default when
+// nothing usable remains.
+const MAX_NAME_CHARS: usize = 32;
+
+fn sanitize_player_name(raw: &str, id: PlayerId) -> String {
+    let sanitized: String = raw.chars().filter(|c| !c.is_control()).take(MAX_NAME_CHARS).collect();
+    if sanitized.trim().is_empty() {
+        format!("Player {}", id.0)
+    } else {
+        sanitized
+    }
+}
+
 // Handle login message from a player who has not yet logged in.
 pub fn handle_login_message(
     commands: &mut Commands,
@@ -46,12 +61,7 @@ pub fn handle_login_message(
                 let channel = player_info.channel.clone();
                 player_info.logged_in = true;
 
-                // Determine player name: use provided name or default to the player id
-                player_info.name = if login.name.is_empty() {
-                    format!("Player {}", id.0)
-                } else {
-                    login.name
-                };
+                player_info.name = sanitize_player_name(&login.name, id);
 
                 channel
             };
@@ -169,5 +179,37 @@ pub fn handle_login_message(
             );
             // Don't despawn - Init message will likely arrive soon
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{MAX_NAME_CHARS, sanitize_player_name};
+    use common::protocol::PlayerId;
+
+    #[test]
+    fn empty_name_falls_back_to_default() {
+        assert_eq!(sanitize_player_name("", PlayerId(7)), "Player 7");
+    }
+
+    #[test]
+    fn whitespace_only_name_falls_back_to_default() {
+        assert_eq!(sanitize_player_name("   \t  ", PlayerId(3)), "Player 3");
+    }
+
+    #[test]
+    fn control_characters_are_stripped() {
+        assert_eq!(sanitize_player_name("a\nb\u{7}c", PlayerId(1)), "abc");
+    }
+
+    #[test]
+    fn over_long_name_is_truncated_to_cap() {
+        let long = "x".repeat(MAX_NAME_CHARS + 50);
+        assert_eq!(sanitize_player_name(&long, PlayerId(1)).chars().count(), MAX_NAME_CHARS);
+    }
+
+    #[test]
+    fn ordinary_name_is_preserved() {
+        assert_eq!(sanitize_player_name("Marc", PlayerId(1)), "Marc");
     }
 }
