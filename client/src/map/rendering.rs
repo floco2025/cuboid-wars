@@ -200,25 +200,31 @@ pub fn map_wall_light_emissive_system(
 
     let emissive_luminance = asset_set.wall_light_model().emissive_luminance;
 
-    // Check all materials for ones that look like wall light glass
-    for (id, material) in materials.iter_mut() {
-        // Skip if already processed
-        if processed.contains(&id) {
-            continue;
-        }
+    // Find unprocessed glass materials read-only first. `iter_mut()` flags
+    // EVERY returned material as `Modified` regardless of edits, forcing a
+    // per-frame GPU re-extract/re-prepare of all materials; `iter()` queues no
+    // change events. Once every glass material is processed this yields nothing
+    // and no material is touched again.
+    let candidates: Vec<AssetId<StandardMaterial>> = materials
+        .iter()
+        .filter(|(id, material)| {
+            !processed.contains(id) && (material.alpha_mode != AlphaMode::Opaque || material.base_color.alpha() < 1.0)
+        })
+        .map(|(id, _)| id)
+        .collect();
 
-        // Check if this material has properties suggesting it's glass
-        // (typically has some transparency or specific naming)
-        if material.alpha_mode != AlphaMode::Opaque || material.base_color.alpha() < 1.0 {
-            // Make it emissive using configurable fixture settings
-            let warm_tint = (1.0, 0.95, 0.85);
-            material.emissive = LinearRgba::rgb(
-                warm_tint.0 * emissive_luminance,
-                warm_tint.1 * emissive_luminance,
-                warm_tint.2 * emissive_luminance,
-            );
-            material.base_color = Color::srgba(warm_tint.0, warm_tint.1, warm_tint.2, material.base_color.alpha());
-            processed.insert(id);
-        }
+    // Make wall-light glass emissive using configurable fixture settings.
+    let warm_tint = (1.0, 0.95, 0.85);
+    for id in candidates {
+        let Some(material) = materials.get_mut(id) else {
+            continue;
+        };
+        material.emissive = LinearRgba::rgb(
+            warm_tint.0 * emissive_luminance,
+            warm_tint.1 * emissive_luminance,
+            warm_tint.2 * emissive_luminance,
+        );
+        material.base_color = Color::srgba(warm_tint.0, warm_tint.1, warm_tint.2, material.base_color.alpha());
+        processed.insert(id);
     }
 }
