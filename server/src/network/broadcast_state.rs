@@ -30,7 +30,9 @@ pub fn network_broadcast_snapshot_system(
     if *timer < SNAPSHOT_SECS {
         return;
     }
-    *timer = 0.0;
+    // Carry the phase remainder rather than zeroing, so the long-run rate
+    // holds at SNAPSHOT_HZ instead of drifting slower by the leftover each tick.
+    *timer -= SNAPSHOT_SECS;
 
     *seq = seq.wrapping_add(1);
 

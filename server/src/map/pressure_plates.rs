@@ -93,14 +93,14 @@ pub fn compute_open_barrier_kinds_system(
         }
     }
 
-    // Edge-triggered cues: one broadcast per plate that flipped this tick.
-    // Step-on → `PressurePlatePressed`; step-off (last player leaves) →
-    // `PressurePlateReleased`. Persistent state lives in `OpenBarrierKinds`
-    // + snapshot — these are pure click/clunk side-effects.
-    for _ in held_indices.difference(&prev_held) {
+    // Edge-triggered cues: at most one press and one release cue per tick,
+    // regardless of how many plates flipped — the messages carry no plate
+    // identity, so collapsing simultaneous flips is lossless. Persistent state
+    // lives in `OpenBarrierKinds` + snapshot; these are pure click/clunk SFX.
+    if held_indices.difference(&prev_held).next().is_some() {
         broadcast_to_all(&players, ServerMessage::PressurePlatePressed(SPressurePlatePressed {}));
     }
-    for _ in prev_held.difference(&held_indices) {
+    if prev_held.difference(&held_indices).next().is_some() {
         broadcast_to_all(
             &players,
             ServerMessage::PressurePlateReleased(SPressurePlateReleased {}),

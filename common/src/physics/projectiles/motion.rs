@@ -117,8 +117,9 @@ impl ProjectileMotion {
         let mut current_pos = *projectile_pos;
         let mut remaining_delta = delta;
         let mut collided = false;
+        let mut budget_exhausted = false;
 
-        for _ in 0..MAX_SURFACE_BOUNCES {
+        for bounce in 0..MAX_SURFACE_BOUNCES {
             let translation = self.velocity * remaining_delta;
             let Some(collision) =
                 collision_world.cast_moving_ball(Vec3::from(current_pos), translation, PROJECTILE_RADIUS)
@@ -135,13 +136,30 @@ impl ProjectileMotion {
             if remaining_delta <= PHYSICS_EPSILON {
                 break;
             }
+
+            // Ran out of bounce budget with time still left this frame: the
+            // tail segment below is unvalidated, so flag it for a final cast.
+            // The no-collision and time-exhausted exits leave the tail already
+            // verified clear, so they skip the extra cast.
+            if bounce == MAX_SURFACE_BOUNCES - 1 {
+                budget_exhausted = true;
+            }
         }
 
-        if collided {
-            let final_pos = Vec3::from(current_pos) + self.velocity * remaining_delta;
-            Some(final_pos.into())
-        } else {
-            None
+        if !collided {
+            return None;
         }
+
+        let translation = self.velocity * remaining_delta;
+        let mut final_pos = Vec3::from(current_pos) + translation;
+        if budget_exhausted
+            && let Some(collision) =
+                collision_world.cast_moving_ball(Vec3::from(current_pos), translation, PROJECTILE_RADIUS)
+        {
+            // Clamp to the surface contact instead of tunneling through it; the
+            // next frame resolves the bounce from this valid just-outside pose.
+            final_pos = Vec3::from(current_pos) + translation * collision.t;
+        }
+        Some(final_pos.into())
     }
 }

@@ -86,6 +86,17 @@ impl AssetSet {
                 "alias `{alias}` points to unknown material `{target}`"
             );
         }
+        // A zero-dimension sprite sheet underflows `initial_frame` and divides
+        // by zero in `set_mesh_uvs`; reject it at load instead of at first kill.
+        for (kind, actor) in &self.actors {
+            let effect = &actor.explosion_effect;
+            anyhow::ensure!(
+                effect.columns >= 1 && effect.rows >= 1,
+                "actor `{kind}` explosion_effect must have columns >= 1 and rows >= 1 (got {}x{})",
+                effect.columns,
+                effect.rows
+            );
+        }
         Ok(())
     }
 
