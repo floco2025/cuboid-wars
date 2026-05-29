@@ -108,6 +108,17 @@ pub fn actor_respawn_system(
     let mut occupied_positions: Vec<Position> = players.iter().copied().collect();
     let mut rng = rng();
 
+    // One pass for per-zone live counts instead of rescanning the whole
+    // ActorMap once per zone (O(zones·actors)). Each zone reads its count once
+    // before its single possible spawn, and a spawn only ever adds to its own
+    // zone, so this tick-start snapshot stays correct for the read.
+    let mut live_by_zone = vec![0u32; map_config.actor_spawn_zones.len()];
+    for info in actors.values() {
+        if let Some(count) = live_by_zone.get_mut(info.spawn_zone_index) {
+            *count += 1;
+        }
+    }
+
     for (zone_idx, zone) in map_config.actor_spawn_zones.iter().enumerate() {
         let kind_server_config = server_gameplay_config.validated_actor(&zone.kind);
         if !kind_server_config.respawn.enabled {
@@ -118,7 +129,7 @@ pub fn actor_respawn_system(
         let actor_physics = actor_config.physics();
         let throttle_time = kind_server_config.respawn.delay_secs;
 
-        let live = live_actor_count(&actors, zone_idx);
+        let live = live_by_zone[zone_idx];
         let throttle = throttles.0.entry(zone_idx).or_insert(0.0);
 
         match decide_spawn(live, zone.count, *throttle) {
@@ -148,10 +159,6 @@ pub fn actor_respawn_system(
             }
         }
     }
-}
-
-fn live_actor_count(actors: &ActorMap, zone_idx: usize) -> u32 {
-    actors.values().filter(|info| info.spawn_zone_index == zone_idx).count() as u32
 }
 
 #[allow(clippy::too_many_arguments)]

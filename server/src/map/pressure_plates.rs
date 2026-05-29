@@ -50,6 +50,9 @@ pub fn compute_open_barrier_kinds_system(
     // only on the unpressed→pressed edge (step-on cue), not every tick a
     // player keeps standing.
     mut prev_held: Local<HashSet<usize>>,
+    // Plate count per kind. Derived from the immutable map, so it is built
+    // once on first run rather than rebuilt every tick.
+    mut plates_per_kind: Local<HashMap<BarrierKindId, usize>>,
 ) {
     if map_config.pressure_plates.is_empty() {
         if !open.0.is_empty() {
@@ -59,6 +62,12 @@ pub fn compute_open_barrier_kinds_system(
         return;
     }
 
+    if plates_per_kind.is_empty() {
+        for plate in &map_config.pressure_plates {
+            *plates_per_kind.entry(plate.kind).or_insert(0) += 1;
+        }
+    }
+
     let alive: usize = players
         .iter()
         .filter(|(_, info)| info.logged_in && !info.is_dead())
@@ -66,11 +75,6 @@ pub fn compute_open_barrier_kinds_system(
 
     // Per-tick: which plate indices are held, grouped per kind for the
     // open-set computation and flat for edge-trigger detection.
-    let mut plates_per_kind: HashMap<BarrierKindId, usize> = HashMap::new();
-    for plate in &map_config.pressure_plates {
-        *plates_per_kind.entry(plate.kind).or_insert(0) += 1;
-    }
-
     let mut held_per_kind: HashMap<BarrierKindId, HashSet<usize>> = HashMap::new();
     let mut held_indices: HashSet<usize> = HashSet::new();
     for (idx, plate) in map_config.pressure_plates.iter().enumerate() {
@@ -109,7 +113,7 @@ pub fn compute_open_barrier_kinds_system(
     *prev_held = held_indices;
 
     let mut next = Vec::new();
-    for (kind, plates_for_kind) in &plates_per_kind {
+    for (kind, plates_for_kind) in plates_per_kind.iter() {
         let required = (*plates_for_kind).min(alive.saturating_sub(1));
         let held = held_per_kind.get(kind).map_or(0, HashSet::len);
         if held >= required {

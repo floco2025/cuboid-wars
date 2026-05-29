@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use bevy::prelude::*;
 use common::{
     config::CharacterPhysicsConfig,
@@ -13,21 +15,32 @@ pub(super) fn detonate_actors_touching_players(
     planned_moves: &[CharacterMovePlan],
     server_gameplay_config: &ServerGameplayConfig,
 ) {
+    // Actor entity → its contact-explosion distance, resolved once. Runs in the
+    // 30 Hz movement tick over players + actors; without this the nested
+    // `actors.values()` scans make it O((P+A)·A) per tick.
+    let actor_contact_distance: HashMap<Entity, f32> = actors
+        .values()
+        .map(|actor| {
+            let distance = server_gameplay_config
+                .validated_actor(&actor.spawn_kind)
+                .combat
+                .contact_explosion_distance;
+            (actor.entity, distance)
+        })
+        .collect();
+
     for planned_move in planned_moves {
-        if actors.values().any(|actor| actor.entity == planned_move.entity) {
+        // Only players detonate actors they touch; skip actor plans.
+        if actor_contact_distance.contains_key(&planned_move.entity) {
             continue;
         }
 
         for actor_entity in planned_moves
             .iter()
             .filter(|other| {
-                let Some(actor_info) = actors.values().find(|actor| actor.entity == other.entity) else {
+                let Some(&contact_explosion_distance) = actor_contact_distance.get(&other.entity) else {
                     return false;
                 };
-                let contact_explosion_distance = server_gameplay_config
-                    .validated_actor(&actor_info.spawn_kind)
-                    .combat
-                    .contact_explosion_distance;
                 character_move_plans_touch(planned_move, other, contact_explosion_distance)
             })
             .map(|actor_move| actor_move.entity)

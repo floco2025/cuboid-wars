@@ -33,14 +33,14 @@ pub fn actor_removal_system(
         let Some(info) = actors.get(id) else {
             continue;
         };
-        let spawn_kind = info.spawn_kind.clone();
-        let killer = info.last_damager;
+        // Clone `spawn_kind` only on a confirmed death — the common live-actor
+        // path runs every tick and must not allocate.
         if pos.y < CHARACTER_FALL_DEATH_Y {
             deaths.push(ActorDeath {
                 entity,
                 id: *id,
                 pos: *pos,
-                spawn_kind,
+                spawn_kind: info.spawn_kind.clone(),
                 killer: None,
                 cause: DeathCause::Fall,
             });
@@ -49,8 +49,8 @@ pub fn actor_removal_system(
                 entity,
                 id: *id,
                 pos: *pos,
-                spawn_kind,
-                killer,
+                spawn_kind: info.spawn_kind.clone(),
+                killer: info.last_damager,
                 cause: DeathCause::Killed,
             });
         }
