@@ -83,6 +83,39 @@ impl ProjectileMotion {
         (collision_pos.into(), remaining_time)
     }
 
+    // Fraction of this tick's travel at which the straight path first meets a
+    // closed barrier, if any (`open_kinds` are skipped). Lets the caller order
+    // barrier termination against a character hit on the same tick.
+    #[must_use]
+    pub fn barrier_collision_t(
+        &self,
+        projectile_pos: &Position,
+        delta: f32,
+        collision_world: &CollisionWorld,
+        open_kinds: &[crate::protocol::BarrierKindId],
+    ) -> Option<f32> {
+        let translation = self.velocity * delta;
+        collision_world
+            .cast_moving_ball_against_barriers(Vec3::from(*projectile_pos), translation, PROJECTILE_RADIUS, open_kinds)
+            .map(|hit| hit.t)
+    }
+
+    // Fraction of this tick's travel at which the straight path first meets a
+    // bounce surface (wall/floor/ramp), if any. The first-impact time
+    // `resolve_world_bounces` would act on, exposed without mutating velocity.
+    #[must_use]
+    pub fn surface_collision_t(
+        &self,
+        projectile_pos: &Position,
+        delta: f32,
+        collision_world: &CollisionWorld,
+    ) -> Option<f32> {
+        let translation = self.velocity * delta;
+        collision_world
+            .cast_moving_ball(Vec3::from(*projectile_pos), translation, PROJECTILE_RADIUS)
+            .map(|hit| hit.t)
+    }
+
     // Barriers terminate projectiles (no bounce). Cast against barrier
     // colliders only; if the projectile's straight-line trajectory hits one
     // this frame, return the impact position so the caller can despawn.
@@ -96,14 +129,8 @@ impl ProjectileMotion {
         collision_world: &CollisionWorld,
         open_kinds: &[crate::protocol::BarrierKindId],
     ) -> Option<Position> {
-        let translation = self.velocity * delta;
-        let hit = collision_world.cast_moving_ball_against_barriers(
-            Vec3::from(*projectile_pos),
-            translation,
-            PROJECTILE_RADIUS,
-            open_kinds,
-        )?;
-        let collision_pos = Vec3::from(*projectile_pos) + translation * hit.t;
+        let t = self.barrier_collision_t(projectile_pos, delta, collision_world, open_kinds)?;
+        let collision_pos = Vec3::from(*projectile_pos) + self.velocity * delta * t;
         Some(collision_pos.into())
     }
 

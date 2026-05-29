@@ -34,6 +34,40 @@ fn closer_hit(current: Option<ProjectileTargetHit>, candidate: ProjectileTargetH
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
+enum ProjectileEvent {
+    Hit,
+    Terminate,
+    Bounce,
+    Fly,
+}
+
+// Pick the earliest event along the projectile's straight path this tick, by
+// time-of-impact in `[0, 1]`. World surfaces win ties against a character hit
+// so a target behind cover is protected, and a barrier is checked before a
+// bounce surface (preserving the barrier-terminates priority).
+fn earliest_projectile_event(
+    character_t: Option<f32>,
+    barrier_t: Option<f32>,
+    surface_t: Option<f32>,
+) -> ProjectileEvent {
+    if let Some(bt) = barrier_t
+        && character_t.is_none_or(|ct| bt <= ct)
+    {
+        return ProjectileEvent::Terminate;
+    }
+    if let Some(st) = surface_t
+        && character_t.is_none_or(|ct| st <= ct)
+    {
+        return ProjectileEvent::Bounce;
+    }
+    if character_t.is_some() {
+        ProjectileEvent::Hit
+    } else {
+        ProjectileEvent::Fly
+    }
+}
+
 type ProjectileQuery<'w, 's> = Query<
     'w,
     's,
@@ -96,24 +130,10 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
         projectile.apply_gravity(delta);
         projectile.apply_drag(delta);
 
-        if projectile
-            .terminate_at_barrier(&proj_pos, delta, &params.collision_world, &params.open_barrier_kinds.0)
-            .is_some()
-        {
-            commands.entity(proj_entity).despawn();
-            continue;
-        }
-
-        let mut bounced = false;
-        if let Some(new_pos) = projectile.resolve_world_bounces(&proj_pos, delta, &params.collision_world) {
-            *proj_pos = new_pos;
-            bounced = true;
-        }
-
-        if bounced {
-            continue;
-        }
-
+        // Gather the closest player/actor hit BEFORE resolving world
+        // collisions, so their times-of-impact can be compared: a target in
+        // front of a wall must register a hit instead of being phased through
+        // when a barrier/bounce would otherwise short-circuit the tick.
         let mut closest_hit = None;
 
         for (position, face_direction, player_id, _) in &mut params.player_query {
@@ -150,6 +170,27 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                     ProjectileTargetHit::Actor { id: *actor_id, hit },
                 ));
             }
+        }
+
+        // Resolve whichever event is earliest this tick.
+        let character_t = closest_hit.map(|hit| hit.hit().time_of_impact);
+        let barrier_t =
+            projectile.barrier_collision_t(&proj_pos, delta, &params.collision_world, &params.open_barrier_kinds.0);
+        let surface_t = projectile.surface_collision_t(&proj_pos, delta, &params.collision_world);
+
+        match earliest_projectile_event(character_t, barrier_t, surface_t) {
+            ProjectileEvent::Terminate => {
+                commands.entity(proj_entity).despawn();
+                continue;
+            }
+            ProjectileEvent::Bounce => {
+                if let Some(new_pos) = projectile.resolve_world_bounces(&proj_pos, delta, &params.collision_world) {
+                    *proj_pos = new_pos;
+                }
+                continue;
+            }
+            // Hit → the match below applies it; Fly → its `None` arm advances.
+            ProjectileEvent::Hit | ProjectileEvent::Fly => {}
         }
 
         match closest_hit {
@@ -238,5 +279,46 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                 *proj_pos += projectile.velocity * delta;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ProjectileEvent, earliest_projectile_event};
+
+    #[test]
+    fn earliest_event_prefers_closest_with_world_winning_ties() {
+        // Character strictly closest → the hit registers.
+        assert_eq!(
+            earliest_projectile_event(Some(0.2), Some(0.5), Some(0.6)),
+            ProjectileEvent::Hit
+        );
+        // A closer barrier / bounce surface protects a target behind it.
+        assert_eq!(
+            earliest_projectile_event(Some(0.5), Some(0.3), None),
+            ProjectileEvent::Terminate
+        );
+        assert_eq!(
+            earliest_projectile_event(Some(0.5), None, Some(0.3)),
+            ProjectileEvent::Bounce
+        );
+        // Ties go to the world surface (conservative cover).
+        assert_eq!(
+            earliest_projectile_event(Some(0.4), Some(0.4), None),
+            ProjectileEvent::Terminate
+        );
+        assert_eq!(
+            earliest_projectile_event(Some(0.4), None, Some(0.4)),
+            ProjectileEvent::Bounce
+        );
+        // No world collision but a character hit → hit.
+        assert_eq!(earliest_projectile_event(Some(0.4), None, None), ProjectileEvent::Hit);
+        // No character: barrier keeps priority over the bounce surface.
+        assert_eq!(
+            earliest_projectile_event(None, Some(0.5), Some(0.3)),
+            ProjectileEvent::Terminate
+        );
+        // Empty path → fly straight.
+        assert_eq!(earliest_projectile_event(None, None, None), ProjectileEvent::Fly);
     }
 }
