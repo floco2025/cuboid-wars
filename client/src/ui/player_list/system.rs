@@ -3,6 +3,8 @@ use common::{
     config::GameplayConfig,
     protocol::{BarrierKindTable, Health, PlayerId},
 };
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 
 use super::{
     components::PlayerListMarker,
@@ -25,12 +27,24 @@ pub fn ui_player_list_rebuild_system(
     health_query: Query<&Health>,
     player_list_ui: Single<Entity, With<PlayerListMarker>>,
     children_query: Query<&Children>,
+    mut last_content: Local<Option<u64>>,
 ) {
     if !players.is_changed() {
         return;
     }
 
     let local_player_id = my_player_id.as_ref().map(|id| id.0);
+
+    // `PlayerMap` is mutated every snapshot, so `is_changed()` alone fires
+    // constantly. Only rebuild when something the entries actually render
+    // changed — roster, name, score, power-ups, keys, or which row is local.
+    // Health is excluded: its bar fill is animated in place by
+    // `ui_health_bar_fill_system`, not by a rebuild.
+    let content = player_list_content_hash(&players, local_player_id);
+    if *last_content == Some(content) {
+        return;
+    }
+    *last_content = Some(content);
 
     rebuild_player_list(
         &mut commands,
@@ -96,4 +110,22 @@ fn rebuild_player_list(
     }
 
     commands.entity(player_list_entity).replace_children(&ordered_children);
+}
+
+// Hash of everything the player-list entries render (excluding health, which is
+// animated in place). Sorted by id so the result is order-independent.
+fn player_list_content_hash(players: &PlayerMap, local_player_id: Option<PlayerId>) -> u64 {
+    let mut entries: Vec<_> = players.iter().collect();
+    entries.sort_by_key(|(id, _)| id.0);
+
+    let mut hasher = DefaultHasher::new();
+    local_player_id.map(|id| id.0).hash(&mut hasher);
+    for (id, info) in entries {
+        id.0.hash(&mut hasher);
+        info.name.hash(&mut hasher);
+        info.score.hash(&mut hasher);
+        info.power_ups.hash(&mut hasher);
+        info.held_keys.hash(&mut hasher);
+    }
+    hasher.finish()
 }
