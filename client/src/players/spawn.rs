@@ -121,7 +121,7 @@ pub fn spawn_player(
         LABEL_PLAYER_TEXTURE_WIDTH,
         LABEL_PLAYER_TEXTURE_HEIGHT,
     );
-    let (_text_entity, mesh_entity) = spawn_floating_player_label(
+    let (text_entity, mesh_entity) = spawn_floating_player_label(
         commands,
         meshes,
         materials,
@@ -141,9 +141,13 @@ pub fn spawn_player(
     );
     children.push(mesh_entity);
 
-    // The visibility system reads this to find the player's label camera and
-    // toggle it on/off based on distance to the main camera and health changes.
-    commands.entity(entity).insert(LabelCamera(text_camera));
+    // The visibility system reads `camera` to toggle the player's label camera
+    // on distance/health changes; `ui_root` is tracked so both despawn with
+    // the player (see the `LabelCamera` on_remove hook).
+    commands.entity(entity).insert(LabelCamera {
+        camera: text_camera,
+        ui_root: text_entity,
+    });
     commands.entity(entity).add_children(&children);
 
     entity

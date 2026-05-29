@@ -88,7 +88,7 @@ pub fn spawn_actor(
         health_bars.floating_actor_width as u32,
         health_bars.floating_actor_height as u32,
     );
-    let (_ui_entity, mesh_entity) = spawn_floating_actor_health_bar(
+    let (ui_entity, mesh_entity) = spawn_floating_actor_health_bar(
         commands,
         meshes,
         materials,
@@ -107,9 +107,13 @@ pub fn spawn_actor(
     );
     children.push(mesh_entity);
 
-    // The visibility system reads this to find the actor's label camera and
-    // toggle it on/off based on distance to the main camera and health changes.
-    commands.entity(entity).insert(LabelCamera(text_camera));
+    // The visibility system reads `camera` to toggle the actor's label camera
+    // on distance/health changes; `ui_root` is tracked so both despawn with
+    // the actor (see the `LabelCamera` on_remove hook).
+    commands.entity(entity).insert(LabelCamera {
+        camera: text_camera,
+        ui_root: ui_entity,
+    });
     commands.entity(entity).add_children(&children);
 
     entity

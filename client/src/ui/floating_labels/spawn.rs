@@ -1,4 +1,7 @@
-use bevy::prelude::*;
+use bevy::{
+    ecs::{lifecycle::HookContext, world::DeferredWorld},
+    prelude::*,
+};
 
 use crate::{
     constants::{LABEL_ACTOR_MESH_WIDTH, LABEL_BACKGROUND_COLOR, LABEL_PLAYER_MESH_WIDTH, LABEL_TEXT_COLOR},
@@ -27,11 +30,27 @@ pub struct CharacterLabelTextMarker;
 #[derive(Component)]
 pub struct CharacterLabelMeshMarker;
 
-// Lives on the character entity (player or actor). Stores the Entity id of
-// its dedicated label-texture camera so the visibility system can toggle the
-// camera's `is_active` flag based on distance + Health change.
-#[derive(Component)]
-pub struct LabelCamera(pub Entity);
+// Lives on the character entity (player or actor). Holds its dedicated
+// label-texture `camera` (toggled by the visibility system on distance +
+// Health change) and the `ui_root` of the render-target UI tree. Both are
+// top-level entities, not children of the character, so the `on_remove` hook
+// despawns them with the character — otherwise the camera (its live render
+// pass + target image) and the UI tree leak on every actor death / logoff.
+#[derive(Component, Clone, Copy)]
+#[component(on_remove = despawn_label_render_target)]
+pub struct LabelCamera {
+    pub camera: Entity,
+    pub ui_root: Entity,
+}
+
+fn despawn_label_render_target(mut world: DeferredWorld, ctx: HookContext) {
+    let Some(&LabelCamera { camera, ui_root }) = world.get::<LabelCamera>(ctx.entity) else {
+        return;
+    };
+    let mut commands = world.commands();
+    commands.entity(camera).try_despawn();
+    commands.entity(ui_root).try_despawn();
+}
 
 pub fn spawn_floating_player_label(
     commands: &mut Commands,

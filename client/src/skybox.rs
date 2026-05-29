@@ -54,22 +54,28 @@ pub fn skybox_convert_cross_to_cubemap_system(
         return;
     };
 
-    // Convert the cross layout to cubemap
-    let cubemap = create_cubemap_from_cross(image);
+    let Some(cubemap) = create_cubemap_from_cross(image) else {
+        // Malformed image: drop the source so we don't re-log and retry every
+        // frame. The game runs without a skybox rather than crashing.
+        commands.remove_resource::<SkyboxCrossImage>();
+        return;
+    };
     let cubemap_handle = images.add(cubemap);
 
     commands.insert_resource(SkyboxCubemap(cubemap_handle));
     commands.remove_resource::<SkyboxCrossImage>();
 }
 
-fn create_cubemap_from_cross(cross_image: &Image) -> Image {
-    // Parse the cross layout (assumes 4x3 layout)
+fn create_cubemap_from_cross(cross_image: &Image) -> Option<Image> {
+    // Cross layout is 4 faces wide, 3 tall; each face is `width / 4` square.
     let width = cross_image.texture_descriptor.size.width;
     let height = cross_image.texture_descriptor.size.height;
-    let face_size = width / 4; // Each face is 1/4 of the width
+    let face_size = width / 4;
 
-    if height != face_size * 3 {
-        error!("skybox cross image has unexpected dimensions: {}x{}", width, height);
+    // Bail before the extraction loop reads out of bounds on a bad image.
+    if face_size == 0 || !width.is_multiple_of(4) || height != face_size * 3 {
+        error!("skybox cross image has unexpected dimensions: {width}x{height}; expected a 4x3 cross");
+        return None;
     }
 
     // Create cubemap image
@@ -124,7 +130,7 @@ fn create_cubemap_from_cross(cross_image: &Image) -> Image {
         }
     }
 
-    cubemap
+    Some(cubemap)
 }
 
 // Add skybox to cameras once the cubemap is ready

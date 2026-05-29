@@ -138,15 +138,19 @@ pub fn sync_players(
         local_player_info.is_dead = false;
         local_just_respawned = true;
 
-        // Re-show the announcement for every still-active quest. Quests
-        // already retired by `SQuestAchieved` are gone from `pending`,
-        // so won players see no announcement after winning.
+        // Re-show one combined announcement covering every still-active quest.
+        // Quests retired by `SQuestAchieved` are gone from `pending`, so won
+        // players see nothing. This must be a SINGLE spawn: `spawn_hud_banner`
+        // enforces the single-banner invariant via a despawn query that is a
+        // stale snapshot within one system run, so spawning per-quest in a loop
+        // would leave N overlapping banners once a second quest exists.
         let banner_cfg = &client_settings.hud.banner;
-        for announcement_text in active_quests.pending.values() {
+        if !active_quests.pending.is_empty() {
+            let text = active_quests.pending.values().cloned().collect::<Vec<_>>().join("\n");
             spawn_hud_banner(
                 commands,
                 existing_banners,
-                announcement_text,
+                &text,
                 banner_cfg.announcement_duration_secs,
                 client_settings.hud.font_sizes.banner,
             );

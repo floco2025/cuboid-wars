@@ -199,7 +199,10 @@ fn main() -> Result<()> {
             (
                 input_movement_system.after(input_camera_view_toggle_system),
                 input_shooting_system.after(input_movement_system),
-                input_cursor_toggle_system,
+                // Run before shooting (which is after movement) so a click that
+                // re-locks the cursor also fires that same frame, instead of
+                // depending on nondeterministic system order.
+                input_cursor_toggle_system.before(input_movement_system),
                 input_camera_view_toggle_system,
                 input_level_focus_toggle_system,
                 input_fullscreen_toggle_system,

@@ -67,7 +67,7 @@ pub fn floating_label_camera_visibility_system(
     for (char_xf, label_cam, health) in &characters {
         let in_range = char_xf.translation().distance_squared(main_pos) <= cull_sq;
         let dirty = health.is_changed();
-        if let Ok(mut cam) = cameras.get_mut(label_cam.0) {
+        if let Ok(mut cam) = cameras.get_mut(label_cam.camera) {
             cam.is_active = in_range && dirty;
         }
     }
