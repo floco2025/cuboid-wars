@@ -137,7 +137,7 @@ pub fn apply_actor_explosion_damage(
     players: &PlayerMap,
     player_query: &mut Query<(Entity, &PlayerId, &Position, &mut Health), (With<PlayerMarker>, Without<ActorMarker>)>,
     actor_query: &mut ActorDeathQuery,
-) -> Vec<(PlayerId, Entity, Position)> {
+) -> Vec<(PlayerId, Entity)> {
     let actor_physics = gameplay_config.validated_actor(destroyed_spawn_kind).physics();
     let explosion_center = character_center(destroyed_pos, actor_physics);
     let mut newly_dead = Vec::new();
@@ -160,7 +160,7 @@ pub fn apply_actor_explosion_damage(
         }
         apply_damage(&mut health, damage);
         if health.0 <= 0.0 {
-            newly_dead.push((*id, entity, *pos));
+            newly_dead.push((*id, entity));
         }
     }
 
@@ -251,6 +251,17 @@ mod tests {
         map.insert(shooter, make_player_info());
         map.insert(target, make_player_info());
         map
+    }
+
+    #[test]
+    fn blast_damage_lerps_from_center_to_rim() {
+        let center = Vec3::ZERO;
+        assert_eq!(blast_damage(center, Vec3::ZERO, 10.0, 100.0), 100.0);
+        assert_eq!(blast_damage(center, Vec3::new(5.0, 0.0, 0.0), 10.0, 100.0), 50.0);
+        // Exactly at the rim is zero (`1 - r/r`), and the strict `>` early
+        // return keeps everything past the rim at zero too.
+        assert_eq!(blast_damage(center, Vec3::new(10.0, 0.0, 0.0), 10.0, 100.0), 0.0);
+        assert_eq!(blast_damage(center, Vec3::new(11.0, 0.0, 0.0), 10.0, 100.0), 0.0);
     }
 
     #[test]

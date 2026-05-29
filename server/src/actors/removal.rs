@@ -87,19 +87,16 @@ pub fn actor_removal_system(
                     killer_score,
                 }),
             );
-            for (player_id, entity, _) in dead_players {
-                info!("{:?} killed by {:?} explosion", player_id, death.id);
-                // Attribute the kill to whoever last damaged the actor that
-                // exploded — the explosion is their kill chain. None if the
-                // actor died from environmental causes (fall, void).
-                kill_player(
-                    &mut commands,
-                    &mut players,
-                    player_id,
-                    entity,
-                    respawn_delay_secs,
-                    death.killer,
-                );
+            for (player_id, entity) in dead_players {
+                info!("{:?} died in {:?}'s explosion", player_id, death.id);
+                // Explosion deaths award no kill credit: the victim takes the
+                // death penalty as an environmental death, and the cue reports
+                // no killer (a solo death in the feed). Apply the penalty before
+                // `kill_player` snapshots the victim's score for `SPlayerDeath`.
+                if let Some(victim) = players.get_mut(&player_id) {
+                    victim.score += server_gameplay_config.scoring.player_death;
+                }
+                kill_player(&mut commands, &mut players, player_id, entity, respawn_delay_secs, None);
             }
         } else {
             info!("{:?} fell and despawned at {:?}", death.id, death.pos);
