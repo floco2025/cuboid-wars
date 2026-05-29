@@ -53,13 +53,7 @@ pub fn handle_player_move_intent_message(
         if let Ok((client_pos, _, _)) = player_data.get(player.entity) {
             commands.entity(player.entity).insert((
                 msg.movement.move_intent, // Never the local player, so we can always overwrite intent
-                ServerReconciliation {
-                    client_pos: *client_pos,
-                    server_pos: msg.movement.pos,
-                    server_velocity,
-                    correction_progress: 0.0,
-                    rtt: rtt.rtt.as_secs_f32(),
-                },
+                ServerReconciliation::new(*client_pos, msg.movement.pos, server_velocity, rtt),
             ));
         } else {
             commands.entity(player.entity).insert(msg.movement.move_intent);
@@ -87,13 +81,7 @@ pub fn handle_player_jump_message(
         commands.entity(player.entity).insert((
             msg.movement.move_intent,
             CharacterVerticalVelocity(msg.movement.vertical_velocity),
-            ServerReconciliation {
-                client_pos: *client_pos,
-                server_pos: msg.movement.pos,
-                server_velocity,
-                correction_progress: 0.0,
-                rtt: rtt.rtt.as_secs_f32(),
-            },
+            ServerReconciliation::new(*client_pos, msg.movement.pos, server_velocity, rtt),
         ));
     }
 }

@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::{
-    characters::generate_player_spawn_position,
+    characters::{generate_player_spawn_position, spawn_face_direction},
     net::ServerToClient,
     resources::{ActorMap, ItemMap, PlayerMap, QuestState},
 };
@@ -118,8 +118,7 @@ pub fn handle_login_message(
                 world.gameplay_config.player.physics(),
             );
 
-            // Calculate initial facing direction toward center
-            let face_dir = (-pos.x).atan2(-pos.z);
+            let face_dir = spawn_face_direction(&pos);
 
             // Initial move-input intent for the new player (idle)
             let move_intent = PlayerMoveIntent::Idle;

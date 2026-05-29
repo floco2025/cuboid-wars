@@ -8,6 +8,7 @@ use crate::{
     barriers::BarrierAssets,
     config::{AssetSet, ClientSettings},
     items::ItemAssets,
+    network::resources::RoundTripTime,
     players::LocalPlayerInfo,
     projectiles::ProjectileAssets,
     ui::{ActiveQuests, GameMessageFeed, HudBannerMarker, SeenPlayerIds},
@@ -25,6 +26,21 @@ pub struct ServerReconciliation {
     pub server_velocity: Vec3,
     pub correction_progress: f32,
     pub rtt: f32,
+}
+
+impl ServerReconciliation {
+    // Fresh reconciliation target: zero correction progress, RTT captured as
+    // seconds (centralizing the `Duration → f32` conversion).
+    #[must_use]
+    pub fn new(client_pos: Position, server_pos: Position, server_velocity: Vec3, rtt: &RoundTripTime) -> Self {
+        Self {
+            client_pos,
+            server_pos,
+            server_velocity,
+            correction_progress: 0.0,
+            rtt: rtt.rtt.as_secs_f32(),
+        }
+    }
 }
 
 // Pick the axis with the largest |value| from a 3-component delta. Used

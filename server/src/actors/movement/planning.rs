@@ -14,7 +14,7 @@ use common::{
 };
 
 use super::{
-    context::{ActorMoveContext, MoveCandidateResult, SelectedActorMove, horizontal_distance_sq},
+    context::{ActorMoveContext, MoveCandidateResult, SelectedActorMove},
     ordering::sorted_actor_plan_order,
     query::ActorMovementQuery,
     steering::{actor_desired_intent, random_avoidance_side, steering_directions},
@@ -392,7 +392,7 @@ pub(super) fn blocked_step_made_useful_progress(
 ) -> bool {
     let requested_distance = actor_speed * delta;
     let useful_distance = requested_distance * 0.5;
-    horizontal_distance_sq(start, target) > useful_distance * useful_distance
+    start.horizontal_distance_sq(target) > useful_distance * useful_distance
 }
 
 fn direct_path_is_clear_enough(
@@ -408,6 +408,6 @@ fn direct_path_is_clear_enough(
     }
 
     go_to_position.is_none_or(|target| {
-        horizontal_distance_sq(&step.position, &target) < horizontal_distance_sq(context.pos, &target)
+        step.position.horizontal_distance_sq(&target) < context.pos.horizontal_distance_sq(&target)
     })
 }

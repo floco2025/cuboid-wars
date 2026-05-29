@@ -12,6 +12,14 @@ use common::{
 
 const SPAWN_MAX_ATTEMPTS: usize = 100;
 
+// Initial facing for a freshly spawned character: toward the map origin (0,0).
+// The negation + atan2 argument order is the non-obvious part, so the rule
+// lives in one place shared by login and respawn.
+#[must_use]
+pub fn spawn_face_direction(pos: &Position) -> f32 {
+    (-pos.x).atan2(-pos.z)
+}
+
 // Pick a random clear position from any player spawn zone. All cells across
 // all player zones are pooled and one is picked uniformly at random; no per-
 // zone capacity tracking, no fallback. Used by login and player fall recovery.

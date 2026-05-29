@@ -3,7 +3,7 @@ use common::protocol::{ActorId, Position};
 
 use crate::resources::{ActorInfo, ActorMap};
 
-use super::{context::horizontal_distance_sq, query::ActorMovementQuery};
+use super::query::ActorMovementQuery;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub(super) struct ActorPlanOrder {
@@ -35,5 +35,5 @@ pub(super) fn sort_actor_plan_order(order: &mut [ActorPlanOrder]) {
 
 pub(super) fn actor_target_distance_sq(pos: &Position, info: Option<&ActorInfo>) -> f32 {
     info.and_then(|info| info.go_to_position)
-        .map_or(f32::INFINITY, |target| horizontal_distance_sq(pos, &target))
+        .map_or(f32::INFINITY, |target| pos.horizontal_distance_sq(&target))
 }

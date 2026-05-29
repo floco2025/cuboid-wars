@@ -114,9 +114,3 @@ pub(super) enum MoveCandidateResult {
     BlockedByCharacter,
     BlockedByWorld { selected: SelectedActorMove },
 }
-
-pub(super) fn horizontal_distance_sq(a: &Position, b: &Position) -> f32 {
-    let dx = a.x - b.x;
-    let dz = a.z - b.z;
-    dx.mul_add(dx, dz * dz)
-}

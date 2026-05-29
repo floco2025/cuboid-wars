@@ -24,18 +24,16 @@ pub(super) fn visible_player_position(
     player_query
         .iter()
         .filter(|(id, _)| players.get(id).is_some_and(|info| info.logged_in))
-        .filter(|(_, pos)| horizontal_distance_sq(actor_pos, pos) <= horizontal_range_sq)
+        .filter(|(_, pos)| actor_pos.horizontal_distance_sq(pos) <= horizontal_range_sq)
         .filter(|(_, pos)| (actor_pos.y - pos.y).abs() <= vertical_vision_range)
         .filter(|(_, pos)| {
             let player_collider_center = Vec3::new(pos.x, player_physics.collider_center_y(pos.y), pos.z);
             collision_world.line_of_sight_clear(actor_sight_origin, player_collider_center)
         })
-        .min_by(|(_, a), (_, b)| horizontal_distance_sq(actor_pos, a).total_cmp(&horizontal_distance_sq(actor_pos, b)))
+        .min_by(|(_, a), (_, b)| {
+            actor_pos
+                .horizontal_distance_sq(a)
+                .total_cmp(&actor_pos.horizontal_distance_sq(b))
+        })
         .map(|(_, pos)| *pos)
-}
-
-fn horizontal_distance_sq(a: &Position, b: &Position) -> f32 {
-    let dx = a.x - b.x;
-    let dz = a.z - b.z;
-    dx.mul_add(dx, dz * dz)
 }

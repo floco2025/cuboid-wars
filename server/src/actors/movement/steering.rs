@@ -9,7 +9,7 @@ pub fn actor_desired_intent(
     speed: f32,
 ) -> Option<ActorMoveIntent> {
     let target_pos = *go_to_position.as_ref()?;
-    if horizontal_distance_sq(pos, &target_pos) <= reached_distance * reached_distance {
+    if pos.horizontal_distance_sq(&target_pos) <= reached_distance * reached_distance {
         *go_to_position = None;
         return None;
     }
@@ -40,10 +40,4 @@ fn direction_toward(pos: &Position, target: &Position) -> f32 {
     let dx = target.x - pos.x;
     let dz = target.z - pos.z;
     dx.atan2(dz)
-}
-
-fn horizontal_distance_sq(a: &Position, b: &Position) -> f32 {
-    let dx = a.x - b.x;
-    let dz = a.z - b.z;
-    dx.mul_add(dx, dz * dz)
 }

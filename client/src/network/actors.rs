@@ -192,13 +192,12 @@ fn apply_actor_movement_state(
     }
 
     if let Ok((client_pos, _, _)) = actor_data.get(client_actor.entity) {
-        commands.entity(client_actor.entity).insert(ServerReconciliation {
-            client_pos: *client_pos,
-            server_pos: movement.pos,
+        commands.entity(client_actor.entity).insert(ServerReconciliation::new(
+            *client_pos,
+            movement.pos,
             server_velocity,
-            correction_progress: 0.0,
-            rtt: rtt.rtt.as_secs_f32(),
-        });
+            rtt,
+        ));
     }
 }
 

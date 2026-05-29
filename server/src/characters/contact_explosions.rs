@@ -56,7 +56,7 @@ fn character_move_plans_touch(a: &CharacterMovePlan, b: &CharacterMovePlan, cont
     // Character movement blocks before colliders overlap, so contact uses a
     // configurable surface tolerance instead of requiring actual intersection.
     vertical_ranges_overlap(a.target, a.physics, b.target, b.physics)
-        && horizontal_distance_sq(&a.target, &b.target)
+        && a.target.horizontal_distance_sq(&b.target)
             <= contact_distance(a.physics, b.physics, contact_explosion_distance).powi(2)
 }
 
@@ -79,10 +79,4 @@ fn vertical_ranges_overlap(
     let b_bottom = b_pos.y + b_physics.collider.bottom_y_offset();
     let b_top = b_pos.y + b_physics.collider.top_y_offset();
     a_bottom <= b_top && b_bottom <= a_top
-}
-
-fn horizontal_distance_sq(a: &Position, b: &Position) -> f32 {
-    let dx = a.x - b.x;
-    let dz = a.z - b.z;
-    dx.mul_add(dx, dz * dz)
 }

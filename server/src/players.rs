@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use super::characters::generate_player_spawn_position;
+use super::characters::{generate_player_spawn_position, spawn_face_direction};
 use super::combat::kill_player;
 use super::network::broadcast_to_all;
 use crate::resources::{MapConfig, PlayerMap};
@@ -133,7 +133,7 @@ pub fn players_respawn_system(
             &occupied_positions,
             gameplay_config.player.physics(),
         );
-        let face_dir = (-pos.x).atan2(-pos.z);
+        let face_dir = spawn_face_direction(&pos);
         let move_intent = PlayerMoveIntent::Idle;
         let entity = commands
             .spawn((

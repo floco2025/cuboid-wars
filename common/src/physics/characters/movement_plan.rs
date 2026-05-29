@@ -128,14 +128,7 @@ pub fn character_move_plans_intersect(candidate: &CharacterMovePlan, other: &Cha
 }
 
 fn character_move_plans_separate(candidate: &CharacterMovePlan, other: &CharacterMovePlan) -> bool {
-    let start_distance_sq = position_distance_sq(&candidate.start, &other.start);
-    let target_distance_sq = position_distance_sq(&candidate.target, &other.target);
+    let start_distance_sq = candidate.start.distance_sq(&other.start);
+    let target_distance_sq = candidate.target.distance_sq(&other.target);
     target_distance_sq > start_distance_sq + PHYSICS_EPSILON * PHYSICS_EPSILON
-}
-
-fn position_distance_sq(a: &Position, b: &Position) -> f32 {
-    let dx = a.x - b.x;
-    let dy = a.y - b.y;
-    let dz = a.z - b.z;
-    dx.mul_add(dx, dy.mul_add(dy, dz * dz))
 }

@@ -257,13 +257,12 @@ fn update_snapshot_player(
                     .entity(client_player.entity)
                     .insert(server_player.movement.move_intent);
             }
-            commands.entity(client_player.entity).insert(ServerReconciliation {
-                client_pos: *client_pos,
-                server_pos: server_player.movement.pos,
+            commands.entity(client_player.entity).insert(ServerReconciliation::new(
+                *client_pos,
+                server_player.movement.pos,
                 server_velocity,
-                correction_progress: 0.0,
-                rtt: rtt.rtt.as_secs_f32(),
-            });
+                rtt,
+            ));
             if id != my_player_id {
                 commands
                     .entity(client_player.entity)
