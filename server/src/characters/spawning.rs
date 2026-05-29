@@ -6,7 +6,7 @@ use common::{
     config::CharacterPhysicsConfig,
     constants::{GRID_CELL_SIZE, LEVEL_HEIGHT},
     map_geometry::MapGeometry,
-    physics::{CollisionWorld, character_paths_intersect},
+    physics::{CollisionWorld, character_paths_intersect, character_shape},
     protocol::Position,
 };
 
@@ -163,11 +163,10 @@ fn character_spawn_position_is_clear(
     character_physics: CharacterPhysicsConfig,
 ) -> bool {
     let character_center = Vec3::new(pos.x, character_physics.collider_center_y(pos.y), pos.z);
-    let character_half_extents = Vec3::new(
-        character_physics.collider.width / 2.0,
-        character_physics.collision_height() / 2.0,
-        character_physics.collider.depth / 2.0,
-    );
+    // Same body box as movement/projectile-hit, via the shared `character_shape`
+    // (a parry cuboid; convert its nalgebra half-extents to a Bevy `Vec3`).
+    let half_extents = character_shape(character_physics).half_extents;
+    let character_half_extents = Vec3::new(half_extents.x, half_extents.y, half_extents.z);
 
     !occupied_positions
         .iter()

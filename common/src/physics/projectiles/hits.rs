@@ -2,12 +2,15 @@ use bevy_math::Quat;
 use rapier3d::{
     parry::{
         query::{ShapeCastOptions, cast_shapes},
-        shape::{Ball, Cuboid},
+        shape::Ball,
     },
     prelude::{Pose, Vector},
 };
 
-use crate::{config::CharacterPhysicsConfig, constants::PROJECTILE_RADIUS, protocol::Position};
+use crate::{
+    config::CharacterPhysicsConfig, constants::PROJECTILE_RADIUS, physics::characters::character_shape,
+    protocol::Position,
+};
 
 use super::ProjectileMotion;
 
@@ -53,11 +56,7 @@ pub fn projectile_character_hit(
     character_physics: CharacterPhysicsConfig,
 ) -> Option<ProjectileCharacterHit> {
     let projectile_shape = Ball::new(PROJECTILE_RADIUS);
-    let character_shape = Cuboid::new(Vector::new(
-        character_physics.collider.width / 2.0,
-        character_physics.collision_height() / 2.0,
-        character_physics.collider.depth / 2.0,
-    ));
+    let character_collider = character_shape(character_physics);
     let projectile_pose = Pose::translation(proj_pos.x, proj_pos.y, proj_pos.z);
     let projectile_velocity = Vector::new(
         proj_motion.velocity.x * delta,
@@ -76,7 +75,7 @@ pub fn projectile_character_hit(
         &projectile_shape,
         &character_pose,
         Vector::ZERO,
-        &character_shape,
+        &character_collider,
         options,
     )
     .ok()

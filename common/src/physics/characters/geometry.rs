@@ -8,7 +8,11 @@ use rapier3d::{
 
 use crate::{config::CharacterPhysicsConfig, protocol::Position};
 
-pub(super) fn character_shape(physics: CharacterPhysicsConfig) -> Cuboid {
+// The canonical character collision cuboid. Note the Y extent uses
+// `collision_height()`, not `collider.height` — keep every hit/spawn/movement
+// query going through this so the body box can't silently diverge between them.
+#[must_use]
+pub fn character_shape(physics: CharacterPhysicsConfig) -> Cuboid {
     Cuboid::new(Vector::new(
         physics.collider.width / 2.0,
         physics.collision_height() / 2.0,
