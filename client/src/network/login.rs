@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use super::{
     components::ClientAssets,
-    players::{handle_quest_achieved_message, handle_quest_new_message},
+    players::{handle_quest_completed_message, handle_quest_new_message},
 };
 use crate::players::MyPlayerId;
 use common::{physics::CollisionWorld, protocol::*};
@@ -17,7 +17,7 @@ use common::{physics::CollisionWorld, protocol::*};
 //
 // Most messages are safe to drop: the next `SSnapshot` reconciles durable
 // world state, and one-shot cues are ephemeral by design. The exceptions
-// are per-client state events (`SQuestNew`, `SQuestAchieved`): they install
+// are per-client state events (`SQuestNew`, `SQuestCompleted`): they install
 // durable per-player state with no snapshot-side fallback, so we must
 // process them here regardless of bootstrap state. They don't depend on
 // `MyPlayerId` anyway — they're unicast, identity is implicit.
@@ -40,8 +40,8 @@ pub fn handle_pre_bootstrap_message(msg: ServerMessage, commands: &mut Commands,
                 quest_msg,
             );
         }
-        ServerMessage::QuestAchieved(quest_msg) => {
-            handle_quest_achieved_message(
+        ServerMessage::QuestCompleted(quest_msg) => {
+            handle_quest_completed_message(
                 commands,
                 &mut client_assets.active_quests,
                 &client_assets.client_settings,

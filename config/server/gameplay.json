@@ -36,7 +36,7 @@
       "kind": "cookies",
       "threshold": 10,
       "announcement_text": "Collect 10 Gold!",
-      "achieved_text": "You won!"
+      "completed_text": "You won!"
     }
   ],
   "actors": {

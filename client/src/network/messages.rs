@@ -8,7 +8,7 @@ use super::{
     players::{
         handle_fall_damage_message, handle_player_death_message, handle_player_face_message, handle_player_hit_message,
         handle_player_jump_message, handle_player_move_intent_message, handle_player_shot_message,
-        handle_player_status_message, handle_quest_achieved_message, handle_quest_new_message,
+        handle_player_status_message, handle_quest_completed_message, handle_quest_new_message,
     },
     snapshot::handle_snapshot_message,
 };
@@ -188,8 +188,8 @@ pub fn dispatch_message(
                 quest_msg,
             );
         }
-        ServerMessage::QuestAchieved(quest_msg) => {
-            handle_quest_achieved_message(
+        ServerMessage::QuestCompleted(quest_msg) => {
+            handle_quest_completed_message(
                 commands,
                 &mut client_assets.active_quests,
                 &client_assets.client_settings,

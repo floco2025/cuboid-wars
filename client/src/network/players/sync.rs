@@ -150,7 +150,7 @@ pub fn sync_players(
         local_just_respawned = true;
 
         // Re-show one combined announcement covering every still-active quest.
-        // Quests retired by `SQuestAchieved` are gone from `pending`, so won
+        // Quests retired by `SQuestCompleted` are gone from `pending`, so won
         // players see nothing. This must be a SINGLE spawn: `spawn_hud_banner`
         // enforces the single-banner invariant via a despawn query that is a
         // stale snapshot within one system run, so spawning per-quest in a loop
@@ -162,7 +162,7 @@ pub fn sync_players(
                 commands,
                 existing_banners,
                 &text,
-                banner_cfg.announcement_duration_secs,
+                banner_cfg.quest_announcement_duration_secs,
                 client_settings.hud.font_sizes.banner,
             );
         }

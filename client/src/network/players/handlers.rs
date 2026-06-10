@@ -331,7 +331,7 @@ pub fn handle_fall_damage_message(
 // Server has assigned the local client a new quest. The player has just
 // spawned (this fires at login, right after `SInit`), so kick off the
 // announcement banner immediately and remember the text so it can be
-// re-shown on every respawn until `SQuestAchieved` retires the entry.
+// re-shown on every respawn until `SQuestCompleted` retires the entry.
 pub fn handle_quest_new_message(
     commands: &mut Commands,
     active_quests: &mut ActiveQuests,
@@ -345,34 +345,34 @@ pub fn handle_quest_new_message(
         commands,
         existing_banners,
         &msg.announcement_text,
-        banner.announcement_duration_secs,
+        banner.quest_announcement_duration_secs,
         client_settings.hud.font_sizes.banner,
     );
 }
 
 // Server says the local client just completed a quest. Stop showing the
-// announcement on future respawns, fire the achieved banner, and play the
+// announcement on future respawns, fire the completed banner, and play the
 // win sound.
-pub fn handle_quest_achieved_message(
+pub fn handle_quest_completed_message(
     commands: &mut Commands,
     active_quests: &mut ActiveQuests,
     client_settings: &ClientSettings,
     existing_banners: &Query<Entity, With<HudBannerMarker>>,
     asset_server: &AssetServer,
     asset_set: &AssetSet,
-    msg: SQuestAchieved,
+    msg: SQuestCompleted,
 ) {
     let banner = &client_settings.hud.banner;
     active_quests.pending.remove(&msg.id);
     spawn_hud_banner(
         commands,
         existing_banners,
-        &msg.achieved_text,
-        banner.achieved_duration_secs,
+        &msg.completed_text,
+        banner.quest_completed_duration_secs,
         client_settings.hud.font_sizes.banner,
     );
     commands.spawn((
-        AudioPlayer::new(asset_server.load(asset_set.player_sound("quest_achieved").to_owned())),
+        AudioPlayer::new(asset_server.load(asset_set.player_sound("quest_completed").to_owned())),
         PlaybackSettings::DESPAWN,
     ));
 }

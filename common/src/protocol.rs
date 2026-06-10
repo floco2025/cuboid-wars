@@ -50,7 +50,7 @@
 //    receipt as authoritative until a follow-up message updates it. There
 //    is no snapshot-side fallback — recovery from packet loss is QUIC's
 //    job, not the protocol's. Used today for: quest assignment / completion
-//    (`SQuestNew`, `SQuestAchieved`).
+//    (`SQuestNew`, `SQuestCompleted`).
 //
 // `CPing` / `SPong` are a separate diagnostic channel for RTT measurement.
 
@@ -299,7 +299,7 @@ pub struct SPressurePlateReleased {}
 // New quest assigned to a specific player. Unicast; carries the
 // announcement text inline so the client never needs a separate quest
 // catalog. Installs lasting client state — the announcement text is cached
-// and re-shown on each respawn until `SQuestAchieved` retires it. Display
+// and re-shown on each respawn until `SQuestCompleted` retires it. Display
 // duration is presentation-only and lives in `client.json`'s
 // `hud.quest_overlay`.
 #[derive(Debug, Clone, Encode, Decode)]
@@ -309,12 +309,12 @@ pub struct SQuestNew {
 }
 
 // Quest just completed by a specific player. Unicast; retires the
-// corresponding `SQuestNew` entry on the client and fires the achieved
+// corresponding `SQuestNew` entry on the client and fires the completed
 // overlay.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct SQuestAchieved {
+pub struct SQuestCompleted {
     pub id: QuestId,
-    pub achieved_text: String,
+    pub completed_text: String,
 }
 
 // --- Diagnostic ---
@@ -371,7 +371,7 @@ pub enum ServerMessage {
     PressurePlateReleased(SPressurePlateReleased),
     // Per-client state events
     QuestNew(SQuestNew),
-    QuestAchieved(SQuestAchieved),
+    QuestCompleted(SQuestCompleted),
     // Diagnostic
     Pong(SPong),
 }

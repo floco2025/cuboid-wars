@@ -11,7 +11,7 @@ use common::{
     constants::{ALWAYS_ANTI_GRAVITY, ALWAYS_MULTI_SHOT, ALWAYS_PHASING, ALWAYS_SPEED, PROJECTILE_COOLDOWN_TIME},
     protocol::{
         BarrierKindId, Health, ItemType, Player, PlayerId, PlayerMoveIntent, PlayerMovementState, Position,
-        PowerUpKind, QuestId, SPlayerStatus, SQuestAchieved,
+        PowerUpKind, QuestId, SPlayerStatus, SQuestCompleted,
     },
 };
 
@@ -228,12 +228,12 @@ fn tick_timer(timer: &mut f32, delta: f32) {
 }
 
 // Apply a single cookie pickup to every cookie-kind quest the player has.
-// Returns one `SQuestAchieved` per quest that completed *on this call*
+// Returns one `SQuestCompleted` per quest that completed *on this call*
 // (i.e. the threshold crossing tick) — already-completed quests are
-// silently skipped so a player can't trigger the achievement twice by
+// silently skipped so a player can't trigger the completion twice by
 // collecting more cookies.
-pub fn record_cookie_for_quests(player_info: &mut PlayerInfo, quests: &[Quest]) -> Vec<SQuestAchieved> {
-    let mut achievements = Vec::new();
+pub fn record_cookie_for_quests(player_info: &mut PlayerInfo, quests: &[Quest]) -> Vec<SQuestCompleted> {
+    let mut completions = Vec::new();
     for quest in quests {
         if !matches!(quest.kind, QuestKind::Cookies) {
             continue;
@@ -247,13 +247,13 @@ pub fn record_cookie_for_quests(player_info: &mut PlayerInfo, quests: &[Quest]) 
         state.progress = state.progress.saturating_add(1);
         if state.progress >= quest.threshold {
             state.completed = true;
-            achievements.push(SQuestAchieved {
+            completions.push(SQuestCompleted {
                 id: quest.id.clone(),
-                achieved_text: quest.achieved_text.clone(),
+                completed_text: quest.completed_text.clone(),
             });
         }
     }
-    achievements
+    completions
 }
 
 #[derive(Resource, Default)]
@@ -419,7 +419,7 @@ mod tests {
             kind: QuestKind::Cookies,
             threshold,
             announcement_text: "go".to_owned(),
-            achieved_text: "done".to_owned(),
+            completed_text: "done".to_owned(),
         }
     }
 
@@ -435,10 +435,10 @@ mod tests {
             },
         );
 
-        let achieved = record_cookie_for_quests(&mut info, std::slice::from_ref(&quest));
+        let completed = record_cookie_for_quests(&mut info, std::slice::from_ref(&quest));
 
         assert!(
-            achieved.is_empty(),
+            completed.is_empty(),
             "first cookie should not complete a 3-threshold quest"
         );
         assert_eq!(info.quest_states[&quest.id].progress, 1);
@@ -461,11 +461,11 @@ mod tests {
         let first = record_cookie_for_quests(&mut info, std::slice::from_ref(&quest));
         assert!(first.is_empty());
 
-        // Second cookie: crosses threshold and emits one SQuestAchieved.
+        // Second cookie: crosses threshold and emits one SQuestCompleted.
         let second = record_cookie_for_quests(&mut info, std::slice::from_ref(&quest));
         assert_eq!(second.len(), 1);
         assert_eq!(second[0].id, quest.id);
-        assert_eq!(second[0].achieved_text, "done");
+        assert_eq!(second[0].completed_text, "done");
         assert!(info.quest_states[&quest.id].completed);
     }
 
@@ -481,10 +481,10 @@ mod tests {
             },
         );
 
-        let achieved = record_cookie_for_quests(&mut info, std::slice::from_ref(&quest));
+        let completed = record_cookie_for_quests(&mut info, std::slice::from_ref(&quest));
 
         // No second-win firing, no progress drift past completion.
-        assert!(achieved.is_empty());
+        assert!(completed.is_empty());
         assert_eq!(info.quest_states[&quest.id].progress, 1);
     }
 

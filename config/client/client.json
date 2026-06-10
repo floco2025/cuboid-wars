@@ -52,8 +52,8 @@
       "player_list_height": 8.0
     },
     "banner": {
-      "announcement_duration_secs": 10.0,
-      "achieved_duration_secs": 5.0,
+      "quest_announcement_duration_secs": 10.0,
+      "quest_completed_duration_secs": 5.0,
       "death_duration_secs": 3.0,
       "death_text": "You died!",
       "fade_duration_secs": 0.8

@@ -255,7 +255,7 @@
       "barrier_impact": "sounds/impactPlank_medium_001.ogg",
       "plate_press": "sounds/doorOpen_1.ogg",
       "plate_release": "sounds/doorClose_2.ogg",
-      "quest_achieved": "sounds/Retro Event Acute 08.wav"
+      "quest_completed": "sounds/Retro Event Acute 08.wav"
     }
   },
   "actors": {

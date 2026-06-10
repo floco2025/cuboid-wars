@@ -18,7 +18,7 @@ const HUD_BANNER_BG_BASE_ALPHA: f32 = 0.45;
 // dedicated quests module.
 //
 // Populated by the `SQuestNew` handler at login; entries are removed by
-// the `SQuestAchieved` handler when the corresponding quest completes.
+// the `SQuestCompleted` handler when the corresponding quest completes.
 #[derive(Resource, Default)]
 pub struct ActiveQuests {
     pub pending: HashMap<QuestId, String>,

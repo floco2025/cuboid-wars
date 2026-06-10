@@ -238,8 +238,8 @@ impl KeysConfig {
 }
 
 // One quest the server auto-assigns to every player at login. Server-only:
-// the wire ships only the per-quest `announcement_text` / `achieved_text`
-// strings inline on `SQuestNew` / `SQuestAchieved`; clients never see the
+// the wire ships only the per-quest `announcement_text` / `completed_text`
+// strings inline on `SQuestNew` / `SQuestCompleted`; clients never see the
 // kind or threshold.
 #[derive(Debug, Clone, Deserialize)]
 pub struct Quest {
@@ -247,7 +247,7 @@ pub struct Quest {
     pub kind: QuestKind,
     pub threshold: u32,
     pub announcement_text: String,
-    pub achieved_text: String,
+    pub completed_text: String,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Eq, PartialEq)]
@@ -275,8 +275,8 @@ fn validate_quests(quests: &[Quest]) -> Result<()> {
         if quest.announcement_text.is_empty() {
             bail!("{path}.announcement_text must not be empty");
         }
-        if quest.achieved_text.is_empty() {
-            bail!("{path}.achieved_text must not be empty");
+        if quest.completed_text.is_empty() {
+            bail!("{path}.completed_text must not be empty");
         }
     }
     Ok(())
@@ -481,7 +481,7 @@ mod tests {
             kind: QuestKind::Cookies,
             threshold,
             announcement_text: "go".to_owned(),
-            achieved_text: "done".to_owned(),
+            completed_text: "done".to_owned(),
         }
     }
 
@@ -517,10 +517,10 @@ mod tests {
     }
 
     #[test]
-    fn validate_quests_rejects_empty_achieved_text() {
+    fn validate_quests_rejects_empty_completed_text() {
         let mut quest = ok_quest("a", 1);
-        quest.achieved_text = String::new();
-        let err = validate_quests(&[quest]).expect_err("empty achieved_text must be rejected");
-        assert!(err.to_string().contains("achieved_text"));
+        quest.completed_text = String::new();
+        let err = validate_quests(&[quest]).expect_err("empty completed_text must be rejected");
+        assert!(err.to_string().contains("completed_text"));
     }
 }

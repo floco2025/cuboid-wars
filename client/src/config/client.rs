@@ -158,8 +158,8 @@ pub struct HealthBarsConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct BannerConfig {
-    pub announcement_duration_secs: f32,
-    pub achieved_duration_secs: f32,
+    pub quest_announcement_duration_secs: f32,
+    pub quest_completed_duration_secs: f32,
     pub death_duration_secs: f32,
     pub death_text: String,
     pub fade_duration_secs: f32,
@@ -309,10 +309,13 @@ impl HudConfig {
             "hud.health_bars.player_list_height",
         )?;
         validate_positive_finite(
-            self.banner.announcement_duration_secs,
-            "hud.banner.announcement_duration_secs",
+            self.banner.quest_announcement_duration_secs,
+            "hud.banner.quest_announcement_duration_secs",
         )?;
-        validate_positive_finite(self.banner.achieved_duration_secs, "hud.banner.achieved_duration_secs")?;
+        validate_positive_finite(
+            self.banner.quest_completed_duration_secs,
+            "hud.banner.quest_completed_duration_secs",
+        )?;
         validate_positive_finite(self.banner.death_duration_secs, "hud.banner.death_duration_secs")?;
         if self.banner.death_text.is_empty() {
             bail!("hud.banner.death_text must not be empty");

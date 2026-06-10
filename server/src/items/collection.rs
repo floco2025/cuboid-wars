@@ -135,16 +135,16 @@ fn collect_cookie(
     if let Some(item_info) = items.get_mut(&item_id) {
         item_info.spawn_time = server_gameplay_config.cookies.respawn_secs;
     }
-    let achievements = record_cookie_for_quests(player_info, &server_gameplay_config.quests);
+    let completions = record_cookie_for_quests(player_info, &server_gameplay_config.quests);
     let _ = player_info
         .channel
         .send(ServerToClient::Send(ServerMessage::CookieCollected(SCookieCollected {
             score: player_info.score,
         })));
-    for msg in achievements {
+    for msg in completions {
         let _ = player_info
             .channel
-            .send(ServerToClient::Send(ServerMessage::QuestAchieved(msg)));
+            .send(ServerToClient::Send(ServerMessage::QuestCompleted(msg)));
     }
 }
 
