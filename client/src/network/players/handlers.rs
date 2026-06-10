@@ -351,12 +351,15 @@ pub fn handle_quest_new_message(
 }
 
 // Server says the local client just completed a quest. Stop showing the
-// announcement on future respawns and fire the achieved banner.
+// announcement on future respawns, fire the achieved banner, and play the
+// win sound.
 pub fn handle_quest_achieved_message(
     commands: &mut Commands,
     active_quests: &mut ActiveQuests,
     client_settings: &ClientSettings,
     existing_banners: &Query<Entity, With<HudBannerMarker>>,
+    asset_server: &AssetServer,
+    asset_set: &AssetSet,
     msg: SQuestAchieved,
 ) {
     let banner = &client_settings.hud.banner;
@@ -368,6 +371,10 @@ pub fn handle_quest_achieved_message(
         banner.achieved_duration_secs,
         client_settings.hud.font_sizes.banner,
     );
+    commands.spawn((
+        AudioPlayer::new(asset_server.load(asset_set.player_sound("quest_achieved").to_owned())),
+        PlaybackSettings::DESPAWN,
+    ));
 }
 
 #[cfg(test)]
