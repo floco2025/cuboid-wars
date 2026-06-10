@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+use crate::characters::PreviousTickPosition;
 use common::{
     constants::*,
     physics::{CollisionWorld, ProjectileMarker, ProjectileMotion, ProjectileSpawnInfo, calculate_projectile_spawns},
@@ -44,6 +45,11 @@ struct ProjectileBundle {
     mesh: Mesh3d,
     material: MeshMaterial3d<StandardMaterial>,
     transform: Transform,
+    // Authoritative simulation state lives in `Position`, stepped at the
+    // fixed `TICK_HZ` rate to match the server's integration; `Transform` is
+    // presentation only, interpolated between the last two tick positions.
+    position: Position,
+    previous_tick_position: PreviousTickPosition,
     proj_motion: ProjectileMotion,
     proj_marker: ProjectileMarker,
     player_id: PlayerId,
@@ -61,6 +67,8 @@ impl ProjectileBundle {
             mesh: Mesh3d(projectile_assets.mesh.clone()),
             material: MeshMaterial3d(projectile_assets.material.clone()),
             transform: Transform::from_translation(position),
+            position: position.into(),
+            previous_tick_position: PreviousTickPosition(position.into()),
             proj_motion: ProjectileMotion::new(direction_yaw, direction_pitch),
             player_id: shooter_id,
             proj_marker: ProjectileMarker,

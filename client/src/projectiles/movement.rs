@@ -9,14 +9,29 @@ use super::{
     audio::LastBounceSoundTime,
     collision::{handle_barrier_collisions, handle_character_collisions, handle_wall_collisions},
 };
-use crate::{actors::ActorMap, config::AssetSet, players::LocalPlayerMarker};
+use crate::{actors::ActorMap, characters::PreviousTickPosition, config::AssetSet, players::LocalPlayerMarker};
 
+// Runs in `FixedUpdate` at the shared `TICK_HZ`. The semi-implicit Euler
+// integration in `ProjectileMotion` is step-size-dependent, so stepping at
+// render rate would systematically diverge from the server's 30 Hz
+// trajectories (and compound at every bounce).
 pub fn projectiles_movement_system(
     mut commands: Commands,
     time: Res<Time>,
     asset_server: Res<AssetServer>,
     asset_set: Res<AssetSet>,
-    mut projectile_query: Query<(Entity, &mut Transform, &mut ProjectileMotion, &PlayerId), With<ProjectileMarker>>,
+    mut projectile_query: Query<
+        (
+            Entity,
+            &mut Position,
+            &mut PreviousTickPosition,
+            &mut ProjectileMotion,
+            &PlayerId,
+        ),
+        // The `Without`s make this provably disjoint from the player/actor
+        // `&Position` queries below (B0001).
+        (With<ProjectileMarker>, Without<PlayerMarker>, Without<ActorMarker>),
+    >,
     player_query: Query<(Entity, &Position, &FaceDirection, &PlayerId, Has<LocalPlayerMarker>), With<PlayerMarker>>,
     actor_query: Query<(&ActorId, &Position, &FaceDirection), With<ActorMarker>>,
     actors: Res<ActorMap>,
@@ -29,17 +44,20 @@ pub fn projectiles_movement_system(
     let current_time = time.elapsed_secs();
     let collision_world = collision_world.as_deref();
 
-    for (projectile_entity, mut projectile_transform, mut projectile, shooter_id) in &mut projectile_query {
+    for (projectile_entity, mut position, mut previous_tick_position, mut projectile, shooter_id) in
+        &mut projectile_query
+    {
         projectile.lifetime.tick(time.delta());
         if projectile.lifetime.is_finished() {
             commands.entity(projectile_entity).despawn();
             continue;
         }
 
+        previous_tick_position.0 = *position;
         projectile.apply_gravity(delta);
         projectile.apply_drag(delta);
 
-        let projectile_pos: Position = projectile_transform.translation.into();
+        let projectile_pos: Position = *position;
 
         if handle_barrier_collisions(
             &mut commands,
@@ -92,6 +110,6 @@ pub fn projectiles_movement_system(
             }
         };
 
-        projectile_transform.translation = new_pos.into();
+        *position = new_pos;
     }
 }

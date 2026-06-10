@@ -22,7 +22,7 @@ pub(super) struct ActorMoveContext<'a> {
     pub(super) delta: f32,
     pub(super) collision_world: &'a CollisionWorld,
     pub(super) planned_moves: &'a [CharacterMovePlan],
-    pub(super) actor_starts: &'a [(Entity, Position)],
+    pub(super) actor_starts: &'a [(Entity, Position, CharacterPhysicsConfig)],
     pub(super) path_clear_lookahead_secs: f32,
     // Pressure-plate-open barrier kinds — actors pass through these.
     pub(super) open_barrier_kinds: &'a [BarrierKindId],

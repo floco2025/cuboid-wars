@@ -60,7 +60,9 @@ pub fn local_player_rearview_viewport_system(
     };
 
     let is_active = client_settings.camera.rearview.enabled && view_mode.is_first_person();
-    camera.is_active = is_active;
+    if camera.is_active != is_active {
+        camera.is_active = is_active;
+    }
 
     if !is_active {
         return;
@@ -79,9 +81,19 @@ pub fn local_player_rearview_viewport_system(
     let x = window_width.saturating_sub(viewport_width + margin_x);
     let y = margin_y;
 
-    camera.viewport = Some(Viewport {
-        physical_position: UVec2::new(x, y),
-        physical_size: UVec2::new(viewport_width, viewport_height),
-        depth: 0.0..1.0,
-    });
+    let physical_position = UVec2::new(x, y);
+    let physical_size = UVec2::new(viewport_width, viewport_height);
+    // Reassigning an identical viewport every frame would mark the `Camera`
+    // changed and churn render extraction; only write on a real change.
+    let viewport_changed = camera
+        .viewport
+        .as_ref()
+        .is_none_or(|v| v.physical_position != physical_position || v.physical_size != physical_size);
+    if viewport_changed {
+        camera.viewport = Some(Viewport {
+            physical_position,
+            physical_size,
+            depth: 0.0..1.0,
+        });
+    }
 }

@@ -37,7 +37,9 @@ use client::{
         local_player_camera_sync_system, local_player_cuboid_shake_system, local_player_rearview_sync_system,
         local_player_rearview_viewport_system, local_player_visibility_sync_system, players_transform_sync_system,
     },
-    projectiles::{LastBounceSoundTime, ProjectileAssets, projectiles_movement_system},
+    projectiles::{
+        LastBounceSoundTime, ProjectileAssets, projectiles_movement_system, projectiles_transform_sync_system,
+    },
     skybox::{setup_skybox_from_cross_system, skybox_convert_cross_to_cubemap_system, skybox_update_camera_system},
     ui::{
         ActiveQuests, FpsMeasurement, GameMessageFeed, SeenPlayerIds,
@@ -222,6 +224,10 @@ fn main() -> Result<()> {
                 commit_player_input_system,
                 capture_previous_tick_position_system,
                 characters_movement_system,
+                // Projectiles step at the same fixed tick as the server so
+                // the step-size-dependent integration doesn't diverge from
+                // the authoritative trajectories.
+                projectiles_movement_system,
             )
                 .chain(),
         )
@@ -258,7 +264,7 @@ fn main() -> Result<()> {
         .add_systems(
             Update,
             (
-                projectiles_movement_system,
+                projectiles_transform_sync_system,
                 explosion_effects_system,
                 items_animation_system,
                 y_spin_system,

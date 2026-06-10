@@ -53,6 +53,11 @@ pub fn ui_health_bar_fill_system(health_query: Query<&Health>, mut bar_query: Qu
         let Ok(health) = health_query.get(bar.tracked_entity) else {
             continue;
         };
-        node.width = Val::Percent(health_ratio(*health, bar.max_health) * 100.0);
+        let width = Val::Percent(health_ratio(*health, bar.max_health) * 100.0);
+        // Unconditional writes would dirty every bar's `Node` each frame and
+        // force UI relayout even when health is unchanged.
+        if node.width != width {
+            node.width = width;
+        }
     }
 }

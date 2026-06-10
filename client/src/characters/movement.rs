@@ -41,7 +41,7 @@ pub fn characters_movement_system(
 ) {
     let delta = time.delta_secs();
     let mut planned_moves = Vec::new();
-    let actor_starts = actor_start_positions(&actors_query);
+    let actor_starts = actor_start_positions(&actors_query, &actors, &gameplay_config);
 
     plan_player_moves(
         &mut commands,

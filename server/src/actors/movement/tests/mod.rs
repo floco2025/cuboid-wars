@@ -120,7 +120,7 @@ fn context<'a>(
     pos: &'a Position,
     collision_world: &'a CollisionWorld,
     planned_moves: &'a [CharacterMovePlan],
-    actor_starts: &'a [(Entity, Position)],
+    actor_starts: &'a [(Entity, Position, CharacterPhysicsConfig)],
 ) -> ActorMoveContext<'a> {
     ActorMoveContext {
         entity,

@@ -22,10 +22,15 @@ pub fn ui_stunned_blink_system(
             let is_local = local_player_id == Some(*entry_id);
             let base_color = if is_local { LOCAL_PLAYER_BG_COLOR } else { Color::NONE };
 
-            if player_info.stunned {
-                *bg_color = BackgroundColor(blink_stunned_color(base_color, blink_value));
+            let color = if player_info.stunned {
+                blink_stunned_color(base_color, blink_value)
             } else {
-                *bg_color = BackgroundColor(base_color);
+                base_color
+            };
+            // Skip the write in the steady (unstunned) state so the row's
+            // `BackgroundColor` isn't marked changed every frame.
+            if bg_color.0 != color {
+                bg_color.0 = color;
             }
         }
     }

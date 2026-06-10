@@ -43,6 +43,12 @@ pub fn item_collection_system(
             let item_pos = item_positions.get(item_info.entity).ok()?;
 
             for (player_id, player_info) in players.iter() {
+                // A killed player's entity despawn is deferred, so a same-tick
+                // corpse still overlaps items — and a key collected here would
+                // land after `clear_per_life_state`, surviving into the next life.
+                if player_info.is_dead() {
+                    continue;
+                }
                 if let Ok(character_pos) = character_positions.get(player_info.entity) {
                     if (character_pos.y - item_pos.y).abs() > ITEM_PICKUP_FLOOR_EPSILON {
                         continue;

@@ -147,12 +147,15 @@ pub fn map_level_focus_visibility_system(
     >,
     mut ramps: Query<(&MapLevel, &mut Visibility), With<RampMarker>>,
 ) {
+    // `set_if_neq` everywhere: writing every `Visibility` each frame would
+    // mark hundreds of unchanged entities dirty and re-run visibility
+    // propagation for all of them.
     if !focus.0 {
         for (_, mut vis) in &mut level_entities {
-            *vis = Visibility::Visible;
+            vis.set_if_neq(Visibility::Visible);
         }
         for (_, mut vis) in &mut ramps {
-            *vis = Visibility::Visible;
+            vis.set_if_neq(Visibility::Visible);
         }
         return;
     }
@@ -163,19 +166,19 @@ pub fn map_level_focus_visibility_system(
     let player_level = visual_focus_level(pos.y);
 
     for (level, mut vis) in &mut level_entities {
-        *vis = if level.0 == player_level {
+        vis.set_if_neq(if level.0 == player_level {
             Visibility::Visible
         } else {
             Visibility::Hidden
-        };
+        });
     }
     for (level, mut vis) in &mut ramps {
         // Show a ramp if it touches the player's level on either side.
-        *vis = if level.0 == player_level || level.0 + 1 == player_level {
+        vis.set_if_neq(if level.0 == player_level || level.0 + 1 == player_level {
             Visibility::Visible
         } else {
             Visibility::Hidden
-        };
+        });
     }
 }
 

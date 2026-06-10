@@ -42,7 +42,11 @@ pub fn snapshot_logged_in_players(
     players
         .iter()
         .filter_map(|(player_id, info)| {
-            if !info.logged_in {
+            // Death must surface as snapshot absence. A killed player's
+            // entity despawn is deferred, so on a same-tick snapshot the
+            // corpse would otherwise still resolve and ship here — after
+            // `SPlayerDeath` already went out.
+            if !info.logged_in || info.is_dead() {
                 return None;
             }
             let (pos, move_intent, face_dir, health) = player_data.get(info.entity).ok()?;
@@ -102,4 +106,58 @@ pub fn collect_items(items: &ItemMap, item_positions: &Query<&Position, With<Ite
             )
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::resources::PlayerInfo;
+    use bevy::ecs::system::SystemState;
+    use tokio::sync::mpsc::unbounded_channel;
+
+    fn spawn_player_entity(world: &mut World) -> Entity {
+        world
+            .spawn((
+                Position::default(),
+                PlayerMoveIntent::Idle,
+                FaceDirection(0.0),
+                Health(100.0),
+                PlayerMarker,
+                CharacterVerticalVelocity(0.0),
+            ))
+            .id()
+    }
+
+    fn logged_in_player(entity: Entity) -> PlayerInfo {
+        let (tx, _rx) = unbounded_channel();
+        let mut info = PlayerInfo::new(entity, tx);
+        info.logged_in = true;
+        info
+    }
+
+    #[test]
+    fn snapshot_excludes_dead_players() {
+        let mut world = World::new();
+        let alive_entity = spawn_player_entity(&mut world);
+        let dead_entity = spawn_player_entity(&mut world);
+
+        let mut players = PlayerMap::default();
+        players.insert(PlayerId(1), logged_in_player(alive_entity));
+        // A killed player's entity despawn is deferred, so the corpse is
+        // still queryable on the snapshot tick — only `death_timer` marks it.
+        let mut dead = logged_in_player(dead_entity);
+        dead.death_timer = Some(2.0);
+        players.insert(PlayerId(2), dead);
+
+        let mut state: SystemState<(
+            Query<(&Position, &PlayerMoveIntent, &FaceDirection, &Health), With<PlayerMarker>>,
+            Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
+        )> = SystemState::new(&mut world);
+        let (player_data, motions) = state.get(&world);
+
+        let snapshot = snapshot_logged_in_players(&players, &player_data, &motions);
+
+        assert_eq!(snapshot.len(), 1);
+        assert_eq!(snapshot[0].0, PlayerId(1));
+    }
 }

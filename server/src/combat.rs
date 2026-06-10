@@ -93,6 +93,13 @@ pub fn apply_actor_projectile_hit(
     actor_kind: &str,
     server_gameplay_config: &ServerGameplayConfig,
 ) -> bool {
+    // A dying actor's entity stays queryable until `actor_removal_system`
+    // runs later in the tick; without this guard every further same-tick hit
+    // would read the clamped 0 health as "lethal" and duplicate kill credit.
+    if target_health.0 <= 0.0 {
+        return false;
+    }
+
     let damage = server_gameplay_config
         .validated_actor(actor_kind)
         .combat
@@ -318,6 +325,23 @@ mod tests {
         // Score must not move on a no-op hit.
         assert_eq!(players.get(&PlayerId(1)).expect("shooter").score, 0);
         assert_eq!(players.get(&PlayerId(2)).expect("target").score, 0);
+    }
+
+    #[test]
+    fn dead_actor_takes_no_further_hits_or_score() {
+        let config = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
+        let mut players = make_player_map_with(PlayerId(1), PlayerId(2));
+        let mut health = Health(1.0);
+
+        let first_hit_lethal = apply_actor_projectile_hit(&mut players, &PlayerId(1), &mut health, "mine_1", &config);
+        assert!(first_hit_lethal);
+        let score_after_kill = players.get(&PlayerId(1)).expect("shooter").score;
+
+        // The dying actor's entity stays queryable until removal runs later
+        // in the tick; a same-tick second hit must not count as lethal again.
+        let second_hit_lethal = apply_actor_projectile_hit(&mut players, &PlayerId(1), &mut health, "mine_1", &config);
+        assert!(!second_hit_lethal);
+        assert_eq!(players.get(&PlayerId(1)).expect("shooter").score, score_after_kill);
     }
 
     #[test]

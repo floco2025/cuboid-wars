@@ -4,7 +4,7 @@ use super::{
     geometry::{character_paths_intersect, character_positions_intersect},
     types::CharacterMovePlan,
 };
-use crate::{constants::PHYSICS_EPSILON, protocol::Position};
+use crate::{config::CharacterPhysicsConfig, constants::PHYSICS_EPSILON, protocol::Position};
 
 // Check if a move plan would overlap with any other character's planned position.
 #[must_use]
@@ -36,7 +36,7 @@ pub fn blocking_character_move_plan<'a>(
 pub fn character_move_plan_is_blocked(
     candidate: &CharacterMovePlan,
     planned_moves: &[CharacterMovePlan],
-    character_starts: &[(Entity, Position)],
+    character_starts: &[(Entity, Position, CharacterPhysicsConfig)],
 ) -> bool {
     if blocking_character_move_plan(candidate, planned_moves).is_some() {
         return true;
@@ -45,7 +45,7 @@ pub fn character_move_plan_is_blocked(
     // `planned_moves` contains characters already processed this frame.
     // `character_starts` covers characters not planned yet, so treat only
     // those as stationary blockers.
-    character_starts.iter().any(|(entity, pos)| {
+    character_starts.iter().any(|(entity, pos, physics)| {
         if *entity == candidate.entity {
             return false;
         }
@@ -55,7 +55,7 @@ pub fn character_move_plan_is_blocked(
         if position_is_behind_move_plan(candidate, pos) {
             return false;
         }
-        let stationary_character = CharacterMovePlan::stationary(*entity, *pos, 0.0, candidate.physics);
+        let stationary_character = CharacterMovePlan::stationary(*entity, *pos, 0.0, *physics);
         character_move_plans_intersect(candidate, &stationary_character)
     })
 }
@@ -131,4 +131,51 @@ fn character_move_plans_separate(candidate: &CharacterMovePlan, other: &Characte
     let start_distance_sq = candidate.start.distance_sq(&other.start);
     let target_distance_sq = candidate.target.distance_sq(&other.target);
     target_distance_sq > start_distance_sq + PHYSICS_EPSILON * PHYSICS_EPSILON
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::{
+        CharacterColliderAnchor, CharacterColliderConfig, CharacterPhysicsConfig, CharacterSupportProbeConfig,
+    };
+
+    fn physics(width: f32, depth: f32) -> CharacterPhysicsConfig {
+        CharacterPhysicsConfig {
+            collider: CharacterColliderConfig {
+                width,
+                height: 1.0,
+                depth,
+                y_offset: 0.0,
+                y_offset_anchor: CharacterColliderAnchor::Bottom,
+            },
+            support_probe: CharacterSupportProbeConfig { width: 0.2, depth: 0.2 },
+        }
+    }
+
+    fn pos(x: f32) -> Position {
+        Position { x, y: 0.0, z: 0.0 }
+    }
+
+    #[test]
+    fn stationary_blocker_uses_its_own_collider_size() {
+        let small = physics(0.3, 0.3);
+        let large = physics(2.0, 2.0);
+        let mover = Entity::from_bits(1);
+        let blocker = Entity::from_bits(2);
+        // Small character stepping toward a blocker that is out of reach of
+        // a small collider but inside the volume of a large one.
+        let candidate = CharacterMovePlan::from_target(mover, pos(0.0), pos(0.5), 0.0, small, false);
+
+        assert!(character_move_plan_is_blocked(
+            &candidate,
+            &[],
+            &[(blocker, pos(1.3), large)]
+        ));
+        assert!(!character_move_plan_is_blocked(
+            &candidate,
+            &[],
+            &[(blocker, pos(1.3), small)]
+        ));
+    }
 }

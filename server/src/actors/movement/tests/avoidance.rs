@@ -79,6 +79,7 @@ fn candidate_blocked_by_other_character_yields_before_wall_avoidance() {
             y: 0.0,
             z: 0.0,
         },
+        actor_physics(),
     )];
     let context = context(test_entity(1), &pos, &collision_world, &planned_moves, &actor_starts);
     let intent = ActorMoveIntent::Moving {
@@ -122,6 +123,7 @@ fn character_blocked_steering_selects_idle_when_all_steering_options_are_blocked
                     y: 0.0,
                     z: direction.cos() * actor_blocker_distance(),
                 },
+                actor_physics(),
             )
         })
         .collect();
@@ -156,6 +158,7 @@ fn character_blocked_steering_tries_sidestep_before_idling() {
             y: 0.0,
             z: 0.0,
         },
+        actor_physics(),
     )];
     let context = context(test_entity(1), &pos, &collision_world, &planned_moves, &actor_starts);
     let mut info = actor_info();
@@ -238,6 +241,7 @@ fn committed_wall_avoidance_yields_when_blocked_by_character() {
             y: 0.0,
             z: actor_blocker_distance(),
         },
+        actor_physics(),
     )];
     let context = context(test_entity(1), &pos, &collision_world, &planned_moves, &actor_starts);
     let mut info = actor_info();
@@ -266,7 +270,7 @@ fn following_front_actor_is_not_blocked_when_final_positions_do_not_overlap() {
         front_start,
         Position { x: 2.0, y: 0.0, z: 0.0 },
     )];
-    let actor_starts = [(test_entity(2), front_start)];
+    let actor_starts = [(test_entity(2), front_start, actor_physics())];
     let context = context(test_entity(1), &pos, &collision_world, &planned_moves, &actor_starts);
     let intent = ActorMoveIntent::Moving {
         direction: std::f32::consts::FRAC_PI_2,

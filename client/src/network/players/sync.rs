@@ -59,6 +59,7 @@ pub fn sync_players(
             images,
             graphs,
             players,
+            local_player_info,
             camera_query,
             my_player_id,
             asset_server,
@@ -118,6 +119,16 @@ pub fn sync_players(
         && let Some(info) = players.get_mut(&my_player_id)
     {
         let entity = info.entity;
+        // Adopt the server-assigned respawn facing. Without this the next
+        // input frame recomputes yaw from the unchanged camera transform and
+        // overwrites `FaceDirection` with the pre-death facing.
+        apply_local_spawn_facing(
+            commands,
+            camera_query,
+            local_player_info,
+            &server_player.movement.pos,
+            server_player.face_dir,
+        );
         commands.entity(info.entity).insert((
             server_player.movement.pos,
             // Reset the previous-tick anchor so render interpolation doesn't
@@ -189,6 +200,7 @@ fn spawn_snapshot_player(
     images: &mut ResMut<Assets<Image>>,
     graphs: &mut ResMut<Assets<AnimationGraph>>,
     players: &mut ResMut<PlayerMap>,
+    local_player_info: &mut LocalPlayerInfo,
     camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     my_player_id: PlayerId,
     asset_server: &Res<AssetServer>,
@@ -222,15 +234,36 @@ fn spawn_snapshot_player(
         .entity(entity)
         .insert(CharacterVerticalVelocity(player.movement.vertical_velocity));
 
-    if is_local && let Ok(camera_entity) = camera_query.single() {
-        let camera_rotation = player.face_dir + std::f32::consts::PI;
-        commands.entity(camera_entity).insert(
-            Transform::from_xyz(player.movement.pos.x, 2.5, player.movement.pos.z + 3.0)
-                .with_rotation(Quat::from_rotation_y(camera_rotation)),
+    if is_local {
+        apply_local_spawn_facing(
+            commands,
+            camera_query,
+            local_player_info,
+            &player.movement.pos,
+            player.face_dir,
         );
     }
 
     players.insert(id, PlayerInfo::from_snapshot(entity, player));
+}
+
+// Point the main camera (and the stored mouse-look fallback state) at the
+// server-assigned spawn facing.
+fn apply_local_spawn_facing(
+    commands: &mut Commands,
+    camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
+    local_player_info: &mut LocalPlayerInfo,
+    pos: &Position,
+    face_dir: f32,
+) {
+    let camera_rotation = face_dir + std::f32::consts::PI;
+    if let Ok(camera_entity) = camera_query.single() {
+        commands
+            .entity(camera_entity)
+            .insert(Transform::from_xyz(pos.x, 2.5, pos.z + 3.0).with_rotation(Quat::from_rotation_y(camera_rotation)));
+    }
+    local_player_info.stored_yaw = camera_rotation;
+    local_player_info.stored_pitch = 0.0;
 }
 
 fn update_snapshot_player(

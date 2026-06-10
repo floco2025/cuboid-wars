@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use common::{
-    config::GameplayConfig,
+    config::{CharacterPhysicsConfig, GameplayConfig},
     constants::PHYSICS_EPSILON,
     physics::{
         CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, overlapping_character, passable_barrier_kinds,
@@ -45,9 +45,16 @@ pub fn characters_movement_system(
 ) {
     let delta = time.delta_secs();
     let mut planned_moves = Vec::new();
-    let actor_starts: Vec<(Entity, Position)> = actor_query
+    let actor_starts: Vec<(Entity, Position, CharacterPhysicsConfig)> = actor_query
         .iter()
-        .map(|(entity, _, pos, _, _, _)| (entity, *pos))
+        .filter_map(|(entity, id, pos, _, _, _)| {
+            let info = actors.get(id)?;
+            Some((
+                entity,
+                *pos,
+                gameplay_config.validated_actor(&info.spawn_kind).physics(),
+            ))
+        })
         .collect();
 
     plan_player_moves(

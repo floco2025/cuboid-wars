@@ -8,7 +8,7 @@ use crate::{
     resources::{ActorAvoidanceState, ActorInfo, ActorMap, PlayerMap},
 };
 use common::{
-    config::GameplayConfig,
+    config::{CharacterPhysicsConfig, GameplayConfig},
     physics::{CharacterMovePlan, CollisionWorld},
     protocol::{ActorId, ActorMoveIntent, ActorMovementState, Position, SActorMoveIntent, ServerMessage},
 };
@@ -31,7 +31,7 @@ pub(crate) fn plan_actor_moves(
     players: &PlayerMap,
     open_barrier_kinds: &OpenBarrierKinds,
     actors: &mut ActorMap,
-    actor_starts: &[(bevy::prelude::Entity, Position)],
+    actor_starts: &[(bevy::prelude::Entity, Position, CharacterPhysicsConfig)],
     query: &mut ActorMovementQuery,
     planned_moves: &mut Vec<CharacterMovePlan>,
 ) {

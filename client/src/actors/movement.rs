@@ -7,7 +7,7 @@ use crate::{
     network::{ServerReconciliation, worst_axis_excess},
 };
 use common::{
-    config::GameplayConfig,
+    config::{CharacterPhysicsConfig, GameplayConfig},
     constants::SNAPSHOT_SECS,
     physics::{
         CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, OpenBarrierKinds, blocking_character_move_plan,
@@ -30,8 +30,22 @@ pub(crate) type ActorMovementQuery<'w, 's> = Query<
     (With<ActorMarker>, Without<PlayerMarker>),
 >;
 
-pub(crate) fn actor_start_positions(query: &ActorMovementQuery) -> Vec<(Entity, Position)> {
-    query.iter().map(|(entity, _, pos, _, _, _)| (entity, *pos)).collect()
+pub(crate) fn actor_start_positions(
+    query: &ActorMovementQuery,
+    actors: &ActorMap,
+    gameplay_config: &GameplayConfig,
+) -> Vec<(Entity, Position, CharacterPhysicsConfig)> {
+    query
+        .iter()
+        .filter_map(|(entity, actor_id, pos, _, _, _)| {
+            let info = actors.get(actor_id)?;
+            let physics = gameplay_config
+                .actor(&info.kind)
+                .expect("actor kind sent by server is in gameplay config")
+                .physics();
+            Some((entity, *pos, physics))
+        })
+        .collect()
 }
 
 pub(crate) fn plan_actor_moves(
@@ -41,7 +55,7 @@ pub(crate) fn plan_actor_moves(
     gameplay_config: &GameplayConfig,
     actors: &ActorMap,
     open_barrier_kinds: &OpenBarrierKinds,
-    actor_starts: &[(Entity, Position)],
+    actor_starts: &[(Entity, Position, CharacterPhysicsConfig)],
     query: &mut ActorMovementQuery,
     planned_moves: &mut Vec<CharacterMovePlan>,
 ) {
@@ -150,7 +164,7 @@ pub(crate) fn apply_actor_moves(query: &mut ActorMovementQuery, planned_moves: &
 
 fn push_actor_planned_move(
     planned_moves: &mut Vec<CharacterMovePlan>,
-    actor_starts: &[(Entity, Position)],
+    actor_starts: &[(Entity, Position, CharacterPhysicsConfig)],
     mut planned_move: CharacterMovePlan,
 ) {
     if character_move_plan_is_blocked(&planned_move, planned_moves, actor_starts) {
