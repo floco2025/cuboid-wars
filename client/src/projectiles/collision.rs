@@ -25,7 +25,9 @@ pub(super) fn handle_character_collisions(
     let mut closest_hit = None;
 
     for (_player_entity, player_pos, face_dir, player_id, is_local_player) in player_query.iter() {
-        if shooter_id == *player_id {
+        // Self-hits only count once the projectile has left the shooter's
+        // hitbox (see `ProjectileMotion::left_shooter`).
+        if shooter_id == *player_id && !proj_motion.left_shooter {
             continue;
         }
 

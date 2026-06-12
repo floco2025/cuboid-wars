@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
-    physics::{CollisionWorld, OpenBarrierKinds, ProjectileMarker, ProjectileMotion},
+    physics::{CollisionWorld, OpenBarrierKinds, ProjectileMarker, ProjectileMotion, projectile_overlaps_character},
     protocol::{ActorId, ActorMarker, FaceDirection, PlayerId, PlayerMarker, Position},
 };
 
@@ -58,6 +58,25 @@ pub fn projectiles_movement_system(
         projectile.apply_drag(delta);
 
         let projectile_pos: Position = *position;
+
+        // Arm self-hits once the projectile no longer overlaps the shooter
+        // (mirrors the server). A missing shooter arms immediately.
+        if !projectile.left_shooter {
+            let overlaps_shooter = player_query
+                .iter()
+                .find(|(_, _, _, player_id, _)| *player_id == shooter_id)
+                .is_some_and(|(_, player_pos, face_dir, _, _)| {
+                    projectile_overlaps_character(
+                        &projectile_pos,
+                        player_pos,
+                        face_dir.0,
+                        gameplay_config.player.physics(),
+                    )
+                });
+            if !overlaps_shooter {
+                projectile.left_shooter = true;
+            }
+        }
 
         if handle_barrier_collisions(
             &mut commands,

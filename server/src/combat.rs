@@ -72,12 +72,16 @@ pub fn apply_player_projectile_hit(
 
     apply_damage(target_health, server_gameplay_config.player.projectile_damage_taken);
 
-    let scoring = &server_gameplay_config.scoring;
-    if let Some(shooter_info) = players.get_mut(shooter_id) {
-        shooter_info.score += scoring.player_kill;
-    }
-    if let Some(target_info) = players.get_mut(&target_id) {
-        target_info.score += scoring.player_death;
+    // Self-hits damage but don't score — the kill and death adjustments
+    // would land on the same player and cancel out.
+    if *shooter_id != target_id {
+        let scoring = &server_gameplay_config.scoring;
+        if let Some(shooter_info) = players.get_mut(shooter_id) {
+            shooter_info.score += scoring.player_kill;
+        }
+        if let Some(target_info) = players.get_mut(&target_id) {
+            target_info.score += scoring.player_death;
+        }
     }
 
     target_health.0 <= 0.0
@@ -305,6 +309,25 @@ mod tests {
 
         assert!(was_lethal);
         assert_eq!(health.0, 0.0);
+    }
+
+    #[test]
+    fn self_hit_damages_but_does_not_score() {
+        let mut players = PlayerMap::default();
+        players.insert(PlayerId(1), make_player_info());
+        let mut health = Health(100.0);
+
+        let was_lethal = apply_player_projectile_hit(
+            &mut players,
+            &PlayerId(1),
+            PlayerId(1),
+            &mut health,
+            &server_gameplay_config(),
+        );
+
+        assert!(!was_lethal);
+        assert_eq!(health.0, 75.0);
+        assert_eq!(players.get(&PlayerId(1)).expect("player").score, 0);
     }
 
     #[test]

@@ -9,7 +9,10 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    physics::{CollisionWorld, ProjectileCharacterHit, ProjectileMarker, ProjectileMotion, projectile_character_hit},
+    physics::{
+        CollisionWorld, ProjectileCharacterHit, ProjectileMarker, ProjectileMotion, projectile_character_hit,
+        projectile_overlaps_character,
+    },
     protocol::*,
 };
 
@@ -130,6 +133,26 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
         projectile.apply_gravity(delta);
         projectile.apply_drag(delta);
 
+        // Arm self-hits once the projectile no longer overlaps the shooter.
+        // A missing shooter (died/logged off) arms immediately.
+        if !projectile.left_shooter {
+            let overlaps_shooter = params
+                .players
+                .get(shooter_id)
+                .and_then(|info| params.player_query.get(info.entity).ok())
+                .is_some_and(|(position, face_direction, _, _)| {
+                    projectile_overlaps_character(
+                        &proj_pos,
+                        position,
+                        face_direction.0,
+                        params.gameplay_config.player.physics(),
+                    )
+                });
+            if !overlaps_shooter {
+                projectile.left_shooter = true;
+            }
+        }
+
         // Gather the closest player/actor hit BEFORE resolving world
         // collisions, so their times-of-impact can be compared: a target in
         // front of a wall must register a hit instead of being phased through
@@ -137,7 +160,7 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
         let mut closest_hit = None;
 
         for (position, face_direction, player_id, _) in &mut params.player_query {
-            if shooter_id == player_id {
+            if shooter_id == player_id && !projectile.left_shooter {
                 continue;
             }
 
@@ -218,13 +241,16 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
 
                     if was_lethal {
                         info!("{:?} died", player_id);
+                        // A self-kill is a solo death — no killer attribution
+                        // (the feed would otherwise read "X killed X").
+                        let killer = (player_id != *shooter_id).then_some(*shooter_id);
                         kill_player(
                             &mut commands,
                             &mut params.players,
                             player_id,
                             target_entity,
                             params.gameplay_config.player.respawn_delay_secs,
-                            Some(*shooter_id),
+                            killer,
                         );
                     }
                 }

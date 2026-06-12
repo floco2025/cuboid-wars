@@ -10,6 +10,7 @@ fn test_projectile_motion(velocity: Vec3) -> ProjectileMotion {
     ProjectileMotion {
         velocity,
         lifetime: Timer::from_seconds(PROJECTILE_LIFETIME, TimerMode::Once),
+        left_shooter: false,
     }
 }
 

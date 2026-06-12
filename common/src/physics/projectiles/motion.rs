@@ -17,6 +17,11 @@ const MAX_SURFACE_BOUNCES: usize = 3;
 pub struct ProjectileMotion {
     pub velocity: Vec3,
     pub lifetime: Timer,
+    // Steep shots spawn inside the shooter's own collider (eye position
+    // pushed along the aim direction), so self-hits are ignored until the
+    // projectile has fully left the shooter's hitbox once. After that the
+    // shooter is a valid target — bounce-backs can hit you.
+    pub left_shooter: bool,
 }
 
 impl ProjectileMotion {
@@ -33,6 +38,7 @@ impl ProjectileMotion {
         Self {
             velocity,
             lifetime: Timer::from_seconds(PROJECTILE_LIFETIME, TimerMode::Once),
+            left_shooter: false,
         }
     }
 

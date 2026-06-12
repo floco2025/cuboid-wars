@@ -1,7 +1,7 @@
 use bevy_math::Quat;
 use rapier3d::{
     parry::{
-        query::{ShapeCastOptions, cast_shapes},
+        query::{ShapeCastOptions, cast_shapes, intersection_test},
         shape::Ball,
     },
     prelude::{Pose, Vector},
@@ -94,9 +94,85 @@ pub fn projectile_character_hit(
     })
 }
 
+// True while the projectile's ball overlaps the character's oriented
+// collider. Used to gate self-hits: a projectile may only hit its shooter
+// after this has gone false once.
+#[must_use]
+pub fn projectile_overlaps_character(
+    proj_pos: &Position,
+    character_pos: &Position,
+    character_face_dir: f32,
+    character_physics: CharacterPhysicsConfig,
+) -> bool {
+    let projectile_shape = Ball::new(PROJECTILE_RADIUS);
+    let character_collider = character_shape(character_physics);
+    let projectile_pose = Pose::translation(proj_pos.x, proj_pos.y, proj_pos.z);
+    let character_pose = oriented_character_pose(character_pos, character_face_dir, character_physics);
+
+    intersection_test(
+        &projectile_pose,
+        &projectile_shape,
+        &character_pose,
+        &character_collider,
+    )
+    .is_ok_and(|overlaps| overlaps)
+}
+
 fn oriented_character_pose(pos: &Position, face_dir: f32, physics: CharacterPhysicsConfig) -> Pose {
     Pose::from_parts(
         Vector::new(pos.x, physics.collider_center_y(pos.y), pos.z),
         Quat::from_rotation_y(face_dir),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::{
+        CharacterColliderAnchor, CharacterColliderConfig, CharacterPhysicsConfig, CharacterSupportProbeConfig,
+    };
+
+    fn physics() -> CharacterPhysicsConfig {
+        CharacterPhysicsConfig {
+            collider: CharacterColliderConfig {
+                width: 1.0,
+                height: 1.3,
+                depth: 0.6,
+                y_offset: 0.0,
+                y_offset_anchor: CharacterColliderAnchor::Bottom,
+            },
+            support_probe: CharacterSupportProbeConfig { width: 0.2, depth: 0.2 },
+        }
+    }
+
+    #[test]
+    fn overlap_tracks_inside_and_outside_positions() {
+        let character_pos = Position::default();
+        let inside = Position { x: 0.0, y: 0.6, z: 0.0 };
+        let outside = Position { x: 0.0, y: 0.6, z: 2.0 };
+
+        assert!(projectile_overlaps_character(&inside, &character_pos, 0.0, physics()));
+        assert!(!projectile_overlaps_character(&outside, &character_pos, 0.0, physics()));
+    }
+
+    #[test]
+    fn overlap_respects_character_orientation() {
+        let character_pos = Position::default();
+        // Just past the narrow depth half-extent (0.3 + radius) but inside
+        // the wide width half-extent (0.5 + radius) — overlap depends on
+        // which axis faces the projectile.
+        let probe = Position {
+            x: 0.0,
+            y: 0.6,
+            z: 0.45,
+        };
+
+        assert!(!projectile_overlaps_character(&probe, &character_pos, 0.0, physics()));
+        assert!(projectile_overlaps_character(
+            &probe,
+            &character_pos,
+            std::f32::consts::FRAC_PI_2,
+            physics()
+        ));
+    }
 }
