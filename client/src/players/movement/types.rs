@@ -6,7 +6,7 @@ use common::{
 
 use crate::{
     network::ServerReconciliation,
-    players::{BumpFlashState, LocalPlayerMarker},
+    players::{BumpFeedbackState, LocalPlayerMarker},
 };
 
 pub(crate) type PlayerMovementQuery<'w, 's> = Query<
@@ -18,7 +18,7 @@ pub(crate) type PlayerMovementQuery<'w, 's> = Query<
         &'static mut Position,
         &'static PlayerMoveIntent,
         &'static mut CharacterVerticalVelocity,
-        Option<&'static mut BumpFlashState>,
+        Option<&'static mut BumpFeedbackState>,
         Option<&'static mut ServerReconciliation>,
         Has<LocalPlayerMarker>,
     ),

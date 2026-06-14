@@ -5,7 +5,6 @@ use crate::{
     actors::{ActorMap, ActorMovementQuery, actor_start_positions, apply_actor_moves, plan_actor_moves},
     config::AssetSet,
     players::{PlayerMap, PlayerMovementQuery, apply_player_moves, plan_player_moves},
-    ui::BumpFlashMarker,
 };
 use common::{
     config::GameplayConfig,
@@ -37,7 +36,6 @@ pub fn characters_movement_system(
     open_barrier_kinds: Res<crate::barriers::OpenBarrierKinds>,
     mut players_query: PlayerMovementQuery,
     mut actors_query: ActorMovementQuery,
-    mut bump_flash_ui: Query<(&mut BackgroundColor, &mut Visibility), With<BumpFlashMarker>>,
 ) {
     let delta = time.delta_secs();
     let mut planned_moves = Vec::new();
@@ -70,7 +68,6 @@ pub fn characters_movement_system(
         &asset_server,
         &asset_set,
         &mut players_query,
-        &mut bump_flash_ui,
         &planned_moves,
     );
     apply_actor_moves(&mut actors_query, &planned_moves);

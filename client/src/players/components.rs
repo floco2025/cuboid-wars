@@ -4,11 +4,12 @@ use bevy::prelude::*;
 // Components
 // ============================================================================
 
-// Track bump flash effect state for local player
+// Debounces the local player's collision (bump) sound: `was_colliding` gates
+// re-triggering while still in contact, and `release_timer` keeps that gate
+// closed for a short window after the last blocked frame.
 #[derive(Component, Default)]
-pub struct BumpFlashState {
+pub struct BumpFeedbackState {
     pub was_colliding: bool,
-    pub flash_timer: f32,
     pub release_timer: f32,
 }
 

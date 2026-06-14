@@ -1,6 +1,6 @@
 use bevy::{gltf::GltfAssetLabel, prelude::*, scene::SceneRoot};
 
-use super::BumpFlashState;
+use super::BumpFeedbackState;
 use crate::{
     animations::{AnimationToPlay, character_animation_system},
     characters::{PreviousTickPosition, spawn_collider_box},
@@ -94,7 +94,7 @@ pub fn spawn_player(
     if is_local {
         commands
             .entity(entity)
-            .insert((LocalPlayerMarker, BumpFlashState::default()));
+            .insert((LocalPlayerMarker, BumpFeedbackState::default()));
     }
 
     let mut children = vec![];

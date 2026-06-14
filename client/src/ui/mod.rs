@@ -18,4 +18,4 @@ pub use player_list::{
     ui_player_list_rebuild_system, ui_stunned_blink_system,
 };
 pub use quest_panel::{QuestEntry, QuestLog, QuestPanelMarker, ui_quest_panel_rebuild_system};
-pub use setup::{BumpFlashMarker, DeathOverlayMarker, setup_ui_system};
+pub use setup::{DeathOverlayMarker, setup_ui_system};

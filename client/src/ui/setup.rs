@@ -8,10 +8,6 @@ use super::{
 };
 use crate::{config::ClientSettings, constants::HUD_EDGE_MARGIN_PX};
 
-// Marker for the bump-flash overlay that briefly tints the screen on collisions.
-#[derive(Component)]
-pub struct BumpFlashMarker;
-
 // Marker for the death overlay — a red translucent full-screen panel shown
 // while the local player is dead.
 #[derive(Component)]
@@ -127,20 +123,6 @@ pub fn setup_ui_system(mut commands: Commands, client_settings: Res<ClientSettin
             bottom: Val::Px(10.0),
             ..default()
         },
-    ));
-
-    commands.spawn((
-        BumpFlashMarker,
-        Node {
-            position_type: PositionType::Absolute,
-            left: Val::Px(0.0),
-            top: Val::Px(0.0),
-            width: Val::Percent(100.0),
-            height: Val::Percent(100.0),
-            ..default()
-        },
-        BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.0)),
-        Visibility::Hidden,
     ));
 
     commands.spawn((
