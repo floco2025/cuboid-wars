@@ -40,7 +40,6 @@
       "max_entries": 5
     },
     "floating_labels": {
-      "cull_distance": 30.0,
       "height_above_character": 0.5
     },
     "health_bars": {

@@ -77,10 +77,19 @@ pub const CHARACTER_VISUAL_TURN_MAX_SPEED: f32 = 12.0;
 pub const LABEL_PLAYER_MESH_WIDTH: f32 = 1.0;
 pub const LABEL_PLAYER_TEXTURE_WIDTH: u32 = 256;
 pub const LABEL_PLAYER_TEXTURE_HEIGHT: u32 = 64;
+// Player health bar geometry below the name label. Width matches the name mesh
+// today but is tracked separately so either can change alone.
+pub const LABEL_PLAYER_BAR_WIDTH: f32 = 1.0;
+// Vertical gap (m) between the health bar's top edge and the name label.
+pub const LABEL_PLAYER_NAME_GAP: f32 = 0.03;
 // Actor floating label: just the health bar, no text. Texture matches the
 // visible bar 1:1 (no padding) — texture size is derived at the spawn
 // call site from the runtime health-bar dims, not stored here.
 pub const LABEL_ACTOR_MESH_WIDTH: f32 = 0.85;
+// Frames a label's render-target camera stays active after a health change.
+// A multi-frame window (not a single frame) so the render reliably lands —
+// a one-frame-only activation intermittently failed to redraw the bar.
+pub const LABEL_RENDER_FRAMES: u8 = 3;
 pub const LABEL_TEXT_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 1.0);
 pub const LABEL_BACKGROUND_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.2);
 
@@ -95,11 +104,15 @@ pub const LABEL_BACKGROUND_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.2);
 pub const HUD_EDGE_MARGIN_PX: f32 = 10.0;
 
 // ============================================================================
-// Health Bars (colors only — dimensions live in `client.json::hud.health_bars`)
+// Health Bars (colors + fill layering; pixel dimensions live in
+// `client.json::hud.health_bars`)
 // ============================================================================
 
 pub const HEALTH_BAR_TRACK_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.65);
 pub const HEALTH_BAR_FILL_COLOR: Color = Color::srgb(0.0, 0.85, 0.2);
+// Local +Z of a world-space bar's opaque fill quad over its translucent track,
+// so the fill always layers in front.
+pub const HEALTH_BAR_FILL_Z_OFFSET: f32 = 0.005;
 
 // ============================================================================
 // Quest Panel (colors only — dimensions live in `client.json::hud.quest_panel`)

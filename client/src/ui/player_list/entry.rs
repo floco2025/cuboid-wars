@@ -2,12 +2,12 @@ use bevy::prelude::*;
 use common::protocol::{BarrierKindTable, Health, ItemType, PlayerId, PowerUpKind};
 
 use super::components::{LOCAL_PLAYER_BG_COLOR, PlayerEntryMarker};
+use super::health_bar::spawn_health_bar;
 use crate::{
     barriers::BarrierAssets,
     constants::{KEY_HUD_GAP_PX, KEY_HUD_ICON_HEIGHT_PX, KEY_HUD_ICON_WIDTH_PX},
     items::item_type_color,
     players::PlayerInfo,
-    ui::spawn_health_bar,
 };
 
 pub(super) fn spawn_player_entry(

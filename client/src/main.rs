@@ -43,7 +43,9 @@ use client::{
     skybox::{setup_skybox_from_cross_system, skybox_convert_cross_to_cubemap_system, skybox_update_camera_system},
     ui::{
         FpsMeasurement, GameMessageFeed, QuestLog, SeenPlayerIds,
-        floating_labels::{floating_label_camera_visibility_system, floating_labels_billboard_system},
+        floating_labels::{
+            floating_health_bar_fill_system, floating_labels_billboard_system, player_name_label_render_system,
+        },
         render_pending_messages_system, setup_ui_system, tick_hud_banner_system, ui_crosshair_visibility_system,
         ui_fps_system, ui_health_bar_fill_system, ui_player_list_rebuild_system, ui_quest_panel_rebuild_system,
         ui_rtt_system, ui_stunned_blink_system, update_message_feed_system,
@@ -242,7 +244,8 @@ fn main() -> Result<()> {
                     .after(players_transform_sync_system)
                     .after(actors_transform_sync_system),
                 floating_labels_billboard_system,
-                floating_label_camera_visibility_system,
+                player_name_label_render_system,
+                floating_health_bar_fill_system,
             ),
         )
         // Cameras follow the local player after input/prediction has had a

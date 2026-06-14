@@ -17,16 +17,11 @@ pub fn setup_label_texture(
         ..default()
     };
 
-    let bg = Color::NONE.to_srgba();
+    // Fully transparent (BGRA, all zero) so the label texture starts clear.
     let mut image = Image::new_fill(
         size,
         TextureDimension::D2,
-        &[
-            (bg.blue * 255.0) as u8,
-            (bg.green * 255.0) as u8,
-            (bg.red * 255.0) as u8,
-            (bg.alpha * 255.0) as u8,
-        ],
+        &[0, 0, 0, 0],
         TextureFormat::Bgra8UnormSrgb,
         RenderAssetUsages::default(),
     );

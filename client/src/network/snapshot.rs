@@ -70,7 +70,6 @@ pub(super) fn handle_snapshot_message(
         commands,
         &mut assets.meshes,
         &mut assets.materials,
-        &mut assets.images,
         &mut assets.graphs,
         actors,
         rtt,

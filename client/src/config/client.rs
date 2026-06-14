@@ -142,9 +142,6 @@ pub struct MessageFeedConfig {
 
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct FloatingLabelsConfig {
-    // Beyond this distance from the main camera (meters), character labels
-    // stop rendering. Perf knob — combined with `Changed<Health>` gating.
-    pub cull_distance: f32,
     pub height_above_character: f32,
 }
 
@@ -292,7 +289,6 @@ impl HudConfig {
         if self.message_feed.max_entries == 0 {
             bail!("hud.message_feed.max_entries must be > 0");
         }
-        validate_positive_finite(self.floating_labels.cull_distance, "hud.floating_labels.cull_distance")?;
         validate_positive_finite(
             self.floating_labels.height_above_character,
             "hud.floating_labels.height_above_character",

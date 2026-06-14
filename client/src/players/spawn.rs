@@ -5,8 +5,11 @@ use crate::{
     animations::{AnimationToPlay, character_animation_system},
     characters::{PreviousTickPosition, spawn_collider_box},
     config::{AssetSet, ClientSettings},
-    constants::{LABEL_PLAYER_TEXTURE_HEIGHT, LABEL_PLAYER_TEXTURE_WIDTH},
-    ui::floating_labels::{FloatingLabelDims, LabelCamera, setup_label_texture, spawn_floating_player_label},
+    constants::{
+        LABEL_PLAYER_BAR_WIDTH, LABEL_PLAYER_NAME_GAP, LABEL_PLAYER_TEXTURE_HEIGHT, LABEL_PLAYER_TEXTURE_WIDTH,
+        LABEL_RENDER_FRAMES,
+    },
+    ui::floating_labels::{LabelCamera, setup_label_texture, spawn_floating_health_bar, spawn_floating_player_label},
 };
 use common::{config::GameplayConfig, physics::CharacterVerticalVelocity, protocol::*};
 
@@ -114,39 +117,56 @@ pub fn spawn_player(
         .id();
     children.push(model);
 
-    // Create individual texture and camera for this player's ID text
+    let health_bars = client_settings.hud.health_bars;
+    let height_above = client_settings.hud.floating_labels.height_above_character;
+
+    // Floating health bar: plain billboarded geometry (track + fill quads), the
+    // same approach actors use — see `spawn_floating_health_bar`. Sits just
+    // above the head.
+    let bar_width = LABEL_PLAYER_BAR_WIDTH;
+    let bar_height = bar_width * (health_bars.floating_player_height / health_bars.floating_player_width);
+    let bar_y = player_physics.collision_height() / 2.0 + height_above + bar_height / 2.0;
+    let bar_entity = spawn_floating_health_bar(
+        commands,
+        meshes,
+        materials,
+        entity,
+        bar_width,
+        bar_height,
+        bar_y,
+        gameplay_config.player.health().max,
+        health.0,
+    );
+    children.push(bar_entity);
+
+    // Name label: rendered into its own texture (text needs one), stacked just
+    // above the health bar.
     let (image_handle, text_camera) = setup_label_texture(
         commands,
         images,
         LABEL_PLAYER_TEXTURE_WIDTH,
         LABEL_PLAYER_TEXTURE_HEIGHT,
     );
-    let (text_entity, mesh_entity) = spawn_floating_player_label(
+    let name_bottom_y = bar_y + bar_height / 2.0 + LABEL_PLAYER_NAME_GAP;
+    let (text_entity, name_mesh) = spawn_floating_player_label(
         commands,
         meshes,
         materials,
-        entity,
         player_name,
         image_handle,
         text_camera,
-        player_physics.collision_height(),
-        gameplay_config.player.health().max,
-        health.0,
-        FloatingLabelDims {
-            height_above_character: client_settings.hud.floating_labels.height_above_character,
-            health_bar_width: client_settings.hud.health_bars.floating_player_width,
-            health_bar_height: client_settings.hud.health_bars.floating_player_height,
-            font_size: client_settings.hud.font_sizes.floating_label,
-        },
+        name_bottom_y,
+        client_settings.hud.font_sizes.floating_label,
     );
-    children.push(mesh_entity);
+    children.push(name_mesh);
 
-    // The visibility system reads `camera` to toggle the player's label camera
-    // on distance/health changes; `ui_root` is tracked so both despawn with
-    // the player (see the `LabelCamera` on_remove hook).
+    // The visibility system uses `camera` to render the name texture for the
+    // first frames after spawn; `ui_root` is tracked so both despawn with the
+    // player (see the `LabelCamera` on_remove hook).
     commands.entity(entity).insert(LabelCamera {
         camera: text_camera,
         ui_root: text_entity,
+        render_ttl: LABEL_RENDER_FRAMES,
     });
     commands.entity(entity).add_children(&children);
 

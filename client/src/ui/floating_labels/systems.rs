@@ -1,10 +1,12 @@
 use bevy::prelude::*;
-use common::protocol::Health;
+use common::{health::health_ratio, protocol::Health};
 
 use crate::{
-    cameras::{MainCameraMarker, RearviewCameraMarker},
-    config::ClientSettings,
-    ui::floating_labels::{CharacterLabelMeshMarker, LabelCamera},
+    cameras::RearviewCameraMarker,
+    ui::floating_labels::{
+        LabelCamera,
+        spawn::{CharacterLabelMeshMarker, FloatingHealthBarFill, floating_health_bar_fill_transform},
+    },
 };
 
 // Make floating character labels face the main camera while staying upright.
@@ -36,39 +38,41 @@ pub fn floating_labels_billboard_system(
     }
 }
 
-// Toggle each character's label-render camera on or off based on:
-//   1. Distance to the main camera (cull beyond
-//      `hud.floating_labels.cull_distance`).
-//   2. Whether the character's `Health` was written this frame.
-//
-// Combined: a label camera renders only on frames where the character is
-// within range AND something about its health changed (which `sync_actors`
-// and `sync_players` re-insert each server snapshot, so this fires at the
-// snapshot rate, not the frame rate).
-//
-// First-render correctness: a freshly spawned character's camera defaults
-// to `is_active = true`, so the initial render happens before this system
-// runs. On the next tick `is_changed()` is true for the just-inserted
-// component, so the camera renders again then gets disabled the frame after
-// if no further changes - two renders at spawn, fine.
-pub fn floating_label_camera_visibility_system(
-    client_settings: Res<ClientSettings>,
-    main_camera: Query<&GlobalTransform, With<MainCameraMarker>>,
-    characters: Query<(&GlobalTransform, &LabelCamera, Ref<Health>)>,
-    mut cameras: Query<&mut Camera>,
-) {
-    let Ok(main_xf) = main_camera.single() else {
-        return;
-    };
-    let main_pos = main_xf.translation();
-    let cull_distance = client_settings.hud.floating_labels.cull_distance;
-    let cull_sq = cull_distance * cull_distance;
+// Render each player's name label texture for the few frames after spawn
+// (`render_ttl` primed at spawn), then idle forever. The name never changes,
+// so a one-time render is enough; the multi-frame window (not a single frame)
+// makes that render land reliably regardless of frame timing. Health bars are
+// separate geometry now, so this no longer reacts to health at all.
+pub fn player_name_label_render_system(mut characters: Query<&mut LabelCamera>, mut cameras: Query<&mut Camera>) {
+    for mut label_cam in &mut characters {
+        let active = label_cam.render_ttl > 0;
+        if let Ok(mut cam) = cameras.get_mut(label_cam.camera)
+            && cam.is_active != active
+        {
+            cam.is_active = active;
+        }
+        if label_cam.render_ttl > 0 {
+            label_cam.render_ttl -= 1;
+        }
+    }
+}
 
-    for (char_xf, label_cam, health) in &characters {
-        let in_range = char_xf.translation().distance_squared(main_pos) <= cull_sq;
-        let dirty = health.is_changed();
-        if let Ok(mut cam) = cameras.get_mut(label_cam.camera) {
-            cam.is_active = in_range && dirty;
+// Rescale each character's world-space health-bar fill quad to its tracked
+// character's current health. The bar is plain geometry rendered by the main
+// camera (no render target), so this directly and reliably reflects every
+// `Health` change. Writes only on change to avoid dirtying transforms.
+pub fn floating_health_bar_fill_system(
+    health_query: Query<&Health>,
+    mut fill_query: Query<(&FloatingHealthBarFill, &mut Transform)>,
+) {
+    for (fill, mut transform) in &mut fill_query {
+        let Ok(health) = health_query.get(fill.tracked_entity) else {
+            continue;
+        };
+        let target = floating_health_bar_fill_transform(health_ratio(*health, fill.max_health), fill.full_width);
+        if transform.translation.x != target.translation.x || transform.scale.x != target.scale.x {
+            transform.translation = target.translation;
+            transform.scale = target.scale;
         }
     }
 }

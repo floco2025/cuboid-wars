@@ -3,8 +3,5 @@ mod spawn;
 mod systems;
 
 pub use render_target::setup_label_texture;
-pub use spawn::{
-    CharacterLabelMeshMarker, CharacterLabelTextMarker, FloatingLabelDims, LabelCamera,
-    spawn_floating_actor_health_bar, spawn_floating_player_label,
-};
-pub use systems::{floating_label_camera_visibility_system, floating_labels_billboard_system};
+pub use spawn::{LabelCamera, spawn_floating_health_bar, spawn_floating_player_label};
+pub use systems::{floating_health_bar_fill_system, floating_labels_billboard_system, player_name_label_render_system};
