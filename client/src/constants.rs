@@ -61,9 +61,11 @@ pub const RECON_ACTOR_SNAP_DISTANCE: f32 = 3.0;
 // Character Visuals
 // ============================================================================
 
-pub const CHARACTER_VISUAL_TURN_MIN_DURATION: f32 = 0.10; // Seconds for tiny visual turns.
-pub const CHARACTER_VISUAL_TURN_MAX_DURATION: f32 = 0.25; // Seconds for large visual turns.
-pub const CHARACTER_VISUAL_TURN_MAX_ANGLE: f32 = 180.0; // degrees
+// Max angular speed (rad/s) at which the rendered character yaw slews toward
+// the gameplay `FaceDirection`. The cap is what makes the visual robust: no
+// matter how fast the server changes facing, the model turns at most this much
+// per second and can never spin. ~12 rad/s ⇒ a 180° turn takes ~0.26 s.
+pub const CHARACTER_VISUAL_TURN_MAX_SPEED: f32 = 12.0;
 
 // ============================================================================
 // Floating Labels (layout math; sizes live in `client.json::hud`)

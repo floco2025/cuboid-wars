@@ -4,60 +4,67 @@ use common::{
     protocol::{ActorMarker, FaceDirection, PlayerMarker},
 };
 
-use super::components::CharacterVisualTurnState;
-use crate::constants::{
-    CHARACTER_VISUAL_TURN_MAX_ANGLE, CHARACTER_VISUAL_TURN_MAX_DURATION, CHARACTER_VISUAL_TURN_MIN_DURATION,
-};
+use crate::constants::CHARACTER_VISUAL_TURN_MAX_SPEED;
 
-const VISUAL_TURN_RETARGET_THRESHOLD: f32 = 0.001; // radians
-
-// Smooth rendered character rotation toward the gameplay face direction.
-// FaceDirection itself stays immediate because shooting and networking use it.
+// Smoothly rotate the rendered character yaw toward the gameplay `FaceDirection`
+// at a capped angular speed. `FaceDirection` itself stays immediate (shooting
+// and networking read it); only the visual lags behind it. The speed cap is the
+// whole point: however fast the server flips an actor's facing (e.g. an AI
+// thrashing while it can't reach a target), the model can only turn this much
+// per second, so it never spins — facing smoothness is decoupled from the AI.
 pub fn characters_visual_turn_system(
-    mut commands: Commands,
     time: Res<Time>,
     mut query: Query<
-        (
-            Entity,
-            &FaceDirection,
-            &mut Transform,
-            Option<&mut CharacterVisualTurnState>,
-        ),
+        (&FaceDirection, &mut Transform),
         (Or<(With<PlayerMarker>, With<ActorMarker>)>, Without<Camera3d>),
     >,
 ) {
-    for (entity, face_dir, mut transform, maybe_turn) in &mut query {
+    let max_step = CHARACTER_VISUAL_TURN_MAX_SPEED * time.delta_secs();
+    for (face_dir, mut transform) in &mut query {
         let current_yaw = transform.rotation.to_euler(EulerRot::YXZ).0;
-        let Some(mut turn) = maybe_turn else {
-            transform.rotation = Quat::from_rotation_y(face_dir.0);
-            commands
-                .entity(entity)
-                .insert(CharacterVisualTurnState::settled(face_dir.0));
-            continue;
-        };
-
-        let target_delta = angle_delta_radians(face_dir.0, turn.target_yaw);
-        if target_delta.abs() > VISUAL_TURN_RETARGET_THRESHOLD {
-            let turn_delta = angle_delta_radians(face_dir.0, current_yaw);
-            turn.start_yaw = current_yaw;
-            turn.target_yaw = current_yaw + turn_delta;
-            turn.elapsed = 0.0;
-            turn.duration = visual_turn_duration(turn_delta.abs());
-        }
-
-        if turn.elapsed >= turn.duration {
-            transform.rotation = Quat::from_rotation_y(turn.target_yaw);
-            continue;
-        }
-
-        turn.elapsed = (turn.elapsed + time.delta_secs()).min(turn.duration);
-        let t = turn.elapsed / turn.duration;
-        let visual_yaw = turn.start_yaw + angle_delta_radians(turn.target_yaw, turn.start_yaw) * t;
-        transform.rotation = Quat::from_rotation_y(visual_yaw);
+        transform.rotation = Quat::from_rotation_y(step_yaw_toward(current_yaw, face_dir.0, max_step));
     }
 }
 
-fn visual_turn_duration(angle_radians: f32) -> f32 {
-    let t = (angle_radians / CHARACTER_VISUAL_TURN_MAX_ANGLE.to_radians()).clamp(0.0, 1.0);
-    CHARACTER_VISUAL_TURN_MIN_DURATION.lerp(CHARACTER_VISUAL_TURN_MAX_DURATION, t)
+// Move `current` toward `target` (radians) by at most `max_step`, taking the
+// shortest way around the circle; snaps to `target` once within range.
+fn step_yaw_toward(current: f32, target: f32, max_step: f32) -> f32 {
+    let delta = angle_delta_radians(target, current);
+    if delta.abs() <= max_step {
+        target
+    } else {
+        current + delta.signum() * max_step
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::f32::consts::PI;
+
+    fn aligned(a: f32, b: f32) -> bool {
+        angle_delta_radians(a, b).abs() < 1e-4
+    }
+
+    #[test]
+    fn snaps_when_within_one_step() {
+        assert!(aligned(step_yaw_toward(0.0, 0.1, 0.5), 0.1));
+    }
+
+    #[test]
+    fn caps_a_large_flip_to_max_step() {
+        // Target nearly opposite: a single step advances exactly `max_step`.
+        assert!(aligned(step_yaw_toward(0.0, PI - 0.01, 0.2), 0.2));
+    }
+
+    #[test]
+    fn takes_the_shortest_way_around_the_wrap() {
+        // current +3.0, target -3.0: shortest path is ~+0.28 across ±PI, not -6.
+        let stepped = step_yaw_toward(3.0, -3.0, 0.1);
+        assert!(aligned(stepped, 3.1), "advances 0.1 the short way (wrapping)");
+        assert!(
+            angle_delta_radians(-3.0, stepped).abs() < angle_delta_radians(-3.0, 3.0).abs(),
+            "ended up closer to the target"
+        );
+    }
 }

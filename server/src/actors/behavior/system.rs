@@ -74,24 +74,35 @@ pub fn actor_behavior_system(
             continue;
         }
 
+        let visible_player = visible_player_position(
+            pos,
+            actor_config.eye_height(),
+            kind_server_config.senses.horizontal_vision_range,
+            kind_server_config.senses.vertical_vision_range,
+            &players,
+            &player_query,
+            &collision_world,
+            &gameplay_config,
+        );
+
         if !chase_reacquire_blocked
             && (info.go_to_position.is_none() || info.go_to_position_is_chase)
-            && let Some(target_pos) = visible_player_position(
-                pos,
-                actor_config.eye_height(),
-                kind_server_config.senses.horizontal_vision_range,
-                kind_server_config.senses.vertical_vision_range,
-                &players,
-                &player_query,
-                &collision_world,
-                &gameplay_config,
-            )
+            && let Some(target_pos) = visible_player
         {
             info.return_path.clear();
             info.is_returning_to_spawn = false;
             info.go_to_position = Some(target_pos);
             info.go_to_position_is_chase = true;
             continue;
+        }
+
+        // Lost sight of the chased player (it left vision — e.g. jumped to
+        // another floor). Demote the chase to a one-shot go-to toward the
+        // last-known spot: the actor walks there and then gives up to patrol
+        // via the normal arrival path, instead of holding on a stale target
+        // forever (arrival-hold only applies while `go_to_position_is_chase`).
+        if lost_chase_target(info.go_to_position_is_chase, visible_player.is_some()) {
+            info.go_to_position_is_chase = false;
         }
 
         if info.go_to_position.is_some() {
@@ -109,6 +120,13 @@ pub fn actor_behavior_system(
             kind_server_config.patrol.idle_probability,
         );
     }
+}
+
+// A chasing actor that can no longer see the player should stop treating the
+// stale last-known position as a live chase (demote it to a one-shot go-to so
+// it walks there and then gives up to patrol).
+fn lost_chase_target(is_chase: bool, player_visible: bool) -> bool {
+    is_chase && !player_visible
 }
 
 fn tick_chase_reacquire_timer(info: &mut crate::resources::ActorInfo, delta: f32) -> bool {
@@ -146,7 +164,7 @@ mod tests {
     use common::protocol::ActorMoveIntent;
 
     use super::*;
-    use crate::resources::{ActorAvoidanceState, ActorInfo};
+    use crate::resources::ActorInfo;
 
     fn actor_info(chase_reacquire_timer: f32) -> ActorInfo {
         ActorInfo {
@@ -160,7 +178,8 @@ mod tests {
             is_returning_to_spawn: false,
             return_path: Default::default(),
             chase_reacquire_timer,
-            avoidance_state: ActorAvoidanceState::None,
+            committed_direction: None,
+            commit_secs_left: 0.0,
             last_damager: None,
         }
     }
@@ -194,6 +213,13 @@ mod tests {
         start_chase_reacquire_cooldown_if_chasing(&mut info, 5.0);
 
         assert_eq!(info.chase_reacquire_timer, 0.0);
+    }
+
+    #[test]
+    fn lost_chase_target_only_when_chasing_and_unseen() {
+        assert!(lost_chase_target(true, false), "chasing + lost sight → demote");
+        assert!(!lost_chase_target(true, true), "still visible → keep chasing");
+        assert!(!lost_chase_target(false, false), "not a chase → nothing to demote");
     }
 
     #[test]

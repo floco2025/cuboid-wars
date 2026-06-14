@@ -5,7 +5,7 @@ use crate::{
     actors::behavior::random_direction_time,
     characters::generate_actor_spawn_position_in_zone,
     config::ServerGameplayConfig,
-    resources::{ActorAvoidanceState, ActorInfo, ActorMap, ActorSpawnThrottles, ActorSpawner, MapConfig},
+    resources::{ActorInfo, ActorMap, ActorSpawnThrottles, ActorSpawner, MapConfig},
 };
 use common::{
     config::GameplayConfig,
@@ -218,7 +218,8 @@ fn spawn_actor_in_zone(
             is_returning_to_spawn: false,
             return_path: Default::default(),
             chase_reacquire_timer: 0.0,
-            avoidance_state: ActorAvoidanceState::None,
+            committed_direction: None,
+            commit_secs_left: 0.0,
             last_damager: None,
         },
     );

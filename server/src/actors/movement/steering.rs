@@ -1,6 +1,7 @@
-use rand::{RngExt, rngs::ThreadRng};
-
-use common::protocol::{ActorMoveIntent, Position};
+use common::{
+    math::angle_delta_radians,
+    protocol::{ActorMoveIntent, Position},
+};
 
 pub fn actor_desired_intent(
     go_to_position: &mut Option<Position>,
@@ -20,24 +21,13 @@ pub fn actor_desired_intent(
     })
 }
 
-pub fn steering_directions(direction: f32, side: f32) -> [f32; 7] {
-    [
-        direction,
-        direction + side * 20.0_f32.to_radians(),
-        direction + side * 45.0_f32.to_radians(),
-        direction + side * 90.0_f32.to_radians(),
-        direction - side * 20.0_f32.to_radians(),
-        direction - side * 45.0_f32.to_radians(),
-        direction - side * 90.0_f32.to_radians(),
-    ]
-}
-
-pub fn random_avoidance_side(rng: &mut ThreadRng) -> f32 {
-    if rng.random_bool(0.5) { 1.0 } else { -1.0 }
-}
-
 fn direction_toward(pos: &Position, target: &Position) -> f32 {
     let dx = target.x - pos.x;
     let dz = target.z - pos.z;
     dx.atan2(dz)
+}
+
+// Smallest absolute angle between two headings, in `[0, PI]`.
+pub fn angular_distance(a: f32, b: f32) -> f32 {
+    angle_delta_radians(a, b).abs()
 }

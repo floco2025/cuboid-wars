@@ -6,14 +6,14 @@ use common::{
     protocol::{ActorId, ActorMoveIntent, Floor, MapLayout, Position, Wall},
 };
 
-use crate::resources::{ActorAvoidanceState, ActorInfo};
+use crate::resources::ActorInfo;
 
 use super::{
     context::{ActorMoveContext, MoveCandidateResult},
     ordering::{ActorPlanOrder, actor_target_distance_sq, sort_actor_plan_order},
     planning::{
-        blocked_step_made_useful_progress, continue_wall_avoidance_if_needed, opposite_wall_avoidance_direction,
-        select_go_to_actor_move, update_reached_go_to_state, wall_avoidance_directions,
+        blocked_step_made_useful_progress, chase_target_within_reach, select_actor_move, select_committed_move,
+        should_reuse_commit, update_reached_go_to_state,
     },
 };
 
@@ -23,13 +23,6 @@ mod state;
 
 const TEST_KIND: &str = "mine_1";
 const TEST_DELTA: f32 = 0.1;
-
-fn assert_near(actual: f32, expected: f32) {
-    assert!(
-        (actual - expected).abs() < 0.0001,
-        "expected {actual} to be near {expected}"
-    );
-}
 
 fn order(entity_bits: u64, target_distance_sq: f32, id: u32) -> ActorPlanOrder {
     ActorPlanOrder {
@@ -51,7 +44,8 @@ fn actor_info() -> ActorInfo {
         is_returning_to_spawn: false,
         return_path: Default::default(),
         chase_reacquire_timer: 0.0,
-        avoidance_state: ActorAvoidanceState::None,
+        committed_direction: None,
+        commit_secs_left: 0.0,
         last_damager: None,
     }
 }

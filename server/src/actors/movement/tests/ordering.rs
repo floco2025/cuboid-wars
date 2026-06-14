@@ -38,7 +38,8 @@ fn actor_without_go_to_position_plans_after_targeted_actor() {
         is_returning_to_spawn: false,
         return_path: Default::default(),
         chase_reacquire_timer: 0.0,
-        avoidance_state: ActorAvoidanceState::None,
+        committed_direction: None,
+        commit_secs_left: 0.0,
         last_damager: None,
     };
 
