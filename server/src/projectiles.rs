@@ -4,8 +4,9 @@ use crate::{
     combat::{apply_actor_projectile_hit, apply_player_projectile_hit, kill_player},
     config::ServerGameplayConfig,
     map::OpenBarrierKinds,
+    net::ServerToClient,
     network::broadcast_to_all,
-    resources::{ActorMap, PlayerMap},
+    resources::{ActorMap, PlayerMap, QuestEvent, record_quest_event},
 };
 use common::{
     config::GameplayConfig,
@@ -283,6 +284,16 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                             .score_reward_on_kill;
                         if let Some(shooter) = params.players.get_mut(shooter_id) {
                             shooter.score += bonus;
+                            // Advance any actor-kills quests (honouring per-kind
+                            // filters) and unicast the progress/completion cues.
+                            let quest_messages = record_quest_event(
+                                shooter,
+                                &params.server_gameplay_config.quests,
+                                QuestEvent::ActorKilled { kind: &spawn_kind },
+                            );
+                            for msg in quest_messages {
+                                let _ = shooter.channel.send(ServerToClient::Send(msg));
+                            }
                         }
                         // Stash the killer so `actor_removal_system`'s
                         // `SActorDeath` broadcast can attribute the kill.

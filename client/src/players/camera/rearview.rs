@@ -4,6 +4,7 @@ use crate::{
     cameras::{CameraViewMode, MainCameraMarker, RearviewCameraMarker},
     characters::PreviousTickPosition,
     config::ClientSettings,
+    constants::HUD_EDGE_MARGIN_PX,
     players::LocalPlayerMarker,
 };
 use common::{config::GameplayConfig, protocol::Position};
@@ -75,11 +76,12 @@ pub fn local_player_rearview_viewport_system(
     let viewport_width = (window_width as f32 * rearview.width_ratio) as u32;
     let viewport_height = (window_height as f32 * rearview.height_ratio) as u32;
 
-    let margin_x = (window_width as f32 * rearview.margin_ratio) as u32;
-    let margin_y = (window_height as f32 * rearview.margin_ratio) as u32;
+    // Same fixed inset as the HUD panels. Those are logical-pixel UI nodes;
+    // the viewport is physical pixels, so scale the margin to match visually.
+    let margin = (HUD_EDGE_MARGIN_PX * window.scale_factor()) as u32;
 
-    let x = window_width.saturating_sub(viewport_width + margin_x);
-    let y = margin_y;
+    let x = window_width.saturating_sub(viewport_width + margin);
+    let y = margin;
 
     let physical_position = UVec2::new(x, y);
     let physical_size = UVec2::new(viewport_width, viewport_height);

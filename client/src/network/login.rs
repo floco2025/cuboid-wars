@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use super::{
     components::ClientAssets,
-    players::{handle_quest_completed_message, handle_quest_new_message},
+    players::{handle_quest_completed_message, handle_quest_progress_message, handle_quests_assigned_message},
 };
 use crate::players::MyPlayerId;
 use common::{physics::CollisionWorld, protocol::*};
@@ -13,14 +13,15 @@ use common::{physics::CollisionWorld, protocol::*};
 // `MyPlayerId` is inserted by the `Init` arm via `commands.insert_resource`,
 // which is *deferred* — it doesn't become visible to the current system run.
 // Anything that arrives in the same tick as `SInit` (and that's the common
-// case for the login burst: `SInit` → `SQuestNew` → `SSnapshot`) lands here.
+// case for the login burst: `SInit` → `SQuestsAssigned` → `SSnapshot`) lands here.
 //
 // Most messages are safe to drop: the next `SSnapshot` reconciles durable
-// world state, and one-shot cues are ephemeral by design. The exceptions
-// are per-client state events (`SQuestNew`, `SQuestCompleted`): they install
-// durable per-player state with no snapshot-side fallback, so we must
-// process them here regardless of bootstrap state. They don't depend on
-// `MyPlayerId` anyway — they're unicast, identity is implicit.
+// world state, and one-shot cues are ephemeral by design. The exceptions are
+// the per-client quest state events (`SQuestsAssigned`, `SQuestProgress`,
+// `SQuestCompleted`): they install durable per-player state with no
+// snapshot-side fallback, so we must process them here regardless of bootstrap
+// state. They don't depend on `MyPlayerId` anyway — they're unicast, identity
+// is implicit.
 pub fn handle_pre_bootstrap_message(msg: ServerMessage, commands: &mut Commands, client_assets: &mut ClientAssets) {
     match msg {
         ServerMessage::Init(init_msg) => {
@@ -31,19 +32,22 @@ pub fn handle_pre_bootstrap_message(msg: ServerMessage, commands: &mut Commands,
             commands.insert_resource(init_msg.map_layout);
             commands.insert_resource(collision_world);
         }
-        ServerMessage::QuestNew(quest_msg) => {
-            handle_quest_new_message(
+        ServerMessage::QuestsAssigned(quest_msg) => {
+            handle_quests_assigned_message(
                 commands,
-                &mut client_assets.active_quests,
+                &mut client_assets.quest_log,
                 &client_assets.client_settings,
                 &client_assets.banners,
                 quest_msg,
             );
         }
+        ServerMessage::QuestProgress(quest_msg) => {
+            handle_quest_progress_message(&mut client_assets.quest_log, quest_msg);
+        }
         ServerMessage::QuestCompleted(quest_msg) => {
             handle_quest_completed_message(
                 commands,
-                &mut client_assets.active_quests,
+                &mut client_assets.quest_log,
                 &client_assets.client_settings,
                 &client_assets.banners,
                 &client_assets.asset_server,

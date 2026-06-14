@@ -11,7 +11,7 @@ use crate::{
     network::resources::RoundTripTime,
     players::LocalPlayerInfo,
     projectiles::ProjectileAssets,
-    ui::{ActiveQuests, GameMessageFeed, HudBannerMarker, SeenPlayerIds},
+    ui::{GameMessageFeed, HudBannerMarker, QuestLog, SeenPlayerIds},
 };
 
 // ============================================================================
@@ -85,7 +85,7 @@ pub struct ClientAssets<'w, 's> {
     pub local_player_info: ResMut<'w, LocalPlayerInfo>,
     pub game_message_feed: ResMut<'w, GameMessageFeed>,
     pub seen_player_ids: ResMut<'w, SeenPlayerIds>,
-    pub active_quests: ResMut<'w, ActiveQuests>,
+    pub quest_log: ResMut<'w, QuestLog>,
     pub open_barrier_kinds: ResMut<'w, crate::barriers::OpenBarrierKinds>,
     // Live banner entities — used by `spawn_hud_banner` to enforce the
     // single-banner invariant (despawn any existing before inserting the

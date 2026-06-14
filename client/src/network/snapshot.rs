@@ -55,7 +55,7 @@ pub(super) fn handle_snapshot_message(
         &mut client_assets.local_player_info,
         &mut client_assets.game_message_feed,
         &mut client_assets.seen_player_ids,
-        &client_assets.active_quests,
+        &client_assets.quest_log,
         &client_assets.banners,
         player_data,
         camera_query,

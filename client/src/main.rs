@@ -42,11 +42,11 @@ use client::{
     },
     skybox::{setup_skybox_from_cross_system, skybox_convert_cross_to_cubemap_system, skybox_update_camera_system},
     ui::{
-        ActiveQuests, FpsMeasurement, GameMessageFeed, SeenPlayerIds,
+        FpsMeasurement, GameMessageFeed, QuestLog, SeenPlayerIds,
         floating_labels::{floating_label_camera_visibility_system, floating_labels_billboard_system},
         render_pending_messages_system, setup_ui_system, tick_hud_banner_system, ui_crosshair_visibility_system,
-        ui_fps_system, ui_health_bar_fill_system, ui_player_list_rebuild_system, ui_rtt_system,
-        ui_stunned_blink_system, update_message_feed_system,
+        ui_fps_system, ui_health_bar_fill_system, ui_player_list_rebuild_system, ui_quest_panel_rebuild_system,
+        ui_rtt_system, ui_stunned_blink_system, update_message_feed_system,
     },
     vfx::explosion_effects_system,
 };
@@ -180,7 +180,7 @@ fn main() -> Result<()> {
         .insert_resource(LastBounceSoundTime::default())
         .insert_resource(GameMessageFeed::default())
         .insert_resource(SeenPlayerIds::default())
-        .insert_resource(ActiveQuests::default())
+        .insert_resource(QuestLog::default())
         .init_resource::<ProjectileAssets>()
         // Startup creates persistent scene infrastructure before any server
         // map data arrives.
@@ -293,6 +293,7 @@ fn main() -> Result<()> {
                 ui_crosshair_visibility_system,
                 ui_player_list_rebuild_system,
                 ui_health_bar_fill_system.after(ui_player_list_rebuild_system),
+                ui_quest_panel_rebuild_system,
                 ui_stunned_blink_system,
                 ui_rtt_system,
                 ui_fps_system,

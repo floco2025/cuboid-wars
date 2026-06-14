@@ -8,7 +8,7 @@ use crate::{
     config::{AssetSet, ClientSettings},
     network::{RoundTripTime, ServerReconciliation},
     players::{LocalPlayerInfo, PlayerInfo, PlayerMap, spawn_player},
-    ui::{ActiveQuests, GameMessage, GameMessageFeed, HudBannerMarker, SeenPlayerIds, spawn_hud_banner},
+    ui::{GameMessage, GameMessageFeed, HudBannerMarker, QuestLog, SeenPlayerIds, spawn_hud_banner},
 };
 use common::{
     config::GameplayConfig,
@@ -31,7 +31,7 @@ pub fn sync_players(
     local_player_info: &mut LocalPlayerInfo,
     feed: &mut GameMessageFeed,
     seen_player_ids: &mut SeenPlayerIds,
-    active_quests: &ActiveQuests,
+    quest_log: &QuestLog,
     existing_banners: &Query<Entity, With<HudBannerMarker>>,
     player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
     camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
@@ -149,20 +149,24 @@ pub fn sync_players(
         local_player_info.is_dead = false;
         local_just_respawned = true;
 
-        // Re-show one combined announcement covering every still-active quest.
-        // Quests retired by `SQuestCompleted` are gone from `pending`, so won
-        // players see nothing. This must be a SINGLE spawn: `spawn_hud_banner`
-        // enforces the single-banner invariant via a despawn query that is a
-        // stale snapshot within one system run, so spawning per-quest in a loop
-        // would leave N overlapping banners once a second quest exists.
-        let banner_cfg = &client_settings.hud.banner;
-        if !active_quests.pending.is_empty() {
-            let text = active_quests.pending.values().cloned().collect::<Vec<_>>().join("\n");
+        // Re-show the announcement (title + description) for still-active
+        // quests, so a respawning player is reminded of their objectives.
+        // ONE combined banner sorted by id: `spawn_hud_banner`'s single-banner
+        // despawn query is a stale snapshot within this system run, so a
+        // per-quest loop would stack N overlapping banners.
+        let text = quest_log
+            .sorted()
+            .into_iter()
+            .filter(|(_, entry)| !entry.completed)
+            .map(|(_, entry)| format!("{}: {}", entry.title, entry.description))
+            .collect::<Vec<_>>()
+            .join("\n");
+        if !text.is_empty() {
             spawn_hud_banner(
                 commands,
                 existing_banners,
                 &text,
-                banner_cfg.quest_announcement_duration_secs,
+                client_settings.hud.banner.quest_announcement_duration_secs,
                 client_settings.hud.font_sizes.banner,
             );
         }

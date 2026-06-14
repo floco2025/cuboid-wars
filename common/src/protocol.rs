@@ -49,8 +49,8 @@
 //    state (e.g. an active quest's announcement text); the client treats
 //    receipt as authoritative until a follow-up message updates it. There
 //    is no snapshot-side fallback — recovery from packet loss is QUIC's
-//    job, not the protocol's. Used today for: quest assignment / completion
-//    (`SQuestNew`, `SQuestCompleted`).
+//    job, not the protocol's. Used today for quest assignment / progress /
+//    completion (`SQuestsAssigned`, `SQuestProgress`, `SQuestCompleted`).
 //
 // `CPing` / `SPong` are a separate diagnostic channel for RTT measurement.
 
@@ -296,21 +296,45 @@ pub struct SPressurePlateReleased {}
 
 // --- Per-client state events (private, durable) ---
 
-// New quest assigned to a specific player. Unicast; carries the
-// announcement text inline so the client never needs a separate quest
-// catalog. Installs lasting client state — the announcement text is cached
-// and re-shown on each respawn until `SQuestCompleted` retires it. Display
-// duration is presentation-only and lives in `client.json`'s
-// `hud.quest_overlay`.
+// One quest in an `SQuestsAssigned` batch. Carries display strings inline so
+// the client never needs a separate quest catalog: `title` is the short panel
+// label, `description` the longer announcement body. `threshold` is the
+// progress denominator; `progress` is 0 for a fresh login grant but may be
+// non-zero if a quest is (re)assigned mid-session against existing progress.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct SQuestNew {
+pub struct NewQuest {
     pub id: QuestId,
-    pub announcement_text: String,
+    pub title: String,
+    pub description: String,
+    pub progress: u32,
+    pub threshold: u32,
+    // Display rank: the quest's position in the server's quest catalog. The
+    // client sorts the panel and respawn announcement by it so authoring order
+    // in `gameplay.json` drives display order everywhere.
+    pub order: u32,
 }
 
-// Quest just completed by a specific player. Unicast; retires the
-// corresponding `SQuestNew` entry on the client and fires the completed
-// overlay.
+// One or more quests assigned to a specific player. Unicast. Batched so quests
+// granted together — at login or from a future in-game quest-giver — surface
+// in a single combined announcement banner. Installs lasting client state (the
+// quest panel reads it); the announcement banner is presentation-only and its
+// duration lives in `client.json`'s `hud.banner`.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SQuestsAssigned {
+    pub quests: Vec<NewQuest>,
+}
+
+// A quest's progress advanced (without completing). Unicast. Carries the
+// absolute progress value, not a delta, so a client can ignore a reordered or
+// stale update by keeping the max — separate uni-streams don't guarantee order.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SQuestProgress {
+    pub id: QuestId,
+    pub progress: u32,
+}
+
+// Quest just completed by a specific player. Unicast; marks the quest done in
+// the client's panel and fires the completion banner.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SQuestCompleted {
     pub id: QuestId,
@@ -370,7 +394,8 @@ pub enum ServerMessage {
     PressurePlatePressed(SPressurePlatePressed),
     PressurePlateReleased(SPressurePlateReleased),
     // Per-client state events
-    QuestNew(SQuestNew),
+    QuestsAssigned(SQuestsAssigned),
+    QuestProgress(SQuestProgress),
     QuestCompleted(SQuestCompleted),
     // Diagnostic
     Pong(SPong),

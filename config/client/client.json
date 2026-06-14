@@ -20,8 +20,7 @@
       "enabled": true,
       "fov_degrees": 90.0,
       "width_ratio": 0.20,
-      "height_ratio": 0.20,
-      "margin_ratio": 0.02
+      "height_ratio": 0.20
     }
   },
   "input": {
@@ -33,7 +32,8 @@
       "score": 16.0,
       "message_feed": 18.0,
       "floating_label": 40.0,
-      "banner": 32.0
+      "banner": 32.0,
+      "quest_panel": 16.0
     },
     "message_feed": {
       "entry_duration_secs": 10.0,
@@ -57,6 +57,10 @@
       "death_duration_secs": 3.0,
       "death_text": "You died!",
       "fade_duration_secs": 0.8
+    },
+    "quest_panel": {
+      "bar_width": 160.0,
+      "bar_height": 8.0
     },
     "death_overlay": {
       "duration_secs": 3.0,

@@ -1,7 +1,4 @@
-use std::collections::HashMap;
-
 use bevy::prelude::*;
-use common::protocol::QuestId;
 
 use crate::config::ClientSettings;
 
@@ -9,20 +6,6 @@ use crate::config::ClientSettings;
 // modulates this base alpha so the panel and text disappear together at
 // end-of-life rather than snapping out.
 const HUD_BANNER_BG_BASE_ALPHA: f32 = 0.45;
-
-// Map of currently-active (not-yet-completed) quests this client holds,
-// keyed by quest id. Value is the cached announcement text so the
-// announcement banner can be re-shown on respawn without re-querying the
-// server. Co-located with the banner widget for now; if a second
-// banner-using subsystem needs its own resource this can move to a
-// dedicated quests module.
-//
-// Populated by the `SQuestNew` handler at login; entries are removed by
-// the `SQuestCompleted` handler when the corresponding quest completes.
-#[derive(Resource, Default)]
-pub struct ActiveQuests {
-    pub pending: HashMap<QuestId, String>,
-}
 
 // Marker for the centered, transient HUD banner. The banner UI node owns
 // a `HudBannerTimer` and despawns when the timer hits 0.

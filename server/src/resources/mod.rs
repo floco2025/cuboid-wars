@@ -11,4 +11,4 @@ pub use map::{
     PressurePlateRuntime,
 };
 pub use network::FromClientsChannel;
-pub use players::{PlayerInfo, PlayerMap, QuestState, record_cookie_for_quests};
+pub use players::{PlayerInfo, PlayerMap, QuestEvent, QuestState, assign_quests, record_quest_event};

@@ -32,11 +32,21 @@
   },
   "quests": [
     {
+      "id": "destroy_sentries",
+      "kind": "actor_kills",
+      "actor_kind": "sentry",
+      "threshold": 4,
+      "title": "Sentry Hunt",
+      "description": "Destroy 4 sentries",
+      "completed_text": "Destroyed 4 sentries!"
+    },
+    {
       "id": "collect_gold",
       "kind": "cookies",
       "threshold": 10,
-      "announcement_text": "Collect 10 Gold!",
-      "completed_text": "You won!"
+      "title": "Gold Rush",
+      "description": "Collect 10 gold pieces",
+      "completed_text": "Collected 10 gold!"
     }
   ],
   "actors": {

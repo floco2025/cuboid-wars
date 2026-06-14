@@ -90,11 +90,10 @@ pub struct RearviewConfig {
     pub enabled: bool,
     pub fov_degrees: f32,
     // Width / height of the rearview viewport as a fraction of the window
-    // dimensions; margin is also a window-fraction (so all three scale
-    // together when the window resizes).
+    // dimensions. The inset from the window edge is a fixed `HUD_EDGE_MARGIN_PX`
+    // shared with the HUD panels, not a ratio.
     pub width_ratio: f32,
     pub height_ratio: f32,
-    pub margin_ratio: f32,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -111,6 +110,7 @@ pub struct HudConfig {
     pub floating_labels: FloatingLabelsConfig,
     pub health_bars: HealthBarsConfig,
     pub banner: BannerConfig,
+    pub quest_panel: QuestPanelConfig,
     pub death_overlay: DeathOverlayConfig,
 }
 
@@ -130,6 +130,8 @@ pub struct FontSizesConfig {
     pub floating_label: f32,
     // Centered HUD banner ("Collect 10 Gold!", "You died!", etc.).
     pub banner: f32,
+    // Quest-panel rows (top-right): title + progress counter.
+    pub quest_panel: f32,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -154,6 +156,14 @@ pub struct HealthBarsConfig {
     pub floating_actor_height: f32,
     pub player_list_width: f32,
     pub player_list_height: f32,
+}
+
+// Per-quest progress bar in the top-right quest panel (colors are consts in
+// `constants.rs`).
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct QuestPanelConfig {
+    pub bar_width: f32,
+    pub bar_height: f32,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -257,7 +267,6 @@ impl RearviewConfig {
         validate_fov(self.fov_degrees, "camera.rearview.fov_degrees")?;
         validate_unit_ratio(self.width_ratio, "camera.rearview.width_ratio")?;
         validate_unit_ratio(self.height_ratio, "camera.rearview.height_ratio")?;
-        validate_unit_ratio(self.margin_ratio, "camera.rearview.margin_ratio")?;
         Ok(())
     }
 }
@@ -275,6 +284,7 @@ impl HudConfig {
         validate_positive_finite(self.font_sizes.message_feed, "hud.font_sizes.message_feed")?;
         validate_positive_finite(self.font_sizes.floating_label, "hud.font_sizes.floating_label")?;
         validate_positive_finite(self.font_sizes.banner, "hud.font_sizes.banner")?;
+        validate_positive_finite(self.font_sizes.quest_panel, "hud.font_sizes.quest_panel")?;
         validate_non_negative_finite(
             self.message_feed.entry_duration_secs,
             "hud.message_feed.entry_duration_secs",
@@ -321,6 +331,8 @@ impl HudConfig {
             bail!("hud.banner.death_text must not be empty");
         }
         validate_positive_finite(self.banner.fade_duration_secs, "hud.banner.fade_duration_secs")?;
+        validate_positive_finite(self.quest_panel.bar_width, "hud.quest_panel.bar_width")?;
+        validate_positive_finite(self.quest_panel.bar_height, "hud.quest_panel.bar_height")?;
         validate_positive_finite(self.death_overlay.duration_secs, "hud.death_overlay.duration_secs")?;
         validate_positive_finite(
             self.death_overlay.fade_duration_secs,

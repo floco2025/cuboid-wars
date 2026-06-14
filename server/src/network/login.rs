@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use crate::{
     characters::{generate_player_spawn_position, spawn_face_direction},
     net::ServerToClient,
-    resources::{ActorMap, ItemMap, PlayerMap, QuestState},
+    resources::{ActorMap, ItemMap, PlayerMap, assign_quests},
 };
 use common::{
     physics::CharacterVerticalVelocity,
@@ -76,26 +76,17 @@ pub fn handle_login_message(
                 return;
             }
 
-            // Auto-assign every catalogued quest to the new player. V1 has
-            // exactly one quest; this loop is the extension point for a
-            // future quest-giver system. Quest state persists for the whole
-            // session (cleared neither by death nor by `clear_per_life_state`).
+            // Auto-assign every catalogued quest to the new player, batched
+            // into one `SQuestsAssigned` so the client shows a single combined
+            // announcement. `assign_quests` is the shared seam a future in-game
+            // quest-giver calls too. Quest state persists for the whole session
+            // (cleared neither by death nor by `clear_per_life_state`).
             {
                 let player_info = players
                     .get_mut(&id)
                     .expect("handle_login_message called for unknown player");
-                for quest in &world.server_gameplay_config.quests {
-                    player_info.quest_states.insert(
-                        quest.id.clone(),
-                        QuestState {
-                            progress: 0,
-                            completed: false,
-                        },
-                    );
-                    let msg = ServerMessage::QuestNew(SQuestNew {
-                        id: quest.id.clone(),
-                        announcement_text: quest.announcement_text.clone(),
-                    });
+                if let Some(assigned) = assign_quests(player_info, &world.server_gameplay_config.quests) {
+                    let msg = ServerMessage::QuestsAssigned(assigned);
                     if let Err(e) = channel.send(ServerToClient::Send(msg)) {
                         warn!("failed to send quest assignment to {:?}: {}", id, e);
                     }

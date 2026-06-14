@@ -4,7 +4,7 @@ use crate::{
     config::ServerGameplayConfig,
     net::ServerToClient,
     network::broadcast_to_all,
-    resources::{ItemMap, PlayerMap, record_cookie_for_quests},
+    resources::{ItemMap, PlayerMap, QuestEvent, record_quest_event},
 };
 use common::{
     config::GameplayConfig,
@@ -135,16 +135,14 @@ fn collect_cookie(
     if let Some(item_info) = items.get_mut(&item_id) {
         item_info.spawn_time = server_gameplay_config.cookies.respawn_secs;
     }
-    let completions = record_cookie_for_quests(player_info, &server_gameplay_config.quests);
+    let quest_messages = record_quest_event(player_info, &server_gameplay_config.quests, QuestEvent::CookieCollected);
     let _ = player_info
         .channel
         .send(ServerToClient::Send(ServerMessage::CookieCollected(SCookieCollected {
             score: player_info.score,
         })));
-    for msg in completions {
-        let _ = player_info
-            .channel
-            .send(ServerToClient::Send(ServerMessage::QuestCompleted(msg)));
+    for msg in quest_messages {
+        let _ = player_info.channel.send(ServerToClient::Send(msg));
     }
 }
 

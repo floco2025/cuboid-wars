@@ -83,11 +83,29 @@ pub const LABEL_TEXT_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 1.0);
 pub const LABEL_BACKGROUND_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.2);
 
 // ============================================================================
+// HUD
+// ============================================================================
+
+// Gap (logical px) between a corner-anchored HUD element and the window edge.
+// Shared by the player list, quest panel, and rear-view mirror so they all
+// sit the same distance in from the sides. The mirror is a render viewport in
+// physical pixels, so it multiplies this by the window scale factor.
+pub const HUD_EDGE_MARGIN_PX: f32 = 10.0;
+
+// ============================================================================
 // Health Bars (colors only — dimensions live in `client.json::hud.health_bars`)
 // ============================================================================
 
 pub const HEALTH_BAR_TRACK_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.65);
 pub const HEALTH_BAR_FILL_COLOR: Color = Color::srgb(0.0, 0.85, 0.2);
+
+// ============================================================================
+// Quest Panel (colors only — dimensions live in `client.json::hud.quest_panel`)
+// ============================================================================
+
+pub const QUEST_BAR_TRACK_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.65);
+pub const QUEST_BAR_FILL_COLOR: Color = Color::srgb(0.85, 0.7, 0.0); // gold, in progress
+pub const QUEST_BAR_COMPLETE_COLOR: Color = Color::srgb(0.0, 0.85, 0.2); // green, done
 
 // ============================================================================
 // Power-Up Items
@@ -126,9 +144,9 @@ pub const KEY_HEIGHT_ABOVE_FLOOR: f32 = 0.6;
 // HUD: thin vertical bars next to the player name, after the power-up icons.
 // Shape (narrow vertical) is intentionally different from the 12×12 power-up
 // squares so the two categories read as different.
-pub const HUD_KEY_ICON_WIDTH_PX: f32 = 4.0;
-pub const HUD_KEY_ICON_HEIGHT_PX: f32 = 12.0;
-pub const HUD_KEY_GAP_PX: f32 = 8.0;
+pub const KEY_HUD_ICON_WIDTH_PX: f32 = 4.0;
+pub const KEY_HUD_ICON_HEIGHT_PX: f32 = 12.0;
+pub const KEY_HUD_GAP_PX: f32 = 8.0;
 
 // ============================================================================
 // Projectiles

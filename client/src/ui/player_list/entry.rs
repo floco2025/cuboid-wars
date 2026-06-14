@@ -4,7 +4,7 @@ use common::protocol::{BarrierKindTable, Health, ItemType, PlayerId, PowerUpKind
 use super::components::{LOCAL_PLAYER_BG_COLOR, PlayerEntryMarker};
 use crate::{
     barriers::BarrierAssets,
-    constants::{HUD_KEY_GAP_PX, HUD_KEY_ICON_HEIGHT_PX, HUD_KEY_ICON_WIDTH_PX},
+    constants::{KEY_HUD_GAP_PX, KEY_HUD_ICON_HEIGHT_PX, KEY_HUD_ICON_WIDTH_PX},
     items::item_type_color,
     players::PlayerInfo,
     ui::spawn_health_bar,
@@ -78,7 +78,7 @@ pub(super) fn spawn_player_entry(
                         // Spacer between power-up icons and the held-keys
                         // strip so the two categories read as different.
                         row.spawn(Node {
-                            width: Val::Px(HUD_KEY_GAP_PX),
+                            width: Val::Px(KEY_HUD_GAP_PX),
                             ..default()
                         });
                         for kind in &player_info.held_keys {
@@ -133,8 +133,8 @@ fn spawn_power_up_icon(row: &mut ChildSpawnerCommands, active: bool, item_type: 
 fn spawn_key_icon(row: &mut ChildSpawnerCommands, color: Color) {
     row.spawn((
         Node {
-            width: Val::Px(HUD_KEY_ICON_WIDTH_PX),
-            height: Val::Px(HUD_KEY_ICON_HEIGHT_PX),
+            width: Val::Px(KEY_HUD_ICON_WIDTH_PX),
+            height: Val::Px(KEY_HUD_ICON_HEIGHT_PX),
             align_self: AlignSelf::Center,
             ..default()
         },
