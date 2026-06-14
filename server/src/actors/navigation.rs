@@ -155,7 +155,7 @@ impl NavGraph {
             row: node.row + dr,
             col: node.col + dc,
         };
-        if !self.is_traversable(next) || self.has_wall_on_side(node, side) {
+        if !self.is_traversable(next) || self.has_blocking_edge_on_side(node, side) {
             return;
         }
         out.push(next);
@@ -191,11 +191,15 @@ impl NavGraph {
         }
     }
 
-    fn has_wall_on_side(&self, node: NavNode, side: CellSide) -> bool {
-        let Some(edges) = self.edges(node.level) else {
+    // Blocked by a wall or an impassable barrier on this side. The barrier-edge
+    // grid holds only barriers actors can never pass (no pressure plate);
+    // pressure-plate barriers are omitted upstream so nav routes through them.
+    fn has_blocking_edge_on_side(&self, node: NavNode, side: CellSide) -> bool {
+        let Some(level) = self.map_config.levels.get(usize::from(node.level)) else {
             return true;
         };
-        has_edge_on_cell_side(edges, node.row, node.col, side)
+        has_edge_on_cell_side(&level.edges, node.row, node.col, side)
+            || has_edge_on_cell_side(&level.barrier_edges, node.row, node.col, side)
     }
 
     fn is_traversable(&self, node: NavNode) -> bool {
@@ -208,10 +212,6 @@ impl NavGraph {
             return None;
         }
         level.cells.rows.get(node.row as usize)?.get(node.col as usize)
-    }
-
-    fn edges(&self, level: u8) -> Option<&EdgeGrid> {
-        self.map_config.levels.get(usize::from(level)).map(|level| &level.edges)
     }
 
     fn node_center(&self, node: NavNode) -> Position {
@@ -247,7 +247,13 @@ mod tests {
     use super::*;
 
     fn level(cells: CellGrid, edges: EdgeGrid) -> LevelGrid {
-        LevelGrid { cells, edges }
+        let rows = i32::try_from(cells.rows.len()).unwrap_or(0);
+        let cols = i32::try_from(cells.rows.first().map_or(0, Vec::len)).unwrap_or(0);
+        LevelGrid {
+            cells,
+            edges,
+            barrier_edges: EdgeGrid::new(cols, rows),
+        }
     }
 
     fn zone(level: u8, col: i32, row: i32) -> ActorSpawnZone {
@@ -294,6 +300,48 @@ mod tests {
             .expect("target should be reachable around the wall");
 
         assert!(path.len() > 1, "path should route around the blocked east edge");
+    }
+
+    #[test]
+    fn path_routes_around_closed_barrier() {
+        let mut cells = CellGrid::new(2, 2);
+        for row in &mut cells.rows {
+            for cell in row {
+                cell.has_floor = true;
+            }
+        }
+        // Same blocked east edge as `path_avoids_walls`, but as a barrier
+        // rather than a wall — actors must still route around it.
+        let mut barrier_edges = EdgeGrid::new(2, 2);
+        barrier_edges.vertical[0][1] = true;
+        let nav = NavGraph::new(
+            MapConfig {
+                levels: vec![LevelGrid {
+                    cells,
+                    edges: EdgeGrid::new(2, 2),
+                    barrier_edges,
+                }],
+                actor_spawn_zones: Vec::new(),
+                player_spawn_zones: Vec::new(),
+                cookie_spawn_zones: Vec::new(),
+                key_spawn_zones: Vec::new(),
+                pressure_plates: Vec::new(),
+            },
+            MapGeometry::new(2, 2),
+        );
+
+        let path = nav
+            .path_to_spawn_zone(
+                &Position {
+                    x: -2.0,
+                    y: 0.0,
+                    z: -2.0,
+                },
+                &zone(0, 1, 0),
+            )
+            .expect("target should be reachable around the barrier");
+
+        assert!(path.len() > 1, "path should route around the closed barrier edge");
     }
 
     #[test]

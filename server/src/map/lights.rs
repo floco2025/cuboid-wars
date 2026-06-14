@@ -123,6 +123,7 @@ mod tests {
         LevelGrid {
             cells: CellGrid::new(cols, rows),
             edges,
+            barrier_edges: EdgeGrid::new(cols, rows),
         }
     }
 

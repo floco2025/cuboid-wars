@@ -15,6 +15,13 @@ pub struct ActorInfo {
     pub is_returning_to_spawn: bool,
     pub return_path: VecDeque<Position>,
     pub chase_reacquire_timer: f32,
+    // No-progress give-up for a *demoted* (lost-sight) pursuit toward a player's
+    // last-known spot. The actor re-anchors here whenever it displaces past
+    // `CHASE_GIVEUP_PROGRESS_DISTANCE`; if it fails to for
+    // `CHASE_GIVEUP_NO_PROGRESS_SECS` it's wedged against an obstacle toward an
+    // unreachable spot and abandons the pursuit. `None` when not in that state.
+    pub pursuit_stall_anchor: Option<Position>,
+    pub pursuit_stall_timer: f32,
     // The heading (yaw) the actor committed to and the time left on that
     // commitment. Movement re-decides only when the timer lapses or the
     // committed heading becomes blocked, so the actor doesn't re-pick (and

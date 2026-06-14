@@ -17,6 +17,7 @@ fn level_grid(cells: CellGrid) -> LevelGrid {
     LevelGrid {
         cells,
         edges: EdgeGrid::new(1, 1),
+        barrier_edges: EdgeGrid::new(1, 1),
     }
 }
 

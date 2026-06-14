@@ -1,6 +1,9 @@
 use super::{
     compile_map,
-    schema::{ActorSpawnZoneDef, BarrierDef, FloorDef, LevelDef, MapDef, PlayerSpawnZoneDef, RampDef, WallDef},
+    schema::{
+        ActorSpawnZoneDef, BarrierDef, FloorDef, LevelDef, MapDef, PlayerSpawnZoneDef, PressurePlateDef, RampDef,
+        WallDef,
+    },
     validation::validate_map,
 };
 use crate::map::material_rules::MaterialRules;
@@ -325,6 +328,47 @@ fn compile_resolves_known_barrier_kind() {
     let (layout, _, _) = compile_map(&map_def, &assets(), &red_only_kind_table()).expect("compile");
     assert_eq!(layout.barriers.len(), 1);
     assert_eq!(layout.barriers[0].kind, common::protocol::BarrierKindId(0));
+}
+
+#[test]
+fn pressure_plate_barrier_is_open_for_pathfinding() {
+    let mut map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]])],
+        Vec::new(),
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    // Vertical edge between cols 0 and 1 → `vertical[0][1]`; kind "red" has a plate.
+    map_def.levels[0].barriers.push(BarrierDef {
+        c0: 1,
+        r0: 0,
+        c1: 1,
+        r1: 1,
+        kind: "red".into(),
+    });
+    // Vertical edge between cols 1 and 2 → `vertical[0][2]`; kind "blue" has none.
+    map_def.levels[0].barriers.push(BarrierDef {
+        c0: 2,
+        r0: 0,
+        c1: 2,
+        r1: 1,
+        kind: "blue".into(),
+    });
+    map_def.pressure_plates.push(PressurePlateDef {
+        level: 0,
+        col: 0,
+        row: 0,
+        kind: "red".into(),
+    });
+
+    let (_, config, _) = compile_map(&map_def, &assets(), &three_kind_table()).expect("compile");
+    let barrier_edges = &config.levels[0].barrier_edges;
+    assert!(
+        !barrier_edges.vertical[0][1],
+        "pressure-plate (red) barrier must be treated as open for nav"
+    );
+    assert!(barrier_edges.vertical[0][2], "non-plate (blue) barrier must block nav");
 }
 
 #[test]

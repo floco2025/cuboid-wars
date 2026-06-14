@@ -220,6 +220,7 @@ mod tests {
             .map(|_| LevelGrid {
                 cells: CellGrid::new(2, 2),
                 edges: EdgeGrid::new(2, 2),
+                barrier_edges: EdgeGrid::new(2, 2),
             })
             .collect::<Vec<_>>();
         levels[usize::from(level)].cells.rows[row as usize][col as usize].has_floor = true;

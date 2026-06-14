@@ -218,6 +218,8 @@ fn spawn_actor_in_zone(
             is_returning_to_spawn: false,
             return_path: Default::default(),
             chase_reacquire_timer: 0.0,
+            pursuit_stall_anchor: None,
+            pursuit_stall_timer: 0.0,
             committed_direction: None,
             commit_secs_left: 0.0,
             last_damager: None,

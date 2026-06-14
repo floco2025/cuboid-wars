@@ -19,7 +19,7 @@ use common::{
     constants::*,
     face_materials::FaceMaterials,
     map_geometry::MapGeometry,
-    protocol::{Barrier, BarrierKindTable, Floor, MapLayout, Wall},
+    protocol::{Barrier, BarrierKindId, BarrierKindTable, Floor, MapLayout, Wall},
 };
 
 pub(crate) fn compile_map(
@@ -56,6 +56,15 @@ pub(crate) fn compile_map(
         })
         .collect();
 
+    // Barriers controlled by a pressure plate are treated as always open for
+    // actor pathfinding: actors can't open them, but they seal a room with no
+    // alternative route, so assuming open lets a returning actor head home and
+    // physics holds it at the barrier until someone opens it. Every other
+    // barrier (key-only / static) stays closed for actors.
+    let pressure_plates = pressure_plates(map_def, kind_table)?;
+    let pressure_plate_kinds: std::collections::HashSet<BarrierKindId> =
+        pressure_plates.iter().map(|plate| plate.kind).collect();
+
     let mut level_grids: Vec<LevelGrid> = map_def
         .levels
         .iter()
@@ -63,14 +72,27 @@ pub(crate) fn compile_map(
         .map(|(level_idx, level)| {
             let mut cell_grid = CellGrid::new(cols, rows);
             let mut edge_grid = EdgeGrid::new(cols, rows);
+            let mut barrier_edge_grid = EdgeGrid::new(cols, rows);
             mark_has_floor(&mut cell_grid, &regular_floor_masks[level_idx]);
             mark_has_floor_slab(&mut cell_grid, &slab_masks[level_idx]);
             for wall in &level.walls {
-                set_wall_edge(&mut edge_grid, [wall.c0, wall.r0, wall.c1, wall.r1]);
+                set_edge(&mut edge_grid, [wall.c0, wall.r0, wall.c1, wall.r1]);
+            }
+            // Barriers sit on grid edges just like walls; mark the ones actors
+            // can never pass so pathfinding routes around them. Pressure-plate
+            // barriers are skipped (treated as open — see `pressure_plate_kinds`).
+            for barrier in &level.barriers {
+                let opened_by_plate = kind_table
+                    .resolve(&barrier.kind)
+                    .is_ok_and(|kind| pressure_plate_kinds.contains(&kind));
+                if !opened_by_plate {
+                    set_edge(&mut barrier_edge_grid, [barrier.c0, barrier.r0, barrier.c1, barrier.r1]);
+                }
             }
             LevelGrid {
                 cells: cell_grid,
                 edges: edge_grid,
+                barrier_edges: barrier_edge_grid,
             }
         })
         .collect();
@@ -148,7 +170,6 @@ pub(crate) fn compile_map(
     let ramps_out = ramps::specs_to_ramps(&geometry, &ramp_specs);
     let ramp_materials: Vec<FaceMaterials> = ramps_out.iter().map(|r| assets.materials_for_ramp_top(r)).collect();
 
-    let pressure_plates = pressure_plates(map_def, kind_table)?;
     let map_layout = MapLayout {
         walls: all_walls,
         wall_materials: all_wall_materials,
@@ -276,8 +297,8 @@ fn key_spawn_zones(map_def: &MapDef, kind_table: &BarrierKindTable) -> anyhow::R
         .collect()
 }
 
-fn set_wall_edge(edges: &mut EdgeGrid, wall: [i32; 4]) {
-    let [c0, r0, c1, r1] = wall;
+fn set_edge(edges: &mut EdgeGrid, edge: [i32; 4]) {
+    let [c0, r0, c1, r1] = edge;
     if r0 == r1 {
         edges.horizontal[r0 as usize][c0.min(c1) as usize] = true;
     } else {

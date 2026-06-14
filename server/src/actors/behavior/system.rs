@@ -19,6 +19,15 @@ use super::{
     zone::{closest_point_in_rect, xz_distance_from_rect},
 };
 
+// A chase demoted to a one-shot walk toward the player's last-known spot gives
+// up if it fails to displace `CHASE_GIVEUP_PROGRESS_DISTANCE` meters for
+// `CHASE_GIVEUP_NO_PROGRESS_SECS` seconds — it's wedged against an obstacle
+// toward an unreachable spot (e.g. across a low wall it saw the player over).
+// Keyed on net displacement, not distance-to-goal, so an actor legitimately
+// routing *around* a wall (moving without getting closer) isn't called stuck.
+const CHASE_GIVEUP_NO_PROGRESS_SECS: f32 = 1.5;
+const CHASE_GIVEUP_PROGRESS_DISTANCE: f32 = 0.4;
+
 pub fn actor_behavior_system(
     time: Res<Time>,
     players: Res<PlayerMap>,
@@ -85,12 +94,16 @@ pub fn actor_behavior_system(
             &gameplay_config,
         );
 
-        if !chase_reacquire_blocked
-            && (info.go_to_position.is_none() || info.go_to_position_is_chase)
+        // (Re)acquire a visible player whenever we're not mid-leash-cooldown and
+        // not actively returning to spawn. Deliberately independent of the
+        // current go-to: a chase demoted to a one-shot walk toward the player's
+        // last-known spot (lost sight, below) must snap onto the player's *live*
+        // position the moment they reappear. Otherwise the actor marches to that
+        // stale spot — which can sit through a wall, so it never arrives and
+        // never updates — even with the player standing right next to it.
+        if ready_to_acquire_player(chase_reacquire_blocked, info.is_returning_to_spawn)
             && let Some(target_pos) = visible_player
         {
-            info.return_path.clear();
-            info.is_returning_to_spawn = false;
             info.go_to_position = Some(target_pos);
             info.go_to_position_is_chase = true;
             continue;
@@ -103,6 +116,27 @@ pub fn actor_behavior_system(
         // forever (arrival-hold only applies while `go_to_position_is_chase`).
         if lost_chase_target(info.go_to_position_is_chase, visible_player.is_some()) {
             info.go_to_position_is_chase = false;
+            // Arm the no-progress give-up for this lost-sight pursuit.
+            info.pursuit_stall_anchor = Some(*pos);
+            info.pursuit_stall_timer = CHASE_GIVEUP_NO_PROGRESS_SECS;
+        }
+
+        // A demoted (lost-sight) pursuit that stops making headway is pressing
+        // an obstacle toward an unreachable last-known spot — abandon it so the
+        // actor reverts to patrol instead of grinding the wall until the leash
+        // drags it home. Active chases (clawing toward a visible player) and
+        // returns are intentionally exempt.
+        if info.go_to_position.is_some() && !info.go_to_position_is_chase && !info.is_returning_to_spawn {
+            if tick_pursuit_stall(info, pos, delta) {
+                debug!(
+                    "actor abandoning unreachable last-known spot at ({:.2},{:.2},{:.2}); resuming patrol",
+                    pos.x, pos.y, pos.z
+                );
+                info.go_to_position = None;
+                info.pursuit_stall_anchor = None;
+            }
+        } else {
+            info.pursuit_stall_anchor = None;
         }
 
         if info.go_to_position.is_some() {
@@ -129,6 +163,31 @@ fn lost_chase_target(is_chase: bool, player_visible: bool) -> bool {
     is_chase && !player_visible
 }
 
+// Whether the actor should (re)acquire a visible player this tick. Independent
+// of the current go-to on purpose: a chase demoted to a stale last-known spot
+// must re-acquire when the player reappears, not finish walking to the stale
+// spot first. Only a leash cooldown or an in-progress return-to-spawn defers it.
+fn ready_to_acquire_player(reacquire_blocked: bool, returning_to_spawn: bool) -> bool {
+    !reacquire_blocked && !returning_to_spawn
+}
+
+// Advance the no-progress give-up for a demoted (lost-sight) pursuit. Re-anchors
+// and refills the window when the actor has displaced past
+// `CHASE_GIVEUP_PROGRESS_DISTANCE` from its anchor; otherwise counts the window
+// down. Returns true once it has failed to make that much headway for
+// `CHASE_GIVEUP_NO_PROGRESS_SECS` — i.e. it's wedged against an obstacle.
+fn tick_pursuit_stall(info: &mut crate::resources::ActorInfo, pos: &Position, delta: f32) -> bool {
+    let anchor = info.pursuit_stall_anchor.unwrap_or(*pos);
+    if anchor.horizontal_distance_sq(pos) > CHASE_GIVEUP_PROGRESS_DISTANCE * CHASE_GIVEUP_PROGRESS_DISTANCE {
+        info.pursuit_stall_anchor = Some(*pos);
+        info.pursuit_stall_timer = CHASE_GIVEUP_NO_PROGRESS_SECS;
+        return false;
+    }
+    info.pursuit_stall_anchor = Some(anchor);
+    info.pursuit_stall_timer -= delta;
+    info.pursuit_stall_timer <= 0.0
+}
+
 fn tick_chase_reacquire_timer(info: &mut crate::resources::ActorInfo, delta: f32) -> bool {
     if info.chase_reacquire_timer <= 0.0 {
         return false;
@@ -150,11 +209,42 @@ fn set_return_path_to_spawn_zone(
     nav_graph: &NavGraph,
     zone_bounds: (f32, f32, f32, f32),
 ) {
-    info.return_path = nav_graph.path_to_spawn_zone(pos, zone).unwrap_or_default();
+    let path = nav_graph.path_to_spawn_zone(pos, zone);
+    let used_straight_line_fallback = path.as_ref().is_none_or(std::collections::VecDeque::is_empty);
+    info.return_path = path.unwrap_or_default();
     info.go_to_position = info
         .return_path
         .pop_front()
         .or_else(|| Some(closest_point_in_rect(pos, zone_bounds)));
+
+    // Diagnostic. A missing nav path (straight-line fallback) is the real
+    // anomaly — it can pin an actor against a wall — so it stays at `warn`. A
+    // found path is the normal, healthy case, logged at `debug` so it doesn't
+    // spam (enable with `RUST_LOG=server::actors::behavior=debug`).
+    if let Some(target) = info.go_to_position {
+        let target_distance = pos.horizontal_distance_sq(&target).sqrt();
+        if used_straight_line_fallback {
+            warn!(
+                "actor returning to spawn zone {} (level {}) from ({:.2},{:.2},{:.2}): NO nav path — straight-line fallback to ({:.2},{:.2},{:.2}), dist {:.2}; may walk into a wall/barrier",
+                zone.kind, zone.level, pos.x, pos.y, pos.z, target.x, target.y, target.z, target_distance
+            );
+        } else {
+            debug!(
+                "actor returning to spawn zone {} (level {}) from ({:.2},{:.2},{:.2}): first waypoint ({:.2},{:.2},{:.2}), dist {:.2}, {} waypoints",
+                zone.kind,
+                zone.level,
+                pos.x,
+                pos.y,
+                pos.z,
+                target.x,
+                target.y,
+                target.z,
+                target_distance,
+                info.return_path.len()
+            );
+        }
+    }
+
     info.is_returning_to_spawn = true;
 }
 
@@ -178,6 +268,8 @@ mod tests {
             is_returning_to_spawn: false,
             return_path: Default::default(),
             chase_reacquire_timer,
+            pursuit_stall_anchor: None,
+            pursuit_stall_timer: 0.0,
             committed_direction: None,
             commit_secs_left: 0.0,
             last_damager: None,
@@ -223,6 +315,47 @@ mod tests {
     }
 
     #[test]
+    fn ready_to_acquire_unless_cooldown_or_returning() {
+        // Idle/patrol or a chase demoted to a stale last-known spot — re-acquire
+        // a visible player regardless of the current go-to.
+        assert!(ready_to_acquire_player(false, false));
+        // Leash cooldown defers re-acquisition.
+        assert!(!ready_to_acquire_player(true, false));
+        // An in-progress return-to-spawn is left uninterrupted.
+        assert!(!ready_to_acquire_player(false, true));
+    }
+
+    #[test]
+    fn pursuit_gives_up_after_no_progress_window() {
+        let mut info = actor_info(0.0);
+        info.pursuit_stall_anchor = Some(Position::default());
+        info.pursuit_stall_timer = 0.1;
+        // No displacement and the window (0.1 s) lapses → give up.
+        assert!(tick_pursuit_stall(&mut info, &Position::default(), 0.2));
+    }
+
+    #[test]
+    fn pursuit_progress_refills_window() {
+        let mut info = actor_info(0.0);
+        info.pursuit_stall_anchor = Some(Position::default());
+        info.pursuit_stall_timer = 0.1;
+        let moved = Position { x: 1.0, y: 0.0, z: 0.0 };
+        // Displaced well past the threshold → progress → window refilled, not given up.
+        assert!(!tick_pursuit_stall(&mut info, &moved, 0.2));
+        assert_eq!(info.pursuit_stall_timer, CHASE_GIVEUP_NO_PROGRESS_SECS);
+        assert_eq!(info.pursuit_stall_anchor, Some(moved));
+    }
+
+    #[test]
+    fn pursuit_continues_while_window_remains() {
+        let mut info = actor_info(0.0);
+        info.pursuit_stall_anchor = Some(Position::default());
+        info.pursuit_stall_timer = 1.0;
+        // No displacement but the window isn't spent → keep pursuing.
+        assert!(!tick_pursuit_stall(&mut info, &Position::default(), 0.2));
+    }
+
+    #[test]
     fn setting_return_path_marks_actor_as_returning() {
         let mut cells = crate::resources::CellGrid::new(1, 1);
         cells.rows[0][0].has_floor = true;
@@ -230,6 +363,7 @@ mod tests {
             levels: vec![crate::resources::LevelGrid {
                 cells,
                 edges: crate::resources::EdgeGrid::new(1, 1),
+                barrier_edges: crate::resources::EdgeGrid::new(1, 1),
             }],
             actor_spawn_zones: Vec::new(),
             player_spawn_zones: Vec::new(),

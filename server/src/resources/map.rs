@@ -78,7 +78,15 @@ impl EdgeGrid {
 #[derive(Clone, Debug)]
 pub struct LevelGrid {
     pub cells: CellGrid,
+    // Wall edges: block movement and generate the visible wall geometry.
     pub edges: EdgeGrid,
+    // Barrier edges: block actor pathfinding only. Holds the barriers an actor
+    // can never pass — those NOT controlled by a pressure plate (actors can't
+    // carry keys). Pressure-plate barriers are omitted (treated as open): they
+    // seal a room with no alternate route, so assuming open lets a returning
+    // actor path home and physics holds it at the barrier until someone opens
+    // it. No geometry here; barriers render from their own world-space list.
+    pub barrier_edges: EdgeGrid,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
