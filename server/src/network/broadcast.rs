@@ -153,7 +153,7 @@ mod tests {
             Query<(&Position, &PlayerMoveIntent, &FaceDirection, &Health), With<PlayerMarker>>,
             Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
         )> = SystemState::new(&mut world);
-        let (player_data, motions) = state.get(&world);
+        let (player_data, motions) = state.get(&world).expect("query params are valid");
 
         let snapshot = snapshot_logged_in_players(&players, &player_data, &motions);
 

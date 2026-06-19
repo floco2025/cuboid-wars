@@ -53,7 +53,10 @@ pub(super) fn spawn_player_entry(
                 .with_children(|row| {
                     row.spawn((
                         Text::new(&player_info.name),
-                        TextFont { font_size, ..default() },
+                        TextFont {
+                            font_size: FontSize::Px(font_size),
+                            ..default()
+                        },
                         TextColor(Color::WHITE),
                     ));
 
@@ -62,7 +65,7 @@ pub(super) fn spawn_player_entry(
                         // conveyed by the text color (`score_value_color`).
                         Text::new(player_info.score.unsigned_abs().to_string()),
                         TextFont {
-                            font_size: score_font_size,
+                            font_size: FontSize::Px(score_font_size),
                             ..default()
                         },
                         TextColor(score_value_color(player_info.score)),

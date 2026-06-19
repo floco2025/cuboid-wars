@@ -21,7 +21,7 @@ pub fn setup_scene_lighting_system(mut commands: Commands, client_settings: Res<
     commands.spawn((
         DirectionalLight {
             illuminance: client_settings.lighting.directional_brightness,
-            shadows_enabled: client_settings.rendering.shadows_directional_enabled,
+            shadow_maps_enabled: client_settings.rendering.shadows_directional_enabled,
             ..default()
         },
         Transform::from_xyz(5.0, 15.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
@@ -219,7 +219,7 @@ pub fn map_wall_light_emissive_system(
     // Make wall-light glass emissive using configurable fixture settings.
     let warm_tint = (1.0, 0.95, 0.85);
     for id in candidates {
-        let Some(material) = materials.get_mut(id) else {
+        let Some(mut material) = materials.get_mut(id) else {
             continue;
         };
         material.emissive = LinearRgba::rgb(

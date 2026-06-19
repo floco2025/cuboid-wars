@@ -29,8 +29,8 @@ pub fn explosion_effects_system(
         let next_frame = animation_frame(frame.min(effect.frames - 1), effect.frames, effect.first_frame);
         if next_frame != effect.current_frame {
             effect.current_frame = next_frame;
-            if let Some(mesh) = meshes.get_mut(&effect.mesh) {
-                set_mesh_uvs(mesh, effect.columns, effect.rows, next_frame);
+            if let Some(mut mesh) = meshes.get_mut(&effect.mesh) {
+                set_mesh_uvs(&mut mesh, effect.columns, effect.rows, next_frame);
             }
         }
 

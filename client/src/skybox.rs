@@ -150,7 +150,7 @@ pub fn skybox_update_camera_system(
 
     for entity in &mut cameras {
         commands.entity(entity).insert(Skybox {
-            image: cubemap.0.clone(),
+            image: Some(cubemap.0.clone()),
             brightness: settings.brightness,
             rotation: Quat::IDENTITY,
         });

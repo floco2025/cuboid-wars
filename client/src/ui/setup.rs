@@ -97,7 +97,7 @@ pub fn setup_ui_system(mut commands: Commands, client_settings: Res<ClientSettin
         RttMarker,
         Text::new("RTT: --ms"),
         TextFont {
-            font_size: hud_font_size,
+            font_size: FontSize::Px(hud_font_size),
             ..default()
         },
         TextColor(Color::WHITE),
@@ -113,7 +113,7 @@ pub fn setup_ui_system(mut commands: Commands, client_settings: Res<ClientSettin
         FpsMarker,
         Text::new("FPS: --"),
         TextFont {
-            font_size: hud_font_size,
+            font_size: FontSize::Px(hud_font_size),
             ..default()
         },
         TextColor(Color::WHITE),

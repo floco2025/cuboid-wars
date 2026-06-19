@@ -103,7 +103,10 @@ fn spawn_quest_entry(
         .with_children(|panel| {
             panel.spawn((
                 Text::new(label),
-                TextFont { font_size, ..default() },
+                TextFont {
+                    font_size: FontSize::Px(font_size),
+                    ..default()
+                },
                 TextColor(title_color),
             ));
             // Progress bar: fixed-size track with a percent-width fill.

@@ -118,7 +118,10 @@ pub fn render_pending_messages_system(
                 for run in &runs {
                     line.spawn((
                         Text::new(run.text.clone()),
-                        TextFont { font_size, ..default() },
+                        TextFont {
+                            font_size: FontSize::Px(font_size),
+                            ..default()
+                        },
                         TextColor(run.color),
                     ));
                 }

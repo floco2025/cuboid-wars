@@ -52,7 +52,7 @@ pub fn spawn_actor_explosion(
                 intensity: 500_000.0,
                 range: 7.0,
                 radius: 1.0,
-                shadows_enabled: false,
+                shadow_maps_enabled: false,
                 ..default()
             },
             ExplosionEffect {

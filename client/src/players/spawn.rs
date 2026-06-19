@@ -1,4 +1,4 @@
-use bevy::{gltf::GltfAssetLabel, prelude::*, scene::SceneRoot};
+use bevy::{gltf::GltfAssetLabel, prelude::*};
 
 use super::BumpFeedbackState;
 use crate::{
@@ -107,7 +107,7 @@ pub fn spawn_player(
     let base_y = player_physics.model_y_offset_from_entity_center(player_model.y_offset);
     let model = commands
         .spawn((
-            SceneRoot(asset_server.load(player_model.scene.clone())),
+            WorldAssetRoot(asset_server.load(player_model.scene.clone())),
             Transform::from_scale(Vec3::splat(player_model.scale))
                 .with_rotation(Quat::from_rotation_x(player_model.x_rotation_degrees.to_radians()))
                 .with_translation(Vec3::new(player_model.x_offset, base_y, player_model.z_offset)),

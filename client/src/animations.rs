@@ -1,4 +1,4 @@
-use bevy::{prelude::*, scene::SceneInstanceReady};
+use bevy::{prelude::*, world_serialization::WorldInstanceReady};
 
 // ============================================================================
 // Components
@@ -18,7 +18,7 @@ pub struct AnimationToPlay {
 
 // System that plays animations when a character scene is loaded
 pub fn character_animation_system(
-    scene_ready: On<SceneInstanceReady>,
+    scene_ready: On<WorldInstanceReady>,
     mut commands: Commands,
     children: Query<&Children>,
     animations_to_play: Query<&AnimationToPlay>,
@@ -27,7 +27,7 @@ pub fn character_animation_system(
     // The entity we spawned in `spawn_player` is the trigger's target.
     // Start by finding the AnimationToPlay component we added to that entity.
     if let Ok(animation_to_play) = animations_to_play.get(scene_ready.entity) {
-        // The SceneRoot component will have spawned the scene as a hierarchy
+        // The WorldAssetRoot component will have spawned the scene as a hierarchy
         // of entities parented to our entity. Since the asset contained a skinned
         // mesh and animations, it will also have spawned an animation player
         // component. Search our entity's descendants to find the animation player.

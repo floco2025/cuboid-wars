@@ -1,10 +1,9 @@
-use bevy_math::Quat;
 use rapier3d::{
     parry::{
         query::{ShapeCastOptions, cast_shapes, intersection_test},
         shape::Ball,
     },
-    prelude::{Pose, Vector},
+    prelude::{Pose, Vector, glamx::Quat},
 };
 
 use crate::{

@@ -1,4 +1,4 @@
-use bevy::{gltf::GltfAssetLabel, prelude::*, scene::SceneRoot};
+use bevy::{gltf::GltfAssetLabel, prelude::*};
 
 use crate::{config::AssetSet, map::MapLevel};
 
@@ -15,7 +15,8 @@ pub fn spawn_wall_light_from_layout(
     light: &WallLight,
 ) {
     let wall_light = asset_set.wall_light_model();
-    let light_scene: Handle<Scene> = asset_server.load(GltfAssetLabel::Scene(0).from_asset(wall_light.scene.clone()));
+    let light_scene: Handle<WorldAsset> =
+        asset_server.load(GltfAssetLabel::Scene(0).from_asset(wall_light.scene.clone()));
     let level = MapLevel(compute_player_level(light.pos.y));
 
     let model_yaw = Quat::from_rotation_y(light.yaw);
@@ -29,7 +30,7 @@ pub fn spawn_wall_light_from_layout(
     commands.spawn((
         WallLightMarker,
         level,
-        SceneRoot(light_scene),
+        WorldAssetRoot(light_scene),
         Transform::from_xyz(light.pos.x, light.pos.y, light.pos.z)
             .with_scale(Vec3::splat(wall_light.scale))
             .with_rotation(model_yaw),
@@ -46,7 +47,7 @@ pub fn spawn_wall_light_from_layout(
             intensity: wall_light.brightness,
             range: wall_light.range,
             radius: wall_light.radius,
-            shadows_enabled: false,
+            shadow_maps_enabled: false,
             color: Color::srgb(1.0, 0.95, 0.85),
             ..default()
         },

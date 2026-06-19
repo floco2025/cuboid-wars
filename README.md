@@ -60,7 +60,7 @@ death/respawn flow.
 
 ## Technical stack
 
-- **Engine** — Bevy 0.18 (ECS)
+- **Engine** — Bevy 0.19 (ECS)
 - **Physics** — Rapier 0.32 (static map collision, kinematic characters, projectile shape casts)
 - **Networking** — QUIC via `quinn`
 - **Wire format** — `bincode` 2 (binary)

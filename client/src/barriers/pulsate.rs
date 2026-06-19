@@ -24,7 +24,9 @@ pub fn barriers_pulsate_system(
     let alpha_max = client_settings.barriers.alpha_max;
     let t = time.elapsed_secs();
     for (idx, handle) in assets.material_handles().iter().enumerate() {
-        let Some(mat) = materials.get_mut(handle) else { continue };
+        let Some(mut mat) = materials.get_mut(handle) else {
+            continue;
+        };
         let phase = idx as f32 * 0.5;
         let s = (t * pulse_hz * std::f32::consts::TAU + phase).sin() * 0.5 + 0.5;
         let alpha = alpha_min + (alpha_max - alpha_min) * s;

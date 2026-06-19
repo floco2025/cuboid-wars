@@ -48,7 +48,7 @@ pub fn generate_material_mipmaps_system(
                 continue;
             }
 
-            let Some(image) = images.get_mut(image_handle) else {
+            let Some(mut image) = images.get_mut(image_handle) else {
                 continue;
             };
 
@@ -64,14 +64,14 @@ pub fn generate_material_mipmaps_system(
                 continue;
             }
 
-            configure_mipmap_sampler(image, client_settings.rendering.texture_anisotropy);
+            configure_mipmap_sampler(&mut image, client_settings.rendering.texture_anisotropy);
 
             if image.texture_descriptor.mip_level_count > 1 {
                 state.processed.insert(image_id);
                 continue;
             }
 
-            if let Err(error) = check_image_compatible(image) {
+            if let Err(error) = check_image_compatible(&image) {
                 debug!("skipping mipmap generation for incompatible image: {error}");
                 state.processed.insert(image_id);
                 continue;
@@ -101,7 +101,7 @@ fn finish_mipmap_tasks(state: &mut MaterialMipmapState, images: &mut Assets<Imag
         };
 
         if let Some(image) = image
-            && let Some(target) = images.get_mut(image_handle)
+            && let Some(mut target) = images.get_mut(image_handle)
         {
             *target = image;
         }

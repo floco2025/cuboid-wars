@@ -56,7 +56,10 @@ pub fn spawn_hud_banner(
         .with_children(|root| {
             root.spawn((
                 Text::new(text),
-                TextFont { font_size, ..default() },
+                TextFont {
+                    font_size: FontSize::Px(font_size),
+                    ..default()
+                },
                 TextColor(Color::WHITE),
             ));
         });

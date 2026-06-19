@@ -83,23 +83,26 @@ fn load_texture(
         return asset_server.load(path.to_owned());
     }
 
-    asset_server.load_with_settings(path.to_owned(), move |settings: &mut ImageLoaderSettings| {
-        settings.is_srgb = !linear;
-        if repeat {
-            settings.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
-                address_mode_u: ImageAddressMode::Repeat,
-                address_mode_v: ImageAddressMode::Repeat,
-                address_mode_w: ImageAddressMode::Repeat,
-                mag_filter: ImageFilterMode::Linear,
-                min_filter: ImageFilterMode::Linear,
-                mipmap_filter: if mipmaps_enabled {
-                    ImageFilterMode::Linear
-                } else {
-                    ImageFilterMode::Nearest
-                },
-                anisotropy_clamp: if mipmaps_enabled { anisotropy } else { 1 },
-                ..default()
-            });
-        }
-    })
+    asset_server
+        .load_builder()
+        .with_settings(move |settings: &mut ImageLoaderSettings| {
+            settings.is_srgb = !linear;
+            if repeat {
+                settings.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
+                    address_mode_u: ImageAddressMode::Repeat,
+                    address_mode_v: ImageAddressMode::Repeat,
+                    address_mode_w: ImageAddressMode::Repeat,
+                    mag_filter: ImageFilterMode::Linear,
+                    min_filter: ImageFilterMode::Linear,
+                    mipmap_filter: if mipmaps_enabled {
+                        ImageFilterMode::Linear
+                    } else {
+                        ImageFilterMode::Nearest
+                    },
+                    anisotropy_clamp: if mipmaps_enabled { anisotropy } else { 1 },
+                    ..default()
+                });
+            }
+        })
+        .load(path.to_owned())
 }

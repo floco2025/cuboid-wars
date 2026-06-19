@@ -1,4 +1,4 @@
-use bevy::{gltf::GltfAssetLabel, prelude::*, scene::SceneRoot};
+use bevy::{gltf::GltfAssetLabel, prelude::*};
 
 use crate::{
     animations::{AnimationToPlay, character_animation_system},
@@ -57,7 +57,7 @@ pub fn spawn_actor(
 
     let base_y = actor_physics.model_y_offset_from_entity_center(actor_model.y_offset);
     let mut model_commands = commands.spawn((
-        SceneRoot(asset_server.load(actor_model.scene.clone())),
+        WorldAssetRoot(asset_server.load(actor_model.scene.clone())),
         Transform::from_scale(Vec3::splat(actor_model.scale))
             .with_rotation(Quat::from_rotation_x(actor_model.x_rotation_degrees.to_radians()))
             .with_translation(Vec3::new(actor_model.x_offset, base_y, actor_model.z_offset)),

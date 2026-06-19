@@ -84,9 +84,12 @@ pub fn spawn_floating_player_label(
                 .with_children(|label_background| {
                     label_background.spawn((
                         Text::new(label),
-                        TextFont { font_size, ..default() },
+                        TextFont {
+                            font_size: FontSize::Px(font_size),
+                            ..default()
+                        },
                         TextColor(LABEL_TEXT_COLOR),
-                        TextLayout::new_with_no_wrap(),
+                        TextLayout::no_wrap(),
                     ));
                 });
         })
