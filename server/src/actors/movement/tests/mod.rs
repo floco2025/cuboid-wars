@@ -56,7 +56,7 @@ fn actor_physics() -> CharacterPhysicsConfig {
     GameplayConfig::load_default()
         .expect("default gameplay config should load")
         .actor(TEST_KIND)
-        .expect("test kind in default gameplay config")
+        .expect("test kind missing from default gameplay config")
         .physics()
 }
 
@@ -64,7 +64,7 @@ fn actor_speed() -> f32 {
     GameplayConfig::load_default()
         .expect("default gameplay config should load")
         .actor(TEST_KIND)
-        .expect("test kind in default gameplay config")
+        .expect("test kind missing from default gameplay config")
         .patrol_speed
 }
 

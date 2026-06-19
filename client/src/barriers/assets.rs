@@ -87,7 +87,7 @@ pub fn setup_barrier_assets(
     for id in kind_table.ids() {
         let hex = asset_set
             .barrier_kind_color_hex(id)
-            .expect("color presence checked at app startup");
+            .expect("barrier kind color missing from config");
         let color = parse_hex_color(hex).unwrap_or_else(|err| panic!("invalid color {hex:?} for kind {id:?}: {err}"));
         handles.push(materials.add(barrier_material(color, alpha_max)));
         plate_handles.push(materials.add(plate_material(color)));

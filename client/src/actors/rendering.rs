@@ -22,7 +22,7 @@ pub fn actors_transform_sync_system(
         };
         let actor_physics = gameplay_config
             .actor(&info.kind)
-            .expect("actor kind sent by server is in gameplay config")
+            .expect("actor kind sent by server is missing from gameplay config")
             .physics();
         let interp = prev.lerp_to(*pos, alpha);
         transform.translation.x = interp.x;

@@ -47,7 +47,10 @@ fn resolve_kind(kind: &str, actors: &Map<String, Value>, resolved: &mut Map<Stri
         let value = if let Some(memoized) = resolved.get(&ancestor) {
             memoized.clone()
         } else {
-            actors.get(&ancestor).expect("walk_chain only adds known kinds").clone()
+            actors
+                .get(&ancestor)
+                .expect("ancestor kind missing from actors")
+                .clone()
         };
         deep_merge(&mut merged, &value);
     }

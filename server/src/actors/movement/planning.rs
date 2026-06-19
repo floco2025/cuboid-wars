@@ -176,7 +176,7 @@ pub(super) fn select_committed_move(
     delta: f32,
 ) -> SelectedActorMove {
     info.commit_secs_left -= delta;
-    let desired_speed = desired.speed().expect("desired move intent has a speed");
+    let desired_speed = desired.speed().expect("desired move intent has no speed");
     let committed_step = info
         .committed_direction
         .and_then(|direction| candidate_move(context, direction, desired_speed, ledge_aware));
@@ -207,8 +207,8 @@ pub(super) fn select_actor_move(
     last_direction: Option<f32>,
     ledge_aware: bool,
 ) -> SelectedActorMove {
-    let desired_direction = desired.direction().expect("desired move intent has a direction");
-    let speed = desired.speed().expect("desired move intent has a speed");
+    let desired_direction = desired.direction().expect("desired move intent has no direction");
+    let speed = desired.speed().expect("desired move intent has no speed");
 
     // Fast path: a clear straight shot at the goal always wins the score.
     if let Some(selected) = candidate_move(context, desired_direction, speed, ledge_aware).filter(|c| c.clean) {

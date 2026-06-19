@@ -41,7 +41,7 @@ pub(crate) fn actor_start_positions(
             let info = actors.get(actor_id)?;
             let physics = gameplay_config
                 .actor(&info.kind)
-                .expect("actor kind sent by server is in gameplay config")
+                .expect("actor kind sent by server is missing from gameplay config")
                 .physics();
             Some((entity, *pos, physics))
         })
@@ -65,7 +65,7 @@ pub(crate) fn plan_actor_moves(
         };
         let actor_physics = gameplay_config
             .actor(&info.kind)
-            .expect("actor kind sent by server is in gameplay config")
+            .expect("actor kind sent by server is missing from gameplay config")
             .physics();
         let h_vel = move_intent.to_horizontal_velocity();
         let target_pos = if let Some(recon) = recon_option.as_mut() {

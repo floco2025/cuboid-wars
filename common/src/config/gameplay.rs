@@ -67,7 +67,7 @@ impl GameplayConfig {
 
     #[must_use]
     pub fn validated_actor(&self, kind: &str) -> &ActorGameplayConfig {
-        self.actor(kind).expect("actor kind validated at startup")
+        self.actor(kind).expect("actor kind missing from gameplay config")
     }
 }
 

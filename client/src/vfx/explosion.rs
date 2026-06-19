@@ -28,7 +28,7 @@ pub fn spawn_actor_explosion(
     let effect = asset_set.actor_explosion_effect(actor_kind);
     let actor_physics = gameplay_config
         .actor(actor_kind)
-        .expect("actor kind sent by server is in gameplay config")
+        .expect("actor kind sent by server is missing from gameplay config")
         .physics();
     let frames = (effect.columns * effect.rows) as usize;
     let current_frame = initial_frame(frames, effect.first_frame);

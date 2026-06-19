@@ -493,7 +493,9 @@ mod tests {
         let mut feed = GameMessageFeed::default();
         let client_settings = ClientSettings::load_default().expect("load default client settings");
         let mut banner_state: SystemState<Query<Entity, With<crate::ui::HudBannerMarker>>> = SystemState::new(world);
-        let banners = banner_state.get(world).expect("banner query params are valid");
+        let banners = banner_state
+            .get(world)
+            .expect("banner query invalid for the test world");
         let mut commands_queue = bevy::ecs::world::CommandQueue::default();
 
         {

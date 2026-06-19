@@ -28,7 +28,7 @@ pub fn spawn_actor(
     let actor_model = asset_set.actor_model(&actor.kind);
     let actor_config = gameplay_config
         .actor(&actor.kind)
-        .expect("actor kind sent by server is in gameplay config");
+        .expect("actor kind sent by server is missing from gameplay config");
     let actor_physics = actor_config.physics();
     let entity = commands
         .spawn((

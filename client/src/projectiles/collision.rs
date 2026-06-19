@@ -52,7 +52,7 @@ pub(super) fn handle_character_collisions(
         };
         let actor_physics = gameplay_config
             .actor(&info.kind)
-            .expect("actor kind sent by server is in gameplay config")
+            .expect("actor kind sent by server is missing from gameplay config")
             .physics();
         if let Some(hit) = projectile_character_hit(proj_pos, proj_motion, delta, actor_pos, face_dir.0, actor_physics)
         {

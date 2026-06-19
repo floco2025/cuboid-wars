@@ -360,8 +360,8 @@ mod tests {
         let mut errors: Vec<String> = Vec::new();
         for path in assets.referenced_asset_paths() {
             let full = assets_root.join(&path);
-            let parent = full.parent().expect("path has parent");
-            let want = full.file_name().expect("path has filename");
+            let parent = full.parent().expect("path has no parent");
+            let want = full.file_name().expect("path has no filename");
             let entries: HashSet<_> = match fs::read_dir(parent) {
                 Ok(rd) => rd.filter_map(|e| e.ok().map(|e| e.file_name())).collect(),
                 Err(_) => HashSet::new(),

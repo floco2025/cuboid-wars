@@ -83,7 +83,7 @@ pub(crate) fn plan_player_moves(
         }
         let target = target_pos
             .take()
-            .expect("target_pos is present after out-of-sync shortcut");
+            .expect("target_pos missing after out-of-sync shortcut");
 
         if let Some(collision_world) = collision_world {
             // Same merge the server runs (`passable_barrier_kinds`) so
