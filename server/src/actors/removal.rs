@@ -87,7 +87,7 @@ pub fn actor_removal_system(
                     killer_score,
                 }),
             );
-            for (player_id, entity) in dead_players {
+            for (player_id, entity, pos) in dead_players {
                 info!("{:?} died in {:?}'s explosion", player_id, death.id);
                 // Explosion deaths award no kill credit: the victim takes the
                 // death penalty as an environmental death, and the cue reports
@@ -96,7 +96,15 @@ pub fn actor_removal_system(
                 if let Some(victim) = players.get_mut(&player_id) {
                     victim.score += server_gameplay_config.scoring.player_death;
                 }
-                kill_player(&mut commands, &mut players, player_id, entity, respawn_delay_secs, None);
+                kill_player(
+                    &mut commands,
+                    &mut players,
+                    player_id,
+                    entity,
+                    pos,
+                    respawn_delay_secs,
+                    None,
+                );
             }
         } else {
             info!("{:?} fell and despawned at {:?}", death.id, death.pos);

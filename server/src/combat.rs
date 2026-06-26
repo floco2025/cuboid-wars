@@ -24,6 +24,7 @@ pub fn kill_player(
     players: &mut PlayerMap,
     id: PlayerId,
     entity: Entity,
+    pos: Position,
     respawn_delay_secs: f32,
     killer: Option<PlayerId>,
 ) {
@@ -40,6 +41,7 @@ pub fn kill_player(
         players,
         ServerMessage::PlayerDeath(SPlayerDeath {
             id,
+            pos,
             killer,
             victim_score,
             killer_score,
@@ -132,8 +134,10 @@ pub type ActorDeathQuery<'w, 's> = Query<
 >;
 
 // Applies blast damage to nearby players and actors. Returns the
-// `(PlayerId, Entity)` of any player whose health dropped to zero on this
-// call so the caller can run the standard death/respawn flow.
+// `(PlayerId, Entity, Position)` of any player whose health dropped to zero on
+// this call so the caller can run the standard death/respawn flow. The
+// position is the victim's authoritative spot at death, forwarded into the
+// `SPlayerDeath` cue.
 //
 // Players already in the death state (`death_timer.is_some()`) are skipped
 // — their entity is queued for despawn this tick and we don't want a stray
@@ -148,7 +152,7 @@ pub fn apply_actor_explosion_damage(
     players: &PlayerMap,
     player_query: &mut Query<(Entity, &PlayerId, &Position, &mut Health), (With<PlayerMarker>, Without<ActorMarker>)>,
     actor_query: &mut ActorDeathQuery,
-) -> Vec<(PlayerId, Entity)> {
+) -> Vec<(PlayerId, Entity, Position)> {
     let actor_physics = gameplay_config.validated_actor(destroyed_spawn_kind).physics();
     let explosion_center = character_center(destroyed_pos, actor_physics);
     let mut newly_dead = Vec::new();
@@ -171,7 +175,7 @@ pub fn apply_actor_explosion_damage(
         }
         apply_damage(&mut health, damage);
         if health.0 <= 0.0 {
-            newly_dead.push((*id, entity));
+            newly_dead.push((*id, entity, *pos));
         }
     }
 
@@ -395,6 +399,7 @@ mod tests {
                 &mut players,
                 PlayerId(2),
                 target_entity,
+                Position::default(),
                 2.0,
                 Some(PlayerId(1)),
             );
@@ -425,7 +430,15 @@ mod tests {
         let mut commands_queue = bevy::ecs::world::CommandQueue::default();
         {
             let mut commands = bevy::ecs::system::Commands::new(&mut commands_queue, world);
-            kill_player(&mut commands, &mut players, PlayerId(7), entity, 2.0, None);
+            kill_player(
+                &mut commands,
+                &mut players,
+                PlayerId(7),
+                entity,
+                Position::default(),
+                2.0,
+                None,
+            );
         }
         commands_queue.apply(world);
 

@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 use crate::{
     cameras::MainCameraMarker,
+    characters::PreviousTickPosition,
     config::{AssetSet, ClientSettings},
     network::{RoundTripTime, ServerReconciliation},
     players::{CameraShake, CuboidShake, LocalPlayerInfo, PlayerMap},
@@ -222,7 +223,17 @@ pub fn handle_player_death_message(
 
     if msg.id == my_player_id {
         if let Some(info) = players.get(&msg.id) {
-            commands.entity(info.entity).insert(Visibility::Hidden);
+            // Snap the kept (hidden) entity onto the server-authoritative death
+            // position. Local prediction may have drifted from the server when
+            // reconciliation hadn't converged, and the corpse stays visible in
+            // the top-down death view, so park it on the true spot. Reset
+            // `PreviousTickPosition` so render interpolation doesn't smear the
+            // snap, and drop any in-flight `ServerReconciliation` so a stale
+            // lerp can't pull the corpse back off the death position.
+            commands
+                .entity(info.entity)
+                .insert((Visibility::Hidden, msg.pos, PreviousTickPosition(msg.pos)))
+                .remove::<ServerReconciliation>();
         }
         local_player_info.is_dead = true;
         // Centered "You have died!" banner. The red full-screen
@@ -510,6 +521,7 @@ mod tests {
                 my_id,
                 SPlayerDeath {
                     id: my_id,
+                    pos: Position::default(),
                     killer: None,
                     victim_score: 0,
                     killer_score: None,

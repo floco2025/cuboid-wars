@@ -180,6 +180,12 @@ pub struct SShot {
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SPlayerDeath {
     pub id: PlayerId,
+    // Server-authoritative position at the moment of death. The snapshot can't
+    // carry it — the victim is already gone from the next snapshot — so the cue
+    // does. The client snaps the dying entity here: local prediction may have
+    // drifted from the server before reconciliation converged, and the corpse
+    // stays visible (top-down death view) on the true death spot.
+    pub pos: Position,
     // Player who landed the killing blow; `None` for non-player causes
     // (fall, actor explosion, future environmental). Drives the
     // client-side message feed's "A → B" entry vs "A died" entry.
