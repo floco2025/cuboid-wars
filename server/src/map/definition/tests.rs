@@ -7,7 +7,10 @@ use super::{
     validation::validate_map,
 };
 use crate::map::material_rules::MaterialRules;
-use common::{constants::GRID_CELL_SIZE, protocol::BarrierKindTable};
+use common::{
+    constants::{GRID_CELL_SIZE, LEVEL_HEIGHT},
+    protocol::BarrierKindTable,
+};
 
 fn empty_kind_table() -> BarrierKindTable {
     BarrierKindTable::default()
@@ -34,6 +37,7 @@ fn level_with_inaccessible(floors: Vec<[i32; 2]>, inaccessible_floors: Vec<[i32;
         name: None,
         floors: floors.into_iter().map(|[c, r]| floor_def(c, r)).collect(),
         inaccessible_floors: inaccessible_floors.into_iter().map(|[c, r]| floor_def(c, r)).collect(),
+        grass: Vec::new(),
         walls: Vec::new(),
         barriers: Vec::new(),
         lights: Vec::new(),
@@ -432,6 +436,72 @@ fn compile_resolves_three_distinct_kinds() {
     let kinds: Vec<u16> = layout.barriers.iter().map(|b| b.kind.0).collect();
     // The merger sorts by (level, kind, axis-coords), so kind ascending.
     assert_eq!(kinds, vec![0, 1, 2]);
+}
+
+#[test]
+fn compile_drops_grass_without_floor() {
+    let mut map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]])],
+        Vec::new(),
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    map_def.levels[0].grass.push(floor_def(0, 0));
+    map_def.levels[0].grass.push(floor_def(2, 2));
+    let (layout, _, _) = compile_map(&map_def, &assets(), &empty_kind_table()).expect("compile");
+    assert_eq!(layout.grass.len(), 1);
+    assert_eq!(layout.grass[0].level, 0);
+}
+
+#[test]
+fn grass_compiles_to_cell_center_and_floor_top() {
+    let mut map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]]), level(vec![[1, 2]])],
+        Vec::new(),
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    map_def.levels[1].grass.push(floor_def(1, 2));
+    let (layout, _, geometry) = compile_map(&map_def, &assets(), &empty_kind_table()).expect("compile");
+    assert_eq!(layout.grass.len(), 1);
+    let cell = layout.grass[0];
+    assert_eq!(cell.level, 1);
+    let expected_x = geometry.cell_to_world_x(1) + GRID_CELL_SIZE / 2.0;
+    let expected_z = geometry.cell_to_world_z(2) + GRID_CELL_SIZE / 2.0;
+    assert!((cell.x - expected_x).abs() < 1e-5);
+    assert!((cell.z - expected_z).abs() < 1e-5);
+    assert!((cell.y - LEVEL_HEIGHT).abs() < 1e-5);
+}
+
+#[test]
+fn grass_allowed_on_inaccessible_floor() {
+    let mut map_def = map_with_zones(
+        4,
+        vec![level_with_inaccessible(vec![[0, 0]], vec![[1, 0]])],
+        Vec::new(),
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    map_def.levels[0].grass.push(floor_def(1, 0));
+    validate_map(&map_def).expect("grass on an inaccessible floor should load");
+    let (layout, _, _) = compile_map(&map_def, &assets(), &empty_kind_table()).expect("compile");
+    assert_eq!(layout.grass.len(), 1);
+}
+
+#[test]
+fn validation_rejects_grass_out_of_bounds() {
+    let mut map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]])],
+        Vec::new(),
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    map_def.levels[0].grass.push(floor_def(4, 0));
+    let err = validate_map(&map_def).expect_err("out-of-bounds grass must be rejected");
+    assert!(err.to_string().contains("grass"));
 }
 
 #[test]

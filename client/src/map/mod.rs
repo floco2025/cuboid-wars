@@ -10,6 +10,6 @@ pub use rendering::{
 };
 pub use resources::{DebugColors, LevelFocusEnabled};
 pub use spawn::{
-    GroundMarker, MapGeometryBatch, MapLevel, RampMarker, RoofMarker, WallLightMarker, WallMarker, batch_floor,
-    batch_ramp, batch_wall, spawn_wall_light_from_layout,
+    GrassMarker, GroundMarker, MapGeometryBatch, MapLevel, RampMarker, RoofMarker, WallLightMarker, WallMarker,
+    batch_floor, batch_ramp, batch_wall, grass_spawn_system, spawn_wall_light_from_layout,
 };

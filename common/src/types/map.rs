@@ -153,6 +153,17 @@ pub struct PressurePlate {
     pub kind: BarrierKindId,
 }
 
+// Client-display-only decoration; physics and gameplay ignore it. World-space
+// cell center + floor-top y are shipped (not col/row) so the client never
+// needs `MapGeometry` to scatter tufts.
+#[derive(Debug, Clone, Copy, Encode, Decode)]
+pub struct GrassCell {
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+    pub level: u8,
+}
+
 #[derive(Debug, Clone, Encode, Decode, Resource, Default)]
 pub struct MapLayout {
     pub walls: Vec<Wall>,
@@ -164,4 +175,5 @@ pub struct MapLayout {
     pub wall_lights: Vec<WallLight>,
     pub barriers: Vec<Barrier>,
     pub pressure_plates: Vec<PressurePlate>,
+    pub grass: Vec<GrassCell>,
 }

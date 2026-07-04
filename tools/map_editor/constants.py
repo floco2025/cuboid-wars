@@ -41,6 +41,8 @@ DEFAULT_ALIAS: str = next(iter(sorted(MATERIAL_ALIASES)), "")
 
 MODE_FLOOR = "Floor"
 MODE_INACCESSIBLE_FLOOR = "Blocked Floor"
+MODE_GRASS = "Grass"
+MODE_ERASE_GRASS = "Erase Grass"
 MODE_ACTOR_SPAWN_PAINT = "Actor Spawn Zone (Paint)"
 MODE_PLAYER_SPAWN_PAINT = "Player Spawn Zone (Paint)"
 MODE_COOKIE_SPAWN_PAINT = "Cookie Spawn Zone (Paint)"
@@ -67,9 +69,10 @@ LIGHT_SIDES = ("N", "S", "E", "W")
 # Modes grouped by category for the mode picker. Each tuple is
 # `(category label, ordered list of modes)`. The label is shown as a
 # disabled separator row in the dropdown so the user sees the taxonomy
-# instead of a flat 19-entry list.
+# instead of one flat list.
 MODE_CATEGORIES: list[tuple[str, list[str]]] = [
     ("Floors", [MODE_FLOOR, MODE_INACCESSIBLE_FLOOR]),
+    ("Grass", [MODE_GRASS, MODE_ERASE_GRASS]),
     (
         "Spawn Zones",
         [

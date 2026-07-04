@@ -24,10 +24,10 @@ use client::{
     },
     items::{ItemMap, items_animation_system, setup_item_assets, y_spin_system},
     map::{
-        DebugColors, LevelFocusEnabled, map_level_focus_visibility_system, map_spawn_geometry_system,
-        map_wall_light_emissive_system, setup_scene_lighting_system,
+        DebugColors, LevelFocusEnabled, grass_spawn_system, map_level_focus_visibility_system,
+        map_spawn_geometry_system, map_wall_light_emissive_system, setup_scene_lighting_system,
     },
-    materials::generate_material_mipmaps_system,
+    materials::{GrassMaterialPlugin, generate_material_mipmaps_system},
     network::{
         ClientToServerChannel, LastSnapshotSeq, RoundTripTime, ServerToClientChannel, network_io_task,
         network_ping_system, network_process_server_messages_system,
@@ -150,6 +150,7 @@ fn main() -> Result<()> {
             .set(asset_plugin())
             .set(window_plugin(&args, window_position)),
     );
+    app.add_plugins(GrassMaterialPlugin);
     app.insert_resource(match client_settings.rendering.opaque_renderer {
         OpaqueRenderer::Auto => DefaultOpaqueRendererMethod::default(),
         OpaqueRenderer::Forward => DefaultOpaqueRendererMethod::forward(),
@@ -279,6 +280,7 @@ fn main() -> Result<()> {
             Update,
             (
                 map_spawn_geometry_system,
+                grass_spawn_system,
                 map_level_focus_visibility_system,
                 map_wall_light_emissive_system,
                 barriers_spawn_system,

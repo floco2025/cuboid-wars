@@ -74,6 +74,7 @@ class StructureMixin:
                 "name": f"Level {insert_at}",
                 "floors": [],
                 "inaccessible_floors": [],
+                "grass": [],
                 "walls": [],
                 "barriers": [],
                 "lights": [],

@@ -84,6 +84,38 @@ class PlacementMixin:
             ]
         self.apply_change("Paint Inaccessible Floor", after)
 
+    def add_grass_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
+        c0, r0, c1, r1 = rect_from_cells(start, end)
+        after = copy.deepcopy(self.map_data)
+        level = after["levels"][self.current_level]
+        slab_cells = {(f["col"], f["row"]) for f in level["floors"]} | {
+            (f["col"], f["row"]) for f in level["inaccessible_floors"]
+        }
+        grass = level.setdefault("grass", [])
+        existing = {(g["col"], g["row"]) for g in grass}
+        added = False
+        for row in range(r0, r1):
+            for col in range(c0, c1):
+                if (col, row) in slab_cells and (col, row) not in existing:
+                    grass.append({"col": col, "row": row})
+                    added = True
+        # All-floorless drag: no-op rather than an empty undo entry.
+        if not added:
+            return
+        self.apply_change("Paint Grass", after)
+
+    def erase_grass_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
+        c0, r0, c1, r1 = rect_from_cells(start, end)
+        level_idx = self.current_level
+        grass = self.map_data["levels"][level_idx].get("grass", [])
+        kept = [g for g in grass if not (c0 <= g["col"] < c1 and r0 <= g["row"] < r1)]
+        if len(kept) == len(grass):
+            self._flash_status("Erase Grass: no grass in selection.")
+            return
+        after = copy.deepcopy(self.map_data)
+        after["levels"][level_idx]["grass"] = kept
+        self.apply_change("Erase Grass", after)
+
     def add_actor_spawn_zone_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         result = self.prompt_for_actor_spawn_fields()
         if result is None:

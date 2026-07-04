@@ -20,10 +20,12 @@ from .constants import (
     LIGHT_SIDES,
     MODE_COOKIE_SPAWN_PAINT,
     MODE_ERASE,
+    MODE_ERASE_GRASS,
     MODE_ERASE_KEEP_FLOORS,
     MODE_ERASE_LIGHTS,
     MODE_FLOOR,
     MODE_FLOOR_MATERIAL,
+    MODE_GRASS,
     MODE_INACCESSIBLE_FLOOR,
     MODE_KEY_SPAWN_PAINT,
     MODE_PLAYER_SPAWN_PAINT,
@@ -47,6 +49,7 @@ def normalize_map(map_data: dict) -> dict:
                 "name": str(level.get("name") or f"Level {idx}"),
                 "floors": [normalize_floor(f) for f in level.get("floors", [])],
                 "inaccessible_floors": [normalize_floor(f) for f in level.get("inaccessible_floors", [])],
+                "grass": [normalize_grass(g) for g in level.get("grass", [])],
                 "walls": [normalize_wall(w) for w in level.get("walls", [])],
                 "barriers": [normalize_barrier(b) for b in level.get("barriers", [])],
                 "lights": [normalize_light(l) for l in level.get("lights", [])],
@@ -58,6 +61,7 @@ def normalize_map(map_data: dict) -> dict:
                 "name": "Level 0",
                 "floors": [],
                 "inaccessible_floors": [],
+                "grass": [],
                 "walls": [],
                 "barriers": [],
                 "lights": [],
@@ -84,6 +88,10 @@ def normalize_floor(floor: dict) -> dict:
         "row": int(floor["row"]),
         **expand_face_materials(floor),
     }
+
+
+def normalize_grass(cell: dict) -> dict:
+    return {"col": int(cell["col"]), "row": int(cell["row"])}
 
 
 def normalize_wall(wall: dict) -> dict:
@@ -297,6 +305,15 @@ def canonicalize_map(map_data: dict) -> dict:
             f for f in _dedupe_floors(level["inaccessible_floors"])
             if (f["col"], f["row"]) not in floor_keys
         ]
+        ramp_set = ramp_cells_by_level[level_idx]
+        # Grass only survives on slab cells (floor or inaccessible floor)
+        # outside ramp footprints, so erasing a floor drops its grass in the
+        # same canonicalize pass — the two can never desync.
+        slab_keys = floor_keys | {(f["col"], f["row"]) for f in level["inaccessible_floors"]}
+        level["grass"] = [
+            g for g in _dedupe_floors(level["grass"])
+            if (g["col"], g["row"]) in slab_keys and (g["col"], g["row"]) not in ramp_set
+        ]
         level["walls"] = _dedupe_walls(level["walls"])
         wall_endpoints_set = {
             tuple(normalized_wall([w["c0"], w["r0"], w["c1"], w["r1"]]))
@@ -309,7 +326,6 @@ def canonicalize_map(map_data: dict) -> dict:
             if tuple(normalized_wall([b["c0"], b["r0"], b["c1"], b["r1"]])) not in wall_endpoints_set
         ]
         cols, rows = b["grid_cols"], b["grid_rows"]
-        ramp_set = ramp_cells_by_level[level_idx]
         in_bounds_lights = [
             l for l in level.get("lights", [])
             if 0 <= l["col"] < cols and 0 <= l["row"] < rows
@@ -405,6 +421,9 @@ def resize_map_data(
         level["floors"] = [f for f in (shift_floor(f) for f in level["floors"]) if f is not None]
         level["inaccessible_floors"] = [
             f for f in (shift_floor(f) for f in level["inaccessible_floors"]) if f is not None
+        ]
+        level["grass"] = [
+            g for g in (shift_floor(g) for g in level.get("grass", [])) if g is not None
         ]
         level["walls"] = [w for w in (shift_wall(w) for w in level["walls"]) if w is not None]
         level["barriers"] = [
@@ -560,6 +579,8 @@ DRAG_PREVIEW_FALLBACK = QColor(34, 197, 94, 120)
 DRAG_PREVIEW_COLORS: dict[str, QColor] = {
     MODE_FLOOR: QColor(111, 180, 255, 120),
     MODE_INACCESSIBLE_FLOOR: QColor(148, 163, 184, 120),
+    MODE_GRASS: QColor(132, 204, 22, 120),  # lime — matches the grass tuft strokes
+    MODE_ERASE_GRASS: QColor(120, 113, 108, 120),  # stone — mowed-down grass, not a red erase tool
     MODE_PLAYER_SPAWN_PAINT: QColor(99, 102, 241, 120),
     MODE_COOKIE_SPAWN_PAINT: QColor(250, 204, 21, 120),  # gold — matches cookie material
     # Kind is picked *after* the drag, so the preview color is a neutral

@@ -5,7 +5,7 @@ use crate::{
     barriers::{BarrierAssets, BarrierMarker},
     config::{AssetSet, ClientSettings, DebugColorMode},
     map::{
-        DebugColors, GroundMarker, LevelFocusEnabled, MapGeometryBatch, MapLevel, RampMarker, RoofMarker,
+        DebugColors, GrassMarker, GroundMarker, LevelFocusEnabled, MapGeometryBatch, MapLevel, RampMarker, RoofMarker,
         WallLightMarker, WallMarker, batch_floor, batch_ramp, batch_wall, spawn_wall_light_from_layout,
         visual_focus_level,
     },
@@ -155,6 +155,7 @@ pub fn map_level_focus_visibility_system(
                 With<WallLightMarker>,
                 With<ItemMarker>,
                 With<BarrierMarker>,
+                With<GrassMarker>,
             )>,
             Without<RampMarker>,
         ),

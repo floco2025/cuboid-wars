@@ -40,6 +40,8 @@ pub(crate) struct LevelDef {
     #[serde(default)]
     pub(crate) inaccessible_floors: Vec<FloorDef>,
     #[serde(default)]
+    pub(crate) grass: Vec<FloorDef>,
+    #[serde(default)]
     pub(crate) walls: Vec<WallDef>,
     #[serde(default)]
     pub(crate) barriers: Vec<BarrierDef>,

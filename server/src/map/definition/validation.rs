@@ -212,6 +212,7 @@ fn validate_levels(map_def: &MapDef) -> Result<()> {
 
         let floors = validate_regular_floors(level, &label, map_def.grid_cols, map_def.grid_rows)?;
         validate_inaccessible_floors(level, &label, map_def.grid_cols, map_def.grid_rows, &floors)?;
+        validate_grass(level, &label, map_def.grid_cols, map_def.grid_rows)?;
         let walls = validate_walls(level, &label, map_def.grid_cols, map_def.grid_rows)?;
         validate_barriers(level, &label, map_def.grid_cols, map_def.grid_rows, &walls)?;
     }
@@ -252,6 +253,21 @@ fn validate_inaccessible_floors(
         }
         if floors.contains(&key) {
             return Err(anyhow!("{label}: inaccessible_floor {:?} overlaps a floor", key));
+        }
+    }
+    Ok(())
+}
+
+// No floor-presence check here: compile silently drops grass on floorless
+// cells (defense-in-depth for hand-edited JSON; the editor is the primary
+// enforcement).
+fn validate_grass(level: &LevelDef, label: &str, grid_cols: i32, grid_rows: i32) -> Result<()> {
+    let mut grass = BTreeSet::new();
+    for (grass_idx, cell) in level.grass.iter().enumerate() {
+        let key = [cell.col, cell.row];
+        validate_floor(key, grid_cols, grid_rows).with_context(|| format!("{label}: grass[{grass_idx}]"))?;
+        if !grass.insert(key) {
+            return Err(anyhow!("{label}: duplicate grass {:?}", key));
         }
     }
     Ok(())
@@ -399,6 +415,8 @@ pub(super) fn canonicalize(map_def: &mut MapDef) {
         level.floors.dedup_by_key(|f| (f.row, f.col));
         level.inaccessible_floors.sort_by_key(|f| (f.row, f.col));
         level.inaccessible_floors.dedup_by_key(|f| (f.row, f.col));
+        level.grass.sort_by_key(|f| (f.row, f.col));
+        level.grass.dedup_by_key(|f| (f.row, f.col));
 
         for wall in &mut level.walls {
             let [c0, r0, c1, r1] = normalized_wall([wall.c0, wall.r0, wall.c1, wall.r1]);

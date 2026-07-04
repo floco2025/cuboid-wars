@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import copy
 
-from .constants import FLOOR_HIT_KINDS, MODE_FLOOR, MODE_INACCESSIBLE_FLOOR, SPAWN_ZONE_LISTS
+from .constants import FLOOR_HIT_KINDS, MODE_FLOOR, MODE_GRASS, MODE_INACCESSIBLE_FLOOR, SPAWN_ZONE_LISTS
 from .geometry import (
     normalized_wall,
     point_near_wall,
@@ -41,6 +41,12 @@ class EraseMixin:
                 for floor in level["inaccessible_floors"]
                 if not (c0 <= floor["col"] < c1 and r0 <= floor["row"] < r1)
             ]
+        # Grass is decoration, not a floor — both erase modes remove it.
+        level["grass"] = [
+            grass
+            for grass in level.get("grass", [])
+            if not (c0 <= grass["col"] < c1 and r0 <= grass["row"] < r1)
+        ]
         level["walls"] = [
             wall
             for wall in level["walls"]
@@ -96,6 +102,10 @@ class EraseMixin:
             c0, r0, c1, r1 = ramp_rect(ramp)
             if c0 <= col < c1 and r0 <= row < r1:
                 return ("Ramp", (lower, tuple(ramp["low"]), tuple(ramp["high"])))
+        # Grass sits on top of a floor, so a click peels the grass first; the
+        # next click then hits the floor underneath.
+        if any(g["col"] == col and g["row"] == row for g in level.get("grass", [])):
+            return (MODE_GRASS, (col, row))
         if any(f["col"] == col and f["row"] == row for f in level["floors"]):
             return (MODE_FLOOR, (col, row))
         if any(f["col"] == col and f["row"] == row for f in level["inaccessible_floors"]):
@@ -108,7 +118,11 @@ class EraseMixin:
             return
         after = copy.deepcopy(self.map_data)
         level = after["levels"][self.current_level]
-        if kind == MODE_FLOOR:
+        if kind == MODE_GRASS:
+            level["grass"] = [
+                grass for grass in level.get("grass", []) if (grass["col"], grass["row"]) != value
+            ]
+        elif kind == MODE_FLOOR:
             level["floors"] = [
                 floor for floor in level["floors"] if (floor["col"], floor["row"]) != value
             ]

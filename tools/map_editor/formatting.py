@@ -136,6 +136,7 @@ def format_map_file(wrapper: dict) -> str:
                 *with_trailing_comma(
                     format_object_array("inaccessible_floors", level["inaccessible_floors"], _floor_body, 8)
                 ),
+                *with_trailing_comma(format_object_array("grass", level.get("grass", []), _grass_body, 8)),
                 *with_trailing_comma(format_object_array("walls", level["walls"], _wall_body, 8)),
                 *with_trailing_comma(format_object_array("barriers", level.get("barriers", []), _barrier_body, 8)),
                 *format_object_array("lights", level.get("lights", []), _light_body, 8),
@@ -172,6 +173,10 @@ def format_object_array(name: str, items: list, render_body, indent: int) -> lis
 def _floor_body(floor: dict) -> str:
     body = {"col": floor["col"], "row": floor["row"], **compact_face_materials(floor)}
     return _inline_object_body(body)
+
+
+def _grass_body(grass: dict) -> str:
+    return _inline_object_body({"col": grass["col"], "row": grass["row"]})
 
 
 def _wall_body(wall: dict) -> str:

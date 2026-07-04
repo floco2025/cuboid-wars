@@ -56,6 +56,8 @@ pub struct ClientSettings {
     pub input: InputConfig,
     pub hud: HudConfig,
     pub barriers: BarriersConfig,
+    #[serde(default)]
+    pub grass: GrassConfig,
     pub debug: DebugConfig,
 }
 
@@ -193,6 +195,32 @@ pub struct BarriersConfig {
     pub pulse_hz: f32,
 }
 
+// Performance/feel knobs for the decorative grass. Pure-appearance numbers
+// (blade shape, colors) are module constants in `map/spawn/grass.rs`.
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(default)]
+pub struct GrassConfig {
+    pub enabled: bool,
+    pub tufts_per_m2: f32,
+    // Horizontal sway amplitude at the blade tip, in meters.
+    pub wind_strength: f32,
+    // Sway oscillation speed, in radians per second.
+    pub wind_speed: f32,
+    pub wind_direction_degrees: f32,
+}
+
+impl Default for GrassConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            tufts_per_m2: 12.0,
+            wind_strength: 0.05,
+            wind_speed: 1.5,
+            wind_direction_degrees: 30.0,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct DebugConfig {
     pub collider_boxes: bool,
@@ -227,6 +255,7 @@ impl ClientSettings {
         self.input.validate()?;
         self.hud.validate()?;
         self.barriers.validate()?;
+        self.grass.validate()?;
         Ok(())
     }
 }
@@ -346,6 +375,18 @@ impl BarriersConfig {
             bail!("barriers.alpha_min must be <= barriers.alpha_max");
         }
         validate_positive_finite(self.pulse_hz, "barriers.pulse_hz")?;
+        Ok(())
+    }
+}
+
+impl GrassConfig {
+    fn validate(&self) -> Result<()> {
+        validate_positive_finite(self.tufts_per_m2, "grass.tufts_per_m2")?;
+        validate_non_negative_finite(self.wind_strength, "grass.wind_strength")?;
+        validate_non_negative_finite(self.wind_speed, "grass.wind_speed")?;
+        if !self.wind_direction_degrees.is_finite() {
+            bail!("grass.wind_direction_degrees must be finite");
+        }
         Ok(())
     }
 }

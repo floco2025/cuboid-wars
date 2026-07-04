@@ -71,6 +71,13 @@
     "alpha_max": 0.35,
     "pulse_hz": 0.5
   },
+  "grass": {
+    "enabled": true,
+    "tufts_per_m2": 16.0,
+    "wind_strength": 0.05,
+    "wind_speed": 2.5,
+    "wind_direction_degrees": 30.0
+  },
   "debug": {
     "collider_boxes": false
   }

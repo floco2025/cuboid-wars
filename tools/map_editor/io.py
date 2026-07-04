@@ -32,6 +32,7 @@ def empty_map(grid_cols: int = DEFAULT_GRID_COLS, grid_rows: int = DEFAULT_GRID_
                 "name": "Level 0",
                 "floors": [],
                 "inaccessible_floors": [],
+                "grass": [],
                 "walls": [],
                 "barriers": [],
                 "lights": [],

@@ -19,7 +19,7 @@ use common::{
     constants::*,
     face_materials::FaceMaterials,
     map_geometry::MapGeometry,
-    protocol::{Barrier, BarrierKindId, BarrierKindTable, Floor, MapLayout, Wall},
+    protocol::{Barrier, BarrierKindId, BarrierKindTable, Floor, GrassCell, MapLayout, Wall},
 };
 
 pub(crate) fn compile_map(
@@ -167,6 +167,26 @@ pub(crate) fn compile_map(
         all_floor_materials.extend(merged_materials);
     }
 
+    // Grass on floorless cells is silently dropped (like out-of-place wall
+    // lights): the editor already enforces floor presence, and a hard error
+    // would brick server startup over a cosmetic feature.
+    let mut grass: Vec<GrassCell> = Vec::new();
+    for (level_idx, level) in map_def.levels.iter().enumerate() {
+        let level_u8 = u8::try_from(level_idx).unwrap_or(u8::MAX);
+        let y = f32::from(level_u8) * LEVEL_HEIGHT;
+        for cell in &level.grass {
+            if !slab_masks[level_idx][cell.row as usize][cell.col as usize] {
+                continue;
+            }
+            grass.push(GrassCell {
+                x: geometry.cell_to_world_x(cell.col) + GRID_CELL_SIZE / 2.0,
+                y,
+                z: geometry.cell_to_world_z(cell.row) + GRID_CELL_SIZE / 2.0,
+                level: level_u8,
+            });
+        }
+    }
+
     let ramps_out = ramps::specs_to_ramps(&geometry, &ramp_specs);
     let ramp_materials: Vec<FaceMaterials> = ramps_out.iter().map(|r| assets.materials_for_ramp_top(r)).collect();
 
@@ -188,6 +208,7 @@ pub(crate) fn compile_map(
                 kind: p.kind,
             })
             .collect(),
+        grass,
     };
     // The renderer indexes the material vectors by segment position, so any
     // length divergence is a bug here, not in the client.

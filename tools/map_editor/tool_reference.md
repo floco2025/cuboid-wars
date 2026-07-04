@@ -5,6 +5,11 @@
 - **Floor** — Drag cells to add floor.
 - **Blocked Floor** — Drag cells to add floor slabs that never spawn items, players, or lights.
 
+## Grass
+
+- **Grass** — Drag cells to paint decorative grass tufts (client visual only, no gameplay); only sticks to cells with a floor (regular or blocked). Erasing a floor removes its grass too.
+- **Erase Grass** — Drag a rectangle to remove every grass tuft inside it on the current level.
+
 ## Spawn Zones
 
 - **Actor Spawn Zone (Paint)** — Drag a rectangle, then enter Kind and Count.

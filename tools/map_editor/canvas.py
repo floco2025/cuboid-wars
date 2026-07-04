@@ -21,10 +21,12 @@ from .constants import (
     MODE_ACTOR_SPAWN_PAINT,
     MODE_BARRIER,
     MODE_COOKIE_SPAWN_PAINT,
+    MODE_ERASE_GRASS,
     MODE_ERASE_KEEP_FLOORS,
     MODE_ERASE_LIGHTS,
     MODE_FLOOR,
     MODE_FLOOR_MATERIAL,
+    MODE_GRASS,
     MODE_INACCESSIBLE_FLOOR,
     MODE_KEY_SPAWN_PAINT,
     MODE_LIGHT,
@@ -151,6 +153,7 @@ class Canvas(QWidget):
         if self.window.show_adjacent_levels:
             self._paint_adjacent_level_ghosts(painter, cell, level_idx)
         self._paint_floors(painter, level, cell)
+        self._paint_grass(painter, level, cell)
         self._paint_pressure_plates(painter, cell, level_idx)
         self._paint_ramps(painter, cell, level_idx)
         self.paint_spawn_zones(painter, cell, level_idx)
@@ -228,6 +231,26 @@ class Canvas(QWidget):
             painter.drawLine(rect.left(), mid_y, mid_x, rect.top())
             painter.drawLine(mid_x, rect.bottom(), rect.right(), mid_y)
             painter.setPen(Qt.PenStyle.NoPen)
+
+    # Sub-cell tuft anchors, in cell units. Fixed so tufts don't jump between
+    # repaints; scattered enough to read as grass without hiding the floor's
+    # material-overlay color underneath.
+    _GRASS_TUFT_ANCHORS = ((0.25, 0.35), (0.65, 0.25), (0.45, 0.6), (0.2, 0.8), (0.75, 0.75))
+
+    def _paint_grass(self, painter: QPainter, level: dict, cell: float) -> None:
+        grass = level.get("grass", [])
+        if not grass:
+            return
+        painter.setPen(QPen(QColor(132, 204, 22, 230), 2))
+        blade = cell * 0.14
+        for tuft in grass:
+            for dx, dy in self._GRASS_TUFT_ANCHORS:
+                base_x = (tuft["col"] + dx) * cell
+                base_y = (tuft["row"] + dy) * cell
+                painter.drawLine(base_x, base_y, base_x - blade * 0.5, base_y - blade)
+                painter.drawLine(base_x, base_y, base_x, base_y - blade * 1.3)
+                painter.drawLine(base_x, base_y, base_x + blade * 0.5, base_y - blade)
+        painter.setPen(Qt.PenStyle.NoPen)
 
     def _paint_pressure_plates(self, painter: QPainter, cell: float, level_idx: int) -> None:
         # Inner 50% of the cell (≈25% by area), colored by the plate's barrier
@@ -718,6 +741,10 @@ class Canvas(QWidget):
             self.window.add_floor_rect(self.drag_start_cell, self.drag_current_cell)
         elif self.window.mode == MODE_INACCESSIBLE_FLOOR and self.drag_start_cell and self.drag_current_cell:
             self.window.add_inaccessible_floor_rect(self.drag_start_cell, self.drag_current_cell)
+        elif self.window.mode == MODE_GRASS and self.drag_start_cell and self.drag_current_cell:
+            self.window.add_grass_rect(self.drag_start_cell, self.drag_current_cell)
+        elif self.window.mode == MODE_ERASE_GRASS and self.drag_start_cell and self.drag_current_cell:
+            self.window.erase_grass_rect(self.drag_start_cell, self.drag_current_cell)
         elif self.window.mode == MODE_ACTOR_SPAWN_PAINT and self.drag_start_cell and self.drag_current_cell:
             self.window.add_actor_spawn_zone_rect(self.drag_start_cell, self.drag_current_cell)
         elif self.window.mode == MODE_PLAYER_SPAWN_PAINT and self.drag_start_cell and self.drag_current_cell:
