@@ -12,8 +12,9 @@ use super::{
 use crate::{
     config::CharacterPhysicsConfig,
     constants::{
-        CHARACTER_GRAVITY, CHARACTER_GROUND_SNAP_DISTANCE, CHARACTER_STEP_HEIGHT, CHARACTER_STEP_MIN_WIDTH,
-        CHARACTER_TERMINAL_VELOCITY, PHYSICS_EPSILON, PLAYER_JUMP_SPEED, POWER_UP_ANTI_GRAVITY_MULTIPLIER,
+        CHARACTER_GRAVITY, CHARACTER_GROUND_SNAP_DISTANCE, CHARACTER_PERCH_SLIDE_SPEED, CHARACTER_STEP_HEIGHT,
+        CHARACTER_STEP_MIN_WIDTH, CHARACTER_TERMINAL_VELOCITY, PHYSICS_EPSILON, PLAYER_JUMP_SPEED,
+        POWER_UP_ANTI_GRAVITY_MULTIPLIER,
     },
     physics::world::{CollisionWorld, ShapeCastHit},
     protocol::Position,
@@ -33,23 +34,7 @@ pub fn try_start_player_jump(
     z: f32,
 ) -> bool {
     let ground_probe_pos = Position { x, y: pos.y, z };
-    if *vertical_velocity > 0.0 {
-        return false;
-    }
-    // The center-line probe misses when the character overhangs an edge the
-    // collider still rests on; fall back to the full footprint so a
-    // physically supported player can always jump.
-    let supported = is_character_grounded(collision_world, &ground_probe_pos, physics)
-        || character_ground_hit(
-            collision_world,
-            &character_shape(physics),
-            &ground_probe_pos,
-            false,
-            &[],
-            physics,
-        )
-        .is_some();
-    if !supported {
+    if *vertical_velocity > 0.0 || !is_character_grounded(collision_world, &ground_probe_pos, physics) {
         return false;
     }
 
@@ -111,6 +96,32 @@ pub fn step_character_movement(
         next_vertical_velocity -= gravity * delta;
         next_vertical_velocity = next_vertical_velocity.max(-CHARACTER_TERMINAL_VELOCITY);
     }
+
+    // "Perched": the center-line probe reads airborne while the collider
+    // still rests on an edge sliver — never a stable state. Slide away from
+    // the support contact so the fall actually happens; input (walk/run
+    // speed) overrides the slide to walk back on. The witness point of a
+    // flat box contact is indeterminate along the non-overhang axis, so the
+    // direction can be diagonal — its outward component still clears the
+    // band within a few ticks. `try_normalize` fails only in geometric
+    // corner cases; skipping the slide that tick is safe (the end-of-tick
+    // vv-zeroing keeps the perch from pumping fall velocity).
+    let perch_slide_move = if can_follow_ground && current_ground.is_none() {
+        character_perch_hit(
+            collision_world,
+            &character_shape,
+            start_pos,
+            has_phasing,
+            passable_kinds,
+            physics,
+        )
+        .and_then(|hit| Vec3::new(start_pos.x - hit.contact.x, 0.0, start_pos.z - hit.contact.z).try_normalize())
+        .map_or(Vector::ZERO, |dir| {
+            Vector::new(dir.x, 0.0, dir.z) * CHARACTER_PERCH_SLIDE_SPEED * delta
+        })
+    } else {
+        Vector::ZERO
+    };
     let controller = character_controller();
 
     let requested_target = Position {
@@ -124,7 +135,11 @@ pub fn step_character_movement(
     let supported_horizontal_move = current_ground.map_or(requested_horizontal_move, |ground| {
         project_input_move_onto_support(requested_horizontal_move, ground.normal)
     });
-    let requested_move = supported_horizontal_move + requested_vertical_move;
+    // The perch slide is a separate term (not folded into
+    // `supported_horizontal_move`) so the blocked/bump check below keeps
+    // comparing input-only intent against actual movement — an idle player
+    // perched against a wall must not hear bump feedback.
+    let requested_move = supported_horizontal_move + perch_slide_move + requested_vertical_move;
     let mut saw_side_contact = false;
     let mut hit_ceiling = false;
     let movement = collision_world.move_character(
@@ -176,10 +191,11 @@ pub fn step_character_movement(
         && movement_progress_was_blocked(supported_horizontal_move, movement.translation);
 
     let grounded = resolved_ground.is_some();
-    // `movement.grounded` covers support the center-line probe can't see:
-    // overhanging an edge, the collider still rests on a sliver the probe
-    // misses. Without it gravity pumps fall velocity for seconds while the
-    // body never moves — a phantom fall that "lands" on the next probe hit.
+    // `movement.grounded` covers support the center-line probe can't see
+    // (resting on an edge sliver). The perch slide makes that state
+    // transient, but a blocked slide (doorway lip, inside corner) can
+    // persist — without this, gravity would pump fall velocity for seconds
+    // while the body never moves.
     if (grounded || movement.grounded) && vertical_velocity < 0.0
         || hit_ceiling && vertical_velocity > 0.0
         || requested_vertical_move.y > 0.0 && movement.translation.y < requested_move.y - PHYSICS_EPSILON
@@ -238,6 +254,29 @@ fn character_ground_hit(
         shape,
         &pose,
         CHARACTER_GROUND_SNAP_DISTANCE + physics.collider.bottom_y_offset(),
+        0.0,
+        has_phasing,
+        passable_kinds,
+    )
+}
+
+// Full-footprint ground contact within a step's height of rest — the support
+// the KCC can stand on even when the center-line probe misses. Deliberately
+// shorter reach than the probe: the slide must only engage once the collider
+// is (about to be) resting, not nudge a descending jump mid-air.
+fn character_perch_hit(
+    collision_world: &CollisionWorld,
+    shape: &Cuboid,
+    pos: &Position,
+    has_phasing: bool,
+    passable_kinds: &[crate::protocol::BarrierKindId],
+    physics: CharacterPhysicsConfig,
+) -> Option<ShapeCastHit> {
+    let pose = character_pose(pos, physics);
+    collision_world.ground_hit(
+        shape,
+        &pose,
+        physics.collider.bottom_y_offset() + CHARACTER_STEP_HEIGHT,
         0.0,
         has_phasing,
         passable_kinds,

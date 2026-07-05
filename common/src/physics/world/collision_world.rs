@@ -195,6 +195,7 @@ impl CollisionWorld {
             .cast_shape(&pose, velocity, &shape, options)
             .map(|(_, hit)| ShapeCastHit {
                 normal: Vec3::new(hit.normal2.x, hit.normal2.y, hit.normal2.z),
+                contact: Vec3::new(hit.witness1.x, hit.witness1.y, hit.witness1.z),
                 t: hit.time_of_impact,
             })
     }

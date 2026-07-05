@@ -4,6 +4,10 @@ use rapier3d::parry::query::ShapeCastHit as RapierShapeCastHit;
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ShapeCastHit {
     pub normal: Vec3,
+    // World-space contact point on the world collider. Rapier's composite
+    // cast returns `witness1` already transformed by the collider's world
+    // pose (`witness2` stays in the cast shape's local frame).
+    pub contact: Vec3,
     pub t: f32,
 }
 
@@ -16,6 +20,7 @@ pub(super) fn upward_surface_hit(hit: RapierShapeCastHit) -> Option<ShapeCastHit
         .and_then(Vec3::try_normalize)
         .map(|normal| ShapeCastHit {
             normal,
+            contact: Vec3::new(hit.witness1.x, hit.witness1.y, hit.witness1.z),
             t: hit.time_of_impact,
         })
 }

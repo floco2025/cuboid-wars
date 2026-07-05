@@ -87,6 +87,11 @@ pub const CHARACTER_STEP_HEIGHT: f32 = 0.2;
 // the edge contact itself.
 pub const CHARACTER_STEP_MIN_WIDTH: f32 = 0.2;
 
+// Horizontal speed a perched character (support probe airborne, collider
+// still resting on an edge sliver) is pushed off its support. Below walk
+// speed so player input can always override it and walk back on.
+pub const CHARACTER_PERCH_SLIDE_SPEED: f32 = 3.0; // m/s
+
 // ============================================================================
 // Player
 // ============================================================================
