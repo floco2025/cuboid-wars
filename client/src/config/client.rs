@@ -58,7 +58,27 @@ pub struct ClientSettings {
     pub barriers: BarriersConfig,
     #[serde(default)]
     pub grass: GrassConfig,
+    #[serde(default)]
+    pub projectiles: ProjectilesConfig,
     pub debug: DebugConfig,
+}
+
+// Emissive luminance of projectile visuals. With bloom enabled these are
+// what push the sphere/sparks past the bloom threshold into a glow.
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(default)]
+pub struct ProjectilesConfig {
+    pub brightness: f32,
+    pub spark_brightness: f32,
+}
+
+impl Default for ProjectilesConfig {
+    fn default() -> Self {
+        Self {
+            brightness: 10.0,
+            spark_brightness: 10.0,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -72,10 +92,38 @@ pub struct RenderingConfig {
     pub texture_mipmaps_enabled: bool,
     pub texture_anisotropy: u16,
     pub msaa_samples: u32,
+    #[serde(default)]
+    pub bloom: BloomConfig,
 }
 
 const fn default_shadow_map_size() -> u32 {
     2048
+}
+
+// Thresholded additive bloom on the main camera (enabling it switches the
+// camera to HDR rendering). Pixels below `threshold` are untouched — only
+// true HDR emitters (sun disc, projectiles, sparks) overglow.
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(default)]
+pub struct BloomConfig {
+    pub enabled: bool,
+    pub intensity: f32,
+    // In post-exposure scene units where ~1.0 is white.
+    pub threshold: f32,
+    // How gradually near-threshold pixels start glowing; raise if glow
+    // pops on/off on objects hovering around the threshold.
+    pub threshold_softness: f32,
+}
+
+impl Default for BloomConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            intensity: 0.15,
+            threshold: 1.5,
+            threshold_softness: 0.4,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]

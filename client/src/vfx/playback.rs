@@ -36,7 +36,7 @@ pub fn explosion_effects_system(
 
         if let Some(mut light) = maybe_light {
             let fade = (1.0 - progress).powi(2);
-            light.intensity = 500_000.0 * fade;
+            light.intensity = effect.light_intensity * fade;
             light.range = 7.0 * fade.max(0.25);
         }
 

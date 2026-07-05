@@ -19,19 +19,20 @@ pub struct ProjectileAssets {
 
 impl FromWorld for ProjectileAssets {
     fn from_world(world: &mut World) -> Self {
+        let brightness = world.resource::<crate::config::ClientSettings>().projectiles.brightness;
         let mesh = world.resource_mut::<Assets<Mesh>>().add(Sphere::new(PROJECTILE_RADIUS));
         let material = world
             .resource_mut::<Assets<StandardMaterial>>()
-            .add(projectile_material());
+            .add(projectile_material(brightness));
 
         Self { mesh, material }
     }
 }
 
-fn projectile_material() -> StandardMaterial {
+fn projectile_material(brightness: f32) -> StandardMaterial {
     StandardMaterial {
-        base_color: Color::srgb(10.0, 10.0, 0.0),
-        emissive: LinearRgba::rgb(10.0, 10.0, 0.0),
+        base_color: Color::srgb(brightness, brightness, 0.0),
+        emissive: LinearRgba::rgb(brightness, brightness, 0.0),
         ..default()
     }
 }

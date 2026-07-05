@@ -42,8 +42,8 @@ use client::{
         LastBounceSoundTime, ProjectileAssets, projectiles_movement_system, projectiles_transform_sync_system,
     },
     skybox::{
-        setup_skybox_from_cross_system, skybox_convert_cross_to_cubemap_system, skybox_rotate_system,
-        skybox_update_camera_system,
+        setup_skybox_from_cross_system, setup_sun_disc_system, skybox_convert_cross_to_cubemap_system,
+        skybox_rotate_system, skybox_update_camera_system, sun_disc_system,
     },
     ui::{
         FpsMeasurement, GameMessageFeed, QuestLog, SeenPlayerIds,
@@ -199,6 +199,7 @@ fn main() -> Result<()> {
                 setup_cameras_system,
                 setup_ui_system,
                 setup_skybox_from_cross_system.after(setup_scene_lighting_system),
+                setup_sun_disc_system,
                 setup_item_assets,
                 setup_barrier_assets,
             ),
@@ -322,6 +323,10 @@ fn main() -> Result<()> {
                 skybox_convert_cross_to_cubemap_system.run_if(resource_exists::<client::skybox::SkyboxCrossImage>),
                 skybox_update_camera_system.run_if(resource_exists::<client::skybox::SkyboxCubemap>),
                 skybox_rotate_system.run_if(resource_exists::<client::skybox::SkyboxCubemap>),
+                // After the rotate step so the disc lands on the same frame's
+                // sun direction; after camera sync would be ideal too, but a
+                // one-frame positional lag at 400 m is invisible.
+                sun_disc_system.after(skybox_rotate_system),
             ),
         );
 

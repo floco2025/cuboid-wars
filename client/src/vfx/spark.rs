@@ -14,6 +14,10 @@ pub struct SparkAssets {
 
 impl FromWorld for SparkAssets {
     fn from_world(world: &mut World) -> Self {
+        let brightness = world
+            .resource::<crate::config::ClientSettings>()
+            .projectiles
+            .spark_brightness;
         let mesh = world.resource_mut::<Assets<Mesh>>().add(Cuboid::new(
             PROJECTILE_SPARK_SIZE,
             PROJECTILE_SPARK_SIZE,
@@ -21,7 +25,7 @@ impl FromWorld for SparkAssets {
         ));
         let material = world.resource_mut::<Assets<StandardMaterial>>().add(StandardMaterial {
             base_color: Color::srgb(1.0, 0.85, 0.3),
-            emissive: LinearRgba::rgb(10.0, 8.0, 1.0),
+            emissive: LinearRgba::rgb(brightness, brightness * 0.8, brightness * 0.1),
             ..default()
         });
         Self { mesh, material }

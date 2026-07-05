@@ -13,6 +13,7 @@ pub struct ExplosionEffect {
     pub first_frame: SpriteSheetFirstFrame,
     pub current_frame: usize,
     pub mesh: Handle<Mesh>,
+    pub light_intensity: f32,
 }
 
 pub fn spawn_actor_explosion(
@@ -49,7 +50,7 @@ pub fn spawn_actor_explosion(
             Transform::from_translation(Vec3::new(pos.x, actor_physics.collider_center_y(pos.y), pos.z)),
             PointLight {
                 color: Color::srgb(1.0, 0.55, 0.2),
-                intensity: 500_000.0,
+                intensity: effect.light_intensity,
                 range: 7.0,
                 radius: 1.0,
                 shadow_maps_enabled: false,
@@ -64,6 +65,7 @@ pub fn spawn_actor_explosion(
                 first_frame: effect.first_frame,
                 current_frame,
                 mesh,
+                light_intensity: effect.light_intensity,
             },
         ))
         .id()

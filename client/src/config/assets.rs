@@ -270,6 +270,14 @@ pub struct EffectDef {
     pub first_frame: SpriteSheetFirstFrame,
     pub scale: f32,
     pub lifetime: f32,
+    // Peak intensity of the effect's point light (lumens), faded out over
+    // the lifetime.
+    #[serde(default = "default_effect_light_intensity")]
+    pub light_intensity: f32,
+}
+
+const fn default_effect_light_intensity() -> f32 {
+    500_000.0
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
@@ -292,6 +300,32 @@ pub struct SkyboxDef {
     // edges shimmer while the sun creeps).
     #[serde(default)]
     pub sun_step_degrees: f32,
+    #[serde(default)]
+    pub sun_disc: SunDiscDef,
+}
+
+// The visible sun: a camera-following emissive sphere along the directional
+// light's incoming direction, so it always sits where the shadows say.
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(default)]
+pub struct SunDiscDef {
+    // Far enough that map geometry reads in front of it, inside the 1000 m
+    // far plane. `radius: 0` disables the disc.
+    pub distance: f32,
+    pub radius: f32,
+    // Emissive luminance (cd/m²) — must dwarf the skybox `brightness` so the
+    // disc tonemaps to clipped white, and drives the bloom glare halo.
+    pub luminance: f32,
+}
+
+impl Default for SunDiscDef {
+    fn default() -> Self {
+        Self {
+            distance: 400.0,
+            radius: 12.0,
+            luminance: 5_000_000.0,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]

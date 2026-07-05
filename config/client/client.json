@@ -6,7 +6,17 @@
     "shadow_map_size": 4096,
     "texture_mipmaps_enabled": true,
     "texture_anisotropy": 8,
-    "msaa_samples": 4
+    "msaa_samples": 4,
+    "bloom": {
+      "enabled": true,
+      "intensity": 0.15,
+      "threshold": 2.5,
+      "threshold_softness": 0.4
+    }
+  },
+  "projectiles": {
+    "brightness": 5.0,
+    "spark_brightness": 25.0
   },
   "lighting": {
     "ambient_brightness": 70.0,

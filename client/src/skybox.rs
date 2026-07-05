@@ -1,11 +1,12 @@
 use bevy::{
     asset::RenderAssetUsages,
     core_pipeline::Skybox,
+    light::NotShadowCaster,
     prelude::*,
     render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureViewDescriptor, TextureViewDimension},
 };
 
-use crate::config::AssetSet;
+use crate::{cameras::MainCameraMarker, config::AssetSet};
 
 pub fn setup_skybox_from_cross_system(
     mut commands: Commands,
@@ -43,6 +44,57 @@ pub struct SkyboxSettings {
 // tracking the sky's light direction.
 #[derive(Component)]
 pub struct SunLightMarker;
+
+// The visible sun disc, kept opposite the directional light's forward so it
+// always sits where the shadows say it should.
+#[derive(Component)]
+pub struct SunDisc {
+    distance: f32,
+}
+
+pub fn setup_sun_disc_system(
+    mut commands: Commands,
+    asset_set: Res<AssetSet>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    let sun_disc = asset_set.skybox().sun_disc;
+    if sun_disc.radius <= 0.0 {
+        return;
+    }
+    commands.spawn((
+        SunDisc {
+            distance: sun_disc.distance,
+        },
+        Mesh3d(meshes.add(Sphere::new(sun_disc.radius))),
+        // NOT unlit: `StandardMaterial` ignores emissive when unlit (see
+        // barriers/pulsate.rs), which renders a ~1-nit gray ball against a
+        // 1000-nit sky. Black base + huge emissive = pure self-luminance.
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::BLACK,
+            emissive: LinearRgba::rgb(sun_disc.luminance, sun_disc.luminance * 0.94, sun_disc.luminance * 0.78),
+            ..default()
+        })),
+        NotShadowCaster,
+        Transform::from_translation(Vec3::Y * sun_disc.distance),
+    ));
+}
+
+// Park the disc a fixed distance from the camera along the direction the
+// directional light comes FROM (`back()`), so it tracks the stepped sun
+// rotation and geometry occludes it near the horizon like a real sun.
+pub fn sun_disc_system(
+    camera: Query<&Transform, (With<Camera3d>, With<MainCameraMarker>, Without<SunDisc>)>,
+    sun_light: Query<&Transform, (With<SunLightMarker>, Without<SunDisc>, Without<MainCameraMarker>)>,
+    mut disc: Query<(&mut Transform, &SunDisc)>,
+) {
+    let (Ok(camera), Ok(light), Ok((mut disc_transform, disc))) =
+        (camera.single(), sun_light.single(), disc.single_mut())
+    else {
+        return;
+    };
+    disc_transform.translation = camera.translation + Vec3::from(light.back()) * disc.distance;
+}
 
 pub fn skybox_convert_cross_to_cubemap_system(
     mut commands: Commands,

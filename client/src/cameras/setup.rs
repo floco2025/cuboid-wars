@@ -1,6 +1,7 @@
 use bevy::{
     camera::Viewport,
     core_pipeline::prepass::{DeferredPrepass, DepthPrepass},
+    post_process::bloom::{Bloom, BloomCompositeMode, BloomPrefilter},
     prelude::*,
 };
 use common::config::GameplayConfig;
@@ -44,6 +45,22 @@ pub fn setup_cameras_system(
     ));
     if deferred_rendering_enabled {
         main_camera.insert((DepthPrepass, DeferredPrepass));
+    }
+    let bloom = client_settings.rendering.bloom;
+    if bloom.enabled {
+        // Thresholded additive bloom (switches the camera to HDR): pixels
+        // below the threshold are untouched — the energy-conserving mode
+        // mixes the blur into the WHOLE image and desaturates the scene.
+        // Only true HDR emitters (sun disc, projectiles, sparks) overglow.
+        main_camera.insert(Bloom {
+            intensity: bloom.intensity,
+            prefilter: BloomPrefilter {
+                threshold: bloom.threshold,
+                threshold_softness: bloom.threshold_softness,
+            },
+            composite_mode: BloomCompositeMode::Additive,
+            ..Bloom::NATURAL
+        });
     }
 
     // Add rearview mirror camera (renders to lower-right viewport)
