@@ -26,6 +26,7 @@ use client::{
     map::{
         DebugColors, LevelFocusEnabled, grass_spawn_system, map_level_focus_visibility_system,
         map_spawn_geometry_system, map_wall_light_emissive_system, setup_scene_lighting_system,
+        wall_light_flicker_system,
     },
     materials::{GrassMaterialPlugin, generate_material_mipmaps_system},
     network::{
@@ -288,6 +289,7 @@ fn main() -> Result<()> {
                 grass_spawn_system,
                 map_level_focus_visibility_system,
                 map_wall_light_emissive_system,
+                wall_light_flicker_system,
                 barriers_spawn_system,
                 barriers_pulsate_system,
                 // After `map_level_focus_visibility_system` so the open-kind

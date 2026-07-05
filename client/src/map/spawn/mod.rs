@@ -12,6 +12,6 @@ pub use components::{GroundMarker, MapLevel, RampMarker, RoofMarker, WallMarker}
 pub use floors::batch_floor;
 pub use geometry_batch::MapGeometryBatch;
 pub use grass::{GrassMarker, grass_spawn_system};
-pub use light::{WallLightMarker, spawn_wall_light_from_layout};
+pub use light::{WallLightMarker, spawn_wall_light_from_layout, wall_light_flicker_system};
 pub use ramps::batch_ramp;
 pub use walls::batch_wall;

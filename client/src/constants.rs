@@ -177,3 +177,14 @@ pub const PROJECTILE_SPARK_SPEED: f32 = 8.0; // m/s
 pub const PROJECTILE_SPARK_GRAVITY: f32 = 20.0; // m/s²
 pub const PROJECTILE_SPARK_LIFETIME_SECS: f32 = 0.25;
 pub const PROJECTILE_SPARK_SIZE: f32 = 0.05;
+
+// ============================================================================
+// Wall Light Flicker
+// ============================================================================
+
+// Two incommensurate sines; their product exceeds the threshold only in
+// short, irregular windows — mostly-steady lights with occasional dips.
+pub const WALL_LIGHT_FLICKER_HZ_A: f32 = 5.0;
+pub const WALL_LIGHT_FLICKER_HZ_B: f32 = 1.3;
+pub const WALL_LIGHT_FLICKER_THRESHOLD: f32 = 0.9;
+pub const WALL_LIGHT_FLICKER_DEPTH: f32 = 0.65; // max fraction of brightness lost in a dip

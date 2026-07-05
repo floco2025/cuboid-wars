@@ -17,6 +17,7 @@ pub(super) fn handle_character_collisions(
     commands: &mut Commands,
     asset_server: &AssetServer,
     asset_set: &AssetSet,
+    spark_assets: &SparkAssets,
     proj_entity: Entity,
     proj_motion: &ProjectileMotion,
     proj_pos: &Position,
@@ -66,27 +67,34 @@ pub(super) fn handle_character_collisions(
     }
 
     match closest_hit {
-        Some(ProjectileTargetHit::Player { is_local_player, .. }) => {
-            play_sound(
-                commands,
-                asset_server,
-                asset_set.player_sound("hit_player"),
-                PlaybackSettings::DESPAWN,
-            );
-
-            if is_local_player {
+        Some(target_hit) => {
+            if let ProjectileTargetHit::Player { is_local_player, .. } = target_hit {
                 play_sound(
                     commands,
                     asset_server,
-                    asset_set.player_sound("take_hit"),
+                    asset_set.player_sound("hit_player"),
                     PlaybackSettings::DESPAWN,
                 );
+
+                if is_local_player {
+                    play_sound(
+                        commands,
+                        asset_server,
+                        asset_set.player_sound("take_hit"),
+                        PlaybackSettings::DESPAWN,
+                    );
+                }
             }
 
-            commands.entity(proj_entity).despawn();
-            true
-        }
-        Some(ProjectileTargetHit::Actor { .. }) => {
+            // Impact debris sprays back along the projectile's travel.
+            let hit = target_hit.hit();
+            let impact = Vec3::from(*proj_pos) + proj_motion.velocity * delta * hit.time_of_impact;
+            spawn_bounce_sparks(
+                commands,
+                spark_assets,
+                impact,
+                -proj_motion.velocity.normalize_or_zero(),
+            );
             commands.entity(proj_entity).despawn();
             true
         }

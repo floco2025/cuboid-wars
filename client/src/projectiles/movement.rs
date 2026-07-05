@@ -111,6 +111,7 @@ pub fn projectiles_movement_system(
                 &mut commands,
                 asset_server.as_ref(),
                 &asset_set,
+                &spark_assets,
                 projectile_entity,
                 &projectile,
                 &projectile_pos,
