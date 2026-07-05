@@ -168,12 +168,20 @@ pub fn players_respawn_system(
 // step off a curb.
 const FALL_DAMAGE_EMIT_THRESHOLD: f32 = 1.0;
 
-// Apply impact damage on landing from a fall. The peak |vy| during the
-// uninterrupted fall is tracked on `PlayerInfo.peak_fall_speed`; when the
-// player transitions to grounded (current vy clears the small negative
-// threshold), the equivalent fall distance is `peak² / (2·gravity)` and
-// damage lerps from 0 at `safe_fall_distance` to `max_health` at
-// `lethal_fall_distance`, clamped past lethal.
+// Velocity-implied distance may exceed the actual drop beyond this before
+// the landing is logged as a phantom fall.
+const PHANTOM_FALL_TRIPWIRE_SLACK: f32 = 5.0;
+
+// Apply impact damage on landing from a fall. The highest Y of the current
+// airborne window is tracked on `PlayerInfo.fall_peak_y`; when the player
+// transitions to grounded (current vy clears the small negative threshold),
+// the fall distance is the actual drop `fall_peak_y - landing_y` and damage
+// lerps from 0 at `safe_fall_distance` to `max_health` at
+// `lethal_fall_distance`, clamped past lethal. Damage is deliberately NOT
+// derived from velocity: the support probe can miss at a ledge lip while
+// the collider still holds the body, so vy accumulates to terminal with no
+// displacement — a velocity-derived distance one-shots a player who never
+// moved ("phantom fall").
 //
 // Runs after `characters_movement_system` so it observes the *post-step*
 // `CharacterVerticalVelocity` (i.e. 0 on the impact tick because the floor
@@ -205,21 +213,20 @@ pub fn players_fall_damage_system(
         let is_grounded = current_vy > -PHYSICS_EPSILON;
 
         if is_grounded && info.peak_fall_speed > 0.0 {
-            // Reconstruct effective fall distance from the captured peak
-            // speed, with two corrections so JSON values can stay semantic
-            // ("level heights"):
-            //   1. `+CHARACTER_GRAVITY * TICK_PERIOD_SECS` to the impact
-            //      speed — `peak_fall_speed` is captured at end-of-tick
-            //      *before* the impact tick, so it misses one gravity
-            //      application that the physics applies in the impact tick
-            //      itself before the floor zeroes vy.
-            //   2. `+CHARACTER_GROUND_SNAP_DISTANCE` to the distance — the
-            //      last ~0.5 m of every fall is "snapped" by the character
-            //      controller (vy → 0, no further gravity), so naive
-            //      `v²/2g` undercounts by exactly that snap distance.
+            let fall_distance = (info.fall_peak_y - pos.y).max(0.0);
+            // Tripwire for the phantom-fall physics hang: on a genuine fall
+            // the velocity-implied distance matches the displacement.
             let impact_speed = info.peak_fall_speed + CHARACTER_GRAVITY * TICK_SECS;
-            let fall_distance = impact_speed.powi(2) / (2.0 * CHARACTER_GRAVITY) + CHARACTER_GROUND_SNAP_DISTANCE;
+            let velocity_implied_distance =
+                impact_speed.powi(2) / (2.0 * CHARACTER_GRAVITY) + CHARACTER_GROUND_SNAP_DISTANCE;
+            if velocity_implied_distance > fall_distance + PHANTOM_FALL_TRIPWIRE_SLACK {
+                warn!(
+                    "{:?} phantom fall: velocity implies {:.1}m, actual drop {:.1}m",
+                    id, velocity_implied_distance, fall_distance
+                );
+            }
             info.peak_fall_speed = 0.0;
+            info.fall_peak_y = f32::NEG_INFINITY;
 
             if fall_distance > fall.safe_fall_distance {
                 let damage = fall_damage_for_distance(
@@ -261,6 +268,7 @@ pub fn players_fall_damage_system(
             if downward_speed > info.peak_fall_speed {
                 info.peak_fall_speed = downward_speed;
             }
+            info.fall_peak_y = info.fall_peak_y.max(pos.y);
         }
     }
 }

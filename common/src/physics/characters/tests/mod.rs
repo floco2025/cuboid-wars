@@ -9,6 +9,7 @@ use crate::{
 use bevy_ecs::prelude::Entity;
 use bevy_math::Vec3;
 
+mod edges;
 mod jumping;
 mod overlaps;
 mod ramps;

@@ -49,8 +49,14 @@ pub struct PlayerInfo {
     pub quest_states: HashMap<QuestId, QuestState>,
     // Peak |downward velocity| observed during the current uninterrupted
     // fall, in m/s. Reset to 0 on landing (after the impact damage check)
-    // and on respawn.
+    // and on respawn. Not used for damage (see `fall_peak_y`) — kept as the
+    // phantom-fall tripwire: velocity can accumulate without displacement
+    // when the support probe misses at an edge while the collider holds.
     pub peak_fall_speed: f32,
+    // Highest Y reached during the current airborne window (jump apex counts
+    // as the fall start). `NEG_INFINITY` = not airborne. Fall damage is the
+    // actual drop `fall_peak_y - landing_y`, immune to fabricated velocity.
+    pub fall_peak_y: f32,
 }
 
 impl PlayerInfo {
@@ -69,6 +75,7 @@ impl PlayerInfo {
             death_timer: None,
             quest_states: HashMap::new(),
             peak_fall_speed: 0.0,
+            fall_peak_y: f32::NEG_INFINITY,
         }
     }
 
@@ -95,6 +102,7 @@ impl PlayerInfo {
         // A respawning player shouldn't inherit the dying player's fall
         // momentum — they'd take damage on their first landing.
         self.peak_fall_speed = 0.0;
+        self.fall_peak_y = f32::NEG_INFINITY;
     }
 
     #[must_use]

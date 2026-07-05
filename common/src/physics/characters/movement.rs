@@ -33,7 +33,23 @@ pub fn try_start_player_jump(
     z: f32,
 ) -> bool {
     let ground_probe_pos = Position { x, y: pos.y, z };
-    if *vertical_velocity > 0.0 || !is_character_grounded(collision_world, &ground_probe_pos, physics) {
+    if *vertical_velocity > 0.0 {
+        return false;
+    }
+    // The center-line probe misses when the character overhangs an edge the
+    // collider still rests on; fall back to the full footprint so a
+    // physically supported player can always jump.
+    let supported = is_character_grounded(collision_world, &ground_probe_pos, physics)
+        || character_ground_hit(
+            collision_world,
+            &character_shape(physics),
+            &ground_probe_pos,
+            false,
+            &[],
+            physics,
+        )
+        .is_some();
+    if !supported {
         return false;
     }
 
@@ -160,7 +176,11 @@ pub fn step_character_movement(
         && movement_progress_was_blocked(supported_horizontal_move, movement.translation);
 
     let grounded = resolved_ground.is_some();
-    if grounded && vertical_velocity < 0.0
+    // `movement.grounded` covers support the center-line probe can't see:
+    // overhanging an edge, the collider still rests on a sliver the probe
+    // misses. Without it gravity pumps fall velocity for seconds while the
+    // body never moves — a phantom fall that "lands" on the next probe hit.
+    if (grounded || movement.grounded) && vertical_velocity < 0.0
         || hit_ceiling && vertical_velocity > 0.0
         || requested_vertical_move.y > 0.0 && movement.translation.y < requested_move.y - PHYSICS_EPSILON
     {
