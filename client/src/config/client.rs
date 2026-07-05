@@ -92,12 +92,21 @@ pub struct RenderingConfig {
     pub texture_mipmaps_enabled: bool,
     pub texture_anisotropy: u16,
     pub msaa_samples: u32,
+    // Off = present frames immediately (`AutoNoVsync`): a frame that misses
+    // the vblank budget shows at e.g. ~58 FPS instead of snapping to 30
+    // (Fifo quantization), at the cost of possible tearing.
+    #[serde(default = "default_vsync")]
+    pub vsync: bool,
     #[serde(default)]
     pub bloom: BloomConfig,
 }
 
 const fn default_shadow_map_size() -> u32 {
     2048
+}
+
+const fn default_vsync() -> bool {
+    true
 }
 
 // Thresholded additive bloom on the main camera (enabling it switches the

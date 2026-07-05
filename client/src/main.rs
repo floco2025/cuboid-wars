@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use bevy::{
     pbr::DefaultOpaqueRendererMethod,
     prelude::*,
-    window::{CursorGrabMode, CursorOptions, WindowPlugin, WindowPosition},
+    window::{CursorGrabMode, CursorOptions, PresentMode, WindowPlugin, WindowPosition},
 };
 use clap::Parser;
 use quinn::Endpoint;
@@ -149,11 +149,11 @@ fn main() -> Result<()> {
 
     // Start Bevy app
     let mut app = App::new();
-    app.add_plugins(
-        DefaultPlugins
-            .set(asset_plugin())
-            .set(window_plugin(&args, window_position)),
-    );
+    app.add_plugins(DefaultPlugins.set(asset_plugin()).set(window_plugin(
+        &args,
+        window_position,
+        client_settings.rendering.vsync,
+    )));
     app.add_plugins(GrassMaterialPlugin);
     app.insert_resource(match client_settings.rendering.opaque_renderer {
         OpaqueRenderer::Auto => DefaultOpaqueRendererMethod::default(),
@@ -382,12 +382,17 @@ fn asset_plugin() -> AssetPlugin {
     }
 }
 
-fn window_plugin(args: &Args, position: WindowPosition) -> WindowPlugin {
+fn window_plugin(args: &Args, position: WindowPosition, vsync: bool) -> WindowPlugin {
     WindowPlugin {
         primary_window: Some(Window {
             title: "Cuboid Wars".to_string(),
             resolution: (args.window_width, args.window_height).into(),
             position,
+            present_mode: if vsync {
+                PresentMode::Fifo
+            } else {
+                PresentMode::AutoNoVsync
+            },
             ..default()
         }),
         primary_cursor_options: Some(CursorOptions {
