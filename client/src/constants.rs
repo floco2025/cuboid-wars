@@ -167,5 +167,13 @@ pub const KEY_HUD_GAP_PX: f32 = 8.0;
 // Projectiles
 // ============================================================================
 
-pub const PROJECTILE_MIN_BOUNCE_SOUND_SPEED: f32 = 10.0; // minimum speed to play bounce sound
+pub const PROJECTILE_MIN_BOUNCE_SOUND_SPEED: f32 = 10.0; // minimum speed for bounce sound + sparks
 pub const PROJECTILE_MAX_BOUNCE_SOUNDS_PER_SECOND: f32 = 30.0; // rate limit for bounce sounds
+
+// Bounce sparks: tiny emissive cubes thrown from the impact point, paired
+// 1:1 with the bounce sound's rate limit.
+pub const PROJECTILE_SPARK_COUNT: usize = 6;
+pub const PROJECTILE_SPARK_SPEED: f32 = 8.0; // m/s
+pub const PROJECTILE_SPARK_GRAVITY: f32 = 20.0; // m/s²
+pub const PROJECTILE_SPARK_LIFETIME_SECS: f32 = 0.25;
+pub const PROJECTILE_SPARK_SIZE: f32 = 0.05;

@@ -40,7 +40,10 @@ use client::{
     projectiles::{
         LastBounceSoundTime, ProjectileAssets, projectiles_movement_system, projectiles_transform_sync_system,
     },
-    skybox::{setup_skybox_from_cross_system, skybox_convert_cross_to_cubemap_system, skybox_update_camera_system},
+    skybox::{
+        setup_skybox_from_cross_system, skybox_convert_cross_to_cubemap_system, skybox_rotate_system,
+        skybox_update_camera_system,
+    },
     ui::{
         FpsMeasurement, GameMessageFeed, QuestLog, SeenPlayerIds,
         floating_labels::{
@@ -50,7 +53,7 @@ use client::{
         ui_fps_system, ui_health_bar_fill_system, ui_player_list_rebuild_system, ui_quest_panel_rebuild_system,
         ui_rtt_system, ui_stunned_blink_system, update_message_feed_system,
     },
-    vfx::explosion_effects_system,
+    vfx::{SparkAssets, explosion_effects_system, spark_particles_system},
 };
 use common::{config::GameplayConfig, constants::TICK_HZ, net::MessageStream, protocol::*};
 
@@ -185,6 +188,7 @@ fn main() -> Result<()> {
         .insert_resource(SeenPlayerIds::default())
         .insert_resource(QuestLog::default())
         .init_resource::<ProjectileAssets>()
+        .init_resource::<SparkAssets>()
         // Startup creates persistent scene infrastructure before any server
         // map data arrives.
         .add_systems(
@@ -270,6 +274,7 @@ fn main() -> Result<()> {
             (
                 projectiles_transform_sync_system,
                 explosion_effects_system,
+                spark_particles_system,
                 items_animation_system,
                 y_spin_system,
             ),
@@ -308,12 +313,13 @@ fn main() -> Result<()> {
                 tick_hud_banner_system,
             ),
         )
-        // Skybox asset conversion and camera following.
+        // Skybox asset conversion, camera following, and ambient drift.
         .add_systems(
             Update,
             (
                 skybox_convert_cross_to_cubemap_system.run_if(resource_exists::<client::skybox::SkyboxCrossImage>),
                 skybox_update_camera_system.run_if(resource_exists::<client::skybox::SkyboxCubemap>),
+                skybox_rotate_system.run_if(resource_exists::<client::skybox::SkyboxCubemap>),
             ),
         );
 

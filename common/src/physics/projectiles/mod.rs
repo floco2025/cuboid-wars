@@ -8,7 +8,7 @@ pub use hits::{
     projectile_overlaps_character,
 };
 pub use marker::ProjectileMarker;
-pub use motion::ProjectileMotion;
+pub use motion::{ProjectileMotion, WorldBounces};
 pub use spawning::{ProjectileSpawnInfo, calculate_projectile_spawns};
 
 #[cfg(test)]

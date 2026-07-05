@@ -6,7 +6,12 @@ use common::{
 };
 
 use super::audio::{LastBounceSoundTime, play_barrier_impact_sound, play_sound, play_wall_bounce_sound};
-use crate::{actors::ActorMap, config::AssetSet, players::LocalPlayerMarker};
+use crate::{
+    actors::ActorMap,
+    config::AssetSet,
+    players::LocalPlayerMarker,
+    vfx::{SparkAssets, spawn_bounce_sparks},
+};
 
 pub(super) fn handle_character_collisions(
     commands: &mut Commands,
@@ -121,6 +126,7 @@ pub(super) fn handle_wall_collisions(
     commands: &mut Commands,
     asset_server: &AssetServer,
     asset_set: &AssetSet,
+    spark_assets: &SparkAssets,
     proj_motion: &mut ProjectileMotion,
     proj_pos: &Position,
     delta: f32,
@@ -131,7 +137,7 @@ pub(super) fn handle_wall_collisions(
     let collision_world = collision_world?;
 
     let speed_before = proj_motion.velocity.length();
-    let new_pos = proj_motion.resolve_world_bounces(proj_pos, delta, collision_world)?;
+    let bounces = proj_motion.resolve_world_bounces(proj_pos, delta, collision_world)?;
     play_wall_bounce_sound(
         commands,
         asset_server,
@@ -140,8 +146,20 @@ pub(super) fn handle_wall_collisions(
         current_time,
         last_bounce_sound,
     );
+    // Sparks share the sound's speed threshold but not its global rate
+    // limit — same-tick bounces (multi-shot volleys) each spark at their
+    // own impact point while only one plays audio. Velocity is already
+    // reflected, so the fan follows the ricochet direction.
+    if speed_before >= crate::constants::PROJECTILE_MIN_BOUNCE_SOUND_SPEED {
+        spawn_bounce_sparks(
+            commands,
+            spark_assets,
+            Vec3::from(bounces.first_impact),
+            proj_motion.velocity.normalize_or_zero(),
+        );
+    }
 
-    Some(new_pos)
+    Some(bounces.position)
 }
 
 #[derive(Clone, Copy)]

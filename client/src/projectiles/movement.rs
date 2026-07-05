@@ -39,6 +39,7 @@ pub fn projectiles_movement_system(
     gameplay_config: Res<GameplayConfig>,
     open_barrier_kinds: Res<OpenBarrierKinds>,
     mut last_bounce_sound: ResMut<LastBounceSoundTime>,
+    spark_assets: Res<crate::vfx::SparkAssets>,
 ) {
     let delta = time.delta_secs();
     let current_time = time.elapsed_secs();
@@ -96,6 +97,7 @@ pub fn projectiles_movement_system(
             &mut commands,
             asset_server.as_ref(),
             &asset_set,
+            &spark_assets,
             &mut projectile,
             &projectile_pos,
             delta,

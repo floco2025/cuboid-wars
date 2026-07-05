@@ -318,7 +318,9 @@
   },
   "skybox": {
     "image": "Skybox_CoudySky_Day_3.png",
-    "brightness": 1000.0
+    "brightness": 1000.0,
+    "rotation_period_secs": 200.0,
+    "sun_step_degrees": 0.05
   },
   "barrier_kind_colors": {
     "treasure": "#ff3333",

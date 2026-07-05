@@ -208,8 +208,8 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                 continue;
             }
             ProjectileEvent::Bounce => {
-                if let Some(new_pos) = projectile.resolve_world_bounces(&proj_pos, delta, &params.collision_world) {
-                    *proj_pos = new_pos;
+                if let Some(bounces) = projectile.resolve_world_bounces(&proj_pos, delta, &params.collision_world) {
+                    *proj_pos = bounces.position;
                 }
                 continue;
             }

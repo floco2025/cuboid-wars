@@ -146,10 +146,10 @@ impl ProjectileMotion {
         projectile_pos: &Position,
         delta: f32,
         collision_world: &CollisionWorld,
-    ) -> Option<Position> {
+    ) -> Option<WorldBounces> {
         let mut current_pos = *projectile_pos;
         let mut remaining_delta = delta;
-        let mut collided = false;
+        let mut first_impact = None;
         let mut budget_exhausted = false;
 
         for bounce in 0..MAX_SURFACE_BOUNCES {
@@ -164,7 +164,9 @@ impl ProjectileMotion {
                 self.step_after_collision(&current_pos, remaining_delta, collision.normal, collision.t);
             current_pos = next_pos;
             remaining_delta = next_delta;
-            collided = true;
+            if first_impact.is_none() {
+                first_impact = Some(current_pos);
+            }
 
             if remaining_delta <= PHYSICS_EPSILON {
                 break;
@@ -179,9 +181,7 @@ impl ProjectileMotion {
             }
         }
 
-        if !collided {
-            return None;
-        }
+        let first_impact = first_impact?;
 
         let translation = self.velocity * remaining_delta;
         let mut final_pos = Vec3::from(current_pos) + translation;
@@ -193,6 +193,18 @@ impl ProjectileMotion {
             // next frame resolves the bounce from this valid just-outside pose.
             final_pos = Vec3::from(current_pos) + translation * collision.t;
         }
-        Some(final_pos.into())
+        Some(WorldBounces {
+            position: final_pos.into(),
+            first_impact,
+        })
     }
+}
+
+// Outcome of a tick's surface-bounce resolution.
+pub struct WorldBounces {
+    // Where the projectile ends the tick, post-bounce travel included.
+    pub position: Position,
+    // Ball center at the first surface contact — where impact effects
+    // belong; `position` can be meters past the surface by tick end.
+    pub first_impact: Position,
 }

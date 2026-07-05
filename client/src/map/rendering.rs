@@ -1,4 +1,4 @@
-use bevy::light::cluster::GlobalClusterSettings;
+use bevy::light::{DirectionalLightShadowMap, cluster::GlobalClusterSettings};
 use bevy::prelude::*;
 
 use crate::{
@@ -35,12 +35,16 @@ pub fn setup_scene_lighting_system(
             ..default()
         },
         Transform::from_xyz(5.0, 15.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
+        crate::skybox::SunLightMarker,
     ));
 
     commands.insert_resource(GlobalAmbientLight {
         color: Color::WHITE,
         brightness: client_settings.lighting.ambient_brightness,
         affects_lightmapped_meshes: false,
+    });
+    commands.insert_resource(DirectionalLightShadowMap {
+        size: client_settings.rendering.shadow_map_size as usize,
     });
 
     if let Some(gpu) = cluster_settings.gpu_clustering.as_mut() {

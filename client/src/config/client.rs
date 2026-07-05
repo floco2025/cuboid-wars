@@ -65,9 +65,17 @@ pub struct ClientSettings {
 pub struct RenderingConfig {
     pub opaque_renderer: OpaqueRenderer,
     pub shadows_directional_enabled: bool,
+    // Directional shadow map resolution per cascade (Bevy default 2048).
+    // Higher halves shadow-edge texel size — matters once the sun moves.
+    #[serde(default = "default_shadow_map_size")]
+    pub shadow_map_size: u32,
     pub texture_mipmaps_enabled: bool,
     pub texture_anisotropy: u16,
     pub msaa_samples: u32,
+}
+
+const fn default_shadow_map_size() -> u32 {
+    2048
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]

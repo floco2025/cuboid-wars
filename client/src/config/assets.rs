@@ -284,6 +284,14 @@ pub struct SkyboxDef {
     // Path to a cube-cross layout image used to derive the cubemap faces.
     pub image: String,
     pub brightness: f32,
+    // Seconds per full ambient sky turn; 0 (or absent) = static sky.
+    #[serde(default)]
+    pub rotation_period_secs: f32,
+    // Sun rotation advances in discrete steps of this size so shadow maps
+    // stay pixel-stable between steps; 0 (or absent) = continuous (shadow
+    // edges shimmer while the sun creeps).
+    #[serde(default)]
+    pub sun_step_degrees: f32,
 }
 
 #[derive(Debug, Clone, Deserialize)]

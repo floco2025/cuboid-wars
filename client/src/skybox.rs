@@ -21,6 +21,8 @@ pub fn setup_skybox_from_cross_system(
     commands.insert_resource(SkyboxCrossImage(cross_image_handle));
     commands.insert_resource(SkyboxSettings {
         brightness: skybox.brightness,
+        rotation_period_secs: skybox.rotation_period_secs,
+        sun_step_radians: skybox.sun_step_degrees.to_radians(),
     });
 }
 
@@ -33,7 +35,14 @@ pub struct SkyboxCubemap(pub Handle<Image>);
 #[derive(Resource)]
 pub struct SkyboxSettings {
     brightness: f32,
+    rotation_period_secs: f32,
+    sun_step_radians: f32,
 }
+
+// The scene's sun — rotated in lockstep with the skybox so shadows keep
+// tracking the sky's light direction.
+#[derive(Component)]
+pub struct SunLightMarker;
 
 pub fn skybox_convert_cross_to_cubemap_system(
     mut commands: Commands,
@@ -155,4 +164,51 @@ pub fn skybox_update_camera_system(
             rotation: Quat::IDENTITY,
         });
     }
+}
+
+// Barely-perceptible ambient sky drift. The angle accumulates from frame
+// deltas (not elapsed time) so it can't snap when `Time` wraps.
+pub fn skybox_rotate_system(
+    time: Res<Time>,
+    settings: Res<SkyboxSettings>,
+    mut angle: Local<f32>,
+    mut sun_angle: Local<f32>,
+    mut skyboxes: Query<&mut Skybox>,
+    mut sun: Query<&mut Transform, With<SunLightMarker>>,
+) {
+    use std::f32::consts::TAU;
+
+    if settings.rotation_period_secs <= 0.0 {
+        return;
+    }
+    let delta_angle = time.delta_secs() * TAU / settings.rotation_period_secs;
+    *angle = (*angle + delta_angle) % TAU;
+    let rotation = Quat::from_rotation_y(*angle);
+    for mut skybox in &mut skyboxes {
+        skybox.rotation = rotation;
+    }
+
+    // The skybox shader samples the cubemap with the inverse rotation, so
+    // the sky visibly rotates by `rotation` — sweep the sun the same way.
+    // But where the sky can drift continuously (cubemap sampling has no
+    // aliasing), a continuously rotating light re-rasterizes the shadow map
+    // every frame and edge texels shimmer. Advance the sun in discrete
+    // steps instead: shadows are pixel-stable between steps and the sky
+    // never leads by more than one step.
+    let mut pending = *angle - *sun_angle;
+    if pending < 0.0 {
+        pending += TAU;
+    }
+    let applied = if settings.sun_step_radians > 0.0 {
+        if pending < settings.sun_step_radians {
+            return;
+        }
+        (pending / settings.sun_step_radians).floor() * settings.sun_step_radians
+    } else {
+        pending
+    };
+    for mut transform in &mut sun {
+        transform.rotate_y(applied);
+    }
+    *sun_angle = (*sun_angle + applied) % TAU;
 }
