@@ -56,12 +56,70 @@ fn chasing_within_reach_holds_even_when_target_is_above() {
 }
 
 #[test]
+fn chasing_within_reach_holds_when_target_is_below() {
+    let mut info = actor_info();
+    info.go_to_position_is_chase = true;
+    // Player tucked below an overhang: without the abs() the actor would
+    // orbit-jitter around their overhead point.
+    info.go_to_position = Some(Position {
+        x: 0.3,
+        y: -5.0,
+        z: 0.0,
+    });
+
+    assert!(chase_target_within_reach(&info, &Position::default(), 0.5));
+}
+
+#[test]
+fn chasing_same_height_target_does_not_hold() {
+    let mut info = actor_info();
+    info.go_to_position_is_chase = true;
+    // Within reach horizontally but at the same height (e.g. through a thin
+    // wall): the chase must keep pressing so the stall watchdog can end it.
+    info.go_to_position = Some(Position { x: 0.3, y: 0.0, z: 0.0 });
+
+    assert!(!chase_target_within_reach(&info, &Position::default(), 0.5));
+}
+
+#[test]
+fn chasing_sub_jump_height_target_does_not_hold() {
+    let mut info = actor_info();
+    info.go_to_position_is_chase = true;
+    // A hopping same-height player must not flicker the hold on and off.
+    info.go_to_position = Some(Position { x: 0.3, y: 0.5, z: 0.0 });
+
+    assert!(!chase_target_within_reach(&info, &Position::default(), 0.5));
+}
+
+#[test]
 fn chasing_far_target_does_not_hold() {
     let mut info = actor_info();
     info.go_to_position_is_chase = true;
     info.go_to_position = Some(Position { x: 3.0, y: 0.0, z: 0.0 });
 
     assert!(!chase_target_within_reach(&info, &Position::default(), 0.5));
+}
+
+#[test]
+fn active_chase_presses_within_reach_without_arriving() {
+    let mut info = actor_info();
+    info.go_to_position_is_chase = true;
+    info.go_to_position = Some(Position { x: 0.3, y: 0.0, z: 0.0 });
+
+    let intent = active_chase_intent(&info, &Position::default(), 4.0);
+
+    assert!(matches!(intent, Some(ActorMoveIntent::Moving { speed, .. }) if speed == 4.0));
+    // Pressing never clears the target — only detonation, demotion, the
+    // leash, or the stall watchdog end an active chase.
+    assert!(info.go_to_position.is_some());
+}
+
+#[test]
+fn active_chase_intent_is_none_for_non_chase_goals() {
+    let mut info = actor_info();
+    info.go_to_position = Some(Position { x: 3.0, y: 0.0, z: 0.0 });
+
+    assert!(active_chase_intent(&info, &Position::default(), 4.0).is_none());
 }
 
 #[test]

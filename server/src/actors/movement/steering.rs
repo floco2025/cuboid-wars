@@ -21,7 +21,7 @@ pub fn actor_desired_intent(
     })
 }
 
-fn direction_toward(pos: &Position, target: &Position) -> f32 {
+pub(super) fn direction_toward(pos: &Position, target: &Position) -> f32 {
     let dx = target.x - pos.x;
     let dz = target.z - pos.z;
     dx.atan2(dz)

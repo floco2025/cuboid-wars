@@ -12,8 +12,8 @@ use super::{
     context::{ActorMoveContext, MoveCandidateResult},
     ordering::{ActorPlanOrder, actor_target_distance_sq, sort_actor_plan_order},
     planning::{
-        blocked_step_made_useful_progress, chase_target_within_reach, select_actor_move, select_committed_move,
-        should_reuse_commit, update_reached_go_to_state,
+        active_chase_intent, blocked_step_made_useful_progress, chase_target_within_reach, select_actor_move,
+        select_committed_move, should_reuse_commit, update_reached_go_to_state,
     },
 };
 
@@ -44,8 +44,10 @@ fn actor_info() -> ActorInfo {
         is_returning_to_spawn: false,
         return_path: Default::default(),
         chase_reacquire_timer: 0.0,
-        pursuit_stall_anchor: None,
-        pursuit_stall_timer: 0.0,
+        stall_anchor: None,
+        stall_timer: 0.0,
+        return_retry_timer: 0.0,
+        patrol_ledge_escape_timer: 0.0,
         committed_direction: None,
         commit_secs_left: 0.0,
         last_damager: None,

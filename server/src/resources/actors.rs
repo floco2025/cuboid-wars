@@ -15,13 +15,23 @@ pub struct ActorInfo {
     pub is_returning_to_spawn: bool,
     pub return_path: VecDeque<Position>,
     pub chase_reacquire_timer: f32,
-    // No-progress give-up for a *demoted* (lost-sight) pursuit toward a player's
-    // last-known spot. The actor re-anchors here whenever it displaces past
-    // `CHASE_GIVEUP_PROGRESS_DISTANCE`; if it fails to for
-    // `CHASE_GIVEUP_NO_PROGRESS_SECS` it's wedged against an obstacle toward an
-    // unreachable spot and abandons the pursuit. `None` when not in that state.
-    pub pursuit_stall_anchor: Option<Position>,
-    pub pursuit_stall_timer: f32,
+    // Net-displacement stall watchdog for any goal-directed or moving-patrol
+    // state. The actor re-anchors here whenever it displaces past
+    // `STALL_PROGRESS_DISTANCE`; failing to for the state's window means it's
+    // wedged against geometry and the state's escape fires. Self-arming;
+    // `None` while the current state is exempt (vertical hold, intentional
+    // patrol idle).
+    pub stall_anchor: Option<Position>,
+    pub stall_timer: f32,
+    // After a stalled return-to-spawn, suppresses the leash re-trigger so the
+    // actor patrols in place first — otherwise the identical (possibly
+    // straight-line-fallback) return re-arms next tick and livelocks.
+    pub return_retry_timer: f32,
+    // After a patrol stall (e.g. perched at a wall-base floor edge where every
+    // ledge-aware candidate is rejected), patrol candidates are evaluated
+    // ledge-unaware for this long. A genuine fall is recycled by the silent
+    // fall-removal + respawn machinery.
+    pub patrol_ledge_escape_timer: f32,
     // The heading (yaw) the actor committed to and the time left on that
     // commitment. Movement re-decides only when the timer lapses or the
     // committed heading becomes blocked, so the actor doesn't re-pick (and

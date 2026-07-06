@@ -16,7 +16,7 @@ use super::{
     context::{ActorMoveContext, MoveCandidateResult, SelectedActorMove},
     ordering::sorted_actor_plan_order,
     query::ActorMovementQuery,
-    steering::{actor_desired_intent, angular_distance},
+    steering::{actor_desired_intent, angular_distance, direction_toward},
 };
 
 // Full-circle candidate resolution for movement selection. 12 → 30° steps:
@@ -84,6 +84,8 @@ pub(crate) fn plan_actor_moves(
 
         let go_to_intent = if holding_on_target {
             None
+        } else if let Some(intent) = active_chase_intent(info, &current_pos, actor_config.chase_speed) {
+            Some(intent)
         } else {
             let intent = actor_desired_intent(
                 &mut info.go_to_position,
@@ -117,8 +119,18 @@ pub(crate) fn plan_actor_moves(
             // Chase / return-to-spawn: pursue the target, allowed off ledges.
             select_committed_move(info, &move_context, go_to_intent, last_direction, false, delta)
         } else if matches!(info.patrol_intent, ActorMoveIntent::Moving { .. }) {
-            // Patrol: wander the heading, but never off an edge.
-            select_committed_move(info, &move_context, info.patrol_intent, last_direction, true, delta)
+            // Patrol: wander the heading — never off an edge, except during
+            // the post-stall escape window (perched at a wall-base edge where
+            // every ledge-aware candidate is rejected).
+            let ledge_aware = info.patrol_ledge_escape_timer <= 0.0;
+            select_committed_move(
+                info,
+                &move_context,
+                info.patrol_intent,
+                last_direction,
+                ledge_aware,
+                delta,
+            )
         } else {
             // Patrol chose to idle (per-kind `idle_probability`).
             clear_commit(info);
@@ -293,16 +305,40 @@ fn broadcast_actor_move_intent(
     );
 }
 
+// The hold is for a chase target that's genuinely unreachable vertically (a
+// player on a ledge above, or tucked below an overhang) — below the player
+// jump apex so a hopping same-height player doesn't flicker the hold. A
+// same-height target within reach (e.g. through a thin wall) must keep the
+// chase pressing so the behavior stall watchdog can end it; without a wall,
+// contact detonation fires well before this distance anyway.
+const CHASE_HOLD_MIN_VERTICAL_GAP: f32 = 1.0;
+
 // A chasing actor counts as "on target" once it's within the go-to reach
-// distance horizontally — even when the target (a player on a ledge) is out of
-// reach vertically. It then holds instead of arriving and reverting to patrol,
-// which would flip-flop its heading every tick. Returning actors are excluded:
-// they must arrive and advance/end their return path normally.
-pub(super) fn chase_target_within_reach(info: &ActorInfo, pos: &Position, reached_distance: f32) -> bool {
+// distance horizontally while the target is vertically out of reach. It then
+// holds instead of arriving and reverting to patrol, which would flip-flop
+// its heading every tick. Returning actors are excluded: they must arrive
+// and advance/end their return path normally.
+pub(crate) fn chase_target_within_reach(info: &ActorInfo, pos: &Position, reached_distance: f32) -> bool {
     info.go_to_position_is_chase
-        && info
-            .go_to_position
-            .is_some_and(|target| pos.horizontal_distance_sq(&target) <= reached_distance * reached_distance)
+        && info.go_to_position.is_some_and(|target| {
+            pos.horizontal_distance_sq(&target) <= reached_distance * reached_distance
+                && (target.y - pos.y).abs() >= CHASE_HOLD_MIN_VERTICAL_GAP
+        })
+}
+
+// An active chase presses toward the live target and never "arrives" — it
+// ends via contact detonation, the vertical hold, demotion, the leash, or
+// the stall watchdog. (Arrival was dead code for chases: the hold predicate
+// matched the arrival predicate exactly.) Demoted pursuits and returns keep
+// arrival semantics so they advance/end their paths.
+pub(super) fn active_chase_intent(info: &ActorInfo, pos: &Position, chase_speed: f32) -> Option<ActorMoveIntent> {
+    if !info.go_to_position_is_chase {
+        return None;
+    }
+    info.go_to_position.map(|target| ActorMoveIntent::Moving {
+        direction: direction_toward(pos, &target),
+        speed: chase_speed,
+    })
 }
 
 pub(super) fn update_reached_go_to_state(info: &mut ActorInfo) {
