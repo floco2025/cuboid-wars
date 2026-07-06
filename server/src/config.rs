@@ -339,15 +339,25 @@ pub struct ActorRespawnConfig {
     // applies when `enabled` is true. 0.0 means immediate respawn.
     #[serde(default)]
     pub delay_secs: f32,
+    // Beam-in warning window: how long the reserved spawn is announced to
+    // clients (as a ghost) before the actor materializes. Applies to initial
+    // spawns too. 0.0 means actors appear instantly, without a warning.
+    #[serde(default = "default_spawn_warning_secs")]
+    pub warning_secs: f32,
 }
 
 const fn default_respawn_enabled() -> bool {
     true
 }
 
+const fn default_spawn_warning_secs() -> f32 {
+    2.0
+}
+
 impl ActorRespawnConfig {
     fn validate(&self, path: &str) -> Result<()> {
-        validate_non_negative_finite(self.delay_secs, &format!("{path}.delay_secs"))
+        validate_non_negative_finite(self.delay_secs, &format!("{path}.delay_secs"))?;
+        validate_non_negative_finite(self.warning_secs, &format!("{path}.warning_secs"))
     }
 }
 

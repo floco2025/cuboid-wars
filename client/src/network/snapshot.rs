@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use common::protocol::*;
 
 use super::{
-    actors::sync_actors,
+    actors::{sync_actors, sync_spawning_actors},
     components::{AssetManagers, ClientAssets},
     items::sync_items,
     players::sync_players,
@@ -79,6 +79,14 @@ pub(super) fn handle_snapshot_message(
         &client_assets.client_settings,
         &client_assets.gameplay_config,
         &msg.actors,
+    );
+    sync_spawning_actors(
+        commands,
+        &mut client_assets.actor_ghosts,
+        &client_assets.asset_server,
+        &client_assets.asset_set,
+        &client_assets.gameplay_config,
+        &msg.spawning_actors,
     );
     sync_items(
         commands,

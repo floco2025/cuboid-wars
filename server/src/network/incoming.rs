@@ -4,7 +4,7 @@ use crate::{
     config::ServerGameplayConfig,
     map::OpenBarrierKinds,
     net::ClientToServer,
-    resources::{ActorMap, FromClientsChannel, ItemMap, MapConfig, PlayerInfo, PlayerMap},
+    resources::{ActorMap, FromClientsChannel, ItemMap, MapConfig, PendingActorSpawns, PlayerInfo, PlayerMap},
 };
 use common::{
     config::GameplayConfig,
@@ -39,6 +39,7 @@ pub fn network_process_client_messages_system(
     world: LoginWorld,
     items: Res<ItemMap>,
     actors: Res<ActorMap>,
+    pending_spawns: Res<PendingActorSpawns>,
     player_data: Query<(&Position, &PlayerMoveIntent, &FaceDirection, &Health), With<PlayerMarker>>,
     player_motions: Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
     actor_data: Query<(&Position, &ActorMoveIntent, &FaceDirection, &Health), With<ActorMarker>>,
@@ -102,6 +103,7 @@ pub fn network_process_client_messages_system(
                         &world,
                         &items,
                         &actors,
+                        &pending_spawns,
                         &player_data,
                         &player_motions,
                         &actor_data,

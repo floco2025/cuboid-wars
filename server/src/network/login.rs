@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use crate::{
     characters::{generate_player_spawn_position, spawn_face_direction},
     net::ServerToClient,
-    resources::{ActorMap, ItemMap, PlayerMap, assign_quests},
+    resources::{ActorMap, ItemMap, PendingActorSpawns, PlayerMap, assign_quests},
 };
 use common::{
     physics::CharacterVerticalVelocity,
@@ -11,7 +11,7 @@ use common::{
 };
 
 use super::{
-    broadcast::{collect_items, snapshot_actors, snapshot_logged_in_players},
+    broadcast::{collect_items, snapshot_actors, snapshot_logged_in_players, snapshot_spawning_actors},
     incoming::LoginWorld,
 };
 
@@ -44,6 +44,7 @@ pub fn handle_login_message(
     world: &LoginWorld,
     items: &Res<ItemMap>,
     actors: &Res<ActorMap>,
+    pending_spawns: &Res<PendingActorSpawns>,
     player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection, &Health), With<PlayerMarker>>,
     motions: &Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
     actor_data: &Query<(&Position, &ActorMoveIntent, &FaceDirection, &Health), With<ActorMarker>>,
@@ -143,6 +144,8 @@ pub fn handle_login_message(
                 seq: 0,
                 players: all_players,
                 actors: all_actors,
+                // Late joiners see beam-in ghosts already in progress.
+                spawning_actors: snapshot_spawning_actors(pending_spawns),
                 items: all_items,
                 // Plate state is per-tick; this login-time snapshot defaults
                 // to "everything closed". The next broadcast tick will

@@ -179,6 +179,34 @@ pub const PROJECTILE_SPARK_LIFETIME_SECS: f32 = 0.25;
 pub const PROJECTILE_SPARK_SIZE: f32 = 0.05;
 
 // ============================================================================
+// Actor Beam-In
+// ============================================================================
+
+// The ghost's fade-in is driven by the warning window shipped in the
+// snapshot (`SpawningActor.remaining_secs` / `warning_secs`) — no local
+// pacing constant.
+
+// Transporter sparkles: golden motes rising through the ghost's volume.
+pub const BEAM_IN_SPARKLE_INTERVAL_SECS: f32 = 0.05;
+// Per-emit count scales with the ghost's collider volume so every kind gets
+// the same visual density (mine_1 ≈ 0.03 m³, sentry ≈ 2.5 m³ — a flat count
+// can't fit both). At least one sparkle per emit regardless of size.
+pub const BEAM_IN_SPARKLES_PER_M3: f32 = 10.0;
+pub const BEAM_IN_SPARKLE_SIZE: f32 = 0.05;
+pub const BEAM_IN_SPARKLE_LIFETIME_SECS: f32 = 1.5;
+pub const BEAM_IN_SPARKLE_RISE_SPEED: f32 = 1.0; // m/s
+pub const BEAM_IN_SPARKLE_BRIGHTNESS: f32 = 25.0;
+
+// Glow strength scales with the ghost's collider volume, like the sparkles.
+// Explosion-flash territory (500k/m³), not wall-lamp territory (20k): the
+// glow competes with direct sunlight on open ground, and it only reaches
+// full strength at the end of the fade ramp. The floor keeps the smallest
+// kinds (mine_1 ≈ 0.03 m³) from scaling into invisibility.
+pub const BEAM_IN_LIGHT_INTENSITY_PER_M3: f32 = 500_000.0; // lumens
+pub const BEAM_IN_LIGHT_MIN_INTENSITY: f32 = 5_000.0; // lumens
+pub const BEAM_IN_LIGHT_RANGE: f32 = 8.0;
+
+// ============================================================================
 // Wall Light Flicker
 // ============================================================================
 

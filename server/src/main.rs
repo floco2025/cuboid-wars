@@ -11,8 +11,8 @@ use tokio::{
 use common::{config::GameplayConfig, constants::TICK_HZ, physics::CollisionWorld};
 use server::{
     actors::{
-        actor_behavior_system, actor_initial_spawn_system, actor_removal_system, actor_respawn_system,
-        navigation::NavGraph,
+        actor_behavior_system, actor_initial_spawn_system, actor_pending_spawn_system, actor_removal_system,
+        actor_respawn_system, navigation::NavGraph,
     },
     characters::{characters_health_regeneration_system, characters_movement_system},
     config::{ServerGameplayConfig, configure_server},
@@ -101,6 +101,7 @@ async fn main() -> Result<()> {
         .insert_resource(ItemSpawner::default())
         .insert_resource(ActorSpawner::default())
         .insert_resource(ActorSpawnThrottles::default())
+        .insert_resource(PendingActorSpawns::default())
         .insert_resource(FromClientsChannel::new(from_clients))
         .insert_resource(OpenBarrierKinds::default())
         .add_systems(Startup, actor_initial_spawn_system)
@@ -108,16 +109,22 @@ async fn main() -> Result<()> {
             Update,
             (
                 // Network systems must run in order:
-                // 1. ApplyDeferred (flushes pending spawns from other systems
-                //    on this tick — e.g. `item_spawn_system` queues a
-                //    `commands.spawn` + inserts into `ItemMap` in one shot,
-                //    so the entity is reserved but not yet queryable. Without
-                //    this barrier, a login-tick `collect_items` panics on the
-                //    fresh, unmaterialized item entity).
-                // 2. Process client events (registrations + messages, in arrival order)
-                // 3. ApplyDeferred (makes login-side spawns queryable)
-                // 4. Broadcast state to all clients
+                // 1. Materialize due actor spawns, so a pending entry's
+                //    removal and its actor's appearance land in the same
+                //    snapshot — snapshots go out at 4 Hz, so a split handoff
+                //    would leave a ~250 ms neither-ghost-nor-actor gap.
+                // 2. ApplyDeferred (flushes pending spawns from step 1 and
+                //    from other systems on this tick — e.g.
+                //    `item_spawn_system` queues a `commands.spawn` + inserts
+                //    into `ItemMap` in one shot, so the entity is reserved
+                //    but not yet queryable. Without this barrier, a
+                //    login-tick `collect_items` panics on the fresh,
+                //    unmaterialized item entity).
+                // 3. Process client events (registrations + messages, in arrival order)
+                // 4. ApplyDeferred (makes login-side spawns queryable)
+                // 5. Broadcast state to all clients
                 (
+                    actor_pending_spawn_system,
                     ApplyDeferred,
                     network_process_client_messages_system,
                     ApplyDeferred,

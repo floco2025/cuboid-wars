@@ -38,3 +38,24 @@ impl ActorMap {
         self.0.retain(f);
     }
 }
+
+// Beam-in ghosts, keyed by the reserved id from the snapshot's
+// `spawning_actors`. Purely visual — the real actor arrives under the same
+// id via the `ActorMap` diff when the warning window ends.
+#[derive(Resource, Default)]
+pub struct ActorGhostMap(HashMap<ActorId, Entity>);
+
+impl ActorGhostMap {
+    pub fn insert(&mut self, id: ActorId, entity: Entity) -> Option<Entity> {
+        self.0.insert(id, entity)
+    }
+
+    #[must_use]
+    pub fn get(&self, id: &ActorId) -> Option<Entity> {
+        self.0.get(id).copied()
+    }
+
+    pub fn retain(&mut self, f: impl FnMut(&ActorId, &mut Entity) -> bool) {
+        self.0.retain(f);
+    }
+}

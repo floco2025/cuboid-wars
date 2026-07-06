@@ -10,7 +10,7 @@ mod power_up;
 mod quest;
 
 pub use barrier_kind::{BarrierKindId, BarrierKindTable};
-pub use entities::{Actor, Item, Player};
+pub use entities::{Actor, Item, Player, SpawningActor};
 pub use health::Health;
 pub use ids::{ActorId, ItemId, PlayerId};
 pub use map::{Barrier, Floor, GrassCell, ItemType, MapLayout, PressurePlate, Ramp, Wall, WallLight};

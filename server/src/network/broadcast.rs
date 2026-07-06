@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::{
     net::ServerToClient,
-    resources::{ActorMap, ItemMap, PlayerMap},
+    resources::{ActorMap, ItemMap, PendingActorSpawns, PlayerMap},
 };
 use common::{physics::CharacterVerticalVelocity, protocol::*};
 
@@ -80,6 +80,28 @@ pub fn snapshot_actors(
                     health: *health,
                 },
             ))
+        })
+        .collect()
+}
+
+// Collect reserved spawns still in their beam-in warning window. No entity
+// query — pending spawns have no entity yet; everything lives in the resource.
+#[must_use]
+pub fn snapshot_spawning_actors(pending: &PendingActorSpawns) -> Vec<(ActorId, SpawningActor)> {
+    pending
+        .0
+        .iter()
+        .map(|spawn| {
+            (
+                spawn.actor_id,
+                SpawningActor {
+                    kind: spawn.kind.clone(),
+                    pos: spawn.pos,
+                    face_dir: spawn.face_dir,
+                    remaining_secs: spawn.remaining_secs,
+                    warning_secs: spawn.warning_secs,
+                },
+            )
         })
         .collect()
 }

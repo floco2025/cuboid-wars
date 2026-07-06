@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::{
     map::OpenBarrierKinds,
-    resources::{ActorMap, ItemMap, PlayerMap},
+    resources::{ActorMap, ItemMap, PendingActorSpawns, PlayerMap},
 };
 use common::{
     constants::SNAPSHOT_SECS,
@@ -10,7 +10,9 @@ use common::{
     protocol::{ActorMarker, ItemMarker, PlayerMarker, *},
 };
 
-use super::broadcast::{broadcast_to_all, collect_items, snapshot_actors, snapshot_logged_in_players};
+use super::broadcast::{
+    broadcast_to_all, collect_items, snapshot_actors, snapshot_logged_in_players, snapshot_spawning_actors,
+};
 
 pub fn network_broadcast_snapshot_system(
     time: Res<Time>,
@@ -18,6 +20,7 @@ pub fn network_broadcast_snapshot_system(
     mut seq: Local<u32>,
     players: Res<PlayerMap>,
     actors: Res<ActorMap>,
+    pending_spawns: Res<PendingActorSpawns>,
     items: Res<ItemMap>,
     open_barrier_kinds: Res<OpenBarrierKinds>,
     player_data: Query<(&Position, &PlayerMoveIntent, &FaceDirection, &Health), With<PlayerMarker>>,
@@ -48,6 +51,7 @@ pub fn network_broadcast_snapshot_system(
         seq: *seq,
         players: all_players,
         actors: all_actors,
+        spawning_actors: snapshot_spawning_actors(&pending_spawns),
         items: all_items,
         open_barrier_kinds: open_barrier_kinds.0.clone(),
     });

@@ -4,7 +4,9 @@ mod map;
 mod network;
 mod players;
 
-pub use actors::{ActorGoal, ActorInfo, ActorMap, ActorSpawnThrottles, ActorSpawner};
+pub use actors::{
+    ActorGoal, ActorInfo, ActorMap, ActorSpawnThrottles, ActorSpawner, PendingActorSpawn, PendingActorSpawns,
+};
 pub use items::{ItemInfo, ItemMap, ItemSpawner};
 pub use map::{
     ActorSpawnZone, Cell, CellGrid, CookieSpawnZone, EdgeGrid, KeySpawnZone, LevelGrid, MapConfig, PlayerSpawnZone,

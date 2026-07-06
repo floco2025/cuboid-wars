@@ -163,6 +163,26 @@ pub struct ActorSpawner {
 #[derive(Resource, Default)]
 pub struct ActorSpawnThrottles(pub HashMap<usize, f32>);
 
+// A spawn that has been decided (id, spot, and heading reserved) but whose
+// beam-in warning window hasn't elapsed. The actor entity doesn't exist yet —
+// clients render a ghost from the snapshot's `spawning_actors` list. Counts
+// toward the zone quota and occupies its spot, since materialization is
+// unconditional.
+pub struct PendingActorSpawn {
+    pub actor_id: ActorId,
+    pub zone_idx: usize,
+    pub kind: String,
+    pub pos: Position,
+    pub face_dir: f32,
+    pub remaining_secs: f32,
+    // The full window length, shipped alongside `remaining_secs` so clients
+    // can compute and animate the fade fraction.
+    pub warning_secs: f32,
+}
+
+#[derive(Resource, Default)]
+pub struct PendingActorSpawns(pub Vec<PendingActorSpawn>);
+
 impl ActorSpawner {
     pub fn allocate(&mut self) -> ActorId {
         let id = ActorId(self.next_id);

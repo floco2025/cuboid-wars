@@ -9,7 +9,7 @@ use quinn::Endpoint;
 use tokio::{runtime::Runtime, time::Duration};
 
 use client::{
-    actors::{ActorMap, actors_transform_sync_system},
+    actors::{ActorGhostMap, ActorMap, actors_transform_sync_system},
     barriers::{
         OpenBarrierKinds, barriers_pulsate_system, barriers_spawn_system, barriers_visibility_system,
         pressure_plates_spawn_system, setup_barrier_assets,
@@ -54,7 +54,10 @@ use client::{
         ui_fps_system, ui_health_bar_fill_system, ui_player_list_rebuild_system, ui_quest_panel_rebuild_system,
         ui_rtt_system, ui_stunned_blink_system, update_message_feed_system,
     },
-    vfx::{SparkAssets, explosion_effects_system, spark_particles_system},
+    vfx::{
+        BeamAssets, SparkAssets, beam_ghost_fade_system, beam_ghost_sparkle_system, beam_sparkles_system,
+        explosion_effects_system, spark_particles_system,
+    },
 };
 use common::{config::GameplayConfig, constants::TICK_HZ, net::MessageStream, protocol::*};
 
@@ -170,6 +173,7 @@ fn main() -> Result<()> {
         .insert_resource(ServerToClientChannel::new(from_server))
         .insert_resource(PlayerMap::default())
         .insert_resource(ActorMap::default())
+        .insert_resource(ActorGhostMap::default())
         .insert_resource(ItemMap::default())
         .insert_resource(LocalPlayerInfo::default())
         .insert_resource(RoundTripTime::default())
@@ -190,6 +194,7 @@ fn main() -> Result<()> {
         .insert_resource(QuestLog::default())
         .init_resource::<ProjectileAssets>()
         .init_resource::<SparkAssets>()
+        .init_resource::<BeamAssets>()
         // Startup creates persistent scene infrastructure before any server
         // map data arrives.
         .add_systems(
@@ -277,6 +282,9 @@ fn main() -> Result<()> {
                 projectiles_transform_sync_system,
                 explosion_effects_system,
                 spark_particles_system,
+                beam_ghost_fade_system,
+                beam_ghost_sparkle_system,
+                beam_sparkles_system,
                 items_animation_system,
                 y_spin_system,
             ),

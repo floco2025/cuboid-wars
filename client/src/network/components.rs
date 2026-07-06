@@ -5,6 +5,7 @@ use common::{
 };
 
 use crate::{
+    actors::ActorGhostMap,
     barriers::BarrierAssets,
     config::{AssetSet, ClientSettings},
     items::ItemAssets,
@@ -87,6 +88,7 @@ pub struct ClientAssets<'w, 's> {
     pub seen_player_ids: ResMut<'w, SeenPlayerIds>,
     pub quest_log: ResMut<'w, QuestLog>,
     pub open_barrier_kinds: ResMut<'w, crate::barriers::OpenBarrierKinds>,
+    pub actor_ghosts: ResMut<'w, ActorGhostMap>,
     // Live banner entities — used by `spawn_hud_banner` to enforce the
     // single-banner invariant (despawn any existing before inserting the
     // new one). Bundled here so `dispatch_message` stays under Bevy's

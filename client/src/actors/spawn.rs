@@ -4,13 +4,14 @@ use crate::{
     animations::{AnimationToPlay, character_animation_system},
     characters::{PreviousTickPosition, spawn_collider_box},
     config::{AssetSet, ClientSettings},
-    constants::LABEL_ACTOR_MESH_WIDTH,
+    constants::{BEAM_IN_LIGHT_RANGE, LABEL_ACTOR_MESH_WIDTH},
     ui::floating_labels::spawn_floating_health_bar,
+    vfx::{BeamInGhost, ghost_fade_setup_system},
 };
 use common::{
     config::GameplayConfig,
     physics::CharacterVerticalVelocity,
-    protocol::{Actor, ActorId, ActorMarker, FaceDirection},
+    protocol::{Actor, ActorId, ActorMarker, FaceDirection, SpawningActor},
 };
 
 pub fn spawn_actor(
@@ -102,6 +103,77 @@ pub fn spawn_actor(
     children.push(bar_entity);
 
     commands.entity(entity).add_children(&children);
+
+    entity
+}
+
+// Fade state for a ghost, straight from the wire fields. Also inserted onto
+// existing ghosts on every snapshot, resyncing the locally-ticked fade.
+#[must_use]
+pub fn beam_in_ghost_state(gameplay_config: &GameplayConfig, spawning: &SpawningActor) -> BeamInGhost {
+    let collider = gameplay_config
+        .actor(&spawning.kind)
+        .expect("actor kind sent by server is missing from gameplay config")
+        .physics()
+        .collider;
+    BeamInGhost {
+        remaining_secs: spawning.remaining_secs,
+        warning_secs: spawning.warning_secs,
+        sparkle_timer: 0.0,
+        half_extents: Vec3::new(collider.width, collider.height, collider.depth) / 2.0,
+    }
+}
+
+// Beam-in ghost: the per-kind model at the reserved spot, fading in and
+// sparkling for the warning window. No gameplay components — the actor
+// doesn't exist yet; this is pure presentation.
+pub fn spawn_actor_ghost(
+    commands: &mut Commands,
+    asset_server: &Res<AssetServer>,
+    asset_set: &AssetSet,
+    gameplay_config: &GameplayConfig,
+    spawning: &SpawningActor,
+) -> Entity {
+    let actor_model = asset_set.actor_model(&spawning.kind);
+    let actor_physics = gameplay_config
+        .actor(&spawning.kind)
+        .expect("actor kind sent by server is missing from gameplay config")
+        .physics();
+
+    let entity = commands
+        .spawn((
+            Transform::from_xyz(
+                spawning.pos.x,
+                actor_physics.collider_center_y(spawning.pos.y),
+                spawning.pos.z,
+            )
+            .with_rotation(Quat::from_rotation_y(spawning.face_dir)),
+            Visibility::Visible,
+            beam_in_ghost_state(gameplay_config, spawning),
+            PointLight {
+                color: Color::srgb(1.0, 0.85, 0.3),
+                // Starts dark; the fade system ramps it with the window.
+                intensity: 0.0,
+                range: BEAM_IN_LIGHT_RANGE,
+                shadow_maps_enabled: false,
+                ..default()
+            },
+        ))
+        .id();
+
+    let base_y = actor_physics.model_y_offset_from_entity_center(actor_model.y_offset);
+    let model = commands
+        .spawn((
+            WorldAssetRoot(asset_server.load(actor_model.scene.clone())),
+            Transform::from_scale(Vec3::splat(actor_model.scale))
+                .with_rotation(Quat::from_rotation_x(actor_model.x_rotation_degrees.to_radians()))
+                .with_translation(Vec3::new(actor_model.x_offset, base_y, actor_model.z_offset)),
+        ))
+        // Once the scene hierarchy exists, swap in per-ghost translucent
+        // material clones the fade system can drive.
+        .observe(ghost_fade_setup_system)
+        .id();
+    commands.entity(entity).add_children(&[model]);
 
     entity
 }

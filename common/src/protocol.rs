@@ -11,7 +11,9 @@
 //    player, actor, and item, broadcast at `SNAPSHOT_HZ`. Sole vehicle for
 //    presence: a player appears in the first `SSnapshot` they show up in and
 //    disappears in the first they're absent from. Self-healing — a dropped
-//    snapshot is forgiven by the next one.
+//    snapshot is forgiven by the next one. Presence includes pre-presence:
+//    `spawning_actors` carries reserved actor spawns during their warning
+//    window, so clients render a beam-in ghost before the actor exists.
 //
 //    Projectiles are the deliberate exception. They are short-lived, fast,
 //    and numerous, so they are replicated as shot intents (`SShot`) rather
@@ -125,6 +127,9 @@ pub struct SSnapshot {
     pub seq: u32,
     pub players: Vec<(PlayerId, Player)>,
     pub actors: Vec<(ActorId, Actor)>,
+    // Reserved spawns still in their warning window. An id moves from here
+    // to `actors` in the snapshot where the actor materializes.
+    pub spawning_actors: Vec<(ActorId, SpawningActor)>,
     pub items: Vec<(ItemId, Item)>,
     // Barrier kinds currently fully open (pressure-plate threshold met).
     // Empty in v1 maps with no plates. Client hides matching barriers; server

@@ -13,6 +13,20 @@ pub struct Actor {
     pub health: Health,
 }
 
+// A reserved actor spawn during its warning window. The actor doesn't exist
+// yet — clients render a purely visual beam-in ghost at the reserved spot.
+// `remaining_secs` / `warning_secs` carry the fade state: the client fades
+// the ghost in locally every frame and resyncs from each snapshot, so a late
+// joiner picks the fade up mid-way instead of restarting it.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SpawningActor {
+    pub kind: String,
+    pub pos: Position,
+    pub face_dir: f32,
+    pub remaining_secs: f32,
+    pub warning_secs: f32,
+}
+
 impl Actor {
     #[must_use]
     pub const fn new(kind: String, pos: Position, move_intent: ActorMoveIntent, face_dir: f32, health: Health) -> Self {

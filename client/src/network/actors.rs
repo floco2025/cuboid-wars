@@ -3,7 +3,7 @@ use std::collections::HashSet;
 
 use super::components::ServerReconciliation;
 use crate::{
-    actors::{ActorInfo, ActorMap, spawn_actor},
+    actors::{ActorGhostMap, ActorInfo, ActorMap, beam_in_ghost_state, spawn_actor, spawn_actor_ghost},
     config::{AssetSet, ClientSettings},
     network::RoundTripTime,
     vfx::spawn_actor_explosion,
@@ -13,7 +13,7 @@ use common::{
     physics::CharacterVerticalVelocity,
     protocol::{
         Actor, ActorId, ActorMarker, ActorMoveIntent, ActorMovementState, FaceDirection, Position, SActorDeath,
-        SActorHit, SActorMoveIntent,
+        SActorHit, SActorMoveIntent, SpawningActor,
     },
 };
 
@@ -82,6 +82,42 @@ pub fn sync_actors(
             Some(server_actor.face_dir),
         );
     }
+}
+
+// Same diff idiom as `sync_actors`, over the snapshot's pending-spawn list:
+// a new id grows a beam-in ghost, a vanished id tears it down. The real
+// actor arrives in the same snapshot its ghost entry disappears from, so the
+// handoff is seamless.
+pub fn sync_spawning_actors(
+    commands: &mut Commands,
+    ghosts: &mut ActorGhostMap,
+    asset_server: &Res<AssetServer>,
+    asset_set: &AssetSet,
+    gameplay_config: &GameplayConfig,
+    spawning_actors: &[(ActorId, SpawningActor)],
+) {
+    let update_ids: HashSet<ActorId> = spawning_actors.iter().map(|(id, _)| *id).collect();
+
+    for (id, spawning) in spawning_actors {
+        if let Some(entity) = ghosts.get(id) {
+            // Resync the locally-ticked fade to the server's window.
+            commands
+                .entity(entity)
+                .insert(beam_in_ghost_state(gameplay_config, spawning));
+            continue;
+        }
+        let entity = spawn_actor_ghost(commands, asset_server, asset_set, gameplay_config, spawning);
+        ghosts.insert(*id, entity);
+    }
+
+    ghosts.retain(|id, entity| {
+        if update_ids.contains(id) {
+            true
+        } else {
+            commands.entity(*entity).despawn();
+            false
+        }
+    });
 }
 
 pub fn handle_actor_move_intent_message(

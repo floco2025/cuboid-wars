@@ -5,7 +5,9 @@ use crate::{
     actors::behavior::random_direction_time,
     characters::generate_actor_spawn_position_in_zone,
     config::ServerGameplayConfig,
-    resources::{ActorInfo, ActorMap, ActorSpawnThrottles, ActorSpawner, MapConfig},
+    resources::{
+        ActorInfo, ActorMap, ActorSpawnThrottles, ActorSpawner, MapConfig, PendingActorSpawn, PendingActorSpawns,
+    },
 };
 use common::{
     config::GameplayConfig,
@@ -39,9 +41,10 @@ fn decide_spawn(live: u32, count: u32, throttle: f32) -> SpawnDecision {
 
 // Startup-only: fill every spawn zone to its `count`. Runs once when the
 // world boots, irrespective of `respawns` — initial fill is universal.
+// Spawns are queued, not spawned: each waits out its beam-in warning window
+// in `PendingActorSpawns` before `actor_pending_spawn_system` materializes it.
 pub fn actor_initial_spawn_system(
-    mut commands: Commands,
-    mut actors: ResMut<ActorMap>,
+    mut pending: ResMut<PendingActorSpawns>,
     mut spawner: ResMut<ActorSpawner>,
     map_config: Res<MapConfig>,
     map_geometry: Res<MapGeometry>,
@@ -62,16 +65,14 @@ pub fn actor_initial_spawn_system(
         let kind_server_config = server_gameplay_config.validated_actor(&zone.kind);
         let actor_physics = actor_config.physics();
         for _ in 0..zone.count {
-            spawn_actor_in_zone(
-                &mut commands,
-                &mut actors,
+            queue_actor_spawn_in_zone(
+                &mut pending,
                 &mut spawner,
                 &mut occupied_positions,
                 &mut rng,
                 &map_config,
                 &map_geometry,
                 &collision_world,
-                actor_config,
                 kind_server_config,
                 actor_physics,
                 zone_idx,
@@ -89,10 +90,10 @@ pub fn actor_initial_spawn_system(
 // (via `Tick`) and only reaches 0 — at which point a `Spawn` fires and the
 // throttle is reset to the kind's `spawn_throttle_time`.
 pub fn actor_respawn_system(
-    mut commands: Commands,
-    mut actors: ResMut<ActorMap>,
+    mut pending: ResMut<PendingActorSpawns>,
     mut spawner: ResMut<ActorSpawner>,
     mut throttles: ResMut<ActorSpawnThrottles>,
+    actors: Res<ActorMap>,
     time: Res<Time>,
     map_config: Res<MapConfig>,
     map_geometry: Res<MapGeometry>,
@@ -118,6 +119,15 @@ pub fn actor_respawn_system(
             *count += 1;
         }
     }
+    // Pending spawns count toward their zone's quota (materialization is
+    // unconditional, so they are as good as live) and reserve their spot so
+    // a second spawn can't pick it during the warning window.
+    for entry in &pending.0 {
+        if let Some(count) = live_by_zone.get_mut(entry.zone_idx) {
+            *count += 1;
+        }
+        occupied_positions.push(entry.pos);
+    }
 
     for (zone_idx, zone) in map_config.actor_spawn_zones.iter().enumerate() {
         let kind_server_config = server_gameplay_config.validated_actor(&zone.kind);
@@ -140,16 +150,14 @@ pub fn actor_respawn_system(
             SpawnDecision::Skip => *throttle = throttle_time,
             SpawnDecision::Tick => *throttle -= dt,
             SpawnDecision::Spawn => {
-                spawn_actor_in_zone(
-                    &mut commands,
-                    &mut actors,
+                queue_actor_spawn_in_zone(
+                    &mut pending,
                     &mut spawner,
                     &mut occupied_positions,
                     &mut rng,
                     &map_config,
                     &map_geometry,
                     &collision_world,
-                    actor_config,
                     kind_server_config,
                     actor_physics,
                     zone_idx,
@@ -161,17 +169,57 @@ pub fn actor_respawn_system(
     }
 }
 
+// Ticks the beam-in warning windows and materializes due spawns at their
+// reserved spot, unconditionally — a player squatting on it resolves via
+// contact detonation on the next tick. Runs at the head of the network chain
+// (see main.rs) so a pending entry's removal and its actor's appearance land
+// in the same snapshot.
+pub fn actor_pending_spawn_system(
+    mut commands: Commands,
+    mut actors: ResMut<ActorMap>,
+    mut pending: ResMut<PendingActorSpawns>,
+    time: Res<Time>,
+    gameplay_config: Res<GameplayConfig>,
+    server_gameplay_config: Res<ServerGameplayConfig>,
+) {
+    let due = take_due_spawns(&mut pending.0, time.delta_secs());
+    if due.is_empty() {
+        return;
+    }
+    let mut rng = rng();
+    for spawn in due {
+        materialize_actor(
+            &mut commands,
+            &mut actors,
+            &mut rng,
+            gameplay_config.validated_actor(&spawn.kind),
+            server_gameplay_config.validated_actor(&spawn.kind),
+            spawn,
+        );
+    }
+}
+
+fn take_due_spawns(pending: &mut Vec<PendingActorSpawn>, dt: f32) -> Vec<PendingActorSpawn> {
+    for entry in pending.iter_mut() {
+        entry.remaining_secs -= dt;
+    }
+    let (due, rest): (Vec<_>, Vec<_>) = pending.drain(..).partition(|entry| entry.remaining_secs <= 0.0);
+    *pending = rest;
+    due
+}
+
+// Reserve an id, spot, and heading for one actor and queue it for beam-in.
+// The heading is rolled now so the client ghost and the materialized actor
+// face the same way.
 #[allow(clippy::too_many_arguments)]
-fn spawn_actor_in_zone(
-    commands: &mut Commands,
-    actors: &mut ActorMap,
+fn queue_actor_spawn_in_zone(
+    pending: &mut PendingActorSpawns,
     spawner: &mut ActorSpawner,
     occupied_positions: &mut Vec<Position>,
     rng: &mut ThreadRng,
     map_config: &MapConfig,
     map_geometry: &MapGeometry,
     collision_world: &CollisionWorld,
-    actor_config: &common::config::ActorGameplayConfig,
     kind_server_config: &crate::config::ActorKindServerConfig,
     actor_physics: common::config::CharacterPhysicsConfig,
     zone_idx: usize,
@@ -187,30 +235,47 @@ fn spawn_actor_in_zone(
     );
     occupied_positions.push(pos);
 
-    let direction = rng.random_range(0.0..std::f32::consts::TAU);
+    pending.0.push(PendingActorSpawn {
+        actor_id: spawner.allocate(),
+        zone_idx,
+        kind: spawn_kind.to_string(),
+        pos,
+        face_dir: rng.random_range(0.0..std::f32::consts::TAU),
+        remaining_secs: kind_server_config.respawn.warning_secs,
+        warning_secs: kind_server_config.respawn.warning_secs,
+    });
+}
+
+fn materialize_actor(
+    commands: &mut Commands,
+    actors: &mut ActorMap,
+    rng: &mut ThreadRng,
+    actor_config: &common::config::ActorGameplayConfig,
+    kind_server_config: &crate::config::ActorKindServerConfig,
+    spawn: PendingActorSpawn,
+) {
     let move_intent = ActorMoveIntent::Moving {
-        direction,
+        direction: spawn.face_dir,
         speed: actor_config.patrol_speed,
     };
-    let actor_id = spawner.allocate();
     let entity = commands
         .spawn((
             ActorMarker,
-            actor_id,
-            pos,
+            spawn.actor_id,
+            spawn.pos,
             move_intent,
-            FaceDirection(direction),
+            FaceDirection(spawn.face_dir),
             CharacterVerticalVelocity::default(),
             Health(actor_config.health().max),
         ))
         .id();
 
     actors.insert(
-        actor_id,
+        spawn.actor_id,
         ActorInfo::new(
             entity,
-            zone_idx,
-            spawn_kind.to_string(),
+            spawn.zone_idx,
+            spawn.kind,
             crate::resources::ActorGoal::Patrol {
                 intent: move_intent,
                 direction_timer: random_direction_time(rng, kind_server_config),
@@ -223,6 +288,7 @@ fn spawn_actor_in_zone(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use common::protocol::ActorId;
 
     #[test]
     fn decide_skip_when_full() {
@@ -354,5 +420,53 @@ mod tests {
             throttle -= dt;
         }
         assert_eq!(decide_spawn(live, count, throttle), SpawnDecision::Spawn);
+    }
+
+    fn pending_spawn(id: u32, remaining_secs: f32) -> PendingActorSpawn {
+        PendingActorSpawn {
+            actor_id: ActorId(id),
+            zone_idx: 0,
+            kind: "mine_1".to_string(),
+            pos: Position::default(),
+            face_dir: 0.0,
+            remaining_secs,
+            warning_secs: 2.0,
+        }
+    }
+
+    #[test]
+    fn not_due_spawns_tick_down_and_stay_queued() {
+        let mut pending = vec![pending_spawn(1, 2.0), pending_spawn(2, 0.5)];
+
+        let due = take_due_spawns(&mut pending, 0.25);
+
+        assert!(due.is_empty());
+        assert_eq!(pending.len(), 2);
+        assert_eq!(pending[0].remaining_secs, 1.75);
+        assert_eq!(pending[1].remaining_secs, 0.25);
+    }
+
+    #[test]
+    fn due_spawns_drain_in_queue_order() {
+        let mut pending = vec![pending_spawn(1, 0.1), pending_spawn(2, 5.0), pending_spawn(3, 0.2)];
+
+        let due = take_due_spawns(&mut pending, 0.3);
+
+        assert_eq!(
+            due.iter().map(|spawn| spawn.actor_id).collect::<Vec<_>>(),
+            vec![ActorId(1), ActorId(3)]
+        );
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].actor_id, ActorId(2));
+    }
+
+    #[test]
+    fn window_reaching_exactly_zero_is_due() {
+        let mut pending = vec![pending_spawn(1, 0.5)];
+
+        let due = take_due_spawns(&mut pending, 0.5);
+
+        assert_eq!(due.len(), 1);
+        assert!(pending.is_empty());
     }
 }
