@@ -3,6 +3,11 @@
 A fast-paced multiplayer arena game built with Rust, Bevy, Rapier, and QUIC.
 
 ![Cuboid Wars Screenshot](client/assets/screenshot1.png)
+![Cuboid Wars Screenshot](client/assets/screenshot2.png)
+![Cuboid Wars Screenshot](client/assets/screenshot3.png)
+![Cuboid Wars Screenshot](client/assets/screenshot4.png)
+![Cuboid Wars Screenshot](client/assets/screenshot5.png)
+
 
 ## Overview
 
@@ -26,13 +31,21 @@ death/respawn flow.
   delay.
 - **Power-ups** — speed, multi-shot, phasing (pass through barriers
   whose key you'd otherwise need), and anti-gravity. Each lasts a
-  configurable duration after pickup.
+  configurable duration after pickup. Health potions heal instantly
+  instead of running on a timer.
 - **Barriers & keys** — coloured barriers block everyone; pick up the
   matching coloured key to walk through that colour for the rest of
   your current life. Keys are dropped on death.
+- **Pressure plates** — some barrier colours can also be opened
+  cooperatively: while enough players stand on that colour's plates at
+  the same time, it opens for everyone — players, actors, and
+  projectiles all pass through.
 - **Actors** — mines and sentries patrol their spawn zones and chase
   line-of-sight targets. Killing them triggers a blast that damages
   nearby players and other actors. Tougher actors are worth more score.
+  Spawns are telegraphed: a beam-in ghost fades in at the spot for a
+  couple of seconds — visible but intangible — before the actor
+  materializes.
 - **Fall damage** — short drops are safe; longer falls scale damage
   linearly to lethal at a configurable distance. Terminal velocity is
   always fatal.
@@ -93,8 +106,9 @@ them for anything beyond localhost** — they are not production-safe.
 python3 tools/editor.py            # edits config/server/map.json in place
 ```
 
-The editor (PySide6) supports floors, walls, ramps, barriers, key/cookie/player
-spawn zones, lights, and per-face material assignment.
+The editor (PySide6) supports floors, grass, walls, ramps, barriers,
+actor/player/cookie/key spawn zones, pressure plates, lights, and per-face
+material assignment.
 
 ## License
 

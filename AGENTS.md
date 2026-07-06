@@ -5,7 +5,7 @@
 Rust workspace with three crates:
 
 - **`common/`** — shared between client and server.
-  - `protocol.rs` — all `ClientMessage` / `ServerMessage` variants and wire structs. Read the top-of-file doc comment before adding a new message — it lays out the bootstrap / snapshot / real-time-intent / one-shot-cue / diagnostic taxonomy that decides where new messages go.
+  - `protocol.rs` — all `ClientMessage` / `ServerMessage` variants and wire structs. Read the top-of-file doc comment before adding a new message — it lays out the bootstrap / snapshot / real-time-intent / one-shot-cue / per-client-state / diagnostic taxonomy that decides where new messages go.
   - `net.rs` — `MessageStream` abstraction over QUIC.
   - `physics/` — shared player/projectile movement, collision world (incl. per-kind barrier collision groups), and spawn validation helpers.
   - `types/` — shared markers, IDs, positions, movement states, map layout types, snapshots, `BarrierKindTable`.
@@ -25,7 +25,7 @@ Rust workspace with three crates:
 
 Other notable paths:
 
-- `tools/editor.py` — PySide6 map editor for `config/server/map.json`.
+- `tools/editor.py` — launcher for the PySide6 map editor (code lives in `tools/map_editor/`); edits `config/server/map.json`.
 - `client/assets/` — 3D models, textures, audio.
 - `config/client/assets.json` — hand-edited asset set (materials, material rules, models, sounds, barrier kind colours).
 - `config/client/render.json` — client-only render/debug settings.
@@ -47,7 +47,7 @@ cargo run --release --bin server                            # bind 127.0.0.1:808
 cargo run --release --bin server -- --bind 0.0.0.0:8080
 cargo run --release --bin client                            # connects to 127.0.0.1:8080
 cargo run --release --bin client -- --server 192.168.1.100:8080 --name "Player"
-cargo clippy --release --workspace --all-targets            # pedantic + nursery + cargo
+cargo clippy --release --workspace --all-targets
 cargo fmt
 cargo test --release --workspace
 python3 tools/editor.py                                     # edits config/server/map.json
@@ -61,11 +61,12 @@ python3 tools/editor.py                                     # edits config/serve
 
 ### Protocol model
 
-Server→client messages have three roles, documented at the top of `common/src/protocol.rs`:
+Server→client messages have four roles, documented at the top of `common/src/protocol.rs`:
 
 1. **Bootstrap** (`SInit`) — once per connection.
-2. **Snapshot** (`SSnapshot`) — periodic full durable state, every tick. **Sole vehicle for player/actor/item presence**: a player appears the tick they show up in `SSnapshot` and disappears the tick they don't. No `SLogin`/`SLogoff` — login, logout, death, and respawn all surface here. Self-healing if a packet drops. Projectiles are the deliberate exception: because they are fast, short-lived, and numerous, they are replicated as shot intents (`SShot`) rather than snapshot entities. Clients simulate them for presentation only; authoritative hit/death logic comes from the server.
+2. **Snapshot** (`SSnapshot`) — periodic full durable state, broadcast at `SNAPSHOT_HZ` (4 Hz). **Sole vehicle for player/actor/item presence**: a player appears in the first snapshot they show up in and disappears in the first they're absent from. No `SLogin`/`SLogoff` — login, logout, death, and respawn all surface here. Self-healing if a packet drops. Presence includes pre-presence: `spawning_actors` carries reserved actor spawns during their beam-in warning window. Projectiles are the deliberate exception: because they are fast, short-lived, and numerous, they are replicated as shot intents (`SShot`) rather than snapshot entities. Clients simulate them for presentation only; authoritative hit/death logic comes from the server.
 3. **One-shot cues** — short messages for things the snapshot can't carry (sub-tick latency or edge-triggered side-effects). Examples: `SShot` (projectile presentation), `SPlayerHit` (direction-bearing camera shake), `SPlayerDeath`/`SActorDeath` (immediate VFX + entity teardown), `SPlayerStatus` (power-up sound at the transition).
+4. **Per-client state events** — durable per-player state other clients don't need (e.g. quest assignment/progress), unicast to the affected player with no snapshot fallback.
 
 When adding a new server→client message: pick the smallest role that fits. Most "X changed" belongs in `SSnapshot`. Only add a one-shot if (a) sub-tick latency matters, (b) the cue is edge-triggered with a one-time side effect, or (c) it carries information the snapshot can't.
 
@@ -73,7 +74,7 @@ When adding a new server→client message: pick the smallest role that fits. Mos
 
 - **Death & respawn**. `kill_player` in `server/src/combat.rs` is the single entry point — clears per-life state on `PlayerInfo`, arms `death_timer`, despawns the entity, broadcasts `SPlayerDeath`. Called from projectile lethal hits, actor explosion blast (`apply_actor_explosion_damage`), and falls below `CHARACTER_FALL_DEATH_Y` (`players_fall_death_system`). `players_respawn_system` ticks the timer and spawns a fresh entity at a spawn zone.
 - **Barriers & keys**. Each `BarrierKindId` gets a dedicated Rapier collision group (bits 3..31, max 29 kinds). Players hold a sorted `Vec<BarrierKindId>` in `PlayerInfo.held_keys`; the character filter drops the matching groups so they pass through. Defined in `common/src/physics/world/colliders.rs` and `common/src/types/barrier_kind.rs`.
-- **Actor lifecycle**. `actor_removal_system` handles both health-zero ("killed", with explosion blast + `SActorDeath`) and fall ("silent"). `actor_respawn_system` refills slots according to per-kind spawn-zone quotas.
+- **Actor lifecycle**. `actor_removal_system` handles both health-zero ("killed", with explosion blast + `SActorDeath`) and fall ("silent"). `actor_respawn_system` refills slots according to per-kind spawn-zone quotas — by queueing into `PendingActorSpawns` (id, spot, and heading reserved), not spawning directly. `actor_pending_spawn_system` materializes each entry after its beam-in warning window (`respawn.warning_secs`); during the window the actor doesn't exist server-side and clients render a ghost from the snapshot's `spawning_actors`.
 
 ### Conventions
 
@@ -92,12 +93,13 @@ When adding a new server→client message: pick the smallest role that fits. Mos
 The canvas IS the UI. Do not add coordinate readouts, row/col numbers, or
 status-bar grid info — if something needs explaining, it should be drawn on
 the canvas itself. PySide6 with mouse-driven click/drag interactions per
-mode (floors, walls, ramps, barriers, spawn zones, materials, lights).
+mode (floors, grass, walls, ramps, barriers, spawn zones, materials, lights,
+pressure plates).
 
 ## Coding style
 
 - Rust edition 2024. Format with `cargo fmt` (see `rustfmt.toml`).
-- Workspace lints (root `Cargo.toml`): `unsafe_code = "forbid"`; `pedantic` + `nursery` + `cargo` lint groups; `unwrap_used = "warn"` — prefer `expect("…")` with a message, or proper error handling.
+- Workspace lints (root `Cargo.toml`): `unsafe_code = "forbid"`; `unwrap_used = "warn"` — prefer `expect("…")` with a message, or proper error handling; `todo = "warn"`.
 - Naming: `snake_case` functions/modules, `CamelCase` types, `SCREAMING_SNAKE_CASE` constants.
 - Use `assert!` / `assert_eq!` / `assert_ne!` for invariants — never `debug_assert!`. Only release builds run, so `debug_assert!` is a no-op.
 - Default to writing no comments. Only add one when the WHY is non-obvious: a hidden constraint, a subtle invariant, a workaround. Don't explain WHAT well-named code already says.
