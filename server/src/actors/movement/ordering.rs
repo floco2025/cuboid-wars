@@ -34,6 +34,6 @@ pub(super) fn sort_actor_plan_order(order: &mut [ActorPlanOrder]) {
 }
 
 pub(super) fn actor_target_distance_sq(pos: &Position, info: Option<&ActorInfo>) -> f32 {
-    info.and_then(|info| info.go_to_position)
+    info.and_then(|info| info.goal.target_position())
         .map_or(f32::INFINITY, |target| pos.horizontal_distance_sq(&target))
 }

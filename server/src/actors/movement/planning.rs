@@ -13,10 +13,10 @@ use common::{
 };
 
 use super::{
-    context::{ActorMoveContext, MoveCandidateResult, SelectedActorMove},
+    context::{ActorMoveContext, CandidateStep, SelectedActorMove, StepPolicy},
     ordering::sorted_actor_plan_order,
     query::ActorMovementQuery,
-    steering::{actor_desired_intent, angular_distance, direction_toward},
+    steering::{ActorDesire, angular_distance, desired_move},
 };
 
 // Full-circle candidate resolution for movement selection. 12 → 30° steps:
@@ -73,29 +73,6 @@ pub(crate) fn plan_actor_moves(
         let actor_physics = actor_config.physics();
         let current_pos = *pos;
         let reached_distance = kind_server_config.navigation.go_to_reached_distance;
-
-        // A chaser that has closed the *horizontal* gap to its target holds
-        // position and facing rather than "arriving". A player on a ledge
-        // directly above is reachable horizontally but not vertically; without
-        // this the actor arrives, reverts to patrol, drifts out of range, gets
-        // re-acquired, and flip-flops its heading every tick — the jitter.
-        // Returning actors are excluded so they still advance/end their path.
-        let holding_on_target = chase_target_within_reach(info, &current_pos, reached_distance);
-
-        let go_to_intent = if holding_on_target {
-            None
-        } else if let Some(intent) = active_chase_intent(info, &current_pos, actor_config.chase_speed) {
-            Some(intent)
-        } else {
-            let intent = actor_desired_intent(
-                &mut info.go_to_position,
-                &current_pos,
-                reached_distance,
-                actor_config.chase_speed,
-            );
-            update_reached_go_to_state(info);
-            intent
-        };
         let move_context = ActorMoveContext {
             entity,
             pos: &current_pos,
@@ -111,30 +88,14 @@ pub(crate) fn plan_actor_moves(
 
         // Hysteresis anchor: where the actor was already heading.
         let last_direction = move_intent.direction();
-        let selected_move = if holding_on_target {
-            // Reached the chase target (see above) — hold, keep facing.
-            clear_commit(info);
-            move_context.idle_move()
-        } else if let Some(go_to_intent) = go_to_intent {
-            // Chase / return-to-spawn: pursue the target, allowed off ledges.
-            select_committed_move(info, &move_context, go_to_intent, last_direction, false, delta)
-        } else if matches!(info.patrol_intent, ActorMoveIntent::Moving { .. }) {
-            // Patrol: wander the heading — never off an edge, except during
-            // the post-stall escape window (perched at a wall-base edge where
-            // every ledge-aware candidate is rejected).
-            let ledge_aware = info.patrol_ledge_escape_timer <= 0.0;
-            select_committed_move(
-                info,
-                &move_context,
-                info.patrol_intent,
-                last_direction,
-                ledge_aware,
-                delta,
-            )
-        } else {
-            // Patrol chose to idle (per-kind `idle_probability`).
-            clear_commit(info);
-            move_context.idle_move()
+        let selected_move = match desired_move(&info.goal, &current_pos, actor_config.chase_speed, reached_distance) {
+            ActorDesire::Idle => {
+                clear_commit(info);
+                move_context.idle_move()
+            }
+            ActorDesire::Move { intent, policy } => {
+                select_committed_move(info, &move_context, intent, last_direction, policy, delta)
+            }
         };
 
         // The ECS `move_intent` holds the last-committed (last-broadcast)
@@ -184,18 +145,18 @@ pub(super) fn select_committed_move(
     context: &ActorMoveContext,
     desired: ActorMoveIntent,
     last_direction: Option<f32>,
-    ledge_aware: bool,
+    policy: StepPolicy,
     delta: f32,
 ) -> SelectedActorMove {
     info.commit_secs_left -= delta;
     let desired_speed = desired.speed().expect("desired move intent has no speed");
     let committed_step = info
         .committed_direction
-        .and_then(|direction| candidate_move(context, direction, desired_speed, ledge_aware));
+        .and_then(|direction| candidate_move(context, direction, desired_speed, policy));
     if should_reuse_commit(info.commit_secs_left, committed_step.is_some()) {
         return committed_step.expect("reuse requires a viable committed step").selected;
     }
-    let selected = select_actor_move(context, desired, last_direction, ledge_aware);
+    let selected = select_actor_move(context, desired, last_direction, policy);
     info.committed_direction = selected.intent.direction();
     info.commit_secs_left = STEERING_COMMIT_SECS;
     selected
@@ -210,20 +171,20 @@ pub(super) fn select_committed_move(
 // pass instead of deadlocking. A clear shot at the goal is the fast path. Only
 // when every candidate is blocked (genuinely boxed in) does the actor idle.
 //
-// `ledge_aware` (patrol) rejects steps that would walk off an edge and never
-// grazes walls; chase/return follow targets off ledges and may graze along a
-// wall when it still makes useful progress.
+// `StepPolicy::Strict` (patrol) rejects steps that would walk off an edge and
+// never grazes walls; `Pursue` follows targets off ledges and may graze along
+// a wall when it still makes useful progress.
 pub(super) fn select_actor_move(
     context: &ActorMoveContext,
     desired: ActorMoveIntent,
     last_direction: Option<f32>,
-    ledge_aware: bool,
+    policy: StepPolicy,
 ) -> SelectedActorMove {
     let desired_direction = desired.direction().expect("desired move intent has no direction");
     let speed = desired.speed().expect("desired move intent has no speed");
 
     // Fast path: a clear straight shot at the goal always wins the score.
-    if let Some(selected) = candidate_move(context, desired_direction, speed, ledge_aware).filter(|c| c.clean) {
+    if let Some(selected) = candidate_move(context, desired_direction, speed, policy).filter(|c| c.clean) {
         return selected.selected;
     }
 
@@ -236,7 +197,7 @@ pub(super) fn select_actor_move(
         let offset = sign * pair as f32 * step;
         let direction = desired_direction + offset;
 
-        let Some(candidate) = candidate_move(context, direction, speed, ledge_aware) else {
+        let Some(candidate) = candidate_move(context, direction, speed, policy) else {
             continue;
         };
         let mut score = -angular_distance(direction, desired_direction);
@@ -265,27 +226,13 @@ struct Candidate {
     clean: bool,
 }
 
-// Evaluate one heading. `None` if the actor can't take it (character collision,
-// a wall it can't slide along, or — when ledge-aware — a step off an edge).
-fn candidate_move(context: &ActorMoveContext, direction: f32, speed: f32, ledge_aware: bool) -> Option<Candidate> {
+// Evaluate one heading. `None` if the actor can't take it per the policy.
+fn candidate_move(context: &ActorMoveContext, direction: f32, speed: f32, policy: StepPolicy) -> Option<Candidate> {
     let intent = ActorMoveIntent::Moving { direction, speed };
-    let result = if ledge_aware {
-        context.evaluate_patrol_candidate(intent)
-    } else {
-        context.evaluate_candidate(intent)
-    };
-    match result {
-        MoveCandidateResult::Accepted { selected } => Some(Candidate { selected, clean: true }),
-        // Chase/return may keep a world-blocked step that still slid far enough
-        // to be useful (grazing a wall). Ledge-aware patrol never does — a
-        // demoted ledge step would otherwise sneak through here.
-        MoveCandidateResult::BlockedByWorld { selected }
-            if !ledge_aware
-                && blocked_step_made_useful_progress(context.pos, &selected.step.position, speed, context.delta) =>
-        {
-            Some(Candidate { selected, clean: false })
-        }
-        MoveCandidateResult::BlockedByCharacter | MoveCandidateResult::BlockedByWorld { .. } => None,
+    match context.evaluate(intent, policy) {
+        CandidateStep::Clear(selected) => Some(Candidate { selected, clean: true }),
+        CandidateStep::Graze(selected) => Some(Candidate { selected, clean: false }),
+        CandidateStep::Blocked => None,
     }
 }
 
@@ -303,66 +250,4 @@ fn broadcast_actor_move_intent(
             movement: ActorMovementState::new(pos, move_intent, vertical_velocity),
         }),
     );
-}
-
-// The hold is for a chase target that's genuinely unreachable vertically (a
-// player on a ledge above, or tucked below an overhang) — below the player
-// jump apex so a hopping same-height player doesn't flicker the hold. A
-// same-height target within reach (e.g. through a thin wall) must keep the
-// chase pressing so the behavior stall watchdog can end it; without a wall,
-// contact detonation fires well before this distance anyway.
-const CHASE_HOLD_MIN_VERTICAL_GAP: f32 = 1.0;
-
-// A chasing actor counts as "on target" once it's within the go-to reach
-// distance horizontally while the target is vertically out of reach. It then
-// holds instead of arriving and reverting to patrol, which would flip-flop
-// its heading every tick. Returning actors are excluded: they must arrive
-// and advance/end their return path normally.
-pub(crate) fn chase_target_within_reach(info: &ActorInfo, pos: &Position, reached_distance: f32) -> bool {
-    info.go_to_position_is_chase
-        && info.go_to_position.is_some_and(|target| {
-            pos.horizontal_distance_sq(&target) <= reached_distance * reached_distance
-                && (target.y - pos.y).abs() >= CHASE_HOLD_MIN_VERTICAL_GAP
-        })
-}
-
-// An active chase presses toward the live target and never "arrives" — it
-// ends via contact detonation, the vertical hold, demotion, the leash, or
-// the stall watchdog. (Arrival was dead code for chases: the hold predicate
-// matched the arrival predicate exactly.) Demoted pursuits and returns keep
-// arrival semantics so they advance/end their paths.
-pub(super) fn active_chase_intent(info: &ActorInfo, pos: &Position, chase_speed: f32) -> Option<ActorMoveIntent> {
-    if !info.go_to_position_is_chase {
-        return None;
-    }
-    info.go_to_position.map(|target| ActorMoveIntent::Moving {
-        direction: direction_toward(pos, &target),
-        speed: chase_speed,
-    })
-}
-
-pub(super) fn update_reached_go_to_state(info: &mut ActorInfo) {
-    if info.go_to_position.is_some() {
-        return;
-    }
-    if let Some(next_waypoint) = info.return_path.pop_front() {
-        info.go_to_position = Some(next_waypoint);
-        info.go_to_position_is_chase = false;
-        return;
-    }
-    info.go_to_position_is_chase = false;
-    info.is_returning_to_spawn = false;
-}
-
-// True when a blocked step still moved the actor more than half the requested
-// distance — enough to count as sliding along a wall rather than stalling.
-pub(super) fn blocked_step_made_useful_progress(
-    start: &Position,
-    target: &Position,
-    actor_speed: f32,
-    delta: f32,
-) -> bool {
-    let requested_distance = actor_speed * delta;
-    let useful_distance = requested_distance * 0.5;
-    start.horizontal_distance_sq(target) > useful_distance * useful_distance
 }

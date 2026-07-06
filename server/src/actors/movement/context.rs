@@ -14,6 +14,26 @@ pub(super) struct SelectedActorMove {
     pub(super) step: CharacterMovementResult,
 }
 
+// How strictly a candidate step is judged. Patrol wanders and must stay safe;
+// everything goal-directed may take riskier steps to make progress.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub(super) enum StepPolicy {
+    // Ledge-aware, never grazes walls (patrol; suspended during the
+    // post-stall escape window).
+    Strict,
+    // May follow targets off ledges and graze along walls when the slide
+    // still makes useful progress (chase / pursuit / return / escape).
+    Pursue,
+}
+
+pub(super) enum CandidateStep {
+    // Runs clear.
+    Clear(SelectedActorMove),
+    // World-blocked but slid far enough to be useful (Pursue only).
+    Graze(SelectedActorMove),
+    Blocked,
+}
+
 pub(super) struct ActorMoveContext<'a> {
     pub(super) entity: Entity,
     pub(super) pos: &'a Position,
@@ -33,14 +53,14 @@ impl ActorMoveContext<'_> {
         let intent = ActorMoveIntent::Idle;
         SelectedActorMove {
             intent,
-            step: self.step_actor_move(intent, self.delta),
+            step: self.step_actor_move(intent),
         }
     }
 
-    pub(super) fn step_actor_move(&self, move_intent: ActorMoveIntent, delta: f32) -> CharacterMovementResult {
+    pub(super) fn step_actor_move(&self, move_intent: ActorMoveIntent) -> CharacterMovementResult {
         let velocity = move_intent.to_horizontal_velocity();
-        let target_x = velocity.x.mul_add(delta, self.pos.x);
-        let target_z = velocity.z.mul_add(delta, self.pos.z);
+        let target_x = velocity.x.mul_add(self.delta, self.pos.x);
+        let target_z = velocity.z.mul_add(self.delta, self.pos.z);
         step_character_movement(
             self.pos,
             self.vertical_velocity,
@@ -51,45 +71,44 @@ impl ActorMoveContext<'_> {
             self.actor_physics,
             target_x,
             target_z,
-            delta,
+            self.delta,
         )
     }
 
-    pub(super) fn evaluate_candidate(&self, intent: ActorMoveIntent) -> MoveCandidateResult {
+    // The single candidate-evaluation path. Character collisions always
+    // block. World collisions block, except a Pursue step that still slid
+    // usefully counts as a graze. An otherwise-clear Strict step that walks
+    // off a ledge blocks — patrol rerolls a different direction instead;
+    // Pursue intentionally follows targets off ledges.
+    pub(super) fn evaluate(&self, intent: ActorMoveIntent, policy: StepPolicy) -> CandidateStep {
         let selected = SelectedActorMove {
             intent,
-            step: self.step_actor_move(intent, self.delta),
+            step: self.step_actor_move(intent),
         };
         let planned_move =
             CharacterMovePlan::from_movement_result(self.entity, *self.pos, selected.step, self.actor_physics);
 
         if character_move_plan_is_blocked(&planned_move, self.planned_moves, self.actor_starts) {
-            return MoveCandidateResult::BlockedByCharacter;
+            return CandidateStep::Blocked;
         }
         if selected.step.blocked {
-            return MoveCandidateResult::BlockedByWorld { selected };
-        }
-
-        MoveCandidateResult::Accepted { selected }
-    }
-
-    // Patrol-only wrapper around `evaluate_candidate` that additionally treats
-    // ledges as blocking. If the candidate is otherwise accepted but the
-    // `path_clear_lookahead_secs`-second projection of this intent lands on a
-    // position with no floor underneath, demote it to `BlockedByWorld` so the
-    // patrol selection rerolls a different direction. Chase intentionally does
-    // not use this — chasers may follow a player off ledges.
-    pub(super) fn evaluate_patrol_candidate(&self, intent: ActorMoveIntent) -> MoveCandidateResult {
-        match self.evaluate_candidate(intent) {
-            MoveCandidateResult::Accepted { selected } => {
-                if self.patrol_step_lands_on_floor(intent) {
-                    MoveCandidateResult::Accepted { selected }
-                } else {
-                    MoveCandidateResult::BlockedByWorld { selected }
-                }
+            if policy == StepPolicy::Pursue
+                && blocked_step_made_useful_progress(
+                    self.pos,
+                    &selected.step.position,
+                    intent.speed().unwrap_or(0.0),
+                    self.delta,
+                )
+            {
+                return CandidateStep::Graze(selected);
             }
-            other => other,
+            return CandidateStep::Blocked;
         }
+        if policy == StepPolicy::Strict && !self.patrol_step_lands_on_floor(intent) {
+            return CandidateStep::Blocked;
+        }
+
+        CandidateStep::Clear(selected)
     }
 
     // Project the candidate intent forward by `path_clear_lookahead_secs`,
@@ -109,8 +128,15 @@ impl ActorMoveContext<'_> {
     }
 }
 
-pub(super) enum MoveCandidateResult {
-    Accepted { selected: SelectedActorMove },
-    BlockedByCharacter,
-    BlockedByWorld { selected: SelectedActorMove },
+// True when a blocked step still moved the actor more than half the requested
+// distance — enough to count as sliding along a wall rather than stalling.
+pub(super) fn blocked_step_made_useful_progress(
+    start: &Position,
+    target: &Position,
+    actor_speed: f32,
+    delta: f32,
+) -> bool {
+    let requested_distance = actor_speed * delta;
+    let useful_distance = requested_distance * 0.5;
+    start.horizontal_distance_sq(target) > useful_distance * useful_distance
 }

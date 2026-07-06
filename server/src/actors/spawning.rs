@@ -207,25 +207,16 @@ fn spawn_actor_in_zone(
 
     actors.insert(
         actor_id,
-        ActorInfo {
+        ActorInfo::new(
             entity,
-            spawn_zone_index: zone_idx,
-            spawn_kind: spawn_kind.to_string(),
-            direction_timer: random_direction_time(rng, kind_server_config),
-            patrol_intent: move_intent,
-            go_to_position: None,
-            go_to_position_is_chase: false,
-            is_returning_to_spawn: false,
-            return_path: Default::default(),
-            chase_reacquire_timer: 0.0,
-            stall_anchor: None,
-            stall_timer: 0.0,
-            return_retry_timer: 0.0,
-            patrol_ledge_escape_timer: 0.0,
-            committed_direction: None,
-            commit_secs_left: 0.0,
-            last_damager: None,
-        },
+            zone_idx,
+            spawn_kind.to_string(),
+            crate::resources::ActorGoal::Patrol {
+                intent: move_intent,
+                direction_timer: random_direction_time(rng, kind_server_config),
+                ledge_escape_timer: 0.0,
+            },
+        ),
     );
 }
 

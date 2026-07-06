@@ -9,5 +9,5 @@ mod steering;
 mod tests;
 
 pub(crate) use application::apply_actor_moves;
-pub(crate) use planning::{chase_target_within_reach, plan_actor_moves};
+pub(crate) use planning::plan_actor_moves;
 pub(crate) use query::ActorMovementQuery;

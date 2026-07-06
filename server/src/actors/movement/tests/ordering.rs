@@ -25,27 +25,16 @@ fn actor_plan_order_uses_actor_id_as_tie_breaker() {
 }
 
 #[test]
-fn actor_without_go_to_position_plans_after_targeted_actor() {
+fn actor_without_goal_target_plans_after_targeted_actor() {
     let pos = Position::default();
-    let targeted = ActorInfo {
-        entity: Entity::from_bits(1),
-        spawn_zone_index: 0,
-        spawn_kind: TEST_KIND.into(),
-        direction_timer: 0.0,
-        patrol_intent: ActorMoveIntent::Idle,
-        go_to_position: Some(Position { x: 1.0, y: 0.0, z: 0.0 }),
-        go_to_position_is_chase: true,
-        is_returning_to_spawn: false,
-        return_path: Default::default(),
-        chase_reacquire_timer: 0.0,
-        stall_anchor: None,
-        stall_timer: 0.0,
-        return_retry_timer: 0.0,
-        patrol_ledge_escape_timer: 0.0,
-        committed_direction: None,
-        commit_secs_left: 0.0,
-        last_damager: None,
-    };
+    let targeted = ActorInfo::new(
+        Entity::from_bits(1),
+        0,
+        TEST_KIND.into(),
+        ActorGoal::Chase {
+            target: Position { x: 1.0, y: 0.0, z: 0.0 },
+        },
+    );
 
     assert!(actor_target_distance_sq(&pos, Some(&targeted)).is_finite());
     assert_eq!(actor_target_distance_sq(&pos, None), f32::INFINITY);

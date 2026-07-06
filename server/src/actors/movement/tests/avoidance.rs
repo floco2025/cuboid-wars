@@ -25,7 +25,7 @@ fn blocked_step_needs_meaningful_progress() {
 }
 
 #[test]
-fn candidate_blocked_by_static_world_is_not_character_blocked() {
+fn head_on_wall_block_is_not_a_graze() {
     let pos = Position {
         x: -1.0,
         y: 0.0,
@@ -40,14 +40,37 @@ fn candidate_blocked_by_static_world_is_not_character_blocked() {
         speed: 20.0,
     };
 
-    match context.evaluate_candidate(intent) {
-        MoveCandidateResult::BlockedByWorld { selected } => {
+    // Perpendicular into the wall: no useful slide, even under Pursue.
+    assert!(matches!(
+        context.evaluate(intent, StepPolicy::Pursue),
+        CandidateStep::Blocked
+    ));
+}
+
+#[test]
+fn diagonal_wall_slide_is_a_graze_under_pursue() {
+    let pos = Position {
+        x: -1.0,
+        y: 0.0,
+        z: 0.0,
+    };
+    let collision_world = collision_world(&[wall()]);
+    let planned_moves = [];
+    let actor_starts = [];
+    let context = context(test_entity(1), &pos, &collision_world, &planned_moves, &actor_starts);
+    // 45° into the wall: the z component slides freely, keeping more than
+    // half the requested distance.
+    let intent = ActorMoveIntent::Moving {
+        direction: FRAC_PI_2 / 2.0,
+        speed: 20.0,
+    };
+
+    match context.evaluate(intent, StepPolicy::Pursue) {
+        CandidateStep::Graze(selected) => {
             assert!(selected.step.blocked);
             assert_eq!(selected.intent, intent);
         }
-        MoveCandidateResult::Accepted { .. } | MoveCandidateResult::BlockedByCharacter => {
-            panic!("expected static-world block")
-        }
+        CandidateStep::Clear(..) | CandidateStep::Blocked => panic!("expected a graze along the wall"),
     }
 }
 
@@ -71,12 +94,11 @@ fn candidate_blocked_by_other_character() {
         speed: actor_speed(),
     };
 
-    match context.evaluate_candidate(intent) {
-        MoveCandidateResult::BlockedByCharacter => {}
-        MoveCandidateResult::Accepted { .. } | MoveCandidateResult::BlockedByWorld { .. } => {
-            panic!("expected character block")
-        }
-    }
+    // Character blocks are absolute — no graze salvage even under Pursue.
+    assert!(matches!(
+        context.evaluate(intent, StepPolicy::Pursue),
+        CandidateStep::Blocked
+    ));
 }
 
 #[test]
@@ -96,12 +118,10 @@ fn following_front_actor_is_not_blocked_when_final_positions_do_not_overlap() {
         speed: actor_speed(),
     };
 
-    match context.evaluate_candidate(intent) {
-        MoveCandidateResult::Accepted { .. } => {}
-        MoveCandidateResult::BlockedByCharacter | MoveCandidateResult::BlockedByWorld { .. } => {
-            panic!("expected following move to be accepted")
-        }
-    }
+    assert!(matches!(
+        context.evaluate(intent, StepPolicy::Pursue),
+        CandidateStep::Clear(..)
+    ));
 }
 
 // The shared `floor()` helper is an 8m square centered at the origin
@@ -109,7 +129,7 @@ fn following_front_actor_is_not_blocked_when_final_positions_do_not_overlap() {
 // step from x=3.5 moving east projects past x=4. The single-tick step stays on
 // the floor; the lookahead probe catches the impending fall.
 #[test]
-fn patrol_candidate_rejected_when_lookahead_lands_off_floor() {
+fn strict_candidate_rejected_when_lookahead_lands_off_floor() {
     let pos = Position { x: 3.5, y: 0.0, z: 0.0 };
     let collision_world = collision_world(&[]);
     let planned_moves = [];
@@ -120,16 +140,14 @@ fn patrol_candidate_rejected_when_lookahead_lands_off_floor() {
         speed: actor_speed(),
     };
 
-    match context.evaluate_patrol_candidate(intent) {
-        MoveCandidateResult::BlockedByWorld { .. } => {}
-        MoveCandidateResult::Accepted { .. } | MoveCandidateResult::BlockedByCharacter => {
-            panic!("expected patrol candidate to be blocked by ledge ahead")
-        }
-    }
+    assert!(matches!(
+        context.evaluate(intent, StepPolicy::Strict),
+        CandidateStep::Blocked
+    ));
 }
 
 #[test]
-fn patrol_candidate_accepted_when_lookahead_stays_on_floor() {
+fn strict_candidate_accepted_when_lookahead_stays_on_floor() {
     let pos = Position { x: 3.5, y: 0.0, z: 0.0 };
     let collision_world = collision_world(&[]);
     let planned_moves = [];
@@ -140,12 +158,10 @@ fn patrol_candidate_accepted_when_lookahead_stays_on_floor() {
         speed: actor_speed(),
     };
 
-    match context.evaluate_patrol_candidate(intent) {
-        MoveCandidateResult::Accepted { .. } => {}
-        MoveCandidateResult::BlockedByCharacter | MoveCandidateResult::BlockedByWorld { .. } => {
-            panic!("expected patrol candidate moving inward to be accepted")
-        }
-    }
+    assert!(matches!(
+        context.evaluate(intent, StepPolicy::Strict),
+        CandidateStep::Clear(..)
+    ));
 }
 
 // ============================================================================
@@ -162,7 +178,7 @@ fn select_takes_clear_path_straight() {
         speed: actor_speed(),
     };
 
-    let selected = select_actor_move(&context, desired, None, false);
+    let selected = select_actor_move(&context, desired, None, StepPolicy::Pursue);
 
     assert_eq!(
         selected.intent, desired,
@@ -185,7 +201,7 @@ fn select_turns_around_a_wall_instead_of_freezing() {
         speed: 20.0,
     };
 
-    let selected = select_actor_move(&context, desired, None, false);
+    let selected = select_actor_move(&context, desired, None, StepPolicy::Pursue);
 
     assert_ne!(
         selected.intent,
@@ -221,7 +237,7 @@ fn select_escapes_head_on_character_block() {
         speed: actor_speed(),
     };
 
-    let selected = select_actor_move(&context, desired, None, false);
+    let selected = select_actor_move(&context, desired, None, StepPolicy::Pursue);
 
     assert_ne!(
         selected.intent,
@@ -250,7 +266,7 @@ fn two_actors_facing_each_other_do_not_both_freeze() {
             speed: actor_speed(),
         },
         None,
-        false,
+        StepPolicy::Pursue,
     );
     // B plans facing the opposite way with A as a stationary blocker dead ahead.
     let b_starts = [(test_entity(1), a_pos, actor_physics())];
@@ -262,7 +278,7 @@ fn two_actors_facing_each_other_do_not_both_freeze() {
             speed: actor_speed(),
         },
         None,
-        false,
+        StepPolicy::Pursue,
     );
 
     assert_ne!(a_move.intent, ActorMoveIntent::Idle);
@@ -295,7 +311,7 @@ fn select_idles_only_when_fully_ringed() {
         speed: actor_speed(),
     };
 
-    let selected = select_actor_move(&context, desired, None, false);
+    let selected = select_actor_move(&context, desired, None, StepPolicy::Pursue);
 
     assert_eq!(selected.intent, ActorMoveIntent::Idle, "no free heading exists → idle");
 }
@@ -310,7 +326,7 @@ fn patrol_select_does_not_step_off_a_ledge() {
         speed: actor_speed(),
     };
 
-    let selected = select_actor_move(&context, desired, None, true); // ledge-aware (patrol)
+    let selected = select_actor_move(&context, desired, None, StepPolicy::Strict); // ledge-aware (patrol)
 
     assert_ne!(
         selected.intent,
@@ -344,7 +360,7 @@ fn commit_reuses_committed_heading_at_current_speed() {
             speed: 4.0,
         },
         None,
-        false,
+        StepPolicy::Pursue,
         0.05,
     );
     assert_eq!(
@@ -367,7 +383,7 @@ fn commit_reuses_committed_heading_at_current_speed() {
             speed: 2.0,
         },
         None,
-        true,
+        StepPolicy::Strict,
         0.05,
     );
     assert_eq!(
@@ -394,7 +410,7 @@ fn commit_redecides_after_window_expires() {
             speed: 4.0,
         },
         None,
-        false,
+        StepPolicy::Pursue,
         0.05,
     );
     assert_eq!(info.committed_direction, Some(FRAC_PI_2));
@@ -408,7 +424,7 @@ fn commit_redecides_after_window_expires() {
             speed: 4.0,
         },
         None,
-        false,
+        StepPolicy::Pursue,
         1.0,
     );
     assert_eq!(

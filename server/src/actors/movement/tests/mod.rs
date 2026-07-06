@@ -6,15 +6,13 @@ use common::{
     protocol::{ActorId, ActorMoveIntent, Floor, MapLayout, Position, Wall},
 };
 
-use crate::resources::ActorInfo;
+use crate::resources::{ActorGoal, ActorInfo};
 
 use super::{
-    context::{ActorMoveContext, MoveCandidateResult},
+    context::{ActorMoveContext, CandidateStep, StepPolicy, blocked_step_made_useful_progress},
     ordering::{ActorPlanOrder, actor_target_distance_sq, sort_actor_plan_order},
-    planning::{
-        active_chase_intent, blocked_step_made_useful_progress, chase_target_within_reach, select_actor_move,
-        select_committed_move, should_reuse_commit, update_reached_go_to_state,
-    },
+    planning::{select_actor_move, select_committed_move, should_reuse_commit},
+    steering::{ActorDesire, desired_move},
 };
 
 mod avoidance;
@@ -33,25 +31,16 @@ fn order(entity_bits: u64, target_distance_sq: f32, id: u32) -> ActorPlanOrder {
 }
 
 fn actor_info() -> ActorInfo {
-    ActorInfo {
-        entity: test_entity(1),
-        spawn_zone_index: 0,
-        spawn_kind: TEST_KIND.into(),
-        direction_timer: 0.0,
-        patrol_intent: ActorMoveIntent::Idle,
-        go_to_position: None,
-        go_to_position_is_chase: false,
-        is_returning_to_spawn: false,
-        return_path: Default::default(),
-        chase_reacquire_timer: 0.0,
-        stall_anchor: None,
-        stall_timer: 0.0,
-        return_retry_timer: 0.0,
-        patrol_ledge_escape_timer: 0.0,
-        committed_direction: None,
-        commit_secs_left: 0.0,
-        last_damager: None,
-    }
+    ActorInfo::new(
+        test_entity(1),
+        0,
+        TEST_KIND.into(),
+        ActorGoal::Patrol {
+            intent: ActorMoveIntent::Idle,
+            direction_timer: 0.0,
+            ledge_escape_timer: 0.0,
+        },
+    )
 }
 
 fn actor_physics() -> CharacterPhysicsConfig {

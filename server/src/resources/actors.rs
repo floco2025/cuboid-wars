@@ -4,34 +4,92 @@ use bevy::prelude::*;
 
 use common::protocol::{ActorId, ActorMoveIntent, PlayerId, Position};
 
+// The hold (see `ActorGoal::chase_hold`) is for a chase target that's
+// genuinely unreachable vertically — a player on a ledge above, or tucked
+// below an overhang. Below the player jump apex so a hopping same-height
+// player doesn't flicker the hold; a same-height target within reach (e.g.
+// through a thin wall) keeps the chase pressing so the stall watchdog can
+// end it. Without a wall, contact detonation fires well before this distance.
+const CHASE_HOLD_MIN_VERTICAL_GAP: f32 = 1.0;
+
+// What the actor is currently trying to do. Behavior owns every transition;
+// movement only reads it (via `desired_move`) and never mutates it.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ActorGoal {
+    Patrol {
+        intent: ActorMoveIntent,
+        // Time until the next random heading re-roll.
+        direction_timer: f32,
+        // After a patrol stall (e.g. perched at a wall-base floor edge where
+        // every strict candidate is rejected), candidates are evaluated
+        // ledge-unaware for this long. A genuine fall is recycled by the
+        // silent fall-removal + respawn machinery.
+        ledge_escape_timer: f32,
+    },
+    // Pressing toward a visible player's live position. Never "arrives" —
+    // ends via contact detonation, the vertical hold, demotion to `Pursuit`,
+    // the leash, or the stall watchdog.
+    Chase {
+        target: Position,
+    },
+    // Demoted chase: one-shot walk toward the player's last-seen spot.
+    Pursuit {
+        last_seen: Position,
+    },
+    // Waypoint walk back to the spawn zone.
+    Return {
+        next: Position,
+        path: VecDeque<Position>,
+    },
+}
+
+impl ActorGoal {
+    // Where the actor is headed, for plan ordering and steering. Patrol has
+    // no target (wander).
+    #[must_use]
+    pub fn target_position(&self) -> Option<Position> {
+        match self {
+            Self::Patrol { .. } => None,
+            Self::Chase { target } => Some(*target),
+            Self::Pursuit { last_seen } => Some(*last_seen),
+            Self::Return { next, .. } => Some(*next),
+        }
+    }
+
+    // A chaser that has closed the horizontal gap to a vertically-unreachable
+    // target holds position and facing rather than arriving — otherwise it
+    // reverts to patrol, drifts, gets re-acquired, and flip-flops its heading
+    // every tick (the jitter). Only `Chase` holds; returners must arrive.
+    #[must_use]
+    pub fn chase_hold(&self, pos: &Position, reached_distance: f32) -> bool {
+        let Self::Chase { target } = self else {
+            return false;
+        };
+        pos.horizontal_distance_sq(target) <= reached_distance * reached_distance
+            && (target.y - pos.y).abs() >= CHASE_HOLD_MIN_VERTICAL_GAP
+    }
+}
+
 pub struct ActorInfo {
     pub entity: Entity,
     pub spawn_zone_index: usize,
     pub spawn_kind: String,
-    pub direction_timer: f32,
-    pub patrol_intent: ActorMoveIntent,
-    pub go_to_position: Option<Position>,
-    pub go_to_position_is_chase: bool,
-    pub is_returning_to_spawn: bool,
-    pub return_path: VecDeque<Position>,
+    pub goal: ActorGoal,
     pub chase_reacquire_timer: f32,
     // Net-displacement stall watchdog for any goal-directed or moving-patrol
     // state. The actor re-anchors here whenever it displaces past
-    // `STALL_PROGRESS_DISTANCE`; failing to for the state's window means it's
-    // wedged against geometry and the state's escape fires. Self-arming;
-    // `None` while the current state is exempt (vertical hold, intentional
+    // `STALL_PROGRESS_DISTANCE`; failing to for the goal's window means it's
+    // wedged against geometry and the goal's escape fires. Self-arming;
+    // `None` while the current goal is exempt (vertical hold, intentional
     // patrol idle).
     pub stall_anchor: Option<Position>,
     pub stall_timer: f32,
     // After a stalled return-to-spawn, suppresses the leash re-trigger so the
     // actor patrols in place first — otherwise the identical (possibly
-    // straight-line-fallback) return re-arms next tick and livelocks.
+    // straight-line-fallback) return re-arms next tick and livelocks. Armed
+    // by a Return escape but consumed while patrolling, so it can't live
+    // inside the `Return` variant.
     pub return_retry_timer: f32,
-    // After a patrol stall (e.g. perched at a wall-base floor edge where every
-    // ledge-aware candidate is rejected), patrol candidates are evaluated
-    // ledge-unaware for this long. A genuine fall is recycled by the silent
-    // fall-removal + respawn machinery.
-    pub patrol_ledge_escape_timer: f32,
     // The heading (yaw) the actor committed to and the time left on that
     // commitment. Movement re-decides only when the timer lapses or the
     // committed heading becomes blocked, so the actor doesn't re-pick (and
@@ -46,6 +104,25 @@ pub struct ActorInfo {
     // `SActorDeath` broadcast can attribute the kill. Chain-explosion
     // damage doesn't touch this field — those deaths read `None`.
     pub last_damager: Option<PlayerId>,
+}
+
+impl ActorInfo {
+    #[must_use]
+    pub fn new(entity: Entity, spawn_zone_index: usize, spawn_kind: String, goal: ActorGoal) -> Self {
+        Self {
+            entity,
+            spawn_zone_index,
+            spawn_kind,
+            goal,
+            chase_reacquire_timer: 0.0,
+            stall_anchor: None,
+            stall_timer: 0.0,
+            return_retry_timer: 0.0,
+            committed_direction: None,
+            commit_secs_left: 0.0,
+            last_damager: None,
+        }
+    }
 }
 
 #[derive(Resource, Default)]
