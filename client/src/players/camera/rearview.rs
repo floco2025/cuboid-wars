@@ -1,4 +1,4 @@
-use bevy::{camera::Viewport, prelude::*};
+use bevy::{camera::Viewport, prelude::*, ui::UiScale};
 
 use crate::{
     cameras::{CameraViewMode, MainCameraMarker, RearviewCameraMarker},
@@ -51,6 +51,7 @@ pub fn local_player_rearview_viewport_system(
     mut rearview_query: Query<&mut Camera, With<RearviewCameraMarker>>,
     view_mode: Res<CameraViewMode>,
     client_settings: Res<ClientSettings>,
+    ui_scale: Res<UiScale>,
 ) {
     let Ok(window) = windows.single() else {
         return;
@@ -76,9 +77,10 @@ pub fn local_player_rearview_viewport_system(
     let viewport_width = (window_width as f32 * rearview.width_ratio) as u32;
     let viewport_height = (window_height as f32 * rearview.height_ratio) as u32;
 
-    // Same fixed inset as the HUD panels. Those are logical-pixel UI nodes;
-    // the viewport is physical pixels, so scale the margin to match visually.
-    let margin = (HUD_EDGE_MARGIN_PX * window.scale_factor()) as u32;
+    // Same inset as the HUD panels. Those are logical-pixel UI nodes scaled
+    // by the HUD `UiScale`; the viewport is physical pixels, so apply both
+    // the window scale factor and the HUD scale to keep the edges aligned.
+    let margin = (HUD_EDGE_MARGIN_PX * window.scale_factor() * ui_scale.0) as u32;
 
     let x = window_width.saturating_sub(viewport_width + margin);
     let y = margin;

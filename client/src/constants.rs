@@ -92,6 +92,9 @@ pub const LABEL_ACTOR_MESH_WIDTH: f32 = 0.85;
 pub const LABEL_RENDER_FRAMES: u8 = 3;
 pub const LABEL_TEXT_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 1.0);
 pub const LABEL_BACKGROUND_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.2);
+// Padding inside the name label's translucent background, in texture px.
+pub const LABEL_TEXT_PADDING_X: f32 = 12.0;
+pub const LABEL_TEXT_PADDING_Y: f32 = 2.0;
 
 // ============================================================================
 // HUD
@@ -102,6 +105,10 @@ pub const LABEL_BACKGROUND_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.2);
 // sit the same distance in from the sides. The mirror is a render viewport in
 // physical pixels, so it multiplies this by the window scale factor.
 pub const HUD_EDGE_MARGIN_PX: f32 = 10.0;
+
+// Safety floor for the HUD scale (window width / `hud.reference_width`) so a
+// tiny window can't collapse the UI toward zero.
+pub const HUD_MIN_SCALE: f32 = 0.5;
 
 // ============================================================================
 // Health Bars (colors + fill layering; pixel dimensions live in

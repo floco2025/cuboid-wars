@@ -48,11 +48,12 @@ use client::{
     ui::{
         FpsMeasurement, GameMessageFeed, QuestLog, SeenPlayerIds,
         floating_labels::{
-            floating_health_bar_fill_system, floating_labels_billboard_system, player_name_label_render_system,
+            floating_health_bar_fill_system, floating_label_scale_compensation_system,
+            floating_labels_billboard_system, player_name_label_render_system,
         },
         render_pending_messages_system, setup_ui_system, tick_hud_banner_system, ui_crosshair_visibility_system,
-        ui_fps_system, ui_health_bar_fill_system, ui_player_list_rebuild_system, ui_quest_panel_rebuild_system,
-        ui_rtt_system, ui_stunned_blink_system, update_message_feed_system,
+        ui_fps_system, ui_health_bar_fill_system, ui_hud_scale_system, ui_player_list_rebuild_system,
+        ui_quest_panel_rebuild_system, ui_rtt_system, ui_stunned_blink_system, update_message_feed_system,
     },
     vfx::{
         BeamAssets, SparkAssets, beam_ghost_fade_system, beam_ghost_sparkle_system, beam_sparkles_system,
@@ -311,6 +312,10 @@ fn main() -> Result<()> {
         .add_systems(
             Update,
             (
+                ui_hud_scale_system,
+                // Cancels the HUD scale inside the fixed-size label textures;
+                // must observe this frame's scale, not last frame's.
+                floating_label_scale_compensation_system.after(ui_hud_scale_system),
                 ui_crosshair_visibility_system,
                 ui_player_list_rebuild_system,
                 ui_health_bar_fill_system.after(ui_player_list_rebuild_system),

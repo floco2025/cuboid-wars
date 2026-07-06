@@ -39,6 +39,7 @@
     "mouse_sensitivity": 0.002
   },
   "hud": {
+    "reference_width": 1920.0,
     "font_sizes": {
       "player_list": 18.0,
       "score": 16.0,

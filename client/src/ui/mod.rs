@@ -7,7 +7,8 @@ mod quest_panel;
 mod setup;
 
 pub use hud::{
-    CrosshairMarker, FpsMarker, FpsMeasurement, RttMarker, ui_crosshair_visibility_system, ui_fps_system, ui_rtt_system,
+    CrosshairMarker, FpsMarker, FpsMeasurement, RttMarker, ui_crosshair_visibility_system, ui_fps_system,
+    ui_hud_scale_system, ui_rtt_system,
 };
 pub use hud_banner::{HudBannerMarker, HudBannerTimer, spawn_hud_banner, tick_hud_banner_system};
 pub use message_feed::{

@@ -6,7 +6,7 @@ use common::{health::health_ratio, protocol::Health};
 
 use crate::constants::{
     HEALTH_BAR_FILL_COLOR, HEALTH_BAR_FILL_Z_OFFSET, HEALTH_BAR_TRACK_COLOR, LABEL_BACKGROUND_COLOR,
-    LABEL_PLAYER_MESH_WIDTH, LABEL_TEXT_COLOR,
+    LABEL_PLAYER_MESH_WIDTH, LABEL_TEXT_COLOR, LABEL_TEXT_PADDING_X, LABEL_TEXT_PADDING_Y,
 };
 
 // Marker for a billboarded label quad in world space — a player name's textured
@@ -14,6 +14,16 @@ use crate::constants::{
 // `floating_labels_billboard_system` to face the main camera each frame.
 #[derive(Component)]
 pub struct CharacterLabelMeshMarker;
+
+// Markers for the name text and its padded background inside the label's
+// render-target UI tree. `floating_label_scale_compensation_system` rewrites
+// their font size / padding to cancel the global HUD `UiScale`, which would
+// otherwise scale the fixed-size label texture's layout.
+#[derive(Component)]
+pub struct FloatingLabelTextMarker;
+
+#[derive(Component)]
+pub struct FloatingLabelPaddingMarker;
 
 // Lives on a player entity. Holds the dedicated `camera` that renders the
 // player's name into a texture, plus the `ui_root` of that render-target UI
@@ -76,10 +86,11 @@ pub fn spawn_floating_player_label(
             parent
                 .spawn((
                     Node {
-                        padding: UiRect::axes(Val::Px(12.0), Val::Px(2.0)),
+                        padding: UiRect::axes(Val::Px(LABEL_TEXT_PADDING_X), Val::Px(LABEL_TEXT_PADDING_Y)),
                         ..default()
                     },
                     BackgroundColor(LABEL_BACKGROUND_COLOR),
+                    FloatingLabelPaddingMarker,
                 ))
                 .with_children(|label_background| {
                     label_background.spawn((
@@ -90,6 +101,7 @@ pub fn spawn_floating_player_label(
                         },
                         TextColor(LABEL_TEXT_COLOR),
                         TextLayout::no_wrap(),
+                        FloatingLabelTextMarker,
                     ));
                 });
         })

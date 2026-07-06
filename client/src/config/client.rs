@@ -172,6 +172,10 @@ pub struct InputConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct HudConfig {
+    // Window width (logical px) the configured HUD sizes are designed for.
+    // The whole screen-space HUD scales by window_width / reference_width.
+    #[serde(default = "default_hud_reference_width")]
+    pub reference_width: f32,
     pub font_sizes: FontSizesConfig,
     pub message_feed: MessageFeedConfig,
     pub floating_labels: FloatingLabelsConfig,
@@ -179,6 +183,10 @@ pub struct HudConfig {
     pub banner: BannerConfig,
     pub quest_panel: QuestPanelConfig,
     pub death_overlay: DeathOverlayConfig,
+}
+
+const fn default_hud_reference_width() -> f32 {
+    1280.0
 }
 
 // Per-purpose font sizes. Each surface has its own preferred size; the
@@ -370,6 +378,7 @@ impl InputConfig {
 
 impl HudConfig {
     fn validate(&self) -> Result<()> {
+        validate_positive_finite(self.reference_width, "hud.reference_width")?;
         validate_positive_finite(self.font_sizes.player_list, "hud.font_sizes.player_list")?;
         validate_positive_finite(self.font_sizes.score, "hud.font_sizes.score")?;
         validate_positive_finite(self.font_sizes.message_feed, "hud.font_sizes.message_feed")?;
