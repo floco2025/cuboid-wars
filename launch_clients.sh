@@ -18,6 +18,18 @@ SCREEN_HEIGHT_PHYSICAL=$(echo "$DISPLAY_INFO" | grep "Resolution:" | head -1 | a
 SCREEN_WIDTH=$(echo "$DISPLAY_INFO" | grep "UI Looks like:" | head -1 | awk '{print $4}')
 SCREEN_HEIGHT=$(echo "$DISPLAY_INFO" | grep "UI Looks like:" | head -1 | awk '{print $6}')
 
+# At default scaling macOS omits the "UI Looks like:" line entirely. Retina
+# panels then run at half the physical resolution, everything else at 1:1.
+if [ -z "$SCREEN_WIDTH" ]; then
+    if echo "$DISPLAY_INFO" | grep -q "Retina"; then
+        SCREEN_WIDTH=$((SCREEN_WIDTH_PHYSICAL / 2))
+        SCREEN_HEIGHT=$((SCREEN_HEIGHT_PHYSICAL / 2))
+    else
+        SCREEN_WIDTH=$SCREEN_WIDTH_PHYSICAL
+        SCREEN_HEIGHT=$SCREEN_HEIGHT_PHYSICAL
+    fi
+fi
+
 # Calculate the actual scaling factor (for display purposes)
 SCALE_FACTOR=$(echo "scale=2; $SCREEN_WIDTH_PHYSICAL / $SCREEN_WIDTH" | bc)
 
