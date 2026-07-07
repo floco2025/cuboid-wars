@@ -63,7 +63,6 @@ async fn main() -> Result<()> {
     let mut server_gameplay_config = ServerGameplayConfig::load_default()?;
     if args.invincible {
         server_gameplay_config.player.invincible = true;
-        println!("players are invincible (--invincible)");
     }
     let endpoint = Endpoint::server(server_config, addr)?;
     println!("quic server listening on {addr}");
