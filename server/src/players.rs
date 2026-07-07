@@ -60,14 +60,11 @@ pub fn players_fall_death_system(
     mut players: ResMut<PlayerMap>,
     gameplay_config: Res<GameplayConfig>,
     server_gameplay_config: Res<crate::config::ServerGameplayConfig>,
+    map_config: Res<MapConfig>,
+    map_geometry: Res<MapGeometry>,
+    collision_world: Res<CollisionWorld>,
     player_query: Query<(Entity, &PlayerId, &Position), With<PlayerMarker>>,
 ) {
-    // Debug invincibility shorts the whole system — a player can keep
-    // falling indefinitely. That's the intended trade-off; the only
-    // alternative would be a teleport, which is beyond "no damage".
-    if server_gameplay_config.player.invincible {
-        return;
-    }
     for (entity, id, pos) in player_query.iter() {
         if pos.y >= CHARACTER_FALL_DEATH_Y {
             continue;
@@ -75,6 +72,39 @@ pub fn players_fall_death_system(
         // Skip players already dead this tick (e.g. killed by a projectile
         // before falling out of the world).
         if players.get(id).is_some_and(|info| info.is_dead()) {
+            continue;
+        }
+        if server_gameplay_config.player.invincible {
+            // Debug invincibility turns the void fall into a silent teleport
+            // home: no `SPlayerDeath` (no banner, no kill feed), no per-life
+            // state loss — keys, power-ups, and score all survive. The client
+            // reconciliation snaps to the new position on the next snapshot.
+            let occupied_positions: Vec<Position> = player_query
+                .iter()
+                .filter(|(other, _, other_pos)| *other != entity && other_pos.y >= CHARACTER_FALL_DEATH_Y)
+                .map(|(_, _, other_pos)| *other_pos)
+                .collect();
+            let spawn_pos = generate_player_spawn_position(
+                &map_config,
+                &map_geometry,
+                &collision_world,
+                &occupied_positions,
+                gameplay_config.player.physics(),
+            );
+            info!(
+                "{:?} fell out of the world while invincible; teleporting to {:?}",
+                id, spawn_pos
+            );
+            commands.entity(entity).insert((
+                spawn_pos,
+                FaceDirection(spawn_face_direction(&spawn_pos)),
+                CharacterVerticalVelocity::default(),
+            ));
+            if let Some(info) = players.get_mut(id) {
+                // The aborted fall must not register as an impact.
+                info.peak_fall_speed = 0.0;
+                info.fall_peak_y = f32::NEG_INFINITY;
+            }
             continue;
         }
         info!("{:?} fell and died at {:?}", id, pos);
