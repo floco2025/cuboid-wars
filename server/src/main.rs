@@ -42,6 +42,11 @@ struct Args {
     // Address to bind server to
     #[arg(short, long, default_value = "127.0.0.1:8080")]
     bind: String,
+
+    // Make players invincible (overrides `player.invincible` in
+    // config/server/gameplay.json)
+    #[arg(long)]
+    invincible: bool,
 }
 
 // ============================================================================
@@ -55,7 +60,11 @@ async fn main() -> Result<()> {
     let addr: SocketAddr = args.bind.parse()?;
     let server_config = configure_server()?;
     let gameplay_config = GameplayConfig::load_default()?;
-    let server_gameplay_config = ServerGameplayConfig::load_default()?;
+    let mut server_gameplay_config = ServerGameplayConfig::load_default()?;
+    if args.invincible {
+        server_gameplay_config.player.invincible = true;
+        println!("players are invincible (--invincible)");
+    }
     let endpoint = Endpoint::server(server_config, addr)?;
     println!("quic server listening on {addr}");
 
