@@ -15,7 +15,7 @@ use common::{
 
 use super::{
     perception::visible_player_position,
-    tick::{BehaviorInputs, active_leash, tick_actor_behavior},
+    tick::{BehaviorInputs, active_leash, patrolling_off_zone_level, tick_actor_behavior},
     zone::xz_distance_from_rect,
 };
 
@@ -49,7 +49,8 @@ pub fn actor_behavior_system(
 
         let zone = &map_config.actor_spawn_zones[info.spawn_zone_index];
         let zone_bounds = zone.xz_bounds(&map_geometry);
-        let beyond_leash = xz_distance_from_rect(pos, zone_bounds) > active_leash(&info.goal, kind_config);
+        let beyond_leash = xz_distance_from_rect(pos, zone_bounds) > active_leash(&info.goal, kind_config)
+            || patrolling_off_zone_level(&info.goal, pos.y, zone.level);
         // Perception is skipped beyond the leash — the actor is heading home
         // regardless.
         let visible_player = if beyond_leash {

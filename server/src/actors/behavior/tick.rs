@@ -8,7 +8,11 @@ use crate::{
     config::ActorKindServerConfig,
     resources::{ActorGoal, ActorInfo, ActorSpawnZone},
 };
-use common::protocol::{ActorMoveIntent, Position};
+use common::{
+    constants::LEVEL_HEIGHT,
+    map::compute_player_level,
+    protocol::{ActorMoveIntent, Position},
+};
 
 use super::{
     patrol::{forced_patrol_goal, fresh_patrol_goal, random_direction_time, random_patrol_intent},
@@ -61,6 +65,14 @@ pub(super) fn active_leash(goal: &ActorGoal, kind_config: &ActorKindServerConfig
     }
 }
 
+// The leash distance is horizontal, so a patrol that wandered to a
+// different FLOOR than its zone can hover directly above/below home and
+// never trip it — squatting on the wrong level forever. Chase/Pursuit stay
+// level-free (cross-level chases are legal).
+pub(super) fn patrolling_off_zone_level(goal: &ActorGoal, pos_y: f32, zone_level: u8) -> bool {
+    matches!(goal, ActorGoal::Patrol { .. }) && compute_player_level(pos_y) != zone_level
+}
+
 // The whole per-actor decision for one tick: timers → arrival → leash →
 // acquire/demote → stall watchdog → patrol re-roll. Pure over `ActorInfo` +
 // inputs so every transition is unit-testable end-to-end.
@@ -81,6 +93,12 @@ pub(super) fn tick_actor_behavior(info: &mut ActorInfo, inputs: &BehaviorInputs<
         ActorGoal::Pursuit { last_seen } => {
             pos.horizontal_distance_sq(last_seen) <= reached_distance * reached_distance
         }
+        // Deliberately horizontal-only: the two waypoints of a ramp
+        // transition share x/z (sloped cell + the opening above), so any
+        // vertical gate here strands the actor mid-slope steering at a point
+        // straight overhead. A fallen actor popping elevated waypoints is
+        // instead recovered by the stall watchdog + retry, which re-plans
+        // from its real position.
         ActorGoal::Return { next, .. } => pos.horizontal_distance_sq(next) <= reached_distance * reached_distance,
         ActorGoal::Patrol { .. } | ActorGoal::Chase { .. } => false,
     };
@@ -198,23 +216,36 @@ fn escape_stall(info: &mut ActorInfo, inputs: &BehaviorInputs<'_>, rng: &mut Thr
             // wander off — the reacquire cooldown stops next tick's
             // perception from re-pinning it.
             debug!(
-                "actor chase stalled at ({:.2},{:.2},{:.2}); giving up for {:.1}s",
-                pos.x, pos.y, pos.z, inputs.kind_config.senses.chase_reacquire_cooldown_secs
+                "{} (zone {}) chase stalled at ({:.2},{:.2},{:.2}); giving up for {:.1}s",
+                info.spawn_kind,
+                info.spawn_zone_index,
+                pos.x,
+                pos.y,
+                pos.z,
+                inputs.kind_config.senses.chase_reacquire_cooldown_secs
             );
             info.chase_reacquire_timer = inputs.kind_config.senses.chase_reacquire_cooldown_secs;
             info.goal = forced_patrol_goal(rng, inputs.patrol_speed, inputs.kind_config);
         }
         ActorGoal::Pursuit { .. } => {
             debug!(
-                "actor abandoning unreachable last-seen spot at ({:.2},{:.2},{:.2}); resuming patrol",
-                pos.x, pos.y, pos.z
+                "{} (zone {}) abandoning unreachable last-seen spot at ({:.2},{:.2},{:.2}); resuming patrol",
+                info.spawn_kind, info.spawn_zone_index, pos.x, pos.y, pos.z
             );
             info.goal = fresh_patrol_goal();
         }
-        ActorGoal::Return { .. } => {
+        ActorGoal::Return { next, path } => {
             warn!(
-                "actor return stalled at ({:.2},{:.2},{:.2}); patrolling {RETURN_RETRY_SECS}s before retry",
-                pos.x, pos.y, pos.z
+                "{} (zone {}) return stalled at ({:.2},{:.2},{:.2}) heading to waypoint ({:.2},{:.2},{:.2}) with {} more; patrolling {RETURN_RETRY_SECS}s before retry",
+                info.spawn_kind,
+                info.spawn_zone_index,
+                pos.x,
+                pos.y,
+                pos.z,
+                next.x,
+                next.y,
+                next.z,
+                path.len()
             );
             info.return_retry_timer = RETURN_RETRY_SECS;
             info.goal = forced_patrol_goal(rng, inputs.patrol_speed, inputs.kind_config);
@@ -225,8 +256,8 @@ fn escape_stall(info: &mut ActorInfo, inputs: &BehaviorInputs<'_>, rng: &mut Thr
             // risky steps — grazes and off-edge drops; a fall is recycled by
             // removal/respawn.
             debug!(
-                "actor patrol stalled at ({:.2},{:.2},{:.2}); ledge-unaware escape for {PATROL_LEDGE_ESCAPE_SECS}s",
-                pos.x, pos.y, pos.z
+                "{} (zone {}) patrol stalled at ({:.2},{:.2},{:.2}); ledge-unaware escape for {PATROL_LEDGE_ESCAPE_SECS}s",
+                info.spawn_kind, info.spawn_zone_index, pos.x, pos.y, pos.z
             );
             let mut goal = forced_patrol_goal(rng, inputs.patrol_speed, inputs.kind_config);
             if let ActorGoal::Patrol { ledge_escape_timer, .. } = &mut goal {
@@ -242,9 +273,26 @@ fn start_return(info: &mut ActorInfo, inputs: &BehaviorInputs<'_>) {
     let path = inputs.nav_graph.path_to_spawn_zone(&pos, inputs.zone);
     let used_straight_line_fallback = path.as_ref().is_none_or(VecDeque::is_empty);
     let mut path = path.unwrap_or_default();
-    let next = path
-        .pop_front()
-        .unwrap_or_else(|| closest_point_in_rect(&pos, inputs.zone_bounds));
+    let next = path.pop_front().unwrap_or_else(|| {
+        let mut fallback = closest_point_in_rect(&pos, inputs.zone_bounds);
+        fallback.y = f32::from(inputs.zone.level) * LEVEL_HEIGHT;
+        fallback
+    });
+
+    // A fallback target the actor already stands on (horizontally) gives the
+    // return nothing to walk toward — arrival would pop it the same tick and
+    // the wrong-level leash would re-arm next tick, hot-looping
+    // patrol→return→arrive at 30 Hz. Skip the attempt and retry after the
+    // grace window instead.
+    let reached_distance = inputs.kind_config.navigation.go_to_reached_distance;
+    if used_straight_line_fallback && pos.horizontal_distance_sq(&next) <= reached_distance * reached_distance {
+        warn!(
+            "{} (zone {}) has no usable return target from ({:.2},{:.2},{:.2}); patrolling {RETURN_RETRY_SECS}s before retry",
+            info.spawn_kind, info.spawn_zone_index, pos.x, pos.y, pos.z
+        );
+        info.return_retry_timer = RETURN_RETRY_SECS;
+        return;
+    }
 
     // Diagnostic. A missing nav path (straight-line fallback) is the real
     // anomaly — it can pin an actor against a wall until the return stall
@@ -253,13 +301,23 @@ fn start_return(info: &mut ActorInfo, inputs: &BehaviorInputs<'_>) {
     let target_distance = pos.horizontal_distance_sq(&next).sqrt();
     if used_straight_line_fallback {
         warn!(
-            "actor returning to spawn zone {} (level {}) from ({:.2},{:.2},{:.2}): NO nav path — straight-line fallback to ({:.2},{:.2},{:.2}), dist {:.2}; may walk into a wall/barrier",
-            inputs.zone.kind, inputs.zone.level, pos.x, pos.y, pos.z, next.x, next.y, next.z, target_distance
+            "{} returning to spawn zone {} (level {}) from ({:.2},{:.2},{:.2}): NO nav path — straight-line fallback to ({:.2},{:.2},{:.2}), dist {:.2}; may walk into a wall/barrier",
+            info.spawn_kind,
+            info.spawn_zone_index,
+            inputs.zone.level,
+            pos.x,
+            pos.y,
+            pos.z,
+            next.x,
+            next.y,
+            next.z,
+            target_distance
         );
     } else {
         debug!(
-            "actor returning to spawn zone {} (level {}) from ({:.2},{:.2},{:.2}): first waypoint ({:.2},{:.2},{:.2}), dist {:.2}, {} waypoints",
-            inputs.zone.kind,
+            "{} returning to spawn zone {} (level {}) from ({:.2},{:.2},{:.2}): first waypoint ({:.2},{:.2},{:.2}), dist {:.2}, {} waypoints",
+            info.spawn_kind,
+            info.spawn_zone_index,
             inputs.zone.level,
             pos.x,
             pos.y,
@@ -403,6 +461,48 @@ mod tests {
 
     fn tick(info: &mut ActorInfo, inputs: &BehaviorInputs<'_>) {
         tick_actor_behavior(info, inputs, &mut rand::rng());
+    }
+
+    // ---- level awareness ---------------------------------------------------
+
+    #[test]
+    fn already_arrived_fallback_skips_return_and_arms_grace() {
+        let fixture = Fixture::new();
+        // Wrong level, horizontally inside the zone rect: the 1×1 single-level
+        // nav graph can't path there, and the straight-line fallback lands at
+        // the actor's own feet — a return with nothing to walk toward.
+        let mut info = actor_info(moving_patrol());
+        let pos = Position {
+            x: 0.0,
+            y: LEVEL_HEIGHT,
+            z: 0.0,
+        };
+
+        tick(&mut info, &fixture.inputs(pos, None, true));
+
+        assert!(
+            matches!(info.goal, ActorGoal::Patrol { .. }),
+            "a degenerate return must not start: {:?}",
+            info.goal
+        );
+        assert!(
+            info.return_retry_timer > 0.0,
+            "grace must arm so the retry isn't a 30 Hz hot loop"
+        );
+    }
+
+    #[test]
+    fn patrol_off_zone_level_reads_as_beyond_leash() {
+        use common::constants::LEVEL_HEIGHT;
+        assert!(patrolling_off_zone_level(&moving_patrol(), LEVEL_HEIGHT, 0));
+        assert!(!patrolling_off_zone_level(&moving_patrol(), 0.1, 0));
+        let chase = ActorGoal::Chase {
+            target: Position::default(),
+        };
+        assert!(
+            !patrolling_off_zone_level(&chase, LEVEL_HEIGHT, 0),
+            "cross-level chases stay legal"
+        );
     }
 
     // ---- timers -----------------------------------------------------------
