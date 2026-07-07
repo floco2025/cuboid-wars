@@ -4,7 +4,7 @@ use crate::{
     actors::ActorMap,
     characters::PreviousTickPosition,
     constants::{RECON_ACTOR_SNAP_DISTANCE, RECON_CORRECTION_TIME_RTT_MULTIPLIER},
-    network::{ServerReconciliation, worst_axis_excess},
+    network::{ServerReconciliation, worst_axis_divergence},
 };
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
@@ -15,6 +15,15 @@ use common::{
     },
     protocol::{ActorId, ActorMarker, ActorMoveIntent, PlayerMarker, Position},
 };
+
+// Fraction of the correction delta applied per `SNAPSHOT_SECS` of real time
+// — `SNAPSHOT_SECS / correction window`, with the window scaled from the
+// RTT. A near-zero RTT saturates to 1.0 via the clamp. Unlike players,
+// actors get no motion-aware window: their speeds are simple enough that
+// one RTT-scaled window fits.
+fn actor_correction_factor(rtt: f32) -> f32 {
+    (SNAPSHOT_SECS / (rtt * RECON_CORRECTION_TIME_RTT_MULTIPLIER)).clamp(0.0, 1.0)
+}
 
 pub(crate) type ActorMovementQuery<'w, 's> = Query<
     'w,
@@ -69,23 +78,22 @@ pub(crate) fn plan_actor_moves(
             .physics();
         let h_vel = move_intent.to_horizontal_velocity();
         let target_pos = if let Some(recon) = recon_option.as_mut() {
-            let correction_time = recon.rtt * RECON_CORRECTION_TIME_RTT_MULTIPLIER;
-            let correction_factor = (SNAPSHOT_SECS / correction_time).clamp(0.0, 1.0);
+            let correction_factor = actor_correction_factor(recon.rtt);
 
-            // Accumulator hits `SNAPSHOT_PERIOD_SECS` after exactly
-            // `correction_time` real seconds; it's the dropped-snapshot
-            // fallback (normally the next snapshot lands first).
+            // Each tick applies `delta / correction window` of the fixed
+            // delta, so the accumulator reaching `SNAPSHOT_SECS` coincides
+            // with exactly 100% of the correction applied — removing the
+            // component here is what stops over-correction, doubling as the
+            // dropped-snapshot fallback (normally the next snapshot replaces
+            // this component first).
             recon.correction_progress += delta * correction_factor;
             if recon.correction_progress >= SNAPSHOT_SECS {
                 commands.entity(entity).remove::<ServerReconciliation>();
             }
 
-            // Project the snapshot pos forward by half-RTT — compare against
-            // where the server is *now*, not where it was at snapshot time.
-            let extrapolated_server_pos = Vec3::from(recon.server_pos) + recon.server_velocity * recon.rtt / 2.0;
-            let correction_delta = extrapolated_server_pos - Vec3::from(recon.client_pos);
+            let correction_delta = recon.extrapolated_delta();
 
-            let (worst_axis, worst_magnitude) = worst_axis_excess(correction_delta);
+            let (worst_axis, worst_magnitude) = worst_axis_divergence(correction_delta);
             if worst_magnitude >= RECON_ACTOR_SNAP_DISTANCE {
                 warn!(
                     "{:?} out of sync: |{worst_axis}|={worst_magnitude:.2} >= {:.2} (Δ x={:.2}, y={:.2}, z={:.2}); snapping to server position",
@@ -108,6 +116,8 @@ pub(crate) fn plan_actor_moves(
 
             Position {
                 x: h_vel.x.mul_add(delta, pos.x) + correction_delta.x * delta * correction_factor / SNAPSHOT_SECS,
+                // Y is purely predicted (gravity runs locally); the snap
+                // branch above catches floor-level disagreements.
                 y: pos.y,
                 z: h_vel.z.mul_add(delta, pos.z) + correction_delta.z * delta * correction_factor / SNAPSHOT_SECS,
             }
@@ -171,4 +181,21 @@ fn push_actor_planned_move(
         planned_move = planned_move.with_blocked_xz();
     }
     planned_moves.push(planned_move);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn correction_factor_follows_the_rtt_window() {
+        let rtt = 0.2;
+        let expected = SNAPSHOT_SECS / (rtt * RECON_CORRECTION_TIME_RTT_MULTIPLIER);
+        assert!((actor_correction_factor(rtt) - expected).abs() < 1e-6);
+    }
+
+    #[test]
+    fn zero_rtt_saturates_the_correction_factor() {
+        assert_eq!(actor_correction_factor(0.0), 1.0);
+    }
 }
