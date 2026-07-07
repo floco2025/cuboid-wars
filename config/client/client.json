@@ -45,7 +45,7 @@
       "score": 16.0,
       "message_feed": 18.0,
       "floating_label": 40.0,
-      "banner": 32.0,
+      "banner": 40.0,
       "quest_panel": 16.0
     },
     "message_feed": {
@@ -56,10 +56,8 @@
       "height_above_character": 0.5
     },
     "health_bars": {
-      "floating_player_width": 180.0,
-      "floating_player_height": 10.0,
-      "floating_actor_width": 170.0,
-      "floating_actor_height": 22.0,
+      "floating_player_aspect": 0.056,
+      "floating_actor_aspect": 0.129,
       "player_list_width": 160.0,
       "player_list_height": 8.0
     },

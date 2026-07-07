@@ -8,7 +8,7 @@ use std::hash::{Hash, Hasher};
 
 use super::{
     components::PlayerListMarker,
-    entry::{player_health, spawn_player_entry},
+    entry::{PlayerEntryStyle, player_health, spawn_player_entry},
 };
 use crate::{
     barriers::BarrierAssets,
@@ -46,16 +46,19 @@ pub fn ui_player_list_rebuild_system(
     }
     *last_content = Some(content);
 
+    let style = PlayerEntryStyle {
+        name_font_size: client_settings.hud.font_sizes.player_list,
+        score_font_size: client_settings.hud.font_sizes.score,
+        health_bar_width: client_settings.hud.health_bars.player_list_width,
+        health_bar_height: client_settings.hud.health_bars.player_list_height,
+    };
     rebuild_player_list(
         &mut commands,
         *player_list_ui,
         &players,
         local_player_id,
         &gameplay_config,
-        client_settings.hud.font_sizes.player_list,
-        client_settings.hud.font_sizes.score,
-        client_settings.hud.health_bars.player_list_width,
-        client_settings.hud.health_bars.player_list_height,
+        &style,
         &kind_table,
         barrier_assets.as_deref(),
         &health_query,
@@ -63,17 +66,13 @@ pub fn ui_player_list_rebuild_system(
     );
 }
 
-#[allow(clippy::too_many_arguments)]
 fn rebuild_player_list(
     commands: &mut Commands,
     player_list_entity: Entity,
     players: &PlayerMap,
     local_player_id: Option<PlayerId>,
     gameplay_config: &GameplayConfig,
-    hud_font_size: f32,
-    score_font_size: f32,
-    health_bar_width: f32,
-    health_bar_height: f32,
+    style: &PlayerEntryStyle,
     kind_table: &BarrierKindTable,
     barrier_assets: Option<&BarrierAssets>,
     health_query: &Query<&Health>,
@@ -101,10 +100,7 @@ fn rebuild_player_list(
             current_health,
             kind_table,
             barrier_assets,
-            hud_font_size,
-            score_font_size,
-            health_bar_width,
-            health_bar_height,
+            style,
         );
         ordered_children.push(entity);
     }

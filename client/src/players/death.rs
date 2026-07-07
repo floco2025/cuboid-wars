@@ -1,7 +1,10 @@
 use bevy::prelude::*;
 
 use super::resources::LocalPlayerInfo;
-use crate::{config::ClientSettings, ui::DeathOverlayMarker};
+use crate::{
+    config::ClientSettings,
+    ui::{DeathOverlayMarker, fade_out_alpha},
+};
 
 // Peak alpha of the red death tint. Hardcoded — exposing in
 // `DeathOverlayConfig` is a one-line add if it ever needs tuning.
@@ -44,7 +47,7 @@ pub fn death_overlay_visibility_system(
     }
 
     *timer = (*timer - time.delta_secs()).max(0.0);
-    let fade = (*timer / cfg.fade_duration_secs).min(1.0);
+    let fade = fade_out_alpha(*timer, cfg.fade_duration_secs);
     let alpha = DEATH_OVERLAY_MAX_ALPHA * fade;
     color.0 = Color::srgba(1.0, 0.0, 0.0, alpha);
     *visibility = if alpha > 0.0 {

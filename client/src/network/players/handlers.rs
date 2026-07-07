@@ -7,7 +7,7 @@ use crate::{
     network::{RoundTripTime, ServerReconciliation},
     players::{CameraShake, CuboidShake, LocalPlayerInfo, PlayerMap},
     projectiles::{ProjectileAssets, spawn_projectiles},
-    ui::{GameMessage, GameMessageFeed, HudBannerMarker, QuestEntry, QuestLog, spawn_hud_banner},
+    ui::{GameMessage, GameMessageFeed, PendingBanner, QuestEntry, QuestLog},
 };
 use common::{
     config::GameplayConfig,
@@ -182,7 +182,7 @@ pub fn handle_player_death_message(
     local_player_info: &mut LocalPlayerInfo,
     feed: &mut GameMessageFeed,
     client_settings: &ClientSettings,
-    existing_banners: &Query<Entity, With<HudBannerMarker>>,
+    pending_banner: &mut PendingBanner,
     my_player_id: PlayerId,
     msg: SPlayerDeath,
 ) {
@@ -240,13 +240,7 @@ pub fn handle_player_death_message(
         // `DeathOverlayMarker` tint and the message-feed `SoloDeath`
         // entry are independent layers; the banner is the headline.
         let banner = &client_settings.hud.banner;
-        spawn_hud_banner(
-            commands,
-            existing_banners,
-            &banner.death_text,
-            banner.death_duration_secs,
-            client_settings.hud.font_sizes.banner,
-        );
+        pending_banner.set(banner.death_text.clone(), banner.death_duration_secs);
     } else if let Some(info) = players.remove(&msg.id) {
         commands.entity(info.entity).despawn();
     }
@@ -345,10 +339,9 @@ pub fn handle_fall_damage_message(
 // quest. Already-known ids are skipped (defensive; the server only sends
 // genuinely-new quests).
 pub fn handle_quests_assigned_message(
-    commands: &mut Commands,
     quest_log: &mut QuestLog,
     client_settings: &ClientSettings,
-    existing_banners: &Query<Entity, With<HudBannerMarker>>,
+    pending_banner: &mut PendingBanner,
     msg: SQuestsAssigned,
 ) {
     let mut lines = Vec::new();
@@ -372,13 +365,9 @@ pub fn handle_quests_assigned_message(
     if lines.is_empty() {
         return;
     }
-    let banner = &client_settings.hud.banner;
-    spawn_hud_banner(
-        commands,
-        existing_banners,
-        &lines.join("\n"),
-        banner.quest_announcement_duration_secs,
-        client_settings.hud.font_sizes.banner,
+    pending_banner.set(
+        lines.join("\n"),
+        client_settings.hud.banner.quest_announcement_duration_secs,
     );
 }
 
@@ -398,7 +387,7 @@ pub fn handle_quest_completed_message(
     commands: &mut Commands,
     quest_log: &mut QuestLog,
     client_settings: &ClientSettings,
-    existing_banners: &Query<Entity, With<HudBannerMarker>>,
+    pending_banner: &mut PendingBanner,
     asset_server: &AssetServer,
     asset_set: &AssetSet,
     msg: SQuestCompleted,
@@ -407,13 +396,9 @@ pub fn handle_quest_completed_message(
         entry.progress = entry.threshold;
         entry.completed = true;
     }
-    let banner = &client_settings.hud.banner;
-    spawn_hud_banner(
-        commands,
-        existing_banners,
-        &msg.completed_text,
-        banner.quest_completed_duration_secs,
-        client_settings.hud.font_sizes.banner,
+    pending_banner.set(
+        msg.completed_text,
+        client_settings.hud.banner.quest_completed_duration_secs,
     );
     commands.spawn((
         AudioPlayer::new(asset_server.load(asset_set.player_sound("quest_completed").to_owned())),
@@ -491,8 +476,6 @@ mod tests {
 
     #[test]
     fn local_player_death_sets_health_to_zero() {
-        use bevy::ecs::system::SystemState;
-
         let my_id = PlayerId(7);
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
@@ -502,11 +485,8 @@ mod tests {
         players.insert(my_id, player_info(entity, "Alice"));
         let mut local_player_info = LocalPlayerInfo::default();
         let mut feed = GameMessageFeed::default();
+        let mut pending_banner = PendingBanner::default();
         let client_settings = ClientSettings::load_default().expect("load default client settings");
-        let mut banner_state: SystemState<Query<Entity, With<crate::ui::HudBannerMarker>>> = SystemState::new(world);
-        let banners = banner_state
-            .get(world)
-            .expect("banner query invalid for the test world");
         let mut commands_queue = bevy::ecs::world::CommandQueue::default();
 
         {
@@ -517,7 +497,7 @@ mod tests {
                 &mut local_player_info,
                 &mut feed,
                 &client_settings,
-                &banners,
+                &mut pending_banner,
                 my_id,
                 SPlayerDeath {
                     id: my_id,

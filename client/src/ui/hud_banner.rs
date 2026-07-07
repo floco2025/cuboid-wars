@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+use super::hud::fade_out_alpha;
 use crate::config::ClientSettings;
 
 // Translucent black background at full opacity. The fade-out tail
@@ -17,20 +18,43 @@ pub struct HudBannerTimer {
     pub remaining_secs: f32,
 }
 
-// Spawn a vertically-centered full-width band (1/5 screen height) with
-// `text` centered both horizontally and vertically, fading out over the
-// final `client_settings.hud.banner.fade_duration_secs` of its lifetime.
+// A requested banner, drained by `render_pending_banner_system`. Gameplay
+// handlers set it; the last request in a frame wins, matching the HUD's
+// one-banner-at-a-time invariant (callers with several things to announce
+// combine them into one multi-line text).
+#[derive(Resource, Default)]
+pub struct PendingBanner(Option<BannerRequest>);
+
+struct BannerRequest {
+    text: String,
+    duration_secs: f32,
+}
+
+impl PendingBanner {
+    pub fn set(&mut self, text: String, duration_secs: f32) {
+        self.0 = Some(BannerRequest { text, duration_secs });
+    }
+}
+
+// Spawn the requested banner: a vertically-centered full-width band (1/5
+// screen height) with the text centered both ways, fading out over the final
+// `hud.banner.fade_duration_secs` of its lifetime.
 //
 // Single-banner invariant: any existing banner entity is despawned first.
 // Two banners overlapping looks broken (same position, same translucent
 // background) so the widget reads cleanly as one HUD message at a time.
-pub fn spawn_hud_banner(
-    commands: &mut Commands,
-    existing: &Query<Entity, With<HudBannerMarker>>,
-    text: &str,
-    duration_secs: f32,
-    font_size: f32,
+pub fn render_pending_banner_system(
+    mut commands: Commands,
+    mut pending: ResMut<PendingBanner>,
+    client_settings: Res<ClientSettings>,
+    existing: Query<Entity, With<HudBannerMarker>>,
 ) {
+    if pending.0.is_none() {
+        return;
+    }
+    let Some(request) = pending.0.take() else {
+        return;
+    };
     for entity in existing.iter() {
         commands.entity(entity).despawn();
     }
@@ -38,7 +62,7 @@ pub fn spawn_hud_banner(
         .spawn((
             HudBannerMarker,
             HudBannerTimer {
-                remaining_secs: duration_secs,
+                remaining_secs: request.duration_secs,
             },
             Node {
                 position_type: PositionType::Absolute,
@@ -55,9 +79,9 @@ pub fn spawn_hud_banner(
         ))
         .with_children(|root| {
             root.spawn((
-                Text::new(text),
+                Text::new(request.text),
                 TextFont {
-                    font_size: FontSize::Px(font_size),
+                    font_size: FontSize::Px(client_settings.hud.font_sizes.banner),
                     ..default()
                 },
                 TextColor(Color::WHITE),
@@ -66,8 +90,7 @@ pub fn spawn_hud_banner(
 }
 
 // Ticks the lifetime timer and fades the banner's background and text
-// alpha together over the final `fade_duration_secs`. While `remaining`
-// is above that window, the `min(1.0)` keeps everything at full opacity.
+// alpha together over the final `fade_duration_secs`.
 pub fn tick_hud_banner_system(
     mut commands: Commands,
     time: Res<Time>,
@@ -83,7 +106,7 @@ pub fn tick_hud_banner_system(
             commands.entity(entity).despawn();
             continue;
         }
-        let fade = (timer.remaining_secs / fade_secs).min(1.0);
+        let fade = fade_out_alpha(timer.remaining_secs, fade_secs);
         bg.0.set_alpha(HUD_BANNER_BG_BASE_ALPHA * fade);
         for child in children {
             if let Ok(mut tc) = texts.get_mut(*child) {

@@ -34,10 +34,9 @@ pub fn handle_pre_bootstrap_message(msg: ServerMessage, commands: &mut Commands,
         }
         ServerMessage::QuestsAssigned(quest_msg) => {
             handle_quests_assigned_message(
-                commands,
                 &mut client_assets.quest_log,
                 &client_assets.client_settings,
-                &client_assets.banners,
+                &mut client_assets.pending_banner,
                 quest_msg,
             );
         }
@@ -49,7 +48,7 @@ pub fn handle_pre_bootstrap_message(msg: ServerMessage, commands: &mut Commands,
                 commands,
                 &mut client_assets.quest_log,
                 &client_assets.client_settings,
-                &client_assets.banners,
+                &mut client_assets.pending_banner,
                 &client_assets.asset_server,
                 &client_assets.asset_set,
                 quest_msg,

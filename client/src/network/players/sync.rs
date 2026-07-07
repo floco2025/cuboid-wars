@@ -8,7 +8,7 @@ use crate::{
     config::{AssetSet, ClientSettings},
     network::{RoundTripTime, ServerReconciliation},
     players::{LocalPlayerInfo, PlayerInfo, PlayerMap, spawn_player},
-    ui::{GameMessage, GameMessageFeed, HudBannerMarker, QuestLog, SeenPlayerIds, spawn_hud_banner},
+    ui::{GameMessage, GameMessageFeed, PendingBanner, QuestLog, SeenPlayerIds},
 };
 use common::{
     config::GameplayConfig,
@@ -32,7 +32,7 @@ pub fn sync_players(
     feed: &mut GameMessageFeed,
     seen_player_ids: &mut SeenPlayerIds,
     quest_log: &QuestLog,
-    existing_banners: &Query<Entity, With<HudBannerMarker>>,
+    pending_banner: &mut PendingBanner,
     player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
     camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     my_player_id: PlayerId,
@@ -151,9 +151,8 @@ pub fn sync_players(
 
         // Re-show the announcement (title + description) for still-active
         // quests, so a respawning player is reminded of their objectives.
-        // ONE combined banner sorted by id: `spawn_hud_banner`'s single-banner
-        // despawn query is a stale snapshot within this system run, so a
-        // per-quest loop would stack N overlapping banners.
+        // ONE combined banner in display order — the pending slot holds a
+        // single request, so per-quest sets would keep only the last quest.
         let text = quest_log
             .sorted()
             .into_iter()
@@ -162,13 +161,7 @@ pub fn sync_players(
             .collect::<Vec<_>>()
             .join("\n");
         if !text.is_empty() {
-            spawn_hud_banner(
-                commands,
-                existing_banners,
-                &text,
-                client_settings.hud.banner.quest_announcement_duration_secs,
-                client_settings.hud.font_sizes.banner,
-            );
+            pending_banner.set(text, client_settings.hud.banner.quest_announcement_duration_secs);
         }
     }
 

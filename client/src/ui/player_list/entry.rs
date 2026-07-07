@@ -10,6 +10,15 @@ use crate::{
     players::PlayerInfo,
 };
 
+// Style values for one player-list entry, resolved once per rebuild from
+// `ClientSettings`.
+pub(super) struct PlayerEntryStyle {
+    pub name_font_size: f32,
+    pub score_font_size: f32,
+    pub health_bar_width: f32,
+    pub health_bar_height: f32,
+}
+
 pub(super) fn spawn_player_entry(
     commands: &mut Commands,
     player_info: &PlayerInfo,
@@ -19,10 +28,7 @@ pub(super) fn spawn_player_entry(
     current_health: f32,
     kind_table: &BarrierKindTable,
     barrier_assets: Option<&BarrierAssets>,
-    font_size: f32,
-    score_font_size: f32,
-    health_bar_width: f32,
-    health_bar_height: f32,
+    style: &PlayerEntryStyle,
 ) -> Entity {
     let background_color = if is_local {
         BackgroundColor(LOCAL_PLAYER_BG_COLOR)
@@ -54,7 +60,7 @@ pub(super) fn spawn_player_entry(
                     row.spawn((
                         Text::new(&player_info.name),
                         TextFont {
-                            font_size: FontSize::Px(font_size),
+                            font_size: FontSize::Px(style.name_font_size),
                             ..default()
                         },
                         TextColor(Color::WHITE),
@@ -65,7 +71,7 @@ pub(super) fn spawn_player_entry(
                         // conveyed by the text color (`score_value_color`).
                         Text::new(player_info.score.unsigned_abs().to_string()),
                         TextFont {
-                            font_size: FontSize::Px(score_font_size),
+                            font_size: FontSize::Px(style.score_font_size),
                             ..default()
                         },
                         TextColor(score_value_color(player_info.score)),
@@ -100,8 +106,8 @@ pub(super) fn spawn_player_entry(
                 player_info.entity,
                 max_health,
                 current_health,
-                health_bar_width,
-                health_bar_height,
+                style.health_bar_width,
+                style.health_bar_height,
             );
         })
         .id()

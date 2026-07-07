@@ -85,7 +85,7 @@ pub fn spawn_actor(
     // `spawn_floating_health_bar`. It despawns with the actor.
     let health_bars = client_settings.hud.health_bars;
     let bar_width = LABEL_ACTOR_MESH_WIDTH;
-    let bar_height = bar_width * (health_bars.floating_actor_height / health_bars.floating_actor_width);
+    let bar_height = bar_width * health_bars.floating_actor_aspect;
     let bar_y = actor_physics.collision_height() / 2.0
         + client_settings.hud.floating_labels.height_above_character
         + bar_height / 2.0;

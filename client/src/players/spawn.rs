@@ -124,7 +124,7 @@ pub fn spawn_player(
     // same approach actors use — see `spawn_floating_health_bar`. Sits just
     // above the head.
     let bar_width = LABEL_PLAYER_BAR_WIDTH;
-    let bar_height = bar_width * (health_bars.floating_player_height / health_bars.floating_player_width);
+    let bar_height = bar_width * health_bars.floating_player_aspect;
     let bar_y = player_physics.collision_height() / 2.0 + height_above + bar_height / 2.0;
     let bar_entity = spawn_floating_health_bar(
         commands,

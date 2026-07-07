@@ -93,37 +93,37 @@ pub fn setup_ui_system(mut commands: Commands, client_settings: Res<ClientSettin
             ));
         });
 
-    commands.spawn((
-        RttMarker,
-        Text::new("RTT: --ms"),
-        TextFont {
-            font_size: FontSize::Px(hud_font_size),
-            ..default()
-        },
-        TextColor(Color::WHITE),
-        Node {
+    // RTT above FPS in one auto-stacking column, so the rows can't overlap
+    // at any font size.
+    commands
+        .spawn(Node {
             position_type: PositionType::Absolute,
-            left: Val::Px(10.0),
-            bottom: Val::Px(40.0),
+            left: Val::Px(HUD_EDGE_MARGIN_PX),
+            bottom: Val::Px(HUD_EDGE_MARGIN_PX),
+            flex_direction: FlexDirection::Column,
+            row_gap: Val::Px(4.0),
             ..default()
-        },
-    ));
-
-    commands.spawn((
-        FpsMarker,
-        Text::new("FPS: --"),
-        TextFont {
-            font_size: FontSize::Px(hud_font_size),
-            ..default()
-        },
-        TextColor(Color::WHITE),
-        Node {
-            position_type: PositionType::Absolute,
-            left: Val::Px(10.0),
-            bottom: Val::Px(10.0),
-            ..default()
-        },
-    ));
+        })
+        .with_children(|column| {
+            column.spawn((
+                RttMarker,
+                Text::new("RTT: --ms"),
+                TextFont {
+                    font_size: FontSize::Px(hud_font_size),
+                    ..default()
+                },
+                TextColor(Color::WHITE),
+            ));
+            column.spawn((
+                FpsMarker,
+                Text::new("FPS: --"),
+                TextFont {
+                    font_size: FontSize::Px(hud_font_size),
+                    ..default()
+                },
+                TextColor(Color::WHITE),
+            ));
+        });
 
     commands.spawn((
         DeathOverlayMarker,

@@ -84,7 +84,7 @@ pub fn dispatch_message(
                 &mut client_assets.local_player_info,
                 &mut client_assets.game_message_feed,
                 &client_assets.client_settings,
-                &client_assets.banners,
+                &mut client_assets.pending_banner,
                 my_player_id,
                 death_msg,
             );
@@ -182,10 +182,9 @@ pub fn dispatch_message(
         }
         ServerMessage::QuestsAssigned(quest_msg) => {
             handle_quests_assigned_message(
-                commands,
                 &mut client_assets.quest_log,
                 &client_assets.client_settings,
-                &client_assets.banners,
+                &mut client_assets.pending_banner,
                 quest_msg,
             );
         }
@@ -197,7 +196,7 @@ pub fn dispatch_message(
                 commands,
                 &mut client_assets.quest_log,
                 &client_assets.client_settings,
-                &client_assets.banners,
+                &mut client_assets.pending_banner,
                 &client_assets.asset_server,
                 &client_assets.asset_set,
                 quest_msg,

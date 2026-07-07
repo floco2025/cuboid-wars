@@ -222,10 +222,12 @@ pub struct FloatingLabelsConfig {
 
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct HealthBarsConfig {
-    pub floating_player_width: f32,
-    pub floating_player_height: f32,
-    pub floating_actor_width: f32,
-    pub floating_actor_height: f32,
+    // Height ÷ width of the world-space bar above a character. The width is
+    // fixed (`LABEL_PLAYER_BAR_WIDTH` / `LABEL_ACTOR_MESH_WIDTH`, meters);
+    // only the proportions are tunable.
+    pub floating_player_aspect: f32,
+    pub floating_actor_aspect: f32,
+    // On-screen bar under each player-list row, in logical px.
     pub player_list_width: f32,
     pub player_list_height: f32,
 }
@@ -397,20 +399,12 @@ impl HudConfig {
             "hud.floating_labels.height_above_character",
         )?;
         validate_positive_finite(
-            self.health_bars.floating_player_width,
-            "hud.health_bars.floating_player_width",
+            self.health_bars.floating_player_aspect,
+            "hud.health_bars.floating_player_aspect",
         )?;
         validate_positive_finite(
-            self.health_bars.floating_player_height,
-            "hud.health_bars.floating_player_height",
-        )?;
-        validate_positive_finite(
-            self.health_bars.floating_actor_width,
-            "hud.health_bars.floating_actor_width",
-        )?;
-        validate_positive_finite(
-            self.health_bars.floating_actor_height,
-            "hud.health_bars.floating_actor_height",
+            self.health_bars.floating_actor_aspect,
+            "hud.health_bars.floating_actor_aspect",
         )?;
         validate_positive_finite(self.health_bars.player_list_width, "hud.health_bars.player_list_width")?;
         validate_positive_finite(

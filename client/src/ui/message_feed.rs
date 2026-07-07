@@ -3,7 +3,7 @@ use std::collections::{HashSet, VecDeque};
 use bevy::prelude::*;
 use common::protocol::{BarrierKindId, PlayerId};
 
-use crate::{barriers::BarrierAssets, config::ClientSettings};
+use crate::{barriers::BarrierAssets, config::ClientSettings, constants::HUD_EDGE_MARGIN_PX};
 
 // One entry in the bottom-right game-message feed. Names and kind ids are
 // captured at emit time so the formatter doesn't depend on the live
@@ -70,8 +70,8 @@ pub fn spawn_message_feed_root(commands: &mut Commands) {
         MessageFeedRoot,
         Node {
             position_type: PositionType::Absolute,
-            right: Val::Px(10.0),
-            bottom: Val::Px(10.0),
+            right: Val::Px(HUD_EDGE_MARGIN_PX),
+            bottom: Val::Px(HUD_EDGE_MARGIN_PX),
             // ColumnReverse so the newest child (pushed last) renders at the
             // bottom, with older entries stacking upward toward the top.
             flex_direction: FlexDirection::ColumnReverse,
