@@ -14,9 +14,7 @@
 
 - **Actor Spawn Zone (Paint)** — Drag a rectangle, then enter Kind and Count.
 - **Player Spawn Zone (Paint)** — Drag a rectangle. No prompt — players spawn anywhere in any player zone.
-- **Cookie Spawn Zone (Paint)** — Drag a rectangle. Cookies only spawn on walkable floors inside one of these zones.
-- **Key Spawn Zone (Paint)** — Drag a rectangle, then pick a kind from the dialog. One key of that kind spawns at the first eligible cell of the zone and respawns after collection.
-- **Spawn Zone (Edit)** — Click any spawn zone (actor, player, cookie, or key) to select; drag the body to move, drag a corner/edge handle to resize. Right-click to edit fields (actor and key zones) or delete.
+- **Spawn Zone (Edit)** — Click any spawn zone (actor or player) to select; drag the body to move, drag a corner/edge handle to resize. Right-click to edit fields (actor zones) or delete.
 
 ## Walls + Barriers
 
@@ -42,6 +40,11 @@
 ## Pressure Plates
 
 - **Pressure Plate** — Left-click a cell to place a plate; a dialog asks which barrier kind. While enough plates of a kind are pressed, every barrier of that kind opens globally. Right-click a plate to remove it.
+
+## Items
+
+- **Item** — Left-click a floor cell to place an item; a dialog asks the type (power-ups, health potion, cookie, or key — keys also pick a barrier kind). Clicking a cell that already holds an item removes it. Placed items hide on pickup in-game and reappear after the per-type `placed_items.respawn_secs` delay from `config/server/gameplay.json`. Non-key items render as colored circles; keys as diamonds in their barrier-kind color.
+- **Erase Items** — Drag a rectangle to remove every item inside it on the current level.
 
 ## Erase
 

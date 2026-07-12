@@ -2,9 +2,9 @@ use std::collections::BTreeSet;
 
 use anyhow::{Context, Result, anyhow, ensure};
 
-use super::schema::{
-    ActorSpawnZoneDef, CookieSpawnZoneDef, KeySpawnZoneDef, LevelDef, MapDef, MapFile, PlayerSpawnZoneDef, RampDef,
-};
+use common::protocol::ItemType;
+
+use super::schema::{ActorSpawnZoneDef, LevelDef, MapDef, MapFile, PlayerSpawnZoneDef, RampDef};
 
 const SUPPORTED_VERSION: u32 = 1;
 
@@ -31,8 +31,7 @@ pub(super) fn validate_map(map_def: &MapDef) -> Result<()> {
 
     validate_actor_spawn_zones(map_def)?;
     validate_player_spawn_zones(map_def)?;
-    validate_cookie_spawn_zones(map_def)?;
-    validate_key_spawn_zones(map_def)?;
+    validate_items(map_def)?;
     validate_pressure_plates(map_def)?;
     validate_levels(map_def)?;
     validate_ramps(map_def)?;
@@ -72,30 +71,6 @@ impl ZoneRect for PlayerSpawnZoneDef {
     }
 }
 
-impl ZoneRect for CookieSpawnZoneDef {
-    fn level(&self) -> u32 {
-        self.level
-    }
-    fn cols(&self) -> [i32; 2] {
-        self.cols
-    }
-    fn rows(&self) -> [i32; 2] {
-        self.rows
-    }
-}
-
-impl ZoneRect for KeySpawnZoneDef {
-    fn level(&self) -> u32 {
-        self.level
-    }
-    fn cols(&self) -> [i32; 2] {
-        self.cols
-    }
-    fn rows(&self) -> [i32; 2] {
-        self.rows
-    }
-}
-
 fn validate_actor_spawn_zones(map_def: &MapDef) -> Result<()> {
     for (zone_idx, zone) in map_def.actor_spawn_zones.iter().enumerate() {
         let label = format!("actor_spawn_zones[{zone_idx}]");
@@ -115,18 +90,56 @@ fn validate_player_spawn_zones(map_def: &MapDef) -> Result<()> {
     Ok(())
 }
 
-fn validate_cookie_spawn_zones(map_def: &MapDef) -> Result<()> {
-    for (zone_idx, zone) in map_def.cookie_spawn_zones.iter().enumerate() {
-        let label = format!("cookie_spawn_zones[{zone_idx}]");
-        validate_zone_placement(zone, &label, map_def)?;
-    }
-    Ok(())
-}
-
-fn validate_key_spawn_zones(map_def: &MapDef) -> Result<()> {
-    for (zone_idx, zone) in map_def.key_spawn_zones.iter().enumerate() {
-        let label = format!("key_spawn_zones[{zone_idx}]");
-        validate_zone_placement(zone, &label, map_def)?;
+fn validate_items(map_def: &MapDef) -> Result<()> {
+    let mut seen = BTreeSet::new();
+    for (idx, item) in map_def.items.iter().enumerate() {
+        let label = format!("items[{idx}]");
+        if item.level as usize >= map_def.levels.len() {
+            return Err(anyhow!(
+                "{label} level {} out of range (level count = {})",
+                item.level,
+                map_def.levels.len()
+            ));
+        }
+        if item.col < 0 || item.col >= map_def.grid_cols {
+            return Err(anyhow!(
+                "{label} col {} out of range [0, {})",
+                item.col,
+                map_def.grid_cols
+            ));
+        }
+        if item.row < 0 || item.row >= map_def.grid_rows {
+            return Err(anyhow!(
+                "{label} row {} out of range [0, {})",
+                item.row,
+                map_def.grid_rows
+            ));
+        }
+        if item.item_type == ItemType::KEY_CONFIG_ID {
+            if item.kind.as_ref().is_none_or(String::is_empty) {
+                return Err(anyhow!("{label} is a key but has no `kind`"));
+            }
+        } else {
+            if ItemType::from_config_id(&item.item_type).is_none() {
+                return Err(anyhow!("{label} has unknown item type {:?}", item.item_type));
+            }
+            if item.kind.is_some() {
+                return Err(anyhow!(
+                    "{label} ({}) must not have `kind` — only key items take one",
+                    item.item_type
+                ));
+            }
+        }
+        // Unlike pressure plates there's no per-kind exemption: two items on
+        // one cell would physically stack.
+        if !seen.insert((item.level, item.col, item.row)) {
+            return Err(anyhow!(
+                "{label} duplicates an item at level {} col {} row {}",
+                item.level,
+                item.col,
+                item.row
+            ));
+        }
     }
     Ok(())
 }
@@ -404,11 +417,6 @@ pub(super) fn canonicalize(map_def: &mut MapDef) {
         .player_spawn_zones
         .sort_by_key(|z| (z.level, z.rows[0], z.cols[0], z.rows[1], z.cols[1]));
     map_def.player_spawn_zones.dedup();
-
-    map_def
-        .cookie_spawn_zones
-        .sort_by_key(|z| (z.level, z.rows[0], z.cols[0], z.rows[1], z.cols[1]));
-    map_def.cookie_spawn_zones.dedup();
 
     for level in &mut map_def.levels {
         level.floors.sort_by_key(|f| (f.row, f.col));

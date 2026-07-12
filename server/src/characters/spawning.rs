@@ -232,8 +232,7 @@ mod tests {
                 cols: [col, col + 1],
                 rows: [row, row + 1],
             }],
-            cookie_spawn_zones: Vec::new(),
-            key_spawn_zones: Vec::new(),
+            placed_items: Vec::new(),
             pressure_plates: Vec::new(),
         }
     }

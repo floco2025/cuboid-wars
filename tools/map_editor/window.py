@@ -16,8 +16,10 @@ from .constants import (
     DEFAULT_ACTOR_COUNT,
     DEFAULT_ALIAS,
     ERASE_MODES,
+    ITEM_TYPES,
     MODE_CATEGORIES,
     MODE_FLOOR,
+    MODE_ITEM,
     MODE_LIGHT,
     MODE_PRESSURE_PLATE,
     MODE_RAMP_DOWN,
@@ -30,6 +32,7 @@ from .erase import EraseMixin
 from .file_actions import FileActionsMixin
 from .geometry import canonicalize_map, level_label
 from .io import empty_map, load_materials_catalog, read_map, write_map
+from .items import ItemsMixin
 from .lights import LightsMixin
 from .placement import PlacementMixin
 from .spawn_zones import SpawnZoneEditMixin
@@ -41,6 +44,7 @@ from .validation import validate_map
 class EditorWindow(
     FileActionsMixin,
     PlacementMixin,
+    ItemsMixin,
     LightsMixin,
     EraseMixin,
     StructureMixin,
@@ -76,8 +80,9 @@ class EditorWindow(
         # Last-used barrier kind, seeded from the first configured kind so the
         # picker dialog has a sensible default on the first paint.
         self.recent_barrier_kind: str | None = BARRIER_KIND_TABLE[0] if BARRIER_KIND_TABLE else None
-        self.recent_key_kind: str | None = BARRIER_KIND_TABLE[0] if BARRIER_KIND_TABLE else None
         self.recent_pressure_plate_kind: str | None = BARRIER_KIND_TABLE[0] if BARRIER_KIND_TABLE else None
+        self.recent_item_type: str = ITEM_TYPES[0]
+        self.recent_item_key_kind: str | None = BARRIER_KIND_TABLE[0] if BARRIER_KIND_TABLE else None
         # (row_spacing, row_offset, col_spacing, col_offset) — remembered
         # across opens of the Auto-Place Lights dialog. Spacing is "cells
         # skipped between lights": 0 = every cell, 1 = every other, 2 = every
@@ -158,7 +163,7 @@ class EditorWindow(
     # Map each mode to the cursor it should display so a peripheral glance
     # tells the user which tool is active without reading the toolbar.
     def _cursor_for_mode(self, mode: str) -> Qt.CursorShape:
-        if mode in (MODE_LIGHT, MODE_PRESSURE_PLATE):
+        if mode in (MODE_LIGHT, MODE_PRESSURE_PLATE, MODE_ITEM):
             return Qt.CursorShape.PointingHandCursor
         if mode == MODE_SPAWN_ZONE_EDIT:
             return Qt.CursorShape.OpenHandCursor

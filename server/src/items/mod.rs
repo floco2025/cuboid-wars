@@ -7,5 +7,5 @@ mod spawning;
 mod tests;
 
 pub use collection::item_collection_system;
-pub use despawn::{item_despawn_system, item_respawn_system};
-pub use spawning::{item_initial_spawn_system, item_spawn_system, key_initial_spawn_system};
+pub use despawn::{placed_item_respawn_system, random_item_despawn_system};
+pub use spawning::{placed_item_spawn_system, random_item_spawn_system};

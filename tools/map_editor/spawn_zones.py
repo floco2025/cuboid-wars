@@ -6,8 +6,6 @@ import copy
 
 from .constants import (
     ACTOR_ZONE_LIST,
-    COOKIE_ZONE_LIST,
-    KEY_ZONE_LIST,
     PLAYER_ZONE_LIST,
     SPAWN_ZONE_HANDLE_PIXELS,
     SPAWN_ZONE_LISTS,
@@ -50,11 +48,11 @@ class SpawnZoneEditMixin:
     def spawn_zone_at(self, pos, cell_size: float) -> ZoneRef | None:
         col = int(pos.x() // cell_size)
         row = int(pos.y() // cell_size)
-        # Priority order when zones overlap a cell: actor → key → player →
-        # cookie. Actor/key carry per-zone configuration (kind / count), so
-        # the user is more likely to want them. Within each list, iterate in
-        # reverse so the most-recently-painted wins.
-        for list_name in (ACTOR_ZONE_LIST, KEY_ZONE_LIST, PLAYER_ZONE_LIST, COOKIE_ZONE_LIST):
+        # Priority order when zones overlap a cell: actor → player. Actor
+        # zones carry per-zone configuration (kind / count), so the user is
+        # more likely to want them. Within each list, iterate in reverse so
+        # the most-recently-painted wins.
+        for list_name in (ACTOR_ZONE_LIST, PLAYER_ZONE_LIST):
             for idx in range(len(self.map_data[list_name]) - 1, -1, -1):
                 zone = self.map_data[list_name][idx]
                 if zone["level"] == self.current_level and zone_contains_cell(zone, col, row):
@@ -153,47 +151,31 @@ class SpawnZoneEditMixin:
         self.selected_spawn_zone_ref = self._zone_ref_after_change(drag.list_name, zone)
 
     def selected_spawn_zone_has_fields(self) -> bool:
-        # Only actor and key zones carry editable per-zone configuration
-        # (kind/count and kind respectively). Player and cookie zones are
-        # plain rectangles.
+        # Only actor zones carry editable per-zone configuration (kind/count).
+        # Player zones are plain rectangles.
         ref = self.selected_spawn_zone_ref
-        return ref is not None and ref.list_name in (ACTOR_ZONE_LIST, KEY_ZONE_LIST)
+        return ref is not None and ref.list_name == ACTOR_ZONE_LIST
 
     def edit_selected_spawn_zone_fields(self) -> None:
         zone = self.selected_spawn_zone()
         ref = self.selected_spawn_zone_ref
         if zone is None or ref is None:
             return
-        if ref.list_name == ACTOR_ZONE_LIST:
-            result = self.prompt_for_actor_spawn_fields(zone["kind"], zone["count"])
-            if result is None:
-                return
-            kind, count = result
-            after = copy.deepcopy(self.map_data)
-            if not (0 <= ref.index < len(after[ref.list_name])):
-                return
-            after[ref.list_name][ref.index]["kind"] = kind
-            after[ref.list_name][ref.index]["count"] = count
-            self.apply_change("Edit Actor Spawn Zone", after)
-            self.recent_actor_spawn_kind = kind
-            self.recent_actor_spawn_count = count
-            self.selected_spawn_zone_ref = self._zone_ref_after_change(
-                ref.list_name, after[ref.list_name][ref.index]
-            )
-        elif ref.list_name == KEY_ZONE_LIST:
-            from .dialogs import BarrierKindDialog
-            kind = BarrierKindDialog.prompt(self, "Key Spawn Kind", zone.get("kind"))
-            if kind is None or kind == zone.get("kind"):
-                return
-            after = copy.deepcopy(self.map_data)
-            if not (0 <= ref.index < len(after[ref.list_name])):
-                return
-            after[ref.list_name][ref.index]["kind"] = kind
-            self.apply_change("Edit Key Spawn Zone", after)
-            self.recent_key_kind = kind
-            self.selected_spawn_zone_ref = self._zone_ref_after_change(
-                ref.list_name, after[ref.list_name][ref.index]
-            )
+        if ref.list_name != ACTOR_ZONE_LIST:
+            return
+        result = self.prompt_for_actor_spawn_fields(zone["kind"], zone["count"])
+        if result is None:
+            return
+        kind, count = result
+        after = copy.deepcopy(self.map_data)
+        if not (0 <= ref.index < len(after[ref.list_name])):
+            return
+        after[ref.list_name][ref.index]["kind"] = kind
+        after[ref.list_name][ref.index]["count"] = count
+        self.apply_change("Edit Actor Spawn Zone", after)
+        self.recent_actor_spawn_kind = kind
+        self.recent_actor_spawn_count = count
+        self.selected_spawn_zone_ref = self._zone_ref_after_change(ref.list_name, after[ref.list_name][ref.index])
 
     def delete_selected_spawn_zone(self) -> None:
         ref = self.selected_spawn_zone_ref

@@ -7,9 +7,7 @@ import copy
 from .constants import (
     ACTOR_ZONE_LIST,
     BARRIER_KIND_TABLE,
-    COOKIE_ZONE_LIST,
     FACES,
-    KEY_ZONE_LIST,
     MODE_RAMP_UP,
     PLAYER_ZONE_LIST,
     SPAWN_ZONE_LISTS,
@@ -147,41 +145,6 @@ class PlacementMixin:
         after[PLAYER_ZONE_LIST].append(new_zone)
         self.apply_change("Paint Player Spawn Zone", after)
         self.selected_spawn_zone_ref = self._zone_ref_after_change(PLAYER_ZONE_LIST, new_zone)
-
-    def add_cookie_spawn_zone_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
-        c0, r0, c1, r1 = rect_from_cells(start, end)
-        after = copy.deepcopy(self.map_data)
-        new_zone = {
-            "level": self.current_level,
-            "cols": [c0, c1],
-            "rows": [r0, r1],
-        }
-        after[COOKIE_ZONE_LIST].append(new_zone)
-        self.apply_change("Paint Cookie Spawn Zone", after)
-        self.selected_spawn_zone_ref = self._zone_ref_after_change(COOKIE_ZONE_LIST, new_zone)
-
-    def prompt_and_add_key_spawn_zone_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
-        kind = BarrierKindDialog.prompt(self, "Place Key Spawn Zone", self.recent_key_kind)
-        if kind is None:
-            return
-        self.recent_key_kind = kind
-        self.add_key_spawn_zone_rect(start, end, kind)
-
-    def add_key_spawn_zone_rect(self, start: tuple[int, int], end: tuple[int, int], kind: str) -> None:
-        if kind not in BARRIER_KIND_TABLE:
-            self._flash_status(f"Unknown key kind {kind!r}")
-            return
-        c0, r0, c1, r1 = rect_from_cells(start, end)
-        after = copy.deepcopy(self.map_data)
-        new_zone = {
-            "level": self.current_level,
-            "cols": [c0, c1],
-            "rows": [r0, r1],
-            "kind": kind,
-        }
-        after[KEY_ZONE_LIST].append(new_zone)
-        self.apply_change(f"Paint Key Spawn Zone ({kind})", after)
-        self.selected_spawn_zone_ref = self._zone_ref_after_change(KEY_ZONE_LIST, new_zone)
 
     def prompt_for_actor_spawn_fields(
         self,

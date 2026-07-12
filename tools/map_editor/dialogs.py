@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .constants import BARRIER_KIND_TABLE
+from .constants import BARRIER_KIND_TABLE, ITEM_KEY_TYPE, ITEM_TYPES
 
 
 class ActorSpawnFieldsDialog(QDialog):
@@ -115,6 +115,67 @@ class BarrierKindDialog(QDialog):
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return None
         return dialog.value()
+
+
+class ItemTypeDialog(QDialog):
+    """Modal dialog asking which item type to place. Key items additionally
+    pick a barrier kind; the kind combo is disabled for every other type.
+    Returns (type, kind-or-None) on accept, None on cancel."""
+
+    def __init__(self, parent, title: str, current_type: str | None, current_kind: str | None):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+
+        self._type_combo = QComboBox()
+        for item_type in ITEM_TYPES:
+            self._type_combo.addItem(item_type)
+        if current_type and current_type in ITEM_TYPES:
+            self._type_combo.setCurrentIndex(ITEM_TYPES.index(current_type))
+
+        self._kind_combo = QComboBox()
+        for id_ in BARRIER_KIND_TABLE:
+            self._kind_combo.addItem(id_)
+        if current_kind and current_kind in BARRIER_KIND_TABLE:
+            self._kind_combo.setCurrentIndex(BARRIER_KIND_TABLE.index(current_kind))
+        self._type_combo.currentTextChanged.connect(self._update_kind_enabled)
+        self._update_kind_enabled(self._type_combo.currentText())
+
+        form = QFormLayout()
+        form.addRow("Type:", self._type_combo)
+        form.addRow("Key kind:", self._kind_combo)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+
+        layout = QVBoxLayout(self)
+        layout.addLayout(form)
+        layout.addWidget(buttons)
+
+    def _update_kind_enabled(self, item_type: str) -> None:
+        self._kind_combo.setEnabled(item_type == ITEM_KEY_TYPE)
+
+    def values(self) -> tuple[str, str | None]:
+        item_type = self._type_combo.currentText()
+        kind = self._kind_combo.currentText() if item_type == ITEM_KEY_TYPE else None
+        return item_type, kind
+
+    @classmethod
+    def prompt(
+        cls, parent, title: str, current_type: str | None, current_kind: str | None
+    ) -> tuple[str, str | None] | None:
+        dialog = cls(parent, title, current_type, current_kind)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return None
+        item_type, kind = dialog.values()
+        if item_type == ITEM_KEY_TYPE and not kind:
+            QMessageBox.warning(
+                parent,
+                title,
+                "No barrier kinds are configured in `config/common/gameplay.json::barrier_kinds`.",
+            )
+            return None
+        return item_type, kind
 
 
 class ResizeMapDialog(QDialog):

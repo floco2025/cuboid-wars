@@ -215,7 +215,8 @@ mod tests {
 
     use super::*;
     use crate::config::{
-        CookiesConfig, FallDamageConfig, KeysConfig, PlayerServerConfig, PowerUpsConfig, ScoringConfig,
+        FallDamageConfig, MapServerConfig, PlacedItemRespawnSecs, PlacedItemsConfig, PlayerServerConfig,
+        PowerUpsConfig, ScoringConfig,
     };
     use crate::resources::PlayerInfo;
     use tokio::sync::mpsc::unbounded_channel;
@@ -225,10 +226,13 @@ mod tests {
             version: 1,
             maps: HashMap::from([(
                 "hotel".to_owned(),
-                common::protocol::MapSettings {
-                    skybox: "cloudy_day".to_owned(),
-                    gravity: 25.0,
-                    low_gravity: 5.0,
+                MapServerConfig {
+                    settings: common::protocol::MapSettings {
+                        skybox: "cloudy_day".to_owned(),
+                        gravity: 25.0,
+                        low_gravity: 5.0,
+                    },
+                    random_items: None,
                 },
             )]),
             default_map: "hotel".to_owned(),
@@ -247,19 +251,23 @@ mod tests {
                 },
             },
             power_ups: PowerUpsConfig {
-                max_number: 0,
-                despawn_secs: 60.0,
                 speed_duration_secs: 1.0,
                 multi_shot_duration_secs: 1.0,
                 phasing_duration_secs: 1.0,
                 low_gravity_duration_secs: 1.0,
-                health_potion_heal_percent: 0.25,
+                health_potion_heal_fraction: 0.25,
             },
-            cookies: CookiesConfig {
-                spawning_enabled: false,
-                respawn_secs: 60.0,
+            placed_items: PlacedItemsConfig {
+                respawn_secs: PlacedItemRespawnSecs {
+                    speed: 60.0,
+                    multi_shot: 60.0,
+                    phasing: 60.0,
+                    low_gravity: 60.0,
+                    health_potion: 60.0,
+                    cookie: 60.0,
+                    key: 30.0,
+                },
             },
-            keys: KeysConfig { respawn_secs: 30.0 },
             quests: Vec::new(),
             actors: HashMap::new(),
         }

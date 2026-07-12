@@ -139,6 +139,8 @@ pub const ITEM_ANIMATION_HEIGHT: f32 = 0.2; // bob amplitude (m); peak-to-peak s
 pub const ITEM_ANIMATION_SPEED: f32 = 0.8;
 pub const ITEM_SPIN_HZ: f32 = 0.4; // slow coin-spin around Y for keys + power-ups
 pub const ITEM_EMISSIVE_STRENGTH: f32 = 0.2; // Multiplier for emissive glow
+// The map editor mirrors these colors (tools/map_editor/constants.py
+// `ITEM_TYPE_COLORS`) — keep the two in sync.
 pub const ITEM_SPEED_COLOR: Color = Color::srgb(1.00, 0.85, 0.15); // Yellow (lightning)
 pub const ITEM_MULTISHOT_COLOR: Color = Color::srgb(1.00, 0.25, 0.25); // Red
 pub const ITEM_PHASING_COLOR: Color = Color::srgb(0.2, 1.0, 0.2); // Green — unchanged; phasing is dormant

@@ -46,9 +46,9 @@ MODE_GRASS = "Grass"
 MODE_ERASE_GRASS = "Erase Grass"
 MODE_ACTOR_SPAWN_PAINT = "Actor Spawn Zone (Paint)"
 MODE_PLAYER_SPAWN_PAINT = "Player Spawn Zone (Paint)"
-MODE_COOKIE_SPAWN_PAINT = "Cookie Spawn Zone (Paint)"
-MODE_KEY_SPAWN_PAINT = "Key Spawn Zone (Paint)"
 MODE_SPAWN_ZONE_EDIT = "Spawn Zone (Edit)"
+MODE_ITEM = "Item"
+MODE_ERASE_ITEMS = "Erase Items"
 MODE_WALL = "Wall"
 MODE_BARRIER = "Barrier"
 MODE_RAMP_UP = "Ramp (Up)"
@@ -63,10 +63,27 @@ MODE_ERASE_LIGHTS = "Erase Lights"
 MODE_PRESSURE_PLATE = "Pressure Plate"
 RAMP_MODES = (MODE_RAMP_UP, MODE_RAMP_DOWN)
 ERASE_MODES = (MODE_ERASE, MODE_ERASE_KEEP_FLOORS)
-SPAWN_PAINT_MODES = (MODE_ACTOR_SPAWN_PAINT, MODE_PLAYER_SPAWN_PAINT, MODE_COOKIE_SPAWN_PAINT, MODE_KEY_SPAWN_PAINT)
+SPAWN_PAINT_MODES = (MODE_ACTOR_SPAWN_PAINT, MODE_PLAYER_SPAWN_PAINT)
 MATERIAL_MODES = (MODE_FLOOR_MATERIAL, MODE_WALL_MATERIAL, MODE_RAMP_MATERIAL)
 FLOOR_HIT_KINDS = (MODE_FLOOR, MODE_INACCESSIBLE_FLOOR)
 LIGHT_SIDES = ("N", "S", "E", "W")
+
+# Item type ids mirror `ItemType::from_config_id` in common/src/types/map.rs,
+# plus "key" (which additionally carries a barrier kind).
+ITEM_KEY_TYPE = "key"
+ITEM_TYPES = ("speed", "multi_shot", "phasing", "low_gravity", "health_potion", "cookie", ITEM_KEY_TYPE)
+# Canvas glyph colors for non-key items; keys use BARRIER_KIND_COLORS[kind].
+# Mirror the in-game `ITEM_*_COLOR` constants in client/src/constants.rs
+# (cookie renders from its gold texture in-game, so it keeps the gold the
+# old cookie-zone overlay used).
+ITEM_TYPE_COLORS = {
+    "speed": "#ffd926",
+    "multi_shot": "#ff4040",
+    "phasing": "#33ff33",
+    "low_gravity": "#4dd9ff",
+    "health_potion": "#33f24d",
+    "cookie": "#facc15",
+}
 # Modes grouped by category for the mode picker. Each tuple is
 # `(category label, ordered list of modes)`. The label is shown as a
 # disabled separator row in the dropdown so the user sees the taxonomy
@@ -79,8 +96,6 @@ MODE_CATEGORIES: list[tuple[str, list[str]]] = [
         [
             MODE_ACTOR_SPAWN_PAINT,
             MODE_PLAYER_SPAWN_PAINT,
-            MODE_COOKIE_SPAWN_PAINT,
-            MODE_KEY_SPAWN_PAINT,
             MODE_SPAWN_ZONE_EDIT,
         ],
     ),
@@ -89,6 +104,7 @@ MODE_CATEGORIES: list[tuple[str, list[str]]] = [
     ("Materials", [MODE_FLOOR_MATERIAL, MODE_WALL_MATERIAL, MODE_RAMP_MATERIAL]),
     ("Lights", [MODE_LIGHT, MODE_ERASE_LIGHTS]),
     ("Pressure Plates", [MODE_PRESSURE_PLATE]),
+    ("Items", [MODE_ITEM, MODE_ERASE_ITEMS]),
     ("Erase", [MODE_ERASE, MODE_ERASE_KEEP_FLOORS]),
 ]
 
@@ -96,12 +112,11 @@ MODE_CATEGORIES: list[tuple[str, list[str]]] = [
 # so the two never drift apart; if you add a mode, add it to its category.
 MODES: list[str] = [mode for _, group in MODE_CATEGORIES for mode in group]
 
-# Two named lists in map_data so the editor can refer to them generically.
+# Named lists in map_data so the editor can refer to them generically.
 ACTOR_ZONE_LIST = "actor_spawn_zones"
 PLAYER_ZONE_LIST = "player_spawn_zones"
-COOKIE_ZONE_LIST = "cookie_spawn_zones"
-KEY_ZONE_LIST = "key_spawn_zones"
-SPAWN_ZONE_LISTS = (ACTOR_ZONE_LIST, PLAYER_ZONE_LIST, COOKIE_ZONE_LIST, KEY_ZONE_LIST)
+SPAWN_ZONE_LISTS = (ACTOR_ZONE_LIST, PLAYER_ZONE_LIST)
+ITEMS_LIST = "items"
 
 DEFAULT_ACTOR_COUNT = 1
 SPAWN_ZONE_HANDLE_PIXELS = 8.0

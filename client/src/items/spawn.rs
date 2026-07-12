@@ -116,6 +116,8 @@ pub fn setup_item_assets(
 
     let cuboid_mesh = meshes.add(Cuboid::new(ITEM_SIZE, ITEM_SIZE, ITEM_SIZE));
 
+    // The map editor mirrors these silhouettes as 2D glyphs
+    // (tools/map_editor/canvas.py `_paint_items`) — keep the two in sync.
     commands.insert_resource(ItemAssets {
         cookie_mesh: meshes.add(Sphere::new(COOKIE_SIZE)),
         cookie_material,

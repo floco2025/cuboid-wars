@@ -6,7 +6,7 @@ import copy
 
 from PySide6.QtWidgets import QInputDialog, QMessageBox
 
-from .constants import SPAWN_ZONE_LISTS
+from .constants import ITEMS_LIST, SPAWN_ZONE_LISTS
 from .dialogs import ResizeMapDialog, ToolReferenceDialog
 from .geometry import level_label, resize_map_data
 
@@ -84,6 +84,12 @@ class StructureMixin:
             for zone in after[list_name]:
                 if zone["level"] >= insert_at:
                     zone["level"] += 1
+        for item in after.get(ITEMS_LIST, []):
+            if item["level"] >= insert_at:
+                item["level"] += 1
+        for plate in after.get("pressure_plates", []):
+            if plate["level"] >= insert_at:
+                plate["level"] += 1
         for ramp in after["ramps"]:
             if ramp["lower_level"] >= insert_at:
                 ramp["lower_level"] += 1
@@ -110,6 +116,8 @@ class StructureMixin:
         dropped_zones = 0
         for list_name in SPAWN_ZONE_LISTS:
             dropped_zones += sum(1 for zone in self.map_data[list_name] if zone["level"] == removed)
+        dropped_items = sum(1 for item in self.map_data.get(ITEMS_LIST, []) if item["level"] == removed)
+        dropped_plates = sum(1 for plate in self.map_data.get("pressure_plates", []) if plate["level"] == removed)
         dropped_ramps = 0
         for ramp in self.map_data["ramps"]:
             lower = ramp["lower_level"]
@@ -132,6 +140,10 @@ class StructureMixin:
             details.append(f"{barrier_count} barrier(s)")
         if dropped_zones:
             parts.append(f"{dropped_zones} spawn zone(s) on this level")
+        if dropped_items:
+            parts.append(f"{dropped_items} item(s) on this level")
+        if dropped_plates:
+            parts.append(f"{dropped_plates} pressure plate(s) on this level")
         if dropped_ramps:
             parts.append(f"{dropped_ramps} ramp(s) that span this level")
         body = f"Remove {level_label(level, removed)}?\n\nThis will drop:"
@@ -149,15 +161,15 @@ class StructureMixin:
             return
         after = copy.deepcopy(self.map_data)
         after["levels"].pop(removed)
-        for list_name in SPAWN_ZONE_LISTS:
-            adjusted_zones = []
-            for zone in after[list_name]:
-                if zone["level"] == removed:
+        for list_name in (*SPAWN_ZONE_LISTS, ITEMS_LIST, "pressure_plates"):
+            adjusted_entries = []
+            for entry in after.get(list_name, []):
+                if entry["level"] == removed:
                     continue
-                if zone["level"] > removed:
-                    zone["level"] -= 1
-                adjusted_zones.append(zone)
-            after[list_name] = adjusted_zones
+                if entry["level"] > removed:
+                    entry["level"] -= 1
+                adjusted_entries.append(entry)
+            after[list_name] = adjusted_entries
         adjusted = []
         for ramp in after["ramps"]:
             lower = ramp["lower_level"]

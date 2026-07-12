@@ -11,24 +11,25 @@ from PySide6.QtWidgets import QLabel, QMenu, QSizePolicy, QWidget
 from .constants import (
     ACTOR_ZONE_LIST,
     BARRIER_KIND_COLORS,
-    COOKIE_ZONE_LIST,
     EDITOR_CELL,
     ERASE_MODES,
     FLOOR_HIT_KINDS,
-    KEY_ZONE_LIST,
+    ITEM_KEY_TYPE,
+    ITEM_TYPE_COLORS,
+    ITEMS_LIST,
     MATERIAL_MODES,
     MIN_CELL,
     MODE_ACTOR_SPAWN_PAINT,
     MODE_BARRIER,
-    MODE_COOKIE_SPAWN_PAINT,
     MODE_ERASE_GRASS,
+    MODE_ERASE_ITEMS,
     MODE_ERASE_KEEP_FLOORS,
     MODE_ERASE_LIGHTS,
     MODE_FLOOR,
     MODE_FLOOR_MATERIAL,
     MODE_GRASS,
     MODE_INACCESSIBLE_FLOOR,
-    MODE_KEY_SPAWN_PAINT,
+    MODE_ITEM,
     MODE_LIGHT,
     MODE_PLAYER_SPAWN_PAINT,
     MODE_PRESSURE_PLATE,
@@ -155,6 +156,7 @@ class Canvas(QWidget):
         self._paint_floors(painter, level, cell)
         self._paint_grass(painter, level, cell)
         self._paint_pressure_plates(painter, cell, level_idx)
+        self._paint_items(painter, cell, level_idx)
         self._paint_ramps(painter, cell, level_idx)
         self.paint_spawn_zones(painter, cell, level_idx)
         if self.window.mode == MODE_SPAWN_ZONE_EDIT:
@@ -268,6 +270,60 @@ class Canvas(QWidget):
             painter.setBrush(color)
             inset = cell * 0.25
             painter.drawRect(QRectF(plate["col"] * cell + inset, plate["row"] * cell + inset, cell * 0.5, cell * 0.5))
+
+    def _paint_items(self, painter: QPainter, cell: float, level_idx: int) -> None:
+        # Glyphs mirror the in-game meshes (client/src/items/spawn.rs):
+        # cookie = small sphere, speed = tetrahedron, multi_shot / phasing =
+        # cube, low_gravity = sphere, health potion = capsule. Keys: diamond
+        # in the barrier-kind color — shape-distinct from the plates' inset
+        # squares so a key on a plate cell still reads.
+        items = self.window.map_data.get(ITEMS_LIST, [])
+        if not items:
+            return
+        painter.setPen(QPen(QColor("#0f172a"), 1))
+        for item in items:
+            if item["level"] != level_idx:
+                continue
+            cx = (item["col"] + 0.5) * cell
+            cy = (item["row"] + 0.5) * cell
+            item_type = item["type"]
+            if item_type == ITEM_KEY_TYPE:
+                painter.setBrush(QColor(BARRIER_KIND_COLORS.get(item.get("kind", ""), "#cccccc")))
+                half = cell * 0.28
+                painter.drawPolygon(
+                    [
+                        QPoint(round(cx), round(cy - half)),
+                        QPoint(round(cx + half), round(cy)),
+                        QPoint(round(cx), round(cy + half)),
+                        QPoint(round(cx - half), round(cy)),
+                    ]
+                )
+                continue
+            painter.setBrush(QColor(ITEM_TYPE_COLORS.get(item_type, "#f8fafc")))
+            if item_type == "cookie":
+                # Half the power-up size, like COOKIE_SIZE vs ITEM_SIZE.
+                radius = cell * 0.13
+                painter.drawEllipse(QRectF(cx - radius, cy - radius, radius * 2, radius * 2))
+            elif item_type == "speed":
+                half = cell * 0.26
+                painter.drawPolygon(
+                    [
+                        QPoint(round(cx), round(cy - half)),
+                        QPoint(round(cx + half), round(cy + half)),
+                        QPoint(round(cx - half), round(cy + half)),
+                    ]
+                )
+            elif item_type in ("multi_shot", "phasing"):
+                half = cell * 0.22
+                painter.drawRect(QRectF(cx - half, cy - half, half * 2, half * 2))
+            elif item_type == "health_potion":
+                half_w = cell * 0.16
+                half_h = cell * 0.30
+                painter.drawRoundedRect(QRectF(cx - half_w, cy - half_h, half_w * 2, half_h * 2), half_w, half_w)
+            else:  # low_gravity — sphere
+                radius = cell * 0.24
+                painter.drawEllipse(QRectF(cx - radius, cy - radius, radius * 2, radius * 2))
+        painter.setPen(Qt.PenStyle.NoPen)
 
     def _paint_ramps(self, painter: QPainter, cell: float, level_idx: int) -> None:
         for ramp in self.window.map_data["ramps"]:
@@ -425,14 +481,7 @@ class Canvas(QWidget):
         painter.setPen(Qt.PenStyle.NoPen)
 
     def paint_spawn_zones(self, painter: QPainter, cell: float, level_idx: int) -> None:
-        # Cookie zones first (background), then keys, then player, then actor
-        # (top — has the kind label).
-        for zone in self.window.map_data[COOKIE_ZONE_LIST]:
-            if zone["level"] == level_idx:
-                self.paint_cookie_spawn_zone(painter, zone, cell)
-        for zone in self.window.map_data[KEY_ZONE_LIST]:
-            if zone["level"] == level_idx:
-                self.paint_key_spawn_zone(painter, zone, cell)
+        # Player zones first (background), then actor (top — has the kind label).
         for zone in self.window.map_data[PLAYER_ZONE_LIST]:
             if zone["level"] == level_idx:
                 self.paint_player_spawn_zone(painter, zone, cell)
@@ -464,31 +513,6 @@ class Canvas(QWidget):
         painter.drawRect(rect)
         painter.setPen(QColor("#f8fafc"))
         painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, "player")
-
-    def paint_cookie_spawn_zone(self, painter: QPainter, zone: dict, cell: float) -> None:
-        c0, r0, c1, r1 = zone_rect(zone)
-        rect = QRectF(c0 * cell + 2, r0 * cell + 2, (c1 - c0) * cell - 4, (r1 - r0) * cell - 4)
-        outline_color = QColor(202, 138, 4)  # darker gold for outline
-        fill_color = QColor(250, 204, 21, 70)  # translucent gold fill
-        painter.setBrush(QBrush(fill_color))
-        painter.setPen(QPen(outline_color, 2, Qt.PenStyle.DotLine))
-        painter.drawRect(rect)
-        painter.setPen(QColor("#f8fafc"))
-        painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, "cookie")
-
-    def paint_key_spawn_zone(self, painter: QPainter, zone: dict, cell: float) -> None:
-        c0, r0, c1, r1 = zone_rect(zone)
-        rect = QRectF(c0 * cell + 2, r0 * cell + 2, (c1 - c0) * cell - 4, (r1 - r0) * cell - 4)
-        kind = zone.get("kind", "")
-        hex_color = BARRIER_KIND_COLORS.get(kind, "#cccccc")
-        outline_color = QColor(hex_color)
-        fill_color = QColor(hex_color)
-        fill_color.setAlpha(80)
-        painter.setBrush(QBrush(fill_color))
-        painter.setPen(QPen(outline_color, 2, Qt.PenStyle.DashDotLine))
-        painter.drawRect(rect)
-        painter.setPen(QColor("#f8fafc"))
-        painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, f"key {kind}")
 
     def paint_spawn_zone_selection(self, painter: QPainter, cell: float, level_idx: int) -> None:
         zone = self.window.selected_spawn_zone()
@@ -749,10 +773,6 @@ class Canvas(QWidget):
             self.window.add_actor_spawn_zone_rect(self.drag_start_cell, self.drag_current_cell)
         elif self.window.mode == MODE_PLAYER_SPAWN_PAINT and self.drag_start_cell and self.drag_current_cell:
             self.window.add_player_spawn_zone_rect(self.drag_start_cell, self.drag_current_cell)
-        elif self.window.mode == MODE_COOKIE_SPAWN_PAINT and self.drag_start_cell and self.drag_current_cell:
-            self.window.add_cookie_spawn_zone_rect(self.drag_start_cell, self.drag_current_cell)
-        elif self.window.mode == MODE_KEY_SPAWN_PAINT and self.drag_start_cell and self.drag_current_cell:
-            self.window.prompt_and_add_key_spawn_zone_rect(self.drag_start_cell, self.drag_current_cell)
         elif self.window.mode == MODE_SPAWN_ZONE_EDIT:
             self.window.commit_spawn_zone_edit_drag()
         elif self.window.mode == MODE_WALL and self.drag_start_point and self.drag_current_point:
@@ -792,6 +812,14 @@ class Canvas(QWidget):
             # in contextMenuEvent below).
             if not self.window.remove_pressure_plate_at(col, row):
                 self.window.prompt_and_add_pressure_plate(col, row)
+        elif self.window.mode == MODE_ITEM and self.drag_start_cell:
+            col, row = self.drag_start_cell
+            # Same click-toggle as pressure plates: occupied cell removes,
+            # empty cell prompts for type and places.
+            if not self.window.remove_item_at(col, row):
+                self.window.prompt_and_add_item(col, row)
+        elif self.window.mode == MODE_ERASE_ITEMS and self.drag_start_cell and self.drag_current_cell:
+            self.window.erase_items_rect(self.drag_start_cell, self.drag_current_cell)
         elif self.window.mode == MODE_ERASE_LIGHTS and self.drag_start_cell and self.drag_current_cell:
             self.window.erase_lights_rect(self.drag_start_cell, self.drag_current_cell)
         elif self.window.mode in ERASE_MODES:
@@ -806,14 +834,12 @@ class Canvas(QWidget):
     def contextMenuEvent(self, event) -> None:
         menu = QMenu(self)
         # Spawn-zone context menu fires in the dedicated Edit mode AND in
-        # the four paint modes when the click lands on a zone of the
-        # matching type. Lets users edit/delete what they just painted
-        # without first switching to Edit mode.
+        # the paint modes when the click lands on a zone of the matching
+        # type. Lets users edit/delete what they just painted without first
+        # switching to Edit mode.
         mode_to_zone_list = {
             MODE_ACTOR_SPAWN_PAINT: ACTOR_ZONE_LIST,
             MODE_PLAYER_SPAWN_PAINT: PLAYER_ZONE_LIST,
-            MODE_COOKIE_SPAWN_PAINT: COOKIE_ZONE_LIST,
-            MODE_KEY_SPAWN_PAINT: KEY_ZONE_LIST,
         }
         if self.window.mode == MODE_SPAWN_ZONE_EDIT or self.window.mode in mode_to_zone_list:
             picked = self.window.spawn_zone_at(event.pos(), self.cell_size())

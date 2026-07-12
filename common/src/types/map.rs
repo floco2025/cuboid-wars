@@ -90,16 +90,21 @@ pub enum ItemType {
     LowGravityPowerUp,
     // Instant heal on pickup; no durable state on `PlayerInfo` (unlike the
     // other power-ups, which arm a timer). The heal amount comes from
-    // `PowerUpsConfig.health_potion_heal_percent`.
+    // `PowerUpsConfig.health_potion_heal_fraction`.
     HealthPotion,
     Cookie,
-    // Key, parameterized by the barrier kind it eventually unlocks. World-
-    // spawned via `KeySpawnZone`s; once collected, the kind enters the
+    // Key, parameterized by the barrier kind it eventually unlocks. Placed
+    // in the map's `items` list; once collected, the kind enters the
     // player's permanent inventory.
     Key(BarrierKindId),
 }
 
 impl ItemType {
+    // Config id of the key variant. `from_config_id` deliberately rejects
+    // it — a key needs a barrier kind, which a bare config string can't
+    // carry — so key-accepting parsers must check this id themselves.
+    pub const KEY_CONFIG_ID: &'static str = "key";
+
     // Items that arm a per-player timer on pickup (the classic four
     // power-ups). `HealthPotion` is NOT one of these — its effect is
     // instant; see `PowerUpKind`.
@@ -111,14 +116,30 @@ impl ItemType {
         )
     }
 
-    // Items that use the spawn-time countdown for re-show after collection
-    // (cookies + keys), versus items that despawn the world entity entirely
-    // on pickup (power-ups + health potion). The dispatch in
-    // `item_collection_system` reads this to gate "currently respawning"
-    // visibility.
     #[must_use]
-    pub const fn respects_respawn_timer(self) -> bool {
-        matches!(self, Self::Cookie | Self::Key(_))
+    pub fn from_config_id(id: &str) -> Option<Self> {
+        match id {
+            "speed" => Some(Self::SpeedPowerUp),
+            "multi_shot" => Some(Self::MultiShotPowerUp),
+            "phasing" => Some(Self::PhasingPowerUp),
+            "low_gravity" => Some(Self::LowGravityPowerUp),
+            "health_potion" => Some(Self::HealthPotion),
+            "cookie" => Some(Self::Cookie),
+            _ => None,
+        }
+    }
+
+    #[must_use]
+    pub const fn config_id(self) -> &'static str {
+        match self {
+            Self::SpeedPowerUp => "speed",
+            Self::MultiShotPowerUp => "multi_shot",
+            Self::PhasingPowerUp => "phasing",
+            Self::LowGravityPowerUp => "low_gravity",
+            Self::HealthPotion => "health_potion",
+            Self::Cookie => "cookie",
+            Self::Key(_) => Self::KEY_CONFIG_ID,
+        }
     }
 }
 
@@ -197,5 +218,27 @@ impl MapSettings {
         } else {
             self.gravity
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn item_type_config_ids_round_trip() {
+        let non_key = [
+            ItemType::SpeedPowerUp,
+            ItemType::MultiShotPowerUp,
+            ItemType::PhasingPowerUp,
+            ItemType::LowGravityPowerUp,
+            ItemType::HealthPotion,
+            ItemType::Cookie,
+        ];
+        for item_type in non_key {
+            assert_eq!(ItemType::from_config_id(item_type.config_id()), Some(item_type));
+        }
+        assert_eq!(ItemType::Key(BarrierKindId(0)).config_id(), ItemType::KEY_CONFIG_ID);
+        assert_eq!(ItemType::from_config_id(ItemType::KEY_CONFIG_ID), None);
     }
 }

@@ -4,7 +4,7 @@ use crate::{
     config::ServerGameplayConfig,
     net::ServerToClient,
     network::broadcast_to_all,
-    resources::{ItemMap, PlayerMap, QuestEvent, record_quest_event},
+    resources::{ItemMap, ItemPlacement, PlayerMap, QuestEvent, record_quest_event},
 };
 use common::{
     config::GameplayConfig,
@@ -32,11 +32,9 @@ pub fn item_collection_system(
     let items_to_collect: Vec<(PlayerId, ItemId, ItemType)> = items
         .iter()
         .filter_map(|(item_id, item_info)| {
-            // Items that use the `spawn_time` countdown as a "currently
-            // respawning, invisible" flag — cookies + keys. Skip until the
-            // timer has elapsed. Power-ups + potions despawn fully on
-            // pickup so they never hit this branch.
-            if item_info.item_type.respects_respawn_timer() && item_info.spawn_time > 0.0 {
+            // A placed item counting down its respawn exists server-side but
+            // is invisible and uncollectable until the timer elapses.
+            if item_info.is_hidden() {
                 return None;
             }
 
@@ -74,24 +72,14 @@ pub fn item_collection_system(
     let mut status_broadcasts = Vec::new();
 
     for (player_id, item_id, item_type) in items_to_collect {
+        consume_item(&mut commands, &mut items, &server_gameplay_config, item_id, item_type);
         match item_type {
-            ItemType::Cookie => collect_cookie(&mut players, &mut items, player_id, item_id, &server_gameplay_config),
-            ItemType::Key(kind) => collect_key(
-                &mut players,
-                &mut items,
-                player_id,
-                item_id,
-                kind,
-                &server_gameplay_config,
-                &mut status_broadcasts,
-            ),
+            ItemType::Cookie => collect_cookie(&mut players, player_id, &server_gameplay_config),
+            ItemType::Key(kind) => collect_key(&mut players, player_id, kind, &mut status_broadcasts),
             ItemType::HealthPotion => collect_health_potion(
-                &mut commands,
                 &mut players,
-                &mut items,
                 &mut player_health,
                 player_id,
-                item_id,
                 &server_gameplay_config,
                 &gameplay_config,
             ),
@@ -103,11 +91,8 @@ pub fn item_collection_system(
                 // changes won't silently fall through to a power-up handler.
                 assert!(item_type.is_timer_power_up());
                 collect_power_up(
-                    &mut commands,
                     &mut players,
-                    &mut items,
                     player_id,
-                    item_id,
                     item_type,
                     &server_gameplay_config,
                     &mut status_broadcasts,
@@ -121,20 +106,32 @@ pub fn item_collection_system(
     }
 }
 
-fn collect_cookie(
-    players: &mut PlayerMap,
+// Hide-and-rearm for placed items, full despawn for random ones. The
+// per-type handlers only apply effects.
+fn consume_item(
+    commands: &mut Commands,
     items: &mut ItemMap,
-    player_id: PlayerId,
-    item_id: ItemId,
     server_gameplay_config: &ServerGameplayConfig,
+    item_id: ItemId,
+    item_type: ItemType,
 ) {
+    let Some(item_info) = items.get_mut(&item_id) else {
+        return;
+    };
+    if let ItemPlacement::Placed { respawn_countdown } = &mut item_info.placement {
+        *respawn_countdown = server_gameplay_config.placed_items.respawn_secs_for(item_type);
+        return;
+    }
+    if let Some(info) = items.remove(&item_id) {
+        commands.entity(info.entity).despawn();
+    }
+}
+
+fn collect_cookie(players: &mut PlayerMap, player_id: PlayerId, server_gameplay_config: &ServerGameplayConfig) {
     let Some(player_info) = players.get_mut(&player_id) else {
         return;
     };
     player_info.score += server_gameplay_config.scoring.cookie;
-    if let Some(item_info) = items.get_mut(&item_id) {
-        item_info.spawn_time = server_gameplay_config.cookies.respawn_secs;
-    }
     let quest_messages = record_quest_event(player_info, &server_gameplay_config.quests, QuestEvent::CookieCollected);
     let _ = player_info
         .channel
@@ -148,16 +145,10 @@ fn collect_cookie(
 
 fn collect_key(
     players: &mut PlayerMap,
-    items: &mut ItemMap,
     player_id: PlayerId,
-    item_id: ItemId,
     kind: common::protocol::BarrierKindId,
-    server_gameplay_config: &ServerGameplayConfig,
     status_broadcasts: &mut Vec<common::protocol::SPlayerStatus>,
 ) {
-    if let Some(item_info) = items.get_mut(&item_id) {
-        item_info.spawn_time = server_gameplay_config.keys.respawn_secs;
-    }
     let Some(player_info) = players.get_mut(&player_id) else {
         return;
     };
@@ -170,18 +161,12 @@ fn collect_key(
 }
 
 fn collect_health_potion(
-    commands: &mut Commands,
     players: &mut PlayerMap,
-    items: &mut ItemMap,
     player_health: &mut Query<&mut Health, With<PlayerMarker>>,
     player_id: PlayerId,
-    item_id: ItemId,
     server_gameplay_config: &ServerGameplayConfig,
     gameplay_config: &GameplayConfig,
 ) {
-    if let Some(item_info) = items.remove(&item_id) {
-        commands.entity(item_info.entity).despawn();
-    }
     let Some(player_info) = players.get(&player_id) else {
         return;
     };
@@ -189,7 +174,7 @@ fn collect_health_potion(
         return;
     };
     let max = gameplay_config.player.health().max;
-    let heal = max * server_gameplay_config.power_ups.health_potion_heal_percent;
+    let heal = max * server_gameplay_config.power_ups.health_potion_heal_fraction;
     regenerate_health(&mut health, max, heal);
     // Unicast pickup cue — carries the post-heal value so the HUD bumps on
     // the pickup tick instead of waiting for the next snapshot.
@@ -201,18 +186,12 @@ fn collect_health_potion(
 }
 
 fn collect_power_up(
-    commands: &mut Commands,
     players: &mut PlayerMap,
-    items: &mut ItemMap,
     player_id: PlayerId,
-    item_id: ItemId,
     item_type: ItemType,
     server_gameplay_config: &ServerGameplayConfig,
     status_broadcasts: &mut Vec<common::protocol::SPlayerStatus>,
 ) {
-    if let Some(item_info) = items.remove(&item_id) {
-        commands.entity(item_info.entity).despawn();
-    }
     let Some(player_info) = players.get_mut(&player_id) else {
         return;
     };

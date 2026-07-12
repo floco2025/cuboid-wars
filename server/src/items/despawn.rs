@@ -1,24 +1,23 @@
 use bevy::prelude::*;
 
-use crate::{config::ServerGameplayConfig, resources::ItemMap};
-use common::protocol::{ItemId, ItemType};
+use crate::resources::{ItemMap, ItemPlacement, RandomItems};
+use common::protocol::ItemId;
 
-pub fn item_despawn_system(
+pub fn random_item_despawn_system(
     mut commands: Commands,
     time: Res<Time>,
     mut items: ResMut<ItemMap>,
-    server_gameplay_config: Res<ServerGameplayConfig>,
+    random_items: Res<RandomItems>,
 ) {
     let current_time = time.elapsed_secs();
-    let despawn_secs = server_gameplay_config.power_ups.despawn_secs;
 
-    // Only power-ups expire from inactivity. Cookies and keys are persistent
-    // world items managed by the respawn tick.
+    // Only random items expire from inactivity. Placed items persist and are
+    // managed by the respawn tick.
     let items_to_remove: Vec<ItemId> = items
         .iter()
         .filter(|(_, info)| {
-            !matches!(info.item_type, ItemType::Cookie | ItemType::Key(_))
-                && current_time - info.spawn_time >= despawn_secs
+            matches!(info.placement, ItemPlacement::Random { spawned_at }
+                if current_time - spawned_at >= random_items.despawn_secs)
         })
         .map(|(id, _)| *id)
         .collect();
@@ -30,21 +29,14 @@ pub fn item_despawn_system(
     }
 }
 
-pub fn item_respawn_system(time: Res<Time>, mut items: ResMut<ItemMap>) {
+pub fn placed_item_respawn_system(time: Res<Time>, mut items: ResMut<ItemMap>) {
     let delta = time.delta_secs();
 
     for item_info in items.values_mut() {
-        // Cookies and keys both run their respawn countdown here. Power-ups
-        // skip — they're despawned outright when their lifetime ends.
-        if !matches!(item_info.item_type, ItemType::Cookie | ItemType::Key(_)) {
-            continue;
-        }
-
-        if item_info.spawn_time > 0.0 {
-            item_info.spawn_time -= delta;
-            if item_info.spawn_time <= 0.0 {
-                item_info.spawn_time = 0.0;
-            }
+        if let ItemPlacement::Placed { respawn_countdown } = &mut item_info.placement
+            && *respawn_countdown > 0.0
+        {
+            *respawn_countdown = (*respawn_countdown - delta).max(0.0);
         }
     }
 }

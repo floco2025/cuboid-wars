@@ -4,10 +4,36 @@ use bevy::prelude::*;
 
 use common::protocol::{ItemId, ItemType};
 
+pub enum ItemPlacement {
+    // World-spawned by the random spawner; despawns outright on pickup or
+    // once `RandomItems::despawn_secs` elapses.
+    Random { spawned_at: f32 },
+    // Map-authored; hides on pickup and re-shows when the countdown hits 0.
+    Placed { respawn_countdown: f32 },
+}
+
 pub struct ItemInfo {
     pub entity: Entity,
     pub item_type: ItemType,
-    pub spawn_time: f32,
+    pub placement: ItemPlacement,
+}
+
+impl ItemInfo {
+    // Hidden items stay out of snapshots and can't be collected; the entity
+    // persists so the item keeps its cell (and its occupancy claim).
+    #[must_use]
+    pub fn is_hidden(&self) -> bool {
+        matches!(self.placement, ItemPlacement::Placed { respawn_countdown } if respawn_countdown > 0.0)
+    }
+}
+
+// Resolved `maps.<name>.random_items` from the server gameplay config,
+// parsed once at startup. An empty pool means no random spawning.
+#[derive(Resource, Clone, Default)]
+pub struct RandomItems {
+    pub pool: Vec<ItemType>,
+    pub max_number: usize,
+    pub despawn_secs: f32,
 }
 
 #[derive(Resource, Default)]

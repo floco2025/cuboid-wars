@@ -4,7 +4,12 @@
     "hotel": {
       "skybox": "cloudy_day",
       "gravity": 25.0,
-      "low_gravity": 5.0
+      "low_gravity": 5.0,
+      "random_items": {
+        "types": ["speed", "multi_shot", "low_gravity", "health_potion"],
+        "max_number": 30,
+        "despawn_secs": 60.0
+      }
     }
   },
   "default_map": "hotel",
@@ -23,20 +28,22 @@
     }
   },
   "power_ups": {
-    "max_number": 30,
-    "despawn_secs": 60.0,
     "speed_duration_secs": 30.0,
     "multi_shot_duration_secs": 25.0,
     "phasing_duration_secs": 15.0,
     "low_gravity_duration_secs": 20.0,
-    "health_potion_heal_percent": 0.5
+    "health_potion_heal_fraction": 0.5
   },
-  "cookies": {
-    "spawning_enabled": true,
-    "respawn_secs": 60.0
-  },
-  "keys": {
-    "respawn_secs": 30.0
+  "placed_items": {
+    "respawn_secs": {
+      "speed": 60.0,
+      "multi_shot": 60.0,
+      "phasing": 60.0,
+      "low_gravity": 60.0,
+      "health_potion": 60.0,
+      "cookie": 60.0,
+      "key": 30.0
+    }
   },
   "quests": [
     {

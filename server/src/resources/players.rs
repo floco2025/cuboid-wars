@@ -376,13 +376,11 @@ mod tests {
 
     fn test_power_ups_config() -> PowerUpsConfig {
         PowerUpsConfig {
-            max_number: 0,
-            despawn_secs: 60.0,
             speed_duration_secs: 1.0,
             multi_shot_duration_secs: 1.0,
             phasing_duration_secs: 1.0,
             low_gravity_duration_secs: 1.0,
-            health_potion_heal_percent: 0.25,
+            health_potion_heal_fraction: 0.25,
         }
     }
 

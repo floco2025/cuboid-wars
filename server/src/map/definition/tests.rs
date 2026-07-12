@@ -1,8 +1,8 @@
 use super::{
     compile_map,
     schema::{
-        ActorSpawnZoneDef, BarrierDef, FloorDef, LevelDef, MapDef, PlayerSpawnZoneDef, PressurePlateDef, RampDef,
-        WallDef,
+        ActorSpawnZoneDef, BarrierDef, FloorDef, ItemDef, LevelDef, MapDef, PlayerSpawnZoneDef, PressurePlateDef,
+        RampDef, WallDef,
     },
     validation::validate_map,
 };
@@ -78,8 +78,7 @@ fn map_with_zones(
         grid_rows: grid,
         actor_spawn_zones,
         player_spawn_zones,
-        cookie_spawn_zones: Vec::new(),
-        key_spawn_zones: Vec::new(),
+        items: Vec::new(),
         pressure_plates: Vec::new(),
         levels,
         ramps,
@@ -505,6 +504,137 @@ fn validation_rejects_grass_out_of_bounds() {
     map_def.levels[0].grass.push(floor_def(4, 0));
     let err = validate_map(&map_def).expect_err("out-of-bounds grass must be rejected");
     assert!(err.to_string().contains("grass"));
+}
+
+fn item_def(level: u32, col: i32, row: i32, item_type: &str, kind: Option<&str>) -> ItemDef {
+    ItemDef {
+        level,
+        col,
+        row,
+        item_type: item_type.to_owned(),
+        kind: kind.map(str::to_owned),
+    }
+}
+
+#[test]
+fn validation_rejects_item_outside_grid() {
+    let mut map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]])],
+        Vec::new(),
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    map_def.items.push(item_def(0, 4, 0, "cookie", None));
+    let err = validate_map(&map_def).expect_err("out-of-bounds item must be rejected");
+    assert!(err.to_string().contains("col"));
+}
+
+#[test]
+fn validation_rejects_key_item_without_kind() {
+    let mut map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]])],
+        Vec::new(),
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    map_def.items.push(item_def(0, 0, 0, "key", None));
+    let err = validate_map(&map_def).expect_err("key without kind must be rejected");
+    assert!(err.to_string().contains("kind"));
+}
+
+#[test]
+fn validation_rejects_kind_on_non_key_item() {
+    let mut map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]])],
+        Vec::new(),
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    map_def.items.push(item_def(0, 0, 0, "cookie", Some("red")));
+    let err = validate_map(&map_def).expect_err("kind on non-key item must be rejected");
+    assert!(err.to_string().contains("only key items"));
+}
+
+#[test]
+fn validation_rejects_unknown_item_type() {
+    let mut map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]])],
+        Vec::new(),
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    map_def.items.push(item_def(0, 0, 0, "banana", None));
+    let err = validate_map(&map_def).expect_err("unknown item type must be rejected");
+    assert!(err.to_string().contains("unknown item type"));
+}
+
+#[test]
+fn validation_rejects_duplicate_item_cell() {
+    let mut map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]])],
+        Vec::new(),
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    map_def.items.push(item_def(0, 0, 0, "cookie", None));
+    map_def.items.push(item_def(0, 0, 0, "speed", None));
+    let err = validate_map(&map_def).expect_err("two items on one cell must be rejected");
+    assert!(err.to_string().contains("duplicates"));
+}
+
+#[test]
+fn compile_rejects_item_on_floorless_cell() {
+    let mut map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]])],
+        Vec::new(),
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    map_def.items.push(item_def(0, 2, 2, "cookie", None));
+    let err = compile_map(&map_def, &assets(), &empty_kind_table())
+        .err()
+        .expect("item on a floorless cell must fail");
+    assert!(err.to_string().contains("floor"));
+}
+
+#[test]
+fn compile_rejects_item_on_ramp_cell() {
+    let mut map_def = map_with_zones(
+        4,
+        vec![level(vec![[3, 3]]), level(vec![[0, 0]]), level(vec![[3, 3]])],
+        Vec::new(),
+        vec![player_zone(0, 3, 3)],
+        vec![ramp([0, 0], [1, 2], 1)],
+    );
+    map_def.items.push(item_def(1, 0, 0, "cookie", None));
+    let err = compile_map(&map_def, &assets(), &empty_kind_table())
+        .err()
+        .expect("item on a ramp cell must fail");
+    assert!(err.to_string().contains("ramp"));
+}
+
+#[test]
+fn compile_resolves_key_item_barrier_kind() {
+    let mut map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]])],
+        Vec::new(),
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    map_def.items.push(item_def(0, 0, 0, "key", Some("red")));
+    let (_, config, _) = compile_map(&map_def, &assets(), &red_only_kind_table()).expect("compile");
+    assert_eq!(config.placed_items.len(), 1);
+    assert_eq!(
+        config.placed_items[0].item_type,
+        common::protocol::ItemType::Key(common::protocol::BarrierKindId(0))
+    );
 }
 
 #[test]

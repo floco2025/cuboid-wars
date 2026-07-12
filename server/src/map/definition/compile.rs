@@ -11,15 +11,14 @@ use crate::{
         ramps, trim, walls,
     },
     resources::{
-        ActorSpawnZone, CellGrid, CookieSpawnZone, EdgeGrid, KeySpawnZone, LevelGrid, MapConfig, PlayerSpawnZone,
-        PressurePlateRuntime,
+        ActorSpawnZone, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlacedItem, PlayerSpawnZone, PressurePlateRuntime,
     },
 };
 use common::{
     constants::*,
     face_materials::FaceMaterials,
     map_geometry::MapGeometry,
-    protocol::{Barrier, BarrierKindId, BarrierKindTable, Floor, GrassCell, MapLayout, Wall},
+    protocol::{Barrier, BarrierKindId, BarrierKindTable, Floor, GrassCell, ItemType, MapLayout, Wall},
 };
 
 pub(crate) fn compile_map(
@@ -216,14 +215,15 @@ pub(crate) fn compile_map(
     assert_eq!(map_layout.floors.len(), map_layout.floor_materials.len());
     assert_eq!(map_layout.ramps.len(), map_layout.ramp_materials.len());
 
+    let placed_items = placed_items(map_def, kind_table, &level_grids)?;
+
     Ok((
         map_layout,
         MapConfig {
             levels: level_grids,
             actor_spawn_zones: actor_spawn_zones(map_def),
             player_spawn_zones: player_spawn_zones(map_def),
-            cookie_spawn_zones: cookie_spawn_zones(map_def),
-            key_spawn_zones: key_spawn_zones(map_def, kind_table)?,
+            placed_items,
             pressure_plates,
         },
         geometry,
@@ -268,14 +268,40 @@ fn player_spawn_zones(map_def: &MapDef) -> Vec<PlayerSpawnZone> {
         .collect()
 }
 
-fn cookie_spawn_zones(map_def: &MapDef) -> Vec<CookieSpawnZone> {
+// Items are gameplay, not cosmetics, so a floorless or ramp cell is a hard
+// error (unlike grass, which compile silently drops).
+fn placed_items(
+    map_def: &MapDef,
+    kind_table: &BarrierKindTable,
+    level_grids: &[LevelGrid],
+) -> anyhow::Result<Vec<PlacedItem>> {
     map_def
-        .cookie_spawn_zones
+        .items
         .iter()
-        .map(|zone| CookieSpawnZone {
-            level: u8::try_from(zone.level).unwrap_or(u8::MAX),
-            cols: zone.cols,
-            rows: zone.rows,
+        .enumerate()
+        .map(|(idx, item)| {
+            let item_type = if item.item_type == ItemType::KEY_CONFIG_ID {
+                let kind_id = item.kind.as_deref().unwrap_or_default();
+                ItemType::Key(kind_table.resolve(kind_id).with_context(|| format!("items[{idx}]"))?)
+            } else {
+                ItemType::from_config_id(&item.item_type)
+                    .with_context(|| format!("items[{idx}] has unknown item type {:?}", item.item_type))?
+            };
+            let cell = level_grids[item.level as usize].cells.rows[item.row as usize][item.col as usize];
+            anyhow::ensure!(
+                cell.has_floor && !cell.has_ramp,
+                "items[{idx}] ({}) at level {} col {} row {} needs a floor cell without a ramp",
+                item.item_type,
+                item.level,
+                item.col,
+                item.row
+            );
+            Ok(PlacedItem {
+                level: u8::try_from(item.level).unwrap_or(u8::MAX),
+                col: item.col,
+                row: item.row,
+                item_type,
+            })
         })
         .collect()
 }
@@ -293,25 +319,6 @@ fn pressure_plates(map_def: &MapDef, kind_table: &BarrierKindTable) -> anyhow::R
                 level: u8::try_from(p.level).unwrap_or(u8::MAX),
                 col: p.col,
                 row: p.row,
-                kind,
-            })
-        })
-        .collect()
-}
-
-fn key_spawn_zones(map_def: &MapDef, kind_table: &BarrierKindTable) -> anyhow::Result<Vec<KeySpawnZone>> {
-    map_def
-        .key_spawn_zones
-        .iter()
-        .enumerate()
-        .map(|(idx, zone)| {
-            let kind = kind_table
-                .resolve(&zone.kind)
-                .with_context(|| format!("key_spawn_zones[{idx}]"))?;
-            Ok(KeySpawnZone {
-                level: u8::try_from(zone.level).unwrap_or(u8::MAX),
-                cols: zone.cols,
-                rows: zone.rows,
                 kind,
             })
         })

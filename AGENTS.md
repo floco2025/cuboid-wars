@@ -30,8 +30,8 @@ Other notable paths:
 - `config/client/assets.json` — hand-edited asset set (materials, material rules, models, sounds, barrier kind colours).
 - `config/client/render.json` — client-only render/debug settings.
 - `config/common/gameplay.json` — shared simulation tuning loaded by client and server.
-- `config/server/gameplay.json` — server-only gameplay tuning, including the named-map registry: `maps` maps each name to its per-map settings (`skybox`, `gravity`, `low_gravity`), `default_map` picks the one to load (`--map <name>` overrides).
-- `config/server/maps/` — one map JSON per named map (geometry + zones only; per-map tuning lives in the `maps` registry).
+- `config/server/gameplay.json` — server-only gameplay tuning, including the named-map registry: `maps` maps each name to its per-map settings (`skybox`, `gravity`, `low_gravity`, optional `random_items` spawn pool), `default_map` picks the one to load (`--map <name>` overrides). `placed_items.respawn_secs` sets the per-type reappear delay for map-placed items.
+- `config/server/maps/` — one map JSON per named map (geometry, zones, and placed `items`; per-map tuning lives in the `maps` registry).
 - `cert.pem` / `key.pem` — local-dev TLS for QUIC (not production-safe).
 - `launch_clients.sh` — spawns N tiled windowed clients for local multiplayer testing (`./launch_clients.sh [num_clients] [lag_ms]`, macOS).
 - `bacon.toml` — `bacon` job definitions; use `bacon clippy`, `bacon test`, etc. as the watch loop.

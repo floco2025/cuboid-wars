@@ -11,26 +11,24 @@ from PySide6.QtGui import QColor
 from .constants import (
     ACTOR_ZONE_LIST,
     BARRIER_KIND_TABLE,
-    COOKIE_ZONE_LIST,
     DEFAULT_ALIAS,
     DEFAULT_GRID_COLS,
     DEFAULT_GRID_ROWS,
     FACES,
-    KEY_ZONE_LIST,
+    ITEM_KEY_TYPE,
     LIGHT_SIDES,
-    MODE_COOKIE_SPAWN_PAINT,
     MODE_ERASE,
     MODE_ERASE_GRASS,
+    MODE_ERASE_ITEMS,
     MODE_ERASE_KEEP_FLOORS,
     MODE_ERASE_LIGHTS,
     MODE_FLOOR,
     MODE_FLOOR_MATERIAL,
     MODE_GRASS,
     MODE_INACCESSIBLE_FLOOR,
-    MODE_KEY_SPAWN_PAINT,
+    MODE_ITEM,
     MODE_PLAYER_SPAWN_PAINT,
     MODE_RAMP_MATERIAL,
-    PLAYER_ZONE_LIST,
 )
 
 
@@ -39,8 +37,7 @@ def normalize_map(map_data: dict) -> dict:
     rows = int(map_data.get("grid_rows", DEFAULT_GRID_ROWS))
     actor_spawn_zones = [normalize_actor_spawn_zone(z) for z in map_data.get("actor_spawn_zones", [])]
     player_spawn_zones = [normalize_player_spawn_zone(z) for z in map_data.get("player_spawn_zones", [])]
-    cookie_spawn_zones = [normalize_cookie_spawn_zone(z) for z in map_data.get("cookie_spawn_zones", [])]
-    key_spawn_zones = [normalize_key_spawn_zone(z) for z in map_data.get("key_spawn_zones", [])]
+    items = [normalize_item(i) for i in map_data.get("items", [])]
     pressure_plates = [normalize_pressure_plate(p) for p in map_data.get("pressure_plates", [])]
     levels = []
     for idx, level in enumerate(map_data.get("levels", [])):
@@ -74,8 +71,7 @@ def normalize_map(map_data: dict) -> dict:
         "grid_rows": rows,
         "actor_spawn_zones": actor_spawn_zones,
         "player_spawn_zones": player_spawn_zones,
-        "cookie_spawn_zones": cookie_spawn_zones,
-        "key_spawn_zones": key_spawn_zones,
+        "items": items,
         "pressure_plates": pressure_plates,
         "levels": levels,
         "ramps": ramps,
@@ -194,12 +190,22 @@ def normalize_player_spawn_zone(zone: dict) -> dict:
     return _normalize_zone_rect(zone)
 
 
-def normalize_cookie_spawn_zone(zone: dict) -> dict:
-    return _normalize_zone_rect(zone)
+def normalize_item(item: dict) -> dict:
+    out = {
+        "level": int(item.get("level", 0)),
+        "col": int(item.get("col", 0)),
+        "row": int(item.get("row", 0)),
+        "type": str(item.get("type", "")),
+    }
+    # Only keys carry a kind; a stray kind on another type is dropped here
+    # so it can't survive into the saved file (the Rust loader rejects it).
+    if out["type"] == ITEM_KEY_TYPE:
+        out["kind"] = str(item.get("kind", ""))
+    return out
 
 
-def normalize_key_spawn_zone(zone: dict) -> dict:
-    return {**_normalize_zone_rect(zone), "kind": str(zone.get("kind", ""))}
+def item_key(item: dict) -> tuple:
+    return (item["level"], item["row"], item["col"])
 
 
 def normalize_pressure_plate(plate: dict) -> dict:
@@ -237,34 +243,9 @@ def player_zone_key(zone: dict) -> tuple:
     )
 
 
-def cookie_zone_key(zone: dict) -> tuple:
-    return (
-        zone["level"],
-        zone["rows"][0],
-        zone["cols"][0],
-        zone["rows"][1],
-        zone["cols"][1],
-    )
-
-
-def key_zone_key(zone: dict) -> tuple:
-    return (
-        zone["level"],
-        zone["rows"][0],
-        zone["cols"][0],
-        zone["rows"][1],
-        zone["cols"][1],
-        zone["kind"],
-    )
-
-
 def zone_key(list_name: str, zone: dict) -> tuple:
     if list_name == ACTOR_ZONE_LIST:
         return actor_zone_key(zone)
-    if list_name == COOKIE_ZONE_LIST:
-        return cookie_zone_key(zone)
-    if list_name == KEY_ZONE_LIST:
-        return key_zone_key(zone)
     return player_zone_key(zone)
 
 
@@ -285,8 +266,6 @@ def canonicalize_map(map_data: dict) -> dict:
     enforce_ramp_floor_rules(b)
     b["actor_spawn_zones"] = _dedupe_sorted(b["actor_spawn_zones"], actor_zone_key)
     b["player_spawn_zones"] = _dedupe_sorted(b["player_spawn_zones"], player_zone_key)
-    b["cookie_spawn_zones"] = _dedupe_sorted(b["cookie_spawn_zones"], cookie_zone_key)
-    b["key_spawn_zones"] = _dedupe_sorted(b["key_spawn_zones"], key_zone_key)
     b["pressure_plates"] = _dedupe_sorted(b["pressure_plates"], pressure_plate_key)
     # Ramp footprints occupy cells on both the lower and upper level of each
     # ramp. Lights are not allowed inside any of those cells.
@@ -334,6 +313,28 @@ def canonicalize_map(map_data: dict) -> dict:
             and (l["col"], l["row"]) not in ramp_set
         ]
         level["lights"] = _dedupe_lights(in_bounds_lights)
+
+    # Items only survive on regular-floor cells outside lower-level ramp
+    # footprints — the server's `has_floor && !has_ramp` rule — so erasing a
+    # floor (or laying a ramp) drops its item in the same canonicalize pass.
+    lower_ramp_cells_by_level: list[set[tuple[int, int]]] = [set() for _ in b["levels"]]
+    for ramp in b["ramps"]:
+        lower = ramp["lower_level"]
+        if 0 <= lower < len(lower_ramp_cells_by_level):
+            lower_ramp_cells_by_level[lower].update(ramp_cells(ramp))
+    floor_keys_by_level = [{(f["col"], f["row"]) for f in level["floors"]} for level in b["levels"]]
+    items_by_cell: dict[tuple[int, int, int], dict] = {}
+    for item in b["items"]:
+        level_idx = item["level"]
+        if not (0 <= level_idx < len(b["levels"])):
+            continue
+        cell_key = (item["col"], item["row"])
+        if cell_key not in floor_keys_by_level[level_idx] or cell_key in lower_ramp_cells_by_level[level_idx]:
+            continue
+        # Later entries win when the same cell holds two items, so the
+        # user's most recent placement stays.
+        items_by_cell[(level_idx, item["col"], item["row"])] = item
+    b["items"] = [items_by_cell[k] for k in sorted(items_by_cell.keys(), key=lambda k: (k[0], k[2], k[1]))]
 
     b["ramps"] = sorted(
         b["ramps"],
@@ -452,25 +453,20 @@ def resize_map_data(
     out["player_spawn_zones"] = [
         z for z in (clip_zone(z) for z in out["player_spawn_zones"]) if z is not None
     ]
-    out["cookie_spawn_zones"] = [
-        z for z in (clip_zone(z) for z in out["cookie_spawn_zones"]) if z is not None
-    ]
-    out["key_spawn_zones"] = [
-        z for z in (clip_zone(z) for z in out["key_spawn_zones"]) if z is not None
-    ]
 
-    def clip_plate(plate: dict) -> dict | None:
-        nc = plate["col"] + dc
-        nr = plate["row"] + dr
+    def clip_cell_entry(entry: dict) -> dict | None:
+        nc = entry["col"] + dc
+        nr = entry["row"] + dr
         if not (0 <= nc < new_cols and 0 <= nr < new_rows):
             return None
-        plate["col"] = nc
-        plate["row"] = nr
-        return plate
+        entry["col"] = nc
+        entry["row"] = nr
+        return entry
 
     out["pressure_plates"] = [
-        p for p in (clip_plate(p) for p in out.get("pressure_plates", [])) if p is not None
+        p for p in (clip_cell_entry(p) for p in out.get("pressure_plates", [])) if p is not None
     ]
+    out["items"] = [i for i in (clip_cell_entry(i) for i in out.get("items", [])) if i is not None]
 
     kept_ramps = []
     for ramp in out["ramps"]:
@@ -582,10 +578,10 @@ DRAG_PREVIEW_COLORS: dict[str, QColor] = {
     MODE_GRASS: QColor(132, 204, 22, 120),  # lime — matches the grass tuft strokes
     MODE_ERASE_GRASS: QColor(120, 113, 108, 120),  # stone — mowed-down grass, not a red erase tool
     MODE_PLAYER_SPAWN_PAINT: QColor(99, 102, 241, 120),
-    MODE_COOKIE_SPAWN_PAINT: QColor(250, 204, 21, 120),  # gold — matches cookie material
-    # Kind is picked *after* the drag, so the preview color is a neutral
-    # off-white. The placed rect is then color-coded by its kind.
-    MODE_KEY_SPAWN_PAINT: QColor(220, 220, 220, 110),
+    # Type is picked *after* the click, so the hover ghost is a neutral
+    # off-white. The placed glyph is then color-coded by its type.
+    MODE_ITEM: QColor(220, 220, 220, 110),
+    MODE_ERASE_ITEMS: QColor(245, 158, 11, 120),  # amber family, like Erase Lights
     MODE_FLOOR_MATERIAL: QColor(236, 72, 153, 120),
     MODE_RAMP_MATERIAL: QColor(168, 85, 247, 120),  # purple to distinguish from floor mode pink
     MODE_ERASE: QColor(248, 113, 113, 120),

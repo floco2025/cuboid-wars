@@ -3,56 +3,35 @@ use std::collections::HashSet;
 use bevy::prelude::*;
 use rand::{RngExt, rng};
 
-use crate::{
-    config::ServerGameplayConfig,
-    resources::{ItemInfo, ItemMap, ItemSpawner, MapConfig},
-};
+use crate::resources::{ItemInfo, ItemMap, ItemPlacement, ItemSpawner, MapConfig, RandomItems};
 use common::{
     map_geometry::MapGeometry,
-    protocol::{ItemId, ItemMarker, ItemType, Position},
+    protocol::{ItemId, ItemMarker, Position},
 };
 
 use super::spawn_cells::{
-    ItemSpawnCell, choose_item_type, eligible_item_spawn_cells, item_spawn_cell_from_position, power_up_spawn_interval,
-    target_active_power_ups,
+    ItemSpawnCell, choose_item_type, eligible_item_spawn_cells, item_spawn_cell_from_position,
+    random_item_spawn_interval, target_active_random_items,
 };
 
-pub fn item_initial_spawn_system(
+// One entity per map-authored item, spawned once at startup. The entity
+// stays at its cell forever — pickup hides it and the countdown re-shows it.
+pub fn placed_item_spawn_system(
     mut commands: Commands,
     mut spawner: ResMut<ItemSpawner>,
     mut items: ResMut<ItemMap>,
-    query: Query<&ItemId, With<ItemMarker>>,
     map_config: Res<MapConfig>,
     map_geometry: Res<MapGeometry>,
-    server_gameplay_config: Res<ServerGameplayConfig>,
 ) {
-    if !server_gameplay_config.cookies.spawning_enabled {
-        return;
-    }
-
-    let has_cookies = query
-        .iter()
-        .any(|id| items.get(id).is_some_and(|info| info.item_type == ItemType::Cookie));
-
-    if has_cookies {
-        return;
-    }
-
-    // Cookies only spawn in cells inside an editor-authored cookie spawn zone.
-    // Outside those zones, the floor stays cookie-free.
-    let zone_cells: HashSet<(u8, i32, i32)> = map_config
-        .cookie_spawn_zones
-        .iter()
-        .flat_map(|zone| zone.cells().map(move |(c, r)| (zone.level, c, r)))
-        .collect();
-
-    for spawn_cell in eligible_item_spawn_cells(&map_config) {
-        if !zone_cells.contains(&(spawn_cell.level, spawn_cell.col, spawn_cell.row)) {
-            continue;
+    for placed in &map_config.placed_items {
+        let item_id = ItemId(spawner.next_id);
+        spawner.next_id += 1;
+        let position = ItemSpawnCell {
+            level: placed.level,
+            col: placed.col,
+            row: placed.row,
         }
-        let item_id = ItemId(spawner.next_id);
-        spawner.next_id += 1;
-        let position = spawn_cell.position(&map_geometry);
+        .position(&map_geometry);
 
         let entity = commands.spawn((ItemMarker, item_id, position)).id();
 
@@ -60,68 +39,14 @@ pub fn item_initial_spawn_system(
             item_id,
             ItemInfo {
                 entity,
-                item_type: ItemType::Cookie,
-                spawn_time: 0.0,
+                item_type: placed.item_type,
+                placement: ItemPlacement::Placed { respawn_countdown: 0.0 },
             },
         );
     }
 }
 
-// Spawn one world key per `KeySpawnZone` on startup. Each zone's first
-// eligible (`has_floor && !has_ramp`) cell becomes the key's home; the
-// entity stays at that cell forever (respawn just hides/shows it).
-pub fn key_initial_spawn_system(
-    mut commands: Commands,
-    mut spawner: ResMut<ItemSpawner>,
-    mut items: ResMut<ItemMap>,
-    query: Query<&ItemId, With<ItemMarker>>,
-    map_config: Res<MapConfig>,
-    map_geometry: Res<MapGeometry>,
-) {
-    let has_keys = query.iter().any(|id| {
-        items
-            .get(id)
-            .is_some_and(|info| matches!(info.item_type, ItemType::Key(_)))
-    });
-    if has_keys {
-        return;
-    }
-
-    let eligible = eligible_item_spawn_cells(&map_config);
-
-    for (zone_idx, zone) in map_config.key_spawn_zones.iter().enumerate() {
-        let zone_cell = eligible.iter().find(|c| {
-            c.level == zone.level
-                && c.col >= zone.cols[0]
-                && c.col < zone.cols[1]
-                && c.row >= zone.rows[0]
-                && c.row < zone.rows[1]
-        });
-
-        let Some(cell) = zone_cell else {
-            warn!(
-                "key spawn zone {} (kind {:?}) has no eligible cells; skipping",
-                zone_idx, zone.kind
-            );
-            continue;
-        };
-
-        let item_id = ItemId(spawner.next_id);
-        spawner.next_id += 1;
-        let position = cell.position(&map_geometry);
-        let entity = commands.spawn((ItemMarker, item_id, position)).id();
-        items.insert(
-            item_id,
-            ItemInfo {
-                entity,
-                item_type: ItemType::Key(zone.kind),
-                spawn_time: 0.0,
-            },
-        );
-    }
-}
-
-pub fn item_spawn_system(
+pub fn random_item_spawn_system(
     mut commands: Commands,
     time: Res<Time>,
     mut spawner: ResMut<ItemSpawner>,
@@ -129,24 +54,36 @@ pub fn item_spawn_system(
     positions: Query<&Position, With<ItemMarker>>,
     map_config: Res<MapConfig>,
     map_geometry: Res<MapGeometry>,
-    server_gameplay_config: Res<ServerGameplayConfig>,
+    random_items: Res<RandomItems>,
 ) {
+    if random_items.pool.is_empty() {
+        return;
+    }
+
     let delta = time.delta_secs();
     spawner.timer += delta;
 
-    let power_ups = &server_gameplay_config.power_ups;
     let eligible_cells = eligible_item_spawn_cells(&map_config);
-    let target_active = target_active_power_ups(eligible_cells.len(), power_ups.max_number);
-    let Some(spawn_interval) = power_up_spawn_interval(power_ups.despawn_secs, target_active) else {
+    let target_active = target_active_random_items(eligible_cells.len(), random_items.max_number);
+    let Some(spawn_interval) = random_item_spawn_interval(random_items.despawn_secs, target_active) else {
         return;
     };
 
     if spawner.timer >= spawn_interval {
         spawner.timer = 0.0;
 
+        let active_random = items
+            .values()
+            .filter(|info| matches!(info.placement, ItemPlacement::Random { .. }))
+            .count();
+        if active_random >= target_active {
+            return;
+        }
+
+        // All items claim their cell — including hidden placed ones, so a
+        // random item can't land on a cookie cell mid-respawn.
         let occupied_cells: HashSet<ItemSpawnCell> = items
             .values()
-            .filter(|info| info.item_type != ItemType::Cookie)
             .filter_map(|info| {
                 positions
                     .get(info.entity)
@@ -154,9 +91,6 @@ pub fn item_spawn_system(
                     .map(|pos| item_spawn_cell_from_position(&map_geometry, pos))
             })
             .collect();
-        if occupied_cells.len() >= target_active {
-            return;
-        }
 
         let mut rng = rng();
         let available_cells = eligible_cells
@@ -164,7 +98,7 @@ pub fn item_spawn_system(
             .filter(|cell| !occupied_cells.contains(cell))
             .collect::<Vec<_>>();
         if !available_cells.is_empty()
-            && let Some(item_type) = choose_item_type(&mut rng)
+            && let Some(item_type) = choose_item_type(&mut rng, &random_items.pool)
         {
             let spawn_cell = available_cells[rng.random_range(0..available_cells.len())];
             let item_id = ItemId(spawner.next_id);
@@ -178,7 +112,9 @@ pub fn item_spawn_system(
                 ItemInfo {
                     entity,
                     item_type,
-                    spawn_time: time.elapsed_secs(),
+                    placement: ItemPlacement::Random {
+                        spawned_at: time.elapsed_secs(),
+                    },
                 },
             );
         }

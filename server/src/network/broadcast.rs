@@ -111,12 +111,9 @@ pub fn snapshot_spawning_actors(pending: &PendingActorSpawns) -> Vec<(ActorId, S
 pub fn collect_items(items: &ItemMap, item_positions: &Query<&Position, With<ItemMarker>>) -> Vec<(ItemId, Item)> {
     items
         .iter()
-        .filter(|(_, info)| {
-            // Filter out cookies and keys that are currently respawning
-            // (spawn_time > 0) — their entities exist but should be invisible
-            // to clients until the timer elapses.
-            !matches!(info.item_type, ItemType::Cookie | ItemType::Key(_)) || info.spawn_time == 0.0
-        })
+        // Placed items counting down their respawn exist server-side but are
+        // invisible to clients until the timer elapses.
+        .filter(|(_, info)| !info.is_hidden())
         .map(|(id, info)| {
             let pos_component = item_positions.get(info.entity).expect("Item entity missing Position");
             (
@@ -181,5 +178,40 @@ mod tests {
 
         assert_eq!(snapshot.len(), 1);
         assert_eq!(snapshot[0].0, PlayerId(1));
+    }
+
+    #[test]
+    fn collect_items_omits_hidden_placed_items() {
+        use crate::resources::{ItemInfo, ItemPlacement};
+
+        let mut world = World::new();
+        let visible_entity = world.spawn((ItemMarker, Position::default())).id();
+        let hidden_entity = world.spawn((ItemMarker, Position::default())).id();
+
+        let mut items = ItemMap::default();
+        items.insert(
+            ItemId(1),
+            ItemInfo {
+                entity: visible_entity,
+                item_type: ItemType::Cookie,
+                placement: ItemPlacement::Placed { respawn_countdown: 0.0 },
+            },
+        );
+        items.insert(
+            ItemId(2),
+            ItemInfo {
+                entity: hidden_entity,
+                item_type: ItemType::Cookie,
+                placement: ItemPlacement::Placed { respawn_countdown: 5.0 },
+            },
+        );
+
+        let mut state: SystemState<Query<&Position, With<ItemMarker>>> = SystemState::new(&mut world);
+        let item_positions = state.get(&world).expect("system params invalid for the test world");
+
+        let snapshot = collect_items(&items, &item_positions);
+
+        assert_eq!(snapshot.len(), 1);
+        assert_eq!(snapshot[0].0, ItemId(1));
     }
 }

@@ -11,7 +11,7 @@ use serde::Deserialize;
 
 use common::{
     config::{create_quinn_server_config, load_certs, load_private_key, resolve_actor_inheritance},
-    protocol::{MapSettings, QuestId},
+    protocol::{ItemType, MapSettings, QuestId},
 };
 
 const SUPPORTED_VERSION: u32 = 1;
@@ -38,15 +38,39 @@ pub struct ServerGameplayConfig {
     pub version: u32,
     // Named-map registry: each entry's map geometry lives at
     // `config/server/maps/<name>.json`.
-    pub maps: HashMap<String, MapSettings>,
+    pub maps: HashMap<String, MapServerConfig>,
     pub default_map: String,
     pub scoring: ScoringConfig,
     pub player: PlayerServerConfig,
     pub power_ups: PowerUpsConfig,
-    pub cookies: CookiesConfig,
-    pub keys: KeysConfig,
+    pub placed_items: PlacedItemsConfig,
     pub quests: Vec<Quest>,
     pub actors: HashMap<String, ActorKindServerConfig>,
+}
+
+// Server-side wrapper around the wire `MapSettings`: the flattened settings
+// ship to clients in `SInit`, while `random_items` stays server-only.
+#[derive(Debug, Clone, Deserialize)]
+pub struct MapServerConfig {
+    #[serde(flatten)]
+    pub settings: MapSettings,
+    // `None` = no random item spawning on this map.
+    #[serde(default)]
+    pub random_items: Option<RandomItemsConfig>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RandomItemsConfig {
+    // `ItemType` config ids. Keys are rejected — they're parameterized by
+    // barrier kind and must be placed in the map's `items` list.
+    pub types: Vec<String>,
+    // Target/cap for active random items in the world. The spawner paces
+    // spawns to maintain this many and refuses to exceed it. Capped at the
+    // number of eligible floor cells so tiny test maps degrade.
+    pub max_number: usize,
+    // How long an uncollected random item sits in the world before being
+    // removed. Placed items use `placed_items.respawn_secs` instead.
+    pub despawn_secs: f32,
 }
 
 impl ServerGameplayConfig {
@@ -82,8 +106,7 @@ impl ServerGameplayConfig {
         // the section deserialized.
         let _ = &self.scoring;
         self.power_ups.validate("power_ups")?;
-        self.cookies.validate("cookies")?;
-        self.keys.validate("keys")?;
+        self.placed_items.validate("placed_items")?;
         validate_quests(&self.quests, &self.actors)?;
         if self.actors.is_empty() {
             bail!("actors must define at least one kind");
@@ -164,23 +187,17 @@ impl FallDamageConfig {
     }
 }
 
+// Power-up effect tuning. Spawning lives elsewhere: random pools per map in
+// `maps.<name>.random_items`, placed respawns in `placed_items`.
 #[derive(Debug, Clone, Deserialize)]
 pub struct PowerUpsConfig {
-    // Target/cap for active power-ups in the world. The spawner paces
-    // spawns to maintain this many and refuses to exceed it. Capped at
-    // the number of eligible floor cells so tiny test maps degrade.
-    pub max_number: usize,
-    // How long an uncollected power-up sits in the world before being
-    // removed. Cookies and keys use `respawn_secs` instead — they're
-    // hidden after collection and re-shown, not despawned.
-    pub despawn_secs: f32,
     pub speed_duration_secs: f32,
     pub multi_shot_duration_secs: f32,
     pub phasing_duration_secs: f32,
     pub low_gravity_duration_secs: f32,
     // Fraction of max health restored by a single Health Potion pickup.
     // 0.0 < value <= 1.0 (1.0 = full heal). No duration — instant effect.
-    pub health_potion_heal_percent: f32,
+    pub health_potion_heal_fraction: f32,
 }
 
 impl PowerUpsConfig {
@@ -199,7 +216,6 @@ impl PowerUpsConfig {
     }
 
     fn validate(&self, path: &str) -> Result<()> {
-        validate_positive_finite(self.despawn_secs, &format!("{path}.despawn_secs"))?;
         validate_non_negative_finite(self.speed_duration_secs, &format!("{path}.speed_duration_secs"))?;
         validate_non_negative_finite(
             self.multi_shot_duration_secs,
@@ -210,10 +226,10 @@ impl PowerUpsConfig {
             self.low_gravity_duration_secs,
             &format!("{path}.low_gravity_duration_secs"),
         )?;
-        if !(self.health_potion_heal_percent > 0.0 && self.health_potion_heal_percent <= 1.0) {
+        if !(self.health_potion_heal_fraction > 0.0 && self.health_potion_heal_fraction <= 1.0) {
             bail!(
-                "{path}.health_potion_heal_percent must be in (0.0, 1.0], got {}",
-                self.health_potion_heal_percent
+                "{path}.health_potion_heal_fraction must be in (0.0, 1.0], got {}",
+                self.health_potion_heal_fraction
             );
         }
         Ok(())
@@ -221,25 +237,52 @@ impl PowerUpsConfig {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct CookiesConfig {
-    pub spawning_enabled: bool,
-    pub respawn_secs: f32,
+pub struct PlacedItemsConfig {
+    pub respawn_secs: PlacedItemRespawnSecs,
 }
 
-impl CookiesConfig {
-    fn validate(&self, path: &str) -> Result<()> {
-        validate_non_negative_finite(self.respawn_secs, &format!("{path}.respawn_secs"))
-    }
-}
-
+// How long a placed item stays hidden after pickup before reappearing at
+// its cell. One value per `ItemType` config id; 0.0 = instant reappear.
 #[derive(Debug, Clone, Deserialize)]
-pub struct KeysConfig {
-    pub respawn_secs: f32,
+pub struct PlacedItemRespawnSecs {
+    pub speed: f32,
+    pub multi_shot: f32,
+    pub phasing: f32,
+    pub low_gravity: f32,
+    pub health_potion: f32,
+    pub cookie: f32,
+    pub key: f32,
 }
 
-impl KeysConfig {
+impl PlacedItemsConfig {
+    #[must_use]
+    pub const fn respawn_secs_for(&self, item_type: ItemType) -> f32 {
+        let secs = &self.respawn_secs;
+        match item_type {
+            ItemType::SpeedPowerUp => secs.speed,
+            ItemType::MultiShotPowerUp => secs.multi_shot,
+            ItemType::PhasingPowerUp => secs.phasing,
+            ItemType::LowGravityPowerUp => secs.low_gravity,
+            ItemType::HealthPotion => secs.health_potion,
+            ItemType::Cookie => secs.cookie,
+            ItemType::Key(_) => secs.key,
+        }
+    }
+
     fn validate(&self, path: &str) -> Result<()> {
-        validate_non_negative_finite(self.respawn_secs, &format!("{path}.respawn_secs"))
+        let secs = &self.respawn_secs;
+        for (value, name) in [
+            (secs.speed, "speed"),
+            (secs.multi_shot, "multi_shot"),
+            (secs.phasing, "phasing"),
+            (secs.low_gravity, "low_gravity"),
+            (secs.health_potion, "health_potion"),
+            (secs.cookie, "cookie"),
+            (secs.key, "key"),
+        ] {
+            validate_non_negative_finite(value, &format!("{path}.respawn_secs.{name}"))?;
+        }
+        Ok(())
     }
 }
 
@@ -270,11 +313,11 @@ pub enum QuestKind {
     ActorKills,
 }
 
-fn validate_maps(maps: &HashMap<String, MapSettings>, default_map: &str) -> Result<()> {
+fn validate_maps(maps: &HashMap<String, MapServerConfig>, default_map: &str) -> Result<()> {
     if maps.is_empty() {
         bail!("maps must define at least one map");
     }
-    for (name, settings) in maps {
+    for (name, entry) in maps {
         // Map names become file names (`config/server/maps/<name>.json`), so
         // reject anything that could traverse paths.
         if name.is_empty() {
@@ -284,14 +327,17 @@ fn validate_maps(maps: &HashMap<String, MapSettings>, default_map: &str) -> Resu
             bail!("map name `{name}` must contain only ASCII letters, digits, `_`, or `-`");
         }
         let path = format!("maps.{name}");
-        if settings.skybox.is_empty() {
+        if entry.settings.skybox.is_empty() {
             bail!("{path}.skybox must not be empty");
         }
-        if !settings.gravity.is_finite() || settings.gravity <= 0.0 {
+        if !entry.settings.gravity.is_finite() || entry.settings.gravity <= 0.0 {
             bail!("{path}.gravity must be > 0");
         }
-        if !settings.low_gravity.is_finite() || settings.low_gravity < 0.0 {
+        if !entry.settings.low_gravity.is_finite() || entry.settings.low_gravity < 0.0 {
             bail!("{path}.low_gravity must be >= 0");
+        }
+        if let Some(random_items) = &entry.random_items {
+            random_items.validate(&format!("{path}.random_items"))?;
         }
     }
     if !maps.contains_key(default_map) {
@@ -300,6 +346,32 @@ fn validate_maps(maps: &HashMap<String, MapSettings>, default_map: &str) -> Resu
         bail!("default_map `{default_map}` is not a defined map (defined: {known:?})");
     }
     Ok(())
+}
+
+impl RandomItemsConfig {
+    fn validate(&self, path: &str) -> Result<()> {
+        if self.types.is_empty() {
+            bail!("{path}.types must not be empty");
+        }
+        let mut seen: HashSet<&str> = HashSet::with_capacity(self.types.len());
+        for ty in &self.types {
+            if ty == ItemType::KEY_CONFIG_ID {
+                bail!(
+                    "{path}.types: keys are parameterized by barrier kind and cannot spawn randomly; place them in the map's `items` list"
+                );
+            }
+            if ItemType::from_config_id(ty).is_none() {
+                bail!("{path}.types contains unknown item type {ty:?}");
+            }
+            if !seen.insert(ty.as_str()) {
+                bail!("{path}.types contains duplicate {ty:?}");
+            }
+        }
+        if self.max_number == 0 {
+            bail!("{path}.max_number must be >= 1");
+        }
+        validate_positive_finite(self.despawn_secs, &format!("{path}.despawn_secs"))
+    }
 }
 
 fn validate_quests(quests: &[Quest], actors: &HashMap<String, ActorKindServerConfig>) -> Result<()> {
@@ -565,16 +637,33 @@ mod tests {
             .actors
     }
 
-    fn ok_map_settings() -> MapSettings {
-        MapSettings {
-            skybox: "cloudy_day".to_owned(),
-            gravity: 25.0,
-            low_gravity: 5.0,
+    fn ok_map_entry() -> MapServerConfig {
+        MapServerConfig {
+            settings: MapSettings {
+                skybox: "cloudy_day".to_owned(),
+                gravity: 25.0,
+                low_gravity: 5.0,
+            },
+            random_items: None,
         }
     }
 
-    fn one_map(name: &str) -> HashMap<String, MapSettings> {
-        HashMap::from([(name.to_owned(), ok_map_settings())])
+    fn ok_random_items(types: &[&str]) -> RandomItemsConfig {
+        RandomItemsConfig {
+            types: types.iter().map(|&t| t.to_owned()).collect(),
+            max_number: 30,
+            despawn_secs: 60.0,
+        }
+    }
+
+    fn one_map(name: &str) -> HashMap<String, MapServerConfig> {
+        HashMap::from([(name.to_owned(), ok_map_entry())])
+    }
+
+    fn one_map_with_random_items(name: &str, random_items: RandomItemsConfig) -> HashMap<String, MapServerConfig> {
+        let mut maps = one_map(name);
+        maps.get_mut(name).expect("map entry missing").random_items = Some(random_items);
+        maps
     }
 
     #[test]
@@ -603,7 +692,7 @@ mod tests {
     #[test]
     fn validate_maps_rejects_non_positive_gravity() {
         let mut maps = one_map("hotel");
-        maps.get_mut("hotel").expect("hotel entry missing").gravity = 0.0;
+        maps.get_mut("hotel").expect("hotel entry missing").settings.gravity = 0.0;
         let err = validate_maps(&maps, "hotel").expect_err("zero gravity must be rejected");
         assert!(err.to_string().contains("gravity"));
     }
@@ -611,7 +700,7 @@ mod tests {
     #[test]
     fn validate_maps_rejects_negative_low_gravity() {
         let mut maps = one_map("hotel");
-        maps.get_mut("hotel").expect("hotel entry missing").low_gravity = -1.0;
+        maps.get_mut("hotel").expect("hotel entry missing").settings.low_gravity = -1.0;
         let err = validate_maps(&maps, "hotel").expect_err("negative low_gravity must be rejected");
         assert!(err.to_string().contains("low_gravity"));
     }
@@ -619,9 +708,82 @@ mod tests {
     #[test]
     fn validate_maps_rejects_empty_skybox() {
         let mut maps = one_map("hotel");
-        maps.get_mut("hotel").expect("hotel entry missing").skybox = String::new();
+        maps.get_mut("hotel").expect("hotel entry missing").settings.skybox = String::new();
         let err = validate_maps(&maps, "hotel").expect_err("empty skybox must be rejected");
         assert!(err.to_string().contains("skybox"));
+    }
+
+    #[test]
+    fn validate_maps_accepts_map_without_random_items() {
+        validate_maps(&one_map("hotel"), "hotel").expect("map without random_items should pass");
+    }
+
+    #[test]
+    fn validate_maps_accepts_valid_random_items() {
+        let maps = one_map_with_random_items("hotel", ok_random_items(&["speed", "cookie"]));
+        validate_maps(&maps, "hotel").expect("valid random_items should pass");
+    }
+
+    #[test]
+    fn validate_maps_rejects_key_in_random_pool() {
+        let maps = one_map_with_random_items("hotel", ok_random_items(&["speed", "key"]));
+        let err = validate_maps(&maps, "hotel").expect_err("key in random pool must be rejected");
+        assert!(err.to_string().contains("barrier kind"));
+    }
+
+    #[test]
+    fn validate_maps_rejects_unknown_random_item_type() {
+        let maps = one_map_with_random_items("hotel", ok_random_items(&["banana"]));
+        let err = validate_maps(&maps, "hotel").expect_err("unknown type must be rejected");
+        assert!(err.to_string().contains("unknown item type"));
+    }
+
+    #[test]
+    fn validate_maps_rejects_duplicate_random_item_types() {
+        let maps = one_map_with_random_items("hotel", ok_random_items(&["speed", "speed"]));
+        let err = validate_maps(&maps, "hotel").expect_err("duplicate type must be rejected");
+        assert!(err.to_string().contains("duplicate"));
+    }
+
+    #[test]
+    fn validate_maps_rejects_empty_random_item_types() {
+        let maps = one_map_with_random_items("hotel", ok_random_items(&[]));
+        let err = validate_maps(&maps, "hotel").expect_err("empty pool must be rejected");
+        assert!(err.to_string().contains("types"));
+    }
+
+    #[test]
+    fn validate_maps_rejects_zero_random_item_max_number() {
+        let mut random_items = ok_random_items(&["speed"]);
+        random_items.max_number = 0;
+        let maps = one_map_with_random_items("hotel", random_items);
+        let err = validate_maps(&maps, "hotel").expect_err("zero max_number must be rejected");
+        assert!(err.to_string().contains("max_number"));
+    }
+
+    #[test]
+    fn placed_item_respawn_secs_matches_item_type() {
+        let config = PlacedItemsConfig {
+            respawn_secs: PlacedItemRespawnSecs {
+                speed: 1.0,
+                multi_shot: 2.0,
+                phasing: 3.0,
+                low_gravity: 4.0,
+                health_potion: 5.0,
+                cookie: 6.0,
+                key: 7.0,
+            },
+        };
+        assert_eq!(config.respawn_secs_for(ItemType::SpeedPowerUp), 1.0);
+        assert_eq!(config.respawn_secs_for(ItemType::MultiShotPowerUp), 2.0);
+        assert_eq!(config.respawn_secs_for(ItemType::PhasingPowerUp), 3.0);
+        assert_eq!(config.respawn_secs_for(ItemType::LowGravityPowerUp), 4.0);
+        assert_eq!(config.respawn_secs_for(ItemType::HealthPotion), 5.0);
+        assert_eq!(config.respawn_secs_for(ItemType::Cookie), 6.0);
+        assert_eq!(
+            config.respawn_secs_for(ItemType::Key(common::protocol::BarrierKindId(0))),
+            7.0
+        );
     }
 
     #[test]

@@ -115,22 +115,6 @@ pub const POWER_UP_SPEED_MULTIPLIER: f32 = 1.8;
 pub const POWER_UP_MULTI_SHOT_MULTIPLIER: i32 = 5;
 pub const POWER_UP_MULTI_SHOT_ANGLE: f32 = 1.5;
 
-// Spawn gates. Set any flag to `false` to keep that power-up off the spawn
-// pool — the type's collection / status / movement code stays in place, so a
-// player still benefits if they somehow obtain one (e.g., via the `ALWAYS_*`
-// debug flags below). With every flag `false`, only cookies spawn.
-//
-// These intentionally live in compile-time constants alongside `ALWAYS_*`,
-// not in `PowerUpsConfig` JSON. Cookies have a separate
-// `cookies.spawning_enabled` runtime toggle because cookies double as quest
-// progress and a designer might want them off per-map; power-ups are
-// session-global and the constant form matches the other tuning here.
-pub const POWER_UP_SPEED_ENABLED: bool = true;
-pub const POWER_UP_MULTI_SHOT_ENABLED: bool = true;
-pub const POWER_UP_PHASING_ENABLED: bool = false;
-pub const POWER_UP_LOW_GRAVITY_ENABLED: bool = true;
-pub const POWER_UP_HEALTH_POTION_ENABLED: bool = true;
-
 // ============================================================================
 // Debug Flags
 // ============================================================================

@@ -130,35 +130,14 @@ impl PlayerSpawnZone {
     }
 }
 
+// Map-authored item placement, compiled from the map's `items` list with
+// key kinds already resolved against the `BarrierKindTable`.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CookieSpawnZone {
+pub struct PlacedItem {
     pub level: u8,
-    pub cols: [i32; 2],
-    pub rows: [i32; 2],
-}
-
-impl CookieSpawnZone {
-    pub fn cells(&self) -> impl Iterator<Item = (i32, i32)> + '_ {
-        let cols = self.cols[0]..self.cols[1];
-        let rows = self.rows[0]..self.rows[1];
-        rows.flat_map(move |r| cols.clone().map(move |c| (c, r)))
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct KeySpawnZone {
-    pub level: u8,
-    pub cols: [i32; 2],
-    pub rows: [i32; 2],
-    pub kind: common::protocol::BarrierKindId,
-}
-
-impl KeySpawnZone {
-    pub fn cells(&self) -> impl Iterator<Item = (i32, i32)> + '_ {
-        let cols = self.cols[0]..self.cols[1];
-        let rows = self.rows[0]..self.rows[1];
-        rows.flat_map(move |r| cols.clone().map(move |c| (c, r)))
-    }
+    pub col: i32,
+    pub row: i32,
+    pub item_type: common::protocol::ItemType,
 }
 
 // Server-side runtime form of a pressure plate. Keeps the original
@@ -179,7 +158,6 @@ pub struct MapConfig {
     pub levels: Vec<LevelGrid>,
     pub actor_spawn_zones: Vec<ActorSpawnZone>,
     pub player_spawn_zones: Vec<PlayerSpawnZone>,
-    pub cookie_spawn_zones: Vec<CookieSpawnZone>,
-    pub key_spawn_zones: Vec<KeySpawnZone>,
+    pub placed_items: Vec<PlacedItem>,
     pub pressure_plates: Vec<PressurePlateRuntime>,
 }

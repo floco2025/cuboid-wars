@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from .constants import BARRIER_KIND_TABLE, FACES, LIGHT_SIDES, MATERIAL_ALIASES
+from .constants import BARRIER_KIND_TABLE, FACES, ITEM_KEY_TYPE, ITEM_TYPES, LIGHT_SIDES, MATERIAL_ALIASES
 from .geometry import (
     grid_point_in_bounds,
     level_label,
     normalized_wall,
+    ramp_cells,
     ramp_error,
     wall_endpoints_for_cell_side,
 )
@@ -33,15 +34,7 @@ def validate_map(map_data: dict) -> list[str]:
     for idx, zone in enumerate(map_data["player_spawn_zones"]):
         _validate_zone_rect(zone, f"player_spawn_zones[{idx}]", map_data, errors)
 
-    for idx, zone in enumerate(map_data["cookie_spawn_zones"]):
-        _validate_zone_rect(zone, f"cookie_spawn_zones[{idx}]", map_data, errors)
-
-    for idx, zone in enumerate(map_data["key_spawn_zones"]):
-        _validate_zone_rect(zone, f"key_spawn_zones[{idx}]", map_data, errors)
-        kind = zone.get("kind")
-        if kind not in BARRIER_KIND_TABLE:
-            known = ", ".join(BARRIER_KIND_TABLE) or "(none configured)"
-            errors.append(f"key_spawn_zones[{idx}] has unknown kind {kind!r}; known: [{known}]")
+    _validate_items(map_data, errors)
 
     for level_idx, level in enumerate(map_data["levels"]):
         prefix = level_label(level, level_idx)
@@ -110,6 +103,44 @@ def validate_map(map_data: dict) -> list[str]:
     _validate_face_aliases(map_data, errors)
 
     return errors
+
+
+def _validate_items(map_data: dict, errors: list[str]) -> None:
+    cols = map_data["grid_cols"]
+    rows = map_data["grid_rows"]
+    seen_cells: set[tuple[int, int, int]] = set()
+    for idx, item in enumerate(map_data.get("items", [])):
+        label = f"items[{idx}]"
+        level_idx, col, row = item["level"], item["col"], item["row"]
+        if not (0 <= level_idx < len(map_data["levels"])):
+            errors.append(f"{label} has an invalid level {level_idx}")
+            continue
+        if not (0 <= col < cols and 0 <= row < rows):
+            errors.append(f"{label} [{col}, {row}] is outside the grid")
+            continue
+        item_type = item.get("type")
+        if item_type == ITEM_KEY_TYPE:
+            kind = item.get("kind")
+            if kind not in BARRIER_KIND_TABLE:
+                known = ", ".join(BARRIER_KIND_TABLE) or "(none configured)"
+                errors.append(f"{label} has unknown key kind {kind!r}; known: [{known}]")
+        elif item_type not in ITEM_TYPES:
+            known = ", ".join(ITEM_TYPES)
+            errors.append(f"{label} has unknown type {item_type!r}; known: [{known}]")
+        elif "kind" in item:
+            errors.append(f"{label} ({item_type}) must not have `kind` — only key items take one")
+        level = map_data["levels"][level_idx]
+        if (col, row) not in {(f["col"], f["row"]) for f in level["floors"]}:
+            errors.append(f"{label} [{col}, {row}] has no regular floor")
+        # The Rust loader rejects items on ramp cells; `has_ramp` marks the
+        # lower level's footprint cells only.
+        for ramp in map_data["ramps"]:
+            if ramp["lower_level"] == level_idx and (col, row) in ramp_cells(ramp):
+                errors.append(f"{label} [{col}, {row}] is inside a ramp footprint")
+                break
+        if (level_idx, col, row) in seen_cells:
+            errors.append(f"{label} duplicates an item at level {level_idx} [{col}, {row}]")
+        seen_cells.add((level_idx, col, row))
 
 
 def _validate_face_aliases(map_data: dict, errors: list[str]) -> None:

@@ -21,9 +21,7 @@ pub(crate) struct MapDef {
     #[serde(default)]
     pub(crate) player_spawn_zones: Vec<PlayerSpawnZoneDef>,
     #[serde(default)]
-    pub(crate) cookie_spawn_zones: Vec<CookieSpawnZoneDef>,
-    #[serde(default)]
-    pub(crate) key_spawn_zones: Vec<KeySpawnZoneDef>,
+    pub(crate) items: Vec<ItemDef>,
     #[serde(default)]
     pub(crate) pressure_plates: Vec<PressurePlateDef>,
     pub(crate) levels: Vec<LevelDef>,
@@ -121,13 +119,19 @@ pub(crate) struct PlayerSpawnZoneDef {
     pub(crate) rows: [i32; 2],
 }
 
-// Cells where cookies are eligible to spawn. Cookies only appear inside one
-// of these zones; outside, the floor is cookie-free.
+// A single map-authored item. `item_type` is an `ItemType` config id
+// (`ItemType::from_config_id`), or "key" with `kind` referencing the
+// `BarrierKindTable`. Placed items hide on pickup and reappear in place
+// after the per-type `placed_items.respawn_secs` delay.
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
-pub(crate) struct CookieSpawnZoneDef {
+pub(crate) struct ItemDef {
     pub(crate) level: u32,
-    pub(crate) cols: [i32; 2],
-    pub(crate) rows: [i32; 2],
+    pub(crate) col: i32,
+    pub(crate) row: i32,
+    #[serde(rename = "type")]
+    pub(crate) item_type: String,
+    #[serde(default)]
+    pub(crate) kind: Option<String>,
 }
 
 // A single-cell plate tagged with a barrier kind. While the per-kind plate
@@ -138,16 +142,5 @@ pub(crate) struct PressurePlateDef {
     pub(crate) level: u32,
     pub(crate) col: i32,
     pub(crate) row: i32,
-    pub(crate) kind: String,
-}
-
-// Where a single key of a given kind spawns. One zone produces one world
-// key; after collection it respawns at an eligible cell in the same zone
-// after `KEY_RESPAWN_TIME`. Kind references `BarrierKindTable` by id.
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
-pub(crate) struct KeySpawnZoneDef {
-    pub(crate) level: u32,
-    pub(crate) cols: [i32; 2],
-    pub(crate) rows: [i32; 2],
     pub(crate) kind: String,
 }

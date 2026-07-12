@@ -57,24 +57,6 @@ def format_actor_spawn_zones(zones: list[dict], indent: int) -> list[str]:
     return _format_zone_list("actor_spawn_zones", zones, indent, render)
 
 
-def format_cookie_spawn_zones(zones: list[dict], indent: int) -> list[str]:
-    return _format_zone_list(
-        "cookie_spawn_zones",
-        zones,
-        indent,
-        lambda zone: f"{{{_zone_rect_fragment(zone)}}}",
-    )
-
-
-def format_key_spawn_zones(zones: list[dict], indent: int) -> list[str]:
-    return _format_zone_list(
-        "key_spawn_zones",
-        zones,
-        indent,
-        lambda zone: f'{{{_zone_rect_fragment(zone)}, "kind": {json.dumps(zone["kind"])}}}',
-    )
-
-
 def format_pressure_plates(plates: list[dict], indent: int) -> list[str]:
     return _format_zone_list(
         "pressure_plates",
@@ -121,9 +103,8 @@ def format_map_file(wrapper: dict) -> str:
         f'    "grid_rows": {map_data["grid_rows"]},',
         *with_trailing_comma(format_actor_spawn_zones(map_data["actor_spawn_zones"], 4)),
         *with_trailing_comma(format_player_spawn_zones(map_data["player_spawn_zones"], 4)),
-        *with_trailing_comma(format_cookie_spawn_zones(map_data["cookie_spawn_zones"], 4)),
-        *with_trailing_comma(format_key_spawn_zones(map_data["key_spawn_zones"], 4)),
         *with_trailing_comma(format_pressure_plates(map_data.get("pressure_plates", []), 4)),
+        *with_trailing_comma(format_object_array("items", map_data.get("items", []), _item_body, 4)),
         '    "levels": [',
     ]
 
@@ -189,6 +170,13 @@ def _wall_body(wall: dict) -> str:
 
 def _light_body(light: dict) -> str:
     body = {"col": light["col"], "row": light["row"], "side": light["side"]}
+    return _inline_object_body(body)
+
+
+def _item_body(item: dict) -> str:
+    body = {"level": item["level"], "col": item["col"], "row": item["row"], "type": item["type"]}
+    if "kind" in item:
+        body["kind"] = item["kind"]
     return _inline_object_body(body)
 
 

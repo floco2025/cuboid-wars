@@ -17,8 +17,8 @@ use server::{
     characters::{characters_health_regeneration_system, characters_movement_system},
     config::{ServerGameplayConfig, configure_server},
     items::{
-        item_collection_system, item_despawn_system, item_initial_spawn_system, item_respawn_system, item_spawn_system,
-        key_initial_spawn_system,
+        item_collection_system, placed_item_respawn_system, placed_item_spawn_system, random_item_despawn_system,
+        random_item_spawn_system,
     },
     map::{OpenBarrierKinds, compute_open_barrier_kinds_system, generate_map},
     net::accept_connections_task,
@@ -72,11 +72,28 @@ async fn main() -> Result<()> {
     println!("quic server listening on {addr}");
 
     let map_name = args.map.unwrap_or_else(|| server_gameplay_config.default_map.clone());
-    let Some(map_settings) = server_gameplay_config.maps.get(&map_name).cloned() else {
+    let Some(map_server_config) = server_gameplay_config.maps.get(&map_name).cloned() else {
         let mut known: Vec<&str> = server_gameplay_config.maps.keys().map(String::as_str).collect();
         known.sort_unstable();
         bail!("unknown map {map_name:?} (available: {known:?})");
     };
+    let map_settings = map_server_config.settings.clone();
+    let random_items =
+        map_server_config
+            .random_items
+            .as_ref()
+            .map_or_else(RandomItems::default, |random_items_config| RandomItems {
+                pool: random_items_config
+                    .types
+                    .iter()
+                    .map(|id| {
+                        common::protocol::ItemType::from_config_id(id)
+                            .expect("random item type missing from ItemType config ids after config validation")
+                    })
+                    .collect(),
+                max_number: random_items_config.max_number,
+                despawn_secs: random_items_config.despawn_secs,
+            });
 
     let barrier_kind_table = common::protocol::BarrierKindTable::from_ids(gameplay_config.barrier_kinds.clone())
         .with_context(|| "failed to build BarrierKindTable from gameplay.json barrier_kinds")?;
@@ -119,12 +136,13 @@ async fn main() -> Result<()> {
         .insert_resource(ActorMap::default())
         .insert_resource(ItemMap::default())
         .insert_resource(ItemSpawner::default())
+        .insert_resource(random_items)
         .insert_resource(ActorSpawner::default())
         .insert_resource(ActorSpawnThrottles::default())
         .insert_resource(PendingActorSpawns::default())
         .insert_resource(FromClientsChannel::new(from_clients))
         .insert_resource(OpenBarrierKinds::default())
-        .add_systems(Startup, actor_initial_spawn_system)
+        .add_systems(Startup, (actor_initial_spawn_system, placed_item_spawn_system))
         .add_systems(
             Update,
             (
@@ -135,9 +153,9 @@ async fn main() -> Result<()> {
                 //    would leave a ~250 ms neither-ghost-nor-actor gap.
                 // 2. ApplyDeferred (flushes pending spawns from step 1 and
                 //    from other systems on this tick — e.g.
-                //    `item_spawn_system` queues a `commands.spawn` + inserts
-                //    into `ItemMap` in one shot, so the entity is reserved
-                //    but not yet queryable. Without this barrier, a
+                //    `random_item_spawn_system` queues a `commands.spawn` +
+                //    inserts into `ItemMap` in one shot, so the entity is
+                //    reserved but not yet queryable. Without this barrier, a
                 //    login-tick `collect_items` panics on the fresh,
                 //    unmaterialized item entity).
                 // 3. Process client events (registrations + messages, in arrival order)
@@ -178,12 +196,10 @@ async fn main() -> Result<()> {
                 actor_respawn_system,
                 players_respawn_system,
                 players_status_timers_system,
-                item_initial_spawn_system,
-                key_initial_spawn_system,
-                item_spawn_system,
-                item_despawn_system,
+                random_item_spawn_system,
+                random_item_despawn_system,
                 item_collection_system,
-                item_respawn_system,
+                placed_item_respawn_system,
             ),
         );
 

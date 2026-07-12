@@ -24,8 +24,7 @@ def empty_map(grid_cols: int = DEFAULT_GRID_COLS, grid_rows: int = DEFAULT_GRID_
         "player_spawn_zones": [
             {"level": 0, "cols": [0, 2], "rows": [0, 2]},
         ],
-        "cookie_spawn_zones": [],
-        "key_spawn_zones": [],
+        "items": [],
         "pressure_plates": [],
         "levels": [
             {
