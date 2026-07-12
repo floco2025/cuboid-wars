@@ -50,31 +50,25 @@ def read_map(path: Path) -> dict:
     return canonicalize_map(normalize_map(data["map"]))
 
 
-def load_materials_catalog(map_path: Path | None) -> list[str]:
+def load_materials_catalog() -> list[str]:
     """Return the sorted list of material *role* names from `assets.json`'s
-    `aliases` block. Roles are what `map.json` references and what the user
+    `aliases` block. Roles are what map files reference and what the user
     picks in the editor; the underlying texture material IDs are an
     implementation detail of the renderer. Falls back to the raw `materials`
     keys if no aliases are defined. Returns an empty list if the file can't
     be located — callers handle that gracefully."""
-    candidates: list[Path] = []
-    if map_path is not None:
-        # config/server/map.json -> config/client/assets.json
-        candidates.append(map_path.parent.parent / "client" / "assets.json")
-    # Fallback: relative to the editor's repo layout.
-    candidates.append(REPO_ROOT / "config" / "client" / "assets.json")
-    for candidate in candidates:
-        if candidate.exists():
-            try:
-                with candidate.open("r", encoding="utf-8") as handle:
-                    assets = json.load(handle)
-                aliases = assets.get("aliases") or {}
-                if aliases:
-                    return sorted(aliases.keys())
-                materials = assets.get("materials") or {}
-                return sorted(materials.keys())
-            except (OSError, json.JSONDecodeError):
-                continue
+    catalog_path = REPO_ROOT / "config" / "client" / "assets.json"
+    if catalog_path.exists():
+        try:
+            with catalog_path.open("r", encoding="utf-8") as handle:
+                assets = json.load(handle)
+            aliases = assets.get("aliases") or {}
+            if aliases:
+                return sorted(aliases.keys())
+            materials = assets.get("materials") or {}
+            return sorted(materials.keys())
+        except (OSError, json.JSONDecodeError):
+            pass
     return []
 
 

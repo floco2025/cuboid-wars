@@ -3,7 +3,7 @@ use common::{
     config::GameplayConfig,
     constants::{ALWAYS_ANTI_GRAVITY, ALWAYS_PHASING, SNAPSHOT_SECS},
     physics::{CharacterMovePlan, CollisionWorld, passable_barrier_kinds, step_character_movement},
-    protocol::{BarrierKindId, PlayerId, Position, PowerUpKind},
+    protocol::{BarrierKindId, MapSettings, PlayerId, Position, PowerUpKind},
 };
 
 use super::types::PlayerMovementQuery;
@@ -49,6 +49,7 @@ pub(crate) fn plan_player_moves(
     commands: &mut Commands,
     delta: f32,
     collision_world: Option<&CollisionWorld>,
+    map_settings: Option<&MapSettings>,
     gameplay_config: &GameplayConfig,
     players: &mut PlayerMap,
     open_barrier_kinds: &crate::barriers::OpenBarrierKinds,
@@ -112,7 +113,9 @@ pub(crate) fn plan_player_moves(
             continue;
         };
 
-        if let Some(collision_world) = collision_world {
+        // `CollisionWorld` and `MapSettings` are both installed by the same
+        // `SInit`, so they appear together.
+        if let (Some(collision_world), Some(map_settings)) = (collision_world, map_settings) {
             // Same merge the server runs (`passable_barrier_kinds`) so
             // client-side prediction agrees with server-authoritative
             // movement about which barriers we pass through.
@@ -122,7 +125,7 @@ pub(crate) fn plan_player_moves(
                 motion.0,
                 collision_world,
                 has_phasing,
-                has_anti_gravity,
+                map_settings.gravity_for(has_anti_gravity),
                 &passable_kinds,
                 player_physics,
                 target.x,

@@ -30,6 +30,7 @@ pub fn handle_pre_bootstrap_message(msg: ServerMessage, commands: &mut Commands,
             let collision_world =
                 CollisionWorld::from_map_layout(&init_msg.map_layout, &client_assets.barrier_kind_table);
             commands.insert_resource(init_msg.map_layout);
+            commands.insert_resource(init_msg.map_settings);
             commands.insert_resource(collision_world);
         }
         ServerMessage::QuestsAssigned(quest_msg) => {

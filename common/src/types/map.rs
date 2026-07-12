@@ -177,3 +177,25 @@ pub struct MapLayout {
     pub pressure_plates: Vec<PressurePlate>,
     pub grass: Vec<GrassCell>,
 }
+
+// Per-map tuning defined in `config/server/gameplay.json` under `maps` and
+// shipped to clients in `SInit` so prediction uses the server's values.
+// Gravity values are positive magnitudes (m/s²); `anti_gravity` replaces
+// `gravity` while the anti-gravity power-up is active.
+#[derive(Debug, Clone, Encode, Decode, Resource, serde::Deserialize)]
+pub struct MapSettings {
+    pub skybox: String,
+    pub gravity: f32,
+    pub anti_gravity: f32,
+}
+
+impl MapSettings {
+    #[must_use]
+    pub fn gravity_for(&self, has_anti_gravity: bool) -> f32 {
+        if has_anti_gravity {
+            self.anti_gravity
+        } else {
+            self.gravity
+        }
+    }
+}

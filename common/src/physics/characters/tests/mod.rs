@@ -15,6 +15,9 @@ mod overlaps;
 mod ramps;
 mod walls;
 
+// Gravity magnitude for movement tests (matches the shipping map's setting).
+const TEST_GRAVITY: f32 = 25.0;
+
 fn test_ramp() -> Ramp {
     Ramp {
         x1: 0.0,

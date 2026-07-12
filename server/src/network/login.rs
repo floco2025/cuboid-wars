@@ -71,6 +71,7 @@ pub fn handle_login_message(
             let init_msg = ServerMessage::Init(SInit {
                 id,
                 map_layout: (*world.map_layout).clone(),
+                map_settings: (*world.map_settings).clone(),
             });
             if let Err(e) = channel.send(ServerToClient::Send(init_msg)) {
                 warn!("failed to send init to {:?}: {}", id, e);

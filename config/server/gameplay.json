@@ -1,5 +1,13 @@
 {
   "version": 1,
+  "maps": {
+    "hotel": {
+      "skybox": "cloudy_day",
+      "gravity": 25.0,
+      "anti_gravity": 5.0
+    }
+  },
+  "default_map": "hotel",
   "scoring": {
     "player_kill": 200,
     "player_death": -200,

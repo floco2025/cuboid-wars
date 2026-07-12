@@ -3,16 +3,19 @@
 from __future__ import annotations
 
 import argparse
+import re
 import signal
 import sys
-from pathlib import Path
 
 from PySide6.QtCore import QPointF, QRectF, Qt, QTimer
 from PySide6.QtGui import QBrush, QColor, QIcon, QPainter, QPen, QPixmap, QPolygonF
 from PySide6.QtWidgets import QApplication
 
-from .constants import DEFAULT_MAP
+from .constants import MAPS_DIR
 from .window import EditorWindow
+
+# Same rule the server enforces on map names in gameplay.json.
+MAP_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 def _build_window_icon() -> QIcon:
@@ -38,8 +41,13 @@ def _build_window_icon() -> QIcon:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Cuboid Wars map editor.")
-    parser.add_argument("file", nargs="?", type=Path, default=DEFAULT_MAP, help="Map JSON to edit.")
+    parser.add_argument("map", help="Map name to edit (opens config/server/maps/<name>.json).")
     args = parser.parse_args()
+    if not MAP_NAME_RE.match(args.map):
+        parser.error(f"invalid map name {args.map!r}: use only ASCII letters, digits, '_', or '-'")
+    map_path = MAPS_DIR / f"{args.map}.json"
+    if not map_path.exists():
+        print(f"map '{args.map}' has no file yet; Save will create {map_path}", file=sys.stderr)
 
     app = QApplication(sys.argv)
     # Used by QSettings for the recent-files list — both must be set so the
@@ -52,6 +60,6 @@ def main() -> int:
     sigint_timer.timeout.connect(lambda: None)
     sigint_timer.start(100)
 
-    window = EditorWindow(args.file)
+    window = EditorWindow(map_path)
     window.show()
     return app.exec()

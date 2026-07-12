@@ -9,7 +9,7 @@ use crate::{
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     physics::{CharacterMovePlan, CollisionWorld},
-    protocol::{ActorId, ActorMoveIntent, ActorMovementState, Position, SActorMoveIntent, ServerMessage},
+    protocol::{ActorId, ActorMoveIntent, ActorMovementState, MapSettings, Position, SActorMoveIntent, ServerMessage},
 };
 
 use super::{
@@ -50,6 +50,7 @@ pub(crate) fn plan_actor_moves(
     collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
     server_gameplay_config: &ServerGameplayConfig,
+    map_settings: &MapSettings,
     players: &PlayerMap,
     open_barrier_kinds: &OpenBarrierKinds,
     actors: &mut ActorMap,
@@ -84,6 +85,7 @@ pub(crate) fn plan_actor_moves(
             actor_starts,
             path_clear_lookahead_secs: kind_server_config.navigation.path_clear_lookahead_secs,
             open_barrier_kinds: &open_barrier_kinds.0,
+            gravity: map_settings.gravity,
         };
 
         // Hysteresis anchor: where the actor was already heading.

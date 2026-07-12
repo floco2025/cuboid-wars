@@ -316,15 +316,17 @@
       "emissive_luminance": 2.0
     }
   },
-  "skybox": {
-    "image": "Skybox_CoudySky_Day_3.png",
-    "brightness": 1000.0,
-    "rotation_period_secs": 200.0,
-    "sun_step_degrees": 0.05,
-    "sun_disc": {
-      "distance": 800.0,
-      "radius": 24.0,
-      "luminance": 50000000.0
+  "skyboxes": {
+    "cloudy_day": {
+      "image": "Skybox_CoudySky_Day_3.png",
+      "brightness": 1000.0,
+      "rotation_period_secs": 200.0,
+      "sun_step_degrees": 0.05,
+      "sun_disc": {
+        "distance": 800.0,
+        "radius": 24.0,
+        "luminance": 50000000.0
+      }
     }
   },
   "barrier_kind_colors": {

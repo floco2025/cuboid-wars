@@ -11,7 +11,7 @@ use serde::Deserialize;
 
 use common::{
     config::{create_quinn_server_config, load_certs, load_private_key, resolve_actor_inheritance},
-    protocol::QuestId,
+    protocol::{MapSettings, QuestId},
 };
 
 const SUPPORTED_VERSION: u32 = 1;
@@ -36,6 +36,10 @@ pub fn configure_server() -> Result<ServerConfig> {
 #[derive(Resource, Debug, Clone, Deserialize)]
 pub struct ServerGameplayConfig {
     pub version: u32,
+    // Named-map registry: each entry's map geometry lives at
+    // `config/server/maps/<name>.json`.
+    pub maps: HashMap<String, MapSettings>,
+    pub default_map: String,
     pub scoring: ScoringConfig,
     pub player: PlayerServerConfig,
     pub power_ups: PowerUpsConfig,
@@ -71,6 +75,7 @@ impl ServerGameplayConfig {
             self.version,
             SUPPORTED_VERSION
         );
+        validate_maps(&self.maps, &self.default_map)?;
         self.player.validate("player")?;
         // No range check on scoring values — negative deltas are legal
         // (e.g., `player_death: -1` penalty), and so is zero. Just ensure
@@ -263,6 +268,38 @@ pub struct Quest {
 pub enum QuestKind {
     Cookies,
     ActorKills,
+}
+
+fn validate_maps(maps: &HashMap<String, MapSettings>, default_map: &str) -> Result<()> {
+    if maps.is_empty() {
+        bail!("maps must define at least one map");
+    }
+    for (name, settings) in maps {
+        // Map names become file names (`config/server/maps/<name>.json`), so
+        // reject anything that could traverse paths.
+        if name.is_empty() {
+            bail!("map name must not be empty");
+        }
+        if !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
+            bail!("map name `{name}` must contain only ASCII letters, digits, `_`, or `-`");
+        }
+        let path = format!("maps.{name}");
+        if settings.skybox.is_empty() {
+            bail!("{path}.skybox must not be empty");
+        }
+        if !settings.gravity.is_finite() || settings.gravity <= 0.0 {
+            bail!("{path}.gravity must be > 0");
+        }
+        if !settings.anti_gravity.is_finite() || settings.anti_gravity < 0.0 {
+            bail!("{path}.anti_gravity must be >= 0");
+        }
+    }
+    if !maps.contains_key(default_map) {
+        let mut known: Vec<&str> = maps.keys().map(String::as_str).collect();
+        known.sort_unstable();
+        bail!("default_map `{default_map}` is not a defined map (defined: {known:?})");
+    }
+    Ok(())
 }
 
 fn validate_quests(quests: &[Quest], actors: &HashMap<String, ActorKindServerConfig>) -> Result<()> {
@@ -526,6 +563,65 @@ mod tests {
         ServerGameplayConfig::load_default()
             .expect("default server gameplay config should load")
             .actors
+    }
+
+    fn ok_map_settings() -> MapSettings {
+        MapSettings {
+            skybox: "cloudy_day".to_owned(),
+            gravity: 25.0,
+            anti_gravity: 5.0,
+        }
+    }
+
+    fn one_map(name: &str) -> HashMap<String, MapSettings> {
+        HashMap::from([(name.to_owned(), ok_map_settings())])
+    }
+
+    #[test]
+    fn validate_maps_accepts_single_valid_entry() {
+        validate_maps(&one_map("hotel"), "hotel").expect("valid map registry should pass");
+    }
+
+    #[test]
+    fn validate_maps_rejects_empty_registry() {
+        let err = validate_maps(&HashMap::new(), "hotel").expect_err("empty registry must be rejected");
+        assert!(err.to_string().contains("at least one"));
+    }
+
+    #[test]
+    fn validate_maps_rejects_unknown_default_map() {
+        let err = validate_maps(&one_map("hotel"), "lobby").expect_err("unknown default must be rejected");
+        assert!(err.to_string().contains("default_map"));
+    }
+
+    #[test]
+    fn validate_maps_rejects_path_unsafe_name() {
+        let err = validate_maps(&one_map("../hotel"), "../hotel").expect_err("path chars must be rejected");
+        assert!(err.to_string().contains("ASCII"));
+    }
+
+    #[test]
+    fn validate_maps_rejects_non_positive_gravity() {
+        let mut maps = one_map("hotel");
+        maps.get_mut("hotel").expect("hotel entry missing").gravity = 0.0;
+        let err = validate_maps(&maps, "hotel").expect_err("zero gravity must be rejected");
+        assert!(err.to_string().contains("gravity"));
+    }
+
+    #[test]
+    fn validate_maps_rejects_negative_anti_gravity() {
+        let mut maps = one_map("hotel");
+        maps.get_mut("hotel").expect("hotel entry missing").anti_gravity = -1.0;
+        let err = validate_maps(&maps, "hotel").expect_err("negative anti_gravity must be rejected");
+        assert!(err.to_string().contains("anti_gravity"));
+    }
+
+    #[test]
+    fn validate_maps_rejects_empty_skybox() {
+        let mut maps = one_map("hotel");
+        maps.get_mut("hotel").expect("hotel entry missing").skybox = String::new();
+        let err = validate_maps(&maps, "hotel").expect_err("empty skybox must be rejected");
+        assert!(err.to_string().contains("skybox"));
     }
 
     #[test]

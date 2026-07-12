@@ -6,7 +6,8 @@ import json
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_MAP = REPO_ROOT / "config" / "server" / "map.json"
+# One map JSON per named map; the editor's CLI argument is the map name.
+MAPS_DIR = REPO_ROOT / "config" / "server" / "maps"
 SUPPORTED_VERSION = 1
 
 

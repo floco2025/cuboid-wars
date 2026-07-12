@@ -99,7 +99,7 @@ class EditorWindow(
         # are validated against `MATERIAL_ALIASES` on save) — see
         # `DEFAULT_ALIAS` in constants.py for the selection rule.
         self.current_material: str = DEFAULT_ALIAS
-        self.materials_catalog: list[str] = load_materials_catalog(self.path)
+        self.materials_catalog: list[str] = load_materials_catalog()
 
         self.canvas = Canvas(self)
         self.canvas.setCursor(self._cursor_for_mode(self.mode))

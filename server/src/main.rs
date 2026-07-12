@@ -47,6 +47,10 @@ struct Args {
     // config/server/gameplay.json)
     #[arg(long)]
     invincible: bool,
+
+    // Map to load (overrides `default_map` in config/server/gameplay.json)
+    #[arg(long)]
+    map: Option<String>,
 }
 
 // ============================================================================
@@ -67,9 +71,16 @@ async fn main() -> Result<()> {
     let endpoint = Endpoint::server(server_config, addr)?;
     println!("quic server listening on {addr}");
 
+    let map_name = args.map.unwrap_or_else(|| server_gameplay_config.default_map.clone());
+    let Some(map_settings) = server_gameplay_config.maps.get(&map_name).cloned() else {
+        let mut known: Vec<&str> = server_gameplay_config.maps.keys().map(String::as_str).collect();
+        known.sort_unstable();
+        bail!("unknown map {map_name:?} (available: {known:?})");
+    };
+
     let barrier_kind_table = common::protocol::BarrierKindTable::from_ids(gameplay_config.barrier_kinds.clone())
         .with_context(|| "failed to build BarrierKindTable from gameplay.json barrier_kinds")?;
-    let (map_layout, map_config, map_geometry) = generate_map(&barrier_kind_table);
+    let (map_layout, map_config, map_geometry) = generate_map(&barrier_kind_table, &map_name);
     let collision_world = CollisionWorld::from_map_layout(&map_layout, &barrier_kind_table);
     let nav_graph = NavGraph::new(map_config.clone(), map_geometry);
     validate_actor_kinds_consistent(&gameplay_config, &server_gameplay_config, &map_config)?;
@@ -89,13 +100,14 @@ async fn main() -> Result<()> {
     });
 
     info!(
-        "generated map: {} walls, {} ramps, {} floors",
+        "generated map {map_name:?}: {} walls, {} ramps, {} floors",
         map_layout.walls.len(),
         map_layout.ramps.len(),
         map_layout.floors.len(),
     );
 
     app.insert_resource(map_layout)
+        .insert_resource(map_settings)
         .insert_resource(collision_world)
         .insert_resource(map_config)
         .insert_resource(map_geometry)

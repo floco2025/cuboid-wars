@@ -5,7 +5,7 @@
 // in the snapshot, not a new event.
 //
 // 1. Bootstrap (`SInit`) — sent once at connect with session-level state
-//    (`PlayerId`, static `MapLayout`).
+//    (`PlayerId`, static `MapLayout`, per-map `MapSettings`).
 //
 // 2. State snapshot (`SSnapshot`) — the authoritative current state of every
 //    player, actor, and item, broadcast at `SNAPSHOT_HZ`. Sole vehicle for
@@ -116,6 +116,7 @@ pub struct CPing {
 pub struct SInit {
     pub id: PlayerId,
     pub map_layout: MapLayout,
+    pub map_settings: MapSettings,
 }
 
 // --- Snapshot ---

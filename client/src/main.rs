@@ -206,8 +206,6 @@ fn main() -> Result<()> {
                 setup_scene_lighting_system,
                 setup_cameras_system,
                 setup_ui_system,
-                setup_skybox_from_cross_system.after(setup_scene_lighting_system),
-                setup_sun_disc_system,
                 setup_item_assets,
                 setup_barrier_assets,
             ),
@@ -332,10 +330,15 @@ fn main() -> Result<()> {
                 tick_hud_banner_system,
             ),
         )
-        // Skybox asset conversion, camera following, and ambient drift.
+        // Skybox setup, asset conversion, camera following, and ambient
+        // drift. Setup waits for `MapSettings` (from `SInit`) because the map
+        // decides which skybox to build; each setup system latches internally
+        // so it runs once.
         .add_systems(
             Update,
             (
+                setup_skybox_from_cross_system.run_if(resource_exists::<common::protocol::MapSettings>),
+                setup_sun_disc_system.run_if(resource_exists::<common::protocol::MapSettings>),
                 skybox_convert_cross_to_cubemap_system.run_if(resource_exists::<client::skybox::SkyboxCrossImage>),
                 skybox_update_camera_system.run_if(resource_exists::<client::skybox::SkyboxCubemap>),
                 skybox_rotate_system.run_if(resource_exists::<client::skybox::SkyboxCubemap>),

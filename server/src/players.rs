@@ -6,14 +6,13 @@ use super::network::broadcast_to_all;
 use crate::resources::{MapConfig, PlayerMap};
 use common::{
     config::GameplayConfig,
-    constants::{
-        CHARACTER_FALL_DEATH_Y, CHARACTER_GRAVITY, CHARACTER_GROUND_SNAP_DISTANCE, PHYSICS_EPSILON, TICK_SECS,
-    },
+    constants::{CHARACTER_FALL_DEATH_Y, CHARACTER_GROUND_SNAP_DISTANCE, PHYSICS_EPSILON, TICK_SECS},
     health::apply_damage,
     map_geometry::MapGeometry,
     physics::{CharacterVerticalVelocity, CollisionWorld},
     protocol::{
-        FaceDirection, Health, PlayerId, PlayerMarker, PlayerMoveIntent, Position, SPlayerFallDamage, ServerMessage,
+        FaceDirection, Health, MapSettings, PlayerId, PlayerMarker, PlayerMoveIntent, Position, SPlayerFallDamage,
+        ServerMessage,
     },
 };
 
@@ -222,6 +221,7 @@ pub fn players_fall_damage_system(
     mut players: ResMut<PlayerMap>,
     gameplay_config: Res<GameplayConfig>,
     server_gameplay_config: Res<crate::config::ServerGameplayConfig>,
+    map_settings: Res<MapSettings>,
     mut player_query: Query<
         (Entity, &PlayerId, &Position, &CharacterVerticalVelocity, &mut Health),
         With<PlayerMarker>,
@@ -245,7 +245,7 @@ pub fn players_fall_damage_system(
 
         if is_grounded && info.peak_fall_speed > 0.0 {
             let drop = (info.fall_peak_y - pos.y).max(0.0);
-            let velocity_implied = velocity_implied_fall_distance(info.peak_fall_speed);
+            let velocity_implied = velocity_implied_fall_distance(info.peak_fall_speed, map_settings.gravity);
             // Tripwire for the phantom-fall physics hang: on a genuine fall
             // the velocity-implied distance matches the displacement.
             if velocity_implied > drop + PHANTOM_FALL_TRIPWIRE_SLACK {
@@ -254,7 +254,7 @@ pub fn players_fall_damage_system(
                     id
                 );
             }
-            let fall_distance = effective_fall_distance(drop, info.peak_fall_speed);
+            let fall_distance = effective_fall_distance(drop, info.peak_fall_speed, map_settings.gravity);
             info.peak_fall_speed = 0.0;
             info.fall_peak_y = f32::NEG_INFINITY;
 
@@ -305,21 +305,23 @@ pub fn players_fall_damage_system(
 
 // Normal-gravity distance equivalent to the landing's impact energy, with
 // two corrections so JSON values can stay semantic ("level heights"):
-//   1. `+CHARACTER_GRAVITY * TICK_SECS` to the impact speed —
+//   1. `+gravity * TICK_SECS` to the impact speed —
 //      `peak_fall_speed` is captured at end-of-tick *before* the impact
 //      tick, so it misses one gravity application.
 //   2. `+CHARACTER_GROUND_SNAP_DISTANCE` — the last ~0.5 m of every fall is
 //      "snapped" by the character controller (vy → 0, no further gravity),
 //      so naive `v²/2g` undercounts by exactly that snap distance.
-fn velocity_implied_fall_distance(peak_fall_speed: f32) -> f32 {
-    let impact_speed = peak_fall_speed + CHARACTER_GRAVITY * TICK_SECS;
-    impact_speed.powi(2) / (2.0 * CHARACTER_GRAVITY) + CHARACTER_GROUND_SNAP_DISTANCE
+// `gravity` is the map's normal-gravity magnitude, even for anti-gravity
+// falls — the energy bound is what keeps those landings soft.
+fn velocity_implied_fall_distance(peak_fall_speed: f32, gravity: f32) -> f32 {
+    let impact_speed = peak_fall_speed + gravity * TICK_SECS;
+    impact_speed.powi(2) / (2.0 * gravity) + CHARACTER_GROUND_SNAP_DISTANCE
 }
 
 // Fall distance that damage is charged for: min(actual drop, energy
 // equivalent). See `players_fall_damage_system` header for the why.
-fn effective_fall_distance(drop: f32, peak_fall_speed: f32) -> f32 {
-    drop.min(velocity_implied_fall_distance(peak_fall_speed))
+fn effective_fall_distance(drop: f32, peak_fall_speed: f32, gravity: f32) -> f32 {
+    drop.min(velocity_implied_fall_distance(peak_fall_speed, gravity))
 }
 
 // Lerp damage between `safe_fall_distance` (0 dmg) and `lethal_fall_distance`
@@ -332,6 +334,9 @@ fn fall_damage_for_distance(distance: f32, safe: f32, lethal: f32, max_health: f
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Matches the shipping map's normal-gravity setting.
+    const TEST_GRAVITY: f32 = 25.0;
 
     #[test]
     fn fall_damage_zero_at_safe_distance() {
@@ -360,7 +365,7 @@ mod tests {
         // Anti-gravity jump: apex ≈ 14.4 m of drop, but the landing speed is
         // only PLAYER_JUMP_SPEED (12 m/s) — an energy equivalent of ~3.8 m,
         // well under the 8 m safe threshold.
-        let distance = effective_fall_distance(14.4, 12.0);
+        let distance = effective_fall_distance(14.4, 12.0, TEST_GRAVITY);
         assert!(distance < 8.0, "expected soft landing, got {distance}m");
         assert!(distance > 3.0);
     }
@@ -368,16 +373,16 @@ mod tests {
     #[test]
     fn phantom_fall_charges_zero_distance() {
         // Terminal velocity fabricated while standing: no drop, no damage.
-        assert_eq!(effective_fall_distance(0.0, 50.0), 0.0);
+        assert_eq!(effective_fall_distance(0.0, 50.0, TEST_GRAVITY), 0.0);
     }
 
     #[test]
     fn genuine_fall_distance_passes_through() {
         // A real 13.2 m fall: impact speed √(2g·12.7) ≈ 25.2 m/s, captured
         // one tick early (−g·dt). Drop and energy agree, so min ≈ drop.
-        let impact_speed = (2.0 * CHARACTER_GRAVITY * (13.2 - CHARACTER_GROUND_SNAP_DISTANCE)).sqrt();
-        let peak_fall_speed = impact_speed - CHARACTER_GRAVITY * TICK_SECS;
-        let distance = effective_fall_distance(13.2, peak_fall_speed);
+        let impact_speed = (2.0 * TEST_GRAVITY * (13.2 - CHARACTER_GROUND_SNAP_DISTANCE)).sqrt();
+        let peak_fall_speed = impact_speed - TEST_GRAVITY * TICK_SECS;
+        let distance = effective_fall_distance(13.2, peak_fall_speed, TEST_GRAVITY);
         assert!((distance - 13.2).abs() < 0.1, "expected ≈13.2m, got {distance}m");
     }
 }

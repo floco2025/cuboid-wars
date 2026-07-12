@@ -21,6 +21,7 @@ use super::{login::handle_login_message, messages::dispatch_message};
 #[derive(SystemParam)]
 pub struct LoginWorld<'w> {
     pub map_layout: Res<'w, MapLayout>,
+    pub map_settings: Res<'w, MapSettings>,
     pub map_geometry: Res<'w, MapGeometry>,
     pub collision_world: Res<'w, CollisionWorld>,
     pub gameplay_config: Res<'w, GameplayConfig>,

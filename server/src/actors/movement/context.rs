@@ -46,6 +46,8 @@ pub(super) struct ActorMoveContext<'a> {
     pub(super) path_clear_lookahead_secs: f32,
     // Pressure-plate-open barrier kinds — actors pass through these.
     pub(super) open_barrier_kinds: &'a [BarrierKindId],
+    // Per-map gravity; actors never have anti-gravity.
+    pub(super) gravity: f32,
 }
 
 impl ActorMoveContext<'_> {
@@ -66,7 +68,7 @@ impl ActorMoveContext<'_> {
             self.vertical_velocity,
             self.collision_world,
             false,
-            false, // actors never have anti-gravity
+            self.gravity,
             self.open_barrier_kinds,
             self.actor_physics,
             target_x,

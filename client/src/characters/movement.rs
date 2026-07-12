@@ -9,7 +9,7 @@ use crate::{
 use common::{
     config::GameplayConfig,
     physics::CollisionWorld,
-    protocol::{ActorMarker, PlayerMarker, Position},
+    protocol::{ActorMarker, MapSettings, PlayerMarker, Position},
 };
 
 // Run at the start of each fixed tick, before `characters_movement_system`,
@@ -31,6 +31,7 @@ pub fn characters_movement_system(
     asset_set: Res<AssetSet>,
     gameplay_config: Res<GameplayConfig>,
     collision_world: Option<Res<CollisionWorld>>,
+    map_settings: Option<Res<MapSettings>>,
     mut players: ResMut<PlayerMap>,
     actors: Res<ActorMap>,
     open_barrier_kinds: Res<crate::barriers::OpenBarrierKinds>,
@@ -45,6 +46,7 @@ pub fn characters_movement_system(
         &mut commands,
         delta,
         collision_world.as_deref(),
+        map_settings.as_deref(),
         &gameplay_config,
         &mut players,
         &open_barrier_kinds,
@@ -55,6 +57,7 @@ pub fn characters_movement_system(
         &mut commands,
         delta,
         collision_world.as_deref(),
+        map_settings.as_deref(),
         &gameplay_config,
         &actors,
         &open_barrier_kinds,

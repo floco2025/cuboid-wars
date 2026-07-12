@@ -87,7 +87,10 @@ fn map_with_zones(
 }
 
 fn assets() -> MaterialRules {
-    MaterialRules::load_default().expect("default asset rules should load")
+    let config =
+        crate::config::ServerGameplayConfig::load_default().expect("default server gameplay config should load");
+    MaterialRules::load_from_map_path(&crate::map::generation::map_path(&config.default_map))
+        .expect("default map's asset rules should load")
 }
 
 #[test]

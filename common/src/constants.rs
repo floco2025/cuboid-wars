@@ -67,10 +67,6 @@ pub const PHYSICS_EPSILON: f32 = 1e-6;
 // normal death/respawn flow; actors are despawned outright).
 pub const CHARACTER_FALL_DEATH_Y: f32 = -100.0;
 
-// Gravity acting on falling characters. Higher than real-world (9.81) for snappier
-// game feel.
-pub const CHARACTER_GRAVITY: f32 = 25.0; // m/s²
-
 // Hard cap on a falling character's downward speed. Prevents arbitrarily large
 // velocities from very tall drops.
 pub const CHARACTER_TERMINAL_VELOCITY: f32 = 50.0; // m/s
@@ -118,7 +114,6 @@ pub const PROJECTILE_BOUNCE_RETENTION: f32 = 0.9; // fraction of speed retained 
 pub const POWER_UP_SPEED_MULTIPLIER: f32 = 1.8;
 pub const POWER_UP_MULTI_SHOT_MULTIPLIER: i32 = 5;
 pub const POWER_UP_MULTI_SHOT_ANGLE: f32 = 1.5;
-pub const POWER_UP_ANTI_GRAVITY_MULTIPLIER: f32 = 0.2;
 
 // Spawn gates. Set any flag to `false` to keep that power-up off the spawn
 // pool — the type's collection / status / movement code stays in place, so a

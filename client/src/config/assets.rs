@@ -1,4 +1,8 @@
-use std::{collections::HashMap, fs, path::Path};
+use std::{
+    collections::{BTreeMap, HashMap},
+    fs,
+    path::Path,
+};
 
 use anyhow::{Context, Result};
 use bevy::prelude::Resource;
@@ -17,7 +21,9 @@ pub struct AssetSet {
     player: PlayerAssets,
     actors: HashMap<String, ActorAssets>,
     models: GenericModels,
-    skybox: SkyboxDef,
+    // Named skyboxes; the map's `MapSettings.skybox` selects one. BTreeMap so
+    // the unknown-name fallback (sorted-first entry) is deterministic.
+    skyboxes: BTreeMap<String, SkyboxDef>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -33,7 +39,7 @@ struct AssetSetFile {
     player: PlayerAssets,
     actors: HashMap<String, ActorAssets>,
     models: GenericModels,
-    skybox: SkyboxDef,
+    skyboxes: BTreeMap<String, SkyboxDef>,
 }
 
 impl AssetSet {
@@ -63,7 +69,7 @@ impl AssetSet {
             player: file.player,
             actors: file.actors,
             models: file.models,
-            skybox: file.skybox,
+            skyboxes: file.skyboxes,
         })
     }
 
@@ -77,6 +83,10 @@ impl AssetSet {
         anyhow::ensure!(
             self.item_materials.contains_key("default"),
             "asset config must define `item_materials.default`"
+        );
+        anyhow::ensure!(
+            !self.skyboxes.is_empty(),
+            "asset config must define at least one entry in `skyboxes`"
         );
         // Every alias must resolve to a real material so a typo can't go
         // unnoticed until something tries to render at runtime.
@@ -147,8 +157,19 @@ impl AssetSet {
         &self.actor(kind).explosion_effect
     }
 
-    pub fn skybox(&self) -> &SkyboxDef {
-        &self.skybox
+    pub fn skybox(&self, name: &str) -> Option<&SkyboxDef> {
+        self.skyboxes.get(name)
+    }
+
+    // Deterministic stand-in when a map names a skybox this client doesn't
+    // have: the sorted-first entry. `validate` guarantees non-emptiness.
+    pub fn fallback_skybox(&self) -> (&str, &SkyboxDef) {
+        let (name, def) = self
+            .skyboxes
+            .iter()
+            .next()
+            .expect("skyboxes is empty despite validate() requiring an entry");
+        (name, def)
     }
 
     pub fn player_sound(&self, name: &str) -> &str {
@@ -366,7 +387,9 @@ impl AssetSet {
             push(&mut out, &material.textures.occlusion);
             push(&mut out, &material.textures.metallic_roughness);
         }
-        push(&mut out, &self.skybox.image);
+        for skybox in self.skyboxes.values() {
+            push(&mut out, &skybox.image);
+        }
         push(&mut out, &self.models.wall_light.scene);
         push(&mut out, &self.player.model.scene);
         for sound in self.player.sounds.values() {

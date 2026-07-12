@@ -6,14 +6,38 @@ use bevy::{
     render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureViewDescriptor, TextureViewDimension},
 };
 
-use crate::{cameras::MainCameraMarker, config::AssetSet};
+use crate::{
+    cameras::MainCameraMarker,
+    config::{AssetSet, SkyboxDef},
+};
+use common::protocol::MapSettings;
+
+// The map names its skybox in `MapSettings` (from `SInit`), so both setup
+// systems run gated on that resource existing — once, via the `Local` latch —
+// instead of at Startup.
+fn selected_skybox<'a>(asset_set: &'a AssetSet, map_settings: &MapSettings) -> &'a SkyboxDef {
+    asset_set.skybox(&map_settings.skybox).unwrap_or_else(|| {
+        let (fallback_name, fallback) = asset_set.fallback_skybox();
+        error!(
+            "map skybox {:?} is not defined in assets.json `skyboxes`; falling back to {fallback_name:?}",
+            map_settings.skybox
+        );
+        fallback
+    })
+}
 
 pub fn setup_skybox_from_cross_system(
+    mut done: Local<bool>,
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     asset_set: Res<AssetSet>,
+    map_settings: Res<MapSettings>,
 ) {
-    let skybox = asset_set.skybox();
+    if *done {
+        return;
+    }
+    *done = true;
+    let skybox = selected_skybox(&asset_set, &map_settings);
 
     // Load the cross-layout skybox image
     let cross_image_handle: Handle<Image> = asset_server.load(skybox.image.clone());
@@ -53,12 +77,18 @@ pub struct SunDisc {
 }
 
 pub fn setup_sun_disc_system(
+    mut done: Local<bool>,
     mut commands: Commands,
     asset_set: Res<AssetSet>,
+    map_settings: Res<MapSettings>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let sun_disc = asset_set.skybox().sun_disc;
+    if *done {
+        return;
+    }
+    *done = true;
+    let sun_disc = selected_skybox(&asset_set, &map_settings).sun_disc;
     if sun_disc.radius <= 0.0 {
         return;
     }

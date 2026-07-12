@@ -85,7 +85,8 @@ Cargo invocations default to `--release` in this repo (debug builds pull in too
 much for our purposes).
 
 ```bash
-cargo run --release --bin server                       # bind 127.0.0.1:8080
+cargo run --release --bin server                       # bind 127.0.0.1:8080, loads default_map
+cargo run --release --bin server -- --map hotel        # load a specific map
 cargo run --release --bin client                       # connect to 127.0.0.1:8080
 cargo run --release --bin client -- --name "Alice"     # custom name
 ```
@@ -103,8 +104,13 @@ them for anything beyond localhost** — they are not production-safe.
 ## Map editor
 
 ```bash
-python3 tools/editor.py            # edits config/server/map.json in place
+python3 tools/editor.py hotel      # edits config/server/maps/hotel.json in place
 ```
+
+Maps are registered in `config/server/gameplay.json` (`maps` + `default_map`);
+each entry sets the map's skybox, gravity, and anti-gravity-power-up gravity.
+Passing a new name opens an empty map and Save creates its file — add a
+registry entry to make the server load it.
 
 The editor (PySide6) supports floors, grass, walls, ramps, barriers,
 actor/player/cookie/key spawn zones, pressure plates, lights, and per-face

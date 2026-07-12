@@ -223,6 +223,15 @@ mod tests {
     fn server_gameplay_config() -> ServerGameplayConfig {
         ServerGameplayConfig {
             version: 1,
+            maps: HashMap::from([(
+                "hotel".to_owned(),
+                common::protocol::MapSettings {
+                    skybox: "cloudy_day".to_owned(),
+                    gravity: 25.0,
+                    anti_gravity: 5.0,
+                },
+            )]),
+            default_map: "hotel".to_owned(),
             scoring: ScoringConfig {
                 player_kill: 1,
                 player_death: -1,

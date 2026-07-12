@@ -13,7 +13,7 @@ use common::{
         CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, OpenBarrierKinds, blocking_character_move_plan,
         character_move_plan_is_blocked, step_character_movement,
     },
-    protocol::{ActorId, ActorMarker, ActorMoveIntent, PlayerMarker, Position},
+    protocol::{ActorId, ActorMarker, ActorMoveIntent, MapSettings, PlayerMarker, Position},
 };
 
 // Fraction of the correction delta applied per `SNAPSHOT_SECS` of real time
@@ -61,6 +61,7 @@ pub(crate) fn plan_actor_moves(
     commands: &mut Commands,
     delta: f32,
     collision_world: Option<&CollisionWorld>,
+    map_settings: Option<&MapSettings>,
     gameplay_config: &GameplayConfig,
     actors: &ActorMap,
     open_barrier_kinds: &OpenBarrierKinds,
@@ -129,13 +130,15 @@ pub(crate) fn plan_actor_moves(
             }
         };
 
-        if let Some(collision_world) = collision_world {
+        // `CollisionWorld` and `MapSettings` are both installed by the same
+        // `SInit`, so they appear together.
+        if let (Some(collision_world), Some(map_settings)) = (collision_world, map_settings) {
             let step = step_character_movement(
                 &pos,
                 motion.0,
                 collision_world,
                 false,
-                false, // actors never have anti-gravity
+                map_settings.gravity, // actors never have anti-gravity
                 &open_barrier_kinds.0,
                 actor_physics,
                 target_pos.x,

@@ -120,6 +120,7 @@ fn context<'a>(
         actor_starts,
         path_clear_lookahead_secs: 0.4,
         open_barrier_kinds: &[],
+        gravity: 25.0,
     }
 }
 

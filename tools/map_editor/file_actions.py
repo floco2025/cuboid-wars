@@ -6,7 +6,7 @@ from pathlib import Path
 
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 
-from .constants import DEFAULT_GRID_COLS, DEFAULT_GRID_ROWS, DEFAULT_MAP
+from .constants import DEFAULT_GRID_COLS, DEFAULT_GRID_ROWS, MAPS_DIR
 from .dialogs import ResizeMapDialog
 from .io import empty_map, read_map, write_map
 from .validation import validate_map
@@ -38,7 +38,7 @@ class FileActionsMixin:
     def open_file(self) -> None:
         if not self.confirm_discard_changes():
             return
-        path, _ = QFileDialog.getOpenFileName(self, "Open Map", str(self.path or DEFAULT_MAP), "JSON files (*.json)")
+        path, _ = QFileDialog.getOpenFileName(self, "Open Map", str(self.path or MAPS_DIR), "JSON files (*.json)")
         if not path:
             return
         self.load_path(Path(path))
@@ -110,7 +110,7 @@ class FileActionsMixin:
         self.refresh_ui()
 
     def save_as(self) -> None:
-        path, _ = QFileDialog.getSaveFileName(self, "Save Map As", str(self.path or DEFAULT_MAP), "JSON files (*.json)")
+        path, _ = QFileDialog.getSaveFileName(self, "Save Map As", str(self.path or MAPS_DIR), "JSON files (*.json)")
         if not path:
             return
         self.path = Path(path)

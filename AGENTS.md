@@ -25,13 +25,13 @@ Rust workspace with three crates:
 
 Other notable paths:
 
-- `tools/editor.py` — launcher for the PySide6 map editor (code lives in `tools/map_editor/`); edits `config/server/map.json`.
+- `tools/editor.py` — launcher for the PySide6 map editor (code lives in `tools/map_editor/`); takes a map name and edits `config/server/maps/<name>.json`.
 - `client/assets/` — 3D models, textures, audio.
 - `config/client/assets.json` — hand-edited asset set (materials, material rules, models, sounds, barrier kind colours).
 - `config/client/render.json` — client-only render/debug settings.
 - `config/common/gameplay.json` — shared simulation tuning loaded by client and server.
-- `config/server/gameplay.json` — server-only gameplay tuning.
-- `config/server/map.json` — default map source.
+- `config/server/gameplay.json` — server-only gameplay tuning, including the named-map registry: `maps` maps each name to its per-map settings (`skybox`, `gravity`, `anti_gravity`), `default_map` picks the one to load (`--map <name>` overrides).
+- `config/server/maps/` — one map JSON per named map (geometry + zones only; per-map tuning lives in the `maps` registry).
 - `cert.pem` / `key.pem` — local-dev TLS for QUIC (not production-safe).
 - `launch_clients.sh` — spawns N tiled windowed clients for local multiplayer testing (`./launch_clients.sh [num_clients] [lag_ms]`, macOS).
 - `bacon.toml` — `bacon` job definitions; use `bacon clippy`, `bacon test`, etc. as the watch loop.
@@ -43,14 +43,15 @@ Other notable paths:
 ```bash
 cargo build --release
 cargo check --release
-cargo run --release --bin server                            # bind 127.0.0.1:8080
+cargo run --release --bin server                            # bind 127.0.0.1:8080, loads default_map
 cargo run --release --bin server -- --bind 0.0.0.0:8080
+cargo run --release --bin server -- --map hotel             # override default_map
 cargo run --release --bin client                            # connects to 127.0.0.1:8080
 cargo run --release --bin client -- --server 192.168.1.100:8080 --name "Player"
 cargo clippy --release --workspace --all-targets
 cargo fmt
 cargo test --release --workspace
-python3 tools/editor.py                                     # edits config/server/map.json
+python3 tools/editor.py hotel                               # edits config/server/maps/hotel.json
 ```
 
 ## Architecture notes
@@ -121,7 +122,7 @@ they assert (e.g. `lethal_hit_returns_true`, `barrier_collision_group_is_unique_
 - **Protocol & message taxonomy** — top doc comment of `common/src/protocol.rs`.
 - **Collision groups & character filters** — `common/src/physics/world/colliders.rs`.
 - **Death/respawn pipeline** — `server/src/combat.rs` (`kill_player`), `server/src/players.rs` (`players_respawn_system`), `client/src/network/players/sync.rs` (snapshot diff).
-- **Map data shape** — `common/src/types/` and `config/server/map.json`.
+- **Map data shape** — `common/src/types/` and `config/server/maps/hotel.json`.
 - **Per-kind gameplay tuning** — `config/common/gameplay.json` (shared) and `config/server/gameplay.json` (server-only).
 
 ## Security & assets

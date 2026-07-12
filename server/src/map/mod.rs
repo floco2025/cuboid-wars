@@ -2,7 +2,7 @@ mod barriers;
 mod definition;
 mod edges;
 mod floors;
-mod generation;
+pub(crate) mod generation;
 mod grid;
 mod helpers;
 mod lights;

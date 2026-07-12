@@ -62,14 +62,7 @@ struct MapRamp {
 }
 
 impl MaterialRules {
-    pub fn load_default() -> Result<Self> {
-        Self::load_from_map_path(Path::new(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../config/server/map.json"
-        )))
-    }
-
-    fn load_from_map_path(path: &Path) -> Result<Self> {
+    pub(crate) fn load_from_map_path(path: &Path) -> Result<Self> {
         let text = fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
         let file: MapFile =
             serde_json::from_str(&text).with_context(|| format!("failed to parse {}", path.display()))?;
@@ -130,9 +123,12 @@ pub(super) fn wall_edge_key(from: [i32; 2], to: [i32; 2]) -> ([i32; 2], [i32; 2]
 #[cfg(test)]
 mod tests {
     use super::super::MaterialRules;
+    use crate::{config::ServerGameplayConfig, map::generation::map_path};
 
     #[test]
-    fn default_material_rules_load() {
-        MaterialRules::load_default().expect("default per-segment materials should load");
+    fn default_map_material_rules_load() {
+        let config = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
+        MaterialRules::load_from_map_path(&map_path(&config.default_map))
+            .expect("default map's per-segment materials should load");
     }
 }
