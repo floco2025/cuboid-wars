@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
-    constants::{ALWAYS_ANTI_GRAVITY, ALWAYS_PHASING, SNAPSHOT_SECS},
+    constants::{ALWAYS_LOW_GRAVITY, ALWAYS_PHASING, SNAPSHOT_SECS},
     physics::{CharacterMovePlan, CollisionWorld, passable_barrier_kinds, step_character_movement},
     protocol::{BarrierKindId, MapSettings, PlayerId, Position, PowerUpKind},
 };
@@ -78,7 +78,7 @@ pub(crate) fn plan_player_moves(
         let info = players.get(player_id);
         let has_speed_power_up = info.is_some_and(|i| i.power_up(PowerUpKind::Speed));
         let has_phasing = ALWAYS_PHASING || info.is_some_and(|i| i.power_up(PowerUpKind::Phasing));
-        let has_anti_gravity = ALWAYS_ANTI_GRAVITY || info.is_some_and(|i| i.power_up(PowerUpKind::AntiGravity));
+        let has_low_gravity = ALWAYS_LOW_GRAVITY || info.is_some_and(|i| i.power_up(PowerUpKind::LowGravity));
         let held_keys: &[BarrierKindId] = info.map_or(&[], |i| i.held_keys.as_slice());
         let player_name = info.map(|i| i.name.as_str());
 
@@ -125,7 +125,7 @@ pub(crate) fn plan_player_moves(
                 motion.0,
                 collision_world,
                 has_phasing,
-                map_settings.gravity_for(has_anti_gravity),
+                map_settings.gravity_for(has_low_gravity),
                 &passable_kinds,
                 player_physics,
                 target.x,

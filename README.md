@@ -30,7 +30,7 @@ death/respawn flow.
   the quest and adds to your score. They respawn after a configurable
   delay.
 - **Power-ups** — speed, multi-shot, phasing (pass through barriers
-  whose key you'd otherwise need), and anti-gravity. Each lasts a
+  whose key you'd otherwise need), and low-gravity. Each lasts a
   configurable duration after pickup. Health potions heal instantly
   instead of running on a timer.
 - **Barriers & keys** — coloured barriers block everyone; pick up the
@@ -108,7 +108,7 @@ python3 tools/editor.py hotel      # edits config/server/maps/hotel.json in plac
 ```
 
 Maps are registered in `config/server/gameplay.json` (`maps` + `default_map`);
-each entry sets the map's skybox, gravity, and anti-gravity-power-up gravity.
+each entry sets the map's skybox, gravity, and low-gravity-power-up gravity.
 Passing a new name opens an empty map and Save creates its file — add a
 registry entry to make the server load it.
 

@@ -115,7 +115,7 @@ impl AssetSet {
             ItemType::SpeedPowerUp => "SpeedPowerUp",
             ItemType::MultiShotPowerUp => "MultiShotPowerUp",
             ItemType::PhasingPowerUp => "PhasingPowerUp",
-            ItemType::AntiGravityPowerUp => "AntiGravityPowerUp",
+            ItemType::LowGravityPowerUp => "LowGravityPowerUp",
             ItemType::HealthPotion => "HealthPotion",
             ItemType::Cookie => "Cookie",
             // Keys reuse the per-color barrier materials directly; no entry

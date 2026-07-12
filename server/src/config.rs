@@ -177,7 +177,7 @@ pub struct PowerUpsConfig {
     pub speed_duration_secs: f32,
     pub multi_shot_duration_secs: f32,
     pub phasing_duration_secs: f32,
-    pub anti_gravity_duration_secs: f32,
+    pub low_gravity_duration_secs: f32,
     // Fraction of max health restored by a single Health Potion pickup.
     // 0.0 < value <= 1.0 (1.0 = full heal). No duration — instant effect.
     pub health_potion_heal_percent: f32,
@@ -194,7 +194,7 @@ impl PowerUpsConfig {
             K::Speed => self.speed_duration_secs,
             K::MultiShot => self.multi_shot_duration_secs,
             K::Phasing => self.phasing_duration_secs,
-            K::AntiGravity => self.anti_gravity_duration_secs,
+            K::LowGravity => self.low_gravity_duration_secs,
         }
     }
 
@@ -207,8 +207,8 @@ impl PowerUpsConfig {
         )?;
         validate_non_negative_finite(self.phasing_duration_secs, &format!("{path}.phasing_duration_secs"))?;
         validate_non_negative_finite(
-            self.anti_gravity_duration_secs,
-            &format!("{path}.anti_gravity_duration_secs"),
+            self.low_gravity_duration_secs,
+            &format!("{path}.low_gravity_duration_secs"),
         )?;
         if !(self.health_potion_heal_percent > 0.0 && self.health_potion_heal_percent <= 1.0) {
             bail!(
@@ -290,8 +290,8 @@ fn validate_maps(maps: &HashMap<String, MapSettings>, default_map: &str) -> Resu
         if !settings.gravity.is_finite() || settings.gravity <= 0.0 {
             bail!("{path}.gravity must be > 0");
         }
-        if !settings.anti_gravity.is_finite() || settings.anti_gravity < 0.0 {
-            bail!("{path}.anti_gravity must be >= 0");
+        if !settings.low_gravity.is_finite() || settings.low_gravity < 0.0 {
+            bail!("{path}.low_gravity must be >= 0");
         }
     }
     if !maps.contains_key(default_map) {
@@ -569,7 +569,7 @@ mod tests {
         MapSettings {
             skybox: "cloudy_day".to_owned(),
             gravity: 25.0,
-            anti_gravity: 5.0,
+            low_gravity: 5.0,
         }
     }
 
@@ -609,11 +609,11 @@ mod tests {
     }
 
     #[test]
-    fn validate_maps_rejects_negative_anti_gravity() {
+    fn validate_maps_rejects_negative_low_gravity() {
         let mut maps = one_map("hotel");
-        maps.get_mut("hotel").expect("hotel entry missing").anti_gravity = -1.0;
-        let err = validate_maps(&maps, "hotel").expect_err("negative anti_gravity must be rejected");
-        assert!(err.to_string().contains("anti_gravity"));
+        maps.get_mut("hotel").expect("hotel entry missing").low_gravity = -1.0;
+        let err = validate_maps(&maps, "hotel").expect_err("negative low_gravity must be rejected");
+        assert!(err.to_string().contains("low_gravity"));
     }
 
     #[test]

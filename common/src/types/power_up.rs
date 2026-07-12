@@ -12,12 +12,12 @@ pub enum PowerUpKind {
     Speed,
     MultiShot,
     Phasing,
-    AntiGravity,
+    LowGravity,
 }
 
 impl PowerUpKind {
     pub const COUNT: usize = 4;
-    pub const ALL: [PowerUpKind; Self::COUNT] = [Self::Speed, Self::MultiShot, Self::Phasing, Self::AntiGravity];
+    pub const ALL: [PowerUpKind; Self::COUNT] = [Self::Speed, Self::MultiShot, Self::Phasing, Self::LowGravity];
 
     #[must_use]
     pub const fn index(self) -> usize {
@@ -30,7 +30,7 @@ impl PowerUpKind {
             ItemType::SpeedPowerUp => Some(Self::Speed),
             ItemType::MultiShotPowerUp => Some(Self::MultiShot),
             ItemType::PhasingPowerUp => Some(Self::Phasing),
-            ItemType::AntiGravityPowerUp => Some(Self::AntiGravity),
+            ItemType::LowGravityPowerUp => Some(Self::LowGravity),
             ItemType::HealthPotion | ItemType::Cookie | ItemType::Key(_) => None,
         }
     }
@@ -41,7 +41,7 @@ impl PowerUpKind {
             Self::Speed => ItemType::SpeedPowerUp,
             Self::MultiShot => ItemType::MultiShotPowerUp,
             Self::Phasing => ItemType::PhasingPowerUp,
-            Self::AntiGravity => ItemType::AntiGravityPowerUp,
+            Self::LowGravity => ItemType::LowGravityPowerUp,
         }
     }
 }

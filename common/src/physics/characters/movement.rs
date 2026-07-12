@@ -52,7 +52,7 @@ pub fn try_start_player_jump(
 // before the final position is returned.
 //
 // `gravity` is the per-map acceleration magnitude, already resolved by the
-// caller (`MapSettings::gravity_for` picks the anti-gravity value when the
+// caller (`MapSettings::gravity_for` picks the low-gravity value when the
 // power-up is active).
 #[must_use]
 pub fn step_character_movement(

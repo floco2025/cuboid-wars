@@ -87,7 +87,7 @@ pub enum ItemType {
     SpeedPowerUp,
     MultiShotPowerUp,
     PhasingPowerUp,
-    AntiGravityPowerUp,
+    LowGravityPowerUp,
     // Instant heal on pickup; no durable state on `PlayerInfo` (unlike the
     // other power-ups, which arm a timer). The heal amount comes from
     // `PowerUpsConfig.health_potion_heal_percent`.
@@ -107,7 +107,7 @@ impl ItemType {
     pub const fn is_timer_power_up(self) -> bool {
         matches!(
             self,
-            Self::SpeedPowerUp | Self::MultiShotPowerUp | Self::PhasingPowerUp | Self::AntiGravityPowerUp
+            Self::SpeedPowerUp | Self::MultiShotPowerUp | Self::PhasingPowerUp | Self::LowGravityPowerUp
         )
     }
 
@@ -180,20 +180,20 @@ pub struct MapLayout {
 
 // Per-map tuning defined in `config/server/gameplay.json` under `maps` and
 // shipped to clients in `SInit` so prediction uses the server's values.
-// Gravity values are positive magnitudes (m/s²); `anti_gravity` replaces
-// `gravity` while the anti-gravity power-up is active.
+// Gravity values are positive magnitudes (m/s²); `low_gravity` replaces
+// `gravity` while the low-gravity power-up is active.
 #[derive(Debug, Clone, Encode, Decode, Resource, serde::Deserialize)]
 pub struct MapSettings {
     pub skybox: String,
     pub gravity: f32,
-    pub anti_gravity: f32,
+    pub low_gravity: f32,
 }
 
 impl MapSettings {
     #[must_use]
-    pub fn gravity_for(&self, has_anti_gravity: bool) -> f32 {
-        if has_anti_gravity {
-            self.anti_gravity
+    pub fn gravity_for(&self, has_low_gravity: bool) -> f32 {
+        if has_low_gravity {
+            self.low_gravity
         } else {
             self.gravity
         }

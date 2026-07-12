@@ -8,7 +8,7 @@ use crate::{
     net::ServerToClient,
 };
 use common::{
-    constants::{ALWAYS_ANTI_GRAVITY, ALWAYS_MULTI_SHOT, ALWAYS_PHASING, ALWAYS_SPEED, PROJECTILE_COOLDOWN_TIME},
+    constants::{ALWAYS_LOW_GRAVITY, ALWAYS_MULTI_SHOT, ALWAYS_PHASING, ALWAYS_SPEED, PROJECTILE_COOLDOWN_TIME},
     protocol::{
         BarrierKindId, Health, ItemType, NewQuest, Player, PlayerId, PlayerMoveIntent, PlayerMovementState, Position,
         PowerUpKind, QuestId, SPlayerStatus, SQuestCompleted, SQuestProgress, SQuestsAssigned, ServerMessage,
@@ -149,8 +149,8 @@ impl PlayerInfo {
     }
 
     #[must_use]
-    pub fn has_anti_gravity(&self) -> bool {
-        self.has(PowerUpKind::AntiGravity)
+    pub fn has_low_gravity(&self) -> bool {
+        self.has(PowerUpKind::LowGravity)
     }
 
     // Build the `[bool; N]` array each tick from per-kind `has()` predicates.
@@ -227,7 +227,7 @@ fn always_on(kind: PowerUpKind) -> bool {
         PowerUpKind::Speed => ALWAYS_SPEED,
         PowerUpKind::MultiShot => ALWAYS_MULTI_SHOT,
         PowerUpKind::Phasing => ALWAYS_PHASING,
-        PowerUpKind::AntiGravity => ALWAYS_ANTI_GRAVITY,
+        PowerUpKind::LowGravity => ALWAYS_LOW_GRAVITY,
     }
 }
 
@@ -381,7 +381,7 @@ mod tests {
             speed_duration_secs: 1.0,
             multi_shot_duration_secs: 1.0,
             phasing_duration_secs: 1.0,
-            anti_gravity_duration_secs: 1.0,
+            low_gravity_duration_secs: 1.0,
             health_potion_heal_percent: 0.25,
         }
     }
@@ -424,13 +424,13 @@ mod tests {
         info.grant_power_up(ItemType::SpeedPowerUp, &durations);
         info.grant_power_up(ItemType::MultiShotPowerUp, &durations);
         info.grant_power_up(ItemType::PhasingPowerUp, &durations);
-        info.grant_power_up(ItemType::AntiGravityPowerUp, &durations);
+        info.grant_power_up(ItemType::LowGravityPowerUp, &durations);
 
         let status = info.status(PlayerId(7));
         assert!(status.power_up(PowerUpKind::Speed));
         assert!(status.power_up(PowerUpKind::MultiShot));
         assert!(status.power_up(PowerUpKind::Phasing));
-        assert!(status.power_up(PowerUpKind::AntiGravity));
+        assert!(status.power_up(PowerUpKind::LowGravity));
     }
 
     #[test]
@@ -454,7 +454,7 @@ mod tests {
         info.name = "Alice".to_owned();
         info.score = 5;
         info.power_up_timers[PowerUpKind::Speed.index()] = 1.0;
-        info.power_up_timers[PowerUpKind::AntiGravity.index()] = 2.0;
+        info.power_up_timers[PowerUpKind::LowGravity.index()] = 2.0;
         info.stun_timer = 0.5;
         info.add_key(BarrierKindId(1));
         info.add_key(BarrierKindId(3));

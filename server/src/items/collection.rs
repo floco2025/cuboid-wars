@@ -98,7 +98,7 @@ pub fn item_collection_system(
             ItemType::SpeedPowerUp
             | ItemType::MultiShotPowerUp
             | ItemType::PhasingPowerUp
-            | ItemType::AntiGravityPowerUp => {
+            | ItemType::LowGravityPowerUp => {
                 // Guarded by the enum arm so an item type whose taxonomy
                 // changes won't silently fall through to a power-up handler.
                 assert!(item_type.is_timer_power_up());

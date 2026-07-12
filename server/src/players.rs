@@ -210,7 +210,7 @@ const PHANTOM_FALL_TRIPWIRE_SLACK: f32 = 5.0;
 //   * the drop bound kills phantom falls (the support probe can miss at a
 //     ledge lip while the collider holds the body, so vy accumulates to
 //     terminal with no displacement);
-//   * the energy bound keeps anti-gravity landings soft (a low-gravity jump
+//   * the energy bound keeps low-gravity landings soft (a low-gravity jump
 //     tops out near lethal height but lands at only jump speed).
 //
 // Runs after `characters_movement_system` so it observes the *post-step*
@@ -311,7 +311,7 @@ pub fn players_fall_damage_system(
 //   2. `+CHARACTER_GROUND_SNAP_DISTANCE` — the last ~0.5 m of every fall is
 //      "snapped" by the character controller (vy → 0, no further gravity),
 //      so naive `v²/2g` undercounts by exactly that snap distance.
-// `gravity` is the map's normal-gravity magnitude, even for anti-gravity
+// `gravity` is the map's normal-gravity magnitude, even for low-gravity
 // falls — the energy bound is what keeps those landings soft.
 fn velocity_implied_fall_distance(peak_fall_speed: f32, gravity: f32) -> f32 {
     let impact_speed = peak_fall_speed + gravity * TICK_SECS;
@@ -361,8 +361,8 @@ mod tests {
     }
 
     #[test]
-    fn antigravity_jump_lands_below_safe_distance() {
-        // Anti-gravity jump: apex ≈ 14.4 m of drop, but the landing speed is
+    fn low_gravity_jump_lands_below_safe_distance() {
+        // Low-gravity jump: apex ≈ 14.4 m of drop, but the landing speed is
         // only PLAYER_JUMP_SPEED (12 m/s) — an energy equivalent of ~3.8 m,
         // well under the 8 m safe threshold.
         let distance = effective_fall_distance(14.4, 12.0, TEST_GRAVITY);

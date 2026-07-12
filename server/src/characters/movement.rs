@@ -118,7 +118,7 @@ fn plan_player_moves(
         };
 
         let has_phasing = players.get(player_id).is_some_and(PlayerInfo::has_phasing);
-        let has_anti_gravity = players.get(player_id).is_some_and(PlayerInfo::has_anti_gravity);
+        let has_low_gravity = players.get(player_id).is_some_and(PlayerInfo::has_low_gravity);
         let held_keys: &[BarrierKindId] = players.get(player_id).map_or(&[], PlayerInfo::held_keys);
         // Effective passable kinds = held keys ∪ globally-open kinds (plates).
         // One shared helper between server-authoritative movement and
@@ -129,7 +129,7 @@ fn plan_player_moves(
             motion.0,
             collision_world,
             has_phasing,
-            map_settings.gravity_for(has_anti_gravity),
+            map_settings.gravity_for(has_low_gravity),
             &passable_kinds,
             player_physics,
             target_xz.x,

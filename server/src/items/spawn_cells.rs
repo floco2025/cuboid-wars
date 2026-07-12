@@ -3,7 +3,7 @@ use rand::{RngExt, rngs::ThreadRng};
 use crate::{map::grid_coords_from_position, resources::MapConfig};
 use common::{
     constants::{
-        GRID_CELL_SIZE, LEVEL_HEIGHT, POWER_UP_ANTI_GRAVITY_ENABLED, POWER_UP_HEALTH_POTION_ENABLED,
+        GRID_CELL_SIZE, LEVEL_HEIGHT, POWER_UP_HEALTH_POTION_ENABLED, POWER_UP_LOW_GRAVITY_ENABLED,
         POWER_UP_MULTI_SHOT_ENABLED, POWER_UP_PHASING_ENABLED, POWER_UP_SPEED_ENABLED,
     },
     map::compute_player_level,
@@ -20,7 +20,7 @@ pub(super) fn choose_item_type(rng: &mut ThreadRng) -> Option<ItemType> {
         (POWER_UP_SPEED_ENABLED, ItemType::SpeedPowerUp),
         (POWER_UP_MULTI_SHOT_ENABLED, ItemType::MultiShotPowerUp),
         (POWER_UP_PHASING_ENABLED, ItemType::PhasingPowerUp),
-        (POWER_UP_ANTI_GRAVITY_ENABLED, ItemType::AntiGravityPowerUp),
+        (POWER_UP_LOW_GRAVITY_ENABLED, ItemType::LowGravityPowerUp),
         (POWER_UP_HEALTH_POTION_ENABLED, ItemType::HealthPotion),
     ];
     let enabled: Vec<ItemType> = pool.into_iter().filter_map(|(e, t)| e.then_some(t)).collect();

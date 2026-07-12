@@ -228,7 +228,7 @@ mod tests {
                 common::protocol::MapSettings {
                     skybox: "cloudy_day".to_owned(),
                     gravity: 25.0,
-                    anti_gravity: 5.0,
+                    low_gravity: 5.0,
                 },
             )]),
             default_map: "hotel".to_owned(),
@@ -252,7 +252,7 @@ mod tests {
                 speed_duration_secs: 1.0,
                 multi_shot_duration_secs: 1.0,
                 phasing_duration_secs: 1.0,
-                anti_gravity_duration_secs: 1.0,
+                low_gravity_duration_secs: 1.0,
                 health_potion_heal_percent: 0.25,
             },
             cookies: CookiesConfig {

@@ -128,7 +128,7 @@ pub const POWER_UP_MULTI_SHOT_ANGLE: f32 = 1.5;
 pub const POWER_UP_SPEED_ENABLED: bool = true;
 pub const POWER_UP_MULTI_SHOT_ENABLED: bool = true;
 pub const POWER_UP_PHASING_ENABLED: bool = false;
-pub const POWER_UP_ANTI_GRAVITY_ENABLED: bool = true;
+pub const POWER_UP_LOW_GRAVITY_ENABLED: bool = true;
 pub const POWER_UP_HEALTH_POTION_ENABLED: bool = true;
 
 // ============================================================================
@@ -138,4 +138,4 @@ pub const POWER_UP_HEALTH_POTION_ENABLED: bool = true;
 pub const ALWAYS_SPEED: bool = false;
 pub const ALWAYS_MULTI_SHOT: bool = false;
 pub const ALWAYS_PHASING: bool = false;
-pub const ALWAYS_ANTI_GRAVITY: bool = false;
+pub const ALWAYS_LOW_GRAVITY: bool = false;

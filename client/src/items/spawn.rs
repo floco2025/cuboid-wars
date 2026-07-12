@@ -49,12 +49,12 @@ pub struct ItemAssets {
     speed_mesh: Handle<Mesh>,
     multishot_mesh: Handle<Mesh>,
     phasing_mesh: Handle<Mesh>,
-    anti_gravity_mesh: Handle<Mesh>,
+    low_gravity_mesh: Handle<Mesh>,
     health_mesh: Handle<Mesh>,
     speed_material: Handle<StandardMaterial>,
     multishot_material: Handle<StandardMaterial>,
     phasing_material: Handle<StandardMaterial>,
-    anti_gravity_material: Handle<StandardMaterial>,
+    low_gravity_material: Handle<StandardMaterial>,
     health_material: Handle<StandardMaterial>,
 }
 
@@ -64,7 +64,7 @@ impl ItemAssets {
             ItemType::SpeedPowerUp => &self.speed_material,
             ItemType::MultiShotPowerUp => &self.multishot_material,
             ItemType::PhasingPowerUp => &self.phasing_material,
-            ItemType::AntiGravityPowerUp => &self.anti_gravity_material,
+            ItemType::LowGravityPowerUp => &self.low_gravity_material,
             ItemType::HealthPotion => &self.health_material,
             ItemType::Cookie => unreachable!("cookies use cookie_material"),
             ItemType::Key(_) => unreachable!("keys use BarrierAssets"),
@@ -76,7 +76,7 @@ impl ItemAssets {
             ItemType::SpeedPowerUp => &self.speed_mesh,
             ItemType::MultiShotPowerUp => &self.multishot_mesh,
             ItemType::PhasingPowerUp => &self.phasing_mesh,
-            ItemType::AntiGravityPowerUp => &self.anti_gravity_mesh,
+            ItemType::LowGravityPowerUp => &self.low_gravity_mesh,
             ItemType::HealthPotion => &self.health_mesh,
             ItemType::Cookie => unreachable!("cookies use cookie_mesh"),
             ItemType::Key(_) => unreachable!("keys use BarrierAssets"),
@@ -111,7 +111,7 @@ pub fn setup_item_assets(
     let speed_material = build_power_up(ItemType::SpeedPowerUp);
     let multishot_material = build_power_up(ItemType::MultiShotPowerUp);
     let phasing_material = build_power_up(ItemType::PhasingPowerUp);
-    let anti_gravity_material = build_power_up(ItemType::AntiGravityPowerUp);
+    let low_gravity_material = build_power_up(ItemType::LowGravityPowerUp);
     let health_material = build_power_up(ItemType::HealthPotion);
 
     let cuboid_mesh = meshes.add(Cuboid::new(ITEM_SIZE, ITEM_SIZE, ITEM_SIZE));
@@ -124,14 +124,14 @@ pub fn setup_item_assets(
         // MultiShot + Phasing keep the original cube.
         multishot_mesh: cuboid_mesh.clone(),
         phasing_mesh: cuboid_mesh,
-        // AntiGravity: sphere — floats like an orb.
-        anti_gravity_mesh: meshes.add(Sphere::new(ITEM_SIZE * 0.5)),
+        // LowGravity: sphere — floats like an orb.
+        low_gravity_mesh: meshes.add(Sphere::new(ITEM_SIZE * 0.5)),
         // HealthPotion: vertical capsule — vial / potion silhouette.
         health_mesh: meshes.add(Capsule3d::new(ITEM_SIZE * 0.3, ITEM_SIZE)),
         speed_material,
         multishot_material,
         phasing_material,
-        anti_gravity_material,
+        low_gravity_material,
         health_material,
     });
 }
@@ -149,7 +149,7 @@ pub fn item_type_color(item_type: ItemType) -> Color {
         ItemType::SpeedPowerUp => ITEM_SPEED_COLOR,
         ItemType::MultiShotPowerUp => ITEM_MULTISHOT_COLOR,
         ItemType::PhasingPowerUp => ITEM_PHASING_COLOR,
-        ItemType::AntiGravityPowerUp => ITEM_ANTI_GRAVITY_COLOR,
+        ItemType::LowGravityPowerUp => ITEM_LOW_GRAVITY_COLOR,
         ItemType::HealthPotion => ITEM_HEALTH_COLOR,
         ItemType::Cookie => Color::WHITE,
         ItemType::Key(_) => unreachable!("keys look up colors via BarrierAssets / AssetSet, not item_type_color"),
@@ -172,7 +172,7 @@ pub fn spawn_item(
         ItemType::SpeedPowerUp
         | ItemType::MultiShotPowerUp
         | ItemType::PhasingPowerUp
-        | ItemType::AntiGravityPowerUp
+        | ItemType::LowGravityPowerUp
         | ItemType::HealthPotion => spawn_power_up(commands, item_assets, item_id, item_type, position, level),
     }
 }
@@ -280,7 +280,7 @@ fn power_up_base_orientation(item_type: ItemType) -> Quat {
         ItemType::SpeedPowerUp => Quat::from_rotation_arc(Vec3::new(1.0, 1.0, 1.0).normalize(), Vec3::Y),
         // 45° tilt around Z — capsule leans like a held potion.
         ItemType::HealthPotion => Quat::from_rotation_z(std::f32::consts::FRAC_PI_4),
-        ItemType::MultiShotPowerUp | ItemType::PhasingPowerUp | ItemType::AntiGravityPowerUp => Quat::IDENTITY,
+        ItemType::MultiShotPowerUp | ItemType::PhasingPowerUp | ItemType::LowGravityPowerUp => Quat::IDENTITY,
         ItemType::Cookie => unreachable!("cookies don't spawn via spawn_power_up"),
         ItemType::Key(_) => unreachable!("keys don't spawn via spawn_power_up"),
     }
