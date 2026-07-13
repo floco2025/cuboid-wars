@@ -41,6 +41,9 @@ pub struct ExplosionRadii {
 // Shared meshes plus material templates cloned for animated instances.
 // Shards never fade, so one shared material serves every explosion.
 const SCORCH_MESH_VARIANT_COUNT: usize = 12;
+// The irregular outer ring can contract to ~75%; stay further inside so a
+// wall mark only reaches the corner where the floor mark is still dark.
+const SCORCH_WALL_REACH_FACTOR: f32 = 0.6;
 
 #[derive(Resource)]
 pub struct ExplosionAssets {
@@ -378,9 +381,12 @@ pub fn spawn_explosion(
         );
     }
     if let Some(world) = collision_world {
-        let wall_scorch_diameter = scorch_diameter.min(WALL_HEIGHT);
+        let scorch_radius = scorch_diameter * 0.5;
+        let wall_probe_distance = scorch_radius * SCORCH_WALL_REACH_FACTOR;
         for direction in [Vec3::X, Vec3::NEG_X, Vec3::Z, Vec3::NEG_Z] {
-            if let Some(surface) = world.wall_surface_along_ray(center, direction, reach_radius) {
+            if let Some(surface) = world.wall_surface_along_ray(center, direction, wall_probe_distance)
+                && let Some(wall_scorch_diameter) = wall_scorch_diameter(scorch_radius, center.distance(surface.point))
+            {
                 spawn_scorch_mark(
                     commands,
                     materials,
@@ -437,6 +443,16 @@ pub fn spawn_explosion(
             range,
         },
     ));
+}
+
+fn wall_scorch_diameter(scorch_radius: f32, wall_distance: f32) -> Option<f32> {
+    if wall_distance > scorch_radius * SCORCH_WALL_REACH_FACTOR {
+        return None;
+    }
+    let cross_section_radius = scorch_radius
+        .mul_add(scorch_radius, -wall_distance * wall_distance)
+        .sqrt();
+    Some((2.0 * cross_section_radius).min(WALL_HEIGHT))
 }
 
 fn spawn_scorch_mark(
@@ -599,6 +615,13 @@ mod tests {
             0.5
         );
         assert_eq!(scorch_alpha(EXPLOSION_SCORCH_LIFETIME_SECS), 0.0);
+    }
+
+    #[test]
+    fn wall_scorch_requires_overlap_with_dark_floor_footprint() {
+        let scorch_radius = 2.0;
+        assert!(wall_scorch_diameter(scorch_radius, 1.21).is_none());
+        assert!(wall_scorch_diameter(scorch_radius, 1.20).is_some());
     }
 
     #[test]
