@@ -14,7 +14,7 @@ pub use projectiles::{
     HitDirection, ProjectileCharacterHit, ProjectileMarker, ProjectileMotion, ProjectileSpawnInfo, WorldBounces,
     calculate_projectile_spawns, projectile_character_hit, projectile_hits_character, projectile_overlaps_character,
 };
-pub use world::{CollisionWorld, GroundSurfaceHit};
+pub use world::{CollisionWorld, WorldSurfaceHit};
 
 use crate::protocol::BarrierKindId;
 

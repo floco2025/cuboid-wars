@@ -25,7 +25,7 @@ pub(crate) use super::shape_cast::ShapeCastHit;
 use super::shape_cast::upward_surface_hit;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct GroundSurfaceHit {
+pub struct WorldSurfaceHit {
     pub point: Vec3,
     pub normal: Vec3,
 }
@@ -217,26 +217,43 @@ impl CollisionWorld {
     }
 
     #[must_use]
-    pub fn ground_surface_below(&self, origin: Vec3, max_distance: f32) -> Option<GroundSurfaceHit> {
-        if !origin.is_finite() || !max_distance.is_finite() || max_distance <= 0.0 {
+    pub fn ground_surface_below(&self, origin: Vec3, max_distance: f32) -> Option<WorldSurfaceHit> {
+        let hit = self.surface_along_ray(origin, Vec3::NEG_Y, max_distance, ground_collision_groups())?;
+        (hit.normal.y > 0.1).then_some(hit)
+    }
+
+    #[must_use]
+    pub fn wall_surface_along_ray(&self, origin: Vec3, direction: Vec3, max_distance: f32) -> Option<WorldSurfaceHit> {
+        let hit = self.surface_along_ray(origin, direction, max_distance, WALL_COLLISION_GROUP)?;
+        (hit.normal.y.abs() < 0.1).then_some(hit)
+    }
+
+    fn surface_along_ray(
+        &self,
+        origin: Vec3,
+        direction: Vec3,
+        max_distance: f32,
+        groups: Group,
+    ) -> Option<WorldSurfaceHit> {
+        if !origin.is_finite() || !direction.is_finite() || !max_distance.is_finite() || max_distance <= 0.0 {
             return None;
         }
-
+        let direction = direction.try_normalize()?;
         let query_pipeline = self.broad_phase.as_query_pipeline(
             self.narrow_phase.query_dispatcher(),
             &self.bodies,
             &self.colliders,
-            query_filter(ground_collision_groups()),
+            query_filter(groups),
         );
-        let ray = Ray::new(Vector::new(origin.x, origin.y, origin.z), Vector::new(0.0, -1.0, 0.0));
+        let ray = Ray::new(
+            Vector::new(origin.x, origin.y, origin.z),
+            Vector::new(direction.x, direction.y, direction.z),
+        );
         let (_, hit) = query_pipeline.cast_ray_and_get_normal(&ray, max_distance, false)?;
         let normal = Vec3::new(hit.normal.x, hit.normal.y, hit.normal.z).try_normalize()?;
-        if normal.y <= 0.1 {
-            return None;
-        }
 
-        Some(GroundSurfaceHit {
-            point: origin + Vec3::NEG_Y * hit.time_of_impact,
+        Some(WorldSurfaceHit {
+            point: origin + direction * hit.time_of_impact,
             normal,
         })
     }

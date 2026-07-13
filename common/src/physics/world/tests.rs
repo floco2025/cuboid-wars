@@ -1,5 +1,5 @@
 use crate::constants::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS};
-use crate::protocol::{Floor, MapLayout, Ramp, Wall};
+use crate::protocol::{Barrier, BarrierKindId, Floor, MapLayout, Ramp, Wall};
 
 use super::{CollisionWorld, colliders::ColliderKind};
 
@@ -101,4 +101,29 @@ fn ground_surface_below_returns_none_over_void() {
             .ground_surface_below(bevy_math::Vec3::new(20.0, LEVEL_HEIGHT, 20.0), LEVEL_HEIGHT)
             .is_none()
     );
+}
+
+#[test]
+fn wall_surface_along_ray_ignores_barrier() {
+    let mut layout = test_map_layout();
+    layout.barriers.push(Barrier {
+        x1: 0.0,
+        z1: 1.0,
+        x2: 4.0,
+        z2: 1.0,
+        level: 1,
+        kind: BarrierKindId(0),
+    });
+    let world = CollisionWorld::from_map_layout(&layout, &crate::protocol::BarrierKindTable::default());
+
+    let hit = world
+        .wall_surface_along_ray(
+            bevy_math::Vec3::new(2.0, LEVEL_HEIGHT + 1.0, 2.0),
+            bevy_math::Vec3::NEG_Z,
+            3.0,
+        )
+        .expect("expected wall behind the barrier");
+
+    assert!((hit.point.z - WALL_THICKNESS / 2.0).abs() < 0.001, "hit was {hit:?}");
+    assert_eq!(hit.normal, bevy_math::Vec3::Z);
 }

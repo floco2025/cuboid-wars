@@ -9,7 +9,12 @@ use bevy::{
 };
 use rand::{RngExt, SeedableRng, rng, rngs::SmallRng};
 
-use common::{config::GameplayConfig, physics::CollisionWorld, protocol::Position};
+use common::{
+    config::GameplayConfig,
+    constants::WALL_HEIGHT,
+    physics::{CollisionWorld, WorldSurfaceHit},
+    protocol::Position,
+};
 
 use crate::constants::{
     EXPLOSION_FALLBACK_SCALE, EXPLOSION_FIREBALL_DIAMETER_FACTOR, EXPLOSION_FLASH_BRIGHTNESS,
@@ -358,25 +363,34 @@ pub fn spawn_explosion(
     }
 
     let mut rng = rng();
+    let scorch_diameter = 2.0 * reach_radius * EXPLOSION_SCORCH_DIAMETER_FACTOR;
     if let Some(surface) = collision_world.and_then(|world| {
         let standing_distance = (center.y - ground_y).max(0.0) + EXPLOSION_SCORCH_SURFACE_OFFSET;
         world.ground_surface_below(center, reach_radius.max(standing_distance))
     }) {
-        let material = materials.add(explosion_assets.scorch_template.clone());
-        let alignment = Quat::from_rotation_arc(Vec3::Y, surface.normal);
-        let random_rotation = Quat::from_axis_angle(surface.normal, rng.random_range(0.0..TAU));
-        let scorch_mesh = explosion_assets.scorch_meshes[rng.random_range(0..SCORCH_MESH_VARIANT_COUNT)].clone();
-        commands.spawn((
-            Mesh3d(scorch_mesh),
-            MeshMaterial3d(material.clone()),
-            NotShadowCaster,
-            Transform {
-                translation: surface.point + surface.normal * EXPLOSION_SCORCH_SURFACE_OFFSET,
-                rotation: random_rotation * alignment,
-                scale: Vec3::splat(2.0 * reach_radius * EXPLOSION_SCORCH_DIAMETER_FACTOR),
-            },
-            ScorchMark { elapsed: 0.0, material },
-        ));
+        spawn_scorch_mark(
+            commands,
+            materials,
+            explosion_assets,
+            surface,
+            scorch_diameter,
+            &mut rng,
+        );
+    }
+    if let Some(world) = collision_world {
+        let wall_scorch_diameter = scorch_diameter.min(WALL_HEIGHT);
+        for direction in [Vec3::X, Vec3::NEG_X, Vec3::Z, Vec3::NEG_Z] {
+            if let Some(surface) = world.wall_surface_along_ray(center, direction, reach_radius) {
+                spawn_scorch_mark(
+                    commands,
+                    materials,
+                    explosion_assets,
+                    surface,
+                    wall_scorch_diameter,
+                    &mut rng,
+                );
+            }
+        }
     }
 
     let shard_lifetime = EXPLOSION_LIFETIME_SECS * EXPLOSION_SHARD_LIFETIME_FACTOR;
@@ -422,6 +436,31 @@ pub fn spawn_explosion(
             intensity: EXPLOSION_LIGHT_INTENSITY,
             range,
         },
+    ));
+}
+
+fn spawn_scorch_mark(
+    commands: &mut Commands,
+    materials: &mut Assets<StandardMaterial>,
+    explosion_assets: &ExplosionAssets,
+    surface: WorldSurfaceHit,
+    diameter: f32,
+    rng: &mut impl rand::Rng,
+) {
+    let material = materials.add(explosion_assets.scorch_template.clone());
+    let alignment = Quat::from_rotation_arc(Vec3::Y, surface.normal);
+    let random_rotation = Quat::from_axis_angle(surface.normal, rng.random_range(0.0..TAU));
+    let scorch_mesh = explosion_assets.scorch_meshes[rng.random_range(0..explosion_assets.scorch_meshes.len())].clone();
+    commands.spawn((
+        Mesh3d(scorch_mesh),
+        MeshMaterial3d(material.clone()),
+        NotShadowCaster,
+        Transform {
+            translation: surface.point + surface.normal * EXPLOSION_SCORCH_SURFACE_OFFSET,
+            rotation: random_rotation * alignment,
+            scale: Vec3::splat(diameter),
+        },
+        ScorchMark { elapsed: 0.0, material },
     ));
 }
 
@@ -531,7 +570,7 @@ pub fn explosion_lights_system(
 mod tests {
     use super::*;
     use crate::constants::{EXPLOSION_SHARD_MAX_COUNT, EXPLOSION_SHARD_MIN_COUNT};
-    use common::protocol::{BarrierKindTable, Floor, MapLayout};
+    use common::protocol::{BarrierKindTable, Floor, MapLayout, Wall};
 
     #[test]
     fn shard_count_clamps_to_bounds() {
@@ -609,5 +648,64 @@ mod tests {
             transform.scale,
             Vec3::splat(2.0 * 2.0 * EXPLOSION_SCORCH_DIAMETER_FACTOR)
         );
+    }
+
+    #[test]
+    fn explosion_next_to_wall_spawns_wall_scorch_mark() {
+        let collision_world = CollisionWorld::from_map_layout(
+            &MapLayout {
+                walls: vec![Wall {
+                    x1: -10.0,
+                    z1: 1.0,
+                    x2: 10.0,
+                    z2: 1.0,
+                    width: 0.2,
+                    level: 0,
+                }],
+                floors: vec![Floor {
+                    x1: -10.0,
+                    z1: -10.0,
+                    x2: 10.0,
+                    z2: 10.0,
+                    y: 0.0,
+                    thickness: 1.0,
+                    level: 0,
+                }],
+                ..default()
+            },
+            &BarrierKindTable::default(),
+        );
+        let mut meshes = Assets::<Mesh>::default();
+        let mut materials = Assets::<StandardMaterial>::default();
+        let explosion_assets = ExplosionAssets::new(&mut meshes, &mut materials);
+        let mut world = World::new();
+        let mut queue = bevy::ecs::world::CommandQueue::default();
+
+        {
+            let mut commands = Commands::new(&mut queue, &world);
+            spawn_explosion(
+                &mut commands,
+                &mut materials,
+                &explosion_assets,
+                Vec3::new(0.0, 1.0, 0.0),
+                0.0,
+                6.0,
+                Some(6.0),
+                Some(&collision_world),
+            );
+        }
+        queue.apply(&mut world);
+
+        let mut marks = world.query::<(&ScorchMark, &Transform)>();
+        let marks: Vec<_> = marks.iter(&world).collect();
+        assert_eq!(marks.len(), 2);
+        let wall_transform = marks
+            .iter()
+            .find_map(|(_, transform)| {
+                let surface_normal = transform.rotation * Vec3::Y;
+                (surface_normal.dot(Vec3::NEG_Z) > 0.999).then_some(*transform)
+            })
+            .expect("expected wall-aligned scorch mark");
+        assert_eq!(wall_transform.scale, Vec3::splat(WALL_HEIGHT));
     }
 }
