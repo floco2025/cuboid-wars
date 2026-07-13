@@ -266,8 +266,8 @@ pub const EXPLOSION_RING_THICKNESS: f32 = 0.08;
 pub const EXPLOSION_RING_Y_OFFSET: f32 = 0.05; // avoids z-fighting with the floor
 pub const EXPLOSION_RING_RESOLUTION: u32 = 64; // default 32 looks faceted at sentry size
 
-// Scorch mark: an irregular translucent mesh aligned to the first floor or
-// ramp below the blast. Diameter is relative to the damage circle, like the
+// Scorch mark: an irregular translucent mesh projected onto nearby floor,
+// ramp, and wall surfaces. Radius is relative to the damage sphere, like the
 // fireball and ring factors above. It stays dark, then fades near end-of-life.
 pub const EXPLOSION_SCORCH_DIAMETER_FACTOR: f32 = 0.4;
 pub const EXPLOSION_SCORCH_SURFACE_OFFSET: f32 = 0.015;
@@ -275,17 +275,16 @@ pub const EXPLOSION_SCORCH_LIFETIME_SECS: f32 = 30.0;
 pub const EXPLOSION_SCORCH_FADE_SECS: f32 = 10.0;
 pub const EXPLOSION_SCORCH_RESOLUTION: usize = 128;
 
-// Debris shards: ballistic emissive cuboids (same idiom as bounce sparks,
-// tuned independently).
+// Debris shards: batched emissive cuboids with the original density and size.
 pub const EXPLOSION_SHARD_LIFETIME_FACTOR: f32 = 1.3;
 pub const EXPLOSION_SHARD_SIZE: f32 = 0.20;
 pub const EXPLOSION_SHARD_BRIGHTNESS: f32 = 2_500.0;
 // Count scales with the blast radius so bigger kinds visibly step up
-// (mine_1 r6 → 240, mine_2 r10 → 400, sentry r15 → 600); the floor keeps
-// small cosmetic bursts dense, the ceiling is runaway protection.
+// while a global budget keeps simultaneous chain reactions bounded.
 pub const EXPLOSION_SHARDS_PER_METER: f32 = 40.0;
 pub const EXPLOSION_SHARD_MIN_COUNT: usize = 200;
-pub const EXPLOSION_SHARD_MAX_COUNT: usize = 20_000;
+pub const EXPLOSION_SHARD_MAX_COUNT: usize = 600;
+pub const EXPLOSION_SHARD_GLOBAL_MAX_COUNT: usize = 1_200;
 // Base speed = radius / shard lifetime * this factor: shards pass the blast
 // radius around half-life, then gravity takes over.
 pub const EXPLOSION_SHARD_SPEED_FACTOR: f32 = 2.0;
@@ -295,6 +294,21 @@ pub const EXPLOSION_SHARD_UP_BIAS: f32 = 0.35;
 // bounce on air — their sub-second lifetime hides it).
 pub const EXPLOSION_SHARD_BOUNCE_DAMPING: f32 = 0.4;
 pub const EXPLOSION_SHARD_FRICTION: f32 = 0.7;
+
+// Smoke/dust: one batched cloud of soft camera-facing puffs per blast.
+pub const EXPLOSION_SMOKE_PARTICLES_PER_METER: f32 = 1.5;
+pub const EXPLOSION_SMOKE_MIN_COUNT: usize = 10;
+pub const EXPLOSION_SMOKE_MAX_COUNT: usize = 30;
+pub const EXPLOSION_SMOKE_GLOBAL_MAX_COUNT: usize = 160;
+pub const EXPLOSION_SMOKE_LIFETIME_SECS: f32 = 4.0;
+pub const EXPLOSION_SMOKE_START_SIZE: f32 = 0.42;
+pub const EXPLOSION_SMOKE_END_SIZE: f32 = 1.45;
+pub const EXPLOSION_SMOKE_MAX_ALPHA: f32 = 0.32;
+pub const EXPLOSION_SMOKE_FADE_IN_SECS: f32 = 0.5;
+pub const EXPLOSION_SMOKE_FADE_OUT_START_FRACTION: f32 = 0.58;
+
+pub const EXPLOSION_SCORCH_MAX_ACTIVE: usize = 128;
+pub const EXPLOSION_LIGHT_MAX_ACTIVE: usize = 4;
 
 // Volume boost for explosion sounds so close blasts stay appropriately
 // violent despite the spatial attenuation.

@@ -2,6 +2,7 @@ pub mod actors;
 pub mod characters;
 pub mod combat;
 pub mod config;
+pub mod explosions;
 pub mod items;
 pub mod map;
 pub mod net;

@@ -16,6 +16,7 @@ use server::{
     },
     characters::{characters_health_regeneration_system, characters_movement_system, knockback_decay_system},
     config::{ServerGameplayConfig, configure_server},
+    explosions::explosions_system,
     items::{
         item_collection_system, placed_item_respawn_system, placed_item_spawn_system, random_item_despawn_system,
         random_item_spawn_system,
@@ -24,8 +25,7 @@ use server::{
     net::accept_connections_task,
     network::{network_broadcast_snapshot_system, network_process_client_messages_system},
     players::{
-        players_explosion_system, players_fall_damage_system, players_fall_death_system, players_respawn_system,
-        players_status_timers_system,
+        players_fall_damage_system, players_fall_death_system, players_respawn_system, players_status_timers_system,
     },
     projectiles::projectiles_movement_system,
     resources::*,
@@ -142,7 +142,7 @@ async fn main() -> Result<()> {
         .insert_resource(ActorSpawnThrottles::default())
         .insert_resource(PendingActorSpawns::default())
         .insert_resource(FromClientsChannel::new(from_clients))
-        .insert_resource(PendingPlayerExplosions::default())
+        .insert_resource(PendingExplosions::default())
         .insert_resource(OpenBarrierKinds::default())
         .add_systems(Startup, (actor_initial_spawn_system, placed_item_spawn_system))
         .add_systems(
@@ -180,14 +180,14 @@ async fn main() -> Result<()> {
                 // Decay after movement so planning consumed this tick's step.
                 knockback_decay_system.after(characters_movement_system),
                 projectiles_movement_system,
-                // Actor removal handles health-zero explosions and fall cleanup.
+                // Actor removal finalizes health-zero actors and queues their blasts.
                 actor_removal_system
                     .after(characters_movement_system)
-                    .after(projectiles_movement_system)
-                    .before(characters_health_regeneration_system),
+                    .after(projectiles_movement_system),
                 characters_health_regeneration_system
                     .after(characters_movement_system)
-                    .after(projectiles_movement_system),
+                    .after(projectiles_movement_system)
+                    .after(explosions_system),
                 // Fall recovery must run after movement updates positions.
                 players_fall_death_system.after(characters_movement_system),
                 // Fall damage observes post-step vy, so must follow movement
@@ -199,11 +199,11 @@ async fn main() -> Result<()> {
                     .before(players_fall_death_system),
                 // Death explosions detonate after every kill source has run
                 // so a same-tick death chain resolves in one drain.
-                players_explosion_system
+                explosions_system
                     .after(projectiles_movement_system)
                     .after(actor_removal_system)
                     .after(players_fall_death_system),
-                actor_respawn_system,
+                actor_respawn_system.after(explosions_system),
                 players_respawn_system,
                 players_status_timers_system,
                 random_item_spawn_system,

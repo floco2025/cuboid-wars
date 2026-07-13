@@ -1,4 +1,4 @@
-use bevy::prelude::Entity;
+use bevy::prelude::{Entity, Vec3};
 use common::{
     config::CharacterPhysicsConfig,
     physics::{
@@ -48,6 +48,7 @@ pub(super) struct ActorMoveContext<'a> {
     pub(super) open_barrier_kinds: &'a [BarrierKindId],
     // Per-map gravity; actors never have low-gravity.
     pub(super) gravity: f32,
+    pub(super) knockback_step: Vec3,
 }
 
 impl ActorMoveContext<'_> {
@@ -61,8 +62,8 @@ impl ActorMoveContext<'_> {
 
     pub(super) fn step_actor_move(&self, move_intent: ActorMoveIntent) -> CharacterMovementResult {
         let velocity = move_intent.to_horizontal_velocity();
-        let target_x = velocity.x.mul_add(self.delta, self.pos.x);
-        let target_z = velocity.z.mul_add(self.delta, self.pos.z);
+        let target_x = velocity.x.mul_add(self.delta, self.pos.x) + self.knockback_step.x;
+        let target_z = velocity.z.mul_add(self.delta, self.pos.z) + self.knockback_step.z;
         step_character_movement(
             self.pos,
             self.vertical_velocity,

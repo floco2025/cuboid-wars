@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use bevy::prelude::*;
 use common::{
     config::CharacterPhysicsConfig,
-    physics::CharacterMovePlan,
+    physics::{CharacterMovePlan, CollisionWorld},
     protocol::{ActorMarker, Health, Position},
 };
 
@@ -14,6 +14,7 @@ pub(super) fn detonate_actors_touching_players(
     actors: &ActorMap,
     planned_moves: &[CharacterMovePlan],
     server_gameplay_config: &ServerGameplayConfig,
+    collision_world: &CollisionWorld,
 ) {
     // Actor entity → its contact-explosion distance, resolved once. Runs in the
     // 30 Hz movement tick over players + actors; without this the nested
@@ -41,7 +42,7 @@ pub(super) fn detonate_actors_touching_players(
                 let Some(&contact_explosion_distance) = actor_contact_distance.get(&other.entity) else {
                     return false;
                 };
-                character_move_plans_touch(planned_move, other, contact_explosion_distance)
+                character_move_plans_touch(planned_move, other, contact_explosion_distance, collision_world)
             })
             .map(|actor_move| actor_move.entity)
         {
@@ -52,12 +53,28 @@ pub(super) fn detonate_actors_touching_players(
     }
 }
 
-fn character_move_plans_touch(a: &CharacterMovePlan, b: &CharacterMovePlan, contact_explosion_distance: f32) -> bool {
+fn character_move_plans_touch(
+    a: &CharacterMovePlan,
+    b: &CharacterMovePlan,
+    contact_explosion_distance: f32,
+    collision_world: &CollisionWorld,
+) -> bool {
     // Character movement blocks before colliders overlap, so contact uses a
     // configurable surface tolerance instead of requiring actual intersection.
-    vertical_ranges_overlap(a.target, a.physics, b.target, b.physics)
-        && a.target.horizontal_distance_sq(&b.target)
-            <= contact_distance(a.physics, b.physics, contact_explosion_distance).powi(2)
+    if !vertical_ranges_overlap(a.target, a.physics, b.target, b.physics)
+        || a.target.horizontal_distance_sq(&b.target)
+            > contact_distance(a.physics, b.physics, contact_explosion_distance).powi(2)
+    {
+        return false;
+    }
+    collision_world.line_of_sight_clear(
+        character_center(a.target, a.physics),
+        character_center(b.target, b.physics),
+    )
+}
+
+fn character_center(pos: Position, physics: CharacterPhysicsConfig) -> Vec3 {
+    Vec3::new(pos.x, physics.collider_center_y(pos.y), pos.z)
 }
 
 fn contact_distance(a: CharacterPhysicsConfig, b: CharacterPhysicsConfig, contact_explosion_distance: f32) -> f32 {
@@ -79,4 +96,59 @@ fn vertical_ranges_overlap(
     let b_bottom = b_pos.y + b_physics.collider.bottom_y_offset();
     let b_top = b_pos.y + b_physics.collider.top_y_offset();
     a_bottom <= b_top && b_bottom <= a_top
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use common::{
+        config::GameplayConfig,
+        constants::WALL_THICKNESS,
+        protocol::{BarrierKindTable, MapLayout, Wall},
+    };
+
+    fn plans() -> (CharacterMovePlan, CharacterMovePlan, f32) {
+        let gameplay = GameplayConfig::load_default().expect("default gameplay config should load");
+        let server = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
+        let player_physics = gameplay.player.physics();
+        let actor_physics = gameplay.validated_actor("mine_1").physics();
+        let player_pos = Position {
+            x: -0.3,
+            y: 0.0,
+            z: 0.0,
+        };
+        let actor_pos = Position { x: 0.3, y: 0.0, z: 0.0 };
+        (
+            CharacterMovePlan::from_target(Entity::from_bits(1), player_pos, player_pos, 0.0, player_physics, false),
+            CharacterMovePlan::from_target(Entity::from_bits(2), actor_pos, actor_pos, 0.0, actor_physics, false),
+            server.validated_actor("mine_1").combat.contact_explosion_distance,
+        )
+    }
+
+    #[test]
+    fn nearby_player_triggers_contact_explosion_without_cover() {
+        let (player, actor, distance) = plans();
+        let world = CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default());
+
+        assert!(character_move_plans_touch(&player, &actor, distance, &world));
+    }
+
+    #[test]
+    fn wall_blocks_contact_explosion() {
+        let (player, actor, distance) = plans();
+        let layout = MapLayout {
+            walls: vec![Wall {
+                x1: 0.0,
+                z1: -2.0,
+                x2: 0.0,
+                z2: 2.0,
+                width: WALL_THICKNESS,
+                level: 0,
+            }],
+            ..default()
+        };
+        let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+
+        assert!(!character_move_plans_touch(&player, &actor, distance, &world));
+    }
 }

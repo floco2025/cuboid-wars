@@ -38,7 +38,8 @@
       "duration_secs": 0.3,
       "intensity": 0.2,
       "hit_vertical": 0.2,
-      "fall_vertical": 0.5
+      "fall_vertical": 0.5,
+      "blast_vertical": 0.35
     }
   },
   "input": {

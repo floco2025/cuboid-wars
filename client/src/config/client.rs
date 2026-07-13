@@ -164,6 +164,7 @@ pub struct CameraShakeConfig {
     pub intensity: f32,
     pub hit_vertical: f32,
     pub fall_vertical: f32,
+    pub blast_vertical: f32,
 }
 
 impl Default for CameraShakeConfig {
@@ -173,6 +174,7 @@ impl Default for CameraShakeConfig {
             intensity: 3.0,
             hit_vertical: 0.2,
             fall_vertical: 0.5,
+            blast_vertical: 0.35,
         }
     }
 }

@@ -7,7 +7,7 @@ use crate::{
     config::{AssetSet, ClientSettings},
     constants::{EXPLOSION_SOUND_VOLUME, SPATIAL_SOUND_SCALE},
     network::RoundTripTime,
-    vfx::{ExplosionAssets, ExplosionRadii, spawn_actor_explosion},
+    vfx::{ExplosionAssets, ExplosionRadii, ExplosionVfxBudget, explosion_sound_speed, spawn_actor_explosion},
 };
 use common::{
     config::GameplayConfig,
@@ -148,7 +148,9 @@ pub fn handle_actor_move_intent_message(
 #[expect(clippy::too_many_arguments, reason = "message handler threading dispatcher state")]
 pub fn handle_actor_death_message(
     commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
+    budget: &mut ExplosionVfxBudget,
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
     explosion_assets: &ExplosionAssets,
@@ -157,6 +159,7 @@ pub fn handle_actor_death_message(
     players: &mut crate::players::PlayerMap,
     gameplay_config: &GameplayConfig,
     collision_world: Option<&CollisionWorld>,
+    map_layout: Option<&common::protocol::MapLayout>,
     msg: SActorDeath,
 ) {
     // Early-apply the killer's post-bonus score so the HUD bumps on the kill
@@ -173,11 +176,14 @@ pub fn handle_actor_death_message(
     };
     spawn_actor_explosion(
         commands,
+        meshes,
         materials,
+        budget,
         explosion_assets,
         actor_explosion_radii,
         gameplay_config,
         collision_world,
+        map_layout,
         &info.kind,
         msg.pos,
     );
@@ -188,7 +194,14 @@ pub fn handle_actor_death_message(
         PlaybackSettings::DESPAWN
             .with_spatial(true)
             .with_spatial_scale(SpatialScale::new(SPATIAL_SOUND_SCALE))
-            .with_volume(Volume::Linear(EXPLOSION_SOUND_VOLUME)),
+            .with_volume(Volume::Linear(EXPLOSION_SOUND_VOLUME))
+            .with_speed(
+                actor_explosion_radii
+                    .actors
+                    .get(&info.kind)
+                    .copied()
+                    .map_or(1.0, explosion_sound_speed),
+            ),
         Transform::from_translation(Vec3::from(msg.pos)),
     ));
     commands.entity(info.entity).despawn();

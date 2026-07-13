@@ -15,7 +15,7 @@ pub(super) struct ActorPlanOrder {
 pub(super) fn sorted_actor_plan_order(query: &ActorMovementQuery, actors: &ActorMap) -> Vec<ActorPlanOrder> {
     let mut order: Vec<ActorPlanOrder> = query
         .iter()
-        .map(|(entity, id, pos, _, _, _)| ActorPlanOrder {
+        .map(|(entity, id, pos, _, _, _, _)| ActorPlanOrder {
             entity,
             target_distance_sq: actor_target_distance_sq(pos, actors.get(id)),
             id: *id,

@@ -1,7 +1,7 @@
 use bevy::{ecs::system::SystemParam, prelude::*};
 use common::{
     config::GameplayConfig,
-    protocol::{BarrierKindTable, Position},
+    protocol::{BarrierKindTable, MapLayout, Position},
 };
 
 use crate::{
@@ -13,7 +13,7 @@ use crate::{
     players::LocalPlayerInfo,
     projectiles::ProjectileAssets,
     ui::{GameMessageFeed, PendingBanner, QuestLog, SeenPlayerIds},
-    vfx::{ExplosionAssets, ExplosionRadii},
+    vfx::{ExplosionAssets, ExplosionRadii, ExplosionVfxBudget},
 };
 
 // ============================================================================
@@ -134,6 +134,8 @@ pub struct ClientAssets<'w> {
     pub projectile_assets: Res<'w, ProjectileAssets>,
     pub explosion_assets: Res<'w, ExplosionAssets>,
     pub explosion_radii: Res<'w, ExplosionRadii>,
+    pub explosion_vfx_budget: ResMut<'w, ExplosionVfxBudget>,
+    pub map_layout: Option<Res<'w, MapLayout>>,
     pub item_assets: Res<'w, ItemAssets>,
     pub barrier_assets: Res<'w, BarrierAssets>,
     pub gameplay_config: Res<'w, GameplayConfig>,

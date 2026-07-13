@@ -121,6 +121,7 @@ fn context<'a>(
         path_clear_lookahead_secs: 0.4,
         open_barrier_kinds: &[],
         gravity: 25.0,
+        knockback_step: bevy::prelude::Vec3::ZERO,
     }
 }
 

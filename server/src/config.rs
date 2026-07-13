@@ -598,9 +598,9 @@ impl ActorNavigationConfig {
     }
 }
 
-// One blast, one number: everything caught in the radius — player or actor
-// — takes `max_damage` at the center, lerped linearly to zero at the rim.
-#[derive(Debug, Clone, Deserialize)]
+// One blast, one number: everything caught in the radius uses the shared
+// full-strength core and quadratic falloff to zero at the rim.
+#[derive(Debug, Clone, Copy, Deserialize)]
 pub struct ExplosionDamageConfig {
     pub radius: f32,
     pub max_damage: f32,

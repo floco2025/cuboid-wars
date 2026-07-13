@@ -57,7 +57,7 @@ pub fn characters_movement_system(
     let mut planned_moves = Vec::new();
     let actor_starts: Vec<(Entity, Position, CharacterPhysicsConfig)> = actor_query
         .iter()
-        .filter_map(|(entity, id, pos, _, _, _)| {
+        .filter_map(|(entity, id, pos, _, _, _, _)| {
             let info = actors.get(id)?;
             Some((
                 entity,
@@ -91,7 +91,13 @@ pub fn characters_movement_system(
         &mut planned_moves,
     );
     apply_player_moves(&mut player_query, &planned_moves);
-    detonate_actors_touching_players(&mut actor_health, &actors, &planned_moves, &server_gameplay_config);
+    detonate_actors_touching_players(
+        &mut actor_health,
+        &actors,
+        &planned_moves,
+        &server_gameplay_config,
+        &collision_world,
+    );
     apply_actor_moves(&mut actor_query, &planned_moves);
 }
 

@@ -1,9 +1,9 @@
 use bevy::prelude::*;
 
 use super::characters::{generate_player_spawn_position, spawn_face_direction};
-use super::combat::{ActorDeathQuery, apply_player_explosion_damage, kill_player};
+use super::combat::kill_player;
 use super::network::broadcast_to_all;
-use crate::resources::{MapConfig, PendingPlayerExplosions, PlayerMap};
+use crate::resources::{MapConfig, PendingExplosions, PlayerMap};
 use common::{
     config::GameplayConfig,
     constants::{CHARACTER_FALL_DEATH_Y, CHARACTER_GROUND_SNAP_DISTANCE, PHYSICS_EPSILON, TICK_SECS},
@@ -11,8 +11,8 @@ use common::{
     map_geometry::MapGeometry,
     physics::{CharacterVerticalVelocity, CollisionWorld},
     protocol::{
-        ActorMarker, FaceDirection, Health, MapSettings, PlayerId, PlayerMarker, PlayerMoveIntent, Position,
-        SPlayerFallDamage, ServerMessage,
+        FaceDirection, Health, MapSettings, PlayerId, PlayerMarker, PlayerMoveIntent, Position, SPlayerFallDamage,
+        ServerMessage,
     },
 };
 
@@ -57,7 +57,7 @@ pub fn players_status_timers_system(time: Res<Time>, mut players: ResMut<PlayerM
 pub fn players_fall_death_system(
     mut commands: Commands,
     mut players: ResMut<PlayerMap>,
-    mut pending_explosions: ResMut<PendingPlayerExplosions>,
+    mut pending_explosions: ResMut<PendingExplosions>,
     gameplay_config: Res<GameplayConfig>,
     server_gameplay_config: Res<crate::config::ServerGameplayConfig>,
     map_config: Res<MapConfig>,
@@ -118,70 +118,6 @@ pub fn players_fall_death_system(
             None,
             &mut pending_explosions,
         );
-    }
-}
-
-// ============================================================================
-// Players Explosion System
-// ============================================================================
-
-// Drain the death-explosion queue: every entry is a player who died this
-// tick; their blast damages nearby players and actors. Blast victims die via
-// `kill_player`, which queues *their* explosion — the loop keeps draining,
-// so chain reactions resolve within a single tick.
-//
-// Mirrors actor-explosion attribution: blast kills award no kill credit, the
-// victim just takes the death penalty (an environmental death in the feed).
-pub fn players_explosion_system(
-    mut commands: Commands,
-    mut players: ResMut<PlayerMap>,
-    mut pending: ResMut<PendingPlayerExplosions>,
-    gameplay_config: Res<GameplayConfig>,
-    server_gameplay_config: Res<crate::config::ServerGameplayConfig>,
-    actors: Res<crate::resources::ActorMap>,
-    collision_world: Res<CollisionWorld>,
-    mut player_query: Query<
-        (
-            Entity,
-            &PlayerId,
-            &Position,
-            &mut Health,
-            &mut CharacterVerticalVelocity,
-        ),
-        (With<PlayerMarker>, Without<ActorMarker>),
-    >,
-    mut actor_query: ActorDeathQuery,
-) {
-    let respawn_delay_secs = gameplay_config.player.respawn_delay_secs;
-    while let Some((source_id, pos)) = pending.0.pop() {
-        let dead_players = apply_player_explosion_damage(
-            &mut commands,
-            pos,
-            &server_gameplay_config.player.explosion,
-            &gameplay_config,
-            &server_gameplay_config,
-            &collision_world,
-            &players,
-            &actors,
-            &mut player_query,
-            &mut actor_query,
-        );
-        for (victim_id, entity, victim_pos) in dead_players {
-            info!("{:?} died in {:?}'s death explosion", victim_id, source_id);
-            if let Some(victim) = players.get_mut(&victim_id) {
-                victim.score += server_gameplay_config.scoring.player_death;
-            }
-            kill_player(
-                &mut commands,
-                &mut players,
-                victim_id,
-                entity,
-                victim_pos,
-                respawn_delay_secs,
-                None,
-                &mut pending,
-            );
-        }
     }
 }
 
@@ -287,7 +223,7 @@ const PHANTOM_FALL_TRIPWIRE_SLACK: f32 = 5.0;
 pub fn players_fall_damage_system(
     mut commands: Commands,
     mut players: ResMut<PlayerMap>,
-    mut pending_explosions: ResMut<PendingPlayerExplosions>,
+    mut pending_explosions: ResMut<PendingExplosions>,
     gameplay_config: Res<GameplayConfig>,
     server_gameplay_config: Res<crate::config::ServerGameplayConfig>,
     map_settings: Res<MapSettings>,

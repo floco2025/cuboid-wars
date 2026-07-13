@@ -1,5 +1,7 @@
 use std::f32::consts::TAU;
 
+use bevy::prelude::Vec3;
+
 use crate::{
     config::ServerGameplayConfig,
     map::OpenBarrierKinds,
@@ -61,7 +63,8 @@ pub(crate) fn plan_actor_moves(
     let actor_order = sorted_actor_plan_order(query, actors);
 
     for actor_order in actor_order {
-        let Ok((entity, id, pos, motion, mut move_intent, mut face_dir)) = query.get_mut(actor_order.entity) else {
+        let Ok((entity, id, pos, motion, mut move_intent, mut face_dir, knockback)) = query.get_mut(actor_order.entity)
+        else {
             continue;
         };
         let Some(info) = actors.get_mut(id) else {
@@ -86,6 +89,7 @@ pub(crate) fn plan_actor_moves(
             path_clear_lookahead_secs: kind_server_config.navigation.path_clear_lookahead_secs,
             open_barrier_kinds: &open_barrier_kinds.0,
             gravity: map_settings.gravity,
+            knockback_step: knockback.map_or(Vec3::ZERO, |velocity| velocity.step(delta)),
         };
 
         // Hysteresis anchor: where the actor was already heading.

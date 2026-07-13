@@ -1,22 +1,14 @@
 use bevy::prelude::*;
 
 use crate::{
-    config::{ExplosionDamageConfig, ServerGameplayConfig},
+    config::ServerGameplayConfig,
     network::broadcast_to_all,
-    resources::{ActorMap, PendingPlayerExplosions, PlayerMap},
+    resources::{ActorMap, PendingExplosions, PlayerMap},
 };
 use common::{
-    config::{CharacterPhysicsConfig, GameplayConfig},
-    constants::{EXPLOSION_BLAST_CORE_FRACTION, EXPLOSION_KNOCKBACK_MAX_SPEED, EXPLOSION_KNOCKBACK_UP_SPEED},
     health::apply_damage,
-    physics::{CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity},
-    protocol::{
-        ActorId, ActorMarker, ActorMoveIntent, Health, PlayerId, PlayerMarker, Position, SPlayerDeath,
-        SPlayerKnockback, ServerMessage,
-    },
+    protocol::{ActorId, Health, PlayerId, Position, SActorDeath, SPlayerDeath, ServerMessage},
 };
-
-use crate::net::ServerToClient;
 
 // Run the death sequence for one player: clear per-life state, arm the
 // respawn timer, queue the death explosion, despawn the entity, and
@@ -35,16 +27,20 @@ pub fn kill_player(
     pos: Position,
     respawn_delay_secs: f32,
     killer: Option<PlayerId>,
-    pending_explosions: &mut PendingPlayerExplosions,
+    pending_explosions: &mut PendingExplosions,
 ) {
-    if let Some(info) = players.get_mut(&id) {
-        info.clear_per_life_state();
-        info.death_timer = Some(respawn_delay_secs);
+    let Some(info) = players.get_mut(&id) else {
+        return;
+    };
+    if info.is_dead() {
+        return;
     }
-    // Every death detonates — `players_explosion_system` drains the queue
+    info.clear_per_life_state();
+    info.death_timer = Some(respawn_delay_secs);
+    // Every death detonates — `explosions_system` drains the queue
     // this tick and applies the blast (void falls at CHARACTER_FALL_DEATH_Y
     // are too deep for the blast to reach the map).
-    pending_explosions.0.push((id, pos));
+    pending_explosions.push_player(id, pos);
     commands.entity(entity).despawn();
     // Snapshot the post-death scores so the cue carries the early-apply
     // values (HUD bumps on impact tick rather than next snapshot).
@@ -60,6 +56,36 @@ pub fn kill_player(
             killer_score,
         }),
     );
+}
+
+pub fn kill_actor(
+    commands: &mut Commands,
+    actors: &mut ActorMap,
+    players: &PlayerMap,
+    pending_explosions: &mut PendingExplosions,
+    id: ActorId,
+    entity: Entity,
+    pos: Position,
+    killer: Option<PlayerId>,
+) -> bool {
+    let Some(info) = actors.remove(&id) else {
+        return false;
+    };
+    let killer_score = killer
+        .and_then(|killer_id| players.get(&killer_id))
+        .map(|player| player.score);
+    broadcast_to_all(
+        players,
+        ServerMessage::ActorDeath(SActorDeath {
+            id,
+            pos,
+            killer,
+            killer_score,
+        }),
+    );
+    pending_explosions.push_actor(id, entity, info.spawn_kind, pos);
+    commands.entity(entity).despawn();
+    true
 }
 
 // Apply one projectile hit to a player. Returns `true` when this hit drops
@@ -132,261 +158,16 @@ pub fn apply_actor_projectile_hit(
     target_health.0 <= 0.0
 }
 
-pub type ActorDeathQuery<'w, 's> = Query<
-    'w,
-    's,
-    (
-        Entity,
-        &'static ActorId,
-        &'static mut Position,
-        &'static mut CharacterVerticalVelocity,
-        &'static ActorMoveIntent,
-        &'static mut Health,
-    ),
-    With<ActorMarker>,
->;
-
-// Applies blast damage to nearby players and actors. Returns the
-// `(PlayerId, Entity, Position)` of any player whose health dropped to zero on
-// this call so the caller can run the standard death/respawn flow. The
-// position is the victim's authoritative spot at death, forwarded into the
-// `SPlayerDeath` cue.
-//
-// Players already in the death state (`death_timer.is_some()`) are skipped
-// — their entity is queued for despawn this tick and we don't want a stray
-// explosion to "kill" them again.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "blast entry point threading both character query sets"
-)]
-pub fn apply_actor_explosion_damage(
-    commands: &mut Commands,
-    destroyed_pos: Position,
-    destroyed_entity: Entity,
-    destroyed_spawn_kind: &str,
-    damage_config: &ExplosionDamageConfig,
-    gameplay_config: &GameplayConfig,
-    server_gameplay_config: &ServerGameplayConfig,
-    collision_world: &CollisionWorld,
-    players: &PlayerMap,
-    actors: &ActorMap,
-    player_query: &mut Query<
-        (
-            Entity,
-            &PlayerId,
-            &Position,
-            &mut Health,
-            &mut CharacterVerticalVelocity,
-        ),
-        (With<PlayerMarker>, Without<ActorMarker>),
-    >,
-    actor_query: &mut ActorDeathQuery,
-) -> Vec<(PlayerId, Entity, Position)> {
-    let actor_physics = gameplay_config.validated_actor(destroyed_spawn_kind).physics();
-    apply_explosion_damage(
-        commands,
-        character_center(destroyed_pos, actor_physics),
-        Some(destroyed_entity),
-        actor_physics,
-        damage_config,
-        gameplay_config,
-        server_gameplay_config,
-        collision_world,
-        players,
-        actors,
-        player_query,
-        actor_query,
-    )
-}
-
-// Blast from a dying player. The exploding player themselves is skipped by
-// the `is_dead` guard — `kill_player` armed their death timer before this
-// runs.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "blast entry point threading both character query sets"
-)]
-pub fn apply_player_explosion_damage(
-    commands: &mut Commands,
-    dead_player_pos: Position,
-    damage_config: &ExplosionDamageConfig,
-    gameplay_config: &GameplayConfig,
-    server_gameplay_config: &ServerGameplayConfig,
-    collision_world: &CollisionWorld,
-    players: &PlayerMap,
-    actors: &ActorMap,
-    player_query: &mut Query<
-        (
-            Entity,
-            &PlayerId,
-            &Position,
-            &mut Health,
-            &mut CharacterVerticalVelocity,
-        ),
-        (With<PlayerMarker>, Without<ActorMarker>),
-    >,
-    actor_query: &mut ActorDeathQuery,
-) -> Vec<(PlayerId, Entity, Position)> {
-    apply_explosion_damage(
-        commands,
-        character_center(dead_player_pos, gameplay_config.player.physics()),
-        None,
-        gameplay_config.player.physics(),
-        damage_config,
-        gameplay_config,
-        server_gameplay_config,
-        collision_world,
-        players,
-        actors,
-        player_query,
-        actor_query,
-    )
-}
-
-#[expect(
-    clippy::too_many_arguments,
-    reason = "shared blast core threading both character query sets"
-)]
-fn apply_explosion_damage(
-    commands: &mut Commands,
-    explosion_center: Vec3,
-    excluded_actor: Option<Entity>,
-    // Approximates every actor victim's collider center — per-victim kinds
-    // aren't in the query. Sourced from the exploding character.
-    actor_victim_physics: CharacterPhysicsConfig,
-    damage_config: &ExplosionDamageConfig,
-    gameplay_config: &GameplayConfig,
-    server_gameplay_config: &ServerGameplayConfig,
-    collision_world: &CollisionWorld,
-    players: &PlayerMap,
-    actors: &ActorMap,
-    player_query: &mut Query<
-        (
-            Entity,
-            &PlayerId,
-            &Position,
-            &mut Health,
-            &mut CharacterVerticalVelocity,
-        ),
-        (With<PlayerMarker>, Without<ActorMarker>),
-    >,
-    actor_query: &mut ActorDeathQuery,
-) -> Vec<(PlayerId, Entity, Position)> {
-    let mut newly_dead = Vec::new();
-
-    for (entity, id, pos, mut health, mut vertical_velocity) in player_query.iter_mut() {
-        if players.get(id).is_some_and(|info| info.is_dead()) {
-            continue;
-        }
-        let victim_center = character_center(*pos, gameplay_config.player.physics());
-        // Solid cover blocks the blast entirely. Same LOS rule as actor
-        // vision: walls/floors/ramps block, barriers don't.
-        if !collision_world.line_of_sight_clear(explosion_center, victim_center) {
-            continue;
-        }
-        let falloff = blast_falloff(explosion_center, victim_center, damage_config.radius);
-        if falloff <= 0.0 {
-            continue;
-        }
-        // Debug invincibility skips the damage but keeps the launch —
-        // knockback isn't damage, and `--invincible` is the natural way to
-        // playtest getting tossed around.
-        if !server_gameplay_config.player.invincible {
-            let damage = damage_config.max_damage * falloff * (1.0 - server_gameplay_config.player.armor);
-            apply_damage(&mut health, damage);
-            if health.0 <= 0.0 {
-                newly_dead.push((*id, entity, *pos));
-                continue;
-            }
-        }
-        // Survivors get launched; the dead skip it — their entity despawns
-        // this tick. Armor protects health, not momentum: the shove only
-        // falls off with distance.
-        vertical_velocity.0 += EXPLOSION_KNOCKBACK_UP_SPEED * falloff;
-        let planar = Vec3::new(
-            victim_center.x - explosion_center.x,
-            0.0,
-            victim_center.z - explosion_center.z,
-        )
-        .normalize_or_zero();
-        let shove = planar * EXPLOSION_KNOCKBACK_MAX_SPEED * falloff;
-        commands.entity(entity).insert(KnockbackVelocity(shove));
-        // Unicast so the victim's own prediction applies the same launch
-        // instead of fighting the reconciliation. Remote observers see it
-        // through snapshots as usual.
-        if let Some(info) = players.get(id) {
-            let _ = info
-                .channel
-                .send(ServerToClient::Send(ServerMessage::PlayerKnockback(SPlayerKnockback {
-                    id: *id,
-                    vertical_velocity: vertical_velocity.0,
-                    velocity_x: shove.x,
-                    velocity_z: shove.z,
-                })));
-        }
-    }
-
-    for (entity, id, pos, _, _, mut health) in actor_query.iter_mut() {
-        if Some(entity) == excluded_actor {
-            continue;
-        }
-
-        let victim_center = character_center(*pos, actor_victim_physics);
-        if !collision_world.line_of_sight_clear(explosion_center, victim_center) {
-            continue;
-        }
-        // A victim missing from `ActorMap` is already mid-teardown (removed
-        // this tick, entity despawn deferred); treat as unarmored — the
-        // extra damage lands on a corpse.
-        let armor = actors.get(id).map_or(0.0, |info| {
-            server_gameplay_config.validated_actor(&info.spawn_kind).combat.armor
-        });
-        let damage = blast_damage(
-            explosion_center,
-            victim_center,
-            damage_config.radius,
-            damage_config.max_damage,
-        ) * (1.0 - armor);
-        apply_damage(&mut health, damage);
-    }
-
-    newly_dead
-}
-
-fn blast_damage(center: Vec3, target: Vec3, radius: f32, max_damage: f32) -> f32 {
-    max_damage * blast_falloff(center, target, radius)
-}
-
-// 1.0 through the inner core, quadratic decay to 0.0 at the rim, 0.0
-// outside (see `EXPLOSION_BLAST_CORE_FRACTION`).
-fn blast_falloff(center: Vec3, target: Vec3, radius: f32) -> f32 {
-    let distance = center.distance(target);
-    if distance > radius {
-        return 0.0;
-    }
-    let core = radius * EXPLOSION_BLAST_CORE_FRACTION;
-    if distance <= core {
-        return 1.0;
-    }
-
-    let t = (distance - core) / (radius - core);
-    (1.0 - t) * (1.0 - t)
-}
-
-fn character_center(pos: Position, physics: CharacterPhysicsConfig) -> Vec3 {
-    Vec3::new(pos.x, physics.collider_center_y(pos.y), pos.z)
-}
-
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
 
     use super::*;
     use crate::config::{
-        FallDamageConfig, MapServerConfig, PlacedItemRespawnSecs, PlacedItemsConfig, PlayerServerConfig,
-        PowerUpsConfig, ProjectileConfig, ScoringConfig,
+        ExplosionDamageConfig, FallDamageConfig, MapServerConfig, PlacedItemRespawnSecs, PlacedItemsConfig,
+        PlayerServerConfig, PowerUpsConfig, ProjectileConfig, ScoringConfig,
     };
-    use crate::resources::PlayerInfo;
+    use crate::resources::{PendingExplosions, PlayerInfo};
     use tokio::sync::mpsc::unbounded_channel;
 
     fn server_gameplay_config() -> ServerGameplayConfig {
@@ -456,19 +237,6 @@ mod tests {
         map.insert(shooter, make_player_info());
         map.insert(target, make_player_info());
         map
-    }
-
-    #[test]
-    fn blast_damage_is_full_in_core_and_decays_quadratically() {
-        let center = Vec3::ZERO;
-        // Full damage anywhere inside the core (25% of a 10 m radius).
-        assert_eq!(blast_damage(center, Vec3::ZERO, 10.0, 100.0), 100.0);
-        assert_eq!(blast_damage(center, Vec3::new(2.5, 0.0, 0.0), 10.0, 100.0), 100.0);
-        // Halfway through the falloff band: (1 - 0.5)^2 = 0.25.
-        assert_eq!(blast_damage(center, Vec3::new(6.25, 0.0, 0.0), 10.0, 100.0), 25.0);
-        // Zero at the rim and beyond.
-        assert_eq!(blast_damage(center, Vec3::new(10.0, 0.0, 0.0), 10.0, 100.0), 0.0);
-        assert_eq!(blast_damage(center, Vec3::new(11.0, 0.0, 0.0), 10.0, 100.0), 0.0);
     }
 
     #[test]
@@ -584,7 +352,7 @@ mod tests {
 
         let world = app.world_mut();
         let mut commands_queue = bevy::ecs::world::CommandQueue::default();
-        let mut pending_explosions = PendingPlayerExplosions::default();
+        let mut pending_explosions = PendingExplosions::default();
         {
             let mut commands = bevy::ecs::system::Commands::new(&mut commands_queue, world);
             kill_player(
@@ -623,7 +391,7 @@ mod tests {
 
         let world = app.world_mut();
         let mut commands_queue = bevy::ecs::world::CommandQueue::default();
-        let mut pending_explosions = PendingPlayerExplosions::default();
+        let mut pending_explosions = PendingExplosions::default();
         {
             let mut commands = bevy::ecs::system::Commands::new(&mut commands_queue, world);
             kill_player(

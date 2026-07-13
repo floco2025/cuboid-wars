@@ -6,7 +6,7 @@ use crate::{
     map::OpenBarrierKinds,
     net::ServerToClient,
     network::broadcast_to_all,
-    resources::{ActorMap, PendingPlayerExplosions, PlayerMap, QuestEvent, record_quest_event},
+    resources::{ActorMap, PendingExplosions, PlayerMap, QuestEvent, record_quest_event},
 };
 use common::{
     config::GameplayConfig,
@@ -119,7 +119,7 @@ pub struct ProjectileMovementParams<'w, 's> {
     open_barrier_kinds: Res<'w, OpenBarrierKinds>,
     actors: ResMut<'w, ActorMap>,
     players: ResMut<'w, PlayerMap>,
-    pending_explosions: ResMut<'w, PendingPlayerExplosions>,
+    pending_explosions: ResMut<'w, PendingExplosions>,
 }
 
 pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut params: ProjectileMovementParams) {

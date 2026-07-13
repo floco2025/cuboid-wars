@@ -8,7 +8,7 @@ use crate::{
     players::{CameraShake, CuboidShake, LocalPlayerInfo, PlayerMap},
     projectiles::{ProjectileAssets, spawn_projectiles},
     ui::{GameMessage, GameMessageFeed, PendingBanner, QuestEntry, QuestLog},
-    vfx::{ExplosionAssets, ExplosionRadii, spawn_player_explosion},
+    vfx::{ExplosionAssets, ExplosionRadii, ExplosionVfxBudget, spawn_player_explosion},
 };
 use common::{
     config::GameplayConfig,
@@ -181,7 +181,9 @@ pub fn handle_player_hit_message(
 #[expect(clippy::too_many_arguments, reason = "message handler threading dispatcher state")]
 pub fn handle_player_death_message(
     commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
+    budget: &mut ExplosionVfxBudget,
     explosion_assets: &ExplosionAssets,
     explosion_radii: &ExplosionRadii,
     players: &mut PlayerMap,
@@ -191,6 +193,7 @@ pub fn handle_player_death_message(
     pending_banner: &mut PendingBanner,
     gameplay_config: &GameplayConfig,
     collision_world: Option<&CollisionWorld>,
+    map_layout: Option<&MapLayout>,
     my_player_id: PlayerId,
     msg: SPlayerDeath,
 ) {
@@ -235,11 +238,14 @@ pub fn handle_player_death_message(
     // than an orange screen wash.
     spawn_player_explosion(
         commands,
+        meshes,
         materials,
+        budget,
         explosion_assets,
         explosion_radii,
         gameplay_config,
         collision_world,
+        map_layout,
         msg.pos,
     );
 
@@ -272,11 +278,13 @@ pub fn handle_player_death_message(
 // impulse authoritatively; prediction must integrate it too or the next
 // reconciliation drags the launch back. Remote players need nothing — their
 // motion arrives via snapshots.
-pub fn handle_player_knockback_message(
+pub fn handle_player_blast_message(
     commands: &mut Commands,
     players: &PlayerMap,
+    camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
+    client_settings: &ClientSettings,
     my_player_id: PlayerId,
-    msg: SPlayerKnockback,
+    msg: SPlayerBlast,
 ) {
     // Unicast to the victim, but stay defensive about routing.
     if msg.id != my_player_id {
@@ -286,9 +294,23 @@ pub fn handle_player_knockback_message(
         return;
     };
     commands.entity(info.entity).insert((
+        msg.health,
         CharacterVerticalVelocity(msg.vertical_velocity),
         KnockbackVelocity(Vec3::new(msg.velocity_x, 0.0, msg.velocity_z)),
     ));
+    let shake = client_settings.camera.shake;
+    if let Ok(camera_entity) = camera_query.single() {
+        commands.entity(camera_entity).insert(CameraShake {
+            timer: Timer::from_seconds(shake.duration_secs, TimerMode::Once),
+            intensity: shake.intensity * msg.strength,
+            dir_x: msg.direction_x,
+            dir_y: shake.blast_vertical * msg.strength,
+            dir_z: msg.direction_z,
+            offset_x: 0.0,
+            offset_y: 0.0,
+            offset_z: 0.0,
+        });
+    }
 }
 
 // Handle player status update (power-ups, stun).
@@ -537,6 +559,7 @@ mod tests {
         let mut mesh_assets = Assets::<Mesh>::default();
         let mut material_assets = Assets::<StandardMaterial>::default();
         let explosion_assets = ExplosionAssets::new(&mut mesh_assets, &mut material_assets);
+        let mut explosion_budget = ExplosionVfxBudget::default();
         let explosion_radii = ExplosionRadii::default();
         let mut commands_queue = bevy::ecs::world::CommandQueue::default();
 
@@ -544,7 +567,9 @@ mod tests {
             let mut commands = bevy::ecs::system::Commands::new(&mut commands_queue, world);
             handle_player_death_message(
                 &mut commands,
+                &mut mesh_assets,
                 &mut material_assets,
+                &mut explosion_budget,
                 &explosion_assets,
                 &explosion_radii,
                 &mut players,
@@ -553,6 +578,7 @@ mod tests {
                 &client_settings,
                 &mut pending_banner,
                 &gameplay_config,
+                None,
                 None,
                 my_id,
                 SPlayerDeath {

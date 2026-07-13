@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use common::{
-    physics::CharacterVerticalVelocity,
+    physics::{CharacterVerticalVelocity, KnockbackVelocity},
     protocol::{ActorId, ActorMarker, ActorMoveIntent, FaceDirection, PlayerMarker, Position},
 };
 
@@ -14,6 +14,7 @@ pub(crate) type ActorMovementQuery<'w, 's> = Query<
         &'static mut CharacterVerticalVelocity,
         &'static mut ActorMoveIntent,
         &'static mut FaceDirection,
+        Option<&'static KnockbackVelocity>,
     ),
     (With<ActorMarker>, Without<PlayerMarker>),
 >;
