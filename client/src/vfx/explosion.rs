@@ -67,13 +67,13 @@ impl ExplosionAssets {
         Self {
             // Unit-diameter meshes: `Transform::scale` equals the layer's
             // world diameter in meters.
-            fireball_mesh: meshes.add(Sphere::new(0.5)),
-            ring_mesh: meshes.add(
+            fireball_mesh: meshes.add(with_white_vertex_colors(Mesh::from(Sphere::new(0.5)))),
+            ring_mesh: meshes.add(with_white_vertex_colors(
                 Annulus::new(0.5 - EXPLOSION_RING_THICKNESS, 0.5)
                     .mesh()
                     .resolution(EXPLOSION_RING_RESOLUTION)
                     .build(),
-            ),
+            )),
             scorch_meshes: (0..SCORCH_MESH_VARIANT_COUNT)
                 .map(|variant| meshes.add(scorch_mesh(variant as u64)))
                 .collect(),
@@ -191,6 +191,17 @@ fn scorch_mesh(seed: u64) -> Mesh {
     mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
     mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, colors);
     mesh.insert_indices(Indices::U32(indices));
+    mesh
+}
+
+// Uniform white vertex colors: flips the mesh onto the vertex-color
+// pipeline permutation. In this app the plain-mesh Blend permutation
+// renders translucent materials wrong (invisible or unlit-white); the
+// vertex-color path — which the scorch meshes use — renders correctly.
+// White multiplies to identity, so visuals are otherwise unchanged.
+fn with_white_vertex_colors(mut mesh: Mesh) -> Mesh {
+    let count = mesh.count_vertices();
+    mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, vec![[1.0, 1.0, 1.0, 1.0]; count]);
     mesh
 }
 
