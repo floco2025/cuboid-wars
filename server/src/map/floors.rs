@@ -3,11 +3,9 @@ use std::collections::HashSet;
 use super::{
     mask::Mask,
     material_rules::MaterialRules,
-    segments::{grid_x, grid_z},
+    segments::{MERGE_EPS, grid_x, grid_z},
 };
 use common::{constants::*, face_materials::FaceMaterials, map::MapGeometry, protocol::Floor};
-
-const MERGE_EPS: f32 = 0.01;
 
 // One floor cell's 8 neighbours within the level's slab mask.
 struct Neighbors {

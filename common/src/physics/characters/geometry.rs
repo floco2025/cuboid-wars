@@ -1,3 +1,4 @@
+use bevy_math::Vec3;
 use rapier3d::{
     parry::{
         query::{ShapeCastOptions, cast_shapes, intersection_test},
@@ -18,6 +19,11 @@ pub fn character_shape(physics: CharacterPhysicsConfig) -> Cuboid {
         physics.collision_height() / 2.0,
         physics.collider.depth / 2.0,
     ))
+}
+
+#[must_use]
+pub fn character_center(pos: Position, physics: CharacterPhysicsConfig) -> Vec3 {
+    Vec3::new(pos.x, physics.collider_center_y(pos.y), pos.z)
 }
 
 pub(super) fn character_support_probe_shape(physics: CharacterPhysicsConfig) -> Cuboid {

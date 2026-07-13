@@ -2,10 +2,10 @@ use std::collections::HashMap;
 
 use bevy::{ecs::system::SystemParam, prelude::*};
 use common::{
-    config::{CharacterPhysicsConfig, GameplayConfig},
+    config::GameplayConfig,
     constants::{EXPLOSION_BLAST_CORE_FRACTION, EXPLOSION_KNOCKBACK_MAX_SPEED, EXPLOSION_KNOCKBACK_UP_SPEED},
     health::apply_damage,
-    physics::{CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity},
+    physics::{CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, character_center},
     protocol::{ActorId, ActorMarker, Health, PlayerId, PlayerMarker, Position, SPlayerBlast, ServerMessage},
 };
 
@@ -360,10 +360,6 @@ fn blast_falloff_at_distance(distance: f32, radius: f32) -> f32 {
     }
     let progress = (distance - core) / (radius - core);
     (1.0 - progress).powi(2)
-}
-
-fn character_center(pos: Position, physics: CharacterPhysicsConfig) -> Vec3 {
-    Vec3::new(pos.x, physics.collider_center_y(pos.y), pos.z)
 }
 
 fn source_description(source: BlastSource) -> String {

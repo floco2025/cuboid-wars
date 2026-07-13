@@ -1,12 +1,13 @@
 use super::{
     compile_map,
     schema::{
-        ActorSpawnZoneDef, BarrierDef, FloorDef, ItemDef, LevelDef, MapDef, PlayerSpawnZoneDef, PressurePlateDef,
-        RampDef, WallDef,
+        ActorSpawnZoneDef, BarrierDef, CellDef, FloorDef, ItemDef, LevelDef, MapDef, PlayerSpawnZoneDef,
+        PressurePlateDef, RampDef, WallDef,
     },
     validation::validate_map,
 };
 use crate::map::material_rules::MaterialRules;
+use common::face_materials::FaceMaterials;
 use common::{
     constants::{GRID_CELL_SIZE, LEVEL_HEIGHT},
     protocol::BarrierKindTable,
@@ -25,7 +26,15 @@ fn three_kind_table() -> BarrierKindTable {
 }
 
 fn floor_def(col: i32, row: i32) -> FloorDef {
-    FloorDef { col, row }
+    FloorDef {
+        col,
+        row,
+        materials: FaceMaterials::uniform("test"),
+    }
+}
+
+fn cell_def(col: i32, row: i32) -> CellDef {
+    CellDef { col, row }
 }
 
 fn level(floors: Vec<[i32; 2]>) -> LevelDef {
@@ -63,7 +72,12 @@ fn player_zone(level: u32, col: i32, row: i32) -> PlayerSpawnZoneDef {
 }
 
 fn ramp(low: [i32; 2], high: [i32; 2], lower_level: u32) -> RampDef {
-    RampDef { low, high, lower_level }
+    RampDef {
+        low,
+        high,
+        lower_level,
+        materials: FaceMaterials::uniform("test"),
+    }
 }
 
 fn map_with_zones(
@@ -88,8 +102,9 @@ fn map_with_zones(
 fn assets() -> MaterialRules {
     let config =
         crate::config::ServerGameplayConfig::load_default().expect("default server gameplay config should load");
-    MaterialRules::load_from_map_path(&crate::map::generation::map_path(&config.default_map))
-        .expect("default map's asset rules should load")
+    let map_def =
+        super::load_map(&crate::map::generation::map_path(&config.default_map)).expect("default map should load");
+    MaterialRules::from_def(&map_def)
 }
 
 #[test]
@@ -302,6 +317,7 @@ fn validation_rejects_barrier_overlapping_wall() {
         r0: 0,
         c1: 1,
         r1: 0,
+        materials: FaceMaterials::uniform("test"),
     });
     map_def.levels[0].barriers.push(BarrierDef {
         c0: 1,
@@ -449,8 +465,8 @@ fn compile_drops_grass_without_floor() {
         vec![player_zone(0, 0, 0)],
         Vec::new(),
     );
-    map_def.levels[0].grass.push(floor_def(0, 0));
-    map_def.levels[0].grass.push(floor_def(2, 2));
+    map_def.levels[0].grass.push(cell_def(0, 0));
+    map_def.levels[0].grass.push(cell_def(2, 2));
     let (layout, _, _) = compile_map(&map_def, &assets(), &empty_kind_table()).expect("compile");
     assert_eq!(layout.grass.len(), 1);
     assert_eq!(layout.grass[0].level, 0);
@@ -465,7 +481,7 @@ fn grass_compiles_to_cell_center_and_floor_top() {
         vec![player_zone(0, 0, 0)],
         Vec::new(),
     );
-    map_def.levels[1].grass.push(floor_def(1, 2));
+    map_def.levels[1].grass.push(cell_def(1, 2));
     let (layout, _, geometry) = compile_map(&map_def, &assets(), &empty_kind_table()).expect("compile");
     assert_eq!(layout.grass.len(), 1);
     let cell = layout.grass[0];
@@ -486,7 +502,7 @@ fn grass_allowed_on_inaccessible_floor() {
         vec![player_zone(0, 0, 0)],
         Vec::new(),
     );
-    map_def.levels[0].grass.push(floor_def(1, 0));
+    map_def.levels[0].grass.push(cell_def(1, 0));
     validate_map(&map_def).expect("grass on an inaccessible floor should load");
     let (layout, _, _) = compile_map(&map_def, &assets(), &empty_kind_table()).expect("compile");
     assert_eq!(layout.grass.len(), 1);
@@ -501,7 +517,7 @@ fn validation_rejects_grass_out_of_bounds() {
         vec![player_zone(0, 0, 0)],
         Vec::new(),
     );
-    map_def.levels[0].grass.push(floor_def(4, 0));
+    map_def.levels[0].grass.push(cell_def(4, 0));
     let err = validate_map(&map_def).expect_err("out-of-bounds grass must be rejected");
     assert!(err.to_string().contains("grass"));
 }

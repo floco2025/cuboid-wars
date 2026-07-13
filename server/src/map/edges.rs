@@ -1,7 +1,7 @@
 use crate::map::EdgeGrid;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub(super) enum CellSide {
+pub(crate) enum CellSide {
     North,
     South,
     West,
@@ -9,7 +9,7 @@ pub(super) enum CellSide {
 }
 
 #[must_use]
-pub(super) fn has_edge_on_cell_side(edges: &EdgeGrid, row: i32, col: i32, side: CellSide) -> bool {
+pub(crate) fn has_edge_on_cell_side(edges: &EdgeGrid, row: i32, col: i32, side: CellSide) -> bool {
     match side {
         CellSide::North => has_horizontal_edge(edges, row, col),
         CellSide::South => has_horizontal_edge(edges, row + 1, col),

@@ -6,13 +6,10 @@
 use super::{
     edges::{has_horizontal_edge, has_vertical_edge},
     material_rules::MaterialRules,
-    segments::{horizontal_wall_segment, vertical_wall_segment},
+    segments::{MERGE_EPS, horizontal_wall_segment, vertical_wall_segment},
 };
 use crate::map::EdgeGrid;
 use common::{constants::*, face_materials::FaceMaterials, map::MapGeometry, protocol::Wall};
-
-// Epsilon for merging adjacent walls.
-const MERGE_EPS: f32 = 0.01;
 
 // Generate individual wall segments (no merging) with gap-filling extensions,
 // tagging each wall with `level`.

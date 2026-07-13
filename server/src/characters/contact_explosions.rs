@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use bevy::prelude::*;
 use common::{
     config::CharacterPhysicsConfig,
-    physics::{CharacterMovePlan, CollisionWorld},
+    physics::{CharacterMovePlan, CollisionWorld, character_center},
     protocol::{ActorMarker, Health, Position},
 };
 
@@ -71,10 +71,6 @@ fn character_move_plans_touch(
         character_center(a.target, a.physics),
         character_center(b.target, b.physics),
     )
-}
-
-fn character_center(pos: Position, physics: CharacterPhysicsConfig) -> Vec3 {
-    Vec3::new(pos.x, physics.collider_center_y(pos.y), pos.z)
 }
 
 fn contact_distance(a: CharacterPhysicsConfig, b: CharacterPhysicsConfig, contact_explosion_distance: f32) -> f32 {

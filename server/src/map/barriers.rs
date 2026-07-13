@@ -3,9 +3,8 @@
 // `BarrierDef` → world-space `Barrier` conversion lives in `definition::compile`
 // — by the time we get here every barrier is already a world-space segment.
 
+use super::segments::MERGE_EPS;
 use common::protocol::Barrier;
-
-const MERGE_EPS: f32 = 0.01;
 
 // Merge collinear adjacent barriers. Two barriers merge when they share:
 //   - level, axis (horizontal/vertical), kind, and perpendicular coordinate;

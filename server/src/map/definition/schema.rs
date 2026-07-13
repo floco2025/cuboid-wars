@@ -1,10 +1,6 @@
 use serde::Deserialize;
 
-// Serde silently ignores unknown JSON fields by default, so the per-segment
-// material strings (`top`/`bottom`/.../`all`) on each floor / wall / ramp
-// record are dropped here without being listed. They're parsed separately by
-// `crate::map::material_rules` and threaded through compile to populate
-// `MapLayout`'s parallel `*_materials` vectors.
+use common::face_materials::FaceMaterials;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct MapFile {
@@ -38,7 +34,7 @@ pub(crate) struct LevelDef {
     #[serde(default)]
     pub(crate) inaccessible_floors: Vec<FloorDef>,
     #[serde(default)]
-    pub(crate) grass: Vec<FloorDef>,
+    pub(crate) grass: Vec<CellDef>,
     #[serde(default)]
     pub(crate) walls: Vec<WallDef>,
     #[serde(default)]
@@ -68,12 +64,17 @@ pub(crate) enum WallSide {
     West,
 }
 
-// Per-face materials live on each segment in JSON but are loaded by the
-// `material_rules` pipeline, not the server-side mesh generator. Serde's
-// default behavior silently ignores the extra material keys, so we don't
-// declare them here.
 #[derive(Debug, Deserialize)]
 pub(crate) struct FloorDef {
+    pub(crate) col: i32,
+    pub(crate) row: i32,
+    #[serde(flatten)]
+    pub(crate) materials: FaceMaterials,
+}
+
+// A bare grid cell — grass entries carry no materials.
+#[derive(Debug, Deserialize)]
+pub(crate) struct CellDef {
     pub(crate) col: i32,
     pub(crate) row: i32,
 }
@@ -84,6 +85,8 @@ pub(crate) struct WallDef {
     pub(crate) r0: i32,
     pub(crate) c1: i32,
     pub(crate) r1: i32,
+    #[serde(flatten)]
+    pub(crate) materials: FaceMaterials,
 }
 
 #[derive(Debug, Deserialize)]
@@ -101,6 +104,8 @@ pub(crate) struct RampDef {
     pub(crate) low: [i32; 2],
     pub(crate) high: [i32; 2],
     pub(crate) lower_level: u32,
+    #[serde(flatten)]
+    pub(crate) materials: FaceMaterials,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]

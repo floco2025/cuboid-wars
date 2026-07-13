@@ -14,6 +14,8 @@ mod segments;
 mod trim;
 mod walls;
 
+pub(crate) use edges::{CellSide, has_edge_on_cell_side};
+
 pub use common::physics::OpenBarrierKinds;
 pub use generation::generate_map;
 pub use grid::grid_coords_from_position;

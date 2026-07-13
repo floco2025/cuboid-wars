@@ -16,8 +16,7 @@ pub fn generate_map(kind_table: &BarrierKindTable, map_name: &str) -> (MapLayout
     let path = map_path(map_name);
     let map_def =
         definition::load_map(&path).unwrap_or_else(|err| panic!("failed to load map at {}: {err:?}", path.display()));
-    let assets = MaterialRules::load_from_map_path(&path)
-        .unwrap_or_else(|err| panic!("failed to load asset material rules from {}: {err:?}", path.display()));
+    let assets = MaterialRules::from_def(&map_def);
     definition::compile_map(&map_def, &assets, kind_table)
         .unwrap_or_else(|err| panic!("failed to compile map: {err:?}"))
 }

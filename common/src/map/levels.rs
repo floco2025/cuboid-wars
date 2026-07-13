@@ -1,6 +1,6 @@
 use crate::{
     constants::{LEVEL_CLASSIFICATION_TOLERANCE, LEVEL_HEIGHT, PHYSICS_EPSILON},
-    protocol::{Floor, Ramp},
+    protocol::Ramp,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -37,15 +37,6 @@ pub fn ramp_surface_at(ramp: &Ramp, x: f32, z: f32) -> f32 {
     ramp.y1 + progress * (ramp.y2 - ramp.y1)
 }
 
-// Check if a position (x, z) is currently on any ramp.
-#[must_use]
-pub fn is_on_ramp(ramps: &[Ramp], x: f32, z: f32) -> bool {
-    ramps.iter().any(|ramp| {
-        let (min_x, max_x, min_z, max_z) = ramp.bounds_xz();
-        x >= min_x && x <= max_x && z >= min_z && z <= max_z
-    })
-}
-
 // Determine which level a player is on from their Y position. The level
 // surface for level k is at `k * LEVEL_HEIGHT`; a player counts as "on level k"
 // from `k*LEVEL_HEIGHT - LEVEL_CLASSIFICATION_TOLERANCE` up to just below the next
@@ -62,45 +53,6 @@ pub fn compute_player_level(y: f32) -> u8 {
     } else {
         raw.min(f32::from(u8::MAX)) as u8
     }
-}
-
-// Find the highest supporting surface (ramp or floor) within `±LEVEL_CLASSIFICATION_TOLERANCE`
-// of the player's feet at (x, z). Returns `None` when the player is in the air with
-// no surface within landing range.
-//
-// Iterates *all* ramps containing (x, z) — when ramps stack at the same XZ
-// (e.g. the basement→lobby ramp and the rooms-low→rooms-high ramp share a
-// stairshaft column), only the one whose surface is in landing range
-// counts.
-#[must_use]
-pub fn find_support_floor(floors: &[Floor], ramps: &[Ramp], x: f32, z: f32, y: f32) -> Option<f32> {
-    let lo = y - LEVEL_CLASSIFICATION_TOLERANCE;
-    let hi = y + LEVEL_CLASSIFICATION_TOLERANCE;
-    let mut best: Option<f32> = None;
-
-    for ramp in ramps {
-        let (min_x, max_x, min_z, max_z) = ramp.bounds_xz();
-        if x < min_x || x > max_x || z < min_z || z > max_z {
-            continue;
-        }
-        let h = ramp_surface_at(ramp, x, z);
-        if h >= lo && h <= hi {
-            best = Some(best.map_or(h, |b| b.max(h)));
-        }
-    }
-
-    for floor in floors {
-        if floor.y < lo || floor.y > hi {
-            continue;
-        }
-        let (min_x, max_x, min_z, max_z) = floor.bounds_xz();
-        if x < min_x || x > max_x || z < min_z || z > max_z {
-            continue;
-        }
-        best = Some(best.map_or(floor.y, |b| b.max(floor.y)));
-    }
-
-    best
 }
 
 #[cfg(test)]
