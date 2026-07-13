@@ -64,3 +64,41 @@ fn ramp_converts_to_collider() {
 
     assert!(world.solid_kinds().contains(&ColliderKind::Ramp));
 }
+
+#[test]
+fn ground_surface_below_hits_floor_instead_of_wall_top() {
+    let world = CollisionWorld::from_map_layout(&test_map_layout(), &crate::protocol::BarrierKindTable::default());
+
+    let hit = world
+        .ground_surface_below(
+            bevy_math::Vec3::new(2.0, LEVEL_HEIGHT + WALL_HEIGHT + 1.0, 0.0),
+            WALL_HEIGHT + 2.0,
+        )
+        .expect("expected floor below the wall");
+
+    assert!((hit.point.y - LEVEL_HEIGHT).abs() < 0.001, "hit was {hit:?}");
+    assert_eq!(hit.normal, bevy_math::Vec3::Y);
+}
+
+#[test]
+fn ground_surface_below_returns_ramp_normal() {
+    let world = CollisionWorld::from_map_layout(&test_map_layout(), &crate::protocol::BarrierKindTable::default());
+
+    let hit = world
+        .ground_surface_below(bevy_math::Vec3::new(2.0, LEVEL_HEIGHT + 2.0, 6.0), LEVEL_HEIGHT + 2.0)
+        .expect("expected ramp below the ray");
+
+    assert!(hit.normal.y > 0.1, "hit was {hit:?}");
+    assert_ne!(hit.normal, bevy_math::Vec3::Y);
+}
+
+#[test]
+fn ground_surface_below_returns_none_over_void() {
+    let world = CollisionWorld::from_map_layout(&test_map_layout(), &crate::protocol::BarrierKindTable::default());
+
+    assert!(
+        world
+            .ground_surface_below(bevy_math::Vec3::new(20.0, LEVEL_HEIGHT, 20.0), LEVEL_HEIGHT)
+            .is_none()
+    );
+}

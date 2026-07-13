@@ -28,6 +28,10 @@ pub(super) fn world_collision_groups() -> Group {
     WALL_COLLISION_GROUP | FLOOR_COLLISION_GROUP | RAMP_COLLISION_GROUP
 }
 
+pub(super) fn ground_collision_groups() -> Group {
+    FLOOR_COLLISION_GROUP | RAMP_COLLISION_GROUP
+}
+
 // Filter for character (player + actor) movement. Starts from world groups
 // plus every configured barrier kind, then removes:
 //   * `WALL_COLLISION_GROUP` if the player is phasing — phasing is a wall

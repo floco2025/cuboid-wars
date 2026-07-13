@@ -8,6 +8,6 @@ pub use beam::{
 };
 pub use explosion::{
     ExplosionAssets, ExplosionRadii, explosion_lights_system, explosion_pulse_system, explosion_shards_system,
-    spawn_actor_explosion, spawn_player_explosion,
+    scorch_marks_system, spawn_actor_explosion, spawn_player_explosion,
 };
 pub use spark::{SparkAssets, spark_particles_system, spawn_bounce_sparks};

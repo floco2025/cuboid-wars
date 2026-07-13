@@ -7,7 +7,7 @@ use rapier3d::{
         shape::{Ball, Cuboid},
     },
     prelude::{
-        BroadPhaseBvh, ColliderSet, Group, IntegrationParameters, NarrowPhase, Pose, RigidBodySet, Shape, Vector,
+        BroadPhaseBvh, ColliderSet, Group, IntegrationParameters, NarrowPhase, Pose, Ray, RigidBodySet, Shape, Vector,
     },
 };
 
@@ -15,14 +15,20 @@ use crate::protocol::{BarrierKindId, BarrierKindTable, MapLayout};
 
 use super::colliders::{
     FLOOR_COLLISION_GROUP, WALL_COLLISION_GROUP, barrier_collision_group, character_collision_groups,
-    insert_barrier_collider, insert_floor_collider, insert_ramp_collider, insert_wall_collider, query_filter,
-    world_collision_groups,
+    ground_collision_groups, insert_barrier_collider, insert_floor_collider, insert_ramp_collider,
+    insert_wall_collider, query_filter, world_collision_groups,
 };
 
 #[cfg(test)]
 use super::colliders::ColliderKind;
 pub(crate) use super::shape_cast::ShapeCastHit;
 use super::shape_cast::upward_surface_hit;
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GroundSurfaceHit {
+    pub point: Vec3,
+    pub normal: Vec3,
+}
 
 #[derive(Resource)]
 pub struct CollisionWorld {
@@ -208,6 +214,31 @@ impl CollisionWorld {
         const SIGHT_RADIUS: f32 = 0.08;
         let translation = to - from;
         self.cast_moving_ball(from, translation, SIGHT_RADIUS).is_none()
+    }
+
+    #[must_use]
+    pub fn ground_surface_below(&self, origin: Vec3, max_distance: f32) -> Option<GroundSurfaceHit> {
+        if !origin.is_finite() || !max_distance.is_finite() || max_distance <= 0.0 {
+            return None;
+        }
+
+        let query_pipeline = self.broad_phase.as_query_pipeline(
+            self.narrow_phase.query_dispatcher(),
+            &self.bodies,
+            &self.colliders,
+            query_filter(ground_collision_groups()),
+        );
+        let ray = Ray::new(Vector::new(origin.x, origin.y, origin.z), Vector::new(0.0, -1.0, 0.0));
+        let (_, hit) = query_pipeline.cast_ray_and_get_normal(&ray, max_distance, false)?;
+        let normal = Vec3::new(hit.normal.x, hit.normal.y, hit.normal.z).try_normalize()?;
+        if normal.y <= 0.1 {
+            return None;
+        }
+
+        Some(GroundSurfaceHit {
+            point: origin + Vec3::NEG_Y * hit.time_of_impact,
+            normal,
+        })
     }
 
     #[must_use]

@@ -11,7 +11,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    physics::CharacterVerticalVelocity,
+    physics::{CharacterVerticalVelocity, CollisionWorld},
     protocol::{
         Actor, ActorId, ActorMarker, ActorMoveIntent, ActorMovementState, FaceDirection, Position, SActorDeath,
         SActorHit, SActorMoveIntent, SpawningActor,
@@ -156,6 +156,7 @@ pub fn handle_actor_death_message(
     actors: &mut ResMut<ActorMap>,
     players: &mut crate::players::PlayerMap,
     gameplay_config: &GameplayConfig,
+    collision_world: Option<&CollisionWorld>,
     msg: SActorDeath,
 ) {
     // Early-apply the killer's post-bonus score so the HUD bumps on the kill
@@ -176,6 +177,7 @@ pub fn handle_actor_death_message(
         explosion_assets,
         actor_explosion_radii,
         gameplay_config,
+        collision_world,
         &info.kind,
         msg.pos,
     );

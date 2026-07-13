@@ -190,6 +190,7 @@ pub fn handle_player_death_message(
     client_settings: &ClientSettings,
     pending_banner: &mut PendingBanner,
     gameplay_config: &GameplayConfig,
+    collision_world: Option<&CollisionWorld>,
     my_player_id: PlayerId,
     msg: SPlayerDeath,
 ) {
@@ -238,6 +239,7 @@ pub fn handle_player_death_message(
         explosion_assets,
         explosion_radii,
         gameplay_config,
+        collision_world,
         msg.pos,
     );
 
@@ -551,6 +553,7 @@ mod tests {
                 &client_settings,
                 &mut pending_banner,
                 &gameplay_config,
+                None,
                 my_id,
                 SPlayerDeath {
                     id: my_id,

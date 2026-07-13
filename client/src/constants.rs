@@ -262,6 +262,15 @@ pub const EXPLOSION_RING_THICKNESS: f32 = 0.08;
 pub const EXPLOSION_RING_Y_OFFSET: f32 = 0.05; // avoids z-fighting with the floor
 pub const EXPLOSION_RING_RESOLUTION: u32 = 64; // default 32 looks faceted at sentry size
 
+// Scorch mark: an irregular translucent mesh aligned to the first floor or
+// ramp below the blast. Diameter is relative to the damage circle, like the
+// fireball and ring factors above. It stays dark, then fades near end-of-life.
+pub const EXPLOSION_SCORCH_DIAMETER_FACTOR: f32 = 0.4;
+pub const EXPLOSION_SCORCH_SURFACE_OFFSET: f32 = 0.015;
+pub const EXPLOSION_SCORCH_LIFETIME_SECS: f32 = 30.0;
+pub const EXPLOSION_SCORCH_FADE_SECS: f32 = 10.0;
+pub const EXPLOSION_SCORCH_RESOLUTION: usize = 128;
+
 // Debris shards: ballistic emissive cuboids (same idiom as bounce sparks,
 // tuned independently).
 pub const EXPLOSION_SHARD_LIFETIME_FACTOR: f32 = 1.3;

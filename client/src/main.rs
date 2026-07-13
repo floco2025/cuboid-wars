@@ -62,7 +62,7 @@ use client::{
     vfx::{
         BeamAssets, ExplosionAssets, ExplosionRadii, SparkAssets, beam_ghost_fade_system, beam_ghost_sparkle_system,
         beam_sparkles_system, explosion_lights_system, explosion_pulse_system, explosion_shards_system,
-        spark_particles_system,
+        scorch_marks_system, spark_particles_system,
     },
 };
 use common::{config::GameplayConfig, constants::TICK_HZ, net::MessageStream, protocol::*};
@@ -300,6 +300,7 @@ fn main() -> Result<()> {
                 explosion_pulse_system,
                 explosion_shards_system,
                 explosion_lights_system,
+                scorch_marks_system,
                 spark_particles_system,
                 beam_ghost_fade_system,
                 beam_ghost_sparkle_system,

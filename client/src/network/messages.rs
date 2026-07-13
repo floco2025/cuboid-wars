@@ -76,6 +76,7 @@ pub fn dispatch_message(
                 actors,
                 players,
                 &client_assets.gameplay_config,
+                collision_world,
                 death_msg,
             );
         }
@@ -107,6 +108,7 @@ pub fn dispatch_message(
                 &client_assets.client_settings,
                 &mut client_assets.pending_banner,
                 &client_assets.gameplay_config,
+                collision_world,
                 my_player_id,
                 death_msg,
             );

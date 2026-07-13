@@ -1,19 +1,27 @@
-use std::{collections::HashMap, f32::consts::FRAC_PI_2};
+use std::{
+    collections::HashMap,
+    f32::consts::{FRAC_PI_2, TAU},
+};
 
-use bevy::{light::NotShadowCaster, prelude::*};
-use rand::{RngExt, rng};
+use bevy::{
+    asset::RenderAssetUsages, light::NotShadowCaster, mesh::Indices, prelude::*,
+    render::render_resource::PrimitiveTopology,
+};
+use rand::{RngExt, SeedableRng, rng, rngs::SmallRng};
 
-use common::{config::GameplayConfig, protocol::Position};
+use common::{config::GameplayConfig, physics::CollisionWorld, protocol::Position};
 
 use crate::constants::{
     EXPLOSION_FALLBACK_SCALE, EXPLOSION_FIREBALL_DIAMETER_FACTOR, EXPLOSION_FLASH_BRIGHTNESS,
     EXPLOSION_FLASH_LIFETIME_FACTOR, EXPLOSION_FLASH_START_ALPHA, EXPLOSION_LIFETIME_SECS, EXPLOSION_LIGHT_COLOR,
     EXPLOSION_LIGHT_INTENSITY, EXPLOSION_LIGHT_MIN_RANGE, EXPLOSION_LIGHT_RANGE_PER_RADIUS, EXPLOSION_RING_BRIGHTNESS,
     EXPLOSION_RING_DIAMETER_FACTOR, EXPLOSION_RING_LIFETIME_FACTOR, EXPLOSION_RING_RESOLUTION,
-    EXPLOSION_RING_START_ALPHA, EXPLOSION_RING_THICKNESS, EXPLOSION_RING_Y_OFFSET, EXPLOSION_SHARD_BOUNCE_DAMPING,
-    EXPLOSION_SHARD_BRIGHTNESS, EXPLOSION_SHARD_FRICTION, EXPLOSION_SHARD_GRAVITY, EXPLOSION_SHARD_LIFETIME_FACTOR,
-    EXPLOSION_SHARD_MAX_COUNT, EXPLOSION_SHARD_MIN_COUNT, EXPLOSION_SHARD_SIZE, EXPLOSION_SHARD_SPEED_FACTOR,
-    EXPLOSION_SHARD_UP_BIAS, EXPLOSION_SHARDS_PER_METER,
+    EXPLOSION_RING_START_ALPHA, EXPLOSION_RING_THICKNESS, EXPLOSION_RING_Y_OFFSET, EXPLOSION_SCORCH_DIAMETER_FACTOR,
+    EXPLOSION_SCORCH_FADE_SECS, EXPLOSION_SCORCH_LIFETIME_SECS, EXPLOSION_SCORCH_RESOLUTION,
+    EXPLOSION_SCORCH_SURFACE_OFFSET, EXPLOSION_SHARD_BOUNCE_DAMPING, EXPLOSION_SHARD_BRIGHTNESS,
+    EXPLOSION_SHARD_FRICTION, EXPLOSION_SHARD_GRAVITY, EXPLOSION_SHARD_LIFETIME_FACTOR, EXPLOSION_SHARD_MAX_COUNT,
+    EXPLOSION_SHARD_MIN_COUNT, EXPLOSION_SHARD_SIZE, EXPLOSION_SHARD_SPEED_FACTOR, EXPLOSION_SHARD_UP_BIAS,
+    EXPLOSION_SHARDS_PER_METER,
 };
 
 // Blast radii from `SInit` (per actor kind + the player death blast). Starts
@@ -25,17 +33,20 @@ pub struct ExplosionRadii {
     pub player: f32,
 }
 
-// Shared meshes plus the two material templates that get cloned per
-// explosion (their alpha is animated, so instances can't share a handle).
-// Shards never fade — one shared material serves every explosion.
+// Shared meshes plus material templates cloned for animated instances.
+// Shards never fade, so one shared material serves every explosion.
+const SCORCH_MESH_VARIANT_COUNT: usize = 12;
+
 #[derive(Resource)]
 pub struct ExplosionAssets {
     fireball_mesh: Handle<Mesh>,
     ring_mesh: Handle<Mesh>,
+    scorch_meshes: Vec<Handle<Mesh>>,
     shard_mesh: Handle<Mesh>,
     shard_material: Handle<StandardMaterial>,
     fireball_template: StandardMaterial,
     ring_template: StandardMaterial,
+    scorch_template: StandardMaterial,
 }
 
 impl ExplosionAssets {
@@ -55,6 +66,9 @@ impl ExplosionAssets {
                     .resolution(EXPLOSION_RING_RESOLUTION)
                     .build(),
             ),
+            scorch_meshes: (0..SCORCH_MESH_VARIANT_COUNT)
+                .map(|variant| meshes.add(scorch_mesh(variant as u64)))
+                .collect(),
             shard_mesh: meshes.add(Cuboid::new(
                 EXPLOSION_SHARD_SIZE,
                 EXPLOSION_SHARD_SIZE,
@@ -79,8 +93,112 @@ impl ExplosionAssets {
                 cull_mode: None,
                 ..default()
             },
+            scorch_template: StandardMaterial {
+                base_color: Color::WHITE,
+                alpha_mode: AlphaMode::Blend,
+                cull_mode: None,
+                unlit: true,
+                depth_bias: 1.0,
+                ..default()
+            },
         }
     }
+}
+
+fn scorch_mesh(seed: u64) -> Mesh {
+    const RING_RADII: [f32; 3] = [0.22, 0.39, 0.5];
+    const RING_ALPHA: [f32; 3] = [0.84, 0.60, 0.0];
+    const OUTLINE_CONTROL_POINTS: usize = 24;
+    const DETAIL_CONTROL_POINTS: usize = 17;
+
+    let mut rng = SmallRng::seed_from_u64(seed.wrapping_add(0x5C0C_4A11));
+    let outline: Vec<f32> = (0..OUTLINE_CONTROL_POINTS)
+        .map(|_| rng.random_range(0.80..1.20))
+        .collect();
+    let ring_detail: Vec<Vec<f32>> = (0..RING_RADII.len())
+        .map(|_| {
+            (0..DETAIL_CONTROL_POINTS)
+                .map(|_| rng.random_range(-0.04..0.04))
+                .collect()
+        })
+        .collect();
+    let alpha_detail: Vec<Vec<f32>> = (0..RING_RADII.len() - 1)
+        .map(|_| {
+            (0..DETAIL_CONTROL_POINTS)
+                .map(|_| rng.random_range(-0.10..0.10))
+                .collect()
+        })
+        .collect();
+
+    let mut positions = Vec::with_capacity(1 + RING_RADII.len() * EXPLOSION_SCORCH_RESOLUTION);
+    let mut normals = Vec::with_capacity(positions.capacity());
+    let mut colors = Vec::with_capacity(positions.capacity());
+    let mut indices = Vec::with_capacity(EXPLOSION_SCORCH_RESOLUTION * (3 + 6 * (RING_RADII.len() - 1)));
+
+    positions.push([0.0, 0.0, 0.0]);
+    normals.push([0.0, 1.0, 0.0]);
+    colors.push(scorch_color(0.88, 0.0));
+
+    for (ring_index, (&radius, &base_alpha)) in RING_RADII.iter().zip(&RING_ALPHA).enumerate() {
+        for segment in 0..EXPLOSION_SCORCH_RESOLUTION {
+            let progress = segment as f32 / EXPLOSION_SCORCH_RESOLUTION as f32;
+            let angle = progress * TAU;
+            let ring_radius = radius
+                * (smooth_cyclic_sample(&outline, progress) + smooth_cyclic_sample(&ring_detail[ring_index], progress));
+            let alpha_noise = if ring_index + 1 == RING_RADII.len() {
+                0.0
+            } else {
+                smooth_cyclic_sample(&alpha_detail[ring_index], progress)
+            };
+            positions.push([ring_radius * angle.cos(), 0.0, ring_radius * angle.sin()]);
+            normals.push([0.0, 1.0, 0.0]);
+            colors.push(scorch_color(
+                (base_alpha + alpha_noise).clamp(0.0, 1.0),
+                ring_index as f32,
+            ));
+        }
+    }
+
+    for segment in 0..EXPLOSION_SCORCH_RESOLUTION {
+        let current = 1 + segment as u32;
+        let next = 1 + ((segment + 1) % EXPLOSION_SCORCH_RESOLUTION) as u32;
+        indices.extend([0, next, current]);
+    }
+
+    for ring_index in 0..RING_RADII.len() - 1 {
+        let inner_start = 1 + ring_index * EXPLOSION_SCORCH_RESOLUTION;
+        let outer_start = inner_start + EXPLOSION_SCORCH_RESOLUTION;
+        for segment in 0..EXPLOSION_SCORCH_RESOLUTION {
+            let next = (segment + 1) % EXPLOSION_SCORCH_RESOLUTION;
+            let inner = (inner_start + segment) as u32;
+            let inner_next = (inner_start + next) as u32;
+            let outer = (outer_start + segment) as u32;
+            let outer_next = (outer_start + next) as u32;
+            indices.extend([inner, outer_next, outer, inner, inner_next, outer_next]);
+        }
+    }
+
+    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default());
+    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, colors);
+    mesh.insert_indices(Indices::U32(indices));
+    mesh
+}
+
+fn smooth_cyclic_sample(samples: &[f32], progress: f32) -> f32 {
+    let sample_position = progress * samples.len() as f32;
+    let current = sample_position.floor() as usize % samples.len();
+    let next = (current + 1) % samples.len();
+    let fraction = sample_position.fract();
+    let smooth_fraction = fraction * fraction * (3.0 - 2.0 * fraction);
+    samples[current] + (samples[next] - samples[current]) * smooth_fraction
+}
+
+fn scorch_color(alpha: f32, ring: f32) -> [f32; 4] {
+    Color::srgba(0.035 + ring * 0.004, 0.022 + ring * 0.002, 0.012, alpha)
+        .to_linear()
+        .to_f32_array()
 }
 
 impl FromWorld for ExplosionAssets {
@@ -122,12 +240,19 @@ pub struct ExplosionLight {
     range: f32,
 }
 
+#[derive(Component)]
+pub struct ScorchMark {
+    elapsed: f32,
+    material: Handle<StandardMaterial>,
+}
+
 pub fn spawn_actor_explosion(
     commands: &mut Commands,
     materials: &mut Assets<StandardMaterial>,
     explosion_assets: &ExplosionAssets,
     radii: &ExplosionRadii,
     gameplay_config: &GameplayConfig,
+    collision_world: Option<&CollisionWorld>,
     actor_kind: &str,
     pos: Position,
 ) {
@@ -147,6 +272,7 @@ pub fn spawn_actor_explosion(
         pos.y,
         fireball_diameter,
         blast_radius,
+        collision_world,
     );
 }
 
@@ -156,6 +282,7 @@ pub fn spawn_player_explosion(
     explosion_assets: &ExplosionAssets,
     radii: &ExplosionRadii,
     gameplay_config: &GameplayConfig,
+    collision_world: Option<&CollisionWorld>,
     pos: Position,
 ) {
     let player_physics = gameplay_config.player.physics();
@@ -167,12 +294,13 @@ pub fn spawn_player_explosion(
         pos.y,
         2.0 * radii.player * EXPLOSION_FIREBALL_DIAMETER_FACTOR,
         Some(radii.player),
+        collision_world,
     );
 }
 
-// Four layers: fireball flash, ground shockwave ring, debris shard burst,
-// and a fading point light. `center` is the blast origin (collider center);
-// `ground_y` anchors the ring at the victim's feet.
+// Five layers: fireball flash, ground shockwave ring, scorch mark, debris
+// shard burst, and a fading point light. `center` is the blast origin
+// (collider center); `ground_y` anchors the ring at the victim's feet.
 pub fn spawn_explosion(
     commands: &mut Commands,
     materials: &mut Assets<StandardMaterial>,
@@ -181,6 +309,7 @@ pub fn spawn_explosion(
     ground_y: f32,
     fireball_diameter: f32,
     blast_radius: Option<f32>,
+    collision_world: Option<&CollisionWorld>,
 ) {
     // `None` = cosmetic burst with no area damage (unknown-kind fallback):
     // shards and light size off the fireball, and no ring is spawned — a
@@ -228,8 +357,29 @@ pub fn spawn_explosion(
         ));
     }
 
-    let shard_lifetime = EXPLOSION_LIFETIME_SECS * EXPLOSION_SHARD_LIFETIME_FACTOR;
     let mut rng = rng();
+    if let Some(surface) = collision_world.and_then(|world| {
+        let standing_distance = (center.y - ground_y).max(0.0) + EXPLOSION_SCORCH_SURFACE_OFFSET;
+        world.ground_surface_below(center, reach_radius.max(standing_distance))
+    }) {
+        let material = materials.add(explosion_assets.scorch_template.clone());
+        let alignment = Quat::from_rotation_arc(Vec3::Y, surface.normal);
+        let random_rotation = Quat::from_axis_angle(surface.normal, rng.random_range(0.0..TAU));
+        let scorch_mesh = explosion_assets.scorch_meshes[rng.random_range(0..SCORCH_MESH_VARIANT_COUNT)].clone();
+        commands.spawn((
+            Mesh3d(scorch_mesh),
+            MeshMaterial3d(material.clone()),
+            NotShadowCaster,
+            Transform {
+                translation: surface.point + surface.normal * EXPLOSION_SCORCH_SURFACE_OFFSET,
+                rotation: random_rotation * alignment,
+                scale: Vec3::splat(2.0 * reach_radius * EXPLOSION_SCORCH_DIAMETER_FACTOR),
+            },
+            ScorchMark { elapsed: 0.0, material },
+        ));
+    }
+
+    let shard_lifetime = EXPLOSION_LIFETIME_SECS * EXPLOSION_SHARD_LIFETIME_FACTOR;
     for _ in 0..shard_count(reach_radius) {
         let direction = (Vec3::new(
             rng.random_range(-1.0..1.0),
@@ -273,6 +423,29 @@ pub fn spawn_explosion(
             range,
         },
     ));
+}
+
+fn scorch_alpha(elapsed: f32) -> f32 {
+    ((EXPLOSION_SCORCH_LIFETIME_SECS - elapsed) / EXPLOSION_SCORCH_FADE_SECS).clamp(0.0, 1.0)
+}
+
+pub fn scorch_marks_system(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut marks: Query<(Entity, &mut ScorchMark)>,
+) {
+    let delta = time.delta_secs();
+    for (entity, mut mark) in &mut marks {
+        mark.elapsed += delta;
+        if mark.elapsed >= EXPLOSION_SCORCH_LIFETIME_SECS {
+            commands.entity(entity).despawn();
+            continue;
+        }
+        if let Some(mut material) = materials.get_mut(&mark.material) {
+            material.base_color.set_alpha(scorch_alpha(mark.elapsed));
+        }
+    }
 }
 
 fn shard_count(reach_radius: f32) -> usize {
@@ -358,6 +531,7 @@ pub fn explosion_lights_system(
 mod tests {
     use super::*;
     use crate::constants::{EXPLOSION_SHARD_MAX_COUNT, EXPLOSION_SHARD_MIN_COUNT};
+    use common::protocol::{BarrierKindTable, Floor, MapLayout};
 
     #[test]
     fn shard_count_clamps_to_bounds() {
@@ -372,5 +546,68 @@ mod tests {
         // The three shipped kinds must be visibly distinct.
         assert!(shard_count(6.0) < shard_count(10.0));
         assert!(shard_count(10.0) < shard_count(15.0));
+    }
+
+    #[test]
+    fn scorch_alpha_stays_opaque_then_fades_to_zero() {
+        assert_eq!(scorch_alpha(0.0), 1.0);
+        assert_eq!(
+            scorch_alpha(EXPLOSION_SCORCH_LIFETIME_SECS - EXPLOSION_SCORCH_FADE_SECS),
+            1.0
+        );
+        assert_eq!(
+            scorch_alpha(EXPLOSION_SCORCH_LIFETIME_SECS - EXPLOSION_SCORCH_FADE_SECS / 2.0),
+            0.5
+        );
+        assert_eq!(scorch_alpha(EXPLOSION_SCORCH_LIFETIME_SECS), 0.0);
+    }
+
+    #[test]
+    fn grounded_explosion_spawns_one_sized_scorch_mark() {
+        let collision_world = CollisionWorld::from_map_layout(
+            &MapLayout {
+                floors: vec![Floor {
+                    x1: -10.0,
+                    z1: -10.0,
+                    x2: 10.0,
+                    z2: 10.0,
+                    y: 0.0,
+                    thickness: 1.0,
+                    level: 0,
+                }],
+                ..default()
+            },
+            &BarrierKindTable::default(),
+        );
+        let mut meshes = Assets::<Mesh>::default();
+        let mut materials = Assets::<StandardMaterial>::default();
+        let explosion_assets = ExplosionAssets::new(&mut meshes, &mut materials);
+        let mut world = World::new();
+        let mut queue = bevy::ecs::world::CommandQueue::default();
+
+        {
+            let mut commands = Commands::new(&mut queue, &world);
+            spawn_explosion(
+                &mut commands,
+                &mut materials,
+                &explosion_assets,
+                Vec3::new(0.0, 1.0, 0.0),
+                0.0,
+                2.0,
+                Some(2.0),
+                Some(&collision_world),
+            );
+        }
+        queue.apply(&mut world);
+
+        let mut marks = world.query::<(&ScorchMark, &Transform)>();
+        let marks: Vec<_> = marks.iter(&world).collect();
+        assert_eq!(marks.len(), 1);
+        let transform = marks[0].1;
+        assert!((transform.translation.y - EXPLOSION_SCORCH_SURFACE_OFFSET).abs() < 0.001);
+        assert_eq!(
+            transform.scale,
+            Vec3::splat(2.0 * 2.0 * EXPLOSION_SCORCH_DIAMETER_FACTOR)
+        );
     }
 }
