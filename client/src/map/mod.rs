@@ -9,7 +9,9 @@ pub use rendering::{
     setup_scene_lighting_system,
 };
 pub use resources::{DebugColors, LevelFocusEnabled};
+pub(crate) use spawn::GrassBurn;
 pub use spawn::{
     GrassMarker, GroundMarker, MapGeometryBatch, MapLevel, RampMarker, RoofMarker, WallLightMarker, WallMarker,
-    batch_floor, batch_ramp, batch_wall, grass_spawn_system, spawn_wall_light_from_layout, wall_light_flicker_system,
+    batch_floor, batch_ramp, batch_wall, grass_burn_system, grass_spawn_system, spawn_wall_light_from_layout,
+    wall_light_flicker_system,
 };

@@ -60,7 +60,7 @@
       },
       "scorches": {
         "blast_diameter_factor": 0.4,
-        "lifetime_secs": 30.0
+        "full_opacity_duration_secs": 30.0
       }
     }
   },

@@ -20,6 +20,7 @@ use super::scorch::{
 use crate::{
     config::{ClientSettings, ExplosionVfxConfig},
     constants::*,
+    map::GrassBurn,
 };
 
 const SHOCKWAVE_RESOLUTION: u32 = 64;
@@ -480,21 +481,42 @@ fn spawn_scorch_mark(
 ) {
     let material = materials.add(explosion_assets.scorch_template.clone());
     let scorch_mesh = explosion_assets.scorch_meshes[style.mesh_index].clone();
-    let entity = commands
-        .spawn((
+    let grass_burn = (placement.normal().dot(Vec3::Y) > 0.999).then(|| {
+        GrassBurn::new(
+            placement.transform.translation - placement.normal() * EXPLOSION_SCORCH_SURFACE_OFFSET,
+            placement.transform.scale.x * 0.5,
+            style.rotation(),
+            style.mesh_index,
+        )
+    });
+    let entity = {
+        let mut entity_commands = commands.spawn((
             Mesh3d(scorch_mesh),
             MeshMaterial3d(material.clone()),
             NotShadowCaster,
             placement.transform,
             ScorchMark { elapsed: 0.0, material },
-        ))
-        .id();
+        ));
+        if let Some(grass_burn) = grass_burn {
+            entity_commands.insert(grass_burn);
+        }
+        entity_commands.id()
+    };
     budget.register_scorch(commands, entity, max_active_marks);
 }
 
-fn scorch_alpha(elapsed: f32, lifetime: f32) -> f32 {
-    let fade_secs = lifetime * EXPLOSION_SCORCH_FADE_FRACTION;
-    ((lifetime - elapsed) / fade_secs).clamp(0.0, 1.0)
+fn scorch_fade_duration(full_opacity_duration: f32) -> f32 {
+    full_opacity_duration * EXPLOSION_SCORCH_FADE_FRACTION
+}
+
+fn scorch_alpha(elapsed: f32, full_opacity_duration: f32) -> f32 {
+    let fade_duration = scorch_fade_duration(full_opacity_duration);
+    ((full_opacity_duration + fade_duration - elapsed) / fade_duration).clamp(0.0, 1.0)
+}
+
+fn grass_burn_intensity(scorch_alpha: f32) -> f32 {
+    let steps = EXPLOSION_GRASS_BURN_FADE_STEPS as f32;
+    (scorch_alpha.clamp(0.0, 1.0) * steps).floor() / steps
 }
 
 pub fn scorch_marks_system(
@@ -503,22 +525,29 @@ pub fn scorch_marks_system(
     settings: Res<ClientSettings>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut budget: ResMut<ExplosionVfxBudget>,
-    mut marks: Query<(Entity, &mut ScorchMark)>,
+    mut marks: Query<(Entity, &mut ScorchMark, Option<&mut GrassBurn>)>,
 ) {
     let delta = time.delta_secs();
-    let lifetime = settings.vfx.explosions.scorches.lifetime_secs;
-    let fade_secs = lifetime * EXPLOSION_SCORCH_FADE_FRACTION;
-    for (entity, mut mark) in &mut marks {
+    let full_opacity_duration = settings.vfx.explosions.scorches.full_opacity_duration_secs;
+    let fade_duration = scorch_fade_duration(full_opacity_duration);
+    let total_duration = full_opacity_duration + fade_duration;
+    for (entity, mut mark, grass_burn) in &mut marks {
         mark.elapsed += delta;
-        if mark.elapsed >= lifetime {
+        if mark.elapsed >= total_duration {
             budget.remove_scorch(entity);
             commands.entity(entity).despawn();
             continue;
         }
-        if mark.elapsed >= lifetime - fade_secs
-            && let Some(mut material) = materials.get_mut(&mark.material)
-        {
-            material.base_color.set_alpha(scorch_alpha(mark.elapsed, lifetime));
+        if mark.elapsed < full_opacity_duration {
+            continue;
+        }
+
+        let alpha = scorch_alpha(mark.elapsed, full_opacity_duration);
+        if let Some(mut material) = materials.get_mut(&mark.material) {
+            material.base_color.set_alpha(alpha);
+        }
+        if let Some(mut grass_burn) = grass_burn {
+            grass_burn.set_intensity(grass_burn_intensity(alpha));
         }
     }
 }
@@ -640,12 +669,28 @@ mod tests {
 
     #[test]
     fn scorch_alpha_stays_opaque_then_fades_to_zero() {
-        let lifetime = ExplosionVfxConfig::default().scorches.lifetime_secs;
-        let fade_secs = lifetime * EXPLOSION_SCORCH_FADE_FRACTION;
-        assert_eq!(scorch_alpha(0.0, lifetime), 1.0);
-        assert_eq!(scorch_alpha(lifetime - fade_secs, lifetime), 1.0);
-        assert_eq!(scorch_alpha(lifetime - fade_secs / 2.0, lifetime), 0.5);
-        assert_eq!(scorch_alpha(lifetime, lifetime), 0.0);
+        let full_opacity_duration = ExplosionVfxConfig::default().scorches.full_opacity_duration_secs;
+        let fade_duration = scorch_fade_duration(full_opacity_duration);
+        assert_eq!(scorch_alpha(0.0, full_opacity_duration), 1.0);
+        assert_eq!(scorch_alpha(full_opacity_duration, full_opacity_duration), 1.0);
+        assert_eq!(
+            scorch_alpha(full_opacity_duration + fade_duration / 2.0, full_opacity_duration),
+            0.5
+        );
+        assert_eq!(
+            scorch_alpha(full_opacity_duration + fade_duration, full_opacity_duration),
+            0.0
+        );
+    }
+
+    #[test]
+    fn grass_burn_intensity_tracks_scorch_fade_in_bounded_steps() {
+        let step = 1.0 / EXPLOSION_GRASS_BURN_FADE_STEPS as f32;
+        assert_eq!(grass_burn_intensity(1.0), 1.0);
+        assert_eq!(grass_burn_intensity(0.5), 0.5);
+        assert_eq!(grass_burn_intensity(step * 0.9), 0.0);
+        assert_eq!(grass_burn_intensity(-1.0), 0.0);
+        assert_eq!(grass_burn_intensity(2.0), 1.0);
     }
 
     #[test]
@@ -655,7 +700,7 @@ mod tests {
     }
 
     #[test]
-    fn grounded_explosion_spawns_one_sized_scorch_mark() {
+    fn large_grounded_explosion_spawns_one_sized_scorch_and_grass_burn() {
         let map_layout = MapLayout {
             floors: vec![Floor {
                 x1: -10.0,
@@ -688,8 +733,8 @@ mod tests {
                 ExplosionSpec {
                     center: Vec3::new(0.0, 1.0, 0.0),
                     ground_y: 0.0,
-                    fireball_diameter: 6.0,
-                    blast_radius: Some(6.0),
+                    fireball_diameter: 15.0,
+                    blast_radius: Some(15.0),
                 },
                 Some(&collision_world),
                 Some(&map_layout),
@@ -702,9 +747,11 @@ mod tests {
         assert_eq!(marks.len(), 1);
         let transform = marks[0].1;
         assert!((transform.translation.y - EXPLOSION_SCORCH_SURFACE_OFFSET).abs() < 0.001);
-        let scorch_radius = 6.0 * config.scorches.blast_diameter_factor;
+        let scorch_radius = 15.0 * config.scorches.blast_diameter_factor;
         let expected_diameter = 2.0 * scorch_radius.mul_add(scorch_radius, -1.0).sqrt();
         assert_eq!(transform.scale, Vec3::splat(expected_diameter));
+        drop(marks);
+        assert_eq!(world.query::<&GrassBurn>().iter(&world).count(), 1);
     }
 
     #[test]
@@ -772,5 +819,7 @@ mod tests {
         assert!(wall_transform.translation.y - wall_transform.scale.z * 0.5 < 0.0);
         assert!((wall_transform.translation.y / wall_transform.scale.z).abs() < 0.35);
         assert!(wall_transform.translation.y + wall_transform.scale.z * 0.5 <= WALL_HEIGHT + 0.001);
+        drop(marks);
+        assert_eq!(world.query::<&GrassBurn>().iter(&world).count(), 1);
     }
 }

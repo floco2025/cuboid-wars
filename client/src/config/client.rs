@@ -297,14 +297,14 @@ impl Default for ExplosionSmokeVfxConfig {
 #[serde(default)]
 pub struct ExplosionScorchesVfxConfig {
     pub blast_diameter_factor: f32,
-    pub lifetime_secs: f32,
+    pub full_opacity_duration_secs: f32,
 }
 
 impl Default for ExplosionScorchesVfxConfig {
     fn default() -> Self {
         Self {
             blast_diameter_factor: 0.4,
-            lifetime_secs: 30.0,
+            full_opacity_duration_secs: 30.0,
         }
     }
 }
@@ -753,7 +753,10 @@ impl ExplosionScorchesVfxConfig {
             self.blast_diameter_factor,
             "vfx.explosions.scorches.blast_diameter_factor",
         )?;
-        validate_positive_finite(self.lifetime_secs, "vfx.explosions.scorches.lifetime_secs")?;
+        validate_positive_finite(
+            self.full_opacity_duration_secs,
+            "vfx.explosions.scorches.full_opacity_duration_secs",
+        )?;
         Ok(())
     }
 }

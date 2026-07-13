@@ -21,6 +21,29 @@ const SCORCH_RESOLUTION: usize = 128;
 const OUTLINE_CONTROL_POINTS: usize = 24;
 const DETAIL_CONTROL_POINTS: usize = 17;
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct ScorchOutline {
+    radii: [f32; OUTLINE_CONTROL_POINTS],
+}
+
+impl ScorchOutline {
+    fn random(rng: &mut impl Rng) -> Self {
+        Self {
+            radii: std::array::from_fn(|_| rng.random_range(0.72..1.0)),
+        }
+    }
+
+    pub(crate) fn for_mesh(mesh_index: usize) -> Self {
+        let seed = u64::try_from(mesh_index).expect("scorch mesh index exceeds u64");
+        let mut rng = SmallRng::seed_from_u64(seed.wrapping_add(0x5C0C_4A11));
+        Self::random(&mut rng)
+    }
+
+    pub(crate) fn radius_factor(self, local_angle: f32) -> f32 {
+        smooth_cyclic_sample(&self.radii, local_angle.rem_euclid(TAU) / TAU)
+    }
+}
+
 #[derive(Clone, Copy)]
 pub(super) struct ScorchStyle {
     pub(super) mesh_index: usize,
@@ -33,6 +56,10 @@ impl ScorchStyle {
             mesh_index: rng.random_range(0..mesh_count),
             rotation: rng.random_range(0.0..TAU),
         }
+    }
+
+    pub(super) fn rotation(self) -> f32 {
+        self.rotation
     }
 }
 
@@ -54,6 +81,10 @@ impl ScorchPlacement {
             },
             normal: surface.normal,
         }
+    }
+
+    pub(super) fn normal(self) -> Vec3 {
+        self.normal
     }
 }
 
@@ -173,9 +204,7 @@ fn insert_largest_distinct(placements: &mut Vec<ScorchPlacement>, candidate: Sco
 
 pub(super) fn scorch_mesh(seed: u64) -> Mesh {
     let mut rng = SmallRng::seed_from_u64(seed.wrapping_add(0x5C0C_4A11));
-    let outline: Vec<f32> = (0..OUTLINE_CONTROL_POINTS)
-        .map(|_| rng.random_range(0.72..1.0))
-        .collect();
+    let outline = ScorchOutline::random(&mut rng);
     let ring_detail: Vec<Vec<f32>> = (0..EXPLOSION_SCORCH_RING_RADII.len())
         .map(|_| {
             (0..DETAIL_CONTROL_POINTS)
@@ -208,8 +237,8 @@ pub(super) fn scorch_mesh(seed: u64) -> Mesh {
         for segment in 0..SCORCH_RESOLUTION {
             let progress = segment as f32 / SCORCH_RESOLUTION as f32;
             let angle = progress * TAU;
-            let noise =
-                smooth_cyclic_sample(&outline, progress) + smooth_cyclic_sample(&ring_detail[ring_index], progress);
+            let noise = smooth_cyclic_sample(&outline.radii, progress)
+                + smooth_cyclic_sample(&ring_detail[ring_index], progress);
             let max_noise = if ring_index + 1 == EXPLOSION_SCORCH_RING_RADII.len() {
                 1.0
             } else {

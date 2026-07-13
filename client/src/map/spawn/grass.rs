@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::f32::consts::TAU;
 
 use bevy::{
@@ -9,8 +9,16 @@ use rand::{RngExt, SeedableRng, rngs::SmallRng};
 
 use crate::{
     config::{ClientSettings, GrassConfig},
+    constants::{
+        EXPLOSION_GRASS_BURN_CENTER_HEIGHT_FACTOR, EXPLOSION_GRASS_BURN_CENTER_SWAY_FACTOR,
+        EXPLOSION_GRASS_BURN_CENTER_WIDTH_FACTOR, EXPLOSION_GRASS_BURN_COLOR, EXPLOSION_GRASS_BURN_CORE_RADIUS_FACTOR,
+        EXPLOSION_GRASS_BURN_MAX_COLOR_BLEND, EXPLOSION_GRASS_BURN_MID_BRIGHTNESS_FACTOR,
+        EXPLOSION_GRASS_BURN_ROOT_BRIGHTNESS_FACTOR, EXPLOSION_GRASS_BURN_TIP_BRIGHTNESS_FACTOR,
+        EXPLOSION_GRASS_BURN_VERTICAL_TOLERANCE,
+    },
     map::MapLevel,
     materials::{GrassMaterial, GrassWindExtension},
+    vfx::ScorchOutline,
 };
 use common::{
     constants::GRID_CELL_SIZE,
@@ -61,6 +69,47 @@ const AABB_BASE_PAD: f32 = 0.01;
 
 #[derive(Component)]
 pub struct GrassMarker;
+
+#[derive(Component, Debug, Clone, Copy, PartialEq)]
+pub struct GrassBurn {
+    center: Vec3,
+    radius: f32,
+    rotation: f32,
+    outline: ScorchOutline,
+    intensity: f32,
+}
+
+impl GrassBurn {
+    pub(crate) fn new(center: Vec3, radius: f32, rotation: f32, mesh_index: usize) -> Self {
+        Self {
+            center,
+            radius,
+            rotation,
+            outline: ScorchOutline::for_mesh(mesh_index),
+            intensity: 1.0,
+        }
+    }
+
+    pub(crate) fn set_intensity(&mut self, intensity: f32) {
+        self.intensity = intensity.clamp(0.0, 1.0);
+    }
+
+    fn intersects_cell(self, cell: GrassCell) -> bool {
+        if (self.center.y - cell.y).abs() > EXPLOSION_GRASS_BURN_VERTICAL_TOLERANCE {
+            return false;
+        }
+        let half_extent = GRID_CELL_SIZE * 0.5 + BLADE_MAX_OVERHANG;
+        let closest_x = self.center.x.clamp(cell.x - half_extent, cell.x + half_extent);
+        let closest_z = self.center.z.clamp(cell.z - half_extent, cell.z + half_extent);
+        Vec2::new(self.center.x - closest_x, self.center.z - closest_z).length_squared() <= self.radius * self.radius
+    }
+}
+
+#[derive(Component, Clone, Copy)]
+pub struct GrassCellVisual {
+    cell: GrassCell,
+    open: OpenEdges,
+}
 
 // Which cell edges border another grass cell on the same level; scatter may
 // reach (and slightly overhang) the border only on those edges.
@@ -115,8 +164,9 @@ pub fn grass_spawn_system(
         let open = OpenEdges::for_cell(cell, &painted);
         commands.spawn((
             GrassMarker,
+            GrassCellVisual { cell, open },
             MapLevel(cell.level),
-            Mesh3d(meshes.add(grass_cell_mesh(cell, grass, open))),
+            Mesh3d(meshes.add(grass_cell_mesh(cell, grass, open, &[]))),
             MeshMaterial3d(material.clone()),
             Transform::default(),
             Visibility::Visible,
@@ -125,6 +175,52 @@ pub fn grass_spawn_system(
             grass_cell_aabb(cell, grass),
         ));
     }
+}
+
+pub fn grass_burn_system(
+    mut previous_burns: Local<HashMap<Entity, GrassBurn>>,
+    burns: Query<(Entity, &GrassBurn)>,
+    cells: Query<(Ref<GrassCellVisual>, &Mesh3d)>,
+    client_settings: Res<ClientSettings>,
+    mut meshes: ResMut<Assets<Mesh>>,
+) {
+    let current_burns: HashMap<Entity, GrassBurn> = burns.iter().map(|(entity, burn)| (entity, *burn)).collect();
+    let mut dirty_footprints = Vec::new();
+
+    for (entity, burn) in &current_burns {
+        match previous_burns.get(entity) {
+            Some(previous) if previous == burn => {}
+            Some(previous) => dirty_footprints.extend([*previous, *burn]),
+            None => dirty_footprints.push(*burn),
+        }
+    }
+    for (entity, burn) in previous_burns.iter() {
+        if !current_burns.contains_key(entity) {
+            dirty_footprints.push(*burn);
+        }
+    }
+
+    for (visual, mesh_handle) in &cells {
+        let dirty = dirty_footprints.iter().any(|burn| burn.intersects_cell(visual.cell));
+        if !dirty && !visual.is_added() {
+            continue;
+        }
+
+        let affecting_burns: Vec<GrassBurn> = current_burns
+            .values()
+            .copied()
+            .filter(|burn| burn.intersects_cell(visual.cell))
+            .collect();
+        if !dirty && affecting_burns.is_empty() {
+            continue;
+        }
+
+        if let Some(mut mesh) = meshes.get_mut(&mesh_handle.0) {
+            *mesh = grass_cell_mesh(visual.cell, &client_settings.grass, visual.open, &affecting_burns);
+        }
+    }
+
+    *previous_burns = current_burns;
 }
 
 fn grass_material(config: &GrassConfig) -> GrassMaterial {
@@ -154,7 +250,7 @@ fn grass_material(config: &GrassConfig) -> GrassMaterial {
 // `MapGeometryBatch` convention). UV0 = (sway weight: 0 root / 1 tip,
 // per-blade phase) — a deliberate exception to the world-position-UV
 // convention, which exists for texture tiling; this material is untextured.
-fn grass_cell_mesh(cell: GrassCell, config: &GrassConfig, open: OpenEdges) -> Mesh {
+fn grass_cell_mesh(cell: GrassCell, config: &GrassConfig, open: OpenEdges, burns: &[GrassBurn]) -> Mesh {
     let mut rng = SmallRng::seed_from_u64(cell_seed(cell));
     let tuft_count = cell_tuft_count(config);
     let vertex_count = tuft_count * BLADES_PER_TUFT * VERTICES_PER_BLADE;
@@ -195,11 +291,21 @@ fn grass_cell_mesh(cell: GrassCell, config: &GrassConfig, open: OpenEdges) -> Me
             let lean_angle = rng.random_range(0.0..TAU);
             let lean = rng.random_range(0.0..=BLADE_TIP_LEAN_MAX);
             let lean_offset = Vec3::new(lean_angle.cos() * lean, 0.0, lean_angle.sin() * lean);
-            let mid = root + lean_offset * MID_LEAN_FRACTION + Vec3::Y * (height * MID_HEIGHT_FRACTION);
-            let tip = root + lean_offset + Vec3::Y * height;
             let phase = rng.random_range(0.0..1.0);
             let hue = tuft_hue + rng.random_range(-BLADE_HUE_JITTER..=BLADE_HUE_JITTER);
             let lightness = tuft_lightness + rng.random_range(-BLADE_LIGHTNESS_JITTER..=BLADE_LIGHTNESS_JITTER);
+            let burn_strength = burns
+                .iter()
+                .map(|burn| burn_strength_at(root, *burn))
+                .fold(0.0_f32, f32::max);
+            let height_scale = 1.0 - burn_strength * (1.0 - EXPLOSION_GRASS_BURN_CENTER_HEIGHT_FACTOR);
+            let width_scale = 1.0 - burn_strength * (1.0 - EXPLOSION_GRASS_BURN_CENTER_WIDTH_FACTOR);
+            let sway_scale = 1.0 - burn_strength * (1.0 - EXPLOSION_GRASS_BURN_CENTER_SWAY_FACTOR);
+            let across = across * width_scale;
+            let mid = root
+                + lean_offset * (MID_LEAN_FRACTION * height_scale)
+                + Vec3::Y * (height * MID_HEIGHT_FRACTION * height_scale);
+            let tip = root + lean_offset * height_scale + Vec3::Y * (height * height_scale);
 
             let base = u32::try_from(positions.len()).expect("grass cell vertex count exceeds u32");
             positions.push((root - across).to_array());
@@ -209,16 +315,28 @@ fn grass_cell_mesh(cell: GrassCell, config: &GrassConfig, open: OpenEdges) -> Me
             positions.push(tip.to_array());
             uvs.push([0.0, phase]);
             uvs.push([0.0, phase]);
-            uvs.push([MID_SWAY_WEIGHT, phase]);
-            uvs.push([MID_SWAY_WEIGHT, phase]);
-            uvs.push([1.0, phase]);
-            let root_color = ring_color(hue, tuft_saturation, lightness, ROOT_LIGHTNESS_SCALE);
-            let mid_color = ring_color(hue, tuft_saturation, lightness, MID_LIGHTNESS_SCALE);
+            uvs.push([MID_SWAY_WEIGHT * sway_scale, phase]);
+            uvs.push([MID_SWAY_WEIGHT * sway_scale, phase]);
+            uvs.push([sway_scale, phase]);
+            let root_color = burned_color(
+                ring_color(hue, tuft_saturation, lightness, ROOT_LIGHTNESS_SCALE),
+                burn_strength,
+                EXPLOSION_GRASS_BURN_ROOT_BRIGHTNESS_FACTOR,
+            );
+            let mid_color = burned_color(
+                ring_color(hue, tuft_saturation, lightness, MID_LIGHTNESS_SCALE),
+                burn_strength,
+                EXPLOSION_GRASS_BURN_MID_BRIGHTNESS_FACTOR,
+            );
             colors.push(root_color);
             colors.push(root_color);
             colors.push(mid_color);
             colors.push(mid_color);
-            colors.push(ring_color(hue, tuft_saturation, lightness, TIP_LIGHTNESS_SCALE));
+            colors.push(burned_color(
+                ring_color(hue, tuft_saturation, lightness, TIP_LIGHTNESS_SCALE),
+                burn_strength,
+                EXPLOSION_GRASS_BURN_TIP_BRIGHTNESS_FACTOR,
+            ));
             indices.extend([
                 base,
                 base + 1,
@@ -271,6 +389,35 @@ fn ring_color(hue: f32, saturation: f32, lightness: f32, lightness_scale: f32) -
     Color::hsl(hue, saturation, (lightness * lightness_scale).min(0.95))
         .to_linear()
         .to_f32_array()
+}
+
+fn burn_strength_at(root: Vec3, burn: GrassBurn) -> f32 {
+    if burn.radius <= 0.0 || (root.y - burn.center.y).abs() > EXPLOSION_GRASS_BURN_VERTICAL_TOLERANCE {
+        return 0.0;
+    }
+
+    let offset = Vec2::new(root.x - burn.center.x, root.z - burn.center.z);
+    let distance = offset.length();
+    let angle = offset.y.atan2(offset.x) + burn.rotation;
+    let outer_radius = burn.radius * burn.outline.radius_factor(angle);
+    if distance >= outer_radius {
+        return 0.0;
+    }
+
+    let inner_radius = outer_radius * EXPLOSION_GRASS_BURN_CORE_RADIUS_FACTOR;
+    let edge_progress = ((distance - inner_radius) / (outer_radius - inner_radius)).clamp(0.0, 1.0);
+    (1.0 - edge_progress * edge_progress * (3.0 - 2.0 * edge_progress)) * burn.intensity
+}
+
+fn burned_color(color: [f32; 4], strength: f32, brightness: f32) -> [f32; 4] {
+    let burned = EXPLOSION_GRASS_BURN_COLOR.to_linear().to_f32_array();
+    let blend = strength * EXPLOSION_GRASS_BURN_MAX_COLOR_BLEND;
+    [
+        color[0] + (burned[0] * brightness - color[0]) * blend,
+        color[1] + (burned[1] * brightness - color[1]) * blend,
+        color[2] + (burned[2] * brightness - color[2]) * blend,
+        color[3],
+    ]
 }
 
 // Pre-inserted so Bevy's `calculate_bounds` (which only fills absent Aabbs)
@@ -333,14 +480,185 @@ mod tests {
         }
     }
 
+    fn average_rgb(values: &[[f32; 4]]) -> f32 {
+        values.iter().map(|color| color[0] + color[1] + color[2]).sum::<f32>() / values.len() as f32
+    }
+
+    fn max_y(values: &[[f32; 3]]) -> f32 {
+        values
+            .iter()
+            .map(|position| position[1])
+            .fold(f32::NEG_INFINITY, f32::max)
+    }
+
     #[test]
     fn same_cell_produces_identical_mesh() {
         let config = GrassConfig::default();
-        let first = grass_cell_mesh(test_cell(), &config, ALL_OPEN);
-        let second = grass_cell_mesh(test_cell(), &config, ALL_OPEN);
+        let first = grass_cell_mesh(test_cell(), &config, ALL_OPEN, &[]);
+        let second = grass_cell_mesh(test_cell(), &config, ALL_OPEN, &[]);
         assert_eq!(positions(&first), positions(&second));
         assert_eq!(uvs(&first), uvs(&second));
         assert_eq!(colors(&first), colors(&second));
+    }
+
+    #[test]
+    fn burned_grass_remains_visible_short_dark_and_still() {
+        let cell = test_cell();
+        let config = GrassConfig::default();
+        let normal = grass_cell_mesh(cell, &config, ALL_OPEN, &[]);
+        let burn = GrassBurn::new(Vec3::new(cell.x, cell.y, cell.z), GRID_CELL_SIZE * 4.0, 0.7, 3);
+        let burned = grass_cell_mesh(cell, &config, ALL_OPEN, &[burn]);
+
+        assert!(!positions(&burned).is_empty());
+        assert_eq!(positions(&burned).len(), positions(&normal).len());
+        let max_height = positions(&burned)
+            .iter()
+            .map(|position| position[1] - cell.y)
+            .fold(0.0_f32, f32::max);
+        assert!(max_height <= BLADE_HEIGHT_MAX * EXPLOSION_GRASS_BURN_CENTER_HEIGHT_FACTOR + 0.001);
+        let max_sway = uvs(&burned).iter().map(|uv| uv[0]).fold(0.0_f32, f32::max);
+        assert!(max_sway <= EXPLOSION_GRASS_BURN_CENTER_SWAY_FACTOR + f32::EPSILON);
+        assert!(average_rgb(colors(&burned)) < average_rgb(colors(&normal)) * 0.35);
+        for blade in colors(&burned).chunks_exact(VERTICES_PER_BLADE) {
+            assert!(average_rgb(&blade[0..1]) < average_rgb(&blade[2..3]));
+            assert!(average_rgb(&blade[2..3]) < average_rgb(&blade[4..5]));
+        }
+    }
+
+    #[test]
+    fn recovering_grass_interpolates_between_burned_and_healthy() {
+        let cell = test_cell();
+        let config = GrassConfig::default();
+        let normal = grass_cell_mesh(cell, &config, ALL_OPEN, &[]);
+        let mut burn = GrassBurn::new(Vec3::new(cell.x, cell.y, cell.z), GRID_CELL_SIZE * 4.0, 0.7, 3);
+        let burned = grass_cell_mesh(cell, &config, ALL_OPEN, &[burn]);
+        burn.set_intensity(0.5);
+        let recovering = grass_cell_mesh(cell, &config, ALL_OPEN, &[burn]);
+
+        assert_eq!(positions(&burned).len(), positions(&recovering).len());
+        assert_eq!(positions(&recovering).len(), positions(&normal).len());
+        assert!(max_y(positions(&burned)) < max_y(positions(&recovering)));
+        assert!(max_y(positions(&recovering)) < max_y(positions(&normal)));
+        assert!(average_rgb(colors(&burned)) < average_rgb(colors(&recovering)));
+        assert!(average_rgb(colors(&recovering)) < average_rgb(colors(&normal)));
+        let max_burned_sway = uvs(&burned).iter().map(|uv| uv[0]).fold(0.0_f32, f32::max);
+        let max_recovering_sway = uvs(&recovering).iter().map(|uv| uv[0]).fold(0.0_f32, f32::max);
+        assert!(max_burned_sway < max_recovering_sway);
+        assert!(max_recovering_sway < 1.0);
+    }
+
+    #[test]
+    fn different_scorch_variants_produce_different_burn_outlines() {
+        let center = Vec3::ZERO;
+        let first = GrassBurn::new(center, 10.0, 0.4, 0);
+        let second = GrassBurn::new(center, 10.0, 0.4, 1);
+        let first_samples: Vec<f32> = (0..32)
+            .map(|index| {
+                let angle = index as f32 / 32.0 * TAU;
+                burn_strength_at(Vec3::new(angle.cos() * 8.0, 0.0, angle.sin() * 8.0), first)
+            })
+            .collect();
+        let second_samples: Vec<f32> = (0..32)
+            .map(|index| {
+                let angle = index as f32 / 32.0 * TAU;
+                burn_strength_at(Vec3::new(angle.cos() * 8.0, 0.0, angle.sin() * 8.0), second)
+            })
+            .collect();
+
+        assert_ne!(first_samples, second_samples);
+        assert!(first_samples.windows(2).any(|pair| (pair[0] - pair[1]).abs() > 0.05));
+    }
+
+    #[test]
+    fn burn_on_another_level_does_not_change_grass() {
+        let cell = test_cell();
+        let config = GrassConfig::default();
+        let normal = grass_cell_mesh(cell, &config, ALL_OPEN, &[]);
+        let burn = GrassBurn::new(
+            Vec3::new(cell.x, cell.y + EXPLOSION_GRASS_BURN_VERTICAL_TOLERANCE * 2.0, cell.z),
+            GRID_CELL_SIZE * 4.0,
+            0.0,
+            0,
+        );
+        let other_level = grass_cell_mesh(cell, &config, ALL_OPEN, &[burn]);
+
+        assert_eq!(positions(&normal), positions(&other_level));
+        assert_eq!(uvs(&normal), uvs(&other_level));
+        assert_eq!(colors(&normal), colors(&other_level));
+    }
+
+    #[test]
+    fn weaker_overlapping_burn_does_not_override_stronger_burn() {
+        let cell = test_cell();
+        let config = GrassConfig::default();
+        let center = Vec3::new(cell.x, cell.y, cell.z);
+        let strong = GrassBurn::new(center, GRID_CELL_SIZE * 4.0, 0.0, 0);
+        let weak = GrassBurn::new(center, GRID_CELL_SIZE, 1.0, 1);
+        let strong_only = grass_cell_mesh(cell, &config, ALL_OPEN, &[strong]);
+        let overlapping = grass_cell_mesh(cell, &config, ALL_OPEN, &[weak, strong]);
+
+        assert_eq!(positions(&strong_only), positions(&overlapping));
+        assert_eq!(uvs(&strong_only), uvs(&overlapping));
+        assert_eq!(colors(&strong_only), colors(&overlapping));
+    }
+
+    #[test]
+    fn removing_burn_restores_original_grass_mesh() {
+        let settings = ClientSettings::load_default().expect("default client config should load");
+        let cell = test_cell();
+        let baseline = grass_cell_mesh(cell, &settings.grass, ALL_OPEN, &[]);
+        let expected_positions = positions(&baseline).to_vec();
+        let expected_uvs = uvs(&baseline).to_vec();
+        let expected_colors = colors(&baseline).to_vec();
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .insert_resource(settings)
+            .insert_resource(Assets::<Mesh>::default())
+            .add_systems(Update, grass_burn_system);
+        let mesh_handle = app.world_mut().resource_mut::<Assets<Mesh>>().add(baseline);
+        app.world_mut()
+            .spawn((GrassCellVisual { cell, open: ALL_OPEN }, Mesh3d(mesh_handle.clone())));
+        let burn_entity = app
+            .world_mut()
+            .spawn(GrassBurn::new(
+                Vec3::new(cell.x, cell.y, cell.z),
+                GRID_CELL_SIZE * 4.0,
+                0.0,
+                0,
+            ))
+            .id();
+
+        app.update();
+        let burned_max_y;
+        {
+            let meshes = app.world().resource::<Assets<Mesh>>();
+            let burned = meshes.get(&mesh_handle).expect("grass mesh should still exist");
+            assert_eq!(positions(burned).len(), expected_positions.len());
+            assert_ne!(positions(burned), expected_positions);
+            burned_max_y = max_y(positions(burned));
+        }
+
+        app.world_mut()
+            .get_mut::<GrassBurn>(burn_entity)
+            .expect("burn footprint should still exist")
+            .set_intensity(0.5);
+        app.update();
+        {
+            let meshes = app.world().resource::<Assets<Mesh>>();
+            let recovering = meshes.get(&mesh_handle).expect("grass mesh should still exist");
+            assert_eq!(positions(recovering).len(), expected_positions.len());
+            assert!(max_y(positions(recovering)) > burned_max_y);
+            assert!(max_y(positions(recovering)) < max_y(&expected_positions));
+        }
+
+        app.world_mut().entity_mut(burn_entity).despawn();
+        app.update();
+        let meshes = app.world().resource::<Assets<Mesh>>();
+        let restored = meshes.get(&mesh_handle).expect("grass mesh should still exist");
+        assert_eq!(positions(restored), expected_positions);
+        assert_eq!(uvs(restored), expected_uvs);
+        assert_eq!(colors(restored), expected_colors);
     }
 
     #[test]
@@ -353,8 +671,8 @@ mod tests {
             tufts_per_m2: 4.0,
             ..GrassConfig::default()
         };
-        let sparse_mesh = grass_cell_mesh(test_cell(), &sparse, ALL_OPEN);
-        let dense_mesh = grass_cell_mesh(test_cell(), &dense, ALL_OPEN);
+        let sparse_mesh = grass_cell_mesh(test_cell(), &sparse, ALL_OPEN, &[]);
+        let dense_mesh = grass_cell_mesh(test_cell(), &dense, ALL_OPEN, &[]);
         assert_eq!(
             positions(&sparse_mesh).len(),
             cell_tuft_count(&sparse) * BLADES_PER_TUFT * VERTICES_PER_BLADE
@@ -373,7 +691,7 @@ mod tests {
     #[test]
     fn root_vertices_have_zero_sway_weight() {
         let cell = test_cell();
-        let mesh = grass_cell_mesh(cell, &GrassConfig::default(), ALL_OPEN);
+        let mesh = grass_cell_mesh(cell, &GrassConfig::default(), ALL_OPEN, &[]);
         for (position, uv) in positions(&mesh).iter().zip(uvs(&mesh)) {
             match uv[0] {
                 0.0 => assert!((position[1] - cell.y).abs() < f32::EPSILON),
@@ -387,7 +705,7 @@ mod tests {
     fn blades_stay_within_cell_plus_overhang() {
         let cell = test_cell();
         let config = GrassConfig::default();
-        let mesh = grass_cell_mesh(cell, &config, ALL_OPEN);
+        let mesh = grass_cell_mesh(cell, &config, ALL_OPEN, &[]);
         let aabb = grass_cell_aabb(cell, &config);
         let bound = GRID_CELL_SIZE / 2.0 + BLADE_MAX_OVERHANG;
         let max_sway = config.wind_strength * WIND_SWAY_FACTOR;
@@ -407,7 +725,7 @@ mod tests {
     #[test]
     fn closed_edges_keep_blades_inside_cell() {
         let cell = test_cell();
-        let mesh = grass_cell_mesh(cell, &GrassConfig::default(), ALL_CLOSED);
+        let mesh = grass_cell_mesh(cell, &GrassConfig::default(), ALL_CLOSED, &[]);
         let bound = GRID_CELL_SIZE / 2.0;
         for position in positions(&mesh) {
             assert!((position[0] - cell.x).abs() <= bound);

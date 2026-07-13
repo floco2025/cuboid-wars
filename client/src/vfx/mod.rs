@@ -15,4 +15,5 @@ pub use explosion::{
 };
 pub use explosion_particles::{ExplosionVfxBudget, explosion_particles_system};
 pub use particles::{TransientParticles, transient_particles_system};
+pub(crate) use scorch::ScorchOutline;
 pub use spark::{ImpactKind, spawn_impact_sparks};

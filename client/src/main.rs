@@ -27,7 +27,7 @@ use client::{
     },
     items::{ItemMap, items_animation_system, setup_item_assets, y_spin_system},
     map::{
-        DebugColors, LevelFocusEnabled, grass_spawn_system, map_level_focus_visibility_system,
+        DebugColors, LevelFocusEnabled, grass_burn_system, grass_spawn_system, map_level_focus_visibility_system,
         map_spawn_geometry_system, map_wall_light_emissive_system, setup_scene_lighting_system,
         wall_light_flicker_system,
     },
@@ -314,6 +314,10 @@ fn main() -> Result<()> {
             (
                 map_spawn_geometry_system,
                 grass_spawn_system,
+                grass_burn_system
+                    .after(grass_spawn_system)
+                    .after(scorch_marks_system)
+                    .after(network_process_server_messages_system),
                 map_level_focus_visibility_system,
                 map_wall_light_emissive_system,
                 wall_light_flicker_system,
