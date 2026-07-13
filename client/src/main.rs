@@ -41,9 +41,7 @@ use client::{
         local_player_camera_sync_system, local_player_cuboid_shake_system, local_player_rearview_sync_system,
         local_player_rearview_viewport_system, local_player_visibility_sync_system, players_transform_sync_system,
     },
-    projectiles::{
-        LastBounceSoundTime, ProjectileAssets, projectiles_movement_system, projectiles_transform_sync_system,
-    },
+    projectiles::{LastBounceSound, ProjectileAssets, projectiles_movement_system, projectiles_transform_sync_system},
     skybox::{
         setup_skybox_from_cross_system, setup_sun_disc_system, skybox_convert_cross_to_cubemap_system,
         skybox_rotate_system, skybox_update_camera_system, sun_disc_system,
@@ -203,7 +201,7 @@ fn main() -> Result<()> {
         .insert_resource(asset_set)
         .insert_resource(client_settings)
         .insert_resource(DebugColors::default())
-        .insert_resource(LastBounceSoundTime::default())
+        .insert_resource(LastBounceSound::default())
         .insert_resource(GameMessageFeed::default())
         .insert_resource(PendingBanner::default())
         .insert_resource(SeenPlayerIds::default())

@@ -6,7 +6,7 @@ use common::{
 };
 
 use super::audio::{
-    LastBounceSoundTime, play_barrier_impact_sound, play_sound, play_spatial_sound, play_wall_bounce_sound,
+    LastBounceSound, play_barrier_impact_sound, play_sound, play_spatial_sound, play_wall_bounce_sound,
 };
 use crate::{
     actors::ActorMap,
@@ -146,7 +146,8 @@ pub(super) fn handle_wall_collisions(
     delta: f32,
     collision_world: Option<&CollisionWorld>,
     current_time: f32,
-    last_bounce_sound: &mut LastBounceSoundTime,
+    last_bounce_sound: &mut LastBounceSound,
+    listener_pos: Vec3,
 ) -> Option<Position> {
     let collision_world = collision_world?;
 
@@ -160,6 +161,7 @@ pub(super) fn handle_wall_collisions(
         current_time,
         last_bounce_sound,
         Vec3::from(bounces.first_impact),
+        listener_pos,
     );
     // Sparks share the sound's speed threshold but not its global rate
     // limit — same-tick bounces (multi-shot volleys) each spark at their

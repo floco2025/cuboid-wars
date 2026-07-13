@@ -178,6 +178,10 @@ pub const KEY_HUD_GAP_PX: f32 = 8.0;
 
 pub const PROJECTILE_MIN_BOUNCE_SOUND_SPEED: f32 = 10.0; // minimum speed for bounce sound + sparks
 pub const PROJECTILE_MAX_BOUNCE_SOUNDS_PER_SECOND: f32 = 30.0; // rate limit for bounce sounds
+// A bounce this many times louder at the listener than the one holding the
+// rate-limit slot plays anyway — a nearby ricochet shouldn't be silenced
+// because a distant one fired first in the same window.
+pub const PROJECTILE_BOUNCE_PREEMPT_LOUDNESS_RATIO: f32 = 2.0;
 
 // Bounce sparks: tiny emissive cubes thrown from the impact point, paired
 // 1:1 with the bounce sound's rate limit.

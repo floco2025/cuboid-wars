@@ -5,12 +5,28 @@ use bevy::{
 
 use crate::{
     config::AssetSet,
-    constants::{PROJECTILE_MAX_BOUNCE_SOUNDS_PER_SECOND, PROJECTILE_MIN_BOUNCE_SOUND_SPEED, SPATIAL_SOUND_SCALE},
+    constants::{
+        PROJECTILE_BOUNCE_PREEMPT_LOUDNESS_RATIO, PROJECTILE_MAX_BOUNCE_SOUNDS_PER_SECOND,
+        PROJECTILE_MIN_BOUNCE_SOUND_SPEED, SPATIAL_SOUND_SCALE,
+    },
 };
 
-// Last time a projectile bounce sound was played (for rate limiting).
+// Last projectile bounce sound: when it played and how loud it was at the
+// listener. Rate limiting keeps its cadence, but a clearly-louder bounce
+// (see `PROJECTILE_BOUNCE_PREEMPT_LOUDNESS_RATIO`) takes the slot early.
 #[derive(Resource, Default)]
-pub struct LastBounceSoundTime(pub f32);
+pub struct LastBounceSound {
+    pub time: f32,
+    pub loudness: f32,
+}
+
+// Estimated audibility of a world sound at the listener, mirroring rodio's
+// attenuation law (`min(1/d², 1)` in spatial-scale-compressed units): full
+// volume inside the knee, inverse-square falloff beyond it.
+fn loudness_at_listener(pos: Vec3, listener_pos: Vec3) -> f32 {
+    let compressed = pos.distance(listener_pos) * SPATIAL_SOUND_SCALE;
+    (1.0 / (compressed * compressed)).min(1.0)
+}
 
 pub(super) fn play_sound(
     commands: &mut Commands,
@@ -60,11 +76,18 @@ pub(super) fn play_wall_bounce_sound(
     asset_set: &AssetSet,
     speed_before: f32,
     current_time: f32,
-    last_bounce_sound: &mut LastBounceSoundTime,
+    last_bounce_sound: &mut LastBounceSound,
     pos: Vec3,
+    listener_pos: Vec3,
 ) {
+    if speed_before < PROJECTILE_MIN_BOUNCE_SOUND_SPEED {
+        return;
+    }
+    let loudness = loudness_at_listener(pos, listener_pos);
     let min_interval = 1.0 / PROJECTILE_MAX_BOUNCE_SOUNDS_PER_SECOND;
-    if speed_before < PROJECTILE_MIN_BOUNCE_SOUND_SPEED || current_time - last_bounce_sound.0 < min_interval {
+    if current_time - last_bounce_sound.time < min_interval
+        && loudness < last_bounce_sound.loudness * PROJECTILE_BOUNCE_PREEMPT_LOUDNESS_RATIO
+    {
         return;
     }
 
@@ -79,5 +102,23 @@ pub(super) fn play_wall_bounce_sound(
         },
         pos,
     );
-    last_bounce_sound.0 = current_time;
+    last_bounce_sound.time = current_time;
+    last_bounce_sound.loudness = loudness;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn loudness_is_full_inside_knee_and_falls_off_beyond() {
+        let listener = Vec3::ZERO;
+        let knee = 1.0 / SPATIAL_SOUND_SCALE;
+        assert_eq!(loudness_at_listener(Vec3::ZERO, listener), 1.0);
+        assert_eq!(loudness_at_listener(Vec3::X * (knee * 0.5), listener), 1.0);
+        let near = loudness_at_listener(Vec3::X * (knee * 2.0), listener);
+        let far = loudness_at_listener(Vec3::X * (knee * 4.0), listener);
+        assert!(near < 1.0);
+        assert!(far < near);
+    }
 }

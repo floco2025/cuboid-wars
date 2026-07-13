@@ -6,10 +6,13 @@ use common::{
 };
 
 use super::{
-    audio::LastBounceSoundTime,
+    audio::LastBounceSound,
     collision::{handle_barrier_collisions, handle_character_collisions, handle_wall_collisions},
 };
-use crate::{actors::ActorMap, characters::PreviousTickPosition, config::AssetSet, players::LocalPlayerMarker};
+use crate::{
+    actors::ActorMap, cameras::MainCameraMarker, characters::PreviousTickPosition, config::AssetSet,
+    players::LocalPlayerMarker,
+};
 
 // Runs in `FixedUpdate` at the shared `TICK_HZ`. The semi-implicit Euler
 // integration in `ProjectileMotion` is step-size-dependent, so stepping at
@@ -38,12 +41,20 @@ pub fn projectiles_movement_system(
     collision_world: Option<Res<CollisionWorld>>,
     gameplay_config: Res<GameplayConfig>,
     open_barrier_kinds: Res<OpenBarrierKinds>,
-    mut last_bounce_sound: ResMut<LastBounceSoundTime>,
+    mut last_bounce_sound: ResMut<LastBounceSound>,
     spark_assets: Res<crate::vfx::SparkAssets>,
+    listener: Query<&GlobalTransform, With<MainCameraMarker>>,
 ) {
     let delta = time.delta_secs();
     let current_time = time.elapsed_secs();
     let collision_world = collision_world.as_deref();
+    // Louder-bounce preference measures distance to the audio listener (the
+    // main camera). A missing camera degrades to distance zero: every bounce
+    // rates as full volume, which reduces to the plain rate limit.
+    let listener_pos = listener
+        .single()
+        .map(|transform| transform.translation())
+        .unwrap_or(Vec3::ZERO);
 
     for (projectile_entity, mut position, mut previous_tick_position, mut projectile, shooter_id) in
         &mut projectile_query
@@ -104,6 +115,7 @@ pub fn projectiles_movement_system(
             collision_world,
             current_time,
             &mut last_bounce_sound,
+            listener_pos,
         ) {
             pos_after_bounce
         } else {
