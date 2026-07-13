@@ -16,7 +16,6 @@ use super::{
 use crate::{
     actors::ActorMap,
     cameras::MainCameraMarker,
-    constants::{EXPLOSION_SOUND_VOLUME, SPATIAL_SOUND_SCALE},
     items::ItemMap,
     network::{LastSnapshotSeq, RoundTripTime},
     players::PlayerMap,
@@ -74,6 +73,7 @@ pub fn dispatch_message(
                 &mut client_assets.explosion_vfx_budget,
                 &client_assets.asset_server,
                 &client_assets.asset_set,
+                &client_assets.client_settings.audio,
                 &client_assets.explosion_assets,
                 &client_assets.explosion_radii,
                 actors,
@@ -97,8 +97,12 @@ pub fn dispatch_message(
                 ),
                 PlaybackSettings::DESPAWN
                     .with_spatial(true)
-                    .with_spatial_scale(SpatialScale::new(SPATIAL_SOUND_SCALE))
-                    .with_volume(Volume::Linear(EXPLOSION_SOUND_VOLUME))
+                    .with_spatial_scale(SpatialScale::new(
+                        client_assets.client_settings.audio.spatial_distance_scale,
+                    ))
+                    .with_volume(Volume::Linear(
+                        client_assets.client_settings.audio.explosion_gain_multiplier,
+                    ))
                     .with_speed(explosion_sound_speed(client_assets.explosion_radii.player)),
                 Transform::from_translation(Vec3::from(death_msg.pos)),
             ));
@@ -175,6 +179,7 @@ pub fn dispatch_message(
             actor_data,
             &client_assets.asset_server,
             &client_assets.asset_set,
+            &client_assets.client_settings.audio,
             hit_msg,
         ),
         ServerMessage::PlayerStatus(player_status_msg) => {

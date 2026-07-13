@@ -10,8 +10,13 @@ use super::{
     collision::{handle_barrier_collisions, handle_character_collisions, handle_wall_collisions},
 };
 use crate::{
-    actors::ActorMap, cameras::MainCameraMarker, characters::PreviousTickPosition, config::AssetSet,
+    actors::ActorMap,
+    barriers::BarrierAssets,
+    cameras::MainCameraMarker,
+    characters::PreviousTickPosition,
+    config::{AssetSet, ClientSettings},
     players::LocalPlayerMarker,
+    vfx::TransientParticles,
 };
 
 // Runs in `FixedUpdate` at the shared `TICK_HZ`. The semi-implicit Euler
@@ -42,7 +47,9 @@ pub fn projectiles_movement_system(
     gameplay_config: Res<GameplayConfig>,
     open_barrier_kinds: Res<OpenBarrierKinds>,
     mut last_bounce_sound: ResMut<LastBounceSound>,
-    spark_assets: Res<crate::vfx::SparkAssets>,
+    client_settings: Res<ClientSettings>,
+    barrier_assets: Res<BarrierAssets>,
+    mut transient_particles: ResMut<TransientParticles>,
     listener: Query<&GlobalTransform, With<MainCameraMarker>>,
 ) {
     let delta = time.delta_secs();
@@ -94,6 +101,9 @@ pub fn projectiles_movement_system(
             &mut commands,
             asset_server.as_ref(),
             &asset_set,
+            &mut transient_particles,
+            &client_settings,
+            &barrier_assets,
             projectile_entity,
             &projectile,
             &projectile_pos,
@@ -108,7 +118,8 @@ pub fn projectiles_movement_system(
             &mut commands,
             asset_server.as_ref(),
             &asset_set,
-            &spark_assets,
+            &mut transient_particles,
+            &client_settings,
             &mut projectile,
             &projectile_pos,
             delta,
@@ -123,7 +134,8 @@ pub fn projectiles_movement_system(
                 &mut commands,
                 asset_server.as_ref(),
                 &asset_set,
-                &spark_assets,
+                &mut transient_particles,
+                &client_settings,
                 projectile_entity,
                 &projectile,
                 &projectile_pos,

@@ -7,18 +7,19 @@ use bevy::{
 };
 use rand::{Rng, RngExt, SeedableRng, rngs::SmallRng};
 
-use crate::constants::{EXPLOSION_SCORCH_RESOLUTION, EXPLOSION_SCORCH_SURFACE_OFFSET};
+use crate::constants::{
+    EXPLOSION_SCORCH_RING_ALPHA, EXPLOSION_SCORCH_RING_RADII, EXPLOSION_SCORCH_SURFACE_OFFSET,
+    EXPLOSION_SCORCH_WALL_SEAM_OVERSCAN_FACTOR,
+};
 use common::{
     constants::{LEVEL_HEIGHT, WALL_HEIGHT},
     physics::WorldSurfaceHit,
     protocol::MapLayout,
 };
 
-const RING_RADII: [f32; 3] = [0.22, 0.39, 0.5];
-const RING_ALPHA: [f32; 3] = [0.84, 0.60, 0.0];
+const SCORCH_RESOLUTION: usize = 128;
 const OUTLINE_CONTROL_POINTS: usize = 24;
 const DETAIL_CONTROL_POINTS: usize = 17;
-const WALL_SEAM_OVERSCAN_FACTOR: f32 = 0.35;
 
 #[derive(Clone, Copy)]
 pub(super) struct ScorchStyle {
@@ -112,7 +113,7 @@ pub(super) fn wall_scorch_placements(
                 continue;
             }
             let visible_height = max_y - clipped_min_y;
-            let min_y = (clipped_min_y - visible_height * WALL_SEAM_OVERSCAN_FACTOR).max(-half);
+            let min_y = (clipped_min_y - visible_height * EXPLOSION_SCORCH_WALL_SEAM_OVERSCAN_FACTOR).max(-half);
             let translation = point
                 + tangent * f32::midpoint(min_t, max_t)
                 + Vec3::Y * f32::midpoint(min_y, max_y)
@@ -175,14 +176,14 @@ pub(super) fn scorch_mesh(seed: u64) -> Mesh {
     let outline: Vec<f32> = (0..OUTLINE_CONTROL_POINTS)
         .map(|_| rng.random_range(0.72..1.0))
         .collect();
-    let ring_detail: Vec<Vec<f32>> = (0..RING_RADII.len())
+    let ring_detail: Vec<Vec<f32>> = (0..EXPLOSION_SCORCH_RING_RADII.len())
         .map(|_| {
             (0..DETAIL_CONTROL_POINTS)
                 .map(|_| rng.random_range(-0.04..0.04))
                 .collect()
         })
         .collect();
-    let alpha_detail: Vec<Vec<f32>> = (0..RING_RADII.len() - 1)
+    let alpha_detail: Vec<Vec<f32>> = (0..EXPLOSION_SCORCH_RING_RADII.len() - 1)
         .map(|_| {
             (0..DETAIL_CONTROL_POINTS)
                 .map(|_| rng.random_range(-0.10..0.10))
@@ -190,24 +191,32 @@ pub(super) fn scorch_mesh(seed: u64) -> Mesh {
         })
         .collect();
 
-    let mut positions = Vec::with_capacity(1 + RING_RADII.len() * EXPLOSION_SCORCH_RESOLUTION);
+    let mut positions = Vec::with_capacity(1 + EXPLOSION_SCORCH_RING_RADII.len() * SCORCH_RESOLUTION);
     let mut normals = Vec::with_capacity(positions.capacity());
     let mut colors = Vec::with_capacity(positions.capacity());
-    let mut indices = Vec::with_capacity(EXPLOSION_SCORCH_RESOLUTION * (3 + 6 * (RING_RADII.len() - 1)));
+    let mut indices = Vec::with_capacity(SCORCH_RESOLUTION * (3 + 6 * (EXPLOSION_SCORCH_RING_RADII.len() - 1)));
 
     positions.push([0.0, 0.0, 0.0]);
     normals.push([0.0, 1.0, 0.0]);
     colors.push(scorch_color(0.88, 0.0));
 
-    for (ring_index, (&radius, &base_alpha)) in RING_RADII.iter().zip(&RING_ALPHA).enumerate() {
-        for segment in 0..EXPLOSION_SCORCH_RESOLUTION {
-            let progress = segment as f32 / EXPLOSION_SCORCH_RESOLUTION as f32;
+    for (ring_index, (&radius, &base_alpha)) in EXPLOSION_SCORCH_RING_RADII
+        .iter()
+        .zip(&EXPLOSION_SCORCH_RING_ALPHA)
+        .enumerate()
+    {
+        for segment in 0..SCORCH_RESOLUTION {
+            let progress = segment as f32 / SCORCH_RESOLUTION as f32;
             let angle = progress * TAU;
             let noise =
                 smooth_cyclic_sample(&outline, progress) + smooth_cyclic_sample(&ring_detail[ring_index], progress);
-            let max_noise = if ring_index + 1 == RING_RADII.len() { 1.0 } else { 1.04 };
+            let max_noise = if ring_index + 1 == EXPLOSION_SCORCH_RING_RADII.len() {
+                1.0
+            } else {
+                1.04
+            };
             let ring_radius = radius * noise.clamp(0.55, max_noise);
-            let alpha_noise = if ring_index + 1 == RING_RADII.len() {
+            let alpha_noise = if ring_index + 1 == EXPLOSION_SCORCH_RING_RADII.len() {
                 0.0
             } else {
                 smooth_cyclic_sample(&alpha_detail[ring_index], progress)
@@ -221,16 +230,16 @@ pub(super) fn scorch_mesh(seed: u64) -> Mesh {
         }
     }
 
-    for segment in 0..EXPLOSION_SCORCH_RESOLUTION {
+    for segment in 0..SCORCH_RESOLUTION {
         let current = 1 + segment as u32;
-        let next = 1 + ((segment + 1) % EXPLOSION_SCORCH_RESOLUTION) as u32;
+        let next = 1 + ((segment + 1) % SCORCH_RESOLUTION) as u32;
         indices.extend([0, next, current]);
     }
-    for ring_index in 0..RING_RADII.len() - 1 {
-        let inner_start = 1 + ring_index * EXPLOSION_SCORCH_RESOLUTION;
-        let outer_start = inner_start + EXPLOSION_SCORCH_RESOLUTION;
-        for segment in 0..EXPLOSION_SCORCH_RESOLUTION {
-            let next = (segment + 1) % EXPLOSION_SCORCH_RESOLUTION;
+    for ring_index in 0..EXPLOSION_SCORCH_RING_RADII.len() - 1 {
+        let inner_start = 1 + ring_index * SCORCH_RESOLUTION;
+        let outer_start = inner_start + SCORCH_RESOLUTION;
+        for segment in 0..SCORCH_RESOLUTION {
+            let next = (segment + 1) % SCORCH_RESOLUTION;
             let inner = (inner_start + segment) as u32;
             let inner_next = (inner_start + next) as u32;
             let outer = (outer_start + segment) as u32;

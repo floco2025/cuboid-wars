@@ -14,13 +14,11 @@ use rapier3d::{
 use crate::protocol::{BarrierKindId, BarrierKindTable, MapLayout};
 
 use super::colliders::{
-    FLOOR_COLLISION_GROUP, WALL_COLLISION_GROUP, barrier_collision_group, character_collision_groups,
+    ColliderKind, FLOOR_COLLISION_GROUP, WALL_COLLISION_GROUP, barrier_collision_group, character_collision_groups,
     ground_collision_groups, insert_barrier_collider, insert_floor_collider, insert_ramp_collider,
     insert_wall_collider, query_filter, world_collision_groups,
 };
 
-#[cfg(test)]
-use super::colliders::ColliderKind;
 pub(crate) use super::shape_cast::ShapeCastHit;
 use super::shape_cast::upward_surface_hit;
 
@@ -199,10 +197,17 @@ impl CollisionWorld {
 
         query_pipeline
             .cast_shape(&pose, velocity, &shape, options)
-            .map(|(_, hit)| ShapeCastHit {
-                normal: Vec3::new(hit.normal2.x, hit.normal2.y, hit.normal2.z),
-                contact: Vec3::new(hit.witness1.x, hit.witness1.y, hit.witness1.z),
-                t: hit.time_of_impact,
+            .map(|(handle, hit)| {
+                let mut normal = Vec3::new(hit.normal2.x, hit.normal2.y, hit.normal2.z);
+                if normal.dot(translation) > 0.0 {
+                    normal = -normal;
+                }
+                ShapeCastHit {
+                    normal,
+                    contact: Vec3::new(hit.witness1.x, hit.witness1.y, hit.witness1.z),
+                    t: hit.time_of_impact,
+                    barrier_kind: ColliderKind::barrier_kind_from_user_data(self.colliders[handle].user_data),
+                }
             })
     }
 

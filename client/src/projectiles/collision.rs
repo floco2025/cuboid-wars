@@ -10,16 +10,18 @@ use super::audio::{
 };
 use crate::{
     actors::ActorMap,
-    config::AssetSet,
+    barriers::BarrierAssets,
+    config::{AssetSet, ClientSettings},
     players::LocalPlayerMarker,
-    vfx::{SparkAssets, spawn_bounce_sparks},
+    vfx::{ImpactKind, TransientParticles, spawn_impact_sparks},
 };
 
 pub(super) fn handle_character_collisions(
     commands: &mut Commands,
     asset_server: &AssetServer,
     asset_set: &AssetSet,
-    spark_assets: &SparkAssets,
+    particles: &mut TransientParticles,
+    settings: &ClientSettings,
     proj_entity: Entity,
     proj_motion: &ProjectileMotion,
     proj_pos: &Position,
@@ -79,6 +81,7 @@ pub(super) fn handle_character_collisions(
                     commands,
                     asset_server,
                     asset_set.player_sound("hit_player"),
+                    &settings.audio,
                     PlaybackSettings::DESPAWN,
                     impact,
                 );
@@ -94,12 +97,15 @@ pub(super) fn handle_character_collisions(
                 }
             }
 
-            // Impact debris sprays back along the projectile's travel.
-            spawn_bounce_sparks(
-                commands,
-                spark_assets,
+            let outward = -proj_motion.velocity.normalize_or_zero();
+            spawn_impact_sparks(
+                particles,
+                &settings.vfx.projectiles.impact_sparks,
                 impact,
-                -proj_motion.velocity.normalize_or_zero(),
+                outward,
+                outward,
+                proj_motion.velocity.length(),
+                ImpactKind::Character,
             );
             commands.entity(proj_entity).despawn();
             true
@@ -115,6 +121,9 @@ pub(super) fn handle_barrier_collisions(
     commands: &mut Commands,
     asset_server: &AssetServer,
     asset_set: &AssetSet,
+    particles: &mut TransientParticles,
+    settings: &ClientSettings,
+    barrier_assets: &BarrierAssets,
     proj_entity: Entity,
     proj_motion: &ProjectileMotion,
     proj_pos: &Position,
@@ -125,13 +134,19 @@ pub(super) fn handle_barrier_collisions(
     let Some(collision_world) = collision_world else {
         return false;
     };
-    if proj_motion
-        .terminate_at_barrier(proj_pos, delta, collision_world, open_kinds)
-        .is_none()
-    {
+    let Some(impact) = proj_motion.terminate_at_barrier(proj_pos, delta, collision_world, open_kinds) else {
         return false;
-    }
-    play_barrier_impact_sound(commands, asset_server, asset_set, Vec3::from(*proj_pos));
+    };
+    play_barrier_impact_sound(commands, asset_server, asset_set, &settings.audio, impact.point);
+    spawn_impact_sparks(
+        particles,
+        &settings.vfx.projectiles.impact_sparks,
+        impact.point,
+        impact.normal,
+        impact.normal,
+        proj_motion.velocity.length(),
+        ImpactKind::Barrier(barrier_assets.base_color(impact.kind)),
+    );
     commands.entity(proj_entity).despawn();
     true
 }
@@ -140,7 +155,8 @@ pub(super) fn handle_wall_collisions(
     commands: &mut Commands,
     asset_server: &AssetServer,
     asset_set: &AssetSet,
-    spark_assets: &SparkAssets,
+    particles: &mut TransientParticles,
+    settings: &ClientSettings,
     proj_motion: &mut ProjectileMotion,
     proj_pos: &Position,
     delta: f32,
@@ -157,22 +173,24 @@ pub(super) fn handle_wall_collisions(
         commands,
         asset_server,
         asset_set,
+        &settings.audio,
         speed_before,
         current_time,
         last_bounce_sound,
-        Vec3::from(bounces.first_impact),
+        bounces.first_contact,
         listener_pos,
     );
-    // Sparks share the sound's speed threshold but not its global rate
-    // limit — same-tick bounces (multi-shot volleys) each spark at their
-    // own impact point while only one plays audio. Velocity is already
-    // reflected, so the fan follows the ricochet direction.
-    if speed_before >= crate::constants::PROJECTILE_MIN_BOUNCE_SOUND_SPEED {
-        spawn_bounce_sparks(
-            commands,
-            spark_assets,
-            Vec3::from(bounces.first_impact),
+    // Same-tick bounces each retain their local impact cue even though audio
+    // is rate-limited globally. The shared particle budget bounds the burst.
+    if speed_before >= settings.audio.projectile_impacts.min_bounce_speed_meters_per_second {
+        spawn_impact_sparks(
+            particles,
+            &settings.vfx.projectiles.impact_sparks,
+            bounces.first_contact,
+            bounces.first_normal,
             proj_motion.velocity.normalize_or_zero(),
+            speed_before,
+            ImpactKind::World,
         );
     }
 

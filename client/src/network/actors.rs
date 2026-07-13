@@ -4,8 +4,7 @@ use std::collections::HashSet;
 use super::components::ServerReconciliation;
 use crate::{
     actors::{ActorGhostMap, ActorInfo, ActorMap, beam_in_ghost_state, spawn_actor, spawn_actor_ghost},
-    config::{AssetSet, ClientSettings},
-    constants::{EXPLOSION_SOUND_VOLUME, SPATIAL_SOUND_SCALE},
+    config::{AssetSet, AudioConfig, ClientSettings},
     network::RoundTripTime,
     vfx::{ExplosionAssets, ExplosionRadii, ExplosionVfxBudget, explosion_sound_speed, spawn_actor_explosion},
 };
@@ -101,10 +100,12 @@ pub fn sync_spawning_actors(
 
     for (id, spawning) in spawning_actors {
         if let Some(entity) = ghosts.get(id) {
-            // Resync the locally-ticked fade to the server's window.
+            let update = beam_in_ghost_state(gameplay_config, spawning);
             commands
                 .entity(entity)
-                .insert(beam_in_ghost_state(gameplay_config, spawning));
+                .entry::<crate::vfx::BeamInGhost>()
+                .and_modify(move |mut ghost| ghost.resync(update))
+                .or_insert(update);
             continue;
         }
         let entity = spawn_actor_ghost(commands, asset_server, asset_set, gameplay_config, spawning);
@@ -153,6 +154,7 @@ pub fn handle_actor_death_message(
     budget: &mut ExplosionVfxBudget,
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
+    audio_config: &AudioConfig,
     explosion_assets: &ExplosionAssets,
     actor_explosion_radii: &ExplosionRadii,
     actors: &mut ResMut<ActorMap>,
@@ -193,8 +195,8 @@ pub fn handle_actor_death_message(
         AudioPlayer::new(asset_server.load(asset_set.actor_sound(&info.kind, "explodes").to_owned())),
         PlaybackSettings::DESPAWN
             .with_spatial(true)
-            .with_spatial_scale(SpatialScale::new(SPATIAL_SOUND_SCALE))
-            .with_volume(Volume::Linear(EXPLOSION_SOUND_VOLUME))
+            .with_spatial_scale(SpatialScale::new(audio_config.spatial_distance_scale))
+            .with_volume(Volume::Linear(audio_config.explosion_gain_multiplier))
             .with_speed(
                 actor_explosion_radii
                     .actors
@@ -213,6 +215,7 @@ pub fn handle_actor_hit_message(
     actor_data: &Query<(&Position, &ActorMoveIntent, &FaceDirection), With<ActorMarker>>,
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
+    audio_config: &AudioConfig,
     msg: SActorHit,
 ) {
     trace!("{:?} was hit", msg.id);
@@ -228,7 +231,7 @@ pub fn handle_actor_hit_message(
                 AudioPlayer::new(asset_server.load(asset_set.player_sound("hit_actor").to_owned())),
                 PlaybackSettings::DESPAWN
                     .with_spatial(true)
-                    .with_spatial_scale(SpatialScale::new(SPATIAL_SOUND_SCALE)),
+                    .with_spatial_scale(SpatialScale::new(audio_config.spatial_distance_scale)),
                 Transform::from_translation(Vec3::from(*pos)),
             ));
         }

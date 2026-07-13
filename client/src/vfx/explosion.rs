@@ -17,16 +17,12 @@ use super::scorch::{
     ScorchPlacement, ScorchStyle, scorch_mesh, surface_cross_section_diameter, wall_scorch_diameter,
     wall_scorch_placements,
 };
-use crate::constants::{
-    EXPLOSION_FALLBACK_SCALE, EXPLOSION_FIREBALL_DIAMETER_FACTOR, EXPLOSION_FLASH_BRIGHTNESS,
-    EXPLOSION_FLASH_LIFETIME_FACTOR, EXPLOSION_FLASH_START_ALPHA, EXPLOSION_LIFETIME_SECS, EXPLOSION_LIGHT_COLOR,
-    EXPLOSION_LIGHT_INTENSITY, EXPLOSION_LIGHT_MIN_RANGE, EXPLOSION_LIGHT_RANGE_PER_RADIUS, EXPLOSION_RING_BRIGHTNESS,
-    EXPLOSION_RING_DIAMETER_FACTOR, EXPLOSION_RING_LIFETIME_FACTOR, EXPLOSION_RING_RESOLUTION,
-    EXPLOSION_RING_START_ALPHA, EXPLOSION_RING_THICKNESS, EXPLOSION_RING_Y_OFFSET, EXPLOSION_SCORCH_DIAMETER_FACTOR,
-    EXPLOSION_SCORCH_FADE_SECS, EXPLOSION_SCORCH_LIFETIME_SECS, EXPLOSION_SCORCH_SURFACE_OFFSET,
-    EXPLOSION_SHARD_BRIGHTNESS, EXPLOSION_SHARD_MAX_COUNT, EXPLOSION_SHARD_MIN_COUNT, EXPLOSION_SHARDS_PER_METER,
-    EXPLOSION_SMOKE_MAX_COUNT, EXPLOSION_SMOKE_MIN_COUNT, EXPLOSION_SMOKE_PARTICLES_PER_METER,
+use crate::{
+    config::{ClientSettings, ExplosionVfxConfig},
+    constants::*,
 };
+
+const SHOCKWAVE_RESOLUTION: u32 = 64;
 
 // Blast radii from `SInit` (per actor kind + the player death blast). Starts
 // empty (initialized at app build) and is replaced when `Init` arrives;
@@ -43,11 +39,6 @@ pub fn explosion_sound_speed(radius: f32) -> f32 {
 }
 
 // Shared meshes plus material templates cloned for animated instances.
-const SCORCH_MESH_VARIANT_COUNT: usize = 12;
-// The irregular outer ring can contract to ~75%; stay further inside so a
-// wall mark only reaches the corner where the floor mark is still dark.
-const SCORCH_WALL_REACH_FACTOR: f32 = 0.6;
-
 #[derive(Resource)]
 pub struct ExplosionAssets {
     fireball_mesh: Handle<Mesh>,
@@ -57,20 +48,25 @@ pub struct ExplosionAssets {
     fireball_template: StandardMaterial,
     ring_template: StandardMaterial,
     scorch_template: StandardMaterial,
+    config: ExplosionVfxConfig,
 }
 
 impl ExplosionAssets {
     // Public (rather than folded into `FromWorld`) so tests can build the
     // resource against plain `Assets` collections.
-    pub fn new(meshes: &mut Assets<Mesh>, materials: &mut Assets<StandardMaterial>) -> Self {
-        let flash = EXPLOSION_FLASH_BRIGHTNESS;
-        let ring = EXPLOSION_RING_BRIGHTNESS;
-        let shard = EXPLOSION_SHARD_BRIGHTNESS;
+    pub fn new(
+        meshes: &mut Assets<Mesh>,
+        materials: &mut Assets<StandardMaterial>,
+        config: ExplosionVfxConfig,
+    ) -> Self {
+        let flash = config.fireball.emissive_brightness;
+        let ring = config.shockwave.emissive_brightness;
+        let shard = config.shards.emissive_brightness;
         Self {
             // Unit-diameter meshes: `Transform::scale` equals the layer's
             // world diameter in meters.
             fireball_mesh: meshes.add(with_white_vertex_colors(Mesh::from(Sphere::new(0.5)))),
-            scorch_meshes: (0..SCORCH_MESH_VARIANT_COUNT)
+            scorch_meshes: (0..EXPLOSION_SCORCH_MESH_VARIANT_COUNT)
                 .map(|variant| meshes.add(scorch_mesh(variant as u64)))
                 .collect(),
             shard_material: materials.add(StandardMaterial {
@@ -86,13 +82,13 @@ impl ExplosionAssets {
                 ..default()
             }),
             fireball_template: StandardMaterial {
-                base_color: Color::srgba(1.0, 0.85, 0.6, EXPLOSION_FLASH_START_ALPHA),
+                base_color: Color::srgba(1.0, 0.85, 0.6, EXPLOSION_FIREBALL_START_ALPHA),
                 emissive: LinearRgba::rgb(flash, flash * 0.45, flash * 0.12),
                 alpha_mode: AlphaMode::Blend,
                 ..default()
             },
             ring_template: StandardMaterial {
-                base_color: Color::srgba(1.0, 0.6, 0.3, EXPLOSION_RING_START_ALPHA),
+                base_color: Color::srgba(1.0, 0.6, 0.3, EXPLOSION_SHOCKWAVE_START_ALPHA),
                 emissive: LinearRgba::rgb(ring, ring * 0.45, ring * 0.12),
                 alpha_mode: AlphaMode::Blend,
                 // The ring must render when seen from below a ledge or ramp.
@@ -107,6 +103,7 @@ impl ExplosionAssets {
                 depth_bias: 1.0,
                 ..default()
             },
+            config,
         }
     }
 }
@@ -129,16 +126,16 @@ fn shockwave_mesh(
     reach_radius: f32,
 ) -> Mesh {
     let rotation = Quat::from_rotation_arc(Vec3::Y, surface_normal);
-    let mut positions = Vec::with_capacity(EXPLOSION_RING_RESOLUTION as usize * 2);
+    let mut positions = Vec::with_capacity(SHOCKWAVE_RESOLUTION as usize * 2);
     let mut normals = Vec::with_capacity(positions.capacity());
     let mut colors = Vec::with_capacity(positions.capacity());
-    let mut clear = Vec::with_capacity(EXPLOSION_RING_RESOLUTION as usize);
+    let mut clear = Vec::with_capacity(SHOCKWAVE_RESOLUTION as usize);
 
-    for segment in 0..EXPLOSION_RING_RESOLUTION {
-        let angle = segment as f32 / EXPLOSION_RING_RESOLUTION as f32 * TAU;
+    for segment in 0..SHOCKWAVE_RESOLUTION {
+        let angle = segment as f32 / SHOCKWAVE_RESOLUTION as f32 * TAU;
         let radial = Vec3::new(angle.cos(), 0.0, angle.sin());
         positions.push((radial * 0.5).to_array());
-        positions.push((radial * (0.5 - EXPLOSION_RING_THICKNESS)).to_array());
+        positions.push((radial * (0.5 * (1.0 - EXPLOSION_SHOCKWAVE_THICKNESS_RATIO))).to_array());
         normals.extend([Vec3::Y.to_array(); 2]);
         colors.extend([[1.0, 1.0, 1.0, 1.0]; 2]);
 
@@ -151,9 +148,9 @@ fn shockwave_mesh(
         );
     }
 
-    let mut indices = Vec::with_capacity(EXPLOSION_RING_RESOLUTION as usize * 6);
-    for segment in 0..EXPLOSION_RING_RESOLUTION as usize {
-        let next = (segment + 1) % EXPLOSION_RING_RESOLUTION as usize;
+    let mut indices = Vec::with_capacity(SHOCKWAVE_RESOLUTION as usize * 6);
+    for segment in 0..SHOCKWAVE_RESOLUTION as usize {
+        let next = (segment + 1) % SHOCKWAVE_RESOLUTION as usize;
         if !clear[segment] || !clear[next] {
             continue;
         }
@@ -174,9 +171,10 @@ fn shockwave_mesh(
 
 impl FromWorld for ExplosionAssets {
     fn from_world(world: &mut World) -> Self {
+        let config = world.resource::<ClientSettings>().vfx.explosions;
         world.resource_scope(|world, mut meshes: Mut<Assets<Mesh>>| {
             let mut materials = world.resource_mut::<Assets<StandardMaterial>>();
-            Self::new(&mut meshes, &mut materials)
+            Self::new(&mut meshes, &mut materials, config)
         })
     }
 }
@@ -234,8 +232,8 @@ pub fn spawn_actor_explosion(
         .expect("actor kind sent by server is missing from gameplay config")
         .physics();
     let blast_radius = radii.actors.get(actor_kind).copied();
-    let fireball_diameter = blast_radius.map_or(EXPLOSION_FALLBACK_SCALE, |radius| {
-        2.0 * radius * EXPLOSION_FIREBALL_DIAMETER_FACTOR
+    let fireball_diameter = blast_radius.map_or(EXPLOSION_FALLBACK_FIREBALL_DIAMETER, |radius| {
+        2.0 * radius * explosion_assets.config.fireball.blast_diameter_factor
     });
     spawn_explosion(
         commands,
@@ -277,8 +275,8 @@ pub fn spawn_player_explosion(
         ExplosionSpec {
             center: Vec3::new(pos.x, player_physics.collider_center_y(pos.y), pos.z),
             ground_y: pos.y,
-            fireball_diameter: blast_radius.map_or(EXPLOSION_FALLBACK_SCALE, |radius| {
-                2.0 * radius * EXPLOSION_FIREBALL_DIAMETER_FACTOR
+            fireball_diameter: blast_radius.map_or(EXPLOSION_FALLBACK_FIREBALL_DIAMETER, |radius| {
+                2.0 * radius * explosion_assets.config.fireball.blast_diameter_factor
             }),
             blast_radius,
         },
@@ -300,6 +298,7 @@ fn spawn_explosion(
     collision_world: Option<&CollisionWorld>,
     map_layout: Option<&MapLayout>,
 ) {
+    let config = &explosion_assets.config;
     let ExplosionSpec {
         center,
         ground_y,
@@ -324,9 +323,9 @@ fn spawn_explosion(
         Transform::from_translation(center).with_scale(Vec3::splat(0.01)),
         ExplosionPulse {
             elapsed: 0.0,
-            lifetime: EXPLOSION_LIFETIME_SECS * EXPLOSION_FLASH_LIFETIME_FACTOR,
+            lifetime: config.base_duration_secs * EXPLOSION_FIREBALL_LIFETIME_FACTOR,
             max_scale: fireball_diameter,
-            start_alpha: EXPLOSION_FLASH_START_ALPHA,
+            start_alpha: EXPLOSION_FIREBALL_START_ALPHA,
             base_emissive: explosion_assets.fireball_template.emissive,
             material: fireball_material,
         },
@@ -338,22 +337,22 @@ fn spawn_explosion(
             collision_world,
             center,
             surface.normal,
-            blast_radius * EXPLOSION_RING_DIAMETER_FACTOR,
+            blast_radius * EXPLOSION_SHOCKWAVE_DIAMETER_FACTOR,
         ));
         commands.spawn((
             Mesh3d(ring_mesh),
             MeshMaterial3d(ring_material.clone()),
             NotShadowCaster,
             Transform {
-                translation: surface.point + surface.normal * EXPLOSION_RING_Y_OFFSET,
+                translation: surface.point + surface.normal * EXPLOSION_SHOCKWAVE_SURFACE_OFFSET,
                 rotation: Quat::from_rotation_arc(Vec3::Y, surface.normal),
                 scale: Vec3::splat(0.01),
             },
             ExplosionPulse {
                 elapsed: 0.0,
-                lifetime: EXPLOSION_LIFETIME_SECS * EXPLOSION_RING_LIFETIME_FACTOR,
-                max_scale: 2.0 * blast_radius * EXPLOSION_RING_DIAMETER_FACTOR,
-                start_alpha: EXPLOSION_RING_START_ALPHA,
+                lifetime: config.base_duration_secs * EXPLOSION_SHOCKWAVE_LIFETIME_FACTOR,
+                max_scale: 2.0 * blast_radius * EXPLOSION_SHOCKWAVE_DIAMETER_FACTOR,
+                start_alpha: EXPLOSION_SHOCKWAVE_START_ALPHA,
                 base_emissive: explosion_assets.ring_template.emissive,
                 material: ring_material,
             },
@@ -361,7 +360,7 @@ fn spawn_explosion(
     }
 
     let mut rng = rng();
-    let scorch_diameter = 2.0 * reach_radius * EXPLOSION_SCORCH_DIAMETER_FACTOR;
+    let scorch_diameter = 2.0 * reach_radius * config.scorches.blast_diameter_factor;
     let scorch_radius = scorch_diameter * 0.5;
     let scorch_style = ScorchStyle::random(explosion_assets.scorch_meshes.len(), &mut rng);
     if let Some(surface) = ground_surface {
@@ -374,6 +373,7 @@ fn spawn_explosion(
                 explosion_assets,
                 ScorchPlacement::on_surface(surface, diameter, scorch_style),
                 scorch_style,
+                EXPLOSION_SCORCH_MAX_ACTIVE,
             );
         }
     }
@@ -382,17 +382,28 @@ fn spawn_explosion(
             map_layout,
             center,
             scorch_radius,
-            SCORCH_WALL_REACH_FACTOR,
+            EXPLOSION_SCORCH_WALL_REACH_FACTOR,
             scorch_style,
         ) {
-            spawn_scorch_mark(commands, materials, budget, explosion_assets, placement, scorch_style);
+            spawn_scorch_mark(
+                commands,
+                materials,
+                budget,
+                explosion_assets,
+                placement,
+                scorch_style,
+                EXPLOSION_SCORCH_MAX_ACTIVE,
+            );
         }
     } else if let Some(world) = collision_world {
-        let wall_probe_distance = scorch_radius * SCORCH_WALL_REACH_FACTOR;
+        let wall_probe_distance = scorch_radius * EXPLOSION_SCORCH_WALL_REACH_FACTOR;
         for direction in [Vec3::X, Vec3::NEG_X, Vec3::Z, Vec3::NEG_Z] {
             if let Some(surface) = world.wall_surface_along_ray(center, direction, wall_probe_distance)
-                && let Some(diameter) =
-                    wall_scorch_diameter(scorch_radius, center.distance(surface.point), SCORCH_WALL_REACH_FACTOR)
+                && let Some(diameter) = wall_scorch_diameter(
+                    scorch_radius,
+                    center.distance(surface.point),
+                    EXPLOSION_SCORCH_WALL_REACH_FACTOR,
+                )
             {
                 spawn_scorch_mark(
                     commands,
@@ -401,6 +412,7 @@ fn spawn_explosion(
                     explosion_assets,
                     ScorchPlacement::on_surface(surface, diameter, scorch_style),
                     scorch_style,
+                    EXPLOSION_SCORCH_MAX_ACTIVE,
                 );
             }
         }
@@ -416,7 +428,8 @@ fn spawn_explosion(
         ground_plane,
         center,
         reach_radius,
-        shard_count(reach_radius),
+        shard_count(reach_radius, config),
+        config,
         &mut rng,
     );
     spawn_smoke_cloud(
@@ -426,18 +439,20 @@ fn spawn_explosion(
         budget,
         center,
         reach_radius,
-        smoke_count(reach_radius),
+        smoke_count(reach_radius, config),
+        config,
         &mut rng,
     );
 
     // Own entity: the light fades over the full master lifetime, outliving
     // the shorter fireball flash.
-    if budget.reserve_light() {
+    if budget.reserve_light(EXPLOSION_LIGHT_MAX_ACTIVE) {
         let range = (reach_radius * EXPLOSION_LIGHT_RANGE_PER_RADIUS).max(EXPLOSION_LIGHT_MIN_RANGE);
+        let intensity = config.light.intensity_lumens;
         commands.spawn((
             PointLight {
                 color: EXPLOSION_LIGHT_COLOR,
-                intensity: EXPLOSION_LIGHT_INTENSITY,
+                intensity,
                 range,
                 radius: 1.0,
                 shadow_maps_enabled: true,
@@ -446,8 +461,8 @@ fn spawn_explosion(
             Transform::from_translation(center),
             ExplosionLight {
                 elapsed: 0.0,
-                lifetime: EXPLOSION_LIFETIME_SECS,
-                intensity: EXPLOSION_LIGHT_INTENSITY,
+                lifetime: config.base_duration_secs,
+                intensity,
                 range,
             },
         ));
@@ -461,6 +476,7 @@ fn spawn_scorch_mark(
     explosion_assets: &ExplosionAssets,
     placement: ScorchPlacement,
     style: ScorchStyle,
+    max_active_marks: usize,
 ) {
     let material = materials.add(explosion_assets.scorch_template.clone());
     let scorch_mesh = explosion_assets.scorch_meshes[style.mesh_index].clone();
@@ -473,44 +489,68 @@ fn spawn_scorch_mark(
             ScorchMark { elapsed: 0.0, material },
         ))
         .id();
-    budget.register_scorch(commands, entity);
+    budget.register_scorch(commands, entity, max_active_marks);
 }
 
-fn scorch_alpha(elapsed: f32) -> f32 {
-    ((EXPLOSION_SCORCH_LIFETIME_SECS - elapsed) / EXPLOSION_SCORCH_FADE_SECS).clamp(0.0, 1.0)
+fn scorch_alpha(elapsed: f32, lifetime: f32) -> f32 {
+    let fade_secs = lifetime * EXPLOSION_SCORCH_FADE_FRACTION;
+    ((lifetime - elapsed) / fade_secs).clamp(0.0, 1.0)
 }
 
 pub fn scorch_marks_system(
     mut commands: Commands,
     time: Res<Time>,
+    settings: Res<ClientSettings>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut budget: ResMut<ExplosionVfxBudget>,
     mut marks: Query<(Entity, &mut ScorchMark)>,
 ) {
     let delta = time.delta_secs();
+    let lifetime = settings.vfx.explosions.scorches.lifetime_secs;
+    let fade_secs = lifetime * EXPLOSION_SCORCH_FADE_FRACTION;
     for (entity, mut mark) in &mut marks {
         mark.elapsed += delta;
-        if mark.elapsed >= EXPLOSION_SCORCH_LIFETIME_SECS {
+        if mark.elapsed >= lifetime {
             budget.remove_scorch(entity);
             commands.entity(entity).despawn();
             continue;
         }
-        if mark.elapsed >= EXPLOSION_SCORCH_LIFETIME_SECS - EXPLOSION_SCORCH_FADE_SECS
+        if mark.elapsed >= lifetime - fade_secs
             && let Some(mut material) = materials.get_mut(&mark.material)
         {
-            material.base_color.set_alpha(scorch_alpha(mark.elapsed));
+            material.base_color.set_alpha(scorch_alpha(mark.elapsed, lifetime));
         }
     }
 }
 
-fn shard_count(reach_radius: f32) -> usize {
-    ((reach_radius * EXPLOSION_SHARDS_PER_METER).ceil() as usize)
-        .clamp(EXPLOSION_SHARD_MIN_COUNT, EXPLOSION_SHARD_MAX_COUNT)
+fn shard_count(reach_radius: f32, config: &ExplosionVfxConfig) -> usize {
+    scaled_particle_count(
+        reach_radius,
+        config.shards.count_per_radius_meter,
+        EXPLOSION_REFERENCE_SHARDS_PER_METER,
+        EXPLOSION_SHARD_MIN_COUNT,
+        EXPLOSION_SHARD_MAX_COUNT,
+    )
 }
 
-fn smoke_count(reach_radius: f32) -> usize {
-    ((reach_radius * EXPLOSION_SMOKE_PARTICLES_PER_METER).ceil() as usize)
-        .clamp(EXPLOSION_SMOKE_MIN_COUNT, EXPLOSION_SMOKE_MAX_COUNT)
+fn smoke_count(reach_radius: f32, config: &ExplosionVfxConfig) -> usize {
+    scaled_particle_count(
+        reach_radius,
+        config.smoke.count_per_radius_meter,
+        EXPLOSION_REFERENCE_SMOKE_PARTICLES_PER_METER,
+        EXPLOSION_SMOKE_MIN_COUNT,
+        EXPLOSION_SMOKE_MAX_COUNT,
+    )
+}
+
+fn scaled_particle_count(reach_radius: f32, density: f32, default_density: f32, min: usize, max: usize) -> usize {
+    if density <= 0.0 {
+        return 0;
+    }
+    let scale = density / default_density;
+    let scaled_min = (min as f32 * scale).round() as usize;
+    let scaled_max = (max as f32 * scale).round() as usize;
+    ((reach_radius * density).ceil() as usize).clamp(scaled_min.min(scaled_max), scaled_max)
 }
 
 pub fn explosion_pulse_system(
@@ -566,37 +606,46 @@ pub fn explosion_lights_system(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::constants::{EXPLOSION_SHARD_MAX_COUNT, EXPLOSION_SHARD_MIN_COUNT};
     use common::constants::WALL_HEIGHT;
     use common::protocol::{BarrierKindTable, Floor, MapLayout, Wall};
 
     #[test]
     fn shard_count_clamps_to_bounds() {
-        assert_eq!(shard_count(0.1), EXPLOSION_SHARD_MIN_COUNT);
-        assert_eq!(shard_count(1000.0), EXPLOSION_SHARD_MAX_COUNT);
-        let mid = shard_count(10.0);
+        let config = ExplosionVfxConfig::default();
+        assert_eq!(shard_count(0.1, &config), EXPLOSION_SHARD_MIN_COUNT);
+        assert_eq!(shard_count(1000.0, &config), EXPLOSION_SHARD_MAX_COUNT);
+        let mid = shard_count(10.0, &config);
         assert!(mid > EXPLOSION_SHARD_MIN_COUNT && mid < EXPLOSION_SHARD_MAX_COUNT);
     }
 
     #[test]
     fn shard_count_steps_up_with_blast_radius() {
+        let config = ExplosionVfxConfig::default();
         // The three shipped kinds must be visibly distinct.
-        assert!(shard_count(6.0) < shard_count(10.0));
-        assert!(shard_count(10.0) < shard_count(15.0));
+        assert!(shard_count(6.0, &config) < shard_count(10.0, &config));
+        assert!(shard_count(10.0, &config) < shard_count(15.0, &config));
+    }
+
+    #[test]
+    fn density_scales_particle_count_and_zero_disables_it() {
+        let default = ExplosionVfxConfig::default();
+        let mut half = default;
+        half.shards.count_per_radius_meter *= 0.5;
+        let mut disabled = default;
+        disabled.shards.count_per_radius_meter = 0.0;
+
+        assert_eq!(shard_count(10.0, &half), shard_count(10.0, &default) / 2);
+        assert_eq!(shard_count(10.0, &disabled), 0);
     }
 
     #[test]
     fn scorch_alpha_stays_opaque_then_fades_to_zero() {
-        assert_eq!(scorch_alpha(0.0), 1.0);
-        assert_eq!(
-            scorch_alpha(EXPLOSION_SCORCH_LIFETIME_SECS - EXPLOSION_SCORCH_FADE_SECS),
-            1.0
-        );
-        assert_eq!(
-            scorch_alpha(EXPLOSION_SCORCH_LIFETIME_SECS - EXPLOSION_SCORCH_FADE_SECS / 2.0),
-            0.5
-        );
-        assert_eq!(scorch_alpha(EXPLOSION_SCORCH_LIFETIME_SECS), 0.0);
+        let lifetime = ExplosionVfxConfig::default().scorches.lifetime_secs;
+        let fade_secs = lifetime * EXPLOSION_SCORCH_FADE_FRACTION;
+        assert_eq!(scorch_alpha(0.0, lifetime), 1.0);
+        assert_eq!(scorch_alpha(lifetime - fade_secs, lifetime), 1.0);
+        assert_eq!(scorch_alpha(lifetime - fade_secs / 2.0, lifetime), 0.5);
+        assert_eq!(scorch_alpha(lifetime, lifetime), 0.0);
     }
 
     #[test]
@@ -622,7 +671,8 @@ mod tests {
         let collision_world = CollisionWorld::from_map_layout(&map_layout, &BarrierKindTable::default());
         let mut meshes = Assets::<Mesh>::default();
         let mut materials = Assets::<StandardMaterial>::default();
-        let explosion_assets = ExplosionAssets::new(&mut meshes, &mut materials);
+        let config = ExplosionVfxConfig::default();
+        let explosion_assets = ExplosionAssets::new(&mut meshes, &mut materials, config);
         let mut budget = ExplosionVfxBudget::default();
         let mut world = World::new();
         let mut queue = bevy::ecs::world::CommandQueue::default();
@@ -652,7 +702,7 @@ mod tests {
         assert_eq!(marks.len(), 1);
         let transform = marks[0].1;
         assert!((transform.translation.y - EXPLOSION_SCORCH_SURFACE_OFFSET).abs() < 0.001);
-        let scorch_radius = 6.0 * EXPLOSION_SCORCH_DIAMETER_FACTOR;
+        let scorch_radius = 6.0 * config.scorches.blast_diameter_factor;
         let expected_diameter = 2.0 * scorch_radius.mul_add(scorch_radius, -1.0).sqrt();
         assert_eq!(transform.scale, Vec3::splat(expected_diameter));
     }
@@ -682,7 +732,7 @@ mod tests {
         let collision_world = CollisionWorld::from_map_layout(&map_layout, &BarrierKindTable::default());
         let mut meshes = Assets::<Mesh>::default();
         let mut materials = Assets::<StandardMaterial>::default();
-        let explosion_assets = ExplosionAssets::new(&mut meshes, &mut materials);
+        let explosion_assets = ExplosionAssets::new(&mut meshes, &mut materials, ExplosionVfxConfig::default());
         let mut budget = ExplosionVfxBudget::default();
         let mut world = World::new();
         let mut queue = bevy::ecs::world::CommandQueue::default();

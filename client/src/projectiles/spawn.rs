@@ -19,7 +19,11 @@ pub struct ProjectileAssets {
 
 impl FromWorld for ProjectileAssets {
     fn from_world(world: &mut World) -> Self {
-        let brightness = world.resource::<crate::config::ClientSettings>().projectiles.brightness;
+        let brightness = world
+            .resource::<crate::config::ClientSettings>()
+            .vfx
+            .projectiles
+            .body_emissive_brightness;
         let mesh = world.resource_mut::<Assets<Mesh>>().add(Sphere::new(PROJECTILE_RADIUS));
         let material = world
             .resource_mut::<Assets<StandardMaterial>>()

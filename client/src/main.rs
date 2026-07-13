@@ -58,9 +58,9 @@ use client::{
         update_message_feed_system,
     },
     vfx::{
-        BeamAssets, ExplosionAssets, ExplosionRadii, ExplosionVfxBudget, SparkAssets, beam_ghost_fade_system,
-        beam_ghost_sparkle_system, beam_sparkles_system, explosion_lights_system, explosion_particles_system,
-        explosion_pulse_system, scorch_marks_system, spark_particles_system,
+        ExplosionAssets, ExplosionRadii, ExplosionVfxBudget, TransientParticles, beam_ghost_fade_system,
+        beam_ghost_removed_system, beam_ghost_sparkle_system, explosion_lights_system, explosion_particles_system,
+        explosion_pulse_system, scorch_marks_system, transient_particles_system,
     },
 };
 use common::{config::GameplayConfig, constants::TICK_HZ, net::MessageStream, protocol::*};
@@ -207,11 +207,11 @@ fn main() -> Result<()> {
         .insert_resource(SeenPlayerIds::default())
         .insert_resource(QuestLog::default())
         .init_resource::<ProjectileAssets>()
-        .init_resource::<SparkAssets>()
-        .init_resource::<BeamAssets>()
+        .init_resource::<TransientParticles>()
         .init_resource::<ExplosionAssets>()
         .init_resource::<ExplosionRadii>()
         .init_resource::<ExplosionVfxBudget>()
+        .add_observer(beam_ghost_removed_system)
         // Startup creates persistent scene infrastructure before any server
         // map data arrives.
         .add_systems(
@@ -300,10 +300,9 @@ fn main() -> Result<()> {
                 explosion_particles_system,
                 explosion_lights_system,
                 scorch_marks_system,
-                spark_particles_system,
                 beam_ghost_fade_system,
-                beam_ghost_sparkle_system,
-                beam_sparkles_system,
+                beam_ghost_sparkle_system.after(beam_ghost_fade_system),
+                transient_particles_system.after(beam_ghost_sparkle_system),
                 items_animation_system,
                 y_spin_system,
             ),

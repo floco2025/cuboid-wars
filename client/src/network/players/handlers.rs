@@ -558,7 +558,8 @@ mod tests {
         let gameplay_config = GameplayConfig::load_default().expect("load default gameplay config");
         let mut mesh_assets = Assets::<Mesh>::default();
         let mut material_assets = Assets::<StandardMaterial>::default();
-        let explosion_assets = ExplosionAssets::new(&mut mesh_assets, &mut material_assets);
+        let explosion_assets =
+            ExplosionAssets::new(&mut mesh_assets, &mut material_assets, client_settings.vfx.explosions);
         let mut explosion_budget = ExplosionVfxBudget::default();
         let explosion_radii = ExplosionRadii::default();
         let mut commands_queue = bevy::ecs::world::CommandQueue::default();

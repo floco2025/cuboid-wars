@@ -15,9 +15,64 @@
       "threshold_softness": 0.4
     }
   },
-  "projectiles": {
-    "brightness": 5.0,
-    "spark_brightness": 25.0
+  "vfx": {
+    "max_transient_particles": 1600,
+    "projectiles": {
+      "body_emissive_brightness": 5.0,
+      "impact_sparks": {
+        "base_particle_count": 6,
+        "particle_size": 0.05,
+        "particle_speed": 8.0,
+        "particle_lifetime_secs": 0.25,
+        "emissive_brightness": 25.0
+      }
+    },
+    "actor_beam_in": {
+      "sparkles_per_m3_per_second": 200.0,
+      "sparkle_size": 0.05,
+      "sparkle_lifetime_secs": 1.5,
+      "sparkle_emissive_brightness": 25.0,
+      "light_intensity_lumens_per_m3": 500000.0,
+      "materialization_ring_enabled": false
+    },
+    "explosions": {
+      "base_duration_secs": 0.8,
+      "fireball": {
+        "blast_diameter_factor": 0.5,
+        "emissive_brightness": 3000.0
+      },
+      "shockwave": {
+        "emissive_brightness": 2000.0
+      },
+      "light": {
+        "intensity_lumens": 1000000.0
+      },
+      "shards": {
+        "count_per_radius_meter": 40.0,
+        "size": 0.20,
+        "emissive_brightness": 2500.0
+      },
+      "smoke": {
+        "count_per_radius_meter": 1.5,
+        "end_size": 1.45,
+        "lifetime_secs": 4.0,
+        "max_opacity": 0.32
+      },
+      "scorches": {
+        "blast_diameter_factor": 0.4,
+        "lifetime_secs": 30.0
+      }
+    }
+  },
+  "audio": {
+    "spatial_distance_scale": 0.1,
+    "explosion_gain_multiplier": 2.0,
+    "projectile_impacts": {
+      "wall_bounce_gain_multiplier": 0.2,
+      "min_bounce_speed_meters_per_second": 10.0,
+      "max_bounce_sounds_per_second": 30.0,
+      "rate_limit_preemption_loudness_ratio": 2.0
+    }
   },
   "lighting": {
     "ambient_brightness": 70.0,

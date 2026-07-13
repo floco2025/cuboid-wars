@@ -4,9 +4,9 @@ use crate::{
     animations::{AnimationToPlay, character_animation_system},
     characters::{PreviousTickPosition, spawn_collider_box},
     config::{AssetSet, ClientSettings},
-    constants::{BEAM_IN_LIGHT_RANGE, LABEL_ACTOR_MESH_WIDTH},
+    constants::{BEAM_IN_COLOR, BEAM_IN_LIGHT_RANGE, LABEL_ACTOR_MESH_WIDTH},
     ui::floating_labels::spawn_floating_health_bar,
-    vfx::{BeamInGhost, ghost_fade_setup_system},
+    vfx::{BeamEmitter, BeamInGhost, ghost_fade_setup_system},
 };
 use common::{
     config::GameplayConfig,
@@ -119,7 +119,6 @@ pub fn beam_in_ghost_state(gameplay_config: &GameplayConfig, spawning: &Spawning
     BeamInGhost {
         remaining_secs: spawning.remaining_secs,
         warning_secs: spawning.warning_secs,
-        sparkle_timer: 0.0,
         half_extents: Vec3::new(collider.width, collider.height, collider.depth) / 2.0,
     }
 }
@@ -150,8 +149,9 @@ pub fn spawn_actor_ghost(
             .with_rotation(Quat::from_rotation_y(spawning.face_dir)),
             Visibility::Visible,
             beam_in_ghost_state(gameplay_config, spawning),
+            BeamEmitter::default(),
             PointLight {
-                color: Color::srgb(1.0, 0.85, 0.3),
+                color: BEAM_IN_COLOR,
                 // Starts dark; the fade system ramps it with the window.
                 intensity: 0.0,
                 range: BEAM_IN_LIGHT_RANGE,

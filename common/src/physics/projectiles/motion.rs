@@ -8,7 +8,7 @@ use crate::{
         PROJECTILE_RADIUS, PROJECTILE_SPEED,
     },
     physics::CollisionWorld,
-    protocol::Position,
+    protocol::{BarrierKindId, Position},
 };
 
 const MAX_SURFACE_BOUNCES: usize = 3;
@@ -124,7 +124,8 @@ impl ProjectileMotion {
 
     // Barriers terminate projectiles (no bounce). Cast against barrier
     // colliders only; if the projectile's straight-line trajectory hits one
-    // this frame, return the impact position so the caller can despawn.
+    // this frame, return the contact data so the caller can despawn and render
+    // a surface-aware impact cue.
     // Kinds in `open_kinds` (pressure-plate-open) are skipped — those
     // barriers are gone visually, so projectiles fly through them.
     #[must_use]
@@ -134,10 +135,21 @@ impl ProjectileMotion {
         delta: f32,
         collision_world: &CollisionWorld,
         open_kinds: &[crate::protocol::BarrierKindId],
-    ) -> Option<Position> {
-        let t = self.barrier_collision_t(projectile_pos, delta, collision_world, open_kinds)?;
-        let collision_pos = Vec3::from(*projectile_pos) + self.velocity * delta * t;
-        Some(collision_pos.into())
+    ) -> Option<BarrierImpact> {
+        let translation = self.velocity * delta;
+        let hit = collision_world.cast_moving_ball_against_barriers(
+            Vec3::from(*projectile_pos),
+            translation,
+            PROJECTILE_RADIUS,
+            open_kinds,
+        )?;
+        Some(BarrierImpact {
+            point: hit.contact,
+            normal: hit.normal,
+            kind: hit
+                .barrier_kind
+                .expect("barrier-only shape cast returned a non-barrier collider"),
+        })
     }
 
     #[must_use]
@@ -149,7 +161,7 @@ impl ProjectileMotion {
     ) -> Option<WorldBounces> {
         let mut current_pos = *projectile_pos;
         let mut remaining_delta = delta;
-        let mut first_impact = None;
+        let mut first_surface = None;
         let mut budget_exhausted = false;
 
         for bounce in 0..MAX_SURFACE_BOUNCES {
@@ -164,8 +176,8 @@ impl ProjectileMotion {
                 self.step_after_collision(&current_pos, remaining_delta, collision.normal, collision.t);
             current_pos = next_pos;
             remaining_delta = next_delta;
-            if first_impact.is_none() {
-                first_impact = Some(current_pos);
+            if first_surface.is_none() {
+                first_surface = Some((collision.contact, collision.normal));
             }
 
             if remaining_delta <= PHYSICS_EPSILON {
@@ -181,7 +193,7 @@ impl ProjectileMotion {
             }
         }
 
-        let first_impact = first_impact?;
+        let (first_contact, first_normal) = first_surface?;
 
         let translation = self.velocity * remaining_delta;
         let mut final_pos = Vec3::from(current_pos) + translation;
@@ -195,7 +207,8 @@ impl ProjectileMotion {
         }
         Some(WorldBounces {
             position: final_pos.into(),
-            first_impact,
+            first_contact,
+            first_normal,
         })
     }
 }
@@ -204,7 +217,15 @@ impl ProjectileMotion {
 pub struct WorldBounces {
     // Where the projectile ends the tick, post-bounce travel included.
     pub position: Position,
-    // Ball center at the first surface contact — where impact effects
-    // belong; `position` can be meters past the surface by tick end.
-    pub first_impact: Position,
+    // Exact world-collider contact and an outward normal opposing the incoming
+    // trajectory, for presentation effects at the actual surface.
+    pub first_contact: Vec3,
+    pub first_normal: Vec3,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct BarrierImpact {
+    pub point: Vec3,
+    pub normal: Vec3,
+    pub kind: BarrierKindId,
 }

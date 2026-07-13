@@ -1,6 +1,8 @@
 use bevy_math::Vec3;
 use rapier3d::parry::query::ShapeCastHit as RapierShapeCastHit;
 
+use crate::protocol::BarrierKindId;
+
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ShapeCastHit {
     pub normal: Vec3,
@@ -9,6 +11,7 @@ pub(crate) struct ShapeCastHit {
     // pose (`witness2` stays in the cast shape's local frame).
     pub contact: Vec3,
     pub t: f32,
+    pub barrier_kind: Option<BarrierKindId>,
 }
 
 pub(super) fn upward_surface_hit(hit: RapierShapeCastHit) -> Option<ShapeCastHit> {
@@ -22,5 +25,6 @@ pub(super) fn upward_surface_hit(hit: RapierShapeCastHit) -> Option<ShapeCastHit
             normal,
             contact: Vec3::new(hit.witness1.x, hit.witness1.y, hit.witness1.z),
             t: hit.time_of_impact,
+            barrier_kind: None,
         })
 }

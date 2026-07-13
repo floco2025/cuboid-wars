@@ -16,6 +16,8 @@ const RAMP_COLLISION_GROUP: Group = Group::GROUP_3;
 // Barrier kinds occupy bits 3..31 inclusive (29 slots, matching
 // `BARRIER_KIND_MAX`). `BarrierKindId(n)` → bit `3 + n`.
 const BARRIER_GROUP_BIT_OFFSET: u32 = 3;
+const COLLIDER_KIND_MASK: u128 = 0xff;
+const BARRIER_KIND_SHIFT: u32 = 8;
 
 #[must_use]
 pub(crate) fn barrier_collision_group(kind: BarrierKindId) -> Group {
@@ -81,9 +83,17 @@ impl ColliderKind {
         }
     }
 
-    #[cfg(test)]
+    fn barrier_user_data(kind: BarrierKindId) -> u128 {
+        Self::Barrier.user_data() | (u128::from(kind.0) << BARRIER_KIND_SHIFT)
+    }
+
+    pub(super) fn barrier_kind_from_user_data(user_data: u128) -> Option<BarrierKindId> {
+        (Self::from_user_data(user_data) == Some(Self::Barrier))
+            .then_some(BarrierKindId((user_data >> BARRIER_KIND_SHIFT) as u16))
+    }
+
     pub(super) fn from_user_data(user_data: u128) -> Option<Self> {
-        match user_data {
+        match user_data & COLLIDER_KIND_MASK {
             1 => Some(Self::Wall),
             2 => Some(Self::Floor),
             3 => Some(Self::Ramp),
@@ -113,7 +123,7 @@ pub(super) fn insert_wall_collider(colliders: &mut ColliderSet, wall: &Wall) -> 
         colliders,
         center,
         half_extents,
-        ColliderKind::Wall,
+        ColliderKind::Wall.user_data(),
         WALL_COLLISION_GROUP,
     )
 }
@@ -131,7 +141,7 @@ pub(super) fn insert_floor_collider(colliders: &mut ColliderSet, floor: &Floor) 
         colliders,
         center,
         half_extents,
-        ColliderKind::Floor,
+        ColliderKind::Floor.user_data(),
         FLOOR_COLLISION_GROUP,
     )
 }
@@ -158,7 +168,7 @@ pub(super) fn insert_barrier_collider(colliders: &mut ColliderSet, barrier: &Bar
         colliders,
         center,
         half_extents,
-        ColliderKind::Barrier,
+        ColliderKind::barrier_user_data(barrier.kind),
         barrier_collision_group(barrier.kind),
     )
 }
@@ -167,14 +177,14 @@ fn insert_cuboid_collider(
     colliders: &mut ColliderSet,
     center: Vec3,
     half_extents: Vec3,
-    kind: ColliderKind,
+    user_data: u128,
     group: Group,
 ) -> ColliderHandle {
     colliders.insert(
         ColliderBuilder::cuboid(half_extents.x, half_extents.y, half_extents.z)
             .position(Pose::translation(center.x, center.y, center.z))
             .collision_groups(collider_interaction_groups(group))
-            .user_data(kind.user_data())
+            .user_data(user_data)
             .build(),
     )
 }
@@ -238,6 +248,14 @@ mod tests {
         // Barrier bits must not overlap reserved world groups.
         assert!((g0 & (WALL_COLLISION_GROUP | FLOOR_COLLISION_GROUP | RAMP_COLLISION_GROUP)).is_empty());
         assert!((g1 & (WALL_COLLISION_GROUP | FLOOR_COLLISION_GROUP | RAMP_COLLISION_GROUP)).is_empty());
+    }
+
+    #[test]
+    fn barrier_user_data_round_trips_kind() {
+        let kind = BarrierKindId(7);
+        let user_data = ColliderKind::barrier_user_data(kind);
+        assert_eq!(ColliderKind::from_user_data(user_data), Some(ColliderKind::Barrier));
+        assert_eq!(ColliderKind::barrier_kind_from_user_data(user_data), Some(kind));
     }
 
     #[test]

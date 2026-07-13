@@ -10,14 +10,8 @@ use rand::{Rng, RngExt};
 
 use crate::{
     cameras::MainCameraMarker,
-    constants::{
-        EXPLOSION_LIGHT_MAX_ACTIVE, EXPLOSION_SCORCH_MAX_ACTIVE, EXPLOSION_SHARD_BOUNCE_DAMPING,
-        EXPLOSION_SHARD_FRICTION, EXPLOSION_SHARD_GLOBAL_MAX_COUNT, EXPLOSION_SHARD_GRAVITY,
-        EXPLOSION_SHARD_LIFETIME_FACTOR, EXPLOSION_SHARD_SIZE, EXPLOSION_SHARD_SPEED_FACTOR, EXPLOSION_SHARD_UP_BIAS,
-        EXPLOSION_SMOKE_END_SIZE, EXPLOSION_SMOKE_FADE_IN_SECS, EXPLOSION_SMOKE_FADE_OUT_START_FRACTION,
-        EXPLOSION_SMOKE_GLOBAL_MAX_COUNT, EXPLOSION_SMOKE_LIFETIME_SECS, EXPLOSION_SMOKE_MAX_ALPHA,
-        EXPLOSION_SMOKE_START_SIZE,
-    },
+    config::{ClientSettings, ExplosionVfxConfig},
+    constants::*,
 };
 use common::physics::{CollisionWorld, WorldSurfaceHit};
 
@@ -90,8 +84,8 @@ pub struct ExplosionVfxBudget {
 }
 
 impl ExplosionVfxBudget {
-    fn reserve_shards(&mut self, requested: usize) -> usize {
-        let granted = requested.min(EXPLOSION_SHARD_GLOBAL_MAX_COUNT.saturating_sub(self.active_shards));
+    fn reserve_shards(&mut self, requested: usize, max_active: usize) -> usize {
+        let granted = requested.min(max_active.saturating_sub(self.active_shards));
         self.active_shards += granted;
         granted
     }
@@ -100,8 +94,8 @@ impl ExplosionVfxBudget {
         self.active_shards = self.active_shards.saturating_sub(count);
     }
 
-    fn reserve_smoke(&mut self, requested: usize) -> usize {
-        let granted = requested.min(EXPLOSION_SMOKE_GLOBAL_MAX_COUNT.saturating_sub(self.active_smoke));
+    fn reserve_smoke(&mut self, requested: usize, max_active: usize) -> usize {
+        let granted = requested.min(max_active.saturating_sub(self.active_smoke));
         self.active_smoke += granted;
         granted
     }
@@ -110,8 +104,8 @@ impl ExplosionVfxBudget {
         self.active_smoke = self.active_smoke.saturating_sub(count);
     }
 
-    pub(super) fn reserve_light(&mut self) -> bool {
-        if self.active_lights >= EXPLOSION_LIGHT_MAX_ACTIVE {
+    pub(super) fn reserve_light(&mut self, max_active: usize) -> bool {
+        if self.active_lights >= max_active {
             return false;
         }
         self.active_lights += 1;
@@ -122,8 +116,8 @@ impl ExplosionVfxBudget {
         self.active_lights = self.active_lights.saturating_sub(1);
     }
 
-    pub(super) fn register_scorch(&mut self, commands: &mut Commands, entity: Entity) {
-        if self.scorches.len() >= EXPLOSION_SCORCH_MAX_ACTIVE
+    pub(super) fn register_scorch(&mut self, commands: &mut Commands, entity: Entity, max_active: usize) {
+        if self.scorches.len() >= max_active
             && let Some(oldest) = self.scorches.pop_front()
         {
             commands.entity(oldest).despawn();
@@ -208,13 +202,14 @@ pub(super) fn spawn_shard_cloud(
     center: Vec3,
     reach_radius: f32,
     requested_count: usize,
+    config: &ExplosionVfxConfig,
     rng: &mut impl Rng,
 ) {
-    let count = budget.reserve_shards(requested_count);
+    let count = budget.reserve_shards(requested_count, EXPLOSION_SHARD_GLOBAL_MAX_COUNT);
     if count == 0 {
         return;
     }
-    let base_lifetime = crate::constants::EXPLOSION_LIFETIME_SECS * EXPLOSION_SHARD_LIFETIME_FACTOR;
+    let base_lifetime = config.base_duration_secs * EXPLOSION_SHARD_LIFETIME_FACTOR;
     let mut particles = Vec::with_capacity(count);
     for _ in 0..count {
         let direction = random_direction(rng);
@@ -237,7 +232,7 @@ pub(super) fn spawn_shard_cloud(
                 rng.random_range(-8.0..8.0),
                 rng.random_range(-8.0..8.0),
             ),
-            size: EXPLOSION_SHARD_SIZE,
+            size: config.shards.size,
             lifetime,
             travelled: 0.0,
             max_distance,
@@ -268,9 +263,10 @@ pub(super) fn spawn_smoke_cloud(
     center: Vec3,
     reach_radius: f32,
     requested_count: usize,
+    config: &ExplosionVfxConfig,
     rng: &mut impl Rng,
 ) {
-    let count = budget.reserve_smoke(requested_count);
+    let count = budget.reserve_smoke(requested_count, EXPLOSION_SMOKE_GLOBAL_MAX_COUNT);
     if count == 0 {
         return;
     }
@@ -286,12 +282,19 @@ pub(super) fn spawn_smoke_cloud(
             angular_velocity: rng.random_range(-0.5..0.5),
             aspect: Vec2::new(rng.random_range(0.85..1.15), rng.random_range(0.80..1.10)),
             start_size: EXPLOSION_SMOKE_START_SIZE * rng.random_range(0.7..1.25),
-            end_size: EXPLOSION_SMOKE_END_SIZE * rng.random_range(0.75..1.35),
-            lifetime: EXPLOSION_SMOKE_LIFETIME_SECS * rng.random_range(0.9..1.15),
+            end_size: config.smoke.end_size * rng.random_range(0.75..1.35),
+            lifetime: config.smoke.lifetime_secs * rng.random_range(0.9..1.15),
             color: Vec3::new(shade * 1.08, shade, shade * 0.9),
         });
     }
-    let mesh = meshes.add(smoke_mesh(&particles, 0.0, Vec3::X, Vec3::Y, Vec3::Z));
+    let mesh = meshes.add(smoke_mesh(
+        &particles,
+        0.0,
+        Vec3::X,
+        Vec3::Y,
+        Vec3::Z,
+        config.smoke.max_opacity,
+    ));
     commands.spawn((
         Mesh3d(mesh.clone()),
         MeshMaterial3d(material),
@@ -309,6 +312,7 @@ pub(super) fn spawn_smoke_cloud(
 pub fn explosion_particles_system(
     mut commands: Commands,
     time: Res<Time>,
+    settings: Res<ClientSettings>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut budget: ResMut<ExplosionVfxBudget>,
     mut shards: Query<(Entity, &mut ExplosionShardCloud)>,
@@ -316,6 +320,7 @@ pub fn explosion_particles_system(
     main_camera: Query<&GlobalTransform, (With<Camera3d>, With<MainCameraMarker>)>,
 ) {
     let delta = time.delta_secs();
+    let config = &settings.vfx.explosions;
     for (entity, mut cloud) in &mut shards {
         cloud.elapsed += delta;
         let elapsed = cloud.elapsed;
@@ -375,6 +380,7 @@ pub fn explosion_particles_system(
                 smoke_right,
                 smoke_up,
                 smoke_normal,
+                config.smoke.max_opacity,
             );
         }
     }
@@ -474,25 +480,33 @@ fn shard_is_alive(particle: &ShardParticle, elapsed: f32) -> bool {
     elapsed < particle.lifetime && particle.max_distance.is_none_or(|limit| particle.travelled < limit)
 }
 
-fn smoke_mesh(particles: &[SmokeParticle], elapsed: f32, right: Vec3, up: Vec3, normal: Vec3) -> Mesh {
+fn smoke_mesh(particles: &[SmokeParticle], elapsed: f32, right: Vec3, up: Vec3, normal: Vec3, max_alpha: f32) -> Mesh {
     let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default());
     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, smoke_positions(particles, elapsed, right, up));
     mesh.insert_attribute(
         Mesh::ATTRIBUTE_NORMAL,
         vec![normal.to_array(); particles.len() * SMOKE_VERTICES_PER_PARTICLE],
     );
-    mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, smoke_colors(particles, elapsed));
+    mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, smoke_colors(particles, elapsed, max_alpha));
     mesh.insert_indices(Indices::U32(smoke_indices(particles.len())));
     mesh
 }
 
-fn update_smoke_mesh(mesh: &mut Mesh, particles: &[SmokeParticle], elapsed: f32, right: Vec3, up: Vec3, normal: Vec3) {
+fn update_smoke_mesh(
+    mesh: &mut Mesh,
+    particles: &[SmokeParticle],
+    elapsed: f32,
+    right: Vec3,
+    up: Vec3,
+    normal: Vec3,
+    max_alpha: f32,
+) {
     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, smoke_positions(particles, elapsed, right, up));
     mesh.insert_attribute(
         Mesh::ATTRIBUTE_NORMAL,
         vec![normal.to_array(); particles.len() * SMOKE_VERTICES_PER_PARTICLE],
     );
-    mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, smoke_colors(particles, elapsed));
+    mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, smoke_colors(particles, elapsed, max_alpha));
 }
 
 fn smoke_positions(particles: &[SmokeParticle], elapsed: f32, right: Vec3, up: Vec3) -> Vec<[f32; 3]> {
@@ -512,10 +526,10 @@ fn smoke_positions(particles: &[SmokeParticle], elapsed: f32, right: Vec3, up: V
     positions
 }
 
-fn smoke_colors(particles: &[SmokeParticle], elapsed: f32) -> Vec<[f32; 4]> {
+fn smoke_colors(particles: &[SmokeParticle], elapsed: f32, max_alpha: f32) -> Vec<[f32; 4]> {
     let mut colors = Vec::with_capacity(particles.len() * SMOKE_VERTICES_PER_PARTICLE);
     for particle in particles {
-        let alpha = smoke_alpha(elapsed, particle.lifetime);
+        let alpha = smoke_alpha(elapsed, particle.lifetime, max_alpha);
         colors.push([particle.color.x, particle.color.y, particle.color.z, alpha * 0.85]);
         colors.extend([[particle.color.x, particle.color.y, particle.color.z, alpha]; SMOKE_RING_SEGMENTS]);
         colors.extend([[particle.color.x, particle.color.y, particle.color.z, 0.0]; SMOKE_RING_SEGMENTS]);
@@ -523,7 +537,7 @@ fn smoke_colors(particles: &[SmokeParticle], elapsed: f32) -> Vec<[f32; 4]> {
     colors
 }
 
-fn smoke_alpha(elapsed: f32, lifetime: f32) -> f32 {
+fn smoke_alpha(elapsed: f32, lifetime: f32, max_alpha: f32) -> f32 {
     if elapsed >= lifetime {
         return 0.0;
     }
@@ -532,7 +546,7 @@ fn smoke_alpha(elapsed: f32, lifetime: f32) -> f32 {
     let fade_out_progress = ((progress - EXPLOSION_SMOKE_FADE_OUT_START_FRACTION)
         / (1.0 - EXPLOSION_SMOKE_FADE_OUT_START_FRACTION))
         .clamp(0.0, 1.0);
-    EXPLOSION_SMOKE_MAX_ALPHA * fade_in * (1.0 - smoothstep(fade_out_progress))
+    max_alpha * fade_in * (1.0 - smoothstep(fade_out_progress))
 }
 
 fn smoothstep(value: f32) -> f32 {
@@ -575,12 +589,12 @@ mod tests {
     fn global_budget_clamps_and_releases_particles() {
         let mut budget = ExplosionVfxBudget::default();
         assert_eq!(
-            budget.reserve_shards(EXPLOSION_SHARD_GLOBAL_MAX_COUNT + 10),
+            budget.reserve_shards(EXPLOSION_SHARD_GLOBAL_MAX_COUNT + 10, EXPLOSION_SHARD_GLOBAL_MAX_COUNT,),
             EXPLOSION_SHARD_GLOBAL_MAX_COUNT
         );
-        assert_eq!(budget.reserve_shards(1), 0);
+        assert_eq!(budget.reserve_shards(1, EXPLOSION_SHARD_GLOBAL_MAX_COUNT), 0);
         budget.release_shards(20);
-        assert_eq!(budget.reserve_shards(30), 20);
+        assert_eq!(budget.reserve_shards(30, EXPLOSION_SHARD_GLOBAL_MAX_COUNT), 20);
     }
 
     #[test]
@@ -599,12 +613,14 @@ mod tests {
 
     #[test]
     fn smoke_reaches_full_opacity_as_fireball_ends_then_holds() {
-        let lifetime = EXPLOSION_SMOKE_LIFETIME_SECS;
-        assert_eq!(smoke_alpha(0.0, lifetime), 0.0);
-        assert!(smoke_alpha(0.25, lifetime) < smoke_alpha(0.5, lifetime));
-        assert_eq!(smoke_alpha(0.5, lifetime), EXPLOSION_SMOKE_MAX_ALPHA);
-        assert_eq!(smoke_alpha(2.0, lifetime), EXPLOSION_SMOKE_MAX_ALPHA);
-        assert!(smoke_alpha(3.5, lifetime) < EXPLOSION_SMOKE_MAX_ALPHA);
-        assert_eq!(smoke_alpha(lifetime, lifetime), 0.0);
+        let config = ExplosionVfxConfig::default();
+        let lifetime = config.smoke.lifetime_secs;
+        let opacity = config.smoke.max_opacity;
+        assert_eq!(smoke_alpha(0.0, lifetime, opacity), 0.0);
+        assert!(smoke_alpha(0.25, lifetime, opacity) < smoke_alpha(0.5, lifetime, opacity));
+        assert_eq!(smoke_alpha(0.5, lifetime, opacity), opacity);
+        assert_eq!(smoke_alpha(2.0, lifetime, opacity), opacity);
+        assert!(smoke_alpha(3.5, lifetime, opacity) < opacity);
+        assert_eq!(smoke_alpha(lifetime, lifetime, opacity), 0.0);
     }
 }

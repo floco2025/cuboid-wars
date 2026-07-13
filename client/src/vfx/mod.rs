@@ -1,11 +1,12 @@
 mod beam;
 mod explosion;
 mod explosion_particles;
+mod particles;
 mod scorch;
 mod spark;
 
 pub use beam::{
-    BeamAssets, BeamInGhost, beam_ghost_fade_system, beam_ghost_sparkle_system, beam_sparkles_system,
+    BeamEmitter, BeamInGhost, beam_ghost_fade_system, beam_ghost_removed_system, beam_ghost_sparkle_system,
     ghost_fade_setup_system,
 };
 pub use explosion::{
@@ -13,4 +14,5 @@ pub use explosion::{
     scorch_marks_system, spawn_actor_explosion, spawn_player_explosion,
 };
 pub use explosion_particles::{ExplosionVfxBudget, explosion_particles_system};
-pub use spark::{SparkAssets, spark_particles_system, spawn_bounce_sparks};
+pub use particles::{TransientParticles, transient_particles_system};
+pub use spark::{ImpactKind, spawn_impact_sparks};

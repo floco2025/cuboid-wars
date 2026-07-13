@@ -173,156 +173,79 @@ pub const KEY_HUD_ICON_HEIGHT_PX: f32 = 12.0;
 pub const KEY_HUD_GAP_PX: f32 = 8.0;
 
 // ============================================================================
-// Projectiles
+// Projectile VFX
 // ============================================================================
 
-pub const PROJECTILE_MIN_BOUNCE_SOUND_SPEED: f32 = 10.0; // minimum speed for bounce sound + sparks
-pub const PROJECTILE_MAX_BOUNCE_SOUNDS_PER_SECOND: f32 = 30.0; // rate limit for bounce sounds
-// A bounce this many times louder at the listener than the one holding the
-// rate-limit slot plays anyway — a nearby ricochet shouldn't be silenced
-// because a distant one fired first in the same window.
-pub const PROJECTILE_BOUNCE_PREEMPT_LOUDNESS_RATIO: f32 = 2.0;
-
-// Bounce sparks: tiny emissive cubes thrown from the impact point, paired
-// 1:1 with the bounce sound's rate limit.
-pub const PROJECTILE_SPARK_COUNT: usize = 6;
-pub const PROJECTILE_SPARK_SPEED: f32 = 8.0; // m/s
-pub const PROJECTILE_SPARK_GRAVITY: f32 = 20.0; // m/s²
-pub const PROJECTILE_SPARK_LIFETIME_SECS: f32 = 0.25;
-pub const PROJECTILE_SPARK_SIZE: f32 = 0.05;
+// Configured spark count and speed are calibrated at this impact speed.
+pub const PROJECTILE_SPARK_REFERENCE_SPEED: f32 = 70.0;
+pub const PROJECTILE_SPARK_GRAVITY: f32 = 20.0;
+pub const PROJECTILE_SPARK_SPREAD_DEGREES: f32 = 45.0;
 
 // ============================================================================
-// Actor Beam-In
+// Actor Beam-In VFX
 // ============================================================================
 
-// The ghost's fade-in is driven by the warning window shipped in the
-// snapshot (`SpawningActor.remaining_secs` / `warning_secs`) — no local
-// pacing constant.
-
-// Transporter sparkles: golden motes rising through the ghost's volume.
-pub const BEAM_IN_SPARKLE_INTERVAL_SECS: f32 = 0.05;
-// Per-emit count scales with the ghost's collider volume so every kind gets
-// the same visual density (mine_1 ≈ 0.03 m³, sentry ≈ 2.5 m³ — a flat count
-// can't fit both). At least one sparkle per emit regardless of size.
-pub const BEAM_IN_SPARKLES_PER_M3: f32 = 10.0;
-pub const BEAM_IN_SPARKLE_SIZE: f32 = 0.05;
-pub const BEAM_IN_SPARKLE_LIFETIME_SECS: f32 = 1.5;
-pub const BEAM_IN_SPARKLE_RISE_SPEED: f32 = 1.0; // m/s
-pub const BEAM_IN_SPARKLE_BRIGHTNESS: f32 = 25.0;
-
-// Glow strength scales with the ghost's collider volume, like the sparkles.
-// Explosion-flash territory (500k/m³), not wall-lamp territory (20k): the
-// glow competes with direct sunlight on open ground, and it only reaches
-// full strength at the end of the fade ramp. The floor keeps the smallest
-// kinds (mine_1 ≈ 0.03 m³) from scaling into invisibility.
-pub const BEAM_IN_LIGHT_INTENSITY_PER_M3: f32 = 500_000.0; // lumens
-pub const BEAM_IN_LIGHT_MIN_INTENSITY: f32 = 5_000.0; // lumens
+pub const BEAM_IN_COLOR: Color = Color::srgb(1.0, 0.85, 0.3);
+// Keeps the minimum emission rate proportional when configured density changes.
+pub const BEAM_IN_REFERENCE_SPARKLES_PER_M3_PER_SECOND: f32 = 200.0;
+pub const BEAM_IN_MIN_SPARKLES_PER_SECOND: f32 = 20.0;
+pub const BEAM_IN_MAX_SPARKLES_PER_FRAME: usize = 32;
+pub const BEAM_IN_SPARKLE_RISE_SPEED: f32 = 1.0;
+pub const BEAM_IN_SPARKLE_DRIFT_SPEED: f32 = 0.25;
+pub const BEAM_IN_MATERIALIZATION_PARTICLE_COUNT: usize = 32;
+pub const BEAM_IN_MATERIALIZATION_SPEED: f32 = 3.5;
+pub const BEAM_IN_MATERIALIZATION_LIFETIME_SECS: f32 = 0.55;
+pub const BEAM_IN_LIGHT_MIN_INTENSITY: f32 = 5_000.0;
 pub const BEAM_IN_LIGHT_RANGE: f32 = 8.0;
 
 // ============================================================================
-// Spatial Audio
+// Explosion VFX
 // ============================================================================
 
-// World sounds (explosions, projectile impacts, actor hits): world meters
-// are compressed by this factor before the audio distance attenuation.
-// rodio's law is `min(1/d², 1)` in compressed units — sounds closer than
-// 1/scale meters (the "knee") play at FULL volume and only attenuate past
-// it. 0.1 puts the knee at 10 m so ordinary combat distances are audibly
-// placed. Personal feedback cues (take_hit, pickups) stay non-spatial.
-pub const SPATIAL_SOUND_SCALE: f32 = 0.1;
+pub const EXPLOSION_FALLBACK_FIREBALL_DIAMETER: f32 = 6.0;
+pub const EXPLOSION_FIREBALL_LIFETIME_FACTOR: f32 = 0.6;
+pub const EXPLOSION_FIREBALL_START_ALPHA: f32 = 0.9;
 
-// ============================================================================
-// Explosions
-// ============================================================================
+pub const EXPLOSION_SHOCKWAVE_SURFACE_OFFSET: f32 = 0.05;
+pub const EXPLOSION_SHOCKWAVE_DIAMETER_FACTOR: f32 = 1.0;
+pub const EXPLOSION_SHOCKWAVE_LIFETIME_FACTOR: f32 = 0.7;
+pub const EXPLOSION_SHOCKWAVE_THICKNESS_RATIO: f32 = 0.16;
+pub const EXPLOSION_SHOCKWAVE_START_ALPHA: f32 = 0.7;
 
-// Every layer sizes off the actor kind's real blast radius, shipped in
-// `SInit::actor_explosion_radii`, so the visuals telegraph the true danger
-// area. The two diameter factors are relative to the damage circle
-// (diameter = 2 × radius): the ring marks it exactly, the fireball stays at
-// half so a sentry blast doesn't swallow the screen.
-pub const EXPLOSION_RING_DIAMETER_FACTOR: f32 = 1.0;
-pub const EXPLOSION_FIREBALL_DIAMETER_FACTOR: f32 = 0.5;
-
-// Layer lifetimes are fractions of this master lifetime.
-pub const EXPLOSION_LIFETIME_SECS: f32 = 0.8;
-pub const EXPLOSION_LIGHT_INTENSITY: f32 = 1_000_000.0; // lumens
-
-// Fireball flash: emissive sphere, ease-out growth, alpha fade.
-pub const EXPLOSION_FLASH_LIFETIME_FACTOR: f32 = 0.6;
-pub const EXPLOSION_FLASH_START_ALPHA: f32 = 0.9;
-// Emissive radiance multiplier (~1.0 = tonemapped white), NOT lumens — the
-// point light below does the scene illumination. Far past the bloom
-// threshold (1.5) so the core tonemaps toward white-hot with a wide halo;
-// the alpha fade drags the glow down over the flash lifetime.
-pub const EXPLOSION_FLASH_BRIGHTNESS: f32 = 3_000.0;
-
-// Shockwave ring: flat expanding annulus at ground height. Only spawned for
-// blasts that deal area damage — a ring always means danger.
-pub const EXPLOSION_RING_LIFETIME_FACTOR: f32 = 0.7;
-pub const EXPLOSION_RING_START_ALPHA: f32 = 0.7;
-pub const EXPLOSION_RING_BRIGHTNESS: f32 = 2_000.0;
-// Radial thickness of the unit annulus mesh (outer radius 0.5).
-pub const EXPLOSION_RING_THICKNESS: f32 = 0.08;
-pub const EXPLOSION_RING_Y_OFFSET: f32 = 0.05; // avoids z-fighting with the floor
-pub const EXPLOSION_RING_RESOLUTION: u32 = 64; // default 32 looks faceted at sentry size
-
-// Scorch mark: an irregular translucent mesh projected onto nearby floor,
-// ramp, and wall surfaces. Radius is relative to the damage sphere, like the
-// fireball and ring factors above. It stays dark, then fades near end-of-life.
-pub const EXPLOSION_SCORCH_DIAMETER_FACTOR: f32 = 0.4;
 pub const EXPLOSION_SCORCH_SURFACE_OFFSET: f32 = 0.015;
-pub const EXPLOSION_SCORCH_LIFETIME_SECS: f32 = 30.0;
-pub const EXPLOSION_SCORCH_FADE_SECS: f32 = 10.0;
-pub const EXPLOSION_SCORCH_RESOLUTION: usize = 128;
+pub const EXPLOSION_SCORCH_FADE_FRACTION: f32 = 1.0 / 3.0;
+pub const EXPLOSION_SCORCH_MAX_ACTIVE: usize = 128;
+pub const EXPLOSION_SCORCH_MESH_VARIANT_COUNT: usize = 12;
+// Stay inside the irregular floor outline so wall and floor coverage agree at corners.
+pub const EXPLOSION_SCORCH_WALL_REACH_FACTOR: f32 = 0.6;
+pub const EXPLOSION_SCORCH_RING_RADII: [f32; 3] = [0.22, 0.39, 0.5];
+pub const EXPLOSION_SCORCH_RING_ALPHA: [f32; 3] = [0.84, 0.60, 0.0];
+pub const EXPLOSION_SCORCH_WALL_SEAM_OVERSCAN_FACTOR: f32 = 0.35;
 
-// Debris shards: batched emissive cuboids with the original density and size.
-pub const EXPLOSION_SHARD_LIFETIME_FACTOR: f32 = 1.3;
-pub const EXPLOSION_SHARD_SIZE: f32 = 0.20;
-pub const EXPLOSION_SHARD_BRIGHTNESS: f32 = 2_500.0;
-// Count scales with the blast radius so bigger kinds visibly step up
-// while a global budget keeps simultaneous chain reactions bounded.
-pub const EXPLOSION_SHARDS_PER_METER: f32 = 40.0;
+// Particle count limits scale around the densities shipped in client.json.
+pub const EXPLOSION_REFERENCE_SHARDS_PER_METER: f32 = 40.0;
 pub const EXPLOSION_SHARD_MIN_COUNT: usize = 200;
 pub const EXPLOSION_SHARD_MAX_COUNT: usize = 600;
 pub const EXPLOSION_SHARD_GLOBAL_MAX_COUNT: usize = 1_200;
-// Base speed = radius / shard lifetime * this factor: shards pass the blast
-// radius around half-life, then gravity takes over.
+pub const EXPLOSION_SHARD_LIFETIME_FACTOR: f32 = 1.3;
 pub const EXPLOSION_SHARD_SPEED_FACTOR: f32 = 2.0;
-pub const EXPLOSION_SHARD_GRAVITY: f32 = 15.0; // m/s²
+pub const EXPLOSION_SHARD_GRAVITY: f32 = 15.0;
 pub const EXPLOSION_SHARD_UP_BIAS: f32 = 0.35;
-// Cosmetic bounce off the blast's floor plane (shards that clear a ledge
-// bounce on air — their sub-second lifetime hides it).
 pub const EXPLOSION_SHARD_BOUNCE_DAMPING: f32 = 0.4;
 pub const EXPLOSION_SHARD_FRICTION: f32 = 0.7;
 
-// Smoke/dust: one batched cloud of soft camera-facing puffs per blast.
-pub const EXPLOSION_SMOKE_PARTICLES_PER_METER: f32 = 1.5;
+pub const EXPLOSION_REFERENCE_SMOKE_PARTICLES_PER_METER: f32 = 1.5;
 pub const EXPLOSION_SMOKE_MIN_COUNT: usize = 10;
 pub const EXPLOSION_SMOKE_MAX_COUNT: usize = 30;
 pub const EXPLOSION_SMOKE_GLOBAL_MAX_COUNT: usize = 160;
-pub const EXPLOSION_SMOKE_LIFETIME_SECS: f32 = 4.0;
 pub const EXPLOSION_SMOKE_START_SIZE: f32 = 0.42;
-pub const EXPLOSION_SMOKE_END_SIZE: f32 = 1.45;
-pub const EXPLOSION_SMOKE_MAX_ALPHA: f32 = 0.32;
 pub const EXPLOSION_SMOKE_FADE_IN_SECS: f32 = 0.5;
 pub const EXPLOSION_SMOKE_FADE_OUT_START_FRACTION: f32 = 0.58;
 
-pub const EXPLOSION_SCORCH_MAX_ACTIVE: usize = 128;
-pub const EXPLOSION_LIGHT_MAX_ACTIVE: usize = 4;
-
-// Volume boost for explosion sounds so close blasts stay appropriately
-// violent despite the spatial attenuation.
-pub const EXPLOSION_SOUND_VOLUME: f32 = 2.0;
-
-// Point light: same color and fade behavior as the old billboard effect.
 pub const EXPLOSION_LIGHT_COLOR: Color = Color::srgb(1.0, 0.55, 0.2);
 pub const EXPLOSION_LIGHT_RANGE_PER_RADIUS: f32 = 1.5;
-pub const EXPLOSION_LIGHT_MIN_RANGE: f32 = 7.0; // the old fixed range
-
-// Defensive fireball diameter for an actor kind missing from the `SInit`
-// radii table (shouldn't happen — config and map are cross-validated).
-// Player explosions size off `player.explosion.radius` like actors.
-pub const EXPLOSION_FALLBACK_SCALE: f32 = 6.0;
+pub const EXPLOSION_LIGHT_MIN_RANGE: f32 = 7.0;
+pub const EXPLOSION_LIGHT_MAX_ACTIVE: usize = 4;
 
 // ============================================================================
 // Wall Light Flicker
