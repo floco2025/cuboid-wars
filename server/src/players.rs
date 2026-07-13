@@ -139,16 +139,28 @@ pub fn players_explosion_system(
     gameplay_config: Res<GameplayConfig>,
     server_gameplay_config: Res<crate::config::ServerGameplayConfig>,
     actors: Res<crate::resources::ActorMap>,
-    mut player_query: Query<(Entity, &PlayerId, &Position, &mut Health), (With<PlayerMarker>, Without<ActorMarker>)>,
+    collision_world: Res<CollisionWorld>,
+    mut player_query: Query<
+        (
+            Entity,
+            &PlayerId,
+            &Position,
+            &mut Health,
+            &mut CharacterVerticalVelocity,
+        ),
+        (With<PlayerMarker>, Without<ActorMarker>),
+    >,
     mut actor_query: ActorDeathQuery,
 ) {
     let respawn_delay_secs = gameplay_config.player.respawn_delay_secs;
     while let Some((source_id, pos)) = pending.0.pop() {
         let dead_players = apply_player_explosion_damage(
+            &mut commands,
             pos,
             &server_gameplay_config.player.explosion,
             &gameplay_config,
             &server_gameplay_config,
+            &collision_world,
             &players,
             &actors,
             &mut player_query,
@@ -269,7 +281,9 @@ const PHANTOM_FALL_TRIPWIRE_SLACK: f32 = 5.0;
 //
 // Runs after `characters_movement_system` so it observes the *post-step*
 // `CharacterVerticalVelocity` (i.e. 0 on the impact tick because the floor
-// resolved the contact). Skipped entirely under debug invincibility.
+// resolved the contact). Under debug invincibility the impact cue
+// (`SPlayerFallDamage` → camera wiggle + sound) still fires; only the
+// health loss — and therefore the lethal branch — is skipped.
 pub fn players_fall_damage_system(
     mut commands: Commands,
     mut players: ResMut<PlayerMap>,
@@ -282,9 +296,7 @@ pub fn players_fall_damage_system(
         With<PlayerMarker>,
     >,
 ) {
-    if server_gameplay_config.player.invincible {
-        return;
-    }
+    let invincible = server_gameplay_config.player.invincible;
     let fall = server_gameplay_config.player.fall_damage;
     let max_health = gameplay_config.player.health().max;
     let respawn_delay_secs = gameplay_config.player.respawn_delay_secs;
@@ -328,7 +340,9 @@ pub fn players_fall_damage_system(
                 if damage < FALL_DAMAGE_EMIT_THRESHOLD {
                     continue;
                 }
-                apply_damage(&mut health, damage);
+                if !invincible {
+                    apply_damage(&mut health, damage);
+                }
                 // Unicast `SFallDamage` to the victim so the HUD health bar
                 // and vertical camera wiggle land on the impact frame
                 // instead of waiting for the next snapshot. The fatal-fall

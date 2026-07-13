@@ -1,10 +1,11 @@
-use bevy::prelude::*;
+use bevy::{audio::SpatialScale, audio::Volume, prelude::*};
 use std::collections::HashSet;
 
 use super::components::ServerReconciliation;
 use crate::{
     actors::{ActorGhostMap, ActorInfo, ActorMap, beam_in_ghost_state, spawn_actor, spawn_actor_ghost},
     config::{AssetSet, ClientSettings},
+    constants::{EXPLOSION_SOUND_VOLUME, SPATIAL_SOUND_SCALE},
     network::RoundTripTime,
     vfx::{ExplosionAssets, ExplosionRadii, spawn_actor_explosion},
 };
@@ -178,9 +179,15 @@ pub fn handle_actor_death_message(
         &info.kind,
         msg.pos,
     );
+    // Spatial: attenuates and pans with distance from the blast. The scale
+    // compresses world meters so the falloff suits map-sized distances.
     commands.spawn((
         AudioPlayer::new(asset_server.load(asset_set.actor_sound(&info.kind, "explodes").to_owned())),
-        PlaybackSettings::DESPAWN,
+        PlaybackSettings::DESPAWN
+            .with_spatial(true)
+            .with_spatial_scale(SpatialScale::new(SPATIAL_SOUND_SCALE))
+            .with_volume(Volume::Linear(EXPLOSION_SOUND_VOLUME)),
+        Transform::from_translation(Vec3::from(msg.pos)),
     ));
     commands.entity(info.entity).despawn();
 }
@@ -188,6 +195,7 @@ pub fn handle_actor_death_message(
 pub fn handle_actor_hit_message(
     commands: &mut Commands,
     actors: &ActorMap,
+    actor_data: &Query<(&Position, &ActorMoveIntent, &FaceDirection), With<ActorMarker>>,
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
     msg: SActorHit,
@@ -197,11 +205,19 @@ pub fn handle_actor_hit_message(
     // the impact tick instead of waiting for the next snapshot.
     if let Some(info) = actors.get(&msg.id) {
         commands.entity(info.entity).insert(msg.health);
+        // `SActorHit` is broadcast to every client, so the impact plays as
+        // a world sound at the actor — distant fights plink faintly instead
+        // of clicking at full volume map-wide.
+        if let Ok((pos, _, _)) = actor_data.get(info.entity) {
+            commands.spawn((
+                AudioPlayer::new(asset_server.load(asset_set.player_sound("hit_actor").to_owned())),
+                PlaybackSettings::DESPAWN
+                    .with_spatial(true)
+                    .with_spatial_scale(SpatialScale::new(SPATIAL_SOUND_SCALE)),
+                Transform::from_translation(Vec3::from(*pos)),
+            ));
+        }
     }
-    commands.spawn((
-        AudioPlayer::new(asset_server.load(asset_set.player_sound("hit_actor").to_owned())),
-        PlaybackSettings::DESPAWN,
-    ));
 }
 
 fn apply_actor_movement_state(

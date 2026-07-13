@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{audio::SpatialScale, audio::Volume, prelude::*};
 
 use super::{
     actors::{handle_actor_death_message, handle_actor_hit_message, handle_actor_move_intent_message},
@@ -7,15 +7,16 @@ use super::{
     items::{handle_health_potion_collected_message, handle_item_collected_message},
     players::{
         handle_fall_damage_message, handle_player_death_message, handle_player_face_message, handle_player_hit_message,
-        handle_player_jump_message, handle_player_move_intent_message, handle_player_shot_message,
-        handle_player_status_message, handle_quest_completed_message, handle_quest_progress_message,
-        handle_quests_assigned_message,
+        handle_player_jump_message, handle_player_knockback_message, handle_player_move_intent_message,
+        handle_player_shot_message, handle_player_status_message, handle_quest_completed_message,
+        handle_quest_progress_message, handle_quests_assigned_message,
     },
     snapshot::handle_snapshot_message,
 };
 use crate::{
     actors::ActorMap,
     cameras::MainCameraMarker,
+    constants::{EXPLOSION_SOUND_VOLUME, SPATIAL_SOUND_SCALE},
     items::ItemMap,
     network::{LastSnapshotSeq, RoundTripTime},
     players::PlayerMap,
@@ -81,14 +82,19 @@ pub fn dispatch_message(
         ServerMessage::PlayerDeath(death_msg) => {
             // Explosion sound here rather than in the handler (same pattern
             // as the pressure-plate sounds below) — the handler stays
-            // constructible in unit tests without an `AssetServer`.
+            // constructible in unit tests without an `AssetServer`. Spatial:
+            // attenuates and pans with distance from the blast.
             commands.spawn((
                 AudioPlayer::new(
                     client_assets
                         .asset_server
                         .load(client_assets.asset_set.player_sound("explodes").to_owned()),
                 ),
-                PlaybackSettings::DESPAWN,
+                PlaybackSettings::DESPAWN
+                    .with_spatial(true)
+                    .with_spatial_scale(SpatialScale::new(SPATIAL_SOUND_SCALE))
+                    .with_volume(Volume::Linear(EXPLOSION_SOUND_VOLUME)),
+                Transform::from_translation(Vec3::from(death_msg.pos)),
             ));
             handle_player_death_message(
                 commands,
@@ -144,11 +150,19 @@ pub fn dispatch_message(
             snapshot_msg,
         ),
         ServerMessage::PlayerHit(hit_msg) => {
-            handle_player_hit_message(commands, players, cameras, my_player_id, hit_msg);
+            handle_player_hit_message(
+                commands,
+                players,
+                cameras,
+                &client_assets.client_settings,
+                my_player_id,
+                hit_msg,
+            );
         }
         ServerMessage::ActorHit(hit_msg) => handle_actor_hit_message(
             commands,
             actors,
+            actor_data,
             &client_assets.asset_server,
             &client_assets.asset_set,
             hit_msg,
@@ -185,11 +199,15 @@ pub fn dispatch_message(
                 my_player_id,
             );
         }
+        ServerMessage::PlayerKnockback(knockback_msg) => {
+            handle_player_knockback_message(commands, players, my_player_id, knockback_msg);
+        }
         ServerMessage::PlayerFallDamage(fall_msg) => {
             handle_fall_damage_message(
                 commands,
                 players,
                 cameras,
+                &client_assets.client_settings,
                 my_player_id,
                 &client_assets.asset_server,
                 &client_assets.asset_set,

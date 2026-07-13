@@ -9,6 +9,7 @@ use crate::{
 use common::{
     config::GameplayConfig,
     constants::CHARACTER_FALL_DEATH_Y,
+    physics::{CharacterVerticalVelocity, CollisionWorld},
     protocol::{ActorId, ActorMarker, Health, PlayerId, PlayerMarker, Position, SActorDeath, ServerMessage},
 };
 
@@ -26,7 +27,17 @@ pub fn actor_removal_system(
     mut pending_explosions: ResMut<PendingPlayerExplosions>,
     server_gameplay_config: Res<ServerGameplayConfig>,
     gameplay_config: Res<GameplayConfig>,
-    mut player_query: Query<(Entity, &PlayerId, &Position, &mut Health), (With<PlayerMarker>, Without<ActorMarker>)>,
+    collision_world: Res<CollisionWorld>,
+    mut player_query: Query<
+        (
+            Entity,
+            &PlayerId,
+            &Position,
+            &mut Health,
+            &mut CharacterVerticalVelocity,
+        ),
+        (With<PlayerMarker>, Without<ActorMarker>),
+    >,
     mut query: ActorDeathQuery,
 ) {
     let mut deaths: Vec<ActorDeath> = Vec::new();
@@ -68,12 +79,14 @@ pub fn actor_removal_system(
             // at startup, so `validated_actor` cannot panic here.
             let kind_server_config = server_gameplay_config.validated_actor(&death.spawn_kind);
             let dead_players = apply_actor_explosion_damage(
+                &mut commands,
                 death.pos,
                 death.entity,
                 &death.spawn_kind,
                 &kind_server_config.combat.explosion,
                 &gameplay_config,
                 &server_gameplay_config,
+                &collision_world,
                 &players,
                 &actors,
                 &mut player_query,

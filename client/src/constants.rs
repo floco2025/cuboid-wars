@@ -216,6 +216,18 @@ pub const BEAM_IN_LIGHT_MIN_INTENSITY: f32 = 5_000.0; // lumens
 pub const BEAM_IN_LIGHT_RANGE: f32 = 8.0;
 
 // ============================================================================
+// Spatial Audio
+// ============================================================================
+
+// World sounds (explosions, projectile impacts, actor hits): world meters
+// are compressed by this factor before the audio distance attenuation.
+// rodio's law is `min(1/d², 1)` in compressed units — sounds closer than
+// 1/scale meters (the "knee") play at FULL volume and only attenuate past
+// it. 0.1 puts the knee at 10 m so ordinary combat distances are audibly
+// placed. Personal feedback cues (take_hit, pickups) stay non-spatial.
+pub const SPATIAL_SOUND_SCALE: f32 = 0.1;
+
+// ============================================================================
 // Explosions
 // ============================================================================
 
@@ -266,6 +278,14 @@ pub const EXPLOSION_SHARD_MAX_COUNT: usize = 20_000;
 pub const EXPLOSION_SHARD_SPEED_FACTOR: f32 = 2.0;
 pub const EXPLOSION_SHARD_GRAVITY: f32 = 15.0; // m/s²
 pub const EXPLOSION_SHARD_UP_BIAS: f32 = 0.35;
+// Cosmetic bounce off the blast's floor plane (shards that clear a ledge
+// bounce on air — their sub-second lifetime hides it).
+pub const EXPLOSION_SHARD_BOUNCE_DAMPING: f32 = 0.4;
+pub const EXPLOSION_SHARD_FRICTION: f32 = 0.7;
+
+// Volume boost for explosion sounds so close blasts stay appropriately
+// violent despite the spatial attenuation.
+pub const EXPLOSION_SOUND_VOLUME: f32 = 2.0;
 
 // Point light: same color and fade behavior as the old billboard effect.
 pub const EXPLOSION_LIGHT_COLOR: Color = Color::srgb(1.0, 0.55, 0.2);

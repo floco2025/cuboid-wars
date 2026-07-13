@@ -12,7 +12,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    physics::{CharacterVerticalVelocity, CollisionWorld, OpenBarrierKinds},
+    physics::{CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, OpenBarrierKinds},
     protocol::*,
 };
 
@@ -136,6 +136,7 @@ pub fn handle_player_hit_message(
     commands: &mut Commands,
     players: &ResMut<PlayerMap>,
     camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
+    client_settings: &ClientSettings,
     my_player_id: PlayerId,
     msg: SPlayerHit,
 ) {
@@ -143,15 +144,15 @@ pub fn handle_player_hit_message(
     if let Some(player) = players.get(&msg.id) {
         commands.entity(player.entity).insert(msg.health);
     }
+    let shake = client_settings.camera.shake;
     if msg.id == my_player_id {
         if let Ok(camera_entity) = camera_query.single() {
             commands.entity(camera_entity).insert(CameraShake {
-                timer: Timer::from_seconds(0.3, TimerMode::Once),
-                intensity: 3.0,
+                timer: Timer::from_seconds(shake.duration_secs, TimerMode::Once),
+                intensity: shake.intensity,
                 dir_x: msg.hit_dir_x,
-                // Small vertical companion to the directional hit shake —
-                // preserves the prior hardcoded `0.2` vertical bob.
-                dir_y: 0.2,
+                // Small vertical companion to the directional hit shake.
+                dir_y: shake.hit_vertical,
                 dir_z: msg.hit_dir_z,
                 offset_x: 0.0,
                 offset_y: 0.0,
@@ -265,6 +266,29 @@ pub fn handle_player_death_message(
     }
 }
 
+// Blast launch for the local player. The server already applied the same
+// impulse authoritatively; prediction must integrate it too or the next
+// reconciliation drags the launch back. Remote players need nothing — their
+// motion arrives via snapshots.
+pub fn handle_player_knockback_message(
+    commands: &mut Commands,
+    players: &PlayerMap,
+    my_player_id: PlayerId,
+    msg: SPlayerKnockback,
+) {
+    // Unicast to the victim, but stay defensive about routing.
+    if msg.id != my_player_id {
+        return;
+    }
+    let Some(info) = players.get(&msg.id) else {
+        return;
+    };
+    commands.entity(info.entity).insert((
+        CharacterVerticalVelocity(msg.vertical_velocity),
+        KnockbackVelocity(Vec3::new(msg.velocity_x, 0.0, msg.velocity_z)),
+    ));
+}
+
 // Handle player status update (power-ups, stun).
 pub fn handle_player_status_message(
     commands: &mut Commands,
@@ -316,10 +340,12 @@ pub fn handle_player_status_message(
 // camera shake — same shape as `handle_player_hit_message` but on the
 // Y axis only. Unicast, so the message only ever targets the local
 // player; no other-player branch.
+#[expect(clippy::too_many_arguments, reason = "message handler threading dispatcher state")]
 pub fn handle_fall_damage_message(
     commands: &mut Commands,
     players: &ResMut<PlayerMap>,
     camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
+    client_settings: &ClientSettings,
     my_player_id: PlayerId,
     asset_server: &AssetServer,
     asset_set: &AssetSet,
@@ -329,16 +355,15 @@ pub fn handle_fall_damage_message(
         commands.entity(player.entity).insert(msg.health);
     }
     if msg.id == my_player_id {
+        let shake = client_settings.camera.shake;
         if let Ok(camera_entity) = camera_query.single() {
             commands.entity(camera_entity).insert(CameraShake {
                 // Same duration/intensity envelope as a projectile hit, just
-                // re-aimed along the vertical axis. `dir_y` is tuned to feel
-                // more pronounced than the hit's vertical-companion `0.2` but
-                // not jarring — max amplitude ≈ 1.5 vs the hit's 0.6.
-                timer: Timer::from_seconds(0.3, TimerMode::Once),
-                intensity: 3.0,
+                // re-aimed along the vertical axis.
+                timer: Timer::from_seconds(shake.duration_secs, TimerMode::Once),
+                intensity: shake.intensity,
                 dir_x: 0.0,
-                dir_y: 0.5,
+                dir_y: shake.fall_vertical,
                 dir_z: 0.0,
                 offset_x: 0.0,
                 offset_y: 0.0,

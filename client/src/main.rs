@@ -15,7 +15,10 @@ use client::{
         pressure_plates_spawn_system, setup_barrier_assets,
     },
     cameras::{CameraViewMode, TopDownCameraYaw, setup_cameras_system},
-    characters::{capture_previous_tick_position_system, characters_movement_system, characters_visual_turn_system},
+    characters::{
+        capture_previous_tick_position_system, characters_movement_system, characters_visual_turn_system,
+        knockback_decay_system,
+    },
     config::{AssetSet, ClientSettings, OpaqueRenderer, configure_client},
     input::{
         commit_player_input_system, input_camera_view_toggle_system, input_cursor_toggle_system,
@@ -98,6 +101,11 @@ struct Args {
     // Window height
     #[arg(long, default_value = "800")]
     window_height: u32,
+
+    // Master audio volume (1.0 = normal, 0 = mute). Muting one window is the
+    // only way to judge spatial audio with two local clients on one machine.
+    #[arg(long, default_value = "1.0")]
+    volume: f32,
 }
 
 // ============================================================================
@@ -172,6 +180,10 @@ fn main() -> Result<()> {
     // rate.
     app.insert_resource(Time::<Fixed>::from_hz(f64::from(TICK_HZ)));
 
+    app.insert_resource(bevy::audio::GlobalVolume::new(bevy::audio::Volume::Linear(
+        args.volume.max(0.0),
+    )));
+
     app.insert_resource(ClientToServerChannel::new(to_server))
         .insert_resource(ServerToClientChannel::new(from_server))
         .insert_resource(PlayerMap::default())
@@ -242,6 +254,7 @@ fn main() -> Result<()> {
                 commit_player_input_system,
                 capture_previous_tick_position_system,
                 characters_movement_system,
+                knockback_decay_system,
                 // Projectiles step at the same fixed tick as the server so
                 // the step-size-dependent integration doesn't diverge from
                 // the authoritative trajectories.

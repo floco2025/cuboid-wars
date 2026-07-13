@@ -14,7 +14,7 @@ use server::{
         actor_behavior_system, actor_initial_spawn_system, actor_pending_spawn_system, actor_removal_system,
         actor_respawn_system, navigation::NavGraph,
     },
-    characters::{characters_health_regeneration_system, characters_movement_system},
+    characters::{characters_health_regeneration_system, characters_movement_system, knockback_decay_system},
     config::{ServerGameplayConfig, configure_server},
     items::{
         item_collection_system, placed_item_respawn_system, placed_item_spawn_system, random_item_despawn_system,
@@ -177,6 +177,8 @@ async fn main() -> Result<()> {
                 // movement reads the open set for its collision filter.
                 compute_open_barrier_kinds_system.before(characters_movement_system),
                 characters_movement_system.after(actor_behavior_system),
+                // Decay after movement so planning consumed this tick's step.
+                knockback_decay_system.after(characters_movement_system),
                 projectiles_movement_system,
                 // Actor removal handles health-zero explosions and fall cleanup.
                 actor_removal_system

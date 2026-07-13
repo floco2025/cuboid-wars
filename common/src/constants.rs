@@ -75,6 +75,22 @@ pub const CHARACTER_TERMINAL_VELOCITY: f32 = 50.0; // m/s
 // valid ground while walking over seams, ramps, and small frame-step gaps.
 pub const CHARACTER_GROUND_SNAP_DISTANCE: f32 = 0.5;
 
+// Inside this fraction of the blast radius the blast is at full strength;
+// past it, strength falls off quadratically to zero at the rim (closer to
+// real overpressure decay than a straight lerp — point blank is decisively
+// worse than a rim graze).
+pub const EXPLOSION_BLAST_CORE_FRACTION: f32 = 0.25;
+
+// Blast knockback: horizontal shove speed at the blast center and the
+// vertical launch speed added to `CharacterVerticalVelocity`. Both fall off
+// with distance like damage but ignore armor — armor protects health, not
+// momentum.
+pub const EXPLOSION_KNOCKBACK_MAX_SPEED: f32 = 15.0; // m/s
+pub const EXPLOSION_KNOCKBACK_UP_SPEED: f32 = 7.0; // m/s
+// Ground-friction-style linear deceleration of the horizontal shove: a hard
+// hit that dies cleanly (~0.4 s from full speed), no exponential crawl tail.
+pub const KNOCKBACK_DECELERATION: f32 = 35.0; // m/s²
+
 // Maximum low ledge height the Rapier character controller may auto-step over.
 pub const CHARACTER_STEP_HEIGHT: f32 = 0.2;
 

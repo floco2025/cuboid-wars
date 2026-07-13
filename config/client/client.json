@@ -33,6 +33,12 @@
       "fov_degrees": 90.0,
       "width_ratio": 0.20,
       "height_ratio": 0.20
+    },
+    "shake": {
+      "duration_secs": 0.3,
+      "intensity": 0.2,
+      "hit_vertical": 0.2,
+      "fall_vertical": 0.5
     }
   },
   "input": {

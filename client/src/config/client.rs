@@ -150,6 +150,31 @@ pub struct CameraConfig {
     pub topdown_margin: f32,
     pub topdown_tilt_degrees: f32,
     pub rearview: RearviewConfig,
+    #[serde(default)]
+    pub shake: CameraShakeConfig,
+}
+
+// Directional camera shake on the local player: projectile hits shake along
+// the incoming shot direction (with a small vertical companion), hard
+// landings shake vertically. Both share one duration/intensity envelope.
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(default)]
+pub struct CameraShakeConfig {
+    pub duration_secs: f32,
+    pub intensity: f32,
+    pub hit_vertical: f32,
+    pub fall_vertical: f32,
+}
+
+impl Default for CameraShakeConfig {
+    fn default() -> Self {
+        Self {
+            duration_secs: 0.3,
+            intensity: 3.0,
+            hit_vertical: 0.2,
+            fall_vertical: 0.5,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]

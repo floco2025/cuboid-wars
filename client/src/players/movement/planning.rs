@@ -58,7 +58,7 @@ pub(crate) fn plan_player_moves(
 ) {
     let player_config = &gameplay_config.player;
     let player_physics = player_config.physics();
-    for (entity, player_id, mut client_pos, move_intent, mut motion, _, mut recon_option, _) in query {
+    for (entity, player_id, mut client_pos, move_intent, mut motion, _, mut recon_option, knockback, _) in query {
         // Decay snap_speed each tick; new snapshot speed wins if larger.
         // Persisted on `PlayerInfo`. Deliberately fed by the SERVER velocity
         // (authoritative recent speed for the snap threshold), while the
@@ -109,9 +109,14 @@ pub(crate) fn plan_player_moves(
             })
         };
 
-        let Some(target) = target_pos else {
+        let Some(mut target) = target_pos else {
             continue;
         };
+        // Blast shove — same term the server adds, so the local prediction
+        // and the authoritative path integrate the same launch.
+        let knockback_step = knockback.map_or(Vec3::ZERO, |k| k.step(delta));
+        target.x += knockback_step.x;
+        target.z += knockback_step.z;
 
         // `CollisionWorld` and `MapSettings` are both installed by the same
         // `SInit`, so they appear together.

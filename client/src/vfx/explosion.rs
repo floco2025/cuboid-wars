@@ -10,9 +10,10 @@ use crate::constants::{
     EXPLOSION_FLASH_LIFETIME_FACTOR, EXPLOSION_FLASH_START_ALPHA, EXPLOSION_LIFETIME_SECS, EXPLOSION_LIGHT_COLOR,
     EXPLOSION_LIGHT_INTENSITY, EXPLOSION_LIGHT_MIN_RANGE, EXPLOSION_LIGHT_RANGE_PER_RADIUS, EXPLOSION_RING_BRIGHTNESS,
     EXPLOSION_RING_DIAMETER_FACTOR, EXPLOSION_RING_LIFETIME_FACTOR, EXPLOSION_RING_RESOLUTION,
-    EXPLOSION_RING_START_ALPHA, EXPLOSION_RING_THICKNESS, EXPLOSION_RING_Y_OFFSET, EXPLOSION_SHARD_BRIGHTNESS,
-    EXPLOSION_SHARD_GRAVITY, EXPLOSION_SHARD_LIFETIME_FACTOR, EXPLOSION_SHARD_MAX_COUNT, EXPLOSION_SHARD_MIN_COUNT,
-    EXPLOSION_SHARD_SIZE, EXPLOSION_SHARD_SPEED_FACTOR, EXPLOSION_SHARD_UP_BIAS, EXPLOSION_SHARDS_PER_METER,
+    EXPLOSION_RING_START_ALPHA, EXPLOSION_RING_THICKNESS, EXPLOSION_RING_Y_OFFSET, EXPLOSION_SHARD_BOUNCE_DAMPING,
+    EXPLOSION_SHARD_BRIGHTNESS, EXPLOSION_SHARD_FRICTION, EXPLOSION_SHARD_GRAVITY, EXPLOSION_SHARD_LIFETIME_FACTOR,
+    EXPLOSION_SHARD_MAX_COUNT, EXPLOSION_SHARD_MIN_COUNT, EXPLOSION_SHARD_SIZE, EXPLOSION_SHARD_SPEED_FACTOR,
+    EXPLOSION_SHARD_UP_BIAS, EXPLOSION_SHARDS_PER_METER,
 };
 
 // Blast radii from `SInit` (per actor kind + the player death blast). Starts
@@ -109,6 +110,8 @@ pub struct ExplosionShard {
     velocity: Vec3,
     elapsed: f32,
     lifetime: f32,
+    // The blast's floor plane — cosmetic bounce reference.
+    floor_y: f32,
 }
 
 #[derive(Component)]
@@ -245,6 +248,7 @@ pub fn spawn_explosion(
                 velocity: direction * speed,
                 elapsed: 0.0,
                 lifetime: shard_lifetime,
+                floor_y: ground_y,
             },
         ));
     }
@@ -320,6 +324,13 @@ pub fn explosion_shards_system(
         }
         shard.velocity.y -= EXPLOSION_SHARD_GRAVITY * delta;
         transform.translation += shard.velocity * delta;
+        let floor = shard.floor_y + EXPLOSION_SHARD_SIZE * 0.5;
+        if transform.translation.y < floor && shard.velocity.y < 0.0 {
+            transform.translation.y = floor;
+            shard.velocity.y = -shard.velocity.y * EXPLOSION_SHARD_BOUNCE_DAMPING;
+            shard.velocity.x *= EXPLOSION_SHARD_FRICTION;
+            shard.velocity.z *= EXPLOSION_SHARD_FRICTION;
+        }
         transform.scale = Vec3::splat(1.0 - shard.elapsed / shard.lifetime);
     }
 }

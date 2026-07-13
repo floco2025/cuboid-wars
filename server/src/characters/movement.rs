@@ -3,8 +3,8 @@ use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     constants::PHYSICS_EPSILON,
     physics::{
-        CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, overlapping_character, passable_barrier_kinds,
-        step_character_movement,
+        CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, overlapping_character,
+        passable_barrier_kinds, step_character_movement,
     },
     protocol::{ActorMarker, BarrierKindId, MapSettings, PlayerId, PlayerMarker, PlayerMoveIntent, Position},
 };
@@ -27,9 +27,18 @@ type PlayerMovementQuery<'w, 's> = Query<
         &'static mut CharacterVerticalVelocity,
         &'static PlayerMoveIntent,
         &'static PlayerId,
+        Option<&'static KnockbackVelocity>,
     ),
     (With<PlayerMarker>, Without<ActorMarker>),
 >;
+
+// Tick blast shoves down after movement consumed this tick's step.
+pub fn knockback_decay_system(time: Res<Time>, mut knockbacks: Query<&mut KnockbackVelocity>) {
+    let delta = time.delta_secs();
+    for mut knockback in &mut knockbacks {
+        knockback.decay(delta);
+    }
+}
 
 pub fn characters_movement_system(
     time: Res<Time>,
@@ -98,7 +107,7 @@ fn plan_player_moves(
 ) {
     let player_config = &gameplay_config.player;
     let player_physics = player_config.physics();
-    for (entity, pos, motion, move_intent, player_id) in query.iter() {
+    for (entity, pos, motion, move_intent, player_id, knockback) in query.iter() {
         let is_stunned = players.get(player_id).is_some_and(PlayerInfo::is_stunned);
         let has_speed_power_up = players.get(player_id).is_some_and(PlayerInfo::has_speed);
         let velocity =
@@ -107,13 +116,21 @@ fn plan_player_moves(
         let is_standing_still = velocity_sq < PHYSICS_EPSILON * PHYSICS_EPSILON;
         let suppress_horizontal = is_stunned || is_standing_still;
 
+        // Blast shove applies on top of intent — and regardless of
+        // `suppress_horizontal`: stun or idling doesn't anchor you against
+        // an explosion.
+        let knockback_step = knockback.map_or(Vec3::ZERO, |k| k.step(delta));
         let target_xz = if suppress_horizontal {
-            *pos
+            Position {
+                x: pos.x + knockback_step.x,
+                y: pos.y,
+                z: pos.z + knockback_step.z,
+            }
         } else {
             Position {
-                x: velocity.x.mul_add(delta, pos.x),
+                x: velocity.x.mul_add(delta, pos.x) + knockback_step.x,
                 y: pos.y,
-                z: velocity.z.mul_add(delta, pos.z),
+                z: velocity.z.mul_add(delta, pos.z) + knockback_step.z,
             }
         };
 
@@ -148,7 +165,7 @@ fn plan_player_moves(
 
 fn apply_player_moves(query: &mut PlayerMovementQuery, planned_moves: &[CharacterMovePlan]) {
     for planned_move in planned_moves {
-        let Ok((_, mut pos, mut motion, _, _)) = query.get_mut(planned_move.entity) else {
+        let Ok((_, mut pos, mut motion, _, _, _)) = query.get_mut(planned_move.entity) else {
             continue;
         };
 

@@ -5,7 +5,9 @@ use common::{
     protocol::{ActorId, ActorMarker, BarrierKindId, FaceDirection, PlayerId, PlayerMarker, Position},
 };
 
-use super::audio::{LastBounceSoundTime, play_barrier_impact_sound, play_sound, play_wall_bounce_sound};
+use super::audio::{
+    LastBounceSoundTime, play_barrier_impact_sound, play_sound, play_spatial_sound, play_wall_bounce_sound,
+};
 use crate::{
     actors::ActorMap,
     config::AssetSet,
@@ -68,14 +70,20 @@ pub(super) fn handle_character_collisions(
 
     match closest_hit {
         Some(target_hit) => {
+            let hit = target_hit.hit();
+            let impact = Vec3::from(*proj_pos) + proj_motion.velocity * delta * hit.time_of_impact;
             if let ProjectileTargetHit::Player { is_local_player, .. } = target_hit {
-                play_sound(
+                // World sound at the impact — every client simulates every
+                // projectile, so someone else's hit lands as a distant thud.
+                play_spatial_sound(
                     commands,
                     asset_server,
                     asset_set.player_sound("hit_player"),
                     PlaybackSettings::DESPAWN,
+                    impact,
                 );
 
+                // Personal cue: you got hit. Stays full-volume flat.
                 if is_local_player {
                     play_sound(
                         commands,
@@ -87,8 +95,6 @@ pub(super) fn handle_character_collisions(
             }
 
             // Impact debris sprays back along the projectile's travel.
-            let hit = target_hit.hit();
-            let impact = Vec3::from(*proj_pos) + proj_motion.velocity * delta * hit.time_of_impact;
             spawn_bounce_sparks(
                 commands,
                 spark_assets,
@@ -125,7 +131,7 @@ pub(super) fn handle_barrier_collisions(
     {
         return false;
     }
-    play_barrier_impact_sound(commands, asset_server, asset_set);
+    play_barrier_impact_sound(commands, asset_server, asset_set, Vec3::from(*proj_pos));
     commands.entity(proj_entity).despawn();
     true
 }
@@ -153,6 +159,7 @@ pub(super) fn handle_wall_collisions(
         speed_before,
         current_time,
         last_bounce_sound,
+        Vec3::from(bounces.first_impact),
     );
     // Sparks share the sound's speed threshold but not its global rate
     // limit — same-tick bounces (multi-shot volleys) each spark at their

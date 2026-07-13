@@ -248,6 +248,19 @@ pub struct SPlayerFallDamage {
     pub health: Health,
 }
 
+// Blast shove for a surviving victim. Unicast to the victim only: remote
+// players' motion arrives via snapshots/reconciliation, but the local
+// player's prediction would fight a server-side-only impulse, so the client
+// applies the same launch locally. Carries the post-impulse vertical
+// velocity (absolute) and the horizontal shove vector.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SPlayerKnockback {
+    pub id: PlayerId,
+    pub vertical_velocity: f32,
+    pub velocity_x: f32,
+    pub velocity_z: f32,
+}
+
 // Actor was hit by a projectile. Drives the `hit_actor` sound on the
 // shooter's client and carries the post-hit health so floating health
 // bars update on the impact tick instead of waiting for the next
@@ -405,6 +418,7 @@ pub enum ServerMessage {
     ActorDeath(SActorDeath),
     PlayerHit(SPlayerHit),
     PlayerFallDamage(SPlayerFallDamage),
+    PlayerKnockback(SPlayerKnockback),
     ActorHit(SActorHit),
     PlayerStatus(SPlayerStatus),
     CookieCollected(SCookieCollected),

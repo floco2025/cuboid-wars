@@ -30,6 +30,9 @@ pub fn setup_cameras_system(
     let mut main_camera = commands.spawn((
         IsDefaultUiCamera, // Mark this as the UI camera
         MainCameraMarker,
+        // Ear pair for spatial audio emitters (explosion sounds): distance
+        // attenuation + stereo panning relative to the camera.
+        SpatialListener::new(0.3),
         msaa,
         Camera3d::default(),
         Camera {
