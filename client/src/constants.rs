@@ -216,6 +216,68 @@ pub const BEAM_IN_LIGHT_MIN_INTENSITY: f32 = 5_000.0; // lumens
 pub const BEAM_IN_LIGHT_RANGE: f32 = 8.0;
 
 // ============================================================================
+// Explosions
+// ============================================================================
+
+// Every layer sizes off the actor kind's real blast radius, shipped in
+// `SInit::actor_explosion_radii`, so the visuals telegraph the true danger
+// area. The two diameter factors are relative to the damage circle
+// (diameter = 2 × radius): the ring marks it exactly, the fireball stays at
+// half so a sentry blast doesn't swallow the screen.
+pub const EXPLOSION_RING_DIAMETER_FACTOR: f32 = 1.0;
+pub const EXPLOSION_FIREBALL_DIAMETER_FACTOR: f32 = 0.5;
+
+// Layer lifetimes are fractions of this master lifetime.
+pub const EXPLOSION_LIFETIME_SECS: f32 = 0.8;
+pub const EXPLOSION_LIGHT_INTENSITY: f32 = 1_000_000.0; // lumens
+
+// Fireball flash: emissive sphere, ease-out growth, alpha fade.
+pub const EXPLOSION_FLASH_LIFETIME_FACTOR: f32 = 0.6;
+pub const EXPLOSION_FLASH_START_ALPHA: f32 = 0.9;
+// Emissive radiance multiplier (~1.0 = tonemapped white), NOT lumens — the
+// point light below does the scene illumination. Far past the bloom
+// threshold (1.5) so the core tonemaps toward white-hot with a wide halo;
+// the alpha fade drags the glow down over the flash lifetime.
+pub const EXPLOSION_FLASH_BRIGHTNESS: f32 = 3_000.0;
+
+// Shockwave ring: flat expanding annulus at ground height. Only spawned for
+// blasts that deal area damage — a ring always means danger.
+pub const EXPLOSION_RING_LIFETIME_FACTOR: f32 = 0.7;
+pub const EXPLOSION_RING_START_ALPHA: f32 = 0.7;
+pub const EXPLOSION_RING_BRIGHTNESS: f32 = 2_000.0;
+// Radial thickness of the unit annulus mesh (outer radius 0.5).
+pub const EXPLOSION_RING_THICKNESS: f32 = 0.08;
+pub const EXPLOSION_RING_Y_OFFSET: f32 = 0.05; // avoids z-fighting with the floor
+pub const EXPLOSION_RING_RESOLUTION: u32 = 64; // default 32 looks faceted at sentry size
+
+// Debris shards: ballistic emissive cuboids (same idiom as bounce sparks,
+// tuned independently).
+pub const EXPLOSION_SHARD_LIFETIME_FACTOR: f32 = 1.3;
+pub const EXPLOSION_SHARD_SIZE: f32 = 0.20;
+pub const EXPLOSION_SHARD_BRIGHTNESS: f32 = 2_500.0;
+// Count scales with the blast radius so bigger kinds visibly step up
+// (mine_1 r6 → 240, mine_2 r10 → 400, sentry r15 → 600); the floor keeps
+// small cosmetic bursts dense, the ceiling is runaway protection.
+pub const EXPLOSION_SHARDS_PER_METER: f32 = 40.0;
+pub const EXPLOSION_SHARD_MIN_COUNT: usize = 200;
+pub const EXPLOSION_SHARD_MAX_COUNT: usize = 20_000;
+// Base speed = radius / shard lifetime * this factor: shards pass the blast
+// radius around half-life, then gravity takes over.
+pub const EXPLOSION_SHARD_SPEED_FACTOR: f32 = 2.0;
+pub const EXPLOSION_SHARD_GRAVITY: f32 = 15.0; // m/s²
+pub const EXPLOSION_SHARD_UP_BIAS: f32 = 0.35;
+
+// Point light: same color and fade behavior as the old billboard effect.
+pub const EXPLOSION_LIGHT_COLOR: Color = Color::srgb(1.0, 0.55, 0.2);
+pub const EXPLOSION_LIGHT_RANGE_PER_RADIUS: f32 = 1.5;
+pub const EXPLOSION_LIGHT_MIN_RANGE: f32 = 7.0; // the old fixed range
+
+// Defensive fireball diameter for an actor kind missing from the `SInit`
+// radii table (shouldn't happen — config and map are cross-validated).
+// Player explosions size off `player.explosion.radius` like actors.
+pub const EXPLOSION_FALLBACK_SCALE: f32 = 6.0;
+
+// ============================================================================
 // Wall Light Flicker
 // ============================================================================
 

@@ -13,6 +13,7 @@ use crate::{
     players::LocalPlayerInfo,
     projectiles::ProjectileAssets,
     ui::{GameMessageFeed, PendingBanner, QuestLog, SeenPlayerIds},
+    vfx::{ExplosionAssets, ExplosionRadii},
 };
 
 // ============================================================================
@@ -131,6 +132,8 @@ pub struct ClientAssets<'w> {
     pub asset_set: Res<'w, AssetSet>,
     pub client_settings: Res<'w, ClientSettings>,
     pub projectile_assets: Res<'w, ProjectileAssets>,
+    pub explosion_assets: Res<'w, ExplosionAssets>,
+    pub explosion_radii: Res<'w, ExplosionRadii>,
     pub item_assets: Res<'w, ItemAssets>,
     pub barrier_assets: Res<'w, BarrierAssets>,
     pub gameplay_config: Res<'w, GameplayConfig>,

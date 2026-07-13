@@ -96,17 +96,6 @@ impl AssetSet {
                 "alias `{alias}` points to unknown material `{target}`"
             );
         }
-        // A zero-dimension sprite sheet underflows `initial_frame` and divides
-        // by zero in `set_mesh_uvs`; reject it at load instead of at first kill.
-        for (kind, actor) in &self.actors {
-            let effect = &actor.explosion_effect;
-            anyhow::ensure!(
-                effect.columns >= 1 && effect.rows >= 1,
-                "actor `{kind}` explosion_effect must have columns >= 1 and rows >= 1 (got {}x{})",
-                effect.columns,
-                effect.rows
-            );
-        }
         Ok(())
     }
 
@@ -151,10 +140,6 @@ impl AssetSet {
 
     pub fn wall_light_model(&self) -> &WallLightModelDef {
         &self.models.wall_light
-    }
-
-    pub fn actor_explosion_effect(&self, kind: &str) -> &EffectDef {
-        &self.actor(kind).explosion_effect
     }
 
     pub fn skybox(&self, name: &str) -> Option<&SkyboxDef> {
@@ -284,31 +269,6 @@ pub struct WallLightModelDef {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct EffectDef {
-    pub image: String,
-    pub columns: u32,
-    pub rows: u32,
-    pub first_frame: SpriteSheetFirstFrame,
-    pub scale: f32,
-    pub lifetime: f32,
-    // Peak intensity of the effect's point light (lumens), faded out over
-    // the lifetime.
-    #[serde(default = "default_effect_light_intensity")]
-    pub light_intensity: f32,
-}
-
-const fn default_effect_light_intensity() -> f32 {
-    500_000.0
-}
-
-#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum SpriteSheetFirstFrame {
-    UpperLeft,
-    LowerRight,
-}
-
-#[derive(Debug, Clone, Deserialize)]
 pub struct SkyboxDef {
     // Path to a cube-cross layout image used to derive the cubemap faces.
     pub image: String,
@@ -359,7 +319,6 @@ struct PlayerAssets {
 struct ActorAssets {
     model: ModelDef,
     sounds: HashMap<String, String>,
-    explosion_effect: EffectDef,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -397,7 +356,6 @@ impl AssetSet {
         }
         for actor in self.actors.values() {
             push(&mut out, &actor.model.scene);
-            push(&mut out, &actor.explosion_effect.image);
             for sound in actor.sounds.values() {
                 push(&mut out, sound);
             }

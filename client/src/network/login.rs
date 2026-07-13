@@ -4,7 +4,7 @@ use super::{
     components::ClientAssets,
     players::{handle_quest_completed_message, handle_quest_progress_message, handle_quests_assigned_message},
 };
-use crate::players::MyPlayerId;
+use crate::{players::MyPlayerId, vfx::ExplosionRadii};
 use common::{physics::CollisionWorld, protocol::*};
 
 // Pre-bootstrap dispatcher: handles every message that can arrive before
@@ -32,6 +32,10 @@ pub fn handle_pre_bootstrap_message(msg: ServerMessage, commands: &mut Commands,
             commands.insert_resource(init_msg.map_layout);
             commands.insert_resource(init_msg.map_settings);
             commands.insert_resource(collision_world);
+            commands.insert_resource(ExplosionRadii {
+                actors: init_msg.actor_explosion_radii.into_iter().collect(),
+                player: init_msg.player_explosion_radius,
+            });
         }
         ServerMessage::QuestsAssigned(quest_msg) => {
             handle_quests_assigned_message(

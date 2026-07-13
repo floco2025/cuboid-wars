@@ -67,10 +67,11 @@ pub fn dispatch_message(
         ServerMessage::ActorDeath(death_msg) => {
             handle_actor_death_message(
                 commands,
-                &mut assets.meshes,
                 &mut assets.materials,
                 &client_assets.asset_server,
                 &client_assets.asset_set,
+                &client_assets.explosion_assets,
+                &client_assets.explosion_radii,
                 actors,
                 players,
                 &client_assets.gameplay_config,
@@ -78,13 +79,28 @@ pub fn dispatch_message(
             );
         }
         ServerMessage::PlayerDeath(death_msg) => {
+            // Explosion sound here rather than in the handler (same pattern
+            // as the pressure-plate sounds below) — the handler stays
+            // constructible in unit tests without an `AssetServer`.
+            commands.spawn((
+                AudioPlayer::new(
+                    client_assets
+                        .asset_server
+                        .load(client_assets.asset_set.player_sound("explodes").to_owned()),
+                ),
+                PlaybackSettings::DESPAWN,
+            ));
             handle_player_death_message(
                 commands,
+                &mut assets.materials,
+                &client_assets.explosion_assets,
+                &client_assets.explosion_radii,
                 players,
                 &mut client_assets.local_player_info,
                 &mut client_assets.game_message_feed,
                 &client_assets.client_settings,
                 &mut client_assets.pending_banner,
+                &client_assets.gameplay_config,
                 my_player_id,
                 death_msg,
             );

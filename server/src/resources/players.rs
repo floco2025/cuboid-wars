@@ -235,6 +235,12 @@ fn tick_timer(timer: &mut f32, delta: f32) {
     *timer = (*timer - delta).max(0.0);
 }
 
+// Death positions queued by `kill_player`, drained the same tick by
+// `players_explosion_system` which applies the blast (and may queue more —
+// chain explosions resolve within one drain).
+#[derive(Resource, Default)]
+pub struct PendingPlayerExplosions(pub Vec<(PlayerId, Position)>);
+
 // A player action that may advance a quest. Lets `record_quest_event` match
 // the actor kind for `ActorKills` quests (with an optional per-kind filter).
 pub enum QuestEvent<'a> {

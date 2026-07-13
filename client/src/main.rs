@@ -57,8 +57,9 @@ use client::{
         update_message_feed_system,
     },
     vfx::{
-        BeamAssets, SparkAssets, beam_ghost_fade_system, beam_ghost_sparkle_system, beam_sparkles_system,
-        explosion_effects_system, spark_particles_system,
+        BeamAssets, ExplosionAssets, ExplosionRadii, SparkAssets, beam_ghost_fade_system, beam_ghost_sparkle_system,
+        beam_sparkles_system, explosion_lights_system, explosion_pulse_system, explosion_shards_system,
+        spark_particles_system,
     },
 };
 use common::{config::GameplayConfig, constants::TICK_HZ, net::MessageStream, protocol::*};
@@ -198,6 +199,8 @@ fn main() -> Result<()> {
         .init_resource::<ProjectileAssets>()
         .init_resource::<SparkAssets>()
         .init_resource::<BeamAssets>()
+        .init_resource::<ExplosionAssets>()
+        .init_resource::<ExplosionRadii>()
         // Startup creates persistent scene infrastructure before any server
         // map data arrives.
         .add_systems(
@@ -281,7 +284,9 @@ fn main() -> Result<()> {
             Update,
             (
                 projectiles_transform_sync_system,
-                explosion_effects_system,
+                explosion_pulse_system,
+                explosion_shards_system,
+                explosion_lights_system,
                 spark_particles_system,
                 beam_ghost_fade_system,
                 beam_ghost_sparkle_system,

@@ -42,6 +42,7 @@ pub struct ServerGameplayConfig {
     pub default_map: String,
     pub scoring: ScoringConfig,
     pub player: PlayerServerConfig,
+    pub projectile: ProjectileConfig,
     pub power_ups: PowerUpsConfig,
     pub placed_items: PlacedItemsConfig,
     pub quests: Vec<Quest>,
@@ -101,6 +102,7 @@ impl ServerGameplayConfig {
         );
         validate_maps(&self.maps, &self.default_map)?;
         self.player.validate("player")?;
+        self.projectile.validate("projectile")?;
         // No range check on scoring values — negative deltas are legal
         // (e.g., `player_death: -1` penalty), and so is zero. Just ensure
         // the section deserialized.
@@ -132,6 +134,19 @@ impl ServerGameplayConfig {
     }
 }
 
+// One projectile, one raw damage number. What a victim actually receives is
+// `damage * (1 - armor)` — per-victim toughness lives on `armor`, not here.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ProjectileConfig {
+    pub damage: f32,
+}
+
+impl ProjectileConfig {
+    fn validate(&self, path: &str) -> Result<()> {
+        validate_non_negative_finite(self.damage, &format!("{path}.damage"))
+    }
+}
+
 // Global scoring deltas. Negative values are legal (e.g., a death penalty)
 // and the entire block is server-only state — clients read the resulting
 // `score` field via `SSnapshot` and never need the per-event point values.
@@ -145,14 +160,20 @@ pub struct ScoringConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct PlayerServerConfig {
-    // Damage the player takes from a single incoming projectile.
-    pub projectile_damage_taken: f32,
+    // Fraction of incoming damage players block (0.0 = unarmored, 0.9 =
+    // takes 10%). Applies to projectile hits and explosion blasts; fall
+    // damage ignores armor (it's defined as a fraction of max health by
+    // fall distance).
+    pub armor: f32,
     // Debug toggle: when true, no damage source can take a player to zero
     // health. Projectile hits, actor explosions, and fall damage are all
     // skipped. Leave `false` for normal play.
     #[serde(default)]
     pub invincible: bool,
     pub fall_damage: FallDamageConfig,
+    // Blast dealt by a dying player, same shape as the per-actor-kind
+    // `combat.explosion` — standing next to your victim is now a mistake.
+    pub explosion: ExplosionDamageConfig,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -167,8 +188,9 @@ pub struct FallDamageConfig {
 
 impl PlayerServerConfig {
     fn validate(&self, path: &str) -> Result<()> {
-        validate_non_negative_finite(self.projectile_damage_taken, &format!("{path}.projectile_damage_taken"))?;
-        self.fall_damage.validate(&format!("{path}.fall_damage"))
+        validate_probability(self.armor, &format!("{path}.armor"))?;
+        self.fall_damage.validate(&format!("{path}.fall_damage"))?;
+        self.explosion.validate(&format!("{path}.explosion"))
     }
 }
 
@@ -472,12 +494,13 @@ impl ActorRespawnConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ActorCombatConfig {
-    // Damage this actor takes from a single player projectile hit. Per-kind
-    // so a tougher actor can need more shots without changing the projectile.
-    pub projectile_damage_taken: f32,
+    // Fraction of incoming damage this kind blocks (0.0 = unarmored,
+    // 0.9 = takes 10%). Applies to projectile hits and explosion blasts —
+    // toughness lives on the victim, damage sources carry one raw number.
+    pub armor: f32,
     // Distance at which contact with a player triggers the actor's explosion.
     pub contact_explosion_distance: f32,
-    pub explosion: ActorExplosionDamageConfig,
+    pub explosion: ExplosionDamageConfig,
     // Bonus added to the killer's score on the lethal hit, on top of
     // `scoring.actor_hit` which fires per hit. Tougher actors should be
     // worth more — set higher for sentry, lower for mine_1.
@@ -487,7 +510,7 @@ pub struct ActorCombatConfig {
 
 impl ActorCombatConfig {
     fn validate(&self, path: &str) -> Result<()> {
-        validate_non_negative_finite(self.projectile_damage_taken, &format!("{path}.projectile_damage_taken"))?;
+        validate_probability(self.armor, &format!("{path}.armor"))?;
         validate_non_negative_finite(
             self.contact_explosion_distance,
             &format!("{path}.contact_explosion_distance"),
@@ -575,18 +598,18 @@ impl ActorNavigationConfig {
     }
 }
 
+// One blast, one number: everything caught in the radius — player or actor
+// — takes `max_damage` at the center, lerped linearly to zero at the rim.
 #[derive(Debug, Clone, Deserialize)]
-pub struct ActorExplosionDamageConfig {
+pub struct ExplosionDamageConfig {
     pub radius: f32,
-    pub player_max_damage: f32,
-    pub actor_max_damage: f32,
+    pub max_damage: f32,
 }
 
-impl ActorExplosionDamageConfig {
+impl ExplosionDamageConfig {
     fn validate(&self, path: &str) -> Result<()> {
         validate_positive_finite(self.radius, &format!("{path}.radius"))?;
-        validate_non_negative_finite(self.player_max_damage, &format!("{path}.player_max_damage"))?;
-        validate_non_negative_finite(self.actor_max_damage, &format!("{path}.actor_max_damage"))
+        validate_non_negative_finite(self.max_damage, &format!("{path}.max_damage"))
     }
 }
 

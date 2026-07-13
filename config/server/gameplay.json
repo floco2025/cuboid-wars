@@ -20,12 +20,16 @@
     "actor_hit": 5
   },
   "player": {
-    "projectile_damage_taken": 10.0,
+    "armor": 0.8,
     "invincible": false,
     "fall_damage": {
       "safe_fall_distance": 8.0,
       "lethal_fall_distance": 15.0
-    }
+    },
+    "explosion": { "radius": 10.0, "max_damage": 250.0 }
+  },
+  "projectile": {
+    "damage": 50.0
   },
   "power_ups": {
     "speed_duration_secs": 30.0,
@@ -68,9 +72,9 @@
     "mine_1": {
       "respawn": { "enabled": true, "delay_secs": 30.0, "warning_secs": 3.0 },
       "combat": {
-        "projectile_damage_taken": 50.0,
+        "armor": 0.0,
         "contact_explosion_distance": 0.2,
-        "explosion": { "radius": 6.0, "player_max_damage": 15.0, "actor_max_damage": 50.0 },
+        "explosion": { "radius": 6.0, "max_damage": 75.0 },
         "score_reward_on_kill": 20
       },
       "senses": { "horizontal_vision_range": 20.0, "vertical_vision_range": 20.0, "chase_reacquire_cooldown_secs": 10.0 },
@@ -81,9 +85,9 @@
     "mine_2": {
       "inherit_from": "mine_1",
       "combat": {
-        "projectile_damage_taken": 35.0,
+        "armor": 0.3,
         "contact_explosion_distance": 0.4,
-        "explosion": { "radius": 10.0, "player_max_damage": 30.0, "actor_max_damage": 50.0 },
+        "explosion": { "radius": 10.0, "max_damage": 150.0 },
         "score_reward_on_kill": 50
       },
       "senses": { "horizontal_vision_range": 30.0, "vertical_vision_range": 10.0 },
@@ -93,9 +97,9 @@
     "sentry": {
       "inherit_from": "mine_1",
       "combat": {
-        "projectile_damage_taken": 5.0,
+        "armor": 0.9,
         "contact_explosion_distance": 0.8,
-        "explosion": { "radius": 15.0, "player_max_damage": 60.0, "actor_max_damage": 50.0 },
+        "explosion": { "radius": 15.0, "max_damage": 300.0 },
         "score_reward_on_kill": 100
       },
       "senses": { "horizontal_vision_range": 60.0, "vertical_vision_range": 5.0 },

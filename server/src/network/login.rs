@@ -34,6 +34,16 @@ fn sanitize_player_name(raw: &str, id: PlayerId) -> String {
     }
 }
 
+fn actor_explosion_radii(config: &crate::config::ServerGameplayConfig) -> Vec<(String, f32)> {
+    let mut radii: Vec<(String, f32)> = config
+        .actors
+        .iter()
+        .map(|(kind, actor)| (kind.clone(), actor.combat.explosion.radius))
+        .collect();
+    radii.sort_by(|a, b| a.0.cmp(&b.0));
+    radii
+}
+
 // Handle login message from a player who has not yet logged in.
 pub fn handle_login_message(
     commands: &mut Commands,
@@ -72,6 +82,8 @@ pub fn handle_login_message(
                 id,
                 map_layout: (*world.map_layout).clone(),
                 map_settings: (*world.map_settings).clone(),
+                actor_explosion_radii: actor_explosion_radii(&world.server_gameplay_config),
+                player_explosion_radius: world.server_gameplay_config.player.explosion.radius,
             });
             if let Err(e) = channel.send(ServerToClient::Send(init_msg)) {
                 warn!("failed to send init to {:?}: {}", id, e);
@@ -178,7 +190,7 @@ pub fn handle_login_message(
 
 #[cfg(test)]
 mod tests {
-    use super::{MAX_NAME_CHARS, sanitize_player_name};
+    use super::{MAX_NAME_CHARS, actor_explosion_radii, sanitize_player_name};
     use common::protocol::PlayerId;
 
     #[test]
@@ -205,5 +217,20 @@ mod tests {
     #[test]
     fn ordinary_name_is_preserved() {
         assert_eq!(sanitize_player_name("Marc", PlayerId(1)), "Marc");
+    }
+
+    #[test]
+    fn actor_explosion_radii_are_sorted_and_match_config() {
+        let config =
+            crate::config::ServerGameplayConfig::load_default().expect("default server gameplay config should load");
+        let radii = actor_explosion_radii(&config);
+        assert_eq!(radii.len(), config.actors.len());
+        let kinds: Vec<&str> = radii.iter().map(|(kind, _)| kind.as_str()).collect();
+        let mut sorted = kinds.clone();
+        sorted.sort_unstable();
+        assert_eq!(kinds, sorted);
+        for (kind, radius) in &radii {
+            assert_eq!(*radius, config.validated_actor(kind).combat.explosion.radius);
+        }
     }
 }

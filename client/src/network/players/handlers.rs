@@ -8,6 +8,7 @@ use crate::{
     players::{CameraShake, CuboidShake, LocalPlayerInfo, PlayerMap},
     projectiles::{ProjectileAssets, spawn_projectiles},
     ui::{GameMessage, GameMessageFeed, PendingBanner, QuestEntry, QuestLog},
+    vfx::{ExplosionAssets, ExplosionRadii, spawn_player_explosion},
 };
 use common::{
     config::GameplayConfig,
@@ -176,13 +177,18 @@ pub fn handle_player_hit_message(
 //
 // Respawn is *not* handled here — `sync_players` clears `is_dead` and
 // teleports the local entity when the player reappears in the next snapshot.
+#[expect(clippy::too_many_arguments, reason = "message handler threading dispatcher state")]
 pub fn handle_player_death_message(
     commands: &mut Commands,
+    materials: &mut Assets<StandardMaterial>,
+    explosion_assets: &ExplosionAssets,
+    explosion_radii: &ExplosionRadii,
     players: &mut PlayerMap,
     local_player_info: &mut LocalPlayerInfo,
     feed: &mut GameMessageFeed,
     client_settings: &ClientSettings,
     pending_banner: &mut PendingBanner,
+    gameplay_config: &GameplayConfig,
     my_player_id: PlayerId,
     msg: SPlayerDeath,
 ) {
@@ -220,6 +226,19 @@ pub fn handle_player_death_message(
     if let Some(info) = players.get(&msg.id) {
         commands.entity(info.entity).insert(Health(0.0));
     }
+
+    // Positional, so it fires even if the victim isn't in `PlayerMap` yet.
+    // For the local player the fireball's backfaces are culled, so the
+    // first-person camera inside the sphere sees shards/ring/light rather
+    // than an orange screen wash.
+    spawn_player_explosion(
+        commands,
+        materials,
+        explosion_assets,
+        explosion_radii,
+        gameplay_config,
+        msg.pos,
+    );
 
     if msg.id == my_player_id {
         if let Some(info) = players.get(&msg.id) {
@@ -487,17 +506,26 @@ mod tests {
         let mut feed = GameMessageFeed::default();
         let mut pending_banner = PendingBanner::default();
         let client_settings = ClientSettings::load_default().expect("load default client settings");
+        let gameplay_config = GameplayConfig::load_default().expect("load default gameplay config");
+        let mut mesh_assets = Assets::<Mesh>::default();
+        let mut material_assets = Assets::<StandardMaterial>::default();
+        let explosion_assets = ExplosionAssets::new(&mut mesh_assets, &mut material_assets);
+        let explosion_radii = ExplosionRadii::default();
         let mut commands_queue = bevy::ecs::world::CommandQueue::default();
 
         {
             let mut commands = bevy::ecs::system::Commands::new(&mut commands_queue, world);
             handle_player_death_message(
                 &mut commands,
+                &mut material_assets,
+                &explosion_assets,
+                &explosion_radii,
                 &mut players,
                 &mut local_player_info,
                 &mut feed,
                 &client_settings,
                 &mut pending_banner,
+                &gameplay_config,
                 my_id,
                 SPlayerDeath {
                     id: my_id,

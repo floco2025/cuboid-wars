@@ -6,7 +6,7 @@ use crate::{
     actors::{ActorGhostMap, ActorInfo, ActorMap, beam_in_ghost_state, spawn_actor, spawn_actor_ghost},
     config::{AssetSet, ClientSettings},
     network::RoundTripTime,
-    vfx::spawn_actor_explosion,
+    vfx::{ExplosionAssets, ExplosionRadii, spawn_actor_explosion},
 };
 use common::{
     config::GameplayConfig,
@@ -144,12 +144,14 @@ pub fn handle_actor_move_intent_message(
 //
 // Kind isn't on the wire `SActorDeath`; we recover it from the local
 // `ActorMap` where the kind was recorded when this actor was first seen.
+#[expect(clippy::too_many_arguments, reason = "message handler threading dispatcher state")]
 pub fn handle_actor_death_message(
     commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
+    materials: &mut Assets<StandardMaterial>,
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
+    explosion_assets: &ExplosionAssets,
+    actor_explosion_radii: &ExplosionRadii,
     actors: &mut ResMut<ActorMap>,
     players: &mut crate::players::PlayerMap,
     gameplay_config: &GameplayConfig,
@@ -169,10 +171,9 @@ pub fn handle_actor_death_message(
     };
     spawn_actor_explosion(
         commands,
-        asset_server,
-        meshes,
         materials,
-        asset_set,
+        explosion_assets,
+        actor_explosion_radii,
         gameplay_config,
         &info.kind,
         msg.pos,

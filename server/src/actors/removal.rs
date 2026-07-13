@@ -4,7 +4,7 @@ use crate::{
     combat::{ActorDeathQuery, apply_actor_explosion_damage, kill_player},
     config::ServerGameplayConfig,
     network::broadcast_to_all,
-    resources::{ActorMap, PlayerMap},
+    resources::{ActorMap, PendingPlayerExplosions, PlayerMap},
 };
 use common::{
     config::GameplayConfig,
@@ -23,6 +23,7 @@ pub fn actor_removal_system(
     mut commands: Commands,
     mut actors: ResMut<ActorMap>,
     mut players: ResMut<PlayerMap>,
+    mut pending_explosions: ResMut<PendingPlayerExplosions>,
     server_gameplay_config: Res<ServerGameplayConfig>,
     gameplay_config: Res<GameplayConfig>,
     mut player_query: Query<(Entity, &PlayerId, &Position, &mut Health), (With<PlayerMarker>, Without<ActorMarker>)>,
@@ -72,8 +73,9 @@ pub fn actor_removal_system(
                 &death.spawn_kind,
                 &kind_server_config.combat.explosion,
                 &gameplay_config,
-                server_gameplay_config.player.invincible,
+                &server_gameplay_config,
                 &players,
+                &actors,
                 &mut player_query,
                 &mut query,
             );
@@ -104,6 +106,7 @@ pub fn actor_removal_system(
                     pos,
                     respawn_delay_secs,
                     None,
+                    &mut pending_explosions,
                 );
             }
         } else {

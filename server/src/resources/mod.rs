@@ -12,4 +12,6 @@ pub use map::{
     ActorSpawnZone, Cell, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlacedItem, PlayerSpawnZone, PressurePlateRuntime,
 };
 pub use network::FromClientsChannel;
-pub use players::{PlayerInfo, PlayerMap, QuestEvent, QuestState, assign_quests, record_quest_event};
+pub use players::{
+    PendingPlayerExplosions, PlayerInfo, PlayerMap, QuestEvent, QuestState, assign_quests, record_quest_event,
+};

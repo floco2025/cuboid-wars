@@ -24,7 +24,8 @@ use server::{
     net::accept_connections_task,
     network::{network_broadcast_snapshot_system, network_process_client_messages_system},
     players::{
-        players_fall_damage_system, players_fall_death_system, players_respawn_system, players_status_timers_system,
+        players_explosion_system, players_fall_damage_system, players_fall_death_system, players_respawn_system,
+        players_status_timers_system,
     },
     projectiles::projectiles_movement_system,
     resources::*,
@@ -141,6 +142,7 @@ async fn main() -> Result<()> {
         .insert_resource(ActorSpawnThrottles::default())
         .insert_resource(PendingActorSpawns::default())
         .insert_resource(FromClientsChannel::new(from_clients))
+        .insert_resource(PendingPlayerExplosions::default())
         .insert_resource(OpenBarrierKinds::default())
         .add_systems(Startup, (actor_initial_spawn_system, placed_item_spawn_system))
         .add_systems(
@@ -193,6 +195,12 @@ async fn main() -> Result<()> {
                 players_fall_damage_system
                     .after(characters_movement_system)
                     .before(players_fall_death_system),
+                // Death explosions detonate after every kill source has run
+                // so a same-tick death chain resolves in one drain.
+                players_explosion_system
+                    .after(projectiles_movement_system)
+                    .after(actor_removal_system)
+                    .after(players_fall_death_system),
                 actor_respawn_system,
                 players_respawn_system,
                 players_status_timers_system,
