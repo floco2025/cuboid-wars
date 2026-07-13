@@ -13,8 +13,8 @@ use super::{
     mask::Mask,
     segments::{horizontal_wall_segment, vertical_wall_segment},
 };
-use crate::resources::EdgeGrid;
-use common::{constants::FLOOR_THICKNESS, map_geometry::MapGeometry, protocol::Floor};
+use crate::map::EdgeGrid;
+use common::{constants::FLOOR_THICKNESS, map::MapGeometry, protocol::Floor};
 
 // Emit the thin trim strips that fill the gap between a stacked wall's top
 // and the upper-level floor. A trim emits when both lower and upper levels

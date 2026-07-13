@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from .constants import BARRIER_KIND_TABLE, FACES, ITEM_KEY_TYPE, ITEM_TYPES, LIGHT_SIDES, MATERIAL_ALIASES
+from .display import level_label
 from .geometry import (
     grid_point_in_bounds,
-    level_label,
     normalized_wall,
     ramp_cells,
     ramp_error,

@@ -2,12 +2,13 @@ use bevy::prelude::*;
 use std::collections::{HashMap, HashSet};
 
 use crate::{
+    map::{MapConfig, PressurePlateRuntime},
     network::broadcast_to_all,
-    resources::{MapConfig, PlayerMap, PressurePlateRuntime},
+    players::PlayerMap,
 };
 use common::{
     constants::{GRID_CELL_SIZE, LEVEL_HEIGHT},
-    map_geometry::MapGeometry,
+    map::MapGeometry,
     physics::OpenBarrierKinds,
     protocol::{BarrierKindId, PlayerMarker, Position, SPressurePlatePressed, SPressurePlateReleased, ServerMessage},
 };

@@ -6,22 +6,24 @@ Rust workspace with three crates:
 
 - **`common/`** — shared between client and server.
   - `protocol.rs` — all `ClientMessage` / `ServerMessage` variants and wire structs. Read the top-of-file doc comment before adding a new message — it lays out the bootstrap / snapshot / real-time-intent / one-shot-cue / per-client-state / diagnostic taxonomy that decides where new messages go.
-  - `net.rs` — `MessageStream` abstraction over QUIC.
-  - `physics/` — shared player/projectile movement, collision world (incl. per-kind barrier collision groups), and spawn validation helpers.
-  - `types/` — shared markers, IDs, positions, movement states, map layout types, snapshots, `BarrierKindTable`.
-  - `map.rs`, `constants.rs` — shared map helpers and gameplay constants.
+  - `network.rs` — `MessageStream` abstraction over QUIC.
+  - `physics/` — shared player/projectile movement, collision world (incl. per-kind barrier collision groups), barrier passability, and spawn validation helpers.
+  - `types/` — shared markers, IDs, positions, movement states, map layout types (`types/map_layout.rs`), items/power-ups, snapshots, `BarrierKindTable`.
+  - `map/` — shared map behaviour: level classification + ramp surfaces (`levels.rs`), grid↔world conversion (`geometry.rs`, `MapGeometry`).
+  - `health.rs`, `constants.rs` — the `Health` type with its operations, and gameplay constants.
 - **`server/`** — authoritative headless server (Bevy `MinimalPlugins`).
-  - `actors/`, `characters/`, `items/`, `players/`, `projectiles/` — server-side domain systems.
-  - `network/` — accepts connections, dispatches client messages, broadcasts snapshots + events.
-  - `resources/` — Bevy resources split by domain.
-  - `map/` — converts map definitions into runtime layout: cells/edges, floors, walls, ramps, barriers, lights, masks, segments.
-  - `combat.rs` — damage application + `kill_player` (the one-stop death sequence).
+  - `actors/`, `characters/`, `items/`, `players/`, `projectiles/` — server-side domain systems. Each domain keeps its Bevy resources in its own `resources.rs` (e.g. `players/resources.rs` holds `PlayerInfo`/`PlayerMap` plus quests and power-up state).
+  - `network/` — the whole networking concern: async QUIC transport (`transport.rs`, accepts connections), Bevy-side message dispatch (`incoming.rs`/`messages.rs`), login, and snapshot broadcast (`snapshot.rs`/`broadcast.rs`).
+  - `combat/` — damage application + `kill_player`/`kill_actor` (`damage.rs`, the one-stop death sequence) and blast resolution (`explosions.rs`, with `PendingExplosions` in `resources.rs`).
+  - `map/` — converts map definitions into runtime layout: cells/edges, floors, walls, ramps, barriers, lights, masks, segments; the runtime map model lives in `map/resources.rs`.
+  - `config/` — server config split by concern: QUIC setup (`network.rs`), gameplay registry + tuning (`gameplay.rs`), per-actor-kind cluster (`actors.rs`).
   - Runs at 30 Hz via a manual `app.update()` loop.
 - **`client/`** — Bevy renderer, input, UI.
-  - `network/` — consumes `ServerMessage`, runs the snapshot diff in `sync_players` / `sync_actors`, dispatches event handlers.
-  - `players/`, `actors/`, `characters/`, `items/`, `projectiles/` — client-side domain systems.
-  - `input/`, `cameras/`, `ui/`, `vfx/`, `animations/` — client-only interaction, rendering support, presentation.
-  - `map/` — client map rendering and geometry spawning.
+  - `network/` — consumes `ServerMessage`; each domain is a `handlers.rs` + `sync.rs` pair (`players/`, `actors/`, `items/`), with quest handlers in `quests.rs` and the snapshot diff dispatched from `snapshot.rs`.
+  - `players/`, `actors/`, `characters/`, `items/`, `projectiles/` — client-side domain systems (`transform_sync.rs` files hold the per-frame interpolation systems; the shared character animation observer lives in `characters/animation.rs`).
+  - `input/`, `cameras/`, `ui/`, `vfx/` — client-only interaction, rendering support, presentation. The explosion effect is one subsystem in `vfx/explosion/` (assets, spawn, animation, scorch, shards, smoke).
+  - `map/` — client map rendering and geometry spawning; procedural grass (incl. burn response) in `map/grass/`, skybox in `map/skybox.rs`.
+  - `config/` — JSON-backed settings split by concern (`settings.rs` root + `audio`/`camera`/`hud`/`rendering`/`vfx`) plus the asset set (`assets.rs`).
 
 Other notable paths:
 
@@ -73,7 +75,7 @@ When adding a new server→client message: pick the smallest role that fits. Mos
 
 ### Gameplay systems
 
-- **Death & respawn**. `kill_player` in `server/src/combat.rs` is the single entry point — clears per-life state on `PlayerInfo`, arms `death_timer`, queues the death explosion into `PendingExplosions`, despawns the entity, broadcasts `SPlayerDeath`. Called from projectile lethal hits, explosion blasts, and falls below `CHARACTER_FALL_DEATH_Y` (`players_fall_death_system`). `explosions_system` drains player and actor blasts to a fixed point; blast kills award no kill credit. `players_respawn_system` ticks the timer and spawns a fresh entity at a spawn zone.
+- **Death & respawn**. `kill_player` in `server/src/combat/damage.rs` is the single entry point — clears per-life state on `PlayerInfo`, arms `death_timer`, queues the death explosion into `PendingExplosions`, despawns the entity, broadcasts `SPlayerDeath`. Called from projectile lethal hits, explosion blasts, and falls below `CHARACTER_FALL_DEATH_Y` (`players_fall_death_system`). `explosions_system` drains player and actor blasts to a fixed point; blast kills award no kill credit. `players_respawn_system` ticks the timer and spawns a fresh entity at a spawn zone.
 - **Barriers & keys**. Each `BarrierKindId` gets a dedicated Rapier collision group (bits 3..31, max 29 kinds). Players hold a sorted `Vec<BarrierKindId>` in `PlayerInfo.held_keys`; the character filter drops the matching groups so they pass through. Defined in `common/src/physics/world/colliders.rs` and `common/src/types/barrier_kind.rs`.
 - **Actor lifecycle**. `actor_removal_system` handles both health-zero ("killed", with explosion blast + `SActorDeath`) and fall ("silent"). `actor_respawn_system` refills slots according to per-kind spawn-zone quotas — by queueing into `PendingActorSpawns` (id, spot, and heading reserved), not spawning directly. `actor_pending_spawn_system` materializes each entry after its beam-in warning window (`respawn.warning_secs`); during the window the actor doesn't exist server-side and clients render a ghost from the snapshot's `spawning_actors`.
 
@@ -121,7 +123,7 @@ they assert (e.g. `lethal_hit_returns_true`, `barrier_collision_group_is_unique_
 
 - **Protocol & message taxonomy** — top doc comment of `common/src/protocol.rs`.
 - **Collision groups & character filters** — `common/src/physics/world/colliders.rs`.
-- **Death/respawn pipeline** — `server/src/combat.rs` (`kill_player`), `server/src/players.rs` (`players_respawn_system`), `client/src/network/players/sync.rs` (snapshot diff).
+- **Death/respawn pipeline** — `server/src/combat/damage.rs` (`kill_player`), `server/src/players/respawn.rs` (`players_respawn_system`), `client/src/network/players/sync.rs` (snapshot diff).
 - **Map data shape** — `common/src/types/` and `config/server/maps/hotel.json`.
 - **Per-kind gameplay tuning** — `config/common/gameplay.json` (shared) and `config/server/gameplay.json` (server-only).
 

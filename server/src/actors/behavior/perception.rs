@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::resources::PlayerMap;
+use crate::players::PlayerMap;
 use common::{
     config::GameplayConfig,
     physics::CollisionWorld,

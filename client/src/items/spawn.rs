@@ -5,7 +5,7 @@ use crate::{
     barriers::BarrierAssets,
     config::{AssetSet, ClientSettings},
     constants::*,
-    items::y_spin::{YSpinBase, YSpinTimer},
+    items::{YSpinBase, YSpinTimer},
     map::MapLevel,
 };
 use common::{map::compute_player_level, protocol::*};

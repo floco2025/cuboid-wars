@@ -1,4 +1,8 @@
-use crate::types::Health;
+use bevy_ecs::prelude::*;
+use bincode::{Decode, Encode};
+
+#[derive(Debug, Clone, Copy, Encode, Decode, Component, PartialEq)]
+pub struct Health(pub f32);
 
 #[must_use]
 pub fn health_ratio(health: Health, max_health: f32) -> f32 {

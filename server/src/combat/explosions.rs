@@ -9,11 +9,12 @@ use common::{
     protocol::{ActorId, ActorMarker, Health, PlayerId, PlayerMarker, Position, SPlayerBlast, ServerMessage},
 };
 
+use super::{PendingExplosion, PendingExplosions, kill_actor, kill_player};
 use crate::{
-    combat::{kill_actor, kill_player},
+    actors::ActorMap,
     config::{ExplosionDamageConfig, ServerGameplayConfig},
-    net::ServerToClient,
-    resources::{ActorMap, PendingExplosion, PendingExplosions, PlayerMap},
+    network::ServerToClient,
+    players::PlayerMap,
 };
 
 type PlayerBlastQuery<'w, 's> = Query<
@@ -377,8 +378,9 @@ mod tests {
     use super::*;
     use crate::{
         actors::actor_removal_system,
+        actors::{ActorGoal, ActorInfo},
         characters::characters_health_regeneration_system,
-        resources::{ActorGoal, ActorInfo, PlayerInfo},
+        players::PlayerInfo,
     };
     use common::protocol::{ActorMoveIntent, BarrierKindTable, MapLayout};
     use tokio::sync::mpsc::unbounded_channel;

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use common::{
     constants::GRID_CELL_SIZE,
     face_materials::FaceMaterials,
-    map_geometry::MapGeometry,
+    map::MapGeometry,
     protocol::{Floor, Ramp, Wall},
 };
 

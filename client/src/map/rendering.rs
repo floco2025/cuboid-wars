@@ -7,7 +7,6 @@ use crate::{
     map::{
         DebugColors, GrassMarker, GroundMarker, LevelFocusEnabled, MapGeometryBatch, MapLevel, RampMarker, RoofMarker,
         WallLightMarker, WallMarker, batch_floor, batch_ramp, batch_wall, spawn_wall_light_from_layout,
-        visual_focus_level,
     },
     materials::MaterialHandleCache,
     players::LocalPlayerMarker,
@@ -35,7 +34,7 @@ pub fn setup_scene_lighting_system(
             ..default()
         },
         Transform::from_xyz(5.0, 15.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
-        crate::skybox::SunLightMarker,
+        super::skybox::SunLightMarker,
     ));
 
     commands.insert_resource(GlobalAmbientLight {
@@ -249,4 +248,11 @@ pub fn map_wall_light_emissive_system(
         material.base_color = Color::srgba(warm_tint.0, warm_tint.1, warm_tint.2, material.base_color.alpha());
         processed.insert(id);
     }
+}
+
+pub(crate) fn visual_focus_level(y: f32) -> u8 {
+    if y <= 0.0 {
+        return 0;
+    }
+    (y / common::constants::LEVEL_HEIGHT).round().min(f32::from(u8::MAX)) as u8
 }

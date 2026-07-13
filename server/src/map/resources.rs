@@ -1,6 +1,6 @@
 use bevy::prelude::Resource;
 
-use common::map_geometry::MapGeometry;
+use common::map::MapGeometry;
 
 // Cell flags.
 #[derive(Copy, Clone, Debug, Default)]

@@ -1,11 +1,12 @@
 use bevy::prelude::*;
 
 use common::{
-    map_geometry::MapGeometry,
+    map::MapGeometry,
     protocol::{BarrierKindId, ItemMarker, ItemType},
 };
 
-use crate::resources::{CellGrid, EdgeGrid, ItemMap, ItemSpawner, LevelGrid, MapConfig, PlacedItem};
+use crate::items::{ItemMap, ItemSpawner};
+use crate::map::{CellGrid, EdgeGrid, LevelGrid, MapConfig, PlacedItem};
 
 use super::{
     spawn_cells::{ItemSpawnCell, choose_item_type, eligible_item_spawn_cells, target_active_random_items},

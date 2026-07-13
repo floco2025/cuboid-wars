@@ -2,7 +2,7 @@
 // level this mask belongs to has floor at that cell.
 pub type Mask = Vec<Vec<bool>>;
 
-use crate::resources::CellGrid;
+use crate::map::CellGrid;
 
 // Mark `has_floor_above` on cells of `grid` where `upper_mask[r][c]` is set.
 // Used by the wall-lights generator to skip cells that are under a roof.

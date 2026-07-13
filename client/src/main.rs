@@ -19,13 +19,17 @@ use client::{
         capture_previous_tick_position_system, characters_movement_system, characters_visual_turn_system,
         knockback_decay_system,
     },
-    config::{AssetSet, ClientSettings, OpaqueRenderer, configure_client},
+    config::{AssetSet, ClientSettings, OpaqueRenderer},
     input::{
         commit_player_input_system, input_camera_view_toggle_system, input_cursor_toggle_system,
         input_debug_colors_cycle_system, input_fullscreen_toggle_system, input_level_focus_toggle_system,
         input_movement_system, input_shooting_system,
     },
     items::{ItemMap, items_animation_system, setup_item_assets, y_spin_system},
+    map::skybox::{
+        setup_skybox_from_cross_system, setup_sun_disc_system, skybox_convert_cross_to_cubemap_system,
+        skybox_rotate_system, skybox_update_camera_system, sun_disc_system,
+    },
     map::{
         DebugColors, LevelFocusEnabled, grass_burn_system, grass_spawn_system, map_level_focus_visibility_system,
         map_spawn_geometry_system, map_wall_light_emissive_system, setup_scene_lighting_system,
@@ -33,8 +37,8 @@ use client::{
     },
     materials::{GrassMaterialPlugin, generate_material_mipmaps_system},
     network::{
-        ClientToServerChannel, LastSnapshotSeq, RoundTripTime, ServerToClientChannel, network_io_task,
-        network_ping_system, network_process_server_messages_system,
+        ClientToServerChannel, LastSnapshotSeq, RoundTripTime, ServerToClientChannel, configure_client,
+        network_io_task, network_ping_system, network_process_server_messages_system,
     },
     players::{
         LocalPlayerInfo, PlayerMap, death_overlay_visibility_system, local_player_camera_shake_system,
@@ -42,10 +46,6 @@ use client::{
         local_player_rearview_viewport_system, local_player_visibility_sync_system, players_transform_sync_system,
     },
     projectiles::{LastBounceSound, ProjectileAssets, projectiles_movement_system, projectiles_transform_sync_system},
-    skybox::{
-        setup_skybox_from_cross_system, setup_sun_disc_system, skybox_convert_cross_to_cubemap_system,
-        skybox_rotate_system, skybox_update_camera_system, sun_disc_system,
-    },
     ui::{
         FpsMeasurement, GameMessageFeed, PendingBanner, QuestLog, SeenPlayerIds,
         floating_labels::{
@@ -63,7 +63,7 @@ use client::{
         explosion_pulse_system, scorch_marks_system, transient_particles_system,
     },
 };
-use common::{config::GameplayConfig, constants::TICK_HZ, net::MessageStream, protocol::*};
+use common::{config::GameplayConfig, constants::TICK_HZ, network::MessageStream, protocol::*};
 
 // ============================================================================
 // CLI Arguments
@@ -360,9 +360,9 @@ fn main() -> Result<()> {
             (
                 setup_skybox_from_cross_system.run_if(resource_exists::<common::protocol::MapSettings>),
                 setup_sun_disc_system.run_if(resource_exists::<common::protocol::MapSettings>),
-                skybox_convert_cross_to_cubemap_system.run_if(resource_exists::<client::skybox::SkyboxCrossImage>),
-                skybox_update_camera_system.run_if(resource_exists::<client::skybox::SkyboxCubemap>),
-                skybox_rotate_system.run_if(resource_exists::<client::skybox::SkyboxCubemap>),
+                skybox_convert_cross_to_cubemap_system.run_if(resource_exists::<client::map::skybox::SkyboxCrossImage>),
+                skybox_update_camera_system.run_if(resource_exists::<client::map::skybox::SkyboxCubemap>),
+                skybox_rotate_system.run_if(resource_exists::<client::map::skybox::SkyboxCubemap>),
                 // After the rotate step so the disc lands on the same frame's
                 // sun direction; after camera sync would be ideal too, but a
                 // one-frame positional lag at 400 m is invisible.

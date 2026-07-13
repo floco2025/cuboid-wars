@@ -3,12 +3,12 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use bevy::prelude::Resource;
 use common::{
     constants::{GRID_CELL_SIZE, LEVEL_HEIGHT},
+    map::MapGeometry,
     map::compute_player_level,
-    map_geometry::MapGeometry,
     protocol::Position,
 };
 
-use crate::resources::{ActorSpawnZone, Cell, EdgeGrid, MapConfig};
+use crate::map::{ActorSpawnZone, Cell, EdgeGrid, MapConfig};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct NavNode {
@@ -347,7 +347,7 @@ fn has_edge_on_cell_side(edges: &EdgeGrid, row: i32, col: i32, side: CellSide) -
 
 #[cfg(test)]
 mod tests {
-    use crate::resources::{ActorSpawnZone, CellGrid, EdgeGrid, LevelGrid};
+    use crate::map::{ActorSpawnZone, CellGrid, EdgeGrid, LevelGrid};
 
     use super::*;
 

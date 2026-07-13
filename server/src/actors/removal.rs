@@ -1,8 +1,9 @@
 use bevy::prelude::*;
 
 use crate::{
-    combat::kill_actor,
-    resources::{ActorMap, PendingExplosions, PlayerMap},
+    actors::ActorMap,
+    combat::{PendingExplosions, kill_actor},
+    players::PlayerMap,
 };
 use common::{
     constants::CHARACTER_FALL_DEATH_Y,

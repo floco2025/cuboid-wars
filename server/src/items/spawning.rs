@@ -3,9 +3,10 @@ use std::collections::HashSet;
 use bevy::prelude::*;
 use rand::{RngExt, rng};
 
-use crate::resources::{ItemInfo, ItemMap, ItemPlacement, ItemSpawner, MapConfig, RandomItems};
+use crate::items::{ItemInfo, ItemMap, ItemPlacement, ItemSpawner, RandomItems};
+use crate::map::MapConfig;
 use common::{
-    map_geometry::MapGeometry,
+    map::MapGeometry,
     protocol::{ItemId, ItemMarker, Position},
 };
 

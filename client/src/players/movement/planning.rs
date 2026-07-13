@@ -2,11 +2,15 @@ use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
     constants::{ALWAYS_LOW_GRAVITY, ALWAYS_PHASING, SNAPSHOT_SECS},
-    physics::{CharacterMovePlan, CollisionWorld, passable_barrier_kinds, step_character_movement},
-    protocol::{BarrierKindId, MapSettings, PlayerId, Position, PowerUpKind},
+    physics::{
+        CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, passable_barrier_kinds,
+        step_character_movement,
+    },
+    protocol::{
+        ActorMarker, BarrierKindId, MapSettings, PlayerId, PlayerMarker, PlayerMoveIntent, Position, PowerUpKind,
+    },
 };
 
-use super::types::PlayerMovementQuery;
 use crate::{
     characters::PreviousTickPosition,
     constants::{
@@ -14,7 +18,7 @@ use crate::{
         RECON_PLAYER_SNAP_DISTANCE_IDLE, RECON_PLAYER_SNAP_DISTANCE_RUNNING,
     },
     network::{ServerReconciliation, worst_axis_divergence},
-    players::PlayerMap,
+    players::{BumpFeedbackState, LocalPlayerMarker, PlayerMap},
 };
 
 // Fraction of the correction delta applied per `SNAPSHOT_SECS` of real time
@@ -231,6 +235,23 @@ fn reconciled_target_position(
         z: h_vel.z.mul_add(delta, client_pos.z) + dz,
     })
 }
+
+pub(crate) type PlayerMovementQuery<'w, 's> = Query<
+    'w,
+    's,
+    (
+        Entity,
+        &'static PlayerId,
+        &'static mut Position,
+        &'static PlayerMoveIntent,
+        &'static mut CharacterVerticalVelocity,
+        Option<&'static mut BumpFeedbackState>,
+        Option<&'static mut ServerReconciliation>,
+        Option<&'static KnockbackVelocity>,
+        Has<LocalPlayerMarker>,
+    ),
+    (With<PlayerMarker>, Without<ActorMarker>),
+>;
 
 #[cfg(test)]
 mod tests {

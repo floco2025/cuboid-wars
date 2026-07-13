@@ -1,4 +1,4 @@
-use crate::resources::ActorGoal;
+use crate::actors::ActorGoal;
 use common::{
     math::angle_delta_radians,
     protocol::{ActorMoveIntent, Position},

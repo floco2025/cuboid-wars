@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::resources::ActorMap;
+use crate::actors::ActorMap;
 use common::{
     config::GameplayConfig,
     health::regenerate_health,

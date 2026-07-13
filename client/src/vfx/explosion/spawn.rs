@@ -1,211 +1,20 @@
-use std::{collections::HashMap, f32::consts::TAU};
-
-use bevy::{
-    asset::RenderAssetUsages, light::NotShadowCaster, mesh::Indices, prelude::*,
-    render::render_resource::PrimitiveTopology,
+use super::animation::{ExplosionLight, ExplosionPulse};
+use super::assets::{ExplosionAssets, ExplosionRadii, shockwave_mesh};
+use super::particles::{ExplosionVfxBudget, SurfacePlane};
+use super::scorch::spawn_scorch_mark;
+use super::scorch::{
+    ScorchPlacement, ScorchStyle, surface_cross_section_diameter, wall_scorch_diameter, wall_scorch_placements,
 };
-use rand::rng;
-
+use super::shards::spawn_shard_cloud;
+use super::smoke::spawn_smoke_cloud;
+use crate::{config::ExplosionVfxConfig, constants::*};
+use bevy::{light::NotShadowCaster, prelude::*};
 use common::{
     config::GameplayConfig,
     physics::CollisionWorld,
     protocol::{MapLayout, Position},
 };
-
-use super::explosion_particles::{ExplosionVfxBudget, SurfacePlane, spawn_shard_cloud, spawn_smoke_cloud};
-use super::scorch::{
-    ScorchPlacement, ScorchStyle, scorch_mesh, surface_cross_section_diameter, wall_scorch_diameter,
-    wall_scorch_placements,
-};
-use crate::{
-    config::{ClientSettings, ExplosionVfxConfig},
-    constants::*,
-    map::GrassBurn,
-};
-
-const SHOCKWAVE_RESOLUTION: u32 = 64;
-
-// Blast radii from `SInit` (per actor kind + the player death blast). Starts
-// empty (initialized at app build) and is replaced when `Init` arrives;
-// death cues can't arrive earlier — the pre-bootstrap dispatcher drops them.
-#[derive(Resource, Default)]
-pub struct ExplosionRadii {
-    pub actors: HashMap<String, f32>,
-    pub player: f32,
-}
-
-#[must_use]
-pub fn explosion_sound_speed(radius: f32) -> f32 {
-    (1.08 - radius * 0.012).clamp(0.84, 1.04)
-}
-
-// Shared meshes plus material templates cloned for animated instances.
-#[derive(Resource)]
-pub struct ExplosionAssets {
-    fireball_mesh: Handle<Mesh>,
-    scorch_meshes: Vec<Handle<Mesh>>,
-    shard_material: Handle<StandardMaterial>,
-    smoke_material: Handle<StandardMaterial>,
-    fireball_template: StandardMaterial,
-    ring_template: StandardMaterial,
-    scorch_template: StandardMaterial,
-    config: ExplosionVfxConfig,
-}
-
-impl ExplosionAssets {
-    // Public (rather than folded into `FromWorld`) so tests can build the
-    // resource against plain `Assets` collections.
-    pub fn new(
-        meshes: &mut Assets<Mesh>,
-        materials: &mut Assets<StandardMaterial>,
-        config: ExplosionVfxConfig,
-    ) -> Self {
-        let flash = config.fireball.emissive_brightness;
-        let ring = config.shockwave.emissive_brightness;
-        let shard = config.shards.emissive_brightness;
-        Self {
-            // Unit-diameter meshes: `Transform::scale` equals the layer's
-            // world diameter in meters.
-            fireball_mesh: meshes.add(with_white_vertex_colors(Mesh::from(Sphere::new(0.5)))),
-            scorch_meshes: (0..EXPLOSION_SCORCH_MESH_VARIANT_COUNT)
-                .map(|variant| meshes.add(scorch_mesh(variant as u64)))
-                .collect(),
-            shard_material: materials.add(StandardMaterial {
-                base_color: Color::srgb(1.0, 0.6, 0.25),
-                emissive: LinearRgba::rgb(shard, shard * 0.45, shard * 0.12),
-                ..default()
-            }),
-            smoke_material: materials.add(StandardMaterial {
-                base_color: Color::WHITE,
-                alpha_mode: AlphaMode::Blend,
-                unlit: true,
-                cull_mode: None,
-                ..default()
-            }),
-            fireball_template: StandardMaterial {
-                base_color: Color::srgba(1.0, 0.85, 0.6, EXPLOSION_FIREBALL_START_ALPHA),
-                emissive: LinearRgba::rgb(flash, flash * 0.45, flash * 0.12),
-                alpha_mode: AlphaMode::Blend,
-                ..default()
-            },
-            ring_template: StandardMaterial {
-                base_color: Color::srgba(1.0, 0.6, 0.3, EXPLOSION_SHOCKWAVE_START_ALPHA),
-                emissive: LinearRgba::rgb(ring, ring * 0.45, ring * 0.12),
-                alpha_mode: AlphaMode::Blend,
-                // The ring must render when seen from below a ledge or ramp.
-                cull_mode: None,
-                ..default()
-            },
-            scorch_template: StandardMaterial {
-                base_color: Color::WHITE,
-                alpha_mode: AlphaMode::Blend,
-                cull_mode: None,
-                unlit: true,
-                depth_bias: 1.0,
-                ..default()
-            },
-            config,
-        }
-    }
-}
-
-// Uniform white vertex colors: flips the mesh onto the vertex-color
-// pipeline permutation. In this app the plain-mesh Blend permutation
-// renders translucent materials wrong (invisible or unlit-white); the
-// vertex-color path — which the scorch meshes use — renders correctly.
-// White multiplies to identity, so visuals are otherwise unchanged.
-fn with_white_vertex_colors(mut mesh: Mesh) -> Mesh {
-    let count = mesh.count_vertices();
-    mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, vec![[1.0, 1.0, 1.0, 1.0]; count]);
-    mesh
-}
-
-fn shockwave_mesh(
-    collision_world: Option<&CollisionWorld>,
-    center: Vec3,
-    surface_normal: Vec3,
-    reach_radius: f32,
-) -> Mesh {
-    let rotation = Quat::from_rotation_arc(Vec3::Y, surface_normal);
-    let mut positions = Vec::with_capacity(SHOCKWAVE_RESOLUTION as usize * 2);
-    let mut normals = Vec::with_capacity(positions.capacity());
-    let mut colors = Vec::with_capacity(positions.capacity());
-    let mut clear = Vec::with_capacity(SHOCKWAVE_RESOLUTION as usize);
-
-    for segment in 0..SHOCKWAVE_RESOLUTION {
-        let angle = segment as f32 / SHOCKWAVE_RESOLUTION as f32 * TAU;
-        let radial = Vec3::new(angle.cos(), 0.0, angle.sin());
-        positions.push((radial * 0.5).to_array());
-        positions.push((radial * (0.5 * (1.0 - EXPLOSION_SHOCKWAVE_THICKNESS_RATIO))).to_array());
-        normals.extend([Vec3::Y.to_array(); 2]);
-        colors.extend([[1.0, 1.0, 1.0, 1.0]; 2]);
-
-        let world_direction = rotation * radial;
-        let horizontal = Vec3::new(world_direction.x, 0.0, world_direction.z).normalize_or_zero();
-        clear.push(
-            horizontal == Vec3::ZERO
-                || collision_world
-                    .is_none_or(|world| world.wall_surface_along_ray(center, horizontal, reach_radius).is_none()),
-        );
-    }
-
-    let mut indices = Vec::with_capacity(SHOCKWAVE_RESOLUTION as usize * 6);
-    for segment in 0..SHOCKWAVE_RESOLUTION as usize {
-        let next = (segment + 1) % SHOCKWAVE_RESOLUTION as usize;
-        if !clear[segment] || !clear[next] {
-            continue;
-        }
-        let outer = (segment * 2) as u32;
-        let inner = outer + 1;
-        let next_outer = (next * 2) as u32;
-        let next_inner = next_outer + 1;
-        indices.extend([outer, inner, next_outer, next_outer, inner, next_inner]);
-    }
-
-    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default());
-    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
-    mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
-    mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, colors);
-    mesh.insert_indices(Indices::U32(indices));
-    mesh
-}
-
-impl FromWorld for ExplosionAssets {
-    fn from_world(world: &mut World) -> Self {
-        let config = world.resource::<ClientSettings>().vfx.explosions;
-        world.resource_scope(|world, mut meshes: Mut<Assets<Mesh>>| {
-            let mut materials = world.resource_mut::<Assets<StandardMaterial>>();
-            Self::new(&mut meshes, &mut materials, config)
-        })
-    }
-}
-
-// Fireball flash and shockwave ring share one animation: ease-out scale
-// growth plus alpha + emissive fade on a per-instance material clone.
-#[derive(Component)]
-pub struct ExplosionPulse {
-    elapsed: f32,
-    lifetime: f32,
-    max_scale: f32,
-    start_alpha: f32,
-    // Template emissive at spawn; the fade rescales from this each frame.
-    base_emissive: LinearRgba,
-    material: Handle<StandardMaterial>,
-}
-
-#[derive(Component)]
-pub struct ExplosionLight {
-    elapsed: f32,
-    lifetime: f32,
-    intensity: f32,
-    range: f32,
-}
-
-#[derive(Component)]
-pub struct ScorchMark {
-    elapsed: f32,
-    material: Handle<StandardMaterial>,
-}
+use rand::rng;
 
 #[derive(Clone, Copy)]
 struct ExplosionSpec {
@@ -470,88 +279,6 @@ fn spawn_explosion(
     }
 }
 
-fn spawn_scorch_mark(
-    commands: &mut Commands,
-    materials: &mut Assets<StandardMaterial>,
-    budget: &mut ExplosionVfxBudget,
-    explosion_assets: &ExplosionAssets,
-    placement: ScorchPlacement,
-    style: ScorchStyle,
-    max_active_marks: usize,
-) {
-    let material = materials.add(explosion_assets.scorch_template.clone());
-    let scorch_mesh = explosion_assets.scorch_meshes[style.mesh_index].clone();
-    let grass_burn = (placement.normal().dot(Vec3::Y) > 0.999).then(|| {
-        GrassBurn::new(
-            placement.transform.translation - placement.normal() * EXPLOSION_SCORCH_SURFACE_OFFSET,
-            placement.transform.scale.x * 0.5,
-            style.rotation(),
-            style.mesh_index,
-        )
-    });
-    let entity = {
-        let mut entity_commands = commands.spawn((
-            Mesh3d(scorch_mesh),
-            MeshMaterial3d(material.clone()),
-            NotShadowCaster,
-            placement.transform,
-            ScorchMark { elapsed: 0.0, material },
-        ));
-        if let Some(grass_burn) = grass_burn {
-            entity_commands.insert(grass_burn);
-        }
-        entity_commands.id()
-    };
-    budget.register_scorch(commands, entity, max_active_marks);
-}
-
-fn scorch_fade_duration(full_opacity_duration: f32) -> f32 {
-    full_opacity_duration * EXPLOSION_SCORCH_FADE_FRACTION
-}
-
-fn scorch_alpha(elapsed: f32, full_opacity_duration: f32) -> f32 {
-    let fade_duration = scorch_fade_duration(full_opacity_duration);
-    ((full_opacity_duration + fade_duration - elapsed) / fade_duration).clamp(0.0, 1.0)
-}
-
-fn grass_burn_intensity(scorch_alpha: f32) -> f32 {
-    let steps = EXPLOSION_GRASS_BURN_FADE_STEPS as f32;
-    (scorch_alpha.clamp(0.0, 1.0) * steps).floor() / steps
-}
-
-pub fn scorch_marks_system(
-    mut commands: Commands,
-    time: Res<Time>,
-    settings: Res<ClientSettings>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut budget: ResMut<ExplosionVfxBudget>,
-    mut marks: Query<(Entity, &mut ScorchMark, Option<&mut GrassBurn>)>,
-) {
-    let delta = time.delta_secs();
-    let full_opacity_duration = settings.vfx.explosions.scorches.full_opacity_duration_secs;
-    let fade_duration = scorch_fade_duration(full_opacity_duration);
-    let total_duration = full_opacity_duration + fade_duration;
-    for (entity, mut mark, grass_burn) in &mut marks {
-        mark.elapsed += delta;
-        if mark.elapsed >= total_duration {
-            budget.remove_scorch(entity);
-            commands.entity(entity).despawn();
-            continue;
-        }
-        if mark.elapsed < full_opacity_duration {
-            continue;
-        }
-
-        let alpha = scorch_alpha(mark.elapsed, full_opacity_duration);
-        if let Some(mut material) = materials.get_mut(&mark.material) {
-            material.base_color.set_alpha(alpha);
-        }
-        if let Some(mut grass_burn) = grass_burn {
-            grass_burn.set_intensity(grass_burn_intensity(alpha));
-        }
-    }
-}
-
 fn shard_count(reach_radius: f32, config: &ExplosionVfxConfig) -> usize {
     scaled_particle_count(
         reach_radius,
@@ -582,59 +309,11 @@ fn scaled_particle_count(reach_radius: f32, density: f32, default_density: f32, 
     ((reach_radius * density).ceil() as usize).clamp(scaled_min.min(scaled_max), scaled_max)
 }
 
-pub fn explosion_pulse_system(
-    mut commands: Commands,
-    time: Res<Time>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut pulses: Query<(Entity, &mut ExplosionPulse, &mut Transform)>,
-) {
-    let delta = time.delta_secs();
-    for (entity, mut pulse, mut transform) in &mut pulses {
-        pulse.elapsed += delta;
-        // The per-instance material asset frees itself when the entity drops
-        // the last handle to it.
-        if pulse.elapsed >= pulse.lifetime {
-            commands.entity(entity).despawn();
-            continue;
-        }
-        let progress = (pulse.elapsed / pulse.lifetime).clamp(0.0, 1.0);
-        let grow = 1.0 - (1.0 - progress).powi(3);
-        transform.scale = Vec3::splat(pulse.max_scale * grow);
-        if let Some(mut material) = materials.get_mut(&pulse.material) {
-            material.base_color.set_alpha(pulse.start_alpha * (1.0 - progress));
-            // Emissive has no ceiling, so the alpha fade alone can't pull
-            // extreme brightness values under the bloom threshold before
-            // despawn — square-fade the emissive too so the glow dies
-            // smoothly instead of blinking out.
-            material.emissive = pulse.base_emissive * (1.0 - progress).powi(2);
-        }
-    }
-}
-
-pub fn explosion_lights_system(
-    mut commands: Commands,
-    time: Res<Time>,
-    mut budget: ResMut<ExplosionVfxBudget>,
-    mut lights: Query<(Entity, &mut ExplosionLight, &mut PointLight)>,
-) {
-    let delta = time.delta_secs();
-    for (entity, mut state, mut light) in &mut lights {
-        state.elapsed += delta;
-        if state.elapsed >= state.lifetime {
-            budget.release_light();
-            commands.entity(entity).despawn();
-            continue;
-        }
-        let progress = (state.elapsed / state.lifetime).clamp(0.0, 1.0);
-        let fade = (1.0 - progress).powi(2);
-        light.intensity = state.intensity * fade;
-        light.range = state.range * fade.max(0.25);
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use super::super::scorch::ScorchMark;
     use super::*;
+    use crate::map::GrassBurn;
     use common::constants::WALL_HEIGHT;
     use common::protocol::{BarrierKindTable, Floor, MapLayout, Wall};
 
@@ -665,38 +344,6 @@ mod tests {
 
         assert_eq!(shard_count(10.0, &half), shard_count(10.0, &default) / 2);
         assert_eq!(shard_count(10.0, &disabled), 0);
-    }
-
-    #[test]
-    fn scorch_alpha_stays_opaque_then_fades_to_zero() {
-        let full_opacity_duration = ExplosionVfxConfig::default().scorches.full_opacity_duration_secs;
-        let fade_duration = scorch_fade_duration(full_opacity_duration);
-        assert_eq!(scorch_alpha(0.0, full_opacity_duration), 1.0);
-        assert_eq!(scorch_alpha(full_opacity_duration, full_opacity_duration), 1.0);
-        assert_eq!(
-            scorch_alpha(full_opacity_duration + fade_duration / 2.0, full_opacity_duration),
-            0.5
-        );
-        assert_eq!(
-            scorch_alpha(full_opacity_duration + fade_duration, full_opacity_duration),
-            0.0
-        );
-    }
-
-    #[test]
-    fn grass_burn_intensity_tracks_scorch_fade_in_bounded_steps() {
-        let step = 1.0 / EXPLOSION_GRASS_BURN_FADE_STEPS as f32;
-        assert_eq!(grass_burn_intensity(1.0), 1.0);
-        assert_eq!(grass_burn_intensity(0.5), 0.5);
-        assert_eq!(grass_burn_intensity(step * 0.9), 0.0);
-        assert_eq!(grass_burn_intensity(-1.0), 0.0);
-        assert_eq!(grass_burn_intensity(2.0), 1.0);
-    }
-
-    #[test]
-    fn larger_explosions_have_a_lower_sound_pitch() {
-        assert!(explosion_sound_speed(6.0) > explosion_sound_speed(15.0));
-        assert_eq!(explosion_sound_speed(100.0), 0.84);
     }
 
     #[test]

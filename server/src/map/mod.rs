@@ -4,17 +4,20 @@ mod edges;
 mod floors;
 pub(crate) mod generation;
 mod grid;
-mod helpers;
 mod lights;
 mod mask;
 pub(crate) mod material_rules;
 mod pressure_plates;
 mod ramps;
+mod resources;
 mod segments;
 mod trim;
 mod walls;
 
 pub use common::physics::OpenBarrierKinds;
 pub use generation::generate_map;
-pub use helpers::grid_coords_from_position;
+pub use grid::grid_coords_from_position;
 pub use pressure_plates::compute_open_barrier_kinds_system;
+pub use resources::{
+    ActorSpawnZone, Cell, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlacedItem, PlayerSpawnZone, PressurePlateRuntime,
+};

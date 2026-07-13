@@ -3,10 +3,11 @@ use std::f32::consts::TAU;
 use bevy::prelude::Vec3;
 
 use crate::{
+    actors::{ActorInfo, ActorMap},
     config::ServerGameplayConfig,
     map::OpenBarrierKinds,
     network::broadcast_to_all,
-    resources::{ActorInfo, ActorMap, PlayerMap},
+    players::PlayerMap,
 };
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},

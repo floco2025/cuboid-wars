@@ -8,8 +8,8 @@ use super::{
     material_rules::MaterialRules,
     segments::{horizontal_wall_segment, vertical_wall_segment},
 };
-use crate::resources::EdgeGrid;
-use common::{constants::*, face_materials::FaceMaterials, map_geometry::MapGeometry, protocol::Wall};
+use crate::map::EdgeGrid;
+use common::{constants::*, face_materials::FaceMaterials, map::MapGeometry, protocol::Wall};
 
 // Epsilon for merging adjacent walls.
 const MERGE_EPS: f32 = 0.01;

@@ -2,7 +2,7 @@ use bevy::{gltf::GltfAssetLabel, prelude::*};
 
 use super::BumpFeedbackState;
 use crate::{
-    animations::{AnimationToPlay, character_animation_system},
+    characters::{AnimationToPlay, character_animation_system},
     characters::{PreviousTickPosition, spawn_collider_box},
     config::{AssetSet, ClientSettings},
     constants::{

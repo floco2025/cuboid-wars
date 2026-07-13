@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from PySide6.QtGui import QUndoCommand
 
-from .geometry import canonicalize_map
+from .normalization import canonicalize_map
 
 
 class SetMapCommand(QUndoCommand):

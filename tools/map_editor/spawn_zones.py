@@ -10,7 +10,8 @@ from .constants import (
     SPAWN_ZONE_HANDLE_PIXELS,
     SPAWN_ZONE_LISTS,
 )
-from .geometry import zone_contains_cell, zone_key, zone_rect
+from .geometry import zone_contains_cell, zone_rect
+from .normalization import zone_key
 from .types import SpawnZoneDrag, ZoneRef
 
 

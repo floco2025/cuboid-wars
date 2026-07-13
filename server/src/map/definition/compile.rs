@@ -3,6 +3,9 @@ use anyhow::Context;
 use super::schema::{BarrierDef, MapDef, RampDef};
 use crate::{
     map::{
+        ActorSpawnZone, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlacedItem, PlayerSpawnZone, PressurePlateRuntime,
+    },
+    map::{
         barriers::merge_barriers,
         floors,
         lights::generate_wall_lights,
@@ -10,14 +13,11 @@ use crate::{
         material_rules::MaterialRules,
         ramps, trim, walls,
     },
-    resources::{
-        ActorSpawnZone, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlacedItem, PlayerSpawnZone, PressurePlateRuntime,
-    },
 };
 use common::{
     constants::*,
     face_materials::FaceMaterials,
-    map_geometry::MapGeometry,
+    map::MapGeometry,
     protocol::{Barrier, BarrierKindId, BarrierKindTable, Floor, GrassCell, ItemType, MapLayout, Wall},
 };
 

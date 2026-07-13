@@ -7,7 +7,7 @@ use common::{
     protocol::{ActorMarker, Health, Position},
 };
 
-use crate::{config::ServerGameplayConfig, resources::ActorMap};
+use crate::{actors::ActorMap, config::ServerGameplayConfig};
 
 pub(super) fn detonate_actors_touching_players(
     actor_health: &mut Query<&mut Health, With<ActorMarker>>,

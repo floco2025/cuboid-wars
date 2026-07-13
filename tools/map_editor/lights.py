@@ -7,15 +7,15 @@ import copy
 from PySide6.QtWidgets import QMessageBox
 
 from .dialogs import AutoPlaceLightsDialog
+from .display import level_label
 from .geometry import (
     cell_side_from_click,
-    level_label,
-    light_key,
     normalized_wall,
     ramp_cells,
     rect_from_cells,
     wall_endpoints_for_cell_side,
 )
+from .normalization import light_key
 
 
 class LightsMixin:

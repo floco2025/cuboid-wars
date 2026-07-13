@@ -1,8 +1,10 @@
 use bevy::prelude::*;
 
 use crate::{
+    actors::{ActorMap, PendingActorSpawns},
+    items::ItemMap,
     map::OpenBarrierKinds,
-    resources::{ActorMap, ItemMap, PendingActorSpawns, PlayerMap},
+    players::PlayerMap,
 };
 use common::{
     constants::SNAPSHOT_SECS,

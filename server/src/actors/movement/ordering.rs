@@ -1,7 +1,7 @@
 use bevy::prelude::Entity;
 use common::protocol::{ActorId, Position};
 
-use crate::resources::{ActorInfo, ActorMap};
+use crate::actors::{ActorInfo, ActorMap};
 
 use super::query::ActorMovementQuery;
 

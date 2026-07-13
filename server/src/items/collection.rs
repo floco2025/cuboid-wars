@@ -2,9 +2,10 @@ use bevy::prelude::*;
 
 use crate::{
     config::ServerGameplayConfig,
-    net::ServerToClient,
+    items::{ItemMap, ItemPlacement},
+    network::ServerToClient,
     network::broadcast_to_all,
-    resources::{ItemMap, ItemPlacement, PlayerMap, QuestEvent, record_quest_event},
+    players::{PlayerMap, QuestEvent, record_quest_event},
 };
 use common::{
     config::GameplayConfig,

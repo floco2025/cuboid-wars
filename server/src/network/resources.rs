@@ -1,7 +1,7 @@
 use bevy::prelude::Resource;
 use tokio::sync::mpsc::{UnboundedReceiver, error::TryRecvError};
 
-use crate::net::ClientToServer;
+use crate::network::ClientToServer;
 use common::protocol::PlayerId;
 
 #[derive(Resource)]

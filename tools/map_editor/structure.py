@@ -8,7 +8,8 @@ from PySide6.QtWidgets import QInputDialog, QMessageBox
 
 from .constants import ITEMS_LIST, SPAWN_ZONE_LISTS
 from .dialogs import ResizeMapDialog, ToolReferenceDialog
-from .geometry import level_label, resize_map_data
+from .display import level_label
+from .normalization import resize_map_data
 
 
 class StructureMixin:

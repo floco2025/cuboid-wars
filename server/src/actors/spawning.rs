@@ -3,15 +3,14 @@ use rand::{RngExt, rng, rngs::ThreadRng};
 
 use crate::{
     actors::behavior::random_direction_time,
+    actors::{ActorInfo, ActorMap, ActorSpawnThrottles, ActorSpawner, PendingActorSpawn, PendingActorSpawns},
     characters::generate_actor_spawn_position_in_zone,
     config::ServerGameplayConfig,
-    resources::{
-        ActorInfo, ActorMap, ActorSpawnThrottles, ActorSpawner, MapConfig, PendingActorSpawn, PendingActorSpawns,
-    },
+    map::MapConfig,
 };
 use common::{
     config::GameplayConfig,
-    map_geometry::MapGeometry,
+    map::MapGeometry,
     physics::{CharacterVerticalVelocity, CollisionWorld},
     protocol::{ActorMarker, ActorMoveIntent, FaceDirection, Health, PlayerMarker, Position},
 };
@@ -276,7 +275,7 @@ fn materialize_actor(
             entity,
             spawn.zone_idx,
             spawn.kind,
-            crate::resources::ActorGoal::Patrol {
+            crate::actors::ActorGoal::Patrol {
                 intent: move_intent,
                 direction_timer: random_direction_time(rng, kind_server_config),
                 ledge_escape_timer: 0.0,

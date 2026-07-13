@@ -1,10 +1,7 @@
 use bevy::prelude::*;
 
-use crate::{
-    config::ServerGameplayConfig,
-    network::broadcast_to_all,
-    resources::{ActorMap, PendingExplosions, PlayerMap},
-};
+use super::PendingExplosions;
+use crate::{actors::ActorMap, config::ServerGameplayConfig, network::broadcast_to_all, players::PlayerMap};
 use common::{
     health::apply_damage,
     protocol::{ActorId, Health, PlayerId, Position, SActorDeath, SPlayerDeath, ServerMessage},
@@ -167,7 +164,7 @@ mod tests {
         ExplosionDamageConfig, FallDamageConfig, MapServerConfig, PlacedItemRespawnSecs, PlacedItemsConfig,
         PlayerServerConfig, PowerUpsConfig, ProjectileConfig, ScoringConfig,
     };
-    use crate::resources::{PendingExplosions, PlayerInfo};
+    use crate::players::PlayerInfo;
     use tokio::sync::mpsc::unbounded_channel;
 
     fn server_gameplay_config() -> ServerGameplayConfig {
@@ -371,7 +368,7 @@ mod tests {
 
         let envelope = shooter_rx.try_recv().expect("shooter should have received PlayerDeath");
         match envelope {
-            crate::net::ServerToClient::Send(ServerMessage::PlayerDeath(death)) => {
+            crate::network::ServerToClient::Send(ServerMessage::PlayerDeath(death)) => {
                 assert_eq!(death.id, PlayerId(2));
             }
             other => panic!("unexpected message: {other:?}"),

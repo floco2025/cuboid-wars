@@ -1,21 +1,17 @@
 mod barrier_kind;
 mod entities;
-mod health;
 mod ids;
-mod map;
-mod markers;
+mod items;
+mod map_layout;
 mod movement;
 mod position;
-mod power_up;
-mod quest;
+
+pub use crate::health::Health;
 
 pub use barrier_kind::{BarrierKindId, BarrierKindTable};
-pub use entities::{Actor, Item, Player, SpawningActor};
-pub use health::Health;
-pub use ids::{ActorId, ItemId, PlayerId};
-pub use map::{Barrier, Floor, GrassCell, ItemType, MapLayout, MapSettings, PressurePlate, Ramp, Wall, WallLight};
-pub use markers::{ActorMarker, ItemMarker, PlayerMarker};
+pub use entities::{Actor, ActorMarker, Item, ItemMarker, Player, PlayerMarker, SpawningActor};
+pub use ids::{ActorId, ItemId, PlayerId, QuestId};
+pub use items::{ItemType, PowerUpKind};
+pub use map_layout::{Barrier, Floor, GrassCell, MapLayout, MapSettings, PressurePlate, Ramp, Wall, WallLight};
 pub use movement::{ActorMoveIntent, ActorMovementState, FaceDirection, PlayerMoveIntent, PlayerMovementState};
 pub use position::Position;
-pub use power_up::PowerUpKind;
-pub use quest::QuestId;

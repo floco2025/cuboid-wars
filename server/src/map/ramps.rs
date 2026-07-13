@@ -1,5 +1,5 @@
-use crate::resources::CellGrid;
-use common::{constants::*, map_geometry::MapGeometry, protocol::Ramp};
+use crate::map::CellGrid;
+use common::{constants::*, map::MapGeometry, protocol::Ramp};
 
 // Internal representation of a placed ramp. Downstream code converts it to
 // `Ramp` for the wire protocol and applies its flags to the matching lower-level

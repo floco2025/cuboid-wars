@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use super::{
     components::ClientAssets,
-    players::{handle_quest_completed_message, handle_quest_progress_message, handle_quests_assigned_message},
+    quests::{handle_quest_completed_message, handle_quest_progress_message, handle_quests_assigned_message},
 };
 use crate::{players::MyPlayerId, vfx::ExplosionRadii};
 use common::{physics::CollisionWorld, protocol::*};

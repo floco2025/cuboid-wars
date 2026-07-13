@@ -9,8 +9,8 @@ use super::{
         handle_fall_damage_message, handle_player_blast_message, handle_player_death_message,
         handle_player_face_message, handle_player_hit_message, handle_player_jump_message,
         handle_player_move_intent_message, handle_player_shot_message, handle_player_status_message,
-        handle_quest_completed_message, handle_quest_progress_message, handle_quests_assigned_message,
     },
+    quests::{handle_quest_completed_message, handle_quest_progress_message, handle_quests_assigned_message},
     snapshot::handle_snapshot_message,
 };
 use crate::{

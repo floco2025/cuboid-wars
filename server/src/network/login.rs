@@ -1,9 +1,11 @@
 use bevy::prelude::*;
 
 use crate::{
+    actors::{ActorMap, PendingActorSpawns},
     characters::{generate_player_spawn_position, spawn_face_direction},
-    net::ServerToClient,
-    resources::{ActorMap, ItemMap, PendingActorSpawns, PlayerMap, assign_quests},
+    items::ItemMap,
+    network::ServerToClient,
+    players::{PlayerMap, assign_quests},
 };
 use common::{
     physics::CharacterVerticalVelocity,

@@ -1,7 +1,7 @@
 use bevy::{gltf::GltfAssetLabel, prelude::*};
 
 use crate::{
-    animations::{AnimationToPlay, character_animation_system},
+    characters::{AnimationToPlay, character_animation_system},
     characters::{PreviousTickPosition, spawn_collider_box},
     config::{AssetSet, ClientSettings},
     constants::{BEAM_IN_COLOR, BEAM_IN_LIGHT_RANGE, LABEL_ACTOR_MESH_WIDTH},

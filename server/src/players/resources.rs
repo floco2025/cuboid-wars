@@ -5,7 +5,7 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     config::{PowerUpsConfig, Quest, QuestKind},
-    net::ServerToClient,
+    network::ServerToClient,
 };
 use common::{
     constants::{ALWAYS_LOW_GRAVITY, ALWAYS_MULTI_SHOT, ALWAYS_PHASING, ALWAYS_SPEED, PROJECTILE_COOLDOWN_TIME},

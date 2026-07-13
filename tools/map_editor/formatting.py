@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from .geometry import compact_face_materials
+from .display import compact_face_materials
 
 
 def json_scalar(value) -> str:

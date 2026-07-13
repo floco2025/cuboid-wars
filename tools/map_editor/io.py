@@ -9,7 +9,7 @@ from pathlib import Path
 
 from .constants import DEFAULT_GRID_COLS, DEFAULT_GRID_ROWS, REPO_ROOT, SUPPORTED_VERSION
 from .formatting import format_map_file
-from .geometry import canonicalize_map, normalize_map
+from .normalization import canonicalize_map, normalize_map
 
 
 def empty_map(grid_cols: int = DEFAULT_GRID_COLS, grid_rows: int = DEFAULT_GRID_ROWS) -> dict:

@@ -1,4 +1,4 @@
-use crate::resources::EdgeGrid;
+use crate::map::EdgeGrid;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub(super) enum CellSide {

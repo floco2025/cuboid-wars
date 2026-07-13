@@ -1,12 +1,17 @@
 pub mod assets;
-mod client;
-mod network;
+mod audio;
+mod camera;
+mod hud;
+mod rendering;
+mod settings;
+mod vfx;
 
 pub use assets::{AssetSet, MaterialDef, ModelDef, SkyboxDef};
-pub use client::{
-    ActorBeamInVfxConfig, AudioConfig, ClientSettings, DebugColorMode, ExplosionFireballVfxConfig,
-    ExplosionLightVfxConfig, ExplosionScorchesVfxConfig, ExplosionShardsVfxConfig, ExplosionShockwaveVfxConfig,
-    ExplosionSmokeVfxConfig, ExplosionVfxConfig, GrassConfig, ImpactSparksVfxConfig, OpaqueRenderer,
-    ProjectileImpactAudioConfig, ProjectileVfxConfig, VfxConfig,
+pub use audio::{AudioConfig, ProjectileImpactAudioConfig};
+pub use rendering::OpaqueRenderer;
+pub use settings::{ClientSettings, DebugColorMode, GrassConfig};
+pub use vfx::{
+    ActorBeamInVfxConfig, ExplosionFireballVfxConfig, ExplosionLightVfxConfig, ExplosionScorchesVfxConfig,
+    ExplosionShardsVfxConfig, ExplosionShockwaveVfxConfig, ExplosionSmokeVfxConfig, ExplosionVfxConfig,
+    ImpactSparksVfxConfig, ProjectileVfxConfig, VfxConfig,
 };
-pub use network::configure_client;

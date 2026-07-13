@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::resources::{ItemMap, ItemPlacement, RandomItems};
+use crate::items::{ItemMap, ItemPlacement, RandomItems};
 use common::protocol::ItemId;
 
 pub fn random_item_despawn_system(

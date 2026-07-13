@@ -1,6 +1,6 @@
 use rand::{RngExt, rngs::ThreadRng};
 
-use crate::{config::ActorKindServerConfig, resources::ActorGoal};
+use crate::{actors::ActorGoal, config::ActorKindServerConfig};
 use common::protocol::ActorMoveIntent;
 
 // Entry path for non-escape transitions into patrol (pursuit arrival/stall,

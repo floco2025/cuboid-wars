@@ -1,9 +1,9 @@
 use super::definition::{WallLightDef, WallSide};
 use super::edges::{CellSide, has_edge_on_cell_side};
-use crate::resources::LevelGrid;
+use crate::map::LevelGrid;
 use common::{
     constants::{GRID_CELL_SIZE, LEVEL_HEIGHT, WALL_HALF_THICKNESS},
-    map_geometry::MapGeometry,
+    map::MapGeometry,
     protocol::{Position, WallLight},
 };
 
@@ -106,7 +106,7 @@ fn cell_in_bounds(level: &LevelGrid, row: i32, col: i32) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::resources::{CellGrid, EdgeGrid};
+    use crate::map::{CellGrid, EdgeGrid};
 
     fn level_with_walls(cols: i32, rows: i32) -> LevelGrid {
         // Single cell, all four sides walled. Lets us place lights on any

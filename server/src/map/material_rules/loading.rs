@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fs, path::Path};
 
 use anyhow::{Context, Result};
-use common::{face_materials::FaceMaterials, map_geometry::MapGeometry};
+use common::{face_materials::FaceMaterials, map::MapGeometry};
 use serde::Deserialize;
 
 use super::{MaterialRules, query::SegmentMaterials};

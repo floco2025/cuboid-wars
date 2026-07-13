@@ -6,7 +6,7 @@ use common::{
     protocol::{ActorId, ActorMoveIntent, Floor, MapLayout, Position, Wall},
 };
 
-use crate::resources::{ActorGoal, ActorInfo};
+use crate::actors::{ActorGoal, ActorInfo};
 
 use super::{
     context::{ActorMoveContext, CandidateStep, StepPolicy, blocked_step_made_useful_progress},

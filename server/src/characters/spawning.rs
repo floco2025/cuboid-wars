@@ -1,11 +1,11 @@
 use bevy::prelude::*;
 use rand::{RngExt, rng, rngs::ThreadRng, seq::IndexedRandom};
 
-use crate::resources::{ActorSpawnZone, MapConfig, PlayerSpawnZone};
+use crate::map::{ActorSpawnZone, MapConfig, PlayerSpawnZone};
 use common::{
     config::CharacterPhysicsConfig,
     constants::{GRID_CELL_SIZE, LEVEL_HEIGHT},
-    map_geometry::MapGeometry,
+    map::MapGeometry,
     physics::{CollisionWorld, character_paths_intersect, character_shape},
     protocol::Position,
 };
@@ -193,7 +193,7 @@ fn character_position_intersects_character(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::resources::{CellGrid, EdgeGrid, LevelGrid, MapConfig, PlayerSpawnZone};
+    use crate::map::{CellGrid, EdgeGrid, LevelGrid, MapConfig, PlayerSpawnZone};
     use common::{
         config::GameplayConfig,
         constants::WALL_THICKNESS,

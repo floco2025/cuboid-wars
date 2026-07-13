@@ -5,7 +5,7 @@ use super::{
     material_rules::MaterialRules,
     segments::{grid_x, grid_z},
 };
-use common::{constants::*, face_materials::FaceMaterials, map_geometry::MapGeometry, protocol::Floor};
+use common::{constants::*, face_materials::FaceMaterials, map::MapGeometry, protocol::Floor};
 
 const MERGE_EPS: f32 = 0.01;
 

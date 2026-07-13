@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
-use crate::resources::MapConfig;
+use crate::map::MapConfig;
 use common::{
-    map_geometry::MapGeometry,
+    map::MapGeometry,
     protocol::{BarrierKindTable, MapLayout},
 };
 

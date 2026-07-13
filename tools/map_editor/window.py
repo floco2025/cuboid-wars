@@ -30,7 +30,8 @@ from .constants import (
 )
 from .erase import EraseMixin
 from .file_actions import FileActionsMixin
-from .geometry import canonicalize_map, level_label
+from .display import level_label
+from .normalization import canonicalize_map
 from .io import empty_map, load_materials_catalog, read_map, write_map
 from .items import ItemsMixin
 from .lights import LightsMixin

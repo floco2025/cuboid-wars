@@ -1,14 +1,17 @@
 use bevy::{ecs::system::SystemParam, prelude::*};
 
 use crate::{
+    actors::{ActorMap, PendingActorSpawns},
     config::ServerGameplayConfig,
+    items::ItemMap,
+    map::MapConfig,
     map::OpenBarrierKinds,
-    net::ClientToServer,
-    resources::{ActorMap, FromClientsChannel, ItemMap, MapConfig, PendingActorSpawns, PlayerInfo, PlayerMap},
+    network::{ClientToServer, FromClientsChannel},
+    players::{PlayerInfo, PlayerMap},
 };
 use common::{
     config::GameplayConfig,
-    map_geometry::MapGeometry,
+    map::MapGeometry,
     physics::{CharacterVerticalVelocity, CollisionWorld},
     protocol::{ActorMarker, ItemMarker, MapLayout, PlayerMarker, *},
 };

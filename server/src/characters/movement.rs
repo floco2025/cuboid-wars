@@ -10,10 +10,11 @@ use common::{
 };
 
 use crate::{
+    actors::ActorMap,
     actors::{ActorMovementQuery, apply_actor_moves, plan_actor_moves},
     config::ServerGameplayConfig,
     map::OpenBarrierKinds,
-    resources::{ActorMap, PlayerInfo, PlayerMap},
+    players::{PlayerInfo, PlayerMap},
 };
 
 use super::contact_explosions::detonate_actors_touching_players;

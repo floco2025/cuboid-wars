@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use quinn::{Connection, ConnectionError, Endpoint};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
-use common::{net::MessageStream, protocol::*};
+use common::{network::MessageStream, protocol::*};
 
 // ============================================================================
 // Accept Connections Task

@@ -1,9 +1,20 @@
+use bevy_ecs::prelude::*;
 use bincode::{Decode, Encode};
 
 use super::{
     ActorMoveIntent, ActorMovementState, BarrierKindId, Health, ItemType, PlayerMoveIntent, PlayerMovementState,
     Position, PowerUpKind,
 };
+
+// Marker components disambiguating entity archetypes across server and client.
+#[derive(Component, Debug, Default)]
+pub struct PlayerMarker;
+
+#[derive(Component, Debug, Default)]
+pub struct ActorMarker;
+
+#[derive(Component, Debug, Default)]
+pub struct ItemMarker;
 
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct Actor {

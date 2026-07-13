@@ -1,6 +1,6 @@
 use super::edges::{has_horizontal_edge, has_vertical_edge};
-use crate::resources::EdgeGrid;
-use common::{constants::*, map_geometry::MapGeometry, protocol::Floor};
+use crate::map::EdgeGrid;
+use common::{constants::*, map::MapGeometry, protocol::Floor};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub(super) struct HorizontalSegment {

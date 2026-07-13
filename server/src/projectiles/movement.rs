@@ -1,12 +1,12 @@
 use bevy::{ecs::system::SystemParam, prelude::*};
 
 use crate::{
-    combat::{apply_actor_projectile_hit, apply_player_projectile_hit, kill_player},
+    actors::ActorMap,
+    combat::{PendingExplosions, apply_actor_projectile_hit, apply_player_projectile_hit, kill_player},
     config::ServerGameplayConfig,
     map::OpenBarrierKinds,
-    net::ServerToClient,
-    network::broadcast_to_all,
-    resources::{ActorMap, PendingExplosions, PlayerMap, QuestEvent, record_quest_event},
+    network::{ServerToClient, broadcast_to_all},
+    players::{PlayerMap, QuestEvent, record_quest_event},
 };
 use common::{
     config::GameplayConfig,

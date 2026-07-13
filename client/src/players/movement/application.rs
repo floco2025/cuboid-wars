@@ -3,7 +3,7 @@ use common::physics::{CharacterMovePlan, overlaps_other_character};
 
 use super::{
     feedback::{release_collision_feedback_after_clear_frames, trigger_collision_feedback},
-    types::PlayerMovementQuery,
+    planning::PlayerMovementQuery,
 };
 use crate::config::AssetSet;
 

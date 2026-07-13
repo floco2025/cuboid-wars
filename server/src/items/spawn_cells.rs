@@ -1,10 +1,10 @@
 use rand::{RngExt, rngs::ThreadRng};
 
-use crate::{map::grid_coords_from_position, resources::MapConfig};
+use crate::{map::MapConfig, map::grid_coords_from_position};
 use common::{
     constants::{GRID_CELL_SIZE, LEVEL_HEIGHT},
+    map::MapGeometry,
     map::compute_player_level,
-    map_geometry::MapGeometry,
     protocol::{ItemType, Position},
 };
 

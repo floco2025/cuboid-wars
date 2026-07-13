@@ -3,8 +3,8 @@ use bevy::prelude::*;
 use super::broadcast::broadcast_to_others;
 use crate::{
     map::OpenBarrierKinds,
-    net::ServerToClient,
-    resources::{PlayerInfo, PlayerMap},
+    network::ServerToClient,
+    players::{PlayerInfo, PlayerMap},
 };
 use common::{
     config::GameplayConfig,

@@ -1,8 +1,10 @@
 use bevy::prelude::*;
 
 use crate::{
-    net::ServerToClient,
-    resources::{ActorMap, ItemMap, PendingActorSpawns, PlayerMap},
+    actors::{ActorMap, PendingActorSpawns},
+    items::ItemMap,
+    network::ServerToClient,
+    players::PlayerMap,
 };
 use common::{physics::CharacterVerticalVelocity, protocol::*};
 
@@ -130,7 +132,7 @@ pub fn collect_items(items: &ItemMap, item_positions: &Query<&Position, With<Ite
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::resources::PlayerInfo;
+    use crate::players::PlayerInfo;
     use bevy::ecs::system::SystemState;
     use tokio::sync::mpsc::unbounded_channel;
 
@@ -182,7 +184,7 @@ mod tests {
 
     #[test]
     fn collect_items_omits_hidden_placed_items() {
-        use crate::resources::{ItemInfo, ItemPlacement};
+        use crate::items::{ItemInfo, ItemPlacement};
 
         let mut world = World::new();
         let visible_entity = world.spawn((ItemMarker, Position::default())).id();
