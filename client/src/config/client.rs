@@ -312,6 +312,8 @@ impl Default for ExplosionScorchesVfxConfig {
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct RenderingConfig {
     pub opaque_renderer: OpaqueRenderer,
+    #[serde(default)]
+    pub exclusive_fullscreen: ExclusiveFullscreenConfig,
     pub shadows_directional_enabled: bool,
     // Directional shadow map resolution per cascade (Bevy default 2048).
     // Higher halves shadow-edge texel size — matters once the sun moves.
@@ -327,6 +329,22 @@ pub struct RenderingConfig {
     pub vsync: bool,
     #[serde(default)]
     pub bloom: BloomConfig,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(default)]
+pub struct ExclusiveFullscreenConfig {
+    pub width: u32,
+    pub height: u32,
+}
+
+impl Default for ExclusiveFullscreenConfig {
+    fn default() -> Self {
+        Self {
+            width: 2560,
+            height: 1440,
+        }
+    }
 }
 
 const fn default_shadow_map_size() -> u32 {
@@ -766,6 +784,9 @@ impl RenderingConfig {
         if !matches!(self.msaa_samples, 1 | 2 | 4 | 8) {
             bail!("rendering.msaa_samples must be one of 1, 2, 4, or 8");
         }
+        if self.exclusive_fullscreen.width == 0 || self.exclusive_fullscreen.height == 0 {
+            bail!("rendering.exclusive_fullscreen width and height must be > 0");
+        }
         Ok(())
     }
 }
@@ -920,6 +941,17 @@ mod tests {
     #[test]
     fn shipped_client_config_loads_and_validates() {
         ClientSettings::load_default().expect("shipped client config should load and validate");
+    }
+
+    #[test]
+    fn rendering_config_rejects_zero_fullscreen_dimension() {
+        let mut settings = ClientSettings::load_default().expect("shipped client config should load");
+        settings.rendering.exclusive_fullscreen.width = 0;
+        let error = settings
+            .rendering
+            .validate()
+            .expect_err("zero fullscreen width should fail");
+        assert!(error.to_string().contains("exclusive_fullscreen"));
     }
 
     #[test]

@@ -35,17 +35,33 @@ pub fn ui_rtt_system(rtt: Res<RoundTripTime>, mut query: Single<&mut Text, With<
     }
 }
 
-pub fn ui_fps_system(time: Res<Time>, mut fps: ResMut<FpsMeasurement>, mut query: Single<&mut Text, With<FpsMarker>>) {
+pub fn ui_fps_system(
+    time: Res<Time>,
+    mut fps: ResMut<FpsMeasurement>,
+    windows: Query<&Window, With<PrimaryWindow>>,
+    mut query: Single<&mut Text, With<FpsMarker>>,
+) {
     fps.frame_count += 1;
     fps.fps_timer += time.delta_secs();
 
     if fps.fps_timer >= 1.0 {
         fps.fps = fps.frame_count as f32 / fps.fps_timer;
-        query.0 = format!("FPS: {:.0}", fps.fps);
+        let resolution = windows
+            .single()
+            .ok()
+            .map(|window| (window.physical_width(), window.physical_height()));
+        query.0 = fps_label(fps.fps, resolution);
 
         fps.frame_count = 0;
         fps.fps_timer = 0.0;
     }
+}
+
+fn fps_label(fps: f32, resolution: Option<(u32, u32)>) -> String {
+    resolution.map_or_else(
+        || format!("FPS: {fps:.0}"),
+        |(width, height)| format!("FPS: {fps:.0} | {width}x{height}"),
+    )
 }
 
 // Alpha for a "hold, then fade out" lifetime: 1.0 while `remaining_secs`
@@ -131,5 +147,11 @@ mod tests {
         assert_eq!(fade_out_alpha(5.0, 1.0), 1.0);
         assert_eq!(fade_out_alpha(0.5, 1.0), 0.5);
         assert_eq!(fade_out_alpha(0.0, 1.0), 0.0);
+    }
+
+    #[test]
+    fn fps_label_includes_physical_resolution() {
+        assert_eq!(fps_label(59.6, Some((2560, 1440))), "FPS: 60 | 2560x1440");
+        assert_eq!(fps_label(59.6, None), "FPS: 60");
     }
 }

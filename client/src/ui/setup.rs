@@ -116,7 +116,7 @@ pub fn setup_ui_system(mut commands: Commands, client_settings: Res<ClientSettin
             ));
             column.spawn((
                 FpsMarker,
-                Text::new("FPS: --"),
+                Text::new("FPS: -- | --x--"),
                 TextFont {
                     font_size: FontSize::Px(hud_font_size),
                     ..default()
