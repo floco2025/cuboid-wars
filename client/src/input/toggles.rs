@@ -4,10 +4,11 @@ use bevy::{
     input::mouse::MouseButton,
     prelude::*,
     window::{
-        CursorOptions, Monitor, MonitorSelection, OnMonitor, PrimaryMonitor, PrimaryWindow, VideoMode,
-        VideoModeSelection, WindowMode,
+        CursorOptions, Monitor, MonitorSelection, OnMonitor, PrimaryMonitor, PrimaryWindow, RawHandleWrapperHolder,
+        VideoMode, VideoModeSelection, WindowMode,
     },
 };
+use raw_window_handle::RawWindowHandle;
 
 use crate::{
     cameras::{CameraViewMode, TopDownCameraYaw},
@@ -63,7 +64,7 @@ pub fn input_debug_colors_cycle_system(keyboard: Res<ButtonInput<KeyCode>>, mut 
 pub fn input_fullscreen_toggle_system(
     keyboard: Res<ButtonInput<KeyCode>>,
     settings: Res<ClientSettings>,
-    mut windows: Query<(&mut Window, Option<&OnMonitor>), With<PrimaryWindow>>,
+    mut windows: Query<(&mut Window, Option<&OnMonitor>, Option<&RawHandleWrapperHolder>), With<PrimaryWindow>>,
     monitors: Query<(Entity, &Monitor, Has<PrimaryMonitor>)>,
 ) {
     let cmd_held = keyboard.pressed(KeyCode::SuperLeft) || keyboard.pressed(KeyCode::SuperRight);
@@ -74,7 +75,7 @@ pub fn input_fullscreen_toggle_system(
     if !(((cmd_held || ctrl_held) && f_pressed) || f11_pressed) {
         return;
     }
-    let Ok((mut window, on_monitor)) = windows.single_mut() else {
+    let Ok((mut window, on_monitor, raw_handle)) = windows.single_mut() else {
         return;
     };
     if !matches!(window.mode, WindowMode::Windowed) {
@@ -94,6 +95,15 @@ pub fn input_fullscreen_toggle_system(
         warn!("cannot enter exclusive fullscreen because no monitor is available");
         return;
     };
+    let monitor_selection = MonitorSelection::Entity(monitor_entity);
+
+    if is_wayland_window(raw_handle) {
+        info!(
+            "exclusive fullscreen is unavailable on Wayland; using borderless fullscreen at the compositor resolution"
+        );
+        window.mode = WindowMode::BorderlessFullscreen(monitor_selection);
+        return;
+    }
 
     let fullscreen = settings.rendering.exclusive_fullscreen;
     let Some(video_mode) = select_exclusive_video_mode(&monitor.video_modes, fullscreen.width, fullscreen.height)
@@ -107,10 +117,19 @@ pub fn input_fullscreen_toggle_system(
             fullscreen.width, fullscreen.height, video_mode.physical_size.x, video_mode.physical_size.y
         );
     }
-    window.mode = WindowMode::Fullscreen(
-        MonitorSelection::Entity(monitor_entity),
-        VideoModeSelection::Specific(video_mode),
-    );
+    window.mode = WindowMode::Fullscreen(monitor_selection, VideoModeSelection::Specific(video_mode));
+}
+
+fn is_wayland_window(raw_handle: Option<&RawHandleWrapperHolder>) -> bool {
+    let raw_window_handle = raw_handle.and_then(|holder| {
+        let handle = holder.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        handle.as_ref().map(bevy::window::RawHandleWrapper::get_window_handle)
+    });
+    is_wayland_window_handle(raw_window_handle)
+}
+
+const fn is_wayland_window_handle(raw_handle: Option<RawWindowHandle>) -> bool {
+    matches!(raw_handle, Some(RawWindowHandle::Wayland(_)))
 }
 
 fn select_exclusive_video_mode(modes: &[VideoMode], width: u32, height: u32) -> Option<VideoMode> {
@@ -152,6 +171,10 @@ pub fn input_cursor_toggle_system(
 
 #[cfg(test)]
 mod tests {
+    use std::ptr::NonNull;
+
+    use raw_window_handle::WaylandWindowHandle;
+
     use super::*;
 
     fn video_mode(width: u32, height: u32, refresh_rate_millihertz: u32, bit_depth: u16) -> VideoMode {
@@ -193,5 +216,14 @@ mod tests {
     #[test]
     fn exclusive_video_mode_returns_none_without_supported_modes() {
         assert_eq!(select_exclusive_video_mode(&[], 2560, 1440), None);
+    }
+
+    #[test]
+    fn wayland_window_handle_is_detected() {
+        let surface = NonNull::<u8>::dangling().cast();
+        let handle = RawWindowHandle::Wayland(WaylandWindowHandle::new(surface));
+
+        assert!(is_wayland_window_handle(Some(handle)));
+        assert!(!is_wayland_window_handle(None));
     }
 }
