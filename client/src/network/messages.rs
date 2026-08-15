@@ -294,9 +294,12 @@ pub fn dispatch_message(
             ));
         }
         ServerMessage::AdminResponse(admin_msg) => {
-            client_assets
-                .game_message_feed
-                .push(crate::ui::GameMessage::Admin { text: admin_msg.text });
+            // Multi-line replies (e.g. /help) become one feed row per line.
+            for line in admin_msg.text.lines().filter(|line| !line.trim().is_empty()) {
+                client_assets
+                    .game_message_feed
+                    .push(crate::ui::GameMessage::Admin { text: line.to_owned() });
+            }
         }
     }
 }

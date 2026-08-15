@@ -15,6 +15,12 @@ use common::{
     },
 };
 
+// Global debug invincibility. Seeded at startup from the config /
+// `--invincible` flag; the `/god` admin command owns it at runtime — which
+// is why it's a resource and not a config read.
+#[derive(Resource)]
+pub struct Invincibility(pub bool);
+
 // Per-player progress against a single assigned quest. `completed` is
 // monotonic — once true it stays true for the rest of the session.
 #[derive(Debug, Clone)]

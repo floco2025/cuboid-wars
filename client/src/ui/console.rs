@@ -64,8 +64,14 @@ pub fn console_input_system(
         if keyboard.just_pressed(KeyCode::Enter) || keyboard.just_pressed(KeyCode::Slash) {
             console.open = true;
             console.buffer.clear();
+            // Minecraft behavior: `/` opens with the slash pre-filled (the
+            // command prefix); Enter opens empty. Commands require the
+            // slash — the server treats slashless text as not-a-command.
+            if keyboard.just_pressed(KeyCode::Slash) {
+                console.buffer.push('/');
+            }
             // Swallow this frame's key events so the opening keystroke
-            // doesn't also submit (Enter) or type a stray slash.
+            // doesn't also submit (Enter) or double-type the slash.
             keys.clear();
         }
         return;

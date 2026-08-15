@@ -94,6 +94,7 @@ pub fn apply_player_projectile_hit(
     target_id: PlayerId,
     target_health: &mut Health,
     server_gameplay_config: &ServerGameplayConfig,
+    invincible: bool,
 ) -> bool {
     // The projectile system shouldn't find a dead player (entity is gone),
     // but guard so a stray hit on a queued-for-despawn entity can't redeath.
@@ -104,7 +105,7 @@ pub fn apply_player_projectile_hit(
     // Debug invincibility: cosmetic `SPlayerHit` still fires (camera shake
     // for the victim, hit sound for the shooter), but health and score are
     // untouched and the hit cannot be lethal.
-    if server_gameplay_config.player.invincible {
+    if invincible {
         return false;
     }
 
@@ -139,11 +140,12 @@ pub fn apply_player_beam_damage(
     target_health: &mut Health,
     damage: f32,
     server_gameplay_config: &ServerGameplayConfig,
+    invincible: bool,
 ) -> bool {
     if players.get(&target_id).is_some_and(|info| info.is_dead()) {
         return false;
     }
-    if server_gameplay_config.player.invincible {
+    if invincible {
         return false;
     }
     apply_damage(target_health, damage * (1.0 - server_gameplay_config.player.armor));
@@ -270,6 +272,7 @@ mod tests {
             PlayerId(2),
             &mut health,
             &server_gameplay_config(),
+            false,
         );
 
         assert!(!was_lethal);
@@ -289,6 +292,7 @@ mod tests {
             PlayerId(2),
             &mut health,
             &server_gameplay_config(),
+            false,
         );
 
         assert!(was_lethal);
@@ -307,6 +311,7 @@ mod tests {
             PlayerId(1),
             &mut health,
             &server_gameplay_config(),
+            false,
         );
 
         assert!(!was_lethal);
@@ -326,6 +331,7 @@ mod tests {
             PlayerId(2),
             &mut health,
             &server_gameplay_config(),
+            false,
         );
 
         assert!(!was_lethal);
@@ -341,7 +347,7 @@ mod tests {
         let players = make_player_map_with(PlayerId(1), PlayerId(2));
         let mut health = Health(100.0);
 
-        let lethal = apply_player_beam_damage(&players, PlayerId(2), &mut health, 50.0, &config);
+        let lethal = apply_player_beam_damage(&players, PlayerId(2), &mut health, 50.0, &config, false);
 
         assert!(!lethal);
         assert_eq!(health.0, 90.0);
@@ -352,7 +358,14 @@ mod tests {
         let players = make_player_map_with(PlayerId(1), PlayerId(2));
         let mut health = Health(5.0);
 
-        let lethal = apply_player_beam_damage(&players, PlayerId(2), &mut health, 100.0, &server_gameplay_config());
+        let lethal = apply_player_beam_damage(
+            &players,
+            PlayerId(2),
+            &mut health,
+            100.0,
+            &server_gameplay_config(),
+            false,
+        );
 
         assert!(lethal);
         assert_eq!(health.0, 0.0);
@@ -364,7 +377,14 @@ mod tests {
         players.get_mut(&PlayerId(2)).expect("target").death_timer = Some(2.0);
         let mut health = Health(50.0);
 
-        let lethal = apply_player_beam_damage(&players, PlayerId(2), &mut health, 100.0, &server_gameplay_config());
+        let lethal = apply_player_beam_damage(
+            &players,
+            PlayerId(2),
+            &mut health,
+            100.0,
+            &server_gameplay_config(),
+            false,
+        );
 
         assert!(!lethal);
         assert_eq!(health.0, 50.0);
@@ -372,12 +392,17 @@ mod tests {
 
     #[test]
     fn invincible_player_takes_no_beam_damage() {
-        let mut config = server_gameplay_config();
-        config.player.invincible = true;
         let players = make_player_map_with(PlayerId(1), PlayerId(2));
         let mut health = Health(50.0);
 
-        let lethal = apply_player_beam_damage(&players, PlayerId(2), &mut health, 100.0, &config);
+        let lethal = apply_player_beam_damage(
+            &players,
+            PlayerId(2),
+            &mut health,
+            100.0,
+            &server_gameplay_config(),
+            true,
+        );
 
         assert!(!lethal);
         assert_eq!(health.0, 50.0);

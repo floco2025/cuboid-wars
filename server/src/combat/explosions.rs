@@ -14,7 +14,7 @@ use crate::{
     actors::ActorMap,
     config::{ExplosionDamageConfig, ServerGameplayConfig},
     network::ServerToClient,
-    players::PlayerMap,
+    players::{Invincibility, PlayerMap},
 };
 
 type PlayerBlastQuery<'w, 's> = Query<
@@ -53,6 +53,7 @@ pub struct ExplosionContext<'w, 's> {
     pending: ResMut<'w, PendingExplosions>,
     gameplay_config: Res<'w, GameplayConfig>,
     server_gameplay_config: Res<'w, ServerGameplayConfig>,
+    invincibility: Res<'w, Invincibility>,
     collision_world: Res<'w, CollisionWorld>,
     player_query: PlayerBlastQuery<'w, 's>,
     actor_query: ActorBlastQuery<'w, 's>,
@@ -108,6 +109,7 @@ pub fn explosions_system(mut context: ExplosionContext) {
             spec,
             &context.gameplay_config,
             &context.server_gameplay_config,
+            context.invincibility.0,
             &context.collision_world,
             &context.players,
             &context.actors,
@@ -186,6 +188,7 @@ fn apply_blast(
     spec: BlastSpec,
     gameplay: &GameplayConfig,
     server: &ServerGameplayConfig,
+    invincible: bool,
     collision_world: &CollisionWorld,
     players: &PlayerMap,
     actors: &ActorMap,
@@ -205,7 +208,7 @@ fn apply_blast(
         else {
             continue;
         };
-        if !server.player.invincible {
+        if !invincible {
             apply_damage(
                 &mut health,
                 spec.damage.max_damage * falloff * (1.0 - server.player.armor),
@@ -392,6 +395,7 @@ mod tests {
             .insert_resource(collision_world)
             .insert_resource(PlayerMap::default())
             .insert_resource(ActorMap::default())
+            .insert_resource(Invincibility(false))
             .insert_resource(PendingExplosions::default());
         app
     }

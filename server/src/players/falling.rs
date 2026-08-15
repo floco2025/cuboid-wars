@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use super::PlayerMap;
+use super::{Invincibility, PlayerMap};
 use crate::characters::{generate_player_spawn_position, spawn_face_direction};
 use crate::combat::{PendingExplosions, kill_player};
 use crate::map::MapConfig;
@@ -29,7 +29,7 @@ pub fn players_fall_death_system(
     mut players: ResMut<PlayerMap>,
     mut pending_explosions: ResMut<PendingExplosions>,
     gameplay_config: Res<GameplayConfig>,
-    server_gameplay_config: Res<crate::config::ServerGameplayConfig>,
+    invincibility: Res<Invincibility>,
     map_config: Res<MapConfig>,
     map_geometry: Res<MapGeometry>,
     collision_world: Res<CollisionWorld>,
@@ -44,7 +44,7 @@ pub fn players_fall_death_system(
         if players.get(id).is_some_and(|info| info.is_dead()) {
             continue;
         }
-        if server_gameplay_config.player.invincible {
+        if invincibility.0 {
             // Debug invincibility turns the void fall into a silent teleport
             // home: no `SPlayerDeath` (no banner, no kill feed), no per-life
             // state loss — keys, power-ups, and score all survive. The client
@@ -128,13 +128,14 @@ pub fn players_fall_damage_system(
     mut pending_explosions: ResMut<PendingExplosions>,
     gameplay_config: Res<GameplayConfig>,
     server_gameplay_config: Res<crate::config::ServerGameplayConfig>,
+    invincibility: Res<Invincibility>,
     map_settings: Res<MapSettings>,
     mut player_query: Query<
         (Entity, &PlayerId, &Position, &CharacterVerticalVelocity, &mut Health),
         With<PlayerMarker>,
     >,
 ) {
-    let invincible = server_gameplay_config.player.invincible;
+    let invincible = invincibility.0;
     let fall = server_gameplay_config.player.fall_damage;
     let max_health = gameplay_config.player.health().max;
     let respawn_delay_secs = gameplay_config.player.respawn_delay_secs;

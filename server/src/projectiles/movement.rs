@@ -6,7 +6,7 @@ use crate::{
     config::ServerGameplayConfig,
     map::OpenBarrierKinds,
     network::{ServerToClient, broadcast_to_all},
-    players::{PlayerMap, QuestEvent, record_quest_event},
+    players::{Invincibility, PlayerMap, QuestEvent, record_quest_event},
 };
 use common::{
     config::GameplayConfig,
@@ -120,6 +120,7 @@ pub struct ProjectileMovementParams<'w, 's> {
     actors: ResMut<'w, ActorMap>,
     players: ResMut<'w, PlayerMap>,
     pending_explosions: ResMut<'w, PendingExplosions>,
+    invincibility: Res<'w, Invincibility>,
 }
 
 pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut params: ProjectileMovementParams) {
@@ -230,6 +231,7 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                         player_id,
                         &mut health,
                         &params.server_gameplay_config,
+                        params.invincibility.0,
                     );
 
                     broadcast_to_all(

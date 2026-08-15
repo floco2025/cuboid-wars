@@ -1,8 +1,11 @@
 use bevy::prelude::*;
 
-use super::{admin::handle_admin_message, broadcast::broadcast_to_others};
+use super::{
+    admin::{AdminContext, handle_admin_message},
+    broadcast::broadcast_to_others,
+};
 use crate::{
-    map::{OpenBarrierKinds, WeatherState},
+    map::OpenBarrierKinds,
     network::ServerToClient,
     players::{PlayerInfo, PlayerMap},
 };
@@ -32,7 +35,7 @@ pub fn dispatch_message(
     collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
     open_barrier_kinds: &OpenBarrierKinds,
-    weather: &mut WeatherState,
+    admin: &mut AdminContext,
 ) {
     // Dead players have a despawned entity; queueing entity-targeted
     // commands against the stale `entity` would panic when Bevy applies the
@@ -94,7 +97,7 @@ pub fn dispatch_message(
         }
         ClientMessage::Admin(msg) => {
             debug!("{id:?} admin command: {:?}", msg.command);
-            handle_admin_message(players, id, weather, &msg);
+            handle_admin_message(commands, players, id, admin, player_data, gameplay_config, &msg);
         }
     }
 }

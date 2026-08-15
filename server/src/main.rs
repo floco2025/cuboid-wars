@@ -33,7 +33,8 @@ use server::{
         network_process_client_messages_system,
     },
     players::{
-        players_fall_damage_system, players_fall_death_system, players_respawn_system, players_status_timers_system,
+        Invincibility, players_fall_damage_system, players_fall_death_system, players_respawn_system,
+        players_status_timers_system,
     },
     projectiles::projectiles_movement_system,
 };
@@ -135,6 +136,7 @@ async fn main() -> Result<()> {
     app.insert_resource(map_layout)
         .insert_resource(map_settings)
         .insert_resource(weather_state)
+        .insert_resource(Invincibility(server_gameplay_config.player.invincible))
         .insert_resource(collision_world)
         .insert_resource(map_config)
         .insert_resource(map_geometry)

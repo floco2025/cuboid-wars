@@ -5,10 +5,12 @@ use crate::{
     config::ServerGameplayConfig,
     items::ItemMap,
     map::MapConfig,
-    map::{OpenBarrierKinds, WeatherState},
+    map::OpenBarrierKinds,
     network::{ClientToServer, FromClientsChannel},
     players::{PlayerInfo, PlayerMap},
 };
+
+use super::admin::AdminContext;
 use common::{
     config::GameplayConfig,
     map::MapGeometry,
@@ -50,7 +52,7 @@ pub fn network_process_client_messages_system(
     actor_motions: Query<&CharacterVerticalVelocity, With<ActorMarker>>,
     item_data: Query<&Position, With<ItemMarker>>,
     open_barrier_kinds: Res<OpenBarrierKinds>,
-    mut weather: ResMut<WeatherState>,
+    mut admin: AdminContext,
 ) {
     while let Ok((id, event)) = from_clients.try_recv() {
         if let ClientToServer::Registration { to_client } = event {
@@ -97,7 +99,7 @@ pub fn network_process_client_messages_system(
                         &world.collision_world,
                         &world.gameplay_config,
                         &open_barrier_kinds,
-                        &mut weather,
+                        &mut admin,
                     );
                 } else {
                     handle_login_message(

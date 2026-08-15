@@ -82,9 +82,11 @@ pub fn spawn_message_feed_root(commands: &mut Commands) {
             // Starts above the console's reserved strip so the input line and
             // the feed stack instead of overlapping.
             bottom: Val::Px(HUD_EDGE_MARGIN_PX + CONSOLE_LINE_RESERVED_PX),
-            // ColumnReverse so the newest child (pushed last) renders at the
-            // bottom, with older entries stacking upward toward the top.
-            flex_direction: FlexDirection::ColumnReverse,
+            // Chat semantics for the console input line below: children in
+            // push order top-to-bottom, so the newest entry sits directly
+            // above the input and older entries are pushed upward (the
+            // bottom-anchored container grows toward the top).
+            flex_direction: FlexDirection::Column,
             align_items: AlignItems::FlexEnd,
             row_gap: Val::Px(ENTRY_ROW_GAP),
             ..default()

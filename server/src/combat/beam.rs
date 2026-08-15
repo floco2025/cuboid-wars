@@ -5,7 +5,7 @@ use crate::{
     actors::{ActorGoal, ActorMap},
     config::ServerGameplayConfig,
     network::broadcast_to_all,
-    players::PlayerMap,
+    players::{Invincibility, PlayerMap},
 };
 use common::{
     config::GameplayConfig,
@@ -33,6 +33,7 @@ pub fn actor_beam_damage_system(
     mut pending_explosions: ResMut<PendingExplosions>,
     gameplay_config: Res<GameplayConfig>,
     server_gameplay_config: Res<ServerGameplayConfig>,
+    invincibility: Res<Invincibility>,
     collision_world: Res<CollisionWorld>,
     actor_positions: Query<&Position, (With<ActorMarker>, Without<PlayerMarker>)>,
     mut player_query: Query<(&Position, &mut Health), With<PlayerMarker>>,
@@ -90,6 +91,7 @@ pub fn actor_beam_damage_system(
             &mut target_health,
             fire.damage_per_second * delta,
             &server_gameplay_config,
+            invincibility.0,
         );
 
         if info.fire_hit_cue_timer <= 0.0 {
