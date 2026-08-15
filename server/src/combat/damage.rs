@@ -128,6 +128,28 @@ pub fn apply_player_projectile_hit(
     target_health.0 <= 0.0
 }
 
+// Apply one tick of laser-beam contact to a player. `damage` is the raw
+// per-tick amount (`damage_per_second * dt`); the victim's armor applies
+// here. Returns `true` when this tick drops the target to zero — the caller
+// runs `kill_player(killer: None)`. No score adjustments: actor-inflicted,
+// like falls and blasts.
+pub fn apply_player_beam_damage(
+    players: &PlayerMap,
+    target_id: PlayerId,
+    target_health: &mut Health,
+    damage: f32,
+    server_gameplay_config: &ServerGameplayConfig,
+) -> bool {
+    if players.get(&target_id).is_some_and(|info| info.is_dead()) {
+        return false;
+    }
+    if server_gameplay_config.player.invincible {
+        return false;
+    }
+    apply_damage(target_health, damage * (1.0 - server_gameplay_config.player.armor));
+    target_health.0 <= 0.0
+}
+
 // Apply one projectile hit to an actor. Returns `true` when this hit drops
 // the target's health to zero — the caller awards the per-kind kill bonus
 // (`combat.score_reward_on_kill`).
@@ -312,18 +334,67 @@ mod tests {
     }
 
     #[test]
+    fn beam_damage_applies_player_armor() {
+        let mut config = server_gameplay_config();
+        config.player.armor = 0.8;
+        let players = make_player_map_with(PlayerId(1), PlayerId(2));
+        let mut health = Health(100.0);
+
+        let lethal = apply_player_beam_damage(&players, PlayerId(2), &mut health, 50.0, &config);
+
+        assert!(!lethal);
+        assert_eq!(health.0, 90.0);
+    }
+
+    #[test]
+    fn beam_damage_lethal_tick_returns_true() {
+        let players = make_player_map_with(PlayerId(1), PlayerId(2));
+        let mut health = Health(5.0);
+
+        let lethal = apply_player_beam_damage(&players, PlayerId(2), &mut health, 100.0, &server_gameplay_config());
+
+        assert!(lethal);
+        assert_eq!(health.0, 0.0);
+    }
+
+    #[test]
+    fn dead_player_takes_no_beam_damage() {
+        let mut players = make_player_map_with(PlayerId(1), PlayerId(2));
+        players.get_mut(&PlayerId(2)).expect("target").death_timer = Some(2.0);
+        let mut health = Health(50.0);
+
+        let lethal = apply_player_beam_damage(&players, PlayerId(2), &mut health, 100.0, &server_gameplay_config());
+
+        assert!(!lethal);
+        assert_eq!(health.0, 50.0);
+    }
+
+    #[test]
+    fn invincible_player_takes_no_beam_damage() {
+        let mut config = server_gameplay_config();
+        config.player.invincible = true;
+        let players = make_player_map_with(PlayerId(1), PlayerId(2));
+        let mut health = Health(50.0);
+
+        let lethal = apply_player_beam_damage(&players, PlayerId(2), &mut health, 100.0, &config);
+
+        assert!(!lethal);
+        assert_eq!(health.0, 50.0);
+    }
+
+    #[test]
     fn dead_actor_takes_no_further_hits_or_score() {
         let config = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
         let mut players = make_player_map_with(PlayerId(1), PlayerId(2));
         let mut health = Health(1.0);
 
-        let first_hit_lethal = apply_actor_projectile_hit(&mut players, &PlayerId(1), &mut health, "mine_1", &config);
+        let first_hit_lethal = apply_actor_projectile_hit(&mut players, &PlayerId(1), &mut health, "zapper", &config);
         assert!(first_hit_lethal);
         let score_after_kill = players.get(&PlayerId(1)).expect("shooter").score;
 
         // The dying actor's entity stays queryable until removal runs later
         // in the tick; a same-tick second hit must not count as lethal again.
-        let second_hit_lethal = apply_actor_projectile_hit(&mut players, &PlayerId(1), &mut health, "mine_1", &config);
+        let second_hit_lethal = apply_actor_projectile_hit(&mut players, &PlayerId(1), &mut health, "zapper", &config);
         assert!(!second_hit_lethal);
         assert_eq!(players.get(&PlayerId(1)).expect("shooter").score, score_after_kill);
     }

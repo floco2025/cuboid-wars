@@ -21,7 +21,7 @@ use server::{
         actor_respawn_system, navigation::NavGraph,
     },
     characters::{characters_health_regeneration_system, characters_movement_system, knockback_decay_system},
-    combat::{PendingExplosions, explosions_system},
+    combat::{PendingExplosions, actor_beam_damage_system, explosions_system},
     config::{ServerGameplayConfig, configure_server},
     items::{
         item_collection_system, placed_item_respawn_system, placed_item_spawn_system, random_item_despawn_system,
@@ -187,6 +187,13 @@ async fn main() -> Result<()> {
                 // Decay after movement so planning consumed this tick's step.
                 knockback_decay_system.after(characters_movement_system),
                 projectiles_movement_system,
+                // Beam burn starts on the burst's first tick and reads
+                // post-step positions; a lethal beam's death blast must drain
+                // in this tick's explosion pass.
+                actor_beam_damage_system
+                    .after(actor_behavior_system)
+                    .after(characters_movement_system)
+                    .before(explosions_system),
                 // Actor removal finalizes health-zero actors and queues their blasts.
                 actor_removal_system
                     .after(characters_movement_system)

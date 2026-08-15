@@ -1,5 +1,6 @@
 mod beam;
 mod explosion;
+mod laser;
 mod particles;
 mod spark;
 
@@ -12,5 +13,6 @@ pub use explosion::{
     ExplosionAssets, ExplosionRadii, ExplosionVfxBudget, explosion_lights_system, explosion_particles_system,
     explosion_pulse_system, explosion_sound_speed, scorch_marks_system, spawn_actor_explosion, spawn_player_explosion,
 };
+pub use laser::{LaserBeam, laser_beam_update_system, spawn_laser_beam};
 pub use particles::{TransientParticles, transient_particles_system};
 pub use spark::{ImpactKind, spawn_impact_sparks};

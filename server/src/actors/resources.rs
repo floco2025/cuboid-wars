@@ -28,7 +28,7 @@ pub enum ActorGoal {
     },
     // Pressing toward a visible player's live position. Never "arrives" —
     // ends via contact detonation, the vertical hold, demotion to `Pursuit`,
-    // the leash, or the stall watchdog.
+    // the leash, or the stall watchdog. Contact kinds only.
     Chase {
         target: Position,
     },
@@ -41,6 +41,25 @@ pub enum ActorGoal {
         next: Position,
         path: VecDeque<Position>,
     },
+    // Laser kinds' replacement for `Chase`: press toward the target but hold
+    // at the standoff distance. `target_pos` is refreshed each tick (movement
+    // reads the goal without a player query, like `Chase`).
+    Approach {
+        target: PlayerId,
+        target_pos: Position,
+    },
+    // Mid-burst: stand still, yaw tracks the target, the beam damage system
+    // burns whoever the beam reaches. The target is locked for the burst.
+    Fire {
+        target: PlayerId,
+        target_pos: Position,
+        remaining_secs: f32,
+    },
+    // Post-burst hide: run directly away from the threat until the re-fire
+    // cooldown (`ActorInfo::fire_cooldown_timer`) lapses.
+    Flee {
+        threat: Position,
+    },
 }
 
 impl ActorGoal {
@@ -49,10 +68,11 @@ impl ActorGoal {
     #[must_use]
     pub fn target_position(&self) -> Option<Position> {
         match self {
-            Self::Patrol { .. } => None,
+            Self::Patrol { .. } | Self::Fire { .. } | Self::Flee { .. } => None,
             Self::Chase { target } => Some(*target),
             Self::Pursuit { last_seen } => Some(*last_seen),
             Self::Return { next, .. } => Some(*next),
+            Self::Approach { target_pos, .. } => Some(*target_pos),
         }
     }
 
@@ -67,6 +87,18 @@ impl ActorGoal {
         };
         pos.horizontal_distance_sq(target) <= reached_distance * reached_distance
             && (target.y - pos.y).abs() >= CHASE_HOLD_MIN_VERTICAL_GAP
+    }
+
+    // An approacher inside its standoff distance holds position (and facing)
+    // instead of pressing to touch — the standoff is the point of the state.
+    // Unlike `chase_hold` there is no vertical gate: horizontal arrival is
+    // enough, which also absorbs the player-directly-above jitter case.
+    #[must_use]
+    pub fn approach_hold(&self, pos: &Position, standoff_distance: f32) -> bool {
+        let Self::Approach { target_pos, .. } = self else {
+            return false;
+        };
+        pos.horizontal_distance_sq(target_pos) <= standoff_distance * standoff_distance
     }
 }
 
@@ -99,6 +131,14 @@ pub struct ActorInfo {
     // commit can't carry chase speed into patrol). `None` = decide fresh.
     pub committed_direction: Option<f32>,
     pub commit_secs_left: f32,
+    // Re-fire lockout, armed to `fire.cooldown_secs` when a burst ends and
+    // ticked down every tick regardless of goal — a leash-preempted flee
+    // (Flee → Return) must not erase it, so it can't live inside the `Flee`
+    // variant (same reasoning as `return_retry_timer`). `Flee` ends and
+    // firing re-arms only once it lapses.
+    pub fire_cooldown_timer: f32,
+    // Throttles the beam-victim `SPlayerHit` cue while burst damage applies.
+    pub fire_hit_cue_timer: f32,
     // Player who landed the last projectile damage. Read by
     // `actor_removal_system` when the actor's health hits zero, so the
     // `SActorDeath` broadcast can attribute the kill. Chain-explosion
@@ -120,6 +160,8 @@ impl ActorInfo {
             return_retry_timer: 0.0,
             committed_direction: None,
             commit_secs_left: 0.0,
+            fire_cooldown_timer: 0.0,
+            fire_hit_cue_timer: 0.0,
             last_damager: None,
         }
     }

@@ -95,9 +95,23 @@ pub(crate) fn plan_actor_moves(
 
         // Hysteresis anchor: where the actor was already heading.
         let last_direction = move_intent.direction();
-        let selected_move = match desired_move(&info.goal, &current_pos, actor_config.chase_speed, reached_distance) {
+        // A burst tracks its target with yaw while standing still; idle
+        // intents carry no direction, so the facing is applied directly.
+        let mut hold_facing = None;
+        let selected_move = match desired_move(
+            &info.goal,
+            &current_pos,
+            actor_config.chase_speed,
+            reached_distance,
+            kind_server_config.fire.as_ref(),
+        ) {
             ActorDesire::Idle => {
                 clear_commit(info);
+                move_context.idle_move()
+            }
+            ActorDesire::HoldFacing { direction } => {
+                clear_commit(info);
+                hold_facing = Some(direction);
                 move_context.idle_move()
             }
             ActorDesire::Move { intent, policy } => {
@@ -110,7 +124,7 @@ pub(crate) fn plan_actor_moves(
         // deterministic, no sensor noise) so broadcast on every difference.
         let committed_this_tick = *move_intent != selected_move.intent;
         *move_intent = selected_move.intent;
-        if let Some(direction) = selected_move.intent.direction() {
+        if let Some(direction) = selected_move.intent.direction().or(hold_facing) {
             face_dir.0 = direction;
         }
         if committed_this_tick {

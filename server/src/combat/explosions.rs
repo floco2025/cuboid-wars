@@ -413,7 +413,7 @@ mod tests {
             ActorInfo::new(
                 entity,
                 0,
-                "mine_1".to_owned(),
+                "zapper".to_owned(),
                 ActorGoal::Patrol {
                     intent: ActorMoveIntent::Idle,
                     direction_timer: 0.0,
@@ -531,13 +531,13 @@ mod tests {
             pending.push_actor(
                 ActorId(1),
                 Entity::from_bits(10),
-                "mine_1".to_owned(),
+                "zapper".to_owned(),
                 Position { x: -1.0, ..default() },
             );
             pending.push_actor(
                 ActorId(2),
                 Entity::from_bits(11),
-                "mine_1".to_owned(),
+                "zapper".to_owned(),
                 Position { x: 1.0, ..default() },
             );
         }

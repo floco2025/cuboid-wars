@@ -14,6 +14,10 @@ pub struct ActorKindServerConfig {
     pub senses: ActorSensesConfig,
     pub patrol: ActorPatrolConfig,
     pub chase: ActorChaseConfig,
+    // Present = laser kind: approach to standoff, fire a tracking beam, flee
+    // for the cooldown. Absent = contact kind (plain chase).
+    #[serde(default)]
+    pub fire: Option<ActorFireConfig>,
     pub navigation: ActorNavigationConfig,
 }
 
@@ -24,6 +28,9 @@ impl ActorKindServerConfig {
         self.senses.validate(&format!("{path}.senses"))?;
         self.patrol.validate(&format!("{path}.patrol"))?;
         self.chase.validate(&format!("{path}.chase"))?;
+        if let Some(fire) = &self.fire {
+            fire.validate(&format!("{path}.fire"))?;
+        }
         self.navigation.validate(&format!("{path}.navigation"))
     }
 }
@@ -68,11 +75,13 @@ pub struct ActorCombatConfig {
     // toughness lives on the victim, damage sources carry one raw number.
     pub armor: f32,
     // Distance at which contact with a player triggers the actor's explosion.
-    pub contact_explosion_distance: f32,
+    // Absent = this kind never contact-detonates.
+    #[serde(default)]
+    pub contact_explosion_distance: Option<f32>,
     pub explosion: ExplosionDamageConfig,
     // Bonus added to the killer's score on the lethal hit, on top of
     // `scoring.actor_hit` which fires per hit. Tougher actors should be
-    // worth more — set higher for sentry, lower for mine_1.
+    // worth more — set higher for sentry, lower for zapper.
     #[serde(default)]
     pub score_reward_on_kill: i32,
 }
@@ -80,10 +89,9 @@ pub struct ActorCombatConfig {
 impl ActorCombatConfig {
     fn validate(&self, path: &str) -> Result<()> {
         validate_probability(self.armor, &format!("{path}.armor"))?;
-        validate_non_negative_finite(
-            self.contact_explosion_distance,
-            &format!("{path}.contact_explosion_distance"),
-        )?;
+        if let Some(distance) = self.contact_explosion_distance {
+            validate_non_negative_finite(distance, &format!("{path}.contact_explosion_distance"))?;
+        }
         self.explosion.validate(&format!("{path}.explosion"))
     }
 }
@@ -152,6 +160,34 @@ impl ActorChaseConfig {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct ActorFireConfig {
+    // Approach stops (holds position) once within this xz-distance of the
+    // target; firing doesn't require it — only `range`.
+    pub standoff_distance: f32,
+    // Maximum xz-distance at which the beam can start and keep damaging.
+    pub range: f32,
+    // Length of one beam burst.
+    pub duration_secs: f32,
+    // Post-burst lockout; also how long the actor flees to hide.
+    pub cooldown_secs: f32,
+    // Raw beam damage per second of contact; the victim's armor applies.
+    pub damage_per_second: f32,
+}
+
+impl ActorFireConfig {
+    fn validate(&self, path: &str) -> Result<()> {
+        validate_positive_finite(self.standoff_distance, &format!("{path}.standoff_distance"))?;
+        validate_positive_finite(self.range, &format!("{path}.range"))?;
+        if self.standoff_distance > self.range {
+            bail!("{path}.standoff_distance must be <= {path}.range");
+        }
+        validate_positive_finite(self.duration_secs, &format!("{path}.duration_secs"))?;
+        validate_non_negative_finite(self.cooldown_secs, &format!("{path}.cooldown_secs"))?;
+        validate_positive_finite(self.damage_per_second, &format!("{path}.damage_per_second"))
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct ActorNavigationConfig {
     pub path_clear_lookahead_secs: f32,
     pub go_to_reached_distance: f32,
@@ -179,5 +215,58 @@ impl ExplosionDamageConfig {
     pub(super) fn validate(&self, path: &str) -> Result<()> {
         validate_positive_finite(self.radius, &format!("{path}.radius"))?;
         validate_non_negative_finite(self.max_damage, &format!("{path}.max_damage"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::ServerGameplayConfig;
+
+    fn ok_fire() -> ActorFireConfig {
+        ActorFireConfig {
+            standoff_distance: 6.0,
+            range: 15.0,
+            duration_secs: 1.0,
+            cooldown_secs: 5.0,
+            damage_per_second: 75.0,
+        }
+    }
+
+    #[test]
+    fn default_config_loads_zapper_fire_group() {
+        let config = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
+        let zapper = config.validated_actor("zapper");
+        let fire = zapper.fire.as_ref().expect("zapper fire group missing from config");
+        assert_eq!(fire.duration_secs, 2.0);
+        assert_eq!(fire.cooldown_secs, 5.0);
+        assert_eq!(zapper.combat.contact_explosion_distance, None);
+
+        // The contact kinds must not have inherited the laser behavior.
+        let mine = config.validated_actor("mine");
+        assert!(mine.fire.is_none());
+        assert_eq!(mine.combat.contact_explosion_distance, Some(0.4));
+        assert!(config.validated_actor("sentry").fire.is_none());
+    }
+
+    #[test]
+    fn fire_config_rejects_standoff_beyond_range() {
+        let fire = ActorFireConfig {
+            standoff_distance: 20.0,
+            ..ok_fire()
+        };
+        let err = fire
+            .validate("actors.test.fire")
+            .expect_err("standoff > range must fail");
+        assert!(err.to_string().contains("standoff_distance"));
+    }
+
+    #[test]
+    fn fire_config_rejects_non_positive_duration() {
+        let fire = ActorFireConfig {
+            duration_secs: 0.0,
+            ..ok_fire()
+        };
+        fire.validate("actors.test.fire").expect_err("zero duration must fail");
     }
 }

@@ -13,5 +13,5 @@ pub use settings::{ClientSettings, DebugColorMode, GrassConfig};
 pub use vfx::{
     ActorBeamInVfxConfig, ExplosionFireballVfxConfig, ExplosionLightVfxConfig, ExplosionScorchesVfxConfig,
     ExplosionShardsVfxConfig, ExplosionShockwaveVfxConfig, ExplosionSmokeVfxConfig, ExplosionVfxConfig,
-    ImpactSparksVfxConfig, ProjectileVfxConfig, VfxConfig,
+    ImpactSparksVfxConfig, LaserVfxConfig, ProjectileVfxConfig, VfxConfig,
 };

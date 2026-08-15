@@ -4,8 +4,8 @@ mod network;
 mod validation;
 
 pub use actors::{
-    ActorChaseConfig, ActorCombatConfig, ActorKindServerConfig, ActorNavigationConfig, ActorPatrolConfig,
-    ActorRespawnConfig, ActorSensesConfig, ExplosionDamageConfig,
+    ActorChaseConfig, ActorCombatConfig, ActorFireConfig, ActorKindServerConfig, ActorNavigationConfig,
+    ActorPatrolConfig, ActorRespawnConfig, ActorSensesConfig, ExplosionDamageConfig,
 };
 pub use gameplay::{
     FallDamageConfig, MapServerConfig, PlacedItemRespawnSecs, PlacedItemsConfig, PlayerServerConfig, PowerUpsConfig,

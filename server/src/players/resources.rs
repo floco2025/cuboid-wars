@@ -575,7 +575,7 @@ mod tests {
         let mine = record_quest_event(
             &mut info,
             std::slice::from_ref(&quest),
-            QuestEvent::ActorKilled { kind: "mine_1" },
+            QuestEvent::ActorKilled { kind: "zapper" },
         );
         assert!(mine.is_empty());
         assert_eq!(info.quest_states[&quest.id].progress, 0);

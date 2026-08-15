@@ -425,7 +425,7 @@ mod tests {
         PendingActorSpawn {
             actor_id: ActorId(id),
             zone_idx: 0,
-            kind: "mine_1".to_string(),
+            kind: "zapper".to_string(),
             pos: Position::default(),
             face_dir: 0.0,
             remaining_secs,

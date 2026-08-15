@@ -9,6 +9,7 @@ pub struct VfxConfig {
     pub max_transient_particles: usize,
     pub projectiles: ProjectileVfxConfig,
     pub actor_beam_in: ActorBeamInVfxConfig,
+    pub laser: LaserVfxConfig,
     pub explosions: ExplosionVfxConfig,
 }
 
@@ -18,7 +19,24 @@ impl Default for VfxConfig {
             max_transient_particles: 1_600,
             projectiles: ProjectileVfxConfig::default(),
             actor_beam_in: ActorBeamInVfxConfig::default(),
+            laser: LaserVfxConfig::default(),
             explosions: ExplosionVfxConfig::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(default)]
+pub struct LaserVfxConfig {
+    pub beam_radius: f32,
+    pub emissive_brightness: f32,
+}
+
+impl Default for LaserVfxConfig {
+    fn default() -> Self {
+        Self {
+            beam_radius: 0.03,
+            emissive_brightness: 40.0,
         }
     }
 }
@@ -216,6 +234,7 @@ impl VfxConfig {
         }
         self.projectiles.validate()?;
         self.actor_beam_in.validate()?;
+        self.laser.validate()?;
         self.explosions.validate()?;
         if self.projectiles.impact_sparks.base_particle_count > self.max_transient_particles {
             bail!("vfx.projectiles.impact_sparks.base_particle_count must not exceed vfx.max_transient_particles");
@@ -270,6 +289,13 @@ impl ActorBeamInVfxConfig {
             "vfx.actor_beam_in.light_intensity_lumens_per_m3",
         )?;
         Ok(())
+    }
+}
+
+impl LaserVfxConfig {
+    pub(super) fn validate(&self) -> Result<()> {
+        validate_positive_finite(self.beam_radius, "vfx.laser.beam_radius")?;
+        validate_non_negative_finite(self.emissive_brightness, "vfx.laser.emissive_brightness")
     }
 }
 
@@ -375,6 +401,14 @@ mod tests {
         config.projectiles.impact_sparks.base_particle_count = 0;
         let error = config.validate().expect_err("zero impact count should fail");
         assert!(error.to_string().contains("base_particle_count"));
+    }
+
+    #[test]
+    fn vfx_config_rejects_zero_laser_beam_radius() {
+        let mut config = VfxConfig::default();
+        config.laser.beam_radius = 0.0;
+        let error = config.validate().expect_err("zero beam radius should fail");
+        assert!(error.to_string().contains("beam_radius"));
     }
 
     #[test]

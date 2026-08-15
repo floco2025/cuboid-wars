@@ -1,0 +1,131 @@
+use bevy::prelude::*;
+
+use super::{PendingExplosions, apply_player_beam_damage, kill_player};
+use crate::{
+    actors::{ActorGoal, ActorMap},
+    config::ServerGameplayConfig,
+    network::broadcast_to_all,
+    players::PlayerMap,
+};
+use common::{
+    config::GameplayConfig,
+    constants::PHYSICS_EPSILON,
+    physics::{CollisionWorld, character_center},
+    protocol::{ActorMarker, Health, PlayerMarker, Position, SPlayerHit, ServerMessage},
+};
+
+// Cadence for the beam victim's `SPlayerHit` cue (camera shake + HUD
+// health). Damage applies every tick; re-shaking at 30 Hz would blur into
+// one long judder and flood the wire.
+const BEAM_HIT_CUE_INTERVAL_SECS: f32 = 0.25;
+
+// Burn the locked target of every mid-burst laser actor. The beam hits when
+// the target is within `fire.range` and the actor-center → target-center
+// line of sight is clear of static world (the beam origin is the collider
+// center — deliberately not the perception eye height, matching contact
+// explosions). Lethal ticks run the standard death sequence with no killer
+// credit, like falls and blasts.
+pub fn actor_beam_damage_system(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut players: ResMut<PlayerMap>,
+    mut actors: ResMut<ActorMap>,
+    mut pending_explosions: ResMut<PendingExplosions>,
+    gameplay_config: Res<GameplayConfig>,
+    server_gameplay_config: Res<ServerGameplayConfig>,
+    collision_world: Res<CollisionWorld>,
+    actor_positions: Query<&Position, (With<ActorMarker>, Without<PlayerMarker>)>,
+    mut player_query: Query<(&Position, &mut Health), With<PlayerMarker>>,
+) {
+    let delta = time.delta_secs();
+    let respawn_delay_secs = gameplay_config.player.respawn_delay_secs;
+    let player_physics = gameplay_config.player.physics();
+
+    let firing: Vec<_> = actors
+        .iter()
+        .filter_map(|(id, info)| match &info.goal {
+            ActorGoal::Fire { target, .. } => Some((*id, *target)),
+            _ => None,
+        })
+        .collect();
+
+    for (actor_id, target_id) in firing {
+        let Some(info) = actors.get_mut(&actor_id) else {
+            continue;
+        };
+        let Ok(actor_pos) = actor_positions.get(info.entity) else {
+            continue;
+        };
+        let Some(target_entity) = players
+            .get(&target_id)
+            .filter(|player| player.logged_in && !player.is_dead())
+            .map(|player| player.entity)
+        else {
+            continue;
+        };
+        let Ok((target_pos, mut target_health)) = player_query.get_mut(target_entity) else {
+            continue;
+        };
+        let kind_config = server_gameplay_config.validated_actor(&info.spawn_kind);
+        let Some(fire) = &kind_config.fire else {
+            continue;
+        };
+
+        if actor_pos.horizontal_distance_sq(target_pos) > fire.range * fire.range {
+            continue;
+        }
+        let actor_physics = gameplay_config.validated_actor(&info.spawn_kind).physics();
+        let target_center = Vec3::new(
+            target_pos.x,
+            player_physics.collider_center_y(target_pos.y),
+            target_pos.z,
+        );
+        if !collision_world.line_of_sight_clear(character_center(*actor_pos, actor_physics), target_center) {
+            continue;
+        }
+
+        let lethal = apply_player_beam_damage(
+            &players,
+            target_id,
+            &mut target_health,
+            fire.damage_per_second * delta,
+            &server_gameplay_config,
+        );
+
+        if info.fire_hit_cue_timer <= 0.0 {
+            info.fire_hit_cue_timer = BEAM_HIT_CUE_INTERVAL_SECS;
+            let dx = target_pos.x - actor_pos.x;
+            let dz = target_pos.z - actor_pos.z;
+            let length = (dx * dx + dz * dz).sqrt();
+            let (hit_dir_x, hit_dir_z) = if length > PHYSICS_EPSILON {
+                (dx / length, dz / length)
+            } else {
+                (0.0, 0.0)
+            };
+            broadcast_to_all(
+                &players,
+                ServerMessage::PlayerHit(SPlayerHit {
+                    id: target_id,
+                    hit_dir_x,
+                    hit_dir_z,
+                    health: *target_health,
+                }),
+            );
+        }
+
+        if lethal {
+            let death_pos = *target_pos;
+            info!("{:?} was burned down by {:?}'s beam", target_id, actor_id);
+            kill_player(
+                &mut commands,
+                &mut players,
+                target_id,
+                target_entity,
+                death_pos,
+                respawn_delay_secs,
+                None,
+                &mut pending_explosions,
+            );
+        }
+    }
+}

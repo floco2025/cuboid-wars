@@ -39,6 +39,10 @@
       "light_intensity_lumens_per_m3": 500000.0,
       "materialization_ring_enabled": false
     },
+    "laser": {
+      "beam_radius": 0.008,
+      "emissive_brightness": 40.0
+    },
     "explosions": {
       "base_duration_secs": 0.8,
       "fireball": {

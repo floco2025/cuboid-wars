@@ -3,14 +3,19 @@ use bevy::{audio::SpatialScale, audio::Volume, prelude::*};
 use super::sync::apply_actor_movement_state;
 use crate::{
     actors::ActorMap,
-    config::{AssetSet, AudioConfig},
+    config::{AssetSet, AudioConfig, LaserVfxConfig},
     network::RoundTripTime,
-    vfx::{ExplosionAssets, ExplosionRadii, ExplosionVfxBudget, explosion_sound_speed, spawn_actor_explosion},
+    vfx::{
+        ExplosionAssets, ExplosionRadii, ExplosionVfxBudget, explosion_sound_speed, spawn_actor_explosion,
+        spawn_laser_beam,
+    },
 };
 use common::{
     config::GameplayConfig,
     physics::CollisionWorld,
-    protocol::{ActorMarker, ActorMoveIntent, FaceDirection, Position, SActorDeath, SActorHit, SActorMoveIntent},
+    protocol::{
+        ActorMarker, ActorMoveIntent, FaceDirection, Position, SActorBeam, SActorDeath, SActorHit, SActorMoveIntent,
+    },
 };
 
 pub fn handle_actor_move_intent_message(
@@ -98,6 +103,43 @@ pub fn handle_actor_death_message(
         Transform::from_translation(Vec3::from(msg.pos)),
     ));
     commands.entity(info.entity).despawn();
+}
+
+// Spawn the beam visual for a burst, with the firing sound looping on the
+// beam entity itself — the sound follows the beam and stops the moment the
+// beam despawns (burst end, or either endpoint gone), so the continuous
+// loop lasts exactly as long as the beam. An unknown actor id (cue raced
+// its own snapshot teardown) spawns nothing — the beam would despawn on its
+// first frame anyway.
+#[expect(clippy::too_many_arguments, reason = "message handler threading dispatcher state")]
+pub fn handle_actor_beam_message(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    laser_vfx: &LaserVfxConfig,
+    actors: &ActorMap,
+    actor_data: &Query<(&Position, &ActorMoveIntent, &FaceDirection), With<ActorMarker>>,
+    asset_server: &Res<AssetServer>,
+    asset_set: &AssetSet,
+    audio_config: &AudioConfig,
+    msg: SActorBeam,
+) {
+    let Some(info) = actors.get(&msg.id) else {
+        return;
+    };
+    let beam = spawn_laser_beam(commands, meshes, materials, laser_vfx, &msg);
+    let mut beam_entity = commands.entity(beam);
+    beam_entity.insert((
+        AudioPlayer::new(asset_server.load(asset_set.actor_sound(&info.kind, "fire").to_owned())),
+        PlaybackSettings::LOOP
+            .with_spatial(true)
+            .with_spatial_scale(SpatialScale::new(audio_config.spatial_distance_scale)),
+    ));
+    // Seed the transform at the actor so the loop's first frames are heard
+    // from the right spot; the update system re-anchors it every frame.
+    if let Ok((pos, _, _)) = actor_data.get(info.entity) {
+        beam_entity.insert(Transform::from_translation(Vec3::from(*pos)));
+    }
 }
 
 pub fn handle_actor_hit_message(

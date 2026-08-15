@@ -233,6 +233,14 @@ impl CollisionWorld {
         (hit.normal.y.abs() < 0.1).then_some(hit)
     }
 
+    // First static-world surface (wall/floor/ramp) along the ray — the same
+    // filter as `line_of_sight_clear`, so a beam clipped at this point stops
+    // exactly where sight does.
+    #[must_use]
+    pub fn world_surface_along_ray(&self, origin: Vec3, direction: Vec3, max_distance: f32) -> Option<WorldSurfaceHit> {
+        self.surface_along_ray(origin, direction, max_distance, world_collision_groups())
+    }
+
     fn surface_along_ray(
         &self,
         origin: Vec3,

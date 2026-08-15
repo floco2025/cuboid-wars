@@ -20,7 +20,7 @@ fn zone(level: u8, col: i32, row: i32) -> ActorSpawnZone {
         level,
         cols: [col, col + 1],
         rows: [row, row + 1],
-        kind: "mine_1".into(),
+        kind: "zapper".into(),
         count: 1,
     }
 }

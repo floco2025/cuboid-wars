@@ -7,7 +7,7 @@ use common::{
     protocol::{PlayerId, PlayerMarker, Position},
 };
 
-pub(super) fn visible_player_position(
+pub(super) fn visible_player(
     actor_pos: &Position,
     actor_eye_height: f32,
     horizontal_vision_range: f32,
@@ -16,7 +16,7 @@ pub(super) fn visible_player_position(
     player_query: &Query<(&PlayerId, &Position), With<PlayerMarker>>,
     collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
-) -> Option<Position> {
+) -> Option<(PlayerId, Position)> {
     let actor_sight_origin = Vec3::new(actor_pos.x, actor_pos.y + actor_eye_height, actor_pos.z);
     let player_physics = gameplay_config.player.physics();
     let horizontal_range_sq = horizontal_vision_range * horizontal_vision_range;
@@ -35,5 +35,5 @@ pub(super) fn visible_player_position(
                 .horizontal_distance_sq(a)
                 .total_cmp(&actor_pos.horizontal_distance_sq(b))
         })
-        .map(|(_, pos)| *pos)
+        .map(|(id, pos)| (*id, *pos))
 }

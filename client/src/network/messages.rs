@@ -1,7 +1,10 @@
 use bevy::{audio::SpatialScale, audio::Volume, prelude::*};
 
 use super::{
-    actors::{handle_actor_death_message, handle_actor_hit_message, handle_actor_move_intent_message},
+    actors::{
+        handle_actor_beam_message, handle_actor_death_message, handle_actor_hit_message,
+        handle_actor_move_intent_message,
+    },
     components::{AssetManagers, ClientAssets},
     io::handle_pong_message,
     items::{handle_health_potion_collected_message, handle_item_collected_message},
@@ -181,6 +184,18 @@ pub fn dispatch_message(
             &client_assets.asset_set,
             &client_assets.client_settings.audio,
             hit_msg,
+        ),
+        ServerMessage::ActorBeam(beam_msg) => handle_actor_beam_message(
+            commands,
+            &mut assets.meshes,
+            &mut assets.materials,
+            &client_assets.client_settings.vfx.laser,
+            actors,
+            actor_data,
+            &client_assets.asset_server,
+            &client_assets.asset_set,
+            &client_assets.client_settings.audio,
+            beam_msg,
         ),
         ServerMessage::PlayerStatus(player_status_msg) => {
             handle_player_status_message(

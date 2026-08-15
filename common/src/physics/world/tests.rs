@@ -104,6 +104,55 @@ fn ground_surface_below_returns_none_over_void() {
 }
 
 #[test]
+fn world_surface_along_ray_hits_wall_between_points() {
+    let world = CollisionWorld::from_map_layout(&test_map_layout(), &crate::protocol::BarrierKindTable::default());
+
+    let hit = world
+        .world_surface_along_ray(
+            bevy_math::Vec3::new(2.0, LEVEL_HEIGHT + 1.0, 2.0),
+            bevy_math::Vec3::NEG_Z,
+            4.0,
+        )
+        .expect("expected the wall to intercept the ray");
+
+    assert!((hit.point.z - WALL_THICKNESS / 2.0).abs() < 0.001, "hit was {hit:?}");
+}
+
+#[test]
+fn world_surface_along_ray_hits_floor_unlike_wall_filter() {
+    let world = CollisionWorld::from_map_layout(&test_map_layout(), &crate::protocol::BarrierKindTable::default());
+    let origin = bevy_math::Vec3::new(2.0, LEVEL_HEIGHT + 1.0, 2.0);
+
+    // A downward-pitched beam must clip at the floor; the walls-only filter
+    // would let it pierce through.
+    assert!(
+        world
+            .world_surface_along_ray(origin, bevy_math::Vec3::NEG_Y, 3.0)
+            .is_some()
+    );
+    assert!(
+        world
+            .wall_surface_along_ray(origin, bevy_math::Vec3::NEG_Y, 3.0)
+            .is_none()
+    );
+}
+
+#[test]
+fn world_surface_along_ray_returns_none_in_the_open() {
+    let world = CollisionWorld::from_map_layout(&test_map_layout(), &crate::protocol::BarrierKindTable::default());
+
+    assert!(
+        world
+            .world_surface_along_ray(
+                bevy_math::Vec3::new(2.0, LEVEL_HEIGHT + 1.0, 2.0),
+                bevy_math::Vec3::Z,
+                4.0,
+            )
+            .is_none()
+    );
+}
+
+#[test]
 fn wall_surface_along_ray_ignores_barrier() {
     let mut layout = test_map_layout();
     layout.barriers.push(Barrier {

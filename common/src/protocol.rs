@@ -40,7 +40,8 @@
 //        `SPlayerDeath` trigger immediate death-side work (VFX, overlay,
 //        entity teardown) one tick before the snapshot would catch up.
 //        Without them, the actor or player would silently disappear and the
-//        cues would lag by a tick.
+//        cues would lag by a tick. `SActorBeam` ships the burst's start
+//        moment and duration, which the 4 Hz snapshot can't carry.
 //    One-shot cues are *ephemeral*: a missed cue at most costs the
 //    associated side effect (a sound, a shake); the snapshot reconciles the
 //    durable state.
@@ -274,6 +275,20 @@ pub struct SActorHit {
     pub health: Health,
 }
 
+// Actor locked a laser burst onto a player. The beam must appear on its
+// start frame (sub-tick latency) and the start is edge-triggered — the
+// client renders it for `duration_secs`, anchored each frame to its own
+// interpolated actor and target entities, so the tracking beam needs no
+// follow-up updates and no end cue (it despawns on expiry or when either
+// endpoint entity disappears). Durable damage state still rides
+// `SPlayerHit` and the snapshot; a missed cue costs only the visual.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SActorBeam {
+    pub id: ActorId,
+    pub target: PlayerId,
+    pub duration_secs: f32,
+}
+
 // Player status flags changed (power-up gained/lost, stun toggle). The same
 // flags are also in `SSnapshot`, but this event is the edge trigger that fires
 // the associated sounds exactly once at the transition.
@@ -422,6 +437,7 @@ pub enum ServerMessage {
     PlayerFallDamage(SPlayerFallDamage),
     PlayerBlast(SPlayerBlast),
     ActorHit(SActorHit),
+    ActorBeam(SActorBeam),
     PlayerStatus(SPlayerStatus),
     CookieCollected(SCookieCollected),
     HealthPotionCollected(SHealthPotionCollected),

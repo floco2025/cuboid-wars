@@ -59,7 +59,7 @@ fn desired_move_presses_chase_within_reach() {
     // Same height within reach: pressing, never "arriving".
     let goal = chase(Position { x: 0.3, y: 0.0, z: 0.0 });
 
-    let desire = desired_move(&goal, &Position::default(), 4.0, 0.5);
+    let desire = desired_move(&goal, &Position::default(), 4.0, 0.5, None);
 
     assert!(matches!(
         desire,
@@ -74,7 +74,7 @@ fn desired_move_presses_chase_within_reach() {
 fn desired_move_idles_a_holding_chase() {
     let goal = chase(Position { x: 0.3, y: 5.0, z: 0.0 });
     assert!(matches!(
-        desired_move(&goal, &Position::default(), 4.0, 0.5),
+        desired_move(&goal, &Position::default(), 4.0, 0.5, None),
         ActorDesire::Idle
     ));
 }
@@ -85,7 +85,7 @@ fn desired_move_heads_pursuit_and_return_at_their_spots() {
         last_seen: Position { x: 3.0, y: 0.0, z: 0.0 },
     };
     assert!(matches!(
-        desired_move(&pursuit, &Position::default(), 4.0, 0.5),
+        desired_move(&pursuit, &Position::default(), 4.0, 0.5, None),
         ActorDesire::Move {
             policy: StepPolicy::Pursue,
             ..
@@ -97,7 +97,7 @@ fn desired_move_heads_pursuit_and_return_at_their_spots() {
         path: Default::default(),
     };
     assert!(matches!(
-        desired_move(&returning, &Position::default(), 4.0, 0.5),
+        desired_move(&returning, &Position::default(), 4.0, 0.5, None),
         ActorDesire::Move {
             policy: StepPolicy::Pursue,
             ..
@@ -118,7 +118,7 @@ fn desired_move_patrol_policy_follows_escape_window() {
         ledge_escape_timer: 0.0,
     };
     assert!(matches!(
-        desired_move(&strict, &Position::default(), 4.0, 0.5),
+        desired_move(&strict, &Position::default(), 4.0, 0.5, None),
         ActorDesire::Move {
             policy: StepPolicy::Strict,
             ..
@@ -131,7 +131,7 @@ fn desired_move_patrol_policy_follows_escape_window() {
         ledge_escape_timer: 0.5,
     };
     assert!(matches!(
-        desired_move(&escaping, &Position::default(), 4.0, 0.5),
+        desired_move(&escaping, &Position::default(), 4.0, 0.5, None),
         ActorDesire::Move {
             policy: StepPolicy::Pursue,
             ..
@@ -144,9 +144,80 @@ fn desired_move_patrol_policy_follows_escape_window() {
         ledge_escape_timer: 0.0,
     };
     assert!(matches!(
-        desired_move(&idle, &Position::default(), 4.0, 0.5),
+        desired_move(&idle, &Position::default(), 4.0, 0.5, None),
         ActorDesire::Idle
     ));
+}
+
+fn fire_config() -> crate::config::ActorFireConfig {
+    crate::config::ActorFireConfig {
+        standoff_distance: 6.0,
+        range: 15.0,
+        duration_secs: 1.0,
+        cooldown_secs: 5.0,
+        damage_per_second: 75.0,
+    }
+}
+
+#[test]
+fn approach_holds_at_standoff() {
+    let fire = fire_config();
+    let goal = ActorGoal::Approach {
+        target: common::protocol::PlayerId(7),
+        target_pos: Position { x: 4.0, y: 0.0, z: 0.0 },
+    };
+    assert!(matches!(
+        desired_move(&goal, &Position::default(), 4.0, 0.5, Some(&fire)),
+        ActorDesire::Idle
+    ));
+
+    // Outside the standoff the approach presses like a chase.
+    let far = ActorGoal::Approach {
+        target: common::protocol::PlayerId(7),
+        target_pos: Position {
+            x: 10.0,
+            y: 0.0,
+            z: 0.0,
+        },
+    };
+    assert!(matches!(
+        desired_move(&far, &Position::default(), 4.0, 0.5, Some(&fire)),
+        ActorDesire::Move {
+            policy: StepPolicy::Pursue,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn fire_holds_and_faces_target() {
+    let fire = fire_config();
+    let target_pos = Position { x: 0.0, y: 0.0, z: 5.0 };
+    let goal = ActorGoal::Fire {
+        target: common::protocol::PlayerId(7),
+        target_pos,
+        remaining_secs: 0.5,
+    };
+    let ActorDesire::HoldFacing { direction } = desired_move(&goal, &Position::default(), 4.0, 0.5, Some(&fire)) else {
+        panic!("a firing actor must hold and face its target");
+    };
+    assert!((direction - direction_toward(&Position::default(), &target_pos)).abs() < 1e-6);
+}
+
+#[test]
+fn flee_direction_points_away_from_threat() {
+    let fire = fire_config();
+    let threat = Position { x: 5.0, y: 0.0, z: 0.0 };
+    let goal = ActorGoal::Flee { threat };
+    let ActorDesire::Move {
+        intent: ActorMoveIntent::Moving { direction, speed },
+        policy: StepPolicy::Strict,
+    } = desired_move(&goal, &Position::default(), 4.0, 0.5, Some(&fire))
+    else {
+        panic!("a fleeing actor must move strictly");
+    };
+    assert_eq!(speed, 4.0);
+    assert!((direction - direction_toward(&threat, &Position::default())).abs() < 1e-6);
 }
 
 #[test]

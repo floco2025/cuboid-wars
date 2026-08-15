@@ -10,25 +10,27 @@
     "respawn_delay_secs": 2.0
   },
   "actors": {
-    "mine_1": {
+    "mine": {
+      "collider": { "width": 1.0, "height": 1.0, "depth": 1.0, "y_offset": 1.1, "y_offset_anchor": "center" },
+      "support_probe": { "width": 0.2, "depth": 0.2 },
+      "eye_height": 1.6,
+      "health": { "max": 100.0, "regeneration_per_second": 1.0 },
+      "patrol_speed": 3.0,
+      "chase_speed": 5.0
+    },
+    "sentry": {
+      "inherit_from": "mine",
+      "collider": { "width": 1.785, "height": 1.0, "depth": 1.428, "y_offset": 0.45, "y_offset_anchor": "bottom" },
+      "patrol_speed": 6.0,
+      "chase_speed": 9.0
+    },
+    "zapper": {
       "collider": { "width": 0.3, "height": 0.3, "depth": 0.3, "y_offset": 1.45, "y_offset_anchor": "center" },
       "support_probe": { "width": 0.2, "depth": 0.2 },
       "eye_height": 1.6,
       "health": { "max": 100.0, "regeneration_per_second": 1.0 },
       "patrol_speed": 2.0,
       "chase_speed": 4.0
-    },
-    "mine_2": {
-      "inherit_from": "mine_1",
-      "collider": { "width": 1.0, "height": 1.0, "depth": 1.0, "y_offset": 1.1 },
-      "patrol_speed": 3.0,
-      "chase_speed": 5.0
-    },
-    "sentry": {
-      "inherit_from": "mine_1",
-      "collider": { "width": 1.785, "height": 1.0, "depth": 1.428, "y_offset": 0.45, "y_offset_anchor": "bottom" },
-      "patrol_speed": 6.0,
-      "chase_speed": 9.0
     }
   },
   "barrier_kinds": [ "treasure", "basement", "gravity", "lobby" ]

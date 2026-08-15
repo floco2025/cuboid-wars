@@ -13,8 +13,8 @@ A fast-paced multiplayer arena game built with Rust, Bevy, Rapier, and QUIC.
 
 Cuboid Wars is a networked 3D arena game on compact, multi-level maps.
 Players run, jump, and shoot through corridors gated by color-coded
-barriers, fight hostile mines and sentries that patrol and pursue, and
-chase cookies to complete quests.
+barriers, fight hostile mines, sentries, and laser-firing zappers that
+patrol and hunt, and chase cookies to complete quests.
 
 The game runs an authoritative server with client-side prediction, so
 movement stays responsive while the server remains the source of truth
@@ -41,8 +41,10 @@ death/respawn flow.
   the same time, it opens for everyone — players, actors, and
   projectiles all pass through.
 - **Actors** — mines and sentries patrol their spawn zones and chase
-  line-of-sight targets. Killing them triggers a blast that damages
-  nearby players and other actors. Tougher actors are worth more score.
+  line-of-sight targets; zappers keep their distance and fire a tracking
+  laser burst, then retreat to hide. Killing any of them triggers a
+  blast that damages nearby players and other actors. Tougher actors are
+  worth more score.
   Spawns are telegraphed: a beam-in ghost fades in at the spot for a
   couple of seconds — visible but intangible — before the actor
   materializes.

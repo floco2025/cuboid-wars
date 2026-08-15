@@ -12,14 +12,14 @@ use super::{
     context::{ActorMoveContext, CandidateStep, StepPolicy, blocked_step_made_useful_progress},
     ordering::{ActorPlanOrder, actor_target_distance_sq, sort_actor_plan_order},
     planning::{select_actor_move, select_committed_move, should_reuse_commit},
-    steering::{ActorDesire, desired_move},
+    steering::{ActorDesire, desired_move, direction_toward},
 };
 
 mod avoidance;
 mod ordering;
 mod state;
 
-const TEST_KIND: &str = "mine_1";
+const TEST_KIND: &str = "zapper";
 const TEST_DELTA: f32 = 0.1;
 
 fn order(entity_bits: u64, target_distance_sq: f32, id: u32) -> ActorPlanOrder {

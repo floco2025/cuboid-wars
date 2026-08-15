@@ -60,7 +60,7 @@ use client::{
     vfx::{
         ExplosionAssets, ExplosionRadii, ExplosionVfxBudget, TransientParticles, beam_ghost_fade_system,
         beam_ghost_removed_system, beam_ghost_sparkle_system, explosion_lights_system, explosion_particles_system,
-        explosion_pulse_system, scorch_marks_system, transient_particles_system,
+        explosion_pulse_system, laser_beam_update_system, scorch_marks_system, transient_particles_system,
     },
 };
 use common::{config::GameplayConfig, constants::TICK_HZ, network::MessageStream, protocol::*};
@@ -303,6 +303,11 @@ fn main() -> Result<()> {
                 beam_ghost_fade_system,
                 beam_ghost_sparkle_system.after(beam_ghost_fade_system),
                 transient_particles_system.after(beam_ghost_sparkle_system),
+                // Anchors to both endpoints' interpolated transforms, so it
+                // must read this frame's synced values.
+                laser_beam_update_system
+                    .after(players_transform_sync_system)
+                    .after(actors_transform_sync_system),
                 items_animation_system,
                 y_spin_system,
             ),

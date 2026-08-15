@@ -17,11 +17,11 @@ use crate::{
 use common::{
     constants::LEVEL_HEIGHT,
     map::MapGeometry,
-    protocol::{ActorMoveIntent, Position},
+    protocol::{ActorMoveIntent, PlayerId, Position},
 };
 
 fn actor_info(goal: ActorGoal) -> ActorInfo {
-    ActorInfo::new(Entity::from_bits(1), 0, "mine_1".into(), goal)
+    ActorInfo::new(Entity::from_bits(1), 0, "mine".into(), goal)
 }
 
 fn moving_patrol() -> ActorGoal {
@@ -57,7 +57,7 @@ fn zone() -> ActorSpawnZone {
         level: 0,
         cols: [0, 1],
         rows: [0, 1],
-        kind: "mine_1".into(),
+        kind: "mine".into(),
         count: 1,
     }
 }
@@ -86,12 +86,13 @@ impl Fixture {
             pos,
             delta: 0.1,
             beyond_leash,
-            visible_player,
+            visible_player: visible_player.map(|target| (PlayerId(7), target)),
+            fire_target_position: None,
             zone: &self.zone,
             zone_bounds: (-2.0, -2.0, 2.0, 2.0),
             nav_graph: &self.nav,
             patrol_speed: 2.0,
-            kind_config: self.config.validated_actor("mine_1"),
+            kind_config: self.config.validated_actor("mine"),
         }
     }
 }
@@ -208,32 +209,38 @@ fn stall_window_classifies_goals() {
     let pos = Position::default();
 
     // Idle patrol: intentionally stationary.
-    assert_eq!(stall_window(&fresh_patrol_goal(), &pos, 0.5), None);
+    assert_eq!(stall_window(&fresh_patrol_goal(), &pos, 0.5, None), None);
     // Moving patrol counts.
     assert_eq!(
-        stall_window(&moving_patrol(), &pos, 0.5),
+        stall_window(&moving_patrol(), &pos, 0.5, None),
         Some(PATROL_GIVEUP_NO_PROGRESS_SECS)
     );
     // Pressing chase.
     let chase = ActorGoal::Chase {
         target: Position { x: 5.0, y: 0.0, z: 0.0 },
     };
-    assert_eq!(stall_window(&chase, &pos, 0.5), Some(CHASE_GIVEUP_NO_PROGRESS_SECS));
+    assert_eq!(
+        stall_window(&chase, &pos, 0.5, None),
+        Some(CHASE_GIVEUP_NO_PROGRESS_SECS)
+    );
     // Holding under a ledge player: intentionally stationary.
     let holding = ActorGoal::Chase {
         target: Position { x: 0.3, y: 5.0, z: 0.0 },
     };
-    assert_eq!(stall_window(&holding, &pos, 0.5), None);
+    assert_eq!(stall_window(&holding, &pos, 0.5, None), None);
     let pursuit = ActorGoal::Pursuit {
         last_seen: Position { x: 5.0, y: 0.0, z: 0.0 },
     };
-    assert_eq!(stall_window(&pursuit, &pos, 0.5), Some(PURSUIT_GIVEUP_NO_PROGRESS_SECS));
+    assert_eq!(
+        stall_window(&pursuit, &pos, 0.5, None),
+        Some(PURSUIT_GIVEUP_NO_PROGRESS_SECS)
+    );
     let returning = ActorGoal::Return {
         next: Position { x: 5.0, y: 0.0, z: 0.0 },
         path: VecDeque::new(),
     };
     assert_eq!(
-        stall_window(&returning, &pos, 0.5),
+        stall_window(&returning, &pos, 0.5, None),
         Some(RETURN_GIVEUP_NO_PROGRESS_SECS)
     );
 }
@@ -350,7 +357,7 @@ fn pursuit_arrival_resumes_patrol_with_same_tick_reroll() {
 
     tick(&mut info, &fixture.inputs(Position::default(), None, false));
 
-    // mine_1 has idle_probability 0, so the same-tick re-roll must yield
+    // mine has idle_probability 0, so the same-tick re-roll must yield
     // a Moving patrol at patrol speed with a live direction timer.
     let ActorGoal::Patrol {
         intent,
@@ -428,7 +435,7 @@ fn leash_breach_starts_return_and_arms_cooldown_for_chases() {
         info.chase_reacquire_timer,
         fixture
             .config
-            .validated_actor("mine_1")
+            .validated_actor("mine")
             .senses
             .chase_reacquire_cooldown_secs
     );
@@ -546,6 +553,276 @@ fn chase_hold_is_stall_exempt() {
 
     assert_eq!(info.goal, ActorGoal::Chase { target });
     assert_eq!(info.stall_anchor, None);
+}
+
+// ---- laser (zapper) transitions ----------------------------------------
+
+fn zapper_info(goal: ActorGoal) -> ActorInfo {
+    ActorInfo::new(Entity::from_bits(1), 0, "zapper".into(), goal)
+}
+
+impl Fixture {
+    // Like `inputs`, but for the laser kind. Fields (e.g.
+    // `fire_target_position`, `beyond_leash`) are pub — override after
+    // construction where a test needs them.
+    fn zapper_inputs(&self, pos: Position, visible_player: Option<Position>) -> BehaviorInputs<'_> {
+        BehaviorInputs {
+            pos,
+            delta: 0.1,
+            beyond_leash: false,
+            visible_player: visible_player.map(|target| (PlayerId(7), target)),
+            fire_target_position: None,
+            zone: &self.zone,
+            zone_bounds: (-2.0, -2.0, 2.0, 2.0),
+            nav_graph: &self.nav,
+            patrol_speed: 2.0,
+            kind_config: self.config.validated_actor("zapper"),
+        }
+    }
+}
+
+#[test]
+fn patrol_acquires_approach_for_laser_kind() {
+    let fixture = Fixture::new();
+    let mut info = zapper_info(moving_patrol());
+    // Visible but beyond fire range (34 m): must approach, never Chase.
+    let target = Position {
+        x: 36.0,
+        y: 0.0,
+        z: 0.0,
+    };
+
+    tick(&mut info, &fixture.zapper_inputs(Position::default(), Some(target)));
+
+    assert_eq!(
+        info.goal,
+        ActorGoal::Approach {
+            target: PlayerId(7),
+            target_pos: target
+        }
+    );
+}
+
+#[test]
+fn approach_enters_fire_within_range_when_cooldown_ready() {
+    let fixture = Fixture::new();
+    let target = Position {
+        x: 12.0,
+        y: 0.0,
+        z: 0.0,
+    };
+    let mut info = zapper_info(ActorGoal::Approach {
+        target: PlayerId(7),
+        target_pos: target,
+    });
+
+    tick(&mut info, &fixture.zapper_inputs(Position::default(), Some(target)));
+
+    assert_eq!(
+        info.goal,
+        ActorGoal::Fire {
+            target: PlayerId(7),
+            target_pos: target,
+            remaining_secs: 2.0,
+        }
+    );
+}
+
+#[test]
+fn approach_stays_while_cooldown_running() {
+    let fixture = Fixture::new();
+    let target = Position {
+        x: 12.0,
+        y: 0.0,
+        z: 0.0,
+    };
+    let mut info = zapper_info(ActorGoal::Approach {
+        target: PlayerId(7),
+        target_pos: target,
+    });
+    info.fire_cooldown_timer = 5.0;
+
+    tick(&mut info, &fixture.zapper_inputs(Position::default(), Some(target)));
+
+    assert_eq!(
+        info.goal,
+        ActorGoal::Approach {
+            target: PlayerId(7),
+            target_pos: target
+        }
+    );
+}
+
+#[test]
+fn fire_refreshes_target_position_each_tick() {
+    let fixture = Fixture::new();
+    let mut info = zapper_info(ActorGoal::Fire {
+        target: PlayerId(7),
+        target_pos: Position { x: 5.0, y: 0.0, z: 0.0 },
+        remaining_secs: 1.0,
+    });
+    let live = Position { x: 6.0, y: 0.0, z: 1.0 };
+    let mut inputs = fixture.zapper_inputs(Position::default(), None);
+    inputs.fire_target_position = Some(live);
+
+    tick(&mut info, &inputs);
+
+    let ActorGoal::Fire {
+        target_pos,
+        remaining_secs,
+        ..
+    } = info.goal
+    else {
+        panic!("expected the burst to continue, got {:?}", info.goal);
+    };
+    assert_eq!(target_pos, live);
+    assert!((remaining_secs - 0.9).abs() < 1e-4);
+}
+
+#[test]
+fn fire_expires_into_flee_and_arms_cooldown() {
+    let fixture = Fixture::new();
+    let last_pos = Position { x: 5.0, y: 0.0, z: 0.0 };
+    let mut info = zapper_info(ActorGoal::Fire {
+        target: PlayerId(7),
+        target_pos: last_pos,
+        remaining_secs: 0.05,
+    });
+    let mut inputs = fixture.zapper_inputs(Position::default(), None);
+    inputs.fire_target_position = Some(last_pos);
+
+    tick(&mut info, &inputs);
+
+    assert_eq!(info.goal, ActorGoal::Flee { threat: last_pos });
+    assert_eq!(info.fire_cooldown_timer, 5.0);
+    // The same-tick watchdog re-arms a fresh window for the new flee.
+    assert_eq!(info.stall_anchor, Some(Position::default()));
+    assert_eq!(info.stall_timer, CHASE_GIVEUP_NO_PROGRESS_SECS);
+}
+
+#[test]
+fn fire_ends_early_when_target_gone() {
+    let fixture = Fixture::new();
+    let last_pos = Position { x: 5.0, y: 0.0, z: 0.0 };
+    let mut info = zapper_info(ActorGoal::Fire {
+        target: PlayerId(7),
+        target_pos: last_pos,
+        remaining_secs: 0.5,
+    });
+
+    // `fire_target_position: None` = target died or logged off.
+    tick(&mut info, &fixture.zapper_inputs(Position::default(), None));
+
+    assert_eq!(info.goal, ActorGoal::Flee { threat: last_pos });
+    assert_eq!(info.fire_cooldown_timer, 5.0);
+}
+
+#[test]
+fn fire_and_approach_hold_are_stall_exempt() {
+    let fixture = Fixture::new();
+    let fire = fixture
+        .config
+        .validated_actor("zapper")
+        .fire
+        .as_ref()
+        .expect("zapper fire config missing from server gameplay config");
+    let pos = Position::default();
+
+    let firing = ActorGoal::Fire {
+        target: PlayerId(7),
+        target_pos: Position { x: 5.0, y: 0.0, z: 0.0 },
+        remaining_secs: 0.5,
+    };
+    assert_eq!(stall_window(&firing, &pos, 0.5, Some(fire)), None);
+
+    // Holding at standoff (target within 20 m): intentionally stationary.
+    let holding = ActorGoal::Approach {
+        target: PlayerId(7),
+        target_pos: Position {
+            x: 15.0,
+            y: 0.0,
+            z: 0.0,
+        },
+    };
+    assert_eq!(stall_window(&holding, &pos, 0.5, Some(fire)), None);
+
+    // Pressing from beyond standoff: chase window applies.
+    let pressing = ActorGoal::Approach {
+        target: PlayerId(7),
+        target_pos: Position {
+            x: 30.0,
+            y: 0.0,
+            z: 0.0,
+        },
+    };
+    assert_eq!(
+        stall_window(&pressing, &pos, 0.5, Some(fire)),
+        Some(CHASE_GIVEUP_NO_PROGRESS_SECS)
+    );
+}
+
+#[test]
+fn flee_ends_into_patrol_when_cooldown_expires() {
+    let fixture = Fixture::new();
+    let mut info = zapper_info(ActorGoal::Flee {
+        threat: Position { x: 5.0, y: 0.0, z: 0.0 },
+    });
+    info.fire_cooldown_timer = 0.05;
+
+    tick(&mut info, &fixture.zapper_inputs(Position::default(), None));
+
+    assert!(matches!(info.goal, ActorGoal::Patrol { .. }));
+}
+
+#[test]
+fn flee_tracks_visible_threat_without_reengaging() {
+    let fixture = Fixture::new();
+    let mut info = zapper_info(ActorGoal::Flee {
+        threat: Position { x: 5.0, y: 0.0, z: 0.0 },
+    });
+    info.fire_cooldown_timer = 5.0;
+    let live = Position { x: 3.0, y: 0.0, z: 3.0 };
+
+    tick(&mut info, &fixture.zapper_inputs(Position::default(), Some(live)));
+
+    assert_eq!(info.goal, ActorGoal::Flee { threat: live });
+}
+
+#[test]
+fn flee_beyond_leash_preempts_to_return() {
+    let fixture = Fixture::new();
+    let mut info = zapper_info(ActorGoal::Flee {
+        threat: Position { x: 5.0, y: 0.0, z: 0.0 },
+    });
+    info.fire_cooldown_timer = 5.0;
+    let pos = Position {
+        x: 40.0,
+        y: 0.0,
+        z: 0.0,
+    };
+    let mut inputs = fixture.zapper_inputs(pos, None);
+    inputs.beyond_leash = true;
+
+    tick(&mut info, &inputs);
+
+    assert!(matches!(info.goal, ActorGoal::Return { .. }));
+    // The re-fire lockout survives the preemption — it lives on `ActorInfo`,
+    // not in the goal.
+    assert!(info.fire_cooldown_timer > 0.0);
+}
+
+#[test]
+fn approach_demotes_to_pursuit_on_lost_sight() {
+    let fixture = Fixture::new();
+    let last_seen = Position { x: 5.0, y: 0.0, z: 5.0 };
+    let mut info = zapper_info(ActorGoal::Approach {
+        target: PlayerId(7),
+        target_pos: last_seen,
+    });
+
+    tick(&mut info, &fixture.zapper_inputs(Position::default(), None));
+
+    assert_eq!(info.goal, ActorGoal::Pursuit { last_seen });
 }
 
 #[test]
