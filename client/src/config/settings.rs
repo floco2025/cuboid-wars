@@ -73,6 +73,16 @@ pub struct BarriersConfig {
     pub alpha_min: f32,
     pub alpha_max: f32,
     pub pulse_hz: f32,
+    // Constant emissive brightness multiplier on the kind color — set once
+    // on the material, never pulsed. Translucency still attenuates what the
+    // surface contributes, so useful values are well above the bloom
+    // threshold. 0.0 = no glow.
+    #[serde(default = "default_barrier_emissive")]
+    pub emissive: f32,
+}
+
+const fn default_barrier_emissive() -> f32 {
+    30.0
 }
 
 // Performance/feel knobs for the decorative grass. Pure-appearance numbers
@@ -156,6 +166,7 @@ impl BarriersConfig {
             bail!("barriers.alpha_min must be <= barriers.alpha_max");
         }
         validate_positive_finite(self.pulse_hz, "barriers.pulse_hz")?;
+        validate_non_negative_finite(self.emissive, "barriers.emissive")?;
         Ok(())
     }
 }

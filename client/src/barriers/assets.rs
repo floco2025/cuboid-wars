@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use crate::{
     config::{AssetSet, ClientSettings},
     constants::*,
+    vfx::with_white_vertex_colors,
 };
 use common::{
     constants::BARRIER_THICKNESS,
@@ -74,12 +75,20 @@ pub fn setup_barrier_assets(
     client_settings: Res<ClientSettings>,
 ) {
     let alpha_max = client_settings.barriers.alpha_max;
+    let emissive = client_settings.barriers.emissive;
     // Barrier mesh: unit X and Y so per-instance `Transform.scale` can
     // encode the merged segment's length and barrier height. Thickness
     // stays baked in the mesh — no instance ever wants a different thickness.
-    let mesh = meshes.add(Cuboid::new(1.0, 1.0, BARRIER_THICKNESS));
+    // Both meshes carry white vertex colors: the material is lit translucent
+    // (emissive needs a lit material), and only the vertex-color Blend
+    // permutation renders correctly in this app.
+    let mesh = meshes.add(with_white_vertex_colors(
+        Cuboid::new(1.0, 1.0, BARRIER_THICKNESS).into(),
+    ));
     // Key mesh: a small fixed-size cuboid, no per-instance scaling.
-    let key_mesh = meshes.add(Cuboid::new(KEY_WIDTH, KEY_HEIGHT, KEY_DEPTH));
+    let key_mesh = meshes.add(with_white_vertex_colors(
+        Cuboid::new(KEY_WIDTH, KEY_HEIGHT, KEY_DEPTH).into(),
+    ));
 
     let mut handles = Vec::with_capacity(kind_table.len());
     let mut plate_handles = Vec::with_capacity(kind_table.len());
@@ -89,7 +98,7 @@ pub fn setup_barrier_assets(
             .barrier_kind_color_hex(id)
             .expect("barrier kind color missing from config");
         let color = parse_hex_color(hex).unwrap_or_else(|err| panic!("invalid color {hex:?} for kind {id:?}: {err}"));
-        handles.push(materials.add(barrier_material(color, alpha_max)));
+        handles.push(materials.add(barrier_material(color, alpha_max, emissive)));
         plate_handles.push(materials.add(plate_material(color)));
         base_colors.push(color);
     }
@@ -109,12 +118,15 @@ pub fn setup_barrier_assets(
     });
 }
 
-fn barrier_material(color: Color, alpha_max: f32) -> StandardMaterial {
+// Lit, not unlit: emissive is ignored on unlit materials. The emissive is
+// set once here and never pulsed — the pulsate system only animates
+// `base_color.alpha`.
+fn barrier_material(color: Color, alpha_max: f32, emissive: f32) -> StandardMaterial {
     let linear = color.to_linear();
     StandardMaterial {
         base_color: Color::srgba(linear.red, linear.green, linear.blue, alpha_max),
+        emissive: LinearRgba::rgb(linear.red * emissive, linear.green * emissive, linear.blue * emissive),
         alpha_mode: AlphaMode::Blend,
-        unlit: true,
         double_sided: true,
         cull_mode: None,
         ..default()

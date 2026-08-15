@@ -98,7 +98,7 @@ impl ExplosionAssets {
 // renders translucent materials wrong (invisible or unlit-white); the
 // vertex-color path — which the scorch meshes use — renders correctly.
 // White multiplies to identity, so visuals are otherwise unchanged.
-fn with_white_vertex_colors(mut mesh: Mesh) -> Mesh {
+pub(crate) fn with_white_vertex_colors(mut mesh: Mesh) -> Mesh {
     let count = mesh.count_vertices();
     mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, vec![[1.0, 1.0, 1.0, 1.0]; count]);
     mesh

@@ -151,9 +151,10 @@
     }
   },
   "barriers": {
-    "alpha_min": 0.15,
-    "alpha_max": 0.35,
-    "pulse_hz": 0.5
+    "alpha_min": 0.007,
+    "alpha_max": 0.015,
+    "pulse_hz": 0.5,
+    "emissive": 2000.0
   },
   "grass": {
     "enabled": true,
