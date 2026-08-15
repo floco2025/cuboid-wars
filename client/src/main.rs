@@ -27,7 +27,7 @@ use client::{
     },
     items::{ItemMap, items_animation_system, setup_item_assets, y_spin_system},
     map::skybox::{
-        setup_skybox_from_cross_system, setup_sun_disc_system, skybox_convert_cross_to_cubemap_system,
+        rain_dim_system, setup_skybox_from_cross_system, setup_sun_disc_system, skybox_convert_cross_to_cubemap_system,
         skybox_rotate_system, skybox_update_camera_system, sun_disc_system,
     },
     map::{
@@ -47,7 +47,8 @@ use client::{
     },
     projectiles::{LastBounceSound, ProjectileAssets, projectiles_movement_system, projectiles_transform_sync_system},
     ui::{
-        FpsMeasurement, GameMessageFeed, PendingBanner, QuestLog, SeenPlayerIds,
+        ConsoleState, FpsMeasurement, GameMessageFeed, PendingBanner, QuestLog, SeenPlayerIds, console_input_system,
+        console_render_system,
         floating_labels::{
             floating_health_bar_fill_system, floating_label_scale_compensation_system,
             floating_labels_billboard_system, player_name_label_render_system,
@@ -58,9 +59,10 @@ use client::{
         update_message_feed_system,
     },
     vfx::{
-        ExplosionAssets, ExplosionRadii, ExplosionVfxBudget, TransientParticles, beam_ghost_fade_system,
+        ExplosionAssets, ExplosionRadii, ExplosionVfxBudget, RainIntensity, TransientParticles, beam_ghost_fade_system,
         beam_ghost_removed_system, beam_ghost_sparkle_system, explosion_lights_system, explosion_particles_system,
-        explosion_pulse_system, laser_beam_update_system, scorch_marks_system, transient_particles_system,
+        explosion_pulse_system, laser_beam_update_system, rain_audio_system, rain_particles_system,
+        rain_smoothing_system, scorch_marks_system, transient_particles_system,
     },
 };
 use common::{config::GameplayConfig, constants::TICK_HZ, network::MessageStream, protocol::*};
@@ -203,11 +205,13 @@ fn main() -> Result<()> {
         .insert_resource(DebugColors::default())
         .insert_resource(LastBounceSound::default())
         .insert_resource(GameMessageFeed::default())
+        .insert_resource(ConsoleState::default())
         .insert_resource(PendingBanner::default())
         .insert_resource(SeenPlayerIds::default())
         .insert_resource(QuestLog::default())
         .init_resource::<ProjectileAssets>()
         .init_resource::<TransientParticles>()
+        .init_resource::<RainIntensity>()
         .init_resource::<ExplosionAssets>()
         .init_resource::<ExplosionRadii>()
         .init_resource::<ExplosionVfxBudget>()
@@ -228,6 +232,13 @@ fn main() -> Result<()> {
         .add_systems(
             Update,
             (
+                // Console open/close must land before every gated input
+                // system, so a keystroke can't both type and act in-game.
+                console_input_system
+                    .before(input_cursor_toggle_system)
+                    .before(input_camera_view_toggle_system)
+                    .before(input_level_focus_toggle_system)
+                    .before(input_debug_colors_cycle_system),
                 input_movement_system.after(input_camera_view_toggle_system),
                 input_shooting_system.after(input_movement_system),
                 // Run before shooting (which is after movement) so a click that
@@ -354,6 +365,7 @@ fn main() -> Result<()> {
                 update_message_feed_system,
                 render_pending_banner_system,
                 tick_hud_banner_system,
+                console_render_system.after(console_input_system),
             ),
         )
         // Skybox setup, asset conversion, camera following, and ambient
@@ -372,6 +384,17 @@ fn main() -> Result<()> {
                 // sun direction; after camera sync would be ideal too, but a
                 // one-frame positional lag at 400 m is invisible.
                 sun_disc_system.after(skybox_rotate_system),
+                // Rain: smooth the snapshot intensity first, then everything
+                // that reads it. Dimming runs after the camera-insert system
+                // so a freshly inserted Skybox is corrected the same frame.
+                rain_smoothing_system,
+                rain_dim_system
+                    .after(rain_smoothing_system)
+                    .after(skybox_update_camera_system),
+                rain_particles_system
+                    .after(rain_smoothing_system)
+                    .before(transient_particles_system),
+                rain_audio_system.after(rain_smoothing_system),
             ),
         );
 

@@ -4,11 +4,12 @@ use bevy::{
     light::NotShadowCaster,
     prelude::*,
     render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureViewDescriptor, TextureViewDimension},
+    render::view::ColorGrading,
 };
 
 use crate::{
     cameras::MainCameraMarker,
-    config::{AssetSet, SkyboxDef},
+    config::{AssetSet, ClientSettings, SkyboxDef},
 };
 use common::protocol::MapSettings;
 
@@ -74,6 +75,9 @@ pub struct SunLightMarker;
 #[derive(Component)]
 pub struct SunDisc {
     distance: f32,
+    // Base emissive luminance, kept so rain dimming can recompute the
+    // material's emissive absolutely each frame.
+    luminance: f32,
 }
 
 pub fn setup_sun_disc_system(
@@ -95,6 +99,7 @@ pub fn setup_sun_disc_system(
     commands.spawn((
         SunDisc {
             distance: sun_disc.distance,
+            luminance: sun_disc.luminance,
         },
         Mesh3d(meshes.add(Sphere::new(sun_disc.radius))),
         // NOT unlit: `StandardMaterial` ignores emissive when unlit (see
@@ -245,6 +250,49 @@ pub fn skybox_update_camera_system(
             brightness: settings.brightness,
             rotation: Quat::IDENTITY,
         });
+    }
+}
+
+// Darken the world while it rains. Every value is recomputed absolutely
+// from its config base × a dim factor, never incrementally, so the system
+// is idempotent per frame and snaps back to the exact base on clear skies.
+// Sky, sun disc, directional light, and ambient all follow the smoothed
+// rain intensity; wall/actor lights stay lit — windows glowing in the rain.
+pub fn rain_dim_system(
+    rain: Res<crate::vfx::RainIntensity>,
+    client_settings: Res<ClientSettings>,
+    settings: Option<Res<SkyboxSettings>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut skyboxes: Query<&mut Skybox>,
+    mut sun_light: Query<&mut DirectionalLight, With<SunLightMarker>>,
+    mut ambient: ResMut<GlobalAmbientLight>,
+    disc: Query<(&MeshMaterial3d<StandardMaterial>, &SunDisc)>,
+    mut gradings: Query<&mut ColorGrading>,
+) {
+    let weather = &client_settings.weather;
+    let sky_factor = 1.0 - rain.current * (1.0 - weather.sky_dim);
+    let light_factor = 1.0 - rain.current * (1.0 - weather.light_dim);
+
+    // Heavy rain washes the world gray: post-tonemap saturation on both
+    // cameras follows the intensity.
+    for mut grading in &mut gradings {
+        grading.global.post_saturation = 1.0 - rain.current * (1.0 - weather.saturation);
+    }
+
+    if let Some(settings) = settings {
+        for mut skybox in &mut skyboxes {
+            skybox.brightness = settings.brightness * sky_factor;
+        }
+    }
+    for mut light in &mut sun_light {
+        light.illuminance = client_settings.lighting.directional_brightness * light_factor;
+    }
+    ambient.brightness = client_settings.lighting.ambient_brightness * light_factor;
+    for (material, sun_disc) in &disc {
+        if let Some(mut material) = materials.get_mut(&material.0) {
+            let luminance = sun_disc.luminance * sky_factor;
+            material.emissive = LinearRgba::rgb(luminance, luminance * 0.94, luminance * 0.78);
+        }
     }
 }
 

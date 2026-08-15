@@ -42,6 +42,8 @@ pub fn spawn_impact_sparks(
             acceleration: Vec3::NEG_Y * PROJECTILE_SPARK_GRAVITY,
             start_size: size,
             end_size: 0.0,
+            stretch: Vec3::ONE,
+            fades: true,
             lifetime: config.particle_lifetime_secs * rng.random_range(0.75..1.25),
             color: base_color * rng.random_range(0.75..1.2),
             priority: ParticlePriority::Impact,

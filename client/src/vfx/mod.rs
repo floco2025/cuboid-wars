@@ -2,6 +2,7 @@ mod beam;
 mod explosion;
 mod laser;
 mod particles;
+mod rain;
 mod spark;
 
 pub use beam::{
@@ -15,4 +16,5 @@ pub use explosion::{
 pub(crate) use explosion::{ScorchOutline, with_white_vertex_colors};
 pub use laser::{LaserBeam, laser_beam_update_system, spawn_laser_beam};
 pub use particles::{TransientParticles, transient_particles_system};
+pub use rain::{RainIntensity, rain_audio_system, rain_particles_system, rain_smoothing_system};
 pub use spark::{ImpactKind, spawn_impact_sparks};

@@ -5,7 +5,7 @@ use crate::{
     config::ServerGameplayConfig,
     items::ItemMap,
     map::MapConfig,
-    map::OpenBarrierKinds,
+    map::{OpenBarrierKinds, WeatherState},
     network::{ClientToServer, FromClientsChannel},
     players::{PlayerInfo, PlayerMap},
 };
@@ -50,6 +50,7 @@ pub fn network_process_client_messages_system(
     actor_motions: Query<&CharacterVerticalVelocity, With<ActorMarker>>,
     item_data: Query<&Position, With<ItemMarker>>,
     open_barrier_kinds: Res<OpenBarrierKinds>,
+    mut weather: ResMut<WeatherState>,
 ) {
     while let Ok((id, event)) = from_clients.try_recv() {
         if let ClientToServer::Registration { to_client } = event {
@@ -96,6 +97,7 @@ pub fn network_process_client_messages_system(
                         &world.collision_world,
                         &world.gameplay_config,
                         &open_barrier_kinds,
+                        &mut weather,
                     );
                 } else {
                     handle_login_message(

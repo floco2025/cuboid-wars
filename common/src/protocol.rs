@@ -102,6 +102,14 @@ pub struct CPing {
     pub timestamp_nanos: u64,
 }
 
+// Client to Server: raw admin command string (e.g. "rain start"). The
+// client stays dumb — parsing, execution, authorization, and the reply
+// text all live server-side, so new commands never touch the protocol.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct CAdmin {
+    pub command: String,
+}
+
 // ============================================================================
 // Server Messages
 // ============================================================================
@@ -143,6 +151,11 @@ pub struct SSnapshot {
     // Empty in v1 maps with no plates. Client hides matching barriers; server
     // unions this with each player's `held_keys` for the collision filter.
     pub open_barrier_kinds: Vec<BarrierKindId>,
+    // Server-scheduled weather, 0.0 (clear) to 1.0 (full rain). Durable
+    // level-triggered state, so it rides the snapshot — late joiners enter
+    // mid-storm correctly and a dropped packet self-heals. Clients smooth
+    // the 4 Hz steps and drive all rain presentation from it.
+    pub rain_intensity: f32,
 }
 
 // --- Real-time intent (sub-tick latency for prediction) ---
@@ -391,6 +404,14 @@ pub struct SQuestCompleted {
 
 // --- Diagnostic ---
 
+// Reply to a `CAdmin` command — success or error text, unicast to the
+// sender. One-shot: ephemeral feedback for the admin console, shown in the
+// message feed; a dropped reply costs only the text.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SAdminResponse {
+    pub text: String,
+}
+
 // Pong response — server echoes the `CPing` timestamp back unchanged so the
 // client can compute RTT from the round trip.
 #[derive(Debug, Clone, Encode, Decode)]
@@ -411,6 +432,7 @@ pub enum ClientMessage {
     Face(CFace),
     Shot(CShot),
     Ping(CPing),
+    Admin(CAdmin),
 }
 
 // All server to client messages. Variants are grouped by role to match the
@@ -443,6 +465,7 @@ pub enum ServerMessage {
     HealthPotionCollected(SHealthPotionCollected),
     PressurePlatePressed(SPressurePlatePressed),
     PressurePlateReleased(SPressurePlateReleased),
+    AdminResponse(SAdminResponse),
     // Per-client state events
     QuestsAssigned(SQuestsAssigned),
     QuestProgress(SQuestProgress),

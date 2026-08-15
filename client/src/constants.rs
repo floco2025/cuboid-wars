@@ -105,6 +105,10 @@ pub const LABEL_TEXT_PADDING_Y: f32 = 2.0;
 // sit the same distance in from the sides. The mirror is a render viewport in
 // physical pixels, so it multiplies this by the window scale factor.
 pub const HUD_EDGE_MARGIN_PX: f32 = 10.0;
+// Bottom strip reserved for the admin console's input line; the message
+// feed starts above it so the two never overlap (classic chat layout:
+// input at the very bottom, messages stacking upward above it).
+pub const CONSOLE_LINE_RESERVED_PX: f32 = 30.0;
 
 // Safety floor for the HUD scale (window width / `hud.reference_width`) so a
 // tiny window can't collapse the UI toward zero.

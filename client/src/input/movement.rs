@@ -15,6 +15,7 @@ use crate::{
     config::ClientSettings,
     network::{ClientToServer, ClientToServerChannel},
     players::{LocalPlayerInfo, LocalPlayerMarker, MyPlayerId, PlayerMap},
+    ui::ConsoleState,
 };
 
 const MAX_PITCH: f32 = std::f32::consts::FRAC_PI_2 - 0.05;
@@ -52,6 +53,7 @@ pub fn input_movement_system(
     collision_world: Option<Res<CollisionWorld>>,
     gameplay_config: Res<GameplayConfig>,
     client_settings: Res<ClientSettings>,
+    console: Res<ConsoleState>,
 ) {
     let mouse_sensitivity = client_settings.input.mouse_sensitivity;
     // Wait for the local player entity to exist before sampling input.
@@ -64,7 +66,9 @@ pub fn input_movement_system(
     }
 
     let cursor_locked = cursor_options.grab_mode != CursorGrabMode::None;
-    if !cursor_locked {
+    // While the admin console is open, keystrokes are text — same treatment
+    // as an unlocked cursor: idle out and consume nothing.
+    if !cursor_locked || console.open {
         // Drain mouse events and force idle intent locally; the commit
         // system will pick it up at the next tick boundary.
         for _ in mouse_motion.read() {}

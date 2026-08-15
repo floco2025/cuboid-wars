@@ -145,6 +145,7 @@ pub struct ClientAssets<'w> {
     pub seen_player_ids: ResMut<'w, SeenPlayerIds>,
     pub quest_log: ResMut<'w, QuestLog>,
     pub open_barrier_kinds: ResMut<'w, crate::barriers::OpenBarrierKinds>,
+    pub rain_intensity: ResMut<'w, crate::vfx::RainIntensity>,
     pub actor_ghosts: ResMut<'w, ActorGhostMap>,
     pub pending_banner: ResMut<'w, PendingBanner>,
 }

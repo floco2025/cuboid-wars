@@ -1,3 +1,4 @@
+mod console;
 pub mod floating_labels;
 mod hud;
 mod hud_banner;
@@ -6,6 +7,7 @@ mod player_list;
 mod quest_panel;
 mod setup;
 
+pub use console::{ConsoleState, console_input_system, console_render_system, spawn_console};
 pub use hud::{
     CrosshairMarker, FpsMarker, FpsMeasurement, RttMarker, fade_out_alpha, ui_crosshair_visibility_system,
     ui_fps_system, ui_hud_scale_system, ui_rtt_system,

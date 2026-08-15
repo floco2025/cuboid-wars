@@ -293,5 +293,10 @@ pub fn dispatch_message(
                 PlaybackSettings::DESPAWN,
             ));
         }
+        ServerMessage::AdminResponse(admin_msg) => {
+            client_assets
+                .game_message_feed
+                .push(crate::ui::GameMessage::Admin { text: admin_msg.text });
+        }
     }
 }

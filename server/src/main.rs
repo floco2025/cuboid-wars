@@ -27,7 +27,7 @@ use server::{
         item_collection_system, placed_item_respawn_system, placed_item_spawn_system, random_item_despawn_system,
         random_item_spawn_system,
     },
-    map::{OpenBarrierKinds, compute_open_barrier_kinds_system, generate_map},
+    map::{OpenBarrierKinds, WeatherState, compute_open_barrier_kinds_system, generate_map, weather_system},
     network::{
         FromClientsChannel, accept_connections_task, network_broadcast_snapshot_system,
         network_process_client_messages_system,
@@ -86,6 +86,7 @@ async fn main() -> Result<()> {
         bail!("unknown map {map_name:?} (available: {known:?})");
     };
     let map_settings = map_server_config.settings.clone();
+    let weather_state = WeatherState::new(map_server_config.rain.clone());
     let random_items =
         map_server_config
             .random_items
@@ -133,6 +134,7 @@ async fn main() -> Result<()> {
 
     app.insert_resource(map_layout)
         .insert_resource(map_settings)
+        .insert_resource(weather_state)
         .insert_resource(collision_world)
         .insert_resource(map_config)
         .insert_resource(map_geometry)
@@ -180,6 +182,11 @@ async fn main() -> Result<()> {
                     .chain(),
                 // Actor decisions are written before movement consumes them.
                 actor_behavior_system,
+                // Before message processing so an admin-forced phase isn't in
+                // a same-tick race with the scheduler tick; the broadcast
+                // (after processing in the chain) ships the forced intensity
+                // this very tick.
+                weather_system.before(network_process_client_messages_system),
                 // Determine which barrier kinds are open this tick before
                 // movement reads the open set for its collision filter.
                 compute_open_barrier_kinds_system.before(characters_movement_system),

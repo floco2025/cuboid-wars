@@ -78,6 +78,14 @@ pub(super) struct ParticleSpawn {
     pub acceleration: Vec3,
     pub start_size: f32,
     pub end_size: f32,
+    // Per-axis multiplier on the size — `Vec3::ONE` is a cube; rain streaks
+    // stretch the Y axis into a thin vertical line.
+    pub stretch: Vec3,
+    // The pool is opaque, so the standard end-of-life "fade" darkens toward
+    // BLACK — right for hot sparks dying out, wrong for things that stay lit
+    // until they vanish (rain drops against a bright sky turn into black
+    // bars). `false` keeps full brightness for the whole lifetime.
+    pub fades: bool,
     pub lifetime: f32,
     pub color: Vec3,
     pub priority: ParticlePriority,
@@ -89,6 +97,8 @@ struct TransientParticle {
     acceleration: Vec3,
     start_size: f32,
     end_size: f32,
+    stretch: Vec3,
+    fades: bool,
     lifetime: f32,
     elapsed: f32,
     color: Vec3,
@@ -146,6 +156,8 @@ impl TransientParticles {
             acceleration: particle.acceleration,
             start_size: particle.start_size,
             end_size: particle.end_size,
+            stretch: particle.stretch,
+            fades: particle.fades,
             lifetime: particle.lifetime,
             elapsed: 0.0,
             color: particle.color,
@@ -194,12 +206,16 @@ fn update_particle_mesh(mesh: &mut Mesh, particles: &[TransientParticle], max_pa
     for particle in particles {
         let progress = (particle.elapsed / particle.lifetime).clamp(0.0, 1.0);
         let size = particle.start_size + (particle.end_size - particle.start_size) * progress;
-        let brightness = (1.0 - progress * progress).max(0.0);
+        let brightness = if particle.fades {
+            (1.0 - progress * progress).max(0.0)
+        } else {
+            1.0
+        };
         let color = (particle.color * brightness).extend(1.0).to_array();
         positions.extend(
             CUBE_VERTICES
                 .iter()
-                .map(|vertex| (particle.position + *vertex * size).to_array()),
+                .map(|vertex| (particle.position + *vertex * size * particle.stretch).to_array()),
         );
         normals.extend(CUBE_NORMALS.iter().map(|normal| normal.to_array()));
         colors.extend([color; CUBE_VERTICES.len()]);
@@ -242,6 +258,8 @@ mod tests {
             acceleration: Vec3::ZERO,
             start_size: 1.0,
             end_size: 0.0,
+            stretch: Vec3::ONE,
+            fades: true,
             lifetime: 1.0,
             color: Vec3::ONE,
             priority,
@@ -287,6 +305,8 @@ mod tests {
             acceleration: Vec3::ZERO,
             start_size: 1.0,
             end_size: 0.0,
+            stretch: Vec3::ONE,
+            fades: true,
             lifetime: 0.5,
             elapsed: 0.0,
             color: Vec3::ONE,

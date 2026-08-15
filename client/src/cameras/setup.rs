@@ -3,6 +3,7 @@ use bevy::{
     core_pipeline::prepass::{DeferredPrepass, DepthPrepass},
     post_process::bloom::{Bloom, BloomCompositeMode, BloomPrefilter},
     prelude::*,
+    render::view::ColorGrading,
 };
 use common::config::GameplayConfig;
 
@@ -44,6 +45,9 @@ pub fn setup_cameras_system(
             fov: client_settings.camera.fov_first_person_degrees.to_radians(),
             ..default()
         }),
+        // Present so the weather can drive `post_saturation` (rain washes
+        // the scene out); defaults are a no-op grade.
+        ColorGrading::default(),
         Transform::from_xyz(0.0, player_eye_height, 0.0).looking_at(Vec3::new(0.0, 0.0, -1.0), Vec3::Y),
     ));
     if deferred_rendering_enabled {
@@ -89,6 +93,7 @@ pub fn setup_cameras_system(
             fov: client_settings.camera.rearview.fov_degrees.to_radians(),
             ..default()
         }),
+        ColorGrading::default(),
         Transform::from_xyz(0.0, player_eye_height, 0.0).looking_at(Vec3::new(0.0, 0.0, 1.0), Vec3::Y), // Looking backwards (positive Z)
     ));
     if deferred_rendering_enabled {

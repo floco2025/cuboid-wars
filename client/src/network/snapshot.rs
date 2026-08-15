@@ -101,4 +101,7 @@ pub(super) fn handle_snapshot_message(
     if msg.open_barrier_kinds != client_assets.open_barrier_kinds.0 {
         client_assets.open_barrier_kinds.0 = msg.open_barrier_kinds.clone();
     }
+
+    // Weather target; `rain_smoothing_system` eases the rendered value.
+    client_assets.rain_intensity.target = msg.rain_intensity;
 }

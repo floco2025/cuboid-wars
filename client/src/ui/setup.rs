@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 use super::{
+    console::spawn_console,
     hud::{CrosshairMarker, FpsMarker, RttMarker},
     message_feed::spawn_message_feed_root,
     player_list::PlayerListMarker,
@@ -140,4 +141,5 @@ pub fn setup_ui_system(mut commands: Commands, client_settings: Res<ClientSettin
     ));
 
     spawn_message_feed_root(&mut commands);
+    spawn_console(&mut commands, &client_settings);
 }

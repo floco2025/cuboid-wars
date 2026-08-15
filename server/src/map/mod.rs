@@ -13,6 +13,7 @@ mod resources;
 mod segments;
 mod trim;
 mod walls;
+mod weather;
 
 pub(crate) use edges::{CellSide, has_edge_on_cell_side};
 
@@ -23,3 +24,4 @@ pub use pressure_plates::compute_open_barrier_kinds_system;
 pub use resources::{
     ActorSpawnZone, Cell, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlacedItem, PlayerSpawnZone, PressurePlateRuntime,
 };
+pub use weather::{WeatherState, weather_system};

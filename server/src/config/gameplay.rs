@@ -42,6 +42,55 @@ pub struct MapServerConfig {
     // `None` = no random item spawning on this map.
     #[serde(default)]
     pub random_items: Option<RandomItemsConfig>,
+    // `None` = it never rains on this map.
+    #[serde(default)]
+    pub rain: Option<RainScheduleConfig>,
+}
+
+// Cadence of the server-scheduled rain: random clear stretch, ramp in, a
+// random rain stretch at full intensity, fade out, repeat.
+#[derive(Debug, Clone, Deserialize)]
+pub struct RainScheduleConfig {
+    // When false, the scheduler never starts rain on its own — only the
+    // `rain start` admin command does.
+    #[serde(default = "default_rain_auto_start")]
+    pub auto_start: bool,
+    // When false, a running rain never ends on its own — only the
+    // `rain stop` admin command does. Absent flags = the classic fully
+    // automatic cycle.
+    #[serde(default = "default_rain_auto_end")]
+    pub auto_end: bool,
+    pub min_clear_secs: f32,
+    pub max_clear_secs: f32,
+    pub min_rain_secs: f32,
+    pub max_rain_secs: f32,
+    pub ramp_in_secs: f32,
+    pub fade_out_secs: f32,
+}
+
+const fn default_rain_auto_start() -> bool {
+    true
+}
+
+const fn default_rain_auto_end() -> bool {
+    true
+}
+
+impl RainScheduleConfig {
+    fn validate(&self, path: &str) -> Result<()> {
+        validate_positive_finite(self.min_clear_secs, &format!("{path}.min_clear_secs"))?;
+        validate_positive_finite(self.max_clear_secs, &format!("{path}.max_clear_secs"))?;
+        if self.min_clear_secs > self.max_clear_secs {
+            bail!("{path}.min_clear_secs must be <= {path}.max_clear_secs");
+        }
+        validate_positive_finite(self.min_rain_secs, &format!("{path}.min_rain_secs"))?;
+        validate_positive_finite(self.max_rain_secs, &format!("{path}.max_rain_secs"))?;
+        if self.min_rain_secs > self.max_rain_secs {
+            bail!("{path}.min_rain_secs must be <= {path}.max_rain_secs");
+        }
+        validate_positive_finite(self.ramp_in_secs, &format!("{path}.ramp_in_secs"))?;
+        validate_positive_finite(self.fade_out_secs, &format!("{path}.fade_out_secs"))
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -345,6 +394,9 @@ fn validate_maps(maps: &HashMap<String, MapServerConfig>, default_map: &str) -> 
         if let Some(random_items) = &entry.random_items {
             random_items.validate(&format!("{path}.random_items"))?;
         }
+        if let Some(rain) = &entry.rain {
+            rain.validate(&format!("{path}.rain"))?;
+        }
     }
     if !maps.contains_key(default_map) {
         let mut known: Vec<&str> = maps.keys().map(String::as_str).collect();
@@ -452,6 +504,7 @@ mod tests {
                 low_gravity: 5.0,
             },
             random_items: None,
+            rain: None,
         }
     }
 

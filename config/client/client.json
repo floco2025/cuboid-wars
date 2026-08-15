@@ -156,6 +156,21 @@
     "pulse_hz": 0.5,
     "emissive": 2000.0
   },
+  "weather": {
+    "sky_dim": 0.05,
+    "light_dim": 0.4,
+    "saturation": 0.3,
+    "drops_per_second": 1000.0,
+    "spawn_radius": 20.0,
+    "spawn_lead_fraction": 0.35,
+    "spawn_height": 12.0,
+    "fall_speed": 14.0,
+    "drop_size": 0.01,
+    "splash_size": 0.01,
+    "splash_radius": 0.15,
+    "splash_height": 0.2,
+    "rain_volume": 1.0
+  },
   "grass": {
     "enabled": true,
     "tufts_per_m2": 16.0,

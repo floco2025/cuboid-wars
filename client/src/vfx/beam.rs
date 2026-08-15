@@ -156,6 +156,8 @@ pub fn beam_ghost_sparkle_system(
                 acceleration: Vec3::ZERO,
                 start_size: size,
                 end_size: size * 0.1,
+                stretch: Vec3::ONE,
+                fades: true,
                 lifetime: config.sparkle_lifetime_secs * rng.random_range(0.75..1.25),
                 color: base_color * rng.random_range(0.7..1.2),
                 priority: ParticlePriority::Ambient,
@@ -209,6 +211,8 @@ fn spawn_materialization_ring(
             acceleration: Vec3::NEG_Y * 2.0,
             start_size: size,
             end_size: 0.0,
+            stretch: Vec3::ONE,
+            fades: true,
             lifetime: BEAM_IN_MATERIALIZATION_LIFETIME_SECS,
             color,
             priority: ParticlePriority::Cue,
@@ -230,7 +234,7 @@ fn sparkle_rate(volume: f32, density: f32) -> f32 {
     (volume * density).max(scaled_minimum)
 }
 
-fn take_emissions(credit: &mut f32, rate: f32, delta: f32, max_per_frame: usize) -> usize {
+pub(super) fn take_emissions(credit: &mut f32, rate: f32, delta: f32, max_per_frame: usize) -> usize {
     *credit += rate * delta;
     let due = credit.floor() as usize;
     *credit -= due as f32;

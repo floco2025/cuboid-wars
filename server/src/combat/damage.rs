@@ -201,6 +201,7 @@ mod tests {
                         low_gravity: 5.0,
                     },
                     random_items: None,
+                    rain: None,
                 },
             )]),
             default_map: "hotel".to_owned(),

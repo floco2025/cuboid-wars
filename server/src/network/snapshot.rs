@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use crate::{
     actors::{ActorMap, PendingActorSpawns},
     items::ItemMap,
-    map::OpenBarrierKinds,
+    map::{OpenBarrierKinds, WeatherState},
     players::PlayerMap,
 };
 use common::{
@@ -25,6 +25,7 @@ pub fn network_broadcast_snapshot_system(
     pending_spawns: Res<PendingActorSpawns>,
     items: Res<ItemMap>,
     open_barrier_kinds: Res<OpenBarrierKinds>,
+    weather: Res<WeatherState>,
     player_data: Query<(&Position, &PlayerMoveIntent, &FaceDirection, &Health), With<PlayerMarker>>,
     motions: Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
     actor_data: Query<(&Position, &ActorMoveIntent, &FaceDirection, &Health), With<ActorMarker>>,
@@ -56,6 +57,7 @@ pub fn network_broadcast_snapshot_system(
         spawning_actors: snapshot_spawning_actors(&pending_spawns),
         items: all_items,
         open_barrier_kinds: open_barrier_kinds.0.clone(),
+        rain_intensity: weather.intensity(),
     });
     broadcast_to_all(&players, msg);
 }

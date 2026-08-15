@@ -164,8 +164,10 @@ pub fn handle_login_message(
                 items: all_items,
                 // Plate state is per-tick; this login-time snapshot defaults
                 // to "everything closed". The next broadcast tick will
-                // correct it.
+                // correct it. Same for weather — the next broadcast delivers
+                // the real intensity within 250 ms and the client smooths in.
                 open_barrier_kinds: Vec::new(),
+                rain_intensity: 0.0,
             });
             channel.send(ServerToClient::Send(snapshot_msg)).ok();
 

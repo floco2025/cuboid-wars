@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 
-use super::broadcast::broadcast_to_others;
+use super::{admin::handle_admin_message, broadcast::broadcast_to_others};
 use crate::{
-    map::OpenBarrierKinds,
+    map::{OpenBarrierKinds, WeatherState},
     network::ServerToClient,
     players::{PlayerInfo, PlayerMap},
 };
@@ -32,12 +32,16 @@ pub fn dispatch_message(
     collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
     open_barrier_kinds: &OpenBarrierKinds,
+    weather: &mut WeatherState,
 ) {
     // Dead players have a despawned entity; queueing entity-targeted
     // commands against the stale `entity` would panic when Bevy applies the
     // command buffer. Drop their in-flight gameplay messages but keep pings
-    // so RTT measurement keeps working through the respawn window.
-    if players.get(&id).is_some_and(|info| info.is_dead()) && !matches!(msg, ClientMessage::Ping(_)) {
+    // (RTT measurement through the respawn window) and admin commands (a
+    // dead admin's console must still work — neither touches the entity).
+    if players.get(&id).is_some_and(|info| info.is_dead())
+        && !matches!(msg, ClientMessage::Ping(_) | ClientMessage::Admin(_))
+    {
         return;
     }
 
@@ -87,6 +91,10 @@ pub fn dispatch_message(
         }
         ClientMessage::Ping(msg) => {
             handle_ping_message(id, msg, players);
+        }
+        ClientMessage::Admin(msg) => {
+            debug!("{id:?} admin command: {:?}", msg.command);
+            handle_admin_message(players, id, weather, &msg);
         }
     }
 }

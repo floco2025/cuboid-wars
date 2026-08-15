@@ -3,7 +3,11 @@ use std::collections::{HashSet, VecDeque};
 use bevy::prelude::*;
 use common::protocol::{BarrierKindId, PlayerId};
 
-use crate::{barriers::BarrierAssets, config::ClientSettings, constants::HUD_EDGE_MARGIN_PX};
+use crate::{
+    barriers::BarrierAssets,
+    config::ClientSettings,
+    constants::{CONSOLE_LINE_RESERVED_PX, HUD_EDGE_MARGIN_PX},
+};
 
 // One entry in the bottom-right game-message feed. Names and kind ids are
 // captured at emit time so the formatter doesn't depend on the live
@@ -16,6 +20,8 @@ pub enum GameMessage {
     KeyFound { player_name: String, kind: BarrierKindId },
     PlayerJoined { name: String },
     PlayerLeft { name: String },
+    // Server reply to an admin console command; text is server-authored.
+    Admin { text: String },
 }
 
 // Pending messages produced by gameplay handlers, drained each frame by
@@ -55,6 +61,8 @@ pub struct MessageFeedEntry {
 
 const DEFAULT_TEXT_COLOR: Color = Color::srgba(0.85, 0.85, 0.85, 1.0);
 const DIM_TEXT_COLOR: Color = Color::srgba(0.6, 0.6, 0.6, 1.0);
+// Matches the console input line, so replies read as part of the console.
+const ADMIN_TEXT_COLOR: Color = Color::srgba(1.0, 0.85, 0.4, 1.0);
 const ENTRY_ROW_GAP: f32 = 4.0;
 
 // One styled run of text within a feed line; multiple runs are laid out in
@@ -71,7 +79,9 @@ pub fn spawn_message_feed_root(commands: &mut Commands) {
         Node {
             position_type: PositionType::Absolute,
             right: Val::Px(HUD_EDGE_MARGIN_PX),
-            bottom: Val::Px(HUD_EDGE_MARGIN_PX),
+            // Starts above the console's reserved strip so the input line and
+            // the feed stack instead of overlapping.
+            bottom: Val::Px(HUD_EDGE_MARGIN_PX + CONSOLE_LINE_RESERVED_PX),
             // ColumnReverse so the newest child (pushed last) renders at the
             // bottom, with older entries stacking upward toward the top.
             flex_direction: FlexDirection::ColumnReverse,
@@ -189,6 +199,10 @@ fn build_runs(msg: &GameMessage, barrier_assets: Option<&BarrierAssets>) -> Vec<
         GameMessage::PlayerLeft { name } => vec![TextRun {
             text: format!("{name} left"),
             color: DIM_TEXT_COLOR,
+        }],
+        GameMessage::Admin { text } => vec![TextRun {
+            text: text.clone(),
+            color: ADMIN_TEXT_COLOR,
         }],
     }
 }

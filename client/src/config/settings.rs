@@ -50,6 +50,8 @@ pub struct ClientSettings {
     pub hud: HudConfig,
     pub barriers: BarriersConfig,
     #[serde(default)]
+    pub weather: WeatherConfig,
+    #[serde(default)]
     pub grass: GrassConfig,
     #[serde(default)]
     pub vfx: VfxConfig,
@@ -83,6 +85,83 @@ pub struct BarriersConfig {
 
 const fn default_barrier_emissive() -> f32 {
     30.0
+}
+
+// Rain presentation knobs. The server owns when it rains (per-map schedule
+// in the server gameplay config); these only shape how a given intensity
+// looks and sounds on this client.
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(default)]
+pub struct WeatherConfig {
+    // Skybox + sun-disc brightness factor at full rain (1.0 = no darkening).
+    pub sky_dim: f32,
+    // Directional + ambient light factor at full rain.
+    pub light_dim: f32,
+    // Scene saturation factor at full rain (camera color grading) — heavy
+    // rain washes the world gray. 1.0 = no change.
+    pub saturation: f32,
+    pub drops_per_second: f32,
+    // Radius of the drop-spawn disc around the camera.
+    pub spawn_radius: f32,
+    // How far the disc leads the camera along its horizontal facing, as a
+    // fraction of `spawn_radius` — 1/3 puts two thirds of the rain ahead of
+    // a running player; 0.0 centers it.
+    pub spawn_lead_fraction: f32,
+    // How far above the camera drops spawn (m) — the height of the rain
+    // volume you see when looking up. Taller rain means longer flight times,
+    // so live drops ≈ drops_per_second × (spawn_height + 14) / fall_speed;
+    // keep that under the `vfx.max_transient_particles` budget.
+    pub spawn_height: f32,
+    pub fall_speed: f32,
+    pub drop_size: f32,
+    // Size of the droplets that bounce up where a drop lands.
+    pub splash_size: f32,
+    // How far those droplets scatter horizontally (m) and how high they
+    // bounce (m); velocities and airtime are derived from these.
+    pub splash_radius: f32,
+    pub splash_height: f32,
+    // Rain-loop gain at full intensity.
+    pub rain_volume: f32,
+}
+
+impl Default for WeatherConfig {
+    fn default() -> Self {
+        Self {
+            sky_dim: 0.07,
+            light_dim: 0.4,
+            saturation: 0.5,
+            drops_per_second: 300.0,
+            spawn_radius: 12.0,
+            spawn_lead_fraction: 0.33,
+            spawn_height: 12.0,
+            fall_speed: 14.0,
+            drop_size: 0.012,
+            splash_size: 0.012,
+            splash_radius: 0.15,
+            splash_height: 0.08,
+            rain_volume: 1.0,
+        }
+    }
+}
+
+impl WeatherConfig {
+    fn validate(&self) -> Result<()> {
+        validate_unit_ratio(self.sky_dim, "weather.sky_dim")?;
+        validate_unit_ratio(self.light_dim, "weather.light_dim")?;
+        validate_unit_ratio(self.saturation, "weather.saturation")?;
+        validate_non_negative_finite(self.drops_per_second, "weather.drops_per_second")?;
+        validate_positive_finite(self.spawn_radius, "weather.spawn_radius")?;
+        validate_unit_ratio(self.spawn_lead_fraction, "weather.spawn_lead_fraction")?;
+        validate_positive_finite(self.spawn_height, "weather.spawn_height")?;
+        validate_positive_finite(self.fall_speed, "weather.fall_speed")?;
+        validate_positive_finite(self.drop_size, "weather.drop_size")?;
+        validate_positive_finite(self.splash_size, "weather.splash_size")?;
+        validate_non_negative_finite(self.splash_radius, "weather.splash_radius")?;
+        // Strictly positive: the droplet airtime is derived from the height,
+        // and zero height would divide by a zero airtime.
+        validate_positive_finite(self.splash_height, "weather.splash_height")?;
+        validate_non_negative_finite(self.rain_volume, "weather.rain_volume")
+    }
 }
 
 // Performance/feel knobs for the decorative grass. Pure-appearance numbers
@@ -145,6 +224,7 @@ impl ClientSettings {
         self.input.validate()?;
         self.hud.validate()?;
         self.barriers.validate()?;
+        self.weather.validate()?;
         self.grass.validate()?;
         self.vfx.validate()?;
         self.audio.validate()?;
@@ -218,5 +298,22 @@ mod tests {
     #[test]
     fn shipped_client_config_loads_and_validates() {
         ClientSettings::load_default().expect("shipped client config should load and validate");
+    }
+
+    #[test]
+    fn weather_config_default_validates() {
+        WeatherConfig::default()
+            .validate()
+            .expect("default weather config should validate");
+    }
+
+    #[test]
+    fn weather_config_rejects_dim_above_one() {
+        let config = WeatherConfig {
+            sky_dim: 1.5,
+            ..WeatherConfig::default()
+        };
+        let error = config.validate().expect_err("out-of-range sky_dim should fail");
+        assert!(error.to_string().contains("sky_dim"));
     }
 }

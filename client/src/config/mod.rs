@@ -9,7 +9,7 @@ mod vfx;
 pub use assets::{AssetSet, MaterialDef, ModelDef, SkyboxDef};
 pub use audio::{AudioConfig, ProjectileImpactAudioConfig};
 pub use rendering::OpaqueRenderer;
-pub use settings::{ClientSettings, DebugColorMode, GrassConfig};
+pub use settings::{ClientSettings, DebugColorMode, GrassConfig, WeatherConfig};
 pub use vfx::{
     ActorBeamInVfxConfig, ExplosionFireballVfxConfig, ExplosionLightVfxConfig, ExplosionScorchesVfxConfig,
     ExplosionShardsVfxConfig, ExplosionShockwaveVfxConfig, ExplosionSmokeVfxConfig, ExplosionVfxConfig,
