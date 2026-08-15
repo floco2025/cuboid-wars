@@ -2,9 +2,17 @@ use bevy::prelude::*;
 
 use crate::{actors::ActorMap, config::LaserVfxConfig, players::PlayerMap};
 use common::{
+    config::GameplayConfig,
     physics::CollisionWorld,
     protocol::{ActorId, PlayerId, SActorBeam},
 };
+
+// Angular speeds (rad/s) of the endpoint wander's per-axis sines —
+// incommensurate so the combined path never visibly repeats, ~1–1.5 Hz so
+// the drift reads as searching, not strobing.
+const WANDER_SPEEDS: Vec3 = Vec3::new(7.3, 9.4, 5.1);
+// Golden angle: spreads per-beam phases so simultaneous beams desync.
+const WANDER_PHASE_STEP: f32 = 2.399;
 
 // A live laser burst, anchored each frame to the interpolated actor and
 // target entities — the server's beam tracks its target, so the wire carries
@@ -14,6 +22,9 @@ pub struct LaserBeam {
     pub actor: ActorId,
     pub target: PlayerId,
     pub remaining_secs: f32,
+    pub wander_width_fraction: f32,
+    pub wander_height_fraction: f32,
+    pub aim_height_fraction: f32,
 }
 
 pub fn spawn_laser_beam(
@@ -44,6 +55,9 @@ pub fn spawn_laser_beam(
                 actor: msg.id,
                 target: msg.target,
                 remaining_secs: msg.duration_secs,
+                wander_width_fraction: vfx.endpoint_wander_width_fraction,
+                wander_height_fraction: vfx.endpoint_wander_height_fraction,
+                aim_height_fraction: vfx.aim_height_fraction,
             },
             Mesh3d(meshes.add(Cylinder::new(vfx.beam_radius, 1.0))),
             MeshMaterial3d(material),
@@ -63,11 +77,21 @@ pub fn laser_beam_update_system(
     time: Res<Time>,
     actors: Res<ActorMap>,
     players: Res<PlayerMap>,
+    gameplay_config: Res<GameplayConfig>,
     collision_world: Option<Res<CollisionWorld>>,
     endpoints: Query<&Transform, Without<LaserBeam>>,
     mut beams: Query<(Entity, &mut LaserBeam, &mut Transform, &mut Visibility)>,
 ) {
     let delta = time.delta_secs();
+    // The target's configured bounding box: the beam anchors at its center
+    // (the player root transform) and the wander stays inside the
+    // `wander_fraction`-scaled box.
+    let target_collider = gameplay_config.player.physics().collider;
+    let target_half_extents = Vec3::new(
+        target_collider.width / 2.0,
+        target_collider.height / 2.0,
+        target_collider.depth / 2.0,
+    );
     for (entity, mut beam, mut transform, mut visibility) in &mut beams {
         beam.remaining_secs -= delta;
         let anchors = actors
@@ -81,7 +105,30 @@ pub fn laser_beam_update_system(
             continue;
         };
         let origin = actor_transform.translation;
-        let target = target_transform.translation;
+        // Drift the hit point smoothly around the target's box center so the
+        // beam reads as searching rather than pinned. Sized per axis from the
+        // configured collider box and rotated into the target's frame, so the
+        // drift stays inside the fraction-scaled box (width and depth differ).
+        // Applied before the length computation and the wall clip so a
+        // blocked beam wanders too. Damage is unaffected — the server burns
+        // the box center.
+        let phase = beam.actor.0 as f32 * WANDER_PHASE_STEP;
+        let elapsed = time.elapsed_secs();
+        let wander_local = Vec3::new(
+            (elapsed * WANDER_SPEEDS.x + phase).sin(),
+            (elapsed * WANDER_SPEEDS.y + 2.0 * phase).sin(),
+            (elapsed * WANDER_SPEEDS.z + 3.0 * phase).sin(),
+        ) * target_half_extents
+            * Vec3::new(
+                beam.wander_width_fraction,
+                beam.wander_height_fraction,
+                beam.wander_width_fraction,
+            );
+        // The anchor sits `aim_height_fraction` up the box (0.5 = center,
+        // which is what the root translation already is).
+        let anchor_y = (beam.aim_height_fraction - 0.5) * target_collider.height;
+        let aim_local = Vec3::new(0.0, anchor_y, 0.0) + wander_local;
+        let target = target_transform.translation + target_transform.rotation * aim_local;
         let full_length = origin.distance(target);
         if full_length <= f32::EPSILON {
             *visibility = Visibility::Hidden;

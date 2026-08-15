@@ -41,7 +41,10 @@
     },
     "laser": {
       "beam_radius": 0.008,
-      "emissive_brightness": 40.0
+      "emissive_brightness": 40.0,
+      "endpoint_wander_width_fraction": 0.4,
+      "endpoint_wander_height_fraction": 0.2,
+      "aim_height_fraction": 0.6
     },
     "explosions": {
       "base_duration_secs": 0.8,

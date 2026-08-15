@@ -30,6 +30,15 @@ impl Default for VfxConfig {
 pub struct LaserVfxConfig {
     pub beam_radius: f32,
     pub emissive_brightness: f32,
+    // Fraction of the target's configured collider box the beam's hit point
+    // may drift over, centered on the aim anchor — 0.5 keeps the wander
+    // inside half the box; 0.0 pins that axis static. Width covers both
+    // horizontal axes; height the vertical one.
+    pub endpoint_wander_width_fraction: f32,
+    pub endpoint_wander_height_fraction: f32,
+    // Vertical aim anchor within the target's box: 0.0 = bottom, 0.5 =
+    // center, 1.0 = top. 0.75 reads as the chest.
+    pub aim_height_fraction: f32,
 }
 
 impl Default for LaserVfxConfig {
@@ -37,6 +46,9 @@ impl Default for LaserVfxConfig {
         Self {
             beam_radius: 0.03,
             emissive_brightness: 40.0,
+            endpoint_wander_width_fraction: 0.25,
+            endpoint_wander_height_fraction: 0.25,
+            aim_height_fraction: 0.75,
         }
     }
 }
@@ -295,7 +307,16 @@ impl ActorBeamInVfxConfig {
 impl LaserVfxConfig {
     pub(super) fn validate(&self) -> Result<()> {
         validate_positive_finite(self.beam_radius, "vfx.laser.beam_radius")?;
-        validate_non_negative_finite(self.emissive_brightness, "vfx.laser.emissive_brightness")
+        validate_non_negative_finite(self.emissive_brightness, "vfx.laser.emissive_brightness")?;
+        validate_unit_ratio(
+            self.endpoint_wander_width_fraction,
+            "vfx.laser.endpoint_wander_width_fraction",
+        )?;
+        validate_unit_ratio(
+            self.endpoint_wander_height_fraction,
+            "vfx.laser.endpoint_wander_height_fraction",
+        )?;
+        validate_unit_ratio(self.aim_height_fraction, "vfx.laser.aim_height_fraction")
     }
 }
 
