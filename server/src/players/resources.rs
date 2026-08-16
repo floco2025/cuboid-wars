@@ -21,6 +21,11 @@ use common::{
 #[derive(Resource)]
 pub struct Invincibility(pub bool);
 
+// Global unlimited missile ammo. A separate flag from `Invincibility` so the
+// two effects stay independently wireable, but `/god` toggles them together.
+#[derive(Resource)]
+pub struct UnlimitedMissiles(pub bool);
+
 // Per-player progress against a single assigned quest. `completed` is
 // monotonic — once true it stays true for the rest of the session.
 #[derive(Debug, Clone)]

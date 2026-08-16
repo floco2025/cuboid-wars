@@ -1,11 +1,16 @@
 use bevy::prelude::*;
 
-use super::PlayerMap;
+use super::{PlayerMap, UnlimitedMissiles};
 use crate::network::broadcast_to_all;
-use common::protocol::ServerMessage;
+use common::{config::GameplayConfig, protocol::ServerMessage};
 
 // System to count down player power-up and stun timers
-pub fn players_status_timers_system(time: Res<Time>, mut players: ResMut<PlayerMap>) {
+pub fn players_status_timers_system(
+    time: Res<Time>,
+    mut players: ResMut<PlayerMap>,
+    unlimited_missiles: Res<UnlimitedMissiles>,
+    gameplay_config: Res<GameplayConfig>,
+) {
     let delta = time.delta_secs();
 
     let mut status_messages = Vec::new();
@@ -14,6 +19,12 @@ pub fn players_status_timers_system(time: Res<Time>, mut players: ResMut<PlayerM
         let old_status = player_info.status(*player_id);
 
         player_info.tick_timers(delta);
+        // God mode: ammo refills every tick, so firing never runs dry.
+        // Missiles ride the snapshot (not `SPlayerStatus`), so this causes
+        // no extra broadcasts.
+        if unlimited_missiles.0 {
+            player_info.missiles = gameplay_config.missiles.max_missiles;
+        }
 
         let new_status = player_info.status(*player_id);
 

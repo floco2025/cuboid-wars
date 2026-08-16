@@ -6,7 +6,7 @@ use crate::{
     config::ServerGameplayConfig,
     map::WeatherState,
     network::ServerToClient,
-    players::{Invincibility, PlayerInfo, PlayerMap},
+    players::{Invincibility, PlayerInfo, PlayerMap, UnlimitedMissiles},
 };
 use common::{
     config::GameplayConfig,
@@ -40,6 +40,7 @@ pub struct AdminContext<'w> {
     pub weather: ResMut<'w, WeatherState>,
     pub pending_explosions: ResMut<'w, PendingExplosions>,
     pub invincibility: ResMut<'w, Invincibility>,
+    pub unlimited_missiles: ResMut<'w, UnlimitedMissiles>,
     pub actors: Res<'w, ActorMap>,
     pub server_gameplay_config: Res<'w, ServerGameplayConfig>,
     pub barrier_kind_table: Res<'w, BarrierKindTable>,
@@ -165,8 +166,10 @@ fn run_admin_command(
             Err(reason) => reason.to_owned(),
         },
         AdminCommand::God(explicit) => {
-            admin.invincibility.0 = explicit.unwrap_or(!admin.invincibility.0);
-            format!("god mode {}", if admin.invincibility.0 { "on" } else { "off" })
+            let enabled = explicit.unwrap_or(!admin.invincibility.0);
+            admin.invincibility.0 = enabled;
+            admin.unlimited_missiles.0 = enabled;
+            format!("god mode {}", if enabled { "on" } else { "off" })
         }
         AdminCommand::KillAllPlayers => {
             let targets = alive_players(players, None);
