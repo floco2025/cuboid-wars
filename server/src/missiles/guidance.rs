@@ -34,6 +34,12 @@ const AVOID_YAW_DEGREES: [f32; 8] = [0.0, 45.0, -45.0, 90.0, -90.0, 135.0, -135.
 // Waypoint following along the air-graph route.
 const MISSILE_WAYPOINT_REACH_DISTANCE: f32 = 1.7;
 const MISSILE_PATH_RETRY_SECS: f32 = 0.5;
+// Weave: two incommensurate frequencies (Hz) so the corkscrew never
+// repeats cleanly; the wobble straightens out inside the fade distance so
+// terminal accuracy is unaffected.
+const WEAVE_HZ_A: f32 = 2.3;
+const WEAVE_HZ_B: f32 = 3.1;
+const WEAVE_FADE_DISTANCE: f32 = 6.0;
 // Lead-pursuit cap: don't predict the target further ahead than this.
 const MISSILE_LEAD_MAX_SECS: f32 = 1.0;
 // A per-tick displacement faster than this is a teleport (respawn), not
@@ -111,7 +117,8 @@ pub fn missiles_guidance_system(time: Res<Time>, mut params: MissileGuidancePara
                 config.radius,
             ) {
                 info.avoid_dir = None;
-                aim_point - origin
+                let elapsed = config.lifetime_secs - info.lifetime_timer;
+                weave_direction(aim_point - origin, elapsed, info.weave_phase, config.weave_strength)
             } else {
                 // No line of sight: route through the 3D airspace graph.
                 info.path_retry_timer -= delta;
@@ -292,6 +299,25 @@ fn pick_clear_direction(
         .map(|(_, candidate)| candidate)
 }
 
+// Bend the homing direction with a decaying corkscrew wobble — cosmetic
+// flight character. The perturbation is a fixed fraction of the direction
+// (constant angular amplitude) and fades to zero over the last
+// `WEAVE_FADE_DISTANCE` meters.
+fn weave_direction(to_target: Vec3, elapsed: f32, phase: f32, strength: f32) -> Vec3 {
+    let distance = to_target.length();
+    if strength <= 0.0 || distance <= f32::EPSILON {
+        return to_target;
+    }
+    let dir = to_target / distance;
+    let side = dir.any_orthonormal_vector();
+    let up_ish = dir.cross(side);
+    let fade = (distance / WEAVE_FADE_DISTANCE).clamp(0.0, 1.0);
+    let swing_a = (elapsed * WEAVE_HZ_A * std::f32::consts::TAU + phase).sin();
+    let swing_b = (elapsed * WEAVE_HZ_B * std::f32::consts::TAU + phase * 1.7).cos();
+    let wobble = (side * swing_a + up_ish * swing_b) * strength * fade;
+    (dir + wobble).normalize_or(dir) * distance
+}
+
 // Pop reached waypoints, then string-pull: while the SECOND waypoint is
 // already reachable in a straight sweep, drop the first — cell-granular BFS
 // corners fly as smooth diagonals.
@@ -415,6 +441,7 @@ mod tests {
             avoid_dir: None,
             avoid_timer: 0.0,
             last_target_center: None,
+            weave_phase: 0.0,
             lifetime_timer: 10.0,
             stall_anchor: None,
             stall_timer: 2.0,
@@ -492,6 +519,30 @@ mod tests {
         // Past the segment end the clamp holds.
         let beyond = closest_point_on_segment(start, travel, Vec3::new(0.0, 0.0, 10.0));
         assert_eq!(beyond, Vec3::new(0.0, 0.0, 2.0));
+    }
+
+    #[test]
+    fn weave_zero_strength_is_straight() {
+        let to_target = Vec3::new(3.0, 1.0, 20.0);
+        assert_eq!(weave_direction(to_target, 1.234, 0.7, 0.0), to_target);
+    }
+
+    #[test]
+    fn weave_bends_within_bounds_and_fades_when_close() {
+        let far = Vec3::Z * 30.0;
+        let bent = weave_direction(far, 0.4, 1.0, 0.35);
+        let angle = far.angle_between(bent);
+        assert!(angle > 0.0, "far from the target the path wobbles");
+        // Max deviation: |wobble| <= strength * sqrt(2).
+        assert!(angle <= (0.35_f32 * std::f32::consts::SQRT_2).atan() + 1e-3);
+        assert!((bent.length() - far.length()).abs() < 1e-3, "range is preserved");
+
+        let near = Vec3::Z * 0.5;
+        let near_bent = weave_direction(near, 0.4, 1.0, 0.35);
+        assert!(
+            near.angle_between(near_bent) < 0.35 * (0.5 / WEAVE_FADE_DISTANCE) * std::f32::consts::SQRT_2 + 1e-3,
+            "the wobble fades on final approach"
+        );
     }
 
     #[test]

@@ -1,4 +1,5 @@
 mod beam;
+mod exhaust;
 mod explosion;
 mod laser;
 mod particles;
@@ -9,6 +10,7 @@ pub use beam::{
     BeamEmitter, BeamInGhost, beam_ghost_fade_system, beam_ghost_removed_system, beam_ghost_sparkle_system,
     ghost_fade_setup_system,
 };
+pub use exhaust::missile_exhaust_system;
 pub use explosion::{
     ExplosionAssets, ExplosionRadii, ExplosionVfxBudget, explosion_lights_system, explosion_particles_system,
     explosion_pulse_system, explosion_sound_speed, scorch_marks_system, spawn_actor_explosion, spawn_missile_explosion,

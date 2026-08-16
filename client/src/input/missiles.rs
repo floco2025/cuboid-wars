@@ -15,7 +15,8 @@ use common::protocol::*;
 
 // Alternative fire (F): a seeking missile at the locked target.
 // Only fires while locked — no lock or no ammo dry-fires. There is no fire
-// cooldown: the ammo cap is the rate limit.
+// cooldown: the ammo cap is the rate limit. Launch feedback (sound + the
+// missile itself) arrives with `SMissileLaunch`, ~half an RTT later.
 // The missile itself is NOT spawned locally: the server owns the whole
 // flight and answers with `SMissileLaunch`; the immediate fire sound and the
 // predicted ammo decrement mask the round trip.
@@ -78,8 +79,7 @@ pub fn input_missile_system(
         face_dir: face_dir.0,
         face_pitch: pitch,
     })));
-    commands.spawn((
-        AudioPlayer::new(asset_server.load(asset_set.player_sound("fire").to_owned())),
-        PlaybackSettings::DESPAWN,
-    ));
+    // No launch sound here: the server may still reject the shot (target
+    // died / left range mid-flight of the message). The sound plays when
+    // `SMissileLaunch` arrives, so it can never orphan.
 }

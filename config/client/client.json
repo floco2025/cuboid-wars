@@ -30,6 +30,15 @@
         "emissive_brightness": 25.0
       }
     },
+    "missile_exhaust": {
+      "particles_per_sec": 600.0,
+      "particle_size": 0.02,
+      "particle_lifetime_secs": 0.3,
+      "emissive_brightness": 25.0,
+      "back_speed": 2.5,
+      "rise_acceleration": 1.2,
+      "jitter": 0.25
+    },
     "actor_beam_in": {
       "sparkles_per_m3_per_second": 200.0,
       "sparkle_size": 0.05,

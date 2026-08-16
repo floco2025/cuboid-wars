@@ -186,6 +186,7 @@ pub struct ParticleClouds {
     pub splashes: ParticleCloud,
     pub sparkles: ParticleCloud,
     pub sparks: ParticleCloud,
+    pub exhaust: ParticleCloud,
 }
 
 impl ParticleClouds {
@@ -195,6 +196,7 @@ impl ParticleClouds {
             &mut self.splashes,
             &mut self.sparkles,
             &mut self.sparks,
+            &mut self.exhaust,
         ]
         .into_iter()
     }
@@ -212,6 +214,7 @@ impl FromWorld for ParticleClouds {
             splashes: spawn_cloud(world, &material, "rain splashes"),
             sparkles: spawn_cloud(world, &material, "beam-in sparkles"),
             sparks: spawn_cloud(world, &material, "impact sparks"),
+            exhaust: spawn_cloud(world, &material, "missile exhaust"),
         }
     }
 }

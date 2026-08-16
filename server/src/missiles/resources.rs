@@ -26,6 +26,8 @@ pub struct MissileInfo {
     pub avoid_timer: f32,
     // Target center last tick, for the lead-pursuit velocity estimate.
     pub last_target_center: Option<Vec3>,
+    // Random phase so simultaneous missiles don't weave in lockstep.
+    pub weave_phase: f32,
     pub lifetime_timer: f32,
     pub stall_anchor: Option<Position>,
     pub stall_timer: f32,

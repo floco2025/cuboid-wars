@@ -47,8 +47,9 @@
     "lifetime_secs": 10.0,
     "radius": 0.3,
     "spawn_offset": 1.0,
-    "launch_spread_degrees": 50.0,
-    "proximity_fuse_distance": 1.5,
+    "launch_spread_degrees": 45.0,
+    "weave_strength": 0.1,
+    "proximity_fuse_distance": 1.0,
     "stall_secs": 2.0,
     "max_damage": 105.0,
     "missiles_per_pack": 1

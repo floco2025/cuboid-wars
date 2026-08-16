@@ -122,6 +122,7 @@ pub fn handle_missile_shot_message(
     );
     let velocity = launch_dir * missile_config.speed;
 
+    let weave_phase = rand::rng().random_range(0.0..TAU);
     let missile_id = missiles.allocate();
     let missile_entity = commands
         .spawn((MissileMarker, missile_id, spawn_pos, MissileVelocity(velocity)))
@@ -138,6 +139,7 @@ pub fn handle_missile_shot_message(
             avoid_dir: None,
             avoid_timer: 0.0,
             last_target_center: None,
+            weave_phase,
             lifetime_timer: missile_config.lifetime_secs,
             stall_anchor: None,
             stall_timer: missile_config.stall_secs,

@@ -233,6 +233,7 @@ mod tests {
                 radius: 0.3,
                 spawn_offset: 1.0,
                 launch_spread_degrees: 50.0,
+                weave_strength: 0.35,
                 proximity_fuse_distance: 1.5,
                 stall_secs: 2.0,
                 max_damage: 105.0,

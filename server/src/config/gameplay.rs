@@ -203,6 +203,10 @@ pub struct MissilesServerConfig {
     // Missiles leave visibly off-axis and let the steering curve them in;
     // 0 = launch straight at the aim.
     pub launch_spread_degrees: f32,
+    // Serpentine weave while homing: max angular deviation as a fraction of
+    // the flight direction (~0.35 = up to ±20°). Purely cosmetic — it fades
+    // out on final approach. 0 = fly straight at the target.
+    pub weave_strength: f32,
     // Detonate when passing within this distance of the locked target —
     // a near miss on a small, moving collider still kills via the blast
     // core instead of looping for another pass. 0 = contact only.
@@ -226,6 +230,7 @@ impl MissilesServerConfig {
                 self.launch_spread_degrees
             );
         }
+        validate_non_negative_finite(self.weave_strength, &format!("{path}.weave_strength"))?;
         validate_non_negative_finite(self.proximity_fuse_distance, &format!("{path}.proximity_fuse_distance"))?;
         validate_positive_finite(self.stall_secs, &format!("{path}.stall_secs"))?;
         validate_non_negative_finite(self.max_damage, &format!("{path}.max_damage"))?;

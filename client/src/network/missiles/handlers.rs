@@ -19,8 +19,9 @@ use common::{
 
 // A missile launched. Spawn it now — clients don't predict missile spawns,
 // so this cue is the first sight of it; a racing snapshot may already have
-// spawned it (stay idempotent). Remote launches get a spatial fire sound;
-// the shooter already played theirs at send time.
+// spawned it (stay idempotent). The launch sound plays here for everyone —
+// flat for the shooter, spatial for bystanders — so a server-rejected shot
+// never leaves an orphaned sound.
 #[expect(clippy::too_many_arguments, reason = "message handler threading dispatcher state")]
 pub fn handle_missile_launch_message(
     commands: &mut Commands,
@@ -36,9 +37,14 @@ pub fn handle_missile_launch_message(
         let entity = spawn_missile(commands, missile_assets, msg.id, &msg.movement);
         missiles.insert(msg.id, entity);
     }
-    if msg.shooter != my_player_id {
+    if msg.shooter == my_player_id {
         commands.spawn((
-            AudioPlayer::new(asset_server.load(asset_set.player_sound("fire").to_owned())),
+            AudioPlayer::new(asset_server.load(asset_set.player_sound("missile_launch").to_owned())),
+            PlaybackSettings::DESPAWN,
+        ));
+    } else {
+        commands.spawn((
+            AudioPlayer::new(asset_server.load(asset_set.player_sound("missile_launch").to_owned())),
             PlaybackSettings::DESPAWN
                 .with_spatial(true)
                 .with_spatial_scale(SpatialScale::new(audio_config.spatial_distance_scale)),

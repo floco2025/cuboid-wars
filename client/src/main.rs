@@ -65,8 +65,8 @@ use client::{
     vfx::{
         ExplosionAssets, ExplosionRadii, ExplosionVfxBudget, ParticleClouds, RainIntensity, beam_ghost_fade_system,
         beam_ghost_removed_system, beam_ghost_sparkle_system, explosion_lights_system, explosion_particles_system,
-        explosion_pulse_system, laser_beam_update_system, particle_clouds_system, rain_audio_system,
-        rain_particles_system, rain_smoothing_system, scorch_marks_system,
+        explosion_pulse_system, laser_beam_update_system, missile_exhaust_system, particle_clouds_system,
+        rain_audio_system, rain_particles_system, rain_smoothing_system, scorch_marks_system,
     },
 };
 use common::{config::GameplayConfig, constants::TICK_HZ, network::MessageStream, protocol::*};
@@ -321,6 +321,9 @@ fn main() -> Result<()> {
             (
                 projectiles_transform_sync_system,
                 missiles_transform_sync_system,
+                // Reads the freshly-synced missile transforms so the trail
+                // starts at this frame's nozzle position.
+                missile_exhaust_system.after(missiles_transform_sync_system),
                 explosion_pulse_system,
                 explosion_particles_system,
                 explosion_lights_system,

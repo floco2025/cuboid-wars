@@ -8,6 +8,7 @@ use super::settings::{validate_non_negative_finite, validate_positive_finite, va
 #[derive(Default)]
 pub struct VfxConfig {
     pub projectiles: ProjectileVfxConfig,
+    pub missile_exhaust: MissileExhaustVfxConfig,
     pub actor_beam_in: ActorBeamInVfxConfig,
     pub laser: LaserVfxConfig,
     pub explosions: ExplosionVfxConfig,
@@ -75,6 +76,36 @@ impl Default for ImpactSparksVfxConfig {
             particle_speed: 8.0,
             particle_lifetime_secs: 0.25,
             emissive_brightness: 25.0,
+        }
+    }
+}
+
+// Fire trail from missile tails. Particles are cubes like every cloud in
+// the game — keep them spark-sized or they read as floating boxes.
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(default)]
+pub struct MissileExhaustVfxConfig {
+    pub particles_per_sec: f32,
+    pub particle_size: f32,
+    pub particle_lifetime_secs: f32,
+    pub emissive_brightness: f32,
+    // Speed of gas kicked backward out of the nozzle, m/s.
+    pub back_speed: f32,
+    // Upward drift of the cooling gas, m/s².
+    pub rise_acceleration: f32,
+    pub jitter: f32,
+}
+
+impl Default for MissileExhaustVfxConfig {
+    fn default() -> Self {
+        Self {
+            particles_per_sec: 260.0,
+            particle_size: 0.05,
+            particle_lifetime_secs: 0.3,
+            emissive_brightness: 25.0,
+            back_speed: 2.5,
+            rise_acceleration: 1.2,
+            jitter: 0.25,
         }
     }
 }
@@ -230,6 +261,7 @@ impl Default for ExplosionScorchesVfxConfig {
 impl VfxConfig {
     pub(super) fn validate(&self) -> Result<()> {
         self.projectiles.validate()?;
+        self.missile_exhaust.validate()?;
         self.actor_beam_in.validate()?;
         self.laser.validate()?;
         self.explosions.validate()?;
@@ -262,6 +294,22 @@ impl ImpactSparksVfxConfig {
             self.emissive_brightness,
             "vfx.projectiles.impact_sparks.emissive_brightness",
         )?;
+        Ok(())
+    }
+}
+
+impl MissileExhaustVfxConfig {
+    pub(super) fn validate(&self) -> Result<()> {
+        validate_non_negative_finite(self.particles_per_sec, "vfx.missile_exhaust.particles_per_sec")?;
+        validate_positive_finite(self.particle_size, "vfx.missile_exhaust.particle_size")?;
+        validate_positive_finite(
+            self.particle_lifetime_secs,
+            "vfx.missile_exhaust.particle_lifetime_secs",
+        )?;
+        validate_non_negative_finite(self.emissive_brightness, "vfx.missile_exhaust.emissive_brightness")?;
+        validate_non_negative_finite(self.back_speed, "vfx.missile_exhaust.back_speed")?;
+        validate_non_negative_finite(self.rise_acceleration, "vfx.missile_exhaust.rise_acceleration")?;
+        validate_non_negative_finite(self.jitter, "vfx.missile_exhaust.jitter")?;
         Ok(())
     }
 }
