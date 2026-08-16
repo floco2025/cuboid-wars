@@ -14,7 +14,8 @@ A fast-paced multiplayer arena game built with Rust, Bevy, Rapier, and QUIC.
 Cuboid Wars is a networked 3D arena game on compact, multi-level maps.
 Players run, jump, and shoot through corridors gated by color-coded
 barriers, fight hostile mines, sentries, and laser-firing zappers that
-patrol and hunt, and chase cookies to complete quests.
+patrol and hunt, launch seeking missiles that fly the map's airspace to
+their target, and chase cookies to complete quests.
 
 The game runs an authoritative server with client-side prediction, so
 movement stays responsive while the server remains the source of truth
@@ -23,40 +24,26 @@ death/respawn flow.
 
 ## Gameplay
 
-- **Quests** — every player is auto-assigned a quest at login (v1: collect
-  10 cookies). Completing it triggers a HUD banner ("You won!") and is
-  remembered for the rest of the session.
-- **Cookies** — scattered around the map; collecting them counts toward
-  the quest and adds to your score. They respawn after a configurable
-  delay.
-- **Power-ups** — speed, multi-shot, phasing (pass through barriers
-  whose key you'd otherwise need), and low-gravity. Each lasts a
-  configurable duration after pickup. Health potions heal instantly
-  instead of running on a timer.
-- **Barriers & keys** — coloured barriers block everyone; pick up the
-  matching coloured key to walk through that colour for the rest of
-  your current life. Keys are dropped on death.
-- **Pressure plates** — some barrier colours can also be opened
-  cooperatively: while enough players stand on that colour's plates at
-  the same time, it opens for everyone — players, actors, and
-  projectiles all pass through.
-- **Actors** — mines and sentries patrol their spawn zones and chase
-  line-of-sight targets; zappers keep their distance and fire a tracking
-  laser burst, then retreat to hide. Killing any of them triggers a
-  blast that damages nearby players and other actors. Tougher actors are
-  worth more score.
-  Spawns are telegraphed: a beam-in ghost fades in at the spot for a
-  couple of seconds — visible but intangible — before the actor
-  materializes.
-- **Fall damage** — short drops are safe; longer falls scale damage
-  linearly to lethal at a configurable distance. Terminal velocity is
-  always fatal.
-- **Death & respawn** — players who hit zero health drop their keys and
-  per-life state, respawn at a fresh spawn zone after a brief delay.
-  A red full-screen tint and centered "You died!" banner mark the death
-  on the local client; a kill-feed entry surfaces it to the rest.
-- **Scoring** — per-event point deltas (kill, death, cookie, per actor
-  kind) live in `config/server/gameplay.json` and are fully tunable.
+- **Quests** — every player gets a quest at login; completing it earns a
+  "You won!" banner.
+- **Cookies** — scattered pickups worth score and quest progress.
+- **Power-ups** — timed boosts: speed, multi-shot, phasing, and
+  low-gravity. Health potions heal instantly.
+- **Seeking missiles** — grab missile packs, lock onto a player or
+  actor, and press F; the missile hunts its target through the map.
+- **Barriers & keys** — coloured barriers block everyone; the matching
+  key lets you pass for the rest of your current life.
+- **Pressure plates** — some barrier colours open for everyone while
+  enough players stand on their plates.
+- **Actors** — mines and sentries patrol and chase; zappers keep their
+  distance and fire tracking lasers. All of them explode when killed.
+- **Fall damage** — short drops are safe; long falls scale up to lethal.
+- **Death & respawn** — dying drops your keys and per-life gear; you
+  respawn at a spawn zone after a short delay.
+- **Scoring** — kills, deaths, cookies, and actor bounties all award
+  tunable point values.
+- **Weather** — rain comes and goes on a per-map schedule.
+- **Admin console** — Enter or `/`; `/help` lists the commands.
 
 ## Controls
 
@@ -67,6 +54,8 @@ death/respawn flow.
 | Jump | Space |
 | Look | mouse |
 | Shoot | left click |
+| Fire missile (needs lock-on) | F |
+| Admin console | Enter or `/` (↑/↓ history) |
 | Toggle cursor lock | Escape |
 | Cycle camera view (first-person ↔ top-down) | V |
 | Toggle level-focus (hide floors/walls on other levels) | R |
@@ -115,7 +104,8 @@ Passing a new name opens an empty map and Save creates its file — add a
 registry entry to make the server load it.
 
 The editor (PySide6) supports floors, grass, walls, ramps, barriers,
-actor/player/cookie/key spawn zones, pressure plates, lights, and per-face
+actor/player spawn zones, placed items (power-ups, health potions,
+cookies, keys, missile packs), pressure plates, lights, and per-face
 material assignment.
 
 ## License
