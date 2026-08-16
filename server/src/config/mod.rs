@@ -8,7 +8,8 @@ pub use actors::{
     ActorPatrolConfig, ActorRespawnConfig, ActorSensesConfig, ExplosionDamageConfig,
 };
 pub use gameplay::{
-    FallDamageConfig, MapServerConfig, PlacedItemRespawnSecs, PlacedItemsConfig, PlayerServerConfig, PowerUpsConfig,
-    ProjectileConfig, Quest, QuestKind, RainScheduleConfig, RandomItemsConfig, ScoringConfig, ServerGameplayConfig,
+    FallDamageConfig, MapServerConfig, MissilesServerConfig, PlacedItemRespawnSecs, PlacedItemsConfig,
+    PlayerServerConfig, PowerUpsConfig, ProjectileConfig, Quest, QuestKind, RainScheduleConfig, RandomItemsConfig,
+    ScoringConfig, ServerGameplayConfig,
 };
 pub use network::configure_server;

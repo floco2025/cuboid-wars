@@ -185,8 +185,8 @@ mod tests {
 
     use super::*;
     use crate::config::{
-        ExplosionDamageConfig, FallDamageConfig, MapServerConfig, PlacedItemRespawnSecs, PlacedItemsConfig,
-        PlayerServerConfig, PowerUpsConfig, ProjectileConfig, ScoringConfig,
+        ExplosionDamageConfig, FallDamageConfig, MapServerConfig, MissilesServerConfig, PlacedItemRespawnSecs,
+        PlacedItemsConfig, PlayerServerConfig, PowerUpsConfig, ProjectileConfig, ScoringConfig,
     };
     use crate::players::PlayerInfo;
     use tokio::sync::mpsc::unbounded_channel;
@@ -226,6 +226,18 @@ mod tests {
                 },
             },
             projectile: ProjectileConfig { damage: 25.0 },
+            missiles: MissilesServerConfig {
+                speed: 12.0,
+                turn_rate: 7.0,
+                lifetime_secs: 10.0,
+                radius: 0.3,
+                spawn_offset: 1.0,
+                launch_spread_degrees: 50.0,
+                proximity_fuse_distance: 1.5,
+                stall_secs: 2.0,
+                max_damage: 105.0,
+                missiles_per_pack: 1,
+            },
             power_ups: PowerUpsConfig {
                 speed_duration_secs: 1.0,
                 multi_shot_duration_secs: 1.0,
@@ -242,6 +254,7 @@ mod tests {
                     health_potion: 60.0,
                     cookie: 60.0,
                     key: 30.0,
+                    missile_pack: 30.0,
                 },
             },
             quests: Vec::new(),

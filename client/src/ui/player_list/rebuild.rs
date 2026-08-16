@@ -9,6 +9,7 @@ use std::hash::{Hash, Hasher};
 use super::{
     components::PlayerListMarker,
     entry::{PlayerEntryStyle, player_health, spawn_player_entry},
+    shapes::HudShapeAssets,
 };
 use crate::{
     barriers::BarrierAssets,
@@ -24,6 +25,7 @@ pub fn ui_player_list_rebuild_system(
     client_settings: Res<ClientSettings>,
     kind_table: Res<BarrierKindTable>,
     barrier_assets: Option<Res<BarrierAssets>>,
+    shapes: Res<HudShapeAssets>,
     health_query: Query<&Health>,
     player_list_ui: Single<Entity, With<PlayerListMarker>>,
     children_query: Query<&Children>,
@@ -49,8 +51,9 @@ pub fn ui_player_list_rebuild_system(
     let style = PlayerEntryStyle {
         name_font_size: client_settings.hud.font_sizes.player_list,
         score_font_size: client_settings.hud.font_sizes.score,
-        health_bar_width: client_settings.hud.health_bars.player_list_width,
+        min_entry_width: client_settings.hud.health_bars.player_list_width,
         health_bar_height: client_settings.hud.health_bars.player_list_height,
+        max_missiles: gameplay_config.missiles.max_missiles,
     };
     rebuild_player_list(
         &mut commands,
@@ -61,6 +64,7 @@ pub fn ui_player_list_rebuild_system(
         &style,
         &kind_table,
         barrier_assets.as_deref(),
+        &shapes,
         &health_query,
         &children_query,
     );
@@ -75,6 +79,7 @@ fn rebuild_player_list(
     style: &PlayerEntryStyle,
     kind_table: &BarrierKindTable,
     barrier_assets: Option<&BarrierAssets>,
+    shapes: &HudShapeAssets,
     health_query: &Query<&Health>,
     children_query: &Query<&Children>,
 ) {
@@ -100,6 +105,7 @@ fn rebuild_player_list(
             current_health,
             kind_table,
             barrier_assets,
+            shapes,
             style,
         );
         ordered_children.push(entity);
@@ -122,6 +128,7 @@ fn player_list_content_hash(players: &PlayerMap, local_player_id: Option<PlayerI
         info.score.hash(&mut hasher);
         info.power_ups.hash(&mut hasher);
         info.held_keys.hash(&mut hasher);
+        info.missiles.hash(&mut hasher);
     }
     hasher.finish()
 }
@@ -140,6 +147,7 @@ mod tests {
             power_ups: [false; PowerUpKind::COUNT],
             stunned: false,
             held_keys: Vec::new(),
+            missiles: 0,
             snap_speed: 0.0,
         }
     }
@@ -183,6 +191,11 @@ mod tests {
         with_power_up.power_ups[PowerUpKind::Speed.index()] = true;
         let powered = map(vec![(1, with_power_up)]);
         assert_ne!(player_list_content_hash(&powered, Some(PlayerId(1))), base_hash);
+
+        let mut with_missiles = player("alice", 3);
+        with_missiles.missiles = 2;
+        let armed = map(vec![(1, with_missiles)]);
+        assert_ne!(player_list_content_hash(&armed, Some(PlayerId(1))), base_hash);
 
         let joined = map(vec![(1, player("alice", 3)), (2, player("bob", 0))]);
         assert_ne!(player_list_content_hash(&joined, Some(PlayerId(1))), base_hash);

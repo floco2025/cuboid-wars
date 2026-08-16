@@ -14,7 +14,7 @@ use crate::{
     actors::ActorMap,
     config::{ExplosionDamageConfig, ServerGameplayConfig},
     network::ServerToClient,
-    players::{Invincibility, PlayerMap},
+    players::{Invincibility, PlayerMap, QuestEvent, record_quest_event},
 };
 
 type PlayerBlastQuery<'w, 's> = Query<
@@ -63,6 +63,7 @@ pub struct ExplosionContext<'w, 's> {
 enum BlastSource {
     Player(PlayerId),
     Actor(ActorId),
+    Missile(PlayerId),
 }
 
 #[derive(Clone, Copy)]
@@ -71,6 +72,9 @@ struct BlastSpec {
     center: Vec3,
     excluded_actor: Option<Entity>,
     damage: ExplosionDamageConfig,
+    // Player credited for blast kills. Death blasts credit no one; a missile
+    // blast credits its shooter.
+    killer: Option<PlayerId>,
 }
 
 struct DeadPlayer {
@@ -125,6 +129,17 @@ pub fn explosions_system(mut context: ExplosionContext) {
             if let Some(victim) = context.players.get_mut(&death.id) {
                 victim.score += context.server_gameplay_config.scoring.player_death;
             }
+            // No credit for self-kills or departed shooters. Award the kill
+            // bonus before `kill_player` so the `SPlayerDeath` cue carries
+            // the post-kill killer score.
+            let killer = spec
+                .killer
+                .filter(|k| *k != death.id && context.players.get(k).is_some());
+            if let Some(killer_id) = killer
+                && let Some(shooter) = context.players.get_mut(&killer_id)
+            {
+                shooter.score += context.server_gameplay_config.scoring.player_kill;
+            }
             kill_player(
                 &mut context.commands,
                 &mut context.players,
@@ -132,13 +147,32 @@ pub fn explosions_system(mut context: ExplosionContext) {
                 death.entity,
                 death.pos,
                 respawn_delay_secs,
-                None,
+                killer,
                 &mut context.pending,
             );
         }
 
         for death in outcome.dead_actors {
             actor_impulses.remove(&death.id);
+            let killer = spec.killer.filter(|k| context.players.get(k).is_some());
+            if let Some(killer_id) = killer
+                && let Some(kind) = context.actors.get(&death.id).map(|info| info.spawn_kind.clone())
+                && let Some(shooter) = context.players.get_mut(&killer_id)
+            {
+                shooter.score += context
+                    .server_gameplay_config
+                    .validated_actor(&kind)
+                    .combat
+                    .score_reward_on_kill;
+                let quest_messages = record_quest_event(
+                    shooter,
+                    &context.server_gameplay_config.quests,
+                    QuestEvent::ActorKilled { kind: &kind },
+                );
+                for msg in quest_messages {
+                    let _ = shooter.channel.send(ServerToClient::Send(msg));
+                }
+            }
             if kill_actor(
                 &mut context.commands,
                 &mut context.actors,
@@ -147,7 +181,7 @@ pub fn explosions_system(mut context: ExplosionContext) {
                 death.id,
                 death.entity,
                 death.pos,
-                None,
+                killer,
             ) {
                 info!("{:?} died in {}", death.id, source_description(spec.source));
             }
@@ -165,6 +199,7 @@ fn blast_spec(pending: PendingExplosion, gameplay: &GameplayConfig, server: &Ser
             center: character_center(pos, gameplay.player.physics()),
             excluded_actor: None,
             damage: server.player.explosion,
+            killer: None,
         },
         PendingExplosion::Actor {
             source_id,
@@ -176,6 +211,18 @@ fn blast_spec(pending: PendingExplosion, gameplay: &GameplayConfig, server: &Ser
             center: character_center(pos, gameplay.validated_actor(&spawn_kind).physics()),
             excluded_actor: Some(source_entity),
             damage: server.validated_actor(&spawn_kind).combat.explosion,
+            killer: None,
+        },
+        PendingExplosion::Missile { shooter, pos } => BlastSpec {
+            source: BlastSource::Missile(shooter),
+            // The detonation point itself — a missile has no character body.
+            center: Vec3::from(pos),
+            excluded_actor: None,
+            damage: ExplosionDamageConfig {
+                radius: gameplay.missiles.blast_radius,
+                max_damage: server.missiles.max_damage,
+            },
+            killer: Some(shooter),
         },
     }
 }
@@ -369,6 +416,7 @@ fn source_description(source: BlastSource) -> String {
     match source {
         BlastSource::Player(id) => format!("{:?}'s death explosion", id),
         BlastSource::Actor(id) => format!("{:?}'s explosion", id),
+        BlastSource::Missile(id) => format!("{:?}'s missile explosion", id),
     }
 }
 
@@ -381,7 +429,7 @@ mod tests {
         characters::characters_health_regeneration_system,
         players::PlayerInfo,
     };
-    use common::protocol::{ActorMoveIntent, BarrierKindTable, MapLayout};
+    use common::protocol::{ActorMoveIntent, BarrierKindTable, MapLayout, SPlayerDeath};
     use tokio::sync::mpsc::unbounded_channel;
 
     fn test_app() -> App {
@@ -561,5 +609,131 @@ mod tests {
         assert!(message.velocity_z.abs() < 0.001);
         assert!(message.strength > 0.0);
         assert!(receiver.try_recv().is_err());
+    }
+
+    fn spawn_logged_in_player(
+        app: &mut App,
+        id: PlayerId,
+        x: f32,
+        health: f32,
+    ) -> (Entity, tokio::sync::mpsc::UnboundedReceiver<ServerToClient>) {
+        let entity = app
+            .world_mut()
+            .spawn((
+                PlayerMarker,
+                id,
+                Position { x, ..default() },
+                Health(health),
+                CharacterVerticalVelocity::default(),
+            ))
+            .id();
+        let (sender, receiver) = unbounded_channel();
+        let mut info = PlayerInfo::new(entity, sender);
+        info.logged_in = true;
+        app.world_mut().resource_mut::<PlayerMap>().insert(id, info);
+        (entity, receiver)
+    }
+
+    fn next_player_death(receiver: &mut tokio::sync::mpsc::UnboundedReceiver<ServerToClient>) -> SPlayerDeath {
+        loop {
+            match receiver.try_recv().expect("expected a PlayerDeath broadcast") {
+                ServerToClient::Send(ServerMessage::PlayerDeath(msg)) => return msg,
+                _ => continue,
+            }
+        }
+    }
+
+    #[test]
+    fn missile_blast_awards_shooter_player_kill_credit() {
+        let mut app = test_app();
+        app.add_systems(Update, explosions_system);
+        let shooter_id = PlayerId(1);
+        let victim_id = PlayerId(2);
+        // Shooter far outside the blast so only the victim dies.
+        let (_, mut shooter_rx) = spawn_logged_in_player(&mut app, shooter_id, 100.0, 100.0);
+        spawn_logged_in_player(&mut app, victim_id, 0.0, 1.0);
+        app.world_mut()
+            .resource_mut::<PendingExplosions>()
+            .push_missile(shooter_id, Position::default());
+
+        app.update();
+
+        let scoring = app.world().resource::<ServerGameplayConfig>().scoring.clone();
+        let players = app.world().resource::<PlayerMap>();
+        let shooter_score = players.get(&shooter_id).expect("shooter still present").score;
+        assert_eq!(shooter_score, scoring.player_kill);
+        assert_eq!(
+            players.get(&victim_id).expect("victim still present").score,
+            scoring.player_death
+        );
+
+        let death = next_player_death(&mut shooter_rx);
+        assert_eq!(death.id, victim_id);
+        assert_eq!(death.killer, Some(shooter_id));
+        assert_eq!(death.killer_score, Some(scoring.player_kill));
+    }
+
+    #[test]
+    fn missile_self_blast_awards_no_credit() {
+        let mut app = test_app();
+        app.add_systems(Update, explosions_system);
+        let shooter_id = PlayerId(1);
+        let (_, mut shooter_rx) = spawn_logged_in_player(&mut app, shooter_id, 0.0, 1.0);
+        app.world_mut()
+            .resource_mut::<PendingExplosions>()
+            .push_missile(shooter_id, Position::default());
+
+        app.update();
+
+        let scoring = app.world().resource::<ServerGameplayConfig>().scoring.clone();
+        let players = app.world().resource::<PlayerMap>();
+        assert_eq!(
+            players.get(&shooter_id).expect("shooter still present").score,
+            scoring.player_death,
+            "self-kill takes the death penalty but earns no kill bonus"
+        );
+
+        let death = next_player_death(&mut shooter_rx);
+        assert_eq!(death.id, shooter_id);
+        assert_eq!(death.killer, None);
+    }
+
+    #[test]
+    fn missile_blast_kills_actor_with_shooter_credit() {
+        let mut app = test_app();
+        app.add_systems(Update, explosions_system);
+        let shooter_id = PlayerId(1);
+        let (_, mut shooter_rx) = spawn_logged_in_player(&mut app, shooter_id, 100.0, 100.0);
+        spawn_actor(&mut app, ActorId(1), 0.0, 1.0);
+        app.world_mut()
+            .resource_mut::<PendingExplosions>()
+            .push_missile(shooter_id, Position::default());
+
+        app.update();
+
+        let reward = app
+            .world()
+            .resource::<ServerGameplayConfig>()
+            .validated_actor("zapper")
+            .combat
+            .score_reward_on_kill;
+        assert_eq!(
+            app.world()
+                .resource::<PlayerMap>()
+                .get(&shooter_id)
+                .expect("shooter still present")
+                .score,
+            reward
+        );
+
+        let death = loop {
+            match shooter_rx.try_recv().expect("expected an ActorDeath broadcast") {
+                ServerToClient::Send(ServerMessage::ActorDeath(msg)) => break msg,
+                _ => continue,
+            }
+        };
+        assert_eq!(death.id, ActorId(1));
+        assert_eq!(death.killer, Some(shooter_id));
+        assert_eq!(death.killer_score, Some(reward));
     }
 }

@@ -4,6 +4,7 @@ use std::collections::HashSet;
 use crate::{
     barriers::BarrierAssets,
     items::{ItemAssets, ItemInfo, ItemMap, spawn_item},
+    missiles::MissileAssets,
 };
 use common::protocol::*;
 
@@ -16,6 +17,7 @@ pub fn sync_items(
     commands: &mut Commands,
     item_assets: &ItemAssets,
     barrier_assets: &BarrierAssets,
+    missile_assets: &MissileAssets,
     items: &mut ResMut<ItemMap>,
     server_items: &[(ItemId, Item)],
 ) {
@@ -30,6 +32,7 @@ pub fn sync_items(
             commands,
             item_assets,
             barrier_assets,
+            missile_assets,
             *item_id,
             item.item_type,
             &item.pos,

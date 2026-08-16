@@ -1,3 +1,4 @@
+use bevy_math::Vec3;
 use rapier3d::{
     parry::{
         query::{ShapeCastOptions, cast_shapes, intersection_test},
@@ -54,13 +55,34 @@ pub fn projectile_character_hit(
     character_face_dir: f32,
     character_physics: CharacterPhysicsConfig,
 ) -> Option<ProjectileCharacterHit> {
-    let projectile_shape = Ball::new(PROJECTILE_RADIUS);
+    ball_character_hit(
+        proj_pos,
+        proj_motion.velocity,
+        PROJECTILE_RADIUS,
+        delta,
+        character_pos,
+        character_face_dir,
+        character_physics,
+    )
+}
+
+#[must_use]
+pub fn ball_character_hit(
+    ball_pos: &Position,
+    ball_velocity: Vec3,
+    ball_radius: f32,
+    delta: f32,
+    character_pos: &Position,
+    character_face_dir: f32,
+    character_physics: CharacterPhysicsConfig,
+) -> Option<ProjectileCharacterHit> {
+    let ball_shape = Ball::new(ball_radius);
     let character_collider = character_shape(character_physics);
-    let projectile_pose = Pose::translation(proj_pos.x, proj_pos.y, proj_pos.z);
-    let projectile_velocity = Vector::new(
-        proj_motion.velocity.x * delta,
-        proj_motion.velocity.y * delta,
-        proj_motion.velocity.z * delta,
+    let ball_pose = Pose::translation(ball_pos.x, ball_pos.y, ball_pos.z);
+    let ball_translation = Vector::new(
+        ball_velocity.x * delta,
+        ball_velocity.y * delta,
+        ball_velocity.z * delta,
     );
     let character_pose = oriented_character_pose(character_pos, character_face_dir, character_physics);
     let options = ShapeCastOptions {
@@ -69,9 +91,9 @@ pub fn projectile_character_hit(
     };
 
     let hit = cast_shapes(
-        &projectile_pose,
-        projectile_velocity,
-        &projectile_shape,
+        &ball_pose,
+        ball_translation,
+        &ball_shape,
         &character_pose,
         Vector::ZERO,
         &character_collider,
@@ -80,9 +102,9 @@ pub fn projectile_character_hit(
     .ok()
     .flatten()?;
 
-    let vel_len = proj_motion.velocity.x.hypot(proj_motion.velocity.z);
+    let vel_len = ball_velocity.x.hypot(ball_velocity.z);
     let (x, z) = if vel_len > 0.0 {
-        (proj_motion.velocity.x / vel_len, proj_motion.velocity.z / vel_len)
+        (ball_velocity.x / vel_len, ball_velocity.z / vel_len)
     } else {
         (0.0, 0.0)
     };
@@ -103,18 +125,29 @@ pub fn projectile_overlaps_character(
     character_face_dir: f32,
     character_physics: CharacterPhysicsConfig,
 ) -> bool {
-    let projectile_shape = Ball::new(PROJECTILE_RADIUS);
+    ball_overlaps_character(
+        proj_pos,
+        PROJECTILE_RADIUS,
+        character_pos,
+        character_face_dir,
+        character_physics,
+    )
+}
+
+#[must_use]
+pub fn ball_overlaps_character(
+    ball_pos: &Position,
+    ball_radius: f32,
+    character_pos: &Position,
+    character_face_dir: f32,
+    character_physics: CharacterPhysicsConfig,
+) -> bool {
+    let ball_shape = Ball::new(ball_radius);
     let character_collider = character_shape(character_physics);
-    let projectile_pose = Pose::translation(proj_pos.x, proj_pos.y, proj_pos.z);
+    let ball_pose = Pose::translation(ball_pos.x, ball_pos.y, ball_pos.z);
     let character_pose = oriented_character_pose(character_pos, character_face_dir, character_physics);
 
-    intersection_test(
-        &projectile_pose,
-        &projectile_shape,
-        &character_pose,
-        &character_collider,
-    )
-    .is_ok_and(|overlaps| overlaps)
+    intersection_test(&ball_pose, &ball_shape, &character_pose, &character_collider).is_ok_and(|overlaps| overlaps)
 }
 
 fn oriented_character_pose(pos: &Position, face_dir: f32, physics: CharacterPhysicsConfig) -> Pose {

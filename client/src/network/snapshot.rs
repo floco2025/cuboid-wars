@@ -5,6 +5,7 @@ use super::{
     actors::{sync_actors, sync_spawning_actors},
     components::{AssetManagers, ClientAssets},
     items::sync_items,
+    missiles::sync_missiles,
     players::sync_players,
 };
 use crate::{
@@ -92,8 +93,17 @@ pub(super) fn handle_snapshot_message(
         commands,
         &client_assets.item_assets,
         &client_assets.barrier_assets,
+        &client_assets.missile_assets,
         items,
         &msg.items,
+    );
+    sync_missiles(
+        commands,
+        &client_assets.missile_assets,
+        &mut client_assets.missile_map,
+        rtt,
+        &client_assets.missile_data,
+        &msg.missiles,
     );
 
     // Snapshot is the system of record for open-by-plate kinds. Server sends

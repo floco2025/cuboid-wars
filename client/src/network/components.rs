@@ -1,7 +1,7 @@
 use bevy::{ecs::system::SystemParam, prelude::*};
 use common::{
     config::GameplayConfig,
-    protocol::{BarrierKindTable, MapLayout, Position},
+    protocol::{BarrierKindTable, MapLayout, MissileMarker, Position},
 };
 
 use crate::{
@@ -9,6 +9,7 @@ use crate::{
     barriers::BarrierAssets,
     config::{AssetSet, ClientSettings},
     items::ItemAssets,
+    missiles::MissileAssets,
     network::resources::RoundTripTime,
     players::LocalPlayerInfo,
     projectiles::ProjectileAssets,
@@ -127,7 +128,7 @@ pub struct AssetManagers<'w> {
 }
 
 #[derive(SystemParam)]
-pub struct ClientAssets<'w> {
+pub struct ClientAssets<'w, 's> {
     pub asset_server: Res<'w, AssetServer>,
     pub asset_set: Res<'w, AssetSet>,
     pub client_settings: Res<'w, ClientSettings>,
@@ -148,4 +149,7 @@ pub struct ClientAssets<'w> {
     pub rain_intensity: ResMut<'w, crate::vfx::RainIntensity>,
     pub actor_ghosts: ResMut<'w, ActorGhostMap>,
     pub pending_banner: ResMut<'w, PendingBanner>,
+    pub missile_assets: Res<'w, MissileAssets>,
+    pub missile_map: ResMut<'w, crate::missiles::MissileMap>,
+    pub missile_data: Query<'w, 's, &'static Position, With<MissileMarker>>,
 }

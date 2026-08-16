@@ -13,6 +13,7 @@ const SUPPORTED_VERSION: u32 = 1;
 pub struct GameplayConfig {
     pub version: u32,
     pub player: PlayerGameplayConfig,
+    pub missiles: MissilesConfig,
     pub actors: HashMap<String, ActorGameplayConfig>,
     // Ordered list of barrier / key kind ids. Order is the stable
     // `BarrierKindId` index used on the wire. Visuals (colors) live in
@@ -48,6 +49,7 @@ impl GameplayConfig {
             SUPPORTED_VERSION
         );
         self.player.validate("player")?;
+        self.missiles.validate("missiles")?;
         if self.actors.is_empty() {
             bail!("actors must define at least one kind");
         }
@@ -68,6 +70,30 @@ impl GameplayConfig {
     #[must_use]
     pub fn validated_actor(&self, kind: &str) -> &ActorGameplayConfig {
         self.actor(kind).expect("actor kind missing from gameplay config")
+    }
+}
+
+// Missile tuning both sides need: the client for lock detection, the HUD max,
+// dry-fire prediction, and detonation VFX sizing; the server for validation
+// and blast damage radius. Server-only flight tuning lives in
+// `config/server/gameplay.json`.
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct MissilesConfig {
+    pub lock_max_distance: f32,
+    // Aim-assist: how far the aim ray may pass from a target and still lock.
+    pub lock_assist_radius: f32,
+    pub max_missiles: u32,
+    pub blast_radius: f32,
+}
+
+impl MissilesConfig {
+    fn validate(&self, path: &str) -> Result<()> {
+        validate_positive_finite(self.lock_max_distance, &format!("{path}.lock_max_distance"))?;
+        validate_positive_finite(self.lock_assist_radius, &format!("{path}.lock_assist_radius"))?;
+        if self.max_missiles == 0 {
+            bail!("{path}.max_missiles must be at least 1");
+        }
+        validate_positive_finite(self.blast_radius, &format!("{path}.blast_radius"))
     }
 }
 
@@ -289,4 +315,44 @@ fn validate_non_negative_finite(value: f32, path: &str) -> Result<()> {
         return Ok(());
     }
     bail!("{path} must be non-negative and finite, got {value}");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const fn missiles_config() -> MissilesConfig {
+        MissilesConfig {
+            lock_max_distance: 60.0,
+            lock_assist_radius: 1.2,
+            max_missiles: 3,
+            blast_radius: 6.0,
+        }
+    }
+
+    #[test]
+    fn missiles_config_accepts_valid_values() {
+        assert!(missiles_config().validate("missiles").is_ok());
+    }
+
+    #[test]
+    fn missiles_config_rejects_zero_max_missiles() {
+        let config = MissilesConfig {
+            max_missiles: 0,
+            ..missiles_config()
+        };
+        let err = config
+            .validate("missiles")
+            .expect_err("zero max_missiles passed validation");
+        assert!(err.to_string().contains("max_missiles"));
+    }
+
+    #[test]
+    fn missiles_config_rejects_non_positive_lock_distance() {
+        let config = MissilesConfig {
+            lock_max_distance: 0.0,
+            ..missiles_config()
+        };
+        assert!(config.validate("missiles").is_err());
+    }
 }

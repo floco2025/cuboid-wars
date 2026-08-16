@@ -140,7 +140,7 @@
     "health_bars": {
       "floating_player_aspect": 0.056,
       "floating_actor_aspect": 0.129,
-      "player_list_width": 160.0,
+      "player_list_width": 140.0,
       "player_list_height": 8.0
     },
     "banner": {

@@ -19,7 +19,7 @@ use super::colliders::{
     insert_wall_collider, query_filter, world_collision_groups,
 };
 
-pub(crate) use super::shape_cast::ShapeCastHit;
+pub use super::shape_cast::ShapeCastHit;
 use super::shape_cast::upward_surface_hit;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -143,7 +143,7 @@ impl CollisionWorld {
     // Barriers terminate projectiles via `cast_moving_ball_against_barriers`
     // instead, so they're filtered out here.
     #[must_use]
-    pub(crate) fn cast_moving_ball(&self, position: Vec3, translation: Vec3, radius: f32) -> Option<ShapeCastHit> {
+    pub fn cast_moving_ball(&self, position: Vec3, translation: Vec3, radius: f32) -> Option<ShapeCastHit> {
         self.cast_moving_ball_with_filter(position, translation, radius, world_collision_groups())
     }
 
@@ -152,7 +152,7 @@ impl CollisionWorld {
     // held open by pressure plates) are dropped from the filter, so shots
     // fly through the gap a plate creates.
     #[must_use]
-    pub(crate) fn cast_moving_ball_against_barriers(
+    pub fn cast_moving_ball_against_barriers(
         &self,
         position: Vec3,
         translation: Vec3,

@@ -2,12 +2,15 @@ use bevy::prelude::*;
 
 use super::{
     console::spawn_console,
-    hud::{CrosshairMarker, FpsMarker, RttMarker},
+    hud::{CrosshairBarMarker, CrosshairMarker, FpsMarker, RttMarker},
     message_feed::spawn_message_feed_root,
     player_list::PlayerListMarker,
     quest_panel::QuestPanelMarker,
 };
-use crate::{config::ClientSettings, constants::HUD_EDGE_MARGIN_PX};
+use crate::{
+    config::ClientSettings,
+    constants::{CROSSHAIR_COLOR, CROSSHAIR_SIZE_PX, CROSSHAIR_THICKNESS_PX, HUD_EDGE_MARGIN_PX},
+};
 
 // Marker for the death overlay — a red translucent full-screen panel shown
 // while the local player is dead.
@@ -51,9 +54,9 @@ pub fn setup_ui_system(mut commands: Commands, client_settings: Res<ClientSettin
         },
     ));
 
-    let crosshair_size = 20.0;
-    let crosshair_thickness = 2.0;
-    let crosshair_color = Color::srgba(1.0, 1.0, 1.0, 0.8);
+    let crosshair_size = CROSSHAIR_SIZE_PX;
+    let crosshair_thickness = CROSSHAIR_THICKNESS_PX;
+    let crosshair_color = CROSSHAIR_COLOR;
 
     commands
         .spawn((
@@ -71,6 +74,7 @@ pub fn setup_ui_system(mut commands: Commands, client_settings: Res<ClientSettin
         ))
         .with_children(|parent| {
             parent.spawn((
+                CrosshairBarMarker,
                 Node {
                     position_type: PositionType::Absolute,
                     left: Val::Px(-crosshair_size / 2.0),
@@ -82,6 +86,7 @@ pub fn setup_ui_system(mut commands: Commands, client_settings: Res<ClientSettin
                 BackgroundColor(crosshair_color),
             ));
             parent.spawn((
+                CrosshairBarMarker,
                 Node {
                     position_type: PositionType::Absolute,
                     left: Val::Px(-crosshair_thickness / 2.0),

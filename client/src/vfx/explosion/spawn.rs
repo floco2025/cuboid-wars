@@ -95,6 +95,37 @@ pub fn spawn_player_explosion(
     );
 }
 
+// A missile detonation: the blast origin is the detonation point itself (no
+// character body), radius from the shared missiles config.
+pub fn spawn_missile_explosion(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    budget: &mut ExplosionVfxBudget,
+    explosion_assets: &ExplosionAssets,
+    gameplay_config: &GameplayConfig,
+    collision_world: Option<&CollisionWorld>,
+    map_layout: Option<&MapLayout>,
+    pos: Position,
+) {
+    let blast_radius = gameplay_config.missiles.blast_radius;
+    spawn_explosion(
+        commands,
+        meshes,
+        materials,
+        budget,
+        explosion_assets,
+        ExplosionSpec {
+            center: Vec3::from(pos),
+            ground_y: pos.y,
+            fireball_diameter: 2.0 * blast_radius * explosion_assets.config.fireball.blast_diameter_factor,
+            blast_radius: Some(blast_radius),
+        },
+        collision_world,
+        map_layout,
+    );
+}
+
 // Six layers: fireball flash, ground shockwave ring, scorch mark, debris
 // shard burst, smoke, and a fading point light. `center` is the blast origin
 // (collider center); `ground_y` anchors the ring at the victim's feet.

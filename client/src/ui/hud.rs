@@ -1,7 +1,13 @@
 use bevy::{prelude::*, ui::UiScale, window::PrimaryWindow};
 use std::time::Duration;
 
-use crate::{cameras::CameraViewMode, config::ClientSettings, constants::HUD_MIN_SCALE, network::RoundTripTime};
+use crate::{
+    cameras::CameraViewMode,
+    config::ClientSettings,
+    constants::{CROSSHAIR_COLOR, CROSSHAIR_LOCK_COLOR, HUD_MIN_SCALE},
+    missiles::LockOnTarget,
+    network::RoundTripTime,
+};
 
 // FPS measurement tracking.
 #[derive(Resource, Default)]
@@ -15,6 +21,10 @@ pub struct FpsMeasurement {
 #[derive(Component)]
 pub struct CrosshairMarker;
 
+// Marker for the two crosshair bars; their color flips on missile lock.
+#[derive(Component)]
+pub struct CrosshairBarMarker;
+
 // Marker for the RTT (round-trip time) text node in the HUD.
 #[derive(Component)]
 pub struct RttMarker;
@@ -22,6 +32,25 @@ pub struct RttMarker;
 // Marker for the FPS counter text node in the HUD.
 #[derive(Component)]
 pub struct FpsMarker;
+
+pub fn ui_crosshair_lock_system(
+    lock: Res<LockOnTarget>,
+    mut bars: Query<&mut BackgroundColor, With<CrosshairBarMarker>>,
+) {
+    if !lock.is_changed() {
+        return;
+    }
+    let want = if lock.0.is_some() {
+        CROSSHAIR_LOCK_COLOR
+    } else {
+        CROSSHAIR_COLOR
+    };
+    for mut bar in &mut bars {
+        if bar.0 != want {
+            bar.0 = want;
+        }
+    }
+}
 
 pub fn ui_rtt_system(rtt: Res<RoundTripTime>, mut query: Single<&mut Text, With<RttMarker>>) {
     if !rtt.is_changed() {

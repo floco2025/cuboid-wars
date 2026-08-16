@@ -34,6 +34,10 @@ impl ActorMap {
         self.0.get(id)
     }
 
+    pub fn iter(&self) -> impl Iterator<Item = (&ActorId, &ActorInfo)> {
+        self.0.iter()
+    }
+
     pub fn retain(&mut self, f: impl FnMut(&ActorId, &mut ActorInfo) -> bool) {
         self.0.retain(f);
     }

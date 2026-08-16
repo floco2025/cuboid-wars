@@ -4,6 +4,7 @@ mod io;
 mod items;
 mod login;
 mod messages;
+mod missiles;
 mod players;
 mod quests;
 mod resources;

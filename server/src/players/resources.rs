@@ -40,6 +40,9 @@ pub struct PlayerInfo {
     pub power_up_timers: [f32; PowerUpKind::COUNT],
     pub stun_timer: f32,
     pub last_shot_time: f32,
+    // Missile ammo, collected from `missile_pack` items up to the configured
+    // max. Per-life like `held_keys`. No fire cooldown — ammo is the limit.
+    pub missiles: u32,
     // Permanent inventory: a key, once collected, stays held. Kept sorted
     // ascending so the encoded `SPlayerStatus` bytes are deterministic and
     // the client can change-detect via a single equality check.
@@ -77,6 +80,7 @@ impl PlayerInfo {
             power_up_timers: [0.0; PowerUpKind::COUNT],
             stun_timer: 0.0,
             last_shot_time: f32::NEG_INFINITY,
+            missiles: 0,
             held_keys: Vec::new(),
             death_timer: None,
             quest_states: HashMap::new(),
@@ -105,6 +109,7 @@ impl PlayerInfo {
         // Otherwise a player killed with a hot cooldown respawns and can
         // fire before their cooldown would otherwise have ticked down.
         self.last_shot_time = f32::NEG_INFINITY;
+        self.missiles = 0;
         // A respawning player shouldn't inherit the dying player's fall
         // momentum — they'd take damage on their first landing.
         self.peak_fall_speed = 0.0;
@@ -185,6 +190,21 @@ impl PlayerInfo {
         Some(self.has_multi_shot())
     }
 
+    // Consumes one missile on success.
+    pub fn try_start_missile(&mut self) -> bool {
+        if self.missiles == 0 {
+            return false;
+        }
+        self.missiles -= 1;
+        true
+    }
+
+    // Returns the post-add count.
+    pub fn add_missiles(&mut self, count: u32, max: u32) -> u32 {
+        self.missiles = self.missiles.saturating_add(count).min(max);
+        self.missiles
+    }
+
     #[must_use]
     pub fn status(&self, id: PlayerId) -> SPlayerStatus {
         SPlayerStatus {
@@ -213,6 +233,7 @@ impl PlayerInfo {
             power_ups: self.active_power_ups(),
             stunned: self.is_stunned(),
             held_keys: self.held_keys.clone(),
+            missiles: self.missiles,
         }
     }
 
@@ -453,6 +474,36 @@ mod tests {
     }
 
     #[test]
+    fn try_start_missile_requires_ammo() {
+        let mut info = dummy_info();
+        assert!(!info.try_start_missile(), "no ammo");
+
+        info.add_missiles(2, 3);
+        assert!(info.try_start_missile());
+        assert!(info.try_start_missile());
+        assert_eq!(info.missiles, 0);
+        assert!(!info.try_start_missile(), "magazine empty");
+    }
+
+    #[test]
+    fn add_missiles_clamps_at_max() {
+        let mut info = dummy_info();
+        assert_eq!(info.add_missiles(2, 3), 2);
+        assert_eq!(info.add_missiles(5, 3), 3);
+        assert_eq!(info.missiles, 3);
+    }
+
+    #[test]
+    fn clear_per_life_state_zeroes_missiles() {
+        let mut info = dummy_info();
+        info.add_missiles(3, 3);
+
+        info.clear_per_life_state();
+
+        assert_eq!(info.missiles, 0);
+    }
+
+    #[test]
     fn snapshot_player_uses_same_status_fields_as_status_message() {
         let mut info = dummy_info();
         info.name = "Alice".to_owned();
@@ -462,6 +513,7 @@ mod tests {
         info.stun_timer = 0.5;
         info.add_key(BarrierKindId(1));
         info.add_key(BarrierKindId(3));
+        info.add_missiles(2, 3);
         let id = PlayerId(7);
         let pos = Position { x: 1.0, y: 2.0, z: 3.0 };
         let move_intent = PlayerMoveIntent::Running { direction: 0.25 };
@@ -482,6 +534,7 @@ mod tests {
         assert_eq!(player.power_ups, status.power_ups);
         assert_eq!(player.stunned, status.stunned);
         assert_eq!(player.held_keys, status.held_keys);
+        assert_eq!(player.missiles, 2);
     }
 
     fn cookies_quest(id: &str, threshold: u32) -> Quest {

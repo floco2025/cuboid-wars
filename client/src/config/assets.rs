@@ -107,6 +107,7 @@ impl AssetSet {
             ItemType::LowGravityPowerUp => "LowGravityPowerUp",
             ItemType::HealthPotion => "HealthPotion",
             ItemType::Cookie => "Cookie",
+            ItemType::MissilePack => "MissilePack",
             // Keys reuse the per-color barrier materials directly; no entry
             // in the `item_materials` table is expected.
             ItemType::Key(_) => unreachable!("keys do not use AssetSet::material_for_item"),

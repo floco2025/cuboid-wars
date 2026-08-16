@@ -225,6 +225,9 @@ pub fn handle_player_death_message(
     // of record; this just cuts the latency.
     if let Some(info) = players.get_mut(&msg.id) {
         info.score = msg.victim_score;
+        // The server zeroes missiles in `clear_per_life_state`; mirror it
+        // here so the ammo HUD resets on the death tick.
+        info.missiles = 0;
     }
     if let (Some(killer_id), Some(killer_score)) = (msg.killer, msg.killer_score)
         && let Some(killer_info) = players.get_mut(&killer_id)
@@ -404,6 +407,7 @@ mod tests {
             stunned: false,
             snap_speed: 0.0,
             held_keys: Vec::new(),
+            missiles: 0,
         }
     }
 

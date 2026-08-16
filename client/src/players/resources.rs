@@ -19,6 +19,9 @@ pub struct PlayerInfo {
     // Sorted ascending so HUD icon order is stable and the change-detection
     // diff is a single equality test.
     pub held_keys: Vec<BarrierKindId>,
+    // Missile ammo, mirrored from the snapshot (`SMissilesCollected` and the
+    // local fire prediction update it early; the snapshot self-heals).
+    pub missiles: u32,
     // Recon snap-threshold high-water-mark; updated each tick in
     // `plan_player_moves`. See `RECON_PLAYER_SNAP_DECAY_SECS`.
     pub snap_speed: f32,
@@ -34,6 +37,7 @@ impl PlayerInfo {
             power_ups: [false; PowerUpKind::COUNT],
             stunned: false,
             held_keys: Vec::new(),
+            missiles: 0,
             snap_speed: 0.0,
         };
         info.apply_snapshot(player);
@@ -46,6 +50,7 @@ impl PlayerInfo {
         self.power_ups = player.power_ups;
         self.stunned = player.stunned;
         self.held_keys.clone_from(&player.held_keys);
+        self.missiles = player.missiles;
     }
 
     pub fn apply_status(&mut self, status: &SPlayerStatus) {
@@ -138,6 +143,7 @@ mod tests {
             power_ups: [true, true, false, true],
             stunned: true,
             held_keys: vec![BarrierKindId(1), BarrierKindId(3)],
+            missiles: 2,
         }
     }
 
@@ -153,6 +159,7 @@ mod tests {
         assert_eq!(info.power_ups, player.power_ups);
         assert_eq!(info.stunned, player.stunned);
         assert_eq!(info.held_keys, player.held_keys);
+        assert_eq!(info.missiles, player.missiles);
     }
 
     #[test]

@@ -9,6 +9,12 @@
     "run_speed": 9.0,
     "respawn_delay_secs": 2.0
   },
+  "missiles": {
+    "lock_max_distance": 60.0,
+    "lock_assist_radius": 1.2,
+    "max_missiles": 3,
+    "blast_radius": 6.0
+  },
   "actors": {
     "mine": {
       "collider": { "width": 1.0, "height": 1.0, "depth": 1.0, "y_offset": 1.1, "y_offset_anchor": "center" },

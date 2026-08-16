@@ -27,6 +27,7 @@ pub struct ServerGameplayConfig {
     pub scoring: ScoringConfig,
     pub player: PlayerServerConfig,
     pub projectile: ProjectileConfig,
+    pub missiles: MissilesServerConfig,
     pub power_ups: PowerUpsConfig,
     pub placed_items: PlacedItemsConfig,
     pub quests: Vec<Quest>,
@@ -136,6 +137,7 @@ impl ServerGameplayConfig {
         validate_maps(&self.maps, &self.default_map)?;
         self.player.validate("player")?;
         self.projectile.validate("projectile")?;
+        self.missiles.validate("missiles")?;
         // No range check on scoring values — negative deltas are legal
         // (e.g., `player_death: -1` penalty), and so is zero. Just ensure
         // the section deserialized.
@@ -177,6 +179,60 @@ pub struct ProjectileConfig {
 impl ProjectileConfig {
     fn validate(&self, path: &str) -> Result<()> {
         validate_non_negative_finite(self.damage, &format!("{path}.damage"))
+    }
+}
+
+// Server-only missile tuning: guidance/flight parameters and blast damage.
+// The client-visible half (lock range, max ammo, cooldown, blast radius)
+// lives in `config/common/gameplay.json`.
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct MissilesServerConfig {
+    pub speed: f32,
+    // Max steering rate, rad/s. Turn radius = speed / turn_rate; keep it
+    // under half a grid cell (1.7 m) so missiles can corner in corridors.
+    // A turn circle wider than `proximity_fuse_distance` can orbit after an
+    // overshoot; approach passes still cross the fuse, so this is a feel
+    // trade-off, not a hard invariant.
+    pub turn_rate: f32,
+    pub lifetime_secs: f32,
+    // Collision ball radius.
+    pub radius: f32,
+    // Muzzle offset along the aim direction from the shooter's eye.
+    pub spawn_offset: f32,
+    // Max random deviation of the launch direction from the aim (degrees).
+    // Missiles leave visibly off-axis and let the steering curve them in;
+    // 0 = launch straight at the aim.
+    pub launch_spread_degrees: f32,
+    // Detonate when passing within this distance of the locked target —
+    // a near miss on a small, moving collider still kills via the blast
+    // core instead of looping for another pass. 0 = contact only.
+    pub proximity_fuse_distance: f32,
+    // Self-detonate after this long without 1 m of progress.
+    pub stall_secs: f32,
+    pub max_damage: f32,
+    pub missiles_per_pack: u32,
+}
+
+impl MissilesServerConfig {
+    fn validate(&self, path: &str) -> Result<()> {
+        validate_positive_finite(self.speed, &format!("{path}.speed"))?;
+        validate_positive_finite(self.turn_rate, &format!("{path}.turn_rate"))?;
+        validate_positive_finite(self.lifetime_secs, &format!("{path}.lifetime_secs"))?;
+        validate_positive_finite(self.radius, &format!("{path}.radius"))?;
+        validate_positive_finite(self.spawn_offset, &format!("{path}.spawn_offset"))?;
+        if !(self.launch_spread_degrees.is_finite() && (0.0..=90.0).contains(&self.launch_spread_degrees)) {
+            bail!(
+                "{path}.launch_spread_degrees must be in [0, 90], got {}",
+                self.launch_spread_degrees
+            );
+        }
+        validate_non_negative_finite(self.proximity_fuse_distance, &format!("{path}.proximity_fuse_distance"))?;
+        validate_positive_finite(self.stall_secs, &format!("{path}.stall_secs"))?;
+        validate_non_negative_finite(self.max_damage, &format!("{path}.max_damage"))?;
+        if self.missiles_per_pack == 0 {
+            bail!("{path}.missiles_per_pack must be at least 1");
+        }
+        Ok(())
     }
 }
 
@@ -307,6 +363,7 @@ pub struct PlacedItemRespawnSecs {
     pub health_potion: f32,
     pub cookie: f32,
     pub key: f32,
+    pub missile_pack: f32,
 }
 
 impl PlacedItemsConfig {
@@ -321,6 +378,7 @@ impl PlacedItemsConfig {
             ItemType::HealthPotion => secs.health_potion,
             ItemType::Cookie => secs.cookie,
             ItemType::Key(_) => secs.key,
+            ItemType::MissilePack => secs.missile_pack,
         }
     }
 
@@ -334,6 +392,7 @@ impl PlacedItemsConfig {
             (secs.health_potion, "health_potion"),
             (secs.cookie, "cookie"),
             (secs.key, "key"),
+            (secs.missile_pack, "missile_pack"),
         ] {
             validate_non_negative_finite(value, &format!("{path}.respawn_secs.{name}"))?;
         }
@@ -632,6 +691,7 @@ mod tests {
                 health_potion: 5.0,
                 cookie: 6.0,
                 key: 7.0,
+                missile_pack: 8.0,
             },
         };
         assert_eq!(config.respawn_secs_for(ItemType::SpeedPowerUp), 1.0);
@@ -644,6 +704,7 @@ mod tests {
             config.respawn_secs_for(ItemType::Key(common::protocol::BarrierKindId(0))),
             7.0
         );
+        assert_eq!(config.respawn_secs_for(ItemType::MissilePack), 8.0);
     }
 
     #[test]

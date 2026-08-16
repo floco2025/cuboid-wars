@@ -13,7 +13,7 @@ use common::{
     physics::character_overlaps_item,
     protocol::{
         Health, ItemId, ItemMarker, ItemType, PlayerId, PlayerMarker, Position, SCookieCollected,
-        SHealthPotionCollected, ServerMessage,
+        SHealthPotionCollected, SMissilesCollected, ServerMessage,
     },
 };
 
@@ -62,6 +62,13 @@ pub fn item_collection_system(
                         {
                             continue;
                         }
+                        // Same shape for a full missile inventory: the pack
+                        // stays in the world for someone who can carry it.
+                        if item_info.item_type == ItemType::MissilePack
+                            && player_info.missiles >= gameplay_config.missiles.max_missiles
+                        {
+                            continue;
+                        }
                         return Some((*player_id, *item_id, item_info.item_type));
                     }
                 }
@@ -84,6 +91,9 @@ pub fn item_collection_system(
                 &server_gameplay_config,
                 &gameplay_config,
             ),
+            ItemType::MissilePack => {
+                collect_missile_pack(&mut players, player_id, &server_gameplay_config, &gameplay_config);
+            }
             ItemType::SpeedPowerUp
             | ItemType::MultiShotPowerUp
             | ItemType::PhasingPowerUp
@@ -183,6 +193,28 @@ fn collect_health_potion(
         .channel
         .send(ServerToClient::Send(ServerMessage::HealthPotionCollected(
             SHealthPotionCollected { health: *health },
+        )));
+}
+
+fn collect_missile_pack(
+    players: &mut PlayerMap,
+    player_id: PlayerId,
+    server_gameplay_config: &ServerGameplayConfig,
+    gameplay_config: &GameplayConfig,
+) {
+    let Some(player_info) = players.get_mut(&player_id) else {
+        return;
+    };
+    let missiles = player_info.add_missiles(
+        server_gameplay_config.missiles.missiles_per_pack,
+        gameplay_config.missiles.max_missiles,
+    );
+    // Unicast pickup cue — the snapshot's `Player.missiles` is the system
+    // of record.
+    let _ = player_info
+        .channel
+        .send(ServerToClient::Send(ServerMessage::MissilesCollected(
+            SMissilesCollected { missiles },
         )));
 }
 

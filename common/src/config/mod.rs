@@ -4,7 +4,8 @@ pub mod network;
 
 pub use gameplay::{
     ActorGameplayConfig, CharacterColliderAnchor, CharacterColliderConfig, CharacterGameplayConfig,
-    CharacterHealthConfig, CharacterPhysicsConfig, CharacterSupportProbeConfig, GameplayConfig, PlayerGameplayConfig,
+    CharacterHealthConfig, CharacterPhysicsConfig, CharacterSupportProbeConfig, GameplayConfig, MissilesConfig,
+    PlayerGameplayConfig,
 };
 pub use inheritance::resolve_actor_inheritance;
 pub use network::{

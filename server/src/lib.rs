@@ -4,6 +4,7 @@ pub mod combat;
 pub mod config;
 pub mod items;
 pub mod map;
+pub mod missiles;
 pub mod network;
 pub mod players;
 pub mod projectiles;

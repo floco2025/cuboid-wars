@@ -5,7 +5,10 @@ use super::{
     broadcast::broadcast_to_others,
 };
 use crate::{
+    actors::ActorMap,
+    config::ServerGameplayConfig,
     map::OpenBarrierKinds,
+    missiles::{MissileMap, handle_missile_shot_message},
     network::ServerToClient,
     players::{PlayerInfo, PlayerMap},
 };
@@ -29,11 +32,15 @@ pub fn dispatch_message(
     id: PlayerId,
     msg: ClientMessage,
     players: &mut PlayerMap,
+    missiles: &mut MissileMap,
     time: &Res<Time>,
     player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection, &Health), With<PlayerMarker>>,
     motions: &Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
+    actors: &ActorMap,
+    actor_data: &Query<(&Position, &ActorMoveIntent, &FaceDirection, &Health), With<ActorMarker>>,
     collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
+    server_gameplay_config: &ServerGameplayConfig,
     open_barrier_kinds: &OpenBarrierKinds,
     admin: &mut AdminContext,
 ) {
@@ -89,6 +96,24 @@ pub fn dispatch_message(
                 player_data,
                 collision_world,
                 gameplay_config,
+                open_barrier_kinds,
+            );
+        }
+        ClientMessage::MissileShot(msg) => {
+            debug!("{id:?} missile shot at {:?}", msg.target);
+            handle_missile_shot_message(
+                commands,
+                entity,
+                id,
+                &msg,
+                players,
+                missiles,
+                player_data,
+                actors,
+                actor_data,
+                collision_world,
+                gameplay_config,
+                server_gameplay_config,
                 open_barrier_kinds,
             );
         }

@@ -20,6 +20,10 @@
 //    than snapshot entities. Clients simulate them only for presentation;
 //    authoritative hit/death outcomes still come from the server.
 //
+//    Missiles are NOT that exception: they fly for seconds and steer
+//    server-side, so they are full snapshot entities reconciled like actors
+//    (`SMissileLaunch` / `SMissileMoveIntent` are the latency cues).
+//
 // 3. One-shot cues — short messages that fire at the moment of a discrete
 //    state change in the *shared* world. They sit alongside the snapshot,
 //    not replacing it, and exist only when the snapshot alone can't carry
@@ -95,6 +99,16 @@ pub struct CShot {
     pub face_pitch: f32, // radians - pitch (up/down) when shooting
 }
 
+// Client to Server: fire a seeking missile at the locked target. Only sent
+// while the client has a lock; the server re-validates (target alive, in
+// range, sight clear) before spawning.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct CMissileShot {
+    pub target: HomingTarget,
+    pub face_dir: f32,   // radians - yaw when firing
+    pub face_pitch: f32, // radians - pitch when firing
+}
+
 // Client to Server: Ping request with timestamp (Duration since app start, serialized as nanoseconds).
 // Echoed back by the server as `SPong` so the client can measure RTT.
 #[derive(Debug, Clone, Encode, Decode)]
@@ -147,6 +161,10 @@ pub struct SSnapshot {
     // to `actors` in the snapshot where the actor materializes.
     pub spawning_actors: Vec<(ActorId, SpawningActor)>,
     pub items: Vec<(ItemId, Item)>,
+    // In-flight missiles. Unlike projectiles, missiles ARE snapshot entities:
+    // they fly for seconds and steer server-side, so presence and position
+    // self-heal here while `SMissileMoveIntent` carries course changes.
+    pub missiles: Vec<(MissileId, Missile)>,
     // Barrier kinds currently fully open (pressure-plate threshold met).
     // Empty in v1 maps with no plates. Client hides matching barriers; server
     // unions this with each player's `held_keys` for the collision filter.
@@ -198,6 +216,25 @@ pub struct SShot {
     pub face_pitch: f32,
 }
 
+// A missile launched. Broadcast to all (including the shooter — clients do
+// not predict missile spawns; the server owns the whole flight). The next
+// snapshot is the presence fallback.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SMissileLaunch {
+    pub id: MissileId,
+    pub shooter: PlayerId,
+    pub movement: MissileMovementState,
+}
+
+// Missile course change. Broadcast when the server-steered direction drifts
+// past an epsilon from the last broadcast; clients dead-reckon a straight
+// line in between and reconcile against the carried position.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SMissileMoveIntent {
+    pub id: MissileId,
+    pub movement: MissileMovementState,
+}
+
 // --- One-shot cues (edge-triggered FX/state changes) ---
 
 // A player died. Drives the immediate client-side death-state transition
@@ -238,6 +275,15 @@ pub struct SActorDeath {
     // bumps on the kill tick rather than waiting for the next snapshot.
     // `None` when killer is `None`.
     pub killer_score: Option<i32>,
+}
+
+// Missile detonated at this position (impact, lifetime, or stall). Triggers
+// the explosion VFX + sound and the local teardown; disappearance from the
+// next snapshot is the fallback.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SMissileDeath {
+    pub id: MissileId,
+    pub pos: Position,
 }
 
 // What damaged the player in an `SPlayerHit` — clients tune the camera
@@ -352,6 +398,15 @@ pub struct SHealthPotionCollected {
     pub health: Health,
 }
 
+// Player collected a missile pack (or was granted missiles). Unicast to the
+// collector: pickup sound + immediate HUD count. Modeled on
+// `SHealthPotionCollected`; the snapshot's `Player.missiles` is the system
+// of record.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SMissilesCollected {
+    pub missiles: u32,
+}
+
 // A pressure plate transitioned from "unpressed" to "pressed" this tick
 // (some alive player just stepped onto its inner-25% rect). Broadcast —
 // any client may hear the click. Edge-triggered side-effect; durable
@@ -440,6 +495,7 @@ pub enum ClientMessage {
     Jump(CJump),
     Face(CFace),
     Shot(CShot),
+    MissileShot(CMissileShot),
     Ping(CPing),
     Admin(CAdmin),
 }
@@ -461,9 +517,12 @@ pub enum ServerMessage {
     Jump(SJump),
     Face(SFace),
     Shot(SShot),
+    MissileLaunch(SMissileLaunch),
+    MissileMoveIntent(SMissileMoveIntent),
     // One-shot cues
     PlayerDeath(SPlayerDeath),
     ActorDeath(SActorDeath),
+    MissileDeath(SMissileDeath),
     PlayerHit(SPlayerHit),
     PlayerFallDamage(SPlayerFallDamage),
     PlayerBlast(SPlayerBlast),
@@ -472,6 +531,7 @@ pub enum ServerMessage {
     PlayerStatus(SPlayerStatus),
     CookieCollected(SCookieCollected),
     HealthPotionCollected(SHealthPotionCollected),
+    MissilesCollected(SMissilesCollected),
     PressurePlatePressed(SPressurePlatePressed),
     PressurePlateReleased(SPressurePlateReleased),
     AdminResponse(SAdminResponse),

@@ -21,7 +21,7 @@ const MAX_COMMAND_CHARS: usize = 256;
 
 // One command per line: the client feed renders each line as its own row.
 // Must fit within `hud.message_feed.max_entries` or the top lines evict.
-const HELP_TEXT: &str = "/help\n/weather rain|clear\n/god [on|off]\n/kill <name>|@a\n/killall [kind]\n/heal [name|@a]\n/give keys|key <color>\n/give powerups|powerup <type>\n/kick <name>";
+const HELP_TEXT: &str = "/help\n/weather rain|clear\n/god [on|off]\n/kill <name>|@a\n/killall [kind]\n/heal [name|@a]\n/give keys|key <color>\n/give powerups|powerup <type>\n/give missiles\n/kick <name>";
 
 // The four timer power-up config ids, in `PowerUpKind` order.
 const POWER_UP_IDS: [&str; 4] = ["speed", "multi_shot", "phasing", "low_gravity"];
@@ -61,6 +61,7 @@ enum AdminCommand {
     GiveKey(String),
     GivePowerups,
     GivePowerup(String),
+    GiveMissiles,
     Kick(String),
     MissingTarget(&'static str),
     NotACommand,
@@ -101,6 +102,7 @@ fn parse_admin_command(input: &str) -> AdminCommand {
         ["give", "key", color] => AdminCommand::GiveKey((*color).to_owned()),
         ["give", "powerups"] => AdminCommand::GivePowerups,
         ["give", "powerup", power_up] => AdminCommand::GivePowerup((*power_up).to_owned()),
+        ["give", "missiles"] => AdminCommand::GiveMissiles,
         ["kick"] => AdminCommand::MissingTarget("kick"),
         ["kick", name @ ..] => AdminCommand::Kick(name.join(" ")),
         _ => AdminCommand::Unknown,
@@ -251,10 +253,15 @@ fn run_admin_command(
             let Some(info) = players.get_mut(&sender) else {
                 return "sender not found".to_owned();
             };
-            for id in POWER_UP_IDS {
+            // Phasing is defunct (not game-tested): excluded from the bulk
+            // give, granted only via the explicit `/give powerup phasing`.
+            let ids = POWER_UP_IDS.iter().filter(|id| **id != "phasing");
+            let mut given = 0usize;
+            for id in ids {
                 grant_power_up_by_id(info, id, &admin.server_gameplay_config);
+                given += 1;
             }
-            format!("gave {} power-ups", POWER_UP_IDS.len())
+            format!("gave {given} power-ups")
         }
         AdminCommand::GivePowerup(power_up) => {
             if !POWER_UP_IDS.contains(&power_up.as_str()) {
@@ -265,6 +272,17 @@ fn run_admin_command(
             };
             grant_power_up_by_id(info, &power_up, &admin.server_gameplay_config);
             format!("gave the {power_up} power-up")
+        }
+        AdminCommand::GiveMissiles => {
+            let Some(info) = players.get_mut(&sender) else {
+                return "sender not found".to_owned();
+            };
+            let max = gameplay_config.missiles.max_missiles;
+            // No `SMissilesCollected` cue — that would play the pickup sound
+            // on the client (admin gives are silent, like keys/power-ups);
+            // the next snapshot updates the HUD.
+            let missiles = info.add_missiles(max, max);
+            format!("gave missiles ({missiles}/{max})")
         }
         AdminCommand::Kick(name) => {
             let mut count = 0usize;
@@ -364,6 +382,7 @@ mod tests {
             AdminCommand::GiveKey("lobby".to_owned())
         );
         assert_eq!(parse_admin_command("/give powerups"), AdminCommand::GivePowerups);
+        assert_eq!(parse_admin_command("/give missiles"), AdminCommand::GiveMissiles);
         assert_eq!(
             parse_admin_command("/give powerup phasing"),
             AdminCommand::GivePowerup("phasing".to_owned())

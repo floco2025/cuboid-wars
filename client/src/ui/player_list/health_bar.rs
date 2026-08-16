@@ -18,13 +18,14 @@ pub fn spawn_health_bar(
     tracked_entity: Entity,
     max_health: f32,
     current_health: f32,
-    width: f32,
     height: f32,
 ) -> Entity {
     parent
         .spawn((
+            // Track spans the whole entry (inside its padding), whatever
+            // width the icon row settles at.
             Node {
-                width: Val::Px(width),
+                width: Val::Percent(100.0),
                 height: Val::Px(height),
                 justify_content: JustifyContent::FlexStart,
                 ..default()

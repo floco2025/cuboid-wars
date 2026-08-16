@@ -57,6 +57,11 @@ pub const RECON_PLAYER_IDLE_CORRECTION_SECS: f32 = 8.0;
 // lerping doesn't earn the complexity.
 pub const RECON_ACTOR_SNAP_DISTANCE: f32 = 3.0;
 
+// Missile course changes are broadcast promptly, so clients barely drift.
+// Actors need the larger threshold because they can reverse direction instantly
+// between updates.
+pub const RECON_MISSILE_SNAP_DISTANCE: f32 = 1.5;
+
 // ============================================================================
 // Character Visuals
 // ============================================================================
@@ -119,6 +124,12 @@ pub const HUD_MIN_SCALE: f32 = 0.5;
 // `client.json::hud.health_bars`)
 // ============================================================================
 
+pub const CROSSHAIR_SIZE_PX: f32 = 30.0;
+pub const CROSSHAIR_THICKNESS_PX: f32 = 2.0;
+pub const CROSSHAIR_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 0.8);
+// Lock-on tint: lit crosshair = a missile fired now will track this target.
+pub const CROSSHAIR_LOCK_COLOR: Color = Color::srgba(1.0, 0.25, 0.2, 0.9);
+
 pub const HEALTH_BAR_TRACK_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.65);
 pub const HEALTH_BAR_FILL_COLOR: Color = Color::srgb(0.0, 0.85, 0.2);
 // Local +Z of a world-space bar's opaque fill quad over its translucent track,
@@ -150,6 +161,14 @@ pub const ITEM_MULTISHOT_COLOR: Color = Color::srgb(1.00, 0.25, 0.25); // Red
 pub const ITEM_PHASING_COLOR: Color = Color::srgb(0.2, 1.0, 0.2); // Green — unchanged; phasing is dormant
 pub const ITEM_LOW_GRAVITY_COLOR: Color = Color::srgb(0.30, 0.85, 1.00); // Cyan
 pub const ITEM_HEALTH_COLOR: Color = Color::srgb(0.20, 0.95, 0.30); // Green (heal / potion)
+pub const ITEM_MISSILE_COLOR: Color = Color::srgb(0.95, 0.45, 0.10); // Orange (missile pack)
+
+// Missile mesh dimensions (m): Y-up cylinder body, cone nose, 4 fins at the tail.
+pub const MISSILE_BODY_RADIUS: f32 = 0.08;
+pub const MISSILE_BODY_LENGTH: f32 = 0.5;
+pub const MISSILE_NOSE_LENGTH: f32 = 0.2;
+pub const MISSILE_FIN_SPAN: f32 = 0.14; // outward reach beyond the body surface
+pub const MISSILE_FIN_LENGTH: f32 = 0.18; // along the body axis
 
 // ============================================================================
 // Cookies
@@ -172,9 +191,17 @@ pub const KEY_HEIGHT_ABOVE_FLOOR: f32 = 0.6;
 // HUD: thin vertical bars next to the player name, after the power-up icons.
 // Shape (narrow vertical) is intentionally different from the 12×12 power-up
 // squares so the two categories read as different.
-pub const KEY_HUD_ICON_WIDTH_PX: f32 = 4.0;
-pub const KEY_HUD_ICON_HEIGHT_PX: f32 = 12.0;
-pub const KEY_HUD_GAP_PX: f32 = 8.0;
+pub const KEY_HUD_ICON_SIZE_PX: f32 = 10.0;
+// Icon strip spacing: tight within a category, a slightly wider break
+// between the power-up / missile / key groups.
+pub const HUD_ICON_GAP_PX: f32 = 3.0;
+pub const HUD_ICON_CATEGORY_GAP_PX: f32 = 6.0;
+pub const MISSILE_HUD_ICON_WIDTH_PX: f32 = 3.0;
+pub const MISSILE_HUD_ICON_HEIGHT_PX: f32 = 12.0;
+// Unfilled slot in the player-list strips (power-up not active, key not
+// held, missile bay empty). Every slot always renders so the row width
+// never changes on pickup.
+pub const HUD_SLOT_EMPTY_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 0.12);
 
 // ============================================================================
 // Projectile VFX

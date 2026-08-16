@@ -235,6 +235,18 @@ class CanvasPaintingMixin:
                 half_w = cell * 0.16
                 half_h = cell * 0.30
                 painter.drawRoundedRect(QRectF(cx - half_w, cy - half_h, half_w * 2, half_h * 2), half_w, half_w)
+            elif item_type == "missile_pack":
+                # Rocket silhouette: slim body rect + nose triangle.
+                half_w = cell * 0.10
+                half_h = cell * 0.24
+                painter.drawRect(QRectF(cx - half_w, cy - half_h * 0.4, half_w * 2, half_h * 1.4))
+                painter.drawPolygon(
+                    [
+                        QPoint(round(cx), round(cy - half_h)),
+                        QPoint(round(cx + half_w), round(cy - half_h * 0.4)),
+                        QPoint(round(cx - half_w), round(cy - half_h * 0.4)),
+                    ]
+                )
             else:  # low_gravity — sphere
                 radius = cell * 0.24
                 painter.drawEllipse(QRectF(cx - radius, cy - radius, radius * 2, radius * 2))

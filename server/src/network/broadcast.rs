@@ -108,6 +108,27 @@ pub fn snapshot_spawning_actors(pending: &PendingActorSpawns) -> Vec<(ActorId, S
         .collect()
 }
 
+// Collect in-flight missiles for the snapshot.
+#[must_use]
+pub fn snapshot_missiles(
+    missiles: &crate::missiles::MissileMap,
+    missile_data: &Query<(&Position, &crate::missiles::MissileVelocity), With<MissileMarker>>,
+) -> Vec<(MissileId, Missile)> {
+    missiles
+        .iter()
+        .filter_map(|(missile_id, info)| {
+            let (pos, velocity) = missile_data.get(info.entity).ok()?;
+            Some((
+                *missile_id,
+                Missile {
+                    shooter: info.shooter,
+                    movement: MissileMovementState::from_velocity(*pos, velocity.0),
+                },
+            ))
+        })
+        .collect()
+}
+
 // Build the authoritative item list that gets replicated to clients.
 #[must_use]
 pub fn collect_items(items: &ItemMap, item_positions: &Query<&Position, With<ItemMarker>>) -> Vec<(ItemId, Item)> {

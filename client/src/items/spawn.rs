@@ -7,6 +7,7 @@ use crate::{
     constants::*,
     items::{YSpinBase, YSpinTimer},
     map::MapLevel,
+    missiles::{MissileAssets, spawn_missile_pickup_visual},
 };
 use common::{map::compute_player_level, protocol::*};
 
@@ -68,6 +69,7 @@ impl ItemAssets {
             ItemType::HealthPotion => &self.health_material,
             ItemType::Cookie => unreachable!("cookies use cookie_material"),
             ItemType::Key(_) => unreachable!("keys use BarrierAssets"),
+            ItemType::MissilePack => unreachable!("missile packs use MissileAssets"),
         }
     }
 
@@ -80,6 +82,7 @@ impl ItemAssets {
             ItemType::HealthPotion => &self.health_mesh,
             ItemType::Cookie => unreachable!("cookies use cookie_mesh"),
             ItemType::Key(_) => unreachable!("keys use BarrierAssets"),
+            ItemType::MissilePack => unreachable!("missile packs use MissileAssets"),
         }
     }
 }
@@ -154,6 +157,7 @@ pub fn item_type_color(item_type: ItemType) -> Color {
         ItemType::LowGravityPowerUp => ITEM_LOW_GRAVITY_COLOR,
         ItemType::HealthPotion => ITEM_HEALTH_COLOR,
         ItemType::Cookie => Color::WHITE,
+        ItemType::MissilePack => ITEM_MISSILE_COLOR,
         ItemType::Key(_) => unreachable!("keys look up colors via BarrierAssets / AssetSet, not item_type_color"),
     }
 }
@@ -163,6 +167,7 @@ pub fn spawn_item(
     commands: &mut Commands,
     item_assets: &ItemAssets,
     barrier_assets: &BarrierAssets,
+    missile_assets: &MissileAssets,
     item_id: ItemId,
     item_type: ItemType,
     position: &Position,
@@ -171,12 +176,49 @@ pub fn spawn_item(
     match item_type {
         ItemType::Cookie => spawn_cookie(commands, item_assets, item_id, position, level),
         ItemType::Key(kind) => spawn_key(commands, barrier_assets, item_id, position, level, kind),
+        ItemType::MissilePack => spawn_missile_pack(commands, missile_assets, item_id, position, level),
         ItemType::SpeedPowerUp
         | ItemType::MultiShotPowerUp
         | ItemType::PhasingPowerUp
         | ItemType::LowGravityPowerUp
         | ItemType::HealthPotion => spawn_power_up(commands, item_assets, item_id, item_type, position, level),
     }
+}
+
+fn spawn_missile_pack(
+    commands: &mut Commands,
+    missile_assets: &MissileAssets,
+    item_id: ItemId,
+    position: &Position,
+    level: MapLevel,
+) -> Entity {
+    // The pickup IS a small missile: the flight meshes as children of a
+    // bobbing, spinning item root, tilted like the potion so the silhouette
+    // reads at a glance.
+    let bob_phase = random::<f32>() * std::f32::consts::TAU;
+    let spin_phase = random::<f32>() * std::f32::consts::TAU;
+    let base = Quat::from_rotation_z(std::f32::consts::FRAC_PI_4);
+    commands
+        .spawn((
+            item_id,
+            ItemMarker,
+            *position,
+            Transform::from_xyz(
+                position.x,
+                position.y + ITEM_HEIGHT_ABOVE_FLOOR + ITEM_SIZE / 2.0,
+                position.z,
+            )
+            .with_rotation(base),
+            Visibility::Visible,
+            level,
+            ItemAnimTimer(bob_phase),
+            YSpinTimer(spin_phase),
+            YSpinBase(base),
+        ))
+        .with_children(|parent| {
+            spawn_missile_pickup_visual(parent, missile_assets);
+        })
+        .id()
 }
 
 fn spawn_cookie(
@@ -285,5 +327,6 @@ fn power_up_base_orientation(item_type: ItemType) -> Quat {
         ItemType::MultiShotPowerUp | ItemType::PhasingPowerUp | ItemType::LowGravityPowerUp => Quat::IDENTITY,
         ItemType::Cookie => unreachable!("cookies don't spawn via spawn_power_up"),
         ItemType::Key(_) => unreachable!("keys don't spawn via spawn_power_up"),
+        ItemType::MissilePack => unreachable!("missile packs don't spawn via spawn_power_up"),
     }
 }

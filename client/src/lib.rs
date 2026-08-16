@@ -8,6 +8,7 @@ pub mod input;
 pub mod items;
 pub mod map;
 pub mod materials;
+pub mod missiles;
 pub mod network;
 pub mod players;
 pub mod projectiles;

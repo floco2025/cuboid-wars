@@ -28,6 +28,7 @@ use server::{
         random_item_spawn_system,
     },
     map::{OpenBarrierKinds, WeatherState, compute_open_barrier_kinds_system, generate_map, weather_system},
+    missiles::{AirGraph, missiles_guidance_system, missiles_movement_system},
     network::{
         FromClientsChannel, accept_connections_task, network_broadcast_snapshot_system,
         network_process_client_messages_system,
@@ -110,6 +111,7 @@ async fn main() -> Result<()> {
     let (map_layout, map_config, map_geometry) = generate_map(&barrier_kind_table, &map_name);
     let collision_world = CollisionWorld::from_map_layout(&map_layout, &barrier_kind_table);
     let nav_graph = NavGraph::new(map_config.clone(), map_geometry);
+    let air_graph = AirGraph::new(map_config.clone(), map_geometry);
     validate_actor_kinds_consistent(&gameplay_config, &server_gameplay_config, &map_config)?;
 
     // Single channel for registrations and per-client messages. Sharing the
@@ -141,6 +143,7 @@ async fn main() -> Result<()> {
         .insert_resource(map_config)
         .insert_resource(map_geometry)
         .insert_resource(nav_graph)
+        .insert_resource(air_graph)
         .insert_resource(barrier_kind_table)
         .insert_resource(gameplay_config)
         .insert_resource(server_gameplay_config)
@@ -154,6 +157,7 @@ async fn main() -> Result<()> {
         .insert_resource(PendingActorSpawns::default())
         .insert_resource(FromClientsChannel::new(from_clients))
         .insert_resource(PendingExplosions::default())
+        .insert_resource(server::missiles::MissileMap::default())
         .insert_resource(OpenBarrierKinds::default())
         .add_systems(Startup, (actor_initial_spawn_system, placed_item_spawn_system))
         .add_systems(
@@ -195,7 +199,17 @@ async fn main() -> Result<()> {
                 characters_movement_system.after(actor_behavior_system),
                 // Decay after movement so planning consumed this tick's step.
                 knockback_decay_system.after(characters_movement_system),
-                projectiles_movement_system,
+                // Guidance steers from post-step character positions;
+                // movement then integrates, detonates, and queues blasts
+                // for this tick's explosion drain. Nested tuple to stay
+                // under the `add_systems` tuple arity limit.
+                (
+                    projectiles_movement_system,
+                    missiles_guidance_system.after(characters_movement_system),
+                    missiles_movement_system
+                        .after(missiles_guidance_system)
+                        .before(explosions_system),
+                ),
                 // Beam burn starts on the burst's first tick and reads
                 // post-step positions; a lethal beam's death blast must drain
                 // in this tick's explosion pass.

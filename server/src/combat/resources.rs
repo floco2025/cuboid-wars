@@ -15,6 +15,12 @@ pub enum PendingExplosion {
         spawn_kind: String,
         pos: Position,
     },
+    // The only blast that isn't a death: a missile detonation. Carries the
+    // shooter so blast kills credit them (death blasts credit no one).
+    Missile {
+        shooter: PlayerId,
+        pos: Position,
+    },
 }
 
 #[derive(Resource, Default)]
@@ -32,5 +38,9 @@ impl PendingExplosions {
             spawn_kind,
             pos,
         });
+    }
+
+    pub fn push_missile(&mut self, shooter: PlayerId, pos: Position) {
+        self.0.push_back(PendingExplosion::Missile { shooter, pos });
     }
 }

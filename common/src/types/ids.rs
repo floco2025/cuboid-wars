@@ -11,6 +11,17 @@ pub struct ActorId(pub u32);
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Component, Encode, Decode)]
 pub struct ItemId(pub u32);
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Component, Encode, Decode)]
+pub struct MissileId(pub u32);
+
+// What a missile homes on. Carried in `CMissileShot`; guidance is server-only,
+// so it never rides snapshots or intents.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Encode, Decode)]
+pub enum HomingTarget {
+    Player(PlayerId),
+    Actor(ActorId),
+}
+
 // Stable per-quest identifier carried on `SQuestsAssigned` / `SQuestProgress`
 // / `SQuestCompleted` and keyed in per-player progress maps. Strings match the
 // human-readable `id` in `gameplay.json`'s `quests` list.

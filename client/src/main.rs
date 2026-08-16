@@ -23,7 +23,7 @@ use client::{
     input::{
         commit_player_input_system, input_camera_view_toggle_system, input_cursor_toggle_system,
         input_debug_colors_cycle_system, input_fullscreen_toggle_system, input_level_focus_toggle_system,
-        input_movement_system, input_shooting_system,
+        input_missile_system, input_movement_system, input_shooting_system,
     },
     items::{ItemMap, items_animation_system, setup_item_assets, y_spin_system},
     map::skybox::{
@@ -36,6 +36,10 @@ use client::{
         wall_light_flicker_system,
     },
     materials::{GrassMaterialPlugin, generate_material_mipmaps_system},
+    missiles::{
+        LockOnTarget, MissileAssets, MissileMap as ClientMissileMap, lock_on_system, missiles_movement_system,
+        missiles_transform_sync_system,
+    },
     network::{
         ClientToServerChannel, LastSnapshotSeq, RoundTripTime, ServerToClientChannel, configure_client,
         network_io_task, network_ping_system, network_process_server_messages_system,
@@ -54,9 +58,9 @@ use client::{
             floating_labels_billboard_system, player_name_label_render_system,
         },
         render_pending_banner_system, render_pending_messages_system, setup_ui_system, tick_hud_banner_system,
-        ui_crosshair_visibility_system, ui_fps_system, ui_health_bar_fill_system, ui_hud_scale_system,
-        ui_player_list_rebuild_system, ui_quest_panel_rebuild_system, ui_rtt_system, ui_stunned_blink_system,
-        update_message_feed_system,
+        ui_crosshair_lock_system, ui_crosshair_visibility_system, ui_fps_system, ui_health_bar_fill_system,
+        ui_hud_scale_system, ui_player_list_rebuild_system, ui_quest_panel_rebuild_system, ui_rtt_system,
+        ui_stunned_blink_system, update_message_feed_system,
     },
     vfx::{
         ExplosionAssets, ExplosionRadii, ExplosionVfxBudget, ParticleClouds, RainIntensity, beam_ghost_fade_system,
@@ -209,6 +213,10 @@ fn main() -> Result<()> {
         .insert_resource(PendingBanner::default())
         .insert_resource(SeenPlayerIds::default())
         .insert_resource(QuestLog::default())
+        .insert_resource(ClientMissileMap::default())
+        .insert_resource(LockOnTarget::default())
+        .init_resource::<MissileAssets>()
+        .init_resource::<client::ui::HudShapeAssets>()
         .init_resource::<ProjectileAssets>()
         .init_resource::<ParticleClouds>()
         .init_resource::<RainIntensity>()
@@ -241,6 +249,7 @@ fn main() -> Result<()> {
                     .before(input_debug_colors_cycle_system),
                 input_movement_system.after(input_camera_view_toggle_system),
                 input_shooting_system.after(input_movement_system),
+                input_missile_system.after(input_movement_system),
                 // Run before shooting (which is after movement) so a click that
                 // re-locks the cursor also fires that same frame, instead of
                 // depending on nondeterministic system order.
@@ -269,6 +278,7 @@ fn main() -> Result<()> {
                 // the step-size-dependent integration doesn't diverge from
                 // the authoritative trajectories.
                 projectiles_movement_system,
+                missiles_movement_system,
             )
                 .chain(),
         )
@@ -298,6 +308,9 @@ fn main() -> Result<()> {
                     .after(input_movement_system)
                     .after(local_player_camera_shake_system),
                 local_player_rearview_sync_system.after(local_player_camera_sync_system),
+                // Lock detection reads this frame's camera ray (shake
+                // included) so the lit crosshair matches what's on screen.
+                lock_on_system.after(local_player_camera_sync_system),
                 local_player_rearview_viewport_system.after(local_player_rearview_sync_system),
                 local_player_visibility_sync_system.after(input_camera_view_toggle_system),
             ),
@@ -307,6 +320,7 @@ fn main() -> Result<()> {
             Update,
             (
                 projectiles_transform_sync_system,
+                missiles_transform_sync_system,
                 explosion_pulse_system,
                 explosion_particles_system,
                 explosion_lights_system,
@@ -360,6 +374,7 @@ fn main() -> Result<()> {
                 ui_stunned_blink_system,
                 ui_rtt_system,
                 ui_fps_system,
+                ui_crosshair_lock_system,
                 death_overlay_visibility_system,
                 render_pending_messages_system,
                 update_message_feed_system,

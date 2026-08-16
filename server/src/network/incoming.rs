@@ -6,6 +6,7 @@ use crate::{
     items::ItemMap,
     map::MapConfig,
     map::OpenBarrierKinds,
+    missiles::MissileMap,
     network::{ClientToServer, FromClientsChannel},
     players::{PlayerInfo, PlayerMap},
 };
@@ -52,6 +53,7 @@ pub fn network_process_client_messages_system(
     actor_motions: Query<&CharacterVerticalVelocity, With<ActorMarker>>,
     item_data: Query<&Position, With<ItemMarker>>,
     open_barrier_kinds: Res<OpenBarrierKinds>,
+    mut missiles: ResMut<MissileMap>,
     mut admin: AdminContext,
 ) {
     while let Ok((id, event)) = from_clients.try_recv() {
@@ -93,11 +95,15 @@ pub fn network_process_client_messages_system(
                         id,
                         message,
                         &mut players,
+                        &mut missiles,
                         &time,
                         &player_data,
                         &player_motions,
+                        &actors,
+                        &actor_data,
                         &world.collision_world,
                         &world.gameplay_config,
+                        &world.server_gameplay_config,
                         &open_barrier_kinds,
                         &mut admin,
                     );

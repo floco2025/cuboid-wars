@@ -8,6 +8,10 @@ use super::{
     components::{AssetManagers, ClientAssets},
     io::handle_pong_message,
     items::{handle_health_potion_collected_message, handle_item_collected_message},
+    missiles::{
+        handle_missile_death_message, handle_missile_launch_message, handle_missile_move_intent_message,
+        handle_missiles_collected_message,
+    },
     players::{
         handle_fall_damage_message, handle_player_blast_message, handle_player_death_message,
         handle_player_face_message, handle_player_hit_message, handle_player_jump_message,
@@ -206,6 +210,54 @@ pub fn dispatch_message(
                 my_player_id,
                 &client_assets.asset_server,
                 &client_assets.asset_set,
+            );
+        }
+        ServerMessage::MissileLaunch(launch_msg) => {
+            handle_missile_launch_message(
+                commands,
+                &client_assets.missile_assets,
+                &mut client_assets.missile_map,
+                &client_assets.asset_server,
+                &client_assets.asset_set,
+                &client_assets.client_settings.audio,
+                my_player_id,
+                launch_msg,
+            );
+        }
+        ServerMessage::MissileMoveIntent(intent_msg) => {
+            handle_missile_move_intent_message(
+                commands,
+                &client_assets.missile_map,
+                rtt,
+                &client_assets.missile_data,
+                intent_msg,
+            );
+        }
+        ServerMessage::MissileDeath(death_msg) => {
+            handle_missile_death_message(
+                commands,
+                &mut assets.meshes,
+                &mut assets.materials,
+                &mut client_assets.explosion_vfx_budget,
+                &client_assets.explosion_assets,
+                &client_assets.asset_server,
+                &client_assets.asset_set,
+                &client_assets.client_settings.audio,
+                &client_assets.gameplay_config,
+                collision_world,
+                client_assets.map_layout.as_deref(),
+                &mut client_assets.missile_map,
+                death_msg,
+            );
+        }
+        ServerMessage::MissilesCollected(collected_msg) => {
+            handle_missiles_collected_message(
+                commands,
+                collected_msg,
+                &client_assets.asset_server,
+                &client_assets.asset_set,
+                players,
+                my_player_id,
             );
         }
         ServerMessage::Pong(pong_msg) => handle_pong_message(time, rtt, pong_msg),

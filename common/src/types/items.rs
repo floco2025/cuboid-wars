@@ -17,6 +17,9 @@ pub enum ItemType {
     // in the map's `items` list; once collected, the kind enters the
     // player's permanent inventory.
     Key(BarrierKindId),
+    // Missile ammo. Not collectable while the player is at max — the pack
+    // stays in the world, like an already-held key.
+    MissilePack,
 }
 
 impl ItemType {
@@ -45,6 +48,7 @@ impl ItemType {
             "low_gravity" => Some(Self::LowGravityPowerUp),
             "health_potion" => Some(Self::HealthPotion),
             "cookie" => Some(Self::Cookie),
+            "missile_pack" => Some(Self::MissilePack),
             _ => None,
         }
     }
@@ -59,6 +63,7 @@ impl ItemType {
             Self::HealthPotion => "health_potion",
             Self::Cookie => "cookie",
             Self::Key(_) => Self::KEY_CONFIG_ID,
+            Self::MissilePack => "missile_pack",
         }
     }
 }
@@ -92,7 +97,7 @@ impl PowerUpKind {
             ItemType::MultiShotPowerUp => Some(Self::MultiShot),
             ItemType::PhasingPowerUp => Some(Self::Phasing),
             ItemType::LowGravityPowerUp => Some(Self::LowGravity),
-            ItemType::HealthPotion | ItemType::Cookie | ItemType::Key(_) => None,
+            ItemType::HealthPotion | ItemType::Cookie | ItemType::Key(_) | ItemType::MissilePack => None,
         }
     }
 
@@ -120,6 +125,7 @@ mod tests {
             ItemType::LowGravityPowerUp,
             ItemType::HealthPotion,
             ItemType::Cookie,
+            ItemType::MissilePack,
         ];
         for item_type in non_key {
             assert_eq!(ItemType::from_config_id(item_type.config_id()), Some(item_type));

@@ -13,8 +13,10 @@ use common::{
 };
 
 use super::broadcast::{
-    broadcast_to_all, collect_items, snapshot_actors, snapshot_logged_in_players, snapshot_spawning_actors,
+    broadcast_to_all, collect_items, snapshot_actors, snapshot_logged_in_players, snapshot_missiles,
+    snapshot_spawning_actors,
 };
+use crate::missiles::{MissileMap, MissileVelocity};
 
 pub fn network_broadcast_snapshot_system(
     time: Res<Time>,
@@ -31,6 +33,8 @@ pub fn network_broadcast_snapshot_system(
     actor_data: Query<(&Position, &ActorMoveIntent, &FaceDirection, &Health), With<ActorMarker>>,
     actor_motions: Query<&CharacterVerticalVelocity, With<ActorMarker>>,
     item_positions: Query<&Position, With<ItemMarker>>,
+    missiles: Res<MissileMap>,
+    missile_data: Query<(&Position, &MissileVelocity), With<MissileMarker>>,
 ) {
     *timer += time.delta_secs();
     if *timer < SNAPSHOT_SECS {
@@ -49,6 +53,7 @@ pub fn network_broadcast_snapshot_system(
     let all_players = snapshot_logged_in_players(&players, &player_data, &motions);
     let all_actors = snapshot_actors(&actors, &actor_data, &actor_motions);
     let all_items = collect_items(&items, &item_positions);
+    let all_missiles = snapshot_missiles(&missiles, &missile_data);
 
     let msg = ServerMessage::Snapshot(SSnapshot {
         seq: *seq,
@@ -56,6 +61,7 @@ pub fn network_broadcast_snapshot_system(
         actors: all_actors,
         spawning_actors: snapshot_spawning_actors(&pending_spawns),
         items: all_items,
+        missiles: all_missiles,
         open_barrier_kinds: open_barrier_kinds.0.clone(),
         rain_intensity: weather.intensity(),
     });

@@ -1,0 +1,209 @@
+use bevy::{ecs::system::SystemParam, prelude::*};
+
+use crate::{
+    actors::ActorMap,
+    combat::PendingExplosions,
+    config::ServerGameplayConfig,
+    map::OpenBarrierKinds,
+    missiles::{MissileMap, MissileVelocity},
+    network::broadcast_to_all,
+    players::PlayerMap,
+};
+use common::{
+    config::GameplayConfig,
+    physics::{CollisionWorld, ball_character_hit, ball_overlaps_character},
+    protocol::*,
+};
+
+// Broadcast a course intent once the steered direction has drifted this far
+// (radians) from the last broadcast. Straight flight sends nothing; a
+// full-rate turn re-sends every tick, bounded by the handful of live
+// missiles the per-player ammo cap allows.
+const MISSILE_INTENT_EPSILON_RAD: f32 = 0.05;
+
+type MissileMovementQuery<'w, 's> = Query<
+    'w,
+    's,
+    (
+        Entity,
+        &'static MissileId,
+        &'static mut Position,
+        &'static MissileVelocity,
+    ),
+    With<MissileMarker>,
+>;
+
+type MissilePlayerQuery<'w, 's> = Query<
+    'w,
+    's,
+    (&'static Position, &'static FaceDirection, &'static PlayerId),
+    (With<PlayerMarker>, Without<ActorMarker>, Without<MissileMarker>),
+>;
+
+type MissileActorQuery<'w, 's> = Query<
+    'w,
+    's,
+    (&'static Position, &'static FaceDirection, &'static ActorId),
+    (With<ActorMarker>, Without<PlayerMarker>, Without<MissileMarker>),
+>;
+
+#[derive(SystemParam)]
+pub struct MissileMovementParams<'w, 's> {
+    missile_query: MissileMovementQuery<'w, 's>,
+    player_query: MissilePlayerQuery<'w, 's>,
+    actor_query: MissileActorQuery<'w, 's>,
+    missiles: ResMut<'w, MissileMap>,
+    players: Res<'w, PlayerMap>,
+    actors: Res<'w, ActorMap>,
+    pending_explosions: ResMut<'w, PendingExplosions>,
+    collision_world: Res<'w, CollisionWorld>,
+    open_barrier_kinds: Res<'w, OpenBarrierKinds>,
+    gameplay_config: Res<'w, GameplayConfig>,
+    server_gameplay_config: Res<'w, ServerGameplayConfig>,
+}
+
+pub fn missiles_movement_system(mut commands: Commands, time: Res<Time>, mut params: MissileMovementParams) {
+    let delta = time.delta_secs();
+    let config = params.server_gameplay_config.missiles;
+    let epsilon_cos = MISSILE_INTENT_EPSILON_RAD.cos();
+
+    for (entity, id, mut pos, velocity) in &mut params.missile_query {
+        let Some(info) = params.missiles.get_mut(id) else {
+            continue;
+        };
+
+        // Arm self-hits once the missile has cleared the shooter's collider.
+        // A missing shooter arms immediately.
+        if !info.armed {
+            let overlaps_shooter = params
+                .players
+                .get(&info.shooter)
+                .and_then(|shooter| params.player_query.get(shooter.entity).ok())
+                .is_some_and(|(shooter_pos, face_dir, _)| {
+                    ball_overlaps_character(
+                        &pos,
+                        config.radius,
+                        shooter_pos,
+                        face_dir.0,
+                        params.gameplay_config.player.physics(),
+                    )
+                });
+            if !overlaps_shooter {
+                info.armed = true;
+            }
+        }
+        let armed = info.armed;
+        let shooter = info.shooter;
+
+        if let Some(impact) = info.detonate_at {
+            detonate_missile(
+                &mut commands,
+                &mut params.missiles,
+                &params.players,
+                &mut params.pending_explosions,
+                entity,
+                *id,
+                impact,
+            );
+            continue;
+        }
+
+        let translation = velocity.0 * delta;
+        let origin = Vec3::from(*pos);
+
+        let mut earliest_t: Option<f32> = None;
+        let mut consider = |t: f32| {
+            if earliest_t.is_none_or(|current| t < current) {
+                earliest_t = Some(t);
+            }
+        };
+        if let Some(hit) = params
+            .collision_world
+            .cast_moving_ball(origin, translation, config.radius)
+        {
+            consider(hit.t);
+        }
+        if let Some(hit) = params.collision_world.cast_moving_ball_against_barriers(
+            origin,
+            translation,
+            config.radius,
+            &params.open_barrier_kinds.0,
+        ) {
+            consider(hit.t);
+        }
+        for (target_pos, face_dir, player_id) in &params.player_query {
+            if *player_id == shooter && !armed {
+                continue;
+            }
+            if let Some(hit) = ball_character_hit(
+                &pos,
+                velocity.0,
+                config.radius,
+                delta,
+                target_pos,
+                face_dir.0,
+                params.gameplay_config.player.physics(),
+            ) {
+                consider(hit.time_of_impact);
+            }
+        }
+        for (target_pos, face_dir, actor_id) in &params.actor_query {
+            let actor_info = params
+                .actors
+                .get(actor_id)
+                .expect("actor in query missing from ActorMap");
+            let physics = params.gameplay_config.validated_actor(&actor_info.spawn_kind).physics();
+            if let Some(hit) =
+                ball_character_hit(&pos, velocity.0, config.radius, delta, target_pos, face_dir.0, physics)
+            {
+                consider(hit.time_of_impact);
+            }
+        }
+
+        match earliest_t {
+            Some(t) => {
+                let impact: Position = (origin + translation * t).into();
+                detonate_missile(
+                    &mut commands,
+                    &mut params.missiles,
+                    &params.players,
+                    &mut params.pending_explosions,
+                    entity,
+                    *id,
+                    impact,
+                );
+            }
+            None => {
+                *pos += translation;
+                let dir = velocity.0.normalize_or_zero();
+                if dir != Vec3::ZERO && dir.dot(info.last_broadcast_dir) < epsilon_cos {
+                    info.last_broadcast_dir = dir;
+                    broadcast_to_all(
+                        &params.players,
+                        ServerMessage::MissileMoveIntent(SMissileMoveIntent {
+                            id: *id,
+                            movement: MissileMovementState::from_velocity(*pos, velocity.0),
+                        }),
+                    );
+                }
+            }
+        }
+    }
+}
+
+fn detonate_missile(
+    commands: &mut Commands,
+    missiles: &mut MissileMap,
+    players: &PlayerMap,
+    pending_explosions: &mut PendingExplosions,
+    entity: Entity,
+    id: MissileId,
+    pos: Position,
+) {
+    let Some(info) = missiles.remove(&id) else {
+        return;
+    };
+    broadcast_to_all(players, ServerMessage::MissileDeath(SMissileDeath { id, pos }));
+    pending_explosions.push_missile(info.shooter, pos);
+    commands.entity(entity).despawn();
+}

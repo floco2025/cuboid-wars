@@ -137,6 +137,44 @@ impl ActorMovementState {
     }
 }
 
+// Missile flight state on the wire. Unlike `ActorMovementState`, missiles fly:
+// the direction needs pitch, which `ActorMoveIntent` structurally cannot carry
+// (its velocity is horizontal-only). Decomposed into scalars per wire style.
+#[derive(Debug, Clone, Copy, Encode, Decode)]
+pub struct MissileMovementState {
+    pub pos: Position,
+    pub yaw: f32,
+    pub pitch: f32,
+    pub speed: f32,
+}
+
+impl MissileMovementState {
+    #[must_use]
+    pub fn velocity(&self) -> Vec3 {
+        let pitch_cos = self.pitch.cos();
+        Vec3::new(self.yaw.sin() * pitch_cos, self.pitch.sin(), self.yaw.cos() * pitch_cos) * self.speed
+    }
+
+    #[must_use]
+    pub fn from_velocity(pos: Position, velocity: Vec3) -> Self {
+        let speed = velocity.length();
+        if speed <= f32::EPSILON {
+            return Self {
+                pos,
+                yaw: 0.0,
+                pitch: 0.0,
+                speed: 0.0,
+            };
+        }
+        Self {
+            pos,
+            yaw: velocity.x.atan2(velocity.z),
+            pitch: (velocity.y / speed).clamp(-1.0, 1.0).asin(),
+            speed,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -150,6 +188,24 @@ mod tests {
     fn finite_directions_are_accepted() {
         assert!(PlayerMoveIntent::Walking { direction: 0.0 }.is_finite());
         assert!(PlayerMoveIntent::Running { direction: -2.5 }.is_finite());
+    }
+
+    #[test]
+    fn missile_movement_state_velocity_round_trips() {
+        let pos = Position { x: 1.0, y: 2.0, z: 3.0 };
+        let velocity = Vec3::new(3.0, -4.0, 12.0);
+        let state = MissileMovementState::from_velocity(pos, velocity);
+        let recovered = state.velocity();
+        assert!((recovered - velocity).length() < 1e-4);
+        assert!((state.speed - 13.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn missile_movement_state_zero_velocity_is_stationary() {
+        let pos = Position { x: 0.0, y: 0.0, z: 0.0 };
+        let state = MissileMovementState::from_velocity(pos, Vec3::ZERO);
+        assert_eq!(state.speed, 0.0);
+        assert_eq!(state.velocity(), Vec3::ZERO);
     }
 
     #[test]

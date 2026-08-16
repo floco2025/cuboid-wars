@@ -4,7 +4,7 @@ use rapier3d::parry::query::ShapeCastHit as RapierShapeCastHit;
 use crate::protocol::BarrierKindId;
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct ShapeCastHit {
+pub struct ShapeCastHit {
     pub normal: Vec3,
     // World-space contact point on the world collider. Rapier's composite
     // cast returns `witness1` already transformed by the collider's world

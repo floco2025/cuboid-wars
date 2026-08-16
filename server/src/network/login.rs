@@ -162,6 +162,8 @@ pub fn handle_login_message(
                 // Late joiners see beam-in ghosts already in progress.
                 spawning_actors: snapshot_spawning_actors(pending_spawns),
                 items: all_items,
+                // Any in-flight missiles arrive with the next broadcast tick.
+                missiles: Vec::new(),
                 // Plate state is per-tick; this login-time snapshot defaults
                 // to "everything closed". The next broadcast tick will
                 // correct it. Same for weather — the next broadcast delivers

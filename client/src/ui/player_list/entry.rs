@@ -1,22 +1,27 @@
 use bevy::prelude::*;
-use common::protocol::{BarrierKindTable, Health, ItemType, PlayerId, PowerUpKind};
+use common::protocol::{BarrierKindId, BarrierKindTable, Health, PlayerId, PowerUpKind};
 
 use super::components::{LOCAL_PLAYER_BG_COLOR, PlayerEntryMarker};
 use super::health_bar::spawn_health_bar;
+use super::shapes::HudShapeAssets;
 use crate::{
     barriers::BarrierAssets,
-    constants::{KEY_HUD_GAP_PX, KEY_HUD_ICON_HEIGHT_PX, KEY_HUD_ICON_WIDTH_PX},
+    constants::{
+        HUD_ICON_CATEGORY_GAP_PX, HUD_ICON_GAP_PX, HUD_SLOT_EMPTY_COLOR, ITEM_MISSILE_COLOR, KEY_HUD_ICON_SIZE_PX,
+        MISSILE_HUD_ICON_HEIGHT_PX, MISSILE_HUD_ICON_WIDTH_PX,
+    },
     items::item_type_color,
     players::PlayerInfo,
 };
 
 // Style values for one player-list entry, resolved once per rebuild from
-// `ClientSettings`.
+// `ClientSettings` (+ the shared gameplay config's missile cap).
 pub(super) struct PlayerEntryStyle {
     pub name_font_size: f32,
     pub score_font_size: f32,
-    pub health_bar_width: f32,
+    pub min_entry_width: f32,
     pub health_bar_height: f32,
+    pub max_missiles: u32,
 }
 
 pub(super) fn spawn_player_entry(
@@ -28,6 +33,7 @@ pub(super) fn spawn_player_entry(
     current_health: f32,
     kind_table: &BarrierKindTable,
     barrier_assets: Option<&BarrierAssets>,
+    shapes: &HudShapeAssets,
     style: &PlayerEntryStyle,
 ) -> Entity {
     let background_color = if is_local {
@@ -44,6 +50,7 @@ pub(super) fn spawn_player_entry(
                 flex_direction: FlexDirection::Column,
                 row_gap: Val::Px(4.0),
                 padding: UiRect::all(Val::Px(5.0)),
+                min_width: Val::Px(style.min_entry_width),
                 ..default()
             },
             background_color,
@@ -76,28 +83,43 @@ pub(super) fn spawn_player_entry(
                         },
                         TextColor(score_value_color(player_info.score)),
                     ));
+                });
 
+            // Icon strip on its own line so the entry stays narrow. Every
+            // slot always renders (dim when unfilled), so pickups never
+            // resize the panel.
+            entry
+                .spawn((Node {
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::Center,
+                    column_gap: Val::Px(HUD_ICON_GAP_PX),
+                    ..default()
+                },))
+                .with_children(|row| {
                     for kind in PowerUpKind::ALL {
-                        spawn_power_up_icon(row, player_info.power_up(kind), kind.to_item_type());
+                        // Phasing is defunct: no reserved slot. Defensive:
+                        // if it's ever granted (admin), it still shows.
+                        let active = player_info.power_up(kind);
+                        if kind == PowerUpKind::Phasing && !active {
+                            continue;
+                        }
+                        spawn_power_up_icon(row, active, kind, shapes);
                     }
 
-                    if !player_info.held_keys.is_empty()
-                        && let Some(assets) = barrier_assets
-                    {
-                        // Spacer between power-up icons and the held-keys
-                        // strip so the two categories read as different.
-                        row.spawn(Node {
-                            width: Val::Px(KEY_HUD_GAP_PX),
-                            ..default()
-                        });
-                        for kind in &player_info.held_keys {
-                            // Defensive: skip kinds the client wasn't told
-                            // about (config drift between server + client).
-                            if kind_table.id(*kind).is_none() {
-                                continue;
-                            }
-                            spawn_key_icon(row, assets.base_color(*kind));
-                        }
+                    spawn_category_gap(row);
+                    for slot in 0..style.max_missiles {
+                        spawn_missile_icon(row, slot < player_info.missiles);
+                    }
+
+                    spawn_category_gap(row);
+                    for index in 0..kind_table.len() {
+                        let Ok(kind) = u16::try_from(index).map(BarrierKindId) else {
+                            continue;
+                        };
+                        let color = barrier_assets
+                            .filter(|_| player_info.held_keys.contains(&kind))
+                            .map_or(HUD_SLOT_EMPTY_COLOR, |assets| assets.base_color(kind));
+                        spawn_key_icon(row, color);
                     }
                 });
 
@@ -106,7 +128,6 @@ pub(super) fn spawn_player_entry(
                 player_info.entity,
                 max_health,
                 current_health,
-                style.health_bar_width,
                 style.health_bar_height,
             );
         })
@@ -120,30 +141,74 @@ pub(super) fn player_health(player_info: &PlayerInfo, health_query: &Query<&Heal
     health.0
 }
 
-fn spawn_power_up_icon(row: &mut ChildSpawnerCommands, active: bool, item_type: ItemType) {
-    if !active {
-        return;
+// Per-kind silhouettes matching the in-game meshes and the editor glyphs:
+// speed = triangle (tetrahedron), multi-shot / phasing = square (cube),
+// low-gravity = circle (sphere).
+fn spawn_power_up_icon(row: &mut ChildSpawnerCommands, active: bool, kind: PowerUpKind, shapes: &HudShapeAssets) {
+    let color = if active {
+        item_type_color(kind.to_item_type())
+    } else {
+        HUD_SLOT_EMPTY_COLOR
+    };
+    let node = Node {
+        width: Val::Px(12.0),
+        height: Val::Px(12.0),
+        align_self: AlignSelf::Center,
+        ..default()
+    };
+    match kind {
+        PowerUpKind::Speed => {
+            row.spawn((
+                node,
+                ImageNode {
+                    color,
+                    ..ImageNode::new(shapes.triangle.clone())
+                },
+            ));
+        }
+        PowerUpKind::LowGravity => {
+            let mut node = node;
+            node.border_radius = BorderRadius::all(Val::Percent(50.0));
+            row.spawn((node, BackgroundColor(color)));
+        }
+        PowerUpKind::MultiShot | PowerUpKind::Phasing => {
+            row.spawn((node, BackgroundColor(color)));
+        }
     }
-
-    row.spawn((
-        Node {
-            width: Val::Px(12.0),
-            height: Val::Px(12.0),
-            align_self: AlignSelf::Center,
-            ..default()
-        },
-        BackgroundColor(item_type_color(item_type)),
-    ));
 }
 
-// Thin vertical bar — visually distinct from the 12×12 power-up squares so
-// "currently active power-up" and "key in inventory" don't read as the same
-// category at a glance.
+// Extra breathing room between the power-up / missile / key groups, on top
+// of the strip's per-icon gap.
+fn spawn_category_gap(row: &mut ChildSpawnerCommands) {
+    row.spawn(Node {
+        width: Val::Px(HUD_ICON_CATEGORY_GAP_PX),
+        ..default()
+    });
+}
+
 fn spawn_key_icon(row: &mut ChildSpawnerCommands, color: Color) {
     row.spawn((
         Node {
-            width: Val::Px(KEY_HUD_ICON_WIDTH_PX),
-            height: Val::Px(KEY_HUD_ICON_HEIGHT_PX),
+            width: Val::Px(KEY_HUD_ICON_SIZE_PX),
+            height: Val::Px(KEY_HUD_ICON_SIZE_PX),
+            align_self: AlignSelf::Center,
+            ..default()
+        },
+        BackgroundColor(color),
+    ));
+}
+
+// Missile bay: a thin vertical line per rocket.
+fn spawn_missile_icon(row: &mut ChildSpawnerCommands, filled: bool) {
+    let color = if filled {
+        ITEM_MISSILE_COLOR
+    } else {
+        HUD_SLOT_EMPTY_COLOR
+    };
+    row.spawn((
+        Node {
+            width: Val::Px(MISSILE_HUD_ICON_WIDTH_PX),
+            height: Val::Px(MISSILE_HUD_ICON_HEIGHT_PX),
             align_self: AlignSelf::Center,
             ..default()
         },
