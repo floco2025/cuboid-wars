@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use common::{face_materials::FaceMaterials, map::MapGeometry};
+use common::{map::MapGeometry, protocol::FaceMaterials};
 
 use super::{MaterialRules, query::SegmentMaterials};
 use crate::map::definition::MapDef;

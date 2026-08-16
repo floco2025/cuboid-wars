@@ -1,6 +1,5 @@
 pub mod config;
 pub mod constants;
-pub mod face_materials;
 pub mod health;
 pub mod map;
 pub mod math;

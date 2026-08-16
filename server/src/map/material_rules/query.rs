@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use common::{
     constants::GRID_CELL_SIZE,
-    face_materials::FaceMaterials,
     map::MapGeometry,
+    protocol::FaceMaterials,
     protocol::{Floor, Ramp, Wall},
 };
 

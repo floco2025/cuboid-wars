@@ -2,7 +2,8 @@ use bevy::prelude::*;
 
 use super::{
     console::spawn_console,
-    hud::{CrosshairBarMarker, CrosshairMarker, FpsMarker, RttMarker},
+    crosshair::{CrosshairBarMarker, CrosshairMarker},
+    diagnostics::{FpsMarker, RttMarker},
     message_feed::spawn_message_feed_root,
     player_list::PlayerListMarker,
     quest_panel::QuestPanelMarker,

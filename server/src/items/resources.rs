@@ -36,6 +36,24 @@ pub struct RandomItems {
     pub despawn_secs: f32,
 }
 
+impl RandomItems {
+    #[must_use]
+    pub fn from_config(config: Option<&crate::config::RandomItemsConfig>) -> Self {
+        config.map_or_else(Self::default, |random_items_config| Self {
+            pool: random_items_config
+                .types
+                .iter()
+                .map(|id| {
+                    ItemType::from_config_id(id)
+                        .expect("random item type missing from ItemType config ids after config validation")
+                })
+                .collect(),
+            max_number: random_items_config.max_number,
+            despawn_secs: random_items_config.despawn_secs,
+        })
+    }
+}
+
 #[derive(Resource, Default)]
 pub struct ItemMap(HashMap<ItemId, ItemInfo>);
 

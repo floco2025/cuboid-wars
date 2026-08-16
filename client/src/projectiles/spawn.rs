@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use crate::characters::PreviousTickPosition;
 use common::{
     constants::*,
-    physics::{CollisionWorld, ProjectileMarker, ProjectileMotion, ProjectileSpawnInfo, calculate_projectile_spawns},
+    physics::{CollisionWorld, ProjectileMotion, ProjectileSpawnInfo, calculate_projectile_spawns},
     protocol::*,
 };
 

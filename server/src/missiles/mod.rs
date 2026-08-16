@@ -1,8 +1,9 @@
 mod air_graph;
-pub(crate) mod guidance;
+mod guidance;
 mod movement;
 mod resources;
 mod spawn;
+mod steering;
 
 pub use air_graph::AirGraph;
 pub use guidance::missiles_guidance_system;

@@ -5,7 +5,7 @@ use super::{
     geometry_batch::{MapGeometryBatch, MapGeometryKind},
 };
 use crate::config::AssetSet;
-use common::{constants::*, face_materials::FaceMaterials, protocol::*};
+use common::{constants::*, protocol::FaceMaterials, protocol::*};
 
 #[derive(Clone, Copy)]
 enum CardinalDirection {

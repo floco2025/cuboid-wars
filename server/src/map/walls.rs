@@ -9,7 +9,7 @@ use super::{
     segments::{MERGE_EPS, horizontal_wall_segment, vertical_wall_segment},
 };
 use crate::map::EdgeGrid;
-use common::{constants::*, face_materials::FaceMaterials, map::MapGeometry, protocol::Wall};
+use common::{constants::*, map::MapGeometry, protocol::FaceMaterials, protocol::Wall};
 
 // Generate individual wall segments (no merging) with gap-filling extensions,
 // tagging each wall with `level`.

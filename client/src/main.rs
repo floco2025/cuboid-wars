@@ -26,9 +26,10 @@ use client::{
         input_missile_system, input_movement_system, input_shooting_system,
     },
     items::{ItemMap, items_animation_system, setup_item_assets, y_spin_system},
+    map::cubemap::skybox_convert_cross_to_cubemap_system,
     map::skybox::{
-        rain_dim_system, setup_skybox_from_cross_system, setup_sun_disc_system, skybox_convert_cross_to_cubemap_system,
-        skybox_rotate_system, skybox_update_camera_system, sun_disc_system,
+        rain_dim_system, setup_skybox_from_cross_system, setup_sun_disc_system, skybox_rotate_system,
+        skybox_update_camera_system, sun_disc_system,
     },
     map::{
         DebugColors, LevelFocusEnabled, grass_burn_system, grass_spawn_system, map_level_focus_visibility_system,

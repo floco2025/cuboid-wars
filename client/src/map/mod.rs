@@ -1,3 +1,4 @@
+pub mod cubemap;
 mod grass;
 mod rendering;
 mod resources;

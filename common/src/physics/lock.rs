@@ -5,7 +5,7 @@ use crate::{
     protocol::{HomingTarget, Position},
 };
 
-use super::{CollisionWorld, projectiles::ball_character_hit};
+use super::{CollisionWorld, characters::ball_character_hit};
 
 // Thin ray for the world-occlusion test, so walls block locks at their real
 // silhouette regardless of how generous the aim assist is.

@@ -5,7 +5,7 @@ use super::{
     ramp_mesh::build_ramp_meshes,
 };
 use crate::config::AssetSet;
-use common::{constants::LEVEL_HEIGHT, face_materials::FaceMaterials, protocol::*};
+use common::{constants::LEVEL_HEIGHT, protocol::*};
 
 // Spawn a ramp entity based on shared `Ramp` config.
 //

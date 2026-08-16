@@ -7,7 +7,7 @@ use super::{
     validation::validate_map,
 };
 use crate::map::material_rules::MaterialRules;
-use common::face_materials::FaceMaterials;
+use common::protocol::FaceMaterials;
 use common::{
     constants::{GRID_CELL_SIZE, LEVEL_HEIGHT},
     protocol::BarrierKindTable,

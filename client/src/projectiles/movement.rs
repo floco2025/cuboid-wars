@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
-    physics::{CollisionWorld, OpenBarrierKinds, ProjectileMarker, ProjectileMotion, projectile_overlaps_character},
-    protocol::{ActorId, ActorMarker, FaceDirection, PlayerId, PlayerMarker, Position},
+    physics::{CollisionWorld, OpenBarrierKinds, ProjectileMotion, projectile_overlaps_character},
+    protocol::{ActorId, ActorMarker, FaceDirection, PlayerId, PlayerMarker, Position, ProjectileMarker},
 };
 
 use super::{

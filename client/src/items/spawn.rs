@@ -47,43 +47,25 @@ struct ItemBundle {
 pub struct ItemAssets {
     cookie_mesh: Handle<Mesh>,
     cookie_material: Handle<StandardMaterial>,
-    speed_mesh: Handle<Mesh>,
-    multishot_mesh: Handle<Mesh>,
-    phasing_mesh: Handle<Mesh>,
-    low_gravity_mesh: Handle<Mesh>,
-    health_mesh: Handle<Mesh>,
-    speed_material: Handle<StandardMaterial>,
-    multishot_material: Handle<StandardMaterial>,
-    phasing_material: Handle<StandardMaterial>,
-    low_gravity_material: Handle<StandardMaterial>,
-    health_material: Handle<StandardMaterial>,
+    power_ups: Vec<PowerUpVisual>,
+}
+
+// One row per power-up kind: silhouette mesh, material, and the fixed "up"
+// orientation the Y-spin stacks on. Adding a power-up means adding one row
+// here instead of touching parallel matches.
+struct PowerUpVisual {
+    item_type: ItemType,
+    mesh: Handle<Mesh>,
+    material: Handle<StandardMaterial>,
+    base_orientation: Quat,
 }
 
 impl ItemAssets {
-    fn power_up_material(&self, item_type: ItemType) -> &Handle<StandardMaterial> {
-        match item_type {
-            ItemType::SpeedPowerUp => &self.speed_material,
-            ItemType::MultiShotPowerUp => &self.multishot_material,
-            ItemType::PhasingPowerUp => &self.phasing_material,
-            ItemType::LowGravityPowerUp => &self.low_gravity_material,
-            ItemType::HealthPotion => &self.health_material,
-            ItemType::Cookie => unreachable!("cookies use cookie_material"),
-            ItemType::Key(_) => unreachable!("keys use BarrierAssets"),
-            ItemType::MissilePack => unreachable!("missile packs use MissileAssets"),
-        }
-    }
-
-    fn power_up_mesh(&self, item_type: ItemType) -> &Handle<Mesh> {
-        match item_type {
-            ItemType::SpeedPowerUp => &self.speed_mesh,
-            ItemType::MultiShotPowerUp => &self.multishot_mesh,
-            ItemType::PhasingPowerUp => &self.phasing_mesh,
-            ItemType::LowGravityPowerUp => &self.low_gravity_mesh,
-            ItemType::HealthPotion => &self.health_mesh,
-            ItemType::Cookie => unreachable!("cookies use cookie_mesh"),
-            ItemType::Key(_) => unreachable!("keys use BarrierAssets"),
-            ItemType::MissilePack => unreachable!("missile packs use MissileAssets"),
-        }
+    fn power_up(&self, item_type: ItemType) -> &PowerUpVisual {
+        self.power_ups
+            .iter()
+            .find(|visual| visual.item_type == item_type)
+            .expect("item type missing from the power-up visual table")
     }
 }
 
@@ -111,33 +93,55 @@ pub fn setup_item_assets(
             client_settings.rendering.texture_mipmaps_enabled,
         ))
     };
-    let speed_material = build_power_up(ItemType::SpeedPowerUp);
-    let multishot_material = build_power_up(ItemType::MultiShotPowerUp);
-    let phasing_material = build_power_up(ItemType::PhasingPowerUp);
-    let low_gravity_material = build_power_up(ItemType::LowGravityPowerUp);
-    let health_material = build_power_up(ItemType::HealthPotion);
-
+    // One shared cube handle so MultiShot and Phasing batch together.
     let cuboid_mesh = meshes.add(Cuboid::new(ITEM_SIZE, ITEM_SIZE, ITEM_SIZE));
 
     // The map editor mirrors these silhouettes as 2D glyphs
     // (tools/map_editor/canvas.py `_paint_items`) — keep the two in sync.
+    let power_ups = vec![
+        // Speed: tetrahedron — angular silhouette reads as "fast". Default
+        // Bevy `Tetrahedron` has two vertices at +y and two at -y (an edge
+        // up); rotate so the vertex at (1,1,1) is the apex.
+        PowerUpVisual {
+            item_type: ItemType::SpeedPowerUp,
+            mesh: meshes.add(Tetrahedron::default().mesh().build().scaled_by(Vec3::splat(ITEM_SIZE))),
+            material: build_power_up(ItemType::SpeedPowerUp),
+            base_orientation: Quat::from_rotation_arc(Vec3::new(1.0, 1.0, 1.0).normalize(), Vec3::Y),
+        },
+        // MultiShot + Phasing keep the original cube.
+        PowerUpVisual {
+            item_type: ItemType::MultiShotPowerUp,
+            mesh: cuboid_mesh.clone(),
+            material: build_power_up(ItemType::MultiShotPowerUp),
+            base_orientation: Quat::IDENTITY,
+        },
+        PowerUpVisual {
+            item_type: ItemType::PhasingPowerUp,
+            mesh: cuboid_mesh,
+            material: build_power_up(ItemType::PhasingPowerUp),
+            base_orientation: Quat::IDENTITY,
+        },
+        // LowGravity: sphere — floats like an orb.
+        PowerUpVisual {
+            item_type: ItemType::LowGravityPowerUp,
+            mesh: meshes.add(Sphere::new(ITEM_SIZE * 0.5)),
+            material: build_power_up(ItemType::LowGravityPowerUp),
+            base_orientation: Quat::IDENTITY,
+        },
+        // HealthPotion: vertical capsule tilted 45° around Z — vial / potion
+        // silhouette leaning like a held bottle.
+        PowerUpVisual {
+            item_type: ItemType::HealthPotion,
+            mesh: meshes.add(Capsule3d::new(ITEM_SIZE * 0.3, ITEM_SIZE)),
+            material: build_power_up(ItemType::HealthPotion),
+            base_orientation: Quat::from_rotation_z(std::f32::consts::FRAC_PI_4),
+        },
+    ];
+
     commands.insert_resource(ItemAssets {
         cookie_mesh: meshes.add(Sphere::new(COOKIE_SIZE)),
         cookie_material,
-        // Speed: tetrahedron — angular silhouette reads as "fast".
-        speed_mesh: meshes.add(Tetrahedron::default().mesh().build().scaled_by(Vec3::splat(ITEM_SIZE))),
-        // MultiShot + Phasing keep the original cube.
-        multishot_mesh: cuboid_mesh.clone(),
-        phasing_mesh: cuboid_mesh,
-        // LowGravity: sphere — floats like an orb.
-        low_gravity_mesh: meshes.add(Sphere::new(ITEM_SIZE * 0.5)),
-        // HealthPotion: vertical capsule — vial / potion silhouette.
-        health_mesh: meshes.add(Capsule3d::new(ITEM_SIZE * 0.3, ITEM_SIZE)),
-        speed_material,
-        multishot_material,
-        phasing_material,
-        low_gravity_material,
-        health_material,
+        power_ups,
     });
 }
 
@@ -284,21 +288,21 @@ fn spawn_power_up(
 ) -> Entity {
     // Power-ups bob up and down (translation) and spin around Y (rotation),
     // each driven by independent per-instance random phases so a cluster
-    // doesn't move in lockstep. The base orientation per shape (apex-up
-    // tetrahedron, tilted capsule, identity for cube/sphere) is baked into
+    // doesn't move in lockstep. The base orientation per shape is baked into
     // the spin's start rotation; the rotation system composes
     // `Quat::from_rotation_y(spin) * base`.
     let bob_phase = random::<f32>() * std::f32::consts::TAU;
     let spin_phase = random::<f32>() * std::f32::consts::TAU;
-    let base = power_up_base_orientation(item_type);
+    let visual = item_assets.power_up(item_type);
+    let base = visual.base_orientation;
     commands
         .spawn((
             ItemBundle {
                 item_id,
                 item_marker: ItemMarker,
                 position: *position,
-                mesh: Mesh3d(item_assets.power_up_mesh(item_type).clone()),
-                material: MeshMaterial3d(item_assets.power_up_material(item_type).clone()),
+                mesh: Mesh3d(visual.mesh.clone()),
+                material: MeshMaterial3d(visual.material.clone()),
                 transform: Transform::from_xyz(
                     position.x,
                     position.y + ITEM_HEIGHT_ABOVE_FLOOR + ITEM_SIZE / 2.0,
@@ -313,20 +317,4 @@ fn spawn_power_up(
             YSpinBase(base),
         ))
         .id()
-}
-
-// Per-shape fixed "up" orientation. The spin around Y stacks on top so the
-// chosen up direction stays constant while the mesh rotates.
-fn power_up_base_orientation(item_type: ItemType) -> Quat {
-    match item_type {
-        // Default Bevy `Tetrahedron` has two vertices at +y and two at -y
-        // (an edge up). Rotate so the vertex at (1,1,1) is the apex.
-        ItemType::SpeedPowerUp => Quat::from_rotation_arc(Vec3::new(1.0, 1.0, 1.0).normalize(), Vec3::Y),
-        // 45° tilt around Z — capsule leans like a held potion.
-        ItemType::HealthPotion => Quat::from_rotation_z(std::f32::consts::FRAC_PI_4),
-        ItemType::MultiShotPowerUp | ItemType::PhasingPowerUp | ItemType::LowGravityPowerUp => Quat::IDENTITY,
-        ItemType::Cookie => unreachable!("cookies don't spawn via spawn_power_up"),
-        ItemType::Key(_) => unreachable!("keys don't spawn via spawn_power_up"),
-        ItemType::MissilePack => unreachable!("missile packs don't spawn via spawn_power_up"),
-    }
 }

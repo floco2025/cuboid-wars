@@ -35,7 +35,7 @@ use server::{
     },
     players::{
         Invincibility, UnlimitedMissiles, players_fall_damage_system, players_fall_death_system,
-        players_respawn_system, players_status_timers_system,
+        players_respawn_system, players_status_timers_system, players_unlimited_missiles_system,
     },
     projectiles::projectiles_movement_system,
 };
@@ -89,22 +89,7 @@ async fn main() -> Result<()> {
     };
     let map_settings = map_server_config.settings.clone();
     let weather_state = WeatherState::new(map_server_config.rain.clone());
-    let random_items =
-        map_server_config
-            .random_items
-            .as_ref()
-            .map_or_else(RandomItems::default, |random_items_config| RandomItems {
-                pool: random_items_config
-                    .types
-                    .iter()
-                    .map(|id| {
-                        common::protocol::ItemType::from_config_id(id)
-                            .expect("random item type missing from ItemType config ids after config validation")
-                    })
-                    .collect(),
-                max_number: random_items_config.max_number,
-                despawn_secs: random_items_config.despawn_secs,
-            });
+    let random_items = RandomItems::from_config(map_server_config.random_items.as_ref());
 
     let barrier_kind_table = common::protocol::BarrierKindTable::from_ids(gameplay_config.barrier_kinds.clone())
         .with_context(|| "failed to build BarrierKindTable from gameplay.json barrier_kinds")?;
@@ -243,7 +228,7 @@ async fn main() -> Result<()> {
                     .after(players_fall_death_system),
                 actor_respawn_system.after(explosions_system),
                 players_respawn_system,
-                players_status_timers_system,
+                (players_status_timers_system, players_unlimited_missiles_system),
                 random_item_spawn_system,
                 random_item_despawn_system,
                 item_collection_system,

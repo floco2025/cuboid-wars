@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use super::hud::fade_out_alpha;
+use super::fade::fade_out_alpha;
 use crate::config::ClientSettings;
 
 // Translucent black background at full opacity. The fade-out tail

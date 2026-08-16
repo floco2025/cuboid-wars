@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use super::{
     admin::{AdminContext, handle_admin_message},
     broadcast::broadcast_to_others,
-    incoming::{CharacterQueries, PlayerStateQuery, SharedWorld},
+    incoming::{CharacterQueries, SharedWorld},
 };
 use crate::{
     actors::ActorMap,
@@ -11,13 +11,11 @@ use crate::{
     missiles::{MissileMap, handle_missile_shot_message},
     network::ServerToClient,
     players::{PlayerInfo, PlayerMap},
+    projectiles::handle_shot_message,
 };
 use common::{
     config::GameplayConfig,
-    physics::{
-        CharacterVerticalVelocity, CollisionWorld, ProjectileMarker, ProjectileMotion, calculate_projectile_spawns,
-        try_start_player_jump,
-    },
+    physics::{CharacterVerticalVelocity, CollisionWorld, try_start_player_jump},
     protocol::*,
 };
 
@@ -220,71 +218,6 @@ fn handle_face_message(commands: &mut Commands, entity: Entity, id: PlayerId, ms
     commands.entity(entity).insert(FaceDirection(msg.dir));
 
     broadcast_to_others(players, id, ServerMessage::Face(SFace { id, dir: msg.dir }));
-}
-
-// Handle shot message.
-fn handle_shot_message(
-    commands: &mut Commands,
-    entity: Entity,
-    id: PlayerId,
-    msg: CShot,
-    players: &mut PlayerMap,
-    time: &Res<Time>,
-    player_data: &PlayerStateQuery,
-    collision_world: &CollisionWorld,
-    gameplay_config: &GameplayConfig,
-    open_barrier_kinds: &OpenBarrierKinds,
-) {
-    // Reject non-finite aim before it reaches projectile trig / authoritative
-    // hit detection. Checked ahead of `try_start_shot` so a bad shot doesn't
-    // burn the fire cooldown.
-    if !(msg.face_dir.is_finite() && msg.face_pitch.is_finite()) {
-        return;
-    }
-
-    let now = time.elapsed_secs();
-
-    let Some(has_multi_shot) = players.get_mut(&id).and_then(|info| info.try_start_shot(now)) else {
-        return;
-    };
-
-    commands.entity(entity).insert(FaceDirection(msg.face_dir));
-
-    // Spawn projectile(s) on server for hit detection
-    if let Ok((pos, _, _, _)) = player_data.get(entity) {
-        let spawns = calculate_projectile_spawns(
-            pos,
-            msg.face_dir,
-            msg.face_pitch,
-            has_multi_shot,
-            gameplay_config.player.eye_height(),
-            collision_world,
-            &open_barrier_kinds.0,
-        );
-
-        // Spawn each projectile
-        for spawn_info in spawns {
-            let proj_motion = ProjectileMotion::new(spawn_info.direction_yaw, spawn_info.direction_pitch);
-
-            commands.spawn((
-                ProjectileMarker,
-                id, // Tag projectile with shooter's ID
-                spawn_info.position,
-                proj_motion,
-            ));
-        }
-    }
-
-    // Broadcast shot with face direction to all other logged-in players
-    broadcast_to_others(
-        players,
-        id,
-        ServerMessage::Shot(SShot {
-            id,
-            face_dir: msg.face_dir,
-            face_pitch: msg.face_pitch,
-        }),
-    );
 }
 
 // Handle ping message — echo the timestamp back as a pong.

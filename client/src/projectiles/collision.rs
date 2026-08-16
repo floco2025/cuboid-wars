@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
-    physics::{CollisionWorld, ProjectileCharacterHit, ProjectileMotion, projectile_character_hit},
+    physics::{BallCharacterHit, CollisionWorld, ProjectileMotion, projectile_character_hit},
     protocol::{ActorId, ActorMarker, BarrierKindId, FaceDirection, PlayerId, PlayerMarker, Position},
 };
 
@@ -201,15 +201,15 @@ pub(super) fn handle_wall_collisions(
 enum ProjectileTargetHit {
     Player {
         is_local_player: bool,
-        hit: ProjectileCharacterHit,
+        hit: BallCharacterHit,
     },
     Actor {
-        hit: ProjectileCharacterHit,
+        hit: BallCharacterHit,
     },
 }
 
 impl ProjectileTargetHit {
-    const fn hit(self) -> ProjectileCharacterHit {
+    const fn hit(self) -> BallCharacterHit {
         match self {
             Self::Player { hit, .. } | Self::Actor { hit, .. } => hit,
         }

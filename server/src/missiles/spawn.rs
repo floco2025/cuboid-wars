@@ -7,7 +7,7 @@ use crate::{
     actors::ActorMap,
     config::ServerGameplayConfig,
     map::OpenBarrierKinds,
-    missiles::{MissileInfo, MissileMap, MissileVelocity, guidance::sweep_clear},
+    missiles::{MissileInfo, MissileMap, MissileVelocity, steering::sweep_clear},
     network::{ActorStateQuery, PlayerStateQuery, broadcast_to_all},
     players::{PlayerInfo, PlayerMap},
 };

@@ -1,6 +1,8 @@
 mod actors;
 mod gameplay;
+mod maps;
 mod network;
+mod quests;
 mod validation;
 
 pub use actors::{
@@ -8,8 +10,9 @@ pub use actors::{
     ActorPatrolConfig, ActorRespawnConfig, ActorSensesConfig, ExplosionDamageConfig,
 };
 pub use gameplay::{
-    FallDamageConfig, MapServerConfig, MissilesServerConfig, PlacedItemRespawnSecs, PlacedItemsConfig,
-    PlayerServerConfig, PowerUpsConfig, ProjectileConfig, Quest, QuestKind, RainScheduleConfig, RandomItemsConfig,
-    ScoringConfig, ServerGameplayConfig,
+    FallDamageConfig, MissilesServerConfig, PlacedItemRespawnSecs, PlacedItemsConfig, PlayerServerConfig,
+    PowerUpsConfig, ProjectileConfig, ScoringConfig, ServerGameplayConfig,
 };
+pub use maps::{MapServerConfig, RainScheduleConfig, RandomItemsConfig};
 pub use network::configure_server;
+pub use quests::{Quest, QuestKind};

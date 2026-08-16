@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-use common::face_materials::FaceMaterials;
+use common::protocol::FaceMaterials;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct MapFile {

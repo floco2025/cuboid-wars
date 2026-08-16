@@ -1,8 +1,8 @@
 use bevy_ecs::prelude::Resource;
 use bincode::{Decode, Encode};
 
+use super::face_materials::FaceMaterials;
 use super::{BarrierKindId, Position};
-use crate::face_materials::FaceMaterials;
 
 #[derive(Debug, Clone, Encode, Decode, Copy)]
 pub struct Wall {

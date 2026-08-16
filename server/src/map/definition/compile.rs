@@ -16,8 +16,8 @@ use crate::{
 };
 use common::{
     constants::*,
-    face_materials::FaceMaterials,
     map::MapGeometry,
+    protocol::FaceMaterials,
     protocol::{Barrier, BarrierKindId, BarrierKindTable, Floor, GrassCell, ItemType, MapLayout, Wall},
 };
 

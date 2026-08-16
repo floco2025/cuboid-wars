@@ -13,20 +13,19 @@ use crate::{
 use common::{
     config::GameplayConfig,
     physics::{
-        CollisionWorld, ProjectileCharacterHit, ProjectileMarker, ProjectileMotion, projectile_character_hit,
-        projectile_overlaps_character,
+        BallCharacterHit, CollisionWorld, ProjectileMotion, projectile_character_hit, projectile_overlaps_character,
     },
     protocol::*,
 };
 
 #[derive(Clone, Copy)]
 enum ProjectileTargetHit {
-    Player { id: PlayerId, hit: ProjectileCharacterHit },
-    Actor { id: ActorId, hit: ProjectileCharacterHit },
+    Player { id: PlayerId, hit: BallCharacterHit },
+    Actor { id: ActorId, hit: BallCharacterHit },
 }
 
 impl ProjectileTargetHit {
-    const fn hit(self) -> ProjectileCharacterHit {
+    const fn hit(self) -> BallCharacterHit {
         match self {
             Self::Player { hit, .. } | Self::Actor { hit, .. } => hit,
         }
