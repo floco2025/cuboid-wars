@@ -1,8 +1,11 @@
+use std::collections::HashMap;
+
 use bevy::prelude::*;
 
-use super::{PendingExplosions, apply_player_beam_damage, kill_player};
+use super::{apply_player_beam_damage, kill_player};
 use crate::{
     actors::{ActorGoal, ActorMap},
+    combat::PendingExplosions,
     config::ServerGameplayConfig,
     network::broadcast_to_all,
     players::{Invincibility, PlayerMap},
@@ -11,7 +14,7 @@ use common::{
     config::GameplayConfig,
     constants::PHYSICS_EPSILON,
     physics::{CollisionWorld, character_center},
-    protocol::{ActorMarker, Health, PlayerMarker, Position, SPlayerHit, ServerMessage},
+    protocol::{ActorId, ActorMarker, Health, HitKind, PlayerMarker, Position, SPlayerHit, ServerMessage},
 };
 
 // Cadence for the beam victim's `SPlayerHit` cue (camera shake + HUD
@@ -24,12 +27,13 @@ const BEAM_HIT_CUE_INTERVAL_SECS: f32 = 0.25;
 // line of sight is clear of static world (the beam origin is the collider
 // center — deliberately not the perception eye height, matching contact
 // explosions). Lethal ticks run the standard death sequence with no killer
-// credit, like falls and blasts.
+// credit, like falls and blasts. A throttled `SPlayerHit` cue gives the
+// victim the directional camera shake and an instant HUD health update.
 pub fn actor_beam_damage_system(
     mut commands: Commands,
     time: Res<Time>,
     mut players: ResMut<PlayerMap>,
-    mut actors: ResMut<ActorMap>,
+    actors: Res<ActorMap>,
     mut pending_explosions: ResMut<PendingExplosions>,
     gameplay_config: Res<GameplayConfig>,
     server_gameplay_config: Res<ServerGameplayConfig>,
@@ -37,23 +41,21 @@ pub fn actor_beam_damage_system(
     collision_world: Res<CollisionWorld>,
     actor_positions: Query<&Position, (With<ActorMarker>, Without<PlayerMarker>)>,
     mut player_query: Query<(&Position, &mut Health), With<PlayerMarker>>,
+    // Per-actor time before which no further hit cue is sent — beam-cue
+    // presentation state, so it lives here rather than on `ActorInfo`.
+    mut next_cue_at: Local<HashMap<ActorId, f32>>,
 ) {
     let delta = time.delta_secs();
+    let now = time.elapsed_secs();
     let respawn_delay_secs = gameplay_config.player.respawn_delay_secs;
     let player_physics = gameplay_config.player.physics();
+    next_cue_at.retain(|id, _| actors.get(id).is_some());
 
-    let firing: Vec<_> = actors
-        .iter()
-        .filter_map(|(id, info)| match &info.goal {
-            ActorGoal::Fire { target, .. } => Some((*id, *target)),
-            _ => None,
-        })
-        .collect();
-
-    for (actor_id, target_id) in firing {
-        let Some(info) = actors.get_mut(&actor_id) else {
+    for (actor_id, info) in actors.iter() {
+        let ActorGoal::Fire { target, .. } = &info.goal else {
             continue;
         };
+        let target_id = *target;
         let Ok(actor_pos) = actor_positions.get(info.entity) else {
             continue;
         };
@@ -94,8 +96,8 @@ pub fn actor_beam_damage_system(
             invincibility.0,
         );
 
-        if info.fire_hit_cue_timer <= 0.0 {
-            info.fire_hit_cue_timer = BEAM_HIT_CUE_INTERVAL_SECS;
+        if next_cue_at.get(actor_id).is_none_or(|at| now >= *at) {
+            next_cue_at.insert(*actor_id, now + BEAM_HIT_CUE_INTERVAL_SECS);
             let dx = target_pos.x - actor_pos.x;
             let dz = target_pos.z - actor_pos.z;
             let length = (dx * dx + dz * dz).sqrt();
@@ -108,6 +110,7 @@ pub fn actor_beam_damage_system(
                 &players,
                 ServerMessage::PlayerHit(SPlayerHit {
                     id: target_id,
+                    kind: HitKind::Beam,
                     hit_dir_x,
                     hit_dir_z,
                     health: *target_health,

@@ -137,8 +137,6 @@ pub struct ActorInfo {
     // variant (same reasoning as `return_retry_timer`). `Flee` ends and
     // firing re-arms only once it lapses.
     pub fire_cooldown_timer: f32,
-    // Throttles the beam-victim `SPlayerHit` cue while burst damage applies.
-    pub fire_hit_cue_timer: f32,
     // Player who landed the last projectile damage. Read by
     // `actor_removal_system` when the actor's health hits zero, so the
     // `SActorDeath` broadcast can attribute the kill. Chain-explosion
@@ -161,7 +159,6 @@ impl ActorInfo {
             committed_direction: None,
             commit_secs_left: 0.0,
             fire_cooldown_timer: 0.0,
-            fire_hit_cue_timer: 0.0,
             last_damager: None,
         }
     }

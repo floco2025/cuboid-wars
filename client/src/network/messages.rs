@@ -230,14 +230,7 @@ pub fn dispatch_message(
             );
         }
         ServerMessage::PlayerBlast(blast_msg) => {
-            handle_player_blast_message(
-                commands,
-                players,
-                cameras,
-                &client_assets.client_settings,
-                my_player_id,
-                blast_msg,
-            );
+            handle_player_blast_message(commands, players, my_player_id, blast_msg);
         }
         ServerMessage::PlayerFallDamage(fall_msg) => {
             handle_fall_damage_message(

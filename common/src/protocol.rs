@@ -240,13 +240,22 @@ pub struct SActorDeath {
     pub killer_score: Option<i32>,
 }
 
-// Player was hit by a projectile. Carries hit direction so the victim's
-// camera shake reads directionally; snapshot can't carry this. Also
-// carries the post-damage health so the HUD health bar updates on the
+// What damaged the player in an `SPlayerHit` — clients tune the camera
+// shake per source.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
+pub enum HitKind {
+    Projectile,
+    Beam,
+}
+
+// Player was hit by a projectile or a laser beam. Carries hit direction so
+// the victim's camera shake reads directionally; snapshot can't carry this.
+// Also carries the post-damage health so the HUD health bar updates on the
 // impact frame instead of waiting for the next snapshot.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SPlayerHit {
     pub id: PlayerId,
+    pub kind: HitKind,
     pub hit_dir_x: f32,
     pub hit_dir_z: f32,
     pub health: Health,

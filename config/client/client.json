@@ -101,11 +101,21 @@
       "height_ratio": 0.20
     },
     "shake": {
-      "duration_secs": 0.3,
-      "intensity": 0.2,
-      "hit_vertical": 0.2,
-      "fall_vertical": 0.5,
-      "blast_vertical": 0.35
+      "projectile": {
+        "intensity": 0.1,
+        "vertical_ratio": 0.2,
+        "duration_secs": 0.3
+      },
+      "laser": {
+        "intensity": 0.2,
+        "vertical_ratio": 0.2,
+        "duration_secs": 0.3
+      },
+      "fall": {
+        "intensity": 0.2,
+        "vertical_ratio": 0.5,
+        "duration_secs": 0.3
+      }
     }
   },
   "input": {

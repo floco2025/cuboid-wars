@@ -191,7 +191,6 @@ pub(super) fn tick_actor_behavior(info: &mut ActorInfo, inputs: &BehaviorInputs<
     let reacquire_blocked = tick_chase_reacquire_timer(info, delta);
     let return_grace = tick_return_retry_timer(info, delta);
     info.fire_cooldown_timer = (info.fire_cooldown_timer - delta).max(0.0);
-    info.fire_hit_cue_timer = (info.fire_hit_cue_timer - delta).max(0.0);
     if let ActorGoal::Patrol { ledge_escape_timer, .. } = &mut info.goal {
         *ledge_escape_timer = (*ledge_escape_timer - delta).max(0.0);
     }

@@ -146,13 +146,17 @@ pub fn handle_player_hit_message(
     }
     let shake = client_settings.camera.shake;
     if msg.id == my_player_id {
+        let source = match msg.kind {
+            HitKind::Projectile => shake.projectile,
+            HitKind::Beam => shake.laser,
+        };
         if let Ok(camera_entity) = camera_query.single() {
             commands.entity(camera_entity).insert(CameraShake {
-                timer: Timer::from_seconds(shake.duration_secs, TimerMode::Once),
-                intensity: shake.intensity,
+                timer: Timer::from_seconds(source.duration_secs, TimerMode::Once),
+                intensity: source.intensity,
                 dir_x: msg.hit_dir_x,
                 // Small vertical companion to the directional hit shake.
-                dir_y: shake.hit_vertical,
+                dir_y: source.vertical_ratio,
                 dir_z: msg.hit_dir_z,
                 offset_x: 0.0,
                 offset_y: 0.0,
@@ -278,11 +282,11 @@ pub fn handle_player_death_message(
 // impulse authoritatively; prediction must integrate it too or the next
 // reconciliation drags the launch back. Remote players need nothing — their
 // motion arrives via snapshots.
+// No camera shake here: the knockback the blast applies IS the feedback —
+// shake on top reads as double impact. Shake is projectile-hits only.
 pub fn handle_player_blast_message(
     commands: &mut Commands,
     players: &PlayerMap,
-    camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
-    client_settings: &ClientSettings,
     my_player_id: PlayerId,
     msg: SPlayerBlast,
 ) {
@@ -298,19 +302,6 @@ pub fn handle_player_blast_message(
         CharacterVerticalVelocity(msg.vertical_velocity),
         KnockbackVelocity(Vec3::new(msg.velocity_x, 0.0, msg.velocity_z)),
     ));
-    let shake = client_settings.camera.shake;
-    if let Ok(camera_entity) = camera_query.single() {
-        commands.entity(camera_entity).insert(CameraShake {
-            timer: Timer::from_seconds(shake.duration_secs, TimerMode::Once),
-            intensity: shake.intensity * msg.strength,
-            dir_x: msg.direction_x,
-            dir_y: shake.blast_vertical * msg.strength,
-            dir_z: msg.direction_z,
-            offset_x: 0.0,
-            offset_y: 0.0,
-            offset_z: 0.0,
-        });
-    }
 }
 
 // Handle player status update (power-ups, stun).
@@ -359,11 +350,11 @@ pub fn handle_player_status_message(
     }
 }
 
-// Player took fall damage. Updates HUD health on the impact frame
-// (instead of waiting for the next snapshot) and applies a vertical
-// camera shake — same shape as `handle_player_hit_message` but on the
-// Y axis only. Unicast, so the message only ever targets the local
-// player; no other-player branch.
+// Player took fall damage. Updates HUD health on the impact frame (instead
+// of waiting for the next snapshot), applies a vertical camera shake — same
+// envelope as a projectile hit, re-aimed along the Y axis — and plays the
+// landing thud. Unicast, so the message only ever targets the local player;
+// no other-player branch.
 #[expect(clippy::too_many_arguments, reason = "message handler threading dispatcher state")]
 pub fn handle_fall_damage_message(
     commands: &mut Commands,
@@ -379,15 +370,13 @@ pub fn handle_fall_damage_message(
         commands.entity(player.entity).insert(msg.health);
     }
     if msg.id == my_player_id {
-        let shake = client_settings.camera.shake;
+        let source = client_settings.camera.shake.fall;
         if let Ok(camera_entity) = camera_query.single() {
             commands.entity(camera_entity).insert(CameraShake {
-                // Same duration/intensity envelope as a projectile hit, just
-                // re-aimed along the vertical axis.
-                timer: Timer::from_seconds(shake.duration_secs, TimerMode::Once),
-                intensity: shake.intensity,
+                timer: Timer::from_seconds(source.duration_secs, TimerMode::Once),
+                intensity: source.intensity,
                 dir_x: 0.0,
-                dir_y: shake.fall_vertical,
+                dir_y: source.vertical_ratio,
                 dir_z: 0.0,
                 offset_x: 0.0,
                 offset_y: 0.0,

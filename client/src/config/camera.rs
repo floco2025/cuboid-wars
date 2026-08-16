@@ -1,7 +1,7 @@
 use anyhow::Result;
 use serde::Deserialize;
 
-use super::settings::{validate_fov, validate_positive_finite, validate_unit_ratio};
+use super::settings::{validate_fov, validate_non_negative_finite, validate_positive_finite, validate_unit_ratio};
 
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct CameraConfig {
@@ -16,27 +16,48 @@ pub struct CameraConfig {
     pub shake: CameraShakeConfig,
 }
 
-// Directional camera shake on the local player: projectile hits shake along
-// the incoming shot direction (with a small vertical companion), hard
-// landings shake vertically. Both share one duration/intensity envelope.
+// Directional camera shake on the local player, fired for projectile hits
+// and laser burn (along the incoming direction, with a small vertical
+// companion) and hard landings (vertical only). NOT for blasts — they
+// already have knockback, so shake on top reads as double feedback.
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(default)]
 pub struct CameraShakeConfig {
-    pub duration_secs: f32,
+    pub projectile: ShakeSourceConfig,
+    pub laser: ShakeSourceConfig,
+    pub fall: ShakeSourceConfig,
+}
+
+// One damage source's shake: `intensity` is the amplitude; `vertical_ratio`
+// is a RATIO of that intensity (the horizontal hit direction is unit
+// length, so vertical strength = intensity × vertical_ratio).
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(default)]
+pub struct ShakeSourceConfig {
     pub intensity: f32,
-    pub hit_vertical: f32,
-    pub fall_vertical: f32,
-    pub blast_vertical: f32,
+    pub vertical_ratio: f32,
+    pub duration_secs: f32,
+}
+
+impl Default for ShakeSourceConfig {
+    fn default() -> Self {
+        Self {
+            intensity: 0.2,
+            vertical_ratio: 0.2,
+            duration_secs: 0.3,
+        }
+    }
 }
 
 impl Default for CameraShakeConfig {
     fn default() -> Self {
         Self {
-            duration_secs: 0.3,
-            intensity: 3.0,
-            hit_vertical: 0.2,
-            fall_vertical: 0.5,
-            blast_vertical: 0.35,
+            projectile: ShakeSourceConfig::default(),
+            laser: ShakeSourceConfig::default(),
+            fall: ShakeSourceConfig {
+                vertical_ratio: 0.5,
+                ..ShakeSourceConfig::default()
+            },
         }
     }
 }
@@ -59,7 +80,24 @@ impl CameraConfig {
         validate_positive_finite(self.topdown_margin, "camera.topdown_margin")?;
         validate_positive_finite(self.topdown_tilt_degrees, "camera.topdown_tilt_degrees")?;
         self.rearview.validate()?;
+        self.shake.validate()?;
         Ok(())
+    }
+}
+
+impl CameraShakeConfig {
+    fn validate(&self) -> Result<()> {
+        self.projectile.validate("camera.shake.projectile")?;
+        self.laser.validate("camera.shake.laser")?;
+        self.fall.validate("camera.shake.fall")
+    }
+}
+
+impl ShakeSourceConfig {
+    fn validate(&self, path: &str) -> Result<()> {
+        validate_non_negative_finite(self.intensity, &format!("{path}.intensity"))?;
+        validate_non_negative_finite(self.vertical_ratio, &format!("{path}.vertical_ratio"))?;
+        validate_positive_finite(self.duration_secs, &format!("{path}.duration_secs"))
     }
 }
 
