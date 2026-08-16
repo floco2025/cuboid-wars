@@ -105,21 +105,21 @@
       "chase": { "leash": 80.0 }
     },
     "zapper": {
-      "respawn": { "enabled": true, "delay_secs": 30.0, "warning_secs": 3.0 },
+      "respawn": { "enabled": true, "delay_secs": 60.0, "warning_secs": 3.0 },
       "combat": {
         "armor": 0.0,
         "explosion": { "radius": 6.0, "max_damage": 75.0 },
-        "score_reward_on_kill": 20
+        "score_reward_on_kill": 150
       },
       "senses": { "horizontal_vision_range": 40.0, "vertical_vision_range": 20.0, "chase_reacquire_cooldown_secs": 10.0 },
       "patrol": { "leash": 10.0, "min_direction_secs": 1.0, "max_direction_secs": 3.5, "idle_probability": 0.0 },
       "chase": { "leash": 20.0 },
       "fire": {
-        "standoff_distance": 20.0,
-        "range": 34.0,
+        "standoff_distance": 15.0,
+        "range": 25.0,
         "duration_secs": 2.0,
         "cooldown_secs": 5.0,
-        "damage_per_second": 75.0
+        "damage_per_second": 50.0
       },
       "navigation": { "path_clear_lookahead_secs": 0.4, "go_to_reached_distance": 0.5 }
     }
