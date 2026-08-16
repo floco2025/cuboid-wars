@@ -70,6 +70,6 @@ pub fn players_respawn_system(
         }
 
         occupied_positions.push(pos);
-        info!("{:?} respawned at {:?}", id, pos);
+        info!("{} respawned at {:?}", players.describe(&id), pos);
     }
 }

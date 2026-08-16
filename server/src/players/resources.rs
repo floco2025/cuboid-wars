@@ -362,6 +362,15 @@ impl PlayerMap {
         self.0.remove(id)
     }
 
+    // "Marc#7" for logs; "player#7" before a name is known.
+    #[must_use]
+    pub fn describe(&self, id: &PlayerId) -> String {
+        match self.get(id) {
+            Some(info) if !info.name.is_empty() => format!("{}#{}", info.name, id.0),
+            _ => format!("player#{}", id.0),
+        }
+    }
+
     #[must_use]
     pub fn get(&self, id: &PlayerId) -> Option<&PlayerInfo> {
         self.0.get(id)

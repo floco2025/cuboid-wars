@@ -62,8 +62,6 @@ pub fn handle_login_message(
 ) {
     match msg {
         ClientMessage::Login(login) => {
-            debug!("{:?} logged in", id);
-
             let channel = {
                 let player_info = players
                     .get_mut(&id)
@@ -75,6 +73,7 @@ pub fn handle_login_message(
 
                 channel
             };
+            debug!("{} logged in", players.describe(&id));
 
             // Send Init to the connecting player (their ID and map config)
             let init_msg = ServerMessage::Init(SInit {

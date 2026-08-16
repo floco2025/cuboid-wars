@@ -17,7 +17,7 @@ use crate::{
 use common::{
     constants::LEVEL_HEIGHT,
     map::MapGeometry,
-    protocol::{ActorMoveIntent, PlayerId, Position},
+    protocol::{ActorId, ActorMoveIntent, PlayerId, Position},
 };
 
 fn actor_info(goal: ActorGoal) -> ActorInfo {
@@ -83,6 +83,7 @@ impl Fixture {
 
     fn inputs(&self, pos: Position, visible_player: Option<Position>, beyond_leash: bool) -> BehaviorInputs<'_> {
         BehaviorInputs {
+            id: ActorId(1),
             pos,
             delta: 0.1,
             beyond_leash,
@@ -567,6 +568,7 @@ impl Fixture {
     // construction where a test needs them.
     fn zapper_inputs(&self, pos: Position, visible_player: Option<Position>) -> BehaviorInputs<'_> {
         BehaviorInputs {
+            id: ActorId(1),
             pos,
             delta: 0.1,
             beyond_leash: false,

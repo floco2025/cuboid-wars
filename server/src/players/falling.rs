@@ -62,8 +62,9 @@ pub fn players_fall_death_system(
                 gameplay_config.player.physics(),
             );
             info!(
-                "{:?} fell out of the world while invincible; teleporting to {:?}",
-                id, spawn_pos
+                "{} fell out of the world while invincible; teleporting to {:?}",
+                players.describe(id),
+                spawn_pos
             );
             commands.entity(entity).insert((
                 spawn_pos,
@@ -77,7 +78,7 @@ pub fn players_fall_death_system(
             }
             continue;
         }
-        info!("{:?} fell and died at {:?}", id, pos);
+        info!("{} fell and died at {:?}", players.describe(id), pos);
         kill_player(
             &mut commands,
             &mut players,
@@ -196,7 +197,11 @@ pub fn players_fall_damage_system(
                     )));
                 }
                 if health.0 <= 0.0 {
-                    info!("{:?} died from fall (distance {:.1}m)", id, fall_distance);
+                    info!(
+                        "{} died from fall (distance {:.1}m)",
+                        players.describe(id),
+                        fall_distance
+                    );
                     kill_player(
                         &mut commands,
                         &mut players,

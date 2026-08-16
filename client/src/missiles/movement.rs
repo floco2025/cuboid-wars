@@ -52,8 +52,8 @@ pub fn missiles_movement_system(
             let (worst_axis, worst_magnitude) = worst_axis_divergence(correction_delta);
             if worst_magnitude >= RECON_MISSILE_SNAP_DISTANCE {
                 warn!(
-                    "{:?} out of sync: |{worst_axis}|={worst_magnitude:.2} >= {:.2}; snapping to server position",
-                    missile_id, RECON_MISSILE_SNAP_DISTANCE
+                    "missile#{} out of sync: |{worst_axis}|={worst_magnitude:.2} >= {:.2}; snapping to server position",
+                    missile_id.0, RECON_MISSILE_SNAP_DISTANCE
                 );
                 *pos = recon.server_pos;
                 velocity.0 = recon.server_velocity;

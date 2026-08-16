@@ -16,6 +16,13 @@ pub struct ActorInfo {
 pub struct ActorMap(HashMap<ActorId, ActorInfo>);
 
 impl ActorMap {
+    // "zapper#22" for logs; "actor#22" for unknown ids.
+    #[must_use]
+    pub fn describe(&self, id: &ActorId) -> String {
+        self.get(id)
+            .map_or_else(|| format!("actor#{}", id.0), |info| format!("{}#{}", info.kind, id.0))
+    }
+
     pub fn insert(&mut self, id: ActorId, info: ActorInfo) -> Option<ActorInfo> {
         self.0.insert(id, info)
     }

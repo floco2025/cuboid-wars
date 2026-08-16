@@ -86,6 +86,7 @@ pub fn actor_behavior_system(
         };
 
         let inputs = BehaviorInputs {
+            id: *id,
             pos: *pos,
             delta,
             beyond_leash,
@@ -146,6 +147,7 @@ pub(super) const PATROL_LEDGE_ESCAPE_SECS: f32 = 1.0;
 // (needs queries) stays in the system shell; it passes `None` when
 // `beyond_leash` (perception is skipped out there, exactly as before).
 pub(super) struct BehaviorInputs<'a> {
+    pub id: ActorId,
     pub pos: Position,
     pub delta: f32,
     pub beyond_leash: bool,
@@ -454,8 +456,9 @@ fn escape_stall(info: &mut ActorInfo, inputs: &BehaviorInputs<'_>, rng: &mut Thr
             // wander off — the reacquire cooldown stops next tick's
             // perception from re-pinning it.
             debug!(
-                "{} (zone {}) chase stalled at ({:.2},{:.2},{:.2}); giving up for {:.1}s",
+                "{}#{} (zone {}) chase stalled at ({:.2},{:.2},{:.2}); giving up for {:.1}s",
                 info.spawn_kind,
+                inputs.id.0,
                 info.spawn_zone_index,
                 pos.x,
                 pos.y,
@@ -469,8 +472,9 @@ fn escape_stall(info: &mut ActorInfo, inputs: &BehaviorInputs<'_>, rng: &mut Thr
             // Same shape as a pinned chase: give up, wander, and let the
             // reacquire cooldown stop next tick's perception from re-pinning.
             debug!(
-                "{} (zone {}) approach stalled at ({:.2},{:.2},{:.2}); giving up for {:.1}s",
+                "{}#{} (zone {}) approach stalled at ({:.2},{:.2},{:.2}); giving up for {:.1}s",
                 info.spawn_kind,
+                inputs.id.0,
                 info.spawn_zone_index,
                 pos.x,
                 pos.y,
@@ -484,8 +488,8 @@ fn escape_stall(info: &mut ActorInfo, inputs: &BehaviorInputs<'_>, rng: &mut Thr
             // Cornered while hiding: patrol in place. The still-running
             // fire cooldown keeps re-fire gated regardless of goal.
             debug!(
-                "{} (zone {}) flee stalled at ({:.2},{:.2},{:.2}); patrolling out the cooldown",
-                info.spawn_kind, info.spawn_zone_index, pos.x, pos.y, pos.z
+                "{}#{} (zone {}) flee stalled at ({:.2},{:.2},{:.2}); patrolling out the cooldown",
+                info.spawn_kind, inputs.id.0, info.spawn_zone_index, pos.x, pos.y, pos.z
             );
             info.goal = forced_patrol_goal(rng, inputs.patrol_speed, inputs.kind_config);
         }
@@ -494,15 +498,16 @@ fn escape_stall(info: &mut ActorInfo, inputs: &BehaviorInputs<'_>, rng: &mut Thr
         ActorGoal::Fire { .. } => {}
         ActorGoal::Pursuit { .. } => {
             debug!(
-                "{} (zone {}) abandoning unreachable last-seen spot at ({:.2},{:.2},{:.2}); resuming patrol",
-                info.spawn_kind, info.spawn_zone_index, pos.x, pos.y, pos.z
+                "{}#{} (zone {}) abandoning unreachable last-seen spot at ({:.2},{:.2},{:.2}); resuming patrol",
+                info.spawn_kind, inputs.id.0, info.spawn_zone_index, pos.x, pos.y, pos.z
             );
             info.goal = fresh_patrol_goal();
         }
         ActorGoal::Return { next, path } => {
             warn!(
-                "{} (zone {}) return stalled at ({:.2},{:.2},{:.2}) heading to waypoint ({:.2},{:.2},{:.2}) with {} more; patrolling {RETURN_RETRY_SECS}s before retry",
+                "{}#{} (zone {}) return stalled at ({:.2},{:.2},{:.2}) heading to waypoint ({:.2},{:.2},{:.2}) with {} more; patrolling {RETURN_RETRY_SECS}s before retry",
                 info.spawn_kind,
+                inputs.id.0,
                 info.spawn_zone_index,
                 pos.x,
                 pos.y,
@@ -521,8 +526,8 @@ fn escape_stall(info: &mut ActorInfo, inputs: &BehaviorInputs<'_>, rng: &mut Thr
             // risky steps — grazes and off-edge drops; a fall is recycled by
             // removal/respawn.
             debug!(
-                "{} (zone {}) patrol stalled at ({:.2},{:.2},{:.2}); ledge-unaware escape for {PATROL_LEDGE_ESCAPE_SECS}s",
-                info.spawn_kind, info.spawn_zone_index, pos.x, pos.y, pos.z
+                "{}#{} (zone {}) patrol stalled at ({:.2},{:.2},{:.2}); ledge-unaware escape for {PATROL_LEDGE_ESCAPE_SECS}s",
+                info.spawn_kind, inputs.id.0, info.spawn_zone_index, pos.x, pos.y, pos.z
             );
             let mut goal = forced_patrol_goal(rng, inputs.patrol_speed, inputs.kind_config);
             if let ActorGoal::Patrol { ledge_escape_timer, .. } = &mut goal {
@@ -552,8 +557,8 @@ fn start_return(info: &mut ActorInfo, inputs: &BehaviorInputs<'_>) {
     let reached_distance = inputs.kind_config.navigation.go_to_reached_distance;
     if used_straight_line_fallback && pos.horizontal_distance_sq(&next) <= reached_distance * reached_distance {
         warn!(
-            "{} (zone {}) has no usable return target from ({:.2},{:.2},{:.2}); patrolling {RETURN_RETRY_SECS}s before retry",
-            info.spawn_kind, info.spawn_zone_index, pos.x, pos.y, pos.z
+            "{}#{} (zone {}) has no usable return target from ({:.2},{:.2},{:.2}); patrolling {RETURN_RETRY_SECS}s before retry",
+            info.spawn_kind, inputs.id.0, info.spawn_zone_index, pos.x, pos.y, pos.z
         );
         info.return_retry_timer = RETURN_RETRY_SECS;
         return;
@@ -566,8 +571,9 @@ fn start_return(info: &mut ActorInfo, inputs: &BehaviorInputs<'_>) {
     let target_distance = pos.horizontal_distance_sq(&next).sqrt();
     if used_straight_line_fallback {
         warn!(
-            "{} returning to spawn zone {} (level {}) from ({:.2},{:.2},{:.2}): NO nav path — straight-line fallback to ({:.2},{:.2},{:.2}), dist {:.2}; may walk into a wall/barrier",
+            "{}#{} returning to spawn zone {} (level {}) from ({:.2},{:.2},{:.2}): NO nav path — straight-line fallback to ({:.2},{:.2},{:.2}), dist {:.2}; may walk into a wall/barrier",
             info.spawn_kind,
+            inputs.id.0,
             info.spawn_zone_index,
             inputs.zone.level,
             pos.x,
@@ -580,8 +586,9 @@ fn start_return(info: &mut ActorInfo, inputs: &BehaviorInputs<'_>) {
         );
     } else {
         debug!(
-            "{} returning to spawn zone {} (level {}) from ({:.2},{:.2},{:.2}): first waypoint ({:.2},{:.2},{:.2}), dist {:.2}, {} waypoints",
+            "{}#{} returning to spawn zone {} (level {}) from ({:.2},{:.2},{:.2}): first waypoint ({:.2},{:.2},{:.2}), dist {:.2}, {} waypoints",
             info.spawn_kind,
+            inputs.id.0,
             info.spawn_zone_index,
             inputs.zone.level,
             pos.x,

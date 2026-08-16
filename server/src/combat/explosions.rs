@@ -59,14 +59,16 @@ pub struct ExplosionContext<'w, 's> {
     actor_query: ActorBlastQuery<'w, 's>,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 enum BlastSource {
     Player(PlayerId),
-    Actor(ActorId),
+    // The source actor is already gone from `ActorMap` when its blast
+    // resolves, so the kind rides along for the log label.
+    Actor { id: ActorId, kind: String },
     Missile(PlayerId),
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct BlastSpec {
     source: BlastSource,
     center: Vec3,
@@ -110,7 +112,7 @@ pub fn explosions_system(mut context: ExplosionContext) {
     while let Some(pending) = context.pending.0.pop_front() {
         let spec = blast_spec(pending, &context.gameplay_config, &context.server_gameplay_config);
         let outcome = apply_blast(
-            spec,
+            &spec,
             &context.gameplay_config,
             &context.server_gameplay_config,
             context.invincibility.0,
@@ -124,7 +126,11 @@ pub fn explosions_system(mut context: ExplosionContext) {
         );
 
         for death in outcome.dead_players {
-            info!("{:?} died in {}", death.id, source_description(spec.source));
+            info!(
+                "{} died in {}",
+                context.players.describe(&death.id),
+                source_description(&spec.source, &context.players)
+            );
             player_impulses.remove(&death.id);
             if let Some(victim) = context.players.get_mut(&death.id) {
                 victim.score += context.server_gameplay_config.scoring.player_death;
@@ -153,6 +159,7 @@ pub fn explosions_system(mut context: ExplosionContext) {
         }
 
         for death in outcome.dead_actors {
+            let victim = context.actors.describe(&death.id);
             actor_impulses.remove(&death.id);
             let killer = spec.killer.filter(|k| context.players.get(k).is_some());
             if let Some(killer_id) = killer
@@ -170,7 +177,11 @@ pub fn explosions_system(mut context: ExplosionContext) {
                 death.pos,
                 killer,
             ) {
-                info!("{:?} died in {}", death.id, source_description(spec.source));
+                info!(
+                    "{} died in {}",
+                    victim,
+                    source_description(&spec.source, &context.players)
+                );
             }
         }
     }
@@ -194,7 +205,10 @@ fn blast_spec(pending: PendingExplosion, gameplay: &GameplayConfig, server: &Ser
             spawn_kind,
             pos,
         } => BlastSpec {
-            source: BlastSource::Actor(source_id),
+            source: BlastSource::Actor {
+                id: source_id,
+                kind: spawn_kind.clone(),
+            },
             center: character_center(pos, gameplay.validated_actor(&spawn_kind).physics()),
             excluded_actor: Some(source_entity),
             damage: server.validated_actor(&spawn_kind).combat.explosion,
@@ -219,7 +233,7 @@ fn blast_spec(pending: PendingExplosion, gameplay: &GameplayConfig, server: &Ser
     reason = "blast resolution reads both victim query sets and impulse maps"
 )]
 fn apply_blast(
-    spec: BlastSpec,
+    spec: &BlastSpec,
     gameplay: &GameplayConfig,
     server: &ServerGameplayConfig,
     invincible: bool,
@@ -399,11 +413,11 @@ fn blast_falloff_at_distance(distance: f32, radius: f32) -> f32 {
     (1.0 - progress).powi(2)
 }
 
-fn source_description(source: BlastSource) -> String {
+fn source_description(source: &BlastSource, players: &PlayerMap) -> String {
     match source {
-        BlastSource::Player(id) => format!("{:?}'s death explosion", id),
-        BlastSource::Actor(id) => format!("{:?}'s explosion", id),
-        BlastSource::Missile(id) => format!("{:?}'s missile explosion", id),
+        BlastSource::Player(id) => format!("{}'s death explosion", players.describe(id)),
+        BlastSource::Actor { id, kind } => format!("{kind}#{}'s explosion", id.0),
+        BlastSource::Missile(id) => format!("{}'s missile explosion", players.describe(id)),
     }
 }
 

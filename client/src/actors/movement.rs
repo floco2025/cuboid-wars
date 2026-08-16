@@ -97,8 +97,13 @@ pub(crate) fn plan_actor_moves(
             let (worst_axis, worst_magnitude) = worst_axis_divergence(correction_delta);
             if worst_magnitude >= RECON_ACTOR_SNAP_DISTANCE {
                 warn!(
-                    "{:?} out of sync: |{worst_axis}|={worst_magnitude:.2} >= {:.2} (Δ x={:.2}, y={:.2}, z={:.2}); snapping to server position",
-                    actor_id, RECON_ACTOR_SNAP_DISTANCE, correction_delta.x, correction_delta.y, correction_delta.z
+                    "{}#{} out of sync: |{worst_axis}|={worst_magnitude:.2} >= {:.2} (Δ x={:.2}, y={:.2}, z={:.2}); snapping to server position",
+                    info.kind,
+                    actor_id.0,
+                    RECON_ACTOR_SNAP_DISTANCE,
+                    correction_delta.x,
+                    correction_delta.y,
+                    correction_delta.z
                 );
                 *pos = recon.server_pos;
                 // Adopt server vy only; horizontal motion comes from `move_intent`.

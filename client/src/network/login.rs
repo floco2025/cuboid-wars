@@ -25,7 +25,7 @@ use common::{physics::CollisionWorld, protocol::*};
 pub fn handle_pre_bootstrap_message(msg: ServerMessage, commands: &mut Commands, client_assets: &mut ClientAssets) {
     match msg {
         ServerMessage::Init(init_msg) => {
-            debug!("received Init: my_id={:?}", init_msg.id);
+            debug!("received Init: my_id=player#{}", init_msg.id.0);
             commands.insert_resource(MyPlayerId(init_msg.id));
             let collision_world =
                 CollisionWorld::from_map_layout(&init_msg.map_layout, &client_assets.handles.barrier_kind_table);

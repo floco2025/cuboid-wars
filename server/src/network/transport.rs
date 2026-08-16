@@ -29,7 +29,7 @@ pub async fn accept_connections_task(endpoint: Endpoint, to_server: UnboundedSen
         tokio::spawn(async move {
             match incoming.await {
                 Ok(connection) => {
-                    info!("player {:?} connection established", id);
+                    info!("player#{} connection established", id.0);
                     let (to_client, from_server) = unbounded_channel();
 
                     if to_server_clone
@@ -101,7 +101,7 @@ pub async fn per_client_network_io_task(
     }
 
     // Ensure disconnect notification is sent before task exits
-    debug!("{:?} network task exiting", id);
+    debug!("player#{} network task exiting", id.0);
     let _ = to_server.send((id, ClientToServer::Disconnected));
 }
 
@@ -150,7 +150,7 @@ async fn handle_server_command(
                 .is_ok()
         }
         Some(ServerToClient::Close) => {
-            debug!("closing connection to {:?}", id);
+            debug!("closing connection to player#{}", id.0);
             connection.close(0u32.into(), b"server closing");
             false
         }

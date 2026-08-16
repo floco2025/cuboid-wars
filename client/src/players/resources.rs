@@ -70,6 +70,15 @@ impl PlayerInfo {
 pub struct PlayerMap(HashMap<PlayerId, PlayerInfo>);
 
 impl PlayerMap {
+    // "Marc#7" for logs; "player#7" before a name is known.
+    #[must_use]
+    pub fn describe(&self, id: &PlayerId) -> String {
+        match self.get(id) {
+            Some(info) if !info.name.is_empty() => format!("{}#{}", info.name, id.0),
+            _ => format!("player#{}", id.0),
+        }
+    }
+
     pub fn insert(&mut self, id: PlayerId, info: PlayerInfo) -> Option<PlayerInfo> {
         self.0.insert(id, info)
     }

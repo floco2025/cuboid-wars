@@ -65,7 +65,7 @@ pub fn actor_removal_system(
                 death.killer,
             );
         } else {
-            info!("{:?} fell and despawned at {:?}", death.id, death.pos);
+            info!("{} fell and despawned at {:?}", actors.describe(&death.id), death.pos);
             commands.entity(death.entity).despawn();
             actors.remove(&death.id);
         }

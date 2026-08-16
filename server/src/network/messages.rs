@@ -53,7 +53,7 @@ pub fn dispatch_message(
 
     match msg {
         ClientMessage::Login(_) => {
-            warn!("{:?} sent login after already authenticated", id);
+            warn!("{} sent login after already authenticated", players.describe(&id));
             if let Some(player) = players.get(&id) {
                 // Terminate the connection to enforce a single-login flow
                 let _ = player.channel.send(ServerToClient::Close);
@@ -80,7 +80,7 @@ pub fn dispatch_message(
             handle_face_message(commands, entity, id, msg, &*players);
         }
         ClientMessage::Shot(msg) => {
-            debug!("{id:?} shot");
+            debug!("{} shot", players.describe(&id));
             handle_shot_message(
                 commands,
                 entity,
@@ -95,7 +95,7 @@ pub fn dispatch_message(
             );
         }
         ClientMessage::MissileShot(msg) => {
-            debug!("{id:?} missile shot at {:?}", msg.target);
+            debug!("{} missile shot at {:?}", players.describe(&id), msg.target);
             handle_missile_shot_message(
                 commands,
                 entity,
@@ -116,7 +116,7 @@ pub fn dispatch_message(
             handle_ping_message(id, msg, players);
         }
         ClientMessage::Admin(msg) => {
-            debug!("{id:?} admin command: {:?}", msg.command);
+            debug!("{} admin command: {:?}", players.describe(&id), msg.command);
             handle_admin_message(
                 commands,
                 players,

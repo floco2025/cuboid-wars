@@ -176,6 +176,15 @@ impl ActorMap {
         self.0.remove(id)
     }
 
+    // "zapper#22" for logs; "actor#22" for unknown ids.
+    #[must_use]
+    pub fn describe(&self, id: &ActorId) -> String {
+        self.get(id).map_or_else(
+            || format!("actor#{}", id.0),
+            |info| format!("{}#{}", info.spawn_kind, id.0),
+        )
+    }
+
     #[must_use]
     pub fn get(&self, id: &ActorId) -> Option<&ActorInfo> {
         self.0.get(id)

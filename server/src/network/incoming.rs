@@ -91,20 +91,21 @@ pub fn network_process_client_messages_system(
 ) {
     while let Ok((id, event)) = from_clients.try_recv() {
         if let ClientToServer::Registration { to_client } = event {
-            debug!("{:?} registered", id);
+            debug!("player#{} registered", id.0);
             let entity = commands.spawn((PlayerMarker, id)).id();
             players.insert(id, PlayerInfo::new(entity, to_client));
             continue;
         }
 
         let Some(player_info) = players.get(&id) else {
-            error!("received event for unknown {:?}", id);
+            error!("received event for unknown player#{}", id.0);
             continue;
         };
 
         match event {
             ClientToServer::Registration { .. } => unreachable!("handled above"),
             ClientToServer::Disconnected => {
+                let who = players.describe(&id);
                 let was_logged_in = player_info.logged_in;
                 let entity = player_info.entity;
                 let was_dead = player_info.is_dead();
@@ -116,7 +117,7 @@ pub fn network_process_client_messages_system(
                     commands.entity(entity).despawn();
                 }
 
-                debug!("{:?} disconnected (logged_in: {})", id, was_logged_in);
+                debug!("{} disconnected (logged_in: {})", who, was_logged_in);
                 // Other clients notice the absence on the next `SSnapshot`.
             }
             ClientToServer::Message(message) => {

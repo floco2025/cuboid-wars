@@ -248,7 +248,7 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                     );
 
                     if was_lethal {
-                        info!("{:?} died", player_id);
+                        info!("{} died", params.players.describe(&player_id));
                         // A self-kill is a solo death — no killer attribution
                         // (the feed would otherwise read "X killed X").
                         let killer = (player_id != *shooter_id).then_some(*shooter_id);

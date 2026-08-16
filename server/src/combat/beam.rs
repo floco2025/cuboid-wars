@@ -120,7 +120,11 @@ pub fn actor_beam_damage_system(
 
         if lethal {
             let death_pos = *target_pos;
-            info!("{:?} was burned down by {:?}'s beam", target_id, actor_id);
+            info!(
+                "{} was burned down by {}'s beam",
+                players.describe(&target_id),
+                actors.describe(actor_id)
+            );
             kill_player(
                 &mut commands,
                 &mut players,
