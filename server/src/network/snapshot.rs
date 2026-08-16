@@ -12,6 +12,8 @@ use common::{
     protocol::{ActorMarker, ItemMarker, PlayerMarker, *},
 };
 
+use super::incoming::{ActorStateQuery, PlayerStateQuery};
+
 use super::broadcast::{
     broadcast_to_all, collect_items, snapshot_actors, snapshot_logged_in_players, snapshot_missiles,
     snapshot_spawning_actors,
@@ -28,9 +30,9 @@ pub fn network_broadcast_snapshot_system(
     items: Res<ItemMap>,
     open_barrier_kinds: Res<OpenBarrierKinds>,
     weather: Res<WeatherState>,
-    player_data: Query<(&Position, &PlayerMoveIntent, &FaceDirection, &Health), With<PlayerMarker>>,
+    player_data: PlayerStateQuery,
     motions: Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
-    actor_data: Query<(&Position, &ActorMoveIntent, &FaceDirection, &Health), With<ActorMarker>>,
+    actor_data: ActorStateQuery,
     actor_motions: Query<&CharacterVerticalVelocity, With<ActorMarker>>,
     item_positions: Query<&Position, With<ItemMarker>>,
     missiles: Res<MissileMap>,
@@ -44,11 +46,11 @@ pub fn network_broadcast_snapshot_system(
     // holds at SNAPSHOT_HZ instead of drifting slower by the leftover each tick.
     *timer -= SNAPSHOT_SECS;
 
-    *seq = seq.wrapping_add(1);
-
-    if players.values().all(|info| !info.logged_in) {
+    if players.all_logged_out() {
         return;
     }
+
+    *seq = seq.wrapping_add(1);
 
     let all_players = snapshot_logged_in_players(&players, &player_data, &motions);
     let all_actors = snapshot_actors(&actors, &actor_data, &actor_motions);

@@ -1,4 +1,5 @@
 mod beam;
+mod cube;
 mod exhaust;
 mod explosion;
 mod laser;
@@ -12,9 +13,9 @@ pub use beam::{
 };
 pub use exhaust::missile_exhaust_system;
 pub use explosion::{
-    ExplosionAssets, ExplosionRadii, ExplosionVfxBudget, explosion_lights_system, explosion_particles_system,
-    explosion_pulse_system, explosion_sound_speed, scorch_marks_system, spawn_actor_explosion, spawn_missile_explosion,
-    spawn_player_explosion,
+    ExplosionAssets, ExplosionRadii, ExplosionSpawnCtx, ExplosionVfxBudget, explosion_lights_system,
+    explosion_particles_system, explosion_pulse_system, explosion_sound_speed, scorch_marks_system,
+    spawn_actor_explosion, spawn_missile_explosion, spawn_player_explosion,
 };
 pub(crate) use explosion::{ScorchOutline, with_white_vertex_colors};
 pub use laser::{LaserBeam, laser_beam_update_system, spawn_laser_beam};

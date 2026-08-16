@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 use crate::{
+    audio::play_sound,
     cameras::MainCameraMarker,
     characters::PreviousTickPosition,
     config::{AssetSet, ClientSettings},
@@ -8,7 +9,7 @@ use crate::{
     players::{CameraShake, CuboidShake, LocalPlayerInfo, PlayerMap},
     projectiles::{ProjectileAssets, spawn_projectiles},
     ui::{GameMessage, GameMessageFeed, PendingBanner},
-    vfx::{ExplosionAssets, ExplosionRadii, ExplosionVfxBudget, spawn_player_explosion},
+    vfx::{ExplosionRadii, ExplosionSpawnCtx, spawn_player_explosion},
 };
 use common::{
     config::GameplayConfig,
@@ -185,19 +186,13 @@ pub fn handle_player_hit_message(
 #[expect(clippy::too_many_arguments, reason = "message handler threading dispatcher state")]
 pub fn handle_player_death_message(
     commands: &mut Commands,
-    meshes: &mut Assets<Mesh>,
-    materials: &mut Assets<StandardMaterial>,
-    budget: &mut ExplosionVfxBudget,
-    explosion_assets: &ExplosionAssets,
+    ctx: &mut ExplosionSpawnCtx,
     explosion_radii: &ExplosionRadii,
     players: &mut PlayerMap,
     local_player_info: &mut LocalPlayerInfo,
     feed: &mut GameMessageFeed,
     client_settings: &ClientSettings,
     pending_banner: &mut PendingBanner,
-    gameplay_config: &GameplayConfig,
-    collision_world: Option<&CollisionWorld>,
-    map_layout: Option<&MapLayout>,
     my_player_id: PlayerId,
     msg: SPlayerDeath,
 ) {
@@ -243,18 +238,7 @@ pub fn handle_player_death_message(
     // For the local player the fireball's backfaces are culled, so the
     // first-person camera inside the sphere sees shards/ring/light rather
     // than an orange screen wash.
-    spawn_player_explosion(
-        commands,
-        meshes,
-        materials,
-        budget,
-        explosion_assets,
-        explosion_radii,
-        gameplay_config,
-        collision_world,
-        map_layout,
-        msg.pos,
-    );
+    spawn_player_explosion(commands, ctx, explosion_radii, msg.pos);
 
     if msg.id == my_player_id {
         if let Some(info) = players.get(&msg.id) {
@@ -341,10 +325,7 @@ pub fn handle_player_status_message(
                     .any(|kind| player_info.power_up(*kind) && !msg.power_up(*kind));
 
                 if !lost_power_up {
-                    commands.spawn((
-                        AudioPlayer::new(asset_server.load(asset_set.player_sound("collect_power_up").to_owned())),
-                        PlaybackSettings::DESPAWN,
-                    ));
+                    play_sound(commands, asset_server, asset_set.player_sound("collect_power_up"));
                 }
             }
         }
@@ -386,17 +367,17 @@ pub fn handle_fall_damage_message(
                 offset_z: 0.0,
             });
         }
-        commands.spawn((
-            AudioPlayer::new(asset_server.load(asset_set.player_sound("fall_damage").to_owned())),
-            PlaybackSettings::DESPAWN,
-        ));
+        play_sound(commands, asset_server, asset_set.player_sound("fall_damage"));
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::players::PlayerInfo;
+    use crate::{
+        players::PlayerInfo,
+        vfx::{ExplosionAssets, ExplosionVfxBudget},
+    };
 
     fn player_info(entity: Entity, name: &str) -> PlayerInfo {
         PlayerInfo {
@@ -435,21 +416,24 @@ mod tests {
 
         {
             let mut commands = bevy::ecs::system::Commands::new(&mut commands_queue, world);
+            let mut ctx = ExplosionSpawnCtx {
+                meshes: &mut mesh_assets,
+                materials: &mut material_assets,
+                budget: &mut explosion_budget,
+                explosion_assets: &explosion_assets,
+                gameplay_config: &gameplay_config,
+                collision_world: None,
+                map_layout: None,
+            };
             handle_player_death_message(
                 &mut commands,
-                &mut mesh_assets,
-                &mut material_assets,
-                &mut explosion_budget,
-                &explosion_assets,
+                &mut ctx,
                 &explosion_radii,
                 &mut players,
                 &mut local_player_info,
                 &mut feed,
                 &client_settings,
                 &mut pending_banner,
-                &gameplay_config,
-                None,
-                None,
                 my_id,
                 SPlayerDeath {
                     id: my_id,

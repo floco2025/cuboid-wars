@@ -3,8 +3,8 @@ use common::{
     config::GameplayConfig,
     constants::{ALWAYS_LOW_GRAVITY, ALWAYS_PHASING, SNAPSHOT_SECS},
     physics::{
-        CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, passable_barrier_kinds,
-        step_character_movement,
+        CharacterEnvironment, CharacterMovePlan, CharacterStep, CharacterVerticalVelocity, CollisionWorld,
+        KnockbackVelocity, passable_barrier_kinds, step_character_movement,
     },
     protocol::{
         ActorMarker, BarrierKindId, MapSettings, PlayerId, PlayerMarker, PlayerMoveIntent, Position, PowerUpKind,
@@ -130,16 +130,20 @@ pub(crate) fn plan_player_moves(
             // movement about which barriers we pass through.
             let passable_kinds = passable_barrier_kinds(held_keys, &open_barrier_kinds.0);
             let step = step_character_movement(
-                &client_pos,
-                motion.0,
-                collision_world,
-                has_phasing,
-                map_settings.gravity_for(has_low_gravity),
-                &passable_kinds,
-                player_physics,
-                target.x,
-                target.z,
-                delta,
+                CharacterStep {
+                    start: *client_pos,
+                    vertical_velocity: motion.0,
+                    target_x: target.x,
+                    target_z: target.z,
+                    delta,
+                },
+                &CharacterEnvironment {
+                    collision_world,
+                    has_phasing,
+                    gravity: map_settings.gravity_for(has_low_gravity),
+                    passable_kinds: &passable_kinds,
+                    physics: player_physics,
+                },
             );
             planned_moves.push(CharacterMovePlan::from_movement_result(
                 entity,

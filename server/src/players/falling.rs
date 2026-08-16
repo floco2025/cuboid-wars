@@ -182,7 +182,7 @@ pub fn players_fall_damage_system(
                 if !invincible {
                     apply_damage(&mut health, damage);
                 }
-                // Unicast `SFallDamage` to the victim so the HUD health bar
+                // Unicast `SPlayerFallDamage` to the victim so the HUD health bar
                 // and vertical camera wiggle land on the impact frame
                 // instead of waiting for the next snapshot. The fatal-fall
                 // case additionally surfaces `SPlayerDeath` via

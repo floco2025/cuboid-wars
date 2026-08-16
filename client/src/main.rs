@@ -37,7 +37,7 @@ use client::{
     },
     materials::{GrassMaterialPlugin, generate_material_mipmaps_system},
     missiles::{
-        LockOnTarget, MissileAssets, MissileMap as ClientMissileMap, lock_on_system, missiles_movement_system,
+        LockOnTarget, MissileAssets, MissileMap, lock_on_system, missiles_movement_system,
         missiles_transform_sync_system,
     },
     network::{
@@ -213,7 +213,7 @@ fn main() -> Result<()> {
         .insert_resource(PendingBanner::default())
         .insert_resource(SeenPlayerIds::default())
         .insert_resource(QuestLog::default())
-        .insert_resource(ClientMissileMap::default())
+        .insert_resource(MissileMap::default())
         .insert_resource(LockOnTarget::default())
         .init_resource::<MissileAssets>()
         .init_resource::<client::ui::HudShapeAssets>()

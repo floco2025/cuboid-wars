@@ -1,4 +1,4 @@
-use bevy::{audio::SpatialScale, audio::Volume, prelude::*};
+use bevy::prelude::*;
 
 use super::{
     actors::{
@@ -22,11 +22,12 @@ use super::{
 };
 use crate::{
     actors::ActorMap,
+    audio::{play_explosion_sound, play_sound},
     cameras::MainCameraMarker,
     items::ItemMap,
     network::{LastSnapshotSeq, RoundTripTime},
     players::PlayerMap,
-    vfx::explosion_sound_speed,
+    vfx::ExplosionSpawnCtx,
 };
 use common::{physics::CollisionWorld, protocol::*};
 
@@ -35,9 +36,9 @@ use common::{physics::CollisionWorld, protocol::*};
 // ============================================================================
 
 // Route logged-in messages to appropriate handlers. The `ClientAssets`
-// bundle is threaded through as a single param — most handlers want some
-// subset of its fields, and unpacking once at the SystemParam level keeps
-// the dispatch call sites short.
+// bundle is threaded through as a single param so the enclosing system
+// stays under Bevy's parameter limit; each arm unpacks the fields its
+// handler needs.
 pub fn dispatch_message(
     msg: ServerMessage,
     my_player_id: PlayerId,
@@ -65,7 +66,7 @@ pub fn dispatch_message(
                 players,
                 player_data,
                 rtt,
-                &client_assets.gameplay_config,
+                &client_assets.handles.gameplay_config,
                 move_intent_msg,
             );
         }
@@ -73,21 +74,24 @@ pub fn dispatch_message(
             handle_actor_move_intent_message(commands, actors, rtt, actor_data, move_intent_msg);
         }
         ServerMessage::ActorDeath(death_msg) => {
+            let mut ctx = ExplosionSpawnCtx {
+                meshes: &mut assets.meshes,
+                materials: &mut assets.materials,
+                budget: &mut client_assets.world_sync.explosion_vfx_budget,
+                explosion_assets: &client_assets.handles.explosion_assets,
+                gameplay_config: &client_assets.handles.gameplay_config,
+                collision_world,
+                map_layout: client_assets.world_sync.map_layout.as_deref(),
+            };
             handle_actor_death_message(
                 commands,
-                &mut assets.meshes,
-                &mut assets.materials,
-                &mut client_assets.explosion_vfx_budget,
-                &client_assets.asset_server,
-                &client_assets.asset_set,
-                &client_assets.client_settings.audio,
-                &client_assets.explosion_assets,
-                &client_assets.explosion_radii,
+                &mut ctx,
+                &client_assets.handles.asset_server,
+                &client_assets.handles.asset_set,
+                &client_assets.handles.client_settings.audio,
+                &client_assets.handles.explosion_radii,
                 actors,
                 players,
-                &client_assets.gameplay_config,
-                collision_world,
-                client_assets.map_layout.as_deref(),
                 death_msg,
             );
         }
@@ -96,38 +100,32 @@ pub fn dispatch_message(
             // as the pressure-plate sounds below) — the handler stays
             // constructible in unit tests without an `AssetServer`. Spatial:
             // attenuates and pans with distance from the blast.
-            commands.spawn((
-                AudioPlayer::new(
-                    client_assets
-                        .asset_server
-                        .load(client_assets.asset_set.player_sound("explodes").to_owned()),
-                ),
-                PlaybackSettings::DESPAWN
-                    .with_spatial(true)
-                    .with_spatial_scale(SpatialScale::new(
-                        client_assets.client_settings.audio.spatial_distance_scale,
-                    ))
-                    .with_volume(Volume::Linear(
-                        client_assets.client_settings.audio.explosion_gain_multiplier,
-                    ))
-                    .with_speed(explosion_sound_speed(client_assets.explosion_radii.player)),
-                Transform::from_translation(Vec3::from(death_msg.pos)),
-            ));
+            play_explosion_sound(
+                commands,
+                &client_assets.handles.asset_server,
+                client_assets.handles.asset_set.player_sound("explodes"),
+                &client_assets.handles.client_settings.audio,
+                Vec3::from(death_msg.pos),
+                Some(client_assets.handles.explosion_radii.player),
+            );
+            let mut ctx = ExplosionSpawnCtx {
+                meshes: &mut assets.meshes,
+                materials: &mut assets.materials,
+                budget: &mut client_assets.world_sync.explosion_vfx_budget,
+                explosion_assets: &client_assets.handles.explosion_assets,
+                gameplay_config: &client_assets.handles.gameplay_config,
+                collision_world,
+                map_layout: client_assets.world_sync.map_layout.as_deref(),
+            };
             handle_player_death_message(
                 commands,
-                &mut assets.meshes,
-                &mut assets.materials,
-                &mut client_assets.explosion_vfx_budget,
-                &client_assets.explosion_assets,
-                &client_assets.explosion_radii,
+                &mut ctx,
+                &client_assets.handles.explosion_radii,
                 players,
-                &mut client_assets.local_player_info,
-                &mut client_assets.game_message_feed,
-                &client_assets.client_settings,
-                &mut client_assets.pending_banner,
-                &client_assets.gameplay_config,
-                collision_world,
-                client_assets.map_layout.as_deref(),
+                &mut client_assets.hud.local_player_info,
+                &mut client_assets.hud.game_message_feed,
+                &client_assets.handles.client_settings,
+                &mut client_assets.hud.pending_banner,
                 my_player_id,
                 death_msg,
             );
@@ -138,7 +136,7 @@ pub fn dispatch_message(
                 players,
                 player_data,
                 rtt,
-                &client_assets.gameplay_config,
+                &client_assets.handles.gameplay_config,
                 jump_msg,
             );
         }
@@ -146,13 +144,13 @@ pub fn dispatch_message(
         ServerMessage::Shot(shot_msg) => {
             handle_player_shot_message(
                 commands,
-                &client_assets.projectile_assets,
+                &client_assets.handles.projectile_assets,
                 players,
                 player_data,
                 shot_msg,
                 collision_world,
-                &client_assets.gameplay_config,
-                &client_assets.open_barrier_kinds,
+                &client_assets.handles.gameplay_config,
+                &client_assets.world_sync.open_barrier_kinds,
             );
         }
         ServerMessage::Snapshot(snapshot_msg) => handle_snapshot_message(
@@ -175,7 +173,7 @@ pub fn dispatch_message(
                 commands,
                 players,
                 cameras,
-                &client_assets.client_settings,
+                &client_assets.handles.client_settings,
                 my_player_id,
                 hit_msg,
             );
@@ -184,42 +182,42 @@ pub fn dispatch_message(
             commands,
             actors,
             actor_data,
-            &client_assets.asset_server,
-            &client_assets.asset_set,
-            &client_assets.client_settings.audio,
+            &client_assets.handles.asset_server,
+            &client_assets.handles.asset_set,
+            &client_assets.handles.client_settings.audio,
             hit_msg,
         ),
         ServerMessage::ActorBeam(beam_msg) => handle_actor_beam_message(
             commands,
             &mut assets.meshes,
             &mut assets.materials,
-            &client_assets.client_settings.vfx.laser,
+            &client_assets.handles.client_settings.vfx.laser,
             actors,
             actor_data,
-            &client_assets.asset_server,
-            &client_assets.asset_set,
-            &client_assets.client_settings.audio,
+            &client_assets.handles.asset_server,
+            &client_assets.handles.asset_set,
+            &client_assets.handles.client_settings.audio,
             beam_msg,
         ),
         ServerMessage::PlayerStatus(player_status_msg) => {
             handle_player_status_message(
                 commands,
                 players,
-                &mut client_assets.game_message_feed,
+                &mut client_assets.hud.game_message_feed,
                 player_status_msg,
                 my_player_id,
-                &client_assets.asset_server,
-                &client_assets.asset_set,
+                &client_assets.handles.asset_server,
+                &client_assets.handles.asset_set,
             );
         }
         ServerMessage::MissileLaunch(launch_msg) => {
             handle_missile_launch_message(
                 commands,
-                &client_assets.missile_assets,
-                &mut client_assets.missile_map,
-                &client_assets.asset_server,
-                &client_assets.asset_set,
-                &client_assets.client_settings.audio,
+                &client_assets.handles.missile_assets,
+                &mut client_assets.world_sync.missile_map,
+                &client_assets.handles.asset_server,
+                &client_assets.handles.asset_set,
+                &client_assets.handles.client_settings.audio,
                 my_player_id,
                 launch_msg,
             );
@@ -227,26 +225,29 @@ pub fn dispatch_message(
         ServerMessage::MissileMoveIntent(intent_msg) => {
             handle_missile_move_intent_message(
                 commands,
-                &client_assets.missile_map,
+                &client_assets.world_sync.missile_map,
                 rtt,
-                &client_assets.missile_data,
+                &client_assets.world_sync.missile_data,
                 intent_msg,
             );
         }
         ServerMessage::MissileDeath(death_msg) => {
+            let mut ctx = ExplosionSpawnCtx {
+                meshes: &mut assets.meshes,
+                materials: &mut assets.materials,
+                budget: &mut client_assets.world_sync.explosion_vfx_budget,
+                explosion_assets: &client_assets.handles.explosion_assets,
+                gameplay_config: &client_assets.handles.gameplay_config,
+                collision_world,
+                map_layout: client_assets.world_sync.map_layout.as_deref(),
+            };
             handle_missile_death_message(
                 commands,
-                &mut assets.meshes,
-                &mut assets.materials,
-                &mut client_assets.explosion_vfx_budget,
-                &client_assets.explosion_assets,
-                &client_assets.asset_server,
-                &client_assets.asset_set,
-                &client_assets.client_settings.audio,
-                &client_assets.gameplay_config,
-                collision_world,
-                client_assets.map_layout.as_deref(),
-                &mut client_assets.missile_map,
+                &mut ctx,
+                &client_assets.handles.asset_server,
+                &client_assets.handles.asset_set,
+                &client_assets.handles.client_settings.audio,
+                &mut client_assets.world_sync.missile_map,
                 death_msg,
             );
         }
@@ -254,8 +255,8 @@ pub fn dispatch_message(
             handle_missiles_collected_message(
                 commands,
                 collected_msg,
-                &client_assets.asset_server,
-                &client_assets.asset_set,
+                &client_assets.handles.asset_server,
+                &client_assets.handles.asset_set,
                 players,
                 my_player_id,
             );
@@ -265,8 +266,8 @@ pub fn dispatch_message(
             handle_item_collected_message(
                 commands,
                 cookie_msg,
-                &client_assets.asset_server,
-                &client_assets.asset_set,
+                &client_assets.handles.asset_server,
+                &client_assets.handles.asset_set,
                 players,
                 my_player_id,
             );
@@ -275,8 +276,8 @@ pub fn dispatch_message(
             handle_health_potion_collected_message(
                 commands,
                 potion_msg,
-                &client_assets.asset_server,
-                &client_assets.asset_set,
+                &client_assets.handles.asset_server,
+                &client_assets.handles.asset_set,
                 players,
                 my_player_id,
             );
@@ -289,59 +290,54 @@ pub fn dispatch_message(
                 commands,
                 players,
                 cameras,
-                &client_assets.client_settings,
+                &client_assets.handles.client_settings,
                 my_player_id,
-                &client_assets.asset_server,
-                &client_assets.asset_set,
+                &client_assets.handles.asset_server,
+                &client_assets.handles.asset_set,
                 fall_msg,
             );
         }
         ServerMessage::QuestsAssigned(quest_msg) => {
             handle_quests_assigned_message(
-                &mut client_assets.quest_log,
-                &client_assets.client_settings,
-                &mut client_assets.pending_banner,
+                &mut client_assets.hud.quest_log,
+                &client_assets.handles.client_settings,
+                &mut client_assets.hud.pending_banner,
                 quest_msg,
             );
         }
         ServerMessage::QuestProgress(quest_msg) => {
-            handle_quest_progress_message(&mut client_assets.quest_log, quest_msg);
+            handle_quest_progress_message(&mut client_assets.hud.quest_log, quest_msg);
         }
         ServerMessage::QuestCompleted(quest_msg) => {
             handle_quest_completed_message(
                 commands,
-                &mut client_assets.quest_log,
-                &client_assets.client_settings,
-                &mut client_assets.pending_banner,
-                &client_assets.asset_server,
-                &client_assets.asset_set,
+                &mut client_assets.hud.quest_log,
+                &client_assets.handles.client_settings,
+                &mut client_assets.hud.pending_banner,
+                &client_assets.handles.asset_server,
+                &client_assets.handles.asset_set,
                 quest_msg,
             );
         }
         ServerMessage::PressurePlatePressed(_) => {
-            commands.spawn((
-                AudioPlayer::new(
-                    client_assets
-                        .asset_server
-                        .load(client_assets.asset_set.player_sound("plate_press").to_owned()),
-                ),
-                PlaybackSettings::DESPAWN,
-            ));
+            play_sound(
+                commands,
+                &client_assets.handles.asset_server,
+                client_assets.handles.asset_set.player_sound("plate_press"),
+            );
         }
         ServerMessage::PressurePlateReleased(_) => {
-            commands.spawn((
-                AudioPlayer::new(
-                    client_assets
-                        .asset_server
-                        .load(client_assets.asset_set.player_sound("plate_release").to_owned()),
-                ),
-                PlaybackSettings::DESPAWN,
-            ));
+            play_sound(
+                commands,
+                &client_assets.handles.asset_server,
+                client_assets.handles.asset_set.player_sound("plate_release"),
+            );
         }
         ServerMessage::AdminResponse(admin_msg) => {
             // Multi-line replies (e.g. /help) become one feed row per line.
             for line in admin_msg.text.lines().filter(|line| !line.trim().is_empty()) {
                 client_assets
+                    .hud
                     .game_message_feed
                     .push(crate::ui::GameMessage::Admin { text: line.to_owned() });
             }

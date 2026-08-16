@@ -168,18 +168,8 @@ pub(super) fn random_direction(rng: &mut impl Rng) -> Vec3 {
     }
 }
 
-pub(super) fn repeated_indices(count: usize, vertices_per_particle: usize, template: &[u32]) -> Vec<u32> {
-    let mut indices = Vec::with_capacity(count * template.len());
-    for particle in 0..count as u32 {
-        let base = particle * vertices_per_particle as u32;
-        indices.extend(template.iter().map(|index| base + index));
-    }
-    indices
-}
-
 #[cfg(test)]
 mod tests {
-    use super::super::shards::{CUBE_INDICES, CUBE_VERTICES};
     use super::*;
 
     #[test]
@@ -192,12 +182,5 @@ mod tests {
         assert_eq!(budget.reserve_shards(1, EXPLOSION_SHARD_GLOBAL_MAX_COUNT), 0);
         budget.release_shards(20);
         assert_eq!(budget.reserve_shards(30, EXPLOSION_SHARD_GLOBAL_MAX_COUNT), 20);
-    }
-
-    #[test]
-    fn repeated_indices_allocate_one_cube_per_particle() {
-        let indices = repeated_indices(3, CUBE_VERTICES.len(), &CUBE_INDICES);
-        assert_eq!(indices.len(), CUBE_INDICES.len() * 3);
-        assert_eq!(indices.iter().copied().max(), Some(71));
     }
 }

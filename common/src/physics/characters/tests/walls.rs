@@ -14,16 +14,20 @@ fn player_hits_wall_collider_from_collision_world() {
     let motion = 0.0;
 
     let step = step_character_movement(
-        &pos,
-        motion,
-        &collision_world,
-        false,
-        TEST_GRAVITY,
-        &[],
-        player_physics(),
-        1.0,
-        pos.z,
-        0.1,
+        CharacterStep {
+            start: pos,
+            vertical_velocity: motion,
+            target_x: 1.0,
+            target_z: pos.z,
+            delta: 0.1,
+        },
+        &CharacterEnvironment {
+            collision_world: &collision_world,
+            has_phasing: false,
+            gravity: TEST_GRAVITY,
+            passable_kinds: &[],
+            physics: player_physics(),
+        },
     );
 
     assert!(step.blocked);
@@ -43,28 +47,36 @@ fn repeated_wall_pressure_does_not_leak_through_wall() {
     let motion = 0.0;
 
     let first = step_character_movement(
-        &pos,
-        motion,
-        &collision_world,
-        false,
-        TEST_GRAVITY,
-        &[],
-        player_physics(),
-        1.0,
-        pos.z,
-        0.1,
+        CharacterStep {
+            start: pos,
+            vertical_velocity: motion,
+            target_x: 1.0,
+            target_z: pos.z,
+            delta: 0.1,
+        },
+        &CharacterEnvironment {
+            collision_world: &collision_world,
+            has_phasing: false,
+            gravity: TEST_GRAVITY,
+            passable_kinds: &[],
+            physics: player_physics(),
+        },
     );
     let second = step_character_movement(
-        &first.position,
-        motion,
-        &collision_world,
-        false,
-        TEST_GRAVITY,
-        &[],
-        player_physics(),
-        1.0,
-        first.position.z,
-        0.1,
+        CharacterStep {
+            start: first.position,
+            vertical_velocity: motion,
+            target_x: 1.0,
+            target_z: first.position.z,
+            delta: 0.1,
+        },
+        &CharacterEnvironment {
+            collision_world: &collision_world,
+            has_phasing: false,
+            gravity: TEST_GRAVITY,
+            passable_kinds: &[],
+            physics: player_physics(),
+        },
     );
 
     assert!(first.blocked);
@@ -85,28 +97,36 @@ fn player_slides_along_wall_under_pressure() {
     let motion = 0.0;
 
     let first = step_character_movement(
-        &pos,
-        motion,
-        &collision_world,
-        false,
-        TEST_GRAVITY,
-        &[],
-        player_physics(),
-        1.0,
-        pos.z,
-        0.1,
+        CharacterStep {
+            start: pos,
+            vertical_velocity: motion,
+            target_x: 1.0,
+            target_z: pos.z,
+            delta: 0.1,
+        },
+        &CharacterEnvironment {
+            collision_world: &collision_world,
+            has_phasing: false,
+            gravity: TEST_GRAVITY,
+            passable_kinds: &[],
+            physics: player_physics(),
+        },
     );
     let second = step_character_movement(
-        &first.position,
-        motion,
-        &collision_world,
-        false,
-        TEST_GRAVITY,
-        &[],
-        player_physics(),
-        1.0,
-        first.position.z + 1.0,
-        0.1,
+        CharacterStep {
+            start: first.position,
+            vertical_velocity: motion,
+            target_x: 1.0,
+            target_z: first.position.z + 1.0,
+            delta: 0.1,
+        },
+        &CharacterEnvironment {
+            collision_world: &collision_world,
+            has_phasing: false,
+            gravity: TEST_GRAVITY,
+            passable_kinds: &[],
+            physics: player_physics(),
+        },
     );
 
     assert!(second.blocked);
@@ -126,16 +146,20 @@ fn falling_player_pushing_into_wall_keeps_falling() {
     let motion = -CHARACTER_TERMINAL_VELOCITY;
 
     let step = step_character_movement(
-        &pos,
-        motion,
-        &collision_world,
-        false,
-        TEST_GRAVITY,
-        &[],
-        player_physics(),
-        30.394,
-        31.699,
-        0.0177,
+        CharacterStep {
+            start: pos,
+            vertical_velocity: motion,
+            target_x: 30.394,
+            target_z: 31.699,
+            delta: 0.0177,
+        },
+        &CharacterEnvironment {
+            collision_world: &collision_world,
+            has_phasing: false,
+            gravity: TEST_GRAVITY,
+            passable_kinds: &[],
+            physics: player_physics(),
+        },
     );
 
     assert!(
@@ -157,16 +181,20 @@ fn diagonal_wall_hit_slides_in_same_step() {
     let motion = 0.0;
 
     let step = step_character_movement(
-        &pos,
-        motion,
-        &collision_world,
-        false,
-        TEST_GRAVITY,
-        &[],
-        player_physics(),
-        1.0,
-        1.0,
-        0.1,
+        CharacterStep {
+            start: pos,
+            vertical_velocity: motion,
+            target_x: 1.0,
+            target_z: 1.0,
+            delta: 0.1,
+        },
+        &CharacterEnvironment {
+            collision_world: &collision_world,
+            has_phasing: false,
+            gravity: TEST_GRAVITY,
+            passable_kinds: &[],
+            physics: player_physics(),
+        },
     );
 
     assert!(step.blocked);
@@ -197,16 +225,20 @@ fn repeated_diagonal_wall_pressure_keeps_sliding() {
 
     for _ in 0..120 {
         let step = step_character_movement(
-            &pos,
-            motion,
-            &collision_world,
-            false,
-            TEST_GRAVITY,
-            &[],
-            player_physics(),
-            velocity.x.mul_add(delta, pos.x),
-            velocity.z.mul_add(delta, pos.z),
-            delta,
+            CharacterStep {
+                start: pos,
+                vertical_velocity: motion,
+                target_x: velocity.x.mul_add(delta, pos.x),
+                target_z: velocity.z.mul_add(delta, pos.z),
+                delta,
+            },
+            &CharacterEnvironment {
+                collision_world: &collision_world,
+                has_phasing: false,
+                gravity: TEST_GRAVITY,
+                passable_kinds: &[],
+                physics: player_physics(),
+            },
         );
         pos = step.position;
     }
@@ -227,16 +259,20 @@ fn diagonal_wall_end_hit_slides_along_wall() {
     let motion = 0.0;
 
     let step = step_character_movement(
-        &pos,
-        motion,
-        &collision_world,
-        false,
-        TEST_GRAVITY,
-        &[],
-        player_physics(),
-        1.0,
-        1.0,
-        0.1,
+        CharacterStep {
+            start: pos,
+            vertical_velocity: motion,
+            target_x: 1.0,
+            target_z: 1.0,
+            delta: 0.1,
+        },
+        &CharacterEnvironment {
+            collision_world: &collision_world,
+            has_phasing: false,
+            gravity: TEST_GRAVITY,
+            passable_kinds: &[],
+            physics: player_physics(),
+        },
     );
 
     assert!(step.blocked);
@@ -256,16 +292,20 @@ fn phasing_player_ignores_wall_collider_from_collision_world() {
     let motion = 0.0;
 
     let step = step_character_movement(
-        &pos,
-        motion,
-        &collision_world,
-        true,
-        TEST_GRAVITY,
-        &[],
-        player_physics(),
-        1.0,
-        pos.z,
-        0.1,
+        CharacterStep {
+            start: pos,
+            vertical_velocity: motion,
+            target_x: 1.0,
+            target_z: pos.z,
+            delta: 0.1,
+        },
+        &CharacterEnvironment {
+            collision_world: &collision_world,
+            has_phasing: true,
+            gravity: TEST_GRAVITY,
+            passable_kinds: &[],
+            physics: player_physics(),
+        },
     );
 
     assert!(!step.blocked);

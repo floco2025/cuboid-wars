@@ -428,27 +428,9 @@ mod tests {
         constants::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_THICKNESS},
         protocol::{BarrierKindTable, Floor, MapLayout, PlayerId, Wall},
     };
-    use std::collections::VecDeque;
 
     fn missile_info() -> MissileInfo {
-        MissileInfo {
-            entity: Entity::PLACEHOLDER,
-            shooter: PlayerId(1),
-            target: None,
-            path: VecDeque::new(),
-            path_target: None,
-            path_retry_timer: 0.0,
-            avoid_dir: None,
-            avoid_timer: 0.0,
-            last_target_center: None,
-            weave_phase: 0.0,
-            lifetime_timer: 10.0,
-            stall_anchor: None,
-            stall_timer: 2.0,
-            armed: false,
-            last_broadcast_dir: Vec3::Z,
-            detonate_at: None,
-        }
+        MissileInfo::new(Entity::PLACEHOLDER, PlayerId(1), None, Vec3::Z, 0.0, 10.0, 2.0)
     }
 
     #[test]

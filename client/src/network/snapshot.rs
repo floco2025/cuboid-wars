@@ -53,18 +53,18 @@ pub(super) fn handle_snapshot_message(
         &mut assets.graphs,
         players,
         rtt,
-        &mut client_assets.local_player_info,
-        &mut client_assets.game_message_feed,
-        &mut client_assets.seen_player_ids,
-        &client_assets.quest_log,
-        &mut client_assets.pending_banner,
+        &mut client_assets.hud.local_player_info,
+        &mut client_assets.hud.game_message_feed,
+        &mut client_assets.hud.seen_player_ids,
+        &client_assets.hud.quest_log,
+        &mut client_assets.hud.pending_banner,
         player_data,
         camera_query,
         my_player_id,
-        &client_assets.asset_server,
-        &client_assets.asset_set,
-        &client_assets.client_settings,
-        &client_assets.gameplay_config,
+        &client_assets.handles.asset_server,
+        &client_assets.handles.asset_set,
+        &client_assets.handles.client_settings,
+        &client_assets.handles.gameplay_config,
         &msg.players,
     );
     sync_actors(
@@ -75,43 +75,43 @@ pub(super) fn handle_snapshot_message(
         actors,
         rtt,
         actor_data,
-        &client_assets.asset_server,
-        &client_assets.asset_set,
-        &client_assets.client_settings,
-        &client_assets.gameplay_config,
+        &client_assets.handles.asset_server,
+        &client_assets.handles.asset_set,
+        &client_assets.handles.client_settings,
+        &client_assets.handles.gameplay_config,
         &msg.actors,
     );
     sync_spawning_actors(
         commands,
-        &mut client_assets.actor_ghosts,
-        &client_assets.asset_server,
-        &client_assets.asset_set,
-        &client_assets.gameplay_config,
+        &mut client_assets.world_sync.actor_ghosts,
+        &client_assets.handles.asset_server,
+        &client_assets.handles.asset_set,
+        &client_assets.handles.gameplay_config,
         &msg.spawning_actors,
     );
     sync_items(
         commands,
-        &client_assets.item_assets,
-        &client_assets.barrier_assets,
-        &client_assets.missile_assets,
+        &client_assets.handles.item_assets,
+        &client_assets.handles.barrier_assets,
+        &client_assets.handles.missile_assets,
         items,
         &msg.items,
     );
     sync_missiles(
         commands,
-        &client_assets.missile_assets,
-        &mut client_assets.missile_map,
+        &client_assets.handles.missile_assets,
+        &mut client_assets.world_sync.missile_map,
         rtt,
-        &client_assets.missile_data,
+        &client_assets.world_sync.missile_data,
         &msg.missiles,
     );
 
     // Snapshot is the system of record for open-by-plate kinds. Server sends
     // these sorted by id so direct Vec equality is stable across ticks.
-    if msg.open_barrier_kinds != client_assets.open_barrier_kinds.0 {
-        client_assets.open_barrier_kinds.0 = msg.open_barrier_kinds.clone();
+    if msg.open_barrier_kinds != client_assets.world_sync.open_barrier_kinds.0 {
+        client_assets.world_sync.open_barrier_kinds.0 = msg.open_barrier_kinds.clone();
     }
 
     // Weather target; `rain_smoothing_system` eases the rendered value.
-    client_assets.rain_intensity.target = msg.rain_intensity;
+    client_assets.world_sync.rain_intensity.target = msg.rain_intensity;
 }

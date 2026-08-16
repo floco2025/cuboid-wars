@@ -47,17 +47,11 @@ pub fn calculate_projectile_spawns(
         let angle_offset = (i as f32).mul_add(angle_step, start_offset);
         let shot_yaw = face_dir + angle_offset;
 
-        let pitch_sin = face_pitch.sin();
-        let pitch_cos = face_pitch.cos();
-
-        // Aim direction vector using yaw + pitch (unit length)
-        let dir_x = shot_yaw.sin() * pitch_cos;
-        let dir_y = pitch_sin;
-        let dir_z = shot_yaw.cos() * pitch_cos;
+        let aim = crate::math::direction_from_yaw_pitch(shot_yaw, face_pitch);
 
         // Camera origin at eye height (match FPV) and push forward along aim direction
         let camera_origin = Vec3::new(shooter_pos.x, shooter_pos.y + shooter_eye_height, shooter_pos.z);
-        let spawn_pos = camera_origin + Vec3::new(dir_x, dir_y, dir_z) * PROJECTILE_SPAWN_OFFSET;
+        let spawn_pos = camera_origin + aim * PROJECTILE_SPAWN_OFFSET;
 
         let spawn_position: Position = spawn_pos.into();
         let camera_pos: Position = camera_origin.into();

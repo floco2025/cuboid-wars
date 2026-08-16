@@ -120,8 +120,7 @@ pub const CONSOLE_LINE_RESERVED_PX: f32 = 30.0;
 pub const HUD_MIN_SCALE: f32 = 0.5;
 
 // ============================================================================
-// Health Bars (colors + fill layering; pixel dimensions live in
-// `client.json::hud.health_bars`)
+// Crosshair
 // ============================================================================
 
 pub const CROSSHAIR_SIZE_PX: f32 = 30.0;
@@ -129,6 +128,11 @@ pub const CROSSHAIR_THICKNESS_PX: f32 = 2.0;
 pub const CROSSHAIR_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 0.8);
 // Lock-on tint: lit crosshair = a missile fired now will track this target.
 pub const CROSSHAIR_LOCK_COLOR: Color = Color::srgba(1.0, 0.25, 0.2, 0.9);
+
+// ============================================================================
+// Health Bars (colors + fill layering; pixel dimensions live in
+// `client.json::hud.health_bars`)
+// ============================================================================
 
 pub const HEALTH_BAR_TRACK_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.65);
 pub const HEALTH_BAR_FILL_COLOR: Color = Color::srgb(0.0, 0.85, 0.2);
@@ -153,7 +157,6 @@ pub const ITEM_HEIGHT_ABOVE_FLOOR: f32 = 1.1;
 pub const ITEM_ANIMATION_HEIGHT: f32 = 0.2; // bob amplitude (m); peak-to-peak swing is 2×
 pub const ITEM_ANIMATION_SPEED: f32 = 0.8;
 pub const ITEM_SPIN_HZ: f32 = 0.4; // slow coin-spin around Y for keys + power-ups
-pub const ITEM_EMISSIVE_STRENGTH: f32 = 0.2; // Multiplier for emissive glow
 // The map editor mirrors these colors (tools/map_editor/constants.py
 // `ITEM_TYPE_COLORS`) — keep the two in sync.
 pub const ITEM_SPEED_COLOR: Color = Color::srgb(1.00, 0.85, 0.15); // Yellow (lightning)

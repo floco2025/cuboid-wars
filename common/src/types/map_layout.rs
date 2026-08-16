@@ -14,18 +14,6 @@ pub struct Wall {
     pub level: u8,
 }
 
-impl Wall {
-    #[must_use]
-    pub const fn bounds_xz(&self) -> (f32, f32, f32, f32) {
-        (
-            self.x1.min(self.x2),
-            self.x1.max(self.x2),
-            self.z1.min(self.z2),
-            self.z1.max(self.z2),
-        )
-    }
-}
-
 #[derive(Debug, Clone, Encode, Decode, Copy)]
 pub struct Floor {
     pub x1: f32,

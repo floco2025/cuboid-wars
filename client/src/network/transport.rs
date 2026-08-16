@@ -29,6 +29,9 @@ pub enum ServerToClient {
 #[derive(Debug, Clone)]
 pub enum ClientToServer {
     Send(ClientMessage),
+    // Nothing sends this yet: today the client just exits and drops the
+    // connection. Kept for an eventual graceful shutdown (e.g. an `AppExit`
+    // hook) that tells the server why we left.
     Close,
 }
 

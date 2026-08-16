@@ -27,13 +27,7 @@ pub struct ProjectileMotion {
 impl ProjectileMotion {
     #[must_use]
     pub fn new(face_dir: f32, face_pitch: f32) -> Self {
-        let pitch_sin = face_pitch.sin();
-        let pitch_cos = face_pitch.cos();
-        let velocity = Vec3::new(
-            face_dir.sin() * pitch_cos * PROJECTILE_SPEED,
-            pitch_sin * PROJECTILE_SPEED,
-            face_dir.cos() * pitch_cos * PROJECTILE_SPEED,
-        );
+        let velocity = crate::math::direction_from_yaw_pitch(face_dir, face_pitch) * PROJECTILE_SPEED;
 
         Self {
             velocity,

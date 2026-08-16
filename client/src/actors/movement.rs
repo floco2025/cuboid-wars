@@ -10,8 +10,8 @@ use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     constants::SNAPSHOT_SECS,
     physics::{
-        CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, OpenBarrierKinds, blocking_character_move_plan,
-        character_move_plan_is_blocked, step_character_movement,
+        CharacterEnvironment, CharacterMovePlan, CharacterStep, CharacterVerticalVelocity, CollisionWorld,
+        OpenBarrierKinds, blocking_character_move_plan, character_move_plan_is_blocked, step_character_movement,
     },
     protocol::{ActorId, ActorMarker, ActorMoveIntent, MapSettings, PlayerMarker, Position},
 };
@@ -134,16 +134,21 @@ pub(crate) fn plan_actor_moves(
         // `SInit`, so they appear together.
         if let (Some(collision_world), Some(map_settings)) = (collision_world, map_settings) {
             let step = step_character_movement(
-                &pos,
-                motion.0,
-                collision_world,
-                false,
-                map_settings.gravity, // actors never have low-gravity
+                CharacterStep {
+                    start: *pos,
+                    vertical_velocity: motion.0,
+                    target_x: target_pos.x,
+                    target_z: target_pos.z,
+                    delta,
+                },
+                &CharacterEnvironment {
+                    collision_world,
+                    has_phasing: false,
+                    gravity: map_settings.gravity,
+                    passable_kinds: // actors never have low-gravity
                 &open_barrier_kinds.0,
-                actor_physics,
-                target_pos.x,
-                target_pos.z,
-                delta,
+                    physics: actor_physics,
+                },
             );
             push_actor_planned_move(
                 planned_moves,

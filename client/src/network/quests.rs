@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 use crate::{
+    audio::play_sound,
     config::{AssetSet, ClientSettings},
     ui::{PendingBanner, QuestEntry, QuestLog},
 };
@@ -73,10 +74,7 @@ pub fn handle_quest_completed_message(
         msg.completed_text,
         client_settings.hud.banner.quest_completed_duration_secs,
     );
-    commands.spawn((
-        AudioPlayer::new(asset_server.load(asset_set.player_sound("quest_completed").to_owned())),
-        PlaybackSettings::DESPAWN,
-    ));
+    play_sound(commands, asset_server, asset_set.player_sound("quest_completed"));
 }
 
 #[cfg(test)]

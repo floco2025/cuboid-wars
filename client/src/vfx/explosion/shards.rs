@@ -1,4 +1,5 @@
-use super::particles::{ExplosionVfxBudget, SurfacePlane, random_direction, repeated_indices};
+use super::particles::{ExplosionVfxBudget, SurfacePlane, random_direction};
+use crate::vfx::cube::{CUBE_INDICES, CUBE_NORMALS, CUBE_VERTICES, repeated_indices};
 use crate::{config::ExplosionVfxConfig, constants::*};
 use bevy::{
     asset::RenderAssetUsages,
@@ -8,63 +9,6 @@ use bevy::{
 };
 use common::physics::CollisionWorld;
 use rand::{Rng, RngExt};
-
-pub(super) const CUBE_VERTICES: [Vec3; 24] = [
-    Vec3::new(-0.5, -0.5, 0.5),
-    Vec3::new(0.5, -0.5, 0.5),
-    Vec3::new(0.5, 0.5, 0.5),
-    Vec3::new(-0.5, 0.5, 0.5),
-    Vec3::new(0.5, -0.5, -0.5),
-    Vec3::new(-0.5, -0.5, -0.5),
-    Vec3::new(-0.5, 0.5, -0.5),
-    Vec3::new(0.5, 0.5, -0.5),
-    Vec3::new(0.5, -0.5, 0.5),
-    Vec3::new(0.5, -0.5, -0.5),
-    Vec3::new(0.5, 0.5, -0.5),
-    Vec3::new(0.5, 0.5, 0.5),
-    Vec3::new(-0.5, -0.5, -0.5),
-    Vec3::new(-0.5, -0.5, 0.5),
-    Vec3::new(-0.5, 0.5, 0.5),
-    Vec3::new(-0.5, 0.5, -0.5),
-    Vec3::new(-0.5, 0.5, 0.5),
-    Vec3::new(0.5, 0.5, 0.5),
-    Vec3::new(0.5, 0.5, -0.5),
-    Vec3::new(-0.5, 0.5, -0.5),
-    Vec3::new(-0.5, -0.5, -0.5),
-    Vec3::new(0.5, -0.5, -0.5),
-    Vec3::new(0.5, -0.5, 0.5),
-    Vec3::new(-0.5, -0.5, 0.5),
-];
-pub(super) const CUBE_NORMALS: [Vec3; 24] = [
-    Vec3::Z,
-    Vec3::Z,
-    Vec3::Z,
-    Vec3::Z,
-    Vec3::NEG_Z,
-    Vec3::NEG_Z,
-    Vec3::NEG_Z,
-    Vec3::NEG_Z,
-    Vec3::X,
-    Vec3::X,
-    Vec3::X,
-    Vec3::X,
-    Vec3::NEG_X,
-    Vec3::NEG_X,
-    Vec3::NEG_X,
-    Vec3::NEG_X,
-    Vec3::Y,
-    Vec3::Y,
-    Vec3::Y,
-    Vec3::Y,
-    Vec3::NEG_Y,
-    Vec3::NEG_Y,
-    Vec3::NEG_Y,
-    Vec3::NEG_Y,
-];
-pub(super) const CUBE_INDICES: [u32; 36] = [
-    0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7, 8, 9, 10, 8, 10, 11, 12, 13, 14, 12, 14, 15, 16, 17, 18, 16, 18, 19, 20, 21,
-    22, 20, 22, 23,
-];
 
 pub(super) struct ShardParticle {
     pub(super) position: Vec3,

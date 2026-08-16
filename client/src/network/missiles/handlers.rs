@@ -1,20 +1,16 @@
-use bevy::{audio::SpatialScale, audio::Volume, prelude::*};
+use bevy::prelude::*;
 
 use super::sync::apply_missile_movement_state;
 use crate::{
+    audio::{play_explosion_sound, play_sound, play_spatial_sound},
     config::{AssetSet, AudioConfig},
     missiles::{MissileAssets, MissileMap, spawn_missile},
     network::RoundTripTime,
     players::PlayerMap,
-    vfx::{ExplosionAssets, ExplosionVfxBudget, explosion_sound_speed, spawn_missile_explosion},
+    vfx::{ExplosionSpawnCtx, spawn_missile_explosion},
 };
-use common::{
-    config::GameplayConfig,
-    physics::CollisionWorld,
-    protocol::{
-        MapLayout, MissileMarker, PlayerId, Position, SMissileDeath, SMissileLaunch, SMissileMoveIntent,
-        SMissilesCollected,
-    },
+use common::protocol::{
+    MissileMarker, PlayerId, Position, SMissileDeath, SMissileLaunch, SMissileMoveIntent, SMissilesCollected,
 };
 
 // A missile launched. Spawn it now — clients don't predict missile spawns,
@@ -38,18 +34,15 @@ pub fn handle_missile_launch_message(
         missiles.insert(msg.id, entity);
     }
     if msg.shooter == my_player_id {
-        commands.spawn((
-            AudioPlayer::new(asset_server.load(asset_set.player_sound("missile_launch").to_owned())),
-            PlaybackSettings::DESPAWN,
-        ));
+        play_sound(commands, asset_server, asset_set.player_sound("missile_launch"));
     } else {
-        commands.spawn((
-            AudioPlayer::new(asset_server.load(asset_set.player_sound("missile_launch").to_owned())),
-            PlaybackSettings::DESPAWN
-                .with_spatial(true)
-                .with_spatial_scale(SpatialScale::new(audio_config.spatial_distance_scale)),
-            Transform::from_translation(Vec3::from(msg.movement.pos)),
-        ));
+        play_spatial_sound(
+            commands,
+            asset_server,
+            asset_set.player_sound("missile_launch"),
+            audio_config,
+            Vec3::from(msg.movement.pos),
+        );
     }
 }
 
@@ -66,45 +59,27 @@ pub fn handle_missile_move_intent_message(
 // Detonation: explosion VFX + spatial boom at the server's impact point,
 // then teardown. Idempotent against the snapshot diff having already
 // despawned the entity.
-#[expect(clippy::too_many_arguments, reason = "message handler threading dispatcher state")]
 pub fn handle_missile_death_message(
     commands: &mut Commands,
-    meshes: &mut Assets<Mesh>,
-    materials: &mut Assets<StandardMaterial>,
-    budget: &mut ExplosionVfxBudget,
-    explosion_assets: &ExplosionAssets,
+    ctx: &mut ExplosionSpawnCtx,
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
     audio_config: &AudioConfig,
-    gameplay_config: &GameplayConfig,
-    collision_world: Option<&CollisionWorld>,
-    map_layout: Option<&MapLayout>,
     missiles: &mut MissileMap,
     msg: SMissileDeath,
 ) {
     let Some(entity) = missiles.remove(&msg.id) else {
         return;
     };
-    spawn_missile_explosion(
+    spawn_missile_explosion(commands, ctx, msg.pos);
+    play_explosion_sound(
         commands,
-        meshes,
-        materials,
-        budget,
-        explosion_assets,
-        gameplay_config,
-        collision_world,
-        map_layout,
-        msg.pos,
+        asset_server,
+        asset_set.player_sound("explodes"),
+        audio_config,
+        Vec3::from(msg.pos),
+        Some(ctx.gameplay_config.missiles.blast_radius),
     );
-    commands.spawn((
-        AudioPlayer::new(asset_server.load(asset_set.player_sound("explodes").to_owned())),
-        PlaybackSettings::DESPAWN
-            .with_spatial(true)
-            .with_spatial_scale(SpatialScale::new(audio_config.spatial_distance_scale))
-            .with_volume(Volume::Linear(audio_config.explosion_gain_multiplier))
-            .with_speed(explosion_sound_speed(gameplay_config.missiles.blast_radius)),
-        Transform::from_translation(Vec3::from(msg.pos)),
-    ));
     commands.entity(entity).despawn();
 }
 
@@ -121,8 +96,5 @@ pub fn handle_missiles_collected_message(
     if let Some(info) = players.get_mut(&my_player_id) {
         info.missiles = msg.missiles;
     }
-    commands.spawn((
-        AudioPlayer::new(asset_server.load(asset_set.player_sound("collect_power_up").to_owned())),
-        PlaybackSettings::DESPAWN,
-    ));
+    play_sound(commands, asset_server, asset_set.player_sound("collect_power_up"));
 }

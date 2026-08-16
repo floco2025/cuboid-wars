@@ -151,8 +151,7 @@ pub struct MissileMovementState {
 impl MissileMovementState {
     #[must_use]
     pub fn velocity(&self) -> Vec3 {
-        let pitch_cos = self.pitch.cos();
-        Vec3::new(self.yaw.sin() * pitch_cos, self.pitch.sin(), self.yaw.cos() * pitch_cos) * self.speed
+        crate::math::direction_from_yaw_pitch(self.yaw, self.pitch) * self.speed
     }
 
     #[must_use]

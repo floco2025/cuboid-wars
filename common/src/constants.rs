@@ -11,9 +11,10 @@ pub const WALL_HALF_THICKNESS: f32 = WALL_THICKNESS / 2.0;
 pub const WALL_HEIGHT: f32 = 4.0;
 
 // Barriers. Force-field segments authored on grid edges; same shape as walls
-// for now but rendered as translucent pulsating geometry on the client.
-// Currently no collision — players walk through them. A future "key" item
-// will gate pass-through per color.
+// but rendered as translucent pulsating geometry on the client. Each kind
+// gets its own collision group (`barrier_collision_group`) so held keys,
+// phasing, and open pressure plates gate pass-through per color
+// (`passable_barrier_kinds`).
 pub const BARRIER_THICKNESS: f32 = WALL_THICKNESS / 6.0;
 pub const BARRIER_HEIGHT: f32 = WALL_HEIGHT;
 // Visual overlap into adjacent floors and walls to win the depth test where

@@ -54,19 +54,45 @@ pub fn try_start_player_jump(
 // `gravity` is the per-map acceleration magnitude, already resolved by the
 // caller (`MapSettings::gravity_for` picks the low-gravity value when the
 // power-up is active).
+// One frame of requested motion for one character. X/Z come from intent as
+// a horizontal target; vertical motion is derived inside the step.
+#[derive(Debug, Clone, Copy)]
+pub struct CharacterStep {
+    pub start: Position,
+    pub vertical_velocity: f32,
+    pub target_x: f32,
+    pub target_z: f32,
+    pub delta: f32,
+}
+
+// The world the step happens in. `gravity` is the per-map acceleration
+// magnitude, already resolved by the caller (`MapSettings::gravity_for`
+// picks the low-gravity value when the power-up is active).
+#[derive(Clone, Copy)]
+pub struct CharacterEnvironment<'a> {
+    pub collision_world: &'a CollisionWorld,
+    pub has_phasing: bool,
+    pub gravity: f32,
+    pub passable_kinds: &'a [crate::protocol::BarrierKindId],
+    pub physics: CharacterPhysicsConfig,
+}
+
 #[must_use]
-pub fn step_character_movement(
-    start_pos: &Position,
-    start_vertical_velocity: f32,
-    collision_world: &CollisionWorld,
-    has_phasing: bool,
-    gravity: f32,
-    passable_kinds: &[crate::protocol::BarrierKindId],
-    physics: CharacterPhysicsConfig,
-    target_x: f32,
-    target_z: f32,
-    delta: f32,
-) -> CharacterMovementResult {
+pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) -> CharacterMovementResult {
+    let CharacterStep {
+        start,
+        vertical_velocity: start_vertical_velocity,
+        target_x,
+        target_z,
+        delta,
+    } = step;
+    let start_pos = &start;
+    let collision_world = env.collision_world;
+    let has_phasing = env.has_phasing;
+    let gravity = env.gravity;
+    let passable_kinds = env.passable_kinds;
+    let physics = env.physics;
+
     let character_shape = character_shape(physics);
     let character_pos = character_pose(start_pos, physics);
     let support_shape = character_support_probe_shape(physics);

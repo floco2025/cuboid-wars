@@ -27,26 +27,6 @@ pub struct ProjectileCharacterHit {
 }
 
 #[must_use]
-pub fn projectile_hits_character(
-    proj_pos: &Position,
-    proj_motion: &ProjectileMotion,
-    delta: f32,
-    character_pos: &Position,
-    character_face_dir: f32,
-    character_physics: CharacterPhysicsConfig,
-) -> Option<HitDirection> {
-    projectile_character_hit(
-        proj_pos,
-        proj_motion,
-        delta,
-        character_pos,
-        character_face_dir,
-        character_physics,
-    )
-    .map(|hit| hit.direction)
-}
-
-#[must_use]
 pub fn projectile_character_hit(
     proj_pos: &Position,
     proj_motion: &ProjectileMotion,

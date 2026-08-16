@@ -13,7 +13,7 @@ use crate::{
 #[derive(Component, Default)]
 pub struct CharacterVerticalVelocity(pub f32);
 
-// Horizontal blast shove, decaying exponentially. Movement planning (server
+// Horizontal blast shove, decaying linearly to zero. Movement planning (server
 // and client prediction) reads `step` as extra displacement on top of the
 // intent-derived target; the decay systems tick it down after movement so
 // both sides integrate the same curve. The vertical part of a launch rides

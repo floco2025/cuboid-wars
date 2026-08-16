@@ -9,12 +9,12 @@ use crate::{
 };
 use common::{
     physics::CharacterVerticalVelocity,
-    protocol::{ActorMarker, ItemMarker, PlayerMarker, *},
+    protocol::{ItemMarker, *},
 };
 
 use super::{
     broadcast::{collect_items, snapshot_actors, snapshot_logged_in_players, snapshot_spawning_actors},
-    incoming::LoginWorld,
+    incoming::{CharacterQueries, SharedWorld},
 };
 
 // ============================================================================
@@ -53,14 +53,11 @@ pub fn handle_login_message(
     id: PlayerId,
     msg: ClientMessage,
     players: &mut ResMut<PlayerMap>,
-    world: &LoginWorld,
+    world: &SharedWorld,
     items: &Res<ItemMap>,
     actors: &Res<ActorMap>,
     pending_spawns: &Res<PendingActorSpawns>,
-    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection, &Health), With<PlayerMarker>>,
-    motions: &Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
-    actor_data: &Query<(&Position, &ActorMoveIntent, &FaceDirection, &Health), With<ActorMarker>>,
-    actor_motions: &Query<&CharacterVerticalVelocity, With<ActorMarker>>,
+    queries: &CharacterQueries,
     item_positions: &Query<&Position, With<ItemMarker>>,
 ) {
     match msg {
@@ -114,7 +111,7 @@ pub fn handle_login_message(
             let occupied_positions: Vec<Position> = players
                 .values()
                 .filter(|p| p.logged_in && p.entity != entity)
-                .filter_map(|p| player_data.get(p.entity).ok())
+                .filter_map(|p| queries.player_data.get(p.entity).ok())
                 .map(|(pos, _, _, _)| *pos)
                 .collect();
             let pos = generate_player_spawn_position(
@@ -143,7 +140,7 @@ pub fn handle_login_message(
                 );
 
             // Construct the initial snapshot for the new player
-            let mut all_players = snapshot_logged_in_players(players, player_data, motions)
+            let mut all_players = snapshot_logged_in_players(players, &queries.player_data, &queries.player_motions)
                 .into_iter()
                 .filter(|(player_id, _)| *player_id != id)
                 .collect::<Vec<_>>();
@@ -152,7 +149,7 @@ pub fn handle_login_message(
 
             // Collect all items for the initial snapshot
             let all_items = collect_items(items, item_positions);
-            let all_actors = snapshot_actors(actors, actor_data, actor_motions);
+            let all_actors = snapshot_actors(actors, &queries.actor_data, &queries.actor_motions);
 
             // Send the initial snapshot to the new player
             let snapshot_msg = ServerMessage::Snapshot(SSnapshot {
@@ -189,7 +186,7 @@ pub fn handle_login_message(
                 "{:?} sent non-login message before authenticating (likely out-of-order delivery)",
                 id
             );
-            // Don't despawn - Init message will likely arrive soon
+            // Don't despawn - the Login message will likely arrive soon
         }
     }
 }

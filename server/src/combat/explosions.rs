@@ -9,12 +9,12 @@ use common::{
     protocol::{ActorId, ActorMarker, Health, PlayerId, PlayerMarker, Position, SPlayerBlast, ServerMessage},
 };
 
-use super::{PendingExplosion, PendingExplosions, kill_actor, kill_player};
+use super::{PendingExplosion, PendingExplosions, award_actor_kill, kill_actor, kill_player};
 use crate::{
     actors::ActorMap,
     config::{ExplosionDamageConfig, ServerGameplayConfig},
     network::ServerToClient,
-    players::{Invincibility, PlayerMap, QuestEvent, record_quest_event},
+    players::{Invincibility, PlayerMap},
 };
 
 type PlayerBlastQuery<'w, 's> = Query<
@@ -157,21 +157,8 @@ pub fn explosions_system(mut context: ExplosionContext) {
             let killer = spec.killer.filter(|k| context.players.get(k).is_some());
             if let Some(killer_id) = killer
                 && let Some(kind) = context.actors.get(&death.id).map(|info| info.spawn_kind.clone())
-                && let Some(shooter) = context.players.get_mut(&killer_id)
             {
-                shooter.score += context
-                    .server_gameplay_config
-                    .validated_actor(&kind)
-                    .combat
-                    .score_reward_on_kill;
-                let quest_messages = record_quest_event(
-                    shooter,
-                    &context.server_gameplay_config.quests,
-                    QuestEvent::ActorKilled { kind: &kind },
-                );
-                for msg in quest_messages {
-                    let _ = shooter.channel.send(ServerToClient::Send(msg));
-                }
+                award_actor_kill(&mut context.players, killer_id, &kind, &context.server_gameplay_config);
             }
             if kill_actor(
                 &mut context.commands,

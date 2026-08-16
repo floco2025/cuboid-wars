@@ -28,7 +28,7 @@ pub fn handle_pre_bootstrap_message(msg: ServerMessage, commands: &mut Commands,
             debug!("received Init: my_id={:?}", init_msg.id);
             commands.insert_resource(MyPlayerId(init_msg.id));
             let collision_world =
-                CollisionWorld::from_map_layout(&init_msg.map_layout, &client_assets.barrier_kind_table);
+                CollisionWorld::from_map_layout(&init_msg.map_layout, &client_assets.handles.barrier_kind_table);
             commands.insert_resource(init_msg.map_layout);
             commands.insert_resource(init_msg.map_settings);
             commands.insert_resource(collision_world);
@@ -39,23 +39,23 @@ pub fn handle_pre_bootstrap_message(msg: ServerMessage, commands: &mut Commands,
         }
         ServerMessage::QuestsAssigned(quest_msg) => {
             handle_quests_assigned_message(
-                &mut client_assets.quest_log,
-                &client_assets.client_settings,
-                &mut client_assets.pending_banner,
+                &mut client_assets.hud.quest_log,
+                &client_assets.handles.client_settings,
+                &mut client_assets.hud.pending_banner,
                 quest_msg,
             );
         }
         ServerMessage::QuestProgress(quest_msg) => {
-            handle_quest_progress_message(&mut client_assets.quest_log, quest_msg);
+            handle_quest_progress_message(&mut client_assets.hud.quest_log, quest_msg);
         }
         ServerMessage::QuestCompleted(quest_msg) => {
             handle_quest_completed_message(
                 commands,
-                &mut client_assets.quest_log,
-                &client_assets.client_settings,
-                &mut client_assets.pending_banner,
-                &client_assets.asset_server,
-                &client_assets.asset_set,
+                &mut client_assets.hud.quest_log,
+                &client_assets.handles.client_settings,
+                &mut client_assets.hud.pending_banner,
+                &client_assets.handles.asset_server,
+                &client_assets.handles.asset_set,
                 quest_msg,
             );
         }

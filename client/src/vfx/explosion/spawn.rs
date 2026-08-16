@@ -24,105 +24,96 @@ struct ExplosionSpec {
     blast_radius: Option<f32>,
 }
 
+// The world plumbing every explosion spawn draws from, bundled so the death
+// handlers thread one context instead of seven parameters.
+pub struct ExplosionSpawnCtx<'a> {
+    pub meshes: &'a mut Assets<Mesh>,
+    pub materials: &'a mut Assets<StandardMaterial>,
+    pub budget: &'a mut ExplosionVfxBudget,
+    pub explosion_assets: &'a ExplosionAssets,
+    pub gameplay_config: &'a GameplayConfig,
+    pub collision_world: Option<&'a CollisionWorld>,
+    pub map_layout: Option<&'a MapLayout>,
+}
+
 pub fn spawn_actor_explosion(
     commands: &mut Commands,
-    meshes: &mut Assets<Mesh>,
-    materials: &mut Assets<StandardMaterial>,
-    budget: &mut ExplosionVfxBudget,
-    explosion_assets: &ExplosionAssets,
+    ctx: &mut ExplosionSpawnCtx,
     radii: &ExplosionRadii,
-    gameplay_config: &GameplayConfig,
-    collision_world: Option<&CollisionWorld>,
-    map_layout: Option<&MapLayout>,
     actor_kind: &str,
     pos: Position,
 ) {
-    let actor_physics = gameplay_config
+    let actor_physics = ctx
+        .gameplay_config
         .actor(actor_kind)
         .expect("actor kind sent by server is missing from gameplay config")
         .physics();
     let blast_radius = radii.actors.get(actor_kind).copied();
     let fireball_diameter = blast_radius.map_or(EXPLOSION_FALLBACK_FIREBALL_DIAMETER, |radius| {
-        2.0 * radius * explosion_assets.config.fireball.blast_diameter_factor
+        2.0 * radius * ctx.explosion_assets.config.fireball.blast_diameter_factor
     });
     spawn_explosion(
         commands,
-        meshes,
-        materials,
-        budget,
-        explosion_assets,
+        ctx.meshes,
+        ctx.materials,
+        ctx.budget,
+        ctx.explosion_assets,
         ExplosionSpec {
             center: Vec3::new(pos.x, actor_physics.collider_center_y(pos.y), pos.z),
             ground_y: pos.y,
             fireball_diameter,
             blast_radius,
         },
-        collision_world,
-        map_layout,
+        ctx.collision_world,
+        ctx.map_layout,
     );
 }
 
 pub fn spawn_player_explosion(
     commands: &mut Commands,
-    meshes: &mut Assets<Mesh>,
-    materials: &mut Assets<StandardMaterial>,
-    budget: &mut ExplosionVfxBudget,
-    explosion_assets: &ExplosionAssets,
+    ctx: &mut ExplosionSpawnCtx,
     radii: &ExplosionRadii,
-    gameplay_config: &GameplayConfig,
-    collision_world: Option<&CollisionWorld>,
-    map_layout: Option<&MapLayout>,
     pos: Position,
 ) {
-    let player_physics = gameplay_config.player.physics();
+    let player_physics = ctx.gameplay_config.player.physics();
     let blast_radius = (radii.player > 0.0).then_some(radii.player);
     spawn_explosion(
         commands,
-        meshes,
-        materials,
-        budget,
-        explosion_assets,
+        ctx.meshes,
+        ctx.materials,
+        ctx.budget,
+        ctx.explosion_assets,
         ExplosionSpec {
             center: Vec3::new(pos.x, player_physics.collider_center_y(pos.y), pos.z),
             ground_y: pos.y,
             fireball_diameter: blast_radius.map_or(EXPLOSION_FALLBACK_FIREBALL_DIAMETER, |radius| {
-                2.0 * radius * explosion_assets.config.fireball.blast_diameter_factor
+                2.0 * radius * ctx.explosion_assets.config.fireball.blast_diameter_factor
             }),
             blast_radius,
         },
-        collision_world,
-        map_layout,
+        ctx.collision_world,
+        ctx.map_layout,
     );
 }
 
 // A missile detonation: the blast origin is the detonation point itself (no
 // character body), radius from the shared missiles config.
-pub fn spawn_missile_explosion(
-    commands: &mut Commands,
-    meshes: &mut Assets<Mesh>,
-    materials: &mut Assets<StandardMaterial>,
-    budget: &mut ExplosionVfxBudget,
-    explosion_assets: &ExplosionAssets,
-    gameplay_config: &GameplayConfig,
-    collision_world: Option<&CollisionWorld>,
-    map_layout: Option<&MapLayout>,
-    pos: Position,
-) {
-    let blast_radius = gameplay_config.missiles.blast_radius;
+pub fn spawn_missile_explosion(commands: &mut Commands, ctx: &mut ExplosionSpawnCtx, pos: Position) {
+    let blast_radius = ctx.gameplay_config.missiles.blast_radius;
     spawn_explosion(
         commands,
-        meshes,
-        materials,
-        budget,
-        explosion_assets,
+        ctx.meshes,
+        ctx.materials,
+        ctx.budget,
+        ctx.explosion_assets,
         ExplosionSpec {
             center: Vec3::from(pos),
             ground_y: pos.y,
-            fireball_diameter: 2.0 * blast_radius * explosion_assets.config.fireball.blast_diameter_factor,
+            fireball_diameter: 2.0 * blast_radius * ctx.explosion_assets.config.fireball.blast_diameter_factor,
             blast_radius: Some(blast_radius),
         },
-        collision_world,
-        map_layout,
+        ctx.collision_world,
+        ctx.map_layout,
     );
 }
 

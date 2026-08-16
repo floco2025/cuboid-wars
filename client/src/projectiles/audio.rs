@@ -1,5 +1,5 @@
 use bevy::{
-    audio::{PlaybackMode, SpatialScale, Volume},
+    audio::{PlaybackMode, Volume},
     prelude::*,
 };
 
@@ -22,33 +22,9 @@ fn loudness_at_listener(pos: Vec3, listener_pos: Vec3, spatial_distance_scale: f
     (1.0 / scaled_distance.powi(2)).min(1.0)
 }
 
-pub(super) fn play_sound(
-    commands: &mut Commands,
-    asset_server: &AssetServer,
-    asset_path: &str,
-    settings: PlaybackSettings,
-) {
-    commands.spawn((AudioPlayer::new(asset_server.load(asset_path.to_owned())), settings));
-}
-
-// Positional world sound: attenuates and pans with distance, like the
-// explosion sounds (same world-meter compression).
-pub(super) fn play_spatial_sound(
-    commands: &mut Commands,
-    asset_server: &AssetServer,
-    asset_path: &str,
-    audio_config: &AudioConfig,
-    settings: PlaybackSettings,
-    pos: Vec3,
-) {
-    commands.spawn((
-        AudioPlayer::new(asset_server.load(asset_path.to_owned())),
-        settings
-            .with_spatial(true)
-            .with_spatial_scale(SpatialScale::new(audio_config.spatial_distance_scale)),
-        Transform::from_translation(pos),
-    ));
-}
+// The generic one-shot spawners live in `crate::audio`; this module keeps
+// only the projectile-specific rate limiting.
+pub(super) use crate::audio::{play_sound_with as play_sound, play_spatial_sound_with as play_spatial_sound};
 
 pub(super) fn play_barrier_impact_sound(
     commands: &mut Commands,

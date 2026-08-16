@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashSet, VecDeque};
 
 use bevy::prelude::*;
 
@@ -8,6 +8,7 @@ use common::{
 };
 
 use crate::map::{Cell, CellSide, MapConfig, has_edge_on_cell_side};
+use crate::pathfind::bfs_path;
 
 // Adjacency offsets (layer, row, col) for the 6-connected air grid.
 const ADJACENT: [(i32, i32, i32); 6] = [(0, -1, 0), (0, 1, 0), (0, 0, -1), (0, 0, 1), (-1, 0, 0), (1, 0, 0)];
@@ -53,34 +54,7 @@ impl AirGraph {
         let start = self.nearest_flyable(self.node_at(from))?;
         let goal = self.nearest_flyable(self.node_at(to))?;
 
-        let mut queue = VecDeque::from([start]);
-        let mut came_from: HashMap<AirNode, Option<AirNode>> = HashMap::from([(start, None)]);
-        let mut found = (start == goal).then_some(start);
-        while found.is_none() {
-            let Some(node) = queue.pop_front() else {
-                break;
-            };
-            for next in self.neighbors(node) {
-                if came_from.contains_key(&next) {
-                    continue;
-                }
-                came_from.insert(next, Some(node));
-                if next == goal {
-                    found = Some(next);
-                    break;
-                }
-                queue.push_back(next);
-            }
-        }
-
-        let goal = found?;
-        let mut nodes = Vec::new();
-        let mut cursor = goal;
-        while cursor != start {
-            nodes.push(cursor);
-            cursor = came_from.get(&cursor).copied().flatten()?;
-        }
-        nodes.reverse();
+        let nodes = bfs_path(start, |node| *node == goal, |node| self.neighbors(node))?;
         Some(nodes.into_iter().map(|node| self.node_center(node)).collect())
     }
 

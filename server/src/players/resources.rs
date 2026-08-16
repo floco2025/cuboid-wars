@@ -126,11 +126,6 @@ impl PlayerInfo {
         self.held_keys.binary_search(&kind).is_ok()
     }
 
-    #[must_use]
-    pub fn held_keys(&self) -> &[BarrierKindId] {
-        &self.held_keys
-    }
-
     // Insert the kind into `held_keys`, keeping it sorted; returns `true` if
     // the kind was newly added (so the caller can decide whether to broadcast
     // an `SPlayerStatus` change), `false` if it was already held.

@@ -6,12 +6,7 @@ use super::{
 };
 use crate::{config::CharacterPhysicsConfig, constants::PHYSICS_EPSILON, protocol::Position};
 
-// Check if a move plan would overlap with any other character's planned position.
-#[must_use]
-pub fn overlaps_other_character(candidate: &CharacterMovePlan, planned_moves: &[CharacterMovePlan]) -> bool {
-    overlapping_character(candidate, planned_moves).is_some()
-}
-
+// Find another character's planned position this move plan would overlap.
 #[must_use]
 pub fn overlapping_character<'a>(
     candidate: &CharacterMovePlan,
@@ -112,7 +107,7 @@ fn position_is_behind_move_plan(candidate: &CharacterMovePlan, other_pos: &Posit
 }
 
 #[must_use]
-pub fn character_move_plans_intersect(candidate: &CharacterMovePlan, other: &CharacterMovePlan) -> bool {
+fn character_move_plans_intersect(candidate: &CharacterMovePlan, other: &CharacterMovePlan) -> bool {
     if character_positions_intersect(&candidate.start, candidate.physics, &other.start, other.physics) {
         return !character_move_plans_separate(candidate, other);
     }

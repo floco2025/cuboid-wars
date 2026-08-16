@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use bevy::{asset::AssetId, light::NotShadowCaster, prelude::*, world_serialization::WorldInstanceReady};
 use rand::{RngExt, rng};
 
+use super::cube::smoothstep;
 use super::particles::{ParticleCloud, ParticleClouds, ParticleSpawn};
 use crate::{
     config::{ActorBeamInVfxConfig, ClientSettings},
@@ -237,10 +238,6 @@ pub(super) fn take_emissions(credit: &mut f32, rate: f32, delta: f32, max_per_fr
     let due = credit.floor() as usize;
     *credit -= due as f32;
     due.min(max_per_frame)
-}
-
-fn smoothstep(value: f32) -> f32 {
-    value * value * (3.0 - 2.0 * value)
 }
 
 #[cfg(test)]

@@ -6,6 +6,7 @@ use super::{
     particles::{ParticleCloud, ParticleClouds, ParticleSpawn},
 };
 use crate::{
+    audio::play_sound_with,
     cameras::MainCameraMarker,
     config::{AssetSet, ClientSettings, WeatherConfig},
 };
@@ -232,12 +233,12 @@ pub fn rain_audio_system(
     match *loop_entity {
         None if raining => {
             let Some(asset_set) = asset_set else { return };
-            let entity = commands
-                .spawn((
-                    AudioPlayer::new(asset_server.load(asset_set.player_sound("rain").to_owned())),
-                    PlaybackSettings::LOOP,
-                ))
-                .id();
+            let entity = play_sound_with(
+                &mut commands,
+                &asset_server,
+                asset_set.player_sound("rain"),
+                PlaybackSettings::LOOP,
+            );
             *loop_entity = Some(entity);
         }
         Some(entity) if !raining => {

@@ -18,8 +18,8 @@ fn overlapping_planned_characters_can_separate() {
     );
     let planned_moves = [first, second];
 
-    assert!(!overlaps_other_character(&first, &planned_moves));
-    assert!(!overlaps_other_character(&second, &planned_moves));
+    assert!(overlapping_character(&first, &planned_moves).is_none());
+    assert!(overlapping_character(&second, &planned_moves).is_none());
 }
 
 #[test]
@@ -36,8 +36,8 @@ fn overlapping_planned_characters_cannot_move_deeper_together() {
     );
     let planned_moves = [first, second];
 
-    assert!(overlaps_other_character(&first, &planned_moves));
-    assert!(overlaps_other_character(&second, &planned_moves));
+    assert!(overlapping_character(&first, &planned_moves).is_some());
+    assert!(overlapping_character(&second, &planned_moves).is_some());
 }
 
 #[test]

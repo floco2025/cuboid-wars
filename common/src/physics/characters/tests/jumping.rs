@@ -53,16 +53,20 @@ fn upward_jump_velocity_moves_player_above_support() {
     ));
 
     let step = step_character_movement(
-        &pos,
-        motion,
-        &collision_world,
-        false,
-        TEST_GRAVITY,
-        &[],
-        player_physics(),
-        pos.x,
-        pos.z,
-        0.1,
+        CharacterStep {
+            start: pos,
+            vertical_velocity: motion,
+            target_x: pos.x,
+            target_z: pos.z,
+            delta: 0.1,
+        },
+        &CharacterEnvironment {
+            collision_world: &collision_world,
+            has_phasing: false,
+            gravity: TEST_GRAVITY,
+            passable_kinds: &[],
+            physics: player_physics(),
+        },
     );
 
     assert!(step.position.y > pos.y);
@@ -77,16 +81,20 @@ fn upward_motion_hits_floor_underside() {
     let motion = PLAYER_JUMP_SPEED;
 
     let step = step_character_movement(
-        &pos,
-        motion,
-        &collision_world,
-        false,
-        TEST_GRAVITY,
-        &[],
-        player_physics(),
-        pos.x,
-        pos.z,
-        0.1,
+        CharacterStep {
+            start: pos,
+            vertical_velocity: motion,
+            target_x: pos.x,
+            target_z: pos.z,
+            delta: 0.1,
+        },
+        &CharacterEnvironment {
+            collision_world: &collision_world,
+            has_phasing: false,
+            gravity: TEST_GRAVITY,
+            passable_kinds: &[],
+            physics: player_physics(),
+        },
     );
 
     assert_eq!(step.vertical_velocity, 0.0);
@@ -102,16 +110,20 @@ fn initial_ceiling_contact_does_not_cancel_horizontal_movement() {
     let motion = 0.0;
 
     let step = step_character_movement(
-        &pos,
-        motion,
-        &collision_world,
-        false,
-        TEST_GRAVITY,
-        &[],
-        player_physics(),
-        0.5,
-        pos.z,
-        0.1,
+        CharacterStep {
+            start: pos,
+            vertical_velocity: motion,
+            target_x: 0.5,
+            target_z: pos.z,
+            delta: 0.1,
+        },
+        &CharacterEnvironment {
+            collision_world: &collision_world,
+            has_phasing: false,
+            gravity: TEST_GRAVITY,
+            passable_kinds: &[],
+            physics: player_physics(),
+        },
     );
 
     assert!(!step.blocked);
@@ -128,16 +140,20 @@ fn upward_motion_ignores_floor_underside_outside_footprint() {
     let motion = PLAYER_JUMP_SPEED;
 
     let step = step_character_movement(
-        &pos,
-        motion,
-        &collision_world,
-        false,
-        TEST_GRAVITY,
-        &[],
-        player_physics(),
-        pos.x,
-        pos.z,
-        0.1,
+        CharacterStep {
+            start: pos,
+            vertical_velocity: motion,
+            target_x: pos.x,
+            target_z: pos.z,
+            delta: 0.1,
+        },
+        &CharacterEnvironment {
+            collision_world: &collision_world,
+            has_phasing: false,
+            gravity: TEST_GRAVITY,
+            passable_kinds: &[],
+            physics: player_physics(),
+        },
     );
 
     assert!(step.vertical_velocity > 0.0);
@@ -156,16 +172,20 @@ fn upward_motion_under_floor_edge_hits_floor_side() {
     let motion = PLAYER_JUMP_SPEED;
 
     let step = step_character_movement(
-        &pos,
-        motion,
-        &collision_world,
-        false,
-        TEST_GRAVITY,
-        &[],
-        player_physics(),
-        -4.25,
-        pos.z,
-        0.1,
+        CharacterStep {
+            start: pos,
+            vertical_velocity: motion,
+            target_x: -4.25,
+            target_z: pos.z,
+            delta: 0.1,
+        },
+        &CharacterEnvironment {
+            collision_world: &collision_world,
+            has_phasing: false,
+            gravity: TEST_GRAVITY,
+            passable_kinds: &[],
+            physics: player_physics(),
+        },
     );
 
     assert!(step.blocked);
@@ -184,16 +204,20 @@ fn player_on_floor_top_can_move_over_adjacent_floor_slab_edge() {
     let motion = 0.0;
 
     let step = step_character_movement(
-        &pos,
-        motion,
-        &collision_world,
-        false,
-        TEST_GRAVITY,
-        &[],
-        player_physics(),
-        -3.75,
-        pos.z,
-        0.1,
+        CharacterStep {
+            start: pos,
+            vertical_velocity: motion,
+            target_x: -3.75,
+            target_z: pos.z,
+            delta: 0.1,
+        },
+        &CharacterEnvironment {
+            collision_world: &collision_world,
+            has_phasing: false,
+            gravity: TEST_GRAVITY,
+            passable_kinds: &[],
+            physics: player_physics(),
+        },
     );
 
     assert!(!step.blocked);

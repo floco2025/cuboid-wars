@@ -22,16 +22,20 @@ fn edge_overhang_slides_off_and_falls() {
 
     for _ in 0..30 {
         let step = step_character_movement(
-            &pos,
-            vertical_velocity,
-            &collision_world,
-            false,
-            TEST_GRAVITY,
-            &[],
-            physics,
-            pos.x,
-            pos.z,
-            TICK_SECS,
+            CharacterStep {
+                start: pos,
+                vertical_velocity,
+                target_x: pos.x,
+                target_z: pos.z,
+                delta: TICK_SECS,
+            },
+            &CharacterEnvironment {
+                collision_world: &collision_world,
+                has_phasing: false,
+                gravity: TEST_GRAVITY,
+                passable_kinds: &[],
+                physics,
+            },
         );
         pos = step.position;
         vertical_velocity = step.vertical_velocity;
@@ -82,16 +86,20 @@ fn probe_grounded_near_edge_does_not_slide() {
 
     for _ in 0..5 {
         let step = step_character_movement(
-            &pos,
-            vertical_velocity,
-            &collision_world,
-            false,
-            TEST_GRAVITY,
-            &[],
-            physics,
-            pos.x,
-            pos.z,
-            TICK_SECS,
+            CharacterStep {
+                start: pos,
+                vertical_velocity,
+                target_x: pos.x,
+                target_z: pos.z,
+                delta: TICK_SECS,
+            },
+            &CharacterEnvironment {
+                collision_world: &collision_world,
+                has_phasing: false,
+                gravity: TEST_GRAVITY,
+                passable_kinds: &[],
+                physics,
+            },
         );
         pos = step.position;
         vertical_velocity = step.vertical_velocity;
@@ -117,16 +125,20 @@ fn input_overrides_perch_slide() {
 
     for _ in 0..15 {
         let step = step_character_movement(
-            &pos,
-            vertical_velocity,
-            &collision_world,
-            false,
-            TEST_GRAVITY,
-            &[],
-            physics,
-            run_speed.mul_add(-TICK_SECS, pos.x),
-            pos.z,
-            TICK_SECS,
+            CharacterStep {
+                start: pos,
+                vertical_velocity,
+                target_x: run_speed.mul_add(-TICK_SECS, pos.x),
+                target_z: pos.z,
+                delta: TICK_SECS,
+            },
+            &CharacterEnvironment {
+                collision_world: &collision_world,
+                has_phasing: false,
+                gravity: TEST_GRAVITY,
+                passable_kinds: &[],
+                physics,
+            },
         );
         pos = step.position;
         vertical_velocity = step.vertical_velocity;
@@ -166,16 +178,20 @@ fn blocked_slide_keeps_velocity_zeroed() {
 
     for _ in 0..30 {
         let step = step_character_movement(
-            &pos,
-            vertical_velocity,
-            &collision_world,
-            false,
-            TEST_GRAVITY,
-            &[],
-            physics,
-            pos.x,
-            pos.z,
-            TICK_SECS,
+            CharacterStep {
+                start: pos,
+                vertical_velocity,
+                target_x: pos.x,
+                target_z: pos.z,
+                delta: TICK_SECS,
+            },
+            &CharacterEnvironment {
+                collision_world: &collision_world,
+                has_phasing: false,
+                gravity: TEST_GRAVITY,
+                passable_kinds: &[],
+                physics,
+            },
         );
         pos = step.position;
         vertical_velocity = step.vertical_velocity;

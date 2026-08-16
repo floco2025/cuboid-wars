@@ -4,6 +4,7 @@ use bevy::{
 };
 
 use crate::{
+    audio::play_sound,
     cameras::MainCameraMarker,
     config::AssetSet,
     missiles::LockOnTarget,
@@ -56,10 +57,7 @@ pub fn input_missile_system(
 
     let has_ammo = players.get(&my_id.0).is_some_and(|info| info.missiles > 0);
     let Some(target) = lock.0.filter(|_| has_ammo) else {
-        commands.spawn((
-            AudioPlayer::new(asset_server.load(asset_set.player_sound("dry_fire").to_owned())),
-            PlaybackSettings::DESPAWN,
-        ));
+        play_sound(&mut commands, &asset_server, asset_set.player_sound("dry_fire"));
         return;
     };
 

@@ -21,11 +21,38 @@ use common::{
 
 use super::{login::handle_login_message, messages::dispatch_message};
 
-// Bundled login dependencies — keeps `network_process_client_messages_system`
-// under Bevy's 16-parameter system tuple limit. All resources here are pure
-// world setup / config that login flow needs in a single shot.
+// The full player/actor per-entity state queries, spelled once. Signature
+// noise elsewhere threads these constantly; keep new consumers on the alias.
+pub type PlayerStateQuery<'w, 's> = Query<
+    'w,
+    's,
+    (
+        &'static Position,
+        &'static PlayerMoveIntent,
+        &'static FaceDirection,
+        &'static Health,
+    ),
+    With<PlayerMarker>,
+>;
+
+pub type ActorStateQuery<'w, 's> = Query<
+    'w,
+    's,
+    (
+        &'static Position,
+        &'static ActorMoveIntent,
+        &'static FaceDirection,
+        &'static Health,
+    ),
+    With<ActorMarker>,
+>;
+
+// Bundled world/config resources shared by login and message dispatch —
+// keeps `network_process_client_messages_system` under Bevy's 16-parameter
+// system tuple limit, and turns "a handler needs one more resource" into a
+// one-field change instead of a three-layer signature edit.
 #[derive(SystemParam)]
-pub struct LoginWorld<'w> {
+pub struct SharedWorld<'w> {
     pub map_layout: Res<'w, MapLayout>,
     pub map_settings: Res<'w, MapSettings>,
     pub map_geometry: Res<'w, MapGeometry>,
@@ -35,22 +62,28 @@ pub struct LoginWorld<'w> {
     pub server_gameplay_config: Res<'w, ServerGameplayConfig>,
 }
 
-// Process incoming messages from clients.
-// NOTE: Must run after `network_accept_connections_system` with `apply_deferred` in
-// between, otherwise entities for the messages might not be spawned yet.
+// The character state/motion queries every message handler reads.
+#[derive(SystemParam)]
+pub struct CharacterQueries<'w, 's> {
+    pub player_data: PlayerStateQuery<'w, 's>,
+    pub player_motions: Query<'w, 's, &'static CharacterVerticalVelocity, With<PlayerMarker>>,
+    pub actor_data: ActorStateQuery<'w, 's>,
+    pub actor_motions: Query<'w, 's, &'static CharacterVerticalVelocity, With<ActorMarker>>,
+}
+
+// Process incoming messages from clients. Registrations and messages share
+// one channel (see `transport.rs`), so a player's `Registration` — and its
+// entity spawn here — is always observed before any of their messages.
 pub fn network_process_client_messages_system(
     mut commands: Commands,
     mut from_clients: ResMut<FromClientsChannel>,
     mut players: ResMut<PlayerMap>,
     time: Res<Time>,
-    world: LoginWorld,
+    world: SharedWorld,
+    queries: CharacterQueries,
     items: Res<ItemMap>,
     actors: Res<ActorMap>,
     pending_spawns: Res<PendingActorSpawns>,
-    player_data: Query<(&Position, &PlayerMoveIntent, &FaceDirection, &Health), With<PlayerMarker>>,
-    player_motions: Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
-    actor_data: Query<(&Position, &ActorMoveIntent, &FaceDirection, &Health), With<ActorMarker>>,
-    actor_motions: Query<&CharacterVerticalVelocity, With<ActorMarker>>,
     item_data: Query<&Position, With<ItemMarker>>,
     open_barrier_kinds: Res<OpenBarrierKinds>,
     mut missiles: ResMut<MissileMap>,
@@ -97,13 +130,9 @@ pub fn network_process_client_messages_system(
                         &mut players,
                         &mut missiles,
                         &time,
-                        &player_data,
-                        &player_motions,
+                        &world,
+                        &queries,
                         &actors,
-                        &actor_data,
-                        &world.collision_world,
-                        &world.gameplay_config,
-                        &world.server_gameplay_config,
                         &open_barrier_kinds,
                         &mut admin,
                     );
@@ -118,10 +147,7 @@ pub fn network_process_client_messages_system(
                         &items,
                         &actors,
                         &pending_spawns,
-                        &player_data,
-                        &player_motions,
-                        &actor_data,
-                        &actor_motions,
+                        &queries,
                         &item_data,
                     );
                 }

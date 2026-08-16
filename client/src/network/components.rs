@@ -70,11 +70,6 @@ pub fn worst_axis_divergence(delta: Vec3) -> (&'static str, f32) {
     }
 }
 
-// ============================================================================
-// System Parameters
-// ============================================================================
-
-// System params to reduce parameter count across message handlers.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -127,29 +122,55 @@ pub struct AssetManagers<'w> {
     pub graphs: ResMut<'w, Assets<AnimationGraph>>,
 }
 
+// ============================================================================
+// System Parameters
+// ============================================================================
+
+// Read-only asset handles and config the message handlers draw from.
 #[derive(SystemParam)]
-pub struct ClientAssets<'w, 's> {
+pub struct ClientAssetHandles<'w> {
     pub asset_server: Res<'w, AssetServer>,
     pub asset_set: Res<'w, AssetSet>,
     pub client_settings: Res<'w, ClientSettings>,
     pub projectile_assets: Res<'w, ProjectileAssets>,
     pub explosion_assets: Res<'w, ExplosionAssets>,
     pub explosion_radii: Res<'w, ExplosionRadii>,
-    pub explosion_vfx_budget: ResMut<'w, ExplosionVfxBudget>,
-    pub map_layout: Option<Res<'w, MapLayout>>,
     pub item_assets: Res<'w, ItemAssets>,
     pub barrier_assets: Res<'w, BarrierAssets>,
+    pub missile_assets: Res<'w, MissileAssets>,
     pub gameplay_config: Res<'w, GameplayConfig>,
     pub barrier_kind_table: Res<'w, BarrierKindTable>,
+}
+
+// Mutable HUD-facing state the handlers write (feeds, banners, quest log,
+// the local player's own flags).
+#[derive(SystemParam)]
+pub struct HudState<'w> {
     pub local_player_info: ResMut<'w, LocalPlayerInfo>,
     pub game_message_feed: ResMut<'w, GameMessageFeed>,
     pub seen_player_ids: ResMut<'w, SeenPlayerIds>,
     pub quest_log: ResMut<'w, QuestLog>,
+    pub pending_banner: ResMut<'w, PendingBanner>,
+}
+
+// Mutable world-replication state driven by snapshots and cues.
+#[derive(SystemParam)]
+pub struct WorldSyncState<'w, 's> {
+    pub explosion_vfx_budget: ResMut<'w, ExplosionVfxBudget>,
+    pub map_layout: Option<Res<'w, MapLayout>>,
     pub open_barrier_kinds: ResMut<'w, crate::barriers::OpenBarrierKinds>,
     pub rain_intensity: ResMut<'w, crate::vfx::RainIntensity>,
     pub actor_ghosts: ResMut<'w, ActorGhostMap>,
-    pub pending_banner: ResMut<'w, PendingBanner>,
-    pub missile_assets: Res<'w, MissileAssets>,
     pub missile_map: ResMut<'w, crate::missiles::MissileMap>,
     pub missile_data: Query<'w, 's, &'static Position, With<MissileMarker>>,
+}
+
+// The one bundle threaded through message dispatch. Nested role bundles keep
+// the enclosing system under Bevy's parameter limit while call sites say
+// which role they touch.
+#[derive(SystemParam)]
+pub struct ClientAssets<'w, 's> {
+    pub handles: ClientAssetHandles<'w>,
+    pub hud: HudState<'w>,
+    pub world_sync: WorldSyncState<'w, 's>,
 }

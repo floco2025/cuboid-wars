@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::{config::AssetSet, players::BumpFeedbackState};
+use crate::{audio::play_sound, config::AssetSet, players::BumpFeedbackState};
 
 const BUMP_COLLISION_RELEASE_DELAY: f32 = 0.25;
 
@@ -18,10 +18,7 @@ pub(super) fn trigger_collision_feedback(
             asset_set.player_sound("bump_player")
         };
 
-        commands.spawn((
-            AudioPlayer::new(asset_server.load(sound_path.to_owned())),
-            PlaybackSettings::DESPAWN,
-        ));
+        play_sound(commands, asset_server, sound_path);
     }
 
     state.was_colliding = true;

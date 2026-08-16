@@ -2,11 +2,13 @@ use bevy::{ecs::system::SystemParam, prelude::*};
 
 use crate::{
     actors::ActorMap,
-    combat::{PendingExplosions, apply_actor_projectile_hit, apply_player_projectile_hit, kill_player},
+    combat::{
+        PendingExplosions, apply_actor_projectile_hit, apply_player_projectile_hit, award_actor_kill, kill_player,
+    },
     config::ServerGameplayConfig,
     map::OpenBarrierKinds,
-    network::{ServerToClient, broadcast_to_all},
-    players::{Invincibility, PlayerMap, QuestEvent, record_quest_event},
+    network::broadcast_to_all,
+    players::{Invincibility, PlayerMap},
 };
 use common::{
     config::GameplayConfig,
@@ -284,24 +286,12 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                         &params.server_gameplay_config,
                     );
                     if was_lethal {
-                        let bonus = params
-                            .server_gameplay_config
-                            .validated_actor(&spawn_kind)
-                            .combat
-                            .score_reward_on_kill;
-                        if let Some(shooter) = params.players.get_mut(shooter_id) {
-                            shooter.score += bonus;
-                            // Advance any actor-kills quests (honouring per-kind
-                            // filters) and unicast the progress/completion cues.
-                            let quest_messages = record_quest_event(
-                                shooter,
-                                &params.server_gameplay_config.quests,
-                                QuestEvent::ActorKilled { kind: &spawn_kind },
-                            );
-                            for msg in quest_messages {
-                                let _ = shooter.channel.send(ServerToClient::Send(msg));
-                            }
-                        }
+                        award_actor_kill(
+                            &mut params.players,
+                            *shooter_id,
+                            &spawn_kind,
+                            &params.server_gameplay_config,
+                        );
                         // Stash the killer so `actor_removal_system`'s
                         // `SActorDeath` broadcast can attribute the kill.
                         if let Some(info) = params.actors.get_mut(id) {

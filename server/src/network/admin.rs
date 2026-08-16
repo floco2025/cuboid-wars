@@ -1,5 +1,6 @@
 use bevy::{ecs::system::SystemParam, prelude::*};
 
+use super::incoming::PlayerStateQuery;
 use crate::{
     actors::ActorMap,
     combat::{PendingExplosions, kill_player},
@@ -10,10 +11,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    protocol::{
-        BarrierKindTable, CAdmin, FaceDirection, Health, ItemType, PlayerId, PlayerMarker, PlayerMoveIntent, Position,
-        SAdminResponse, ServerMessage,
-    },
+    protocol::{BarrierKindTable, CAdmin, Health, ItemType, PlayerId, SAdminResponse, ServerMessage},
 };
 
 // Anything longer is nonsense or abuse; truncated before parsing.
@@ -116,7 +114,7 @@ pub fn handle_admin_message(
     players: &mut PlayerMap,
     id: PlayerId,
     admin: &mut AdminContext,
-    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection, &Health), With<PlayerMarker>>,
+    player_data: &PlayerStateQuery,
     gameplay_config: &GameplayConfig,
     msg: &CAdmin,
 ) {
@@ -142,7 +140,7 @@ fn run_admin_command(
     players: &mut PlayerMap,
     sender: PlayerId,
     admin: &mut AdminContext,
-    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection, &Health), With<PlayerMarker>>,
+    player_data: &PlayerStateQuery,
     gameplay_config: &GameplayConfig,
     command: &str,
 ) -> String {
@@ -319,7 +317,7 @@ fn kill_targets(
     commands: &mut Commands,
     players: &mut PlayerMap,
     admin: &mut AdminContext,
-    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection, &Health), With<PlayerMarker>>,
+    player_data: &PlayerStateQuery,
     gameplay_config: &GameplayConfig,
     targets: &[(PlayerId, Entity)],
 ) -> usize {

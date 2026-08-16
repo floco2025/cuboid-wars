@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use common::physics::{CharacterMovePlan, overlaps_other_character};
+use common::physics::{CharacterMovePlan, overlapping_character};
 
 use super::{
     feedback::{release_collision_feedback_after_clear_frames, trigger_collision_feedback},
@@ -22,7 +22,7 @@ pub(crate) fn apply_player_moves(
             continue;
         };
 
-        let hits_character = overlaps_other_character(planned_move, planned_moves);
+        let hits_character = overlapping_character(planned_move, planned_moves).is_some();
 
         if hits_character {
             client_pos.y = planned_move.target.y;

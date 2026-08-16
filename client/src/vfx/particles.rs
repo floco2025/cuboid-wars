@@ -6,62 +6,7 @@ use bevy::{
     prelude::*,
 };
 
-const CUBE_VERTICES: [Vec3; 24] = [
-    Vec3::new(-0.5, -0.5, 0.5),
-    Vec3::new(0.5, -0.5, 0.5),
-    Vec3::new(0.5, 0.5, 0.5),
-    Vec3::new(-0.5, 0.5, 0.5),
-    Vec3::new(0.5, -0.5, -0.5),
-    Vec3::new(-0.5, -0.5, -0.5),
-    Vec3::new(-0.5, 0.5, -0.5),
-    Vec3::new(0.5, 0.5, -0.5),
-    Vec3::new(0.5, -0.5, 0.5),
-    Vec3::new(0.5, -0.5, -0.5),
-    Vec3::new(0.5, 0.5, -0.5),
-    Vec3::new(0.5, 0.5, 0.5),
-    Vec3::new(-0.5, -0.5, -0.5),
-    Vec3::new(-0.5, -0.5, 0.5),
-    Vec3::new(-0.5, 0.5, 0.5),
-    Vec3::new(-0.5, 0.5, -0.5),
-    Vec3::new(-0.5, 0.5, 0.5),
-    Vec3::new(0.5, 0.5, 0.5),
-    Vec3::new(0.5, 0.5, -0.5),
-    Vec3::new(-0.5, 0.5, -0.5),
-    Vec3::new(-0.5, -0.5, -0.5),
-    Vec3::new(0.5, -0.5, -0.5),
-    Vec3::new(0.5, -0.5, 0.5),
-    Vec3::new(-0.5, -0.5, 0.5),
-];
-const CUBE_NORMALS: [Vec3; 24] = [
-    Vec3::Z,
-    Vec3::Z,
-    Vec3::Z,
-    Vec3::Z,
-    Vec3::NEG_Z,
-    Vec3::NEG_Z,
-    Vec3::NEG_Z,
-    Vec3::NEG_Z,
-    Vec3::X,
-    Vec3::X,
-    Vec3::X,
-    Vec3::X,
-    Vec3::NEG_X,
-    Vec3::NEG_X,
-    Vec3::NEG_X,
-    Vec3::NEG_X,
-    Vec3::Y,
-    Vec3::Y,
-    Vec3::Y,
-    Vec3::Y,
-    Vec3::NEG_Y,
-    Vec3::NEG_Y,
-    Vec3::NEG_Y,
-    Vec3::NEG_Y,
-];
-const CUBE_INDICES: [u32; 36] = [
-    0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7, 8, 9, 10, 8, 10, 11, 12, 13, 14, 12, 14, 15, 16, 17, 18, 16, 18, 19, 20, 21,
-    22, 20, 22, 23,
-];
+use super::cube::{CUBE_INDICES, CUBE_NORMALS, CUBE_VERTICES, repeated_indices};
 
 // Per-frame cost (attribute rebuild, GPU upload, vertex work) scales with a
 // cloud's mesh capacity, so capacity must track the effect's RECENT load, not
@@ -238,7 +183,11 @@ pub fn particle_clouds_system(time: Res<Time>, mut clouds: ResMut<ParticleClouds
         let resized = cloud.advance(delta);
         if let Some(mut mesh) = meshes.get_mut(&cloud.mesh) {
             if let Some(capacity) = resized {
-                mesh.insert_indices(Indices::U32(repeated_indices(capacity)));
+                mesh.insert_indices(Indices::U32(repeated_indices(
+                    capacity,
+                    CUBE_VERTICES.len(),
+                    &CUBE_INDICES,
+                )));
             }
             update_particle_mesh(&mut mesh, &cloud.particles, cloud.capacity);
         }
@@ -251,7 +200,11 @@ fn particle_mesh(max_particles: usize) -> Mesh {
     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, vec![[0.0; 3]; vertex_count]);
     mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, vec![Vec3::Y.to_array(); vertex_count]);
     mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, vec![[0.0; 4]; vertex_count]);
-    mesh.insert_indices(Indices::U32(repeated_indices(max_particles)));
+    mesh.insert_indices(Indices::U32(repeated_indices(
+        max_particles,
+        CUBE_VERTICES.len(),
+        &CUBE_INDICES,
+    )));
     mesh
 }
 
@@ -286,15 +239,6 @@ fn update_particle_mesh(mesh: &mut Mesh, particles: &[TransientParticle], max_pa
     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
     mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
     mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, colors);
-}
-
-fn repeated_indices(count: usize) -> Vec<u32> {
-    let mut indices = Vec::with_capacity(count * CUBE_INDICES.len());
-    for particle in 0..count as u32 {
-        let base = particle * CUBE_VERTICES.len() as u32;
-        indices.extend(CUBE_INDICES.iter().map(|index| base + index));
-    }
-    indices
 }
 
 #[cfg(test)]

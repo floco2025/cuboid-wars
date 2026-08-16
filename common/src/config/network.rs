@@ -29,7 +29,7 @@ pub fn load_private_key() -> Result<PrivateKeyDer<'static>> {
 }
 
 // Create a shared transport configuration with timeouts and keepalive
-pub fn create_transport_config() -> Result<Arc<TransportConfig>> {
+fn create_transport_config() -> Result<Arc<TransportConfig>> {
     let mut transport = TransportConfig::default();
     transport.max_idle_timeout(Some(
         Duration::from_secs(IDLE_TIMEOUT_SECS)

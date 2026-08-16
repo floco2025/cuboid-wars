@@ -42,6 +42,41 @@ pub struct MissileInfo {
     pub detonate_at: Option<Position>,
 }
 
+impl MissileInfo {
+    // Fresh launch state; every timer/steering field starts at its inert
+    // default so new guidance fields have one construction site (plus the
+    // test fixture mirroring this).
+    #[must_use]
+    pub fn new(
+        entity: Entity,
+        shooter: PlayerId,
+        target: Option<HomingTarget>,
+        launch_dir: Vec3,
+        weave_phase: f32,
+        lifetime_secs: f32,
+        stall_secs: f32,
+    ) -> Self {
+        Self {
+            entity,
+            shooter,
+            target,
+            path: VecDeque::new(),
+            path_target: None,
+            path_retry_timer: 0.0,
+            avoid_dir: None,
+            avoid_timer: 0.0,
+            last_target_center: None,
+            weave_phase,
+            lifetime_timer: lifetime_secs,
+            stall_anchor: None,
+            stall_timer: stall_secs,
+            armed: false,
+            last_broadcast_dir: launch_dir,
+            detonate_at: None,
+        }
+    }
+}
+
 #[derive(Resource, Default)]
 pub struct MissileMap {
     map: HashMap<MissileId, MissileInfo>,

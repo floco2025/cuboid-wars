@@ -2,8 +2,8 @@ use bevy::prelude::{Entity, Vec3};
 use common::{
     config::CharacterPhysicsConfig,
     physics::{
-        CharacterMovePlan, CharacterMovementResult, CollisionWorld, character_move_plan_is_blocked,
-        position_has_floor_support, step_character_movement,
+        CharacterEnvironment, CharacterMovePlan, CharacterMovementResult, CharacterStep, CollisionWorld,
+        character_move_plan_is_blocked, position_has_floor_support, step_character_movement,
     },
     protocol::{ActorMoveIntent, BarrierKindId, Position},
 };
@@ -65,16 +65,20 @@ impl ActorMoveContext<'_> {
         let target_x = velocity.x.mul_add(self.delta, self.pos.x) + self.knockback_step.x;
         let target_z = velocity.z.mul_add(self.delta, self.pos.z) + self.knockback_step.z;
         step_character_movement(
-            self.pos,
-            self.vertical_velocity,
-            self.collision_world,
-            false,
-            self.gravity,
-            self.open_barrier_kinds,
-            self.actor_physics,
-            target_x,
-            target_z,
-            self.delta,
+            CharacterStep {
+                start: *self.pos,
+                vertical_velocity: self.vertical_velocity,
+                target_x,
+                target_z,
+                delta: self.delta,
+            },
+            &CharacterEnvironment {
+                collision_world: self.collision_world,
+                has_phasing: false,
+                gravity: self.gravity,
+                passable_kinds: self.open_barrier_kinds,
+                physics: self.actor_physics,
+            },
         )
     }
 

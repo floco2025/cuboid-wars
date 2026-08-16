@@ -3,8 +3,8 @@ use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     constants::PHYSICS_EPSILON,
     physics::{
-        CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, overlapping_character,
-        passable_barrier_kinds, step_character_movement,
+        CharacterEnvironment, CharacterMovePlan, CharacterStep, CharacterVerticalVelocity, CollisionWorld,
+        KnockbackVelocity, overlapping_character, passable_barrier_kinds, step_character_movement,
     },
     protocol::{ActorMarker, BarrierKindId, MapSettings, PlayerId, PlayerMarker, PlayerMoveIntent, Position},
 };
@@ -143,22 +143,26 @@ fn plan_player_moves(
 
         let has_phasing = players.get(player_id).is_some_and(PlayerInfo::has_phasing);
         let has_low_gravity = players.get(player_id).is_some_and(PlayerInfo::has_low_gravity);
-        let held_keys: &[BarrierKindId] = players.get(player_id).map_or(&[], PlayerInfo::held_keys);
+        let held_keys: &[BarrierKindId] = players.get(player_id).map_or(&[], |info| &info.held_keys);
         // Effective passable kinds = held keys ∪ globally-open kinds (plates).
         // One shared helper between server-authoritative movement and
         // client-side prediction so both decide passability identically.
         let passable_kinds = passable_barrier_kinds(held_keys, &open_barrier_kinds.0);
         let step = step_character_movement(
-            pos,
-            motion.0,
-            collision_world,
-            has_phasing,
-            map_settings.gravity_for(has_low_gravity),
-            &passable_kinds,
-            player_physics,
-            target_xz.x,
-            target_xz.z,
-            delta,
+            CharacterStep {
+                start: *pos,
+                vertical_velocity: motion.0,
+                target_x: target_xz.x,
+                target_z: target_xz.z,
+                delta,
+            },
+            &CharacterEnvironment {
+                collision_world,
+                has_phasing,
+                gravity: map_settings.gravity_for(has_low_gravity),
+                passable_kinds: &passable_kinds,
+                physics: player_physics,
+            },
         );
 
         planned_moves.push(CharacterMovePlan::from_movement_result(

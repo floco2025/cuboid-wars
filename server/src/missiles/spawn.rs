@@ -1,4 +1,3 @@
-use std::collections::VecDeque;
 use std::f32::consts::TAU;
 
 use bevy::prelude::*;
@@ -9,7 +8,7 @@ use crate::{
     config::ServerGameplayConfig,
     map::OpenBarrierKinds,
     missiles::{MissileInfo, MissileMap, MissileVelocity, guidance::sweep_clear},
-    network::broadcast_to_all,
+    network::{ActorStateQuery, PlayerStateQuery, broadcast_to_all},
     players::{PlayerInfo, PlayerMap},
 };
 use common::{
@@ -35,9 +34,9 @@ pub fn handle_missile_shot_message(
     msg: &CMissileShot,
     players: &mut PlayerMap,
     missiles: &mut MissileMap,
-    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection, &Health), With<PlayerMarker>>,
+    player_data: &PlayerStateQuery,
     actors: &ActorMap,
-    actor_data: &Query<(&Position, &ActorMoveIntent, &FaceDirection, &Health), With<ActorMarker>>,
+    actor_data: &ActorStateQuery,
     collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
     server_gameplay_config: &ServerGameplayConfig,
@@ -100,12 +99,7 @@ pub fn handle_missile_shot_message(
     commands.entity(entity).insert(FaceDirection(msg.face_dir));
 
     let missile_config = server_gameplay_config.missiles;
-    let pitch_cos = msg.face_pitch.cos();
-    let dir = Vec3::new(
-        msg.face_dir.sin() * pitch_cos,
-        msg.face_pitch.sin(),
-        msg.face_dir.cos() * pitch_cos,
-    );
+    let dir = common::math::direction_from_yaw_pitch(msg.face_dir, msg.face_pitch);
     // Muzzle stays on the aim axis; only the flight direction is perturbed,
     // so the steering has something visible to correct.
     let muzzle = eye + dir * missile_config.spawn_offset;
@@ -129,24 +123,15 @@ pub fn handle_missile_shot_message(
         .id();
     missiles.insert(
         missile_id,
-        MissileInfo {
-            entity: missile_entity,
-            shooter: id,
-            target: Some(msg.target),
-            path: VecDeque::new(),
-            path_target: None,
-            path_retry_timer: 0.0,
-            avoid_dir: None,
-            avoid_timer: 0.0,
-            last_target_center: None,
+        MissileInfo::new(
+            missile_entity,
+            id,
+            Some(msg.target),
+            dir,
             weave_phase,
-            lifetime_timer: missile_config.lifetime_secs,
-            stall_anchor: None,
-            stall_timer: missile_config.stall_secs,
-            armed: false,
-            last_broadcast_dir: dir,
-            detonate_at: None,
-        },
+            missile_config.lifetime_secs,
+            missile_config.stall_secs,
+        ),
     );
 
     // To everyone including the shooter — clients don't predict missile

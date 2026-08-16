@@ -3,10 +3,10 @@ use bevy::prelude::*;
 use super::{
     admin::{AdminContext, handle_admin_message},
     broadcast::broadcast_to_others,
+    incoming::{CharacterQueries, PlayerStateQuery, SharedWorld},
 };
 use crate::{
     actors::ActorMap,
-    config::ServerGameplayConfig,
     map::OpenBarrierKinds,
     missiles::{MissileMap, handle_missile_shot_message},
     network::ServerToClient,
@@ -34,13 +34,9 @@ pub fn dispatch_message(
     players: &mut PlayerMap,
     missiles: &mut MissileMap,
     time: &Res<Time>,
-    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection, &Health), With<PlayerMarker>>,
-    motions: &Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
+    world: &SharedWorld,
+    queries: &CharacterQueries,
     actors: &ActorMap,
-    actor_data: &Query<(&Position, &ActorMoveIntent, &FaceDirection, &Health), With<ActorMarker>>,
-    collision_world: &CollisionWorld,
-    gameplay_config: &GameplayConfig,
-    server_gameplay_config: &ServerGameplayConfig,
     open_barrier_kinds: &OpenBarrierKinds,
     admin: &mut AdminContext,
 ) {
@@ -65,7 +61,7 @@ pub fn dispatch_message(
         }
         ClientMessage::PlayerMoveIntent(msg) => {
             trace!("{:?} move intent: {:?}", id, msg);
-            handle_move_intent_message(commands, entity, id, msg, &*players, player_data, motions);
+            handle_move_intent_message(commands, entity, id, msg, &*players, queries);
         }
         ClientMessage::Jump(msg) => {
             trace!("{:?} jump: {:?}", id, msg);
@@ -74,10 +70,9 @@ pub fn dispatch_message(
                 entity,
                 id,
                 &*players,
-                player_data,
-                motions,
-                collision_world,
-                gameplay_config,
+                queries,
+                &world.collision_world,
+                &world.gameplay_config,
             );
         }
         ClientMessage::Face(msg) => {
@@ -93,9 +88,9 @@ pub fn dispatch_message(
                 msg,
                 players,
                 time,
-                player_data,
-                collision_world,
-                gameplay_config,
+                &queries.player_data,
+                &world.collision_world,
+                &world.gameplay_config,
                 open_barrier_kinds,
             );
         }
@@ -108,12 +103,12 @@ pub fn dispatch_message(
                 &msg,
                 players,
                 missiles,
-                player_data,
+                &queries.player_data,
                 actors,
-                actor_data,
-                collision_world,
-                gameplay_config,
-                server_gameplay_config,
+                &queries.actor_data,
+                &world.collision_world,
+                &world.gameplay_config,
+                &world.server_gameplay_config,
                 open_barrier_kinds,
             );
         }
@@ -122,7 +117,15 @@ pub fn dispatch_message(
         }
         ClientMessage::Admin(msg) => {
             debug!("{id:?} admin command: {:?}", msg.command);
-            handle_admin_message(commands, players, id, admin, player_data, gameplay_config, &msg);
+            handle_admin_message(
+                commands,
+                players,
+                id,
+                admin,
+                &queries.player_data,
+                &world.gameplay_config,
+                &msg,
+            );
         }
     }
 }
@@ -138,8 +141,7 @@ fn handle_move_intent_message(
     id: PlayerId,
     msg: CPlayerMoveIntent,
     players: &PlayerMap,
-    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection, &Health), With<PlayerMarker>>,
-    motions: &Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
+    queries: &CharacterQueries,
 ) {
     // Untrusted boundary: drop a move intent carrying a non-finite direction
     // before it reaches movement trig and corrupts the authoritative position.
@@ -150,7 +152,7 @@ fn handle_move_intent_message(
     commands.entity(entity).insert(msg.move_intent);
 
     // Get current movement state for reconciliation.
-    if let (Ok((pos, _, _, _)), Ok(motion)) = (player_data.get(entity), motions.get(entity)) {
+    if let (Ok((pos, _, _, _)), Ok(motion)) = (queries.player_data.get(entity), queries.player_motions.get(entity)) {
         // Broadcast move-input update with position to all other logged-in players
         broadcast_to_others(
             players,
@@ -168,8 +170,7 @@ fn handle_jump_message(
     entity: Entity,
     id: PlayerId,
     players: &PlayerMap,
-    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection, &Health), With<PlayerMarker>>,
-    motions: &Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
+    queries: &CharacterQueries,
     collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
 ) {
@@ -177,10 +178,10 @@ fn handle_jump_message(
         return;
     }
 
-    let Ok((pos, move_intent, _, _)) = player_data.get(entity) else {
+    let Ok((pos, move_intent, _, _)) = queries.player_data.get(entity) else {
         return;
     };
-    let Ok(motion) = motions.get(entity) else {
+    let Ok(motion) = queries.player_motions.get(entity) else {
         return;
     };
 
@@ -229,7 +230,7 @@ fn handle_shot_message(
     msg: CShot,
     players: &mut PlayerMap,
     time: &Res<Time>,
-    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection, &Health), With<PlayerMarker>>,
+    player_data: &PlayerStateQuery,
     collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
     open_barrier_kinds: &OpenBarrierKinds,

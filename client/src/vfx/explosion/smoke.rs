@@ -1,4 +1,5 @@
 use super::particles::ExplosionVfxBudget;
+use crate::vfx::cube::smoothstep;
 use crate::{config::ExplosionVfxConfig, constants::*};
 use bevy::{
     asset::RenderAssetUsages,
@@ -152,10 +153,6 @@ fn smoke_alpha(elapsed: f32, lifetime: f32, max_alpha: f32) -> f32 {
         / (1.0 - EXPLOSION_SMOKE_FADE_OUT_START_FRACTION))
         .clamp(0.0, 1.0);
     max_alpha * fade_in * (1.0 - smoothstep(fade_out_progress))
-}
-
-fn smoothstep(value: f32) -> f32 {
-    value * value * (3.0 - 2.0 * value)
 }
 
 fn smoke_indices(count: usize) -> Vec<u32> {

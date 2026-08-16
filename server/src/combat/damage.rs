@@ -1,7 +1,12 @@
 use bevy::prelude::*;
 
 use super::PendingExplosions;
-use crate::{actors::ActorMap, config::ServerGameplayConfig, network::broadcast_to_all, players::PlayerMap};
+use crate::{
+    actors::ActorMap,
+    config::ServerGameplayConfig,
+    network::{ServerToClient, broadcast_to_all},
+    players::{PlayerMap, QuestEvent, record_quest_event},
+};
 use common::{
     health::apply_damage,
     protocol::{ActorId, Health, PlayerId, Position, SActorDeath, SPlayerDeath, ServerMessage},
@@ -83,6 +88,30 @@ pub fn kill_actor(
     pending_explosions.push_actor(id, entity, info.spawn_kind, pos);
     commands.entity(entity).despawn();
     true
+}
+
+// Award the shooter's actor-kill credit: the per-kind score bonus plus any
+// actor-kills quest progress, unicast to the shooter. No-op when the shooter
+// has disconnected. Shared by projectile lethal hits and missile blasts so
+// the two paths can't drift.
+pub fn award_actor_kill(
+    players: &mut PlayerMap,
+    shooter_id: PlayerId,
+    kind: &str,
+    server_gameplay_config: &ServerGameplayConfig,
+) {
+    let Some(shooter) = players.get_mut(&shooter_id) else {
+        return;
+    };
+    shooter.score += server_gameplay_config.validated_actor(kind).combat.score_reward_on_kill;
+    let quest_messages = record_quest_event(
+        shooter,
+        &server_gameplay_config.quests,
+        QuestEvent::ActorKilled { kind },
+    );
+    for msg in quest_messages {
+        let _ = shooter.channel.send(ServerToClient::Send(msg));
+    }
 }
 
 // Apply one projectile hit to a player. Returns `true` when this hit drops

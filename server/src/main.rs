@@ -253,7 +253,7 @@ async fn main() -> Result<()> {
 
     info!("starting ECS server loop...");
 
-    // Run the app in a loop manually at LOOP_FREQUENCY Hz
+    // Run the app in a loop manually at TICK_HZ
     let tick_duration = Duration::from_nanos(1_000_000_000 / u64::from(TICK_HZ));
     let mut interval = time::interval(tick_duration);
     interval.set_missed_tick_behavior(MissedTickBehavior::Skip);

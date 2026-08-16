@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+use super::incoming::{ActorStateQuery, PlayerStateQuery};
 use crate::{
     actors::{ActorMap, PendingActorSpawns},
     items::ItemMap,
@@ -38,7 +39,7 @@ pub fn broadcast_to_all(players: &PlayerMap, message: ServerMessage) {
 #[must_use]
 pub fn snapshot_logged_in_players(
     players: &PlayerMap,
-    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection, &Health), With<PlayerMarker>>,
+    player_data: &PlayerStateQuery,
     motions: &Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
 ) -> Vec<(PlayerId, Player)> {
     players
@@ -65,7 +66,7 @@ pub fn snapshot_logged_in_players(
 #[must_use]
 pub fn snapshot_actors(
     actors: &ActorMap,
-    actor_data: &Query<(&Position, &ActorMoveIntent, &FaceDirection, &Health), With<ActorMarker>>,
+    actor_data: &ActorStateQuery,
     motions: &Query<&CharacterVerticalVelocity, With<ActorMarker>>,
 ) -> Vec<(ActorId, Actor)> {
     actors
@@ -191,10 +192,8 @@ mod tests {
         dead.death_timer = Some(2.0);
         players.insert(PlayerId(2), dead);
 
-        let mut state: SystemState<(
-            Query<(&Position, &PlayerMoveIntent, &FaceDirection, &Health), With<PlayerMarker>>,
-            Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
-        )> = SystemState::new(&mut world);
+        let mut state: SystemState<(PlayerStateQuery, Query<&CharacterVerticalVelocity, With<PlayerMarker>>)> =
+            SystemState::new(&mut world);
         let (player_data, motions) = state.get(&world).expect("system params invalid for the test world");
 
         let snapshot = snapshot_logged_in_players(&players, &player_data, &motions);

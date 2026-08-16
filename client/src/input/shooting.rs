@@ -6,6 +6,7 @@ use bevy::{
 };
 
 use crate::{
+    audio::play_sound,
     barriers::OpenBarrierKinds,
     cameras::{CameraViewMode, MainCameraMarker},
     config::AssetSet,
@@ -76,10 +77,7 @@ pub fn input_shooting_system(
 
         // Client-side cooldown guard (server still authoritative)
         if now - local_player_info.last_shot_time < PROJECTILE_COOLDOWN_TIME {
-            commands.spawn((
-                AudioPlayer::new(asset_server.load(asset_set.player_sound("dry_fire").to_owned())),
-                PlaybackSettings::DESPAWN,
-            ));
+            play_sound(&mut commands, &asset_server, asset_set.player_sound("dry_fire"));
             return;
         }
 
@@ -115,15 +113,9 @@ pub fn input_shooting_system(
                 my_id.0,
             ) > 0
             {
-                commands.spawn((
-                    AudioPlayer::new(asset_server.load(asset_set.player_sound("fire").to_owned())),
-                    PlaybackSettings::DESPAWN,
-                ));
+                play_sound(&mut commands, &asset_server, asset_set.player_sound("fire"));
             } else {
-                commands.spawn((
-                    AudioPlayer::new(asset_server.load(asset_set.player_sound("dry_fire").to_owned())),
-                    PlaybackSettings::DESPAWN,
-                ));
+                play_sound(&mut commands, &asset_server, asset_set.player_sound("dry_fire"));
             }
         }
     }

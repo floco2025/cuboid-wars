@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashSet, VecDeque};
 
 use bevy::prelude::Resource;
 use common::{
@@ -9,6 +9,7 @@ use common::{
 };
 
 use crate::map::{ActorSpawnZone, Cell, CellSide, MapConfig, has_edge_on_cell_side};
+use crate::pathfind::bfs_path;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct NavNode {
@@ -47,36 +48,7 @@ impl NavGraph {
             return None;
         }
 
-        let mut queue = VecDeque::from([start_node]);
-        let mut came_from: HashMap<NavNode, Option<NavNode>> = HashMap::from([(start_node, None)]);
-        let mut target = targets.contains(&start_node).then_some(start_node);
-
-        while target.is_none() {
-            let Some(node) = queue.pop_front() else {
-                break;
-            };
-            for next in self.neighbors(node) {
-                if came_from.contains_key(&next) {
-                    continue;
-                }
-                came_from.insert(next, Some(node));
-                if targets.contains(&next) {
-                    target = Some(next);
-                    break;
-                }
-                queue.push_back(next);
-            }
-        }
-
-        let target = target?;
-        let mut nodes = Vec::new();
-        let mut cursor = target;
-        while cursor != start_node {
-            nodes.push(cursor);
-            cursor = came_from.get(&cursor).copied().flatten()?;
-        }
-        nodes.reverse();
-
+        let nodes = bfs_path(start_node, |node| targets.contains(node), |node| self.neighbors(node))?;
         Some(nodes.into_iter().map(|node| self.node_center(node)).collect())
     }
 

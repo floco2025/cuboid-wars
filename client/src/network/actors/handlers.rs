@@ -1,21 +1,15 @@
-use bevy::{audio::SpatialScale, audio::Volume, prelude::*};
+use bevy::{audio::SpatialScale, prelude::*};
 
 use super::sync::apply_actor_movement_state;
 use crate::{
     actors::ActorMap,
+    audio::{play_explosion_sound, play_spatial_sound},
     config::{AssetSet, AudioConfig, LaserVfxConfig},
     network::RoundTripTime,
-    vfx::{
-        ExplosionAssets, ExplosionRadii, ExplosionVfxBudget, explosion_sound_speed, spawn_actor_explosion,
-        spawn_laser_beam,
-    },
+    vfx::{ExplosionRadii, ExplosionSpawnCtx, spawn_actor_explosion, spawn_laser_beam},
 };
-use common::{
-    config::GameplayConfig,
-    physics::CollisionWorld,
-    protocol::{
-        ActorMarker, ActorMoveIntent, FaceDirection, Position, SActorBeam, SActorDeath, SActorHit, SActorMoveIntent,
-    },
+use common::protocol::{
+    ActorMarker, ActorMoveIntent, FaceDirection, Position, SActorBeam, SActorDeath, SActorHit, SActorMoveIntent,
 };
 
 pub fn handle_actor_move_intent_message(
@@ -45,19 +39,13 @@ pub fn handle_actor_move_intent_message(
 #[expect(clippy::too_many_arguments, reason = "message handler threading dispatcher state")]
 pub fn handle_actor_death_message(
     commands: &mut Commands,
-    meshes: &mut Assets<Mesh>,
-    materials: &mut Assets<StandardMaterial>,
-    budget: &mut ExplosionVfxBudget,
+    ctx: &mut ExplosionSpawnCtx,
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
     audio_config: &AudioConfig,
-    explosion_assets: &ExplosionAssets,
     actor_explosion_radii: &ExplosionRadii,
     actors: &mut ResMut<ActorMap>,
     players: &mut crate::players::PlayerMap,
-    gameplay_config: &GameplayConfig,
-    collision_world: Option<&CollisionWorld>,
-    map_layout: Option<&common::protocol::MapLayout>,
     msg: SActorDeath,
 ) {
     // Early-apply the killer's post-bonus score so the HUD bumps on the kill
@@ -72,36 +60,15 @@ pub fn handle_actor_death_message(
         // Already torn down (e.g. via the snapshot diff). Stay idempotent.
         return;
     };
-    spawn_actor_explosion(
+    spawn_actor_explosion(commands, ctx, actor_explosion_radii, &info.kind, msg.pos);
+    play_explosion_sound(
         commands,
-        meshes,
-        materials,
-        budget,
-        explosion_assets,
-        actor_explosion_radii,
-        gameplay_config,
-        collision_world,
-        map_layout,
-        &info.kind,
-        msg.pos,
+        asset_server,
+        asset_set.actor_sound(&info.kind, "explodes"),
+        audio_config,
+        Vec3::from(msg.pos),
+        actor_explosion_radii.actors.get(&info.kind).copied(),
     );
-    // Spatial: attenuates and pans with distance from the blast. The scale
-    // compresses world meters so the falloff suits map-sized distances.
-    commands.spawn((
-        AudioPlayer::new(asset_server.load(asset_set.actor_sound(&info.kind, "explodes").to_owned())),
-        PlaybackSettings::DESPAWN
-            .with_spatial(true)
-            .with_spatial_scale(SpatialScale::new(audio_config.spatial_distance_scale))
-            .with_volume(Volume::Linear(audio_config.explosion_gain_multiplier))
-            .with_speed(
-                actor_explosion_radii
-                    .actors
-                    .get(&info.kind)
-                    .copied()
-                    .map_or(1.0, explosion_sound_speed),
-            ),
-        Transform::from_translation(Vec3::from(msg.pos)),
-    ));
     commands.entity(info.entity).despawn();
 }
 
@@ -160,13 +127,13 @@ pub fn handle_actor_hit_message(
         // a world sound at the actor — distant fights plink faintly instead
         // of clicking at full volume map-wide.
         if let Ok((pos, _, _)) = actor_data.get(info.entity) {
-            commands.spawn((
-                AudioPlayer::new(asset_server.load(asset_set.player_sound("hit_actor").to_owned())),
-                PlaybackSettings::DESPAWN
-                    .with_spatial(true)
-                    .with_spatial_scale(SpatialScale::new(audio_config.spatial_distance_scale)),
-                Transform::from_translation(Vec3::from(*pos)),
-            ));
+            play_spatial_sound(
+                commands,
+                asset_server,
+                asset_set.player_sound("hit_actor"),
+                audio_config,
+                Vec3::from(*pos),
+            );
         }
     }
 }

@@ -1,8 +1,8 @@
 // Wire protocol between client and server.
 //
-// Server→client messages fall into four roles. When adding a new message,
-// pick the smallest role that fits — most shared "X changed" things belong
-// in the snapshot, not a new event.
+// Server→client messages fall into five roles (plus a diagnostic channel).
+// When adding a new message, pick the smallest role that fits — most shared
+// "X changed" things belong in the snapshot, not a new event.
 //
 // 1. Bootstrap (`SInit`) — sent once at connect with session-level state
 //    (`PlayerId`, static `MapLayout`, per-map `MapSettings`).
@@ -24,14 +24,17 @@
 //    server-side, so they are full snapshot entities reconciled like actors
 //    (`SMissileLaunch` / `SMissileMoveIntent` are the latency cues).
 //
-// 3. One-shot cues — short messages that fire at the moment of a discrete
+// 3. Real-time intent — movement prediction inputs (`SPlayerMoveIntent`,
+//    `SActorMoveIntent`, `SJump`, `SFace`, `SShot`, the missile launch and
+//    course messages) that must arrive faster than snapshot cadence so
+//    clients can dead-reckon between snapshots. Broadcast on change.
+//
+// 4. One-shot cues — short messages that fire at the moment of a discrete
 //    state change in the *shared* world. They sit alongside the snapshot,
 //    not replacing it, and exist only when the snapshot alone can't carry
 //    the cue, which is one of:
-//      * Sub-tick latency matters. Movement prediction needs intent changes
-//        (`SPlayerMoveIntent`, `SJump`, `SFace`, `SShot`) faster than tick
-//        cadence; camera shake from `SPlayerHit` needs to land on the impact
-//        frame, not 1–2 ticks later.
+//      * Sub-tick latency matters. Camera shake from `SPlayerHit` needs to
+//        land on the impact frame, not 1–2 ticks later.
 //      * Edge-triggered, not level-triggered. "You just picked up a power-up"
 //        is a transition with an associated sound (`SPlayerStatus`,
 //        `SCookieCollected`). The snapshot also carries `speed_power_up:
@@ -50,7 +53,7 @@
 //    associated side effect (a sound, a shake); the snapshot reconciles the
 //    durable state.
 //
-// 4. Per-client state events — durable per-player state that has no place in
+// 5. Per-client state events — durable per-player state that has no place in
 //    the world snapshot because other clients don't need it. Unicast to the
 //    affected player only. Unlike one-shot cues these install lasting client
 //    state (e.g. an active quest's announcement text); the client treats
@@ -129,8 +132,8 @@ pub struct CAdmin {
 // ============================================================================
 //
 // Ordered by role: bootstrap → snapshot → real-time intent → one-shot cues
-// → diagnostic. Matches the protocol-model doc comment at the top of this
-// file.
+// → per-client state events → diagnostic. Matches the protocol-model doc
+// comment at the top of this file.
 
 // --- Bootstrap ---
 
@@ -419,6 +422,14 @@ pub struct SPressurePlatePressed {}
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SPressurePlateReleased {}
 
+// Reply to a `CAdmin` command — success or error text, unicast to the
+// sender. One-shot: ephemeral feedback for the admin console, shown in the
+// message feed; a dropped reply costs only the text.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SAdminResponse {
+    pub text: String,
+}
+
 // --- Per-client state events (private, durable) ---
 
 // One quest in an `SQuestsAssigned` batch. Carries display strings inline so
@@ -467,14 +478,6 @@ pub struct SQuestCompleted {
 }
 
 // --- Diagnostic ---
-
-// Reply to a `CAdmin` command — success or error text, unicast to the
-// sender. One-shot: ephemeral feedback for the admin console, shown in the
-// message feed; a dropped reply costs only the text.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct SAdminResponse {
-    pub text: String,
-}
 
 // Pong response — server echoes the `CPing` timestamp back unchanged so the
 // client can compute RTT from the round trip.
