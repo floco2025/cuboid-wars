@@ -13,14 +13,14 @@ use crate::{
     barriers::BarrierAssets,
     config::{AssetSet, ClientSettings},
     players::LocalPlayerMarker,
-    vfx::{ImpactKind, TransientParticles, spawn_impact_sparks},
+    vfx::{ImpactKind, ParticleCloud, spawn_impact_sparks},
 };
 
 pub(super) fn handle_character_collisions(
     commands: &mut Commands,
     asset_server: &AssetServer,
     asset_set: &AssetSet,
-    particles: &mut TransientParticles,
+    sparks: &mut ParticleCloud,
     settings: &ClientSettings,
     proj_entity: Entity,
     proj_motion: &ProjectileMotion,
@@ -99,7 +99,7 @@ pub(super) fn handle_character_collisions(
 
             let outward = -proj_motion.velocity.normalize_or_zero();
             spawn_impact_sparks(
-                particles,
+                sparks,
                 &settings.vfx.projectiles.impact_sparks,
                 impact,
                 outward,
@@ -121,7 +121,7 @@ pub(super) fn handle_barrier_collisions(
     commands: &mut Commands,
     asset_server: &AssetServer,
     asset_set: &AssetSet,
-    particles: &mut TransientParticles,
+    sparks: &mut ParticleCloud,
     settings: &ClientSettings,
     barrier_assets: &BarrierAssets,
     proj_entity: Entity,
@@ -139,7 +139,7 @@ pub(super) fn handle_barrier_collisions(
     };
     play_barrier_impact_sound(commands, asset_server, asset_set, &settings.audio, impact.point);
     spawn_impact_sparks(
-        particles,
+        sparks,
         &settings.vfx.projectiles.impact_sparks,
         impact.point,
         impact.normal,
@@ -155,7 +155,7 @@ pub(super) fn handle_wall_collisions(
     commands: &mut Commands,
     asset_server: &AssetServer,
     asset_set: &AssetSet,
-    particles: &mut TransientParticles,
+    sparks: &mut ParticleCloud,
     settings: &ClientSettings,
     proj_motion: &mut ProjectileMotion,
     proj_pos: &Position,
@@ -184,7 +184,7 @@ pub(super) fn handle_wall_collisions(
     // is rate-limited globally. The shared particle budget bounds the burst.
     if speed_before >= settings.audio.projectile_impacts.min_bounce_speed_meters_per_second {
         spawn_impact_sparks(
-            particles,
+            sparks,
             &settings.vfx.projectiles.impact_sparks,
             bounces.first_contact,
             bounces.first_normal,

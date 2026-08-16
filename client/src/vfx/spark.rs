@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 use rand::{Rng, RngExt, rng};
 
-use super::particles::{ParticlePriority, ParticleSpawn};
-use crate::{config::ImpactSparksVfxConfig, constants::*, vfx::TransientParticles};
+use super::particles::{ParticleCloud, ParticleSpawn};
+use crate::{config::ImpactSparksVfxConfig, constants::*};
 
 #[derive(Clone, Copy)]
 pub enum ImpactKind {
@@ -12,7 +12,7 @@ pub enum ImpactKind {
 }
 
 pub fn spawn_impact_sparks(
-    particles: &mut TransientParticles,
+    sparks: &mut ParticleCloud,
     config: &ImpactSparksVfxConfig,
     position: Vec3,
     surface_normal: Vec3,
@@ -36,7 +36,7 @@ pub fn spawn_impact_sparks(
             PROJECTILE_SPARK_SPREAD_DEGREES.to_radians(),
         );
         let size = config.particle_size * rng.random_range(0.65..1.35);
-        particles.spawn(ParticleSpawn {
+        sparks.spawn(ParticleSpawn {
             position: position + normal * 0.015,
             velocity: direction * config.particle_speed * speed_scale * rng.random_range(0.65..1.35),
             acceleration: Vec3::NEG_Y * PROJECTILE_SPARK_GRAVITY,
@@ -46,7 +46,6 @@ pub fn spawn_impact_sparks(
             fades: true,
             lifetime: config.particle_lifetime_secs * rng.random_range(0.75..1.25),
             color: base_color * rng.random_range(0.75..1.2),
-            priority: ParticlePriority::Impact,
         });
     }
 }

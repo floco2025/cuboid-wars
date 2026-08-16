@@ -100,6 +100,7 @@ pub struct WeatherConfig {
     // Scene saturation factor at full rain (camera color grading) — heavy
     // rain washes the world gray. 1.0 = no change.
     pub saturation: f32,
+    // Drop spawn rate at full intensity — the rain density knob.
     pub drops_per_second: f32,
     // Radius of the drop-spawn disc around the camera.
     pub spawn_radius: f32,
@@ -108,9 +109,7 @@ pub struct WeatherConfig {
     // a running player; 0.0 centers it.
     pub spawn_lead_fraction: f32,
     // How far above the camera drops spawn (m) — the height of the rain
-    // volume you see when looking up. Taller rain means longer flight times,
-    // so live drops ≈ drops_per_second × (spawn_height + 14) / fall_speed;
-    // keep that under the `vfx.max_transient_particles` budget.
+    // volume you see when looking up.
     pub spawn_height: f32,
     pub fall_speed: f32,
     pub drop_size: f32,

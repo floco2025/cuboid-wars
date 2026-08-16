@@ -16,7 +16,7 @@ use crate::{
     characters::PreviousTickPosition,
     config::{AssetSet, ClientSettings},
     players::LocalPlayerMarker,
-    vfx::TransientParticles,
+    vfx::ParticleClouds,
 };
 
 // Runs in `FixedUpdate` at the shared `TICK_HZ`. The semi-implicit Euler
@@ -49,7 +49,7 @@ pub fn projectiles_movement_system(
     mut last_bounce_sound: ResMut<LastBounceSound>,
     client_settings: Res<ClientSettings>,
     barrier_assets: Res<BarrierAssets>,
-    mut transient_particles: ResMut<TransientParticles>,
+    mut particle_clouds: ResMut<ParticleClouds>,
     listener: Query<&GlobalTransform, With<MainCameraMarker>>,
 ) {
     let delta = time.delta_secs();
@@ -101,7 +101,7 @@ pub fn projectiles_movement_system(
             &mut commands,
             asset_server.as_ref(),
             &asset_set,
-            &mut transient_particles,
+            &mut particle_clouds.sparks,
             &client_settings,
             &barrier_assets,
             projectile_entity,
@@ -118,7 +118,7 @@ pub fn projectiles_movement_system(
             &mut commands,
             asset_server.as_ref(),
             &asset_set,
-            &mut transient_particles,
+            &mut particle_clouds.sparks,
             &client_settings,
             &mut projectile,
             &projectile_pos,
@@ -134,7 +134,7 @@ pub fn projectiles_movement_system(
                 &mut commands,
                 asset_server.as_ref(),
                 &asset_set,
-                &mut transient_particles,
+                &mut particle_clouds.sparks,
                 &client_settings,
                 projectile_entity,
                 &projectile,

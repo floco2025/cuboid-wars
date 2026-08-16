@@ -59,10 +59,10 @@ use client::{
         update_message_feed_system,
     },
     vfx::{
-        ExplosionAssets, ExplosionRadii, ExplosionVfxBudget, RainIntensity, TransientParticles, beam_ghost_fade_system,
+        ExplosionAssets, ExplosionRadii, ExplosionVfxBudget, ParticleClouds, RainIntensity, beam_ghost_fade_system,
         beam_ghost_removed_system, beam_ghost_sparkle_system, explosion_lights_system, explosion_particles_system,
-        explosion_pulse_system, laser_beam_update_system, rain_audio_system, rain_particles_system,
-        rain_smoothing_system, scorch_marks_system, transient_particles_system,
+        explosion_pulse_system, laser_beam_update_system, particle_clouds_system, rain_audio_system,
+        rain_particles_system, rain_smoothing_system, scorch_marks_system,
     },
 };
 use common::{config::GameplayConfig, constants::TICK_HZ, network::MessageStream, protocol::*};
@@ -210,7 +210,7 @@ fn main() -> Result<()> {
         .insert_resource(SeenPlayerIds::default())
         .insert_resource(QuestLog::default())
         .init_resource::<ProjectileAssets>()
-        .init_resource::<TransientParticles>()
+        .init_resource::<ParticleClouds>()
         .init_resource::<RainIntensity>()
         .init_resource::<ExplosionAssets>()
         .init_resource::<ExplosionRadii>()
@@ -313,7 +313,7 @@ fn main() -> Result<()> {
                 scorch_marks_system,
                 beam_ghost_fade_system,
                 beam_ghost_sparkle_system.after(beam_ghost_fade_system),
-                transient_particles_system.after(beam_ghost_sparkle_system),
+                particle_clouds_system.after(beam_ghost_sparkle_system),
                 // Anchors to both endpoints' interpolated transforms, so it
                 // must read this frame's synced values.
                 laser_beam_update_system
@@ -393,7 +393,7 @@ fn main() -> Result<()> {
                     .after(skybox_update_camera_system),
                 rain_particles_system
                     .after(rain_smoothing_system)
-                    .before(transient_particles_system),
+                    .before(particle_clouds_system),
                 rain_audio_system.after(rain_smoothing_system),
             ),
         );

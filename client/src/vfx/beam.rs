@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use bevy::{asset::AssetId, light::NotShadowCaster, prelude::*, world_serialization::WorldInstanceReady};
 use rand::{RngExt, rng};
 
-use super::particles::{ParticlePriority, ParticleSpawn, TransientParticles};
+use super::particles::{ParticleCloud, ParticleClouds, ParticleSpawn};
 use crate::{
     config::{ActorBeamInVfxConfig, ClientSettings},
     constants::*,
@@ -129,7 +129,7 @@ pub fn beam_ghost_fade_system(
 pub fn beam_ghost_sparkle_system(
     time: Res<Time>,
     settings: Res<ClientSettings>,
-    mut particles: ResMut<TransientParticles>,
+    mut clouds: ResMut<ParticleClouds>,
     mut ghosts: Query<(&GlobalTransform, &BeamInGhost, &mut BeamEmitter)>,
 ) {
     let delta = time.delta_secs();
@@ -149,7 +149,7 @@ pub fn beam_ghost_sparkle_system(
             let local_drift =
                 Vec3::new(rng.random_range(-1.0..1.0), 0.0, rng.random_range(-1.0..1.0)) * BEAM_IN_SPARKLE_DRIFT_SPEED;
             let size = config.sparkle_size * rng.random_range(0.65..1.4);
-            particles.spawn(ParticleSpawn {
+            clouds.sparkles.spawn(ParticleSpawn {
                 position: sparkle_world_position(transform, local_offset),
                 velocity: transform.rotation()
                     * (local_drift + Vec3::Y * BEAM_IN_SPARKLE_RISE_SPEED * rng.random_range(0.75..1.25)),
@@ -160,13 +160,12 @@ pub fn beam_ghost_sparkle_system(
                 fades: true,
                 lifetime: config.sparkle_lifetime_secs * rng.random_range(0.75..1.25),
                 color: base_color * rng.random_range(0.7..1.2),
-                priority: ParticlePriority::Ambient,
             });
         }
 
         if ghost.remaining_secs <= f32::EPSILON && !emitter.materialization_emitted {
             if config.materialization_ring_enabled {
-                spawn_materialization_ring(&mut particles, transform, ghost, config);
+                spawn_materialization_ring(&mut clouds.sparkles, transform, ghost, config);
             }
             emitter.materialization_emitted = true;
         }
@@ -176,19 +175,19 @@ pub fn beam_ghost_sparkle_system(
 pub fn beam_ghost_removed_system(
     removed: On<Remove, BeamInGhost>,
     settings: Res<ClientSettings>,
-    mut particles: ResMut<TransientParticles>,
+    mut clouds: ResMut<ParticleClouds>,
     ghosts: Query<(&GlobalTransform, &BeamInGhost, &BeamEmitter)>,
 ) {
     let Ok((transform, ghost, emitter)) = ghosts.get(removed.entity) else {
         return;
     };
     if settings.vfx.actor_beam_in.materialization_ring_enabled && !emitter.materialization_emitted {
-        spawn_materialization_ring(&mut particles, transform, ghost, &settings.vfx.actor_beam_in);
+        spawn_materialization_ring(&mut clouds.sparkles, transform, ghost, &settings.vfx.actor_beam_in);
     }
 }
 
 fn spawn_materialization_ring(
-    particles: &mut TransientParticles,
+    sparkles: &mut ParticleCloud,
     transform: &GlobalTransform,
     ghost: &BeamInGhost,
     config: &ActorBeamInVfxConfig,
@@ -204,7 +203,7 @@ fn spawn_materialization_ring(
         let radial = Vec3::new(angle.cos(), 0.0, angle.sin());
         let local_position = radial * radius + Vec3::Y * base_y;
         let size = config.sparkle_size * 1.5;
-        particles.spawn(ParticleSpawn {
+        sparkles.spawn(ParticleSpawn {
             position: sparkle_world_position(transform, local_position),
             velocity: transform.rotation()
                 * (radial * BEAM_IN_MATERIALIZATION_SPEED + Vec3::Y * BEAM_IN_MATERIALIZATION_SPEED * 0.35),
@@ -215,7 +214,6 @@ fn spawn_materialization_ring(
             fades: true,
             lifetime: BEAM_IN_MATERIALIZATION_LIFETIME_SECS,
             color,
-            priority: ParticlePriority::Cue,
         });
     }
 }

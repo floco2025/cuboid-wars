@@ -20,7 +20,6 @@
     }
   },
   "vfx": {
-    "max_transient_particles": 1600,
     "projectiles": {
       "body_emissive_brightness": 5.0,
       "impact_sparks": {
@@ -171,9 +170,9 @@
     "light_dim": 0.5,
     "saturation": 0.4,
     "drops_per_second": 1000.0,
-    "spawn_radius": 20.0,
+    "spawn_radius": 15.0,
     "spawn_lead_fraction": 0.35,
-    "spawn_height": 12.0,
+    "spawn_height": 10.0,
     "fall_speed": 14.0,
     "drop_size": 0.01,
     "splash_size": 0.01,

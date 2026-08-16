@@ -5,24 +5,12 @@ use super::settings::{validate_non_negative_finite, validate_positive_finite, va
 
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(default)]
+#[derive(Default)]
 pub struct VfxConfig {
-    pub max_transient_particles: usize,
     pub projectiles: ProjectileVfxConfig,
     pub actor_beam_in: ActorBeamInVfxConfig,
     pub laser: LaserVfxConfig,
     pub explosions: ExplosionVfxConfig,
-}
-
-impl Default for VfxConfig {
-    fn default() -> Self {
-        Self {
-            max_transient_particles: 1_600,
-            projectiles: ProjectileVfxConfig::default(),
-            actor_beam_in: ActorBeamInVfxConfig::default(),
-            laser: LaserVfxConfig::default(),
-            explosions: ExplosionVfxConfig::default(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -241,16 +229,10 @@ impl Default for ExplosionScorchesVfxConfig {
 
 impl VfxConfig {
     pub(super) fn validate(&self) -> Result<()> {
-        if self.max_transient_particles == 0 {
-            bail!("vfx.max_transient_particles must be > 0");
-        }
         self.projectiles.validate()?;
         self.actor_beam_in.validate()?;
         self.laser.validate()?;
         self.explosions.validate()?;
-        if self.projectiles.impact_sparks.base_particle_count > self.max_transient_particles {
-            bail!("vfx.projectiles.impact_sparks.base_particle_count must not exceed vfx.max_transient_particles");
-        }
         Ok(())
     }
 }
@@ -404,16 +386,6 @@ mod tests {
         VfxConfig::default()
             .validate()
             .expect("default VFX config should validate");
-    }
-
-    #[test]
-    fn vfx_config_rejects_zero_particle_budget() {
-        let config = VfxConfig {
-            max_transient_particles: 0,
-            ..VfxConfig::default()
-        };
-        let error = config.validate().expect_err("zero particle budget should fail");
-        assert!(error.to_string().contains("max_transient_particles"));
     }
 
     #[test]

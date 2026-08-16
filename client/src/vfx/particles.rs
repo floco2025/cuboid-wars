@@ -6,8 +6,6 @@ use bevy::{
     prelude::*,
 };
 
-use crate::config::ClientSettings;
-
 const CUBE_VERTICES: [Vec3; 24] = [
     Vec3::new(-0.5, -0.5, 0.5),
     Vec3::new(0.5, -0.5, 0.5),
@@ -65,12 +63,13 @@ const CUBE_INDICES: [u32; 36] = [
     22, 20, 22, 23,
 ];
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(super) enum ParticlePriority {
-    Ambient,
-    Impact,
-    Cue,
-}
+// Per-frame cost (attribute rebuild, GPU upload, vertex work) scales with a
+// cloud's mesh capacity, so capacity must track the effect's RECENT load, not
+// its all-time peak: it grows the moment the live count passes it and shrinks
+// once a spike has aged out of both peak windows. The floor keeps idle clouds
+// from thrashing through tiny power-of-two steps.
+const MIN_CAPACITY: usize = 64;
+const SHRINK_WINDOW_SECS: f32 = 3.0;
 
 pub(super) struct ParticleSpawn {
     pub position: Vec3,
@@ -81,14 +80,13 @@ pub(super) struct ParticleSpawn {
     // Per-axis multiplier on the size — `Vec3::ONE` is a cube; rain streaks
     // stretch the Y axis into a thin vertical line.
     pub stretch: Vec3,
-    // The pool is opaque, so the standard end-of-life "fade" darkens toward
+    // The mesh is opaque, so the standard end-of-life "fade" darkens toward
     // BLACK — right for hot sparks dying out, wrong for things that stay lit
     // until they vanish (rain drops against a bright sky turn into black
     // bars). `false` keeps full brightness for the whole lifetime.
     pub fades: bool,
     pub lifetime: f32,
     pub color: Vec3,
-    pub priority: ParticlePriority,
 }
 
 struct TransientParticle {
@@ -102,54 +100,37 @@ struct TransientParticle {
     lifetime: f32,
     elapsed: f32,
     color: Vec3,
-    priority: ParticlePriority,
 }
 
-#[derive(Resource)]
-pub struct TransientParticles {
+// One effect's short-lived particles, batched into a single vertex-colored
+// mesh (one draw call; per-particle color without per-entity materials).
+pub struct ParticleCloud {
     particles: Vec<TransientParticle>,
     mesh: Handle<Mesh>,
-    max_particles: usize,
+    capacity: usize,
+    label: &'static str,
+    // Rolling peak of the live count over the current and previous window —
+    // the capacity target never drops below either, so a spike holds its
+    // capacity for one to two windows and then releases it.
+    window_peak: usize,
+    previous_window_peak: usize,
+    window_elapsed: f32,
 }
 
-impl FromWorld for TransientParticles {
-    fn from_world(world: &mut World) -> Self {
-        let max_particles = world.resource::<ClientSettings>().vfx.max_transient_particles;
-        let mesh = world.resource_mut::<Assets<Mesh>>().add(particle_mesh(max_particles));
-        let material = world.resource_mut::<Assets<StandardMaterial>>().add(StandardMaterial {
-            base_color: Color::WHITE,
-            unlit: true,
-            ..default()
-        });
-        world.spawn((
-            Mesh3d(mesh.clone()),
-            MeshMaterial3d(material),
-            NotShadowCaster,
-            NotShadowReceiver,
-            NoFrustumCulling,
-            Transform::default(),
-        ));
-
+impl ParticleCloud {
+    fn new(label: &'static str, mesh: Handle<Mesh>) -> Self {
         Self {
-            particles: Vec::with_capacity(max_particles),
+            particles: Vec::new(),
             mesh,
-            max_particles,
+            capacity: MIN_CAPACITY,
+            label,
+            window_peak: 0,
+            previous_window_peak: 0,
+            window_elapsed: 0.0,
         }
     }
-}
 
-impl TransientParticles {
-    pub(super) fn spawn(&mut self, particle: ParticleSpawn) -> bool {
-        if self.particles.len() >= self.max_particles {
-            let Some(index) = self
-                .particles
-                .iter()
-                .position(|existing| existing.priority < particle.priority)
-            else {
-                return false;
-            };
-            self.particles.swap_remove(index);
-        }
+    pub(super) fn spawn(&mut self, particle: ParticleSpawn) {
         self.particles.push(TransientParticle {
             position: particle.position,
             velocity: particle.velocity,
@@ -161,30 +142,104 @@ impl TransientParticles {
             lifetime: particle.lifetime,
             elapsed: 0.0,
             color: particle.color,
-            priority: particle.priority,
         });
-        true
+    }
+
+    // Moves and expires particles, then retargets the mesh capacity to the
+    // recent peak. Returns the new capacity when it changed so the caller
+    // can resize the mesh indices.
+    fn advance(&mut self, delta: f32) -> Option<usize> {
+        for particle in &mut self.particles {
+            particle.elapsed += delta;
+            particle.velocity += particle.acceleration * delta;
+            particle.position += particle.velocity * delta;
+        }
+        self.particles.retain(|particle| particle.elapsed < particle.lifetime);
+
+        let live = self.particles.len();
+        self.window_peak = self.window_peak.max(live);
+        self.window_elapsed += delta;
+        if self.window_elapsed >= SHRINK_WINDOW_SECS {
+            self.previous_window_peak = self.window_peak;
+            self.window_peak = live;
+            self.window_elapsed = 0.0;
+        }
+
+        let target = live
+            .max(self.window_peak)
+            .max(self.previous_window_peak)
+            .next_power_of_two()
+            .max(MIN_CAPACITY);
+        if target == self.capacity {
+            return None;
+        }
+        let verb = if target > self.capacity { "grew" } else { "shrank" };
+        debug!("{} particle cloud {verb} to {target} slots ({live} live)", self.label);
+        self.capacity = target;
+        Some(target)
     }
 }
 
-pub fn transient_particles_system(
-    time: Res<Time>,
-    mut particles: ResMut<TransientParticles>,
-    mut meshes: ResMut<Assets<Mesh>>,
-) {
-    advance_particles(&mut particles.particles, time.delta_secs());
-    if let Some(mut mesh) = meshes.get_mut(&particles.mesh) {
-        update_particle_mesh(&mut mesh, &particles.particles, particles.max_particles);
+#[derive(Resource)]
+pub struct ParticleClouds {
+    pub drops: ParticleCloud,
+    pub splashes: ParticleCloud,
+    pub sparkles: ParticleCloud,
+    pub sparks: ParticleCloud,
+}
+
+impl ParticleClouds {
+    fn iter_mut(&mut self) -> impl Iterator<Item = &mut ParticleCloud> {
+        [
+            &mut self.drops,
+            &mut self.splashes,
+            &mut self.sparkles,
+            &mut self.sparks,
+        ]
+        .into_iter()
     }
 }
 
-fn advance_particles(particles: &mut Vec<TransientParticle>, delta: f32) {
-    for particle in particles.iter_mut() {
-        particle.elapsed += delta;
-        particle.velocity += particle.acceleration * delta;
-        particle.position += particle.velocity * delta;
+impl FromWorld for ParticleClouds {
+    fn from_world(world: &mut World) -> Self {
+        let material = world.resource_mut::<Assets<StandardMaterial>>().add(StandardMaterial {
+            base_color: Color::WHITE,
+            unlit: true,
+            ..default()
+        });
+        Self {
+            drops: spawn_cloud(world, &material, "rain drops"),
+            splashes: spawn_cloud(world, &material, "rain splashes"),
+            sparkles: spawn_cloud(world, &material, "beam-in sparkles"),
+            sparks: spawn_cloud(world, &material, "impact sparks"),
+        }
     }
-    particles.retain(|particle| particle.elapsed < particle.lifetime);
+}
+
+fn spawn_cloud(world: &mut World, material: &Handle<StandardMaterial>, label: &'static str) -> ParticleCloud {
+    let mesh = world.resource_mut::<Assets<Mesh>>().add(particle_mesh(MIN_CAPACITY));
+    world.spawn((
+        Mesh3d(mesh.clone()),
+        MeshMaterial3d(material.clone()),
+        NotShadowCaster,
+        NotShadowReceiver,
+        NoFrustumCulling,
+        Transform::default(),
+    ));
+    ParticleCloud::new(label, mesh)
+}
+
+pub fn particle_clouds_system(time: Res<Time>, mut clouds: ResMut<ParticleClouds>, mut meshes: ResMut<Assets<Mesh>>) {
+    let delta = time.delta_secs();
+    for cloud in clouds.iter_mut() {
+        let resized = cloud.advance(delta);
+        if let Some(mut mesh) = meshes.get_mut(&cloud.mesh) {
+            if let Some(capacity) = resized {
+                mesh.insert_indices(Indices::U32(repeated_indices(capacity)));
+            }
+            update_particle_mesh(&mut mesh, &cloud.particles, cloud.capacity);
+        }
+    }
 }
 
 fn particle_mesh(max_particles: usize) -> Mesh {
@@ -243,15 +298,11 @@ fn repeated_indices(count: usize) -> Vec<u32> {
 mod tests {
     use super::*;
 
-    fn cloud(max_particles: usize) -> TransientParticles {
-        TransientParticles {
-            particles: Vec::new(),
-            mesh: Handle::default(),
-            max_particles,
-        }
+    fn cloud() -> ParticleCloud {
+        ParticleCloud::new("test", Handle::default())
     }
 
-    fn particle(priority: ParticlePriority) -> ParticleSpawn {
+    fn particle() -> ParticleSpawn {
         ParticleSpawn {
             position: Vec3::ZERO,
             velocity: Vec3::ZERO,
@@ -262,59 +313,55 @@ mod tests {
             fades: true,
             lifetime: 1.0,
             color: Vec3::ONE,
-            priority,
+        }
+    }
+
+    fn spike(cloud: &mut ParticleCloud, count: usize) {
+        for _ in 0..count {
+            cloud.spawn(particle());
         }
     }
 
     #[test]
-    fn higher_priority_particles_evict_ambient_particles_at_capacity() {
-        let mut cloud = cloud(2);
-        assert!(cloud.spawn(particle(ParticlePriority::Ambient)));
-        assert!(cloud.spawn(particle(ParticlePriority::Ambient)));
-        assert!(cloud.spawn(particle(ParticlePriority::Impact)));
-        assert!(cloud.spawn(particle(ParticlePriority::Cue)));
+    fn cloud_grows_immediately_on_spike() {
+        let mut cloud = cloud();
+        spike(&mut cloud, 100);
 
-        assert_eq!(cloud.particles.len(), 2);
-        assert!(
-            cloud
-                .particles
-                .iter()
-                .any(|particle| particle.priority == ParticlePriority::Impact)
-        );
-        assert!(
-            cloud
-                .particles
-                .iter()
-                .any(|particle| particle.priority == ParticlePriority::Cue)
-        );
+        assert_eq!(cloud.particles.len(), 100, "spawns past capacity must not be dropped");
+        assert_eq!(cloud.advance(0.0), Some(128), "100 live grows to the next power of two");
+        assert_eq!(cloud.advance(0.0), None, "no repeat resize while the load is steady");
     }
 
     #[test]
-    fn ambient_particles_are_dropped_at_capacity() {
-        let mut cloud = cloud(1);
-        assert!(cloud.spawn(particle(ParticlePriority::Ambient)));
-        assert!(!cloud.spawn(particle(ParticlePriority::Ambient)));
-        assert_eq!(cloud.particles.len(), 1);
+    fn recent_peak_holds_capacity() {
+        let mut cloud = cloud();
+        spike(&mut cloud, 100);
+        cloud.advance(0.0);
+
+        // All particles expire, but the spike is still inside the peak
+        // window — capacity must not drop yet.
+        assert_eq!(cloud.advance(1.0), None);
+        assert!(cloud.particles.is_empty());
+        assert_eq!(cloud.capacity, 128);
     }
 
     #[test]
-    fn expired_particles_are_removed() {
-        let mut particles = vec![TransientParticle {
-            position: Vec3::ZERO,
-            velocity: Vec3::X,
-            acceleration: Vec3::ZERO,
-            start_size: 1.0,
-            end_size: 0.0,
-            stretch: Vec3::ONE,
-            fades: true,
-            lifetime: 0.5,
-            elapsed: 0.0,
-            color: Vec3::ONE,
-            priority: ParticlePriority::Ambient,
-        }];
+    fn cloud_shrinks_after_spike_leaves_the_window() {
+        let mut cloud = cloud();
+        spike(&mut cloud, 100);
+        cloud.advance(0.0);
+        cloud.advance(1.0);
 
-        advance_particles(&mut particles, 0.5);
-        assert!(particles.is_empty());
+        assert_eq!(
+            cloud.advance(SHRINK_WINDOW_SECS),
+            None,
+            "spike still in the previous window"
+        );
+        assert_eq!(
+            cloud.advance(SHRINK_WINDOW_SECS),
+            Some(MIN_CAPACITY),
+            "both windows past the spike release the capacity"
+        );
     }
 
     #[test]

@@ -3,7 +3,7 @@ use rand::{RngExt, rng, rngs::ThreadRng};
 
 use super::{
     beam::take_emissions,
-    particles::{ParticlePriority, ParticleSpawn, TransientParticles},
+    particles::{ParticleCloud, ParticleClouds, ParticleSpawn},
 };
 use crate::{
     cameras::MainCameraMarker,
@@ -62,15 +62,14 @@ pub fn rain_smoothing_system(time: Res<Time>, mut rain: ResMut<RainIntensity>) {
 
 // Emit falling drops in a disc around the camera, only in columns open to
 // the sky (an upward probe from camera height finds any roof/floor above —
-// no indoor rain). Ambient priority: combat effects evict rain, never the
-// reverse, and rate × lifetime caps the pool share (~300/s × 1 s ≈ 300 of
-// 1600).
+// no indoor rain). The particle clouds grow on demand, so
+// `weather.drops_per_second` is the only density knob.
 pub fn rain_particles_system(
     time: Res<Time>,
     rain: Res<RainIntensity>,
     client_settings: Res<ClientSettings>,
     collision_world: Option<Res<CollisionWorld>>,
-    mut particles: ResMut<TransientParticles>,
+    mut clouds: ResMut<ParticleClouds>,
     camera: Query<&Transform, With<MainCameraMarker>>,
     mut credit: Local<f32>,
     mut pending_splashes: Local<Vec<PendingSplash>>,
@@ -79,29 +78,51 @@ pub fn rain_particles_system(
     let mut rng = rng();
     let weather = &client_settings.weather;
 
-    // Land drops already in flight first — even while the rain is dying out
-    // (the emission gate below), what's falling still hits the ground.
+    if rain.current >= RAIN_EPSILON
+        && let Ok(camera) = camera.single()
+    {
+        let count = take_emissions(
+            &mut credit,
+            weather.drops_per_second * rain.current,
+            time.delta_secs(),
+            MAX_DROPS_PER_FRAME,
+        );
+        emit_drops(
+            &mut clouds.drops,
+            &mut rng,
+            weather,
+            collision_world.as_deref(),
+            camera,
+            count,
+            now,
+            &mut pending_splashes,
+        );
+    }
+
+    // Land drops already in flight — runs even while the rain is dying out,
+    // so what's falling still hits the ground.
     let mut index = 0;
     while index < pending_splashes.len() {
         if pending_splashes[index].due_secs <= now {
             let splash = pending_splashes.swap_remove(index);
-            spawn_splash(&mut particles, &mut rng, splash.position, weather);
+            spawn_splash(&mut clouds.splashes, &mut rng, splash.position, weather);
         } else {
             index += 1;
         }
     }
+}
 
-    if rain.current < RAIN_EPSILON {
-        return;
-    }
-    let Ok(camera) = camera.single() else { return };
-    let count = take_emissions(
-        &mut credit,
-        weather.drops_per_second * rain.current,
-        time.delta_secs(),
-        MAX_DROPS_PER_FRAME,
-    );
-
+#[expect(clippy::too_many_arguments, reason = "emission threads the whole rain context")]
+fn emit_drops(
+    drops: &mut ParticleCloud,
+    rng: &mut ThreadRng,
+    weather: &WeatherConfig,
+    collision_world: Option<&CollisionWorld>,
+    camera: &Transform,
+    count: usize,
+    now: f32,
+    pending_splashes: &mut Vec<PendingSplash>,
+) {
     // The spawn disc leads the camera along its horizontal facing so
     // sprinting forward doesn't outrun the volume (drops also need ~0.6 s
     // to fall to eye level, during which a runner covers several meters) —
@@ -127,7 +148,7 @@ pub fn rain_particles_system(
             continue;
         }
         let probe_origin = Vec3::new(x, camera.translation.y, z);
-        let covered = collision_world.as_deref().is_some_and(|world| {
+        let covered = collision_world.is_some_and(|world| {
             world
                 .world_surface_along_ray(probe_origin, Vec3::Y, SKY_PROBE_DISTANCE)
                 .is_some()
@@ -141,7 +162,6 @@ pub fn rain_particles_system(
         // straight down so the raycast column IS the impact column. No
         // surface below = the drop falls into the void, no splash.
         let landing = collision_world
-            .as_deref()
             .and_then(|world| world.ground_surface_below(spawn_position, weather.spawn_height + FALL_DISTANCE));
         let lifetime = match &landing {
             Some(hit) => (spawn_position.y - hit.point.y) / weather.fall_speed,
@@ -153,7 +173,7 @@ pub fn rain_particles_system(
                 due_secs: now + lifetime,
             });
         }
-        particles.spawn(ParticleSpawn {
+        drops.spawn(ParticleSpawn {
             position: spawn_position,
             velocity: Vec3::new(0.0, -weather.fall_speed, 0.0),
             acceleration: Vec3::ZERO,
@@ -163,7 +183,6 @@ pub fn rain_particles_system(
             fades: false,
             lifetime,
             color: DROP_COLOR,
-            priority: ParticlePriority::Ambient,
         });
     }
 }
@@ -173,13 +192,13 @@ pub fn rain_particles_system(
 // scatter radius: `v = √(2gh)` peaks at `splash_height`, the airtime is the
 // full up-and-down arc, and the horizontal speed covers `splash_radius`
 // within it. Each droplet dies as it lands.
-fn spawn_splash(particles: &mut TransientParticles, rng: &mut ThreadRng, position: Vec3, weather: &WeatherConfig) {
+fn spawn_splash(splashes: &mut ParticleCloud, rng: &mut ThreadRng, position: Vec3, weather: &WeatherConfig) {
     let peak_velocity = (2.0 * SPLASH_DROPLET_GRAVITY * weather.splash_height).sqrt();
     let airtime = 2.0 * peak_velocity / SPLASH_DROPLET_GRAVITY;
     let horizontal_speed = weather.splash_radius / airtime;
     for _ in 0..SPLASH_DROPLET_COUNT {
         let vertical = peak_velocity * rng.random_range(0.8..1.1);
-        particles.spawn(ParticleSpawn {
+        splashes.spawn(ParticleSpawn {
             position,
             velocity: Vec3::new(
                 rng.random_range(-horizontal_speed..=horizontal_speed),
@@ -193,7 +212,6 @@ fn spawn_splash(particles: &mut TransientParticles, rng: &mut ThreadRng, positio
             fades: true,
             lifetime: 2.0 * vertical / SPLASH_DROPLET_GRAVITY,
             color: SPLASH_COLOR,
-            priority: ParticlePriority::Ambient,
         });
     }
 }
