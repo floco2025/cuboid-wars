@@ -1,9 +1,9 @@
-use bevy::prelude::*;
+use bevy::{ecs::system::SystemParam, prelude::*};
 
 use crate::{
     actors::{ActorMap, PendingActorSpawns},
     items::ItemMap,
-    map::{OpenBarrierKinds, WeatherState},
+    map::{CurrentTimeOfDay, OpenBarrierKinds, WeatherState},
     players::PlayerMap,
 };
 use common::{
@@ -20,6 +20,13 @@ use super::broadcast::{
 };
 use crate::missiles::{MissileMap, MissileVelocity};
 
+// Bundled: Bevy systems take at most 16 parameters and this one is over.
+#[derive(SystemParam)]
+pub struct WorldConditions<'w> {
+    weather: Res<'w, WeatherState>,
+    time_of_day: Res<'w, CurrentTimeOfDay>,
+}
+
 pub fn network_broadcast_snapshot_system(
     time: Res<Time>,
     mut timer: Local<f32>,
@@ -29,7 +36,7 @@ pub fn network_broadcast_snapshot_system(
     pending_spawns: Res<PendingActorSpawns>,
     items: Res<ItemMap>,
     open_barrier_kinds: Res<OpenBarrierKinds>,
-    weather: Res<WeatherState>,
+    conditions: WorldConditions,
     player_data: PlayerStateQuery,
     motions: Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
     actor_data: ActorStateQuery,
@@ -65,7 +72,8 @@ pub fn network_broadcast_snapshot_system(
         items: all_items,
         missiles: all_missiles,
         open_barrier_kinds: open_barrier_kinds.0.clone(),
-        rain_intensity: weather.intensity(),
+        rain_intensity: conditions.weather.intensity(),
+        time_of_day: conditions.time_of_day.0,
     });
     broadcast_to_all(&players, msg);
 }

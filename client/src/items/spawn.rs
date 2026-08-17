@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use rand::random;
+use std::f32::consts::{FRAC_PI_4, TAU};
 
 use crate::{
     barriers::BarrierAssets,
@@ -127,7 +128,7 @@ pub fn setup_item_assets(
             item_type: ItemType::HealthPotion,
             mesh: meshes.add(Capsule3d::new(ITEM_SIZE * 0.3, ITEM_SIZE)),
             material: build_power_up(ItemType::HealthPotion),
-            base_orientation: Quat::from_rotation_z(std::f32::consts::FRAC_PI_4),
+            base_orientation: Quat::from_rotation_z(FRAC_PI_4),
         },
     ];
 
@@ -189,9 +190,9 @@ fn spawn_missile_pack(
     // The pickup IS a small missile: the flight meshes as children of a
     // bobbing, spinning item root, tilted like the potion so the silhouette
     // reads at a glance.
-    let bob_phase = random::<f32>() * std::f32::consts::TAU;
-    let spin_phase = random::<f32>() * std::f32::consts::TAU;
-    let base = Quat::from_rotation_z(std::f32::consts::FRAC_PI_4);
+    let bob_phase = random::<f32>() * TAU;
+    let spin_phase = random::<f32>() * TAU;
+    let base = Quat::from_rotation_z(FRAC_PI_4);
     commands
         .spawn((
             item_id,
@@ -250,7 +251,7 @@ fn spawn_key(
     // Keys are a small rotating cuboid that reuses the matching barrier
     // material, so the pulse stays in sync. Per-instance random phase keeps
     // multiple nearby keys from rotating in lockstep.
-    let random_phase = random::<f32>() * std::f32::consts::TAU;
+    let random_phase = random::<f32>() * TAU;
     commands
         .spawn((
             ItemBundle {
@@ -281,8 +282,8 @@ fn spawn_power_up(
     // doesn't move in lockstep. The base orientation per shape is baked into
     // the spin's start rotation; the rotation system composes
     // `Quat::from_rotation_y(spin) * base`.
-    let bob_phase = random::<f32>() * std::f32::consts::TAU;
-    let spin_phase = random::<f32>() * std::f32::consts::TAU;
+    let bob_phase = random::<f32>() * TAU;
+    let spin_phase = random::<f32>() * TAU;
     let visual = item_assets.power_up(item_type);
     let base = visual.base_orientation;
     commands

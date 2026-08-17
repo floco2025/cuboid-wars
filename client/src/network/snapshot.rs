@@ -112,6 +112,11 @@ pub(super) fn handle_snapshot_message(
         client_assets.world_sync.open_barrier_kinds.0 = msg.open_barrier_kinds.clone();
     }
 
-    // Weather target; `rain_smoothing_system` eases the rendered value.
+    // Weather and lighting targets; `rain_smoothing_system` and
+    // `night_dim_system` ease the rendered values.
     client_assets.world_sync.rain_intensity.target = msg.rain_intensity;
+    client_assets.world_sync.night_lighting.night_target = match msg.time_of_day {
+        TimeOfDay::Day => 0.0,
+        TimeOfDay::Night => 1.0,
+    };
 }

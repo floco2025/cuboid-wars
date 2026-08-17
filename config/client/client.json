@@ -35,6 +35,12 @@
     "explosion_gain_multiplier": 2.0,
     "rain_volume": 1.0
   },
+  "weather": {
+    "rain_drops_per_second": 1000.0,
+    "rain_drop_size": 0.01,
+    "rain_spawn_radius": 15.0,
+    "spawn_lead_fraction": 0.35
+  },
   "camera": {
     "fov_first_person_degrees": 90.0,
     "fov_top_down_degrees": 45.0,

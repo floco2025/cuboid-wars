@@ -8,6 +8,7 @@ use bevy::{
     prelude::*,
 };
 use rand::{Rng, RngExt};
+use std::f32::consts::TAU;
 const SMOKE_RING_SEGMENTS: usize = 12;
 const SMOKE_INNER_RADIUS: f32 = 0.45;
 const SMOKE_VERTICES_PER_PARTICLE: usize = 1 + SMOKE_RING_SEGMENTS * 2;
@@ -54,7 +55,7 @@ pub(super) fn spawn_smoke_cloud(
         particles.push(SmokeParticle {
             position: offset,
             velocity: horizontal * rng.random_range(0.15..0.55) + Vec3::Y * rng.random_range(0.45..1.15),
-            rotation: rng.random_range(0.0..std::f32::consts::TAU),
+            rotation: rng.random_range(0.0..TAU),
             angular_velocity: rng.random_range(-0.5..0.5),
             aspect: Vec2::new(rng.random_range(0.85..1.15), rng.random_range(0.80..1.10)),
             start_size: EXPLOSION_SMOKE_START_SIZE * rng.random_range(0.7..1.25),
@@ -122,7 +123,7 @@ fn smoke_positions(particles: &[SmokeParticle], elapsed: f32, right: Vec3, up: V
         positions.push(particle.position.to_array());
         for ring_radius in [SMOKE_INNER_RADIUS, 1.0] {
             for segment in 0..SMOKE_RING_SEGMENTS {
-                let angle = segment as f32 / SMOKE_RING_SEGMENTS as f32 * std::f32::consts::TAU + particle.rotation;
+                let angle = segment as f32 / SMOKE_RING_SEGMENTS as f32 * TAU + particle.rotation;
                 let radial = right * (angle.cos() * particle.aspect.x) + up * (angle.sin() * particle.aspect.y);
                 positions.push((particle.position + radial * scale * ring_radius).to_array());
             }

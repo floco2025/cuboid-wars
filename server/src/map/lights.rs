@@ -6,6 +6,7 @@ use common::{
     map::MapGeometry,
     protocol::{Position, WallLight},
 };
+use std::f32::consts::{FRAC_PI_2, PI};
 
 // Vertical position of every wall lamp, measured from the floor it sits on.
 // Lamps are placed manually in the editor (per-level `lights` arrays in
@@ -72,7 +73,7 @@ fn wall_light_for(geometry: &MapGeometry, light_y: f32, row: i32, col: i32, side
                 y: light_y,
                 z: cell_center_z + half - MODEL_INSET,
             },
-            yaw: std::f32::consts::PI,
+            yaw: PI,
         },
         CellSide::West => WallLight {
             pos: Position {
@@ -80,7 +81,7 @@ fn wall_light_for(geometry: &MapGeometry, light_y: f32, row: i32, col: i32, side
                 y: light_y,
                 z: cell_center_z,
             },
-            yaw: std::f32::consts::FRAC_PI_2,
+            yaw: FRAC_PI_2,
         },
         CellSide::East => WallLight {
             pos: Position {
@@ -88,7 +89,7 @@ fn wall_light_for(geometry: &MapGeometry, light_y: f32, row: i32, col: i32, side
                 y: light_y,
                 z: cell_center_z,
             },
-            yaw: -std::f32::consts::FRAC_PI_2,
+            yaw: -FRAC_PI_2,
         },
     }
 }
@@ -158,9 +159,9 @@ mod tests {
         assert_eq!(lights.len(), 4);
         let yaws: Vec<f32> = lights.iter().map(|l| l.yaw).collect();
         assert!(yaws.contains(&0.0));
-        assert!(yaws.contains(&std::f32::consts::PI));
-        assert!(yaws.contains(&std::f32::consts::FRAC_PI_2));
-        assert!(yaws.contains(&-std::f32::consts::FRAC_PI_2));
+        assert!(yaws.contains(&PI));
+        assert!(yaws.contains(&FRAC_PI_2));
+        assert!(yaws.contains(&-FRAC_PI_2));
     }
 
     #[test]
@@ -198,7 +199,7 @@ mod tests {
         let lights = generate_wall_lights(&MapGeometry::new(1, 1), &level, 0, &defs);
 
         assert_eq!(lights.len(), 1);
-        assert_eq!(lights[0].yaw, std::f32::consts::PI);
+        assert_eq!(lights[0].yaw, PI);
     }
 
     #[test]

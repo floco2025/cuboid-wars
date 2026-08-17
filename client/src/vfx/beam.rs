@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::f32::consts::TAU;
 
 use bevy::{asset::AssetId, light::NotShadowCaster, prelude::*, world_serialization::WorldInstanceReady};
 use rand::{RngExt, rng};
@@ -186,11 +187,11 @@ fn spawn_materialization_ring(sparkles: &mut ParticleCloud, transform: &GlobalTr
     let count = BEAM_IN_MATERIALIZATION_PARTICLE_COUNT;
     let radius = ghost.half_extents.x.max(ghost.half_extents.z) * 0.8;
     let base_y = -ghost.half_extents.y * 0.9;
-    let phase = rand::random::<f32>() * std::f32::consts::TAU;
+    let phase = rand::random::<f32>() * TAU;
     let color = beam_color(BEAM_IN_SPARKLE_EMISSIVE * 1.35);
 
     for index in 0..count {
-        let angle = index as f32 / count as f32 * std::f32::consts::TAU + phase;
+        let angle = index as f32 / count as f32 * TAU + phase;
         let radial = Vec3::new(angle.cos(), 0.0, angle.sin());
         let local_position = radial * radius + Vec3::Y * base_y;
         let size = BEAM_IN_SPARKLE_SIZE * 1.5;
@@ -233,6 +234,7 @@ pub(super) fn take_emissions(credit: &mut f32, rate: f32, delta: f32, max_per_fr
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::f32::consts::FRAC_PI_2;
 
     #[test]
     fn fade_progress_clamps_to_the_warning_window() {
@@ -258,8 +260,7 @@ mod tests {
     #[test]
     fn sparkle_offsets_follow_ghost_rotation() {
         let transform = GlobalTransform::from(
-            Transform::from_rotation(Quat::from_rotation_y(std::f32::consts::FRAC_PI_2))
-                .with_translation(Vec3::new(3.0, 2.0, 1.0)),
+            Transform::from_rotation(Quat::from_rotation_y(FRAC_PI_2)).with_translation(Vec3::new(3.0, 2.0, 1.0)),
         );
         let world = sparkle_world_position(&transform, Vec3::X);
         assert!(world.abs_diff_eq(Vec3::new(3.0, 2.0, 0.0), 0.0001));

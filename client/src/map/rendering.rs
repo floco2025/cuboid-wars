@@ -1,6 +1,7 @@
 use crate::constants::{LIGHTING_AMBIENT_BRIGHTNESS, LIGHTING_DIRECTIONAL_BRIGHTNESS};
 use bevy::light::{DirectionalLightShadowMap, cluster::GlobalClusterSettings};
 use bevy::prelude::*;
+use std::collections::HashSet;
 
 use crate::{
     barriers::{BarrierAssets, BarrierMarker},
@@ -210,7 +211,7 @@ pub fn map_wall_light_emissive_system(
     asset_set: Res<AssetSet>,
     barrier_assets: Option<Res<BarrierAssets>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut processed: Local<std::collections::HashSet<AssetId<StandardMaterial>>>,
+    mut processed: Local<HashSet<AssetId<StandardMaterial>>>,
 ) {
     // Barrier materials match the "non-opaque" heuristic below but are
     // managed by their own pulsation system — keep this pass off them.

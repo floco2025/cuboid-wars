@@ -9,6 +9,7 @@ use common::{
     physics::{CharacterVerticalVelocity, CollisionWorld, try_start_player_jump},
     protocol::{CJump, ClientMessage, FaceDirection, PlayerMoveIntent, Position},
 };
+use std::f32::consts::{FRAC_PI_2, PI};
 
 use crate::{
     cameras::{CameraViewMode, MainCameraMarker, TopDownCameraYaw},
@@ -18,7 +19,7 @@ use crate::{
     ui::ConsoleState,
 };
 
-const MAX_PITCH: f32 = std::f32::consts::FRAC_PI_2 - 0.05;
+const MAX_PITCH: f32 = FRAC_PI_2 - 0.05;
 
 type LocalPlayerInputQuery<'w, 's> = Query<
     'w,
@@ -86,7 +87,7 @@ pub fn input_movement_system(
         &mut top_down_camera_yaw,
         mouse_sensitivity,
     );
-    let face_yaw = current_yaw + std::f32::consts::PI;
+    let face_yaw = current_yaw + PI;
     // Death disables movement and jump just like stunned (and overrides it).
     let movement_disabled = local_player_info.is_dead || local_player_stunned(my_player_id.as_ref(), &players);
     let move_intent = calculate_move_intent(&keyboard, face_yaw, movement_disabled);

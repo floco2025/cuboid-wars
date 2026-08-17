@@ -27,7 +27,10 @@ use server::{
         item_collection_system, placed_item_respawn_system, placed_item_spawn_system, random_item_despawn_system,
         random_item_spawn_system,
     },
-    map::{OpenBarrierKinds, WeatherState, compute_open_barrier_kinds_system, generate_map, weather_system},
+    map::{
+        CurrentTimeOfDay, OpenBarrierKinds, WeatherState, compute_open_barrier_kinds_system, generate_map,
+        weather_system,
+    },
     missiles::{AirGraph, missiles_guidance_system, missiles_movement_system},
     network::{
         FromClientsChannel, accept_connections_task, network_broadcast_snapshot_system,
@@ -115,6 +118,7 @@ async fn main() -> Result<()> {
     app.insert_resource(map_layout)
         .insert_resource(map_settings)
         .insert_resource(weather_state)
+        .init_resource::<CurrentTimeOfDay>()
         .insert_resource(Invincibility(false))
         .insert_resource(UnlimitedMissiles(false))
         .insert_resource(collision_world)

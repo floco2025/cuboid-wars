@@ -100,6 +100,7 @@ mod tests {
     use crate::config::{
         CharacterColliderAnchor, CharacterColliderConfig, CharacterPhysicsConfig, CharacterSupportProbeConfig,
     };
+    use std::f32::consts::FRAC_PI_2;
 
     const BALL_RADIUS: f32 = 0.1;
 
@@ -161,7 +162,7 @@ mod tests {
             &probe,
             BALL_RADIUS,
             &character_pos,
-            std::f32::consts::FRAC_PI_2,
+            FRAC_PI_2,
             physics()
         ));
     }

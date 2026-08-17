@@ -1,4 +1,5 @@
 use bevy::{ecs::system::SystemParam, prelude::*};
+use std::collections::VecDeque;
 
 use super::steering::{
     closest_point_on_segment, lead_point, pick_clear_direction, steer, sweep_clear, target_velocity_estimate,
@@ -266,7 +267,7 @@ fn missile_sight_clear(
 // already reachable in a straight sweep, drop the first — cell-granular BFS
 // corners fly as smooth diagonals.
 fn advance_waypoints(
-    path: &mut std::collections::VecDeque<Vec3>,
+    path: &mut VecDeque<Vec3>,
     origin: Vec3,
     collision_world: &CollisionWorld,
     open_kinds: &[BarrierKindId],

@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use std::f32::consts::TAU;
 
 use common::{physics::CollisionWorld, protocol::BarrierKindId};
 
@@ -89,8 +90,8 @@ pub(super) fn weave_direction(to_target: Vec3, elapsed: f32, phase: f32, strengt
     let side = dir.any_orthonormal_vector();
     let up_ish = dir.cross(side);
     let fade = (distance / WEAVE_FADE_DISTANCE).clamp(0.0, 1.0);
-    let swing_a = (elapsed * WEAVE_HZ_A * std::f32::consts::TAU + phase).sin();
-    let swing_b = (elapsed * WEAVE_HZ_B * std::f32::consts::TAU + phase * 1.7).cos();
+    let swing_a = (elapsed * WEAVE_HZ_A * TAU + phase).sin();
+    let swing_b = (elapsed * WEAVE_HZ_B * TAU + phase * 1.7).cos();
     let wobble = (side * swing_a + up_ish * swing_b) * strength * fade;
     (dir + wobble).normalize_or(dir) * distance
 }
@@ -161,6 +162,7 @@ mod tests {
         constants::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_THICKNESS},
         protocol::{BarrierKindTable, Floor, MapLayout, Wall},
     };
+    use std::f32::consts::SQRT_2;
 
     #[test]
     fn steer_clamps_rotation_to_turn_rate_times_delta() {
@@ -219,13 +221,13 @@ mod tests {
         let angle = far.angle_between(bent);
         assert!(angle > 0.0, "far from the target the path wobbles");
         // Max deviation: |wobble| <= strength * sqrt(2).
-        assert!(angle <= (0.35_f32 * std::f32::consts::SQRT_2).atan() + 1e-3);
+        assert!(angle <= (0.35_f32 * SQRT_2).atan() + 1e-3);
         assert!((bent.length() - far.length()).abs() < 1e-3, "range is preserved");
 
         let near = Vec3::Z * 0.5;
         let near_bent = weave_direction(near, 0.4, 1.0, 0.35);
         assert!(
-            near.angle_between(near_bent) < 0.35 * (0.5 / WEAVE_FADE_DISTANCE) * std::f32::consts::SQRT_2 + 1e-3,
+            near.angle_between(near_bent) < 0.35 * (0.5 / WEAVE_FADE_DISTANCE) * SQRT_2 + 1e-3,
             "the wobble fades on final approach"
         );
     }

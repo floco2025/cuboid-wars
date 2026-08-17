@@ -47,7 +47,48 @@ pub struct ClientSettings {
     pub vfx: VfxConfig,
     #[serde(default)]
     pub audio: AudioConfig,
+    #[serde(default)]
+    pub weather: WeatherConfig,
     pub debug: DebugConfig,
+}
+
+// User-facing rain density/size knobs. Pure-appearance values (colors,
+// speeds, splash shape) are constants; structural values live in
+// `vfx/rain.rs`.
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(default)]
+pub struct WeatherConfig {
+    // Drop spawn rate at full intensity — the rain density knob.
+    pub rain_drops_per_second: f32,
+    // Drop cross-section (m).
+    pub rain_drop_size: f32,
+    // Radius of the drop-spawn disc around the camera (m).
+    pub rain_spawn_radius: f32,
+    // How far the disc leads the camera along its horizontal facing, as a
+    // fraction of the spawn radius — a third puts two thirds of the rain
+    // ahead of a running player.
+    pub spawn_lead_fraction: f32,
+}
+
+impl Default for WeatherConfig {
+    fn default() -> Self {
+        Self {
+            rain_drops_per_second: 1000.0,
+            rain_drop_size: 0.01,
+            rain_spawn_radius: 15.0,
+            spawn_lead_fraction: 0.35,
+        }
+    }
+}
+
+impl WeatherConfig {
+    fn validate(&self) -> Result<()> {
+        validate_positive_finite(self.rain_drops_per_second, "weather.rain_drops_per_second")?;
+        validate_positive_finite(self.rain_drop_size, "weather.rain_drop_size")?;
+        validate_positive_finite(self.rain_spawn_radius, "weather.rain_spawn_radius")?;
+        validate_unit_ratio(self.spawn_lead_fraction, "weather.spawn_lead_fraction")?;
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -110,6 +151,7 @@ impl ClientSettings {
         self.grass.validate()?;
         self.vfx.validate()?;
         self.audio.validate()?;
+        self.weather.validate()?;
         Ok(())
     }
 }

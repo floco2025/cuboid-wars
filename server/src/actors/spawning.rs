@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use rand::{RngExt, rng, rngs::ThreadRng};
+use std::f32::consts::TAU;
 
 use crate::{
     actors::behavior::random_direction_time,
@@ -239,7 +240,7 @@ fn queue_actor_spawn_in_zone(
         zone_idx,
         kind: spawn_kind.to_string(),
         pos,
-        face_dir: rng.random_range(0.0..std::f32::consts::TAU),
+        face_dir: rng.random_range(0.0..TAU),
         remaining_secs: kind_server_config.respawn.warning_secs,
         warning_secs: kind_server_config.respawn.warning_secs,
     });

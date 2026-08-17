@@ -358,33 +358,38 @@ pub const BARRIER_PULSE_HZ: f32 = 0.5;
 pub const BARRIER_EMISSIVE: f32 = 2000.0;
 
 // ============================================================================
+// Night Lighting
+// ============================================================================
+// Presentation of the server's time of day (`/time day|night`). Lighting is
+// deliberately decoupled from weather — rain does not dim the world.
+
+// Skybox + sun-disc brightness factor at night.
+pub const NIGHT_SKY_BRIGHTNESS: f32 = 0.06;
+// Directional + ambient light factor at night.
+pub const NIGHT_LIGHT_BRIGHTNESS: f32 = 0.16;
+// Scene saturation at night (camera color grading) — moonlight mutes
+// colors. 1.0 = no change.
+pub const NIGHT_SATURATION: f32 = 0.55;
+// Smoothing time constant of the dusk/dawn fade (secs).
+pub const NIGHTFALL_TAU_SECS: f32 = 2.0;
+
+// ============================================================================
 // Rain
 // ============================================================================
 // Presentation of the server-scheduled rain: how a given intensity looks.
+// Tuning knobs only; structural values (probe lengths, epsilons) live in
+// `vfx/rain.rs`, and density/size/radius are user-facing in
+// `client.json::weather`.
 
-// Skybox + sun-disc brightness factor at full rain (1.0 = no darkening).
-pub const RAIN_SKY_DIM: f32 = 0.05;
-// Directional + ambient light factor at full rain.
-pub const RAIN_LIGHT_DIM: f32 = 0.5;
-// Scene saturation factor at full rain (camera color grading) — heavy rain
-// washes the world gray. 1.0 = no change.
-pub const RAIN_SATURATION: f32 = 0.4;
-// Drop spawn rate at full intensity — the rain density knob.
-pub const RAIN_DROPS_PER_SECOND: f32 = 1000.0;
-// Radius of the drop-spawn disc around the camera.
-pub const RAIN_SPAWN_RADIUS: f32 = 15.0;
-// How far the disc leads the camera along its horizontal facing, as a
-// fraction of the spawn radius — a third puts two thirds of the rain ahead
-// of a running player.
-pub const RAIN_SPAWN_LEAD_FRACTION: f32 = 0.35;
 // How far above the camera drops spawn (m).
 pub const RAIN_SPAWN_HEIGHT: f32 = 10.0;
 pub const RAIN_FALL_SPEED: f32 = 14.0;
-pub const RAIN_DROP_SIZE: f32 = 0.01;
-// Size of the droplets that bounce up where a drop lands, how far they
-// scatter horizontally (m), and how high they bounce (m); velocities and
-// airtime are derived from these. Height must stay positive — the airtime
-// is derived from it.
+pub const RAIN_DROP_COLOR: Color = Color::srgb(0.55, 0.6, 0.7);
+// Splash on impact: droplet color (slightly brighter than the drops so
+// impacts sparkle), droplet size, horizontal scatter (m), and bounce height
+// (m); velocities and airtime are derived from these. Height must stay
+// positive — the airtime is derived from it.
+pub const RAIN_SPLASH_COLOR: Color = Color::srgb(0.7, 0.75, 0.85);
 pub const RAIN_SPLASH_SIZE: f32 = 0.01;
 pub const RAIN_SPLASH_RADIUS: f32 = 0.15;
 pub const RAIN_SPLASH_HEIGHT: f32 = 0.2;

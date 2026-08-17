@@ -1,4 +1,5 @@
 use anyhow::Context;
+use std::collections::HashSet;
 
 use super::schema::{BarrierDef, MapDef, RampDef};
 use crate::{
@@ -61,8 +62,7 @@ pub(crate) fn compile_map(
     // physics holds it at the barrier until someone opens it. Every other
     // barrier (key-only / static) stays closed for actors.
     let pressure_plates = pressure_plates(map_def, kind_table)?;
-    let pressure_plate_kinds: std::collections::HashSet<BarrierKindId> =
-        pressure_plates.iter().map(|plate| plate.kind).collect();
+    let pressure_plate_kinds: HashSet<BarrierKindId> = pressure_plates.iter().map(|plate| plate.kind).collect();
 
     let mut level_grids: Vec<LevelGrid> = map_def
         .levels
@@ -144,7 +144,7 @@ pub(crate) fn compile_map(
         // Tell floor emission to skip its corner-filler strip at the high
         // end of each z-axis ramp arriving at this level — a strip there
         // would hover above where the slope already meets the upper floor.
-        let mut skip_corner_filler_edges: std::collections::HashSet<(i32, i32)> = std::collections::HashSet::new();
+        let mut skip_corner_filler_edges: HashSet<(i32, i32)> = HashSet::new();
         for ramp in &ramp_specs {
             if ramp.lower_level + 1 == level_idx as u32 {
                 skip_corner_filler_edges.extend(ramp.high_end_horizontal_edges());

@@ -1,6 +1,7 @@
 use crate::constants::BANNER_QUEST_ANNOUNCEMENT_SECS;
 use bevy::prelude::*;
 use std::collections::HashSet;
+use std::f32::consts::PI;
 
 use super::handlers::player_movement_velocity;
 use crate::{
@@ -257,7 +258,7 @@ fn apply_local_spawn_facing(
     pos: &Position,
     face_dir: f32,
 ) {
-    let camera_rotation = face_dir + std::f32::consts::PI;
+    let camera_rotation = face_dir + PI;
     if let Ok(camera_entity) = camera_query.single() {
         commands
             .entity(camera_entity)

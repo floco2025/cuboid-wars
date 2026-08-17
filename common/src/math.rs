@@ -1,7 +1,8 @@
 use bevy_math::Vec3;
+use std::f32::consts::{PI, TAU};
 
 pub fn angle_delta_radians(a: f32, b: f32) -> f32 {
-    (a - b + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI
+    (a - b + PI).rem_euclid(TAU) - PI
 }
 
 // The one yaw/pitch → unit-direction convention shared by aim, projectile,
@@ -16,18 +17,19 @@ pub fn direction_from_yaw_pitch(yaw: f32, pitch: f32) -> Vec3 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::f32::consts::FRAC_PI_2;
 
     #[test]
     fn angle_delta_wraps_at_pi() {
-        assert!((angle_delta_radians(3.0, -3.0) - (6.0 - std::f32::consts::TAU)).abs() < 1e-6);
+        assert!((angle_delta_radians(3.0, -3.0) - (6.0 - TAU)).abs() < 1e-6);
         assert!((angle_delta_radians(0.1, -0.1) - 0.2).abs() < 1e-6);
     }
 
     #[test]
     fn direction_from_yaw_pitch_is_unit_and_matches_axes() {
         assert!((direction_from_yaw_pitch(0.0, 0.0) - Vec3::Z).length() < 1e-6);
-        assert!((direction_from_yaw_pitch(std::f32::consts::FRAC_PI_2, 0.0) - Vec3::X).length() < 1e-6);
-        assert!((direction_from_yaw_pitch(0.0, std::f32::consts::FRAC_PI_2) - Vec3::Y).length() < 1e-6);
+        assert!((direction_from_yaw_pitch(FRAC_PI_2, 0.0) - Vec3::X).length() < 1e-6);
+        assert!((direction_from_yaw_pitch(0.0, FRAC_PI_2) - Vec3::Y).length() < 1e-6);
         let arbitrary = direction_from_yaw_pitch(1.1, -0.6);
         assert!((arbitrary.length() - 1.0).abs() < 1e-6);
     }

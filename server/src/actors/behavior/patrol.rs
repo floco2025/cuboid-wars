@@ -1,4 +1,5 @@
 use rand::{RngExt, rngs::ThreadRng};
+use std::f32::consts::TAU;
 
 use crate::{actors::ActorGoal, config::ActorKindServerConfig};
 use common::protocol::ActorMoveIntent;
@@ -38,7 +39,7 @@ pub(crate) fn random_patrol_intent(rng: &mut ThreadRng, patrol_speed: f32, idle_
 
 pub(crate) fn random_patrol_move_intent(rng: &mut ThreadRng, patrol_speed: f32) -> ActorMoveIntent {
     ActorMoveIntent::Moving {
-        direction: rng.random_range(0.0..std::f32::consts::TAU),
+        direction: rng.random_range(0.0..TAU),
         speed: patrol_speed,
     }
 }

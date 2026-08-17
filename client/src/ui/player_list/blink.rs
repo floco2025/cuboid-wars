@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use common::protocol::PlayerId;
+use std::f32::consts::PI;
 
 use super::components::{LOCAL_PLAYER_BG_COLOR, PlayerEntryMarker};
 use crate::players::{MyPlayerId, PlayerMap};
@@ -12,10 +13,7 @@ pub fn ui_stunned_blink_system(
 ) {
     let local_player_id = my_player_id.as_ref().map(|id| id.0);
     let blink_frequency = 3.0;
-    let blink_value = f32::midpoint(
-        (time.elapsed_secs() * blink_frequency * std::f32::consts::PI * 2.0).sin(),
-        1.0,
-    );
+    let blink_value = f32::midpoint((time.elapsed_secs() * blink_frequency * PI * 2.0).sin(), 1.0);
 
     for (entry_id, mut bg_color) in &mut query {
         if let Some(player_info) = players.get(entry_id) {

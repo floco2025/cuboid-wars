@@ -9,6 +9,7 @@ use bevy::{
 };
 use common::physics::CollisionWorld;
 use rand::{Rng, RngExt};
+use std::f32::consts::TAU;
 
 pub(super) struct ShardParticle {
     pub(super) position: Vec3,
@@ -65,9 +66,9 @@ pub(super) fn spawn_shard_cloud(
             velocity: direction * speed,
             rotation: Quat::from_euler(
                 EulerRot::XYZ,
-                rng.random_range(0.0..std::f32::consts::TAU),
-                rng.random_range(0.0..std::f32::consts::TAU),
-                rng.random_range(0.0..std::f32::consts::TAU),
+                rng.random_range(0.0..TAU),
+                rng.random_range(0.0..TAU),
+                rng.random_range(0.0..TAU),
             ),
             angular_velocity: Vec3::new(
                 rng.random_range(-8.0..8.0),

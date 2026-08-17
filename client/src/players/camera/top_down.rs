@@ -160,6 +160,7 @@ fn topdown_view_direction(yaw: f32) -> Vec3 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::f32::consts::FRAC_PI_2;
 
     fn wide_layout() -> MapLayout {
         MapLayout {
@@ -179,7 +180,7 @@ mod tests {
     #[test]
     fn view_direction_follows_yaw() {
         assert!((topdown_view_direction(0.0) - Vec3::Z).length() < 1e-6);
-        assert!((topdown_view_direction(std::f32::consts::FRAC_PI_2) - Vec3::X).length() < 1e-6);
+        assert!((topdown_view_direction(FRAC_PI_2) - Vec3::X).length() < 1e-6);
     }
 
     #[test]

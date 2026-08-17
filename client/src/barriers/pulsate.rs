@@ -1,5 +1,6 @@
 use crate::constants::{BARRIER_ALPHA_MAX, BARRIER_ALPHA_MIN, BARRIER_PULSE_HZ};
 use bevy::prelude::*;
+use std::f32::consts::TAU;
 
 use super::BarrierAssets;
 use crate::config::ClientSettings;
@@ -29,7 +30,7 @@ pub fn barriers_pulsate_system(
             continue;
         };
         let phase = idx as f32 * 0.5;
-        let s = (t * pulse_hz * std::f32::consts::TAU + phase).sin() * 0.5 + 0.5;
+        let s = (t * pulse_hz * TAU + phase).sin() * 0.5 + 0.5;
         let alpha = alpha_min + (alpha_max - alpha_min) * s;
         let linear = assets.base_colors[idx].to_linear();
         mat.base_color = Color::srgba(linear.red, linear.green, linear.blue, alpha);

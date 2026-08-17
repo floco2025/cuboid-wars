@@ -5,13 +5,15 @@ use crate::{
     actors::ActorMap,
     combat::{PendingExplosions, kill_player},
     config::ServerGameplayConfig,
-    map::WeatherState,
+    map::{CurrentTimeOfDay, WeatherState},
     network::{ServerToClient, broadcast_to_all},
     players::{Invincibility, PlayerInfo, PlayerMap, UnlimitedMissiles},
 };
 use common::{
     config::GameplayConfig,
-    protocol::{BarrierKindTable, CAdmin, Health, ItemType, PlayerId, SAdminResponse, SFirework, ServerMessage},
+    protocol::{
+        BarrierKindTable, CAdmin, Health, ItemType, PlayerId, SAdminResponse, SFirework, ServerMessage, TimeOfDay,
+    },
 };
 
 // Anything longer is nonsense or abuse; truncated before parsing.
@@ -19,7 +21,7 @@ const MAX_COMMAND_CHARS: usize = 256;
 
 // One command per line: the client feed renders each line as its own row.
 // Must fit within `hud.message_feed.max_entries` or the top lines evict.
-const HELP_TEXT: &str = "/help\n/weather rain|clear\n/god [on|off]\n/kill <name>|@a\n/killall [kind]\n/heal [name|@a]\n/give keys|key <color>\n/give powerups|powerup <type>\n/give missiles\n/firework\n/kick <name>";
+const HELP_TEXT: &str = "/help\n/weather rain|clear\n/time day|night\n/god [on|off]\n/kill <name>|@a\n/killall [kind]\n/heal [name|@a]\n/give keys|key <color>\n/give powerups|powerup <type>\n/give missiles\n/firework\n/kick <name>";
 
 // The four timer power-up config ids, in `PowerUpKind` order.
 const POWER_UP_IDS: [&str; 3] = ["speed", "multi_shot", "low_gravity"];
@@ -36,6 +38,7 @@ fn admin_authorized(_info: &PlayerInfo) -> bool {
 #[derive(SystemParam)]
 pub struct AdminContext<'w> {
     pub weather: ResMut<'w, WeatherState>,
+    pub time_of_day: ResMut<'w, CurrentTimeOfDay>,
     pub pending_explosions: ResMut<'w, PendingExplosions>,
     pub invincibility: ResMut<'w, Invincibility>,
     pub unlimited_missiles: ResMut<'w, UnlimitedMissiles>,
@@ -51,6 +54,7 @@ enum AdminCommand {
     Help,
     WeatherRain,
     WeatherClear,
+    SetTime(TimeOfDay),
     God(Option<bool>),
     KillAllPlayers,
     KillPlayer(String),
@@ -87,6 +91,8 @@ fn parse_admin_command(input: &str) -> AdminCommand {
         [] | ["help"] => AdminCommand::Help,
         ["weather", "rain"] => AdminCommand::WeatherRain,
         ["weather", "clear"] => AdminCommand::WeatherClear,
+        ["time", "day"] => AdminCommand::SetTime(TimeOfDay::Day),
+        ["time", "night"] => AdminCommand::SetTime(TimeOfDay::Night),
         ["god"] => AdminCommand::God(None),
         ["god", "on"] => AdminCommand::God(Some(true)),
         ["god", "off"] => AdminCommand::God(Some(false)),
@@ -165,6 +171,14 @@ fn run_admin_command(
             Ok(()) => "weather set to clear".to_owned(),
             Err(reason) => reason.to_owned(),
         },
+        AdminCommand::SetTime(time) => {
+            admin.time_of_day.0 = time;
+            let name = match time {
+                TimeOfDay::Day => "day",
+                TimeOfDay::Night => "night",
+            };
+            format!("time set to {name}")
+        }
         AdminCommand::God(explicit) => {
             let enabled = explicit.unwrap_or(!admin.invincibility.0);
             admin.invincibility.0 = enabled;

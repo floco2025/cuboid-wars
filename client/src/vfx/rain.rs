@@ -1,9 +1,10 @@
 use crate::constants::{
-    RAIN_DROP_SIZE, RAIN_DROPS_PER_SECOND, RAIN_FALL_SPEED, RAIN_SPAWN_HEIGHT, RAIN_SPAWN_LEAD_FRACTION,
-    RAIN_SPAWN_RADIUS, RAIN_SPLASH_HEIGHT, RAIN_SPLASH_RADIUS, RAIN_SPLASH_SIZE,
+    RAIN_DROP_COLOR, RAIN_FALL_SPEED, RAIN_SPAWN_HEIGHT, RAIN_SPLASH_COLOR, RAIN_SPLASH_HEIGHT, RAIN_SPLASH_RADIUS,
+    RAIN_SPLASH_SIZE,
 };
 use bevy::{audio::Volume, prelude::*};
 use rand::{RngExt, rng, rngs::ThreadRng};
+use std::f32::consts::TAU;
 
 use super::{
     beam::take_emissions,
@@ -12,7 +13,7 @@ use super::{
 use crate::{
     audio::play_sound_with,
     cameras::MainCameraMarker,
-    config::{AssetSet, ClientSettings},
+    config::{AssetSet, ClientSettings, WeatherConfig},
 };
 use common::physics::CollisionWorld;
 
@@ -27,7 +28,7 @@ const FALL_DISTANCE: f32 = 14.0;
 const SKY_PROBE_DISTANCE: f32 = 60.0;
 const MAX_DROPS_PER_FRAME: usize = 32;
 // A falling drop reads as a thin vertical streak, not a cube: the particle's
-// Y axis is stretched to this world length while `drop_size` stays the
+// Y axis is stretched to this world length while `rain_drop_size` stays the
 // cross-section.
 const STREAK_LENGTH: f32 = 0.28;
 // No drops inside this horizontal radius of the camera — a streak half a
@@ -39,9 +40,12 @@ const CAMERA_CLEARANCE_RADIUS: f32 = 1.5;
 // don't — the pool is opaque, so a "faded" streak is a black bar.
 const SPLASH_DROPLET_COUNT: usize = 3;
 const SPLASH_DROPLET_GRAVITY: f32 = 12.0;
-// Slightly brighter than the streaks so impacts sparkle against wet ground.
-const SPLASH_COLOR: Vec3 = Vec3::new(0.7, 0.75, 0.85);
-const DROP_COLOR: Vec3 = Vec3::new(0.55, 0.6, 0.7);
+
+// The particle clouds take raw linear-RGB `Vec3` vertex colors.
+fn linear_rgb(color: Color) -> Vec3 {
+    let linear = color.to_linear();
+    Vec3::new(linear.red, linear.green, linear.blue)
+}
 
 // A drop already in flight, due to splash at `due_secs` (elapsed time) where
 // its landing raycast hit.
@@ -68,11 +72,11 @@ pub fn rain_smoothing_system(time: Res<Time>, mut rain: ResMut<RainIntensity>) {
 // Emit falling drops in a disc around the camera, only in columns open to
 // the sky (an upward probe from camera height finds any roof/floor above —
 // no indoor rain). The particle clouds grow on demand, so
-// `RAIN_DROPS_PER_SECOND` is the only density knob.
+// `client.json::weather.rain_drops_per_second` is the only density knob.
 pub fn rain_particles_system(
     time: Res<Time>,
     rain: Res<RainIntensity>,
-    _client_settings: Res<ClientSettings>,
+    client_settings: Res<ClientSettings>,
     collision_world: Option<Res<CollisionWorld>>,
     mut clouds: ResMut<ParticleClouds>,
     camera: Query<&Transform, With<MainCameraMarker>>,
@@ -85,9 +89,10 @@ pub fn rain_particles_system(
     if rain.current >= RAIN_EPSILON
         && let Ok(camera) = camera.single()
     {
+        let weather = &client_settings.weather;
         let count = take_emissions(
             &mut credit,
-            RAIN_DROPS_PER_SECOND * rain.current,
+            weather.rain_drops_per_second * rain.current,
             time.delta_secs(),
             MAX_DROPS_PER_FRAME,
         );
@@ -96,6 +101,7 @@ pub fn rain_particles_system(
             &mut rng,
             collision_world.as_deref(),
             camera,
+            weather,
             count,
             now,
             &mut pending_splashes,
@@ -120,6 +126,7 @@ fn emit_drops(
     rng: &mut ThreadRng,
     collision_world: Option<&CollisionWorld>,
     camera: &Transform,
+    weather: &WeatherConfig,
     count: usize,
     now: f32,
     pending_splashes: &mut Vec<PendingSplash>,
@@ -131,14 +138,14 @@ fn emit_drops(
     // view has no horizontal facing — the projection degenerates to zero
     // and the disc stays centered.
     let forward = camera.forward();
-    let lead =
-        Vec3::new(forward.x, 0.0, forward.z).normalize_or_zero() * (RAIN_SPAWN_RADIUS * RAIN_SPAWN_LEAD_FRACTION);
+    let lead = Vec3::new(forward.x, 0.0, forward.z).normalize_or_zero()
+        * (weather.rain_spawn_radius * weather.spawn_lead_fraction);
     let disc_center = camera.translation + lead;
 
     for _ in 0..count {
         // sqrt for uniform density over the disc area.
-        let radius = RAIN_SPAWN_RADIUS * rng.random_range(0.0_f32..1.0).sqrt();
-        let angle = rng.random_range(0.0..std::f32::consts::TAU);
+        let radius = weather.rain_spawn_radius * rng.random_range(0.0_f32..1.0).sqrt();
+        let angle = rng.random_range(0.0..TAU);
         let x = disc_center.x + radius * angle.cos();
         let z = disc_center.z + radius * angle.sin();
         // Never right at the lens — a streak half a meter away renders as a
@@ -178,12 +185,12 @@ fn emit_drops(
             position: spawn_position,
             velocity: Vec3::new(0.0, -RAIN_FALL_SPEED, 0.0),
             acceleration: Vec3::ZERO,
-            start_size: RAIN_DROP_SIZE,
-            end_size: RAIN_DROP_SIZE,
-            stretch: Vec3::new(1.0, STREAK_LENGTH / RAIN_DROP_SIZE, 1.0),
+            start_size: weather.rain_drop_size,
+            end_size: weather.rain_drop_size,
+            stretch: Vec3::new(1.0, STREAK_LENGTH / weather.rain_drop_size, 1.0),
             fades: false,
             lifetime,
-            color: DROP_COLOR,
+            color: linear_rgb(RAIN_DROP_COLOR),
         });
     }
 }
@@ -212,7 +219,7 @@ fn spawn_splash(splashes: &mut ParticleCloud, rng: &mut ThreadRng, position: Vec
             stretch: Vec3::ONE,
             fades: true,
             lifetime: 2.0 * vertical / SPLASH_DROPLET_GRAVITY,
-            color: SPLASH_COLOR,
+            color: linear_rgb(RAIN_SPLASH_COLOR),
         });
     }
 }

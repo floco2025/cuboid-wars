@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use rand::{Rng, RngExt, rng};
+use std::f32::consts::TAU;
 
 use super::particles::{ParticleCloud, ParticleSpawn};
 use crate::constants::*;
@@ -73,7 +74,7 @@ fn outward_cone_direction(rng: &mut impl Rng, axis: Vec3, surface_normal: Vec3, 
     let cos_min = spread_radians.cos();
     let cos_theta = rng.random_range(cos_min..=1.0);
     let sin_theta = (1.0 - cos_theta * cos_theta).sqrt();
-    let azimuth = rng.random_range(0.0..std::f32::consts::TAU);
+    let azimuth = rng.random_range(0.0..TAU);
     let mut direction = axis * cos_theta + (tangent * azimuth.cos() + bitangent * azimuth.sin()) * sin_theta;
     let normal_component = direction.dot(surface_normal);
     if normal_component < 0.0 {

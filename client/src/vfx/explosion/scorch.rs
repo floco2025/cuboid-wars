@@ -1,4 +1,4 @@
-use std::f32::consts::TAU;
+use std::f32::consts::{PI, TAU};
 
 use bevy::{
     asset::RenderAssetUsages,
@@ -158,8 +158,8 @@ pub(super) fn wall_scorch_placements(
                 + Vec3::Y * f32::midpoint(min_y, max_y)
                 + *normal * EXPLOSION_SCORCH_SURFACE_OFFSET;
             let basis = Mat3::from_cols(tangent, *normal, Vec3::Y);
-            let half_turn = if style.rotation >= std::f32::consts::PI {
-                Quat::from_axis_angle(*normal, std::f32::consts::PI)
+            let half_turn = if style.rotation >= PI {
+                Quat::from_axis_angle(*normal, PI)
             } else {
                 Quat::IDENTITY
             };

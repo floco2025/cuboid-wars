@@ -1,11 +1,14 @@
+use std::f32::consts::TAU;
+
 use crate::constants::{
-    LIGHTING_AMBIENT_BRIGHTNESS, LIGHTING_DIRECTIONAL_BRIGHTNESS, RAIN_LIGHT_DIM, RAIN_SATURATION, RAIN_SKY_DIM,
+    LIGHTING_AMBIENT_BRIGHTNESS, LIGHTING_DIRECTIONAL_BRIGHTNESS, NIGHT_LIGHT_BRIGHTNESS, NIGHT_SATURATION,
+    NIGHT_SKY_BRIGHTNESS, NIGHTFALL_TAU_SECS,
 };
 use bevy::{core_pipeline::Skybox, light::NotShadowCaster, prelude::*, render::view::ColorGrading};
 
 use crate::{
     cameras::MainCameraMarker,
-    config::{AssetSet, ClientSettings, SkyboxDef},
+    config::{AssetSet, SkyboxDef},
 };
 use common::protocol::MapSettings;
 
@@ -151,14 +154,22 @@ pub fn skybox_update_camera_system(
     }
 }
 
-// Darken the world while it rains. Every value is recomputed absolutely
-// from its config base × a dim factor, never incrementally, so the system
-// is idempotent per frame and snaps back to the exact base on clear skies.
-// Sky, sun disc, directional light, and ambient all follow the smoothed
-// rain intensity; wall/actor lights stay lit — windows glowing in the rain.
-pub fn rain_dim_system(
-    rain: Res<crate::vfx::RainIntensity>,
-    _client_settings: Res<ClientSettings>,
+// Authoritative time of day from the snapshot (`night_target`), smoothed
+// locally (`night`) so nightfall is a dusk fade, not a switch flip.
+#[derive(Resource, Default)]
+pub struct NightLighting {
+    pub night_target: f32,
+    night: f32,
+}
+
+// Darken the world at night. Every value is recomputed absolutely from its
+// config base × a dim factor, never incrementally, so the system is
+// idempotent per frame and snaps back to the exact base at daybreak. Sky,
+// sun disc, directional light, and ambient all follow the smoothed night
+// factor; wall/actor lights stay lit — windows glowing in the dark.
+pub fn night_dim_system(
+    time: Res<Time>,
+    mut night_lighting: ResMut<NightLighting>,
     settings: Option<Res<SkyboxSettings>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut skyboxes: Query<&mut Skybox>,
@@ -167,13 +178,18 @@ pub fn rain_dim_system(
     disc: Query<(&MeshMaterial3d<StandardMaterial>, &SunDisc)>,
     mut gradings: Query<&mut ColorGrading>,
 ) {
-    let sky_factor = 1.0 - rain.current * (1.0 - RAIN_SKY_DIM);
-    let light_factor = 1.0 - rain.current * (1.0 - RAIN_LIGHT_DIM);
+    let blend = 1.0 - (-time.delta_secs() / NIGHTFALL_TAU_SECS).exp();
+    let step = (night_lighting.night_target - night_lighting.night) * blend;
+    night_lighting.night += step;
+    let night = night_lighting.night;
 
-    // Heavy rain washes the world gray: post-tonemap saturation on both
-    // cameras follows the intensity.
+    let sky_factor = 1.0 - night * (1.0 - NIGHT_SKY_BRIGHTNESS);
+    let light_factor = 1.0 - night * (1.0 - NIGHT_LIGHT_BRIGHTNESS);
+
+    // Night mutes the world: post-tonemap saturation on both cameras
+    // follows the smoothed factor.
     for mut grading in &mut gradings {
-        grading.global.post_saturation = 1.0 - rain.current * (1.0 - RAIN_SATURATION);
+        grading.global.post_saturation = 1.0 - night * (1.0 - NIGHT_SATURATION);
     }
 
     if let Some(settings) = settings {
@@ -203,8 +219,6 @@ pub fn skybox_rotate_system(
     mut skyboxes: Query<&mut Skybox>,
     mut sun: Query<&mut Transform, With<SunLightMarker>>,
 ) {
-    use std::f32::consts::TAU;
-
     if settings.rotation_period_secs <= 0.0 {
         return;
     }

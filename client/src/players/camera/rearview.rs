@@ -1,4 +1,5 @@
 use bevy::{camera::Viewport, prelude::*, ui::UiScale};
+use std::f32::consts::PI;
 
 use crate::{
     cameras::{CameraViewMode, MainCameraMarker, RearviewCameraMarker},
@@ -40,7 +41,7 @@ pub fn local_player_rearview_sync_system(
     // Get the main camera's rotation and rotate 180 degrees.
     if let Ok(main_transform) = main_camera_query.single() {
         let main_yaw = main_transform.rotation.to_euler(EulerRot::YXZ).0;
-        let backwards_yaw = main_yaw + std::f32::consts::PI;
+        let backwards_yaw = main_yaw + PI;
         rearview_transform.rotation = Quat::from_rotation_y(backwards_yaw);
     }
 }

@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::f32::consts::TAU;
 
 use bevy::{audio::SpatialScale, ecs::system::SystemParam, prelude::*};
 use rand::{RngExt, SeedableRng, rngs::StdRng};
@@ -196,7 +197,7 @@ fn build_show(seed: u64, map_layout: Option<&MapLayout>) -> VecDeque<FireworkEve
 // so the pop lands on the aimed point. Optional star burst and laser spokes
 // are scheduled at that precomputed pop.
 fn rocket(events: &mut Vec<FireworkEvent>, rng: &mut StdRng, field: &ShowField, at_secs: f32, stars: bool) {
-    let ring_angle = rng.random_range(0.0..std::f32::consts::TAU);
+    let ring_angle = rng.random_range(0.0..TAU);
     let origin = field.center
         + Vec3::new(
             ring_angle.cos() * field.ring_radius,
@@ -239,7 +240,7 @@ fn rocket(events: &mut Vec<FireworkEvent>, rng: &mut StdRng, field: &ShowField, 
     // agree.
     let velocities = (0..EMBERS_PER_POP)
         .map(|_| {
-            let side = rng.random_range(0.0..std::f32::consts::TAU);
+            let side = rng.random_range(0.0..TAU);
             let speed = rng.random_range(3.0..8.0);
             Vec3::new(side.cos() * speed, rng.random_range(-2.0..4.0), side.sin() * speed)
         })
@@ -253,7 +254,7 @@ fn rocket(events: &mut Vec<FireworkEvent>, rng: &mut StdRng, field: &ShowField, 
 // One sweeping sky beam: pivot on the launch ring at ground level, tilted
 // well above the horizon, rotating around vertical like a searchlight.
 fn beam(rng: &mut StdRng, field: &ShowField, duration_secs: f32, sweep_rate: std::ops::Range<f32>) -> LaserBeamSpec {
-    let ring_angle = rng.random_range(0.0..std::f32::consts::TAU);
+    let ring_angle = rng.random_range(0.0..TAU);
     let pivot = field.center
         + Vec3::new(
             ring_angle.cos() * field.ring_radius,

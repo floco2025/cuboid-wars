@@ -4,6 +4,7 @@ use rapier3d::{
     parry::shape::Cuboid,
     prelude::Vector,
 };
+use std::f32::consts::FRAC_PI_3;
 
 use super::{
     geometry::{character_pose, character_shape, character_support_probe_pose, character_support_probe_shape},
@@ -287,7 +288,7 @@ fn character_controller() -> KinematicCharacterController {
             min_width: CharacterLength::Absolute(CHARACTER_STEP_MIN_WIDTH),
             include_dynamic_bodies: false,
         }),
-        min_slope_slide_angle: std::f32::consts::FRAC_PI_3,
+        min_slope_slide_angle: FRAC_PI_3,
         snap_to_ground: None,
         ..KinematicCharacterController::default()
     }
