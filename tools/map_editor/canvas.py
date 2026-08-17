@@ -47,6 +47,111 @@ from .geometry import (
 from .canvas_painting import CanvasPaintingMixin
 
 
+# ============================================================================
+# Release tools
+# ============================================================================
+# One handler per mode, dispatched from `Canvas.mouseReleaseEvent`. Adding a
+# mode means adding a table entry, not another ladder rung.
+
+
+def _cell_rect_tool(method: str):
+    """Tool for a completed cell-rect drag: `window.<method>(start, end)`."""
+
+    def handler(canvas: "Canvas", event) -> None:
+        if canvas.drag_start_cell and canvas.drag_current_cell:
+            getattr(canvas.window, method)(canvas.drag_start_cell, canvas.drag_current_cell)
+
+    return handler
+
+
+def _wall_line_tool(method: str):
+    """Tool for a grid-point drag along a wall line; the end snaps axis-aligned."""
+
+    def handler(canvas: "Canvas", event) -> None:
+        if canvas.drag_start_point and canvas.drag_current_point:
+            getattr(canvas.window, method)(
+                canvas.drag_start_point,
+                snapped_wall_end(canvas.drag_start_point, canvas.drag_current_point),
+            )
+
+    return handler
+
+
+def _click_toggle_tool(remove_method: str, add_method: str):
+    """Click toggles cell occupancy: an occupied cell removes; an empty cell
+    prompts for a kind and places. Right-click also removes (handled in
+    `contextMenuEvent`)."""
+
+    def handler(canvas: "Canvas", event) -> None:
+        if canvas.drag_start_cell:
+            col, row = canvas.drag_start_cell
+            if not getattr(canvas.window, remove_method)(col, row):
+                getattr(canvas.window, add_method)(col, row)
+
+    return handler
+
+
+def _ramp_tool(canvas: "Canvas", event) -> None:
+    if canvas.drag_start_cell and canvas.drag_current_cell:
+        canvas.window.add_ramp(canvas.drag_start_cell, canvas.drag_current_cell, canvas.window.mode)
+
+
+def _spawn_zone_commit_tool(canvas: "Canvas", event) -> None:
+    canvas.window.commit_spawn_zone_edit_drag()
+
+
+def _wall_material_tool(canvas: "Canvas", event) -> None:
+    if not (canvas.drag_start_point and canvas.drag_current_point):
+        return
+    start, end = canvas.drag_start_point, canvas.drag_current_point
+    if start == end:
+        # Pure click (no drag): grab the wall under the cursor and use its
+        # endpoints as the rectangle so the rect path applies to that single
+        # wall.
+        wall = canvas._wall_near_position(event.position())
+        if wall is not None:
+            start = (wall["c0"], wall["r0"])
+            end = (wall["c1"], wall["r1"])
+    if start != end:
+        canvas.window.assign_wall_materials_rect(start, end)
+
+
+def _light_tool(canvas: "Canvas", event) -> None:
+    if canvas.drag_start_cell:
+        canvas.window.toggle_light_at(event.position(), canvas.cell_size())
+
+
+def _erase_cells_tool(canvas: "Canvas", event) -> None:
+    preserve_floors = canvas.window.mode == MODE_ERASE_KEEP_FLOORS
+    if canvas.drag_start_cell and canvas.drag_current_cell and canvas.drag_start_cell != canvas.drag_current_cell:
+        canvas.window.erase_cell_rect(canvas.drag_start_cell, canvas.drag_current_cell, preserve_floors)
+    else:
+        canvas.window.erase_at(event.position(), canvas.cell_size(), preserve_floors)
+
+
+RELEASE_TOOLS = {
+    MODE_FLOOR: _cell_rect_tool("add_floor_rect"),
+    MODE_INACCESSIBLE_FLOOR: _cell_rect_tool("add_inaccessible_floor_rect"),
+    MODE_GRASS: _cell_rect_tool("add_grass_rect"),
+    MODE_ERASE_GRASS: _cell_rect_tool("erase_grass_rect"),
+    MODE_ACTOR_SPAWN_PAINT: _cell_rect_tool("add_actor_spawn_zone_rect"),
+    MODE_PLAYER_SPAWN_PAINT: _cell_rect_tool("add_player_spawn_zone_rect"),
+    MODE_SPAWN_ZONE_EDIT: _spawn_zone_commit_tool,
+    MODE_WALL: _wall_line_tool("add_wall_line"),
+    MODE_BARRIER: _wall_line_tool("prompt_and_add_barrier_line"),
+    MODE_FLOOR_MATERIAL: _cell_rect_tool("assign_floor_materials_rect"),
+    MODE_WALL_MATERIAL: _wall_material_tool,
+    MODE_RAMP_MATERIAL: _cell_rect_tool("assign_ramp_materials_rect"),
+    MODE_LIGHT: _light_tool,
+    MODE_PRESSURE_PLATE: _click_toggle_tool("remove_pressure_plate_at", "prompt_and_add_pressure_plate"),
+    MODE_ITEM: _click_toggle_tool("remove_item_at", "prompt_and_add_item"),
+    MODE_ERASE_ITEMS: _cell_rect_tool("erase_items_rect"),
+    MODE_ERASE_LIGHTS: _cell_rect_tool("erase_lights_rect"),
+    **dict.fromkeys(RAMP_MODES, _ramp_tool),
+    **dict.fromkeys(ERASE_MODES, _erase_cells_tool),
+}
+
+
 class Canvas(CanvasPaintingMixin, QWidget):
     def __init__(self, window: "EditorWindow"):
         super().__init__()
@@ -259,73 +364,9 @@ class Canvas(CanvasPaintingMixin, QWidget):
     def mouseReleaseEvent(self, event) -> None:
         if event.button() != Qt.MouseButton.LeftButton:
             return
-        if self.window.mode == MODE_FLOOR and self.drag_start_cell and self.drag_current_cell:
-            self.window.add_floor_rect(self.drag_start_cell, self.drag_current_cell)
-        elif self.window.mode == MODE_INACCESSIBLE_FLOOR and self.drag_start_cell and self.drag_current_cell:
-            self.window.add_inaccessible_floor_rect(self.drag_start_cell, self.drag_current_cell)
-        elif self.window.mode == MODE_GRASS and self.drag_start_cell and self.drag_current_cell:
-            self.window.add_grass_rect(self.drag_start_cell, self.drag_current_cell)
-        elif self.window.mode == MODE_ERASE_GRASS and self.drag_start_cell and self.drag_current_cell:
-            self.window.erase_grass_rect(self.drag_start_cell, self.drag_current_cell)
-        elif self.window.mode == MODE_ACTOR_SPAWN_PAINT and self.drag_start_cell and self.drag_current_cell:
-            self.window.add_actor_spawn_zone_rect(self.drag_start_cell, self.drag_current_cell)
-        elif self.window.mode == MODE_PLAYER_SPAWN_PAINT and self.drag_start_cell and self.drag_current_cell:
-            self.window.add_player_spawn_zone_rect(self.drag_start_cell, self.drag_current_cell)
-        elif self.window.mode == MODE_SPAWN_ZONE_EDIT:
-            self.window.commit_spawn_zone_edit_drag()
-        elif self.window.mode == MODE_WALL and self.drag_start_point and self.drag_current_point:
-            self.window.add_wall_line(
-                self.drag_start_point,
-                snapped_wall_end(self.drag_start_point, self.drag_current_point),
-            )
-        elif self.window.mode == MODE_BARRIER and self.drag_start_point and self.drag_current_point:
-            self.window.prompt_and_add_barrier_line(
-                self.drag_start_point,
-                snapped_wall_end(self.drag_start_point, self.drag_current_point),
-            )
-        elif self.window.mode in RAMP_MODES and self.drag_start_cell and self.drag_current_cell:
-            self.window.add_ramp(self.drag_start_cell, self.drag_current_cell, self.window.mode)
-        elif self.window.mode == MODE_FLOOR_MATERIAL and self.drag_start_cell and self.drag_current_cell:
-            self.window.assign_floor_materials_rect(self.drag_start_cell, self.drag_current_cell)
-        elif self.window.mode == MODE_WALL_MATERIAL and self.drag_start_point and self.drag_current_point:
-            start, end = self.drag_start_point, self.drag_current_point
-            if start == end:
-                # Pure click (no drag): grab the wall under the cursor and use
-                # its endpoints as the rectangle so the rect path applies to
-                # that single wall.
-                wall = self._wall_near_position(event.position())
-                if wall is not None:
-                    start = (wall["c0"], wall["r0"])
-                    end = (wall["c1"], wall["r1"])
-            if start != end:
-                self.window.assign_wall_materials_rect(start, end)
-        elif self.window.mode == MODE_RAMP_MATERIAL and self.drag_start_cell and self.drag_current_cell:
-            self.window.assign_ramp_materials_rect(self.drag_start_cell, self.drag_current_cell)
-        elif self.window.mode == MODE_LIGHT and self.drag_start_cell:
-            self.window.toggle_light_at(event.position(), self.cell_size())
-        elif self.window.mode == MODE_PRESSURE_PLATE and self.drag_start_cell:
-            col, row = self.drag_start_cell
-            # If a plate is already here, treat the click as remove; otherwise
-            # prompt for kind and place. Right-click also removes (handled
-            # in contextMenuEvent below).
-            if not self.window.remove_pressure_plate_at(col, row):
-                self.window.prompt_and_add_pressure_plate(col, row)
-        elif self.window.mode == MODE_ITEM and self.drag_start_cell:
-            col, row = self.drag_start_cell
-            # Same click-toggle as pressure plates: occupied cell removes,
-            # empty cell prompts for type and places.
-            if not self.window.remove_item_at(col, row):
-                self.window.prompt_and_add_item(col, row)
-        elif self.window.mode == MODE_ERASE_ITEMS and self.drag_start_cell and self.drag_current_cell:
-            self.window.erase_items_rect(self.drag_start_cell, self.drag_current_cell)
-        elif self.window.mode == MODE_ERASE_LIGHTS and self.drag_start_cell and self.drag_current_cell:
-            self.window.erase_lights_rect(self.drag_start_cell, self.drag_current_cell)
-        elif self.window.mode in ERASE_MODES:
-            preserve_floors = self.window.mode == MODE_ERASE_KEEP_FLOORS
-            if self.drag_start_cell and self.drag_current_cell and self.drag_start_cell != self.drag_current_cell:
-                self.window.erase_cell_rect(self.drag_start_cell, self.drag_current_cell, preserve_floors)
-            else:
-                self.window.erase_at(event.position(), self.cell_size(), preserve_floors)
+        tool = RELEASE_TOOLS.get(self.window.mode)
+        if tool is not None:
+            tool(self, event)
         self.clear_drag()
         self.update()
 
