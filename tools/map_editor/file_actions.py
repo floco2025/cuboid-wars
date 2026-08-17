@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QFileDialog, QMessageBox
 
 from .constants import DEFAULT_GRID_COLS, DEFAULT_GRID_ROWS, MAPS_DIR
 from .dialogs import ResizeMapDialog
-from .io import empty_map, read_map, write_map
+from .io import empty_map, read_map
 from .validation import validate_map
 
 
@@ -25,14 +25,8 @@ class FileActionsMixin:
         if result is None:
             return
         new_cols, new_rows, _, _ = result
-        self.map_data = empty_map(new_cols, new_rows)
-        self.path = None
-        self.path_mtime = None
+        self.doc.replace_with_new(empty_map(new_cols, new_rows))
         self.current_level = 0
-        # Fresh map = unsaved by definition; dropping the asterisk would be
-        # misleading until the user picks a destination.
-        self.dirty = True
-        self.undo_stack.clear()
         self.refresh_ui()
 
     def open_file(self) -> None:
@@ -61,12 +55,8 @@ class FileActionsMixin:
                 + "\n".join(errors[:12])
                 + ("\n…" if len(errors) > 12 else ""),
             )
-        self.map_data = loaded
-        self.path = path
-        self.path_mtime = path.stat().st_mtime
+        self.doc.load(path)
         self.current_level = 0
-        self.dirty = False
-        self.undo_stack.clear()
         self._record_recent_path(path)
         self.refresh_ui()
 
@@ -83,29 +73,23 @@ class FileActionsMixin:
             )
             return
         # External-modification check: if the file's mtime changed under us,
-        # ask before clobbering. Skip when we have no recorded baseline
-        # (fresh map / Save As to a new path).
-        if self.path.exists() and self.path_mtime is not None:
-            current_mtime = self.path.stat().st_mtime
-            if current_mtime > self.path_mtime + 1e-3:
-                result = QMessageBox.question(
-                    self,
-                    "File Changed Externally",
-                    f"{self.path} was modified outside the editor since it was opened. "
-                    "Overwrite with your in-editor version?",
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
-                    QMessageBox.StandardButton.Cancel,
-                )
-                if result != QMessageBox.StandardButton.Yes:
-                    return
+        # ask before clobbering.
+        if self.doc.externally_modified():
+            result = QMessageBox.question(
+                self,
+                "File Changed Externally",
+                f"{self.path} was modified outside the editor since it was opened. "
+                "Overwrite with your in-editor version?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Cancel,
+            )
+            if result != QMessageBox.StandardButton.Yes:
+                return
         try:
-            write_map(self.path, self.map_data)
+            self.doc.write()
         except Exception as exc:
             QMessageBox.critical(self, "Save Failed", str(exc))
             return
-        self.path_mtime = self.path.stat().st_mtime
-        self.dirty = False
-        self._clear_autosave()
         self._record_recent_path(self.path)
         self.refresh_ui()
 

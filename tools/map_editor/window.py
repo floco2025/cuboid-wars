@@ -28,11 +28,12 @@ from .constants import (
     MODES,
     STATUS_TIMEOUT_MS,
 )
+from .document import MapDocument
 from .erase import EraseMixin
 from .file_actions import FileActionsMixin
 from .display import level_label
 from .normalization import canonicalize_map
-from .io import empty_map, load_materials_catalog, read_map, write_map
+from .io import load_materials_catalog
 from .items import ItemsMixin
 from .lights import LightsMixin
 from .placement import PlacementMixin
@@ -54,25 +55,15 @@ class EditorWindow(
 ):
     def __init__(self, path: Path):
         super().__init__()
-        self.path: Path | None = path
-        self.map_data = read_map(path) if path.exists() else empty_map()
-        # mtime snapshot for external-modification detection. Compared on save
-        # so the editor warns before overwriting a file that changed under it
-        # (e.g. someone edited `map.json` in another tool, or git pulled).
-        self.path_mtime: float | None = path.stat().st_mtime if path.exists() else None
+        # The document is the map being edited (data, file identity, dirty
+        # state, undo history); the window holds view/tool state and widgets.
+        self.doc = MapDocument(path)
         # If a newer autosave sits next to the file we just opened, offer to
         # recover it. Done before any UI is built so the user sees their
-        # restored work as the initial state. `_maybe_recover_autosave` is a
-        # mixin-side method; bail silently if recovery is declined.
+        # restored work as the initial state.
         self._maybe_recover_autosave()
         self.current_level = 0
         self.mode = MODE_FLOOR
-        self.dirty = False
-        self.undo_stack = QUndoStack(self)
-        # Cap the undo history. Each command deep-clones the whole map, so on a
-        # large map a long session would accumulate hundreds of MB. 200 steps
-        # is plenty of headroom for any plausible undo chain.
-        self.undo_stack.setUndoLimit(200)
         self.shortcuts = []
         # No default kind: the dialog opens with Kind blank on the first paint
         # of a session and remembers the last value across subsequent paints.
@@ -138,6 +129,46 @@ class EditorWindow(
         self._autosave_timer.setInterval(self.AUTOSAVE_INTERVAL_MS)
         self._autosave_timer.timeout.connect(self._tick_autosave)
         self._autosave_timer.start()
+
+    # === Document delegation ===
+    # The mixins predate `MapDocument` and address document state through the
+    # window; these properties keep that surface while the document owns it.
+
+    @property
+    def map_data(self) -> dict:
+        return self.doc.map_data
+
+    @map_data.setter
+    def map_data(self, value: dict) -> None:
+        self.doc.map_data = value
+
+    @property
+    def dirty(self) -> bool:
+        return self.doc.dirty
+
+    @dirty.setter
+    def dirty(self, value: bool) -> None:
+        self.doc.dirty = value
+
+    @property
+    def path(self) -> Path | None:
+        return self.doc.path
+
+    @path.setter
+    def path(self, value: Path | None) -> None:
+        self.doc.path = value
+
+    @property
+    def path_mtime(self) -> float | None:
+        return self.doc.path_mtime
+
+    @path_mtime.setter
+    def path_mtime(self, value: float | None) -> None:
+        self.doc.path_mtime = value
+
+    @property
+    def undo_stack(self) -> QUndoStack:
+        return self.doc.undo_stack
 
     # === Menus & toolbar ===
 
@@ -241,66 +272,34 @@ class EditorWindow(
 
     AUTOSAVE_INTERVAL_MS = 60_000
 
-    def _autosave_path(self) -> Path | None:
-        if self.path is None:
-            return None
-        return self.path.with_suffix(".autosave.json")
-
     def _maybe_recover_autosave(self) -> None:
         # Called once, very early in __init__ (before UI is constructed). If a
         # `<file>.autosave.json` sibling is newer than the file we just
         # loaded, offer to restore it.
-        if self.path is None or not self.path.exists():
+        if not self.doc.has_recoverable_autosave():
             return
-        autosave = self._autosave_path()
-        if autosave is None or not autosave.exists():
-            return
-        try:
-            if autosave.stat().st_mtime <= self.path.stat().st_mtime:
-                return
-        except OSError:
-            return
+        autosave = self.doc.autosave_path()
         from PySide6.QtWidgets import QMessageBox  # local import; avoids top-level cycle
+
         response = QMessageBox.question(
             self,
             "Recover Autosave?",
-            f"An autosave exists at {autosave.name} that is newer than {self.path.name}. "
-            "Recover it?",
+            f"An autosave exists at {autosave.name} that is newer than {self.doc.path.name}. Recover it?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.Yes,
         )
         if response != QMessageBox.StandardButton.Yes:
-            try:
-                autosave.unlink()
-            except OSError:
-                pass
+            # Declined: the autosave is rejected work; drop it so the next
+            # launch doesn't offer it again.
+            self.doc.clear_autosave()
             return
-        try:
-            recovered = read_map(autosave)
-        except Exception:
-            return
-        self.map_data = recovered
-        self.dirty = True  # unsaved by definition until the user writes the real file
+        self.doc.recover_autosave()
 
     def _tick_autosave(self) -> None:
-        if not self.dirty:
-            return
-        autosave = self._autosave_path()
-        if autosave is None:
-            return
-        try:
-            write_map(autosave, self.map_data)
-        except Exception:
-            # Autosave is best-effort; never interrupt the user with a modal.
-            pass
+        self.doc.write_autosave()
 
     def _clear_autosave(self) -> None:
-        autosave = self._autosave_path()
-        if autosave is not None and autosave.exists():
-            try:
-                autosave.unlink()
-            except OSError:
-                pass
+        self.doc.clear_autosave()
 
     # === Recent files ===
 
@@ -375,15 +374,13 @@ class EditorWindow(
             ref = self.selected_spawn_zone_ref
             if 0 <= ref.index < len(self.map_data[ref.list_name]):
                 prior_selection = (ref.list_name, copy.deepcopy(self.map_data[ref.list_name][ref.index]))
-        self.map_data = canonicalize_map(map_data)
+        self.doc.set_data(map_data, mark_dirty)
         self.current_level = max(0, min(self.current_level, len(self.map_data["levels"]) - 1))
         if prior_selection is not None:
             list_name, snapshot = prior_selection
             self.selected_spawn_zone_ref = self._zone_ref_after_change(list_name, snapshot)
         else:
             self.selected_spawn_zone_ref = None
-        if mark_dirty:
-            self.dirty = True
         self.refresh_ui()
 
     def apply_change(self, label: str, after: dict) -> None:
