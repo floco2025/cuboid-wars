@@ -241,6 +241,7 @@
       "animation_speed": 2.0
     },
     "sounds": {
+      "laser_show": "sounds/freesound_community-laser-beam-76426.wav",
       "fire": "sounds/impactGeneric_light_001.ogg",
       "missile_launch": "sounds/Retro Missile Launcher 01.wav",
       "dry_fire": "sounds/metalLatch.ogg",

@@ -163,6 +163,7 @@ pub struct WorldSyncState<'w, 's> {
     pub actor_ghosts: ResMut<'w, ActorGhostMap>,
     pub missile_map: ResMut<'w, crate::missiles::MissileMap>,
     pub missile_data: Query<'w, 's, &'static Position, With<MissileMarker>>,
+    pub firework_show: ResMut<'w, crate::vfx::FireworkShow>,
 }
 
 // The one bundle threaded through message dispatch. Nested role bundles keep

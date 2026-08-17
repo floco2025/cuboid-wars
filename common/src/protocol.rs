@@ -221,6 +221,14 @@ pub struct SShot {
     pub face_pitch: f32,
 }
 
+// Admin `/firework`: play the client-side firework show. Pure presentation —
+// the server broadcasts the seed and forgets; every client derives the same
+// choreography from it, so all clients see the same show.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SFirework {
+    pub seed: u64,
+}
+
 // A missile launched. Broadcast to all (including the shooter — clients do
 // not predict missile spawns; the server owns the whole flight). The next
 // snapshot is the presence fallback.
@@ -539,6 +547,7 @@ pub enum ServerMessage {
     HealthPotionCollected(SHealthPotionCollected),
     MissilesCollected(SMissilesCollected),
     PressurePlatePressed(SPressurePlatePressed),
+    Firework(SFirework),
     PressurePlateReleased(SPressurePlateReleased),
     AdminResponse(SAdminResponse),
     // Per-client state events

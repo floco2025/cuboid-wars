@@ -132,7 +132,7 @@ pub fn spawn_missile_pickup_visual(parent: &mut ChildSpawnerCommands, assets: &M
     spawn_missile_meshes(parent, assets);
 }
 
-fn spawn_missile_meshes(parent: &mut ChildSpawnerCommands, assets: &MissileAssets) {
+pub fn spawn_missile_meshes(parent: &mut ChildSpawnerCommands, assets: &MissileAssets) {
     parent.spawn((
         Mesh3d(assets.body_mesh.clone()),
         MeshMaterial3d(assets.body_material.clone()),

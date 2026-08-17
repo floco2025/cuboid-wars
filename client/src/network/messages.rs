@@ -260,6 +260,14 @@ pub fn dispatch_message(
                 my_player_id,
             );
         }
+        ServerMessage::Firework(firework_msg) => {
+            // Presentation only: derive the whole show from the seed so all
+            // clients play the identical choreography.
+            client_assets
+                .world_sync
+                .firework_show
+                .start(firework_msg.seed, client_assets.world_sync.map_layout.as_deref());
+        }
         ServerMessage::Pong(pong_msg) => handle_pong_message(time, rtt, pong_msg),
         ServerMessage::CookieCollected(cookie_msg) => {
             handle_item_collected_message(

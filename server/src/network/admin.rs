@@ -6,12 +6,12 @@ use crate::{
     combat::{PendingExplosions, kill_player},
     config::ServerGameplayConfig,
     map::WeatherState,
-    network::ServerToClient,
+    network::{ServerToClient, broadcast_to_all},
     players::{Invincibility, PlayerInfo, PlayerMap, UnlimitedMissiles},
 };
 use common::{
     config::GameplayConfig,
-    protocol::{BarrierKindTable, CAdmin, Health, ItemType, PlayerId, SAdminResponse, ServerMessage},
+    protocol::{BarrierKindTable, CAdmin, Health, ItemType, PlayerId, SAdminResponse, SFirework, ServerMessage},
 };
 
 // Anything longer is nonsense or abuse; truncated before parsing.
@@ -19,7 +19,7 @@ const MAX_COMMAND_CHARS: usize = 256;
 
 // One command per line: the client feed renders each line as its own row.
 // Must fit within `hud.message_feed.max_entries` or the top lines evict.
-const HELP_TEXT: &str = "/help\n/weather rain|clear\n/god [on|off]\n/kill <name>|@a\n/killall [kind]\n/heal [name|@a]\n/give keys|key <color>\n/give powerups|powerup <type>\n/give missiles\n/kick <name>";
+const HELP_TEXT: &str = "/help\n/weather rain|clear\n/god [on|off]\n/kill <name>|@a\n/killall [kind]\n/heal [name|@a]\n/give keys|key <color>\n/give powerups|powerup <type>\n/give missiles\n/firework\n/kick <name>";
 
 // The four timer power-up config ids, in `PowerUpKind` order.
 const POWER_UP_IDS: [&str; 3] = ["speed", "multi_shot", "low_gravity"];
@@ -61,6 +61,7 @@ enum AdminCommand {
     GivePowerups,
     GivePowerup(String),
     GiveMissiles,
+    Firework,
     Kick(String),
     MissingTarget(&'static str),
     NotACommand,
@@ -102,6 +103,7 @@ fn parse_admin_command(input: &str) -> AdminCommand {
         ["give", "powerups"] => AdminCommand::GivePowerups,
         ["give", "powerup", power_up] => AdminCommand::GivePowerup((*power_up).to_owned()),
         ["give", "missiles"] => AdminCommand::GiveMissiles,
+        ["firework"] => AdminCommand::Firework,
         ["kick"] => AdminCommand::MissingTarget("kick"),
         ["kick", name @ ..] => AdminCommand::Kick(name.join(" ")),
         _ => AdminCommand::Unknown,
@@ -282,6 +284,17 @@ fn run_admin_command(
             // the next snapshot updates the HUD.
             let missiles = info.add_missiles(max, max);
             format!("gave missiles ({missiles}/{max})")
+        }
+        AdminCommand::Firework => {
+            // Pure presentation: broadcast the seed and forget. Every client
+            // derives the same show from it.
+            broadcast_to_all(
+                players,
+                ServerMessage::Firework(SFirework {
+                    seed: rand::random::<u64>(),
+                }),
+            );
+            "enjoy the show".to_owned()
         }
         AdminCommand::Kick(name) => {
             let mut count = 0usize;

@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use rand::{RngExt, rng};
 
+use super::firework::FireworkRocket;
 use super::particles::{ParticleClouds, ParticleSpawn};
 use crate::{config::ClientSettings, constants::MISSILE_BODY_LENGTH};
 use common::protocol::MissileMarker;
@@ -18,13 +19,14 @@ pub fn missile_exhaust_system(
     mut clouds: ResMut<ParticleClouds>,
     client_settings: Res<ClientSettings>,
     missiles: Query<&Transform, With<MissileMarker>>,
+    rockets: Query<&Transform, With<FireworkRocket>>,
 ) {
     let config = client_settings.vfx.missile_exhaust;
     let expected = config.particles_per_sec * time.delta_secs();
     let base_color = EXHAUST_BASE_COLOR * config.emissive_brightness;
     let mut rng = rng();
 
-    for transform in &missiles {
+    for transform in missiles.iter().chain(rockets.iter()) {
         let mut count = expected.floor() as usize;
         if rng.random_range(0.0..1.0) < expected.fract() {
             count += 1;

@@ -80,6 +80,32 @@ impl ProjectileBundle {
     }
 }
 
+// Presentation-only "ember" for the firework show: a glowing projectile with
+// an explicit velocity and a short life. No server twin exists, so it can
+// never deal damage — it just arcs, bounces, and sparks like the real ones.
+const EMBER_LIFETIME_SECS: f32 = 6.0;
+
+pub fn spawn_ember_projectile(
+    commands: &mut Commands,
+    projectile_assets: &ProjectileAssets,
+    config: &ProjectilesConfig,
+    pos: Vec3,
+    velocity: Vec3,
+    shooter: Option<PlayerId>,
+) {
+    let mut bundle = ProjectileBundle::new(
+        projectile_assets,
+        config,
+        pos,
+        0.0,
+        0.0,
+        shooter.unwrap_or(PlayerId(u32::MAX)),
+    );
+    bundle.proj_motion.velocity = velocity;
+    bundle.proj_motion.lifetime = Timer::from_seconds(EMBER_LIFETIME_SECS, TimerMode::Once);
+    commands.spawn(bundle);
+}
+
 // ============================================================================
 // Projectile Spawning
 // ============================================================================

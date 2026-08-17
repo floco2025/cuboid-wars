@@ -13,6 +13,7 @@ use crate::{
 // `Presentation` set runs after `CharacterSync` so they read this frame's
 // synced values.
 pub fn presentation_plugin(app: &mut App) {
+    app.init_resource::<FireworkShow>();
     app.add_observer(beam_ghost_removed_system);
     app.add_systems(
         Update,
@@ -30,6 +31,7 @@ pub fn presentation_plugin(app: &mut App) {
             beam_ghost_sparkle_system.after(beam_ghost_fade_system),
             particle_clouds_system.after(beam_ghost_sparkle_system),
             laser_beam_update_system,
+            firework_system,
             items_animation_system,
             y_spin_system,
         )
