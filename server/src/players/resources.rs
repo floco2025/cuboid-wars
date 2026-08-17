@@ -483,6 +483,14 @@ mod tests {
     }
 
     #[test]
+    fn add_missiles_caps_at_max_and_reports_the_new_count() {
+        let mut info = dummy_info();
+        assert_eq!(info.add_missiles(2, 3), 2);
+        assert_eq!(info.add_missiles(5, 3), 3, "adds clamp to the cap");
+        assert_eq!(info.add_missiles(0, 3), 3, "zero add is a no-op");
+    }
+
+    #[test]
     fn try_start_missile_requires_ammo() {
         let mut info = dummy_info();
         assert!(!info.try_start_missile(), "no ammo");

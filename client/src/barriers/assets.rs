@@ -157,3 +157,24 @@ fn parse_hex_color(hex: &str) -> Result<Color, String> {
     let b = parse_byte(&h[4..6])? as f32 / 255.0;
     Ok(Color::srgb(r, g, b))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hex_color_parses_with_and_without_hash() {
+        let expected = Color::srgb(1.0, 0.0, 0.0);
+        assert_eq!(parse_hex_color("#ff0000").expect("hash form parses"), expected);
+        assert_eq!(parse_hex_color("ff0000").expect("bare form parses"), expected);
+        let mixed = parse_hex_color("#0080FF").expect("mixed case parses");
+        assert_eq!(mixed, Color::srgb(0.0, 128.0 / 255.0, 1.0));
+    }
+
+    #[test]
+    fn hex_color_rejects_wrong_length_and_bad_digits() {
+        assert!(parse_hex_color("#fff").is_err(), "3-digit shorthand is not supported");
+        assert!(parse_hex_color("").is_err());
+        assert!(parse_hex_color("#gggggg").is_err(), "non-hex digits must be rejected");
+    }
+}

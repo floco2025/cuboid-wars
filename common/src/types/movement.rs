@@ -223,4 +223,17 @@ mod tests {
             .is_finite()
         );
     }
+
+    #[test]
+    fn move_intent_finite_check_rejects_nan_and_inf_directions() {
+        assert!(PlayerMoveIntent::Idle.is_finite());
+        assert!(PlayerMoveIntent::Walking { direction: 1.2 }.is_finite());
+        assert!(!PlayerMoveIntent::Walking { direction: f32::NAN }.is_finite());
+        assert!(
+            !PlayerMoveIntent::Running {
+                direction: f32::INFINITY
+            }
+            .is_finite()
+        );
+    }
 }

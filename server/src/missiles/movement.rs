@@ -65,7 +65,6 @@ pub struct MissileMovementParams<'w, 's> {
 pub fn missiles_movement_system(mut commands: Commands, time: Res<Time>, mut params: MissileMovementParams) {
     let delta = time.delta_secs();
     let config = params.server_gameplay_config.missiles;
-    let epsilon_cos = MISSILE_INTENT_EPSILON_RAD.cos();
 
     for (entity, id, mut pos, velocity) in &mut params.missile_query {
         let Some(info) = params.missiles.get_mut(id) else {
@@ -176,7 +175,7 @@ pub fn missiles_movement_system(mut commands: Commands, time: Res<Time>, mut par
             None => {
                 *pos += translation;
                 let dir = velocity.0.normalize_or_zero();
-                if dir != Vec3::ZERO && dir.dot(info.last_broadcast_dir) < epsilon_cos {
+                if course_drifted(dir, info.last_broadcast_dir) {
                     info.last_broadcast_dir = dir;
                     broadcast_to_all(
                         &params.players,
@@ -206,4 +205,39 @@ fn detonate_missile(
     broadcast_to_all(players, ServerMessage::MissileDeath(SMissileDeath { id, pos }));
     pending_explosions.push_missile(info.shooter, pos);
     commands.entity(entity).despawn();
+}
+
+// The steered direction has drifted past the broadcast epsilon since the
+// last `SMissileMoveIntent`. A zero direction (degenerate velocity) never
+// broadcasts.
+fn course_drifted(dir: Vec3, last_broadcast_dir: Vec3) -> bool {
+    dir != Vec3::ZERO && dir.dot(last_broadcast_dir) < MISSILE_INTENT_EPSILON_RAD.cos()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn rotated(base: Vec3, radians: f32) -> Vec3 {
+        Quat::from_rotation_y(radians) * base
+    }
+
+    #[test]
+    fn course_within_epsilon_does_not_broadcast() {
+        let last = Vec3::Z;
+        assert!(!course_drifted(last, last), "identical heading is quiet");
+        assert!(!course_drifted(rotated(last, 0.04), last), "sub-epsilon drift is quiet");
+    }
+
+    #[test]
+    fn course_past_epsilon_broadcasts() {
+        let last = Vec3::Z;
+        assert!(course_drifted(rotated(last, 0.06), last));
+        assert!(course_drifted(-last, last), "a reversal always broadcasts");
+    }
+
+    #[test]
+    fn degenerate_direction_never_broadcasts() {
+        assert!(!course_drifted(Vec3::ZERO, Vec3::Z));
+    }
 }
