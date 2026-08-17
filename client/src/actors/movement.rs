@@ -148,7 +148,6 @@ pub(crate) fn plan_actor_moves(
                 },
                 &CharacterEnvironment {
                     collision_world,
-                    has_phasing: false,
                     gravity: map_settings.gravity,
                     passable_kinds: // actors never have low-gravity
                 &open_barrier_kinds.0,

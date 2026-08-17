@@ -97,13 +97,7 @@ pub(super) fn spawn_player_entry(
                 },))
                 .with_children(|row| {
                     for kind in PowerUpKind::ALL {
-                        // Phasing is defunct: no reserved slot. Defensive:
-                        // if it's ever granted (admin), it still shows.
-                        let active = player_info.power_up(kind);
-                        if kind == PowerUpKind::Phasing && !active {
-                            continue;
-                        }
-                        spawn_power_up_icon(row, active, kind, shapes);
+                        spawn_power_up_icon(row, player_info.power_up(kind), kind, shapes);
                     }
 
                     spawn_category_gap(row);
@@ -142,8 +136,8 @@ pub(super) fn player_health(player_info: &PlayerInfo, health_query: &Query<&Heal
 }
 
 // Per-kind silhouettes matching the in-game meshes and the editor glyphs:
-// speed = triangle (tetrahedron), multi-shot / phasing = square (cube),
-// low-gravity = circle (sphere).
+// speed = triangle (tetrahedron), multi-shot = square (cube), low-gravity =
+// circle (sphere).
 fn spawn_power_up_icon(row: &mut ChildSpawnerCommands, active: bool, kind: PowerUpKind, shapes: &HudShapeAssets) {
     let color = if active {
         item_type_color(kind.to_item_type())
@@ -171,7 +165,7 @@ fn spawn_power_up_icon(row: &mut ChildSpawnerCommands, active: bool, kind: Power
             node.border_radius = BorderRadius::all(Val::Percent(50.0));
             row.spawn((node, BackgroundColor(color)));
         }
-        PowerUpKind::MultiShot | PowerUpKind::Phasing => {
+        PowerUpKind::MultiShot => {
             row.spawn((node, BackgroundColor(color)));
         }
     }

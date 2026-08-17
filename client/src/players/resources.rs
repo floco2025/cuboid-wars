@@ -149,7 +149,7 @@ mod tests {
             face_dir: 0.0,
             health: Health(100.0),
             score: 7,
-            power_ups: [true, true, false, true],
+            power_ups: [true, true, false],
             stunned: true,
             held_keys: vec![BarrierKindId(1), BarrierKindId(3)],
             missiles: 2,
@@ -177,7 +177,7 @@ mod tests {
         let mut info = PlayerInfo::from_snapshot(Entity::PLACEHOLDER, &player);
         let status = SPlayerStatus {
             id: PlayerId(12),
-            power_ups: [false, false, true, false],
+            power_ups: [false, false, true],
             stunned: false,
             held_keys: vec![BarrierKindId(2)],
         };

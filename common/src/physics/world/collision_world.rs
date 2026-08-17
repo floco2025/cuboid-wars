@@ -115,7 +115,6 @@ impl CollisionWorld {
         character_shape: &dyn Shape,
         character_pos: &Pose,
         desired_translation: Vector,
-        has_phasing: bool,
         passable_kinds: &[BarrierKindId],
         events: impl FnMut(CharacterCollision),
     ) -> EffectiveCharacterMovement {
@@ -123,11 +122,7 @@ impl CollisionWorld {
             self.narrow_phase.query_dispatcher(),
             &self.bodies,
             &self.colliders,
-            query_filter(character_collision_groups(
-                has_phasing,
-                passable_kinds,
-                self.all_barrier_groups,
-            )),
+            query_filter(character_collision_groups(passable_kinds, self.all_barrier_groups)),
         );
         controller.move_shape(
             dt,
@@ -278,18 +273,13 @@ impl CollisionWorld {
         character_pos: &Pose,
         max_distance: f32,
         target_distance: f32,
-        has_phasing: bool,
         passable_kinds: &[BarrierKindId],
     ) -> Option<ShapeCastHit> {
         let query_pipeline = self.broad_phase.as_query_pipeline(
             self.narrow_phase.query_dispatcher(),
             &self.bodies,
             &self.colliders,
-            query_filter(character_collision_groups(
-                has_phasing,
-                passable_kinds,
-                self.all_barrier_groups,
-            )),
+            query_filter(character_collision_groups(passable_kinds, self.all_barrier_groups)),
         );
         let options = ShapeCastOptions {
             max_time_of_impact: max_distance,

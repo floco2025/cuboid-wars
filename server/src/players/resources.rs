@@ -7,12 +7,9 @@ use crate::{
     config::{PowerUpsConfig, Quest, QuestKind},
     network::ServerToClient,
 };
-use common::{
-    constants::{ALWAYS_LOW_GRAVITY, ALWAYS_MULTI_SHOT, ALWAYS_PHASING, ALWAYS_SPEED},
-    protocol::{
-        BarrierKindId, Health, ItemType, NewQuest, Player, PlayerId, PlayerMoveIntent, PlayerMovementState, Position,
-        PowerUpKind, QuestId, SPlayerStatus, SQuestCompleted, SQuestProgress, SQuestsAssigned, ServerMessage,
-    },
+use common::protocol::{
+    BarrierKindId, Health, ItemType, NewQuest, Player, PlayerId, PlayerMoveIntent, PlayerMovementState, Position,
+    PowerUpKind, QuestId, SPlayerStatus, SQuestCompleted, SQuestProgress, SQuestsAssigned, ServerMessage,
 };
 
 // Global debug invincibility. Seeded at startup from the config /
@@ -141,7 +138,7 @@ impl PlayerInfo {
 
     #[must_use]
     pub fn has(&self, kind: PowerUpKind) -> bool {
-        always_on(kind) || self.power_up_timers[kind.index()] > 0.0
+        self.power_up_timers[kind.index()] > 0.0
     }
 
     #[must_use]
@@ -152,11 +149,6 @@ impl PlayerInfo {
     #[must_use]
     pub fn has_multi_shot(&self) -> bool {
         self.has(PowerUpKind::MultiShot)
-    }
-
-    #[must_use]
-    pub fn has_phasing(&self) -> bool {
-        self.has(PowerUpKind::Phasing)
     }
 
     #[must_use]
@@ -242,19 +234,6 @@ impl PlayerInfo {
             tick_timer(t, delta);
         }
         tick_timer(&mut self.stun_timer, delta);
-    }
-}
-
-// Per-kind debug toggle: when true, the predicate is always on regardless
-// of the timer state. Used for quick-test-without-pickup. Wraps the
-// pre-existing `ALWAYS_*` constants for the new enum.
-#[must_use]
-fn always_on(kind: PowerUpKind) -> bool {
-    match kind {
-        PowerUpKind::Speed => ALWAYS_SPEED,
-        PowerUpKind::MultiShot => ALWAYS_MULTI_SHOT,
-        PowerUpKind::Phasing => ALWAYS_PHASING,
-        PowerUpKind::LowGravity => ALWAYS_LOW_GRAVITY,
     }
 }
 
@@ -414,7 +393,6 @@ mod tests {
         PowerUpsConfig {
             speed_duration_secs: 1.0,
             multi_shot_duration_secs: 1.0,
-            phasing_duration_secs: 1.0,
             low_gravity_duration_secs: 1.0,
             health_potion_heal_fraction: 0.25,
         }
@@ -457,13 +435,11 @@ mod tests {
 
         info.grant_power_up(ItemType::SpeedPowerUp, &durations);
         info.grant_power_up(ItemType::MultiShotPowerUp, &durations);
-        info.grant_power_up(ItemType::PhasingPowerUp, &durations);
         info.grant_power_up(ItemType::LowGravityPowerUp, &durations);
 
         let status = info.status(PlayerId(7));
         assert!(status.power_up(PowerUpKind::Speed));
         assert!(status.power_up(PowerUpKind::MultiShot));
-        assert!(status.power_up(PowerUpKind::Phasing));
         assert!(status.power_up(PowerUpKind::LowGravity));
     }
 

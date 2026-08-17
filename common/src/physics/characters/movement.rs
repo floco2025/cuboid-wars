@@ -72,7 +72,6 @@ pub struct CharacterStep {
 #[derive(Clone, Copy)]
 pub struct CharacterEnvironment<'a> {
     pub collision_world: &'a CollisionWorld,
-    pub has_phasing: bool,
     pub gravity: f32,
     pub passable_kinds: &'a [crate::protocol::BarrierKindId],
     pub physics: CharacterPhysicsConfig,
@@ -89,7 +88,6 @@ pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) 
     } = step;
     let start_pos = &start;
     let collision_world = env.collision_world;
-    let has_phasing = env.has_phasing;
     let gravity = env.gravity;
     let passable_kinds = env.passable_kinds;
     let physics = env.physics;
@@ -98,14 +96,7 @@ pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) 
     let character_pos = character_pose(start_pos, physics);
     let support_shape = character_support_probe_shape(physics);
     let current_ground = if start_vertical_velocity <= 0.0 {
-        character_ground_hit(
-            collision_world,
-            &support_shape,
-            start_pos,
-            has_phasing,
-            passable_kinds,
-            physics,
-        )
+        character_ground_hit(collision_world, &support_shape, start_pos, passable_kinds, physics)
     } else {
         None
     };
@@ -131,18 +122,11 @@ pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) 
     // corner cases; skipping the slide that tick is safe (the end-of-tick
     // vv-zeroing keeps the perch from pumping fall velocity).
     let perch_slide_move = if can_follow_ground && current_ground.is_none() {
-        character_perch_hit(
-            collision_world,
-            &character_shape,
-            start_pos,
-            has_phasing,
-            passable_kinds,
-            physics,
-        )
-        .and_then(|hit| Vec3::new(start_pos.x - hit.contact.x, 0.0, start_pos.z - hit.contact.z).try_normalize())
-        .map_or(Vector::ZERO, |dir| {
-            Vector::new(dir.x, 0.0, dir.z) * CHARACTER_PERCH_SLIDE_SPEED * delta
-        })
+        character_perch_hit(collision_world, &character_shape, start_pos, passable_kinds, physics)
+            .and_then(|hit| Vec3::new(start_pos.x - hit.contact.x, 0.0, start_pos.z - hit.contact.z).try_normalize())
+            .map_or(Vector::ZERO, |dir| {
+                Vector::new(dir.x, 0.0, dir.z) * CHARACTER_PERCH_SLIDE_SPEED * delta
+            })
     } else {
         Vector::ZERO
     };
@@ -172,7 +156,6 @@ pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) 
         &character_shape,
         &character_pos,
         requested_move,
-        has_phasing,
         passable_kinds,
         |collision| {
             let normal = vec3(collision.hit.normal1);
@@ -192,14 +175,7 @@ pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) 
         z: start_pos.z + movement.translation.z,
     };
     let resolved_ground = if can_follow_ground {
-        character_ground_hit(
-            collision_world,
-            &support_shape,
-            &resolved,
-            has_phasing,
-            passable_kinds,
-            physics,
-        )
+        character_ground_hit(collision_world, &support_shape, &resolved, passable_kinds, physics)
     } else {
         None
     };
@@ -262,14 +238,13 @@ pub fn position_has_floor_support(
     physics: CharacterPhysicsConfig,
 ) -> bool {
     let shape = character_support_probe_shape(physics);
-    character_ground_hit(collision_world, &shape, pos, false, &[], physics).is_some()
+    character_ground_hit(collision_world, &shape, pos, &[], physics).is_some()
 }
 
 fn character_ground_hit(
     collision_world: &CollisionWorld,
     shape: &Cuboid,
     pos: &Position,
-    has_phasing: bool,
     passable_kinds: &[crate::protocol::BarrierKindId],
     physics: CharacterPhysicsConfig,
 ) -> Option<ShapeCastHit> {
@@ -279,7 +254,6 @@ fn character_ground_hit(
         &pose,
         CHARACTER_GROUND_SNAP_DISTANCE + physics.collider.bottom_y_offset(),
         0.0,
-        has_phasing,
         passable_kinds,
     )
 }
@@ -292,7 +266,6 @@ fn character_perch_hit(
     collision_world: &CollisionWorld,
     shape: &Cuboid,
     pos: &Position,
-    has_phasing: bool,
     passable_kinds: &[crate::protocol::BarrierKindId],
     physics: CharacterPhysicsConfig,
 ) -> Option<ShapeCastHit> {
@@ -302,7 +275,6 @@ fn character_perch_hit(
         &pose,
         physics.collider.bottom_y_offset() + CHARACTER_STEP_HEIGHT,
         0.0,
-        has_phasing,
         passable_kinds,
     )
 }

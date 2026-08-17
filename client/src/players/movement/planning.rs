@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
-    constants::{ALWAYS_LOW_GRAVITY, ALWAYS_PHASING, SNAPSHOT_SECS},
+    constants::SNAPSHOT_SECS,
     physics::{
         CharacterEnvironment, CharacterMovePlan, CharacterStep, CharacterVerticalVelocity, CollisionWorld,
         KnockbackVelocity, passable_barrier_kinds, step_character_movement,
@@ -81,8 +81,7 @@ pub(crate) fn plan_player_moves(
         // Immutable lookup for the read-only fields; the mut borrow above ended with the `match`.
         let info = players.get(player_id);
         let has_speed_power_up = info.is_some_and(|i| i.power_up(PowerUpKind::Speed));
-        let has_phasing = ALWAYS_PHASING || info.is_some_and(|i| i.power_up(PowerUpKind::Phasing));
-        let has_low_gravity = ALWAYS_LOW_GRAVITY || info.is_some_and(|i| i.power_up(PowerUpKind::LowGravity));
+        let has_low_gravity = info.is_some_and(|i| i.power_up(PowerUpKind::LowGravity));
         let held_keys: &[BarrierKindId] = info.map_or(&[], |i| i.held_keys.as_slice());
         let player_name = info.map(|i| i.name.as_str());
 
@@ -139,7 +138,6 @@ pub(crate) fn plan_player_moves(
                 },
                 &CharacterEnvironment {
                     collision_world,
-                    has_phasing,
                     gravity: map_settings.gravity_for(has_low_gravity),
                     passable_kinds: &passable_kinds,
                     physics: player_physics,

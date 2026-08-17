@@ -71,7 +71,7 @@ LIGHT_SIDES = ("N", "S", "E", "W")
 # Item type ids mirror `ItemType::from_config_id` in common/src/types/map.rs,
 # plus "key" (which additionally carries a barrier kind).
 ITEM_KEY_TYPE = "key"
-ITEM_TYPES = ("speed", "multi_shot", "phasing", "low_gravity", "health_potion", "cookie", "missile_pack", ITEM_KEY_TYPE)
+ITEM_TYPES = ("speed", "multi_shot", "low_gravity", "health_potion", "cookie", "missile_pack", ITEM_KEY_TYPE)
 # Canvas glyph colors for non-key items; keys use BARRIER_KIND_COLORS[kind].
 # Mirror the in-game `ITEM_*_COLOR` constants in client/src/constants.rs
 # (cookie renders from its gold texture in-game, so it keeps the gold the
@@ -79,7 +79,6 @@ ITEM_TYPES = ("speed", "multi_shot", "phasing", "low_gravity", "health_potion", 
 ITEM_TYPE_COLORS = {
     "speed": "#ffd926",
     "multi_shot": "#ff4040",
-    "phasing": "#33ff33",
     "low_gravity": "#4dd9ff",
     "health_potion": "#33f24d",
     "cookie": "#facc15",

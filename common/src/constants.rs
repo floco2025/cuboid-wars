@@ -12,8 +12,8 @@ pub const WALL_HEIGHT: f32 = 4.0;
 
 // Barriers. Force-field segments authored on grid edges; same shape as walls
 // but rendered as translucent pulsating geometry on the client. Each kind
-// gets its own collision group (`barrier_collision_group`) so held keys,
-// phasing, and open pressure plates gate pass-through per color
+// gets its own collision group (`barrier_collision_group`) so held keys and
+// open pressure plates gate pass-through per color
 // (`passable_barrier_kinds`).
 pub const BARRIER_THICKNESS: f32 = WALL_THICKNESS / 6.0;
 pub const BARRIER_HEIGHT: f32 = WALL_HEIGHT;
@@ -112,12 +112,3 @@ pub const CHARACTER_PERCH_SLIDE_SPEED: f32 = 3.0; // m/s
 pub const POWER_UP_SPEED_MULTIPLIER: f32 = 1.8;
 pub const POWER_UP_MULTI_SHOT_MULTIPLIER: i32 = 5;
 pub const POWER_UP_MULTI_SHOT_ANGLE: f32 = 1.5;
-
-// ============================================================================
-// Debug Flags
-// ============================================================================
-
-pub const ALWAYS_SPEED: bool = false;
-pub const ALWAYS_MULTI_SHOT: bool = false;
-pub const ALWAYS_PHASING: bool = false;
-pub const ALWAYS_LOW_GRAVITY: bool = false;

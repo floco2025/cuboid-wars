@@ -74,7 +74,6 @@ impl ActorMoveContext<'_> {
             },
             &CharacterEnvironment {
                 collision_world: self.collision_world,
-                has_phasing: false,
                 gravity: self.gravity,
                 passable_kinds: self.open_barrier_kinds,
                 physics: self.actor_physics,

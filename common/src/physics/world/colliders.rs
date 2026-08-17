@@ -35,22 +35,13 @@ pub(super) fn ground_collision_groups() -> Group {
 }
 
 // Filter for character (player + actor) movement. Starts from world groups
-// plus every configured barrier kind, then removes:
-//   * `WALL_COLLISION_GROUP` if the player is phasing — phasing is a wall
-//     hack, NOT a universal "pass through anything"; barrier groups stay
-//   * each kind in `passable_kinds` (the per-player union of held keys
-//     and pressure-plate open kinds — caller merges via
-//     `crate::physics::passable_barrier_kinds`).
+// plus every configured barrier kind, then removes each kind in
+// `passable_kinds` (the per-player union of held keys and
+// pressure-plate open kinds — caller merges via
+// `crate::physics::passable_barrier_kinds`).
 // Actors call with `passable_kinds: &[]` and never get a free pass.
-pub(super) fn character_collision_groups(
-    has_phasing: bool,
-    passable_kinds: &[BarrierKindId],
-    all_barriers: Group,
-) -> Group {
+pub(super) fn character_collision_groups(passable_kinds: &[BarrierKindId], all_barriers: Group) -> Group {
     let mut groups = world_collision_groups() | all_barriers;
-    if has_phasing {
-        groups.remove(WALL_COLLISION_GROUP);
-    }
     for kind in passable_kinds {
         groups.remove(barrier_collision_group(*kind));
     }
@@ -261,7 +252,7 @@ mod tests {
     #[test]
     fn character_collision_groups_keeps_all_barriers_for_actors() {
         let all = barrier_mask(3);
-        let groups = character_collision_groups(false, &[], all);
+        let groups = character_collision_groups(&[], all);
         assert_eq!(groups & all, all);
         assert!(groups.contains(WALL_COLLISION_GROUP));
     }
@@ -270,19 +261,11 @@ mod tests {
     fn character_collision_groups_removes_held_key_kinds() {
         let all = barrier_mask(3);
         let held = [BarrierKindId(1)];
-        let groups = character_collision_groups(false, &held, all);
+        let groups = character_collision_groups(&held, all);
         assert!(!groups.contains(barrier_collision_group(BarrierKindId(1))));
         assert!(groups.contains(barrier_collision_group(BarrierKindId(0))));
         assert!(groups.contains(barrier_collision_group(BarrierKindId(2))));
         assert!(groups.contains(WALL_COLLISION_GROUP));
-    }
-
-    #[test]
-    fn character_collision_groups_phasing_only_removes_walls_not_barriers() {
-        let all = barrier_mask(2);
-        let groups = character_collision_groups(true, &[], all);
-        assert!(!groups.contains(WALL_COLLISION_GROUP));
-        assert_eq!(groups & all, all);
     }
 
     // After pressure plates, callers union `held_keys` with `open_kinds` via
@@ -295,7 +278,7 @@ mod tests {
         let held = [BarrierKindId(1)];
         let open = [BarrierKindId(3)];
         let merged = crate::physics::passable_barrier_kinds(&held, &open);
-        let groups = character_collision_groups(false, &merged, all);
+        let groups = character_collision_groups(&merged, all);
         assert!(!groups.contains(barrier_collision_group(BarrierKindId(1))));
         assert!(!groups.contains(barrier_collision_group(BarrierKindId(3))));
         assert!(groups.contains(barrier_collision_group(BarrierKindId(0))));

@@ -230,7 +230,6 @@ impl FallDamageConfig {
 pub struct PowerUpsConfig {
     pub speed_duration_secs: f32,
     pub multi_shot_duration_secs: f32,
-    pub phasing_duration_secs: f32,
     pub low_gravity_duration_secs: f32,
     // Fraction of max health restored by a single Health Potion pickup.
     // 0.0 < value <= 1.0 (1.0 = full heal). No duration — instant effect.
@@ -247,7 +246,6 @@ impl PowerUpsConfig {
         match kind {
             K::Speed => self.speed_duration_secs,
             K::MultiShot => self.multi_shot_duration_secs,
-            K::Phasing => self.phasing_duration_secs,
             K::LowGravity => self.low_gravity_duration_secs,
         }
     }
@@ -258,7 +256,6 @@ impl PowerUpsConfig {
             self.multi_shot_duration_secs,
             &format!("{path}.multi_shot_duration_secs"),
         )?;
-        validate_non_negative_finite(self.phasing_duration_secs, &format!("{path}.phasing_duration_secs"))?;
         validate_non_negative_finite(
             self.low_gravity_duration_secs,
             &format!("{path}.low_gravity_duration_secs"),
@@ -284,7 +281,6 @@ pub struct PlacedItemsConfig {
 pub struct PlacedItemRespawnSecs {
     pub speed: f32,
     pub multi_shot: f32,
-    pub phasing: f32,
     pub low_gravity: f32,
     pub health_potion: f32,
     pub cookie: f32,
@@ -299,7 +295,6 @@ impl PlacedItemsConfig {
         match item_type {
             ItemType::SpeedPowerUp => secs.speed,
             ItemType::MultiShotPowerUp => secs.multi_shot,
-            ItemType::PhasingPowerUp => secs.phasing,
             ItemType::LowGravityPowerUp => secs.low_gravity,
             ItemType::HealthPotion => secs.health_potion,
             ItemType::Cookie => secs.cookie,
@@ -313,7 +308,6 @@ impl PlacedItemsConfig {
         for (value, name) in [
             (secs.speed, "speed"),
             (secs.multi_shot, "multi_shot"),
-            (secs.phasing, "phasing"),
             (secs.low_gravity, "low_gravity"),
             (secs.health_potion, "health_potion"),
             (secs.cookie, "cookie"),
@@ -336,7 +330,6 @@ mod tests {
             respawn_secs: PlacedItemRespawnSecs {
                 speed: 1.0,
                 multi_shot: 2.0,
-                phasing: 3.0,
                 low_gravity: 4.0,
                 health_potion: 5.0,
                 cookie: 6.0,
@@ -346,7 +339,6 @@ mod tests {
         };
         assert_eq!(config.respawn_secs_for(ItemType::SpeedPowerUp), 1.0);
         assert_eq!(config.respawn_secs_for(ItemType::MultiShotPowerUp), 2.0);
-        assert_eq!(config.respawn_secs_for(ItemType::PhasingPowerUp), 3.0);
         assert_eq!(config.respawn_secs_for(ItemType::LowGravityPowerUp), 4.0);
         assert_eq!(config.respawn_secs_for(ItemType::HealthPotion), 5.0);
         assert_eq!(config.respawn_secs_for(ItemType::Cookie), 6.0);

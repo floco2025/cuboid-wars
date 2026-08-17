@@ -103,7 +103,6 @@ impl AssetSet {
         let name = match item_type {
             ItemType::SpeedPowerUp => "SpeedPowerUp",
             ItemType::MultiShotPowerUp => "MultiShotPowerUp",
-            ItemType::PhasingPowerUp => "PhasingPowerUp",
             ItemType::LowGravityPowerUp => "LowGravityPowerUp",
             ItemType::HealthPotion => "HealthPotion",
             ItemType::Cookie => "Cookie",

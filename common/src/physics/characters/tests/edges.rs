@@ -31,7 +31,6 @@ fn edge_overhang_slides_off_and_falls() {
             },
             &CharacterEnvironment {
                 collision_world: &collision_world,
-                has_phasing: false,
                 gravity: TEST_GRAVITY,
                 passable_kinds: &[],
                 physics,
@@ -96,7 +95,6 @@ fn probe_grounded_near_edge_does_not_slide() {
             },
             &CharacterEnvironment {
                 collision_world: &collision_world,
-                has_phasing: false,
                 gravity: TEST_GRAVITY,
                 passable_kinds: &[],
                 physics,
@@ -135,7 +133,6 @@ fn input_overrides_perch_slide() {
             },
             &CharacterEnvironment {
                 collision_world: &collision_world,
-                has_phasing: false,
                 gravity: TEST_GRAVITY,
                 passable_kinds: &[],
                 physics,
@@ -188,7 +185,6 @@ fn blocked_slide_keeps_velocity_zeroed() {
             },
             &CharacterEnvironment {
                 collision_world: &collision_world,
-                has_phasing: false,
                 gravity: TEST_GRAVITY,
                 passable_kinds: &[],
                 physics,

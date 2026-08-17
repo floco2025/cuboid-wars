@@ -6,7 +6,6 @@ use super::BarrierKindId;
 pub enum ItemType {
     SpeedPowerUp,
     MultiShotPowerUp,
-    PhasingPowerUp,
     LowGravityPowerUp,
     // Instant heal on pickup; no durable state on `PlayerInfo` (unlike the
     // other power-ups, which arm a timer). The heal amount comes from
@@ -28,14 +27,14 @@ impl ItemType {
     // carry — so key-accepting parsers must check this id themselves.
     pub const KEY_CONFIG_ID: &'static str = "key";
 
-    // Items that arm a per-player timer on pickup (the classic four
+    // Items that arm a per-player timer on pickup (the timer
     // power-ups). `HealthPotion` is NOT one of these — its effect is
     // instant; see `PowerUpKind`.
     #[must_use]
     pub const fn is_timer_power_up(self) -> bool {
         matches!(
             self,
-            Self::SpeedPowerUp | Self::MultiShotPowerUp | Self::PhasingPowerUp | Self::LowGravityPowerUp
+            Self::SpeedPowerUp | Self::MultiShotPowerUp | Self::LowGravityPowerUp
         )
     }
 
@@ -44,7 +43,6 @@ impl ItemType {
         match id {
             "speed" => Some(Self::SpeedPowerUp),
             "multi_shot" => Some(Self::MultiShotPowerUp),
-            "phasing" => Some(Self::PhasingPowerUp),
             "low_gravity" => Some(Self::LowGravityPowerUp),
             "health_potion" => Some(Self::HealthPotion),
             "cookie" => Some(Self::Cookie),
@@ -58,7 +56,6 @@ impl ItemType {
         match self {
             Self::SpeedPowerUp => "speed",
             Self::MultiShotPowerUp => "multi_shot",
-            Self::PhasingPowerUp => "phasing",
             Self::LowGravityPowerUp => "low_gravity",
             Self::HealthPotion => "health_potion",
             Self::Cookie => "cookie",
@@ -77,13 +74,12 @@ impl ItemType {
 pub enum PowerUpKind {
     Speed,
     MultiShot,
-    Phasing,
     LowGravity,
 }
 
 impl PowerUpKind {
-    pub const COUNT: usize = 4;
-    pub const ALL: [PowerUpKind; Self::COUNT] = [Self::Speed, Self::MultiShot, Self::Phasing, Self::LowGravity];
+    pub const COUNT: usize = 3;
+    pub const ALL: [PowerUpKind; Self::COUNT] = [Self::Speed, Self::MultiShot, Self::LowGravity];
 
     #[must_use]
     pub const fn index(self) -> usize {
@@ -95,7 +91,6 @@ impl PowerUpKind {
         match ty {
             ItemType::SpeedPowerUp => Some(Self::Speed),
             ItemType::MultiShotPowerUp => Some(Self::MultiShot),
-            ItemType::PhasingPowerUp => Some(Self::Phasing),
             ItemType::LowGravityPowerUp => Some(Self::LowGravity),
             ItemType::HealthPotion | ItemType::Cookie | ItemType::Key(_) | ItemType::MissilePack => None,
         }
@@ -106,7 +101,6 @@ impl PowerUpKind {
         match self {
             Self::Speed => ItemType::SpeedPowerUp,
             Self::MultiShot => ItemType::MultiShotPowerUp,
-            Self::Phasing => ItemType::PhasingPowerUp,
             Self::LowGravity => ItemType::LowGravityPowerUp,
         }
     }
@@ -121,7 +115,6 @@ mod tests {
         let non_key = [
             ItemType::SpeedPowerUp,
             ItemType::MultiShotPowerUp,
-            ItemType::PhasingPowerUp,
             ItemType::LowGravityPowerUp,
             ItemType::HealthPotion,
             ItemType::Cookie,

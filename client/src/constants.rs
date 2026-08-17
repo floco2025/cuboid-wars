@@ -161,7 +161,6 @@ pub const ITEM_SPIN_HZ: f32 = 0.4; // slow coin-spin around Y for keys + power-u
 // `ITEM_TYPE_COLORS`) — keep the two in sync.
 pub const ITEM_SPEED_COLOR: Color = Color::srgb(1.00, 0.85, 0.15); // Yellow (lightning)
 pub const ITEM_MULTISHOT_COLOR: Color = Color::srgb(1.00, 0.25, 0.25); // Red
-pub const ITEM_PHASING_COLOR: Color = Color::srgb(0.2, 1.0, 0.2); // Green — unchanged; phasing is dormant
 pub const ITEM_LOW_GRAVITY_COLOR: Color = Color::srgb(0.30, 0.85, 1.00); // Cyan
 pub const ITEM_HEALTH_COLOR: Color = Color::srgb(0.20, 0.95, 0.30); // Green (heal / potion)
 pub const ITEM_MISSILE_COLOR: Color = Color::srgb(0.95, 0.45, 0.10); // Orange (missile pack)

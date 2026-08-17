@@ -188,7 +188,7 @@ class CanvasPaintingMixin:
 
     def _paint_items(self, painter: QPainter, cell: float, level_idx: int) -> None:
         # Glyphs mirror the in-game meshes (client/src/items/spawn.rs):
-        # cookie = small sphere, speed = tetrahedron, multi_shot / phasing =
+        # cookie = small sphere, speed = tetrahedron, multi_shot =
         # cube, low_gravity = sphere, health potion = capsule. Keys: diamond
         # in the barrier-kind color — shape-distinct from the plates' inset
         # squares so a key on a plate cell still reads.
@@ -228,7 +228,7 @@ class CanvasPaintingMixin:
                         QPoint(round(cx - half), round(cy + half)),
                     ]
                 )
-            elif item_type in ("multi_shot", "phasing"):
+            elif item_type == "multi_shot":
                 half = cell * 0.22
                 painter.drawRect(QRectF(cx - half, cy - half, half * 2, half * 2))
             elif item_type == "health_potion":

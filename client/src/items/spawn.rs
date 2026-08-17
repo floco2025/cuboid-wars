@@ -93,7 +93,6 @@ pub fn setup_item_assets(
             client_settings.rendering.texture_mipmaps_enabled,
         ))
     };
-    // One shared cube handle so MultiShot and Phasing batch together.
     let cuboid_mesh = meshes.add(Cuboid::new(ITEM_SIZE, ITEM_SIZE, ITEM_SIZE));
 
     // The map editor mirrors these silhouettes as 2D glyphs
@@ -108,17 +107,11 @@ pub fn setup_item_assets(
             material: build_power_up(ItemType::SpeedPowerUp),
             base_orientation: Quat::from_rotation_arc(Vec3::new(1.0, 1.0, 1.0).normalize(), Vec3::Y),
         },
-        // MultiShot + Phasing keep the original cube.
+        // MultiShot keeps the original cube.
         PowerUpVisual {
             item_type: ItemType::MultiShotPowerUp,
-            mesh: cuboid_mesh.clone(),
-            material: build_power_up(ItemType::MultiShotPowerUp),
-            base_orientation: Quat::IDENTITY,
-        },
-        PowerUpVisual {
-            item_type: ItemType::PhasingPowerUp,
             mesh: cuboid_mesh,
-            material: build_power_up(ItemType::PhasingPowerUp),
+            material: build_power_up(ItemType::MultiShotPowerUp),
             base_orientation: Quat::IDENTITY,
         },
         // LowGravity: sphere — floats like an orb.
@@ -157,7 +150,6 @@ pub fn item_type_color(item_type: ItemType) -> Color {
     match item_type {
         ItemType::SpeedPowerUp => ITEM_SPEED_COLOR,
         ItemType::MultiShotPowerUp => ITEM_MULTISHOT_COLOR,
-        ItemType::PhasingPowerUp => ITEM_PHASING_COLOR,
         ItemType::LowGravityPowerUp => ITEM_LOW_GRAVITY_COLOR,
         ItemType::HealthPotion => ITEM_HEALTH_COLOR,
         ItemType::Cookie => Color::WHITE,
@@ -181,11 +173,9 @@ pub fn spawn_item(
         ItemType::Cookie => spawn_cookie(commands, item_assets, item_id, position, level),
         ItemType::Key(kind) => spawn_key(commands, barrier_assets, item_id, position, level, kind),
         ItemType::MissilePack => spawn_missile_pack(commands, missile_assets, item_id, position, level),
-        ItemType::SpeedPowerUp
-        | ItemType::MultiShotPowerUp
-        | ItemType::PhasingPowerUp
-        | ItemType::LowGravityPowerUp
-        | ItemType::HealthPotion => spawn_power_up(commands, item_assets, item_id, item_type, position, level),
+        ItemType::SpeedPowerUp | ItemType::MultiShotPowerUp | ItemType::LowGravityPowerUp | ItemType::HealthPotion => {
+            spawn_power_up(commands, item_assets, item_id, item_type, position, level)
+        }
     }
 }
 

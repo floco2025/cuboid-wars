@@ -57,7 +57,6 @@
   "power_ups": {
     "speed_duration_secs": 30.0,
     "multi_shot_duration_secs": 25.0,
-    "phasing_duration_secs": 15.0,
     "low_gravity_duration_secs": 20.0,
     "health_potion_heal_fraction": 0.5
   },
@@ -65,7 +64,6 @@
     "respawn_secs": {
       "speed": 60.0,
       "multi_shot": 60.0,
-      "phasing": 60.0,
       "low_gravity": 60.0,
       "health_potion": 60.0,
       "cookie": 60.0,

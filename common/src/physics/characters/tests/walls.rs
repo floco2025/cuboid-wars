@@ -23,7 +23,6 @@ fn player_hits_wall_collider_from_collision_world() {
         },
         &CharacterEnvironment {
             collision_world: &collision_world,
-            has_phasing: false,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
             physics: player_physics(),
@@ -56,7 +55,6 @@ fn repeated_wall_pressure_does_not_leak_through_wall() {
         },
         &CharacterEnvironment {
             collision_world: &collision_world,
-            has_phasing: false,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
             physics: player_physics(),
@@ -72,7 +70,6 @@ fn repeated_wall_pressure_does_not_leak_through_wall() {
         },
         &CharacterEnvironment {
             collision_world: &collision_world,
-            has_phasing: false,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
             physics: player_physics(),
@@ -106,7 +103,6 @@ fn player_slides_along_wall_under_pressure() {
         },
         &CharacterEnvironment {
             collision_world: &collision_world,
-            has_phasing: false,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
             physics: player_physics(),
@@ -122,7 +118,6 @@ fn player_slides_along_wall_under_pressure() {
         },
         &CharacterEnvironment {
             collision_world: &collision_world,
-            has_phasing: false,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
             physics: player_physics(),
@@ -155,7 +150,6 @@ fn falling_player_pushing_into_wall_keeps_falling() {
         },
         &CharacterEnvironment {
             collision_world: &collision_world,
-            has_phasing: false,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
             physics: player_physics(),
@@ -190,7 +184,6 @@ fn diagonal_wall_hit_slides_in_same_step() {
         },
         &CharacterEnvironment {
             collision_world: &collision_world,
-            has_phasing: false,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
             physics: player_physics(),
@@ -234,7 +227,6 @@ fn repeated_diagonal_wall_pressure_keeps_sliding() {
             },
             &CharacterEnvironment {
                 collision_world: &collision_world,
-                has_phasing: false,
                 gravity: TEST_GRAVITY,
                 passable_kinds: &[],
                 physics: player_physics(),
@@ -268,7 +260,6 @@ fn diagonal_wall_end_hit_slides_along_wall() {
         },
         &CharacterEnvironment {
             collision_world: &collision_world,
-            has_phasing: false,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
             physics: player_physics(),
@@ -278,36 +269,4 @@ fn diagonal_wall_end_hit_slides_along_wall() {
     assert!(step.blocked);
     assert!(step.position.x > pos.x);
     assert!(step.position.z < 0.0);
-}
-
-#[test]
-fn phasing_player_ignores_wall_collider_from_collision_world() {
-    let wall = test_wall();
-    let collision_world = collision_world_with(&[wall], &[], &[]);
-    let pos = Position {
-        x: -1.0,
-        y: 0.0,
-        z: 0.0,
-    };
-    let motion = 0.0;
-
-    let step = step_character_movement(
-        CharacterStep {
-            start: pos,
-            vertical_velocity: motion,
-            target_x: 1.0,
-            target_z: pos.z,
-            delta: 0.1,
-        },
-        &CharacterEnvironment {
-            collision_world: &collision_world,
-            has_phasing: true,
-            gravity: TEST_GRAVITY,
-            passable_kinds: &[],
-            physics: player_physics(),
-        },
-    );
-
-    assert!(!step.blocked);
-    assert_eq!(step.position.x, 1.0);
 }

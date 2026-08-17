@@ -22,7 +22,7 @@ const MAX_COMMAND_CHARS: usize = 256;
 const HELP_TEXT: &str = "/help\n/weather rain|clear\n/god [on|off]\n/kill <name>|@a\n/killall [kind]\n/heal [name|@a]\n/give keys|key <color>\n/give powerups|powerup <type>\n/give missiles\n/kick <name>";
 
 // The four timer power-up config ids, in `PowerUpKind` order.
-const POWER_UP_IDS: [&str; 4] = ["speed", "multi_shot", "phasing", "low_gravity"];
+const POWER_UP_IDS: [&str; 3] = ["speed", "multi_shot", "low_gravity"];
 
 // Authorization seam. Deliberately wide open for now — every client is an
 // admin; tighten here (role on `PlayerInfo`, config allowlist, …) without
@@ -254,9 +254,7 @@ fn run_admin_command(
             let Some(info) = players.get_mut(&sender) else {
                 return "sender not found".to_owned();
             };
-            // Phasing is defunct (not game-tested): excluded from the bulk
-            // give, granted only via the explicit `/give powerup phasing`.
-            let ids = POWER_UP_IDS.iter().filter(|id| **id != "phasing");
+            let ids = POWER_UP_IDS.iter();
             let mut given = 0usize;
             for id in ids {
                 grant_power_up_by_id(info, id, &admin.server_gameplay_config);
@@ -385,8 +383,8 @@ mod tests {
         assert_eq!(parse_admin_command("/give powerups"), AdminCommand::GivePowerups);
         assert_eq!(parse_admin_command("/give missiles"), AdminCommand::GiveMissiles);
         assert_eq!(
-            parse_admin_command("/give powerup phasing"),
-            AdminCommand::GivePowerup("phasing".to_owned())
+            parse_admin_command("/give powerup speed"),
+            AdminCommand::GivePowerup("speed".to_owned())
         );
         assert_eq!(parse_admin_command("/kick Bob"), AdminCommand::Kick("Bob".to_owned()));
         assert_eq!(parse_admin_command("/kick"), AdminCommand::MissingTarget("kick"));
@@ -423,10 +421,10 @@ mod tests {
         assert!(!info.add_key(kind), "second add of the same key must be a no-op");
 
         let config = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
-        grant_power_up_by_id(&mut info, "phasing", &config);
+        grant_power_up_by_id(&mut info, "speed", &config);
         assert!(
-            info.power_up_timers[common::protocol::PowerUpKind::Phasing.index()] > 0.0,
-            "phasing timer must be armed"
+            info.power_up_timers[common::protocol::PowerUpKind::Speed.index()] > 0.0,
+            "speed timer must be armed"
         );
     }
 

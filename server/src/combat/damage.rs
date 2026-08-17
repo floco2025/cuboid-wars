@@ -271,7 +271,6 @@ mod tests {
             power_ups: PowerUpsConfig {
                 speed_duration_secs: 1.0,
                 multi_shot_duration_secs: 1.0,
-                phasing_duration_secs: 1.0,
                 low_gravity_duration_secs: 1.0,
                 health_potion_heal_fraction: 0.25,
             },
@@ -279,7 +278,6 @@ mod tests {
                 respawn_secs: PlacedItemRespawnSecs {
                     speed: 60.0,
                     multi_shot: 60.0,
-                    phasing: 60.0,
                     low_gravity: 60.0,
                     health_potion: 60.0,
                     cookie: 60.0,

@@ -94,10 +94,7 @@ pub fn item_collection_system(
             ItemType::MissilePack => {
                 collect_missile_pack(&mut players, player_id, &server_gameplay_config, &gameplay_config);
             }
-            ItemType::SpeedPowerUp
-            | ItemType::MultiShotPowerUp
-            | ItemType::PhasingPowerUp
-            | ItemType::LowGravityPowerUp => {
+            ItemType::SpeedPowerUp | ItemType::MultiShotPowerUp | ItemType::LowGravityPowerUp => {
                 // Guarded by the enum arm so an item type whose taxonomy
                 // changes won't silently fall through to a power-up handler.
                 assert!(item_type.is_timer_power_up());

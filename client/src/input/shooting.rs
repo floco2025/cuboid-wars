@@ -15,7 +15,7 @@ use crate::{
     projectiles::{ProjectileAssets, spawn_projectiles},
     ui::ConsoleState,
 };
-use common::{config::GameplayConfig, constants::ALWAYS_MULTI_SHOT, physics::CollisionWorld, protocol::*};
+use common::{config::GameplayConfig, physics::CollisionWorld, protocol::*};
 
 // Bundles the shooter-identity resources so `input_shooting_system` stays
 // under Bevy's 16-parameter system tuple limit.
@@ -85,12 +85,11 @@ pub fn input_shooting_system(
         });
         let _ = to_server.send(ClientToServer::Send(shot_msg));
 
-        let has_multi_shot = ALWAYS_MULTI_SHOT
-            || shooter
-                .my_player_id
-                .as_ref()
-                .and_then(|id| shooter.players.get(&id.0))
-                .is_some_and(|info| info.power_up(PowerUpKind::MultiShot));
+        let has_multi_shot = shooter
+            .my_player_id
+            .as_ref()
+            .and_then(|id| shooter.players.get(&id.0))
+            .is_some_and(|info| info.power_up(PowerUpKind::MultiShot));
 
         if let Some(my_id) = shooter.my_player_id.as_ref()
             && let Some(collision_world) = collision_world.as_ref()
