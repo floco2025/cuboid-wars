@@ -188,7 +188,7 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                 .actors
                 .get(actor_id)
                 .expect("actor in query missing from ActorMap");
-            let actor_physics = params.gameplay_config.validated_actor(&info.spawn_kind).physics();
+            let actor_physics = params.gameplay_config.expect_actor(&info.spawn_kind).physics();
             if let Some(hit) =
                 projectile_character_hit(&proj_pos, &projectile, delta, position, face_direction.0, actor_physics)
             {
@@ -291,7 +291,7 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                             &spawn_kind,
                             &params.server_gameplay_config,
                         );
-                        // Stash the killer so `actor_removal_system`'s
+                        // Stash the killer so `actors_removal_system`'s
                         // `SActorDeath` broadcast can attribute the kill.
                         if let Some(info) = params.actors.get_mut(id) {
                             info.last_damager = Some(*shooter_id);

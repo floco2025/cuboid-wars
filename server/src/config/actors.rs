@@ -236,17 +236,17 @@ mod tests {
     #[test]
     fn default_config_loads_zapper_fire_group() {
         let config = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
-        let zapper = config.validated_actor("zapper");
+        let zapper = config.expect_actor("zapper");
         let fire = zapper.fire.as_ref().expect("zapper fire group missing from config");
         assert_eq!(fire.duration_secs, 2.0);
         assert_eq!(fire.cooldown_secs, 5.0);
         assert_eq!(zapper.combat.contact_explosion_distance, None);
 
         // The contact kinds must not have inherited the laser behavior.
-        let mine = config.validated_actor("mine");
+        let mine = config.expect_actor("mine");
         assert!(mine.fire.is_none());
         assert_eq!(mine.combat.contact_explosion_distance, Some(0.4));
-        assert!(config.validated_actor("sentry").fire.is_none());
+        assert!(config.expect_actor("sentry").fire.is_none());
     }
 
     #[test]

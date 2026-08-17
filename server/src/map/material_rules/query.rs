@@ -50,8 +50,8 @@ impl MaterialRules {
         //      rather than a diagonal cell's.
         //   3. Any cardinal neighbour of the midpoint that has a floor.
         //   4. Adjacent wall on this level.
-        let mid_col = self.geometry.world_x_to_cell_col(f32::midpoint(floor.x1, floor.x2));
-        let mid_row = self.geometry.world_z_to_cell_row(f32::midpoint(floor.z1, floor.z2));
+        let mid_col = self.geometry.cell_col_containing_x(f32::midpoint(floor.x1, floor.x2));
+        let mid_row = self.geometry.cell_row_containing_z(f32::midpoint(floor.z1, floor.z2));
         if let Some(materials) = self.segments.floors.get(&(floor.level, mid_col, mid_row)) {
             return materials.clone();
         }
@@ -81,8 +81,8 @@ impl MaterialRules {
         if z_extent >= GRID_CELL_SIZE / 2.0 && x_extent >= GRID_CELL_SIZE / 2.0 {
             return None;
         }
-        let mid_col = self.geometry.world_x_to_cell_col(f32::midpoint(floor.x1, floor.x2));
-        let mid_row = self.geometry.world_z_to_cell_row(f32::midpoint(floor.z1, floor.z2));
+        let mid_col = self.geometry.cell_col_containing_x(f32::midpoint(floor.x1, floor.x2));
+        let mid_row = self.geometry.cell_row_containing_z(f32::midpoint(floor.z1, floor.z2));
         // Thin in z: originating cell sits on whichever z side is on a grid
         // line. Same logic mirrored for x (no x-thin fillers exist today,
         // but the symmetry is cheap to keep).
@@ -90,9 +90,9 @@ impl MaterialRules {
             let max_z = floor.z1.max(floor.z2);
             let min_z = floor.z1.min(floor.z2);
             if self.is_on_grid_z(max_z) && !self.is_on_grid_z(min_z) {
-                (mid_col, self.geometry.world_z_to_cell_row(max_z + GRID_LINE_EPS))
+                (mid_col, self.geometry.cell_row_containing_z(max_z + GRID_LINE_EPS))
             } else if self.is_on_grid_z(min_z) && !self.is_on_grid_z(max_z) {
-                (mid_col, self.geometry.world_z_to_cell_row(min_z - GRID_LINE_EPS))
+                (mid_col, self.geometry.cell_row_containing_z(min_z - GRID_LINE_EPS))
             } else {
                 return None;
             }
@@ -100,9 +100,9 @@ impl MaterialRules {
             let max_x = floor.x1.max(floor.x2);
             let min_x = floor.x1.min(floor.x2);
             if self.is_on_grid_x(max_x) && !self.is_on_grid_x(min_x) {
-                (self.geometry.world_x_to_cell_col(max_x + GRID_LINE_EPS), mid_row)
+                (self.geometry.cell_col_containing_x(max_x + GRID_LINE_EPS), mid_row)
             } else if self.is_on_grid_x(min_x) && !self.is_on_grid_x(max_x) {
-                (self.geometry.world_x_to_cell_col(min_x - GRID_LINE_EPS), mid_row)
+                (self.geometry.cell_col_containing_x(min_x - GRID_LINE_EPS), mid_row)
             } else {
                 return None;
             }
@@ -114,12 +114,12 @@ impl MaterialRules {
     }
 
     fn is_on_grid_z(&self, z: f32) -> bool {
-        let nearest = self.geometry.world_z_to_grid_row(z);
+        let nearest = self.geometry.nearest_grid_row_to_z(z);
         (z - self.geometry.cell_to_world_z(nearest)).abs() < GRID_LINE_EPS
     }
 
     fn is_on_grid_x(&self, x: f32) -> bool {
-        let nearest = self.geometry.world_x_to_grid_col(x);
+        let nearest = self.geometry.nearest_grid_col_to_x(x);
         (x - self.geometry.cell_to_world_x(nearest)).abs() < GRID_LINE_EPS
     }
 
@@ -164,12 +164,12 @@ impl MaterialRules {
             }
         }
         let from = [
-            self.geometry.world_x_to_grid_col(wall.x1),
-            self.geometry.world_z_to_grid_row(wall.z1),
+            self.geometry.nearest_grid_col_to_x(wall.x1),
+            self.geometry.nearest_grid_row_to_z(wall.z1),
         ];
         let to = [
-            self.geometry.world_x_to_grid_col(wall.x2),
-            self.geometry.world_z_to_grid_row(wall.z2),
+            self.geometry.nearest_grid_col_to_x(wall.x2),
+            self.geometry.nearest_grid_row_to_z(wall.z2),
         ];
         let (a, b) = wall_edge_key(from, to);
         if let Some(materials) = self.segments.walls.get(&(wall.level, a, b)) {

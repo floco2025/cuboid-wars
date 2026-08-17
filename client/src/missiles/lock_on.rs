@@ -105,7 +105,7 @@ fn compute_lock(
                 HomingTarget::Actor(*id),
                 *pos,
                 face_dir.0,
-                gameplay_config.validated_actor(&info.kind).physics(),
+                gameplay_config.expect_actor(&info.kind).physics(),
             ))
         }))
         .collect::<Vec<_>>();

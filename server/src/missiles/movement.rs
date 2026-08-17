@@ -152,7 +152,7 @@ pub fn missiles_movement_system(mut commands: Commands, time: Res<Time>, mut par
                 .actors
                 .get(actor_id)
                 .expect("actor in query missing from ActorMap");
-            let physics = params.gameplay_config.validated_actor(&actor_info.spawn_kind).physics();
+            let physics = params.gameplay_config.expect_actor(&actor_info.spawn_kind).physics();
             if let Some(hit) =
                 ball_character_hit(&pos, velocity.0, config.radius, delta, target_pos, face_dir.0, physics)
             {

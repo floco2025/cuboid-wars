@@ -41,8 +41,8 @@ fn decide_spawn(live: u32, count: u32, throttle: f32) -> SpawnDecision {
 // Startup-only: fill every spawn zone to its `count`. Runs once when the
 // world boots, irrespective of `respawns` — initial fill is universal.
 // Spawns are queued, not spawned: each waits out its beam-in warning window
-// in `PendingActorSpawns` before `actor_pending_spawn_system` materializes it.
-pub fn actor_initial_spawn_system(
+// in `PendingActorSpawns` before `actors_pending_spawn_system` materializes it.
+pub fn actors_initial_spawn_system(
     mut pending: ResMut<PendingActorSpawns>,
     mut spawner: ResMut<ActorSpawner>,
     map_config: Res<MapConfig>,
@@ -60,8 +60,8 @@ pub fn actor_initial_spawn_system(
     for (zone_idx, zone) in map_config.actor_spawn_zones.iter().enumerate() {
         // Configs are cross-validated against the map at startup, so any
         // zone kind here is guaranteed to resolve in both configs.
-        let actor_config = gameplay_config.validated_actor(&zone.kind);
-        let kind_server_config = server_gameplay_config.validated_actor(&zone.kind);
+        let actor_config = gameplay_config.expect_actor(&zone.kind);
+        let kind_server_config = server_gameplay_config.expect_actor(&zone.kind);
         let actor_physics = actor_config.physics();
         for _ in 0..zone.count {
             queue_actor_spawn_in_zone(
@@ -88,7 +88,7 @@ pub fn actor_initial_spawn_system(
 // 0 while the slot is full; on a death the throttle clock starts ticking
 // (via `Tick`) and only reaches 0 — at which point a `Spawn` fires and the
 // throttle is reset to the kind's `spawn_throttle_time`.
-pub fn actor_respawn_system(
+pub fn actors_respawn_system(
     mut pending: ResMut<PendingActorSpawns>,
     mut spawner: ResMut<ActorSpawner>,
     mut throttles: ResMut<ActorSpawnThrottles>,
@@ -129,12 +129,12 @@ pub fn actor_respawn_system(
     }
 
     for (zone_idx, zone) in map_config.actor_spawn_zones.iter().enumerate() {
-        let kind_server_config = server_gameplay_config.validated_actor(&zone.kind);
+        let kind_server_config = server_gameplay_config.expect_actor(&zone.kind);
         if !kind_server_config.respawn.enabled {
             // One-shot kind: no replacement after deaths, ever.
             continue;
         }
-        let actor_config = gameplay_config.validated_actor(&zone.kind);
+        let actor_config = gameplay_config.expect_actor(&zone.kind);
         let actor_physics = actor_config.physics();
         let throttle_time = kind_server_config.respawn.delay_secs;
 
@@ -173,7 +173,7 @@ pub fn actor_respawn_system(
 // contact detonation on the next tick. Runs at the head of the network chain
 // (see main.rs) so a pending entry's removal and its actor's appearance land
 // in the same snapshot.
-pub fn actor_pending_spawn_system(
+pub fn actors_pending_spawn_system(
     mut commands: Commands,
     mut actors: ResMut<ActorMap>,
     mut pending: ResMut<PendingActorSpawns>,
@@ -191,8 +191,8 @@ pub fn actor_pending_spawn_system(
             &mut commands,
             &mut actors,
             &mut rng,
-            gameplay_config.validated_actor(&spawn.kind),
-            server_gameplay_config.validated_actor(&spawn.kind),
+            gameplay_config.expect_actor(&spawn.kind),
+            server_gameplay_config.expect_actor(&spawn.kind),
             spawn,
         );
     }

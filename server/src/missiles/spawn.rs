@@ -81,7 +81,7 @@ pub fn handle_missile_shot_message(
             let Ok((pos, _, _, _)) = actor_data.get(info.entity) else {
                 return;
             };
-            character_center(*pos, gameplay_config.validated_actor(&info.spawn_kind).physics())
+            character_center(*pos, gameplay_config.expect_actor(&info.spawn_kind).physics())
         }
     };
     let max_distance = gameplay_config.missiles.lock_max_distance + LOCK_RANGE_GRACE;

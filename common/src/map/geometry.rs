@@ -35,22 +35,22 @@ impl MapGeometry {
     }
 
     #[must_use]
-    pub fn world_x_to_cell_col(&self, x: f32) -> i32 {
+    pub fn cell_col_containing_x(&self, x: f32) -> i32 {
         ((x + self.width() / 2.0) / GRID_CELL_SIZE).floor() as i32
     }
 
     #[must_use]
-    pub fn world_z_to_cell_row(&self, z: f32) -> i32 {
+    pub fn cell_row_containing_z(&self, z: f32) -> i32 {
         ((z + self.depth() / 2.0) / GRID_CELL_SIZE).floor() as i32
     }
 
     #[must_use]
-    pub fn world_x_to_grid_col(&self, x: f32) -> i32 {
+    pub fn nearest_grid_col_to_x(&self, x: f32) -> i32 {
         ((x + self.width() / 2.0) / GRID_CELL_SIZE).round() as i32
     }
 
     #[must_use]
-    pub fn world_z_to_grid_row(&self, z: f32) -> i32 {
+    pub fn nearest_grid_row_to_z(&self, z: f32) -> i32 {
         ((z + self.depth() / 2.0) / GRID_CELL_SIZE).round() as i32
     }
 }

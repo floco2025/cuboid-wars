@@ -242,7 +242,7 @@ fn resolve_target(
             let (pos, _) = target_data.get(info.entity).ok()?;
             Some((
                 *pos,
-                character_center(*pos, gameplay_config.validated_actor(&info.spawn_kind).physics()),
+                character_center(*pos, gameplay_config.expect_actor(&info.spawn_kind).physics()),
             ))
         }
     }

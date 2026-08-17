@@ -14,7 +14,7 @@ use crate::{
 use common::{
     config::GameplayConfig,
     constants::LEVEL_HEIGHT,
-    map::{MapGeometry, compute_player_level},
+    map::{MapGeometry, level_for_y},
     physics::CollisionWorld,
     protocol::{ActorId, ActorMarker, ActorMoveIntent, PlayerId, PlayerMarker, Position, SActorBeam, ServerMessage},
 };
@@ -28,7 +28,7 @@ use super::{
 // Thin ECS shell: gathers plain-data inputs (configs, leash geometry, gated
 // perception) and hands the entire per-actor decision to
 // `tick_actor_behavior`, which owns every `ActorGoal` transition.
-pub fn actor_behavior_system(
+pub fn actors_behavior_system(
     time: Res<Time>,
     players: Res<PlayerMap>,
     collision_world: Res<CollisionWorld>,
@@ -49,9 +49,9 @@ pub fn actor_behavior_system(
             continue;
         };
         // Per-kind config: actor kinds are cross-validated against the map at
-        // startup, so `validated_actor` cannot panic here.
-        let actor_config = gameplay_config.validated_actor(&info.spawn_kind);
-        let kind_config = server_gameplay_config.validated_actor(&info.spawn_kind);
+        // startup, so `expect_actor` cannot panic here.
+        let actor_config = gameplay_config.expect_actor(&info.spawn_kind);
+        let kind_config = server_gameplay_config.expect_actor(&info.spawn_kind);
 
         let zone = &map_config.actor_spawn_zones[info.spawn_zone_index];
         let zone_bounds = zone.xz_bounds(&map_geometry);
@@ -181,7 +181,7 @@ pub(super) fn active_leash(goal: &ActorGoal, kind_config: &ActorKindServerConfig
 // never trip it — squatting on the wrong level forever. Chase/Pursuit stay
 // level-free (cross-level chases are legal).
 pub(super) fn patrolling_off_zone_level(goal: &ActorGoal, pos_y: f32, zone_level: u8) -> bool {
-    matches!(goal, ActorGoal::Patrol { .. }) && compute_player_level(pos_y) != zone_level
+    matches!(goal, ActorGoal::Patrol { .. }) && level_for_y(pos_y) != zone_level
 }
 
 // The whole per-actor decision for one tick: timers → arrival → leash →

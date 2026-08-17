@@ -54,7 +54,7 @@ pub(super) fn wall_edges(geometry: &MapGeometry, wall: &Wall) -> Vec<([i32; 2], 
     let dx = (wall.x2 - wall.x1).abs();
     let dz = (wall.z2 - wall.z1).abs();
     if dx >= dz {
-        let row = geometry.world_z_to_grid_row(f32::midpoint(wall.z1, wall.z2));
+        let row = geometry.nearest_grid_row_to_z(f32::midpoint(wall.z1, wall.z2));
         let min_col = first_edge_midpoint_at_or_after(wall.x1.min(wall.x2), geometry.width());
         let max_col = last_edge_midpoint_at_or_before(wall.x1.max(wall.x2), geometry.width());
         if min_col > max_col {
@@ -63,7 +63,7 @@ pub(super) fn wall_edges(geometry: &MapGeometry, wall: &Wall) -> Vec<([i32; 2], 
         return (min_col..=max_col).map(|col| ([col, row], [col + 1, row])).collect();
     }
 
-    let col = geometry.world_x_to_grid_col(f32::midpoint(wall.x1, wall.x2));
+    let col = geometry.nearest_grid_col_to_x(f32::midpoint(wall.x1, wall.x2));
     let min_row = first_edge_midpoint_at_or_after(wall.z1.min(wall.z2), geometry.depth());
     let max_row = last_edge_midpoint_at_or_before(wall.z1.max(wall.z2), geometry.depth());
     if min_row > max_row {

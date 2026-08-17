@@ -7,4 +7,4 @@ mod zone;
 mod tests;
 
 pub(crate) use patrol::random_direction_time;
-pub use tick::actor_behavior_system;
+pub use tick::actors_behavior_system;

@@ -15,9 +15,9 @@ use common::{
 // queues a blast for the shared resolver. Falls are silent —
 // they were teleports before, so the asymmetry is preserved.
 //
-// Actor entities are despawned outright; the `actor_respawn_system` will
+// Actor entities are despawned outright; the `actors_respawn_system` will
 // pick the missing slots up next tick and create replacements.
-pub fn actor_removal_system(
+pub fn actors_removal_system(
     mut commands: Commands,
     mut actors: ResMut<ActorMap>,
     players: Res<PlayerMap>,

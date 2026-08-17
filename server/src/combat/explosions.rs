@@ -209,9 +209,9 @@ fn blast_spec(pending: PendingExplosion, gameplay: &GameplayConfig, server: &Ser
                 id: source_id,
                 kind: spawn_kind.clone(),
             },
-            center: character_center(pos, gameplay.validated_actor(&spawn_kind).physics()),
+            center: character_center(pos, gameplay.expect_actor(&spawn_kind).physics()),
             excluded_actor: Some(source_entity),
-            damage: server.validated_actor(&spawn_kind).combat.explosion,
+            damage: server.expect_actor(&spawn_kind).combat.explosion,
             killer: None,
         },
         PendingExplosion::Missile { shooter, pos } => BlastSpec {
@@ -289,13 +289,13 @@ fn apply_blast(
         let Some(info) = actors.get(id) else {
             continue;
         };
-        let actor_physics = gameplay.validated_actor(&info.spawn_kind).physics();
+        let actor_physics = gameplay.expect_actor(&info.spawn_kind).physics();
         let victim_center = character_center(*pos, actor_physics);
         let Some(falloff) = visible_blast_falloff(spec.center, victim_center, spec.damage.radius, collision_world)
         else {
             continue;
         };
-        let armor = server.validated_actor(&info.spawn_kind).combat.armor;
+        let armor = server.expect_actor(&info.spawn_kind).combat.armor;
         apply_damage(&mut health, spec.damage.max_damage * falloff * (1.0 - armor));
         if health.0 <= 0.0 {
             outcome.dead_actors.push(DeadActor {
@@ -363,8 +363,8 @@ fn apply_player_impulses(context: &mut ExplosionContext, impulses: HashMap<Playe
                     vertical_velocity: vertical_velocity.0,
                     velocity_x: velocity.x,
                     velocity_z: velocity.z,
-                    direction_x: direction.x,
-                    direction_z: direction.z,
+                    hit_dir_x: direction.x,
+                    hit_dir_z: direction.z,
                     strength: impulse.strength,
                 })));
         }
@@ -425,7 +425,7 @@ fn source_description(source: &BlastSource, players: &PlayerMap) -> String {
 mod tests {
     use super::*;
     use crate::{
-        actors::actor_removal_system,
+        actors::actors_removal_system,
         actors::{ActorGoal, ActorInfo},
         characters::characters_health_regeneration_system,
         players::PlayerInfo,
@@ -508,7 +508,7 @@ mod tests {
         app.add_systems(
             Update,
             (
-                actor_removal_system,
+                actors_removal_system,
                 explosions_system,
                 characters_health_regeneration_system,
             )
@@ -715,7 +715,7 @@ mod tests {
         let reward = app
             .world()
             .resource::<ServerGameplayConfig>()
-            .validated_actor("zapper")
+            .expect_actor("zapper")
             .combat
             .score_reward_on_kill;
         assert_eq!(

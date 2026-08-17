@@ -9,7 +9,7 @@ use crate::{
     map::MapLevel,
     missiles::{MissileAssets, spawn_missile_pickup_visual},
 };
-use common::{map::compute_player_level, protocol::*};
+use common::{map::level_for_y, protocol::*};
 
 // ============================================================================
 // Components
@@ -176,7 +176,7 @@ pub fn spawn_item(
     item_type: ItemType,
     position: &Position,
 ) -> Entity {
-    let level = MapLevel(compute_player_level(position.y));
+    let level = MapLevel(level_for_y(position.y));
     match item_type {
         ItemType::Cookie => spawn_cookie(commands, item_assets, item_id, position, level),
         ItemType::Key(kind) => spawn_key(commands, barrier_assets, item_id, position, level, kind),

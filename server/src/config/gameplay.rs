@@ -84,7 +84,7 @@ impl ServerGameplayConfig {
     }
 
     #[must_use]
-    pub fn validated_actor(&self, kind: &str) -> &ActorKindServerConfig {
+    pub fn expect_actor(&self, kind: &str) -> &ActorKindServerConfig {
         self.actor(kind)
             .expect("actor kind missing from server gameplay config")
     }

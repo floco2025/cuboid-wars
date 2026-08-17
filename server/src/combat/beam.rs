@@ -29,7 +29,7 @@ const BEAM_HIT_CUE_INTERVAL_SECS: f32 = 0.25;
 // explosions). Lethal ticks run the standard death sequence with no killer
 // credit, like falls and blasts. A throttled `SPlayerHit` cue gives the
 // victim the directional camera shake and an instant HUD health update.
-pub fn actor_beam_damage_system(
+pub fn actors_beam_damage_system(
     mut commands: Commands,
     time: Res<Time>,
     mut players: ResMut<PlayerMap>,
@@ -69,7 +69,7 @@ pub fn actor_beam_damage_system(
         let Ok((target_pos, mut target_health)) = player_query.get_mut(target_entity) else {
             continue;
         };
-        let kind_config = server_gameplay_config.validated_actor(&info.spawn_kind);
+        let kind_config = server_gameplay_config.expect_actor(&info.spawn_kind);
         let Some(fire) = &kind_config.fire else {
             continue;
         };
@@ -77,7 +77,7 @@ pub fn actor_beam_damage_system(
         if actor_pos.horizontal_distance_sq(target_pos) > fire.range * fire.range {
             continue;
         }
-        let actor_physics = gameplay_config.validated_actor(&info.spawn_kind).physics();
+        let actor_physics = gameplay_config.expect_actor(&info.spawn_kind).physics();
         let target_center = Vec3::new(
             target_pos.x,
             player_physics.collider_center_y(target_pos.y),

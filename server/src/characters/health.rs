@@ -33,7 +33,7 @@ pub fn characters_health_regeneration_system(
         if health.0 <= 0.0 {
             continue;
         }
-        let actor_health = gameplay_config.validated_actor(&info.spawn_kind).health();
+        let actor_health = gameplay_config.expect_actor(&info.spawn_kind).health();
         if actor_health.regeneration_per_second <= 0.0 {
             continue;
         }

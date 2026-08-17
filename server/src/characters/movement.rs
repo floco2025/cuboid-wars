@@ -60,11 +60,7 @@ pub fn characters_movement_system(
         .iter()
         .filter_map(|(entity, id, pos, _, _, _, _)| {
             let info = actors.get(id)?;
-            Some((
-                entity,
-                *pos,
-                gameplay_config.validated_actor(&info.spawn_kind).physics(),
-            ))
+            Some((entity, *pos, gameplay_config.expect_actor(&info.spawn_kind).physics()))
         })
         .collect();
 

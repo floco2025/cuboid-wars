@@ -17,11 +17,11 @@ use server::{
 };
 use server::{
     actors::{
-        actor_behavior_system, actor_initial_spawn_system, actor_pending_spawn_system, actor_removal_system,
-        actor_respawn_system, navigation::NavGraph,
+        actors_behavior_system, actors_initial_spawn_system, actors_pending_spawn_system, actors_removal_system,
+        actors_respawn_system, navigation::NavGraph,
     },
     characters::{characters_health_regeneration_system, characters_movement_system, knockback_decay_system},
-    combat::{PendingExplosions, actor_beam_damage_system, explosions_system},
+    combat::{PendingExplosions, actors_beam_damage_system, explosions_system},
     config::{ServerGameplayConfig, configure_server},
     items::{
         item_collection_system, placed_item_respawn_system, placed_item_spawn_system, random_item_despawn_system,
@@ -145,7 +145,7 @@ async fn main() -> Result<()> {
         .insert_resource(PendingExplosions::default())
         .insert_resource(server::missiles::MissileMap::default())
         .insert_resource(OpenBarrierKinds::default())
-        .add_systems(Startup, (actor_initial_spawn_system, placed_item_spawn_system))
+        .add_systems(Startup, (actors_initial_spawn_system, placed_item_spawn_system))
         .add_systems(
             Update,
             (
@@ -165,7 +165,7 @@ async fn main() -> Result<()> {
                 // 4. ApplyDeferred (makes login-side spawns queryable)
                 // 5. Broadcast state to all clients
                 (
-                    actor_pending_spawn_system,
+                    actors_pending_spawn_system,
                     ApplyDeferred,
                     network_process_client_messages_system,
                     ApplyDeferred,
@@ -173,7 +173,7 @@ async fn main() -> Result<()> {
                 )
                     .chain(),
                 // Actor decisions are written before movement consumes them.
-                actor_behavior_system,
+                actors_behavior_system,
                 // Before message processing so an admin-forced phase isn't in
                 // a same-tick race with the scheduler tick; the broadcast
                 // (after processing in the chain) ships the forced intensity
@@ -182,7 +182,7 @@ async fn main() -> Result<()> {
                 // Determine which barrier kinds are open this tick before
                 // movement reads the open set for its collision filter.
                 compute_open_barrier_kinds_system.before(characters_movement_system),
-                characters_movement_system.after(actor_behavior_system),
+                characters_movement_system.after(actors_behavior_system),
                 // Decay after movement so planning consumed this tick's step.
                 knockback_decay_system.after(characters_movement_system),
                 // Guidance steers from post-step character positions;
@@ -199,12 +199,12 @@ async fn main() -> Result<()> {
                 // Beam burn starts on the burst's first tick and reads
                 // post-step positions; a lethal beam's death blast must drain
                 // in this tick's explosion pass.
-                actor_beam_damage_system
-                    .after(actor_behavior_system)
+                actors_beam_damage_system
+                    .after(actors_behavior_system)
                     .after(characters_movement_system)
                     .before(explosions_system),
                 // Actor removal finalizes health-zero actors and queues their blasts.
-                actor_removal_system
+                actors_removal_system
                     .after(characters_movement_system)
                     .after(projectiles_movement_system),
                 characters_health_regeneration_system
@@ -224,9 +224,9 @@ async fn main() -> Result<()> {
                 // so a same-tick death chain resolves in one drain.
                 explosions_system
                     .after(projectiles_movement_system)
-                    .after(actor_removal_system)
+                    .after(actors_removal_system)
                     .after(players_fall_death_system),
-                actor_respawn_system.after(explosions_system),
+                actors_respawn_system.after(explosions_system),
                 players_respawn_system,
                 (players_status_timers_system, players_unlimited_missiles_system),
                 random_item_spawn_system,

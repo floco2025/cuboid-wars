@@ -43,7 +43,7 @@ pub fn ramp_surface_at(ramp: &Ramp, x: f32, z: f32) -> f32 {
 // level's surface, so brief jumps don't change levels. Negative `y` (e.g.
 // mid-fall through a ground hole) clamps to level 0.
 #[must_use]
-pub fn compute_player_level(y: f32) -> u8 {
+pub fn level_for_y(y: f32) -> u8 {
     if y < -LEVEL_CLASSIFICATION_TOLERANCE {
         return 0;
     }

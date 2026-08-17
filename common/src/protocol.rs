@@ -321,8 +321,9 @@ pub struct SPlayerFallDamage {
 }
 
 // Blast result for a surviving victim. Unicast to the victim: health updates
-// the HUD on the damage tick, the absolute velocities keep prediction aligned,
-// and direction/strength drive immediate local feedback.
+// the HUD on the damage tick and the absolute velocities keep prediction
+// aligned. Direction/strength ride along for future feedback use — the
+// client currently plays none (the knockback itself is the feedback).
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SPlayerBlast {
     pub id: PlayerId,
@@ -330,8 +331,8 @@ pub struct SPlayerBlast {
     pub vertical_velocity: f32,
     pub velocity_x: f32,
     pub velocity_z: f32,
-    pub direction_x: f32,
-    pub direction_z: f32,
+    pub hit_dir_x: f32,
+    pub hit_dir_z: f32,
     pub strength: f32,
 }
 

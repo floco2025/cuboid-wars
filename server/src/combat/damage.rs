@@ -103,7 +103,7 @@ pub fn award_actor_kill(
     let Some(shooter) = players.get_mut(&shooter_id) else {
         return;
     };
-    shooter.score += server_gameplay_config.validated_actor(kind).combat.score_reward_on_kill;
+    shooter.score += server_gameplay_config.expect_actor(kind).combat.score_reward_on_kill;
     let quest_messages = record_quest_event(
         shooter,
         &server_gameplay_config.quests,
@@ -191,14 +191,14 @@ pub fn apply_actor_projectile_hit(
     actor_kind: &str,
     server_gameplay_config: &ServerGameplayConfig,
 ) -> bool {
-    // A dying actor's entity stays queryable until `actor_removal_system`
+    // A dying actor's entity stays queryable until `actors_removal_system`
     // runs later in the tick; without this guard every further same-tick hit
     // would read the clamped 0 health as "lethal" and duplicate kill credit.
     if target_health.0 <= 0.0 {
         return false;
     }
 
-    let armor = server_gameplay_config.validated_actor(actor_kind).combat.armor;
+    let armor = server_gameplay_config.expect_actor(actor_kind).combat.armor;
     apply_damage(target_health, server_gameplay_config.projectile.damage * (1.0 - armor));
 
     if let Some(shooter_info) = players.get_mut(shooter_id) {

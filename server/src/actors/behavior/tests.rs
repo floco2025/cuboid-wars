@@ -93,7 +93,7 @@ impl Fixture {
             zone_bounds: (-2.0, -2.0, 2.0, 2.0),
             nav_graph: &self.nav,
             patrol_speed: 2.0,
-            kind_config: self.config.validated_actor("mine"),
+            kind_config: self.config.expect_actor("mine"),
         }
     }
 }
@@ -434,11 +434,7 @@ fn leash_breach_starts_return_and_arms_cooldown_for_chases() {
     assert!(matches!(info.goal, ActorGoal::Return { .. }));
     assert_eq!(
         info.chase_reacquire_timer,
-        fixture
-            .config
-            .validated_actor("mine")
-            .senses
-            .chase_reacquire_cooldown_secs
+        fixture.config.expect_actor("mine").senses.chase_reacquire_cooldown_secs
     );
 }
 
@@ -578,7 +574,7 @@ impl Fixture {
             zone_bounds: (-2.0, -2.0, 2.0, 2.0),
             nav_graph: &self.nav,
             patrol_speed: 2.0,
-            kind_config: self.config.validated_actor("zapper"),
+            kind_config: self.config.expect_actor("zapper"),
         }
     }
 }
@@ -724,7 +720,7 @@ fn fire_and_approach_hold_are_stall_exempt() {
     let fixture = Fixture::new();
     let fire = fixture
         .config
-        .validated_actor("zapper")
+        .expect_actor("zapper")
         .fire
         .as_ref()
         .expect("zapper fire config missing from server gameplay config");

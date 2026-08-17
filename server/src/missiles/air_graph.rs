@@ -62,8 +62,8 @@ impl AirGraph {
         let layer = (pos.y / LEVEL_HEIGHT).floor() as i32;
         AirNode {
             layer: layer.clamp(0, self.layers - 1),
-            row: self.geometry.world_z_to_cell_row(pos.z),
-            col: self.geometry.world_x_to_cell_col(pos.x),
+            row: self.geometry.cell_row_containing_z(pos.z),
+            col: self.geometry.cell_col_containing_x(pos.x),
         }
     }
 

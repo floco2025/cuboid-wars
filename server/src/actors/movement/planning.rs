@@ -72,9 +72,9 @@ pub(crate) fn plan_actor_moves(
             continue;
         };
         // Per-kind config: actor kinds are cross-validated against the map at
-        // startup, so `validated_actor` cannot panic here.
-        let actor_config = gameplay_config.validated_actor(&info.spawn_kind);
-        let kind_server_config = server_gameplay_config.validated_actor(&info.spawn_kind);
+        // startup, so `expect_actor` cannot panic here.
+        let actor_config = gameplay_config.expect_actor(&info.spawn_kind);
+        let kind_server_config = server_gameplay_config.expect_actor(&info.spawn_kind);
         let actor_physics = actor_config.physics();
         let current_pos = *pos;
         let reached_distance = kind_server_config.navigation.go_to_reached_distance;

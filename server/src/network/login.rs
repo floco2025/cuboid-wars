@@ -232,7 +232,7 @@ mod tests {
         sorted.sort_unstable();
         assert_eq!(kinds, sorted);
         for (kind, radius) in &radii {
-            assert_eq!(*radius, config.validated_actor(kind).combat.explosion.radius);
+            assert_eq!(*radius, config.expect_actor(kind).combat.explosion.radius);
         }
     }
 }

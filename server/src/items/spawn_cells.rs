@@ -4,7 +4,7 @@ use crate::{map::MapConfig, map::grid_coords_from_position};
 use common::{
     constants::{GRID_CELL_SIZE, LEVEL_HEIGHT},
     map::MapGeometry,
-    map::compute_player_level,
+    map::level_for_y,
     protocol::{ItemType, Position},
 };
 
@@ -37,7 +37,7 @@ impl ItemSpawnCell {
 pub(super) fn item_spawn_cell_from_position(geometry: &MapGeometry, pos: &Position) -> ItemSpawnCell {
     let (col, row) = grid_coords_from_position(geometry, pos);
     ItemSpawnCell {
-        level: compute_player_level(pos.y),
+        level: level_for_y(pos.y),
         col,
         row,
     }

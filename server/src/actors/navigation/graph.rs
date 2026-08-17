@@ -4,7 +4,7 @@ use bevy::prelude::Resource;
 use common::{
     constants::{GRID_CELL_SIZE, LEVEL_HEIGHT},
     map::MapGeometry,
-    map::compute_player_level,
+    map::level_for_y,
     protocol::Position,
 };
 
@@ -53,9 +53,9 @@ impl NavGraph {
     }
 
     fn nearest_node_for_position(&self, pos: &Position) -> Option<NavNode> {
-        let level = compute_player_level(pos.y);
-        let row = self.geometry.world_z_to_cell_row(pos.z);
-        let col = self.geometry.world_x_to_cell_col(pos.x);
+        let level = level_for_y(pos.y);
+        let row = self.geometry.cell_row_containing_z(pos.z);
+        let col = self.geometry.cell_col_containing_x(pos.x);
         let direct = NavNode { level, row, col };
         if self.is_traversable(direct) {
             return Some(direct);

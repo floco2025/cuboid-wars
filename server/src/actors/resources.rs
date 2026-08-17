@@ -138,7 +138,7 @@ pub struct ActorInfo {
     // firing re-arms only once it lapses.
     pub fire_cooldown_timer: f32,
     // Player who landed the last projectile damage. Read by
-    // `actor_removal_system` when the actor's health hits zero, so the
+    // `actors_removal_system` when the actor's health hits zero, so the
     // `SActorDeath` broadcast can attribute the kill. Chain-explosion
     // damage doesn't touch this field — those deaths read `None`.
     pub last_damager: Option<PlayerId>,

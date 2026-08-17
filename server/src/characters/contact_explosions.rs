@@ -25,7 +25,7 @@ pub(super) fn detonate_actors_touching_players(
         .values()
         .map(|actor| {
             let distance = server_gameplay_config
-                .validated_actor(&actor.spawn_kind)
+                .expect_actor(&actor.spawn_kind)
                 .combat
                 .contact_explosion_distance;
             (actor.entity, distance)
@@ -109,7 +109,7 @@ mod tests {
         let gameplay = GameplayConfig::load_default().expect("default gameplay config should load");
         let server = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
         let player_physics = gameplay.player.physics();
-        let actor_physics = gameplay.validated_actor("mine").physics();
+        let actor_physics = gameplay.expect_actor("mine").physics();
         let player_pos = Position {
             x: -0.3,
             y: 0.0,
@@ -120,7 +120,7 @@ mod tests {
             CharacterMovePlan::from_target(Entity::from_bits(1), player_pos, player_pos, 0.0, player_physics, false),
             CharacterMovePlan::from_target(Entity::from_bits(2), actor_pos, actor_pos, 0.0, actor_physics, false),
             server
-                .validated_actor("mine")
+                .expect_actor("mine")
                 .combat
                 .contact_explosion_distance
                 .expect("mine contact_explosion_distance missing from server gameplay config"),
