@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::characters::PreviousTickPosition;
 use common::{
-    constants::*,
+    config::{GameplayConfig, ProjectilesConfig},
     physics::{CollisionWorld, ProjectileMotion, ProjectileSpawnInfo, calculate_projectile_spawns},
     protocol::*,
 };
@@ -24,7 +24,8 @@ impl FromWorld for ProjectileAssets {
             .vfx
             .projectiles
             .body_emissive_brightness;
-        let mesh = world.resource_mut::<Assets<Mesh>>().add(Sphere::new(PROJECTILE_RADIUS));
+        let radius = world.resource::<GameplayConfig>().projectiles.radius;
+        let mesh = world.resource_mut::<Assets<Mesh>>().add(Sphere::new(radius));
         let material = world
             .resource_mut::<Assets<StandardMaterial>>()
             .add(projectile_material(brightness));
@@ -63,6 +64,7 @@ struct ProjectileBundle {
 impl ProjectileBundle {
     fn new(
         projectile_assets: &ProjectileAssets,
+        config: &ProjectilesConfig,
         position: Vec3,
         direction_yaw: f32,
         direction_pitch: f32,
@@ -74,7 +76,7 @@ impl ProjectileBundle {
             transform: Transform::from_translation(position),
             position: position.into(),
             previous_tick_position: PreviousTickPosition(position.into()),
-            proj_motion: ProjectileMotion::new(direction_yaw, direction_pitch),
+            proj_motion: ProjectileMotion::new(direction_yaw, direction_pitch, config),
             player_id: shooter_id,
             proj_marker: ProjectileMarker,
         }
@@ -86,6 +88,10 @@ impl ProjectileBundle {
 // ============================================================================
 
 // Spawn projectile(s) on whether player has multi-shot power-up
+#[expect(
+    clippy::too_many_arguments,
+    reason = "presentation spawn mirrors the server's spawn inputs"
+)]
 pub fn spawn_projectiles(
     commands: &mut Commands,
     projectile_assets: &ProjectileAssets,
@@ -94,6 +100,7 @@ pub fn spawn_projectiles(
     face_pitch: f32,
     has_multi_shot: bool,
     shooter_eye_height: f32,
+    config: &ProjectilesConfig,
     collision_world: &CollisionWorld,
     open_kinds: &[BarrierKindId],
     shooter_id: PlayerId,
@@ -104,12 +111,13 @@ pub fn spawn_projectiles(
         face_pitch,
         has_multi_shot,
         shooter_eye_height,
+        config,
         collision_world,
         open_kinds,
     );
 
     for spawn_info in &spawns {
-        spawn_single_projectile(commands, projectile_assets, spawn_info, shooter_id);
+        spawn_single_projectile(commands, projectile_assets, config, spawn_info, shooter_id);
     }
 
     spawns.len()
@@ -119,6 +127,7 @@ pub fn spawn_projectiles(
 fn spawn_single_projectile(
     commands: &mut Commands,
     projectile_assets: &ProjectileAssets,
+    config: &ProjectilesConfig,
     spawn_info: &ProjectileSpawnInfo,
     shooter_id: PlayerId,
 ) {
@@ -126,6 +135,7 @@ fn spawn_single_projectile(
 
     commands.spawn(ProjectileBundle::new(
         projectile_assets,
+        config,
         spawn_pos,
         spawn_info.direction_yaw,
         spawn_info.direction_pitch,

@@ -13,6 +13,7 @@ const SUPPORTED_VERSION: u32 = 1;
 pub struct GameplayConfig {
     pub version: u32,
     pub player: PlayerGameplayConfig,
+    pub projectiles: ProjectilesConfig,
     pub missiles: MissilesConfig,
     pub actors: HashMap<String, ActorGameplayConfig>,
     // Ordered list of barrier / key kind ids. Order is the stable
@@ -49,6 +50,7 @@ impl GameplayConfig {
             SUPPORTED_VERSION
         );
         self.player.validate("player")?;
+        self.projectiles.validate("projectiles")?;
         self.missiles.validate("missiles")?;
         if self.actors.is_empty() {
             bail!("actors must define at least one kind");
@@ -70,6 +72,41 @@ impl GameplayConfig {
     #[must_use]
     pub fn expect_actor(&self, kind: &str) -> &ActorGameplayConfig {
         self.actor(kind).expect("actor kind missing from gameplay config")
+    }
+}
+
+// Projectile tuning shared verbatim by server simulation and client
+// prediction — the two must integrate identical flight for the presentation
+// projectiles to land where the authoritative ones do.
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct ProjectilesConfig {
+    pub speed: f32,
+    pub lifetime_secs: f32,
+    // Spawn distance in front of the shooter's eye along the aim.
+    pub spawn_offset: f32,
+    pub radius: f32,
+    // Minimum time between shots.
+    pub cooldown_secs: f32,
+    pub gravity: f32,
+    // Air resistance coefficient (deceleration = drag * speed^2).
+    pub drag_factor: f32,
+    // Fraction of speed retained after a perpendicular bounce.
+    pub bounce_retention: f32,
+}
+
+impl ProjectilesConfig {
+    fn validate(&self, path: &str) -> Result<()> {
+        validate_positive_finite(self.speed, &format!("{path}.speed"))?;
+        validate_positive_finite(self.lifetime_secs, &format!("{path}.lifetime_secs"))?;
+        validate_positive_finite(self.spawn_offset, &format!("{path}.spawn_offset"))?;
+        validate_positive_finite(self.radius, &format!("{path}.radius"))?;
+        validate_non_negative_finite(self.cooldown_secs, &format!("{path}.cooldown_secs"))?;
+        validate_non_negative_finite(self.gravity, &format!("{path}.gravity"))?;
+        validate_non_negative_finite(self.drag_factor, &format!("{path}.drag_factor"))?;
+        if !(self.bounce_retention.is_finite() && (0.0..=1.0).contains(&self.bounce_retention)) {
+            bail!("{path}.bounce_retention must be within 0.0..=1.0");
+        }
+        Ok(())
     }
 }
 
@@ -111,6 +148,8 @@ pub struct PlayerGameplayConfig {
     pub character: CharacterGameplayConfig,
     pub walk_speed: f32,
     pub run_speed: f32,
+    // Initial upward velocity of a jump, m/s.
+    pub jump_speed: f32,
     // How long a player stays "dead" (entity despawned, red overlay on the
     // local client) before being respawned at a fresh spawn-zone cell.
     pub respawn_delay_secs: f32,
@@ -166,6 +205,7 @@ impl PlayerGameplayConfig {
         self.character.validate(path)?;
         validate_positive_finite(self.walk_speed, &format!("{path}.walk_speed"))?;
         validate_positive_finite(self.run_speed, &format!("{path}.run_speed"))?;
+        validate_positive_finite(self.jump_speed, &format!("{path}.jump_speed"))?;
         validate_positive_finite(self.respawn_delay_secs, &format!("{path}.respawn_delay_secs"))
     }
 }

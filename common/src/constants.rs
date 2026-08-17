@@ -106,25 +106,6 @@ pub const CHARACTER_STEP_MIN_WIDTH: f32 = 0.2;
 pub const CHARACTER_PERCH_SLIDE_SPEED: f32 = 3.0; // m/s
 
 // ============================================================================
-// Player
-// ============================================================================
-
-pub const PLAYER_JUMP_SPEED: f32 = 12.0; // m/s initial upward velocity
-
-// ============================================================================
-// Projectiles
-// ============================================================================
-
-pub const PROJECTILE_SPEED: f32 = 70.0;
-pub const PROJECTILE_LIFETIME: f32 = 8.0;
-pub const PROJECTILE_SPAWN_OFFSET: f32 = 1.0; // in front of thrower
-pub const PROJECTILE_RADIUS: f32 = 0.11;
-pub const PROJECTILE_COOLDOWN_TIME: f32 = 0.1; // Minimum time between shots
-pub const PROJECTILE_GRAVITY: f32 = 9.81; // m/s² (real-world for nice arcs)
-pub const PROJECTILE_DRAG_FACTOR: f32 = 0.01; // Air resistance coefficient applied per frame
-pub const PROJECTILE_BOUNCE_RETENTION: f32 = 0.9; // fraction of speed retained after bounce (0.0-1.0)
-
-// ============================================================================
 // Power-Ups
 // ============================================================================
 

@@ -188,6 +188,7 @@ fn handle_jump_message(
         &mut next_vertical_velocity,
         collision_world,
         gameplay_config.player.physics(),
+        gameplay_config.player.jump_speed,
         pos,
         pos.x,
         pos.z,

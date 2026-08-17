@@ -65,6 +65,7 @@ fn edge_overhang_denies_jump() {
         &mut motion,
         &collision_world,
         physics,
+        12.0,
         &pos,
         pos.x,
         pos.z

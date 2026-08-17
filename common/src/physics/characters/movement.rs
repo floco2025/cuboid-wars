@@ -13,7 +13,7 @@ use crate::{
     config::CharacterPhysicsConfig,
     constants::{
         CHARACTER_GROUND_SNAP_DISTANCE, CHARACTER_PERCH_SLIDE_SPEED, CHARACTER_STEP_HEIGHT, CHARACTER_STEP_MIN_WIDTH,
-        CHARACTER_TERMINAL_VELOCITY, PHYSICS_EPSILON, PLAYER_JUMP_SPEED,
+        CHARACTER_TERMINAL_VELOCITY, PHYSICS_EPSILON,
     },
     physics::world::{CollisionWorld, ShapeCastHit},
     protocol::Position,
@@ -28,6 +28,7 @@ pub fn try_start_player_jump(
     vertical_velocity: &mut f32,
     collision_world: &CollisionWorld,
     physics: CharacterPhysicsConfig,
+    jump_speed: f32,
     pos: &Position,
     x: f32,
     z: f32,
@@ -37,7 +38,7 @@ pub fn try_start_player_jump(
         return false;
     }
 
-    *vertical_velocity = PLAYER_JUMP_SPEED;
+    *vertical_velocity = jump_speed;
     true
 }
 

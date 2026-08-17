@@ -211,6 +211,7 @@ fn update_player_input_face_and_jump(
                 &mut motion.0,
                 collision_world,
                 gameplay_config.player.physics(),
+                gameplay_config.player.jump_speed,
                 pos,
                 pos.x,
                 pos.z,

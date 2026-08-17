@@ -3,10 +3,8 @@ use bevy_math::Vec3;
 use bevy_time::{Timer, TimerMode};
 
 use crate::{
-    constants::{
-        PHYSICS_EPSILON, PROJECTILE_BOUNCE_RETENTION, PROJECTILE_DRAG_FACTOR, PROJECTILE_GRAVITY, PROJECTILE_LIFETIME,
-        PROJECTILE_RADIUS, PROJECTILE_SPEED,
-    },
+    config::ProjectilesConfig,
+    constants::PHYSICS_EPSILON,
     physics::CollisionWorld,
     protocol::{BarrierKindId, Position},
 };
@@ -22,31 +20,41 @@ pub struct ProjectileMotion {
     // projectile has fully left the shooter's hitbox once. After that the
     // shooter is a valid target — bounce-backs can hit you.
     pub left_shooter: bool,
+    // Flight tuning copied from `ProjectilesConfig` at spawn so the pure
+    // motion methods need no config threading.
+    pub(super) radius: f32,
+    pub(super) gravity: f32,
+    pub(super) drag_factor: f32,
+    pub(super) bounce_retention: f32,
 }
 
 impl ProjectileMotion {
     #[must_use]
-    pub fn new(face_dir: f32, face_pitch: f32) -> Self {
-        let velocity = crate::math::direction_from_yaw_pitch(face_dir, face_pitch) * PROJECTILE_SPEED;
+    pub fn new(face_dir: f32, face_pitch: f32, config: &ProjectilesConfig) -> Self {
+        let velocity = crate::math::direction_from_yaw_pitch(face_dir, face_pitch) * config.speed;
 
         Self {
             velocity,
-            lifetime: Timer::from_seconds(PROJECTILE_LIFETIME, TimerMode::Once),
+            lifetime: Timer::from_seconds(config.lifetime_secs, TimerMode::Once),
             left_shooter: false,
+            radius: config.radius,
+            gravity: config.gravity,
+            drag_factor: config.drag_factor,
+            bounce_retention: config.bounce_retention,
         }
     }
 
     pub fn apply_gravity(&mut self, delta: f32) {
-        if PROJECTILE_GRAVITY > 0.0 {
-            self.velocity.y -= PROJECTILE_GRAVITY * delta;
+        if self.gravity > 0.0 {
+            self.velocity.y -= self.gravity * delta;
         }
     }
 
     pub fn apply_drag(&mut self, delta: f32) {
-        if PROJECTILE_DRAG_FACTOR > 0.0 {
+        if self.drag_factor > 0.0 {
             let speed = self.velocity.length();
             if speed > PHYSICS_EPSILON {
-                let deceleration = PROJECTILE_DRAG_FACTOR * speed * speed;
+                let deceleration = self.drag_factor * speed * speed;
                 let speed_reduction = deceleration * delta;
                 let new_speed = (speed - speed_reduction).max(0.0);
                 self.velocity = self.velocity.normalize() * new_speed;
@@ -65,7 +73,7 @@ impl ProjectileMotion {
 
         self.velocity -= 2.0 * dot * normal;
 
-        let retention = 1.0 - cos_impact * (1.0 - PROJECTILE_BOUNCE_RETENTION);
+        let retention = 1.0 - cos_impact * (1.0 - self.bounce_retention);
         self.velocity *= retention;
     }
 
@@ -96,7 +104,7 @@ impl ProjectileMotion {
     ) -> Option<f32> {
         let translation = self.velocity * delta;
         collision_world
-            .cast_moving_ball_against_barriers(Vec3::from(*projectile_pos), translation, PROJECTILE_RADIUS, open_kinds)
+            .cast_moving_ball_against_barriers(Vec3::from(*projectile_pos), translation, self.radius, open_kinds)
             .map(|hit| hit.t)
     }
 
@@ -112,7 +120,7 @@ impl ProjectileMotion {
     ) -> Option<f32> {
         let translation = self.velocity * delta;
         collision_world
-            .cast_moving_ball(Vec3::from(*projectile_pos), translation, PROJECTILE_RADIUS)
+            .cast_moving_ball(Vec3::from(*projectile_pos), translation, self.radius)
             .map(|hit| hit.t)
     }
 
@@ -134,7 +142,7 @@ impl ProjectileMotion {
         let hit = collision_world.cast_moving_ball_against_barriers(
             Vec3::from(*projectile_pos),
             translation,
-            PROJECTILE_RADIUS,
+            self.radius,
             open_kinds,
         )?;
         Some(BarrierImpact {
@@ -160,8 +168,7 @@ impl ProjectileMotion {
 
         for bounce in 0..MAX_SURFACE_BOUNCES {
             let translation = self.velocity * remaining_delta;
-            let Some(collision) =
-                collision_world.cast_moving_ball(Vec3::from(current_pos), translation, PROJECTILE_RADIUS)
+            let Some(collision) = collision_world.cast_moving_ball(Vec3::from(current_pos), translation, self.radius)
             else {
                 break;
             };
@@ -192,8 +199,7 @@ impl ProjectileMotion {
         let translation = self.velocity * remaining_delta;
         let mut final_pos = Vec3::from(current_pos) + translation;
         if budget_exhausted
-            && let Some(collision) =
-                collision_world.cast_moving_ball(Vec3::from(current_pos), translation, PROJECTILE_RADIUS)
+            && let Some(collision) = collision_world.cast_moving_ball(Vec3::from(current_pos), translation, self.radius)
         {
             // Clamp to the surface contact instead of tunneling through it; the
             // next frame resolves the bounce from this valid just-outside pose.

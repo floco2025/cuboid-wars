@@ -1,5 +1,6 @@
 use super::*;
-use crate::constants::PLAYER_JUMP_SPEED;
+// Test copy of the default `player.jump_speed` config value.
+const TEST_JUMP_SPEED: f32 = 12.0;
 
 #[test]
 fn supported_player_can_start_jump() {
@@ -12,11 +13,12 @@ fn supported_player_can_start_jump() {
         &mut motion,
         &collision_world,
         player_physics(),
+        TEST_JUMP_SPEED,
         &pos,
         pos.x,
         pos.z
     ));
-    assert_eq!(motion, PLAYER_JUMP_SPEED);
+    assert_eq!(motion, TEST_JUMP_SPEED);
 }
 
 #[test]
@@ -30,6 +32,7 @@ fn airborne_player_cannot_start_jump() {
         &mut motion,
         &collision_world,
         player_physics(),
+        TEST_JUMP_SPEED,
         &pos,
         pos.x,
         pos.z
@@ -47,6 +50,7 @@ fn upward_jump_velocity_moves_player_above_support() {
         &mut motion,
         &collision_world,
         player_physics(),
+        TEST_JUMP_SPEED,
         &pos,
         pos.x,
         pos.z
@@ -78,7 +82,7 @@ fn upward_motion_hits_floor_underside() {
     let floor = upper_floor();
     let collision_world = collision_world(&[floor], &[]);
     let pos = Position { x: 0.0, y: 1.8, z: 0.0 };
-    let motion = PLAYER_JUMP_SPEED;
+    let motion = TEST_JUMP_SPEED;
 
     let step = step_character_movement(
         CharacterStep {
@@ -137,7 +141,7 @@ fn upward_motion_ignores_floor_underside_outside_footprint() {
     let floor = upper_floor();
     let collision_world = collision_world(&[floor], &[]);
     let pos = Position { x: 5.0, y: 1.8, z: 0.0 };
-    let motion = PLAYER_JUMP_SPEED;
+    let motion = TEST_JUMP_SPEED;
 
     let step = step_character_movement(
         CharacterStep {
@@ -169,7 +173,7 @@ fn upward_motion_under_floor_edge_hits_floor_side() {
         y: 2.3,
         z: 0.0,
     };
-    let motion = PLAYER_JUMP_SPEED;
+    let motion = TEST_JUMP_SPEED;
 
     let step = step_character_movement(
         CharacterStep {

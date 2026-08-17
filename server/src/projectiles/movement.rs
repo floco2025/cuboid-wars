@@ -146,6 +146,7 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                 .and_then(|info| params.player_query.get(info.entity).ok())
                 .is_some_and(|(position, face_direction, _, _)| {
                     projectile_overlaps_character(
+                        &projectile,
                         &proj_pos,
                         position,
                         face_direction.0,

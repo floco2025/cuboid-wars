@@ -86,6 +86,7 @@ pub fn projectiles_movement_system(
                 .find(|(_, _, _, player_id, _)| *player_id == shooter_id)
                 .is_some_and(|(_, player_pos, face_dir, _, _)| {
                     projectile_overlaps_character(
+                        &projectile,
                         &projectile_pos,
                         player_pos,
                         face_dir.0,

@@ -33,7 +33,10 @@ pub fn handle_shot_message(
 
     let now = time.elapsed_secs();
 
-    let Some(has_multi_shot) = players.get_mut(&id).and_then(|info| info.try_start_shot(now)) else {
+    let Some(has_multi_shot) = players
+        .get_mut(&id)
+        .and_then(|info| info.try_start_shot(now, gameplay_config.projectiles.cooldown_secs))
+    else {
         return;
     };
 
@@ -47,13 +50,18 @@ pub fn handle_shot_message(
             msg.face_pitch,
             has_multi_shot,
             gameplay_config.player.eye_height(),
+            &gameplay_config.projectiles,
             collision_world,
             &open_barrier_kinds.0,
         );
 
         // Spawn each projectile
         for spawn_info in spawns {
-            let proj_motion = ProjectileMotion::new(spawn_info.direction_yaw, spawn_info.direction_pitch);
+            let proj_motion = ProjectileMotion::new(
+                spawn_info.direction_yaw,
+                spawn_info.direction_pitch,
+                &gameplay_config.projectiles,
+            );
 
             commands.spawn((
                 ProjectileMarker,

@@ -285,7 +285,7 @@ mod tests {
     #[test]
     fn low_gravity_jump_lands_below_safe_distance() {
         // Low-gravity jump: apex ≈ 14.4 m of drop, but the landing speed is
-        // only PLAYER_JUMP_SPEED (12 m/s) — an energy equivalent of ~3.8 m,
+        // only the configured jump speed (12 m/s) — an energy equivalent of ~3.8 m,
         // well under the 8 m safe threshold.
         let distance = effective_fall_distance(14.4, 12.0, TEST_GRAVITY);
         assert!(distance < 8.0, "expected soft landing, got {distance}m");

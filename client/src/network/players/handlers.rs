@@ -124,6 +124,7 @@ pub fn handle_player_shot_message(
                 msg.face_pitch,
                 player.power_up(PowerUpKind::MultiShot),
                 gameplay_config.player.eye_height(),
+                &gameplay_config.projectiles,
                 collision_world,
                 &open_barrier_kinds.0,
                 msg.id,

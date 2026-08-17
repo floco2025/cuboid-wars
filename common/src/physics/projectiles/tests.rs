@@ -2,15 +2,23 @@ use bevy_math::Vec3;
 use bevy_time::{Timer, TimerMode};
 
 use super::ProjectileMotion;
-use crate::constants::{FLOOR_THICKNESS, LEVEL_HEIGHT, PROJECTILE_LIFETIME, PROJECTILE_RADIUS, WALL_THICKNESS};
+use crate::constants::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_THICKNESS};
+
+// Test copies of the default `projectiles` config values.
+const TEST_PROJECTILE_LIFETIME: f32 = 8.0;
+const TEST_PROJECTILE_RADIUS: f32 = 0.11;
 use crate::physics::CollisionWorld;
 use crate::protocol::{Barrier, BarrierKindId, BarrierKindTable, Floor, MapLayout, Position, Ramp, Wall};
 
 fn test_projectile_motion(velocity: Vec3) -> ProjectileMotion {
     ProjectileMotion {
         velocity,
-        lifetime: Timer::from_seconds(PROJECTILE_LIFETIME, TimerMode::Once),
+        lifetime: Timer::from_seconds(TEST_PROJECTILE_LIFETIME, TimerMode::Once),
         left_shooter: false,
+        radius: TEST_PROJECTILE_RADIUS,
+        gravity: 9.81,
+        drag_factor: 0.01,
+        bounce_retention: 0.9,
     }
 }
 
@@ -53,7 +61,7 @@ fn collision_world(walls: &[Wall], floors: &[Floor], ramps: &[Ramp]) -> Collisio
 fn lower_level_projectile_ignores_upper_level_wall() {
     let pos = Position {
         x: 0.0,
-        y: PROJECTILE_RADIUS,
+        y: TEST_PROJECTILE_RADIUS,
         z: 0.0,
     };
     let mut lower_motion = test_projectile_motion(Vec3::new(0.0, 0.0, 20.0));
@@ -75,7 +83,7 @@ fn lower_level_projectile_ignores_upper_level_wall() {
 fn upper_level_projectile_hits_upper_level_wall() {
     let pos = Position {
         x: 0.0,
-        y: LEVEL_HEIGHT + PROJECTILE_RADIUS,
+        y: LEVEL_HEIGHT + TEST_PROJECTILE_RADIUS,
         z: 0.0,
     };
     let mut motion = test_projectile_motion(Vec3::new(0.0, 0.0, 20.0));
@@ -132,7 +140,7 @@ fn barrier_impact_reports_kind_and_surface_normal() {
 fn projectile_hits_level_zero_floor_underside() {
     let pos = Position {
         x: 0.0,
-        y: -FLOOR_THICKNESS - PROJECTILE_RADIUS - 0.1,
+        y: -FLOOR_THICKNESS - TEST_PROJECTILE_RADIUS - 0.1,
         z: 0.0,
     };
     let mut motion = test_projectile_motion(Vec3::new(0.0, 10.0, 0.0));
@@ -222,12 +230,14 @@ mod spawning {
         assert!(projectile_spawn_is_blocked(
             &start,
             &end,
+            0.11,
             &collision_world(&[test_wall(0)], &[], &[]),
             &[]
         ));
         assert!(!projectile_spawn_is_blocked(
             &start,
             &end,
+            0.11,
             &collision_world(&[test_wall(1)], &[], &[]),
             &[]
         ));
@@ -242,12 +252,14 @@ mod spawning {
         assert!(projectile_spawn_is_blocked(
             &start,
             &end,
+            0.11,
             &collision_world(&[test_wall(1)], &[], &[]),
             &[]
         ));
         assert!(!projectile_spawn_is_blocked(
             &start,
             &end,
+            0.11,
             &collision_world(&[test_wall(0)], &[], &[]),
             &[]
         ));
@@ -269,6 +281,7 @@ mod spawning {
         assert!(projectile_spawn_is_blocked(
             &start,
             &end,
+            0.11,
             &collision_world(&[test_wall(0)], &[], &[]),
             &[]
         ));
@@ -291,6 +304,7 @@ mod spawning {
         assert!(projectile_spawn_is_blocked(
             &start,
             &end,
+            0.11,
             &collision_world(&[], &[], &[floor]),
             &[]
         ));
@@ -313,6 +327,7 @@ mod spawning {
         assert!(projectile_spawn_is_blocked(
             &start,
             &end,
+            0.11,
             &collision_world(&[], &[], &[floor]),
             &[]
         ));
@@ -331,6 +346,7 @@ mod spawning {
         assert!(!projectile_spawn_is_blocked(
             &start,
             &end,
+            0.11,
             &collision_world(&[], &[ramp], &[]),
             &[]
         ));
@@ -345,6 +361,7 @@ mod spawning {
         assert!(projectile_spawn_is_blocked(
             &start,
             &end,
+            0.11,
             &collision_world(&[], &[ramp], &[]),
             &[]
         ));
@@ -363,6 +380,7 @@ mod spawning {
         assert!(projectile_spawn_is_blocked(
             &start,
             &end,
+            0.11,
             &collision_world(&[], &[ramp], &[]),
             &[]
         ));

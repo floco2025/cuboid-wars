@@ -8,7 +8,7 @@ use crate::{
     network::ServerToClient,
 };
 use common::{
-    constants::{ALWAYS_LOW_GRAVITY, ALWAYS_MULTI_SHOT, ALWAYS_PHASING, ALWAYS_SPEED, PROJECTILE_COOLDOWN_TIME},
+    constants::{ALWAYS_LOW_GRAVITY, ALWAYS_MULTI_SHOT, ALWAYS_PHASING, ALWAYS_SPEED},
     protocol::{
         BarrierKindId, Health, ItemType, NewQuest, Player, PlayerId, PlayerMoveIntent, PlayerMovementState, Position,
         PowerUpKind, QuestId, SPlayerStatus, SQuestCompleted, SQuestProgress, SQuestsAssigned, ServerMessage,
@@ -182,8 +182,8 @@ impl PlayerInfo {
         self.power_up_timers[kind.index()] = durations.duration_secs(kind);
     }
 
-    pub fn try_start_shot(&mut self, now: f32) -> Option<bool> {
-        if now - self.last_shot_time < PROJECTILE_COOLDOWN_TIME {
+    pub fn try_start_shot(&mut self, now: f32, cooldown_secs: f32) -> Option<bool> {
+        if now - self.last_shot_time < cooldown_secs {
             return None;
         }
         self.last_shot_time = now;
@@ -472,12 +472,13 @@ mod tests {
         let mut info = dummy_info();
         let start = 10.0;
 
-        assert_eq!(info.try_start_shot(start), Some(false));
-        assert_eq!(info.try_start_shot(start + PROJECTILE_COOLDOWN_TIME * 0.5), None);
+        const COOLDOWN: f32 = 0.1;
+        assert_eq!(info.try_start_shot(start, COOLDOWN), Some(false));
+        assert_eq!(info.try_start_shot(start + COOLDOWN * 0.5, COOLDOWN), None);
 
         info.grant_power_up(ItemType::MultiShotPowerUp, &test_power_ups_config());
         assert_eq!(
-            info.try_start_shot(start + PROJECTILE_COOLDOWN_TIME + f32::EPSILON),
+            info.try_start_shot(start + COOLDOWN + f32::EPSILON, COOLDOWN),
             Some(true)
         );
     }

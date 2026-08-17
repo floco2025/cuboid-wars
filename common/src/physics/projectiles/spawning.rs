@@ -1,4 +1,5 @@
 use crate::{
+    config::ProjectilesConfig,
     constants::*,
     physics::CollisionWorld,
     protocol::{BarrierKindId, Position},
@@ -22,12 +23,17 @@ pub struct ProjectileSpawnInfo {
 // Returns a list of projectiles that should be spawned, excluding any that would
 // be blocked by walls on the way from the muzzle to the spawn point.
 #[must_use]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "spawn geometry reads shooter state, config, and world"
+)]
 pub fn calculate_projectile_spawns(
     shooter_pos: &Position,
     face_dir: f32,
     face_pitch: f32,
     has_multi_shot: bool,
     shooter_eye_height: f32,
+    config: &ProjectilesConfig,
     collision_world: &CollisionWorld,
     open_kinds: &[BarrierKindId],
 ) -> Vec<ProjectileSpawnInfo> {
@@ -51,12 +57,12 @@ pub fn calculate_projectile_spawns(
 
         // Camera origin at eye height (match FPV) and push forward along aim direction
         let camera_origin = Vec3::new(shooter_pos.x, shooter_pos.y + shooter_eye_height, shooter_pos.z);
-        let spawn_pos = camera_origin + aim * PROJECTILE_SPAWN_OFFSET;
+        let spawn_pos = camera_origin + aim * config.spawn_offset;
 
         let spawn_position: Position = spawn_pos.into();
         let camera_pos: Position = camera_origin.into();
 
-        if projectile_spawn_is_blocked(&camera_pos, &spawn_position, collision_world, open_kinds) {
+        if projectile_spawn_is_blocked(&camera_pos, &spawn_position, config.radius, collision_world, open_kinds) {
             continue;
         }
 
@@ -73,6 +79,7 @@ pub fn calculate_projectile_spawns(
 pub(super) fn projectile_spawn_is_blocked(
     start: &Position,
     end: &Position,
+    radius: f32,
     collision_world: &CollisionWorld,
     open_kinds: &[BarrierKindId],
 ) -> bool {
@@ -85,11 +92,11 @@ pub(super) fn projectile_spawn_is_blocked(
     // shooter pressed against a barrier could spawn the projectile on the
     // far side of it. Open (plate-held) kinds are excluded from the barrier
     // checks — they're gone visually, so shots pass cleanly through them.
-    collision_world.projectile_spawn_overlaps_blocker(start_vec, PROJECTILE_RADIUS, open_kinds)
+    collision_world.projectile_spawn_overlaps_blocker(start_vec, radius, open_kinds)
         || collision_world
-            .cast_moving_ball(start_vec, translation, PROJECTILE_RADIUS)
+            .cast_moving_ball(start_vec, translation, radius)
             .is_some()
         || collision_world
-            .cast_moving_ball_against_barriers(start_vec, translation, PROJECTILE_RADIUS, open_kinds)
+            .cast_moving_ball_against_barriers(start_vec, translation, radius, open_kinds)
             .is_some()
 }

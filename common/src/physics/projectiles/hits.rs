@@ -1,6 +1,5 @@
 use crate::{
     config::CharacterPhysicsConfig,
-    constants::PROJECTILE_RADIUS,
     physics::characters::{BallCharacterHit, ball_character_hit, ball_overlaps_character},
     protocol::Position,
 };
@@ -19,7 +18,7 @@ pub fn projectile_character_hit(
     ball_character_hit(
         proj_pos,
         proj_motion.velocity,
-        PROJECTILE_RADIUS,
+        proj_motion.radius,
         delta,
         character_pos,
         character_face_dir,
@@ -32,6 +31,7 @@ pub fn projectile_character_hit(
 // after this has gone false once.
 #[must_use]
 pub fn projectile_overlaps_character(
+    proj_motion: &ProjectileMotion,
     proj_pos: &Position,
     character_pos: &Position,
     character_face_dir: f32,
@@ -39,7 +39,7 @@ pub fn projectile_overlaps_character(
 ) -> bool {
     ball_overlaps_character(
         proj_pos,
-        PROJECTILE_RADIUS,
+        proj_motion.radius,
         character_pos,
         character_face_dir,
         character_physics,

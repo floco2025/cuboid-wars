@@ -32,7 +32,7 @@ Other notable paths:
 - `client/assets/` — 3D models, textures, audio.
 - `config/client/assets.json` — hand-edited asset set (materials, material rules, models, sounds, barrier kind colours).
 - `config/client/render.json` — client-only render/debug settings.
-- `config/common/gameplay.json` — shared simulation tuning loaded by client and server (player/actor physics + the `missiles` block both sides need: lock range, aim-assist radius, ammo cap, blast radius).
+- `config/common/gameplay.json` — shared simulation tuning loaded by client and server (player/actor physics incl. jump speed, the `projectiles` flight block, and the `missiles` block both sides need: lock range, aim-assist radius, ammo cap, blast radius).
 - `config/server/gameplay.json` — server-only gameplay tuning, including the named-map registry: `maps` maps each name to its per-map settings (`skybox`, `gravity`, `low_gravity`, optional `random_items` spawn pool, optional `rain` schedule), `default_map` picks the one to load (`--map <name>` overrides). `placed_items.respawn_secs` sets the per-type reappear delay for map-placed items; the `missiles` block holds server-only flight/guidance/damage tuning.
 - `config/server/maps/` — one map JSON per named map (geometry, zones, and placed `items`; per-map tuning lives in the `maps` registry).
 - `cert.pem` / `key.pem` — local-dev TLS for QUIC (not production-safe).

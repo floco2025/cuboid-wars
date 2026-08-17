@@ -15,12 +15,7 @@ use crate::{
     projectiles::{ProjectileAssets, spawn_projectiles},
     ui::ConsoleState,
 };
-use common::{
-    config::GameplayConfig,
-    constants::{ALWAYS_MULTI_SHOT, PROJECTILE_COOLDOWN_TIME},
-    physics::CollisionWorld,
-    protocol::*,
-};
+use common::{config::GameplayConfig, constants::ALWAYS_MULTI_SHOT, physics::CollisionWorld, protocol::*};
 
 // Bundles the shooter-identity resources so `input_shooting_system` stays
 // under Bevy's 16-parameter system tuple limit.
@@ -76,7 +71,7 @@ pub fn input_shooting_system(
         };
 
         // Client-side cooldown guard (server still authoritative)
-        if now - local_player_info.last_shot_time < PROJECTILE_COOLDOWN_TIME {
+        if now - local_player_info.last_shot_time < gameplay_config.projectiles.cooldown_secs {
             play_sound(&mut commands, &asset_server, asset_set.player_sound("dry_fire"));
             return;
         }
@@ -108,6 +103,7 @@ pub fn input_shooting_system(
                 pitch,
                 has_multi_shot,
                 gameplay_config.player.eye_height(),
+                &gameplay_config.projectiles,
                 collision_world,
                 &shooter.open_barrier_kinds.0,
                 my_id.0,
