@@ -89,14 +89,14 @@
   ],
   "actors": {
     "mine": {
-      "respawn": { "enabled": true, "delay_secs": 30.0, "warning_secs": 3.0 },
+      "respawn": { "enabled": true, "delay_secs": 60.0, "warning_secs": 3.0 },
       "combat": {
         "armor": 0.3,
         "contact_explosion_distance": 0.4,
         "explosion": { "radius": 10.0, "max_damage": 150.0 },
         "score_reward_on_kill": 50
       },
-      "senses": { "horizontal_vision_range": 30.0, "vertical_vision_range": 10.0, "chase_reacquire_cooldown_secs": 10.0 },
+      "senses": { "horizontal_vision_range": 60.0, "vertical_vision_range": 10.0, "chase_reacquire_cooldown_secs": 10.0 },
       "patrol": { "leash": 15.0, "min_direction_secs": 1.0, "max_direction_secs": 3.5, "idle_probability": 0.0 },
       "chase": { "leash": 30.0 },
       "navigation": { "path_clear_lookahead_secs": 0.4, "go_to_reached_distance": 0.5 }
