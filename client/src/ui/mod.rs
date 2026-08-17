@@ -24,3 +24,7 @@ pub use player_list::{
 pub use quest_panel::{QuestEntry, QuestLog, ui_quest_panel_rebuild_system};
 pub use scale::ui_hud_scale_system;
 pub use setup::{DeathOverlayMarker, setup_ui_system};
+
+mod plugin;
+
+pub use plugin::hud_plugin;

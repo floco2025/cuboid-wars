@@ -109,6 +109,7 @@ lights, pressure plates).
 - Workspace lints (root `Cargo.toml`): `unsafe_code = "forbid"`; `unwrap_used = "warn"` — prefer `expect("…")` with a message, or proper error handling; `todo = "warn"`.
 - Naming: `snake_case` functions/modules, `CamelCase` types, `SCREAMING_SNAKE_CASE` constants.
 - Use `assert!` / `assert_eq!` / `assert_ne!` for invariants — never `debug_assert!`. Only release builds run, so `debug_assert!` is a no-op.
+- `mod.rs` files contain only `mod` declarations and `pub use` re-exports (attributes like `#[cfg(test)]` on them are fine) — no functions, types, or impls. Code that would land in a `mod.rs` goes in a named sibling file (e.g. `plugin.rs`) and gets re-exported.
 - Default to writing no comments. Only add one when the WHY is non-obvious: a hidden constraint, a subtle invariant, a workaround. Don't explain WHAT well-named code already says.
 
 ## Testing

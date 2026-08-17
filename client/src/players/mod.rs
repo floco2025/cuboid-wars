@@ -18,3 +18,7 @@ pub(crate) use movement::{PlayerMovementQuery, apply_player_moves, plan_player_m
 pub use resources::{LocalPlayerInfo, MyPlayerId, PlayerInfo, PlayerMap};
 pub use spawn::{LocalPlayerMarker, spawn_player};
 pub use transform_sync::players_transform_sync_system;
+
+mod plugin;
+
+pub use plugin::camera_plugin;

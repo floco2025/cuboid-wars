@@ -9,66 +9,28 @@ use quinn::Endpoint;
 use tokio::{runtime::Runtime, time::Duration};
 
 use client::{
-    actors::{ActorGhostMap, ActorMap, actors_transform_sync_system},
-    barriers::{
-        OpenBarrierKinds, barriers_pulsate_system, barriers_spawn_system, barriers_visibility_system,
-        pressure_plates_spawn_system, setup_barrier_assets,
-    },
+    actors::{ActorGhostMap, ActorMap},
+    barriers::{OpenBarrierKinds, setup_barrier_assets},
     cameras::{CameraViewMode, TopDownCameraYaw, setup_cameras_system},
-    characters::{
-        capture_previous_tick_position_system, characters_movement_system, characters_visual_turn_system,
-        knockback_decay_system,
-    },
+    characters::{character_sync_plugin, prediction_plugin},
     config::{AssetSet, ClientSettings, OpaqueRenderer},
-    input::{
-        commit_player_input_system, input_camera_view_toggle_system, input_cursor_toggle_system,
-        input_debug_colors_cycle_system, input_fullscreen_toggle_system, input_level_focus_toggle_system,
-        input_missile_system, input_movement_system, input_shooting_system,
-    },
-    items::{ItemMap, items_animation_system, setup_item_assets, y_spin_system},
-    map::cubemap::skybox_convert_cross_to_cubemap_system,
-    map::skybox::{
-        rain_dim_system, setup_skybox_from_cross_system, setup_sun_disc_system, skybox_rotate_system,
-        skybox_update_camera_system, sun_disc_system,
-    },
-    map::{
-        DebugColors, LevelFocusEnabled, grass_burn_system, grass_spawn_system, map_level_focus_visibility_system,
-        map_spawn_geometry_system, map_wall_light_emissive_system, setup_scene_lighting_system,
-        wall_light_flicker_system,
-    },
+    input::input_plugin,
+    items::{ItemMap, setup_item_assets},
+    map::{DebugColors, LevelFocusEnabled, map_plugin, setup_scene_lighting_system, sky_weather_plugin},
     materials::{GrassMaterialPlugin, generate_material_mipmaps_system},
-    missiles::{
-        LockOnTarget, MissileAssets, MissileMap, lock_on_system, missiles_movement_system,
-        missiles_transform_sync_system,
-    },
+    missiles::{LockOnTarget, MissileAssets, MissileMap},
     network::{
         ClientToServerChannel, LastSnapshotSeq, RoundTripTime, ServerToClientChannel, configure_client,
-        network_io_task, network_ping_system, network_process_server_messages_system,
+        network_io_task, network_plugin,
     },
-    players::{
-        LocalPlayerInfo, PlayerMap, death_overlay_visibility_system, local_player_camera_shake_system,
-        local_player_camera_sync_system, local_player_cuboid_shake_system, local_player_rearview_sync_system,
-        local_player_rearview_viewport_system, local_player_visibility_sync_system, players_transform_sync_system,
-    },
-    projectiles::{LastBounceSound, ProjectileAssets, projectiles_movement_system, projectiles_transform_sync_system},
+    players::{LocalPlayerInfo, PlayerMap, camera_plugin},
+    projectiles::{LastBounceSound, ProjectileAssets},
+    schedule::configure_client_sets,
     ui::{
-        ConsoleState, FpsMeasurement, GameMessageFeed, PendingBanner, QuestLog, SeenPlayerIds, console_input_system,
-        console_render_system,
-        floating_labels::{
-            floating_health_bar_fill_system, floating_label_scale_compensation_system,
-            floating_labels_billboard_system, player_name_label_render_system,
-        },
-        render_pending_banner_system, render_pending_messages_system, setup_ui_system, tick_hud_banner_system,
-        ui_crosshair_lock_system, ui_crosshair_visibility_system, ui_fps_system, ui_health_bar_fill_system,
-        ui_hud_scale_system, ui_player_list_rebuild_system, ui_quest_panel_rebuild_system, ui_rtt_system,
-        ui_stunned_blink_system, update_message_feed_system,
+        ConsoleState, FpsMeasurement, GameMessageFeed, PendingBanner, QuestLog, SeenPlayerIds, hud_plugin,
+        setup_ui_system,
     },
-    vfx::{
-        ExplosionAssets, ExplosionRadii, ExplosionVfxBudget, ParticleClouds, RainIntensity, beam_ghost_fade_system,
-        beam_ghost_removed_system, beam_ghost_sparkle_system, explosion_lights_system, explosion_particles_system,
-        explosion_pulse_system, laser_beam_update_system, missile_exhaust_system, particle_clouds_system,
-        rain_audio_system, rain_particles_system, rain_smoothing_system, scorch_marks_system,
-    },
+    vfx::{ExplosionAssets, ExplosionRadii, ExplosionVfxBudget, ParticleClouds, RainIntensity, presentation_plugin},
 };
 use common::{config::GameplayConfig, constants::TICK_HZ, network::MessageStream, protocol::*};
 
@@ -224,7 +186,6 @@ fn main() -> Result<()> {
         .init_resource::<ExplosionAssets>()
         .init_resource::<ExplosionRadii>()
         .init_resource::<ExplosionVfxBudget>()
-        .add_observer(beam_ghost_removed_system)
         // Startup creates persistent scene infrastructure before any server
         // map data arrives.
         .add_systems(
@@ -236,186 +197,22 @@ fn main() -> Result<()> {
                 setup_item_assets,
                 setup_barrier_assets,
             ),
-        )
-        // Input writes local intent and view/debug state.
-        .add_systems(
-            Update,
-            (
-                // Console open/close must land before every gated input
-                // system, so a keystroke can't both type and act in-game.
-                console_input_system
-                    .before(input_cursor_toggle_system)
-                    .before(input_camera_view_toggle_system)
-                    .before(input_level_focus_toggle_system)
-                    .before(input_debug_colors_cycle_system),
-                input_movement_system.after(input_camera_view_toggle_system),
-                input_shooting_system.after(input_movement_system),
-                input_missile_system.after(input_movement_system),
-                // Run before shooting (which is after movement) so a click that
-                // re-locks the cursor also fires that same frame, instead of
-                // depending on nondeterministic system order.
-                input_cursor_toggle_system.before(input_movement_system),
-                input_camera_view_toggle_system,
-                input_level_focus_toggle_system,
-                input_fullscreen_toggle_system,
-                input_debug_colors_cycle_system,
-            ),
-        )
-        // Network consumes server messages and sends periodic ping requests.
-        .add_systems(Update, (network_ping_system, network_process_server_messages_system))
-        // Character prediction runs at the shared `TICK_HZ` tick. The
-        // commit system sends the player's input to the server before
-        // physics consumes it (so what physics simulates is what was sent).
-        // The capture system stamps `PreviousTickPosition` before movement
-        // so the render-rate transform sync can interpolate.
-        .add_systems(
-            FixedUpdate,
-            (
-                commit_player_input_system,
-                capture_previous_tick_position_system,
-                characters_movement_system,
-                knockback_decay_system,
-                // Projectiles step at the same fixed tick as the server so
-                // the step-size-dependent integration doesn't diverge from
-                // the authoritative trajectories.
-                projectiles_movement_system,
-                missiles_movement_system,
-            )
-                .chain(),
-        )
-        // Transform sync runs every render frame and lerps between the last
-        // two ticks' positions so motion looks smooth above 30 Hz.
-        .add_systems(
-            Update,
-            (
-                players_transform_sync_system,
-                actors_transform_sync_system,
-                characters_visual_turn_system
-                    .after(players_transform_sync_system)
-                    .after(actors_transform_sync_system),
-                floating_labels_billboard_system,
-                player_name_label_render_system,
-                floating_health_bar_fill_system,
-            ),
-        )
-        // Cameras follow the local player after input/prediction has had a
-        // chance to update the player state.
-        .add_systems(
-            Update,
-            (
-                local_player_camera_shake_system,
-                local_player_cuboid_shake_system,
-                local_player_camera_sync_system
-                    .after(input_movement_system)
-                    .after(local_player_camera_shake_system),
-                local_player_rearview_sync_system.after(local_player_camera_sync_system),
-                // Lock detection reads this frame's camera ray (shake
-                // included) so the lit crosshair matches what's on screen.
-                lock_on_system.after(local_player_camera_sync_system),
-                local_player_rearview_viewport_system.after(local_player_rearview_sync_system),
-                local_player_visibility_sync_system.after(input_camera_view_toggle_system),
-            ),
-        )
-        // Client-side presentation systems that animate non-character entities.
-        .add_systems(
-            Update,
-            (
-                projectiles_transform_sync_system,
-                missiles_transform_sync_system,
-                // Reads the freshly-synced missile transforms so the trail
-                // starts at this frame's nozzle position.
-                missile_exhaust_system.after(missiles_transform_sync_system),
-                explosion_pulse_system,
-                explosion_particles_system,
-                explosion_lights_system,
-                scorch_marks_system,
-                beam_ghost_fade_system,
-                beam_ghost_sparkle_system.after(beam_ghost_fade_system),
-                particle_clouds_system.after(beam_ghost_sparkle_system),
-                // Anchors to both endpoints' interpolated transforms, so it
-                // must read this frame's synced values.
-                laser_beam_update_system
-                    .after(players_transform_sync_system)
-                    .after(actors_transform_sync_system),
-                items_animation_system,
-                y_spin_system,
-            ),
-        )
-        // Map rendering systems are mostly one-shot or visibility/material
-        // maintenance driven by loaded assets and level focus.
-        .add_systems(
-            Update,
-            (
-                map_spawn_geometry_system,
-                grass_spawn_system,
-                grass_burn_system
-                    .after(grass_spawn_system)
-                    .after(scorch_marks_system)
-                    .after(network_process_server_messages_system),
-                map_level_focus_visibility_system,
-                map_wall_light_emissive_system,
-                wall_light_flicker_system,
-                barriers_spawn_system,
-                barriers_pulsate_system,
-                // After `map_level_focus_visibility_system` so the open-kind
-                // override wins the per-frame race for barrier visibility.
-                barriers_visibility_system.after(map_level_focus_visibility_system),
-                pressure_plates_spawn_system,
-            ),
-        )
-        // HUD and screen-space UI.
-        .add_systems(
-            Update,
-            (
-                ui_hud_scale_system,
-                // Cancels the HUD scale inside the fixed-size label textures;
-                // must observe this frame's scale, not last frame's.
-                floating_label_scale_compensation_system.after(ui_hud_scale_system),
-                ui_crosshair_visibility_system,
-                ui_player_list_rebuild_system,
-                ui_health_bar_fill_system.after(ui_player_list_rebuild_system),
-                ui_quest_panel_rebuild_system,
-                ui_stunned_blink_system,
-                ui_rtt_system,
-                ui_fps_system,
-                ui_crosshair_lock_system,
-                death_overlay_visibility_system,
-                render_pending_messages_system,
-                update_message_feed_system,
-                render_pending_banner_system,
-                tick_hud_banner_system,
-                console_render_system.after(console_input_system),
-            ),
-        )
-        // Skybox setup, asset conversion, camera following, and ambient
-        // drift. Setup waits for `MapSettings` (from `SInit`) because the map
-        // decides which skybox to build; each setup system latches internally
-        // so it runs once.
-        .add_systems(
-            Update,
-            (
-                setup_skybox_from_cross_system.run_if(resource_exists::<common::protocol::MapSettings>),
-                setup_sun_disc_system.run_if(resource_exists::<common::protocol::MapSettings>),
-                skybox_convert_cross_to_cubemap_system.run_if(resource_exists::<client::map::skybox::SkyboxCrossImage>),
-                skybox_update_camera_system.run_if(resource_exists::<client::map::skybox::SkyboxCubemap>),
-                skybox_rotate_system.run_if(resource_exists::<client::map::skybox::SkyboxCubemap>),
-                // After the rotate step so the disc lands on the same frame's
-                // sun direction; after camera sync would be ideal too, but a
-                // one-frame positional lag at 400 m is invisible.
-                sun_disc_system.after(skybox_rotate_system),
-                // Rain: smooth the snapshot intensity first, then everything
-                // that reads it. Dimming runs after the camera-insert system
-                // so a freshly inserted Skybox is corrected the same frame.
-                rain_smoothing_system,
-                rain_dim_system
-                    .after(rain_smoothing_system)
-                    .after(skybox_update_camera_system),
-                rain_particles_system
-                    .after(rain_smoothing_system)
-                    .before(particle_clouds_system),
-                rain_audio_system.after(rain_smoothing_system),
-            ),
         );
+
+    // Cross-domain `Update` ordering (the `ClientSet` graph), then one
+    // plugin per domain; each plugin owns its intra-set ordering.
+    configure_client_sets(&mut app);
+    app.add_plugins((
+        input_plugin,
+        network_plugin,
+        prediction_plugin,
+        character_sync_plugin,
+        camera_plugin,
+        presentation_plugin,
+        map_plugin,
+        hud_plugin,
+        sky_weather_plugin,
+    ));
 
     if texture_mipmaps_enabled {
         // Do not use bevy_mod_mipmap_generator::generate_mipmaps directly here.

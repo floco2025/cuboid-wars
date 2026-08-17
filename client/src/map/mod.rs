@@ -17,3 +17,7 @@ pub use spawn::{
     GroundMarker, MapGeometryBatch, MapLevel, RampMarker, RoofMarker, WallLightMarker, WallMarker, batch_floor,
     batch_ramp, batch_wall, spawn_wall_light_from_layout, wall_light_flicker_system,
 };
+
+mod plugin;
+
+pub use plugin::{map_plugin, sky_weather_plugin};

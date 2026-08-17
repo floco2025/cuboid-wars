@@ -15,3 +15,7 @@ pub use components::{AssetManagers, ServerReconciliation, worst_axis_divergence}
 pub use io::{network_ping_system, network_process_server_messages_system};
 pub use resources::{ClientToServerChannel, LastSnapshotSeq, RoundTripTime, ServerToClientChannel};
 pub use transport::{ClientToServer, ServerToClient, configure_client, network_io_task};
+
+mod plugin;
+
+pub use plugin::network_plugin;
