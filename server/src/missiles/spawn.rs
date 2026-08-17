@@ -14,7 +14,7 @@ use crate::{
 use common::{
     config::GameplayConfig,
     constants::{MISSILE_RADIUS, MISSILE_SPAWN_OFFSET},
-    physics::{CollisionWorld, character_center},
+    physics::{CollisionWorld, acquire_lock},
     protocol::*,
 };
 
@@ -59,37 +59,44 @@ pub fn handle_missile_shot_message(
         shooter_pos.z,
     );
 
-    // Loose lock re-validation — the client aimed up to an RTT ago, so no
-    // exact ray re-check: the target must exist, be alive, be in range, and
-    // have clear sight. A failed check drops the message silently.
-    let target_center = match msg.target {
-        HomingTarget::Player(target_id) => {
-            let Some(info) = players.get(&target_id) else {
-                return;
-            };
-            if !info.logged_in || info.is_dead() {
-                return;
-            }
-            let Ok((pos, _, _, _)) = player_data.get(info.entity) else {
-                return;
-            };
-            character_center(*pos, gameplay_config.player.physics())
-        }
-        HomingTarget::Actor(target_id) => {
-            let Some(info) = actors.get(&target_id) else {
-                return;
-            };
-            let Ok((pos, _, _, _)) = actor_data.get(info.entity) else {
-                return;
-            };
-            character_center(*pos, gameplay_config.expect_actor(&info.spawn_kind).physics())
-        }
-    };
-    let max_distance = gameplay_config.missiles.lock_max_distance + LOCK_RANGE_GRACE;
-    if eye.distance_squared(target_center) > max_distance * max_distance {
-        return;
-    }
-    if !collision_world.line_of_sight_clear(eye, target_center) {
+    // Lock re-validation with the SAME shared `acquire_lock` the client's
+    // crosshair uses, re-run against current authoritative positions with
+    // the aim the fire message carried. Red crosshair and server acceptance
+    // agree by construction; the assist radius plus the range grace absorb
+    // the target's drift over the message's RTT. A failed check drops the
+    // message silently.
+    let aim = common::math::direction_from_yaw_pitch(msg.face_dir, msg.face_pitch);
+    let candidates = players
+        .iter()
+        .filter(|(target_id, _)| **target_id != id)
+        .filter_map(|(target_id, info)| {
+            let (pos, _, face_dir, _) = player_data.get(info.entity).ok()?;
+            Some((
+                HomingTarget::Player(*target_id),
+                *pos,
+                face_dir.0,
+                gameplay_config.player.physics(),
+            ))
+        })
+        .chain(actors.iter().filter_map(|(target_id, info)| {
+            let (pos, _, face_dir, _) = actor_data.get(info.entity).ok()?;
+            Some((
+                HomingTarget::Actor(*target_id),
+                *pos,
+                face_dir.0,
+                gameplay_config.expect_actor(&info.spawn_kind).physics(),
+            ))
+        }))
+        .collect::<Vec<_>>();
+    let locked = acquire_lock(
+        collision_world,
+        eye,
+        aim,
+        gameplay_config.missiles.lock_max_distance + LOCK_RANGE_GRACE,
+        gameplay_config.missiles.lock_assist_radius,
+        candidates.into_iter(),
+    );
+    if locked != Some(msg.target) {
         return;
     }
 
