@@ -48,7 +48,7 @@
     "weave_strength": 0.1,
     "proximity_fuse_distance": 1.0,
     "stall_secs": 2.0,
-    "max_damage": 105.0,
+    "max_damage": 600.0,
     "missiles_per_pack": 1
   },
   "power_ups": {
