@@ -63,40 +63,43 @@ pub fn handle_missile_shot_message(
     // crosshair uses, re-run against current authoritative positions with
     // the aim the fire message carried. Red crosshair and server acceptance
     // agree by construction; the assist radius plus the range grace absorb
-    // the target's drift over the message's RTT. A failed check drops the
-    // message silently.
+    // the target's drift over the message's RTT. With `require_lock` off, a
+    // shot whose claim fails (or that never claimed) launches unguided along
+    // the aim instead; with it on, it drops silently.
     let aim = common::math::direction_from_yaw_pitch(msg.face_dir, msg.face_pitch);
-    let candidates = players
-        .iter()
-        .filter(|(target_id, _)| **target_id != id)
-        .filter_map(|(target_id, info)| {
-            let (pos, _, face_dir, _) = player_data.get(info.entity).ok()?;
-            Some((
-                HomingTarget::Player(*target_id),
-                *pos,
-                face_dir.0,
-                gameplay_config.player.physics(),
-            ))
-        })
-        .chain(actors.iter().filter_map(|(target_id, info)| {
-            let (pos, _, face_dir, _) = actor_data.get(info.entity).ok()?;
-            Some((
-                HomingTarget::Actor(*target_id),
-                *pos,
-                face_dir.0,
-                gameplay_config.expect_actor(&info.spawn_kind).physics(),
-            ))
-        }))
-        .collect::<Vec<_>>();
-    let locked = acquire_lock(
-        collision_world,
-        eye,
-        aim,
-        gameplay_config.missiles.lock_max_distance + LOCK_RANGE_GRACE,
-        gameplay_config.missiles.lock_assist_radius,
-        candidates.into_iter(),
-    );
-    if locked != Some(msg.target) {
+    let validated = msg.target.filter(|claimed| {
+        let candidates = players
+            .iter()
+            .filter(|(target_id, _)| **target_id != id)
+            .filter_map(|(target_id, info)| {
+                let (pos, _, face_dir, _) = player_data.get(info.entity).ok()?;
+                Some((
+                    HomingTarget::Player(*target_id),
+                    *pos,
+                    face_dir.0,
+                    gameplay_config.player.physics(),
+                ))
+            })
+            .chain(actors.iter().filter_map(|(target_id, info)| {
+                let (pos, _, face_dir, _) = actor_data.get(info.entity).ok()?;
+                Some((
+                    HomingTarget::Actor(*target_id),
+                    *pos,
+                    face_dir.0,
+                    gameplay_config.expect_actor(&info.spawn_kind).physics(),
+                ))
+            }))
+            .collect::<Vec<_>>();
+        acquire_lock(
+            collision_world,
+            eye,
+            aim,
+            gameplay_config.missiles.lock_max_distance + LOCK_RANGE_GRACE,
+            gameplay_config.missiles.lock_assist_radius,
+            candidates.into_iter(),
+        ) == Some(*claimed)
+    });
+    if gameplay_config.missiles.require_lock && validated.is_none() {
         return;
     }
 
@@ -107,14 +110,21 @@ pub fn handle_missile_shot_message(
     commands.entity(entity).insert(FaceDirection(msg.face_dir));
 
     let missile_config = server_gameplay_config.missiles;
-    let dir = common::math::direction_from_yaw_pitch(msg.face_dir, msg.face_pitch);
+    let dir = aim;
+    // An unguided shot flies exactly where aimed — random spread would just
+    // make it useless.
+    let spread = if validated.is_some() {
+        missile_config.launch_spread_degrees.to_radians()
+    } else {
+        0.0
+    };
     // Muzzle stays on the aim axis; only the flight direction is perturbed,
     // so the steering has something visible to correct.
     let muzzle = eye + dir * MISSILE_SPAWN_OFFSET;
     let spawn_pos: Position = muzzle.into();
     let launch_dir = clear_launch_direction(
         dir,
-        missile_config.launch_spread_degrees.to_radians(),
+        spread,
         muzzle,
         missile_config.speed * LAUNCH_CLEAR_SECS,
         MISSILE_RADIUS,
@@ -134,7 +144,7 @@ pub fn handle_missile_shot_message(
         MissileInfo::new(
             missile_entity,
             id,
-            Some(msg.target),
+            validated,
             dir,
             weave_phase,
             missile_config.lifetime_secs,

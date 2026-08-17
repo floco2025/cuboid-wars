@@ -169,6 +169,10 @@ pub struct MissilesConfig {
     pub lock_max_distance: f32,
     // Aim-assist: how far the aim ray may pass from a target and still lock.
     pub lock_assist_radius: f32,
+    // When true, F only fires with a validated lock; when false, an
+    // unlocked shot launches an unguided missile straight along the aim
+    // (like a missile whose target died).
+    pub require_lock: bool,
     pub max_missiles: u32,
     pub blast_radius: f32,
 }
@@ -415,6 +419,7 @@ mod tests {
         MissilesConfig {
             lock_max_distance: 60.0,
             lock_assist_radius: 1.2,
+            require_lock: true,
             max_missiles: 3,
             blast_radius: 6.0,
         }

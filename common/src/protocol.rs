@@ -107,7 +107,9 @@ pub struct CShot {
 // range, sight clear) before spawning.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct CMissileShot {
-    pub target: HomingTarget,
+    // `None` = unguided shot along the aim; only honored when
+    // `missiles.require_lock` is off.
+    pub target: Option<HomingTarget>,
     pub face_dir: f32,   // radians - yaw when firing
     pub face_pitch: f32, // radians - pitch when firing
 }
