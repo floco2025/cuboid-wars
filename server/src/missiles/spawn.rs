@@ -13,6 +13,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
+    constants::{MISSILE_RADIUS, MISSILE_SPAWN_OFFSET},
     physics::{CollisionWorld, character_center},
     protocol::*,
 };
@@ -102,14 +103,14 @@ pub fn handle_missile_shot_message(
     let dir = common::math::direction_from_yaw_pitch(msg.face_dir, msg.face_pitch);
     // Muzzle stays on the aim axis; only the flight direction is perturbed,
     // so the steering has something visible to correct.
-    let muzzle = eye + dir * missile_config.spawn_offset;
+    let muzzle = eye + dir * MISSILE_SPAWN_OFFSET;
     let spawn_pos: Position = muzzle.into();
     let launch_dir = clear_launch_direction(
         dir,
         missile_config.launch_spread_degrees.to_radians(),
         muzzle,
         missile_config.speed * LAUNCH_CLEAR_SECS,
-        missile_config.radius,
+        MISSILE_RADIUS,
         collision_world,
         &open_barrier_kinds.0,
         &mut rand::rng(),

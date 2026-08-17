@@ -1,3 +1,4 @@
+use crate::constants::PROJECTILE_BODY_EMISSIVE;
 use bevy::prelude::*;
 
 use crate::characters::PreviousTickPosition;
@@ -19,11 +20,7 @@ pub struct ProjectileAssets {
 
 impl FromWorld for ProjectileAssets {
     fn from_world(world: &mut World) -> Self {
-        let brightness = world
-            .resource::<crate::config::ClientSettings>()
-            .vfx
-            .projectiles
-            .body_emissive_brightness;
+        let brightness = PROJECTILE_BODY_EMISSIVE;
         let radius = world.resource::<GameplayConfig>().projectiles.radius;
         let mesh = world.resource_mut::<Assets<Mesh>>().add(Sphere::new(radius));
         let material = world
@@ -100,7 +97,7 @@ pub fn spawn_projectiles(
     face_pitch: f32,
     has_multi_shot: bool,
     shooter_eye_height: f32,
-    config: &ProjectilesConfig,
+    gameplay: &GameplayConfig,
     collision_world: &CollisionWorld,
     open_kinds: &[BarrierKindId],
     shooter_id: PlayerId,
@@ -111,13 +108,19 @@ pub fn spawn_projectiles(
         face_pitch,
         has_multi_shot,
         shooter_eye_height,
-        config,
+        gameplay,
         collision_world,
         open_kinds,
     );
 
     for spawn_info in &spawns {
-        spawn_single_projectile(commands, projectile_assets, config, spawn_info, shooter_id);
+        spawn_single_projectile(
+            commands,
+            projectile_assets,
+            &gameplay.projectiles,
+            spawn_info,
+            shooter_id,
+        );
     }
 
     spawns.len()

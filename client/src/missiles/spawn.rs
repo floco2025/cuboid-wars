@@ -5,7 +5,7 @@ use crate::{
     characters::PreviousTickPosition,
     constants::{
         ITEM_MISSILE_COLOR, MISSILE_BODY_LENGTH, MISSILE_BODY_RADIUS, MISSILE_FIN_LENGTH, MISSILE_FIN_SPAN,
-        MISSILE_NOSE_LENGTH,
+        MISSILE_NOSE_LENGTH, PROJECTILE_BODY_EMISSIVE,
     },
     missiles::MissileVelocity,
 };
@@ -28,11 +28,7 @@ pub struct MissileAssets {
 
 impl FromWorld for MissileAssets {
     fn from_world(world: &mut World) -> Self {
-        let brightness = world
-            .resource::<crate::config::ClientSettings>()
-            .vfx
-            .projectiles
-            .body_emissive_brightness;
+        let brightness = PROJECTILE_BODY_EMISSIVE;
         let mut meshes = world.resource_mut::<Assets<Mesh>>();
         let body_mesh = meshes.add(Cylinder::new(MISSILE_BODY_RADIUS, MISSILE_BODY_LENGTH));
         let nose_mesh = meshes.add(Cone {
@@ -168,6 +164,20 @@ pub fn missile_rotation(velocity: Vec3) -> Quat {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // The server's collision/fuse ball (`MISSILE_RADIUS`) is what keeps the
+    // missile clear of geometry; the rendered mesh must fit inside it
+    // radially or missiles visibly clip walls they fly along. The two are
+    // deliberately tuned separately — this pins the invariant, not a ratio.
+    #[test]
+    fn rendered_missile_fits_inside_the_collision_ball() {
+        let widest_radial_extent = MISSILE_BODY_RADIUS + MISSILE_FIN_SPAN;
+        assert!(
+            widest_radial_extent <= common::constants::MISSILE_RADIUS,
+            "missile mesh ({widest_radial_extent} m radial) exceeds the server collision ball ({} m)",
+            common::constants::MISSILE_RADIUS
+        );
+    }
 
     #[test]
     fn missile_rotation_points_the_nose_along_the_velocity() {

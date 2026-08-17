@@ -286,7 +286,7 @@ fn blades_stay_within_cell_plus_overhang() {
     let mesh = grass_cell_mesh(cell, &config, ALL_OPEN, &[]);
     let aabb = grass_cell_aabb(cell, &config);
     let bound = GRID_CELL_SIZE / 2.0 + BLADE_MAX_OVERHANG;
-    let max_sway = config.wind_strength * WIND_SWAY_FACTOR;
+    let max_sway = crate::constants::GRASS_WIND_STRENGTH * WIND_SWAY_FACTOR;
     for position in positions(&mesh) {
         assert!((position[0] - cell.x).abs() <= bound);
         assert!((position[2] - cell.z).abs() <= bound);

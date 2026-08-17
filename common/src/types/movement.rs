@@ -26,15 +26,21 @@ impl PlayerMoveIntent {
     }
 
     #[must_use]
-    pub fn to_horizontal_velocity(&self, walk_speed: f32, run_speed: f32, has_speed_power_up: bool) -> Vec3 {
+    pub fn to_horizontal_velocity(
+        &self,
+        walk_speed: f32,
+        run_speed: f32,
+        has_speed_power_up: bool,
+        speed_multiplier: f32,
+    ) -> Vec3 {
         match self {
             Self::Idle => Vec3::ZERO,
             Self::Walking { direction } => {
-                let speed = player_speed_with_power_up(walk_speed, has_speed_power_up);
+                let speed = player_speed_with_power_up(walk_speed, has_speed_power_up, speed_multiplier);
                 Vec3::new(direction.sin() * speed, 0.0, direction.cos() * speed)
             }
             Self::Running { direction } => {
-                let speed = player_speed_with_power_up(run_speed, has_speed_power_up);
+                let speed = player_speed_with_power_up(run_speed, has_speed_power_up, speed_multiplier);
                 Vec3::new(direction.sin() * speed, 0.0, direction.cos() * speed)
             }
         }
@@ -54,9 +60,9 @@ impl PlayerMoveIntent {
     }
 }
 
-fn player_speed_with_power_up(speed: f32, has_speed_power_up: bool) -> f32 {
+fn player_speed_with_power_up(speed: f32, has_speed_power_up: bool, speed_multiplier: f32) -> f32 {
     if has_speed_power_up {
-        speed * crate::constants::POWER_UP_SPEED_MULTIPLIER
+        speed * speed_multiplier
     } else {
         speed
     }

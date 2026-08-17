@@ -1,3 +1,4 @@
+use crate::constants::{BANNER_DEATH_SECS, BANNER_DEATH_TEXT};
 use bevy::prelude::*;
 
 use crate::{
@@ -23,13 +24,15 @@ use common::{
 
 pub(super) fn player_movement_velocity(
     movement: PlayerMovementState,
-    walk_speed: f32,
-    run_speed: f32,
+    gameplay_config: &GameplayConfig,
     has_speed_power_up: bool,
 ) -> Vec3 {
-    let mut velocity = movement
-        .move_intent
-        .to_horizontal_velocity(walk_speed, run_speed, has_speed_power_up);
+    let mut velocity = movement.move_intent.to_horizontal_velocity(
+        gameplay_config.player.walk_speed,
+        gameplay_config.player.run_speed,
+        has_speed_power_up,
+        gameplay_config.power_up_effects.speed_multiplier,
+    );
     velocity.y = movement.vertical_velocity;
     velocity
 }
@@ -45,12 +48,8 @@ pub fn handle_player_move_intent_message(
 ) {
     trace!("{:?} move intent: {:?}", msg.id, msg);
     if let Some(player) = players.get(&msg.id) {
-        let server_velocity = player_movement_velocity(
-            msg.movement,
-            gameplay_config.player.walk_speed,
-            gameplay_config.player.run_speed,
-            player.power_up(PowerUpKind::Speed),
-        );
+        let server_velocity =
+            player_movement_velocity(msg.movement, gameplay_config, player.power_up(PowerUpKind::Speed));
 
         // Add server reconciliation if we have client position
         if let Ok((client_pos, _, _)) = player_data.get(player.entity) {
@@ -75,12 +74,8 @@ pub fn handle_player_jump_message(
     if let Some(player) = players.get(&msg.id)
         && let Ok((client_pos, _, _)) = player_data.get(player.entity)
     {
-        let server_velocity = player_movement_velocity(
-            msg.movement,
-            gameplay_config.player.walk_speed,
-            gameplay_config.player.run_speed,
-            player.power_up(PowerUpKind::Speed),
-        );
+        let server_velocity =
+            player_movement_velocity(msg.movement, gameplay_config, player.power_up(PowerUpKind::Speed));
         commands.entity(player.entity).insert((
             msg.movement.move_intent,
             CharacterVerticalVelocity(msg.movement.vertical_velocity),
@@ -124,7 +119,7 @@ pub fn handle_player_shot_message(
                 msg.face_pitch,
                 player.power_up(PowerUpKind::MultiShot),
                 gameplay_config.player.eye_height(),
-                &gameplay_config.projectiles,
+                gameplay_config,
                 collision_world,
                 &open_barrier_kinds.0,
                 msg.id,
@@ -192,7 +187,7 @@ pub fn handle_player_death_message(
     players: &mut PlayerMap,
     local_player_info: &mut LocalPlayerInfo,
     feed: &mut GameMessageFeed,
-    client_settings: &ClientSettings,
+    _client_settings: &ClientSettings,
     pending_banner: &mut PendingBanner,
     my_player_id: PlayerId,
     msg: SPlayerDeath,
@@ -259,8 +254,7 @@ pub fn handle_player_death_message(
         // Centered "You have died!" banner. The red full-screen
         // `DeathOverlayMarker` tint and the message-feed `SoloDeath`
         // entry are independent layers; the banner is the headline.
-        let banner = &client_settings.hud.banner;
-        pending_banner.set(banner.death_text.clone(), banner.death_duration_secs);
+        pending_banner.set(BANNER_DEATH_TEXT.to_owned(), BANNER_DEATH_SECS);
     } else if let Some(info) = players.remove(&msg.id) {
         commands.entity(info.entity).despawn();
     }
@@ -409,8 +403,7 @@ mod tests {
         let gameplay_config = GameplayConfig::load_default().expect("load default gameplay config");
         let mut mesh_assets = Assets::<Mesh>::default();
         let mut material_assets = Assets::<StandardMaterial>::default();
-        let explosion_assets =
-            ExplosionAssets::new(&mut mesh_assets, &mut material_assets, client_settings.vfx.explosions);
+        let explosion_assets = ExplosionAssets::new(&mut mesh_assets, &mut material_assets);
         let mut explosion_budget = ExplosionVfxBudget::default();
         let explosion_radii = ExplosionRadii::default();
         let mut commands_queue = bevy::ecs::world::CommandQueue::default();

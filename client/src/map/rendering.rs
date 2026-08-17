@@ -1,3 +1,4 @@
+use crate::constants::{LIGHTING_AMBIENT_BRIGHTNESS, LIGHTING_DIRECTIONAL_BRIGHTNESS};
 use bevy::light::{DirectionalLightShadowMap, cluster::GlobalClusterSettings};
 use bevy::prelude::*;
 
@@ -29,7 +30,7 @@ pub fn setup_scene_lighting_system(
 ) {
     commands.spawn((
         DirectionalLight {
-            illuminance: client_settings.lighting.directional_brightness,
+            illuminance: LIGHTING_DIRECTIONAL_BRIGHTNESS,
             shadow_maps_enabled: client_settings.rendering.shadows_directional_enabled,
             ..default()
         },
@@ -39,7 +40,7 @@ pub fn setup_scene_lighting_system(
 
     commands.insert_resource(GlobalAmbientLight {
         color: Color::WHITE,
-        brightness: client_settings.lighting.ambient_brightness,
+        brightness: LIGHTING_AMBIENT_BRIGHTNESS,
         affects_lightmapped_meshes: false,
     });
     commands.insert_resource(DirectionalLightShadowMap {

@@ -1,11 +1,7 @@
 use bevy_ecs::prelude::*;
 use bevy_math::Vec3;
 
-use crate::{
-    config::CharacterPhysicsConfig,
-    constants::{KNOCKBACK_DECELERATION, PHYSICS_EPSILON},
-    protocol::Position,
-};
+use crate::{config::CharacterPhysicsConfig, constants::PHYSICS_EPSILON, protocol::Position};
 
 // Component attached to character entities tracking persistent gravity-axis
 // velocity. X/Z velocity is derived from intent each tick. Running on a ramp can
@@ -27,7 +23,7 @@ impl KnockbackVelocity {
         self.0 * delta
     }
 
-    pub fn decay(&mut self, delta: f32) {
+    pub fn decay(&mut self, delta: f32, deceleration: f32) {
         let speed = self.0.length();
         if speed <= PHYSICS_EPSILON {
             self.0 = Vec3::ZERO;
@@ -35,7 +31,7 @@ impl KnockbackVelocity {
         }
         // Linear friction-style deceleration: hits zero exactly instead of
         // trailing off into an exponential crawl.
-        let remaining = (speed - KNOCKBACK_DECELERATION * delta).max(0.0);
+        let remaining = (speed - deceleration * delta).max(0.0);
         self.0 *= remaining / speed;
     }
 }

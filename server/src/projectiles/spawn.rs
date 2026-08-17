@@ -50,7 +50,7 @@ pub fn handle_shot_message(
             msg.face_pitch,
             has_multi_shot,
             gameplay_config.player.eye_height(),
-            &gameplay_config.projectiles,
+            gameplay_config,
             collision_world,
             &open_barrier_kinds.0,
         );

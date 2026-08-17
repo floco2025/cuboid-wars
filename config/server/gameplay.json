@@ -31,7 +31,6 @@
   },
   "player": {
     "armor": 0.8,
-    "invincible": false,
     "fall_damage": {
       "safe_fall_distance": 8.0,
       "lethal_fall_distance": 15.0
@@ -45,8 +44,6 @@
     "speed": 12.0,
     "turn_rate": 7.0,
     "lifetime_secs": 10.0,
-    "radius": 0.3,
-    "spawn_offset": 1.0,
     "launch_spread_degrees": 45.0,
     "weave_strength": 0.1,
     "proximity_fuse_distance": 1.0,

@@ -4,7 +4,7 @@ use super::sync::apply_actor_movement_state;
 use crate::{
     actors::ActorMap,
     audio::{play_explosion_sound, play_spatial_sound},
-    config::{AssetSet, AudioConfig, LaserVfxConfig},
+    config::{AssetSet, AudioConfig},
     network::RoundTripTime,
     vfx::{ExplosionRadii, ExplosionSpawnCtx, spawn_actor_explosion, spawn_laser_beam},
 };
@@ -83,7 +83,6 @@ pub fn handle_actor_beam_message(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
-    laser_vfx: &LaserVfxConfig,
     actors: &ActorMap,
     actor_data: &Query<(&Position, &ActorMoveIntent, &FaceDirection), With<ActorMarker>>,
     asset_server: &Res<AssetServer>,
@@ -94,7 +93,7 @@ pub fn handle_actor_beam_message(
     let Some(info) = actors.get(&msg.id) else {
         return;
     };
-    let beam = spawn_laser_beam(commands, meshes, materials, laser_vfx, &msg);
+    let beam = spawn_laser_beam(commands, meshes, materials, &msg);
     let mut beam_entity = commands.entity(beam);
     beam_entity.insert((
         AudioPlayer::new(asset_server.load(asset_set.actor_sound(&info.kind, "fire").to_owned())),

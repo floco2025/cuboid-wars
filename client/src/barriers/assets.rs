@@ -72,10 +72,10 @@ pub fn setup_barrier_assets(
     mut materials: ResMut<Assets<StandardMaterial>>,
     kind_table: Res<BarrierKindTable>,
     asset_set: Res<AssetSet>,
-    client_settings: Res<ClientSettings>,
+    _client_settings: Res<ClientSettings>,
 ) {
-    let alpha_max = client_settings.barriers.alpha_max;
-    let emissive = client_settings.barriers.emissive;
+    let alpha_max = BARRIER_ALPHA_MAX;
+    let emissive = BARRIER_EMISSIVE;
     // Barrier mesh: unit X and Y so per-instance `Transform.scale` can
     // encode the merged segment's length and barrier height. Thickness
     // stays baked in the mesh — no instance ever wants a different thickness.

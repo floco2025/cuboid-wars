@@ -102,7 +102,7 @@ pub fn input_shooting_system(
                 pitch,
                 has_multi_shot,
                 gameplay_config.player.eye_height(),
-                &gameplay_config.projectiles,
+                &gameplay_config,
                 collision_world,
                 &shooter.open_barrier_kinds.0,
                 my_id.0,

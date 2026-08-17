@@ -1,6 +1,6 @@
 use super::particles::ExplosionVfxBudget;
+use crate::constants::*;
 use crate::vfx::cube::smoothstep;
-use crate::{config::ExplosionVfxConfig, constants::*};
 use bevy::{
     asset::RenderAssetUsages,
     light::NotShadowCaster,
@@ -40,7 +40,6 @@ pub(super) fn spawn_smoke_cloud(
     center: Vec3,
     reach_radius: f32,
     requested_count: usize,
-    config: &ExplosionVfxConfig,
     rng: &mut impl Rng,
 ) {
     let count = budget.reserve_smoke(requested_count, EXPLOSION_SMOKE_GLOBAL_MAX_COUNT);
@@ -59,8 +58,8 @@ pub(super) fn spawn_smoke_cloud(
             angular_velocity: rng.random_range(-0.5..0.5),
             aspect: Vec2::new(rng.random_range(0.85..1.15), rng.random_range(0.80..1.10)),
             start_size: EXPLOSION_SMOKE_START_SIZE * rng.random_range(0.7..1.25),
-            end_size: config.smoke.end_size * rng.random_range(0.75..1.35),
-            lifetime: config.smoke.lifetime_secs * rng.random_range(0.9..1.15),
+            end_size: EXPLOSION_SMOKE_END_SIZE * rng.random_range(0.75..1.35),
+            lifetime: EXPLOSION_SMOKE_LIFETIME_SECS * rng.random_range(0.9..1.15),
             color: Vec3::new(shade * 1.08, shade, shade * 0.9),
         });
     }
@@ -70,7 +69,7 @@ pub(super) fn spawn_smoke_cloud(
         Vec3::X,
         Vec3::Y,
         Vec3::Z,
-        config.smoke.max_opacity,
+        EXPLOSION_SMOKE_MAX_OPACITY,
     ));
     commands.spawn((
         Mesh3d(mesh.clone()),
@@ -187,9 +186,8 @@ mod tests {
 
     #[test]
     fn smoke_reaches_full_opacity_as_fireball_ends_then_holds() {
-        let config = ExplosionVfxConfig::default();
-        let lifetime = config.smoke.lifetime_secs;
-        let opacity = config.smoke.max_opacity;
+        let lifetime = EXPLOSION_SMOKE_LIFETIME_SECS;
+        let opacity = EXPLOSION_SMOKE_MAX_OPACITY;
         assert_eq!(smoke_alpha(0.0, lifetime, opacity), 0.0);
         assert!(smoke_alpha(0.25, lifetime, opacity) < smoke_alpha(0.5, lifetime, opacity));
         assert_eq!(smoke_alpha(0.5, lifetime, opacity), opacity);

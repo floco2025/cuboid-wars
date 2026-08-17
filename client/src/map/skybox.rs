@@ -1,3 +1,6 @@
+use crate::constants::{
+    LIGHTING_AMBIENT_BRIGHTNESS, LIGHTING_DIRECTIONAL_BRIGHTNESS, RAIN_LIGHT_DIM, RAIN_SATURATION, RAIN_SKY_DIM,
+};
 use bevy::{core_pipeline::Skybox, light::NotShadowCaster, prelude::*, render::view::ColorGrading};
 
 use crate::{
@@ -155,7 +158,7 @@ pub fn skybox_update_camera_system(
 // rain intensity; wall/actor lights stay lit — windows glowing in the rain.
 pub fn rain_dim_system(
     rain: Res<crate::vfx::RainIntensity>,
-    client_settings: Res<ClientSettings>,
+    _client_settings: Res<ClientSettings>,
     settings: Option<Res<SkyboxSettings>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut skyboxes: Query<&mut Skybox>,
@@ -164,14 +167,13 @@ pub fn rain_dim_system(
     disc: Query<(&MeshMaterial3d<StandardMaterial>, &SunDisc)>,
     mut gradings: Query<&mut ColorGrading>,
 ) {
-    let weather = &client_settings.weather;
-    let sky_factor = 1.0 - rain.current * (1.0 - weather.sky_dim);
-    let light_factor = 1.0 - rain.current * (1.0 - weather.light_dim);
+    let sky_factor = 1.0 - rain.current * (1.0 - RAIN_SKY_DIM);
+    let light_factor = 1.0 - rain.current * (1.0 - RAIN_LIGHT_DIM);
 
     // Heavy rain washes the world gray: post-tonemap saturation on both
     // cameras follows the intensity.
     for mut grading in &mut gradings {
-        grading.global.post_saturation = 1.0 - rain.current * (1.0 - weather.saturation);
+        grading.global.post_saturation = 1.0 - rain.current * (1.0 - RAIN_SATURATION);
     }
 
     if let Some(settings) = settings {
@@ -180,9 +182,9 @@ pub fn rain_dim_system(
         }
     }
     for mut light in &mut sun_light {
-        light.illuminance = client_settings.lighting.directional_brightness * light_factor;
+        light.illuminance = LIGHTING_DIRECTIONAL_BRIGHTNESS * light_factor;
     }
-    ambient.brightness = client_settings.lighting.ambient_brightness * light_factor;
+    ambient.brightness = LIGHTING_AMBIENT_BRIGHTNESS * light_factor;
     for (material, sun_disc) in &disc {
         if let Some(mut material) = materials.get_mut(&material.0) {
             let luminance = sun_disc.luminance * sky_factor;

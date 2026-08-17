@@ -366,13 +366,13 @@ fn grass_burn_intensity(scorch_alpha: f32) -> f32 {
 pub fn scorch_marks_system(
     mut commands: Commands,
     time: Res<Time>,
-    settings: Res<ClientSettings>,
+    _settings: Res<ClientSettings>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut budget: ResMut<ExplosionVfxBudget>,
     mut marks: Query<(Entity, &mut ScorchMark, Option<&mut GrassBurn>)>,
 ) {
     let delta = time.delta_secs();
-    let full_opacity_duration = settings.vfx.explosions.scorches.full_opacity_duration_secs;
+    let full_opacity_duration = EXPLOSION_SCORCH_FULL_OPACITY_SECS;
     let fade_duration = scorch_fade_duration(full_opacity_duration);
     let total_duration = full_opacity_duration + fade_duration;
     for (entity, mut mark, grass_burn) in &mut marks {
@@ -399,7 +399,6 @@ pub fn scorch_marks_system(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::ExplosionVfxConfig;
 
     #[test]
     fn wall_cross_section_stops_at_reach_limit() {
@@ -417,7 +416,7 @@ mod tests {
 
     #[test]
     fn scorch_alpha_stays_opaque_then_fades_to_zero() {
-        let full_opacity_duration = ExplosionVfxConfig::default().scorches.full_opacity_duration_secs;
+        let full_opacity_duration = EXPLOSION_SCORCH_FULL_OPACITY_SECS;
         let fade_duration = scorch_fade_duration(full_opacity_duration);
         assert_eq!(scorch_alpha(0.0, full_opacity_duration), 1.0);
         assert_eq!(scorch_alpha(full_opacity_duration, full_opacity_duration), 1.0);

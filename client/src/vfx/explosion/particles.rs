@@ -81,7 +81,7 @@ impl SurfacePlane {
 pub fn explosion_particles_system(
     mut commands: Commands,
     time: Res<Time>,
-    settings: Res<ClientSettings>,
+    _settings: Res<ClientSettings>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut budget: ResMut<ExplosionVfxBudget>,
     mut shards: Query<(Entity, &mut ExplosionShardCloud)>,
@@ -89,7 +89,6 @@ pub fn explosion_particles_system(
     main_camera: Query<&GlobalTransform, (With<Camera3d>, With<MainCameraMarker>)>,
 ) {
     let delta = time.delta_secs();
-    let config = &settings.vfx.explosions;
     for (entity, mut cloud) in &mut shards {
         cloud.elapsed += delta;
         let elapsed = cloud.elapsed;
@@ -149,7 +148,7 @@ pub fn explosion_particles_system(
                 smoke_right,
                 smoke_up,
                 smoke_normal,
-                config.smoke.max_opacity,
+                EXPLOSION_SMOKE_MAX_OPACITY,
             );
         }
     }

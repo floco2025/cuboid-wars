@@ -1,8 +1,5 @@
 use super::scorch::scorch_mesh;
-use crate::{
-    config::{ClientSettings, ExplosionVfxConfig},
-    constants::*,
-};
+use crate::constants::*;
 use bevy::{asset::RenderAssetUsages, mesh::Indices, prelude::*, render::render_resource::PrimitiveTopology};
 use common::physics::CollisionWorld;
 use std::{collections::HashMap, f32::consts::TAU};
@@ -33,20 +30,15 @@ pub struct ExplosionAssets {
     pub(super) fireball_template: StandardMaterial,
     pub(super) ring_template: StandardMaterial,
     pub(super) scorch_template: StandardMaterial,
-    pub(super) config: ExplosionVfxConfig,
 }
 
 impl ExplosionAssets {
     // Public (rather than folded into `FromWorld`) so tests can build the
     // resource against plain `Assets` collections.
-    pub fn new(
-        meshes: &mut Assets<Mesh>,
-        materials: &mut Assets<StandardMaterial>,
-        config: ExplosionVfxConfig,
-    ) -> Self {
-        let flash = config.fireball.emissive_brightness;
-        let ring = config.shockwave.emissive_brightness;
-        let shard = config.shards.emissive_brightness;
+    pub fn new(meshes: &mut Assets<Mesh>, materials: &mut Assets<StandardMaterial>) -> Self {
+        let flash = EXPLOSION_FIREBALL_EMISSIVE;
+        let ring = EXPLOSION_SHOCKWAVE_EMISSIVE;
+        let shard = EXPLOSION_SHARD_EMISSIVE;
         Self {
             // Unit-diameter meshes: `Transform::scale` equals the layer's
             // world diameter in meters.
@@ -88,7 +80,6 @@ impl ExplosionAssets {
                 depth_bias: 1.0,
                 ..default()
             },
-            config,
         }
     }
 }
@@ -156,10 +147,9 @@ pub(super) fn shockwave_mesh(
 
 impl FromWorld for ExplosionAssets {
     fn from_world(world: &mut World) -> Self {
-        let config = world.resource::<ClientSettings>().vfx.explosions;
         world.resource_scope(|world, mut meshes: Mut<Assets<Mesh>>| {
             let mut materials = world.resource_mut::<Assets<StandardMaterial>>();
-            Self::new(&mut meshes, &mut materials, config)
+            Self::new(&mut meshes, &mut materials)
         })
     }
 }

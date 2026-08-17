@@ -1,3 +1,4 @@
+use crate::constants::BANNER_FADE_SECS;
 use bevy::prelude::*;
 
 use super::fade::fade_out_alpha;
@@ -38,7 +39,7 @@ impl PendingBanner {
 
 // Spawn the requested banner: a vertically-centered full-width band (1/5
 // screen height) with the text centered both ways, fading out over the final
-// `hud.banner.fade_duration_secs` of its lifetime.
+// `BANNER_FADE_SECS` of its lifetime.
 //
 // Single-banner invariant: any existing banner entity is despawned first.
 // Two banners overlapping looks broken (same position, same translucent
@@ -94,12 +95,12 @@ pub fn render_pending_banner_system(
 pub fn tick_hud_banner_system(
     mut commands: Commands,
     time: Res<Time>,
-    client_settings: Res<ClientSettings>,
+    _client_settings: Res<ClientSettings>,
     mut banners: Query<(Entity, &mut HudBannerTimer, &mut BackgroundColor, &Children), With<HudBannerMarker>>,
     mut texts: Query<&mut TextColor>,
 ) {
     let delta = time.delta_secs();
-    let fade_secs = client_settings.hud.banner.fade_duration_secs;
+    let fade_secs = BANNER_FADE_SECS;
     for (entity, mut timer, mut bg, children) in &mut banners {
         timer.remaining_secs -= delta;
         if timer.remaining_secs <= 0.0 {

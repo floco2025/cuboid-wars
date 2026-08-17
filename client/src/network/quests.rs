@@ -1,3 +1,4 @@
+use crate::constants::{BANNER_QUEST_ANNOUNCEMENT_SECS, BANNER_QUEST_COMPLETED_SECS};
 use bevy::prelude::*;
 
 use crate::{
@@ -14,7 +15,7 @@ use common::protocol::*;
 // genuinely-new quests).
 pub fn handle_quests_assigned_message(
     quest_log: &mut QuestLog,
-    client_settings: &ClientSettings,
+    _client_settings: &ClientSettings,
     pending_banner: &mut PendingBanner,
     msg: SQuestsAssigned,
 ) {
@@ -39,10 +40,7 @@ pub fn handle_quests_assigned_message(
     if lines.is_empty() {
         return;
     }
-    pending_banner.set(
-        lines.join("\n"),
-        client_settings.hud.banner.quest_announcement_duration_secs,
-    );
+    pending_banner.set(lines.join("\n"), BANNER_QUEST_ANNOUNCEMENT_SECS);
 }
 
 // A quest's progress advanced. Carries the absolute value, so keep the max to
@@ -60,7 +58,7 @@ pub fn handle_quest_progress_message(quest_log: &mut QuestLog, msg: SQuestProgre
 pub fn handle_quest_completed_message(
     commands: &mut Commands,
     quest_log: &mut QuestLog,
-    client_settings: &ClientSettings,
+    _client_settings: &ClientSettings,
     pending_banner: &mut PendingBanner,
     asset_server: &AssetServer,
     asset_set: &AssetSet,
@@ -70,10 +68,7 @@ pub fn handle_quest_completed_message(
         entry.progress = entry.threshold;
         entry.completed = true;
     }
-    pending_banner.set(
-        msg.completed_text,
-        client_settings.hud.banner.quest_completed_duration_secs,
-    );
+    pending_banner.set(msg.completed_text, BANNER_QUEST_COMPLETED_SECS);
     play_sound(commands, asset_server, asset_set.player_sound("quest_completed"));
 }
 

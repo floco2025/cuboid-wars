@@ -1,3 +1,7 @@
+use crate::constants::{
+    PROJECTILE_IMPACT_MAX_SOUNDS_PER_SECOND, PROJECTILE_IMPACT_MIN_BOUNCE_SPEED,
+    PROJECTILE_IMPACT_PREEMPTION_LOUDNESS_RATIO, PROJECTILE_IMPACT_WALL_BOUNCE_GAIN,
+};
 use bevy::{
     audio::{PlaybackMode, Volume},
     prelude::*,
@@ -54,14 +58,13 @@ pub(super) fn play_wall_bounce_sound(
     pos: Vec3,
     listener_pos: Vec3,
 ) {
-    let impact_config = &audio_config.projectile_impacts;
-    if speed_before < impact_config.min_bounce_speed_meters_per_second {
+    if speed_before < PROJECTILE_IMPACT_MIN_BOUNCE_SPEED {
         return;
     }
     let loudness = loudness_at_listener(pos, listener_pos, audio_config.spatial_distance_scale);
-    let min_interval = 1.0 / impact_config.max_bounce_sounds_per_second;
+    let min_interval = 1.0 / PROJECTILE_IMPACT_MAX_SOUNDS_PER_SECOND;
     if current_time - last_bounce_sound.time < min_interval
-        && loudness < last_bounce_sound.loudness * impact_config.rate_limit_preemption_loudness_ratio
+        && loudness < last_bounce_sound.loudness * PROJECTILE_IMPACT_PREEMPTION_LOUDNESS_RATIO
     {
         return;
     }
@@ -73,7 +76,7 @@ pub(super) fn play_wall_bounce_sound(
         audio_config,
         PlaybackSettings {
             mode: PlaybackMode::Despawn,
-            volume: Volume::Linear(impact_config.wall_bounce_gain_multiplier),
+            volume: Volume::Linear(PROJECTILE_IMPACT_WALL_BOUNCE_GAIN),
             ..default()
         },
         pos,

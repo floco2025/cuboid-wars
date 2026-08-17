@@ -26,10 +26,14 @@ pub fn capture_previous_tick_position_system(
 
 // Tick blast shoves down after movement consumed this tick's step —
 // mirrors the server's decay so prediction integrates the same curve.
-pub fn knockback_decay_system(time: Res<Time>, mut knockbacks: Query<&mut KnockbackVelocity>) {
+pub fn knockback_decay_system(
+    time: Res<Time>,
+    gameplay_config: Res<GameplayConfig>,
+    mut knockbacks: Query<&mut KnockbackVelocity>,
+) {
     let delta = time.delta_secs();
     for mut knockback in &mut knockbacks {
-        knockback.decay(delta);
+        knockback.decay(delta, gameplay_config.knockback.deceleration);
     }
 }
 

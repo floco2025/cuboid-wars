@@ -1,3 +1,7 @@
+use crate::constants::{
+    RAIN_DROP_SIZE, RAIN_DROPS_PER_SECOND, RAIN_FALL_SPEED, RAIN_SPAWN_HEIGHT, RAIN_SPAWN_LEAD_FRACTION,
+    RAIN_SPAWN_RADIUS, RAIN_SPLASH_HEIGHT, RAIN_SPLASH_RADIUS, RAIN_SPLASH_SIZE,
+};
 use bevy::{audio::Volume, prelude::*};
 use rand::{RngExt, rng, rngs::ThreadRng};
 
@@ -8,7 +12,7 @@ use super::{
 use crate::{
     audio::play_sound_with,
     cameras::MainCameraMarker,
-    config::{AssetSet, ClientSettings, WeatherConfig},
+    config::{AssetSet, ClientSettings},
 };
 use common::physics::CollisionWorld;
 
@@ -17,7 +21,7 @@ use common::physics::CollisionWorld;
 const SMOOTHING_TAU_SECS: f32 = 0.5;
 // Drops live long enough to fall this far below the camera, so elevated
 // walkways still see rain streaking past. (Spawn height above the camera is
-// the `weather.spawn_height` config.)
+// the `RAIN_SPAWN_HEIGHT` config.)
 const FALL_DISTANCE: f32 = 14.0;
 // Upward sky-exposure probe length: taller than any map.
 const SKY_PROBE_DISTANCE: f32 = 60.0;
@@ -64,11 +68,11 @@ pub fn rain_smoothing_system(time: Res<Time>, mut rain: ResMut<RainIntensity>) {
 // Emit falling drops in a disc around the camera, only in columns open to
 // the sky (an upward probe from camera height finds any roof/floor above —
 // no indoor rain). The particle clouds grow on demand, so
-// `weather.drops_per_second` is the only density knob.
+// `RAIN_DROPS_PER_SECOND` is the only density knob.
 pub fn rain_particles_system(
     time: Res<Time>,
     rain: Res<RainIntensity>,
-    client_settings: Res<ClientSettings>,
+    _client_settings: Res<ClientSettings>,
     collision_world: Option<Res<CollisionWorld>>,
     mut clouds: ResMut<ParticleClouds>,
     camera: Query<&Transform, With<MainCameraMarker>>,
@@ -77,21 +81,19 @@ pub fn rain_particles_system(
 ) {
     let now = time.elapsed_secs();
     let mut rng = rng();
-    let weather = &client_settings.weather;
 
     if rain.current >= RAIN_EPSILON
         && let Ok(camera) = camera.single()
     {
         let count = take_emissions(
             &mut credit,
-            weather.drops_per_second * rain.current,
+            RAIN_DROPS_PER_SECOND * rain.current,
             time.delta_secs(),
             MAX_DROPS_PER_FRAME,
         );
         emit_drops(
             &mut clouds.drops,
             &mut rng,
-            weather,
             collision_world.as_deref(),
             camera,
             count,
@@ -106,18 +108,16 @@ pub fn rain_particles_system(
     while index < pending_splashes.len() {
         if pending_splashes[index].due_secs <= now {
             let splash = pending_splashes.swap_remove(index);
-            spawn_splash(&mut clouds.splashes, &mut rng, splash.position, weather);
+            spawn_splash(&mut clouds.splashes, &mut rng, splash.position);
         } else {
             index += 1;
         }
     }
 }
 
-#[expect(clippy::too_many_arguments, reason = "emission threads the whole rain context")]
 fn emit_drops(
     drops: &mut ParticleCloud,
     rng: &mut ThreadRng,
-    weather: &WeatherConfig,
     collision_world: Option<&CollisionWorld>,
     camera: &Transform,
     count: usize,
@@ -132,12 +132,12 @@ fn emit_drops(
     // and the disc stays centered.
     let forward = camera.forward();
     let lead =
-        Vec3::new(forward.x, 0.0, forward.z).normalize_or_zero() * (weather.spawn_radius * weather.spawn_lead_fraction);
+        Vec3::new(forward.x, 0.0, forward.z).normalize_or_zero() * (RAIN_SPAWN_RADIUS * RAIN_SPAWN_LEAD_FRACTION);
     let disc_center = camera.translation + lead;
 
     for _ in 0..count {
         // sqrt for uniform density over the disc area.
-        let radius = weather.spawn_radius * rng.random_range(0.0_f32..1.0).sqrt();
+        let radius = RAIN_SPAWN_RADIUS * rng.random_range(0.0_f32..1.0).sqrt();
         let angle = rng.random_range(0.0..std::f32::consts::TAU);
         let x = disc_center.x + radius * angle.cos();
         let z = disc_center.z + radius * angle.sin();
@@ -157,16 +157,16 @@ fn emit_drops(
         if covered {
             continue;
         }
-        let spawn_position = probe_origin + Vec3::Y * weather.spawn_height;
+        let spawn_position = probe_origin + Vec3::Y * RAIN_SPAWN_HEIGHT;
         // The landing surface decides the drop's exact flight time; the
         // splash is scheduled for that moment at that point. Drops fall
         // straight down so the raycast column IS the impact column. No
         // surface below = the drop falls into the void, no splash.
         let landing = collision_world
-            .and_then(|world| world.ground_surface_below(spawn_position, weather.spawn_height + FALL_DISTANCE));
+            .and_then(|world| world.ground_surface_below(spawn_position, RAIN_SPAWN_HEIGHT + FALL_DISTANCE));
         let lifetime = match &landing {
-            Some(hit) => (spawn_position.y - hit.point.y) / weather.fall_speed,
-            None => (weather.spawn_height + FALL_DISTANCE) / weather.fall_speed,
+            Some(hit) => (spawn_position.y - hit.point.y) / RAIN_FALL_SPEED,
+            None => (RAIN_SPAWN_HEIGHT + FALL_DISTANCE) / RAIN_FALL_SPEED,
         };
         if let Some(hit) = landing {
             pending_splashes.push(PendingSplash {
@@ -176,11 +176,11 @@ fn emit_drops(
         }
         drops.spawn(ParticleSpawn {
             position: spawn_position,
-            velocity: Vec3::new(0.0, -weather.fall_speed, 0.0),
+            velocity: Vec3::new(0.0, -RAIN_FALL_SPEED, 0.0),
             acceleration: Vec3::ZERO,
-            start_size: weather.drop_size,
-            end_size: weather.drop_size,
-            stretch: Vec3::new(1.0, STREAK_LENGTH / weather.drop_size, 1.0),
+            start_size: RAIN_DROP_SIZE,
+            end_size: RAIN_DROP_SIZE,
+            stretch: Vec3::new(1.0, STREAK_LENGTH / RAIN_DROP_SIZE, 1.0),
             fades: false,
             lifetime,
             color: DROP_COLOR,
@@ -193,10 +193,10 @@ fn emit_drops(
 // scatter radius: `v = √(2gh)` peaks at `splash_height`, the airtime is the
 // full up-and-down arc, and the horizontal speed covers `splash_radius`
 // within it. Each droplet dies as it lands.
-fn spawn_splash(splashes: &mut ParticleCloud, rng: &mut ThreadRng, position: Vec3, weather: &WeatherConfig) {
-    let peak_velocity = (2.0 * SPLASH_DROPLET_GRAVITY * weather.splash_height).sqrt();
+fn spawn_splash(splashes: &mut ParticleCloud, rng: &mut ThreadRng, position: Vec3) {
+    let peak_velocity = (2.0 * SPLASH_DROPLET_GRAVITY * RAIN_SPLASH_HEIGHT).sqrt();
     let airtime = 2.0 * peak_velocity / SPLASH_DROPLET_GRAVITY;
-    let horizontal_speed = weather.splash_radius / airtime;
+    let horizontal_speed = RAIN_SPLASH_RADIUS / airtime;
     for _ in 0..SPLASH_DROPLET_COUNT {
         let vertical = peak_velocity * rng.random_range(0.8..1.1);
         splashes.spawn(ParticleSpawn {
@@ -207,8 +207,8 @@ fn spawn_splash(splashes: &mut ParticleCloud, rng: &mut ThreadRng, position: Vec
                 rng.random_range(-horizontal_speed..=horizontal_speed),
             ),
             acceleration: Vec3::new(0.0, -SPLASH_DROPLET_GRAVITY, 0.0),
-            start_size: weather.splash_size,
-            end_size: weather.splash_size,
+            start_size: RAIN_SPLASH_SIZE,
+            end_size: RAIN_SPLASH_SIZE,
             stretch: Vec3::ONE,
             fades: true,
             lifetime: 2.0 * vertical / SPLASH_DROPLET_GRAVITY,
@@ -247,7 +247,7 @@ pub fn rain_audio_system(
         }
         Some(entity) => {
             if let Ok(mut sink) = sinks.get_mut(entity) {
-                sink.set_volume(Volume::Linear(rain.current * client_settings.weather.rain_volume));
+                sink.set_volume(Volume::Linear(rain.current * client_settings.audio.rain_volume));
             }
         }
         None => {}

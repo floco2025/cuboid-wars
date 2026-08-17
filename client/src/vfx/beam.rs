@@ -5,10 +5,7 @@ use rand::{RngExt, rng};
 
 use super::cube::smoothstep;
 use super::particles::{ParticleCloud, ParticleClouds, ParticleSpawn};
-use crate::{
-    config::{ActorBeamInVfxConfig, ClientSettings},
-    constants::*,
-};
+use crate::{config::ClientSettings, constants::*};
 
 #[derive(Component, Clone, Copy)]
 pub struct BeamInGhost {
@@ -102,17 +99,16 @@ pub fn ghost_fade_setup_system(
 
 pub fn beam_ghost_fade_system(
     time: Res<Time>,
-    settings: Res<ClientSettings>,
+    _settings: Res<ClientSettings>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut ghosts: Query<(&mut BeamInGhost, &mut PointLight, &Children)>,
     faders: Query<&GhostFadeMaterials>,
 ) {
     let delta = time.delta_secs();
-    let config = &settings.vfx.actor_beam_in;
     for (mut ghost, mut light, children) in &mut ghosts {
         ghost.remaining_secs = (ghost.remaining_secs - delta).max(0.0);
         let progress = smoothstep(ghost.fade_progress());
-        let full_intensity = (config.light_intensity_lumens_per_m3 * ghost.volume()).max(BEAM_IN_LIGHT_MIN_INTENSITY);
+        let full_intensity = (BEAM_IN_LIGHT_INTENSITY_LUMENS_PER_M3 * ghost.volume()).max(BEAM_IN_LIGHT_MIN_INTENSITY);
         light.intensity = full_intensity * progress;
         for child in children {
             let Ok(fade) = faders.get(*child) else {
@@ -129,17 +125,16 @@ pub fn beam_ghost_fade_system(
 
 pub fn beam_ghost_sparkle_system(
     time: Res<Time>,
-    settings: Res<ClientSettings>,
+    _settings: Res<ClientSettings>,
     mut clouds: ResMut<ParticleClouds>,
     mut ghosts: Query<(&GlobalTransform, &BeamInGhost, &mut BeamEmitter)>,
 ) {
     let delta = time.delta_secs();
-    let config = &settings.vfx.actor_beam_in;
-    let base_color = beam_color(config.sparkle_emissive_brightness);
+    let base_color = beam_color(BEAM_IN_SPARKLE_EMISSIVE);
     let mut rng = rng();
 
     for (transform, ghost, mut emitter) in &mut ghosts {
-        let rate = sparkle_rate(ghost.volume(), config.sparkles_per_m3_per_second);
+        let rate = sparkle_rate(ghost.volume(), BEAM_IN_SPARKLES_PER_M3_PER_SECOND);
         let count = take_emissions(&mut emitter.sparkle_credit, rate, delta, BEAM_IN_MAX_SPARKLES_PER_FRAME);
         for _ in 0..count {
             let local_offset = Vec3::new(
@@ -149,7 +144,7 @@ pub fn beam_ghost_sparkle_system(
             );
             let local_drift =
                 Vec3::new(rng.random_range(-1.0..1.0), 0.0, rng.random_range(-1.0..1.0)) * BEAM_IN_SPARKLE_DRIFT_SPEED;
-            let size = config.sparkle_size * rng.random_range(0.65..1.4);
+            let size = BEAM_IN_SPARKLE_SIZE * rng.random_range(0.65..1.4);
             clouds.sparkles.spawn(ParticleSpawn {
                 position: sparkle_world_position(transform, local_offset),
                 velocity: transform.rotation()
@@ -159,14 +154,14 @@ pub fn beam_ghost_sparkle_system(
                 end_size: size * 0.1,
                 stretch: Vec3::ONE,
                 fades: true,
-                lifetime: config.sparkle_lifetime_secs * rng.random_range(0.75..1.25),
+                lifetime: BEAM_IN_SPARKLE_LIFETIME_SECS * rng.random_range(0.75..1.25),
                 color: base_color * rng.random_range(0.7..1.2),
             });
         }
 
         if ghost.remaining_secs <= f32::EPSILON && !emitter.materialization_emitted {
-            if config.materialization_ring_enabled {
-                spawn_materialization_ring(&mut clouds.sparkles, transform, ghost, config);
+            if BEAM_IN_MATERIALIZATION_RING_ENABLED {
+                spawn_materialization_ring(&mut clouds.sparkles, transform, ghost);
             }
             emitter.materialization_emitted = true;
         }
@@ -175,35 +170,30 @@ pub fn beam_ghost_sparkle_system(
 
 pub fn beam_ghost_removed_system(
     removed: On<Remove, BeamInGhost>,
-    settings: Res<ClientSettings>,
+    _settings: Res<ClientSettings>,
     mut clouds: ResMut<ParticleClouds>,
     ghosts: Query<(&GlobalTransform, &BeamInGhost, &BeamEmitter)>,
 ) {
     let Ok((transform, ghost, emitter)) = ghosts.get(removed.entity) else {
         return;
     };
-    if settings.vfx.actor_beam_in.materialization_ring_enabled && !emitter.materialization_emitted {
-        spawn_materialization_ring(&mut clouds.sparkles, transform, ghost, &settings.vfx.actor_beam_in);
+    if BEAM_IN_MATERIALIZATION_RING_ENABLED && !emitter.materialization_emitted {
+        spawn_materialization_ring(&mut clouds.sparkles, transform, ghost);
     }
 }
 
-fn spawn_materialization_ring(
-    sparkles: &mut ParticleCloud,
-    transform: &GlobalTransform,
-    ghost: &BeamInGhost,
-    config: &ActorBeamInVfxConfig,
-) {
+fn spawn_materialization_ring(sparkles: &mut ParticleCloud, transform: &GlobalTransform, ghost: &BeamInGhost) {
     let count = BEAM_IN_MATERIALIZATION_PARTICLE_COUNT;
     let radius = ghost.half_extents.x.max(ghost.half_extents.z) * 0.8;
     let base_y = -ghost.half_extents.y * 0.9;
     let phase = rand::random::<f32>() * std::f32::consts::TAU;
-    let color = beam_color(config.sparkle_emissive_brightness * 1.35);
+    let color = beam_color(BEAM_IN_SPARKLE_EMISSIVE * 1.35);
 
     for index in 0..count {
         let angle = index as f32 / count as f32 * std::f32::consts::TAU + phase;
         let radial = Vec3::new(angle.cos(), 0.0, angle.sin());
         let local_position = radial * radius + Vec3::Y * base_y;
-        let size = config.sparkle_size * 1.5;
+        let size = BEAM_IN_SPARKLE_SIZE * 1.5;
         sparkles.spawn(ParticleSpawn {
             position: sparkle_world_position(transform, local_position),
             velocity: transform.rotation()

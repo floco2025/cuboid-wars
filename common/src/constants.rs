@@ -82,16 +82,6 @@ pub const CHARACTER_GROUND_SNAP_DISTANCE: f32 = 0.5;
 // worse than a rim graze).
 pub const EXPLOSION_BLAST_CORE_FRACTION: f32 = 0.25;
 
-// Blast knockback: horizontal shove speed at the blast center and the
-// vertical launch speed added to `CharacterVerticalVelocity`. Both fall off
-// with distance like damage but ignore armor — armor protects health, not
-// momentum.
-pub const EXPLOSION_KNOCKBACK_MAX_SPEED: f32 = 15.0; // m/s
-pub const EXPLOSION_KNOCKBACK_UP_SPEED: f32 = 7.0; // m/s
-// Ground-friction-style linear deceleration of the horizontal shove: a hard
-// hit that dies cleanly (~0.4 s from full speed), no exponential crawl tail.
-pub const KNOCKBACK_DECELERATION: f32 = 35.0; // m/s²
-
 // Maximum low ledge height the Rapier character controller may auto-step over.
 pub const CHARACTER_STEP_HEIGHT: f32 = 0.2;
 
@@ -106,9 +96,16 @@ pub const CHARACTER_STEP_MIN_WIDTH: f32 = 0.2;
 pub const CHARACTER_PERCH_SLIDE_SPEED: f32 = 3.0; // m/s
 
 // ============================================================================
-// Power-Ups
+// Missiles
 // ============================================================================
 
-pub const POWER_UP_SPEED_MULTIPLIER: f32 = 1.8;
-pub const POWER_UP_MULTI_SHOT_MULTIPLIER: i32 = 5;
-pub const POWER_UP_MULTI_SHOT_ANGLE: f32 = 1.5;
+// Fixed missile geometry. The server sweeps this ball for collision, the
+// proximity fuse, and launch clearance. The client renders a separately
+// tuned, smaller mesh (`client::constants::MISSILE_BODY_RADIUS`) — feel and
+// looks are deliberately independent — but its widest radial extent must
+// fit inside this ball or missiles visibly clip walls they fly along; a
+// client test (`rendered_missile_fits_inside_the_collision_ball`) pins
+// that. Flight/guidance tuning stays in `config/server/gameplay.json`.
+pub const MISSILE_RADIUS: f32 = 0.3;
+// Launch distance in front of the shooter's eye along the aim.
+pub const MISSILE_SPAWN_OFFSET: f32 = 1.0;

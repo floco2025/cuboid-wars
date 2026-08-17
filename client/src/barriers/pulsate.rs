@@ -1,3 +1,4 @@
+use crate::constants::{BARRIER_ALPHA_MAX, BARRIER_ALPHA_MIN, BARRIER_PULSE_HZ};
 use bevy::prelude::*;
 
 use super::BarrierAssets;
@@ -14,14 +15,14 @@ use crate::config::ClientSettings;
 // — O(num_kinds) work per frame regardless of map size.
 pub fn barriers_pulsate_system(
     time: Res<Time>,
-    client_settings: Res<ClientSettings>,
+    _client_settings: Res<ClientSettings>,
     barrier_assets: Option<Res<BarrierAssets>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     let Some(assets) = barrier_assets else { return };
-    let pulse_hz = client_settings.barriers.pulse_hz;
-    let alpha_min = client_settings.barriers.alpha_min;
-    let alpha_max = client_settings.barriers.alpha_max;
+    let pulse_hz = BARRIER_PULSE_HZ;
+    let alpha_min = BARRIER_ALPHA_MIN;
+    let alpha_max = BARRIER_ALPHA_MAX;
     let t = time.elapsed_secs();
     for (idx, handle) in assets.material_handles().iter().enumerate() {
         let Some(mut mat) = materials.get_mut(handle) else {

@@ -15,6 +15,8 @@ pub struct GameplayConfig {
     pub player: PlayerGameplayConfig,
     pub projectiles: ProjectilesConfig,
     pub missiles: MissilesConfig,
+    pub power_up_effects: PowerUpEffectsConfig,
+    pub knockback: KnockbackConfig,
     pub actors: HashMap<String, ActorGameplayConfig>,
     // Ordered list of barrier / key kind ids. Order is the stable
     // `BarrierKindId` index used on the wire. Visuals (colors) live in
@@ -52,6 +54,8 @@ impl GameplayConfig {
         self.player.validate("player")?;
         self.projectiles.validate("projectiles")?;
         self.missiles.validate("missiles")?;
+        self.power_up_effects.validate("power_up_effects")?;
+        self.knockback.validate("knockback")?;
         if self.actors.is_empty() {
             bail!("actors must define at least one kind");
         }
@@ -107,6 +111,52 @@ impl ProjectilesConfig {
             bail!("{path}.bounce_retention must be within 0.0..=1.0");
         }
         Ok(())
+    }
+}
+
+// Effect magnitudes of the timer power-ups. Shared: speed feeds client
+// prediction, multi-shot feeds both sides' projectile spawning. (Durations
+// are server-only tuning in `config/server/gameplay.json`.)
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct PowerUpEffectsConfig {
+    pub speed_multiplier: f32,
+    pub multi_shot_count: i32,
+    // Yaw between adjacent projectiles of a multi-shot arc.
+    pub multi_shot_angle_degrees: f32,
+}
+
+impl PowerUpEffectsConfig {
+    fn validate(&self, path: &str) -> Result<()> {
+        validate_positive_finite(self.speed_multiplier, &format!("{path}.speed_multiplier"))?;
+        if self.multi_shot_count < 1 {
+            bail!("{path}.multi_shot_count must be at least 1");
+        }
+        validate_positive_finite(
+            self.multi_shot_angle_degrees,
+            &format!("{path}.multi_shot_angle_degrees"),
+        )
+    }
+}
+
+// Blast knockback. Shared: the server applies the shove, the client decays
+// it in prediction with the same curve.
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct KnockbackConfig {
+    // Horizontal shove speed at the blast center; falls off with distance
+    // like damage but ignores armor (armor protects health, not momentum).
+    pub blast_max_speed: f32,
+    // Vertical launch speed added to `CharacterVerticalVelocity`.
+    pub blast_up_speed: f32,
+    // Ground-friction-style linear deceleration of the horizontal shove: a
+    // hard hit that dies cleanly, no exponential crawl tail.
+    pub deceleration: f32,
+}
+
+impl KnockbackConfig {
+    fn validate(&self, path: &str) -> Result<()> {
+        validate_positive_finite(self.blast_max_speed, &format!("{path}.blast_max_speed"))?;
+        validate_non_negative_finite(self.blast_up_speed, &format!("{path}.blast_up_speed"))?;
+        validate_positive_finite(self.deceleration, &format!("{path}.deceleration"))
     }
 }
 

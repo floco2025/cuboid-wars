@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use bevy::{ecs::system::SystemParam, prelude::*};
 use common::{
     config::GameplayConfig,
-    constants::{EXPLOSION_BLAST_CORE_FRACTION, EXPLOSION_KNOCKBACK_MAX_SPEED, EXPLOSION_KNOCKBACK_UP_SPEED},
+    constants::EXPLOSION_BLAST_CORE_FRACTION,
     health::apply_damage,
     physics::{CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, character_center},
     protocol::{ActorId, ActorMarker, Health, PlayerId, PlayerMarker, Position, SPlayerBlast, ServerMessage},
@@ -271,13 +271,13 @@ fn apply_blast(
             }
         }
 
-        vertical_velocity.0 += EXPLOSION_KNOCKBACK_UP_SPEED * falloff;
+        vertical_velocity.0 += gameplay.knockback.blast_up_speed * falloff;
         accumulate_impulse(
             player_impulses,
             *id,
             entity,
             knockback,
-            planar_shove(spec.center, victim_center, falloff),
+            planar_shove(spec.center, victim_center, falloff, gameplay.knockback.blast_max_speed),
             falloff,
         );
     }
@@ -306,13 +306,13 @@ fn apply_blast(
             continue;
         }
 
-        vertical_velocity.0 += EXPLOSION_KNOCKBACK_UP_SPEED * falloff;
+        vertical_velocity.0 += gameplay.knockback.blast_up_speed * falloff;
         accumulate_impulse(
             actor_impulses,
             *id,
             entity,
             knockback,
-            planar_shove(spec.center, victim_center, falloff),
+            planar_shove(spec.center, victim_center, falloff, gameplay.knockback.blast_max_speed),
             falloff,
         );
     }
@@ -340,7 +340,7 @@ fn accumulate_impulse<Id: std::hash::Hash + Eq + Copy>(
 }
 
 fn apply_player_impulses(context: &mut ExplosionContext, impulses: HashMap<PlayerId, AccumulatedImpulse>) {
-    let max_speed = EXPLOSION_KNOCKBACK_MAX_SPEED * 1.5;
+    let max_speed = context.gameplay_config.knockback.blast_max_speed * 1.5;
     for (id, impulse) in impulses {
         if context.players.get(&id).is_some_and(|info| info.is_dead()) {
             continue;
@@ -372,7 +372,7 @@ fn apply_player_impulses(context: &mut ExplosionContext, impulses: HashMap<Playe
 }
 
 fn apply_actor_impulses(context: &mut ExplosionContext, impulses: HashMap<ActorId, AccumulatedImpulse>) {
-    let max_speed = EXPLOSION_KNOCKBACK_MAX_SPEED * 1.5;
+    let max_speed = context.gameplay_config.knockback.blast_max_speed * 1.5;
     for (id, impulse) in impulses {
         if context.actors.get(&id).is_none() {
             continue;
@@ -395,10 +395,8 @@ fn visible_blast_falloff(center: Vec3, target: Vec3, radius: f32, collision_worl
     Some(blast_falloff_at_distance(distance_squared.sqrt(), radius))
 }
 
-fn planar_shove(center: Vec3, target: Vec3, falloff: f32) -> Vec3 {
-    Vec3::new(target.x - center.x, 0.0, target.z - center.z).normalize_or_zero()
-        * EXPLOSION_KNOCKBACK_MAX_SPEED
-        * falloff
+fn planar_shove(center: Vec3, target: Vec3, falloff: f32, max_speed: f32) -> Vec3 {
+    Vec3::new(target.x - center.x, 0.0, target.z - center.z).normalize_or_zero() * max_speed * falloff
 }
 
 fn blast_falloff_at_distance(distance: f32, radius: f32) -> f32 {

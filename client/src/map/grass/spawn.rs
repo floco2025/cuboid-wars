@@ -1,4 +1,5 @@
 use super::mesh::{AABB_BASE_PAD, BLADE_HEIGHT_MAX, BLADE_MAX_OVERHANG, WIND_SWAY_FACTOR, grass_cell_mesh};
+use crate::constants::{GRASS_WIND_DIRECTION_DEGREES, GRASS_WIND_SPEED, GRASS_WIND_STRENGTH};
 use crate::{
     config::{ClientSettings, GrassConfig},
     map::MapLevel,
@@ -86,8 +87,8 @@ pub fn grass_spawn_system(
     }
 }
 
-fn grass_material(config: &GrassConfig) -> GrassMaterial {
-    let wind_direction = Vec2::from_angle(config.wind_direction_degrees.to_radians());
+fn grass_material(_config: &GrassConfig) -> GrassMaterial {
+    let wind_direction = Vec2::from_angle(GRASS_WIND_DIRECTION_DEGREES.to_radians());
     GrassMaterial {
         base: StandardMaterial {
             base_color: Color::WHITE,
@@ -102,8 +103,8 @@ fn grass_material(config: &GrassConfig) -> GrassMaterial {
             wind: Vec4::new(
                 wind_direction.x,
                 wind_direction.y,
-                config.wind_strength,
-                config.wind_speed,
+                GRASS_WIND_STRENGTH,
+                GRASS_WIND_SPEED,
             ),
         },
     }
@@ -122,8 +123,8 @@ pub(super) fn quantized_key(cell: GrassCell) -> (i64, i64, u8) {
 // Pre-inserted so Bevy's `calculate_bounds` (which only fills absent Aabbs)
 // keeps the padded box; without the XZ pad, swaying tips could be culled at
 // frustum edges.
-pub(super) fn grass_cell_aabb(cell: GrassCell, config: &GrassConfig) -> Aabb {
-    let pad = GRID_CELL_SIZE / 2.0 + BLADE_MAX_OVERHANG + config.wind_strength * WIND_SWAY_FACTOR + AABB_BASE_PAD;
+pub(super) fn grass_cell_aabb(cell: GrassCell, _config: &GrassConfig) -> Aabb {
+    let pad = GRID_CELL_SIZE / 2.0 + BLADE_MAX_OVERHANG + GRASS_WIND_STRENGTH * WIND_SWAY_FACTOR + AABB_BASE_PAD;
     Aabb::from_min_max(
         Vec3::new(cell.x - pad, cell.y, cell.z - pad),
         Vec3::new(cell.x + pad, cell.y + BLADE_HEIGHT_MAX, cell.z + pad),

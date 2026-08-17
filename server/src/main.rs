@@ -53,11 +53,6 @@ struct Args {
     #[arg(short, long, default_value = "127.0.0.1:8080")]
     bind: String,
 
-    // Make players invincible (overrides `player.invincible` in
-    // config/server/gameplay.json)
-    #[arg(long)]
-    invincible: bool,
-
     // Map to load (overrides `default_map` in config/server/gameplay.json)
     #[arg(long)]
     map: Option<String>,
@@ -74,10 +69,7 @@ async fn main() -> Result<()> {
     let addr: SocketAddr = args.bind.parse()?;
     let server_config = configure_server()?;
     let gameplay_config = GameplayConfig::load_default()?;
-    let mut server_gameplay_config = ServerGameplayConfig::load_default()?;
-    if args.invincible {
-        server_gameplay_config.player.invincible = true;
-    }
+    let server_gameplay_config = ServerGameplayConfig::load_default()?;
     let endpoint = Endpoint::server(server_config, addr)?;
     println!("quic server listening on {addr}");
 
@@ -123,8 +115,8 @@ async fn main() -> Result<()> {
     app.insert_resource(map_layout)
         .insert_resource(map_settings)
         .insert_resource(weather_state)
-        .insert_resource(Invincibility(server_gameplay_config.player.invincible))
-        .insert_resource(UnlimitedMissiles(server_gameplay_config.player.invincible))
+        .insert_resource(Invincibility(false))
+        .insert_resource(UnlimitedMissiles(false))
         .insert_resource(collision_world)
         .insert_resource(map_config)
         .insert_resource(map_geometry)

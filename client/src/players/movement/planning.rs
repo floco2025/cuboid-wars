@@ -85,8 +85,12 @@ pub(crate) fn plan_player_moves(
         let held_keys: &[BarrierKindId] = info.map_or(&[], |i| i.held_keys.as_slice());
         let player_name = info.map(|i| i.name.as_str());
 
-        let h_vel =
-            move_intent.to_horizontal_velocity(player_config.walk_speed, player_config.run_speed, has_speed_power_up);
+        let h_vel = move_intent.to_horizontal_velocity(
+            player_config.walk_speed,
+            player_config.run_speed,
+            has_speed_power_up,
+            gameplay_config.power_up_effects.speed_multiplier,
+        );
 
         let target_pos = if let Some(recon) = recon_option.as_mut() {
             reconciled_target_position(

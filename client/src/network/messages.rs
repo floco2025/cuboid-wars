@@ -191,7 +191,6 @@ pub fn dispatch_message(
             commands,
             &mut assets.meshes,
             &mut assets.materials,
-            &client_assets.handles.client_settings.vfx.laser,
             actors,
             actor_data,
             &client_assets.handles.asset_server,

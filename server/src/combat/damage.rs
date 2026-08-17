@@ -244,7 +244,6 @@ mod tests {
             },
             player: PlayerServerConfig {
                 armor: 0.0,
-                invincible: false,
                 fall_damage: FallDamageConfig {
                     safe_fall_distance: 4.0,
                     lethal_fall_distance: 12.0,
@@ -259,8 +258,6 @@ mod tests {
                 speed: 12.0,
                 turn_rate: 7.0,
                 lifetime_secs: 10.0,
-                radius: 0.3,
-                spawn_offset: 1.0,
                 launch_spread_degrees: 50.0,
                 weave_strength: 0.35,
                 proximity_fuse_distance: 1.5,

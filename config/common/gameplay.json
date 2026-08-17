@@ -20,6 +20,16 @@
     "drag_factor": 0.01,
     "bounce_retention": 0.9
   },
+  "power_up_effects": {
+    "speed_multiplier": 1.8,
+    "multi_shot_count": 5,
+    "multi_shot_angle_degrees": 1.5
+  },
+  "knockback": {
+    "blast_max_speed": 15.0,
+    "blast_up_speed": 7.0,
+    "deceleration": 35.0
+  },
   "missiles": {
     "lock_max_distance": 60.0,
     "lock_assist_radius": 1.2,

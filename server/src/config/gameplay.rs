@@ -116,10 +116,6 @@ pub struct MissilesServerConfig {
     // trade-off, not a hard invariant.
     pub turn_rate: f32,
     pub lifetime_secs: f32,
-    // Collision ball radius.
-    pub radius: f32,
-    // Muzzle offset along the aim direction from the shooter's eye.
-    pub spawn_offset: f32,
     // Max random deviation of the launch direction from the aim (degrees).
     // Missiles leave visibly off-axis and let the steering curve them in;
     // 0 = launch straight at the aim.
@@ -143,8 +139,6 @@ impl MissilesServerConfig {
         validate_positive_finite(self.speed, &format!("{path}.speed"))?;
         validate_positive_finite(self.turn_rate, &format!("{path}.turn_rate"))?;
         validate_positive_finite(self.lifetime_secs, &format!("{path}.lifetime_secs"))?;
-        validate_positive_finite(self.radius, &format!("{path}.radius"))?;
-        validate_positive_finite(self.spawn_offset, &format!("{path}.spawn_offset"))?;
         if !(self.launch_spread_degrees.is_finite() && (0.0..=90.0).contains(&self.launch_spread_degrees)) {
             bail!(
                 "{path}.launch_spread_degrees must be in [0, 90], got {}",
@@ -180,11 +174,6 @@ pub struct PlayerServerConfig {
     // damage ignores armor (it's defined as a fraction of max health by
     // fall distance).
     pub armor: f32,
-    // Debug toggle: when true, no damage source can take a player to zero
-    // health. Projectile hits, actor explosions, and fall damage are all
-    // skipped. Leave `false` for normal play.
-    #[serde(default)]
-    pub invincible: bool,
     pub fall_damage: FallDamageConfig,
     // Blast dealt by a dying player, same shape as the per-actor-kind
     // `combat.explosion` — standing next to your victim is now a mistake.

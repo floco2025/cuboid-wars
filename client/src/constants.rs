@@ -210,6 +210,15 @@ pub const HUD_SLOT_EMPTY_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 0.12);
 // ============================================================================
 
 // Configured spark count and speed are calibrated at this impact speed.
+// Glow of the projectile body itself.
+pub const PROJECTILE_BODY_EMISSIVE: f32 = 5.0;
+// Impact sparks: base burst size (scaled by impact speed), particle size,
+// launch speed, lifetime, and brightness.
+pub const PROJECTILE_SPARK_BASE_COUNT: usize = 6;
+pub const PROJECTILE_SPARK_SIZE: f32 = 0.05;
+pub const PROJECTILE_SPARK_SPEED: f32 = 8.0;
+pub const PROJECTILE_SPARK_LIFETIME_SECS: f32 = 0.25;
+pub const PROJECTILE_SPARK_EMISSIVE: f32 = 25.0;
 pub const PROJECTILE_SPARK_REFERENCE_SPEED: f32 = 70.0;
 pub const PROJECTILE_SPARK_GRAVITY: f32 = 20.0;
 pub const PROJECTILE_SPARK_SPREAD_DEGREES: f32 = 45.0;
@@ -218,6 +227,15 @@ pub const PROJECTILE_SPARK_SPREAD_DEGREES: f32 = 45.0;
 // Actor Beam-In VFX
 // ============================================================================
 
+// Sparkle density/size/lifetime/brightness of the beam-in volume, and the
+// glow light's intensity per cubic meter of that volume.
+pub const BEAM_IN_SPARKLES_PER_M3_PER_SECOND: f32 = 200.0;
+pub const BEAM_IN_SPARKLE_SIZE: f32 = 0.05;
+pub const BEAM_IN_SPARKLE_LIFETIME_SECS: f32 = 1.5;
+pub const BEAM_IN_SPARKLE_EMISSIVE: f32 = 25.0;
+pub const BEAM_IN_LIGHT_INTENSITY_LUMENS_PER_M3: f32 = 500_000.0;
+// The one-shot materialization ring at beam-in completion; currently off.
+pub const BEAM_IN_MATERIALIZATION_RING_ENABLED: bool = false;
 pub const BEAM_IN_COLOR: Color = Color::srgb(1.0, 0.85, 0.3);
 // Keeps the minimum emission rate proportional when configured density changes.
 pub const BEAM_IN_REFERENCE_SPARKLES_PER_M3_PER_SECOND: f32 = 200.0;
@@ -235,6 +253,20 @@ pub const BEAM_IN_LIGHT_RANGE: f32 = 8.0;
 // Explosion VFX
 // ============================================================================
 
+pub const EXPLOSION_BASE_DURATION_SECS: f32 = 0.8;
+pub const EXPLOSION_FIREBALL_BLAST_DIAMETER_FACTOR: f32 = 0.5;
+pub const EXPLOSION_FIREBALL_EMISSIVE: f32 = 3000.0;
+pub const EXPLOSION_SHOCKWAVE_EMISSIVE: f32 = 2000.0;
+pub const EXPLOSION_LIGHT_INTENSITY_LUMENS: f32 = 1_000_000.0;
+pub const EXPLOSION_SHARDS_PER_RADIUS_METER: f32 = 40.0;
+pub const EXPLOSION_SHARD_SIZE: f32 = 0.2;
+pub const EXPLOSION_SHARD_EMISSIVE: f32 = 2500.0;
+pub const EXPLOSION_SMOKE_PER_RADIUS_METER: f32 = 1.5;
+pub const EXPLOSION_SMOKE_END_SIZE: f32 = 1.45;
+pub const EXPLOSION_SMOKE_LIFETIME_SECS: f32 = 4.0;
+pub const EXPLOSION_SMOKE_MAX_OPACITY: f32 = 0.32;
+pub const EXPLOSION_SCORCH_BLAST_DIAMETER_FACTOR: f32 = 0.4;
+pub const EXPLOSION_SCORCH_FULL_OPACITY_SECS: f32 = 30.0;
 pub const EXPLOSION_FALLBACK_FIREBALL_DIAMETER: f32 = 6.0;
 pub const EXPLOSION_FIREBALL_LIFETIME_FACTOR: f32 = 0.6;
 pub const EXPLOSION_FIREBALL_START_ALPHA: f32 = 0.9;
@@ -302,3 +334,102 @@ pub const WALL_LIGHT_FLICKER_HZ_A: f32 = 5.0;
 pub const WALL_LIGHT_FLICKER_HZ_B: f32 = 1.3;
 pub const WALL_LIGHT_FLICKER_THRESHOLD: f32 = 0.9;
 pub const WALL_LIGHT_FLICKER_DEPTH: f32 = 0.65; // max fraction of brightness lost in a dip
+
+// ============================================================================
+// Scene Lighting
+// ============================================================================
+
+pub const LIGHTING_AMBIENT_BRIGHTNESS: f32 = 70.0;
+pub const LIGHTING_DIRECTIONAL_BRIGHTNESS: f32 = 8000.0;
+
+// ============================================================================
+// Barriers
+// ============================================================================
+
+// Pulse alpha swings between min and max at the pulse rate. Below ~0.1 the
+// barrier almost disappears (good off-phase look); above ~0.7 it reads as
+// solid.
+pub const BARRIER_ALPHA_MIN: f32 = 0.007;
+pub const BARRIER_ALPHA_MAX: f32 = 0.015;
+pub const BARRIER_PULSE_HZ: f32 = 0.5;
+// Constant emissive brightness multiplier on the kind color — set once on
+// the material, never pulsed. Translucency still attenuates what the surface
+// contributes, so useful values are well above the bloom threshold.
+pub const BARRIER_EMISSIVE: f32 = 2000.0;
+
+// ============================================================================
+// Rain
+// ============================================================================
+// Presentation of the server-scheduled rain: how a given intensity looks.
+
+// Skybox + sun-disc brightness factor at full rain (1.0 = no darkening).
+pub const RAIN_SKY_DIM: f32 = 0.05;
+// Directional + ambient light factor at full rain.
+pub const RAIN_LIGHT_DIM: f32 = 0.5;
+// Scene saturation factor at full rain (camera color grading) — heavy rain
+// washes the world gray. 1.0 = no change.
+pub const RAIN_SATURATION: f32 = 0.4;
+// Drop spawn rate at full intensity — the rain density knob.
+pub const RAIN_DROPS_PER_SECOND: f32 = 1000.0;
+// Radius of the drop-spawn disc around the camera.
+pub const RAIN_SPAWN_RADIUS: f32 = 15.0;
+// How far the disc leads the camera along its horizontal facing, as a
+// fraction of the spawn radius — a third puts two thirds of the rain ahead
+// of a running player.
+pub const RAIN_SPAWN_LEAD_FRACTION: f32 = 0.35;
+// How far above the camera drops spawn (m).
+pub const RAIN_SPAWN_HEIGHT: f32 = 10.0;
+pub const RAIN_FALL_SPEED: f32 = 14.0;
+pub const RAIN_DROP_SIZE: f32 = 0.01;
+// Size of the droplets that bounce up where a drop lands, how far they
+// scatter horizontally (m), and how high they bounce (m); velocities and
+// airtime are derived from these. Height must stay positive — the airtime
+// is derived from it.
+pub const RAIN_SPLASH_SIZE: f32 = 0.01;
+pub const RAIN_SPLASH_RADIUS: f32 = 0.15;
+pub const RAIN_SPLASH_HEIGHT: f32 = 0.2;
+
+// ============================================================================
+// Grass Wind
+// ============================================================================
+
+// Horizontal sway amplitude at the blade tip (m), oscillation speed (rad/s),
+// and direction.
+pub const GRASS_WIND_STRENGTH: f32 = 0.05;
+pub const GRASS_WIND_SPEED: f32 = 2.5;
+pub const GRASS_WIND_DIRECTION_DEGREES: f32 = 30.0;
+
+// ============================================================================
+// Projectile Impact Audio
+// ============================================================================
+
+pub const PROJECTILE_IMPACT_WALL_BOUNCE_GAIN: f32 = 0.2;
+// Bounces slower than this stay silent.
+pub const PROJECTILE_IMPACT_MIN_BOUNCE_SPEED: f32 = 10.0;
+// Rate limit, plus the loudness ratio at which a new bounce may preempt it.
+pub const PROJECTILE_IMPACT_MAX_SOUNDS_PER_SECOND: f32 = 30.0;
+pub const PROJECTILE_IMPACT_PREEMPTION_LOUDNESS_RATIO: f32 = 2.0;
+
+// ============================================================================
+// Banners & Death Overlay
+// ============================================================================
+
+pub const BANNER_QUEST_ANNOUNCEMENT_SECS: f32 = 10.0;
+pub const BANNER_QUEST_COMPLETED_SECS: f32 = 5.0;
+pub const BANNER_DEATH_SECS: f32 = 3.0;
+pub const BANNER_DEATH_TEXT: &str = "You died!";
+pub const BANNER_FADE_SECS: f32 = 0.8;
+pub const DEATH_OVERLAY_SECS: f32 = 3.0;
+pub const DEATH_OVERLAY_FADE_SECS: f32 = 0.8;
+
+// ============================================================================
+// Laser Beam
+// ============================================================================
+
+pub const LASER_BEAM_RADIUS: f32 = 0.008;
+pub const LASER_EMISSIVE: f32 = 40.0;
+// Endpoint wander as fractions of the target collider's width/height, and
+// where on the target's height the beam aims.
+pub const LASER_ENDPOINT_WANDER_WIDTH_FRACTION: f32 = 0.4;
+pub const LASER_ENDPOINT_WANDER_HEIGHT_FRACTION: f32 = 0.2;
+pub const LASER_AIM_HEIGHT_FRACTION: f32 = 0.6;

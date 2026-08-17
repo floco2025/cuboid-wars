@@ -1,8 +1,6 @@
 use anyhow::{Result, bail};
 use serde::Deserialize;
 
-use super::settings::validate_non_negative_finite;
-
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum OpaqueRenderer {
@@ -90,12 +88,6 @@ impl Default for BloomConfig {
     }
 }
 
-#[derive(Debug, Clone, Copy, Deserialize)]
-pub struct LightingConfig {
-    pub ambient_brightness: f32,
-    pub directional_brightness: f32,
-}
-
 impl RenderingConfig {
     pub(super) fn validate(&self) -> Result<()> {
         if !matches!(self.msaa_samples, 1 | 2 | 4 | 8) {
@@ -104,14 +96,6 @@ impl RenderingConfig {
         if self.exclusive_fullscreen.width == 0 || self.exclusive_fullscreen.height == 0 {
             bail!("rendering.exclusive_fullscreen width and height must be > 0");
         }
-        Ok(())
-    }
-}
-
-impl LightingConfig {
-    pub(super) fn validate(&self) -> Result<()> {
-        validate_non_negative_finite(self.ambient_brightness, "lighting.ambient_brightness")?;
-        validate_non_negative_finite(self.directional_brightness, "lighting.directional_brightness")?;
         Ok(())
     }
 }

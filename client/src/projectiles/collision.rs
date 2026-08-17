@@ -1,3 +1,4 @@
+use crate::constants::PROJECTILE_IMPACT_MIN_BOUNCE_SPEED;
 use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
@@ -100,7 +101,6 @@ pub(super) fn handle_character_collisions(
             let outward = -proj_motion.velocity.normalize_or_zero();
             spawn_impact_sparks(
                 sparks,
-                &settings.vfx.projectiles.impact_sparks,
                 impact,
                 outward,
                 outward,
@@ -140,7 +140,6 @@ pub(super) fn handle_barrier_collisions(
     play_barrier_impact_sound(commands, asset_server, asset_set, &settings.audio, impact.point);
     spawn_impact_sparks(
         sparks,
-        &settings.vfx.projectiles.impact_sparks,
         impact.point,
         impact.normal,
         impact.normal,
@@ -182,10 +181,9 @@ pub(super) fn handle_wall_collisions(
     );
     // Same-tick bounces each retain their local impact cue even though audio
     // is rate-limited globally. The shared particle budget bounds the burst.
-    if speed_before >= settings.audio.projectile_impacts.min_bounce_speed_meters_per_second {
+    if speed_before >= PROJECTILE_IMPACT_MIN_BOUNCE_SPEED {
         spawn_impact_sparks(
             sparks,
-            &settings.vfx.projectiles.impact_sparks,
             bounces.first_contact,
             bounces.first_normal,
             proj_motion.velocity.normalize_or_zero(),

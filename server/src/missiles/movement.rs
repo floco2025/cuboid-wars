@@ -3,7 +3,6 @@ use bevy::{ecs::system::SystemParam, prelude::*};
 use crate::{
     actors::ActorMap,
     combat::PendingExplosions,
-    config::ServerGameplayConfig,
     map::OpenBarrierKinds,
     missiles::{MissileMap, MissileVelocity},
     network::broadcast_to_all,
@@ -11,6 +10,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
+    constants::MISSILE_RADIUS,
     physics::{CollisionWorld, ball_character_hit, ball_overlaps_character},
     protocol::*,
 };
@@ -59,12 +59,10 @@ pub struct MissileMovementParams<'w, 's> {
     collision_world: Res<'w, CollisionWorld>,
     open_barrier_kinds: Res<'w, OpenBarrierKinds>,
     gameplay_config: Res<'w, GameplayConfig>,
-    server_gameplay_config: Res<'w, ServerGameplayConfig>,
 }
 
 pub fn missiles_movement_system(mut commands: Commands, time: Res<Time>, mut params: MissileMovementParams) {
     let delta = time.delta_secs();
-    let config = params.server_gameplay_config.missiles;
 
     for (entity, id, mut pos, velocity) in &mut params.missile_query {
         let Some(info) = params.missiles.get_mut(id) else {
@@ -81,7 +79,7 @@ pub fn missiles_movement_system(mut commands: Commands, time: Res<Time>, mut par
                 .is_some_and(|(shooter_pos, face_dir, _)| {
                     ball_overlaps_character(
                         &pos,
-                        config.radius,
+                        MISSILE_RADIUS,
                         shooter_pos,
                         face_dir.0,
                         params.gameplay_config.player.physics(),
@@ -118,14 +116,14 @@ pub fn missiles_movement_system(mut commands: Commands, time: Res<Time>, mut par
         };
         if let Some(hit) = params
             .collision_world
-            .cast_moving_ball(origin, translation, config.radius)
+            .cast_moving_ball(origin, translation, MISSILE_RADIUS)
         {
             consider(hit.t);
         }
         if let Some(hit) = params.collision_world.cast_moving_ball_against_barriers(
             origin,
             translation,
-            config.radius,
+            MISSILE_RADIUS,
             &params.open_barrier_kinds.0,
         ) {
             consider(hit.t);
@@ -137,7 +135,7 @@ pub fn missiles_movement_system(mut commands: Commands, time: Res<Time>, mut par
             if let Some(hit) = ball_character_hit(
                 &pos,
                 velocity.0,
-                config.radius,
+                MISSILE_RADIUS,
                 delta,
                 target_pos,
                 face_dir.0,
@@ -153,7 +151,7 @@ pub fn missiles_movement_system(mut commands: Commands, time: Res<Time>, mut par
                 .expect("actor in query missing from ActorMap");
             let physics = params.gameplay_config.expect_actor(&actor_info.spawn_kind).physics();
             if let Some(hit) =
-                ball_character_hit(&pos, velocity.0, config.radius, delta, target_pos, face_dir.0, physics)
+                ball_character_hit(&pos, velocity.0, MISSILE_RADIUS, delta, target_pos, face_dir.0, physics)
             {
                 consider(hit.time_of_impact);
             }

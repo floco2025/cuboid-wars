@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::{actors::ActorMap, config::LaserVfxConfig, players::PlayerMap};
+use crate::{actors::ActorMap, constants::*, players::PlayerMap};
 use common::{
     config::GameplayConfig,
     physics::CollisionWorld,
@@ -31,10 +31,9 @@ pub fn spawn_laser_beam(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
-    vfx: &LaserVfxConfig,
     msg: &SActorBeam,
 ) -> Entity {
-    let brightness = vfx.emissive_brightness;
+    let brightness = LASER_EMISSIVE;
     // Opaque hot-red emissive core, like the projectile body — this app's
     // Blend materials render wrong, so no translucency; bloom supplies the
     // glow. The base color stays fixed red — only the emissive scales with
@@ -55,11 +54,11 @@ pub fn spawn_laser_beam(
                 actor: msg.id,
                 target: msg.target,
                 remaining_secs: msg.duration_secs,
-                wander_width_fraction: vfx.endpoint_wander_width_fraction,
-                wander_height_fraction: vfx.endpoint_wander_height_fraction,
-                aim_height_fraction: vfx.aim_height_fraction,
+                wander_width_fraction: LASER_ENDPOINT_WANDER_WIDTH_FRACTION,
+                wander_height_fraction: LASER_ENDPOINT_WANDER_HEIGHT_FRACTION,
+                aim_height_fraction: LASER_AIM_HEIGHT_FRACTION,
             },
-            Mesh3d(meshes.add(Cylinder::new(vfx.beam_radius, 1.0))),
+            Mesh3d(meshes.add(Cylinder::new(LASER_BEAM_RADIUS, 1.0))),
             MeshMaterial3d(material),
             Transform::default(),
             // Hidden until the first update frame anchors it — the default

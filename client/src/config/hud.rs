@@ -13,9 +13,7 @@ pub struct HudConfig {
     pub message_feed: MessageFeedConfig,
     pub floating_labels: FloatingLabelsConfig,
     pub health_bars: HealthBarsConfig,
-    pub banner: BannerConfig,
     pub quest_panel: QuestPanelConfig,
-    pub death_overlay: DeathOverlayConfig,
 }
 
 const fn default_hud_reference_width() -> f32 {
@@ -73,25 +71,11 @@ pub struct QuestPanelConfig {
     pub bar_height: f32,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct BannerConfig {
-    pub quest_announcement_duration_secs: f32,
-    pub quest_completed_duration_secs: f32,
-    pub death_duration_secs: f32,
-    pub death_text: String,
-    pub fade_duration_secs: f32,
-}
-
 // Red full-screen death tint. Timer-driven (no fade in): snaps on at
 // peak alpha when the player dies, holds, and fades out over the final
 // `fade_duration_secs` before disappearing at `duration_secs`. Peak
 // alpha is currently a const (`DEATH_OVERLAY_MAX_ALPHA` in
 // `players/death.rs`); expose here if it ever needs tuning.
-#[derive(Debug, Clone, Copy, Deserialize)]
-pub struct DeathOverlayConfig {
-    pub duration_secs: f32,
-    pub fade_duration_secs: f32,
-}
 
 impl HudConfig {
     pub(super) fn validate(&self) -> Result<()> {
@@ -126,26 +110,8 @@ impl HudConfig {
             self.health_bars.player_list_height,
             "hud.health_bars.player_list_height",
         )?;
-        validate_positive_finite(
-            self.banner.quest_announcement_duration_secs,
-            "hud.banner.quest_announcement_duration_secs",
-        )?;
-        validate_positive_finite(
-            self.banner.quest_completed_duration_secs,
-            "hud.banner.quest_completed_duration_secs",
-        )?;
-        validate_positive_finite(self.banner.death_duration_secs, "hud.banner.death_duration_secs")?;
-        if self.banner.death_text.is_empty() {
-            bail!("hud.banner.death_text must not be empty");
-        }
-        validate_positive_finite(self.banner.fade_duration_secs, "hud.banner.fade_duration_secs")?;
         validate_positive_finite(self.quest_panel.bar_width, "hud.quest_panel.bar_width")?;
         validate_positive_finite(self.quest_panel.bar_height, "hud.quest_panel.bar_height")?;
-        validate_positive_finite(self.death_overlay.duration_secs, "hud.death_overlay.duration_secs")?;
-        validate_positive_finite(
-            self.death_overlay.fade_duration_secs,
-            "hud.death_overlay.fade_duration_secs",
-        )?;
         Ok(())
     }
 }

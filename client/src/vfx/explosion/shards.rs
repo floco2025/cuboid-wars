@@ -1,6 +1,6 @@
 use super::particles::{ExplosionVfxBudget, SurfacePlane, random_direction};
+use crate::constants::*;
 use crate::vfx::cube::{CUBE_INDICES, CUBE_NORMALS, CUBE_VERTICES, repeated_indices};
-use crate::{config::ExplosionVfxConfig, constants::*};
 use bevy::{
     asset::RenderAssetUsages,
     light::NotShadowCaster,
@@ -45,14 +45,13 @@ pub(super) fn spawn_shard_cloud(
     center: Vec3,
     reach_radius: f32,
     requested_count: usize,
-    config: &ExplosionVfxConfig,
     rng: &mut impl Rng,
 ) {
     let count = budget.reserve_shards(requested_count, EXPLOSION_SHARD_GLOBAL_MAX_COUNT);
     if count == 0 {
         return;
     }
-    let base_lifetime = config.base_duration_secs * EXPLOSION_SHARD_LIFETIME_FACTOR;
+    let base_lifetime = EXPLOSION_BASE_DURATION_SECS * EXPLOSION_SHARD_LIFETIME_FACTOR;
     let mut particles = Vec::with_capacity(count);
     for _ in 0..count {
         let direction = random_direction(rng);
@@ -75,7 +74,7 @@ pub(super) fn spawn_shard_cloud(
                 rng.random_range(-8.0..8.0),
                 rng.random_range(-8.0..8.0),
             ),
-            size: config.shards.size,
+            size: EXPLOSION_SHARD_SIZE,
             lifetime,
             travelled: 0.0,
             max_distance,

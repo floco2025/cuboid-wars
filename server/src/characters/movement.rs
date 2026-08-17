@@ -34,10 +34,14 @@ type PlayerMovementQuery<'w, 's> = Query<
 >;
 
 // Tick blast shoves down after movement consumed this tick's step.
-pub fn knockback_decay_system(time: Res<Time>, mut knockbacks: Query<&mut KnockbackVelocity>) {
+pub fn knockback_decay_system(
+    time: Res<Time>,
+    gameplay_config: Res<GameplayConfig>,
+    mut knockbacks: Query<&mut KnockbackVelocity>,
+) {
     let delta = time.delta_secs();
     for mut knockback in &mut knockbacks {
-        knockback.decay(delta);
+        knockback.decay(delta, gameplay_config.knockback.deceleration);
     }
 }
 
@@ -113,8 +117,12 @@ fn plan_player_moves(
     for (entity, pos, motion, move_intent, player_id, knockback) in query.iter() {
         let is_stunned = players.get(player_id).is_some_and(PlayerInfo::is_stunned);
         let has_speed_power_up = players.get(player_id).is_some_and(PlayerInfo::has_speed);
-        let velocity =
-            move_intent.to_horizontal_velocity(player_config.walk_speed, player_config.run_speed, has_speed_power_up);
+        let velocity = move_intent.to_horizontal_velocity(
+            player_config.walk_speed,
+            player_config.run_speed,
+            has_speed_power_up,
+            gameplay_config.power_up_effects.speed_multiplier,
+        );
         let velocity_sq = velocity.x.mul_add(velocity.x, velocity.z * velocity.z);
         let is_standing_still = velocity_sq < PHYSICS_EPSILON * PHYSICS_EPSILON;
         let suppress_horizontal = is_stunned || is_standing_still;

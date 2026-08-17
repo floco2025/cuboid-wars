@@ -20,16 +20,6 @@
     }
   },
   "vfx": {
-    "projectiles": {
-      "body_emissive_brightness": 5.0,
-      "impact_sparks": {
-        "base_particle_count": 6,
-        "particle_size": 0.05,
-        "particle_speed": 8.0,
-        "particle_lifetime_secs": 0.25,
-        "emissive_brightness": 25.0
-      }
-    },
     "missile_exhaust": {
       "particles_per_sec": 600.0,
       "particle_size": 0.02,
@@ -38,64 +28,12 @@
       "back_speed": 2.5,
       "rise_acceleration": 1.2,
       "jitter": 0.25
-    },
-    "actor_beam_in": {
-      "sparkles_per_m3_per_second": 200.0,
-      "sparkle_size": 0.05,
-      "sparkle_lifetime_secs": 1.5,
-      "sparkle_emissive_brightness": 25.0,
-      "light_intensity_lumens_per_m3": 500000.0,
-      "materialization_ring_enabled": false
-    },
-    "laser": {
-      "beam_radius": 0.008,
-      "emissive_brightness": 40.0,
-      "endpoint_wander_width_fraction": 0.4,
-      "endpoint_wander_height_fraction": 0.2,
-      "aim_height_fraction": 0.6
-    },
-    "explosions": {
-      "base_duration_secs": 0.8,
-      "fireball": {
-        "blast_diameter_factor": 0.5,
-        "emissive_brightness": 3000.0
-      },
-      "shockwave": {
-        "emissive_brightness": 2000.0
-      },
-      "light": {
-        "intensity_lumens": 1000000.0
-      },
-      "shards": {
-        "count_per_radius_meter": 40.0,
-        "size": 0.20,
-        "emissive_brightness": 2500.0
-      },
-      "smoke": {
-        "count_per_radius_meter": 1.5,
-        "end_size": 1.45,
-        "lifetime_secs": 4.0,
-        "max_opacity": 0.32
-      },
-      "scorches": {
-        "blast_diameter_factor": 0.4,
-        "full_opacity_duration_secs": 30.0
-      }
     }
   },
   "audio": {
     "spatial_distance_scale": 0.1,
     "explosion_gain_multiplier": 2.0,
-    "projectile_impacts": {
-      "wall_bounce_gain_multiplier": 0.2,
-      "min_bounce_speed_meters_per_second": 10.0,
-      "max_bounce_sounds_per_second": 30.0,
-      "rate_limit_preemption_loudness_ratio": 2.0
-    }
-  },
-  "lighting": {
-    "ambient_brightness": 70.0,
-    "directional_brightness": 8000.0
+    "rain_volume": 1.0
   },
   "camera": {
     "fov_first_person_degrees": 90.0,
@@ -105,8 +43,8 @@
     "rearview": {
       "enabled": true,
       "fov_degrees": 90.0,
-      "width_ratio": 0.20,
-      "height_ratio": 0.20
+      "width_ratio": 0.2,
+      "height_ratio": 0.2
     },
     "shake": {
       "projectile": {
@@ -152,49 +90,14 @@
       "player_list_width": 140.0,
       "player_list_height": 8.0
     },
-    "banner": {
-      "quest_announcement_duration_secs": 10.0,
-      "quest_completed_duration_secs": 5.0,
-      "death_duration_secs": 3.0,
-      "death_text": "You died!",
-      "fade_duration_secs": 0.8
-    },
     "quest_panel": {
       "bar_width": 160.0,
       "bar_height": 8.0
-    },
-    "death_overlay": {
-      "duration_secs": 3.0,
-      "fade_duration_secs": 0.8
     }
-  },
-  "barriers": {
-    "alpha_min": 0.007,
-    "alpha_max": 0.015,
-    "pulse_hz": 0.5,
-    "emissive": 2000.0
-  },
-  "weather": {
-    "sky_dim": 0.05,
-    "light_dim": 0.5,
-    "saturation": 0.4,
-    "drops_per_second": 1000.0,
-    "spawn_radius": 15.0,
-    "spawn_lead_fraction": 0.35,
-    "spawn_height": 10.0,
-    "fall_speed": 14.0,
-    "drop_size": 0.01,
-    "splash_size": 0.01,
-    "splash_radius": 0.15,
-    "splash_height": 0.2,
-    "rain_volume": 1.0
   },
   "grass": {
     "enabled": true,
-    "tufts_per_m2": 16.0,
-    "wind_strength": 0.05,
-    "wind_speed": 2.5,
-    "wind_direction_degrees": 30.0
+    "tufts_per_m2": 16.0
   },
   "debug": {
     "collider_boxes": false

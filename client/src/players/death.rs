@@ -1,3 +1,4 @@
+use crate::constants::{DEATH_OVERLAY_FADE_SECS, DEATH_OVERLAY_SECS};
 use bevy::prelude::*;
 
 use super::resources::LocalPlayerInfo;
@@ -20,7 +21,7 @@ const DEATH_OVERLAY_MAX_ALPHA: f32 = 0.3;
 // detect the transition. `Local<f32>` holds the countdown timer.
 pub fn death_overlay_visibility_system(
     time: Res<Time>,
-    client_settings: Res<ClientSettings>,
+    _client_settings: Res<ClientSettings>,
     local_player_info: Res<LocalPlayerInfo>,
     mut prev_is_dead: Local<bool>,
     mut timer: Local<f32>,
@@ -29,10 +30,9 @@ pub fn death_overlay_visibility_system(
     let Ok((mut visibility, mut color)) = overlay.single_mut() else {
         return;
     };
-    let cfg = &client_settings.hud.death_overlay;
 
     if local_player_info.is_dead && !*prev_is_dead {
-        *timer = cfg.duration_secs;
+        *timer = DEATH_OVERLAY_SECS;
     }
     *prev_is_dead = local_player_info.is_dead;
 
@@ -47,7 +47,7 @@ pub fn death_overlay_visibility_system(
     }
 
     *timer = (*timer - time.delta_secs()).max(0.0);
-    let fade = fade_out_alpha(*timer, cfg.fade_duration_secs);
+    let fade = fade_out_alpha(*timer, DEATH_OVERLAY_FADE_SECS);
     let alpha = DEATH_OVERLAY_MAX_ALPHA * fade;
     color.0 = Color::srgba(1.0, 0.0, 0.0, alpha);
     *visibility = if alpha > 0.0 {

@@ -1,6 +1,5 @@
 use crate::{
-    config::ProjectilesConfig,
-    constants::*,
+    config::GameplayConfig,
     physics::CollisionWorld,
     protocol::{BarrierKindId, Position},
 };
@@ -33,20 +32,20 @@ pub fn calculate_projectile_spawns(
     face_pitch: f32,
     has_multi_shot: bool,
     shooter_eye_height: f32,
-    config: &ProjectilesConfig,
+    gameplay: &GameplayConfig,
     collision_world: &CollisionWorld,
     open_kinds: &[BarrierKindId],
 ) -> Vec<ProjectileSpawnInfo> {
     let mut spawns = Vec::new();
 
     let num_shots = if has_multi_shot {
-        POWER_UP_MULTI_SHOT_MULTIPLIER
+        gameplay.power_up_effects.multi_shot_count
     } else {
         1
     };
 
     // Spawn projectiles in an arc
-    let angle_step = POWER_UP_MULTI_SHOT_ANGLE.to_radians();
+    let angle_step = gameplay.power_up_effects.multi_shot_angle_degrees.to_radians();
     let start_offset = -(num_shots - 1) as f32 * angle_step / 2.0;
 
     for i in 0..num_shots {
@@ -57,12 +56,18 @@ pub fn calculate_projectile_spawns(
 
         // Camera origin at eye height (match FPV) and push forward along aim direction
         let camera_origin = Vec3::new(shooter_pos.x, shooter_pos.y + shooter_eye_height, shooter_pos.z);
-        let spawn_pos = camera_origin + aim * config.spawn_offset;
+        let spawn_pos = camera_origin + aim * gameplay.projectiles.spawn_offset;
 
         let spawn_position: Position = spawn_pos.into();
         let camera_pos: Position = camera_origin.into();
 
-        if projectile_spawn_is_blocked(&camera_pos, &spawn_position, config.radius, collision_world, open_kinds) {
+        if projectile_spawn_is_blocked(
+            &camera_pos,
+            &spawn_position,
+            gameplay.projectiles.radius,
+            collision_world,
+            open_kinds,
+        ) {
             continue;
         }
 

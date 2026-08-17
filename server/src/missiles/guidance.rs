@@ -13,7 +13,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    constants::GRID_CELL_SIZE,
+    constants::{GRID_CELL_SIZE, MISSILE_RADIUS},
     physics::{CollisionWorld, character_center},
     protocol::{
         ActorMarker, BarrierKindId, FaceDirection, HomingTarget, MissileId, MissileMarker, PlayerMarker, Position,
@@ -101,7 +101,7 @@ pub fn missiles_guidance_system(time: Res<Time>, mut params: MissileGuidancePara
                 &params.open_barrier_kinds.0,
                 pos,
                 target_center,
-                config.radius,
+                MISSILE_RADIUS,
             ) {
                 homing_objective(info, &config, origin, aim_point)
             } else if let Some(dir) = route_objective(
@@ -111,7 +111,7 @@ pub fn missiles_guidance_system(time: Res<Time>, mut params: MissileGuidancePara
                 &params.open_barrier_kinds.0,
                 origin,
                 target_center,
-                config.radius,
+                MISSILE_RADIUS,
                 delta,
             ) {
                 dir
@@ -210,10 +210,10 @@ fn dodge_objective(
     let lookahead = config.speed * MISSILE_AVOID_LOOKAHEAD_SECS;
     let desired = (aim_point - origin).normalize_or_zero();
     let committed = info.avoid_dir.filter(|dir| {
-        info.avoid_timer > 0.0 && sweep_clear(collision_world, open_kinds, origin, *dir * lookahead, config.radius)
+        info.avoid_timer > 0.0 && sweep_clear(collision_world, open_kinds, origin, *dir * lookahead, MISSILE_RADIUS)
     });
     let chosen = committed.or_else(|| {
-        let picked = pick_clear_direction(collision_world, open_kinds, origin, desired, lookahead, config.radius);
+        let picked = pick_clear_direction(collision_world, open_kinds, origin, desired, lookahead, MISSILE_RADIUS);
         info.avoid_dir = picked;
         info.avoid_timer = MISSILE_AVOID_COMMIT_SECS;
         picked

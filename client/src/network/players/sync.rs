@@ -1,3 +1,4 @@
+use crate::constants::BANNER_QUEST_ANNOUNCEMENT_SECS;
 use bevy::prelude::*;
 use std::collections::HashSet;
 
@@ -161,7 +162,7 @@ pub fn sync_players(
             .collect::<Vec<_>>()
             .join("\n");
         if !text.is_empty() {
-            pending_banner.set(text, client_settings.hud.banner.quest_announcement_duration_secs);
+            pending_banner.set(text, BANNER_QUEST_ANNOUNCEMENT_SECS);
         }
     }
 
@@ -280,8 +281,7 @@ fn update_snapshot_player(
         if let Ok((client_pos, _, _)) = player_data.get(client_player.entity) {
             let server_velocity = player_movement_velocity(
                 server_player.movement,
-                gameplay_config.player.walk_speed,
-                gameplay_config.player.run_speed,
+                gameplay_config,
                 server_player.power_up(PowerUpKind::Speed),
             );
 
