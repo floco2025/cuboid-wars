@@ -113,10 +113,8 @@ pub(super) fn handle_snapshot_message(
     }
 
     // Weather and lighting targets; `rain_smoothing_system` and
-    // `night_dim_system` ease the rendered values.
+    // `lighting_dim_system` ease the rendered values.
     client_assets.world_sync.rain_intensity.target = msg.rain_intensity;
-    client_assets.world_sync.night_lighting.night_target = match msg.time_of_day {
-        TimeOfDay::Day => 0.0,
-        TimeOfDay::Night => 1.0,
-    };
+    client_assets.world_sync.lighting.target = msg.lighting;
+    client_assets.world_sync.lighting.synced = true;
 }

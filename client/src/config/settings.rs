@@ -49,7 +49,84 @@ pub struct ClientSettings {
     pub audio: AudioConfig,
     #[serde(default)]
     pub weather: WeatherConfig,
+    #[serde(default)]
+    pub lighting: LightingConfig,
     pub debug: DebugConfig,
+}
+
+// One entry per server lighting level (`/light bright|dim|dark`).
+// Decoupled from weather — rain does not dim the world.
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(default)]
+pub struct LightingConfig {
+    pub bright: LightingLevel,
+    pub dim: LightingLevel,
+    pub dark: LightingLevel,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct LightingLevel {
+    // `Skybox::brightness` (same scale as the per-skybox `brightness` in
+    // `assets.json`; the shipped sky's full value is 1000).
+    pub sky_brightness: f32,
+    // `DirectionalLight::illuminance` (lux) and `AmbientLight::brightness`.
+    pub sun_illuminance: f32,
+    pub ambient_brightness: f32,
+    // Absolute emissive luminance of the visible sun disc (same scene-linear
+    // scale as the skybox brightness in assets.json; 0 = disc off). For
+    // reference: the dark sky sits around 10, bloom halos anything past 2.5,
+    // full blaze is tens of millions.
+    pub sun_disc_luminance: f32,
+    // Post-tonemap saturation; 1.0 = unchanged.
+    pub saturation: f32,
+}
+
+impl Default for LightingConfig {
+    fn default() -> Self {
+        Self {
+            bright: LightingLevel {
+                sky_brightness: 1000.0,
+                sun_illuminance: 8000.0,
+                ambient_brightness: 70.0,
+                sun_disc_luminance: 50_000_000.0,
+                saturation: 1.0,
+            },
+            dim: LightingLevel {
+                sky_brightness: 64.0,
+                sun_illuminance: 1280.0,
+                ambient_brightness: 11.2,
+                sun_disc_luminance: 50.0,
+                saturation: 0.55,
+            },
+            dark: LightingLevel {
+                sky_brightness: 12.0,
+                sun_illuminance: 400.0,
+                ambient_brightness: 3.5,
+                sun_disc_luminance: 0.0,
+                saturation: 0.35,
+            },
+        }
+    }
+}
+
+impl LightingConfig {
+    fn validate(&self) -> Result<()> {
+        self.bright.validate("lighting.bright")?;
+        self.dim.validate("lighting.dim")?;
+        self.dark.validate("lighting.dark")?;
+        Ok(())
+    }
+}
+
+impl LightingLevel {
+    fn validate(&self, name: &str) -> Result<()> {
+        validate_non_negative_finite(self.sky_brightness, &format!("{name}.sky_brightness"))?;
+        validate_non_negative_finite(self.sun_illuminance, &format!("{name}.sun_illuminance"))?;
+        validate_non_negative_finite(self.ambient_brightness, &format!("{name}.ambient_brightness"))?;
+        validate_non_negative_finite(self.sun_disc_luminance, &format!("{name}.sun_disc_luminance"))?;
+        validate_unit_ratio(self.saturation, &format!("{name}.saturation"))?;
+        Ok(())
+    }
 }
 
 // User-facing rain density/size knobs. Pure-appearance values (colors,
@@ -152,6 +229,7 @@ impl ClientSettings {
         self.vfx.validate()?;
         self.audio.validate()?;
         self.weather.validate()?;
+        self.lighting.validate()?;
         Ok(())
     }
 }

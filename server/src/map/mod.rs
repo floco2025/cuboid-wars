@@ -24,4 +24,4 @@ pub use pressure_plates::compute_open_barrier_kinds_system;
 pub use resources::{
     ActorSpawnZone, Cell, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlacedItem, PlayerSpawnZone, PressurePlateRuntime,
 };
-pub use weather::{CurrentTimeOfDay, WeatherState, weather_system};
+pub use weather::{CurrentLighting, WeatherState, weather_system};

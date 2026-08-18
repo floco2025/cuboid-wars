@@ -155,12 +155,14 @@ pub struct SInit {
 
 // --- Snapshot ---
 
-// Server-authoritative lighting, decoupled from weather ("/time day|night").
+// Server-authoritative lighting level, decoupled from weather
+// ("/light bright|dim|dark").
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Encode, Decode)]
-pub enum TimeOfDay {
+pub enum Lighting {
     #[default]
-    Day,
-    Night,
+    Bright,
+    Dim,
+    Dark,
 }
 
 // Periodic full-world snapshot. Sole source of truth for player/actor/item
@@ -188,8 +190,8 @@ pub struct SSnapshot {
     // the 4 Hz steps and drive all rain presentation from it.
     pub rain_intensity: f32,
     // Durable level-triggered lighting state, same snapshot rationale as
-    // the rain intensity. The client fades between the two looks.
-    pub time_of_day: TimeOfDay,
+    // the rain intensity. The client fades between the looks.
+    pub lighting: Lighting,
 }
 
 // --- Real-time intent (sub-tick latency for prediction) ---

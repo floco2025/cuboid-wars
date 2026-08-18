@@ -1,16 +1,12 @@
 use std::f32::consts::TAU;
 
-use crate::constants::{
-    LIGHTING_AMBIENT_BRIGHTNESS, LIGHTING_DIRECTIONAL_BRIGHTNESS, NIGHT_LIGHT_BRIGHTNESS, NIGHT_SATURATION,
-    NIGHT_SKY_BRIGHTNESS, NIGHTFALL_TAU_SECS,
-};
 use bevy::{core_pipeline::Skybox, light::NotShadowCaster, prelude::*, render::view::ColorGrading};
 
 use crate::{
     cameras::MainCameraMarker,
-    config::{AssetSet, SkyboxDef},
+    config::{AssetSet, ClientSettings, SkyboxDef},
 };
-use common::protocol::MapSettings;
+use common::protocol::{Lighting, MapSettings};
 
 // The map names its skybox in `MapSettings` (from `SInit`), so both setup
 // systems run gated on that resource existing — once, via the `Local` latch —
@@ -74,9 +70,6 @@ pub struct SunLightMarker;
 #[derive(Component)]
 pub struct SunDisc {
     distance: f32,
-    // Base emissive luminance, kept so rain dimming can recompute the
-    // material's emissive absolutely each frame.
-    luminance: f32,
 }
 
 pub fn setup_sun_disc_system(
@@ -98,7 +91,6 @@ pub fn setup_sun_disc_system(
     commands.spawn((
         SunDisc {
             distance: sun_disc.distance,
-            luminance: sun_disc.luminance,
         },
         Mesh3d(meshes.add(Sphere::new(sun_disc.radius))),
         // NOT unlit: `StandardMaterial` ignores emissive when unlit (see
@@ -154,23 +146,34 @@ pub fn skybox_update_camera_system(
     }
 }
 
-// Authoritative time of day from the snapshot (`night_target`), smoothed
-// locally (`night`) so nightfall is a dusk fade, not a switch flip.
+// Smoothing time constant of the fade between lighting levels (secs).
+const LIGHT_FADE_TAU_SECS: f32 = 2.0;
+
+// Authoritative lighting level from the snapshot (`target`); each channel
+// is smoothed locally so a level change is a dusk fade, not a switch flip.
 #[derive(Resource, Default)]
-pub struct NightLighting {
-    pub night_target: f32,
-    night: f32,
+pub struct LightingState {
+    pub target: Lighting,
+    // Set by the first snapshot. Until it is — and on the frame it lands —
+    // the dim system snaps instead of fading, so login shows the server's
+    // current level immediately.
+    pub synced: bool,
+    eased: bool,
+    sky: f32,
+    sun: f32,
+    ambient: f32,
+    disc: f32,
+    saturation: f32,
 }
 
-// Darken the world at night. Every value is recomputed absolutely from its
-// config base × a dim factor, never incrementally, so the system is
-// idempotent per frame and snaps back to the exact base at daybreak. Sky,
-// sun disc, directional light, and ambient all follow the smoothed night
-// factor; wall/actor lights stay lit — windows glowing in the dark.
-pub fn night_dim_system(
+// Drive the world's lighting to the current level. Every channel is a raw
+// absolute value from `client.json::lighting`, eased toward the level's
+// setting and written absolutely every frame — idempotent, no incremental
+// drift. Wall/actor lights stay lit — windows glowing in the dark.
+pub fn lighting_dim_system(
     time: Res<Time>,
-    mut night_lighting: ResMut<NightLighting>,
-    settings: Option<Res<SkyboxSettings>>,
+    client_settings: Res<ClientSettings>,
+    mut lighting: ResMut<LightingState>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut skyboxes: Query<&mut Skybox>,
     mut sun_light: Query<&mut DirectionalLight, With<SunLightMarker>>,
@@ -178,32 +181,42 @@ pub fn night_dim_system(
     disc: Query<(&MeshMaterial3d<StandardMaterial>, &SunDisc)>,
     mut gradings: Query<&mut ColorGrading>,
 ) {
-    let blend = 1.0 - (-time.delta_secs() / NIGHTFALL_TAU_SECS).exp();
-    let step = (night_lighting.night_target - night_lighting.night) * blend;
-    night_lighting.night += step;
-    let night = night_lighting.night;
+    let levels = &client_settings.lighting;
+    let level = match lighting.target {
+        Lighting::Bright => &levels.bright,
+        Lighting::Dim => &levels.dim,
+        Lighting::Dark => &levels.dark,
+    };
+    let blend = if lighting.eased {
+        1.0 - (-time.delta_secs() / LIGHT_FADE_TAU_SECS).exp()
+    } else {
+        // Keep snapping until the first snapshot's level has been applied;
+        // only later changes get the fade.
+        lighting.eased = lighting.synced;
+        1.0
+    };
+    lighting.sky += (level.sky_brightness - lighting.sky) * blend;
+    lighting.sun += (level.sun_illuminance - lighting.sun) * blend;
+    lighting.ambient += (level.ambient_brightness - lighting.ambient) * blend;
+    lighting.disc += (level.sun_disc_luminance - lighting.disc) * blend;
+    lighting.saturation += (level.saturation - lighting.saturation) * blend;
 
-    let sky_factor = 1.0 - night * (1.0 - NIGHT_SKY_BRIGHTNESS);
-    let light_factor = 1.0 - night * (1.0 - NIGHT_LIGHT_BRIGHTNESS);
-
-    // Night mutes the world: post-tonemap saturation on both cameras
-    // follows the smoothed factor.
+    // Low light mutes the world: post-tonemap saturation on both cameras
+    // follows the smoothed value.
     for mut grading in &mut gradings {
-        grading.global.post_saturation = 1.0 - night * (1.0 - NIGHT_SATURATION);
+        grading.global.post_saturation = lighting.saturation;
     }
 
-    if let Some(settings) = settings {
-        for mut skybox in &mut skyboxes {
-            skybox.brightness = settings.brightness * sky_factor;
-        }
+    for mut skybox in &mut skyboxes {
+        skybox.brightness = lighting.sky;
     }
     for mut light in &mut sun_light {
-        light.illuminance = LIGHTING_DIRECTIONAL_BRIGHTNESS * light_factor;
+        light.illuminance = lighting.sun;
     }
-    ambient.brightness = LIGHTING_AMBIENT_BRIGHTNESS * light_factor;
-    for (material, sun_disc) in &disc {
+    ambient.brightness = lighting.ambient;
+    let luminance = lighting.disc;
+    for (material, _) in &disc {
         if let Some(mut material) = materials.get_mut(&material.0) {
-            let luminance = sun_disc.luminance * sky_factor;
             material.emissive = LinearRgba::rgb(luminance, luminance * 0.94, luminance * 0.78);
         }
     }

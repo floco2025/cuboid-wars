@@ -28,7 +28,7 @@ use server::{
         random_item_spawn_system,
     },
     map::{
-        CurrentTimeOfDay, OpenBarrierKinds, WeatherState, compute_open_barrier_kinds_system, generate_map,
+        CurrentLighting, OpenBarrierKinds, WeatherState, compute_open_barrier_kinds_system, generate_map,
         weather_system,
     },
     missiles::{AirGraph, missiles_guidance_system, missiles_movement_system},
@@ -118,7 +118,7 @@ async fn main() -> Result<()> {
     app.insert_resource(map_layout)
         .insert_resource(map_settings)
         .insert_resource(weather_state)
-        .init_resource::<CurrentTimeOfDay>()
+        .init_resource::<CurrentLighting>()
         .insert_resource(Invincibility(false))
         .insert_resource(UnlimitedMissiles(false))
         .insert_resource(collision_world)

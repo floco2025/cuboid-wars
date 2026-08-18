@@ -2,12 +2,12 @@ use bevy::prelude::*;
 use rand::{RngExt, rngs::ThreadRng};
 
 use crate::config::RainScheduleConfig;
-use common::protocol::TimeOfDay;
+use common::protocol::Lighting;
 
-// Server-authoritative lighting, fully decoupled from the weather cycle —
-// only "/time day|night" changes it. Rides every snapshot.
+// Server-authoritative lighting level, fully decoupled from the weather
+// cycle — only "/light bright|dim|dark" changes it. Rides every snapshot.
 #[derive(Resource, Default)]
-pub struct CurrentTimeOfDay(pub TimeOfDay);
+pub struct CurrentLighting(pub Lighting);
 
 // Cycles Clear → RampIn → Raining → FadeOut → Clear. Each variant carries
 // its countdown; ramp fractions are derived from the config's fixed ramp

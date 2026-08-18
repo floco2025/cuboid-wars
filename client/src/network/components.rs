@@ -160,7 +160,7 @@ pub struct WorldSyncState<'w, 's> {
     pub map_layout: Option<Res<'w, MapLayout>>,
     pub open_barrier_kinds: ResMut<'w, crate::barriers::OpenBarrierKinds>,
     pub rain_intensity: ResMut<'w, crate::vfx::RainIntensity>,
-    pub night_lighting: ResMut<'w, crate::map::skybox::NightLighting>,
+    pub lighting: ResMut<'w, crate::map::skybox::LightingState>,
     pub actor_ghosts: ResMut<'w, ActorGhostMap>,
     pub missile_map: ResMut<'w, crate::missiles::MissileMap>,
     pub missile_data: Query<'w, 's, &'static Position, With<MissileMarker>>,

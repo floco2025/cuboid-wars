@@ -336,13 +336,6 @@ pub const WALL_LIGHT_FLICKER_THRESHOLD: f32 = 0.9;
 pub const WALL_LIGHT_FLICKER_DEPTH: f32 = 0.65; // max fraction of brightness lost in a dip
 
 // ============================================================================
-// Scene Lighting
-// ============================================================================
-
-pub const LIGHTING_AMBIENT_BRIGHTNESS: f32 = 70.0;
-pub const LIGHTING_DIRECTIONAL_BRIGHTNESS: f32 = 8000.0;
-
-// ============================================================================
 // Barriers
 // ============================================================================
 
@@ -356,22 +349,6 @@ pub const BARRIER_PULSE_HZ: f32 = 0.5;
 // the material, never pulsed. Translucency still attenuates what the surface
 // contributes, so useful values are well above the bloom threshold.
 pub const BARRIER_EMISSIVE: f32 = 2000.0;
-
-// ============================================================================
-// Night Lighting
-// ============================================================================
-// Presentation of the server's time of day (`/time day|night`). Lighting is
-// deliberately decoupled from weather — rain does not dim the world.
-
-// Skybox + sun-disc brightness factor at night.
-pub const NIGHT_SKY_BRIGHTNESS: f32 = 0.06;
-// Directional + ambient light factor at night.
-pub const NIGHT_LIGHT_BRIGHTNESS: f32 = 0.16;
-// Scene saturation at night (camera color grading) — moonlight mutes
-// colors. 1.0 = no change.
-pub const NIGHT_SATURATION: f32 = 0.55;
-// Smoothing time constant of the dusk/dawn fade (secs).
-pub const NIGHTFALL_TAU_SECS: f32 = 2.0;
 
 // ============================================================================
 // Rain

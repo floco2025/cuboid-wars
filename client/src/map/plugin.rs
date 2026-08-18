@@ -41,7 +41,7 @@ pub fn map_plugin(app: &mut App) {
 // before `Presentation` so the shared particle clouds consume this frame's
 // spawned drops.
 pub fn sky_weather_plugin(app: &mut App) {
-    app.init_resource::<skybox::NightLighting>();
+    app.init_resource::<skybox::LightingState>();
     app.add_systems(
         Update,
         (
@@ -55,11 +55,11 @@ pub fn sky_weather_plugin(app: &mut App) {
             // one-frame positional lag at 400 m is invisible.
             skybox::sun_disc_system.after(skybox::skybox_rotate_system),
             // Rain: smooth the snapshot intensity first, then everything
-            // that reads it. Night dimming runs after the camera-insert
+            // that reads it. Lighting dimming runs after the camera-insert
             // system so a freshly inserted Skybox is corrected the same
             // frame.
             rain_smoothing_system,
-            skybox::night_dim_system.after(skybox::skybox_update_camera_system),
+            skybox::lighting_dim_system.after(skybox::skybox_update_camera_system),
             rain_particles_system.after(rain_smoothing_system),
             rain_audio_system.after(rain_smoothing_system),
         )
