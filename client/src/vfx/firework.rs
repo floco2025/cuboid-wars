@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::f32::consts::TAU;
 
-use bevy::{audio::SpatialScale, ecs::system::SystemParam, prelude::*};
+use bevy::{audio::SpatialScale, ecs::system::SystemParam, light::NotShadowCaster, prelude::*};
 use rand::{RngExt, SeedableRng, rngs::StdRng};
 
 use crate::{
@@ -451,6 +451,7 @@ fn spawn_laser_beams(commands: &mut Commands, vfx: &mut FireworkVfx, assets: &Fi
             },
             Mesh3d(mesh.clone()),
             MeshMaterial3d(material),
+            NotShadowCaster,
             Transform::from_translation(spec.pivot).with_rotation(Quat::from_rotation_arc(Vec3::Y, spec.start_dir)),
             // Looping spatial hum from the pivot; despawning the beam stops it.
             AudioPlayer::new(

@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{light::NotShadowCaster, prelude::*};
 
 use crate::{actors::ActorMap, constants::*, players::PlayerMap};
 use common::{
@@ -60,6 +60,7 @@ pub fn spawn_laser_beam(
             },
             Mesh3d(meshes.add(Cylinder::new(LASER_BEAM_RADIUS, 1.0))),
             MeshMaterial3d(material),
+            NotShadowCaster,
             Transform::default(),
             // Hidden until the first update frame anchors it — the default
             // transform would otherwise flash at the world origin.
