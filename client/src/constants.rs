@@ -372,6 +372,17 @@ pub const RAIN_SPLASH_RADIUS: f32 = 0.15;
 pub const RAIN_SPLASH_HEIGHT: f32 = 0.2;
 
 // ============================================================================
+// Sun / Moon Disc
+// ============================================================================
+// Emissive tint of the celestial disc: golden sunlight at bright, cool
+// blue moonlight below. Deliberately strong — the disc is bright (tonemap
+// pulls it toward white) and the level's `saturation` grading mutes color
+// further, so subtle tints read as plain white in game.
+
+pub const SUN_DISC_COLOR: Color = Color::linear_rgb(1.0, 0.85, 0.6);
+pub const MOON_DISC_COLOR: Color = Color::linear_rgb(0.5, 0.72, 1.0);
+
+// ============================================================================
 // Grass Wind
 // ============================================================================
 

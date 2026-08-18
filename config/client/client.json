@@ -43,24 +43,26 @@
   },
   "lighting": {
     "bright": {
-      "ambient_brightness": 70.0,
       "sky_brightness": 1000.0,
+      "ambient_brightness": 70.0,
       "sun_illuminance": 8000.0,
       "sun_disc_luminance": 100.0,
       "saturation": 1.0
     },
     "dim": {
-      "ambient_brightness": 30.0,
-      "sky_brightness": 64.0,
-      "sun_illuminance": 200.0,
-      "sun_disc_luminance": 5.0,
+      "sky_brightness": 48.0,
+      "ambient_brightness": 30.0,      
+      "moon_illuminance": 150.0,
+      "moon_disc_luminance": 7.0,
+      "moon_phase_percent": 100.0,
       "saturation": 0.5
     },
     "dark": {
-      "ambient_brightness": 10.0,
       "sky_brightness": 12.0,
-      "sun_illuminance": 50.0,
-      "sun_disc_luminance": 0.1,
+      "ambient_brightness": 10.0,
+      "moon_illuminance": 50.0,
+      "moon_disc_luminance": 7.0,
+      "moon_phase_percent": 30.0,
       "saturation": 0.3
     }
   },

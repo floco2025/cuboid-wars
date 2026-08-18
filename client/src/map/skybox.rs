@@ -1,10 +1,11 @@
-use std::f32::consts::TAU;
+use std::f32::consts::{PI, TAU};
 
 use bevy::{core_pipeline::Skybox, light::NotShadowCaster, prelude::*, render::view::ColorGrading};
 
 use crate::{
     cameras::MainCameraMarker,
-    config::{AssetSet, ClientSettings, SkyboxDef},
+    config::{AssetSet, ClientSettings, MoonLighting, SkyboxDef},
+    constants::{MOON_DISC_COLOR, SUN_DISC_COLOR},
 };
 use common::protocol::{Lighting, MapSettings};
 
@@ -65,14 +66,18 @@ pub struct SkyboxSettings {
 #[derive(Component)]
 pub struct SunLightMarker;
 
-// The visible sun disc, kept opposite the directional light's forward so it
-// always sits where the shadows say it should.
+// The visible sun/moon disc, kept opposite the directional light's forward
+// so it always sits where the shadows say it should. Its mesh is the lit
+// lune of a sphere at the level's phase; regenerated when the phase changes.
 #[derive(Component)]
-pub struct SunDisc {
+pub struct SkyDisc {
     distance: f32,
+    radius: f32,
+    mesh: Handle<Mesh>,
+    phase_percent: f32,
 }
 
-pub fn setup_sun_disc_system(
+pub fn setup_sky_disc_system(
     mut done: Local<bool>,
     mut commands: Commands,
     asset_set: Res<AssetSet>,
@@ -88,17 +93,24 @@ pub fn setup_sun_disc_system(
     if sun_disc.radius <= 0.0 {
         return;
     }
+    let mesh = meshes.add(phase_mesh(100.0, sun_disc.radius));
     commands.spawn((
-        SunDisc {
+        SkyDisc {
             distance: sun_disc.distance,
+            radius: sun_disc.radius,
+            mesh: mesh.clone(),
+            phase_percent: 100.0,
         },
-        Mesh3d(meshes.add(Sphere::new(sun_disc.radius))),
+        Mesh3d(mesh),
         // NOT unlit: `StandardMaterial` ignores emissive when unlit (see
         // barriers/pulsate.rs), which renders a ~1-nit gray ball against a
-        // 1000-nit sky. Black base + huge emissive = pure self-luminance.
+        // 1000-nit sky. Black base + huge emissive = pure self-luminance;
+        // zero reflectance so the sun light can't put a specular sheen on
+        // the unlit part.
         MeshMaterial3d(materials.add(StandardMaterial {
             base_color: Color::BLACK,
             emissive: LinearRgba::rgb(sun_disc.luminance, sun_disc.luminance * 0.94, sun_disc.luminance * 0.78),
+            reflectance: 0.0,
             ..default()
         })),
         NotShadowCaster,
@@ -106,20 +118,62 @@ pub fn setup_sun_disc_system(
     ));
 }
 
+// The lit part of the disc at a given phase: the lune between the outer
+// circle arc and the spherical terminator (an ellipse arc), as a flat
+// row-strip mesh. 100% is the full circle, 50% a half disc, below that a
+// crescent. Unit-scale coordinates times `radius`; the +X side is lit and
+// the mesh faces +Z (the billboard turns +Z at the camera).
+fn phase_mesh(phase_percent: f32, radius: f32) -> Mesh {
+    use bevy::{
+        asset::RenderAssetUsages,
+        render::mesh::{Indices, PrimitiveTopology},
+    };
+
+    const ROWS: usize = 48;
+    // A zero-lit moon still gets a hairline sliver — an attached empty mesh
+    // upsets the renderer's slab allocator; luminance 0 is the off switch.
+    let lit = (phase_percent / 100.0).clamp(0.01, 1.0);
+    let terminator = (PI * lit).cos();
+
+    let mut positions: Vec<[f32; 3]> = Vec::with_capacity((ROWS + 1) * 2);
+    let mut indices: Vec<u32> = Vec::with_capacity(ROWS * 6);
+    for row in 0..=ROWS {
+        let y = row as f32 / ROWS as f32 * 2.0 - 1.0;
+        let span = (1.0 - y * y).max(0.0).sqrt();
+        positions.push([terminator * span * radius, y * radius, 0.0]);
+        positions.push([span * radius, y * radius, 0.0]);
+    }
+    for row in 0..ROWS as u32 {
+        let a = row * 2;
+        indices.extend_from_slice(&[a, a + 1, a + 3, a, a + 3, a + 2]);
+    }
+    let normals = vec![[0.0, 0.0, 1.0]; positions.len()];
+
+    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default());
+    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
+    mesh.insert_indices(Indices::U32(indices));
+    mesh
+}
+
 // Park the disc a fixed distance from the camera along the direction the
 // directional light comes FROM (`back()`), so it tracks the stepped sun
-// rotation and geometry occludes it near the horizon like a real sun.
-pub fn sun_disc_system(
-    camera: Query<&Transform, (With<Camera3d>, With<MainCameraMarker>, Without<SunDisc>)>,
-    sun_light: Query<&Transform, (With<SunLightMarker>, Without<SunDisc>, Without<MainCameraMarker>)>,
-    mut disc: Query<(&mut Transform, &SunDisc)>,
+// rotation and geometry occludes it near the horizon like a real sun. The
+// flat phase mesh must also face the camera: +Z toward it, so `look_to`
+// points -Z away along the light direction.
+pub fn sky_disc_system(
+    camera: Query<&Transform, (With<Camera3d>, With<MainCameraMarker>, Without<SkyDisc>)>,
+    sun_light: Query<&Transform, (With<SunLightMarker>, Without<SkyDisc>, Without<MainCameraMarker>)>,
+    mut disc: Query<(&mut Transform, &SkyDisc)>,
 ) {
     let (Ok(camera), Ok(light), Ok((mut disc_transform, disc))) =
         (camera.single(), sun_light.single(), disc.single_mut())
     else {
         return;
     };
-    disc_transform.translation = camera.translation + Vec3::from(light.back()) * disc.distance;
+    let away = Vec3::from(light.back());
+    disc_transform.translation = camera.translation + away * disc.distance;
+    disc_transform.look_to(away, Vec3::Y);
 }
 
 // Add skybox to cameras once the cubemap is ready
@@ -147,7 +201,7 @@ pub fn skybox_update_camera_system(
 }
 
 // Smoothing time constant of the fade between lighting levels (secs).
-const LIGHT_FADE_TAU_SECS: f32 = 2.0;
+const LIGHT_FADE_TAU_SECS: f32 = 0.8;
 
 // Authoritative lighting level from the snapshot (`target`); each channel
 // is smoothed locally so a level change is a dusk fade, not a switch flip.
@@ -163,7 +217,34 @@ pub struct LightingState {
     sun: f32,
     ambient: f32,
     disc: f32,
+    disc_color: Vec3,
     saturation: f32,
+}
+
+// A lighting level flattened for the renderer — sun and moon levels name
+// their values differently, the channels underneath are the same.
+struct LevelTargets {
+    sky: f32,
+    illuminance: f32,
+    ambient: f32,
+    disc: f32,
+    phase_percent: f32,
+    color: Color,
+    saturation: f32,
+}
+
+impl LevelTargets {
+    fn moon(moon: &MoonLighting) -> Self {
+        Self {
+            sky: moon.sky_brightness,
+            illuminance: moon.moon_illuminance,
+            ambient: moon.ambient_brightness,
+            disc: moon.moon_disc_luminance,
+            phase_percent: moon.moon_phase_percent,
+            color: MOON_DISC_COLOR,
+            saturation: moon.saturation,
+        }
+    }
 }
 
 // Drive the world's lighting to the current level. Every channel is a raw
@@ -178,14 +259,26 @@ pub fn lighting_dim_system(
     mut skyboxes: Query<&mut Skybox>,
     mut sun_light: Query<&mut DirectionalLight, With<SunLightMarker>>,
     mut ambient: ResMut<GlobalAmbientLight>,
-    disc: Query<(&MeshMaterial3d<StandardMaterial>, &SunDisc)>,
+    mut discs: Query<(&MeshMaterial3d<StandardMaterial>, &mut SkyDisc)>,
     mut gradings: Query<&mut ColorGrading>,
+    mut meshes: ResMut<Assets<Mesh>>,
 ) {
     let levels = &client_settings.lighting;
     let level = match lighting.target {
-        Lighting::Bright => &levels.bright,
-        Lighting::Dim => &levels.dim,
-        Lighting::Dark => &levels.dark,
+        Lighting::Bright => {
+            let sun = &levels.bright;
+            LevelTargets {
+                sky: sun.sky_brightness,
+                illuminance: sun.sun_illuminance,
+                ambient: sun.ambient_brightness,
+                disc: sun.sun_disc_luminance,
+                phase_percent: 100.0,
+                color: SUN_DISC_COLOR,
+                saturation: sun.saturation,
+            }
+        }
+        Lighting::Dim => LevelTargets::moon(&levels.dim),
+        Lighting::Dark => LevelTargets::moon(&levels.dark),
     };
     let blend = if lighting.eased {
         1.0 - (-time.delta_secs() / LIGHT_FADE_TAU_SECS).exp()
@@ -195,10 +288,13 @@ pub fn lighting_dim_system(
         lighting.eased = lighting.synced;
         1.0
     };
-    lighting.sky += (level.sky_brightness - lighting.sky) * blend;
-    lighting.sun += (level.sun_illuminance - lighting.sun) * blend;
-    lighting.ambient += (level.ambient_brightness - lighting.ambient) * blend;
-    lighting.disc += (level.sun_disc_luminance - lighting.disc) * blend;
+    lighting.sky += (level.sky - lighting.sky) * blend;
+    lighting.sun += (level.illuminance - lighting.sun) * blend;
+    lighting.ambient += (level.ambient - lighting.ambient) * blend;
+    lighting.disc += (level.disc - lighting.disc) * blend;
+    let target_color = level.color.to_linear();
+    let color_step = (Vec3::new(target_color.red, target_color.green, target_color.blue) - lighting.disc_color) * blend;
+    lighting.disc_color += color_step;
     lighting.saturation += (level.saturation - lighting.saturation) * blend;
 
     // Low light mutes the world: post-tonemap saturation on both cameras
@@ -214,10 +310,16 @@ pub fn lighting_dim_system(
         light.illuminance = lighting.sun;
     }
     ambient.brightness = lighting.ambient;
-    let luminance = lighting.disc;
-    for (material, _) in &disc {
+    let emissive = lighting.disc_color * lighting.disc;
+    for (material, mut disc) in &mut discs {
         if let Some(mut material) = materials.get_mut(&material.0) {
-            material.emissive = LinearRgba::rgb(luminance, luminance * 0.94, luminance * 0.78);
+            material.emissive = LinearRgba::rgb(emissive.x, emissive.y, emissive.z);
+        }
+        // The phase is a mesh shape, not a smoothable value — regenerate on
+        // level change and snap.
+        if (level.phase_percent - disc.phase_percent).abs() > f32::EPSILON {
+            disc.phase_percent = level.phase_percent;
+            let _ = meshes.insert(&disc.mesh, phase_mesh(disc.phase_percent, disc.radius));
         }
     }
 }

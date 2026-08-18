@@ -59,51 +59,68 @@ pub struct ClientSettings {
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(default)]
 pub struct LightingConfig {
-    pub bright: LightingLevel,
-    pub dim: LightingLevel,
-    pub dark: LightingLevel,
+    pub bright: SunLighting,
+    pub dim: MoonLighting,
+    pub dark: MoonLighting,
 }
 
+// Bright is daylight: the disc is the sun, always full. All raw values;
+// disc tints are `SUN_DISC_COLOR`/`MOON_DISC_COLOR` in `constants.rs`.
 #[derive(Debug, Clone, Copy, Deserialize)]
-pub struct LightingLevel {
+pub struct SunLighting {
     // `Skybox::brightness` (same scale as the per-skybox `brightness` in
     // `assets.json`; the shipped sky's full value is 1000).
     pub sky_brightness: f32,
     // `DirectionalLight::illuminance` (lux) and `AmbientLight::brightness`.
     pub sun_illuminance: f32,
     pub ambient_brightness: f32,
-    // Absolute emissive luminance of the visible sun disc (same scene-linear
-    // scale as the skybox brightness in assets.json; 0 = disc off). For
-    // reference: the dark sky sits around 10, bloom halos anything past 2.5,
-    // full blaze is tens of millions.
+    // Emissive luminance of the visible sun disc (scene-linear; bloom halos
+    // anything past the bloom threshold).
     pub sun_disc_luminance: f32,
     // Post-tonemap saturation; 1.0 = unchanged.
+    pub saturation: f32,
+}
+
+// Dim and dark are moonlight: the directional light is the moon, and the
+// disc shows a phase.
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct MoonLighting {
+    pub sky_brightness: f32,
+    // `DirectionalLight::illuminance` (lux) and `AmbientLight::brightness`.
+    pub moon_illuminance: f32,
+    pub ambient_brightness: f32,
+    // Emissive luminance of the visible moon disc (scene-linear; 0 = off).
+    pub moon_disc_luminance: f32,
+    // Lit fraction in percent: 100 = full moon, 50 = half, 35 = crescent.
+    pub moon_phase_percent: f32,
     pub saturation: f32,
 }
 
 impl Default for LightingConfig {
     fn default() -> Self {
         Self {
-            bright: LightingLevel {
+            bright: SunLighting {
                 sky_brightness: 1000.0,
                 sun_illuminance: 8000.0,
                 ambient_brightness: 70.0,
-                sun_disc_luminance: 50_000_000.0,
+                sun_disc_luminance: 100.0,
                 saturation: 1.0,
             },
-            dim: LightingLevel {
+            dim: MoonLighting {
                 sky_brightness: 64.0,
-                sun_illuminance: 1280.0,
-                ambient_brightness: 11.2,
-                sun_disc_luminance: 50.0,
-                saturation: 0.55,
+                moon_illuminance: 200.0,
+                ambient_brightness: 30.0,
+                moon_disc_luminance: 5.0,
+                moon_phase_percent: 60.0,
+                saturation: 0.5,
             },
-            dark: LightingLevel {
+            dark: MoonLighting {
                 sky_brightness: 12.0,
-                sun_illuminance: 400.0,
-                ambient_brightness: 3.5,
-                sun_disc_luminance: 0.0,
-                saturation: 0.35,
+                moon_illuminance: 50.0,
+                ambient_brightness: 10.0,
+                moon_disc_luminance: 0.1,
+                moon_phase_percent: 35.0,
+                saturation: 0.3,
             },
         }
     }
@@ -118,12 +135,26 @@ impl LightingConfig {
     }
 }
 
-impl LightingLevel {
+impl SunLighting {
     fn validate(&self, name: &str) -> Result<()> {
         validate_non_negative_finite(self.sky_brightness, &format!("{name}.sky_brightness"))?;
         validate_non_negative_finite(self.sun_illuminance, &format!("{name}.sun_illuminance"))?;
         validate_non_negative_finite(self.ambient_brightness, &format!("{name}.ambient_brightness"))?;
         validate_non_negative_finite(self.sun_disc_luminance, &format!("{name}.sun_disc_luminance"))?;
+        validate_unit_ratio(self.saturation, &format!("{name}.saturation"))?;
+        Ok(())
+    }
+}
+
+impl MoonLighting {
+    fn validate(&self, name: &str) -> Result<()> {
+        validate_non_negative_finite(self.sky_brightness, &format!("{name}.sky_brightness"))?;
+        validate_non_negative_finite(self.moon_illuminance, &format!("{name}.moon_illuminance"))?;
+        validate_non_negative_finite(self.ambient_brightness, &format!("{name}.ambient_brightness"))?;
+        validate_non_negative_finite(self.moon_disc_luminance, &format!("{name}.moon_disc_luminance"))?;
+        if !(0.0..=100.0).contains(&self.moon_phase_percent) {
+            bail!("{name}.moon_phase_percent must be in [0, 100]");
+        }
         validate_unit_ratio(self.saturation, &format!("{name}.saturation"))?;
         Ok(())
     }
