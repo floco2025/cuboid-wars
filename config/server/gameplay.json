@@ -6,7 +6,7 @@
       "gravity": 25.0,
       "low_gravity": 5.0,
       "random_items": {
-        "types": ["speed", "multi_shot", "low_gravity", "health_potion", "missile_pack"],
+        "types": [ "speed", "multi_shot", "low_gravity", "health_potion", "missile_pack" ],
         "max_number": 30,
         "despawn_secs": 60.0
       },
@@ -103,6 +103,7 @@
     },
     "sentry": {
       "inherit_from": "mine",
+      "respawn": { "delay_secs": 90.0 },
       "combat": {
         "armor": 0.9,
         "contact_explosion_distance": 0.8,
@@ -114,7 +115,7 @@
       "chase": { "leash": 80.0 }
     },
     "zapper": {
-      "respawn": { "enabled": true, "delay_secs": 60.0, "warning_secs": 3.0 },
+      "respawn": { "enabled": true, "delay_secs": 120.0, "warning_secs": 3.0 },
       "combat": {
         "armor": 0.0,
         "explosion": { "radius": 6.0, "max_damage": 75.0 },
@@ -128,7 +129,7 @@
         "range": 25.0,
         "duration_secs": 2.0,
         "cooldown_secs": 5.0,
-        "damage_per_second": 50.0
+        "damage_per_second": 40.0
       },
       "navigation": { "path_clear_lookahead_secs": 0.4, "go_to_reached_distance": 0.5 }
     }
