@@ -343,8 +343,10 @@ fn validate_ramps(map_def: &MapDef) -> Result<()> {
 // Ladders are deliberately permissive — no wall, floor, or clear-edge
 // requirements (the climb mechanic handles every surrounding, and jumping
 // off mid-climb is always possible). Only structural integrity is checked.
-// Overlap is keyed on the undirected edge: ladders are climbable from both
-// sides, so a mirrored pair on one edge is the same ladder twice.
+// Overlap is keyed on the undirected edge: an edge holds at most one
+// ladder — a mirrored pair would put two ladders' geometry on the same
+// edge, so it counts as the same ladder twice even though only the front
+// side climbs.
 fn validate_ladders(map_def: &MapDef) -> Result<()> {
     for (idx, ladder) in map_def.ladders.iter().enumerate() {
         validate_ladder(ladder, map_def.grid_cols, map_def.grid_rows, map_def.levels.len())

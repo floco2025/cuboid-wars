@@ -8,31 +8,36 @@ use crate::{
     protocol::{Ladder, Position},
 };
 
-// Axis-aligned climb volume derived from a `Ladder`. Deliberately not a
-// Rapier collider: the character step queries these volumes directly, so
+// Climb volume and blocking band derived from a `Ladder`. Deliberately not a
+// Rapier collider: the character step queries these boxes directly, so
 // ladders cost no collision-group bit and stay invisible to projectiles and
-// character filters. The boxes are symmetric about the edge plane, but the
-// ladder is one-sided: only the FRONT (the rail side, positive plane
-// offset) climbs and fences — from the back a character passes through
-// and emerges on the front face.
+// character filters.
+//
+// Ladders are one-sided. The FRONT is the rail side — where the normal
+// points and the client draws the rails — and the climb volume covers only
+// it, so a back-side character is simply not on a ladder: no ride, no
+// latch, and (via the fence's own side check) no barrier — they pass
+// through the plane and emerge on the front face. That one-way membrane is
+// what lets a walker mount mid-ladder from a balcony behind it.
 #[derive(Debug, Clone, Copy)]
 pub struct LadderVolume {
-    // Climbable region, overshooting both ends: above the top landing for
-    // the crest, below the base so the bottom of the ladder can be grabbed.
+    // Climbable region, in front of the rail plane only, overshooting both
+    // ends: above the top landing for the crest, below the base so the
+    // bottom of the ladder can be grabbed.
     min: Vec3,
     max: Vec3,
-    // Blocking band: wider than the climb volume (it must cover any
-    // character's hold distance) but capped at the top landing's surface —
-    // below that height the plane is a fence, at or above it the plane is
-    // open, which is what lets a climb crest over the top and a character on
-    // the top landing step onto the ladder.
+    // Blocking band: both sides of the plane (move targets on either side
+    // must be caught) and wider than the climb volume — it must cover any
+    // character's hold distance — but capped at the top landing's surface.
+    // Below that height the plane is a fence for front-side characters; at
+    // or above it the plane is open, which is what lets a climb crest over
+    // the top and a character on the top landing step onto the ladder.
     band_min: Vec3,
     band_max: Vec3,
-    // Unit axis-aligned normal of the edge plane. Only orients the two
-    // boxes and the client's rail mesh; climbing is side-agnostic.
+    // Unit axis-aligned normal of the edge plane, pointing at the front.
     pub normal_x: f32,
     pub normal_z: f32,
-    // A point on the edge plane (the segment midpoint).
+    // A point on the rail plane (the segment midpoint).
     mid_x: f32,
     mid_z: f32,
 }
@@ -42,22 +47,32 @@ impl LadderVolume {
     pub fn from_ladder(ladder: &Ladder) -> Self {
         let y_min = f32::from(ladder.level) * LEVEL_HEIGHT;
         let top_landing = (f32::from(ladder.level) + f32::from(ladder.levels)) * LEVEL_HEIGHT;
-        // Everything is centered on the RAIL plane — where the client draws
-        // the rails — not on the anchoring grid edge, so the physics uses
-        // the ladder where it visibly is.
+        // Everything is measured from the RAIL plane — where the client
+        // draws the rails — not the anchoring grid edge, so the physics
+        // uses the ladder where it visibly is.
         let rail_x = ladder.nx * LADDER_RAIL_INSET;
         let rail_z = ladder.nz * LADDER_RAIL_INSET;
         let x_near = ladder.x1.min(ladder.x2) + rail_x;
         let x_far = ladder.x1.max(ladder.x2) + rail_x;
         let z_near = ladder.z1.min(ladder.z2) + rail_z;
         let z_far = ladder.z1.max(ladder.z2) + rail_z;
-        let volume_x = (ladder.nx * LADDER_VOLUME_DEPTH).abs();
-        let volume_z = (ladder.nz * LADDER_VOLUME_DEPTH).abs();
+        // The climb volume reaches `LADDER_VOLUME_DEPTH` from the plane on
+        // the front side only; the band reaches `LADDER_BAND_DEPTH` on both.
+        let front_x = ladder.nx * LADDER_VOLUME_DEPTH;
+        let front_z = ladder.nz * LADDER_VOLUME_DEPTH;
         let band_x = (ladder.nx * LADDER_BAND_DEPTH).abs();
         let band_z = (ladder.nz * LADDER_BAND_DEPTH).abs();
         Self {
-            min: Vec3::new(x_near - volume_x, y_min - LADDER_BASE_OVERSHOOT, z_near - volume_z),
-            max: Vec3::new(x_far + volume_x, top_landing + LADDER_OVERSHOOT, z_far + volume_z),
+            min: Vec3::new(
+                x_near + front_x.min(0.0),
+                y_min - LADDER_BASE_OVERSHOOT,
+                z_near + front_z.min(0.0),
+            ),
+            max: Vec3::new(
+                x_far + front_x.max(0.0),
+                top_landing + LADDER_OVERSHOOT,
+                z_far + front_z.max(0.0),
+            ),
             band_min: Vec3::new(x_near - band_x, y_min, z_near - band_z),
             band_max: Vec3::new(x_far + band_x, top_landing, z_far + band_z),
             normal_x: ladder.nx,
@@ -103,7 +118,8 @@ impl LadderVolume {
         self.min.y
     }
 
-    // Perpendicular offset of (x, z) from the edge plane along the normal.
+    // Perpendicular offset of (x, z) from the rail plane along the normal:
+    // positive in front of the ladder, negative behind it.
     #[must_use]
     pub fn offset_from_plane(&self, x: f32, z: f32) -> f32 {
         self.normal_x * (x - self.mid_x) + self.normal_z * (z - self.mid_z)

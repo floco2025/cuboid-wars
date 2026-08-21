@@ -66,9 +66,10 @@ fn ladder_volume_is_symmetric_and_covers_overshoot() {
     assert!(in_volume(0.0, 0.0, -0.4));
     assert!(in_volume(0.0, 2.0 * LEVEL_HEIGHT + LADDER_OVERSHOOT - 0.01, -0.4));
     assert!(!in_volume(0.0, 2.0 * LEVEL_HEIGHT + LADDER_OVERSHOOT + 0.1, -0.4));
-    // Both sides of the plane are climbable; beyond the depth is not.
-    assert!(in_volume(0.0, 1.0, 0.4));
-    assert!(!in_volume(0.0, 1.0, 0.9));
+    // Only the front (the normal's side, -Z here) is a ladder; the back and
+    // anything beyond the front depth are not.
+    assert!(!in_volume(0.0, 1.0, 0.4));
+    assert!(!in_volume(0.0, 1.0, -1.2));
     assert!(!in_volume(2.0, 1.0, -0.4));
 }
 

@@ -131,8 +131,9 @@ def ladder_key(ladder: dict) -> tuple:
 
 
 def ladder_edge_key(ladder: dict) -> tuple:
-    # Undirected: ladders climb from both sides, so a mirrored pair on one
-    # edge is the same ladder twice.
+    # Undirected: an edge holds at most one ladder — a mirrored pair would
+    # put two ladders' geometry on the same edge, so it counts as the same
+    # ladder twice even though only the front side climbs.
     return wall_endpoints_for_cell_side(ladder["col"], ladder["row"], ladder["side"])
 
 

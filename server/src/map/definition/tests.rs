@@ -787,8 +787,8 @@ fn validation_rejects_overlapping_ladders_on_same_edge() {
 
 #[test]
 fn validation_rejects_mirrored_ladders_on_same_edge() {
-    // Cell (0,0)'s east edge is cell (1,0)'s west edge; ladders climb from
-    // both sides, so the mirrored pair is the same ladder twice.
+    // Cell (0,0)'s east edge is cell (1,0)'s west edge; an edge holds at
+    // most one ladder, so the mirrored pair is rejected as a duplicate.
     let mut map_def = map_with_zones(
         4,
         vec![level(vec![[0, 0]]), level(vec![[0, 0]])],

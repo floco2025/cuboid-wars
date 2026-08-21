@@ -128,8 +128,9 @@ def _validate_ladders(map_data: dict, errors: list[str]) -> None:
             errors.append(
                 f"{label} spans levels {lower}..{lower + levels} but the map has {level_count} level(s)"
             )
-        # Undirected edge: ladders climb from both sides, so a mirrored pair
-        # on one edge is the same ladder twice.
+        # Undirected edge: an edge holds at most one ladder — a mirrored
+        # pair would put two ladders' geometry on the same edge, so it
+        # counts as the same ladder twice even though only the front climbs.
         edge = wall_endpoints_for_cell_side(col, row, side) if side in LADDER_SIDES else None
         for other_idx, other in enumerate(map_data["ladders"][:idx]):
             if (

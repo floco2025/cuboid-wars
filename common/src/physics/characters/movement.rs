@@ -37,11 +37,9 @@ pub fn try_start_player_jump(
 ) -> bool {
     let ground_probe_pos = Position { x, y: pos.y, z };
     // A ladder counts as support: jumping is how you detach mid-climb, so it
-    // must work regardless of the climb's vertical velocity. Front side only
-    // — the back of a ladder is not a ladder.
-    let on_ladder = collision_world
-        .ladder_volume_at(&ground_probe_pos)
-        .is_some_and(|ladder| ladder.offset_from_plane(x, z) > 0.0);
+    // must work regardless of the climb's vertical velocity. (The climb
+    // volume covers only the ladder's front — its back is not a ladder.)
+    let on_ladder = collision_world.ladder_volume_at(&ground_probe_pos).is_some();
     if !on_ladder && (*vertical_velocity > 0.0 || !is_character_grounded(collision_world, &ground_probe_pos, physics)) {
         return false;
     }
@@ -109,26 +107,19 @@ pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) 
     } else {
         None
     };
-    // Ladders are one-sided: only the FRONT (the rail side, positive plane
-    // offset) is a ladder. From the back it is nothing at all — no ride, no
-    // fence, no latch — so a back-side walker passes through the plane and
-    // emerges on the front face, where the usual rules take over. That
-    // one-way membrane is what makes mounting mid-ladder from a balcony
-    // behind the ladder work: walk off through it and you're hanging on the
-    // front, already descending if you keep pushing.
-    let ladder = collision_world
-        .ladder_volume_at(start_pos)
-        .filter(|ladder| ladder.offset_from_plane(start_pos.x, start_pos.z) > 0.0);
-    // The ladder converts front-side intent along its plane normal into
-    // vertical motion, per tick with no persistent state: pushing toward
-    // the plane ascends, pushing away descends, both at the intent speed ×
-    // `climb_speed_ratio` (walk, run, and actor speeds all carry through).
-    // Two gates keep it deliberate: the move must point mostly along the
-    // normal, at real speed — so a grazing walk past the ladder or a
-    // reconciliation micro-nudge never triggers. Whatever hangs over the
-    // front is an ordinary collision; the ladder never inspects the
-    // surrounding geometry. Derived from position + intent alone, so server
-    // and client prediction agree without any wire state.
+    // The climb volume covers only the ladder's front (see `LadderVolume`),
+    // so a back-side character is not on a ladder at all. On the front, the
+    // ladder converts intent along its plane normal into vertical motion,
+    // per tick with no persistent state: pushing toward the plane ascends,
+    // pushing away descends, both at the intent speed × `climb_speed_ratio`
+    // (walk, run, and actor speeds all carry through). Two gates keep it
+    // deliberate: the move must point mostly along the normal, at real
+    // speed — so a grazing walk past the ladder or a reconciliation
+    // micro-nudge never triggers. Whatever hangs over the front is an
+    // ordinary collision; the ladder never inspects the surrounding
+    // geometry. Derived from position + intent alone, so server and client
+    // prediction agree without any wire state.
+    let ladder = collision_world.ladder_volume_at(start_pos);
     let ladder_ride_velocity = ladder.and_then(|ladder| {
         // Standing ON the top landing walks normally; the ride still runs
         // above the landing while airborne so a crest can finish.

@@ -25,7 +25,8 @@ pub const FLOOR_THICKNESS: f32 = 0.4;
 // the rail side (front) climbs and fences; the back is passed through. No
 // Rapier collider — the character step queries the derived volumes directly.
 pub const LADDER_WIDTH: f32 = 1.2;
-// How far the climb volume extends from the edge plane, on each side.
+// How far the climb volume reaches in front of the rail plane (the back of
+// a ladder is not a ladder).
 pub const LADDER_VOLUME_DEPTH: f32 = 0.8;
 // Volume and rails extend this far above the top storey's floor surface so
 // the last climb tick leaves the feet over the landing and stepping off the

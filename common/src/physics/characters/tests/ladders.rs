@@ -39,7 +39,7 @@ fn ladder_step(
 
 #[test]
 fn pushing_toward_ladder_face_climbs_at_into_speed() {
-    let world = ladder_collision_world(&[ladder_base_floor()], &[test_ladder()]);
+    let world = ladder_collision_world(&[ladder_front_base_floor()], &[test_ladder()]);
     let start = Position {
         x: 0.0,
         y: 0.0,
@@ -90,7 +90,7 @@ fn slow_drift_into_the_face_does_not_climb() {
 fn base_walk_through_is_blocked_and_climbs() {
     // Ground on both sides of the plane: pushing into the ladder must climb,
     // never pass through to the floor across.
-    let world = ladder_collision_world(&[ladder_base_floor(), ladder_anchor_base_floor()], &[test_ladder()]);
+    let world = ladder_collision_world(&[ladder_front_base_floor(), ladder_back_base_floor()], &[test_ladder()]);
     let start = Position {
         x: 0.0,
         y: 0.0,
@@ -108,7 +108,7 @@ fn back_side_base_push_walks_through() {
     // The back of a ladder is not a ladder: with ground on both sides, a
     // back-side walker passes through the plane and keeps walking on the
     // front floor — no climb, no fence.
-    let world = ladder_collision_world(&[ladder_base_floor(), ladder_anchor_base_floor()], &[test_ladder()]);
+    let world = ladder_collision_world(&[ladder_front_base_floor(), ladder_back_base_floor()], &[test_ladder()]);
     let mut pos = Position { x: 0.0, y: 0.0, z: 0.5 };
     let mut vertical_velocity = 0.0;
 
@@ -139,7 +139,7 @@ fn walking_off_back_side_balcony_mounts_and_descends() {
     // midpoint landing. Walking off it passes through the plane, lands on
     // the front face, and keeps descending while the push is held — the
     // same input as mounting from the top landing.
-    let world = ladder_collision_world(&[ladder_landing_floor()], &[test_ladder_two_storey()]);
+    let world = ladder_collision_world(&[ladder_back_landing_floor()], &[test_ladder_two_storey()]);
     let mut pos = Position {
         x: 0.0,
         y: LEVEL_HEIGHT,
@@ -162,7 +162,7 @@ fn walking_off_back_side_balcony_mounts_and_descends() {
 fn stepping_off_landing_onto_ladder_is_allowed() {
     // The descend mount: feet level with the band top are already past the
     // fence, so walking off the top landing onto the ladder just works.
-    let world = ladder_collision_world(&[ladder_landing_floor()], &[test_ladder()]);
+    let world = ladder_collision_world(&[ladder_back_landing_floor()], &[test_ladder()]);
     let start = Position {
         x: 0.0,
         y: LEVEL_HEIGHT,
@@ -179,7 +179,7 @@ fn wide_side_climb_clears_the_landing_slab_underside() {
     // The ladder faces the collider's wide (1.0 m) axis. The face-based
     // stand-off must keep the body clear of the plane, or the climb sweeps
     // into the landing slab's underside and stalls below the top.
-    let world = ladder_collision_world(&[ladder_landing_floor_x()], &[test_ladder_facing_x()]);
+    let world = ladder_collision_world(&[ladder_back_landing_floor_x()], &[test_ladder_facing_x()]);
     // Feet placed so the collider top crosses the slab's bottom this tick
     // (the climb rises ~0.14 here: 2 m/s into the face × the ratio × delta).
     let start = Position {
@@ -243,7 +243,7 @@ fn pressing_away_descends_at_input_speed() {
 
 #[test]
 fn pressing_away_at_base_walks_off() {
-    let world = ladder_collision_world(&[ladder_base_floor()], &[test_ladder()]);
+    let world = ladder_collision_world(&[ladder_front_base_floor()], &[test_ladder()]);
     let start = Position {
         x: 0.0,
         y: 0.0,
@@ -258,7 +258,7 @@ fn pressing_away_at_base_walks_off() {
 
 #[test]
 fn holding_forward_climbs_past_intermediate_landing() {
-    let world = ladder_collision_world(&[ladder_landing_floor()], &[test_ladder_two_storey()]);
+    let world = ladder_collision_world(&[ladder_back_landing_floor()], &[test_ladder_two_storey()]);
     let start = Position {
         x: 0.0,
         y: LEVEL_HEIGHT + 0.05,
@@ -275,7 +275,7 @@ fn holding_forward_climbs_past_intermediate_landing() {
 
 #[test]
 fn intermediate_landing_never_releases_the_fence() {
-    let world = ladder_collision_world(&[ladder_landing_floor()], &[test_ladder_two_storey()]);
+    let world = ladder_collision_world(&[ladder_back_landing_floor()], &[test_ladder_two_storey()]);
     let start = Position {
         x: 0.0,
         y: LEVEL_HEIGHT + 0.05,
@@ -292,7 +292,7 @@ fn intermediate_landing_never_releases_the_fence() {
 
 #[test]
 fn climb_holds_at_the_plane_mid_storey() {
-    let world = ladder_collision_world(&[ladder_landing_floor()], &[test_ladder()]);
+    let world = ladder_collision_world(&[ladder_back_landing_floor()], &[test_ladder()]);
     let start = Position {
         x: 0.0,
         y: 2.0,
@@ -308,7 +308,7 @@ fn climb_holds_at_the_plane_mid_storey() {
 
 #[test]
 fn crest_above_the_top_landing_crosses_freely() {
-    let world = ladder_collision_world(&[ladder_landing_floor()], &[test_ladder()]);
+    let world = ladder_collision_world(&[ladder_back_landing_floor()], &[test_ladder()]);
     let start = Position {
         x: 0.0,
         y: LEVEL_HEIGHT + 0.05,
@@ -374,7 +374,7 @@ fn stepping_through_base_back_catches_the_ladder() {
     // through the back at the base storey grabs the ladder — the volume's
     // base overshoot catches the crossing and the descent clamps at the
     // bottom, hanging at the last rung instead of falling off.
-    let world = ladder_collision_world(&[ladder_anchor_base_floor()], &[test_ladder()]);
+    let world = ladder_collision_world(&[ladder_back_base_floor()], &[test_ladder()]);
     let mut pos = Position { x: 0.0, y: 0.0, z: 0.5 };
     let mut vertical_velocity = 0.0;
 

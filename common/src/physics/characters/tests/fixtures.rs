@@ -88,8 +88,8 @@ pub(crate) fn test_ladder() -> Ladder {
     }
 }
 
-// Ground on the climb side of `test_ladder`.
-pub(crate) fn ladder_base_floor() -> Floor {
+// Ground in front of `test_ladder` (the climb side).
+pub(crate) fn ladder_front_base_floor() -> Floor {
     Floor {
         x1: -4.0,
         z1: -4.0,
@@ -109,10 +109,10 @@ pub(crate) fn test_ladder_two_storey() -> Ladder {
     }
 }
 
-// Ground across the plane from `test_ladder` (the anchor side), same storey
-// as the climb-side base floor — the configuration where the ladder must be
-// a fence, not a doorway.
-pub(crate) fn ladder_anchor_base_floor() -> Floor {
+// Ground behind `test_ladder`, same storey as the front base floor. The
+// fence still blocks front-side crossings here; back-side walkers pass
+// through onto the front floor.
+pub(crate) fn ladder_back_base_floor() -> Floor {
     Floor {
         x1: -4.0,
         z1: 0.0,
@@ -124,8 +124,8 @@ pub(crate) fn ladder_anchor_base_floor() -> Floor {
     }
 }
 
-// Landing across the plane from `test_ladder`, one storey up.
-pub(crate) fn ladder_landing_floor() -> Floor {
+// Landing behind `test_ladder`, one storey up.
+pub(crate) fn ladder_back_landing_floor() -> Floor {
     Floor {
         x1: -4.0,
         z1: 0.0,
@@ -152,8 +152,8 @@ pub(crate) fn test_ladder_facing_x() -> Ladder {
     }
 }
 
-// Landing across the plane from `test_ladder_facing_x`, one storey up.
-pub(crate) fn ladder_landing_floor_x() -> Floor {
+// Landing behind `test_ladder_facing_x`, one storey up.
+pub(crate) fn ladder_back_landing_floor_x() -> Floor {
     Floor {
         x1: 0.0,
         z1: -4.0,

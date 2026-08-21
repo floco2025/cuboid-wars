@@ -82,9 +82,9 @@ pub struct Barrier {
 
 // Freestanding climbable element anchored on a grid edge. The segment is the
 // edge span already shrunk to `LADDER_WIDTH` centered on the edge midpoint.
-// Climbing works from both sides of the plane; the normal only picks which
-// side the client renders the rails on. No Rapier collider — the character
-// step queries the derived climb volumes directly.
+// One-sided: the normal points at the FRONT — the climbable rail side —
+// while the back is passed through. No Rapier collider — the character step
+// queries the derived climb volumes directly.
 #[derive(Debug, Clone, Encode, Decode, Copy)]
 pub struct Ladder {
     pub x1: f32,

@@ -41,9 +41,9 @@ pub fn spawn_ladder_from_layout(
 }
 
 // Two vertical rails at the segment ends plus evenly spaced rungs between
-// them, all axis-aligned boxes (ladder segments lie on grid edges). One
-// ladder serves both climb sides; the rails sit `LADDER_RAIL_INSET` off the
-// edge on the authored side — the same plane the physics holds climbers
+// them, all axis-aligned boxes (ladder segments lie on grid edges). The
+// rails sit `LADDER_RAIL_INSET` off the edge on the normal's side — the
+// ladder's climbable FRONT, the same plane the physics holds climbers
 // against. The rails poke `LADDER_OVERSHOOT` above the top landing as the
 // step-off affordance, matching the climb volume's reach.
 fn build_ladder_mesh(ladder: &Ladder, tile_size: f32) -> Mesh {
