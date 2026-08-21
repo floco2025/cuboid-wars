@@ -104,50 +104,58 @@ fn base_walk_through_is_blocked_and_climbs() {
 }
 
 #[test]
-fn far_side_base_push_climbs_and_is_held() {
-    // Both sides are climbable; the fence still holds the crossing.
+fn back_side_base_push_walks_through() {
+    // The back of a ladder is not a ladder: with ground on both sides, a
+    // back-side walker passes through the plane and keeps walking on the
+    // front floor — no climb, no fence.
     let world = ladder_collision_world(&[ladder_base_floor(), ladder_anchor_base_floor()], &[test_ladder()]);
-    let start = Position { x: 0.0, y: 0.0, z: 0.5 };
-
-    let step = ladder_step(&world, start, 0.0, start.x, 0.1);
-
-    assert!(step.position.z >= rail_plane_z() + player_hold_distance() - 0.01);
-    assert!(step.vertical_velocity > 0.0);
-}
-
-#[test]
-fn wrong_side_climb_into_the_ceiling_reports_blocked() {
-    let world = ladder_collision_world(&[ladder_landing_floor()], &[test_ladder()]);
-    // Head just below the landing slab's underside; the climb tick would
-    // carry it through.
-    let start = Position {
-        x: 0.0,
-        y: 2.15,
-        z: 0.5,
-    };
-
-    let step = ladder_step(&world, start, 0.0, start.x, 0.3);
-
-    assert!(step.blocked);
-}
-
-#[test]
-fn wrong_side_climb_stalls_on_the_ceiling_above() {
-    // The far side sits under the landing slab: climbing there is allowed
-    // and simply collides with the slab's underside — no ladder rule
-    // involved, just geometry.
-    let world = ladder_collision_world(&[ladder_landing_floor()], &[test_ladder()]);
     let mut pos = Position { x: 0.0, y: 0.0, z: 0.5 };
     let mut vertical_velocity = 0.0;
 
-    for _ in 0..120 {
-        let step = ladder_step(&world, pos, vertical_velocity, pos.x, pos.z - 0.2);
+    for _ in 0..6 {
+        let step = ladder_step(&world, pos, vertical_velocity, pos.x, pos.z - 0.4);
         pos = step.position;
         vertical_velocity = step.vertical_velocity;
     }
 
-    assert!(pos.y > 1.5);
-    assert!(pos.y < 2.5);
+    assert!(pos.z < -1.0);
+    assert!(pos.y.abs() < 0.05);
+}
+
+#[test]
+fn back_side_is_not_a_ladder() {
+    // Mid-air behind the plane: no latch, no ride — plain gravity.
+    let world = ladder_collision_world(&[], &[test_ladder()]);
+    let start = Position { x: 0.0, y: 2.0, z: 0.5 };
+
+    let step = ladder_step(&world, start, 0.0, start.x, start.z - 0.2);
+
+    assert!(step.vertical_velocity < 0.0);
+}
+
+#[test]
+fn walking_off_back_side_balcony_mounts_and_descends() {
+    // The mid-ladder mount: a balcony behind the two-storey ladder at its
+    // midpoint landing. Walking off it passes through the plane, lands on
+    // the front face, and keeps descending while the push is held — the
+    // same input as mounting from the top landing.
+    let world = ladder_collision_world(&[ladder_landing_floor()], &[test_ladder_two_storey()]);
+    let mut pos = Position {
+        x: 0.0,
+        y: LEVEL_HEIGHT,
+        z: 0.5,
+    };
+    let mut vertical_velocity = 0.0;
+
+    for _ in 0..20 {
+        let step = ladder_step(&world, pos, vertical_velocity, pos.x, pos.z - 0.4);
+        assert!(step.position.y <= LEVEL_HEIGHT + 0.05);
+        pos = step.position;
+        vertical_velocity = step.vertical_velocity;
+    }
+
+    assert!(pos.z < rail_plane_z());
+    assert!(pos.y < LEVEL_HEIGHT - 1.0);
 }
 
 #[test]
@@ -358,4 +366,48 @@ fn jump_refused_airborne_outside_ladder() {
     );
 
     assert!(!jumped);
+}
+
+#[test]
+fn stepping_through_base_back_catches_the_ladder() {
+    // A hanging ladder (base floor only behind it, void in front): walking
+    // through the back at the base storey grabs the ladder — the volume's
+    // base overshoot catches the crossing and the descent clamps at the
+    // bottom, hanging at the last rung instead of falling off.
+    let world = ladder_collision_world(&[ladder_anchor_base_floor()], &[test_ladder()]);
+    let mut pos = Position { x: 0.0, y: 0.0, z: 0.5 };
+    let mut vertical_velocity = 0.0;
+
+    for _ in 0..15 {
+        let step = ladder_step(&world, pos, vertical_velocity, pos.x, pos.z - 0.4);
+        pos = step.position;
+        vertical_velocity = step.vertical_velocity;
+    }
+
+    assert!(pos.z < rail_plane_z());
+    assert!(pos.y >= -crate::constants::LADDER_BASE_OVERSHOOT - 0.05);
+    assert!(pos.y < -0.1);
+
+    // Pushing back toward the plane climbs up from the hang.
+    let step = ladder_step(&world, pos, vertical_velocity, pos.x, pos.z + 0.2);
+    assert!(step.vertical_velocity > 0.0);
+}
+
+#[test]
+fn descending_stops_hanging_at_the_bottom() {
+    let world = ladder_collision_world(&[], &[test_ladder()]);
+    let mut pos = Position {
+        x: 0.0,
+        y: 2.0,
+        z: -0.5,
+    };
+    let mut vertical_velocity = 0.0;
+
+    for _ in 0..40 {
+        let step = ladder_step(&world, pos, vertical_velocity, pos.x, pos.z - 0.2);
+        pos = step.position;
+        vertical_velocity = step.vertical_velocity;
+    }
+
+    assert!((pos.y - -crate::constants::LADDER_BASE_OVERSHOOT).abs() < 0.05);
 }

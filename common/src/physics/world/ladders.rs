@@ -1,20 +1,24 @@
 use bevy_math::Vec3;
 
 use crate::{
-    constants::{LADDER_BAND_DEPTH, LADDER_OVERSHOOT, LADDER_RAIL_INSET, LADDER_VOLUME_DEPTH, LEVEL_HEIGHT},
+    constants::{
+        LADDER_BAND_DEPTH, LADDER_BASE_OVERSHOOT, LADDER_OVERSHOOT, LADDER_RAIL_INSET, LADDER_VOLUME_DEPTH,
+        LEVEL_HEIGHT,
+    },
     protocol::{Ladder, Position},
 };
 
 // Axis-aligned climb volume derived from a `Ladder`. Deliberately not a
 // Rapier collider: the character step queries these volumes directly, so
 // ladders cost no collision-group bit and stay invisible to projectiles and
-// character filters. Both structures are symmetric about the edge plane —
-// a ladder is climbable from either side; whatever caps one side is an
-// ordinary collision, not a ladder rule.
+// character filters. The boxes are symmetric about the edge plane, but the
+// ladder is one-sided: only the FRONT (the rail side, positive plane
+// offset) climbs and fences — from the back a character passes through
+// and emerges on the front face.
 #[derive(Debug, Clone, Copy)]
 pub struct LadderVolume {
-    // Climbable region: both sides of the plane, up to the overshoot above
-    // the top landing.
+    // Climbable region, overshooting both ends: above the top landing for
+    // the crest, below the base so the bottom of the ladder can be grabbed.
     min: Vec3,
     max: Vec3,
     // Blocking band: wider than the climb volume (it must cover any
@@ -52,7 +56,7 @@ impl LadderVolume {
         let band_x = (ladder.nx * LADDER_BAND_DEPTH).abs();
         let band_z = (ladder.nz * LADDER_BAND_DEPTH).abs();
         Self {
-            min: Vec3::new(x_near - volume_x, y_min, z_near - volume_z),
+            min: Vec3::new(x_near - volume_x, y_min - LADDER_BASE_OVERSHOOT, z_near - volume_z),
             max: Vec3::new(x_far + volume_x, top_landing + LADDER_OVERSHOOT, z_far + volume_z),
             band_min: Vec3::new(x_near - band_x, y_min, z_near - band_z),
             band_max: Vec3::new(x_far + band_x, top_landing, z_far + band_z),
@@ -92,10 +96,11 @@ impl LadderVolume {
         self.band_max.y
     }
 
-    // Which side of the plane (x, z) is on: +1.0 or -1.0 along the normal.
+    // Lowest point the climb volume reaches (`LADDER_BASE_OVERSHOOT` below
+    // the base) — where a descent stops and hangs.
     #[must_use]
-    pub fn side_sign(&self, x: f32, z: f32) -> f32 {
-        if self.offset_from_plane(x, z) < 0.0 { -1.0 } else { 1.0 }
+    pub fn bottom_y(&self) -> f32 {
+        self.min.y
     }
 
     // Perpendicular offset of (x, z) from the edge plane along the normal.

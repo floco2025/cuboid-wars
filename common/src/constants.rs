@@ -21,9 +21,9 @@ pub const BARRIER_HEIGHT: f32 = WALL_HEIGHT;
 // Floors
 pub const FLOOR_THICKNESS: f32 = 0.4;
 
-// Ladders. Freestanding climbable elements anchored on grid edges, climbable
-// from both sides of the edge plane. No Rapier collider — the character step
-// queries the derived volumes directly.
+// Ladders. Freestanding climbable elements anchored on grid edges. One-sided:
+// the rail side (front) climbs and fences; the back is passed through. No
+// Rapier collider — the character step queries the derived volumes directly.
 pub const LADDER_WIDTH: f32 = 1.2;
 // How far the climb volume extends from the edge plane, on each side.
 pub const LADDER_VOLUME_DEPTH: f32 = 0.8;
@@ -31,6 +31,10 @@ pub const LADDER_VOLUME_DEPTH: f32 = 0.8;
 // the last climb tick leaves the feet over the landing and stepping off the
 // landing edge immediately re-enters the volume.
 pub const LADDER_OVERSHOOT: f32 = 0.5;
+// The climb volume also reaches this far below the base, so stepping through
+// the back at the lowest storey still grabs the ladder, and a descent ends
+// hanging at the last rung instead of sliding off the end.
+pub const LADDER_BASE_OVERSHOOT: f32 = 0.4;
 // How far the rails stand off the anchoring grid edge, on the authored
 // side. The physics plane runs THROUGH the rails — the ladder is where it
 // looks like it is — so both the climb hold and the fence are measured from
