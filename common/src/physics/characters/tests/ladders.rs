@@ -70,6 +70,7 @@ fn pushing_toward_ladder_face_climbs_at_into_speed() {
     let expected = 2.0 * test_ladders().climb_speed_ratio;
     assert!((step.vertical_velocity - expected).abs() < 1e-4);
     assert!(step.position.y > start.y);
+    assert_eq!(step.support, CharacterSupport::Ladder);
 }
 
 #[test]
@@ -179,6 +180,7 @@ fn back_side_is_not_a_ladder() {
     let step = ladder_step(&world, start, 0.0, start.x, start.z - 0.2);
 
     assert!(step.vertical_velocity < 0.0);
+    assert_eq!(step.support, CharacterSupport::Airborne);
 }
 
 #[test]
@@ -253,6 +255,7 @@ fn fall_through_volume_latches() {
     let step = ladder_step(&world, start, -10.0, start.x, start.z);
 
     assert_eq!(step.vertical_velocity, 0.0);
+    assert_eq!(step.support, CharacterSupport::Ladder);
 }
 
 #[test]
@@ -268,6 +271,7 @@ fn idle_on_ladder_holds_position() {
 
     assert_eq!(step.vertical_velocity, 0.0);
     assert!((step.position.y - start.y).abs() < 1e-4);
+    assert_eq!(step.support, CharacterSupport::Ladder);
 }
 
 #[test]
@@ -287,6 +291,7 @@ fn pressing_away_descends_at_input_speed() {
     assert!((step.vertical_velocity - expected).abs() < 1e-4);
     assert!(step.position.y < start.y);
     assert!((step.position.z - (rail_plane_z() - player_hold_distance())).abs() < 0.01);
+    assert_eq!(step.support, CharacterSupport::Ladder);
 }
 
 #[test]
@@ -302,6 +307,7 @@ fn pressing_away_at_base_walks_off() {
 
     assert!(step.position.z < -0.65);
     assert!(step.position.y.abs() < 0.05);
+    assert_eq!(step.support, CharacterSupport::Ground);
 }
 
 #[test]

@@ -13,7 +13,9 @@ pub use movement::{
 };
 pub use movement_plan::{blocking_character_move_plan, character_move_plan_is_blocked, overlapping_character};
 pub use player_control::player_control_velocity;
-pub use types::{CharacterMovePlan, CharacterMovementResult, CharacterVerticalVelocity, KnockbackVelocity};
+pub use types::{
+    CharacterMovePlan, CharacterMovementResult, CharacterSupport, CharacterVerticalVelocity, KnockbackVelocity,
+};
 
 #[cfg(test)]
 mod tests;

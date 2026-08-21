@@ -7,21 +7,31 @@ use crate::{
     protocol::Position,
 };
 
-pub(super) struct LadderInteraction<'a> {
-    vertical_velocity: Option<f32>,
-    descend_hold: Option<&'a LadderVolume>,
-    climbing: bool,
+pub(super) enum LadderInteraction<'a> {
+    None,
+    Holding,
+    Ascending { velocity: f32 },
+    Descending { velocity: f32, ladder: &'a LadderVolume },
 }
 
 impl LadderInteraction<'_> {
     #[must_use]
     pub(super) const fn vertical_velocity(&self) -> Option<f32> {
-        self.vertical_velocity
+        match self {
+            Self::None => None,
+            Self::Holding => Some(0.0),
+            Self::Ascending { velocity } | Self::Descending { velocity, .. } => Some(*velocity),
+        }
     }
 
     #[must_use]
-    pub(super) const fn climbing(&self) -> bool {
-        self.climbing
+    pub(super) const fn is_ascending(&self) -> bool {
+        matches!(self, Self::Ascending { .. })
+    }
+
+    #[must_use]
+    pub(super) const fn is_supported(&self) -> bool {
+        !matches!(self, Self::None)
     }
 
     #[must_use]
@@ -33,9 +43,11 @@ impl LadderInteraction<'_> {
         collision_world: &CollisionWorld,
         physics: CharacterPhysicsConfig,
     ) -> (f32, f32) {
-        let (target_x, target_z) = match self.descend_hold {
-            Some(ladder) => ladder.with_plane_offset(target_x, target_z, ladder_hold_standoff(ladder, physics)),
-            None => (target_x, target_z),
+        let (target_x, target_z) = match self {
+            Self::Descending { ladder, .. } => {
+                ladder.with_plane_offset(target_x, target_z, ladder_hold_standoff(ladder, physics))
+            }
+            Self::None | Self::Holding | Self::Ascending { .. } => (target_x, target_z),
         };
         clamp_move_at_ladder_plane(start, target_x, target_z, collision_world, physics)
     }
@@ -65,42 +77,27 @@ pub(super) fn evaluate_ladder_interaction<'a>(
     });
     let climb_velocity = ride_velocity.filter(|velocity| *velocity > 0.0);
     if let Some(vertical_velocity) = climb_velocity {
-        return LadderInteraction {
-            vertical_velocity: Some(vertical_velocity),
-            descend_hold: None,
-            climbing: true,
+        return LadderInteraction::Ascending {
+            velocity: vertical_velocity,
         };
     }
 
     if has_ground_support {
-        return LadderInteraction {
-            vertical_velocity: None,
-            descend_hold: None,
-            climbing: false,
-        };
+        return LadderInteraction::None;
     }
 
     let Some(ladder) = ladder.filter(|_| start_vertical_velocity <= 0.0) else {
-        return LadderInteraction {
-            vertical_velocity: None,
-            descend_hold: None,
-            climbing: false,
-        };
+        return LadderInteraction::None;
     };
     let descend_velocity = ride_velocity.filter(|velocity| *velocity < 0.0);
     if let Some(descend_velocity) = descend_velocity {
-        return LadderInteraction {
-            vertical_velocity: Some(descend_velocity.max((ladder.bottom_y() - start.y) / delta)),
-            descend_hold: Some(ladder),
-            climbing: false,
+        return LadderInteraction::Descending {
+            velocity: descend_velocity.max((ladder.bottom_y() - start.y) / delta),
+            ladder,
         };
     }
 
-    LadderInteraction {
-        vertical_velocity: Some(0.0),
-        descend_hold: None,
-        climbing: false,
-    }
+    LadderInteraction::Holding
 }
 
 fn ladder_hold_standoff(ladder: &LadderVolume, physics: CharacterPhysicsConfig) -> f32 {

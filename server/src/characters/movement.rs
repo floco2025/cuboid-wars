@@ -51,7 +51,7 @@ pub fn characters_movement_system(
     gameplay_config: Res<GameplayConfig>,
     server_gameplay_config: Res<ServerGameplayConfig>,
     map_settings: Res<MapSettings>,
-    players: Res<PlayerMap>,
+    mut players: ResMut<PlayerMap>,
     open_barrier_kinds: Res<OpenBarrierKinds>,
     mut actors: ResMut<ActorMap>,
     mut player_query: PlayerMovementQuery,
@@ -73,7 +73,7 @@ pub fn characters_movement_system(
         &collision_world,
         &gameplay_config,
         &map_settings,
-        &players,
+        &mut players,
         &open_barrier_kinds,
         &player_query,
         &mut planned_moves,
@@ -107,7 +107,7 @@ fn plan_player_moves(
     collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
     map_settings: &MapSettings,
-    players: &PlayerMap,
+    players: &mut PlayerMap,
     open_barrier_kinds: &OpenBarrierKinds,
     query: &PlayerMovementQuery,
     planned_moves: &mut Vec<CharacterMovePlan>,
@@ -145,6 +145,9 @@ fn plan_player_moves(
                 ladders: gameplay_config.ladders,
             },
         );
+        if let Some(info) = players.get_mut(player_id) {
+            info.movement_support = step.support;
+        }
 
         planned_moves.push(CharacterMovePlan::from_movement_result(
             entity,

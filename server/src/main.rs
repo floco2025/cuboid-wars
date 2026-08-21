@@ -209,7 +209,7 @@ async fn main() -> Result<()> {
                     .after(explosions_system),
                 // Fall recovery must run after movement updates positions.
                 players_fall_death_system.after(characters_movement_system),
-                // Fall damage observes post-step vy, so must follow movement
+                // Fall damage observes post-step support, so must follow movement
                 // and precede fall_death (a lethal fall-damage hit and a
                 // void-fall on the same tick should resolve via the impact
                 // path, not the void path).

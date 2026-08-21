@@ -69,6 +69,28 @@ fn upward_jump_velocity_moves_player_above_support() {
 
     assert!(step.position.y > pos.y);
     assert!(step.vertical_velocity > 0.0);
+    assert_eq!(step.support, CharacterSupport::Airborne);
+}
+
+#[test]
+fn landing_reports_ground_support() {
+    let floor = lower_floor();
+    let collision_world = collision_world(&[floor], &[]);
+    let pos = Position { x: 0.0, y: 0.4, z: 0.0 };
+
+    let step = step_character_movement(
+        character_step_toward(pos, -10.0, pos.x, pos.z, 0.1),
+        &CharacterEnvironment {
+            collision_world: &collision_world,
+            gravity: TEST_GRAVITY,
+            passable_kinds: &[],
+            ladders: test_ladders(),
+            physics: player_physics(),
+        },
+    );
+
+    assert_eq!(step.vertical_velocity, 0.0);
+    assert_eq!(step.support, CharacterSupport::Ground);
 }
 
 #[test]

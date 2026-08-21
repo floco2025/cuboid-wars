@@ -8,10 +8,10 @@ use crate::network::ServerToClient;
 use common::constants::CHARACTER_FALL_DEATH_Y;
 use common::{
     config::GameplayConfig,
-    constants::{CHARACTER_GROUND_SNAP_DISTANCE, PHYSICS_EPSILON, TICK_SECS},
+    constants::{CHARACTER_GROUND_SNAP_DISTANCE, TICK_SECS},
     health::apply_damage,
     map::MapGeometry,
-    physics::{CharacterVerticalVelocity, CollisionWorld},
+    physics::{CharacterSupport, CharacterVerticalVelocity, CollisionWorld},
     protocol::{FaceYaw, Health, MapSettings, PlayerId, PlayerMarker, Position, SPlayerFallDamage, ServerMessage},
 };
 
@@ -107,8 +107,8 @@ const PHANTOM_FALL_TRIPWIRE_SLACK: f32 = 5.0;
 
 // Apply impact damage on landing from a fall. The highest Y of the current
 // airborne window is tracked on `PlayerInfo.fall_peak_y`; when the player
-// transitions to grounded (current vy clears the small negative threshold),
-// damage lerps from 0 at `safe_fall_distance` to `max_health` at
+// reaches support (ground or ladder), damage lerps from 0 at
+// `safe_fall_distance` to `max_health` at
 // `lethal_fall_distance`, clamped past lethal. The fall distance requires
 // BOTH a real drop AND matching impact energy — min(drop, velocity-implied):
 //   * the drop bound kills phantom falls (the support probe can miss at a
@@ -117,9 +117,8 @@ const PHANTOM_FALL_TRIPWIRE_SLACK: f32 = 5.0;
 //   * the energy bound keeps low-gravity landings soft (a low-gravity jump
 //     tops out near lethal height but lands at only jump speed).
 //
-// Runs after `characters_movement_system` so it observes the *post-step*
-// `CharacterVerticalVelocity` (i.e. 0 on the impact tick because the floor
-// resolved the contact). Under debug invincibility the impact cue
+// Runs after `characters_movement_system` so it observes the support derived
+// by that tick's shared movement step. Under debug invincibility the impact cue
 // (`SPlayerFallDamage` → camera wiggle + sound) still fires; only the
 // health loss — and therefore the lethal branch — is skipped.
 pub fn players_fall_damage_system(
@@ -146,82 +145,106 @@ pub fn players_fall_damage_system(
             continue;
         }
 
-        let current_vy = motion.0;
-        let is_grounded = current_vy > -PHYSICS_EPSILON;
+        let Some(impact) = update_fall_tracking(
+            info.movement_support,
+            pos.y,
+            motion.0,
+            &mut info.peak_fall_speed,
+            &mut info.fall_peak_y,
+        ) else {
+            continue;
+        };
 
-        if is_grounded && info.peak_fall_speed > 0.0 {
-            let drop = (info.fall_peak_y - pos.y).max(0.0);
-            let velocity_implied = velocity_implied_fall_distance(info.peak_fall_speed, map_settings.gravity);
-            // Tripwire for the phantom-fall physics hang: on a genuine fall
-            // the velocity-implied distance matches the displacement.
-            if velocity_implied > drop + PHANTOM_FALL_TRIPWIRE_SLACK {
-                warn!(
-                    "{:?} phantom fall: velocity implies {velocity_implied:.1}m, actual drop {drop:.1}m",
-                    id
-                );
-            }
-            let fall_distance = effective_fall_distance(drop, info.peak_fall_speed, map_settings.gravity);
-            info.peak_fall_speed = 0.0;
-            info.fall_peak_y = f32::NEG_INFINITY;
+        let velocity_implied = velocity_implied_fall_distance(impact.peak_speed, map_settings.gravity);
+        // Tripwire for the phantom-fall physics hang: on a genuine fall
+        // the velocity-implied distance matches the displacement.
+        if velocity_implied > impact.drop + PHANTOM_FALL_TRIPWIRE_SLACK {
+            warn!(
+                "{:?} phantom fall: velocity implies {velocity_implied:.1}m, actual drop {:.1}m",
+                id, impact.drop
+            );
+        }
+        let fall_distance = effective_fall_distance(impact.drop, impact.peak_speed, map_settings.gravity);
+        if fall_distance <= fall.safe_fall_distance {
+            continue;
+        }
 
-            if fall_distance > fall.safe_fall_distance {
-                let damage = fall_damage_for_distance(
-                    fall_distance,
-                    fall.safe_fall_distance,
-                    fall.lethal_fall_distance,
-                    max_health,
-                );
-                // Skip the entire emission path for negligible damage —
-                // the safe-threshold lerp produces near-zero damage just
-                // past `safe_fall_distance` from floating-point slack and
-                // discrete-tick noise. No HUD update or camera wiggle for
-                // a fall the player barely registers.
-                if damage < FALL_DAMAGE_EMIT_THRESHOLD {
-                    continue;
-                }
-                if !invincible {
-                    apply_damage(&mut health, damage);
-                }
-                // Unicast `SPlayerFallDamage` to the victim so the HUD health bar
-                // and vertical camera wiggle land on the impact frame
-                // instead of waiting for the next snapshot. The fatal-fall
-                // case additionally surfaces `SPlayerDeath` via
-                // `kill_player` below.
-                if let Some(info) = players.get(id) {
-                    let _ = info.channel.send(ServerToClient::Send(ServerMessage::PlayerFallDamage(
-                        SPlayerFallDamage {
-                            id: *id,
-                            health: *health,
-                        },
-                    )));
-                }
-                if health.0 <= 0.0 {
-                    info!(
-                        "{} died from fall (distance {:.1}m)",
-                        players.describe(id),
-                        fall_distance
-                    );
-                    kill_player(
-                        &mut commands,
-                        &mut players,
-                        *id,
-                        entity,
-                        *pos,
-                        respawn_delay_secs,
-                        None,
-                        &mut pending_explosions,
-                    );
-                }
-            }
-        } else if !is_grounded {
-            // In the air (rising or falling). Track only downward speed.
-            let downward_speed = (-current_vy).max(0.0);
-            if downward_speed > info.peak_fall_speed {
-                info.peak_fall_speed = downward_speed;
-            }
-            info.fall_peak_y = info.fall_peak_y.max(pos.y);
+        let damage = fall_damage_for_distance(
+            fall_distance,
+            fall.safe_fall_distance,
+            fall.lethal_fall_distance,
+            max_health,
+        );
+        // Skip the entire emission path for negligible damage —
+        // the safe-threshold lerp produces near-zero damage just
+        // past `safe_fall_distance` from floating-point slack and
+        // discrete-tick noise. No HUD update or camera wiggle for
+        // a fall the player barely registers.
+        if damage < FALL_DAMAGE_EMIT_THRESHOLD {
+            continue;
+        }
+        if !invincible {
+            apply_damage(&mut health, damage);
+        }
+        // Unicast `SPlayerFallDamage` to the victim so the HUD health bar
+        // and vertical camera wiggle land on the impact frame
+        // instead of waiting for the next snapshot. The fatal-fall
+        // case additionally surfaces `SPlayerDeath` via
+        // `kill_player` below.
+        if let Some(info) = players.get(id) {
+            let _ = info.channel.send(ServerToClient::Send(ServerMessage::PlayerFallDamage(
+                SPlayerFallDamage {
+                    id: *id,
+                    health: *health,
+                },
+            )));
+        }
+        if health.0 <= 0.0 {
+            info!(
+                "{} died from fall (distance {:.1}m)",
+                players.describe(id),
+                fall_distance
+            );
+            kill_player(
+                &mut commands,
+                &mut players,
+                *id,
+                entity,
+                *pos,
+                respawn_delay_secs,
+                None,
+                &mut pending_explosions,
+            );
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct FallImpact {
+    drop: f32,
+    peak_speed: f32,
+}
+
+fn update_fall_tracking(
+    support: CharacterSupport,
+    y: f32,
+    vertical_velocity: f32,
+    peak_speed: &mut f32,
+    peak_y: &mut f32,
+) -> Option<FallImpact> {
+    if support == CharacterSupport::Airborne {
+        *peak_speed = (*peak_speed).max((-vertical_velocity).max(0.0));
+        *peak_y = (*peak_y).max(y);
+        return None;
+    }
+
+    let impact = (*peak_speed > 0.0).then_some(FallImpact {
+        drop: (*peak_y - y).max(0.0),
+        peak_speed: *peak_speed,
+    });
+    *peak_speed = 0.0;
+    *peak_y = f32::NEG_INFINITY;
+    impact
 }
 
 // Normal-gravity distance equivalent to the landing's impact energy, with
@@ -258,6 +281,83 @@ mod tests {
 
     // Matches the shipping map's normal-gravity setting.
     const TEST_GRAVITY: f32 = 25.0;
+
+    #[test]
+    fn airborne_tracking_records_apex_and_peak_fall_speed() {
+        let mut peak_speed = 0.0;
+        let mut peak_y = f32::NEG_INFINITY;
+
+        assert_eq!(
+            update_fall_tracking(CharacterSupport::Airborne, 8.0, 4.0, &mut peak_speed, &mut peak_y),
+            None
+        );
+        assert_eq!(
+            update_fall_tracking(CharacterSupport::Airborne, 7.0, -6.0, &mut peak_speed, &mut peak_y),
+            None
+        );
+
+        assert_eq!(peak_y, 8.0);
+        assert_eq!(peak_speed, 6.0);
+    }
+
+    #[test]
+    fn upward_airborne_motion_does_not_finish_the_tracked_fall() {
+        let mut peak_speed = 6.0;
+        let mut peak_y = 8.0;
+
+        let impact = update_fall_tracking(CharacterSupport::Airborne, 7.0, 4.0, &mut peak_speed, &mut peak_y);
+
+        assert_eq!(impact, None);
+        assert_eq!(peak_speed, 6.0);
+        assert_eq!(peak_y, 8.0);
+    }
+
+    #[test]
+    fn ground_support_finishes_the_tracked_fall() {
+        let mut peak_speed = 12.0;
+        let mut peak_y = 10.0;
+
+        let impact = update_fall_tracking(CharacterSupport::Ground, 4.0, 0.0, &mut peak_speed, &mut peak_y);
+
+        assert_eq!(
+            impact,
+            Some(FallImpact {
+                drop: 6.0,
+                peak_speed: 12.0,
+            })
+        );
+        assert_eq!(peak_speed, 0.0);
+        assert_eq!(peak_y, f32::NEG_INFINITY);
+    }
+
+    #[test]
+    fn ladder_support_finishes_the_tracked_fall() {
+        let mut peak_speed = 12.0;
+        let mut peak_y = 10.0;
+
+        let impact = update_fall_tracking(CharacterSupport::Ladder, 4.0, 0.0, &mut peak_speed, &mut peak_y);
+
+        assert_eq!(
+            impact,
+            Some(FallImpact {
+                drop: 6.0,
+                peak_speed: 12.0,
+            })
+        );
+        assert_eq!(peak_speed, 0.0);
+        assert_eq!(peak_y, f32::NEG_INFINITY);
+    }
+
+    #[test]
+    fn support_without_a_fall_clears_the_airborne_apex() {
+        let mut peak_speed = 0.0;
+        let mut peak_y = 10.0;
+
+        let impact = update_fall_tracking(CharacterSupport::Ground, 4.0, 0.0, &mut peak_speed, &mut peak_y);
+
+        assert_eq!(impact, None);
+        assert_eq!(peak_y, f32::NEG_INFINITY);
+    }
 
     #[test]
     fn fall_damage_zero_at_safe_distance() {

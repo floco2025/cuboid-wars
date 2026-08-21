@@ -40,9 +40,18 @@ impl KnockbackVelocity {
 pub struct CharacterMovementResult {
     pub position: Position,
     pub vertical_velocity: f32,
+    pub support: CharacterSupport,
     // True when static-world collision materially blocked requested movement.
     // Side contacts that Rapier resolves by auto-stepping are not treated as blocked.
     pub blocked: bool,
+}
+
+// Derived independently each step and never read back by the movement motor.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CharacterSupport {
+    Airborne,
+    Ground,
+    Ladder,
 }
 
 // Represents a character's intended movement after static-world collision but

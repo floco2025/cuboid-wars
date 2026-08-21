@@ -7,9 +7,12 @@ use crate::{
     config::{PowerUpsConfig, Quest, QuestKind},
     network::ServerToClient,
 };
-use common::protocol::{
-    BarrierKindId, Health, ItemType, NewQuest, Player, PlayerId, PlayerMoveIntent, PlayerMovementState, Position,
-    PowerUpKind, QuestId, SPlayerStatus, SQuestCompleted, SQuestProgress, SQuestsAssigned, ServerMessage,
+use common::{
+    physics::CharacterSupport,
+    protocol::{
+        BarrierKindId, Health, ItemType, NewQuest, Player, PlayerId, PlayerMoveIntent, PlayerMovementState, Position,
+        PowerUpKind, QuestId, SPlayerStatus, SQuestCompleted, SQuestProgress, SQuestsAssigned, ServerMessage,
+    },
 };
 
 // Global debug invincibility. Seeded at startup from the config /
@@ -68,6 +71,8 @@ pub struct PlayerInfo {
     // as the fall start). `NEG_INFINITY` = not airborne. Fall damage is the
     // actual drop `fall_peak_y - landing_y`, immune to fabricated velocity.
     pub fall_peak_y: f32,
+    // Last derived movement result. The movement motor never reads this back.
+    pub movement_support: CharacterSupport,
 }
 
 impl PlayerInfo {
@@ -88,6 +93,7 @@ impl PlayerInfo {
             quest_states: HashMap::new(),
             peak_fall_speed: 0.0,
             fall_peak_y: f32::NEG_INFINITY,
+            movement_support: CharacterSupport::Airborne,
         }
     }
 
@@ -116,6 +122,7 @@ impl PlayerInfo {
         // momentum — they'd take damage on their first landing.
         self.peak_fall_speed = 0.0;
         self.fall_peak_y = f32::NEG_INFINITY;
+        self.movement_support = CharacterSupport::Airborne;
     }
 
     #[must_use]

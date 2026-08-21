@@ -9,7 +9,7 @@ use std::f32::consts::FRAC_PI_3;
 use super::{
     geometry::{character_pose, character_shape, character_support_probe_pose, character_support_probe_shape},
     ladder::evaluate_ladder_interaction,
-    types::CharacterMovementResult,
+    types::{CharacterMovementResult, CharacterSupport},
 };
 use crate::{
     config::{CharacterPhysicsConfig, LaddersConfig},
@@ -104,10 +104,10 @@ pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) 
         ground_probe.is_some(),
         env.ladders,
     );
-    let climbing = ladder.climbing();
+    let ascending_ladder = ladder.is_ascending();
     // Climbing suppresses ground following: without this, the ground snap
     // below would glue the first climb tick back onto the base floor.
-    let can_follow_ground = start_vertical_velocity <= 0.0 && !climbing;
+    let can_follow_ground = start_vertical_velocity <= 0.0 && !ascending_ladder;
     let current_ground = if can_follow_ground { ground_probe } else { None };
     let next_vertical_velocity = if let Some(vertical_velocity) = ladder.vertical_velocity() {
         vertical_velocity
@@ -198,7 +198,7 @@ pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) 
     // the wrong side of a ladder into the floor above) — surface it as
     // blocked so the bump feedback fires. Scoped to climbing: ordinary jumps
     // against ceilings stay silent.
-    let climb_rise_blocked = climbing
+    let climb_rise_blocked = ascending_ladder
         && requested_vertical_move.y > 0.0
         && movement.translation.y < requested_vertical_move.y - PHYSICS_EPSILON;
     let blocked = saw_side_contact
@@ -206,22 +206,31 @@ pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) 
         && movement_progress_was_blocked(supported_horizontal_move, movement.translation)
         || climb_rise_blocked;
 
-    let grounded = resolved_ground.is_some();
+    let grounded = resolved_ground.is_some() || movement.grounded;
     // `movement.grounded` covers support the center-line probe can't see
     // (resting on an edge sliver). The perch slide makes that state
     // transient, but a blocked slide (doorway lip, inside corner) can
     // persist — without this, gravity would pump fall velocity for seconds
     // while the body never moves.
-    if (grounded || movement.grounded) && vertical_velocity < 0.0
+    if grounded && vertical_velocity < 0.0
         || hit_ceiling && vertical_velocity > 0.0
         || requested_vertical_move.y > 0.0 && movement.translation.y < requested_move.y - PHYSICS_EPSILON
     {
         vertical_velocity = 0.0;
     }
 
+    let support = if ladder.is_supported() {
+        CharacterSupport::Ladder
+    } else if grounded {
+        CharacterSupport::Ground
+    } else {
+        CharacterSupport::Airborne
+    };
+
     CharacterMovementResult {
         position: resolved,
         vertical_velocity,
+        support,
         blocked,
     }
 }

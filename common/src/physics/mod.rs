@@ -7,10 +7,10 @@ mod world;
 pub use barriers::{OpenBarrierKinds, passable_barrier_kinds};
 pub use characters::{
     BallCharacterHit, CharacterEnvironment, CharacterMovePlan, CharacterMovementResult, CharacterStep,
-    CharacterVerticalVelocity, HitDirection, KnockbackVelocity, ball_character_hit, ball_overlaps_character,
-    blocking_character_move_plan, character_center, character_move_plan_is_blocked, character_overlaps_item,
-    character_paths_intersect, character_shape, overlapping_character, player_control_velocity,
-    position_has_floor_support, step_character_movement, try_start_player_jump,
+    CharacterSupport, CharacterVerticalVelocity, HitDirection, KnockbackVelocity, ball_character_hit,
+    ball_overlaps_character, blocking_character_move_plan, character_center, character_move_plan_is_blocked,
+    character_overlaps_item, character_paths_intersect, character_shape, overlapping_character,
+    player_control_velocity, position_has_floor_support, step_character_movement, try_start_player_jump,
 };
 pub use lock::acquire_lock;
 pub use projectiles::{
