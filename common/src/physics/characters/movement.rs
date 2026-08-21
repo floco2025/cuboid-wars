@@ -283,8 +283,7 @@ pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) 
 
 // Where the plane clamp holds this character's center: leading face (half
 // extent along the plane normal — the collider is wider than it is deep)
-// plus the clearance that keeps the body out from under the landing slabs'
-// overhanging lip.
+// plus a small air gap to the rails.
 fn ladder_hold_standoff(ladder: &LadderVolume, physics: CharacterPhysicsConfig) -> f32 {
     let half_extent_toward_plane = if ladder.normal_x != 0.0 {
         physics.collider.width / 2.0
@@ -294,7 +293,7 @@ fn ladder_hold_standoff(ladder: &LadderVolume, physics: CharacterPhysicsConfig) 
     half_extent_toward_plane + LADDER_STANDOFF_CLEARANCE
 }
 
-// The ladder's edge plane is a fence from the ladder's base up to its top
+// The ladder's rail plane is a fence from the ladder's base up to its top
 // landing: below that height, horizontal motion may not cross the plane or
 // bring the character's leading face closer than the hold stand-off, from
 // either side — no exceptions, no geometry inspection. At or above the top

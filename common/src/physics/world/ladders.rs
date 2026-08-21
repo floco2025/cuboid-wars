@@ -1,7 +1,7 @@
 use bevy_math::Vec3;
 
 use crate::{
-    constants::{LADDER_BAND_DEPTH, LADDER_OVERSHOOT, LADDER_VOLUME_DEPTH, LEVEL_HEIGHT},
+    constants::{LADDER_BAND_DEPTH, LADDER_OVERSHOOT, LADDER_RAIL_INSET, LADDER_VOLUME_DEPTH, LEVEL_HEIGHT},
     protocol::{Ladder, Position},
 };
 
@@ -38,10 +38,15 @@ impl LadderVolume {
     pub fn from_ladder(ladder: &Ladder) -> Self {
         let y_min = f32::from(ladder.level) * LEVEL_HEIGHT;
         let top_landing = (f32::from(ladder.level) + f32::from(ladder.levels)) * LEVEL_HEIGHT;
-        let x_near = ladder.x1.min(ladder.x2);
-        let x_far = ladder.x1.max(ladder.x2);
-        let z_near = ladder.z1.min(ladder.z2);
-        let z_far = ladder.z1.max(ladder.z2);
+        // Everything is centered on the RAIL plane — where the client draws
+        // the rails — not on the anchoring grid edge, so the physics uses
+        // the ladder where it visibly is.
+        let rail_x = ladder.nx * LADDER_RAIL_INSET;
+        let rail_z = ladder.nz * LADDER_RAIL_INSET;
+        let x_near = ladder.x1.min(ladder.x2) + rail_x;
+        let x_far = ladder.x1.max(ladder.x2) + rail_x;
+        let z_near = ladder.z1.min(ladder.z2) + rail_z;
+        let z_far = ladder.z1.max(ladder.z2) + rail_z;
         let volume_x = (ladder.nx * LADDER_VOLUME_DEPTH).abs();
         let volume_z = (ladder.nz * LADDER_VOLUME_DEPTH).abs();
         let band_x = (ladder.nx * LADDER_BAND_DEPTH).abs();
@@ -53,8 +58,8 @@ impl LadderVolume {
             band_max: Vec3::new(x_far + band_x, top_landing, z_far + band_z),
             normal_x: ladder.nx,
             normal_z: ladder.nz,
-            mid_x: f32::midpoint(ladder.x1, ladder.x2),
-            mid_z: f32::midpoint(ladder.z1, ladder.z2),
+            mid_x: f32::midpoint(ladder.x1, ladder.x2) + rail_x,
+            mid_z: f32::midpoint(ladder.z1, ladder.z2) + rail_z,
         }
     }
 

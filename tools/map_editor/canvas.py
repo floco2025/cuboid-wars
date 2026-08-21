@@ -183,10 +183,10 @@ class Canvas(CanvasPaintingMixin, QWidget):
         # material modes' hover-highlight pass).
         self.hover_cell: tuple[int, int] | None = None
         self.hover_grid_point: tuple[int, int] | None = None
-        # Ladder mode only: the cell side the click would anchor to, tracked
-        # continuously so the hover ghost snaps between sides as the cursor
-        # moves — without it there's nothing to aim at on an open edge.
-        self.hover_ladder_side: str | None = None
+        # Edge-picking modes (Ladder, Light): the cell side the click would
+        # target, tracked continuously so the hover ghost snaps between
+        # sides as the cursor moves — without it there's nothing to aim at.
+        self.hover_edge_side: str | None = None
         self._hover_label = QLabel(self)
         self._hover_label.setStyleSheet(
             "background-color: rgba(15, 23, 42, 230);"
@@ -292,7 +292,7 @@ class Canvas(CanvasPaintingMixin, QWidget):
         self.hover_target = None
         self.hover_cell = None
         self.hover_grid_point = None
-        self.hover_ladder_side = None
+        self.hover_edge_side = None
         if changed:
             self.update()
         self._hover_label.hide()
@@ -300,15 +300,15 @@ class Canvas(CanvasPaintingMixin, QWidget):
     def _update_cell_hover(self, pos) -> None:
         cell = self.point_to_cell(pos)
         grid_point = self.point_to_grid_point(pos)
-        ladder_side = None
-        if self.window.mode == MODE_LADDER and cell is not None:
+        edge_side = None
+        if self.window.mode in (MODE_LADDER, MODE_LIGHT) and cell is not None:
             size = self.cell_size()
-            ladder_side = cell_side_from_click(cell[0], cell[1], pos.x() / size, pos.y() / size)
-        if cell == self.hover_cell and grid_point == self.hover_grid_point and ladder_side == self.hover_ladder_side:
+            edge_side = cell_side_from_click(cell[0], cell[1], pos.x() / size, pos.y() / size)
+        if cell == self.hover_cell and grid_point == self.hover_grid_point and edge_side == self.hover_edge_side:
             return
         self.hover_cell = cell
         self.hover_grid_point = grid_point
-        self.hover_ladder_side = ladder_side
+        self.hover_edge_side = edge_side
         self.update()
 
     def _update_material_hover(self, pos) -> None:

@@ -39,7 +39,7 @@
 
 ## Lights
 
-- **Light** — Click a cell near a wall to add a wall light on that side; click an existing light marker to remove it. Use **Edit → Auto-Place Lights** to fill the current level on a stride; **Edit → Clear Lights On Level** to start over.
+- **Light** — Click a cell near a wall to add a wall light on that side; the hover ghost shows the side a click would use, and only where a wall accepts one. Click an existing light marker to remove it. Use **Edit → Auto-Place Lights** to fill the current level on a stride; **Edit → Clear Lights On Level** to start over.
 - **Erase Lights** — Drag a rectangle to remove every light inside it on the current level.
 
 ## Pressure Plates

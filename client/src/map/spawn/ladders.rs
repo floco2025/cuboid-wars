@@ -2,15 +2,10 @@ use bevy::{asset::RenderAssetUsages, light::NotShadowCaster, prelude::*, render:
 
 use crate::map::MapLevel;
 use common::{
-    constants::{LADDER_OVERSHOOT, LADDER_WIDTH, LEVEL_HEIGHT},
+    constants::{LADDER_OVERSHOOT, LADDER_RAIL_INSET, LADDER_WIDTH, LEVEL_HEIGHT},
     protocol::Ladder,
 };
 
-// How far the rails sit off the edge plane, into the climb volume. Must
-// clear the floor slabs' `WALL_HALF_THICKNESS` overhang past the grid line
-// (incl. the rail's own half thickness) or the rails pierce the landing's
-// lip; also puts the rungs near the character's face at the climb stand-off.
-const RAIL_INSET: f32 = 0.22;
 const RAIL_HALF_THICKNESS: f32 = 0.035;
 const RUNG_HALF_THICKNESS: f32 = 0.025;
 const RUNG_SPACING: f32 = 0.35;
@@ -49,9 +44,11 @@ pub fn spawn_ladder_from_layout(
 }
 
 // Two vertical rails at the segment ends plus evenly spaced rungs between
-// them, all axis-aligned boxes (ladder segments lie on grid edges). The rails
-// poke `LADDER_OVERSHOOT` above the top landing as the step-off affordance,
-// matching the climb volume's reach.
+// them, all axis-aligned boxes (ladder segments lie on grid edges). One
+// ladder serves both climb sides; the rails sit `LADDER_RAIL_INSET` off the
+// edge on the authored side — the same plane the physics holds climbers
+// against. The rails poke `LADDER_OVERSHOOT` above the top landing as the
+// step-off affordance, matching the climb volume's reach.
 fn build_ladder_mesh(ladder: &Ladder, tile_size: f32) -> Mesh {
     let base_y = f32::from(ladder.level) * LEVEL_HEIGHT;
     let top_y = (f32::from(ladder.level) + f32::from(ladder.levels)) * LEVEL_HEIGHT + LADDER_OVERSHOOT;
@@ -60,7 +57,7 @@ fn build_ladder_mesh(ladder: &Ladder, tile_size: f32) -> Mesh {
     let b = Vec3::new(ladder.x2, base_y, ladder.z2);
     let along = (b - a).normalize_or_zero();
     let normal = Vec3::new(ladder.nx, 0.0, ladder.nz);
-    let inset = normal * RAIL_INSET;
+    let inset = normal * LADDER_RAIL_INSET;
 
     let mut boxes = BoxMeshData::new(tile_size);
 

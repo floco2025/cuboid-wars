@@ -35,13 +35,15 @@ pub const LADDER_VOLUME_DEPTH: f32 = 0.8;
 // the last climb tick leaves the feet over the landing and stepping off the
 // landing edge immediately re-enters the volume.
 pub const LADDER_OVERSHOOT: f32 = 0.3;
-// Gap between a character's leading face and the ladder plane while held at
-// the barrier. Face-based (half extent along the plane normal + this), not
-// center-based: the collider is wider than it is deep. Must exceed
-// `WALL_HALF_THICKNESS` because floor slabs overhang their grid line by that
-// much (they cap the walls below) — a smaller clearance leaves the climbing
-// body under the landing slab's lip, and the ascent stalls on its underside.
-pub const LADDER_STANDOFF_CLEARANCE: f32 = WALL_HALF_THICKNESS + 0.05;
+// How far the rails stand off the anchoring grid edge, on the authored
+// side. The physics plane runs THROUGH the rails — the ladder is where it
+// looks like it is — so both the climb hold and the fence are measured from
+// here, and the client mesh places the rails here.
+pub const LADDER_RAIL_INSET: f32 = 0.22;
+// Gap between a character's leading face and the rail plane while held at
+// the ladder. Face-based (half extent along the plane normal + this), not
+// center-based: the collider is wider than it is deep.
+pub const LADDER_STANDOFF_CLEARANCE: f32 = 0.05;
 // How far the blocking band reaches from the plane, on both sides.
 // Generous enough to cover any character's hold distance, so the fence
 // clamp can't oscillate at the band's outer boundary.

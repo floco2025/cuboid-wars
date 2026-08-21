@@ -1,10 +1,15 @@
 use super::*;
-use crate::constants::{LADDER_STANDOFF_CLEARANCE, LEVEL_HEIGHT};
+use crate::constants::{LADDER_RAIL_INSET, LADDER_STANDOFF_CLEARANCE, LEVEL_HEIGHT};
 
-// Where the plane clamp holds the player against `test_ladder` (a Z-facing
-// plane, so the collider's depth is the leading extent).
+// Where the plane clamp holds the player against `test_ladder`, measured
+// from the RAIL plane (a Z-facing ladder, so the collider's depth is the
+// leading extent). The rails sit at z = -LADDER_RAIL_INSET.
 fn player_hold_distance() -> f32 {
     player_physics().collider.depth / 2.0 + LADDER_STANDOFF_CLEARANCE
+}
+
+fn rail_plane_z() -> f32 {
+    -LADDER_RAIL_INSET
 }
 
 fn ladder_step(
@@ -106,7 +111,7 @@ fn far_side_base_push_climbs_and_is_held() {
 
     let step = ladder_step(&world, start, 0.0, start.x, 0.1);
 
-    assert!(step.position.z >= player_hold_distance() - 0.01);
+    assert!(step.position.z >= rail_plane_z() + player_hold_distance() - 0.01);
     assert!(step.vertical_velocity > 0.0);
 }
 
@@ -225,7 +230,7 @@ fn pressing_away_descends_at_input_speed() {
     let expected = -2.0 * test_ladders().climb_speed_ratio;
     assert!((step.vertical_velocity - expected).abs() < 1e-4);
     assert!(step.position.y < start.y);
-    assert!((step.position.z - -player_hold_distance()).abs() < 0.01);
+    assert!((step.position.z - (rail_plane_z() - player_hold_distance())).abs() < 0.01);
 }
 
 #[test]

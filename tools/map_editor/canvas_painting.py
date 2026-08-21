@@ -16,6 +16,7 @@ from .constants import (
     MATERIAL_MODES,
     MODE_BARRIER,
     MODE_LADDER,
+    MODE_LIGHT,
     MODE_SPAWN_ZONE_EDIT,
     MODE_WALL,
     MODE_WALL_MATERIAL,
@@ -42,6 +43,7 @@ from .geometry import (
     ladder_marker_lines,
     light_marker_polygon,
     opposite_direction,
+    wall_endpoints_for_cell_side,
     orthogonal_arrow_points,
     ramp_axis,
     ramp_cells,
@@ -120,13 +122,13 @@ class CanvasPaintingMixin:
         if mode == MODE_LADDER:
             # Side-aware ghost: the glyph snaps to whichever edge the click
             # would use and previews the committed result — the ladder stands
-            # in the hovered cell, so the ghost sits under the cursor. Dimmer
+            # on the hovered edge, so the ghost sits under the cursor. Dimmer
             # than a committed ladder. No ghost when the cell across the edge
             # is off-grid (the click would be refused).
-            if self.hover_ladder_side is None:
+            if self.hover_edge_side is None:
                 return
             col, row = self.hover_cell
-            anchor_col, anchor_row, anchor_side = ladder_anchor_from_click(col, row, self.hover_ladder_side)
+            anchor_col, anchor_row, anchor_side = ladder_anchor_from_click(col, row, self.hover_edge_side)
             cols = self.window.map_data["grid_cols"]
             rows = self.window.map_data["grid_rows"]
             if not (0 <= anchor_col < cols and 0 <= anchor_row < rows):
@@ -135,6 +137,25 @@ class CanvasPaintingMixin:
             painter.setPen(QPen(QColor(251, 146, 60, 150), 2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
             for x0, y0, x1, y1 in ladder_marker_lines(ghost_ladder, cell):
                 painter.drawLine(round(x0), round(y0), round(x1), round(y1))
+            return
+        if mode == MODE_LIGHT:
+            # Side-aware ghost, shown only where the click would succeed —
+            # a wall on the hovered side and no ramp footprint — so valid
+            # spots read at a glance while sweeping the cursor.
+            if self.hover_edge_side is None:
+                return
+            col, row = self.hover_cell
+            window = self.window
+            level_idx = window.current_level
+            if wall_endpoints_for_cell_side(col, row, self.hover_edge_side) not in window._wall_endpoints_for_level(
+                level_idx
+            ):
+                return
+            if (col, row) in window._ramp_cells_for_level(level_idx):
+                return
+            painter.setBrush(QColor(250, 204, 21, 120))
+            painter.setPen(QPen(QColor(202, 138, 4, 180), 1))
+            painter.drawPolygon(light_marker_polygon({"col": col, "row": row, "side": self.hover_edge_side}, cell))
             return
         col, row = self.hover_cell
         if not (0 <= col < self.window.map_data["grid_cols"] and 0 <= row < self.window.map_data["grid_rows"]):

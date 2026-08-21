@@ -243,10 +243,10 @@ def ladder_anchor_from_click(col: int, row: int, side: str) -> tuple[int, int, s
 
 
 # Ladder glyph proportions, in cell units. The glyph hugs the anchor edge
-# and extends into the adjacent (climb) cell: two rails parallel to the edge
-# plus rungs between them — a ladder seen face-on.
+# on the ladder's rail side: two rails parallel to the edge plus rungs
+# between them — a ladder seen face-on.
 _LADDER_SPAN = (0.15, 0.85)   # extent along the edge
-_LADDER_NEAR = 0.04           # rail offset into the adjacent cell
+_LADDER_NEAR = 0.04           # rail offsets from the edge
 _LADDER_FAR = 0.26
 _LADDER_RUNG_COUNT = 4
 
