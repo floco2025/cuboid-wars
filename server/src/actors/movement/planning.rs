@@ -12,7 +12,7 @@ use crate::{
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     physics::{CharacterMovePlan, CollisionWorld},
-    protocol::{ActorId, ActorMoveIntent, ActorMovementState, MapSettings, Position, SActorMoveIntent, ServerMessage},
+    protocol::{ActorId, ActorMoveIntent, ActorMovementState, MapSettings, Position, SActorMove, ServerMessage},
 };
 
 use super::{
@@ -41,7 +41,7 @@ const AVOIDANCE_GRAZE_PENALTY: f32 = 0.5;
 // the full selection every tick lets a jostling actor pick a different heading
 // each tick — thrashing its position, facing, and broadcasts. Committing for a
 // short window smooths the authoritative motion (so client prediction stays in
-// sync) and caps `SActorMoveIntent` traffic, while still being frequent enough
+// sync) and caps `SActorMove` traffic, while still being frequent enough
 // (~5×/s) to track a moving target. A blocked committed heading re-decides at once.
 const STEERING_COMMIT_SECS: f32 = 0.2;
 
@@ -64,7 +64,7 @@ pub(crate) fn plan_actor_moves(
     let actor_order = sorted_actor_plan_order(query, actors);
 
     for actor_order in actor_order {
-        let Ok((entity, id, pos, motion, mut move_intent, mut face_dir, knockback)) = query.get_mut(actor_order.entity)
+        let Ok((entity, id, pos, motion, mut move_intent, mut face_yaw, knockback)) = query.get_mut(actor_order.entity)
         else {
             continue;
         };
@@ -126,7 +126,7 @@ pub(crate) fn plan_actor_moves(
         let committed_this_tick = *move_intent != selected_move.intent;
         *move_intent = selected_move.intent;
         if let Some(direction) = selected_move.intent.direction().or(hold_facing) {
-            face_dir.0 = direction;
+            face_yaw.0 = direction;
         }
         if committed_this_tick {
             broadcast_actor_move_intent(players, *id, current_pos, selected_move.intent, motion.0);
@@ -158,7 +158,7 @@ fn clear_commit(info: &mut ActorInfo) {
 // instead of re-selecting. Re-decides — starting a fresh window — when the
 // commit lapses or the heading becomes blocked. Committing the *decision* (not
 // just the broadcast) keeps the simulated path smooth, so client prediction
-// stays in sync and `SActorMoveIntent` traffic stays sparse.
+// stays in sync and `SActorMove` traffic stays sparse.
 //
 // Only the *direction* is committed; the step always uses the current desired
 // speed, so a chase commit (chase speed) can't carry that speed into patrol.
@@ -267,7 +267,7 @@ fn broadcast_actor_move_intent(
 ) {
     broadcast_to_all(
         players,
-        ServerMessage::ActorMoveIntent(SActorMoveIntent {
+        ServerMessage::ActorMove(SActorMove {
             id,
             movement: ActorMovementState::new(pos, move_intent, vertical_velocity),
         }),

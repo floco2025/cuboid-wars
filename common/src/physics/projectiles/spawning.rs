@@ -28,7 +28,7 @@ pub struct ProjectileSpawnInfo {
 )]
 pub fn calculate_projectile_spawns(
     shooter_pos: &Position,
-    face_dir: f32,
+    face_yaw: f32,
     face_pitch: f32,
     has_multi_shot: bool,
     shooter_eye_height: f32,
@@ -50,7 +50,7 @@ pub fn calculate_projectile_spawns(
 
     for i in 0..num_shots {
         let angle_offset = (i as f32).mul_add(angle_step, start_offset);
-        let shot_yaw = face_dir + angle_offset;
+        let shot_yaw = face_yaw + angle_offset;
 
         let aim = crate::math::direction_from_yaw_pitch(shot_yaw, face_pitch);
 

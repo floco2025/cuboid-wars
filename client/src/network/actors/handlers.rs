@@ -9,15 +9,15 @@ use crate::{
     vfx::{ExplosionRadii, ExplosionSpawnCtx, spawn_actor_explosion, spawn_laser_beam},
 };
 use common::protocol::{
-    ActorMarker, ActorMoveIntent, FaceDirection, Position, SActorBeam, SActorDeath, SActorHit, SActorMoveIntent,
+    ActorMarker, ActorMoveIntent, FaceYaw, Position, SActorBeam, SActorDeath, SActorHit, SActorMove,
 };
 
 pub fn handle_actor_move_intent_message(
     commands: &mut Commands,
     actors: &ResMut<ActorMap>,
     rtt: &ResMut<RoundTripTime>,
-    actor_data: &Query<(&Position, &ActorMoveIntent, &FaceDirection), With<ActorMarker>>,
-    msg: SActorMoveIntent,
+    actor_data: &Query<(&Position, &ActorMoveIntent, &FaceYaw), With<ActorMarker>>,
+    msg: SActorMove,
 ) {
     apply_actor_movement_state(
         commands,
@@ -84,7 +84,7 @@ pub fn handle_actor_beam_message(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
     actors: &ActorMap,
-    actor_data: &Query<(&Position, &ActorMoveIntent, &FaceDirection), With<ActorMarker>>,
+    actor_data: &Query<(&Position, &ActorMoveIntent, &FaceYaw), With<ActorMarker>>,
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
     audio_config: &AudioConfig,
@@ -111,7 +111,7 @@ pub fn handle_actor_beam_message(
 pub fn handle_actor_hit_message(
     commands: &mut Commands,
     actors: &ActorMap,
-    actor_data: &Query<(&Position, &ActorMoveIntent, &FaceDirection), With<ActorMarker>>,
+    actor_data: &Query<(&Position, &ActorMoveIntent, &FaceYaw), With<ActorMarker>>,
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
     audio_config: &AudioConfig,

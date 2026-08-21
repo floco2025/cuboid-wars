@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use super::{Invincibility, PlayerMap};
-use crate::characters::{generate_player_spawn_position, spawn_face_direction};
+use crate::characters::{generate_player_spawn_position, spawn_face_yaw};
 use crate::combat::{PendingExplosions, kill_player};
 use crate::map::MapConfig;
 use crate::network::ServerToClient;
@@ -11,9 +11,7 @@ use common::{
     health::apply_damage,
     map::MapGeometry,
     physics::{CharacterVerticalVelocity, CollisionWorld},
-    protocol::{
-        FaceDirection, Health, MapSettings, PlayerId, PlayerMarker, Position, SPlayerFallDamage, ServerMessage,
-    },
+    protocol::{FaceYaw, Health, MapSettings, PlayerId, PlayerMarker, Position, SPlayerFallDamage, ServerMessage},
 };
 
 // ============================================================================
@@ -68,7 +66,7 @@ pub fn players_fall_death_system(
             );
             commands.entity(entity).insert((
                 spawn_pos,
-                FaceDirection(spawn_face_direction(&spawn_pos)),
+                FaceYaw(spawn_face_yaw(&spawn_pos)),
                 CharacterVerticalVelocity::default(),
             ));
             if let Some(info) = players.get_mut(id) {

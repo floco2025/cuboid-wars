@@ -126,7 +126,7 @@ pub struct ActorInfo {
     // commitment. Movement re-decides only when the timer lapses or the
     // committed heading becomes blocked, so the actor doesn't re-pick (and
     // re-broadcast) a new direction every tick — smooth authoritative motion,
-    // no reconciliation snaps, sparse `SActorMoveIntent`. Only the direction is
+    // no reconciliation snaps, sparse `SActorMove`. Only the direction is
     // committed; the speed always comes from the current desire (so a chase
     // commit can't carry chase speed into patrol). `None` = decide fresh.
     pub committed_direction: Option<f32>,
@@ -221,7 +221,7 @@ pub struct PendingActorSpawn {
     pub zone_idx: usize,
     pub kind: String,
     pub pos: Position,
-    pub face_dir: f32,
+    pub face_yaw: f32,
     pub remaining_secs: f32,
     // The full window length, shipped alongside `remaining_secs` so clients
     // can compute and animate the fade fraction.

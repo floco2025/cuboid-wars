@@ -52,11 +52,11 @@ pub fn snapshot_logged_in_players(
             if !info.logged_in || info.is_dead() {
                 return None;
             }
-            let (pos, move_intent, face_dir, health) = player_data.get(info.entity).ok()?;
+            let (pos, move_intent, face_yaw, health) = player_data.get(info.entity).ok()?;
             let vertical_velocity = motions.get(info.entity).map_or(0.0, |m| m.0);
             Some((
                 *player_id,
-                info.snapshot_player(*pos, *move_intent, face_dir.0, *health, vertical_velocity),
+                info.snapshot_player(*pos, *move_intent, face_yaw.0, *health, vertical_velocity),
             ))
         })
         .collect()
@@ -72,14 +72,14 @@ pub fn snapshot_actors(
     actors
         .iter()
         .filter_map(|(actor_id, info)| {
-            let (pos, move_intent, face_dir, health) = actor_data.get(info.entity).ok()?;
+            let (pos, move_intent, face_yaw, health) = actor_data.get(info.entity).ok()?;
             let vertical_velocity = motions.get(info.entity).map_or(0.0, |m| m.0);
             Some((
                 *actor_id,
                 Actor {
                     kind: info.spawn_kind.clone(),
                     movement: ActorMovementState::new(*pos, *move_intent, vertical_velocity),
-                    face_dir: face_dir.0,
+                    face_yaw: face_yaw.0,
                     health: *health,
                 },
             ))
@@ -100,7 +100,7 @@ pub fn snapshot_spawning_actors(pending: &PendingActorSpawns) -> Vec<(ActorId, S
                 SpawningActor {
                     kind: spawn.kind.clone(),
                     pos: spawn.pos,
-                    face_dir: spawn.face_dir,
+                    face_yaw: spawn.face_yaw,
                     remaining_secs: spawn.remaining_secs,
                     warning_secs: spawn.warning_secs,
                 },
@@ -163,7 +163,7 @@ mod tests {
             .spawn((
                 Position::default(),
                 PlayerMoveIntent::Idle,
-                FaceDirection(0.0),
+                FaceYaw(0.0),
                 Health(100.0),
                 PlayerMarker,
                 CharacterVerticalVelocity(0.0),

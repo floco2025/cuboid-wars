@@ -105,22 +105,24 @@ impl ActorMoveIntent {
 }
 
 #[derive(Component, Default)]
-pub struct FaceDirection(pub f32);
+pub struct FaceYaw(pub f32);
 
 #[derive(Debug, Clone, Copy, Encode, Decode)]
 pub struct PlayerMovementState {
     pub pos: Position,
     pub move_intent: PlayerMoveIntent,
     pub vertical_velocity: f32,
+    pub face_yaw: f32,
 }
 
 impl PlayerMovementState {
     #[must_use]
-    pub const fn new(pos: Position, move_intent: PlayerMoveIntent, vertical_velocity: f32) -> Self {
+    pub const fn new(pos: Position, move_intent: PlayerMoveIntent, vertical_velocity: f32, face_yaw: f32) -> Self {
         Self {
             pos,
             move_intent,
             vertical_velocity,
+            face_yaw,
         }
     }
 }

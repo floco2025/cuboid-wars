@@ -16,9 +16,7 @@ use common::{
     config::GameplayConfig,
     constants::{GRID_CELL_SIZE, MISSILE_RADIUS},
     physics::{CollisionWorld, character_center},
-    protocol::{
-        ActorMarker, BarrierKindId, FaceDirection, HomingTarget, MissileId, MissileMarker, PlayerMarker, Position,
-    },
+    protocol::{ActorMarker, BarrierKindId, FaceYaw, HomingTarget, MissileId, MissileMarker, PlayerMarker, Position},
 };
 
 // Net-displacement watchdog distance, 3D (missiles fly): a missile that
@@ -40,7 +38,7 @@ type MissileGuidanceQuery<'w, 's> =
 type TargetPositionQuery<'w, 's> = Query<
     'w,
     's,
-    (&'static Position, &'static FaceDirection),
+    (&'static Position, &'static FaceYaw),
     (Or<(With<PlayerMarker>, With<ActorMarker>)>, Without<MissileMarker>),
 >;
 

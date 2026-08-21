@@ -37,28 +37,30 @@ pub(super) fn player_movement_velocity(
     velocity
 }
 
-// Handle player move-input update with server reconciliation.
-pub fn handle_player_move_intent_message(
+// Handle player move update (intent + facing) with server reconciliation.
+pub fn handle_player_move_message(
     commands: &mut Commands,
     players: &ResMut<PlayerMap>,
-    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceYaw), With<PlayerMarker>>,
     rtt: &ResMut<RoundTripTime>,
     gameplay_config: &GameplayConfig,
-    msg: SPlayerMoveIntent,
+    msg: SPlayerMove,
 ) {
-    trace!("{:?} move intent: {:?}", msg.id, msg);
+    trace!("{:?} move: {:?}", msg.id, msg);
     if let Some(player) = players.get(&msg.id) {
         let server_velocity =
             player_movement_velocity(msg.movement, gameplay_config, player.power_up(PowerUpKind::Speed));
 
+        // Never the local player, so we can always overwrite intent + facing.
+        let input = (msg.movement.move_intent, FaceYaw(msg.movement.face_yaw));
         // Add server reconciliation if we have client position
         if let Ok((client_pos, _, _)) = player_data.get(player.entity) {
             commands.entity(player.entity).insert((
-                msg.movement.move_intent, // Never the local player, so we can always overwrite intent
+                input,
                 ServerReconciliation::new(*client_pos, msg.movement.pos, server_velocity, rtt),
             ));
         } else {
-            commands.entity(player.entity).insert(msg.movement.move_intent);
+            commands.entity(player.entity).insert(input);
         }
     }
 }
@@ -66,10 +68,10 @@ pub fn handle_player_move_intent_message(
 pub fn handle_player_jump_message(
     commands: &mut Commands,
     players: &ResMut<PlayerMap>,
-    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceYaw), With<PlayerMarker>>,
     rtt: &ResMut<RoundTripTime>,
     gameplay_config: &GameplayConfig,
-    msg: SJump,
+    msg: SPlayerJump,
 ) {
     if let Some(player) = players.get(&msg.id)
         && let Ok((client_pos, _, _)) = player_data.get(player.entity)
@@ -78,17 +80,10 @@ pub fn handle_player_jump_message(
             player_movement_velocity(msg.movement, gameplay_config, player.power_up(PowerUpKind::Speed));
         commands.entity(player.entity).insert((
             msg.movement.move_intent,
+            FaceYaw(msg.movement.face_yaw),
             CharacterVerticalVelocity(msg.movement.vertical_velocity),
             ServerReconciliation::new(*client_pos, msg.movement.pos, server_velocity, rtt),
         ));
-    }
-}
-
-// Handle player face direction update.
-pub fn handle_player_face_message(commands: &mut Commands, players: &ResMut<PlayerMap>, msg: SFace) {
-    trace!("{:?} face direction: {}", msg.id, msg.dir);
-    if let Some(player) = players.get(&msg.id) {
-        commands.entity(player.entity).insert(FaceDirection(msg.dir));
     }
 }
 
@@ -97,15 +92,15 @@ pub fn handle_player_shot_message(
     commands: &mut Commands,
     projectile_assets: &ProjectileAssets,
     players: &ResMut<PlayerMap>,
-    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
-    msg: SShot,
+    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceYaw), With<PlayerMarker>>,
+    msg: SPlayerShot,
     collision_world: Option<&CollisionWorld>,
     gameplay_config: &GameplayConfig,
     open_barrier_kinds: &OpenBarrierKinds,
 ) {
     trace!("{:?} shot: {:?}", msg.id, msg);
     if let Some(player) = players.get(&msg.id) {
-        commands.entity(player.entity).insert(FaceDirection(msg.face_dir));
+        commands.entity(player.entity).insert(FaceYaw(msg.face_yaw));
 
         // Spawn projectile(s) based on player's multi-shot power-up status
         if let Ok((position, _, _)) = player_data.get(player.entity)
@@ -115,7 +110,7 @@ pub fn handle_player_shot_message(
                 commands,
                 projectile_assets,
                 position,
-                msg.face_dir,
+                msg.face_yaw,
                 msg.face_pitch,
                 player.power_up(PowerUpKind::MultiShot),
                 gameplay_config.player.eye_height(),

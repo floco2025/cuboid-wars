@@ -57,9 +57,9 @@ pub fn dispatch_message(
                 let _ = player.channel.send(ServerToClient::Close);
             }
         }
-        ClientMessage::PlayerMoveIntent(msg) => {
-            trace!("{:?} move intent: {:?}", id, msg);
-            handle_move_intent_message(commands, entity, id, msg, &*players, queries);
+        ClientMessage::Move(msg) => {
+            trace!("{:?} input: {:?}", id, msg);
+            handle_move_message(commands, entity, id, msg, &*players, queries);
         }
         ClientMessage::Jump(msg) => {
             trace!("{:?} jump: {:?}", id, msg);
@@ -72,10 +72,6 @@ pub fn dispatch_message(
                 &world.collision_world,
                 &world.gameplay_config,
             );
-        }
-        ClientMessage::Face(msg) => {
-            trace!("{:?} face direction: {}", id, msg.dir);
-            handle_face_message(commands, entity, id, msg, &*players);
         }
         ClientMessage::Shot(msg) => {
             debug!("{} shot", players.describe(&id));
@@ -132,32 +128,32 @@ pub fn dispatch_message(
 // Message Handlers
 // ============================================================================
 
-// Handle move-input message.
-fn handle_move_intent_message(
+// Handle the merged steady-state input message (movement intent + facing).
+fn handle_move_message(
     commands: &mut Commands,
     entity: Entity,
     id: PlayerId,
-    msg: CPlayerMoveIntent,
+    msg: CMove,
     players: &PlayerMap,
     queries: &CharacterQueries,
 ) {
-    // Untrusted boundary: drop a move intent carrying a non-finite direction
-    // before it reaches movement trig and corrupts the authoritative position.
-    if !msg.move_intent.is_finite() {
+    // Untrusted boundary: drop input carrying non-finite values before they
+    // reach movement trig and corrupt the authoritative position.
+    if !msg.move_intent.is_finite() || !msg.face_yaw.is_finite() {
         return;
     }
 
-    commands.entity(entity).insert(msg.move_intent);
+    commands.entity(entity).insert((msg.move_intent, FaceYaw(msg.face_yaw)));
 
     // Get current movement state for reconciliation.
     if let (Ok((pos, _, _, _)), Ok(motion)) = (queries.player_data.get(entity), queries.player_motions.get(entity)) {
-        // Broadcast move-input update with position to all other logged-in players
+        // Broadcast the input update with position to all other logged-in players
         broadcast_to_others(
             players,
             id,
-            ServerMessage::PlayerMoveIntent(SPlayerMoveIntent {
+            ServerMessage::PlayerMove(SPlayerMove {
                 id,
-                movement: PlayerMovementState::new(*pos, msg.move_intent, motion.0),
+                movement: PlayerMovementState::new(*pos, msg.move_intent, motion.0, msg.face_yaw),
             }),
         );
     }
@@ -176,7 +172,7 @@ fn handle_jump_message(
         return;
     }
 
-    let Ok((pos, move_intent, _, _)) = queries.player_data.get(entity) else {
+    let Ok((pos, move_intent, face_yaw, _)) = queries.player_data.get(entity) else {
         return;
     };
     let Ok(motion) = queries.player_motions.get(entity) else {
@@ -202,23 +198,11 @@ fn handle_jump_message(
     broadcast_to_others(
         players,
         id,
-        ServerMessage::Jump(SJump {
+        ServerMessage::PlayerJump(SPlayerJump {
             id,
-            movement: PlayerMovementState::new(*pos, *move_intent, next_vertical_velocity),
+            movement: PlayerMovementState::new(*pos, *move_intent, next_vertical_velocity, face_yaw.0),
         }),
     );
-}
-
-// Handle face direction message.
-fn handle_face_message(commands: &mut Commands, entity: Entity, id: PlayerId, msg: CFace, players: &PlayerMap) {
-    if !msg.dir.is_finite() {
-        return;
-    }
-
-    // Update the player's face direction
-    commands.entity(entity).insert(FaceDirection(msg.dir));
-
-    broadcast_to_others(players, id, ServerMessage::Face(SFace { id, dir: msg.dir }));
 }
 
 // Handle ping message — echo the timestamp back as a pong.

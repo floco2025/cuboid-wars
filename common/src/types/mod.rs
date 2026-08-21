@@ -18,6 +18,6 @@ pub use ids::{ActorId, HomingTarget, ItemId, MissileId, PlayerId, QuestId};
 pub use items::{ItemType, PowerUpKind};
 pub use map_layout::{Barrier, Floor, GrassCell, Ladder, MapLayout, MapSettings, PressurePlate, Ramp, Wall, WallLight};
 pub use movement::{
-    ActorMoveIntent, ActorMovementState, FaceDirection, MissileMovementState, PlayerMoveIntent, PlayerMovementState,
+    ActorMoveIntent, ActorMovementState, FaceYaw, MissileMovementState, PlayerMoveIntent, PlayerMovementState,
 };
 pub use position::Position;

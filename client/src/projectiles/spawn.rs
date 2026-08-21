@@ -119,7 +119,7 @@ pub fn spawn_projectiles(
     commands: &mut Commands,
     projectile_assets: &ProjectileAssets,
     pos: &Position,
-    face_dir: f32,
+    face_yaw: f32,
     face_pitch: f32,
     has_multi_shot: bool,
     shooter_eye_height: f32,
@@ -130,7 +130,7 @@ pub fn spawn_projectiles(
 ) -> usize {
     let spawns = calculate_projectile_spawns(
         pos,
-        face_dir,
+        face_yaw,
         face_pitch,
         has_multi_shot,
         shooter_eye_height,

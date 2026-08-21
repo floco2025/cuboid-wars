@@ -212,14 +212,13 @@ impl PlayerInfo {
         &self,
         pos: Position,
         move_intent: PlayerMoveIntent,
-        face_dir: f32,
+        face_yaw: f32,
         health: Health,
         vertical_velocity: f32,
     ) -> Player {
         Player {
             name: self.name.clone(),
-            movement: PlayerMovementState::new(pos, move_intent, vertical_velocity),
-            face_dir,
+            movement: PlayerMovementState::new(pos, move_intent, vertical_velocity, face_yaw),
             health,
             score: self.score,
             power_ups: self.active_power_ups(),
@@ -511,19 +510,19 @@ mod tests {
         let id = PlayerId(7);
         let pos = Position { x: 1.0, y: 2.0, z: 3.0 };
         let move_intent = PlayerMoveIntent::Running { direction: 0.25 };
-        let face_dir = 1.5;
+        let face_yaw = 1.5;
         let health = Health(42.0);
         let vertical_velocity = -3.0;
 
         let status = info.status(id);
-        let player = info.snapshot_player(pos, move_intent, face_dir, health, vertical_velocity);
+        let player = info.snapshot_player(pos, move_intent, face_yaw, health, vertical_velocity);
 
         assert_eq!(player.name, info.name);
         assert_eq!(player.score, info.score);
         assert_eq!(player.movement.pos, pos);
         assert_eq!(player.movement.move_intent, move_intent);
         assert_eq!(player.movement.vertical_velocity, vertical_velocity);
-        assert_eq!(player.face_dir, face_dir);
+        assert_eq!(player.movement.face_yaw, face_yaw);
         assert_eq!(player.health, health);
         assert_eq!(player.power_ups, status.power_ups);
         assert_eq!(player.stunned, status.stunned);

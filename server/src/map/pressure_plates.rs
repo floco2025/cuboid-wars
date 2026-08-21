@@ -10,7 +10,7 @@ use common::{
     constants::{GRID_CELL_SIZE, LEVEL_HEIGHT},
     map::MapGeometry,
     physics::OpenBarrierKinds,
-    protocol::{BarrierKindId, PlayerMarker, Position, SPressurePlatePressed, SPressurePlateReleased, ServerMessage},
+    protocol::{BarrierKindId, PlayerMarker, Position, SPressurePlate, ServerMessage},
 };
 
 // World-space test: is `pos` inside this plate's inner 25%-by-area square AND
@@ -47,7 +47,7 @@ pub fn compute_open_barrier_kinds_system(
     players: Res<PlayerMap>,
     positions: Query<&Position, With<PlayerMarker>>,
     mut open: ResMut<OpenBarrierKinds>,
-    // Plate indices held last tick. Used to fire `SPressurePlatePressed`
+    // Plate indices held last tick. Used to fire `SPressurePlate`
     // only on the unpressed→pressed edge (step-on cue), not every tick a
     // player keeps standing.
     mut prev_held: Local<HashSet<usize>>,
@@ -103,12 +103,12 @@ pub fn compute_open_barrier_kinds_system(
     // identity, so collapsing simultaneous flips is lossless. Persistent state
     // lives in `OpenBarrierKinds` + snapshot; these are pure click/clunk SFX.
     if held_indices.difference(&prev_held).next().is_some() {
-        broadcast_to_all(&players, ServerMessage::PressurePlatePressed(SPressurePlatePressed {}));
+        broadcast_to_all(&players, ServerMessage::PressurePlate(SPressurePlate { pressed: true }));
     }
     if prev_held.difference(&held_indices).next().is_some() {
         broadcast_to_all(
             &players,
-            ServerMessage::PressurePlateReleased(SPressurePlateReleased {}),
+            ServerMessage::PressurePlate(SPressurePlate { pressed: false }),
         );
     }
     *prev_held = held_indices;

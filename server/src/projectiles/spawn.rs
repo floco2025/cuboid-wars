@@ -27,7 +27,7 @@ pub fn handle_shot_message(
     // Reject non-finite aim before it reaches projectile trig / authoritative
     // hit detection. Checked ahead of `try_start_shot` so a bad shot doesn't
     // burn the fire cooldown.
-    if !(msg.face_dir.is_finite() && msg.face_pitch.is_finite()) {
+    if !(msg.face_yaw.is_finite() && msg.face_pitch.is_finite()) {
         return;
     }
 
@@ -40,13 +40,13 @@ pub fn handle_shot_message(
         return;
     };
 
-    commands.entity(entity).insert(FaceDirection(msg.face_dir));
+    commands.entity(entity).insert(FaceYaw(msg.face_yaw));
 
     // Spawn projectile(s) on server for hit detection
     if let Ok((pos, _, _, _)) = player_data.get(entity) {
         let spawns = calculate_projectile_spawns(
             pos,
-            msg.face_dir,
+            msg.face_yaw,
             msg.face_pitch,
             has_multi_shot,
             gameplay_config.player.eye_height(),
@@ -76,9 +76,9 @@ pub fn handle_shot_message(
     broadcast_to_others(
         players,
         id,
-        ServerMessage::Shot(SShot {
+        ServerMessage::PlayerShot(SPlayerShot {
             id,
-            face_dir: msg.face_dir,
+            face_yaw: msg.face_yaw,
             face_pitch: msg.face_pitch,
         }),
     );

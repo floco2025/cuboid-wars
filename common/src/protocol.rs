@@ -16,17 +16,17 @@
 //    window, so clients render a beam-in ghost before the actor exists.
 //
 //    Projectiles are the deliberate exception. They are short-lived, fast,
-//    and numerous, so they are replicated as shot intents (`SShot`) rather
+//    and numerous, so they are replicated as shot intents (`SPlayerShot`) rather
 //    than snapshot entities. Clients simulate them only for presentation;
 //    authoritative hit/death outcomes still come from the server.
 //
 //    Missiles are NOT that exception: they fly for seconds and steer
 //    server-side, so they are full snapshot entities reconciled like actors
-//    (`SMissileLaunch` / `SMissileMoveIntent` are the latency cues).
+//    (`SMissileLaunch` / `SMissileMove` are the latency cues).
 //
-// 3. Real-time intent — movement prediction inputs (`SPlayerMoveIntent`,
-//    `SActorMoveIntent`, `SJump`, `SFace`, `SShot`, the missile launch and
-//    course messages) that must arrive faster than snapshot cadence so
+// 3. Real-time intent — movement prediction inputs (`SPlayerMove`,
+//    `SPlayerJump`, `SPlayerShot`, `SActorMove`, `SMissileMove`,
+//    `SMissileLaunch`) that must arrive faster than snapshot cadence so
 //    clients can dead-reckon between snapshots. Broadcast on change.
 //
 // 4. One-shot cues — short messages that fire at the moment of a discrete
@@ -79,26 +79,22 @@ pub struct CLogin {
     pub name: String,
 }
 
-// Client to Server: Local player's character movement intent update.
+// Client to Server: Local player's steady-state input — movement intent plus
+// facing, committed together whenever either changes enough.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct CPlayerMoveIntent {
+pub struct CMove {
     pub move_intent: PlayerMoveIntent,
+    pub face_yaw: f32, // radians - direction the player is facing
 }
 
 // Client to Server: One-shot jump request.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct CJump {}
 
-// Client to Server: Facing direction update.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct CFace {
-    pub dir: f32, // radians - direction player is facing
-}
-
 // Client to Server: Shot fired.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct CShot {
-    pub face_dir: f32,   // radians - yaw direction player is facing when shooting
+    pub face_yaw: f32,   // radians - yaw direction player is facing when shooting
     pub face_pitch: f32, // radians - pitch (up/down) when shooting
 }
 
@@ -110,7 +106,7 @@ pub struct CMissileShot {
     // `None` = unguided shot along the aim; only honored when
     // `missiles.require_lock` is off.
     pub target: Option<HomingTarget>,
-    pub face_dir: f32,   // radians - yaw when firing
+    pub face_yaw: f32,   // radians - yaw when firing
     pub face_pitch: f32, // radians - pitch when firing
 }
 
@@ -178,7 +174,7 @@ pub struct SSnapshot {
     pub items: Vec<(ItemId, Item)>,
     // In-flight missiles. Unlike projectiles, missiles ARE snapshot entities:
     // they fly for seconds and steer server-side, so presence and position
-    // self-heal here while `SMissileMoveIntent` carries course changes.
+    // self-heal here while `SMissileMove` carries course changes.
     pub missiles: Vec<(MissileId, Missile)>,
     // Barrier kinds currently fully open (pressure-plate threshold met).
     // Empty in v1 maps with no plates. Client hides matching barriers; server
@@ -196,50 +192,39 @@ pub struct SSnapshot {
 
 // --- Real-time intent (sub-tick latency for prediction) ---
 
-// Player movement intent change for client-side prediction of remote players.
+// Player input change (movement intent + facing) for client-side prediction
+// of remote players.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct SPlayerMoveIntent {
+pub struct SPlayerMove {
     pub id: PlayerId,
     pub movement: PlayerMovementState,
 }
 
-// Actor movement intent change.
+// Player started a jump with authoritative vertical velocity. Same payload as
+// `SPlayerMove`, different contract: this is the one message allowed to
+// overwrite the remote player's simulated vertical velocity (the move stream
+// never touches it — its value would be stale mid-flight).
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct SActorMoveIntent {
-    pub id: ActorId,
-    pub movement: ActorMovementState,
-}
-
-// Player started a jump with authoritative vertical velocity.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct SJump {
+pub struct SPlayerJump {
     pub id: PlayerId,
     pub movement: PlayerMovementState,
-}
-
-// Player facing direction update (yaw, radians).
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct SFace {
-    pub id: PlayerId,
-    pub dir: f32,
 }
 
 // Player fired a shot. Projectile entities are intentionally not carried in
 // `SSnapshot`: clients spawn and simulate them for presentation, while the
 // server runs its own projectile simulation for authoritative hit logic.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct SShot {
+pub struct SPlayerShot {
     pub id: PlayerId,
-    pub face_dir: f32,
+    pub face_yaw: f32,
     pub face_pitch: f32,
 }
 
-// Admin `/firework`: play the client-side firework show. Pure presentation —
-// the server broadcasts the seed and forgets; every client derives the same
-// choreography from it, so all clients see the same show.
+// Actor movement change.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct SFirework {
-    pub seed: u64,
+pub struct SActorMove {
+    pub id: ActorId,
+    pub movement: ActorMovementState,
 }
 
 // A missile launched. Broadcast to all (including the shooter — clients do
@@ -256,7 +241,7 @@ pub struct SMissileLaunch {
 // past an epsilon from the last broadcast; clients dead-reckon a straight
 // line in between and reconcile against the carried position.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct SMissileMoveIntent {
+pub struct SMissileMove {
     pub id: MissileId,
     pub movement: MissileMovementState,
 }
@@ -434,17 +419,22 @@ pub struct SMissilesCollected {
     pub missiles: u32,
 }
 
-// A pressure plate transitioned from "unpressed" to "pressed" this tick
-// (some alive player just stepped onto its inner-25% rect). Broadcast —
-// any client may hear the click. Edge-triggered side-effect; durable
-// state (which kinds are currently open) rides `SSnapshot`.
+// A pressure plate transitioned this tick: `pressed` is true when some alive
+// player just stepped onto its inner-25% rect, false when the last alive
+// player stepped off. Broadcast — any client may hear the click. Edge-triggered
+// side-effect; durable state (which kinds are currently open) rides `SSnapshot`.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct SPressurePlatePressed {}
+pub struct SPressurePlate {
+    pub pressed: bool,
+}
 
-// Mirror of `SPressurePlatePressed`: a plate transitioned from "pressed"
-// to "unpressed" this tick (last alive player stepped off). Broadcast.
+// Admin `/firework`: play the client-side firework show. Pure presentation —
+// the server broadcasts the seed and forgets; every client derives the same
+// choreography from it, so all clients see the same show.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct SPressurePlateReleased {}
+pub struct SFirework {
+    pub seed: u64,
+}
 
 // Reply to a `CAdmin` command — success or error text, unicast to the
 // sender. One-shot: ephemeral feedback for the admin console, shown in the
@@ -518,9 +508,8 @@ pub struct SPong {
 #[derive(Debug, Clone, Encode, Decode)]
 pub enum ClientMessage {
     Login(CLogin),
-    PlayerMoveIntent(CPlayerMoveIntent),
+    Move(CMove),
     Jump(CJump),
-    Face(CFace),
     Shot(CShot),
     MissileShot(CMissileShot),
     Ping(CPing),
@@ -539,13 +528,12 @@ pub enum ServerMessage {
     // Snapshot
     Snapshot(SSnapshot),
     // Real-time intent
-    PlayerMoveIntent(SPlayerMoveIntent),
-    ActorMoveIntent(SActorMoveIntent),
-    Jump(SJump),
-    Face(SFace),
-    Shot(SShot),
+    PlayerMove(SPlayerMove),
+    PlayerJump(SPlayerJump),
+    PlayerShot(SPlayerShot),
+    ActorMove(SActorMove),
     MissileLaunch(SMissileLaunch),
-    MissileMoveIntent(SMissileMoveIntent),
+    MissileMove(SMissileMove),
     // One-shot cues
     PlayerDeath(SPlayerDeath),
     ActorDeath(SActorDeath),
@@ -559,9 +547,8 @@ pub enum ServerMessage {
     CookieCollected(SCookieCollected),
     HealthPotionCollected(SHealthPotionCollected),
     MissilesCollected(SMissilesCollected),
-    PressurePlatePressed(SPressurePlatePressed),
+    PressurePlate(SPressurePlate),
     Firework(SFirework),
-    PressurePlateReleased(SPressurePlateReleased),
     AdminResponse(SAdminResponse),
     // Per-client state events
     QuestsAssigned(SQuestsAssigned),

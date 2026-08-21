@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::{
     actors::{ActorMap, PendingActorSpawns},
-    characters::{generate_player_spawn_position, spawn_face_direction},
+    characters::{generate_player_spawn_position, spawn_face_yaw},
     items::ItemMap,
     network::ServerToClient,
     players::{PlayerMap, assign_quests},
@@ -121,7 +121,7 @@ pub fn handle_login_message(
                 world.gameplay_config.player.physics(),
             );
 
-            let face_dir = spawn_face_direction(&pos);
+            let face_yaw = spawn_face_yaw(&pos);
 
             // Initial move-input intent for the new player (idle)
             let move_intent = PlayerMoveIntent::Idle;
@@ -133,7 +133,7 @@ pub fn handle_login_message(
                 .snapshot_player(
                     pos,
                     move_intent,
-                    face_dir,
+                    face_yaw,
                     Health(world.gameplay_config.player.health().max),
                     0.0,
                 );
@@ -177,7 +177,7 @@ pub fn handle_login_message(
             commands.entity(entity).insert((
                 pos,
                 move_intent,
-                FaceDirection(face_dir),
+                FaceYaw(face_yaw),
                 CharacterVerticalVelocity::default(),
                 player.health,
             ));

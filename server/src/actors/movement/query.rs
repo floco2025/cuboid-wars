@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use common::{
     physics::{CharacterVerticalVelocity, KnockbackVelocity},
-    protocol::{ActorId, ActorMarker, ActorMoveIntent, FaceDirection, PlayerMarker, Position},
+    protocol::{ActorId, ActorMarker, ActorMoveIntent, FaceYaw, PlayerMarker, Position},
 };
 
 pub(crate) type ActorMovementQuery<'w, 's> = Query<
@@ -13,7 +13,7 @@ pub(crate) type ActorMovementQuery<'w, 's> = Query<
         &'static mut Position,
         &'static mut CharacterVerticalVelocity,
         &'static mut ActorMoveIntent,
-        &'static mut FaceDirection,
+        &'static mut FaceYaw,
         Option<&'static KnockbackVelocity>,
     ),
     (With<ActorMarker>, Without<PlayerMarker>),

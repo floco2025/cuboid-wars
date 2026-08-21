@@ -33,7 +33,7 @@ pub struct MissileInfo {
     pub stall_timer: f32,
     // Self-hit gate, armed once the missile has cleared the shooter's collider.
     pub armed: bool,
-    // Direction of the last `SMissileMoveIntent`; the next broadcast fires
+    // Direction of the last `SMissileMove`; the next broadcast fires
     // when the steered direction drifts past an epsilon from this.
     pub last_broadcast_dir: Vec3,
     // Set by guidance (lifetime, stall, proximity fuse): where to detonate

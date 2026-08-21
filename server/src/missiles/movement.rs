@@ -36,14 +36,14 @@ type MissileMovementQuery<'w, 's> = Query<
 type MissilePlayerQuery<'w, 's> = Query<
     'w,
     's,
-    (&'static Position, &'static FaceDirection, &'static PlayerId),
+    (&'static Position, &'static FaceYaw, &'static PlayerId),
     (With<PlayerMarker>, Without<ActorMarker>, Without<MissileMarker>),
 >;
 
 type MissileActorQuery<'w, 's> = Query<
     'w,
     's,
-    (&'static Position, &'static FaceDirection, &'static ActorId),
+    (&'static Position, &'static FaceYaw, &'static ActorId),
     (With<ActorMarker>, Without<PlayerMarker>, Without<MissileMarker>),
 >;
 
@@ -76,12 +76,12 @@ pub fn missiles_movement_system(mut commands: Commands, time: Res<Time>, mut par
                 .players
                 .get(&info.shooter)
                 .and_then(|shooter| params.player_query.get(shooter.entity).ok())
-                .is_some_and(|(shooter_pos, face_dir, _)| {
+                .is_some_and(|(shooter_pos, face_yaw, _)| {
                     ball_overlaps_character(
                         &pos,
                         MISSILE_RADIUS,
                         shooter_pos,
-                        face_dir.0,
+                        face_yaw.0,
                         params.gameplay_config.player.physics(),
                     )
                 });
@@ -128,7 +128,7 @@ pub fn missiles_movement_system(mut commands: Commands, time: Res<Time>, mut par
         ) {
             consider(hit.t);
         }
-        for (target_pos, face_dir, player_id) in &params.player_query {
+        for (target_pos, face_yaw, player_id) in &params.player_query {
             if *player_id == shooter && !armed {
                 continue;
             }
@@ -138,20 +138,20 @@ pub fn missiles_movement_system(mut commands: Commands, time: Res<Time>, mut par
                 MISSILE_RADIUS,
                 delta,
                 target_pos,
-                face_dir.0,
+                face_yaw.0,
                 params.gameplay_config.player.physics(),
             ) {
                 consider(hit.time_of_impact);
             }
         }
-        for (target_pos, face_dir, actor_id) in &params.actor_query {
+        for (target_pos, face_yaw, actor_id) in &params.actor_query {
             let actor_info = params
                 .actors
                 .get(actor_id)
                 .expect("actor in query missing from ActorMap");
             let physics = params.gameplay_config.expect_actor(&actor_info.spawn_kind).physics();
             if let Some(hit) =
-                ball_character_hit(&pos, velocity.0, MISSILE_RADIUS, delta, target_pos, face_dir.0, physics)
+                ball_character_hit(&pos, velocity.0, MISSILE_RADIUS, delta, target_pos, face_yaw.0, physics)
             {
                 consider(hit.time_of_impact);
             }
@@ -177,7 +177,7 @@ pub fn missiles_movement_system(mut commands: Commands, time: Res<Time>, mut par
                     info.last_broadcast_dir = dir;
                     broadcast_to_all(
                         &params.players,
-                        ServerMessage::MissileMoveIntent(SMissileMoveIntent {
+                        ServerMessage::MissileMove(SMissileMove {
                             id: *id,
                             movement: MissileMovementState::from_velocity(*pos, velocity.0),
                         }),
@@ -206,7 +206,7 @@ fn detonate_missile(
 }
 
 // The steered direction has drifted past the broadcast epsilon since the
-// last `SMissileMoveIntent`. A zero direction (degenerate velocity) never
+// last `SMissileMove`. A zero direction (degenerate velocity) never
 // broadcasts.
 fn course_drifted(dir: Vec3, last_broadcast_dir: Vec3) -> bool {
     dir != Vec3::ZERO && dir.dot(last_broadcast_dir) < MISSILE_INTENT_EPSILON_RAD.cos()

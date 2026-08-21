@@ -102,7 +102,7 @@ pub fn actors_behavior_system(
         tick_actor_behavior(info, &inputs, &mut rng);
         // Burst start is the one behavior transition clients must see the
         // moment it happens — the pure tick fn can't broadcast, so the shell
-        // does (mirroring how movement broadcasts `SActorMoveIntent`). On the
+        // does (mirroring how movement broadcasts `SActorMove`). On the
         // entry tick `remaining_secs` still equals the full duration.
         if !was_firing
             && let ActorGoal::Fire {

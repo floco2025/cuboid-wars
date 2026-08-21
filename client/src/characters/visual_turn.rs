@@ -1,28 +1,25 @@
 use bevy::prelude::*;
 use common::{
     math::angle_delta_radians,
-    protocol::{ActorMarker, FaceDirection, PlayerMarker},
+    protocol::{ActorMarker, FaceYaw, PlayerMarker},
 };
 
 use crate::constants::CHARACTER_VISUAL_TURN_MAX_SPEED;
 
-// Smoothly rotate the rendered character yaw toward the gameplay `FaceDirection`
-// at a capped angular speed. `FaceDirection` itself stays immediate (shooting
+// Smoothly rotate the rendered character yaw toward the gameplay `FaceYaw`
+// at a capped angular speed. `FaceYaw` itself stays immediate (shooting
 // and networking read it); only the visual lags behind it. The speed cap is the
 // whole point: however fast the server flips an actor's facing (e.g. an AI
 // thrashing while it can't reach a target), the model can only turn this much
 // per second, so it never spins — facing smoothness is decoupled from the AI.
 pub fn characters_visual_turn_system(
     time: Res<Time>,
-    mut query: Query<
-        (&FaceDirection, &mut Transform),
-        (Or<(With<PlayerMarker>, With<ActorMarker>)>, Without<Camera3d>),
-    >,
+    mut query: Query<(&FaceYaw, &mut Transform), (Or<(With<PlayerMarker>, With<ActorMarker>)>, Without<Camera3d>)>,
 ) {
     let max_step = CHARACTER_VISUAL_TURN_MAX_SPEED * time.delta_secs();
-    for (face_dir, mut transform) in &mut query {
+    for (face_yaw, mut transform) in &mut query {
         let current_yaw = transform.rotation.to_euler(EulerRot::YXZ).0;
-        transform.rotation = Quat::from_rotation_y(step_yaw_toward(current_yaw, face_dir.0, max_step));
+        transform.rotation = Quat::from_rotation_y(step_yaw_toward(current_yaw, face_yaw.0, max_step));
     }
 }
 

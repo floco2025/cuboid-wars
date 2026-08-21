@@ -29,7 +29,7 @@ pub fn ball_character_hit(
     ball_radius: f32,
     delta: f32,
     character_pos: &Position,
-    character_face_dir: f32,
+    character_face_yaw: f32,
     character_physics: CharacterPhysicsConfig,
 ) -> Option<BallCharacterHit> {
     let ball_shape = Ball::new(ball_radius);
@@ -40,7 +40,7 @@ pub fn ball_character_hit(
         ball_velocity.y * delta,
         ball_velocity.z * delta,
     );
-    let character_pose = oriented_character_pose(character_pos, character_face_dir, character_physics);
+    let character_pose = oriented_character_pose(character_pos, character_face_yaw, character_physics);
     let options = ShapeCastOptions {
         max_time_of_impact: 1.0,
         ..ShapeCastOptions::default()
@@ -76,21 +76,21 @@ pub fn ball_overlaps_character(
     ball_pos: &Position,
     ball_radius: f32,
     character_pos: &Position,
-    character_face_dir: f32,
+    character_face_yaw: f32,
     character_physics: CharacterPhysicsConfig,
 ) -> bool {
     let ball_shape = Ball::new(ball_radius);
     let character_collider = character_shape(character_physics);
     let ball_pose = Pose::translation(ball_pos.x, ball_pos.y, ball_pos.z);
-    let character_pose = oriented_character_pose(character_pos, character_face_dir, character_physics);
+    let character_pose = oriented_character_pose(character_pos, character_face_yaw, character_physics);
 
     intersection_test(&ball_pose, &ball_shape, &character_pose, &character_collider).is_ok_and(|overlaps| overlaps)
 }
 
-fn oriented_character_pose(pos: &Position, face_dir: f32, physics: CharacterPhysicsConfig) -> Pose {
+fn oriented_character_pose(pos: &Position, face_yaw: f32, physics: CharacterPhysicsConfig) -> Pose {
     Pose::from_parts(
         Vector::new(pos.x, physics.collider_center_y(pos.y), pos.z),
-        Quat::from_rotation_y(face_dir),
+        Quat::from_rotation_y(face_yaw),
     )
 }
 

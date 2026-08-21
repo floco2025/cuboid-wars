@@ -15,7 +15,7 @@ use crate::{
 use common::{
     config::GameplayConfig,
     physics::CharacterVerticalVelocity,
-    protocol::{FaceDirection, Player, PlayerId, PlayerMarker, PlayerMoveIntent, Position, PowerUpKind},
+    protocol::{FaceYaw, Player, PlayerId, PlayerMarker, PlayerMoveIntent, Position, PowerUpKind},
 };
 
 #[expect(
@@ -35,7 +35,7 @@ pub fn sync_players(
     seen_player_ids: &mut SeenPlayerIds,
     quest_log: &QuestLog,
     pending_banner: &mut PendingBanner,
-    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceYaw), With<PlayerMarker>>,
     camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     my_player_id: PlayerId,
     asset_server: &Res<AssetServer>,
@@ -123,20 +123,20 @@ pub fn sync_players(
         let entity = info.entity;
         // Adopt the server-assigned respawn facing. Without this the next
         // input frame recomputes yaw from the unchanged camera transform and
-        // overwrites `FaceDirection` with the pre-death facing.
+        // overwrites `FaceYaw` with the pre-death facing.
         apply_local_spawn_facing(
             commands,
             camera_query,
             local_player_info,
             &server_player.movement.pos,
-            server_player.face_dir,
+            server_player.movement.face_yaw,
         );
         commands.entity(info.entity).insert((
             server_player.movement.pos,
             // Reset the previous-tick anchor so render interpolation doesn't
             // smear the respawn teleport across one render frame.
             PreviousTickPosition(server_player.movement.pos),
-            FaceDirection(server_player.face_dir),
+            FaceYaw(server_player.movement.face_yaw),
             CharacterVerticalVelocity(server_player.movement.vertical_velocity),
             server_player.health,
             Visibility::Visible,
@@ -229,7 +229,7 @@ fn spawn_snapshot_player(
         &player.movement.pos,
         player.movement.move_intent,
         player.health,
-        player.face_dir,
+        player.movement.face_yaw,
         is_local,
     );
     commands
@@ -242,7 +242,7 @@ fn spawn_snapshot_player(
             camera_query,
             local_player_info,
             &player.movement.pos,
-            player.face_dir,
+            player.movement.face_yaw,
         );
     }
 
@@ -256,9 +256,9 @@ fn apply_local_spawn_facing(
     camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     local_player_info: &mut LocalPlayerInfo,
     pos: &Position,
-    face_dir: f32,
+    face_yaw: f32,
 ) {
-    let camera_rotation = face_dir + PI;
+    let camera_rotation = face_yaw + PI;
     if let Ok(camera_entity) = camera_query.single() {
         commands
             .entity(camera_entity)
@@ -272,7 +272,7 @@ fn update_snapshot_player(
     commands: &mut Commands,
     players: &mut ResMut<PlayerMap>,
     rtt: &ResMut<RoundTripTime>,
-    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
+    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceYaw), With<PlayerMarker>>,
     my_player_id: PlayerId,
     gameplay_config: &GameplayConfig,
     id: PlayerId,
@@ -287,9 +287,10 @@ fn update_snapshot_player(
             );
 
             if id != my_player_id {
-                commands
-                    .entity(client_player.entity)
-                    .insert(server_player.movement.move_intent);
+                commands.entity(client_player.entity).insert((
+                    server_player.movement.move_intent,
+                    FaceYaw(server_player.movement.face_yaw),
+                ));
             }
             commands.entity(client_player.entity).insert(ServerReconciliation::new(
                 *client_pos,

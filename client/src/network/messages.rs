@@ -14,8 +14,8 @@ use super::{
     },
     players::{
         handle_fall_damage_message, handle_player_blast_message, handle_player_death_message,
-        handle_player_face_message, handle_player_hit_message, handle_player_jump_message,
-        handle_player_move_intent_message, handle_player_shot_message, handle_player_status_message,
+        handle_player_hit_message, handle_player_jump_message, handle_player_move_message, handle_player_shot_message,
+        handle_player_status_message,
     },
     quests::{handle_quest_completed_message, handle_quest_progress_message, handle_quests_assigned_message},
     snapshot::handle_snapshot_message,
@@ -49,8 +49,8 @@ pub fn dispatch_message(
     rtt: &mut ResMut<RoundTripTime>,
     last_snapshot_seq: &mut ResMut<LastSnapshotSeq>,
     assets: &mut AssetManagers,
-    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceDirection), With<PlayerMarker>>,
-    actor_data: &Query<(&Position, &ActorMoveIntent, &FaceDirection), With<ActorMarker>>,
+    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceYaw), With<PlayerMarker>>,
+    actor_data: &Query<(&Position, &ActorMoveIntent, &FaceYaw), With<ActorMarker>>,
     cameras: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     time: &Res<Time>,
     collision_world: Option<&CollisionWorld>,
@@ -60,17 +60,17 @@ pub fn dispatch_message(
         ServerMessage::Init(_) => {
             error!("received Init more than once");
         }
-        ServerMessage::PlayerMoveIntent(move_intent_msg) => {
-            handle_player_move_intent_message(
+        ServerMessage::PlayerMove(move_msg) => {
+            handle_player_move_message(
                 commands,
                 players,
                 player_data,
                 rtt,
                 &client_assets.handles.gameplay_config,
-                move_intent_msg,
+                move_msg,
             );
         }
-        ServerMessage::ActorMoveIntent(move_intent_msg) => {
+        ServerMessage::ActorMove(move_intent_msg) => {
             handle_actor_move_intent_message(commands, actors, rtt, actor_data, move_intent_msg);
         }
         ServerMessage::ActorDeath(death_msg) => {
@@ -130,7 +130,7 @@ pub fn dispatch_message(
                 death_msg,
             );
         }
-        ServerMessage::Jump(jump_msg) => {
+        ServerMessage::PlayerJump(jump_msg) => {
             handle_player_jump_message(
                 commands,
                 players,
@@ -140,8 +140,7 @@ pub fn dispatch_message(
                 jump_msg,
             );
         }
-        ServerMessage::Face(face_msg) => handle_player_face_message(commands, players, face_msg),
-        ServerMessage::Shot(shot_msg) => {
+        ServerMessage::PlayerShot(shot_msg) => {
             handle_player_shot_message(
                 commands,
                 &client_assets.handles.projectile_assets,
@@ -221,7 +220,7 @@ pub fn dispatch_message(
                 launch_msg,
             );
         }
-        ServerMessage::MissileMoveIntent(intent_msg) => {
+        ServerMessage::MissileMove(intent_msg) => {
             handle_missile_move_intent_message(
                 commands,
                 &client_assets.world_sync.missile_map,
@@ -326,18 +325,16 @@ pub fn dispatch_message(
                 quest_msg,
             );
         }
-        ServerMessage::PressurePlatePressed(_) => {
+        ServerMessage::PressurePlate(plate_msg) => {
+            let sound = if plate_msg.pressed {
+                "plate_press"
+            } else {
+                "plate_release"
+            };
             play_sound(
                 commands,
                 &client_assets.handles.asset_server,
-                client_assets.handles.asset_set.player_sound("plate_press"),
-            );
-        }
-        ServerMessage::PressurePlateReleased(_) => {
-            play_sound(
-                commands,
-                &client_assets.handles.asset_server,
-                client_assets.handles.asset_set.player_sound("plate_release"),
+                client_assets.handles.asset_set.player_sound(sound),
             );
         }
         ServerMessage::AdminResponse(admin_msg) => {

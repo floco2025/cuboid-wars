@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
     physics::{CollisionWorld, OpenBarrierKinds, ProjectileMotion, projectile_overlaps_character},
-    protocol::{ActorId, ActorMarker, FaceDirection, PlayerId, PlayerMarker, Position, ProjectileMarker},
+    protocol::{ActorId, ActorMarker, FaceYaw, PlayerId, PlayerMarker, Position, ProjectileMarker},
 };
 
 use super::{
@@ -40,8 +40,8 @@ pub fn projectiles_movement_system(
         // `&Position` queries below (B0001).
         (With<ProjectileMarker>, Without<PlayerMarker>, Without<ActorMarker>),
     >,
-    player_query: Query<(Entity, &Position, &FaceDirection, &PlayerId, Has<LocalPlayerMarker>), With<PlayerMarker>>,
-    actor_query: Query<(&ActorId, &Position, &FaceDirection), With<ActorMarker>>,
+    player_query: Query<(Entity, &Position, &FaceYaw, &PlayerId, Has<LocalPlayerMarker>), With<PlayerMarker>>,
+    actor_query: Query<(&ActorId, &Position, &FaceYaw), With<ActorMarker>>,
     actors: Res<ActorMap>,
     collision_world: Option<Res<CollisionWorld>>,
     gameplay_config: Res<GameplayConfig>,
@@ -84,12 +84,12 @@ pub fn projectiles_movement_system(
             let overlaps_shooter = player_query
                 .iter()
                 .find(|(_, _, _, player_id, _)| *player_id == shooter_id)
-                .is_some_and(|(_, player_pos, face_dir, _, _)| {
+                .is_some_and(|(_, player_pos, face_yaw, _, _)| {
                     projectile_overlaps_character(
                         &projectile,
                         &projectile_pos,
                         player_pos,
-                        face_dir.0,
+                        face_yaw.0,
                         gameplay_config.player.physics(),
                     )
                 });

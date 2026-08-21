@@ -1,13 +1,13 @@
 use bevy::prelude::*;
 
 use super::PlayerMap;
-use crate::characters::{generate_player_spawn_position, spawn_face_direction};
+use crate::characters::{generate_player_spawn_position, spawn_face_yaw};
 use crate::map::MapConfig;
 use common::{
     config::GameplayConfig,
     map::MapGeometry,
     physics::{CharacterVerticalVelocity, CollisionWorld},
-    protocol::{FaceDirection, Health, PlayerId, PlayerMarker, PlayerMoveIntent, Position},
+    protocol::{FaceYaw, Health, PlayerId, PlayerMarker, PlayerMoveIntent, Position},
 };
 
 // Tick each dead player's respawn timer. When it elapses, spawn a fresh entity
@@ -50,7 +50,7 @@ pub fn players_respawn_system(
             &occupied_positions,
             gameplay_config.player.physics(),
         );
-        let face_dir = spawn_face_direction(&pos);
+        let face_yaw = spawn_face_yaw(&pos);
         let move_intent = PlayerMoveIntent::Idle;
         let entity = commands
             .spawn((
@@ -58,7 +58,7 @@ pub fn players_respawn_system(
                 id,
                 pos,
                 move_intent,
-                FaceDirection(face_dir),
+                FaceYaw(face_yaw),
                 CharacterVerticalVelocity::default(),
                 Health(gameplay_config.player.health().max),
             ))

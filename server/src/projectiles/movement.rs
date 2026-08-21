@@ -90,7 +90,7 @@ type ProjectilePlayerQuery<'w, 's> = Query<
     's,
     (
         &'static Position,
-        &'static FaceDirection,
+        &'static FaceYaw,
         &'static PlayerId,
         &'static mut Health,
     ),
@@ -102,7 +102,7 @@ type ProjectileActorQuery<'w, 's> = Query<
     's,
     (
         &'static Position,
-        &'static FaceDirection,
+        &'static FaceYaw,
         &'static ActorId,
         &'static mut Health,
     ),

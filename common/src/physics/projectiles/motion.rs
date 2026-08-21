@@ -30,8 +30,8 @@ pub struct ProjectileMotion {
 
 impl ProjectileMotion {
     #[must_use]
-    pub fn new(face_dir: f32, face_pitch: f32, config: &ProjectilesConfig) -> Self {
-        let velocity = crate::math::direction_from_yaw_pitch(face_dir, face_pitch) * config.speed;
+    pub fn new(face_yaw: f32, face_pitch: f32, config: &ProjectilesConfig) -> Self {
+        let velocity = crate::math::direction_from_yaw_pitch(face_yaw, face_pitch) * config.speed;
 
         Self {
             velocity,

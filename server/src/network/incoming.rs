@@ -29,7 +29,7 @@ pub type PlayerStateQuery<'w, 's> = Query<
     (
         &'static Position,
         &'static PlayerMoveIntent,
-        &'static FaceDirection,
+        &'static FaceYaw,
         &'static Health,
     ),
     With<PlayerMarker>,
@@ -41,7 +41,7 @@ pub type ActorStateQuery<'w, 's> = Query<
     (
         &'static Position,
         &'static ActorMoveIntent,
-        &'static FaceDirection,
+        &'static FaceYaw,
         &'static Health,
     ),
     With<ActorMarker>,

@@ -27,7 +27,7 @@ pub fn input_missile_system(
     keyboard: Res<ButtonInput<KeyCode>>,
     cursor_options: Single<&CursorOptions>,
     camera_query: Query<&Transform, (With<Camera3d>, With<MainCameraMarker>)>,
-    local_player_query: Query<&FaceDirection, With<LocalPlayerMarker>>,
+    local_player_query: Query<&FaceYaw, With<LocalPlayerMarker>>,
     to_server: Res<ClientToServerChannel>,
     asset_server: Res<AssetServer>,
     asset_set: Res<AssetSet>,
@@ -53,7 +53,7 @@ pub fn input_missile_system(
     let Some(my_id) = my_player_id else {
         return;
     };
-    let Some(face_dir) = local_player_query.iter().next() else {
+    let Some(face_yaw) = local_player_query.iter().next() else {
         return;
     };
 
@@ -77,7 +77,7 @@ pub fn input_missile_system(
 
     let _ = to_server.send(ClientToServer::Send(ClientMessage::MissileShot(CMissileShot {
         target,
-        face_dir: face_dir.0,
+        face_yaw: face_yaw.0,
         face_pitch: pitch,
     })));
     // No launch sound here: the server may still reject the shot (target

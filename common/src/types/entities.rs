@@ -26,7 +26,7 @@ pub struct ProjectileMarker;
 pub struct Actor {
     pub kind: String,
     pub movement: ActorMovementState,
-    pub face_dir: f32,
+    pub face_yaw: f32,
     pub health: Health,
 }
 
@@ -39,18 +39,18 @@ pub struct Actor {
 pub struct SpawningActor {
     pub kind: String,
     pub pos: Position,
-    pub face_dir: f32,
+    pub face_yaw: f32,
     pub remaining_secs: f32,
     pub warning_secs: f32,
 }
 
 impl Actor {
     #[must_use]
-    pub const fn new(kind: String, pos: Position, move_intent: ActorMoveIntent, face_dir: f32, health: Health) -> Self {
+    pub const fn new(kind: String, pos: Position, move_intent: ActorMoveIntent, face_yaw: f32, health: Health) -> Self {
         Self {
             kind,
             movement: ActorMovementState::new(pos, move_intent, 0.0),
-            face_dir,
+            face_yaw,
             health,
         }
     }
@@ -59,8 +59,8 @@ impl Actor {
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct Player {
     pub name: String,
+    // Carries facing too (`face_yaw`) — no separate field.
     pub movement: PlayerMovementState,
-    pub face_dir: f32,
     pub health: Health,
     pub score: i32,
     // One bool per `PowerUpKind`, indexed by `PowerUpKind::index()`.
@@ -76,14 +76,13 @@ impl Player {
         name: String,
         pos: Position,
         move_intent: PlayerMoveIntent,
-        face_dir: f32,
+        face_yaw: f32,
         score: i32,
         health: Health,
     ) -> Self {
         Self {
             name,
-            movement: PlayerMovementState::new(pos, move_intent, 0.0),
-            face_dir,
+            movement: PlayerMovementState::new(pos, move_intent, 0.0, face_yaw),
             health,
             score,
             power_ups: [false; PowerUpKind::COUNT],

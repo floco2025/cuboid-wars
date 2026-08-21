@@ -13,13 +13,13 @@ use crate::{
 use common::{
     config::GameplayConfig,
     physics::{CollisionWorld, acquire_lock},
-    protocol::{ActorMarker, FaceDirection, HomingTarget, MissileMarker, PlayerMarker, Position},
+    protocol::{ActorMarker, FaceYaw, HomingTarget, MissileMarker, PlayerMarker, Position},
 };
 
 type LockCandidateQuery<'w, 's> = Query<
     'w,
     's,
-    (&'static Position, &'static FaceDirection),
+    (&'static Position, &'static FaceYaw),
     (Or<(With<PlayerMarker>, With<ActorMarker>)>, Without<MissileMarker>),
 >;
 
@@ -91,20 +91,20 @@ fn compute_lock(
         .iter()
         .filter(|(id, _)| **id != my_id.0)
         .filter_map(|(id, info)| {
-            let (pos, face_dir) = character_data.get(info.entity).ok()?;
+            let (pos, face_yaw) = character_data.get(info.entity).ok()?;
             Some((
                 HomingTarget::Player(*id),
                 *pos,
-                face_dir.0,
+                face_yaw.0,
                 gameplay_config.player.physics(),
             ))
         })
         .chain(actors.iter().filter_map(|(id, info)| {
-            let (pos, face_dir) = character_data.get(info.entity).ok()?;
+            let (pos, face_yaw) = character_data.get(info.entity).ok()?;
             Some((
                 HomingTarget::Actor(*id),
                 *pos,
-                face_dir.0,
+                face_yaw.0,
                 gameplay_config.expect_actor(&info.kind).physics(),
             ))
         }))

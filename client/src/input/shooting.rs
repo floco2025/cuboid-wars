@@ -34,7 +34,7 @@ pub fn input_shooting_system(
     mut commands: Commands,
     mouse: Res<ButtonInput<MouseButton>>,
     cursor_options: Single<&CursorOptions>,
-    local_player_query: Query<(&Position, &FaceDirection), With<LocalPlayerMarker>>,
+    local_player_query: Query<(&Position, &FaceYaw), With<LocalPlayerMarker>>,
     camera_query: Query<&Transform, (With<Camera3d>, With<MainCameraMarker>)>,
     to_server: Res<ClientToServerChannel>,
     asset_server: Res<AssetServer>,
@@ -57,7 +57,7 @@ pub fn input_shooting_system(
 
     if cursor_locked
         && mouse.just_pressed(MouseButton::Left)
-        && let Some((pos, face_dir)) = local_player_query.iter().next()
+        && let Some((pos, face_yaw)) = local_player_query.iter().next()
     {
         let now = time.elapsed_secs();
 
@@ -80,7 +80,7 @@ pub fn input_shooting_system(
 
         // Send shot message with current face direction to server
         let shot_msg = ClientMessage::Shot(CShot {
-            face_dir: face_dir.0,
+            face_yaw: face_yaw.0,
             face_pitch: pitch,
         });
         let _ = to_server.send(ClientToServer::Send(shot_msg));
@@ -98,7 +98,7 @@ pub fn input_shooting_system(
                 &mut commands,
                 &projectile_assets,
                 pos,
-                face_dir.0,
+                face_yaw.0,
                 pitch,
                 has_multi_shot,
                 gameplay_config.player.eye_height(),

@@ -13,7 +13,7 @@ use common::{
     config::GameplayConfig,
     map::MapGeometry,
     physics::{CharacterVerticalVelocity, CollisionWorld},
-    protocol::{ActorMarker, ActorMoveIntent, FaceDirection, Health, PlayerMarker, Position},
+    protocol::{ActorMarker, ActorMoveIntent, FaceYaw, Health, PlayerMarker, Position},
 };
 
 // Per-tick decision for one zone: spawn now, tick the cooldown down, or skip.
@@ -240,7 +240,7 @@ fn queue_actor_spawn_in_zone(
         zone_idx,
         kind: spawn_kind.to_string(),
         pos,
-        face_dir: rng.random_range(0.0..TAU),
+        face_yaw: rng.random_range(0.0..TAU),
         remaining_secs: kind_server_config.respawn.warning_secs,
         warning_secs: kind_server_config.respawn.warning_secs,
     });
@@ -255,7 +255,7 @@ fn materialize_actor(
     spawn: PendingActorSpawn,
 ) {
     let move_intent = ActorMoveIntent::Moving {
-        direction: spawn.face_dir,
+        direction: spawn.face_yaw,
         speed: actor_config.patrol_speed,
     };
     let entity = commands
@@ -264,7 +264,7 @@ fn materialize_actor(
             spawn.actor_id,
             spawn.pos,
             move_intent,
-            FaceDirection(spawn.face_dir),
+            FaceYaw(spawn.face_yaw),
             CharacterVerticalVelocity::default(),
             Health(actor_config.health().max),
         ))
@@ -428,7 +428,7 @@ mod tests {
             zone_idx: 0,
             kind: "zapper".to_string(),
             pos: Position::default(),
-            face_dir: 0.0,
+            face_yaw: 0.0,
             remaining_secs,
             warning_secs: 2.0,
         }

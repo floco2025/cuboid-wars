@@ -35,8 +35,8 @@ pub fn acquire_lock(
     let origin_pos = Position::from(origin);
 
     let mut best: Option<(f32, HomingTarget)> = None;
-    for (target, pos, face_dir, physics) in candidates {
-        let Some(hit) = ball_character_hit(&origin_pos, translation, assist_radius, 1.0, &pos, face_dir, physics)
+    for (target, pos, face_yaw, physics) in candidates {
+        let Some(hit) = ball_character_hit(&origin_pos, translation, assist_radius, 1.0, &pos, face_yaw, physics)
         else {
             continue;
         };

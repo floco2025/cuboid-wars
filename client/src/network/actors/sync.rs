@@ -10,9 +10,7 @@ use crate::{
 use common::{
     config::GameplayConfig,
     physics::CharacterVerticalVelocity,
-    protocol::{
-        Actor, ActorId, ActorMarker, ActorMoveIntent, ActorMovementState, FaceDirection, Position, SpawningActor,
-    },
+    protocol::{Actor, ActorId, ActorMarker, ActorMoveIntent, ActorMovementState, FaceYaw, Position, SpawningActor},
 };
 
 pub fn sync_actors(
@@ -22,7 +20,7 @@ pub fn sync_actors(
     graphs: &mut ResMut<Assets<AnimationGraph>>,
     actors: &mut ResMut<ActorMap>,
     rtt: &ResMut<RoundTripTime>,
-    actor_data: &Query<(&Position, &ActorMoveIntent, &FaceDirection), With<ActorMarker>>,
+    actor_data: &Query<(&Position, &ActorMoveIntent, &FaceYaw), With<ActorMarker>>,
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
     client_settings: &ClientSettings,
@@ -77,7 +75,7 @@ pub fn sync_actors(
             actor_data,
             *id,
             server_actor.movement,
-            Some(server_actor.face_dir),
+            Some(server_actor.face_yaw),
         );
     }
 }
@@ -124,10 +122,10 @@ pub(super) fn apply_actor_movement_state(
     commands: &mut Commands,
     actors: &ResMut<ActorMap>,
     rtt: &ResMut<RoundTripTime>,
-    actor_data: &Query<(&Position, &ActorMoveIntent, &FaceDirection), With<ActorMarker>>,
+    actor_data: &Query<(&Position, &ActorMoveIntent, &FaceYaw), With<ActorMarker>>,
     id: ActorId,
     movement: ActorMovementState,
-    face_dir: Option<f32>,
+    face_yaw: Option<f32>,
 ) {
     let Some(client_actor) = actors.get(&id) else {
         return;
@@ -138,8 +136,8 @@ pub(super) fn apply_actor_movement_state(
         movement.move_intent,
         CharacterVerticalVelocity(movement.vertical_velocity),
     ));
-    if let Some(face_dir) = face_dir {
-        commands.entity(client_actor.entity).insert(FaceDirection(face_dir));
+    if let Some(face_yaw) = face_yaw {
+        commands.entity(client_actor.entity).insert(FaceYaw(face_yaw));
     }
 
     if let Ok((client_pos, _, _)) = actor_data.get(client_actor.entity) {

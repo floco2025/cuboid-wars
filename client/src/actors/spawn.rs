@@ -11,7 +11,7 @@ use crate::{
 use common::{
     config::GameplayConfig,
     physics::CharacterVerticalVelocity,
-    protocol::{Actor, ActorId, ActorMarker, FaceDirection, SpawningActor},
+    protocol::{Actor, ActorId, ActorMarker, FaceYaw, SpawningActor},
 };
 
 pub fn spawn_actor(
@@ -39,14 +39,14 @@ pub fn spawn_actor(
             PreviousTickPosition(actor.movement.pos),
             actor.movement.move_intent,
             actor.health,
-            FaceDirection(actor.face_dir),
+            FaceYaw(actor.face_yaw),
             CharacterVerticalVelocity(actor.movement.vertical_velocity),
             Transform::from_xyz(
                 actor.movement.pos.x,
                 actor_physics.collider_center_y(actor.movement.pos.y),
                 actor.movement.pos.z,
             )
-            .with_rotation(Quat::from_rotation_y(actor.face_dir)),
+            .with_rotation(Quat::from_rotation_y(actor.face_yaw)),
             Visibility::Visible,
         ))
         .id();
@@ -146,7 +146,7 @@ pub fn spawn_actor_ghost(
                 actor_physics.collider_center_y(spawning.pos.y),
                 spawning.pos.z,
             )
-            .with_rotation(Quat::from_rotation_y(spawning.face_dir)),
+            .with_rotation(Quat::from_rotation_y(spawning.face_yaw)),
             Visibility::Visible,
             beam_in_ghost_state(gameplay_config, spawning),
             BeamEmitter::default(),

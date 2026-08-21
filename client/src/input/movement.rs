@@ -7,7 +7,7 @@ use bevy::{
 use common::{
     config::GameplayConfig,
     physics::{CharacterVerticalVelocity, CollisionWorld, try_start_player_jump},
-    protocol::{CJump, ClientMessage, FaceDirection, PlayerMoveIntent, Position},
+    protocol::{CJump, ClientMessage, FaceYaw, PlayerMoveIntent, Position},
 };
 use std::f32::consts::{FRAC_PI_2, PI};
 
@@ -27,14 +27,14 @@ type LocalPlayerInputQuery<'w, 's> = Query<
     (
         &'static Position,
         &'static mut PlayerMoveIntent,
-        &'static mut FaceDirection,
+        &'static mut FaceYaw,
         &'static mut CharacterVerticalVelocity,
     ),
     With<LocalPlayerMarker>,
 >;
 
 // Handle WASD movement and mouse rotation at render rate. Writes
-// `PlayerMoveIntent` and `FaceDirection` to the local-player ECS components
+// `PlayerMoveIntent` and `FaceYaw` to the local-player ECS components
 // continuously so the camera and local prediction stay smooth; the network
 // commit happens once per game tick in `commit_player_input_system`. Jumps
 // are sent immediately on key-press — discrete events feel best with no

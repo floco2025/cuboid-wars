@@ -10,7 +10,7 @@ use crate::{
     vfx::{ExplosionSpawnCtx, spawn_missile_explosion},
 };
 use common::protocol::{
-    MissileMarker, PlayerId, Position, SMissileDeath, SMissileLaunch, SMissileMoveIntent, SMissilesCollected,
+    MissileMarker, PlayerId, Position, SMissileDeath, SMissileLaunch, SMissileMove, SMissilesCollected,
 };
 
 // A missile launched. Spawn it now — clients don't predict missile spawns,
@@ -51,7 +51,7 @@ pub fn handle_missile_move_intent_message(
     missiles: &MissileMap,
     rtt: &ResMut<RoundTripTime>,
     missile_data: &Query<&Position, With<MissileMarker>>,
-    msg: SMissileMoveIntent,
+    msg: SMissileMove,
 ) {
     apply_missile_movement_state(commands, missiles, rtt, missile_data, msg.id, msg.movement);
 }

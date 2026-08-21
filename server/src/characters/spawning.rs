@@ -16,7 +16,7 @@ const SPAWN_MAX_ATTEMPTS: usize = 100;
 // The negation + atan2 argument order is the non-obvious part, so the rule
 // lives in one place shared by login and respawn.
 #[must_use]
-pub fn spawn_face_direction(pos: &Position) -> f32 {
+pub fn spawn_face_yaw(pos: &Position) -> f32 {
     (-pos.x).atan2(-pos.z)
 }
 

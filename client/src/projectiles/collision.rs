@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
     physics::{BallCharacterHit, CollisionWorld, ProjectileMotion, projectile_character_hit},
-    protocol::{ActorId, ActorMarker, BarrierKindId, FaceDirection, PlayerId, PlayerMarker, Position},
+    protocol::{ActorId, ActorMarker, BarrierKindId, FaceYaw, PlayerId, PlayerMarker, Position},
 };
 
 use super::audio::{
@@ -28,14 +28,14 @@ pub(super) fn handle_character_collisions(
     proj_pos: &Position,
     delta: f32,
     shooter_id: PlayerId,
-    player_query: &Query<(Entity, &Position, &FaceDirection, &PlayerId, Has<LocalPlayerMarker>), With<PlayerMarker>>,
-    actor_query: &Query<(&ActorId, &Position, &FaceDirection), With<ActorMarker>>,
+    player_query: &Query<(Entity, &Position, &FaceYaw, &PlayerId, Has<LocalPlayerMarker>), With<PlayerMarker>>,
+    actor_query: &Query<(&ActorId, &Position, &FaceYaw), With<ActorMarker>>,
     actors: &ActorMap,
     gameplay_config: &GameplayConfig,
 ) -> bool {
     let mut closest_hit = None;
 
-    for (_player_entity, player_pos, face_dir, player_id, is_local_player) in player_query.iter() {
+    for (_player_entity, player_pos, face_yaw, player_id, is_local_player) in player_query.iter() {
         // Self-hits only count once the projectile has left the shooter's
         // hitbox (see `ProjectileMotion::left_shooter`).
         if shooter_id == *player_id && !proj_motion.left_shooter {
@@ -47,7 +47,7 @@ pub(super) fn handle_character_collisions(
             proj_motion,
             delta,
             player_pos,
-            face_dir.0,
+            face_yaw.0,
             gameplay_config.player.physics(),
         ) {
             closest_hit = Some(closer_hit(
@@ -57,7 +57,7 @@ pub(super) fn handle_character_collisions(
         }
     }
 
-    for (actor_id, actor_pos, face_dir) in actor_query.iter() {
+    for (actor_id, actor_pos, face_yaw) in actor_query.iter() {
         let Some(info) = actors.get(actor_id) else {
             continue;
         };
@@ -65,7 +65,7 @@ pub(super) fn handle_character_collisions(
             .actor(&info.kind)
             .expect("actor kind sent by server is missing from gameplay config")
             .physics();
-        if let Some(hit) = projectile_character_hit(proj_pos, proj_motion, delta, actor_pos, face_dir.0, actor_physics)
+        if let Some(hit) = projectile_character_hit(proj_pos, proj_motion, delta, actor_pos, face_yaw.0, actor_physics)
         {
             closest_hit = Some(closer_hit(closest_hit, ProjectileTargetHit::Actor { hit }));
         }

@@ -12,7 +12,7 @@ pub fn projectile_character_hit(
     proj_motion: &ProjectileMotion,
     delta: f32,
     character_pos: &Position,
-    character_face_dir: f32,
+    character_face_yaw: f32,
     character_physics: CharacterPhysicsConfig,
 ) -> Option<BallCharacterHit> {
     ball_character_hit(
@@ -21,7 +21,7 @@ pub fn projectile_character_hit(
         proj_motion.radius,
         delta,
         character_pos,
-        character_face_dir,
+        character_face_yaw,
         character_physics,
     )
 }
@@ -34,14 +34,14 @@ pub fn projectile_overlaps_character(
     proj_motion: &ProjectileMotion,
     proj_pos: &Position,
     character_pos: &Position,
-    character_face_dir: f32,
+    character_face_yaw: f32,
     character_physics: CharacterPhysicsConfig,
 ) -> bool {
     ball_overlaps_character(
         proj_pos,
         proj_motion.radius,
         character_pos,
-        character_face_dir,
+        character_face_yaw,
         character_physics,
     )
 }

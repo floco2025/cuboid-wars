@@ -114,8 +114,9 @@ impl PlayerMap {
 #[derive(Resource)]
 pub struct LocalPlayerInfo {
     pub last_shot_time: f32,
-    pub last_sent_move_intent: PlayerMoveIntent,
-    pub last_sent_face: f32,
+    // The `CMove` state (intent, yaw) most recently committed to the server;
+    // the commit system diffs against it.
+    pub last_sent_move: (PlayerMoveIntent, f32),
     pub stored_yaw: f32,
     pub stored_pitch: f32,
     // True from the moment the local player vanishes from `SSnapshot` until
@@ -128,8 +129,7 @@ impl Default for LocalPlayerInfo {
     fn default() -> Self {
         Self {
             last_shot_time: f32::NEG_INFINITY,
-            last_sent_move_intent: PlayerMoveIntent::default(),
-            last_sent_face: 0.0,
+            last_sent_move: (PlayerMoveIntent::default(), 0.0),
             stored_yaw: 0.0,
             stored_pitch: 0.0,
             is_dead: false,
@@ -145,8 +145,7 @@ mod tests {
     fn snapshot_player() -> Player {
         Player {
             name: "Alice".to_owned(),
-            movement: PlayerMovementState::new(Position::default(), PlayerMoveIntent::default(), 0.0),
-            face_dir: 0.0,
+            movement: PlayerMovementState::new(Position::default(), PlayerMoveIntent::default(), 0.0, 0.0),
             health: Health(100.0),
             score: 7,
             power_ups: [true, true, false],

@@ -31,7 +31,7 @@ struct PlayerBundle {
     move_intent: PlayerMoveIntent,
     motion: CharacterVerticalVelocity,
     health: Health,
-    face_direction: FaceDirection,
+    face_direction: FaceYaw,
     transform: Transform,
     visibility: Visibility,
 }
@@ -56,7 +56,7 @@ pub fn spawn_player(
     position: &Position,
     move_intent: PlayerMoveIntent,
     health: Health,
-    face_dir: f32,
+    face_yaw: f32,
     is_local: bool,
 ) -> Entity {
     let player_model = asset_set.player_model();
@@ -81,9 +81,9 @@ pub fn spawn_player(
                 move_intent,
                 motion: CharacterVerticalVelocity::default(),
                 health,
-                face_direction: FaceDirection(face_dir),
+                face_direction: FaceYaw(face_yaw),
                 transform: Transform::from_xyz(position.x, player_physics.collider_center_y(position.y), position.z)
-                    .with_rotation(Quat::from_rotation_y(face_dir)),
+                    .with_rotation(Quat::from_rotation_y(face_yaw)),
                 visibility: player_visibility(is_local),
             },
             PreviousTickPosition(*position),

@@ -67,7 +67,7 @@ pub const RECON_MISSILE_SNAP_DISTANCE: f32 = 1.5;
 // ============================================================================
 
 // Max angular speed (rad/s) at which the rendered character yaw slews toward
-// the gameplay `FaceDirection`. The cap is what makes the visual robust: no
+// the gameplay `FaceYaw`. The cap is what makes the visual robust: no
 // matter how fast the server changes facing, the model turns at most this much
 // per second and can never spin. ~12 rad/s ⇒ a 180° turn takes ~0.26 s.
 pub const CHARACTER_VISUAL_TURN_MAX_SPEED: f32 = 12.0;

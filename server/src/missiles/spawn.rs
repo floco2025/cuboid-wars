@@ -46,7 +46,7 @@ pub fn handle_missile_shot_message(
     // Untrusted boundary: drop non-finite aim before it becomes a NaN
     // velocity. Checked before the ammo/cooldown gate so a bad message
     // doesn't burn a missile.
-    if !(msg.face_dir.is_finite() && msg.face_pitch.is_finite()) {
+    if !(msg.face_yaw.is_finite() && msg.face_pitch.is_finite()) {
         return;
     }
 
@@ -66,26 +66,26 @@ pub fn handle_missile_shot_message(
     // the target's drift over the message's RTT. With `require_lock` off, a
     // shot whose claim fails (or that never claimed) launches unguided along
     // the aim instead; with it on, it drops silently.
-    let aim = common::math::direction_from_yaw_pitch(msg.face_dir, msg.face_pitch);
+    let aim = common::math::direction_from_yaw_pitch(msg.face_yaw, msg.face_pitch);
     let validated = msg.target.filter(|claimed| {
         let candidates = players
             .iter()
             .filter(|(target_id, _)| **target_id != id)
             .filter_map(|(target_id, info)| {
-                let (pos, _, face_dir, _) = player_data.get(info.entity).ok()?;
+                let (pos, _, face_yaw, _) = player_data.get(info.entity).ok()?;
                 Some((
                     HomingTarget::Player(*target_id),
                     *pos,
-                    face_dir.0,
+                    face_yaw.0,
                     gameplay_config.player.physics(),
                 ))
             })
             .chain(actors.iter().filter_map(|(target_id, info)| {
-                let (pos, _, face_dir, _) = actor_data.get(info.entity).ok()?;
+                let (pos, _, face_yaw, _) = actor_data.get(info.entity).ok()?;
                 Some((
                     HomingTarget::Actor(*target_id),
                     *pos,
-                    face_dir.0,
+                    face_yaw.0,
                     gameplay_config.expect_actor(&info.spawn_kind).physics(),
                 ))
             }))
@@ -107,7 +107,7 @@ pub fn handle_missile_shot_message(
         return;
     }
 
-    commands.entity(entity).insert(FaceDirection(msg.face_dir));
+    commands.entity(entity).insert(FaceYaw(msg.face_yaw));
 
     let missile_config = server_gameplay_config.missiles;
     let dir = aim;
