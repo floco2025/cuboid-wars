@@ -1,14 +1,11 @@
 use bevy::{asset::RenderAssetUsages, light::NotShadowCaster, prelude::*, render::render_resource::PrimitiveTopology};
 
+use crate::constants::{LADDER_RAIL_HALF_THICKNESS, LADDER_RUNG_HALF_THICKNESS, LADDER_RUNG_SPACING};
 use crate::map::MapLevel;
 use common::{
     constants::{LADDER_OVERSHOOT, LADDER_RAIL_INSET, LADDER_WIDTH, LEVEL_HEIGHT},
     protocol::Ladder,
 };
-
-const RAIL_HALF_THICKNESS: f32 = 0.035;
-const RUNG_HALF_THICKNESS: f32 = 0.025;
-const RUNG_SPACING: f32 = 0.35;
 
 // Marks the ladder entity; `levels` is the spanned storey count so level
 // focus can show the ladder from every level it passes through.
@@ -61,19 +58,21 @@ fn build_ladder_mesh(ladder: &Ladder, tile_size: f32) -> Mesh {
 
     let mut boxes = BoxMeshData::new(tile_size);
 
-    let rail_half =
-        along.abs() * RAIL_HALF_THICKNESS + normal.abs() * RAIL_HALF_THICKNESS + Vec3::Y * ((top_y - base_y) / 2.0);
+    let rail_half = along.abs() * LADDER_RAIL_HALF_THICKNESS
+        + normal.abs() * LADDER_RAIL_HALF_THICKNESS
+        + Vec3::Y * ((top_y - base_y) / 2.0);
     let rail_lift = Vec3::Y * ((top_y - base_y) / 2.0);
-    boxes.push_box(a + along * RAIL_HALF_THICKNESS + inset + rail_lift, rail_half);
-    boxes.push_box(b - along * RAIL_HALF_THICKNESS + inset + rail_lift, rail_half);
+    boxes.push_box(a + along * LADDER_RAIL_HALF_THICKNESS + inset + rail_lift, rail_half);
+    boxes.push_box(b - along * LADDER_RAIL_HALF_THICKNESS + inset + rail_lift, rail_half);
 
-    let rung_half =
-        along.abs() * (LADDER_WIDTH / 2.0) + normal.abs() * RUNG_HALF_THICKNESS + Vec3::Y * RUNG_HALF_THICKNESS;
+    let rung_half = along.abs() * (LADDER_WIDTH / 2.0)
+        + normal.abs() * LADDER_RUNG_HALF_THICKNESS
+        + Vec3::Y * LADDER_RUNG_HALF_THICKNESS;
     let mid = a.midpoint(b) + inset;
-    let mut rung_y = base_y + RUNG_SPACING;
-    while rung_y < top_y - RUNG_HALF_THICKNESS {
+    let mut rung_y = base_y + LADDER_RUNG_SPACING;
+    while rung_y < top_y - LADDER_RUNG_HALF_THICKNESS {
         boxes.push_box(Vec3::new(mid.x, rung_y, mid.z), rung_half);
-        rung_y += RUNG_SPACING;
+        rung_y += LADDER_RUNG_SPACING;
     }
 
     boxes.into_mesh()

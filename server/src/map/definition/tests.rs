@@ -709,8 +709,9 @@ fn ladder_compiles_to_world_segment_and_normal() {
     // 4x4 grid centered on the origin: cell (1,1) spans world -3.4..0.0 on
     // both axes; its north edge lies at z = -3.4 with the cell center at
     // x = -1.7. The segment is LADDER_WIDTH wide around that midpoint.
-    assert!((out.x1 - -2.2).abs() < 1e-5);
-    assert!((out.x2 - -1.2).abs() < 1e-5);
+    let half_width = common::constants::LADDER_WIDTH / 2.0;
+    assert!((out.x1 - (-1.7 - half_width)).abs() < 1e-5);
+    assert!((out.x2 - (-1.7 + half_width)).abs() < 1e-5);
     assert!((out.z1 - -3.4).abs() < 1e-5);
     assert!((out.z2 - -3.4).abs() < 1e-5);
     assert_eq!((out.nx, out.nz), (0.0, -1.0));

@@ -5,9 +5,10 @@ use crate::characters::{generate_player_spawn_position, spawn_face_yaw};
 use crate::combat::{PendingExplosions, kill_player};
 use crate::map::MapConfig;
 use crate::network::ServerToClient;
+use common::constants::CHARACTER_FALL_DEATH_Y;
 use common::{
     config::GameplayConfig,
-    constants::{CHARACTER_FALL_DEATH_Y, CHARACTER_GROUND_SNAP_DISTANCE, PHYSICS_EPSILON, TICK_SECS},
+    constants::{CHARACTER_GROUND_SNAP_DISTANCE, PHYSICS_EPSILON, TICK_SECS},
     health::apply_damage,
     map::MapGeometry,
     physics::{CharacterVerticalVelocity, CollisionWorld},

@@ -81,7 +81,8 @@ pub fn emit_stacked_wall_trim(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use common::constants::{GRID_CELL_SIZE, LEVEL_HEIGHT, WALL_HALF_THICKNESS};
+    use common::constants::WALL_HALF_THICKNESS;
+    use common::constants::{GRID_CELL_SIZE, LEVEL_HEIGHT};
 
     fn empty_mask(cols: usize, rows: usize) -> Mask {
         vec![vec![false; cols]; rows]

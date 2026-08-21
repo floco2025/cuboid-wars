@@ -17,10 +17,6 @@ pub const WALL_HEIGHT: f32 = 4.0;
 // (`passable_barrier_kinds`).
 pub const BARRIER_THICKNESS: f32 = WALL_THICKNESS / 6.0;
 pub const BARRIER_HEIGHT: f32 = WALL_HEIGHT;
-// Visual overlap into adjacent floors and walls to win the depth test where
-// surfaces would otherwise be coplanar. The barrier mesh grows by this amount
-// at each end (along the segment) and at top/bottom (in Y).
-pub const BARRIER_OVERLAP_EPS: f32 = 0.01;
 
 // Floors
 pub const FLOOR_THICKNESS: f32 = 0.4;
@@ -28,13 +24,13 @@ pub const FLOOR_THICKNESS: f32 = 0.4;
 // Ladders. Freestanding climbable elements anchored on grid edges, climbable
 // from both sides of the edge plane. No Rapier collider — the character step
 // queries the derived volumes directly.
-pub const LADDER_WIDTH: f32 = 1.0;
+pub const LADDER_WIDTH: f32 = 1.2;
 // How far the climb volume extends from the edge plane, on each side.
 pub const LADDER_VOLUME_DEPTH: f32 = 0.8;
 // Volume and rails extend this far above the top storey's floor surface so
 // the last climb tick leaves the feet over the landing and stepping off the
 // landing edge immediately re-enters the volume.
-pub const LADDER_OVERSHOOT: f32 = 0.3;
+pub const LADDER_OVERSHOOT: f32 = 0.5;
 // How far the rails stand off the anchoring grid edge, on the authored
 // side. The physics plane runs THROUGH the rails — the ladder is where it
 // looks like it is — so both the climb hold and the fence are measured from

@@ -1,6 +1,7 @@
 use super::edges::{has_horizontal_edge, has_vertical_edge};
 use crate::map::EdgeGrid;
-use common::{constants::*, map::MapGeometry, protocol::Floor};
+use common::constants::WALL_HALF_THICKNESS;
+use common::{map::MapGeometry, protocol::Floor};
 
 // Epsilon for merging adjacent segments.
 pub(super) const MERGE_EPS: f32 = 0.01;

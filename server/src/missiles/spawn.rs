@@ -11,9 +11,10 @@ use crate::{
     network::{ActorStateQuery, PlayerStateQuery, broadcast_to_all},
     players::{PlayerInfo, PlayerMap},
 };
+use common::constants::MISSILE_SPAWN_OFFSET;
 use common::{
     config::GameplayConfig,
-    constants::{MISSILE_RADIUS, MISSILE_SPAWN_OFFSET},
+    constants::MISSILE_RADIUS,
     physics::{CollisionWorld, acquire_lock},
     protocol::*,
 };

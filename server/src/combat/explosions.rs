@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use bevy::{ecs::system::SystemParam, prelude::*};
 use common::{
     config::GameplayConfig,
-    constants::EXPLOSION_BLAST_CORE_FRACTION,
     health::apply_damage,
     physics::{CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, character_center},
     protocol::{ActorId, ActorMarker, Health, PlayerId, PlayerMarker, Position, SPlayerBlast, ServerMessage},
@@ -16,6 +15,7 @@ use crate::{
     network::ServerToClient,
     players::{Invincibility, PlayerMap},
 };
+use common::constants::EXPLOSION_BLAST_CORE_FRACTION;
 
 type PlayerBlastQuery<'w, 's> = Query<
     'w,

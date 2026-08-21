@@ -426,3 +426,19 @@ pub const LASER_EMISSIVE: f32 = 40.0;
 pub const LASER_ENDPOINT_WANDER_WIDTH_FRACTION: f32 = 0.4;
 pub const LASER_ENDPOINT_WANDER_HEIGHT_FRACTION: f32 = 0.2;
 pub const LASER_AIM_HEIGHT_FRACTION: f32 = 0.6;
+
+// ============================================================================
+// Map Rendering
+// ============================================================================
+
+// Visual overlap into adjacent floors and walls to win the depth test where
+// surfaces would otherwise be coplanar. The barrier mesh grows by this amount
+// at each end (along the segment) and at top/bottom (in Y).
+pub const BARRIER_OVERLAP_EPS: f32 = 0.01;
+
+// Ladder rail and rung bar half-extents (full bar = 2x) and vertical rung
+// spacing. Cosmetic only — the physics climbs the shared volume and rail
+// plane (`common::constants::LADDER_*`), never the rungs.
+pub const LADDER_RAIL_HALF_THICKNESS: f32 = 0.055;
+pub const LADDER_RUNG_HALF_THICKNESS: f32 = 0.04;
+pub const LADDER_RUNG_SPACING: f32 = 0.5;

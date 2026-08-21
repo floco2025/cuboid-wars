@@ -5,10 +5,8 @@ use crate::{
     combat::{PendingExplosions, kill_actor},
     players::PlayerMap,
 };
-use common::{
-    constants::CHARACTER_FALL_DEATH_Y,
-    protocol::{ActorId, ActorMarker, Health, PlayerId, Position},
-};
+use common::constants::CHARACTER_FALL_DEATH_Y;
+use common::protocol::{ActorId, ActorMarker, Health, PlayerId, Position};
 
 // Despawn actors that have either fallen below the death threshold or had
 // their health reduced to zero. Health-zero death broadcasts its cue and

@@ -1,8 +1,9 @@
 use super::definition::{WallLightDef, WallSide};
 use super::edges::{CellSide, has_edge_on_cell_side};
 use crate::map::LevelGrid;
+use common::constants::WALL_HALF_THICKNESS;
 use common::{
-    constants::{GRID_CELL_SIZE, LEVEL_HEIGHT, WALL_HALF_THICKNESS},
+    constants::{GRID_CELL_SIZE, LEVEL_HEIGHT},
     map::MapGeometry,
     protocol::{Position, WallLight},
 };

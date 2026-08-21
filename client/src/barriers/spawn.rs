@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 use super::BarrierAssets;
+use crate::constants::BARRIER_OVERLAP_EPS;
 use crate::map::MapLevel;
 use common::{
     physics::OpenBarrierKinds,
@@ -40,7 +41,7 @@ pub fn barriers_spawn_system(
 }
 
 fn spawn_barrier(commands: &mut Commands, assets: &BarrierAssets, barrier: &Barrier) {
-    use common::constants::{BARRIER_HEIGHT, BARRIER_OVERLAP_EPS, LEVEL_HEIGHT};
+    use common::constants::{BARRIER_HEIGHT, LEVEL_HEIGHT};
 
     let center_x = f32::midpoint(barrier.x1, barrier.x2);
     let center_z = f32::midpoint(barrier.z1, barrier.z2);
