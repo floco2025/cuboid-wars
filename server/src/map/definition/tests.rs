@@ -785,6 +785,24 @@ fn validation_rejects_overlapping_ladders_on_same_edge() {
 }
 
 #[test]
+fn validation_rejects_mirrored_ladders_on_same_edge() {
+    // Cell (0,0)'s east edge is cell (1,0)'s west edge; ladders climb from
+    // both sides, so the mirrored pair is the same ladder twice.
+    let mut map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]]), level(vec![[0, 0]])],
+        Vec::new(),
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    map_def.ladders.push(ladder(0, 0, 0, WallSide::East, 1));
+    map_def.ladders.push(ladder(0, 1, 0, WallSide::West, 1));
+
+    let err = validate_map(&map_def).expect_err("mirrored ladders on one edge must be rejected");
+    assert!(err.to_string().contains("overlaps"));
+}
+
+#[test]
 fn validation_rejects_out_of_bounds_ladder() {
     let mut map_def = map_with_zones(
         4,

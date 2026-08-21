@@ -131,7 +131,9 @@ def ladder_key(ladder: dict) -> tuple:
 
 
 def ladder_edge_key(ladder: dict) -> tuple:
-    return (ladder["row"], ladder["col"], ladder["side"])
+    # Undirected: ladders climb from both sides, so a mirrored pair on one
+    # edge is the same ladder twice.
+    return wall_endpoints_for_cell_side(ladder["col"], ladder["row"], ladder["side"])
 
 
 def ladder_spans_level(ladder: dict, level_idx: int) -> bool:

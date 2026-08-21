@@ -15,6 +15,7 @@ const SUPPORTED_VERSION: u32 = 1;
 pub struct AssetSet {
     pub version: u32,
     materials: HashMap<String, MaterialDef>,
+    ladder: LadderAssets,
     aliases: HashMap<String, String>,
     item_materials: HashMap<String, String>,
     barrier_kind_colors: HashMap<String, String>,
@@ -30,6 +31,7 @@ pub struct AssetSet {
 struct AssetSetFile {
     version: u32,
     materials: HashMap<String, MaterialDef>,
+    ladder: LadderAssets,
     #[serde(default)]
     aliases: HashMap<String, String>,
     item_materials: HashMap<String, String>,
@@ -63,6 +65,7 @@ impl AssetSet {
         Ok(Self {
             version: file.version,
             materials: file.materials,
+            ladder: file.ladder,
             aliases: file.aliases,
             item_materials: file.item_materials,
             barrier_kind_colors: file.barrier_kind_colors,
@@ -96,7 +99,35 @@ impl AssetSet {
                 "alias `{alias}` points to unknown material `{target}`"
             );
         }
+        anyhow::ensure!(
+            self.materials.contains_key(&self.ladder.material),
+            "`ladder.material` points to unknown material `{}`",
+            self.ladder.material
+        );
+        for (name, id) in &self.item_materials {
+            anyhow::ensure!(
+                self.materials.contains_key(id),
+                "`item_materials.{name}` points to unknown material `{id}`"
+            );
+        }
         Ok(())
+    }
+
+    #[must_use]
+    pub fn ladder_material_id(&self) -> &str {
+        &self.ladder.material
+    }
+
+    #[must_use]
+    pub fn ladder_material_def(&self) -> &MaterialDef {
+        self.exact_material(&self.ladder.material)
+    }
+
+    #[must_use]
+    pub fn ladder_tile_size(&self) -> f32 {
+        self.ladder
+            .tile_size
+            .unwrap_or_else(|| self.ladder_material_def().tile_size())
     }
 
     pub fn material_for_item(&self, item_type: ItemType) -> &MaterialDef {
@@ -116,7 +147,17 @@ impl AssetSet {
             .get(name)
             .or_else(|| self.item_materials.get("default"))
             .expect("item_materials must define `default`");
-        self.material(id)
+        self.exact_material(id)
+    }
+
+    // Direct lookup for references INSIDE assets.json (item materials, the
+    // ladder). Aliases are the map-authoring vocabulary — indirection only
+    // earns its keep for references living outside this file, so internal
+    // bindings name concrete materials.
+    fn exact_material(&self, id: &str) -> &MaterialDef {
+        self.materials
+            .get(id)
+            .unwrap_or_else(|| panic!("material {id:?} missing from `materials`"))
     }
 
     pub fn material_by_id(&self, id: &str) -> &MaterialDef {
@@ -194,6 +235,18 @@ impl AssetSet {
             .get(resolved)
             .unwrap_or_else(|| panic!("alias {id:?} points to unknown material {resolved:?}"))
     }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct LadderAssets {
+    // The one material every ladder renders with.
+    material: String,
+    // Ladder-specific texture tiling. Rails and rungs are centimeters wide —
+    // at an architectural material's own multi-meter tile they sample a
+    // featureless sliver, so ladders need a much finer scale than the map
+    // surfaces sharing the material.
+    #[serde(default)]
+    tile_size: Option<f32>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

@@ -147,8 +147,8 @@ fn wrong_side_climb_stalls_on_the_ceiling_above() {
 
 #[test]
 fn stepping_off_landing_onto_ladder_is_allowed() {
-    // The descend mount: walking off a landing into the ladder is a legal
-    // crossing because the climb side is open air.
+    // The descend mount: feet level with the band top are already past the
+    // fence, so walking off the top landing onto the ladder just works.
     let world = ladder_collision_world(&[ladder_landing_floor()], &[test_ladder()]);
     let start = Position {
         x: 0.0,

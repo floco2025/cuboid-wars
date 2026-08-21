@@ -107,19 +107,19 @@ pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) 
         None
     };
     let ladder = collision_world.ladder_volume_at(start_pos);
-    // Climbing is a per-tick condition, not persistent state, and works from
-    // EITHER side of the plane: inside a ladder volume with the intent
-    // pushing toward the plane — mostly toward it (the facing gate) and at
-    // real speed (the absolute floor), so a grazing walk past the ladder or
-    // a reconciliation micro-nudge never lifts off. The ascent converts the
-    // toward-plane speed via `climb_speed_ratio`, so walk vs run (and each
-    // actor kind's speed) carries into the climb rate. Whatever hangs over
-    // the chosen side is an ordinary collision — the ladder never inspects
-    // the surrounding geometry. Standing ON the top landing walks normally
-    // (the one grounded exception; the climb still runs above the landing
-    // while airborne so a crest can finish). Derived from position + intent
-    // alone so server and client prediction agree without any wire state.
-    let climb_velocity = ladder.and_then(|ladder| {
+    // The ladder converts intent along its plane normal into vertical
+    // motion, from EITHER side and per tick with no persistent state:
+    // pushing toward the plane ascends, pushing away descends, both at the
+    // intent speed × `climb_speed_ratio` (walk, run, and actor speeds all
+    // carry through). Two gates keep it deliberate: the move must point
+    // mostly along the normal, at real speed — so a grazing walk past the
+    // ladder or a reconciliation micro-nudge never triggers. Whatever hangs
+    // over a side is an ordinary collision; the ladder never inspects the
+    // surrounding geometry. Derived from position + intent alone, so server
+    // and client prediction agree without any wire state.
+    let ladder_ride_velocity = ladder.and_then(|ladder| {
+        // Standing ON the top landing walks normally; the ride still runs
+        // above the landing while airborne so a crest can finish.
         if ground_probe.is_some() && start_pos.y >= ladder.top_landing_y() - PHYSICS_EPSILON {
             return None;
         }
@@ -127,28 +127,15 @@ pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) 
         let move_x = target_x - start_pos.x;
         let move_z = target_z - start_pos.z;
         let toward_plane = -(move_x * ladder.normal_x + move_z * ladder.normal_z) * side;
-        let toward_speed = toward_plane / delta;
-        let facing = toward_plane >= move_x.hypot(move_z) * LADDER_CLIMB_FACING_FRACTION;
-        (facing && toward_speed >= LADDER_CLIMB_MIN_SPEED).then_some(toward_speed * env.ladders.climb_speed_ratio)
+        let aligned = toward_plane.abs() >= move_x.hypot(move_z) * LADDER_CLIMB_FACING_FRACTION;
+        let speed = toward_plane / delta;
+        (aligned && speed.abs() >= LADDER_CLIMB_MIN_SPEED).then_some(speed * env.ladders.climb_speed_ratio)
     });
+    let climb_velocity = ladder_ride_velocity.filter(|&v| v > 0.0);
     let climbing = climb_velocity.is_some();
-    // Pressing away from the plane climbs DOWN, with the same facing/speed
-    // gates and the same rate scaling as ascending. Only while not moving
-    // upward, so a jump off the ladder keeps its arc.
-    let descend_velocity = if start_vertical_velocity <= 0.0 && !climbing {
-        ladder.and_then(|ladder| {
-            let side = ladder.side_sign(start_pos.x, start_pos.z);
-            let move_x = target_x - start_pos.x;
-            let move_z = target_z - start_pos.z;
-            let away_from_plane = (move_x * ladder.normal_x + move_z * ladder.normal_z) * side;
-            let away_speed = away_from_plane / delta;
-            let facing_away = away_from_plane >= move_x.hypot(move_z) * LADDER_CLIMB_FACING_FRACTION;
-            (facing_away && away_speed >= LADDER_CLIMB_MIN_SPEED)
-                .then_some(-(away_speed * env.ladders.climb_speed_ratio))
-        })
-    } else {
-        None
-    };
+    // Descending only while not moving upward, so a jump off the ladder
+    // keeps its arc.
+    let descend_velocity = ladder_ride_velocity.filter(|&v| v < 0.0 && start_vertical_velocity <= 0.0);
     // Climbing suppresses ground following: without this, the ground snap
     // below would glue the first climb tick back onto the base floor.
     let can_follow_ground = start_vertical_velocity <= 0.0 && !climbing;

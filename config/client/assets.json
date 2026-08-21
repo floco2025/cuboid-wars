@@ -1,6 +1,19 @@
 {
   "version": 1,
   "materials": {
+    "used-stainless-steel": {
+      "tile_size": 2.0,
+      "metallic": 0.5,
+      "roughness": 1.0,
+      "repeat": true,
+      "linear_data_textures": true,
+      "textures": {
+        "base_color": "textures/used-stainless-steel-ue/used-stainless-steel_albedo.png",
+        "normal": "textures/used-stainless-steel-ue/used-stainless-steel_normal-dx.png",
+        "occlusion": "textures/used-stainless-steel-ue/used-stainless-steel_ao.png",
+        "metallic_roughness": "textures/used-stainless-steel-ue/used-stainless-steel_metallic-roughness.png"
+      }
+    },
     "smooth-temple-blocks": {
       "tile_size": 8.0,
       "metallic": 0.5,
@@ -225,13 +238,15 @@
     "exterior-walls": "modern-brick1",
     "upper-interior-walls": "forest-wallpaper",
     "rooftop-wall": "stucco1",
-    "perimeter-wall": "patched-brickwork",
-    "cookie": "hammered-gold",
-    "powerup": "space-cruiser-panels2"
+    "perimeter-wall": "patched-brickwork"
   },
   "item_materials": {
-    "Cookie": "cookie",
-    "default": "powerup"
+    "Cookie": "hammered-gold",
+    "default": "space-cruiser-panels2"
+  },
+  "ladder": {
+    "material": "used-stainless-steel",
+    "tile_size": 0.6
   },
   "player": {
     "model": {

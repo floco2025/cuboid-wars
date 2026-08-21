@@ -72,8 +72,9 @@ pub(crate) fn low_overhead_floor() -> Floor {
     }
 }
 
-// Edge plane at z = 0 spanning x -0.5..0.5; the climb volume is on the -Z
-// side (normal points -Z), landings are on the +Z side. Spans level 0 -> 1.
+// Edge plane at z = 0 spanning x -0.5..0.5, climbable from both sides
+// (the -Z normal only picks the rail side). Spans level 0 -> 1; the landing
+// fixtures put floors on the +Z side.
 pub(crate) fn test_ladder() -> Ladder {
     Ladder {
         x1: -0.5,
@@ -136,9 +137,8 @@ pub(crate) fn ladder_landing_floor() -> Floor {
     }
 }
 
-// X-facing variant of `test_ladder`: edge plane at x = 0 spanning z -0.5..0.5,
-// climb volume on the -X side — the character collider's wide (1.0 m) axis
-// faces this plane.
+// X-facing variant of `test_ladder`: edge plane at x = 0 spanning z -0.5..0.5
+// — the character collider's wide (1.0 m) axis faces this plane.
 pub(crate) fn test_ladder_facing_x() -> Ladder {
     Ladder {
         x1: 0.0,

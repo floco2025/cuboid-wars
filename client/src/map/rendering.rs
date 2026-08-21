@@ -113,8 +113,26 @@ pub fn map_spawn_geometry_system(
         spawn_wall_light_from_layout(&mut commands, &asset_server, &asset_set, light);
     }
 
-    for ladder in &map_layout.ladders {
-        spawn_ladder_from_layout(&mut commands, &mut meshes, &mut materials, ladder);
+    if !map_layout.ladders.is_empty() {
+        let ladder_material_id = asset_set.ladder_material_id();
+        let ladder_material = material_cache.standard(
+            ladder_material_id,
+            asset_set.ladder_material_def(),
+            &asset_server,
+            &mut materials,
+            client_settings.rendering.texture_anisotropy,
+            client_settings.rendering.texture_mipmaps_enabled,
+        );
+        let ladder_tile_size = asset_set.ladder_tile_size();
+        for ladder in &map_layout.ladders {
+            spawn_ladder_from_layout(
+                &mut commands,
+                &mut meshes,
+                ladder_material.clone(),
+                ladder_tile_size,
+                ladder,
+            );
+        }
     }
 
     for (floor, materials) in map_layout.floors.iter().zip(map_layout.floor_materials.iter()) {

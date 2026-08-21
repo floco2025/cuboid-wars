@@ -4,7 +4,7 @@ use anyhow::{Context, Result, anyhow, ensure};
 
 use common::protocol::ItemType;
 
-use super::schema::{ActorSpawnZoneDef, LadderDef, LevelDef, MapDef, MapFile, PlayerSpawnZoneDef, RampDef};
+use super::schema::{ActorSpawnZoneDef, LadderDef, LevelDef, MapDef, MapFile, PlayerSpawnZoneDef, RampDef, WallSide};
 
 const SUPPORTED_VERSION: u32 = 1;
 
@@ -343,12 +343,14 @@ fn validate_ramps(map_def: &MapDef) -> Result<()> {
 // Ladders are deliberately permissive — no wall, floor, or clear-edge
 // requirements (the climb mechanic handles every surrounding, and jumping
 // off mid-climb is always possible). Only structural integrity is checked.
+// Overlap is keyed on the undirected edge: ladders are climbable from both
+// sides, so a mirrored pair on one edge is the same ladder twice.
 fn validate_ladders(map_def: &MapDef) -> Result<()> {
     for (idx, ladder) in map_def.ladders.iter().enumerate() {
         validate_ladder(ladder, map_def.grid_cols, map_def.grid_rows, map_def.levels.len())
             .with_context(|| format!("ladders[{idx}]"))?;
         let overlapping = map_def.ladders[..idx].iter().any(|other| {
-            (other.col, other.row, other.side) == (ladder.col, ladder.row, ladder.side)
+            ladder_edge(other) == ladder_edge(ladder)
                 && other.lower_level < ladder.lower_level + ladder.levels
                 && ladder.lower_level < other.lower_level + other.levels
         });
@@ -362,6 +364,16 @@ fn validate_ladders(map_def: &MapDef) -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn ladder_edge(ladder: &LadderDef) -> [(i32, i32); 2] {
+    let (col, row) = (ladder.col, ladder.row);
+    match ladder.side {
+        WallSide::North => [(col, row), (col + 1, row)],
+        WallSide::South => [(col, row + 1), (col + 1, row + 1)],
+        WallSide::West => [(col, row), (col, row + 1)],
+        WallSide::East => [(col + 1, row), (col + 1, row + 1)],
+    }
 }
 
 fn validate_ladder(ladder: &LadderDef, grid_cols: i32, grid_rows: i32, level_count: usize) -> Result<()> {

@@ -25,11 +25,11 @@ pub const BARRIER_OVERLAP_EPS: f32 = 0.01;
 // Floors
 pub const FLOOR_THICKNESS: f32 = 0.4;
 
-// Ladders. Freestanding climbable elements anchored on grid edges; the climb
-// volume sits in the adjacent cell across the edge. No Rapier collider — the
-// character step queries these volumes directly.
+// Ladders. Freestanding climbable elements anchored on grid edges, climbable
+// from both sides of the edge plane. No Rapier collider — the character step
+// queries the derived volumes directly.
 pub const LADDER_WIDTH: f32 = 1.0;
-// How far the climb volume extends from the edge into the climb cell.
+// How far the climb volume extends from the edge plane, on each side.
 pub const LADDER_VOLUME_DEPTH: f32 = 0.8;
 // Volume and rails extend this far above the top storey's floor surface so
 // the last climb tick leaves the feet over the landing and stepping off the
