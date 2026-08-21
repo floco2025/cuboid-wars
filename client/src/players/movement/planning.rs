@@ -4,7 +4,7 @@ use common::{
     constants::SNAPSHOT_SECS,
     physics::{
         CharacterEnvironment, CharacterMovePlan, CharacterStep, CharacterVerticalVelocity, CollisionWorld,
-        KnockbackVelocity, passable_barrier_kinds, step_character_movement,
+        KnockbackVelocity, passable_barrier_kinds, player_control_velocity, step_character_movement,
     },
     protocol::{
         ActorMarker, BarrierKindId, MapSettings, PlayerId, PlayerMarker, PlayerMoveIntent, Position, PowerUpKind,
@@ -82,18 +82,15 @@ pub(crate) fn plan_player_moves(
         let info = players.get(player_id);
         let has_speed_power_up = info.is_some_and(|i| i.power_up(PowerUpKind::Speed));
         let has_low_gravity = info.is_some_and(|i| i.power_up(PowerUpKind::LowGravity));
+        let movement_disabled = info.is_some_and(|i| i.stunned);
         let held_keys: &[BarrierKindId] = info.map_or(&[], |i| i.held_keys.as_slice());
         let player_name = info.map(|i| i.name.as_str());
 
-        let h_vel = move_intent.to_horizontal_velocity(
-            player_config.walk_speed,
-            player_config.run_speed,
-            has_speed_power_up,
-            gameplay_config.power_up_effects.speed_multiplier,
-        );
+        let control_velocity =
+            player_control_velocity(*move_intent, gameplay_config, has_speed_power_up, movement_disabled);
 
-        let target_pos = if let Some(recon) = recon_option.as_mut() {
-            reconciled_target_position(
+        let correction_displacement = if let Some(recon) = recon_option.as_mut() {
+            reconciliation_displacement(
                 commands,
                 entity,
                 player_id,
@@ -101,7 +98,7 @@ pub(crate) fn plan_player_moves(
                 &mut client_pos,
                 &mut motion.0,
                 recon,
-                h_vel,
+                control_velocity,
                 delta,
                 planned_moves,
                 player_physics,
@@ -109,21 +106,13 @@ pub(crate) fn plan_player_moves(
                 snap_speed,
             )
         } else {
-            Some(Position {
-                x: h_vel.x.mul_add(delta, client_pos.x),
-                y: client_pos.y,
-                z: h_vel.z.mul_add(delta, client_pos.z),
-            })
+            Some(Vec3::ZERO)
         };
 
-        let Some(mut target) = target_pos else {
+        let Some(correction_displacement) = correction_displacement else {
             continue;
         };
-        // Blast shove — same term the server adds, so the local prediction
-        // and the authoritative path integrate the same launch.
-        let knockback_step = knockback.map_or(Vec3::ZERO, |k| k.step(delta));
-        target.x += knockback_step.x;
-        target.z += knockback_step.z;
+        let external_displacement = correction_displacement + knockback.map_or(Vec3::ZERO, |k| k.step(delta));
 
         // `CollisionWorld` and `MapSettings` are both installed by the same
         // `SInit`, so they appear together.
@@ -136,8 +125,8 @@ pub(crate) fn plan_player_moves(
                 CharacterStep {
                     start: *client_pos,
                     vertical_velocity: motion.0,
-                    target_x: target.x,
-                    target_z: target.z,
+                    control_velocity,
+                    external_displacement,
                     delta,
                 },
                 &CharacterEnvironment {
@@ -155,6 +144,11 @@ pub(crate) fn plan_player_moves(
                 player_physics,
             ));
         } else {
+            let target = Position {
+                x: control_velocity.x.mul_add(delta, client_pos.x) + external_displacement.x,
+                y: client_pos.y,
+                z: control_velocity.z.mul_add(delta, client_pos.z) + external_displacement.z,
+            };
             planned_moves.push(CharacterMovePlan::from_target(
                 entity,
                 *client_pos,
@@ -167,7 +161,7 @@ pub(crate) fn plan_player_moves(
     }
 }
 
-fn reconciled_target_position(
+fn reconciliation_displacement(
     commands: &mut Commands,
     entity: Entity,
     player_id: &PlayerId,
@@ -175,16 +169,16 @@ fn reconciled_target_position(
     client_pos: &mut Position,
     vertical_velocity: &mut f32,
     recon: &mut ServerReconciliation,
-    h_vel: Vec3,
+    control_velocity: Vec3,
     delta: f32,
     planned_moves: &mut Vec<CharacterMovePlan>,
     player_physics: common::config::CharacterPhysicsConfig,
     run_speed: f32,
     snap_speed: f32,
-) -> Option<Position> {
+) -> Option<Vec3> {
     // Vertical velocity counts toward motion — a jumping or falling player
     // with no horizontal input is still in motion.
-    let motion_speed = h_vel.x.hypot(h_vel.z).hypot(*vertical_velocity);
+    let motion_speed = control_velocity.x.hypot(control_velocity.z).hypot(*vertical_velocity);
     let correction_factor = player_correction_factor(recon.rtt, motion_speed, run_speed);
 
     // Each tick applies `delta / correction window` of the fixed delta, so
@@ -236,11 +230,7 @@ fn reconciled_target_position(
     let dx = correction_delta.x * delta * correction_factor / SNAPSHOT_SECS;
     let dz = correction_delta.z * delta * correction_factor / SNAPSHOT_SECS;
 
-    Some(Position {
-        x: h_vel.x.mul_add(delta, client_pos.x) + dx,
-        y: client_pos.y,
-        z: h_vel.z.mul_add(delta, client_pos.z) + dz,
-    })
+    Some(Vec3::new(dx, 0.0, dz))
 }
 
 pub(crate) type PlayerMovementQuery<'w, 's> = Query<

@@ -62,15 +62,12 @@ impl ActorMoveContext<'_> {
     }
 
     pub(super) fn step_actor_move(&self, move_intent: ActorMoveIntent) -> CharacterMovementResult {
-        let velocity = move_intent.to_horizontal_velocity();
-        let target_x = velocity.x.mul_add(self.delta, self.pos.x) + self.knockback_step.x;
-        let target_z = velocity.z.mul_add(self.delta, self.pos.z) + self.knockback_step.z;
         step_character_movement(
             CharacterStep {
                 start: *self.pos,
                 vertical_velocity: self.vertical_velocity,
-                target_x,
-                target_z,
+                control_velocity: move_intent.to_horizontal_velocity(),
+                external_displacement: self.knockback_step,
                 delta: self.delta,
             },
             &CharacterEnvironment {

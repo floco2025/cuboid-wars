@@ -14,7 +14,9 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    physics::{CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, OpenBarrierKinds},
+    physics::{
+        CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, OpenBarrierKinds, player_control_velocity,
+    },
     protocol::*,
 };
 
@@ -26,12 +28,13 @@ pub(super) fn player_movement_velocity(
     movement: PlayerMovementState,
     gameplay_config: &GameplayConfig,
     has_speed_power_up: bool,
+    movement_disabled: bool,
 ) -> Vec3 {
-    let mut velocity = movement.move_intent.to_horizontal_velocity(
-        gameplay_config.player.walk_speed,
-        gameplay_config.player.run_speed,
+    let mut velocity = player_control_velocity(
+        movement.move_intent,
+        gameplay_config,
         has_speed_power_up,
-        gameplay_config.power_up_effects.speed_multiplier,
+        movement_disabled,
     );
     velocity.y = movement.vertical_velocity;
     velocity
@@ -48,8 +51,12 @@ pub fn handle_player_move_message(
 ) {
     trace!("{:?} move: {:?}", msg.id, msg);
     if let Some(player) = players.get(&msg.id) {
-        let server_velocity =
-            player_movement_velocity(msg.movement, gameplay_config, player.power_up(PowerUpKind::Speed));
+        let server_velocity = player_movement_velocity(
+            msg.movement,
+            gameplay_config,
+            player.power_up(PowerUpKind::Speed),
+            player.stunned,
+        );
 
         // Never the local player, so we can always overwrite intent + facing.
         let input = (msg.movement.move_intent, FaceYaw(msg.movement.face_yaw));
@@ -76,8 +83,12 @@ pub fn handle_player_jump_message(
     if let Some(player) = players.get(&msg.id)
         && let Ok((client_pos, _, _)) = player_data.get(player.entity)
     {
-        let server_velocity =
-            player_movement_velocity(msg.movement, gameplay_config, player.power_up(PowerUpKind::Speed));
+        let server_velocity = player_movement_velocity(
+            msg.movement,
+            gameplay_config,
+            player.power_up(PowerUpKind::Speed),
+            player.stunned,
+        );
         commands.entity(player.entity).insert((
             msg.movement.move_intent,
             FaceYaw(msg.movement.face_yaw),
@@ -380,6 +391,22 @@ mod tests {
             held_keys: Vec::new(),
             missiles: 0,
         }
+    }
+
+    #[test]
+    fn disabled_player_reconciliation_velocity_is_vertical_only() {
+        let gameplay = GameplayConfig::load_default().expect("default gameplay config should load");
+        let movement = PlayerMovementState::new(
+            Position::default(),
+            PlayerMoveIntent::Running { direction: 0.0 },
+            -3.0,
+            0.0,
+        );
+
+        assert_eq!(
+            player_movement_velocity(movement, &gameplay, true, true),
+            Vec3::new(0.0, -3.0, 0.0)
+        );
     }
 
     #[test]

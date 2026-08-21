@@ -1,10 +1,10 @@
 use bevy::prelude::*;
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
-    constants::PHYSICS_EPSILON,
     physics::{
         CharacterEnvironment, CharacterMovePlan, CharacterStep, CharacterVerticalVelocity, CollisionWorld,
-        KnockbackVelocity, overlapping_character, passable_barrier_kinds, step_character_movement,
+        KnockbackVelocity, overlapping_character, passable_barrier_kinds, player_control_velocity,
+        step_character_movement,
     },
     protocol::{ActorMarker, BarrierKindId, MapSettings, PlayerId, PlayerMarker, PlayerMoveIntent, Position},
 };
@@ -115,38 +115,16 @@ fn plan_player_moves(
     let player_config = &gameplay_config.player;
     let player_physics = player_config.physics();
     for (entity, pos, motion, move_intent, player_id, knockback) in query.iter() {
-        let is_stunned = players.get(player_id).is_some_and(PlayerInfo::is_stunned);
-        let has_speed_power_up = players.get(player_id).is_some_and(PlayerInfo::has_speed);
-        let velocity = move_intent.to_horizontal_velocity(
-            player_config.walk_speed,
-            player_config.run_speed,
-            has_speed_power_up,
-            gameplay_config.power_up_effects.speed_multiplier,
+        let info = players.get(player_id);
+        let control_velocity = player_control_velocity(
+            *move_intent,
+            gameplay_config,
+            info.is_some_and(PlayerInfo::has_speed),
+            info.is_some_and(PlayerInfo::is_stunned),
         );
-        let velocity_sq = velocity.x.mul_add(velocity.x, velocity.z * velocity.z);
-        let is_standing_still = velocity_sq < PHYSICS_EPSILON * PHYSICS_EPSILON;
-        let suppress_horizontal = is_stunned || is_standing_still;
 
-        // Blast shove applies on top of intent — and regardless of
-        // `suppress_horizontal`: stun or idling doesn't anchor you against
-        // an explosion.
-        let knockback_step = knockback.map_or(Vec3::ZERO, |k| k.step(delta));
-        let target_xz = if suppress_horizontal {
-            Position {
-                x: pos.x + knockback_step.x,
-                y: pos.y,
-                z: pos.z + knockback_step.z,
-            }
-        } else {
-            Position {
-                x: velocity.x.mul_add(delta, pos.x) + knockback_step.x,
-                y: pos.y,
-                z: velocity.z.mul_add(delta, pos.z) + knockback_step.z,
-            }
-        };
-
-        let has_low_gravity = players.get(player_id).is_some_and(PlayerInfo::has_low_gravity);
-        let held_keys: &[BarrierKindId] = players.get(player_id).map_or(&[], |info| &info.held_keys);
+        let has_low_gravity = info.is_some_and(PlayerInfo::has_low_gravity);
+        let held_keys: &[BarrierKindId] = info.map_or(&[], |info| &info.held_keys);
         // Effective passable kinds = held keys ∪ globally-open kinds (plates).
         // One shared helper between server-authoritative movement and
         // client-side prediction so both decide passability identically.
@@ -155,8 +133,8 @@ fn plan_player_moves(
             CharacterStep {
                 start: *pos,
                 vertical_velocity: motion.0,
-                target_x: target_xz.x,
-                target_z: target_xz.z,
+                control_velocity,
+                external_displacement: knockback.map_or(Vec3::ZERO, |velocity| velocity.step(delta)),
                 delta,
             },
             &CharacterEnvironment {

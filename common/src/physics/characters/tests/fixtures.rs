@@ -72,9 +72,8 @@ pub(crate) fn low_overhead_floor() -> Floor {
     }
 }
 
-// Edge plane at z = 0 spanning x -0.5..0.5, climbable from both sides
-// (the -Z normal only picks the rail side). Spans level 0 -> 1; the landing
-// fixtures put floors on the +Z side.
+// Edge plane at z = 0 spanning x -0.5..0.5, climbable from the -Z rail side.
+// Spans level 0 -> 1; the landing fixtures put floors on the +Z side.
 pub(crate) fn test_ladder() -> Ladder {
     Ladder {
         x1: -0.5,
@@ -247,6 +246,22 @@ pub(crate) fn player_speed() -> f32 {
         .expect("default gameplay config should load")
         .player
         .run_speed
+}
+
+pub(crate) fn character_step_toward(
+    start: Position,
+    vertical_velocity: f32,
+    target_x: f32,
+    target_z: f32,
+    delta: f32,
+) -> CharacterStep {
+    CharacterStep {
+        start,
+        vertical_velocity,
+        control_velocity: Vec3::new((target_x - start.x) / delta, 0.0, (target_z - start.z) / delta),
+        external_displacement: Vec3::ZERO,
+        delta,
+    }
 }
 
 pub(crate) fn planned_move(entity: Entity, start: Position, target: Position) -> CharacterMovePlan {

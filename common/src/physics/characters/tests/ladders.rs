@@ -20,11 +20,29 @@ fn ladder_step(
     target_z: f32,
 ) -> CharacterMovementResult {
     step_character_movement(
+        character_step_toward(start, vertical_velocity, target_x, target_z, 0.1),
+        &CharacterEnvironment {
+            collision_world: world,
+            gravity: TEST_GRAVITY,
+            passable_kinds: &[],
+            ladders: test_ladders(),
+            physics: player_physics(),
+        },
+    )
+}
+
+fn ladder_step_with_external_displacement(
+    world: &CollisionWorld,
+    start: Position,
+    control_velocity: Vec3,
+    external_displacement: Vec3,
+) -> CharacterMovementResult {
+    step_character_movement(
         CharacterStep {
             start,
-            vertical_velocity,
-            target_x,
-            target_z,
+            vertical_velocity: 0.0,
+            control_velocity,
+            external_displacement,
             delta: 0.1,
         },
         &CharacterEnvironment {
@@ -84,6 +102,36 @@ fn slow_drift_into_the_face_does_not_climb() {
     let step = ladder_step(&world, start, 0.0, start.x, start.z + 0.05);
 
     assert!(step.vertical_velocity <= 0.0);
+}
+
+#[test]
+fn external_displacement_does_not_start_a_climb() {
+    let world = ladder_collision_world(&[], &[test_ladder()]);
+    let start = Position {
+        x: 0.0,
+        y: 2.0,
+        z: -0.5,
+    };
+
+    let step = ladder_step_with_external_displacement(&world, start, Vec3::ZERO, Vec3::Z * 0.2);
+
+    assert_eq!(step.vertical_velocity, 0.0);
+    assert!((step.position.y - start.y).abs() < 1e-4);
+}
+
+#[test]
+fn external_displacement_does_not_change_climb_speed() {
+    let world = ladder_collision_world(&[], &[test_ladder()]);
+    let start = Position {
+        x: 0.0,
+        y: 2.0,
+        z: -0.5,
+    };
+
+    let step = ladder_step_with_external_displacement(&world, start, Vec3::Z * 2.0, Vec3::NEG_Z * 0.1);
+
+    let expected = 2.0 * test_ladders().climb_speed_ratio;
+    assert!((step.vertical_velocity - expected).abs() < 1e-4);
 }
 
 #[test]
@@ -353,6 +401,25 @@ fn jump_refused_airborne_outside_ladder() {
         y: 2.0,
         z: -3.0,
     };
+    let mut vertical_velocity = 0.0;
+
+    let jumped = try_start_player_jump(
+        &mut vertical_velocity,
+        &world,
+        player_physics(),
+        12.0,
+        &pos,
+        pos.x,
+        pos.z,
+    );
+
+    assert!(!jumped);
+}
+
+#[test]
+fn jump_refused_airborne_behind_ladder() {
+    let world = ladder_collision_world(&[], &[test_ladder()]);
+    let pos = Position { x: 0.0, y: 2.0, z: 0.4 };
     let mut vertical_velocity = 0.0;
 
     let jumped = try_start_player_jump(

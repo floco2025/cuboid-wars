@@ -46,7 +46,7 @@ fn collision_world_contains_solids_for_walls_floors_and_ramps() {
 }
 
 #[test]
-fn ladder_volume_is_symmetric_and_covers_overshoot() {
+fn ladder_volume_covers_the_front_and_overshoot() {
     let layout = MapLayout {
         ladders: vec![Ladder {
             x1: -0.5,

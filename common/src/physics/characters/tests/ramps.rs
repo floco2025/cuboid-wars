@@ -12,13 +12,7 @@ fn player_walking_off_ramp_side_is_not_blocked_by_ramp_side() {
     let motion = 0.0;
 
     let step = step_character_movement(
-        CharacterStep {
-            start: pos,
-            vertical_velocity: motion,
-            target_x: -1.0,
-            target_z: pos.z,
-            delta: 0.1,
-        },
+        character_step_toward(pos, motion, -1.0, pos.z, 0.1),
         &CharacterEnvironment {
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
@@ -44,13 +38,7 @@ fn lower_floor_player_hits_wedge_side_from_collision_world() {
     let motion = 0.0;
 
     let step = step_character_movement(
-        CharacterStep {
-            start: pos,
-            vertical_velocity: motion,
-            target_x: 1.0,
-            target_z: pos.z,
-            delta: 0.1,
-        },
+        character_step_toward(pos, motion, 1.0, pos.z, 0.1),
         &CharacterEnvironment {
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
@@ -76,13 +64,7 @@ fn lower_floor_player_can_enter_wedge_low_end() {
     let motion = 0.0;
 
     let step = step_character_movement(
-        CharacterStep {
-            start: pos,
-            vertical_velocity: motion,
-            target_x: pos.x,
-            target_z: 0.25,
-            delta: 0.1,
-        },
+        character_step_toward(pos, motion, pos.x, 0.25, 0.1),
         &CharacterEnvironment {
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
@@ -108,13 +90,7 @@ fn upper_floor_player_can_enter_wedge_high_end() {
     let motion = 0.0;
 
     let step = step_character_movement(
-        CharacterStep {
-            start: pos,
-            vertical_velocity: motion,
-            target_x: pos.x,
-            target_z: 7.75,
-            delta: 0.1,
-        },
+        character_step_toward(pos, motion, pos.x, 7.75, 0.1),
         &CharacterEnvironment {
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
@@ -138,13 +114,7 @@ fn collider_y_offset_allows_movement_off_ramp_side() {
     let motion = 0.0;
 
     let step = step_character_movement(
-        CharacterStep {
-            start: pos,
-            vertical_velocity: motion,
-            target_x: -1.0,
-            target_z: pos.z,
-            delta: 0.1,
-        },
+        character_step_toward(pos, motion, -1.0, pos.z, 0.1),
         &CharacterEnvironment {
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,

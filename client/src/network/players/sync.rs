@@ -284,6 +284,7 @@ fn update_snapshot_player(
                 server_player.movement,
                 gameplay_config,
                 server_player.power_up(PowerUpKind::Speed),
+                server_player.stunned,
             );
 
             if id != my_player_id {

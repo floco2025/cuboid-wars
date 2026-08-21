@@ -1,7 +1,9 @@
 mod ball_hits;
 mod geometry;
+mod ladder;
 mod movement;
 mod movement_plan;
+mod player_control;
 mod types;
 
 pub use ball_hits::{BallCharacterHit, HitDirection, ball_character_hit, ball_overlaps_character};
@@ -10,6 +12,7 @@ pub use movement::{
     CharacterEnvironment, CharacterStep, position_has_floor_support, step_character_movement, try_start_player_jump,
 };
 pub use movement_plan::{blocking_character_move_plan, character_move_plan_is_blocked, overlapping_character};
+pub use player_control::player_control_velocity;
 pub use types::{CharacterMovePlan, CharacterMovementResult, CharacterVerticalVelocity, KnockbackVelocity};
 
 #[cfg(test)]

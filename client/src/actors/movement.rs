@@ -77,8 +77,8 @@ pub(crate) fn plan_actor_moves(
             .actor(&info.kind)
             .expect("actor kind sent by server is missing from gameplay config")
             .physics();
-        let h_vel = move_intent.to_horizontal_velocity();
-        let target_pos = if let Some(recon) = recon_option.as_mut() {
+        let control_velocity = move_intent.to_horizontal_velocity();
+        let correction_displacement = if let Some(recon) = recon_option.as_mut() {
             let correction_factor = actor_correction_factor(recon.rtt);
 
             // Each tick applies `delta / correction window` of the fixed
@@ -120,19 +120,13 @@ pub(crate) fn plan_actor_moves(
                 continue;
             }
 
-            Position {
-                x: h_vel.x.mul_add(delta, pos.x) + correction_delta.x * delta * correction_factor / SNAPSHOT_SECS,
-                // Y is purely predicted (gravity runs locally); the snap
-                // branch above catches floor-level disagreements.
-                y: pos.y,
-                z: h_vel.z.mul_add(delta, pos.z) + correction_delta.z * delta * correction_factor / SNAPSHOT_SECS,
-            }
+            Vec3::new(
+                correction_delta.x * delta * correction_factor / SNAPSHOT_SECS,
+                0.0,
+                correction_delta.z * delta * correction_factor / SNAPSHOT_SECS,
+            )
         } else {
-            Position {
-                x: h_vel.x.mul_add(delta, pos.x),
-                y: pos.y,
-                z: h_vel.z.mul_add(delta, pos.z),
-            }
+            Vec3::ZERO
         };
 
         // `CollisionWorld` and `MapSettings` are both installed by the same
@@ -142,8 +136,8 @@ pub(crate) fn plan_actor_moves(
                 CharacterStep {
                     start: *pos,
                     vertical_velocity: motion.0,
-                    target_x: target_pos.x,
-                    target_z: target_pos.z,
+                    control_velocity,
+                    external_displacement: correction_displacement,
                     delta,
                 },
                 &CharacterEnvironment {
@@ -161,6 +155,11 @@ pub(crate) fn plan_actor_moves(
                 CharacterMovePlan::from_movement_result(entity, *pos, step, actor_physics),
             );
         } else {
+            let target_pos = Position {
+                x: control_velocity.x.mul_add(delta, pos.x) + correction_displacement.x,
+                y: pos.y,
+                z: control_velocity.z.mul_add(delta, pos.z) + correction_displacement.z,
+            };
             push_actor_planned_move(
                 planned_moves,
                 actor_starts,

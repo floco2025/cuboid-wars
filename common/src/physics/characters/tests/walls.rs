@@ -14,13 +14,7 @@ fn player_hits_wall_collider_from_collision_world() {
     let motion = 0.0;
 
     let step = step_character_movement(
-        CharacterStep {
-            start: pos,
-            vertical_velocity: motion,
-            target_x: 1.0,
-            target_z: pos.z,
-            delta: 0.1,
-        },
+        character_step_toward(pos, motion, 1.0, pos.z, 0.1),
         &CharacterEnvironment {
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
@@ -47,13 +41,7 @@ fn repeated_wall_pressure_does_not_leak_through_wall() {
     let motion = 0.0;
 
     let first = step_character_movement(
-        CharacterStep {
-            start: pos,
-            vertical_velocity: motion,
-            target_x: 1.0,
-            target_z: pos.z,
-            delta: 0.1,
-        },
+        character_step_toward(pos, motion, 1.0, pos.z, 0.1),
         &CharacterEnvironment {
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
@@ -63,13 +51,7 @@ fn repeated_wall_pressure_does_not_leak_through_wall() {
         },
     );
     let second = step_character_movement(
-        CharacterStep {
-            start: first.position,
-            vertical_velocity: motion,
-            target_x: 1.0,
-            target_z: first.position.z,
-            delta: 0.1,
-        },
+        character_step_toward(first.position, motion, 1.0, first.position.z, 0.1),
         &CharacterEnvironment {
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
@@ -97,13 +79,7 @@ fn player_slides_along_wall_under_pressure() {
     let motion = 0.0;
 
     let first = step_character_movement(
-        CharacterStep {
-            start: pos,
-            vertical_velocity: motion,
-            target_x: 1.0,
-            target_z: pos.z,
-            delta: 0.1,
-        },
+        character_step_toward(pos, motion, 1.0, pos.z, 0.1),
         &CharacterEnvironment {
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
@@ -113,13 +89,7 @@ fn player_slides_along_wall_under_pressure() {
         },
     );
     let second = step_character_movement(
-        CharacterStep {
-            start: first.position,
-            vertical_velocity: motion,
-            target_x: 1.0,
-            target_z: first.position.z + 1.0,
-            delta: 0.1,
-        },
+        character_step_toward(first.position, motion, 1.0, first.position.z + 1.0, 0.1),
         &CharacterEnvironment {
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
@@ -146,13 +116,7 @@ fn falling_player_pushing_into_wall_keeps_falling() {
     let motion = -CHARACTER_TERMINAL_VELOCITY;
 
     let step = step_character_movement(
-        CharacterStep {
-            start: pos,
-            vertical_velocity: motion,
-            target_x: 30.394,
-            target_z: 31.699,
-            delta: 0.0177,
-        },
+        character_step_toward(pos, motion, 30.394, 31.699, 0.0177),
         &CharacterEnvironment {
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
@@ -181,13 +145,7 @@ fn diagonal_wall_hit_slides_in_same_step() {
     let motion = 0.0;
 
     let step = step_character_movement(
-        CharacterStep {
-            start: pos,
-            vertical_velocity: motion,
-            target_x: 1.0,
-            target_z: 1.0,
-            delta: 0.1,
-        },
+        character_step_toward(pos, motion, 1.0, 1.0, 0.1),
         &CharacterEnvironment {
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
@@ -228,8 +186,8 @@ fn repeated_diagonal_wall_pressure_keeps_sliding() {
             CharacterStep {
                 start: pos,
                 vertical_velocity: motion,
-                target_x: velocity.x.mul_add(delta, pos.x),
-                target_z: velocity.z.mul_add(delta, pos.z),
+                control_velocity: velocity,
+                external_displacement: Vec3::ZERO,
                 delta,
             },
             &CharacterEnvironment {
@@ -259,13 +217,7 @@ fn diagonal_wall_end_hit_slides_along_wall() {
     let motion = 0.0;
 
     let step = step_character_movement(
-        CharacterStep {
-            start: pos,
-            vertical_velocity: motion,
-            target_x: 1.0,
-            target_z: 1.0,
-            delta: 0.1,
-        },
+        character_step_toward(pos, motion, 1.0, 1.0, 0.1),
         &CharacterEnvironment {
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,

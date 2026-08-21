@@ -829,6 +829,7 @@ fn validation_rejects_out_of_bounds_ladder() {
 // arrive on (the ascent stalls on the slab's underside).
 #[test]
 fn every_shipped_ladder_ascends_at_least_one_storey() {
+    use bevy::math::Vec3;
     use common::config::GameplayConfig;
     use common::constants::{LEVEL_HEIGHT, TICK_SECS};
     use common::physics::{CharacterEnvironment, CharacterStep, CollisionWorld, step_character_movement};
@@ -865,8 +866,8 @@ fn every_shipped_ladder_ascends_at_least_one_storey() {
                     CharacterStep {
                         start: pos,
                         vertical_velocity,
-                        target_x: (-ladder.nx * speed).mul_add(TICK_SECS, pos.x),
-                        target_z: (-ladder.nz * speed).mul_add(TICK_SECS, pos.z),
+                        control_velocity: Vec3::new(-ladder.nx * speed, 0.0, -ladder.nz * speed),
+                        external_displacement: Vec3::ZERO,
                         delta: TICK_SECS,
                     },
                     &CharacterEnvironment {

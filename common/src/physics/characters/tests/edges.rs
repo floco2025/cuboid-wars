@@ -22,13 +22,7 @@ fn edge_overhang_slides_off_and_falls() {
 
     for _ in 0..30 {
         let step = step_character_movement(
-            CharacterStep {
-                start: pos,
-                vertical_velocity,
-                target_x: pos.x,
-                target_z: pos.z,
-                delta: TICK_SECS,
-            },
+            character_step_toward(pos, vertical_velocity, pos.x, pos.z, TICK_SECS),
             &CharacterEnvironment {
                 collision_world: &collision_world,
                 gravity: TEST_GRAVITY,
@@ -87,13 +81,7 @@ fn probe_grounded_near_edge_does_not_slide() {
 
     for _ in 0..5 {
         let step = step_character_movement(
-            CharacterStep {
-                start: pos,
-                vertical_velocity,
-                target_x: pos.x,
-                target_z: pos.z,
-                delta: TICK_SECS,
-            },
+            character_step_toward(pos, vertical_velocity, pos.x, pos.z, TICK_SECS),
             &CharacterEnvironment {
                 collision_world: &collision_world,
                 gravity: TEST_GRAVITY,
@@ -126,13 +114,13 @@ fn input_overrides_perch_slide() {
 
     for _ in 0..15 {
         let step = step_character_movement(
-            CharacterStep {
-                start: pos,
+            character_step_toward(
+                pos,
                 vertical_velocity,
-                target_x: run_speed.mul_add(-TICK_SECS, pos.x),
-                target_z: pos.z,
-                delta: TICK_SECS,
-            },
+                run_speed.mul_add(-TICK_SECS, pos.x),
+                pos.z,
+                TICK_SECS,
+            ),
             &CharacterEnvironment {
                 collision_world: &collision_world,
                 gravity: TEST_GRAVITY,
@@ -179,13 +167,7 @@ fn blocked_slide_keeps_velocity_zeroed() {
 
     for _ in 0..30 {
         let step = step_character_movement(
-            CharacterStep {
-                start: pos,
-                vertical_velocity,
-                target_x: pos.x,
-                target_z: pos.z,
-                delta: TICK_SECS,
-            },
+            character_step_toward(pos, vertical_velocity, pos.x, pos.z, TICK_SECS),
             &CharacterEnvironment {
                 collision_world: &collision_world,
                 gravity: TEST_GRAVITY,
