@@ -70,6 +70,24 @@
   },
   "quests": [
     {
+      "id": "destroy_zappers",
+      "kind": "actor_kills",
+      "actor_kind": "zapper",
+      "threshold": 6,
+      "title": "Zapper Hunt",
+      "description": "Destroy 6 zappers",
+      "completed_text": "Destroyed 6 zappers!"
+    },
+    {
+      "id": "destroy_mines",
+      "kind": "actor_kills",
+      "actor_kind": "mine",
+      "threshold": 6,
+      "title": "Mine Hunt",
+      "description": "Destroy 6 mines",
+      "completed_text": "Destroyed 6 mines!"
+    },
+    {
       "id": "destroy_sentries",
       "kind": "actor_kills",
       "actor_kind": "sentry",
