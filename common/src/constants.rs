@@ -25,6 +25,36 @@ pub const BARRIER_OVERLAP_EPS: f32 = 0.01;
 // Floors
 pub const FLOOR_THICKNESS: f32 = 0.4;
 
+// Ladders. Freestanding climbable elements anchored on grid edges; the climb
+// volume sits in the adjacent cell across the edge. No Rapier collider — the
+// character step queries these volumes directly.
+pub const LADDER_WIDTH: f32 = 1.0;
+// How far the climb volume extends from the edge into the climb cell.
+pub const LADDER_VOLUME_DEPTH: f32 = 0.8;
+// Volume and rails extend this far above the top storey's floor surface so
+// the last climb tick leaves the feet over the landing and stepping off the
+// landing edge immediately re-enters the volume.
+pub const LADDER_OVERSHOOT: f32 = 0.3;
+// Gap between a character's leading face and the ladder plane while held at
+// the barrier. Face-based (half extent along the plane normal + this), not
+// center-based: the collider is wider than it is deep. Must exceed
+// `WALL_HALF_THICKNESS` because floor slabs overhang their grid line by that
+// much (they cap the walls below) — a smaller clearance leaves the climbing
+// body under the landing slab's lip, and the ascent stalls on its underside.
+pub const LADDER_STANDOFF_CLEARANCE: f32 = WALL_HALF_THICKNESS + 0.05;
+// How far the blocking band reaches from the plane, on both sides.
+// Generous enough to cover any character's hold distance, so the fence
+// clamp can't oscillate at the band's outer boundary.
+pub const LADDER_BAND_DEPTH: f32 = 1.0;
+// A move must point mostly INTO the ladder face to start a climb: its
+// into-face component must be at least this fraction of the whole horizontal
+// move (0.5 ≈ within 60° of straight-in). Keeps a grazing walk past a ladder
+// from lifting off.
+pub const LADDER_CLIMB_FACING_FRACTION: f32 = 0.5;
+// ...and carry at least this much speed into the face (m/s), so micro drift
+// (reconciliation nudges, knockback tails) never reads as climbing.
+pub const LADDER_CLIMB_MIN_SPEED: f32 = 1.0;
+
 // Levels
 pub const LEVEL_HEIGHT: f32 = WALL_HEIGHT + FLOOR_THICKNESS;
 

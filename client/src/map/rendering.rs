@@ -6,8 +6,9 @@ use crate::{
     barriers::{BarrierAssets, BarrierMarker},
     config::{AssetSet, ClientSettings, DebugColorMode},
     map::{
-        DebugColors, GrassMarker, GroundMarker, LevelFocusEnabled, MapGeometryBatch, MapLevel, RampMarker, RoofMarker,
-        WallLightMarker, WallMarker, batch_floor, batch_ramp, batch_wall, spawn_wall_light_from_layout,
+        DebugColors, GrassMarker, GroundMarker, LadderMarker, LevelFocusEnabled, MapGeometryBatch, MapLevel,
+        RampMarker, RoofMarker, WallLightMarker, WallMarker, batch_floor, batch_ramp, batch_wall,
+        spawn_ladder_from_layout, spawn_wall_light_from_layout,
     },
     materials::MaterialHandleCache,
     players::LocalPlayerMarker,
@@ -75,6 +76,7 @@ pub fn map_spawn_geometry_system(
             With<RoofMarker>,
             With<RampMarker>,
             With<WallLightMarker>,
+            With<LadderMarker>,
         )>,
     >,
     mut last_spawn: Local<Option<DebugColorMode>>,
@@ -109,6 +111,10 @@ pub fn map_spawn_geometry_system(
 
     for light in &map_layout.wall_lights {
         spawn_wall_light_from_layout(&mut commands, &asset_server, &asset_set, light);
+    }
+
+    for ladder in &map_layout.ladders {
+        spawn_ladder_from_layout(&mut commands, &mut meshes, &mut materials, ladder);
     }
 
     for (floor, materials) in map_layout.floors.iter().zip(map_layout.floor_materials.iter()) {
@@ -162,9 +168,11 @@ pub fn map_level_focus_visibility_system(
                 With<GrassMarker>,
             )>,
             Without<RampMarker>,
+            Without<LadderMarker>,
         ),
     >,
-    mut ramps: Query<(&MapLevel, &mut Visibility), With<RampMarker>>,
+    mut ramps: Query<(&MapLevel, &mut Visibility), (With<RampMarker>, Without<LadderMarker>)>,
+    mut ladders: Query<(&MapLevel, &LadderMarker, &mut Visibility)>,
 ) {
     // `set_if_neq` everywhere: writing every `Visibility` each frame would
     // mark hundreds of unchanged entities dirty and re-run visibility
@@ -174,6 +182,9 @@ pub fn map_level_focus_visibility_system(
             vis.set_if_neq(Visibility::Visible);
         }
         for (_, mut vis) in &mut ramps {
+            vis.set_if_neq(Visibility::Visible);
+        }
+        for (_, _, mut vis) in &mut ladders {
             vis.set_if_neq(Visibility::Visible);
         }
         return;
@@ -194,6 +205,14 @@ pub fn map_level_focus_visibility_system(
     for (level, mut vis) in &mut ramps {
         // Show a ramp if it touches the player's level on either side.
         vis.set_if_neq(if level.0 == player_level || level.0 + 1 == player_level {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        });
+    }
+    for (level, ladder, mut vis) in &mut ladders {
+        // Show a ladder from every level it spans, top landing included.
+        vis.set_if_neq(if (level.0..=level.0 + ladder.levels).contains(&player_level) {
             Visibility::Visible
         } else {
             Visibility::Hidden

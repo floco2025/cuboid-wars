@@ -11,10 +11,12 @@ from .geometry import (
     ramp_rect,
     rect_from_cells,
     rects_overlap,
+    wall_endpoints_for_cell_side,
     wall_overlaps_rect,
     zone_contains_cell,
     zone_intersects_rect,
 )
+from .normalization import ladder_key, ladder_spans_level
 from .types import ZoneRef
 
 
@@ -69,6 +71,15 @@ class EraseMixin:
             if self.current_level not in (ramp["lower_level"], ramp["lower_level"] + 1)
             or not rects_overlap((c0, r0, c1, r1), ramp_rect(ramp))
         ]
+        after["ladders"] = [
+            ladder
+            for ladder in after.get("ladders", [])
+            if not ladder_spans_level(ladder, self.current_level)
+            or not wall_overlaps_rect(
+                list(wall_endpoints_for_cell_side(ladder["col"], ladder["row"], ladder["side"])),
+                (c0, r0, c1, r1),
+            )
+        ]
         label = "Erase Non-Floor Area" if preserve_floors else "Erase Area"
         self.apply_change(label, after)
 
@@ -87,6 +98,12 @@ class EraseMixin:
             arr = [barrier["c0"], barrier["r0"], barrier["c1"], barrier["r1"]]
             if point_near_wall(px, py, arr):
                 return ("Barrier", tuple(arr))
+        for ladder in self.map_data.get("ladders", []):
+            if not ladder_spans_level(ladder, self.current_level):
+                continue
+            edge = list(wall_endpoints_for_cell_side(ladder["col"], ladder["row"], ladder["side"]))
+            if point_near_wall(px, py, edge):
+                return ("Ladder", ladder_key(ladder))
         # Walk every zone list in reverse so the most-recently-painted entry
         # wins. SPAWN_ZONE_LISTS is ordered actor → player, so when both zone
         # types share a cell the actor zone is preferred.
@@ -153,5 +170,9 @@ class EraseMixin:
                 ramp
                 for ramp in after["ramps"]
                 if (ramp["lower_level"], tuple(ramp["low"]), tuple(ramp["high"])) != (lower, low, high)
+            ]
+        elif kind == "Ladder":
+            after["ladders"] = [
+                ladder for ladder in after.get("ladders", []) if ladder_key(ladder) != value
             ]
         self.apply_change(f"Erase {kind}", after)

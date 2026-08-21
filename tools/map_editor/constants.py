@@ -60,6 +60,8 @@ MODE_WALL_MATERIAL = "Wall Material"
 MODE_RAMP_MATERIAL = "Ramp Material"
 MODE_LIGHT = "Light"
 MODE_ERASE_LIGHTS = "Erase Lights"
+MODE_LADDER = "Ladder"
+MODE_ERASE_LADDERS = "Erase Ladders"
 MODE_PRESSURE_PLATE = "Pressure Plate"
 RAMP_MODES = (MODE_RAMP_UP, MODE_RAMP_DOWN)
 ERASE_MODES = (MODE_ERASE, MODE_ERASE_KEEP_FLOORS)
@@ -67,6 +69,7 @@ SPAWN_PAINT_MODES = (MODE_ACTOR_SPAWN_PAINT, MODE_PLAYER_SPAWN_PAINT)
 MATERIAL_MODES = (MODE_FLOOR_MATERIAL, MODE_WALL_MATERIAL, MODE_RAMP_MATERIAL)
 FLOOR_HIT_KINDS = (MODE_FLOOR, MODE_INACCESSIBLE_FLOOR)
 LIGHT_SIDES = ("N", "S", "E", "W")
+LADDER_SIDES = LIGHT_SIDES
 
 # Item type ids mirror `ItemType::from_config_id` in common/src/types/map.rs,
 # plus "key" (which additionally carries a barrier kind).
@@ -101,6 +104,7 @@ MODE_CATEGORIES: list[tuple[str, list[str]]] = [
     ),
     ("Walls + Barriers", [MODE_WALL, MODE_BARRIER]),
     ("Ramps", [MODE_RAMP_UP, MODE_RAMP_DOWN]),
+    ("Ladders", [MODE_LADDER, MODE_ERASE_LADDERS]),
     ("Materials", [MODE_FLOOR_MATERIAL, MODE_WALL_MATERIAL, MODE_RAMP_MATERIAL]),
     ("Lights", [MODE_LIGHT, MODE_ERASE_LIGHTS]),
     ("Pressure Plates", [MODE_PRESSURE_PLATE]),

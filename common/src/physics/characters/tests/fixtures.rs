@@ -1,10 +1,10 @@
 pub(super) use super::super::*;
 pub(super) use crate::{
-    config::{CharacterPhysicsConfig, GameplayConfig},
+    config::{CharacterPhysicsConfig, GameplayConfig, LaddersConfig},
     constants::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_THICKNESS},
     map::ramp_surface_at,
     physics::{CollisionWorld, character_overlaps_item},
-    protocol::{Floor, MapLayout, Position, Ramp, Wall},
+    protocol::{Floor, Ladder, MapLayout, Position, Ramp, Wall},
 };
 pub(super) use bevy_ecs::prelude::Entity;
 pub(super) use bevy_math::Vec3;
@@ -72,6 +72,110 @@ pub(crate) fn low_overhead_floor() -> Floor {
     }
 }
 
+// Edge plane at z = 0 spanning x -0.5..0.5; the climb volume is on the -Z
+// side (normal points -Z), landings are on the +Z side. Spans level 0 -> 1.
+pub(crate) fn test_ladder() -> Ladder {
+    Ladder {
+        x1: -0.5,
+        z1: 0.0,
+        x2: 0.5,
+        z2: 0.0,
+        nx: 0.0,
+        nz: -1.0,
+        level: 0,
+        levels: 1,
+    }
+}
+
+// Ground on the climb side of `test_ladder`.
+pub(crate) fn ladder_base_floor() -> Floor {
+    Floor {
+        x1: -4.0,
+        z1: -4.0,
+        x2: 4.0,
+        z2: 0.0,
+        y: 0.0,
+        thickness: FLOOR_THICKNESS,
+        level: 0,
+    }
+}
+
+// Two-storey variant of `test_ladder` on the same edge.
+pub(crate) fn test_ladder_two_storey() -> Ladder {
+    Ladder {
+        levels: 2,
+        ..test_ladder()
+    }
+}
+
+// Ground across the plane from `test_ladder` (the anchor side), same storey
+// as the climb-side base floor — the configuration where the ladder must be
+// a fence, not a doorway.
+pub(crate) fn ladder_anchor_base_floor() -> Floor {
+    Floor {
+        x1: -4.0,
+        z1: 0.0,
+        x2: 4.0,
+        z2: 4.0,
+        y: 0.0,
+        thickness: FLOOR_THICKNESS,
+        level: 0,
+    }
+}
+
+// Landing across the plane from `test_ladder`, one storey up.
+pub(crate) fn ladder_landing_floor() -> Floor {
+    Floor {
+        x1: -4.0,
+        z1: 0.0,
+        x2: 4.0,
+        z2: 4.0,
+        y: LEVEL_HEIGHT,
+        thickness: FLOOR_THICKNESS,
+        level: 1,
+    }
+}
+
+// X-facing variant of `test_ladder`: edge plane at x = 0 spanning z -0.5..0.5,
+// climb volume on the -X side — the character collider's wide (1.0 m) axis
+// faces this plane.
+pub(crate) fn test_ladder_facing_x() -> Ladder {
+    Ladder {
+        x1: 0.0,
+        z1: -0.5,
+        x2: 0.0,
+        z2: 0.5,
+        nx: -1.0,
+        nz: 0.0,
+        level: 0,
+        levels: 1,
+    }
+}
+
+// Landing across the plane from `test_ladder_facing_x`, one storey up.
+pub(crate) fn ladder_landing_floor_x() -> Floor {
+    Floor {
+        x1: 0.0,
+        z1: -4.0,
+        x2: 4.0,
+        z2: 4.0,
+        y: LEVEL_HEIGHT,
+        thickness: FLOOR_THICKNESS,
+        level: 1,
+    }
+}
+
+pub(crate) fn ladder_collision_world(floors: &[Floor], ladders: &[Ladder]) -> CollisionWorld {
+    CollisionWorld::from_map_layout(
+        &MapLayout {
+            floors: floors.to_vec(),
+            ladders: ladders.to_vec(),
+            ..Default::default()
+        },
+        &crate::protocol::BarrierKindTable::default(),
+    )
+}
+
 pub(crate) fn test_wall() -> Wall {
     Wall {
         x1: 0.0,
@@ -130,6 +234,12 @@ pub(crate) fn player_physics() -> CharacterPhysicsConfig {
         .expect("default gameplay config should load")
         .player
         .physics()
+}
+
+pub(crate) fn test_ladders() -> LaddersConfig {
+    GameplayConfig::load_default()
+        .expect("default gameplay config should load")
+        .ladders
 }
 
 pub(crate) fn player_speed() -> f32 {

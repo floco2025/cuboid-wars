@@ -12,6 +12,7 @@ from .constants import (
     DEFAULT_GRID_ROWS,
     FACES,
     ITEM_KEY_TYPE,
+    LADDER_SIDES,
     LIGHT_SIDES,
 )
 from .display import expand_face_materials
@@ -51,6 +52,7 @@ def normalize_map(map_data: dict) -> dict:
         ]
 
     ramps = [normalize_ramp(r) for r in map_data.get("ramps", [])]
+    ladders = [normalize_ladder(l) for l in map_data.get("ladders", [])]
     return {
         "grid_cols": cols,
         "grid_rows": rows,
@@ -60,6 +62,7 @@ def normalize_map(map_data: dict) -> dict:
         "pressure_plates": pressure_plates,
         "levels": levels,
         "ramps": ramps,
+        "ladders": ladders,
     }
 
 
@@ -110,6 +113,29 @@ def normalize_ramp(ramp: dict) -> dict:
         "lower_level": int(ramp["lower_level"]),
         **expand_face_materials(ramp),
     }
+
+
+def normalize_ladder(ladder: dict) -> dict:
+    side = str(ladder.get("side", "")).upper()
+    return {
+        "lower_level": int(ladder.get("lower_level", 0)),
+        "col": int(ladder["col"]),
+        "row": int(ladder["row"]),
+        "side": side if side in LADDER_SIDES else "N",
+        "levels": max(1, int(ladder.get("levels", 1))),
+    }
+
+
+def ladder_key(ladder: dict) -> tuple:
+    return (ladder["lower_level"], ladder["row"], ladder["col"], ladder["side"], ladder["levels"])
+
+
+def ladder_edge_key(ladder: dict) -> tuple:
+    return (ladder["row"], ladder["col"], ladder["side"])
+
+
+def ladder_spans_level(ladder: dict, level_idx: int) -> bool:
+    return ladder["lower_level"] <= level_idx <= ladder["lower_level"] + ladder["levels"]
 
 
 def normalize_light(light: dict) -> dict:
@@ -298,6 +324,28 @@ def canonicalize_map(map_data: dict) -> dict:
         b["ramps"],
         key=lambda r: (r["lower_level"], tuple(r["low"]), tuple(r["high"])),
     )
+
+    # Ladders: drop out-of-bounds anchors and spans past the top level (both
+    # hard errors in the Rust loader), then keep the first ladder per
+    # overlapping same-edge span — the loader rejects overlaps.
+    cols, rows = b["grid_cols"], b["grid_rows"]
+    in_bounds_ladders = [
+        l for l in b["ladders"]
+        if 0 <= l["col"] < cols and 0 <= l["row"] < rows
+        and l["lower_level"] >= 0
+        and l["lower_level"] + l["levels"] < len(b["levels"])
+    ]
+    kept_ladders: list[dict] = []
+    for ladder in sorted(in_bounds_ladders, key=ladder_key):
+        overlapping = any(
+            ladder_edge_key(other) == ladder_edge_key(ladder)
+            and other["lower_level"] < ladder["lower_level"] + ladder["levels"]
+            and ladder["lower_level"] < other["lower_level"] + other["levels"]
+            for other in kept_ladders
+        )
+        if not overlapping:
+            kept_ladders.append(ladder)
+    b["ladders"] = kept_ladders
     return b
 
 
@@ -435,6 +483,10 @@ def resize_map_data(
             ramp["high"] = [high_c, high_r]
             kept_ramps.append(ramp)
     out["ramps"] = kept_ramps
+
+    out["ladders"] = [
+        l for l in (clip_cell_entry(l) for l in out.get("ladders", [])) if l is not None
+    ]
 
     return out
 

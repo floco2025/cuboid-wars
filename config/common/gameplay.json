@@ -30,6 +30,9 @@
     "blast_up_speed": 7.0,
     "deceleration": 35.0
   },
+  "ladders": {
+    "climb_speed_ratio": 0.7
+  },
   "missiles": {
     "lock_max_distance": 100.0,
     "lock_assist_radius": 1.2,

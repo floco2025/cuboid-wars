@@ -152,6 +152,7 @@ pub(crate) fn plan_actor_moves(
                     passable_kinds: // actors never have low-gravity
                 &open_barrier_kinds.0,
                     physics: actor_physics,
+                    ladders: gameplay_config.ladders,
                 },
             );
             push_actor_planned_move(

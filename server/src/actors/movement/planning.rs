@@ -90,6 +90,7 @@ pub(crate) fn plan_actor_moves(
             path_clear_lookahead_secs: kind_server_config.navigation.path_clear_lookahead_secs,
             open_barrier_kinds: &open_barrier_kinds.0,
             gravity: map_settings.gravity,
+            ladders: gameplay_config.ladders,
             knockback_step: knockback.map_or(Vec3::ZERO, |velocity| velocity.step(delta)),
         };
 

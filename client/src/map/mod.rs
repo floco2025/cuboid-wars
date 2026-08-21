@@ -14,8 +14,9 @@ pub use rendering::{
 };
 pub use resources::{DebugColors, LevelFocusEnabled};
 pub use spawn::{
-    GroundMarker, MapGeometryBatch, MapLevel, RampMarker, RoofMarker, WallLightMarker, WallMarker, batch_floor,
-    batch_ramp, batch_wall, spawn_wall_light_from_layout, wall_light_flicker_system,
+    GroundMarker, LadderMarker, MapGeometryBatch, MapLevel, RampMarker, RoofMarker, WallLightMarker, WallMarker,
+    batch_floor, batch_ramp, batch_wall, spawn_ladder_from_layout, spawn_wall_light_from_layout,
+    wall_light_flicker_system,
 };
 
 mod plugin;

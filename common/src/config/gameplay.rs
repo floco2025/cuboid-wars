@@ -14,6 +14,7 @@ pub struct GameplayConfig {
     pub version: u32,
     pub player: PlayerGameplayConfig,
     pub projectiles: ProjectilesConfig,
+    pub ladders: LaddersConfig,
     pub missiles: MissilesConfig,
     pub power_up_effects: PowerUpEffectsConfig,
     pub knockback: KnockbackConfig,
@@ -53,6 +54,7 @@ impl GameplayConfig {
         );
         self.player.validate("player")?;
         self.projectiles.validate("projectiles")?;
+        self.ladders.validate("ladders")?;
         self.missiles.validate("missiles")?;
         self.power_up_effects.validate("power_up_effects")?;
         self.knockback.validate("knockback")?;
@@ -157,6 +159,23 @@ impl KnockbackConfig {
         validate_positive_finite(self.blast_max_speed, &format!("{path}.blast_max_speed"))?;
         validate_non_negative_finite(self.blast_up_speed, &format!("{path}.blast_up_speed"))?;
         validate_positive_finite(self.deceleration, &format!("{path}.deceleration"))
+    }
+}
+
+// Ladder climb tuning. Shared: the climb is resolved inside the shared
+// character step, so client prediction must integrate the same speeds the
+// server does. One block for all characters — players and actors climb alike.
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct LaddersConfig {
+    // Climb rate per unit of intent speed into (ascend) or away from
+    // (descend) the ladder face — dimensionless, so walking, running, and
+    // each actor kind's speed all carry into the climb rate.
+    pub climb_speed_ratio: f32,
+}
+
+impl LaddersConfig {
+    fn validate(&self, path: &str) -> Result<()> {
+        validate_positive_finite(self.climb_speed_ratio, &format!("{path}.climb_speed_ratio"))
     }
 }
 

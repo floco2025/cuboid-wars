@@ -4,7 +4,7 @@ use anyhow::{Context, Result, anyhow, ensure};
 
 use common::protocol::ItemType;
 
-use super::schema::{ActorSpawnZoneDef, LevelDef, MapDef, MapFile, PlayerSpawnZoneDef, RampDef};
+use super::schema::{ActorSpawnZoneDef, LadderDef, LevelDef, MapDef, MapFile, PlayerSpawnZoneDef, RampDef};
 
 const SUPPORTED_VERSION: u32 = 1;
 
@@ -35,6 +35,7 @@ pub(super) fn validate_map(map_def: &MapDef) -> Result<()> {
     validate_pressure_plates(map_def)?;
     validate_levels(map_def)?;
     validate_ramps(map_def)?;
+    validate_ladders(map_def)?;
 
     Ok(())
 }
@@ -339,6 +340,50 @@ fn validate_ramps(map_def: &MapDef) -> Result<()> {
     Ok(())
 }
 
+// Ladders are deliberately permissive — no wall, floor, or clear-edge
+// requirements (the climb mechanic handles every surrounding, and jumping
+// off mid-climb is always possible). Only structural integrity is checked.
+fn validate_ladders(map_def: &MapDef) -> Result<()> {
+    for (idx, ladder) in map_def.ladders.iter().enumerate() {
+        validate_ladder(ladder, map_def.grid_cols, map_def.grid_rows, map_def.levels.len())
+            .with_context(|| format!("ladders[{idx}]"))?;
+        let overlapping = map_def.ladders[..idx].iter().any(|other| {
+            (other.col, other.row, other.side) == (ladder.col, ladder.row, ladder.side)
+                && other.lower_level < ladder.lower_level + ladder.levels
+                && ladder.lower_level < other.lower_level + other.levels
+        });
+        if overlapping {
+            return Err(anyhow!(
+                "ladders[{idx}] overlaps another ladder on the same edge (col {}, row {}, side {:?})",
+                ladder.col,
+                ladder.row,
+                ladder.side
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_ladder(ladder: &LadderDef, grid_cols: i32, grid_rows: i32, level_count: usize) -> Result<()> {
+    if ladder.col < 0 || ladder.col >= grid_cols || ladder.row < 0 || ladder.row >= grid_rows {
+        return Err(anyhow!(
+            "cell (col {}, row {}) out of grid bounds {grid_cols}x{grid_rows}",
+            ladder.col,
+            ladder.row
+        ));
+    }
+    if ladder.levels == 0 {
+        return Err(anyhow!("levels must be at least 1"));
+    }
+    let top_level = ladder.lower_level as usize + ladder.levels as usize;
+    if top_level >= level_count {
+        return Err(anyhow!(
+            "spans up to level {top_level} which does not exist (level count = {level_count})"
+        ));
+    }
+    Ok(())
+}
+
 fn level_label(level_idx: usize, level: &LevelDef) -> String {
     match &level.name {
         Some(name) if !name.is_empty() => format!("level {level_idx} ({name})"),
@@ -439,6 +484,11 @@ pub(super) fn canonicalize(map_def: &mut MapDef) {
 
     map_def.ramps.sort_by_key(|r| (r.lower_level, r.low, r.high));
     map_def.ramps.dedup_by_key(|r| (r.lower_level, r.low, r.high));
+
+    map_def
+        .ladders
+        .sort_by_key(|l| (l.lower_level, l.row, l.col, l.side as u8, l.levels));
+    map_def.ladders.dedup();
 }
 
 fn normalized_wall(wall: [i32; 4]) -> [i32; 4] {

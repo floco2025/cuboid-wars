@@ -1,5 +1,5 @@
-use crate::constants::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS};
-use crate::protocol::{Barrier, BarrierKindId, Floor, MapLayout, Ramp, Wall};
+use crate::constants::{FLOOR_THICKNESS, LADDER_OVERSHOOT, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS};
+use crate::protocol::{Barrier, BarrierKindId, Floor, Ladder, MapLayout, Position, Ramp, Wall};
 
 use super::{CollisionWorld, colliders::ColliderKind};
 
@@ -43,6 +43,53 @@ fn collision_world_contains_solids_for_walls_floors_and_ramps() {
         world.solid_kinds(),
         vec![ColliderKind::Wall, ColliderKind::Floor, ColliderKind::Ramp]
     );
+}
+
+#[test]
+fn ladder_volume_is_symmetric_and_covers_overshoot() {
+    let layout = MapLayout {
+        ladders: vec![Ladder {
+            x1: -0.5,
+            z1: 0.0,
+            x2: 0.5,
+            z2: 0.0,
+            nx: 0.0,
+            nz: -1.0,
+            level: 0,
+            levels: 2,
+        }],
+        ..Default::default()
+    };
+    let world = CollisionWorld::from_map_layout(&layout, &crate::protocol::BarrierKindTable::default());
+    let in_volume = |x: f32, y: f32, z: f32| world.ladder_volume_at(&Position { x, y, z }).is_some();
+
+    assert!(in_volume(0.0, 0.0, -0.4));
+    assert!(in_volume(0.0, 2.0 * LEVEL_HEIGHT + LADDER_OVERSHOOT - 0.01, -0.4));
+    assert!(!in_volume(0.0, 2.0 * LEVEL_HEIGHT + LADDER_OVERSHOOT + 0.1, -0.4));
+    // Both sides of the plane are climbable; beyond the depth is not.
+    assert!(in_volume(0.0, 1.0, 0.4));
+    assert!(!in_volume(0.0, 1.0, 0.9));
+    assert!(!in_volume(2.0, 1.0, -0.4));
+}
+
+#[test]
+fn ladder_volume_is_not_a_solid() {
+    let layout = MapLayout {
+        ladders: vec![Ladder {
+            x1: -0.5,
+            z1: 0.0,
+            x2: 0.5,
+            z2: 0.0,
+            nx: 0.0,
+            nz: -1.0,
+            level: 0,
+            levels: 1,
+        }],
+        ..Default::default()
+    };
+    let world = CollisionWorld::from_map_layout(&layout, &crate::protocol::BarrierKindTable::default());
+
+    assert_eq!(world.solid_count(), 0);
 }
 
 #[test]

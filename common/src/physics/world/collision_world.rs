@@ -11,7 +11,7 @@ use rapier3d::{
     },
 };
 
-use crate::protocol::{BarrierKindId, BarrierKindTable, MapLayout};
+use crate::protocol::{BarrierKindId, BarrierKindTable, MapLayout, Position};
 
 use super::colliders::{
     ColliderKind, FLOOR_COLLISION_GROUP, WALL_COLLISION_GROUP, barrier_collision_group, character_collision_groups,
@@ -19,6 +19,7 @@ use super::colliders::{
     insert_wall_collider, query_filter, world_collision_groups,
 };
 
+use super::ladders::LadderVolume;
 pub use super::shape_cast::ShapeCastHit;
 use super::shape_cast::upward_surface_hit;
 
@@ -39,6 +40,7 @@ pub struct CollisionWorld {
     // by character filters and barrier-only shape casts so we don't loop
     // the table per query.
     all_barrier_groups: Group,
+    ladder_volumes: Vec<LadderVolume>,
 }
 
 impl CollisionWorld {
@@ -83,13 +85,26 @@ impl CollisionWorld {
             all_barrier_groups |= barrier_collision_group(BarrierKindId(idx as u16));
         }
 
+        let ladder_volumes = map_layout.ladders.iter().map(LadderVolume::from_ladder).collect();
+
         Self {
             bodies,
             colliders,
             broad_phase,
             narrow_phase,
             all_barrier_groups,
+            ladder_volumes,
         }
+    }
+
+    #[must_use]
+    pub fn ladder_volume_at(&self, pos: &Position) -> Option<&LadderVolume> {
+        self.ladder_volumes.iter().find(|volume| volume.contains(pos))
+    }
+
+    #[must_use]
+    pub fn ladder_band_at(&self, x: f32, z: f32, y: f32) -> Option<&LadderVolume> {
+        self.ladder_volumes.iter().find(|volume| volume.band_contains(x, z, y))
     }
 
     #[cfg(test)]

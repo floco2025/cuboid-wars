@@ -11,12 +11,13 @@ use super::{
     types::CharacterMovementResult,
 };
 use crate::{
-    config::CharacterPhysicsConfig,
+    config::{CharacterPhysicsConfig, LaddersConfig},
     constants::{
         CHARACTER_GROUND_SNAP_DISTANCE, CHARACTER_PERCH_SLIDE_SPEED, CHARACTER_STEP_HEIGHT, CHARACTER_STEP_MIN_WIDTH,
-        CHARACTER_TERMINAL_VELOCITY, PHYSICS_EPSILON,
+        CHARACTER_TERMINAL_VELOCITY, LADDER_CLIMB_FACING_FRACTION, LADDER_CLIMB_MIN_SPEED, LADDER_STANDOFF_CLEARANCE,
+        PHYSICS_EPSILON,
     },
-    physics::world::{CollisionWorld, ShapeCastHit},
+    physics::world::{CollisionWorld, LadderVolume, ShapeCastHit},
     protocol::Position,
 };
 
@@ -35,7 +36,10 @@ pub fn try_start_player_jump(
     z: f32,
 ) -> bool {
     let ground_probe_pos = Position { x, y: pos.y, z };
-    if *vertical_velocity > 0.0 || !is_character_grounded(collision_world, &ground_probe_pos, physics) {
+    // A ladder counts as support: jumping is how you detach mid-climb, so it
+    // must work regardless of the climb's vertical velocity.
+    let on_ladder = collision_world.ladder_volume_at(&ground_probe_pos).is_some();
+    if !on_ladder && (*vertical_velocity > 0.0 || !is_character_grounded(collision_world, &ground_probe_pos, physics)) {
         return false;
     }
 
@@ -76,6 +80,7 @@ pub struct CharacterEnvironment<'a> {
     pub gravity: f32,
     pub passable_kinds: &'a [crate::protocol::BarrierKindId],
     pub physics: CharacterPhysicsConfig,
+    pub ladders: LaddersConfig,
 }
 
 #[must_use]
@@ -96,15 +101,77 @@ pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) 
     let character_shape = character_shape(physics);
     let character_pos = character_pose(start_pos, physics);
     let support_shape = character_support_probe_shape(physics);
-    let current_ground = if start_vertical_velocity <= 0.0 {
+    let ground_probe = if start_vertical_velocity <= 0.0 {
         character_ground_hit(collision_world, &support_shape, start_pos, passable_kinds, physics)
     } else {
         None
     };
+    let ladder = collision_world.ladder_volume_at(start_pos);
+    // Climbing is a per-tick condition, not persistent state, and works from
+    // EITHER side of the plane: inside a ladder volume with the intent
+    // pushing toward the plane — mostly toward it (the facing gate) and at
+    // real speed (the absolute floor), so a grazing walk past the ladder or
+    // a reconciliation micro-nudge never lifts off. The ascent converts the
+    // toward-plane speed via `climb_speed_ratio`, so walk vs run (and each
+    // actor kind's speed) carries into the climb rate. Whatever hangs over
+    // the chosen side is an ordinary collision — the ladder never inspects
+    // the surrounding geometry. Standing ON the top landing walks normally
+    // (the one grounded exception; the climb still runs above the landing
+    // while airborne so a crest can finish). Derived from position + intent
+    // alone so server and client prediction agree without any wire state.
+    let climb_velocity = ladder.and_then(|ladder| {
+        if ground_probe.is_some() && start_pos.y >= ladder.top_landing_y() - PHYSICS_EPSILON {
+            return None;
+        }
+        let side = ladder.side_sign(start_pos.x, start_pos.z);
+        let move_x = target_x - start_pos.x;
+        let move_z = target_z - start_pos.z;
+        let toward_plane = -(move_x * ladder.normal_x + move_z * ladder.normal_z) * side;
+        let toward_speed = toward_plane / delta;
+        let facing = toward_plane >= move_x.hypot(move_z) * LADDER_CLIMB_FACING_FRACTION;
+        (facing && toward_speed >= LADDER_CLIMB_MIN_SPEED).then_some(toward_speed * env.ladders.climb_speed_ratio)
+    });
+    let climbing = climb_velocity.is_some();
+    // Pressing away from the plane climbs DOWN, with the same facing/speed
+    // gates and the same rate scaling as ascending. Only while not moving
+    // upward, so a jump off the ladder keeps its arc.
+    let descend_velocity = if start_vertical_velocity <= 0.0 && !climbing {
+        ladder.and_then(|ladder| {
+            let side = ladder.side_sign(start_pos.x, start_pos.z);
+            let move_x = target_x - start_pos.x;
+            let move_z = target_z - start_pos.z;
+            let away_from_plane = (move_x * ladder.normal_x + move_z * ladder.normal_z) * side;
+            let away_speed = away_from_plane / delta;
+            let facing_away = away_from_plane >= move_x.hypot(move_z) * LADDER_CLIMB_FACING_FRACTION;
+            (facing_away && away_speed >= LADDER_CLIMB_MIN_SPEED)
+                .then_some(-(away_speed * env.ladders.climb_speed_ratio))
+        })
+    } else {
+        None
+    };
+    // Climbing suppresses ground following: without this, the ground snap
+    // below would glue the first climb tick back onto the base floor.
+    let can_follow_ground = start_vertical_velocity <= 0.0 && !climbing;
+    let current_ground = if can_follow_ground { ground_probe } else { None };
     let mut next_vertical_velocity = start_vertical_velocity;
-    let can_follow_ground = next_vertical_velocity <= 0.0;
-    if current_ground.is_some() && can_follow_ground {
+    let mut ladder_descend_hold = None;
+    if let Some(climb_velocity) = climb_velocity {
+        next_vertical_velocity = climb_velocity;
+    } else if current_ground.is_some() {
         next_vertical_velocity = 0.0;
+    } else if let Some(on_ladder) = ladder.filter(|_| start_vertical_velocity <= 0.0) {
+        // On the ladder, airborne, not ascending: pressing away climbs down
+        // (horizontal motion pinned to the hold line below so backing up
+        // doesn't shear off the ladder); otherwise latch in place — standing
+        // still on a ladder stays put, and a fall through the volume is
+        // caught the same way. Jump arcs (vv > 0) fall through to gravity
+        // so detaching works.
+        if let Some(descend_velocity) = descend_velocity {
+            next_vertical_velocity = descend_velocity;
+            ladder_descend_hold = Some(on_ladder);
+        } else {
+            next_vertical_velocity = 0.0;
+        }
     } else {
         // Apply gravity for this frame, but cap falling speed so large falls
         // remain stable and predictable (terminal velocity is unchanged by
@@ -133,6 +200,14 @@ pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) 
     };
     let controller = character_controller();
 
+    let (target_x, target_z) = match ladder_descend_hold {
+        Some(ladder) => {
+            let hold = ladder.side_sign(start_pos.x, start_pos.z) * ladder_hold_standoff(ladder, physics);
+            ladder.with_plane_offset(target_x, target_z, hold)
+        }
+        None => (target_x, target_z),
+    };
+    let (target_x, target_z) = clamp_move_at_ladder_plane(start_pos, target_x, target_z, collision_world, physics);
     let requested_target = Position {
         x: target_x,
         y: next_vertical_velocity.mul_add(delta, start_pos.y),
@@ -187,9 +262,17 @@ pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) 
     // Rapier reports a side contact while auto-stepping over slab/trim edges.
     // That is normal movement, not a wall hit, so don't expose it as blocked.
     let stepped_up = movement.grounded && movement.translation.y > requested_move.y + CHARACTER_AUTOSTEP_EPSILON;
+    // A climb whose rise was cut short hit something overhead (e.g. riding
+    // the wrong side of a ladder into the floor above) — surface it as
+    // blocked so the bump feedback fires. Scoped to climbing: ordinary jumps
+    // against ceilings stay silent.
+    let climb_rise_blocked = climbing
+        && requested_vertical_move.y > 0.0
+        && movement.translation.y < requested_vertical_move.y - PHYSICS_EPSILON;
     let blocked = saw_side_contact
         && !stepped_up
-        && movement_progress_was_blocked(supported_horizontal_move, movement.translation);
+        && movement_progress_was_blocked(supported_horizontal_move, movement.translation)
+        || climb_rise_blocked;
 
     let grounded = resolved_ground.is_some();
     // `movement.grounded` covers support the center-line probe can't see
@@ -209,6 +292,45 @@ pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) 
         vertical_velocity,
         blocked,
     }
+}
+
+// Where the plane clamp holds this character's center: leading face (half
+// extent along the plane normal — the collider is wider than it is deep)
+// plus the clearance that keeps the body out from under the landing slabs'
+// overhanging lip.
+fn ladder_hold_standoff(ladder: &LadderVolume, physics: CharacterPhysicsConfig) -> f32 {
+    let half_extent_toward_plane = if ladder.normal_x != 0.0 {
+        physics.collider.width / 2.0
+    } else {
+        physics.collider.depth / 2.0
+    };
+    half_extent_toward_plane + LADDER_STANDOFF_CLEARANCE
+}
+
+// The ladder's edge plane is a fence from the ladder's base up to its top
+// landing: below that height, horizontal motion may not cross the plane or
+// bring the character's leading face closer than the hold stand-off, from
+// either side — no exceptions, no geometry inspection. At or above the top
+// landing the plane is open (the band ends there), which is what lets a
+// climb crest over the top and lets a character on the top landing walk
+// onto the ladder to descend. Adjusting the target before the sweep keeps
+// the `blocked` bump feedback quiet.
+fn clamp_move_at_ladder_plane(
+    start: &Position,
+    target_x: f32,
+    target_z: f32,
+    collision_world: &CollisionWorld,
+    physics: CharacterPhysicsConfig,
+) -> (f32, f32) {
+    let Some(ladder) = collision_world.ladder_band_at(target_x, target_z, start.y) else {
+        return (target_x, target_z);
+    };
+    let side = ladder.side_sign(start.x, start.z);
+    let standoff = ladder_hold_standoff(ladder, physics);
+    if ladder.offset_from_plane(target_x, target_z) * side >= standoff {
+        return (target_x, target_z);
+    }
+    ladder.with_plane_offset(target_x, target_z, side * standoff)
 }
 
 fn movement_progress_was_blocked(desired: Vector, actual: Vector) -> bool {

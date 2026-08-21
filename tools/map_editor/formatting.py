@@ -126,6 +126,7 @@ def format_map_file(wrapper: dict) -> str:
         )
 
     lines.append("    ],")
+    lines.extend(with_trailing_comma(format_object_array("ladders", map_data.get("ladders", []), _ladder_body, 4)))
     lines.extend(format_object_array("ramps", map_data["ramps"], _ramp_body, 4))
     lines.append("  }")
     lines.append("}")
@@ -177,6 +178,15 @@ def _item_body(item: dict) -> str:
     body = {"level": item["level"], "col": item["col"], "row": item["row"], "type": item["type"]}
     if "kind" in item:
         body["kind"] = item["kind"]
+    return _inline_object_body(body)
+
+
+def _ladder_body(ladder: dict) -> str:
+    body = {
+        "lower_level": ladder["lower_level"],
+        "col": ladder["col"], "row": ladder["row"], "side": ladder["side"],
+        "levels": ladder["levels"],
+    }
     return _inline_object_body(body)
 
 

@@ -80,6 +80,23 @@ pub struct Barrier {
     pub kind: BarrierKindId,
 }
 
+// Freestanding climbable element anchored on a grid edge. The segment is the
+// edge span already shrunk to `LADDER_WIDTH` centered on the edge midpoint.
+// Climbing works from both sides of the plane; the normal only picks which
+// side the client renders the rails on. No Rapier collider — the character
+// step queries the derived climb volumes directly.
+#[derive(Debug, Clone, Encode, Decode, Copy)]
+pub struct Ladder {
+    pub x1: f32,
+    pub z1: f32,
+    pub x2: f32,
+    pub z2: f32,
+    pub nx: f32,
+    pub nz: f32,
+    pub level: u8,
+    pub levels: u8,
+}
+
 // Visual materials for each segment in the layout. The vectors run parallel
 // to `walls` / `ramps` / `floors`: the segment at index `i` renders with the
 // `FaceMaterials` at index `i` of the corresponding `*_materials` vector.
@@ -122,6 +139,7 @@ pub struct MapLayout {
     pub floor_materials: Vec<FaceMaterials>,
     pub wall_lights: Vec<WallLight>,
     pub barriers: Vec<Barrier>,
+    pub ladders: Vec<Ladder>,
     pub pressure_plates: Vec<PressurePlate>,
     pub grass: Vec<GrassCell>,
 }

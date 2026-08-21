@@ -13,7 +13,9 @@ from .constants import (
     MODE_ERASE_GRASS,
     MODE_ERASE_ITEMS,
     MODE_ERASE_KEEP_FLOORS,
+    MODE_ERASE_LADDERS,
     MODE_ERASE_LIGHTS,
+    MODE_LADDER,
     MODE_FLOOR,
     MODE_FLOOR_MATERIAL,
     MODE_GRASS,
@@ -57,6 +59,8 @@ DRAG_PREVIEW_COLORS: dict[str, QColor] = {
     # off-white. The placed glyph is then color-coded by its type.
     MODE_ITEM: QColor(220, 220, 220, 110),
     MODE_ERASE_ITEMS: QColor(245, 158, 11, 120),  # amber family, like Erase Lights
+    MODE_LADDER: QColor(251, 146, 60, 120),  # orange — matches the ladder glyph
+    MODE_ERASE_LADDERS: QColor(251, 146, 60, 120),
     MODE_FLOOR_MATERIAL: QColor(236, 72, 153, 120),
     MODE_RAMP_MATERIAL: QColor(168, 85, 247, 120),  # purple to distinguish from floor mode pink
     MODE_ERASE: QColor(248, 113, 113, 120),

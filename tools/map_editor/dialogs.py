@@ -117,6 +117,41 @@ class BarrierKindDialog(QDialog):
         return dialog.value()
 
 
+class LadderLevelsDialog(QDialog):
+    """Modal dialog asking how many storeys a new ladder spans. `max_levels`
+    caps the spinbox so the span can never reach past the map's top level.
+    Returns the storey count on accept, None on cancel."""
+
+    def __init__(self, parent, max_levels: int, current: int):
+        super().__init__(parent)
+        self.setWindowTitle("Place Ladder")
+
+        self._spin = QSpinBox()
+        self._spin.setRange(1, max_levels)
+        self._spin.setValue(min(max(1, current), max_levels))
+
+        form = QFormLayout()
+        form.addRow("Storeys:", self._spin)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+
+        layout = QVBoxLayout(self)
+        layout.addLayout(form)
+        layout.addWidget(buttons)
+
+    def value(self) -> int:
+        return self._spin.value()
+
+    @classmethod
+    def prompt(cls, parent, max_levels: int, current: int) -> int | None:
+        dialog = cls(parent, max_levels, current)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return None
+        return dialog.value()
+
+
 class ItemTypeDialog(QDialog):
     """Modal dialog asking which item type to place. Key items additionally
     pick a barrier kind; the kind combo is disabled for every other type.

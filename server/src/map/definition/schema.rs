@@ -23,6 +23,26 @@ pub(crate) struct MapDef {
     pub(crate) levels: Vec<LevelDef>,
     #[serde(default)]
     pub(crate) ramps: Vec<RampDef>,
+    #[serde(default)]
+    pub(crate) ladders: Vec<LadderDef>,
+}
+
+// Editor-authored ladder: a `(cell, side)` edge anchor plus how many storeys
+// it spans. Top-level (not per-level) because a ladder crosses levels, like
+// ramps. The climb volume sits in the adjacent cell across the edge; landings
+// are the anchor cell's floors.
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+pub(crate) struct LadderDef {
+    pub(crate) lower_level: u32,
+    pub(crate) col: i32,
+    pub(crate) row: i32,
+    pub(crate) side: WallSide,
+    #[serde(default = "default_ladder_levels")]
+    pub(crate) levels: u32,
+}
+
+const fn default_ladder_levels() -> u32 {
+    1
 }
 
 #[derive(Debug, Deserialize)]

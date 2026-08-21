@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .constants import BARRIER_KIND_TABLE, FACES, ITEM_KEY_TYPE, ITEM_TYPES, LIGHT_SIDES, MATERIAL_ALIASES
+from .constants import BARRIER_KIND_TABLE, FACES, ITEM_KEY_TYPE, ITEM_TYPES, LADDER_SIDES, LIGHT_SIDES, MATERIAL_ALIASES
 from .display import level_label
 from .geometry import (
     grid_point_in_bounds,
@@ -96,6 +96,8 @@ def validate_map(map_data: dict) -> list[str]:
         if msg:
             errors.append(f"ramp {ramp}: {msg}")
 
+    _validate_ladders(map_data, errors)
+
     # Face values on walls, floors, ramps must be aliases (assets.json::aliases).
     # Raw material ids are rejected — the alias system is the canonical way to
     # name a material role; raw ids in map.json would let the catalog drift
@@ -103,6 +105,36 @@ def validate_map(map_data: dict) -> list[str]:
     _validate_face_aliases(map_data, errors)
 
     return errors
+
+
+def _validate_ladders(map_data: dict, errors: list[str]) -> None:
+    # Deliberately permissive (no wall/floor/clear-edge requirements — the
+    # climb mechanic handles every surrounding); only structural integrity
+    # is checked, mirroring the Rust loader.
+    cols = map_data["grid_cols"]
+    rows = map_data["grid_rows"]
+    level_count = len(map_data["levels"])
+    for idx, ladder in enumerate(map_data.get("ladders", [])):
+        label = f"ladders[{idx}]"
+        col, row, side = ladder["col"], ladder["row"], ladder["side"]
+        lower, levels = ladder["lower_level"], ladder["levels"]
+        if not (0 <= col < cols and 0 <= row < rows):
+            errors.append(f"{label} [{col}, {row}] is outside the grid")
+        if side not in LADDER_SIDES:
+            errors.append(f"{label} has invalid side {side!r}")
+        if levels < 1:
+            errors.append(f"{label} must span at least 1 storey")
+        if not (0 <= lower and lower + levels < level_count):
+            errors.append(
+                f"{label} spans levels {lower}..{lower + levels} but the map has {level_count} level(s)"
+            )
+        for other_idx, other in enumerate(map_data["ladders"][:idx]):
+            if (
+                (other["col"], other["row"], other["side"]) == (col, row, side)
+                and other["lower_level"] < lower + levels
+                and lower < other["lower_level"] + other["levels"]
+            ):
+                errors.append(f"{label} overlaps ladders[{other_idx}] on the same edge")
 
 
 def _validate_items(map_data: dict, errors: list[str]) -> None:

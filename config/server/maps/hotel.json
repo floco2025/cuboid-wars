@@ -4631,6 +4631,11 @@
         "lights": []
       }
     ],
+    "ladders": [
+      {"lower_level": 1, "col": 5, "row": 13, "side": "W", "levels": 4},
+      {"lower_level": 4, "col": 14, "row": 10, "side": "N", "levels": 1},
+      {"lower_level": 4, "col": 15, "row": 10, "side": "N", "levels": 1}
+    ],
     "ramps": [
       {"lower_level": 0, "low": [0, 15], "high": [1, 13], "all": "basement-floor"},
       {"lower_level": 0, "low": [6, 25], "high": [8, 24], "all": "basement-support-wall", "top": "basement-floor"},

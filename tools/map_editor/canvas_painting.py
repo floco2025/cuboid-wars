@@ -15,6 +15,7 @@ from .constants import (
     ITEMS_LIST,
     MATERIAL_MODES,
     MODE_BARRIER,
+    MODE_LADDER,
     MODE_SPAWN_ZONE_EDIT,
     MODE_WALL,
     MODE_WALL_MATERIAL,
@@ -23,6 +24,8 @@ from .constants import (
     SPAWN_PAINT_MODES,
     SPAWN_ZONE_HANDLE_PIXELS,
 )
+from .normalization import ladder_spans_level
+
 from .display import (
     BARRIER_PEN_WIDTH,
     DRAG_PREVIEW_COLORS,
@@ -35,6 +38,8 @@ from .display import (
 )
 from .geometry import (
     draw_direction,
+    ladder_anchor_from_click,
+    ladder_marker_lines,
     light_marker_polygon,
     opposite_direction,
     orthogonal_arrow_points,
@@ -83,6 +88,7 @@ class CanvasPaintingMixin:
         self._paint_grid_lines(painter, cell, cols, rows)
         self._paint_walls(painter, level, cell)
         self._paint_barriers(painter, level, cell)
+        self._paint_ladders(painter, cell, level_idx)
         self._paint_wall_material_drag(painter, cell)
         # Lights sit on top of wall lines so the markers stay visible.
         self.paint_lights(painter, level, cell)
@@ -110,6 +116,25 @@ class CanvasPaintingMixin:
         if mode in (MODE_WALL, MODE_BARRIER):
             return
         if self.hover_cell is None:
+            return
+        if mode == MODE_LADDER:
+            # Side-aware ghost: the glyph snaps to whichever edge the click
+            # would use and previews the committed result — the ladder stands
+            # in the hovered cell, so the ghost sits under the cursor. Dimmer
+            # than a committed ladder. No ghost when the cell across the edge
+            # is off-grid (the click would be refused).
+            if self.hover_ladder_side is None:
+                return
+            col, row = self.hover_cell
+            anchor_col, anchor_row, anchor_side = ladder_anchor_from_click(col, row, self.hover_ladder_side)
+            cols = self.window.map_data["grid_cols"]
+            rows = self.window.map_data["grid_rows"]
+            if not (0 <= anchor_col < cols and 0 <= anchor_row < rows):
+                return
+            ghost_ladder = {"col": anchor_col, "row": anchor_row, "side": anchor_side}
+            painter.setPen(QPen(QColor(251, 146, 60, 150), 2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+            for x0, y0, x1, y1 in ladder_marker_lines(ghost_ladder, cell):
+                painter.drawLine(round(x0), round(y0), round(x1), round(y1))
             return
         col, row = self.hover_cell
         if not (0 <= col < self.window.map_data["grid_cols"] and 0 <= row < self.window.map_data["grid_rows"]):
@@ -316,6 +341,18 @@ class CanvasPaintingMixin:
                 barrier["r1"] * cell,
             )
 
+    def _paint_ladders(self, painter: QPainter, cell: float, level_idx: int) -> None:
+        # A ladder paints on every level it passes through (like ramps on
+        # both of theirs), so multi-storey spans stay visible while editing
+        # any level along the way.
+        ladders = [l for l in self.window.map_data.get("ladders", []) if ladder_spans_level(l, level_idx)]
+        if not ladders:
+            return
+        painter.setPen(QPen(QColor("#fb923c"), 2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        for ladder in ladders:
+            for x0, y0, x1, y1 in ladder_marker_lines(ladder, cell):
+                painter.drawLine(round(x0), round(y0), round(x1), round(y1))
+
     def _paint_wall_material_drag(self, painter: QPainter, cell: float) -> None:
         # Grid-point based: 2D rectangle when the drag spans both axes, or a
         # thick line when it collapses onto a single row or column. Painted
@@ -364,6 +401,7 @@ class CanvasPaintingMixin:
                 self._paint_ramps(painter, cell, target)
                 self._paint_walls(painter, neighbor, cell)
                 self._paint_barriers(painter, neighbor, cell)
+                self._paint_ladders(painter, cell, target)
         painter.restore()
 
     def _paint_pending_auto_lights(self, painter: QPainter, cell: float, level_idx: int) -> None:

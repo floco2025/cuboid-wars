@@ -94,6 +94,13 @@ class StructureMixin:
         for ramp in after["ramps"]:
             if ramp["lower_level"] >= insert_at:
                 ramp["lower_level"] += 1
+        for ladder in after.get("ladders", []):
+            if ladder["lower_level"] >= insert_at:
+                ladder["lower_level"] += 1
+            elif ladder["lower_level"] + ladder["levels"] >= insert_at:
+                # The insertion lands inside the span: stretch so both
+                # endpoints keep their storeys.
+                ladder["levels"] += 1
         self.apply_change("Add Level", after)
         self.current_level = insert_at
         self.refresh_ui()
@@ -124,6 +131,11 @@ class StructureMixin:
             lower = ramp["lower_level"]
             if removed in (lower, lower + 1):
                 dropped_ramps += 1
+        dropped_ladders = sum(
+            1
+            for ladder in self.map_data.get("ladders", [])
+            if ladder["lower_level"] <= removed <= ladder["lower_level"] + ladder["levels"]
+        )
         level = self.map_data["levels"][removed]
         floor_count = len(level["floors"]) + len(level["inaccessible_floors"])
         wall_count = len(level["walls"])
@@ -147,6 +159,8 @@ class StructureMixin:
             parts.append(f"{dropped_plates} pressure plate(s) on this level")
         if dropped_ramps:
             parts.append(f"{dropped_ramps} ramp(s) that span this level")
+        if dropped_ladders:
+            parts.append(f"{dropped_ladders} ladder(s) that span this level")
         body = f"Remove {level_label(level, removed)}?\n\nThis will drop:"
         body += "\n  - " + "\n  - ".join(parts)
         if details:
@@ -181,6 +195,15 @@ class StructureMixin:
                 ramp["lower_level"] = lower - 1
             adjusted.append(ramp)
         after["ramps"] = adjusted
+        adjusted_ladders = []
+        for ladder in after.get("ladders", []):
+            lower = ladder["lower_level"]
+            if lower <= removed <= lower + ladder["levels"]:
+                continue
+            if lower > removed:
+                ladder["lower_level"] = lower - 1
+            adjusted_ladders.append(ladder)
+        after["ladders"] = adjusted_ladders
         self.current_level = max(0, min(removed, len(after["levels"]) - 1))
         self.apply_change("Remove Level", after)
 

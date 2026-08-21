@@ -1,7 +1,7 @@
 use anyhow::Context;
 use std::collections::HashSet;
 
-use super::schema::{BarrierDef, MapDef, RampDef};
+use super::schema::{BarrierDef, LadderDef, MapDef, RampDef, WallSide};
 use crate::{
     map::{
         ActorSpawnZone, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlacedItem, PlayerSpawnZone, PressurePlateRuntime,
@@ -19,7 +19,7 @@ use common::{
     constants::*,
     map::MapGeometry,
     protocol::FaceMaterials,
-    protocol::{Barrier, BarrierKindId, BarrierKindTable, Floor, GrassCell, ItemType, MapLayout, Wall},
+    protocol::{Barrier, BarrierKindId, BarrierKindTable, Floor, GrassCell, ItemType, Ladder, MapLayout, Wall},
 };
 
 pub(crate) fn compile_map(
@@ -189,6 +189,12 @@ pub(crate) fn compile_map(
     let ramps_out = ramps::specs_to_ramps(&geometry, &ramp_specs);
     let ramp_materials: Vec<FaceMaterials> = ramps_out.iter().map(|r| assets.materials_for_ramp_top(r)).collect();
 
+    let ladders = map_def
+        .ladders
+        .iter()
+        .map(|def| ladder_from_def(def, &geometry))
+        .collect();
+
     let map_layout = MapLayout {
         walls: all_walls,
         wall_materials: all_wall_materials,
@@ -207,6 +213,7 @@ pub(crate) fn compile_map(
                 kind: p.kind,
             })
             .collect(),
+        ladders,
         grass,
     };
     // The renderer indexes the material vectors by segment position, so any
@@ -331,6 +338,41 @@ fn set_edge(edges: &mut EdgeGrid, edge: [i32; 4]) {
         edges.horizontal[r0 as usize][c0.min(c1) as usize] = true;
     } else {
         edges.vertical[r0.min(r1) as usize][c0 as usize] = true;
+    }
+}
+
+// Convert an editor-authored `(cell, side)` ladder into a world-space
+// `Ladder`: the anchor edge's span shrunk to `LADDER_WIDTH` centered on the
+// edge midpoint, with the normal pointing across the edge away from the
+// anchor cell (into the climb volume). Side conventions match `lights.rs`:
+// North = -Z, South = +Z, West = -X, East = +X.
+fn ladder_from_def(def: &LadderDef, geometry: &MapGeometry) -> Ladder {
+    let cell_x = geometry.cell_to_world_x(def.col);
+    let cell_z = geometry.cell_to_world_z(def.row);
+    let center_x = cell_x + GRID_CELL_SIZE / 2.0;
+    let center_z = cell_z + GRID_CELL_SIZE / 2.0;
+    let half_width = LADDER_WIDTH / 2.0;
+    let (x1, z1, x2, z2, nx, nz) = match def.side {
+        WallSide::North => (center_x - half_width, cell_z, center_x + half_width, cell_z, 0.0, -1.0),
+        WallSide::South => {
+            let z = cell_z + GRID_CELL_SIZE;
+            (center_x - half_width, z, center_x + half_width, z, 0.0, 1.0)
+        }
+        WallSide::West => (cell_x, center_z - half_width, cell_x, center_z + half_width, -1.0, 0.0),
+        WallSide::East => {
+            let x = cell_x + GRID_CELL_SIZE;
+            (x, center_z - half_width, x, center_z + half_width, 1.0, 0.0)
+        }
+    };
+    Ladder {
+        x1,
+        z1,
+        x2,
+        z2,
+        nx,
+        nz,
+        level: u8::try_from(def.lower_level).unwrap_or(u8::MAX),
+        levels: u8::try_from(def.levels).unwrap_or(u8::MAX),
     }
 }
 

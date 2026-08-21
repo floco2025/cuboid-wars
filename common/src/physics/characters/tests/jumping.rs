@@ -68,6 +68,7 @@ fn upward_jump_velocity_moves_player_above_support() {
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
+            ladders: test_ladders(),
             physics: player_physics(),
         },
     );
@@ -95,6 +96,7 @@ fn upward_motion_hits_floor_underside() {
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
+            ladders: test_ladders(),
             physics: player_physics(),
         },
     );
@@ -123,6 +125,7 @@ fn initial_ceiling_contact_does_not_cancel_horizontal_movement() {
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
+            ladders: test_ladders(),
             physics: player_physics(),
         },
     );
@@ -152,6 +155,7 @@ fn upward_motion_ignores_floor_underside_outside_footprint() {
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
+            ladders: test_ladders(),
             physics: player_physics(),
         },
     );
@@ -183,6 +187,7 @@ fn upward_motion_under_floor_edge_hits_floor_side() {
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
+            ladders: test_ladders(),
             physics: player_physics(),
         },
     );
@@ -214,6 +219,7 @@ fn player_on_floor_top_can_move_over_adjacent_floor_slab_edge() {
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
+            ladders: test_ladders(),
             physics: player_physics(),
         },
     );

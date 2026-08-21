@@ -145,6 +145,7 @@ pub(crate) fn plan_player_moves(
                     gravity: map_settings.gravity_for(has_low_gravity),
                     passable_kinds: &passable_kinds,
                     physics: player_physics,
+                    ladders: gameplay_config.ladders,
                 },
             );
             planned_moves.push(CharacterMovePlan::from_movement_result(

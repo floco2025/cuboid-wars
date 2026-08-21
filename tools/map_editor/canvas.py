@@ -24,7 +24,9 @@ from .constants import (
     MODE_GRASS,
     MODE_INACCESSIBLE_FLOOR,
     MODE_ITEM,
+    MODE_LADDER,
     MODE_LIGHT,
+    MODE_ERASE_LADDERS,
     MODE_PLAYER_SPAWN_PAINT,
     MODE_PRESSURE_PLATE,
     MODE_RAMP_MATERIAL,
@@ -38,6 +40,7 @@ from .display import (
     materials_summary,
 )
 from .geometry import (
+    cell_side_from_click,
     point_near_wall,
     ramp_cells,
     snapped_wall_end,
@@ -121,6 +124,11 @@ def _light_tool(canvas: "Canvas", event) -> None:
         canvas.window.toggle_light_at(event.position(), canvas.cell_size())
 
 
+def _ladder_tool(canvas: "Canvas", event) -> None:
+    if canvas.drag_start_cell:
+        canvas.window.toggle_ladder_at(event.position(), canvas.cell_size())
+
+
 def _erase_cells_tool(canvas: "Canvas", event) -> None:
     preserve_floors = canvas.window.mode == MODE_ERASE_KEEP_FLOORS
     if canvas.drag_start_cell and canvas.drag_current_cell and canvas.drag_start_cell != canvas.drag_current_cell:
@@ -143,6 +151,8 @@ RELEASE_TOOLS = {
     MODE_WALL_MATERIAL: _wall_material_tool,
     MODE_RAMP_MATERIAL: _cell_rect_tool("assign_ramp_materials_rect"),
     MODE_LIGHT: _light_tool,
+    MODE_LADDER: _ladder_tool,
+    MODE_ERASE_LADDERS: _cell_rect_tool("erase_ladders_rect"),
     MODE_PRESSURE_PLATE: _click_toggle_tool("remove_pressure_plate_at", "prompt_and_add_pressure_plate"),
     MODE_ITEM: _click_toggle_tool("remove_item_at", "prompt_and_add_item"),
     MODE_ERASE_ITEMS: _cell_rect_tool("erase_items_rect"),
@@ -173,6 +183,10 @@ class Canvas(CanvasPaintingMixin, QWidget):
         # material modes' hover-highlight pass).
         self.hover_cell: tuple[int, int] | None = None
         self.hover_grid_point: tuple[int, int] | None = None
+        # Ladder mode only: the cell side the click would anchor to, tracked
+        # continuously so the hover ghost snaps between sides as the cursor
+        # moves — without it there's nothing to aim at on an open edge.
+        self.hover_ladder_side: str | None = None
         self._hover_label = QLabel(self)
         self._hover_label.setStyleSheet(
             "background-color: rgba(15, 23, 42, 230);"
@@ -278,6 +292,7 @@ class Canvas(CanvasPaintingMixin, QWidget):
         self.hover_target = None
         self.hover_cell = None
         self.hover_grid_point = None
+        self.hover_ladder_side = None
         if changed:
             self.update()
         self._hover_label.hide()
@@ -285,10 +300,15 @@ class Canvas(CanvasPaintingMixin, QWidget):
     def _update_cell_hover(self, pos) -> None:
         cell = self.point_to_cell(pos)
         grid_point = self.point_to_grid_point(pos)
-        if cell == self.hover_cell and grid_point == self.hover_grid_point:
+        ladder_side = None
+        if self.window.mode == MODE_LADDER and cell is not None:
+            size = self.cell_size()
+            ladder_side = cell_side_from_click(cell[0], cell[1], pos.x() / size, pos.y() / size)
+        if cell == self.hover_cell and grid_point == self.hover_grid_point and ladder_side == self.hover_ladder_side:
             return
         self.hover_cell = cell
         self.hover_grid_point = grid_point
+        self.hover_ladder_side = ladder_side
         self.update()
 
     def _update_material_hover(self, pos) -> None:

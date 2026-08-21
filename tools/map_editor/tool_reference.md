@@ -26,6 +26,11 @@
 - **Ramp (Up)** — Drag from this level toward the upper level.
 - **Ramp (Down)** — Drag from this level toward the lower level.
 
+## Ladders
+
+- **Ladder** — Click the cell where the ladder's rails should stand, near the edge it climbs; the hover ghost previews it under the cursor. A dialog asks how many storeys it spans (starting at the current level). Ladders are climbable from both sides and block walking through below their top; no wall or floor is required — a ladder can stand at an open balcony front. Click an existing ladder (from either side of its edge) to remove it.
+- **Erase Ladders** — Drag a rectangle to remove every ladder whose anchor edge is inside it and whose span touches the current level.
+
 ## Materials
 
 - **Floor Material** — Click a single floor cell, or drag a rectangle to cover many; the dialog assigns materials to every face.

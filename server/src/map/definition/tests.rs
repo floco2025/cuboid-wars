@@ -1,8 +1,8 @@
 use super::{
     compile_map,
     schema::{
-        ActorSpawnZoneDef, BarrierDef, CellDef, FloorDef, ItemDef, LevelDef, MapDef, PlayerSpawnZoneDef,
-        PressurePlateDef, RampDef, WallDef,
+        ActorSpawnZoneDef, BarrierDef, CellDef, FloorDef, ItemDef, LadderDef, LevelDef, MapDef, PlayerSpawnZoneDef,
+        PressurePlateDef, RampDef, WallDef, WallSide,
     },
     validation::validate_map,
 };
@@ -96,6 +96,17 @@ fn map_with_zones(
         pressure_plates: Vec::new(),
         levels,
         ramps,
+        ladders: Vec::new(),
+    }
+}
+
+fn ladder(lower_level: u32, col: i32, row: i32, side: WallSide, levels: u32) -> LadderDef {
+    LadderDef {
+        lower_level,
+        col,
+        row,
+        side,
+        levels,
     }
 }
 
@@ -678,4 +689,193 @@ fn validation_rejects_duplicate_barrier() {
     });
     let err = validate_map(&map_def).expect_err("duplicate barrier edge must be rejected");
     assert!(err.to_string().contains("duplicate barrier"));
+}
+
+#[test]
+fn ladder_compiles_to_world_segment_and_normal() {
+    let mut map_def = map_with_zones(
+        4,
+        vec![level(vec![[1, 1]]), level(vec![[1, 0]])],
+        Vec::new(),
+        vec![player_zone(0, 1, 1)],
+        Vec::new(),
+    );
+    map_def.ladders.push(ladder(0, 1, 1, WallSide::North, 1));
+
+    let (layout, _, _) = compile_map(&map_def, &assets(), &empty_kind_table()).expect("compile");
+
+    assert_eq!(layout.ladders.len(), 1);
+    let out = layout.ladders[0];
+    // 4x4 grid centered on the origin: cell (1,1) spans world -3.4..0.0 on
+    // both axes; its north edge lies at z = -3.4 with the cell center at
+    // x = -1.7. The segment is LADDER_WIDTH wide around that midpoint.
+    assert!((out.x1 - -2.2).abs() < 1e-5);
+    assert!((out.x2 - -1.2).abs() < 1e-5);
+    assert!((out.z1 - -3.4).abs() < 1e-5);
+    assert!((out.z2 - -3.4).abs() < 1e-5);
+    assert_eq!((out.nx, out.nz), (0.0, -1.0));
+    assert_eq!((out.level, out.levels), (0, 1));
+}
+
+#[test]
+fn validation_accepts_stacked_non_overlapping_ladders() {
+    let mut map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]]), level(vec![[0, 0]]), level(vec![[0, 0]])],
+        Vec::new(),
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    map_def.ladders.push(ladder(0, 0, 0, WallSide::East, 1));
+    map_def.ladders.push(ladder(1, 0, 0, WallSide::East, 1));
+
+    validate_map(&map_def).expect("stacked ladders with disjoint spans should validate");
+}
+
+#[test]
+fn validation_rejects_ladder_span_past_top_level() {
+    let mut map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]]), level(vec![[0, 0]])],
+        Vec::new(),
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    map_def.ladders.push(ladder(0, 0, 0, WallSide::East, 2));
+
+    let err = format!(
+        "{:#}",
+        validate_map(&map_def).expect_err("span past the top level must be rejected")
+    );
+    assert!(err.contains("does not exist"));
+}
+
+#[test]
+fn validation_rejects_zero_storey_ladder() {
+    let mut map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]]), level(vec![[0, 0]])],
+        Vec::new(),
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    map_def.ladders.push(ladder(0, 0, 0, WallSide::East, 0));
+
+    let err = format!(
+        "{:#}",
+        validate_map(&map_def).expect_err("zero-storey ladder must be rejected")
+    );
+    assert!(err.contains("at least 1"));
+}
+
+#[test]
+fn validation_rejects_overlapping_ladders_on_same_edge() {
+    let mut map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]]), level(vec![[0, 0]]), level(vec![[0, 0]])],
+        Vec::new(),
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    map_def.ladders.push(ladder(0, 0, 0, WallSide::East, 2));
+    map_def.ladders.push(ladder(1, 0, 0, WallSide::East, 1));
+
+    let err = validate_map(&map_def).expect_err("overlapping ladder spans must be rejected");
+    assert!(err.to_string().contains("overlaps"));
+}
+
+#[test]
+fn validation_rejects_out_of_bounds_ladder() {
+    let mut map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]]), level(vec![[0, 0]])],
+        Vec::new(),
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    map_def.ladders.push(ladder(0, 5, 0, WallSide::East, 1));
+
+    let err = format!(
+        "{:#}",
+        validate_map(&map_def).expect_err("out-of-bounds ladder must be rejected")
+    );
+    assert!(err.contains("out of grid bounds"));
+}
+
+// Simulate a player climbing every authored ladder in every shipped map:
+// stand in the climb volume at the base, hold walk-speed input into the face,
+// and require the ascent to gain at least one full storey. Catches authoring
+// mistakes the permissive placement rules allow — most importantly a ladder
+// facing the wrong way, whose climb volume sits under the very slab it should
+// arrive on (the ascent stalls on the slab's underside).
+#[test]
+fn every_shipped_ladder_ascends_at_least_one_storey() {
+    use common::config::GameplayConfig;
+    use common::constants::{LEVEL_HEIGHT, TICK_SECS};
+    use common::physics::{CharacterEnvironment, CharacterStep, CollisionWorld, step_character_movement};
+    use common::protocol::Position;
+
+    let gameplay = GameplayConfig::load_default().expect("default gameplay config should load");
+    let physics = gameplay.player.physics();
+    let kind_table = BarrierKindTable::from_ids(gameplay.barrier_kinds.clone()).expect("kind table from config");
+    let maps_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../config/server/maps");
+    for entry in std::fs::read_dir(maps_dir).expect("maps dir readable") {
+        let path = entry.expect("maps dir entry readable").path();
+        if path.extension().and_then(|e| e.to_str()) != Some("json") {
+            continue;
+        }
+        let map_def = super::load_map(&path).expect("map file should load");
+        let assets = MaterialRules::from_def(&map_def);
+        let (layout, _, _) = compile_map(&map_def, &assets, &kind_table).expect("map should compile");
+        let world = CollisionWorld::from_map_layout(&layout, &kind_table);
+
+        for ladder in &layout.ladders {
+            let mid_x = f32::midpoint(ladder.x1, ladder.x2);
+            let mid_z = f32::midpoint(ladder.z1, ladder.z2);
+            let mut pos = Position {
+                x: ladder.nx.mul_add(0.6, mid_x),
+                y: f32::from(ladder.level) * LEVEL_HEIGHT,
+                z: ladder.nz.mul_add(0.6, mid_z),
+            };
+            let mut vertical_velocity = 0.0;
+            let one_storey_up = f32::from(ladder.level + 1) * LEVEL_HEIGHT - 0.05;
+            let speed = gameplay.player.walk_speed;
+            let mut reached = false;
+            for _ in 0..600 {
+                let step = step_character_movement(
+                    CharacterStep {
+                        start: pos,
+                        vertical_velocity,
+                        target_x: (-ladder.nx * speed).mul_add(TICK_SECS, pos.x),
+                        target_z: (-ladder.nz * speed).mul_add(TICK_SECS, pos.z),
+                        delta: TICK_SECS,
+                    },
+                    &CharacterEnvironment {
+                        collision_world: &world,
+                        gravity: 25.0,
+                        passable_kinds: &[],
+                        physics,
+                        ladders: gameplay.ladders,
+                    },
+                );
+                pos = step.position;
+                vertical_velocity = step.vertical_velocity;
+                if pos.y >= one_storey_up {
+                    reached = true;
+                    break;
+                }
+            }
+            assert!(
+                reached,
+                "{}: ladder at ({:.1}, {:.1}) level {} stalled at y={:.2} (needed {:.2}) — \
+                 likely facing the wrong way (landing over the climb side)",
+                path.display(),
+                mid_x,
+                mid_z,
+                ladder.level,
+                pos.y,
+                one_storey_up
+            );
+        }
+    }
 }

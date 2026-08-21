@@ -20,6 +20,7 @@ from .constants import (
     MODE_CATEGORIES,
     MODE_FLOOR,
     MODE_ITEM,
+    MODE_LADDER,
     MODE_LIGHT,
     MODE_PRESSURE_PLATE,
     MODE_RAMP_DOWN,
@@ -35,6 +36,7 @@ from .display import level_label
 from .normalization import canonicalize_map
 from .io import load_materials_catalog
 from .items import ItemsMixin
+from .ladders import LaddersMixin
 from .lights import LightsMixin
 from .placement import PlacementMixin
 from .spawn_zones import SpawnZoneEditMixin
@@ -48,6 +50,7 @@ class EditorWindow(
     PlacementMixin,
     ItemsMixin,
     LightsMixin,
+    LaddersMixin,
     EraseMixin,
     StructureMixin,
     SpawnZoneEditMixin,
@@ -80,6 +83,7 @@ class EditorWindow(
         # skipped between lights": 0 = every cell, 1 = every other, 2 = every
         # third.
         self.recent_auto_place_lights: tuple[int, int, int, int] = (0, 0, 0, 0)
+        self.recent_ladder_levels: int = 1
         # `(level_idx, [light, ...])` while an Auto-Place Lights confirmation
         # is pending; canvas paints these as ghosts. `None` outside the
         # preview window.
@@ -195,7 +199,7 @@ class EditorWindow(
     # Map each mode to the cursor it should display so a peripheral glance
     # tells the user which tool is active without reading the toolbar.
     def _cursor_for_mode(self, mode: str) -> Qt.CursorShape:
-        if mode in (MODE_LIGHT, MODE_PRESSURE_PLATE, MODE_ITEM):
+        if mode in (MODE_LIGHT, MODE_LADDER, MODE_PRESSURE_PLATE, MODE_ITEM):
             return Qt.CursorShape.PointingHandCursor
         if mode == MODE_SPAWN_ZONE_EDIT:
             return Qt.CursorShape.OpenHandCursor

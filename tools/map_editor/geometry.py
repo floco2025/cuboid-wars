@@ -230,6 +230,55 @@ def light_marker_polygon(light: dict, cell: float) -> list[QPoint]:
     return [QPoint(round((col + dx) * cell), round((row + dy) * cell)) for dx, dy in pts]
 
 
+_OPPOSITE_SIDE = {"N": "S", "S": "N", "W": "E", "E": "W"}
+_SIDE_NEIGHBOR = {"N": (0, -1), "S": (0, 1), "W": (-1, 0), "E": (1, 0)}
+
+
+def ladder_anchor_from_click(col: int, row: int, side: str) -> tuple[int, int, str]:
+    """The clicked cell is where the ladder physically stands (the climb
+    side); the stored anchor is the cell across the clicked edge — its
+    floors are the landings. Same edge, opposite side."""
+    dc, dr = _SIDE_NEIGHBOR[side]
+    return col + dc, row + dr, _OPPOSITE_SIDE[side]
+
+
+# Ladder glyph proportions, in cell units. The glyph hugs the anchor edge
+# and extends into the adjacent (climb) cell: two rails parallel to the edge
+# plus rungs between them — a ladder seen face-on.
+_LADDER_SPAN = (0.15, 0.85)   # extent along the edge
+_LADDER_NEAR = 0.04           # rail offset into the adjacent cell
+_LADDER_FAR = 0.26
+_LADDER_RUNG_COUNT = 4
+
+
+def ladder_marker_lines(ladder: dict, cell: float) -> list[tuple[float, float, float, float]]:
+    """Line segments (x0, y0, x1, y1) in pixels for a ladder's canvas glyph."""
+    col, row, side = ladder["col"], ladder["row"], ladder["side"]
+    if side == "N":
+        origin, edge, normal = (col, row), (1, 0), (0, -1)
+    elif side == "S":
+        origin, edge, normal = (col, row + 1), (1, 0), (0, 1)
+    elif side == "W":
+        origin, edge, normal = (col, row), (0, 1), (-1, 0)
+    else:  # "E"
+        origin, edge, normal = (col + 1, row), (0, 1), (1, 0)
+    ox, oy = origin
+    ex, ey = edge
+    nx, ny = normal
+    t0, t1 = _LADDER_SPAN
+
+    def point(t: float, off: float) -> tuple[float, float]:
+        return ((ox + ex * t + nx * off) * cell, (oy + ey * t + ny * off) * cell)
+
+    lines = []
+    for off in (_LADDER_NEAR, _LADDER_FAR):
+        lines.append((*point(t0, off), *point(t1, off)))
+    for idx in range(_LADDER_RUNG_COUNT):
+        t = t0 + (t1 - t0) * (idx + 0.5) / _LADDER_RUNG_COUNT
+        lines.append((*point(t, _LADDER_NEAR), *point(t, _LADDER_FAR)))
+    return lines
+
+
 def point_near_wall(px: float, py: float, wall: list[int], tolerance: float = 0.16) -> bool:
     c0, r0, c1, r1 = wall
     if r0 == r1:

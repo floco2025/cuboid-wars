@@ -33,6 +33,7 @@ fn edge_overhang_slides_off_and_falls() {
                 collision_world: &collision_world,
                 gravity: TEST_GRAVITY,
                 passable_kinds: &[],
+                ladders: test_ladders(),
                 physics,
             },
         );
@@ -97,6 +98,7 @@ fn probe_grounded_near_edge_does_not_slide() {
                 collision_world: &collision_world,
                 gravity: TEST_GRAVITY,
                 passable_kinds: &[],
+                ladders: test_ladders(),
                 physics,
             },
         );
@@ -135,6 +137,7 @@ fn input_overrides_perch_slide() {
                 collision_world: &collision_world,
                 gravity: TEST_GRAVITY,
                 passable_kinds: &[],
+                ladders: test_ladders(),
                 physics,
             },
         );
@@ -187,6 +190,7 @@ fn blocked_slide_keeps_velocity_zeroed() {
                 collision_world: &collision_world,
                 gravity: TEST_GRAVITY,
                 passable_kinds: &[],
+                ladders: test_ladders(),
                 physics,
             },
         );

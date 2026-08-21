@@ -7,7 +7,7 @@ Rust workspace with three crates:
 - **`common/`** — shared between client and server.
   - `protocol.rs` — all `ClientMessage` / `ServerMessage` variants and wire structs. Read the top-of-file doc comment before adding a new message — it lays out the bootstrap / snapshot / real-time-intent / one-shot-cue / per-client-state / diagnostic taxonomy that decides where new messages go.
   - `network.rs` — `MessageStream` abstraction over QUIC.
-  - `physics/` — shared player/projectile movement, collision world (incl. per-kind barrier collision groups), barrier passability, spawn validation helpers, and missile lock-on acquisition (`lock.rs`, used by the client crosshair and server fire validation).
+  - `physics/` — shared player/projectile movement, collision world (incl. per-kind barrier collision groups, plus the non-solid ladder climb volumes in `world/ladders.rs`), barrier passability, spawn validation helpers, and missile lock-on acquisition (`lock.rs`, used by the client crosshair and server fire validation).
   - `types/` — shared markers, IDs, positions, movement states, map layout types (`types/map_layout.rs`), items/power-ups, snapshots, `BarrierKindTable`.
   - `map/` — shared map behaviour: level classification + ramp surfaces (`levels.rs`), grid↔world conversion (`geometry.rs`, `MapGeometry`).
   - `health.rs`, `constants.rs` — the `Health` type with its operations, and gameplay constants.
@@ -32,7 +32,7 @@ Other notable paths:
 - `client/assets/` — 3D models, textures, audio.
 - `config/client/assets.json` — hand-edited asset set (materials, material rules, models, sounds, barrier kind colours).
 - `config/client/render.json` — client-only render/debug settings.
-- `config/common/gameplay.json` — shared simulation tuning loaded by client and server (player/actor physics incl. jump speed, the `projectiles` flight block, and the `missiles` block both sides need: lock range, aim-assist radius, ammo cap, blast radius).
+- `config/common/gameplay.json` — shared simulation tuning loaded by client and server (player/actor physics incl. jump speed, the `projectiles` flight block, the `ladders` climb ratio, and the `missiles` block both sides need: lock range, aim-assist radius, ammo cap, blast radius).
 - `config/server/gameplay.json` — server-only gameplay tuning, including the named-map registry: `maps` maps each name to its per-map settings (`skybox`, `gravity`, `low_gravity`, optional `random_items` spawn pool, optional `rain` schedule), `default_map` picks the one to load (`--map <name>` overrides). `placed_items.respawn_secs` sets the per-type reappear delay for map-placed items; the `missiles` block holds server-only flight/guidance/damage tuning.
 - `config/server/maps/` — one map JSON per named map (geometry, zones, and placed `items`; per-map tuning lives in the `maps` registry).
 - `cert.pem` / `key.pem` — local-dev TLS for QUIC (not production-safe).
@@ -79,6 +79,7 @@ When adding a new server→client message: pick the smallest role that fits. Mos
 - **Death & respawn**. `kill_player` in `server/src/combat/damage.rs` is the single entry point — clears per-life state on `PlayerInfo`, arms `death_timer`, queues the death explosion into `PendingExplosions`, despawns the entity, broadcasts `SPlayerDeath`. Called from projectile lethal hits, explosion blasts, and falls below `CHARACTER_FALL_DEATH_Y` (`players_fall_death_system`). `explosions_system` drains player and actor blasts to a fixed point; blast kills award no kill credit. `players_respawn_system` ticks the timer and spawns a fresh entity at a spawn zone.
 - **Barriers & keys**. Each `BarrierKindId` gets a dedicated Rapier collision group (bits 3..31, max 29 kinds). Players hold a sorted `Vec<BarrierKindId>` in `PlayerInfo.held_keys`; the character filter drops the matching groups so they pass through. Defined in `common/src/physics/world/colliders.rs` and `common/src/types/barrier_kind.rs`.
 - **Missiles**. Ammo comes from `missile_pack` items (capped by `missiles.max_missiles`; a full player leaves the pack in the world, like an already-held key; reset on death). The client crosshair locks any player/actor near the aim ray (`acquire_lock` in `common/src/physics/lock.rs`, with a configurable assist radius) and F fires — no cooldown, ammo is the rate limit; with `missiles.require_lock` off (the default), an unlocked shot launches unguided along the aim. All feedback (sound + the missile) waits for the server's `SMissileLaunch` so a rejected shot never orphans a cue. The server owns the whole flight: launch at a random spread angle (with a clear-runway resample), direct homing with lead pursuit + cosmetic weave while sight is clear, `AirGraph` BFS waypoints when blocked, a swept proximity fuse, and detonation into `PendingExplosion::Missile` — the only blast that credits a killer.
+- **Ladders**. Freestanding climbable elements anchored on a grid edge (`{lower_level, col, row, side, levels}` in the map JSON, top-level like ramps) — no wall or floor required, and deliberately dumb: nothing inspects the surrounding geometry. Climbing is stateless and works from either side of the plane: the shared `step_character_movement` derives everything per tick from position + intent against the ladder's symmetric climb volume (a plain AABB on `CollisionWorld`, no Rapier collider) — pushing toward the plane ascends, away descends (both scale the intent speed by `ladders.climb_speed_ratio`), idle latches, jump detaches, and whatever caps a side is an ordinary collision. The edge plane is a fence up to the ladder's top landing and open above it (`clamp_move_at_ladder_plane`), which is all it takes for cresting the top and mounting from the landing. Nothing rides the wire beyond `MapLayout.ladders`, so prediction agrees for free.
 - **Weather & time**. `weather_system` runs each map's optional `rain` schedule (or `/weather rain|clear` overrides); intensity rides `SSnapshot.rain_intensity` and the client smooths + renders it (`vfx/rain.rs`). Lighting is separate: `/light bright|dim|dark` rides `SSnapshot.lighting` (`lighting_dim_system`) — rain does not dim the world.
 - **Actor lifecycle**. `actors_removal_system` handles both health-zero ("killed", with explosion blast + `SActorDeath`) and fall ("silent"). `actors_respawn_system` refills slots according to per-kind spawn-zone quotas — by queueing into `PendingActorSpawns` (id, spot, and heading reserved), not spawning directly. `actors_pending_spawn_system` materializes each entry after its beam-in warning window (`respawn.warning_secs`); during the window the actor doesn't exist server-side and clients render a ghost from the snapshot's `spawning_actors`.
 
@@ -100,8 +101,8 @@ When adding a new server→client message: pick the smallest role that fits. Mos
 The canvas IS the UI. Do not add coordinate readouts, row/col numbers, or
 status-bar grid info — if something needs explaining, it should be drawn on
 the canvas itself. PySide6 with mouse-driven click/drag interactions per
-mode (floors, grass, walls, ramps, barriers, spawn zones, items, materials,
-lights, pressure plates).
+mode (floors, grass, walls, ramps, ladders, barriers, spawn zones, items,
+materials, lights, pressure plates).
 
 ## Coding style
 

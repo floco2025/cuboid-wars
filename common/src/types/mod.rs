@@ -16,7 +16,7 @@ pub use entities::{
 pub use face_materials::FaceMaterials;
 pub use ids::{ActorId, HomingTarget, ItemId, MissileId, PlayerId, QuestId};
 pub use items::{ItemType, PowerUpKind};
-pub use map_layout::{Barrier, Floor, GrassCell, MapLayout, MapSettings, PressurePlate, Ramp, Wall, WallLight};
+pub use map_layout::{Barrier, Floor, GrassCell, Ladder, MapLayout, MapSettings, PressurePlate, Ramp, Wall, WallLight};
 pub use movement::{
     ActorMoveIntent, ActorMovementState, FaceDirection, MissileMovementState, PlayerMoveIntent, PlayerMovementState,
 };

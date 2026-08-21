@@ -117,8 +117,15 @@ pub(crate) fn context<'a>(
         path_clear_lookahead_secs: 0.4,
         open_barrier_kinds: &[],
         gravity: 25.0,
+        ladders: test_ladders(),
         knockback_step: bevy::prelude::Vec3::ZERO,
     }
+}
+
+pub(crate) fn test_ladders() -> common::config::LaddersConfig {
+    common::config::GameplayConfig::load_default()
+        .expect("default gameplay config should load")
+        .ladders
 }
 
 pub(crate) fn planned_move(entity: Entity, start: Position, target: Position) -> CharacterMovePlan {
