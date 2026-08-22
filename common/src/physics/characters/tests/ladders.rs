@@ -1,5 +1,7 @@
 use super::*;
-use crate::constants::{LADDER_RAIL_INSET, LADDER_STANDOFF_CLEARANCE, LEVEL_HEIGHT};
+use crate::constants::{
+    LADDER_BASE_OVERSHOOT, LADDER_RAIL_INSET, LADDER_STANDOFF_CLEARANCE, LEVEL_HEIGHT, PHYSICS_EPSILON,
+};
 
 // Where the plane clamp holds the player against `test_ladder`, measured
 // from the RAIL plane (a Z-facing ladder, so the collider's depth is the
@@ -169,6 +171,57 @@ fn back_side_base_push_walks_through() {
 
     assert!(pos.z < -1.0);
     assert!(pos.y.abs() < 0.05);
+}
+
+#[test]
+fn back_side_base_entry_over_void_hangs_at_last_rung() {
+    // Floor behind the ladder only. Walking through the plane at the base
+    // reads as a descent; it must end hanging on the bottom overshoot, not
+    // slip off the volume's lower bound by a rounding error and free-fall.
+    let world = ladder_collision_world(&[ladder_back_base_floor()], &[test_ladder()]);
+    let bottom_y = -LADDER_BASE_OVERSHOOT;
+    let mut pos = Position { x: 0.0, y: 0.0, z: 0.5 };
+    let mut vertical_velocity = 0.0;
+    let mut reached_bottom = false;
+
+    for _ in 0..20 {
+        let step = ladder_step(&world, pos, vertical_velocity, pos.x, pos.z - 0.6);
+        pos = step.position;
+        vertical_velocity = step.vertical_velocity;
+        if reached_bottom {
+            assert_eq!(step.support, CharacterSupport::Ladder);
+            assert!((pos.y - bottom_y).abs() <= PHYSICS_EPSILON);
+        }
+        reached_bottom |= step.support == CharacterSupport::Ladder && pos.y <= bottom_y + PHYSICS_EPSILON;
+    }
+
+    assert!(reached_bottom);
+    assert!(pos.z < rail_plane_z());
+}
+
+#[test]
+fn climb_from_last_rung_hang_holds_at_the_plane() {
+    // Hanging on the bottom overshoot over a void, pushing into the face
+    // must climb against the plane, not walk through it onto the floor
+    // behind.
+    let world = ladder_collision_world(&[ladder_back_base_floor()], &[test_ladder()]);
+    let mut pos = Position {
+        x: 0.0,
+        y: -LADDER_BASE_OVERSHOOT,
+        z: rail_plane_z() - player_hold_distance(),
+    };
+    let mut vertical_velocity = 0.0;
+
+    for _ in 0..6 {
+        let step = ladder_step(&world, pos, vertical_velocity, pos.x, pos.z + 0.4);
+        assert!(step.position.z <= rail_plane_z() - player_hold_distance() + 0.01);
+        assert!(step.vertical_velocity > 0.0);
+        assert_eq!(step.support, CharacterSupport::Ladder);
+        pos = step.position;
+        vertical_velocity = step.vertical_velocity;
+    }
+
+    assert!(pos.y > 0.0);
 }
 
 #[test]

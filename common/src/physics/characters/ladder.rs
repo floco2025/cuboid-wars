@@ -91,8 +91,11 @@ pub(super) fn evaluate_ladder_interaction<'a>(
     };
     let descend_velocity = ride_velocity.filter(|velocity| *velocity < 0.0);
     if let Some(descend_velocity) = descend_velocity {
+        // Never positive: a rounding error below the bottom must hang, not
+        // push up and read as rising next tick.
+        let stop_velocity = ((ladder.bottom_y() - start.y) / delta).min(0.0);
         return LadderInteraction::Descending {
-            velocity: descend_velocity.max((ladder.bottom_y() - start.y) / delta),
+            velocity: descend_velocity.max(stop_velocity),
             ladder,
         };
     }

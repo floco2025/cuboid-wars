@@ -3,7 +3,7 @@ use bevy_math::Vec3;
 use crate::{
     constants::{
         LADDER_BAND_DEPTH, LADDER_BASE_OVERSHOOT, LADDER_OVERSHOOT, LADDER_RAIL_INSET, LADDER_VOLUME_DEPTH,
-        LEVEL_HEIGHT,
+        LEVEL_HEIGHT, PHYSICS_EPSILON,
     },
     protocol::{Ladder, Position},
 };
@@ -31,7 +31,9 @@ pub struct LadderVolume {
     // character's hold distance — but capped at the top landing's surface.
     // Below that height the plane is a fence for front-side characters; at
     // or above it the plane is open, which is what lets a climb crest over
-    // the top and a character on the top landing step onto the ladder.
+    // the top and a character on the top landing step onto the ladder. It
+    // reaches down to the climb volume's bottom: a climb starting from the
+    // last-rung hang is held at the plane only by this fence.
     band_min: Vec3,
     band_max: Vec3,
     // Unit axis-aligned normal of the edge plane, pointing at the front.
@@ -73,7 +75,7 @@ impl LadderVolume {
                 top_landing + LADDER_OVERSHOOT,
                 z_far + front_z.max(0.0),
             ),
-            band_min: Vec3::new(x_near - band_x, y_min, z_near - band_z),
+            band_min: Vec3::new(x_near - band_x, y_min - LADDER_BASE_OVERSHOOT, z_near - band_z),
             band_max: Vec3::new(x_far + band_x, top_landing, z_far + band_z),
             normal_x: ladder.nx,
             normal_z: ladder.nz,
@@ -82,11 +84,14 @@ impl LadderVolume {
         }
     }
 
+    // The bottom is tolerant: a descent clamps to `min.y` but the resolved
+    // move lands a rounding error below it, and an exact check would drop
+    // the character off the last rung.
     #[must_use]
     pub fn contains(&self, pos: &Position) -> bool {
         pos.x >= self.min.x
             && pos.x <= self.max.x
-            && pos.y >= self.min.y
+            && pos.y >= self.min.y - PHYSICS_EPSILON
             && pos.y <= self.max.y
             && pos.z >= self.min.z
             && pos.z <= self.max.z
