@@ -1,8 +1,11 @@
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
 from map_editor.constants import BARRIER_KIND_TABLE, DEFAULT_ALIAS, FACES
 from map_editor.geometry import ramp_axis, ramp_cells, wall_segments_between
-from map_editor.io import empty_map
+from map_editor.io import empty_map, read_map, write_map
 from map_editor.normalization import canonicalize_map, resize_map_data
 from map_editor.validation import validate_map
 
@@ -56,6 +59,20 @@ class NormalizationTests(unittest.TestCase):
             {(0, 0), (1, 0)},
         )
         self.assertEqual(result["levels"][1]["floors"], [])
+
+
+class FileIoTests(unittest.TestCase):
+    def test_map_files_are_written_without_a_schema_version(self) -> None:
+        data = empty_map(2, 2)
+        data["levels"][0]["floors"] = [floor(0, 0)]
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "map.json"
+            write_map(path, data)
+
+            wrapper = json.loads(path.read_text(encoding="utf-8"))
+            self.assertNotIn("version", wrapper)
+            self.assertEqual(read_map(path), canonicalize_map(data))
 
 
 class ResizeTests(unittest.TestCase):

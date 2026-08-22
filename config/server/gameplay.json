@@ -1,5 +1,4 @@
 {
-  "version": 1,
   "maps": {
     "hotel": {
       "skybox": "cloudy_day",
@@ -105,51 +104,49 @@
       "completed_text": "Collected 10 gold!"
     }
   ],
+  "actor_settings": {
+    "spawn_warning_secs": 3.0,
+    "threat_memory_secs": 1.0
+  },
   "actors": {
     "mine": {
-      "respawn": { "enabled": true, "delay_secs": 60.0, "warning_secs": 3.0 },
+      "respawn_delay_secs": 60.0,
+      "vision_range": 60.0,
+      "roam_steps": 3,
       "combat": {
         "armor": 0.3,
-        "contact_explosion_distance": 0.4,
-        "explosion": { "radius": 10.0, "max_damage": 150.0 },
+        "attack": { "type": "contact", "trigger_gap": 0.4 },
+        "death_explosion": { "radius": 10.0, "max_damage": 150.0 },
         "score_reward_on_kill": 50
-      },
-      "senses": { "horizontal_vision_range": 60.0, "vertical_vision_range": 10.0, "chase_reacquire_cooldown_secs": 10.0 },
-      "patrol": { "leash": 15.0, "min_direction_secs": 1.0, "max_direction_secs": 3.5, "idle_probability": 0.0 },
-      "chase": { "leash": 30.0 },
-      "navigation": { "path_clear_lookahead_secs": 0.4, "go_to_reached_distance": 0.5 }
+      }
     },
     "sentry": {
       "inherit_from": "mine",
-      "respawn": { "delay_secs": 90.0 },
+      "respawn_delay_secs": 90.0,
+      "roam_steps": 7,
       "combat": {
         "armor": 0.9,
-        "contact_explosion_distance": 0.8,
-        "explosion": { "radius": 15.0, "max_damage": 300.0 },
+        "attack": { "type": "contact", "trigger_gap": 0.8 },
+        "death_explosion": { "radius": 15.0, "max_damage": 300.0 },
         "score_reward_on_kill": 100
-      },
-      "senses": { "horizontal_vision_range": 60.0, "vertical_vision_range": 5.0 },
-      "patrol": { "leash": 30.0 },
-      "chase": { "leash": 80.0 }
+      }
     },
     "zapper": {
-      "respawn": { "enabled": true, "delay_secs": 120.0, "warning_secs": 3.0 },
+      "respawn_delay_secs": 120.0,
+      "vision_range": 40.0,
+      "roam_steps": 2,
       "combat": {
         "armor": 0.0,
-        "explosion": { "radius": 6.0, "max_damage": 75.0 },
+        "attack": {
+          "type": "beam",
+          "range": 25.0,
+          "duration_secs": 2.0,
+          "cooldown_secs": 5.0,
+          "damage_per_second": 40.0
+        },
+        "death_explosion": { "radius": 6.0, "max_damage": 75.0 },
         "score_reward_on_kill": 150
-      },
-      "senses": { "horizontal_vision_range": 40.0, "vertical_vision_range": 20.0, "chase_reacquire_cooldown_secs": 10.0 },
-      "patrol": { "leash": 10.0, "min_direction_secs": 1.0, "max_direction_secs": 3.5, "idle_probability": 0.0 },
-      "chase": { "leash": 20.0 },
-      "fire": {
-        "standoff_distance": 15.0,
-        "range": 25.0,
-        "duration_secs": 2.0,
-        "cooldown_secs": 5.0,
-        "damage_per_second": 40.0
-      },
-      "navigation": { "path_clear_lookahead_secs": 0.4, "go_to_reached_distance": 0.5 }
+      }
     }
   }
 }

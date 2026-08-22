@@ -8,7 +8,6 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 # One map JSON per named map; the editor's CLI argument is the map name.
 MAPS_DIR = REPO_ROOT / "config" / "server" / "maps"
-SUPPORTED_VERSION = 1
 
 
 def _load_shared_configs() -> tuple[list[str], dict[str, str], set[str]]:

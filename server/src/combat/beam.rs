@@ -4,7 +4,7 @@ use bevy::prelude::*;
 
 use super::{apply_player_beam_damage, kill_player};
 use crate::{
-    actors::{ActorGoal, ActorMap},
+    actors::{ActorMap, ActorMode, BeamState},
     combat::PendingExplosions,
     config::ServerGameplayConfig,
     network::broadcast_to_all,
@@ -52,10 +52,12 @@ pub fn actors_beam_damage_system(
     next_cue_at.retain(|id, _| actors.get(id).is_some());
 
     for (actor_id, info) in actors.iter() {
-        let ActorGoal::Fire { target, .. } = &info.goal else {
+        if !matches!(info.beam, BeamState::Firing { .. }) {
+            continue;
+        }
+        let ActorMode::Engage { target: target_id, .. } = info.mode else {
             continue;
         };
-        let target_id = *target;
         let Ok(actor_pos) = actor_positions.get(info.entity) else {
             continue;
         };
@@ -70,11 +72,11 @@ pub fn actors_beam_damage_system(
             continue;
         };
         let kind_config = server_gameplay_config.expect_actor(&info.spawn_kind);
-        let Some(fire) = &kind_config.fire else {
+        let Some(fire) = kind_config.combat.attack.beam() else {
             continue;
         };
 
-        if actor_pos.horizontal_distance_sq(target_pos) > fire.range * fire.range {
+        if actor_pos.distance_sq(target_pos) > fire.range * fire.range {
             continue;
         }
         let actor_physics = gameplay_config.expect_actor(&info.spawn_kind).physics();

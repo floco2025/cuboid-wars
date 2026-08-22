@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use bevy::prelude::*;
 use common::{
     config::CharacterPhysicsConfig,
-    physics::{CharacterMovePlan, CollisionWorld, character_center},
-    protocol::{ActorMarker, Health, Position},
+    physics::{CharacterMovePlan, CollisionWorld, character_center, character_vertical_ranges_overlap},
+    protocol::{ActorMarker, Health},
 };
 
 use crate::{actors::ActorMap, config::ServerGameplayConfig};
@@ -27,7 +27,8 @@ pub(super) fn detonate_actors_touching_players(
             let distance = server_gameplay_config
                 .expect_actor(&actor.spawn_kind)
                 .combat
-                .contact_explosion_distance;
+                .attack
+                .contact_trigger_gap();
             (actor.entity, distance)
         })
         .collect();
@@ -41,10 +42,10 @@ pub(super) fn detonate_actors_touching_players(
         for actor_entity in planned_moves
             .iter()
             .filter(|other| {
-                let Some(&Some(contact_explosion_distance)) = actor_contact_distance.get(&other.entity) else {
+                let Some(&Some(trigger_gap)) = actor_contact_distance.get(&other.entity) else {
                     return false;
                 };
-                character_move_plans_touch(planned_move, other, contact_explosion_distance, collision_world)
+                character_move_plans_touch(planned_move, other, trigger_gap, collision_world)
             })
             .map(|actor_move| actor_move.entity)
         {
@@ -58,14 +59,13 @@ pub(super) fn detonate_actors_touching_players(
 fn character_move_plans_touch(
     a: &CharacterMovePlan,
     b: &CharacterMovePlan,
-    contact_explosion_distance: f32,
+    trigger_gap: f32,
     collision_world: &CollisionWorld,
 ) -> bool {
     // Character movement blocks before colliders overlap, so contact uses a
     // configurable surface tolerance instead of requiring actual intersection.
-    if !vertical_ranges_overlap(a.target, a.physics, b.target, b.physics)
-        || a.target.horizontal_distance_sq(&b.target)
-            > contact_distance(a.physics, b.physics, contact_explosion_distance).powi(2)
+    if !character_vertical_ranges_overlap(a.target, a.physics, b.target, b.physics)
+        || a.target.horizontal_distance_sq(&b.target) > contact_distance(a.physics, b.physics, trigger_gap).powi(2)
     {
         return false;
     }
@@ -75,25 +75,12 @@ fn character_move_plans_touch(
     )
 }
 
-fn contact_distance(a: CharacterPhysicsConfig, b: CharacterPhysicsConfig, contact_explosion_distance: f32) -> f32 {
-    horizontal_collider_radius(a) + horizontal_collider_radius(b) + contact_explosion_distance
+fn contact_distance(a: CharacterPhysicsConfig, b: CharacterPhysicsConfig, trigger_gap: f32) -> f32 {
+    horizontal_collider_radius(a) + horizontal_collider_radius(b) + trigger_gap
 }
 
 fn horizontal_collider_radius(physics: CharacterPhysicsConfig) -> f32 {
     physics.collider.width.max(physics.collider.depth) / 2.0
-}
-
-fn vertical_ranges_overlap(
-    a_pos: Position,
-    a_physics: CharacterPhysicsConfig,
-    b_pos: Position,
-    b_physics: CharacterPhysicsConfig,
-) -> bool {
-    let a_bottom = a_pos.y + a_physics.collider.bottom_y_offset();
-    let a_top = a_pos.y + a_physics.collider.top_y_offset();
-    let b_bottom = b_pos.y + b_physics.collider.bottom_y_offset();
-    let b_top = b_pos.y + b_physics.collider.top_y_offset();
-    a_bottom <= b_top && b_bottom <= a_top
 }
 
 #[cfg(test)]
@@ -102,7 +89,7 @@ mod tests {
     use common::{
         config::GameplayConfig,
         constants::WALL_THICKNESS,
-        protocol::{BarrierKindTable, MapLayout, Wall},
+        protocol::{BarrierKindTable, MapLayout, Position, Wall},
     };
 
     fn plans() -> (CharacterMovePlan, CharacterMovePlan, f32) {
@@ -122,8 +109,9 @@ mod tests {
             server
                 .expect_actor("mine")
                 .combat
-                .contact_explosion_distance
-                .expect("mine contact_explosion_distance missing from server gameplay config"),
+                .attack
+                .contact_trigger_gap()
+                .expect("mine contact attack missing from server gameplay config"),
         )
     }
 
@@ -150,6 +138,15 @@ mod tests {
             ..default()
         };
         let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+
+        assert!(!character_move_plans_touch(&player, &actor, distance, &world));
+    }
+
+    #[test]
+    fn vertically_separated_player_does_not_trigger_contact_explosion() {
+        let (mut player, actor, distance) = plans();
+        player.target.y = 3.0;
+        let world = CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default());
 
         assert!(!character_move_plans_touch(&player, &actor, distance, &world));
     }

@@ -12,7 +12,6 @@ use common::{
 };
 use serde::Deserialize;
 
-const SUPPORTED_VERSION: u32 = 1;
 const REQUIRED_PLAYER_SOUNDS: &[&str] = &[
     "barrier_impact",
     "bump_player",
@@ -38,7 +37,6 @@ const REQUIRED_ACTOR_SOUNDS: &[&str] = &["explodes", "fire"];
 
 #[derive(Resource, Debug, Clone)]
 pub struct AssetSet {
-    pub version: u32,
     materials: HashMap<String, MaterialDef>,
     ladder: LadderAssets,
     aliases: HashMap<String, String>,
@@ -54,7 +52,6 @@ pub struct AssetSet {
 
 #[derive(Debug, Clone, Deserialize)]
 struct AssetSetFile {
-    version: u32,
     materials: HashMap<String, MaterialDef>,
     ladder: LadderAssets,
     #[serde(default)]
@@ -88,7 +85,6 @@ impl AssetSet {
         let file: AssetSetFile =
             serde_json::from_value(value).with_context(|| format!("failed to deserialize {}", path.display()))?;
         Ok(Self {
-            version: file.version,
             materials: file.materials,
             ladder: file.ladder,
             aliases: file.aliases,
@@ -102,12 +98,6 @@ impl AssetSet {
     }
 
     fn validate(&self) -> Result<()> {
-        anyhow::ensure!(
-            self.version == SUPPORTED_VERSION,
-            "unsupported asset config version {} (expected {})",
-            self.version,
-            SUPPORTED_VERSION
-        );
         anyhow::ensure!(
             self.item_materials.contains_key("default"),
             "asset config must define `item_materials.default`"

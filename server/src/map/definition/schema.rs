@@ -4,7 +4,6 @@ use common::protocol::FaceMaterials;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct MapFile {
-    pub(crate) version: u32,
     pub(crate) map: MapDef,
 }
 

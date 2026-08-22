@@ -7,11 +7,8 @@ use serde::Deserialize;
 use super::inheritance::resolve_actor_inheritance;
 use crate::constants::PHYSICS_EPSILON;
 
-const SUPPORTED_VERSION: u32 = 1;
-
 #[derive(Resource, Debug, Clone, Deserialize)]
 pub struct GameplayConfig {
-    pub version: u32,
     pub player: PlayerGameplayConfig,
     pub projectiles: ProjectilesConfig,
     pub ladders: LaddersConfig,
@@ -46,12 +43,6 @@ impl GameplayConfig {
     }
 
     fn validate(&self) -> Result<()> {
-        anyhow::ensure!(
-            self.version == SUPPORTED_VERSION,
-            "unsupported gameplay config version {} (expected {})",
-            self.version,
-            SUPPORTED_VERSION
-        );
         self.player.validate("player")?;
         self.projectiles.validate("projectiles")?;
         self.ladders.validate("ladders")?;
@@ -232,8 +223,8 @@ pub struct PlayerGameplayConfig {
 pub struct ActorGameplayConfig {
     #[serde(flatten)]
     pub character: CharacterGameplayConfig,
-    pub patrol_speed: f32,
-    pub chase_speed: f32,
+    pub roam_speed: f32,
+    pub active_speed: f32,
 }
 
 impl CharacterGameplayConfig {
@@ -301,8 +292,8 @@ impl ActorGameplayConfig {
 
     fn validate(&self, path: &str) -> Result<()> {
         self.character.validate(path)?;
-        validate_positive_finite(self.patrol_speed, &format!("{path}.patrol_speed"))?;
-        validate_positive_finite(self.chase_speed, &format!("{path}.chase_speed"))
+        validate_positive_finite(self.roam_speed, &format!("{path}.roam_speed"))?;
+        validate_positive_finite(self.active_speed, &format!("{path}.active_speed"))
     }
 }
 

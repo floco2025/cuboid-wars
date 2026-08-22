@@ -1,8 +1,10 @@
-use common::constants::{GRID_CELL_SIZE, LEVEL_HEIGHT};
+use bevy::prelude::Vec3;
+use common::constants::{GRID_CELL_SIZE, LEVEL_HEIGHT, WALL_THICKNESS};
 use common::map::MapGeometry;
-use common::protocol::Position;
+use common::physics::CollisionWorld;
+use common::protocol::{BarrierKindTable, MapLayout, Position, Wall};
 
-use super::NavGraph;
+use super::{NavGraph, routing::COVER_SEARCH_MAX_STEPS};
 use crate::map::{ActorSpawnZone, CellGrid, EdgeGrid, LevelGrid, MapConfig};
 
 fn level(cells: CellGrid, edges: EdgeGrid) -> LevelGrid {
@@ -23,6 +25,216 @@ fn zone(level: u8, col: i32, row: i32) -> ActorSpawnZone {
         kind: "zapper".into(),
         count: 1,
     }
+}
+
+fn full_floor_nav(cols: i32, rows: i32) -> NavGraph {
+    let mut cells = CellGrid::new(cols, rows);
+    for row in &mut cells.rows {
+        for cell in row {
+            cell.has_floor = true;
+        }
+    }
+    NavGraph::new(
+        MapConfig {
+            levels: vec![level(cells, EdgeGrid::new(cols, rows))],
+            actor_spawn_zones: Vec::new(),
+            player_spawn_zones: Vec::new(),
+            placed_items: Vec::new(),
+            pressure_plates: Vec::new(),
+        },
+        MapGeometry::new(cols, rows),
+    )
+}
+
+fn cell_center(cols: i32, rows: i32, col: i32, row: i32) -> Position {
+    let geometry = MapGeometry::new(cols, rows);
+    Position {
+        x: geometry.cell_to_world_x(col) + GRID_CELL_SIZE / 2.0,
+        y: 0.0,
+        z: geometry.cell_to_world_z(row) + GRID_CELL_SIZE / 2.0,
+    }
+}
+
+#[test]
+fn engagement_route_is_direct_across_open_floor() {
+    let nav = full_floor_nav(10, 5);
+    let start = cell_center(10, 5, 1, 1);
+    let target = cell_center(10, 5, 8, 3);
+
+    let route = nav
+        .engagement_route(&start, &target, 0.9, 0.9)
+        .expect("open-floor target should be reachable");
+
+    assert_eq!(route.waypoints.len(), 1);
+    assert_eq!(route.waypoints.front(), Some(&target));
+}
+
+#[test]
+fn engagement_route_keeps_a_turn_around_a_wall() {
+    let mut cells = CellGrid::new(3, 2);
+    for row in &mut cells.rows {
+        for cell in row {
+            cell.has_floor = true;
+        }
+    }
+    let mut edges = EdgeGrid::new(3, 2);
+    edges.vertical[0][1] = true;
+    let nav = NavGraph::new(
+        MapConfig {
+            levels: vec![level(cells, edges)],
+            actor_spawn_zones: Vec::new(),
+            player_spawn_zones: Vec::new(),
+            placed_items: Vec::new(),
+            pressure_plates: Vec::new(),
+        },
+        MapGeometry::new(3, 2),
+    );
+    let start = cell_center(3, 2, 0, 0);
+    let target = cell_center(3, 2, 2, 0);
+
+    let route = nav
+        .engagement_route(&start, &target, 0.5, 0.5)
+        .expect("target should be reachable around the wall");
+
+    assert!(route.waypoints.len() > 1);
+    assert_ne!(route.waypoints.front(), Some(&target));
+    assert_eq!(route.waypoints.back(), Some(&target));
+}
+
+#[test]
+fn engagement_retarget_rejects_blocked_flat_final_leg() {
+    let mut cells = CellGrid::new(2, 1);
+    for cell in &mut cells.rows[0] {
+        cell.has_floor = true;
+    }
+    let mut edges = EdgeGrid::new(2, 1);
+    edges.vertical[0][1] = true;
+    let nav = NavGraph::new(
+        MapConfig {
+            levels: vec![level(cells, edges)],
+            actor_spawn_zones: Vec::new(),
+            player_spawn_zones: Vec::new(),
+            placed_items: Vec::new(),
+            pressure_plates: Vec::new(),
+        },
+        MapGeometry::new(2, 1),
+    );
+    let start = cell_center(2, 1, 0, 0);
+    let target = cell_center(2, 1, 1, 0);
+
+    assert!(!nav.engagement_retarget_is_valid(&start, &target, 0.5, 0.5));
+}
+
+#[test]
+fn cover_route_chooses_nearest_adequate_cover() {
+    let nav = full_floor_nav(6, 1);
+    let threat = cell_center(6, 1, 0, 0);
+    let start = cell_center(6, 1, 2, 0);
+    let near_cover = cell_center(6, 1, 3, 0);
+    let far_cover = cell_center(6, 1, 5, 0);
+
+    let route = nav
+        .safe_cover_route(&start, &[threat], |candidate| {
+            *candidate == near_cover || *candidate == far_cover
+        })
+        .expect("both cover nodes should be reachable");
+
+    assert_eq!(route.waypoints.back(), Some(&near_cover));
+}
+
+#[test]
+fn actor_at_safest_reachable_point_does_not_leave_without_cover() {
+    let nav = full_floor_nav(5, 1);
+    let threat = cell_center(5, 1, 0, 0);
+    let start = cell_center(5, 1, 4, 0);
+
+    let route = nav.safe_cover_route(&start, &[threat], |_| false);
+
+    assert!(route.is_none());
+}
+
+#[test]
+fn cover_search_stays_within_its_local_route_budget() {
+    let nav = full_floor_nav(30, 1);
+    let threat = cell_center(30, 1, 0, 0);
+    let start = cell_center(30, 1, 1, 0);
+    let remote_cover = cell_center(30, 1, 20, 0);
+
+    let route = nav
+        .safe_cover_route(&start, &[threat], |candidate| *candidate == remote_cover)
+        .expect("the local safest-point fallback should produce a route");
+
+    assert!(route.waypoints.len() <= COVER_SEARCH_MAX_STEPS);
+    assert_ne!(route.waypoints.back(), Some(&remote_cover));
+}
+
+#[test]
+fn cover_route_does_not_cross_the_threat_for_an_equivalent_destination() {
+    let nav = full_floor_nav(5, 3);
+    let start = cell_center(5, 3, 2, 0);
+    let threat = cell_center(5, 3, 2, 1);
+    let across_threat = cell_center(5, 3, 2, 2);
+    let safe_side = cell_center(5, 3, 4, 0);
+
+    let route = nav
+        .safe_cover_route(&start, &[threat], |candidate| {
+            *candidate == across_threat || *candidate == safe_side
+        })
+        .expect("a threat-avoiding cover route should exist");
+
+    assert_eq!(route.waypoints.back(), Some(&safe_side));
+    assert!(!route.waypoints.contains(&threat));
+}
+
+#[test]
+fn cover_route_uses_world_occlusion() {
+    let mut cells = CellGrid::new(2, 2);
+    for row in &mut cells.rows {
+        for cell in row {
+            cell.has_floor = true;
+        }
+    }
+    let mut edges = EdgeGrid::new(2, 2);
+    edges.vertical[0][1] = true;
+    let nav = NavGraph::new(
+        MapConfig {
+            levels: vec![level(cells, edges)],
+            actor_spawn_zones: Vec::new(),
+            player_spawn_zones: Vec::new(),
+            placed_items: Vec::new(),
+            pressure_plates: Vec::new(),
+        },
+        MapGeometry::new(2, 2),
+    );
+    let world = CollisionWorld::from_map_layout(
+        &MapLayout {
+            walls: vec![Wall {
+                x1: 0.0,
+                z1: -4.0,
+                x2: 0.0,
+                z2: 0.0,
+                width: WALL_THICKNESS,
+                level: 0,
+            }],
+            ..MapLayout::default()
+        },
+        &BarrierKindTable::default(),
+    );
+    let threat = cell_center(2, 2, 0, 0);
+    let start = cell_center(2, 2, 0, 1);
+    let actor_eye = |candidate: &Position| Vec3::new(candidate.x, candidate.y + 0.8, candidate.z);
+    let player_center = Vec3::new(threat.x, threat.y + 0.8, threat.z);
+
+    let route = nav
+        .safe_cover_route(&start, &[threat], |candidate| {
+            !world.line_of_sight_clear(actor_eye(candidate), player_center)
+        })
+        .expect("cover behind the wall is reachable around its end");
+
+    assert!(!world.line_of_sight_clear(
+        actor_eye(route.waypoints.back().expect("cover route has a destination")),
+        player_center,
+    ));
 }
 
 #[test]
@@ -182,6 +394,15 @@ fn base_entry_onto_ramp_is_allowed() {
         .path_to_spawn_zone(&start, &zone(0, 1, 1))
         .expect("base entry should path directly onto the ramp");
     assert_eq!(path.len(), 1, "base approach needs no detour: {path:?}");
+}
+
+#[test]
+fn ramp_node_is_not_a_cover_destination() {
+    let nav = NavGraph::new(ramp_map(), MapGeometry::new(3, 3));
+    let ramp = ramp_cell_center(3);
+    let ramp_node = nav.node_for_position(&ramp).expect("ramp nav node");
+
+    assert!(!nav.is_cover_destination(ramp_node));
 }
 
 // End-to-end guard on the real map: every actor zone must be reachable
@@ -377,16 +598,24 @@ fn path_uses_ramp_top_to_change_levels() {
         MapGeometry::new(1, 2),
     );
 
+    let start = Position {
+        x: 0.0,
+        y: 0.0,
+        z: -2.0,
+    };
     let path = nav
-        .path_to_spawn_zone(
-            &Position {
-                x: 0.0,
-                y: 0.0,
-                z: -2.0,
-            },
-            &zone(1, 0, 1),
-        )
+        .path_to_spawn_zone(&start, &zone(1, 0, 1))
         .expect("upper ramp top should be reachable");
 
     assert!(path.iter().any(|pos| (pos.y - LEVEL_HEIGHT).abs() < 0.001));
+
+    let target = Position {
+        y: LEVEL_HEIGHT,
+        ..cell_center(1, 2, 0, 1)
+    };
+    let engagement = nav
+        .engagement_route(&start, &target, 0.5, 0.5)
+        .expect("engagement route should preserve the ramp transition");
+    assert!(engagement.waypoints.len() > 1);
+    assert!(engagement.waypoints.iter().any(|waypoint| waypoint.y < LEVEL_HEIGHT));
 }

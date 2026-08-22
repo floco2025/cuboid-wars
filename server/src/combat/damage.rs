@@ -214,15 +214,14 @@ mod tests {
 
     use super::*;
     use crate::config::{
-        ExplosionDamageConfig, FallDamageConfig, MapServerConfig, MissilesServerConfig, PlacedItemRespawnSecs,
-        PlacedItemsConfig, PlayerServerConfig, PowerUpsConfig, ProjectileConfig, ScoringConfig,
+        ActorSettingsConfig, ExplosionDamageConfig, FallDamageConfig, MapServerConfig, MissilesServerConfig,
+        PlacedItemRespawnSecs, PlacedItemsConfig, PlayerServerConfig, PowerUpsConfig, ProjectileConfig, ScoringConfig,
     };
     use crate::players::PlayerInfo;
     use tokio::sync::mpsc::unbounded_channel;
 
     fn server_gameplay_config() -> ServerGameplayConfig {
         ServerGameplayConfig {
-            version: 1,
             maps: HashMap::from([(
                 "hotel".to_owned(),
                 MapServerConfig {
@@ -283,6 +282,10 @@ mod tests {
                 },
             },
             quests: Vec::new(),
+            actor_settings: ActorSettingsConfig {
+                spawn_warning_secs: 0.0,
+                threat_memory_secs: 0.0,
+            },
             actors: HashMap::new(),
         }
     }

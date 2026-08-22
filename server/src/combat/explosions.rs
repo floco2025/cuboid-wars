@@ -211,7 +211,7 @@ fn blast_spec(pending: PendingExplosion, gameplay: &GameplayConfig, server: &Ser
             },
             center: character_center(pos, gameplay.expect_actor(&spawn_kind).physics()),
             excluded_actor: Some(source_entity),
-            damage: server.expect_actor(&spawn_kind).combat.explosion,
+            damage: server.expect_actor(&spawn_kind).combat.death_explosion,
             killer: None,
         },
         PendingExplosion::Missile { shooter, pos } => BlastSpec {
@@ -423,12 +423,10 @@ fn source_description(source: &BlastSource, players: &PlayerMap) -> String {
 mod tests {
     use super::*;
     use crate::{
-        actors::actors_removal_system,
-        actors::{ActorGoal, ActorInfo},
-        characters::characters_health_regeneration_system,
+        actors::ActorInfo, actors::actors_removal_system, characters::characters_health_regeneration_system,
         players::PlayerInfo,
     };
-    use common::protocol::{ActorMoveIntent, BarrierKindTable, MapLayout, SPlayerDeath};
+    use common::protocol::{BarrierKindTable, MapLayout, SPlayerDeath};
     use tokio::sync::mpsc::unbounded_channel;
 
     fn test_app() -> App {
@@ -459,19 +457,9 @@ mod tests {
                 CharacterVerticalVelocity::default(),
             ))
             .id();
-        app.world_mut().resource_mut::<ActorMap>().insert(
-            id,
-            ActorInfo::new(
-                entity,
-                0,
-                "zapper".to_owned(),
-                ActorGoal::Patrol {
-                    intent: ActorMoveIntent::Idle,
-                    direction_timer: 0.0,
-                    ledge_escape_timer: 0.0,
-                },
-            ),
-        );
+        app.world_mut()
+            .resource_mut::<ActorMap>()
+            .insert(id, ActorInfo::new(entity, 0, "zapper".to_owned()));
         entity
     }
 

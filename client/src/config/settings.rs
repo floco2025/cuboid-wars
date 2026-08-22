@@ -6,8 +6,6 @@ use serde::Deserialize;
 
 use super::{audio::AudioConfig, camera::CameraConfig, hud::HudConfig, rendering::RenderingConfig, vfx::VfxConfig};
 
-const SUPPORTED_VERSION: u32 = 1;
-
 // Three-way map debug-color mode. Cycled at runtime via the C key.
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
@@ -36,7 +34,6 @@ impl DebugColorMode {
 // startup; fields are immutable after that (no hot-reload).
 #[derive(Resource, Debug, Clone, Deserialize)]
 pub struct ClientSettings {
-    pub version: u32,
     pub rendering: RenderingConfig,
     pub camera: CameraConfig,
     pub input: InputConfig,
@@ -245,13 +242,6 @@ impl ClientSettings {
     }
 
     fn validate(&self) -> Result<()> {
-        if self.version != SUPPORTED_VERSION {
-            bail!(
-                "unsupported client config version {} (expected {})",
-                self.version,
-                SUPPORTED_VERSION
-            );
-        }
         self.rendering.validate()?;
         self.camera.validate()?;
         self.input.validate()?;

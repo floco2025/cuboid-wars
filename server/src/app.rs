@@ -2,7 +2,10 @@ use anyhow::{Context, Result, bail};
 use bevy::prelude::*;
 
 use crate::{
-    actors::{ActorMap, ActorSpawnThrottles, ActorSpawner, PendingActorSpawns, actors_plugin, navigation::NavGraph},
+    actors::{
+        ActorMap, ActorSpawnThrottles, ActorSpawner, PendingActorSpawns, actors_plugin,
+        navigation::{ActorTerritories, NavGraph},
+    },
     characters::characters_plugin,
     combat::{PendingExplosions, combat_plugin},
     config::{ServerGameplayConfig, validate_actor_kinds_consistent},
@@ -38,6 +41,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
     let nav_graph = NavGraph::new(map_config.clone(), map_geometry);
     let air_graph = AirGraph::new(map_config.clone(), map_geometry);
     validate_actor_kinds_consistent(&gameplay_config, &server_gameplay_config, &map_config)?;
+    let actor_territories = ActorTerritories::new(&nav_graph, &map_config, &server_gameplay_config)?;
 
     let mut app = App::new();
     app.add_plugins(MinimalPlugins).add_plugins(bevy::log::LogPlugin {
@@ -63,6 +67,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         .insert_resource(map_config)
         .insert_resource(map_geometry)
         .insert_resource(nav_graph)
+        .insert_resource(actor_territories)
         .insert_resource(air_graph)
         .insert_resource(barrier_kind_table)
         .insert_resource(gameplay_config)

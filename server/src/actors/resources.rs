@@ -2,141 +2,85 @@ use std::collections::{HashMap, VecDeque};
 
 use bevy::prelude::*;
 
-use common::protocol::{ActorId, ActorMoveIntent, PlayerId, Position};
+use common::{
+    physics::CharacterSupport,
+    protocol::{ActorId, PlayerId, Position},
+};
 
-// The hold (see `ActorGoal::chase_hold`) is for a chase target that's
-// genuinely unreachable vertically — a player on a ledge above, or tucked
-// below an overhang. Below the player jump apex so a hopping same-height
-// player doesn't flicker the hold; a same-height target within reach (e.g.
-// through a thin wall) keeps the chase pressing so the stall watchdog can
-// end it. Without a wall, contact detonation fires well before this distance.
-const CHASE_HOLD_MIN_VERTICAL_GAP: f32 = 1.0;
+use super::navigation::{NavNode, PlannedRoute};
 
-// What the actor is currently trying to do. Behavior owns every transition;
-// movement only reads it (via `desired_move`) and never mutates it.
-#[derive(Debug, Clone, PartialEq)]
-pub enum ActorGoal {
-    Patrol {
-        intent: ActorMoveIntent,
-        // Time until the next random heading re-roll.
-        direction_timer: f32,
-        // After a patrol stall (e.g. perched at a wall-base floor edge where
-        // every strict candidate is rejected), candidates are evaluated
-        // ledge-unaware for this long. A genuine fall is recycled by the
-        // silent fall-removal + respawn machinery.
-        ledge_escape_timer: f32,
-    },
-    // Pressing toward a visible player's live position. Never "arrives" —
-    // ends via contact detonation, the vertical hold, demotion to `Pursuit`,
-    // the leash, or the stall watchdog. Contact kinds only.
-    Chase {
-        target: Position,
-    },
-    // Demoted chase: one-shot walk toward the player's last-seen spot.
-    Pursuit {
-        last_seen: Position,
-    },
-    // Waypoint walk back to the spawn zone.
-    Return {
-        next: Position,
-        path: VecDeque<Position>,
-    },
-    // Laser kinds' replacement for `Chase`: press toward the target but hold
-    // at the standoff distance. `target_pos` is refreshed each tick (movement
-    // reads the goal without a player query, like `Chase`).
-    Approach {
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub(crate) enum ActorMode {
+    #[default]
+    Roam,
+    Engage {
         target: PlayerId,
         target_pos: Position,
     },
-    // Mid-burst: stand still, yaw tracks the target, the beam damage system
-    // burns whoever the beam reaches. The target is locked for the burst.
-    Fire {
-        target: PlayerId,
-        target_pos: Position,
-        remaining_secs: f32,
-    },
-    // Post-burst hide: run directly away from the threat until the re-fire
-    // cooldown (`ActorInfo::fire_cooldown_timer`) lapses.
-    Flee {
-        threat: Position,
-    },
+    Evade,
+    ReturnHome,
 }
 
-impl ActorGoal {
-    // Where the actor is headed, for plan ordering and steering. Patrol has
-    // no target (wander).
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum BeamState {
+    Ready,
+    Firing { remaining_secs: f32 },
+    Cooldown { remaining_secs: f32 },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct ActorRoute {
+    pub waypoints: VecDeque<Position>,
+    pub destination: Position,
+    pub destination_node: NavNode,
+}
+
+impl ActorRoute {
     #[must_use]
-    pub fn target_position(&self) -> Option<Position> {
-        match self {
-            Self::Patrol { .. } | Self::Fire { .. } | Self::Flee { .. } => None,
-            Self::Chase { target } => Some(*target),
-            Self::Pursuit { last_seen } => Some(*last_seen),
-            Self::Return { next, .. } => Some(*next),
-            Self::Approach { target_pos, .. } => Some(*target_pos),
+    pub(crate) fn new(planned: PlannedRoute) -> Option<Self> {
+        let destination = *planned.waypoints.back()?;
+        Some(Self {
+            waypoints: planned.waypoints,
+            destination,
+            destination_node: planned.destination_node,
+        })
+    }
+
+    #[must_use]
+    pub fn next(&self) -> Option<Position> {
+        self.waypoints.front().copied()
+    }
+
+    pub(crate) fn retarget(&mut self, target: Position) {
+        if let Some(last) = self.waypoints.back_mut() {
+            *last = target;
+            self.destination = target;
         }
     }
+}
 
-    // A chaser that has closed the horizontal gap to a vertically-unreachable
-    // target holds position and facing rather than arriving — otherwise it
-    // reverts to patrol, drifts, gets re-acquired, and flip-flops its heading
-    // every tick (the jitter). Only `Chase` holds; returners must arrive.
-    #[must_use]
-    pub fn chase_hold(&self, pos: &Position, reached_distance: f32) -> bool {
-        let Self::Chase { target } = self else {
-            return false;
-        };
-        pos.horizontal_distance_sq(target) <= reached_distance * reached_distance
-            && (target.y - pos.y).abs() >= CHASE_HOLD_MIN_VERTICAL_GAP
-    }
-
-    // An approacher inside its standoff distance holds position (and facing)
-    // instead of pressing to touch — the standoff is the point of the state.
-    // Unlike `chase_hold` there is no vertical gate: horizontal arrival is
-    // enough, which also absorbs the player-directly-above jitter case.
-    #[must_use]
-    pub fn approach_hold(&self, pos: &Position, standoff_distance: f32) -> bool {
-        let Self::Approach { target_pos, .. } = self else {
-            return false;
-        };
-        pos.horizontal_distance_sq(target_pos) <= standoff_distance * standoff_distance
-    }
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct AwarePlayer {
+    pub(crate) id: PlayerId,
+    pub(crate) pos: Position,
+    pub(crate) support: CharacterSupport,
+    pub(crate) visible: bool,
+    pub(crate) forget_remaining_secs: f32,
+    pub(crate) attack_anchor: Option<Position>,
 }
 
 pub struct ActorInfo {
     pub entity: Entity,
     pub spawn_zone_index: usize,
     pub spawn_kind: String,
-    pub goal: ActorGoal,
-    pub chase_reacquire_timer: f32,
-    // Net-displacement stall watchdog for any goal-directed or moving-patrol
-    // state. The actor re-anchors here whenever it displaces past
-    // `STALL_PROGRESS_DISTANCE`; failing to for the goal's window means it's
-    // wedged against geometry and the goal's escape fires. Self-arming;
-    // `None` while the current goal is exempt (vertical hold, intentional
-    // patrol idle).
-    pub stall_anchor: Option<Position>,
-    pub stall_timer: f32,
-    // After a stalled return-to-spawn, suppresses the leash re-trigger so the
-    // actor patrols in place first — otherwise the identical (possibly
-    // straight-line-fallback) return re-arms next tick and livelocks. Armed
-    // by a Return escape but consumed while patrolling, so it can't live
-    // inside the `Return` variant.
-    pub return_retry_timer: f32,
-    // The heading (yaw) the actor committed to and the time left on that
-    // commitment. Movement re-decides only when the timer lapses or the
-    // committed heading becomes blocked, so the actor doesn't re-pick (and
-    // re-broadcast) a new direction every tick — smooth authoritative motion,
-    // no reconciliation snaps, sparse `SActorMove`. Only the direction is
-    // committed; the speed always comes from the current desire (so a chase
-    // commit can't carry chase speed into patrol). `None` = decide fresh.
-    pub committed_direction: Option<f32>,
-    pub commit_secs_left: f32,
-    // Re-fire lockout, armed to `fire.cooldown_secs` when a burst ends and
-    // ticked down every tick regardless of goal — a leash-preempted flee
-    // (Flee → Return) must not erase it, so it can't live inside the `Flee`
-    // variant (same reasoning as `return_retry_timer`). `Flee` ends and
-    // firing re-arms only once it lapses.
-    pub fire_cooldown_timer: f32,
+    pub(crate) mode: ActorMode,
+    pub(crate) route: Option<ActorRoute>,
+    pub(crate) beam: BeamState,
+    pub(crate) awareness: Vec<AwarePlayer>,
+    pub(crate) decision_timer: f32,
+    pub(crate) route_stall_anchor: Option<Position>,
+    pub(crate) route_stall_secs: f32,
+    pub(crate) evade_replan_remaining_secs: f32,
     // Player who landed the last projectile damage. Read by
     // `actors_removal_system` when the actor's health hits zero, so the
     // `SActorDeath` broadcast can attribute the kill. Chain-explosion
@@ -146,21 +90,27 @@ pub struct ActorInfo {
 
 impl ActorInfo {
     #[must_use]
-    pub fn new(entity: Entity, spawn_zone_index: usize, spawn_kind: String, goal: ActorGoal) -> Self {
+    pub fn new(entity: Entity, spawn_zone_index: usize, spawn_kind: String) -> Self {
         Self {
             entity,
             spawn_zone_index,
             spawn_kind,
-            goal,
-            chase_reacquire_timer: 0.0,
-            stall_anchor: None,
-            stall_timer: 0.0,
-            return_retry_timer: 0.0,
-            committed_direction: None,
-            commit_secs_left: 0.0,
-            fire_cooldown_timer: 0.0,
+            mode: ActorMode::Roam,
+            route: None,
+            beam: BeamState::Ready,
+            awareness: Vec::new(),
+            decision_timer: 0.0,
+            route_stall_anchor: None,
+            route_stall_secs: 0.0,
+            evade_replan_remaining_secs: 0.0,
             last_damager: None,
         }
+    }
+
+    pub(crate) fn set_route(&mut self, route: Option<ActorRoute>) {
+        self.route = route;
+        self.route_stall_anchor = None;
+        self.route_stall_secs = 0.0;
     }
 }
 

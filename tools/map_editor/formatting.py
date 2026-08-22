@@ -97,7 +97,6 @@ def format_map_file(wrapper: dict) -> str:
     map_data = wrapper["map"]
     lines = [
         "{",
-        f'  "version": {wrapper["version"]},',
         '  "map": {',
         f'    "grid_cols": {map_data["grid_cols"]},',
         f'    "grid_rows": {map_data["grid_rows"]},',

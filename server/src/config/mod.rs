@@ -6,8 +6,8 @@ mod quests;
 mod validation;
 
 pub use actors::{
-    ActorChaseConfig, ActorCombatConfig, ActorFireConfig, ActorKindServerConfig, ActorNavigationConfig,
-    ActorPatrolConfig, ActorRespawnConfig, ActorSensesConfig, ExplosionDamageConfig,
+    ActorAttackConfig, ActorBeamAttackConfig, ActorCombatConfig, ActorKindServerConfig, ActorSettingsConfig,
+    ExplosionDamageConfig,
 };
 pub use gameplay::{
     FallDamageConfig, MissilesServerConfig, PlacedItemRespawnSecs, PlacedItemsConfig, PlayerServerConfig,

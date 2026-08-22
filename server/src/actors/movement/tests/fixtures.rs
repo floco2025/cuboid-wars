@@ -6,37 +6,40 @@ pub(super) use common::{
     protocol::{ActorId, ActorMoveIntent, Floor, MapLayout, Position, Wall},
 };
 
-pub(super) use crate::actors::{ActorGoal, ActorInfo};
+pub(super) use crate::actors::{ActorInfo, ActorMode, ActorRoute, BeamState, navigation::NavNode};
 
 pub(super) use super::super::{
-    context::{ActorMoveContext, CandidateStep, StepPolicy, blocked_step_made_useful_progress},
-    ordering::{ActorPlanOrder, actor_target_distance_sq, sort_actor_plan_order},
-    planning::{select_actor_move, select_committed_move, should_reuse_commit},
+    context::{ActorMoveContext, blocked_step_made_useful_progress},
+    ordering::{ActorPlanOrder, actor_route_distance, sort_actor_plan_order},
+    planning::select_route_move,
     steering::{ActorDesire, desired_move, direction_toward},
 };
 
 pub(crate) const TEST_KIND: &str = "zapper";
 pub(crate) const TEST_DELTA: f32 = 0.1;
 
-pub(crate) fn order(entity_bits: u64, target_distance_sq: f32, id: u32) -> ActorPlanOrder {
+pub(crate) fn order(entity_bits: u64, route_distance: f32, id: u32) -> ActorPlanOrder {
     ActorPlanOrder {
         entity: Entity::from_bits(entity_bits),
-        target_distance_sq,
+        route_distance,
         id: ActorId(id),
     }
 }
 
 pub(crate) fn actor_info() -> ActorInfo {
-    ActorInfo::new(
-        test_entity(1),
-        0,
-        TEST_KIND.into(),
-        ActorGoal::Patrol {
-            intent: ActorMoveIntent::Idle,
-            direction_timer: 0.0,
-            ledge_escape_timer: 0.0,
+    ActorInfo::new(test_entity(1), 0, TEST_KIND.into())
+}
+
+pub(crate) fn route(target: Position) -> ActorRoute {
+    ActorRoute {
+        waypoints: [target].into(),
+        destination: target,
+        destination_node: NavNode {
+            level: 0,
+            row: 0,
+            col: 0,
         },
-    )
+    }
 }
 
 pub(crate) fn actor_physics() -> CharacterPhysicsConfig {
@@ -52,7 +55,7 @@ pub(crate) fn actor_speed() -> f32 {
         .expect("default gameplay config should load")
         .actor(TEST_KIND)
         .expect("test kind missing from default gameplay config")
-        .patrol_speed
+        .roam_speed
 }
 
 pub(crate) fn actor_blocker_distance() -> f32 {
@@ -114,7 +117,6 @@ pub(crate) fn context<'a>(
         collision_world,
         planned_moves,
         actor_starts,
-        path_clear_lookahead_secs: 0.4,
         open_barrier_kinds: &[],
         gravity: 25.0,
         ladders: test_ladders(),
@@ -126,8 +128,4 @@ pub(crate) fn test_ladders() -> common::config::LaddersConfig {
     common::config::GameplayConfig::load_default()
         .expect("default gameplay config should load")
         .ladders
-}
-
-pub(crate) fn planned_move(entity: Entity, start: Position, target: Position) -> CharacterMovePlan {
-    CharacterMovePlan::from_target(entity, start, target, 0.0, actor_physics(), false)
 }

@@ -290,7 +290,7 @@ mod tests {
 
     #[test]
     fn missing_actors_key_is_passthrough() {
-        let mut input = json!({ "version": 1, "other": {} });
+        let mut input = json!({ "unrelated": {} });
         let expected = input.clone();
         resolve(&mut input).expect("absence of actors is fine");
         assert_eq!(input, expected);

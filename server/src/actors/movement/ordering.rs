@@ -8,7 +8,7 @@ use super::query::ActorMovementQuery;
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub(super) struct ActorPlanOrder {
     pub(super) entity: Entity,
-    pub(super) target_distance_sq: f32,
+    pub(super) route_distance: f32,
     pub(super) id: ActorId,
 }
 
@@ -17,7 +17,7 @@ pub(super) fn sorted_actor_plan_order(query: &ActorMovementQuery, actors: &Actor
         .iter()
         .map(|(entity, id, pos, _, _, _, _)| ActorPlanOrder {
             entity,
-            target_distance_sq: actor_target_distance_sq(pos, actors.get(id)),
+            route_distance: actor_route_distance(pos, actors.get(id)),
             id: *id,
         })
         .collect();
@@ -27,13 +27,24 @@ pub(super) fn sorted_actor_plan_order(query: &ActorMovementQuery, actors: &Actor
 
 pub(super) fn sort_actor_plan_order(order: &mut [ActorPlanOrder]) {
     order.sort_by(|a, b| {
-        a.target_distance_sq
-            .total_cmp(&b.target_distance_sq)
+        a.route_distance
+            .total_cmp(&b.route_distance)
             .then_with(|| a.id.0.cmp(&b.id.0))
     });
 }
 
-pub(super) fn actor_target_distance_sq(pos: &Position, info: Option<&ActorInfo>) -> f32 {
-    info.and_then(|info| info.goal.target_position())
-        .map_or(f32::INFINITY, |target| pos.horizontal_distance_sq(&target))
+pub(super) fn actor_route_distance(pos: &Position, info: Option<&ActorInfo>) -> f32 {
+    let Some(route) = info
+        .and_then(|info| info.route.as_ref())
+        .filter(|route| !route.waypoints.is_empty())
+    else {
+        return f32::INFINITY;
+    };
+    let mut distance = 0.0;
+    let mut previous = *pos;
+    for waypoint in &route.waypoints {
+        distance += previous.horizontal_distance_sq(waypoint).sqrt();
+        previous = *waypoint;
+    }
+    distance
 }

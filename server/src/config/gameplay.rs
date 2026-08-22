@@ -4,17 +4,14 @@ use anyhow::{Context, Result, bail};
 use bevy::prelude::Resource;
 use serde::Deserialize;
 
-use super::actors::{ActorKindServerConfig, ExplosionDamageConfig};
+use super::actors::{ActorKindServerConfig, ActorSettingsConfig, ExplosionDamageConfig};
 use super::maps::{MapServerConfig, validate_maps};
 use super::quests::{Quest, validate_quests};
 use super::validation::{validate_non_negative_finite, validate_positive_finite, validate_probability};
 use common::{config::resolve_actor_inheritance, protocol::ItemType};
 
-const SUPPORTED_VERSION: u32 = 1;
-
 #[derive(Resource, Debug, Clone, Deserialize)]
 pub struct ServerGameplayConfig {
-    pub version: u32,
     // Named-map registry: each entry's map geometry lives at
     // `config/server/maps/<name>.json`.
     pub maps: HashMap<String, MapServerConfig>,
@@ -26,6 +23,7 @@ pub struct ServerGameplayConfig {
     pub power_ups: PowerUpsConfig,
     pub placed_items: PlacedItemsConfig,
     pub quests: Vec<Quest>,
+    pub actor_settings: ActorSettingsConfig,
     pub actors: HashMap<String, ActorKindServerConfig>,
 }
 
@@ -49,12 +47,6 @@ impl ServerGameplayConfig {
     }
 
     fn validate(&self) -> Result<()> {
-        anyhow::ensure!(
-            self.version == SUPPORTED_VERSION,
-            "unsupported server gameplay config version {} (expected {})",
-            self.version,
-            SUPPORTED_VERSION
-        );
         validate_maps(&self.maps, &self.default_map)?;
         self.player.validate("player")?;
         self.projectile.validate("projectile")?;
@@ -65,6 +57,7 @@ impl ServerGameplayConfig {
         let _ = &self.scoring;
         self.power_ups.validate("power_ups")?;
         self.placed_items.validate("placed_items")?;
+        self.actor_settings.validate("actor_settings")?;
         validate_quests(&self.quests, &self.actors)?;
         if self.actors.is_empty() {
             bail!("actors must define at least one kind");
@@ -176,7 +169,7 @@ pub struct PlayerServerConfig {
     pub armor: f32,
     pub fall_damage: FallDamageConfig,
     // Blast dealt by a dying player, same shape as the per-actor-kind
-    // `combat.explosion` — standing next to your victim is now a mistake.
+    // `combat.death_explosion` — standing next to your victim is now a mistake.
     pub explosion: ExplosionDamageConfig,
 }
 

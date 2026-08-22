@@ -3,7 +3,6 @@ use rand::{RngExt, rng, rngs::ThreadRng};
 use std::f32::consts::TAU;
 
 use crate::{
-    actors::behavior::random_direction_time,
     actors::{ActorInfo, ActorMap, ActorSpawnThrottles, ActorSpawner, PendingActorSpawn, PendingActorSpawns},
     characters::generate_actor_spawn_position_in_zone,
     config::ServerGameplayConfig,
@@ -16,7 +15,7 @@ use common::{
     protocol::{ActorMarker, ActorMoveIntent, FaceYaw, Health, PlayerMarker, Position},
 };
 
-// Per-tick decision for one zone: spawn now, tick the cooldown down, or skip.
+// Per-tick decision for one zone: refill it, tick the cooldown down, or skip.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum SpawnDecision {
     // Slot is at quota — prime the throttle so the next death pays a full
@@ -25,8 +24,8 @@ enum SpawnDecision {
     Skip,
     // Slot is short but the throttle is still running — tick it down.
     Tick,
-    // Slot is short and throttle has expired — spawn one actor and reset.
-    Spawn,
+    // Zone is short and throttle has expired — refill every missing slot.
+    Refill,
 }
 
 fn decide_spawn(live: u32, count: u32, throttle: f32) -> SpawnDecision {
@@ -35,7 +34,7 @@ fn decide_spawn(live: u32, count: u32, throttle: f32) -> SpawnDecision {
     } else if throttle > 0.0 {
         SpawnDecision::Tick
     } else {
-        SpawnDecision::Spawn
+        SpawnDecision::Refill
     }
 }
 
@@ -62,7 +61,6 @@ pub fn actors_initial_spawn_system(
         // Configs are cross-validated against the map at startup, so any
         // zone kind here is guaranteed to resolve in both configs.
         let actor_config = gameplay_config.expect_actor(&zone.kind);
-        let kind_server_config = server_gameplay_config.expect_actor(&zone.kind);
         let actor_physics = actor_config.physics();
         for _ in 0..zone.count {
             queue_actor_spawn_in_zone(
@@ -73,7 +71,7 @@ pub fn actors_initial_spawn_system(
                 &map_config,
                 &map_geometry,
                 &collision_world,
-                kind_server_config,
+                server_gameplay_config.actor_settings.spawn_warning_secs,
                 actor_physics,
                 zone_idx,
                 &zone.kind,
@@ -87,8 +85,8 @@ pub fn actors_initial_spawn_system(
 //
 // For respawning kinds, the throttle clock is the existing model: it sits at
 // 0 while the slot is full; on a death the throttle clock starts ticking
-// (via `Tick`) and only reaches 0 — at which point a `Spawn` fires and the
-// throttle is reset to the kind's `spawn_throttle_time`.
+// (via `Tick`) and only reaches 0 — at which point every missing slot is
+// queued together and the throttle is reset to the kind's respawn delay.
 pub fn actors_respawn_system(
     mut pending: ResMut<PendingActorSpawns>,
     mut spawner: ResMut<ActorSpawner>,
@@ -101,18 +99,15 @@ pub fn actors_respawn_system(
     gameplay_config: Res<GameplayConfig>,
     server_gameplay_config: Res<ServerGameplayConfig>,
     players: Query<&Position, With<PlayerMarker>>,
+    actor_positions: Query<&Position, (With<ActorMarker>, Without<PlayerMarker>)>,
 ) {
     let dt = time.delta_secs();
-    // Avoid spawning on top of players. Existing actors aren't in this list —
-    // we don't have a Position query for them here, and physics will resolve
-    // any overlap on the next tick.
-    let mut occupied_positions: Vec<Position> = players.iter().copied().collect();
+    let mut occupied_positions: Vec<Position> = players.iter().chain(&actor_positions).copied().collect();
     let mut rng = rng();
 
     // One pass for per-zone live counts instead of rescanning the whole
     // ActorMap once per zone (O(zones·actors)). Each zone reads its count once
-    // before its single possible spawn, and a spawn only ever adds to its own
-    // zone, so this tick-start snapshot stays correct for the read.
+    // before its possible batch refill, which only adds to that same zone.
     let mut live_by_zone = vec![0u32; map_config.actor_spawn_zones.len()];
     for info in actors.values() {
         if let Some(count) = live_by_zone.get_mut(info.spawn_zone_index) {
@@ -131,13 +126,11 @@ pub fn actors_respawn_system(
 
     for (zone_idx, zone) in map_config.actor_spawn_zones.iter().enumerate() {
         let kind_server_config = server_gameplay_config.expect_actor(&zone.kind);
-        if !kind_server_config.respawn.enabled {
-            // One-shot kind: no replacement after deaths, ever.
+        let Some(throttle_time) = kind_server_config.respawn_delay_secs else {
             continue;
-        }
+        };
         let actor_config = gameplay_config.expect_actor(&zone.kind);
         let actor_physics = actor_config.physics();
-        let throttle_time = kind_server_config.respawn.delay_secs;
 
         let live = live_by_zone[zone_idx];
         let throttle = throttles.0.entry(zone_idx).or_insert(0.0);
@@ -149,24 +142,68 @@ pub fn actors_respawn_system(
             // death after startup respawn instantly.
             SpawnDecision::Skip => *throttle = throttle_time,
             SpawnDecision::Tick => *throttle -= dt,
-            SpawnDecision::Spawn => {
-                queue_actor_spawn_in_zone(
-                    &mut pending,
-                    &mut spawner,
-                    &mut occupied_positions,
-                    &mut rng,
-                    &map_config,
-                    &map_geometry,
-                    &collision_world,
-                    kind_server_config,
-                    actor_physics,
-                    zone_idx,
-                    &zone.kind,
-                );
+            SpawnDecision::Refill => {
+                for _ in live..zone.count {
+                    queue_actor_spawn_in_zone(
+                        &mut pending,
+                        &mut spawner,
+                        &mut occupied_positions,
+                        &mut rng,
+                        &map_config,
+                        &map_geometry,
+                        &collision_world,
+                        server_gameplay_config.actor_settings.spawn_warning_secs,
+                        actor_physics,
+                        zone_idx,
+                        &zone.kind,
+                    );
+                }
                 *throttle = throttle_time;
             }
         }
     }
+}
+
+pub(crate) fn expire_actor_spawn_cooldowns(
+    actors: &ActorMap,
+    pending: &mut PendingActorSpawns,
+    throttles: &mut ActorSpawnThrottles,
+    map_config: &MapConfig,
+    server_gameplay_config: &ServerGameplayConfig,
+    actor_kind: Option<&str>,
+) -> usize {
+    let mut occupied_by_zone = vec![0u32; map_config.actor_spawn_zones.len()];
+    for info in actors.values() {
+        if let Some(count) = occupied_by_zone.get_mut(info.spawn_zone_index) {
+            *count += 1;
+        }
+    }
+    let mut respawning = 0usize;
+    for spawn in &mut pending.0 {
+        if let Some(count) = occupied_by_zone.get_mut(spawn.zone_idx) {
+            *count += 1;
+        }
+        if actor_kind.is_none_or(|kind| spawn.kind == kind) {
+            spawn.remaining_secs = 0.0;
+            respawning += 1;
+        }
+    }
+
+    for (zone_idx, zone) in map_config.actor_spawn_zones.iter().enumerate() {
+        if actor_kind.is_some_and(|kind| zone.kind != kind) {
+            continue;
+        }
+        let kind_server_config = server_gameplay_config.expect_actor(&zone.kind);
+        if kind_server_config.respawn_delay_secs.is_some() {
+            let missing = zone.count.saturating_sub(occupied_by_zone[zone_idx]);
+            if missing > 0 {
+                throttles.0.insert(zone_idx, 0.0);
+                respawning += missing as usize;
+            }
+        }
+    }
+
+    respawning
 }
 
 // Ticks the beam-in warning windows and materializes due spawns at their
@@ -180,20 +217,16 @@ pub fn actors_pending_spawn_system(
     mut pending: ResMut<PendingActorSpawns>,
     time: Res<Time>,
     gameplay_config: Res<GameplayConfig>,
-    server_gameplay_config: Res<ServerGameplayConfig>,
 ) {
     let due = take_due_spawns(&mut pending.0, time.delta_secs());
     if due.is_empty() {
         return;
     }
-    let mut rng = rng();
     for spawn in due {
         materialize_actor(
             &mut commands,
             &mut actors,
-            &mut rng,
             gameplay_config.expect_actor(&spawn.kind),
-            server_gameplay_config.expect_actor(&spawn.kind),
             spawn,
         );
     }
@@ -220,7 +253,7 @@ fn queue_actor_spawn_in_zone(
     map_config: &MapConfig,
     map_geometry: &MapGeometry,
     collision_world: &CollisionWorld,
-    kind_server_config: &crate::config::ActorKindServerConfig,
+    warning_secs: f32,
     actor_physics: common::config::CharacterPhysicsConfig,
     zone_idx: usize,
     spawn_kind: &str,
@@ -241,23 +274,18 @@ fn queue_actor_spawn_in_zone(
         kind: spawn_kind.to_string(),
         pos,
         face_yaw: rng.random_range(0.0..TAU),
-        remaining_secs: kind_server_config.respawn.warning_secs,
-        warning_secs: kind_server_config.respawn.warning_secs,
+        remaining_secs: warning_secs,
+        warning_secs,
     });
 }
 
 fn materialize_actor(
     commands: &mut Commands,
     actors: &mut ActorMap,
-    rng: &mut ThreadRng,
     actor_config: &common::config::ActorGameplayConfig,
-    kind_server_config: &crate::config::ActorKindServerConfig,
     spawn: PendingActorSpawn,
 ) {
-    let move_intent = ActorMoveIntent::Moving {
-        direction: spawn.face_yaw,
-        speed: actor_config.patrol_speed,
-    };
+    let move_intent = ActorMoveIntent::Idle;
     let entity = commands
         .spawn((
             ActorMarker,
@@ -270,24 +298,13 @@ fn materialize_actor(
         ))
         .id();
 
-    actors.insert(
-        spawn.actor_id,
-        ActorInfo::new(
-            entity,
-            spawn.zone_idx,
-            spawn.kind,
-            crate::actors::ActorGoal::Patrol {
-                intent: move_intent,
-                direction_timer: random_direction_time(rng, kind_server_config),
-                ledge_escape_timer: 0.0,
-            },
-        ),
-    );
+    actors.insert(spawn.actor_id, ActorInfo::new(entity, spawn.zone_idx, spawn.kind));
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::map::{ActorSpawnZone, CellGrid, EdgeGrid, LevelGrid};
     use common::protocol::ActorId;
 
     #[test]
@@ -305,9 +322,9 @@ mod tests {
     }
 
     #[test]
-    fn decide_spawn_when_throttle_zero_or_negative() {
-        assert_eq!(decide_spawn(0, 3, 0.0), SpawnDecision::Spawn);
-        assert_eq!(decide_spawn(2, 3, -0.5), SpawnDecision::Spawn);
+    fn decide_refill_when_throttle_zero_or_negative() {
+        assert_eq!(decide_spawn(0, 3, 0.0), SpawnDecision::Refill);
+        assert_eq!(decide_spawn(2, 3, -0.5), SpawnDecision::Refill);
     }
 
     #[test]
@@ -335,8 +352,8 @@ mod tests {
             throttle -= dt;
         }
 
-        // Throttle is now 0.0; next decision is Spawn.
-        assert_eq!(decide_spawn(live, count, throttle), SpawnDecision::Spawn);
+        // Throttle is now 0.0; next decision is Refill.
+        assert_eq!(decide_spawn(live, count, throttle), SpawnDecision::Refill);
     }
 
     #[test]
@@ -346,7 +363,7 @@ mod tests {
         // cooldown-on-death model, this would starve forever because every
         // death reset the timer.)
         let count = 1;
-        // Per-spawn throttle reset, applied below when a Spawn fires.
+        // Per-refill throttle reset, applied below when a Refill fires.
         let delay = 2.0_f32;
         let dt = 1.0;
 
@@ -360,7 +377,7 @@ mod tests {
                     live = 0;
                 }
                 SpawnDecision::Tick => throttle -= dt,
-                SpawnDecision::Spawn => {
+                SpawnDecision::Refill => {
                     live += 1;
                     throttle = delay;
                     spawns += 1;
@@ -399,7 +416,7 @@ mod tests {
             match decide_spawn(live, count, throttle) {
                 SpawnDecision::Skip => throttle = delay,
                 SpawnDecision::Tick => throttle -= dt,
-                SpawnDecision::Spawn => {
+                SpawnDecision::Refill => {
                     live += 1;
                     throttle = delay;
                 }
@@ -408,7 +425,7 @@ mod tests {
         assert_eq!(throttle, delay, "Skip should keep the throttle primed");
 
         // Now kill — the throttle must Tick down for `delay` seconds before
-        // the next Spawn is decided.
+        // the next Refill is decided.
         live -= 1;
         let ticks_to_zero = (delay / dt).ceil() as u32;
         for _ in 0..ticks_to_zero {
@@ -419,7 +436,7 @@ mod tests {
             );
             throttle -= dt;
         }
-        assert_eq!(decide_spawn(live, count, throttle), SpawnDecision::Spawn);
+        assert_eq!(decide_spawn(live, count, throttle), SpawnDecision::Refill);
     }
 
     fn pending_spawn(id: u32, remaining_secs: f32) -> PendingActorSpawn {
@@ -432,6 +449,60 @@ mod tests {
             remaining_secs,
             warning_secs: 2.0,
         }
+    }
+
+    #[test]
+    fn expiring_selected_cooldowns_advances_pending_and_missing_slots() {
+        let map_config = MapConfig {
+            levels: vec![LevelGrid {
+                cells: CellGrid::new(1, 1),
+                edges: EdgeGrid::new(1, 1),
+                barrier_edges: EdgeGrid::new(1, 1),
+            }],
+            actor_spawn_zones: vec![
+                ActorSpawnZone {
+                    level: 0,
+                    cols: [0, 1],
+                    rows: [0, 1],
+                    kind: "mine".to_owned(),
+                    count: 2,
+                },
+                ActorSpawnZone {
+                    level: 0,
+                    cols: [0, 1],
+                    rows: [0, 1],
+                    kind: "zapper".to_owned(),
+                    count: 1,
+                },
+            ],
+            player_spawn_zones: Vec::new(),
+            placed_items: Vec::new(),
+            pressure_plates: Vec::new(),
+        };
+        let config = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
+        let mut mine = pending_spawn(1, 2.0);
+        mine.kind = "mine".to_owned();
+        let mut zapper = pending_spawn(2, 2.0);
+        zapper.zone_idx = 1;
+        let mut pending = PendingActorSpawns(vec![mine, zapper]);
+        let mut throttles = ActorSpawnThrottles::default();
+        throttles.0.insert(0, 60.0);
+        throttles.0.insert(1, 120.0);
+
+        let count = expire_actor_spawn_cooldowns(
+            &ActorMap::default(),
+            &mut pending,
+            &mut throttles,
+            &map_config,
+            &config,
+            Some("mine"),
+        );
+
+        assert_eq!(count, 2);
+        assert_eq!(pending.0[0].remaining_secs, 0.0);
+        assert_eq!(pending.0[1].remaining_secs, 2.0);
+        assert_eq!(throttles.0[&0], 0.0);
+        assert_eq!(throttles.0[&1], 120.0);
     }
 
     #[test]

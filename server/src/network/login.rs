@@ -40,7 +40,7 @@ fn actor_explosion_radii(config: &crate::config::ServerGameplayConfig) -> Vec<(S
     let mut radii: Vec<(String, f32)> = config
         .actors
         .iter()
-        .map(|(kind, actor)| (kind.clone(), actor.combat.explosion.radius))
+        .map(|(kind, actor)| (kind.clone(), actor.combat.death_explosion.radius))
         .collect();
     radii.sort_by(|a, b| a.0.cmp(&b.0));
     radii
@@ -56,7 +56,7 @@ pub fn handle_login_message(
     world: &SharedWorld,
     items: &Res<ItemMap>,
     actors: &Res<ActorMap>,
-    pending_spawns: &Res<PendingActorSpawns>,
+    pending_spawns: &PendingActorSpawns,
     queries: &CharacterQueries,
     item_positions: &Query<&Position, With<ItemMarker>>,
 ) {
@@ -234,7 +234,7 @@ mod tests {
         sorted.sort_unstable();
         assert_eq!(kinds, sorted);
         for (kind, radius) in &radii {
-            assert_eq!(*radius, config.expect_actor(kind).combat.explosion.radius);
+            assert_eq!(*radius, config.expect_actor(kind).combat.death_explosion.radius);
         }
     }
 }

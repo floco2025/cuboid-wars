@@ -7,7 +7,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from .constants import DEFAULT_GRID_COLS, DEFAULT_GRID_ROWS, REPO_ROOT, SUPPORTED_VERSION
+from .constants import DEFAULT_GRID_COLS, DEFAULT_GRID_ROWS, REPO_ROOT
 from .formatting import format_map_file
 from .normalization import canonicalize_map, normalize_map
 
@@ -45,8 +45,6 @@ def empty_map(grid_cols: int = DEFAULT_GRID_COLS, grid_rows: int = DEFAULT_GRID_
 def read_map(path: Path) -> dict:
     with path.open("r", encoding="utf-8") as handle:
         data = json.load(handle)
-    if data.get("version") != SUPPORTED_VERSION:
-        raise ValueError(f"unsupported map file version {data.get('version')!r}")
     return canonicalize_map(normalize_map(data["map"]))
 
 
@@ -73,7 +71,7 @@ def load_materials_catalog() -> list[str]:
 
 
 def write_map(path: Path, map_data: dict) -> None:
-    wrapper = {"version": SUPPORTED_VERSION, "map": canonicalize_map(map_data)}
+    wrapper = {"map": canonicalize_map(map_data)}
     text = format_map_file(wrapper) + "\n"
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)

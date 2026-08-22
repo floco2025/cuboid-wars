@@ -83,10 +83,10 @@ pub fn network_process_client_messages_system(
     queries: CharacterQueries,
     items: Res<ItemMap>,
     actors: Res<ActorMap>,
-    pending_spawns: Res<PendingActorSpawns>,
     item_data: Query<&Position, With<ItemMarker>>,
     open_barrier_kinds: Res<OpenBarrierKinds>,
     mut missiles: ResMut<MissileMap>,
+    mut pending_actor_spawns: ResMut<PendingActorSpawns>,
     mut admin: AdminContext,
 ) {
     while let Ok((id, event)) = from_clients.try_recv() {
@@ -135,6 +135,7 @@ pub fn network_process_client_messages_system(
                         &queries,
                         &actors,
                         &open_barrier_kinds,
+                        &mut pending_actor_spawns,
                         &mut admin,
                     );
                 } else {
@@ -147,7 +148,7 @@ pub fn network_process_client_messages_system(
                         &world,
                         &items,
                         &actors,
-                        &pending_spawns,
+                        &pending_actor_spawns,
                         &queries,
                         &item_data,
                     );

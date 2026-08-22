@@ -33,6 +33,11 @@ impl Default for PlayerFallState {
 }
 
 impl PlayerFallState {
+    #[must_use]
+    pub(crate) const fn support(&self) -> CharacterSupport {
+        self.support
+    }
+
     pub(crate) fn set_support(&mut self, support: CharacterSupport) {
         self.support = support;
     }

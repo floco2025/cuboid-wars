@@ -1,5 +1,4 @@
 {
-  "version": 1,
   "rendering": {
     "opaque_renderer": "auto",
     "exclusive_fullscreen": {

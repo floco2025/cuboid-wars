@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+#[cfg(test)]
 use std::collections::{HashSet, VecDeque};
 
 use bevy::prelude::Resource;
@@ -9,27 +11,39 @@ use common::{
 };
 
 use crate::map::{ActorSpawnZone, Cell, CellSide, MapConfig, has_edge_on_cell_side};
+#[cfg(test)]
 use crate::pathfind::bfs_path;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct NavNode {
-    level: u8,
-    row: i32,
-    col: i32,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(crate) struct NavNode {
+    pub(crate) level: u8,
+    pub(crate) row: i32,
+    pub(crate) col: i32,
 }
 
 #[derive(Clone, Resource)]
 pub struct NavGraph {
     map_config: MapConfig,
     geometry: MapGeometry,
+    adjacency: HashMap<NavNode, Vec<NavNode>>,
 }
 
 impl NavGraph {
     #[must_use]
-    pub const fn new(map_config: MapConfig, geometry: MapGeometry) -> Self {
-        Self { map_config, geometry }
+    pub fn new(map_config: MapConfig, geometry: MapGeometry) -> Self {
+        let mut graph = Self {
+            map_config,
+            geometry,
+            adjacency: HashMap::new(),
+        };
+        graph.adjacency = graph
+            .all_traversable_nodes()
+            .map(|node| (node, graph.calculate_neighbors(node)))
+            .collect();
+        graph
     }
 
+    #[cfg(test)]
     #[must_use]
     pub fn path_to_spawn_zone(&self, start: &Position, zone: &ActorSpawnZone) -> Option<VecDeque<Position>> {
         let start_node = self.nearest_node_for_position(start)?;
@@ -48,8 +62,151 @@ impl NavGraph {
             return None;
         }
 
-        let nodes = bfs_path(start_node, |node| targets.contains(node), |node| self.neighbors(node))?;
+        let nodes = bfs_path(
+            start_node,
+            |node| targets.contains(node),
+            |node| self.neighbors(node).to_vec(),
+        )?;
         Some(nodes.into_iter().map(|node| self.node_center(node)).collect())
+    }
+
+    #[must_use]
+    pub(crate) fn node_for_position(&self, pos: &Position) -> Option<NavNode> {
+        self.nearest_node_for_position(pos)
+    }
+
+    pub(super) fn zone_nodes(&self, zone: &ActorSpawnZone) -> Vec<NavNode> {
+        let mut nodes: Vec<_> = zone
+            .cells()
+            .filter_map(|(col, row)| {
+                self.node_for_position(&Position {
+                    x: self.geometry.cell_to_world_x(col) + GRID_CELL_SIZE / 2.0,
+                    y: f32::from(zone.level) * LEVEL_HEIGHT,
+                    z: self.geometry.cell_to_world_z(row) + GRID_CELL_SIZE / 2.0,
+                })
+            })
+            .collect();
+        nodes.sort_unstable();
+        nodes.dedup();
+        nodes
+    }
+
+    pub(super) fn neighbors(&self, node: NavNode) -> &[NavNode] {
+        self.adjacency.get(&node).map_or(&[], Vec::as_slice)
+    }
+
+    pub(super) fn node_center(&self, node: NavNode) -> Position {
+        Position {
+            x: self.geometry.cell_to_world_x(node.col) + GRID_CELL_SIZE / 2.0,
+            y: f32::from(node.level) * LEVEL_HEIGHT,
+            z: self.geometry.cell_to_world_z(node.row) + GRID_CELL_SIZE / 2.0,
+        }
+    }
+
+    pub(super) fn flat_path_is_clear(
+        &self,
+        start: &Position,
+        target: &Position,
+        half_width: f32,
+        half_depth: f32,
+    ) -> bool {
+        let level = level_for_y(start.y);
+        if level_for_y(target.y) != level {
+            return false;
+        }
+        let dx = target.x - start.x;
+        let dz = target.z - start.z;
+        let distance = dx.hypot(dz);
+        let steps = (distance / (GRID_CELL_SIZE / 4.0)).ceil().max(1.0) as usize;
+        let traces = [
+            (0.0, 0.0),
+            (-half_width, -half_depth),
+            (-half_width, half_depth),
+            (half_width, -half_depth),
+            (half_width, half_depth),
+        ];
+
+        for (offset_x, offset_z) in traces {
+            let mut previous = None;
+            for step in 0..=steps {
+                let t = step as f32 / steps as f32;
+                let Some(node) =
+                    self.flat_floor_node_at(start.x + dx * t + offset_x, start.z + dz * t + offset_z, level)
+                else {
+                    return false;
+                };
+                if previous.is_some_and(|previous| !self.flat_nodes_connect_directly(previous, node)) {
+                    return false;
+                }
+                previous = Some(node);
+            }
+        }
+        true
+    }
+
+    pub(crate) fn engagement_retarget_is_valid(
+        &self,
+        start: &Position,
+        target: &Position,
+        half_width: f32,
+        half_depth: f32,
+    ) -> bool {
+        let level = level_for_y(start.y);
+        if level_for_y(target.y) != level
+            || self.flat_floor_node_at(start.x, start.z, level).is_none()
+            || self.flat_floor_node_at(target.x, target.z, level).is_none()
+        {
+            return true;
+        }
+        self.flat_path_is_clear(start, target, half_width, half_depth)
+    }
+
+    pub(super) fn is_cover_destination(&self, node: NavNode) -> bool {
+        self.cell(node)
+            .is_some_and(|cell| cell.has_floor && !cell.has_ramp && !cell.has_ramp_from_below)
+    }
+
+    fn flat_floor_node_at(&self, x: f32, z: f32, level: u8) -> Option<NavNode> {
+        let node = NavNode {
+            level,
+            row: self.geometry.cell_row_containing_z(z),
+            col: self.geometry.cell_col_containing_x(x),
+        };
+        self.cell(node)
+            .is_some_and(|cell| cell.has_floor && !cell.has_ramp && !cell.has_ramp_from_below)
+            .then_some(node)
+    }
+
+    fn flat_nodes_connect_directly(&self, from: NavNode, to: NavNode) -> bool {
+        let row_delta = to.row - from.row;
+        let col_delta = to.col - from.col;
+        if from.level != to.level || row_delta.abs() > 1 || col_delta.abs() > 1 {
+            return false;
+        }
+        if row_delta == 0 || col_delta == 0 {
+            return from == to || self.neighbors(from).contains(&to);
+        }
+
+        let row_first = NavNode {
+            row: to.row,
+            col: from.col,
+            ..from
+        };
+        let col_first = NavNode {
+            row: from.row,
+            col: to.col,
+            ..from
+        };
+        self.flat_edge_is_clear(from, row_first)
+            && self.flat_edge_is_clear(row_first, to)
+            && self.flat_edge_is_clear(from, col_first)
+            && self.flat_edge_is_clear(col_first, to)
+    }
+
+    fn flat_edge_is_clear(&self, from: NavNode, to: NavNode) -> bool {
+        self.cell(to)
+            .is_some_and(|cell| cell.has_floor && !cell.has_ramp && !cell.has_ramp_from_below)
+            && self.neighbors(from).contains(&to)
     }
 
     fn nearest_node_for_position(&self, pos: &Position) -> Option<NavNode> {
@@ -103,7 +260,7 @@ impl NavGraph {
         dx.mul_add(dx, dz * dz) + level_penalty
     }
 
-    fn neighbors(&self, node: NavNode) -> Vec<NavNode> {
+    fn calculate_neighbors(&self, node: NavNode) -> Vec<NavNode> {
         let mut out = Vec::with_capacity(6);
         self.push_same_level_neighbor(&mut out, node, -1, 0, CellSide::North);
         self.push_same_level_neighbor(&mut out, node, 1, 0, CellSide::South);
@@ -232,14 +389,6 @@ impl NavGraph {
             return None;
         }
         level.cells.rows.get(node.row as usize)?.get(node.col as usize)
-    }
-
-    fn node_center(&self, node: NavNode) -> Position {
-        Position {
-            x: self.geometry.cell_to_world_x(node.col) + GRID_CELL_SIZE / 2.0,
-            y: f32::from(node.level) * LEVEL_HEIGHT,
-            z: self.geometry.cell_to_world_z(node.row) + GRID_CELL_SIZE / 2.0,
-        }
     }
 }
 

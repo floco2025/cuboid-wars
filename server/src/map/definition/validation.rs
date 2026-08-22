@@ -1,22 +1,10 @@
 use std::collections::BTreeSet;
 
-use anyhow::{Context, Result, anyhow, ensure};
+use anyhow::{Context, Result, anyhow};
 
 use common::protocol::ItemType;
 
-use super::schema::{ActorSpawnZoneDef, LadderDef, LevelDef, MapDef, MapFile, PlayerSpawnZoneDef, RampDef, WallSide};
-
-const SUPPORTED_VERSION: u32 = 1;
-
-pub(super) fn validate_file(file: &MapFile) -> Result<()> {
-    ensure!(
-        file.version == SUPPORTED_VERSION,
-        "unsupported map config version {} (expected {})",
-        file.version,
-        SUPPORTED_VERSION
-    );
-    validate_map(&file.map)
-}
+use super::schema::{ActorSpawnZoneDef, LadderDef, LevelDef, MapDef, PlayerSpawnZoneDef, RampDef, WallSide};
 
 pub(super) fn validate_map(map_def: &MapDef) -> Result<()> {
     if map_def.grid_cols <= 0 || map_def.grid_rows <= 0 {

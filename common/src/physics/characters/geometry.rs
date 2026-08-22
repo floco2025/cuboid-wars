@@ -26,6 +26,20 @@ pub fn character_center(pos: Position, physics: CharacterPhysicsConfig) -> Vec3 
     Vec3::new(pos.x, physics.collider_center_y(pos.y), pos.z)
 }
 
+#[must_use]
+pub fn character_vertical_ranges_overlap(
+    pos1: Position,
+    physics1: CharacterPhysicsConfig,
+    pos2: Position,
+    physics2: CharacterPhysicsConfig,
+) -> bool {
+    let bottom1 = pos1.y + physics1.collider.bottom_y_offset();
+    let top1 = pos1.y + physics1.collider.top_y_offset();
+    let bottom2 = pos2.y + physics2.collider.bottom_y_offset();
+    let top2 = pos2.y + physics2.collider.top_y_offset();
+    bottom1 <= top2 && bottom2 <= top1
+}
+
 pub(super) fn character_support_probe_shape(physics: CharacterPhysicsConfig) -> Cuboid {
     Cuboid::new(Vector::new(
         physics.support_probe.width / 2.0,

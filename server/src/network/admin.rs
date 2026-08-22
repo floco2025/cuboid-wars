@@ -2,7 +2,7 @@ use bevy::{ecs::system::SystemParam, prelude::*};
 
 use super::incoming::PlayerStateQuery;
 use crate::{
-    actors::ActorMap,
+    actors::{ActorMap, ActorSpawnThrottles, PendingActorSpawns, expire_actor_spawn_cooldowns},
     combat::{PendingExplosions, kill_player},
     config::ServerGameplayConfig,
     map::{CurrentLighting, WeatherState},
@@ -22,7 +22,7 @@ const MAX_COMMAND_CHARS: usize = 256;
 
 // One command per line: the client feed renders each line as its own row.
 // Must fit within `hud.message_feed.max_entries` or the top lines evict.
-const HELP_TEXT: &str = "/help\n/weather rain|clear\n/light bright|dim|dark\n/god [on|off]\n/kill <name>|@a\n/killall [kind]\n/heal [name|@a]\n/give keys|key <color>\n/give powerups|powerup <type>\n/give missiles\n/firework\n/kick <name>";
+const HELP_TEXT: &str = "/help\n/weather rain|clear\n/light bright|dim|dark\n/god [on|off]\n/kill <name>|@a\n/killall [kind]\n/respawn [kind]\n/heal [name|@a]\n/give keys|key <color>\n/give powerups|powerup <type>\n/give missiles\n/firework\n/kick <name>";
 
 // Authorization seam. Deliberately wide open for now — every client is an
 // admin; tighten here (role on `PlayerInfo`, config allowlist, …) without
@@ -40,7 +40,7 @@ pub struct AdminContext<'w> {
     pub pending_explosions: ResMut<'w, PendingExplosions>,
     pub invincibility: ResMut<'w, Invincibility>,
     pub unlimited_missiles: ResMut<'w, UnlimitedMissiles>,
-    pub actors: Res<'w, ActorMap>,
+    pub actor_spawn_throttles: ResMut<'w, ActorSpawnThrottles>,
     pub server_gameplay_config: Res<'w, ServerGameplayConfig>,
     pub barrier_kind_table: Res<'w, BarrierKindTable>,
 }
@@ -57,6 +57,7 @@ enum AdminCommand {
     KillAllPlayers,
     KillPlayer(String),
     KillActors(Option<String>),
+    RespawnActors(Option<String>),
     Heal(HealTarget),
     GiveKeys,
     GiveKey(String),
@@ -100,6 +101,8 @@ fn parse_admin_command(input: &str) -> AdminCommand {
         ["kill", name @ ..] => AdminCommand::KillPlayer(name.join(" ")),
         ["killall"] => AdminCommand::KillActors(None),
         ["killall", kind] => AdminCommand::KillActors(Some((*kind).to_owned())),
+        ["respawn"] => AdminCommand::RespawnActors(None),
+        ["respawn", kind] => AdminCommand::RespawnActors(Some((*kind).to_owned())),
         ["heal"] => AdminCommand::Heal(HealTarget::Sender),
         ["heal", "@a"] => AdminCommand::Heal(HealTarget::All),
         ["heal", name @ ..] => AdminCommand::Heal(HealTarget::Named(name.join(" "))),
@@ -119,17 +122,31 @@ fn parse_admin_command(input: &str) -> AdminCommand {
 pub fn handle_admin_message(
     commands: &mut Commands,
     players: &mut PlayerMap,
+    actors: &ActorMap,
     id: PlayerId,
     admin: &mut AdminContext,
     player_data: &PlayerStateQuery,
     gameplay_config: &GameplayConfig,
+    map_config: &crate::map::MapConfig,
+    pending_actor_spawns: &mut PendingActorSpawns,
     msg: &CAdmin,
 ) {
     let Some(info) = players.get(&id) else {
         return;
     };
     let text = if admin_authorized(info) {
-        run_admin_command(commands, players, id, admin, player_data, gameplay_config, &msg.command)
+        run_admin_command(
+            commands,
+            players,
+            actors,
+            id,
+            admin,
+            player_data,
+            gameplay_config,
+            map_config,
+            pending_actor_spawns,
+            &msg.command,
+        )
     } else {
         "not authorized".to_owned()
     };
@@ -145,10 +162,13 @@ pub fn handle_admin_message(
 fn run_admin_command(
     commands: &mut Commands,
     players: &mut PlayerMap,
+    actors: &ActorMap,
     sender: PlayerId,
     admin: &mut AdminContext,
     player_data: &PlayerStateQuery,
     gameplay_config: &GameplayConfig,
+    map_config: &crate::map::MapConfig,
+    pending_actor_spawns: &mut PendingActorSpawns,
     command: &str,
 ) -> String {
     match parse_admin_command(command) {
@@ -199,21 +219,31 @@ fn run_admin_command(
             format!("killed {count} player(s)")
         }
         AdminCommand::KillActors(kind) => {
-            if let Some(kind) = &kind
-                && !admin.server_gameplay_config.actors.contains_key(kind)
-            {
-                let mut kinds: Vec<&str> = admin.server_gameplay_config.actors.keys().map(String::as_str).collect();
-                kinds.sort_unstable();
-                return format!("unknown actor kind {kind:?} (kinds: {})", kinds.join(", "));
+            if let Some(error) = actor_kind_error(kind.as_deref(), &admin.server_gameplay_config) {
+                return error;
             }
             let mut count = 0usize;
-            for (_, info) in admin.actors.iter() {
+            for (_, info) in actors.iter() {
                 if kind.as_deref().is_none_or(|kind| info.spawn_kind == kind) {
                     commands.entity(info.entity).insert(Health(0.0));
                     count += 1;
                 }
             }
             format!("killed {count} actor(s)")
+        }
+        AdminCommand::RespawnActors(kind) => {
+            if let Some(error) = actor_kind_error(kind.as_deref(), &admin.server_gameplay_config) {
+                return error;
+            }
+            let count = expire_actor_spawn_cooldowns(
+                actors,
+                pending_actor_spawns,
+                &mut admin.actor_spawn_throttles,
+                map_config,
+                &admin.server_gameplay_config,
+                kind.as_deref(),
+            );
+            format!("respawning {count} actor(s)")
         }
         AdminCommand::Heal(target) => {
             let targets = match &target {
@@ -339,6 +369,16 @@ fn alive_players(players: &PlayerMap, name: Option<&str>) -> Vec<(PlayerId, Enti
         .collect()
 }
 
+fn actor_kind_error(kind: Option<&str>, config: &ServerGameplayConfig) -> Option<String> {
+    let kind = kind?;
+    if config.actors.contains_key(kind) {
+        return None;
+    }
+    let mut kinds: Vec<&str> = config.actors.keys().map(String::as_str).collect();
+    kinds.sort_unstable();
+    Some(format!("unknown actor kind {kind:?} (kinds: {})", kinds.join(", ")))
+}
+
 fn kill_targets(
     commands: &mut Commands,
     players: &mut PlayerMap,
@@ -396,6 +436,11 @@ mod tests {
         assert_eq!(
             parse_admin_command("/killall zapper"),
             AdminCommand::KillActors(Some("zapper".to_owned()))
+        );
+        assert_eq!(parse_admin_command("/respawn"), AdminCommand::RespawnActors(None));
+        assert_eq!(
+            parse_admin_command("/respawn sentry"),
+            AdminCommand::RespawnActors(Some("sentry".to_owned()))
         );
         assert_eq!(parse_admin_command("/heal"), AdminCommand::Heal(HealTarget::Sender));
         assert_eq!(parse_admin_command("/heal @a"), AdminCommand::Heal(HealTarget::All));

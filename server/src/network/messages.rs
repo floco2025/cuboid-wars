@@ -6,7 +6,7 @@ use super::{
     incoming::{CharacterQueries, SharedWorld},
 };
 use crate::{
-    actors::ActorMap,
+    actors::{ActorMap, PendingActorSpawns},
     map::OpenBarrierKinds,
     missiles::{MissileMap, handle_missile_shot_message},
     network::ServerToClient,
@@ -36,6 +36,7 @@ pub fn dispatch_message(
     queries: &CharacterQueries,
     actors: &ActorMap,
     open_barrier_kinds: &OpenBarrierKinds,
+    pending_actor_spawns: &mut PendingActorSpawns,
     admin: &mut AdminContext,
 ) {
     // Dead players have a despawned entity; queueing entity-targeted
@@ -114,10 +115,13 @@ pub fn dispatch_message(
             handle_admin_message(
                 commands,
                 players,
+                actors,
                 id,
                 admin,
                 &queries.player_data,
                 &world.gameplay_config,
+                &world.map_config,
+                pending_actor_spawns,
                 &msg,
             );
         }
