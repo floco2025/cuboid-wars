@@ -1,4 +1,5 @@
 pub mod actors;
+pub mod app;
 pub mod audio;
 pub mod barriers;
 pub mod cameras;
