@@ -97,7 +97,7 @@ fn burned_grass_remains_visible_short_dark_and_still() {
     let max_sway = uvs(&burned).iter().map(|uv| uv[0]).fold(0.0_f32, f32::max);
     assert!(max_sway <= EXPLOSION_GRASS_BURN_CENTER_SWAY_FACTOR + f32::EPSILON);
     assert!(average_rgb(colors(&burned)) < average_rgb(colors(&normal)) * 0.35);
-    for blade in colors(&burned).chunks_exact(VERTICES_PER_BLADE) {
+    for blade in colors(&burned).as_chunks::<VERTICES_PER_BLADE>().0 {
         assert!(average_rgb(&blade[0..1]) < average_rgb(&blade[2..3]));
         assert!(average_rgb(&blade[2..3]) < average_rgb(&blade[4..5]));
     }
