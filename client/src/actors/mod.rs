@@ -1,4 +1,5 @@
 mod movement;
+mod reconciliation;
 mod resources;
 mod spawn;
 mod transform_sync;
