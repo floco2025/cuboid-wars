@@ -619,3 +619,140 @@ fn path_uses_ramp_top_to_change_levels() {
     assert!(engagement.waypoints.len() > 1);
     assert!(engagement.waypoints.iter().any(|waypoint| waypoint.y < LEVEL_HEIGHT));
 }
+
+// Two cells side by side per row; a wall on the shared grid line covers
+// row 0 only, so its end sits at the boundary between the rows.
+fn wall_end_nav_and_world() -> (NavGraph, CollisionWorld) {
+    let mut cells = CellGrid::new(2, 2);
+    for row in &mut cells.rows {
+        for cell in row {
+            cell.has_floor = true;
+        }
+    }
+    let mut edges = EdgeGrid::new(2, 2);
+    edges.vertical[0][1] = true;
+    let nav = NavGraph::new(
+        MapConfig {
+            levels: vec![level(cells, edges)],
+            actor_spawn_zones: Vec::new(),
+            player_spawn_zones: Vec::new(),
+            placed_items: Vec::new(),
+            pressure_plates: Vec::new(),
+        },
+        MapGeometry::new(2, 2),
+    );
+    let world = CollisionWorld::from_map_layout(
+        &MapLayout {
+            walls: vec![Wall {
+                x1: 0.0,
+                z1: -GRID_CELL_SIZE,
+                x2: 0.0,
+                z2: 0.0,
+                width: WALL_THICKNESS,
+                level: 0,
+            }],
+            ..MapLayout::default()
+        },
+        &BarrierKindTable::default(),
+    );
+    (nav, world)
+}
+
+fn body(width: f32, depth: f32) -> common::config::CharacterPhysicsConfig {
+    use common::config::{
+        CharacterColliderAnchor, CharacterColliderConfig, CharacterPhysicsConfig, CharacterSupportProbeConfig,
+    };
+    CharacterPhysicsConfig {
+        collider: CharacterColliderConfig {
+            width,
+            height: 1.0,
+            depth,
+            y_offset: 0.45,
+            y_offset_anchor: CharacterColliderAnchor::Bottom,
+        },
+        support_probe: CharacterSupportProbeConfig { width: 0.2, depth: 0.2 },
+    }
+}
+
+#[test]
+fn route_start_detours_via_the_cell_centre_when_the_first_leg_clips_a_wall_end() {
+    let (nav, world) = wall_end_nav_and_world();
+    let start = Position {
+        x: -0.8,
+        y: 0.0,
+        z: 1.0,
+    };
+    let target = cell_center(2, 2, 0, 0);
+    let mut route = nav
+        .engagement_route(&start, &target, 0.9, 0.7)
+        .expect("the cell north of the start is adjacent");
+
+    nav.anchor_route_start(&start, &mut route, &world, body(1.8, 1.4));
+
+    assert_eq!(route.waypoints.len(), 2);
+    assert_eq!(route.waypoints.front(), Some(&cell_center(2, 2, 0, 1)));
+    assert_eq!(route.waypoints.back(), Some(&target));
+}
+
+#[test]
+fn route_start_stays_direct_when_the_body_fits_past_the_wall_end() {
+    let (nav, world) = wall_end_nav_and_world();
+    let start = Position {
+        x: -0.8,
+        y: 0.0,
+        z: 1.0,
+    };
+    let target = cell_center(2, 2, 0, 0);
+    let mut route = nav
+        .engagement_route(&start, &target, 0.15, 0.15)
+        .expect("the cell north of the start is adjacent");
+
+    nav.anchor_route_start(&start, &mut route, &world, body(0.3, 0.3));
+
+    assert_eq!(route.waypoints.len(), 1);
+    assert_eq!(route.waypoints.front(), Some(&target));
+}
+
+// Regression for sentries parking at the mouth of the hotel's basement
+// ramp trench: off-centre at the base, the leg into the one-cell-wide
+// trench dragged the body through the trench wall's end, and every replan
+// produced the same leg.
+#[test]
+fn shipping_map_sentry_recentres_before_entering_the_basement_ramp_trench() {
+    let gameplay_config = common::config::GameplayConfig::load_default().expect("default gameplay config should load");
+    let kind_table = common::protocol::BarrierKindTable::from_ids(gameplay_config.barrier_kinds.clone())
+        .expect("barrier kind table should build from the default gameplay config");
+    let (layout, map_config, geometry) =
+        crate::map::generate_map(&kind_table, "hotel").expect("generate the hotel map");
+    let world = CollisionWorld::from_map_layout(&layout, &kind_table);
+    let nav = NavGraph::new(map_config, geometry);
+    let sentry = gameplay_config.expect_actor("sentry").physics();
+    let center = |level: u8, col: i32, row: i32| Position {
+        x: geometry.cell_to_world_x(col) + GRID_CELL_SIZE / 2.0,
+        y: f32::from(level) * LEVEL_HEIGHT,
+        z: geometry.cell_to_world_z(row) + GRID_CELL_SIZE / 2.0,
+    };
+    let base = center(0, 0, 15);
+    let start = Position {
+        x: base.x + 0.9,
+        z: base.z - 0.8,
+        ..base
+    };
+    let target = center(1, 0, 12);
+    let mut route = nav
+        .engagement_route(
+            &start,
+            &target,
+            sentry.collider.width / 2.0,
+            sentry.collider.depth / 2.0,
+        )
+        .expect("the lobby is reachable up the basement ramp");
+    let trench_entry = route.waypoints.front().copied().expect("route has a first leg");
+    assert!(world.character_sweep_hits_wall(&start, &trench_entry, sentry));
+
+    nav.anchor_route_start(&start, &mut route, &world, sentry);
+
+    assert_eq!(route.waypoints.front(), Some(&base));
+    assert!(!world.character_sweep_hits_wall(&start, &base, sentry));
+    assert!(!world.character_sweep_hits_wall(&base, &trench_entry, sentry));
+}

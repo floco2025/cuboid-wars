@@ -1,3 +1,6 @@
+use crate::config::{
+    CharacterColliderAnchor, CharacterColliderConfig, CharacterPhysicsConfig, CharacterSupportProbeConfig,
+};
 use crate::constants::{FLOOR_THICKNESS, LADDER_OVERSHOOT, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS};
 use crate::protocol::{Barrier, BarrierKindId, Floor, Ladder, MapLayout, Position, Ramp, Wall};
 
@@ -223,4 +226,88 @@ fn wall_surface_along_ray_ignores_barrier() {
 
     assert!((hit.point.z - WALL_THICKNESS / 2.0).abs() < 0.001, "hit was {hit:?}");
     assert_eq!(hit.normal, bevy_math::Vec3::Z);
+}
+
+// A wall end at the origin, running north (negative z) along x = 0.
+fn wall_end_world() -> CollisionWorld {
+    CollisionWorld::from_map_layout(
+        &MapLayout {
+            walls: vec![Wall {
+                x1: 0.0,
+                z1: 0.0,
+                x2: 0.0,
+                z2: -8.0,
+                width: WALL_THICKNESS,
+                level: 0,
+            }],
+            floors: vec![Floor {
+                x1: -8.0,
+                z1: -8.0,
+                x2: 8.0,
+                z2: 8.0,
+                y: 0.0,
+                thickness: FLOOR_THICKNESS,
+                level: 0,
+            }],
+            ..Default::default()
+        },
+        &crate::protocol::BarrierKindTable::default(),
+    )
+}
+
+fn wide_body() -> CharacterPhysicsConfig {
+    CharacterPhysicsConfig {
+        collider: CharacterColliderConfig {
+            width: 1.8,
+            height: 1.0,
+            depth: 1.4,
+            y_offset: 0.45,
+            y_offset_anchor: CharacterColliderAnchor::Bottom,
+        },
+        support_probe: CharacterSupportProbeConfig { width: 0.2, depth: 0.2 },
+    }
+}
+
+#[test]
+fn character_sweep_hits_wall_end_clipped_by_the_body_edge() {
+    let world = wall_end_world();
+    // Centre line passes 0.8 m west of the wall; the 0.9 m half-width does not.
+    let start = Position {
+        x: -0.8,
+        y: 0.0,
+        z: 1.0,
+    };
+    let target = Position {
+        x: -0.8,
+        y: 0.0,
+        z: -3.0,
+    };
+
+    assert!(world.character_sweep_hits_wall(&start, &target, wide_body()));
+}
+
+#[test]
+fn character_sweep_is_clear_past_a_wall_end_with_room_for_the_body() {
+    let world = wall_end_world();
+    let start = Position {
+        x: -1.5,
+        y: 0.0,
+        z: 1.0,
+    };
+    let target = Position {
+        x: -1.5,
+        y: 0.0,
+        z: -3.0,
+    };
+
+    assert!(!world.character_sweep_hits_wall(&start, &target, wide_body()));
+}
+
+#[test]
+fn character_sweep_ignores_floors_and_ramps() {
+    let world = CollisionWorld::from_map_layout(&test_map_layout(), &crate::protocol::BarrierKindTable::default());
+    let start = Position { x: 2.0, y: 0.0, z: 9.0 };
+    let target = Position { x: 2.0, y: 0.0, z: 3.0 };
+
+    assert!(!world.character_sweep_hits_wall(&start, &target, wide_body()));
 }

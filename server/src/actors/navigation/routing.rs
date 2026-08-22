@@ -1,6 +1,6 @@
 use std::collections::{HashMap, VecDeque};
 
-use common::{constants::GRID_CELL_SIZE, protocol::Position};
+use common::{config::CharacterPhysicsConfig, constants::GRID_CELL_SIZE, physics::CollisionWorld, protocol::Position};
 use rand::{Rng, RngExt};
 
 use super::{NavGraph, NavNode, territory::ActorTerritory};
@@ -103,6 +103,29 @@ impl NavGraph {
             anchor = next;
         }
         *waypoints = shortcut;
+    }
+
+    // Node-centre legs are footprint-safe by construction, but the actor
+    // starts wherever it stands inside its cell: a first leg cut from a cell
+    // corner can drag the body through a wall end, and the motor parks
+    // instead of scraping along it. Detour via the current cell's centre.
+    pub(crate) fn anchor_route_start(
+        &self,
+        start: &Position,
+        route: &mut PlannedRoute,
+        collision_world: &CollisionWorld,
+        physics: CharacterPhysicsConfig,
+    ) {
+        let Some(first) = route.waypoints.front() else {
+            return;
+        };
+        if !collision_world.character_sweep_hits_wall(start, first, physics) {
+            return;
+        }
+        let Some(node) = self.node_for_position(start) else {
+            return;
+        };
+        route.waypoints.push_front(self.node_center(node));
     }
 
     pub(crate) fn safe_cover_route(

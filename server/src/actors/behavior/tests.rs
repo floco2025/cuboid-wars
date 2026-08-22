@@ -704,3 +704,101 @@ fn failed_cover_search_waits_before_trying_again() {
 
     assert!(ready.route.is_some());
 }
+
+fn route_through(waypoints: &[Position], fixture: &Fixture) -> ActorRoute {
+    let destination = *waypoints.last().expect("route has a destination");
+    ActorRoute {
+        waypoints: waypoints.iter().copied().collect(),
+        destination,
+        destination_node: fixture
+            .graph
+            .node_for_position(&destination)
+            .expect("destination nav node"),
+    }
+}
+
+fn tick_route(info: &mut ActorInfo, pos: Position, fixture: &Fixture) {
+    tick_runtime_state(info, pos, 0.1, fixture.server.expect_actor("mine"), &[]);
+}
+
+// The mine-in-the-trench jam: the actor overshot the first waypoint along
+// the next leg (a ramp-top transition sits at the actor's own cell centre)
+// and must not be sent back for it.
+#[test]
+fn overshot_waypoint_on_the_next_leg_is_skipped() {
+    let fixture = Fixture::new("mine");
+    let first = fixture.pos(2, 2);
+    let second = fixture.pos(5, 2);
+    let mut info = info("mine");
+    info.route = Some(route_through(&[first, second], &fixture));
+    let overshot = Position {
+        x: first.x + 0.9,
+        ..first
+    };
+
+    tick_route(&mut info, overshot, &fixture);
+
+    assert_eq!(
+        info.route.as_ref().map(|route| route.waypoints.front().copied()),
+        Some(Some(second))
+    );
+}
+
+#[test]
+fn waypoint_ahead_on_the_next_leg_is_kept() {
+    let fixture = Fixture::new("mine");
+    let first = fixture.pos(2, 2);
+    let second = fixture.pos(5, 2);
+    let mut info = info("mine");
+    info.route = Some(route_through(&[first, second], &fixture));
+    let approaching = Position {
+        x: first.x - 0.9,
+        ..first
+    };
+
+    tick_route(&mut info, approaching, &fixture);
+
+    assert_eq!(
+        info.route.as_ref().map(|route| route.waypoints.front().copied()),
+        Some(Some(first))
+    );
+}
+
+#[test]
+fn corner_waypoint_is_not_skipped_from_the_side() {
+    let fixture = Fixture::new("mine");
+    let corner = fixture.pos(2, 2);
+    let after = fixture.pos(5, 2);
+    let mut info = info("mine");
+    info.route = Some(route_through(&[corner, after], &fixture));
+    // Approaching the corner along the row axis: beyond it along the next
+    // leg by a hair, but a full cell off that leg's line.
+    let beside = Position {
+        x: corner.x + 0.1,
+        z: corner.z + 3.0,
+        ..corner
+    };
+
+    tick_route(&mut info, beside, &fixture);
+
+    assert_eq!(
+        info.route.as_ref().map(|route| route.waypoints.front().copied()),
+        Some(Some(corner))
+    );
+}
+
+#[test]
+fn final_waypoint_is_only_dropped_when_reached() {
+    let fixture = Fixture::new("mine");
+    let only = fixture.pos(2, 2);
+    let mut info = info("mine");
+    info.route = Some(route_through(&[only], &fixture));
+    let past = Position {
+        x: only.x + 0.9,
+        ..only
+    };
+
+    tick_route(&mut info, past, &fixture);
+
+    assert!(info.route.is_some());
+}

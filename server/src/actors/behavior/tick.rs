@@ -4,7 +4,7 @@ use rand::{Rng, rng};
 use crate::{
     actors::{
         ActorInfo, ActorMap, ActorMode, ActorRoute, BeamState,
-        navigation::{ActorTerritories, NavGraph},
+        navigation::{ActorTerritories, NavGraph, PlannedRoute},
     },
     config::{ActorAttackConfig, ActorKindServerConfig, ServerGameplayConfig},
     network::broadcast_to_all,
@@ -12,7 +12,7 @@ use crate::{
 };
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
-    constants::GRID_CELL_SIZE,
+    constants::{GRID_CELL_SIZE, PHYSICS_EPSILON},
     physics::CollisionWorld,
     protocol::{ActorId, ActorMarker, PlayerId, PlayerMarker, Position, SActorBeam, ServerMessage},
 };
@@ -133,17 +133,41 @@ pub(super) fn tick_runtime_state(
 fn advance_route(info: &mut ActorInfo, pos: Position, reached_distance: f32) {
     let reached_sq = reached_distance * reached_distance;
     if let Some(route) = &mut info.route {
-        while route
-            .waypoints
-            .front()
-            .is_some_and(|next| pos.horizontal_distance_sq(next) <= reached_sq)
-        {
+        while let Some(next) = route.waypoints.front() {
+            let reached = pos.horizontal_distance_sq(next) <= reached_sq;
+            let passed = route
+                .waypoints
+                .get(1)
+                .is_some_and(|after| waypoint_passed(&pos, next, after, reached_distance));
+            if !reached && !passed {
+                break;
+            }
             route.waypoints.pop_front();
         }
         if route.waypoints.is_empty() {
             info.set_route(None);
         }
     }
+}
+
+// An actor nudged beyond a waypoint — by a sidestep, or by climbing past a
+// ramp-top transition that sits at its own cell centre — must not walk back
+// for it: with another actor behind it in a one-cell trench that is a
+// permanent jam. Count the waypoint as passed when the actor is beyond it
+// along the following leg and within reach of that leg's line.
+fn waypoint_passed(pos: &Position, waypoint: &Position, after: &Position, reached_distance: f32) -> bool {
+    let leg = Vec2::new(after.x - waypoint.x, after.z - waypoint.z);
+    let leg_length = leg.length();
+    if leg_length <= PHYSICS_EPSILON {
+        return false;
+    }
+    let offset = Vec2::new(pos.x - waypoint.x, pos.z - waypoint.z);
+    let along = offset.dot(leg) / leg_length;
+    if along <= 0.0 {
+        return false;
+    }
+    let lateral_sq = offset.length_squared() - along * along;
+    lateral_sq <= reached_distance * reached_distance
 }
 
 fn tick_route_stall(info: &mut ActorInfo, pos: Position, delta: f32) {
@@ -222,6 +246,15 @@ pub(super) struct BehaviorContext<'a> {
 }
 
 impl BehaviorContext<'_> {
+    fn install_route(&self, info: &mut ActorInfo, planned: Option<PlannedRoute>) {
+        let route = planned.and_then(|mut planned| {
+            self.nav_graph
+                .anchor_route_start(&self.pos, &mut planned, self.collision_world, self.actor_physics);
+            ActorRoute::new(planned)
+        });
+        info.set_route(route);
+    }
+
     pub(super) fn stable_cover(&self, pos: &Position, threats: &[Position]) -> bool {
         if threats
             .iter()
@@ -285,7 +318,7 @@ pub(super) fn enter_evade(info: &mut ActorInfo, context: &BehaviorContext<'_>) {
     let planned = context.nav_graph.safe_cover_route(&context.pos, &threats, |candidate| {
         context.stable_cover(candidate, &threats)
     });
-    info.set_route(planned.and_then(ActorRoute::new));
+    context.install_route(info, planned);
     info.evade_replan_remaining_secs = EVADE_REPLAN_INTERVAL_SECS;
 }
 
@@ -301,7 +334,7 @@ pub(super) fn enter_roam_or_return(info: &mut ActorInfo, context: &BehaviorConte
             return;
         }
         let route = context.nav_graph.roam_route(&context.pos, context.territory, rng);
-        info.set_route(route.and_then(ActorRoute::new));
+        context.install_route(info, route);
     } else {
         let continuing_return = matches!(info.mode, ActorMode::ReturnHome) && info.route.is_some();
         info.mode = ActorMode::ReturnHome;
@@ -310,7 +343,7 @@ pub(super) fn enter_roam_or_return(info: &mut ActorInfo, context: &BehaviorConte
             return;
         }
         let route = context.nav_graph.return_route(&context.pos, context.territory);
-        info.set_route(route.and_then(ActorRoute::new));
+        context.install_route(info, route);
     }
 }
 
@@ -350,6 +383,6 @@ pub(super) fn keep_or_install_engagement_route(
     };
     info.mode = ActorMode::Engage { target, target_pos };
     info.evade_replan_remaining_secs = 0.0;
-    info.set_route(ActorRoute::new(planned));
+    context.install_route(info, Some(planned));
     true
 }

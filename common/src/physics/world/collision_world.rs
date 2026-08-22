@@ -11,7 +11,11 @@ use rapier3d::{
     },
 };
 
-use crate::protocol::{BarrierKindId, BarrierKindTable, MapLayout, Position};
+use crate::{
+    config::CharacterPhysicsConfig,
+    physics::characters::{character_center, character_shape},
+    protocol::{BarrierKindId, BarrierKindTable, MapLayout, Position},
+};
 
 use super::colliders::{
     ColliderKind, FLOOR_COLLISION_GROUP, WALL_COLLISION_GROUP, barrier_collision_group, character_collision_groups,
@@ -333,6 +337,39 @@ impl CollisionWorld {
     #[must_use]
     pub fn cuboid_overlaps_wall(&self, position: Vec3, half_extents: Vec3) -> bool {
         self.cuboid_overlaps_groups(position, half_extents, WALL_COLLISION_GROUP)
+    }
+
+    // Whether sliding a character's body box horizontally from `start` to
+    // `target` drags it through a wall. Floors and ramps are ignored so a
+    // leg onto a slope counts as clear; a body already touching a wall but
+    // moving away from it is clear too.
+    #[must_use]
+    pub fn character_sweep_hits_wall(
+        &self,
+        start: &Position,
+        target: &Position,
+        physics: CharacterPhysicsConfig,
+    ) -> bool {
+        let translation = Vector::new(target.x - start.x, 0.0, target.z - start.z);
+        if translation.length_squared() == 0.0 {
+            return false;
+        }
+        let query_pipeline = self.broad_phase.as_query_pipeline(
+            self.narrow_phase.query_dispatcher(),
+            &self.bodies,
+            &self.colliders,
+            query_filter(WALL_COLLISION_GROUP),
+        );
+        let center = character_center(*start, physics);
+        let pose = Pose::translation(center.x, center.y, center.z);
+        let options = ShapeCastOptions {
+            max_time_of_impact: 1.0,
+            stop_at_penetration: false,
+            ..ShapeCastOptions::default()
+        };
+        query_pipeline
+            .cast_shape(&pose, translation, &character_shape(physics), options)
+            .is_some()
     }
 
     fn ball_overlaps_groups(&self, position: Vec3, radius: f32, groups: Group) -> bool {
