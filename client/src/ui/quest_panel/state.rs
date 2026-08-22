@@ -19,15 +19,55 @@ pub struct QuestEntry {
     pub order: u32,
 }
 
-// Every quest this client has been assigned this session, keyed by id.
-// Populated by the `SQuestsAssigned` handler, advanced by `SQuestProgress`,
-// and marked done by `SQuestCompleted`. The quest panel rebuilds from it.
+#[derive(Default)]
+struct PendingQuestState {
+    max_progress: u32,
+    completed: bool,
+}
+
+// Every quest this client has been assigned this session, keyed by id. State
+// events that arrive before assignment stay pending until display metadata is
+// available; the panel renders only `entries`.
 #[derive(Resource, Default)]
 pub struct QuestLog {
     pub entries: HashMap<QuestId, QuestEntry>,
+    pending: HashMap<QuestId, PendingQuestState>,
 }
 
 impl QuestLog {
+    pub fn assign(&mut self, id: QuestId, mut entry: QuestEntry) -> bool {
+        if self.entries.contains_key(&id) {
+            return false;
+        }
+        if let Some(pending) = self.pending.remove(&id) {
+            entry.progress = entry.progress.max(pending.max_progress);
+            if pending.completed {
+                entry.progress = entry.threshold;
+                entry.completed = true;
+            }
+        }
+        self.entries.insert(id, entry);
+        true
+    }
+
+    pub fn record_progress(&mut self, id: QuestId, progress: u32) {
+        if let Some(entry) = self.entries.get_mut(&id) {
+            entry.progress = entry.progress.max(progress);
+        } else {
+            let pending = self.pending.entry(id).or_default();
+            pending.max_progress = pending.max_progress.max(progress);
+        }
+    }
+
+    pub fn record_completion(&mut self, id: QuestId) {
+        if let Some(entry) = self.entries.get_mut(&id) {
+            entry.progress = entry.threshold;
+            entry.completed = true;
+        } else {
+            self.pending.entry(id).or_default().completed = true;
+        }
+    }
+
     // Entries in display order: by catalog `order`, then id as a stable
     // tiebreak. The single ordering used by the panel, its content hash, and
     // the respawn announcement so they never disagree.

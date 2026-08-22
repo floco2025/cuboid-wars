@@ -21,11 +21,8 @@ pub fn handle_quests_assigned_message(
 ) {
     let mut lines = Vec::new();
     for quest in msg.quests {
-        if quest_log.entries.contains_key(&quest.id) {
-            continue;
-        }
-        lines.push(format!("{}: {}", quest.title, quest.description));
-        quest_log.entries.insert(
+        let announcement = format!("{}: {}", quest.title, quest.description);
+        if quest_log.assign(
             quest.id,
             QuestEntry {
                 title: quest.title,
@@ -35,7 +32,9 @@ pub fn handle_quests_assigned_message(
                 completed: false,
                 order: quest.order,
             },
-        );
+        ) {
+            lines.push(announcement);
+        }
     }
     if lines.is_empty() {
         return;
@@ -44,12 +43,10 @@ pub fn handle_quests_assigned_message(
 }
 
 // A quest's progress advanced. Carries the absolute value, so keep the max to
-// ignore a reordered/stale update. A progress message for an unknown id (e.g.
-// arriving before its assignment batch) is ignored — the assignment seeds it.
+// ignore a reordered/stale update. Updates that beat their assignment are
+// retained until the assignment provides the display metadata.
 pub fn handle_quest_progress_message(quest_log: &mut QuestLog, msg: SQuestProgress) {
-    if let Some(entry) = quest_log.entries.get_mut(&msg.id) {
-        entry.progress = entry.progress.max(msg.progress);
-    }
+    quest_log.record_progress(msg.id, msg.progress);
 }
 
 // Server says the local client just completed a quest. Mark it done in the
@@ -64,10 +61,7 @@ pub fn handle_quest_completed_message(
     asset_set: &AssetSet,
     msg: SQuestCompleted,
 ) {
-    if let Some(entry) = quest_log.entries.get_mut(&msg.id) {
-        entry.progress = entry.threshold;
-        entry.completed = true;
-    }
+    quest_log.record_completion(msg.id);
     pending_banner.set(msg.completed_text, BANNER_QUEST_COMPLETED_SECS);
     play_sound(commands, asset_server, asset_set.player_sound("quest_completed"));
 }
@@ -76,24 +70,25 @@ pub fn handle_quest_completed_message(
 mod tests {
     use super::*;
 
+    fn quest_entry(progress: u32, threshold: u32) -> QuestEntry {
+        QuestEntry {
+            title: "Gold".to_owned(),
+            description: "collect gold".to_owned(),
+            progress,
+            threshold,
+            completed: false,
+            order: 0,
+        }
+    }
+
     fn quest_log_with(id: &str, progress: u32, threshold: u32) -> QuestLog {
         let mut log = QuestLog::default();
-        log.entries.insert(
-            QuestId(id.to_owned()),
-            QuestEntry {
-                title: "Gold".to_owned(),
-                description: "collect gold".to_owned(),
-                progress,
-                threshold,
-                completed: false,
-                order: 0,
-            },
-        );
+        assert!(log.assign(QuestId(id.to_owned()), quest_entry(progress, threshold)));
         log
     }
 
     #[test]
-    fn quest_progress_keeps_max_and_ignores_unknown_id() {
+    fn quest_progress_keeps_max() {
         let mut log = quest_log_with("collect_gold", 3, 10);
 
         // Advancing update applies.
@@ -115,15 +110,35 @@ mod tests {
             },
         );
         assert_eq!(log.entries[&QuestId("collect_gold".to_owned())].progress, 4);
+    }
 
-        // An update for an unknown quest is a no-op (doesn't insert).
+    #[test]
+    fn quest_progress_before_assignment_merges_into_assigned_entry() {
+        let mut log = QuestLog::default();
+
+        let unknown = QuestId("unknown".to_owned());
         handle_quest_progress_message(
             &mut log,
             SQuestProgress {
-                id: QuestId("unknown".to_owned()),
+                id: unknown.clone(),
                 progress: 9,
             },
         );
-        assert_eq!(log.entries.len(), 1);
+        assert!(log.entries.is_empty());
+        assert!(log.assign(unknown.clone(), quest_entry(2, 10)));
+        assert_eq!(log.entries[&unknown].progress, 9);
+    }
+
+    #[test]
+    fn quest_completion_before_assignment_marks_assigned_entry_complete() {
+        let mut log = QuestLog::default();
+        let id = QuestId("collect_gold".to_owned());
+
+        log.record_completion(id.clone());
+        assert!(log.assign(id.clone(), quest_entry(3, 10)));
+
+        let entry = &log.entries[&id];
+        assert_eq!(entry.progress, 10);
+        assert!(entry.completed);
     }
 }
