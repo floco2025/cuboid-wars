@@ -7,18 +7,11 @@ fn supported_player_can_start_jump() {
     let floor = lower_floor();
     let collision_world = collision_world(&[floor], &[]);
     let pos = Position { x: 0.0, y: 0.0, z: 0.0 };
-    let mut motion = 0.0;
 
-    assert!(try_start_player_jump(
-        &mut motion,
-        &collision_world,
-        player_physics(),
-        TEST_JUMP_SPEED,
-        &pos,
-        pos.x,
-        pos.z
-    ));
-    assert_eq!(motion, TEST_JUMP_SPEED);
+    assert_eq!(
+        player_jump_velocity(0.0, &collision_world, player_physics(), TEST_JUMP_SPEED, &pos),
+        Some(TEST_JUMP_SPEED)
+    );
 }
 
 #[test]
@@ -26,18 +19,11 @@ fn airborne_player_cannot_start_jump() {
     let floor = lower_floor();
     let collision_world = collision_world(&[floor], &[]);
     let pos = Position { x: 0.0, y: 1.0, z: 0.0 };
-    let mut motion = 0.0;
 
-    assert!(!try_start_player_jump(
-        &mut motion,
-        &collision_world,
-        player_physics(),
-        TEST_JUMP_SPEED,
-        &pos,
-        pos.x,
-        pos.z
-    ));
-    assert_eq!(motion, 0.0);
+    assert_eq!(
+        player_jump_velocity(0.0, &collision_world, player_physics(), TEST_JUMP_SPEED, &pos),
+        None
+    );
 }
 
 #[test]
@@ -45,16 +31,8 @@ fn upward_jump_velocity_moves_player_above_support() {
     let floor = lower_floor();
     let collision_world = collision_world(&[floor], &[]);
     let pos = Position { x: 0.0, y: 0.0, z: 0.0 };
-    let mut motion = 0.0;
-    assert!(try_start_player_jump(
-        &mut motion,
-        &collision_world,
-        player_physics(),
-        TEST_JUMP_SPEED,
-        &pos,
-        pos.x,
-        pos.z
-    ));
+    let motion = player_jump_velocity(0.0, &collision_world, player_physics(), TEST_JUMP_SPEED, &pos)
+        .expect("supported player should start a jump");
 
     let step = step_character_movement(
         character_step_toward(pos, motion, pos.x, pos.z, 0.1),

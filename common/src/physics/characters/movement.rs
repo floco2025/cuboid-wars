@@ -26,26 +26,21 @@ const CHARACTER_BLOCKED_MOVEMENT_EPSILON: f32 = 0.01;
 const CHARACTER_AUTOSTEP_EPSILON: f32 = 0.01;
 
 #[must_use]
-pub fn try_start_player_jump(
-    vertical_velocity: &mut f32,
+pub fn player_jump_velocity(
+    vertical_velocity: f32,
     collision_world: &CollisionWorld,
     physics: CharacterPhysicsConfig,
     jump_speed: f32,
     pos: &Position,
-    x: f32,
-    z: f32,
-) -> bool {
-    let ground_probe_pos = Position { x, y: pos.y, z };
-    // A ladder counts as support: jumping is how you detach mid-climb, so it
-    // must work regardless of the climb's vertical velocity. (The climb
-    // volume covers only the ladder's front — its back is not a ladder.)
-    let on_ladder = collision_world.ladder_volume_at(&ground_probe_pos).is_some();
-    if !on_ladder && (*vertical_velocity > 0.0 || !is_character_grounded(collision_world, &ground_probe_pos, physics)) {
-        return false;
+) -> Option<f32> {
+    // Jumping is how a character detaches mid-climb, so it must work even
+    // while the ladder is supplying upward velocity.
+    let on_ladder = collision_world.ladder_volume_at(pos).is_some();
+    if !on_ladder && (vertical_velocity > 0.0 || !position_has_floor_support(collision_world, pos, physics)) {
+        return None;
     }
 
-    *vertical_velocity = jump_speed;
-    true
+    Some(jump_speed)
 }
 
 // One fixed-tick request. Ladder decisions read only `control_velocity`;
@@ -248,14 +243,6 @@ fn movement_progress_was_blocked(desired: Vector, actual: Vector) -> bool {
     actual_along_desired < desired_len - CHARACTER_BLOCKED_MOVEMENT_EPSILON
 }
 
-fn is_character_grounded(collision_world: &CollisionWorld, pos: &Position, physics: CharacterPhysicsConfig) -> bool {
-    position_has_floor_support(collision_world, pos, physics)
-}
-
-// Public predicate for "is there floor under `pos` within the character's
-// normal support reach." Same probe `is_character_grounded` uses internally;
-// exposed so callers (e.g. actor patrol ledge avoidance) can ask the
-// question for a hypothetical position without reimplementing the probe.
 #[must_use]
 pub fn position_has_floor_support(
     collision_world: &CollisionWorld,

@@ -53,18 +53,7 @@ fn edge_overhang_denies_jump() {
         y: floor.y,
         z: 0.0,
     };
-    let mut motion = 0.0;
-
-    assert!(!try_start_player_jump(
-        &mut motion,
-        &collision_world,
-        physics,
-        12.0,
-        &pos,
-        pos.x,
-        pos.z
-    ));
-    assert_eq!(motion, 0.0);
+    assert_eq!(player_jump_velocity(0.0, &collision_world, physics, 12.0, &pos), None);
 }
 
 #[test]

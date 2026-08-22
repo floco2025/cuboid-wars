@@ -6,7 +6,7 @@ use bevy::{
 };
 use common::{
     config::GameplayConfig,
-    physics::{CharacterVerticalVelocity, CollisionWorld, try_start_player_jump},
+    physics::{CharacterVerticalVelocity, CollisionWorld, player_jump_velocity},
     protocol::{CJump, ClientMessage, FaceYaw, PlayerMoveIntent, Position},
 };
 use std::f32::consts::{FRAC_PI_2, PI};
@@ -207,16 +207,17 @@ fn update_player_input_face_and_jump(
     for (pos, mut input, mut face_direction, mut motion) in local_player_query.iter_mut() {
         *input = move_intent;
         face_direction.0 = face_yaw;
-        if jump_requested && let Some(collision_world) = collision_world {
-            let _ = try_start_player_jump(
-                &mut motion.0,
+        if jump_requested
+            && let Some(collision_world) = collision_world
+            && let Some(vertical_velocity) = player_jump_velocity(
+                motion.0,
                 collision_world,
                 gameplay_config.player.physics(),
                 gameplay_config.player.jump_speed,
                 pos,
-                pos.x,
-                pos.z,
-            );
+            )
+        {
+            motion.0 = vertical_velocity;
         }
     }
 }

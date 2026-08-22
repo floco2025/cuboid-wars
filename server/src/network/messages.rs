@@ -15,7 +15,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    physics::{CharacterVerticalVelocity, CollisionWorld, try_start_player_jump},
+    physics::{CharacterVerticalVelocity, CollisionWorld, player_jump_velocity},
     protocol::*,
 };
 
@@ -179,18 +179,15 @@ fn handle_jump_message(
         return;
     };
 
-    let mut next_vertical_velocity = motion.0;
-    if !try_start_player_jump(
-        &mut next_vertical_velocity,
+    let Some(next_vertical_velocity) = player_jump_velocity(
+        motion.0,
         collision_world,
         gameplay_config.player.physics(),
         gameplay_config.player.jump_speed,
         pos,
-        pos.x,
-        pos.z,
-    ) {
+    ) else {
         return;
-    }
+    };
 
     commands
         .entity(entity)
