@@ -138,5 +138,6 @@ they assert (e.g. `lethal_hit_returns_true`, `barrier_collision_group_is_unique_
 
 ## Security & assets
 
+- **Current threat model:** development and private/LAN play assume cooperative clients. Abuse hardening — client rate limits, per-tick ingress budgets, bounded/backpressured network queues, flood protection, and admin authorization — is intentionally deferred. Revisit it before any public release or publicly accessible server.
 - `client/assets/` are not open source — replace before publishing a fork.
 - `cert.pem` / `key.pem` are local-dev only. Do not commit production keys.
