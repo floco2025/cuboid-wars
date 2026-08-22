@@ -16,7 +16,7 @@ pub fn sync_missiles(
     commands: &mut Commands,
     missile_assets: &MissileAssets,
     missiles: &mut MissileMap,
-    rtt: &ResMut<RoundTripTime>,
+    rtt: &RoundTripTime,
     missile_data: &Query<&Position, With<MissileMarker>>,
     server_missiles: &[(MissileId, Missile)],
 ) {
@@ -47,7 +47,7 @@ pub fn sync_missiles(
 pub(super) fn apply_missile_movement_state(
     commands: &mut Commands,
     missiles: &MissileMap,
-    rtt: &ResMut<RoundTripTime>,
+    rtt: &RoundTripTime,
     missile_data: &Query<&Position, With<MissileMarker>>,
     id: MissileId,
     movement: MissileMovementState,

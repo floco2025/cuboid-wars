@@ -59,8 +59,8 @@ fn despawn_label_render_target(mut world: DeferredWorld, ctx: HookContext) {
 // can stack it directly above the health bar.
 pub fn spawn_floating_player_label(
     commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
     label: &str,
     image_handle: Handle<Image>,
     text_camera: Entity,
@@ -151,8 +151,8 @@ pub struct FloatingHealthBarFill {
 // the recursive despawn.
 pub fn spawn_floating_health_bar(
     commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
     character: Entity,
     world_width: f32,
     world_height: f32,

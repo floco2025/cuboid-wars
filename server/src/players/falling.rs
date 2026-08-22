@@ -15,6 +15,49 @@ use common::{
     protocol::{FaceYaw, Health, MapSettings, PlayerId, PlayerMarker, Position, SPlayerFallDamage, ServerMessage},
 };
 
+#[derive(Debug, Clone, Copy)]
+pub struct PlayerFallState {
+    support: CharacterSupport,
+    peak_speed: f32,
+    peak_y: f32,
+}
+
+impl Default for PlayerFallState {
+    fn default() -> Self {
+        Self {
+            support: CharacterSupport::Airborne,
+            peak_speed: 0.0,
+            peak_y: f32::NEG_INFINITY,
+        }
+    }
+}
+
+impl PlayerFallState {
+    pub(crate) fn set_support(&mut self, support: CharacterSupport) {
+        self.support = support;
+    }
+
+    pub(crate) fn reset(&mut self) {
+        *self = Self::default();
+    }
+
+    fn update(&mut self, y: f32, vertical_velocity: f32) -> Option<FallImpact> {
+        if self.support == CharacterSupport::Airborne {
+            self.peak_speed = self.peak_speed.max((-vertical_velocity).max(0.0));
+            self.peak_y = self.peak_y.max(y);
+            return None;
+        }
+
+        let impact = (self.peak_speed > 0.0).then_some(FallImpact {
+            drop: (self.peak_y - y).max(0.0),
+            peak_speed: self.peak_speed,
+        });
+        self.peak_speed = 0.0;
+        self.peak_y = f32::NEG_INFINITY;
+        impact
+    }
+}
+
 // ============================================================================
 // Players Fall Death System
 // ============================================================================
@@ -71,9 +114,7 @@ pub fn players_fall_death_system(
                 CharacterVerticalVelocity::default(),
             ));
             if let Some(info) = players.get_mut(id) {
-                // The aborted fall must not register as an impact.
-                info.peak_fall_speed = 0.0;
-                info.fall_peak_y = f32::NEG_INFINITY;
+                info.fall_state.reset();
             }
             continue;
         }
@@ -106,7 +147,7 @@ const FALL_DAMAGE_EMIT_THRESHOLD: f32 = 1.0;
 const PHANTOM_FALL_TRIPWIRE_SLACK: f32 = 5.0;
 
 // Apply impact damage on landing from a fall. The highest Y of the current
-// airborne window is tracked on `PlayerInfo.fall_peak_y`; when the player
+// airborne window is tracked by `PlayerFallState`; when the player
 // reaches support (ground or ladder), damage lerps from 0 at
 // `safe_fall_distance` to `max_health` at
 // `lethal_fall_distance`, clamped past lethal. The fall distance requires
@@ -145,13 +186,7 @@ pub fn players_fall_damage_system(
             continue;
         }
 
-        let Some(impact) = update_fall_tracking(
-            info.movement_support,
-            pos.y,
-            motion.0,
-            &mut info.peak_fall_speed,
-            &mut info.fall_peak_y,
-        ) else {
+        let Some(impact) = info.fall_state.update(pos.y, motion.0) else {
             continue;
         };
 
@@ -225,32 +260,10 @@ struct FallImpact {
     peak_speed: f32,
 }
 
-fn update_fall_tracking(
-    support: CharacterSupport,
-    y: f32,
-    vertical_velocity: f32,
-    peak_speed: &mut f32,
-    peak_y: &mut f32,
-) -> Option<FallImpact> {
-    if support == CharacterSupport::Airborne {
-        *peak_speed = (*peak_speed).max((-vertical_velocity).max(0.0));
-        *peak_y = (*peak_y).max(y);
-        return None;
-    }
-
-    let impact = (*peak_speed > 0.0).then_some(FallImpact {
-        drop: (*peak_y - y).max(0.0),
-        peak_speed: *peak_speed,
-    });
-    *peak_speed = 0.0;
-    *peak_y = f32::NEG_INFINITY;
-    impact
-}
-
 // Normal-gravity distance equivalent to the landing's impact energy, with
 // two corrections so JSON values can stay semantic ("level heights"):
 //   1. `+gravity * TICK_SECS` to the impact speed —
-//      `peak_fall_speed` is captured at end-of-tick *before* the impact
+//      the peak fall speed is captured at end-of-tick *before* the impact
 //      tick, so it misses one gravity application.
 //   2. `+CHARACTER_GROUND_SNAP_DISTANCE` — the last ~0.5 m of every fall is
 //      "snapped" by the character controller (vy → 0, no further gravity),
@@ -284,40 +297,39 @@ mod tests {
 
     #[test]
     fn airborne_tracking_records_apex_and_peak_fall_speed() {
-        let mut peak_speed = 0.0;
-        let mut peak_y = f32::NEG_INFINITY;
+        let mut state = PlayerFallState::default();
 
-        assert_eq!(
-            update_fall_tracking(CharacterSupport::Airborne, 8.0, 4.0, &mut peak_speed, &mut peak_y),
-            None
-        );
-        assert_eq!(
-            update_fall_tracking(CharacterSupport::Airborne, 7.0, -6.0, &mut peak_speed, &mut peak_y),
-            None
-        );
+        assert_eq!(state.update(8.0, 4.0), None);
+        assert_eq!(state.update(7.0, -6.0), None);
 
-        assert_eq!(peak_y, 8.0);
-        assert_eq!(peak_speed, 6.0);
+        assert_eq!(state.peak_y, 8.0);
+        assert_eq!(state.peak_speed, 6.0);
     }
 
     #[test]
     fn upward_airborne_motion_does_not_finish_the_tracked_fall() {
-        let mut peak_speed = 6.0;
-        let mut peak_y = 8.0;
+        let mut state = PlayerFallState {
+            peak_speed: 6.0,
+            peak_y: 8.0,
+            ..default()
+        };
 
-        let impact = update_fall_tracking(CharacterSupport::Airborne, 7.0, 4.0, &mut peak_speed, &mut peak_y);
+        let impact = state.update(7.0, 4.0);
 
         assert_eq!(impact, None);
-        assert_eq!(peak_speed, 6.0);
-        assert_eq!(peak_y, 8.0);
+        assert_eq!(state.peak_speed, 6.0);
+        assert_eq!(state.peak_y, 8.0);
     }
 
     #[test]
     fn ground_support_finishes_the_tracked_fall() {
-        let mut peak_speed = 12.0;
-        let mut peak_y = 10.0;
+        let mut state = PlayerFallState {
+            support: CharacterSupport::Ground,
+            peak_speed: 12.0,
+            peak_y: 10.0,
+        };
 
-        let impact = update_fall_tracking(CharacterSupport::Ground, 4.0, 0.0, &mut peak_speed, &mut peak_y);
+        let impact = state.update(4.0, 0.0);
 
         assert_eq!(
             impact,
@@ -326,16 +338,19 @@ mod tests {
                 peak_speed: 12.0,
             })
         );
-        assert_eq!(peak_speed, 0.0);
-        assert_eq!(peak_y, f32::NEG_INFINITY);
+        assert_eq!(state.peak_speed, 0.0);
+        assert_eq!(state.peak_y, f32::NEG_INFINITY);
     }
 
     #[test]
     fn ladder_support_finishes_the_tracked_fall() {
-        let mut peak_speed = 12.0;
-        let mut peak_y = 10.0;
+        let mut state = PlayerFallState {
+            support: CharacterSupport::Ladder,
+            peak_speed: 12.0,
+            peak_y: 10.0,
+        };
 
-        let impact = update_fall_tracking(CharacterSupport::Ladder, 4.0, 0.0, &mut peak_speed, &mut peak_y);
+        let impact = state.update(4.0, 0.0);
 
         assert_eq!(
             impact,
@@ -344,19 +359,22 @@ mod tests {
                 peak_speed: 12.0,
             })
         );
-        assert_eq!(peak_speed, 0.0);
-        assert_eq!(peak_y, f32::NEG_INFINITY);
+        assert_eq!(state.peak_speed, 0.0);
+        assert_eq!(state.peak_y, f32::NEG_INFINITY);
     }
 
     #[test]
     fn support_without_a_fall_clears_the_airborne_apex() {
-        let mut peak_speed = 0.0;
-        let mut peak_y = 10.0;
+        let mut state = PlayerFallState {
+            support: CharacterSupport::Ground,
+            peak_speed: 0.0,
+            peak_y: 10.0,
+        };
 
-        let impact = update_fall_tracking(CharacterSupport::Ground, 4.0, 0.0, &mut peak_speed, &mut peak_y);
+        let impact = state.update(4.0, 0.0);
 
         assert_eq!(impact, None);
-        assert_eq!(peak_y, f32::NEG_INFINITY);
+        assert_eq!(state.peak_y, f32::NEG_INFINITY);
     }
 
     #[test]

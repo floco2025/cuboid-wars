@@ -15,13 +15,13 @@ use common::{
 
 pub fn sync_actors(
     commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    graphs: &mut ResMut<Assets<AnimationGraph>>,
-    actors: &mut ResMut<ActorMap>,
-    rtt: &ResMut<RoundTripTime>,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    graphs: &mut Assets<AnimationGraph>,
+    actors: &mut ActorMap,
+    rtt: &RoundTripTime,
     actor_data: &Query<(&Position, &ActorMoveIntent, &FaceYaw), With<ActorMarker>>,
-    asset_server: &Res<AssetServer>,
+    asset_server: &AssetServer,
     asset_set: &AssetSet,
     client_settings: &ClientSettings,
     gameplay_config: &GameplayConfig,
@@ -87,7 +87,7 @@ pub fn sync_actors(
 pub fn sync_spawning_actors(
     commands: &mut Commands,
     ghosts: &mut ActorGhostMap,
-    asset_server: &Res<AssetServer>,
+    asset_server: &AssetServer,
     asset_set: &AssetSet,
     gameplay_config: &GameplayConfig,
     spawning_actors: &[(ActorId, SpawningActor)],
@@ -120,8 +120,8 @@ pub fn sync_spawning_actors(
 
 pub(super) fn apply_actor_movement_state(
     commands: &mut Commands,
-    actors: &ResMut<ActorMap>,
-    rtt: &ResMut<RoundTripTime>,
+    actors: &ActorMap,
+    rtt: &RoundTripTime,
     actor_data: &Query<(&Position, &ActorMoveIntent, &FaceYaw), With<ActorMarker>>,
     id: ActorId,
     movement: ActorMovementState,

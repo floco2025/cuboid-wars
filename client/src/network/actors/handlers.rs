@@ -14,8 +14,8 @@ use common::protocol::{
 
 pub fn handle_actor_move_intent_message(
     commands: &mut Commands,
-    actors: &ResMut<ActorMap>,
-    rtt: &ResMut<RoundTripTime>,
+    actors: &ActorMap,
+    rtt: &RoundTripTime,
     actor_data: &Query<(&Position, &ActorMoveIntent, &FaceYaw), With<ActorMarker>>,
     msg: SActorMove,
 ) {
@@ -40,11 +40,11 @@ pub fn handle_actor_move_intent_message(
 pub fn handle_actor_death_message(
     commands: &mut Commands,
     ctx: &mut ExplosionSpawnCtx,
-    asset_server: &Res<AssetServer>,
+    asset_server: &AssetServer,
     asset_set: &AssetSet,
     audio_config: &AudioConfig,
     actor_explosion_radii: &ExplosionRadii,
-    actors: &mut ResMut<ActorMap>,
+    actors: &mut ActorMap,
     players: &mut crate::players::PlayerMap,
     msg: SActorDeath,
 ) {
@@ -85,7 +85,7 @@ pub fn handle_actor_beam_message(
     materials: &mut Assets<StandardMaterial>,
     actors: &ActorMap,
     actor_data: &Query<(&Position, &ActorMoveIntent, &FaceYaw), With<ActorMarker>>,
-    asset_server: &Res<AssetServer>,
+    asset_server: &AssetServer,
     asset_set: &AssetSet,
     audio_config: &AudioConfig,
     msg: SActorBeam,
@@ -112,7 +112,7 @@ pub fn handle_actor_hit_message(
     commands: &mut Commands,
     actors: &ActorMap,
     actor_data: &Query<(&Position, &ActorMoveIntent, &FaceYaw), With<ActorMarker>>,
-    asset_server: &Res<AssetServer>,
+    asset_server: &AssetServer,
     asset_set: &AssetSet,
     audio_config: &AudioConfig,
     msg: SActorHit,

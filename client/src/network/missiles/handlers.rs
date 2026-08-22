@@ -23,7 +23,7 @@ pub fn handle_missile_launch_message(
     commands: &mut Commands,
     missile_assets: &MissileAssets,
     missiles: &mut MissileMap,
-    asset_server: &Res<AssetServer>,
+    asset_server: &AssetServer,
     asset_set: &AssetSet,
     audio_config: &AudioConfig,
     my_player_id: PlayerId,
@@ -49,7 +49,7 @@ pub fn handle_missile_launch_message(
 pub fn handle_missile_move_intent_message(
     commands: &mut Commands,
     missiles: &MissileMap,
-    rtt: &ResMut<RoundTripTime>,
+    rtt: &RoundTripTime,
     missile_data: &Query<&Position, With<MissileMarker>>,
     msg: SMissileMove,
 ) {
@@ -62,7 +62,7 @@ pub fn handle_missile_move_intent_message(
 pub fn handle_missile_death_message(
     commands: &mut Commands,
     ctx: &mut ExplosionSpawnCtx,
-    asset_server: &Res<AssetServer>,
+    asset_server: &AssetServer,
     asset_set: &AssetSet,
     audio_config: &AudioConfig,
     missiles: &mut MissileMap,
@@ -88,7 +88,7 @@ pub fn handle_missile_death_message(
 pub fn handle_missiles_collected_message(
     commands: &mut Commands,
     msg: SMissilesCollected,
-    asset_server: &Res<AssetServer>,
+    asset_server: &AssetServer,
     asset_set: &AssetSet,
     players: &mut PlayerMap,
     my_player_id: PlayerId,

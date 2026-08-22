@@ -195,7 +195,8 @@ fn shipping_map_zones_are_mutually_reachable() {
         crate::config::ServerGameplayConfig::load_default().expect("default server gameplay config should load");
     let kind_table = common::protocol::BarrierKindTable::from_ids(gameplay_config.barrier_kinds.clone())
         .expect("barrier kind table should build from the default gameplay config");
-    let (_, map_config, geometry) = crate::map::generate_map(&kind_table, &server_gameplay_config.default_map);
+    let (_, map_config, geometry) =
+        crate::map::generate_map(&kind_table, &server_gameplay_config.default_map).expect("generate default map");
     let zones = map_config.actor_spawn_zones.clone();
     let nav = NavGraph::new(map_config, geometry);
 

@@ -7,7 +7,7 @@ use bevy::{
 
 pub fn setup_label_texture(
     commands: &mut Commands,
-    images: &mut ResMut<Assets<Image>>,
+    images: &mut Assets<Image>,
     width: u32,
     height: u32,
 ) -> (Handle<Image>, Entity) {

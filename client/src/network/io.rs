@@ -112,7 +112,7 @@ pub fn network_ping_system(
 }
 
 // Handle pong response from server to calculate RTT.
-pub fn handle_pong_message(time: &Res<Time>, rtt: &mut ResMut<RoundTripTime>, msg: SPong) {
+pub fn handle_pong_message(time: &Time, rtt: &mut RoundTripTime, msg: SPong) {
     if rtt.pending_sent_at == Duration::ZERO {
         return;
     }

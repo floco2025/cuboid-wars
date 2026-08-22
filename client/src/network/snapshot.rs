@@ -6,7 +6,7 @@ use super::{
     components::{AssetManagers, ClientAssets},
     items::sync_items,
     missiles::sync_missiles,
-    players::sync_players,
+    players::{PlayerSnapshotAssets, PlayerSnapshotState, sync_players},
 };
 use crate::{
     actors::ActorMap,
@@ -16,55 +16,70 @@ use crate::{
     players::PlayerMap,
 };
 
+pub struct SnapshotState<'a> {
+    pub players: &'a mut PlayerMap,
+    pub actors: &'a mut ActorMap,
+    pub items: &'a mut ItemMap,
+    pub rtt: &'a RoundTripTime,
+    pub last_snapshot_seq: &'a mut LastSnapshotSeq,
+    pub my_player_id: PlayerId,
+}
+
 // Handle bulk state synchronization from the `SSnapshot` message.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "queries and system-param bundles stay at this boundary"
+)]
 pub(super) fn handle_snapshot_message(
     commands: &mut Commands,
     assets: &mut AssetManagers,
-    players: &mut ResMut<PlayerMap>,
-    actors: &mut ResMut<ActorMap>,
-    items: &mut ResMut<ItemMap>,
-    rtt: &ResMut<RoundTripTime>,
-    last_snapshot_seq: &mut ResMut<LastSnapshotSeq>,
+    state: &mut SnapshotState,
     player_data: &Query<(&Position, &PlayerMoveIntent, &FaceYaw), With<PlayerMarker>>,
     actor_data: &Query<(&Position, &ActorMoveIntent, &FaceYaw), With<ActorMarker>>,
-    camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
-    my_player_id: PlayerId,
+    cameras: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     client_assets: &mut ClientAssets,
     msg: SSnapshot,
 ) {
-    if !last_snapshot_seq.should_accept(msg.seq) {
+    if !state.last_snapshot_seq.should_accept(msg.seq) {
         warn!(
             "Ignoring outdated SSnapshot (seq: {}, last: {})",
             msg.seq,
-            last_snapshot_seq
+            state
+                .last_snapshot_seq
                 .last_raw()
                 .map_or_else(|| "none".to_string(), |seq| seq.to_string())
         );
         return;
     }
 
-    last_snapshot_seq.record(msg.seq);
+    state.last_snapshot_seq.record(msg.seq);
 
+    let mut player_assets = PlayerSnapshotAssets {
+        meshes: &mut assets.meshes,
+        materials: &mut assets.materials,
+        images: &mut assets.images,
+        graphs: &mut assets.graphs,
+        asset_server: &client_assets.handles.asset_server,
+        asset_set: &client_assets.handles.asset_set,
+        client_settings: &client_assets.handles.client_settings,
+        gameplay_config: &client_assets.handles.gameplay_config,
+    };
+    let mut player_state = PlayerSnapshotState {
+        players: state.players,
+        rtt: state.rtt,
+        local_player_info: &mut client_assets.hud.local_player_info,
+        feed: &mut client_assets.hud.game_message_feed,
+        seen_player_ids: &mut client_assets.hud.seen_player_ids,
+        quest_log: &client_assets.hud.quest_log,
+        pending_banner: &mut client_assets.hud.pending_banner,
+        my_player_id: state.my_player_id,
+    };
     sync_players(
         commands,
-        &mut assets.meshes,
-        &mut assets.materials,
-        &mut assets.images,
-        &mut assets.graphs,
-        players,
-        rtt,
-        &mut client_assets.hud.local_player_info,
-        &mut client_assets.hud.game_message_feed,
-        &mut client_assets.hud.seen_player_ids,
-        &client_assets.hud.quest_log,
-        &mut client_assets.hud.pending_banner,
+        &mut player_assets,
+        &mut player_state,
         player_data,
-        camera_query,
-        my_player_id,
-        &client_assets.handles.asset_server,
-        &client_assets.handles.asset_set,
-        &client_assets.handles.client_settings,
-        &client_assets.handles.gameplay_config,
+        cameras,
         &msg.players,
     );
     sync_actors(
@@ -72,8 +87,8 @@ pub(super) fn handle_snapshot_message(
         &mut assets.meshes,
         &mut assets.materials,
         &mut assets.graphs,
-        actors,
-        rtt,
+        state.actors,
+        state.rtt,
         actor_data,
         &client_assets.handles.asset_server,
         &client_assets.handles.asset_set,
@@ -94,14 +109,14 @@ pub(super) fn handle_snapshot_message(
         &client_assets.handles.item_assets,
         &client_assets.handles.barrier_assets,
         &client_assets.handles.missile_assets,
-        items,
+        state.items,
         &msg.items,
     );
     sync_missiles(
         commands,
         &client_assets.handles.missile_assets,
         &mut client_assets.world_sync.missile_map,
-        rtt,
+        state.rtt,
         &client_assets.world_sync.missile_data,
         &msg.missiles,
     );

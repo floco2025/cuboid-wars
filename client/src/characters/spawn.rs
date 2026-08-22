@@ -3,8 +3,8 @@ use common::config::CharacterPhysicsConfig;
 
 pub fn spawn_collider_box(
     commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
     physics: CharacterPhysicsConfig,
 ) -> Entity {
     commands

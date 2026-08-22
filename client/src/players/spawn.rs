@@ -43,11 +43,11 @@ struct PlayerBundle {
 // Spawn a player model plus cosmetic children, returning the new entity id.
 pub fn spawn_player(
     commands: &mut Commands,
-    asset_server: &Res<AssetServer>,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    images: &mut ResMut<Assets<Image>>,
-    graphs: &mut ResMut<Assets<AnimationGraph>>,
+    asset_server: &AssetServer,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    images: &mut Assets<Image>,
+    graphs: &mut Assets<AnimationGraph>,
     asset_set: &AssetSet,
     client_settings: &ClientSettings,
     gameplay_config: &GameplayConfig,

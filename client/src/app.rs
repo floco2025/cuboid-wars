@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use bevy::{
     pbr::DefaultOpaqueRendererMethod,
     prelude::*,
@@ -46,7 +46,7 @@ pub fn build_client_app(
     let gameplay_config = GameplayConfig::load_default()?;
     let barrier_kind_table = BarrierKindTable::from_ids(gameplay_config.barrier_kinds.clone())
         .context("failed to build BarrierKindTable from gameplay.json barrier_kinds")?;
-    validate_barrier_kind_colors(&asset_set, &barrier_kind_table)?;
+    asset_set.validate_gameplay_bindings(&gameplay_config, &barrier_kind_table)?;
 
     let texture_mipmaps_enabled = client_settings.rendering.texture_mipmaps_enabled;
     let mut app = App::new();
@@ -133,17 +133,6 @@ pub fn build_client_app(
     }
 
     Ok(app)
-}
-
-fn validate_barrier_kind_colors(asset_set: &AssetSet, barrier_kind_table: &BarrierKindTable) -> Result<()> {
-    for id in barrier_kind_table.ids() {
-        if asset_set.barrier_kind_color_hex(id).is_none() {
-            bail!(
-                "barrier kind {id:?} has no color in assets.json `barrier_kind_colors`; add an entry or remove the id from gameplay.json"
-            );
-        }
-    }
-    Ok(())
 }
 
 fn asset_plugin() -> AssetPlugin {

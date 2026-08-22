@@ -18,7 +18,7 @@ pub fn sync_items(
     item_assets: &ItemAssets,
     barrier_assets: &BarrierAssets,
     missile_assets: &MissileAssets,
-    items: &mut ResMut<ItemMap>,
+    items: &mut ItemMap,
     server_items: &[(ItemId, Item)],
 ) {
     let server_item_ids: HashSet<ItemId> = server_items.iter().map(|(id, _)| *id).collect();

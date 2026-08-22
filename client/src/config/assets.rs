@@ -1,15 +1,40 @@
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     fs,
     path::Path,
 };
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use bevy::prelude::Resource;
-use common::{config::resolve_actor_inheritance, protocol::ItemType};
+use common::{
+    config::{GameplayConfig, resolve_actor_inheritance},
+    protocol::{BarrierKindTable, ItemType},
+};
 use serde::Deserialize;
 
 const SUPPORTED_VERSION: u32 = 1;
+const REQUIRED_PLAYER_SOUNDS: &[&str] = &[
+    "barrier_impact",
+    "bump_player",
+    "bump_wall",
+    "collect_cookie",
+    "collect_power_up",
+    "dry_fire",
+    "explodes",
+    "fall_damage",
+    "fire",
+    "hit_actor",
+    "hit_player",
+    "hit_wall",
+    "laser_show",
+    "missile_launch",
+    "plate_press",
+    "plate_release",
+    "quest_completed",
+    "rain",
+    "take_hit",
+];
+const REQUIRED_ACTOR_SOUNDS: &[&str] = &["explodes", "fire"];
 
 #[derive(Resource, Debug, Clone)]
 pub struct AssetSet {
@@ -109,6 +134,46 @@ impl AssetSet {
                 self.materials.contains_key(id),
                 "`item_materials.{name}` points to unknown material `{id}`"
             );
+        }
+        validate_model("player.model", &self.player.model)?;
+        for sound in REQUIRED_PLAYER_SOUNDS {
+            validate_sound("player.sounds", &self.player.sounds, sound)?;
+        }
+        for (kind, actor) in &self.actors {
+            validate_model(&format!("actors.{kind}.model"), &actor.model)?;
+            for sound in REQUIRED_ACTOR_SOUNDS {
+                validate_sound(&format!("actors.{kind}.sounds"), &actor.sounds, sound)?;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn validate_gameplay_bindings(
+        &self,
+        gameplay_config: &GameplayConfig,
+        barrier_kind_table: &BarrierKindTable,
+    ) -> Result<()> {
+        let gameplay_kinds = gameplay_config
+            .actors
+            .keys()
+            .map(String::as_str)
+            .collect::<HashSet<_>>();
+        let asset_kinds = self.actors.keys().map(String::as_str).collect::<HashSet<_>>();
+        if gameplay_kinds != asset_kinds {
+            let mut only_gameplay = gameplay_kinds.difference(&asset_kinds).copied().collect::<Vec<_>>();
+            let mut only_assets = asset_kinds.difference(&gameplay_kinds).copied().collect::<Vec<_>>();
+            only_gameplay.sort_unstable();
+            only_assets.sort_unstable();
+            bail!(
+                "actor kinds disagree between common gameplay and client asset configs (only in gameplay: {only_gameplay:?}, only in assets: {only_assets:?})"
+            );
+        }
+        for id in barrier_kind_table.ids() {
+            if self.barrier_kind_color_hex(id).is_none() {
+                bail!(
+                    "barrier kind {id:?} has no color in assets.json `barrier_kind_colors`; add an entry or remove the id from gameplay.json"
+                );
+            }
         }
         Ok(())
     }
@@ -235,6 +300,38 @@ impl AssetSet {
             .get(resolved)
             .unwrap_or_else(|| panic!("alias {id:?} points to unknown material {resolved:?}"))
     }
+}
+
+fn validate_model(path: &str, model: &ModelDef) -> Result<()> {
+    anyhow::ensure!(!model.scene.trim().is_empty(), "`{path}.scene` must not be empty");
+    anyhow::ensure!(
+        model.scale.is_finite() && model.scale > 0.0,
+        "`{path}.scale` must be positive and finite, got {}",
+        model.scale
+    );
+    for (field, value) in [
+        ("x_offset", model.x_offset),
+        ("y_offset", model.y_offset),
+        ("z_offset", model.z_offset),
+        ("x_rotation_degrees", model.x_rotation_degrees),
+    ] {
+        anyhow::ensure!(value.is_finite(), "`{path}.{field}` must be finite, got {value}");
+    }
+    if let Some(speed) = model.animation_speed {
+        anyhow::ensure!(
+            speed.is_finite() && speed > 0.0,
+            "`{path}.animation_speed` must be positive and finite, got {speed}"
+        );
+    }
+    Ok(())
+}
+
+fn validate_sound(path: &str, sounds: &HashMap<String, String>, name: &str) -> Result<()> {
+    let Some(asset_path) = sounds.get(name) else {
+        bail!("asset config is missing required `{path}.{name}`");
+    };
+    anyhow::ensure!(!asset_path.trim().is_empty(), "`{path}.{name}` must not be empty");
+    Ok(())
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -420,7 +517,62 @@ impl AssetSet {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use common::config::GameplayConfig;
     use std::collections::HashSet;
+
+    fn gameplay_and_barriers() -> (GameplayConfig, BarrierKindTable) {
+        let gameplay = GameplayConfig::load_default().expect("load gameplay");
+        let barriers = BarrierKindTable::from_ids(gameplay.barrier_kinds.clone()).expect("build barrier table");
+        (gameplay, barriers)
+    }
+
+    #[test]
+    fn default_assets_match_common_gameplay() {
+        let assets = AssetSet::load_default().expect("load assets");
+        let (gameplay, barriers) = gameplay_and_barriers();
+
+        assets
+            .validate_gameplay_bindings(&gameplay, &barriers)
+            .expect("client asset bindings validate");
+    }
+
+    #[test]
+    fn actor_kind_set_mismatch_is_rejected() {
+        let mut assets = AssetSet::load_default().expect("load assets");
+        let (gameplay, barriers) = gameplay_and_barriers();
+        assets.actors.remove("mine");
+
+        let error = assets
+            .validate_gameplay_bindings(&gameplay, &barriers)
+            .expect_err("missing actor assets must fail");
+
+        assert!(error.to_string().contains("only in gameplay: [\"mine\"]"));
+    }
+
+    #[test]
+    fn missing_required_actor_sound_is_rejected() {
+        let mut assets = AssetSet::load_default().expect("load assets");
+        assets
+            .actors
+            .get_mut("mine")
+            .expect("mine assets")
+            .sounds
+            .remove("explodes");
+
+        let error = assets.validate().expect_err("missing sound must fail");
+
+        assert!(error.to_string().contains("actors.mine.sounds.explodes"));
+    }
+
+    #[test]
+    fn invalid_actor_model_is_rejected() {
+        let mut assets = AssetSet::load_default().expect("load assets");
+        assets.actors.get_mut("mine").expect("mine assets").model.scale = 0.0;
+
+        let error = assets.validate().expect_err("invalid model must fail");
+
+        assert!(error.to_string().contains("actors.mine.model.scale"));
+    }
 
     // Bevy's `AssetServer.load` ends in `std::fs::File::open`, which is
     // case-sensitive on Linux but case-insensitive on macOS APFS (default)

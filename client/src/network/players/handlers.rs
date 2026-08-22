@@ -43,9 +43,9 @@ pub(super) fn player_movement_velocity(
 // Handle player move update (intent + facing) with server reconciliation.
 pub fn handle_player_move_message(
     commands: &mut Commands,
-    players: &ResMut<PlayerMap>,
+    players: &PlayerMap,
     player_data: &Query<(&Position, &PlayerMoveIntent, &FaceYaw), With<PlayerMarker>>,
-    rtt: &ResMut<RoundTripTime>,
+    rtt: &RoundTripTime,
     gameplay_config: &GameplayConfig,
     msg: SPlayerMove,
 ) {
@@ -74,9 +74,9 @@ pub fn handle_player_move_message(
 
 pub fn handle_player_jump_message(
     commands: &mut Commands,
-    players: &ResMut<PlayerMap>,
+    players: &PlayerMap,
     player_data: &Query<(&Position, &PlayerMoveIntent, &FaceYaw), With<PlayerMarker>>,
-    rtt: &ResMut<RoundTripTime>,
+    rtt: &RoundTripTime,
     gameplay_config: &GameplayConfig,
     msg: SPlayerJump,
 ) {
@@ -102,7 +102,7 @@ pub fn handle_player_jump_message(
 pub fn handle_player_shot_message(
     commands: &mut Commands,
     projectile_assets: &ProjectileAssets,
-    players: &ResMut<PlayerMap>,
+    players: &PlayerMap,
     player_data: &Query<(&Position, &PlayerMoveIntent, &FaceYaw), With<PlayerMarker>>,
     msg: SPlayerShot,
     collision_world: Option<&CollisionWorld>,
@@ -137,7 +137,7 @@ pub fn handle_player_shot_message(
 // Handle player being hit - apply camera shake or cuboid shake.
 pub fn handle_player_hit_message(
     commands: &mut Commands,
-    players: &ResMut<PlayerMap>,
+    players: &PlayerMap,
     camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     client_settings: &ClientSettings,
     my_player_id: PlayerId,
@@ -295,7 +295,7 @@ pub fn handle_player_blast_message(
 // Handle player status update (power-ups, stun).
 pub fn handle_player_status_message(
     commands: &mut Commands,
-    players: &mut ResMut<PlayerMap>,
+    players: &mut PlayerMap,
     feed: &mut GameMessageFeed,
     msg: SPlayerStatus,
     my_player_id: PlayerId,
@@ -343,7 +343,7 @@ pub fn handle_player_status_message(
 #[expect(clippy::too_many_arguments, reason = "message handler threading dispatcher state")]
 pub fn handle_fall_damage_message(
     commands: &mut Commands,
-    players: &ResMut<PlayerMap>,
+    players: &PlayerMap,
     camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     client_settings: &ClientSettings,
     my_player_id: PlayerId,

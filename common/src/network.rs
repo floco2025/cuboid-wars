@@ -2,6 +2,8 @@ use anyhow::Result;
 use bincode::{Decode, Encode};
 use quinn::Connection;
 
+pub const ALPN_PROTOCOL: &[u8] = b"cuboid-wars/1";
+
 // ============================================================================
 // Message Stream Abstraction
 // ============================================================================

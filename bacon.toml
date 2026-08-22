@@ -2,17 +2,17 @@
 # https://dystroy.org/bacon/
 
 [jobs.check]
-command = ["cargo", "check", "--release", "--color", "always"]
+command = ["cargo", "check", "--release", "--workspace", "--all-targets", "--color", "always"]
 need_stdout = false
 
 [jobs.clippy]
-command = ["cargo", "clippy", "--release", "--color", "always"]
+command = ["cargo", "clippy", "--release", "--workspace", "--all-targets", "--color", "always"]
 need_stdout = false
 
 [jobs.build]
-command = ["cargo", "build", "--release", "--color", "always"]
+command = ["cargo", "build", "--release", "--workspace", "--all-targets", "--color", "always"]
 need_stdout = false
 
 [jobs.test]
-command = ["cargo", "test", "--release", "--color", "always"]
+command = ["cargo", "test", "--release", "--workspace", "--color", "always"]
 need_stdout = true

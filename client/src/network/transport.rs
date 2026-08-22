@@ -166,7 +166,7 @@ pub fn configure_client() -> Result<ClientConfig> {
     let mut crypto = rustls::ClientConfig::builder()
         .with_root_certificates(roots)
         .with_no_client_auth();
-    crypto.alpn_protocols = vec![b"game".to_vec()];
+    crypto.alpn_protocols = vec![common::network::ALPN_PROTOCOL.to_vec()];
 
     create_quinn_client_config(crypto)
 }

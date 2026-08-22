@@ -16,10 +16,10 @@ use common::{
 
 pub fn spawn_actor(
     commands: &mut Commands,
-    asset_server: &Res<AssetServer>,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    graphs: &mut ResMut<Assets<AnimationGraph>>,
+    asset_server: &AssetServer,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    graphs: &mut Assets<AnimationGraph>,
     asset_set: &AssetSet,
     client_settings: &ClientSettings,
     gameplay_config: &GameplayConfig,
@@ -128,7 +128,7 @@ pub fn beam_in_ghost_state(gameplay_config: &GameplayConfig, spawning: &Spawning
 // doesn't exist yet; this is pure presentation.
 pub fn spawn_actor_ghost(
     commands: &mut Commands,
-    asset_server: &Res<AssetServer>,
+    asset_server: &AssetServer,
     asset_set: &AssetSet,
     gameplay_config: &GameplayConfig,
     spawning: &SpawningActor,

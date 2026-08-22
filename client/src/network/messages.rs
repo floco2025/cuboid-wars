@@ -18,7 +18,7 @@ use super::{
         handle_player_status_message,
     },
     quests::{handle_quest_completed_message, handle_quest_progress_message, handle_quests_assigned_message},
-    snapshot::handle_snapshot_message,
+    snapshot::{SnapshotState, handle_snapshot_message},
 };
 use crate::{
     actors::ActorMap,
@@ -43,16 +43,16 @@ pub fn dispatch_message(
     msg: ServerMessage,
     my_player_id: PlayerId,
     commands: &mut Commands,
-    players: &mut ResMut<PlayerMap>,
-    actors: &mut ResMut<ActorMap>,
-    items: &mut ResMut<ItemMap>,
-    rtt: &mut ResMut<RoundTripTime>,
-    last_snapshot_seq: &mut ResMut<LastSnapshotSeq>,
+    players: &mut PlayerMap,
+    actors: &mut ActorMap,
+    items: &mut ItemMap,
+    rtt: &mut RoundTripTime,
+    last_snapshot_seq: &mut LastSnapshotSeq,
     assets: &mut AssetManagers,
     player_data: &Query<(&Position, &PlayerMoveIntent, &FaceYaw), With<PlayerMarker>>,
     actor_data: &Query<(&Position, &ActorMoveIntent, &FaceYaw), With<ActorMarker>>,
     cameras: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
-    time: &Res<Time>,
+    time: &Time,
     collision_world: Option<&CollisionWorld>,
     client_assets: &mut ClientAssets,
 ) {
@@ -152,21 +152,26 @@ pub fn dispatch_message(
                 &client_assets.world_sync.open_barrier_kinds,
             );
         }
-        ServerMessage::Snapshot(snapshot_msg) => handle_snapshot_message(
-            commands,
-            assets,
-            players,
-            actors,
-            items,
-            rtt,
-            last_snapshot_seq,
-            player_data,
-            actor_data,
-            cameras,
-            my_player_id,
-            client_assets,
-            snapshot_msg,
-        ),
+        ServerMessage::Snapshot(snapshot_msg) => {
+            let mut state = SnapshotState {
+                players,
+                actors,
+                items,
+                rtt,
+                last_snapshot_seq,
+                my_player_id,
+            };
+            handle_snapshot_message(
+                commands,
+                assets,
+                &mut state,
+                player_data,
+                actor_data,
+                cameras,
+                client_assets,
+                snapshot_msg,
+            );
+        }
         ServerMessage::PlayerHit(hit_msg) => {
             handle_player_hit_message(
                 commands,

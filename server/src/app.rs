@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use anyhow::{Context, Result, bail};
 use bevy::prelude::*;
 
@@ -7,9 +5,9 @@ use crate::{
     actors::{ActorMap, ActorSpawnThrottles, ActorSpawner, PendingActorSpawns, actors_plugin, navigation::NavGraph},
     characters::characters_plugin,
     combat::{PendingExplosions, combat_plugin},
-    config::ServerGameplayConfig,
+    config::{ServerGameplayConfig, validate_actor_kinds_consistent},
     items::{ItemMap, ItemSpawner, RandomItems, items_plugin},
-    map::{CurrentLighting, MapConfig, OpenBarrierKinds, WeatherState, generate_map, map_plugin},
+    map::{CurrentLighting, OpenBarrierKinds, WeatherState, generate_map, map_plugin},
     missiles::{AirGraph, MissileMap, missiles_plugin},
     network::{FromClientsChannel, network_plugin},
     players::{Invincibility, PlayerMap, UnlimitedMissiles, players_plugin},
@@ -35,7 +33,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
 
     let barrier_kind_table = BarrierKindTable::from_ids(gameplay_config.barrier_kinds.clone())
         .with_context(|| "failed to build BarrierKindTable from gameplay.json barrier_kinds")?;
-    let (map_layout, map_config, map_geometry) = generate_map(&barrier_kind_table, map_name);
+    let (map_layout, map_config, map_geometry) = generate_map(&barrier_kind_table, map_name)?;
     let collision_world = CollisionWorld::from_map_layout(&map_layout, &barrier_kind_table);
     let nav_graph = NavGraph::new(map_config.clone(), map_geometry);
     let air_graph = AirGraph::new(map_config.clone(), map_geometry);
@@ -96,30 +94,4 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
     ));
 
     Ok(app)
-}
-
-fn validate_actor_kinds_consistent(
-    gameplay_config: &GameplayConfig,
-    server_gameplay_config: &ServerGameplayConfig,
-    map_config: &MapConfig,
-) -> Result<()> {
-    let common_kinds: HashSet<&str> = gameplay_config.actors.keys().map(String::as_str).collect();
-    let server_kinds: HashSet<&str> = server_gameplay_config.actors.keys().map(String::as_str).collect();
-    if common_kinds != server_kinds {
-        let only_common: Vec<&str> = common_kinds.difference(&server_kinds).copied().collect();
-        let only_server: Vec<&str> = server_kinds.difference(&common_kinds).copied().collect();
-        bail!(
-            "actor kinds disagree between common and server gameplay configs (only in common: {only_common:?}, only in server: {only_server:?})"
-        );
-    }
-    for (zone_idx, zone) in map_config.actor_spawn_zones.iter().enumerate() {
-        if !common_kinds.contains(zone.kind.as_str()) {
-            bail!(
-                "map actor spawn zone {zone_idx} references unknown actor kind {:?} (known kinds: {:?})",
-                zone.kind,
-                common_kinds
-            );
-        }
-    }
-    Ok(())
 }

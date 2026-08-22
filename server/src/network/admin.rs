@@ -12,7 +12,8 @@ use crate::{
 use common::{
     config::GameplayConfig,
     protocol::{
-        BarrierKindTable, CAdmin, Health, ItemType, Lighting, PlayerId, SAdminResponse, SFirework, ServerMessage,
+        BarrierKindTable, CAdmin, Health, ItemType, Lighting, PlayerId, PowerUpKind, SAdminResponse, SFirework,
+        ServerMessage,
     },
 };
 
@@ -22,9 +23,6 @@ const MAX_COMMAND_CHARS: usize = 256;
 // One command per line: the client feed renders each line as its own row.
 // Must fit within `hud.message_feed.max_entries` or the top lines evict.
 const HELP_TEXT: &str = "/help\n/weather rain|clear\n/light bright|dim|dark\n/god [on|off]\n/kill <name>|@a\n/killall [kind]\n/heal [name|@a]\n/give keys|key <color>\n/give powerups|powerup <type>\n/give missiles\n/firework\n/kick <name>";
-
-// The four timer power-up config ids, in `PowerUpKind` order.
-const POWER_UP_IDS: [&str; 3] = ["speed", "multi_shot", "low_gravity"];
 
 // Authorization seam. Deliberately wide open for now — every client is an
 // admin; tighten here (role on `PlayerInfo`, config allowlist, …) without
@@ -272,17 +270,18 @@ fn run_admin_command(
             let Some(info) = players.get_mut(&sender) else {
                 return "sender not found".to_owned();
             };
-            let ids = POWER_UP_IDS.iter();
             let mut given = 0usize;
-            for id in ids {
+            for kind in PowerUpKind::ALL {
+                let id = kind.to_item_type().config_id();
                 grant_power_up_by_id(info, id, &admin.server_gameplay_config);
                 given += 1;
             }
             format!("gave {given} power-ups")
         }
         AdminCommand::GivePowerup(power_up) => {
-            if !POWER_UP_IDS.contains(&power_up.as_str()) {
-                return format!("unknown power-up {power_up:?} (power-ups: {})", POWER_UP_IDS.join(", "));
+            let power_up_ids = PowerUpKind::ALL.map(|kind| kind.to_item_type().config_id());
+            if !power_up_ids.contains(&power_up.as_str()) {
+                return format!("unknown power-up {power_up:?} (power-ups: {})", power_up_ids.join(", "));
             }
             let Some(info) = players.get_mut(&sender) else {
                 return "sender not found".to_owned();

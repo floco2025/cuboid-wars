@@ -18,67 +18,56 @@ use common::{
     protocol::{FaceYaw, Player, PlayerId, PlayerMarker, PlayerMoveIntent, Position, PowerUpKind},
 };
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "snapshot reconciliation needs the asset stack at this entry point"
-)]
+pub struct PlayerSnapshotAssets<'a> {
+    pub meshes: &'a mut Assets<Mesh>,
+    pub materials: &'a mut Assets<StandardMaterial>,
+    pub images: &'a mut Assets<Image>,
+    pub graphs: &'a mut Assets<AnimationGraph>,
+    pub asset_server: &'a AssetServer,
+    pub asset_set: &'a AssetSet,
+    pub client_settings: &'a ClientSettings,
+    pub gameplay_config: &'a GameplayConfig,
+}
+
+pub struct PlayerSnapshotState<'a> {
+    pub players: &'a mut PlayerMap,
+    pub rtt: &'a RoundTripTime,
+    pub local_player_info: &'a mut LocalPlayerInfo,
+    pub feed: &'a mut GameMessageFeed,
+    pub seen_player_ids: &'a mut SeenPlayerIds,
+    pub quest_log: &'a QuestLog,
+    pub pending_banner: &'a mut PendingBanner,
+    pub my_player_id: PlayerId,
+}
+
 pub fn sync_players(
     commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    images: &mut ResMut<Assets<Image>>,
-    graphs: &mut ResMut<Assets<AnimationGraph>>,
-    players: &mut ResMut<PlayerMap>,
-    rtt: &ResMut<RoundTripTime>,
-    local_player_info: &mut LocalPlayerInfo,
-    feed: &mut GameMessageFeed,
-    seen_player_ids: &mut SeenPlayerIds,
-    quest_log: &QuestLog,
-    pending_banner: &mut PendingBanner,
+    assets: &mut PlayerSnapshotAssets,
+    state: &mut PlayerSnapshotState,
     player_data: &Query<(&Position, &PlayerMoveIntent, &FaceYaw), With<PlayerMarker>>,
     camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
-    my_player_id: PlayerId,
-    asset_server: &Res<AssetServer>,
-    asset_set: &AssetSet,
-    client_settings: &ClientSettings,
-    gameplay_config: &GameplayConfig,
     server_players: &[(PlayerId, Player)],
 ) {
+    let my_player_id = state.my_player_id;
     let update_ids: HashSet<PlayerId> = server_players.iter().map(|(id, _)| *id).collect();
 
     // Spawn newly-appeared players. Skip the local player if it's already in
     // the map (e.g., we kept its entity through death — see respawn handling
     // further down).
     for (id, player) in server_players {
-        if players.contains_key(id) {
+        if state.players.contains_key(id) {
             continue;
         }
 
-        spawn_snapshot_player(
-            commands,
-            meshes,
-            materials,
-            images,
-            graphs,
-            players,
-            local_player_info,
-            camera_query,
-            my_player_id,
-            asset_server,
-            asset_set,
-            client_settings,
-            gameplay_config,
-            *id,
-            player,
-        );
+        spawn_snapshot_player(commands, assets, state, camera_query, *id, player);
 
         // Skip the local player's own "joined" line — they know they
         // joined. Also suppress duplicate "joined" lines on respawn —
         // a respawning player looks identical to a fresh join from the
         // snapshot diff's perspective, so we gate on first-ever-seen.
-        let is_first_seen = seen_player_ids.insert_if_new(*id);
+        let is_first_seen = state.seen_player_ids.insert_if_new(*id);
         if *id != my_player_id && is_first_seen {
-            feed.push(GameMessage::PlayerJoined {
+            state.feed.push(GameMessage::PlayerJoined {
                 name: player.name.clone(),
             });
         }
@@ -92,7 +81,7 @@ pub fn sync_players(
     //     LocalPlayerDead. The next snapshot that re-includes our id will
     //     teleport us to the respawn position.
     let mut local_just_died = false;
-    players.retain(|id, player| {
+    state.players.retain(|id, player| {
         if update_ids.contains(id) {
             return true;
         }
@@ -102,23 +91,23 @@ pub fn sync_players(
             true
         } else {
             commands.entity(player.entity).despawn();
-            feed.push(GameMessage::PlayerLeft {
+            state.feed.push(GameMessage::PlayerLeft {
                 name: player.name.clone(),
             });
             false
         }
     });
     if local_just_died {
-        local_player_info.is_dead = true;
+        state.local_player_info.is_dead = true;
     }
 
     // Handle local-player respawn: if we were dead and our id reappeared in
     // this snapshot, hard-teleport our existing entity to the new spawn
     // position, restore visibility, and clear the death state.
     let mut local_just_respawned = false;
-    if local_player_info.is_dead
+    if state.local_player_info.is_dead
         && let Some((_, server_player)) = server_players.iter().find(|(id, _)| *id == my_player_id)
-        && let Some(info) = players.get_mut(&my_player_id)
+        && let Some(info) = state.players.get_mut(&my_player_id)
     {
         let entity = info.entity;
         // Adopt the server-assigned respawn facing. Without this the next
@@ -127,7 +116,7 @@ pub fn sync_players(
         apply_local_spawn_facing(
             commands,
             camera_query,
-            local_player_info,
+            state.local_player_info,
             &server_player.movement.pos,
             server_player.movement.face_yaw,
         );
@@ -148,14 +137,15 @@ pub fn sync_players(
         // pre-death position.
         commands.entity(entity).remove::<ServerReconciliation>();
         info.apply_snapshot(server_player);
-        local_player_info.is_dead = false;
+        state.local_player_info.is_dead = false;
         local_just_respawned = true;
 
         // Re-show the announcement (title + description) for still-active
         // quests, so a respawning player is reminded of their objectives.
         // ONE combined banner in display order — the pending slot holds a
         // single request, so per-quest sets would keep only the last quest.
-        let text = quest_log
+        let text = state
+            .quest_log
             .sorted()
             .into_iter()
             .filter(|(_, entry)| !entry.completed)
@@ -163,7 +153,7 @@ pub fn sync_players(
             .collect::<Vec<_>>()
             .join("\n");
         if !text.is_empty() {
-            pending_banner.set(text, BANNER_QUEST_ANNOUNCEMENT_SECS);
+            state.pending_banner.set(text, BANNER_QUEST_ANNOUNCEMENT_SECS);
         }
     }
 
@@ -177,53 +167,40 @@ pub fn sync_players(
         }
         update_snapshot_player(
             commands,
-            players,
-            rtt,
+            state.players,
+            state.rtt,
             player_data,
             my_player_id,
-            gameplay_config,
+            assets.gameplay_config,
             *id,
             server_player,
         );
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "Bevy spawn path needs asset resources at the call site"
-)]
 fn spawn_snapshot_player(
     commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    images: &mut ResMut<Assets<Image>>,
-    graphs: &mut ResMut<Assets<AnimationGraph>>,
-    players: &mut ResMut<PlayerMap>,
-    local_player_info: &mut LocalPlayerInfo,
+    assets: &mut PlayerSnapshotAssets,
+    state: &mut PlayerSnapshotState,
     camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
-    my_player_id: PlayerId,
-    asset_server: &Res<AssetServer>,
-    asset_set: &AssetSet,
-    client_settings: &ClientSettings,
-    gameplay_config: &GameplayConfig,
     id: PlayerId,
     player: &Player,
 ) {
-    let is_local = id == my_player_id;
+    let is_local = id == state.my_player_id;
     debug!(
         "spawning {}#{} from Snapshot (is_local: {})",
         player.name, id.0, is_local
     );
     let entity = spawn_player(
         commands,
-        asset_server,
-        meshes,
-        materials,
-        images,
-        graphs,
-        asset_set,
-        client_settings,
-        gameplay_config,
+        assets.asset_server,
+        assets.meshes,
+        assets.materials,
+        assets.images,
+        assets.graphs,
+        assets.asset_set,
+        assets.client_settings,
+        assets.gameplay_config,
         id.0,
         &player.name,
         &player.movement.pos,
@@ -240,13 +217,13 @@ fn spawn_snapshot_player(
         apply_local_spawn_facing(
             commands,
             camera_query,
-            local_player_info,
+            state.local_player_info,
             &player.movement.pos,
             player.movement.face_yaw,
         );
     }
 
-    players.insert(id, PlayerInfo::from_snapshot(entity, player));
+    state.players.insert(id, PlayerInfo::from_snapshot(entity, player));
 }
 
 // Point the main camera (and the stored mouse-look fallback state) at the
@@ -270,8 +247,8 @@ fn apply_local_spawn_facing(
 
 fn update_snapshot_player(
     commands: &mut Commands,
-    players: &mut ResMut<PlayerMap>,
-    rtt: &ResMut<RoundTripTime>,
+    players: &mut PlayerMap,
+    rtt: &RoundTripTime,
     player_data: &Query<(&Position, &PlayerMoveIntent, &FaceYaw), With<PlayerMarker>>,
     my_player_id: PlayerId,
     gameplay_config: &GameplayConfig,

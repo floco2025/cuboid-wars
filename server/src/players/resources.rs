@@ -3,17 +3,13 @@ use std::collections::HashMap;
 use bevy::prelude::*;
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::{
-    config::{PowerUpsConfig, Quest, QuestKind},
-    network::ServerToClient,
+use crate::{config::PowerUpsConfig, network::ServerToClient};
+use common::protocol::{
+    BarrierKindId, Health, ItemType, Player, PlayerId, PlayerMoveIntent, PlayerMovementState, Position, PowerUpKind,
+    QuestId, SPlayerStatus,
 };
-use common::{
-    physics::CharacterSupport,
-    protocol::{
-        BarrierKindId, Health, ItemType, NewQuest, Player, PlayerId, PlayerMoveIntent, PlayerMovementState, Position,
-        PowerUpKind, QuestId, SPlayerStatus, SQuestCompleted, SQuestProgress, SQuestsAssigned, ServerMessage,
-    },
-};
+
+use super::{PlayerFallState, QuestState};
 
 // Global debug invincibility. Seeded at startup from the config /
 // `--invincible` flag; the `/god` admin command owns it at runtime — which
@@ -25,14 +21,6 @@ pub struct Invincibility(pub bool);
 // two effects stay independently wireable, but `/god` toggles them together.
 #[derive(Resource)]
 pub struct UnlimitedMissiles(pub bool);
-
-// Per-player progress against a single assigned quest. `completed` is
-// monotonic — once true it stays true for the rest of the session.
-#[derive(Debug, Clone)]
-pub struct QuestState {
-    pub progress: u32,
-    pub completed: bool,
-}
 
 pub struct PlayerInfo {
     pub entity: Entity,
@@ -61,18 +49,7 @@ pub struct PlayerInfo {
     // server's quest catalog; persists for the whole session (not cleared
     // by `clear_per_life_state`).
     pub quest_states: HashMap<QuestId, QuestState>,
-    // Peak |downward velocity| observed during the current uninterrupted
-    // fall, in m/s. Reset to 0 on landing (after the impact damage check)
-    // and on respawn. Not used for damage (see `fall_peak_y`) — kept as the
-    // phantom-fall tripwire: velocity can accumulate without displacement
-    // when the support probe misses at an edge while the collider holds.
-    pub peak_fall_speed: f32,
-    // Highest Y reached during the current airborne window (jump apex counts
-    // as the fall start). `NEG_INFINITY` = not airborne. Fall damage is the
-    // actual drop `fall_peak_y - landing_y`, immune to fabricated velocity.
-    pub fall_peak_y: f32,
-    // Last derived movement result. The movement motor never reads this back.
-    pub movement_support: CharacterSupport,
+    pub fall_state: PlayerFallState,
 }
 
 impl PlayerInfo {
@@ -91,9 +68,7 @@ impl PlayerInfo {
             held_keys: Vec::new(),
             death_timer: None,
             quest_states: HashMap::new(),
-            peak_fall_speed: 0.0,
-            fall_peak_y: f32::NEG_INFINITY,
-            movement_support: CharacterSupport::Airborne,
+            fall_state: PlayerFallState::default(),
         }
     }
 
@@ -120,9 +95,7 @@ impl PlayerInfo {
         self.missiles = 0;
         // A respawning player shouldn't inherit the dying player's fall
         // momentum — they'd take damage on their first landing.
-        self.peak_fall_speed = 0.0;
-        self.fall_peak_y = f32::NEG_INFINITY;
-        self.movement_support = CharacterSupport::Airborne;
+        self.fall_state.reset();
     }
 
     #[must_use]
@@ -245,94 +218,6 @@ impl PlayerInfo {
 
 fn tick_timer(timer: &mut f32, delta: f32) {
     *timer = (*timer - delta).max(0.0);
-}
-
-// A player action that may advance a quest. Lets `record_quest_event` match
-// the actor kind for `ActorKills` quests (with an optional per-kind filter).
-pub enum QuestEvent<'a> {
-    CookieCollected,
-    ActorKilled { kind: &'a str },
-}
-
-impl QuestEvent<'_> {
-    // Does this event advance `quest`? Matches the quest kind, and for actor
-    // kills honours the optional `actor_kind` filter (`None` = any actor).
-    fn matches(&self, quest: &Quest) -> bool {
-        match (quest.kind, self) {
-            (QuestKind::Cookies, Self::CookieCollected) => true,
-            (QuestKind::ActorKills, Self::ActorKilled { kind }) => {
-                quest.actor_kind.as_deref().is_none_or(|want| want == *kind)
-            }
-            _ => false,
-        }
-    }
-}
-
-// Apply one quest-advancing event to every matching, not-yet-completed quest
-// the player holds. Returns the messages to unicast: a `QuestProgress` for a
-// quest that advanced, or a `QuestCompleted` for one that crossed its
-// threshold on this call. Already-completed quests are skipped so a win can't
-// fire twice.
-pub fn record_quest_event(player_info: &mut PlayerInfo, quests: &[Quest], event: QuestEvent) -> Vec<ServerMessage> {
-    let mut messages = Vec::new();
-    for quest in quests {
-        if !event.matches(quest) {
-            continue;
-        }
-        let Some(state) = player_info.quest_states.get_mut(&quest.id) else {
-            continue;
-        };
-        if state.completed {
-            continue;
-        }
-        state.progress = state.progress.saturating_add(1);
-        if state.progress >= quest.threshold {
-            state.completed = true;
-            messages.push(ServerMessage::QuestCompleted(SQuestCompleted {
-                id: quest.id.clone(),
-                completed_text: quest.completed_text.clone(),
-            }));
-        } else {
-            messages.push(ServerMessage::QuestProgress(SQuestProgress {
-                id: quest.id.clone(),
-                progress: state.progress,
-            }));
-        }
-    }
-    messages
-}
-
-// Assign every quest the player doesn't already hold, seeding fresh progress
-// state, and return the batch to unicast as one combined announcement (when
-// any were newly assigned). This is the single seam for granting quests — at
-// login or from a future in-game quest-giver. Re-granting an already-held
-// quest is a no-op: no progress reset, no re-announce.
-pub fn assign_quests(player_info: &mut PlayerInfo, quests: &[Quest]) -> Option<SQuestsAssigned> {
-    let mut new_quests = Vec::new();
-    // `order` is the catalog index so display order = `gameplay.json` order.
-    // Indexing the passed slice is correct for the login grant (full catalog);
-    // a future quest-giver should pass the full catalog too to keep ranks stable.
-    for (index, quest) in quests.iter().enumerate() {
-        if player_info.quest_states.contains_key(&quest.id) {
-            continue;
-        }
-        player_info.quest_states.insert(
-            quest.id.clone(),
-            QuestState {
-                progress: 0,
-                completed: false,
-            },
-        );
-        new_quests.push(NewQuest {
-            id: quest.id.clone(),
-            title: quest.title.clone(),
-            description: quest.description.clone(),
-            progress: 0,
-            threshold: quest.threshold,
-            order: index as u32,
-        });
-    }
-    (!new_quests.is_empty()).then_some(SQuestsAssigned { quests: new_quests })
 }
 
 #[derive(Resource, Default)]
@@ -537,170 +422,12 @@ mod tests {
         assert_eq!(player.missiles, 2);
     }
 
-    fn cookies_quest(id: &str, threshold: u32) -> Quest {
-        Quest {
-            id: QuestId(id.to_owned()),
-            kind: QuestKind::Cookies,
-            actor_kind: None,
-            threshold,
-            title: "Gold".to_owned(),
-            description: "collect gold".to_owned(),
-            completed_text: "done".to_owned(),
-        }
-    }
-
-    fn sentry_quest(id: &str, threshold: u32) -> Quest {
-        Quest {
-            id: QuestId(id.to_owned()),
-            kind: QuestKind::ActorKills,
-            actor_kind: Some("sentry".to_owned()),
-            threshold,
-            title: "Hunt".to_owned(),
-            description: "destroy sentries".to_owned(),
-            completed_text: "hunted".to_owned(),
-        }
-    }
-
-    fn seed_quest(info: &mut PlayerInfo, quest: &Quest) {
-        info.quest_states.insert(
-            quest.id.clone(),
-            QuestState {
-                progress: 0,
-                completed: false,
-            },
-        );
-    }
-
-    #[test]
-    fn record_quest_event_increments_progress() {
-        let quest = cookies_quest("collect_gold", 3);
-        let mut info = dummy_info();
-        seed_quest(&mut info, &quest);
-
-        let msgs = record_quest_event(&mut info, std::slice::from_ref(&quest), QuestEvent::CookieCollected);
-
-        assert!(
-            matches!(msgs.as_slice(), [ServerMessage::QuestProgress(p)] if p.progress == 1 && p.id == quest.id),
-            "first cookie emits one progress update at 1/3"
-        );
-        assert_eq!(info.quest_states[&quest.id].progress, 1);
-        assert!(!info.quest_states[&quest.id].completed);
-    }
-
-    #[test]
-    fn record_quest_event_flips_completed_on_threshold() {
-        let quest = cookies_quest("collect_gold", 2);
-        let mut info = dummy_info();
-        seed_quest(&mut info, &quest);
-
-        // First cookie: progress=1, not yet complete.
-        let first = record_quest_event(&mut info, std::slice::from_ref(&quest), QuestEvent::CookieCollected);
-        assert!(matches!(first.as_slice(), [ServerMessage::QuestProgress(_)]));
-
-        // Second cookie: crosses threshold and emits one QuestCompleted.
-        let second = record_quest_event(&mut info, std::slice::from_ref(&quest), QuestEvent::CookieCollected);
-        assert!(
-            matches!(second.as_slice(), [ServerMessage::QuestCompleted(c)] if c.id == quest.id && c.completed_text == "done")
-        );
-        assert!(info.quest_states[&quest.id].completed);
-    }
-
-    #[test]
-    fn record_quest_event_is_noop_after_completion() {
-        let quest = cookies_quest("collect_gold", 1);
-        let mut info = dummy_info();
-        info.quest_states.insert(
-            quest.id.clone(),
-            QuestState {
-                progress: 1,
-                completed: true,
-            },
-        );
-
-        let msgs = record_quest_event(&mut info, std::slice::from_ref(&quest), QuestEvent::CookieCollected);
-
-        // No second-win firing, no progress drift past completion.
-        assert!(msgs.is_empty());
-        assert_eq!(info.quest_states[&quest.id].progress, 1);
-    }
-
-    #[test]
-    fn record_quest_event_actor_kill_respects_kind_filter() {
-        let quest = sentry_quest("destroy_sentries", 2);
-        let mut info = dummy_info();
-        seed_quest(&mut info, &quest);
-
-        // A mine kill must not advance a sentry-filtered quest.
-        let mine = record_quest_event(
-            &mut info,
-            std::slice::from_ref(&quest),
-            QuestEvent::ActorKilled { kind: "zapper" },
-        );
-        assert!(mine.is_empty());
-        assert_eq!(info.quest_states[&quest.id].progress, 0);
-
-        // A sentry kill advances it.
-        let sentry = record_quest_event(
-            &mut info,
-            std::slice::from_ref(&quest),
-            QuestEvent::ActorKilled { kind: "sentry" },
-        );
-        assert!(matches!(sentry.as_slice(), [ServerMessage::QuestProgress(p)] if p.progress == 1));
-    }
-
-    #[test]
-    fn record_quest_event_ignores_nonmatching_kind() {
-        // A cookie event advances only the cookie quest, leaving the actor quest untouched.
-        let cookie = cookies_quest("collect_gold", 5);
-        let sentry = sentry_quest("destroy_sentries", 5);
-        let mut info = dummy_info();
-        seed_quest(&mut info, &cookie);
-        seed_quest(&mut info, &sentry);
-        let quests = [cookie.clone(), sentry.clone()];
-
-        let msgs = record_quest_event(&mut info, &quests, QuestEvent::CookieCollected);
-
-        assert_eq!(msgs.len(), 1, "only the cookie quest advances");
-        assert_eq!(info.quest_states[&cookie.id].progress, 1);
-        assert_eq!(info.quest_states[&sentry.id].progress, 0);
-    }
-
-    #[test]
-    fn assign_quests_seeds_state_and_batches_new_quests() {
-        let quests = [cookies_quest("collect_gold", 10), sentry_quest("destroy_sentries", 4)];
-        let mut info = dummy_info();
-
-        let batch = assign_quests(&mut info, &quests).expect("two new quests assigned");
-
-        assert_eq!(batch.quests.len(), 2);
-        assert!(batch.quests.iter().all(|q| q.progress == 0));
-        assert!(
-            batch.quests.iter().any(|q| q.id == quests[1].id && q.threshold == 4),
-            "batch carries each quest's threshold"
-        );
-        assert_eq!(info.quest_states.len(), 2);
-    }
-
-    #[test]
-    fn assign_quests_is_idempotent() {
-        let quests = [cookies_quest("collect_gold", 10)];
-        let mut info = dummy_info();
-        assign_quests(&mut info, &quests).expect("first assignment");
-
-        // Advance, then re-assign the same quest: must not reset or re-announce.
-        record_quest_event(&mut info, &quests, QuestEvent::CookieCollected);
-        let second = assign_quests(&mut info, &quests);
-
-        assert!(second.is_none());
-        assert_eq!(info.quest_states[&quests[0].id].progress, 1);
-    }
-
     #[test]
     fn clear_per_life_state_preserves_quest_states() {
-        let quest = cookies_quest("collect_gold", 10);
+        let quest_id = QuestId("collect_gold".to_owned());
         let mut info = dummy_info();
         info.quest_states.insert(
-            quest.id.clone(),
+            quest_id.clone(),
             QuestState {
                 progress: 7,
                 completed: false,
@@ -716,9 +443,9 @@ mod tests {
             "power-up timers reset by clear"
         );
         assert_eq!(
-            info.quest_states[&quest.id].progress, 7,
+            info.quest_states[&quest_id].progress, 7,
             "quest progress survives death"
         );
-        assert!(!info.quest_states[&quest.id].completed);
+        assert!(!info.quest_states[&quest_id].completed);
     }
 }

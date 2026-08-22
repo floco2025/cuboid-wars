@@ -146,7 +146,7 @@ fn plan_player_moves(
             },
         );
         if let Some(info) = players.get_mut(player_id) {
-            info.movement_support = step.support;
+            info.fall_state.set_support(step.support);
         }
 
         planned_moves.push(CharacterMovePlan::from_movement_result(

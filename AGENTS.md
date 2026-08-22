@@ -13,7 +13,7 @@ Rust workspace with three crates:
   - `health.rs`, `constants.rs` — the `Health` type with its operations, and gameplay constants.
 - **`server/`** — authoritative headless server (Bevy `MinimalPlugins`).
   - `app.rs` builds the ECS app and installs function-style domain plugins, matching the client pattern; each domain's `plugin.rs` owns its system registration. `schedule.rs` defines their cross-domain tick order (`Prepare` → ingress → behaviour/movement → combat damage/removal/explosions → lifecycle/maintenance → snapshot). Deferred commands are flushed after preparation, ingress, and combat, and again immediately before snapshots, so ID maps never expose unmaterialized entities to network collection.
-  - `actors/`, `characters/`, `items/`, `players/`, `projectiles/` — server-side domain systems. Each domain keeps its Bevy resources in its own `resources.rs` (e.g. `players/resources.rs` holds `PlayerInfo`/`PlayerMap` plus quests and power-up state). Actor behavior runs explicit ordered transition phases in `actors/behavior/tick.rs`; stall classification and recovery live in `stall.rs`, and behavior outcomes carry one-shot effects such as beam starts back to the ECS shell.
+  - `actors/`, `characters/`, `items/`, `players/`, `projectiles/` — server-side domain systems. Each domain keeps its Bevy resources in its own `resources.rs` (`players/resources.rs` holds `PlayerInfo`/`PlayerMap` and inventory/power-up state; `players/quests.rs` owns quest state and mutations, while `players/falling.rs` owns `PlayerFallState`). Actor behavior runs explicit ordered transition phases in `actors/behavior/tick.rs`; stall classification and recovery live in `stall.rs`, and behavior outcomes carry one-shot effects such as beam starts back to the ECS shell.
   - `network/` — the whole networking concern: async QUIC transport (`transport.rs`, accepts connections), Bevy-side message dispatch (`incoming.rs`/`messages.rs`), login, snapshot broadcast (`snapshot.rs`/`broadcast.rs`), and the admin command executor (`admin.rs` — parses `CAdmin` strings like `/give missiles` or `/firework`; `/help` lists all).
   - `missiles/` — the seeking-missile weapon: fire validation + launch (`spawn.rs`), guidance (`guidance.rs` — lead pursuit, serpentine weave, proximity fuse, obstacle avoidance), movement/detonation (`movement.rs`), and `air_graph.rs` — a full-3D BFS over the map's airspace (per-cell-per-level air volumes + a sky layer), deliberately separate from the actors' floor-walking `NavGraph`.
   - `combat/` — damage application + `kill_player`/`kill_actor` (`damage.rs`, the one-stop death sequence) and blast resolution (`explosions.rs`, with `PendingExplosions` in `resources.rs`; missile blasts carry shooter kill credit).
@@ -56,6 +56,7 @@ cargo run --release --bin client -- --server 192.168.1.100:8080 --name "Player"
 cargo clippy --release --workspace --all-targets
 cargo fmt
 cargo test --release --workspace
+PYTHONPATH=tools QT_QPA_PLATFORM=offscreen python3 -m unittest discover -s tools/tests -p 'test_*.py'
 python3 tools/editor.py hotel                               # edits config/server/maps/hotel.json
 ```
 
@@ -122,6 +123,8 @@ materials, lights, pressure plates).
 next to the module they cover under `#[cfg(test)] mod tests`. There are no
 `tests/` integration-test directories in this repo. Name tests after what
 they assert (e.g. `lethal_hit_returns_true`, `barrier_collision_group_is_unique_per_kind`).
+The map editor's headless `unittest` suite lives in `tools/tests/` and covers
+its pure geometry, normalization, resizing, and validation helpers.
 
 ## Commits & pull requests
 
