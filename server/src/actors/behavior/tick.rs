@@ -18,7 +18,7 @@ use common::{
 };
 
 use super::{
-    controllers::{BeamStarted, decide_beam_actor, decide_contact_actor},
+    controllers::{BeamStarted, decide_beam_actor, decide_contact_actor, decide_contact_beam_actor},
     perception::{PlayerState, update_awareness},
 };
 
@@ -93,11 +93,12 @@ pub fn actors_behavior_system(
             kind_config,
         };
         let beam_started = match kind_config.combat.attack {
-            ActorAttackConfig::Contact { .. } => {
+            ActorAttackConfig::Contact(_) => {
                 decide_contact_actor(info, &context, &mut rng);
                 None
             }
-            ActorAttackConfig::Beam { .. } => decide_beam_actor(info, &context, &mut rng),
+            ActorAttackConfig::Beam(_) => decide_beam_actor(info, &context, &mut rng),
+            ActorAttackConfig::ContactBeam(_) => decide_contact_beam_actor(info, &context, &mut rng),
         };
         if let Some(BeamStarted { target, duration_secs }) = beam_started {
             broadcast_to_all(
@@ -177,17 +178,18 @@ fn tick_beam_state(info: &mut ActorInfo, delta: f32, kind_config: &ActorKindServ
                 info.beam = BeamState::Ready;
             }
         }
-        BeamState::Firing { remaining_secs } => {
+        BeamState::Firing { target, remaining_secs } => {
             *remaining_secs -= delta;
-            if let ActorMode::Engage { target, .. } = info.mode
-                && let Some(player) = players.iter().find(|player| player.id == target)
-            {
-                info.mode = ActorMode::Engage {
-                    target,
-                    target_pos: player.pos,
-                };
-            } else {
-                ended = true;
+            match players.iter().find(|player| player.id == *target) {
+                Some(player) => {
+                    if matches!(info.mode, ActorMode::Engage { target: engaged, .. } if engaged == *target) {
+                        info.mode = ActorMode::Engage {
+                            target: *target,
+                            target_pos: player.pos,
+                        };
+                    }
+                }
+                None => ended = true,
             }
             ended |= *remaining_secs <= 0.0;
         }
@@ -202,8 +204,8 @@ fn tick_beam_state(info: &mut ActorInfo, delta: f32, kind_config: &ActorKindServ
         info.beam = BeamState::Cooldown {
             remaining_secs: cooldown_secs,
         };
-        info.mode = ActorMode::Evade;
-        info.set_route(None);
+        // The controller decides what the cooldown looks like (zappers run
+        // for cover, contact-beam kinds keep attacking) on this same tick.
         info.decision_timer = 0.0;
     }
 }

@@ -7,7 +7,7 @@ mod validation;
 
 pub use actors::{
     ActorAttackConfig, ActorBeamAttackConfig, ActorCombatConfig, ActorKindServerConfig, ActorSettingsConfig,
-    ExplosionDamageConfig,
+    ContactAttackConfig, ContactBeamAttackConfig, ExplosionDamageConfig,
 };
 pub use gameplay::{
     FallDamageConfig, MissilesServerConfig, PlacedItemRespawnSecs, PlacedItemsConfig, PlayerServerConfig,

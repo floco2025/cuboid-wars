@@ -24,7 +24,7 @@ pub(crate) enum ActorMode {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum BeamState {
     Ready,
-    Firing { remaining_secs: f32 },
+    Firing { target: PlayerId, remaining_secs: f32 },
     Cooldown { remaining_secs: f32 },
 }
 

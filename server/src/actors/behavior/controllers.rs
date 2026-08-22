@@ -2,7 +2,10 @@ use common::physics::CharacterSupport;
 use common::protocol::PlayerId;
 use rand::Rng;
 
-use crate::actors::{ActorInfo, ActorMode, BeamState};
+use crate::{
+    actors::{ActorInfo, ActorMode, BeamState, resources::AwarePlayer},
+    config::ActorBeamAttackConfig,
+};
 
 use super::tick::{BehaviorContext, enter_evade, enter_roam_or_return, keep_or_install_engagement_route};
 
@@ -27,31 +30,13 @@ pub(super) fn decide_beam_actor(
     if matches!(info.beam, BeamState::Firing { .. }) {
         return None;
     }
-    let fire = context
-        .kind_config
-        .combat
-        .attack
-        .beam()
-        .expect("beam controller requires beam attack config");
-    if matches!(info.beam, BeamState::Ready)
-        && let Some(target) = info
-            .awareness
-            .iter()
-            .find(|aware| aware.visible && context.pos.distance_sq(&aware.pos) <= fire.range * fire.range)
-            .copied()
-    {
+    if let Some(target) = find_beam_target(info, context) {
         info.mode = ActorMode::Engage {
             target: target.id,
             target_pos: target.pos,
         };
         info.set_route(None);
-        info.beam = BeamState::Firing {
-            remaining_secs: fire.duration_secs,
-        };
-        return Some(BeamStarted {
-            target: target.id,
-            duration_secs: fire.duration_secs,
-        });
+        return Some(start_beam(info, context, target));
     }
 
     if matches!(info.beam, BeamState::Cooldown { .. }) {
@@ -63,6 +48,67 @@ pub(super) fn decide_beam_actor(
     }
     enter_passive_or_evade(info, context, rng);
     None
+}
+
+// A contact attacker that also carries a beam: movement follows the contact
+// rules in every beam state, and the beam fires opportunistically on top.
+// Mid-burst it never runs for cover — cover means breaking the line of
+// sight the beam needs — so an unreachable target is held in view instead.
+pub(super) fn decide_contact_beam_actor(
+    info: &mut ActorInfo,
+    context: &BehaviorContext<'_>,
+    rng: &mut impl Rng,
+) -> Option<BeamStarted> {
+    if let BeamState::Firing { target, .. } = info.beam {
+        if try_engage_attackable_player(info, context) {
+            return None;
+        }
+        match info.awareness.iter().find(|aware| aware.id == target) {
+            Some(aware) => {
+                info.mode = ActorMode::Engage {
+                    target,
+                    target_pos: aware.pos,
+                };
+                info.set_route(None);
+            }
+            None => enter_passive_or_evade(info, context, rng),
+        }
+        return None;
+    }
+    decide_contact_actor(info, context, rng);
+    find_beam_target(info, context).map(|target| start_beam(info, context, target))
+}
+
+fn find_beam_target(info: &ActorInfo, context: &BehaviorContext<'_>) -> Option<AwarePlayer> {
+    if !matches!(info.beam, BeamState::Ready) {
+        return None;
+    }
+    let fire = beam_attack(context);
+    info.awareness
+        .iter()
+        .find(|aware| aware.visible && context.pos.distance_sq(&aware.pos) <= fire.range * fire.range)
+        .copied()
+}
+
+fn start_beam(info: &mut ActorInfo, context: &BehaviorContext<'_>, target: AwarePlayer) -> BeamStarted {
+    let fire = beam_attack(context);
+    info.beam = BeamState::Firing {
+        target: target.id,
+        remaining_secs: fire.duration_secs,
+    };
+    BeamStarted {
+        target: target.id,
+        duration_secs: fire.duration_secs,
+    }
+}
+
+fn beam_attack(context: &BehaviorContext<'_>) -> ActorBeamAttackConfig {
+    context
+        .kind_config
+        .combat
+        .attack
+        .beam()
+        .expect("beam controller requires beam attack config")
 }
 
 fn try_engage_attackable_player(info: &mut ActorInfo, context: &BehaviorContext<'_>) -> bool {

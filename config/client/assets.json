@@ -301,6 +301,10 @@
         "animation_speed": 1.0
       }
     },
+    "reaper": {
+      "inherit_from": "sentry",
+      "model": { "scale": 0.007344, "y_offset": -0.54, "z_offset": 0.0612 }
+    },
     "zapper": {
       "model": {
         "scene": "models/SciFiDrone.glb#Scene0",

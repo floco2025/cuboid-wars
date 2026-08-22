@@ -188,7 +188,6 @@ pub fn apply_actor_projectile_hit(
     players: &mut PlayerMap,
     shooter_id: &PlayerId,
     target_health: &mut Health,
-    actor_kind: &str,
     server_gameplay_config: &ServerGameplayConfig,
 ) -> bool {
     // A dying actor's entity stays queryable until `actors_removal_system`
@@ -198,8 +197,7 @@ pub fn apply_actor_projectile_hit(
         return false;
     }
 
-    let armor = server_gameplay_config.expect_actor(actor_kind).combat.armor;
-    apply_damage(target_health, server_gameplay_config.projectile.damage * (1.0 - armor));
+    apply_damage(target_health, server_gameplay_config.projectile.damage);
 
     if let Some(shooter_info) = players.get_mut(shooter_id) {
         shooter_info.score += server_gameplay_config.scoring.actor_hit;
@@ -455,13 +453,13 @@ mod tests {
         let mut players = make_player_map_with(PlayerId(1), PlayerId(2));
         let mut health = Health(1.0);
 
-        let first_hit_lethal = apply_actor_projectile_hit(&mut players, &PlayerId(1), &mut health, "zapper", &config);
+        let first_hit_lethal = apply_actor_projectile_hit(&mut players, &PlayerId(1), &mut health, &config);
         assert!(first_hit_lethal);
         let score_after_kill = players.get(&PlayerId(1)).expect("shooter").score;
 
         // The dying actor's entity stays queryable until removal runs later
         // in the tick; a same-tick second hit must not count as lethal again.
-        let second_hit_lethal = apply_actor_projectile_hit(&mut players, &PlayerId(1), &mut health, "zapper", &config);
+        let second_hit_lethal = apply_actor_projectile_hit(&mut players, &PlayerId(1), &mut health, &config);
         assert!(!second_hit_lethal);
         assert_eq!(players.get(&PlayerId(1)).expect("shooter").score, score_after_kill);
     }

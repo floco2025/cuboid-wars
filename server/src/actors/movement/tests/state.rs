@@ -44,7 +44,10 @@ fn firing_actor_holds_and_faces_live_target() {
         x: 2.0,
         ..Position::default()
     };
-    info.beam = BeamState::Firing { remaining_secs: 1.0 };
+    info.beam = BeamState::Firing {
+        target: PlayerId(7),
+        remaining_secs: 1.0,
+    };
     info.mode = ActorMode::Engage {
         target: PlayerId(7),
         target_pos: target,
@@ -54,4 +57,27 @@ fn firing_actor_holds_and_faces_live_target() {
         panic!("expected firing hold");
     };
     assert_eq!(direction, direction_toward(&Position::default(), &target));
+}
+
+#[test]
+fn firing_actor_with_route_moves_at_active_speed() {
+    let mut info = actor_info();
+    let target = Position {
+        x: 2.0,
+        ..Position::default()
+    };
+    info.beam = BeamState::Firing {
+        target: PlayerId(7),
+        remaining_secs: 1.0,
+    };
+    info.mode = ActorMode::Engage {
+        target: PlayerId(7),
+        target_pos: target,
+    };
+    info.route = Some(route(target));
+
+    let ActorDesire::Move { intent, .. } = desired_move(&info, &Position::default(), 2.0, 4.0) else {
+        panic!("expected route movement while firing");
+    };
+    assert_eq!(intent.speed(), Some(4.0));
 }

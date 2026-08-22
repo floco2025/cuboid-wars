@@ -374,13 +374,23 @@ impl CharacterSupportProbeConfig {
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct CharacterHealthConfig {
     pub max: f32,
-    pub regeneration_per_second: f32,
+    // Regeneration as a fraction of `max` per second, so toughness is tuned
+    // by `max` alone and the regen race scales with it.
+    pub regeneration_fraction_per_second: f32,
 }
 
 impl CharacterHealthConfig {
+    #[must_use]
+    pub fn regeneration_per_second(&self) -> f32 {
+        self.max * self.regeneration_fraction_per_second
+    }
+
     fn validate(&self, path: &str) -> Result<()> {
         validate_positive_finite(self.max, &format!("{path}.max"))?;
-        validate_non_negative_finite(self.regeneration_per_second, &format!("{path}.regeneration_per_second"))
+        validate_non_negative_finite(
+            self.regeneration_fraction_per_second,
+            &format!("{path}.regeneration_fraction_per_second"),
+        )
     }
 }
 

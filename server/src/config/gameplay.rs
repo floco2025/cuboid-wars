@@ -83,8 +83,8 @@ impl ServerGameplayConfig {
     }
 }
 
-// One projectile, one raw damage number. What a victim actually receives is
-// `damage * (1 - armor)` — per-victim toughness lives on `armor`, not here.
+// One projectile, one raw damage number. Players receive `damage * (1 -
+// armor)`; actors take it raw — their toughness is health alone.
 #[derive(Debug, Clone, Deserialize)]
 pub struct ProjectileConfig {
     pub damage: f32,

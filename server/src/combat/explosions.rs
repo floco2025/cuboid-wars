@@ -295,8 +295,7 @@ fn apply_blast(
         else {
             continue;
         };
-        let armor = server.expect_actor(&info.spawn_kind).combat.armor;
-        apply_damage(&mut health, spec.damage.max_damage * falloff * (1.0 - armor));
+        apply_damage(&mut health, spec.damage.max_damage * falloff);
         if health.0 <= 0.0 {
             outcome.dead_actors.push(DeadActor {
                 id: *id,
@@ -628,6 +627,50 @@ mod tests {
                 _ => continue,
             }
         }
+    }
+
+    #[test]
+    fn reaper_death_explosion_kills_full_health_player_at_contact_distance() {
+        let mut app = test_app();
+        app.add_systems(Update, explosions_system);
+        let (gameplay, server) = {
+            let world = app.world();
+            (
+                world.resource::<GameplayConfig>().clone(),
+                world.resource::<ServerGameplayConfig>().clone(),
+            )
+        };
+        let reaper = gameplay.expect_actor("reaper").physics();
+        let player = gameplay.player.physics();
+        let trigger_gap = server
+            .expect_actor("reaper")
+            .combat
+            .attack
+            .contact_trigger_gap()
+            .expect("reaper contact attack");
+        let contact_distance = reaper.collider.width.max(reaper.collider.depth) / 2.0
+            + player.collider.width.max(player.collider.depth) / 2.0
+            + trigger_gap;
+        let victim_id = PlayerId(1);
+        let (_, mut victim_rx) =
+            spawn_logged_in_player(&mut app, victim_id, contact_distance, gameplay.player.health().max);
+        app.world_mut().resource_mut::<PendingExplosions>().push_actor(
+            ActorId(1),
+            Entity::from_bits(10),
+            "reaper".to_owned(),
+            Position::default(),
+        );
+
+        app.update();
+
+        assert!(
+            app.world()
+                .resource::<PlayerMap>()
+                .get(&victim_id)
+                .expect("victim")
+                .is_dead()
+        );
+        assert_eq!(next_player_death(&mut victim_rx).id, victim_id);
     }
 
     #[test]

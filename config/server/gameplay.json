@@ -114,7 +114,6 @@
       "vision_range": 60.0,
       "roam_steps": 3,
       "combat": {
-        "armor": 0.3,
         "attack": { "type": "contact", "trigger_gap": 0.4 },
         "death_explosion": { "radius": 10.0, "max_damage": 150.0 },
         "score_reward_on_kill": 50
@@ -125,10 +124,23 @@
       "respawn_delay_secs": 90.0,
       "roam_steps": 7,
       "combat": {
-        "armor": 0.9,
         "attack": { "type": "contact", "trigger_gap": 0.8 },
         "death_explosion": { "radius": 15.0, "max_damage": 300.0 },
-        "score_reward_on_kill": 100
+        "score_reward_on_kill": 200
+      }
+    },
+    "reaper": {
+      "inherit_from": "sentry",
+      "combat": {
+        "attack": {
+          "type": "contact_beam",
+          "range": 25.0,
+          "duration_secs": 2.0,
+          "cooldown_secs": 5.0,
+          "damage_per_second": 40.0
+        },
+        "death_explosion": { "max_damage": 550.0 },
+        "score_reward_on_kill": 500
       }
     },
     "zapper": {
@@ -136,7 +148,6 @@
       "vision_range": 40.0,
       "roam_steps": 2,
       "combat": {
-        "armor": 0.0,
         "attack": {
           "type": "beam",
           "range": 25.0,

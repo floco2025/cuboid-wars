@@ -18,10 +18,10 @@ pub fn characters_health_regeneration_system(
 
     // Players use the single shared player config.
     let player_health = gameplay_config.player.health();
-    if player_health.regeneration_per_second > 0.0 {
-        let gain = player_health.regeneration_per_second * dt;
+    let player_gain = player_health.regeneration_per_second() * dt;
+    if player_gain > 0.0 {
         for mut health in &mut players {
-            regenerate_health(&mut health, player_health.max, gain);
+            regenerate_health(&mut health, player_health.max, player_gain);
         }
     }
 
@@ -34,10 +34,10 @@ pub fn characters_health_regeneration_system(
             continue;
         }
         let actor_health = gameplay_config.expect_actor(&info.spawn_kind).health();
-        if actor_health.regeneration_per_second <= 0.0 {
+        let gain = actor_health.regeneration_per_second() * dt;
+        if gain <= 0.0 {
             continue;
         }
-        let gain = actor_health.regeneration_per_second * dt;
         regenerate_health(&mut health, actor_health.max, gain);
     }
 }

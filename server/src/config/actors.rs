@@ -1,7 +1,7 @@
 use anyhow::{Result, bail};
 use serde::{Deserialize, Deserializer};
 
-use super::validation::{validate_non_negative_finite, validate_positive_finite, validate_probability};
+use super::validation::{validate_non_negative_finite, validate_positive_finite};
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ActorSettingsConfig {
@@ -47,7 +47,6 @@ impl ActorKindServerConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ActorCombatConfig {
-    pub armor: f32,
     pub attack: ActorAttackConfig,
     pub death_explosion: ExplosionDamageConfig,
     #[serde(default)]
@@ -56,7 +55,6 @@ pub struct ActorCombatConfig {
 
 impl ActorCombatConfig {
     fn validate(&self, path: &str) -> Result<()> {
-        validate_probability(self.armor, &format!("{path}.armor"))?;
         self.attack.validate(&format!("{path}.attack"))?;
         self.death_explosion.validate(&format!("{path}.death_explosion"))
     }
@@ -65,68 +63,77 @@ impl ActorCombatConfig {
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ActorAttackConfig {
-    Contact {
-        trigger_gap: f32,
-    },
-    Beam {
-        range: f32,
-        duration_secs: f32,
-        cooldown_secs: f32,
-        damage_per_second: f32,
-    },
+    Contact(ContactAttackConfig),
+    Beam(ActorBeamAttackConfig),
+    ContactBeam(ContactBeamAttackConfig),
 }
 
 impl ActorAttackConfig {
     #[must_use]
     pub const fn contact_trigger_gap(self) -> Option<f32> {
         match self {
-            Self::Contact { trigger_gap } => Some(trigger_gap),
-            Self::Beam { .. } => None,
+            Self::Contact(contact) | Self::ContactBeam(ContactBeamAttackConfig { contact, .. }) => {
+                Some(contact.trigger_gap)
+            }
+            Self::Beam(_) => None,
         }
     }
 
     #[must_use]
     pub const fn beam(self) -> Option<ActorBeamAttackConfig> {
         match self {
-            Self::Contact { .. } => None,
-            Self::Beam {
-                range,
-                duration_secs,
-                cooldown_secs,
-                damage_per_second,
-            } => Some(ActorBeamAttackConfig {
-                range,
-                duration_secs,
-                cooldown_secs,
-                damage_per_second,
-            }),
+            Self::Contact(_) => None,
+            Self::Beam(beam) | Self::ContactBeam(ContactBeamAttackConfig { beam, .. }) => Some(beam),
         }
     }
 
     fn validate(self, path: &str) -> Result<()> {
         match self {
-            Self::Contact { trigger_gap } => validate_non_negative_finite(trigger_gap, &format!("{path}.trigger_gap")),
-            Self::Beam {
-                range,
-                duration_secs,
-                cooldown_secs,
-                damage_per_second,
-            } => {
-                validate_positive_finite(range, &format!("{path}.range"))?;
-                validate_positive_finite(duration_secs, &format!("{path}.duration_secs"))?;
-                validate_non_negative_finite(cooldown_secs, &format!("{path}.cooldown_secs"))?;
-                validate_positive_finite(damage_per_second, &format!("{path}.damage_per_second"))
+            Self::Contact(contact) => contact.validate(path),
+            Self::Beam(beam) => beam.validate(path),
+            Self::ContactBeam(ContactBeamAttackConfig { contact, beam }) => {
+                contact.validate(path)?;
+                beam.validate(path)
             }
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+pub struct ContactAttackConfig {
+    pub trigger_gap: f32,
+}
+
+impl ContactAttackConfig {
+    fn validate(self, path: &str) -> Result<()> {
+        validate_non_negative_finite(self.trigger_gap, &format!("{path}.trigger_gap"))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
 pub struct ActorBeamAttackConfig {
     pub range: f32,
     pub duration_secs: f32,
     pub cooldown_secs: f32,
     pub damage_per_second: f32,
+}
+
+impl ActorBeamAttackConfig {
+    fn validate(self, path: &str) -> Result<()> {
+        validate_positive_finite(self.range, &format!("{path}.range"))?;
+        validate_positive_finite(self.duration_secs, &format!("{path}.duration_secs"))?;
+        validate_non_negative_finite(self.cooldown_secs, &format!("{path}.cooldown_secs"))?;
+        validate_positive_finite(self.damage_per_second, &format!("{path}.damage_per_second"))
+    }
+}
+
+// Both attacks in one kind: contact detonation plus a beam fired on the move.
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+pub struct ContactBeamAttackConfig {
+    #[serde(flatten)]
+    pub contact: ContactAttackConfig,
+    #[serde(flatten)]
+    pub beam: ActorBeamAttackConfig,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -167,6 +174,9 @@ mod tests {
             config.expect_actor("sentry").combat.attack.contact_trigger_gap(),
             Some(0.8)
         );
+        let reaper = config.expect_actor("reaper").combat.attack;
+        assert_eq!(reaper.contact_trigger_gap(), Some(0.8));
+        assert_eq!(reaper.beam(), Some(zapper));
     }
 
     #[test]
@@ -180,12 +190,12 @@ mod tests {
 
     #[test]
     fn beam_attack_rejects_non_positive_duration() {
-        let attack = ActorAttackConfig::Beam {
+        let attack = ActorAttackConfig::Beam(ActorBeamAttackConfig {
             range: 15.0,
             duration_secs: 0.0,
             cooldown_secs: 5.0,
             damage_per_second: 75.0,
-        };
+        });
         attack
             .validate("actors.test.combat.attack")
             .expect_err("zero duration must fail");
@@ -197,7 +207,6 @@ mod tests {
             "vision_range": 10.0,
             "roam_steps": 2,
             "combat": {
-                "armor": 0.0,
                 "attack": { "type": "contact", "trigger_gap": 0.1 },
                 "death_explosion": { "radius": 1.0, "max_damage": 1.0 }
             }

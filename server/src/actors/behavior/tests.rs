@@ -2,7 +2,7 @@ use bevy::prelude::Entity;
 use rand::{SeedableRng, rngs::StdRng};
 
 use super::{
-    controllers::{BeamStarted, decide_beam_actor, decide_contact_actor},
+    controllers::{BeamStarted, decide_beam_actor, decide_contact_actor, decide_contact_beam_actor},
     perception::{PlayerState, update_awareness},
     tick::{BehaviorContext, enter_evade, tick_runtime_state},
 };
@@ -359,7 +359,12 @@ fn completed_beam_enters_cooldown_and_evade() {
         target: PlayerId(7),
         target_pos: target,
     };
-    info.beam = BeamState::Firing { remaining_secs: 0.05 };
+    info.beam = BeamState::Firing {
+        target: PlayerId(7),
+        remaining_secs: 0.05,
+    };
+    info.awareness.push(aware(7, target, CharacterSupport::Ground, true));
+    let mut rng = StdRng::seed_from_u64(1);
 
     tick_runtime_state(
         &mut info,
@@ -373,7 +378,6 @@ fn completed_beam_enters_cooldown_and_evade() {
         }],
     );
 
-    assert_eq!(info.mode, ActorMode::Evade);
     assert_eq!(
         info.beam,
         BeamState::Cooldown {
@@ -387,6 +391,125 @@ fn completed_beam_enters_cooldown_and_evade() {
                 .cooldown_secs,
         }
     );
+    assert_eq!(info.decision_timer, 0.0);
+
+    decide_beam_actor(&mut info, &fixture.context("zapper", actor_pos), &mut rng);
+
+    assert_eq!(info.mode, ActorMode::Evade);
+}
+
+#[test]
+fn ready_reaper_fires_and_keeps_its_engagement_route() {
+    let fixture = Fixture::new("reaper");
+    let actor_pos = fixture.pos(1, 2);
+    let target = fixture.pos(4, 2);
+    let mut info = info("reaper");
+    info.awareness.push(aware(7, target, CharacterSupport::Ground, true));
+    let mut rng = StdRng::seed_from_u64(1);
+
+    let outcome = decide_contact_beam_actor(&mut info, &fixture.context("reaper", actor_pos), &mut rng);
+
+    assert!(matches!(
+        info.beam,
+        BeamState::Firing {
+            target: PlayerId(7),
+            ..
+        }
+    ));
+    assert!(matches!(
+        info.mode,
+        ActorMode::Engage {
+            target: PlayerId(7),
+            ..
+        }
+    ));
+    assert!(info.route.is_some());
+    assert_eq!(outcome.map(|started| started.target), Some(PlayerId(7)));
+}
+
+#[test]
+fn cooling_reaper_keeps_engaging_instead_of_evading() {
+    let fixture = Fixture::new("reaper");
+    let actor_pos = fixture.pos(1, 2);
+    let mut info = info("reaper");
+    info.beam = BeamState::Cooldown { remaining_secs: 4.0 };
+    info.awareness
+        .push(aware(7, fixture.pos(4, 2), CharacterSupport::Ground, true));
+    let mut rng = StdRng::seed_from_u64(1);
+
+    let outcome = decide_contact_beam_actor(&mut info, &fixture.context("reaper", actor_pos), &mut rng);
+
+    assert!(matches!(
+        info.mode,
+        ActorMode::Engage {
+            target: PlayerId(7),
+            ..
+        }
+    ));
+    assert!(info.route.is_some());
+    assert_eq!(outcome, None);
+}
+
+#[test]
+fn firing_reaper_without_reachable_target_holds_facing_beam_target() {
+    let fixture = Fixture::new("reaper");
+    let actor_pos = fixture.pos(1, 2);
+    let target = fixture.pos(3, 2);
+    let mut info = info("reaper");
+    info.beam = BeamState::Firing {
+        target: PlayerId(7),
+        remaining_secs: 1.0,
+    };
+    info.awareness.push(aware(7, target, CharacterSupport::Ladder, true));
+    let mut rng = StdRng::seed_from_u64(1);
+
+    decide_contact_beam_actor(&mut info, &fixture.context("reaper", actor_pos), &mut rng);
+
+    assert_eq!(
+        info.mode,
+        ActorMode::Engage {
+            target: PlayerId(7),
+            target_pos: target,
+        }
+    );
+    assert!(info.route.is_none());
+}
+
+#[test]
+fn reaper_burst_end_enters_cooldown_without_evading() {
+    let fixture = Fixture::new("reaper");
+    let actor_pos = fixture.pos(1, 2);
+    let target = fixture.pos(4, 2);
+    let mut info = info("reaper");
+    info.beam = BeamState::Firing {
+        target: PlayerId(7),
+        remaining_secs: 0.05,
+    };
+    info.awareness.push(aware(7, target, CharacterSupport::Ground, true));
+    let mut rng = StdRng::seed_from_u64(1);
+
+    tick_runtime_state(
+        &mut info,
+        actor_pos,
+        0.1,
+        fixture.server.expect_actor("reaper"),
+        &[PlayerState {
+            id: PlayerId(7),
+            pos: target,
+            support: CharacterSupport::Ground,
+        }],
+    );
+    decide_contact_beam_actor(&mut info, &fixture.context("reaper", actor_pos), &mut rng);
+
+    assert!(matches!(info.beam, BeamState::Cooldown { .. }));
+    assert!(matches!(
+        info.mode,
+        ActorMode::Engage {
+            target: PlayerId(7),
+            ..
+        }
+    ));
+    assert!(info.route.is_some());
 }
 
 #[test]

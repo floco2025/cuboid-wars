@@ -282,7 +282,6 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                         &mut params.players,
                         shooter_id,
                         &mut health,
-                        &spawn_kind,
                         &params.server_gameplay_config,
                     );
                     if was_lethal {

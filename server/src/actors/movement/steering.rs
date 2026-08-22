@@ -1,4 +1,4 @@
-use crate::actors::{ActorInfo, ActorMode, BeamState};
+use crate::actors::{ActorInfo, ActorMode};
 use common::protocol::{ActorMoveIntent, Position};
 
 pub(super) enum ActorDesire {
@@ -8,13 +8,6 @@ pub(super) enum ActorDesire {
 }
 
 pub(super) fn desired_move(info: &ActorInfo, pos: &Position, roam_speed: f32, active_speed: f32) -> ActorDesire {
-    if matches!(info.beam, BeamState::Firing { .. })
-        && let ActorMode::Engage { target_pos, .. } = info.mode
-    {
-        return ActorDesire::HoldFacing {
-            direction: direction_toward(pos, &target_pos),
-        };
-    }
     if let Some(route) = &info.route
         && let Some(target) = route.next()
     {
