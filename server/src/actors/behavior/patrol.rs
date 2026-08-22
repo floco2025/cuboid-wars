@@ -1,4 +1,4 @@
-use rand::{RngExt, rngs::ThreadRng};
+use rand::{Rng, RngExt};
 use std::f32::consts::TAU;
 
 use crate::{actors::ActorGoal, config::ActorKindServerConfig};
@@ -18,7 +18,7 @@ pub(crate) fn fresh_patrol_goal() -> ActorGoal {
 // Post-stall escape entry: the actor must actually move, so the roll
 // bypasses `idle_probability`.
 pub(crate) fn forced_patrol_goal(
-    rng: &mut ThreadRng,
+    rng: &mut impl Rng,
     patrol_speed: f32,
     kind_server_config: &ActorKindServerConfig,
 ) -> ActorGoal {
@@ -29,7 +29,7 @@ pub(crate) fn forced_patrol_goal(
     }
 }
 
-pub(crate) fn random_patrol_intent(rng: &mut ThreadRng, patrol_speed: f32, idle_probability: f32) -> ActorMoveIntent {
+pub(crate) fn random_patrol_intent(rng: &mut impl Rng, patrol_speed: f32, idle_probability: f32) -> ActorMoveIntent {
     if rng.random_range(0.0..1.0) < idle_probability {
         ActorMoveIntent::Idle
     } else {
@@ -37,13 +37,13 @@ pub(crate) fn random_patrol_intent(rng: &mut ThreadRng, patrol_speed: f32, idle_
     }
 }
 
-pub(crate) fn random_patrol_move_intent(rng: &mut ThreadRng, patrol_speed: f32) -> ActorMoveIntent {
+pub(crate) fn random_patrol_move_intent(rng: &mut impl Rng, patrol_speed: f32) -> ActorMoveIntent {
     ActorMoveIntent::Moving {
         direction: rng.random_range(0.0..TAU),
         speed: patrol_speed,
     }
 }
 
-pub(crate) fn random_direction_time(rng: &mut ThreadRng, kind_server_config: &ActorKindServerConfig) -> f32 {
+pub(crate) fn random_direction_time(rng: &mut impl Rng, kind_server_config: &ActorKindServerConfig) -> f32 {
     rng.random_range(kind_server_config.patrol.min_direction_secs..=kind_server_config.patrol.max_direction_secs)
 }

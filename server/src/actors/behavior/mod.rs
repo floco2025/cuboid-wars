@@ -1,5 +1,6 @@
 mod patrol;
 mod perception;
+mod stall;
 mod tick;
 mod zone;
 

@@ -1,12 +1,16 @@
 use std::collections::VecDeque;
 
 use bevy::prelude::Entity;
+use rand::{SeedableRng, rngs::StdRng};
 
 use super::patrol::fresh_patrol_goal;
+use super::stall::{
+    CHASE_GIVEUP_NO_PROGRESS_SECS, PATROL_GIVEUP_NO_PROGRESS_SECS, PATROL_LEDGE_ESCAPE_SECS,
+    PURSUIT_GIVEUP_NO_PROGRESS_SECS, RETURN_GIVEUP_NO_PROGRESS_SECS, RETURN_RETRY_SECS, stall_window, tick_stall,
+};
 use super::tick::{
-    BehaviorInputs, CHASE_GIVEUP_NO_PROGRESS_SECS, PATROL_GIVEUP_NO_PROGRESS_SECS, PATROL_LEDGE_ESCAPE_SECS,
-    PURSUIT_GIVEUP_NO_PROGRESS_SECS, RETURN_GIVEUP_NO_PROGRESS_SECS, RETURN_RETRY_SECS, patrolling_off_zone_level,
-    stall_window, tick_actor_behavior, tick_chase_reacquire_timer, tick_return_retry_timer, tick_stall,
+    ActorBehaviorOutcome, BehaviorInputs, patrolling_off_zone_level, tick_actor_behavior, tick_chase_reacquire_timer,
+    tick_return_retry_timer,
 };
 use crate::{
     actors::navigation::NavGraph,
@@ -98,8 +102,9 @@ impl Fixture {
     }
 }
 
-fn tick(info: &mut ActorInfo, inputs: &BehaviorInputs<'_>) {
-    tick_actor_behavior(info, inputs, &mut rand::rng());
+fn tick(info: &mut ActorInfo, inputs: &BehaviorInputs<'_>) -> ActorBehaviorOutcome {
+    let mut rng = StdRng::seed_from_u64(7);
+    tick_actor_behavior(info, inputs, &mut rng)
 }
 
 // ---- level awareness ---------------------------------------------------
@@ -590,7 +595,7 @@ fn patrol_acquires_approach_for_laser_kind() {
         z: 0.0,
     };
 
-    tick(&mut info, &fixture.zapper_inputs(Position::default(), Some(target)));
+    let outcome = tick(&mut info, &fixture.zapper_inputs(Position::default(), Some(target)));
 
     assert_eq!(
         info.goal,
@@ -599,6 +604,7 @@ fn patrol_acquires_approach_for_laser_kind() {
             target_pos: target
         }
     );
+    assert_eq!(outcome, ActorBehaviorOutcome::NoEvent);
 }
 
 #[test]
@@ -614,7 +620,7 @@ fn approach_enters_fire_within_range_when_cooldown_ready() {
         target_pos: target,
     });
 
-    tick(&mut info, &fixture.zapper_inputs(Position::default(), Some(target)));
+    let outcome = tick(&mut info, &fixture.zapper_inputs(Position::default(), Some(target)));
 
     assert_eq!(
         info.goal,
@@ -622,6 +628,13 @@ fn approach_enters_fire_within_range_when_cooldown_ready() {
             target: PlayerId(7),
             target_pos: target,
             remaining_secs: 2.0,
+        }
+    );
+    assert_eq!(
+        outcome,
+        ActorBehaviorOutcome::StartedBeam {
+            target: PlayerId(7),
+            duration_secs: 2.0,
         }
     );
 }
@@ -663,7 +676,7 @@ fn fire_refreshes_target_position_each_tick() {
     let mut inputs = fixture.zapper_inputs(Position::default(), None);
     inputs.fire_target_position = Some(live);
 
-    tick(&mut info, &inputs);
+    let outcome = tick(&mut info, &inputs);
 
     let ActorGoal::Fire {
         target_pos,
@@ -675,6 +688,7 @@ fn fire_refreshes_target_position_each_tick() {
     };
     assert_eq!(target_pos, live);
     assert!((remaining_secs - 0.9).abs() < 1e-4);
+    assert_eq!(outcome, ActorBehaviorOutcome::NoEvent);
 }
 
 #[test]

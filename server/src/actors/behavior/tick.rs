@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use bevy::prelude::*;
-use rand::{rng, rngs::ThreadRng};
+use rand::{Rng, rng};
 
 use crate::{
     actors::navigation::NavGraph,
@@ -16,12 +16,13 @@ use common::{
     constants::LEVEL_HEIGHT,
     map::{MapGeometry, level_for_y},
     physics::CollisionWorld,
-    protocol::{ActorId, ActorMarker, ActorMoveIntent, PlayerId, PlayerMarker, Position, SActorBeam, ServerMessage},
+    protocol::{ActorId, ActorMarker, PlayerId, PlayerMarker, Position, SActorBeam, ServerMessage},
 };
 
 use super::{
-    patrol::{forced_patrol_goal, fresh_patrol_goal, random_direction_time, random_patrol_intent},
+    patrol::{fresh_patrol_goal, random_direction_time, random_patrol_intent},
     perception::visible_player,
+    stall::{RETURN_RETRY_SECS, transition_stall_recovery},
     zone::{closest_point_in_rect, xz_distance_from_rect},
 };
 
@@ -98,50 +99,20 @@ pub fn actors_behavior_system(
             patrol_speed: actor_config.patrol_speed,
             kind_config,
         };
-        let was_firing = matches!(info.goal, ActorGoal::Fire { .. });
-        tick_actor_behavior(info, &inputs, &mut rng);
-        // Burst start is the one behavior transition clients must see the
-        // moment it happens — the pure tick fn can't broadcast, so the shell
-        // does (mirroring how movement broadcasts `SActorMove`). On the
-        // entry tick `remaining_secs` still equals the full duration.
-        if !was_firing
-            && let ActorGoal::Fire {
-                target, remaining_secs, ..
-            } = &info.goal
+        if let ActorBehaviorOutcome::StartedBeam { target, duration_secs } =
+            tick_actor_behavior(info, &inputs, &mut rng)
         {
             broadcast_to_all(
                 &players,
                 ServerMessage::ActorBeam(SActorBeam {
                     id: *id,
-                    target: *target,
-                    duration_secs: *remaining_secs,
+                    target,
+                    duration_secs,
                 }),
             );
         }
     }
 }
-
-// Net-displacement stall watchdog: a goal-directed (or moving-patrol) actor
-// that fails to displace `STALL_PROGRESS_DISTANCE` meters within its goal's
-// window is wedged against geometry and its goal's escape fires. Keyed on
-// net displacement, not distance-to-goal, so an actor legitimately routing
-// *around* a wall (moving without getting closer) isn't called stuck.
-pub(super) const STALL_PROGRESS_DISTANCE: f32 = 0.4;
-// Demoted (lost-sight) pursuit toward a stale last-seen spot.
-pub(super) const PURSUIT_GIVEUP_NO_PROGRESS_SECS: f32 = 1.5;
-// Active chase pinned while the player stays visible (e.g. diagonally over a
-// ledge rim it can't path to). Longer than the pursuit window — a live fight
-// displaces plenty; only a genuine pin sits still this long.
-pub(super) const CHASE_GIVEUP_NO_PROGRESS_SECS: f32 = 3.0;
-// Wedged return-to-spawn (includes the straight-line nav fallback).
-pub(super) const RETURN_GIVEUP_NO_PROGRESS_SECS: f32 = 3.0;
-// Moving patrol that can't move (wall-base perch, boxed in). Longer than
-// `patrol.max_direction_secs` (3.5) so a normal re-roll cycle isn't called stuck.
-pub(super) const PATROL_GIVEUP_NO_PROGRESS_SECS: f32 = 4.0;
-// Leash-suppressed patrol window between return attempts.
-pub(super) const RETURN_RETRY_SECS: f32 = 5.0;
-// Ledge-unaware candidate window after a patrol stall.
-pub(super) const PATROL_LEDGE_ESCAPE_SECS: f32 = 1.0;
 
 // Everything the per-tick decision needs, as plain data — no ECS. Perception
 // (needs queries) stays in the system shell; it passes `None` when
@@ -160,6 +131,12 @@ pub(super) struct BehaviorInputs<'a> {
     pub nav_graph: &'a NavGraph,
     pub patrol_speed: f32,
     pub kind_config: &'a ActorKindServerConfig,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(super) enum ActorBehaviorOutcome {
+    NoEvent,
+    StartedBeam { target: PlayerId, duration_secs: f32 },
 }
 
 // Chase pursues on its own (longer) leash; everything else uses the patrol
@@ -184,29 +161,46 @@ pub(super) fn patrolling_off_zone_level(goal: &ActorGoal, pos_y: f32, zone_level
     matches!(goal, ActorGoal::Patrol { .. }) && level_for_y(pos_y) != zone_level
 }
 
-// The whole per-actor decision for one tick: timers → arrival → leash →
-// acquire/demote → stall watchdog → patrol re-roll. Pure over `ActorInfo` +
-// inputs so every transition is unit-testable end-to-end.
-pub(super) fn tick_actor_behavior(info: &mut ActorInfo, inputs: &BehaviorInputs<'_>, rng: &mut ThreadRng) {
-    let pos = inputs.pos;
-    let delta = inputs.delta;
-    let reacquire_blocked = tick_chase_reacquire_timer(info, delta);
-    let return_grace = tick_return_retry_timer(info, delta);
+pub(super) fn tick_actor_behavior(
+    info: &mut ActorInfo,
+    inputs: &BehaviorInputs<'_>,
+    rng: &mut impl Rng,
+) -> ActorBehaviorOutcome {
+    let timers = tick_timers(info, inputs.delta);
+    transition_active_fire_and_flee(info, inputs);
+    transition_arrival(info, inputs);
+    transition_leash(info, inputs, timers.return_grace);
+    let outcome = transition_engagement(info, inputs, timers.reacquire_blocked);
+    transition_stall_recovery(info, inputs, rng);
+    transition_patrol_reroll(info, inputs, rng);
+    outcome
+}
+
+struct TimerState {
+    reacquire_blocked: bool,
+    return_grace: bool,
+}
+
+fn tick_timers(info: &mut ActorInfo, delta: f32) -> TimerState {
+    let timers = TimerState {
+        reacquire_blocked: tick_chase_reacquire_timer(info, delta),
+        return_grace: tick_return_retry_timer(info, delta),
+    };
     info.fire_cooldown_timer = (info.fire_cooldown_timer - delta).max(0.0);
     if let ActorGoal::Patrol { ledge_escape_timer, .. } = &mut info.goal {
         *ledge_escape_timer = (*ledge_escape_timer - delta).max(0.0);
     }
+    timers
+}
 
-    // Advance a live burst / hide. A burst ends (expiry or target gone) into
-    // a flee that lasts exactly the re-fire cooldown; the flee keeps tracking
-    // the visible threat so the run stays honest while the player pursues.
+fn transition_active_fire_and_flee(info: &mut ActorInfo, inputs: &BehaviorInputs<'_>) {
     let burst_end_threat = if let ActorGoal::Fire {
         target_pos,
         remaining_secs,
         ..
     } = &mut info.goal
     {
-        *remaining_secs -= delta;
+        *remaining_secs -= inputs.delta;
         if let Some(live) = inputs.fire_target_position {
             *target_pos = live;
         }
@@ -229,10 +223,10 @@ pub(super) fn tick_actor_behavior(info: &mut ActorInfo, inputs: &BehaviorInputs<
             info.goal = fresh_patrol_goal();
         }
     }
+}
 
-    // Arrival — behavior owns it (movement never mutates the goal). A
-    // pursuit that reaches the last-seen spot gives up to patrol; a return
-    // advances its waypoints. Chases press and never arrive.
+fn transition_arrival(info: &mut ActorInfo, inputs: &BehaviorInputs<'_>) {
+    let pos = inputs.pos;
     let reached_distance = inputs.kind_config.navigation.go_to_reached_distance;
     let arrived = match &info.goal {
         ActorGoal::Pursuit { last_seen } => {
@@ -260,12 +254,9 @@ pub(super) fn tick_actor_behavior(info: &mut ActorInfo, inputs: &BehaviorInputs<
             _ => fresh_patrol_goal(),
         };
     }
+}
 
-    // Leash: strayed past the goal's leash from the spawn zone edge — walk
-    // it home. `return_grace` (armed by a stalled return) suppresses the
-    // re-arm so the actor patrols in place first and the next attempt starts
-    // from a different position instead of livelocking on the same fallback
-    // path.
+fn transition_leash(info: &mut ActorInfo, inputs: &BehaviorInputs<'_>, return_grace: bool) {
     if inputs.beyond_leash && !return_grace && !matches!(info.goal, ActorGoal::Return { .. }) {
         if matches!(info.goal, ActorGoal::Chase { .. } | ActorGoal::Approach { .. }) {
             info.chase_reacquire_timer = inputs.kind_config.senses.chase_reacquire_cooldown_secs;
@@ -277,36 +268,32 @@ pub(super) fn tick_actor_behavior(info: &mut ActorInfo, inputs: &BehaviorInputs<
         }
         start_return(info, inputs);
     }
+}
 
-    if !inputs.beyond_leash {
-        if let Some(fire) = &inputs.kind_config.fire {
-            tick_laser_acquire(info, inputs, fire, reacquire_blocked);
-        } else {
-            tick_contact_acquire(info, inputs, reacquire_blocked);
-        }
+fn transition_engagement(
+    info: &mut ActorInfo,
+    inputs: &BehaviorInputs<'_>,
+    reacquire_blocked: bool,
+) -> ActorBehaviorOutcome {
+    if inputs.beyond_leash {
+        return ActorBehaviorOutcome::NoEvent;
     }
-
-    // One watchdog site sees every goal — early exits here are exactly how
-    // actors used to end up grinding walls forever.
-    match stall_window(&info.goal, &pos, reached_distance, inputs.kind_config.fire.as_ref()) {
-        None => info.stall_anchor = None,
-        Some(window) => {
-            if tick_stall(info, &pos, delta, window) {
-                escape_stall(info, inputs, rng);
-            }
-        }
+    if let Some(fire) = &inputs.kind_config.fire {
+        transition_laser_engagement(info, inputs, fire, reacquire_blocked)
+    } else {
+        transition_contact_engagement(info, inputs, reacquire_blocked);
+        ActorBehaviorOutcome::NoEvent
     }
+}
 
-    // Patrol heading re-roll on its own cadence. A goal set this tick with a
-    // fresh (zero) timer re-rolls immediately; a forced escape set a full
-    // timer and keeps its guaranteed-Moving intent.
+fn transition_patrol_reroll(info: &mut ActorInfo, inputs: &BehaviorInputs<'_>, rng: &mut impl Rng) {
     if let ActorGoal::Patrol {
         intent,
         direction_timer,
         ..
     } = &mut info.goal
     {
-        *direction_timer -= delta;
+        *direction_timer -= inputs.delta;
         if *direction_timer <= 0.0 {
             *direction_timer = random_direction_time(rng, inputs.kind_config);
             *intent = random_patrol_intent(rng, inputs.patrol_speed, inputs.kind_config.patrol.idle_probability);
@@ -319,7 +306,7 @@ pub(super) fn tick_actor_behavior(info: &mut ActorInfo, inputs: &BehaviorInputs<
 // current goal: a pursuit toward a stale last-seen spot must snap onto the
 // player's *live* position the moment they reappear — the stale spot can sit
 // through a wall, so it never arrives and never updates.
-fn tick_contact_acquire(info: &mut ActorInfo, inputs: &BehaviorInputs<'_>, reacquire_blocked: bool) {
+fn transition_contact_engagement(info: &mut ActorInfo, inputs: &BehaviorInputs<'_>, reacquire_blocked: bool) {
     let chase_target = if let ActorGoal::Chase { target } = &info.goal {
         Some(*target)
     } else {
@@ -345,19 +332,19 @@ fn tick_contact_acquire(info: &mut ActorInfo, inputs: &BehaviorInputs<'_>, reacq
     }
 }
 
-// Laser kinds: same acquisition shape as `tick_contact_acquire`, but the
+// Laser kinds: same acquisition shape as contact engagement, but the
 // engagement is `Approach` (press to standoff) and — once in range with the
 // cooldown lapsed — a locked `Fire` burst. A mid-burst or hiding actor
 // ignores perception entirely: the burst target is locked and the flee has
 // priority over re-engaging.
-fn tick_laser_acquire(
+fn transition_laser_engagement(
     info: &mut ActorInfo,
     inputs: &BehaviorInputs<'_>,
     fire: &ActorFireConfig,
     reacquire_blocked: bool,
-) {
+) -> ActorBehaviorOutcome {
     if matches!(info.goal, ActorGoal::Fire { .. } | ActorGoal::Flee { .. }) {
-        return;
+        return ActorBehaviorOutcome::NoEvent;
     }
     let approach_target_pos = if let ActorGoal::Approach { target_pos, .. } = &info.goal {
         Some(*target_pos)
@@ -377,6 +364,10 @@ fn tick_laser_acquire(
                 remaining_secs: fire.duration_secs,
             };
             info.stall_anchor = None;
+            return ActorBehaviorOutcome::StartedBeam {
+                target: id,
+                duration_secs: fire.duration_secs,
+            };
         } else {
             // A *fresh* approach starts its stall window from here.
             if approach_target_pos.is_none() {
@@ -391,6 +382,7 @@ fn tick_laser_acquire(
         info.goal = ActorGoal::Pursuit { last_seen };
         info.stall_anchor = None;
     }
+    ActorBehaviorOutcome::NoEvent
 }
 
 // Guaranteed present while a burst-related transition runs: only laser kinds
@@ -402,140 +394,6 @@ fn fire_cooldown_secs(inputs: &BehaviorInputs<'_>) -> f32 {
         .as_ref()
         .map(|fire| fire.cooldown_secs)
         .expect("actor in a burst state has no fire config")
-}
-
-// Which stall window (if any) applies to the current goal. The vertical hold
-// (camping under a ledge player) and intentional patrol idle are stationary
-// on purpose — exempt.
-pub(super) fn stall_window(
-    goal: &ActorGoal,
-    pos: &Position,
-    reached_distance: f32,
-    fire: Option<&ActorFireConfig>,
-) -> Option<f32> {
-    match goal {
-        ActorGoal::Patrol {
-            intent: ActorMoveIntent::Idle,
-            ..
-        } => None,
-        ActorGoal::Patrol { .. } => Some(PATROL_GIVEUP_NO_PROGRESS_SECS),
-        ActorGoal::Chase { .. } => {
-            if goal.chase_hold(pos, reached_distance) {
-                None
-            } else {
-                Some(CHASE_GIVEUP_NO_PROGRESS_SECS)
-            }
-        }
-        ActorGoal::Pursuit { .. } => Some(PURSUIT_GIVEUP_NO_PROGRESS_SECS),
-        ActorGoal::Return { .. } => Some(RETURN_GIVEUP_NO_PROGRESS_SECS),
-        // The standoff hold is intentionally stationary, like the vertical
-        // chase hold; a blocked approach outside it presses like a chase.
-        ActorGoal::Approach { .. } => {
-            let standoff = fire.map_or(0.0, |f| f.standoff_distance);
-            if goal.approach_hold(pos, standoff) {
-                None
-            } else {
-                Some(CHASE_GIVEUP_NO_PROGRESS_SECS)
-            }
-        }
-        // A burst holds position on purpose.
-        ActorGoal::Fire { .. } => None,
-        // A cornered flee gives up like a pinned chase.
-        ActorGoal::Flee { .. } => Some(CHASE_GIVEUP_NO_PROGRESS_SECS),
-    }
-}
-
-// The goal is wedged against geometry — replace it with something that can
-// move. Contact detonation is geometric and unaffected by any of this.
-fn escape_stall(info: &mut ActorInfo, inputs: &BehaviorInputs<'_>, rng: &mut ThreadRng) {
-    let pos = inputs.pos;
-    info.stall_anchor = None;
-    match &info.goal {
-        ActorGoal::Chase { .. } => {
-            // Pinned with the player still visible. Give up and genuinely
-            // wander off — the reacquire cooldown stops next tick's
-            // perception from re-pinning it.
-            debug!(
-                "{}#{} (zone {}) chase stalled at ({:.2},{:.2},{:.2}); giving up for {:.1}s",
-                info.spawn_kind,
-                inputs.id.0,
-                info.spawn_zone_index,
-                pos.x,
-                pos.y,
-                pos.z,
-                inputs.kind_config.senses.chase_reacquire_cooldown_secs
-            );
-            info.chase_reacquire_timer = inputs.kind_config.senses.chase_reacquire_cooldown_secs;
-            info.goal = forced_patrol_goal(rng, inputs.patrol_speed, inputs.kind_config);
-        }
-        ActorGoal::Approach { .. } => {
-            // Same shape as a pinned chase: give up, wander, and let the
-            // reacquire cooldown stop next tick's perception from re-pinning.
-            debug!(
-                "{}#{} (zone {}) approach stalled at ({:.2},{:.2},{:.2}); giving up for {:.1}s",
-                info.spawn_kind,
-                inputs.id.0,
-                info.spawn_zone_index,
-                pos.x,
-                pos.y,
-                pos.z,
-                inputs.kind_config.senses.chase_reacquire_cooldown_secs
-            );
-            info.chase_reacquire_timer = inputs.kind_config.senses.chase_reacquire_cooldown_secs;
-            info.goal = forced_patrol_goal(rng, inputs.patrol_speed, inputs.kind_config);
-        }
-        ActorGoal::Flee { .. } => {
-            // Cornered while hiding: patrol in place. The still-running
-            // fire cooldown keeps re-fire gated regardless of goal.
-            debug!(
-                "{}#{} (zone {}) flee stalled at ({:.2},{:.2},{:.2}); patrolling out the cooldown",
-                info.spawn_kind, inputs.id.0, info.spawn_zone_index, pos.x, pos.y, pos.z
-            );
-            info.goal = forced_patrol_goal(rng, inputs.patrol_speed, inputs.kind_config);
-        }
-        // A burst is stall-exempt (`stall_window` returns None), so it can
-        // never reach an escape.
-        ActorGoal::Fire { .. } => {}
-        ActorGoal::Pursuit { .. } => {
-            debug!(
-                "{}#{} (zone {}) abandoning unreachable last-seen spot at ({:.2},{:.2},{:.2}); resuming patrol",
-                info.spawn_kind, inputs.id.0, info.spawn_zone_index, pos.x, pos.y, pos.z
-            );
-            info.goal = fresh_patrol_goal();
-        }
-        ActorGoal::Return { next, path } => {
-            warn!(
-                "{}#{} (zone {}) return stalled at ({:.2},{:.2},{:.2}) heading to waypoint ({:.2},{:.2},{:.2}) with {} more; patrolling {RETURN_RETRY_SECS}s before retry",
-                info.spawn_kind,
-                inputs.id.0,
-                info.spawn_zone_index,
-                pos.x,
-                pos.y,
-                pos.z,
-                next.x,
-                next.y,
-                next.z,
-                path.len()
-            );
-            info.return_retry_timer = RETURN_RETRY_SECS;
-            info.goal = forced_patrol_goal(rng, inputs.patrol_speed, inputs.kind_config);
-        }
-        ActorGoal::Patrol { .. } => {
-            // Wall-base perch / boxed in: every strict candidate is rejected
-            // and re-rolls can't change the candidate set. Briefly allow
-            // risky steps — grazes and off-edge drops; a fall is recycled by
-            // removal/respawn.
-            debug!(
-                "{}#{} (zone {}) patrol stalled at ({:.2},{:.2},{:.2}); ledge-unaware escape for {PATROL_LEDGE_ESCAPE_SECS}s",
-                info.spawn_kind, inputs.id.0, info.spawn_zone_index, pos.x, pos.y, pos.z
-            );
-            let mut goal = forced_patrol_goal(rng, inputs.patrol_speed, inputs.kind_config);
-            if let ActorGoal::Patrol { ledge_escape_timer, .. } = &mut goal {
-                *ledge_escape_timer = PATROL_LEDGE_ESCAPE_SECS;
-            }
-            info.goal = goal;
-        }
-    }
 }
 
 fn start_return(info: &mut ActorInfo, inputs: &BehaviorInputs<'_>) {
@@ -605,26 +463,6 @@ fn start_return(info: &mut ActorInfo, inputs: &BehaviorInputs<'_>) {
     info.goal = ActorGoal::Return { next, path };
     // Fresh stall window for the new return.
     info.stall_anchor = None;
-}
-
-// Advance the no-progress watchdog. Self-arms when unarmed; re-anchors and
-// refills the window when the actor has displaced past
-// `STALL_PROGRESS_DISTANCE` from its anchor; otherwise counts the window
-// down. Returns true once it has failed to make that much headway for
-// `window_secs` — i.e. it's wedged against an obstacle.
-pub(super) fn tick_stall(info: &mut ActorInfo, pos: &Position, delta: f32, window_secs: f32) -> bool {
-    let Some(anchor) = info.stall_anchor else {
-        info.stall_anchor = Some(*pos);
-        info.stall_timer = window_secs;
-        return false;
-    };
-    if anchor.horizontal_distance_sq(pos) > STALL_PROGRESS_DISTANCE * STALL_PROGRESS_DISTANCE {
-        info.stall_anchor = Some(*pos);
-        info.stall_timer = window_secs;
-        return false;
-    }
-    info.stall_timer -= delta;
-    info.stall_timer <= 0.0
 }
 
 pub(super) fn tick_chase_reacquire_timer(info: &mut ActorInfo, delta: f32) -> bool {
