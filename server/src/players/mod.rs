@@ -1,9 +1,11 @@
 mod falling;
+mod plugin;
 mod resources;
 mod respawn;
 mod status;
 
 pub use falling::{players_fall_damage_system, players_fall_death_system};
+pub use plugin::players_plugin;
 pub use resources::{
     Invincibility, PlayerInfo, PlayerMap, QuestEvent, QuestState, UnlimitedMissiles, assign_quests, record_quest_event,
 };

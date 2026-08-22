@@ -1,4 +1,5 @@
 pub mod actors;
+pub mod app;
 pub mod characters;
 pub mod combat;
 pub mod config;
@@ -9,3 +10,4 @@ pub mod network;
 mod pathfind;
 pub mod players;
 pub mod projectiles;
+mod schedule;

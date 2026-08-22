@@ -1,6 +1,7 @@
 mod beam;
 mod damage;
 mod explosions;
+mod plugin;
 mod resources;
 
 pub use beam::actors_beam_damage_system;
@@ -9,4 +10,5 @@ pub use damage::{
     kill_player,
 };
 pub use explosions::explosions_system;
+pub use plugin::combat_plugin;
 pub use resources::{PendingExplosion, PendingExplosions};
