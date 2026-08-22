@@ -4615,8 +4615,8 @@
       }
     ],
     "ladders": [
-      {"lower_level": 1, "col": 5, "row": 14, "side": "W", "levels": 3},
-      {"lower_level": 1, "col": 24, "row": 15, "side": "E", "levels": 3},
+      {"lower_level": 2, "col": 5, "row": 14, "side": "W", "levels": 2},
+      {"lower_level": 2, "col": 24, "row": 15, "side": "E", "levels": 2},
       {"lower_level": 4, "col": 10, "row": 14, "side": "W", "levels": 1},
       {"lower_level": 4, "col": 19, "row": 15, "side": "E", "levels": 1}
     ],
