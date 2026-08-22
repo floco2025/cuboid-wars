@@ -23,6 +23,7 @@ pub fn generate_material_mipmaps_system(
     mut state: Local<MaterialMipmapState>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut images: ResMut<Assets<Image>>,
+    asset_server: Res<AssetServer>,
     client_settings: Res<ClientSettings>,
 ) {
     // The upstream plugin's event-driven system can miss our textures because a
@@ -38,8 +39,11 @@ pub fn generate_material_mipmaps_system(
     };
 
     let thread_pool = AsyncComputeTaskPool::get();
-    for material in materials.iter().map(|(_, material)| material) {
-        for image_handle in standard_material_images(material) {
+    for (material_id, material) in materials.iter() {
+        let material_label = asset_server
+            .get_path(material_id)
+            .map_or_else(|| format!("{material_id:?}"), |path| path.to_string());
+        for (texture_slot, image_handle) in standard_material_images(material) {
             if state.pending.len() >= MAX_PENDING_MIPMAP_TASKS {
                 return;
             }
@@ -73,19 +77,35 @@ pub fn generate_material_mipmaps_system(
             }
 
             if let Err(error) = check_image_compatible(&image) {
-                debug!("skipping mipmap generation for incompatible image: {error}");
+                debug!(
+                    "skipping mipmap generation for {} ({texture_slot} of material {material_label}, format {:?}, size {}x{}x{}): {error}",
+                    image_label(image_handle),
+                    image.texture_descriptor.format,
+                    image.texture_descriptor.size.width,
+                    image.texture_descriptor.size.height,
+                    image.texture_descriptor.size.depth_or_array_layers,
+                );
                 state.processed.insert(image_id);
                 continue;
             }
 
             let mut image = image.clone();
             let settings = settings.clone();
+            let image_label = image_label(image_handle);
+            let material_label = material_label.clone();
+            let format = image.texture_descriptor.format;
+            let size = image.texture_descriptor.size;
             let task = thread_pool.spawn(async move {
                 let mut added_cache_size = 0;
                 generate_mips_texture(&mut image, &settings, &mut added_cache_size)
                     .map(|()| image)
                     .map_err(|error| {
-                        warn!("failed to generate mipmaps: {error}");
+                        warn!(
+                            "failed to generate mipmaps for {image_label} ({texture_slot} of material {material_label}, format {format:?}, size {}x{}x{}): {error}",
+                            size.width,
+                            size.height,
+                            size.depth_or_array_layers,
+                        );
                     })
                     .ok()
             });
@@ -139,20 +159,29 @@ fn mark_materials_using_images_changed(
 }
 
 fn material_uses_any_image(material: &StandardMaterial, image_ids: &HashSet<AssetId<Image>>) -> bool {
-    standard_material_images(material).any(|image| image_ids.contains(&image.id()))
+    standard_material_images(material).any(|(_, image)| image_ids.contains(&image.id()))
 }
 
-fn standard_material_images(material: &StandardMaterial) -> impl Iterator<Item = &Handle<Image>> {
+fn standard_material_images(material: &StandardMaterial) -> impl Iterator<Item = (&'static str, &Handle<Image>)> {
     [
-        material.base_color_texture.as_ref(),
-        material.emissive_texture.as_ref(),
-        material.metallic_roughness_texture.as_ref(),
-        material.normal_map_texture.as_ref(),
-        material.occlusion_texture.as_ref(),
-        material.depth_map.as_ref(),
+        ("base color texture", material.base_color_texture.as_ref()),
+        ("emissive texture", material.emissive_texture.as_ref()),
+        (
+            "metallic/roughness texture",
+            material.metallic_roughness_texture.as_ref(),
+        ),
+        ("normal-map texture", material.normal_map_texture.as_ref()),
+        ("occlusion texture", material.occlusion_texture.as_ref()),
+        ("depth-map texture", material.depth_map.as_ref()),
     ]
     .into_iter()
-    .flatten()
+    .filter_map(|(slot, handle)| handle.map(|handle| (slot, handle)))
+}
+
+fn image_label(handle: &Handle<Image>) -> String {
+    handle
+        .path()
+        .map_or_else(|| format!("image {:?}", handle.id()), ToString::to_string)
 }
 
 fn configure_mipmap_sampler(image: &mut Image, anisotropy: u16) {
@@ -190,5 +219,22 @@ mod tests {
         }
         let unrelated = images.add(Image::default());
         assert!(!material_uses_any_image(&material, &HashSet::from([unrelated.id()])));
+    }
+
+    #[test]
+    fn material_images_report_their_texture_slots() {
+        let mut images = Assets::<Image>::default();
+        let handle = images.add(Image::default());
+        let material = StandardMaterial {
+            base_color_texture: Some(handle.clone()),
+            normal_map_texture: Some(handle),
+            ..default()
+        };
+
+        let slots = standard_material_images(&material)
+            .map(|(slot, _)| slot)
+            .collect::<Vec<_>>();
+
+        assert_eq!(slots, ["base color texture", "normal-map texture"]);
     }
 }
