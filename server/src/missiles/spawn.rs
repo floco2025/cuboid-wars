@@ -149,7 +149,6 @@ pub fn handle_missile_shot_message(
             dir,
             weave_phase,
             missile_config.lifetime_secs,
-            missile_config.stall_secs,
         ),
     );
 

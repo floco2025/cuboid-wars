@@ -11,3 +11,4 @@ mod pathfind;
 pub mod players;
 pub mod projectiles;
 mod schedule;
+pub mod watchdog;

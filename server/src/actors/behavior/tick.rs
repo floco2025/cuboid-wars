@@ -27,6 +27,9 @@ const EVADE_REPLAN_INTERVAL_SECS: f32 = 0.5;
 const ROUTE_STALL_PROGRESS_DISTANCE: f32 = 0.5;
 const ROUTE_STALL_TIMEOUT_SECS: f32 = 1.5;
 const WAYPOINT_REACHED_DISTANCE: f32 = 0.5;
+// How long the shake-loose hop owns the actor before the controller may
+// rethink — roughly one cell at active speed.
+const SHAKE_SECS: f32 = 0.6;
 const DIRECT_ROUTE_CLEARANCE_MARGIN: f32 = 0.1;
 const COVER_MIN_THREAT_DISTANCE: f32 = GRID_CELL_SIZE * 0.75;
 
@@ -64,7 +67,10 @@ pub fn actors_behavior_system(
         };
         let actor_config = gameplay_config.expect_actor(&info.spawn_kind);
         let kind_config = server_gameplay_config.expect_actor(&info.spawn_kind);
-        tick_runtime_state(info, *pos, delta, kind_config, &player_states);
+        let stalled = tick_runtime_state(info, *pos, delta, kind_config, &player_states);
+        if stalled {
+            info.decision_timer = 0.0;
+        }
         if info.decision_timer > 0.0 {
             continue;
         }
@@ -92,6 +98,10 @@ pub fn actors_behavior_system(
             collision_world: &collision_world,
             kind_config,
         };
+        if stalled {
+            shake_loose(info, &context, &mut rng);
+            continue;
+        }
         let beam_started = match kind_config.combat.attack {
             ActorAttackConfig::Contact(_) => {
                 decide_contact_actor(info, &context, &mut rng);
@@ -119,15 +129,16 @@ pub(super) fn tick_runtime_state(
     delta: f32,
     kind_config: &ActorKindServerConfig,
     players: &[PlayerState],
-) {
+) -> bool {
     info.decision_timer -= delta;
     for aware in &mut info.awareness {
         aware.forget_remaining_secs = (aware.forget_remaining_secs - delta).max(0.0);
     }
     info.evade_replan_remaining_secs = (info.evade_replan_remaining_secs - delta).max(0.0);
     advance_route(info, pos, WAYPOINT_REACHED_DISTANCE);
-    tick_route_stall(info, pos, delta);
+    let stalled = tick_route_stall(info, pos, delta);
     tick_beam_state(info, delta, kind_config, players);
+    stalled
 }
 
 fn advance_route(info: &mut ActorInfo, pos: Position, reached_distance: f32) {
@@ -170,26 +181,26 @@ fn waypoint_passed(pos: &Position, waypoint: &Position, after: &Position, reache
     lateral_sq <= reached_distance * reached_distance
 }
 
-fn tick_route_stall(info: &mut ActorInfo, pos: Position, delta: f32) {
+// Armed only while a route exists — an intentionally idle actor is not
+// stalled. The trip is surfaced to the behavior loop, which shakes loose.
+fn tick_route_stall(info: &mut ActorInfo, pos: Position, delta: f32) -> bool {
     if info.route.is_none() {
-        info.route_stall_anchor = None;
-        info.route_stall_secs = 0.0;
-        return;
+        info.watchdog.reset();
+        return false;
     }
-    let Some(anchor) = info.route_stall_anchor else {
-        info.route_stall_anchor = Some(pos);
-        return;
-    };
-    if anchor.horizontal_distance_sq(&pos) >= ROUTE_STALL_PROGRESS_DISTANCE * ROUTE_STALL_PROGRESS_DISTANCE {
-        info.route_stall_anchor = Some(pos);
-        info.route_stall_secs = 0.0;
-        return;
-    }
-    info.route_stall_secs += delta;
-    if info.route_stall_secs >= ROUTE_STALL_TIMEOUT_SECS {
-        info.set_route(None);
-        info.decision_timer = 0.0;
-    }
+    info.watchdog
+        .tick_horizontal(&pos, delta, ROUTE_STALL_PROGRESS_DISTANCE, ROUTE_STALL_TIMEOUT_SECS)
+}
+
+// A stalled actor is wedged against something the planners cannot see —
+// usually another actor. Hop to a random neighboring cell before the next
+// decision: replanning from a new position is what breaks deterministic
+// jam loops (two evaders re-planning the same routes into each other
+// forever). A failed hop just trips the watchdog again and re-rolls.
+pub(super) fn shake_loose(info: &mut ActorInfo, context: &BehaviorContext<'_>, rng: &mut impl Rng) {
+    let planned = context.nav_graph.random_neighbor_route(&context.pos, rng);
+    context.install_route(info, planned);
+    info.decision_timer = SHAKE_SECS;
 }
 
 fn tick_beam_state(info: &mut ActorInfo, delta: f32, kind_config: &ActorKindServerConfig, players: &[PlayerState]) {

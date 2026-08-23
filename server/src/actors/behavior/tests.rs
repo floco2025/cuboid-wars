@@ -4,7 +4,7 @@ use rand::{SeedableRng, rngs::StdRng};
 use super::{
     controllers::{BeamStarted, decide_beam_actor, decide_contact_actor, decide_contact_beam_actor},
     perception::{PlayerState, update_awareness},
-    tick::{BehaviorContext, enter_evade, tick_runtime_state},
+    tick::{BehaviorContext, enter_evade, shake_loose, tick_runtime_state},
 };
 use crate::{
     actors::{
@@ -16,7 +16,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    constants::LEVEL_HEIGHT,
+    constants::{GRID_CELL_SIZE, LEVEL_HEIGHT},
     map::MapGeometry,
     physics::{CharacterSupport, CollisionWorld},
     protocol::{BarrierKindTable, MapLayout, PlayerId, Position, Wall},
@@ -801,4 +801,33 @@ fn final_waypoint_is_only_dropped_when_reached() {
     tick_route(&mut info, past, &fixture);
 
     assert!(info.route.is_some());
+}
+
+#[test]
+fn stalled_actor_hops_to_a_random_neighbor_before_rethinking() {
+    let fixture = Fixture::new("mine");
+    let mut info = info("mine");
+    let pos = fixture.pos(5, 2);
+    info.set_route(Some(route_through(&[fixture.pos(9, 2)], &fixture)));
+
+    let mut stalled = false;
+    for _ in 0..20 {
+        stalled = tick_runtime_state(&mut info, pos, 0.1, fixture.server.expect_actor("mine"), &[]);
+        if stalled {
+            break;
+        }
+    }
+    assert!(stalled, "pinned actor must trip the watchdog");
+
+    let mut rng = StdRng::seed_from_u64(1);
+    shake_loose(&mut info, &fixture.context("mine", pos), &mut rng);
+
+    let route = info.route.as_ref().expect("shake installs a hop route");
+    assert_eq!(route.waypoints.len(), 1, "one-leg hop");
+    let hop_distance = pos.horizontal_distance_sq(&route.destination).sqrt();
+    assert!(
+        hop_distance > 0.1 && hop_distance < GRID_CELL_SIZE * 1.6,
+        "hop lands in a neighboring cell, got {hop_distance}"
+    );
+    assert!(info.decision_timer > 0.0, "controller deferred during the hop");
 }

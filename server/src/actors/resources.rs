@@ -8,6 +8,7 @@ use common::{
 };
 
 use super::navigation::{NavNode, PlannedRoute};
+use crate::watchdog::ProgressWatchdog;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub(crate) enum ActorMode {
@@ -78,8 +79,7 @@ pub struct ActorInfo {
     pub(crate) beam: BeamState,
     pub(crate) awareness: Vec<AwarePlayer>,
     pub(crate) decision_timer: f32,
-    pub(crate) route_stall_anchor: Option<Position>,
-    pub(crate) route_stall_secs: f32,
+    pub(crate) watchdog: ProgressWatchdog,
     pub(crate) evade_replan_remaining_secs: f32,
     // Player who landed the last projectile damage. Read by
     // `actors_removal_system` when the actor's health hits zero, so the
@@ -100,8 +100,7 @@ impl ActorInfo {
             beam: BeamState::Ready,
             awareness: Vec::new(),
             decision_timer: 0.0,
-            route_stall_anchor: None,
-            route_stall_secs: 0.0,
+            watchdog: ProgressWatchdog::default(),
             evade_replan_remaining_secs: 0.0,
             last_damager: None,
         }
@@ -109,8 +108,7 @@ impl ActorInfo {
 
     pub(crate) fn set_route(&mut self, route: Option<ActorRoute>) {
         self.route = route;
-        self.route_stall_anchor = None;
-        self.route_stall_secs = 0.0;
+        self.watchdog.reset();
     }
 }
 

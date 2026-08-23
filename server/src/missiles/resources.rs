@@ -4,6 +4,8 @@ use bevy::prelude::*;
 
 use common::protocol::{HomingTarget, MissileId, PlayerId, Position};
 
+use crate::watchdog::ProgressWatchdog;
+
 // Server-side flight velocity. The wire form is `MissileMovementState`
 // (yaw/pitch/speed); this keeps the integrated Vec3 between ticks.
 #[derive(Component, Debug, Clone, Copy)]
@@ -29,8 +31,7 @@ pub struct MissileInfo {
     // Random phase so simultaneous missiles don't weave in lockstep.
     pub weave_phase: f32,
     pub lifetime_timer: f32,
-    pub stall_anchor: Option<Position>,
-    pub stall_timer: f32,
+    pub watchdog: ProgressWatchdog,
     // Self-hit gate, armed once the missile has cleared the shooter's collider.
     pub armed: bool,
     // Direction of the last `SMissileMove`; the next broadcast fires
@@ -54,7 +55,6 @@ impl MissileInfo {
         launch_dir: Vec3,
         weave_phase: f32,
         lifetime_secs: f32,
-        stall_secs: f32,
     ) -> Self {
         Self {
             entity,
@@ -68,8 +68,7 @@ impl MissileInfo {
             last_target_center: None,
             weave_phase,
             lifetime_timer: lifetime_secs,
-            stall_anchor: None,
-            stall_timer: stall_secs,
+            watchdog: ProgressWatchdog::default(),
             armed: false,
             last_broadcast_dir: launch_dir,
             detonate_at: None,

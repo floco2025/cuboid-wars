@@ -139,7 +139,10 @@ pub fn missiles_guidance_system(time: Res<Time>, mut params: MissileGuidancePara
             }
         }
 
-        if tick_missile_stall(info, pos, delta, config.stall_secs) {
+        if info
+            .watchdog
+            .tick_3d(pos, delta, MISSILE_STALL_PROGRESS_DISTANCE, config.stall_secs)
+        {
             info.detonate_at = Some(*pos);
         }
     }
@@ -285,58 +288,5 @@ fn advance_waypoints(
         } else {
             break;
         }
-    }
-}
-
-// `tick_stall` for missiles: 3D displacement (missiles fly), detonate
-// instead of escape.
-fn tick_missile_stall(info: &mut MissileInfo, pos: &Position, delta: f32, window_secs: f32) -> bool {
-    let Some(anchor) = info.stall_anchor else {
-        info.stall_anchor = Some(*pos);
-        info.stall_timer = window_secs;
-        return false;
-    };
-    if anchor.distance_sq(pos) > MISSILE_STALL_PROGRESS_DISTANCE * MISSILE_STALL_PROGRESS_DISTANCE {
-        info.stall_anchor = Some(*pos);
-        info.stall_timer = window_secs;
-        return false;
-    }
-    info.stall_timer -= delta;
-    info.stall_timer <= 0.0
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use common::protocol::PlayerId;
-
-    fn missile_info() -> MissileInfo {
-        MissileInfo::new(Entity::PLACEHOLDER, PlayerId(1), None, Vec3::Z, 0.0, 10.0, 2.0)
-    }
-
-    #[test]
-    fn stall_detonates_after_window_without_progress() {
-        let mut info = missile_info();
-        let pos = Position { x: 0.0, y: 2.0, z: 0.0 };
-
-        assert!(!tick_missile_stall(&mut info, &pos, 0.1, 1.0), "first tick arms");
-        for _ in 0..9 {
-            assert!(!tick_missile_stall(&mut info, &pos, 0.1, 1.0));
-        }
-        assert!(
-            tick_missile_stall(&mut info, &pos, 0.1, 1.0),
-            "window elapsed while pinned"
-        );
-    }
-
-    #[test]
-    fn stall_re_anchors_on_progress() {
-        let mut info = missile_info();
-        let start = Position { x: 0.0, y: 2.0, z: 0.0 };
-        let moved = Position { x: 0.0, y: 2.0, z: 1.5 };
-
-        assert!(!tick_missile_stall(&mut info, &start, 0.5, 1.0));
-        assert!(!tick_missile_stall(&mut info, &moved, 0.5, 1.0), "progress re-anchors");
-        assert_eq!(info.stall_timer, 1.0);
     }
 }

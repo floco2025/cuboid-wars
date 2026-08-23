@@ -128,6 +128,21 @@ impl NavGraph {
         route.waypoints.push_front(self.node_center(node));
     }
 
+    // One-leg route to a random adjacent cell — the shake-loose hop for a
+    // stalled actor.
+    pub(crate) fn random_neighbor_route(&self, start: &Position, rng: &mut impl Rng) -> Option<PlannedRoute> {
+        let node = self.node_for_position(start)?;
+        let neighbors = self.neighbors(node);
+        if neighbors.is_empty() {
+            return None;
+        }
+        let target = neighbors[rng.random_range(0..neighbors.len())];
+        Some(PlannedRoute {
+            waypoints: VecDeque::from([self.node_center(target)]),
+            destination_node: target,
+        })
+    }
+
     pub(crate) fn safe_cover_route(
         &self,
         start: &Position,
