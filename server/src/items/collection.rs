@@ -140,7 +140,12 @@ fn collect_cookie(players: &mut PlayerMap, player_id: PlayerId, server_gameplay_
         return;
     };
     player_info.score += server_gameplay_config.scoring.cookie;
-    let quest_messages = record_quest_event(player_info, &server_gameplay_config.quests, QuestEvent::CookieCollected);
+    let quest_messages = record_quest_event(
+        player_info,
+        &server_gameplay_config.quests,
+        &server_gameplay_config.scoring,
+        QuestEvent::CookieCollected,
+    );
     let _ = player_info
         .channel
         .send(ServerToClient::Send(ServerMessage::CookieCollected(SCookieCollected {

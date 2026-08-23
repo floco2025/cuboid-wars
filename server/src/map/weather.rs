@@ -1,14 +1,7 @@
 use bevy::prelude::*;
 use rand::{RngExt, rngs::ThreadRng};
 
-use crate::config::{RainScheduleConfig, StartupWeather};
-use common::protocol::Lighting;
-
-// Server-authoritative lighting level, fully decoupled from the weather
-// cycle — seeded from the map's `lighting`, then only "/light
-// bright|dim|dark" changes it. Rides every snapshot.
-#[derive(Resource)]
-pub struct CurrentLighting(pub Lighting);
+use crate::config::{WeatherCycleConfig, WeatherMode};
 
 // Cycles Clear → RampIn → Raining → FadeOut → Clear. Each variant carries
 // its countdown; ramp fractions are derived from the config's fixed ramp
@@ -23,29 +16,30 @@ enum WeatherPhase {
 
 // Server-scheduled weather for the loaded map. `intensity` is the single
 // authoritative scalar clients drive all rain presentation from; it ships
-// in every snapshot.
+// in every snapshot. With `auto` off the current state holds (the map's
+// concrete mode, or an admin override) until `/weather` changes it.
 #[derive(Resource)]
 pub struct WeatherState {
-    schedule: Option<RainScheduleConfig>,
+    schedule: WeatherCycleConfig,
     phase: WeatherPhase,
     intensity: f32,
+    auto: bool,
 }
 
 impl WeatherState {
     #[must_use]
-    pub fn new(schedule: Option<RainScheduleConfig>, startup: StartupWeather) -> Self {
+    pub fn new(schedule: WeatherCycleConfig, mode: WeatherMode) -> Self {
         let mut rng = rand::rng();
-        let (phase, intensity) = match (&schedule, startup) {
-            (None, _) => (WeatherPhase::Clear { remaining_secs: 0.0 }, 0.0),
-            (Some(s), StartupWeather::Clear) => (
+        let (phase, intensity) = match mode {
+            WeatherMode::Clear | WeatherMode::Auto => (
                 WeatherPhase::Clear {
-                    remaining_secs: rng.random_range(s.min_clear_secs..=s.max_clear_secs),
+                    remaining_secs: rng.random_range(schedule.min_clear_secs..=schedule.max_clear_secs),
                 },
                 0.0,
             ),
-            (Some(s), StartupWeather::Rain) => (
+            WeatherMode::Rain => (
                 WeatherPhase::Raining {
-                    remaining_secs: rng.random_range(s.min_rain_secs..=s.max_rain_secs),
+                    remaining_secs: rng.random_range(schedule.min_rain_secs..=schedule.max_rain_secs),
                 },
                 1.0,
             ),
@@ -54,6 +48,7 @@ impl WeatherState {
             schedule,
             phase,
             intensity,
+            auto: mode == WeatherMode::Auto,
         }
     }
 
@@ -62,39 +57,71 @@ impl WeatherState {
         self.intensity
     }
 
-    // Admin override: begin a rain cycle now. Interrupting a fade scales the
+    // Admin override: rain now and hold it. Interrupting a fade scales the
     // ramp by the missing intensity, so the transition stays continuous
     // instead of snapping to zero and climbing back.
-    pub fn force_rain_start(&mut self) -> Result<(), &'static str> {
-        let Some(schedule) = &self.schedule else {
-            return Err("this map has no rain schedule");
-        };
+    pub fn hold_rain(&mut self) -> Result<(), &'static str> {
         match self.phase {
-            WeatherPhase::RampIn { .. } | WeatherPhase::Raining { .. } => Err("already raining"),
+            WeatherPhase::RampIn { .. } | WeatherPhase::Raining { .. } => {
+                if self.auto {
+                    self.auto = false;
+                    Ok(())
+                } else {
+                    Err("already raining")
+                }
+            }
             WeatherPhase::Clear { .. } | WeatherPhase::FadeOut { .. } => {
                 self.phase = WeatherPhase::RampIn {
-                    remaining_secs: schedule.ramp_in_secs * (1.0 - self.intensity),
+                    remaining_secs: self.schedule.ramp_in_secs * (1.0 - self.intensity),
                 };
+                self.auto = false;
                 Ok(())
             }
         }
     }
 
-    // Admin override: end the current rain cycle now, fading from the
-    // current intensity (a mid-ramp stop fades from wherever the ramp got).
-    pub fn force_rain_stop(&mut self) -> Result<(), &'static str> {
-        let Some(schedule) = &self.schedule else {
-            return Err("this map has no rain schedule");
-        };
+    // Admin override: clear now and hold it, fading from the current
+    // intensity (a mid-ramp stop fades from wherever the ramp got).
+    pub fn hold_clear(&mut self) -> Result<(), &'static str> {
         match self.phase {
-            WeatherPhase::Clear { .. } | WeatherPhase::FadeOut { .. } => Err("not raining"),
+            WeatherPhase::Clear { .. } | WeatherPhase::FadeOut { .. } => {
+                if self.auto {
+                    self.auto = false;
+                    Ok(())
+                } else {
+                    Err("not raining")
+                }
+            }
             WeatherPhase::RampIn { .. } | WeatherPhase::Raining { .. } => {
                 self.phase = WeatherPhase::FadeOut {
-                    remaining_secs: schedule.fade_out_secs * self.intensity,
+                    remaining_secs: self.schedule.fade_out_secs * self.intensity,
                 };
+                self.auto = false;
                 Ok(())
             }
         }
+    }
+
+    // Admin override: hand control back to the cycle. The held phase simply
+    // keeps counting down, so the transition out is the scheduled one.
+    pub fn resume_auto(&mut self) -> Result<(), &'static str> {
+        if self.auto {
+            return Err("weather cycle already running");
+        }
+        self.auto = true;
+        Ok(())
+    }
+
+    #[must_use]
+    pub fn status(&self) -> String {
+        let phase = match self.phase {
+            WeatherPhase::Clear { .. } => "clear".to_owned(),
+            WeatherPhase::Raining { .. } => "rain".to_owned(),
+            WeatherPhase::RampIn { .. } => format!("rain starting ({:.2})", self.intensity),
+            WeatherPhase::FadeOut { .. } => format!("clearing ({:.2})", self.intensity),
+        };
+        let source = if self.auto { "auto" } else { "held" };
+        format!("weather: {phase} ({source})")
     }
 }
 
@@ -104,11 +131,7 @@ pub fn weather_system(time: Res<Time>, mut weather: ResMut<WeatherState>) {
 }
 
 fn tick_weather(state: &mut WeatherState, delta: f32, rng: &mut ThreadRng) {
-    let Some(schedule) = state.schedule.clone() else {
-        state.intensity = 0.0;
-        return;
-    };
-
+    let schedule = state.schedule.clone();
     let remaining = match &mut state.phase {
         WeatherPhase::Clear { remaining_secs }
         | WeatherPhase::RampIn { remaining_secs }
@@ -120,9 +143,9 @@ fn tick_weather(state: &mut WeatherState, delta: f32, rng: &mut ThreadRng) {
     };
     if remaining <= 0.0 {
         state.phase = match state.phase {
-            // Without `auto` the clear and rain stretches re-roll forever —
-            // only `force_rain_start` / `force_rain_stop` leave them.
-            WeatherPhase::Clear { .. } if !schedule.auto => WeatherPhase::Clear {
+            // Held states re-roll forever — only `hold_rain` / `hold_clear`
+            // / `resume_auto` leave them.
+            WeatherPhase::Clear { .. } if !state.auto => WeatherPhase::Clear {
                 remaining_secs: rng.random_range(schedule.min_clear_secs..=schedule.max_clear_secs),
             },
             WeatherPhase::Clear { .. } => WeatherPhase::RampIn {
@@ -131,7 +154,7 @@ fn tick_weather(state: &mut WeatherState, delta: f32, rng: &mut ThreadRng) {
             WeatherPhase::RampIn { .. } => WeatherPhase::Raining {
                 remaining_secs: rng.random_range(schedule.min_rain_secs..=schedule.max_rain_secs),
             },
-            WeatherPhase::Raining { .. } if !schedule.auto => WeatherPhase::Raining {
+            WeatherPhase::Raining { .. } if !state.auto => WeatherPhase::Raining {
                 remaining_secs: rng.random_range(schedule.min_rain_secs..=schedule.max_rain_secs),
             },
             WeatherPhase::Raining { .. } => WeatherPhase::FadeOut {
@@ -156,9 +179,8 @@ fn tick_weather(state: &mut WeatherState, delta: f32, rng: &mut ThreadRng) {
 mod tests {
     use super::*;
 
-    fn schedule() -> RainScheduleConfig {
-        RainScheduleConfig {
-            auto: true,
+    fn cycle() -> WeatherCycleConfig {
+        WeatherCycleConfig {
             min_clear_secs: 10.0,
             max_clear_secs: 20.0,
             min_rain_secs: 5.0,
@@ -173,17 +195,8 @@ mod tests {
     }
 
     #[test]
-    fn no_schedule_stays_clear_forever() {
-        let mut state = WeatherState::new(None, StartupWeather::Clear);
-        for _ in 0..100 {
-            tick(&mut state, 10.0);
-        }
-        assert_eq!(state.intensity(), 0.0);
-    }
-
-    #[test]
     fn initial_clear_duration_is_within_bounds() {
-        let state = WeatherState::new(Some(schedule()), StartupWeather::Clear);
+        let state = WeatherState::new(cycle(), WeatherMode::Auto);
         let WeatherPhase::Clear { remaining_secs } = state.phase else {
             panic!("weather must start clear, got {:?}", state.phase);
         };
@@ -192,28 +205,34 @@ mod tests {
     }
 
     #[test]
-    fn startup_rain_begins_at_full_intensity_and_ends_on_schedule() {
-        let mut state = WeatherState::new(Some(schedule()), StartupWeather::Rain);
-        let WeatherPhase::Raining { remaining_secs } = state.phase else {
-            panic!("startup rain must begin raining, got {:?}", state.phase);
-        };
-        assert!((5.0..=8.0).contains(&remaining_secs));
-        assert_eq!(state.intensity(), 1.0);
-
-        tick(&mut state, 8.0);
-        assert!(matches!(state.phase, WeatherPhase::FadeOut { .. }));
-    }
-
-    #[test]
-    fn startup_rain_without_schedule_stays_clear() {
-        let mut state = WeatherState::new(None, StartupWeather::Rain);
-        tick(&mut state, 1.0);
+    fn mode_clear_holds_clear_forever() {
+        let mut state = WeatherState::new(cycle(), WeatherMode::Clear);
+        for _ in 0..100 {
+            tick(&mut state, 30.0);
+        }
+        assert!(matches!(state.phase, WeatherPhase::Clear { .. }));
         assert_eq!(state.intensity(), 0.0);
     }
 
     #[test]
-    fn cycle_advances_through_all_phases_with_bounded_durations() {
-        let mut state = WeatherState::new(Some(schedule()), StartupWeather::Clear);
+    fn mode_rain_starts_raining_and_holds() {
+        let mut state = WeatherState::new(cycle(), WeatherMode::Rain);
+        let WeatherPhase::Raining { remaining_secs } = state.phase else {
+            panic!("rain mode must start raining, got {:?}", state.phase);
+        };
+        assert!((5.0..=8.0).contains(&remaining_secs));
+        assert_eq!(state.intensity(), 1.0);
+
+        for _ in 0..100 {
+            tick(&mut state, 30.0);
+        }
+        assert!(matches!(state.phase, WeatherPhase::Raining { .. }));
+        assert_eq!(state.intensity(), 1.0);
+    }
+
+    #[test]
+    fn mode_auto_cycles_through_all_phases_with_bounded_durations() {
+        let mut state = WeatherState::new(cycle(), WeatherMode::Auto);
 
         // Exhaust the clear stretch.
         tick(&mut state, 25.0);
@@ -245,65 +264,35 @@ mod tests {
     }
 
     #[test]
-    fn manual_mode_rains_and_clears_only_when_forced() {
-        // The shipped hotel setup: no automatic transitions.
-        let mut state = WeatherState::new(
-            Some(RainScheduleConfig {
-                auto: false,
-                ..schedule()
-            }),
-            StartupWeather::Clear,
+    fn hold_rain_from_clear_ramps_in_and_holds() {
+        let mut state = WeatherState::new(cycle(), WeatherMode::Clear);
+
+        state.hold_rain().expect("hold_rain from clear should succeed");
+        assert_eq!(
+            state.phase,
+            WeatherPhase::RampIn {
+                remaining_secs: cycle().ramp_in_secs
+            }
         );
 
-        // Far past every clear duration: still clear.
-        for _ in 0..100 {
-            tick(&mut state, 30.0);
-        }
-        assert!(matches!(state.phase, WeatherPhase::Clear { .. }));
-        assert_eq!(state.intensity(), 0.0);
-
-        // The admin command starts it, and far past every rain duration
-        // it is still pouring.
-        state.force_rain_start().expect("forced start must work without auto");
+        tick(&mut state, 3.0);
+        assert_eq!(state.intensity(), 1.0);
         for _ in 0..100 {
             tick(&mut state, 30.0);
         }
         assert!(matches!(state.phase, WeatherPhase::Raining { .. }));
-        assert_eq!(state.intensity(), 1.0);
-
-        // The admin command ends it, and it stays clear after.
-        state.force_rain_stop().expect("forced stop must work without auto");
-        for _ in 0..100 {
-            tick(&mut state, 30.0);
-        }
-        assert!(matches!(state.phase, WeatherPhase::Clear { .. }));
-        assert_eq!(state.intensity(), 0.0);
+        assert!(state.hold_rain().is_err(), "second hold_rain must report raining");
     }
 
     #[test]
-    fn force_start_from_clear_ramps_in() {
-        let mut state = WeatherState::new(Some(schedule()), StartupWeather::Clear);
-
-        state.force_rain_start().expect("start from clear should succeed");
-
-        assert_eq!(
-            state.phase,
-            WeatherPhase::RampIn {
-                remaining_secs: schedule().ramp_in_secs
-            }
-        );
-        assert!(state.force_rain_start().is_err(), "second start must report raining");
-    }
-
-    #[test]
-    fn force_start_mid_fade_keeps_intensity_continuous() {
-        let mut state = WeatherState::new(Some(schedule()), StartupWeather::Clear);
+    fn hold_rain_mid_fade_keeps_intensity_continuous() {
+        let mut state = WeatherState::new(cycle(), WeatherMode::Auto);
         state.phase = WeatherPhase::FadeOut { remaining_secs: 2.0 };
         tick(&mut state, 0.0);
         let mid_fade = state.intensity();
         assert!(mid_fade > 0.0 && mid_fade < 1.0);
 
-        state.force_rain_start().expect("start mid-fade should succeed");
+        state.hold_rain().expect("hold_rain mid-fade should succeed");
         tick(&mut state, 0.0);
 
         assert!((state.intensity() - mid_fade).abs() < 1e-3, "no intensity jump");
@@ -311,38 +300,72 @@ mod tests {
     }
 
     #[test]
-    fn force_stop_while_raining_fades_out() {
-        let mut state = WeatherState::new(Some(schedule()), StartupWeather::Clear);
-        state.phase = WeatherPhase::Raining { remaining_secs: 100.0 };
-        tick(&mut state, 0.0);
+    fn hold_clear_while_raining_fades_out_and_holds() {
+        let mut state = WeatherState::new(cycle(), WeatherMode::Rain);
 
-        state.force_rain_stop().expect("stop while raining should succeed");
-
+        state.hold_clear().expect("hold_clear while raining should succeed");
         assert_eq!(
             state.phase,
             WeatherPhase::FadeOut {
-                remaining_secs: schedule().fade_out_secs
+                remaining_secs: cycle().fade_out_secs
             }
         );
-        assert!(state.force_rain_stop().is_err(), "second stop must report not raining");
+
+        for _ in 0..100 {
+            tick(&mut state, 30.0);
+        }
+        assert!(matches!(state.phase, WeatherPhase::Clear { .. }));
+        assert!(state.hold_clear().is_err(), "second hold_clear must report not raining");
     }
 
     #[test]
-    fn force_stop_from_clear_errs() {
-        let mut state = WeatherState::new(Some(schedule()), StartupWeather::Clear);
-        assert!(state.force_rain_stop().is_err());
+    fn hold_pauses_a_running_cycle_in_place() {
+        let mut state = WeatherState::new(cycle(), WeatherMode::Auto);
+        state
+            .hold_clear()
+            .expect("holding the auto clear stretch should succeed");
+        for _ in 0..100 {
+            tick(&mut state, 30.0);
+        }
+        assert!(matches!(state.phase, WeatherPhase::Clear { .. }));
+
+        let mut state = WeatherState::new(cycle(), WeatherMode::Auto);
+        tick(&mut state, 25.0);
+        tick(&mut state, 2.0);
+        assert!(matches!(state.phase, WeatherPhase::Raining { .. }));
+        state.hold_rain().expect("holding the auto rain stretch should succeed");
+        for _ in 0..100 {
+            tick(&mut state, 30.0);
+        }
+        assert!(matches!(state.phase, WeatherPhase::Raining { .. }));
+        assert_eq!(state.intensity(), 1.0);
     }
 
     #[test]
-    fn forcing_without_schedule_errs() {
-        let mut state = WeatherState::new(None, StartupWeather::Clear);
-        assert!(state.force_rain_start().is_err());
-        assert!(state.force_rain_stop().is_err());
+    fn resume_auto_continues_the_cycle() {
+        let mut state = WeatherState::new(cycle(), WeatherMode::Clear);
+        state.resume_auto().expect("resume from a held state should succeed");
+        assert!(state.resume_auto().is_err(), "second resume must report running");
+
+        // The held clear stretch now ends into a ramp on its own.
+        tick(&mut state, 25.0);
+        assert!(matches!(state.phase, WeatherPhase::RampIn { .. }));
+    }
+
+    #[test]
+    fn status_names_phase_and_source() {
+        let mut state = WeatherState::new(cycle(), WeatherMode::Clear);
+        assert_eq!(state.status(), "weather: clear (held)");
+        state.resume_auto().expect("resume from held clear should succeed");
+        assert_eq!(state.status(), "weather: clear (auto)");
+        state.hold_rain().expect("hold rain from clear should succeed");
+        tick(&mut state, 3.0);
+        assert_eq!(state.status(), "weather: rain (held)");
     }
 
     #[test]
     fn intensity_rises_monotonically_during_ramp() {
-        let mut state = WeatherState::new(Some(schedule()), StartupWeather::Clear);
+        let mut state = WeatherState::new(cycle(), WeatherMode::Auto);
         tick(&mut state, 25.0);
 
         let mut last = state.intensity();

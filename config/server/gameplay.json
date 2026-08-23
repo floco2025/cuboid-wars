@@ -9,25 +9,46 @@
         "max_number": 30,
         "despawn_secs": 60.0
       },
-      "rain": {
-        "auto": true,
-        "min_clear_secs": 120.0,
-        "max_clear_secs": 240.0,
-        "min_rain_secs": 60.0,
-        "max_rain_secs": 120.0,
-        "ramp_in_secs": 4.0,
-        "fade_out_secs": 10.0
-      },
-      "weather": "clear",
-      "lighting": "dim"
+      "weather": "auto",
+      "lighting": "auto"
     }
   },
   "default_map": "hotel",
+  "weather_cycle": {
+    "min_clear_secs": 120.0,
+    "max_clear_secs": 240.0,
+    "min_rain_secs": 60.0,
+    "max_rain_secs": 120.0,
+    "ramp_in_secs": 5.0,
+    "fade_out_secs": 10.0
+  },
+  "lighting_cycle": {
+    "bright_secs": 90.0,
+    "bright_dark_secs": 30.0,
+    "dark_secs": 30.0
+  },
   "scoring": {
-    "player_kill": 200,
-    "player_death": -200,
-    "cookie": 1000,
-    "actor_hit": 5
+    "player_kill": 0,
+    "player_death": -1000,
+    "cookie": 100,
+    "actor_hit": {
+      "mine": 5,
+      "sentry": 10,
+      "reaper": 20,
+      "zapper": 50
+    },
+    "actor_kill": {
+      "mine": 50,
+      "sentry": 200,
+      "reaper": 500,
+      "zapper": 150
+    },
+    "quest_completed": {
+      "destroy_zappers": 1000,
+      "destroy_mines": 500,
+      "destroy_sentries": 1000,
+      "collect_gold": 2000
+    }
   },
   "player": {
     "armor": 0.8,
@@ -116,8 +137,7 @@
       "roam_steps": 3,
       "combat": {
         "attack": { "type": "contact", "trigger_gap": 0.4 },
-        "death_explosion": { "radius": 10.0, "max_damage": 150.0 },
-        "score_reward_on_kill": 50
+        "death_explosion": { "radius": 10.0, "max_damage": 150.0 }
       }
     },
     "sentry": {
@@ -126,8 +146,7 @@
       "roam_steps": 7,
       "combat": {
         "attack": { "type": "contact", "trigger_gap": 0.8 },
-        "death_explosion": { "radius": 15.0, "max_damage": 300.0 },
-        "score_reward_on_kill": 200
+        "death_explosion": { "radius": 15.0, "max_damage": 300.0 }
       }
     },
     "reaper": {
@@ -140,8 +159,7 @@
           "cooldown_secs": 5.0,
           "damage_per_second": 40.0
         },
-        "death_explosion": { "max_damage": 550.0 },
-        "score_reward_on_kill": 500
+        "death_explosion": { "max_damage": 550.0 }
       }
     },
     "zapper": {
@@ -156,8 +174,7 @@
           "cooldown_secs": 5.0,
           "damage_per_second": 40.0
         },
-        "death_explosion": { "radius": 6.0, "max_damage": 75.0 },
-        "score_reward_on_kill": 150
+        "death_explosion": { "radius": 6.0, "max_damage": 75.0 }
       }
     }
   }

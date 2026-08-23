@@ -5,6 +5,7 @@ use bevy::prelude::Resource;
 use serde::Deserialize;
 
 use super::actors::{ActorKindServerConfig, ActorSettingsConfig, ExplosionDamageConfig};
+use super::cycles::{LightingCycleConfig, WeatherCycleConfig};
 use super::maps::{MapServerConfig, validate_maps};
 use super::quests::{Quest, validate_quests};
 use super::validation::{validate_non_negative_finite, validate_positive_finite, validate_probability};
@@ -16,6 +17,10 @@ pub struct ServerGameplayConfig {
     // `config/server/maps/<name>.json`.
     pub maps: HashMap<String, MapServerConfig>,
     pub default_map: String,
+    // Global cycle definitions; each map's `weather`/`lighting` mode picks
+    // whether it runs them.
+    pub weather_cycle: WeatherCycleConfig,
+    pub lighting_cycle: LightingCycleConfig,
     pub scoring: ScoringConfig,
     pub player: PlayerServerConfig,
     pub projectile: ProjectileConfig,
@@ -48,13 +53,12 @@ impl ServerGameplayConfig {
 
     fn validate(&self) -> Result<()> {
         validate_maps(&self.maps, &self.default_map)?;
+        self.weather_cycle.validate("weather_cycle")?;
+        self.lighting_cycle.validate("lighting_cycle")?;
         self.player.validate("player")?;
         self.projectile.validate("projectile")?;
         self.missiles.validate("missiles")?;
-        // No range check on scoring values — negative deltas are legal
-        // (e.g., `player_death: -1` penalty), and so is zero. Just ensure
-        // the section deserialized.
-        let _ = &self.scoring;
+        self.scoring.validate(&self.actors, &self.quests)?;
         self.power_ups.validate("power_ups")?;
         self.placed_items.validate("placed_items")?;
         self.actor_settings.validate("actor_settings")?;
@@ -149,15 +153,52 @@ impl MissilesServerConfig {
     }
 }
 
-// Global scoring deltas. Negative values are legal (e.g., a death penalty)
-// and the entire block is server-only state — clients read the resulting
-// `score` field via `SSnapshot` and never need the per-event point values.
+// Every point value in the game, consolidated for balancing. The block is
+// server-only state — clients read the resulting `score` field via
+// `SSnapshot` and never need the per-event point values.
 #[derive(Debug, Clone, Deserialize)]
 pub struct ScoringConfig {
     pub player_kill: i32,
     pub player_death: i32,
     pub cookie: i32,
-    pub actor_hit: i32,
+    // Per actor kind: points per projectile hit, and the kill bonus.
+    pub actor_hit: HashMap<String, i32>,
+    pub actor_kill: HashMap<String, i32>,
+    // Per quest id: points on completion.
+    pub quest_completed: HashMap<String, i32>,
+}
+
+impl ScoringConfig {
+    // Point values themselves are unvalidated — negative deltas are legal
+    // (e.g., a death penalty), and so is zero. Only the map keys are
+    // checked: every actor kind and quest needs an explicit entry (a
+    // missing one silently scoring 0 is the footgun), and an unknown key
+    // is a typo.
+    fn validate(&self, actors: &HashMap<String, ActorKindServerConfig>, quests: &[Quest]) -> Result<()> {
+        for (map, name) in [(&self.actor_hit, "actor_hit"), (&self.actor_kill, "actor_kill")] {
+            for kind in actors.keys() {
+                if !map.contains_key(kind) {
+                    bail!("scoring.{name} is missing actor kind {kind:?}");
+                }
+            }
+            for kind in map.keys() {
+                if !actors.contains_key(kind) {
+                    bail!("scoring.{name} contains unknown actor kind {kind:?}");
+                }
+            }
+        }
+        for quest in quests {
+            if !self.quest_completed.contains_key(&quest.id.0) {
+                bail!("scoring.quest_completed is missing quest {:?}", quest.id.0);
+            }
+        }
+        for id in self.quest_completed.keys() {
+            if !quests.iter().any(|quest| &quest.id.0 == id) {
+                bail!("scoring.quest_completed contains unknown quest {id:?}");
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -305,6 +346,87 @@ impl PlacedItemsConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn scoring_fixture() -> ScoringConfig {
+        ScoringConfig {
+            player_kill: 200,
+            player_death: -200,
+            cookie: 1000,
+            actor_hit: HashMap::from([("zapper".to_owned(), 5)]),
+            actor_kill: HashMap::from([("zapper".to_owned(), 150)]),
+            quest_completed: HashMap::new(),
+        }
+    }
+
+    fn one_actor_kind(kind: &str) -> HashMap<String, ActorKindServerConfig> {
+        let json = serde_json::json!({
+            "respawn_delay_secs": 60.0,
+            "vision_range": 40.0,
+            "roam_steps": 2,
+            "combat": {
+                "attack": { "type": "contact", "trigger_gap": 0.4 },
+                "death_explosion": { "radius": 6.0, "max_damage": 75.0 }
+            }
+        });
+        let actor: ActorKindServerConfig = serde_json::from_value(json).expect("actor fixture should deserialize");
+        HashMap::from([(kind.to_owned(), actor)])
+    }
+
+    #[test]
+    fn scoring_accepts_matching_maps() {
+        scoring_fixture()
+            .validate(&one_actor_kind("zapper"), &[])
+            .expect("matching scoring maps should pass");
+    }
+
+    #[test]
+    fn scoring_rejects_missing_actor_kind() {
+        let mut scoring = scoring_fixture();
+        scoring.actor_hit.clear();
+        let err = scoring
+            .validate(&one_actor_kind("zapper"), &[])
+            .expect_err("missing actor_hit kind must be rejected");
+        assert!(err.to_string().contains("scoring.actor_hit"));
+    }
+
+    #[test]
+    fn scoring_rejects_unknown_actor_kind() {
+        let mut scoring = scoring_fixture();
+        scoring.actor_kill.insert("banana".to_owned(), 1);
+        let err = scoring
+            .validate(&one_actor_kind("zapper"), &[])
+            .expect_err("unknown actor_kill kind must be rejected");
+        assert!(err.to_string().contains("scoring.actor_kill"));
+    }
+
+    #[test]
+    fn scoring_rejects_missing_quest() {
+        let quest: Quest = serde_json::from_value(serde_json::json!({
+            "id": "collect_gold",
+            "kind": "cookies",
+            "threshold": 10,
+            "title": "Gold",
+            "description": "collect gold",
+            "completed_text": "done"
+        }))
+        .expect("quest fixture should deserialize");
+        let scoring = scoring_fixture();
+        let err = scoring
+            .validate(&one_actor_kind("zapper"), std::slice::from_ref(&quest))
+            .expect_err("missing quest reward must be rejected");
+        assert!(err.to_string().contains("scoring.quest_completed"));
+
+        let mut scoring = scoring_fixture();
+        scoring.quest_completed.insert("collect_gold".to_owned(), 500);
+        scoring
+            .validate(&one_actor_kind("zapper"), std::slice::from_ref(&quest))
+            .expect("complete quest map should pass");
+        scoring.quest_completed.insert("bogus".to_owned(), 1);
+        let err = scoring
+            .validate(&one_actor_kind("zapper"), std::slice::from_ref(&quest))
+            .expect_err("unknown quest reward must be rejected");
+        assert!(err.to_string().contains("unknown quest"));
+    }
 
     #[test]
     fn placed_item_respawn_secs_matches_item_type() {

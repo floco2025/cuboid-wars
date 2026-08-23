@@ -103,10 +103,16 @@ pub fn award_actor_kill(
     let Some(shooter) = players.get_mut(&shooter_id) else {
         return;
     };
-    shooter.score += server_gameplay_config.expect_actor(kind).combat.score_reward_on_kill;
+    shooter.score += server_gameplay_config
+        .scoring
+        .actor_kill
+        .get(kind)
+        .copied()
+        .expect("actor kind missing from scoring.actor_kill");
     let quest_messages = record_quest_event(
         shooter,
         &server_gameplay_config.quests,
+        &server_gameplay_config.scoring,
         QuestEvent::ActorKilled { kind },
     );
     for msg in quest_messages {
@@ -183,10 +189,11 @@ pub fn apply_player_beam_damage(
 
 // Apply one projectile hit to an actor. Returns `true` when this hit drops
 // the target's health to zero — the caller awards the per-kind kill bonus
-// (`combat.score_reward_on_kill`).
+// (`scoring.actor_kill`).
 pub fn apply_actor_projectile_hit(
     players: &mut PlayerMap,
     shooter_id: &PlayerId,
+    kind: &str,
     target_health: &mut Health,
     server_gameplay_config: &ServerGameplayConfig,
 ) -> bool {
@@ -200,7 +207,12 @@ pub fn apply_actor_projectile_hit(
     apply_damage(target_health, server_gameplay_config.projectile.damage);
 
     if let Some(shooter_info) = players.get_mut(shooter_id) {
-        shooter_info.score += server_gameplay_config.scoring.actor_hit;
+        shooter_info.score += server_gameplay_config
+            .scoring
+            .actor_hit
+            .get(kind)
+            .copied()
+            .expect("actor kind missing from scoring.actor_hit");
     }
 
     target_health.0 <= 0.0
@@ -212,9 +224,9 @@ mod tests {
 
     use super::*;
     use crate::config::{
-        ActorSettingsConfig, ExplosionDamageConfig, FallDamageConfig, MapServerConfig, MissilesServerConfig,
-        PlacedItemRespawnSecs, PlacedItemsConfig, PlayerServerConfig, PowerUpsConfig, ProjectileConfig, ScoringConfig,
-        StartupWeather,
+        ActorSettingsConfig, ExplosionDamageConfig, FallDamageConfig, LightingCycleConfig, LightingMode,
+        MapServerConfig, MissilesServerConfig, PlacedItemRespawnSecs, PlacedItemsConfig, PlayerServerConfig,
+        PowerUpsConfig, ProjectileConfig, ScoringConfig, WeatherCycleConfig, WeatherMode,
     };
     use crate::players::PlayerInfo;
     use tokio::sync::mpsc::unbounded_channel;
@@ -230,17 +242,34 @@ mod tests {
                         low_gravity: 5.0,
                     },
                     random_items: None,
-                    rain: None,
-                    weather: StartupWeather::Clear,
-                    lighting: common::protocol::Lighting::Bright,
+                    weather: WeatherMode::Clear,
+                    lighting: LightingMode::Bright,
                 },
             )]),
             default_map: "hotel".to_owned(),
+            weather_cycle: WeatherCycleConfig {
+                min_clear_secs: 10.0,
+                max_clear_secs: 20.0,
+                min_rain_secs: 5.0,
+                max_rain_secs: 8.0,
+                ramp_in_secs: 2.0,
+                fade_out_secs: 4.0,
+            },
+            lighting_cycle: LightingCycleConfig {
+                bright_secs: Some(20.0),
+                dim_secs: Some(6.0),
+                dark_secs: Some(10.0),
+                bright_dim_secs: Some(4.0),
+                dim_dark_secs: Some(2.0),
+                bright_dark_secs: None,
+            },
             scoring: ScoringConfig {
                 player_kill: 1,
                 player_death: -1,
                 cookie: 1,
-                actor_hit: 1,
+                actor_hit: HashMap::from([("zapper".to_owned(), 1)]),
+                actor_kill: HashMap::from([("zapper".to_owned(), 10)]),
+                quest_completed: HashMap::new(),
             },
             player: PlayerServerConfig {
                 armor: 0.0,
@@ -456,13 +485,13 @@ mod tests {
         let mut players = make_player_map_with(PlayerId(1), PlayerId(2));
         let mut health = Health(1.0);
 
-        let first_hit_lethal = apply_actor_projectile_hit(&mut players, &PlayerId(1), &mut health, &config);
+        let first_hit_lethal = apply_actor_projectile_hit(&mut players, &PlayerId(1), "zapper", &mut health, &config);
         assert!(first_hit_lethal);
         let score_after_kill = players.get(&PlayerId(1)).expect("shooter").score;
 
         // The dying actor's entity stays queryable until removal runs later
         // in the tick; a same-tick second hit must not count as lethal again.
-        let second_hit_lethal = apply_actor_projectile_hit(&mut players, &PlayerId(1), &mut health, &config);
+        let second_hit_lethal = apply_actor_projectile_hit(&mut players, &PlayerId(1), "zapper", &mut health, &config);
         assert!(!second_hit_lethal);
         assert_eq!(players.get(&PlayerId(1)).expect("shooter").score, score_after_kill);
     }

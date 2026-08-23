@@ -49,8 +49,6 @@ impl ActorKindServerConfig {
 pub struct ActorCombatConfig {
     pub attack: ActorAttackConfig,
     pub death_explosion: ExplosionDamageConfig,
-    #[serde(default)]
-    pub score_reward_on_kill: i32,
 }
 
 impl ActorCombatConfig {

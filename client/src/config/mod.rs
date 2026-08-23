@@ -9,5 +9,5 @@ mod vfx;
 pub use assets::{AssetSet, MaterialDef, ModelDef, SkyboxDef};
 pub use audio::AudioConfig;
 pub use rendering::OpaqueRenderer;
-pub use settings::{ClientSettings, GrassConfig, MoonLighting, WeatherConfig};
+pub use settings::{ClientSettings, GrassConfig, LightingConfig, MoonLighting, SunLighting, WeatherConfig};
 pub use vfx::{MissileExhaustVfxConfig, VfxConfig};

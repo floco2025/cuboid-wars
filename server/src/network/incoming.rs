@@ -152,7 +152,7 @@ pub fn network_process_client_messages_system(
                         &queries,
                         &item_data,
                         admin.weather.intensity(),
-                        admin.lighting.0,
+                        admin.light.blend(),
                     );
                 }
             }

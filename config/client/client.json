@@ -58,7 +58,7 @@
     },
     "dark": {
       "sky_brightness": 12.0,
-      "ambient_brightness": 10.0,
+      "ambient_brightness": 15.0,
       "moon_illuminance": 50.0,
       "moon_disc_luminance": 7.0,
       "moon_phase_percent": 30.0,

@@ -3,7 +3,7 @@ use bevy::{ecs::system::SystemParam, prelude::*};
 use crate::{
     actors::{ActorMap, PendingActorSpawns},
     items::ItemMap,
-    map::{CurrentLighting, OpenBarrierKinds, WeatherState},
+    map::{LightState, OpenBarrierKinds, WeatherState},
     players::PlayerMap,
 };
 use common::{
@@ -24,7 +24,7 @@ use crate::missiles::{MissileMap, MissileVelocity};
 #[derive(SystemParam)]
 pub struct WorldConditions<'w> {
     weather: Res<'w, WeatherState>,
-    lighting: Res<'w, CurrentLighting>,
+    light: Res<'w, LightState>,
 }
 
 pub fn network_broadcast_snapshot_system(
@@ -73,7 +73,7 @@ pub fn network_broadcast_snapshot_system(
         missiles: all_missiles,
         open_barrier_kinds: open_barrier_kinds.0.clone(),
         rain_intensity: conditions.weather.intensity(),
-        lighting: conditions.lighting.0,
+        lighting: conditions.light.blend(),
     });
     broadcast_to_all(&players, msg);
 }

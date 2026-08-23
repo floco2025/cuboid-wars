@@ -151,15 +151,14 @@ pub struct SInit {
 
 // --- Snapshot ---
 
-// Server-authoritative lighting level, decoupled from weather. Seeded per
-// map from `maps.<name>.lighting`, then changed by "/light bright|dim|dark".
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Encode, Decode, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Lighting {
-    #[default]
-    Bright,
-    Dim,
-    Dark,
+// A blend between two named client-side lighting presets ("bright", "dim",
+// "dark"): the rendered look is `from` faded toward `to` by `blend`. A
+// plain preset is the degenerate blend (`from == to`, blend 0).
+#[derive(Debug, Clone, PartialEq, Encode, Decode)]
+pub struct LightingBlend {
+    pub from: String,
+    pub to: String,
+    pub blend: f32,
 }
 
 // Periodic full-world snapshot. Sole source of truth for player/actor/item
@@ -186,9 +185,11 @@ pub struct SSnapshot {
     // mid-storm correctly and a dropped packet self-heals. Clients smooth
     // the 4 Hz steps and drive all rain presentation from it.
     pub rain_intensity: f32,
-    // Durable level-triggered lighting state, same snapshot rationale as
-    // the rain intensity. The client fades between the looks.
-    pub lighting: Lighting,
+    // Server-driven lighting: which two presets the world is between and
+    // how far. Same snapshot rationale as the rain intensity. The client
+    // resolves the names against its configured looks and eases toward the
+    // blended result.
+    pub lighting: LightingBlend,
 }
 
 // --- Real-time intent (sub-tick latency for prediction) ---

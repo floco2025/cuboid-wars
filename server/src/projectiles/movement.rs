@@ -281,6 +281,7 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                     let was_lethal = apply_actor_projectile_hit(
                         &mut params.players,
                         shooter_id,
+                        &spawn_kind,
                         &mut health,
                         &params.server_gameplay_config,
                     );

@@ -4,10 +4,10 @@ use bevy::{core_pipeline::Skybox, light::NotShadowCaster, prelude::*, render::vi
 
 use crate::{
     cameras::MainCameraMarker,
-    config::{AssetSet, ClientSettings, MoonLighting, SkyboxDef},
+    config::{AssetSet, ClientSettings, LightingConfig, MoonLighting, SkyboxDef, SunLighting},
     constants::{MOON_DISC_COLOR, SUN_DISC_COLOR},
 };
-use common::protocol::{Lighting, MapSettings};
+use common::protocol::{LightingBlend, MapSettings};
 
 // The map names its skybox in `MapSettings` (from `SInit`), so both setup
 // systems run gated on that resource existing — once, via the `Local` latch —
@@ -200,58 +200,129 @@ pub fn skybox_update_camera_system(
     }
 }
 
-// Smoothing time constant of the fade between lighting levels (secs).
+// Smoothing time constant for the lighting ease: hides the 4 Hz snapshot
+// steps and doubles as the fade of any admin jump.
 const LIGHT_FADE_TAU_SECS: f32 = 0.8;
 
-// Authoritative lighting level from the snapshot (`target`); each channel
-// is smoothed locally so a level change is a dusk fade, not a switch flip.
-#[derive(Resource, Default)]
+// Rebuild granularity of the moon-phase mesh (lit-fraction percentage
+// points). The continuous ease would otherwise rebuild the lune mesh every
+// frame through a whole dusk; half a point is sub-pixel at disc size.
+const PHASE_MESH_STEP_PERCENT: f32 = 0.5;
+
+// Authoritative lighting blend from the snapshot (`target`, two preset
+// names + a blend factor); the rendered channels ease toward the resolved
+// look in look space, so any target change — a cycle step, a segment
+// crossing, an admin jump — fades with one mechanism.
+#[derive(Resource)]
 pub struct LightingState {
-    pub target: Lighting,
+    pub target: LightingBlend,
     // Set by the first snapshot. Until it is — and on the frame it lands —
-    // the dim system snaps instead of fading, so login shows the server's
-    // current level immediately.
+    // the blend system snaps instead of fading, so login shows the server's
+    // current lighting immediately.
     pub synced: bool,
     eased: bool,
-    sky: f32,
-    sun: f32,
-    ambient: f32,
-    disc: f32,
-    disc_color: Vec3,
-    saturation: f32,
+    current: LevelTargets,
 }
 
-// A lighting level flattened for the renderer — sun and moon levels name
-// their values differently, the channels underneath are the same.
+impl Default for LightingState {
+    fn default() -> Self {
+        Self {
+            // Matches the Startup seed from `lighting.bright`; the first
+            // snapshot snaps to the server's real blend.
+            target: LightingBlend {
+                from: "bright".to_owned(),
+                to: "bright".to_owned(),
+                blend: 0.0,
+            },
+            synced: false,
+            eased: false,
+            current: LevelTargets::default(),
+        }
+    }
+}
+
+// A lighting look flattened for the renderer — the sun and moon configs name
+// their values differently, the channels underneath are the same. `color` is
+// linear RGB so blending happens in linear space.
+#[derive(Default, Clone)]
 struct LevelTargets {
     sky: f32,
     illuminance: f32,
     ambient: f32,
     disc: f32,
     phase_percent: f32,
-    color: Color,
+    color: Vec3,
     saturation: f32,
 }
 
 impl LevelTargets {
+    fn sun(sun: &SunLighting) -> Self {
+        let color = SUN_DISC_COLOR.to_linear();
+        Self {
+            sky: sun.sky_brightness,
+            illuminance: sun.sun_illuminance,
+            ambient: sun.ambient_brightness,
+            disc: sun.sun_disc_luminance,
+            phase_percent: 100.0,
+            color: Vec3::new(color.red, color.green, color.blue),
+            saturation: sun.saturation,
+        }
+    }
+
     fn moon(moon: &MoonLighting) -> Self {
+        let color = MOON_DISC_COLOR.to_linear();
         Self {
             sky: moon.sky_brightness,
             illuminance: moon.moon_illuminance,
             ambient: moon.ambient_brightness,
             disc: moon.moon_disc_luminance,
             phase_percent: moon.moon_phase_percent,
-            color: MOON_DISC_COLOR,
+            color: Vec3::new(color.red, color.green, color.blue),
             saturation: moon.saturation,
+        }
+    }
+
+    fn lerp(a: &Self, b: &Self, s: f32) -> Self {
+        let lerp = |a: f32, b: f32| a + (b - a) * s;
+        Self {
+            sky: lerp(a.sky, b.sky),
+            illuminance: lerp(a.illuminance, b.illuminance),
+            ambient: lerp(a.ambient, b.ambient),
+            disc: lerp(a.disc, b.disc),
+            phase_percent: lerp(a.phase_percent, b.phase_percent),
+            color: a.color.lerp(b.color, s),
+            saturation: lerp(a.saturation, b.saturation),
         }
     }
 }
 
-// Drive the world's lighting to the current level. Every channel is a raw
-// absolute value from `client.json::lighting`, eased toward the level's
-// setting and written absolutely every frame — idempotent, no incremental
+// Resolve a server-named preset against the configured looks. An unknown
+// name (a server/client vocabulary mismatch) falls back to dim.
+fn look(config: &LightingConfig, name: &str) -> LevelTargets {
+    match name {
+        "bright" => LevelTargets::sun(&config.bright),
+        "dim" => LevelTargets::moon(&config.dim),
+        "dark" => LevelTargets::moon(&config.dark),
+        _ => {
+            warn_once!("unknown lighting preset {name:?} from server; using dim");
+            LevelTargets::moon(&config.dim)
+        }
+    }
+}
+
+fn blend_targets(config: &LightingConfig, blend: &LightingBlend) -> LevelTargets {
+    LevelTargets::lerp(
+        &look(config, &blend.from),
+        &look(config, &blend.to),
+        blend.blend.clamp(0.0, 1.0),
+    )
+}
+
+// Drive the world's lighting toward the snapshot's blend. Every channel is
+// a raw absolute value from `client.json::lighting`'s looks, eased in look
+// space and written absolutely every frame — idempotent, no incremental
 // drift. Wall/actor lights stay lit — windows glowing in the dark.
-pub fn lighting_dim_system(
+pub fn lighting_blend_system(
     time: Res<Time>,
     client_settings: Res<ClientSettings>,
     mut lighting: ResMut<LightingState>,
@@ -263,61 +334,38 @@ pub fn lighting_dim_system(
     mut gradings: Query<&mut ColorGrading>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
-    let levels = &client_settings.lighting;
-    let level = match lighting.target {
-        Lighting::Bright => {
-            let sun = &levels.bright;
-            LevelTargets {
-                sky: sun.sky_brightness,
-                illuminance: sun.sun_illuminance,
-                ambient: sun.ambient_brightness,
-                disc: sun.sun_disc_luminance,
-                phase_percent: 100.0,
-                color: SUN_DISC_COLOR,
-                saturation: sun.saturation,
-            }
-        }
-        Lighting::Dim => LevelTargets::moon(&levels.dim),
-        Lighting::Dark => LevelTargets::moon(&levels.dark),
-    };
     let blend = if lighting.eased {
         1.0 - (-time.delta_secs() / LIGHT_FADE_TAU_SECS).exp()
     } else {
-        // Keep snapping until the first snapshot's level has been applied;
+        // Keep snapping until the first snapshot's blend has been applied;
         // only later changes get the fade.
         lighting.eased = lighting.synced;
         1.0
     };
-    lighting.sky += (level.sky - lighting.sky) * blend;
-    lighting.sun += (level.illuminance - lighting.sun) * blend;
-    lighting.ambient += (level.ambient - lighting.ambient) * blend;
-    lighting.disc += (level.disc - lighting.disc) * blend;
-    let target_color = level.color.to_linear();
-    let color_step = (Vec3::new(target_color.red, target_color.green, target_color.blue) - lighting.disc_color) * blend;
-    lighting.disc_color += color_step;
-    lighting.saturation += (level.saturation - lighting.saturation) * blend;
+    let target = blend_targets(&client_settings.lighting, &lighting.target);
+    lighting.current = LevelTargets::lerp(&lighting.current, &target, blend);
+    let level = lighting.current.clone();
 
-    // Low light mutes the world: post-tonemap saturation on both cameras
-    // follows the smoothed value.
+    // Low light mutes the world: post-tonemap saturation on both cameras.
     for mut grading in &mut gradings {
-        grading.global.post_saturation = lighting.saturation;
+        grading.global.post_saturation = level.saturation;
     }
 
     for mut skybox in &mut skyboxes {
-        skybox.brightness = lighting.sky;
+        skybox.brightness = level.sky;
     }
     for mut light in &mut sun_light {
-        light.illuminance = lighting.sun;
+        light.illuminance = level.illuminance;
     }
-    ambient.brightness = lighting.ambient;
-    let emissive = lighting.disc_color * lighting.disc;
+    ambient.brightness = level.ambient;
+    let emissive = level.color * level.disc;
     for (material, mut disc) in &mut discs {
         if let Some(mut material) = materials.get_mut(&material.0) {
             material.emissive = LinearRgba::rgb(emissive.x, emissive.y, emissive.z);
         }
-        // The phase is a mesh shape, not a smoothable value — regenerate on
-        // level change and snap.
-        if (level.phase_percent - disc.phase_percent).abs() > f32::EPSILON {
+        // The phase is a mesh shape, not a smoothable value — rebuild in
+        // threshold steps and snap.
+        if (level.phase_percent - disc.phase_percent).abs() > PHASE_MESH_STEP_PERCENT {
             disc.phase_percent = level.phase_percent;
             let _ = meshes.insert(&disc.mesh, phase_mesh(disc.phase_percent, disc.radius));
         }
@@ -367,4 +415,98 @@ pub fn skybox_rotate_system(
         transform.rotate_y(applied);
     }
     *sun_angle = (*sun_angle + applied) % TAU;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn config() -> LightingConfig {
+        LightingConfig::default()
+    }
+
+    fn wire(from: &str, to: &str, blend: f32) -> LightingBlend {
+        LightingBlend {
+            from: from.to_owned(),
+            to: to.to_owned(),
+            blend,
+        }
+    }
+
+    fn assert_targets_eq(actual: &LevelTargets, expected: &LevelTargets) {
+        assert!((actual.sky - expected.sky).abs() < 1e-3, "sky");
+        assert!((actual.illuminance - expected.illuminance).abs() < 1e-3, "illuminance");
+        assert!((actual.ambient - expected.ambient).abs() < 1e-3, "ambient");
+        assert!((actual.disc - expected.disc).abs() < 1e-3, "disc");
+        assert!(
+            (actual.phase_percent - expected.phase_percent).abs() < 1e-3,
+            "phase_percent"
+        );
+        assert!(actual.color.abs_diff_eq(expected.color, 1e-3), "color");
+        assert!((actual.saturation - expected.saturation).abs() < 1e-3, "saturation");
+    }
+
+    #[test]
+    fn presets_resolve_to_their_configured_looks() {
+        let config = config();
+        assert_targets_eq(
+            &blend_targets(&config, &wire("bright", "bright", 0.0)),
+            &LevelTargets::sun(&config.bright),
+        );
+        assert_targets_eq(
+            &blend_targets(&config, &wire("dim", "dim", 0.0)),
+            &LevelTargets::moon(&config.dim),
+        );
+        assert_targets_eq(
+            &blend_targets(&config, &wire("dark", "dark", 0.0)),
+            &LevelTargets::moon(&config.dark),
+        );
+    }
+
+    #[test]
+    fn blends_are_halfway_per_channel() {
+        let config = config();
+        let mid = blend_targets(&config, &wire("bright", "dark", 0.5));
+        assert_targets_eq(
+            &mid,
+            &LevelTargets::lerp(
+                &LevelTargets::sun(&config.bright),
+                &LevelTargets::moon(&config.dark),
+                0.5,
+            ),
+        );
+        assert!(
+            (mid.phase_percent - LevelTargets::moon(&config.dim).phase_percent).abs() > 1.0,
+            "a direct bright↔dark blend must not be the dim look"
+        );
+    }
+
+    #[test]
+    fn blend_factor_clamps() {
+        let config = config();
+        assert_targets_eq(
+            &blend_targets(&config, &wire("bright", "dark", 2.0)),
+            &LevelTargets::moon(&config.dark),
+        );
+        assert_targets_eq(
+            &blend_targets(&config, &wire("bright", "dark", -1.0)),
+            &LevelTargets::sun(&config.bright),
+        );
+    }
+
+    #[test]
+    fn unknown_preset_falls_back_to_dim() {
+        let config = config();
+        assert_targets_eq(
+            &blend_targets(&config, &wire("sunset", "sunset", 0.0)),
+            &LevelTargets::moon(&config.dim),
+        );
+    }
+
+    #[test]
+    fn default_lighting_state_targets_bright() {
+        let state = LightingState::default();
+        assert_eq!(state.target, wire("bright", "bright", 0.0));
+        assert!(!state.synced);
+    }
 }

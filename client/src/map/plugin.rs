@@ -59,7 +59,7 @@ pub fn sky_weather_plugin(app: &mut App) {
             // system so a freshly inserted Skybox is corrected the same
             // frame.
             rain_smoothing_system,
-            skybox::lighting_dim_system.after(skybox::skybox_update_camera_system),
+            skybox::lighting_blend_system.after(skybox::skybox_update_camera_system),
             rain_particles_system.after(rain_smoothing_system),
             rain_audio_system.after(rain_smoothing_system),
         )

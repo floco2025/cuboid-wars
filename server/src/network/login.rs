@@ -60,7 +60,7 @@ pub fn handle_login_message(
     queries: &CharacterQueries,
     item_positions: &Query<&Position, With<ItemMarker>>,
     rain_intensity: f32,
-    lighting: Lighting,
+    lighting: LightingBlend,
 ) {
     match msg {
         ClientMessage::Login(login) => {

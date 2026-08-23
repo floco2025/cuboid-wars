@@ -741,12 +741,7 @@ mod tests {
 
         app.update();
 
-        let reward = app
-            .world()
-            .resource::<ServerGameplayConfig>()
-            .expect_actor("zapper")
-            .combat
-            .score_reward_on_kill;
+        let reward = app.world().resource::<ServerGameplayConfig>().scoring.actor_kill["zapper"];
         assert_eq!(
             app.world()
                 .resource::<PlayerMap>()

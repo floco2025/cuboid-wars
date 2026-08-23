@@ -1,5 +1,5 @@
 use crate::{
-    config::{Quest, QuestKind},
+    config::{Quest, QuestKind, ScoringConfig},
     players::PlayerInfo,
 };
 use common::protocol::{NewQuest, SQuestCompleted, SQuestProgress, SQuestsAssigned, ServerMessage};
@@ -27,7 +27,12 @@ impl QuestEvent<'_> {
     }
 }
 
-pub fn record_quest_event(player_info: &mut PlayerInfo, quests: &[Quest], event: QuestEvent) -> Vec<ServerMessage> {
+pub fn record_quest_event(
+    player_info: &mut PlayerInfo,
+    quests: &[Quest],
+    scoring: &ScoringConfig,
+    event: QuestEvent,
+) -> Vec<ServerMessage> {
     let mut messages = Vec::new();
     for quest in quests {
         if !event.matches(quest) {
@@ -42,6 +47,11 @@ pub fn record_quest_event(player_info: &mut PlayerInfo, quests: &[Quest], event:
         state.progress = state.progress.saturating_add(1);
         if state.progress >= quest.threshold {
             state.completed = true;
+            player_info.score += scoring
+                .quest_completed
+                .get(&quest.id.0)
+                .copied()
+                .expect("quest id missing from scoring.quest_completed");
             messages.push(ServerMessage::QuestCompleted(SQuestCompleted {
                 id: quest.id.clone(),
                 completed_text: quest.completed_text.clone(),
@@ -118,6 +128,17 @@ mod tests {
         }
     }
 
+    fn scoring(quest_ids: &[&str]) -> ScoringConfig {
+        ScoringConfig {
+            player_kill: 0,
+            player_death: 0,
+            cookie: 0,
+            actor_hit: std::collections::HashMap::new(),
+            actor_kill: std::collections::HashMap::new(),
+            quest_completed: quest_ids.iter().map(|id| ((*id).to_owned(), 100)).collect(),
+        }
+    }
+
     fn seed_quest(info: &mut PlayerInfo, quest: &Quest) {
         info.quest_states.insert(
             quest.id.clone(),
@@ -134,7 +155,12 @@ mod tests {
         let mut info = player_info();
         seed_quest(&mut info, &quest);
 
-        let messages = record_quest_event(&mut info, std::slice::from_ref(&quest), QuestEvent::CookieCollected);
+        let messages = record_quest_event(
+            &mut info,
+            std::slice::from_ref(&quest),
+            &scoring(&[&quest.id.0]),
+            QuestEvent::CookieCollected,
+        );
 
         assert!(
             matches!(messages.as_slice(), [ServerMessage::QuestProgress(progress)] if progress.progress == 1 && progress.id == quest.id)
@@ -149,14 +175,53 @@ mod tests {
         let mut info = player_info();
         seed_quest(&mut info, &quest);
 
-        let first = record_quest_event(&mut info, std::slice::from_ref(&quest), QuestEvent::CookieCollected);
-        let second = record_quest_event(&mut info, std::slice::from_ref(&quest), QuestEvent::CookieCollected);
-        let third = record_quest_event(&mut info, std::slice::from_ref(&quest), QuestEvent::CookieCollected);
+        let first = record_quest_event(
+            &mut info,
+            std::slice::from_ref(&quest),
+            &scoring(&[&quest.id.0]),
+            QuestEvent::CookieCollected,
+        );
+        let second = record_quest_event(
+            &mut info,
+            std::slice::from_ref(&quest),
+            &scoring(&[&quest.id.0]),
+            QuestEvent::CookieCollected,
+        );
+        let third = record_quest_event(
+            &mut info,
+            std::slice::from_ref(&quest),
+            &scoring(&[&quest.id.0]),
+            QuestEvent::CookieCollected,
+        );
 
         assert!(matches!(first.as_slice(), [ServerMessage::QuestProgress(_)]));
         assert!(matches!(second.as_slice(), [ServerMessage::QuestCompleted(completed)] if completed.id == quest.id));
         assert!(third.is_empty());
         assert!(info.quest_states[&quest.id].completed);
+    }
+
+    #[test]
+    fn completion_awards_the_mapped_score() {
+        let quest = cookies_quest("collect_gold", 2);
+        let mut info = player_info();
+        seed_quest(&mut info, &quest);
+        let scoring = scoring(&[&quest.id.0]);
+
+        record_quest_event(
+            &mut info,
+            std::slice::from_ref(&quest),
+            &scoring,
+            QuestEvent::CookieCollected,
+        );
+        assert_eq!(info.score, 0, "progress ticks award nothing");
+
+        record_quest_event(
+            &mut info,
+            std::slice::from_ref(&quest),
+            &scoring,
+            QuestEvent::CookieCollected,
+        );
+        assert_eq!(info.score, 100, "completion awards the mapped value");
     }
 
     #[test]
@@ -168,11 +233,13 @@ mod tests {
         let wrong = record_quest_event(
             &mut info,
             std::slice::from_ref(&quest),
+            &scoring(&[&quest.id.0]),
             QuestEvent::ActorKilled { kind: "zapper" },
         );
         let matching = record_quest_event(
             &mut info,
             std::slice::from_ref(&quest),
+            &scoring(&[&quest.id.0]),
             QuestEvent::ActorKilled { kind: "sentry" },
         );
 
@@ -189,7 +256,12 @@ mod tests {
         seed_quest(&mut info, &sentry);
         let quests = [cookie.clone(), sentry.clone()];
 
-        let messages = record_quest_event(&mut info, &quests, QuestEvent::CookieCollected);
+        let messages = record_quest_event(
+            &mut info,
+            &quests,
+            &scoring(&[&cookie.id.0, &sentry.id.0]),
+            QuestEvent::CookieCollected,
+        );
 
         assert_eq!(messages.len(), 1);
         assert_eq!(info.quest_states[&cookie.id].progress, 1);
@@ -202,7 +274,12 @@ mod tests {
         let mut info = player_info();
 
         let batch = assign_quests(&mut info, &quests).expect("quests assigned");
-        record_quest_event(&mut info, &quests, QuestEvent::CookieCollected);
+        record_quest_event(
+            &mut info,
+            &quests,
+            &scoring(&[&quests[0].id.0, &quests[1].id.0]),
+            QuestEvent::CookieCollected,
+        );
         let second = assign_quests(&mut info, &quests);
 
         assert_eq!(batch.quests.len(), 2);

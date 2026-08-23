@@ -4,7 +4,7 @@ use anyhow::{Result, bail};
 use serde::Deserialize;
 
 use super::validation::validate_positive_finite;
-use common::protocol::{ItemType, Lighting, MapSettings};
+use common::protocol::{ItemType, MapSettings};
 
 // Server-side wrapper around the wire `MapSettings`: the flattened settings
 // ship to clients in `SInit`, while the rest stays server-only.
@@ -15,60 +15,45 @@ pub struct MapServerConfig {
     // `None` = no random item spawning on this map.
     #[serde(default)]
     pub random_items: Option<RandomItemsConfig>,
-    // `None` = it never rains on this map.
+    // A concrete state holds until an admin command; `auto` runs the
+    // global `weather_cycle`. Mirrors `/weather rain|clear|auto`.
     #[serde(default)]
-    pub rain: Option<RainScheduleConfig>,
-    // Weather at server startup; `rain` needs a `rain` schedule. Mirrors
-    // `/weather rain|clear`.
+    pub weather: WeatherMode,
+    // A concrete look holds until an admin command; `auto` runs the
+    // global `lighting_cycle`. Mirrors `/light bright|dim|dark|auto`.
     #[serde(default)]
-    pub weather: StartupWeather,
-    // Lighting at server startup. Mirrors `/light bright|dim|dark`.
-    #[serde(default)]
-    pub lighting: Lighting,
+    pub lighting: LightingMode,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum StartupWeather {
+pub enum WeatherMode {
     #[default]
     Clear,
     Rain,
+    Auto,
 }
 
-// Cadence of the server-scheduled rain: random clear stretch, ramp in, a
-// random rain stretch at full intensity, fade out, repeat.
-#[derive(Debug, Clone, Deserialize)]
-pub struct RainScheduleConfig {
-    // When false, the scheduler never starts or ends rain on its own —
-    // only `/weather rain|clear` does. Absent = the automatic cycle.
-    #[serde(default = "default_rain_auto")]
-    pub auto: bool,
-    pub min_clear_secs: f32,
-    pub max_clear_secs: f32,
-    pub min_rain_secs: f32,
-    pub max_rain_secs: f32,
-    pub ramp_in_secs: f32,
-    pub fade_out_secs: f32,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LightingMode {
+    #[default]
+    Bright,
+    Dim,
+    Dark,
+    Auto,
 }
 
-const fn default_rain_auto() -> bool {
-    true
-}
-
-impl RainScheduleConfig {
-    fn validate(&self, path: &str) -> Result<()> {
-        validate_positive_finite(self.min_clear_secs, &format!("{path}.min_clear_secs"))?;
-        validate_positive_finite(self.max_clear_secs, &format!("{path}.max_clear_secs"))?;
-        if self.min_clear_secs > self.max_clear_secs {
-            bail!("{path}.min_clear_secs must be <= {path}.max_clear_secs");
+impl LightingMode {
+    // The preset a concrete mode holds; `None` = cycle-driven.
+    #[must_use]
+    pub const fn preset(self) -> Option<&'static str> {
+        match self {
+            Self::Bright => Some("bright"),
+            Self::Dim => Some("dim"),
+            Self::Dark => Some("dark"),
+            Self::Auto => None,
         }
-        validate_positive_finite(self.min_rain_secs, &format!("{path}.min_rain_secs"))?;
-        validate_positive_finite(self.max_rain_secs, &format!("{path}.max_rain_secs"))?;
-        if self.min_rain_secs > self.max_rain_secs {
-            bail!("{path}.min_rain_secs must be <= {path}.max_rain_secs");
-        }
-        validate_positive_finite(self.ramp_in_secs, &format!("{path}.ramp_in_secs"))?;
-        validate_positive_finite(self.fade_out_secs, &format!("{path}.fade_out_secs"))
     }
 }
 
@@ -111,12 +96,6 @@ pub(super) fn validate_maps(maps: &HashMap<String, MapServerConfig>, default_map
         }
         if let Some(random_items) = &entry.random_items {
             random_items.validate(&format!("{path}.random_items"))?;
-        }
-        if let Some(rain) = &entry.rain {
-            rain.validate(&format!("{path}.rain"))?;
-        }
-        if entry.weather == StartupWeather::Rain && entry.rain.is_none() {
-            bail!("{path}.weather is `rain` but the map has no `rain` schedule");
         }
     }
     if !maps.contains_key(default_map) {
@@ -165,21 +144,8 @@ mod tests {
                 low_gravity: 5.0,
             },
             random_items: None,
-            rain: None,
-            weather: StartupWeather::Clear,
-            lighting: Lighting::Bright,
-        }
-    }
-
-    fn ok_rain_schedule() -> RainScheduleConfig {
-        RainScheduleConfig {
-            auto: true,
-            min_clear_secs: 10.0,
-            max_clear_secs: 20.0,
-            min_rain_secs: 5.0,
-            max_rain_secs: 8.0,
-            ramp_in_secs: 2.0,
-            fade_out_secs: 4.0,
+            weather: WeatherMode::Clear,
+            lighting: LightingMode::Bright,
         }
     }
 
@@ -249,29 +215,12 @@ mod tests {
     }
 
     #[test]
-    fn validate_maps_rejects_startup_rain_without_schedule() {
-        let mut maps = one_map("hotel");
-        maps.get_mut("hotel").expect("hotel entry missing").weather = StartupWeather::Rain;
-        let err = validate_maps(&maps, "hotel").expect_err("startup rain without a schedule must be rejected");
-        assert!(err.to_string().contains("weather"));
-    }
-
-    #[test]
-    fn validate_maps_accepts_startup_rain_with_schedule() {
-        let mut maps = one_map("hotel");
-        let entry = maps.get_mut("hotel").expect("hotel entry missing");
-        entry.weather = StartupWeather::Rain;
-        entry.rain = Some(ok_rain_schedule());
-        validate_maps(&maps, "hotel").expect("startup rain with a schedule should pass");
-    }
-
-    #[test]
     fn map_entry_defaults_to_clear_and_bright() {
         let entry: MapServerConfig =
             serde_json::from_str(r#"{"skybox": "cloudy_day", "gravity": 25.0, "low_gravity": 5.0}"#)
                 .expect("minimal map entry should deserialize");
-        assert_eq!(entry.weather, StartupWeather::Clear);
-        assert_eq!(entry.lighting, Lighting::Bright);
+        assert_eq!(entry.weather, WeatherMode::Clear);
+        assert_eq!(entry.lighting, LightingMode::Bright);
     }
 
     #[test]
@@ -280,8 +229,26 @@ mod tests {
             r#"{"skybox": "cloudy_day", "gravity": 25.0, "low_gravity": 5.0, "weather": "rain", "lighting": "dark"}"#,
         )
         .expect("map entry with weather and lighting should deserialize");
-        assert_eq!(entry.weather, StartupWeather::Rain);
-        assert_eq!(entry.lighting, Lighting::Dark);
+        assert_eq!(entry.weather, WeatherMode::Rain);
+        assert_eq!(entry.lighting, LightingMode::Dark);
+    }
+
+    #[test]
+    fn map_entry_parses_auto_modes() {
+        let entry: MapServerConfig = serde_json::from_str(
+            r#"{"skybox": "cloudy_day", "gravity": 25.0, "low_gravity": 5.0, "weather": "auto", "lighting": "auto"}"#,
+        )
+        .expect("map entry with auto modes should deserialize");
+        assert_eq!(entry.weather, WeatherMode::Auto);
+        assert_eq!(entry.lighting, LightingMode::Auto);
+    }
+
+    #[test]
+    fn lighting_mode_presets_match_names() {
+        assert_eq!(LightingMode::Bright.preset(), Some("bright"));
+        assert_eq!(LightingMode::Dim.preset(), Some("dim"));
+        assert_eq!(LightingMode::Dark.preset(), Some("dark"));
+        assert_eq!(LightingMode::Auto.preset(), None);
     }
 
     #[test]

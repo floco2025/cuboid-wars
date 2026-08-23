@@ -128,7 +128,7 @@ pub(super) fn handle_snapshot_message(
     }
 
     // Weather and lighting targets; `rain_smoothing_system` and
-    // `lighting_dim_system` ease the rendered values.
+    // `lighting_blend_system` ease the rendered values.
     client_assets.world_sync.rain_intensity.target = msg.rain_intensity;
     client_assets.world_sync.lighting.target = msg.lighting;
     client_assets.world_sync.lighting.synced = true;
