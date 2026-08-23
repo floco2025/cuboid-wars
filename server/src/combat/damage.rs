@@ -214,6 +214,7 @@ mod tests {
     use crate::config::{
         ActorSettingsConfig, ExplosionDamageConfig, FallDamageConfig, MapServerConfig, MissilesServerConfig,
         PlacedItemRespawnSecs, PlacedItemsConfig, PlayerServerConfig, PowerUpsConfig, ProjectileConfig, ScoringConfig,
+        StartupWeather,
     };
     use crate::players::PlayerInfo;
     use tokio::sync::mpsc::unbounded_channel;
@@ -230,6 +231,8 @@ mod tests {
                     },
                     random_items: None,
                     rain: None,
+                    weather: StartupWeather::Clear,
+                    lighting: common::protocol::Lighting::Bright,
                 },
             )]),
             default_map: "hotel".to_owned(),

@@ -59,6 +59,8 @@ pub fn handle_login_message(
     pending_spawns: &PendingActorSpawns,
     queries: &CharacterQueries,
     item_positions: &Query<&Position, With<ItemMarker>>,
+    rain_intensity: f32,
+    lighting: Lighting,
 ) {
     match msg {
         ClientMessage::Login(login) => {
@@ -162,12 +164,12 @@ pub fn handle_login_message(
                 missiles: Vec::new(),
                 // Plate state is per-tick; this login-time snapshot defaults
                 // to "everything closed". The next broadcast tick will
-                // correct it. Same for weather and lighting — the next
-                // broadcast delivers the real values within 250 ms and the
-                // client smooths in.
+                // correct it.
                 open_barrier_kinds: Vec::new(),
-                rain_intensity: 0.0,
-                lighting: Lighting::default(),
+                // Weather and lighting are real so a dark or rainy map
+                // doesn't flash bright and dry before the first broadcast.
+                rain_intensity,
+                lighting,
             });
             channel.send(ServerToClient::Send(snapshot_msg)).ok();
 

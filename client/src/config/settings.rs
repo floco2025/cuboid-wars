@@ -6,30 +6,6 @@ use serde::Deserialize;
 
 use super::{audio::AudioConfig, camera::CameraConfig, hud::HudConfig, rendering::RenderingConfig, vfx::VfxConfig};
 
-// Three-way map debug-color mode. Cycled at runtime via the C key.
-#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum DebugColorMode {
-    // Real materials (textures from `assets.json`).
-    #[default]
-    Off,
-    // One color per material name (deterministic hash → HSV).
-    ByMaterial,
-    // One color per record sent in `MapLayout` (random per batch).
-    BySegment,
-}
-
-impl DebugColorMode {
-    #[must_use]
-    pub const fn next(self) -> Self {
-        match self {
-            Self::Off => Self::ByMaterial,
-            Self::ByMaterial => Self::BySegment,
-            Self::BySegment => Self::Off,
-        }
-    }
-}
-
 // Top-level client config. Loaded from `config/client/client.json` once at
 // startup; fields are immutable after that (no hot-reload).
 #[derive(Resource, Debug, Clone, Deserialize)]

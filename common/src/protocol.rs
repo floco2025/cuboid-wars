@@ -151,9 +151,10 @@ pub struct SInit {
 
 // --- Snapshot ---
 
-// Server-authoritative lighting level, decoupled from weather
-// ("/light bright|dim|dark").
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Encode, Decode)]
+// Server-authoritative lighting level, decoupled from weather. Seeded per
+// map from `maps.<name>.lighting`, then changed by "/light bright|dim|dark".
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Encode, Decode, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Lighting {
     #[default]
     Bright,

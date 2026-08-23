@@ -151,6 +151,8 @@ pub fn network_process_client_messages_system(
                         &pending_actor_spawns,
                         &queries,
                         &item_data,
+                        admin.weather.intensity(),
+                        admin.lighting.0,
                     );
                 }
             }

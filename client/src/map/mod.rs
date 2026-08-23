@@ -12,7 +12,7 @@ pub use rendering::{
     map_level_focus_visibility_system, map_spawn_geometry_system, map_wall_light_emissive_system,
     setup_scene_lighting_system,
 };
-pub use resources::{DebugColors, LevelFocusEnabled};
+pub use resources::{DebugColorMode, DebugColors, LevelFocusEnabled};
 pub use spawn::{
     GroundMarker, LadderMarker, MapGeometryBatch, MapLevel, RampMarker, RoofMarker, WallLightMarker, WallMarker,
     batch_floor, batch_ramp, batch_wall, spawn_ladder_from_layout, spawn_wall_light_from_layout,

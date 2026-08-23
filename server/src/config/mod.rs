@@ -13,7 +13,7 @@ pub use gameplay::{
     FallDamageConfig, MissilesServerConfig, PlacedItemRespawnSecs, PlacedItemsConfig, PlayerServerConfig,
     PowerUpsConfig, ProjectileConfig, ScoringConfig, ServerGameplayConfig,
 };
-pub use maps::{MapServerConfig, RainScheduleConfig, RandomItemsConfig};
+pub use maps::{MapServerConfig, RainScheduleConfig, RandomItemsConfig, StartupWeather};
 pub use network::configure_server;
 pub use quests::{Quest, QuestKind};
 pub(crate) use validation::validate_actor_kinds_consistent;

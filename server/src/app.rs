@@ -31,7 +31,8 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         bail!("unknown map {map_name:?} (available: {known:?})");
     };
     let map_settings = map_server_config.settings.clone();
-    let weather_state = WeatherState::new(map_server_config.rain.clone());
+    let weather_state = WeatherState::new(map_server_config.rain.clone(), map_server_config.weather);
+    let lighting = CurrentLighting(map_server_config.lighting);
     let random_items = RandomItems::from_config(map_server_config.random_items.as_ref());
 
     let barrier_kind_table = BarrierKindTable::from_ids(gameplay_config.barrier_kinds.clone())
@@ -50,17 +51,12 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         ..default()
     });
 
-    info!(
-        "generated map {map_name:?}: {} walls, {} ramps, {} floors",
-        map_layout.walls.len(),
-        map_layout.ramps.len(),
-        map_layout.floors.len(),
-    );
+    info!("generated map {map_name:?}: {}", map_layout.summary());
 
     app.insert_resource(map_layout)
         .insert_resource(map_settings)
         .insert_resource(weather_state)
-        .init_resource::<CurrentLighting>()
+        .insert_resource(lighting)
         .insert_resource(Invincibility(false))
         .insert_resource(UnlimitedMissiles(false))
         .insert_resource(collision_world)

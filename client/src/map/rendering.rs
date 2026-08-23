@@ -4,10 +4,10 @@ use std::collections::HashSet;
 
 use crate::{
     barriers::{BarrierAssets, BarrierMarker},
-    config::{AssetSet, ClientSettings, DebugColorMode},
+    config::{AssetSet, ClientSettings},
     map::{
-        DebugColors, GrassMarker, GroundMarker, LadderMarker, LevelFocusEnabled, MapGeometryBatch, MapLevel,
-        RampMarker, RoofMarker, WallLightMarker, WallMarker, batch_floor, batch_ramp, batch_wall,
+        DebugColorMode, DebugColors, GrassMarker, GroundMarker, LadderMarker, LevelFocusEnabled, MapGeometryBatch,
+        MapLevel, RampMarker, RoofMarker, WallLightMarker, WallMarker, batch_floor, batch_ramp, batch_wall,
         spawn_ladder_from_layout, spawn_wall_light_from_layout,
     },
     materials::MaterialHandleCache,
@@ -95,13 +95,7 @@ pub fn map_spawn_geometry_system(
     }
     *material_cache = MaterialHandleCache::default();
 
-    info!(
-        "spawning {} walls, {} floors, {} ramps (debug colors: {:?})",
-        map_layout.walls.len(),
-        map_layout.floors.len(),
-        map_layout.ramps.len(),
-        debug_colors.0,
-    );
+    info!("spawning {}", map_layout.summary());
 
     let mut geometry = MapGeometryBatch::new(debug_colors.0);
 

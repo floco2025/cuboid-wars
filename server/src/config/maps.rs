@@ -4,10 +4,10 @@ use anyhow::{Result, bail};
 use serde::Deserialize;
 
 use super::validation::validate_positive_finite;
-use common::protocol::{ItemType, MapSettings};
+use common::protocol::{ItemType, Lighting, MapSettings};
 
 // Server-side wrapper around the wire `MapSettings`: the flattened settings
-// ship to clients in `SInit`, while `random_items` stays server-only.
+// ship to clients in `SInit`, while the rest stays server-only.
 #[derive(Debug, Clone, Deserialize)]
 pub struct MapServerConfig {
     #[serde(flatten)]
@@ -18,21 +18,31 @@ pub struct MapServerConfig {
     // `None` = it never rains on this map.
     #[serde(default)]
     pub rain: Option<RainScheduleConfig>,
+    // Weather at server startup; `rain` needs a `rain` schedule. Mirrors
+    // `/weather rain|clear`.
+    #[serde(default)]
+    pub weather: StartupWeather,
+    // Lighting at server startup. Mirrors `/light bright|dim|dark`.
+    #[serde(default)]
+    pub lighting: Lighting,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StartupWeather {
+    #[default]
+    Clear,
+    Rain,
 }
 
 // Cadence of the server-scheduled rain: random clear stretch, ramp in, a
 // random rain stretch at full intensity, fade out, repeat.
 #[derive(Debug, Clone, Deserialize)]
 pub struct RainScheduleConfig {
-    // When false, the scheduler never starts rain on its own — only the
-    // `rain start` admin command does.
-    #[serde(default = "default_rain_auto_start")]
-    pub auto_start: bool,
-    // When false, a running rain never ends on its own — only the
-    // `rain stop` admin command does. Absent flags = the classic fully
-    // automatic cycle.
-    #[serde(default = "default_rain_auto_end")]
-    pub auto_end: bool,
+    // When false, the scheduler never starts or ends rain on its own —
+    // only `/weather rain|clear` does. Absent = the automatic cycle.
+    #[serde(default = "default_rain_auto")]
+    pub auto: bool,
     pub min_clear_secs: f32,
     pub max_clear_secs: f32,
     pub min_rain_secs: f32,
@@ -41,11 +51,7 @@ pub struct RainScheduleConfig {
     pub fade_out_secs: f32,
 }
 
-const fn default_rain_auto_start() -> bool {
-    true
-}
-
-const fn default_rain_auto_end() -> bool {
+const fn default_rain_auto() -> bool {
     true
 }
 
@@ -109,6 +115,9 @@ pub(super) fn validate_maps(maps: &HashMap<String, MapServerConfig>, default_map
         if let Some(rain) = &entry.rain {
             rain.validate(&format!("{path}.rain"))?;
         }
+        if entry.weather == StartupWeather::Rain && entry.rain.is_none() {
+            bail!("{path}.weather is `rain` but the map has no `rain` schedule");
+        }
     }
     if !maps.contains_key(default_map) {
         let mut known: Vec<&str> = maps.keys().map(String::as_str).collect();
@@ -157,6 +166,20 @@ mod tests {
             },
             random_items: None,
             rain: None,
+            weather: StartupWeather::Clear,
+            lighting: Lighting::Bright,
+        }
+    }
+
+    fn ok_rain_schedule() -> RainScheduleConfig {
+        RainScheduleConfig {
+            auto: true,
+            min_clear_secs: 10.0,
+            max_clear_secs: 20.0,
+            min_rain_secs: 5.0,
+            max_rain_secs: 8.0,
+            ramp_in_secs: 2.0,
+            fade_out_secs: 4.0,
         }
     }
 
@@ -223,6 +246,42 @@ mod tests {
         maps.get_mut("hotel").expect("hotel entry missing").settings.skybox = String::new();
         let err = validate_maps(&maps, "hotel").expect_err("empty skybox must be rejected");
         assert!(err.to_string().contains("skybox"));
+    }
+
+    #[test]
+    fn validate_maps_rejects_startup_rain_without_schedule() {
+        let mut maps = one_map("hotel");
+        maps.get_mut("hotel").expect("hotel entry missing").weather = StartupWeather::Rain;
+        let err = validate_maps(&maps, "hotel").expect_err("startup rain without a schedule must be rejected");
+        assert!(err.to_string().contains("weather"));
+    }
+
+    #[test]
+    fn validate_maps_accepts_startup_rain_with_schedule() {
+        let mut maps = one_map("hotel");
+        let entry = maps.get_mut("hotel").expect("hotel entry missing");
+        entry.weather = StartupWeather::Rain;
+        entry.rain = Some(ok_rain_schedule());
+        validate_maps(&maps, "hotel").expect("startup rain with a schedule should pass");
+    }
+
+    #[test]
+    fn map_entry_defaults_to_clear_and_bright() {
+        let entry: MapServerConfig =
+            serde_json::from_str(r#"{"skybox": "cloudy_day", "gravity": 25.0, "low_gravity": 5.0}"#)
+                .expect("minimal map entry should deserialize");
+        assert_eq!(entry.weather, StartupWeather::Clear);
+        assert_eq!(entry.lighting, Lighting::Bright);
+    }
+
+    #[test]
+    fn map_entry_parses_snake_case_weather_and_lighting() {
+        let entry: MapServerConfig = serde_json::from_str(
+            r#"{"skybox": "cloudy_day", "gravity": 25.0, "low_gravity": 5.0, "weather": "rain", "lighting": "dark"}"#,
+        )
+        .expect("map entry with weather and lighting should deserialize");
+        assert_eq!(entry.weather, StartupWeather::Rain);
+        assert_eq!(entry.lighting, Lighting::Dark);
     }
 
     #[test]

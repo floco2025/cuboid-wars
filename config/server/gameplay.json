@@ -10,15 +10,16 @@
         "despawn_secs": 60.0
       },
       "rain": {
-        "auto_start": false,
-        "auto_end": false,
-        "min_clear_secs": 240.0,
-        "max_clear_secs": 480.0,
+        "auto": true,
+        "min_clear_secs": 120.0,
+        "max_clear_secs": 240.0,
         "min_rain_secs": 60.0,
         "max_rain_secs": 120.0,
-        "ramp_in_secs": 5.0,
-        "fade_out_secs": 15.0
-      }
+        "ramp_in_secs": 4.0,
+        "fade_out_secs": 10.0
+      },
+      "weather": "clear",
+      "lighting": "dim"
     }
   },
   "default_map": "hotel",

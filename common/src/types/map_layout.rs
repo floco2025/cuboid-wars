@@ -144,6 +144,24 @@ pub struct MapLayout {
     pub grass: Vec<GrassCell>,
 }
 
+impl MapLayout {
+    // One-line element tally for the server's generate log and the
+    // client's spawn log, so both report the same things in the same order.
+    #[must_use]
+    pub fn summary(&self) -> String {
+        format!(
+            "{} walls, {} floors, {} ramps, {} ladders, {} barriers, {} wall lights, {} pressure plates",
+            self.walls.len(),
+            self.floors.len(),
+            self.ramps.len(),
+            self.ladders.len(),
+            self.barriers.len(),
+            self.wall_lights.len(),
+            self.pressure_plates.len(),
+        )
+    }
+}
+
 // Per-map tuning defined in `config/server/gameplay.json` under `maps` and
 // shipped to clients in `SInit` so prediction uses the server's values.
 // Gravity values are positive magnitudes (m/s²); `low_gravity` replaces
