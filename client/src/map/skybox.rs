@@ -241,9 +241,20 @@ impl Default for LightingState {
     }
 }
 
+// Floor for the log-domain intensity channels: keeps ln() defined for the
+// disc's `0 = off`, and anything easing down to the floor snaps back to 0
+// at the application boundary.
+const LOG_INTENSITY_FLOOR: f32 = 1e-3;
+
 // A lighting look flattened for the renderer — the sun and moon configs name
-// their values differently, the channels underneath are the same. `color` is
-// linear RGB so blending happens in linear space.
+// their values differently, the channels underneath are the same. The
+// intensity channels (`sky`, `illuminance`, `ambient`, `disc`) are stored as
+// ln(value): brightness perception is roughly logarithmic, so every lerp —
+// the preset blend and the frame-to-frame ease — moves in even perceptual
+// steps instead of spending a whole dusk looking bright and then plunging.
+// `linear_intensity` converts back at the single application site. `color`
+// is linear RGB (a hue shift; per-channel log would distort it) and
+// `phase_percent`/`saturation` are already perceptual ratios.
 #[derive(Default, Clone)]
 struct LevelTargets {
     sky: f32,
@@ -255,14 +266,23 @@ struct LevelTargets {
     saturation: f32,
 }
 
+fn log_intensity(value: f32) -> f32 {
+    value.max(LOG_INTENSITY_FLOOR).ln()
+}
+
+fn linear_intensity(log_value: f32) -> f32 {
+    let value = log_value.exp();
+    if value <= LOG_INTENSITY_FLOOR * 1.5 { 0.0 } else { value }
+}
+
 impl LevelTargets {
     fn sun(sun: &SunLighting) -> Self {
         let color = SUN_DISC_COLOR.to_linear();
         Self {
-            sky: sun.sky_brightness,
-            illuminance: sun.sun_illuminance,
-            ambient: sun.ambient_brightness,
-            disc: sun.sun_disc_luminance,
+            sky: log_intensity(sun.sky_brightness),
+            illuminance: log_intensity(sun.sun_illuminance),
+            ambient: log_intensity(sun.ambient_brightness),
+            disc: log_intensity(sun.sun_disc_luminance),
             phase_percent: 100.0,
             color: Vec3::new(color.red, color.green, color.blue),
             saturation: sun.saturation,
@@ -272,10 +292,10 @@ impl LevelTargets {
     fn moon(moon: &MoonLighting) -> Self {
         let color = MOON_DISC_COLOR.to_linear();
         Self {
-            sky: moon.sky_brightness,
-            illuminance: moon.moon_illuminance,
-            ambient: moon.ambient_brightness,
-            disc: moon.moon_disc_luminance,
+            sky: log_intensity(moon.sky_brightness),
+            illuminance: log_intensity(moon.moon_illuminance),
+            ambient: log_intensity(moon.ambient_brightness),
+            disc: log_intensity(moon.moon_disc_luminance),
             phase_percent: moon.moon_phase_percent,
             color: Vec3::new(color.red, color.green, color.blue),
             saturation: moon.saturation,
@@ -352,13 +372,13 @@ pub fn lighting_blend_system(
     }
 
     for mut skybox in &mut skyboxes {
-        skybox.brightness = level.sky;
+        skybox.brightness = linear_intensity(level.sky);
     }
     for mut light in &mut sun_light {
-        light.illuminance = level.illuminance;
+        light.illuminance = linear_intensity(level.illuminance);
     }
-    ambient.brightness = level.ambient;
-    let emissive = level.color * level.disc;
+    ambient.brightness = linear_intensity(level.ambient);
+    let emissive = level.color * linear_intensity(level.disc);
     for (material, mut disc) in &mut discs {
         if let Some(mut material) = materials.get_mut(&material.0) {
             material.emissive = LinearRgba::rgb(emissive.x, emissive.y, emissive.z);
@@ -501,6 +521,26 @@ mod tests {
             &blend_targets(&config, &wire("sunset", "sunset", 0.0)),
             &LevelTargets::moon(&config.dim),
         );
+    }
+
+    #[test]
+    fn intensity_channels_blend_in_log_space() {
+        let config = config();
+        let mid = blend_targets(&config, &wire("bright", "dark", 0.5));
+        // A log-domain midpoint is the geometric mean in linear terms —
+        // perceptually halfway, unlike the arithmetic mean.
+        let expected = (config.bright.sun_illuminance * config.dark.moon_illuminance).sqrt();
+        let actual = linear_intensity(mid.illuminance);
+        assert!(
+            (actual - expected).abs() / expected < 1e-3,
+            "expected geometric mean {expected}, got {actual}"
+        );
+    }
+
+    #[test]
+    fn zero_intensity_round_trips_to_off() {
+        assert_eq!(linear_intensity(log_intensity(0.0)), 0.0);
+        assert!(linear_intensity(log_intensity(5.0)) > 4.9);
     }
 
     #[test]
