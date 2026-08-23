@@ -24,8 +24,8 @@
   },
   "lighting_cycle": {
     "bright_secs": 90.0,
-    "bright_dark_secs": 30.0,
-    "dark_secs": 30.0
+    "bright_dark_secs": 15.0,
+    "dark_secs": 45.0
   },
   "scoring": {
     "player_kill": 0,
