@@ -96,7 +96,7 @@ Shared `step_character_movement` takes a `CharacterStep` that separates `control
 
 #### Missiles
 
-Ammo comes from `missile_pack` items (capped by `missiles.max_missiles`; a full player leaves the pack in the world, like an already-held key; reset on death). The client crosshair locks any player/actor near the aim ray (`acquire_lock` in `common/src/physics/lock.rs`, with a configurable assist radius) and F fires — no cooldown, ammo is the rate limit; with `missiles.require_lock` off (the default), an unlocked shot launches unguided along the aim. All feedback (sound + the missile) waits for the server's `SMissileLaunch` so a rejected shot never orphans a cue.
+Ammo comes from `missile_pack` items (capped by `missiles.max_missiles`; a full player leaves the pack in the world, like an already-held key; reset on death). The client crosshair locks any player/actor near the aim ray (`acquire_lock` in `common/src/physics/lock.rs`, with a configurable assist radius) and F fires — no cooldown, ammo is the rate limit; with `missiles.require_lock` off, an unlocked shot launches unguided along the aim (the shipped config requires a lock). All feedback (sound + the missile) waits for the server's `SMissileLaunch` so a rejected shot never orphans a cue.
 
 The server owns the whole flight: launch at a random spread angle (with a clear-runway resample), direct homing with lead pursuit + cosmetic weave while sight is clear, `AirGraph` BFS waypoints when blocked, a swept proximity fuse, and detonation into `PendingExplosion::Missile` — the only blast that credits a killer. A missile that stops making progress self-detonates (`stall_secs`, via the shared `ProgressWatchdog`).
 

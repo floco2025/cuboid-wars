@@ -12,10 +12,10 @@ A fast-paced multiplayer arena game built with Rust, Bevy, Rapier, and QUIC.
 ## Overview
 
 Cuboid Wars is a networked 3D arena game on compact, multi-level maps.
-Players run, jump, and shoot through corridors gated by color-coded
-barriers, fight hostile mines, sentries, and laser-firing zappers that
-patrol and hunt, launch seeking missiles that fly the map's airspace to
-their target, and chase cookies to complete quests.
+Players run, jump, climb ladders, and shoot through corridors gated by
+color-coded barriers, fight the hostile mines, sentries, zappers, and
+reapers that patrol and hunt, launch seeking missiles that fly the map's
+airspace to their target, and complete quests for score.
 
 The game runs an authoritative server with client-side prediction, so
 movement stays responsive while the server remains the source of truth
@@ -24,8 +24,8 @@ death/respawn flow.
 
 ## Gameplay
 
-- **Quests** — every player gets a quest at login; completing it earns a
-  "You won!" banner.
+- **Quests** — every player gets the quest list at login; completing one
+  flashes its banner and pays out points.
 - **Cookies** — scattered pickups worth score and quest progress.
 - **Power-ups** — timed boosts: speed, multi-shot, and low-gravity.
   Health potions heal instantly.
@@ -36,13 +36,18 @@ death/respawn flow.
 - **Pressure plates** — some barrier colours open for everyone while
   enough players stand on their plates.
 - **Actors** — mines and sentries patrol and chase; zappers keep their
-  distance and fire tracking lasers. All of them explode when killed.
+  distance and fire tracking lasers; reapers chase and fire lasers too.
+  All of them explode when killed.
+- **Ladders** — climb between levels: push toward a ladder to grab it,
+  jump to let go.
 - **Fall damage** — short drops are safe; long falls scale up to lethal.
 - **Death & respawn** — dying drops your keys and per-life gear; you
   respawn at a spawn zone after a short delay.
-- **Scoring** — kills, deaths, cookies, and actor bounties all award
-  tunable point values.
-- **Weather** — rain comes and goes on a per-map schedule.
+- **Scoring** — kills, deaths, cookies, actor hits and bounties, and
+  quest completions all award tunable point values.
+- **Weather & lighting** — rain and a bright/dim/dark light cycle run
+  server-side; each map holds a fixed state or follows the automatic
+  cycles.
 - **Chat & admin console** — Enter to chat, `/` for commands; `/help` lists them.
 
 ## Controls
@@ -99,14 +104,14 @@ python3 tools/editor.py hotel      # edits config/server/maps/hotel.json in plac
 ```
 
 Maps are registered in `config/server/gameplay.json` (`maps` + `default_map`);
-each entry sets the map's skybox, gravity, and low-gravity-power-up gravity.
+each entry sets the map's skybox, gravity values, and weather/lighting modes.
 Passing a new name opens an empty map and Save creates its file — add a
 registry entry to make the server load it.
 
-The editor (PySide6) supports floors, grass, walls, ramps, barriers,
-actor/player spawn zones, placed items (power-ups, health potions,
-cookies, keys, missile packs), pressure plates, lights, and per-face
-material assignment.
+The editor (PySide6) supports floors, grass, walls, ramps, ladders,
+barriers, actor/player spawn zones, placed items (power-ups, health
+potions, cookies, keys, missile packs), pressure plates, lights, and
+per-face material assignment.
 
 ## License
 
