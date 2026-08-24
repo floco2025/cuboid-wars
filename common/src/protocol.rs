@@ -125,6 +125,13 @@ pub struct CAdmin {
     pub command: String,
 }
 
+// Client to Server: raw chat line (a slashless console entry). The server
+// sanitizes and broadcasts it as `SChat`.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct CChat {
+    pub text: String,
+}
+
 // ============================================================================
 // Server Messages
 // ============================================================================
@@ -446,6 +453,15 @@ pub struct SAdminResponse {
     pub text: String,
 }
 
+// A chat line, broadcast to everyone. The sender's name is captured
+// server-side at send time — the sender may be dead or gone by render
+// time. One-shot: a dropped line is just a missed message.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SChat {
+    pub name: String,
+    pub text: String,
+}
+
 // --- Per-client state events (private, durable) ---
 
 // One quest in an `SQuestsAssigned` batch. Carries display strings inline so
@@ -516,6 +532,7 @@ pub enum ClientMessage {
     MissileShot(CMissileShot),
     Ping(CPing),
     Admin(CAdmin),
+    Chat(CChat),
 }
 
 // All server to client messages. Variants are grouped by role to match the
@@ -552,6 +569,7 @@ pub enum ServerMessage {
     PressurePlate(SPressurePlate),
     Firework(SFirework),
     AdminResponse(SAdminResponse),
+    Chat(SChat),
     // Per-client state events
     QuestsAssigned(SQuestsAssigned),
     QuestProgress(SQuestProgress),

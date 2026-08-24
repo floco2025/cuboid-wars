@@ -22,6 +22,8 @@ pub enum GameMessage {
     PlayerLeft { name: String },
     // Server reply to an admin console command; text is server-authored.
     Admin { text: String },
+    // A broadcast chat line; the name was captured server-side at send time.
+    Chat { name: String, text: String },
 }
 
 // Pending messages produced by gameplay handlers, drained each frame by
@@ -63,6 +65,8 @@ const DEFAULT_TEXT_COLOR: Color = Color::srgba(0.85, 0.85, 0.85, 1.0);
 const DIM_TEXT_COLOR: Color = Color::srgba(0.6, 0.6, 0.6, 1.0);
 // Matches the console input line, so replies read as part of the console.
 const ADMIN_TEXT_COLOR: Color = Color::srgba(1.0, 0.85, 0.4, 1.0);
+// Full white so player speech stands apart from system lines.
+const CHAT_TEXT_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 1.0);
 const ENTRY_ROW_GAP: f32 = 4.0;
 
 // One styled run of text within a feed line; multiple runs are laid out in
@@ -205,6 +209,10 @@ fn build_runs(msg: &GameMessage, barrier_assets: Option<&BarrierAssets>) -> Vec<
         GameMessage::Admin { text } => vec![TextRun {
             text: text.clone(),
             color: ADMIN_TEXT_COLOR,
+        }],
+        GameMessage::Chat { name, text } => vec![TextRun {
+            text: format!("{name}: {text}"),
+            color: CHAT_TEXT_COLOR,
         }],
     }
 }

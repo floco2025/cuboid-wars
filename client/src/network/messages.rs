@@ -351,5 +351,12 @@ pub fn dispatch_message(
                     .push(crate::ui::GameMessage::Admin { text: line.to_owned() });
             }
         }
+        ServerMessage::Chat(chat_msg) => {
+            // Single-line by construction — the server strips control chars.
+            client_assets.hud.game_message_feed.push(crate::ui::GameMessage::Chat {
+                name: chat_msg.name,
+                text: chat_msg.text,
+            });
+        }
     }
 }

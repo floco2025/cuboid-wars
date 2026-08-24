@@ -11,7 +11,7 @@ use crate::{
     constants::HUD_EDGE_MARGIN_PX,
     network::{ClientToServer, ClientToServerChannel},
 };
-use common::protocol::{CAdmin, ClientMessage};
+use common::protocol::{CAdmin, CChat, ClientMessage};
 
 // Anything longer is noise; the server truncates defensively as well.
 const MAX_BUFFER_CHARS: usize = 128;
@@ -92,11 +92,22 @@ pub fn spawn_console(commands: &mut Commands, client_settings: &ClientSettings) 
     ));
 }
 
-// Enter or `/` opens the console (the Minecraft convention — if chat ever
-// arrives, Enter becomes chat and `/` stays commands); while open,
-// keystrokes edit the buffer, Enter submits the raw command string to the
-// server (server parses and replies), Esc cancels. Runs before every gated
-// input system so open/close takes effect the same frame the key lands.
+// The slash prefix decides the wire message: commands go to the admin
+// executor, everything else is chat.
+fn outgoing_message(line: String) -> ClientMessage {
+    if line.starts_with('/') {
+        ClientMessage::Admin(CAdmin { command: line })
+    } else {
+        ClientMessage::Chat(CChat { text: line })
+    }
+}
+
+// Enter or `/` opens the console (the Minecraft convention: Enter is chat,
+// `/` is commands); while open, keystrokes edit the buffer, Enter submits —
+// a `/`-prefixed line as an admin command (server parses and replies), any
+// other line as chat (server broadcasts) — and Esc cancels. Runs before
+// every gated input system so open/close takes effect the same frame the
+// key lands.
 pub fn console_input_system(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut keys: MessageReader<KeyboardInput>,
@@ -137,10 +148,10 @@ pub fn console_input_system(
         }
         match &input.logical_key {
             Key::Enter => {
-                let command = console.buffer.trim().to_owned();
-                if !command.is_empty() {
-                    console.remember(&command);
-                    let _ = to_server.send(ClientToServer::Send(ClientMessage::Admin(CAdmin { command })));
+                let line = console.buffer.trim().to_owned();
+                if !line.is_empty() {
+                    console.remember(&line);
+                    let _ = to_server.send(ClientToServer::Send(outgoing_message(line)));
                 }
                 console.buffer.clear();
                 console.open = false;
@@ -248,5 +259,17 @@ mod tests {
         console.recall_next();
         assert_eq!(console.buffer, "");
         assert_eq!(console.history_index, None);
+    }
+
+    #[test]
+    fn slash_line_goes_to_admin_and_plain_line_to_chat() {
+        assert!(matches!(
+            outgoing_message("/help".to_owned()),
+            ClientMessage::Admin(CAdmin { command }) if command == "/help"
+        ));
+        assert!(matches!(
+            outgoing_message("hello there".to_owned()),
+            ClientMessage::Chat(CChat { text }) if text == "hello there"
+        ));
     }
 }

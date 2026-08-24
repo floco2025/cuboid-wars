@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use super::{
     admin::{AdminContext, handle_admin_message},
-    broadcast::broadcast_to_others,
+    broadcast::{broadcast_to_all, broadcast_to_others},
     incoming::{CharacterQueries, SharedWorld},
 };
 use crate::{
@@ -42,10 +42,14 @@ pub fn dispatch_message(
     // Dead players have a despawned entity; queueing entity-targeted
     // commands against the stale `entity` would panic when Bevy applies the
     // command buffer. Drop their in-flight gameplay messages but keep pings
-    // (RTT measurement through the respawn window) and admin commands (a
-    // dead admin's console must still work — neither touches the entity).
+    // (RTT measurement through the respawn window), admin commands, and
+    // chat (a dead player's console must still work — none touch the
+    // entity).
     if players.get(&id).is_some_and(|info| info.is_dead())
-        && !matches!(msg, ClientMessage::Ping(_) | ClientMessage::Admin(_))
+        && !matches!(
+            msg,
+            ClientMessage::Ping(_) | ClientMessage::Admin(_) | ClientMessage::Chat(_)
+        )
     {
         return;
     }
@@ -125,7 +129,38 @@ pub fn dispatch_message(
                 &msg,
             );
         }
+        ClientMessage::Chat(msg) => {
+            handle_chat_message(id, &msg, players);
+        }
     }
+}
+
+// Chat lines are broadcast-amplified like player names: strip control
+// characters (which also keeps chat single-line), cap the length, and drop
+// anything empty.
+const MAX_CHAT_CHARS: usize = 128;
+
+fn sanitize_chat_text(raw: &str) -> Option<String> {
+    let sanitized: String = raw.chars().filter(|c| !c.is_control()).take(MAX_CHAT_CHARS).collect();
+    let trimmed = sanitized.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_owned())
+    }
+}
+
+fn handle_chat_message(id: PlayerId, msg: &CChat, players: &PlayerMap) {
+    let Some(text) = sanitize_chat_text(&msg.text) else {
+        return;
+    };
+    // Name captured at send time — the sender may be dead or gone by the
+    // time clients render the line.
+    let name = players
+        .get(&id)
+        .filter(|info| !info.name.is_empty())
+        .map_or_else(|| format!("Player {}", id.0), |info| info.name.clone());
+    broadcast_to_all(players, ServerMessage::Chat(SChat { name, text }));
 }
 
 // ============================================================================
@@ -214,5 +249,23 @@ fn handle_ping_message(id: PlayerId, msg: CPing, players: &PlayerMap) {
             timestamp_nanos: msg.timestamp_nanos,
         });
         let _ = player_info.channel.send(ServerToClient::Send(pong_msg));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn chat_text_is_sanitized() {
+        assert_eq!(sanitize_chat_text("hello there"), Some("hello there".to_owned()));
+        assert_eq!(sanitize_chat_text("he\nllo\u{7}"), Some("hello".to_owned()));
+        assert_eq!(sanitize_chat_text("   \u{1b}  "), None);
+        assert_eq!(sanitize_chat_text(""), None);
+        let long = "x".repeat(400);
+        assert_eq!(
+            sanitize_chat_text(&long).expect("long chat survives truncated").len(),
+            MAX_CHAT_CHARS
+        );
     }
 }

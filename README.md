@@ -43,7 +43,7 @@ death/respawn flow.
 - **Scoring** — kills, deaths, cookies, and actor bounties all award
   tunable point values.
 - **Weather** — rain comes and goes on a per-map schedule.
-- **Admin console** — Enter or `/`; `/help` lists the commands.
+- **Chat & admin console** — Enter to chat, `/` for commands; `/help` lists them.
 
 ## Controls
 
@@ -55,7 +55,7 @@ death/respawn flow.
 | Look | mouse |
 | Shoot | left click |
 | Fire missile (needs lock-on) | F |
-| Admin console | Enter or `/` (↑/↓ history) |
+| Chat / admin console | Enter or `/` (↑/↓ history) |
 | Toggle cursor lock | Escape |
 | Cycle camera view (first-person ↔ top-down) | V |
 | Toggle level-focus (hide floors/walls on other levels) | R |
