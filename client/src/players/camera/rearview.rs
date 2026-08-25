@@ -2,7 +2,7 @@ use bevy::{camera::Viewport, prelude::*, ui::UiScale};
 use std::f32::consts::PI;
 
 use crate::{
-    cameras::{CameraViewMode, MainCameraMarker, RearviewCameraMarker},
+    cameras::{CameraViewMode, MainCameraMarker, RearviewCameraMarker, SceneRenderTarget},
     characters::PreviousTickPosition,
     config::ClientSettings,
     constants::HUD_EDGE_MARGIN_PX,
@@ -46,13 +46,14 @@ pub fn local_player_rearview_sync_system(
     }
 }
 
-// Update rearview camera viewport based on window size.
+// Update rearview camera viewport based on the scene image size.
 pub fn local_player_rearview_viewport_system(
     windows: Query<&Window>,
     mut rearview_query: Query<&mut Camera, With<RearviewCameraMarker>>,
     view_mode: Res<CameraViewMode>,
     client_settings: Res<ClientSettings>,
     ui_scale: Res<UiScale>,
+    scene_target: Res<SceneRenderTarget>,
 ) {
     let Ok(window) = windows.single() else {
         return;
@@ -71,19 +72,19 @@ pub fn local_player_rearview_viewport_system(
         return;
     }
 
-    let window_width = window.physical_width();
-    let window_height = window.physical_height();
+    let target_size = scene_target.size;
 
     let rearview = client_settings.camera.rearview;
-    let viewport_width = (window_width as f32 * rearview.width_ratio) as u32;
-    let viewport_height = (window_height as f32 * rearview.height_ratio) as u32;
+    let viewport_width = (target_size.x as f32 * rearview.width_ratio) as u32;
+    let viewport_height = (target_size.y as f32 * rearview.height_ratio) as u32;
 
     // Same inset as the HUD panels. Those are logical-pixel UI nodes scaled
-    // by the HUD `UiScale`; the viewport is physical pixels, so apply both
-    // the window scale factor and the HUD scale to keep the edges aligned.
-    let margin = (HUD_EDGE_MARGIN_PX * window.scale_factor() * ui_scale.0) as u32;
+    // by the HUD `UiScale` in window space; the viewport lives in the scene
+    // image, so additionally scale by image height over window height.
+    let image_scale = target_size.y as f32 / window.physical_height().max(1) as f32;
+    let margin = (HUD_EDGE_MARGIN_PX * window.scale_factor() * ui_scale.0 * image_scale) as u32;
 
-    let x = window_width.saturating_sub(viewport_width + margin);
+    let x = target_size.x.saturating_sub(viewport_width + margin);
     let y = margin;
 
     let physical_position = UVec2::new(x, y);

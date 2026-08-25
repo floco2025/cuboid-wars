@@ -19,8 +19,11 @@ impl OpaqueRenderer {
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct RenderingConfig {
     pub opaque_renderer: OpaqueRenderer,
-    #[serde(default)]
-    pub exclusive_fullscreen: ExclusiveFullscreenConfig,
+    // Vertical render resolution cap ("1440p"): the 3D scene renders at most
+    // this height (width follows the window aspect) and is upscaled to the
+    // window; a window smaller than the cap renders native.
+    #[serde(default = "default_render_resolution")]
+    pub render_resolution: u32,
     pub shadows_directional_enabled: bool,
     // Directional shadow map resolution per cascade (Bevy default 2048).
     // Higher halves shadow-edge texel size — matters once the sun moves.
@@ -38,20 +41,8 @@ pub struct RenderingConfig {
     pub bloom: BloomConfig,
 }
 
-#[derive(Debug, Clone, Copy, Deserialize)]
-#[serde(default)]
-pub struct ExclusiveFullscreenConfig {
-    pub width: u32,
-    pub height: u32,
-}
-
-impl Default for ExclusiveFullscreenConfig {
-    fn default() -> Self {
-        Self {
-            width: 2560,
-            height: 1440,
-        }
-    }
+const fn default_render_resolution() -> u32 {
+    1440
 }
 
 const fn default_shadow_map_size() -> u32 {
@@ -93,8 +84,8 @@ impl RenderingConfig {
         if !matches!(self.msaa_samples, 1 | 2 | 4 | 8) {
             bail!("rendering.msaa_samples must be one of 1, 2, 4, or 8");
         }
-        if self.exclusive_fullscreen.width == 0 || self.exclusive_fullscreen.height == 0 {
-            bail!("rendering.exclusive_fullscreen width and height must be > 0");
+        if self.render_resolution == 0 {
+            bail!("rendering.render_resolution must be > 0");
         }
         Ok(())
     }
@@ -105,13 +96,13 @@ mod tests {
     use crate::config::ClientSettings;
 
     #[test]
-    fn rendering_config_rejects_zero_fullscreen_dimension() {
+    fn rendering_config_rejects_zero_render_resolution() {
         let mut settings = ClientSettings::load_default().expect("shipped client config should load");
-        settings.rendering.exclusive_fullscreen.width = 0;
+        settings.rendering.render_resolution = 0;
         let error = settings
             .rendering
             .validate()
-            .expect_err("zero fullscreen width should fail");
-        assert!(error.to_string().contains("exclusive_fullscreen"));
+            .expect_err("zero render resolution should fail");
+        assert!(error.to_string().contains("render_resolution"));
     }
 }

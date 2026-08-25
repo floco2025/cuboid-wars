@@ -1,13 +1,17 @@
 use bevy::{
-    camera::Viewport,
+    camera::{ImageRenderTarget, RenderTarget, Viewport, visibility::RenderLayers},
     core_pipeline::prepass::{DeferredPrepass, DepthPrepass},
     post_process::bloom::{Bloom, BloomCompositeMode, BloomPrefilter},
     prelude::*,
     render::view::ColorGrading,
+    window::PrimaryWindow,
 };
 use common::config::GameplayConfig;
 
-use super::{MainCameraMarker, RearviewCameraMarker};
+use super::{
+    CompositorCameraMarker, MainCameraMarker, RearviewCameraMarker, SceneRenderTarget, SceneSpriteMarker,
+    scene_target::create_scene_image,
+};
 use crate::config::ClientSettings;
 
 // ============================================================================
@@ -16,6 +20,8 @@ use crate::config::ClientSettings;
 
 pub fn setup_cameras_system(
     mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
+    windows: Query<&Window, With<PrimaryWindow>>,
     client_settings: Res<ClientSettings>,
     gameplay_config: Res<GameplayConfig>,
 ) {
@@ -27,10 +33,25 @@ pub fn setup_cameras_system(
         Msaa::from_samples(client_settings.rendering.msaa_samples)
     };
 
+    // The 3D cameras render into this image; `scene_render_target_system`
+    // keeps its size in step with the window and the render-resolution cap.
+    let window_size = windows
+        .single()
+        .map(|window| UVec2::new(window.physical_width().max(1), window.physical_height().max(1)))
+        .unwrap_or(UVec2::new(1280, 720));
+    let scene_image = create_scene_image(&mut images, window_size);
+    commands.insert_resource(SceneRenderTarget {
+        handle: scene_image.clone(),
+        size: window_size,
+    });
+
     // Add main camera (initial position will be immediately overridden by sync system)
     let mut main_camera = commands.spawn((
-        IsDefaultUiCamera, // Mark this as the UI camera
         MainCameraMarker,
+        RenderTarget::Image(ImageRenderTarget {
+            handle: scene_image.clone(),
+            scale_factor: 1.0,
+        }),
         // Ear pair for spatial audio emitters (explosion sounds): distance
         // attenuation + stereo panning relative to the camera.
         SpatialListener::new(0.3),
@@ -70,9 +91,13 @@ pub fn setup_cameras_system(
         });
     }
 
-    // Add rearview mirror camera (renders to lower-right viewport)
+    // Add rearview mirror camera (renders to its viewport inside the scene image)
     let mut rearview_camera = commands.spawn((
         RearviewCameraMarker,
+        RenderTarget::Image(ImageRenderTarget {
+            handle: scene_image.clone(),
+            scale_factor: 1.0,
+        }),
         msaa,
         Camera3d::default(),
         Camera {
@@ -99,4 +124,25 @@ pub fn setup_cameras_system(
     if deferred_rendering_enabled {
         rearview_camera.insert((DepthPrepass, DeferredPrepass));
     }
+
+    // Compositor: shows the scene image upscaled to the window, then draws
+    // the HUD (it is the default UI camera) at native resolution on top.
+    // Layer 1 keeps the scene sprite out of the floating-label 2D cameras.
+    commands.spawn((
+        CompositorCameraMarker,
+        IsDefaultUiCamera,
+        Camera2d,
+        Camera { order: 2, ..default() },
+        Msaa::Off,
+        RenderLayers::layer(1),
+    ));
+    commands.spawn((
+        SceneSpriteMarker,
+        Sprite {
+            image: scene_image,
+            custom_size: Some(Vec2::new(window_size.x as f32, window_size.y as f32)),
+            ..default()
+        },
+        RenderLayers::layer(1),
+    ));
 }

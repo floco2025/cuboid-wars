@@ -2145,7 +2145,6 @@ dependencies = [
  "common",
  "quinn",
  "rand",
- "raw-window-handle",
  "rustls",
  "serde",
  "serde_json",

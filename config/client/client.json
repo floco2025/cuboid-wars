@@ -1,10 +1,7 @@
 {
   "rendering": {
     "opaque_renderer": "auto",
-    "exclusive_fullscreen": {
-      "width": 2560,
-      "height": 1440
-    },
+    "render_resolution": 1440,
     "shadows_directional_enabled": true,
     "shadow_map_size": 2048,
     "texture_mipmaps_enabled": true,

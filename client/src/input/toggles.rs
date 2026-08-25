@@ -1,18 +1,11 @@
-use std::cmp::Reverse;
-
 use bevy::{
     input::mouse::MouseButton,
     prelude::*,
-    window::{
-        CursorOptions, Monitor, MonitorSelection, OnMonitor, PrimaryMonitor, PrimaryWindow, RawHandleWrapperHolder,
-        VideoMode, VideoModeSelection, WindowMode,
-    },
+    window::{CursorOptions, Monitor, MonitorSelection, OnMonitor, PrimaryMonitor, PrimaryWindow, WindowMode},
 };
-use raw_window_handle::RawWindowHandle;
 
 use crate::{
     cameras::{CameraViewMode, TopDownCameraYaw},
-    config::ClientSettings,
     map::{DebugColors, LevelFocusEnabled},
     players::LocalPlayerInfo,
     ui::ConsoleState,
@@ -73,12 +66,13 @@ pub fn input_debug_colors_cycle_system(
     }
 }
 
-// Toggle fullscreen with Cmd/Ctrl+F or F11
+// Toggle fullscreen with Cmd/Ctrl+F or F11. Borderless on every platform:
+// the render-resolution cap (`scene_render_target_system`) supplies the
+// lower-resolution rendering that exclusive fullscreen used to.
 pub fn input_fullscreen_toggle_system(
     keyboard: Res<ButtonInput<KeyCode>>,
-    settings: Res<ClientSettings>,
-    mut windows: Query<(&mut Window, Option<&OnMonitor>, Option<&RawHandleWrapperHolder>), With<PrimaryWindow>>,
-    monitors: Query<(Entity, &Monitor, Has<PrimaryMonitor>)>,
+    mut windows: Query<(&mut Window, Option<&OnMonitor>), With<PrimaryWindow>>,
+    monitors: Query<(Entity, Has<PrimaryMonitor>), With<Monitor>>,
 ) {
     let cmd_held = keyboard.pressed(KeyCode::SuperLeft) || keyboard.pressed(KeyCode::SuperRight);
     let ctrl_held = keyboard.pressed(KeyCode::ControlLeft) || keyboard.pressed(KeyCode::ControlRight);
@@ -88,7 +82,7 @@ pub fn input_fullscreen_toggle_system(
     if !(((cmd_held || ctrl_held) && f_pressed) || f11_pressed) {
         return;
     }
-    let Ok((mut window, on_monitor, raw_handle)) = windows.single_mut() else {
+    let Ok((mut window, on_monitor)) = windows.single_mut() else {
         return;
     };
     if !matches!(window.mode, WindowMode::Windowed) {
@@ -97,64 +91,18 @@ pub fn input_fullscreen_toggle_system(
     }
 
     let current_monitor = on_monitor
-        .and_then(|on_monitor| monitors.get(on_monitor.0).ok())
-        .map(|(entity, monitor, _)| (entity, monitor));
+        .map(|on_monitor| on_monitor.0)
+        .filter(|&entity| monitors.contains(entity));
     let primary_monitor = || {
         monitors
             .iter()
-            .find_map(|(entity, monitor, is_primary)| is_primary.then_some((entity, monitor)))
+            .find_map(|(entity, is_primary)| is_primary.then_some(entity))
     };
-    let Some((monitor_entity, monitor)) = current_monitor.or_else(primary_monitor) else {
-        warn!("cannot enter exclusive fullscreen because no monitor is available");
+    let Some(monitor_entity) = current_monitor.or_else(primary_monitor) else {
+        warn!("cannot enter fullscreen because no monitor is available");
         return;
     };
-    let monitor_selection = MonitorSelection::Entity(monitor_entity);
-
-    if is_wayland_window(raw_handle) {
-        info!(
-            "exclusive fullscreen is unavailable on Wayland; using borderless fullscreen at the compositor resolution"
-        );
-        window.mode = WindowMode::BorderlessFullscreen(monitor_selection);
-        return;
-    }
-
-    let fullscreen = settings.rendering.exclusive_fullscreen;
-    let Some(video_mode) = select_exclusive_video_mode(&monitor.video_modes, fullscreen.width, fullscreen.height)
-    else {
-        warn!("cannot enter exclusive fullscreen because the monitor reports no video modes");
-        return;
-    };
-    if video_mode.physical_size != UVec2::new(fullscreen.width, fullscreen.height) {
-        warn!(
-            "exclusive fullscreen resolution {}x{} is unavailable; using {}x{}",
-            fullscreen.width, fullscreen.height, video_mode.physical_size.x, video_mode.physical_size.y
-        );
-    }
-    window.mode = WindowMode::Fullscreen(monitor_selection, VideoModeSelection::Specific(video_mode));
-}
-
-fn is_wayland_window(raw_handle: Option<&RawHandleWrapperHolder>) -> bool {
-    let raw_window_handle = raw_handle.and_then(|holder| {
-        let handle = holder.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-        handle.as_ref().map(bevy::window::RawHandleWrapper::get_window_handle)
-    });
-    is_wayland_window_handle(raw_window_handle)
-}
-
-const fn is_wayland_window_handle(raw_handle: Option<RawWindowHandle>) -> bool {
-    matches!(raw_handle, Some(RawWindowHandle::Wayland(_)))
-}
-
-fn select_exclusive_video_mode(modes: &[VideoMode], width: u32, height: u32) -> Option<VideoMode> {
-    modes.iter().copied().min_by_key(|mode| {
-        let width_error = u64::from(mode.physical_size.x.abs_diff(width));
-        let height_error = u64::from(mode.physical_size.y.abs_diff(height));
-        (
-            width_error * width_error + height_error * height_error,
-            Reverse(mode.refresh_rate_millihertz),
-            Reverse(mode.bit_depth),
-        )
-    })
+    window.mode = WindowMode::BorderlessFullscreen(MonitorSelection::Entity(monitor_entity));
 }
 
 // Toggle cursor lock with Escape key or mouse click
@@ -184,64 +132,5 @@ pub fn input_cursor_toggle_system(
         cursor_options.visible = false;
         cursor_options.grab_mode = bevy::window::CursorGrabMode::Locked;
         // Note: The click event will still be available for the shooting system
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::ptr::NonNull;
-
-    use raw_window_handle::WaylandWindowHandle;
-
-    use super::*;
-
-    fn video_mode(width: u32, height: u32, refresh_rate_millihertz: u32, bit_depth: u16) -> VideoMode {
-        VideoMode {
-            physical_size: UVec2::new(width, height),
-            refresh_rate_millihertz,
-            bit_depth,
-        }
-    }
-
-    #[test]
-    fn exclusive_video_mode_prefers_exact_resolution_and_highest_refresh_rate() {
-        let modes = [
-            video_mode(3840, 2160, 60_000, 30),
-            video_mode(2560, 1440, 60_000, 30),
-            video_mode(2560, 1440, 120_000, 24),
-        ];
-
-        assert_eq!(
-            select_exclusive_video_mode(&modes, 2560, 1440),
-            Some(video_mode(2560, 1440, 120_000, 24))
-        );
-    }
-
-    #[test]
-    fn exclusive_video_mode_uses_closest_supported_resolution() {
-        let modes = [
-            video_mode(3840, 2160, 60_000, 30),
-            video_mode(1920, 1080, 60_000, 30),
-            video_mode(1280, 720, 60_000, 30),
-        ];
-
-        assert_eq!(
-            select_exclusive_video_mode(&modes, 2560, 1440),
-            Some(video_mode(1920, 1080, 60_000, 30))
-        );
-    }
-
-    #[test]
-    fn exclusive_video_mode_returns_none_without_supported_modes() {
-        assert_eq!(select_exclusive_video_mode(&[], 2560, 1440), None);
-    }
-
-    #[test]
-    fn wayland_window_handle_is_detected() {
-        let surface = NonNull::<u8>::dangling().cast();
-        let handle = RawWindowHandle::Wayland(WaylandWindowHandle::new(surface));
-
-        assert!(is_wayland_window_handle(Some(handle)));
-        assert!(!is_wayland_window_handle(None));
     }
 }

@@ -31,3 +31,12 @@ impl CameraViewMode {
 // Horizontal rotation of the top-down camera around the current level center.
 #[derive(Resource, Clone, Copy, Debug, Default)]
 pub struct TopDownCameraYaw(pub f32);
+
+// The offscreen image the 3D cameras render into; the compositor camera
+// upscales it to the window. `size` mirrors the image so consumers don't
+// need `Assets<Image>`.
+#[derive(Resource)]
+pub struct SceneRenderTarget {
+    pub handle: Handle<Image>,
+    pub size: UVec2,
+}
