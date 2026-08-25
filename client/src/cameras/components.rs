@@ -11,7 +11,3 @@ pub struct RearviewCameraMarker;
 // Marker for the window-facing 2D camera that draws the scene image and the HUD.
 #[derive(Component)]
 pub struct CompositorCameraMarker;
-
-// Marker for the fullscreen sprite showing the scene image.
-#[derive(Component)]
-pub struct SceneSpriteMarker;

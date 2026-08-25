@@ -5,7 +5,7 @@ use bevy::{
     window::PrimaryWindow,
 };
 
-use super::{MainCameraMarker, RearviewCameraMarker, SceneRenderTarget, SceneSpriteMarker};
+use super::{MainCameraMarker, RearviewCameraMarker, SceneRenderTarget};
 use crate::config::ClientSettings;
 
 pub fn create_scene_image(images: &mut Assets<Image>, size: UVec2) -> Handle<Image> {
@@ -21,15 +21,14 @@ pub fn create_scene_image(images: &mut Assets<Image>, size: UVec2) -> Handle<Ima
     images.add(image)
 }
 
-// Keep the scene image at the window size — capped at the configured render
-// resolution — and the compositor sprite stretched over the window.
+// Keep the scene image at the window size, capped at the configured render
+// resolution.
 pub fn scene_render_target_system(
     windows: Query<&Window, With<PrimaryWindow>>,
     client_settings: Res<ClientSettings>,
     mut scene_target: ResMut<SceneRenderTarget>,
     mut images: ResMut<Assets<Image>>,
     mut projections: Query<&mut Projection, Or<(With<MainCameraMarker>, With<RearviewCameraMarker>)>>,
-    mut sprites: Query<&mut Sprite, With<SceneSpriteMarker>>,
 ) {
     let Ok(window) = windows.single() else {
         return;
@@ -55,13 +54,6 @@ pub fn scene_render_target_system(
         // larger than the shrunken texture.
         for mut projection in &mut projections {
             projection.set_changed();
-        }
-    }
-
-    let window_logical = Vec2::new(window.width(), window.height());
-    for mut sprite in &mut sprites {
-        if sprite.custom_size != Some(window_logical) {
-            sprite.custom_size = Some(window_logical);
         }
     }
 }

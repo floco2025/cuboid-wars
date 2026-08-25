@@ -1,5 +1,5 @@
 use bevy::{
-    camera::{ImageRenderTarget, RenderTarget, Viewport, visibility::RenderLayers},
+    camera::{ImageRenderTarget, RenderTarget, Viewport},
     core_pipeline::prepass::{DeferredPrepass, DepthPrepass},
     post_process::bloom::{Bloom, BloomCompositeMode, BloomPrefilter},
     prelude::*,
@@ -9,8 +9,7 @@ use bevy::{
 use common::config::GameplayConfig;
 
 use super::{
-    CompositorCameraMarker, MainCameraMarker, RearviewCameraMarker, SceneRenderTarget, SceneSpriteMarker,
-    scene_target::create_scene_image,
+    CompositorCameraMarker, MainCameraMarker, RearviewCameraMarker, SceneRenderTarget, scene_target::create_scene_image,
 };
 use crate::config::ClientSettings;
 
@@ -127,22 +126,29 @@ pub fn setup_cameras_system(
 
     // Compositor: shows the scene image upscaled to the window, then draws
     // the HUD (it is the default UI camera) at native resolution on top.
-    // Layer 1 keeps the scene sprite out of the floating-label 2D cameras.
     commands.spawn((
         CompositorCameraMarker,
         IsDefaultUiCamera,
         Camera2d,
         Camera { order: 2, ..default() },
         Msaa::Off,
-        RenderLayers::layer(1),
     ));
+    // The scene displays as a UI image so it rides the HUD's existing UI
+    // pass — a world `Sprite` adds a 2D scene phase costing ~2ms/frame.
+    // The negative z-index keeps it under every HUD node (an extreme
+    // sentinel like `i32::MIN` breaks the UI stack sort and draws nothing).
     commands.spawn((
-        SceneSpriteMarker,
-        Sprite {
+        ImageNode {
             image: scene_image,
-            custom_size: Some(Vec2::new(window_size.x as f32, window_size.y as f32)),
+            image_mode: bevy::ui::widget::NodeImageMode::Stretch,
             ..default()
         },
-        RenderLayers::layer(1),
+        Node {
+            position_type: PositionType::Absolute,
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            ..default()
+        },
+        GlobalZIndex(-1),
     ));
 }
