@@ -241,6 +241,15 @@ impl PlayerMap {
         }
     }
 
+    // Player-facing name for feed lines; "Player 7" when none is known.
+    #[must_use]
+    pub fn display_name(&self, id: &PlayerId) -> String {
+        match self.get(id) {
+            Some(info) if !info.name.is_empty() => info.name.clone(),
+            _ => format!("Player {}", id.0),
+        }
+    }
+
     #[must_use]
     pub fn get(&self, id: &PlayerId) -> Option<&PlayerInfo> {
         self.0.get(id)

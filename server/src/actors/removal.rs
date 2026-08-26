@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use crate::{
     actors::ActorMap,
     combat::{PendingExplosions, kill_actor},
+    config::ServerGameplayConfig,
     players::PlayerMap,
 };
 use common::constants::CHARACTER_FALL_DEATH_Y;
@@ -19,6 +20,7 @@ pub fn actors_removal_system(
     mut commands: Commands,
     mut actors: ResMut<ActorMap>,
     players: Res<PlayerMap>,
+    server_gameplay_config: Res<ServerGameplayConfig>,
     mut pending_explosions: ResMut<PendingExplosions>,
     query: Query<(Entity, &ActorId, &Position, &Health), With<ActorMarker>>,
 ) {
@@ -33,7 +35,7 @@ pub fn actors_removal_system(
                 id: *id,
                 pos: *pos,
                 killer: None,
-                cause: DeathCause::Fall,
+                kind: ActorDeathKind::Fall,
             });
         } else if health.0 <= 0.0 {
             deaths.push(ActorDeath {
@@ -41,7 +43,7 @@ pub fn actors_removal_system(
                 id: *id,
                 pos: *pos,
                 killer: info.last_damager,
-                cause: DeathCause::Killed,
+                kind: ActorDeathKind::Killed,
             });
         }
     }
@@ -51,12 +53,13 @@ pub fn actors_removal_system(
     }
 
     for death in deaths {
-        if matches!(death.cause, DeathCause::Killed) {
+        if matches!(death.kind, ActorDeathKind::Killed) {
             kill_actor(
                 &mut commands,
                 &mut actors,
                 &players,
                 &mut pending_explosions,
+                &server_gameplay_config.feed,
                 death.id,
                 death.entity,
                 death.pos,
@@ -71,7 +74,7 @@ pub fn actors_removal_system(
 }
 
 #[derive(Copy, Clone)]
-enum DeathCause {
+enum ActorDeathKind {
     Fall,
     Killed,
 }
@@ -81,5 +84,5 @@ struct ActorDeath {
     id: ActorId,
     pos: Position,
     killer: Option<PlayerId>,
-    cause: DeathCause,
+    kind: ActorDeathKind,
 }

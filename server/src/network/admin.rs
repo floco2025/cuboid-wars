@@ -3,16 +3,16 @@ use bevy::{ecs::system::SystemParam, prelude::*};
 use super::incoming::PlayerStateQuery;
 use crate::{
     actors::{ActorMap, ActorSpawnThrottles, PendingActorSpawns, expire_actor_spawn_cooldowns},
-    combat::{PendingExplosions, kill_player},
+    combat::{DeathSource, PendingExplosions, kill_player},
     config::ServerGameplayConfig,
     map::{LightState, WeatherState, light_preset_from_str},
-    network::{ServerToClient, broadcast_to_all},
+    network::{ServerToClient, announce, broadcast_to_all, reply},
     players::{Invincibility, PlayerInfo, PlayerMap, UnlimitedMissiles},
 };
 use common::{
     config::GameplayConfig,
     protocol::{
-        BarrierKindTable, CAdmin, Health, ItemType, PlayerId, PowerUpKind, SAdminResponse, SFirework, ServerMessage,
+        BarrierKindTable, CAdmin, FeedEvent, Health, ItemType, PlayerId, PowerUpKind, SFirework, ServerMessage,
     },
 };
 
@@ -148,7 +148,8 @@ fn parse_admin_command(input: &str) -> AdminCommand {
     }
 }
 
-// Execute one admin command and unicast the outcome text to the sender.
+// Execute one admin command. The outcome text goes back to the issuer, or
+// to everyone when the command changed the shared world.
 pub fn handle_admin_message(
     commands: &mut Commands,
     players: &mut PlayerMap,
@@ -164,7 +165,7 @@ pub fn handle_admin_message(
     let Some(info) = players.get(&id) else {
         return;
     };
-    let text = if admin_authorized(info) {
+    let outcome = if admin_authorized(info) {
         run_admin_command(
             commands,
             players,
@@ -178,15 +179,32 @@ pub fn handle_admin_message(
             &msg.command,
         )
     } else {
-        "not authorized".to_owned()
+        AdminOutcome::Private("not authorized".to_owned())
     };
-    if let Some(info) = players.get(&id) {
-        let _ = info
-            .channel
-            .send(ServerToClient::Send(ServerMessage::AdminResponse(SAdminResponse {
+    let feed = &admin.server_gameplay_config.feed;
+    match outcome {
+        AdminOutcome::Public(text) if feed.admin_action => announce(
+            players,
+            feed,
+            FeedEvent::AdminAction {
+                name: players.display_name(&id),
                 text,
-            })));
+            },
+        ),
+        // With announcements switched off the issuer still gets the outcome.
+        AdminOutcome::Public(text) | AdminOutcome::Private(text) => {
+            if let Some(info) = players.get(&id) {
+                reply(info, FeedEvent::AdminReply { text });
+            }
+        }
     }
+}
+
+// Where a command's outcome text goes: back to the issuer, or to everyone
+// (world-affecting commands, on success).
+enum AdminOutcome {
+    Private(String),
+    Public(String),
 }
 
 fn run_admin_command(
@@ -200,71 +218,73 @@ fn run_admin_command(
     map_config: &crate::map::MapConfig,
     pending_actor_spawns: &mut PendingActorSpawns,
     command: &str,
-) -> String {
+) -> AdminOutcome {
+    use AdminOutcome::{Private, Public};
+
     match parse_admin_command(command) {
-        AdminCommand::Help => HELP_TEXT.to_owned(),
-        AdminCommand::NotACommand => "not a command (commands start with /)".to_owned(),
-        AdminCommand::Unknown => format!("unknown command {command:?} (try /help)"),
-        AdminCommand::MissingTarget(verb) => {
-            if verb == "kill" {
-                format!("usage: /{verb} <name> or /{verb} @a")
-            } else {
-                format!("usage: /{verb} <name>")
-            }
-        }
+        AdminCommand::Help => Private(HELP_TEXT.to_owned()),
+        AdminCommand::NotACommand => Private("not a command (commands start with /)".to_owned()),
+        AdminCommand::Unknown => Private(format!("unknown command {command:?} (try /help)")),
+        AdminCommand::MissingTarget(verb) => Private(if verb == "kill" {
+            format!("usage: /{verb} <name> or /{verb} @a")
+        } else {
+            format!("usage: /{verb} <name>")
+        }),
         AdminCommand::WeatherRain => match admin.weather.hold_rain() {
-            Ok(()) => "weather set to rain".to_owned(),
-            Err(reason) => reason.to_owned(),
+            Ok(()) => Public("weather set to rain".to_owned()),
+            Err(reason) => Private(reason.to_owned()),
         },
         AdminCommand::WeatherClear => match admin.weather.hold_clear() {
-            Ok(()) => "weather set to clear".to_owned(),
-            Err(reason) => reason.to_owned(),
+            Ok(()) => Public("weather set to clear".to_owned()),
+            Err(reason) => Private(reason.to_owned()),
         },
         AdminCommand::WeatherAuto => match admin.weather.resume_auto() {
-            Ok(()) => "weather cycle resumed".to_owned(),
-            Err(reason) => reason.to_owned(),
+            Ok(()) => Public("weather cycle resumed".to_owned()),
+            Err(reason) => Private(reason.to_owned()),
         },
-        AdminCommand::WeatherStatus => admin.weather.status(),
+        AdminCommand::WeatherStatus => Private(admin.weather.status()),
         AdminCommand::LightPreset(name) => {
             admin.light.hold_preset(name);
-            format!("light set to {name}")
+            Public(format!("light set to {name}"))
         }
         AdminCommand::LightFraction(fraction) => {
             admin.light.hold_cycle_fraction(fraction);
-            admin.light.status()
+            Public(admin.light.status())
         }
         AdminCommand::LightBlend(from, to, blend) => {
             admin.light.hold_blend(from, to, blend);
-            admin.light.status()
+            Public(admin.light.status())
         }
         AdminCommand::LightAuto => match admin.light.resume_auto() {
-            Ok(()) => "light cycle resumed".to_owned(),
-            Err(reason) => reason.to_owned(),
+            Ok(()) => Public("light cycle resumed".to_owned()),
+            Err(reason) => Private(reason.to_owned()),
         },
-        AdminCommand::LightStatus => admin.light.status(),
-        AdminCommand::LightUsage => "usage: /light [bright|dim|dark|auto|<0..1>|<from> <to> <0..1>]".to_owned(),
+        AdminCommand::LightStatus => Private(admin.light.status()),
+        AdminCommand::LightUsage => {
+            Private("usage: /light [bright|dim|dark|auto|<0..1>|<from> <to> <0..1>]".to_owned())
+        }
         AdminCommand::God(explicit) => {
             let enabled = explicit.unwrap_or(!admin.invincibility.0);
             admin.invincibility.0 = enabled;
             admin.unlimited_missiles.0 = enabled;
-            format!("god mode {}", if enabled { "on" } else { "off" })
+            Public(format!("god mode {}", if enabled { "on" } else { "off" }))
         }
         AdminCommand::KillAllPlayers => {
             let targets = alive_players(players, None);
             let count = kill_targets(commands, players, admin, player_data, gameplay_config, &targets);
-            format!("killed {count} player(s)")
+            Public(format!("killed {count} player(s)"))
         }
         AdminCommand::KillPlayer(name) => {
             let targets = alive_players(players, Some(&name));
             if targets.is_empty() {
-                return format!("unknown player {name:?}");
+                return Private(format!("unknown player {name:?}"));
             }
             let count = kill_targets(commands, players, admin, player_data, gameplay_config, &targets);
-            format!("killed {count} player(s)")
+            Public(format!("killed {count} player(s)"))
         }
         AdminCommand::KillActors(kind) => {
             if let Some(error) = actor_kind_error(kind.as_deref(), &admin.server_gameplay_config) {
-                return error;
+                return Private(error);
             }
             let mut count = 0usize;
             for (_, info) in actors.iter() {
@@ -273,11 +293,11 @@ fn run_admin_command(
                     count += 1;
                 }
             }
-            format!("killed {count} actor(s)")
+            Public(format!("killed {count} actor(s)"))
         }
         AdminCommand::RespawnActors(kind) => {
             if let Some(error) = actor_kind_error(kind.as_deref(), &admin.server_gameplay_config) {
-                return error;
+                return Private(error);
             }
             let count = expire_actor_spawn_cooldowns(
                 actors,
@@ -287,7 +307,7 @@ fn run_admin_command(
                 &admin.server_gameplay_config,
                 kind.as_deref(),
             );
-            format!("respawning {count} actor(s)")
+            Public(format!("respawning {count} actor(s)"))
         }
         AdminCommand::Heal(target) => {
             let targets = match &target {
@@ -299,7 +319,7 @@ fn run_admin_command(
                 HealTarget::Named(name) => {
                     let targets = alive_players(players, Some(name));
                     if targets.is_empty() {
-                        return format!("unknown player {name:?}");
+                        return Private(format!("unknown player {name:?}"));
                     }
                     targets
                 }
@@ -308,11 +328,17 @@ fn run_admin_command(
             for (_, entity) in &targets {
                 commands.entity(*entity).insert(Health(max_health));
             }
-            format!("healed {} player(s)", targets.len())
+            let text = format!("healed {} player(s)", targets.len());
+            // Healing only yourself is nobody else's business.
+            if targets.iter().any(|(id, _)| *id != sender) {
+                Public(text)
+            } else {
+                Private(text)
+            }
         }
         AdminCommand::GiveKeys => {
             let Some(info) = players.get_mut(&sender) else {
-                return "sender not found".to_owned();
+                return Private("sender not found".to_owned());
             };
             let mut added = 0usize;
             for index in 0..admin.barrier_kind_table.len() {
@@ -322,27 +348,27 @@ fn run_admin_command(
                     added += 1;
                 }
             }
-            format!("gave {added} key(s)")
+            Private(format!("gave {added} key(s)"))
         }
         AdminCommand::GiveKey(color) => match admin.barrier_kind_table.index_of(&color) {
             Some(kind) => {
                 let Some(info) = players.get_mut(&sender) else {
-                    return "sender not found".to_owned();
+                    return Private("sender not found".to_owned());
                 };
-                if info.add_key(kind) {
+                Private(if info.add_key(kind) {
                     format!("gave the {color} key")
                 } else {
                     format!("already holding the {color} key")
-                }
+                })
             }
-            None => format!(
+            None => Private(format!(
                 "unknown key color {color:?} (colors: {})",
                 admin.barrier_kind_table.ids().join(", ")
-            ),
+            )),
         },
         AdminCommand::GivePowerups => {
             let Some(info) = players.get_mut(&sender) else {
-                return "sender not found".to_owned();
+                return Private("sender not found".to_owned());
             };
             let mut given = 0usize;
             for kind in PowerUpKind::ALL {
@@ -350,29 +376,32 @@ fn run_admin_command(
                 grant_power_up_by_id(info, id, &admin.server_gameplay_config);
                 given += 1;
             }
-            format!("gave {given} power-ups")
+            Private(format!("gave {given} power-ups"))
         }
         AdminCommand::GivePowerup(power_up) => {
             let power_up_ids = PowerUpKind::ALL.map(|kind| kind.to_item_type().config_id());
             if !power_up_ids.contains(&power_up.as_str()) {
-                return format!("unknown power-up {power_up:?} (power-ups: {})", power_up_ids.join(", "));
+                return Private(format!(
+                    "unknown power-up {power_up:?} (power-ups: {})",
+                    power_up_ids.join(", ")
+                ));
             }
             let Some(info) = players.get_mut(&sender) else {
-                return "sender not found".to_owned();
+                return Private("sender not found".to_owned());
             };
             grant_power_up_by_id(info, &power_up, &admin.server_gameplay_config);
-            format!("gave the {power_up} power-up")
+            Private(format!("gave the {power_up} power-up"))
         }
         AdminCommand::GiveMissiles => {
             let Some(info) = players.get_mut(&sender) else {
-                return "sender not found".to_owned();
+                return Private("sender not found".to_owned());
             };
             let max = gameplay_config.missiles.max_missiles;
             // No `SMissilesCollected` cue — that would play the pickup sound
             // on the client (admin gives are silent, like keys/power-ups);
             // the next snapshot updates the HUD.
             let missiles = info.add_missiles(max, max);
-            format!("gave missiles ({missiles}/{max})")
+            Private(format!("gave missiles ({missiles}/{max})"))
         }
         AdminCommand::Firework => {
             // Pure presentation: broadcast the seed and forget. Every client
@@ -383,7 +412,7 @@ fn run_admin_command(
                     seed: rand::random::<u64>(),
                 }),
             );
-            "enjoy the show".to_owned()
+            Public("launched fireworks".to_owned())
         }
         AdminCommand::Kick(name) => {
             let mut count = 0usize;
@@ -394,9 +423,9 @@ fn run_admin_command(
                 }
             }
             if count == 0 {
-                format!("unknown player {name:?}")
+                Private(format!("unknown player {name:?}"))
             } else {
-                format!("kicked {count} player(s)")
+                Public(format!("kicked {count} player(s)"))
             }
         }
     }
@@ -443,7 +472,8 @@ fn kill_targets(
             *entity,
             *pos,
             gameplay_config.player.respawn_delay_secs,
-            None,
+            DeathSource::Admin,
+            &admin.server_gameplay_config.feed,
             &mut admin.pending_explosions,
         );
         count += 1;

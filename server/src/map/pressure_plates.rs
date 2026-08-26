@@ -2,15 +2,16 @@ use bevy::prelude::*;
 use std::collections::{HashMap, HashSet};
 
 use crate::{
+    config::ServerGameplayConfig,
     map::{MapConfig, PressurePlateRuntime},
-    network::broadcast_to_all,
+    network::{announce, broadcast_to_all},
     players::PlayerMap,
 };
 use common::{
     constants::{GRID_CELL_SIZE, LEVEL_HEIGHT},
     map::MapGeometry,
     physics::OpenBarrierKinds,
-    protocol::{BarrierKindId, PlayerMarker, Position, SPressurePlate, ServerMessage},
+    protocol::{BarrierKindId, FeedEvent, PlayerId, PlayerMarker, Position, SPressurePlate, ServerMessage},
 };
 
 // World-space test: is `pos` inside this plate's inner 25%-by-area square AND
@@ -45,11 +46,12 @@ pub fn compute_open_barrier_kinds_system(
     map_config: Res<MapConfig>,
     map_geometry: Res<MapGeometry>,
     players: Res<PlayerMap>,
+    server_gameplay_config: Res<ServerGameplayConfig>,
     positions: Query<&Position, With<PlayerMarker>>,
     mut open: ResMut<OpenBarrierKinds>,
-    // Plate indices held last tick. Used to fire `SPressurePlate`
-    // only on the unpressed→pressed edge (step-on cue), not every tick a
-    // player keeps standing.
+    // Plate indices held last tick. Fires `SPressurePlate` only on the
+    // unpressed→pressed edge (step-on cue), not every tick a player keeps
+    // standing, and tells a fresh press from a standing one for feed lines.
     mut prev_held: Local<HashSet<usize>>,
     // Plate count per kind. Derived from the immutable map, so it is built
     // once on first run rather than rebuilt every tick.
@@ -74,29 +76,24 @@ pub fn compute_open_barrier_kinds_system(
         .filter(|(_, info)| info.logged_in && !info.is_dead())
         .count();
 
-    // Per-tick: which plate indices are held, grouped per kind for the
-    // open-set computation and flat for edge-trigger detection.
-    let mut held_per_kind: HashMap<BarrierKindId, HashSet<usize>> = HashMap::new();
-    let mut held_indices: HashSet<usize> = HashSet::new();
-    for (idx, plate) in map_config.pressure_plates.iter().enumerate() {
-        let mut held = false;
-        for (_, info) in players.iter() {
-            if !info.logged_in || info.is_dead() {
-                continue;
-            }
-            let Ok(pos) = positions.get(info.entity) else {
-                continue;
-            };
-            if player_on_plate(plate, pos, &map_geometry) {
-                held = true;
-                break;
-            }
-        }
-        if held {
-            held_per_kind.entry(plate.kind).or_default().insert(idx);
-            held_indices.insert(idx);
+    // Per-tick: who holds each plate (the first alive player found on it).
+    let plates = &map_config.pressure_plates;
+    let mut holders: HashMap<usize, PlayerId> = HashMap::new();
+    for (idx, plate) in plates.iter().enumerate() {
+        let holder = players.iter().find(|(_, info)| {
+            info.logged_in
+                && !info.is_dead()
+                && positions
+                    .get(info.entity)
+                    .is_ok_and(|pos| player_on_plate(plate, pos, &map_geometry))
+        });
+        if let Some((id, _)) = holder {
+            holders.insert(idx, *id);
         }
     }
+    let held_indices: HashSet<usize> = holders.keys().copied().collect();
+    let held_per_kind = held_count_per_kind(&held_indices, plates);
+    let prev_held_per_kind = held_count_per_kind(&prev_held, plates);
 
     // Edge-triggered cues: at most one press and one release cue per tick,
     // regardless of how many plates flipped — the messages carry no plate
@@ -111,12 +108,11 @@ pub fn compute_open_barrier_kinds_system(
             ServerMessage::PressurePlate(SPressurePlate { pressed: false }),
         );
     }
-    *prev_held = held_indices;
 
     let mut next = Vec::new();
     for (kind, plates_for_kind) in plates_per_kind.iter() {
         let required = (*plates_for_kind).min(alive.saturating_sub(1));
-        let held = held_per_kind.get(kind).map_or(0, HashSet::len);
+        let held = held_per_kind.get(kind).copied().unwrap_or(0);
         if held >= required {
             next.push(*kind);
         }
@@ -126,9 +122,76 @@ pub fn compute_open_barrier_kinds_system(
     // every tick (defeating change detection on both server broadcast and
     // client visibility).
     next.sort_by_key(|k| k.0);
+
+    // Feed lines follow plate presses only. The alive-count term also opens
+    // and closes kinds (solo play, joins, deaths); those stay silent — the
+    // barriers themselves already show it.
+    let (opened, closed) = barrier_transitions(&open.0, &next);
+    for kind in opened {
+        if let Some(presser) = presser_of_kind(kind, &holders, &prev_held, plates) {
+            announce(
+                &players,
+                &server_gameplay_config.feed,
+                FeedEvent::BarrierOpened {
+                    name: players.display_name(&presser),
+                    kind,
+                },
+            );
+        }
+    }
+    for kind in closed {
+        let held_now = held_per_kind.get(&kind).copied().unwrap_or(0);
+        let held_before = prev_held_per_kind.get(&kind).copied().unwrap_or(0);
+        if held_now < held_before {
+            announce(
+                &players,
+                &server_gameplay_config.feed,
+                FeedEvent::BarrierClosed { kind },
+            );
+        }
+    }
+
+    *prev_held = held_indices;
     if next != open.0 {
         open.0 = next;
     }
+}
+
+fn held_count_per_kind(held: &HashSet<usize>, plates: &[PressurePlateRuntime]) -> HashMap<BarrierKindId, usize> {
+    let mut counts = HashMap::new();
+    for idx in held {
+        *counts.entry(plates[*idx].kind).or_insert(0) += 1;
+    }
+    counts
+}
+
+// Who gets credit for opening a kind: the holder of one of its plates that
+// was not held last tick, else any current holder. `None` when nobody is on
+// a plate of that kind — the alive-count term opened it.
+fn presser_of_kind(
+    kind: BarrierKindId,
+    holders: &HashMap<usize, PlayerId>,
+    prev_held: &HashSet<usize>,
+    plates: &[PressurePlateRuntime],
+) -> Option<PlayerId> {
+    let mut standing = None;
+    for (idx, id) in holders {
+        if plates[*idx].kind != kind {
+            continue;
+        }
+        if !prev_held.contains(idx) {
+            return Some(*id);
+        }
+        standing = Some(*id);
+    }
+    standing
+}
+
+// (kinds in `next` but not `prev`, kinds in `prev` but not `next`).
+fn barrier_transitions(prev: &[BarrierKindId], next: &[BarrierKindId]) -> (Vec<BarrierKindId>, Vec<BarrierKindId>) {
+    let opened = next.iter().copied().filter(|kind| !prev.contains(kind)).collect();
+    let closed = prev.iter().copied().filter(|kind| !next.contains(kind)).collect();
+    (opened, closed)
 }
 
 #[cfg(test)]
@@ -231,5 +294,56 @@ mod player_on_plate_tests {
             z: 0.0,
         };
         assert!(player_on_plate(&plate, &pos, &geom()));
+    }
+}
+
+#[cfg(test)]
+mod transition_tests {
+    use super::*;
+
+    #[test]
+    fn barrier_transitions_reports_opened_and_closed_kinds() {
+        let (opened, closed) = barrier_transitions(
+            &[BarrierKindId(0), BarrierKindId(1)],
+            &[BarrierKindId(1), BarrierKindId(2)],
+        );
+        assert_eq!(opened, vec![BarrierKindId(2)]);
+        assert_eq!(closed, vec![BarrierKindId(0)]);
+    }
+
+    #[test]
+    fn presser_prefers_a_fresh_press_over_a_standing_holder() {
+        let plates = vec![
+            PressurePlateRuntime {
+                level: 0,
+                col: 0,
+                row: 0,
+                kind: BarrierKindId(0),
+            },
+            PressurePlateRuntime {
+                level: 0,
+                col: 1,
+                row: 0,
+                kind: BarrierKindId(0),
+            },
+            PressurePlateRuntime {
+                level: 0,
+                col: 2,
+                row: 0,
+                kind: BarrierKindId(1),
+            },
+        ];
+        let holders = HashMap::from([(0, PlayerId(1)), (1, PlayerId(2)), (2, PlayerId(3))]);
+        let prev_held = HashSet::from([0]);
+
+        assert_eq!(
+            presser_of_kind(BarrierKindId(0), &holders, &prev_held, &plates),
+            Some(PlayerId(2))
+        );
+        assert_eq!(
+            presser_of_kind(BarrierKindId(1), &holders, &prev_held, &plates),
+            Some(PlayerId(3))
+        );
+        assert_eq!(presser_of_kind(BarrierKindId(2), &holders, &prev_held, &plates), None);
     }
 }

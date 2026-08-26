@@ -21,8 +21,8 @@ use crate::{
     projectiles::{LastBounceSound, ProjectileAssets},
     schedule::configure_client_sets,
     ui::{
-        ConsoleState, FpsMeasurement, GameMessageFeed, HudShapeAssets, PendingBanner, QuestLog, SeenPlayerIds,
-        hud_plugin, setup_ui_system,
+        ConsoleState, FpsMeasurement, GameMessageFeed, HudShapeAssets, PendingBanner, QuestLog, hud_plugin,
+        setup_ui_system,
     },
     vfx::{ExplosionAssets, ExplosionRadii, ExplosionVfxBudget, ParticleClouds, RainIntensity, presentation_plugin},
 };
@@ -90,7 +90,6 @@ pub fn build_client_app(
         .insert_resource(GameMessageFeed::default())
         .insert_resource(ConsoleState::default())
         .insert_resource(PendingBanner::default())
-        .insert_resource(SeenPlayerIds::default())
         .insert_resource(QuestLog::default())
         .insert_resource(MissileMap::default())
         .insert_resource(LockOnTarget::default())

@@ -123,8 +123,6 @@ pub fn dispatch_message(
                 &client_assets.handles.explosion_radii,
                 players,
                 &mut client_assets.hud.local_player_info,
-                &mut client_assets.hud.game_message_feed,
-                &client_assets.handles.client_settings,
                 &mut client_assets.hud.pending_banner,
                 my_player_id,
                 death_msg,
@@ -206,7 +204,6 @@ pub fn dispatch_message(
             handle_player_status_message(
                 commands,
                 players,
-                &mut client_assets.hud.game_message_feed,
                 player_status_msg,
                 my_player_id,
                 &client_assets.handles.asset_server,
@@ -342,21 +339,17 @@ pub fn dispatch_message(
                 client_assets.handles.asset_set.player_sound(sound),
             );
         }
-        ServerMessage::AdminResponse(admin_msg) => {
-            // Multi-line replies (e.g. /help) become one feed row per line.
-            for line in admin_msg.text.lines().filter(|line| !line.trim().is_empty()) {
-                client_assets
-                    .hud
-                    .game_message_feed
-                    .push(crate::ui::GameMessage::Admin { text: line.to_owned() });
+        ServerMessage::Feed(SFeed { event }) => {
+            let feed = &mut client_assets.hud.game_message_feed;
+            match event {
+                // Multi-line replies (e.g. /help) become one feed row per line.
+                FeedEvent::AdminReply { text } => {
+                    for line in text.lines().filter(|line| !line.trim().is_empty()) {
+                        feed.push(FeedEvent::AdminReply { text: line.to_owned() });
+                    }
+                }
+                event => feed.push(event),
             }
-        }
-        ServerMessage::Chat(chat_msg) => {
-            // Single-line by construction — the server strips control chars.
-            client_assets.hud.game_message_feed.push(crate::ui::GameMessage::Chat {
-                name: chat_msg.name,
-                text: chat_msg.text,
-            });
         }
     }
 }

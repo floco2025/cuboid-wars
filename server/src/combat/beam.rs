@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use bevy::prelude::*;
 
-use super::{apply_player_beam_damage, kill_player};
+use super::{DeathSource, apply_player_beam_damage, kill_player};
 use crate::{
     actors::{ActorMap, BeamState},
     combat::PendingExplosions,
@@ -131,7 +131,10 @@ pub fn actors_beam_damage_system(
                 target_entity,
                 death_pos,
                 respawn_delay_secs,
-                None,
+                DeathSource::Beam {
+                    kind: info.spawn_kind.clone(),
+                },
+                &server_gameplay_config.feed,
                 &mut pending_explosions,
             );
         }

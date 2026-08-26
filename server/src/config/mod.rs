@@ -1,5 +1,6 @@
 mod actors;
 mod cycles;
+mod feed;
 mod gameplay;
 mod maps;
 mod network;
@@ -11,6 +12,7 @@ pub use actors::{
     ContactAttackConfig, ContactBeamAttackConfig, ExplosionDamageConfig,
 };
 pub use cycles::{LightingCycleConfig, WeatherCycleConfig};
+pub use feed::FeedConfig;
 pub use gameplay::{
     FallDamageConfig, MissilesServerConfig, PlacedItemRespawnSecs, PlacedItemsConfig, PlayerServerConfig,
     PowerUpsConfig, ProjectileConfig, ScoringConfig, ServerGameplayConfig,

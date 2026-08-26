@@ -1,6 +1,6 @@
 // Wire protocol between client and server.
 //
-// Server→client messages fall into five roles (plus a diagnostic channel).
+// Server→client messages fall into six roles (plus a diagnostic channel).
 // When adding a new message, pick the smallest role that fits — most shared
 // "X changed" things belong in the snapshot, not a new event.
 //
@@ -62,6 +62,13 @@
 //    job, not the protocol's. Used today for quest assignment / progress /
 //    completion (`SQuestsAssigned`, `SQuestProgress`, `SQuestCompleted`).
 //
+// 6. Feed lines (`SFeed`) — server-authored, human-readable lines for the
+//    client's message feed (kills, pickups, quest completions, admin
+//    actions, chat). Names and kinds are resolved at emit time so the client
+//    renders without live entity maps. Broadcast, except admin replies,
+//    which are unicast to the issuer. Ephemeral like cues — a dropped line
+//    costs only the text — and never a source of state.
+//
 // `CPing` / `SPong` are a separate diagnostic channel for RTT measurement.
 
 use bevy_ecs::prelude::*;
@@ -119,14 +126,15 @@ pub struct CPing {
 
 // Client to Server: raw admin command string (e.g. "rain start"). The
 // client stays dumb — parsing, execution, authorization, and the reply
-// text all live server-side, so new commands never touch the protocol.
+// text (answered as `FeedEvent::AdminReply` / `AdminAction`) all live
+// server-side, so new commands never touch the protocol.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct CAdmin {
     pub command: String,
 }
 
 // Client to Server: raw chat line (a slashless console entry). The server
-// sanitizes and broadcasts it as `SChat`.
+// sanitizes and broadcasts it as `FeedEvent::Chat`.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct CChat {
     pub text: String,
@@ -269,9 +277,9 @@ pub struct SPlayerDeath {
     // drifted from the server before reconciliation converged, and the corpse
     // stays visible (top-down death view) on the true death spot.
     pub pos: Position,
-    // Player who landed the killing blow; `None` for non-player causes
-    // (fall, actor explosion, future environmental). Drives the
-    // client-side message feed's "A → B" entry vs "A died" entry.
+    // Player credited with the kill; `None` for non-player causes and
+    // self-kills. Only pairs with `killer_score` below — the feed line
+    // (with the full cause) is a separate `SFeed`.
     pub killer: Option<PlayerId>,
     // The victim's post-death score (death penalty already applied) so the
     // HUD updates on the death tick rather than waiting for the next
@@ -445,21 +453,14 @@ pub struct SFirework {
     pub seed: u64,
 }
 
-// Reply to a `CAdmin` command — success or error text, unicast to the
-// sender. One-shot: ephemeral feedback for the admin console, shown in the
-// message feed; a dropped reply costs only the text.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct SAdminResponse {
-    pub text: String,
-}
+// --- Feed lines (server-authored message feed) ---
 
-// A chat line, broadcast to everyone. The sender's name is captured
-// server-side at send time — the sender may be dead or gone by render
-// time. One-shot: a dropped line is just a missed message.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct SChat {
-    pub name: String,
-    pub text: String,
+// One message-feed line. See `FeedEvent` for the vocabulary; the sender's
+// name is captured server-side at send time because the subject may be
+// dead or gone by render time.
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+pub struct SFeed {
+    pub event: FeedEvent,
 }
 
 // --- Per-client state events (private, durable) ---
@@ -568,8 +569,8 @@ pub enum ServerMessage {
     MissilesCollected(SMissilesCollected),
     PressurePlate(SPressurePlate),
     Firework(SFirework),
-    AdminResponse(SAdminResponse),
-    Chat(SChat),
+    // Feed lines
+    Feed(SFeed),
     // Per-client state events
     QuestsAssigned(SQuestsAssigned),
     QuestProgress(SQuestProgress),

@@ -7,7 +7,7 @@ use crate::{
     map::MapConfig,
     map::OpenBarrierKinds,
     missiles::MissileMap,
-    network::{ClientToServer, FromClientsChannel},
+    network::{ClientToServer, FromClientsChannel, announce},
     players::{PlayerInfo, PlayerMap},
 };
 
@@ -106,6 +106,7 @@ pub fn network_process_client_messages_system(
             ClientToServer::Registration { .. } => unreachable!("handled above"),
             ClientToServer::Disconnected => {
                 let who = players.describe(&id);
+                let name = players.display_name(&id);
                 let was_logged_in = player_info.logged_in;
                 let entity = player_info.entity;
                 let was_dead = player_info.is_dead();
@@ -118,7 +119,15 @@ pub fn network_process_client_messages_system(
                 }
 
                 debug!("{} disconnected (logged_in: {})", who, was_logged_in);
-                // Other clients notice the absence on the next `SSnapshot`.
+                // Presence is snapshot-only — other clients notice the
+                // absence on the next `SSnapshot`; the feed line is cosmetic.
+                if was_logged_in {
+                    announce(
+                        &players,
+                        &world.server_gameplay_config.feed,
+                        FeedEvent::PlayerLeft { name },
+                    );
+                }
             }
             ClientToServer::Message(message) => {
                 let is_logged_in = player_info.logged_in;

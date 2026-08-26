@@ -68,8 +68,6 @@ pub(super) fn handle_snapshot_message(
         players: state.players,
         rtt: state.rtt,
         local_player_info: &mut client_assets.hud.local_player_info,
-        feed: &mut client_assets.hud.game_message_feed,
-        seen_player_ids: &mut client_assets.hud.seen_player_ids,
         quest_log: &client_assets.hud.quest_log,
         pending_banner: &mut client_assets.hud.pending_banner,
         my_player_id: state.my_player_id,

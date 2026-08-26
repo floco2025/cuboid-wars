@@ -2,11 +2,13 @@ use bevy::prelude::*;
 
 use super::{
     admin::{AdminContext, handle_admin_message},
-    broadcast::{broadcast_to_all, broadcast_to_others},
+    broadcast::broadcast_to_others,
+    feed::announce,
     incoming::{CharacterQueries, SharedWorld},
 };
 use crate::{
     actors::{ActorMap, PendingActorSpawns},
+    config::FeedConfig,
     map::OpenBarrierKinds,
     missiles::{MissileMap, handle_missile_shot_message},
     network::ServerToClient,
@@ -130,7 +132,7 @@ pub fn dispatch_message(
             );
         }
         ClientMessage::Chat(msg) => {
-            handle_chat_message(id, &msg, players);
+            handle_chat_message(id, &msg, players, &world.server_gameplay_config.feed);
         }
     }
 }
@@ -150,17 +152,18 @@ fn sanitize_chat_text(raw: &str) -> Option<String> {
     }
 }
 
-fn handle_chat_message(id: PlayerId, msg: &CChat, players: &PlayerMap) {
+fn handle_chat_message(id: PlayerId, msg: &CChat, players: &PlayerMap, feed: &FeedConfig) {
     let Some(text) = sanitize_chat_text(&msg.text) else {
         return;
     };
-    // Name captured at send time — the sender may be dead or gone by the
-    // time clients render the line.
-    let name = players
-        .get(&id)
-        .filter(|info| !info.name.is_empty())
-        .map_or_else(|| format!("Player {}", id.0), |info| info.name.clone());
-    broadcast_to_all(players, ServerMessage::Chat(SChat { name, text }));
+    announce(
+        players,
+        feed,
+        FeedEvent::Chat {
+            name: players.display_name(&id),
+            text,
+        },
+    );
 }
 
 // ============================================================================

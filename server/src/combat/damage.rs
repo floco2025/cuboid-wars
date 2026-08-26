@@ -3,20 +3,68 @@ use bevy::prelude::*;
 use super::PendingExplosions;
 use crate::{
     actors::ActorMap,
-    config::ServerGameplayConfig,
-    network::{ServerToClient, broadcast_to_all},
+    config::{FeedConfig, ServerGameplayConfig},
+    network::{ServerToClient, announce, broadcast_to_all},
     players::{PlayerMap, QuestEvent, record_quest_event},
 };
 use common::{
     health::apply_damage,
-    protocol::{ActorId, Health, PlayerId, Position, SActorDeath, SPlayerDeath, ServerMessage},
+    protocol::{ActorId, DeathCause, FeedEvent, Health, PlayerId, Position, SActorDeath, SPlayerDeath, ServerMessage},
 };
 
+// What killed a player, by id. `kill_player` derives both the kill credit
+// (`SPlayerDeath.killer`) and the feed's `DeathCause` from it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DeathSource {
+    Shot(PlayerId),
+    Missile(PlayerId),
+    Beam { kind: String },
+    PlayerBlast(PlayerId),
+    ActorBlast { kind: String },
+    Fall,
+    Admin,
+}
+
+// Credit goes to a shooter other than the victim who is still connected;
+// beams, death blasts, falls, and admin kills credit nobody.
+#[must_use]
+pub fn kill_credit(source: &DeathSource, victim: PlayerId, players: &PlayerMap) -> Option<PlayerId> {
+    match source {
+        DeathSource::Shot(by) | DeathSource::Missile(by) => (*by != victim && players.get(by).is_some()).then_some(*by),
+        DeathSource::Beam { .. }
+        | DeathSource::PlayerBlast(_)
+        | DeathSource::ActorBlast { .. }
+        | DeathSource::Fall
+        | DeathSource::Admin => None,
+    }
+}
+
+fn death_cause(source: &DeathSource, victim: PlayerId, players: &PlayerMap) -> DeathCause {
+    match source {
+        DeathSource::Shot(by) if *by == victim => DeathCause::SelfShot,
+        DeathSource::Shot(by) => DeathCause::Shot {
+            by: players.display_name(by),
+        },
+        DeathSource::Missile(by) if *by == victim => DeathCause::SelfMissile,
+        DeathSource::Missile(by) => DeathCause::Missile {
+            by: players.display_name(by),
+        },
+        DeathSource::Beam { kind } => DeathCause::Beam { kind: kind.clone() },
+        DeathSource::PlayerBlast(by) => DeathCause::PlayerBlast {
+            by: players.display_name(by),
+        },
+        DeathSource::ActorBlast { kind } => DeathCause::ActorBlast { kind: kind.clone() },
+        DeathSource::Fall => DeathCause::Fall,
+        DeathSource::Admin => DeathCause::Admin,
+    }
+}
+
 // Run the death sequence for one player: clear per-life state, arm the
-// respawn timer, queue the death explosion, despawn the entity, and
-// broadcast `SPlayerDeath` so clients run death-side effects on the impact
-// tick instead of waiting a snapshot. Called from every code path that takes
-// a player to zero health (projectile hits, explosions, falls).
+// respawn timer, queue the death explosion, despawn the entity, broadcast
+// `SPlayerDeath` so clients run death-side effects on the impact tick
+// instead of waiting a snapshot, and announce the feed line. Called from
+// every code path that takes a player to zero health (projectile hits,
+// beams, explosions, falls, `/kill`).
 #[expect(
     clippy::too_many_arguments,
     reason = "the one-stop death sequence threads all death state"
@@ -28,9 +76,11 @@ pub fn kill_player(
     entity: Entity,
     pos: Position,
     respawn_delay_secs: f32,
-    killer: Option<PlayerId>,
+    source: DeathSource,
+    feed: &FeedConfig,
     pending_explosions: &mut PendingExplosions,
 ) {
+    let killer = kill_credit(&source, id, players);
     let Some(info) = players.get_mut(&id) else {
         return;
     };
@@ -58,13 +108,23 @@ pub fn kill_player(
             killer_score,
         }),
     );
+    announce(
+        players,
+        feed,
+        FeedEvent::PlayerDied {
+            name: players.display_name(&id),
+            cause: death_cause(&source, id, players),
+        },
+    );
 }
 
+#[expect(clippy::too_many_arguments, reason = "the one-stop actor death sequence")]
 pub fn kill_actor(
     commands: &mut Commands,
     actors: &mut ActorMap,
     players: &PlayerMap,
     pending_explosions: &mut PendingExplosions,
+    feed: &FeedConfig,
     id: ActorId,
     entity: Entity,
     pos: Position,
@@ -73,6 +133,16 @@ pub fn kill_actor(
     let Some(info) = actors.remove(&id) else {
         return false;
     };
+    if let Some(killer_id) = killer {
+        announce(
+            players,
+            feed,
+            FeedEvent::ActorDestroyed {
+                name: players.display_name(&killer_id),
+                kind: info.spawn_kind.clone(),
+            },
+        );
+    }
     let killer_score = killer
         .and_then(|killer_id| players.get(&killer_id))
         .map(|player| player.score);
@@ -109,14 +179,24 @@ pub fn award_actor_kill(
         .get(kind)
         .copied()
         .expect("actor kind missing from scoring.actor_kill");
-    let quest_messages = record_quest_event(
+    let outcome = record_quest_event(
         shooter,
         &server_gameplay_config.quests,
         &server_gameplay_config.scoring,
         QuestEvent::ActorKilled { kind },
     );
-    for msg in quest_messages {
+    for msg in outcome.unicast {
         let _ = shooter.channel.send(ServerToClient::Send(msg));
+    }
+    for title in outcome.completed_titles {
+        announce(
+            players,
+            &server_gameplay_config.feed,
+            FeedEvent::QuestCompleted {
+                name: players.display_name(&shooter_id),
+                title,
+            },
+        );
     }
 }
 
@@ -228,8 +308,59 @@ mod tests {
         MapServerConfig, MissilesServerConfig, PlacedItemRespawnSecs, PlacedItemsConfig, PlayerServerConfig,
         PowerUpsConfig, ProjectileConfig, ScoringConfig, WeatherCycleConfig, WeatherMode,
     };
-    use crate::players::PlayerInfo;
-    use tokio::sync::mpsc::unbounded_channel;
+    use crate::{actors::ActorInfo, players::PlayerInfo};
+    use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
+
+    fn logged_in_player(players: &mut PlayerMap, id: PlayerId, name: &str) -> UnboundedReceiver<ServerToClient> {
+        let (tx, rx) = unbounded_channel();
+        let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
+        info.logged_in = true;
+        info.name = name.to_owned();
+        players.insert(id, info);
+        rx
+    }
+
+    fn next_player_death(receiver: &mut UnboundedReceiver<ServerToClient>) -> SPlayerDeath {
+        loop {
+            match receiver.try_recv().expect("expected a PlayerDeath broadcast") {
+                ServerToClient::Send(ServerMessage::PlayerDeath(msg)) => return msg,
+                _ => continue,
+            }
+        }
+    }
+
+    fn feed_events(receiver: &mut UnboundedReceiver<ServerToClient>) -> Vec<FeedEvent> {
+        let mut events = Vec::new();
+        while let Ok(envelope) = receiver.try_recv() {
+            if let ServerToClient::Send(ServerMessage::Feed(feed)) = envelope {
+                events.push(feed.event);
+            }
+        }
+        events
+    }
+
+    fn kill_with(players: &mut PlayerMap, victim: PlayerId, source: DeathSource) {
+        let mut app = App::new();
+        let world = app.world_mut();
+        let entity = world.spawn_empty().id();
+        let mut commands_queue = bevy::ecs::world::CommandQueue::default();
+        let mut pending_explosions = PendingExplosions::default();
+        {
+            let mut commands = bevy::ecs::system::Commands::new(&mut commands_queue, world);
+            kill_player(
+                &mut commands,
+                players,
+                victim,
+                entity,
+                Position::default(),
+                2.0,
+                source,
+                &FeedConfig::all(true, &[]),
+                &mut pending_explosions,
+            );
+        }
+        commands_queue.apply(world);
+    }
 
     fn server_gameplay_config() -> ServerGameplayConfig {
         ServerGameplayConfig {
@@ -317,6 +448,7 @@ mod tests {
                 threat_memory_secs: 0.0,
             },
             actors: HashMap::new(),
+            feed: FeedConfig::all(true, &[]),
         }
     }
 
@@ -527,7 +659,8 @@ mod tests {
                 target_entity,
                 Position::default(),
                 2.0,
-                Some(PlayerId(1)),
+                DeathSource::Shot(PlayerId(1)),
+                &FeedConfig::all(true, &[]),
                 &mut pending_explosions,
             );
         }
@@ -541,6 +674,110 @@ mod tests {
             }
             other => panic!("unexpected message: {other:?}"),
         }
+    }
+
+    #[test]
+    fn kill_player_announces_death_with_cause() {
+        let mut players = PlayerMap::default();
+        let mut shooter_rx = logged_in_player(&mut players, PlayerId(1), "Bob");
+        logged_in_player(&mut players, PlayerId(2), "Marc");
+
+        kill_with(&mut players, PlayerId(2), DeathSource::Shot(PlayerId(1)));
+
+        assert_eq!(next_player_death(&mut shooter_rx).killer, Some(PlayerId(1)));
+        assert_eq!(
+            feed_events(&mut shooter_rx),
+            vec![FeedEvent::PlayerDied {
+                name: "Marc".to_owned(),
+                cause: DeathCause::Shot { by: "Bob".to_owned() },
+            }]
+        );
+    }
+
+    #[test]
+    fn self_shot_yields_no_credit_but_self_cause() {
+        let mut players = PlayerMap::default();
+        let mut rx = logged_in_player(&mut players, PlayerId(2), "Marc");
+
+        kill_with(&mut players, PlayerId(2), DeathSource::Shot(PlayerId(2)));
+
+        assert_eq!(next_player_death(&mut rx).killer, None);
+        assert_eq!(
+            feed_events(&mut rx),
+            vec![FeedEvent::PlayerDied {
+                name: "Marc".to_owned(),
+                cause: DeathCause::SelfShot,
+            }]
+        );
+    }
+
+    #[test]
+    fn kill_credit_ignores_departed_shooter() {
+        let mut players = PlayerMap::default();
+        logged_in_player(&mut players, PlayerId(1), "Bob");
+        logged_in_player(&mut players, PlayerId(2), "Marc");
+
+        assert_eq!(
+            kill_credit(&DeathSource::Shot(PlayerId(9)), PlayerId(2), &players),
+            None
+        );
+        assert_eq!(
+            kill_credit(&DeathSource::Missile(PlayerId(1)), PlayerId(2), &players),
+            Some(PlayerId(1))
+        );
+        assert_eq!(
+            kill_credit(&DeathSource::PlayerBlast(PlayerId(1)), PlayerId(2), &players),
+            None
+        );
+        assert_eq!(kill_credit(&DeathSource::Fall, PlayerId(2), &players), None);
+    }
+
+    #[test]
+    fn kill_actor_announces_only_flagged_kinds() {
+        let mut feed = FeedConfig::all(false, &["sentry", "zapper"]);
+        feed.actor_destroyed.insert("sentry".to_owned(), true);
+        let mut players = PlayerMap::default();
+        let mut rx = logged_in_player(&mut players, PlayerId(1), "Bob");
+        let mut app = App::new();
+        let world = app.world_mut();
+        let sentry = world.spawn_empty().id();
+        let zapper = world.spawn_empty().id();
+        let uncredited = world.spawn_empty().id();
+        let mut actors = ActorMap::default();
+        actors.insert(ActorId(1), ActorInfo::new(sentry, 0, "sentry".to_owned()));
+        actors.insert(ActorId(2), ActorInfo::new(zapper, 0, "zapper".to_owned()));
+        actors.insert(ActorId(3), ActorInfo::new(uncredited, 0, "sentry".to_owned()));
+        let mut pending_explosions = PendingExplosions::default();
+        let mut commands_queue = bevy::ecs::world::CommandQueue::default();
+        {
+            let mut commands = bevy::ecs::system::Commands::new(&mut commands_queue, world);
+            for (id, entity, killer) in [
+                (ActorId(2), zapper, Some(PlayerId(1))),
+                (ActorId(1), sentry, Some(PlayerId(1))),
+                (ActorId(3), uncredited, None),
+            ] {
+                kill_actor(
+                    &mut commands,
+                    &mut actors,
+                    &players,
+                    &mut pending_explosions,
+                    &feed,
+                    id,
+                    entity,
+                    Position::default(),
+                    killer,
+                );
+            }
+        }
+        commands_queue.apply(world);
+
+        assert_eq!(
+            feed_events(&mut rx),
+            vec![FeedEvent::ActorDestroyed {
+                name: "Bob".to_owned(),
+                kind: "sentry".to_owned(),
+            }]
+        );
     }
 
     #[test]
@@ -566,7 +803,8 @@ mod tests {
                 entity,
                 Position::default(),
                 2.0,
-                None,
+                DeathSource::Fall,
+                &FeedConfig::all(true, &[]),
                 &mut pending_explosions,
             );
         }

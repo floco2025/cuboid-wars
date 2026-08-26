@@ -13,7 +13,7 @@ use crate::{
     network::resources::RoundTripTime,
     players::LocalPlayerInfo,
     projectiles::ProjectileAssets,
-    ui::{GameMessageFeed, PendingBanner, QuestLog, SeenPlayerIds},
+    ui::{GameMessageFeed, PendingBanner, QuestLog},
     vfx::{ExplosionAssets, ExplosionRadii, ExplosionVfxBudget},
 };
 
@@ -148,7 +148,6 @@ pub struct ClientAssetHandles<'w> {
 pub struct HudState<'w> {
     pub local_player_info: ResMut<'w, LocalPlayerInfo>,
     pub game_message_feed: ResMut<'w, GameMessageFeed>,
-    pub seen_player_ids: ResMut<'w, SeenPlayerIds>,
     pub quest_log: ResMut<'w, QuestLog>,
     pub pending_banner: ResMut<'w, PendingBanner>,
 }

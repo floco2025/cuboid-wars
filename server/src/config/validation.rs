@@ -1,10 +1,31 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use anyhow::{Result, bail};
 use common::config::GameplayConfig;
 
-use super::ServerGameplayConfig;
+use super::{ServerGameplayConfig, actors::ActorKindServerConfig};
 use crate::map::MapConfig;
+
+// A per-actor-kind map must name every configured kind (a missing entry
+// silently defaulting is the footgun) and nothing else (a typo).
+pub(super) fn validate_covers_actor_kinds<'a>(
+    keys: impl Iterator<Item = &'a String>,
+    actors: &HashMap<String, ActorKindServerConfig>,
+    path: &str,
+) -> Result<()> {
+    let keys: HashSet<&String> = keys.collect();
+    for kind in actors.keys() {
+        if !keys.contains(kind) {
+            bail!("{path} is missing actor kind {kind:?}");
+        }
+    }
+    for kind in keys {
+        if !actors.contains_key(kind) {
+            bail!("{path} contains unknown actor kind {kind:?}");
+        }
+    }
+    Ok(())
+}
 
 pub(crate) fn validate_actor_kinds_consistent(
     gameplay_config: &GameplayConfig,

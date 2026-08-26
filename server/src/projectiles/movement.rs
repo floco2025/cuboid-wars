@@ -3,7 +3,8 @@ use bevy::{ecs::system::SystemParam, prelude::*};
 use crate::{
     actors::ActorMap,
     combat::{
-        PendingExplosions, apply_actor_projectile_hit, apply_player_projectile_hit, award_actor_kill, kill_player,
+        DeathSource, PendingExplosions, apply_actor_projectile_hit, apply_player_projectile_hit, award_actor_kill,
+        kill_player,
     },
     config::ServerGameplayConfig,
     map::OpenBarrierKinds,
@@ -249,9 +250,6 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
 
                     if was_lethal {
                         info!("{} died", params.players.describe(&player_id));
-                        // A self-kill is a solo death — no killer attribution
-                        // (the feed would otherwise read "X killed X").
-                        let killer = (player_id != *shooter_id).then_some(*shooter_id);
                         kill_player(
                             &mut commands,
                             &mut params.players,
@@ -259,7 +257,8 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                             target_entity,
                             death_pos,
                             params.gameplay_config.player.respawn_delay_secs,
-                            killer,
+                            DeathSource::Shot(*shooter_id),
+                            &params.server_gameplay_config.feed,
                             &mut params.pending_explosions,
                         );
                     }

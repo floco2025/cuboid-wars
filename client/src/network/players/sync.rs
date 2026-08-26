@@ -10,7 +10,7 @@ use crate::{
     config::{AssetSet, ClientSettings},
     network::{RoundTripTime, ServerReconciliation},
     players::{LocalPlayerInfo, PlayerInfo, PlayerMap, spawn_player},
-    ui::{GameMessage, GameMessageFeed, PendingBanner, QuestLog, SeenPlayerIds},
+    ui::{PendingBanner, QuestLog},
 };
 use common::{
     config::GameplayConfig,
@@ -33,8 +33,6 @@ pub struct PlayerSnapshotState<'a> {
     pub players: &'a mut PlayerMap,
     pub rtt: &'a RoundTripTime,
     pub local_player_info: &'a mut LocalPlayerInfo,
-    pub feed: &'a mut GameMessageFeed,
-    pub seen_player_ids: &'a mut SeenPlayerIds,
     pub quest_log: &'a QuestLog,
     pub pending_banner: &'a mut PendingBanner,
     pub my_player_id: PlayerId,
@@ -60,17 +58,6 @@ pub fn sync_players(
         }
 
         spawn_snapshot_player(commands, assets, state, camera_query, *id, player);
-
-        // Skip the local player's own "joined" line — they know they
-        // joined. Also suppress duplicate "joined" lines on respawn —
-        // a respawning player looks identical to a fresh join from the
-        // snapshot diff's perspective, so we gate on first-ever-seen.
-        let is_first_seen = state.seen_player_ids.insert_if_new(*id);
-        if *id != my_player_id && is_first_seen {
-            state.feed.push(GameMessage::PlayerJoined {
-                name: player.name.clone(),
-            });
-        }
     }
 
     // Handle players no longer in the snapshot:
@@ -91,9 +78,6 @@ pub fn sync_players(
             true
         } else {
             commands.entity(player.entity).despawn();
-            state.feed.push(GameMessage::PlayerLeft {
-                name: player.name.clone(),
-            });
             false
         }
     });

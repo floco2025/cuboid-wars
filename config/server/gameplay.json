@@ -50,6 +50,18 @@
       "collect_gold": 2000
     }
   },
+  "feed": {
+    "player_joined": true,
+    "player_left": true,
+    "player_died": true,
+    "actor_destroyed": { "mine": false, "sentry": false, "reaper": false, "zapper": false },
+    "key_found": true,
+    "quest_completed": true,
+    "barrier_opened": true,
+    "barrier_closed": true,
+    "admin_action": true,
+    "chat": true
+  },
   "player": {
     "armor": 0.8,
     "fall_damage": {

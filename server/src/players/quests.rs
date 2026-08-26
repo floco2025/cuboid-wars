@@ -27,13 +27,21 @@ impl QuestEvent<'_> {
     }
 }
 
+#[derive(Debug, Default)]
+pub struct QuestOutcome {
+    // Progress/completion events for the player who earned them.
+    pub unicast: Vec<ServerMessage>,
+    // Titles of quests completed by this event, for the everyone-sees-it feed line.
+    pub completed_titles: Vec<String>,
+}
+
 pub fn record_quest_event(
     player_info: &mut PlayerInfo,
     quests: &[Quest],
     scoring: &ScoringConfig,
     event: QuestEvent,
-) -> Vec<ServerMessage> {
-    let mut messages = Vec::new();
+) -> QuestOutcome {
+    let mut outcome = QuestOutcome::default();
     for quest in quests {
         if !event.matches(quest) {
             continue;
@@ -52,18 +60,19 @@ pub fn record_quest_event(
                 .get(&quest.id.0)
                 .copied()
                 .expect("quest id missing from scoring.quest_completed");
-            messages.push(ServerMessage::QuestCompleted(SQuestCompleted {
+            outcome.unicast.push(ServerMessage::QuestCompleted(SQuestCompleted {
                 id: quest.id.clone(),
                 completed_text: quest.completed_text.clone(),
             }));
+            outcome.completed_titles.push(quest.title.clone());
         } else {
-            messages.push(ServerMessage::QuestProgress(SQuestProgress {
+            outcome.unicast.push(ServerMessage::QuestProgress(SQuestProgress {
                 id: quest.id.clone(),
                 progress: state.progress,
             }));
         }
     }
-    messages
+    outcome
 }
 
 pub fn assign_quests(player_info: &mut PlayerInfo, quests: &[Quest]) -> Option<SQuestsAssigned> {
@@ -163,7 +172,7 @@ mod tests {
         );
 
         assert!(
-            matches!(messages.as_slice(), [ServerMessage::QuestProgress(progress)] if progress.progress == 1 && progress.id == quest.id)
+            matches!(messages.unicast.as_slice(), [ServerMessage::QuestProgress(progress)] if progress.progress == 1 && progress.id == quest.id)
         );
         assert_eq!(info.quest_states[&quest.id].progress, 1);
         assert!(!info.quest_states[&quest.id].completed);
@@ -194,9 +203,14 @@ mod tests {
             QuestEvent::CookieCollected,
         );
 
-        assert!(matches!(first.as_slice(), [ServerMessage::QuestProgress(_)]));
-        assert!(matches!(second.as_slice(), [ServerMessage::QuestCompleted(completed)] if completed.id == quest.id));
-        assert!(third.is_empty());
+        assert!(matches!(first.unicast.as_slice(), [ServerMessage::QuestProgress(_)]));
+        assert!(
+            matches!(second.unicast.as_slice(), [ServerMessage::QuestCompleted(completed)] if completed.id == quest.id)
+        );
+        assert!(third.unicast.is_empty());
+        assert!(first.completed_titles.is_empty());
+        assert_eq!(second.completed_titles, ["Gold"]);
+        assert!(third.completed_titles.is_empty());
         assert!(info.quest_states[&quest.id].completed);
     }
 
@@ -243,8 +257,10 @@ mod tests {
             QuestEvent::ActorKilled { kind: "sentry" },
         );
 
-        assert!(wrong.is_empty());
-        assert!(matches!(matching.as_slice(), [ServerMessage::QuestProgress(progress)] if progress.progress == 1));
+        assert!(wrong.unicast.is_empty());
+        assert!(
+            matches!(matching.unicast.as_slice(), [ServerMessage::QuestProgress(progress)] if progress.progress == 1)
+        );
     }
 
     #[test]
@@ -263,7 +279,7 @@ mod tests {
             QuestEvent::CookieCollected,
         );
 
-        assert_eq!(messages.len(), 1);
+        assert_eq!(messages.unicast.len(), 1);
         assert_eq!(info.quest_states[&cookie.id].progress, 1);
         assert_eq!(info.quest_states[&sentry.id].progress, 0);
     }

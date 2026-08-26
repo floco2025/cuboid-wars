@@ -4,7 +4,7 @@ use crate::{
     actors::{ActorMap, PendingActorSpawns},
     characters::{generate_player_spawn_position, spawn_face_yaw},
     items::ItemMap,
-    network::ServerToClient,
+    network::{ServerToClient, announce_to_others},
     players::{PlayerMap, assign_quests},
 };
 use common::{
@@ -173,9 +173,18 @@ pub fn handle_login_message(
             });
             channel.send(ServerToClient::Send(snapshot_msg)).ok();
 
+            // Presence is snapshot-only — other clients learn about this
+            // player via the next `SSnapshot`; the feed line is cosmetic.
+            announce_to_others(
+                players,
+                &world.server_gameplay_config.feed,
+                id,
+                FeedEvent::PlayerJoined {
+                    name: players.display_name(&id),
+                },
+            );
+
             // Now update entity with the authoritative spawn movement state.
-            // Other clients learn about this player via the next `SSnapshot`
-            // snapshot — no explicit "login" event is broadcast.
             commands.entity(entity).insert((
                 pos,
                 move_intent,

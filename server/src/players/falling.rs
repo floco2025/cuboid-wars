@@ -2,7 +2,8 @@ use bevy::prelude::*;
 
 use super::{Invincibility, PlayerMap};
 use crate::characters::{generate_player_spawn_position, spawn_face_yaw};
-use crate::combat::{PendingExplosions, kill_player};
+use crate::combat::{DeathSource, PendingExplosions, kill_player};
+use crate::config::ServerGameplayConfig;
 use crate::map::MapConfig;
 use crate::network::ServerToClient;
 use common::constants::CHARACTER_FALL_DEATH_Y;
@@ -76,6 +77,7 @@ pub fn players_fall_death_system(
     mut players: ResMut<PlayerMap>,
     mut pending_explosions: ResMut<PendingExplosions>,
     gameplay_config: Res<GameplayConfig>,
+    server_gameplay_config: Res<ServerGameplayConfig>,
     invincibility: Res<Invincibility>,
     map_config: Res<MapConfig>,
     map_geometry: Res<MapGeometry>,
@@ -131,7 +133,8 @@ pub fn players_fall_death_system(
             entity,
             *pos,
             gameplay_config.player.respawn_delay_secs,
-            None,
+            DeathSource::Fall,
+            &server_gameplay_config.feed,
             &mut pending_explosions,
         );
     }
@@ -172,7 +175,7 @@ pub fn players_fall_damage_system(
     mut players: ResMut<PlayerMap>,
     mut pending_explosions: ResMut<PendingExplosions>,
     gameplay_config: Res<GameplayConfig>,
-    server_gameplay_config: Res<crate::config::ServerGameplayConfig>,
+    server_gameplay_config: Res<ServerGameplayConfig>,
     invincibility: Res<Invincibility>,
     map_settings: Res<MapSettings>,
     mut player_query: Query<
@@ -252,7 +255,8 @@ pub fn players_fall_damage_system(
                 entity,
                 *pos,
                 respawn_delay_secs,
-                None,
+                DeathSource::Fall,
+                &server_gameplay_config.feed,
                 &mut pending_explosions,
             );
         }

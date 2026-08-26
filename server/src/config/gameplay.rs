@@ -6,9 +6,12 @@ use serde::Deserialize;
 
 use super::actors::{ActorKindServerConfig, ActorSettingsConfig, ExplosionDamageConfig};
 use super::cycles::{LightingCycleConfig, WeatherCycleConfig};
+use super::feed::FeedConfig;
 use super::maps::{MapServerConfig, validate_maps};
 use super::quests::{Quest, validate_quests};
-use super::validation::{validate_non_negative_finite, validate_positive_finite, validate_probability};
+use super::validation::{
+    validate_covers_actor_kinds, validate_non_negative_finite, validate_positive_finite, validate_probability,
+};
 use common::{config::resolve_actor_inheritance, protocol::ItemType};
 
 #[derive(Resource, Debug, Clone, Deserialize)]
@@ -22,6 +25,7 @@ pub struct ServerGameplayConfig {
     pub weather_cycle: WeatherCycleConfig,
     pub lighting_cycle: LightingCycleConfig,
     pub scoring: ScoringConfig,
+    pub feed: FeedConfig,
     pub player: PlayerServerConfig,
     pub projectile: ProjectileConfig,
     pub missiles: MissilesServerConfig,
@@ -59,6 +63,7 @@ impl ServerGameplayConfig {
         self.projectile.validate("projectile")?;
         self.missiles.validate("missiles")?;
         self.scoring.validate(&self.actors, &self.quests)?;
+        self.feed.validate(&self.actors)?;
         self.power_ups.validate("power_ups")?;
         self.placed_items.validate("placed_items")?;
         self.actor_settings.validate("actor_settings")?;
@@ -176,16 +181,7 @@ impl ScoringConfig {
     // is a typo.
     fn validate(&self, actors: &HashMap<String, ActorKindServerConfig>, quests: &[Quest]) -> Result<()> {
         for (map, name) in [(&self.actor_hit, "actor_hit"), (&self.actor_kill, "actor_kill")] {
-            for kind in actors.keys() {
-                if !map.contains_key(kind) {
-                    bail!("scoring.{name} is missing actor kind {kind:?}");
-                }
-            }
-            for kind in map.keys() {
-                if !actors.contains_key(kind) {
-                    bail!("scoring.{name} contains unknown actor kind {kind:?}");
-                }
-            }
+            validate_covers_actor_kinds(map.keys(), actors, &format!("scoring.{name}"))?;
         }
         for quest in quests {
             if !self.quest_completed.contains_key(&quest.id.0) {

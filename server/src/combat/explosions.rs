@@ -8,7 +8,7 @@ use common::{
     protocol::{ActorId, ActorMarker, Health, PlayerId, PlayerMarker, Position, SPlayerBlast, ServerMessage},
 };
 
-use super::{PendingExplosion, PendingExplosions, award_actor_kill, kill_actor, kill_player};
+use super::{DeathSource, PendingExplosion, PendingExplosions, award_actor_kill, kill_actor, kill_credit, kill_player};
 use crate::{
     actors::ActorMap,
     config::{ExplosionDamageConfig, ServerGameplayConfig},
@@ -66,6 +66,16 @@ enum BlastSource {
     // resolves, so the kind rides along for the log label.
     Actor { id: ActorId, kind: String },
     Missile(PlayerId),
+}
+
+impl From<&BlastSource> for DeathSource {
+    fn from(source: &BlastSource) -> Self {
+        match source {
+            BlastSource::Player(id) => Self::PlayerBlast(*id),
+            BlastSource::Actor { kind, .. } => Self::ActorBlast { kind: kind.clone() },
+            BlastSource::Missile(id) => Self::Missile(*id),
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -135,13 +145,10 @@ pub fn explosions_system(mut context: ExplosionContext) {
             if let Some(victim) = context.players.get_mut(&death.id) {
                 victim.score += context.server_gameplay_config.scoring.player_death;
             }
-            // No credit for self-kills or departed shooters. Award the kill
-            // bonus before `kill_player` so the `SPlayerDeath` cue carries
-            // the post-kill killer score.
-            let killer = spec
-                .killer
-                .filter(|k| *k != death.id && context.players.get(k).is_some());
-            if let Some(killer_id) = killer
+            // Award the kill bonus before `kill_player` so the `SPlayerDeath`
+            // cue carries the post-kill killer score.
+            let source = DeathSource::from(&spec.source);
+            if let Some(killer_id) = kill_credit(&source, death.id, &context.players)
                 && let Some(shooter) = context.players.get_mut(&killer_id)
             {
                 shooter.score += context.server_gameplay_config.scoring.player_kill;
@@ -153,7 +160,8 @@ pub fn explosions_system(mut context: ExplosionContext) {
                 death.entity,
                 death.pos,
                 respawn_delay_secs,
-                killer,
+                source,
+                &context.server_gameplay_config.feed,
                 &mut context.pending,
             );
         }
@@ -172,6 +180,7 @@ pub fn explosions_system(mut context: ExplosionContext) {
                 &mut context.actors,
                 &context.players,
                 &mut context.pending,
+                &context.server_gameplay_config.feed,
                 death.id,
                 death.entity,
                 death.pos,
@@ -425,7 +434,7 @@ mod tests {
         actors::ActorInfo, actors::actors_removal_system, characters::characters_health_regeneration_system,
         players::PlayerInfo,
     };
-    use common::protocol::{BarrierKindTable, MapLayout, SPlayerDeath};
+    use common::protocol::{BarrierKindTable, DeathCause, FeedEvent, MapLayout, SPlayerDeath};
     use tokio::sync::mpsc::unbounded_channel;
 
     fn test_app() -> App {
@@ -629,6 +638,15 @@ mod tests {
         }
     }
 
+    fn next_feed_event(receiver: &mut tokio::sync::mpsc::UnboundedReceiver<ServerToClient>) -> FeedEvent {
+        loop {
+            match receiver.try_recv().expect("expected a Feed broadcast") {
+                ServerToClient::Send(ServerMessage::Feed(msg)) => return msg.event,
+                _ => continue,
+            }
+        }
+    }
+
     #[test]
     fn reaper_death_explosion_kills_full_health_player_at_contact_distance() {
         let mut app = test_app();
@@ -701,6 +719,15 @@ mod tests {
         assert_eq!(death.id, victim_id);
         assert_eq!(death.killer, Some(shooter_id));
         assert_eq!(death.killer_score, Some(scoring.player_kill));
+        assert_eq!(
+            next_feed_event(&mut shooter_rx),
+            FeedEvent::PlayerDied {
+                name: "Player 2".to_owned(),
+                cause: DeathCause::Missile {
+                    by: "Player 1".to_owned()
+                },
+            }
+        );
     }
 
     #[test]
@@ -726,6 +753,13 @@ mod tests {
         let death = next_player_death(&mut shooter_rx);
         assert_eq!(death.id, shooter_id);
         assert_eq!(death.killer, None);
+        assert_eq!(
+            next_feed_event(&mut shooter_rx),
+            FeedEvent::PlayerDied {
+                name: "Player 1".to_owned(),
+                cause: DeathCause::SelfMissile,
+            }
+        );
     }
 
     #[test]
