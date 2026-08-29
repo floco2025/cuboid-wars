@@ -153,7 +153,7 @@ impl PlayerInfo {
         let Some(kind) = PowerUpKind::from_item_type(item_type) else {
             unreachable!("only timer-based power-ups call grant_power_up; health potion is applied to Health directly");
         };
-        self.power_up_timers[kind.index()] = durations.duration_secs(kind);
+        self.power_up_timers[kind.index()] = durations.duration_secs_for(kind);
     }
 
     pub fn try_start_shot(&mut self, now: f32, cooldown_secs: f32) -> Option<bool> {
@@ -282,6 +282,7 @@ impl PlayerMap {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::PowerUpDurationSecs;
     use bincode::config::standard;
     use tokio::sync::mpsc::unbounded_channel;
 
@@ -293,10 +294,11 @@ mod tests {
 
     fn test_power_ups_config() -> PowerUpsConfig {
         PowerUpsConfig {
-            speed_duration_secs: 1.0,
-            multi_shot_duration_secs: 1.0,
-            low_gravity_duration_secs: 1.0,
-            health_potion_heal_fraction: 0.25,
+            duration_secs: PowerUpDurationSecs {
+                speed: 1.0,
+                multi_shot: 1.0,
+                low_gravity: 1.0,
+            },
         }
     }
 

@@ -126,7 +126,7 @@ pub fn actors_respawn_system(
 
     for (zone_idx, zone) in map_config.actor_spawn_zones.iter().enumerate() {
         let kind_server_config = server_gameplay_config.expect_actor(&zone.kind);
-        let Some(throttle_time) = kind_server_config.respawn_delay_secs else {
+        let Some(throttle_time) = kind_server_config.respawn_secs else {
             continue;
         };
         let actor_config = gameplay_config.expect_actor(&zone.kind);
@@ -194,7 +194,7 @@ pub(crate) fn expire_actor_spawn_cooldowns(
             continue;
         }
         let kind_server_config = server_gameplay_config.expect_actor(&zone.kind);
-        if kind_server_config.respawn_delay_secs.is_some() {
+        if kind_server_config.respawn_secs.is_some() {
             let missing = zone.count.saturating_sub(occupied_by_zone[zone_idx]);
             if missing > 0 {
                 throttles.0.insert(zone_idx, 0.0);
@@ -216,19 +216,15 @@ pub fn actors_pending_spawn_system(
     mut actors: ResMut<ActorMap>,
     mut pending: ResMut<PendingActorSpawns>,
     time: Res<Time>,
-    gameplay_config: Res<GameplayConfig>,
+    server_gameplay_config: Res<ServerGameplayConfig>,
 ) {
     let due = take_due_spawns(&mut pending.0, time.delta_secs());
     if due.is_empty() {
         return;
     }
     for spawn in due {
-        materialize_actor(
-            &mut commands,
-            &mut actors,
-            gameplay_config.expect_actor(&spawn.kind),
-            spawn,
-        );
+        let max_health = server_gameplay_config.combat.health.expect_actor(&spawn.kind).max;
+        materialize_actor(&mut commands, &mut actors, max_health, spawn);
     }
 }
 
@@ -279,12 +275,7 @@ fn queue_actor_spawn_in_zone(
     });
 }
 
-fn materialize_actor(
-    commands: &mut Commands,
-    actors: &mut ActorMap,
-    actor_config: &common::config::ActorGameplayConfig,
-    spawn: PendingActorSpawn,
-) {
+fn materialize_actor(commands: &mut Commands, actors: &mut ActorMap, max_health: f32, spawn: PendingActorSpawn) {
     let move_intent = ActorMoveIntent::Idle;
     let entity = commands
         .spawn((
@@ -294,7 +285,7 @@ fn materialize_actor(
             move_intent,
             FaceYaw(spawn.face_yaw),
             CharacterVerticalVelocity::default(),
-            Health(actor_config.health().max),
+            Health(max_health),
         ))
         .id();
 

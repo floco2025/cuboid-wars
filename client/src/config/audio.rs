@@ -7,7 +7,7 @@ use super::settings::{validate_non_negative_finite, validate_positive_finite};
 #[serde(default)]
 pub struct AudioConfig {
     pub spatial_distance_scale: f32,
-    pub explosion_gain_multiplier: f32,
+    pub explosion_gain: f32,
     // Rain-loop gain at full intensity.
     pub rain_volume: f32,
 }
@@ -16,7 +16,7 @@ impl Default for AudioConfig {
     fn default() -> Self {
         Self {
             spatial_distance_scale: 0.1,
-            explosion_gain_multiplier: 2.0,
+            explosion_gain: 2.0,
             rain_volume: 1.0,
         }
     }
@@ -25,7 +25,7 @@ impl Default for AudioConfig {
 impl AudioConfig {
     pub(super) fn validate(&self) -> Result<()> {
         validate_positive_finite(self.spatial_distance_scale, "audio.spatial_distance_scale")?;
-        validate_non_negative_finite(self.explosion_gain_multiplier, "audio.explosion_gain_multiplier")?;
+        validate_non_negative_finite(self.explosion_gain, "audio.explosion_gain")?;
         validate_non_negative_finite(self.rain_volume, "audio.rain_volume")
     }
 }

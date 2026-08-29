@@ -6,13 +6,15 @@ use std::{collections::HashMap, f32::consts::TAU};
 
 const SHOCKWAVE_RESOLUTION: u32 = 64;
 
-// Blast radii from `SInit` (per actor kind + the player death blast). Starts
-// empty (initialized at app build) and is replaced when `Init` arrives;
-// death cues can't arrive earlier — the pre-bootstrap dispatcher drops them.
+// Blast radii from `SInit` (per actor kind, the player death blast, the
+// missile blast). Starts empty (initialized at app build) and is replaced
+// when `Init` arrives; death cues can't arrive earlier — the pre-bootstrap
+// dispatcher drops them.
 #[derive(Resource, Default)]
-pub struct ExplosionRadii {
+pub struct BlastRadii {
     pub actors: HashMap<String, f32>,
     pub player: f32,
+    pub missile: f32,
 }
 
 #[must_use]

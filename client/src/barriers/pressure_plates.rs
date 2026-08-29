@@ -76,11 +76,7 @@ impl PlateAssets {
         let frame = asset_set.plate_frame_material_def();
         let panel = asset_set.plate_panel_material_def();
         let mut material = |def: &MaterialDef| {
-            materials.add(def.standard_material(
-                asset_server,
-                rendering.texture_anisotropy,
-                rendering.texture_mipmaps_enabled,
-            ))
+            materials.add(def.standard_material(asset_server, rendering.texture_anisotropy, rendering.mipmaps))
         };
         Self {
             frame_mesh: meshes.add(plate_box(PLATE_SIDE, PLATE_FRAME_HEIGHT, frame.tile_size())),

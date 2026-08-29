@@ -114,7 +114,7 @@ fn compute_lock(
         collision_world,
         camera.translation,
         *camera.forward(),
-        gameplay_config.missiles.lock_max_distance,
+        gameplay_config.missiles.lock_range,
         gameplay_config.missiles.lock_assist_radius,
         candidates.into_iter(),
     )

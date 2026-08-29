@@ -57,24 +57,36 @@
     "player_died": true,
     "actor_destroyed": { "mine": false, "sentry": false, "reaper": false, "zapper": false },
     "key_found": true,
-    "individual_quest_completed": true,
-    "everyone_quest_part_done": true,
+    "quest_completed": true,
+    "quest_part_done": true,
     "group_quest_completed": true,
     "barrier_opened": true,
     "barrier_closed": true,
     "admin_action": true,
     "chat": true
   },
-  "player": {
-    "armor": 0.8,
-    "fall_damage": {
-      "safe_fall_distance": 8.0,
-      "lethal_fall_distance": 15.0
+  "combat": {
+    "health": {
+      "player": { "max": 500.0, "regen_rate": 0.01, "potion_heal": 0.5 },
+      "actors": {
+        "mine": { "max": 150.0, "regen_rate": 0.01 },
+        "sentry": { "max": 1000.0, "regen_rate": 0.01 },
+        "reaper": { "max": 1500.0, "regen_rate": 0.01 },
+        "zapper": { "max": 50.0, "regen_rate": 0.01 }
+      }
     },
-    "explosion": { "radius": 10.0, "max_damage": 250.0 }
-  },
-  "projectile": {
-    "damage": 50.0
+    "damage": {
+      "player_fall": { "safe_distance": 8.0, "lethal_distance": 15.0 },
+      "projectile": 60.0,
+      "missile_blast": { "radius": 6.0, "max_damage": 600.0 },
+      "player_blast": { "radius": 10.0, "max_damage": 250.0 },
+      "actors": {
+        "mine": { "death_blast": { "radius": 10.0, "max_damage": 150.0 } },
+        "sentry": { "death_blast": { "radius": 15.0, "max_damage": 300.0 } },
+        "reaper": { "beam_dps": 40.0, "death_blast": { "radius": 15.0, "max_damage": 550.0 } },
+        "zapper": { "beam_dps": 40.0, "death_blast": { "radius": 6.0, "max_damage": 75.0 } }
+      }
+    }
   },
   "missiles": {
     "speed": 12.0,
@@ -84,14 +96,10 @@
     "weave_strength": 0.1,
     "proximity_fuse_distance": 1.0,
     "stall_secs": 2.0,
-    "max_damage": 600.0,
     "missiles_per_pack": 1
   },
   "power_ups": {
-    "speed_duration_secs": 30.0,
-    "multi_shot_duration_secs": 25.0,
-    "low_gravity_duration_secs": 20.0,
-    "health_potion_heal_fraction": 0.5
+    "duration_secs": { "speed": 30.0, "multi_shot": 25.0, "low_gravity": 20.0 }
   },
   "placed_items": {
     "respawn_secs": {
@@ -161,49 +169,38 @@
   },
   "actors": {
     "mine": {
-      "respawn_delay_secs": 60.0,
+      "respawn_secs": 90.0,
       "vision_range": 60.0,
       "roam_steps": 3,
-      "combat": {
-        "attack": { "type": "contact", "trigger_gap": 0.4 },
-        "death_explosion": { "radius": 10.0, "max_damage": 150.0 }
-      }
+      "attack": { "type": "contact", "trigger_gap": 0.4 }
     },
     "sentry": {
-      "inherit_from": "mine",
-      "respawn_delay_secs": 90.0,
+      "respawn_secs": 90.0,
+      "vision_range": 60.0,
       "roam_steps": 7,
-      "combat": {
-        "attack": { "type": "contact", "trigger_gap": 0.8 },
-        "death_explosion": { "radius": 15.0, "max_damage": 300.0 }
-      }
+      "attack": { "type": "contact", "trigger_gap": 0.8 }
     },
     "reaper": {
-      "inherit_from": "sentry",
-      "combat": {
-        "attack": {
-          "type": "contact_beam",
-          "range": 25.0,
-          "duration_secs": 2.0,
-          "cooldown_secs": 5.0,
-          "damage_per_second": 40.0
-        },
-        "death_explosion": { "max_damage": 550.0 }
+      "respawn_secs": 90.0,
+      "vision_range": 60.0,
+      "roam_steps": 7,
+      "attack": {
+        "type": "contact_beam",
+        "trigger_gap": 0.8,
+        "range": 25.0,
+        "duration_secs": 2.0,
+        "cooldown_secs": 5.0
       }
     },
     "zapper": {
-      "respawn_delay_secs": 120.0,
+      "respawn_secs": 180.0,
       "vision_range": 40.0,
       "roam_steps": 2,
-      "combat": {
-        "attack": {
-          "type": "beam",
-          "range": 25.0,
-          "duration_secs": 2.0,
-          "cooldown_secs": 5.0,
-          "damage_per_second": 40.0
-        },
-        "death_explosion": { "radius": 6.0, "max_damage": 75.0 }
+      "attack": {
+        "type": "beam",
+        "range": 25.0,
+        "duration_secs": 2.0,
+        "cooldown_secs": 8.0
       }
     }
   }

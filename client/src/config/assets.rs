@@ -7,7 +7,7 @@ use std::{
 use anyhow::{Context, Result, bail};
 use bevy::prelude::Resource;
 use common::{
-    config::{GameplayConfig, resolve_actor_inheritance},
+    config::GameplayConfig,
     protocol::{BarrierKindTable, ItemType},
 };
 use serde::Deserialize;
@@ -80,12 +80,8 @@ impl AssetSet {
 
     fn load_from_path(path: &Path) -> Result<Self> {
         let text = fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
-        let mut value: serde_json::Value =
-            serde_json::from_str(&text).with_context(|| format!("failed to parse {}", path.display()))?;
-        resolve_actor_inheritance(&mut value, "actors")
-            .with_context(|| format!("resolving actor inheritance in {}", path.display()))?;
         let file: AssetSetFile =
-            serde_json::from_value(value).with_context(|| format!("failed to deserialize {}", path.display()))?;
+            serde_json::from_str(&text).with_context(|| format!("failed to parse {}", path.display()))?;
         Ok(Self {
             materials: file.materials,
             ladder: file.ladder,

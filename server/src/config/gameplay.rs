@@ -4,18 +4,14 @@ use anyhow::{Context, Result, bail};
 use bevy::prelude::Resource;
 use serde::Deserialize;
 
-use super::actors::{ActorKindServerConfig, ActorSettingsConfig, ExplosionDamageConfig};
+use super::actors::{ActorKindServerConfig, ActorSettingsConfig};
+use super::combat::CombatConfig;
 use super::cycles::{LightingCycleConfig, WeatherCycleConfig};
 use super::feed::FeedConfig;
 use super::maps::{MapServerConfig, validate_maps};
 use super::quests::{Quest, validate_quests};
-use super::validation::{
-    validate_covers_actor_kinds, validate_non_negative_finite, validate_positive_finite, validate_probability,
-};
-use common::{
-    config::resolve_actor_inheritance,
-    protocol::{ItemType, QuestId},
-};
+use super::validation::{validate_covers_actor_kinds, validate_non_negative_finite, validate_positive_finite};
+use common::protocol::{ItemType, QuestId};
 
 #[derive(Resource, Debug, Clone, Deserialize)]
 pub struct ServerGameplayConfig {
@@ -29,8 +25,7 @@ pub struct ServerGameplayConfig {
     pub lighting_cycle: LightingCycleConfig,
     pub scoring: ScoringConfig,
     pub feed: FeedConfig,
-    pub player: PlayerServerConfig,
-    pub projectile: ProjectileConfig,
+    pub combat: CombatConfig,
     pub missiles: MissilesServerConfig,
     pub power_ups: PowerUpsConfig,
     pub placed_items: PlacedItemsConfig,
@@ -51,22 +46,17 @@ impl ServerGameplayConfig {
 
     fn load_from_path(path: &Path) -> Result<Self> {
         let text = fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
-        let mut value: serde_json::Value =
-            serde_json::from_str(&text).with_context(|| format!("failed to parse {}", path.display()))?;
-        resolve_actor_inheritance(&mut value, "actors")
-            .with_context(|| format!("resolving actor inheritance in {}", path.display()))?;
-        serde_json::from_value(value).with_context(|| format!("failed to deserialize {}", path.display()))
+        serde_json::from_str(&text).with_context(|| format!("failed to parse {}", path.display()))
     }
 
     fn validate(&self) -> Result<()> {
         validate_maps(&self.maps, &self.default_map)?;
         self.weather_cycle.validate("weather_cycle")?;
         self.lighting_cycle.validate("lighting_cycle")?;
-        self.player.validate("player")?;
-        self.projectile.validate("projectile")?;
         self.missiles.validate("missiles")?;
         self.scoring.validate(&self.actors, &self.quests)?;
         self.feed.validate(&self.actors)?;
+        self.combat.validate(&self.actors)?;
         self.power_ups.validate("power_ups")?;
         self.placed_items.validate("placed_items")?;
         self.actor_settings.validate("actor_settings")?;
@@ -95,22 +85,9 @@ impl ServerGameplayConfig {
     }
 }
 
-// One projectile, one raw damage number. Players receive `damage * (1 -
-// armor)`; actors take it raw — their toughness is health alone.
-#[derive(Debug, Clone, Deserialize)]
-pub struct ProjectileConfig {
-    pub damage: f32,
-}
-
-impl ProjectileConfig {
-    fn validate(&self, path: &str) -> Result<()> {
-        validate_non_negative_finite(self.damage, &format!("{path}.damage"))
-    }
-}
-
-// Server-only missile tuning: guidance/flight parameters and blast damage.
-// The client-visible half (lock range, max ammo, cooldown, blast radius)
-// lives in `config/common/gameplay.json`.
+// Server-only missile flight and guidance tuning. The client-visible half
+// (lock range, max ammo) lives in `config/common/gameplay.json`; the blast
+// is `combat.damage.missile_blast`.
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct MissilesServerConfig {
     pub speed: f32,
@@ -135,7 +112,6 @@ pub struct MissilesServerConfig {
     pub proximity_fuse_distance: f32,
     // Self-detonate after this long without 1 m of progress.
     pub stall_secs: f32,
-    pub max_damage: f32,
     pub missiles_per_pack: u32,
 }
 
@@ -153,7 +129,6 @@ impl MissilesServerConfig {
         validate_non_negative_finite(self.weave_strength, &format!("{path}.weave_strength"))?;
         validate_non_negative_finite(self.proximity_fuse_distance, &format!("{path}.proximity_fuse_distance"))?;
         validate_positive_finite(self.stall_secs, &format!("{path}.stall_secs"))?;
-        validate_non_negative_finite(self.max_damage, &format!("{path}.max_damage"))?;
         if self.missiles_per_pack == 0 {
             bail!("{path}.missiles_per_pack must be at least 1");
         }
@@ -200,93 +175,42 @@ impl ScoringConfig {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct PlayerServerConfig {
-    // Fraction of incoming damage players block (0.0 = unarmored, 0.9 =
-    // takes 10%). Applies to projectile hits and explosion blasts; fall
-    // damage ignores armor (it's defined as a fraction of max health by
-    // fall distance).
-    pub armor: f32,
-    pub fall_damage: FallDamageConfig,
-    // Blast dealt by a dying player, same shape as the per-actor-kind
-    // `combat.death_explosion` — standing next to your victim is now a mistake.
-    pub explosion: ExplosionDamageConfig,
-}
-
-#[derive(Debug, Clone, Copy, Deserialize)]
-pub struct FallDamageConfig {
-    // Below this fall distance (meters), landing does no damage.
-    pub safe_fall_distance: f32,
-    // At this fall distance, landing deals `max_health` damage (lethal).
-    // Damage lerps linearly between the two endpoints and clamps past
-    // `lethal_fall_distance`.
-    pub lethal_fall_distance: f32,
-}
-
-impl PlayerServerConfig {
-    fn validate(&self, path: &str) -> Result<()> {
-        validate_probability(self.armor, &format!("{path}.armor"))?;
-        self.fall_damage.validate(&format!("{path}.fall_damage"))?;
-        self.explosion.validate(&format!("{path}.explosion"))
-    }
-}
-
-impl FallDamageConfig {
-    fn validate(&self, path: &str) -> Result<()> {
-        validate_non_negative_finite(self.safe_fall_distance, &format!("{path}.safe_fall_distance"))?;
-        validate_non_negative_finite(self.lethal_fall_distance, &format!("{path}.lethal_fall_distance"))?;
-        if self.safe_fall_distance >= self.lethal_fall_distance {
-            bail!(
-                "{path}.safe_fall_distance ({}) must be < lethal_fall_distance ({})",
-                self.safe_fall_distance,
-                self.lethal_fall_distance
-            );
-        }
-        Ok(())
-    }
-}
-
 // Power-up effect tuning. Spawning lives elsewhere: random pools per map in
 // `maps.<name>.random_items`, placed respawns in `placed_items`.
 #[derive(Debug, Clone, Deserialize)]
 pub struct PowerUpsConfig {
-    pub speed_duration_secs: f32,
-    pub multi_shot_duration_secs: f32,
-    pub low_gravity_duration_secs: f32,
-    // Fraction of max health restored by a single Health Potion pickup.
-    // 0.0 < value <= 1.0 (1.0 = full heal). No duration — instant effect.
-    pub health_potion_heal_fraction: f32,
+    pub duration_secs: PowerUpDurationSecs,
+}
+
+// How long each timed power-up lasts after pickup. One value per
+// `PowerUpKind` config id.
+#[derive(Debug, Clone, Deserialize)]
+pub struct PowerUpDurationSecs {
+    pub speed: f32,
+    pub multi_shot: f32,
+    pub low_gravity: f32,
 }
 
 impl PowerUpsConfig {
-    // Per-`PowerUpKind` duration, sourced from the named JSON fields. Lets
-    // the rest of the server look up durations by enum variant without
-    // each call site enumerating the four matches.
     #[must_use]
-    pub const fn duration_secs(&self, kind: common::protocol::PowerUpKind) -> f32 {
+    pub const fn duration_secs_for(&self, kind: common::protocol::PowerUpKind) -> f32 {
         use common::protocol::PowerUpKind as K;
+        let secs = &self.duration_secs;
         match kind {
-            K::Speed => self.speed_duration_secs,
-            K::MultiShot => self.multi_shot_duration_secs,
-            K::LowGravity => self.low_gravity_duration_secs,
+            K::Speed => secs.speed,
+            K::MultiShot => secs.multi_shot,
+            K::LowGravity => secs.low_gravity,
         }
     }
 
     fn validate(&self, path: &str) -> Result<()> {
-        validate_non_negative_finite(self.speed_duration_secs, &format!("{path}.speed_duration_secs"))?;
-        validate_non_negative_finite(
-            self.multi_shot_duration_secs,
-            &format!("{path}.multi_shot_duration_secs"),
-        )?;
-        validate_non_negative_finite(
-            self.low_gravity_duration_secs,
-            &format!("{path}.low_gravity_duration_secs"),
-        )?;
-        if !(self.health_potion_heal_fraction > 0.0 && self.health_potion_heal_fraction <= 1.0) {
-            bail!(
-                "{path}.health_potion_heal_fraction must be in (0.0, 1.0], got {}",
-                self.health_potion_heal_fraction
-            );
+        let secs = &self.duration_secs;
+        for (value, name) in [
+            (secs.speed, "speed"),
+            (secs.multi_shot, "multi_shot"),
+            (secs.low_gravity, "low_gravity"),
+        ] {
+            validate_non_negative_finite(value, &format!("{path}.duration_secs.{name}"))?;
         }
         Ok(())
     }
@@ -359,13 +283,10 @@ mod tests {
 
     fn one_actor_kind(kind: &str) -> HashMap<String, ActorKindServerConfig> {
         let json = serde_json::json!({
-            "respawn_delay_secs": 60.0,
+            "respawn_secs": 60.0,
             "vision_range": 40.0,
             "roam_steps": 2,
-            "combat": {
-                "attack": { "type": "contact", "trigger_gap": 0.4 },
-                "death_explosion": { "radius": 6.0, "max_damage": 75.0 }
-            }
+            "attack": { "type": "contact", "trigger_gap": 0.4 }
         });
         let actor: ActorKindServerConfig = serde_json::from_value(json).expect("actor fixture should deserialize");
         HashMap::from([(kind.to_owned(), actor)])

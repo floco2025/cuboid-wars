@@ -14,7 +14,7 @@ pub use beam::{
 };
 pub use exhaust::missile_exhaust_system;
 pub use explosion::{
-    ExplosionAssets, ExplosionRadii, ExplosionSpawnCtx, ExplosionVfxBudget, explosion_lights_system,
+    BlastRadii, ExplosionAssets, ExplosionSpawnCtx, ExplosionVfxBudget, explosion_lights_system,
     explosion_particles_system, explosion_pulse_system, explosion_sound_speed, scorch_marks_system,
     spawn_actor_explosion, spawn_missile_explosion, spawn_player_explosion,
 };

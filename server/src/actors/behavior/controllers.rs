@@ -105,7 +105,6 @@ fn start_beam(info: &mut ActorInfo, context: &BehaviorContext<'_>, target: Aware
 fn beam_attack(context: &BehaviorContext<'_>) -> ActorBeamAttackConfig {
     context
         .kind_config
-        .combat
         .attack
         .beam()
         .expect("beam controller requires beam attack config")

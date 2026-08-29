@@ -71,7 +71,7 @@ impl PlayerFallState {
 // Detect players that have fallen below the death threshold and kill them
 // using the same flow as any other death (clear per-life state, arm respawn
 // timer, despawn entity). The respawn system brings them back at a fresh
-// spawn-zone cell after `respawn_delay_secs`.
+// spawn-zone cell after `respawn_secs`.
 pub fn players_fall_death_system(
     mut commands: Commands,
     mut players: ResMut<PlayerMap>,
@@ -132,7 +132,7 @@ pub fn players_fall_death_system(
             *id,
             entity,
             *pos,
-            gameplay_config.player.respawn_delay_secs,
+            gameplay_config.player.respawn_secs,
             DeathSource::Fall,
             &server_gameplay_config.feed,
             &mut pending_explosions,
@@ -145,7 +145,7 @@ pub fn players_fall_death_system(
 // ============================================================================
 
 // Below this damage, skip the impact effect entirely. The lerp produces
-// near-zero damage just past `safe_fall_distance` due to float / tick
+// near-zero damage just past `safe_distance` due to float / tick
 // noise; without this gate the client would get a wiggle for every tiny
 // step off a curb.
 const FALL_DAMAGE_EMIT_THRESHOLD: f32 = 1.0;
@@ -157,8 +157,8 @@ const PHANTOM_FALL_TRIPWIRE_SLACK: f32 = 5.0;
 // Apply impact damage on landing from a fall. The highest Y of the current
 // airborne window is tracked by `PlayerFallState`; when the player
 // reaches support (ground or ladder), damage lerps from 0 at
-// `safe_fall_distance` to `max_health` at
-// `lethal_fall_distance`, clamped past lethal. The fall distance requires
+// `safe_distance` to `max_health` at
+// `lethal_distance`, clamped past lethal. The fall distance requires
 // BOTH a real drop AND matching impact energy — min(drop, velocity-implied):
 //   * the drop bound kills phantom falls (the support probe can miss at a
 //     ledge lip while the collider holds the body, so vy accumulates to
@@ -184,9 +184,9 @@ pub fn players_fall_damage_system(
     >,
 ) {
     let invincible = invincibility.0;
-    let fall = server_gameplay_config.player.fall_damage;
-    let max_health = gameplay_config.player.health().max;
-    let respawn_delay_secs = gameplay_config.player.respawn_delay_secs;
+    let fall = server_gameplay_config.combat.damage.player_fall;
+    let max_health = server_gameplay_config.combat.health.player.max;
+    let respawn_secs = gameplay_config.player.respawn_secs;
 
     for (entity, id, pos, motion, mut health) in player_query.iter_mut() {
         let Some(info) = players.get_mut(id) else { continue };
@@ -208,19 +208,14 @@ pub fn players_fall_damage_system(
             );
         }
         let fall_distance = effective_fall_distance(impact.drop, impact.peak_speed, map_settings.gravity);
-        if fall_distance <= fall.safe_fall_distance {
+        if fall_distance <= fall.safe_distance {
             continue;
         }
 
-        let damage = fall_damage_for_distance(
-            fall_distance,
-            fall.safe_fall_distance,
-            fall.lethal_fall_distance,
-            max_health,
-        );
+        let damage = fall_damage_for_distance(fall_distance, fall.safe_distance, fall.lethal_distance, max_health);
         // Skip the entire emission path for negligible damage —
         // the safe-threshold lerp produces near-zero damage just
-        // past `safe_fall_distance` from floating-point slack and
+        // past `safe_distance` from floating-point slack and
         // discrete-tick noise. No HUD update or camera wiggle for
         // a fall the player barely registers.
         if damage < FALL_DAMAGE_EMIT_THRESHOLD {
@@ -254,7 +249,7 @@ pub fn players_fall_damage_system(
                 *id,
                 entity,
                 *pos,
-                respawn_delay_secs,
+                respawn_secs,
                 DeathSource::Fall,
                 &server_gameplay_config.feed,
                 &mut pending_explosions,
@@ -290,7 +285,7 @@ fn effective_fall_distance(drop: f32, peak_fall_speed: f32, gravity: f32) -> f32
     drop.min(velocity_implied_fall_distance(peak_fall_speed, gravity))
 }
 
-// Lerp damage between `safe_fall_distance` (0 dmg) and `lethal_fall_distance`
+// Lerp damage between `safe_distance` (0 dmg) and `lethal_distance`
 // (full health), clamping the falloff beyond the lethal endpoint.
 fn fall_damage_for_distance(distance: f32, safe: f32, lethal: f32, max_health: f32) -> f32 {
     let t = ((distance - safe) / (lethal - safe)).clamp(0.0, 1.0);

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use bevy::prelude::*;
 
 use crate::{
@@ -37,14 +39,11 @@ fn sanitize_player_name(raw: &str, id: PlayerId) -> String {
     }
 }
 
-fn actor_explosion_radii(config: &crate::config::ServerGameplayConfig) -> Vec<(String, f32)> {
-    let mut radii: Vec<(String, f32)> = config
-        .actors
-        .iter()
-        .map(|(kind, actor)| (kind.clone(), actor.combat.death_explosion.radius))
-        .collect();
-    radii.sort_by(|a, b| a.0.cmp(&b.0));
-    radii
+// One number per actor kind, sorted by kind for deterministic encoding.
+fn sorted_by_kind<V>(per_kind: &HashMap<String, V>, value: impl Fn(&V) -> f32) -> Vec<(String, f32)> {
+    let mut values: Vec<(String, f32)> = per_kind.iter().map(|(kind, v)| (kind.clone(), value(v))).collect();
+    values.sort_by(|a, b| a.0.cmp(&b.0));
+    values
 }
 
 // Handle login message from a player who has not yet logged in.
@@ -80,12 +79,16 @@ pub fn handle_login_message(
             debug!("{} logged in", players.describe(&id));
 
             // Send Init to the connecting player (their ID and map config)
+            let combat = &world.server_gameplay_config.combat;
             let init_msg = ServerMessage::Init(SInit {
                 id,
                 map_layout: (*world.map_layout).clone(),
                 map_settings: (*world.map_settings).clone(),
-                actor_explosion_radii: actor_explosion_radii(&world.server_gameplay_config),
-                player_explosion_radius: world.server_gameplay_config.player.explosion.radius,
+                actor_blast_radii: sorted_by_kind(&combat.damage.actors, |actor| actor.death_blast.radius),
+                player_blast_radius: combat.damage.player_blast.radius,
+                missile_blast_radius: combat.damage.missile_blast.radius,
+                player_max_health: combat.health.player.max,
+                actor_max_health: sorted_by_kind(&combat.health.actors, |actor| actor.max),
             });
             if let Err(e) = channel.send(ServerToClient::Send(init_msg)) {
                 warn!("failed to send init to {:?}: {}", id, e);
@@ -133,7 +136,7 @@ pub fn handle_login_message(
                     pos,
                     move_intent,
                     face_yaw,
-                    Health(world.gameplay_config.player.health().max),
+                    Health(world.server_gameplay_config.combat.health.player.max),
                     0.0,
                 );
 
@@ -208,7 +211,7 @@ pub fn handle_login_message(
 
 #[cfg(test)]
 mod tests {
-    use super::{MAX_NAME_CHARS, actor_explosion_radii, sanitize_player_name};
+    use super::{MAX_NAME_CHARS, sanitize_player_name, sorted_by_kind};
     use common::protocol::PlayerId;
 
     #[test]
@@ -238,17 +241,24 @@ mod tests {
     }
 
     #[test]
-    fn actor_explosion_radii_are_sorted_and_match_config() {
+    fn per_kind_values_are_sorted_and_match_config() {
         let config =
             crate::config::ServerGameplayConfig::load_default().expect("default server gameplay config should load");
-        let radii = actor_explosion_radii(&config);
-        assert_eq!(radii.len(), config.actors.len());
-        let kinds: Vec<&str> = radii.iter().map(|(kind, _)| kind.as_str()).collect();
-        let mut sorted = kinds.clone();
-        sorted.sort_unstable();
-        assert_eq!(kinds, sorted);
+        let combat = &config.combat;
+        let radii = sorted_by_kind(&combat.damage.actors, |actor| actor.death_blast.radius);
+        let max_health = sorted_by_kind(&combat.health.actors, |actor| actor.max);
+        for values in [&radii, &max_health] {
+            assert_eq!(values.len(), config.actors.len());
+            let kinds: Vec<&str> = values.iter().map(|(kind, _)| kind.as_str()).collect();
+            let mut sorted = kinds.clone();
+            sorted.sort_unstable();
+            assert_eq!(kinds, sorted);
+        }
         for (kind, radius) in &radii {
-            assert_eq!(*radius, config.expect_actor(kind).combat.death_explosion.radius);
+            assert_eq!(*radius, combat.damage.expect_actor(kind).death_blast.radius);
+        }
+        for (kind, max) in &max_health {
+            assert_eq!(*max, combat.health.expect_actor(kind).max);
         }
     }
 }

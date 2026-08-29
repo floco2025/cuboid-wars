@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 use super::PlayerMap;
 use crate::characters::{generate_player_spawn_position, spawn_face_yaw};
+use crate::config::ServerGameplayConfig;
 use crate::map::MapConfig;
 use common::{
     config::GameplayConfig,
@@ -25,6 +26,7 @@ pub fn players_respawn_system(
     map_geometry: Res<MapGeometry>,
     collision_world: Res<CollisionWorld>,
     gameplay_config: Res<GameplayConfig>,
+    server_gameplay_config: Res<ServerGameplayConfig>,
     player_query: Query<&Position, With<PlayerMarker>>,
 ) {
     let delta = time.delta_secs();
@@ -60,7 +62,7 @@ pub fn players_respawn_system(
                 move_intent,
                 FaceYaw(face_yaw),
                 CharacterVerticalVelocity::default(),
-                Health(gameplay_config.player.health().max),
+                Health(server_gameplay_config.combat.health.player.max),
             ))
             .id();
 

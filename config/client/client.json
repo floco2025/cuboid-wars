@@ -2,9 +2,9 @@
   "rendering": {
     "opaque_renderer": "auto",
     "render_resolution": 1440,
-    "shadows_directional_enabled": true,
+    "directional_shadows": true,
     "shadow_map_size": 2048,
-    "texture_mipmaps_enabled": true,
+    "mipmaps": true,
     "texture_anisotropy": 8,
     "msaa_samples": 4,
     "vsync": false,
@@ -28,7 +28,7 @@
   },
   "audio": {
     "spatial_distance_scale": 0.1,
-    "explosion_gain_multiplier": 2.0,
+    "explosion_gain": 2.0,
     "rain_volume": 1.0
   },
   "weather": {
@@ -63,8 +63,7 @@
     }
   },
   "camera": {
-    "fov_first_person_degrees": 90.0,
-    "fov_top_down_degrees": 45.0,
+    "fov_degrees": { "first_person": 90.0, "top_down": 45.0 },
     "topdown_margin": 1.15,
     "topdown_tilt_degrees": 35.0,
     "rearview": {
@@ -109,11 +108,11 @@
       "max_entries": 10
     },
     "floating_labels": {
-      "height_above_character": 0.5
+      "height_above": 0.5
     },
     "health_bars": {
-      "floating_player_aspect": 0.056,
-      "floating_actor_aspect": 0.129,
+      "player_aspect": 0.056,
+      "actor_aspect": 0.129,
       "player_list_width": 140.0,
       "player_list_height": 8.0
     },

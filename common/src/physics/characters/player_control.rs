@@ -17,7 +17,7 @@ pub fn player_control_velocity(
         gameplay_config.player.walk_speed,
         gameplay_config.player.run_speed,
         has_speed_power_up,
-        gameplay_config.power_up_effects.speed_multiplier,
+        gameplay_config.power_ups.speed_multiplier,
     )
 }
 

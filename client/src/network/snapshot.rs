@@ -63,6 +63,7 @@ pub(super) fn handle_snapshot_message(
         asset_set: &client_assets.handles.asset_set,
         client_settings: &client_assets.handles.client_settings,
         gameplay_config: &client_assets.handles.gameplay_config,
+        max_health: &client_assets.handles.max_health,
     };
     // Before `PlayerSnapshotState` borrows the log for the respawn reminder;
     // skipped when empty so an untouched log isn't marked changed.
@@ -98,6 +99,7 @@ pub(super) fn handle_snapshot_message(
         &client_assets.handles.asset_set,
         &client_assets.handles.client_settings,
         &client_assets.handles.gameplay_config,
+        &client_assets.handles.max_health,
         &msg.actors,
     );
     sync_spawning_actors(

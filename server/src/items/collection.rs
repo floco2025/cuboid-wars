@@ -56,7 +56,13 @@ pub fn item_collection_system(
 
                     if character_overlaps_item(character_pos, item_pos, ITEM_COLLECTION_RADIUS) {
                         let health = player_health.get(player_info.entity).ok();
-                        if !pickup_has_effect(item_info.item_type, player_info, health, &gameplay_config) {
+                        if !pickup_has_effect(
+                            item_info.item_type,
+                            player_info,
+                            health,
+                            &gameplay_config,
+                            &server_gameplay_config,
+                        ) {
                             continue;
                         }
                         return Some((*player_id, *item_id, item_info.item_type));
@@ -75,13 +81,9 @@ pub fn item_collection_system(
         match item_type {
             ItemType::Cookie => collect_cookie(&mut players, &mut quest_board, player_id, &server_gameplay_config),
             ItemType::Key(kind) => collect_key(&mut players, player_id, kind, &mut status_broadcasts, &mut feed_events),
-            ItemType::HealthPotion => collect_health_potion(
-                &mut players,
-                &mut player_health,
-                player_id,
-                &server_gameplay_config,
-                &gameplay_config,
-            ),
+            ItemType::HealthPotion => {
+                collect_health_potion(&mut players, &mut player_health, player_id, &server_gameplay_config);
+            }
             ItemType::MissilePack => {
                 collect_missile_pack(&mut players, player_id, &server_gameplay_config, &gameplay_config);
             }
@@ -116,11 +118,14 @@ fn pickup_has_effect(
     player_info: &PlayerInfo,
     health: Option<&Health>,
     gameplay_config: &GameplayConfig,
+    server_gameplay_config: &ServerGameplayConfig,
 ) -> bool {
     match item_type {
         ItemType::Key(kind) => !player_info.has_key(kind),
         ItemType::MissilePack => player_info.missiles < gameplay_config.missiles.max_missiles,
-        ItemType::HealthPotion => health.is_none_or(|health| health.0 < gameplay_config.player.health().max),
+        ItemType::HealthPotion => {
+            health.is_none_or(|health| health.0 < server_gameplay_config.combat.health.player.max)
+        }
         ItemType::Cookie | ItemType::SpeedPowerUp | ItemType::MultiShotPowerUp | ItemType::LowGravityPowerUp => true,
     }
 }
@@ -199,7 +204,6 @@ fn collect_health_potion(
     player_health: &mut Query<&mut Health, With<PlayerMarker>>,
     player_id: PlayerId,
     server_gameplay_config: &ServerGameplayConfig,
-    gameplay_config: &GameplayConfig,
 ) {
     let Some(player_info) = players.get(&player_id) else {
         return;
@@ -207,9 +211,9 @@ fn collect_health_potion(
     let Ok(mut health) = player_health.get_mut(player_info.entity) else {
         return;
     };
-    let max = gameplay_config.player.health().max;
-    let heal = max * server_gameplay_config.power_ups.health_potion_heal_fraction;
-    regenerate_health(&mut health, max, heal);
+    let player_health_config = server_gameplay_config.combat.health.player;
+    let heal = player_health_config.max * player_health_config.potion_heal;
+    regenerate_health(&mut health, player_health_config.max, heal);
     // Unicast pickup cue — carries the post-heal value so the HUD bumps on
     // the pickup tick instead of waiting for the next snapshot.
     let _ = player_info
@@ -269,38 +273,55 @@ mod tests {
     #[test]
     fn pickups_without_effect_stay_in_the_world() {
         let config = GameplayConfig::load_default().expect("load default gameplay config");
-        let max_health = config.player.health().max;
+        let server_config = ServerGameplayConfig::load_default().expect("load default server gameplay config");
+        let max_health = server_config.combat.health.player.max;
         let mut player = player();
 
         assert!(!pickup_has_effect(
             ItemType::HealthPotion,
             &player,
             Some(&Health(max_health)),
-            &config
+            &config,
+            &server_config
         ));
         assert!(pickup_has_effect(
             ItemType::HealthPotion,
             &player,
             Some(&Health(max_health / 2.0)),
-            &config
+            &config,
+            &server_config
         ));
 
-        assert!(pickup_has_effect(ItemType::MissilePack, &player, None, &config));
+        assert!(pickup_has_effect(
+            ItemType::MissilePack,
+            &player,
+            None,
+            &config,
+            &server_config
+        ));
         player.add_missiles(config.missiles.max_missiles, config.missiles.max_missiles);
-        assert!(!pickup_has_effect(ItemType::MissilePack, &player, None, &config));
+        assert!(!pickup_has_effect(
+            ItemType::MissilePack,
+            &player,
+            None,
+            &config,
+            &server_config
+        ));
 
         assert!(player.add_key(BarrierKindId(0)));
         assert!(!pickup_has_effect(
             ItemType::Key(BarrierKindId(0)),
             &player,
             None,
-            &config
+            &config,
+            &server_config
         ));
         assert!(pickup_has_effect(
             ItemType::Key(BarrierKindId(1)),
             &player,
             None,
-            &config
+            &config,
+            &server_config
         ));
     }
 
@@ -312,7 +333,19 @@ mod tests {
         player.grant_power_up(ItemType::SpeedPowerUp, &server_config.power_ups);
         assert!(player.has_speed());
 
-        assert!(pickup_has_effect(ItemType::SpeedPowerUp, &player, None, &config));
-        assert!(pickup_has_effect(ItemType::Cookie, &player, None, &config));
+        assert!(pickup_has_effect(
+            ItemType::SpeedPowerUp,
+            &player,
+            None,
+            &config,
+            &server_config
+        ));
+        assert!(pickup_has_effect(
+            ItemType::Cookie,
+            &player,
+            None,
+            &config,
+            &server_config
+        ));
     }
 }

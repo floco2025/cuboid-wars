@@ -26,7 +26,6 @@ pub(super) fn detonate_actors_touching_players(
         .map(|actor| {
             let distance = server_gameplay_config
                 .expect_actor(&actor.spawn_kind)
-                .combat
                 .attack
                 .contact_trigger_gap();
             (actor.entity, distance)
@@ -108,7 +107,6 @@ mod tests {
             CharacterMovePlan::from_target(Entity::from_bits(2), actor_pos, actor_pos, 0.0, actor_physics, false),
             server
                 .expect_actor("mine")
-                .combat
                 .attack
                 .contact_trigger_gap()
                 .expect("mine contact attack missing from server gameplay config"),

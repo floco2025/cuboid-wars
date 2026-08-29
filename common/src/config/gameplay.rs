@@ -4,7 +4,6 @@ use anyhow::{Context, Result, bail};
 use bevy_ecs::prelude::Resource;
 use serde::Deserialize;
 
-use super::inheritance::resolve_actor_inheritance;
 use crate::constants::PHYSICS_EPSILON;
 
 #[derive(Resource, Debug, Clone, Deserialize)]
@@ -13,7 +12,7 @@ pub struct GameplayConfig {
     pub projectiles: ProjectilesConfig,
     pub ladders: LaddersConfig,
     pub missiles: MissilesConfig,
-    pub power_up_effects: PowerUpEffectsConfig,
+    pub power_ups: PowerUpEffectsConfig,
     pub knockback: KnockbackConfig,
     pub actors: HashMap<String, ActorGameplayConfig>,
     // Ordered list of barrier / key kind ids. Order is the stable
@@ -35,11 +34,7 @@ impl GameplayConfig {
 
     fn load_from_path(path: &Path) -> Result<Self> {
         let text = fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
-        let mut value: serde_json::Value =
-            serde_json::from_str(&text).with_context(|| format!("failed to parse {}", path.display()))?;
-        resolve_actor_inheritance(&mut value, "actors")
-            .with_context(|| format!("resolving actor inheritance in {}", path.display()))?;
-        serde_json::from_value(value).with_context(|| format!("failed to deserialize {}", path.display()))
+        serde_json::from_str(&text).with_context(|| format!("failed to parse {}", path.display()))
     }
 
     fn validate(&self) -> Result<()> {
@@ -47,7 +42,7 @@ impl GameplayConfig {
         self.projectiles.validate("projectiles")?;
         self.ladders.validate("ladders")?;
         self.missiles.validate("missiles")?;
-        self.power_up_effects.validate("power_up_effects")?;
+        self.power_ups.validate("power_ups")?;
         self.knockback.validate("knockback")?;
         if self.actors.is_empty() {
             bail!("actors must define at least one kind");
@@ -136,10 +131,10 @@ impl PowerUpEffectsConfig {
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct KnockbackConfig {
     // Horizontal shove speed at the blast center; falls off with distance
-    // like damage but ignores armor (armor protects health, not momentum).
-    pub blast_max_speed: f32,
+    // like damage.
+    pub max_speed: f32,
     // Vertical launch speed added to `CharacterVerticalVelocity`.
-    pub blast_up_speed: f32,
+    pub up_speed: f32,
     // Ground-friction-style linear deceleration of the horizontal shove: a
     // hard hit that dies cleanly, no exponential crawl tail.
     pub deceleration: f32,
@@ -147,8 +142,8 @@ pub struct KnockbackConfig {
 
 impl KnockbackConfig {
     fn validate(&self, path: &str) -> Result<()> {
-        validate_positive_finite(self.blast_max_speed, &format!("{path}.blast_max_speed"))?;
-        validate_non_negative_finite(self.blast_up_speed, &format!("{path}.blast_up_speed"))?;
+        validate_positive_finite(self.max_speed, &format!("{path}.max_speed"))?;
+        validate_non_negative_finite(self.up_speed, &format!("{path}.up_speed"))?;
         validate_positive_finite(self.deceleration, &format!("{path}.deceleration"))
     }
 }
@@ -171,12 +166,11 @@ impl LaddersConfig {
 }
 
 // Missile tuning both sides need: the client for lock detection, the HUD max,
-// dry-fire prediction, and detonation VFX sizing; the server for validation
-// and blast damage radius. Server-only flight tuning lives in
-// `config/server/gameplay.json`.
+// and dry-fire prediction; the server for validation. Flight and blast
+// tuning live in `config/server/gameplay.json`.
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct MissilesConfig {
-    pub lock_max_distance: f32,
+    pub lock_range: f32,
     // Aim-assist: how far the aim ray may pass from a target and still lock.
     pub lock_assist_radius: f32,
     // When true, F only fires with a validated lock; when false, an
@@ -184,17 +178,16 @@ pub struct MissilesConfig {
     // (like a missile whose target died).
     pub require_lock: bool,
     pub max_missiles: u32,
-    pub blast_radius: f32,
 }
 
 impl MissilesConfig {
     fn validate(&self, path: &str) -> Result<()> {
-        validate_positive_finite(self.lock_max_distance, &format!("{path}.lock_max_distance"))?;
+        validate_positive_finite(self.lock_range, &format!("{path}.lock_range"))?;
         validate_positive_finite(self.lock_assist_radius, &format!("{path}.lock_assist_radius"))?;
         if self.max_missiles == 0 {
             bail!("{path}.max_missiles must be at least 1");
         }
-        validate_positive_finite(self.blast_radius, &format!("{path}.blast_radius"))
+        Ok(())
     }
 }
 
@@ -203,7 +196,6 @@ pub struct CharacterGameplayConfig {
     pub collider: CharacterColliderConfig,
     pub support_probe: CharacterSupportProbeConfig,
     pub eye_height: f32,
-    pub health: CharacterHealthConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -216,7 +208,7 @@ pub struct PlayerGameplayConfig {
     pub jump_speed: f32,
     // How long a player stays "dead" (entity despawned, red overlay on the
     // local client) before being respawned at a fresh spawn-zone cell.
-    pub respawn_delay_secs: f32,
+    pub respawn_secs: f32,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -244,8 +236,7 @@ impl CharacterGameplayConfig {
     fn validate(&self, path: &str) -> Result<()> {
         self.collider.validate(&format!("{path}.collider"))?;
         self.support_probe.validate(&format!("{path}.support_probe"))?;
-        validate_positive_finite(self.eye_height, &format!("{path}.eye_height"))?;
-        self.health.validate(&format!("{path}.health"))
+        validate_positive_finite(self.eye_height, &format!("{path}.eye_height"))
     }
 }
 
@@ -260,17 +251,12 @@ impl PlayerGameplayConfig {
         self.character.eye_height()
     }
 
-    #[must_use]
-    pub const fn health(&self) -> CharacterHealthConfig {
-        self.character.health
-    }
-
     fn validate(&self, path: &str) -> Result<()> {
         self.character.validate(path)?;
         validate_positive_finite(self.walk_speed, &format!("{path}.walk_speed"))?;
         validate_positive_finite(self.run_speed, &format!("{path}.run_speed"))?;
         validate_positive_finite(self.jump_speed, &format!("{path}.jump_speed"))?;
-        validate_positive_finite(self.respawn_delay_secs, &format!("{path}.respawn_delay_secs"))
+        validate_positive_finite(self.respawn_secs, &format!("{path}.respawn_secs"))
     }
 }
 
@@ -283,11 +269,6 @@ impl ActorGameplayConfig {
     #[must_use]
     pub const fn eye_height(&self) -> f32 {
         self.character.eye_height()
-    }
-
-    #[must_use]
-    pub const fn health(&self) -> CharacterHealthConfig {
-        self.character.health
     }
 
     fn validate(&self, path: &str) -> Result<()> {
@@ -371,29 +352,6 @@ impl CharacterSupportProbeConfig {
     }
 }
 
-#[derive(Debug, Clone, Copy, Deserialize)]
-pub struct CharacterHealthConfig {
-    pub max: f32,
-    // Regeneration as a fraction of `max` per second, so toughness is tuned
-    // by `max` alone and the regen race scales with it.
-    pub regeneration_fraction_per_second: f32,
-}
-
-impl CharacterHealthConfig {
-    #[must_use]
-    pub fn regeneration_per_second(&self) -> f32 {
-        self.max * self.regeneration_fraction_per_second
-    }
-
-    fn validate(&self, path: &str) -> Result<()> {
-        validate_positive_finite(self.max, &format!("{path}.max"))?;
-        validate_non_negative_finite(
-            self.regeneration_fraction_per_second,
-            &format!("{path}.regeneration_fraction_per_second"),
-        )
-    }
-}
-
 #[derive(Debug, Clone, Copy)]
 pub struct CharacterPhysicsConfig {
     pub collider: CharacterColliderConfig,
@@ -437,11 +395,10 @@ mod tests {
 
     const fn missiles_config() -> MissilesConfig {
         MissilesConfig {
-            lock_max_distance: 60.0,
+            lock_range: 60.0,
             lock_assist_radius: 1.2,
             require_lock: true,
             max_missiles: 3,
-            blast_radius: 6.0,
         }
     }
 
@@ -465,7 +422,7 @@ mod tests {
     #[test]
     fn missiles_config_rejects_non_positive_lock_distance() {
         let config = MissilesConfig {
-            lock_max_distance: 0.0,
+            lock_range: 0.0,
             ..missiles_config()
         };
         assert!(config.validate("missiles").is_err());

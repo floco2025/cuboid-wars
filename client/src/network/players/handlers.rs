@@ -10,7 +10,7 @@ use crate::{
     players::{CameraShake, CuboidShake, LocalPlayerInfo, PlayerMap},
     projectiles::{ProjectileAssets, spawn_projectiles},
     ui::HudBanner,
-    vfx::{ExplosionRadii, ExplosionSpawnCtx, spawn_player_explosion},
+    vfx::{BlastRadii, ExplosionSpawnCtx, spawn_player_explosion},
 };
 use common::{
     config::GameplayConfig,
@@ -190,7 +190,7 @@ pub fn handle_player_hit_message(
 pub fn handle_player_death_message(
     commands: &mut Commands,
     ctx: &mut ExplosionSpawnCtx,
-    explosion_radii: &ExplosionRadii,
+    blast_radii: &BlastRadii,
     players: &mut PlayerMap,
     local_player_info: &mut LocalPlayerInfo,
     banner: &mut HudBanner,
@@ -221,7 +221,7 @@ pub fn handle_player_death_message(
     // For the local player the fireball's backfaces are culled, so the
     // first-person camera inside the sphere sees shards/ring/light rather
     // than an orange screen wash.
-    spawn_player_explosion(commands, ctx, explosion_radii, msg.pos);
+    spawn_player_explosion(commands, ctx, blast_radii, msg.pos);
 
     if msg.id == my_player_id {
         if let Some(info) = players.get(&msg.id) {
@@ -393,7 +393,7 @@ mod tests {
         let mut material_assets = Assets::<StandardMaterial>::default();
         let explosion_assets = ExplosionAssets::new(&mut mesh_assets, &mut material_assets);
         let mut explosion_budget = ExplosionVfxBudget::default();
-        let explosion_radii = ExplosionRadii::default();
+        let blast_radii = BlastRadii::default();
         let mut commands_queue = bevy::ecs::world::CommandQueue::default();
 
         {
@@ -410,7 +410,7 @@ mod tests {
             handle_player_death_message(
                 &mut commands,
                 &mut ctx,
-                &explosion_radii,
+                &blast_radii,
                 &mut players,
                 &mut local_player_info,
                 &mut banner,

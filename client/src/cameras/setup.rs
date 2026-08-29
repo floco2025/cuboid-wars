@@ -62,7 +62,7 @@ pub fn setup_cameras_system(
             ..default()
         },
         Projection::from(PerspectiveProjection {
-            fov: client_settings.camera.fov_first_person_degrees.to_radians(),
+            fov: client_settings.camera.fov_degrees.first_person.to_radians(),
             ..default()
         }),
         // Present so lighting can drive `post_saturation` (low light mutes

@@ -7,7 +7,7 @@ use crate::{
     missiles::{MissileAssets, MissileMap, spawn_missile},
     network::RoundTripTime,
     players::PlayerMap,
-    vfx::{ExplosionSpawnCtx, spawn_missile_explosion},
+    vfx::{BlastRadii, ExplosionSpawnCtx, spawn_missile_explosion},
 };
 use common::protocol::{
     MissileMarker, PlayerId, Position, SMissileDeath, SMissileLaunch, SMissileMove, SMissilesCollected,
@@ -62,6 +62,7 @@ pub fn handle_missile_move_intent_message(
 pub fn handle_missile_death_message(
     commands: &mut Commands,
     ctx: &mut ExplosionSpawnCtx,
+    blast_radii: &BlastRadii,
     asset_server: &AssetServer,
     asset_set: &AssetSet,
     audio_config: &AudioConfig,
@@ -71,14 +72,14 @@ pub fn handle_missile_death_message(
     let Some(entity) = missiles.remove(&msg.id) else {
         return;
     };
-    spawn_missile_explosion(commands, ctx, msg.pos);
+    spawn_missile_explosion(commands, ctx, blast_radii, msg.pos);
     play_explosion_sound(
         commands,
         asset_server,
         asset_set.player_sound("explodes"),
         audio_config,
         Vec3::from(msg.pos),
-        Some(ctx.gameplay_config.missiles.blast_radius),
+        Some(blast_radii.missile),
     );
     commands.entity(entity).despawn();
 }

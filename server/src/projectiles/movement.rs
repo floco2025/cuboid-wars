@@ -258,7 +258,7 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                             player_id,
                             target_entity,
                             death_pos,
-                            params.gameplay_config.player.respawn_delay_secs,
+                            params.gameplay_config.player.respawn_secs,
                             DeathSource::Shot(*shooter_id),
                             &params.server_gameplay_config.feed,
                             &mut params.pending_explosions,

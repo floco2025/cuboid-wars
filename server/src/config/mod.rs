@@ -1,4 +1,5 @@
 mod actors;
+mod combat;
 mod cycles;
 mod feed;
 mod gameplay;
@@ -8,14 +9,18 @@ mod quests;
 mod validation;
 
 pub use actors::{
-    ActorAttackConfig, ActorBeamAttackConfig, ActorCombatConfig, ActorKindServerConfig, ActorSettingsConfig,
-    ContactAttackConfig, ContactBeamAttackConfig, ExplosionDamageConfig,
+    ActorAttackConfig, ActorBeamAttackConfig, ActorKindServerConfig, ActorSettingsConfig, ContactAttackConfig,
+    ContactBeamAttackConfig,
+};
+pub use combat::{
+    ActorDamageConfig, ActorHealthConfig, BlastConfig, CombatConfig, DamageConfig, FallDamageConfig, HealthConfig,
+    PlayerHealthConfig,
 };
 pub use cycles::{LightingCycleConfig, WeatherCycleConfig};
 pub use feed::FeedConfig;
 pub use gameplay::{
-    FallDamageConfig, MissilesServerConfig, PlacedItemRespawnSecs, PlacedItemsConfig, PlayerServerConfig,
-    PowerUpsConfig, ProjectileConfig, ScoringConfig, ServerGameplayConfig,
+    MissilesServerConfig, PlacedItemRespawnSecs, PlacedItemsConfig, PowerUpDurationSecs, PowerUpsConfig, ScoringConfig,
+    ServerGameplayConfig,
 };
 pub use maps::{LightingMode, MapServerConfig, RandomItemsConfig, WeatherMode};
 pub use network::configure_server;

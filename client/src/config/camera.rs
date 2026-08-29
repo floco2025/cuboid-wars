@@ -5,8 +5,7 @@ use super::settings::{validate_fov, validate_non_negative_finite, validate_posit
 
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct CameraConfig {
-    pub fov_first_person_degrees: f32,
-    pub fov_top_down_degrees: f32,
+    pub fov_degrees: FovDegreesConfig,
     // Padding factor applied around the visible map when fitting the
     // top-down camera. 1.0 = exact fit, >1.0 = room around edges.
     pub topdown_margin: f32,
@@ -73,10 +72,16 @@ pub struct RearviewConfig {
     pub height_ratio: f32,
 }
 
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct FovDegreesConfig {
+    pub first_person: f32,
+    pub top_down: f32,
+}
+
 impl CameraConfig {
     pub(super) fn validate(&self) -> Result<()> {
-        validate_fov(self.fov_first_person_degrees, "camera.fov_first_person_degrees")?;
-        validate_fov(self.fov_top_down_degrees, "camera.fov_top_down_degrees")?;
+        validate_fov(self.fov_degrees.first_person, "camera.fov_degrees.first_person")?;
+        validate_fov(self.fov_degrees.top_down, "camera.fov_degrees.top_down")?;
         validate_positive_finite(self.topdown_margin, "camera.topdown_margin")?;
         validate_positive_finite(self.topdown_tilt_degrees, "camera.topdown_tilt_degrees")?;
         self.rearview.validate()?;

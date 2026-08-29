@@ -9,7 +9,7 @@ pub enum ItemType {
     LowGravityPowerUp,
     // Instant heal on pickup; no durable state on `PlayerInfo` (unlike the
     // other power-ups, which arm a timer). The heal amount comes from
-    // `PowerUpsConfig.health_potion_heal_fraction`.
+    // `combat.health.player.potion_heal` in the server config.
     HealthPotion,
     Cookie,
     // Key, parameterized by the barrier kind it eventually unlocks. Placed

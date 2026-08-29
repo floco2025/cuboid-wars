@@ -1,24 +1,24 @@
 use bevy::prelude::*;
 
-use crate::actors::ActorMap;
+use crate::{actors::ActorMap, config::ServerGameplayConfig};
 use common::{
-    config::GameplayConfig,
     health::regenerate_health,
     protocol::{ActorId, ActorMarker, Health, PlayerMarker},
 };
 
 pub fn characters_health_regeneration_system(
     time: Res<Time>,
-    gameplay_config: Res<GameplayConfig>,
+    server_gameplay_config: Res<ServerGameplayConfig>,
     actors_map: Res<ActorMap>,
     mut players: Query<&mut Health, (With<PlayerMarker>, Without<ActorMarker>)>,
     mut actors: Query<(&ActorId, &mut Health), (With<ActorMarker>, Without<PlayerMarker>)>,
 ) {
     let dt = time.delta_secs();
+    let health_config = &server_gameplay_config.combat.health;
 
     // Players use the single shared player config.
-    let player_health = gameplay_config.player.health();
-    let player_gain = player_health.regeneration_per_second() * dt;
+    let player_health = health_config.player;
+    let player_gain = player_health.max * player_health.regen_rate * dt;
     if player_gain > 0.0 {
         for mut health in &mut players {
             regenerate_health(&mut health, player_health.max, player_gain);
@@ -33,8 +33,8 @@ pub fn characters_health_regeneration_system(
         if health.0 <= 0.0 {
             continue;
         }
-        let actor_health = gameplay_config.expect_actor(&info.spawn_kind).health();
-        let gain = actor_health.regeneration_per_second() * dt;
+        let actor_health = health_config.expect_actor(&info.spawn_kind);
+        let gain = actor_health.max * actor_health.regen_rate * dt;
         if gain <= 0.0 {
             continue;
         }

@@ -7,6 +7,7 @@ use common::{
 use crate::{
     actors::ActorGhostMap,
     barriers::BarrierAssets,
+    characters::MaxHealth,
     config::{AssetSet, ClientSettings},
     items::ItemAssets,
     missiles::MissileAssets,
@@ -14,7 +15,7 @@ use crate::{
     players::LocalPlayerInfo,
     projectiles::ProjectileAssets,
     ui::{HudBanner, MessageFeed, QuestLog},
-    vfx::{ExplosionAssets, ExplosionRadii, ExplosionVfxBudget},
+    vfx::{BlastRadii, ExplosionAssets, ExplosionVfxBudget},
 };
 
 // ============================================================================
@@ -134,7 +135,8 @@ pub struct ClientAssetHandles<'w> {
     pub client_settings: Res<'w, ClientSettings>,
     pub projectile_assets: Res<'w, ProjectileAssets>,
     pub explosion_assets: Res<'w, ExplosionAssets>,
-    pub explosion_radii: Res<'w, ExplosionRadii>,
+    pub blast_radii: Res<'w, BlastRadii>,
+    pub max_health: Res<'w, MaxHealth>,
     pub item_assets: Res<'w, ItemAssets>,
     pub barrier_assets: Res<'w, BarrierAssets>,
     pub missile_assets: Res<'w, MissileAssets>,

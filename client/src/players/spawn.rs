@@ -51,6 +51,7 @@ pub fn spawn_player(
     asset_set: &AssetSet,
     client_settings: &ClientSettings,
     gameplay_config: &GameplayConfig,
+    max_health: f32,
     player_id: u32,
     player_name: &str,
     position: &Position,
@@ -118,24 +119,16 @@ pub fn spawn_player(
     children.push(model);
 
     let health_bars = client_settings.hud.health_bars;
-    let height_above = client_settings.hud.floating_labels.height_above_character;
+    let height_above = client_settings.hud.floating_labels.height_above;
 
     // Floating health bar: plain billboarded geometry (track + fill quads), the
     // same approach actors use — see `spawn_floating_health_bar`. Sits just
     // above the head.
     let bar_width = LABEL_PLAYER_BAR_WIDTH;
-    let bar_height = bar_width * health_bars.floating_player_aspect;
+    let bar_height = bar_width * health_bars.player_aspect;
     let bar_y = player_physics.collision_height() / 2.0 + height_above + bar_height / 2.0;
     let bar_entity = spawn_floating_health_bar(
-        commands,
-        meshes,
-        materials,
-        entity,
-        bar_width,
-        bar_height,
-        bar_y,
-        gameplay_config.player.health().max,
-        health.0,
+        commands, meshes, materials, entity, bar_width, bar_height, bar_y, max_health, health.0,
     );
     children.push(bar_entity);
 

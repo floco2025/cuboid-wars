@@ -13,6 +13,7 @@ use super::{
 };
 use crate::{
     barriers::BarrierAssets,
+    characters::MaxHealth,
     config::ClientSettings,
     players::{MyPlayerId, PlayerMap},
 };
@@ -22,6 +23,7 @@ pub fn ui_player_list_rebuild_system(
     players: Res<PlayerMap>,
     my_player_id: Option<Res<MyPlayerId>>,
     gameplay_config: Res<GameplayConfig>,
+    max_health: Res<MaxHealth>,
     client_settings: Res<ClientSettings>,
     kind_table: Res<BarrierKindTable>,
     barrier_assets: Option<Res<BarrierAssets>>,
@@ -60,7 +62,7 @@ pub fn ui_player_list_rebuild_system(
         *player_list_ui,
         &players,
         local_player_id,
-        &gameplay_config,
+        max_health.player,
         &style,
         &kind_table,
         barrier_assets.as_deref(),
@@ -75,7 +77,7 @@ fn rebuild_player_list(
     player_list_entity: Entity,
     players: &PlayerMap,
     local_player_id: Option<PlayerId>,
-    gameplay_config: &GameplayConfig,
+    max_health: f32,
     style: &PlayerEntryStyle,
     kind_table: &BarrierKindTable,
     barrier_assets: Option<&BarrierAssets>,
@@ -93,7 +95,6 @@ fn rebuild_player_list(
     sorted_players.sort_by_key(|(player_id, _)| player_id.0);
 
     let mut ordered_children = Vec::with_capacity(sorted_players.len());
-    let max_health = gameplay_config.player.health().max;
     for (player_id, player_info) in sorted_players {
         let current_health = player_health(player_info, health_query, max_health);
         let entity = spawn_player_entry(

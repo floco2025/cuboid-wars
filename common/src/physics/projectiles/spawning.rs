@@ -39,13 +39,13 @@ pub fn calculate_projectile_spawns(
     let mut spawns = Vec::new();
 
     let num_shots = if has_multi_shot {
-        gameplay.power_up_effects.multi_shot_count
+        gameplay.power_ups.multi_shot_count
     } else {
         1
     };
 
     // Spawn projectiles in an arc
-    let angle_step = gameplay.power_up_effects.multi_shot_angle_degrees.to_radians();
+    let angle_step = gameplay.power_ups.multi_shot_angle_degrees.to_radians();
     let start_offset = -(num_shots - 1) as f32 * angle_step / 2.0;
 
     for i in 0..num_shots {

@@ -89,7 +89,7 @@ pub fn dispatch_message(
                 &client_assets.handles.asset_server,
                 &client_assets.handles.asset_set,
                 &client_assets.handles.client_settings.audio,
-                &client_assets.handles.explosion_radii,
+                &client_assets.handles.blast_radii,
                 actors,
                 players,
                 death_msg,
@@ -106,7 +106,7 @@ pub fn dispatch_message(
                 client_assets.handles.asset_set.player_sound("explodes"),
                 &client_assets.handles.client_settings.audio,
                 Vec3::from(death_msg.pos),
-                Some(client_assets.handles.explosion_radii.player),
+                Some(client_assets.handles.blast_radii.player),
             );
             let mut ctx = ExplosionSpawnCtx {
                 meshes: &mut assets.meshes,
@@ -120,7 +120,7 @@ pub fn dispatch_message(
             handle_player_death_message(
                 commands,
                 &mut ctx,
-                &client_assets.handles.explosion_radii,
+                &client_assets.handles.blast_radii,
                 players,
                 &mut client_assets.hud.local_player_info,
                 &mut client_assets.hud.banner,
@@ -244,6 +244,7 @@ pub fn dispatch_message(
             handle_missile_death_message(
                 commands,
                 &mut ctx,
+                &client_assets.handles.blast_radii,
                 &client_assets.handles.asset_server,
                 &client_assets.handles.asset_set,
                 &client_assets.handles.client_settings.audio,

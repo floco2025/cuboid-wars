@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use super::{components::ClientAssets, quests::handle_quest_message};
-use crate::{players::MyPlayerId, vfx::ExplosionRadii};
+use crate::{characters::MaxHealth, players::MyPlayerId, vfx::BlastRadii};
 use common::{physics::CollisionWorld, protocol::*};
 
 // Pre-bootstrap dispatcher: handles every message that can arrive before
@@ -21,9 +21,14 @@ pub fn handle_pre_bootstrap_message(msg: ServerMessage, commands: &mut Commands,
             commands.insert_resource(init_msg.map_layout);
             commands.insert_resource(init_msg.map_settings);
             commands.insert_resource(collision_world);
-            commands.insert_resource(ExplosionRadii {
-                actors: init_msg.actor_explosion_radii.into_iter().collect(),
-                player: init_msg.player_explosion_radius,
+            commands.insert_resource(BlastRadii {
+                actors: init_msg.actor_blast_radii.into_iter().collect(),
+                player: init_msg.player_blast_radius,
+                missile: init_msg.missile_blast_radius,
+            });
+            commands.insert_resource(MaxHealth {
+                player: init_msg.player_max_health,
+                actors: init_msg.actor_max_health.into_iter().collect(),
             });
         }
         // Quest state events install durable per-player state with no

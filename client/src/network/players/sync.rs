@@ -6,7 +6,7 @@ use std::f32::consts::PI;
 use super::handlers::player_movement_velocity;
 use crate::{
     cameras::MainCameraMarker,
-    characters::PreviousTickPosition,
+    characters::{MaxHealth, PreviousTickPosition},
     config::{AssetSet, ClientSettings},
     network::{RoundTripTime, ServerReconciliation},
     players::{LocalPlayerInfo, PlayerInfo, PlayerMap, spawn_player},
@@ -27,6 +27,7 @@ pub struct PlayerSnapshotAssets<'a> {
     pub asset_set: &'a AssetSet,
     pub client_settings: &'a ClientSettings,
     pub gameplay_config: &'a GameplayConfig,
+    pub max_health: &'a MaxHealth,
 }
 
 pub struct PlayerSnapshotState<'a> {
@@ -173,6 +174,7 @@ fn spawn_snapshot_player(
         assets.asset_set,
         assets.client_settings,
         assets.gameplay_config,
+        assets.max_health.player,
         id.0,
         &player.name,
         &player.movement.pos,

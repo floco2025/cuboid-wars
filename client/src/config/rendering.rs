@@ -24,12 +24,12 @@ pub struct RenderingConfig {
     // window; a window smaller than the cap renders native.
     #[serde(default = "default_render_resolution")]
     pub render_resolution: u32,
-    pub shadows_directional_enabled: bool,
+    pub directional_shadows: bool,
     // Directional shadow map resolution per cascade (Bevy default 2048).
     // Higher halves shadow-edge texel size — matters once the sun moves.
     #[serde(default = "default_shadow_map_size")]
     pub shadow_map_size: u32,
-    pub texture_mipmaps_enabled: bool,
+    pub mipmaps: bool,
     pub texture_anisotropy: u16,
     pub msaa_samples: u32,
     // Off = present frames immediately (`AutoNoVsync`): a frame that misses

@@ -2,7 +2,7 @@ use bevy::{gltf::GltfAssetLabel, prelude::*};
 
 use crate::{
     characters::{AnimationToPlay, character_animation_system},
-    characters::{PreviousTickPosition, spawn_collider_box},
+    characters::{MaxHealth, PreviousTickPosition, spawn_collider_box},
     config::{AssetSet, ClientSettings},
     constants::{BEAM_IN_COLOR, BEAM_IN_LIGHT_RANGE, LABEL_ACTOR_MESH_WIDTH},
     ui::floating_labels::spawn_floating_health_bar,
@@ -23,6 +23,7 @@ pub fn spawn_actor(
     asset_set: &AssetSet,
     client_settings: &ClientSettings,
     gameplay_config: &GameplayConfig,
+    max_health: &MaxHealth,
     actor_id: ActorId,
     actor: &Actor,
 ) -> Entity {
@@ -85,10 +86,9 @@ pub fn spawn_actor(
     // `spawn_floating_health_bar`. It despawns with the actor.
     let health_bars = client_settings.hud.health_bars;
     let bar_width = LABEL_ACTOR_MESH_WIDTH;
-    let bar_height = bar_width * health_bars.floating_actor_aspect;
-    let bar_y = actor_physics.collision_height() / 2.0
-        + client_settings.hud.floating_labels.height_above_character
-        + bar_height / 2.0;
+    let bar_height = bar_width * health_bars.actor_aspect;
+    let bar_y =
+        actor_physics.collision_height() / 2.0 + client_settings.hud.floating_labels.height_above + bar_height / 2.0;
     let bar_entity = spawn_floating_health_bar(
         commands,
         meshes,
@@ -97,7 +97,7 @@ pub fn spawn_actor(
         bar_width,
         bar_height,
         bar_y,
-        actor_config.health().max,
+        max_health.actor(&actor.kind),
         actor.health.0,
     );
     children.push(bar_entity);

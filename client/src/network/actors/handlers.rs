@@ -6,7 +6,7 @@ use crate::{
     audio::{play_explosion_sound, play_spatial_sound},
     config::{AssetSet, AudioConfig},
     network::RoundTripTime,
-    vfx::{ExplosionRadii, ExplosionSpawnCtx, spawn_actor_explosion, spawn_laser_beam},
+    vfx::{BlastRadii, ExplosionSpawnCtx, spawn_actor_explosion, spawn_laser_beam},
 };
 use common::protocol::{
     ActorMarker, ActorMoveIntent, FaceYaw, Position, SActorBeam, SActorDeath, SActorHit, SActorMove,
@@ -43,7 +43,7 @@ pub fn handle_actor_death_message(
     asset_server: &AssetServer,
     asset_set: &AssetSet,
     audio_config: &AudioConfig,
-    actor_explosion_radii: &ExplosionRadii,
+    actor_blast_radii: &BlastRadii,
     actors: &mut ActorMap,
     players: &mut crate::players::PlayerMap,
     msg: SActorDeath,
@@ -60,14 +60,14 @@ pub fn handle_actor_death_message(
         // Already torn down (e.g. via the snapshot diff). Stay idempotent.
         return;
     };
-    spawn_actor_explosion(commands, ctx, actor_explosion_radii, &info.kind, msg.pos);
+    spawn_actor_explosion(commands, ctx, actor_blast_radii, &info.kind, msg.pos);
     play_explosion_sound(
         commands,
         asset_server,
         asset_set.actor_sound(&info.kind, "explodes"),
         audio_config,
         Vec3::from(msg.pos),
-        actor_explosion_radii.actors.get(&info.kind).copied(),
+        actor_blast_radii.actors.get(&info.kind).copied(),
     );
     commands.entity(info.entity).despawn();
 }

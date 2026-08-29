@@ -82,7 +82,7 @@ pub fn setup_item_assets(
     let cookie_material = materials.add(cookie_def.standard_material(
         &asset_server,
         client_settings.rendering.texture_anisotropy,
-        client_settings.rendering.texture_mipmaps_enabled,
+        client_settings.rendering.mipmaps,
     ));
 
     let mut build_power_up = |item_type: ItemType| -> Handle<StandardMaterial> {
@@ -91,7 +91,7 @@ pub fn setup_item_assets(
             &asset_server,
             item_type_color(item_type),
             client_settings.rendering.texture_anisotropy,
-            client_settings.rendering.texture_mipmaps_enabled,
+            client_settings.rendering.mipmaps,
         ))
     };
     let cuboid_mesh = meshes.add(Cuboid::new(ITEM_SIZE, ITEM_SIZE, ITEM_SIZE));

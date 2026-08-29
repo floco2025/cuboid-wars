@@ -4,6 +4,7 @@ use std::collections::HashSet;
 use super::super::components::ServerReconciliation;
 use crate::{
     actors::{ActorGhostMap, ActorInfo, ActorMap, beam_in_ghost_state, spawn_actor, spawn_actor_ghost},
+    characters::MaxHealth,
     config::{AssetSet, ClientSettings},
     network::RoundTripTime,
 };
@@ -25,6 +26,7 @@ pub fn sync_actors(
     asset_set: &AssetSet,
     client_settings: &ClientSettings,
     gameplay_config: &GameplayConfig,
+    max_health: &MaxHealth,
     server_actors: &[(ActorId, Actor)],
 ) {
     let update_ids: HashSet<ActorId> = server_actors.iter().map(|(id, _)| *id).collect();
@@ -43,6 +45,7 @@ pub fn sync_actors(
             asset_set,
             client_settings,
             gameplay_config,
+            max_health,
             *id,
             actor,
         );

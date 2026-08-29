@@ -47,7 +47,7 @@ pub fn actors_beam_damage_system(
 ) {
     let delta = time.delta_secs();
     let now = time.elapsed_secs();
-    let respawn_delay_secs = gameplay_config.player.respawn_delay_secs;
+    let respawn_secs = gameplay_config.player.respawn_secs;
     let player_physics = gameplay_config.player.physics();
     next_cue_at.retain(|id, _| actors.get(id).is_some());
 
@@ -69,7 +69,7 @@ pub fn actors_beam_damage_system(
             continue;
         };
         let kind_config = server_gameplay_config.expect_actor(&info.spawn_kind);
-        let Some(fire) = kind_config.combat.attack.beam() else {
+        let Some(fire) = kind_config.attack.beam() else {
             continue;
         };
 
@@ -86,12 +86,17 @@ pub fn actors_beam_damage_system(
             continue;
         }
 
+        let beam_dps = server_gameplay_config
+            .combat
+            .damage
+            .expect_actor(&info.spawn_kind)
+            .beam_dps
+            .expect("beam kind lacks beam_dps after validation");
         let lethal = apply_player_beam_damage(
             &players,
             target_id,
             &mut target_health,
-            fire.damage_per_second * delta,
-            &server_gameplay_config,
+            beam_dps * delta,
             invincibility.0,
         );
 
@@ -130,7 +135,7 @@ pub fn actors_beam_damage_system(
                 target_id,
                 target_entity,
                 death_pos,
-                respawn_delay_secs,
+                respawn_secs,
                 DeathSource::Beam {
                     kind: info.spawn_kind.clone(),
                 },

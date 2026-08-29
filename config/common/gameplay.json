@@ -3,11 +3,10 @@
     "collider": { "width": 1.0, "height": 1.3, "depth": 0.6, "y_offset": 0.5, "y_offset_anchor": "bottom" },
     "support_probe": { "width": 0.2, "depth": 0.2 },
     "eye_height": 1.62,
-    "health": { "max": 100.0, "regeneration_fraction_per_second": 0.01 },
     "walk_speed": 6.0,
     "run_speed": 9.0,
     "jump_speed": 12.0,
-    "respawn_delay_secs": 2.0
+    "respawn_secs": 2.0
   },
   "projectiles": {
     "speed": 70.0,
@@ -19,53 +18,51 @@
     "drag_factor": 0.01,
     "bounce_retention": 0.9
   },
-  "power_up_effects": {
+  "power_ups": {
     "speed_multiplier": 1.8,
     "multi_shot_count": 5,
     "multi_shot_angle_degrees": 1.5
   },
   "knockback": {
-    "blast_max_speed": 15.0,
-    "blast_up_speed": 7.0,
+    "max_speed": 15.0,
+    "up_speed": 7.0,
     "deceleration": 35.0
   },
   "ladders": {
     "climb_speed_ratio": 0.7
   },
   "missiles": {
-    "lock_max_distance": 100.0,
+    "lock_range": 100.0,
     "lock_assist_radius": 1.2,
     "require_lock": true,
-    "max_missiles": 3,
-    "blast_radius": 6.0
+    "max_missiles": 3
   },
   "actors": {
     "mine": {
       "collider": { "width": 1.0, "height": 1.0, "depth": 1.0, "y_offset": 1.1, "y_offset_anchor": "center" },
       "support_probe": { "width": 0.2, "depth": 0.2 },
       "eye_height": 1.6,
-      "health": { "max": 150.0, "regeneration_fraction_per_second": 0.01 },
       "roam_speed": 3.0,
       "active_speed": 5.0
     },
     "sentry": {
-      "inherit_from": "mine",
       "collider": { "width": 1.785, "height": 1.0, "depth": 1.428, "y_offset": 0.45, "y_offset_anchor": "bottom" },
-      "health": { "max": 1000.0 },
+      "support_probe": { "width": 0.2, "depth": 0.2 },
+      "eye_height": 1.6,
       "roam_speed": 6.0,
       "active_speed": 9.0
     },
     "reaper": {
-      "inherit_from": "sentry",
-      "collider": { "width": 2.142, "height": 1.2, "depth": 1.7136, "y_offset": 0.54 },
+      "collider": { "width": 2.142, "height": 1.2, "depth": 1.7136, "y_offset": 0.54, "y_offset_anchor": "bottom" },
+      "support_probe": { "width": 0.2, "depth": 0.2 },
       "eye_height": 1.92,
-      "health": { "max": 1500.0 }
+      "roam_speed": 6.0,
+      "active_speed": 9.0
     },
     "zapper": {
       "collider": { "width": 0.3, "height": 0.3, "depth": 0.3, "y_offset": 1.45, "y_offset_anchor": "center" },
       "support_probe": { "width": 0.2, "depth": 0.2 },
       "eye_height": 1.6,
-      "health": { "max": 100.0, "regeneration_fraction_per_second": 0.01 },
       "roam_speed": 2.0,
       "active_speed": 4.0
     }

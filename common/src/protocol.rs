@@ -161,12 +161,15 @@ pub struct SInit {
     pub id: PlayerId,
     pub map_layout: MapLayout,
     pub map_settings: MapSettings,
-    // Per-actor-kind blast radius (m) from the server's combat config, so
-    // explosion VFX can telegraph the true danger area. Sorted by kind for
-    // deterministic encoding.
-    pub actor_explosion_radii: Vec<(String, f32)>,
-    // Blast radius (m) of a dying player's explosion, same purpose.
-    pub player_explosion_radius: f32,
+    // Blast radii (m) from the server's combat config, so explosion VFX can
+    // telegraph the true danger area: per actor kind (sorted by kind for
+    // deterministic encoding), a dying player, a missile.
+    pub actor_blast_radii: Vec<(String, f32)>,
+    pub player_blast_radius: f32,
+    pub missile_blast_radius: f32,
+    // Max health from the same config, so health bars have a denominator.
+    pub player_max_health: f32,
+    pub actor_max_health: Vec<(String, f32)>,
 }
 
 // --- Snapshot ---

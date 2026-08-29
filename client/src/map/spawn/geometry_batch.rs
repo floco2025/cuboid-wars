@@ -139,7 +139,7 @@ impl MapGeometryBatch {
                         asset_server,
                         materials,
                         client_settings.rendering.texture_anisotropy,
-                        client_settings.rendering.texture_mipmaps_enabled,
+                        client_settings.rendering.mipmaps,
                     )
                 }
                 DebugColorMode::ByMaterial => materials.add(material_color_for(&batch.material_id)),

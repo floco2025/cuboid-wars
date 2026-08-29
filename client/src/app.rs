@@ -9,6 +9,7 @@ use crate::{
     actors::{ActorGhostMap, ActorMap},
     barriers::{LockedPlatePurposes, OpenBarrierKinds, setup_barrier_assets},
     cameras::{CameraViewMode, TopDownCameraYaw, setup_cameras_system},
+    characters::MaxHealth,
     characters::{character_sync_plugin, prediction_plugin},
     config::{AssetSet, ClientSettings, OpaqueRenderer},
     input::input_plugin,
@@ -21,7 +22,7 @@ use crate::{
     projectiles::{LastBounceSound, ProjectileAssets},
     schedule::configure_client_sets,
     ui::{ConsoleState, FpsMeasurement, HudBanner, HudShapeAssets, MessageFeed, QuestLog, hud_plugin, setup_ui_system},
-    vfx::{ExplosionAssets, ExplosionRadii, ExplosionVfxBudget, ParticleClouds, RainIntensity, presentation_plugin},
+    vfx::{BlastRadii, ExplosionAssets, ExplosionVfxBudget, ParticleClouds, RainIntensity, presentation_plugin},
 };
 use common::{config::GameplayConfig, constants::TICK_HZ, protocol::BarrierKindTable};
 
@@ -45,7 +46,7 @@ pub fn build_client_app(
         .context("failed to build BarrierKindTable from gameplay.json barrier_kinds")?;
     asset_set.validate_gameplay_bindings(&gameplay_config, &barrier_kind_table)?;
 
-    let texture_mipmaps_enabled = client_settings.rendering.texture_mipmaps_enabled;
+    let mipmaps = client_settings.rendering.mipmaps;
     let mut app = App::new();
     app.add_plugins(
         DefaultPlugins
@@ -97,7 +98,8 @@ pub fn build_client_app(
         .init_resource::<ParticleClouds>()
         .init_resource::<RainIntensity>()
         .init_resource::<ExplosionAssets>()
-        .init_resource::<ExplosionRadii>()
+        .init_resource::<BlastRadii>()
+        .init_resource::<MaxHealth>()
         .init_resource::<ExplosionVfxBudget>()
         .add_systems(
             Startup,
@@ -123,7 +125,7 @@ pub fn build_client_app(
         sky_weather_plugin,
     ));
 
-    if texture_mipmaps_enabled {
+    if mipmaps {
         // Materials often reference images that are still loading when their
         // material event arrives, so this retrying system owns generation.
         app.add_systems(Update, generate_material_mipmaps_system);

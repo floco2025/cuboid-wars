@@ -95,7 +95,7 @@ pub fn handle_missile_shot_message(
             collision_world,
             eye,
             aim,
-            gameplay_config.missiles.lock_max_distance + LOCK_RANGE_GRACE,
+            gameplay_config.missiles.lock_range + LOCK_RANGE_GRACE,
             gameplay_config.missiles.lock_assist_radius,
             candidates.into_iter(),
         ) == Some(*claimed)

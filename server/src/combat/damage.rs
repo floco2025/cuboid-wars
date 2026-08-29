@@ -76,7 +76,7 @@ pub fn kill_player(
     id: PlayerId,
     entity: Entity,
     pos: Position,
-    respawn_delay_secs: f32,
+    respawn_secs: f32,
     source: DeathSource,
     feed: &FeedConfig,
     pending_explosions: &mut PendingExplosions,
@@ -89,7 +89,7 @@ pub fn kill_player(
         return;
     }
     info.clear_per_life_state();
-    info.death_timer = Some(respawn_delay_secs);
+    info.death_timer = Some(respawn_secs);
     // Every death detonates — `explosions_system` drains the queue
     // this tick and applies the blast (void falls at CHARACTER_FALL_DEATH_Y
     // are too deep for the blast to reach the map).
@@ -214,10 +214,7 @@ pub fn apply_player_projectile_hit(
         return false;
     }
 
-    apply_damage(
-        target_health,
-        server_gameplay_config.projectile.damage * (1.0 - server_gameplay_config.player.armor),
-    );
+    apply_damage(target_health, server_gameplay_config.combat.damage.projectile);
 
     // Self-hits damage but don't score — the kill and death adjustments
     // would land on the same player and cancel out.
@@ -234,17 +231,15 @@ pub fn apply_player_projectile_hit(
     target_health.0 <= 0.0
 }
 
-// Apply one tick of laser-beam contact to a player. `damage` is the raw
-// per-tick amount (`damage_per_second * dt`); the victim's armor applies
-// here. Returns `true` when this tick drops the target to zero — the caller
-// runs `kill_player(killer: None)`. No score adjustments: actor-inflicted,
-// like falls and blasts.
+// Apply one tick of laser-beam contact to a player. `damage` is the per-tick
+// amount (`beam_dps * dt`). Returns `true` when this tick drops
+// the target to zero — the caller runs `kill_player(killer: None)`. No score
+// adjustments: actor-inflicted, like falls and blasts.
 pub fn apply_player_beam_damage(
     players: &PlayerMap,
     target_id: PlayerId,
     target_health: &mut Health,
     damage: f32,
-    server_gameplay_config: &ServerGameplayConfig,
     invincible: bool,
 ) -> bool {
     if players.get(&target_id).is_some_and(|info| info.is_dead()) {
@@ -253,7 +248,7 @@ pub fn apply_player_beam_damage(
     if invincible {
         return false;
     }
-    apply_damage(target_health, damage * (1.0 - server_gameplay_config.player.armor));
+    apply_damage(target_health, damage);
     target_health.0 <= 0.0
 }
 
@@ -274,7 +269,7 @@ pub fn apply_actor_projectile_hit(
         return false;
     }
 
-    apply_damage(target_health, server_gameplay_config.projectile.damage);
+    apply_damage(target_health, server_gameplay_config.combat.damage.projectile);
 
     if let Some(shooter_info) = players.get_mut(shooter_id) {
         shooter_info.score += server_gameplay_config
@@ -294,9 +289,10 @@ mod tests {
 
     use super::*;
     use crate::config::{
-        ActorSettingsConfig, ExplosionDamageConfig, FallDamageConfig, LightingCycleConfig, LightingMode,
-        MapServerConfig, MissilesServerConfig, PlacedItemRespawnSecs, PlacedItemsConfig, PlayerServerConfig,
-        PowerUpsConfig, ProjectileConfig, ScoringConfig, WeatherCycleConfig, WeatherMode,
+        ActorSettingsConfig, BlastConfig, CombatConfig, DamageConfig, FallDamageConfig, HealthConfig,
+        LightingCycleConfig, LightingMode, MapServerConfig, MissilesServerConfig, PlacedItemRespawnSecs,
+        PlacedItemsConfig, PlayerHealthConfig, PowerUpDurationSecs, PowerUpsConfig, ScoringConfig, WeatherCycleConfig,
+        WeatherMode,
     };
     use crate::{actors::ActorInfo, network::ServerToClient, players::PlayerInfo};
     use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
@@ -392,18 +388,32 @@ mod tests {
                 actor_kill: HashMap::from([("zapper".to_owned(), 10)]),
                 quest_completed: HashMap::new(),
             },
-            player: PlayerServerConfig {
-                armor: 0.0,
-                fall_damage: FallDamageConfig {
-                    safe_fall_distance: 4.0,
-                    lethal_fall_distance: 12.0,
+            combat: CombatConfig {
+                health: HealthConfig {
+                    player: PlayerHealthConfig {
+                        max: 100.0,
+                        regen_rate: 0.0,
+                        potion_heal: 0.25,
+                    },
+                    actors: HashMap::new(),
                 },
-                explosion: ExplosionDamageConfig {
-                    radius: 10.0,
-                    max_damage: 50.0,
+                damage: DamageConfig {
+                    player_fall: FallDamageConfig {
+                        safe_distance: 4.0,
+                        lethal_distance: 12.0,
+                    },
+                    projectile: 25.0,
+                    missile_blast: BlastConfig {
+                        radius: 6.0,
+                        max_damage: 105.0,
+                    },
+                    player_blast: BlastConfig {
+                        radius: 10.0,
+                        max_damage: 50.0,
+                    },
+                    actors: HashMap::new(),
                 },
             },
-            projectile: ProjectileConfig { damage: 25.0 },
             missiles: MissilesServerConfig {
                 speed: 12.0,
                 turn_rate: 7.0,
@@ -412,14 +422,14 @@ mod tests {
                 weave_strength: 0.35,
                 proximity_fuse_distance: 1.5,
                 stall_secs: 2.0,
-                max_damage: 105.0,
                 missiles_per_pack: 1,
             },
             power_ups: PowerUpsConfig {
-                speed_duration_secs: 1.0,
-                multi_shot_duration_secs: 1.0,
-                low_gravity_duration_secs: 1.0,
-                health_potion_heal_fraction: 0.25,
+                duration_secs: PowerUpDurationSecs {
+                    speed: 1.0,
+                    multi_shot: 1.0,
+                    low_gravity: 1.0,
+                },
             },
             placed_items: PlacedItemsConfig {
                 respawn_secs: PlacedItemRespawnSecs {
@@ -534,31 +544,11 @@ mod tests {
     }
 
     #[test]
-    fn beam_damage_applies_player_armor() {
-        let mut config = server_gameplay_config();
-        config.player.armor = 0.8;
-        let players = make_player_map_with(PlayerId(1), PlayerId(2));
-        let mut health = Health(100.0);
-
-        let lethal = apply_player_beam_damage(&players, PlayerId(2), &mut health, 50.0, &config, false);
-
-        assert!(!lethal);
-        assert_eq!(health.0, 90.0);
-    }
-
-    #[test]
     fn beam_damage_lethal_tick_returns_true() {
         let players = make_player_map_with(PlayerId(1), PlayerId(2));
         let mut health = Health(5.0);
 
-        let lethal = apply_player_beam_damage(
-            &players,
-            PlayerId(2),
-            &mut health,
-            100.0,
-            &server_gameplay_config(),
-            false,
-        );
+        let lethal = apply_player_beam_damage(&players, PlayerId(2), &mut health, 100.0, false);
 
         assert!(lethal);
         assert_eq!(health.0, 0.0);
@@ -570,14 +560,7 @@ mod tests {
         players.get_mut(&PlayerId(2)).expect("target").death_timer = Some(2.0);
         let mut health = Health(50.0);
 
-        let lethal = apply_player_beam_damage(
-            &players,
-            PlayerId(2),
-            &mut health,
-            100.0,
-            &server_gameplay_config(),
-            false,
-        );
+        let lethal = apply_player_beam_damage(&players, PlayerId(2), &mut health, 100.0, false);
 
         assert!(!lethal);
         assert_eq!(health.0, 50.0);
@@ -588,14 +571,7 @@ mod tests {
         let players = make_player_map_with(PlayerId(1), PlayerId(2));
         let mut health = Health(50.0);
 
-        let lethal = apply_player_beam_damage(
-            &players,
-            PlayerId(2),
-            &mut health,
-            100.0,
-            &server_gameplay_config(),
-            true,
-        );
+        let lethal = apply_player_beam_damage(&players, PlayerId(2), &mut health, 100.0, true);
 
         assert!(!lethal);
         assert_eq!(health.0, 50.0);

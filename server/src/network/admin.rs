@@ -333,7 +333,7 @@ fn run_admin_command(
                     targets
                 }
             };
-            let max_health = gameplay_config.player.health().max;
+            let max_health = admin.server_gameplay_config.combat.health.player.max;
             for (_, entity) in &targets {
                 commands.entity(*entity).insert(Health(max_health));
             }
@@ -574,7 +574,7 @@ fn kill_targets(
             *id,
             *entity,
             *pos,
-            gameplay_config.player.respawn_delay_secs,
+            gameplay_config.player.respawn_secs,
             DeathSource::Admin,
             &admin.server_gameplay_config.feed,
             &mut admin.pending_explosions,

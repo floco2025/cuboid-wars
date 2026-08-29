@@ -102,7 +102,7 @@ pub fn actors_behavior_system(
             shake_loose(info, &context, &mut rng);
             continue;
         }
-        let beam_started = match kind_config.combat.attack {
+        let beam_started = match kind_config.attack {
             ActorAttackConfig::Contact(_) => {
                 decide_contact_actor(info, &context, &mut rng);
                 None
@@ -231,7 +231,6 @@ fn tick_beam_state(info: &mut ActorInfo, delta: f32, kind_config: &ActorKindServ
     }
     if ended {
         let cooldown_secs = kind_config
-            .combat
             .attack
             .beam()
             .expect("firing state belongs to a beam actor")

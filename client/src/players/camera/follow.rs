@@ -50,7 +50,7 @@ pub fn local_player_camera_sync_system(
 
     match *view_mode {
         CameraViewMode::FirstPerson => {
-            persp.fov = client_settings.camera.fov_first_person_degrees.to_radians();
+            persp.fov = client_settings.camera.fov_degrees.first_person.to_radians();
             sync_first_person_camera(
                 &mut camera_transform,
                 player_pos,
@@ -59,7 +59,7 @@ pub fn local_player_camera_sync_system(
             );
         }
         CameraViewMode::TopDown => {
-            persp.fov = client_settings.camera.fov_top_down_degrees.to_radians();
+            persp.fov = client_settings.camera.fov_degrees.top_down.to_radians();
             *camera_transform = topdown_camera_transform(
                 player_pos,
                 map_layout.as_deref(),

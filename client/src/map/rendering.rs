@@ -32,7 +32,7 @@ pub fn setup_scene_lighting_system(
     commands.spawn((
         DirectionalLight {
             illuminance: client_settings.lighting.bright.sun_illuminance,
-            shadow_maps_enabled: client_settings.rendering.shadows_directional_enabled,
+            shadow_maps_enabled: client_settings.rendering.directional_shadows,
             ..default()
         },
         Transform::from_xyz(5.0, 15.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
@@ -115,7 +115,7 @@ pub fn map_spawn_geometry_system(
             &asset_server,
             &mut materials,
             client_settings.rendering.texture_anisotropy,
-            client_settings.rendering.texture_mipmaps_enabled,
+            client_settings.rendering.mipmaps,
         );
         let ladder_tile_size = asset_set.ladder_material_def().tile_size();
         for ladder in &map_layout.ladders {

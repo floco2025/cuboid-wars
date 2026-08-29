@@ -19,10 +19,10 @@ impl ActorSettingsConfig {
 #[derive(Debug, Clone, Deserialize)]
 pub struct ActorKindServerConfig {
     #[serde(deserialize_with = "deserialize_optional_f32")]
-    pub respawn_delay_secs: Option<f32>,
+    pub respawn_secs: Option<f32>,
     pub vision_range: f32,
     pub roam_steps: usize,
-    pub combat: ActorCombatConfig,
+    pub attack: ActorAttackConfig,
 }
 
 fn deserialize_optional_f32<'de, D>(deserializer: D) -> Result<Option<f32>, D::Error>
@@ -34,27 +34,14 @@ where
 
 impl ActorKindServerConfig {
     pub(super) fn validate(&self, path: &str) -> Result<()> {
-        if let Some(delay_secs) = self.respawn_delay_secs {
-            validate_non_negative_finite(delay_secs, &format!("{path}.respawn_delay_secs"))?;
+        if let Some(delay_secs) = self.respawn_secs {
+            validate_non_negative_finite(delay_secs, &format!("{path}.respawn_secs"))?;
         }
         validate_positive_finite(self.vision_range, &format!("{path}.vision_range"))?;
         if self.roam_steps == 0 {
             bail!("{path}.roam_steps must be at least 1");
         }
-        self.combat.validate(&format!("{path}.combat"))
-    }
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct ActorCombatConfig {
-    pub attack: ActorAttackConfig,
-    pub death_explosion: ExplosionDamageConfig,
-}
-
-impl ActorCombatConfig {
-    fn validate(&self, path: &str) -> Result<()> {
-        self.attack.validate(&format!("{path}.attack"))?;
-        self.death_explosion.validate(&format!("{path}.death_explosion"))
+        self.attack.validate(&format!("{path}.attack"))
     }
 }
 
@@ -113,15 +100,13 @@ pub struct ActorBeamAttackConfig {
     pub range: f32,
     pub duration_secs: f32,
     pub cooldown_secs: f32,
-    pub damage_per_second: f32,
 }
 
 impl ActorBeamAttackConfig {
     fn validate(self, path: &str) -> Result<()> {
         validate_positive_finite(self.range, &format!("{path}.range"))?;
         validate_positive_finite(self.duration_secs, &format!("{path}.duration_secs"))?;
-        validate_non_negative_finite(self.cooldown_secs, &format!("{path}.cooldown_secs"))?;
-        validate_positive_finite(self.damage_per_second, &format!("{path}.damage_per_second"))
+        validate_non_negative_finite(self.cooldown_secs, &format!("{path}.cooldown_secs"))
     }
 }
 
@@ -132,19 +117,6 @@ pub struct ContactBeamAttackConfig {
     pub contact: ContactAttackConfig,
     #[serde(flatten)]
     pub beam: ActorBeamAttackConfig,
-}
-
-#[derive(Debug, Clone, Copy, Deserialize)]
-pub struct ExplosionDamageConfig {
-    pub radius: f32,
-    pub max_damage: f32,
-}
-
-impl ExplosionDamageConfig {
-    pub(super) fn validate(&self, path: &str) -> Result<()> {
-        validate_positive_finite(self.radius, &format!("{path}.radius"))?;
-        validate_non_negative_finite(self.max_damage, &format!("{path}.max_damage"))
-    }
 }
 
 #[cfg(test)]
@@ -158,23 +130,19 @@ mod tests {
         let config = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
         let zapper = config
             .expect_actor("zapper")
-            .combat
             .attack
             .beam()
             .expect("zapper should have beam attack");
         assert_eq!(zapper.duration_secs, 2.0);
-        assert_eq!(zapper.cooldown_secs, 5.0);
-        assert_eq!(
-            config.expect_actor("mine").combat.attack.contact_trigger_gap(),
-            Some(0.4)
-        );
-        assert_eq!(
-            config.expect_actor("sentry").combat.attack.contact_trigger_gap(),
-            Some(0.8)
-        );
-        let reaper = config.expect_actor("reaper").combat.attack;
+        assert_eq!(zapper.cooldown_secs, 8.0);
+        assert_eq!(config.expect_actor("mine").attack.contact_trigger_gap(), Some(0.4));
+        assert_eq!(config.expect_actor("sentry").attack.contact_trigger_gap(), Some(0.8));
+        let reaper = config.expect_actor("reaper").attack;
         assert_eq!(reaper.contact_trigger_gap(), Some(0.8));
-        assert_eq!(reaper.beam(), Some(zapper));
+        let reaper_beam = reaper.beam().expect("reaper should have beam attack");
+        assert_eq!(reaper_beam.range, 25.0);
+        assert_eq!(reaper_beam.duration_secs, 2.0);
+        assert_eq!(reaper_beam.cooldown_secs, 5.0);
     }
 
     #[test]
@@ -192,10 +160,9 @@ mod tests {
             range: 15.0,
             duration_secs: 0.0,
             cooldown_secs: 5.0,
-            damage_per_second: 75.0,
         });
         attack
-            .validate("actors.test.combat.attack")
+            .validate("actors.test.attack")
             .expect_err("zero duration must fail");
     }
 
@@ -204,20 +171,17 @@ mod tests {
         let mut value = json!({
             "vision_range": 10.0,
             "roam_steps": 2,
-            "combat": {
-                "attack": { "type": "contact", "trigger_gap": 0.1 },
-                "death_explosion": { "radius": 1.0, "max_damage": 1.0 }
-            }
+            "attack": { "type": "contact", "trigger_gap": 0.1 }
         });
 
-        let err = serde_json::from_value::<ActorKindServerConfig>(value.clone())
-            .expect_err("respawn_delay_secs must be explicit");
+        let err =
+            serde_json::from_value::<ActorKindServerConfig>(value.clone()).expect_err("respawn_secs must be explicit");
 
-        assert!(err.to_string().contains("respawn_delay_secs"));
+        assert!(err.to_string().contains("respawn_secs"));
 
-        value["respawn_delay_secs"] = serde_json::Value::Null;
+        value["respawn_secs"] = serde_json::Value::Null;
         let actor =
             serde_json::from_value::<ActorKindServerConfig>(value).expect("null should explicitly disable respawning");
-        assert_eq!(actor.respawn_delay_secs, None);
+        assert_eq!(actor.respawn_secs, None);
     }
 }

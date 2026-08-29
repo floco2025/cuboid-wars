@@ -79,7 +79,7 @@ pub fn play_explosion_sound(
         asset_path,
         audio_config,
         PlaybackSettings::DESPAWN
-            .with_volume(Volume::Linear(audio_config.explosion_gain_multiplier))
+            .with_volume(Volume::Linear(audio_config.explosion_gain))
             .with_speed(blast_radius.map_or(1.0, explosion_sound_speed)),
         pos,
     );

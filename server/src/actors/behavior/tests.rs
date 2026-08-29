@@ -274,7 +274,6 @@ fn ready_zapper_fires_at_visible_player_in_range() {
             duration_secs: fixture
                 .server
                 .expect_actor("zapper")
-                .combat
                 .attack
                 .beam()
                 .expect("beam config")
@@ -304,7 +303,7 @@ fn zapper_acquires_visible_cross_level_player_in_beam_range() {
             )
             .is_none()
     );
-    assert!(actor_pos.distance_sq(&target) <= kind.combat.attack.beam().expect("beam config").range.powi(2));
+    assert!(actor_pos.distance_sq(&target) <= kind.attack.beam().expect("beam config").range.powi(2));
     let mut info = info("zapper");
     update_awareness(
         &mut info,
@@ -384,7 +383,6 @@ fn completed_beam_enters_cooldown_and_evade() {
             remaining_secs: fixture
                 .server
                 .expect_actor("zapper")
-                .combat
                 .attack
                 .beam()
                 .expect("beam config")

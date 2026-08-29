@@ -11,7 +11,7 @@ use crate::{
     missiles::{MissileAssets, missile_rotation, spawn_missile_meshes},
     players::MyPlayerId,
     projectiles::{ProjectileAssets, spawn_ember_projectile},
-    vfx::{ExplosionAssets, ExplosionSpawnCtx, ExplosionVfxBudget, spawn_missile_explosion},
+    vfx::{BlastRadii, ExplosionAssets, ExplosionSpawnCtx, ExplosionVfxBudget, spawn_missile_explosion},
 };
 use common::{
     config::GameplayConfig,
@@ -301,6 +301,7 @@ pub struct FireworkVfx<'w> {
     materials: ResMut<'w, Assets<StandardMaterial>>,
     budget: ResMut<'w, ExplosionVfxBudget>,
     explosion_assets: Res<'w, ExplosionAssets>,
+    blast_radii: Res<'w, BlastRadii>,
     gameplay_config: Res<'w, GameplayConfig>,
     collision_world: Option<Res<'w, CollisionWorld>>,
     map_layout: Option<Res<'w, MapLayout>>,
@@ -420,14 +421,14 @@ fn pop(commands: &mut Commands, vfx: &mut FireworkVfx, assets: &FireworkAssets, 
         collision_world: vfx.collision_world.as_deref(),
         map_layout: vfx.map_layout.as_deref(),
     };
-    spawn_missile_explosion(commands, &mut ctx, Position::from(pos));
+    spawn_missile_explosion(commands, &mut ctx, &vfx.blast_radii, Position::from(pos));
     play_explosion_sound(
         commands,
         &assets.asset_server,
         assets.asset_set.player_sound("explodes"),
         &assets.client_settings.audio,
         pos,
-        Some(vfx.gameplay_config.missiles.blast_radius),
+        Some(vfx.blast_radii.missile),
     );
 }
 

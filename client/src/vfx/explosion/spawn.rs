@@ -1,5 +1,5 @@
 use super::animation::{ExplosionLight, ExplosionPulse};
-use super::assets::{ExplosionAssets, ExplosionRadii, shockwave_mesh};
+use super::assets::{BlastRadii, ExplosionAssets, shockwave_mesh};
 use super::particles::{ExplosionVfxBudget, SurfacePlane};
 use super::scorch::spawn_scorch_mark;
 use super::scorch::{
@@ -39,7 +39,7 @@ pub struct ExplosionSpawnCtx<'a> {
 pub fn spawn_actor_explosion(
     commands: &mut Commands,
     ctx: &mut ExplosionSpawnCtx,
-    radii: &ExplosionRadii,
+    radii: &BlastRadii,
     actor_kind: &str,
     pos: Position,
 ) {
@@ -69,12 +69,7 @@ pub fn spawn_actor_explosion(
     );
 }
 
-pub fn spawn_player_explosion(
-    commands: &mut Commands,
-    ctx: &mut ExplosionSpawnCtx,
-    radii: &ExplosionRadii,
-    pos: Position,
-) {
+pub fn spawn_player_explosion(commands: &mut Commands, ctx: &mut ExplosionSpawnCtx, radii: &BlastRadii, pos: Position) {
     let player_physics = ctx.gameplay_config.player.physics();
     let blast_radius = (radii.player > 0.0).then_some(radii.player);
     spawn_explosion(
@@ -97,9 +92,14 @@ pub fn spawn_player_explosion(
 }
 
 // A missile detonation: the blast origin is the detonation point itself (no
-// character body), radius from the shared missiles config.
-pub fn spawn_missile_explosion(commands: &mut Commands, ctx: &mut ExplosionSpawnCtx, pos: Position) {
-    let blast_radius = ctx.gameplay_config.missiles.blast_radius;
+// character body).
+pub fn spawn_missile_explosion(
+    commands: &mut Commands,
+    ctx: &mut ExplosionSpawnCtx,
+    radii: &BlastRadii,
+    pos: Position,
+) {
+    let blast_radius = (radii.missile > 0.0).then_some(radii.missile);
     spawn_explosion(
         commands,
         ctx.meshes,
@@ -109,8 +109,10 @@ pub fn spawn_missile_explosion(commands: &mut Commands, ctx: &mut ExplosionSpawn
         ExplosionSpec {
             center: Vec3::from(pos),
             ground_y: pos.y,
-            fireball_diameter: 2.0 * blast_radius * EXPLOSION_FIREBALL_BLAST_DIAMETER_FACTOR,
-            blast_radius: Some(blast_radius),
+            fireball_diameter: blast_radius.map_or(EXPLOSION_FALLBACK_FIREBALL_DIAMETER, |radius| {
+                2.0 * radius * EXPLOSION_FIREBALL_BLAST_DIAMETER_FACTOR
+            }),
+            blast_radius,
         },
         ctx.collision_world,
         ctx.map_layout,

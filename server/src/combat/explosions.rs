@@ -11,7 +11,7 @@ use common::{
 use super::{DeathSource, PendingExplosion, PendingExplosions, award_actor_kill, kill_actor, kill_credit, kill_player};
 use crate::{
     actors::ActorMap,
-    config::{ExplosionDamageConfig, ServerGameplayConfig},
+    config::{BlastConfig, ServerGameplayConfig},
     network::ServerToClient,
     players::{Invincibility, PlayerMap},
     quests::QuestBoard,
@@ -85,7 +85,7 @@ struct BlastSpec {
     source: BlastSource,
     center: Vec3,
     excluded_actor: Option<Entity>,
-    damage: ExplosionDamageConfig,
+    damage: BlastConfig,
     // Player credited for blast kills. Death blasts credit no one; a missile
     // blast credits its shooter.
     killer: Option<PlayerId>,
@@ -119,14 +119,13 @@ struct AccumulatedImpulse {
 pub fn explosions_system(mut context: ExplosionContext) {
     let mut player_impulses = HashMap::<PlayerId, AccumulatedImpulse>::new();
     let mut actor_impulses = HashMap::<ActorId, AccumulatedImpulse>::new();
-    let respawn_delay_secs = context.gameplay_config.player.respawn_delay_secs;
+    let respawn_secs = context.gameplay_config.player.respawn_secs;
 
     while let Some(pending) = context.pending.0.pop_front() {
         let spec = blast_spec(pending, &context.gameplay_config, &context.server_gameplay_config);
         let outcome = apply_blast(
             &spec,
             &context.gameplay_config,
-            &context.server_gameplay_config,
             context.invincibility.0,
             &context.collision_world,
             &context.players,
@@ -161,7 +160,7 @@ pub fn explosions_system(mut context: ExplosionContext) {
                 death.id,
                 death.entity,
                 death.pos,
-                respawn_delay_secs,
+                respawn_secs,
                 source,
                 &context.server_gameplay_config.feed,
                 &mut context.pending,
@@ -213,7 +212,7 @@ fn blast_spec(pending: PendingExplosion, gameplay: &GameplayConfig, server: &Ser
             source: BlastSource::Player(source_id),
             center: character_center(pos, gameplay.player.physics()),
             excluded_actor: None,
-            damage: server.player.explosion,
+            damage: server.combat.damage.player_blast,
             killer: None,
         },
         PendingExplosion::Actor {
@@ -228,7 +227,7 @@ fn blast_spec(pending: PendingExplosion, gameplay: &GameplayConfig, server: &Ser
             },
             center: character_center(pos, gameplay.expect_actor(&spawn_kind).physics()),
             excluded_actor: Some(source_entity),
-            damage: server.expect_actor(&spawn_kind).combat.death_explosion,
+            damage: server.combat.damage.expect_actor(&spawn_kind).death_blast,
             killer: None,
         },
         PendingExplosion::Missile { shooter, pos } => BlastSpec {
@@ -236,10 +235,7 @@ fn blast_spec(pending: PendingExplosion, gameplay: &GameplayConfig, server: &Ser
             // The detonation point itself — a missile has no character body.
             center: Vec3::from(pos),
             excluded_actor: None,
-            damage: ExplosionDamageConfig {
-                radius: gameplay.missiles.blast_radius,
-                max_damage: server.missiles.max_damage,
-            },
+            damage: server.combat.damage.missile_blast,
             killer: Some(shooter),
         },
     }
@@ -252,7 +248,6 @@ fn blast_spec(pending: PendingExplosion, gameplay: &GameplayConfig, server: &Ser
 fn apply_blast(
     spec: &BlastSpec,
     gameplay: &GameplayConfig,
-    server: &ServerGameplayConfig,
     invincible: bool,
     collision_world: &CollisionWorld,
     players: &PlayerMap,
@@ -274,10 +269,7 @@ fn apply_blast(
             continue;
         };
         if !invincible {
-            apply_damage(
-                &mut health,
-                spec.damage.max_damage * falloff * (1.0 - server.player.armor),
-            );
+            apply_damage(&mut health, spec.damage.max_damage * falloff);
             if health.0 <= 0.0 {
                 outcome.dead_players.push(DeadPlayer {
                     id: *id,
@@ -288,13 +280,13 @@ fn apply_blast(
             }
         }
 
-        vertical_velocity.0 += gameplay.knockback.blast_up_speed * falloff;
+        vertical_velocity.0 += gameplay.knockback.up_speed * falloff;
         accumulate_impulse(
             player_impulses,
             *id,
             entity,
             knockback,
-            planar_shove(spec.center, victim_center, falloff, gameplay.knockback.blast_max_speed),
+            planar_shove(spec.center, victim_center, falloff, gameplay.knockback.max_speed),
             falloff,
         );
     }
@@ -322,13 +314,13 @@ fn apply_blast(
             continue;
         }
 
-        vertical_velocity.0 += gameplay.knockback.blast_up_speed * falloff;
+        vertical_velocity.0 += gameplay.knockback.up_speed * falloff;
         accumulate_impulse(
             actor_impulses,
             *id,
             entity,
             knockback,
-            planar_shove(spec.center, victim_center, falloff, gameplay.knockback.blast_max_speed),
+            planar_shove(spec.center, victim_center, falloff, gameplay.knockback.max_speed),
             falloff,
         );
     }
@@ -356,7 +348,7 @@ fn accumulate_impulse<Id: std::hash::Hash + Eq + Copy>(
 }
 
 fn apply_player_impulses(context: &mut ExplosionContext, impulses: HashMap<PlayerId, AccumulatedImpulse>) {
-    let max_speed = context.gameplay_config.knockback.blast_max_speed * 1.5;
+    let max_speed = context.gameplay_config.knockback.max_speed * 1.5;
     for (id, impulse) in impulses {
         if context.players.get(&id).is_some_and(|info| info.is_dead()) {
             continue;
@@ -388,7 +380,7 @@ fn apply_player_impulses(context: &mut ExplosionContext, impulses: HashMap<Playe
 }
 
 fn apply_actor_impulses(context: &mut ExplosionContext, impulses: HashMap<ActorId, AccumulatedImpulse>) {
-    let max_speed = context.gameplay_config.knockback.blast_max_speed * 1.5;
+    let max_speed = context.gameplay_config.knockback.max_speed * 1.5;
     for (id, impulse) in impulses {
         if context.actors.get(&id).is_none() {
             continue;
@@ -658,7 +650,7 @@ mod tests {
     }
 
     #[test]
-    fn reaper_death_explosion_kills_full_health_player_at_contact_distance() {
+    fn reaper_death_blast_kills_full_health_player_at_contact_distance() {
         let mut app = test_app();
         app.add_systems(Update, explosions_system);
         let (gameplay, server) = {
@@ -672,7 +664,6 @@ mod tests {
         let player = gameplay.player.physics();
         let trigger_gap = server
             .expect_actor("reaper")
-            .combat
             .attack
             .contact_trigger_gap()
             .expect("reaper contact attack");
@@ -681,7 +672,7 @@ mod tests {
             + trigger_gap;
         let victim_id = PlayerId(1);
         let (_, mut victim_rx) =
-            spawn_logged_in_player(&mut app, victim_id, contact_distance, gameplay.player.health().max);
+            spawn_logged_in_player(&mut app, victim_id, contact_distance, server.combat.health.player.max);
         app.world_mut().resource_mut::<PendingExplosions>().push_actor(
             ActorId(1),
             Entity::from_bits(10),
