@@ -9,12 +9,9 @@ use super::{MainCameraMarker, RearviewCameraMarker, SceneRenderTarget};
 use crate::config::ClientSettings;
 
 pub fn create_scene_image(images: &mut Assets<Image>, size: UVec2) -> Handle<Image> {
-    let mut image = Image::new_target_texture(
-        size.x,
-        size.y,
-        TextureFormat::Rgba8Unorm,
-        Some(TextureFormat::Rgba8UnormSrgb),
-    );
+    // Plain sRGB with no extra view format: a mutable-format (UNORM + sRGB
+    // view) texture made some Linux drivers 3x slower than native rendering.
+    let mut image = Image::new_target_texture(size.x, size.y, TextureFormat::Rgba8UnormSrgb, None);
     // Pin linear filtering so the fullscreen upscale stays smooth even if the
     // global default sampler changes.
     image.sampler = ImageSampler::linear();
