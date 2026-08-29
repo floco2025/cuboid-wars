@@ -27,8 +27,10 @@ death/respawn flow.
 - **Quests** — every player gets the quest list at login; completing one
   flashes its banner and pays out points.
 - **Cookies** — scattered pickups worth score and quest progress.
-- **Power-ups** — timed boosts: speed, multi-shot, and low-gravity.
-  Health potions heal instantly.
+- **Power-ups** — timed boosts (speed, multi-shot, low-gravity; picking
+  one up again resets its timer) and instant-heal potions. Anything you
+  can't use — a potion at full health, a pack for a full missile bay, a
+  key you already hold — stays on the floor for someone else.
 - **Seeking missiles** — grab missile packs, lock onto a player or
   actor, and press F; the missile hunts its target through the map.
 - **Barriers & keys** — coloured barriers block everyone; the matching

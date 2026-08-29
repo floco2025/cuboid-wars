@@ -4,7 +4,7 @@ use crate::{
     config::ServerGameplayConfig,
     items::{ItemMap, ItemPlacement},
     network::{ServerToClient, announce, broadcast_to_all},
-    players::PlayerMap,
+    players::{PlayerInfo, PlayerMap},
     quests::{PlayerQuestEvent, QuestBoard, record_player_event},
 };
 use common::{
@@ -55,19 +55,8 @@ pub fn item_collection_system(
                     }
 
                     if character_overlaps_item(character_pos, item_pos, ITEM_COLLECTION_RADIUS) {
-                        // A player who already holds this kind walks over the
-                        // world key without effect. The key stays in place so
-                        // another player can still collect it.
-                        if let ItemType::Key(kind) = item_info.item_type
-                            && player_info.has_key(kind)
-                        {
-                            continue;
-                        }
-                        // Same shape for a full missile inventory: the pack
-                        // stays in the world for someone who can carry it.
-                        if item_info.item_type == ItemType::MissilePack
-                            && player_info.missiles >= gameplay_config.missiles.max_missiles
-                        {
+                        let health = player_health.get(player_info.entity).ok();
+                        if !pickup_has_effect(item_info.item_type, player_info, health, &gameplay_config) {
                             continue;
                         }
                         return Some((*player_id, *item_id, item_info.item_type));
@@ -116,6 +105,23 @@ pub fn item_collection_system(
     }
     for event in feed_events {
         announce(&players, &server_gameplay_config.feed, event);
+    }
+}
+
+// A pickup that would change nothing stays in the world for someone who can
+// use it: an already-held key, a pack for a full missile bay, a potion at
+// full health. Timed power-ups always count — the pickup resets their timer.
+fn pickup_has_effect(
+    item_type: ItemType,
+    player_info: &PlayerInfo,
+    health: Option<&Health>,
+    gameplay_config: &GameplayConfig,
+) -> bool {
+    match item_type {
+        ItemType::Key(kind) => !player_info.has_key(kind),
+        ItemType::MissilePack => player_info.missiles < gameplay_config.missiles.max_missiles,
+        ItemType::HealthPotion => health.is_none_or(|health| health.0 < gameplay_config.player.health().max),
+        ItemType::Cookie | ItemType::SpeedPowerUp | ItemType::MultiShotPowerUp | ItemType::LowGravityPowerUp => true,
     }
 }
 
@@ -247,4 +253,66 @@ fn collect_power_up(
     };
     player_info.grant_power_up(item_type, &server_gameplay_config.power_ups);
     status_broadcasts.push(player_info.status(player_id));
+}
+
+#[cfg(test)]
+mod tests {
+    use tokio::sync::mpsc::unbounded_channel;
+
+    use super::*;
+
+    fn player() -> PlayerInfo {
+        let (tx, _rx) = unbounded_channel();
+        PlayerInfo::new(Entity::PLACEHOLDER, tx)
+    }
+
+    #[test]
+    fn pickups_without_effect_stay_in_the_world() {
+        let config = GameplayConfig::load_default().expect("load default gameplay config");
+        let max_health = config.player.health().max;
+        let mut player = player();
+
+        assert!(!pickup_has_effect(
+            ItemType::HealthPotion,
+            &player,
+            Some(&Health(max_health)),
+            &config
+        ));
+        assert!(pickup_has_effect(
+            ItemType::HealthPotion,
+            &player,
+            Some(&Health(max_health / 2.0)),
+            &config
+        ));
+
+        assert!(pickup_has_effect(ItemType::MissilePack, &player, None, &config));
+        player.add_missiles(config.missiles.max_missiles, config.missiles.max_missiles);
+        assert!(!pickup_has_effect(ItemType::MissilePack, &player, None, &config));
+
+        assert!(player.add_key(BarrierKindId(0)));
+        assert!(!pickup_has_effect(
+            ItemType::Key(BarrierKindId(0)),
+            &player,
+            None,
+            &config
+        ));
+        assert!(pickup_has_effect(
+            ItemType::Key(BarrierKindId(1)),
+            &player,
+            None,
+            &config
+        ));
+    }
+
+    #[test]
+    fn active_power_ups_are_still_collected_to_reset_their_timer() {
+        let config = GameplayConfig::load_default().expect("load default gameplay config");
+        let server_config = ServerGameplayConfig::load_default().expect("load default server gameplay config");
+        let mut player = player();
+        player.grant_power_up(ItemType::SpeedPowerUp, &server_config.power_ups);
+        assert!(player.has_speed());
+
+        assert!(pickup_has_effect(ItemType::SpeedPowerUp, &player, None, &config));
+        assert!(pickup_has_effect(ItemType::Cookie, &player, None, &config));
+    }
 }
