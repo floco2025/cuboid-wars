@@ -4,7 +4,7 @@ use super::BarrierAssets;
 use crate::map::MapLevel;
 use common::{
     constants::{GRID_CELL_SIZE, LEVEL_HEIGHT},
-    protocol::MapLayout,
+    protocol::{MapLayout, PlatePurpose},
 };
 
 #[derive(Component)]
@@ -70,6 +70,10 @@ pub fn pressure_plates_spawn_system(
 
     for plate in &layout.pressure_plates {
         let floor_y = f32::from(plate.level) * LEVEL_HEIGHT + PLATE_Y_OFFSET;
+        let button_material = match plate.purpose {
+            PlatePurpose::Barrier(kind) => assets.material_for_plate(kind),
+            PlatePurpose::Firework => assets.firework_plate_material(),
+        };
         commands
             .spawn((
                 PressurePlateMarker,
@@ -85,7 +89,7 @@ pub fn pressure_plates_spawn_system(
                 ));
                 parent.spawn((
                     Mesh3d(plate_assets.button_mesh.clone()),
-                    MeshMaterial3d(assets.material_for_plate(plate.kind).clone()),
+                    MeshMaterial3d(button_material.clone()),
                     Transform::from_xyz(
                         0.0,
                         PLATE_BASE_HEIGHT + PLATE_BUTTON_HEIGHT / 2.0 - PLATE_BUTTON_OVERLAP,

@@ -158,13 +158,13 @@ fn validate_pressure_plates(map_def: &MapDef) -> Result<()> {
                 map_def.grid_rows
             ));
         }
-        // Per-kind uniqueness on (level, col, row). Different kinds may
-        // stack on the same cell — design choice; remove the kind tuple if
-        // we want to disallow that too.
-        if !seen.insert((plate.level, plate.col, plate.row, plate.kind.clone())) {
+        // Per-purpose uniqueness on (level, col, row). Different purposes
+        // may stack on the same cell — design choice; drop the purpose from
+        // the tuple to disallow that too.
+        if !seen.insert((plate.level, plate.col, plate.row, plate.purpose.clone())) {
             return Err(anyhow!(
-                "{label} duplicates kind {:?} at level {} col {} row {}",
-                plate.kind,
+                "{label} duplicates {:?} at level {} col {} row {}",
+                plate.purpose,
                 plate.level,
                 plate.col,
                 plate.row

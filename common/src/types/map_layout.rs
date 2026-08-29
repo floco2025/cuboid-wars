@@ -101,21 +101,27 @@ pub struct Ladder {
 // to `walls` / `ramps` / `floors`: the segment at index `i` renders with the
 // `FaceMaterials` at index `i` of the corresponding `*_materials` vector.
 // Physics ignores the material vectors.
-// Coop puzzle primitive: a floor-cell-mounted plate tagged with a barrier
-// kind. While enough plates of a kind are held by players, every barrier of
-// that kind becomes fully passable + invisible globally. Distinct from keys
-// (per-player filter). Threshold lives on the server; clients just receive
-// the set of currently-open kinds via `SSnapshot`.
-//
-// World-space center is shipped here (not col/row) so the client never needs
-// `MapGeometry` to position the visual marker. The server keeps the original
-// (col, row) on its own runtime mirror for plate-occupancy tests.
+// What holding a plate does. Barrier plates open every barrier of their kind
+// (fully passable + invisible, globally) while enough of them are held —
+// distinct from keys (per-player filter). Firework plates launch the show
+// once enough players stand on them. Thresholds live on the server; clients
+// receive the open kinds via `SSnapshot` and the show via `SFirework`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
+pub enum PlatePurpose {
+    Barrier(BarrierKindId),
+    Firework,
+}
+
+// Coop puzzle primitive: a floor-cell-mounted plate. World-space center is
+// shipped here (not col/row) so the client never needs `MapGeometry` to
+// position the visual marker. The server keeps the original (col, row) on
+// its own runtime mirror for plate-occupancy tests.
 #[derive(Debug, Clone, Copy, Encode, Decode)]
 pub struct PressurePlate {
     pub level: u8,
     pub center_x: f32,
     pub center_z: f32,
-    pub kind: BarrierKindId,
+    pub purpose: PlatePurpose,
 }
 
 // Client-display-only decoration; physics and gameplay ignore it. World-space

@@ -18,7 +18,9 @@ pub use face_materials::FaceMaterials;
 pub use feed::{DeathCause, FeedEvent};
 pub use ids::{ActorId, HomingTarget, ItemId, MissileId, PlayerId, QuestId};
 pub use items::{ItemType, PowerUpKind};
-pub use map_layout::{Barrier, Floor, GrassCell, Ladder, MapLayout, MapSettings, PressurePlate, Ramp, Wall, WallLight};
+pub use map_layout::{
+    Barrier, Floor, GrassCell, Ladder, MapLayout, MapSettings, PlatePurpose, PressurePlate, Ramp, Wall, WallLight,
+};
 pub use movement::{
     ActorMoveIntent, ActorMovementState, FaceYaw, MissileMovementState, PlayerMoveIntent, PlayerMovementState,
 };

@@ -9,10 +9,13 @@ from .constants import (
     BARRIER_KIND_TABLE,
     FACES,
     MODE_RAMP_UP,
+    PLATE_TYPE_BARRIER,
+    PLATE_TYPE_FIREWORK,
     PLAYER_ZONE_LIST,
     SPAWN_ZONE_LISTS,
 )
 from .dialogs import ActorSpawnFieldsDialog, BarrierKindDialog, MaterialAssignmentDialog
+from .normalization import pressure_plate_key
 from .geometry import (
     normalized_wall,
     ramp_error,
@@ -189,7 +192,7 @@ class PlacementMixin:
         self.add_barrier_line(start, end, kind)
 
     def prompt_and_add_pressure_plate(self, col: int, row: int) -> None:
-        kind = BarrierKindDialog.prompt(self, "Place Pressure Plate", self.recent_pressure_plate_kind)
+        kind = BarrierKindDialog.prompt(self, "Place Barrier Plate", self.recent_pressure_plate_kind)
         if kind is None:
             return
         self.recent_pressure_plate_kind = kind
@@ -199,19 +202,25 @@ class PlacementMixin:
         if kind not in BARRIER_KIND_TABLE:
             self._flash_status(f"Unknown plate kind {kind!r}")
             return
+        plate = {"level": self.current_level, "col": col, "row": row, "type": PLATE_TYPE_BARRIER, "kind": kind}
+        self._add_plate(plate, f"Place Barrier Plate ({kind})")
+
+    def add_firework_plate(self, col: int, row: int) -> None:
+        plate = {"level": self.current_level, "col": col, "row": row, "type": PLATE_TYPE_FIREWORK}
+        self._add_plate(plate, "Place Firework Plate")
+
+    def _add_plate(self, plate: dict, label: str) -> None:
         after = copy.deepcopy(self.map_data)
         plates = after.setdefault("pressure_plates", [])
-        # Dedup on (level, col, row, kind) — same kind on same cell is a no-op.
-        existing = {(p["level"], p["col"], p["row"], p["kind"]) for p in plates}
-        new_plate = {"level": self.current_level, "col": col, "row": row, "kind": kind}
-        if (new_plate["level"], new_plate["col"], new_plate["row"], new_plate["kind"]) in existing:
+        # The same plate on the same cell is a no-op; different types may share a cell.
+        if pressure_plate_key(plate) in {pressure_plate_key(p) for p in plates}:
             return
-        plates.append(new_plate)
-        self.apply_change(f"Place Pressure Plate ({kind})", after)
+        plates.append(plate)
+        self.apply_change(label, after)
 
     def remove_pressure_plate_at(self, col: int, row: int) -> bool:
-        """Remove any plate of any kind at (current_level, col, row). Returns
-        True if a plate was removed."""
+        """Remove every plate at (current_level, col, row). Returns True if a
+        plate was removed."""
         after = copy.deepcopy(self.map_data)
         plates = after.get("pressure_plates", [])
         keep = [p for p in plates if not (p["level"] == self.current_level and p["col"] == col and p["row"] == row)]
@@ -220,6 +229,21 @@ class PlacementMixin:
         after["pressure_plates"] = keep
         self.apply_change("Remove Pressure Plate", after)
         return True
+
+    def erase_pressure_plates_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
+        c0, r0, c1, r1 = rect_from_cells(start, end)
+        plates = self.map_data.get("pressure_plates", [])
+        kept = [
+            p
+            for p in plates
+            if not (p["level"] == self.current_level and c0 <= p["col"] < c1 and r0 <= p["row"] < r1)
+        ]
+        if len(kept) == len(plates):
+            self._flash_status("Erase Plates: no plates in selection.")
+            return
+        after = copy.deepcopy(self.map_data)
+        after["pressure_plates"] = kept
+        self.apply_change("Erase Plates", after)
 
     def add_barrier_line(self, start: tuple[int, int], end: tuple[int, int], kind: str) -> None:
         edges = wall_segments_between(start, end)

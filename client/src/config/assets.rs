@@ -42,6 +42,7 @@ pub struct AssetSet {
     aliases: HashMap<String, String>,
     item_materials: HashMap<String, String>,
     barrier_kind_colors: HashMap<String, String>,
+    firework_plate_color: String,
     player: PlayerAssets,
     actors: HashMap<String, ActorAssets>,
     models: GenericModels,
@@ -60,6 +61,7 @@ struct AssetSetFile {
     // Per-barrier-kind hex colors keyed by the kind id from gameplay.json.
     #[serde(default)]
     barrier_kind_colors: HashMap<String, String>,
+    firework_plate_color: String,
     player: PlayerAssets,
     actors: HashMap<String, ActorAssets>,
     models: GenericModels,
@@ -90,6 +92,7 @@ impl AssetSet {
             aliases: file.aliases,
             item_materials: file.item_materials,
             barrier_kind_colors: file.barrier_kind_colors,
+            firework_plate_color: file.firework_plate_color,
             player: file.player,
             actors: file.actors,
             models: file.models,
@@ -224,6 +227,11 @@ impl AssetSet {
     // builder) should treat this as a hard error.
     pub fn barrier_kind_color_hex(&self, id: &str) -> Option<&str> {
         self.barrier_kind_colors.get(id).map(String::as_str)
+    }
+
+    // Hex color of the firework plate button (`firework_plate_color`).
+    pub fn firework_plate_color_hex(&self) -> &str {
+        &self.firework_plate_color
     }
 
     pub fn player_model(&self) -> &ModelDef {

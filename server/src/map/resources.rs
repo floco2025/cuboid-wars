@@ -150,7 +150,7 @@ pub struct PressurePlateRuntime {
     pub level: u8,
     pub col: i32,
     pub row: i32,
-    pub kind: common::protocol::BarrierKindId,
+    pub purpose: common::protocol::PlatePurpose,
 }
 
 #[derive(Resource, Clone)]

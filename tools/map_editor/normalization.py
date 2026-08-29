@@ -196,16 +196,21 @@ def item_key(item: dict) -> tuple:
 
 
 def normalize_pressure_plate(plate: dict) -> dict:
-    return {
+    normalized = {
         "level": int(plate.get("level", 0)),
         "col": int(plate.get("col", 0)),
         "row": int(plate.get("row", 0)),
-        "kind": str(plate.get("kind", "")),
+        "type": str(plate.get("type", "")),
     }
+    # Only barrier plates take a kind; a stray one is kept for the validator
+    # to flag rather than silently dropped.
+    if "kind" in plate:
+        normalized["kind"] = str(plate["kind"])
+    return normalized
 
 
 def pressure_plate_key(plate: dict) -> tuple:
-    return (plate["level"], plate["row"], plate["col"], plate["kind"])
+    return (plate["level"], plate["row"], plate["col"], plate["type"], plate.get("kind", ""))
 
 
 def actor_zone_key(zone: dict) -> tuple:

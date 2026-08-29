@@ -9,19 +9,23 @@ from PySide6.QtGui import QColor
 from .constants import (
     DEFAULT_ALIAS,
     FACES,
+    FIREWORK_PLATE_COLOR,
     MODE_ERASE,
     MODE_ERASE_GRASS,
     MODE_ERASE_ITEMS,
     MODE_ERASE_KEEP_FLOORS,
     MODE_ERASE_LADDERS,
     MODE_ERASE_LIGHTS,
-    MODE_LADDER,
+    MODE_ERASE_PRESSURE_PLATES,
+    MODE_FIREWORK_PLATE,
     MODE_FLOOR,
     MODE_FLOOR_MATERIAL,
     MODE_GRASS,
     MODE_INACCESSIBLE_FLOOR,
     MODE_ITEM,
+    MODE_LADDER,
     MODE_PLAYER_SPAWN_PAINT,
+    MODE_PRESSURE_PLATE,
     MODE_RAMP_MATERIAL,
 )
 
@@ -49,6 +53,14 @@ BARRIER_PEN_WIDTH = 4
 # a cell rectangle. Lookup falls back to a neutral green for any mode that
 # uses the rect-preview UI but isn't listed here (e.g. actor spawn paint).
 DRAG_PREVIEW_FALLBACK = QColor(34, 197, 94, 120)
+
+
+def _translucent(hex_color: str, alpha: int) -> QColor:
+    color = QColor(hex_color)
+    color.setAlpha(alpha)
+    return color
+
+
 DRAG_PREVIEW_COLORS: dict[str, QColor] = {
     MODE_FLOOR: QColor(111, 180, 255, 120),
     MODE_INACCESSIBLE_FLOOR: QColor(148, 163, 184, 120),
@@ -66,6 +78,10 @@ DRAG_PREVIEW_COLORS: dict[str, QColor] = {
     MODE_ERASE: QColor(248, 113, 113, 120),
     MODE_ERASE_KEEP_FLOORS: QColor(251, 146, 60, 120),
     MODE_ERASE_LIGHTS: QColor(250, 204, 21, 120),   # amber — distinct from red erase tools
+    # Kind is picked after the click (like items): neutral off-white ghost.
+    MODE_PRESSURE_PLATE: QColor(220, 220, 220, 110),
+    MODE_FIREWORK_PLATE: _translucent(FIREWORK_PLATE_COLOR, 120),
+    MODE_ERASE_PRESSURE_PLATES: QColor(245, 158, 11, 120),  # amber family, like Erase Items
 }
 
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .constants import BARRIER_KIND_TABLE, FACES, ITEM_KEY_TYPE, ITEM_TYPES, LADDER_SIDES, LIGHT_SIDES, MATERIAL_ALIASES
+from .constants import BARRIER_KIND_TABLE, FACES, ITEM_KEY_TYPE, ITEM_TYPES, LADDER_SIDES, LIGHT_SIDES, MATERIAL_ALIASES, PLATE_TYPES, PLATE_TYPE_BARRIER
 from .display import level_label
 from .geometry import (
     grid_point_in_bounds,
@@ -35,6 +35,8 @@ def validate_map(map_data: dict) -> list[str]:
         _validate_zone_rect(zone, f"player_spawn_zones[{idx}]", map_data, errors)
 
     _validate_items(map_data, errors)
+    _validate_pressure_plates(map_data, errors)
+
 
     for level_idx, level in enumerate(map_data["levels"]):
         prefix = level_label(level, level_idx)
@@ -140,6 +142,38 @@ def _validate_ladders(map_data: dict, errors: list[str]) -> None:
                 and lower < other["lower_level"] + other["levels"]
             ):
                 errors.append(f"{label} overlaps ladders[{other_idx}] on the same edge")
+
+
+def _validate_pressure_plates(map_data: dict, errors: list[str]) -> None:
+    cols = map_data["grid_cols"]
+    rows = map_data["grid_rows"]
+    seen: set[tuple] = set()
+    for idx, plate in enumerate(map_data.get("pressure_plates", [])):
+        label = f"pressure_plates[{idx}]"
+        level_idx, col, row = plate["level"], plate["col"], plate["row"]
+        if not (0 <= level_idx < len(map_data["levels"])):
+            errors.append(f"{label} has an invalid level {level_idx}")
+            continue
+        if not (0 <= col < cols and 0 <= row < rows):
+            errors.append(f"{label} [{col}, {row}] is outside the grid")
+            continue
+        plate_type = plate.get("type")
+        if plate_type == PLATE_TYPE_BARRIER:
+            kind = plate.get("kind")
+            if kind not in BARRIER_KIND_TABLE:
+                known = ", ".join(BARRIER_KIND_TABLE) or "(none configured)"
+                errors.append(f"{label} has unknown barrier kind {kind!r}; known: [{known}]")
+        elif plate_type not in PLATE_TYPES:
+            known = ", ".join(PLATE_TYPES)
+            errors.append(f"{label} has unknown type {plate_type!r}; known: [{known}]")
+        elif "kind" in plate:
+            errors.append(f"{label} ({plate_type}) must not have `kind` — only barrier plates take one")
+        # The Rust loader dedupes per purpose: a barrier plate and a firework
+        # plate may share a cell, two identical plates may not.
+        key = (level_idx, col, row, plate_type, plate.get("kind"))
+        if key in seen:
+            errors.append(f"{label} duplicates a plate at level {level_idx} [{col}, {row}]")
+        seen.add(key)
 
 
 def _validate_items(map_data: dict, errors: list[str]) -> None:

@@ -110,7 +110,8 @@ registry entry to make the server load it.
 
 The editor (PySide6) supports floors, grass, walls, ramps, ladders,
 barriers, actor/player spawn zones, placed items (power-ups, health
-potions, cookies, keys, missile packs), pressure plates, lights, and
+potions, cookies, keys, missile packs), pressure plates (barrier and
+firework), lights, and
 per-face material assignment.
 
 ## License

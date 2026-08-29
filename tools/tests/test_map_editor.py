@@ -97,7 +97,7 @@ class ResizeTests(unittest.TestCase):
             {"level": 0, "cols": [1, 3], "rows": [1, 3], "kind": "mine", "count": 1}
         ]
         data["items"] = [{"level": 0, "col": 1, "row": 1, "type": "cookie"}]
-        data["pressure_plates"] = [{"level": 0, "col": 1, "row": 1, "kind": BARRIER_KIND_TABLE[0]}]
+        data["pressure_plates"] = [{"level": 0, "col": 1, "row": 1, "type": "barrier", "kind": BARRIER_KIND_TABLE[0]}]
         data["ramps"] = [{"lower_level": 0, "low": [1, 1], "high": [3, 2], **faces()}]
         data["ladders"] = [{"lower_level": 0, "col": 1, "row": 1, "side": "N", "levels": 1}]
 
@@ -111,6 +111,52 @@ class ResizeTests(unittest.TestCase):
         self.assertEqual((result["pressure_plates"][0]["col"], result["pressure_plates"][0]["row"]), (2, 2))
         self.assertEqual(result["ramps"][0]["low"], [2, 2])
         self.assertEqual((result["ladders"][0]["col"], result["ladders"][0]["row"]), (2, 2))
+
+
+class PressurePlateTests(unittest.TestCase):
+    def test_canonicalization_keeps_one_plate_per_type_on_a_cell(self) -> None:
+        data = empty_map(2, 2)
+        data["levels"][0]["floors"] = [floor(0, 0)]
+        barrier = {"level": 0, "col": 0, "row": 0, "type": "barrier", "kind": BARRIER_KIND_TABLE[0]}
+        firework = {"level": 0, "col": 0, "row": 0, "type": "firework"}
+        data["pressure_plates"] = [firework, barrier, dict(firework)]
+
+        result = canonicalize_map(data)
+
+        self.assertEqual(result["pressure_plates"], [barrier, firework])
+
+    def test_plates_round_trip_through_the_file_format(self) -> None:
+        data = empty_map(2, 2)
+        data["levels"][0]["floors"] = [floor(0, 0), floor(1, 0)]
+        data["pressure_plates"] = [
+            {"level": 0, "col": 0, "row": 0, "type": "barrier", "kind": BARRIER_KIND_TABLE[0]},
+            {"level": 0, "col": 1, "row": 0, "type": "firework"},
+        ]
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "map.json"
+            write_map(path, data)
+            text = path.read_text(encoding="utf-8")
+            self.assertIn('"type": "firework"}', text)
+            self.assertEqual(read_map(path)["pressure_plates"], data["pressure_plates"])
+
+    def test_plate_validation_flags_bad_types_and_kinds(self) -> None:
+        data = empty_map(2, 2)
+        data["levels"][0]["floors"] = [floor(0, 0)]
+        data["pressure_plates"] = [
+            {"level": 0, "col": 0, "row": 0, "type": "confetti"},
+            {"level": 0, "col": 0, "row": 0, "type": "barrier", "kind": "nope"},
+            {"level": 0, "col": 1, "row": 0, "type": "firework", "kind": BARRIER_KIND_TABLE[0]},
+            {"level": 0, "col": 1, "row": 1, "type": "firework"},
+            {"level": 0, "col": 1, "row": 1, "type": "firework"},
+        ]
+
+        errors = validate_map(data)
+
+        self.assertTrue(any("unknown type 'confetti'" in error for error in errors))
+        self.assertTrue(any("unknown barrier kind 'nope'" in error for error in errors))
+        self.assertTrue(any("must not have `kind`" in error for error in errors))
+        self.assertTrue(any("duplicates a plate" in error for error in errors))
 
 
 class ValidationTests(unittest.TestCase):

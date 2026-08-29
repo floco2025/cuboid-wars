@@ -158,13 +158,23 @@ pub(crate) struct ItemDef {
     pub(crate) kind: Option<String>,
 }
 
-// A single-cell plate tagged with a barrier kind. While the per-kind plate
-// threshold is met (see `compute_open_barrier_kinds_system`), every barrier
-// of that kind opens globally. Kind references `BarrierKindTable` by id.
+// A single-cell plate with a purpose (see `pressure_plates_system`): open
+// every barrier of a kind while enough plates of that kind are held, or
+// launch the firework show once enough players stand on firework plates.
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 pub(crate) struct PressurePlateDef {
     pub(crate) level: u32,
     pub(crate) col: i32,
     pub(crate) row: i32,
-    pub(crate) kind: String,
+    #[serde(flatten)]
+    pub(crate) purpose: PressurePlatePurposeDef,
+}
+
+// `{"type": "barrier", "kind": "lobby"}` / `{"type": "firework"}`; `kind`
+// references `BarrierKindTable` by id.
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub(crate) enum PressurePlatePurposeDef {
+    Barrier { kind: String },
+    Firework,
 }

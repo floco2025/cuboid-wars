@@ -31,6 +31,17 @@ pub fn broadcast_to_all(players: &PlayerMap, message: ServerMessage) {
     }
 }
 
+// Start the firework show everywhere: broadcast a seed and forget — every
+// client derives the same choreography from it.
+pub fn broadcast_firework_show(players: &PlayerMap) {
+    broadcast_to_all(
+        players,
+        ServerMessage::Firework(SFirework {
+            seed: rand::random::<u64>(),
+        }),
+    );
+}
+
 // ============================================================================
 // Data Collection Functions
 // ============================================================================

@@ -6,14 +6,12 @@ use crate::{
     combat::{DeathSource, PendingExplosions, kill_player},
     config::ServerGameplayConfig,
     map::{LightState, WeatherState, light_preset_from_str},
-    network::{ServerToClient, announce, broadcast_to_all, reply},
+    network::{ServerToClient, announce, broadcast_firework_show, reply},
     players::{Invincibility, PlayerInfo, PlayerMap, UnlimitedMissiles},
 };
 use common::{
     config::GameplayConfig,
-    protocol::{
-        BarrierKindTable, CAdmin, FeedEvent, Health, ItemType, PlayerId, PowerUpKind, SFirework, ServerMessage,
-    },
+    protocol::{BarrierKindTable, CAdmin, FeedEvent, Health, ItemType, PlayerId, PowerUpKind},
 };
 
 // Anything longer is nonsense or abuse; truncated before parsing.
@@ -404,14 +402,7 @@ fn run_admin_command(
             Private(format!("gave missiles ({missiles}/{max})"))
         }
         AdminCommand::Firework => {
-            // Pure presentation: broadcast the seed and forget. Every client
-            // derives the same show from it.
-            broadcast_to_all(
-                players,
-                ServerMessage::Firework(SFirework {
-                    seed: rand::random::<u64>(),
-                }),
-            );
+            broadcast_firework_show(players);
             Public("launched fireworks".to_owned())
         }
         AdminCommand::Kick(name) => {

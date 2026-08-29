@@ -1,7 +1,7 @@
 use anyhow::Context;
 use std::collections::HashSet;
 
-use super::schema::{BarrierDef, LadderDef, MapDef, RampDef, WallSide};
+use super::schema::{BarrierDef, LadderDef, MapDef, PressurePlatePurposeDef, RampDef, WallSide};
 use crate::{
     map::{
         ActorSpawnZone, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlacedItem, PlayerSpawnZone, PressurePlateRuntime,
@@ -19,7 +19,9 @@ use common::{
     constants::*,
     map::MapGeometry,
     protocol::FaceMaterials,
-    protocol::{Barrier, BarrierKindId, BarrierKindTable, Floor, GrassCell, ItemType, Ladder, MapLayout, Wall},
+    protocol::{
+        Barrier, BarrierKindId, BarrierKindTable, Floor, GrassCell, ItemType, Ladder, MapLayout, PlatePurpose, Wall,
+    },
 };
 
 pub(crate) fn compile_map(
@@ -62,7 +64,13 @@ pub(crate) fn compile_map(
     // physics holds it at the barrier until someone opens it. Every other
     // barrier (key-only / static) stays closed for actors.
     let pressure_plates = pressure_plates(map_def, kind_table)?;
-    let pressure_plate_kinds: HashSet<BarrierKindId> = pressure_plates.iter().map(|plate| plate.kind).collect();
+    let pressure_plate_kinds: HashSet<BarrierKindId> = pressure_plates
+        .iter()
+        .filter_map(|plate| match plate.purpose {
+            PlatePurpose::Barrier(kind) => Some(kind),
+            PlatePurpose::Firework => None,
+        })
+        .collect();
 
     let mut level_grids: Vec<LevelGrid> = map_def
         .levels
@@ -210,7 +218,7 @@ pub(crate) fn compile_map(
                 level: p.level,
                 center_x: geometry.cell_to_world_x(p.col) + GRID_CELL_SIZE / 2.0,
                 center_z: geometry.cell_to_world_z(p.row) + GRID_CELL_SIZE / 2.0,
-                kind: p.kind,
+                purpose: p.purpose,
             })
             .collect(),
         ladders,
@@ -319,14 +327,19 @@ fn pressure_plates(map_def: &MapDef, kind_table: &BarrierKindTable) -> anyhow::R
         .iter()
         .enumerate()
         .map(|(idx, p)| {
-            let kind = kind_table
-                .resolve(&p.kind)
-                .with_context(|| format!("pressure_plates[{idx}]"))?;
+            let purpose = match &p.purpose {
+                PressurePlatePurposeDef::Barrier { kind } => PlatePurpose::Barrier(
+                    kind_table
+                        .resolve(kind)
+                        .with_context(|| format!("pressure_plates[{idx}]"))?,
+                ),
+                PressurePlatePurposeDef::Firework => PlatePurpose::Firework,
+            };
             Ok(PressurePlateRuntime {
                 level: u8::try_from(p.level).unwrap_or(u8::MAX),
                 col: p.col,
                 row: p.row,
-                kind,
+                purpose,
             })
         })
         .collect()

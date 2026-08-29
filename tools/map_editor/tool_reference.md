@@ -44,7 +44,9 @@
 
 ## Pressure Plates
 
-- **Pressure Plate** — Left-click a cell to place a plate; a dialog asks which barrier kind. While enough plates of a kind are pressed, every barrier of that kind opens globally. Right-click a plate to remove it.
+- **Barrier Plate** — Left-click a cell to place a plate (square in the barrier kind's color); a dialog asks which barrier kind. While enough plates of a kind are pressed — one fewer than the players alive, capped by the plate count — every barrier of that kind opens globally. Clicking a cell that already holds a plate removes it.
+- **Firework Plate** — Left-click a cell to place a firework plate (circle). When every player alive stands on a firework plate — or every plate is held when players outnumber the plates — the firework show starts. Clicking a cell that already holds a plate removes it.
+- **Erase Plates** — Drag a rectangle to remove every plate inside it on the current level.
 
 ## Items
 

@@ -29,10 +29,14 @@
       {"level": 4, "cols": [20, 23], "rows": [16, 17]}
     ],
     "pressure_plates": [
-      {"level": 1, "col": 13, "row": 13, "kind": "lobby"},
-      {"level": 1, "col": 16, "row": 13, "kind": "lobby"},
-      {"level": 1, "col": 13, "row": 16, "kind": "lobby"},
-      {"level": 1, "col": 16, "row": 16, "kind": "lobby"}
+      {"level": 1, "col": 13, "row": 13, "type": "barrier", "kind": "lobby"},
+      {"level": 1, "col": 16, "row": 13, "type": "barrier", "kind": "lobby"},
+      {"level": 1, "col": 13, "row": 16, "type": "barrier", "kind": "lobby"},
+      {"level": 1, "col": 16, "row": 16, "type": "barrier", "kind": "lobby"},
+      {"level": 5, "col": 10, "row": 10, "type": "firework"},
+      {"level": 5, "col": 19, "row": 10, "type": "firework"},
+      {"level": 5, "col": 10, "row": 19, "type": "firework"},
+      {"level": 5, "col": 19, "row": 19, "type": "firework"}
     ],
     "items": [
       {"level": 0, "col": 12, "row": 12, "type": "cookie"},

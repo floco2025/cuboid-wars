@@ -37,7 +37,7 @@ Other notable paths:
 - `config/client/render.json` — client-only render/debug settings.
 - `config/common/gameplay.json` — shared simulation tuning loaded by client and server (player/actor physics, actor `roam_speed`/`active_speed`, player jump speed, the `projectiles` flight block, the `ladders` climb ratio, and the `missiles` block both sides need: lock range, aim-assist radius, ammo cap, blast radius).
 - `config/server/gameplay.json` — server-only gameplay tuning, including global `actor_settings` and per-kind actor vision, graph-step roam territories, explicit tagged contact/beam/contact_beam attacks, and nullable respawn delays, plus the consolidated `scoring` block (every point value in the game: player kill/death, cookie, per-actor-kind `actor_hit`/`actor_kill`, per-quest `quest_completed` — the maps must cover exactly the defined actor kinds and quest ids), the global `weather_cycle`/`lighting_cycle` blocks (rain cadence; bright/dark cadence), and the named-map registry: `maps` maps each name to its per-map settings (`skybox`, `gravity`, `low_gravity`, optional `random_items` spawn pool, and the `weather` (`clear`|`rain`|`auto`) and `lighting` (`bright`|`dim`|`dark`|`auto`) modes — a concrete value holds that state, `auto` runs the global cycle), `default_map` picks the one to load (`--map <name>` overrides). `placed_items.respawn_secs` sets the per-type reappear delay for map-placed items; the `missiles` block holds server-only flight/guidance/damage tuning; the `feed` block decides which message-feed lines are broadcast (a boolean per event type; `actor_destroyed` per actor kind, covering exactly the defined kinds).
-- `config/server/maps/` — one map JSON per named map (geometry, zones, and placed `items`; per-map tuning lives in the `maps` registry).
+- `config/server/maps/` — one map JSON per named map (geometry, zones, placed `items`, and `pressure_plates` — each with a `type`: `barrier` plus the `kind` it opens, or `firework`; per-map tuning lives in the `maps` registry).
 - `cert.pem` / `key.pem` — local-dev TLS for QUIC (not production-safe).
 - `launch_clients.sh` — spawns N tiled windowed clients for local multiplayer testing (`./launch_clients.sh [num_clients] [lag_ms]`, macOS).
 - `bacon.toml` — `bacon` job definitions; use `bacon clippy`, `bacon test`, etc. as the watch loop.
@@ -88,6 +88,10 @@ When adding a new server→client message: pick the smallest role that fits. Mos
 #### Barriers & keys
 
 Each `BarrierKindId` gets a dedicated Rapier collision group (bits 3..31, max 29 kinds). Players hold a sorted `Vec<BarrierKindId>` in `PlayerInfo.held_keys`; the character filter drops the matching groups so they pass through. Defined in `common/src/physics/world/colliders.rs` and `common/src/types/barrier_kind.rs`.
+
+#### Pressure plates
+
+One list, one footprint, one press/release click; each plate has a purpose (`PlatePurpose`, `pressure_plates_system` in `server/src/map/pressure_plates.rs`). Barrier plates open every barrier of their kind while `held >= min(plates_for_kind, alive - 1)` (one player can always walk through). Firework plates launch the show (`broadcast_firework_show`, the same `SFirework` as `/firework`) on the tick `held >= min(firework_plates, alive)` first holds — edge-triggered, re-armed when the count drops. That trigger also completes the `fireworks` quest for every player alive (`/firework` launches the show without it). The client renders firework plates with `assets.json`'s `firework_plate_color`.
 
 #### Character movement
 

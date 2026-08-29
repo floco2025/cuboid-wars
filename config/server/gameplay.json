@@ -47,7 +47,8 @@
       "destroy_zappers": 1000,
       "destroy_mines": 500,
       "destroy_sentries": 1000,
-      "collect_gold": 2000
+      "collect_gold": 2000,
+      "start_fireworks": 1500
     }
   },
   "feed": {
@@ -136,6 +137,14 @@
       "title": "Gold Rush",
       "description": "Collect 10 gold pieces",
       "completed_text": "Collected 10 gold!"
+    },
+    {
+      "id": "start_fireworks",
+      "kind": "fireworks",
+      "threshold": 1,
+      "title": "Light the Sky",
+      "description": "Gather everyone on the firework plates",
+      "completed_text": "Fireworks!"
     }
   ],
   "actor_settings": {

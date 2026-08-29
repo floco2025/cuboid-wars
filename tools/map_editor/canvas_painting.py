@@ -10,9 +10,10 @@ from PySide6.QtGui import QBrush, QColor, QPainter, QPen
 from .constants import (
     ACTOR_ZONE_LIST,
     BARRIER_KIND_COLORS,
+    FIREWORK_PLATE_COLOR,
+    ITEMS_LIST,
     ITEM_KEY_TYPE,
     ITEM_TYPE_COLORS,
-    ITEMS_LIST,
     MATERIAL_MODES,
     MODE_BARRIER,
     MODE_LADDER,
@@ -20,6 +21,7 @@ from .constants import (
     MODE_SPAWN_ZONE_EDIT,
     MODE_WALL,
     MODE_WALL_MATERIAL,
+    PLATE_TYPE_FIREWORK,
     PLAYER_ZONE_LIST,
     RAMP_MODES,
     SPAWN_PAINT_MODES,
@@ -216,8 +218,10 @@ class CanvasPaintingMixin:
         painter.setPen(Qt.PenStyle.NoPen)
 
     def _paint_pressure_plates(self, painter: QPainter, cell: float, level_idx: int) -> None:
-        # Inner 50% of the cell (≈25% by area), colored by the plate's barrier
-        # kind. Matches the in-game footprint exactly.
+        # Inner 50% of the cell (≈25% by area) — the in-game footprint. Barrier
+        # plates are squares in their kind's color; firework plates are circles
+        # in the firework color, shape-distinct from plates and key diamonds so
+        # stacked glyphs still read.
         plates = self.window.map_data.get("pressure_plates", [])
         if not plates:
             return
@@ -225,12 +229,14 @@ class CanvasPaintingMixin:
         for plate in plates:
             if plate["level"] != level_idx:
                 continue
-            kind = plate.get("kind", "")
-            hex_color = BARRIER_KIND_COLORS.get(kind, "#38bdf8")
-            color = QColor(hex_color)
-            painter.setBrush(color)
             inset = cell * 0.25
-            painter.drawRect(QRectF(plate["col"] * cell + inset, plate["row"] * cell + inset, cell * 0.5, cell * 0.5))
+            rect = QRectF(plate["col"] * cell + inset, plate["row"] * cell + inset, cell * 0.5, cell * 0.5)
+            if plate.get("type") == PLATE_TYPE_FIREWORK:
+                painter.setBrush(QColor(FIREWORK_PLATE_COLOR))
+                painter.drawEllipse(rect)
+            else:
+                painter.setBrush(QColor(BARRIER_KIND_COLORS.get(plate.get("kind", ""), "#38bdf8")))
+                painter.drawRect(rect)
 
     def _paint_items(self, painter: QPainter, cell: float, level_idx: int) -> None:
         # Glyphs mirror the in-game meshes (client/src/items/spawn.rs):

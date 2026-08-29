@@ -17,7 +17,9 @@ from .constants import (
     DEFAULT_ALIAS,
     ERASE_MODES,
     ITEM_TYPES,
+    MODES,
     MODE_CATEGORIES,
+    MODE_FIREWORK_PLATE,
     MODE_FLOOR,
     MODE_ITEM,
     MODE_LADDER,
@@ -26,7 +28,6 @@ from .constants import (
     MODE_RAMP_DOWN,
     MODE_RAMP_UP,
     MODE_SPAWN_ZONE_EDIT,
-    MODES,
     STATUS_TIMEOUT_MS,
 )
 from .document import MapDocument
@@ -199,7 +200,7 @@ class EditorWindow(
     # Map each mode to the cursor it should display so a peripheral glance
     # tells the user which tool is active without reading the toolbar.
     def _cursor_for_mode(self, mode: str) -> Qt.CursorShape:
-        if mode in (MODE_LIGHT, MODE_LADDER, MODE_PRESSURE_PLATE, MODE_ITEM):
+        if mode in (MODE_LIGHT, MODE_LADDER, MODE_PRESSURE_PLATE, MODE_FIREWORK_PLATE, MODE_ITEM):
             return Qt.CursorShape.PointingHandCursor
         if mode == MODE_SPAWN_ZONE_EDIT:
             return Qt.CursorShape.OpenHandCursor

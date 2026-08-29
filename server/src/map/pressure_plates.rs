@@ -4,14 +4,16 @@ use std::collections::{HashMap, HashSet};
 use crate::{
     config::ServerGameplayConfig,
     map::{MapConfig, PressurePlateRuntime},
-    network::{announce, broadcast_to_all},
-    players::PlayerMap,
+    network::{ServerToClient, announce, broadcast_firework_show, broadcast_to_all},
+    players::{PlayerMap, QuestEvent, record_quest_event},
 };
 use common::{
     constants::{GRID_CELL_SIZE, LEVEL_HEIGHT},
     map::MapGeometry,
     physics::OpenBarrierKinds,
-    protocol::{BarrierKindId, FeedEvent, PlayerId, PlayerMarker, Position, SPressurePlate, ServerMessage},
+    protocol::{
+        BarrierKindId, FeedEvent, PlatePurpose, PlayerId, PlayerMarker, Position, SPressurePlate, ServerMessage,
+    },
 };
 
 // World-space test: is `pos` inside this plate's inner 25%-by-area square AND
@@ -33,19 +35,23 @@ pub fn player_on_plate(plate: &PressurePlateRuntime, pos: &Position, geometry: &
     pos.x >= min_x && pos.x <= max_x && pos.z >= min_z && pos.z <= max_z
 }
 
-// Per-tick: determine which barrier kinds are open right now.
+// Per-tick plate occupancy, then the two plate rules.
 //
-// For each kind that has at least one plate on the map:
+// Barrier plates — for each kind that has at least one plate on the map:
 //   required = min(plates_for_kind, max(0, alive_logged_in_count - 1))
-// If the number of distinct plates currently held by some alive player is
-// `>= required`, the kind is open.
+// and the kind is open while the number of distinct held plates of that
+// kind is `>= required`.
 //
-// Plate is "held" when ≥ 1 alive player is inside the inner 25%-by-area
+// Firework plates — required = min(firework_plates, alive_logged_in_count);
+// the show launches on the tick the held count reaches it (edge-triggered,
+// so standing there doesn't restart it every tick).
+//
+// A plate is "held" when ≥ 1 alive player is inside the inner 25%-by-area
 // square of its cell (see `player_on_plate`).
-pub fn compute_open_barrier_kinds_system(
+pub fn pressure_plates_system(
     map_config: Res<MapConfig>,
     map_geometry: Res<MapGeometry>,
-    players: Res<PlayerMap>,
+    mut players: ResMut<PlayerMap>,
     server_gameplay_config: Res<ServerGameplayConfig>,
     positions: Query<&Position, With<PlayerMarker>>,
     mut open: ResMut<OpenBarrierKinds>,
@@ -53,21 +59,27 @@ pub fn compute_open_barrier_kinds_system(
     // unpressed→pressed edge (step-on cue), not every tick a player keeps
     // standing, and tells a fresh press from a standing one for feed lines.
     mut prev_held: Local<HashSet<usize>>,
-    // Plate count per kind. Derived from the immutable map, so it is built
-    // once on first run rather than rebuilt every tick.
+    // Barrier plate count per kind. Derived from the immutable map, so it is
+    // built once on first run rather than rebuilt every tick.
     mut plates_per_kind: Local<HashMap<BarrierKindId, usize>>,
+    // Whether the firework threshold held last tick; the show launches on
+    // the false→true edge.
+    mut fireworks_ready: Local<bool>,
 ) {
     if map_config.pressure_plates.is_empty() {
         if !open.0.is_empty() {
             open.0.clear();
         }
         prev_held.clear();
+        *fireworks_ready = false;
         return;
     }
 
     if plates_per_kind.is_empty() {
         for plate in &map_config.pressure_plates {
-            *plates_per_kind.entry(plate.kind).or_insert(0) += 1;
+            if let PlatePurpose::Barrier(kind) = plate.purpose {
+                *plates_per_kind.entry(kind).or_insert(0) += 1;
+            }
         }
     }
 
@@ -151,16 +163,71 @@ pub fn compute_open_barrier_kinds_system(
         }
     }
 
+    let firework_plates = plates
+        .iter()
+        .filter(|plate| plate.purpose == PlatePurpose::Firework)
+        .count();
+    let held_fireworks = held_indices
+        .iter()
+        .filter(|idx| plates[**idx].purpose == PlatePurpose::Firework)
+        .count();
+    let ready = firework_plates_ready(firework_plates, held_fireworks, alive);
+    if ready && !*fireworks_ready {
+        broadcast_firework_show(&players);
+        award_firework_quest(&mut players, &server_gameplay_config);
+    }
+    *fireworks_ready = ready;
+
     *prev_held = held_indices;
     if next != open.0 {
         open.0 = next;
     }
 }
 
+// Everyone alive is on a firework plate — or every plate is held when the
+// players outnumber them.
+fn firework_plates_ready(plates: usize, held: usize, alive: usize) -> bool {
+    plates > 0 && alive > 0 && held >= plates.min(alive)
+}
+
+// The show is a shared achievement: every player alive gets the quest
+// event, their progress/completion unicast, and completions announced.
+// `/firework` bypasses this on purpose.
+fn award_firework_quest(players: &mut PlayerMap, config: &ServerGameplayConfig) {
+    let alive: Vec<PlayerId> = players
+        .iter()
+        .filter(|(_, info)| info.logged_in && !info.is_dead())
+        .map(|(id, _)| *id)
+        .collect();
+    let mut completed: Vec<(PlayerId, String)> = Vec::new();
+    for id in alive {
+        let Some(info) = players.get_mut(&id) else {
+            continue;
+        };
+        let outcome = record_quest_event(info, &config.quests, &config.scoring, QuestEvent::FireworksStarted);
+        for msg in outcome.unicast {
+            let _ = info.channel.send(ServerToClient::Send(msg));
+        }
+        completed.extend(outcome.completed_titles.into_iter().map(|title| (id, title)));
+    }
+    for (id, title) in completed {
+        announce(
+            players,
+            &config.feed,
+            FeedEvent::QuestCompleted {
+                name: players.display_name(&id),
+                title,
+            },
+        );
+    }
+}
+
 fn held_count_per_kind(held: &HashSet<usize>, plates: &[PressurePlateRuntime]) -> HashMap<BarrierKindId, usize> {
     let mut counts = HashMap::new();
     for idx in held {
-        *counts.entry(plates[*idx].kind).or_insert(0) += 1;
+        if let PlatePurpose::Barrier(kind) = plates[*idx].purpose {
+            *counts.entry(kind).or_insert(0) += 1;
+        }
     }
     counts
 }
@@ -176,7 +243,7 @@ fn presser_of_kind(
 ) -> Option<PlayerId> {
     let mut standing = None;
     for (idx, id) in holders {
-        if plates[*idx].kind != kind {
+        if plates[*idx].purpose != PlatePurpose::Barrier(kind) {
             continue;
         }
         if !prev_held.contains(idx) {
@@ -204,7 +271,7 @@ mod player_on_plate_tests {
             level,
             col,
             row,
-            kind: BarrierKindId(0),
+            purpose: PlatePurpose::Barrier(BarrierKindId(0)),
         }
     }
 
@@ -318,19 +385,19 @@ mod transition_tests {
                 level: 0,
                 col: 0,
                 row: 0,
-                kind: BarrierKindId(0),
+                purpose: PlatePurpose::Barrier(BarrierKindId(0)),
             },
             PressurePlateRuntime {
                 level: 0,
                 col: 1,
                 row: 0,
-                kind: BarrierKindId(0),
+                purpose: PlatePurpose::Barrier(BarrierKindId(0)),
             },
             PressurePlateRuntime {
                 level: 0,
                 col: 2,
                 row: 0,
-                kind: BarrierKindId(1),
+                purpose: PlatePurpose::Barrier(BarrierKindId(1)),
             },
         ];
         let holders = HashMap::from([(0, PlayerId(1)), (1, PlayerId(2)), (2, PlayerId(3))]);
@@ -345,5 +412,114 @@ mod transition_tests {
             Some(PlayerId(3))
         );
         assert_eq!(presser_of_kind(BarrierKindId(2), &holders, &prev_held, &plates), None);
+    }
+}
+
+#[cfg(test)]
+mod firework_tests {
+    use super::*;
+
+    #[test]
+    fn firework_needs_every_player_when_plates_suffice() {
+        assert!(!firework_plates_ready(3, 1, 2));
+        assert!(firework_plates_ready(3, 2, 2));
+        assert!(firework_plates_ready(1, 1, 1));
+    }
+
+    #[test]
+    fn firework_needs_every_plate_when_players_outnumber_them() {
+        assert!(!firework_plates_ready(2, 1, 5));
+        assert!(firework_plates_ready(2, 2, 5));
+    }
+
+    #[test]
+    fn no_firework_plates_never_fire() {
+        assert!(!firework_plates_ready(0, 0, 3));
+    }
+
+    #[test]
+    fn no_players_never_fire() {
+        assert!(!firework_plates_ready(2, 0, 0));
+    }
+}
+
+#[cfg(test)]
+mod firework_quest_tests {
+    use bevy::prelude::Entity;
+    use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
+
+    use super::*;
+    use crate::players::{PlayerInfo, assign_quests};
+    use common::protocol::{QuestId, SFeed};
+
+    fn player(
+        players: &mut PlayerMap,
+        id: PlayerId,
+        name: &str,
+        config: &ServerGameplayConfig,
+        dead: bool,
+    ) -> UnboundedReceiver<ServerToClient> {
+        let (tx, rx) = unbounded_channel();
+        let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
+        info.logged_in = true;
+        info.name = name.to_owned();
+        assign_quests(&mut info, &config.quests);
+        if dead {
+            info.death_timer = Some(2.0);
+        }
+        players.insert(id, info);
+        rx
+    }
+
+    fn drain(receiver: &mut UnboundedReceiver<ServerToClient>) -> Vec<ServerMessage> {
+        let mut messages = Vec::new();
+        while let Ok(envelope) = receiver.try_recv() {
+            if let ServerToClient::Send(msg) = envelope {
+                messages.push(msg);
+            }
+        }
+        messages
+    }
+
+    #[test]
+    fn award_firework_quest_credits_every_alive_player() {
+        let config = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
+        let quest_id = QuestId("start_fireworks".to_owned());
+        let mut players = PlayerMap::default();
+        let mut alice = player(&mut players, PlayerId(1), "Alice", &config, false);
+        let mut bob = player(&mut players, PlayerId(2), "Bob", &config, false);
+        let mut ghost = player(&mut players, PlayerId(3), "Ghost", &config, true);
+
+        award_firework_quest(&mut players, &config);
+
+        for rx in [&mut alice, &mut bob] {
+            let messages = drain(rx);
+            assert!(
+                messages
+                    .iter()
+                    .any(|msg| matches!(msg, ServerMessage::QuestCompleted(c) if c.id == quest_id)),
+                "each alive player completes the quest"
+            );
+            let lines = messages
+                .iter()
+                .filter(|msg| {
+                    matches!(
+                        msg,
+                        ServerMessage::Feed(SFeed {
+                            event: FeedEvent::QuestCompleted { .. }
+                        })
+                    )
+                })
+                .count();
+            assert_eq!(lines, 2, "one feed line per completing player");
+        }
+        let ghost_messages = drain(&mut ghost);
+        assert!(
+            !ghost_messages
+                .iter()
+                .any(|msg| matches!(msg, ServerMessage::QuestCompleted(_)))
+        );
+        assert!(!players.get(&PlayerId(3)).expect("ghost tracked").quest_states[&quest_id].completed);
+        assert!(players.get(&PlayerId(1)).expect("alice tracked").quest_states[&quest_id].completed);
     }
 }

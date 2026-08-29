@@ -31,6 +31,8 @@ pub struct Quest {
 pub enum QuestKind {
     Cookies,
     ActorKills,
+    // Completed when the firework plates launch the show (`/firework` doesn't count).
+    Fireworks,
 }
 
 pub(super) fn validate_quests(quests: &[Quest], actors: &HashMap<String, ActorKindServerConfig>) -> Result<()> {
@@ -101,6 +103,15 @@ mod tests {
     #[test]
     fn validate_quests_accepts_single_valid_entry() {
         validate_quests(&[ok_quest("a", 10)], &no_actors()).expect("valid quest should pass");
+    }
+
+    #[test]
+    fn fireworks_quest_rejects_actor_kind() {
+        let mut quest = ok_quest("start_fireworks", 1);
+        quest.kind = QuestKind::Fireworks;
+        quest.actor_kind = Some("mine".to_owned());
+        let err = validate_quests(&[quest], &default_actors()).expect_err("actor_kind on a fireworks quest must fail");
+        assert!(err.to_string().contains("only valid on an actor_kills quest"));
     }
 
     #[test]

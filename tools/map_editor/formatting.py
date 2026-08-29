@@ -66,7 +66,9 @@ def format_pressure_plates(plates: list[dict], indent: int) -> list[str]:
             f'{{"level": {plate["level"]}, '
             f'"col": {plate["col"]}, '
             f'"row": {plate["row"]}, '
-            f'"kind": {json.dumps(plate["kind"])}}}'
+            f'"type": {json.dumps(plate["type"])}'
+            + (f', "kind": {json.dumps(plate["kind"])}' if "kind" in plate else "")
+            + "}"
         ),
     )
 

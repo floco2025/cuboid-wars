@@ -13,6 +13,7 @@ pub struct QuestState {
 pub enum QuestEvent<'a> {
     CookieCollected,
     ActorKilled { kind: &'a str },
+    FireworksStarted,
 }
 
 impl QuestEvent<'_> {
@@ -22,6 +23,7 @@ impl QuestEvent<'_> {
             (QuestKind::ActorKills, Self::ActorKilled { kind }) => {
                 quest.actor_kind.as_deref().is_none_or(|want| want == *kind)
             }
+            (QuestKind::Fireworks, Self::FireworksStarted) => true,
             _ => false,
         }
     }
@@ -134,6 +136,18 @@ mod tests {
             title: "Hunt".to_owned(),
             description: "destroy sentries".to_owned(),
             completed_text: "hunted".to_owned(),
+        }
+    }
+
+    fn fireworks_quest(id: &str) -> Quest {
+        Quest {
+            id: QuestId(id.to_owned()),
+            kind: QuestKind::Fireworks,
+            actor_kind: None,
+            threshold: 1,
+            title: "Sky".to_owned(),
+            description: "light it up".to_owned(),
+            completed_text: "boom".to_owned(),
         }
     }
 
@@ -282,6 +296,27 @@ mod tests {
         assert_eq!(messages.unicast.len(), 1);
         assert_eq!(info.quest_states[&cookie.id].progress, 1);
         assert_eq!(info.quest_states[&sentry.id].progress, 0);
+    }
+
+    #[test]
+    fn fireworks_event_only_advances_fireworks_quests() {
+        let fireworks = fireworks_quest("start_fireworks");
+        let cookie = cookies_quest("collect_gold", 5);
+        let mut info = player_info();
+        seed_quest(&mut info, &fireworks);
+        seed_quest(&mut info, &cookie);
+        let quests = [fireworks.clone(), cookie.clone()];
+
+        let outcome = record_quest_event(
+            &mut info,
+            &quests,
+            &scoring(&[&fireworks.id.0, &cookie.id.0]),
+            QuestEvent::FireworksStarted,
+        );
+
+        assert_eq!(outcome.completed_titles, ["Sky"]);
+        assert!(info.quest_states[&fireworks.id].completed);
+        assert_eq!(info.quest_states[&cookie.id].progress, 0);
     }
 
     #[test]

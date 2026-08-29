@@ -37,6 +37,8 @@ pub struct BarrierAssets {
     // is a fixed marker on the floor, not a translucent force-field.
     // Indexed by `BarrierKindId.0` like `materials`.
     pub(super) plate_materials: Vec<Handle<StandardMaterial>>,
+    // Firework plates open no barrier, so their button has its own color.
+    pub(super) firework_plate_material: Handle<StandardMaterial>,
     // Mirror of the table at construction time, so the pulsate system can
     // re-derive the base color without re-reading the config every frame.
     pub(super) base_colors: Vec<Color>,
@@ -49,6 +51,10 @@ impl BarrierAssets {
 
     pub fn material_for_plate(&self, kind: BarrierKindId) -> &Handle<StandardMaterial> {
         &self.plate_materials[kind.0 as usize]
+    }
+
+    pub fn firework_plate_material(&self) -> &Handle<StandardMaterial> {
+        &self.firework_plate_material
     }
 
     pub fn material_handles(&self) -> &[Handle<StandardMaterial>] {
@@ -109,11 +115,16 @@ pub fn setup_barrier_assets(
     assert_eq!(handles.len(), plate_handles.len());
     assert_eq!(handles.len(), base_colors.len());
 
+    let firework_hex = asset_set.firework_plate_color_hex();
+    let firework_color = parse_hex_color(firework_hex)
+        .unwrap_or_else(|err| panic!("invalid firework_plate_color {firework_hex:?}: {err}"));
+
     commands.insert_resource(BarrierAssets {
         key_mesh,
         mesh,
         materials: handles,
         plate_materials: plate_handles,
+        firework_plate_material: materials.add(plate_material(firework_color)),
         base_colors,
     });
 }

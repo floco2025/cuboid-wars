@@ -346,5 +346,6 @@
     "basement": "#f0c020",
     "gravity": "#5090ff",
     "lobby": "#22cc33"
-  }
+  },
+  "firework_plate_color": "#e040fb"
 }

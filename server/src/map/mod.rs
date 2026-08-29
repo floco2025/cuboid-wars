@@ -24,7 +24,7 @@ pub use generation::generate_map;
 pub use grid::grid_coords_from_position;
 pub use light_cycle::{LightState, light_cycle_system, light_preset_from_str};
 pub use plugin::map_plugin;
-pub use pressure_plates::compute_open_barrier_kinds_system;
+pub use pressure_plates::pressure_plates_system;
 pub use resources::{
     ActorSpawnZone, Cell, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlacedItem, PlayerSpawnZone, PressurePlateRuntime,
 };

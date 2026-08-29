@@ -10,7 +10,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 MAPS_DIR = REPO_ROOT / "config" / "server" / "maps"
 
 
-def _load_shared_configs() -> tuple[list[str], dict[str, str], set[str]]:
+def _load_shared_configs() -> tuple[list[str], dict[str, str], str, set[str]]:
     gameplay_path = REPO_ROOT / "config" / "common" / "gameplay.json"
     assets_path = REPO_ROOT / "config" / "client" / "assets.json"
     with gameplay_path.open("r", encoding="utf-8") as handle:
@@ -26,10 +26,18 @@ def _load_shared_configs() -> tuple[list[str], dict[str, str], set[str]]:
                 f"barrier kind {id_!r} has no color in assets.json `barrier_kind_colors`; "
                 "add an entry or remove the id from gameplay.json"
             )
-    return ids, colors, aliases
+    firework_color = assets.get("firework_plate_color")
+    if not isinstance(firework_color, str) or not firework_color:
+        raise RuntimeError("assets.json has no `firework_plate_color`; firework plates need one")
+    return ids, colors, firework_color, aliases
 
 
-BARRIER_KIND_TABLE, BARRIER_KIND_COLORS, MATERIAL_ALIASES = _load_shared_configs()
+BARRIER_KIND_TABLE, BARRIER_KIND_COLORS, FIREWORK_PLATE_COLOR, MATERIAL_ALIASES = _load_shared_configs()
+
+# Pressure plate `type` values; barrier plates also carry a `kind`.
+PLATE_TYPE_BARRIER = "barrier"
+PLATE_TYPE_FIREWORK = "firework"
+PLATE_TYPES = (PLATE_TYPE_BARRIER, PLATE_TYPE_FIREWORK)
 
 # Stable fallback alias used when a segment has no material data, when a new
 # segment is created without an explicit choice, or when we need *some* legal
@@ -61,7 +69,9 @@ MODE_LIGHT = "Light"
 MODE_ERASE_LIGHTS = "Erase Lights"
 MODE_LADDER = "Ladder"
 MODE_ERASE_LADDERS = "Erase Ladders"
-MODE_PRESSURE_PLATE = "Pressure Plate"
+MODE_PRESSURE_PLATE = "Barrier Plate"
+MODE_FIREWORK_PLATE = "Firework Plate"
+MODE_ERASE_PRESSURE_PLATES = "Erase Plates"
 RAMP_MODES = (MODE_RAMP_UP, MODE_RAMP_DOWN)
 ERASE_MODES = (MODE_ERASE, MODE_ERASE_KEEP_FLOORS)
 SPAWN_PAINT_MODES = (MODE_ACTOR_SPAWN_PAINT, MODE_PLAYER_SPAWN_PAINT)
@@ -106,7 +116,7 @@ MODE_CATEGORIES: list[tuple[str, list[str]]] = [
     ("Ladders", [MODE_LADDER, MODE_ERASE_LADDERS]),
     ("Materials", [MODE_FLOOR_MATERIAL, MODE_WALL_MATERIAL, MODE_RAMP_MATERIAL]),
     ("Lights", [MODE_LIGHT, MODE_ERASE_LIGHTS]),
-    ("Pressure Plates", [MODE_PRESSURE_PLATE]),
+    ("Pressure Plates", [MODE_PRESSURE_PLATE, MODE_FIREWORK_PLATE, MODE_ERASE_PRESSURE_PLATES]),
     ("Items", [MODE_ITEM, MODE_ERASE_ITEMS]),
     ("Erase", [MODE_ERASE, MODE_ERASE_KEEP_FLOORS]),
 ]

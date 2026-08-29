@@ -2,7 +2,7 @@ use super::{
     compile_map,
     schema::{
         ActorSpawnZoneDef, BarrierDef, CellDef, FloorDef, ItemDef, LadderDef, LevelDef, MapDef, PlayerSpawnZoneDef,
-        PressurePlateDef, RampDef, WallDef, WallSide,
+        PressurePlateDef, PressurePlatePurposeDef, RampDef, WallDef, WallSide,
     },
     validation::validate_map,
 };
@@ -392,7 +392,7 @@ fn pressure_plate_barrier_is_open_for_pathfinding() {
         level: 0,
         col: 0,
         row: 0,
-        kind: "red".into(),
+        purpose: PressurePlatePurposeDef::Barrier { kind: "red".into() },
     });
 
     let (_, config, _) = compile_map(&map_def, &assets(), &three_kind_table()).expect("compile");
@@ -402,6 +402,56 @@ fn pressure_plate_barrier_is_open_for_pathfinding() {
         "pressure-plate (red) barrier must be treated as open for nav"
     );
     assert!(barrier_edges.vertical[0][2], "non-plate (blue) barrier must block nav");
+}
+
+#[test]
+fn firework_plate_does_not_open_any_barrier_kind() {
+    let mut map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]])],
+        Vec::new(),
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    map_def.levels[0].barriers.push(BarrierDef {
+        c0: 1,
+        r0: 0,
+        c1: 1,
+        r1: 1,
+        kind: "red".into(),
+    });
+    map_def.pressure_plates.push(PressurePlateDef {
+        level: 0,
+        col: 0,
+        row: 0,
+        purpose: PressurePlatePurposeDef::Firework,
+    });
+
+    let (layout, config, _) = compile_map(&map_def, &assets(), &three_kind_table()).expect("compile");
+    assert!(
+        config.levels[0].barrier_edges.vertical[0][1],
+        "a firework plate opens no barrier kind for nav"
+    );
+    assert_eq!(
+        config.pressure_plates[0].purpose,
+        common::protocol::PlatePurpose::Firework
+    );
+    assert_eq!(
+        layout.pressure_plates[0].purpose,
+        common::protocol::PlatePurpose::Firework
+    );
+}
+
+#[test]
+fn plate_defs_parse_both_purposes() {
+    let json = r#"[
+        {"level": 1, "col": 2, "row": 3, "type": "barrier", "kind": "red"},
+        {"level": 0, "col": 4, "row": 5, "type": "firework"}
+    ]"#;
+    let defs: Vec<PressurePlateDef> = serde_json::from_str(json).expect("plate defs parse");
+    assert_eq!(defs[0].purpose, PressurePlatePurposeDef::Barrier { kind: "red".into() });
+    assert_eq!(defs[1].purpose, PressurePlatePurposeDef::Firework);
+    assert_eq!((defs[1].level, defs[1].col, defs[1].row), (0, 4, 5));
 }
 
 #[test]
