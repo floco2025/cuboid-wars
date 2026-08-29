@@ -15,7 +15,7 @@
       "zapper": { "roam_speed": 2.0, "active_speed": 4.0 }
     },
     "missile_speed": 16.0,
-    "projectile_speed": 80.0,
+    "projectile_speed": 90.0,
     "ladder_climb_ratio": 0.4,
     "knockback": { "max_speed": 15.0, "up_speed": 7.0, "deceleration": 35.0 }
   },
@@ -25,8 +25,8 @@
     "radius": 0.11,
     "cooldown_secs": 0.1,
     "gravity_scale": 0.4,
-    "drag_factor": 0.01,
-    "bounce_retention": 0.9
+    "drag_factor": 0.011,
+    "bounce_retention": 0.85
   },
   "power_ups": {
     "multi_shot_count": 5,
