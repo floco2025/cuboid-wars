@@ -185,6 +185,11 @@ they assert (e.g. `lethal_hit_returns_true`, `barrier_collision_group_is_unique_
 The map editor's headless `unittest` suite lives in `tools/tests/` and covers
 its pure geometry, normalization, resizing, and validation helpers.
 
+## Documentation
+
+- `README.md` is for players: what the game has, how to run it, the controls. One plain line per gameplay feature — no rules, mechanics, config paths, or version numbers. It must not turn into a technical spec sheet.
+- `AGENTS.md` is for developers and agents: systems, rules, and pointers into code, written at the same depth as the sibling entries.
+
 ## Commits & pull requests
 
 - Short, imperative summaries.

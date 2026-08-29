@@ -24,32 +24,26 @@ death/respawn flow.
 
 ## Gameplay
 
-- **Quests** — every player gets the quest list at login; completing one
-  flashes its banner and pays out points.
+- **Quests** — objectives assigned at login, worth points when completed.
 - **Cookies** — scattered pickups worth score and quest progress.
-- **Power-ups** — timed boosts (speed, multi-shot, low-gravity; picking
-  one up again resets its timer) and instant-heal potions. Anything you
-  can't use — a potion at full health, a pack for a full missile bay, a
-  key you already hold — stays on the floor for someone else.
-- **Seeking missiles** — grab missile packs, lock onto a player or
-  actor, and press F; the missile hunts its target through the map.
-- **Barriers & keys** — coloured barriers block everyone; the matching
-  key lets you pass for the rest of your current life.
+- **Power-ups** — timed boosts (speed, multi-shot, low-gravity) and
+  instant-heal potions.
+- **Seeking missiles** — collect a pack, lock onto a target, and fire; the
+  missile flies the map's airspace to it.
+- **Barriers & keys** — coloured barriers block everyone; the matching key
+  lets you through until you die.
 - **Pressure plates** — some barrier colours open for everyone while
   enough players stand on their plates.
-- **Actors** — mines and sentries patrol and chase; zappers keep their
-  distance and fire tracking lasers; reapers chase and fire lasers too.
-  All of them explode when killed.
-- **Ladders** — climb between levels: push toward a ladder to grab it,
-  jump to let go.
+- **Actors** — mines, sentries, zappers, and reapers patrol and hunt; all
+  explode when killed.
+- **Ladders** — climb between levels.
 - **Fall damage** — short drops are safe; long falls scale up to lethal.
-- **Death & respawn** — dying drops your keys and per-life gear; you
-  respawn at a spawn zone after a short delay.
-- **Scoring** — kills, deaths, cookies, actor hits and bounties, and
-  quest completions all award tunable point values.
-- **Weather & lighting** — rain and a bright/dim/dark light cycle run
-  server-side; each map holds a fixed state or follows the automatic
-  cycles.
+- **Death & respawn** — dying drops your keys and ammo; you respawn after
+  a short delay.
+- **Scoring** — kills, cookies, actor kills, and quest completions award
+  points.
+- **Weather & lighting** — rain and a bright/dim/dark light cycle, set per
+  map.
 - **Chat & admin console** — Enter to chat, `/` for commands; `/help` lists them.
 
 ## Controls
@@ -59,6 +53,7 @@ death/respawn flow.
 | Move | WASD |
 | Sprint | hold Shift |
 | Jump | Space |
+| Climb ladder | walk into it (Space lets go) |
 | Look | mouse |
 | Shoot | left click |
 | Fire missile (needs lock-on) | F |
@@ -66,13 +61,12 @@ death/respawn flow.
 | Toggle cursor lock | Escape |
 | Cycle camera view (first-person ↔ top-down) | V |
 | Toggle level-focus (hide floors/walls on other levels) | R |
-| Cycle debug colours | C |
 | Toggle fullscreen | F11 / Ctrl-F / Cmd-F |
 
 ## Technical stack
 
-- **Engine** — Bevy 0.19 (ECS)
-- **Physics** — Rapier 0.32 (static map collision, kinematic characters, projectile shape casts)
+- **Engine** — Bevy (ECS)
+- **Physics** — Rapier (static map collision, kinematic characters, projectile shape casts)
 - **Networking** — QUIC via `quinn`
 - **Wire format** — `bincode` 2 (binary)
 - **Architecture** — client–server with a shared `common` crate (protocol, physics, map types, spawn validation)
@@ -105,17 +99,10 @@ them for anything beyond localhost** — they are not production-safe.
 python3 tools/editor.py hotel      # edits config/server/maps/hotel.json in place
 ```
 
-Maps are registered in `config/server/gameplay.json` (`maps` + `default_map`);
-each entry sets the map's skybox, gravity values, and weather/lighting modes.
-Passing a new name opens an empty map and Save creates its file — add a
-registry entry to make the server load it.
-
-The editor (PySide6) supports floors, grass, walls, ramps, ladders,
-barriers, actor/player spawn zones, placed items (power-ups, health
-potions, cookies, keys, missile packs), pressure plates (barrier and
-firework — firework plates appear once the gold quest is solved by
-everyone), lights, and
-per-face material assignment.
+Maps are registered in `config/server/gameplay.json` (`maps` + `default_map`).
+The editor (PySide6) covers everything in a map file: floors, grass, walls,
+ramps, ladders, barriers, spawn zones, items, pressure plates, lights, and
+per-face materials.
 
 ## License
 
