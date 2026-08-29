@@ -64,8 +64,11 @@ pub(super) fn handle_snapshot_message(
         client_settings: &client_assets.handles.client_settings,
         gameplay_config: &client_assets.handles.gameplay_config,
     };
-    // Before `PlayerSnapshotState` borrows the log for the respawn banner.
-    client_assets.hud.quest_log.apply_group_status(&msg.quests);
+    // Before `PlayerSnapshotState` borrows the log for the respawn reminder;
+    // skipped when empty so an untouched log isn't marked changed.
+    if !msg.quests.is_empty() {
+        client_assets.hud.quest_log.apply_group_status(&msg.quests);
+    }
 
     let mut player_state = PlayerSnapshotState {
         players: state.players,

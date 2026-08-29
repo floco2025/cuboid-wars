@@ -8,7 +8,6 @@ use crate::{
     cameras::{CameraViewMode, TopDownCameraYaw},
     map::{DebugColors, LevelFocusEnabled},
     players::LocalPlayerInfo,
-    ui::ConsoleState,
 };
 
 // ============================================================================
@@ -18,15 +17,11 @@ use crate::{
 // Toggle camera view mode with V key
 pub fn input_camera_view_toggle_system(
     keyboard: Res<ButtonInput<KeyCode>>,
-    console: Res<ConsoleState>,
     mut view_mode: ResMut<CameraViewMode>,
     mut focus: ResMut<LevelFocusEnabled>,
     mut top_down_camera_yaw: ResMut<TopDownCameraYaw>,
     local_player_info: Res<LocalPlayerInfo>,
 ) {
-    if console.open {
-        return;
-    }
     if keyboard.just_pressed(KeyCode::KeyV) {
         let old_mode = *view_mode;
         let new_mode = old_mode.next();
@@ -44,24 +39,16 @@ pub fn input_camera_view_toggle_system(
 // Toggle level-focus mode with R key. When enabled, the visibility system
 // hides walls/floors at other levels and ramps that don't touch the local
 // player's current level.
-pub fn input_level_focus_toggle_system(
-    keyboard: Res<ButtonInput<KeyCode>>,
-    console: Res<ConsoleState>,
-    mut focus: ResMut<LevelFocusEnabled>,
-) {
-    if keyboard.just_pressed(KeyCode::KeyR) && !console.open {
+pub fn input_level_focus_toggle_system(keyboard: Res<ButtonInput<KeyCode>>, mut focus: ResMut<LevelFocusEnabled>) {
+    if keyboard.just_pressed(KeyCode::KeyR) {
         focus.0 = !focus.0;
     }
 }
 
 // Cycle the map's debug-color mode with C key: Off → ByMaterial → BySegment → Off.
 // The map geometry respawns automatically (see `map_spawn_geometry_system`).
-pub fn input_debug_colors_cycle_system(
-    keyboard: Res<ButtonInput<KeyCode>>,
-    console: Res<ConsoleState>,
-    mut debug_colors: ResMut<DebugColors>,
-) {
-    if keyboard.just_pressed(KeyCode::KeyC) && !console.open {
+pub fn input_debug_colors_cycle_system(keyboard: Res<ButtonInput<KeyCode>>, mut debug_colors: ResMut<DebugColors>) {
+    if keyboard.just_pressed(KeyCode::KeyC) {
         debug_colors.0 = debug_colors.0.next();
     }
 }
@@ -109,13 +96,8 @@ pub fn input_fullscreen_toggle_system(
 pub fn input_cursor_toggle_system(
     keyboard: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
-    console: Res<ConsoleState>,
     mut cursor_options: Single<&mut CursorOptions>,
 ) {
-    // While the console is open, Escape belongs to it (closes the console).
-    if console.open {
-        return;
-    }
     // Escape key toggles cursor lock
     if keyboard.just_pressed(KeyCode::Escape) {
         cursor_options.visible = !cursor_options.visible;

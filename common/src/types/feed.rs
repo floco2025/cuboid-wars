@@ -45,11 +45,11 @@ pub enum FeedEvent {
         title: String,
     },
     // A player finished their part of an `everyone` quest.
-    QuestPartDone {
+    EveryoneQuestPartDone {
         name: String,
         title: String,
         players_done: u32,
-        players: u32,
+        players_total: u32,
     },
     GroupQuestCompleted {
         title: String,
@@ -127,11 +127,11 @@ mod tests {
                 name: name(),
                 title: "Gold Rush".to_owned(),
             },
-            FeedEvent::QuestPartDone {
+            FeedEvent::EveryoneQuestPartDone {
                 name: name(),
                 title: "Gold Rush".to_owned(),
                 players_done: 2,
-                players: 3,
+                players_total: 3,
             },
             FeedEvent::GroupQuestCompleted {
                 title: "Gold Rush".to_owned(),

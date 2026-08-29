@@ -17,7 +17,7 @@ use super::{
         handle_player_hit_message, handle_player_jump_message, handle_player_move_message, handle_player_shot_message,
         handle_player_status_message,
     },
-    quests::{handle_quest_completed_message, handle_quest_progress_message, handle_quests_assigned_message},
+    quests::handle_quest_message,
     snapshot::{SnapshotState, handle_snapshot_message},
 };
 use crate::{
@@ -305,27 +305,17 @@ pub fn dispatch_message(
                 fall_msg,
             );
         }
-        ServerMessage::QuestsAssigned(quest_msg) => {
-            handle_quests_assigned_message(
-                &mut client_assets.hud.quest_log,
-                &client_assets.handles.client_settings,
-                &mut client_assets.hud.banner,
-                quest_msg,
-            );
-        }
-        ServerMessage::QuestProgress(quest_msg) => {
-            handle_quest_progress_message(&mut client_assets.hud.quest_log, quest_msg);
-        }
-        ServerMessage::QuestCompleted(quest_msg) => {
-            handle_quest_completed_message(
-                commands,
-                &mut client_assets.hud.quest_log,
-                &client_assets.handles.client_settings,
-                &mut client_assets.hud.banner,
-                &client_assets.handles.asset_server,
-                &client_assets.handles.asset_set,
-                quest_msg,
-            );
+        msg @ (ServerMessage::QuestsAssigned(_)
+        | ServerMessage::QuestProgress(_)
+        | ServerMessage::QuestCompleted(_)) => {
+            if matches!(msg, ServerMessage::QuestCompleted(_)) {
+                play_sound(
+                    commands,
+                    &client_assets.handles.asset_server,
+                    client_assets.handles.asset_set.player_sound("quest_completed"),
+                );
+            }
+            handle_quest_message(&mut client_assets.hud.quest_log, &mut client_assets.hud.banner, msg);
         }
         ServerMessage::PressurePlate(plate_msg) => {
             let sound = if plate_msg.pressed {
@@ -339,17 +329,6 @@ pub fn dispatch_message(
                 client_assets.handles.asset_set.player_sound(sound),
             );
         }
-        ServerMessage::Feed(SFeed { event }) => {
-            let feed = &mut client_assets.hud.game_message_feed;
-            match event {
-                // Multi-line replies (e.g. /help) become one feed row per line.
-                FeedEvent::AdminReply { text } => {
-                    for line in text.lines().filter(|line| !line.trim().is_empty()) {
-                        feed.push(FeedEvent::AdminReply { text: line.to_owned() });
-                    }
-                }
-                event => feed.push(event),
-            }
-        }
+        ServerMessage::Feed(SFeed { event }) => client_assets.hud.feed.push(event),
     }
 }

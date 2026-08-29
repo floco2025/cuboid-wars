@@ -13,7 +13,6 @@ use crate::{
     network::{ClientToServer, ClientToServerChannel},
     players::{LocalPlayerInfo, LocalPlayerMarker, MyPlayerId, PlayerMap},
     projectiles::{ProjectileAssets, spawn_projectiles},
-    ui::ConsoleState,
 };
 use common::{config::GameplayConfig, physics::CollisionWorld, protocol::*};
 
@@ -46,10 +45,8 @@ pub fn input_shooting_system(
     view_mode: Res<CameraViewMode>,
     time: Res<Time>,
     mut local_player_info: ResMut<LocalPlayerInfo>,
-    console: Res<ConsoleState>,
 ) {
-    // Dead players can't shoot; neither can an open admin console.
-    if local_player_info.is_dead || console.open {
+    if local_player_info.is_dead {
         return;
     }
     // Only allow shooting when cursor is locked

@@ -4,14 +4,14 @@ use super::{
     console::spawn_console,
     crosshair::{CrosshairBarMarker, CrosshairMarker},
     diagnostics::{FpsMarker, RttMarker},
-    hud_banner::spawn_hud_banner_root,
-    message_feed::spawn_message_feed_root,
+    hud_banner::spawn_hud_banner,
+    message_feed::spawn_message_feed,
     player_list::PlayerListMarker,
     quest_panel::QuestPanelMarker,
 };
 use crate::{
     config::ClientSettings,
-    constants::{CROSSHAIR_COLOR, CROSSHAIR_SIZE_PX, CROSSHAIR_THICKNESS_PX, HUD_EDGE_MARGIN_PX},
+    constants::{CROSSHAIR_COLOR, CROSSHAIR_SIZE_PX, CROSSHAIR_THICKNESS_PX, HUD_EDGE_MARGIN_PX, HUD_ROW_GAP_PX},
 };
 
 // Marker for the death overlay — a red translucent full-screen panel shown
@@ -28,7 +28,7 @@ pub fn setup_ui_system(mut commands: Commands, client_settings: Res<ClientSettin
             left: Val::Px(HUD_EDGE_MARGIN_PX),
             top: Val::Px(HUD_EDGE_MARGIN_PX),
             flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(5.0),
+            row_gap: Val::Px(HUD_ROW_GAP_PX),
             ..default()
         },
     ));
@@ -51,7 +51,7 @@ pub fn setup_ui_system(mut commands: Commands, client_settings: Res<ClientSettin
             right: Val::Px(HUD_EDGE_MARGIN_PX),
             top: quest_panel_top,
             flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(5.0),
+            row_gap: Val::Px(HUD_ROW_GAP_PX),
             ..default()
         },
     ));
@@ -109,7 +109,7 @@ pub fn setup_ui_system(mut commands: Commands, client_settings: Res<ClientSettin
             left: Val::Px(HUD_EDGE_MARGIN_PX),
             bottom: Val::Px(HUD_EDGE_MARGIN_PX),
             flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(4.0),
+            row_gap: Val::Px(HUD_ROW_GAP_PX),
             ..default()
         })
         .with_children(|column| {
@@ -147,7 +147,22 @@ pub fn setup_ui_system(mut commands: Commands, client_settings: Res<ClientSettin
         Visibility::Hidden,
     ));
 
-    spawn_message_feed_root(&mut commands);
-    spawn_hud_banner_root(&mut commands);
-    spawn_console(&mut commands, &client_settings);
+    spawn_hud_banner(&mut commands);
+
+    // Feed rows above the console prompt in one bottom-right column, so the
+    // two can't overlap at any font size.
+    commands
+        .spawn(Node {
+            position_type: PositionType::Absolute,
+            right: Val::Px(HUD_EDGE_MARGIN_PX),
+            bottom: Val::Px(HUD_EDGE_MARGIN_PX),
+            flex_direction: FlexDirection::Column,
+            align_items: AlignItems::FlexEnd,
+            row_gap: Val::Px(HUD_ROW_GAP_PX),
+            ..default()
+        })
+        .with_children(|column| {
+            spawn_message_feed(column, &client_settings);
+            spawn_console(column, &client_settings);
+        });
 }

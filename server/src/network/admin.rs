@@ -11,14 +11,12 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
+    constants::COMMAND_MAX_CHARS,
     protocol::{BarrierKindTable, CAdmin, FeedEvent, Health, ItemType, PlayerId, PowerUpKind},
 };
 
-// Anything longer is nonsense or abuse; truncated before parsing.
-const MAX_COMMAND_CHARS: usize = 256;
-
-// One command per line: the client feed renders each line as its own row.
-// Must fit within `hud.message_feed.max_entries` or the top lines evict.
+// One command per line; the client renders the reply as one multi-line
+// feed row.
 const HELP_TEXT: &str = "/help\n/weather [rain|clear|auto]\n/light [bright|dim|dark|auto|<0..1>|<from> <to> <0..1>]\n/god [on|off]\n/kill <name>|@a\n/killall [kind]\n/respawn [kind]\n/heal [name|@a]\n/give keys|key <color>\n/give powerups|powerup <type>\n/give missiles\n/firework\n/kick <name>";
 
 // Authorization seam. Deliberately wide open for now — every client is an
@@ -90,7 +88,7 @@ fn parse_unit_fraction(value: &str) -> Option<f32> {
 }
 
 fn parse_admin_command(input: &str) -> AdminCommand {
-    let input: String = input.chars().take(MAX_COMMAND_CHARS).collect();
+    let input: String = input.chars().take(COMMAND_MAX_CHARS).collect();
     let input = input.trim();
     let Some(command) = input.strip_prefix('/') else {
         return AdminCommand::NotACommand;

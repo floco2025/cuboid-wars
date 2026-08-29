@@ -6,9 +6,10 @@ use crate::{
     ui::floating_labels::floating_label_scale_compensation_system,
 };
 
-// HUD and screen-space UI. The `Hud` set runs after `Input` so the console
-// renders this frame's post-keystroke state.
+// HUD and screen-space UI (`ClientSet::Hud`), plus the console's keystroke
+// system in its own earlier set.
 pub fn hud_plugin(app: &mut App) {
+    app.add_systems(Update, console_input_system.in_set(ClientSet::Console));
     app.add_systems(
         Update,
         (
@@ -25,10 +26,13 @@ pub fn hud_plugin(app: &mut App) {
             ui_fps_system,
             ui_crosshair_lock_system,
             death_overlay_visibility_system,
-            render_pending_messages_system,
-            update_message_feed_system,
-            hud_banner_system,
-            console_render_system,
+            ui_message_feed_system,
+            ui_hud_banner_system,
+            // After the spawners, so a burst is capped before it ever renders.
+            ui_timed_lines_system
+                .after(ui_message_feed_system)
+                .after(ui_hud_banner_system),
+            ui_console_render_system,
         )
             .in_set(ClientSet::Hud),
     );

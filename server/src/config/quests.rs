@@ -50,10 +50,11 @@ impl QuestKind {
         }
     }
 
-    // Whether a player causes the event that advances this kind.
+    // Kinds advanced by something that happens to the world rather than by
+    // a player's action (`WorldQuestEvent`).
     #[must_use]
-    pub fn has_actor(self) -> bool {
-        !matches!(self, Self::Fireworks)
+    pub fn is_world_event(self) -> bool {
+        matches!(self, Self::Fireworks)
     }
 }
 
@@ -93,7 +94,7 @@ pub(super) fn validate_quests(quests: &[Quest], actors: &HashMap<String, ActorKi
         }
         // A world event has no acting player, so only a pooled counter can
         // consume it.
-        if !quest.kind.has_actor() && quest.scope != QuestScope::Shared {
+        if quest.kind.is_world_event() && quest.scope != QuestScope::Shared {
             bail!(
                 "{path}: a {:?} quest is advanced by a world event and must have scope `shared`",
                 quest.kind
@@ -112,7 +113,7 @@ pub(super) fn validate_quests(quests: &[Quest], actors: &HashMap<String, ActorKi
                     required.0
                 );
             };
-            if target.scope == QuestScope::Individual {
+            if !target.scope.is_group() {
                 bail!(
                     "{path}.requires `{}` must name a shared or everyone quest (an individual quest has no group completion)",
                     required.0

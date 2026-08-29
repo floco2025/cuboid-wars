@@ -118,7 +118,7 @@
       "player_list_height": 8.0
     },
     "quest_panel": {
-      "bar_width": 240.0,
+      "card_width": 240.0,
       "bar_height": 8.0
     }
   },

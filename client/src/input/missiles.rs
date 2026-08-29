@@ -10,7 +10,6 @@ use crate::{
     missiles::LockOnTarget,
     network::{ClientToServer, ClientToServerChannel},
     players::{LocalPlayerInfo, LocalPlayerMarker, MyPlayerId, PlayerMap},
-    ui::ConsoleState,
 };
 use common::{config::GameplayConfig, protocol::*};
 
@@ -35,10 +34,9 @@ pub fn input_missile_system(
     my_player_id: Option<Res<MyPlayerId>>,
     mut players: ResMut<PlayerMap>,
     local_player_info: Res<LocalPlayerInfo>,
-    console: Res<ConsoleState>,
     gameplay_config: Res<GameplayConfig>,
 ) {
-    if local_player_info.is_dead || console.open {
+    if local_player_info.is_dead {
         return;
     }
     let cursor_locked = cursor_options.grab_mode != CursorGrabMode::None;

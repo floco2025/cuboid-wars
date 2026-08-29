@@ -17,14 +17,26 @@ pub enum QuestScope {
     Everyone,
 }
 
-// Group-visible state of an unlocked `Shared` / `Everyone` quest.
+impl QuestScope {
+    // `Shared` and `Everyone` complete for the group at once (and can gate
+    // other quests); `Individual` completes per player.
+    #[must_use]
+    pub fn is_group(self) -> bool {
+        !matches!(self, Self::Individual)
+    }
+}
+
+// Group-visible state of an unlocked group-scoped quest.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct QuestGroupStatus {
     pub id: QuestId,
     pub completed: bool,
-    // `Shared` only.
-    pub shared_progress: u32,
-    // `Everyone` only: players at the threshold, and players logged in.
-    pub players_done: u32,
-    pub players: u32,
+    pub progress: QuestGroupProgress,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+pub enum QuestGroupProgress {
+    Shared { progress: u32 },
+    // Players at the threshold, and players logged in.
+    Everyone { players_done: u32, players_total: u32 },
 }

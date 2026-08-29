@@ -101,12 +101,7 @@ pub fn handle_login_message(
                 let player_info = players
                     .get_mut(&id)
                     .expect("handle_login_message called for unknown player");
-                if let Some(assigned) = assign_quests(player_info, &world.server_gameplay_config.quests, quest_board) {
-                    let msg = ServerMessage::QuestsAssigned(assigned);
-                    if let Err(e) = channel.send(ServerToClient::Send(msg)) {
-                        warn!("failed to send quest assignment to {:?}: {}", id, e);
-                    }
-                }
+                assign_quests(player_info, &world.server_gameplay_config.quests, quest_board);
             }
 
             // Generate random initial position for the new player.
@@ -155,6 +150,8 @@ pub fn handle_login_message(
             let all_actors = snapshot_actors(actors, &queries.actor_data, &queries.actor_motions);
 
             // Send the initial snapshot to the new player
+            let (quests, locked_plate_purposes) =
+                quest_board.snapshot_fields(&world.server_gameplay_config.quests, players);
             let snapshot_msg = ServerMessage::Snapshot(SSnapshot {
                 seq: 0,
                 players: all_players,
@@ -170,8 +167,8 @@ pub fn handle_login_message(
                 open_barrier_kinds: Vec::new(),
                 // Real values, like weather and lighting below: a late joiner
                 // must see completed quests and active plates immediately.
-                quests: quest_board.snapshot(&world.server_gameplay_config.quests, players),
-                locked_plate_purposes: quest_board.locked_plate_purposes(&world.server_gameplay_config.quests),
+                quests,
+                locked_plate_purposes,
                 // Weather and lighting are real so a dark or rainy map
                 // doesn't flash bright and dry before the first broadcast.
                 rain_intensity,

@@ -12,7 +12,10 @@ use super::quests::{Quest, validate_quests};
 use super::validation::{
     validate_covers_actor_kinds, validate_non_negative_finite, validate_positive_finite, validate_probability,
 };
-use common::{config::resolve_actor_inheritance, protocol::ItemType};
+use common::{
+    config::resolve_actor_inheritance,
+    protocol::{ItemType, QuestId},
+};
 
 #[derive(Resource, Debug, Clone, Deserialize)]
 pub struct ServerGameplayConfig {
@@ -170,7 +173,7 @@ pub struct ScoringConfig {
     pub actor_hit: HashMap<String, i32>,
     pub actor_kill: HashMap<String, i32>,
     // Per quest id: points on completion.
-    pub quest_completed: HashMap<String, i32>,
+    pub quest_completed: HashMap<QuestId, i32>,
 }
 
 impl ScoringConfig {
@@ -184,13 +187,13 @@ impl ScoringConfig {
             validate_covers_actor_kinds(map.keys(), actors, &format!("scoring.{name}"))?;
         }
         for quest in quests {
-            if !self.quest_completed.contains_key(&quest.id.0) {
+            if !self.quest_completed.contains_key(&quest.id) {
                 bail!("scoring.quest_completed is missing quest {:?}", quest.id.0);
             }
         }
         for id in self.quest_completed.keys() {
-            if !quests.iter().any(|quest| &quest.id.0 == id) {
-                bail!("scoring.quest_completed contains unknown quest {id:?}");
+            if !quests.iter().any(|quest| &quest.id == id) {
+                bail!("scoring.quest_completed contains unknown quest {:?}", id.0);
             }
         }
         Ok(())
@@ -414,11 +417,11 @@ mod tests {
         assert!(err.to_string().contains("scoring.quest_completed"));
 
         let mut scoring = scoring_fixture();
-        scoring.quest_completed.insert("collect_gold".to_owned(), 500);
+        scoring.quest_completed.insert(QuestId("collect_gold".to_owned()), 500);
         scoring
             .validate(&one_actor_kind("zapper"), std::slice::from_ref(&quest))
             .expect("complete quest map should pass");
-        scoring.quest_completed.insert("bogus".to_owned(), 1);
+        scoring.quest_completed.insert(QuestId("bogus".to_owned()), 1);
         let err = scoring
             .validate(&one_actor_kind("zapper"), std::slice::from_ref(&quest))
             .expect_err("unknown quest reward must be rejected");

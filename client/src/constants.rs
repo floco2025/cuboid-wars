@@ -110,10 +110,10 @@ pub const LABEL_TEXT_PADDING_Y: f32 = 2.0;
 // sit the same distance in from the sides. The mirror is a render viewport in
 // physical pixels, so it multiplies this by the window scale factor.
 pub const HUD_EDGE_MARGIN_PX: f32 = 10.0;
-// Bottom strip reserved for the admin console's input line; the message
-// feed starts above it so the two never overlap (classic chat layout:
-// input at the very bottom, messages stacking upward above it).
-pub const CONSOLE_LINE_RESERVED_PX: f32 = 30.0;
+// Vertical gap between stacked rows in every HUD column.
+pub const HUD_ROW_GAP_PX: f32 = 4.0;
+// Every timed HUD line (banner and feed) fades out over its final seconds.
+pub const HUD_LINE_FADE_SECS: f32 = 0.8;
 
 // Safety floor for the HUD scale (window width / `hud.reference_width`) so a
 // tiny window can't collapse the UI toward zero.
@@ -151,6 +151,19 @@ pub const QUEST_NOTE_COLOR: Color = Color::srgba(0.75, 0.75, 0.75, 1.0); // scop
 pub const QUEST_ENTRY_BG_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.35); // card behind each quest
 // Scope line relative to the quest font.
 pub const QUEST_NOTE_FONT_SCALE: f32 = 0.8;
+
+// ============================================================================
+// Message Feed & Console (colors only — durations live in
+// `client.json::hud.message_feed`)
+// ============================================================================
+
+pub const FEED_TEXT_COLOR: Color = Color::srgba(0.85, 0.85, 0.85, 1.0);
+pub const FEED_DIM_TEXT_COLOR: Color = Color::srgba(0.6, 0.6, 0.6, 1.0);
+// Full white so player speech stands apart from system lines.
+pub const FEED_CHAT_TEXT_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 1.0);
+// The console prompt and the admin lines it produces share one color so
+// they read as one unit.
+pub const CONSOLE_TEXT_COLOR: Color = Color::srgba(1.0, 0.85, 0.4, 1.0);
 
 // ============================================================================
 // Power-Up Items
@@ -408,16 +421,21 @@ pub const PROJECTILE_IMPACT_MAX_SOUNDS_PER_SECOND: f32 = 30.0;
 pub const PROJECTILE_IMPACT_PREEMPTION_LOUDNESS_RATIO: f32 = 2.0;
 
 // ============================================================================
-// Banners & Death Overlay
+// Banner & Death Overlay
 // ============================================================================
 
 pub const BANNER_QUEST_ANNOUNCEMENT_SECS: f32 = 10.0;
 pub const BANNER_QUEST_COMPLETED_SECS: f32 = 5.0;
 pub const BANNER_DEATH_SECS: f32 = 3.0;
 pub const BANNER_DEATH_TEXT: &str = "You died!";
-pub const BANNER_FADE_SECS: f32 = 0.8;
 // Lines the banner stacks at most; older ones are evicted first.
-pub const BANNER_MAX_MESSAGES: usize = 5;
+pub const BANNER_MAX_LINES: usize = 5;
+// Band top as a fraction of the window height: below the crosshair, above
+// the console.
+pub const BANNER_BAND_TOP_PERCENT: f32 = 60.0;
+// Translucent black band behind the lines; the longest-lived line's fade
+// modulates it so the band and its last text disappear together.
+pub const BANNER_BAND_ALPHA: f32 = 0.45;
 pub const DEATH_OVERLAY_SECS: f32 = 3.0;
 pub const DEATH_OVERLAY_FADE_SECS: f32 = 0.8;
 

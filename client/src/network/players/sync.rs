@@ -124,20 +124,8 @@ pub fn sync_players(
         state.local_player_info.is_dead = false;
         local_just_respawned = true;
 
-        // Re-show the announcement (title + description) for still-active
-        // quests, so a respawning player is reminded of their objectives.
-        // ONE combined banner in display order — the pending slot holds a
-        // single request, so per-quest sets would keep only the last quest.
-        let text = state
-            .quest_log
-            .sorted()
-            .into_iter()
-            .filter(|(_, entry)| !entry.completed && entry.progress < entry.threshold)
-            .map(|(_, entry)| format!("{}: {}", entry.title, entry.description))
-            .collect::<Vec<_>>()
-            .join("\n");
-        if !text.is_empty() {
-            state.banner.push(text, BANNER_QUEST_ANNOUNCEMENT_SECS);
+        if let Some(reminder) = state.quest_log.reminder() {
+            state.banner.push(reminder, BANNER_QUEST_ANNOUNCEMENT_SECS);
         }
     }
 

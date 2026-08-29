@@ -5,7 +5,7 @@ use crate::{
     items::{ItemMap, ItemPlacement},
     network::{ServerToClient, announce, broadcast_to_all},
     players::PlayerMap,
-    quests::{QuestBoard, QuestEvent, record_quest_event},
+    quests::{PlayerQuestEvent, QuestBoard, record_player_event},
 };
 use common::{
     config::GameplayConfig,
@@ -150,12 +150,12 @@ fn collect_cookie(
         return;
     };
     player_info.score += server_gameplay_config.scoring.cookie;
-    record_quest_event(
+    record_player_event(
         players,
         quest_board,
         server_gameplay_config,
-        Some(player_id),
-        QuestEvent::CookieCollected,
+        player_id,
+        PlayerQuestEvent::CookieCollected,
     );
     // Sent after the quest step so the early score already includes any
     // completion bonus.

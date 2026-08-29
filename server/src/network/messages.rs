@@ -17,6 +17,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
+    constants::CHAT_MAX_CHARS,
     physics::{CharacterVerticalVelocity, CollisionWorld, player_jump_velocity},
     protocol::*,
 };
@@ -140,10 +141,8 @@ pub fn dispatch_message(
 // Chat lines are broadcast-amplified like player names: strip control
 // characters (which also keeps chat single-line), cap the length, and drop
 // anything empty.
-const MAX_CHAT_CHARS: usize = 128;
-
 fn sanitize_chat_text(raw: &str) -> Option<String> {
-    let sanitized: String = raw.chars().filter(|c| !c.is_control()).take(MAX_CHAT_CHARS).collect();
+    let sanitized: String = raw.chars().filter(|c| !c.is_control()).take(CHAT_MAX_CHARS).collect();
     let trimmed = sanitized.trim();
     if trimmed.is_empty() {
         None
@@ -268,7 +267,7 @@ mod tests {
         let long = "x".repeat(400);
         assert_eq!(
             sanitize_chat_text(&long).expect("long chat survives truncated").len(),
-            MAX_CHAT_CHARS
+            CHAT_MAX_CHARS
         );
     }
 }

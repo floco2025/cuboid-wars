@@ -2,26 +2,20 @@ use crate::constants::{DEATH_OVERLAY_FADE_SECS, DEATH_OVERLAY_SECS};
 use bevy::prelude::*;
 
 use super::resources::LocalPlayerInfo;
-use crate::{
-    config::ClientSettings,
-    ui::{DeathOverlayMarker, fade_out_alpha},
-};
+use crate::ui::{DeathOverlayMarker, fade_out_alpha};
 
-// Peak alpha of the red death tint. Hardcoded — exposing in
-// `DeathOverlayConfig` is a one-line add if it ever needs tuning.
 const DEATH_OVERLAY_MAX_ALPHA: f32 = 0.3;
 
 // Drive the red death tint with the same timer-driven shape the HUD
 // banner uses: on the `is_dead` false→true transition, arm a
-// `duration_secs` timer; hold the peak alpha until the final
-// `fade_duration_secs`, then linearly fade out. No fade in — the snap
+// `DEATH_OVERLAY_SECS` timer; hold the peak alpha until the final
+// `DEATH_OVERLAY_FADE_SECS`, then linearly fade out. No fade in — the snap
 // gives a sharper "you died" feedback than easing in.
 //
 // `Local<bool>` remembers last frame's `is_dead` so the system can
 // detect the transition. `Local<f32>` holds the countdown timer.
 pub fn death_overlay_visibility_system(
     time: Res<Time>,
-    _client_settings: Res<ClientSettings>,
     local_player_info: Res<LocalPlayerInfo>,
     mut prev_is_dead: Local<bool>,
     mut timer: Local<f32>,

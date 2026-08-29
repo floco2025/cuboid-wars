@@ -6,7 +6,9 @@ use bevy::prelude::*;
 // another plugin's systems.
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ClientSet {
-    // Player input + console keystroke gating.
+    // Console keystrokes: opening, typing, submitting.
+    Console,
+    // Player input.
     Input,
     // Consume server messages, send pings.
     Network,
@@ -28,13 +30,15 @@ pub fn configure_client_sets(app: &mut App) {
     app.configure_sets(
         Update,
         (
+            // The console claims keystrokes first, so a key can't both type
+            // and act in-game (the input systems gate on `console_closed`).
+            ClientSet::Console.before(ClientSet::Input),
             // Cameras follow the local player after input/prediction has had
             // a chance to update the player state.
             ClientSet::Camera.after(ClientSet::Input),
-            // The console claims keystrokes during Input; HUD rendering
-            // (including the console itself) must observe this frame's
-            // post-input state.
-            ClientSet::Hud.after(ClientSet::Input),
+            // HUD rendering observes this frame's keystrokes and the
+            // feed/banner lines Network pushed.
+            ClientSet::Hud.after(ClientSet::Input).after(ClientSet::Network),
             // Laser beams and missile exhaust anchor to this frame's
             // interpolated character/missile transforms, so they must read
             // the freshly-synced values.

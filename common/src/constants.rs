@@ -142,3 +142,13 @@ pub const CHARACTER_PERCH_SLIDE_SPEED: f32 = 3.0; // m/s
 pub const MISSILE_RADIUS: f32 = 0.3;
 // Launch distance in front of the shooter's eye along the aim.
 pub const MISSILE_SPAWN_OFFSET: f32 = 1.0;
+
+// ============================================================================
+// Console
+// ============================================================================
+
+// Character caps on a console line, applied by the client while typing and
+// by the server on receipt. Commands get more room than chat: `/light`
+// alone takes three arguments.
+pub const CHAT_MAX_CHARS: usize = 128;
+pub const COMMAND_MAX_CHARS: usize = 256;

@@ -20,9 +20,7 @@ use crate::{
     players::{LocalPlayerInfo, PlayerMap, camera_plugin},
     projectiles::{LastBounceSound, ProjectileAssets},
     schedule::configure_client_sets,
-    ui::{
-        ConsoleState, FpsMeasurement, GameMessageFeed, HudBanner, HudShapeAssets, QuestLog, hud_plugin, setup_ui_system,
-    },
+    ui::{ConsoleState, FpsMeasurement, HudBanner, HudShapeAssets, MessageFeed, QuestLog, hud_plugin, setup_ui_system},
     vfx::{ExplosionAssets, ExplosionRadii, ExplosionVfxBudget, ParticleClouds, RainIntensity, presentation_plugin},
 };
 use common::{config::GameplayConfig, constants::TICK_HZ, protocol::BarrierKindTable};
@@ -87,7 +85,7 @@ pub fn build_client_app(
         .insert_resource(client_settings)
         .insert_resource(DebugColors::default())
         .insert_resource(LastBounceSound::default())
-        .insert_resource(GameMessageFeed::default())
+        .insert_resource(MessageFeed::default())
         .insert_resource(ConsoleState::default())
         .insert_resource(HudBanner::default())
         .insert_resource(QuestLog::default())

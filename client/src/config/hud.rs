@@ -1,7 +1,7 @@
 use anyhow::{Result, bail};
 use serde::Deserialize;
 
-use super::settings::{validate_non_negative_finite, validate_positive_finite};
+use super::settings::validate_positive_finite;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct HudConfig {
@@ -17,7 +17,7 @@ pub struct HudConfig {
 }
 
 const fn default_hud_reference_width() -> f32 {
-    1280.0
+    1920.0
 }
 
 // Per-purpose font sizes. Each surface has its own preferred size; the
@@ -30,13 +30,13 @@ pub struct FontSizesConfig {
     // Score column in the player list. Often larger than `player_list`
     // since it's the headline number.
     pub score: f32,
-    // Bottom-right game-message feed lines.
+    // Bottom-right message feed lines and the console prompt.
     pub message_feed: f32,
     // Name text inside the 3D floating label above a character.
     pub floating_label: f32,
     // Centered HUD banner ("Collect 10 Gold!", "You died!", etc.).
     pub banner: f32,
-    // Quest-panel rows (top-right): title + progress counter.
+    // Quest-panel cards (top-right): title + progress counter.
     pub quest_panel: f32,
 }
 
@@ -63,20 +63,14 @@ pub struct HealthBarsConfig {
     pub player_list_height: f32,
 }
 
-// Per-quest progress bar in the top-right quest panel (colors are consts in
-// `constants.rs`).
+// Quest cards in the top-right quest panel, in logical px (colors are consts
+// in `constants.rs`).
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct QuestPanelConfig {
-    // Width of each quest card (title line, bar, and scope line all span it).
-    pub bar_width: f32,
+    // Width of each card (title line, bar, and scope line all span it).
+    pub card_width: f32,
     pub bar_height: f32,
 }
-
-// Red full-screen death tint. Timer-driven (no fade in): snaps on at
-// peak alpha when the player dies, holds, and fades out over the final
-// `fade_duration_secs` before disappearing at `duration_secs`. Peak
-// alpha is currently a const (`DEATH_OVERLAY_MAX_ALPHA` in
-// `players/death.rs`); expose here if it ever needs tuning.
 
 impl HudConfig {
     pub(super) fn validate(&self) -> Result<()> {
@@ -87,7 +81,7 @@ impl HudConfig {
         validate_positive_finite(self.font_sizes.floating_label, "hud.font_sizes.floating_label")?;
         validate_positive_finite(self.font_sizes.banner, "hud.font_sizes.banner")?;
         validate_positive_finite(self.font_sizes.quest_panel, "hud.font_sizes.quest_panel")?;
-        validate_non_negative_finite(
+        validate_positive_finite(
             self.message_feed.entry_duration_secs,
             "hud.message_feed.entry_duration_secs",
         )?;
@@ -111,7 +105,7 @@ impl HudConfig {
             self.health_bars.player_list_height,
             "hud.health_bars.player_list_height",
         )?;
-        validate_positive_finite(self.quest_panel.bar_width, "hud.quest_panel.bar_width")?;
+        validate_positive_finite(self.quest_panel.card_width, "hud.quest_panel.card_width")?;
         validate_positive_finite(self.quest_panel.bar_height, "hud.quest_panel.bar_height")?;
         Ok(())
     }

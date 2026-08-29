@@ -6,7 +6,7 @@ use crate::{
     config::{FeedConfig, ServerGameplayConfig},
     network::{announce, broadcast_to_all},
     players::PlayerMap,
-    quests::{QuestBoard, QuestEvent, record_quest_event},
+    quests::{PlayerQuestEvent, QuestBoard, record_player_event},
 };
 use common::{
     health::apply_damage,
@@ -181,12 +181,12 @@ pub fn award_actor_kill(
         .get(kind)
         .copied()
         .expect("actor kind missing from scoring.actor_kill");
-    record_quest_event(
+    record_player_event(
         players,
         quest_board,
         server_gameplay_config,
-        Some(shooter_id),
-        QuestEvent::ActorKilled { kind },
+        shooter_id,
+        PlayerQuestEvent::ActorKilled { kind },
     );
 }
 

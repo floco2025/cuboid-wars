@@ -26,4 +26,4 @@ pub use movement::{
     ActorMoveIntent, ActorMovementState, FaceYaw, MissileMovementState, PlayerMoveIntent, PlayerMovementState,
 };
 pub use position::Position;
-pub use quests::{QuestGroupStatus, QuestScope};
+pub use quests::{QuestGroupProgress, QuestGroupStatus, QuestScope};

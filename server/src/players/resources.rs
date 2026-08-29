@@ -10,7 +10,6 @@ use common::protocol::{
 };
 
 use super::PlayerFallState;
-use crate::quests::QuestState;
 
 // Global debug invincibility. Seeded at startup from the config /
 // `--invincible` flag; the `/god` admin command owns it at runtime — which
@@ -49,7 +48,9 @@ pub struct PlayerInfo {
     // Per-quest progress, keyed by quest id. Populated at login from the
     // server's quest catalog; persists for the whole session (not cleared
     // by `clear_per_life_state`).
-    pub quest_states: HashMap<QuestId, QuestState>,
+    // Own progress per assigned quest (key present = assigned). Group
+    // completion and pooled progress live on the `QuestBoard`.
+    pub quest_states: HashMap<QuestId, u32>,
     pub fall_state: PlayerFallState,
 }
 
@@ -436,13 +437,7 @@ mod tests {
     fn clear_per_life_state_preserves_quest_states() {
         let quest_id = QuestId("collect_gold".to_owned());
         let mut info = dummy_info();
-        info.quest_states.insert(
-            quest_id.clone(),
-            QuestState {
-                progress: 7,
-                completed: false,
-            },
-        );
+        info.quest_states.insert(quest_id.clone(), 7);
         info.power_up_timers[PowerUpKind::Speed.index()] = 5.0;
 
         info.clear_per_life_state();
@@ -452,10 +447,6 @@ mod tests {
             0.0,
             "power-up timers reset by clear"
         );
-        assert_eq!(
-            info.quest_states[&quest_id].progress, 7,
-            "quest progress survives death"
-        );
-        assert!(!info.quest_states[&quest_id].completed);
+        assert_eq!(info.quest_states[&quest_id], 7, "quest progress survives death");
     }
 }

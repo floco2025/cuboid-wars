@@ -2,12 +2,8 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
 use bevy::prelude::*;
-use common::protocol::QuestScope;
 
-use super::{
-    components::{QuestEntryMarker, QuestPanelMarker},
-    state::{QuestEntry, QuestLog},
-};
+use super::quest_log::{QuestEntry, QuestLog, QuestProgress};
 use crate::{
     config::ClientSettings,
     constants::{
@@ -16,11 +12,15 @@ use crate::{
     },
 };
 
-// Rebuild the quest panel's rows when the quest log's rendered content
-// changes. `QuestLog` is a `ResMut` touched on assignment/progress/completion,
-// so `is_changed()` gates the common case; the content hash additionally
-// suppresses a rebuild when a no-op update (e.g. a stale progress message the
-// max-guard discarded) marked it changed without changing what we render.
+// Root node of the quest panel (top-right); its children, one card per
+// quest, are rebuilt from `QuestLog`.
+#[derive(Component)]
+pub struct QuestPanelMarker;
+
+// `QuestLog` is marked changed by every handler that touches it, including
+// no-op updates (a stale progress value the max guard discarded, a snapshot
+// restating group state), so the content hash decides whether the cards
+// actually need rebuilding.
 pub fn ui_quest_panel_rebuild_system(
     mut commands: Commands,
     quest_log: Res<QuestLog>,
@@ -44,7 +44,7 @@ pub fn ui_quest_panel_rebuild_system(
         *quest_panel_ui,
         &quest_log,
         client_settings.hud.font_sizes.quest_panel,
-        panel.bar_width,
+        panel.card_width,
         panel.bar_height,
         &children_query,
     );
@@ -55,7 +55,7 @@ fn rebuild_quest_panel(
     panel_entity: Entity,
     quest_log: &QuestLog,
     font_size: f32,
-    bar_width: f32,
+    card_width: f32,
     bar_height: f32,
     children_query: &Query<&Children>,
 ) {
@@ -68,7 +68,7 @@ fn rebuild_quest_panel(
     let ordered_children: Vec<Entity> = quest_log
         .sorted()
         .into_iter()
-        .map(|(_, entry)| spawn_quest_entry(commands, entry, font_size, bar_width, bar_height))
+        .map(|(_, entry)| spawn_quest_entry(commands, entry, font_size, card_width, bar_height))
         .collect();
     commands.entity(panel_entity).replace_children(&ordered_children);
 }
@@ -80,13 +80,13 @@ fn spawn_quest_entry(
     commands: &mut Commands,
     entry: &QuestEntry,
     font_size: f32,
-    bar_width: f32,
+    card_width: f32,
     bar_height: f32,
 ) -> Entity {
     let ratio = if entry.threshold == 0 {
         1.0
     } else {
-        (entry.progress as f32 / entry.threshold as f32).clamp(0.0, 1.0)
+        (entry.progress.value() as f32 / entry.threshold as f32).clamp(0.0, 1.0)
     };
     // Completion is conveyed by green title + full green bar; the counter
     // reads "N/N". No glyphs beyond ASCII (font-safe).
@@ -102,10 +102,9 @@ fn spawn_quest_entry(
 
     commands
         .spawn((
-            QuestEntryMarker,
             Node {
                 flex_direction: FlexDirection::Column,
-                width: Val::Px(bar_width),
+                width: Val::Px(card_width),
                 row_gap: Val::Px(3.0),
                 padding: UiRect::all(Val::Px(6.0)),
                 ..default()
@@ -131,7 +130,6 @@ fn spawn_quest_entry(
                     TextColor(title_color),
                 ));
             });
-            // Progress bar: full-width track with a percent-width fill.
             card.spawn((
                 Node {
                     width: Val::Percent(100.0),
@@ -165,102 +163,67 @@ fn spawn_quest_entry(
 }
 
 fn quest_counter(entry: &QuestEntry) -> String {
-    format!("{}/{}", entry.progress, entry.threshold)
+    format!("{}/{}", entry.progress.value(), entry.threshold)
 }
 
 // The line under the bar that says whose progress this is; individual
 // quests need none.
 fn scope_note(entry: &QuestEntry) -> Option<String> {
-    match entry.scope {
-        QuestScope::Individual => None,
-        QuestScope::Shared => Some("shared progress".to_owned()),
-        QuestScope::Everyone => Some(format!("{} of {} players done", entry.players_done, entry.players)),
+    match entry.progress {
+        QuestProgress::Own(_) => None,
+        QuestProgress::Shared(_) => Some("shared progress".to_owned()),
+        QuestProgress::Everyone {
+            players_done,
+            players_total,
+            ..
+        } => Some(format!("{players_done} of {players_total} players done")),
     }
 }
 
-// Hash of everything the panel renders, walked in display order so the result
-// captures both content and row order. Any visible change (title, progress,
-// threshold, counts, completed, or the order itself) forces a rebuild.
+// Walked in display order, so row order counts as content.
 fn quest_panel_content_hash(quest_log: &QuestLog) -> u64 {
     let mut hasher = DefaultHasher::new();
     for (id, entry) in quest_log.sorted() {
         id.0.hash(&mut hasher);
-        entry.title.hash(&mut hasher);
-        entry.scope.hash(&mut hasher);
-        entry.progress.hash(&mut hasher);
-        entry.threshold.hash(&mut hasher);
-        entry.completed.hash(&mut hasher);
-        entry.players_done.hash(&mut hasher);
-        entry.players.hash(&mut hasher);
-        entry.order.hash(&mut hasher);
+        entry.hash(&mut hasher);
     }
     hasher.finish()
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use common::protocol::QuestId;
-
-    fn entry(title: &str, progress: u32, threshold: u32, completed: bool) -> QuestEntry {
-        ordered_entry(title, progress, threshold, completed, 0)
-    }
-
-    fn ordered_entry(title: &str, progress: u32, threshold: u32, completed: bool, order: u32) -> QuestEntry {
-        QuestEntry {
-            title: title.to_owned(),
-            description: format!("{title} description"),
-            scope: QuestScope::Individual,
-            progress,
-            threshold,
-            completed,
-            players_done: 0,
-            players: 0,
-            order,
-        }
-    }
+    use super::{super::test_support::*, *};
+    use common::protocol::QuestScope;
 
     #[test]
-    fn counter_and_scope_note_by_scope() {
-        let mut entry = entry("Gold Rush", 7, 10, false);
-        assert_eq!(quest_counter(&entry), "7/10");
-        assert_eq!(scope_note(&entry), None);
-        entry.scope = QuestScope::Shared;
-        assert_eq!(scope_note(&entry).as_deref(), Some("shared progress"));
-        entry.scope = QuestScope::Everyone;
-        entry.players_done = 2;
-        entry.players = 3;
-        assert_eq!(scope_note(&entry).as_deref(), Some("2 of 3 players done"));
-    }
+    fn counter_and_scope_note_by_progress() {
+        let own = entry("Gold Rush", QuestScope::Individual, 7, 10, 0);
+        assert_eq!(quest_counter(&own), "7/10");
+        assert_eq!(scope_note(&own), None);
 
-    #[test]
-    fn content_hash_changes_on_player_counts() {
-        let mut everyone = entry("Gold Rush", 7, 10, false);
-        everyone.scope = QuestScope::Everyone;
-        everyone.players = 3;
-        let before = quest_panel_content_hash(&log(vec![("gold", everyone.clone())]));
-        everyone.players_done = 1;
-        let after = quest_panel_content_hash(&log(vec![("gold", everyone)]));
-        assert_ne!(before, after);
-    }
+        let shared = entry("Hunt", QuestScope::Shared, 2, 4, 0);
+        assert_eq!(quest_counter(&shared), "2/4");
+        assert_eq!(scope_note(&shared).as_deref(), Some("shared progress"));
 
-    fn log(items: Vec<(&str, QuestEntry)>) -> QuestLog {
-        let mut log = QuestLog::default();
-        for (id, e) in items {
-            log.entries.insert(QuestId(id.to_owned()), e);
-        }
-        log
+        let mut everyone = entry("Gold Rush", QuestScope::Everyone, 7, 10, 0);
+        everyone.progress = QuestProgress::Everyone {
+            own: 7,
+            players_done: 2,
+            players_total: 3,
+        };
+        assert_eq!(quest_counter(&everyone), "7/10");
+        assert_eq!(scope_note(&everyone).as_deref(), Some("2 of 3 players done"));
     }
 
     #[test]
     fn content_hash_is_independent_of_insertion_order() {
         let forward = log(vec![
-            ("a", entry("Gold", 3, 10, false)),
-            ("b", entry("Hunt", 1, 4, false)),
+            ("a", entry("Gold", QuestScope::Individual, 3, 10, 0)),
+            ("b", entry("Hunt", QuestScope::Individual, 1, 4, 0)),
         ]);
         let reverse = log(vec![
-            ("b", entry("Hunt", 1, 4, false)),
-            ("a", entry("Gold", 3, 10, false)),
+            ("b", entry("Hunt", QuestScope::Individual, 1, 4, 0)),
+            ("a", entry("Gold", QuestScope::Individual, 3, 10, 0)),
         ]);
 
         assert_eq!(quest_panel_content_hash(&forward), quest_panel_content_hash(&reverse));
@@ -268,50 +231,40 @@ mod tests {
 
     #[test]
     fn content_hash_changes_on_rendered_fields() {
-        let base = log(vec![("a", entry("Gold", 3, 10, false))]);
+        let base = log(vec![("a", entry("Gold", QuestScope::Individual, 3, 10, 0))]);
         let base_hash = quest_panel_content_hash(&base);
 
-        let advanced = log(vec![("a", entry("Gold", 4, 10, false))]);
+        let advanced = log(vec![("a", entry("Gold", QuestScope::Individual, 4, 10, 0))]);
         assert_ne!(quest_panel_content_hash(&advanced), base_hash);
 
-        let done = log(vec![("a", entry("Gold", 10, 10, true))]);
+        let mut done = log(vec![("a", entry("Gold", QuestScope::Individual, 3, 10, 0))]);
+        done.record_completion(common::protocol::QuestId("a".to_owned()));
         assert_ne!(quest_panel_content_hash(&done), base_hash);
 
-        let retitled = log(vec![("a", entry("Gold Rush", 3, 10, false))]);
+        let retitled = log(vec![("a", entry("Gold Rush", QuestScope::Individual, 3, 10, 0))]);
         assert_ne!(quest_panel_content_hash(&retitled), base_hash);
 
-        let rethreshold = log(vec![("a", entry("Gold", 3, 12, false))]);
+        let rethreshold = log(vec![("a", entry("Gold", QuestScope::Individual, 3, 12, 0))]);
         assert_ne!(quest_panel_content_hash(&rethreshold), base_hash);
 
         let joined = log(vec![
-            ("a", entry("Gold", 3, 10, false)),
-            ("b", entry("Hunt", 0, 4, false)),
+            ("a", entry("Gold", QuestScope::Individual, 3, 10, 0)),
+            ("b", entry("Hunt", QuestScope::Individual, 0, 4, 0)),
         ]);
         assert_ne!(quest_panel_content_hash(&joined), base_hash);
-    }
 
-    #[test]
-    fn sorted_ranks_by_catalog_order_not_id() {
-        // Ids sort "a" < "z", but catalog order puts "z" first.
-        let log = log(vec![
-            ("a_quest", ordered_entry("Second", 0, 1, false, 1)),
-            ("z_quest", ordered_entry("First", 0, 1, false, 0)),
-        ]);
-
-        let ids: Vec<&str> = log.sorted().into_iter().map(|(id, _)| id.0.as_str()).collect();
-
-        assert_eq!(ids, vec!["z_quest", "a_quest"], "lower catalog order wins over id");
-    }
-
-    #[test]
-    fn sorted_breaks_order_ties_by_id() {
-        let log = log(vec![
-            ("b", ordered_entry("B", 0, 1, false, 5)),
-            ("a", ordered_entry("A", 0, 1, false, 5)),
-        ]);
-
-        let ids: Vec<&str> = log.sorted().into_iter().map(|(id, _)| id.0.as_str()).collect();
-
-        assert_eq!(ids, vec!["a", "b"], "equal order falls back to id");
+        let everyone = log(vec![("a", entry("Gold", QuestScope::Everyone, 3, 10, 0))]);
+        let everyone_hash = quest_panel_content_hash(&everyone);
+        assert_ne!(everyone_hash, base_hash);
+        let mut counted = log(vec![("a", entry("Gold", QuestScope::Everyone, 3, 10, 0))]);
+        counted.apply_group_status(&[common::protocol::QuestGroupStatus {
+            id: common::protocol::QuestId("a".to_owned()),
+            completed: false,
+            progress: common::protocol::QuestGroupProgress::Everyone {
+                players_done: 1,
+                players_total: 3,
+            },
+        }]);
+        assert_ne!(quest_panel_content_hash(&counted), everyone_hash);
     }
 }

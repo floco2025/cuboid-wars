@@ -13,7 +13,7 @@ use crate::{
     network::resources::RoundTripTime,
     players::LocalPlayerInfo,
     projectiles::ProjectileAssets,
-    ui::{GameMessageFeed, HudBanner, QuestLog},
+    ui::{HudBanner, MessageFeed, QuestLog},
     vfx::{ExplosionAssets, ExplosionRadii, ExplosionVfxBudget},
 };
 
@@ -147,7 +147,7 @@ pub struct ClientAssetHandles<'w> {
 #[derive(SystemParam)]
 pub struct HudState<'w> {
     pub local_player_info: ResMut<'w, LocalPlayerInfo>,
-    pub game_message_feed: ResMut<'w, GameMessageFeed>,
+    pub feed: ResMut<'w, MessageFeed>,
     pub quest_log: ResMut<'w, QuestLog>,
     pub banner: ResMut<'w, HudBanner>,
 }

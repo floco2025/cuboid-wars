@@ -481,8 +481,9 @@ pub struct SFeed {
 // One quest in an `SQuestsAssigned` batch. Carries display strings inline so
 // the client never needs a separate quest catalog: `title` is the short panel
 // label, `description` the longer announcement body. `threshold` is the
-// progress denominator; `progress` is 0 for a fresh login grant but may be
-// non-zero if a quest is (re)assigned mid-session against existing progress.
+// progress denominator; `progress` is non-zero for a group quest the group
+// already completed (latched: it arrives at `threshold`) and for a `shared`
+// quest, which arrives at the pooled counter.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct NewQuest {
     pub id: QuestId,
