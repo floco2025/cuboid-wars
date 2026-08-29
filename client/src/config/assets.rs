@@ -38,11 +38,11 @@ const REQUIRED_ACTOR_SOUNDS: &[&str] = &["explodes", "fire"];
 #[derive(Resource, Debug, Clone)]
 pub struct AssetSet {
     materials: HashMap<String, MaterialDef>,
-    ladder: LadderAssets,
+    ladder: MaterialBinding,
+    pressure_plate: PressurePlateAssets,
     aliases: HashMap<String, String>,
     item_materials: HashMap<String, String>,
     barrier_kind_colors: HashMap<String, String>,
-    firework_plate_color: String,
     player: PlayerAssets,
     actors: HashMap<String, ActorAssets>,
     models: GenericModels,
@@ -54,14 +54,14 @@ pub struct AssetSet {
 #[derive(Debug, Clone, Deserialize)]
 struct AssetSetFile {
     materials: HashMap<String, MaterialDef>,
-    ladder: LadderAssets,
+    ladder: MaterialBinding,
+    pressure_plate: PressurePlateAssets,
     #[serde(default)]
     aliases: HashMap<String, String>,
     item_materials: HashMap<String, String>,
     // Per-barrier-kind hex colors keyed by the kind id from gameplay.json.
     #[serde(default)]
     barrier_kind_colors: HashMap<String, String>,
-    firework_plate_color: String,
     player: PlayerAssets,
     actors: HashMap<String, ActorAssets>,
     models: GenericModels,
@@ -89,10 +89,10 @@ impl AssetSet {
         Ok(Self {
             materials: file.materials,
             ladder: file.ladder,
+            pressure_plate: file.pressure_plate,
             aliases: file.aliases,
             item_materials: file.item_materials,
             barrier_kind_colors: file.barrier_kind_colors,
-            firework_plate_color: file.firework_plate_color,
             player: file.player,
             actors: file.actors,
             models: file.models,
@@ -117,11 +117,17 @@ impl AssetSet {
                 "alias `{alias}` points to unknown material `{target}`"
             );
         }
-        anyhow::ensure!(
-            self.materials.contains_key(&self.ladder.material),
-            "`ladder.material` points to unknown material `{}`",
-            self.ladder.material
-        );
+        for (path, binding) in [
+            ("ladder", &self.ladder),
+            ("pressure_plate.panel", &self.pressure_plate.panel),
+            ("pressure_plate.frame", &self.pressure_plate.frame),
+        ] {
+            anyhow::ensure!(
+                self.materials.contains_key(&binding.material),
+                "`{path}.material` points to unknown material `{}`",
+                binding.material
+            );
+        }
         for (name, id) in &self.item_materials {
             anyhow::ensure!(
                 self.materials.contains_key(id),
@@ -182,10 +188,13 @@ impl AssetSet {
     }
 
     #[must_use]
-    pub fn ladder_tile_size(&self) -> f32 {
-        self.ladder
-            .tile_size
-            .unwrap_or_else(|| self.ladder_material_def().tile_size())
+    pub fn plate_panel_material_def(&self) -> &MaterialDef {
+        self.exact_material(&self.pressure_plate.panel.material)
+    }
+
+    #[must_use]
+    pub fn plate_frame_material_def(&self) -> &MaterialDef {
+        self.exact_material(&self.pressure_plate.frame.material)
     }
 
     pub fn material_for_item(&self, item_type: ItemType) -> &MaterialDef {
@@ -227,11 +236,6 @@ impl AssetSet {
     // builder) should treat this as a hard error.
     pub fn barrier_kind_color_hex(&self, id: &str) -> Option<&str> {
         self.barrier_kind_colors.get(id).map(String::as_str)
-    }
-
-    // Hex color of the firework plate button (`firework_plate_color`).
-    pub fn firework_plate_color_hex(&self) -> &str {
-        &self.firework_plate_color
     }
 
     pub fn player_model(&self) -> &ModelDef {
@@ -332,16 +336,18 @@ fn validate_sound(path: &str, sounds: &HashMap<String, String>, name: &str) -> R
     Ok(())
 }
 
+// A fixture's material (`ladder`, the `pressure_plate` parts): one entry of
+// `materials`.
 #[derive(Debug, Clone, Deserialize)]
-struct LadderAssets {
-    // The one material every ladder renders with.
+struct MaterialBinding {
     material: String,
-    // Ladder-specific texture tiling. Rails and rungs are centimeters wide —
-    // at an architectural material's own multi-meter tile they sample a
-    // featureless sliver, so ladders need a much finer scale than the map
-    // surfaces sharing the material.
-    #[serde(default)]
-    tile_size: Option<f32>,
+}
+
+// The plate housing: the walkway panel and the frame around it.
+#[derive(Debug, Clone, Deserialize)]
+struct PressurePlateAssets {
+    panel: MaterialBinding,
+    frame: MaterialBinding,
 }
 
 #[derive(Debug, Clone, Deserialize)]

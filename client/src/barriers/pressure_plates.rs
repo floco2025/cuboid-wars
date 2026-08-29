@@ -1,7 +1,9 @@
 use bevy::prelude::*;
 
-use super::BarrierAssets;
-use crate::map::MapLevel;
+use crate::{
+    config::{AssetSet, ClientSettings, MaterialDef},
+    map::{MapLevel, tiled_cuboid},
+};
 use common::{
     constants::{GRID_CELL_SIZE, LEVEL_HEIGHT},
     protocol::{MapLayout, PlatePurpose},
@@ -43,31 +45,73 @@ pub fn pressure_plates_visibility_system(
 // floor to avoid z-fighting with the floor slab beneath.
 const PLATE_SIDE: f32 = GRID_CELL_SIZE * 0.5;
 const PLATE_Y_OFFSET: f32 = 0.01;
-// Housing: a dark base slab spanning the footprint, with the kind-colored
-// button inset on top — a physical mechanism rather than a painted decal.
-const PLATE_BASE_HEIGHT: f32 = 0.05;
-const PLATE_BUTTON_SIDE: f32 = PLATE_SIDE * 0.7;
-const PLATE_BUTTON_HEIGHT: f32 = 0.05;
-// The button sinks this far into the base so no gap can show at the seam.
-const PLATE_BUTTON_OVERLAP: f32 = 0.01;
+// Housing: a frame slab spanning the footprint with the panel inset on top
+// (materials from `assets.json::pressure_plate`) — a physical mechanism
+// rather than a painted decal. Every plate looks the same; its purpose is
+// not shown.
+const PLATE_FRAME_HEIGHT: f32 = 0.05;
+const PLATE_PANEL_SIDE: f32 = PLATE_SIDE * 0.7;
+const PLATE_PANEL_HEIGHT: f32 = 0.05;
+// The panel sinks this far into the frame so no gap can show at the seam.
+const PLATE_PANEL_OVERLAP: f32 = 0.01;
 
-// Shared across every plate: base/button meshes plus the neutral housing
-// material (buttons use the per-kind plate materials from `BarrierAssets`).
-// Pub only because it appears in the spawn system's `Local` parameter.
+// Shared across every plate. Pub only because it appears in the spawn
+// system's `Local` parameter.
 pub struct PlateAssets {
-    base_mesh: Handle<Mesh>,
-    button_mesh: Handle<Mesh>,
-    base_material: Handle<StandardMaterial>,
+    frame_mesh: Handle<Mesh>,
+    panel_mesh: Handle<Mesh>,
+    frame_material: Handle<StandardMaterial>,
+    panel_material: Handle<StandardMaterial>,
 }
 
-// Spawn one housing per pressure plate in the current `MapLayout`, its
-// button colored by barrier kind. Re-runs when the layout is inserted or
-// replaced (e.g. reconnect / map change). Plates are static — no animation;
-// the puzzle feedback is the barrier disappearing when the threshold is met.
+impl PlateAssets {
+    fn new(
+        meshes: &mut Assets<Mesh>,
+        materials: &mut Assets<StandardMaterial>,
+        asset_server: &AssetServer,
+        asset_set: &AssetSet,
+        client_settings: &ClientSettings,
+    ) -> Self {
+        let rendering = &client_settings.rendering;
+        let frame = asset_set.plate_frame_material_def();
+        let panel = asset_set.plate_panel_material_def();
+        let mut material = |def: &MaterialDef| {
+            materials.add(def.standard_material(
+                asset_server,
+                rendering.texture_anisotropy,
+                rendering.texture_mipmaps_enabled,
+            ))
+        };
+        Self {
+            frame_mesh: meshes.add(plate_box(PLATE_SIDE, PLATE_FRAME_HEIGHT, frame.tile_size())),
+            panel_mesh: meshes.add(plate_box(PLATE_PANEL_SIDE, PLATE_PANEL_HEIGHT, panel.tile_size())),
+            frame_material: material(frame),
+            panel_material: material(panel),
+        }
+    }
+}
+
+// UVs are mesh-local rather than world-anchored: both materials are uniform
+// patterns and no neighbour shares them, so nothing needs to tile across a
+// seam — and one mesh can serve every plate. Both materials carry normal
+// maps, which only render on meshes with tangents.
+fn plate_box(side: f32, height: f32, tile_size: f32) -> Mesh {
+    let mut mesh = tiled_cuboid(side, height, side, tile_size, Vec3::ZERO, Quat::IDENTITY);
+    mesh.generate_tangents()
+        .expect("plate box mesh lacks the positions, normals, or UVs tangents need");
+    mesh
+}
+
+// Spawn one housing per pressure plate in the current `MapLayout`. Re-runs
+// when the layout is inserted or replaced (e.g. reconnect / map change).
+// Plates are static — no animation; the puzzle feedback is the barrier
+// disappearing when the threshold is met.
 pub fn pressure_plates_spawn_system(
     mut commands: Commands,
     map_layout: Option<Res<MapLayout>>,
-    barrier_assets: Option<Res<BarrierAssets>>,
+    asset_set: Res<AssetSet>,
+    asset_server: Res<AssetServer>,
+    client_settings: Res<ClientSettings>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut plate_assets: Local<Option<PlateAssets>>,
@@ -75,7 +119,6 @@ pub fn pressure_plates_spawn_system(
     locked: Res<LockedPlatePurposes>,
 ) {
     let Some(layout) = map_layout else { return };
-    let Some(assets) = barrier_assets else { return };
     if !layout.is_changed() {
         return;
     }
@@ -87,23 +130,12 @@ pub fn pressure_plates_spawn_system(
         return;
     }
 
-    let plate_assets = plate_assets.get_or_insert_with(|| PlateAssets {
-        base_mesh: meshes.add(Cuboid::new(PLATE_SIDE, PLATE_BASE_HEIGHT, PLATE_SIDE)),
-        button_mesh: meshes.add(Cuboid::new(PLATE_BUTTON_SIDE, PLATE_BUTTON_HEIGHT, PLATE_BUTTON_SIDE)),
-        base_material: materials.add(StandardMaterial {
-            base_color: Color::srgb(0.12, 0.12, 0.13),
-            perceptual_roughness: 0.6,
-            metallic: 0.4,
-            ..default()
-        }),
+    let plate_assets = plate_assets.get_or_insert_with(|| {
+        PlateAssets::new(&mut meshes, &mut materials, &asset_server, &asset_set, &client_settings)
     });
 
     for plate in &layout.pressure_plates {
         let floor_y = f32::from(plate.level) * LEVEL_HEIGHT + PLATE_Y_OFFSET;
-        let button_material = match plate.purpose {
-            PlatePurpose::Barrier(kind) => assets.material_for_plate(kind),
-            PlatePurpose::Firework => assets.firework_plate_material(),
-        };
         commands
             .spawn((
                 PressurePlateMarker,
@@ -114,19 +146,40 @@ pub fn pressure_plates_spawn_system(
             ))
             .with_children(|parent| {
                 parent.spawn((
-                    Mesh3d(plate_assets.base_mesh.clone()),
-                    MeshMaterial3d(plate_assets.base_material.clone()),
-                    Transform::from_xyz(0.0, PLATE_BASE_HEIGHT / 2.0, 0.0),
+                    Mesh3d(plate_assets.frame_mesh.clone()),
+                    MeshMaterial3d(plate_assets.frame_material.clone()),
+                    Transform::from_xyz(0.0, PLATE_FRAME_HEIGHT / 2.0, 0.0),
                 ));
                 parent.spawn((
-                    Mesh3d(plate_assets.button_mesh.clone()),
-                    MeshMaterial3d(button_material.clone()),
+                    Mesh3d(plate_assets.panel_mesh.clone()),
+                    MeshMaterial3d(plate_assets.panel_material.clone()),
                     Transform::from_xyz(
                         0.0,
-                        PLATE_BASE_HEIGHT + PLATE_BUTTON_HEIGHT / 2.0 - PLATE_BUTTON_OVERLAP,
+                        PLATE_FRAME_HEIGHT + PLATE_PANEL_HEIGHT / 2.0 - PLATE_PANEL_OVERLAP,
                         0.0,
                     ),
                 ));
             });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn plate_box_top_spans_its_tile_and_has_tangents() {
+        let mesh = plate_box(1.2, 0.05, 1.2);
+        let uvs = match mesh.attribute(Mesh::ATTRIBUTE_UV_0) {
+            Some(bevy::mesh::VertexAttributeValues::Float32x2(uvs)) => uvs,
+            other => panic!("unexpected UV attribute: {other:?}"),
+        };
+        let min_u = uvs.iter().map(|uv| uv[0]).fold(f32::MAX, f32::min);
+        let max_u = uvs.iter().map(|uv| uv[0]).fold(f32::MIN, f32::max);
+        assert!(
+            (max_u - min_u - 1.0).abs() < 1e-5,
+            "one tile across the panel: {min_u}..{max_u}"
+        );
+        assert!(mesh.attribute(Mesh::ATTRIBUTE_TANGENT).is_some());
     }
 }

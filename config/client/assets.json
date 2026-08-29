@@ -1,7 +1,7 @@
 {
   "materials": {
     "used-stainless-steel": {
-      "tile_size": 2.0,
+      "tile_size": 1.0,
       "metallic": 0.5,
       "roughness": 1.0,
       "repeat": true,
@@ -76,6 +76,19 @@
         "normal": "textures/steelplate1-ue/steelplate1_normal-dx.png",
         "occlusion": "textures/steelplate1-ue/steelplate1_ao.png",
         "metallic_roughness": "textures/steelplate1-ue/steelplate1_metallic-roughness.png"
+      }
+    },
+    "worn-walkway-metal": {
+      "tile_size": 1.2,
+      "metallic": 0.5,
+      "roughness": 1.0,
+      "repeat": true,
+      "linear_data_textures": true,
+      "textures": {
+        "base_color": "textures/worn-walkway-metal-ue/worn-walkway-metal_albedo.png",
+        "normal": "textures/worn-walkway-metal-ue/worn-walkway-metal_normal-dx.png",
+        "occlusion": "textures/worn-walkway-metal-ue/worn-walkway-metal_ao.png",
+        "metallic_roughness": "textures/worn-walkway-metal-ue/worn-walkway-metal_metallic-roughness.png"
       }
     },
     "beige-carpet-worn1": {
@@ -244,8 +257,15 @@
     "default": "space-cruiser-panels2"
   },
   "ladder": {
-    "material": "used-stainless-steel",
-    "tile_size": 0.6
+    "material": "used-stainless-steel"
+  },
+  "pressure_plate": {
+    "panel": {
+      "material": "worn-walkway-metal"
+    },
+    "frame": {
+      "material": "used-stainless-steel"
+    }
   },
   "player": {
     "model": {
@@ -346,6 +366,5 @@
     "basement": "#f0c020",
     "gravity": "#5090ff",
     "lobby": "#22cc33"
-  },
-  "firework_plate_color": "#e040fb"
+  }
 }

@@ -117,7 +117,7 @@ pub fn map_spawn_geometry_system(
             client_settings.rendering.texture_anisotropy,
             client_settings.rendering.texture_mipmaps_enabled,
         );
-        let ladder_tile_size = asset_set.ladder_tile_size();
+        let ladder_tile_size = asset_set.ladder_material_def().tile_size();
         for ladder in &map_layout.ladders {
             spawn_ladder_from_layout(
                 &mut commands,

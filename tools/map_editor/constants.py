@@ -10,7 +10,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 MAPS_DIR = REPO_ROOT / "config" / "server" / "maps"
 
 
-def _load_shared_configs() -> tuple[list[str], dict[str, str], str, set[str]]:
+def _load_shared_configs() -> tuple[list[str], dict[str, str], set[str]]:
     gameplay_path = REPO_ROOT / "config" / "common" / "gameplay.json"
     assets_path = REPO_ROOT / "config" / "client" / "assets.json"
     with gameplay_path.open("r", encoding="utf-8") as handle:
@@ -26,13 +26,14 @@ def _load_shared_configs() -> tuple[list[str], dict[str, str], str, set[str]]:
                 f"barrier kind {id_!r} has no color in assets.json `barrier_kind_colors`; "
                 "add an entry or remove the id from gameplay.json"
             )
-    firework_color = assets.get("firework_plate_color")
-    if not isinstance(firework_color, str) or not firework_color:
-        raise RuntimeError("assets.json has no `firework_plate_color`; firework plates need one")
-    return ids, colors, firework_color, aliases
+    return ids, colors, aliases
 
 
-BARRIER_KIND_TABLE, BARRIER_KIND_COLORS, FIREWORK_PLATE_COLOR, MATERIAL_ALIASES = _load_shared_configs()
+BARRIER_KIND_TABLE, BARRIER_KIND_COLORS, MATERIAL_ALIASES = _load_shared_configs()
+
+# Editor-only: the game renders every plate alike, so this colour exists just
+# to tell firework plates from barrier plates on the canvas.
+FIREWORK_PLATE_COLOR = "#e040fb"
 
 # Pressure plate `type` values; barrier plates also carry a `kind`.
 PLATE_TYPE_BARRIER = "barrier"

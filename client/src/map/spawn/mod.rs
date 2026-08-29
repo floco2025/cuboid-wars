@@ -9,6 +9,7 @@ mod ramps;
 mod walls;
 
 pub use components::{GroundMarker, MapLevel, RampMarker, RoofMarker, WallMarker};
+pub use cuboid_mesh::tiled_cuboid;
 pub use floors::batch_floor;
 pub use geometry_batch::MapGeometryBatch;
 pub use ladders::{LadderMarker, spawn_ladder_from_layout};

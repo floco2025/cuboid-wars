@@ -1,10 +1,6 @@
 use bevy::prelude::*;
 
-use crate::{
-    config::{AssetSet, ClientSettings},
-    constants::*,
-    vfx::with_white_vertex_colors,
-};
+use crate::{config::AssetSet, constants::*, vfx::with_white_vertex_colors};
 use common::{
     constants::BARRIER_THICKNESS,
     protocol::{BarrierKindId, BarrierKindTable},
@@ -32,13 +28,6 @@ pub struct BarrierAssets {
     pub(super) mesh: Handle<Mesh>,
     pub(super) key_mesh: Handle<Mesh>,
     pub(super) materials: Vec<Handle<StandardMaterial>>,
-    // Per-kind opaque variant of the barrier material, used by pressure
-    // plates. Same color, but `AlphaMode::Opaque` + not pulsated — a plate
-    // is a fixed marker on the floor, not a translucent force-field.
-    // Indexed by `BarrierKindId.0` like `materials`.
-    pub(super) plate_materials: Vec<Handle<StandardMaterial>>,
-    // Firework plates open no barrier, so their button has its own color.
-    pub(super) firework_plate_material: Handle<StandardMaterial>,
     // Mirror of the table at construction time, so the pulsate system can
     // re-derive the base color without re-reading the config every frame.
     pub(super) base_colors: Vec<Color>,
@@ -47,14 +36,6 @@ pub struct BarrierAssets {
 impl BarrierAssets {
     pub fn material_for(&self, kind: BarrierKindId) -> &Handle<StandardMaterial> {
         &self.materials[kind.0 as usize]
-    }
-
-    pub fn material_for_plate(&self, kind: BarrierKindId) -> &Handle<StandardMaterial> {
-        &self.plate_materials[kind.0 as usize]
-    }
-
-    pub fn firework_plate_material(&self) -> &Handle<StandardMaterial> {
-        &self.firework_plate_material
     }
 
     pub fn material_handles(&self) -> &[Handle<StandardMaterial>] {
@@ -78,7 +59,6 @@ pub fn setup_barrier_assets(
     mut materials: ResMut<Assets<StandardMaterial>>,
     kind_table: Res<BarrierKindTable>,
     asset_set: Res<AssetSet>,
-    _client_settings: Res<ClientSettings>,
 ) {
     let alpha_max = BARRIER_ALPHA_MAX;
     let emissive = BARRIER_EMISSIVE;
@@ -97,7 +77,6 @@ pub fn setup_barrier_assets(
     ));
 
     let mut handles = Vec::with_capacity(kind_table.len());
-    let mut plate_handles = Vec::with_capacity(kind_table.len());
     let mut base_colors = Vec::with_capacity(kind_table.len());
     for id in kind_table.ids() {
         let hex = asset_set
@@ -105,26 +84,18 @@ pub fn setup_barrier_assets(
             .expect("barrier kind color missing from config");
         let color = parse_hex_color(hex).unwrap_or_else(|err| panic!("invalid color {hex:?} for kind {id:?}: {err}"));
         handles.push(materials.add(barrier_material(color, alpha_max, emissive)));
-        plate_handles.push(materials.add(plate_material(color)));
         base_colors.push(color);
     }
 
-    // All three vectors are indexed by `BarrierKindId.0` — a length divergence
+    // Both vectors are indexed by `BarrierKindId.0` — a length divergence
     // would mean a future contributor split the loops apart. Catch that here
     // instead of as an out-of-bounds panic at first lookup.
-    assert_eq!(handles.len(), plate_handles.len());
     assert_eq!(handles.len(), base_colors.len());
-
-    let firework_hex = asset_set.firework_plate_color_hex();
-    let firework_color = parse_hex_color(firework_hex)
-        .unwrap_or_else(|err| panic!("invalid firework_plate_color {firework_hex:?}: {err}"));
 
     commands.insert_resource(BarrierAssets {
         key_mesh,
         mesh,
         materials: handles,
-        plate_materials: plate_handles,
-        firework_plate_material: materials.add(plate_material(firework_color)),
         base_colors,
     });
 }
@@ -140,18 +111,6 @@ fn barrier_material(color: Color, alpha_max: f32, emissive: f32) -> StandardMate
         alpha_mode: AlphaMode::Blend,
         double_sided: true,
         cull_mode: None,
-        ..default()
-    }
-}
-
-// Opaque sibling of `barrier_material` — flat, solid color, unlit. Plates
-// share their kind's color with the barriers they control but read as a
-// permanent floor marker rather than a force-field.
-fn plate_material(color: Color) -> StandardMaterial {
-    StandardMaterial {
-        base_color: color,
-        alpha_mode: AlphaMode::Opaque,
-        unlit: true,
         ..default()
     }
 }

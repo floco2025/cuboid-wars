@@ -91,7 +91,7 @@ Each `BarrierKindId` gets a dedicated Rapier collision group (bits 3..31, max 29
 
 #### Pressure plates
 
-One list, one footprint, one press/release click; each plate has a purpose (`PlatePurpose`, `pressure_plates_system` in `server/src/map/pressure_plates.rs`). Barrier plates open every barrier of their kind while `held >= min(plates_for_kind, alive - 1)` (one player can always walk through). Firework plates launch the show (`broadcast_firework_show`, the same `SFirework` as `/firework`) on the tick `held >= min(firework_plates, alive)` first holds — edge-triggered, re-armed when the count drops. Plates whose purpose solves a quest (`QuestKind::plate_purpose`) are inert (skipped in the occupancy loop) and hidden on clients (`SSnapshot.locked_plate_purposes`) until that quest unlocks; the firework trigger records one `FireworksStarted` quest event (`/firework` launches the show without it). The client renders firework plates with `assets.json`'s `firework_plate_color`.
+One list, one footprint, one press/release click; each plate has a purpose (`PlatePurpose`, `pressure_plates_system` in `server/src/map/pressure_plates.rs`). Barrier plates open every barrier of their kind while `held >= min(plates_for_kind, alive - 1)` (one player can always walk through). Firework plates launch the show (`broadcast_firework_show`, the same `SFirework` as `/firework`) on the tick `held >= min(firework_plates, alive)` first holds — edge-triggered, re-armed when the count drops. Plates whose purpose solves a quest (`QuestKind::plate_purpose`) are inert (skipped in the occupancy loop) and hidden on clients (`SSnapshot.locked_plate_purposes`) until that quest unlocks; the firework trigger records one `FireworksStarted` quest event (`/firework` launches the show without it). The client renders every plate alike — `assets.json`'s `pressure_plate.panel` inset in `pressure_plate.frame` — so a plate's purpose is not visible.
 
 #### Quests
 
@@ -156,6 +156,16 @@ status-bar grid info — if something needs explaining, it should be drawn on
 the canvas itself. PySide6 with mouse-driven click/drag interactions per
 mode (floors, grass, walls, ramps, ladders, barriers, spawn zones, items,
 materials, lights, pressure plates).
+
+## Adding a texture
+
+Texture sets are freepbr.com UE packs. To add one:
+
+1. Copy the pack's directory as-is into `client/assets/textures/<name>-ue/`.
+2. Build the packed metallic-roughness map Bevy wants (needs ImageMagick): `client/assets/textures/combine_metallic_roughness.sh <dir>/<name>_roughness.png <dir>/<name>_metallic.png` writes `<name>_metallic-roughness.png` next to them. `multiply_intensity.sh <metallic-roughness.png> [roughness_add] [metallic_multiply]` retunes it afterwards (keeps a `.original.png`).
+3. Add a `materials.<name>` entry in `config/client/assets.json`: `textures.base_color` (`_albedo`), `normal` (`_normal-dx`), `occlusion` (`_ao`), `metallic_roughness`; `tile_size` in meters; `repeat` and `linear_data_textures` true.
+4. Reference it — map faces may only name `aliases` entries (add one), items use `item_materials`, fixtures use `ladder` / `pressure_plate.panel` / `pressure_plate.frame` (each names a `material`).
+5. `cargo test --release -p client referenced_assets_exist_case_exactly` catches path and case typos.
 
 ## Coding style
 
