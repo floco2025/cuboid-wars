@@ -59,6 +59,7 @@ pub struct MissileGuidanceParams<'w, 's> {
 pub fn missiles_guidance_system(time: Res<Time>, mut params: MissileGuidanceParams) {
     let delta = time.delta_secs();
     let config = params.server_gameplay_config.missiles;
+    let missile_speed = params.gameplay_config.movement.missile_speed;
 
     for (id, pos, mut velocity) in &mut params.missile_query {
         let Some(info) = params.missiles.get_mut(id) else {
@@ -93,7 +94,7 @@ pub fn missiles_guidance_system(time: Res<Time>, mut params: MissileGuidancePara
             // tail-chases a retreating target forever.
             let target_velocity = target_velocity_estimate(info.last_target_center, target_center, delta);
             info.last_target_center = Some(target_center);
-            let aim_point = lead_point(origin, target_center, target_velocity, config.speed);
+            let aim_point = lead_point(origin, target_center, target_velocity, missile_speed);
 
             let objective_dir = if missile_sight_clear(
                 &params.collision_world,
@@ -121,11 +122,11 @@ pub fn missiles_guidance_system(time: Res<Time>, mut params: MissileGuidancePara
                     &params.open_barrier_kinds.0,
                     origin,
                     aim_point,
-                    &config,
+                    missile_speed,
                     delta,
                 )
             };
-            velocity.0 = steer(velocity.0, objective_dir, config.turn_rate, delta);
+            velocity.0 = steer(velocity.0, objective_dir, config.turn_radius, delta);
 
             // Proximity fuse on this tick's travel SEGMENT, not a point
             // sample — at 0.4 m per tick a point check can alias straight
@@ -205,11 +206,11 @@ fn dodge_objective(
     open_kinds: &[BarrierKindId],
     origin: Vec3,
     aim_point: Vec3,
-    config: &MissilesServerConfig,
+    missile_speed: f32,
     delta: f32,
 ) -> Vec3 {
     info.avoid_timer -= delta;
-    let lookahead = config.speed * MISSILE_AVOID_LOOKAHEAD_SECS;
+    let lookahead = missile_speed * MISSILE_AVOID_LOOKAHEAD_SECS;
     let desired = (aim_point - origin).normalize_or_zero();
     let committed = info.avoid_dir.filter(|dir| {
         info.avoid_timer > 0.0 && sweep_clear(collision_world, open_kinds, origin, *dir * lookahead, MISSILE_RADIUS)

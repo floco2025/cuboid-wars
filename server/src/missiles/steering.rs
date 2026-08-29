@@ -128,9 +128,10 @@ pub(super) fn lead_point(origin: Vec3, target_center: Vec3, target_velocity: Vec
     target_center + target_velocity * lead_time
 }
 
-// Rotate the velocity direction toward the objective by at most
-// `turn_rate * delta` radians, preserving speed.
-pub(super) fn steer(velocity: Vec3, to_objective: Vec3, turn_rate: f32, delta: f32) -> Vec3 {
+// Rotate the velocity direction toward the objective along a circle of
+// `turn_radius` at the current speed (at most `speed / turn_radius * delta`
+// radians), preserving speed.
+pub(super) fn steer(velocity: Vec3, to_objective: Vec3, turn_radius: f32, delta: f32) -> Vec3 {
     let speed = velocity.length();
     if speed <= f32::EPSILON {
         return velocity;
@@ -141,7 +142,7 @@ pub(super) fn steer(velocity: Vec3, to_objective: Vec3, turn_rate: f32, delta: f
         return velocity;
     }
     let angle = current.angle_between(desired);
-    let max_step = turn_rate * delta;
+    let max_step = speed / turn_radius * delta;
     if angle <= max_step {
         return desired * speed;
     }
@@ -165,9 +166,9 @@ mod tests {
     use std::f32::consts::SQRT_2;
 
     #[test]
-    fn steer_clamps_rotation_to_turn_rate_times_delta() {
+    fn steer_clamps_rotation_to_the_turn_radius_arc() {
         let velocity = Vec3::Z * 12.0;
-        let steered = steer(velocity, Vec3::X, 2.0, 0.1);
+        let steered = steer(velocity, Vec3::X, 6.0, 0.1);
         let angle = velocity.angle_between(steered);
         assert!((angle - 0.2).abs() < 1e-4, "expected a 0.2 rad step, got {angle}");
     }

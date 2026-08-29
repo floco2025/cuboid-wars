@@ -1,8 +1,8 @@
-use bevy::prelude::*;
+use bevy::{ecs::system::SystemParam, prelude::*};
 use common::{
     config::GameplayConfig,
     physics::{CollisionWorld, OpenBarrierKinds, ProjectileMotion, projectile_overlaps_character},
-    protocol::{ActorId, ActorMarker, FaceYaw, PlayerId, PlayerMarker, Position, ProjectileMarker},
+    protocol::{ActorId, ActorMarker, FaceYaw, MapSettings, PlayerId, PlayerMarker, Position, ProjectileMarker},
 };
 
 use super::{
@@ -19,6 +19,15 @@ use crate::{
     vfx::ParticleClouds,
 };
 
+// The world a projectile flies through: collision, map gravity, tuning.
+// Grouped so the system stays under Bevy's parameter limit.
+#[derive(SystemParam)]
+pub struct ProjectileWorld<'w> {
+    collision_world: Option<Res<'w, CollisionWorld>>,
+    map_settings: Option<Res<'w, MapSettings>>,
+    gameplay_config: Res<'w, GameplayConfig>,
+    open_barrier_kinds: Res<'w, OpenBarrierKinds>,
+}
 // Runs in `FixedUpdate` at the shared `TICK_HZ`. The semi-implicit Euler
 // integration in `ProjectileMotion` is step-size-dependent, so stepping at
 // render rate would systematically diverge from the server's 30 Hz
@@ -43,18 +52,21 @@ pub fn projectiles_movement_system(
     player_query: Query<(Entity, &Position, &FaceYaw, &PlayerId, Has<LocalPlayerMarker>), With<PlayerMarker>>,
     actor_query: Query<(&ActorId, &Position, &FaceYaw), With<ActorMarker>>,
     actors: Res<ActorMap>,
-    collision_world: Option<Res<CollisionWorld>>,
-    gameplay_config: Res<GameplayConfig>,
-    open_barrier_kinds: Res<OpenBarrierKinds>,
+    world: ProjectileWorld,
     mut last_bounce_sound: ResMut<LastBounceSound>,
     client_settings: Res<ClientSettings>,
     barrier_assets: Res<BarrierAssets>,
     mut particle_clouds: ResMut<ParticleClouds>,
     listener: Query<&GlobalTransform, With<MainCameraMarker>>,
 ) {
+    // No map yet means no shots either; nothing to step.
+    let Some(map_settings) = world.map_settings.as_deref() else {
+        return;
+    };
+    let gravity = map_settings.gravity * world.gameplay_config.projectiles.gravity_scale;
     let delta = time.delta_secs();
     let current_time = time.elapsed_secs();
-    let collision_world = collision_world.as_deref();
+    let collision_world = world.collision_world.as_deref();
     // Louder-bounce preference measures distance to the audio listener (the
     // main camera). A missing camera degrades to distance zero: every bounce
     // rates as full volume, which reduces to the plain rate limit.
@@ -73,7 +85,7 @@ pub fn projectiles_movement_system(
         }
 
         previous_tick_position.0 = *position;
-        projectile.apply_gravity(delta);
+        projectile.apply_gravity(delta, gravity);
         projectile.apply_drag(delta);
 
         let projectile_pos: Position = *position;
@@ -90,7 +102,7 @@ pub fn projectiles_movement_system(
                         &projectile_pos,
                         player_pos,
                         face_yaw.0,
-                        gameplay_config.player.physics(),
+                        world.gameplay_config.player.physics(),
                     )
                 });
             if !overlaps_shooter {
@@ -110,7 +122,7 @@ pub fn projectiles_movement_system(
             &projectile_pos,
             delta,
             collision_world,
-            &open_barrier_kinds.0,
+            &world.open_barrier_kinds.0,
         ) {
             continue;
         }
@@ -145,7 +157,7 @@ pub fn projectiles_movement_system(
                 &player_query,
                 &actor_query,
                 &actors,
-                &gameplay_config,
+                &world.gameplay_config,
             ) {
                 continue;
             }

@@ -1,4 +1,8 @@
-use std::{collections::HashMap, fs, path::Path};
+use std::{
+    collections::{HashMap, HashSet},
+    fs,
+    path::Path,
+};
 
 use anyhow::{Context, Result, bail};
 use bevy_ecs::prelude::Resource;
@@ -9,12 +13,11 @@ use crate::constants::PHYSICS_EPSILON;
 #[derive(Resource, Debug, Clone, Deserialize)]
 pub struct GameplayConfig {
     pub player: PlayerGameplayConfig,
+    pub movement: MovementConfig,
     pub projectiles: ProjectilesConfig,
-    pub ladders: LaddersConfig,
     pub missiles: MissilesConfig,
     pub power_ups: PowerUpEffectsConfig,
-    pub knockback: KnockbackConfig,
-    pub actors: HashMap<String, ActorGameplayConfig>,
+    pub actors: HashMap<String, CharacterGameplayConfig>,
     // Ordered list of barrier / key kind ids. Order is the stable
     // `BarrierKindId` index used on the wire. Visuals (colors) live in
     // `config/client/assets.json` so the server stays presentation-free.
@@ -40,10 +43,8 @@ impl GameplayConfig {
     fn validate(&self) -> Result<()> {
         self.player.validate("player")?;
         self.projectiles.validate("projectiles")?;
-        self.ladders.validate("ladders")?;
         self.missiles.validate("missiles")?;
         self.power_ups.validate("power_ups")?;
-        self.knockback.validate("knockback")?;
         if self.actors.is_empty() {
             bail!("actors must define at least one kind");
         }
@@ -53,17 +54,67 @@ impl GameplayConfig {
             }
             actor.validate(&format!("actors.{kind}"))?;
         }
-        Ok(())
+        self.movement.validate(&self.actors)
     }
 
     #[must_use]
-    pub fn actor(&self, kind: &str) -> Option<&ActorGameplayConfig> {
+    pub fn actor(&self, kind: &str) -> Option<&CharacterGameplayConfig> {
         self.actors.get(kind)
     }
 
     #[must_use]
-    pub fn expect_actor(&self, kind: &str) -> &ActorGameplayConfig {
+    pub fn expect_actor(&self, kind: &str) -> &CharacterGameplayConfig {
         self.actor(kind).expect("actor kind missing from gameplay config")
+    }
+}
+
+// Every speed in the game, in m/s, on one screen: who outruns whom.
+#[derive(Debug, Clone, Deserialize)]
+pub struct MovementConfig {
+    pub player: PlayerMovementConfig,
+    pub actors: HashMap<String, ActorMovementConfig>,
+    pub missile_speed: f32,
+    pub projectile_speed: f32,
+    // Climb rate per unit of intent speed into (ascend) or away from
+    // (descend) the ladder face — dimensionless, so walking, running, and
+    // each actor kind's speed all carry into the climb rate.
+    pub ladder_climb_ratio: f32,
+    pub knockback: KnockbackConfig,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct PlayerMovementConfig {
+    pub walk_speed: f32,
+    pub run_speed: f32,
+    // Walk/run multiplier while the speed power-up is active.
+    pub speed_power_up: f32,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct ActorMovementConfig {
+    pub roam_speed: f32,
+    pub active_speed: f32,
+}
+
+impl MovementConfig {
+    #[must_use]
+    pub fn expect_actor(&self, kind: &str) -> &ActorMovementConfig {
+        self.actors.get(kind).expect("actor kind missing from movement.actors")
+    }
+
+    fn validate(&self, actors: &HashMap<String, CharacterGameplayConfig>) -> Result<()> {
+        validate_positive_finite(self.player.walk_speed, "movement.player.walk_speed")?;
+        validate_positive_finite(self.player.run_speed, "movement.player.run_speed")?;
+        validate_positive_finite(self.player.speed_power_up, "movement.player.speed_power_up")?;
+        validate_covers_actor_kinds(self.actors.keys(), actors, "movement.actors")?;
+        for (kind, actor) in &self.actors {
+            validate_positive_finite(actor.roam_speed, &format!("movement.actors.{kind}.roam_speed"))?;
+            validate_positive_finite(actor.active_speed, &format!("movement.actors.{kind}.active_speed"))?;
+        }
+        validate_positive_finite(self.missile_speed, "movement.missile_speed")?;
+        validate_positive_finite(self.projectile_speed, "movement.projectile_speed")?;
+        validate_positive_finite(self.ladder_climb_ratio, "movement.ladder_climb_ratio")?;
+        self.knockback.validate("movement.knockback")
     }
 }
 
@@ -72,14 +123,15 @@ impl GameplayConfig {
 // projectiles to land where the authoritative ones do.
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct ProjectilesConfig {
-    pub speed: f32,
     pub lifetime_secs: f32,
     // Spawn distance in front of the shooter's eye along the aim.
     pub spawn_offset: f32,
     pub radius: f32,
     // Minimum time between shots.
     pub cooldown_secs: f32,
-    pub gravity: f32,
+    // Multiplier on the map's base gravity: 0 = no drop, 1 = falls like a
+    // character. Not touched by the low-gravity power-up.
+    pub gravity_scale: f32,
     // Air resistance coefficient (deceleration = drag * speed^2).
     pub drag_factor: f32,
     // Fraction of speed retained after a perpendicular bounce.
@@ -88,12 +140,11 @@ pub struct ProjectilesConfig {
 
 impl ProjectilesConfig {
     fn validate(&self, path: &str) -> Result<()> {
-        validate_positive_finite(self.speed, &format!("{path}.speed"))?;
         validate_positive_finite(self.lifetime_secs, &format!("{path}.lifetime_secs"))?;
         validate_positive_finite(self.spawn_offset, &format!("{path}.spawn_offset"))?;
         validate_positive_finite(self.radius, &format!("{path}.radius"))?;
         validate_non_negative_finite(self.cooldown_secs, &format!("{path}.cooldown_secs"))?;
-        validate_non_negative_finite(self.gravity, &format!("{path}.gravity"))?;
+        validate_non_negative_finite(self.gravity_scale, &format!("{path}.gravity_scale"))?;
         validate_non_negative_finite(self.drag_factor, &format!("{path}.drag_factor"))?;
         if !(self.bounce_retention.is_finite() && (0.0..=1.0).contains(&self.bounce_retention)) {
             bail!("{path}.bounce_retention must be within 0.0..=1.0");
@@ -102,12 +153,11 @@ impl ProjectilesConfig {
     }
 }
 
-// Effect magnitudes of the timer power-ups. Shared: speed feeds client
-// prediction, multi-shot feeds both sides' projectile spawning. (Durations
-// are server-only tuning in `config/server/gameplay.json`.)
+// Multi-shot magnitudes, shared by both sides' projectile spawning. (The
+// speed power-up's multiplier is `movement.player.speed_power_up`;
+// durations are server-only tuning in `config/server/gameplay.json`.)
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct PowerUpEffectsConfig {
-    pub speed_multiplier: f32,
     pub multi_shot_count: i32,
     // Yaw between adjacent projectiles of a multi-shot arc.
     pub multi_shot_angle_degrees: f32,
@@ -115,7 +165,6 @@ pub struct PowerUpEffectsConfig {
 
 impl PowerUpEffectsConfig {
     fn validate(&self, path: &str) -> Result<()> {
-        validate_positive_finite(self.speed_multiplier, &format!("{path}.speed_multiplier"))?;
         if self.multi_shot_count < 1 {
             bail!("{path}.multi_shot_count must be at least 1");
         }
@@ -145,23 +194,6 @@ impl KnockbackConfig {
         validate_positive_finite(self.max_speed, &format!("{path}.max_speed"))?;
         validate_non_negative_finite(self.up_speed, &format!("{path}.up_speed"))?;
         validate_positive_finite(self.deceleration, &format!("{path}.deceleration"))
-    }
-}
-
-// Ladder climb tuning. Shared: the climb is resolved inside the shared
-// character step, so client prediction must integrate the same speeds the
-// server does. One block for all characters — players and actors climb alike.
-#[derive(Debug, Clone, Copy, Deserialize)]
-pub struct LaddersConfig {
-    // Climb rate per unit of intent speed into (ascend) or away from
-    // (descend) the ladder face — dimensionless, so walking, running, and
-    // each actor kind's speed all carry into the climb rate.
-    pub climb_speed_ratio: f32,
-}
-
-impl LaddersConfig {
-    fn validate(&self, path: &str) -> Result<()> {
-        validate_positive_finite(self.climb_speed_ratio, &format!("{path}.climb_speed_ratio"))
     }
 }
 
@@ -202,21 +234,12 @@ pub struct CharacterGameplayConfig {
 pub struct PlayerGameplayConfig {
     #[serde(flatten)]
     pub character: CharacterGameplayConfig,
-    pub walk_speed: f32,
-    pub run_speed: f32,
-    // Initial upward velocity of a jump, m/s.
+    // Take-off speed, m/s. Jump height is v² / 2g for the map's gravity, so
+    // a lower-gravity map gives higher jumps.
     pub jump_speed: f32,
     // How long a player stays "dead" (entity despawned, red overlay on the
     // local client) before being respawned at a fresh spawn-zone cell.
     pub respawn_secs: f32,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct ActorGameplayConfig {
-    #[serde(flatten)]
-    pub character: CharacterGameplayConfig,
-    pub roam_speed: f32,
-    pub active_speed: f32,
 }
 
 impl CharacterGameplayConfig {
@@ -253,28 +276,8 @@ impl PlayerGameplayConfig {
 
     fn validate(&self, path: &str) -> Result<()> {
         self.character.validate(path)?;
-        validate_positive_finite(self.walk_speed, &format!("{path}.walk_speed"))?;
-        validate_positive_finite(self.run_speed, &format!("{path}.run_speed"))?;
         validate_positive_finite(self.jump_speed, &format!("{path}.jump_speed"))?;
         validate_positive_finite(self.respawn_secs, &format!("{path}.respawn_secs"))
-    }
-}
-
-impl ActorGameplayConfig {
-    #[must_use]
-    pub const fn physics(&self) -> CharacterPhysicsConfig {
-        self.character.physics()
-    }
-
-    #[must_use]
-    pub const fn eye_height(&self) -> f32 {
-        self.character.eye_height()
-    }
-
-    fn validate(&self, path: &str) -> Result<()> {
-        self.character.validate(path)?;
-        validate_positive_finite(self.roam_speed, &format!("{path}.roam_speed"))?;
-        validate_positive_finite(self.active_speed, &format!("{path}.active_speed"))
     }
 }
 
@@ -375,6 +378,27 @@ impl CharacterPhysicsConfig {
     }
 }
 
+// A per-actor-kind map must name every configured kind (a missing entry
+// silently defaulting is the footgun) and nothing else (a typo).
+fn validate_covers_actor_kinds<'a>(
+    keys: impl Iterator<Item = &'a String>,
+    actors: &HashMap<String, CharacterGameplayConfig>,
+    path: &str,
+) -> Result<()> {
+    let keys: HashSet<&String> = keys.collect();
+    for kind in actors.keys() {
+        if !keys.contains(kind) {
+            bail!("{path} is missing actor kind {kind:?}");
+        }
+    }
+    for kind in keys {
+        if !actors.contains_key(kind) {
+            bail!("{path} contains unknown actor kind {kind:?}");
+        }
+    }
+    Ok(())
+}
+
 fn validate_positive_finite(value: f32, path: &str) -> Result<()> {
     if value.is_finite() && value > 0.0 {
         return Ok(());
@@ -392,6 +416,31 @@ fn validate_non_negative_finite(value: f32, path: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn movement_rejects_missing_actor_kind() {
+        let mut config = GameplayConfig::load_default().expect("default gameplay config should load");
+        config.movement.actors.remove("mine");
+        let err = config
+            .movement
+            .validate(&config.actors)
+            .expect_err("missing kind must fail");
+        assert!(err.to_string().contains("movement.actors"));
+        assert!(err.to_string().contains("mine"));
+    }
+
+    #[test]
+    fn movement_rejects_unknown_actor_kind() {
+        let mut config = GameplayConfig::load_default().expect("default gameplay config should load");
+        let zapper = *config.movement.expect_actor("zapper");
+        config.movement.actors.insert("banana".to_owned(), zapper);
+        let err = config
+            .movement
+            .validate(&config.actors)
+            .expect_err("unknown kind must fail");
+        assert!(err.to_string().contains("movement.actors"));
+        assert!(err.to_string().contains("banana"));
+    }
 
     const fn missiles_config() -> MissilesConfig {
         MissilesConfig {

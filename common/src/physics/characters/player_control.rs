@@ -13,11 +13,12 @@ pub fn player_control_velocity(
         return Vec3::ZERO;
     }
 
+    let player = gameplay_config.movement.player;
     move_intent.to_horizontal_velocity(
-        gameplay_config.player.walk_speed,
-        gameplay_config.player.run_speed,
+        player.walk_speed,
+        player.run_speed,
         has_speed_power_up,
-        gameplay_config.power_ups.speed_multiplier,
+        player.speed_power_up,
     )
 }
 
@@ -40,7 +41,7 @@ mod tests {
 
         assert_eq!(
             player_control_velocity(intent, &gameplay, false, false),
-            Vec3::Z * gameplay.player.walk_speed
+            Vec3::Z * gameplay.movement.player.walk_speed
         );
     }
 }

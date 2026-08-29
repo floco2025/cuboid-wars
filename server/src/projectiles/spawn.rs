@@ -60,6 +60,7 @@ pub fn handle_shot_message(
             let proj_motion = ProjectileMotion::new(
                 spawn_info.direction_yaw,
                 spawn_info.direction_pitch,
+                gameplay_config.movement.projectile_speed,
                 &gameplay_config.projectiles,
             );
 

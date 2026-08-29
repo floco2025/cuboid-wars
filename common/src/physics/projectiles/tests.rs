@@ -16,7 +16,6 @@ fn test_projectile_motion(velocity: Vec3) -> ProjectileMotion {
         lifetime: Timer::from_seconds(TEST_PROJECTILE_LIFETIME, TimerMode::Once),
         left_shooter: false,
         radius: TEST_PROJECTILE_RADIUS,
-        gravity: 9.81,
         drag_factor: 0.01,
         bounce_retention: 0.9,
     }

@@ -41,7 +41,7 @@ pub fn knockback_decay_system(
 ) {
     let delta = time.delta_secs();
     for mut knockback in &mut knockbacks {
-        knockback.decay(delta, gameplay_config.knockback.deceleration);
+        knockback.decay(delta, gameplay_config.movement.knockback.deceleration);
     }
 }
 
@@ -141,7 +141,7 @@ fn plan_player_moves(
                 gravity: map_settings.gravity_for(has_low_gravity),
                 passable_kinds: &passable_kinds,
                 physics: player_physics,
-                ladders: gameplay_config.ladders,
+                ladder_climb_ratio: gameplay_config.movement.ladder_climb_ratio,
             },
         );
         if let Some(info) = players.get_mut(player_id) {

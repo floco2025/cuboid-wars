@@ -117,6 +117,7 @@ pub struct ProjectileMovementParams<'w, 's> {
     player_query: ProjectilePlayerQuery<'w, 's>,
     actor_query: ProjectileActorQuery<'w, 's>,
     collision_world: Res<'w, CollisionWorld>,
+    map_settings: Res<'w, MapSettings>,
     gameplay_config: Res<'w, GameplayConfig>,
     server_gameplay_config: Res<'w, ServerGameplayConfig>,
     quest_board: ResMut<'w, QuestBoard>,
@@ -129,6 +130,7 @@ pub struct ProjectileMovementParams<'w, 's> {
 
 pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut params: ProjectileMovementParams) {
     let delta = time.delta_secs();
+    let gravity = params.map_settings.gravity * params.gameplay_config.projectiles.gravity_scale;
 
     for (proj_entity, mut proj_pos, mut projectile, shooter_id) in &mut params.projectile_query {
         projectile.lifetime.tick(time.delta());
@@ -137,7 +139,7 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
             continue;
         }
 
-        projectile.apply_gravity(delta);
+        projectile.apply_gravity(delta, gravity);
         projectile.apply_drag(delta);
 
         // Arm self-hits once the projectile no longer overlaps the shooter.

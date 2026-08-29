@@ -280,13 +280,18 @@ fn apply_blast(
             }
         }
 
-        vertical_velocity.0 += gameplay.knockback.up_speed * falloff;
+        vertical_velocity.0 += gameplay.movement.knockback.up_speed * falloff;
         accumulate_impulse(
             player_impulses,
             *id,
             entity,
             knockback,
-            planar_shove(spec.center, victim_center, falloff, gameplay.knockback.max_speed),
+            planar_shove(
+                spec.center,
+                victim_center,
+                falloff,
+                gameplay.movement.knockback.max_speed,
+            ),
             falloff,
         );
     }
@@ -314,13 +319,18 @@ fn apply_blast(
             continue;
         }
 
-        vertical_velocity.0 += gameplay.knockback.up_speed * falloff;
+        vertical_velocity.0 += gameplay.movement.knockback.up_speed * falloff;
         accumulate_impulse(
             actor_impulses,
             *id,
             entity,
             knockback,
-            planar_shove(spec.center, victim_center, falloff, gameplay.knockback.max_speed),
+            planar_shove(
+                spec.center,
+                victim_center,
+                falloff,
+                gameplay.movement.knockback.max_speed,
+            ),
             falloff,
         );
     }
@@ -348,7 +358,7 @@ fn accumulate_impulse<Id: std::hash::Hash + Eq + Copy>(
 }
 
 fn apply_player_impulses(context: &mut ExplosionContext, impulses: HashMap<PlayerId, AccumulatedImpulse>) {
-    let max_speed = context.gameplay_config.knockback.max_speed * 1.5;
+    let max_speed = context.gameplay_config.movement.knockback.max_speed * 1.5;
     for (id, impulse) in impulses {
         if context.players.get(&id).is_some_and(|info| info.is_dead()) {
             continue;
@@ -380,7 +390,7 @@ fn apply_player_impulses(context: &mut ExplosionContext, impulses: HashMap<Playe
 }
 
 fn apply_actor_impulses(context: &mut ExplosionContext, impulses: HashMap<ActorId, AccumulatedImpulse>) {
-    let max_speed = context.gameplay_config.knockback.max_speed * 1.5;
+    let max_speed = context.gameplay_config.movement.knockback.max_speed * 1.5;
     for (id, impulse) in impulses {
         if context.actors.get(&id).is_none() {
             continue;

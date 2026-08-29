@@ -16,7 +16,7 @@ use super::{
     types::{CharacterMovementResult, CharacterSupport},
 };
 use crate::{
-    config::{CharacterPhysicsConfig, LaddersConfig},
+    config::CharacterPhysicsConfig,
     constants::{CHARACTER_STEP_HEIGHT, CHARACTER_STEP_MIN_WIDTH, CHARACTER_TERMINAL_VELOCITY, PHYSICS_EPSILON},
     physics::world::CollisionWorld,
     protocol::Position,
@@ -65,7 +65,7 @@ pub struct CharacterEnvironment<'a> {
     pub gravity: f32,
     pub passable_kinds: &'a [crate::protocol::BarrierKindId],
     pub physics: CharacterPhysicsConfig,
-    pub ladders: LaddersConfig,
+    pub ladder_climb_ratio: f32,
 }
 
 #[must_use]
@@ -110,7 +110,7 @@ fn prepare_movement_request(
         step.control_velocity,
         step.delta,
         ground_probe.is_some(),
-        env.ladders,
+        env.ladder_climb_ratio,
     );
     let ascending_ladder = ladder.is_ascending();
     // Climbing suppresses ground following: without this, the ground snap

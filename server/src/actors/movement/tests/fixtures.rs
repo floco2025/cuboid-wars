@@ -53,8 +53,8 @@ pub(crate) fn actor_physics() -> CharacterPhysicsConfig {
 pub(crate) fn actor_speed() -> f32 {
     GameplayConfig::load_default()
         .expect("default gameplay config should load")
-        .actor(TEST_KIND)
-        .expect("test kind missing from default gameplay config")
+        .movement
+        .expect_actor(TEST_KIND)
         .roam_speed
 }
 
@@ -119,13 +119,14 @@ pub(crate) fn context<'a>(
         actor_starts,
         open_barrier_kinds: &[],
         gravity: 25.0,
-        ladders: test_ladders(),
+        ladder_climb_ratio: test_ladders(),
         knockback_step: bevy::prelude::Vec3::ZERO,
     }
 }
 
-pub(crate) fn test_ladders() -> common::config::LaddersConfig {
+pub(crate) fn test_ladders() -> f32 {
     common::config::GameplayConfig::load_default()
         .expect("default gameplay config should load")
-        .ladders
+        .movement
+        .ladder_climb_ratio
 }

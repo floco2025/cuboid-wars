@@ -39,8 +39,8 @@ pub(crate) fn plan_actor_moves(
         let Some(info) = actors.get(id) else {
             continue;
         };
-        let actor_config = gameplay_config.expect_actor(&info.spawn_kind);
-        let actor_physics = actor_config.physics();
+        let actor_physics = gameplay_config.expect_actor(&info.spawn_kind).physics();
+        let actor_movement = gameplay_config.movement.expect_actor(&info.spawn_kind);
         let current_pos = *pos;
         let move_context = ActorMoveContext {
             entity,
@@ -53,12 +53,17 @@ pub(crate) fn plan_actor_moves(
             actor_starts,
             open_barrier_kinds: &open_barrier_kinds.0,
             gravity: map_settings.gravity,
-            ladders: gameplay_config.ladders,
+            ladder_climb_ratio: gameplay_config.movement.ladder_climb_ratio,
             knockback_step: knockback.map_or(Vec3::ZERO, |velocity| velocity.step(delta)),
         };
 
         let mut hold_facing = None;
-        let selected = match desired_move(info, &current_pos, actor_config.roam_speed, actor_config.active_speed) {
+        let selected = match desired_move(
+            info,
+            &current_pos,
+            actor_movement.roam_speed,
+            actor_movement.active_speed,
+        ) {
             ActorDesire::Idle => move_context.idle_move(),
             ActorDesire::HoldFacing { direction } => {
                 hold_facing = Some(direction);

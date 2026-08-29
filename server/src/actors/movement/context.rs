@@ -1,6 +1,6 @@
 use bevy::prelude::{Entity, Vec3};
 use common::{
-    config::{CharacterPhysicsConfig, LaddersConfig},
+    config::CharacterPhysicsConfig,
     physics::{
         CharacterEnvironment, CharacterMovePlan, CharacterMovementResult, CharacterStep, CharacterSupport,
         CollisionWorld, character_move_plan_is_blocked, step_character_movement,
@@ -32,7 +32,7 @@ pub(super) struct ActorMoveContext<'a> {
     pub(super) actor_starts: &'a [(Entity, Position, CharacterPhysicsConfig)],
     pub(super) open_barrier_kinds: &'a [BarrierKindId],
     pub(super) gravity: f32,
-    pub(super) ladders: LaddersConfig,
+    pub(super) ladder_climb_ratio: f32,
     pub(super) knockback_step: Vec3,
 }
 
@@ -88,7 +88,7 @@ impl ActorMoveContext<'_> {
                 gravity: self.gravity,
                 passable_kinds: self.open_barrier_kinds,
                 physics: self.actor_physics,
-                ladders: self.ladders,
+                ladder_climb_ratio: self.ladder_climb_ratio,
             },
         )
     }

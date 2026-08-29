@@ -909,7 +909,7 @@ fn every_shipped_ladder_ascends_at_least_one_storey() {
             };
             let mut vertical_velocity = 0.0;
             let one_storey_up = f32::from(ladder.level + 1) * LEVEL_HEIGHT - 0.05;
-            let speed = gameplay.player.walk_speed;
+            let speed = gameplay.movement.player.walk_speed;
             let mut reached = false;
             for _ in 0..600 {
                 let step = step_character_movement(
@@ -925,7 +925,7 @@ fn every_shipped_ladder_ascends_at_least_one_storey() {
                         gravity: 25.0,
                         passable_kinds: &[],
                         physics,
-                        ladders: gameplay.ladders,
+                        ladder_climb_ratio: gameplay.movement.ladder_climb_ratio,
                     },
                 );
                 pos = step.position;

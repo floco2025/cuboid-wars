@@ -28,8 +28,8 @@ pub(crate) fn plan_player_moves(
     query: &mut PlayerMovementQuery,
     planned_moves: &mut Vec<CharacterMovePlan>,
 ) {
-    let player_config = &gameplay_config.player;
-    let player_physics = player_config.physics();
+    let player_physics = gameplay_config.player.physics();
+    let run_speed = gameplay_config.movement.player.run_speed;
     for (entity, player_id, mut client_pos, move_intent, mut motion, _, mut recon_option, knockback, _) in query {
         // Decay snap_speed each tick; new snapshot speed wins if larger.
         // Persisted on `PlayerInfo`. Deliberately fed by the SERVER velocity
@@ -39,8 +39,7 @@ pub(crate) fn plan_player_moves(
         let current_server_speed = recon_option.as_ref().map_or(0.0, |r| r.server_velocity.xz().length());
         let snap_speed = match players.get_mut(player_id) {
             Some(info) => {
-                info.snap_speed =
-                    decayed_snap_speed(info.snap_speed, current_server_speed, player_config.run_speed, delta);
+                info.snap_speed = decayed_snap_speed(info.snap_speed, current_server_speed, run_speed, delta);
                 info.snap_speed
             }
             None => current_server_speed,
@@ -68,7 +67,7 @@ pub(crate) fn plan_player_moves(
                 recon,
                 control_velocity,
                 delta,
-                player_config.run_speed,
+                run_speed,
                 snap_speed,
             ) {
                 PlayerReconciliationOutcome::Displacement(displacement) => displacement,
@@ -106,7 +105,7 @@ pub(crate) fn plan_player_moves(
                     gravity: map_settings.gravity_for(has_low_gravity),
                     passable_kinds: &passable_kinds,
                     physics: player_physics,
-                    ladders: gameplay_config.ladders,
+                    ladder_climb_ratio: gameplay_config.movement.ladder_climb_ratio,
                 },
             );
             planned_moves.push(CharacterMovePlan::from_movement_result(

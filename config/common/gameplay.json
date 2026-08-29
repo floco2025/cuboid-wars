@@ -3,33 +3,34 @@
     "collider": { "width": 1.0, "height": 1.3, "depth": 0.6, "y_offset": 0.5, "y_offset_anchor": "bottom" },
     "support_probe": { "width": 0.2, "depth": 0.2 },
     "eye_height": 1.62,
-    "walk_speed": 6.0,
-    "run_speed": 9.0,
     "jump_speed": 12.0,
     "respawn_secs": 2.0
   },
+  "movement": {
+    "player": { "walk_speed": 6.0, "run_speed": 9.0, "speed_power_up": 1.6 },
+    "actors": {
+      "mine": { "roam_speed": 3.0, "active_speed": 5.0 },
+      "sentry": { "roam_speed": 6.0, "active_speed": 9.0 },
+      "reaper": { "roam_speed": 6.0, "active_speed": 9.0 },
+      "zapper": { "roam_speed": 2.0, "active_speed": 4.0 }
+    },
+    "missile_speed": 16.0,
+    "projectile_speed": 70.0,
+    "ladder_climb_ratio": 0.5,
+    "knockback": { "max_speed": 15.0, "up_speed": 7.0, "deceleration": 35.0 }
+  },
   "projectiles": {
-    "speed": 70.0,
     "lifetime_secs": 8.0,
     "spawn_offset": 1.0,
     "radius": 0.11,
     "cooldown_secs": 0.1,
-    "gravity": 9.81,
+    "gravity_scale": 0.4,
     "drag_factor": 0.01,
     "bounce_retention": 0.9
   },
   "power_ups": {
-    "speed_multiplier": 1.8,
     "multi_shot_count": 5,
     "multi_shot_angle_degrees": 1.5
-  },
-  "knockback": {
-    "max_speed": 15.0,
-    "up_speed": 7.0,
-    "deceleration": 35.0
-  },
-  "ladders": {
-    "climb_speed_ratio": 0.7
   },
   "missiles": {
     "lock_range": 100.0,
@@ -41,30 +42,22 @@
     "mine": {
       "collider": { "width": 1.0, "height": 1.0, "depth": 1.0, "y_offset": 1.1, "y_offset_anchor": "center" },
       "support_probe": { "width": 0.2, "depth": 0.2 },
-      "eye_height": 1.6,
-      "roam_speed": 3.0,
-      "active_speed": 5.0
+      "eye_height": 1.6
     },
     "sentry": {
       "collider": { "width": 1.785, "height": 1.0, "depth": 1.428, "y_offset": 0.45, "y_offset_anchor": "bottom" },
       "support_probe": { "width": 0.2, "depth": 0.2 },
-      "eye_height": 1.6,
-      "roam_speed": 6.0,
-      "active_speed": 9.0
+      "eye_height": 1.6
     },
     "reaper": {
       "collider": { "width": 2.142, "height": 1.2, "depth": 1.7136, "y_offset": 0.54, "y_offset_anchor": "bottom" },
       "support_probe": { "width": 0.2, "depth": 0.2 },
-      "eye_height": 1.92,
-      "roam_speed": 6.0,
-      "active_speed": 9.0
+      "eye_height": 1.92
     },
     "zapper": {
       "collider": { "width": 0.3, "height": 0.3, "depth": 0.3, "y_offset": 1.45, "y_offset_anchor": "center" },
       "support_probe": { "width": 0.2, "depth": 0.2 },
-      "eye_height": 1.6,
-      "roam_speed": 2.0,
-      "active_speed": 4.0
+      "eye_height": 1.6
     }
   },
   "barrier_kinds": [ "treasure", "basement", "gravity", "lobby" ]

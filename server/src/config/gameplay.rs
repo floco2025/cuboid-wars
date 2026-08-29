@@ -85,18 +85,17 @@ impl ServerGameplayConfig {
     }
 }
 
-// Server-only missile flight and guidance tuning. The client-visible half
-// (lock range, max ammo) lives in `config/common/gameplay.json`; the blast
-// is `combat.damage.missile_blast`.
+// Server-only missile guidance tuning. Speed is `movement.missile_speed`
+// and the client-visible half (lock range, max ammo) lives beside it in
+// `config/common/gameplay.json`; the blast is `combat.damage.missile_blast`.
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct MissilesServerConfig {
-    pub speed: f32,
-    // Max steering rate, rad/s. Turn radius = speed / turn_rate; keep it
-    // under half a grid cell (1.7 m) so missiles can corner in corridors.
-    // A turn circle wider than `proximity_fuse_distance` can orbit after an
-    // overshoot; approach passes still cross the fuse, so this is a feel
-    // trade-off, not a hard invariant.
-    pub turn_rate: f32,
+    // Steering circle, m. Keep it under half a grid cell (1.7 m) so
+    // missiles can corner in corridors. A circle wider than
+    // `proximity_fuse_distance` can orbit after an overshoot; approach
+    // passes still cross the fuse, so this is a feel trade-off, not a hard
+    // invariant.
+    pub turn_radius: f32,
     pub lifetime_secs: f32,
     // Max random deviation of the launch direction from the aim (degrees).
     // Missiles leave visibly off-axis and let the steering curve them in;
@@ -117,8 +116,7 @@ pub struct MissilesServerConfig {
 
 impl MissilesServerConfig {
     fn validate(&self, path: &str) -> Result<()> {
-        validate_positive_finite(self.speed, &format!("{path}.speed"))?;
-        validate_positive_finite(self.turn_rate, &format!("{path}.turn_rate"))?;
+        validate_positive_finite(self.turn_radius, &format!("{path}.turn_radius"))?;
         validate_positive_finite(self.lifetime_secs, &format!("{path}.lifetime_secs"))?;
         if !(self.launch_spread_degrees.is_finite() && (0.0..=90.0).contains(&self.launch_spread_degrees)) {
             bail!(

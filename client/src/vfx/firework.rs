@@ -378,7 +378,7 @@ pub fn firework_system(
                     spawn_ember_projectile(
                         &mut commands,
                         &assets.projectile_assets,
-                        &vfx.gameplay_config.projectiles,
+                        &vfx.gameplay_config,
                         pos,
                         velocity,
                         shooter,

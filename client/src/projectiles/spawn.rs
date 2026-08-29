@@ -3,7 +3,7 @@ use bevy::prelude::*;
 
 use crate::characters::PreviousTickPosition;
 use common::{
-    config::{GameplayConfig, ProjectilesConfig},
+    config::GameplayConfig,
     physics::{CollisionWorld, ProjectileMotion, ProjectileSpawnInfo, calculate_projectile_spawns},
     protocol::*,
 };
@@ -61,7 +61,7 @@ struct ProjectileBundle {
 impl ProjectileBundle {
     fn new(
         projectile_assets: &ProjectileAssets,
-        config: &ProjectilesConfig,
+        gameplay: &GameplayConfig,
         position: Vec3,
         direction_yaw: f32,
         direction_pitch: f32,
@@ -73,7 +73,12 @@ impl ProjectileBundle {
             transform: Transform::from_translation(position),
             position: position.into(),
             previous_tick_position: PreviousTickPosition(position.into()),
-            proj_motion: ProjectileMotion::new(direction_yaw, direction_pitch, config),
+            proj_motion: ProjectileMotion::new(
+                direction_yaw,
+                direction_pitch,
+                gameplay.movement.projectile_speed,
+                &gameplay.projectiles,
+            ),
             player_id: shooter_id,
             proj_marker: ProjectileMarker,
         }
@@ -88,14 +93,14 @@ const EMBER_LIFETIME_SECS: f32 = 6.0;
 pub fn spawn_ember_projectile(
     commands: &mut Commands,
     projectile_assets: &ProjectileAssets,
-    config: &ProjectilesConfig,
+    gameplay: &GameplayConfig,
     pos: Vec3,
     velocity: Vec3,
     shooter: Option<PlayerId>,
 ) {
     let mut bundle = ProjectileBundle::new(
         projectile_assets,
-        config,
+        gameplay,
         pos,
         0.0,
         0.0,
@@ -140,13 +145,7 @@ pub fn spawn_projectiles(
     );
 
     for spawn_info in &spawns {
-        spawn_single_projectile(
-            commands,
-            projectile_assets,
-            &gameplay.projectiles,
-            spawn_info,
-            shooter_id,
-        );
+        spawn_single_projectile(commands, projectile_assets, gameplay, spawn_info, shooter_id);
     }
 
     spawns.len()
@@ -156,7 +155,7 @@ pub fn spawn_projectiles(
 fn spawn_single_projectile(
     commands: &mut Commands,
     projectile_assets: &ProjectileAssets,
-    config: &ProjectilesConfig,
+    gameplay: &GameplayConfig,
     spawn_info: &ProjectileSpawnInfo,
     shooter_id: PlayerId,
 ) {
@@ -164,7 +163,7 @@ fn spawn_single_projectile(
 
     commands.spawn(ProjectileBundle::new(
         projectile_assets,
-        config,
+        gameplay,
         spawn_pos,
         spawn_info.direction_yaw,
         spawn_info.direction_pitch,

@@ -111,6 +111,7 @@ pub fn handle_missile_shot_message(
     commands.entity(entity).insert(FaceYaw(msg.face_yaw));
 
     let missile_config = server_gameplay_config.missiles;
+    let missile_speed = gameplay_config.movement.missile_speed;
     let dir = aim;
     // An unguided shot flies exactly where aimed — random spread would just
     // make it useless.
@@ -127,13 +128,13 @@ pub fn handle_missile_shot_message(
         dir,
         spread,
         muzzle,
-        missile_config.speed * LAUNCH_CLEAR_SECS,
+        missile_speed * LAUNCH_CLEAR_SECS,
         MISSILE_RADIUS,
         collision_world,
         &open_barrier_kinds.0,
         &mut rand::rng(),
     );
-    let velocity = launch_dir * missile_config.speed;
+    let velocity = launch_dir * missile_speed;
 
     let weave_phase = rand::rng().random_range(0.0..TAU);
     let missile_id = missiles.allocate();

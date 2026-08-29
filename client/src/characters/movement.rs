@@ -33,7 +33,7 @@ pub fn knockback_decay_system(
 ) {
     let delta = time.delta_secs();
     for mut knockback in &mut knockbacks {
-        knockback.decay(delta, gameplay_config.knockback.deceleration);
+        knockback.decay(delta, gameplay_config.movement.knockback.deceleration);
     }
 }
 

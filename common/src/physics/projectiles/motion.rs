@@ -23,30 +23,28 @@ pub struct ProjectileMotion {
     // Flight tuning copied from `ProjectilesConfig` at spawn so the pure
     // motion methods need no config threading.
     pub(super) radius: f32,
-    pub(super) gravity: f32,
     pub(super) drag_factor: f32,
     pub(super) bounce_retention: f32,
 }
 
 impl ProjectileMotion {
     #[must_use]
-    pub fn new(face_yaw: f32, face_pitch: f32, config: &ProjectilesConfig) -> Self {
-        let velocity = crate::math::direction_from_yaw_pitch(face_yaw, face_pitch) * config.speed;
+    pub fn new(face_yaw: f32, face_pitch: f32, speed: f32, config: &ProjectilesConfig) -> Self {
+        let velocity = crate::math::direction_from_yaw_pitch(face_yaw, face_pitch) * speed;
 
         Self {
             velocity,
             lifetime: Timer::from_seconds(config.lifetime_secs, TimerMode::Once),
             left_shooter: false,
             radius: config.radius,
-            gravity: config.gravity,
             drag_factor: config.drag_factor,
             bounce_retention: config.bounce_retention,
         }
     }
 
-    pub fn apply_gravity(&mut self, delta: f32) {
-        if self.gravity > 0.0 {
-            self.velocity.y -= self.gravity * delta;
+    pub fn apply_gravity(&mut self, delta: f32, gravity: f32) {
+        if gravity > 0.0 {
+            self.velocity.y -= gravity * delta;
         }
     }
 

@@ -19,7 +19,7 @@ fn player_hits_wall_collider_from_collision_world() {
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
-            ladders: test_ladders(),
+            ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
         },
     );
@@ -46,7 +46,7 @@ fn repeated_wall_pressure_does_not_leak_through_wall() {
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
-            ladders: test_ladders(),
+            ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
         },
     );
@@ -56,7 +56,7 @@ fn repeated_wall_pressure_does_not_leak_through_wall() {
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
-            ladders: test_ladders(),
+            ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
         },
     );
@@ -84,7 +84,7 @@ fn player_slides_along_wall_under_pressure() {
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
-            ladders: test_ladders(),
+            ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
         },
     );
@@ -94,7 +94,7 @@ fn player_slides_along_wall_under_pressure() {
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
-            ladders: test_ladders(),
+            ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
         },
     );
@@ -121,7 +121,7 @@ fn falling_player_pushing_into_wall_keeps_falling() {
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
-            ladders: test_ladders(),
+            ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
         },
     );
@@ -150,7 +150,7 @@ fn diagonal_wall_hit_slides_in_same_step() {
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
-            ladders: test_ladders(),
+            ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
         },
     );
@@ -194,7 +194,7 @@ fn repeated_diagonal_wall_pressure_keeps_sliding() {
                 collision_world: &collision_world,
                 gravity: TEST_GRAVITY,
                 passable_kinds: &[],
-                ladders: test_ladders(),
+                ladder_climb_ratio: test_ladders(),
                 physics: player_physics(),
             },
         );
@@ -222,7 +222,7 @@ fn diagonal_wall_end_hit_slides_along_wall() {
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
-            ladders: test_ladders(),
+            ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
         },
     );

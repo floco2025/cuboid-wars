@@ -415,8 +415,7 @@ mod tests {
                 },
             },
             missiles: MissilesServerConfig {
-                speed: 12.0,
-                turn_rate: 7.0,
+                turn_radius: 1.7,
                 lifetime_secs: 10.0,
                 launch_spread_degrees: 50.0,
                 weave_strength: 0.35,
