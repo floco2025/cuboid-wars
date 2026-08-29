@@ -15,9 +15,9 @@ use common::{
     protocol::{BarrierKindTable, CAdmin, FeedEvent, Health, ItemType, PlayerId, PowerUpKind},
 };
 
-// One command per line; the client renders the reply as one multi-line
-// feed row.
-const HELP_TEXT: &str = "/help\n/weather [rain|clear|auto]\n/light [bright|dim|dark|auto|<0..1>|<from> <to> <0..1>]\n/god [on|off]\n/kill <name>|@a\n/killall [kind]\n/respawn [kind]\n/heal [name|@a]\n/give keys|key <color>\n/give powerups|powerup <type>\n/give missiles\n/firework\n/kick <name>";
+// One command form per line (long ones split); the client renders the
+// reply as one multi-line feed row.
+const HELP_TEXT: &str = "/help\n/weather [rain|clear|auto]\n/light [bright|dim|dark|auto]\n/light <0..1>|<from> <to> <0..1>\n/god [on|off]\n/kill <name>|@a\n/killall [kind]\n/respawn [kind]\n/heal [name|@a]\n/give keys|key <color>\n/give powerups|powerup <type>\n/give missiles\n/firework\n/kick <name>";
 
 // Authorization seam. Deliberately wide open for now — every client is an
 // admin; tighten here (role on `PlayerInfo`, config allowlist, …) without
@@ -257,7 +257,7 @@ fn run_admin_command(
         },
         AdminCommand::LightStatus => Private(admin.light.status()),
         AdminCommand::LightUsage => {
-            Private("usage: /light [bright|dim|dark|auto|<0..1>|<from> <to> <0..1>]".to_owned())
+            Private("usage: /light [bright|dim|dark|auto]\n       /light <0..1>|<from> <to> <0..1>".to_owned())
         }
         AdminCommand::God(explicit) => {
             let enabled = explicit.unwrap_or(!admin.invincibility.0);
