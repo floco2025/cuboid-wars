@@ -106,7 +106,7 @@ pub struct Ladder {
 // distinct from keys (per-player filter). Firework plates launch the show
 // once enough players stand on them. Thresholds live on the server; clients
 // receive the open kinds via `SSnapshot` and the show via `SFirework`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encode, Decode)]
 pub enum PlatePurpose {
     Barrier(BarrierKindId),
     Firework,

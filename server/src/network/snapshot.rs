@@ -77,7 +77,7 @@ pub fn network_broadcast_snapshot_system(
         missiles: all_missiles,
         open_barrier_kinds: open_barrier_kinds.0.clone(),
         quests: conditions.quests.snapshot(&conditions.config.quests, &players),
-        firework_plates_active: conditions.quests.fireworks_active(&conditions.config.quests),
+        locked_plate_purposes: conditions.quests.locked_plate_purposes(&conditions.config.quests),
         rain_intensity: conditions.weather.intensity(),
         lighting: conditions.light.blend(),
     });

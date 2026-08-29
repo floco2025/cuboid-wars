@@ -204,8 +204,10 @@ pub struct SSnapshot {
     // (completions are latched for the session) so late joiners and dropped
     // cues self-heal.
     pub quests: Vec<QuestGroupStatus>,
-    // Firework plates are inert and hidden until the fireworks quest unlocks.
-    pub firework_plates_active: bool,
+    // Plate purposes still locked behind a quest: the plates that solve a
+    // quest are inert and hidden until that quest unlocks. Sorted, usually
+    // empty.
+    pub locked_plate_purposes: Vec<PlatePurpose>,
     // Server-scheduled weather, 0.0 (clear) to 1.0 (full rain). Durable
     // level-triggered state, so it rides the snapshot — late joiners enter
     // mid-storm correctly and a dropped packet self-heals. Clients smooth

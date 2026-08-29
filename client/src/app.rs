@@ -7,7 +7,7 @@ use bevy::{
 
 use crate::{
     actors::{ActorGhostMap, ActorMap},
-    barriers::{FireworkPlatesActive, OpenBarrierKinds, setup_barrier_assets},
+    barriers::{LockedPlatePurposes, OpenBarrierKinds, setup_barrier_assets},
     cameras::{CameraViewMode, TopDownCameraYaw, setup_cameras_system},
     characters::{character_sync_plugin, prediction_plugin},
     config::{AssetSet, ClientSettings, OpaqueRenderer},
@@ -77,7 +77,7 @@ pub fn build_client_app(
         .insert_resource(FpsMeasurement::default())
         .insert_resource(LastSnapshotSeq::default())
         .insert_resource(OpenBarrierKinds::default())
-        .insert_resource(FireworkPlatesActive::default())
+        .insert_resource(LockedPlatePurposes::default())
         .insert_resource(CameraViewMode::default())
         .insert_resource(TopDownCameraYaw::default())
         .insert_resource(LevelFocusEnabled::default())

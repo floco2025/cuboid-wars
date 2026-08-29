@@ -1,12 +1,9 @@
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use bevy::prelude::Resource;
 
-use crate::{
-    config::{Quest, QuestKind},
-    players::PlayerMap,
-};
-use common::protocol::{QuestGroupStatus, QuestId, QuestScope};
+use crate::{config::Quest, players::PlayerMap};
+use common::protocol::{PlatePurpose, QuestGroupStatus, QuestId, QuestScope};
 
 #[derive(Debug, Clone, Default)]
 pub struct GroupQuestState {
@@ -68,14 +65,20 @@ impl QuestBoard {
         self.state(id).shared_progress
     }
 
-    // Firework plates are inert until the fireworks quest unlocks; a catalog
-    // without one leaves them always active.
+    // Plate purposes still locked: a purpose claimed by a quest (the plates
+    // that solve it) waits for one of those quests to unlock; unclaimed
+    // purposes are never locked. Sorted so snapshots diff stably.
     #[must_use]
-    pub fn fireworks_active(&self, quests: &[Quest]) -> bool {
-        quests
-            .iter()
-            .filter(|quest| quest.kind == QuestKind::Fireworks)
-            .all(|quest| self.is_unlocked(&quest.id))
+    pub fn locked_plate_purposes(&self, quests: &[Quest]) -> Vec<PlatePurpose> {
+        let claimed: BTreeSet<PlatePurpose> = quests.iter().filter_map(|quest| quest.kind.plate_purpose()).collect();
+        claimed
+            .into_iter()
+            .filter(|purpose| {
+                !quests
+                    .iter()
+                    .any(|quest| quest.kind.plate_purpose() == Some(*purpose) && self.is_unlocked(&quest.id))
+            })
+            .collect()
     }
 
     // Group status of every unlocked group-scoped quest, for the snapshot.
@@ -184,12 +187,15 @@ mod tests {
     }
 
     #[test]
-    fn fireworks_active_follows_the_fireworks_quest_unlock() {
+    fn locked_plate_purposes_follow_the_claiming_quests() {
         let config = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
         let mut board = QuestBoard::from_quests(&config.quests);
-        assert!(!board.fireworks_active(&config.quests));
+        assert_eq!(board.locked_plate_purposes(&config.quests), [PlatePurpose::Firework]);
         board.unlock(&QuestId("start_fireworks".to_owned()));
-        assert!(board.fireworks_active(&config.quests));
-        assert!(board.fireworks_active(&[]), "no fireworks quest means always active");
+        assert!(board.locked_plate_purposes(&config.quests).is_empty());
+        assert!(
+            board.locked_plate_purposes(&[]).is_empty(),
+            "unclaimed purposes are never locked"
+        );
     }
 }

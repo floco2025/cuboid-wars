@@ -4,7 +4,7 @@ use anyhow::{Result, bail};
 use serde::Deserialize;
 
 use super::actors::ActorKindServerConfig;
-use common::protocol::{QuestId, QuestScope};
+use common::protocol::{PlatePurpose, QuestId, QuestScope};
 
 // One quest the server assigns to a player. Server-only: the wire ships only
 // the per-quest `title` / `description` / `completed_text` strings (plus
@@ -37,6 +37,24 @@ pub enum QuestKind {
     ActorKills,
     // Completed when the firework plates launch the show (`/firework` doesn't count).
     Fireworks,
+}
+
+impl QuestKind {
+    // The plate purpose whose plates solve this kind of quest, if any. Those
+    // plates stay locked until such a quest unlocks.
+    #[must_use]
+    pub fn plate_purpose(self) -> Option<PlatePurpose> {
+        match self {
+            Self::Fireworks => Some(PlatePurpose::Firework),
+            Self::Cookies | Self::ActorKills => None,
+        }
+    }
+
+    // Whether a player causes the event that advances this kind.
+    #[must_use]
+    pub fn has_actor(self) -> bool {
+        !matches!(self, Self::Fireworks)
+    }
 }
 
 pub(super) fn validate_quests(quests: &[Quest], actors: &HashMap<String, ActorKindServerConfig>) -> Result<()> {
@@ -73,10 +91,13 @@ pub(super) fn validate_quests(quests: &[Quest], actors: &HashMap<String, ActorKi
             }
             _ => {}
         }
-        // The firework launch has no acting player, so only a pooled counter
-        // can consume it.
-        if quest.kind == QuestKind::Fireworks && quest.scope != QuestScope::Shared {
-            bail!("{path}: a fireworks quest must have scope `shared`");
+        // A world event has no acting player, so only a pooled counter can
+        // consume it.
+        if !quest.kind.has_actor() && quest.scope != QuestScope::Shared {
+            bail!(
+                "{path}: a {:?} quest is advanced by a world event and must have scope `shared`",
+                quest.kind
+            );
         }
         if let Some(required) = &quest.requires {
             if required == &quest.id {

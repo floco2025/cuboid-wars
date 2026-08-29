@@ -127,8 +127,8 @@ pub(super) fn handle_snapshot_message(
     if msg.open_barrier_kinds != client_assets.world_sync.open_barrier_kinds.0 {
         client_assets.world_sync.open_barrier_kinds.0 = msg.open_barrier_kinds.clone();
     }
-    if client_assets.world_sync.firework_plates_active.0 != msg.firework_plates_active {
-        client_assets.world_sync.firework_plates_active.0 = msg.firework_plates_active;
+    if client_assets.world_sync.locked_plate_purposes.0 != msg.locked_plate_purposes {
+        client_assets.world_sync.locked_plate_purposes.0 = msg.locked_plate_purposes.clone();
     }
 
     // Weather and lighting targets; `rain_smoothing_system` and

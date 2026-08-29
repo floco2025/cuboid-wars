@@ -171,7 +171,7 @@ pub fn handle_login_message(
                 // Real values, like weather and lighting below: a late joiner
                 // must see completed quests and active plates immediately.
                 quests: quest_board.snapshot(&world.server_gameplay_config.quests, players),
-                firework_plates_active: quest_board.fireworks_active(&world.server_gameplay_config.quests),
+                locked_plate_purposes: quest_board.locked_plate_purposes(&world.server_gameplay_config.quests),
                 // Weather and lighting are real so a dark or rainy map
                 // doesn't flash bright and dry before the first broadcast.
                 rain_intensity,

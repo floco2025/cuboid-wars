@@ -92,11 +92,11 @@ pub fn pressure_plates_system(
 
     // Per-tick: who holds each plate (the first alive player found on it).
     // Inactive plates are skipped outright, so they neither click nor count.
-    let fireworks_active = quest_board.fireworks_active(&server_gameplay_config.quests);
+    let locked = quest_board.locked_plate_purposes(&server_gameplay_config.quests);
     let plates = &map_config.pressure_plates;
     let mut holders: HashMap<usize, PlayerId> = HashMap::new();
     for (idx, plate) in plates.iter().enumerate() {
-        if !plate_active(plate, fireworks_active) {
+        if !plate_active(plate, &locked) {
             continue;
         }
         let holder = players.iter().find(|(_, info)| {
@@ -204,10 +204,9 @@ fn firework_plates_ready(plates: usize, held: usize, alive: usize) -> bool {
     plates > 0 && alive > 0 && held >= plates.min(alive)
 }
 
-// Firework plates only exist for the players once the fireworks quest is
-// unlocked; barrier plates are always live.
-fn plate_active(plate: &PressurePlateRuntime, fireworks_active: bool) -> bool {
-    fireworks_active || plate.purpose != PlatePurpose::Firework
+// Plates that solve a still-locked quest don't exist for the players yet.
+fn plate_active(plate: &PressurePlateRuntime, locked: &[PlatePurpose]) -> bool {
+    !locked.contains(&plate.purpose)
 }
 
 fn held_count_per_kind(held: &HashSet<usize>, plates: &[PressurePlateRuntime]) -> HashMap<BarrierKindId, usize> {
@@ -471,7 +470,7 @@ mod firework_quest_tests {
     }
 
     #[test]
-    fn locked_firework_plates_are_inert() {
+    fn plates_of_locked_purposes_are_inert() {
         let firework = PressurePlateRuntime {
             level: 0,
             col: 0,
@@ -484,9 +483,10 @@ mod firework_quest_tests {
             row: 0,
             purpose: PlatePurpose::Barrier(BarrierKindId(0)),
         };
-        assert!(!plate_active(&firework, false));
-        assert!(plate_active(&firework, true));
-        assert!(plate_active(&barrier, false));
+        let locked = [PlatePurpose::Firework];
+        assert!(!plate_active(&firework, &locked));
+        assert!(plate_active(&barrier, &locked));
+        assert!(plate_active(&firework, &[]));
     }
 
     #[test]

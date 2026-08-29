@@ -10,34 +10,32 @@ use common::{
 #[derive(Component)]
 pub struct PressurePlateMarker;
 
-// The plate's purpose, so the visibility gate can find firework plates.
+// The plate's purpose, matched against the snapshot's locked purposes.
 #[derive(Component)]
 pub struct PlatePurposeMarker(pub PlatePurpose);
 
-// Snapshot state: firework plates are hidden (and inert server-side) until
-// the fireworks quest unlocks.
+// Snapshot state: plate purposes still locked behind a quest. Their plates
+// are hidden here and inert server-side.
 #[derive(Resource, Default)]
-pub struct FireworkPlatesActive(pub bool);
+pub struct LockedPlatePurposes(pub Vec<PlatePurpose>);
 
-fn plate_visibility(purpose: PlatePurpose, fireworks_active: bool) -> Visibility {
-    if purpose == PlatePurpose::Firework && !fireworks_active {
+fn plate_visibility(purpose: PlatePurpose, locked: &[PlatePurpose]) -> Visibility {
+    if locked.contains(&purpose) {
         Visibility::Hidden
     } else {
         Visibility::Visible
     }
 }
 
-// Runs after the spawn system so a re-spawn can't leave a locked firework
-// plate visible for a frame. Level focus never touches plates, so writing
-// both directions here races nothing.
+// Runs after the spawn system so a re-spawn can't leave a locked plate
+// visible for a frame. Level focus never touches plates, so writing both
+// directions here races nothing.
 pub fn pressure_plates_visibility_system(
-    active: Res<FireworkPlatesActive>,
+    locked: Res<LockedPlatePurposes>,
     mut plates: Query<(&PlatePurposeMarker, &mut Visibility), With<PressurePlateMarker>>,
 ) {
     for (purpose, mut visibility) in &mut plates {
-        if purpose.0 == PlatePurpose::Firework {
-            visibility.set_if_neq(plate_visibility(purpose.0, active.0));
-        }
+        visibility.set_if_neq(plate_visibility(purpose.0, &locked.0));
     }
 }
 
@@ -74,7 +72,7 @@ pub fn pressure_plates_spawn_system(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut plate_assets: Local<Option<PlateAssets>>,
     existing: Query<Entity, With<PressurePlateMarker>>,
-    active: Res<FireworkPlatesActive>,
+    locked: Res<LockedPlatePurposes>,
 ) {
     let Some(layout) = map_layout else { return };
     let Some(assets) = barrier_assets else { return };
@@ -112,7 +110,7 @@ pub fn pressure_plates_spawn_system(
                 PlatePurposeMarker(plate.purpose),
                 MapLevel(plate.level),
                 Transform::from_translation(Vec3::new(plate.center_x, floor_y, plate.center_z)),
-                plate_visibility(plate.purpose, active.0),
+                plate_visibility(plate.purpose, &locked.0),
             ))
             .with_children(|parent| {
                 parent.spawn((

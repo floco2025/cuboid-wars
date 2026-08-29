@@ -158,7 +158,7 @@ pub struct WorldSyncState<'w, 's> {
     pub explosion_vfx_budget: ResMut<'w, ExplosionVfxBudget>,
     pub map_layout: Option<Res<'w, MapLayout>>,
     pub open_barrier_kinds: ResMut<'w, crate::barriers::OpenBarrierKinds>,
-    pub firework_plates_active: ResMut<'w, crate::barriers::FireworkPlatesActive>,
+    pub locked_plate_purposes: ResMut<'w, crate::barriers::LockedPlatePurposes>,
     pub rain_intensity: ResMut<'w, crate::vfx::RainIntensity>,
     pub lighting: ResMut<'w, crate::map::skybox::LightingState>,
     pub actor_ghosts: ResMut<'w, ActorGhostMap>,
