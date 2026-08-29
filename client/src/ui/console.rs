@@ -11,7 +11,7 @@ use bevy::{
 
 use crate::{
     config::ClientSettings,
-    constants::CONSOLE_TEXT_COLOR,
+    constants::{CONSOLE_TEXT_COLOR, FEED_CHAT_TEXT_COLOR},
     network::{ClientToServer, ClientToServerChannel},
 };
 use common::{
@@ -199,15 +199,25 @@ pub fn console_input_system(
     }
 }
 
+// The prompt reads as what it will send: chat in the chat color, a `/`
+// command in the admin color.
 pub fn ui_console_render_system(
     console: Res<ConsoleState>,
-    node: Single<(&mut Text, &mut Visibility), With<ConsoleMarker>>,
+    node: Single<(&mut Text, &mut TextColor, &mut Visibility), With<ConsoleMarker>>,
 ) {
-    let (mut text, mut visibility) = node.into_inner();
+    let (mut text, mut color, mut visibility) = node.into_inner();
     if console.open {
         let line = prompt(&console.buffer);
         if text.0 != line {
             text.0 = line;
+        }
+        let wanted = if console.buffer.starts_with('/') {
+            CONSOLE_TEXT_COLOR
+        } else {
+            FEED_CHAT_TEXT_COLOR
+        };
+        if color.0 != wanted {
+            color.0 = wanted;
         }
     }
     visibility.set_if_neq(if console.open {

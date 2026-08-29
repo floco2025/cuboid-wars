@@ -161,8 +161,8 @@ pub const FEED_TEXT_COLOR: Color = Color::srgba(0.85, 0.85, 0.85, 1.0);
 pub const FEED_DIM_TEXT_COLOR: Color = Color::srgba(0.6, 0.6, 0.6, 1.0);
 // Full white so player speech stands apart from system lines.
 pub const FEED_CHAT_TEXT_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 1.0);
-// The console prompt and the admin lines it produces share one color so
-// they read as one unit.
+// A command in the console prompt and the admin lines it produces share one
+// color so they read as one unit (chat in the prompt uses the chat color).
 pub const CONSOLE_TEXT_COLOR: Color = Color::srgba(1.0, 0.85, 0.4, 1.0);
 
 // ============================================================================

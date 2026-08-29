@@ -151,6 +151,7 @@ pub fn network_process_client_messages_system(
                         &open_barrier_kinds,
                         &mut pending_actor_spawns,
                         &mut admin,
+                        &mut quest_board,
                     );
                 } else {
                     handle_login_message(

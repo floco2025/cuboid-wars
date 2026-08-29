@@ -14,6 +14,7 @@ use crate::{
     network::ServerToClient,
     players::{PlayerInfo, PlayerMap},
     projectiles::handle_shot_message,
+    quests::QuestBoard,
 };
 use common::{
     config::GameplayConfig,
@@ -41,6 +42,7 @@ pub fn dispatch_message(
     open_barrier_kinds: &OpenBarrierKinds,
     pending_actor_spawns: &mut PendingActorSpawns,
     admin: &mut AdminContext,
+    quest_board: &mut QuestBoard,
 ) {
     // Dead players have a despawned entity; queueing entity-targeted
     // commands against the stale `entity` would panic when Bevy applies the
@@ -129,6 +131,7 @@ pub fn dispatch_message(
                 &world.gameplay_config,
                 &world.map_config,
                 pending_actor_spawns,
+                quest_board,
                 &msg,
             );
         }

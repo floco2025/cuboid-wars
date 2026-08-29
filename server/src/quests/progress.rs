@@ -97,21 +97,37 @@ fn affected<'a>(
 // Adds one to the player's own count and tells them; `None` when the player
 // is gone, isn't assigned, or already finished their part.
 fn bump_own_progress(players: &mut PlayerMap, actor: PlayerId, quest: &Quest) -> Option<u32> {
+    let current = players.get(&actor)?.quest_states.get(&quest.id).copied()?;
+    raise_own_progress(players, actor, quest, current.saturating_add(1))
+}
+
+// Raises the player's own count to `to` (capped at the threshold, never
+// lowered) and tells them; `None` when nothing changed.
+fn raise_own_progress(players: &mut PlayerMap, actor: PlayerId, quest: &Quest, to: u32) -> Option<u32> {
     let info = players.get_mut(&actor)?;
     let progress = info.quest_states.get_mut(&quest.id)?;
-    if *progress >= quest.threshold {
+    let to = to.min(quest.threshold);
+    if *progress >= to {
         return None;
     }
-    *progress = progress.saturating_add(1);
-    let progress = *progress;
-    send(info, progress_message(quest, progress));
-    Some(progress)
+    *progress = to;
+    send(info, progress_message(quest, to));
+    Some(to)
 }
 
 fn advance_individual(players: &mut PlayerMap, config: &ServerGameplayConfig, actor: PlayerId, quest: &Quest) {
-    let Some(progress) = bump_own_progress(players, actor, quest) else {
-        return;
-    };
+    if let Some(progress) = bump_own_progress(players, actor, quest) {
+        settle_individual(players, config, actor, quest, progress);
+    }
+}
+
+fn settle_individual(
+    players: &mut PlayerMap,
+    config: &ServerGameplayConfig,
+    actor: PlayerId,
+    quest: &Quest,
+    progress: u32,
+) {
     if progress < quest.threshold {
         return;
     }
@@ -137,9 +153,19 @@ fn advance_everyone(
     actor: PlayerId,
     quest: &Quest,
 ) {
-    let Some(progress) = bump_own_progress(players, actor, quest) else {
-        return;
-    };
+    if let Some(progress) = bump_own_progress(players, actor, quest) {
+        settle_everyone(players, board, config, actor, quest, progress);
+    }
+}
+
+fn settle_everyone(
+    players: &mut PlayerMap,
+    board: &mut QuestBoard,
+    config: &ServerGameplayConfig,
+    actor: PlayerId,
+    quest: &Quest,
+    progress: u32,
+) {
     if progress < quest.threshold {
         return;
     }
@@ -192,19 +218,71 @@ fn unlock_dependents(
     completed: &QuestId,
 ) {
     for (order, quest) in catalog(&config.quests) {
-        if quest.requires.as_ref() != Some(completed) || board.is_unlocked(&quest.id) {
+        if quest.requires.as_ref() == Some(completed) && !board.is_unlocked(&quest.id) {
+            unlock(players, board, quest, order);
+        }
+    }
+}
+
+fn unlock(players: &mut PlayerMap, board: &mut QuestBoard, quest: &Quest, order: u32) {
+    board.unlock(&quest.id);
+    for (_, info) in players.iter_mut() {
+        if !info.logged_in {
             continue;
         }
-        board.unlock(&quest.id);
-        for (_, info) in players.iter_mut() {
-            if !info.logged_in {
-                continue;
+        if let Some(new_quest) = assign_quest(info, quest, order, board) {
+            notify_assigned(info, vec![new_quest]);
+        }
+    }
+}
+
+// Admin: open a locked quest now, prerequisite or not.
+pub fn unlock_quest(players: &mut PlayerMap, board: &mut QuestBoard, config: &ServerGameplayConfig, id: &QuestId) {
+    if let Some((order, quest)) = catalog(&config.quests).find(|(_, quest)| quest.id == *id)
+        && !board.is_unlocked(id)
+    {
+        unlock(players, board, quest, order);
+    }
+}
+
+// Admin: finish `quest` for `targets` — their own parts for `individual` /
+// `everyone` (the group completes once every part is done, as usual), the
+// group outright for `shared`. Returns how many own parts this finished.
+pub fn complete_quest(
+    players: &mut PlayerMap,
+    board: &mut QuestBoard,
+    config: &ServerGameplayConfig,
+    quest: &Quest,
+    targets: &[PlayerId],
+) -> usize {
+    let mut finished = 0;
+    match quest.scope {
+        QuestScope::Individual => {
+            for &actor in targets {
+                if let Some(progress) = raise_own_progress(players, actor, quest, quest.threshold) {
+                    settle_individual(players, config, actor, quest, progress);
+                    finished += 1;
+                }
             }
-            if let Some(new_quest) = assign_quest(info, quest, order, board) {
-                notify_assigned(info, vec![new_quest]);
+        }
+        QuestScope::Everyone => {
+            for &actor in targets {
+                if board.is_completed(&quest.id) {
+                    break;
+                }
+                if let Some(progress) = raise_own_progress(players, actor, quest, quest.threshold) {
+                    settle_everyone(players, board, config, actor, quest, progress);
+                    finished += 1;
+                }
+            }
+        }
+        QuestScope::Shared => {
+            if !board.is_completed(&quest.id) {
+                complete_group(players, board, config, quest);
             }
         }
     }
+    finished
 }
 
 // Every unlocked quest the player doesn't have yet, sent as one batch (no
@@ -675,5 +753,88 @@ mod tests {
 
         let assigned = assignment_for(&config, &board);
         assert_eq!(assigned[0].progress, 3);
+    }
+
+    #[test]
+    fn admin_completion_finishes_individual_quests_for_the_targets_only() {
+        let config = catalog(vec![quest("gold", QuestKind::Cookies, QuestScope::Individual, 3, None)]);
+        let mut board = QuestBoard::from_quests(&config.quests);
+        let mut players = PlayerMap::default();
+        let mut alice = join(&mut players, 1, &config, &board);
+        let _bob = join(&mut players, 2, &config, &board);
+        let gold = &config.quests[0];
+
+        assert_eq!(
+            complete_quest(&mut players, &mut board, &config, gold, &[PlayerId(1)]),
+            1
+        );
+
+        let messages = drain(&mut alice);
+        assert_eq!(progress_values(&messages, "gold"), [3]);
+        assert!(completed(&messages, "gold"));
+        assert_eq!(score(&players, 1), 100);
+        assert_eq!(own_progress(&players, 2, "gold"), 0);
+        assert_eq!(
+            complete_quest(&mut players, &mut board, &config, gold, &[PlayerId(1)]),
+            0,
+            "already finished"
+        );
+    }
+
+    #[test]
+    fn admin_completion_of_an_everyone_quest_completes_the_group_once_every_part_is_done() {
+        let config = catalog(vec![quest("gold", QuestKind::Cookies, QuestScope::Everyone, 3, None)]);
+        let mut board = QuestBoard::from_quests(&config.quests);
+        let mut players = PlayerMap::default();
+        let mut alice = join(&mut players, 1, &config, &board);
+        let _bob = join(&mut players, 2, &config, &board);
+        let gold = &config.quests[0];
+
+        assert_eq!(
+            complete_quest(&mut players, &mut board, &config, gold, &[PlayerId(1)]),
+            1
+        );
+        assert!(!board.is_completed(&id("gold")));
+        assert!(matches!(
+            feed_events(&drain(&mut alice)).as_slice(),
+            [FeedEvent::EveryoneQuestPartDone {
+                players_done: 1,
+                players_total: 2,
+                ..
+            }]
+        ));
+
+        assert_eq!(
+            complete_quest(&mut players, &mut board, &config, gold, &[PlayerId(1), PlayerId(2)]),
+            1,
+            "only Bob's part was still open"
+        );
+        assert!(board.is_completed(&id("gold")));
+        assert_eq!(score(&players, 1), 100);
+        assert_eq!(score(&players, 2), 100);
+    }
+
+    #[test]
+    fn admin_unlock_and_shared_completion_bypass_the_prerequisite() {
+        let config = catalog(vec![
+            quest("hunt", QuestKind::ActorKills, QuestScope::Shared, 5, None),
+            quest("bonus", QuestKind::Cookies, QuestScope::Individual, 1, Some("hunt")),
+        ]);
+        let mut board = QuestBoard::from_quests(&config.quests);
+        let mut players = PlayerMap::default();
+        let mut alice = join(&mut players, 1, &config, &board);
+
+        unlock_quest(&mut players, &mut board, &config, &id("bonus"));
+        assert!(board.is_unlocked(&id("bonus")));
+        assert_eq!(assigned_ids(&drain(&mut alice)), ["bonus"]);
+
+        assert_eq!(
+            complete_quest(&mut players, &mut board, &config, &config.quests[0], &[]),
+            0,
+            "a shared quest has no own parts"
+        );
+        assert!(board.is_completed(&id("hunt")));
+        assert!(completed(&drain(&mut alice), "hunt"));
+        assert_eq!(score(&players, 1), 100);
     }
 }

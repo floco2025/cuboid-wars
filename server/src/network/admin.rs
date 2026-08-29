@@ -8,16 +8,20 @@ use crate::{
     map::{LightState, WeatherState, light_preset_from_str},
     network::{ServerToClient, announce, broadcast_firework_show, reply},
     players::{Invincibility, PlayerInfo, PlayerMap, UnlimitedMissiles},
+    quests::{QuestBoard, complete_quest, unlock_quest},
 };
 use common::{
     config::GameplayConfig,
     constants::COMMAND_MAX_CHARS,
-    protocol::{BarrierKindTable, CAdmin, FeedEvent, Health, ItemType, PlayerId, PowerUpKind},
+    protocol::{
+        BarrierKindTable, CAdmin, FeedEvent, Health, ItemType, PlayerId, PowerUpKind, QuestGroupProgress, QuestId,
+        QuestScope,
+    },
 };
 
 // One command form per line (long ones split); the client renders the
 // reply as one multi-line feed row.
-const HELP_TEXT: &str = "/help\n/weather [rain|clear|auto]\n/light [bright|dim|dark|auto]\n/light <0..1>|<from> <to> <0..1>\n/god [on|off]\n/kill <name>|@a\n/killall [kind]\n/respawn [kind]\n/heal [name|@a]\n/give keys|key <color>\n/give powerups|powerup <type>\n/give missiles\n/firework\n/kick <name>";
+const HELP_TEXT: &str = "/help\n/weather [rain|clear|auto]\n/light [bright|dim|dark|auto]\n/light <0..1>|<from> <to> <0..1>\n/god [on|off]\n/kill <name>|@a\n/killall [kind]\n/respawn [kind]\n/heal [name|@a]\n/give keys|key <color>\n/give powerups|powerup <type>\n/give missiles\n/firework\n/quest\n/quest <id> [name|@a]\n/kick <name>";
 
 // Authorization seam. Deliberately wide open for now — every client is an
 // admin; tighten here (role on `PlayerInfo`, config allowlist, …) without
@@ -60,13 +64,15 @@ enum AdminCommand {
     KillPlayer(String),
     KillActors(Option<String>),
     RespawnActors(Option<String>),
-    Heal(HealTarget),
+    Heal(PlayerTarget),
     GiveKeys,
     GiveKey(String),
     GivePowerups,
     GivePowerup(String),
     GiveMissiles,
     Firework,
+    QuestStatus,
+    CompleteQuest(String, PlayerTarget),
     Kick(String),
     MissingTarget(&'static str),
     NotACommand,
@@ -74,7 +80,7 @@ enum AdminCommand {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum HealTarget {
+enum PlayerTarget {
     Sender,
     All,
     Named(String),
@@ -129,15 +135,19 @@ fn parse_admin_command(input: &str) -> AdminCommand {
         ["killall", kind] => AdminCommand::KillActors(Some((*kind).to_owned())),
         ["respawn"] => AdminCommand::RespawnActors(None),
         ["respawn", kind] => AdminCommand::RespawnActors(Some((*kind).to_owned())),
-        ["heal"] => AdminCommand::Heal(HealTarget::Sender),
-        ["heal", "@a"] => AdminCommand::Heal(HealTarget::All),
-        ["heal", name @ ..] => AdminCommand::Heal(HealTarget::Named(name.join(" "))),
+        ["heal"] => AdminCommand::Heal(PlayerTarget::Sender),
+        ["heal", "@a"] => AdminCommand::Heal(PlayerTarget::All),
+        ["heal", name @ ..] => AdminCommand::Heal(PlayerTarget::Named(name.join(" "))),
         ["give", "keys"] => AdminCommand::GiveKeys,
         ["give", "key", color] => AdminCommand::GiveKey((*color).to_owned()),
         ["give", "powerups"] => AdminCommand::GivePowerups,
         ["give", "powerup", power_up] => AdminCommand::GivePowerup((*power_up).to_owned()),
         ["give", "missiles"] => AdminCommand::GiveMissiles,
         ["firework"] => AdminCommand::Firework,
+        ["quest"] => AdminCommand::QuestStatus,
+        ["quest", id] => AdminCommand::CompleteQuest((*id).to_owned(), PlayerTarget::Sender),
+        ["quest", id, "@a"] => AdminCommand::CompleteQuest((*id).to_owned(), PlayerTarget::All),
+        ["quest", id, name @ ..] => AdminCommand::CompleteQuest((*id).to_owned(), PlayerTarget::Named(name.join(" "))),
         ["kick"] => AdminCommand::MissingTarget("kick"),
         ["kick", name @ ..] => AdminCommand::Kick(name.join(" ")),
         _ => AdminCommand::Unknown,
@@ -156,6 +166,7 @@ pub fn handle_admin_message(
     gameplay_config: &GameplayConfig,
     map_config: &crate::map::MapConfig,
     pending_actor_spawns: &mut PendingActorSpawns,
+    quest_board: &mut QuestBoard,
     msg: &CAdmin,
 ) {
     let Some(info) = players.get(&id) else {
@@ -172,6 +183,7 @@ pub fn handle_admin_message(
             gameplay_config,
             map_config,
             pending_actor_spawns,
+            quest_board,
             &msg.command,
         )
     } else {
@@ -213,6 +225,7 @@ fn run_admin_command(
     gameplay_config: &GameplayConfig,
     map_config: &crate::map::MapConfig,
     pending_actor_spawns: &mut PendingActorSpawns,
+    quest_board: &mut QuestBoard,
     command: &str,
 ) -> AdminOutcome {
     use AdminOutcome::{Private, Public};
@@ -307,12 +320,12 @@ fn run_admin_command(
         }
         AdminCommand::Heal(target) => {
             let targets = match &target {
-                HealTarget::Sender => alive_players(players, None)
+                PlayerTarget::Sender => alive_players(players, None)
                     .into_iter()
                     .filter(|(id, _)| *id == sender)
                     .collect(),
-                HealTarget::All => alive_players(players, None),
-                HealTarget::Named(name) => {
+                PlayerTarget::All => alive_players(players, None),
+                PlayerTarget::Named(name) => {
                     let targets = alive_players(players, Some(name));
                     if targets.is_empty() {
                         return Private(format!("unknown player {name:?}"));
@@ -403,6 +416,54 @@ fn run_admin_command(
             broadcast_firework_show(players);
             Public("launched fireworks".to_owned())
         }
+        AdminCommand::QuestStatus => Private(quest_status(
+            players,
+            quest_board,
+            &admin.server_gameplay_config,
+            sender,
+        )),
+        AdminCommand::CompleteQuest(id, target) => {
+            let config = &admin.server_gameplay_config;
+            let quest_id = QuestId(id.clone());
+            let Some(quest) = config.quests.iter().find(|quest| quest.id == quest_id) else {
+                let ids: Vec<&str> = config.quests.iter().map(|quest| quest.id.0.as_str()).collect();
+                return Private(format!("unknown quest {id:?} (quests: {})", ids.join(", ")));
+            };
+            let title = &quest.title;
+            if quest_board.is_completed(&quest_id) {
+                return Private(format!("{title} is already completed"));
+            }
+            let targets = match &target {
+                PlayerTarget::Sender => vec![sender],
+                PlayerTarget::All => logged_in_players(players, None),
+                PlayerTarget::Named(name) => {
+                    let targets = logged_in_players(players, Some(name));
+                    if targets.is_empty() {
+                        return Private(format!("unknown player {name:?}"));
+                    }
+                    targets
+                }
+            };
+            unlock_quest(players, quest_board, config, &quest_id);
+            let finished = complete_quest(players, quest_board, config, quest, &targets);
+            match quest.scope {
+                QuestScope::Individual if finished == 0 => {
+                    Private(format!("{title} is already completed for those players"))
+                }
+                QuestScope::Individual => {
+                    let text = format!("completed {title} for {finished} player(s)");
+                    if targets.iter().any(|id| *id != sender) {
+                        Public(text)
+                    } else {
+                        Private(text)
+                    }
+                }
+                QuestScope::Everyone if !quest_board.is_completed(&quest_id) => {
+                    Public(format!("finished {title} for {finished} player(s)"))
+                }
+                QuestScope::Everyone | QuestScope::Shared => Public(format!("completed {title}")),
+            }
+        }
         AdminCommand::Kick(name) => {
             let mut count = 0usize;
             for (_, info) in players.iter() {
@@ -429,6 +490,59 @@ fn alive_players(players: &PlayerMap, name: Option<&str>) -> Vec<(PlayerId, Enti
         .filter(|(_, info)| name.is_none_or(|name| info.name.to_lowercase() == name.to_lowercase()))
         .map(|(id, info)| (*id, info.entity))
         .collect()
+}
+
+// Logged-in players (dead ones included — quests outlive a life), all of
+// them or those matching `name`.
+fn logged_in_players(players: &PlayerMap, name: Option<&str>) -> Vec<PlayerId> {
+    players
+        .iter()
+        .filter(|(_, info)| info.logged_in)
+        .filter(|(_, info)| name.is_none_or(|name| info.name.to_lowercase() == name.to_lowercase()))
+        .map(|(id, _)| *id)
+        .collect()
+}
+
+// One line per catalog quest: its scope and where it stands, own counter
+// from the issuer's point of view.
+fn quest_status(players: &PlayerMap, board: &QuestBoard, config: &ServerGameplayConfig, sender: PlayerId) -> String {
+    let statuses = board.group_statuses(&config.quests, players);
+    let own_states = players.get(&sender).map(|info| &info.quest_states);
+    config
+        .quests
+        .iter()
+        .map(|quest| {
+            let scope = match quest.scope {
+                QuestScope::Individual => "individual",
+                QuestScope::Shared => "shared",
+                QuestScope::Everyone => "everyone",
+            };
+            let own = own_states.and_then(|states| states.get(&quest.id)).map_or_else(
+                || "not assigned".to_owned(),
+                |progress| format!("you {progress}/{}", quest.threshold),
+            );
+            let group = statuses
+                .iter()
+                .find(|status| status.id == quest.id)
+                .map(|status| &status.progress);
+            let state = if !board.is_unlocked(&quest.id) {
+                "locked".to_owned()
+            } else if board.is_completed(&quest.id) {
+                "completed".to_owned()
+            } else {
+                match group {
+                    Some(QuestGroupProgress::Shared { progress }) => format!("{progress}/{}", quest.threshold),
+                    Some(QuestGroupProgress::Everyone {
+                        players_done,
+                        players_total,
+                    }) => format!("{players_done}/{players_total} players done, {own}"),
+                    None => own,
+                }
+            };
+            format!("{} ({scope}): {state}", quest.id.0)
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 fn actor_kind_error(kind: Option<&str>, config: &ServerGameplayConfig) -> Option<String> {
@@ -524,11 +638,11 @@ mod tests {
             parse_admin_command("/respawn sentry"),
             AdminCommand::RespawnActors(Some("sentry".to_owned()))
         );
-        assert_eq!(parse_admin_command("/heal"), AdminCommand::Heal(HealTarget::Sender));
-        assert_eq!(parse_admin_command("/heal @a"), AdminCommand::Heal(HealTarget::All));
+        assert_eq!(parse_admin_command("/heal"), AdminCommand::Heal(PlayerTarget::Sender));
+        assert_eq!(parse_admin_command("/heal @a"), AdminCommand::Heal(PlayerTarget::All));
         assert_eq!(
             parse_admin_command("/heal Bob"),
-            AdminCommand::Heal(HealTarget::Named("Bob".to_owned()))
+            AdminCommand::Heal(PlayerTarget::Named("Bob".to_owned()))
         );
         assert_eq!(parse_admin_command("/give keys"), AdminCommand::GiveKeys);
         assert_eq!(
@@ -540,6 +654,22 @@ mod tests {
         assert_eq!(
             parse_admin_command("/give powerup speed"),
             AdminCommand::GivePowerup("speed".to_owned())
+        );
+        assert_eq!(parse_admin_command("/quest"), AdminCommand::QuestStatus);
+        assert_eq!(
+            parse_admin_command("/quest collect_gold"),
+            AdminCommand::CompleteQuest("collect_gold".to_owned(), PlayerTarget::Sender)
+        );
+        assert_eq!(
+            parse_admin_command("/quest collect_gold @a"),
+            AdminCommand::CompleteQuest("collect_gold".to_owned(), PlayerTarget::All)
+        );
+        assert_eq!(
+            parse_admin_command("/quest collect_gold Bob the Great"),
+            AdminCommand::CompleteQuest(
+                "collect_gold".to_owned(),
+                PlayerTarget::Named("Bob the Great".to_owned())
+            )
         );
         assert_eq!(parse_admin_command("/kick Bob"), AdminCommand::Kick("Bob".to_owned()));
         assert_eq!(parse_admin_command("/kick"), AdminCommand::MissingTarget("kick"));
