@@ -7,7 +7,7 @@ use bevy::{
 
 use crate::{
     actors::{ActorGhostMap, ActorMap},
-    barriers::{OpenBarrierKinds, setup_barrier_assets},
+    barriers::{FireworkPlatesActive, OpenBarrierKinds, setup_barrier_assets},
     cameras::{CameraViewMode, TopDownCameraYaw, setup_cameras_system},
     characters::{character_sync_plugin, prediction_plugin},
     config::{AssetSet, ClientSettings, OpaqueRenderer},
@@ -21,8 +21,7 @@ use crate::{
     projectiles::{LastBounceSound, ProjectileAssets},
     schedule::configure_client_sets,
     ui::{
-        ConsoleState, FpsMeasurement, GameMessageFeed, HudShapeAssets, PendingBanner, QuestLog, hud_plugin,
-        setup_ui_system,
+        ConsoleState, FpsMeasurement, GameMessageFeed, HudBanner, HudShapeAssets, QuestLog, hud_plugin, setup_ui_system,
     },
     vfx::{ExplosionAssets, ExplosionRadii, ExplosionVfxBudget, ParticleClouds, RainIntensity, presentation_plugin},
 };
@@ -78,6 +77,7 @@ pub fn build_client_app(
         .insert_resource(FpsMeasurement::default())
         .insert_resource(LastSnapshotSeq::default())
         .insert_resource(OpenBarrierKinds::default())
+        .insert_resource(FireworkPlatesActive::default())
         .insert_resource(CameraViewMode::default())
         .insert_resource(TopDownCameraYaw::default())
         .insert_resource(LevelFocusEnabled::default())
@@ -89,7 +89,7 @@ pub fn build_client_app(
         .insert_resource(LastBounceSound::default())
         .insert_resource(GameMessageFeed::default())
         .insert_resource(ConsoleState::default())
-        .insert_resource(PendingBanner::default())
+        .insert_resource(HudBanner::default())
         .insert_resource(QuestLog::default())
         .insert_resource(MissileMap::default())
         .insert_resource(LockOnTarget::default())

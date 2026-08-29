@@ -147,6 +147,10 @@ pub const HEALTH_BAR_FILL_Z_OFFSET: f32 = 0.005;
 pub const QUEST_BAR_TRACK_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.65);
 pub const QUEST_BAR_FILL_COLOR: Color = Color::srgb(0.85, 0.7, 0.0); // gold, in progress
 pub const QUEST_BAR_COMPLETE_COLOR: Color = Color::srgb(0.0, 0.85, 0.2); // green, done
+pub const QUEST_NOTE_COLOR: Color = Color::srgba(0.75, 0.75, 0.75, 1.0); // scope line under the bar
+pub const QUEST_ENTRY_BG_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.35); // card behind each quest
+// Scope line relative to the quest font.
+pub const QUEST_NOTE_FONT_SCALE: f32 = 0.8;
 
 // ============================================================================
 // Power-Up Items
@@ -412,6 +416,8 @@ pub const BANNER_QUEST_COMPLETED_SECS: f32 = 5.0;
 pub const BANNER_DEATH_SECS: f32 = 3.0;
 pub const BANNER_DEATH_TEXT: &str = "You died!";
 pub const BANNER_FADE_SECS: f32 = 0.8;
+// Lines the banner stacks at most; older ones are evicted first.
+pub const BANNER_MAX_MESSAGES: usize = 5;
 pub const DEATH_OVERLAY_SECS: f32 = 3.0;
 pub const DEATH_OVERLAY_FADE_SECS: f32 = 0.8;
 

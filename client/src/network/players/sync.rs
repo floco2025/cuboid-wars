@@ -10,7 +10,7 @@ use crate::{
     config::{AssetSet, ClientSettings},
     network::{RoundTripTime, ServerReconciliation},
     players::{LocalPlayerInfo, PlayerInfo, PlayerMap, spawn_player},
-    ui::{PendingBanner, QuestLog},
+    ui::{HudBanner, QuestLog},
 };
 use common::{
     config::GameplayConfig,
@@ -34,7 +34,7 @@ pub struct PlayerSnapshotState<'a> {
     pub rtt: &'a RoundTripTime,
     pub local_player_info: &'a mut LocalPlayerInfo,
     pub quest_log: &'a QuestLog,
-    pub pending_banner: &'a mut PendingBanner,
+    pub banner: &'a mut HudBanner,
     pub my_player_id: PlayerId,
 }
 
@@ -132,12 +132,12 @@ pub fn sync_players(
             .quest_log
             .sorted()
             .into_iter()
-            .filter(|(_, entry)| !entry.completed)
+            .filter(|(_, entry)| !entry.completed && entry.progress < entry.threshold)
             .map(|(_, entry)| format!("{}: {}", entry.title, entry.description))
             .collect::<Vec<_>>()
             .join("\n");
         if !text.is_empty() {
-            state.pending_banner.set(text, BANNER_QUEST_ANNOUNCEMENT_SECS);
+            state.banner.push(text, BANNER_QUEST_ANNOUNCEMENT_SECS);
         }
     }
 

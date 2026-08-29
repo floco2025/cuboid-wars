@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use crate::{
     audio::play_sound,
     config::{AssetSet, ClientSettings},
-    ui::{PendingBanner, QuestEntry, QuestLog},
+    ui::{HudBanner, QuestEntry, QuestLog},
 };
 use common::protocol::*;
 
@@ -16,7 +16,7 @@ use common::protocol::*;
 pub fn handle_quests_assigned_message(
     quest_log: &mut QuestLog,
     _client_settings: &ClientSettings,
-    pending_banner: &mut PendingBanner,
+    banner: &mut HudBanner,
     msg: SQuestsAssigned,
 ) {
     let mut lines = Vec::new();
@@ -27,9 +27,12 @@ pub fn handle_quests_assigned_message(
             QuestEntry {
                 title: quest.title,
                 description: quest.description,
+                scope: quest.scope,
                 progress: quest.progress,
                 threshold: quest.threshold,
                 completed: false,
+                players_done: 0,
+                players: 0,
                 order: quest.order,
             },
         ) {
@@ -39,7 +42,7 @@ pub fn handle_quests_assigned_message(
     if lines.is_empty() {
         return;
     }
-    pending_banner.set(lines.join("\n"), BANNER_QUEST_ANNOUNCEMENT_SECS);
+    banner.push(lines.join("\n"), BANNER_QUEST_ANNOUNCEMENT_SECS);
 }
 
 // A quest's progress advanced. Carries the absolute value, so keep the max to
@@ -56,13 +59,13 @@ pub fn handle_quest_completed_message(
     commands: &mut Commands,
     quest_log: &mut QuestLog,
     _client_settings: &ClientSettings,
-    pending_banner: &mut PendingBanner,
+    banner: &mut HudBanner,
     asset_server: &AssetServer,
     asset_set: &AssetSet,
     msg: SQuestCompleted,
 ) {
     quest_log.record_completion(msg.id);
-    pending_banner.set(msg.completed_text, BANNER_QUEST_COMPLETED_SECS);
+    banner.push(msg.completed_text, BANNER_QUEST_COMPLETED_SECS);
     play_sound(commands, asset_server, asset_set.player_sound("quest_completed"));
 }
 
@@ -74,11 +77,66 @@ mod tests {
         QuestEntry {
             title: "Gold".to_owned(),
             description: "collect gold".to_owned(),
+            scope: QuestScope::Individual,
             progress,
             threshold,
             completed: false,
+            players_done: 0,
+            players: 0,
             order: 0,
         }
+    }
+
+    fn status(id: &str, completed: bool, shared_progress: u32, players_done: u32, players: u32) -> QuestGroupStatus {
+        QuestGroupStatus {
+            id: QuestId(id.to_owned()),
+            completed,
+            shared_progress,
+            players_done,
+            players,
+        }
+    }
+
+    #[test]
+    fn group_status_sets_everyone_counts_and_can_lower_them() {
+        let mut log = quest_log_with("gold", 3, 10);
+        log.entries
+            .get_mut(&QuestId("gold".to_owned()))
+            .expect("assigned")
+            .scope = QuestScope::Everyone;
+
+        log.apply_group_status(&[status("gold", false, 0, 2, 3)]);
+        let entry = &log.entries[&QuestId("gold".to_owned())];
+        assert_eq!((entry.players_done, entry.players), (2, 3));
+
+        log.apply_group_status(&[status("gold", false, 0, 1, 2)]);
+        let entry = &log.entries[&QuestId("gold".to_owned())];
+        assert_eq!((entry.players_done, entry.players), (1, 2));
+        assert_eq!(entry.progress, 3, "own progress is untouched by group counts");
+    }
+
+    #[test]
+    fn group_status_shared_progress_max_merges() {
+        let mut log = quest_log_with("sentries", 0, 4);
+        log.entries
+            .get_mut(&QuestId("sentries".to_owned()))
+            .expect("assigned")
+            .scope = QuestScope::Shared;
+        log.apply_group_status(&[status("sentries", false, 3, 0, 0)]);
+        log.apply_group_status(&[status("sentries", false, 2, 0, 0)]);
+        assert_eq!(log.entries[&QuestId("sentries".to_owned())].progress, 3);
+    }
+
+    #[test]
+    fn group_status_completion_before_assignment_is_buffered() {
+        let mut log = QuestLog::default();
+        log.apply_group_status(&[status("fireworks", true, 1, 0, 0)]);
+        assert!(log.entries.is_empty());
+
+        assert!(log.assign(QuestId("fireworks".to_owned()), quest_entry(0, 1)));
+        let entry = &log.entries[&QuestId("fireworks".to_owned())];
+        assert!(entry.completed);
+        assert_eq!(entry.progress, 1);
     }
 
     fn quest_log_with(id: &str, progress: u32, threshold: u32) -> QuestLog {

@@ -7,6 +7,7 @@ mod items;
 mod map_layout;
 mod movement;
 mod position;
+mod quests;
 
 pub use crate::health::Health;
 
@@ -25,3 +26,4 @@ pub use movement::{
     ActorMoveIntent, ActorMovementState, FaceYaw, MissileMovementState, PlayerMoveIntent, PlayerMovementState,
 };
 pub use position::Position;
+pub use quests::{QuestGroupStatus, QuestScope};

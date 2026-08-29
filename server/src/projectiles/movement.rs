@@ -10,6 +10,7 @@ use crate::{
     map::OpenBarrierKinds,
     network::broadcast_to_all,
     players::{Invincibility, PlayerMap},
+    quests::QuestBoard,
 };
 use common::{
     config::GameplayConfig,
@@ -118,6 +119,7 @@ pub struct ProjectileMovementParams<'w, 's> {
     collision_world: Res<'w, CollisionWorld>,
     gameplay_config: Res<'w, GameplayConfig>,
     server_gameplay_config: Res<'w, ServerGameplayConfig>,
+    quest_board: ResMut<'w, QuestBoard>,
     open_barrier_kinds: Res<'w, OpenBarrierKinds>,
     actors: ResMut<'w, ActorMap>,
     players: ResMut<'w, PlayerMap>,
@@ -287,6 +289,7 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                     if was_lethal {
                         award_actor_kill(
                             &mut params.players,
+                            &mut params.quest_board,
                             *shooter_id,
                             &spawn_kind,
                             &params.server_gameplay_config,

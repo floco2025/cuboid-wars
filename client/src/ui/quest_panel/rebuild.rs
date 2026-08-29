@@ -2,6 +2,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
 use bevy::prelude::*;
+use common::protocol::QuestScope;
 
 use super::{
     components::{QuestEntryMarker, QuestPanelMarker},
@@ -9,7 +10,10 @@ use super::{
 };
 use crate::{
     config::ClientSettings,
-    constants::{QUEST_BAR_COMPLETE_COLOR, QUEST_BAR_FILL_COLOR, QUEST_BAR_TRACK_COLOR},
+    constants::{
+        QUEST_BAR_COMPLETE_COLOR, QUEST_BAR_FILL_COLOR, QUEST_BAR_TRACK_COLOR, QUEST_ENTRY_BG_COLOR, QUEST_NOTE_COLOR,
+        QUEST_NOTE_FONT_SCALE,
+    },
 };
 
 // Rebuild the quest panel's rows when the quest log's rendered content
@@ -69,6 +73,9 @@ fn rebuild_quest_panel(
     commands.entity(panel_entity).replace_children(&ordered_children);
 }
 
+// One card per quest, all the same width: title left and counter right on
+// the first line, the bar spanning the card, and for group quests a dim
+// scope line underneath — so suffixes never make the rows ragged.
 fn spawn_quest_entry(
     commands: &mut Commands,
     entry: &QuestEntry,
@@ -88,62 +95,103 @@ fn spawn_quest_entry(
     } else {
         (QUEST_BAR_FILL_COLOR, Color::WHITE)
     };
-    let label = format!("{}  {}/{}", entry.title, entry.progress, entry.threshold);
+    let text_font = TextFont {
+        font_size: FontSize::Px(font_size),
+        ..default()
+    };
 
     commands
         .spawn((
             QuestEntryMarker,
             Node {
                 flex_direction: FlexDirection::Column,
+                width: Val::Px(bar_width),
                 row_gap: Val::Px(3.0),
-                padding: UiRect::all(Val::Px(4.0)),
+                padding: UiRect::all(Val::Px(6.0)),
                 ..default()
             },
+            BackgroundColor(QUEST_ENTRY_BG_COLOR),
         ))
-        .with_children(|panel| {
-            panel.spawn((
-                Text::new(label),
-                TextFont {
-                    font_size: FontSize::Px(font_size),
+        .with_children(|card| {
+            card.spawn(Node {
+                flex_direction: FlexDirection::Row,
+                justify_content: JustifyContent::SpaceBetween,
+                width: Val::Percent(100.0),
+                ..default()
+            })
+            .with_children(|line| {
+                line.spawn((
+                    Text::new(entry.title.clone()),
+                    text_font.clone(),
+                    TextColor(title_color),
+                ));
+                line.spawn((
+                    Text::new(quest_counter(entry)),
+                    text_font.clone(),
+                    TextColor(title_color),
+                ));
+            });
+            // Progress bar: full-width track with a percent-width fill.
+            card.spawn((
+                Node {
+                    width: Val::Percent(100.0),
+                    height: Val::Px(bar_height),
                     ..default()
                 },
-                TextColor(title_color),
-            ));
-            // Progress bar: fixed-size track with a percent-width fill.
-            panel
-                .spawn((
+                BackgroundColor(QUEST_BAR_TRACK_COLOR),
+            ))
+            .with_children(|track| {
+                track.spawn((
                     Node {
-                        width: Val::Px(bar_width),
-                        height: Val::Px(bar_height),
+                        width: Val::Percent(ratio * 100.0),
+                        height: Val::Percent(100.0),
                         ..default()
                     },
-                    BackgroundColor(QUEST_BAR_TRACK_COLOR),
-                ))
-                .with_children(|track| {
-                    track.spawn((
-                        Node {
-                            width: Val::Percent(ratio * 100.0),
-                            height: Val::Percent(100.0),
-                            ..default()
-                        },
-                        BackgroundColor(fill_color),
-                    ));
-                });
+                    BackgroundColor(fill_color),
+                ));
+            });
+            if let Some(note) = scope_note(entry) {
+                card.spawn((
+                    Text::new(note),
+                    TextFont {
+                        font_size: FontSize::Px(font_size * QUEST_NOTE_FONT_SCALE),
+                        ..default()
+                    },
+                    TextColor(QUEST_NOTE_COLOR),
+                ));
+            }
         })
         .id()
 }
 
+fn quest_counter(entry: &QuestEntry) -> String {
+    format!("{}/{}", entry.progress, entry.threshold)
+}
+
+// The line under the bar that says whose progress this is; individual
+// quests need none.
+fn scope_note(entry: &QuestEntry) -> Option<String> {
+    match entry.scope {
+        QuestScope::Individual => None,
+        QuestScope::Shared => Some("shared progress".to_owned()),
+        QuestScope::Everyone => Some(format!("{} of {} players done", entry.players_done, entry.players)),
+    }
+}
+
 // Hash of everything the panel renders, walked in display order so the result
 // captures both content and row order. Any visible change (title, progress,
-// threshold, completed, or the order itself) forces a rebuild.
+// threshold, counts, completed, or the order itself) forces a rebuild.
 fn quest_panel_content_hash(quest_log: &QuestLog) -> u64 {
     let mut hasher = DefaultHasher::new();
     for (id, entry) in quest_log.sorted() {
         id.0.hash(&mut hasher);
         entry.title.hash(&mut hasher);
+        entry.scope.hash(&mut hasher);
         entry.progress.hash(&mut hasher);
         entry.threshold.hash(&mut hasher);
         entry.completed.hash(&mut hasher);
+        entry.players_done.hash(&mut hasher);
+        entry.players.hash(&mut hasher);
         entry.order.hash(&mut hasher);
     }
     hasher.finish()
@@ -162,11 +210,38 @@ mod tests {
         QuestEntry {
             title: title.to_owned(),
             description: format!("{title} description"),
+            scope: QuestScope::Individual,
             progress,
             threshold,
             completed,
+            players_done: 0,
+            players: 0,
             order,
         }
+    }
+
+    #[test]
+    fn counter_and_scope_note_by_scope() {
+        let mut entry = entry("Gold Rush", 7, 10, false);
+        assert_eq!(quest_counter(&entry), "7/10");
+        assert_eq!(scope_note(&entry), None);
+        entry.scope = QuestScope::Shared;
+        assert_eq!(scope_note(&entry).as_deref(), Some("shared progress"));
+        entry.scope = QuestScope::Everyone;
+        entry.players_done = 2;
+        entry.players = 3;
+        assert_eq!(scope_note(&entry).as_deref(), Some("2 of 3 players done"));
+    }
+
+    #[test]
+    fn content_hash_changes_on_player_counts() {
+        let mut everyone = entry("Gold Rush", 7, 10, false);
+        everyone.scope = QuestScope::Everyone;
+        everyone.players = 3;
+        let before = quest_panel_content_hash(&log(vec![("gold", everyone.clone())]));
+        everyone.players_done = 1;
+        let after = quest_panel_content_hash(&log(vec![("gold", everyone)]));
+        assert_ne!(before, after);
     }
 
     fn log(items: Vec<(&str, QuestEntry)>) -> QuestLog {

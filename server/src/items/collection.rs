@@ -4,7 +4,8 @@ use crate::{
     config::ServerGameplayConfig,
     items::{ItemMap, ItemPlacement},
     network::{ServerToClient, announce, broadcast_to_all},
-    players::{PlayerMap, QuestEvent, record_quest_event},
+    players::PlayerMap,
+    quests::{QuestBoard, QuestEvent, record_quest_event},
 };
 use common::{
     config::GameplayConfig,
@@ -28,6 +29,7 @@ pub fn item_collection_system(
     item_positions: Query<&Position, With<ItemMarker>>,
     server_gameplay_config: Res<ServerGameplayConfig>,
     gameplay_config: Res<GameplayConfig>,
+    mut quest_board: ResMut<QuestBoard>,
 ) {
     let items_to_collect: Vec<(PlayerId, ItemId, ItemType)> = items
         .iter()
@@ -82,7 +84,7 @@ pub fn item_collection_system(
     for (player_id, item_id, item_type) in items_to_collect {
         consume_item(&mut commands, &mut items, &server_gameplay_config, item_id, item_type);
         match item_type {
-            ItemType::Cookie => collect_cookie(&mut players, player_id, &server_gameplay_config, &mut feed_events),
+            ItemType::Cookie => collect_cookie(&mut players, &mut quest_board, player_id, &server_gameplay_config),
             ItemType::Key(kind) => collect_key(&mut players, player_id, kind, &mut status_broadcasts, &mut feed_events),
             ItemType::HealthPotion => collect_health_potion(
                 &mut players,
@@ -140,34 +142,29 @@ fn consume_item(
 
 fn collect_cookie(
     players: &mut PlayerMap,
+    quest_board: &mut QuestBoard,
     player_id: PlayerId,
     server_gameplay_config: &ServerGameplayConfig,
-    feed_events: &mut Vec<FeedEvent>,
 ) {
-    let name = players.display_name(&player_id);
     let Some(player_info) = players.get_mut(&player_id) else {
         return;
     };
     player_info.score += server_gameplay_config.scoring.cookie;
-    let outcome = record_quest_event(
-        player_info,
-        &server_gameplay_config.quests,
-        &server_gameplay_config.scoring,
+    record_quest_event(
+        players,
+        quest_board,
+        server_gameplay_config,
+        Some(player_id),
         QuestEvent::CookieCollected,
     );
-    let _ = player_info
-        .channel
-        .send(ServerToClient::Send(ServerMessage::CookieCollected(SCookieCollected {
-            score: player_info.score,
-        })));
-    for msg in outcome.unicast {
-        let _ = player_info.channel.send(ServerToClient::Send(msg));
-    }
-    for title in outcome.completed_titles {
-        feed_events.push(FeedEvent::QuestCompleted {
-            name: name.clone(),
-            title,
-        });
+    // Sent after the quest step so the early score already includes any
+    // completion bonus.
+    if let Some(player_info) = players.get(&player_id) {
+        let _ = player_info
+            .channel
+            .send(ServerToClient::Send(ServerMessage::CookieCollected(SCookieCollected {
+                score: player_info.score,
+            })));
     }
 }
 

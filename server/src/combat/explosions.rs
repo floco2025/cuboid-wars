@@ -14,6 +14,7 @@ use crate::{
     config::{ExplosionDamageConfig, ServerGameplayConfig},
     network::ServerToClient,
     players::{Invincibility, PlayerMap},
+    quests::QuestBoard,
 };
 use common::constants::EXPLOSION_BLAST_CORE_FRACTION;
 
@@ -53,6 +54,7 @@ pub struct ExplosionContext<'w, 's> {
     pending: ResMut<'w, PendingExplosions>,
     gameplay_config: Res<'w, GameplayConfig>,
     server_gameplay_config: Res<'w, ServerGameplayConfig>,
+    quest_board: ResMut<'w, QuestBoard>,
     invincibility: Res<'w, Invincibility>,
     collision_world: Res<'w, CollisionWorld>,
     player_query: PlayerBlastQuery<'w, 's>,
@@ -173,7 +175,13 @@ pub fn explosions_system(mut context: ExplosionContext) {
             if let Some(killer_id) = killer
                 && let Some(kind) = context.actors.get(&death.id).map(|info| info.spawn_kind.clone())
             {
-                award_actor_kill(&mut context.players, killer_id, &kind, &context.server_gameplay_config);
+                award_actor_kill(
+                    &mut context.players,
+                    &mut context.quest_board,
+                    killer_id,
+                    &kind,
+                    &context.server_gameplay_config,
+                );
             }
             if kill_actor(
                 &mut context.commands,
@@ -441,6 +449,7 @@ mod tests {
         let gameplay = GameplayConfig::load_default().expect("default gameplay config should load");
         let server = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
         let collision_world = CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default());
+        let quest_board = QuestBoard::from_quests(&server.quests);
         let mut app = App::new();
         app.add_plugins(MinimalPlugins)
             .insert_resource(gameplay)
@@ -449,7 +458,8 @@ mod tests {
             .insert_resource(PlayerMap::default())
             .insert_resource(ActorMap::default())
             .insert_resource(Invincibility(false))
-            .insert_resource(PendingExplosions::default());
+            .insert_resource(PendingExplosions::default())
+            .insert_resource(quest_board);
         app
     }
 

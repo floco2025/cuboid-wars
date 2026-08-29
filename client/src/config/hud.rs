@@ -67,6 +67,7 @@ pub struct HealthBarsConfig {
 // `constants.rs`).
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct QuestPanelConfig {
+    // Width of each quest card (title line, bar, and scope line all span it).
     pub bar_width: f32,
     pub bar_height: f32,
 }

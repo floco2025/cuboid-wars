@@ -58,6 +58,8 @@
     "actor_destroyed": { "mine": false, "sentry": false, "reaper": false, "zapper": false },
     "key_found": true,
     "quest_completed": true,
+    "quest_part_done": true,
+    "group_quest_completed": true,
     "barrier_opened": true,
     "barrier_closed": true,
     "admin_action": true,
@@ -106,6 +108,7 @@
     {
       "id": "destroy_zappers",
       "kind": "actor_kills",
+      "scope": "individual",
       "actor_kind": "zapper",
       "threshold": 6,
       "title": "Zapper Hunt",
@@ -115,6 +118,7 @@
     {
       "id": "destroy_mines",
       "kind": "actor_kills",
+      "scope": "individual",
       "actor_kind": "mine",
       "threshold": 6,
       "title": "Mine Hunt",
@@ -124,6 +128,7 @@
     {
       "id": "destroy_sentries",
       "kind": "actor_kills",
+      "scope": "individual",
       "actor_kind": "sentry",
       "threshold": 4,
       "title": "Sentry Hunt",
@@ -133,6 +138,7 @@
     {
       "id": "collect_gold",
       "kind": "cookies",
+      "scope": "everyone",
       "threshold": 10,
       "title": "Gold Rush",
       "description": "Collect 10 gold pieces",
@@ -141,10 +147,12 @@
     {
       "id": "start_fireworks",
       "kind": "fireworks",
+      "scope": "shared",
+      "requires": "collect_gold",
       "threshold": 1,
-      "title": "Light the Sky",
-      "description": "Gather everyone on the firework plates",
-      "completed_text": "Fireworks!"
+      "title": "The Gathering",
+      "description": "Your gold changed something. Find it, together.",
+      "completed_text": "The sky answers!"
     }
   ],
   "actor_settings": {

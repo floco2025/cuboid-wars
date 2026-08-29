@@ -9,7 +9,8 @@ use common::protocol::{
     QuestId, SPlayerStatus,
 };
 
-use super::{PlayerFallState, QuestState};
+use super::PlayerFallState;
+use crate::quests::QuestState;
 
 // Global debug invincibility. Seeded at startup from the config /
 // `--invincible` flag; the `/god` admin command owns it at runtime — which

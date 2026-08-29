@@ -4,6 +4,7 @@ use bevy::prelude::*;
 use crate::{
     barriers::{
         barriers_pulsate_system, barriers_spawn_system, barriers_visibility_system, pressure_plates_spawn_system,
+        pressure_plates_visibility_system,
     },
     schedule::ClientSet,
     vfx::{rain_audio_system, rain_particles_system, rain_smoothing_system},
@@ -29,6 +30,7 @@ pub fn map_plugin(app: &mut App) {
             // override wins the per-frame race for barrier visibility.
             barriers_visibility_system.after(map_level_focus_visibility_system),
             pressure_plates_spawn_system,
+            pressure_plates_visibility_system.after(pressure_plates_spawn_system),
         )
             .in_set(ClientSet::MapMaintenance),
     );

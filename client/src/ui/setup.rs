@@ -4,6 +4,7 @@ use super::{
     console::spawn_console,
     crosshair::{CrosshairBarMarker, CrosshairMarker},
     diagnostics::{FpsMarker, RttMarker},
+    hud_banner::spawn_hud_banner_root,
     message_feed::spawn_message_feed_root,
     player_list::PlayerListMarker,
     quest_panel::QuestPanelMarker,
@@ -147,5 +148,6 @@ pub fn setup_ui_system(mut commands: Commands, client_settings: Res<ClientSettin
     ));
 
     spawn_message_feed_root(&mut commands);
+    spawn_hud_banner_root(&mut commands);
     spawn_console(&mut commands, &client_settings);
 }

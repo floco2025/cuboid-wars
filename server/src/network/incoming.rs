@@ -9,6 +9,7 @@ use crate::{
     missiles::MissileMap,
     network::{ClientToServer, FromClientsChannel, announce},
     players::{PlayerInfo, PlayerMap},
+    quests::{QuestBoard, player_left},
 };
 
 use super::admin::AdminContext;
@@ -88,6 +89,7 @@ pub fn network_process_client_messages_system(
     mut missiles: ResMut<MissileMap>,
     mut pending_actor_spawns: ResMut<PendingActorSpawns>,
     mut admin: AdminContext,
+    mut quest_board: ResMut<QuestBoard>,
 ) {
     while let Ok((id, event)) = from_clients.try_recv() {
         if let ClientToServer::Registration { to_client } = event {
@@ -122,6 +124,7 @@ pub fn network_process_client_messages_system(
                 // Presence is snapshot-only — other clients notice the
                 // absence on the next `SSnapshot`; the feed line is cosmetic.
                 if was_logged_in {
+                    player_left(&mut players, &mut quest_board, &world.server_gameplay_config);
                     announce(
                         &players,
                         &world.server_gameplay_config.feed,
@@ -155,6 +158,7 @@ pub fn network_process_client_messages_system(
                         message,
                         &mut players,
                         &world,
+                        &quest_board,
                         &items,
                         &actors,
                         &pending_actor_spawns,

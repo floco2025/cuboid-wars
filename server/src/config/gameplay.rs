@@ -400,6 +400,7 @@ mod tests {
         let quest: Quest = serde_json::from_value(serde_json::json!({
             "id": "collect_gold",
             "kind": "cookies",
+            "scope": "individual",
             "threshold": 10,
             "title": "Gold",
             "description": "collect gold",

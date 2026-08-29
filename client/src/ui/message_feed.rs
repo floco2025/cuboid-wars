@@ -157,6 +157,13 @@ fn build_runs(
             kind_run(*kind, "key", barrier_assets),
         ],
         FeedEvent::QuestCompleted { name, title } => plain(format!("{name} completed {title}")),
+        FeedEvent::QuestPartDone {
+            name,
+            title,
+            players_done,
+            players,
+        } => plain(format!("{name} finished {title} ({players_done}/{players} players)")),
+        FeedEvent::GroupQuestCompleted { title } => plain(format!("Everyone completed {title}")),
         FeedEvent::BarrierOpened { name, kind } => vec![
             TextRun {
                 text: format!("{name} opened the "),
@@ -321,6 +328,21 @@ mod tests {
         let closed = FeedEvent::BarrierClosed { kind: BarrierKindId(0) };
         assert_eq!(line(opened), "Marc opened the treasure barriers");
         assert_eq!(line(closed), "The treasure barriers closed");
+    }
+
+    #[test]
+    fn group_quest_lines() {
+        let part = FeedEvent::QuestPartDone {
+            name: "Marc".to_owned(),
+            title: "Gold Rush".to_owned(),
+            players_done: 2,
+            players: 3,
+        };
+        let group = FeedEvent::GroupQuestCompleted {
+            title: "Gold Rush".to_owned(),
+        };
+        assert_eq!(line(part), "Marc finished Gold Rush (2/3 players)");
+        assert_eq!(line(group), "Everyone completed Gold Rush");
     }
 
     #[test]

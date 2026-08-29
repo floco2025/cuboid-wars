@@ -9,7 +9,7 @@ use crate::{
     network::{RoundTripTime, ServerReconciliation},
     players::{CameraShake, CuboidShake, LocalPlayerInfo, PlayerMap},
     projectiles::{ProjectileAssets, spawn_projectiles},
-    ui::PendingBanner,
+    ui::HudBanner,
     vfx::{ExplosionRadii, ExplosionSpawnCtx, spawn_player_explosion},
 };
 use common::{
@@ -193,7 +193,7 @@ pub fn handle_player_death_message(
     explosion_radii: &ExplosionRadii,
     players: &mut PlayerMap,
     local_player_info: &mut LocalPlayerInfo,
-    pending_banner: &mut PendingBanner,
+    banner: &mut HudBanner,
     my_player_id: PlayerId,
     msg: SPlayerDeath,
 ) {
@@ -241,7 +241,7 @@ pub fn handle_player_death_message(
         // Centered "You died!" banner. The red full-screen
         // `DeathOverlayMarker` tint and the feed line are independent
         // layers; the banner is the headline.
-        pending_banner.set(BANNER_DEATH_TEXT.to_owned(), BANNER_DEATH_SECS);
+        banner.push(BANNER_DEATH_TEXT.to_owned(), BANNER_DEATH_SECS);
     } else if let Some(info) = players.remove(&msg.id) {
         commands.entity(info.entity).despawn();
     }
@@ -387,7 +387,7 @@ mod tests {
         let mut players = PlayerMap::default();
         players.insert(my_id, player_info(entity, "Alice"));
         let mut local_player_info = LocalPlayerInfo::default();
-        let mut pending_banner = PendingBanner::default();
+        let mut banner = HudBanner::default();
         let gameplay_config = GameplayConfig::load_default().expect("load default gameplay config");
         let mut mesh_assets = Assets::<Mesh>::default();
         let mut material_assets = Assets::<StandardMaterial>::default();
@@ -413,7 +413,7 @@ mod tests {
                 &explosion_radii,
                 &mut players,
                 &mut local_player_info,
-                &mut pending_banner,
+                &mut banner,
                 my_id,
                 SPlayerDeath {
                     id: my_id,

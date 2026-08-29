@@ -4,8 +4,9 @@ use std::collections::{HashMap, HashSet};
 use crate::{
     config::ServerGameplayConfig,
     map::{MapConfig, PressurePlateRuntime},
-    network::{ServerToClient, announce, broadcast_firework_show, broadcast_to_all},
-    players::{PlayerMap, QuestEvent, record_quest_event},
+    network::{announce, broadcast_firework_show, broadcast_to_all},
+    players::PlayerMap,
+    quests::{QuestBoard, QuestEvent, record_quest_event},
 };
 use common::{
     constants::{GRID_CELL_SIZE, LEVEL_HEIGHT},
@@ -53,6 +54,7 @@ pub fn pressure_plates_system(
     map_geometry: Res<MapGeometry>,
     mut players: ResMut<PlayerMap>,
     server_gameplay_config: Res<ServerGameplayConfig>,
+    mut quest_board: ResMut<QuestBoard>,
     positions: Query<&Position, With<PlayerMarker>>,
     mut open: ResMut<OpenBarrierKinds>,
     // Plate indices held last tick. Fires `SPressurePlate` only on the
@@ -89,9 +91,14 @@ pub fn pressure_plates_system(
         .count();
 
     // Per-tick: who holds each plate (the first alive player found on it).
+    // Inactive plates are skipped outright, so they neither click nor count.
+    let fireworks_active = quest_board.fireworks_active(&server_gameplay_config.quests);
     let plates = &map_config.pressure_plates;
     let mut holders: HashMap<usize, PlayerId> = HashMap::new();
     for (idx, plate) in plates.iter().enumerate() {
+        if !plate_active(plate, fireworks_active) {
+            continue;
+        }
         let holder = players.iter().find(|(_, info)| {
             info.logged_in
                 && !info.is_dead()
@@ -174,7 +181,14 @@ pub fn pressure_plates_system(
     let ready = firework_plates_ready(firework_plates, held_fireworks, alive);
     if ready && !*fireworks_ready {
         broadcast_firework_show(&players);
-        award_firework_quest(&mut players, &server_gameplay_config);
+        // `/firework` bypasses this on purpose: only the plates count.
+        record_quest_event(
+            &mut players,
+            &mut quest_board,
+            &server_gameplay_config,
+            None,
+            QuestEvent::FireworksStarted,
+        );
     }
     *fireworks_ready = ready;
 
@@ -190,36 +204,10 @@ fn firework_plates_ready(plates: usize, held: usize, alive: usize) -> bool {
     plates > 0 && alive > 0 && held >= plates.min(alive)
 }
 
-// The show is a shared achievement: every player alive gets the quest
-// event, their progress/completion unicast, and completions announced.
-// `/firework` bypasses this on purpose.
-fn award_firework_quest(players: &mut PlayerMap, config: &ServerGameplayConfig) {
-    let alive: Vec<PlayerId> = players
-        .iter()
-        .filter(|(_, info)| info.logged_in && !info.is_dead())
-        .map(|(id, _)| *id)
-        .collect();
-    let mut completed: Vec<(PlayerId, String)> = Vec::new();
-    for id in alive {
-        let Some(info) = players.get_mut(&id) else {
-            continue;
-        };
-        let outcome = record_quest_event(info, &config.quests, &config.scoring, QuestEvent::FireworksStarted);
-        for msg in outcome.unicast {
-            let _ = info.channel.send(ServerToClient::Send(msg));
-        }
-        completed.extend(outcome.completed_titles.into_iter().map(|title| (id, title)));
-    }
-    for (id, title) in completed {
-        announce(
-            players,
-            &config.feed,
-            FeedEvent::QuestCompleted {
-                name: players.display_name(&id),
-                title,
-            },
-        );
-    }
+// Firework plates only exist for the players once the fireworks quest is
+// unlocked; barrier plates are always live.
+fn plate_active(plate: &PressurePlateRuntime, fireworks_active: bool) -> bool {
+    fireworks_active || plate.purpose != PlatePurpose::Firework
 }
 
 fn held_count_per_kind(held: &HashSet<usize>, plates: &[PressurePlateRuntime]) -> HashMap<BarrierKindId, usize> {
@@ -449,7 +437,7 @@ mod firework_quest_tests {
     use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
     use super::*;
-    use crate::players::{PlayerInfo, assign_quests};
+    use crate::{network::ServerToClient, players::PlayerInfo, quests::assign_quests};
     use common::protocol::{QuestId, SFeed};
 
     fn player(
@@ -457,13 +445,14 @@ mod firework_quest_tests {
         id: PlayerId,
         name: &str,
         config: &ServerGameplayConfig,
+        board: &QuestBoard,
         dead: bool,
     ) -> UnboundedReceiver<ServerToClient> {
         let (tx, rx) = unbounded_channel();
         let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
         info.logged_in = true;
         info.name = name.to_owned();
-        assign_quests(&mut info, &config.quests);
+        assign_quests(&mut info, &config.quests, board);
         if dead {
             info.death_timer = Some(2.0);
         }
@@ -482,23 +471,46 @@ mod firework_quest_tests {
     }
 
     #[test]
-    fn award_firework_quest_credits_every_alive_player() {
+    fn locked_firework_plates_are_inert() {
+        let firework = PressurePlateRuntime {
+            level: 0,
+            col: 0,
+            row: 0,
+            purpose: PlatePurpose::Firework,
+        };
+        let barrier = PressurePlateRuntime {
+            level: 0,
+            col: 1,
+            row: 0,
+            purpose: PlatePurpose::Barrier(BarrierKindId(0)),
+        };
+        assert!(!plate_active(&firework, false));
+        assert!(plate_active(&firework, true));
+        assert!(plate_active(&barrier, false));
+    }
+
+    #[test]
+    fn firework_trigger_completes_shared_quest_for_every_logged_in_player() {
         let config = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
         let quest_id = QuestId("start_fireworks".to_owned());
+        let mut board = QuestBoard::from_quests(&config.quests);
+        board.unlock(&quest_id);
         let mut players = PlayerMap::default();
-        let mut alice = player(&mut players, PlayerId(1), "Alice", &config, false);
-        let mut bob = player(&mut players, PlayerId(2), "Bob", &config, false);
-        let mut ghost = player(&mut players, PlayerId(3), "Ghost", &config, true);
+        let mut alice = player(&mut players, PlayerId(1), "Alice", &config, &board, false);
+        let mut bob = player(&mut players, PlayerId(2), "Bob", &config, &board, false);
+        let mut ghost = player(&mut players, PlayerId(3), "Ghost", &config, &board, true);
+        let points = config.scoring.quest_completed["start_fireworks"];
 
-        award_firework_quest(&mut players, &config);
+        record_quest_event(&mut players, &mut board, &config, None, QuestEvent::FireworksStarted);
 
-        for rx in [&mut alice, &mut bob] {
+        assert!(board.is_completed(&quest_id));
+        for (id, rx) in [(1, &mut alice), (2, &mut bob), (3, &mut ghost)] {
             let messages = drain(rx);
             assert!(
                 messages
                     .iter()
                     .any(|msg| matches!(msg, ServerMessage::QuestCompleted(c) if c.id == quest_id)),
-                "each alive player completes the quest"
+                "every logged-in player completes the shared quest"
             );
             let lines = messages
                 .iter()
@@ -506,20 +518,20 @@ mod firework_quest_tests {
                     matches!(
                         msg,
                         ServerMessage::Feed(SFeed {
-                            event: FeedEvent::QuestCompleted { .. }
+                            event: FeedEvent::GroupQuestCompleted { .. }
                         })
                     )
                 })
                 .count();
-            assert_eq!(lines, 2, "one feed line per completing player");
+            assert_eq!(lines, 1);
+            let info = players.get(&PlayerId(id)).expect("player tracked");
+            assert!(info.quest_states[&quest_id].completed);
+            assert_eq!(info.score, points);
         }
-        let ghost_messages = drain(&mut ghost);
-        assert!(
-            !ghost_messages
-                .iter()
-                .any(|msg| matches!(msg, ServerMessage::QuestCompleted(_)))
-        );
-        assert!(!players.get(&PlayerId(3)).expect("ghost tracked").quest_states[&quest_id].completed);
-        assert!(players.get(&PlayerId(1)).expect("alice tracked").quest_states[&quest_id].completed);
+
+        // Latched: a second show changes nothing.
+        record_quest_event(&mut players, &mut board, &config, None, QuestEvent::FireworksStarted);
+        assert!(drain(&mut alice).is_empty());
+        assert_eq!(players.get(&PlayerId(1)).expect("alice").score, points);
     }
 }

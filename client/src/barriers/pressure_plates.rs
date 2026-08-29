@@ -10,6 +10,37 @@ use common::{
 #[derive(Component)]
 pub struct PressurePlateMarker;
 
+// The plate's purpose, so the visibility gate can find firework plates.
+#[derive(Component)]
+pub struct PlatePurposeMarker(pub PlatePurpose);
+
+// Snapshot state: firework plates are hidden (and inert server-side) until
+// the fireworks quest unlocks.
+#[derive(Resource, Default)]
+pub struct FireworkPlatesActive(pub bool);
+
+fn plate_visibility(purpose: PlatePurpose, fireworks_active: bool) -> Visibility {
+    if purpose == PlatePurpose::Firework && !fireworks_active {
+        Visibility::Hidden
+    } else {
+        Visibility::Visible
+    }
+}
+
+// Runs after the spawn system so a re-spawn can't leave a locked firework
+// plate visible for a frame. Level focus never touches plates, so writing
+// both directions here races nothing.
+pub fn pressure_plates_visibility_system(
+    active: Res<FireworkPlatesActive>,
+    mut plates: Query<(&PlatePurposeMarker, &mut Visibility), With<PressurePlateMarker>>,
+) {
+    for (purpose, mut visibility) in &mut plates {
+        if purpose.0 == PlatePurpose::Firework {
+            visibility.set_if_neq(plate_visibility(purpose.0, active.0));
+        }
+    }
+}
+
 // Plate footprint: inner 50% per side (≈25% by area). Slightly above the
 // floor to avoid z-fighting with the floor slab beneath.
 const PLATE_SIDE: f32 = GRID_CELL_SIZE * 0.5;
@@ -43,6 +74,7 @@ pub fn pressure_plates_spawn_system(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut plate_assets: Local<Option<PlateAssets>>,
     existing: Query<Entity, With<PressurePlateMarker>>,
+    active: Res<FireworkPlatesActive>,
 ) {
     let Some(layout) = map_layout else { return };
     let Some(assets) = barrier_assets else { return };
@@ -77,9 +109,10 @@ pub fn pressure_plates_spawn_system(
         commands
             .spawn((
                 PressurePlateMarker,
+                PlatePurposeMarker(plate.purpose),
                 MapLevel(plate.level),
                 Transform::from_translation(Vec3::new(plate.center_x, floor_y, plate.center_z)),
-                Visibility::Visible,
+                plate_visibility(plate.purpose, active.0),
             ))
             .with_children(|parent| {
                 parent.spawn((

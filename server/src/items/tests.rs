@@ -129,6 +129,7 @@ mod collection_eligibility_tests {
         items::{ItemInfo, ItemMap, ItemPlacement, item_collection_system},
         network::ServerToClient,
         players::{PlayerInfo, PlayerMap},
+        quests::QuestBoard,
     };
     use common::{
         config::GameplayConfig,
@@ -138,9 +139,12 @@ mod collection_eligibility_tests {
     };
 
     fn test_app() -> App {
+        let server = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
+        let quest_board = QuestBoard::from_quests(&server.quests);
         let mut app = App::new();
         app.add_plugins(MinimalPlugins)
-            .insert_resource(ServerGameplayConfig::load_default().expect("default server gameplay config should load"))
+            .insert_resource(server)
+            .insert_resource(quest_board)
             .insert_resource(GameplayConfig::load_default().expect("default gameplay config should load"))
             .insert_resource(PlayerMap::default())
             .insert_resource(ItemMap::default())

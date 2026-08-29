@@ -13,7 +13,7 @@ use crate::{
     network::resources::RoundTripTime,
     players::LocalPlayerInfo,
     projectiles::ProjectileAssets,
-    ui::{GameMessageFeed, PendingBanner, QuestLog},
+    ui::{GameMessageFeed, HudBanner, QuestLog},
     vfx::{ExplosionAssets, ExplosionRadii, ExplosionVfxBudget},
 };
 
@@ -149,7 +149,7 @@ pub struct HudState<'w> {
     pub local_player_info: ResMut<'w, LocalPlayerInfo>,
     pub game_message_feed: ResMut<'w, GameMessageFeed>,
     pub quest_log: ResMut<'w, QuestLog>,
-    pub pending_banner: ResMut<'w, PendingBanner>,
+    pub banner: ResMut<'w, HudBanner>,
 }
 
 // Mutable world-replication state driven by snapshots and cues.
@@ -158,6 +158,7 @@ pub struct WorldSyncState<'w, 's> {
     pub explosion_vfx_budget: ResMut<'w, ExplosionVfxBudget>,
     pub map_layout: Option<Res<'w, MapLayout>>,
     pub open_barrier_kinds: ResMut<'w, crate::barriers::OpenBarrierKinds>,
+    pub firework_plates_active: ResMut<'w, crate::barriers::FireworkPlatesActive>,
     pub rain_intensity: ResMut<'w, crate::vfx::RainIntensity>,
     pub lighting: ResMut<'w, crate::map::skybox::LightingState>,
     pub actor_ghosts: ResMut<'w, ActorGhostMap>,

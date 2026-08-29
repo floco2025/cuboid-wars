@@ -22,19 +22,58 @@ pub enum DeathCause {
 // resolved at emit time so the client renders without live entity maps.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub enum FeedEvent {
-    PlayerJoined { name: String },
-    PlayerLeft { name: String },
-    PlayerDied { name: String, cause: DeathCause },
-    ActorDestroyed { name: String, kind: String },
-    KeyFound { name: String, kind: BarrierKindId },
-    QuestCompleted { name: String, title: String },
-    BarrierOpened { name: String, kind: BarrierKindId },
-    BarrierClosed { kind: BarrierKindId },
+    PlayerJoined {
+        name: String,
+    },
+    PlayerLeft {
+        name: String,
+    },
+    PlayerDied {
+        name: String,
+        cause: DeathCause,
+    },
+    ActorDestroyed {
+        name: String,
+        kind: String,
+    },
+    KeyFound {
+        name: String,
+        kind: BarrierKindId,
+    },
+    QuestCompleted {
+        name: String,
+        title: String,
+    },
+    // A player finished their part of an `everyone` quest.
+    QuestPartDone {
+        name: String,
+        title: String,
+        players_done: u32,
+        players: u32,
+    },
+    GroupQuestCompleted {
+        title: String,
+    },
+    BarrierOpened {
+        name: String,
+        kind: BarrierKindId,
+    },
+    BarrierClosed {
+        kind: BarrierKindId,
+    },
     // Unicast to the issuer of a `CAdmin` command.
-    AdminReply { text: String },
+    AdminReply {
+        text: String,
+    },
     // Broadcast: a world-affecting admin command and who issued it.
-    AdminAction { name: String, text: String },
-    Chat { name: String, text: String },
+    AdminAction {
+        name: String,
+        text: String,
+    },
+    Chat {
+        name: String,
+        text: String,
+    },
 }
 
 #[cfg(test)]
@@ -86,6 +125,15 @@ mod tests {
             FeedEvent::KeyFound { name: name(), kind },
             FeedEvent::QuestCompleted {
                 name: name(),
+                title: "Gold Rush".to_owned(),
+            },
+            FeedEvent::QuestPartDone {
+                name: name(),
+                title: "Gold Rush".to_owned(),
+                players_done: 2,
+                players: 3,
+            },
+            FeedEvent::GroupQuestCompleted {
                 title: "Gold Rush".to_owned(),
             },
             FeedEvent::BarrierOpened { name: name(), kind },

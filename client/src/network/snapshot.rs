@@ -64,12 +64,15 @@ pub(super) fn handle_snapshot_message(
         client_settings: &client_assets.handles.client_settings,
         gameplay_config: &client_assets.handles.gameplay_config,
     };
+    // Before `PlayerSnapshotState` borrows the log for the respawn banner.
+    client_assets.hud.quest_log.apply_group_status(&msg.quests);
+
     let mut player_state = PlayerSnapshotState {
         players: state.players,
         rtt: state.rtt,
         local_player_info: &mut client_assets.hud.local_player_info,
         quest_log: &client_assets.hud.quest_log,
-        pending_banner: &mut client_assets.hud.pending_banner,
+        banner: &mut client_assets.hud.banner,
         my_player_id: state.my_player_id,
     };
     sync_players(
@@ -123,6 +126,9 @@ pub(super) fn handle_snapshot_message(
     // these sorted by id so direct Vec equality is stable across ticks.
     if msg.open_barrier_kinds != client_assets.world_sync.open_barrier_kinds.0 {
         client_assets.world_sync.open_barrier_kinds.0 = msg.open_barrier_kinds.clone();
+    }
+    if client_assets.world_sync.firework_plates_active.0 != msg.firework_plates_active {
+        client_assets.world_sync.firework_plates_active.0 = msg.firework_plates_active;
     }
 
     // Weather and lighting targets; `rain_smoothing_system` and

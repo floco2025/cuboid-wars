@@ -5,7 +5,8 @@ use crate::{
     characters::{generate_player_spawn_position, spawn_face_yaw},
     items::ItemMap,
     network::{ServerToClient, announce_to_others},
-    players::{PlayerMap, assign_quests},
+    players::PlayerMap,
+    quests::{QuestBoard, assign_quests},
 };
 use common::{
     physics::CharacterVerticalVelocity,
@@ -54,6 +55,7 @@ pub fn handle_login_message(
     msg: ClientMessage,
     players: &mut ResMut<PlayerMap>,
     world: &SharedWorld,
+    quest_board: &QuestBoard,
     items: &Res<ItemMap>,
     actors: &Res<ActorMap>,
     pending_spawns: &PendingActorSpawns,
@@ -90,16 +92,16 @@ pub fn handle_login_message(
                 return;
             }
 
-            // Auto-assign every catalogued quest to the new player, batched
-            // into one `SQuestsAssigned` so the client shows a single combined
-            // announcement. `assign_quests` is the shared seam a future in-game
-            // quest-giver calls too. Quest state persists for the whole session
-            // (cleared neither by death nor by `clear_per_life_state`).
+            // Assign every unlocked quest to the new player, batched into one
+            // `SQuestsAssigned` so the client shows a single combined
+            // announcement; quests unlocked later arrive one at a time. Quest
+            // state persists for the whole session (cleared neither by death
+            // nor by `clear_per_life_state`).
             {
                 let player_info = players
                     .get_mut(&id)
                     .expect("handle_login_message called for unknown player");
-                if let Some(assigned) = assign_quests(player_info, &world.server_gameplay_config.quests) {
+                if let Some(assigned) = assign_quests(player_info, &world.server_gameplay_config.quests, quest_board) {
                     let msg = ServerMessage::QuestsAssigned(assigned);
                     if let Err(e) = channel.send(ServerToClient::Send(msg)) {
                         warn!("failed to send quest assignment to {:?}: {}", id, e);
@@ -166,6 +168,10 @@ pub fn handle_login_message(
                 // to "everything closed". The next broadcast tick will
                 // correct it.
                 open_barrier_kinds: Vec::new(),
+                // Real values, like weather and lighting below: a late joiner
+                // must see completed quests and active plates immediately.
+                quests: quest_board.snapshot(&world.server_gameplay_config.quests, players),
+                firework_plates_active: quest_board.fireworks_active(&world.server_gameplay_config.quests),
                 // Weather and lighting are real so a dark or rainy map
                 // doesn't flash bright and dry before the first broadcast.
                 rain_intensity,

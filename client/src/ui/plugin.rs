@@ -27,8 +27,7 @@ pub fn hud_plugin(app: &mut App) {
             death_overlay_visibility_system,
             render_pending_messages_system,
             update_message_feed_system,
-            render_pending_banner_system,
-            tick_hud_banner_system,
+            hud_banner_system,
             console_render_system,
         )
             .in_set(ClientSet::Hud),

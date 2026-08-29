@@ -4,8 +4,9 @@ use super::PendingExplosions;
 use crate::{
     actors::ActorMap,
     config::{FeedConfig, ServerGameplayConfig},
-    network::{ServerToClient, announce, broadcast_to_all},
-    players::{PlayerMap, QuestEvent, record_quest_event},
+    network::{announce, broadcast_to_all},
+    players::PlayerMap,
+    quests::{QuestBoard, QuestEvent, record_quest_event},
 };
 use common::{
     health::apply_damage,
@@ -161,11 +162,12 @@ pub fn kill_actor(
 }
 
 // Award the shooter's actor-kill credit: the per-kind score bonus plus any
-// actor-kills quest progress, unicast to the shooter. No-op when the shooter
-// has disconnected. Shared by projectile lethal hits and missile blasts so
-// the two paths can't drift.
+// actor-kills quest progress. No-op when the shooter has disconnected.
+// Shared by projectile lethal hits and missile blasts so the two paths
+// can't drift.
 pub fn award_actor_kill(
     players: &mut PlayerMap,
+    quest_board: &mut QuestBoard,
     shooter_id: PlayerId,
     kind: &str,
     server_gameplay_config: &ServerGameplayConfig,
@@ -179,25 +181,13 @@ pub fn award_actor_kill(
         .get(kind)
         .copied()
         .expect("actor kind missing from scoring.actor_kill");
-    let outcome = record_quest_event(
-        shooter,
-        &server_gameplay_config.quests,
-        &server_gameplay_config.scoring,
+    record_quest_event(
+        players,
+        quest_board,
+        server_gameplay_config,
+        Some(shooter_id),
         QuestEvent::ActorKilled { kind },
     );
-    for msg in outcome.unicast {
-        let _ = shooter.channel.send(ServerToClient::Send(msg));
-    }
-    for title in outcome.completed_titles {
-        announce(
-            players,
-            &server_gameplay_config.feed,
-            FeedEvent::QuestCompleted {
-                name: players.display_name(&shooter_id),
-                title,
-            },
-        );
-    }
 }
 
 // Apply one projectile hit to a player. Returns `true` when this hit drops
@@ -308,7 +298,7 @@ mod tests {
         MapServerConfig, MissilesServerConfig, PlacedItemRespawnSecs, PlacedItemsConfig, PlayerServerConfig,
         PowerUpsConfig, ProjectileConfig, ScoringConfig, WeatherCycleConfig, WeatherMode,
     };
-    use crate::{actors::ActorInfo, players::PlayerInfo};
+    use crate::{actors::ActorInfo, network::ServerToClient, players::PlayerInfo};
     use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
     fn logged_in_player(players: &mut PlayerMap, id: PlayerId, name: &str) -> UnboundedReceiver<ServerToClient> {

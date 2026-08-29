@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use bevy::prelude::Resource;
-use common::protocol::QuestId;
+use common::protocol::{QuestGroupStatus, QuestId, QuestScope};
 
 // A quest this client is tracking. The panel renders the short `title` plus
 // progress; `description` is kept so the announcement banner can be re-shown
@@ -10,10 +10,16 @@ use common::protocol::QuestId;
 pub struct QuestEntry {
     pub title: String,
     pub description: String,
+    pub scope: QuestScope,
+    // Own progress for `Individual` / `Everyone`; the pooled progress for
+    // `Shared` (fed by the snapshot).
     pub progress: u32,
     pub threshold: u32,
     // Kept (not removed) once done so the panel can show it completed.
     pub completed: bool,
+    // `Everyone` only: players at the threshold / players logged in.
+    pub players_done: u32,
+    pub players: u32,
     // Catalog rank from the server (`gameplay.json` order); the display order
     // for the panel and respawn announcement.
     pub order: u32,
@@ -65,6 +71,27 @@ impl QuestLog {
             entry.completed = true;
         } else {
             self.pending.entry(id).or_default().completed = true;
+        }
+    }
+
+    // Group state from the snapshot. Player counts are set, not merged —
+    // they drop when a finished player leaves. Pooled progress and completion
+    // go through the usual paths, so an id that isn't assigned yet stays
+    // pending until its `SQuestsAssigned` arrives.
+    pub fn apply_group_status(&mut self, statuses: &[QuestGroupStatus]) {
+        for status in statuses {
+            if let Some(entry) = self.entries.get_mut(&status.id)
+                && entry.scope == QuestScope::Everyone
+            {
+                entry.players_done = status.players_done;
+                entry.players = status.players;
+            }
+            if status.shared_progress > 0 {
+                self.record_progress(status.id.clone(), status.shared_progress);
+            }
+            if status.completed {
+                self.record_completion(status.id.clone());
+            }
         }
     }
 

@@ -8,7 +8,9 @@
 //    (`PlayerId`, static `MapLayout`, per-map `MapSettings`).
 //
 // 2. State snapshot (`SSnapshot`) — the authoritative current state of every
-//    player, actor, and item, broadcast at `SNAPSHOT_HZ`. Sole vehicle for
+//    player, actor, and item (plus shared world state such as open barrier
+//    kinds, group quest status, and plate gating), broadcast at
+//    `SNAPSHOT_HZ`. Sole vehicle for
 //    presence: a player appears in the first `SSnapshot` they show up in and
 //    disappears in the first they're absent from. Self-healing — a dropped
 //    snapshot is forgiven by the next one. Presence includes pre-presence:
@@ -61,6 +63,9 @@
 //    is no snapshot-side fallback — recovery from packet loss is QUIC's
 //    job, not the protocol's. Used today for quest assignment / progress /
 //    completion (`SQuestsAssigned`, `SQuestProgress`, `SQuestCompleted`).
+//    Group quest state (pooled progress, players done, completion) is world
+//    state and rides the snapshot instead; `SQuestCompleted` reaches every
+//    player for group quests.
 //
 // 6. Feed lines (`SFeed`) — server-authored, human-readable lines for the
 //    client's message feed (kills, pickups, quest completions, admin
@@ -195,6 +200,12 @@ pub struct SSnapshot {
     // Empty in v1 maps with no plates. Client hides matching barriers; server
     // unions this with each player's `held_keys` for the collision filter.
     pub open_barrier_kinds: Vec<BarrierKindId>,
+    // Every unlocked `shared` / `everyone` quest. Completed ones stay listed
+    // (completions are latched for the session) so late joiners and dropped
+    // cues self-heal.
+    pub quests: Vec<QuestGroupStatus>,
+    // Firework plates are inert and hidden until the fireworks quest unlocks.
+    pub firework_plates_active: bool,
     // Server-scheduled weather, 0.0 (clear) to 1.0 (full rain). Durable
     // level-triggered state, so it rides the snapshot — late joiners enter
     // mid-storm correctly and a dropped packet self-heals. Clients smooth
@@ -473,6 +484,7 @@ pub struct SFeed {
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct NewQuest {
     pub id: QuestId,
+    pub scope: QuestScope,
     pub title: String,
     pub description: String,
     pub progress: u32,
@@ -502,8 +514,9 @@ pub struct SQuestProgress {
     pub progress: u32,
 }
 
-// Quest just completed by a specific player. Unicast; marks the quest done in
-// the client's panel and fires the completion banner.
+// Quest completed — unicast to the player for `individual` quests, sent to
+// every logged-in player for group quests. Marks the quest done in the
+// client's panel and fires the completion banner.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SQuestCompleted {
     pub id: QuestId,

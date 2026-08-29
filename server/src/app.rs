@@ -1,6 +1,7 @@
 use anyhow::{Context, Result, bail};
 use bevy::prelude::*;
 
+use crate::quests::QuestBoard;
 use crate::{
     actors::{
         ActorMap, ActorSpawnThrottles, ActorSpawner, PendingActorSpawns, actors_plugin,
@@ -37,6 +38,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         map_server_config.lighting,
     );
     let random_items = RandomItems::from_config(map_server_config.random_items.as_ref());
+    let quest_board = QuestBoard::from_quests(&server_gameplay_config.quests);
 
     let barrier_kind_table = BarrierKindTable::from_ids(gameplay_config.barrier_kinds.clone())
         .with_context(|| "failed to build BarrierKindTable from gameplay.json barrier_kinds")?;
@@ -71,6 +73,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         .insert_resource(barrier_kind_table)
         .insert_resource(gameplay_config)
         .insert_resource(server_gameplay_config)
+        .insert_resource(quest_board)
         .insert_resource(PlayerMap::default())
         .insert_resource(ActorMap::default())
         .insert_resource(ItemMap::default())

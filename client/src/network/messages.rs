@@ -123,7 +123,7 @@ pub fn dispatch_message(
                 &client_assets.handles.explosion_radii,
                 players,
                 &mut client_assets.hud.local_player_info,
-                &mut client_assets.hud.pending_banner,
+                &mut client_assets.hud.banner,
                 my_player_id,
                 death_msg,
             );
@@ -309,7 +309,7 @@ pub fn dispatch_message(
             handle_quests_assigned_message(
                 &mut client_assets.hud.quest_log,
                 &client_assets.handles.client_settings,
-                &mut client_assets.hud.pending_banner,
+                &mut client_assets.hud.banner,
                 quest_msg,
             );
         }
@@ -321,7 +321,7 @@ pub fn dispatch_message(
                 commands,
                 &mut client_assets.hud.quest_log,
                 &client_assets.handles.client_settings,
-                &mut client_assets.hud.pending_banner,
+                &mut client_assets.hud.banner,
                 &client_assets.handles.asset_server,
                 &client_assets.handles.asset_set,
                 quest_msg,
