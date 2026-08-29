@@ -22,7 +22,7 @@
   "projectiles": {
     "lifetime_secs": 8.0,
     "spawn_offset": 1.0,
-    "radius": 0.11,
+    "radius": 0.08,
     "cooldown_secs": 0.1,
     "gravity_scale": 0.4,
     "drag_factor": 0.011,
