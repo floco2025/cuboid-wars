@@ -23,7 +23,7 @@ use common::{
 // ============================================================================
 // Show shape
 // ============================================================================
-// The whole ~26 s choreography is derived up front from the broadcast seed,
+// The whole ~33 s choreography is derived up front from the broadcast seed,
 // so every client plays an identical show. All randomness is resolved at
 // build time; playback is deterministic.
 
@@ -77,7 +77,12 @@ pub struct FireworkShow {
 }
 
 impl FireworkShow {
+    // The server broadcasts every trigger (it cannot know a show's length),
+    // so a show that is still playing wins over a new seed.
     pub fn start(&mut self, seed: u64, map_layout: Option<&MapLayout>) {
+        if !self.events.is_empty() {
+            return;
+        }
         self.elapsed = 0.0;
         self.events = build_show(seed, map_layout);
     }
@@ -562,5 +567,32 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn a_running_show_ignores_a_new_seed() {
+        let mut show = FireworkShow::default();
+        show.start(1, None);
+        show.elapsed = 5.0;
+        show.events.pop_front();
+        let remaining = show.events.len();
+
+        show.start(2, None);
+
+        assert_eq!(show.events.len(), remaining);
+        assert_eq!(show.elapsed, 5.0);
+    }
+
+    #[test]
+    fn a_finished_show_starts_again() {
+        let mut show = FireworkShow::default();
+        show.start(1, None);
+        show.elapsed = 40.0;
+        show.events.clear();
+
+        show.start(2, None);
+
+        assert!(!show.events.is_empty());
+        assert_eq!(show.elapsed, 0.0);
     }
 }
