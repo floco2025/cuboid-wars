@@ -26,9 +26,7 @@
     "cooldown_secs": 0.1,
     "gravity_scale": 0.4,
     "drag_factor": 0.011,
-    "bounce_retention": 0.85
-  },
-  "power_ups": {
+    "bounce_retention": 0.85,
     "multi_shot": {
       "spread_degrees": 1.2,
       "pattern": "star_4",

@@ -39,7 +39,7 @@ pub fn calculate_projectile_spawns(
     let mut spawns = Vec::new();
 
     let offsets: &[(f32, f32)] = if has_multi_shot {
-        gameplay.power_ups.multi_shot.shots()
+        gameplay.projectiles.multi_shot.shots()
     } else {
         &[(0.0, 0.0)]
     };

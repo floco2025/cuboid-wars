@@ -390,7 +390,7 @@ mod spawning {
 #[test]
 fn multi_shot_fires_the_configured_stencil() {
     let mut gameplay = GameplayConfig::load_default().expect("default gameplay config failed to load");
-    gameplay.power_ups.multi_shot =
+    gameplay.projectiles.multi_shot =
         MultiShotConfig::from_stencil("multi_shot", 1.5, 1.5, &["x.x", ".x.", "x.x"].map(str::to_owned))
             .expect("stencil rejected");
     let world = CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default());

@@ -16,7 +16,6 @@ pub struct GameplayConfig {
     pub movement: MovementConfig,
     pub projectiles: ProjectilesConfig,
     pub missiles: MissilesConfig,
-    pub power_ups: PowerUpEffectsConfig,
     pub actors: HashMap<String, CharacterGameplayConfig>,
     // Ordered list of barrier / key kind ids. Order is the stable
     // `BarrierKindId` index used on the wire. Visuals (colors) live in
@@ -120,7 +119,7 @@ impl MovementConfig {
 // Projectile tuning shared verbatim by server simulation and client
 // prediction — the two must integrate identical flight for the presentation
 // projectiles to land where the authoritative ones do.
-#[derive(Debug, Clone, Copy, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct ProjectilesConfig {
     pub lifetime_secs: f32,
     // Spawn distance in front of the shooter's eye along the aim.
@@ -135,6 +134,7 @@ pub struct ProjectilesConfig {
     pub drag_factor: f32,
     // Fraction of speed retained after a perpendicular bounce.
     pub bounce_retention: f32,
+    pub multi_shot: MultiShotConfig,
 }
 
 impl ProjectilesConfig {
@@ -150,14 +150,6 @@ impl ProjectilesConfig {
         }
         Ok(())
     }
-}
-
-// Multi-shot, shared by both sides' projectile spawning. (The speed
-// power-up's multiplier is `movement.player.speed_power_up`; durations are
-// server-only tuning in `config/server/gameplay.json`.)
-#[derive(Debug, Clone, Deserialize)]
-pub struct PowerUpEffectsConfig {
-    pub multi_shot: MultiShotConfig,
 }
 
 const MULTI_SHOT_MAX_SHOTS: usize = 9;
