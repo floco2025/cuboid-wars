@@ -23,10 +23,10 @@
       {"level": 3, "cols": [14, 16], "rows": [18, 25], "kind": "zapper", "count": 1}
     ],
     "player_spawn_zones": [
-      {"level": 4, "cols": [7, 10], "rows": [13, 14]},
-      {"level": 4, "cols": [19, 23], "rows": [13, 16]},
-      {"level": 4, "cols": [7, 11], "rows": [14, 17]},
-      {"level": 4, "cols": [20, 23], "rows": [16, 17]}
+      {"level": 4, "cols": [12, 18], "rows": [6, 9]},
+      {"level": 4, "cols": [6, 9], "rows": [12, 18]},
+      {"level": 4, "cols": [21, 24], "rows": [12, 18]},
+      {"level": 4, "cols": [12, 18], "rows": [21, 24]}
     ],
     "pressure_plates": [
       {"level": 1, "col": 13, "row": 13, "type": "barrier", "kind": "lobby"},
