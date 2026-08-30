@@ -35,36 +35,21 @@ const REQUIRED_PLAYER_SOUNDS: &[&str] = &[
 ];
 const REQUIRED_ACTOR_SOUNDS: &[&str] = &["explodes", "fire"];
 
-#[derive(Resource, Debug, Clone)]
+#[derive(Resource, Debug, Clone, Deserialize)]
 pub struct AssetSet {
     materials: HashMap<String, MaterialDef>,
     ladder: MaterialBinding,
     pressure_plate: PressurePlateAssets,
+    #[serde(default)]
     aliases: HashMap<String, String>,
     item_materials: HashMap<String, String>,
+    #[serde(default)]
     barrier_kind_colors: HashMap<String, String>,
     player: PlayerAssets,
     actors: HashMap<String, ActorAssets>,
     models: GenericModels,
     // Named skyboxes; the map's `MapSettings.skybox` selects one. BTreeMap so
     // the unknown-name fallback (sorted-first entry) is deterministic.
-    skyboxes: BTreeMap<String, SkyboxDef>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-struct AssetSetFile {
-    materials: HashMap<String, MaterialDef>,
-    ladder: MaterialBinding,
-    pressure_plate: PressurePlateAssets,
-    #[serde(default)]
-    aliases: HashMap<String, String>,
-    item_materials: HashMap<String, String>,
-    // Per-barrier-kind hex colors keyed by the kind id from gameplay.json.
-    #[serde(default)]
-    barrier_kind_colors: HashMap<String, String>,
-    player: PlayerAssets,
-    actors: HashMap<String, ActorAssets>,
-    models: GenericModels,
     skyboxes: BTreeMap<String, SkyboxDef>,
 }
 
@@ -80,20 +65,7 @@ impl AssetSet {
 
     fn load_from_path(path: &Path) -> Result<Self> {
         let text = fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
-        let file: AssetSetFile =
-            serde_json::from_str(&text).with_context(|| format!("failed to parse {}", path.display()))?;
-        Ok(Self {
-            materials: file.materials,
-            ladder: file.ladder,
-            pressure_plate: file.pressure_plate,
-            aliases: file.aliases,
-            item_materials: file.item_materials,
-            barrier_kind_colors: file.barrier_kind_colors,
-            player: file.player,
-            actors: file.actors,
-            models: file.models,
-            skyboxes: file.skyboxes,
-        })
+        serde_json::from_str(&text).with_context(|| format!("failed to parse {}", path.display()))
     }
 
     fn validate(&self) -> Result<()> {
