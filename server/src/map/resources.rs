@@ -1,6 +1,9 @@
 use bevy::prelude::Resource;
 
-use common::map::MapGeometry;
+use common::{
+    map::MapGeometry,
+    protocol::{BarrierKindId, ItemType},
+};
 
 // Cell flags.
 #[derive(Copy, Clone, Debug, Default)]
@@ -160,4 +163,57 @@ pub struct MapConfig {
     pub player_spawn_zones: Vec<PlayerSpawnZone>,
     pub placed_items: Vec<PlacedItem>,
     pub pressure_plates: Vec<PressurePlateRuntime>,
+}
+
+impl MapConfig {
+    // Sorted for deterministic encoding.
+    #[must_use]
+    pub fn key_kinds(&self) -> Vec<BarrierKindId> {
+        let mut kinds: Vec<BarrierKindId> = self
+            .placed_items
+            .iter()
+            .filter_map(|item| match item.item_type {
+                ItemType::Key(kind) => Some(kind),
+                _ => None,
+            })
+            .collect();
+        kinds.sort_unstable();
+        kinds.dedup();
+        kinds
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn key(kind: u16) -> PlacedItem {
+        PlacedItem {
+            level: 0,
+            col: 0,
+            row: 0,
+            item_type: ItemType::Key(BarrierKindId(kind)),
+        }
+    }
+
+    #[test]
+    fn key_kinds_are_sorted_and_deduplicated() {
+        let config = MapConfig {
+            levels: Vec::new(),
+            actor_spawn_zones: Vec::new(),
+            player_spawn_zones: Vec::new(),
+            placed_items: vec![
+                key(2),
+                PlacedItem {
+                    item_type: ItemType::Cookie,
+                    ..key(0)
+                },
+                key(0),
+                key(2),
+            ],
+            pressure_plates: Vec::new(),
+        };
+
+        assert_eq!(config.key_kinds(), [BarrierKindId(0), BarrierKindId(2)]);
+    }
 }

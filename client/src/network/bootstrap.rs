@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::{characters::MaxHealth, players::MyPlayerId, vfx::BlastRadii};
+use crate::{barriers::KeyKinds, characters::MaxHealth, players::MyPlayerId, vfx::BlastRadii};
 use common::{physics::CollisionWorld, protocol::*};
 
 pub(super) fn handle_bootstrap_message(message: SInit, commands: &mut Commands, barrier_kind_table: &BarrierKindTable) {
@@ -19,4 +19,5 @@ pub(super) fn handle_bootstrap_message(message: SInit, commands: &mut Commands, 
         player: message.player_max_health,
         actors: message.actor_max_health.into_iter().collect(),
     });
+    commands.insert_resource(KeyKinds(message.key_kinds));
 }

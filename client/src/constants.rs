@@ -211,8 +211,8 @@ pub const KEY_HEIGHT_ABOVE_FLOOR: f32 = 0.6;
 // Shape (narrow vertical) is intentionally different from the 12×12 power-up
 // squares so the two categories read as different.
 pub const KEY_HUD_ICON_SIZE_PX: f32 = 10.0;
-// Icon strip spacing: tight within a category, a slightly wider break
-// between the power-up / missile / key groups.
+// Icon strip spacing: tight within a category; the power-up / missile / key
+// groups spread across the entry, and this is the least they get when packed.
 pub const HUD_ICON_GAP_PX: f32 = 3.0;
 pub const HUD_ICON_CATEGORY_GAP_PX: f32 = 6.0;
 pub const MISSILE_HUD_ICON_WIDTH_PX: f32 = 3.0;

@@ -64,6 +64,7 @@ pub(super) fn handle_login_message(
         missile_blast_radius: combat.damage.missile_blast.radius,
         player_max_health: combat.health.player.max,
         actor_max_health: sorted_by_kind(&combat.health.actors, |actor| actor.max),
+        key_kinds: world.map_config.key_kinds(),
     });
     if let Err(error) = channel.send(ServerToClient::Send(init_message)) {
         warn!("failed to send init to {:?}: {}", id, error);

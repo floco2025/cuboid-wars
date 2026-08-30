@@ -83,7 +83,7 @@ The authoritative server→client message taxonomy is in the top-of-file comment
 
 #### Barriers & keys
 
-Each `BarrierKindId` gets a dedicated Rapier collision group (bits 3..31, max 29 kinds). Players hold a sorted `Vec<BarrierKindId>` in `PlayerInfo.life.held_keys`; the character filter drops the matching groups so they pass through. Defined in `common/src/physics/world/colliders.rs` and `common/src/types/barrier_kind.rs`.
+Each `BarrierKindId` gets a dedicated Rapier collision group (bits 3..31, max 29 kinds). Players hold a sorted `Vec<BarrierKindId>` in `PlayerInfo.life.held_keys`; the character filter drops the matching groups so they pass through. Defined in `common/src/physics/world/colliders.rs` and `common/src/types/barrier_kind.rs`. The HUD draws one key slot per kind the map places a key for (`SInit.key_kinds`, from `MapConfig::key_kinds`), not per barrier kind.
 
 #### Pressure plates
 

@@ -174,6 +174,9 @@ pub struct SInit {
     // Max health from the same config, so health bars have a denominator.
     pub player_max_health: f32,
     pub actor_max_health: Vec<(String, f32)>,
+    // Barrier kinds this map places a key for (sorted), so the HUD shows a
+    // key slot only where one can be filled.
+    pub key_kinds: Vec<BarrierKindId>,
 }
 
 // --- Snapshot ---

@@ -7,7 +7,7 @@ use bevy::{
 
 use crate::{
     actors::{ActorGhostMap, ActorMap},
-    barriers::{LockedPlatePurposes, OpenBarrierKinds, setup_barrier_assets},
+    barriers::{KeyKinds, LockedPlatePurposes, OpenBarrierKinds, setup_barrier_assets},
     cameras::{CameraViewMode, TopDownCameraYaw, setup_cameras_system},
     characters::MaxHealth,
     characters::{character_sync_plugin, prediction_plugin},
@@ -100,6 +100,7 @@ pub fn build_client_app(
         .init_resource::<ExplosionAssets>()
         .init_resource::<BlastRadii>()
         .init_resource::<MaxHealth>()
+        .init_resource::<KeyKinds>()
         .init_resource::<ExplosionVfxBudget>()
         .add_systems(
             Startup,

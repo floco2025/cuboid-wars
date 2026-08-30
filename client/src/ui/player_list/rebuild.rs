@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
-    protocol::{BarrierKindTable, Health, PlayerId},
+    protocol::{BarrierKindId, Health, PlayerId},
 };
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -12,7 +12,7 @@ use super::{
     shapes::HudShapeAssets,
 };
 use crate::{
-    barriers::BarrierAssets,
+    barriers::{BarrierAssets, KeyKinds},
     characters::MaxHealth,
     config::ClientSettings,
     players::{MyPlayerId, PlayerMap},
@@ -25,7 +25,7 @@ pub fn ui_player_list_rebuild_system(
     gameplay_config: Res<GameplayConfig>,
     max_health: Res<MaxHealth>,
     client_settings: Res<ClientSettings>,
-    kind_table: Res<BarrierKindTable>,
+    key_kinds: Res<KeyKinds>,
     barrier_assets: Option<Res<BarrierAssets>>,
     shapes: Res<HudShapeAssets>,
     health_query: Query<&Health>,
@@ -64,7 +64,7 @@ pub fn ui_player_list_rebuild_system(
         local_player_id,
         max_health.player,
         &style,
-        &kind_table,
+        &key_kinds.0,
         barrier_assets.as_deref(),
         &shapes,
         &health_query,
@@ -79,7 +79,7 @@ fn rebuild_player_list(
     local_player_id: Option<PlayerId>,
     max_health: f32,
     style: &PlayerEntryStyle,
-    kind_table: &BarrierKindTable,
+    key_kinds: &[BarrierKindId],
     barrier_assets: Option<&BarrierAssets>,
     shapes: &HudShapeAssets,
     health_query: &Query<&Health>,
@@ -104,7 +104,7 @@ fn rebuild_player_list(
             local_player_id == Some(*player_id),
             max_health,
             current_health,
-            kind_table,
+            key_kinds,
             barrier_assets,
             shapes,
             style,

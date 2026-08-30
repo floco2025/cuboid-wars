@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use common::protocol::{BarrierKindId, BarrierKindTable, Health, PlayerId, PowerUpKind};
+use common::protocol::{BarrierKindId, Health, PlayerId, PowerUpKind};
 
 use super::components::{LOCAL_PLAYER_BG_COLOR, PlayerEntryMarker};
 use super::health_bar::spawn_health_bar;
@@ -31,7 +31,7 @@ pub(super) fn spawn_player_entry(
     is_local: bool,
     max_health: f32,
     current_health: f32,
-    kind_table: &BarrierKindTable,
+    key_kinds: &[BarrierKindId],
     barrier_assets: Option<&BarrierAssets>,
     shapes: &HudShapeAssets,
     style: &PlayerEntryStyle,
@@ -87,34 +87,36 @@ pub(super) fn spawn_player_entry(
 
             // Icon strip on its own line so the entry stays narrow. Every
             // slot always renders (dim when unfilled), so pickups never
-            // resize the panel.
+            // resize the panel, and the groups spread across the entry so
+            // the strip spans it at any key count.
             entry
-                .spawn((Node {
+                .spawn(Node {
+                    width: Val::Percent(100.0),
                     flex_direction: FlexDirection::Row,
                     align_items: AlignItems::Center,
-                    column_gap: Val::Px(HUD_ICON_GAP_PX),
+                    justify_content: JustifyContent::SpaceBetween,
+                    column_gap: Val::Px(HUD_ICON_CATEGORY_GAP_PX),
                     ..default()
-                },))
-                .with_children(|row| {
-                    for kind in PowerUpKind::ALL {
-                        spawn_power_up_icon(row, player_info.power_up(kind), kind, shapes);
-                    }
-
-                    spawn_category_gap(row);
-                    for slot in 0..style.max_missiles {
-                        spawn_missile_icon(row, slot < player_info.missiles);
-                    }
-
-                    spawn_category_gap(row);
-                    for index in 0..kind_table.len() {
-                        let Ok(kind) = u16::try_from(index).map(BarrierKindId) else {
-                            continue;
-                        };
-                        let color = barrier_assets
-                            .filter(|_| player_info.held_keys.contains(&kind))
-                            .map_or(HUD_SLOT_EMPTY_COLOR, |assets| assets.base_color(kind));
-                        spawn_key_icon(row, color);
-                    }
+                })
+                .with_children(|strip| {
+                    spawn_icon_group(strip, |row| {
+                        for kind in PowerUpKind::ALL {
+                            spawn_power_up_icon(row, player_info.power_up(kind), kind, shapes);
+                        }
+                    });
+                    spawn_icon_group(strip, |row| {
+                        for slot in 0..style.max_missiles {
+                            spawn_missile_icon(row, slot < player_info.missiles);
+                        }
+                    });
+                    spawn_icon_group(strip, |row| {
+                        for &kind in key_kinds {
+                            let color = barrier_assets
+                                .filter(|_| player_info.held_keys.contains(&kind))
+                                .map_or(HUD_SLOT_EMPTY_COLOR, |assets| assets.base_color(kind));
+                            spawn_key_icon(row, color);
+                        }
+                    });
                 });
 
             spawn_health_bar(
@@ -171,13 +173,15 @@ fn spawn_power_up_icon(row: &mut ChildSpawnerCommands, active: bool, kind: Power
     }
 }
 
-// Extra breathing room between the power-up / missile / key groups, on top
-// of the strip's per-icon gap.
-fn spawn_category_gap(row: &mut ChildSpawnerCommands) {
-    row.spawn(Node {
-        width: Val::Px(HUD_ICON_CATEGORY_GAP_PX),
-        ..default()
-    });
+fn spawn_icon_group(strip: &mut ChildSpawnerCommands, icons: impl FnOnce(&mut ChildSpawnerCommands)) {
+    strip
+        .spawn(Node {
+            flex_direction: FlexDirection::Row,
+            align_items: AlignItems::Center,
+            column_gap: Val::Px(HUD_ICON_GAP_PX),
+            ..default()
+        })
+        .with_children(icons);
 }
 
 fn spawn_key_icon(row: &mut ChildSpawnerCommands, color: Color) {
