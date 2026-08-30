@@ -2,11 +2,10 @@ use bevy::{ecs::system::SystemParam, prelude::*};
 
 use crate::{
     actors::{ActorMap, PendingActorSpawns},
-    config::ServerGameplayConfig,
     items::ItemMap,
     map::{LightState, OpenBarrierKinds, WeatherState},
     players::PlayerMap,
-    quests::QuestBoard,
+    quests::{QuestBoard, QuestCatalog},
 };
 use common::{
     constants::SNAPSHOT_SECS,
@@ -28,7 +27,7 @@ pub struct WorldConditions<'w> {
     weather: Res<'w, WeatherState>,
     light: Res<'w, LightState>,
     quests: Res<'w, QuestBoard>,
-    config: Res<'w, ServerGameplayConfig>,
+    quest_catalog: Res<'w, QuestCatalog>,
 }
 
 pub fn network_broadcast_snapshot_system(
@@ -68,7 +67,7 @@ pub fn network_broadcast_snapshot_system(
     let all_items = collect_items(&items, &item_positions);
     let all_missiles = snapshot_missiles(&missiles, &missile_data);
 
-    let (quests, locked_plate_purposes) = conditions.quests.snapshot_fields(&conditions.config.quests, &players);
+    let (quests, locked_plate_purposes) = conditions.quests.snapshot_fields(&conditions.quest_catalog, &players);
     let msg = ServerMessage::Snapshot(SSnapshot {
         seq: *seq,
         players: all_players,

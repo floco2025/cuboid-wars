@@ -4,13 +4,13 @@ use super::PendingExplosions;
 use crate::{
     actors::ActorMap,
     config::{FeedConfig, ServerGameplayConfig},
-    network::{announce, broadcast_to_all},
+    network::{DeathCause, FeedAudience, FeedEvent, broadcast_to_all, emit_feed},
     players::PlayerMap,
-    quests::{PlayerQuestEvent, QuestBoard, record_player_event},
+    quests::{QuestBoard, QuestCatalog, QuestEvent, record_event},
 };
 use common::{
     health::apply_damage,
-    protocol::{ActorId, DeathCause, FeedEvent, Health, PlayerId, Position, SActorDeath, SPlayerDeath, ServerMessage},
+    protocol::{ActorId, Health, PlayerId, Position, SActorDeath, SPlayerDeath, ServerMessage},
 };
 
 // What killed a player, by id. `kill_player` derives both the kill credit
@@ -109,9 +109,10 @@ pub fn kill_player(
             killer_score,
         }),
     );
-    announce(
+    emit_feed(
         players,
         feed,
+        FeedAudience::Everyone,
         FeedEvent::PlayerDied {
             name: players.display_name(&id),
             cause: death_cause(&source, id, players),
@@ -135,9 +136,10 @@ pub fn kill_actor(
         return false;
     };
     if let Some(killer_id) = killer {
-        announce(
+        emit_feed(
             players,
             feed,
+            FeedAudience::Everyone,
             FeedEvent::ActorDestroyed {
                 name: players.display_name(&killer_id),
                 kind: info.spawn_kind.clone(),
@@ -168,6 +170,7 @@ pub fn kill_actor(
 pub fn award_actor_kill(
     players: &mut PlayerMap,
     quest_board: &mut QuestBoard,
+    quest_catalog: &QuestCatalog,
     shooter_id: PlayerId,
     kind: &str,
     server_gameplay_config: &ServerGameplayConfig,
@@ -181,12 +184,15 @@ pub fn award_actor_kill(
         .get(kind)
         .copied()
         .expect("actor kind missing from scoring.actor_kill");
-    record_player_event(
+    record_event(
         players,
         quest_board,
-        server_gameplay_config,
-        shooter_id,
-        PlayerQuestEvent::ActorKilled { kind },
+        quest_catalog,
+        &server_gameplay_config.feed,
+        QuestEvent::ActorKilled {
+            player: shooter_id,
+            kind,
+        },
     );
 }
 
@@ -315,14 +321,14 @@ mod tests {
         }
     }
 
-    fn feed_events(receiver: &mut UnboundedReceiver<ServerToClient>) -> Vec<FeedEvent> {
-        let mut events = Vec::new();
+    fn feed_lines(receiver: &mut UnboundedReceiver<ServerToClient>) -> Vec<String> {
+        let mut lines = Vec::new();
         while let Ok(envelope) = receiver.try_recv() {
             if let ServerToClient::Send(ServerMessage::Feed(feed)) = envelope {
-                events.push(feed.event);
+                lines.push(feed.spans.into_iter().map(|span| span.text).collect());
             }
         }
-        events
+        lines
     }
 
     fn kill_with(players: &mut PlayerMap, victim: PlayerId, source: DeathSource) {
@@ -650,13 +656,7 @@ mod tests {
         kill_with(&mut players, PlayerId(2), DeathSource::Shot(PlayerId(1)));
 
         assert_eq!(next_player_death(&mut shooter_rx).killer, Some(PlayerId(1)));
-        assert_eq!(
-            feed_events(&mut shooter_rx),
-            vec![FeedEvent::PlayerDied {
-                name: "Marc".to_owned(),
-                cause: DeathCause::Shot { by: "Bob".to_owned() },
-            }]
-        );
+        assert_eq!(feed_lines(&mut shooter_rx), ["Bob shot Marc"]);
     }
 
     #[test]
@@ -667,13 +667,7 @@ mod tests {
         kill_with(&mut players, PlayerId(2), DeathSource::Shot(PlayerId(2)));
 
         assert_eq!(next_player_death(&mut rx).killer, None);
-        assert_eq!(
-            feed_events(&mut rx),
-            vec![FeedEvent::PlayerDied {
-                name: "Marc".to_owned(),
-                cause: DeathCause::SelfShot,
-            }]
-        );
+        assert_eq!(feed_lines(&mut rx), ["Marc shot themselves"]);
     }
 
     #[test]
@@ -736,13 +730,7 @@ mod tests {
         }
         commands_queue.apply(world);
 
-        assert_eq!(
-            feed_events(&mut rx),
-            vec![FeedEvent::ActorDestroyed {
-                name: "Bob".to_owned(),
-                kind: "sentry".to_owned(),
-            }]
-        );
+        assert_eq!(feed_lines(&mut rx), ["Bob destroyed a sentry"]);
     }
 
     #[test]

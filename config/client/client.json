@@ -103,6 +103,12 @@
       "banner": 40.0,
       "quest_panel": 16.0
     },
+    "banner": {
+      "quest_announcement_secs": 10.0,
+      "quest_completed_secs": 5.0,
+      "death_secs": 3.0,
+      "max_entries": 5
+    },
     "message_feed": {
       "entry_duration_secs": 10.0,
       "max_entries": 10

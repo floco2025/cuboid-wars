@@ -6,16 +6,15 @@ use crate::{
     combat::{DeathSource, PendingExplosions, kill_player},
     config::ServerGameplayConfig,
     map::{LightState, WeatherState, light_preset_from_str},
-    network::{ServerToClient, announce, broadcast_firework_show, reply},
+    network::{FeedAudience, FeedEvent, ServerToClient, broadcast_firework_show, emit_feed},
     players::{Invincibility, PlayerInfo, PlayerMap, UnlimitedMissiles},
-    quests::{QuestBoard, complete_quest, unlock_quest},
+    quests::{QuestBoard, QuestCatalog, complete_quest, unlock_quest},
 };
 use common::{
     config::GameplayConfig,
     constants::COMMAND_MAX_CHARS,
     protocol::{
-        BarrierKindTable, CAdmin, FeedEvent, Health, ItemType, PlayerId, PowerUpKind, QuestGroupProgress, QuestId,
-        QuestScope,
+        BarrierKindTable, CAdmin, Health, ItemType, PlayerId, PowerUpKind, QuestGroupProgress, QuestId, QuestScope,
     },
 };
 
@@ -42,6 +41,7 @@ pub struct AdminContext<'w> {
     pub actor_spawn_throttles: ResMut<'w, ActorSpawnThrottles>,
     pub server_gameplay_config: Res<'w, ServerGameplayConfig>,
     pub barrier_kind_table: Res<'w, BarrierKindTable>,
+    pub quest_catalog: Res<'w, QuestCatalog>,
 }
 
 // Vanilla-Minecraft-style command grammar: `/verb [argument]`, `@a` = all
@@ -191,19 +191,17 @@ pub fn handle_admin_message(
     };
     let feed = &admin.server_gameplay_config.feed;
     match outcome {
-        AdminOutcome::Public(text) if feed.admin_action => announce(
+        AdminOutcome::Public(text) if feed.admin_action => emit_feed(
             players,
             feed,
+            FeedAudience::Everyone,
             FeedEvent::AdminAction {
                 name: players.display_name(&id),
                 text,
             },
         ),
-        // With announcements switched off the issuer still gets the outcome.
         AdminOutcome::Public(text) | AdminOutcome::Private(text) => {
-            if let Some(info) = players.get(&id) {
-                reply(info, FeedEvent::AdminReply { text });
-            }
+            emit_feed(players, feed, FeedAudience::Player(id), FeedEvent::AdminReply { text });
         }
     }
 }
@@ -416,17 +414,13 @@ fn run_admin_command(
             broadcast_firework_show(players);
             Public("launched fireworks".to_owned())
         }
-        AdminCommand::QuestStatus => Private(quest_status(
-            players,
-            quest_board,
-            &admin.server_gameplay_config,
-            sender,
-        )),
+        AdminCommand::QuestStatus => Private(quest_status(players, quest_board, &admin.quest_catalog, sender)),
         AdminCommand::CompleteQuest(id, target) => {
             let config = &admin.server_gameplay_config;
+            let catalog = &admin.quest_catalog;
             let quest_id = QuestId(id.clone());
-            let Some(quest) = config.quests.iter().find(|quest| quest.id == quest_id) else {
-                let ids: Vec<&str> = config.quests.iter().map(|quest| quest.id.0.as_str()).collect();
+            let Some(quest) = catalog.get(&quest_id) else {
+                let ids: Vec<&str> = catalog.iter().map(|quest| quest.id.0.as_str()).collect();
                 return Private(format!("unknown quest {id:?} (quests: {})", ids.join(", ")));
             };
             let title = &quest.title;
@@ -444,8 +438,8 @@ fn run_admin_command(
                     targets
                 }
             };
-            unlock_quest(players, quest_board, config, &quest_id);
-            let finished = complete_quest(players, quest_board, config, quest, &targets);
+            unlock_quest(players, quest_board, catalog, &quest_id);
+            let finished = complete_quest(players, quest_board, catalog, &config.feed, quest, &targets);
             match quest.scope {
                 QuestScope::Individual if finished == 0 => {
                     Private(format!("{title} is already completed for those players"))
@@ -505,11 +499,10 @@ fn logged_in_players(players: &PlayerMap, name: Option<&str>) -> Vec<PlayerId> {
 
 // One line per catalog quest: its scope and where it stands, own counter
 // from the issuer's point of view.
-fn quest_status(players: &PlayerMap, board: &QuestBoard, config: &ServerGameplayConfig, sender: PlayerId) -> String {
-    let statuses = board.group_statuses(&config.quests, players);
+fn quest_status(players: &PlayerMap, board: &QuestBoard, catalog: &QuestCatalog, sender: PlayerId) -> String {
+    let statuses = board.group_statuses(catalog, players);
     let own_states = players.get(&sender).map(|info| &info.quest_states);
-    config
-        .quests
+    catalog
         .iter()
         .map(|quest| {
             let scope = match quest.scope {
@@ -519,7 +512,12 @@ fn quest_status(players: &PlayerMap, board: &QuestBoard, config: &ServerGameplay
             };
             let own = own_states.and_then(|states| states.get(&quest.id)).map_or_else(
                 || "not assigned".to_owned(),
-                |progress| format!("you {progress}/{}", quest.threshold),
+                |state| {
+                    state.own_progress().map_or_else(
+                        || "assigned".to_owned(),
+                        |progress| format!("you {progress}/{}", quest.threshold),
+                    )
+                },
             );
             let group = statuses
                 .iter()

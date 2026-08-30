@@ -3,17 +3,17 @@ use bevy::prelude::*;
 use crate::{
     config::ServerGameplayConfig,
     items::{ItemMap, ItemPlacement},
-    network::{ServerToClient, announce, broadcast_to_all},
+    network::{FeedAudience, FeedEvent, ServerToClient, broadcast_to_all, emit_feed},
     players::{PlayerInfo, PlayerMap},
-    quests::{PlayerQuestEvent, QuestBoard, record_player_event},
+    quests::{QuestBoard, QuestCatalog, QuestEvent, record_event},
 };
 use common::{
     config::GameplayConfig,
     health::regenerate_health,
     physics::character_overlaps_item,
     protocol::{
-        BarrierKindId, FeedEvent, Health, ItemId, ItemMarker, ItemType, PlayerId, PlayerMarker, Position,
-        SCookieCollected, SHealthPotionCollected, SMissilesCollected, SPlayerStatus, ServerMessage,
+        BarrierKindId, Health, ItemId, ItemMarker, ItemType, PlayerId, PlayerMarker, Position, SCookieCollected,
+        SHealthPotionCollected, SMissilesCollected, SPlayerStatus, ServerMessage,
     },
 };
 
@@ -30,6 +30,7 @@ pub fn item_collection_system(
     server_gameplay_config: Res<ServerGameplayConfig>,
     gameplay_config: Res<GameplayConfig>,
     mut quest_board: ResMut<QuestBoard>,
+    quest_catalog: Res<QuestCatalog>,
 ) {
     let items_to_collect: Vec<(PlayerId, ItemId, ItemType)> = items
         .iter()
@@ -79,7 +80,13 @@ pub fn item_collection_system(
     for (player_id, item_id, item_type) in items_to_collect {
         consume_item(&mut commands, &mut items, &server_gameplay_config, item_id, item_type);
         match item_type {
-            ItemType::Cookie => collect_cookie(&mut players, &mut quest_board, player_id, &server_gameplay_config),
+            ItemType::Cookie => collect_cookie(
+                &mut players,
+                &mut quest_board,
+                &quest_catalog,
+                player_id,
+                &server_gameplay_config,
+            ),
             ItemType::Key(kind) => collect_key(&mut players, player_id, kind, &mut status_broadcasts, &mut feed_events),
             ItemType::HealthPotion => {
                 collect_health_potion(&mut players, &mut player_health, player_id, &server_gameplay_config);
@@ -106,7 +113,7 @@ pub fn item_collection_system(
         broadcast_to_all(&players, ServerMessage::PlayerStatus(msg));
     }
     for event in feed_events {
-        announce(&players, &server_gameplay_config.feed, event);
+        emit_feed(&players, &server_gameplay_config.feed, FeedAudience::Everyone, event);
     }
 }
 
@@ -154,6 +161,7 @@ fn consume_item(
 fn collect_cookie(
     players: &mut PlayerMap,
     quest_board: &mut QuestBoard,
+    quest_catalog: &QuestCatalog,
     player_id: PlayerId,
     server_gameplay_config: &ServerGameplayConfig,
 ) {
@@ -161,12 +169,12 @@ fn collect_cookie(
         return;
     };
     player_info.score += server_gameplay_config.scoring.cookie;
-    record_player_event(
+    record_event(
         players,
         quest_board,
-        server_gameplay_config,
-        player_id,
-        PlayerQuestEvent::CookieCollected,
+        quest_catalog,
+        &server_gameplay_config.feed,
+        QuestEvent::CookieCollected { player: player_id },
     );
     // Sent after the quest step so the early score already includes any
     // completion bonus.

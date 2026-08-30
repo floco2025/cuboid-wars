@@ -11,11 +11,11 @@ mod scale;
 mod setup;
 mod timed_lines;
 
-pub use console::{ConsoleState, console_closed, console_input_system, ui_console_render_system};
+pub use console::{ConsoleState, console_closed, ui_console_render_system};
 pub use crosshair::{CrosshairBarMarker, CrosshairMarker, ui_crosshair_lock_system, ui_crosshair_visibility_system};
 pub use diagnostics::{FpsMarker, FpsMeasurement, RttMarker, ui_fps_system, ui_rtt_system};
 pub use fade::fade_out_alpha;
-pub use hud_banner::{HudBanner, ui_hud_banner_system};
+pub use hud_banner::{BannerMessage, HudBanner, ui_hud_banner_system};
 pub use message_feed::{MessageFeed, ui_message_feed_system};
 pub use player_list::{
     HudShapeAssets, ui_health_bar_fill_system, ui_player_list_rebuild_system, ui_stunned_blink_system,

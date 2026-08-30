@@ -51,7 +51,7 @@ impl QuestKind {
     }
 
     // Kinds advanced by something that happens to the world rather than by
-    // a player's action (`WorldQuestEvent`).
+    // a player's action.
     #[must_use]
     pub fn is_world_event(self) -> bool {
         matches!(self, Self::Fireworks)

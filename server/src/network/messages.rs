@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use super::{
     admin::{AdminContext, handle_admin_message},
     broadcast::broadcast_to_others,
-    feed::announce,
+    feed::{FeedAudience, FeedEvent, emit_feed},
     incoming::{CharacterQueries, SharedWorld},
 };
 use crate::{
@@ -158,9 +158,10 @@ fn handle_chat_message(id: PlayerId, msg: &CChat, players: &PlayerMap, feed: &Fe
     let Some(text) = sanitize_chat_text(&msg.text) else {
         return;
     };
-    announce(
+    emit_feed(
         players,
         feed,
+        FeedAudience::Everyone,
         FeedEvent::Chat {
             name: players.display_name(&id),
             text,

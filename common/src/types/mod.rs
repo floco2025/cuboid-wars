@@ -16,7 +16,7 @@ pub use entities::{
     Actor, ActorMarker, Item, ItemMarker, Missile, MissileMarker, Player, PlayerMarker, ProjectileMarker, SpawningActor,
 };
 pub use face_materials::FaceMaterials;
-pub use feed::{DeathCause, FeedEvent};
+pub use feed::{FeedSpan, FeedStyle};
 pub use ids::{ActorId, HomingTarget, ItemId, MissileId, PlayerId, QuestId};
 pub use items::{ItemType, PowerUpKind};
 pub use map_layout::{
@@ -26,4 +26,4 @@ pub use movement::{
     ActorMoveIntent, ActorMovementState, FaceYaw, MissileMovementState, PlayerMoveIntent, PlayerMovementState,
 };
 pub use position::Position;
-pub use quests::{QuestGroupProgress, QuestGroupStatus, QuestScope};
+pub use quests::{QuestGroupProgress, QuestGroupStatus, QuestInitialProgress, QuestInitialStatus, QuestScope};

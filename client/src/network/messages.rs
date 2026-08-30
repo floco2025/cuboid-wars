@@ -330,6 +330,6 @@ pub fn dispatch_message(
                 client_assets.handles.asset_set.player_sound(sound),
             );
         }
-        ServerMessage::Feed(SFeed { event }) => client_assets.hud.feed.push(event),
+        ServerMessage::Feed(line) => client_assets.hud.feed.push(line),
     }
 }

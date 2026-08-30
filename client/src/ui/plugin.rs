@@ -1,3 +1,4 @@
+use super::console::{ConsoleSubmission, console_input_system, console_send_system};
 use super::*;
 use bevy::prelude::*;
 
@@ -9,7 +10,12 @@ use crate::{
 // HUD and screen-space UI (`ClientSet::Hud`), plus the console's keystroke
 // system in its own earlier set.
 pub fn hud_plugin(app: &mut App) {
-    app.add_systems(Update, console_input_system.in_set(ClientSet::Console));
+    app.add_message::<ConsoleSubmission>().add_systems(
+        Update,
+        (console_input_system, console_send_system)
+            .chain()
+            .in_set(ClientSet::Console),
+    );
     app.add_systems(
         Update,
         (

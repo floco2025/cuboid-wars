@@ -147,7 +147,7 @@ pub fn setup_ui_system(mut commands: Commands, client_settings: Res<ClientSettin
         Visibility::Hidden,
     ));
 
-    spawn_hud_banner(&mut commands);
+    spawn_hud_banner(&mut commands, &client_settings);
 
     // Feed rows above the console prompt in one bottom-right column, so the
     // two can't overlap at any font size.

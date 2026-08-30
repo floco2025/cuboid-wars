@@ -1,9 +1,6 @@
 use common::protocol::*;
 
-use crate::{
-    constants::{BANNER_QUEST_ANNOUNCEMENT_SECS, BANNER_QUEST_COMPLETED_SECS},
-    ui::{HudBanner, QuestEntry, QuestLog, QuestProgress},
-};
+use crate::ui::{BannerMessage, HudBanner, QuestEntry, QuestLog, QuestProgress};
 
 // Per-client quest state events. Both dispatchers route them here: they
 // install durable state with no snapshot fallback and don't need
@@ -19,7 +16,7 @@ pub fn handle_quest_message(
         ServerMessage::QuestProgress(msg) => quest_log.record_progress(msg.id, msg.progress),
         ServerMessage::QuestCompleted(msg) => {
             quest_log.record_completion(msg.id);
-            banner.push(msg.completed_text, BANNER_QUEST_COMPLETED_SECS);
+            banner.push(BannerMessage::QuestCompleted(msg.completed_text));
         }
         other => return Some(other),
     }
@@ -35,8 +32,8 @@ fn handle_quests_assigned_message(quest_log: &mut QuestLog, banner: &mut HudBann
             title: quest.title,
             description: quest.description,
             threshold: quest.threshold,
-            progress: QuestProgress::new(quest.scope, quest.progress),
-            completed: false,
+            progress: QuestProgress::from_initial(quest.status.progress),
+            completed: quest.status.completed,
             order: quest.order,
         };
         let announcement = entry.announcement();
@@ -45,7 +42,7 @@ fn handle_quests_assigned_message(quest_log: &mut QuestLog, banner: &mut HudBann
         }
     }
     if !lines.is_empty() {
-        banner.push(lines.join("\n"), BANNER_QUEST_ANNOUNCEMENT_SECS);
+        banner.push(BannerMessage::QuestAnnouncement(lines.join("\n")));
     }
 }
 
@@ -54,13 +51,24 @@ mod tests {
     use super::*;
 
     fn new_quest(id: &str, scope: QuestScope, progress: u32, order: u32) -> NewQuest {
+        let progress = match scope {
+            QuestScope::Individual => QuestInitialProgress::Individual { progress },
+            QuestScope::Shared => QuestInitialProgress::Shared { progress },
+            QuestScope::Everyone => QuestInitialProgress::Everyone {
+                progress,
+                players_done: 0,
+                players_total: 0,
+            },
+        };
         NewQuest {
             id: QuestId(id.to_owned()),
-            scope,
             title: id.to_uppercase(),
             description: format!("do {id}"),
-            progress,
             threshold: 10,
+            status: QuestInitialStatus {
+                completed: false,
+                progress,
+            },
             order,
         }
     }

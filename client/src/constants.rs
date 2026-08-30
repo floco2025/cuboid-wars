@@ -424,12 +424,6 @@ pub const PROJECTILE_IMPACT_PREEMPTION_LOUDNESS_RATIO: f32 = 2.0;
 // Banner & Death Overlay
 // ============================================================================
 
-pub const BANNER_QUEST_ANNOUNCEMENT_SECS: f32 = 10.0;
-pub const BANNER_QUEST_COMPLETED_SECS: f32 = 5.0;
-pub const BANNER_DEATH_SECS: f32 = 3.0;
-pub const BANNER_DEATH_TEXT: &str = "You died!";
-// Lines the banner stacks at most; older ones are evicted first.
-pub const BANNER_MAX_LINES: usize = 5;
 // Band top as a fraction of the window height: below the crosshair, above
 // the console.
 pub const BANNER_BAND_TOP_PERCENT: f32 = 60.0;

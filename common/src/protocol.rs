@@ -69,10 +69,11 @@
 //
 // 6. Feed lines (`SFeed`) — server-authored, human-readable lines for the
 //    client's message feed (kills, pickups, quest completions, admin
-//    actions, chat). Names and kinds are resolved at emit time so the client
-//    renders without live entity maps. Broadcast, except admin replies,
-//    which are unicast to the issuer. Ephemeral like cues — a dropped line
-//    costs only the text — and never a source of state.
+//    actions, chat). The server sends final text spans with semantic styles;
+//    the client only maps those styles to colors. Public lines can target
+//    everyone or everyone except one player; admin replies target the issuer.
+//    Ephemeral like cues — a dropped line costs only the text — and never a
+//    source of state.
 //
 // `CPing` / `SPong` are a separate diagnostic channel for RTT measurement.
 
@@ -131,15 +132,15 @@ pub struct CPing {
 
 // Client to Server: raw admin command string (e.g. "rain start"). The
 // client stays dumb — parsing, execution, authorization, and the reply
-// text (answered as `FeedEvent::AdminReply` / `AdminAction`) all live
-// server-side, so new commands never touch the protocol.
+// text (answered as an `SFeed` line) all live server-side, so new commands
+// never touch the protocol.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct CAdmin {
     pub command: String,
 }
 
 // Client to Server: raw chat line (a slashless console entry). The server
-// sanitizes and broadcasts it as `FeedEvent::Chat`.
+// sanitizes it and broadcasts a rendered `SFeed` line.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct CChat {
     pub text: String,
@@ -471,12 +472,11 @@ pub struct SFirework {
 
 // --- Feed lines (server-authored message feed) ---
 
-// One message-feed line. See `FeedEvent` for the vocabulary; the sender's
-// name is captured server-side at send time because the subject may be
-// dead or gone by render time.
+// One server-rendered message-feed line. Spans carry semantic styles so the
+// client only maps them to its configured presentation.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct SFeed {
-    pub event: FeedEvent,
+    pub spans: Vec<FeedSpan>,
 }
 
 // --- Per-client state events (private, durable) ---
@@ -484,17 +484,15 @@ pub struct SFeed {
 // One quest in an `SQuestsAssigned` batch. Carries display strings inline so
 // the client never needs a separate quest catalog: `title` is the short panel
 // label, `description` the longer announcement body. `threshold` is the
-// progress denominator; `progress` is non-zero for a group quest the group
-// already completed (latched: it arrives at `threshold`) and for a `shared`
-// quest, which arrives at the pooled counter.
+// progress denominator; `status` is a complete initial view so assignment
+// remains correct when it races the group snapshot on another QUIC stream.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct NewQuest {
     pub id: QuestId,
-    pub scope: QuestScope,
     pub title: String,
     pub description: String,
-    pub progress: u32,
     pub threshold: u32,
+    pub status: QuestInitialStatus,
     // Display rank: the quest's position in the server's quest catalog. The
     // client sorts the panel and respawn announcement by it so authoring order
     // in `gameplay.json` drives display order everywhere.

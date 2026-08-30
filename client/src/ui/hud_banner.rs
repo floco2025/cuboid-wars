@@ -5,36 +5,58 @@ use bevy::prelude::*;
 use super::timed_lines::{TimedLine, TimedLines};
 use crate::{
     config::ClientSettings,
-    constants::{BANNER_BAND_ALPHA, BANNER_BAND_TOP_PERCENT, BANNER_MAX_LINES, HUD_ROW_GAP_PX},
+    constants::{BANNER_BAND_ALPHA, BANNER_BAND_TOP_PERCENT, HUD_ROW_GAP_PX},
 };
 
 #[derive(Component)]
 pub struct HudBannerMarker;
 
-// Centered band of stacked lines, each on its own timer. Every caller just
-// pushes — a completion, the quest it unlocks, and "You died!" each get
-// their own line in whatever order they arrive.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BannerMessage {
+    QuestAnnouncement(String),
+    QuestCompleted(String),
+    Death,
+}
+
+impl BannerMessage {
+    #[cfg(test)]
+    fn text(&self) -> &str {
+        match self {
+            Self::QuestAnnouncement(text) | Self::QuestCompleted(text) => text,
+            Self::Death => "You died!",
+        }
+    }
+
+    fn into_timed_text(self, client_settings: &ClientSettings) -> (String, f32) {
+        match self {
+            Self::QuestAnnouncement(text) => (text, client_settings.hud.banner.quest_announcement_secs),
+            Self::QuestCompleted(text) => (text, client_settings.hud.banner.quest_completed_secs),
+            Self::Death => ("You died!".to_owned(), client_settings.hud.banner.death_secs),
+        }
+    }
+}
+
 #[derive(Resource, Default)]
 pub struct HudBanner {
-    pending: VecDeque<(String, f32)>,
+    pending: VecDeque<BannerMessage>,
 }
 
 impl HudBanner {
-    pub fn push(&mut self, text: String, duration_secs: f32) {
-        self.pending.push_back((text, duration_secs));
+    pub fn push(&mut self, message: BannerMessage) {
+        self.pending.push_back(message);
     }
 
     #[cfg(test)]
     pub fn pending_texts(&self) -> Vec<&str> {
-        self.pending.iter().map(|(text, _)| text.as_str()).collect()
+        self.pending.iter().map(BannerMessage::text).collect()
     }
 }
 
-pub fn spawn_hud_banner(commands: &mut Commands) {
+pub fn spawn_hud_banner(commands: &mut Commands, client_settings: &ClientSettings) {
     commands.spawn((
         HudBannerMarker,
         TimedLines {
-            max_rows: BANNER_MAX_LINES,
+            max_rows: client_settings.hud.banner.max_entries,
             background_alpha: BANNER_BAND_ALPHA,
         },
         Node {
@@ -63,7 +85,8 @@ pub fn ui_hud_banner_system(
         return;
     }
     let font_size = client_settings.hud.font_sizes.banner;
-    for (text, duration_secs) in banner.pending.drain(..) {
+    for message in banner.pending.drain(..) {
+        let (text, duration_secs) = message.into_timed_text(&client_settings);
         commands.spawn((
             TimedLine {
                 remaining_secs: duration_secs,

@@ -4,16 +4,16 @@ use std::collections::{HashMap, HashSet};
 use crate::{
     config::ServerGameplayConfig,
     map::{MapConfig, PressurePlateRuntime},
-    network::{announce, broadcast_firework_show, broadcast_to_all},
+    network::{FeedAudience, FeedEvent, broadcast_firework_show, broadcast_to_all, emit_feed},
     players::PlayerMap,
-    quests::{QuestBoard, WorldQuestEvent, record_world_event},
+    quests::{QuestBoard, QuestCatalog, QuestEvent, record_event},
 };
 use common::{
     constants::{GRID_CELL_SIZE, LEVEL_HEIGHT},
     map::MapGeometry,
     physics::OpenBarrierKinds,
     protocol::{
-        BarrierKindId, FeedEvent, PlatePurpose, PlayerId, PlayerMarker, Position, SPressurePlate, ServerMessage,
+        BarrierKindId, BarrierKindTable, PlatePurpose, PlayerId, PlayerMarker, Position, SPressurePlate, ServerMessage,
     },
 };
 
@@ -55,6 +55,8 @@ pub fn pressure_plates_system(
     mut players: ResMut<PlayerMap>,
     server_gameplay_config: Res<ServerGameplayConfig>,
     mut quest_board: ResMut<QuestBoard>,
+    quest_catalog: Res<QuestCatalog>,
+    barrier_kinds: Res<BarrierKindTable>,
     positions: Query<&Position, With<PlayerMarker>>,
     mut open: ResMut<OpenBarrierKinds>,
     // Plate indices held last tick. Fires `SPressurePlate` only on the
@@ -148,12 +150,17 @@ pub fn pressure_plates_system(
     let (opened, closed) = barrier_transitions(&open.0, &next);
     for kind in opened {
         if let Some(presser) = presser_of_kind(kind, &holders, &prev_held, plates) {
-            announce(
+            emit_feed(
                 &players,
                 &server_gameplay_config.feed,
+                FeedAudience::Everyone,
                 FeedEvent::BarrierOpened {
                     name: players.display_name(&presser),
                     kind,
+                    kind_name: barrier_kinds
+                        .id(kind)
+                        .expect("barrier kind missing from BarrierKindTable")
+                        .to_owned(),
                 },
             );
         }
@@ -162,10 +169,17 @@ pub fn pressure_plates_system(
         let held_now = held_per_kind.get(&kind).copied().unwrap_or(0);
         let held_before = prev_held_per_kind.get(&kind).copied().unwrap_or(0);
         if held_now < held_before {
-            announce(
+            emit_feed(
                 &players,
                 &server_gameplay_config.feed,
-                FeedEvent::BarrierClosed { kind },
+                FeedAudience::Everyone,
+                FeedEvent::BarrierClosed {
+                    kind,
+                    kind_name: barrier_kinds
+                        .id(kind)
+                        .expect("barrier kind missing from BarrierKindTable")
+                        .to_owned(),
+                },
             );
         }
     }
@@ -182,11 +196,12 @@ pub fn pressure_plates_system(
     if ready && !*fireworks_ready {
         broadcast_firework_show(&players);
         // `/firework` bypasses this on purpose: only the plates count.
-        record_world_event(
+        record_event(
             &mut players,
             &mut quest_board,
-            &server_gameplay_config,
-            WorldQuestEvent::FireworksStarted,
+            &quest_catalog,
+            &server_gameplay_config.feed,
+            QuestEvent::FireworksStarted,
         );
     }
     *fireworks_ready = ready;
@@ -441,7 +456,7 @@ mod system_tests {
         network::ServerToClient,
         players::PlayerInfo,
         quests::{
-            assign_quests,
+            QuestCatalog,
             test_support::{catalog, drain, quest},
         },
     };
@@ -460,7 +475,8 @@ mod system_tests {
     }
 
     fn app(config: ServerGameplayConfig, plates: Vec<PressurePlateRuntime>) -> App {
-        let board = QuestBoard::from_quests(&config.quests);
+        let quest_catalog = QuestCatalog::from_config(&config);
+        let board = QuestBoard::from_catalog(&quest_catalog);
         let mut app = App::new();
         app.add_plugins(MinimalPlugins)
             .insert_resource(MapConfig {
@@ -477,7 +493,9 @@ mod system_tests {
             .insert_resource(MapGeometry::new(2, 2))
             .insert_resource(PlayerMap::default())
             .insert_resource(config)
+            .insert_resource(quest_catalog)
             .insert_resource(board)
+            .insert_resource(BarrierKindTable::default())
             .insert_resource(OpenBarrierKinds::default())
             .add_systems(Update, pressure_plates_system);
         app
@@ -495,8 +513,6 @@ mod system_tests {
         let (tx, mut rx) = unbounded_channel();
         let mut info = PlayerInfo::new(entity, tx);
         info.logged_in = true;
-        let quests = app.world().resource::<ServerGameplayConfig>().quests.clone();
-        assign_quests(&mut info, &quests, app.world().resource::<QuestBoard>());
         while rx.try_recv().is_ok() {}
         app.world_mut().resource_mut::<PlayerMap>().insert(PlayerId(1), info);
         (entity, rx)

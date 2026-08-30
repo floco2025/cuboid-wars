@@ -6,9 +6,9 @@ use crate::{
     actors::{ActorMap, PendingActorSpawns},
     characters::{generate_player_spawn_position, spawn_face_yaw},
     items::ItemMap,
-    network::{ServerToClient, announce_to_others},
+    network::{FeedAudience, FeedEvent, ServerToClient, emit_feed},
     players::PlayerMap,
-    quests::{QuestBoard, assign_quests},
+    quests::{QuestBoard, QuestCatalog, assign_quests},
 };
 use common::{
     physics::CharacterVerticalVelocity,
@@ -54,6 +54,7 @@ pub fn handle_login_message(
     msg: ClientMessage,
     players: &mut ResMut<PlayerMap>,
     world: &SharedWorld,
+    quest_catalog: &QuestCatalog,
     quest_board: &QuestBoard,
     items: &Res<ItemMap>,
     actors: &Res<ActorMap>,
@@ -100,12 +101,7 @@ pub fn handle_login_message(
             // announcement; quests unlocked later arrive one at a time. Quest
             // state persists for the whole session (cleared neither by death
             // nor by `clear_per_life_state`).
-            {
-                let player_info = players
-                    .get_mut(&id)
-                    .expect("handle_login_message called for unknown player");
-                assign_quests(player_info, &world.server_gameplay_config.quests, quest_board);
-            }
+            assign_quests(players, id, quest_catalog, quest_board);
 
             // Generate random initial position for the new player.
             // Avoid spawning on top of any other logged-in player.
@@ -153,8 +149,7 @@ pub fn handle_login_message(
             let all_actors = snapshot_actors(actors, &queries.actor_data, &queries.actor_motions);
 
             // Send the initial snapshot to the new player
-            let (quests, locked_plate_purposes) =
-                quest_board.snapshot_fields(&world.server_gameplay_config.quests, players);
+            let (quests, locked_plate_purposes) = quest_board.snapshot_fields(quest_catalog, players);
             let snapshot_msg = ServerMessage::Snapshot(SSnapshot {
                 seq: 0,
                 players: all_players,
@@ -181,10 +176,10 @@ pub fn handle_login_message(
 
             // Presence is snapshot-only — other clients learn about this
             // player via the next `SSnapshot`; the feed line is cosmetic.
-            announce_to_others(
+            emit_feed(
                 players,
                 &world.server_gameplay_config.feed,
-                id,
+                FeedAudience::EveryoneExcept(id),
                 FeedEvent::PlayerJoined {
                     name: players.display_name(&id),
                 },

@@ -40,3 +40,24 @@ pub enum QuestGroupProgress {
     // Players at the threshold, and players logged in.
     Everyone { players_done: u32, players_total: u32 },
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+pub struct QuestInitialStatus {
+    pub completed: bool,
+    pub progress: QuestInitialProgress,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+pub enum QuestInitialProgress {
+    Individual {
+        progress: u32,
+    },
+    Shared {
+        progress: u32,
+    },
+    Everyone {
+        progress: u32,
+        players_done: u32,
+        players_total: u32,
+    },
+}

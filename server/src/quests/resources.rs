@@ -5,13 +5,62 @@ use bevy::prelude::Resource;
 use crate::{config::Quest, players::PlayerMap};
 use common::protocol::{PlatePurpose, QuestGroupProgress, QuestGroupStatus, QuestId, QuestScope};
 
-#[derive(Debug, Clone, Default)]
-struct GroupQuestState {
-    unlocked: bool,
-    // Latched for the session once set.
-    completed: bool,
-    // `Shared` quests only.
-    shared_progress: u32,
+use super::QuestCatalog;
+
+#[derive(Debug, Clone)]
+enum QuestRuntimeState {
+    Individual {
+        unlocked: bool,
+    },
+    Shared {
+        unlocked: bool,
+        completed: bool,
+        progress: u32,
+    },
+    Everyone {
+        unlocked: bool,
+        completed: bool,
+    },
+}
+
+impl QuestRuntimeState {
+    const fn new(scope: QuestScope, unlocked: bool) -> Self {
+        match scope {
+            QuestScope::Individual => Self::Individual { unlocked },
+            QuestScope::Shared => Self::Shared {
+                unlocked,
+                completed: false,
+                progress: 0,
+            },
+            QuestScope::Everyone => Self::Everyone {
+                unlocked,
+                completed: false,
+            },
+        }
+    }
+
+    const fn is_unlocked(&self) -> bool {
+        match self {
+            Self::Individual { unlocked } | Self::Shared { unlocked, .. } | Self::Everyone { unlocked, .. } => {
+                *unlocked
+            }
+        }
+    }
+
+    fn unlock(&mut self) {
+        match self {
+            Self::Individual { unlocked } | Self::Shared { unlocked, .. } | Self::Everyone { unlocked, .. } => {
+                *unlocked = true;
+            }
+        }
+    }
+
+    const fn is_completed(&self) -> bool {
+        match self {
+            Self::Shared { completed, .. } | Self::Everyone { completed, .. } => *completed,
+            Self::Individual { .. } => false,
+        }
+    }
 }
 
 // Session-wide quest state: which quests are unlocked, which group quests
@@ -19,7 +68,7 @@ struct GroupQuestState {
 // player stays on `PlayerInfo.quest_states`.
 #[derive(Resource, Debug)]
 pub struct QuestBoard {
-    states: HashMap<QuestId, GroupQuestState>,
+    states: HashMap<QuestId, QuestRuntimeState>,
     // Quests whose plates are only live once they unlock.
     claims: Vec<(QuestId, PlatePurpose)>,
     // Cached from `claims` + `unlocked`; refreshed on every unlock.
@@ -28,18 +77,17 @@ pub struct QuestBoard {
 
 impl QuestBoard {
     #[must_use]
-    pub fn from_quests(quests: &[Quest]) -> Self {
-        let states = quests
+    pub fn from_catalog(catalog: &QuestCatalog) -> Self {
+        let states = catalog
             .iter()
             .map(|quest| {
-                let state = GroupQuestState {
-                    unlocked: quest.requires.is_none(),
-                    ..GroupQuestState::default()
-                };
-                (quest.id.clone(), state)
+                (
+                    quest.id.clone(),
+                    QuestRuntimeState::new(quest.scope, quest.requires.is_none()),
+                )
             })
             .collect();
-        let claims = quests
+        let claims = catalog
             .iter()
             .filter_map(|quest| quest.kind.plate_purpose().map(|purpose| (quest.id.clone(), purpose)))
             .collect();
@@ -52,42 +100,65 @@ impl QuestBoard {
         board
     }
 
-    fn state(&self, id: &QuestId) -> &GroupQuestState {
+    fn state(&self, id: &QuestId) -> &QuestRuntimeState {
         self.states.get(id).expect("quest id missing from QuestBoard")
     }
 
-    fn state_mut(&mut self, id: &QuestId) -> &mut GroupQuestState {
+    fn state_mut(&mut self, id: &QuestId) -> &mut QuestRuntimeState {
         self.states.get_mut(id).expect("quest id missing from QuestBoard")
     }
 
     pub fn unlock(&mut self, id: &QuestId) {
-        self.state_mut(id).unlocked = true;
+        self.state_mut(id).unlock();
         self.refresh_locked_plate_purposes();
     }
 
-    pub fn latch_completed(&mut self, id: &QuestId) {
-        self.state_mut(id).completed = true;
+    pub fn finish_group(&mut self, quest: &Quest) -> bool {
+        match self.state_mut(&quest.id) {
+            QuestRuntimeState::Shared {
+                completed, progress, ..
+            } => {
+                if *completed {
+                    return false;
+                }
+                *progress = quest.threshold;
+                *completed = true;
+            }
+            QuestRuntimeState::Everyone { completed, .. } => {
+                if *completed {
+                    return false;
+                }
+                *completed = true;
+            }
+            QuestRuntimeState::Individual { .. } => panic!("individual quest passed to finish_group"),
+        }
+        true
     }
 
-    pub fn add_shared_progress(&mut self, id: &QuestId) -> u32 {
-        let state = self.state_mut(id);
-        state.shared_progress = state.shared_progress.saturating_add(1);
-        state.shared_progress
+    pub fn add_shared_progress(&mut self, quest: &Quest) -> u32 {
+        let QuestRuntimeState::Shared { progress, .. } = self.state_mut(&quest.id) else {
+            panic!("non-shared quest passed to add_shared_progress");
+        };
+        *progress = progress.saturating_add(1).min(quest.threshold);
+        *progress
     }
 
     #[must_use]
     pub fn is_unlocked(&self, id: &QuestId) -> bool {
-        self.state(id).unlocked
+        self.state(id).is_unlocked()
     }
 
     #[must_use]
     pub fn is_completed(&self, id: &QuestId) -> bool {
-        self.state(id).completed
+        self.state(id).is_completed()
     }
 
     #[must_use]
     pub fn shared_progress(&self, id: &QuestId) -> u32 {
-        self.state(id).shared_progress
+        match self.state(id) {
+            QuestRuntimeState::Shared { progress, .. } => *progress,
+            QuestRuntimeState::Individual { .. } | QuestRuntimeState::Everyone { .. } => 0,
+        }
     }
 
     // Plate purposes still locked: a claimed purpose waits for one of its
@@ -112,36 +183,44 @@ impl QuestBoard {
 
     // Group status of every unlocked group-scoped quest.
     #[must_use]
-    pub fn group_statuses(&self, quests: &[Quest], players: &PlayerMap) -> Vec<QuestGroupStatus> {
-        quests
+    pub fn group_statuses(&self, catalog: &QuestCatalog, players: &PlayerMap) -> Vec<QuestGroupStatus> {
+        catalog
             .iter()
-            .filter(|quest| quest.scope.is_group() && self.is_unlocked(&quest.id))
-            .map(|quest| {
-                let progress = match quest.scope {
-                    QuestScope::Everyone => {
+            .filter_map(|quest| {
+                if !self.is_unlocked(&quest.id) {
+                    return None;
+                }
+                let progress = match self.state(&quest.id) {
+                    QuestRuntimeState::Everyone { .. } => {
                         let count = everyone_count(players, quest);
                         QuestGroupProgress::Everyone {
                             players_done: count.players_done,
                             players_total: count.players_total,
                         }
                     }
-                    QuestScope::Individual | QuestScope::Shared => QuestGroupProgress::Shared {
-                        progress: self.shared_progress(&quest.id),
-                    },
+                    QuestRuntimeState::Shared { progress, .. } => QuestGroupProgress::Shared { progress: *progress },
+                    QuestRuntimeState::Individual { .. } => return None,
                 };
-                QuestGroupStatus {
+                Some(QuestGroupStatus {
                     id: quest.id.clone(),
                     completed: self.is_completed(&quest.id),
                     progress,
-                }
+                })
             })
             .collect()
     }
 
     // Everything a snapshot carries about quests.
     #[must_use]
-    pub fn snapshot_fields(&self, quests: &[Quest], players: &PlayerMap) -> (Vec<QuestGroupStatus>, Vec<PlatePurpose>) {
-        (self.group_statuses(quests, players), self.locked_plate_purposes.clone())
+    pub fn snapshot_fields(
+        &self,
+        catalog: &QuestCatalog,
+        players: &PlayerMap,
+    ) -> (Vec<QuestGroupStatus>, Vec<PlatePurpose>) {
+        (
+            self.group_statuses(catalog, players),
+            self.locked_plate_purposes.clone(),
+        )
     }
 }
 
@@ -168,7 +247,13 @@ pub(super) fn everyone_count(players: &PlayerMap, quest: &Quest) -> EveryoneCoun
             continue;
         }
         count.players_total += 1;
-        if info.quest_states.get(&quest.id).copied().unwrap_or(0) >= quest.threshold {
+        if info
+            .quest_states
+            .get(&quest.id)
+            .and_then(|state| state.own_progress())
+            .unwrap_or(0)
+            >= quest.threshold
+        {
             count.players_done += 1;
         }
     }
@@ -180,6 +265,7 @@ mod tests {
     use super::*;
     use crate::{
         config::{QuestKind, ServerGameplayConfig},
+        players::PlayerQuestState,
         quests::test_support::{catalog, join, quest},
     };
     use common::protocol::PlayerId;
@@ -192,17 +278,18 @@ mod tests {
             quest("gold", QuestKind::Cookies, QuestScope::Everyone, 2, None),
             quest("later", QuestKind::Cookies, QuestScope::Shared, 1, Some("gold")),
         ]);
-        let board = QuestBoard::from_quests(&config.quests);
+        let quest_catalog = QuestCatalog::from_config(&config);
+        let board = QuestBoard::from_catalog(&quest_catalog);
         let mut players = PlayerMap::default();
-        let _alice = join(&mut players, 1, &config, &board);
-        let _bob = join(&mut players, 2, &config, &board);
+        let _alice = join(&mut players, 1, &quest_catalog, &board);
+        let _bob = join(&mut players, 2, &quest_catalog, &board);
         players
             .get_mut(&PlayerId(1))
             .expect("alice")
             .quest_states
-            .insert(QuestId("gold".to_owned()), 2);
+            .insert(QuestId("gold".to_owned()), PlayerQuestState::Everyone { progress: 2 });
 
-        let statuses = board.group_statuses(&config.quests, &players);
+        let statuses = board.group_statuses(&quest_catalog, &players);
 
         let ids: Vec<&str> = statuses.iter().map(|status| status.id.0.as_str()).collect();
         assert_eq!(ids, ["pool", "gold"]);
@@ -223,21 +310,23 @@ mod tests {
             quest("gold", QuestKind::Cookies, QuestScope::Everyone, 1, None),
             quest("show", QuestKind::Fireworks, QuestScope::Shared, 1, Some("gold")),
         ]);
-        let mut board = QuestBoard::from_quests(&config.quests);
+        let quest_catalog = QuestCatalog::from_config(&config);
+        let mut board = QuestBoard::from_catalog(&quest_catalog);
         assert_eq!(board.locked_plate_purposes(), [PlatePurpose::Firework]);
         board.unlock(&QuestId("show".to_owned()));
         assert!(board.locked_plate_purposes().is_empty());
 
-        let unclaimed = QuestBoard::from_quests(
-            &catalog(vec![quest("gold", QuestKind::Cookies, QuestScope::Everyone, 1, None)]).quests,
-        );
+        let unclaimed_config = catalog(vec![quest("gold", QuestKind::Cookies, QuestScope::Everyone, 1, None)]);
+        let unclaimed_catalog = QuestCatalog::from_config(&unclaimed_config);
+        let unclaimed = QuestBoard::from_catalog(&unclaimed_catalog);
         assert!(unclaimed.locked_plate_purposes().is_empty());
     }
 
     #[test]
     fn shipped_catalog_locks_firework_plates_until_the_fireworks_quest_unlocks() {
         let config = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
-        let mut board = QuestBoard::from_quests(&config.quests);
+        let quest_catalog = QuestCatalog::from_config(&config);
+        let mut board = QuestBoard::from_catalog(&quest_catalog);
         assert_eq!(board.locked_plate_purposes(), [PlatePurpose::Firework]);
         board.unlock(&QuestId("start_fireworks".to_owned()));
         assert!(board.locked_plate_purposes().is_empty());

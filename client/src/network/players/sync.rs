@@ -1,4 +1,3 @@
-use crate::constants::BANNER_QUEST_ANNOUNCEMENT_SECS;
 use bevy::prelude::*;
 use std::collections::HashSet;
 use std::f32::consts::PI;
@@ -10,7 +9,7 @@ use crate::{
     config::{AssetSet, ClientSettings},
     network::{RoundTripTime, ServerReconciliation},
     players::{LocalPlayerInfo, PlayerInfo, PlayerMap, spawn_player},
-    ui::{HudBanner, QuestLog},
+    ui::{BannerMessage, HudBanner, QuestLog},
 };
 use common::{
     config::GameplayConfig,
@@ -126,7 +125,7 @@ pub fn sync_players(
         local_just_respawned = true;
 
         if let Some(reminder) = state.quest_log.reminder() {
-            state.banner.push(reminder, BANNER_QUEST_ANNOUNCEMENT_SECS);
+            state.banner.push(BannerMessage::QuestAnnouncement(reminder));
         }
     }
 

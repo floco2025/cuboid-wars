@@ -4,7 +4,6 @@ use anyhow::Result;
 use serde::Deserialize;
 
 use super::{actors::ActorKindServerConfig, validation::validate_covers_actor_kinds};
-use common::protocol::FeedEvent;
 
 // Which feed lines everyone sees. The one broadcast gate: `announce`
 // consults it, nothing else decides.
@@ -26,30 +25,6 @@ pub struct FeedConfig {
 }
 
 impl FeedConfig {
-    #[must_use]
-    pub fn announces(&self, event: &FeedEvent) -> bool {
-        match event {
-            FeedEvent::PlayerJoined { .. } => self.player_joined,
-            FeedEvent::PlayerLeft { .. } => self.player_left,
-            FeedEvent::PlayerDied { .. } => self.player_died,
-            FeedEvent::ActorDestroyed { kind, .. } => self
-                .actor_destroyed
-                .get(kind)
-                .copied()
-                .expect("actor kind missing from feed.actor_destroyed"),
-            FeedEvent::KeyFound { .. } => self.key_found,
-            FeedEvent::QuestCompleted { .. } => self.quest_completed,
-            FeedEvent::EveryoneQuestPartDone { .. } => self.quest_part_done,
-            FeedEvent::GroupQuestCompleted { .. } => self.group_quest_completed,
-            FeedEvent::BarrierOpened { .. } => self.barrier_opened,
-            FeedEvent::BarrierClosed { .. } => self.barrier_closed,
-            // Replies go through `reply`, never the broadcast.
-            FeedEvent::AdminReply { .. } => false,
-            FeedEvent::AdminAction { .. } => self.admin_action,
-            FeedEvent::Chat { .. } => self.chat,
-        }
-    }
-
     pub(super) fn validate(&self, actors: &HashMap<String, ActorKindServerConfig>) -> Result<()> {
         validate_covers_actor_kinds(self.actor_destroyed.keys(), actors, "feed.actor_destroyed")
     }
@@ -76,37 +51,7 @@ impl FeedConfig {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::config::ServerGameplayConfig;
-    use common::protocol::DeathCause;
-
-    #[test]
-    fn announces_follows_the_switches() {
-        let mut feed = FeedConfig::all(false, &["mine", "sentry"]);
-        feed.actor_destroyed.insert("sentry".to_owned(), true);
-        feed.player_died = true;
-        let name = || "Marc".to_owned();
-
-        assert!(feed.announces(&FeedEvent::PlayerDied {
-            name: name(),
-            cause: DeathCause::Fall,
-        }));
-        assert!(!feed.announces(&FeedEvent::PlayerJoined { name: name() }));
-        assert!(feed.announces(&FeedEvent::ActorDestroyed {
-            name: name(),
-            kind: "sentry".to_owned(),
-        }));
-        assert!(!feed.announces(&FeedEvent::ActorDestroyed {
-            name: name(),
-            kind: "mine".to_owned(),
-        }));
-        assert!(!feed.announces(&FeedEvent::AdminReply {
-            text: "/help".to_owned()
-        }));
-        assert!(!FeedConfig::all(true, &[]).announces(&FeedEvent::AdminReply {
-            text: "/help".to_owned()
-        }));
-    }
 
     #[test]
     fn feed_rejects_missing_actor_kind() {

@@ -1,4 +1,3 @@
-use crate::constants::{BANNER_DEATH_SECS, BANNER_DEATH_TEXT};
 use bevy::prelude::*;
 
 use crate::{
@@ -9,7 +8,7 @@ use crate::{
     network::{RoundTripTime, ServerReconciliation},
     players::{CameraShake, CuboidShake, LocalPlayerInfo, PlayerMap},
     projectiles::{ProjectileAssets, spawn_projectiles},
-    ui::HudBanner,
+    ui::{BannerMessage, HudBanner},
     vfx::{BlastRadii, ExplosionSpawnCtx, spawn_player_explosion},
 };
 use common::{
@@ -241,7 +240,7 @@ pub fn handle_player_death_message(
         // Centered "You died!" banner. The red full-screen
         // `DeathOverlayMarker` tint and the feed line are independent
         // layers; the banner is the headline.
-        banner.push(BANNER_DEATH_TEXT.to_owned(), BANNER_DEATH_SECS);
+        banner.push(BannerMessage::Death);
     } else if let Some(info) = players.remove(&msg.id) {
         commands.entity(info.entity).despawn();
     }

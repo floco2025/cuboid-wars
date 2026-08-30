@@ -14,7 +14,7 @@ use crate::{
     config::{BlastConfig, ServerGameplayConfig},
     network::ServerToClient,
     players::{Invincibility, PlayerMap},
-    quests::QuestBoard,
+    quests::{QuestBoard, QuestCatalog},
 };
 use common::constants::EXPLOSION_BLAST_CORE_FRACTION;
 
@@ -55,6 +55,7 @@ pub struct ExplosionContext<'w, 's> {
     gameplay_config: Res<'w, GameplayConfig>,
     server_gameplay_config: Res<'w, ServerGameplayConfig>,
     quest_board: ResMut<'w, QuestBoard>,
+    quest_catalog: Res<'w, QuestCatalog>,
     invincibility: Res<'w, Invincibility>,
     collision_world: Res<'w, CollisionWorld>,
     player_query: PlayerBlastQuery<'w, 's>,
@@ -177,6 +178,7 @@ pub fn explosions_system(mut context: ExplosionContext) {
                 award_actor_kill(
                     &mut context.players,
                     &mut context.quest_board,
+                    &context.quest_catalog,
                     killer_id,
                     &kind,
                     &context.server_gameplay_config,
@@ -444,18 +446,20 @@ mod tests {
         actors::ActorInfo, actors::actors_removal_system, characters::characters_health_regeneration_system,
         players::PlayerInfo,
     };
-    use common::protocol::{BarrierKindTable, DeathCause, FeedEvent, MapLayout, SPlayerDeath};
+    use common::protocol::{BarrierKindTable, MapLayout, SPlayerDeath};
     use tokio::sync::mpsc::unbounded_channel;
 
     fn test_app() -> App {
         let gameplay = GameplayConfig::load_default().expect("default gameplay config should load");
         let server = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
         let collision_world = CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default());
-        let quest_board = QuestBoard::from_quests(&server.quests);
+        let quest_catalog = QuestCatalog::from_config(&server);
+        let quest_board = QuestBoard::from_catalog(&quest_catalog);
         let mut app = App::new();
         app.add_plugins(MinimalPlugins)
             .insert_resource(gameplay)
             .insert_resource(server)
+            .insert_resource(quest_catalog)
             .insert_resource(collision_world)
             .insert_resource(PlayerMap::default())
             .insert_resource(ActorMap::default())
@@ -650,10 +654,12 @@ mod tests {
         }
     }
 
-    fn next_feed_event(receiver: &mut tokio::sync::mpsc::UnboundedReceiver<ServerToClient>) -> FeedEvent {
+    fn next_feed_line(receiver: &mut tokio::sync::mpsc::UnboundedReceiver<ServerToClient>) -> String {
         loop {
             match receiver.try_recv().expect("expected a Feed broadcast") {
-                ServerToClient::Send(ServerMessage::Feed(msg)) => return msg.event,
+                ServerToClient::Send(ServerMessage::Feed(msg)) => {
+                    return msg.spans.into_iter().map(|span| span.text).collect();
+                }
                 _ => continue,
             }
         }
@@ -730,15 +736,7 @@ mod tests {
         assert_eq!(death.id, victim_id);
         assert_eq!(death.killer, Some(shooter_id));
         assert_eq!(death.killer_score, Some(scoring.player_kill));
-        assert_eq!(
-            next_feed_event(&mut shooter_rx),
-            FeedEvent::PlayerDied {
-                name: "Player 2".to_owned(),
-                cause: DeathCause::Missile {
-                    by: "Player 1".to_owned()
-                },
-            }
-        );
+        assert_eq!(next_feed_line(&mut shooter_rx), "Player 1 blew up Player 2");
     }
 
     #[test]
@@ -764,13 +762,7 @@ mod tests {
         let death = next_player_death(&mut shooter_rx);
         assert_eq!(death.id, shooter_id);
         assert_eq!(death.killer, None);
-        assert_eq!(
-            next_feed_event(&mut shooter_rx),
-            FeedEvent::PlayerDied {
-                name: "Player 1".to_owned(),
-                cause: DeathCause::SelfMissile,
-            }
-        );
+        assert_eq!(next_feed_line(&mut shooter_rx), "Player 1 blew themselves up");
     }
 
     #[test]

@@ -10,6 +10,7 @@ pub struct HudConfig {
     #[serde(default = "default_hud_reference_width")]
     pub reference_width: f32,
     pub font_sizes: FontSizesConfig,
+    pub banner: BannerConfig,
     pub message_feed: MessageFeedConfig,
     pub floating_labels: FloatingLabelsConfig,
     pub health_bars: HealthBarsConfig,
@@ -43,6 +44,14 @@ pub struct FontSizesConfig {
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct MessageFeedConfig {
     pub entry_duration_secs: f32,
+    pub max_entries: usize,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct BannerConfig {
+    pub quest_announcement_secs: f32,
+    pub quest_completed_secs: f32,
+    pub death_secs: f32,
     pub max_entries: usize,
 }
 
@@ -81,6 +90,15 @@ impl HudConfig {
         validate_positive_finite(self.font_sizes.floating_label, "hud.font_sizes.floating_label")?;
         validate_positive_finite(self.font_sizes.banner, "hud.font_sizes.banner")?;
         validate_positive_finite(self.font_sizes.quest_panel, "hud.font_sizes.quest_panel")?;
+        validate_positive_finite(
+            self.banner.quest_announcement_secs,
+            "hud.banner.quest_announcement_secs",
+        )?;
+        validate_positive_finite(self.banner.quest_completed_secs, "hud.banner.quest_completed_secs")?;
+        validate_positive_finite(self.banner.death_secs, "hud.banner.death_secs")?;
+        if self.banner.max_entries == 0 {
+            bail!("hud.banner.max_entries must be > 0");
+        }
         validate_positive_finite(
             self.message_feed.entry_duration_secs,
             "hud.message_feed.entry_duration_secs",

@@ -104,6 +104,18 @@ impl ConsoleState {
             CHAT_MAX_CHARS
         }
     }
+
+    fn submit(&mut self) -> Option<ConsoleSubmission> {
+        let line = self.buffer.trim().to_owned();
+        let submission = if line.is_empty() {
+            None
+        } else {
+            self.remember(&line);
+            Some(ConsoleSubmission::from_line(line))
+        };
+        self.close();
+        submission
+    }
 }
 
 // Run condition for the input systems that must stand down while typing.
@@ -133,13 +145,19 @@ fn prompt(buffer: &str) -> String {
     format!("> {buffer}_")
 }
 
-// The slash prefix decides the wire message: commands go to the admin
-// executor, everything else is chat.
-fn outgoing_message(line: String) -> ClientMessage {
-    if line.starts_with('/') {
-        ClientMessage::Admin(CAdmin { command: line })
-    } else {
-        ClientMessage::Chat(CChat { text: line })
+#[derive(Message, Debug, Clone, PartialEq, Eq)]
+pub(super) enum ConsoleSubmission {
+    Admin(String),
+    Chat(String),
+}
+
+impl ConsoleSubmission {
+    fn from_line(line: String) -> Self {
+        if line.starts_with('/') {
+            Self::Admin(line)
+        } else {
+            Self::Chat(line)
+        }
     }
 }
 
@@ -149,10 +167,10 @@ fn outgoing_message(line: String) -> ClientMessage {
 // on layouts where it isn't its own key. While open, keystrokes edit the
 // buffer, Enter submits, and Esc cancels. `ClientSet::Console` runs before
 // every gated input system so open/close takes effect the same frame.
-pub fn console_input_system(
+pub(super) fn console_input_system(
     mut keys: MessageReader<KeyboardInput>,
     mut console: ResMut<ConsoleState>,
-    to_server: Res<ClientToServerChannel>,
+    mut submissions: MessageWriter<ConsoleSubmission>,
 ) {
     for input in keys.read() {
         if input.state != ButtonState::Pressed {
@@ -176,12 +194,9 @@ pub fn console_input_system(
         match &input.logical_key {
             Key::Enter | Key::Escape if input.repeat => {}
             Key::Enter => {
-                let line = console.buffer.trim().to_owned();
-                if !line.is_empty() {
-                    console.remember(&line);
-                    let _ = to_server.send(ClientToServer::Send(outgoing_message(line)));
+                if let Some(submission) = console.submit() {
+                    submissions.write(submission);
                 }
-                console.close();
             }
             Key::Escape => console.close(),
             Key::ArrowUp => console.recall_previous(),
@@ -196,6 +211,21 @@ pub fn console_input_system(
                 }
             }
         }
+    }
+}
+
+pub(super) fn console_send_system(
+    mut submissions: MessageReader<ConsoleSubmission>,
+    to_server: Res<ClientToServerChannel>,
+) {
+    for submission in submissions.read() {
+        let message = match submission {
+            ConsoleSubmission::Admin(command) => ClientMessage::Admin(CAdmin {
+                command: command.clone(),
+            }),
+            ConsoleSubmission::Chat(text) => ClientMessage::Chat(CChat { text: text.clone() }),
+        };
+        let _ = to_server.send(ClientToServer::Send(message));
     }
 }
 
@@ -291,15 +321,15 @@ mod tests {
     }
 
     #[test]
-    fn slash_line_goes_to_admin_and_plain_line_to_chat() {
-        assert!(matches!(
-            outgoing_message("/help".to_owned()),
-            ClientMessage::Admin(CAdmin { command }) if command == "/help"
-        ));
-        assert!(matches!(
-            outgoing_message("hello there".to_owned()),
-            ClientMessage::Chat(CChat { text }) if text == "hello there"
-        ));
+    fn slash_line_is_admin_and_plain_line_is_chat() {
+        assert_eq!(
+            ConsoleSubmission::from_line("/help".to_owned()),
+            ConsoleSubmission::Admin("/help".to_owned())
+        );
+        assert_eq!(
+            ConsoleSubmission::from_line("hello there".to_owned()),
+            ConsoleSubmission::Chat("hello there".to_owned())
+        );
     }
 
     #[test]
@@ -324,9 +354,10 @@ mod tests {
         let (tx, rx) = unbounded_channel();
         let mut app = App::new();
         app.add_message::<KeyboardInput>()
+            .add_message::<ConsoleSubmission>()
             .insert_resource(ConsoleState::default())
             .insert_resource(ClientToServerChannel::new(tx))
-            .add_systems(Update, console_input_system);
+            .add_systems(Update, (console_input_system, console_send_system).chain());
         (app, rx)
     }
 

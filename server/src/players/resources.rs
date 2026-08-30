@@ -6,7 +6,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::{config::PowerUpsConfig, network::ServerToClient};
 use common::protocol::{
     BarrierKindId, Health, ItemType, Player, PlayerId, PlayerMoveIntent, PlayerMovementState, Position, PowerUpKind,
-    QuestId, SPlayerStatus,
+    QuestId, QuestScope, SPlayerStatus,
 };
 
 use super::PlayerFallState;
@@ -21,6 +21,39 @@ pub struct Invincibility(pub bool);
 // two effects stay independently wireable, but `/god` toggles them together.
 #[derive(Resource)]
 pub struct UnlimitedMissiles(pub bool);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlayerQuestState {
+    Individual { progress: u32 },
+    Shared,
+    Everyone { progress: u32 },
+}
+
+impl PlayerQuestState {
+    #[must_use]
+    pub const fn new(scope: QuestScope, progress: u32) -> Self {
+        match scope {
+            QuestScope::Individual => Self::Individual { progress },
+            QuestScope::Shared => Self::Shared,
+            QuestScope::Everyone => Self::Everyone { progress },
+        }
+    }
+
+    #[must_use]
+    pub const fn own_progress(self) -> Option<u32> {
+        match self {
+            Self::Individual { progress } | Self::Everyone { progress } => Some(progress),
+            Self::Shared => None,
+        }
+    }
+
+    pub fn own_progress_mut(&mut self) -> Option<&mut u32> {
+        match self {
+            Self::Individual { progress } | Self::Everyone { progress } => Some(progress),
+            Self::Shared => None,
+        }
+    }
+}
 
 pub struct PlayerInfo {
     pub entity: Entity,
@@ -50,7 +83,7 @@ pub struct PlayerInfo {
     // by `clear_per_life_state`).
     // Own progress per assigned quest (key present = assigned). Group
     // completion and pooled progress live on the `QuestBoard`.
-    pub quest_states: HashMap<QuestId, u32>,
+    pub quest_states: HashMap<QuestId, PlayerQuestState>,
     pub fall_state: PlayerFallState,
 }
 
@@ -439,7 +472,8 @@ mod tests {
     fn clear_per_life_state_preserves_quest_states() {
         let quest_id = QuestId("collect_gold".to_owned());
         let mut info = dummy_info();
-        info.quest_states.insert(quest_id.clone(), 7);
+        info.quest_states
+            .insert(quest_id.clone(), PlayerQuestState::Individual { progress: 7 });
         info.power_up_timers[PowerUpKind::Speed.index()] = 5.0;
 
         info.clear_per_life_state();
@@ -449,6 +483,10 @@ mod tests {
             0.0,
             "power-up timers reset by clear"
         );
-        assert_eq!(info.quest_states[&quest_id], 7, "quest progress survives death");
+        assert_eq!(
+            info.quest_states[&quest_id].own_progress(),
+            Some(7),
+            "quest progress survives death"
+        );
     }
 }

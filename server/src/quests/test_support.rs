@@ -1,13 +1,13 @@
 use bevy::prelude::Entity;
 use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
-use super::{QuestBoard, assign_quests};
+use super::{QuestBoard, QuestCatalog, assign_quests};
 use crate::{
     config::{Quest, QuestKind, ServerGameplayConfig},
     network::ServerToClient,
     players::{PlayerInfo, PlayerMap},
 };
-use common::protocol::{FeedEvent, NewQuest, PlayerId, QuestId, QuestScope, SFeed, ServerMessage};
+use common::protocol::{NewQuest, PlayerId, QuestId, QuestScope, ServerMessage};
 
 pub(crate) fn quest(id: &str, kind: QuestKind, scope: QuestScope, threshold: u32, requires: Option<&str>) -> Quest {
     Quest {
@@ -36,16 +36,16 @@ pub(crate) fn catalog(quests: Vec<Quest>) -> ServerGameplayConfig {
 pub(crate) fn join(
     players: &mut PlayerMap,
     id: u32,
-    config: &ServerGameplayConfig,
+    catalog: &QuestCatalog,
     board: &QuestBoard,
 ) -> UnboundedReceiver<ServerToClient> {
-    join_with(players, id, config, board, false)
+    join_with(players, id, catalog, board, false)
 }
 
 pub(crate) fn join_with(
     players: &mut PlayerMap,
     id: u32,
-    config: &ServerGameplayConfig,
+    catalog: &QuestCatalog,
     board: &QuestBoard,
     dead: bool,
 ) -> UnboundedReceiver<ServerToClient> {
@@ -53,20 +53,25 @@ pub(crate) fn join_with(
     let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
     info.logged_in = true;
     info.name = format!("P{id}");
-    assign_quests(&mut info, &config.quests, board);
     if dead {
         info.death_timer = Some(2.0);
     }
-    players.insert(PlayerId(id), info);
+    let player = PlayerId(id);
+    players.insert(player, info);
+    assign_quests(players, player, catalog, board);
     while rx.try_recv().is_ok() {}
     rx
 }
 
 // What a fresh player would be assigned right now.
-pub(crate) fn assignment_for(config: &ServerGameplayConfig, board: &QuestBoard) -> Vec<NewQuest> {
+pub(crate) fn assignment_for(catalog: &QuestCatalog, board: &QuestBoard) -> Vec<NewQuest> {
     let (tx, mut rx) = unbounded_channel();
     let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
-    assign_quests(&mut info, &config.quests, board);
+    info.logged_in = true;
+    let player = PlayerId(1);
+    let mut players = PlayerMap::default();
+    players.insert(player, info);
+    assign_quests(&mut players, player, catalog, board);
     match rx.try_recv() {
         Ok(ServerToClient::Send(ServerMessage::QuestsAssigned(assigned))) => assigned.quests,
         _ => Vec::new(),
@@ -99,11 +104,11 @@ pub(crate) fn progress_values(messages: &[ServerMessage], id: &str) -> Vec<u32> 
         .collect()
 }
 
-pub(crate) fn feed_events(messages: &[ServerMessage]) -> Vec<FeedEvent> {
+pub(crate) fn feed_lines(messages: &[ServerMessage]) -> Vec<String> {
     messages
         .iter()
         .filter_map(|msg| match msg {
-            ServerMessage::Feed(SFeed { event }) => Some(event.clone()),
+            ServerMessage::Feed(line) => Some(line.spans.iter().map(|span| span.text.as_str()).collect()),
             _ => None,
         })
         .collect()
@@ -126,4 +131,6 @@ pub(crate) fn score(players: &PlayerMap, id: u32) -> i32 {
 
 pub(crate) fn own_progress(players: &PlayerMap, id: u32, quest: &str) -> u32 {
     players.get(&PlayerId(id)).expect("player tracked").quest_states[&QuestId(quest.to_owned())]
+        .own_progress()
+        .expect("quest has own progress")
 }
