@@ -13,14 +13,14 @@
       {"level": 1, "cols": [10, 22], "rows": [20, 21], "kind": "mine", "count": 2},
       {"level": 1, "cols": [1, 4], "rows": [26, 29], "kind": "sentry", "count": 1},
       {"level": 1, "cols": [26, 29], "rows": [26, 29], "kind": "sentry", "count": 1},
-      {"level": 2, "cols": [12, 18], "rows": [5, 12], "kind": "zapper", "count": 1},
-      {"level": 2, "cols": [5, 12], "rows": [11, 19], "kind": "zapper", "count": 1},
-      {"level": 2, "cols": [18, 25], "rows": [11, 19], "kind": "zapper", "count": 1},
-      {"level": 2, "cols": [12, 18], "rows": [18, 25], "kind": "zapper", "count": 1},
-      {"level": 3, "cols": [14, 16], "rows": [5, 12], "kind": "zapper", "count": 1},
-      {"level": 3, "cols": [5, 12], "rows": [14, 16], "kind": "zapper", "count": 1},
-      {"level": 3, "cols": [18, 25], "rows": [14, 16], "kind": "zapper", "count": 1},
-      {"level": 3, "cols": [14, 16], "rows": [18, 25], "kind": "zapper", "count": 1}
+      {"level": 2, "cols": [12, 18], "rows": [6, 11], "kind": "zapper", "count": 1},
+      {"level": 2, "cols": [19, 24], "rows": [10, 16], "kind": "zapper", "count": 1},
+      {"level": 2, "cols": [6, 11], "rows": [14, 20], "kind": "zapper", "count": 1},
+      {"level": 2, "cols": [12, 18], "rows": [19, 24], "kind": "zapper", "count": 1},
+      {"level": 3, "cols": [14, 16], "rows": [6, 11], "kind": "zapper", "count": 1},
+      {"level": 3, "cols": [6, 11], "rows": [14, 16], "kind": "zapper", "count": 1},
+      {"level": 3, "cols": [19, 24], "rows": [14, 16], "kind": "zapper", "count": 1},
+      {"level": 3, "cols": [14, 16], "rows": [19, 24], "kind": "zapper", "count": 1}
     ],
     "player_spawn_zones": [
       {"level": 4, "cols": [12, 18], "rows": [6, 9]},
