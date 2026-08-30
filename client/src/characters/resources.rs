@@ -4,8 +4,8 @@ use bevy::prelude::*;
 
 // Max health from `SInit` (the player, and per actor kind) — the denominator
 // for every health bar. Starts empty (initialized at app build) and is
-// replaced when `Init` arrives; nothing that reads it can arrive earlier —
-// the pre-bootstrap dispatcher drops snapshots and cues until then.
+// replaced when `SInit` arrives; nothing that reads it is routed earlier —
+// `network/routing.rs` routes only `SInit` and quest state until then.
 #[derive(Resource, Default)]
 pub struct MaxHealth {
     pub player: f32,

@@ -2,62 +2,36 @@ use bevy::prelude::*;
 use std::collections::HashSet;
 use std::f32::consts::PI;
 
-use super::handlers::player_movement_velocity;
+use super::{super::context::ServerMessageContext, handlers::player_movement_velocity};
 use crate::{
     cameras::MainCameraMarker,
-    characters::{MaxHealth, PreviousTickPosition},
-    config::{AssetSet, ClientSettings},
-    network::{RoundTripTime, ServerReconciliation},
-    players::{LocalPlayerInfo, PlayerInfo, PlayerMap, spawn_player},
-    ui::{BannerMessage, HudBanner, QuestLog},
+    characters::PreviousTickPosition,
+    network::ServerReconciliation,
+    players::{LocalPlayerInfo, PlayerInfo, spawn_player},
+    ui::BannerMessage,
 };
 use common::{
-    config::GameplayConfig,
     physics::CharacterVerticalVelocity,
-    protocol::{FaceYaw, Player, PlayerId, PlayerMarker, PlayerMoveIntent, Position, PowerUpKind},
+    protocol::{FaceYaw, Player, PlayerId, Position, PowerUpKind},
 };
-
-pub(in crate::network) struct PlayerSnapshotAssets<'a> {
-    pub meshes: &'a mut Assets<Mesh>,
-    pub materials: &'a mut Assets<StandardMaterial>,
-    pub images: &'a mut Assets<Image>,
-    pub graphs: &'a mut Assets<AnimationGraph>,
-    pub asset_server: &'a AssetServer,
-    pub asset_set: &'a AssetSet,
-    pub client_settings: &'a ClientSettings,
-    pub gameplay_config: &'a GameplayConfig,
-    pub max_health: &'a MaxHealth,
-}
-
-pub(in crate::network) struct PlayerSnapshotState<'a> {
-    pub players: &'a mut PlayerMap,
-    pub rtt: &'a RoundTripTime,
-    pub local_player_info: &'a mut LocalPlayerInfo,
-    pub quest_log: &'a QuestLog,
-    pub banner: &'a mut HudBanner,
-    pub my_player_id: PlayerId,
-}
 
 pub(in crate::network) fn sync_players(
     commands: &mut Commands,
-    assets: &mut PlayerSnapshotAssets,
-    state: &mut PlayerSnapshotState,
-    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceYaw), With<PlayerMarker>>,
-    camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
+    context: &mut ServerMessageContext,
+    my_player_id: PlayerId,
     server_players: &[(PlayerId, Player)],
 ) {
-    let my_player_id = state.my_player_id;
     let update_ids: HashSet<PlayerId> = server_players.iter().map(|(id, _)| *id).collect();
 
     // Spawn newly-appeared players. Skip the local player if it's already in
     // the map (e.g., we kept its entity through death — see respawn handling
     // further down).
     for (id, player) in server_players {
-        if state.players.contains_key(id) {
+        if context.players.contains_key(id) {
             continue;
         }
 
-        spawn_snapshot_player(commands, assets, state, camera_query, *id, player);
+        spawn_snapshot_player(commands, context, my_player_id, *id, player);
     }
 
     // Handle players no longer in the snapshot:
@@ -68,7 +42,7 @@ pub(in crate::network) fn sync_players(
     //     LocalPlayerDead. The next snapshot that re-includes our id will
     //     teleport us to the respawn position.
     let mut local_just_died = false;
-    state.players.retain(|id, player| {
+    context.players.retain(|id, player| {
         if update_ids.contains(id) {
             return true;
         }
@@ -82,16 +56,16 @@ pub(in crate::network) fn sync_players(
         }
     });
     if local_just_died {
-        state.local_player_info.is_dead = true;
+        context.local_player_info.is_dead = true;
     }
 
     // Handle local-player respawn: if we were dead and our id reappeared in
     // this snapshot, hard-teleport our existing entity to the new spawn
     // position, restore visibility, and clear the death state.
     let mut local_just_respawned = false;
-    if state.local_player_info.is_dead
+    if context.local_player_info.is_dead
         && let Some((_, server_player)) = server_players.iter().find(|(id, _)| *id == my_player_id)
-        && let Some(info) = state.players.get_mut(&my_player_id)
+        && let Some(info) = context.players.get_mut(&my_player_id)
     {
         let entity = info.entity;
         // Adopt the server-assigned respawn facing. Without this the next
@@ -99,8 +73,8 @@ pub(in crate::network) fn sync_players(
         // overwrites `FaceYaw` with the pre-death facing.
         apply_local_spawn_facing(
             commands,
-            camera_query,
-            state.local_player_info,
+            &context.cameras,
+            &mut context.local_player_info,
             &server_player.movement.pos,
             server_player.movement.face_yaw,
         );
@@ -121,11 +95,11 @@ pub(in crate::network) fn sync_players(
         // pre-death position.
         commands.entity(entity).remove::<ServerReconciliation>();
         info.apply_snapshot(server_player);
-        state.local_player_info.is_dead = false;
+        context.local_player_info.is_dead = false;
         local_just_respawned = true;
 
-        if let Some(reminder) = state.quest_log.reminder() {
-            state.banner.push(BannerMessage::QuestAnnouncement(reminder));
+        if let Some(reminder) = context.quest_log.reminder() {
+            context.banner.push(BannerMessage::QuestAnnouncement(reminder));
         }
     }
 
@@ -137,43 +111,33 @@ pub(in crate::network) fn sync_players(
         if local_just_respawned && *id == my_player_id {
             continue;
         }
-        update_snapshot_player(
-            commands,
-            state.players,
-            state.rtt,
-            player_data,
-            my_player_id,
-            assets.gameplay_config,
-            *id,
-            server_player,
-        );
+        update_snapshot_player(commands, context, my_player_id, *id, server_player);
     }
 }
 
 fn spawn_snapshot_player(
     commands: &mut Commands,
-    assets: &mut PlayerSnapshotAssets,
-    state: &mut PlayerSnapshotState,
-    camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
+    context: &mut ServerMessageContext,
+    my_player_id: PlayerId,
     id: PlayerId,
     player: &Player,
 ) {
-    let is_local = id == state.my_player_id;
+    let is_local = id == my_player_id;
     debug!(
         "spawning {}#{} from Snapshot (is_local: {})",
         player.name, id.0, is_local
     );
     let entity = spawn_player(
         commands,
-        assets.asset_server,
-        assets.meshes,
-        assets.materials,
-        assets.images,
-        assets.graphs,
-        assets.asset_set,
-        assets.client_settings,
-        assets.gameplay_config,
-        assets.max_health.player,
+        &context.asset_server,
+        &mut context.meshes,
+        &mut context.materials,
+        &mut context.images,
+        &mut context.graphs,
+        &context.asset_set,
+        &context.client_settings,
+        &context.gameplay_config,
+        context.max_health.player,
         id.0,
         &player.name,
         &player.movement.pos,
@@ -189,14 +153,14 @@ fn spawn_snapshot_player(
     if is_local {
         apply_local_spawn_facing(
             commands,
-            camera_query,
-            state.local_player_info,
+            &context.cameras,
+            &mut context.local_player_info,
             &player.movement.pos,
             player.movement.face_yaw,
         );
     }
 
-    state.players.insert(id, PlayerInfo::from_snapshot(entity, player));
+    context.players.insert(id, PlayerInfo::from_snapshot(entity, player));
 }
 
 // Point the main camera (and the stored mouse-look fallback state) at the
@@ -220,19 +184,16 @@ fn apply_local_spawn_facing(
 
 fn update_snapshot_player(
     commands: &mut Commands,
-    players: &mut PlayerMap,
-    rtt: &RoundTripTime,
-    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceYaw), With<PlayerMarker>>,
+    context: &mut ServerMessageContext,
     my_player_id: PlayerId,
-    gameplay_config: &GameplayConfig,
     id: PlayerId,
     server_player: &Player,
 ) {
-    if let Some(client_player) = players.get_mut(&id) {
-        if let Ok((client_pos, _, _)) = player_data.get(client_player.entity) {
+    if let Some(client_player) = context.players.get_mut(&id) {
+        if let Ok((client_pos, _, _)) = context.player_data.get(client_player.entity) {
             let server_velocity = player_movement_velocity(
                 server_player.movement,
-                gameplay_config,
+                &context.gameplay_config,
                 server_player.power_up(PowerUpKind::Speed),
                 server_player.stunned,
             );
@@ -247,7 +208,7 @@ fn update_snapshot_player(
                 *client_pos,
                 server_player.movement.pos,
                 server_velocity,
-                rtt,
+                &context.rtt,
             ));
             if id != my_player_id {
                 commands

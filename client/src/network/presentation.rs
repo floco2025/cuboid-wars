@@ -1,21 +1,13 @@
-use bevy::{ecs::system::SystemParam, prelude::*};
-use common::protocol::{MapLayout, SFeed, SFirework, SPressurePlate};
+use bevy::prelude::*;
+use common::protocol::{SFeed, SFirework, SPressurePlate};
 
-use crate::{audio::play_sound, config::AssetSet, ui::MessageFeed, vfx::FireworkShow};
-
-#[derive(SystemParam)]
-pub(super) struct PresentationMessageContext<'w> {
-    asset_server: Res<'w, AssetServer>,
-    asset_set: Res<'w, AssetSet>,
-    firework_show: ResMut<'w, FireworkShow>,
-    map_layout: Option<Res<'w, MapLayout>>,
-    feed: ResMut<'w, MessageFeed>,
-}
+use super::context::ServerMessageContext;
+use crate::audio::play_sound;
 
 pub(super) fn handle_pressure_plate_message(
-    message: &SPressurePlate,
+    message: SPressurePlate,
     commands: &mut Commands,
-    context: &mut PresentationMessageContext,
+    context: &mut ServerMessageContext,
 ) {
     let sound = if message.pressed {
         "plate_press"
@@ -25,10 +17,10 @@ pub(super) fn handle_pressure_plate_message(
     play_sound(commands, &context.asset_server, context.asset_set.player_sound(sound));
 }
 
-pub(super) fn handle_firework_message(message: &SFirework, context: &mut PresentationMessageContext) {
+pub(super) fn handle_firework_message(message: SFirework, context: &mut ServerMessageContext) {
     context.firework_show.start(message.seed, context.map_layout.as_deref());
 }
 
-pub(super) fn handle_feed_message(message: &SFeed, context: &mut PresentationMessageContext) {
-    context.feed.push(message.clone());
+pub(super) fn handle_feed_message(message: SFeed, context: &mut ServerMessageContext) {
+    context.feed.push(message);
 }

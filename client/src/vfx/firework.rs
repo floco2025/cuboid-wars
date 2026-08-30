@@ -420,8 +420,9 @@ fn pop(commands: &mut Commands, vfx: &mut FireworkVfx, assets: &FireworkAssets, 
         gameplay_config: &vfx.gameplay_config,
         collision_world: vfx.collision_world.as_deref(),
         map_layout: vfx.map_layout.as_deref(),
+        blast_radii: &vfx.blast_radii,
     };
-    spawn_missile_explosion(commands, &mut ctx, &vfx.blast_radii, Position::from(pos));
+    spawn_missile_explosion(commands, &mut ctx, Position::from(pos));
     play_explosion_sound(
         commands,
         &assets.asset_server,

@@ -1,9 +1,9 @@
 use bevy::prelude::*;
 use std::collections::HashSet;
 
-use super::super::components::ServerReconciliation;
+use super::super::{components::ServerReconciliation, context::ServerMessageContext};
 use crate::{
-    missiles::{MissileAssets, MissileMap, MissileVelocity, spawn_missile},
+    missiles::{MissileMap, MissileVelocity, spawn_missile},
     network::RoundTripTime,
 };
 use common::protocol::{Missile, MissileId, MissileMarker, MissileMovementState, Position};
@@ -14,23 +14,20 @@ use common::protocol::{Missile, MissileId, MissileMarker, MissileMovementState, 
 // movement as a reconciliation target.
 pub(in crate::network) fn sync_missiles(
     commands: &mut Commands,
-    missile_assets: &MissileAssets,
-    missiles: &mut MissileMap,
-    rtt: &RoundTripTime,
-    missile_data: &Query<&Position, With<MissileMarker>>,
+    context: &mut ServerMessageContext,
     server_missiles: &[(MissileId, Missile)],
 ) {
     let update_ids: HashSet<MissileId> = server_missiles.iter().map(|(id, _)| *id).collect();
 
     for (id, missile) in server_missiles {
-        if missiles.contains_key(id) {
+        if context.missiles.contains_key(id) {
             continue;
         }
-        let entity = spawn_missile(commands, missile_assets, *id, &missile.movement);
-        missiles.insert(*id, entity);
+        let entity = spawn_missile(commands, &context.missile_assets, *id, &missile.movement);
+        context.missiles.insert(*id, entity);
     }
 
-    missiles.retain(|id, entity| {
+    context.missiles.retain(|id, entity| {
         if update_ids.contains(id) {
             true
         } else {
@@ -40,7 +37,14 @@ pub(in crate::network) fn sync_missiles(
     });
 
     for (id, missile) in server_missiles {
-        apply_missile_movement_state(commands, missiles, rtt, missile_data, *id, missile.movement);
+        apply_missile_movement_state(
+            commands,
+            &context.missiles,
+            &context.rtt,
+            &context.missile_data,
+            *id,
+            missile.movement,
+        );
     }
 }
 

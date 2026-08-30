@@ -24,8 +24,8 @@ struct ExplosionSpec {
     blast_radius: Option<f32>,
 }
 
-// The world plumbing every explosion spawn draws from, bundled so the death
-// handlers thread one context instead of seven parameters.
+// The world plumbing every explosion spawn draws from, so callers hand over
+// one context.
 pub struct ExplosionSpawnCtx<'a> {
     pub meshes: &'a mut Assets<Mesh>,
     pub materials: &'a mut Assets<StandardMaterial>,
@@ -34,21 +34,16 @@ pub struct ExplosionSpawnCtx<'a> {
     pub gameplay_config: &'a GameplayConfig,
     pub collision_world: Option<&'a CollisionWorld>,
     pub map_layout: Option<&'a MapLayout>,
+    pub blast_radii: &'a BlastRadii,
 }
 
-pub fn spawn_actor_explosion(
-    commands: &mut Commands,
-    ctx: &mut ExplosionSpawnCtx,
-    radii: &BlastRadii,
-    actor_kind: &str,
-    pos: Position,
-) {
+pub fn spawn_actor_explosion(commands: &mut Commands, ctx: &mut ExplosionSpawnCtx, actor_kind: &str, pos: Position) {
     let actor_physics = ctx
         .gameplay_config
         .actor(actor_kind)
         .expect("actor kind sent by server is missing from gameplay config")
         .physics();
-    let blast_radius = radii.actors.get(actor_kind).copied();
+    let blast_radius = ctx.blast_radii.actors.get(actor_kind).copied();
     let fireball_diameter = blast_radius.map_or(EXPLOSION_FALLBACK_FIREBALL_DIAMETER, |radius| {
         2.0 * radius * EXPLOSION_FIREBALL_BLAST_DIAMETER_FACTOR
     });
@@ -69,9 +64,9 @@ pub fn spawn_actor_explosion(
     );
 }
 
-pub fn spawn_player_explosion(commands: &mut Commands, ctx: &mut ExplosionSpawnCtx, radii: &BlastRadii, pos: Position) {
+pub fn spawn_player_explosion(commands: &mut Commands, ctx: &mut ExplosionSpawnCtx, pos: Position) {
     let player_physics = ctx.gameplay_config.player.physics();
-    let blast_radius = (radii.player > 0.0).then_some(radii.player);
+    let blast_radius = (ctx.blast_radii.player > 0.0).then_some(ctx.blast_radii.player);
     spawn_explosion(
         commands,
         ctx.meshes,
@@ -93,13 +88,8 @@ pub fn spawn_player_explosion(commands: &mut Commands, ctx: &mut ExplosionSpawnC
 
 // A missile detonation: the blast origin is the detonation point itself (no
 // character body).
-pub fn spawn_missile_explosion(
-    commands: &mut Commands,
-    ctx: &mut ExplosionSpawnCtx,
-    radii: &BlastRadii,
-    pos: Position,
-) {
-    let blast_radius = (radii.missile > 0.0).then_some(radii.missile);
+pub fn spawn_missile_explosion(commands: &mut Commands, ctx: &mut ExplosionSpawnCtx, pos: Position) {
+    let blast_radius = (ctx.blast_radii.missile > 0.0).then_some(ctx.blast_radii.missile);
     spawn_explosion(
         commands,
         ctx.meshes,

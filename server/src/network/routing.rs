@@ -10,7 +10,6 @@ use super::{
 };
 use crate::{
     actors::{ActorMap, PendingActorSpawns},
-    items::ItemMap,
     map::OpenBarrierKinds,
     missiles::{MissileMap, handle_missile_shot_message},
     network::ServerToClient,
@@ -18,21 +17,19 @@ use crate::{
     projectiles::handle_shot_message,
     quests::{QuestBoard, QuestCatalog},
 };
-use common::protocol::{ItemMarker, *};
+use common::protocol::*;
 
 #[derive(SystemParam)]
 pub(super) struct ClientMessageContext<'w, 's> {
     pub(super) players: ResMut<'w, PlayerMap>,
-    pub(super) time: Res<'w, Time>,
+    time: Res<'w, Time>,
     pub(super) world: SharedWorld<'w>,
-    pub(super) queries: CharacterQueries<'w, 's>,
-    pub(super) items: Res<'w, ItemMap>,
-    pub(super) actors: Res<'w, ActorMap>,
-    pub(super) item_data: Query<'w, 's, &'static Position, With<ItemMarker>>,
-    pub(super) open_barrier_kinds: Res<'w, OpenBarrierKinds>,
-    pub(super) missiles: ResMut<'w, MissileMap>,
-    pub(super) pending_actor_spawns: ResMut<'w, PendingActorSpawns>,
-    pub(super) admin: AdminContext<'w>,
+    queries: CharacterQueries<'w, 's>,
+    actors: Res<'w, ActorMap>,
+    open_barrier_kinds: Res<'w, OpenBarrierKinds>,
+    missiles: ResMut<'w, MissileMap>,
+    pending_actor_spawns: ResMut<'w, PendingActorSpawns>,
+    admin: AdminContext<'w>,
     pub(super) quest_board: ResMut<'w, QuestBoard>,
     pub(super) quest_catalog: Res<'w, QuestCatalog>,
 }
@@ -48,18 +45,9 @@ pub(super) fn route_client_message(
         return;
     };
     let logged_in = player.connection.logged_in;
-    let is_dead = player.is_dead();
+    // `None` while dead: the body-bound arms drop the message until respawn,
+    // while Ping/Admin/Chat keep the console and RTT working meanwhile.
     let entity = player.entity();
-
-    // Dead players retain console and diagnostic access through respawn.
-    if is_dead
-        && !matches!(
-            &message,
-            ClientMessage::Ping(_) | ClientMessage::Admin(_) | ClientMessage::Chat(_)
-        )
-    {
-        return;
-    }
 
     match message {
         ClientMessage::Login(message) if !logged_in => {
@@ -76,13 +64,7 @@ pub(super) fn route_client_message(
                 &context.world,
                 &context.quest_catalog,
                 &context.quest_board,
-                &context.items,
-                &context.actors,
-                &context.pending_actor_spawns,
                 &context.queries,
-                &context.item_data,
-                context.admin.weather.intensity(),
-                context.admin.light.blend(),
             );
         }
         ClientMessage::Login(_) => {
@@ -90,28 +72,34 @@ pub(super) fn route_client_message(
                 "{} sent login after already authenticated",
                 context.players.describe(&id)
             );
+            // Close to enforce a single-login flow.
             if let Some(player) = context.players.get(&id) {
                 let _ = player.connection.channel.send(ServerToClient::Close);
             }
         }
         _ if !logged_in => {
-            warn!("{:?} sent non-login message before authenticating", id);
+            warn!(
+                "{:?} sent non-login message before authenticating (likely out-of-order delivery)",
+                id
+            );
+            // Keep the connection: the Login is likely still in flight.
         }
         ClientMessage::Move(message) => {
             let Some(entity) = entity else {
                 return;
             };
+            trace!("{:?} input: {:?}", id, message);
             handle_move_message(commands, entity, id, message, &context.players, &context.queries);
         }
-        ClientMessage::Jump(message) => {
+        ClientMessage::Jump(_) => {
             let Some(entity) = entity else {
                 return;
             };
+            trace!("{:?} jump", id);
             handle_jump_message(
                 commands,
                 entity,
                 id,
-                message,
                 &context.players,
                 &context.queries,
                 &context.world.collision_world,
@@ -157,7 +145,10 @@ pub(super) fn route_client_message(
                 &context.open_barrier_kinds,
             );
         }
-        ClientMessage::Ping(message) => handle_ping_message(id, message, &context.players),
+        ClientMessage::Ping(message) => {
+            trace!("{:?} ping: {:?}", id, message);
+            handle_ping_message(id, message, &context.players);
+        }
         ClientMessage::Admin(message) => {
             debug!("{} admin command: {:?}", context.players.describe(&id), message.command);
             handle_admin_message(

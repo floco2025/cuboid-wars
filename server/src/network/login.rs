@@ -3,22 +3,14 @@ use std::collections::HashMap;
 use bevy::prelude::*;
 
 use crate::{
-    actors::{ActorMap, PendingActorSpawns},
     characters::{generate_player_spawn_position, spawn_face_yaw},
-    items::ItemMap,
     network::{FeedAudience, FeedEvent, ServerToClient, emit_feed},
     players::PlayerMap,
     quests::{QuestBoard, QuestCatalog, assign_quests},
 };
-use common::{
-    physics::CharacterVerticalVelocity,
-    protocol::{ItemMarker, *},
-};
+use common::{physics::CharacterVerticalVelocity, protocol::*};
 
-use super::{
-    broadcast::{collect_items, snapshot_actors, snapshot_logged_in_players, snapshot_spawning_actors},
-    handlers::{CharacterQueries, SharedWorld},
-};
+use super::handlers::{CharacterQueries, SharedWorld};
 
 const MAX_NAME_CHARS: usize = 32;
 
@@ -51,13 +43,7 @@ pub(super) fn handle_login_message(
     world: &SharedWorld,
     quest_catalog: &QuestCatalog,
     quest_board: &QuestBoard,
-    items: &ItemMap,
-    actors: &ActorMap,
-    pending_spawns: &PendingActorSpawns,
     queries: &CharacterQueries,
-    item_positions: &Query<&Position, With<ItemMarker>>,
-    rain_intensity: f32,
-    lighting: LightingBlend,
 ) {
     let Some(player_info) = players.get_mut(&id) else {
         error!("registered player#{} missing during login", id.0);
@@ -87,6 +73,16 @@ pub(super) fn handle_login_message(
     // Batch initially unlocked quests so login produces one announcement.
     assign_quests(players, id, quest_catalog, quest_board);
 
+    // Presence remains snapshot-owned; this line is cosmetic.
+    emit_feed(
+        players,
+        &world.server_gameplay_config.feed,
+        FeedAudience::EveryoneExcept(id),
+        FeedEvent::PlayerJoined {
+            name: players.display_name(&id),
+        },
+    );
+
     let occupied_positions: Vec<Position> = players
         .values()
         .filter(|player| player.connection.logged_in && player.entity() != Some(entity))
@@ -100,72 +96,19 @@ pub(super) fn handle_login_message(
         &occupied_positions,
         world.gameplay_config.player.physics(),
     );
-    let face_yaw = spawn_face_yaw(&pos);
-    let move_intent = PlayerMoveIntent::Idle;
-
-    let Some(player_info) = players.get(&id) else {
-        error!("registered player#{} missing while building login snapshot", id.0);
-        return;
-    };
-    let player = player_info.snapshot_player(
-        pos,
-        move_intent,
-        face_yaw,
-        Health(world.server_gameplay_config.combat.health.player.max),
-        0.0,
-    );
-
-    let mut all_players = snapshot_logged_in_players(players, &queries.player_data, &queries.player_motions)
-        .into_iter()
-        .filter(|(player_id, _)| *player_id != id)
-        .collect::<Vec<_>>();
-    all_players.push((id, player.clone()));
-
-    let all_items = collect_items(items, item_positions);
-    let all_actors = snapshot_actors(actors, &queries.actor_data, &queries.actor_motions);
-    let (quests, locked_plate_purposes) = quest_board.snapshot_fields(quest_catalog, players);
-    let snapshot_message = ServerMessage::Snapshot(SSnapshot {
-        seq: 0,
-        players: all_players,
-        actors: all_actors,
-        // Late joiners must see beam-in ghosts that are already in progress.
-        spawning_actors: snapshot_spawning_actors(pending_spawns),
-        items: all_items,
-        // In-flight missiles arrive with the next regular snapshot.
-        missiles: Vec::new(),
-        // Per-tick plate state is corrected by the next regular snapshot.
-        open_barrier_kinds: Vec::new(),
-        // Durable quest state must be correct immediately for late joiners.
-        quests,
-        locked_plate_purposes,
-        // Live conditions prevent a bright, dry flash while joining.
-        rain_intensity,
-        lighting,
-    });
-    channel.send(ServerToClient::Send(snapshot_message)).ok();
-
-    // Presence remains snapshot-owned; this line is cosmetic.
-    emit_feed(
-        players,
-        &world.server_gameplay_config.feed,
-        FeedAudience::EveryoneExcept(id),
-        FeedEvent::PlayerJoined {
-            name: players.display_name(&id),
-        },
-    );
-
     commands.entity(entity).insert((
         pos,
-        move_intent,
-        FaceYaw(face_yaw),
+        PlayerMoveIntent::Idle,
+        FaceYaw(spawn_face_yaw(&pos)),
         CharacterVerticalVelocity::default(),
-        player.health,
+        Health(combat.health.player.max),
     ));
 }
 
 #[cfg(test)]
 mod tests {
     use super::{MAX_NAME_CHARS, sanitize_player_name, sorted_by_kind};
+    use crate::config::ServerGameplayConfig;
     use common::protocol::PlayerId;
 
     #[test]
@@ -196,8 +139,7 @@ mod tests {
 
     #[test]
     fn per_kind_values_are_sorted_and_match_config() {
-        let config =
-            crate::config::ServerGameplayConfig::load_default().expect("default server gameplay config failed to load");
+        let config = ServerGameplayConfig::load_default().expect("default server gameplay config failed to load");
         let combat = &config.combat;
         let radii = sorted_by_kind(&combat.damage.actors, |actor| actor.death_blast.radius);
         let max_health = sorted_by_kind(&combat.health.actors, |actor| actor.max);

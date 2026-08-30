@@ -1,55 +1,42 @@
 use bevy::prelude::*;
 use std::collections::HashSet;
 
-use super::super::components::ServerReconciliation;
+use super::super::{components::ServerReconciliation, context::ServerMessageContext};
 use crate::{
-    actors::{ActorGhostMap, ActorInfo, ActorMap, beam_in_ghost_state, spawn_actor, spawn_actor_ghost},
-    characters::MaxHealth,
-    config::{AssetSet, ClientSettings},
+    actors::{ActorInfo, ActorMap, beam_in_ghost_state, spawn_actor, spawn_actor_ghost},
     network::RoundTripTime,
 };
 use common::{
-    config::GameplayConfig,
     physics::CharacterVerticalVelocity,
     protocol::{Actor, ActorId, ActorMarker, ActorMoveIntent, ActorMovementState, FaceYaw, Position, SpawningActor},
 };
 
 pub(in crate::network) fn sync_actors(
     commands: &mut Commands,
-    meshes: &mut Assets<Mesh>,
-    materials: &mut Assets<StandardMaterial>,
-    graphs: &mut Assets<AnimationGraph>,
-    actors: &mut ActorMap,
-    rtt: &RoundTripTime,
-    actor_data: &Query<(&Position, &ActorMoveIntent, &FaceYaw), With<ActorMarker>>,
-    asset_server: &AssetServer,
-    asset_set: &AssetSet,
-    client_settings: &ClientSettings,
-    gameplay_config: &GameplayConfig,
-    max_health: &MaxHealth,
+    context: &mut ServerMessageContext,
     server_actors: &[(ActorId, Actor)],
 ) {
     let update_ids: HashSet<ActorId> = server_actors.iter().map(|(id, _)| *id).collect();
 
     for (id, actor) in server_actors {
-        if actors.contains_key(id) {
+        if context.actors.contains_key(id) {
             continue;
         }
 
         let entity = spawn_actor(
             commands,
-            asset_server,
-            meshes,
-            materials,
-            graphs,
-            asset_set,
-            client_settings,
-            gameplay_config,
-            max_health,
+            &context.asset_server,
+            &mut context.meshes,
+            &mut context.materials,
+            &mut context.graphs,
+            &context.asset_set,
+            &context.client_settings,
+            &context.gameplay_config,
+            &context.max_health,
             *id,
             actor,
         );
-        actors.insert(
+        context.actors.insert(
             *id,
             ActorInfo {
                 entity,
@@ -58,7 +45,7 @@ pub(in crate::network) fn sync_actors(
         );
     }
 
-    actors.retain(|id, actor| {
+    context.actors.retain(|id, actor| {
         if update_ids.contains(id) {
             true
         } else {
@@ -68,14 +55,14 @@ pub(in crate::network) fn sync_actors(
     });
 
     for (id, server_actor) in server_actors {
-        if let Some(client_actor) = actors.get(id) {
+        if let Some(client_actor) = context.actors.get(id) {
             commands.entity(client_actor.entity).insert(server_actor.health);
         }
         apply_actor_movement_state(
             commands,
-            actors,
-            rtt,
-            actor_data,
+            &context.actors,
+            &context.rtt,
+            &context.actor_data,
             *id,
             server_actor.movement,
             Some(server_actor.face_yaw),
@@ -89,17 +76,14 @@ pub(in crate::network) fn sync_actors(
 // handoff is seamless.
 pub(in crate::network) fn sync_spawning_actors(
     commands: &mut Commands,
-    ghosts: &mut ActorGhostMap,
-    asset_server: &AssetServer,
-    asset_set: &AssetSet,
-    gameplay_config: &GameplayConfig,
+    context: &mut ServerMessageContext,
     spawning_actors: &[(ActorId, SpawningActor)],
 ) {
     let update_ids: HashSet<ActorId> = spawning_actors.iter().map(|(id, _)| *id).collect();
 
     for (id, spawning) in spawning_actors {
-        if let Some(entity) = ghosts.get(id) {
-            let update = beam_in_ghost_state(gameplay_config, spawning);
+        if let Some(entity) = context.actor_ghosts.get(id) {
+            let update = beam_in_ghost_state(&context.gameplay_config, spawning);
             commands
                 .entity(entity)
                 .entry::<crate::vfx::BeamInGhost>()
@@ -107,11 +91,17 @@ pub(in crate::network) fn sync_spawning_actors(
                 .or_insert(update);
             continue;
         }
-        let entity = spawn_actor_ghost(commands, asset_server, asset_set, gameplay_config, spawning);
-        ghosts.insert(*id, entity);
+        let entity = spawn_actor_ghost(
+            commands,
+            &context.asset_server,
+            &context.asset_set,
+            &context.gameplay_config,
+            spawning,
+        );
+        context.actor_ghosts.insert(*id, entity);
     }
 
-    ghosts.retain(|id, entity| {
+    context.actor_ghosts.retain(|id, entity| {
         if update_ids.contains(id) {
             true
         } else {

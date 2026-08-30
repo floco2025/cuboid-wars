@@ -35,7 +35,6 @@ pub(super) struct CharacterQueries<'w, 's> {
     pub(super) player_data: PlayerStateQuery<'w, 's>,
     pub(super) player_motions: Query<'w, 's, &'static CharacterVerticalVelocity, With<PlayerMarker>>,
     pub(super) actor_data: ActorStateQuery<'w, 's>,
-    pub(super) actor_motions: Query<'w, 's, &'static CharacterVerticalVelocity, With<ActorMarker>>,
 }
 
 pub(super) fn handle_move_message(
@@ -46,7 +45,6 @@ pub(super) fn handle_move_message(
     players: &PlayerMap,
     queries: &CharacterQueries,
 ) {
-    trace!("{:?} input: {:?}", id, message);
     // Reject non-finite input before it can corrupt authoritative movement.
     if !message.move_intent.is_finite() || !message.face_yaw.is_finite() {
         return;
@@ -72,13 +70,11 @@ pub(super) fn handle_jump_message(
     commands: &mut Commands,
     entity: Entity,
     id: PlayerId,
-    message: CJump,
     players: &PlayerMap,
     queries: &CharacterQueries,
     collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
 ) {
-    trace!("{:?} jump: {:?}", id, message);
     if players.get(&id).is_some_and(PlayerInfo::is_stunned) {
         return;
     }
@@ -114,12 +110,11 @@ pub(super) fn handle_jump_message(
 }
 
 pub(super) fn handle_ping_message(id: PlayerId, message: CPing, players: &PlayerMap) {
-    trace!("{:?} ping: {:?}", id, message);
     if let Some(player) = players.get(&id) {
-        let message = ServerMessage::Pong(SPong {
+        let pong = ServerMessage::Pong(SPong {
             timestamp_nanos: message.timestamp_nanos,
         });
-        let _ = player.connection.channel.send(ServerToClient::Send(message));
+        let _ = player.connection.channel.send(ServerToClient::Send(pong));
     }
 }
 
