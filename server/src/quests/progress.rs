@@ -58,7 +58,10 @@ pub fn record_event(
             }
             (_, QuestScope::Shared) => advance_shared(players, board, catalog, feed, quest),
             (None, QuestScope::Individual | QuestScope::Everyone) => {
-                panic!("world-event quest is not shared (config validation missed it)");
+                panic!(
+                    "world-event quest {:?} is not shared (config validation missed it)",
+                    quest.id.0
+                );
             }
         }
     }
@@ -278,23 +281,24 @@ pub fn complete_quest(
 // Every unlocked quest the player doesn't have yet, sent as one batch (no
 // points for late joiners to a completed group quest).
 pub fn assign_quests(players: &mut PlayerMap, player: PlayerId, catalog: &QuestCatalog, board: &QuestBoard) {
-    let new_quests: Vec<&CatalogQuest> = catalog
-        .iter()
-        .filter(|quest| board.is_unlocked(&quest.id))
-        .filter(|quest| {
-            players
-                .get_mut(&player)
-                .is_some_and(|info| assign_state(info, quest, board))
-        })
-        .collect();
-    if !new_quests.is_empty() {
-        let new_quests = new_quests
-            .into_iter()
-            .map(|quest| initial_quest(players, player, quest, board))
-            .collect();
-        if let Some(info) = players.get(&player) {
-            notify_assigned(info, new_quests);
+    let Some(info) = players.get_mut(&player) else {
+        return;
+    };
+    let mut new_quests = Vec::new();
+    for quest in catalog.iter().filter(|quest| board.is_unlocked(&quest.id)) {
+        if assign_state(info, quest, board) {
+            new_quests.push(quest);
         }
+    }
+    if new_quests.is_empty() {
+        return;
+    }
+    let new_quests = new_quests
+        .into_iter()
+        .map(|quest| initial_quest(players, player, quest, board))
+        .collect();
+    if let Some(info) = players.get(&player) {
+        notify_assigned(info, new_quests);
     }
 }
 

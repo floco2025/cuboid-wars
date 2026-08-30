@@ -8,6 +8,8 @@ use crate::{
     constants::{BANNER_BAND_ALPHA, BANNER_BAND_TOP_PERCENT, HUD_ROW_GAP_PX},
 };
 
+const DEATH_TEXT: &str = "You died!";
+
 #[derive(Component)]
 pub struct HudBannerMarker;
 
@@ -23,7 +25,7 @@ impl BannerMessage {
     fn text(&self) -> &str {
         match self {
             Self::QuestAnnouncement(text) | Self::QuestCompleted(text) => text,
-            Self::Death => "You died!",
+            Self::Death => DEATH_TEXT,
         }
     }
 
@@ -31,7 +33,7 @@ impl BannerMessage {
         match self {
             Self::QuestAnnouncement(text) => (text, client_settings.hud.banner.quest_announcement_secs),
             Self::QuestCompleted(text) => (text, client_settings.hud.banner.quest_completed_secs),
-            Self::Death => ("You died!".to_owned(), client_settings.hud.banner.death_secs),
+            Self::Death => (DEATH_TEXT.to_owned(), client_settings.hud.banner.death_secs),
         }
     }
 }

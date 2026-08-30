@@ -5,8 +5,8 @@ use serde::Deserialize;
 
 use super::{actors::ActorKindServerConfig, validation::validate_covers_actor_kinds};
 
-// Which feed lines everyone sees. The one broadcast gate: `announce`
-// consults it, nothing else decides.
+// Which feed lines everyone sees. The one broadcast gate: `emit_feed`
+// consults it for public audiences, nothing else decides.
 #[derive(Debug, Clone, Deserialize)]
 pub struct FeedConfig {
     pub player_joined: bool,

@@ -200,6 +200,7 @@ pub fn handle_admin_message(
                 text,
             },
         ),
+        // With announcements switched off the issuer still gets the outcome.
         AdminOutcome::Public(text) | AdminOutcome::Private(text) => {
             emit_feed(players, feed, FeedAudience::Player(id), FeedEvent::AdminReply { text });
         }

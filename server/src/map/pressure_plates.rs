@@ -147,6 +147,12 @@ pub fn pressure_plates_system(
     // Feed lines follow plate presses only. The alive-count term also opens
     // and closes kinds (solo play, joins, deaths); those stay silent — the
     // barriers themselves already show it.
+    let kind_name = |kind: BarrierKindId| {
+        barrier_kinds
+            .id(kind)
+            .expect("barrier kind missing from BarrierKindTable")
+            .to_owned()
+    };
     let (opened, closed) = barrier_transitions(&open.0, &next);
     for kind in opened {
         if let Some(presser) = presser_of_kind(kind, &holders, &prev_held, plates) {
@@ -157,10 +163,7 @@ pub fn pressure_plates_system(
                 FeedEvent::BarrierOpened {
                     name: players.display_name(&presser),
                     kind,
-                    kind_name: barrier_kinds
-                        .id(kind)
-                        .expect("barrier kind missing from BarrierKindTable")
-                        .to_owned(),
+                    kind_name: kind_name(kind),
                 },
             );
         }
@@ -175,10 +178,7 @@ pub fn pressure_plates_system(
                 FeedAudience::Everyone,
                 FeedEvent::BarrierClosed {
                     kind,
-                    kind_name: barrier_kinds
-                        .id(kind)
-                        .expect("barrier kind missing from BarrierKindTable")
-                        .to_owned(),
+                    kind_name: kind_name(kind),
                 },
             );
         }

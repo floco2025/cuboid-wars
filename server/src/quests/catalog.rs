@@ -37,7 +37,12 @@ impl QuestCatalog {
             .map(|(order, quest)| CatalogQuest {
                 definition: quest.clone(),
                 order: u32::try_from(order).expect("quest catalog order exceeds u32"),
-                points: config.scoring.quest_completed[&quest.id],
+                points: config
+                    .scoring
+                    .quest_completed
+                    .get(&quest.id)
+                    .copied()
+                    .expect("quest id missing from scoring.quest_completed"),
             })
             .collect();
         let by_id = quests

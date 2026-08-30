@@ -90,6 +90,8 @@ fn style_color(style: FeedStyle, barrier_assets: &BarrierAssets) -> Color {
     }
 }
 
+// The barrier mesh deliberately uses translucent alpha for the in-world
+// pulse, but text needs full opacity to be legible.
 fn color_with_full_alpha(color: Color) -> Color {
     let srgba = color.to_srgba();
     Color::srgba(srgba.red, srgba.green, srgba.blue, 1.0)

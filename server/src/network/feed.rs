@@ -306,4 +306,106 @@ mod tests {
         assert_eq!(text(&line), "Marc opened the treasure barriers");
         assert_eq!(line.spans[1].style, FeedStyle::Barrier(BarrierKindId(2)));
     }
+
+    #[test]
+    fn every_death_cause_has_its_wording() {
+        let bob = || "Bob".to_owned();
+        let cases = [
+            (DeathCause::SelfShot, "Marc shot themselves", FeedStyle::Default),
+            (
+                DeathCause::Missile { by: bob() },
+                "Bob blew up Marc",
+                FeedStyle::Default,
+            ),
+            (DeathCause::SelfMissile, "Marc blew themselves up", FeedStyle::Default),
+            (
+                DeathCause::Beam {
+                    kind: "zapper".to_owned(),
+                },
+                "Marc was zapped by a zapper",
+                FeedStyle::Default,
+            ),
+            (
+                DeathCause::ActorBlast {
+                    kind: "mine".to_owned(),
+                },
+                "Marc was blown up by a mine",
+                FeedStyle::Default,
+            ),
+            (
+                DeathCause::PlayerBlast { by: bob() },
+                "Marc was caught in Bob's explosion",
+                FeedStyle::Default,
+            ),
+            (DeathCause::Fall, "Marc fell", FeedStyle::Dim),
+            (DeathCause::Admin, "Marc was killed by an admin", FeedStyle::Default),
+        ];
+        for (cause, expected, style) in cases {
+            let line = render(FeedEvent::PlayerDied {
+                name: "Marc".to_owned(),
+                cause,
+            });
+            assert_eq!(text(&line), expected);
+            assert_eq!(line.spans[0].style, style, "{expected}");
+        }
+    }
+
+    #[test]
+    fn key_found_and_barrier_closed_color_only_the_kind_word() {
+        let kind = BarrierKindId(1);
+        let found = render(FeedEvent::KeyFound {
+            name: "Marc".to_owned(),
+            kind,
+        });
+        assert_eq!(text(&found), "Marc found a key");
+        assert_eq!(found.spans[0].style, FeedStyle::Default);
+        assert_eq!(found.spans[1].style, FeedStyle::Barrier(kind));
+
+        let closed = render(FeedEvent::BarrierClosed {
+            kind,
+            kind_name: "treasure".to_owned(),
+        });
+        assert_eq!(text(&closed), "The treasure barriers closed");
+        assert_eq!(closed.spans[0].style, FeedStyle::Dim);
+        assert_eq!(closed.spans[1].style, FeedStyle::Barrier(kind));
+        assert_eq!(closed.spans[2].style, FeedStyle::Dim);
+    }
+
+    #[test]
+    fn console_chat_and_presence_lines_carry_their_styles() {
+        let name = || "Marc".to_owned();
+        let styled = |event: FeedEvent| {
+            let line = render(event);
+            (text(&line), line.spans[0].style)
+        };
+
+        assert_eq!(
+            styled(FeedEvent::AdminReply {
+                text: "/help".to_owned()
+            }),
+            ("/help".to_owned(), FeedStyle::Console)
+        );
+        assert_eq!(
+            styled(FeedEvent::AdminAction {
+                name: name(),
+                text: "weather set to rain".to_owned(),
+            }),
+            ("Marc: weather set to rain".to_owned(), FeedStyle::Console)
+        );
+        assert_eq!(
+            styled(FeedEvent::Chat {
+                name: name(),
+                text: "hi".to_owned(),
+            }),
+            ("Marc: hi".to_owned(), FeedStyle::Chat)
+        );
+        assert_eq!(
+            styled(FeedEvent::PlayerJoined { name: name() }),
+            ("Marc joined".to_owned(), FeedStyle::Dim)
+        );
+        assert_eq!(
+            styled(FeedEvent::PlayerLeft { name: name() }),
+            ("Marc left".to_owned(), FeedStyle::Dim)
+        );
+    }
 }
