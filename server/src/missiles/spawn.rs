@@ -4,12 +4,12 @@ use bevy::prelude::*;
 use rand::RngExt;
 
 use crate::{
-    actors::ActorMap,
+    actors::{ActorMap, ActorStateQuery},
     config::ServerGameplayConfig,
     map::OpenBarrierKinds,
     missiles::{MissileInfo, MissileMap, MissileVelocity, steering::sweep_clear},
-    network::{ActorStateQuery, PlayerStateQuery, broadcast_to_all},
-    players::{PlayerInfo, PlayerMap},
+    network::broadcast_to_all,
+    players::{PlayerInfo, PlayerMap, PlayerStateQuery},
 };
 use common::constants::MISSILE_SPAWN_OFFSET;
 use common::{

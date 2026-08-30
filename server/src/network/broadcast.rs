@@ -1,11 +1,10 @@
 use bevy::prelude::*;
 
-use super::incoming::{ActorStateQuery, PlayerStateQuery};
 use crate::{
-    actors::{ActorMap, PendingActorSpawns},
+    actors::{ActorMap, ActorStateQuery, PendingActorSpawns},
     items::ItemMap,
     network::ServerToClient,
-    players::PlayerMap,
+    players::{PlayerMap, PlayerStateQuery},
 };
 use common::{physics::CharacterVerticalVelocity, protocol::*};
 

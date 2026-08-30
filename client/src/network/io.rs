@@ -1,45 +1,23 @@
 use bevy::prelude::*;
 use std::time::Duration;
 
-use super::{
-    components::{AssetManagers, ClientAssets},
-    login::handle_pre_bootstrap_message,
-    messages::dispatch_message,
-};
+use super::routing::{ServerMessageContext, route_server_message};
 use crate::{
-    actors::ActorMap,
-    cameras::MainCameraMarker,
     constants::PING_INTERVAL,
-    items::ItemMap,
-    network::{
-        ClientToServer, ClientToServerChannel, LastSnapshotSeq, RoundTripTime, ServerToClient, ServerToClientChannel,
-    },
-    players::{MyPlayerId, PlayerMap},
+    network::{ClientToServer, ClientToServerChannel, RoundTripTime, ServerToClient, ServerToClientChannel},
 };
-use common::{physics::CollisionWorld, protocol::*};
+use common::protocol::*;
 
 // ============================================================================
 // Network Message Processing System
 // ============================================================================
 
 // Main system to process all incoming messages from the server.
-pub fn network_process_server_messages_system(
+pub(super) fn network_receive_system(
     mut commands: Commands,
     mut from_server: ResMut<ServerToClientChannel>,
     mut exit: MessageWriter<AppExit>,
-    mut players: ResMut<PlayerMap>,
-    mut actors: ResMut<ActorMap>,
-    mut items: ResMut<ItemMap>,
-    mut rtt: ResMut<RoundTripTime>,
-    mut last_snapshot_seq: ResMut<LastSnapshotSeq>,
-    mut assets: AssetManagers,
-    player_data: Query<(&Position, &PlayerMoveIntent, &FaceYaw), With<PlayerMarker>>,
-    actor_data: Query<(&Position, &ActorMoveIntent, &FaceYaw), With<ActorMarker>>,
-    cameras: Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
-    my_player_id: Option<Res<MyPlayerId>>,
-    collision_world: Option<Res<CollisionWorld>>,
-    time: Res<Time>,
-    mut client_assets: ClientAssets,
+    mut context: ServerMessageContext,
 ) {
     // Process all messages from the server
     while let Ok(msg) = from_server.try_recv() {
@@ -49,31 +27,7 @@ pub fn network_process_server_messages_system(
                 exit.write(AppExit::Success);
             }
             ServerToClient::Message(message) => {
-                if let Some(my_id) = my_player_id.as_ref() {
-                    dispatch_message(
-                        message,
-                        my_id.0,
-                        &mut commands,
-                        &mut players,
-                        &mut actors,
-                        &mut items,
-                        &mut rtt,
-                        &mut last_snapshot_seq,
-                        &mut assets,
-                        &player_data,
-                        &actor_data,
-                        &cameras,
-                        &time,
-                        collision_world.as_deref(),
-                        &mut client_assets,
-                    );
-                } else {
-                    // Pre-bootstrap: per-client state events still need to
-                    // be processed here (no snapshot fallback), and `SInit`
-                    // itself lands here on the login tick. See
-                    // `handle_pre_bootstrap_message` for the full rationale.
-                    handle_pre_bootstrap_message(message, &mut commands, &mut client_assets);
-                }
+                route_server_message(message, &mut commands, &mut context);
             }
         }
     }
@@ -84,7 +38,7 @@ pub fn network_process_server_messages_system(
 // ============================================================================
 
 // System to send ping requests every `PING_INTERVAL` seconds.
-pub fn network_ping_system(
+pub(super) fn network_ping_system(
     time: Res<Time>,
     mut rtt: ResMut<RoundTripTime>,
     to_server: Res<ClientToServerChannel>,
@@ -112,13 +66,13 @@ pub fn network_ping_system(
 }
 
 // Handle pong response from server to calculate RTT.
-pub fn handle_pong_message(time: &Time, rtt: &mut RoundTripTime, msg: SPong) {
+pub(super) fn apply_pong(time: &Time, rtt: &mut RoundTripTime, event: &SPong) {
     if rtt.pending_sent_at == Duration::ZERO {
         return;
     }
 
     let expected_nanos = rtt.pending_sent_at.as_nanos() as u64;
-    if msg.timestamp_nanos != expected_nanos {
+    if event.timestamp_nanos != expected_nanos {
         return;
     }
 

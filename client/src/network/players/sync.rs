@@ -17,7 +17,7 @@ use common::{
     protocol::{FaceYaw, Player, PlayerId, PlayerMarker, PlayerMoveIntent, Position, PowerUpKind},
 };
 
-pub struct PlayerSnapshotAssets<'a> {
+pub(in crate::network) struct PlayerSnapshotAssets<'a> {
     pub meshes: &'a mut Assets<Mesh>,
     pub materials: &'a mut Assets<StandardMaterial>,
     pub images: &'a mut Assets<Image>,
@@ -29,7 +29,7 @@ pub struct PlayerSnapshotAssets<'a> {
     pub max_health: &'a MaxHealth,
 }
 
-pub struct PlayerSnapshotState<'a> {
+pub(in crate::network) struct PlayerSnapshotState<'a> {
     pub players: &'a mut PlayerMap,
     pub rtt: &'a RoundTripTime,
     pub local_player_info: &'a mut LocalPlayerInfo,
@@ -38,7 +38,7 @@ pub struct PlayerSnapshotState<'a> {
     pub my_player_id: PlayerId,
 }
 
-pub fn sync_players(
+pub(in crate::network) fn sync_players(
     commands: &mut Commands,
     assets: &mut PlayerSnapshotAssets,
     state: &mut PlayerSnapshotState,

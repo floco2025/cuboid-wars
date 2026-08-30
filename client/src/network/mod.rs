@@ -1,21 +1,19 @@
 mod actors;
+mod bootstrap;
 mod components;
 mod io;
 mod items;
-mod login;
-mod messages;
 mod missiles;
 mod players;
+mod plugin;
+mod presentation;
 mod quests;
 mod resources;
+mod routing;
 mod snapshot;
 mod transport;
 
-pub use components::{AssetManagers, ServerReconciliation, worst_axis_divergence};
-pub use io::{network_ping_system, network_process_server_messages_system};
+pub use components::{ServerReconciliation, worst_axis_divergence};
+pub use plugin::network_plugin;
 pub use resources::{ClientToServerChannel, LastSnapshotSeq, RoundTripTime, ServerToClientChannel};
 pub use transport::{ClientToServer, ServerToClient, configure_client, network_io_task};
-
-mod plugin;
-
-pub use plugin::network_plugin;

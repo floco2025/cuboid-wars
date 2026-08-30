@@ -13,7 +13,7 @@ use common::protocol::*;
 // ============================================================================
 
 // Synchronize items from a snapshot — spawn/despawn.
-pub fn sync_items(
+pub(in crate::network) fn sync_items(
     commands: &mut Commands,
     item_assets: &ItemAssets,
     barrier_assets: &BarrierAssets,

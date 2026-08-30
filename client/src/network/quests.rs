@@ -1,43 +1,61 @@
+use bevy::{ecs::system::SystemParam, prelude::*};
 use common::protocol::*;
 
-use crate::ui::{BannerMessage, HudBanner, QuestEntry, QuestLog, QuestProgress};
+use crate::{
+    audio::play_sound,
+    config::AssetSet,
+    ui::{BannerMessage, HudBanner, QuestEntry, QuestLog, QuestProgress},
+};
 
-// Per-client quest state events. Both dispatchers route them here: they
-// install durable state with no snapshot fallback and don't need
-// `MyPlayerId`, so they are handled even before bootstrap. Anything else is
-// handed back.
-pub fn handle_quest_message(
-    quest_log: &mut QuestLog,
-    banner: &mut HudBanner,
-    msg: ServerMessage,
-) -> Option<ServerMessage> {
-    match msg {
-        ServerMessage::QuestsAssigned(msg) => handle_quests_assigned_message(quest_log, banner, msg),
-        ServerMessage::QuestProgress(msg) => quest_log.record_progress(msg.id, msg.progress),
-        ServerMessage::QuestCompleted(msg) => {
-            quest_log.record_completion(msg.id);
-            banner.push(BannerMessage::QuestCompleted(msg.completed_text));
-        }
-        other => return Some(other),
-    }
-    None
+#[derive(SystemParam)]
+pub(super) struct QuestMessageContext<'w> {
+    quest_log: ResMut<'w, QuestLog>,
+    banner: ResMut<'w, HudBanner>,
+    asset_server: Res<'w, AssetServer>,
+    asset_set: Res<'w, AssetSet>,
 }
 
-// ONE combined announcement for the batch — one band line, not N staggered
-// fades. Already-known ids announce nothing.
-fn handle_quests_assigned_message(quest_log: &mut QuestLog, banner: &mut HudBanner, msg: SQuestsAssigned) {
+pub(super) fn handle_quests_assigned_message(message: &SQuestsAssigned, context: &mut QuestMessageContext) {
+    apply_quests_assigned(&mut context.quest_log, &mut context.banner, message);
+}
+
+pub(super) fn handle_quest_progress_message(message: &SQuestProgress, context: &mut QuestMessageContext) {
+    context.quest_log.record_progress(message.id.clone(), message.progress);
+}
+
+pub(super) fn handle_quest_completed_message(
+    message: &SQuestCompleted,
+    commands: &mut Commands,
+    initialized: bool,
+    context: &mut QuestMessageContext,
+) {
+    context.quest_log.record_completion(message.id.clone());
+    context
+        .banner
+        .push(BannerMessage::QuestCompleted(message.completed_text.clone()));
+    if initialized {
+        play_sound(
+            commands,
+            &context.asset_server,
+            context.asset_set.player_sound("quest_completed"),
+        );
+    }
+}
+
+// Assignments from one server batch share one banner instead of fading separately.
+fn apply_quests_assigned(quest_log: &mut QuestLog, banner: &mut HudBanner, event: &SQuestsAssigned) {
     let mut lines = Vec::new();
-    for quest in msg.quests {
+    for quest in &event.quests {
         let entry = QuestEntry {
-            title: quest.title,
-            description: quest.description,
+            title: quest.title.clone(),
+            description: quest.description.clone(),
             threshold: quest.threshold,
-            progress: QuestProgress::from_initial(quest.status.progress),
+            progress: QuestProgress::from_initial(quest.status.progress.clone()),
             completed: quest.status.completed,
             order: quest.order,
         };
         let announcement = entry.announcement();
-        if quest_log.assign(quest.id, entry) {
+        if quest_log.assign(quest.id.clone(), entry) {
             lines.push(announcement);
         }
     }
@@ -73,37 +91,46 @@ mod tests {
         }
     }
 
-    fn assigned(quests: Vec<NewQuest>) -> ServerMessage {
-        ServerMessage::QuestsAssigned(SQuestsAssigned { quests })
+    fn assigned(quests: Vec<NewQuest>) -> SQuestsAssigned {
+        SQuestsAssigned { quests }
     }
 
-    fn progress(id: &str, progress: u32) -> ServerMessage {
-        ServerMessage::QuestProgress(SQuestProgress {
+    fn progress(id: &str, progress: u32) -> SQuestProgress {
+        SQuestProgress {
             id: QuestId(id.to_owned()),
             progress,
-        })
+        }
     }
 
-    fn completed(id: &str) -> ServerMessage {
-        ServerMessage::QuestCompleted(SQuestCompleted {
+    fn completed(id: &str) -> SQuestCompleted {
+        SQuestCompleted {
             id: QuestId(id.to_owned()),
             completed_text: format!("{id} done!"),
-        })
+        }
+    }
+
+    fn apply_progress(log: &mut QuestLog, event: &SQuestProgress) {
+        log.record_progress(event.id.clone(), event.progress);
+    }
+
+    fn apply_completion(log: &mut QuestLog, banner: &mut HudBanner, event: &SQuestCompleted) {
+        log.record_completion(event.id.clone());
+        banner.push(BannerMessage::QuestCompleted(event.completed_text.clone()));
     }
 
     #[test]
     fn assignment_announces_new_quests_once_as_one_line() {
         let mut log = QuestLog::default();
         let mut banner = HudBanner::default();
-        let msg = assigned(vec![
+        let event = assigned(vec![
             new_quest("gold", QuestScope::Individual, 0, 0),
             new_quest("hunt", QuestScope::Shared, 0, 1),
         ]);
 
-        assert!(handle_quest_message(&mut log, &mut banner, msg.clone()).is_none());
+        apply_quests_assigned(&mut log, &mut banner, &event);
         assert_eq!(banner.pending_texts(), ["GOLD: do gold\nHUNT: do hunt"]);
 
-        handle_quest_message(&mut log, &mut banner, msg);
+        apply_quests_assigned(&mut log, &mut banner, &event);
         assert_eq!(banner.pending_texts().len(), 1, "known ids announce nothing");
     }
 
@@ -112,21 +139,24 @@ mod tests {
         let mut log = QuestLog::default();
         let mut banner = HudBanner::default();
 
-        handle_quest_message(&mut log, &mut banner, progress("gold", 9));
-        handle_quest_message(&mut log, &mut banner, completed("hunt"));
+        apply_progress(&mut log, &progress("gold", 9));
+        apply_completion(&mut log, &mut banner, &completed("hunt"));
         assert_eq!(banner.pending_texts(), ["hunt done!"]);
 
-        handle_quest_message(
+        apply_quests_assigned(
             &mut log,
             &mut banner,
-            assigned(vec![
+            &assigned(vec![
                 new_quest("gold", QuestScope::Individual, 2, 0),
                 new_quest("hunt", QuestScope::Shared, 0, 1),
             ]),
         );
 
-        assert_eq!(log.entry("gold").expect("assigned").progress, QuestProgress::Own(9));
-        let hunt = log.entry("hunt").expect("assigned");
+        assert_eq!(
+            log.entry("gold").expect("gold quest missing").progress,
+            QuestProgress::Own(9)
+        );
+        let hunt = log.entry("hunt").expect("hunt quest missing");
         assert!(hunt.completed);
         assert_eq!(hunt.progress, QuestProgress::Shared(10));
     }
@@ -136,30 +166,19 @@ mod tests {
         let mut log = QuestLog::default();
         let mut banner = HudBanner::default();
 
-        handle_quest_message(
+        apply_quests_assigned(
             &mut log,
             &mut banner,
-            assigned(vec![new_quest("gold", QuestScope::Everyone, 3, 0)]),
+            &assigned(vec![new_quest("gold", QuestScope::Everyone, 3, 0)]),
         );
 
         assert_eq!(
-            log.entry("gold").expect("assigned").progress,
+            log.entry("gold").expect("gold quest missing").progress,
             QuestProgress::Everyone {
                 own: 3,
                 players_done: 0,
                 players_total: 0
             }
         );
-    }
-
-    #[test]
-    fn other_messages_are_handed_back() {
-        let mut log = QuestLog::default();
-        let mut banner = HudBanner::default();
-
-        let returned = handle_quest_message(&mut log, &mut banner, ServerMessage::Firework(SFirework { seed: 7 }));
-
-        assert!(matches!(returned, Some(ServerMessage::Firework(SFirework { seed: 7 }))));
-        assert!(banner.pending_texts().is_empty());
     }
 }

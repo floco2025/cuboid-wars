@@ -2,8 +2,8 @@ use bevy::prelude::*;
 
 use crate::{
     map::OpenBarrierKinds,
-    network::{PlayerStateQuery, broadcast_to_others},
-    players::PlayerMap,
+    network::broadcast_to_others,
+    players::{PlayerMap, PlayerStateQuery},
 };
 use common::{
     config::GameplayConfig,
@@ -16,7 +16,7 @@ pub fn handle_shot_message(
     commands: &mut Commands,
     entity: Entity,
     id: PlayerId,
-    msg: CShot,
+    msg: &CShot,
     players: &mut PlayerMap,
     time: &Res<Time>,
     player_data: &PlayerStateQuery,

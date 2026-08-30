@@ -14,7 +14,7 @@ use common::{
     protocol::{Actor, ActorId, ActorMarker, ActorMoveIntent, ActorMovementState, FaceYaw, Position, SpawningActor},
 };
 
-pub fn sync_actors(
+pub(in crate::network) fn sync_actors(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
@@ -87,7 +87,7 @@ pub fn sync_actors(
 // a new id grows a beam-in ghost, a vanished id tears it down. The real
 // actor arrives in the same snapshot its ghost entry disappears from, so the
 // handoff is seamless.
-pub fn sync_spawning_actors(
+pub(in crate::network) fn sync_spawning_actors(
     commands: &mut Commands,
     ghosts: &mut ActorGhostMap,
     asset_server: &AssetServer,

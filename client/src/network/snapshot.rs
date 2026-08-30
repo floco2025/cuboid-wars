@@ -1,50 +1,84 @@
-use bevy::prelude::*;
-use common::protocol::*;
+use bevy::{ecs::system::SystemParam, prelude::*};
+use common::{config::GameplayConfig, protocol::*};
 
 use super::{
     actors::{sync_actors, sync_spawning_actors},
-    components::{AssetManagers, ClientAssets},
     items::sync_items,
     missiles::sync_missiles,
     players::{PlayerSnapshotAssets, PlayerSnapshotState, sync_players},
 };
 use crate::{
-    actors::ActorMap,
+    actors::{ActorGhostMap, ActorMap},
+    barriers::{BarrierAssets, LockedPlatePurposes, OpenBarrierKinds},
     cameras::MainCameraMarker,
-    items::ItemMap,
+    characters::MaxHealth,
+    config::{AssetSet, ClientSettings},
+    items::{ItemAssets, ItemMap},
+    map::skybox::LightingState,
+    missiles::{MissileAssets, MissileMap},
     network::{LastSnapshotSeq, RoundTripTime},
-    players::PlayerMap,
+    players::{LocalPlayerInfo, PlayerMap},
+    ui::{HudBanner, QuestLog},
+    vfx::RainIntensity,
 };
 
-pub struct SnapshotState<'a> {
-    pub players: &'a mut PlayerMap,
-    pub actors: &'a mut ActorMap,
-    pub items: &'a mut ItemMap,
-    pub rtt: &'a RoundTripTime,
-    pub last_snapshot_seq: &'a mut LastSnapshotSeq,
-    pub my_player_id: PlayerId,
+#[derive(SystemParam)]
+pub(super) struct SnapshotAssets<'w> {
+    meshes: ResMut<'w, Assets<Mesh>>,
+    materials: ResMut<'w, Assets<StandardMaterial>>,
+    images: ResMut<'w, Assets<Image>>,
+    graphs: ResMut<'w, Assets<AnimationGraph>>,
+    asset_server: Res<'w, AssetServer>,
+    asset_set: Res<'w, AssetSet>,
+    client_settings: Res<'w, ClientSettings>,
+    gameplay_config: Res<'w, GameplayConfig>,
+    max_health: Res<'w, MaxHealth>,
+    item_assets: Res<'w, ItemAssets>,
+    barrier_assets: Res<'w, BarrierAssets>,
+    missile_assets: Res<'w, MissileAssets>,
 }
 
-// Handle bulk state synchronization from the `SSnapshot` message.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "queries and system-param bundles stay at this boundary"
-)]
+#[derive(SystemParam)]
+pub(super) struct SnapshotWorldState<'w, 's> {
+    players: ResMut<'w, PlayerMap>,
+    actors: ResMut<'w, ActorMap>,
+    items: ResMut<'w, ItemMap>,
+    last_snapshot_seq: ResMut<'w, LastSnapshotSeq>,
+    local_player_info: ResMut<'w, LocalPlayerInfo>,
+    quest_log: ResMut<'w, QuestLog>,
+    banner: ResMut<'w, HudBanner>,
+    actor_ghosts: ResMut<'w, ActorGhostMap>,
+    missiles: ResMut<'w, MissileMap>,
+    missile_data: Query<'w, 's, &'static Position, With<MissileMarker>>,
+    open_barrier_kinds: ResMut<'w, OpenBarrierKinds>,
+    locked_plate_purposes: ResMut<'w, LockedPlatePurposes>,
+    rain_intensity: ResMut<'w, RainIntensity>,
+    lighting: ResMut<'w, LightingState>,
+}
+
+#[derive(SystemParam)]
+pub(super) struct SnapshotMessageContext<'w, 's> {
+    assets: SnapshotAssets<'w>,
+    world: SnapshotWorldState<'w, 's>,
+    player_data: Query<'w, 's, (&'static Position, &'static PlayerMoveIntent, &'static FaceYaw), With<PlayerMarker>>,
+    actor_data: Query<'w, 's, (&'static Position, &'static ActorMoveIntent, &'static FaceYaw), With<ActorMarker>>,
+    cameras: Query<'w, 's, Entity, (With<Camera3d>, With<MainCameraMarker>)>,
+}
+
 pub(super) fn handle_snapshot_message(
+    message: &SSnapshot,
     commands: &mut Commands,
-    assets: &mut AssetManagers,
-    state: &mut SnapshotState,
-    player_data: &Query<(&Position, &PlayerMoveIntent, &FaceYaw), With<PlayerMarker>>,
-    actor_data: &Query<(&Position, &ActorMoveIntent, &FaceYaw), With<ActorMarker>>,
-    cameras: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
-    client_assets: &mut ClientAssets,
-    msg: SSnapshot,
+    my_player_id: PlayerId,
+    rtt: &RoundTripTime,
+    context: &mut SnapshotMessageContext,
 ) {
-    if !state.last_snapshot_seq.should_accept(msg.seq) {
+    let assets = &mut context.assets;
+    let world = &mut context.world;
+    if !world.last_snapshot_seq.should_accept(message.seq) {
         warn!(
             "Ignoring outdated SSnapshot (seq: {}, last: {})",
-            msg.seq,
-            state
+            message.seq,
+            world
                 .last_snapshot_seq
                 .last_raw()
                 .map_or_else(|| "none".to_string(), |seq| seq.to_string())
@@ -52,93 +86,89 @@ pub(super) fn handle_snapshot_message(
         return;
     }
 
-    state.last_snapshot_seq.record(msg.seq);
+    world.last_snapshot_seq.record(message.seq);
 
     let mut player_assets = PlayerSnapshotAssets {
         meshes: &mut assets.meshes,
         materials: &mut assets.materials,
         images: &mut assets.images,
         graphs: &mut assets.graphs,
-        asset_server: &client_assets.handles.asset_server,
-        asset_set: &client_assets.handles.asset_set,
-        client_settings: &client_assets.handles.client_settings,
-        gameplay_config: &client_assets.handles.gameplay_config,
-        max_health: &client_assets.handles.max_health,
+        asset_server: &assets.asset_server,
+        asset_set: &assets.asset_set,
+        client_settings: &assets.client_settings,
+        gameplay_config: &assets.gameplay_config,
+        max_health: &assets.max_health,
     };
-    // Before `PlayerSnapshotState` borrows the log for the respawn reminder;
-    // skipped when empty so an untouched log isn't marked changed.
-    if !msg.quests.is_empty() {
-        client_assets.hud.quest_log.apply_group_status(&msg.quests);
+    // Avoid marking an untouched quest log as changed on every snapshot.
+    if !message.quests.is_empty() {
+        world.quest_log.apply_group_status(&message.quests);
     }
 
     let mut player_state = PlayerSnapshotState {
-        players: state.players,
-        rtt: state.rtt,
-        local_player_info: &mut client_assets.hud.local_player_info,
-        quest_log: &client_assets.hud.quest_log,
-        banner: &mut client_assets.hud.banner,
-        my_player_id: state.my_player_id,
+        players: &mut world.players,
+        rtt,
+        local_player_info: &mut world.local_player_info,
+        quest_log: &world.quest_log,
+        banner: &mut world.banner,
+        my_player_id,
     };
     sync_players(
         commands,
         &mut player_assets,
         &mut player_state,
-        player_data,
-        cameras,
-        &msg.players,
+        &context.player_data,
+        &context.cameras,
+        &message.players,
     );
     sync_actors(
         commands,
         &mut assets.meshes,
         &mut assets.materials,
         &mut assets.graphs,
-        state.actors,
-        state.rtt,
-        actor_data,
-        &client_assets.handles.asset_server,
-        &client_assets.handles.asset_set,
-        &client_assets.handles.client_settings,
-        &client_assets.handles.gameplay_config,
-        &client_assets.handles.max_health,
-        &msg.actors,
+        &mut world.actors,
+        rtt,
+        &context.actor_data,
+        &assets.asset_server,
+        &assets.asset_set,
+        &assets.client_settings,
+        &assets.gameplay_config,
+        &assets.max_health,
+        &message.actors,
     );
     sync_spawning_actors(
         commands,
-        &mut client_assets.world_sync.actor_ghosts,
-        &client_assets.handles.asset_server,
-        &client_assets.handles.asset_set,
-        &client_assets.handles.gameplay_config,
-        &msg.spawning_actors,
+        &mut world.actor_ghosts,
+        &assets.asset_server,
+        &assets.asset_set,
+        &assets.gameplay_config,
+        &message.spawning_actors,
     );
     sync_items(
         commands,
-        &client_assets.handles.item_assets,
-        &client_assets.handles.barrier_assets,
-        &client_assets.handles.missile_assets,
-        state.items,
-        &msg.items,
+        &assets.item_assets,
+        &assets.barrier_assets,
+        &assets.missile_assets,
+        &mut world.items,
+        &message.items,
     );
     sync_missiles(
         commands,
-        &client_assets.handles.missile_assets,
-        &mut client_assets.world_sync.missile_map,
-        state.rtt,
-        &client_assets.world_sync.missile_data,
-        &msg.missiles,
+        &assets.missile_assets,
+        &mut world.missiles,
+        rtt,
+        &world.missile_data,
+        &message.missiles,
     );
 
-    // Snapshot is the system of record for open-by-plate kinds. Server sends
-    // these sorted by id so direct Vec equality is stable across ticks.
-    if msg.open_barrier_kinds != client_assets.world_sync.open_barrier_kinds.0 {
-        client_assets.world_sync.open_barrier_kinds.0 = msg.open_barrier_kinds.clone();
+    // The server sorts these vectors, so equality is stable across snapshots.
+    if message.open_barrier_kinds != world.open_barrier_kinds.0 {
+        world.open_barrier_kinds.0.clone_from(&message.open_barrier_kinds);
     }
-    if client_assets.world_sync.locked_plate_purposes.0 != msg.locked_plate_purposes {
-        client_assets.world_sync.locked_plate_purposes.0 = msg.locked_plate_purposes.clone();
+    if world.locked_plate_purposes.0 != message.locked_plate_purposes {
+        world.locked_plate_purposes.0.clone_from(&message.locked_plate_purposes);
     }
 
-    // Weather and lighting targets; `rain_smoothing_system` and
-    // `lighting_blend_system` ease the rendered values.
-    client_assets.world_sync.rain_intensity.target = msg.rain_intensity;
-    client_assets.world_sync.lighting.target = msg.lighting;
-    client_assets.world_sync.lighting.synced = true;
+    world.rain_intensity.target = message.rain_intensity;
+    world.lighting.target.clone_from(&message.lighting);
+    world.lighting.synced = true;
 }

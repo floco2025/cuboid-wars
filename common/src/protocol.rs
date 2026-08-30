@@ -76,8 +76,11 @@
 //    source of state.
 //
 // `CPing` / `SPong` are a separate diagnostic channel for RTT measurement.
+//
+// The server supplies the authenticated `PlayerId` from its transport; keeping
+// that ID out of the wire payload prevents clients from choosing their own
+// identity.
 
-use bevy_ecs::prelude::*;
 use bincode::{Decode, Encode};
 
 pub use crate::types::*;
@@ -558,7 +561,7 @@ pub enum ClientMessage {
 // Note: bincode encodes the discriminant by position, so reordering touches
 // the wire format — fine for an in-dev workspace where server and client
 // always build from the same source.
-#[derive(Debug, Clone, Message, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode)]
 pub enum ServerMessage {
     // Bootstrap
     Init(SInit),

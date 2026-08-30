@@ -12,7 +12,7 @@ use common::protocol::{Missile, MissileId, MissileMarker, MissileMovementState, 
 // snapshot has and we don't, silently despawn ids it dropped (the
 // `SMissileDeath` cue owns the detonation VFX), then apply the carried
 // movement as a reconciliation target.
-pub fn sync_missiles(
+pub(in crate::network) fn sync_missiles(
     commands: &mut Commands,
     missile_assets: &MissileAssets,
     missiles: &mut MissileMap,

@@ -1,13 +1,12 @@
 use bevy::{ecs::system::SystemParam, prelude::*};
 
-use super::incoming::PlayerStateQuery;
 use crate::{
     actors::{ActorMap, ActorSpawnThrottles, PendingActorSpawns, expire_actor_spawn_cooldowns},
     combat::{DeathSource, PendingExplosions, kill_player},
     config::ServerGameplayConfig,
     map::{LightState, WeatherState, light_preset_from_str},
     network::{FeedAudience, FeedEvent, ServerToClient, broadcast_firework_show, emit_feed},
-    players::{Invincibility, PlayerInfo, PlayerMap, UnlimitedMissiles},
+    players::{Invincibility, PlayerInfo, PlayerMap, PlayerStateQuery, UnlimitedMissiles},
     quests::{QuestBoard, QuestCatalog, complete_quest, unlock_quest},
 };
 use common::{

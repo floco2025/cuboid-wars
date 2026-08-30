@@ -1,22 +1,7 @@
-use bevy::{ecs::system::SystemParam, prelude::*};
-use common::{
-    config::GameplayConfig,
-    protocol::{BarrierKindTable, MapLayout, MissileMarker, Position},
-};
+use bevy::prelude::*;
+use common::protocol::Position;
 
-use crate::{
-    actors::ActorGhostMap,
-    barriers::BarrierAssets,
-    characters::MaxHealth,
-    config::{AssetSet, ClientSettings},
-    items::ItemAssets,
-    missiles::MissileAssets,
-    network::resources::RoundTripTime,
-    players::LocalPlayerInfo,
-    projectiles::ProjectileAssets,
-    ui::{HudBanner, MessageFeed, QuestLog},
-    vfx::{BlastRadii, ExplosionAssets, ExplosionVfxBudget},
-};
+use crate::network::resources::RoundTripTime;
 
 // ============================================================================
 // Components
@@ -113,68 +98,4 @@ mod tests {
         assert_eq!(worst_axis_divergence(Vec3::splat(2.0)), ("x", 2.0));
         assert_eq!(worst_axis_divergence(Vec3::new(0.0, 2.0, 2.0)), ("y", 2.0));
     }
-}
-
-#[derive(SystemParam)]
-pub struct AssetManagers<'w> {
-    pub meshes: ResMut<'w, Assets<Mesh>>,
-    pub materials: ResMut<'w, Assets<StandardMaterial>>,
-    pub images: ResMut<'w, Assets<Image>>,
-    pub graphs: ResMut<'w, Assets<AnimationGraph>>,
-}
-
-// ============================================================================
-// System Parameters
-// ============================================================================
-
-// Read-only asset handles and config the message handlers draw from.
-#[derive(SystemParam)]
-pub struct ClientAssetHandles<'w> {
-    pub asset_server: Res<'w, AssetServer>,
-    pub asset_set: Res<'w, AssetSet>,
-    pub client_settings: Res<'w, ClientSettings>,
-    pub projectile_assets: Res<'w, ProjectileAssets>,
-    pub explosion_assets: Res<'w, ExplosionAssets>,
-    pub blast_radii: Res<'w, BlastRadii>,
-    pub max_health: Res<'w, MaxHealth>,
-    pub item_assets: Res<'w, ItemAssets>,
-    pub barrier_assets: Res<'w, BarrierAssets>,
-    pub missile_assets: Res<'w, MissileAssets>,
-    pub gameplay_config: Res<'w, GameplayConfig>,
-    pub barrier_kind_table: Res<'w, BarrierKindTable>,
-}
-
-// Mutable HUD-facing state the handlers write (feeds, banners, quest log,
-// the local player's own flags).
-#[derive(SystemParam)]
-pub struct HudState<'w> {
-    pub local_player_info: ResMut<'w, LocalPlayerInfo>,
-    pub feed: ResMut<'w, MessageFeed>,
-    pub quest_log: ResMut<'w, QuestLog>,
-    pub banner: ResMut<'w, HudBanner>,
-}
-
-// Mutable world-replication state driven by snapshots and cues.
-#[derive(SystemParam)]
-pub struct WorldSyncState<'w, 's> {
-    pub explosion_vfx_budget: ResMut<'w, ExplosionVfxBudget>,
-    pub map_layout: Option<Res<'w, MapLayout>>,
-    pub open_barrier_kinds: ResMut<'w, crate::barriers::OpenBarrierKinds>,
-    pub locked_plate_purposes: ResMut<'w, crate::barriers::LockedPlatePurposes>,
-    pub rain_intensity: ResMut<'w, crate::vfx::RainIntensity>,
-    pub lighting: ResMut<'w, crate::map::skybox::LightingState>,
-    pub actor_ghosts: ResMut<'w, ActorGhostMap>,
-    pub missile_map: ResMut<'w, crate::missiles::MissileMap>,
-    pub missile_data: Query<'w, 's, &'static Position, With<MissileMarker>>,
-    pub firework_show: ResMut<'w, crate::vfx::FireworkShow>,
-}
-
-// The one bundle threaded through message dispatch. Nested role bundles keep
-// the enclosing system under Bevy's parameter limit while call sites say
-// which role they touch.
-#[derive(SystemParam)]
-pub struct ClientAssets<'w, 's> {
-    pub handles: ClientAssetHandles<'w>,
-    pub hud: HudState<'w>,
-    pub world_sync: WorldSyncState<'w, 's>,
 }

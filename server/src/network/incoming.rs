@@ -1,181 +1,59 @@
-use bevy::{ecs::system::SystemParam, prelude::*};
+use bevy::prelude::*;
 
 use crate::{
-    actors::{ActorMap, PendingActorSpawns},
-    config::ServerGameplayConfig,
-    items::ItemMap,
-    map::MapConfig,
-    map::OpenBarrierKinds,
-    missiles::MissileMap,
     network::{ClientToServer, FeedAudience, FeedEvent, FromClientsChannel, emit_feed},
-    players::{PlayerInfo, PlayerMap},
-    quests::{QuestBoard, QuestCatalog, recheck_everyone_quests},
+    players::PlayerInfo,
+    quests::recheck_everyone_quests,
 };
+use common::protocol::PlayerMarker;
 
-use super::admin::AdminContext;
-use common::{
-    config::GameplayConfig,
-    map::MapGeometry,
-    physics::{CharacterVerticalVelocity, CollisionWorld},
-    protocol::{ActorMarker, ItemMarker, MapLayout, PlayerMarker, *},
-};
+use super::routing::{ClientMessageContext, route_client_message};
 
-use super::{login::handle_login_message, messages::dispatch_message};
-
-// The full player/actor per-entity state queries, spelled once. Signature
-// noise elsewhere threads these constantly; keep new consumers on the alias.
-pub type PlayerStateQuery<'w, 's> = Query<
-    'w,
-    's,
-    (
-        &'static Position,
-        &'static PlayerMoveIntent,
-        &'static FaceYaw,
-        &'static Health,
-    ),
-    With<PlayerMarker>,
->;
-
-pub type ActorStateQuery<'w, 's> = Query<
-    'w,
-    's,
-    (
-        &'static Position,
-        &'static ActorMoveIntent,
-        &'static FaceYaw,
-        &'static Health,
-    ),
-    With<ActorMarker>,
->;
-
-// Bundled world/config resources shared by login and message dispatch —
-// keeps `network_process_client_messages_system` under Bevy's 16-parameter
-// system tuple limit, and turns "a handler needs one more resource" into a
-// one-field change instead of a three-layer signature edit.
-#[derive(SystemParam)]
-pub struct SharedWorld<'w> {
-    pub map_layout: Res<'w, MapLayout>,
-    pub map_settings: Res<'w, MapSettings>,
-    pub map_geometry: Res<'w, MapGeometry>,
-    pub collision_world: Res<'w, CollisionWorld>,
-    pub gameplay_config: Res<'w, GameplayConfig>,
-    pub map_config: Res<'w, MapConfig>,
-    pub server_gameplay_config: Res<'w, ServerGameplayConfig>,
-}
-
-// The character state/motion queries every message handler reads.
-#[derive(SystemParam)]
-pub struct CharacterQueries<'w, 's> {
-    pub player_data: PlayerStateQuery<'w, 's>,
-    pub player_motions: Query<'w, 's, &'static CharacterVerticalVelocity, With<PlayerMarker>>,
-    pub actor_data: ActorStateQuery<'w, 's>,
-    pub actor_motions: Query<'w, 's, &'static CharacterVerticalVelocity, With<ActorMarker>>,
-}
-
-// Process incoming messages from clients. Registrations and messages share
-// one channel (see `transport.rs`), so a player's `Registration` — and its
-// entity spawn here — is always observed before any of their messages.
-pub fn network_process_client_messages_system(
+// Registrations, messages, and disconnects share one channel so processing
+// them directly in this loop preserves each connection's transport order.
+pub(super) fn network_receive_system(
     mut commands: Commands,
     mut from_clients: ResMut<FromClientsChannel>,
-    mut players: ResMut<PlayerMap>,
-    time: Res<Time>,
-    world: SharedWorld,
-    queries: CharacterQueries,
-    items: Res<ItemMap>,
-    actors: Res<ActorMap>,
-    item_data: Query<&Position, With<ItemMarker>>,
-    open_barrier_kinds: Res<OpenBarrierKinds>,
-    mut missiles: ResMut<MissileMap>,
-    mut pending_actor_spawns: ResMut<PendingActorSpawns>,
-    mut admin: AdminContext,
-    mut quest_board: ResMut<QuestBoard>,
-    quest_catalog: Res<QuestCatalog>,
+    mut context: ClientMessageContext,
 ) {
-    while let Ok((id, event)) = from_clients.try_recv() {
-        if let ClientToServer::Registration { to_client } = event {
-            debug!("player#{} registered", id.0);
-            let entity = commands.spawn((PlayerMarker, id)).id();
-            players.insert(id, PlayerInfo::new(entity, to_client));
-            continue;
-        }
-
-        let Some(player_info) = players.get(&id) else {
-            error!("received event for unknown player#{}", id.0);
-            continue;
-        };
-
-        match event {
-            ClientToServer::Registration { .. } => unreachable!("handled above"),
+    while let Ok((id, incoming)) = from_clients.try_recv() {
+        match incoming {
+            ClientToServer::Registration { to_client } => {
+                debug!("player#{} registered", id.0);
+                let entity = commands.spawn((PlayerMarker, id)).id();
+                context.players.insert(id, PlayerInfo::new(entity, to_client));
+            }
+            ClientToServer::Message(message) => {
+                route_client_message(&mut commands, id, message, &mut context);
+            }
             ClientToServer::Disconnected => {
-                let who = players.describe(&id);
-                let name = players.display_name(&id);
-                let was_logged_in = player_info.connection.logged_in;
-                let entity = player_info.entity();
-                players.remove(&id);
+                let Some(player) = context.players.get(&id) else {
+                    error!("received disconnect for unknown player#{}", id.0);
+                    continue;
+                };
+
+                let who = context.players.describe(&id);
+                let name = context.players.display_name(&id);
+                let was_logged_in = player.connection.logged_in;
+                let entity = player.entity();
+                context.players.remove(&id);
                 if let Some(entity) = entity {
                     commands.entity(entity).despawn();
                 }
 
                 debug!("{} disconnected (logged_in: {})", who, was_logged_in);
-                // Presence is snapshot-only — other clients notice the
-                // absence on the next `SSnapshot`; the feed line is cosmetic.
                 if was_logged_in {
                     emit_feed(
-                        &players,
-                        &world.server_gameplay_config.feed,
+                        &context.players,
+                        &context.world.server_gameplay_config.feed,
                         FeedAudience::Everyone,
                         FeedEvent::PlayerLeft { name },
                     );
-                    // After the leave line: the leaver may have been the last
-                    // holdout of an `everyone` quest.
                     recheck_everyone_quests(
-                        &mut players,
-                        &mut quest_board,
-                        &quest_catalog,
-                        &world.server_gameplay_config.feed,
-                    );
-                }
-            }
-            ClientToServer::Message(message) => {
-                let is_logged_in = player_info.connection.logged_in;
-                if is_logged_in {
-                    dispatch_message(
-                        &mut commands,
-                        id,
-                        message,
-                        &mut players,
-                        &mut missiles,
-                        &time,
-                        &world,
-                        &queries,
-                        &actors,
-                        &open_barrier_kinds,
-                        &mut pending_actor_spawns,
-                        &mut admin,
-                        &mut quest_board,
-                    );
-                } else {
-                    let Some(entity) = player_info.entity() else {
-                        error!("player#{} reached login without an entity", id.0);
-                        continue;
-                    };
-                    handle_login_message(
-                        &mut commands,
-                        entity,
-                        id,
-                        message,
-                        &mut players,
-                        &world,
-                        &quest_catalog,
-                        &quest_board,
-                        &items,
-                        &actors,
-                        &pending_actor_spawns,
-                        &queries,
-                        &item_data,
-                        admin.weather.intensity(),
-                        admin.light.blend(),
+                        &mut context.players,
+                        &mut context.quest_board,
+                        &context.quest_catalog,
+                        &context.world.server_gameplay_config.feed,
                     );
                 }
             }

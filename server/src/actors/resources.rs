@@ -4,11 +4,23 @@ use bevy::prelude::*;
 
 use common::{
     physics::CharacterSupport,
-    protocol::{ActorId, PlayerId, Position},
+    protocol::{ActorId, ActorMarker, ActorMoveIntent, FaceYaw, Health, PlayerId, Position},
 };
 
 use super::navigation::{NavNode, PlannedRoute};
 use crate::watchdog::ProgressWatchdog;
+
+pub type ActorStateQuery<'w, 's> = Query<
+    'w,
+    's,
+    (
+        &'static Position,
+        &'static ActorMoveIntent,
+        &'static FaceYaw,
+        &'static Health,
+    ),
+    With<ActorMarker>,
+>;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub(crate) enum ActorMode {

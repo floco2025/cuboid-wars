@@ -5,11 +5,23 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{config::PowerUpsConfig, network::ServerToClient};
 use common::protocol::{
-    BarrierKindId, Health, ItemType, Player, PlayerId, PlayerMoveIntent, PlayerMovementState, Position, PowerUpKind,
-    QuestId, QuestScope, SPlayerStatus,
+    BarrierKindId, FaceYaw, Health, ItemType, Player, PlayerId, PlayerMarker, PlayerMoveIntent, PlayerMovementState,
+    Position, PowerUpKind, QuestId, QuestScope, SPlayerStatus,
 };
 
 use super::PlayerFallState;
+
+pub type PlayerStateQuery<'w, 's> = Query<
+    'w,
+    's,
+    (
+        &'static Position,
+        &'static PlayerMoveIntent,
+        &'static FaceYaw,
+        &'static Health,
+    ),
+    With<PlayerMarker>,
+>;
 
 // Global debug invincibility. Seeded at startup from the config /
 // `--invincible` flag; the `/god` admin command owns it at runtime — which

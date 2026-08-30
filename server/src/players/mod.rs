@@ -9,7 +9,7 @@ pub use plugin::players_plugin;
 
 pub use resources::{
     Invincibility, PlayerConnection, PlayerInfo, PlayerLife, PlayerMap, PlayerQuestState, PlayerSession,
-    UnlimitedMissiles,
+    PlayerStateQuery, UnlimitedMissiles,
 };
 pub use respawn::players_respawn_system;
 pub use status::{players_status_timers_system, players_unlimited_missiles_system};

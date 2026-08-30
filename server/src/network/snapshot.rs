@@ -1,10 +1,10 @@
 use bevy::{ecs::system::SystemParam, prelude::*};
 
 use crate::{
-    actors::{ActorMap, PendingActorSpawns},
+    actors::{ActorMap, ActorStateQuery, PendingActorSpawns},
     items::ItemMap,
     map::{LightState, OpenBarrierKinds, WeatherState},
-    players::PlayerMap,
+    players::{PlayerMap, PlayerStateQuery},
     quests::{QuestBoard, QuestCatalog},
 };
 use common::{
@@ -12,8 +12,6 @@ use common::{
     physics::CharacterVerticalVelocity,
     protocol::{ActorMarker, ItemMarker, PlayerMarker, *},
 };
-
-use super::incoming::{ActorStateQuery, PlayerStateQuery};
 
 use super::broadcast::{
     broadcast_to_all, collect_items, snapshot_actors, snapshot_logged_in_players, snapshot_missiles,
@@ -30,7 +28,7 @@ pub struct WorldConditions<'w> {
     quest_catalog: Res<'w, QuestCatalog>,
 }
 
-pub fn network_broadcast_snapshot_system(
+pub(super) fn network_broadcast_snapshot_system(
     time: Res<Time>,
     mut timer: Local<f32>,
     mut seq: Local<u32>,
