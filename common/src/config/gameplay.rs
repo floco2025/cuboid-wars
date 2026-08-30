@@ -160,7 +160,8 @@ const MULTI_SHOT_MAX_SHOTS: usize = 9;
 // `spread_degrees × row_scale` apart in pitch — so one number sizes every
 // pattern, and the scales only reshape the grid. `x` fires, `.` does not;
 // `o` fires from the aim itself and `+` is the aim without a shot — with
-// neither, the aim is the grid's centre.
+// neither, the aim is the grid's centre. A pattern name ending in `_<n>`
+// must fire exactly n shots.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(try_from = "MultiShotSource")]
 pub struct MultiShotConfig {
